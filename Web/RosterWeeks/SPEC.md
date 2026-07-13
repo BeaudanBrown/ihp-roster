@@ -104,6 +104,14 @@ lands.
   and existing-shift staff targets use the same disposable green affordance with
   a strong border and shaded interior. Dropping a shift on the roster toolbar
   opens the existing delete confirmation dialog instead of deleting immediately.
+- Saving staff profile details or shift preferences from the roster modal emits
+  typed staff resources plus active roster-week resources for both previous and
+  newly selected roster groups. The acting roster invalidates both
+  `RosterContent` and `RosterStaffPanel`, so assigned-shift labels and the staff
+  list refetch from authoritative fragment endpoints. Venue admins can change a
+  linked staff member's venue access role in Profile Details; unlinked trial
+  profiles explain that an account link is required before a venue role can be
+  assigned.
 - The single-day timeline remains a URL-scoped view mode of the normal roster
   week page (`rosterView=timeline&dayOffset=<0-6>`), but visible roster entry
   links are hidden for the release candidate. When accessed directly, the roster

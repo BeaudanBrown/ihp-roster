@@ -352,7 +352,11 @@ transport runtime, and actor-only response helpers:
 - `Application.Helper.LiveUpdate.Runtime` owns the transport bus and raw
   websocket invalidation primitives
 - controllers use `setActorLiveResourcesRefresh` for successful mutations;
-  `setActorLocalFragmentsRefresh` is limited to requester-local, non-resource workflows
+  cross-surface mutations pass every affected mounted fragment candidate (for
+  example, staff profile changes invalidate both roster content and the roster
+  staff panel), allowing the resource planner to select and normalize the actor
+  refetches
+- `setActorLocalFragmentsRefresh` is limited to requester-local, non-resource workflows
 - background jobs should call the touched-resource invalidation boundary, such
   as `invalidateTouchedResourcesWithoutContext`, when passive viewers need updates
 - controllers and mutation modules must not bypass touched resources with

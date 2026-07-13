@@ -3,6 +3,7 @@ module Web.Staff.Mutations
     , resendTrialStaffInvitationMutation
     , createTrialStaffMember
     , staffCreateTouchedResources
+    , staffRosterGroupResources
     , staffUpdateTouchedResources
     , staffXeroPayItemScopeChanged
     , updateStaffMember
@@ -11,7 +12,8 @@ module Web.Staff.Mutations
 import Application.Helper.Audit (updateVenueMembershipRoleWithAudit)
 import Application.Helper.LiveUpdate.Runtime
 import Application.Helper.Pay (ensureStaffPayVersionForStaff)
-import Application.Helper.RosterGroups (syncStaffRosterGroupAssignments)
+import Application.Helper.RosterGroups (fetchStaffRosterGroupIds,
+                                        syncStaffRosterGroupAssignments)
 import Application.Helper.Staff (isAdoptableTrialStaff)
 import Application.Helper.StaffShiftPreferences (ShiftPreferenceSelection,
                                                  replaceStaffShiftPreferences)
@@ -91,7 +93,7 @@ createTrialStaffMember staff selectedRosterGroupIds = do
         syncStaffRosterGroupAssignments createdStaff selectedRosterGroupIds
         pure createdStaff
     activeRosterScopes <- activeRosterWeekScopes
-    invalidateTouchedResources "staff.create_trial" (liveMutationResult createdStaff (staffCreateTouchedResources createdStaff <> staffRosterGroupResources activeRosterScopes selectedRosterGroupIds))
+    invalidateTouchedResources "staff.create_trial" (liveMutationResult createdStaff (staffCreateTouchedResources createdStaff <> staffRosterGroupResources (unpackId currentVenueId) activeRosterScopes selectedRosterGroupIds))
 
 staffCreateTouchedResources :: Staff -> [SurfaceResourceValue]
 staffCreateTouchedResources staff =
@@ -101,6 +103,7 @@ staffCreateTouchedResources staff =
 
 updateStaffMember :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Staff -> Staff -> [Id RosterGroup] -> [ShiftPreferenceSelection] -> Maybe VenueMembership -> Maybe VenueRoleEnum -> IO (LiveMutationResult Staff)
 updateStaffMember originalStaff staff selectedRosterGroupIds submittedSelections maybeMembership maybeVenueRole = do
+    previousRosterGroupIds <- fetchStaffRosterGroupIds originalStaff
     updatedStaff <- withTransaction do
         updatedStaff <- staff |> updateRecord
         syncStaffRosterGroupAssignments updatedStaff selectedRosterGroupIds
@@ -118,7 +121,8 @@ updateStaffMember originalStaff staff selectedRosterGroupIds submittedSelections
             (Aeson.object ["staffId" Aeson..= tshow staff.id])
     let payScopeChanged = staffXeroPayItemScopeChanged originalStaff updatedStaff
     activeRosterScopes <- activeRosterWeekScopes
-    invalidateTouchedResources "staff.update" (liveMutationResult updatedStaff (staffUpdateTouchedResources payScopeChanged updatedStaff <> staffRosterGroupResources activeRosterScopes selectedRosterGroupIds))
+    let affectedRosterGroupIds = nub (previousRosterGroupIds <> selectedRosterGroupIds)
+    invalidateTouchedResources "staff.update" (liveMutationResult updatedStaff (staffUpdateTouchedResources payScopeChanged updatedStaff <> staffRosterGroupResources (unpackId currentVenueId) activeRosterScopes affectedRosterGroupIds))
 
 staffUpdateTouchedResources :: Bool -> Staff -> [SurfaceResourceValue]
 staffUpdateTouchedResources payScopeChanged staff =
@@ -127,12 +131,12 @@ staffUpdateTouchedResources payScopeChanged staff =
     ]
         <> [xeroMappingsResource staff.venueId | payScopeChanged]
 
-staffRosterGroupResources :: (?context :: ControllerContext) => [(UUID, UUID, Int)] -> [Id RosterGroup] -> [SurfaceResourceValue]
-staffRosterGroupResources activeScopes rosterGroupIds =
+staffRosterGroupResources :: UUID -> [(UUID, UUID, Int)] -> [Id RosterGroup] -> [SurfaceResourceValue]
+staffRosterGroupResources venueId activeScopes rosterGroupIds =
     Set.toList $ Set.fromList
         [ rosterWeekResource rosterGroupId weekOffset
         | (activeVenueId, rosterGroupId, weekOffset) <- activeScopes
-        , activeVenueId == unpackId currentVenueId
+        , activeVenueId == venueId
         , rosterGroupId `Set.member` rosterGroupIdSet
         ]
     where

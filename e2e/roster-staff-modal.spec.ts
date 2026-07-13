@@ -88,4 +88,51 @@ test.describe('Roster Staff Modal', () => {
         await expect(page.locator('#toast-overlay-mount')).toContainText('Shift preferences updated');
 
     });
+
+    test('admin profile save refreshes roster staff names and exposes the venue role control', async ({ page }) => {
+        await openRoster(page, { email: 'e2e-admin@example.com' });
+
+        const modalMount = page.locator('#dialog-overlay-mount');
+        const staffPanel = page.locator('.roster-staff-panel');
+        const rosterGrid = page.locator('.roster-grid-frame');
+        const alphaEntry = staffPanel.locator('.roster-staff-panel-entry').filter({ has: page.getByRole('rowheader', { name: 'Alpha', exact: true }) });
+        await expect(alphaEntry).toBeVisible();
+        await expect(rosterGrid).toContainText('Alpha');
+        await alphaEntry.click();
+
+        await modalMount.getByRole('button', { name: 'Profile Details' }).click();
+        const staffEditForm = modalMount.locator('#staff-edit-form:visible');
+        const venueRole = staffEditForm.locator('#venueRole');
+        await expect(venueRole).toBeVisible();
+        await expect(venueRole.getByRole('option', { name: 'Manager' })).toHaveCount(1);
+
+        await staffEditForm.locator('#firstName').fill('Alphonso');
+        const rosterSwapsPromise = page.evaluate(() => new Promise<void>((resolve) => {
+            const pendingTargets = new Set(['roster-content', 'roster-staff-panel-fragment']);
+            document.addEventListener('app:live-update-performance', (event) => {
+                const detail = (event as CustomEvent<Record<string, unknown>>).detail;
+                if (detail?.name !== 'live_updates.swap_fragment' || detail?.outcome !== 'swapped' || typeof detail?.targetId !== 'string') return;
+                pendingTargets.delete(detail.targetId);
+                if (pendingTargets.size === 0) resolve();
+            });
+        }));
+        const updateResponsePromise = page.waitForResponse((response) => response.request().method() === 'POST' && response.url().includes('/UpdateStaff'));
+        const rosterRefreshPromise = page.waitForResponse((response) => response.request().method() === 'GET' && response.url().includes('/ShowRosterWeekContentFragment'));
+        const staffListRefreshPromise = page.waitForResponse((response) => response.request().method() === 'GET' && response.url().includes('/ShowRosterWeekStaffPanelFragment'));
+        await staffEditForm.getByRole('button', { name: 'Save profile details' }).click();
+        const updateResponse = await updateResponsePromise;
+        expect(updateResponse.headers()['hx-trigger']).toContain('roster-content');
+        const rosterRefreshResponse = await rosterRefreshPromise;
+        const staffListRefreshResponse = await staffListRefreshPromise;
+        await Promise.all([rosterRefreshResponse.finished(), staffListRefreshResponse.finished()]);
+        expect(await rosterRefreshResponse.text()).toContain('Alphonso');
+        expect(await staffListRefreshResponse.text()).toContain('Alphonso');
+        await rosterSwapsPromise;
+
+        await expect(page.locator('#toast-overlay-mount')).toContainText('Staff member updated');
+        await expect(staffPanel).toContainText('Alphonso');
+        await expect(staffPanel).not.toContainText('Alpha');
+        await expect(rosterGrid).toContainText('Alphonso');
+        await expect(rosterGrid).not.toContainText('Alpha');
+    });
 });

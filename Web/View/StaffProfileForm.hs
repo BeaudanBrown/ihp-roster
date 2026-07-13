@@ -306,7 +306,14 @@ renderWeekOffsetHiddenInput :: Int -> Html
 renderWeekOffsetHiddenInput weekOffset = [hsx|<input type="hidden" name="weekOffset" value={tshow weekOffset} />|]
 
 renderStaffRoleField :: Maybe VenueMembership -> Html
-renderStaffRoleField Nothing = mempty
+renderStaffRoleField Nothing = [hsx|
+    <div class="mt-3">
+        <div class="form-label">Staff Role</div>
+        <div class="alert alert-secondary py-2 mb-0" role="note">
+            A venue access role can be assigned after this staff profile is linked to a user account. For eligible trial staff, send an invitation from the roster staff list first.
+        </div>
+    </div>
+|]
 renderStaffRoleField (Just membership) = [hsx|
     <div class="mt-3">
         <label for="venueRole" class="form-label">Staff Role</label>

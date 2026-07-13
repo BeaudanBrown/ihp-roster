@@ -25,6 +25,7 @@ import Web.Controller.Staff ()
 import Web.FrontController ()
 import Web.Routes
 import Web.Staff.Mutations (staffCreateTouchedResources,
+                            staffRosterGroupResources,
                             staffUpdateTouchedResources)
 import Web.Types
 
@@ -178,7 +179,28 @@ tests = beforeAll testContext do
                         , xeroMappingsResource (unpackId venue.id)
                         ]
 
-        it "returns actor-local StaffSurface invalidation for HTMX roster-launched staff edits" $ withContext do
+        it "touches active roster weeks for every previous and newly selected staff group" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Staff Group Resource Venue"
+                previousGroup <- query @RosterGroup |> filterWhere (#venueId, unpackId venue.id) |> filterWhere (#isDefault, True) |> fetchOne
+                selectedGroup <- createVenueRosterGroupWithDefaults venue "Selected Group" 1 False
+                otherVenue <- createVenueWithConfig "Other Staff Group Resource Venue"
+                otherGroup <- query @RosterGroup |> filterWhere (#venueId, unpackId otherVenue.id) |> filterWhere (#isDefault, True) |> fetchOne
+                let activeScopes =
+                        [ (unpackId venue.id, unpackId previousGroup.id, 0)
+                        , (unpackId venue.id, unpackId selectedGroup.id, 1)
+                        , (unpackId otherVenue.id, unpackId otherGroup.id, 0)
+                        ]
+
+                let resources = staffRosterGroupResources (unpackId venue.id) activeScopes [previousGroup.id, selectedGroup.id]
+
+                Set.fromList resources
+                    `shouldBe` Set.fromList
+                        [ rosterWeekResource (unpackId previousGroup.id) 0
+                        , rosterWeekResource (unpackId selectedGroup.id) 1
+                        ]
+
+        it "invalidates roster content and staff list resources for HTMX roster-launched staff edits" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Venue A"
                 manager <- createUserRecord "staff-modal-manager@example.com" "staff" True
@@ -209,11 +231,10 @@ tests = beforeAll testContext do
                 response `responseBodyShouldContain` "Staff member updated"
                 response `responseBodyShouldContain` "id=\"toast-overlay-mount\""
                 response `responseBodyShouldNotContain` "id=\"roster-content\""
-                response `responseBodyShouldNotContain` "hx-swap-oob=\"outerHTML\""
                 let triggerHeader = cs <$> lookup "HX-Trigger" (responseHeaders response)
                 triggerHeader `shouldSatisfy` maybe False (Text.isInfixOf "bepis:live-fragments-refresh")
-                triggerHeader `shouldSatisfy` maybe False (Text.isInfixOf "\"kind\":\"staff-details-section\"")
-                triggerHeader `shouldSatisfy` maybe False (not . Text.isInfixOf "staff-profile-details")
+                triggerHeader `shouldSatisfy` maybe False (Text.isInfixOf "\"kind\":\"roster-content\"")
+                triggerHeader `shouldSatisfy` maybe False (Text.isInfixOf "\"kind\":\"roster-staff-panel\"")
 
         it "hides trial staff invitation email from the staff details form" $ withContext do
             withCleanDb do
@@ -620,6 +641,21 @@ tests = beforeAll testContext do
                 response `responseBodyShouldContain` "Award rates"
                 response `responseBodyShouldContain` "Level 3 (perm $32.75/hr)"
                 response `responseBodyShouldContain` "Not assigned"
+
+        it "explains why venue roles are unavailable for unlinked staff" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Unlinked Staff Role Venue"
+                admin <- createUserRecord "unlinked-staff-role-admin@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue admin "venue_admin"
+                staff <- createStaffRecord venue Nothing "Trial" "Role"
+
+                response <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
+                    callActionWithParams (EditStaffAction staff.id) [("weekOffset", "0")]
+
+                response `responseStatusShouldBe` status200
+                response `responseBodyShouldContain` "Staff Role"
+                response `responseBodyShouldContain` "can be assigned after this staff profile is linked to a user account"
+                response `responseBodyShouldNotContain` "<select name=\"venueRole\""
 
         it "lets venue admins view and update a linked staff member venue role" $ withContext do
             withCleanDb do

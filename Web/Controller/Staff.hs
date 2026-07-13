@@ -2,22 +2,24 @@ module Web.Controller.Staff where
 
 import Application.Helper.Controller (VenueRole (..), parseVenueRole,
                                       venueRoleToEnum)
-import Application.Helper.LiveUpdate (setActorLiveResourcesRefresh)
 import Application.Helper.Pay (rateEffectiveOn)
 import Application.Helper.ProfileLeave (buildDefaultLeaveRequest,
                                         fetchStaffLeaveRequests)
 import Application.Helper.RosterGroups (fetchCurrentVenueDefaultRosterGroup,
                                         fetchCurrentVenueRosterGroupIds,
+                                        fetchCurrentVenueRosterGroupOrDefault,
                                         fetchCurrentVenueRosterGroups,
                                         fetchStaffRosterGroupIds)
 import Application.Helper.Staff (isAdoptableTrialStaff)
 import Application.Helper.StaffShiftPreferences
-import Application.Helper.SurfaceResource (LiveMutationResult (..))
+import Application.Helper.SurfaceResource (LiveMutationResult (..),
+                                           rosterWeekResource)
 import Application.Helper.Url (appendQueryParams)
 import Application.Helper.View (OverlayFormMode (HtmxOverlayForm),
                                 ToastOverlayPosition (..), dialogOverlayMountId,
                                 errorToast, renderToastOob, successToast)
 import Application.StaffDocuments.Rsa (latestRsaDocumentForStaff)
+import qualified Data.Set as Set
 import qualified Data.Text as Text
 import Data.Time.Calendar (Day)
 import Data.Time.Clock (getCurrentTime, utctDay)
@@ -25,10 +27,9 @@ import Web.Controller.Admin.Support (SubmittedPayRateSelection (..),
                                      fetchActiveImportedXeroPayItems,
                                      parseSubmittedPayRateSelection)
 import Web.Controller.Prelude
-import Web.Profiles.FrontendSurface (ProfileScopeValue (..),
-                                     staffCandidateMountedFragments,
-                                     staffSurfaceScope)
-import Web.RosterWeeks.Responses (respondWithRosterContentOob)
+import Web.RosterWeeks.Responses (respondWithRosterContentOob,
+                                  respondWithRosterResourceInvalidation)
+import Web.RosterWeeks.Types (RosterProjectionFragment (RosterProjectionContent, RosterProjectionStaffPanel))
 import Web.Staff.Mutations
 import Web.View.Staff.Edit
 
@@ -175,7 +176,15 @@ instance Controller StaffController where
                         render EditView { staff = renderedStaff, .. }
         let respondStaffUpdateSuccess mutationResult successMessage =
                 if isHtmxRequest
-                    then respondWithStaffActorInvalidation mutationResult successMessage
+                    then do
+                        rosterGroup <- fetchCurrentVenueRosterGroupOrDefault maybeRosterGroupId
+                        let actorTouchedResources = Set.insert (rosterWeekResource (unpackId rosterGroup.id) weekOffset) mutationResult.liveMutationTouchedResources
+                        respondWithRosterResourceInvalidation
+                            rosterGroup.id
+                            weekOffset
+                            actorTouchedResources
+                            [RosterProjectionContent, RosterProjectionStaffPanel]
+                            (renderToastOob ToastBottomCenter (successToast successMessage))
                     else do
                         setSuccessMessage successMessage
                         redirectToPath $
@@ -263,14 +272,6 @@ buildNewTrialStaff =
             |> set #idealShiftsPerWeek 0
             |> set #employmentBasis Casual
             |> set #isActive True
-
-respondWithStaffActorInvalidation :: (?context :: ControllerContext, ?request :: Request) => LiveMutationResult Staff -> Text -> IO ()
-respondWithStaffActorInvalidation mutationResult successMessage = do
-    let staff = mutationResult.liveMutationValue
-    let scope = ProfileScopeValue (unpackId currentVenueId) (unpackId staff.id)
-    setHeader ("HX-Reswap", "none")
-    setActorLiveResourcesRefresh (staffSurfaceScope scope) mutationResult.liveMutationTouchedResources (staffCandidateMountedFragments scope)
-    respondHtml (renderToastOob ToastBottomCenter (successToast successMessage))
 
 renderNewStaffResponse :: (?context :: ControllerContext, ?request :: Request, ?respond :: Respond) => Staff -> [Id RosterGroup] -> [RosterGroup] -> [AwardLevel] -> [AwardLevelBaseRate] -> [XeroImportedPayItem] -> Int -> Maybe (Id RosterGroup) -> IO ()
 renderNewStaffResponse staff selectedRosterGroupIds rosterGroups awardLevels awardLevelBaseRates importedPayItems weekOffset maybeRosterGroupId =
