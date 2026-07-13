@@ -115,7 +115,7 @@ renderAutoTimesheetCreationForm venueConfig =
 
 renderVenueSettingToggle :: Text -> Text -> Bool -> Html
 renderVenueSettingToggle inputId fieldName isEnabled =
-    renderAppToggleButton $ (defaultAppToggleButtonConfig inputId isEnabled [hsx|<span class="small">{if isEnabled then ("Enabled" :: Text) else "Disabled"}</span>|])
+    renderAppToggleButton $ (defaultAppToggleStateButtonConfig inputId isEnabled [hsx|<span class="small">Enabled</span>|] [hsx|<span class="small">Disabled</span>|])
         { appToggleInputName = Just fieldName
         , appToggleInputValue = "true"
         , appToggleButtonClass = "btn-sm"

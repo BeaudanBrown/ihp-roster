@@ -17,6 +17,11 @@ export function syncToggleButton(input: HTMLInputElement): void {
     const button = input.closest("[data-app-toggle-button]");
     if (button === null) return;
 
+    button.querySelectorAll<HTMLElement>("[data-app-toggle-label-state]").forEach((label) => {
+        const state = label.dataset.appToggleLabelState;
+        if (state === "checked") label.hidden = !input.checked;
+        if (state === "unchecked") label.hidden = input.checked;
+    });
     button.classList.toggle("btn-success", input.checked);
     button.classList.toggle("btn-outline-success", !input.checked);
     button.setAttribute("aria-pressed", input.checked ? "true" : "false");

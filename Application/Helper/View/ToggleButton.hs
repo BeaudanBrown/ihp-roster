@@ -1,6 +1,8 @@
 module Application.Helper.View.ToggleButton
     ( AppToggleButtonConfig (..)
+    , AppToggleButtonLabel (..)
     , defaultAppToggleButtonConfig
+    , defaultAppToggleStateButtonConfig
     , renderAppToggleButton
     ) where
 
@@ -11,12 +13,19 @@ import qualified Text.Blaze.Html as Blaze
 import qualified Text.Blaze.Html5 as Html5
 import Text.Blaze.Internal (customAttribute, textTag)
 
+data AppToggleButtonLabel
+    = AppToggleStaticLabel !Html
+    | AppToggleStateLabels
+        { appToggleCheckedLabel   :: !Html
+        , appToggleUncheckedLabel :: !Html
+        }
+
 data AppToggleButtonConfig = AppToggleButtonConfig
     { appToggleInputId                   :: !Text
     , appToggleInputName                 :: !(Maybe Text)
     , appToggleInputValue                :: !Text
     , appToggleChecked                   :: !Bool
-    , appToggleLabel                     :: !Html
+    , appToggleLabel                     :: !AppToggleButtonLabel
     , appToggleButtonClass               :: !Text
     , appToggleInputClass                :: !Text
     , appToggleRoleSwitch                :: !Bool
@@ -35,7 +44,7 @@ defaultAppToggleButtonConfig inputId checked label = AppToggleButtonConfig
     , appToggleInputName = Nothing
     , appToggleInputValue = "true"
     , appToggleChecked = checked
-    , appToggleLabel = label
+    , appToggleLabel = AppToggleStaticLabel label
     , appToggleButtonClass = ""
     , appToggleInputClass = ""
     , appToggleRoleSwitch = False
@@ -48,6 +57,12 @@ defaultAppToggleButtonConfig inputId checked label = AppToggleButtonConfig
     , appToggleInputExtraAttrs = []
     }
 
+defaultAppToggleStateButtonConfig :: Text -> Bool -> Html -> Html -> AppToggleButtonConfig
+defaultAppToggleStateButtonConfig inputId checked checkedLabel uncheckedLabel =
+    (defaultAppToggleButtonConfig inputId checked mempty)
+        { appToggleLabel = AppToggleStateLabels { appToggleCheckedLabel = checkedLabel, appToggleUncheckedLabel = uncheckedLabel }
+        }
+
 renderAppToggleButton :: AppToggleButtonConfig -> Html
 renderAppToggleButton config@AppToggleButtonConfig { .. } = [hsx|
     <label class={appToggleButtonClasses config}
@@ -55,9 +70,23 @@ renderAppToggleButton config@AppToggleButtonConfig { .. } = [hsx|
            data-app-toggle-button="true"
            aria-pressed={boolAttr appToggleChecked}>
         {renderAppToggleInput config}
-        {appToggleLabel}
+        {renderAppToggleLabel appToggleChecked appToggleLabel}
     </label>
 |]
+
+renderAppToggleLabel :: Bool -> AppToggleButtonLabel -> Html
+renderAppToggleLabel _ (AppToggleStaticLabel label) = label
+renderAppToggleLabel checked AppToggleStateLabels { .. } =
+    renderStateLabel "checked" checked appToggleCheckedLabel
+        <> renderStateLabel "unchecked" (not checked) appToggleUncheckedLabel
+
+renderStateLabel :: Text -> Bool -> Html -> Html
+renderStateLabel state visible label =
+    applyAttributes
+        (Html5.span label)
+        [ attr "data-app-toggle-label-state" state
+        , hiddenAttr (not visible)
+        ]
 
 renderAppToggleInput :: AppToggleButtonConfig -> Html
 renderAppToggleInput config@AppToggleButtonConfig { .. } =
@@ -96,6 +125,10 @@ maybeAttr name (Just value) = attr name value
 checkedAttr :: Bool -> Blaze.Attribute
 checkedAttr True  = attr "checked" "checked"
 checkedAttr False = mempty
+
+hiddenAttr :: Bool -> Blaze.Attribute
+hiddenAttr True  = attr "hidden" "hidden"
+hiddenAttr False = mempty
 
 appToggleButtonClasses :: AppToggleButtonConfig -> Text
 appToggleButtonClasses AppToggleButtonConfig { appToggleChecked, appToggleButtonClass } =

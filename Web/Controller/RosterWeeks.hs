@@ -504,7 +504,7 @@ instance Controller RosterWeeksController where
             Just layoutMode -> do
                 _ <- upsertCurrentUserRosterLayoutMode layoutMode
                 if isHtmxRequest
-                    then respondWithRosterFragmentsUpdate rosterGroup.id weekOffset rosterGridStructuralFragments (successToast "Roster layout preference saved.")
+                    then respondWithRosterFragmentsUpdate rosterGroup.id weekOffset rosterGridStructuralAndStaffPanelFragments (successToast "Roster layout preference saved.")
                     else do
                         setSuccessMessage "Roster layout preference saved."
                         redirectToPath (rosterWeekUrl weekOffset rosterGroup.id)
@@ -610,7 +610,7 @@ instance Controller RosterWeeksController where
             let showRosterWarnings = paramOrDefault @Text "false" "showRosterWarnings" == "true"
             _ <- upsertCurrentUserShowRosterWarnings showRosterWarnings
             if isHtmxRequest
-                then respondWithRosterFragmentsUpdate rosterGroup.id weekOffset [RosterProjectionGridToolbar, RosterProjectionGridFrame] (successToast "Roster warning preference saved.")
+                then respondWithRosterFragmentsUpdate rosterGroup.id weekOffset rosterGridStructuralAndStaffPanelFragments (successToast "Roster warning preference saved.")
                 else do
                     setSuccessMessage "Roster warning preference saved."
                     redirectToPath (rosterWeekUrl weekOffset rosterGroup.id)
@@ -621,7 +621,7 @@ instance Controller RosterWeeksController where
         let showWageEstimates = paramOrDefault @Text "false" "showWageEstimates" == "true"
         _ <- upsertCurrentUserShowWageEstimates showWageEstimates
         if isHtmxRequest
-            then respondWithRosterFragmentsUpdate rosterGroup.id weekOffset rosterGridStructuralFragments (successToast "Roster wage estimate preference saved.")
+            then respondWithRosterFragmentsUpdate rosterGroup.id weekOffset rosterGridStructuralAndStaffPanelFragments (successToast "Roster wage estimate preference saved.")
             else do
                 setSuccessMessage "Roster wage estimate preference saved."
                 redirectToPath (rosterWeekUrl weekOffset rosterGroup.id)

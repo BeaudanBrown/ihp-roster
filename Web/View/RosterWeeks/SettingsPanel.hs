@@ -141,7 +141,7 @@ renderRosterWageEstimatePreferenceForm weekOffset rosterGroupId viewCapabilities
 
 renderRosterWarningToggle :: Bool -> Html
 renderRosterWarningToggle showRosterWarnings =
-    renderAppToggleButton $ (defaultAppToggleButtonConfig "show-roster-warnings" showRosterWarnings [hsx|<span class="small">{if showRosterWarnings then ("Warnings enabled" :: Text) else "Warnings disabled"}</span>|])
+    renderAppToggleButton $ (defaultAppToggleStateButtonConfig "show-roster-warnings" showRosterWarnings [hsx|<span class="small">Warnings enabled</span>|] [hsx|<span class="small">Warnings disabled</span>|])
         { appToggleInputName = Just "showRosterWarnings"
         , appToggleInputValue = "true"
         , appToggleButtonClass = "btn-sm w-100 justify-content-start"
@@ -150,7 +150,7 @@ renderRosterWarningToggle showRosterWarnings =
 
 renderRosterWageEstimateToggle :: Bool -> Html
 renderRosterWageEstimateToggle showWageEstimates =
-    renderAppToggleButton $ (defaultAppToggleButtonConfig "show-wage-estimates" showWageEstimates [hsx|<span class="small">{if showWageEstimates then ("Wages enabled" :: Text) else "Wages disabled"}</span>|])
+    renderAppToggleButton $ (defaultAppToggleStateButtonConfig "show-wage-estimates" showWageEstimates [hsx|<span class="small">Wages enabled</span>|] [hsx|<span class="small">Wages disabled</span>|])
         { appToggleInputName = Just "showWageEstimates"
         , appToggleInputValue = "true"
         , appToggleButtonClass = "btn-sm w-100 justify-content-start"

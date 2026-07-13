@@ -52,11 +52,6 @@ function syncAvailability(container: HTMLElement): void {
 
     const isAvailable = availableInput.checked;
     container.classList.toggle("is-unavailable", !isAvailable);
-    const availabilityButton = availableInput.closest(".shift-preference-availability-button");
-    if (availabilityButton !== null) {
-        availabilityButton.classList.toggle("btn-success", isAvailable);
-        availabilityButton.classList.toggle("btn-outline-success", !isAvailable);
-    }
     startInput.disabled = !isAvailable;
     endInput.disabled = !isAvailable;
 }

@@ -94,6 +94,39 @@ tests = beforeAll testContext do
                 rosterAssignmentTriggerHeader `shouldSatisfy` maybe False (Text.isInfixOf "\"kind\":\"roster-staff-panel\"")
                 rosterAssignmentTriggerHeader `shouldSatisfy` maybe False (not . Text.isInfixOf staffPanelTarget)
 
+        it "refreshes the settings owner after roster preference changes" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Venue A"
+                admin <- createUserRecord "roster-admin-settings-owner@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue admin "venue_admin"
+                _ <- fetchSlotNameRecord venue "Early"
+                _ <- createRosterWeekRecord venue 0 False
+
+                warningResponse <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
+                    withRequestHeaders [("HX-Request", "true")] do
+                        callActionWithParams
+                            (UpdateRosterWarningPreferenceAction 0)
+                            [("showRosterWarnings", "true")]
+                wageResponse <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
+                    withRequestHeaders [("HX-Request", "true")] do
+                        callActionWithParams
+                            (UpdateRosterWageEstimatePreferenceAction 0)
+                            [("showWageEstimates", "true")]
+                layoutResponse <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
+                    withRequestHeaders [("HX-Request", "true")] do
+                        callActionWithParams
+                            (UpdateRosterLayoutPreferenceAction 0)
+                            [("rosterLayoutMode", "day_columns")]
+
+                let refreshesRosterSettings response = do
+                        let triggerHeader = cs <$> lookup "HX-Trigger" (responseHeaders response)
+                        triggerHeader `shouldSatisfy` maybe False (Text.isInfixOf "\"kind\":\"roster-grid-toolbar\"")
+                        triggerHeader `shouldSatisfy` maybe False (Text.isInfixOf "\"kind\":\"roster-grid-frame\"")
+                        triggerHeader `shouldSatisfy` maybe False (Text.isInfixOf "\"kind\":\"roster-staff-panel\"")
+                refreshesRosterSettings warningResponse
+                refreshesRosterSettings wageResponse
+                refreshesRosterSettings layoutResponse
+
         it "plans non-overlapping passive roster content and staff panel fragments" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Venue A"

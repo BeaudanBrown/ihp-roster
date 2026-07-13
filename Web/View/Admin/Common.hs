@@ -134,9 +134,7 @@ renderAdminActiveToggleWithInputAttrs inputId isActive inputAttrs = [hsx|
     <input type="hidden" name="isActive" value="false" />
 |]
     where
-        statusLabel :: Text
-        statusLabel = if isActive then "Enabled" else "Disabled"
-        toggleConfig = (defaultAppToggleButtonConfig inputId isActive [hsx|<span class="small">{statusLabel}</span>|])
+        toggleConfig = (defaultAppToggleStateButtonConfig inputId isActive [hsx|<span class="small">Enabled</span>|] [hsx|<span class="small">Disabled</span>|])
             { appToggleInputName = Just "isActive"
             , appToggleInputValue = "true"
             , appToggleButtonClass = "btn-sm w-100"

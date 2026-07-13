@@ -459,10 +459,16 @@ export async function ensureRosterLayout(page: Page, layoutMode: RosterLayoutMod
     await expect(frame).toBeVisible({ timeout: E2E_TIMEOUT.assertion });
 
     if ((await frame.getAttribute('data-roster-layout')) !== layoutMode) {
+        const staffTab = page.getByRole('tab', { name: 'Staff', exact: true }).first();
+        const restoreStaffTab = (await staffTab.getAttribute('aria-selected')) === 'true';
         await openRosterSettings(page);
         const settingsPanel = page.locator('#roster-staff-panel-settings-pane');
         await settingsPanel.locator(`label[for="roster-layout-mode-${layoutMode}"]`).click();
         await expect(frame).toHaveAttribute('data-roster-layout', layoutMode, { timeout: E2E_TIMEOUT.assertion });
+        if (restoreStaffTab) {
+            await staffTab.click();
+            await expect(page.locator('#roster-staff-panel-staff-pane')).toBeVisible({ timeout: E2E_TIMEOUT.action });
+        }
     }
 
     if (layoutMode === 'day_rows') {
