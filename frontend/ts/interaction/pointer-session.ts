@@ -92,6 +92,7 @@ type ContextualEffectHandler = {
 const attrs = InteractionDom.attributes;
 const values = InteractionDom.values;
 const sourceRefSelector = `[${attrs.sourceRef}]`;
+const interactiveControlSelector = "button,a,input,select,textarea,[role=button],[role=link]";
 const disposableLayerSelector = `[${attrs.disposableLayer}]`;
 const pointerFields = InteractionDom.pointerFields;
 const defaultThresholdPx = 4;
@@ -305,6 +306,8 @@ export function readPointerSessionStart(event: Event, fallbackThresholdPx = defa
     const marker = closestSurfaceSourceRef(event.target);
     if (!marker) return null;
     if (isDisabled(marker)) return null;
+    const interactiveControl = closestInteractiveControl(event.target);
+    if (interactiveControl && interactiveControl !== marker) return null;
 
     const mount = closestInteractionMount(marker);
     if (!mount) return null;
@@ -675,6 +678,12 @@ function closestSurfaceSourceRef(target: EventTarget | null): ElementLike | null
     if (!isElementLike(target)) return null;
     const marker = target.closest(sourceRefSelector);
     return isElementLike(marker) ? marker : null;
+}
+
+function closestInteractiveControl(target: EventTarget | null): ElementLike | null {
+    if (!isElementLike(target)) return null;
+    const control = target.closest(interactiveControlSelector);
+    return isElementLike(control) ? control : null;
 }
 
 function closestInteractionMount(marker: ElementLike): ElementLike | null {

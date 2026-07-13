@@ -317,6 +317,7 @@
   var attrs4 = InteractionDom.attributes;
   var values = InteractionDom.values;
   var sourceRefSelector = `[${attrs4.sourceRef}]`;
+  var interactiveControlSelector = "button,a,input,select,textarea,[role=button],[role=link]";
   var disposableLayerSelector = `[${attrs4.disposableLayer}]`;
   var pointerFields = InteractionDom.pointerFields;
   var defaultThresholdPx = 4;
@@ -514,6 +515,8 @@
     const marker = closestSurfaceSourceRef(event.target);
     if (!marker) return null;
     if (isDisabled(marker)) return null;
+    const interactiveControl = closestInteractiveControl(event.target);
+    if (interactiveControl && interactiveControl !== marker) return null;
     const mount = closestInteractionMount3(marker);
     if (!mount) return null;
     const surface = mount.getAttribute(attrs4.surface);
@@ -812,6 +815,11 @@
     if (!isElementLike3(target)) return null;
     const marker = target.closest(sourceRefSelector);
     return isElementLike3(marker) ? marker : null;
+  }
+  function closestInteractiveControl(target) {
+    if (!isElementLike3(target)) return null;
+    const control = target.closest(interactiveControlSelector);
+    return isElementLike3(control) ? control : null;
   }
   function closestInteractionMount3(marker) {
     const mount = marker.closest(`[${attrs4.surface}]`);

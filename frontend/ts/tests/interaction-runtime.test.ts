@@ -118,7 +118,7 @@ class MiniElement extends EventTarget {
     closest(selector: string): MiniElement | null {
         let current: MiniElement | null = this;
         while (current) {
-            if (matchesSelector(current, selector)) return current;
+            if (matchesSelector(current, selector) || matchesTagSelector(current, selector)) return current;
             current = current.parent;
         }
         return null;
@@ -370,6 +370,26 @@ test("generated source refs start manifest-backed pointer sessions", () => {
     assertEqual(session?.sourceField, "sourceItemKey");
     assertEqual(session?.sourceKey, "shift:1");
     assertEqual(session?.targetField, "targetDropzoneKey");
+});
+
+test("generated pointer sessions ignore nested interactive controls inside draggable sources", () => {
+    const mount = new MiniElement({ [attrs.surface]: "roster" });
+    const marker = mount.append(new MiniElement({
+        tag: "tr",
+        role: "button",
+        [attrs.sourceRef]: "staff-drag-source",
+        [attrs.sourceKey]: "staff:1",
+    }));
+    const inviteButton = marker.append(new MiniElement({ tag: "button" }));
+    const icon = inviteButton.append(new MiniElement({ tag: "i" }));
+
+    const rowSession = readPointerSessionStart(pointerEventWithTarget("pointerdown", marker, 7, 10, 20), 4);
+    const buttonSession = readPointerSessionStart(pointerEventWithTarget("pointerdown", inviteButton, 7, 10, 20), 4);
+    const iconSession = readPointerSessionStart(pointerEventWithTarget("pointerdown", icon, 7, 10, 20), 4);
+
+    assertEqual(rowSession?.intent, "drop-roster-staff");
+    assertEqual(buttonSession, null);
+    assertEqual(iconSession, null);
 });
 
 test("generated pointer sessions emit manifest fields from compatible dropzones", () => {
