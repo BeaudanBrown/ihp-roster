@@ -25,10 +25,10 @@ lands.
 - Synced payroll calendars are retained reference data. Calendar and period
   choice is explicit on each guided preparation run; no global
   `xero_payroll_calendar_selections` fallback is read or written.
-- A mapped Xero employee included in a selected period must have a synced
-  payroll-calendar assignment. Missing assignments block readiness with an
-  instruction to correct the employee in Xero and sync again, rather than
-  allowing Xero's Timesheets API to reject the final request.
+- A selected preparation period includes only mapped Xero employees whose
+  synced payroll-calendar assignment exactly matches that period's calendar.
+  Employees assigned to another calendar or to no calendar are excluded from
+  that period rather than sent to Xero's Timesheets API.
 - Managed Xero earnings-rate names put human payroll details first, e.g. `Saturday Penalty - Level 1 - CAS - Bepis - 1-July-2025`; legacy `Bepis - HIGA - ...` managed names remain matchable to avoid duplicate pay items.
 - Readiness, managed pay-item proposals, preview, and submission resolve overlapping projected rates through the same latest venue-effective-rate rule as payroll calculations. Raw FWC operative dates are normalized to the venue week before constructing bucket keys.
 - Managed award pay-item effective-date keys/names use the Bepis venue-effective

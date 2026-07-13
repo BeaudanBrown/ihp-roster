@@ -378,7 +378,7 @@ tests = do
                 readinessBlockerCodes readiness `shouldNotSatisfy` elem "existing_xero_timesheet"
                 readiness.xeroTimesheetReady `shouldBe` True
 
-        it "blocks when the matched Xero employee has no payroll calendar" $ withContext do
+        it "excludes matched Xero employees without a payroll calendar from the selected period" $ withContext do
             withCleanDb do
                 fixture <- createReadyMappedFixture "weekly" (fromGregorian 2026 4 27) (fromGregorian 2026 5 3)
                 employees <- query @XeroEmployee |> filterWhere (#xeroConnectionId, unpackId fixture.connection.id) |> fetch
@@ -390,8 +390,10 @@ tests = do
 
                 readiness <- validateXeroTimesheetReadiness fixture.request
 
-                readinessBlockerCodes readiness `shouldSatisfy` elem "xero_employee_payroll_calendar_missing"
-                readiness.xeroTimesheetReady `shouldBe` False
+                readinessBlockerCodes readiness `shouldNotSatisfy` elem "xero_employee_payroll_calendar_missing"
+                readinessBlockerCodes readiness `shouldSatisfy` elem "missing_approved_entries"
+                readiness.xeroReadinessStaffCount `shouldBe` 0
+                readiness.xeroReadinessEntryCount `shouldBe` 0
 
         it "ignores entries for matched Xero employees assigned to a different payroll calendar" $ withContext do
             withCleanDb do

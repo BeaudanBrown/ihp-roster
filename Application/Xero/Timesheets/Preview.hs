@@ -296,12 +296,11 @@ entryMatchesSelectedPayrollCalendar request staffMappings xeroEmployees entry =
     case request.readinessPayrollCalendarId of
         Nothing -> True
         Just selectedCalendarId ->
-            case List.find (mappingIncludesEntry entry) staffMappings >>= (.xeroEmployeeId) of
-                Nothing -> True
-                Just employeeId ->
-                    case List.find (\employee -> employee.xeroEmployeeId == employeeId) xeroEmployees >>= xeroEmployeePayrollCalendarId of
-                        Nothing -> True
-                        Just employeeCalendarId -> employeeCalendarId == selectedCalendarId
+            let employeeCalendarId = do
+                    employeeId <- List.find (mappingIncludesEntry entry) staffMappings >>= (.xeroEmployeeId)
+                    employee <- List.find (\candidate -> candidate.xeroEmployeeId == employeeId) xeroEmployees
+                    xeroEmployeePayrollCalendarId employee
+             in employeeCalendarId == Just selectedCalendarId
 
 xeroEmployeePayrollCalendarId :: XeroEmployee -> Maybe Text
 xeroEmployeePayrollCalendarId employee =

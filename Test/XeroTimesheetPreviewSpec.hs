@@ -137,6 +137,28 @@ tests =
                                 [timesheetPreview] -> previewSourceEntryIds timesheetPreview `shouldBe` [unpackId firstEntry.id]
                                 _ -> expectationFailure "expected one preview"
 
+            it "excludes employees without a payroll calendar from selected-calendar preview input" $ withContext do
+                withCleanDb do
+                    fixture <-
+                        createPreviewFixture
+                            "weekly"
+                            [ EntrySpec 0 fixtureStaffA (TimeOfDay 9 0 0) (TimeOfDay 13 0 0)
+                            , EntrySpec 1 fixtureStaffB (TimeOfDay 9 0 0) (TimeOfDay 12 0 0)
+                            ]
+                    employeeB <-
+                        query @XeroEmployee
+                            |> filterWhere (#xeroConnectionId, unpackId fixture.connection.id)
+                            |> filterWhere (#xeroEmployeeId, "employee-b" :: Text)
+                            |> fetchOne
+                    _ <-
+                        employeeB
+                            |> set #rawPayload (Aeson.object ["EmployeeID" Aeson..= employeeB.xeroEmployeeId])
+                            |> updateRecord
+
+                    input <- fetchPreviewInput fixture.request fixture.connection
+
+                    map (.staffId) input.previewTimesheetEntries `shouldBe` [unpackId fixture.staffA.id]
+
             it "keeps source entry ids and pay version ids in metadata but omits TrackingItemID from Xero request JSON" $ withContext do
                 withCleanDb do
                     fixture <- createPreviewFixture "weekly" [EntrySpec 0 fixtureStaffA (TimeOfDay 9 0 0) (TimeOfDay 13 0 0)]
