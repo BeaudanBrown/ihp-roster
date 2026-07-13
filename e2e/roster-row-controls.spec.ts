@@ -30,6 +30,49 @@ test.describe('Roster row controls', () => {
         }
     });
 
+    test('reveals a centred green create affordance only on hover', async ({ page }) => {
+        await loginAndOpenRoster(page);
+
+        const createUnit = page.locator('.roster-grid-frame[data-roster-layout="day_rows"] .roster-shift-create-unit').first();
+        const createAffordance = createUnit.locator('.roster-shift-create-plus-overlay');
+
+        await expect(createUnit).toBeVisible();
+        await expect(createAffordance).toBeAttached();
+        await expect(createAffordance).toHaveCSS('position', 'absolute');
+        await expect(createAffordance).toHaveCSS('opacity', '0');
+
+        await createUnit.hover();
+        await expect(createAffordance).toHaveCSS('opacity', '1');
+
+        const metrics = await createUnit.evaluate((unit) => {
+            const affordance = unit.querySelector('.roster-shift-create-plus-overlay');
+            if (!(unit instanceof HTMLElement) || !(affordance instanceof HTMLElement)) return null;
+
+            const successProbe = document.createElement('span');
+            successProbe.style.color = 'var(--bs-success)';
+            document.body.appendChild(successProbe);
+
+            const unitRect = unit.getBoundingClientRect();
+            const affordanceRect = affordance.getBoundingClientRect();
+            const result = {
+                unitCenterX: unitRect.left + unitRect.width / 2,
+                unitCenterY: unitRect.top + unitRect.height / 2,
+                affordanceCenterX: affordanceRect.left + affordanceRect.width / 2,
+                affordanceCenterY: affordanceRect.top + affordanceRect.height / 2,
+                affordanceColor: getComputedStyle(affordance).color,
+                successColor: getComputedStyle(successProbe).color,
+            };
+
+            successProbe.remove();
+            return result;
+        });
+
+        expect(metrics).not.toBeNull();
+        expect(metrics?.affordanceColor).toBe(metrics?.successColor);
+        expect(metrics?.affordanceCenterX).toBeCloseTo(metrics?.unitCenterX ?? 0, 0);
+        expect(metrics?.affordanceCenterY).toBeCloseTo(metrics?.unitCenterY ?? 0, 0);
+    });
+
     test('adds and removes the last row from the day header controls', async ({ page }) => {
         await loginAndOpenRoster(page);
 

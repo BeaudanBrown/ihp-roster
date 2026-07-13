@@ -68,6 +68,30 @@
     transition: border-color 140ms ease, box-shadow 140ms ease, background 140ms ease;
 }
 
+.roster-grid .roster-shift-create-plus-overlay {
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--bs-success);
+    font-size: 1.15rem;
+    font-weight: 800;
+    opacity: 0;
+    pointer-events: none;
+    text-align: center;
+    transition: opacity 140ms ease;
+}
+
+.roster-grid .roster-shift-create-unit:hover .roster-shift-create-plus-overlay,
+.roster-grid .roster-shift-create-unit:focus-visible .roster-shift-create-plus-overlay,
+.roster-grid .roster-shift-create-unit.is-roster-shift-group-highlighted .roster-shift-create-plus-overlay,
+.roster-grid .roster-shift-create-unit.bepis-dropzone-highlight .roster-shift-create-plus-overlay,
+.roster-grid .roster-shift-create-unit:has(.roster-shift-create-staff-dropzone.bepis-dropzone-highlight) .roster-shift-create-plus-overlay {
+    opacity: 1;
+}
+
 .roster-grid .roster-block-start {
     border-left: 2px solid var(--app-border-strong) !important;
 }
