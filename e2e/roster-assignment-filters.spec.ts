@@ -5,6 +5,7 @@ import {
     editableRosterRows,
     firstEditableRosterDaySection,
     openRoster,
+    openRosterSettings,
     openRosterShiftDialog,
     rosterShiftDialogStaffOptionValues,
 } from './test-helpers';
@@ -14,7 +15,7 @@ async function loginAndOpenRoster(page: Page) {
 }
 
 async function setHideAlreadyAssignedToday(page: Page) {
-    await page.getByLabel('Roster settings').click();
+    await openRosterSettings(page);
     const doubleShiftsLabel = page.locator('label[for="hide-staff-assigned-today"]');
     await expect(doubleShiftsLabel).toBeVisible();
     await Promise.all([

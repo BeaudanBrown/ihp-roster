@@ -446,18 +446,22 @@ type OpenRosterOptions = {
     rosterLayoutMode?: RosterLayoutMode;
 };
 
+export async function openRosterSettings(page: Page) {
+    const settingsTab = page.getByRole('tab', { name: 'Settings', exact: true }).first();
+    await expect(settingsTab).toBeVisible({ timeout: E2E_TIMEOUT.action });
+    await settingsTab.click();
+    await expect(settingsTab).toHaveAttribute('aria-selected', 'true', { timeout: E2E_TIMEOUT.action });
+    await expect(page.locator('#roster-staff-panel-settings-pane')).toBeVisible({ timeout: E2E_TIMEOUT.action });
+}
+
 export async function ensureRosterLayout(page: Page, layoutMode: RosterLayoutMode = 'day_rows') {
     const frame = page.locator('.roster-grid-frame').first();
     await expect(frame).toBeVisible({ timeout: E2E_TIMEOUT.assertion });
 
     if ((await frame.getAttribute('data-roster-layout')) !== layoutMode) {
-        const menu = page.locator('.app-action-menu').filter({ has: page.locator('.roster-layout-mode-group') }).first();
-        if (!(await menu.isVisible().catch(() => false))) {
-            const rosterMenuButton = page.getByLabel('Roster settings').or(page.getByRole('button', { name: 'Roster actions' })).first();
-            await rosterMenuButton.click();
-        }
-        await expect(menu).toBeVisible({ timeout: E2E_TIMEOUT.action });
-        await menu.locator(`label[for="roster-layout-mode-${layoutMode}"]`).click();
+        await openRosterSettings(page);
+        const settingsPanel = page.locator('#roster-staff-panel-settings-pane');
+        await settingsPanel.locator(`label[for="roster-layout-mode-${layoutMode}"]`).click();
         await expect(frame).toHaveAttribute('data-roster-layout', layoutMode, { timeout: E2E_TIMEOUT.assertion });
     }
 

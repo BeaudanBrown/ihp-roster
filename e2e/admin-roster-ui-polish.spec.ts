@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { E2E_TIMEOUT, gotoWhenReady, loginAsPrivilegedUserWithSeededPasskeySession, openAdminWithSeededPasskeySession, openRoster, runSql } from './test-helpers';
+import { E2E_TIMEOUT, gotoWhenReady, loginAsPrivilegedUserWithSeededPasskeySession, openAdminWithSeededPasskeySession, openRoster, openRosterSettings, runSql } from './test-helpers';
 
 const venueId = 'a1000000-0000-0000-0000-000000000001';
 const rosterGroupId = 'a1000000-0000-0000-0000-000000000211';
@@ -72,7 +72,7 @@ test.describe('Admin and roster UI polish', () => {
         expect(Math.abs(dayHeaderMetrics.wageCenterY - dayHeaderMetrics.centerY)).toBeLessThanOrEqual(2);
         expect(Math.abs(dayHeaderMetrics.controlCenterY - dayHeaderMetrics.centerY)).toBeLessThanOrEqual(2);
 
-        await page.getByRole('button', { name: 'Roster settings' }).click();
+        await openRosterSettings(page);
         const layoutMetrics = await page.locator('.roster-layout-mode-group').evaluate((group) => {
             const buttons = Array.from(group.querySelectorAll('label.btn')) as HTMLElement[];
             return buttons.map((button) => {

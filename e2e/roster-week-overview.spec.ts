@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { gotoWhenReady, loginAs, openRoster, runSql } from './test-helpers';
+import { gotoWhenReady, loginAs, openRoster, openRosterSettings, runSql } from './test-helpers';
 
 const e2eRosterPath = '/ShowRosterWeek?weekOffset=0&rosterGroupId=a1000000-0000-0000-0000-000000000211';
 
@@ -16,7 +16,7 @@ test.describe('Roster week overview', () => {
         runSql("UPDATE roster_weeks SET is_live = TRUE WHERE id = 'a1000000-0000-0000-0000-000000000053';");
         await openRoster(page, { weekOffset: 1, ensureDraft: false, ensureEditable: false });
 
-        await page.getByRole('button', { name: 'Roster settings' }).click();
+        await openRosterSettings(page);
         const exportButton = page.getByRole('button', { name: 'Export JPG' });
         await expect(exportButton).toBeVisible();
 
@@ -28,7 +28,7 @@ test.describe('Roster week overview', () => {
     test('does not show roster JPG export on draft weeks', async ({ page }) => {
         await openRoster(page, { weekOffset: 2 });
 
-        await page.getByRole('button', { name: 'Roster settings' }).click();
+        await openRosterSettings(page);
         await expect(page.getByRole('button', { name: 'Export JPG' })).toHaveCount(0);
     });
 

@@ -737,6 +737,31 @@
     });
   }
 
+  // frontend/ts/roster/staff-panel-tabs.ts
+  var tabSelector = "[data-roster-staff-panel-tab]";
+  var activeTab = "staff";
+  function tabValue(element) {
+    if (!(element instanceof HTMLElement)) return null;
+    const value = element.dataset.rosterStaffPanelTab;
+    return value === "staff" || value === "settings" ? value : null;
+  }
+  function restoreActiveTab() {
+    if (activeTab === "staff") return;
+    const tab = Array.from(document.querySelectorAll(tabSelector)).find((candidate) => tabValue(candidate) === activeTab);
+    if (!(tab instanceof HTMLElement)) return;
+    window.bootstrap?.Tab?.getOrCreateInstance(tab).show();
+  }
+  function enableRosterStaffPanelTabs() {
+    if (typeof window === "undefined") return;
+    document.addEventListener("click", (event) => {
+      if (!(event.target instanceof Element)) return;
+      const tab = event.target.closest(tabSelector);
+      const value = tabValue(tab ?? event.target);
+      if (value !== null) activeTab = value;
+    });
+    onAppPageReady(restoreActiveTab);
+  }
+
   // frontend/ts/roster/week-overview.ts
   function updateOverviewSelection(panelEl, dayButton) {
     if (!(panelEl instanceof HTMLElement) || !(dayButton instanceof HTMLElement)) return;
@@ -812,5 +837,6 @@
   enableRosterColumnEditMode();
   enableRosterImageExport();
   enableRosterStaffPanelSorting();
+  enableRosterStaffPanelTabs();
   enableRosterStaffShiftHighlight();
 })();

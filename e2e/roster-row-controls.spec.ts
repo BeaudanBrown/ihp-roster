@@ -5,6 +5,7 @@ import {
     assignRosterShiftStaff,
     firstEditableRosterDaySection,
     openRoster,
+    openRosterSettings,
     removeRowFromRosterDay,
     rosterDayAddButtonForSection,
     rosterDayRemoveButtonForSection,
@@ -16,6 +17,44 @@ async function loginAndOpenRoster(page: Page) {
 }
 
 test.describe('Roster row controls', () => {
+    test('hosts typed roster settings in the staff panel second tab', async ({ page }) => {
+        await loginAndOpenRoster(page);
+
+        const toolbar = page.locator('[data-week-toolbar="roster"]');
+        await expect(toolbar.getByRole('button', { name: 'Roster settings' })).toHaveCount(0);
+
+        const staffTab = page.getByRole('tab', { name: 'Staff', exact: true });
+        const settingsTab = page.getByRole('tab', { name: 'Settings', exact: true });
+        await expect(staffTab).toHaveAttribute('aria-selected', 'true');
+        await expect(settingsTab).toHaveAttribute('aria-selected', 'false');
+
+        await openRosterSettings(page);
+        const settingsPane = page.locator('#roster-staff-panel-settings-pane');
+        await expect(settingsPane.getByRole('heading', { name: 'Roster layout' })).toBeVisible();
+        await expect(settingsPane.getByRole('heading', { name: 'Display' })).toBeVisible();
+        await expect(settingsPane.getByRole('heading', { name: 'Prevent assignment' })).toBeVisible();
+        await expect(settingsPane.locator('[data-bepis-activation-ref]')).toHaveCount(2);
+        expect(await settingsPane.locator('form[data-bepis-surface-action]').count()).toBeGreaterThanOrEqual(3);
+
+        const fragmentResponse = page.waitForResponse((response) => response.url().includes('/ShowRosterWeekStaffPanelFragment'));
+        await settingsPane.evaluate((pane) => {
+            const actionForm = pane.querySelector('form[action*="CopyRosterWeek"]');
+            if (!(actionForm instanceof HTMLFormElement)) throw new Error('Expected roster week action form');
+            const actionUrl = new URL(actionForm.action);
+            const fragmentUrl = new URL('/ShowRosterWeekStaffPanelFragment', window.location.origin);
+            fragmentUrl.searchParams.set('weekOffset', actionUrl.searchParams.get('targetWeekOffset') ?? '0');
+            fragmentUrl.searchParams.set('rosterGroupId', actionUrl.searchParams.get('rosterGroupId') ?? '');
+            const htmx = (window as Window & {
+                htmx?: { ajax: (method: string, url: string, options: { target: string; swap: string }) => unknown };
+            }).htmx;
+            if (!htmx) throw new Error('Expected htmx runtime');
+            htmx.ajax('GET', fragmentUrl.toString(), { target: '#roster-staff-panel-fragment', swap: 'outerHTML' });
+        });
+        await fragmentResponse;
+        await expect(page.getByRole('tab', { name: 'Settings', exact: true })).toHaveAttribute('aria-selected', 'true');
+        await expect(page.locator('#roster-staff-panel-settings-pane')).toBeVisible();
+    });
+
     test('labels the single time column as start in day-row mode', async ({ page }) => {
         await loginAndOpenRoster(page);
         const frame = page.locator('.roster-grid-frame[data-roster-layout="day_rows"]');
@@ -200,7 +239,7 @@ test.describe('Roster row controls', () => {
             await assignRosterShiftStaff(page, rosterShiftLaunchers(page).first(), 'a1000000-0000-0000-0000-000000000031');
         }
 
-        await page.getByRole('button', { name: 'Roster settings' }).click();
+        await openRosterSettings(page);
         await page.locator('label[for="roster-layout-mode-day_columns"]').click();
         await expect(page.locator('.roster-day-columns')).toBeVisible();
 
@@ -304,7 +343,7 @@ test.describe('Roster row controls', () => {
         await page.setViewportSize({ width: 1280, height: 900 });
         await loginAndOpenRoster(page);
 
-        await page.getByRole('button', { name: 'Roster settings' }).click();
+        await openRosterSettings(page);
         await page.locator('label[for="roster-layout-mode-day_columns"]').click();
         await expect(page.locator('.roster-day-columns')).toBeVisible();
 

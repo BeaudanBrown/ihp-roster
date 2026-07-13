@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { gotoWhenReady, loginAs, openRoster, runSql } from './test-helpers';
+import { gotoWhenReady, loginAs, openRoster, openRosterSettings, runSql } from './test-helpers';
 
 type ToolbarMetrics = {
     quickTop: number;
@@ -72,12 +72,12 @@ async function weekToolbarMetrics(page: import('@playwright/test').Page, toolbar
 }
 
 test.describe('Shared week toolbar responsive layout', () => {
-    test('spaces roster week action buttons evenly in settings menu', async ({ page }) => {
+    test('spaces roster week action buttons evenly in the staff panel settings tab', async ({ page }) => {
         test.setTimeout(90_000);
         await page.setViewportSize({ width: 1280, height: 900 });
 
         await openRoster(page, { email: 'e2e-admin@example.com', ensureEditable: true });
-        await page.getByRole('button', { name: 'Roster settings' }).click();
+        await openRosterSettings(page);
 
         const actionGroup = page.locator('.roster-week-action-grid');
         await expect(actionGroup).toBeVisible();
@@ -144,7 +144,8 @@ test.describe('Shared week toolbar responsive layout', () => {
         const toolbar = page.locator('[data-week-toolbar="roster"]');
         await expect(toolbar.locator('[data-week-toolbar-section="primary"]').getByText('Live')).toBeVisible();
         await expect(toolbar.getByRole('link', { name: 'This week' })).toBeVisible();
-        await expect(toolbar.getByRole('button', { name: 'Roster settings' })).toBeVisible();
+        await expect(toolbar.getByRole('button', { name: 'Roster settings' })).toHaveCount(0);
+        await expect(page.getByRole('tab', { name: 'Settings', exact: true })).toBeVisible();
         await expect(toolbar.locator('.roster-week-nav-group')).toBeVisible();
         if ((await toolbar.locator('[data-week-toolbar-section="auxiliary"] .roster-wage-summary').count()) > 0) {
             await expect(toolbar.locator('[data-week-toolbar-section="auxiliary"] .roster-wage-summary')).toBeVisible();

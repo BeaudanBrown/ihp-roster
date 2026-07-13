@@ -13,6 +13,11 @@ type BootstrapRuntime = {
             hide: () => void;
         };
     };
+    Tab?: {
+        getOrCreateInstance: (element: HTMLElement) => {
+            show: () => void;
+        };
+    };
 };
 
 declare global {

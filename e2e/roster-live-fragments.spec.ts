@@ -1,6 +1,6 @@
 import { test, expect, type Page, type Locator } from '@playwright/test';
 import { E2E_TIMEOUT } from './timeouts';
-import { ensureRosterLayout, fillRosterShiftDialogDefaults, openRoster, openRosterShiftDialog, saveRosterShiftDialog } from './test-helpers';
+import { ensureRosterLayout, fillRosterShiftDialogDefaults, openRoster, openRosterSettings, openRosterShiftDialog, saveRosterShiftDialog } from './test-helpers';
 
 async function loginAndOpenRoster(page: Page) {
     await openRoster(page);
@@ -113,7 +113,7 @@ async function expectShiftGroupStaffId(page: Page, groupKey: string, staffId: st
 async function copyPreviousWeek(page: Page) {
     const copyButton = page.getByRole('button', { name: 'Copy Previous Week' });
     if (!(await copyButton.isVisible().catch(() => false))) {
-        await page.getByRole('button', { name: 'Roster settings' }).click();
+        await openRosterSettings(page);
         await expect(copyButton).toBeVisible();
     }
     page.once('dialog', (dialog) => dialog.accept());
