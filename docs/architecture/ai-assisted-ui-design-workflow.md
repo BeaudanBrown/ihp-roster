@@ -5,9 +5,9 @@ Researched: 2026-07-12
 Repository evidence: `d7d8fe4c30611b3d068d5f418ce724435db6ff8f`
 
 This is a recommendation, not an implemented contract or a replacement for
-repo-local tickets. Existing focused UI polish remains tracked by `ir-z20h` and
+repo-local tickets. Existing focused UI polish remains tracked by `#117` and
 its children. If the systemic workflow proposed here is approved, it should get
-its own `tk` epic rather than being managed as a Markdown checklist.
+its own GitHub epic rather than being managed as a Markdown checklist.
 
 ## Recommendation In One Page
 
@@ -582,7 +582,7 @@ AI output should be rejected or translated when it introduces:
 - Formalize a `ui-review` Playwright capture matrix around current seeded data.
 - Add a reusable visual-review rubric for agents/humans.
 - Keep screenshots non-gating while the matrix stabilizes.
-- Continue focused polish through `ir-z20h` without waiting for a new design
+- Continue focused polish through `#117` without waiting for a new design
   platform.
 
 ### Phase 2 — expose and test the component system

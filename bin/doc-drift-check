@@ -76,7 +76,7 @@ reject_text Web/View/AGENTS.md 'https://cdn.jsdelivr.net'
 documentation_files=()
 while IFS= read -r -d '' documentation_path; do
     case "$documentation_path" in
-        .tickets/*|.pi/*)
+        .pi/*)
             continue
             ;;
     esac

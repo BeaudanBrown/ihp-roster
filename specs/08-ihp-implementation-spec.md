@@ -1,8 +1,8 @@
 # IHP Implementation Architecture
 
 This file describes cross-cutting IHP implementation expectations. It is not a
-feature plan. Use `IMPLEMENTATION_PLAN.md`, `docs/workstreams/`, and `tk` for
-future work routing.
+feature plan. Use `IMPLEMENTATION_PLAN.md`, `docs/workstreams/`, and GitHub
+Issues for future work routing.
 
 ## Schema
 

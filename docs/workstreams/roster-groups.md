@@ -2,10 +2,9 @@
 
 Status: active
 
-Tickets:
+GitHub issues:
 
-- `ir-t7be` - parent epic
-- `ir-5dzy`, `ir-ljuf`, `ir-u51n`, `ir-tbjx`, `ir-vifu`
+- `#111` - multi-group payroll exports
 
 Living docs to update:
 

@@ -6,7 +6,7 @@ for forward-looking design.
 
 ## Rules
 
-- Every workstream must link to one or more `tk` tickets.
+- Every workstream must link to one or more GitHub issues.
 - Workstreams describe intent, scope, constraints, and integration points.
 - Workstreams are not the source of truth for implemented behavior.
 - Every workstream must list the living docs that need updates as it lands.
@@ -18,7 +18,7 @@ for forward-looking design.
 
 - `proposed`: product or architecture direction exists, but implementation is
   not ready to start.
-- `active`: implementation is underway through `tk`.
+- `active`: implementation is underway through GitHub Issues.
 - `blocked`: waiting on a named dependency.
 - `implemented`: the workstream is complete and should be archived after docs
   are reconciled.
@@ -47,7 +47,7 @@ for forward-looking design.
 
 A workstream can leave `active` only when:
 
-- linked tickets are closed or the remaining work has moved to another
+- linked issues are closed or the remaining work has moved to another
   workstream
 - implemented behavior is described in local `SPEC.md` files
 - reusable implementation rules are in local `AGENTS.md` files

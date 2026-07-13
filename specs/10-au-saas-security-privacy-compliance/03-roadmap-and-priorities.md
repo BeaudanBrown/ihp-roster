@@ -5,7 +5,7 @@
 Sequence the work so the project does not accumulate legal and architectural debt that becomes expensive once real venues and real worker data exist.
 
 This is the compliance/product roadmap for the current project direction. Live
-implementation status belongs in `.tickets/`, and current feature-stream
+implementation status belongs in GitHub Issues, and current feature-stream
 routing belongs in `docs/workstreams/`.
 
 It assumes a local, managed-service rollout to a small number of venues before any attempt at broad self-serve scale.

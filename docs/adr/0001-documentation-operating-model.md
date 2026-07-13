@@ -20,9 +20,9 @@ explicit workstreams.
 - `README.md`, `SPEC.md`, and `AGENTS.md` next to code describe current
   subsystem behavior and local editing rules.
 - `docs/workstreams/` describes future or partial feature streams and links to
-  `tk`.
+  GitHub Issues.
 - `docs/adr/` records durable architecture decisions.
-- `.tickets/` remains the live implementation graph.
+- GitHub Issues is the live implementation graph.
 - Old numbered plans move to `docs/archive/plans/` as historical context.
 
 ## Consequences
@@ -48,4 +48,3 @@ reconciliation, not just passing tests.
 
 - `docs/README.md`
 - `docs/workstreams/README.md`
-- `.tickets/ir-m8hc.md`

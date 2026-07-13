@@ -8,14 +8,13 @@ a few paragraphs.
 
 ## Staff Profiles And Preferences
 
-Tickets:
+GitHub issues:
 
-- `ir-45b6`
-- `ir-l2l8`
-- `ir-2d9a`
-- `ir-n0fe`
-- `ir-iw4k`
-- `ir-zl1t`
+- `#19`
+- `#7`
+- `#88`
+- `#68`
+- `#120`
 
 Living docs to update:
 
@@ -33,13 +32,13 @@ Direction:
 
 ## Support Access
 
-Tickets:
+GitHub issues:
 
-- `ir-qi7t`
-- `ir-4ggo`
-- `ir-sy25`
-- `ir-00br`
-- `ir-5vrr`
+- `#95`
+- `#22`
+- `#102`
+- `#1`
+- `#26`
 
 Living docs to update:
 
@@ -58,11 +57,10 @@ Direction:
 
 ## Public Holidays
 
-Tickets:
+GitHub issues:
 
-- `ir-52nw`
-- `ir-mhfj`
-- `ir-kt2x`
+- `#23`
+- `#82`
 
 Living docs to update:
 
@@ -79,13 +77,6 @@ Direction:
 
 ## Demo And Profile Seeding
 
-Tickets:
-
-- `ir-hsuu`
-- `ir-v5ed`
-- `ir-fao4`
-- `ir-3wcl`
-
 Living docs to update:
 
 - `Application/Script/` docs if added
@@ -99,12 +90,6 @@ Direction:
 - Do not weaken test fixture determinism to make manual exploration easier.
 
 ## Week Controls
-
-Tickets:
-
-- `ir-5o6t`
-- `ir-w8dk`
-- `ir-y8mj`
 
 Living docs to update:
 
@@ -120,10 +105,10 @@ Direction:
 
 ## Later Backlog
 
-Tickets:
+GitHub issues:
 
-- `ir-mwhc` - ordinary account multi-venue switching
-- `ir-vifu` - multi-group payroll exports
+- `#87` - ordinary account multi-venue switching
+- `#111` - multi-group payroll exports
 
 Direction:
 

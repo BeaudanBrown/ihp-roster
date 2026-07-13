@@ -1,6 +1,5 @@
 # Typed Bepis ControllerSpec Prototype Decision
 
-Ticket: `ir-djtt`
 
 ## Goal
 

@@ -4,16 +4,6 @@ Status: implemented
 
 Tickets:
 
-- `ir-xbga` - parent epic
-- `ir-84gh` - design billing domain contract and docs
-- `ir-bub1` - add billing schema and generated types
-- `ir-n00b` - add Stripe billing client and webhook verification
-- `ir-dpld` - configure Stripe billing through NixOS secrets
-- `ir-knps` - add owner and super-admin billing surfaces
-- `ir-9k70` - add Stripe contract and lifecycle test harness
-- `ir-8rqk` - process Stripe webhooks and send billing notifications
-- `ir-nimj` - add manual venue read-only enforcement
-- `ir-pvdh` - verify billing integration and launch docs
 
 Living docs to update:
 
@@ -491,9 +481,9 @@ operator-run sandbox checklist using Stripe CLI and test clocks.
 ```text
 You are working in /home/beau/documents/projects/ihp-roster on the Subscription
 Billing workstream. Start by reading AGENTS.md, docs/README.md,
-docs/workstreams/README.md, docs/workstreams/subscription-billing.md, and
-tk show ir-xbga. Then follow tk dependencies, beginning with tk ready and the
-ready billing tickets.
+docs/workstreams/README.md, docs/workstreams/subscription-billing.md, and the
+relevant GitHub issues. Follow native issue dependencies, beginning with ready,
+unblocked billing work.
 
 Goal: implement per-venue Stripe Billing subscriptions for AUD 100/month using
 Stripe-hosted Checkout, hosted Customer Portal, and signed webhooks. The app
@@ -557,15 +547,15 @@ NixOS/secret placeholders:
   file-backed secrets only.
 
 Expected ticket order:
-1. ir-84gh - design billing domain contract and docs.
-2. ir-bub1 - schema and generated types.
-3. ir-n00b - Stripe client and webhook verification.
-4. ir-9k70 - Stripe contract and lifecycle test harness.
-5. ir-dpld - NixOS module secret config.
-6. ir-knps - owner and super-admin billing surfaces.
-7. ir-8rqk - webhook processing and notifications.
-8. ir-nimj - manual venue read-only enforcement.
-9. ir-pvdh - verification and launch docs.
+1. design billing domain contract and docs.
+2. schema and generated types.
+3. Stripe client and webhook verification.
+4. Stripe contract and lifecycle test harness.
+5. NixOS module secret config.
+6. owner and super-admin billing surfaces.
+7. webhook processing and notifications.
+8. manual venue read-only enforcement.
+9. verification and launch docs.
 
 Commit after every logical chunk. Use concise commit messages and do not stage
 unrelated existing user changes. Before each commit, run git status --short and
@@ -596,7 +586,7 @@ Verification before final completion:
 - Run the documented Stripe CLI/test-clock checklist outside ordinary CI before
   live launch.
 
-When a ticket is complete, close it with tk close <id>. Keep
+When an issue is complete, close it in GitHub. Keep
 docs/workstreams/subscription-billing.md current while work remains. Move
 implemented contracts into local SPEC/README/AGENTS files as code lands.
 ```

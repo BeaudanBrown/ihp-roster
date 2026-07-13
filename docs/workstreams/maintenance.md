@@ -2,15 +2,9 @@
 
 Status: active
 
-Tickets:
+GitHub issues:
 
-- `ir-m8hc` - spec and agent doc alignment
-- `ir-6vvh` - code smell remediation backlog
-- `ir-18tm` - component boundary cleanup (closed context)
-- `ir-9f7z` - app JavaScript runtime refactor (closed context)
-- `ir-2usx` - view helper split
-- `ir-sryt` - profiling instrumentation
-- `ir-5rhn` - input handling and injection hardening
+- `#32` - code smell remediation backlog
 
 Living docs to update:
 

@@ -4,10 +4,9 @@ Status: active
 
 Tickets:
 
-- `ir-176p` - parent epic
-- `ir-mjov` - connection foundation maintenance
-- `ir-adtf`, `ir-shsr`, `ir-lgy7`, `ir-tfed`, `ir-ujwc`, `ir-z87w`
-- `ir-9u78` - guided draft-timesheet preparation modal
+- `#4` - parent epic
+- `#84` - connection foundation maintenance
+- `#47`, `#101`, `#78`, `#103`, `#109`, `#119`
 - GitHub `#142` - retire disconnected operational panels and pre-wizard endpoints
 
 Living docs to update:
@@ -79,15 +78,7 @@ explicit update support is designed and implemented.
 
 Relevant tickets:
 
-- `ir-9u78` - parent feature for the guided modal flow
-- `ir-omzt` - Xero Pay Runs API and selectable payroll periods
-- `ir-9gkd` - preparation-run and approval-decision persistence
-- `ir-mjos` - preparation orchestration service
-- `ir-l0x7` - explicit selected-period preview/submission wiring
-- `ir-8usq` - posted pay-run and existing-timesheet blockers
-- `ir-lhy5` - modal UI and controller flow
-- `ir-zy55` - research draft-timesheet update support
-- `ir-qsgf` - focused Hspec/E2E coverage
+- `#123` - research draft-timesheet update support
 
 ## Exit Criteria
 

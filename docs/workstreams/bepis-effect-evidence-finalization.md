@@ -4,20 +4,6 @@ Status: implemented
 
 Finalizes/supersedes: `bepis-component-pipelines.md`
 
-Tickets:
-
-- Epic: `ir-z0j1` - Finalize Bepis runtime facts architecture
-- `ir-mwma` - Define single Bepis operation/fact root
-- `ir-xz3b` - Make authorization helpers emit scope facts
-- `ir-gt0e` - Make audit helpers emit audit facts
-- `ir-glwa` - Make live invalidation helpers emit live facts
-- `ir-ufjf` - Make response helpers emit response facts
-- `ir-23gs` - Replace action wrappers with final `runBepis` fact runner
-- `ir-39dg` - Big-bang migrate all controllers off legacy Bepis metadata
-- `ir-amxj` - Replace architecture facts and gates with generated Bepis fact contracts
-- `ir-asoq` - Add final Bepis architecture test suite
-- `ir-lydg` - Reconcile final Bepis docs and archive superseded plan
-
 ## Final Contract
 
 Bepis now uses one runtime-fact model. Developers write normal IHP controller

@@ -2,11 +2,6 @@
 
 Status: implemented
 
-Tickets:
-
-- `ir-hw2v` - parent epic
-- `ir-vgdg`, `ir-srwi`, `ir-f7j7`, `ir-6s3f`, `ir-d1po`, `ir-3qku`
-
 Living docs to update:
 
 - `Application/Helper/Export/SPEC.md`

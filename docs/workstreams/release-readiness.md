@@ -4,8 +4,8 @@ Status: active
 
 Tickets:
 
-- `ir-g778` - parent epic
-- `ir-9x82`, `ir-s0s3`, `ir-yo89`, `ir-2ds0`
+- `#60` - parent epic
+- `#45`, `#99`, `#116`, `#8`
 
 Living docs to update:
 

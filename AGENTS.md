@@ -16,7 +16,7 @@ Use this order when documents disagree:
    spans more than one subsystem.
 4. `docs/workstreams/` describes future or in-progress feature streams.
 5. `docs/adr/` records durable decisions and supersessions.
-6. `.tickets/` is the live implementation graph and status tracker.
+6. GitHub Issues is the live implementation graph and status tracker.
 7. `docs/archive/` is historical context only.
 
 ## Read Order
@@ -26,7 +26,7 @@ Before changing a subsystem:
 1. Read this file.
 2. Read the nearest local `AGENTS.md`.
 3. Read the subsystem `README.md` and `SPEC.md` if present.
-4. Check `tk show <id>` for the active ticket.
+4. Inspect the active GitHub issue and its native relationships.
 5. If the work is future-facing, read the relevant file in
    `docs/workstreams/`.
 6. Read archived plans only when a ticket or workstream explicitly links them.
@@ -71,8 +71,8 @@ database, auth, validation, or HSX changes.
 
 ## Documentation Workflow
 
-`tk` is the live tracker. Do not create parallel markdown checklists for work
-already represented by tickets.
+GitHub Issues is the live tracker. Do not create parallel markdown checklists
+for work already represented by issues.
 
 Use `docs/workstreams/` for feature streams that are not fully implemented yet.
 A workstream must list its tickets, affected living docs, intended contract, and
@@ -86,19 +86,11 @@ default.
 See `docs/README.md` and `docs/workstreams/README.md` before adding or moving
 documentation.
 
-## tk
+## GitHub Issues
 
-Use repo-local `tk`:
-
-```bash
-tk ready
-tk blocked
-tk show <id>
-tk dep tree <id>
-```
-
-Keep `.tickets/` checked in. Coordinator tickets are routing references; use
-the linked repo-local `ir-*` ticket for implementation details.
+Use the current repository's GitHub issues, native sub-issues, and blocker
+relationships for implementation tracking. Inspect an issue before changing it,
+and use the ready, unassigned, unblocked frontier when selecting agent work.
 
 ## Core IHP Conventions
 

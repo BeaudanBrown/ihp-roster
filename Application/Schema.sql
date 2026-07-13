@@ -3,7 +3,7 @@
 -- Schema navigation map:
 -- - schema-nav: enum-types - shared status/role/action enums. Some finite
 --   domains intentionally remain TEXT + explicit OR checks for IHP parser
---   compatibility; hardening belongs in ir-caf4.
+--   compatibility; hardening belongs in GitHub issue #53.
 -- - schema-nav: identity-and-access - venues, users, email verification,
 --   passkeys, memberships, invitations, and onboarding.
 -- - schema-nav: staff-profiles - venue staff profile and employment defaults.

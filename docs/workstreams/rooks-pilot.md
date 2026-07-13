@@ -2,13 +2,10 @@
 
 Status: active
 
-Tickets:
+GitHub issues:
 
-- `ir-9jap` - parent epic
-- `ir-2rko` - RSA document acceptance and expiry tracking
-- `ir-7xks` - auto-create pending timesheets from live rosters
-- `ir-ptny` - admin-only predicted roster wage totals
-- `ir-z87w` - staff-level Xero custom pay item overrides
+- `#43` - parent epic
+- `#119` - staff-level Xero custom pay item overrides
 
 Living docs to update:
 

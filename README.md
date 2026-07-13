@@ -184,7 +184,7 @@ assets, not under `output/`.
 Start with `docs/README.md` for the documentation operating model.
 
 - Implemented subsystem behavior belongs in local `SPEC.md` files beside code.
-- Future feature streams belong in `docs/workstreams/` and must link to `tk`.
+- Future feature streams belong in `docs/workstreams/` and must link to GitHub Issues.
 - Durable decisions belong in `docs/adr/`.
 - Historical numbered plans live in `docs/archive/plans/`.
 

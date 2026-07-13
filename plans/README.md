@@ -4,7 +4,7 @@ The old numbered plan files now live under `docs/archive/plans/`.
 
 Use these current locations instead:
 
-- live task status: `.tickets/` via `tk`
+- live task status: GitHub Issues
 - future feature streams: `docs/workstreams/`
 - implemented subsystem behavior: local `SPEC.md` files beside code
 - agent editing rules: local `AGENTS.md` files beside code

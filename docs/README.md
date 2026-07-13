@@ -16,14 +16,14 @@ space for future feature streams.
 - `docs/workstreams/`: proposed, active, or blocked feature streams that are
   not fully implemented yet.
 - `docs/adr/`: durable architectural decision records.
-- `.tickets/`: live implementation status, dependencies, and next actions.
+- GitHub Issues: live implementation status, dependencies, and next actions.
 - `docs/archive/`: historical plans, audits, and superseded notes.
 
 ## Update Rules
 
 When implementing a feature stream:
 
-1. Keep live task status in `tk`.
+1. Keep live task status and relationships in GitHub Issues.
 2. Keep future or partial design in `docs/workstreams/`.
 3. Move implemented behavior into the nearest subsystem `SPEC.md`.
 4. Move reusable editing rules into the nearest `AGENTS.md`.
@@ -45,7 +45,7 @@ archived plan.
 
 ## Drift Policy
 
-If code and docs disagree, trust code/tests first, then update docs or create a
-ticket to close the gap. If a product spec describes behavior that is still
+If code and docs disagree, trust code/tests first, then update docs or create an
+issue to close the gap. If a product spec describes behavior that is still
 desired but not implemented, keep it in `specs/` or `docs/workstreams/` and
-make sure a `tk` ticket exists.
+make sure a GitHub issue exists.

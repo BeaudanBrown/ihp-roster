@@ -4,8 +4,8 @@ Status: active
 
 Tickets:
 
-- `ir-caf4` - parent epic
-- `ir-7gm0`, `ir-iz2g`, `ir-jra6`, related children
+- `#53` - parent epic
+- `#36`, `#69`, `#72`, related children
 
 Living docs to update:
 

@@ -2,7 +2,7 @@
 
 Status: active
 
-Epic: `ir-p008` - Replace roster profiling spine with OpenTelemetry
+Epic: `#90` - Replace roster profiling spine with OpenTelemetry
 
 Architecture note: `docs/architecture/observability.md`
 
@@ -34,7 +34,6 @@ artifact summaries exist.
 
 ### 1. Contract and package decision
 
-Ticket: `ir-at28`
 
 Document the package stack, env gates, attribute policy, backend topology, and
 NixOS option direction. Use `hs-opentelemetry-*` with a project `doJailbreak`
@@ -42,7 +41,6 @@ override for `hs-opentelemetry-instrumentation-wai`'s stale API upper bound.
 
 ### 2. App OpenTelemetry runtime spine
 
-Ticket: `ir-myon`
 
 Add the Haskell dependencies and Nix override. Introduce a telemetry helper
 module, initialize the tracer provider only when `IHP_ROSTER_OTEL=1`, wire WAI
@@ -51,7 +49,6 @@ constructor name.
 
 ### 3. Bridge existing profiling helpers
 
-Ticket: `ir-st8a`
 
 Bridge `profileActionSpan` and `profileActionSpanWithDetail` to cheap OTel
 child spans. Keep byte-measuring HTML helpers and render counters diagnostic by
@@ -59,14 +56,12 @@ requiring `IHP_ROSTER_PROFILING=1` or an equally explicit future diagnostic gate
 
 ### 4. Counters and metrics
 
-Ticket: `ir-6io4`
 
 Move roster render counters to trace attributes/events for diagnostic runs.
 Promote only stable low-cardinality signals to metrics later.
 
 ### 5. Agent-first collector artifacts
 
-Ticket: `ir-0c2u`
 
 Extend profile scripts with a Nix-managed local OTLP collector that exports
 bounded trace files and OTel-derived JSON/Markdown summaries next to existing
@@ -76,7 +71,6 @@ and `otel-summary.md` artifacts.
 
 ### 6. Pi/agent tools
 
-Ticket: `ir-7hzq`
 
 Add project-local tools for running low-rate profile scenarios, summarizing
 profile artifacts, finding slow traces/spans, inspecting representative traces,
@@ -96,14 +90,13 @@ not expose OTLP ingestion publicly.
 
 ### 7. Production NixOS options
 
-Ticket: `ir-3dbl`
 
 Expose app OTel, profiling, collector, Tempo, and Loki runtime controls through
 the `services.ihpRoster.observability` NixOS module option tree.
 
 ### 8. Production capture/storage
 
-Ticket: `ir-jroj`
+Ticket: `#73`
 
 Run the production collector/Alloy, Tempo, and Loki on the actual production
 host. Keep app OTLP ingestion localhost-only and expose query APIs over
@@ -111,7 +104,7 @@ host. Keep app OTLP ingestion localhost-only and expose query APIs over
 
 ### 9. Human Grafana frontend
 
-Ticket: `ir-8fit`
+Ticket: `#40`
 
 In `~/documents/nix-dotfiles`, add a tailnet-only Grafana hosted service on the
 personal/NAS host. Provision datasources for production Tempo and Loki tailnet
@@ -119,21 +112,21 @@ endpoints.
 
 ### 10. Dashboards and trace/log correlation
 
-Ticket: `ir-39r1`
+Ticket: `#13`
 
 Provision Bepis dashboards and conventions so operators can navigate from a slow
 or failed request trace to related Loki logs.
 
 ### 11. Runbook and security model
 
-Ticket: `ir-ljeo`
+Ticket: `#79`
 
 Document safe enable/disable procedures, endpoint exposure, retention, where data
 lives, and PII/cardinality rules.
 
 ### 12. Compatibility cleanup
 
-Ticket: `ir-62zx`
+Ticket: `#28`
 
 After traces, artifacts, and tools cover the existing workflows, mark
 `X-Profile-Counters` legacy and keep/remove `Server-Timing` based on remaining

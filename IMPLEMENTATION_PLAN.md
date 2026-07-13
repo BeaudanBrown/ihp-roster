@@ -5,7 +5,7 @@ live checklist and it no longer owns detailed pipeline plans.
 
 Use:
 
-- `.tickets/` through `tk` for live status, dependencies, and next actions.
+- GitHub Issues and native relationships for live status, dependencies, and next actions.
 - `docs/workstreams/` for proposed or active feature-stream design.
 - subsystem-local `README.md`, `SPEC.md`, and `AGENTS.md` for implemented
   behavior and local editing rules.
@@ -41,17 +41,17 @@ High-priority product and architecture decisions:
 
 ## Active Workstream Map
 
-| Workstream | Primary tickets | Routing |
+| Workstream | Primary GitHub issues | Routing |
 | --- | --- | --- |
-| Rooks pilot readiness | `ir-9jap`, `ir-2rko`, `ir-7xks`, `ir-ptny`, `ir-z87w` | `docs/workstreams/rooks-pilot.md` |
-| Pay config versioning | `ir-hw2v` and children | `docs/workstreams/pay-config-versioning.md` |
-| Xero payroll integration | `ir-176p`, `ir-mjov` and children | `docs/workstreams/xero-payroll.md` |
-| Roster groups and bootstrap | `ir-t7be` and children | `docs/workstreams/roster-groups.md` |
-| Record retention | `ir-u4mc` and children | `docs/workstreams/record-retention.md` |
-| Release readiness | `ir-g778` and children | `docs/workstreams/release-readiness.md` |
-| Schema hardening | `ir-caf4` and children | `docs/workstreams/schema-hardening.md` |
-| Maintenance and boundaries | `ir-m8hc`, `ir-6vvh`, `ir-18tm`, `ir-9f7z`, `ir-2usx` | `docs/workstreams/maintenance.md` |
-| Backlog and smaller streams | `ir-45b6`, `ir-qi7t`, `ir-52nw`, `ir-hsuu`, `ir-jooi`, `ir-5o6t` | `docs/workstreams/backlog.md` |
+| Rooks pilot readiness | `#43` | `docs/workstreams/rooks-pilot.md` |
+| Pay config versioning | Search GitHub Issues by workstream title | `docs/workstreams/pay-config-versioning.md` |
+| Xero payroll integration | `#4`, `#84` | `docs/workstreams/xero-payroll.md` |
+| Roster groups and bootstrap | Search GitHub Issues by workstream title | `docs/workstreams/roster-groups.md` |
+| Record retention | `#106` | `docs/workstreams/record-retention.md` |
+| Release readiness | `#60` | `docs/workstreams/release-readiness.md` |
+| Schema hardening | `#53` | `docs/workstreams/schema-hardening.md` |
+| Maintenance and boundaries | `#32` | `docs/workstreams/maintenance.md` |
+| Backlog and smaller streams | `#19`, `#23`, `#95` | `docs/workstreams/backlog.md` |
 
 ## Global Order
 
@@ -70,7 +70,7 @@ level, prefer this order:
 
 ## How To Start Work
 
-1. Run `tk ready` or inspect the target ticket with `tk show <id>`.
+1. Inspect the target GitHub issue and confirm it is ready and unblocked.
 2. Read the relevant workstream in `docs/workstreams/` if the behavior is not
    fully implemented.
 3. Read the local subsystem docs beside the code you will touch.

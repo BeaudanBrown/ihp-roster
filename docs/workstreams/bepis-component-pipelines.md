@@ -2,8 +2,6 @@
 
 Status: superseded by `bepis-effect-evidence-finalization.md`
 
-Tickets: `ir-si7h`, `ir-bi2e`, `ir-6fzq`, `ir-kd68`, `ir-bhbi`, `ir-9iew`, `ir-h91z`
-
 This workstream introduced the transitional component-pipeline idea that led to
 the final Bepis runtime fact architecture. Its durable outcome was the decision
 to keep semantics visible and typed, but not to maintain descriptive metadata

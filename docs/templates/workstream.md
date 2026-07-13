@@ -2,9 +2,9 @@
 
 Status: proposed
 
-Tickets:
+GitHub issues:
 
-- `ir-xxxx`
+- `#123`
 
 Living docs to update:
 
@@ -26,7 +26,7 @@ Summarize what is implemented today and where that contract is documented.
 ## Intended Contract
 
 Describe the target behavior. Avoid task checklists here; put task status in
-`tk`.
+GitHub Issues.
 
 ## Boundaries
 

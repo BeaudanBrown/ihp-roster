@@ -2,7 +2,7 @@
 
 Status: planned
 
-Primary epic: `ir-p008` - Replace roster profiling spine with OpenTelemetry
+Primary epic: `#90` - Replace roster profiling spine with OpenTelemetry
 
 ## Goals
 
@@ -137,8 +137,8 @@ OTEL_EXPORTER_OTLP_ENDPOINT=http://127.0.0.1:4318 \
 OTEL_TRACES_SAMPLER=always_on
 ```
 
-`ir-0c2u` owns turning this into a checked-in profile-run collector config and
-bounded summary artifacts.
+The checked-in profile-run collector configuration owns this smoke-test path and
+its bounded summary artifacts.
 
 ## Dev Live Frontend Topology
 
@@ -228,15 +228,8 @@ provision datasources pointing at production tailnet endpoints.
 
 ## Related Tickets
 
-- `ir-at28` - Design the Bepis OpenTelemetry observability contract
-- `ir-myon` - Wire OpenTelemetry WAI request tracing and OTLP export
-- `ir-st8a` - Bridge custom profiling spans to OpenTelemetry child spans
-- `ir-6io4` - Move roster render counters into OTel attributes events and stable metrics
-- `ir-0c2u` - Add local collector and profile-run OTel summary artifacts
-- `ir-7hzq` - Expose observability workflows to coding agents
-- `ir-3dbl` - Add production observability NixOS module options
-- `ir-jroj` - Run production collector Tempo and Loki behind tailnet
-- `ir-8fit` - Add NAS Grafana tailnet frontend for production observability
-- `ir-39r1` - Provision Bepis observability dashboards and trace log correlation
-- `ir-ljeo` - Document production observability runbook and security model
-- `ir-62zx` - Deprecate the custom profiling header spine after OTel parity
+- `#73` - Run production collector Tempo and Loki behind tailnet
+- `#40` - Add NAS Grafana tailnet frontend for production observability
+- `#13` - Provision Bepis observability dashboards and trace log correlation
+- `#79` - Document production observability runbook and security model
+- `#28` - Deprecate the custom profiling header spine after OTel parity
