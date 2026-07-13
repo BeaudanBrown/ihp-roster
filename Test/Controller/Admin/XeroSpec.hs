@@ -714,8 +714,22 @@ tests = beforeAll testContext do
 
         it "opens the guided Xero preparation modal for a selected pay period" $ withContext do
             withCleanDb do
-                fixture <- Preview.createPreviewFixture "weekly" [Preview.EntrySpec 0 Preview.fixtureStaffA (TimeOfDay 9 0 0) (TimeOfDay 13 0 0)]
+                fixture <-
+                    Preview.createPreviewFixture
+                        "weekly"
+                        [ Preview.EntrySpec 0 Preview.fixtureStaffA (TimeOfDay 9 0 0) (TimeOfDay 13 0 0)
+                        , Preview.EntrySpec 1 Preview.fixtureStaffB (TimeOfDay 9 0 0) (TimeOfDay 12 0 0)
+                        ]
                 markOtherFixtureStaffNotPaid fixture
+                employeeB <-
+                    query @XeroEmployee
+                        |> filterWhere (#xeroConnectionId, unpackId fixture.connection.id)
+                        |> filterWhere (#xeroEmployeeId, "employee-b" :: Text)
+                        |> fetchOne
+                _ <-
+                    employeeB
+                        |> set #rawPayload (Aeson.object ["EmployeeID" Aeson..= employeeB.xeroEmployeeId])
+                        |> updateRecord
                 encryptedRefreshToken <- encryptXeroToken testXeroConfig.tokenEncryptionKey "refresh-token"
                 _ <-
                     fixture.connection
@@ -751,6 +765,8 @@ tests = beforeAll testContext do
                 summaryResponse `responseBodyShouldContain` "Step 3 of 3"
                 summaryResponse `responseBodyShouldContain` "Timesheet summary"
                 summaryResponse `responseBodyShouldContain` "Approved shifts"
+                summaryResponse `responseBodyShouldContain` "Ada Lovelace"
+                summaryResponse `responseBodyShouldNotContain` "Grace Hopper"
                 summaryResponse `responseBodyShouldContain` "Submit draft timesheets to Xero"
                 summaryResponse `responseBodyShouldNotContain` "Readiness validation"
                 summaryResponse `responseBodyShouldNotContain` "· payment"

@@ -148,8 +148,10 @@ loadXeroTimesheetPreparationView runId = do
             readiness <- preparationReadinessForRun run remoteTimesheets
             let readinessView = preparationReadinessView run readiness
             staffRows <- fetchCurrentVenueXeroStaffMappingRows (Just connection)
-            approvedStaffIds <- fetchApprovedPreparationStaffIds run
-            reviewRows <- fetchPreparationReviewRows run staffRows
+            reviewRows <-
+                if preparationRunHasPeriod run
+                    then fetchPreparationReviewRows (preparationReadinessRequest run remoteTimesheets) connection staffRows
+                    else pure []
             periodOptions <- fetchCurrentVenueXeroTimesheetPeriodOptions (Just connection)
             xeroEmployees <- fetchCurrentVenueXeroEmployees (Just connection)
             xeroEarningsRates <- fetchCurrentVenueXeroEarningsRates (Just connection)
@@ -503,47 +505,22 @@ fetchPreparationRunForCurrentVenue runId =
         |> filterWhere (#venueId, unpackId currentVenueId)
         |> fetchOneOrNothing
 
-fetchApprovedPreparationStaffIds ::
-    (?modelContext :: ModelContext) =>
-    XeroTimesheetPreparationRun ->
-    IO [UUID]
-fetchApprovedPreparationStaffIds run = do
-    entries <- fetchApprovedPreparationEntries run
-    pure $
-        entries
-            |> map (.staffId)
-            |> List.nub
-
 fetchPreparationReviewRows ::
     (?modelContext :: ModelContext) =>
-    XeroTimesheetPreparationRun ->
+    XeroTimesheetReadinessRequest ->
+    XeroConnection ->
     [XeroStaffMappingRow] ->
     IO [XeroPreparationReviewRow]
-fetchPreparationReviewRows run staffRows = do
-    entries <- fetchApprovedPreparationEntries run
-    payResultsByEntryId <- fetchTimesheetPayResultsForEntries entries
+fetchPreparationReviewRows request connection staffRows = do
+    previewInput <- fetchPreviewInput request connection
+    let entries = previewInput.previewTimesheetEntries
+        payResultsByEntryId = previewInput.previewPayResultsByEntryId
     let xeroMappedStaffRows =
             staffRows
                 |> filter (staffMappingVerified . (.mappingRowMapping))
                 |> filter (\row -> unpackId row.mappingRowStaff.id `elem` map (.staffId) entries)
                 |> List.sortOn (staffSortKey . (.mappingRowStaff))
     pure (map (reviewRowForStaff entries payResultsByEntryId) xeroMappedStaffRows)
-
-fetchApprovedPreparationEntries ::
-    (?modelContext :: ModelContext) =>
-    XeroTimesheetPreparationRun ->
-    IO [TimesheetEntry]
-fetchApprovedPreparationEntries run =
-    case (run.payPeriodStart, run.payPeriodEnd) of
-        (Just periodStart, Just periodEnd) ->
-            query @TimesheetEntry
-                |> filterWhere (#venueId, run.venueId)
-                |> filterWhereGreaterThanOrEqualTo (#workedOn, periodStart)
-                |> filterWhereLessThanOrEqualTo (#workedOn, periodEnd)
-                |> filterWhere (#isApproved, True)
-                |> filterWhere (#deletedAt, Nothing)
-                |> fetch
-        _ -> pure []
 
 reviewRowForStaff :: [TimesheetEntry] -> Map.Map Text TimesheetPayResult -> XeroStaffMappingRow -> XeroPreparationReviewRow
 reviewRowForStaff entries payResultsByEntryId row =
