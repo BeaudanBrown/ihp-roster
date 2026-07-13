@@ -4,6 +4,7 @@ import Application.Helper.Xero
 import Application.Helper.XeroAdminTypes
 import Application.Helper.XeroPayItems
 import Application.Helper.XeroTimesheetReadiness
+import Application.Xero.Timesheets.Buckets (fetchPeriodXeroLocalEarningsBuckets)
 import qualified Data.Aeson as Aeson
 import qualified Data.Text as Text
 import Data.Time.Calendar (fromGregorian)
@@ -123,6 +124,24 @@ tests = do
                 map (.localBucketKey) beforeRolloverBuckets `shouldSatisfy` any (Text.isInfixOf ":effective:2025-07-07:")
                 map (.localBucketKey) beforeRolloverBuckets `shouldNotSatisfy` any (Text.isInfixOf ":effective:2026-07-06:")
                 map (.localBucketKey) afterRolloverBuckets `shouldSatisfy` any (Text.isInfixOf ":effective:2026-07-06:")
+
+        it "uses venue-effective dates for persisted-period pay bucket keys" $ withContext do
+            withCleanDb do
+                let periodStart = fromGregorian 2026 7 15
+                    periodEnd = fromGregorian 2026 7 21
+                fixture <- createReadinessFixture "weekly" periodStart periodEnd
+                baseRates <- query @AwardLevelBaseRate |> fetch
+                forM_ baseRates \rate ->
+                    rate
+                        |> set #operativeFrom (Just (fromGregorian 2025 7 1))
+                        |> set #operativeTo Nothing
+                        |> updateRecord
+                        >>= const (pure ())
+
+                buckets <- fetchPeriodXeroLocalEarningsBuckets fixture.venue.id periodStart periodEnd []
+
+                map (.localBucketKey) buckets `shouldSatisfy` (not . null)
+                map (.localBucketKey) buckets `shouldSatisfy` all (Text.isInfixOf ":effective:2025-07-07:")
 
         it "blocks missing earnings mapping when no managed requirement covers the bucket" $ withContext do
             withCleanDb do

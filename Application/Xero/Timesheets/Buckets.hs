@@ -3,6 +3,7 @@ module Application.Xero.Timesheets.Buckets
     ) where
 
 import Application.Helper.Pay
+import Application.Helper.WeekBoundaries (WeekdayIndex)
 import Application.Helper.XeroAdminTypes
 import qualified Data.List as List
 import qualified Data.Map.Strict as Map
@@ -43,15 +44,20 @@ fetchPeriodXeroLocalEarningsBuckets venueId periodStart periodEnd skippedStaffId
         query @ShiftTypePayVersion
             |> filterWhereIn (#id, mapMaybe (fmap Id . (.shiftTypePayVersionId)) entries)
             |> fetch
+    venueConfig <-
+        query @VenueConfig
+            |> filterWhere (#venueId, unpackId venueId)
+            |> fetchOne
     payResults <- fetchTimesheetPayResultsForEntries entries
     awardLevels <- query @AwardLevel |> fetch
     baseRates <- query @AwardLevelBaseRate |> fetch
     penaltyRates <- query @AwardLevelPenaltyRate |> fetch
     timeAllowances <- query @AwardTimePenaltyAllowance |> fetch
-    let buckets = concatMap (entryBuckets staffMembers staffPayVersions shiftTypePayVersions payResults awardLevels baseRates penaltyRates timeAllowances) entries
+    let buckets = concatMap (entryBuckets venueConfig.rosterWeekStartsOn staffMembers staffPayVersions shiftTypePayVersions payResults awardLevels baseRates penaltyRates timeAllowances) entries
     pure (dedupeBuckets buckets)
 
 entryBuckets ::
+    WeekdayIndex ->
     [Staff] ->
     [StaffPayVersion] ->
     [ShiftTypePayVersion] ->
@@ -62,7 +68,7 @@ entryBuckets ::
     [AwardTimePenaltyAllowance] ->
     TimesheetEntry ->
     [XeroLocalEarningsBucket]
-entryBuckets staffMembers staffPayVersions shiftTypePayVersions payResults awardLevels baseRates penaltyRates timeAllowances entry
+entryBuckets weekStartsOn staffMembers staffPayVersions shiftTypePayVersions payResults awardLevels baseRates penaltyRates timeAllowances entry
     | entryUsesImportedPayItem staffPayVersions shiftTypePayVersions entry = []
     | otherwise =
         case do
@@ -74,7 +80,7 @@ entryBuckets staffMembers staffPayVersions shiftTypePayVersions payResults award
             Just (staff, payResult) ->
                 payResult.segments
                     |> filter (\segment -> segment.minutes > 0)
-                    |> mapMaybe (segmentBucket awardLevels baseRates penaltyRates timeAllowances staff payResult)
+                    |> mapMaybe (segmentBucket weekStartsOn awardLevels baseRates penaltyRates timeAllowances staff payResult)
 
 entryUsesImportedPayItem :: [StaffPayVersion] -> [ShiftTypePayVersion] -> TimesheetEntry -> Bool
 entryUsesImportedPayItem staffPayVersions shiftTypePayVersions entry =
@@ -87,6 +93,7 @@ entryUsesImportedPayItem staffPayVersions shiftTypePayVersions entry =
             any (\version -> unpackId version.id == versionId && isJust version.importedXeroPayItemId) shiftTypePayVersions
 
 segmentBucket ::
+    WeekdayIndex ->
     [AwardLevel] ->
     [AwardLevelBaseRate] ->
     [AwardLevelPenaltyRate] ->
@@ -95,16 +102,17 @@ segmentBucket ::
     TimesheetPayResult ->
     PaySegment ->
     Maybe XeroLocalEarningsBucket
-segmentBucket awardLevels baseRates penaltyRates timeAllowances staff payResult segment = do
+segmentBucket weekStartsOn awardLevels baseRates penaltyRates timeAllowances staff payResult segment = do
     segmentDate <- segment.segmentDate
     payLevelId <- segment.payLevelId <|> payResult.payLevelId <|> fmap unpackId staff.defaultAwardLevelId
     awardLevel <- List.find (\level -> unpackId level.id == payLevelId) awardLevels
     let condition = fromMaybe "ordinary" segment.penaltyKind
-    effectiveFrom <-
+    rawEffectiveFrom <-
         if condition == "ordinary"
             then ordinaryEffectiveFrom baseRates payLevelId staff.employmentBasis segmentDate
             else penaltyEffectiveFrom awardLevel baseRates penaltyRates timeAllowances payLevelId staff.employmentBasis condition segmentDate
-    let key =
+    let effectiveFrom = venueEffectiveRateDate weekStartsOn <$> rawEffectiveFrom
+        key =
             "xero:pay-item:classification:"
                 <> tshow awardLevel.classificationFixedId
                 <> ":basis:"
