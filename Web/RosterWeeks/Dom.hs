@@ -15,6 +15,10 @@ module Web.RosterWeeks.Dom
     , rosterRowDomIdText
     , rosterStaffPanelFragmentClasses
     , rosterStaffPanelFragmentId
+    , rosterStaffPanelStaffPaneId
+    , rosterStaffPanelStaffTabId
+    , rosterStaffPanelSettingsPaneId
+    , rosterStaffPanelSettingsTabId
     , rosterWeekShellId
     ) where
 
@@ -64,6 +68,12 @@ rosterStaffPanelFragmentId = surfaceFragmentTargetId @Surface.RosterSurface @Sur
 
 rosterStaffPanelFragmentClasses :: [Text]
 rosterStaffPanelFragmentClasses = ["col-12", "col-xl-4", "col-xxl-3", "roster-layout-side"]
+
+rosterStaffPanelStaffTabId, rosterStaffPanelSettingsTabId, rosterStaffPanelStaffPaneId, rosterStaffPanelSettingsPaneId :: Text
+rosterStaffPanelStaffTabId = "roster-staff-panel-staff-tab"
+rosterStaffPanelSettingsTabId = "roster-staff-panel-settings-tab"
+rosterStaffPanelStaffPaneId = "roster-staff-panel-staff-pane"
+rosterStaffPanelSettingsPaneId = "roster-staff-panel-settings-pane"
 
 rosterDaySectionDomId :: Id RosterDay -> Text
 rosterDaySectionDomId rosterDayId =

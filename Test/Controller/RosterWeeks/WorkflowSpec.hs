@@ -855,8 +855,13 @@ tests = beforeAll testContext do
                 hiddenWagesFrameResponse <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
                     callAction (ShowRosterWeekContentFragmentAction 0)
                 hiddenWagesFrameResponse `responseBodyShouldContain` "data-roster-wages=\"hidden\""
-                hiddenWagesFrameResponse `responseBodyShouldContain` "Wages disabled"
+                hiddenWagesFrameResponse `responseBodyShouldNotContain` "Wages disabled"
                 hiddenWagesFrameResponse `responseBodyShouldNotContain` "Wages:"
+                hiddenWagesPanelResponse <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
+                    callActionWithParams
+                        (ShowRosterWeekStaffPanelFragmentAction 0)
+                        [("rosterGroupId", cs (tshow rosterWeek.rosterGroupId))]
+                hiddenWagesPanelResponse `responseBodyShouldContain` "Wages disabled"
                 hiddenWagesFrameResponse `responseBodyShouldNotContain` "roster-wage-summary"
                 hiddenWagesFrameResponse `responseBodyShouldNotContain` "roster-day-wage-total"
                 hiddenPreferences <- query @UserPreference
@@ -926,8 +931,13 @@ tests = beforeAll testContext do
                 shownWagesFrameResponse <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
                     callAction (ShowRosterWeekContentFragmentAction 0)
                 shownWagesFrameResponse `responseBodyShouldContain` "data-roster-end-times=\"false\""
-                shownWagesFrameResponse `responseBodyShouldContain` "Wages enabled"
+                shownWagesFrameResponse `responseBodyShouldNotContain` "Wages enabled"
                 shownWagesFrameResponse `responseBodyShouldContain` "Wages:"
+                shownWagesPanelResponse <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
+                    callActionWithParams
+                        (ShowRosterWeekStaffPanelFragmentAction 0)
+                        [("rosterGroupId", cs (tshow rosterWeek.rosterGroupId))]
+                shownWagesPanelResponse `responseBodyShouldContain` "Wages enabled"
                 shownWagesFrameResponse `responseBodyShouldContain` "$150.00"
                 shownWagesFrameResponse `responseBodyShouldContain` "roster-wage-summary"
                 shownWagesFrameResponse `responseBodyShouldContain` "roster-day-wage-total"

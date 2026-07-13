@@ -167,9 +167,9 @@ pageHelpTopics =
             [ iconItem HelpManagerPlus "bi-plus-lg" "Add shift" "Create or edit shifts" "In a draft roster, click an empty cell to add a shift or click a shift to edit it."
             , iconItem HelpManagerPlus "bi-arrows-move" "Drag" "Move or copy shifts" "Drag a shift to a green-highlighted target to move it. Hold Ctrl, Option, or Alt while dragging to copy it."
             , iconItem HelpManagerPlus "bi-person-plus" "Staff drag" "Assign staff from the list" "Drag a staff member to a green-highlighted empty slot to create a shift, or onto an existing shift to assign them."
-            , buttonItem HelpManagerPlus "bi-gear" "Roster settings" "Change the roster layout" "Click the settings button, then Roster layout, to switch layout modes." "btn btn-outline-secondary app-settings-menu-button" (Just "bi-gear") ""
-            , buttonItem HelpManagerPlus "bi-gear" "Roster settings" "Show warnings or wage estimates" "Click the settings button, then use the Warnings and Wages toggles." "btn btn-outline-secondary app-settings-menu-button" (Just "bi-gear") ""
-            , buttonItem HelpManagerPlus "bi-gear" "Roster settings" "Prepare a draft faster" "Click the settings button, then Week actions, for sort tools or Copy previous week." "btn btn-outline-secondary app-settings-menu-button" (Just "bi-gear") ""
+            , buttonItem HelpManagerPlus "bi-sliders" "Settings tab" "Change the roster layout" "Open Settings in the staff panel, then choose a roster layout." "btn btn-outline-secondary" (Just "bi-sliders") ""
+            , buttonItem HelpManagerPlus "bi-sliders" "Settings tab" "Show warnings or wage estimates" "Open Settings in the staff panel, then use the Display controls." "btn btn-outline-secondary" (Just "bi-sliders") ""
+            , buttonItem HelpManagerPlus "bi-sliders" "Settings tab" "Prepare a draft faster" "Open Settings in the staff panel for sort and copy actions." "btn btn-outline-secondary" (Just "bi-sliders") ""
             ]
         , section HelpStaffOnly "Staff"
             [ iconItem HelpStaffOnly "bi-chevron-left" "Week controls" "Check your roster" "Use the arrow controls to find the week you need, then review your listed shifts."

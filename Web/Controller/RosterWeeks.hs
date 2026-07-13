@@ -185,10 +185,8 @@ instance Controller RosterWeeksController where
     action currentAction@ShowRosterWeekStaffPanelFragmentAction { weekOffset } = runBepis currentAction BepisFragmentAction do
         rosterGroup <- resolveRequestedRosterGroup
         let panelScope = rosterStaffPanelScopeFromParams
-        rosterGroups <- fetchCurrentVenueRosterGroups
-        panelStaff <- fetchVisibleRosterStaffPanelEntries panelScope rosterGroup.id weekOffset
-        respondHtmlProfiled $
-            maybe mempty (renderrosterStaffPanelLiveFragment weekOffset rosterGroup.id (length rosterGroups > 1) panelScope) panelStaff
+        panelModel <- fetchVisibleRosterStaffPanelRenderModel panelScope rosterGroup.id weekOffset
+        respondHtmlProfiled (renderrosterStaffPanelLiveFragment panelModel)
 
     action currentAction@ShowRosterStaffSelfServiceLeaveFormFragmentAction { weekOffset } = runBepis currentAction BepisFragmentAction do
         rosterGroup <- resolveRequestedRosterGroup

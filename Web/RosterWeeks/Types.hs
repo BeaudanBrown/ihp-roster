@@ -9,6 +9,7 @@ module Web.RosterWeeks.Types
     , RosterRenderIndexes (..)
     , RosterRowRenderModel (..)
     , RosterStaffPanelScope (..)
+    , RosterStaffPanelRenderModel (..)
     , RosterStaffSelfServicePanel (..)
     , RosterStaffPanelEntry (..)
     , RosterViewCapabilities (..)
@@ -97,6 +98,21 @@ data RosterStaffPanelEntry = RosterStaffPanelEntry
     { staff              :: Staff
     , assignedShiftCount :: Int
     , userRole           :: Text
+    }
+
+data RosterStaffPanelRenderModel = RosterStaffPanelRenderModel
+    { staffPanelRosterWeek         :: Maybe RosterWeek
+    , staffPanelWeekOffset         :: Int
+    , staffPanelRosterGroups       :: [RosterGroup]
+    , staffPanelCurrentRosterGroup :: RosterGroup
+    , staffPanelAssignmentFilters  :: RosterAssignmentFilters
+    , staffPanelViewCapabilities   :: RosterViewCapabilities
+    , staffPanelRosterLayoutMode   :: RosterLayoutModeEnum
+    , staffPanelShowWageEstimates  :: Bool
+    , staffPanelShowRosterWarnings :: Bool
+    , staffPanelViewMode           :: RosterGridViewMode
+    , staffPanelScope              :: RosterStaffPanelScope
+    , staffPanelEntries            :: [RosterStaffPanelEntry]
     }
 
 data RosterStaffSelfServicePanel = RosterStaffSelfServicePanel

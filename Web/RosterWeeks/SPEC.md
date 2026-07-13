@@ -34,6 +34,10 @@ lands.
   invitation for a trial staff row; accepting the invitation links the existing
   `staff` row to the new `user` rather than creating a replacement staff row, so
   existing roster slots remain attached to the same staff identity.
+- The manager roster side panel has separate Staff and Settings tabs. Staff owns
+  the rosterable staff list and trial-staff actions; Settings owns roster group,
+  layout, display, assignment-prevention, week-action, and export controls. These
+  controls remain typed RosterSurface actions inside the live panel mount.
 - The roster staff panel uses the existing role column for trial placeholders and
   renders their role as `TRIAL`; linked staff continue to show their venue
   membership role labels.

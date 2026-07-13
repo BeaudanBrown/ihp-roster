@@ -884,7 +884,7 @@ tests = beforeAll testContext do
                 response `responseBodyShouldContain` "data-bepis-source-key=\"existing:"
                 response `responseBodyShouldContain` "data-bepis-dropzone-ref=\"existing-shift-dropzone\""
                 response `responseBodyShouldContain` "data-bepis-dropzone-ref=\"shift-slot-dropzone\""
-                response `responseBodyShouldContain` "data-bepis-dropzone-ref=\"staff-create-dropzone\""
+                response `responseBodyShouldNotContain` "data-bepis-dropzone-ref=\"staff-create-dropzone\""
                 response `responseBodyShouldContain` "data-bepis-dropzone-ref=\"delete-shift-dropzone\""
                 response `responseBodyShouldContain` "data-bepis-dropzone-key=\"new:"
 

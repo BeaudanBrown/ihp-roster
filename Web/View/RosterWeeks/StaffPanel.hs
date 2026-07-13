@@ -27,56 +27,115 @@ import Application.Helper.View (staffDisplayName)
 import Data.List (sortBy)
 import qualified Data.Text as Text
 import Web.RosterWeeks.Dom (rosterStaffPanelFragmentClasses,
-                            rosterStaffPanelFragmentId)
+                            rosterStaffPanelFragmentId,
+                            rosterStaffPanelSettingsPaneId,
+                            rosterStaffPanelSettingsTabId,
+                            rosterStaffPanelStaffPaneId,
+                            rosterStaffPanelStaffTabId)
 import Web.RosterWeeks.FrontendSurface (rosterStaffDragSourceRef)
 import Web.RosterWeeks.Types (RosterStaffPanelEntry (..),
+                              RosterStaffPanelRenderModel (..),
                               RosterStaffPanelScope (..))
 import Web.View.Prelude
+import Web.View.RosterWeeks.SettingsPanel (renderRosterSettingsPanel)
 
-renderrosterStaffPanelLiveFragment :: (?context :: ControllerContext) => Int -> Id RosterGroup -> Bool -> RosterStaffPanelScope -> [RosterStaffPanelEntry] -> Html
+renderrosterStaffPanelLiveFragment :: (?context :: ControllerContext) => RosterStaffPanelRenderModel -> Html
 renderrosterStaffPanelLiveFragment =
     renderrosterStaffPanelLiveFragmentWithSwap Nothing
 
-renderrosterStaffPanelLiveFragmentOob :: (?context :: ControllerContext) => Int -> Id RosterGroup -> Bool -> RosterStaffPanelScope -> [RosterStaffPanelEntry] -> Html
+renderrosterStaffPanelLiveFragmentOob :: (?context :: ControllerContext) => RosterStaffPanelRenderModel -> Html
 renderrosterStaffPanelLiveFragmentOob =
     renderrosterStaffPanelLiveFragmentWithSwap (Just "outerHTML")
 
-renderrosterStaffPanelLiveFragmentWithSwap :: (?context :: ControllerContext) => Maybe Text -> Int -> Id RosterGroup -> Bool -> RosterStaffPanelScope -> [RosterStaffPanelEntry] -> Html
-renderrosterStaffPanelLiveFragmentWithSwap maybeSwapOob weekOffset currentRosterGroupId hasMultipleRosterGroups panelScope panelStaff =
+renderrosterStaffPanelLiveFragmentWithSwap :: (?context :: ControllerContext) => Maybe Text -> RosterStaffPanelRenderModel -> Html
+renderrosterStaffPanelLiveFragmentWithSwap maybeSwapOob panelModel =
     if currentUserIsManager
         then profileHtmlComponent "render.roster.staff_panel_fragment" [hsx|
             <div id={rosterStaffPanelFragmentId}
                  class={Text.unwords rosterStaffPanelFragmentClasses}
                  hx-swap-oob={maybeSwapOob}>
-                {renderRosterStaffPanel weekOffset currentRosterGroupId hasMultipleRosterGroups panelScope panelStaff}
+                {renderRosterStaffPanel panelModel}
             </div>
         |]
         else mempty
 
-renderRosterStaffPanel :: Int -> Id RosterGroup -> Bool -> RosterStaffPanelScope -> [RosterStaffPanelEntry] -> Html
-renderRosterStaffPanel weekOffset currentRosterGroupId hasMultipleRosterGroups panelScope panelStaff = profileHtmlComponent "render.roster.staff_panel_component" [hsx|
+renderRosterStaffPanel :: (?context :: ControllerContext) => RosterStaffPanelRenderModel -> Html
+renderRosterStaffPanel panelModel@RosterStaffPanelRenderModel { staffPanelWeekOffset, staffPanelCurrentRosterGroup, staffPanelRosterGroups, staffPanelScope, staffPanelEntries } = profileHtmlComponent "render.roster.staff_panel_component" [hsx|
     {profileRenderCounter "render.roster.staff_panel" 1}
-    {profileRenderCounter "render.roster.staff_panel_entry" (length panelStaff)}
+    {profileRenderCounter "render.roster.staff_panel_entry" (length staffPanelEntries)}
     {renderRosterStaffPanelShell
-        (renderRosterStaffPanelHeader weekOffset currentRosterGroupId hasMultipleRosterGroups panelScope)
-        (renderRosterStaffPanelTable panelStaffMembers weekOffset currentRosterGroupId renderedPanelStaff)}
+        (renderRosterStaffPanelTabs staffPanelContent settingsPanelContent)}
 |]
     where
-        panelStaffMembers = map (.staff) panelStaff
-        renderedPanelStaff = sortRosterStaffPanelEntries panelStaffMembers panelStaff
+        hasMultipleRosterGroups = length staffPanelRosterGroups > 1
+        panelStaffMembers = map (.staff) staffPanelEntries
+        renderedPanelStaff = sortRosterStaffPanelEntries panelStaffMembers staffPanelEntries
+        staffPanelContent = [hsx|
+            {renderRosterStaffPanelHeader staffPanelWeekOffset staffPanelCurrentRosterGroup.id hasMultipleRosterGroups staffPanelScope}
+            {renderRosterStaffPanelTable panelStaffMembers staffPanelWeekOffset staffPanelCurrentRosterGroup.id renderedPanelStaff}
+        |]
+        settingsPanelContent = renderRosterSettingsPanel panelModel
 
 renderRosterStaffPanelPlaceholder :: Bool -> Html
 renderRosterStaffPanelPlaceholder hasMultipleRosterGroups =
-    renderRosterStaffPanelShell
-        (renderRosterStaffPanelPlaceholderHeader hasMultipleRosterGroups)
-        renderRosterStaffPanelPlaceholderTable
+    renderRosterStaffPanelShell $ renderRosterStaffPanelTabs
+        [hsx|
+            {renderRosterStaffPanelPlaceholderHeader hasMultipleRosterGroups}
+            {renderRosterStaffPanelPlaceholderTable}
+        |]
+        mempty
 
-renderRosterStaffPanelShell :: Html -> Html -> Html
-renderRosterStaffPanelShell header body = [hsx|
+renderRosterStaffPanelShell :: Html -> Html
+renderRosterStaffPanelShell body = [hsx|
     <div class="app-panel roster-staff-panel">
         <div class="app-panel-body">
-            {header}
             {body}
+        </div>
+    </div>
+|]
+
+renderRosterStaffPanelTabs :: Html -> Html -> Html
+renderRosterStaffPanelTabs staffContent settingsContent = [hsx|
+    <div class="nav nav-pills roster-staff-panel-tabs" role="tablist" aria-label="Roster side panel">
+        <button class="nav-link active roster-staff-panel-tab"
+                id={rosterStaffPanelStaffTabId}
+                type="button"
+                role="tab"
+                data-bs-toggle="tab"
+                data-bs-target={"#" <> rosterStaffPanelStaffPaneId}
+                aria-controls={rosterStaffPanelStaffPaneId}
+                aria-selected="true"
+                data-roster-staff-panel-tab="staff">
+            <i class="bi bi-people" aria-hidden="true"></i>
+            <span>Staff</span>
+        </button>
+        <button class="nav-link roster-staff-panel-tab"
+                id={rosterStaffPanelSettingsTabId}
+                type="button"
+                role="tab"
+                data-bs-toggle="tab"
+                data-bs-target={"#" <> rosterStaffPanelSettingsPaneId}
+                aria-controls={rosterStaffPanelSettingsPaneId}
+                aria-selected="false"
+                data-roster-staff-panel-tab="settings">
+            <i class="bi bi-sliders" aria-hidden="true"></i>
+            <span>Settings</span>
+        </button>
+    </div>
+    <div class="tab-content roster-staff-panel-tab-content">
+        <div class="tab-pane fade show active roster-staff-panel-pane"
+             id={rosterStaffPanelStaffPaneId}
+             role="tabpanel"
+             aria-labelledby={rosterStaffPanelStaffTabId}
+             tabindex="0">
+            {staffContent}
+        </div>
+        <div class="tab-pane fade roster-staff-panel-pane roster-staff-panel-settings-pane"
+             id={rosterStaffPanelSettingsPaneId}
+             role="tabpanel"
+             aria-labelledby={rosterStaffPanelSettingsTabId}
+             tabindex="0">
+            {settingsContent}
         </div>
     </div>
 |]

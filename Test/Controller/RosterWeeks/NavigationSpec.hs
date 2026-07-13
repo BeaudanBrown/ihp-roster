@@ -253,7 +253,7 @@ tests = beforeAll testContext do
                 response `responseBodyShouldNotContain` "conflict-critical"
                 response `responseBodyShouldNotContain` "Staff member has an approved unavailable period."
 
-        it "manager roster pages render reusable week controls in the header" $ withContext do
+        it "manager roster pages render reusable week controls and staff panel settings" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Venue A"
                 manager <- createUserRecord "roster-manager-empty-create@example.com" "staff" True
@@ -271,7 +271,10 @@ tests = beforeAll testContext do
                 response `responseBodyShouldContain` "href=\"/RosterWeeks\""
                 response `responseBodyShouldContain` "This week</a>"
                 response `responseBodyShouldContain` "btn btn-outline-secondary app-week-nav-button"
-                response `responseBodyShouldContain` "data-roster-week-controls=\"manager-actions\""
+                response `responseBodyShouldNotContain` "data-roster-week-controls=\"manager-actions\""
+                response `responseBodyShouldContain` "data-roster-staff-panel-tab=\"staff\""
+                response `responseBodyShouldContain` "data-roster-staff-panel-tab=\"settings\""
+                response `responseBodyShouldContain` "id=\"roster-staff-panel-settings-pane\""
                 response `responseBodyShouldContain` "Week actions"
                 response `responseBodyShouldContain` "hx-post=\"/CopyRosterWeek?sourceWeekOffset=-1&amp;targetWeekOffset=0&amp;rosterGroupId="
                 response `responseBodyShouldContain` "hx-confirm=\"This will overwrite the current week with the previous week&#39;s roster. Continue?\""

@@ -7,6 +7,7 @@
 module Web.RosterWeeks.RenderData
     ( fetchVisibleRosterReadModel
     , fetchVisibleRosterStaffPanelEntries
+    , fetchVisibleRosterStaffPanelRenderModel
     , renderRosterProjectionFragmentWithMode
     , renderVisibleRosterReadModelFragment
     )
@@ -245,11 +246,28 @@ renderRosterStaffPanelFromProjectionWithMode :: (?context :: ControllerContext, 
 renderRosterStaffPanelFromProjectionWithMode renderMode rosterData =
     case rosterData of
         Nothing -> mempty
-        Just RosterRenderData { rosterWeek, rosterGroups, panelStaff } ->
-            let hasMultipleRosterGroups = length rosterGroups > 1
+        Just projection ->
+            let panelModel = rosterStaffPanelRenderModelFromProjection RosterStaffPanelCurrentGroup projection
              in case renderMode of
-                    FragmentPlain -> renderrosterStaffPanelLiveFragment rosterWeek.weekOffset (coerce rosterWeek.rosterGroupId) hasMultipleRosterGroups RosterStaffPanelCurrentGroup panelStaff
-                    FragmentOob swapAttr -> renderrosterStaffPanelLiveFragmentWithSwap swapAttr rosterWeek.weekOffset (coerce rosterWeek.rosterGroupId) hasMultipleRosterGroups RosterStaffPanelCurrentGroup panelStaff
+                    FragmentPlain -> renderrosterStaffPanelLiveFragment panelModel
+                    FragmentOob swapAttr -> renderrosterStaffPanelLiveFragmentWithSwap swapAttr panelModel
+
+rosterStaffPanelRenderModelFromProjection :: (?context :: ControllerContext, ?request :: Request) => RosterStaffPanelScope -> RosterRenderData -> RosterStaffPanelRenderModel
+rosterStaffPanelRenderModelFromProjection panelScope RosterRenderData { rosterWeek, rosterGroups, currentRosterGroup, assignmentFilters, panelStaff, rosterLayoutMode, showWageEstimates, showRosterWarnings } =
+    RosterStaffPanelRenderModel
+        { staffPanelRosterWeek = visibleRosterWeekForCurrentUser rosterWeek
+        , staffPanelWeekOffset = rosterWeek.weekOffset
+        , staffPanelRosterGroups = rosterGroups
+        , staffPanelCurrentRosterGroup = currentRosterGroup
+        , staffPanelAssignmentFilters = assignmentFilters
+        , staffPanelViewCapabilities = buildRosterViewCapabilities (visibleRosterWeekForCurrentUser rosterWeek)
+        , staffPanelRosterLayoutMode = rosterLayoutMode
+        , staffPanelShowWageEstimates = showWageEstimates
+        , staffPanelShowRosterWarnings = showRosterWarnings
+        , staffPanelViewMode = currentRosterGridViewMode
+        , staffPanelScope = panelScope
+        , staffPanelEntries = panelStaff
+        }
 
 renderRequestedRowFragmentFromProjectionWithMode :: (?context :: ControllerContext, ?request :: Request) => FragmentRenderMode -> RosterRenderData -> UUID.UUID -> Int -> Maybe Blaze.Html
 renderRequestedRowFragmentFromProjectionWithMode renderMode RosterRenderData { rosterWeek, weekStartDate, assignmentFilters, staffMembers, orderedSlotNames, shiftTypes, renderIndexes, rosterLayoutMode, rosterEndTimesEnabled } rosterDayId rowIndex =
@@ -427,9 +445,8 @@ renderVisibleRosterFragment rosterGroupId weekOffset fragment = do
         Just rosterWeek ->
             case fragment of
                 RosterProjectionStaffPanel -> do
-                    rosterGroups <- fetchCurrentVenueRosterGroups
-                    panelStaff <- profileActionSpan "roster.build_staff_panel" (fetchRosterStaffPanelEntriesDirect RosterStaffPanelCurrentGroup rosterGroupId rosterWeek)
-                    pure (Just (renderrosterStaffPanelLiveFragment rosterWeek.weekOffset (coerce rosterWeek.rosterGroupId) (length rosterGroups > 1) RosterStaffPanelCurrentGroup panelStaff))
+                    panelModel <- fetchVisibleRosterStaffPanelRenderModel RosterStaffPanelCurrentGroup rosterGroupId weekOffset
+                    pure (Just (renderrosterStaffPanelLiveFragment panelModel))
                 RosterProjectionContent -> do
                     rosterData <- fetchVisibleRosterReadModel rosterGroupId weekOffset
                     case rosterData of
@@ -497,6 +514,33 @@ fetchVisibleRosterStaffPanelEntries panelScope rosterGroupId weekOffset = do
     case visibleRosterWeek of
         Nothing -> pure (Just [])
         Just rosterWeek -> Just <$> profileActionSpan "roster.build_staff_panel" (fetchRosterStaffPanelEntriesDirect panelScope rosterGroupId rosterWeek)
+
+fetchVisibleRosterStaffPanelRenderModel :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => RosterStaffPanelScope -> Id RosterGroup -> Int -> IO RosterStaffPanelRenderModel
+fetchVisibleRosterStaffPanelRenderModel panelScope rosterGroupId weekOffset = do
+    visibleRosterWeek <- fetchVisibleRosterWeek rosterGroupId weekOffset
+    rosterGroups <- profileActionSpan "roster.fragment.fetch_roster_groups" fetchCurrentVenueRosterGroups
+    currentRosterGroup <- profileActionSpan "roster.fragment.resolve_current_group" (fetchCurrentVenueRosterGroupOrDefault (Just rosterGroupId))
+    assignmentFilters <- profileActionSpan "roster.fragment.fetch_assignment_filters" fetchRosterAssignmentFilters
+    rosterLayoutMode <- profileActionSpan "roster.fragment.fetch_layout_preference" fetchCurrentRosterLayoutMode
+    userShowWageEstimates <- profileActionSpan "roster.fragment.fetch_wage_preference" fetchCurrentUserShowWageEstimates
+    showRosterWarnings <- profileActionSpan "roster.fragment.fetch_warning_preference" fetchCurrentUserShowRosterWarnings
+    panelStaff <- case visibleRosterWeek of
+        Nothing -> pure []
+        Just rosterWeek -> profileActionSpan "roster.build_staff_panel" (fetchRosterStaffPanelEntriesDirect panelScope rosterGroupId rosterWeek)
+    pure RosterStaffPanelRenderModel
+        { staffPanelRosterWeek = visibleRosterWeek
+        , staffPanelWeekOffset = weekOffset
+        , staffPanelRosterGroups = rosterGroups
+        , staffPanelCurrentRosterGroup = currentRosterGroup
+        , staffPanelAssignmentFilters = assignmentFilters
+        , staffPanelViewCapabilities = buildRosterViewCapabilities visibleRosterWeek
+        , staffPanelRosterLayoutMode = rosterLayoutMode
+        , staffPanelShowWageEstimates = shouldShowRosterWageEstimates userShowWageEstimates
+        , staffPanelShowRosterWarnings = showRosterWarnings
+        , staffPanelViewMode = currentRosterGridViewMode
+        , staffPanelScope = panelScope
+        , staffPanelEntries = panelStaff
+        }
 
 fetchHiddenRosterRenderData :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id RosterGroup -> Int -> IO (RosterWeek, [RosterDay], Calendar.Day, [RosterWeekSlotDefinition], [ShiftType], [RosterSlot])
 fetchHiddenRosterRenderData rosterGroupId weekOffset = do

@@ -113,9 +113,22 @@ renderRosterLayout gridModel@RosterGridRenderModel { gridRosterWeek, gridRosterD
                 RosterWeekGridView                  -> Nothing
             }
         rosterSurface = rosterSurfaceImpl rosterSurfaceScope (rosterMountedFragmentPlanFromRenderData gridRosterDays gridRenderIndexes)
-        renderStaffPanelMount rosterWeek =
+        renderStaffPanelMount _rosterWeek =
             if currentUserIsManager
-                then renderrosterStaffPanelLiveFragment rosterWeek.weekOffset gridCurrentRosterGroup.id (length gridRosterGroups > 1) RosterStaffPanelCurrentGroup gridPanelStaff
+                then renderrosterStaffPanelLiveFragment RosterStaffPanelRenderModel
+                    { staffPanelRosterWeek = gridRosterWeek
+                    , staffPanelWeekOffset = gridWeekOffset
+                    , staffPanelRosterGroups = gridRosterGroups
+                    , staffPanelCurrentRosterGroup = gridCurrentRosterGroup
+                    , staffPanelAssignmentFilters = gridModel.gridAssignmentFilters
+                    , staffPanelViewCapabilities = gridModel.gridViewCapabilities
+                    , staffPanelRosterLayoutMode = gridModel.gridRosterLayoutMode
+                    , staffPanelShowWageEstimates = gridModel.gridShowWageEstimates
+                    , staffPanelShowRosterWarnings = gridModel.gridShowRosterWarnings
+                    , staffPanelViewMode = gridViewMode
+                    , staffPanelScope = RosterStaffPanelCurrentGroup
+                    , staffPanelEntries = gridPanelStaff
+                    }
                 else mempty
      in profileHtmlComponent "render.roster.layout" do
         renderFrontendSurfaceInteractionShell rosterSurface rosterFrontendSurfaceIR FrontendSurfaceInteractionShellConfig
@@ -153,10 +166,10 @@ renderrosterGridToolbarLiveFragment =
     renderrosterGridToolbarLiveFragmentWithSwap Nothing
 
 renderrosterGridToolbarLiveFragmentWithSwap :: (?context :: ControllerContext) => Maybe Text -> RosterGridRenderModel -> Html
-renderrosterGridToolbarLiveFragmentWithSwap maybeSwapOob RosterGridRenderModel { gridRosterWeek, gridRosterDays, gridWeekOffset, gridRosterGroups, gridCurrentRosterGroup, gridAssignmentFilters, gridWeekStartDate, gridViewCapabilities, gridRosterLayoutMode, gridRosterEndTimesEnabled, gridRosterWagePrediction, gridShowWageEstimates, gridShowRosterWarnings, gridStaffSelfServicePanel, gridViewMode, gridTimelineTodayUrl } =
+renderrosterGridToolbarLiveFragmentWithSwap maybeSwapOob RosterGridRenderModel { gridRosterWeek, gridWeekOffset, gridCurrentRosterGroup, gridWeekStartDate, gridViewCapabilities, gridRosterWagePrediction, gridStaffSelfServicePanel, gridViewMode, gridTimelineTodayUrl } =
     profileHtmlComponent "render.roster.toolbar" [hsx|
         <div id={rosterGridToolbarFragmentId} hx-swap-oob={maybeSwapOob}>
-            {renderRosterGridHeader gridRosterWeek gridRosterDays gridWeekOffset gridRosterGroups gridCurrentRosterGroup gridAssignmentFilters gridWeekStartDate gridViewCapabilities gridRosterLayoutMode gridRosterEndTimesEnabled gridRosterWagePrediction gridShowWageEstimates gridShowRosterWarnings hasSidePanel gridViewMode gridTimelineTodayUrl}
+            {renderRosterGridHeader gridRosterWeek gridWeekOffset gridCurrentRosterGroup gridWeekStartDate gridViewCapabilities gridRosterWagePrediction hasSidePanel gridViewMode gridTimelineTodayUrl}
         </div>
     |]
     where
