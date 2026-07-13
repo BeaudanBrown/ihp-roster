@@ -1,11 +1,14 @@
 module Test.XeroTimesheetReadinessSpec where
 
+import Application.Helper.Pay (TimesheetPayResult (..),
+                               fetchTimesheetPayResultsForEntries)
 import Application.Helper.Xero
 import Application.Helper.XeroAdminTypes
 import Application.Helper.XeroPayItems
 import Application.Helper.XeroTimesheetReadiness
 import Application.Xero.Timesheets.Buckets (fetchPeriodXeroLocalEarningsBuckets)
 import qualified Data.Aeson as Aeson
+import qualified Data.Map.Strict as Map
 import qualified Data.Text as Text
 import Data.Time.Calendar (fromGregorian)
 import Generated.Types hiding (xeroTimesheetId)
@@ -125,23 +128,62 @@ tests = do
                 map (.localBucketKey) beforeRolloverBuckets `shouldNotSatisfy` any (Text.isInfixOf ":effective:2026-07-06:")
                 map (.localBucketKey) afterRolloverBuckets `shouldSatisfy` any (Text.isInfixOf ":effective:2026-07-06:")
 
-        it "uses venue-effective dates for persisted-period pay bucket keys" $ withContext do
+        it "uses the latest venue-effective rate for persisted-period pay bucket keys" $ withContext do
             withCleanDb do
                 let periodStart = fromGregorian 2026 7 15
                     periodEnd = fromGregorian 2026 7 21
                 fixture <- createReadinessFixture "weekly" periodStart periodEnd
-                baseRates <- query @AwardLevelBaseRate |> fetch
-                forM_ baseRates \rate ->
-                    rate
+                entries <- query @TimesheetEntry |> filterWhere (#venueId, unpackId fixture.venue.id) |> fetch
+                initialPayResults <- fetchTimesheetPayResultsForEntries entries
+                payLevelUuid <-
+                    case nub (mapMaybe (.payLevelId) (Map.elems initialPayResults)) of
+                        [value] -> pure value
+                        _ -> expectationFailure "expected one fixture pay level" >> error "unreachable"
+                let awardLevelId = Id payLevelUuid :: Id AwardLevel
+                oldBaseRates <-
+                    query @AwardLevelBaseRate
+                        |> filterWhere (#awardLevelId, unpackId awardLevelId)
+                        |> filterWhere (#employmentBasis, Permanent)
+                        |> fetch
+                forM_ oldBaseRates \oldBaseRate ->
+                    oldBaseRate
                         |> set #operativeFrom (Just (fromGregorian 2025 7 1))
                         |> set #operativeTo Nothing
                         |> updateRecord
                         >>= const (pure ())
+                newerPayRate <-
+                    newRecord @FwcMapdPayRate
+                        |> set #awardFixedId (1 :: Int)
+                        |> set #classificationFixedId (Just 1)
+                        |> set #classification ("Level 2" :: Text)
+                        |> set #employeeRateTypeCode (Just "AD")
+                        |> set #calculatedRate (Just 40)
+                        |> set #calculatedRateType (Just "Hourly")
+                        |> createRecord
+                _ <-
+                    newRecord @AwardLevelBaseRate
+                        |> set #awardLevelId (unpackId awardLevelId)
+                        |> set #employmentBasis Permanent
+                        |> set #fwcMapdPayRateId (unpackId newerPayRate.id)
+                        |> set #hourlyRate 40
+                        |> set #rateLabel ("Hourly" :: Text)
+                        |> set #operativeFrom (Just (fromGregorian 2026 7 1))
+                        |> createRecord
+
+                selectedRates <-
+                    query @AwardLevelBaseRate
+                        |> filterWhere (#awardLevelId, unpackId awardLevelId)
+                        |> filterWhere (#employmentBasis, Permanent)
+                        |> orderBy #operativeFrom
+                        |> fetch
+                payResults <- fetchTimesheetPayResultsForEntries entries
+                map (.operativeFrom) selectedRates `shouldBe` [Just (fromGregorian 2025 7 1), Just (fromGregorian 2026 7 1)]
+                map (.payLevelId) (Map.elems payResults) `shouldSatisfy` all (== Just (unpackId awardLevelId))
 
                 buckets <- fetchPeriodXeroLocalEarningsBuckets fixture.venue.id periodStart periodEnd []
 
                 map (.localBucketKey) buckets `shouldSatisfy` (not . null)
-                map (.localBucketKey) buckets `shouldSatisfy` all (Text.isInfixOf ":effective:2025-07-07:")
+                map (.localBucketKey) buckets `shouldSatisfy` all (Text.isInfixOf ":effective:2026-07-06:")
 
         it "blocks missing earnings mapping when no managed requirement covers the bucket" $ withContext do
             withCleanDb do

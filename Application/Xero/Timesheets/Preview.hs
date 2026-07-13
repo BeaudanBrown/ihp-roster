@@ -14,6 +14,7 @@ module Application.Xero.Timesheets.Preview
 where
 
 import Application.Helper.Pay
+import Application.Helper.WeekBoundaries (WeekdayIndex)
 import Application.Helper.Xero (XeroTimesheetRef (..))
 import Application.Helper.XeroTimesheetReadiness
 import qualified Data.Aeson as Aeson
@@ -30,6 +31,7 @@ import IHP.ControllerPrelude
 
 data XeroTimesheetPreviewInput = XeroTimesheetPreviewInput
     { previewVenueId               :: !(Id Venue)
+    , previewRosterWeekStartsOn    :: !WeekdayIndex
     , previewPeriodStart           :: !Day
     , previewPeriodEnd             :: !Day
     , previewTimesheetEntries      :: ![TimesheetEntry]
@@ -254,6 +256,10 @@ fetchPreviewInput request connection = do
             |> filterWhere (#xeroConnectionId, unpackId connection.id)
             |> filterWhereIn (#requirementStatus, ["matched" :: Text, "created"])
             |> fetch
+    venueConfig <-
+        query @VenueConfig
+            |> filterWhere (#venueId, unpackId request.readinessVenueId)
+            |> fetchOne
     payResults <- fetchTimesheetPayResultsForEntries entries
     awardLevels <- query @AwardLevel |> fetch
     baseRates <- query @AwardLevelBaseRate |> fetch
@@ -261,6 +267,7 @@ fetchPreviewInput request connection = do
     timeAllowances <- query @AwardTimePenaltyAllowance |> fetch
     pure XeroTimesheetPreviewInput
         { previewVenueId = request.readinessVenueId
+        , previewRosterWeekStartsOn = venueConfig.rosterWeekStartsOn
         , previewPeriodStart = request.readinessPeriodStart
         , previewPeriodEnd = request.readinessPeriodEnd
         , previewTimesheetEntries = entries
@@ -394,10 +401,11 @@ localBucketKeyForSegment input staff payResult segment segmentDate = do
     payLevelId <- maybeToEither "Missing award level for pay segment." (segment.payLevelId <|> payResult.payLevelId <|> fmap unpackId staff.defaultAwardLevelId)
     awardLevel <- maybeToEither ("Missing award level " <> tshow payLevelId) (find (\level -> unpackId level.id == payLevelId) input.previewAwardLevels)
     let condition = fromMaybe "ordinary" segment.penaltyKind
-    effectiveFrom <-
+    rawEffectiveFrom <-
         if condition == "ordinary"
             then ordinaryEffectiveFrom input payLevelId staff.employmentBasis segmentDate
             else penaltyEffectiveFrom input awardLevel payLevelId staff.employmentBasis condition segmentDate
+    let effectiveFrom = venueEffectiveRateDate input.previewRosterWeekStartsOn <$> rawEffectiveFrom
     pure $
         "xero:pay-item:classification:"
             <> tshow awardLevel.classificationFixedId
@@ -411,9 +419,8 @@ localBucketKeyForSegment input staff payResult segment segmentDate = do
 ordinaryEffectiveFrom :: XeroTimesheetPreviewInput -> UUID -> StaffEmploymentBasisEnum -> Day -> Either Text (Maybe Day)
 ordinaryEffectiveFrom input payLevelId employmentBasis segmentDate =
     input.previewAwardLevelBaseRates
-        |> filter (\rate -> rate.awardLevelId == payLevelId && rate.employmentBasis == employmentBasis && activeOn segmentDate rate.operativeFrom rate.operativeTo)
-        |> List.sortOn (.operativeFrom)
-        |> listToMaybe
+        |> filter (\rate -> rate.awardLevelId == payLevelId && rate.employmentBasis == employmentBasis)
+        |> latestVenueEffectiveRate input.previewRosterWeekStartsOn segmentDate
         |> fmap (.operativeFrom)
         |> maybeToEither ("Missing active base rate for award level " <> tshow payLevelId)
 
@@ -434,17 +441,15 @@ penaltyEffectiveFrom input awardLevel payLevelId employmentBasis penaltyKindText
 activeLevelPenaltyEffectiveFrom :: XeroTimesheetPreviewInput -> UUID -> StaffEmploymentBasisEnum -> AwardPenaltyKindEnum -> Day -> Maybe (Maybe Day)
 activeLevelPenaltyEffectiveFrom input payLevelId employmentBasis penaltyKind segmentDate =
     input.previewAwardLevelPenalties
-        |> filter (\rate -> rate.awardLevelId == payLevelId && rate.employmentBasis == employmentBasis && rate.penaltyKind == penaltyKind && activeOn segmentDate rate.operativeFrom rate.operativeTo)
-        |> List.sortOn (.operativeFrom)
-        |> listToMaybe
+        |> filter (\rate -> rate.awardLevelId == payLevelId && rate.employmentBasis == employmentBasis && rate.penaltyKind == penaltyKind)
+        |> latestVenueEffectiveRate input.previewRosterWeekStartsOn segmentDate
         |> fmap (.operativeFrom)
 
 activeTimeAllowanceEffectiveFrom :: XeroTimesheetPreviewInput -> Int -> AwardPenaltyKindEnum -> Day -> Maybe (Maybe Day)
 activeTimeAllowanceEffectiveFrom input awardFixedId penaltyKind segmentDate =
     input.previewTimePenaltyAllowances
-        |> filter (\allowance -> allowance.awardFixedId == awardFixedId && allowance.penaltyKind == penaltyKind && activeOn segmentDate allowance.operativeFrom allowance.operativeTo)
-        |> List.sortOn (.operativeFrom)
-        |> listToMaybe
+        |> filter (\allowance -> allowance.awardFixedId == awardFixedId && allowance.penaltyKind == penaltyKind)
+        |> latestVenueEffectiveRate input.previewRosterWeekStartsOn segmentDate
         |> fmap (.operativeFrom)
 
 delayedMealBreakSourcePenaltyKind :: AwardPenaltyKindEnum -> Maybe (Maybe AwardPenaltyKindEnum)
@@ -465,10 +470,6 @@ parsePenaltyKind "delayed_meal_break_saturday"       = Just DelayedMealBreakSatu
 parsePenaltyKind "delayed_meal_break_sunday"         = Just DelayedMealBreakSunday
 parsePenaltyKind "delayed_meal_break_public_holiday" = Just DelayedMealBreakPublicHoliday
 parsePenaltyKind _                                   = Nothing
-
-activeOn :: Day -> Maybe Day -> Maybe Day -> Bool
-activeOn day effectiveFrom effectiveTo =
-    maybe True (<= day) effectiveFrom && maybe True (>= day) effectiveTo
 
 accumulateTimesheet :: XeroTimesheetPreviewInput -> Map.Map Text TimesheetAggregation -> SegmentContribution -> Map.Map Text TimesheetAggregation
 accumulateTimesheet input acc contribution =

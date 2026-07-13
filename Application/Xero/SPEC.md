@@ -26,6 +26,7 @@ lands.
   choice is explicit on each guided preparation run; no global
   `xero_payroll_calendar_selections` fallback is read or written.
 - Managed Xero earnings-rate names put human payroll details first, e.g. `Saturday Penalty - Level 1 - CAS - Bepis - 1-July-2025`; legacy `Bepis - HIGA - ...` managed names remain matchable to avoid duplicate pay items.
+- Readiness, managed pay-item proposals, preview, and submission resolve overlapping projected rates through the same latest venue-effective-rate rule as payroll calculations. Raw FWC operative dates are normalized to the venue week before constructing bucket keys.
 - Managed award pay-item effective-date keys/names use the Bepis venue-effective
   rate date from the pay engine, not necessarily the raw FWC/MAPD operative
   date.

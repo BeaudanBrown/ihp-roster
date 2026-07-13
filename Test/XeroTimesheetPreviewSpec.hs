@@ -31,6 +31,52 @@ tests =
                     let line = onlyPreviewLine previewRun
                     line.previewLineNumberOfUnits `shouldBe` [4, 0, 0, 0, 0, 0, 0]
 
+            it "uses the latest overlapping venue-effective rate in preview bucket keys" $ withContext do
+                withCleanDb do
+                    fixture <- createPreviewFixture "weekly" [EntrySpec 0 fixtureStaffA (TimeOfDay 9 0 0) (TimeOfDay 13 0 0)]
+                    input <- fetchPreviewInput fixture.request fixture.connection
+                    payLevelUuid <-
+                        case nub (mapMaybe (.payLevelId) (Map.elems input.previewPayResultsByEntryId)) of
+                            [value] -> pure value
+                            _ -> expectationFailure "expected one preview pay level" >> error "unreachable"
+                    let firstEntry = fromMaybe (error "expected preview entry") (head fixture.entries)
+                    staff <-
+                        case find (\candidate -> unpackId candidate.id == firstEntry.staffId) input.previewStaff of
+                            Just value -> pure value
+                            Nothing -> expectationFailure "expected preview staff" >> error "unreachable"
+                    awardLevel <-
+                        case find (\candidate -> unpackId candidate.id == payLevelUuid) input.previewAwardLevels of
+                            Just value -> pure value
+                            Nothing -> expectationFailure "expected preview award level" >> error "unreachable"
+                    baseRate <-
+                        case find (\candidate -> candidate.awardLevelId == payLevelUuid && candidate.employmentBasis == staff.employmentBasis) input.previewAwardLevelBaseRates of
+                            Just value -> pure value
+                            Nothing -> expectationFailure "expected preview base rate" >> error "unreachable"
+                    mapping <-
+                        case find (Text.isSuffixOf ":ordinary" . (.localBucketKey)) input.previewEarningsMappings of
+                            Just value -> pure value
+                            Nothing -> expectationFailure "expected ordinary earnings mapping" >> error "unreachable"
+                    let expectedKey =
+                            "xero:pay-item:classification:"
+                                <> tshow awardLevel.classificationFixedId
+                                <> ":basis:"
+                                <> inputValue staff.employmentBasis
+                                <> ":effective:2026-07-06:ordinary"
+                        oldBaseRate = baseRate |> set #operativeFrom (Just (fromGregorian 2025 7 1)) |> set #operativeTo Nothing
+                        newerBaseRate = baseRate |> set #operativeFrom (Just (fromGregorian 2026 7 1)) |> set #operativeTo Nothing |> set #hourlyRate 40
+                        otherBaseRates = filter (\candidate -> candidate.awardLevelId /= payLevelUuid || candidate.employmentBasis /= staff.employmentBasis) input.previewAwardLevelBaseRates
+                        preparedInput =
+                            input
+                                { previewRosterWeekStartsOn = 1
+                                , previewAwardLevelBaseRates = oldBaseRate : newerBaseRate : otherBaseRates
+                                , previewEarningsMappings = [mapping |> set #localBucketKey expectedKey]
+                                , previewPayItemRequirements = []
+                                }
+
+                    case buildXeroTimesheetPreviewRun preparedInput of
+                        Left err -> expectationFailure (cs err)
+                        Right previewRun -> (onlyPreviewLine previewRun).previewLineLocalBucketKey `shouldBe` expectedKey
+
             it "builds fortnightly daily units in selected payroll-calendar order" $ withContext do
                 withCleanDb do
                     fixture <- createPreviewFixture "fortnightly" [EntrySpec 13 fixtureStaffA (TimeOfDay 9 0 0) (TimeOfDay 13 0 0)]
@@ -446,6 +492,7 @@ buildFixturePreviewWithRemotes fixture remoteTimesheets = do
     let input =
             XeroTimesheetPreviewInput
                 { previewVenueId = fixture.venue.id
+                , previewRosterWeekStartsOn = 1
                 , previewPeriodStart = fixture.periodStart
                 , previewPeriodEnd = fixture.periodEnd
                 , previewTimesheetEntries = fixture.entries

@@ -109,8 +109,8 @@ segmentBucket weekStartsOn awardLevels baseRates penaltyRates timeAllowances sta
     let condition = fromMaybe "ordinary" segment.penaltyKind
     rawEffectiveFrom <-
         if condition == "ordinary"
-            then ordinaryEffectiveFrom baseRates payLevelId staff.employmentBasis segmentDate
-            else penaltyEffectiveFrom awardLevel baseRates penaltyRates timeAllowances payLevelId staff.employmentBasis condition segmentDate
+            then ordinaryEffectiveFrom weekStartsOn baseRates payLevelId staff.employmentBasis segmentDate
+            else penaltyEffectiveFrom weekStartsOn awardLevel baseRates penaltyRates timeAllowances payLevelId staff.employmentBasis condition segmentDate
     let effectiveFrom = venueEffectiveRateDate weekStartsOn <$> rawEffectiveFrom
         key =
             "xero:pay-item:classification:"
@@ -123,15 +123,15 @@ segmentBucket weekStartsOn awardLevels baseRates penaltyRates timeAllowances sta
                 <> if condition == "ordinary" then "ordinary" else "penalty:" <> condition
     pure XeroLocalEarningsBucket {localBucketKey = key, localBucketLabel = key}
 
-ordinaryEffectiveFrom :: [AwardLevelBaseRate] -> UUID -> StaffEmploymentBasisEnum -> Day -> Maybe (Maybe Day)
-ordinaryEffectiveFrom baseRates payLevelId employmentBasis segmentDate =
+ordinaryEffectiveFrom :: WeekdayIndex -> [AwardLevelBaseRate] -> UUID -> StaffEmploymentBasisEnum -> Day -> Maybe (Maybe Day)
+ordinaryEffectiveFrom weekStartsOn baseRates payLevelId employmentBasis segmentDate =
     baseRates
-        |> filter (\rate -> rate.awardLevelId == payLevelId && rate.employmentBasis == employmentBasis && activeOn segmentDate rate.operativeFrom rate.operativeTo)
-        |> List.sortOn (.operativeFrom)
-        |> listToMaybe
+        |> filter (\rate -> rate.awardLevelId == payLevelId && rate.employmentBasis == employmentBasis)
+        |> latestVenueEffectiveRate weekStartsOn segmentDate
         |> fmap (.operativeFrom)
 
 penaltyEffectiveFrom ::
+    WeekdayIndex ->
     AwardLevel ->
     [AwardLevelBaseRate] ->
     [AwardLevelPenaltyRate] ->
@@ -141,31 +141,29 @@ penaltyEffectiveFrom ::
     Text ->
     Day ->
     Maybe (Maybe Day)
-penaltyEffectiveFrom awardLevel baseRates penaltyRates timeAllowances payLevelId employmentBasis penaltyKindText segmentDate = do
+penaltyEffectiveFrom weekStartsOn awardLevel baseRates penaltyRates timeAllowances payLevelId employmentBasis penaltyKindText segmentDate = do
     penaltyKind <- parsePenaltyKind penaltyKindText
     case delayedMealBreakSourcePenaltyKind penaltyKind of
         Just Nothing ->
-            ordinaryEffectiveFrom baseRates payLevelId employmentBasis segmentDate
+            ordinaryEffectiveFrom weekStartsOn baseRates payLevelId employmentBasis segmentDate
         Just (Just sourcePenaltyKind) ->
-            activeLevelPenaltyEffectiveFrom penaltyRates payLevelId employmentBasis sourcePenaltyKind segmentDate
+            activeLevelPenaltyEffectiveFrom weekStartsOn penaltyRates payLevelId employmentBasis sourcePenaltyKind segmentDate
         Nothing ->
-            activeLevelPenaltyEffectiveFrom penaltyRates payLevelId employmentBasis penaltyKind segmentDate
-                <|> activeTimeAllowanceEffectiveFrom timeAllowances awardLevel.awardFixedId penaltyKind segmentDate
+            activeLevelPenaltyEffectiveFrom weekStartsOn penaltyRates payLevelId employmentBasis penaltyKind segmentDate
+                <|> activeTimeAllowanceEffectiveFrom weekStartsOn timeAllowances awardLevel.awardFixedId penaltyKind segmentDate
 
-activeLevelPenaltyEffectiveFrom :: [AwardLevelPenaltyRate] -> UUID -> StaffEmploymentBasisEnum -> AwardPenaltyKindEnum -> Day -> Maybe (Maybe Day)
-activeLevelPenaltyEffectiveFrom penaltyRates payLevelId employmentBasis penaltyKind segmentDate =
+activeLevelPenaltyEffectiveFrom :: WeekdayIndex -> [AwardLevelPenaltyRate] -> UUID -> StaffEmploymentBasisEnum -> AwardPenaltyKindEnum -> Day -> Maybe (Maybe Day)
+activeLevelPenaltyEffectiveFrom weekStartsOn penaltyRates payLevelId employmentBasis penaltyKind segmentDate =
     penaltyRates
-        |> filter (\rate -> rate.awardLevelId == payLevelId && rate.employmentBasis == employmentBasis && rate.penaltyKind == penaltyKind && activeOn segmentDate rate.operativeFrom rate.operativeTo)
-        |> List.sortOn (.operativeFrom)
-        |> listToMaybe
+        |> filter (\rate -> rate.awardLevelId == payLevelId && rate.employmentBasis == employmentBasis && rate.penaltyKind == penaltyKind)
+        |> latestVenueEffectiveRate weekStartsOn segmentDate
         |> fmap (.operativeFrom)
 
-activeTimeAllowanceEffectiveFrom :: [AwardTimePenaltyAllowance] -> Int -> AwardPenaltyKindEnum -> Day -> Maybe (Maybe Day)
-activeTimeAllowanceEffectiveFrom timeAllowances awardFixedId penaltyKind segmentDate =
+activeTimeAllowanceEffectiveFrom :: WeekdayIndex -> [AwardTimePenaltyAllowance] -> Int -> AwardPenaltyKindEnum -> Day -> Maybe (Maybe Day)
+activeTimeAllowanceEffectiveFrom weekStartsOn timeAllowances awardFixedId penaltyKind segmentDate =
     timeAllowances
-        |> filter (\allowance -> allowance.awardFixedId == awardFixedId && allowance.penaltyKind == penaltyKind && activeOn segmentDate allowance.operativeFrom allowance.operativeTo)
-        |> List.sortOn (.operativeFrom)
-        |> listToMaybe
+        |> filter (\allowance -> allowance.awardFixedId == awardFixedId && allowance.penaltyKind == penaltyKind)
+        |> latestVenueEffectiveRate weekStartsOn segmentDate
         |> fmap (.operativeFrom)
 
 delayedMealBreakSourcePenaltyKind :: AwardPenaltyKindEnum -> Maybe (Maybe AwardPenaltyKindEnum)
@@ -186,10 +184,6 @@ parsePenaltyKind "delayed_meal_break_saturday" = Just DelayedMealBreakSaturday
 parsePenaltyKind "delayed_meal_break_sunday" = Just DelayedMealBreakSunday
 parsePenaltyKind "delayed_meal_break_public_holiday" = Just DelayedMealBreakPublicHoliday
 parsePenaltyKind _ = Nothing
-
-activeOn :: Day -> Maybe Day -> Maybe Day -> Bool
-activeOn day effectiveFrom effectiveTo =
-    maybe True (<= day) effectiveFrom && maybe True (>= day) effectiveTo
 
 dedupeBuckets :: [XeroLocalEarningsBucket] -> [XeroLocalEarningsBucket]
 dedupeBuckets buckets =
