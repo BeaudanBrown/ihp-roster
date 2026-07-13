@@ -54,6 +54,7 @@ for script in \
     app-passkeys.js \
     app-live-updates.js \
     app-preferences.js \
+    app-pwa.js \
     app-roster.js \
     app-scrollbars.js \
     app-time-picker.js \

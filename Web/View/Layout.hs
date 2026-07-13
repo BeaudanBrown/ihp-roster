@@ -25,6 +25,7 @@ defaultLayout inner = [hsx|
 <html lang="en" data-bs-theme="dark">
     <head>
         {metaTags}
+        {appInstallMetadata}
 
         {stylesheets}
         {scripts}
@@ -78,6 +79,9 @@ renderAppHeader =
                     {renderWhenAudience SupportAudience (renderSupportVenueSwitcher "support-venue-switch-mobile" "support-venue-switch-form app-mobile-nav-venue")}
                     <nav class="app-mobile-nav-list" aria-label="Primary navigation">
                         {renderMobileNavLinks}
+                    </nav>
+                    <nav class="app-mobile-nav-list" aria-label="Application installation">
+                        {renderMobileNavLink "Install Bepis" "bi-phone" (pathTo InstallAppAction) ["/InstallApp"]}
                     </nav>
                     {renderWhenAudience StaffProfileAudience renderMobileFeedbackButton}
                     {renderMobileLogoutForm}
@@ -281,6 +285,7 @@ scripts = [hsx|
         <script src={assetPath "/vendor/bootstrap-5.3.8/bootstrap.bundle.min.js"}></script>
         <script src={assetPath "/vendor/flatpickr.js"}></script>
         <script src={assetPath "/app-bootstrap.js"}></script>
+        <script src={assetPath "/app-pwa.js"}></script>
         <script src={assetPath "/app-scrollbars.js"}></script>
         <script src={assetPath "/app-date-pickers.js"}></script>
         <script src={assetPath "/app-passkeys.js"}></script>
@@ -312,6 +317,16 @@ isPublicLegalPage =
             , "/LegalRefundsDisputes"
             , "/LegalCancellation"
             ]
+
+appInstallMetadata :: Html
+appInstallMetadata = [hsx|
+    <meta name="theme-color" content="#0d1119"/>
+    <meta name="apple-mobile-web-app-capable" content="yes"/>
+    <meta name="apple-mobile-web-app-title" content="Bepis"/>
+    <link rel="manifest" href={assetPath "/manifest.json"}/>
+    <link rel="apple-touch-icon" sizes="180x180" href={assetPath "/pwa/apple-touch-icon-180.png"}/>
+    <link rel="icon" href={assetPath "/favicon.ico"} sizes="any"/>
+|]
 
 metaTags :: Html
 metaTags = [hsx|

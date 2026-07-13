@@ -107,12 +107,14 @@ Do not hand-edit generated app JS.
   `Web/View/Layout.hs` with `assetPath`
 - Do not recreate a catch-all `static/app.css` unless a compatibility ticket
   explicitly requires it; app-owned CSS should stay split under `static/css/`
+- PWA manifest icons use content-versioned filenames because manifest JSON
+  cannot call `assetPath`; update their manifest paths whenever icon bytes change
 - App JS entrypoints: generated `static/app-bootstrap.js`,
   `static/app-date-pickers.js`, `static/app-dialog-overlays.js`,
   `static/app-horizontal-scroll.js`, `static/app-interactions.js`,
   `static/app-live-updates.js`,
   `static/app-passkeys.js`, `static/app-preferences.js`,
-  `static/app-roster.js`, `static/app-scrollbars.js`,
+  `static/app-pwa.js`, `static/app-roster.js`, `static/app-scrollbars.js`,
   `static/app-time-picker.js`, `static/app-timesheets.js`,
   `static/app-toasts.js`, `static/app-toggle-buttons.js`, and
   `static/app-xero.js`

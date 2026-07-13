@@ -5,6 +5,8 @@ Read this before editing `static/` assets.
 ## Local Rules
 
 - Runtime assets are app-owned and loaded through `assetPath`.
+- Manifest-declared PWA icons cannot call `assetPath`; keep their filenames
+  content-versioned and update the manifest whenever icon bytes change.
 - App JavaScript source lives in `frontend/ts/`. Do not edit generated browser
   output: `static/app*.js` is checked in and must not be hand-edited.
 - Use `bash ./bin/in-env frontend-build` to regenerate JS, and
@@ -25,6 +27,7 @@ Read this before editing `static/` assets.
   - `app-live-updates.js`
   - `app-passkeys.js`
   - `app-preferences.js`
+  - `app-pwa.js`
   - `app-roster.js`
   - `app-scrollbars.js`
   - `app-time-picker.js`

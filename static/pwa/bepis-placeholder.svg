@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-labelledby="title description">
+  <title id="title">Bepis placeholder icon</title>
+  <desc id="description">A blue capital B on a dark navy background.</desc>
+  <rect width="512" height="512" fill="#172033"/>
+  <path
+    d="M151 112v288m0-262h122c60 0 96 28 96 70 0 43-34 69-91 69H151m0-2h137c63 0 101 24 101 66 0 43-38 69-103 69H151"
+    fill="none"
+    stroke="#8BB5FF"
+    stroke-width="58"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+  />
+</svg>

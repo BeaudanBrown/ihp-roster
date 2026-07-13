@@ -1,6 +1,7 @@
 module Web.Controller.Static where
 import Application.Legal.Documents
 import Web.Controller.Prelude
+import Web.View.Static.InstallApp
 import Web.View.Static.Welcome
 
 instance Controller StaticController where
@@ -12,6 +13,9 @@ instance Controller StaticController where
             Nothing -> do
                 setTitle "Bepis"
                 render WelcomeView
+    action currentAction@InstallAppAction = runBepis currentAction BepisPageAction do
+        setTitle "Install Bepis"
+        render InstallAppView
     action currentAction@PublicBillingSupportAction = runBepis currentAction BepisPageAction do
         legalPublicConfig <- readLegalPublicConfig
         setTitle "Bepis Billing and Support"

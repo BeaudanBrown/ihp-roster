@@ -21,7 +21,8 @@ instance View WelcomeView where
                     <div class="d-grid">
                         <a href={NewSessionAction} class="btn btn-primary btn-lg w-100">Sign In</a>
                     </div>
-                    <div class="mt-4">
+                    <div class="mt-4 d-flex flex-column gap-2">
+                        <a href={InstallAppAction}>Install Bepis</a>
                         <a href={PublicBillingSupportAction} class="link-secondary">Billing and support information</a>
                     </div>
                 </div>

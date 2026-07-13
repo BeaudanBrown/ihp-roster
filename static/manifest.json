@@ -1,0 +1,32 @@
+{
+  "id": "/",
+  "name": "Bepis",
+  "short_name": "Bepis",
+  "description": "Venue rostering, timesheets, leave, and hospitality operations.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#0d1119",
+  "theme_color": "#0d1119",
+  "icons": [
+    {
+      "src": "/static/pwa/bepis-placeholder-4d547350954b-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/static/pwa/bepis-placeholder-5ac924f6eaa8-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/static/pwa/bepis-placeholder-maskable-5ac924f6eaa8-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ]
+}

@@ -14,6 +14,7 @@ data PasskeySetupPromptMode
 
 data StaticController
     = WelcomeAction
+    | InstallAppAction
     | PublicBillingSupportAction
     | LegalTermsAction
     | LegalPrivacyAction
