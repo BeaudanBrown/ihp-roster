@@ -8,7 +8,8 @@ module Web.View.RosterWeeks.StaffPanel
     ) where
 
 import Application.Helper.FrontendContract.AppShell (OpenRosterStaffCreateDialog,
-                                                     OpenRosterStaffEditDialog)
+                                                     OpenRosterStaffEditDialog,
+                                                     OpenTrialStaffInvitationDialog)
 import Application.Helper.FrontendContract.AppShell.Runtime (AppShellActionRoute (..),
                                                              appShellActionByMarker,
                                                              applyAppShellActionAttrs,
@@ -317,26 +318,26 @@ renderRosterStaffPanelEntryRow weekOffset currentRosterGroupId staffDisplayLabel
                     data-roster-staff-ideal={tshow entry.staff.idealShiftsPerWeek}
                     role="button"
                     tabindex="0">
-                    {forEach rosterStaffPanelColumns (renderRosterStaffPanelEntryCell staffDisplayLabel staffRoleLabel entry)}
+                    {forEach rosterStaffPanelColumns (renderRosterStaffPanelEntryCell weekOffset currentRosterGroupId staffDisplayLabel staffRoleLabel entry)}
                 </tr>
             |]
 
-renderRosterStaffPanelEntryCell :: Text -> Text -> RosterStaffPanelEntry -> RosterStaffPanelColumn -> Html
-renderRosterStaffPanelEntryCell staffDisplayLabel _ entry RosterStaffNameColumn = [hsx|
+renderRosterStaffPanelEntryCell :: Int -> Id RosterGroup -> Text -> Text -> RosterStaffPanelEntry -> RosterStaffPanelColumn -> Html
+renderRosterStaffPanelEntryCell weekOffset currentRosterGroupId staffDisplayLabel _ entry RosterStaffNameColumn = [hsx|
     <th scope="row" class="roster-staff-cell roster-staff-name">
         <div class="roster-staff-name-primary d-inline-flex align-items-center gap-2">
             <span>{staffDisplayLabel}</span>
-            {renderTrialStaffInviteButton staffDisplayLabel entry}
+            {renderTrialStaffInviteButton weekOffset currentRosterGroupId staffDisplayLabel entry}
         </div>
     </th>
 |]
-renderRosterStaffPanelEntryCell _ staffRoleLabel _ RosterStaffRoleColumn = [hsx|
+renderRosterStaffPanelEntryCell _ _ _ staffRoleLabel _ RosterStaffRoleColumn = [hsx|
     <td class="roster-staff-cell roster-staff-role">{staffRoleLabel}</td>
 |]
-renderRosterStaffPanelEntryCell _ _ entry RosterStaffShiftsColumn = [hsx|
+renderRosterStaffPanelEntryCell _ _ _ _ entry RosterStaffShiftsColumn = [hsx|
     <td class="roster-staff-cell roster-staff-shifts">{renderShiftSummary entry}</td>
 |]
-renderRosterStaffPanelEntryCell staffDisplayLabel _ _ RosterStaffActionColumn = [hsx|
+renderRosterStaffPanelEntryCell _ _ staffDisplayLabel _ _ RosterStaffActionColumn = [hsx|
     <td class="roster-staff-cell roster-staff-action">
         <button type="button"
                 class="btn btn-sm btn-outline-secondary app-icon-button roster-staff-locate-button"
@@ -350,8 +351,24 @@ renderRosterStaffPanelEntryCell staffDisplayLabel _ _ RosterStaffActionColumn = 
     </td>
 |]
 
-renderTrialStaffInviteButton :: Text -> RosterStaffPanelEntry -> Html
-renderTrialStaffInviteButton _ _ = mempty
+renderTrialStaffInviteButton :: Int -> Id RosterGroup -> Text -> RosterStaffPanelEntry -> Html
+renderTrialStaffInviteButton weekOffset currentRosterGroupId staffDisplayLabel entry
+    | not (isAdoptableTrialStaff entry.staff) = mempty
+    | otherwise =
+        renderAppShellActionHtmxControl
+            (appShellActionByMarker @OpenTrialStaffInvitationDialog)
+            (rosterStaffOverlayRoute (appendQueryParams (pathTo (NewTrialStaffInvitationAction entry.staff.id)) [("weekOffset", tshow weekOffset), ("rosterGroupId", tshow currentRosterGroupId)]))
+                { appShellActionRouteExtraAttrs = [("hx-trigger", "click consume")]
+                }
+            [hsx|
+                <button class="btn btn-sm btn-outline-secondary app-icon-button roster-staff-invite-button"
+                        type="button"
+                        title={"Invite " <> staffDisplayLabel}
+                        aria-label={"Invite " <> staffDisplayLabel}>
+                    <i class="bi bi-envelope" aria-hidden="true"></i>
+                    <span class="visually-hidden">Invite {staffDisplayLabel}</span>
+                </button>
+            |]
 
 humanizeStaffRole :: Text -> Text
 humanizeStaffRole "venue_admin" = "Venue Admin"

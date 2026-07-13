@@ -246,6 +246,102 @@ tests = beforeAll testContext do
                 response `responseBodyShouldNotContain` "pending-trial-invite@example.com"
                 response `responseBodyShouldNotContain` "name=\"invitationEmail\""
 
+        it "opens the dedicated invitation dialog for adoptable trial staff" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Staff Trial Invite Dialog Venue"
+                manager <- createUserRecord "staff-trial-invite-dialog-manager@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue manager "manager"
+                staff <- createStaffRecord venue Nothing "Trial" "Dialog"
+                _ <- createVenueInvitationRecord venue (Just manager) "pending-dialog@example.com" "worker"
+                    >>= updateRecord . set #staffId (Just staff.id)
+                rosterGroup <- query @RosterGroup |> filterWhere (#venueId, unpackId venue.id) |> filterWhere (#isDefault, True) |> fetchOne
+
+                response <- withUserAndCurrentVenue manager venue.id do
+                    withRequestHeaders [("HX-Request", "true")] do
+                        callActionWithParams
+                            (NewTrialStaffInvitationAction staff.id)
+                            [ ("weekOffset", "3")
+                            , ("rosterGroupId", cs (tshow rosterGroup.id))
+                            ]
+
+                response `responseStatusShouldBe` status200
+                response `responseBodyShouldContain` "Invite trial staff"
+                response `responseBodyShouldNotContain` "app-staff-edit-dialog"
+                response `responseBodyShouldContain` "id=\"trial-staff-invite-form\""
+                response `responseBodyShouldContain` "pending-dialog@example.com"
+                response `responseBodyShouldContain` "name=\"weekOffset\" value=\"3\""
+
+        it "rejects opening the invitation dialog for linked staff" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Staff Linked Invite Dialog Venue"
+                manager <- createUserRecord "staff-linked-invite-dialog-manager@example.com" "staff" True
+                linkedUser <- createUserRecord "staff-linked-invite-dialog-worker@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue manager "manager"
+                staff <- createStaffRecord venue (Just linkedUser) "Linked" "Dialog"
+
+                response <- withUserAndCurrentVenue manager venue.id do
+                    withRequestHeaders [("HX-Request", "true")] do
+                        callAction (NewTrialStaffInvitationAction staff.id)
+
+                response `responseStatusShouldBe` status200
+                response `responseBodyShouldContain` "Only active trial staff without a linked login can be invited."
+                response `responseBodyShouldContain` "id=\"dialog-overlay-mount\""
+                response `responseBodyShouldNotContain` "id=\"trial-staff-invite-form\""
+
+        it "keeps invalid invitation emails in the dedicated dialog" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Staff Invalid Trial Invite Venue"
+                manager <- createUserRecord "staff-invalid-trial-invite-manager@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue manager "manager"
+                staff <- createStaffRecord venue Nothing "Invalid" "Invite"
+
+                response <- withUserAndCurrentVenue manager venue.id do
+                    withRequestHeaders [("HX-Request", "true")] do
+                        callActionWithParams
+                            (CreateTrialStaffInvitationAction staff.id)
+                            [("invitationEmail", "not-an-email")]
+
+                response `responseStatusShouldBe` status200
+                response `responseBodyShouldContain` "Invite trial staff"
+                response `responseBodyShouldContain` "Enter a valid email address."
+                response `responseBodyShouldContain` "value=\"not-an-email\""
+                response `responseBodyShouldNotContain` "Edit Staff Member"
+
+        it "requires an invitation email in the dedicated dialog" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Staff Missing Trial Invite Email Venue"
+                manager <- createUserRecord "staff-missing-trial-invite-manager@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue manager "manager"
+                staff <- createStaffRecord venue Nothing "Missing" "Invite"
+
+                response <- withUserAndCurrentVenue manager venue.id do
+                    withRequestHeaders [("HX-Request", "true")] do
+                        callAction (CreateTrialStaffInvitationAction staff.id)
+
+                response `responseStatusShouldBe` status200
+                response `responseBodyShouldContain` "Invite email is required."
+                response `responseBodyShouldContain` "id=\"trial-staff-invite-form\""
+                response `responseBodyShouldNotContain` "Edit Staff Member"
+
+        it "rejects oversized invitation emails in the dedicated dialog" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Staff Oversized Trial Invite Email Venue"
+                manager <- createUserRecord "staff-oversized-trial-invite-manager@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue manager "manager"
+                staff <- createStaffRecord venue Nothing "Oversized" "Invite"
+                let oversizedEmail = Text.replicate 250 "a" <> "@example.com"
+
+                response <- withUserAndCurrentVenue manager venue.id do
+                    withRequestHeaders [("HX-Request", "true")] do
+                        callActionWithParams
+                            (CreateTrialStaffInvitationAction staff.id)
+                            [("invitationEmail", cs oversizedEmail)]
+
+                response `responseStatusShouldBe` status200
+                response `responseBodyShouldContain` "Email must be 254 characters or fewer."
+                response `responseBodyShouldContain` cs oversizedEmail
+                response `responseBodyShouldNotContain` "Edit Staff Member"
+
         it "lets managers create worker adoption invitations for current-venue trial staff" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Staff Trial Invite Venue"
@@ -263,8 +359,8 @@ tests = beforeAll testContext do
                 response `responseStatusShouldBe` status200
                 response `responseBodyShouldContain` "Invitation sent to trial-invite-claim@example.com"
                 response `responseBodyShouldContain` "id=\"toast-overlay-mount\""
-                response `responseBodyShouldContain` "hx-swap-oob=\"innerHTML\""
-                response `responseBodyShouldContain` "Invitation sent to trial-invite-claim@example.com"
+                response `responseBodyShouldContain` "id=\"dialog-overlay-mount\" hx-swap-oob=\"innerHTML\""
+                response `responseBodyShouldNotContain` "Edit Staff Member"
                 invitation <- query @VenueInvitation
                     |> filterWhere (#venueId, unpackId venue.id)
                     |> filterWhere (#email, "trial-invite-claim@example.com" :: Text)
@@ -279,6 +375,24 @@ tests = beforeAll testContext do
                 appJob.jobKind `shouldBe` venueInvitationDeliveryJobKind
                 versionAfter <- LiveUpdate.currentLiveUpdateVersion (LiveUpdate.adminInvitesLiveScope (unpackId venue.id))
                 versionAfter `shouldBe` versionBefore
+
+        it "closes the dedicated dialog after resending a trial staff invitation" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Staff Resend Trial Invite Venue"
+                manager <- createUserRecord "staff-resend-trial-invite-manager@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue manager "manager"
+                staff <- createStaffRecord venue Nothing "Resend" "Invite"
+                invitation <- createVenueInvitationRecord venue (Just manager) "resend-trial-invite@example.com" "worker"
+                    >>= updateRecord . set #staffId (Just staff.id)
+
+                response <- withUserAndCurrentVenue manager venue.id do
+                    withRequestHeaders [("HX-Request", "true")] do
+                        callAction (ResendTrialStaffInvitationAction invitation.id)
+
+                response `responseStatusShouldBe` status200
+                response `responseBodyShouldContain` "Invitation resent to resend-trial-invite@example.com"
+                response `responseBodyShouldContain` "id=\"dialog-overlay-mount\" hx-swap-oob=\"innerHTML\""
+                response `responseBodyShouldNotContain` "Invite trial staff"
 
         it "prevents non-managers from creating trial staff adoption invitations" $ withContext do
             withCleanDb do

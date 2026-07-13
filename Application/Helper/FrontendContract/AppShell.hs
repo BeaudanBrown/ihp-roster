@@ -50,6 +50,7 @@ module Application.Helper.FrontendContract.AppShell
     , OpenRosterShiftDialog
     , OpenRosterStaffCreateDialog
     , OpenRosterStaffEditDialog
+    , OpenTrialStaffInvitationDialog
     , CreateRosterShiftOverlay
     , UpdateRosterShiftOverlay
     , DeleteRosterSlotOverlay
@@ -138,6 +139,7 @@ data ImportXeroPayItemsOverlay
 data OpenRosterShiftDialog
 data OpenRosterStaffCreateDialog
 data OpenRosterStaffEditDialog
+data OpenTrialStaffInvitationDialog
 data CreateRosterShiftOverlay
 data UpdateRosterShiftOverlay
 data DeleteRosterSlotOverlay
@@ -299,6 +301,7 @@ type AppShellContract =
          , AppShellAction OpenRosterShiftDialog DialogLauncherFields DialogLauncherOptions
          , AppShellAction OpenRosterStaffCreateDialog DialogLauncherFields DialogLauncherOptions
          , AppShellAction OpenRosterStaffEditDialog DialogLauncherFields DialogLauncherOptions
+         , AppShellAction OpenTrialStaffInvitationDialog DialogLauncherFields DialogLauncherOptions
          , AppShellAction CreateRosterShiftOverlay RosterShiftFields DialogSubmitOptions
          , AppShellAction UpdateRosterShiftOverlay RosterShiftFields DialogSubmitOptions
          , AppShellAction DeleteRosterSlotOverlay

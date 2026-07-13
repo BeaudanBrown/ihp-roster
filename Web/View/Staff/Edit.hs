@@ -54,24 +54,23 @@ instance View NewView where
             (renderNewStaffBody PageOverlayForm staff rosterGroups awardLevels awardLevelBaseRates importedPayItems selectedRosterGroupIds weekOffset maybeRosterGroupId)
 
 data EditView = EditView
-    { staff                       :: Staff
-    , maybeLinkedUserEmail        :: Maybe Text
-    , pendingTrialStaffInvitation :: Maybe VenueInvitation
-    , rosterGroups                :: [RosterGroup]
-    , awardLevels                 :: [AwardLevel]
-    , awardLevelBaseRates         :: [AwardLevelBaseRate]
-    , importedPayItems            :: [XeroImportedPayItem]
-    , selectedRosterGroupIds      :: [Id RosterGroup]
-    , maybeVenueMembership        :: Maybe VenueMembership
-    , preferenceWeekdays          :: [PreferenceWeekday]
-    , selectedShiftPreferences    :: [ShiftPreferenceSelection]
-    , staffRsaDocument            :: Maybe StaffDocument
-    , leaveRequest                :: LeaveRequest
-    , leaveRequests               :: [LeaveRequest]
-    , today                       :: Day
-    , weekOffset                  :: Int
-    , maybeRosterGroupId          :: Maybe (Id RosterGroup)
-    , openSection                 :: Text
+    { staff                    :: Staff
+    , maybeLinkedUserEmail     :: Maybe Text
+    , rosterGroups             :: [RosterGroup]
+    , awardLevels              :: [AwardLevel]
+    , awardLevelBaseRates      :: [AwardLevelBaseRate]
+    , importedPayItems         :: [XeroImportedPayItem]
+    , selectedRosterGroupIds   :: [Id RosterGroup]
+    , maybeVenueMembership     :: Maybe VenueMembership
+    , preferenceWeekdays       :: [PreferenceWeekday]
+    , selectedShiftPreferences :: [ShiftPreferenceSelection]
+    , staffRsaDocument         :: Maybe StaffDocument
+    , leaveRequest             :: LeaveRequest
+    , leaveRequests            :: [LeaveRequest]
+    , today                    :: Day
+    , weekOffset               :: Int
+    , maybeRosterGroupId       :: Maybe (Id RosterGroup)
+    , openSection              :: Text
     }
 
 instance View EditView where
@@ -79,7 +78,7 @@ instance View EditView where
         renderStaffEditPageModalWithButtons
             weekOffset
             []
-            (renderStaffSurfaceMount staff (renderStaffEditBody PageOverlayForm staff maybeLinkedUserEmail pendingTrialStaffInvitation rosterGroups awardLevels awardLevelBaseRates importedPayItems selectedRosterGroupIds maybeVenueMembership preferenceWeekdays selectedShiftPreferences staffRsaDocument leaveRequest leaveRequests today weekOffset maybeRosterGroupId openSection))
+            (renderStaffSurfaceMount staff (renderStaffEditBody PageOverlayForm staff maybeLinkedUserEmail rosterGroups awardLevels awardLevelBaseRates importedPayItems selectedRosterGroupIds maybeVenueMembership preferenceWeekdays selectedShiftPreferences staffRsaDocument leaveRequest leaveRequests today weekOffset maybeRosterGroupId openSection))
 
 staffEditFormId :: Text
 staffEditFormId = "staff-edit-form"
@@ -133,18 +132,18 @@ renderNewStaffBody formMode staff rosterGroups awardLevels awardLevelBaseRates i
             staff
             Nothing
 
-renderStaffEditModalFragment :: Staff -> Maybe Text -> Maybe VenueInvitation -> [RosterGroup] -> [AwardLevel] -> [AwardLevelBaseRate] -> [XeroImportedPayItem] -> [Id RosterGroup] -> Maybe VenueMembership -> [PreferenceWeekday] -> [ShiftPreferenceSelection] -> Maybe StaffDocument -> LeaveRequest -> [LeaveRequest] -> Day -> Int -> Maybe (Id RosterGroup) -> Text -> Html
-renderStaffEditModalFragment staff maybeLinkedUserEmail pendingTrialStaffInvitation rosterGroups awardLevels awardLevelBaseRates importedPayItems selectedRosterGroupIds maybeVenueMembership preferenceWeekdays selectedShiftPreferences staffRsaDocument leaveRequest leaveRequests today weekOffset maybeRosterGroupId openSection =
+renderStaffEditModalFragment :: Staff -> Maybe Text -> [RosterGroup] -> [AwardLevel] -> [AwardLevelBaseRate] -> [XeroImportedPayItem] -> [Id RosterGroup] -> Maybe VenueMembership -> [PreferenceWeekday] -> [ShiftPreferenceSelection] -> Maybe StaffDocument -> LeaveRequest -> [LeaveRequest] -> Day -> Int -> Maybe (Id RosterGroup) -> Text -> Html
+renderStaffEditModalFragment staff maybeLinkedUserEmail rosterGroups awardLevels awardLevelBaseRates importedPayItems selectedRosterGroupIds maybeVenueMembership preferenceWeekdays selectedShiftPreferences staffRsaDocument leaveRequest leaveRequests today weekOffset maybeRosterGroupId openSection =
     renderStaffEditDialogWithButtons
         []
-        (renderStaffSurfaceMount staff (renderStaffEditBody HtmxOverlayForm staff maybeLinkedUserEmail pendingTrialStaffInvitation rosterGroups awardLevels awardLevelBaseRates importedPayItems selectedRosterGroupIds maybeVenueMembership preferenceWeekdays selectedShiftPreferences staffRsaDocument leaveRequest leaveRequests today weekOffset maybeRosterGroupId openSection))
+        (renderStaffSurfaceMount staff (renderStaffEditBody HtmxOverlayForm staff maybeLinkedUserEmail rosterGroups awardLevels awardLevelBaseRates importedPayItems selectedRosterGroupIds maybeVenueMembership preferenceWeekdays selectedShiftPreferences staffRsaDocument leaveRequest leaveRequests today weekOffset maybeRosterGroupId openSection))
 
 renderStaffSurfaceMount :: Staff -> Html -> Html
 renderStaffSurfaceMount staff =
     renderFrontendSurfaceMount (staffSurfaceImpl (ProfileScopeValue (unpackId currentVenueId) (unpackId staff.id)))
 
-renderStaffEditBody :: OverlayFormMode -> Staff -> Maybe Text -> Maybe VenueInvitation -> [RosterGroup] -> [AwardLevel] -> [AwardLevelBaseRate] -> [XeroImportedPayItem] -> [Id RosterGroup] -> Maybe VenueMembership -> [PreferenceWeekday] -> [ShiftPreferenceSelection] -> Maybe StaffDocument -> LeaveRequest -> [LeaveRequest] -> Day -> Int -> Maybe (Id RosterGroup) -> Text -> Html
-renderStaffEditBody formMode staff maybeLinkedUserEmail pendingTrialStaffInvitation rosterGroups awardLevels awardLevelBaseRates importedPayItems selectedRosterGroupIds maybeVenueMembership preferenceWeekdays selectedShiftPreferences _staffRsaDocument leaveRequest leaveRequests _today weekOffset maybeRosterGroupId openSection =
+renderStaffEditBody :: OverlayFormMode -> Staff -> Maybe Text -> [RosterGroup] -> [AwardLevel] -> [AwardLevelBaseRate] -> [XeroImportedPayItem] -> [Id RosterGroup] -> Maybe VenueMembership -> [PreferenceWeekday] -> [ShiftPreferenceSelection] -> Maybe StaffDocument -> LeaveRequest -> [LeaveRequest] -> Day -> Int -> Maybe (Id RosterGroup) -> Text -> Html
+renderStaffEditBody formMode staff maybeLinkedUserEmail rosterGroups awardLevels awardLevelBaseRates importedPayItems selectedRosterGroupIds maybeVenueMembership preferenceWeekdays selectedShiftPreferences _staffRsaDocument leaveRequest leaveRequests _today weekOffset maybeRosterGroupId openSection =
     let managementFields =
             StaffManagementFieldData
                 { managementStaff = staff
@@ -167,7 +166,7 @@ renderStaffEditBody formMode staff maybeLinkedUserEmail pendingTrialStaffInvitat
                         { staffProfileSectionKey = "profile"
                         , staffProfileSectionId = staffProfileDetailsSectionId
                         , staffProfileSectionTitle = "Profile Details"
-                        , staffProfileSectionBody = renderStaffDetailsForm formMode staff maybeLinkedUserEmail pendingTrialStaffInvitation managementFields staffAction
+                        , staffProfileSectionBody = renderStaffDetailsForm formMode staff maybeLinkedUserEmail managementFields staffAction
                         }
                     , StaffProfileAccordionSection
                         { staffProfileSectionKey = "preferences"
@@ -191,13 +190,10 @@ renderStaffEditBody formMode staff maybeLinkedUserEmail pendingTrialStaffInvitat
                        | currentUserIsManager
                        ]
                 }
-     in [hsx|
-        {renderTrialStaffEditInviteStandaloneForm formMode staff pendingTrialStaffInvitation}
-        {renderStaffProfileAccordion accordionConfig}
-    |]
+     in renderStaffProfileAccordion accordionConfig
 
-renderStaffEditSectionFragment :: OverlayFormMode -> Staff -> Maybe Text -> Maybe VenueInvitation -> [RosterGroup] -> [AwardLevel] -> [AwardLevelBaseRate] -> [XeroImportedPayItem] -> [Id RosterGroup] -> Maybe VenueMembership -> [PreferenceWeekday] -> [ShiftPreferenceSelection] -> LeaveRequest -> [LeaveRequest] -> Int -> Maybe (Id RosterGroup) -> Text -> Html
-renderStaffEditSectionFragment formMode staff maybeLinkedUserEmail pendingTrialStaffInvitation rosterGroups awardLevels awardLevelBaseRates importedPayItems selectedRosterGroupIds maybeVenueMembership preferenceWeekdays selectedShiftPreferences leaveRequest leaveRequests weekOffset maybeRosterGroupId openSection =
+renderStaffEditSectionFragment :: OverlayFormMode -> Staff -> Maybe Text -> [RosterGroup] -> [AwardLevel] -> [AwardLevelBaseRate] -> [XeroImportedPayItem] -> [Id RosterGroup] -> Maybe VenueMembership -> [PreferenceWeekday] -> [ShiftPreferenceSelection] -> LeaveRequest -> [LeaveRequest] -> Int -> Maybe (Id RosterGroup) -> Text -> Html
+renderStaffEditSectionFragment formMode staff maybeLinkedUserEmail rosterGroups awardLevels awardLevelBaseRates importedPayItems selectedRosterGroupIds maybeVenueMembership preferenceWeekdays selectedShiftPreferences leaveRequest leaveRequests weekOffset maybeRosterGroupId openSection =
     let managementFields =
             StaffManagementFieldData
                 { managementStaff = staff
@@ -228,12 +224,9 @@ renderStaffEditSectionFragment formMode staff maybeLinkedUserEmail pendingTrialS
                 { staffProfileSectionKey = "profile"
                 , staffProfileSectionId = staffProfileDetailsSectionId
                 , staffProfileSectionTitle = "Profile Details"
-                , staffProfileSectionBody = renderStaffDetailsForm formMode staff maybeLinkedUserEmail pendingTrialStaffInvitation managementFields staffAction
+                , staffProfileSectionBody = renderStaffDetailsForm formMode staff maybeLinkedUserEmail managementFields staffAction
                 }
      in renderStaffProfileAccordionSection staffSectionsAccordionId section.staffProfileSectionKey section
-
-trialStaffEditInviteFormId :: Text
-trialStaffEditInviteFormId = "trial-staff-edit-invite-form"
 
 staffLeaveRequestFormFragmentId :: Text
 staffLeaveRequestFormFragmentId = "staff-leave-request-form-fragment"
@@ -348,8 +341,8 @@ renderStaffPasskeyReturnInputs weekOffset maybeRosterGroupId = [hsx|
 renderStaffPasskeyRosterGroupInput :: Id RosterGroup -> Html
 renderStaffPasskeyRosterGroupInput rosterGroupId = [hsx|<input type="hidden" name="rosterGroupId" value={tshow rosterGroupId}/>|]
 
-renderStaffDetailsForm :: OverlayFormMode -> Staff -> Maybe Text -> Maybe VenueInvitation -> StaffManagementFieldData -> StaffController -> Html
-renderStaffDetailsForm formMode staff maybeLinkedUserEmail pendingTrialStaffInvitation managementFields action =
+renderStaffDetailsForm :: OverlayFormMode -> Staff -> Maybe Text -> StaffManagementFieldData -> StaffController -> Html
+renderStaffDetailsForm formMode staff maybeLinkedUserEmail managementFields action =
     renderStaffProfileDetailsForm
         StaffProfileDetailsFormConfig
             { staffProfileDetailsFormId = staffEditFormId
@@ -360,7 +353,7 @@ renderStaffDetailsForm formMode staff maybeLinkedUserEmail pendingTrialStaffInvi
             , staffProfileDetailsFormHiddenInputs = [hsx|<input type="hidden" name="section" value="profile"/>|]
             , staffProfileDetailsFormBeforeFields = mempty
             , staffProfileDetailsFormFieldsHeading = Nothing
-            , staffProfileDetailsFormEmailField = renderStaffEditPersonalProfileFields formMode pendingTrialStaffInvitation
+            , staffProfileDetailsFormEmailField = renderPersonalProfileFields
             , staffProfileDetailsFormAfterFields = mempty
             , staffProfileDetailsFormManagement = Just managementFields
             , staffProfileDetailsFormManagementBody = renderStaffManagementFields
@@ -369,101 +362,12 @@ renderStaffDetailsForm formMode staff maybeLinkedUserEmail pendingTrialStaffInvi
         staff
         maybeLinkedUserEmail
 
-renderStaffEditPersonalProfileFields :: OverlayFormMode -> Maybe VenueInvitation -> Staff -> Maybe Text -> Html
-renderStaffEditPersonalProfileFields _formMode _pendingTrialStaffInvitation staff maybeLinkedUserEmail =
-    renderPersonalProfileFields staff maybeLinkedUserEmail
-
-renderTrialStaffEmailField :: OverlayFormMode -> Staff -> Maybe VenueInvitation -> Html
-renderTrialStaffEmailField _ _ (Just invitation) = [hsx|
-    <div class="col-12 col-lg-6">
-        <label for="pendingInvitationEmail" class="form-label">Email</label>
-        <div class="form-control d-flex align-items-center justify-content-between gap-2" id="pendingInvitationEmail">
-            <span>{invitation.email}</span>
-            <span class="badge text-bg-warning">Pending invite</span>
-        </div>
-        <div class="form-text">An invitation has been sent and is waiting to be accepted.</div>
-    </div>
-|]
-renderTrialStaffEmailField HtmxOverlayForm staff Nothing = [hsx|
-    <div class="col-12 col-lg-6">
-        <label for="invitationEmail" class="form-label">Email</label>
-        <div class="input-group">
-            <input
-                id="invitationEmail"
-                name="invitationEmail"
-                type="email"
-                class="form-control"
-                placeholder="name@example.com"
-                form={trialStaffEditInviteFormId}
-            />
-            {renderTrialStaffInviteOverlayButton staff}
-        </div>
-        <div class="form-text">Send an invite link to claim this trial staff profile.</div>
-    </div>
-|]
-renderTrialStaffEmailField PageOverlayForm staff Nothing = [hsx|
-    <div class="col-12 col-lg-6">
-        <label for="invitationEmail" class="form-label">Email</label>
-        <div class="input-group">
-            <input
-                id="invitationEmail"
-                name="invitationEmail"
-                type="email"
-                class="form-control"
-                placeholder="name@example.com"
-                form={trialStaffEditInviteFormId}
-            />
-            <button
-                type="submit"
-                class="btn btn-outline-primary"
-                form={trialStaffEditInviteFormId}
-            >Invite</button>
-        </div>
-        <div class="form-text">Send an invite link to claim this trial staff profile.</div>
-    </div>
-|]
-
-renderTrialStaffInviteOverlayButton :: Staff -> Html
-renderTrialStaffInviteOverlayButton _ = [hsx|
-    <button
-        type="submit"
-        class="btn btn-outline-primary"
-        form={trialStaffEditInviteFormId}
-    >Invite</button>
-|]
-
-renderTrialStaffEditInviteStandaloneForm :: OverlayFormMode -> Staff -> Maybe VenueInvitation -> Html
-renderTrialStaffEditInviteStandaloneForm _ staff pendingTrialStaffInvitation
-    | isJust staff.userId || isJust pendingTrialStaffInvitation = mempty
-renderTrialStaffEditInviteStandaloneForm HtmxOverlayForm staff _ =
-    applyAppShellActionAttrs
-        (appShellActionByMarker @CreateTrialStaffInvitationOverlay)
-        AppShellActionRoute
-            { appShellActionRouteUrl = pathTo (CreateTrialStaffInvitationAction staff.id)
-            , appShellActionRouteFields = []
-            , appShellActionRouteCustomHtmx = []
-            , appShellActionRouteStandardUrl = Nothing
-            , appShellActionRouteExtraAttrs =
-                [ ("id", trialStaffEditInviteFormId)
-                , ("class", "d-none")
-                ]
-            }
-        [hsx|<form method="POST" action={pathTo (CreateTrialStaffInvitationAction staff.id)}></form>|]
-renderTrialStaffEditInviteStandaloneForm PageOverlayForm staff _ = [hsx|
-    <form
-        id={trialStaffEditInviteFormId}
-        method="POST"
-        action={pathTo (CreateTrialStaffInvitationAction staff.id)}
-        class="d-none"
-    ></form>
-|]
-
-renderTrialStaffInvitationModalFragment :: Staff -> [VenueInvitation] -> Maybe Text -> Int -> Maybe (Id RosterGroup) -> Html
-renderTrialStaffInvitationModalFragment staff pendingInvitations maybeError weekOffset maybeRosterGroupId =
+renderTrialStaffInvitationModalFragment :: Staff -> [VenueInvitation] -> Maybe Text -> Maybe Text -> Int -> Maybe (Id RosterGroup) -> Html
+renderTrialStaffInvitationModalFragment staff pendingInvitations maybeError submittedEmail weekOffset maybeRosterGroupId =
     renderDialogOverlay DialogOverlayConfig
         { dialogOverlayTitle = "Invite trial staff"
         , dialogOverlayBody = [hsx|
-            {renderTrialStaffInvitationForm staff pendingInvitations maybeError weekOffset maybeRosterGroupId}
+            {renderTrialStaffInvitationForm staff pendingInvitations maybeError submittedEmail weekOffset maybeRosterGroupId}
         |]
         , dialogOverlayStartButtons = []
         , dialogOverlayButtons =
@@ -478,11 +382,11 @@ renderTrialStaffInvitationModalFragment staff pendingInvitations maybeError week
                 , overlayButtonAction = OverlaySubmitFormAction "trial-staff-invite-form"
                 }
             ]
-        , dialogOverlayDialogClass = "app-staff-edit-dialog"
+        , dialogOverlayDialogClass = ""
         }
 
-renderTrialStaffInvitationForm :: Staff -> [VenueInvitation] -> Maybe Text -> Int -> Maybe (Id RosterGroup) -> Html
-renderTrialStaffInvitationForm staff pendingInvitations maybeError weekOffset maybeRosterGroupId =
+renderTrialStaffInvitationForm :: Staff -> [VenueInvitation] -> Maybe Text -> Maybe Text -> Int -> Maybe (Id RosterGroup) -> Html
+renderTrialStaffInvitationForm staff pendingInvitations maybeError submittedEmail weekOffset maybeRosterGroupId =
     applyAppShellActionAttrs
         (appShellActionByMarker @CreateTrialStaffInvitationOverlay)
         (trialInvitationSubmitRoute (pathTo (CreateTrialStaffInvitationAction staff.id)) [("id", "trial-staff-invite-form")])
@@ -494,7 +398,7 @@ renderTrialStaffInvitationForm staff pendingInvitations maybeError weekOffset ma
                 {forEach maybeError renderTrialInviteError}
                 <div class="mb-3">
                     <label for="trial-staff-invitation-email" class="form-label">Email</label>
-                    <input id="trial-staff-invitation-email" name="invitationEmail" type="email" class="form-control" placeholder="name@example.com" required="required" />
+                    <input id="trial-staff-invitation-email" name="invitationEmail" type="email" class="form-control" placeholder="name@example.com" value={fromMaybe "" submittedEmail} required="required" />
                 </div>
                 {renderPendingTrialInvitationList pendingInvitations}
             </form>

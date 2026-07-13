@@ -7,16 +7,30 @@ async function loginAndOpenRoster(page: Page) {
 }
 
 test.describe('Roster Staff Modal', () => {
+    test('opens the dedicated trial invitation dialog without opening staff edit', async ({ page }) => {
+        await loginAndOpenRoster(page);
+
+        const initialUrl = page.url();
+        const modalMount = page.locator('#dialog-overlay-mount');
+        const trialEntry = page.locator('.roster-staff-panel-entry[data-roster-staff-role="TRIAL"]:visible').first();
+        const inviteButton = trialEntry.getByRole('button', { name: /^Invite / });
+
+        await expect(inviteButton).toBeVisible();
+        await inviteButton.click();
+
+        await expect(page).toHaveURL(initialUrl);
+        await expect(modalMount.locator('[data-dialog-overlay="true"]')).toBeVisible();
+        await expect(modalMount).toContainText('Invite trial staff');
+        await expect(modalMount).not.toContainText('Edit Staff Member');
+        await expect(modalMount.locator('#trial-staff-invite-form')).toBeVisible();
+    });
+
     test('edits staff inline without navigating away from the roster', async ({ page }) => {
         await loginAndOpenRoster(page);
 
         const initialUrl = page.url();
         const modalMount = page.locator('#dialog-overlay-mount');
         const staffEntry = page.locator('.roster-staff-panel-entry:visible').first();
-        const nameLabel = staffEntry.locator('.roster-staff-name-primary');
-        const originalName = (await nameLabel.textContent())?.trim() || 'E2E Manager';
-        const updatedName = 'Roster Modal Spec';
-
         await staffEntry.click();
 
         await expect(page).toHaveURL(initialUrl);
