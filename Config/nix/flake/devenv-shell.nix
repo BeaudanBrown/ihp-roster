@@ -18,6 +18,7 @@
                     pkgs.nodejs_22
                     pkgs.esbuild
                     pkgs.typescript
+                    pkgs.haskellPackages.weeder
                     pkgs.mailhog
                     pkgs.poppler-utils
                     pkgs.k6

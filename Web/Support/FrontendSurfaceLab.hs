@@ -16,7 +16,7 @@ import qualified Data.UUID as UUID
 import Web.View.Prelude
 
 frontendSurfaceLabPanelId :: Text
-frontendSurfaceLabPanelId = "surface-lab-panel"
+frontendSurfaceLabPanelId = surfaceFragmentTargetId @Surface.SurfaceLabSurface @Surface.LabPanel NoSurfaceFields
 
 surfaceLabImpl :: (?context :: ControllerContext) => SurfaceImpl Surface.SurfaceLabSurface
 surfaceLabImpl =
@@ -44,7 +44,7 @@ surfaceLabShellFragment :: (?context :: ControllerContext) => FrontendSurfaceMou
 surfaceLabShellFragment =
     frontendSurfaceMountedFragmentFor @Surface.SurfaceLabSurface @Surface.LabShell
         NoSurfaceFields
-        "surface-lab-shell"
+        NoSurfaceFields
         (pathTo FrontendSurfaceLabAction)
         FrontendSurfaceReplace
 
@@ -56,7 +56,7 @@ surfaceLabPanelFragmentFor :: (?context :: ControllerContext) => UUID.UUID -> Fr
 surfaceLabPanelFragmentFor panelIdValue =
     frontendSurfaceMountedFragmentFor @Surface.SurfaceLabSurface @Surface.LabPanel
         (surfaceField @Surface.PanelId panelIdValue :& NoSurfaceFields)
-        frontendSurfaceLabPanelId
+        NoSurfaceFields
         (pathTo ShowFrontendSurfaceLabPanelFragmentAction { panelId = UUID.toText panelIdValue })
         FrontendSurfaceReplace
 
@@ -110,7 +110,7 @@ renderSurfaceLabMount =
             </div>
         |]
      in renderFrontendSurfaceMount impl [hsx|
-            <section id="surface-lab-shell" class="app-surface-lab">
+            <section id={surfaceFragmentTargetId @Surface.SurfaceLabSurface @Surface.LabShell NoSurfaceFields} class="app-surface-lab">
                 <div class="d-flex align-items-start justify-content-between gap-3 mb-3">
                     <div>
                         <h2 class="h5 mb-1">FrontendSurface lab shell</h2>

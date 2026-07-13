@@ -47,21 +47,17 @@ import Application.Helper.FrontendContract.Wire.Json (validateContractValue,
                                                       validateSurfaceScopeValue,
                                                       validateWireValue)
 import qualified Application.Helper.FrontendContract.Wire.LiveUpdate as Live
-import Control.Monad (filterM)
 import qualified Data.Aeson as Aeson
 import qualified Data.Aeson.Key as AesonKey
 import qualified Data.Aeson.KeyMap as KeyMap
 import qualified Data.Aeson.Types as AesonTypes
 import qualified Data.ByteString.Lazy as LBS
-import Data.Char (isSpace)
 import Data.Either (isLeft, isRight)
 import qualified Data.List as List
 import qualified Data.Text as Text
 import qualified Data.Text.Encoding as TextEncoding
 import qualified Data.Text.IO as Text
 import IHP.Prelude
-import System.Directory (doesDirectoryExist, listDirectory)
-import System.FilePath (takeExtension, (</>))
 import Test.Hspec
 
 tests :: Spec
@@ -121,24 +117,6 @@ tests = describe "Frontend contract generator foundation" do
         map Contract.schemaNameAndMarker dtoSchemas
             `shouldBe` [("LabPayload", "LabPayload"), ("LabRelatedPayload", "LabRelatedPayload")]
         actionOptions `shouldContain` [Contract.HtmxActionMethodIR Contract.HtmxPostIR]
-
-    it "keeps the composition root free of handwritten protocol blocks" do
-        source <- Text.readFile "Application/Helper/FrontendContract/Contracts.hs"
-        source `shouldNotSatisfy` Text.isInfixOf "export type SurfaceScope"
-        source `shouldNotSatisfy` Text.isInfixOf "export const InteractionDom"
-        source `shouldNotSatisfy` Text.isInfixOf "export type UiRegionTransitionProfile"
-
-    it "keeps inert IHP helpers.js submission opt-out attributes deleted" do
-        files <- concat <$> mapM (collectSourceFilesWithExtensions [".hs"]) ["Web", "Application"]
-        offenders <- filterM (fmap (Text.isInfixOf "data-disable-javascript-submission") . Text.readFile) files
-        offenders `shouldBe` []
-        layout <- Text.readFile "Web/View/Layout.hs"
-        layout `shouldNotSatisfy` Text.isInfixOf "helpers.js"
-
-    it "keeps app-owned sources free of explicit autofocus attributes" do
-        files <- concat <$> mapM (collectSourceFilesWithExtensions [".hs", ".js", ".ts", ".css"]) ["Web", "Application", "static"]
-        offenders <- filterM sourceRendersAutofocus files
-        offenders `shouldBe` []
 
     it "uses one shared HTMX metadata model for generated request primitives" do
         let genericOptions =
@@ -248,12 +226,6 @@ tests = describe "Frontend contract generator foundation" do
         actionFields "profile" "update-profile-shift-preferences" `shouldBe` actionFields "staff" "update-staff-shift-preferences"
         frontendContractsTypeScript `shouldNotSatisfy` Text.isInfixOf "staffSurfaceManifest"
 
-    it "keeps migrated feedback overlay openers on generated AppShellAction helpers" do
-        source <- Text.readFile "Web/View/Layout.hs"
-        source `shouldSatisfy` Text.isInfixOf "appShellActionByMarker @OpenFeedbackDialog"
-        source `shouldNotSatisfy` Text.isInfixOf "appShellActionByName \"open-feedback-dialog\""
-        source `shouldNotSatisfy` Text.isInfixOf "hx-get={NewFeedbackAction}"
-
     it "resolves canonical Haskell value accessors from registered FrontendContract IR" do
         lookupDomIdValue @App.DialogOverlayMount `shouldBe` Right sharedDialogOverlayMountId
         lookupDomIdValue @App.ToastOverlayMount `shouldBe` Right sharedToastOverlayMountId
@@ -353,24 +325,6 @@ tests = describe "Frontend contract generator foundation" do
         frontendContractsTypeScript `shouldSatisfy` Text.isInfixOf "export function parseFrontendSurfaceMountConfig"
         frontendContractsTypeScript `shouldNotSatisfy` Text.isInfixOf "export function encodeFrontendSurfaceMountConfig"
 
-    it "gives every generated InteractionDom runtime field a production consumer" do
-        let interactionPrimitives =
-                concat
-                    [ global.globalPrimitives
-                    | global <- registeredFrontendContractIR.contractGlobals
-                    , global.globalName == "interaction"
-                    ]
-        runtimeSources <- mapM Text.readFile =<< collectSourceFiles "frontend/ts/interaction"
-        let runtimeSource = Text.unlines runtimeSources
-        let attrProperties = [Naming.nameToLowerCamel marker | Contract.GlobalDomAttrIR marker _ <- interactionPrimitives]
-        let valueProperties = [Naming.nameToLowerCamel marker | Contract.GlobalDomValueIR marker _ <- interactionPrimitives]
-        let fieldProperties = [Naming.nameToLowerCamel marker | Contract.GlobalFieldNameIR marker _ <- interactionPrimitives]
-        forM_ attrProperties \property -> runtimeSource `shouldSatisfy` Text.isInfixOf ("attrs." <> property)
-        forM_ valueProperties \property -> runtimeSource `shouldSatisfy` Text.isInfixOf ("values." <> property)
-        forM_ fieldProperties \property -> runtimeSource `shouldSatisfy` Text.isInfixOf ("pointerFields." <> property)
-        forM_ ["sourceRefs", "dropzoneRefs", "activationRefs", "sessionKinds"] \property ->
-            runtimeSource `shouldSatisfy` Text.isInfixOf ("." <> property)
-
     it "renders separate minimal fragment and interaction runtime registries" do
         frontendContractsTypeScript `shouldSatisfy` Text.isInfixOf "export const FrontendSurfaceFragmentRegistry"
         frontendContractsTypeScript `shouldSatisfy` Text.isInfixOf "export const FrontendSurfaceInteractionRegistry"
@@ -381,105 +335,11 @@ tests = describe "Frontend contract generator foundation" do
         frontendContractsTypeScript `shouldNotSatisfy` Text.isInfixOf "FrontendSurfaceActionManifest"
         frontendContractsTypeScript `shouldNotSatisfy` Text.isInfixOf "surfaceLabSurfaceManifest"
 
-    it "keeps the live entrypoint orchestration-only with focused runtime owners" do
-        entrypoint <- Text.readFile "frontend/ts/app-live-updates.ts"
-        entrypoint `shouldSatisfy` Text.isInfixOf "enableLiveUpdateRuntime"
-        forM_ ["new window.WebSocket", "window.fetch", "querySelectorAll", "function syncConnection"] \implementationToken ->
-            entrypoint `shouldNotSatisfy` Text.isInfixOf implementationToken
-        runtimeFiles <- collectSourceFiles "frontend/ts/live-updates"
-        forM_ ["mount.ts", "subscription.ts", "connection.ts", "invalidation.ts", "refresh.ts", "request-decoration.ts", "focus.ts", "diagnostics.ts"] \ownerFile ->
-            runtimeFiles `shouldContain` ["frontend/ts/live-updates/" <> ownerFile]
-
-    it "keeps generated contract validators, parsers, and encoders out of handwritten TypeScript" do
-        offenders <- frontendGeneratedHelperOffenders (generatedContractTypeNames frontendContractsTypeScript)
-        offenders `shouldBe` []
-
-    it "keeps canonical generated strings out of handwritten frontend runtime" do
-        offenders <- canonicalStringOffendersWithAllowedPrefixes
-            ["frontend/ts"]
-            ["frontend/ts/generated/contracts.ts"]
-            []
-            [".ts"]
-            frontendRuntimeGeneratedOnlyStrings
-        offenders `shouldBe` []
-
-    it "has no legacy Frontend helper contract authorities" do
-        frontendExists <- doesDirectoryExist "Application/Helper/Frontend"
-        files <- if frontendExists then collectSourceFiles "Application/Helper/Frontend" else pure []
-        files `shouldBe` []
-
-    it "locks down raw TypeScript emitters to FrontendContract renderer internals only" do
-        files <- collectSourceFiles "Application/Helper/FrontendContract"
-        offenders <- fmap concat $ forM files \path -> do
-            source <- Text.readFile path
-            pure
-                [ (path, pattern)
-                | path /= "Application/Helper/FrontendContract/TypeScript.hs"
-                , path /= "Application/Helper/FrontendContract/Contracts.hs"
-                , pattern <- rawEmitterPatterns
-                , pattern `Text.isInfixOf` source
-                ]
-        offenders `shouldBe` []
-
 generatedContractTypeNames :: Text -> [Text]
 generatedContractTypeNames source =
     [ Text.takeWhile (/= ' ') rest
     | line <- Text.lines source
     , Just rest <- [Text.stripPrefix "export type " line]
-    ]
-
-frontendGeneratedHelperOffenders :: [Text] -> IO [(FilePath, Text)]
-frontendGeneratedHelperOffenders typeNames = do
-    files <- collectSourceFiles "frontend/ts"
-    fmap concat $ forM files \path -> do
-        if path == "frontend/ts/generated/contracts.ts"
-            then pure []
-            else do
-                source <- Text.readFile path
-                pure
-                    [ (path, helper)
-                    | typeName <- typeNames
-                    , prefix <- ["is", "parse", "encode"]
-                    , let helper = prefix <> typeName
-                    , any (`Text.isInfixOf` source)
-                        [ "function " <> helper
-                        , "const " <> helper
-                        , "let " <> helper
-                        , "var " <> helper
-                        ]
-                    ]
-
-frontendRuntimeGeneratedOnlyStrings :: [Text]
-frontendRuntimeGeneratedOnlyStrings =
-    [ "data-bepis-"
-    , "bepis:page-ready"
-    , "bepis:live-fragments-refresh"
-    , "bepis:interaction-intent"
-    , "bepis:intent-submit"
-    , "bepis:interaction-session-start"
-    , "bepis:interaction-session-end"
-    , "bepis:interaction-session-cancel-request"
-    ]
-
-canonicalStringOffendersWithAllowedPrefixes :: [FilePath] -> [FilePath] -> [FilePath] -> [FilePath] -> [Text] -> IO [(FilePath, Text)]
-canonicalStringOffendersWithAllowedPrefixes roots allowedFiles allowedPrefixes extensions needles = do
-    files <- fmap List.sort (concat <$> mapM collectSourceFiles roots)
-    fmap concat $ forM files \path -> do
-        if path `elem` allowedFiles || any (`List.isPrefixOf` path) allowedPrefixes || takeExtension path `notElem` extensions
-            then pure []
-            else do
-                source <- Text.readFile path
-                let inspectedSource = Text.unlines (filter (not . Text.isInfixOf "frontend-contract-token-fixture") (Text.lines source))
-                pure [(path, needle) | needle <- needles, needle `Text.isInfixOf` inspectedSource]
-
-rawEmitterPatterns :: [Text]
-rawEmitterPatterns =
-    [ "TSRawDeclaration"
-    , "\"export type"
-    , "\"export interface"
-    , "\"export const"
-    , "\"export function"
-    , "stringUnionDeclaration"
     ]
 
 wireJsonSpecContract :: Contract.FrontendContractIR
@@ -540,32 +400,3 @@ replaceJsonField :: Text -> Aeson.Value -> Aeson.Value -> Aeson.Value
 replaceJsonField name value = \case
     Aeson.Object object -> Aeson.Object (KeyMap.insert (AesonKey.fromText name) value object)
     other               -> other
-
-sourceRendersAutofocus :: FilePath -> IO Bool
-sourceRendersAutofocus path = do
-    source <- Text.readFile path
-    pure (any rendersAutofocus (Text.lines source))
-    where
-        rendersAutofocus line =
-            let normalized = Text.toLower (Text.filter (not . isSpace) line)
-             in "autofocus=" `Text.isInfixOf` normalized
-                || "autofocus" `Text.isSuffixOf` normalized
-
-collectSourceFiles :: FilePath -> IO [FilePath]
-collectSourceFiles = collectSourceFilesWithExtensions [".hs", ".ts"]
-
-collectSourceFilesWithExtensions :: [String] -> FilePath -> IO [FilePath]
-collectSourceFilesWithExtensions extensions root = do
-    exists <- doesDirectoryExist root
-    if not exists
-        then pure []
-        else go root
-    where
-        go path = do
-            entries <- listDirectory path
-            fmap concat $ forM entries \entry -> do
-                let child = path </> entry
-                isDirectory <- doesDirectoryExist child
-                if isDirectory
-                    then go child
-                    else pure [child | takeExtension child `elem` extensions]

@@ -71,10 +71,10 @@ renderRosterWeekShell ShowView { .. } =
             <section id={rosterWeekShellId}
                      hx-history-elt="true"
                      data-roster-fullscreen="false">
-                {page}
+                {renderFrontendSurfaceMount rosterSurface page}
             </section>
         |]
-     in profileHtmlComponent "render.roster.full_shell" (renderFrontendSurfaceMount rosterSurface shell)
+     in profileHtmlComponent "render.roster.full_shell" shell
 
 renderPasskeySetupPrompt :: (?context :: ControllerContext) => Maybe PasskeySetupPromptMode -> Html
 renderPasskeySetupPrompt Nothing = mempty

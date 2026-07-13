@@ -17,7 +17,6 @@ module Application.Helper.FrontendContract.AppShell.Runtime
     , renderAppShellActionForm
     , renderAppShellActionHtmxControl
     , renderAppShellActionLink
-    , renderAppShellActionSubmitButton
     ) where
 
 import qualified Application.Helper.FrontendContract.AppShell as AppShell
@@ -85,15 +84,6 @@ renderAppShellActionForm action route body =
         method = appShellActionMethod action
         url = fromMaybe route.appShellActionRouteUrl route.appShellActionRouteStandardUrl
 
-renderAppShellActionSubmitButton :: AppShellActionIR -> AppShellActionRoute -> Blaze.Html -> Blaze.Html
-renderAppShellActionSubmitButton action route body =
-    applyAttributes
-        (Html5.button ! attr "type" "submit" $ body)
-        ( standardSubmitButtonAttrs route
-            <> fmap (uncurry attr) (appShellActionHtmxAttrPairs action route)
-            <> fmap (uncurry attr) (routeExtraAttrPairs route)
-        )
-
 renderAppShellActionLink :: AppShellActionIR -> AppShellActionRoute -> Blaze.Html -> Blaze.Html
 renderAppShellActionLink action route body =
     applyAttributes
@@ -126,11 +116,6 @@ standardFormAttrs :: Htmx.HtmxMethod -> Text -> [Blaze.Attribute]
 standardFormAttrs method url =
     [ attr "method" (Htmx.htmxStandardMethodText method)
     , attr "action" url
-    ]
-
-standardSubmitButtonAttrs :: AppShellActionRoute -> [Blaze.Attribute]
-standardSubmitButtonAttrs route =
-    [ attr "formaction" (fromMaybe route.appShellActionRouteUrl route.appShellActionRouteStandardUrl)
     ]
 
 routeExtraAttrPairs :: AppShellActionRoute -> [(Text, Text)]

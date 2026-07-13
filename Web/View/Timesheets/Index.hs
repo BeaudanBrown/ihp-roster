@@ -89,10 +89,10 @@ timesheetWeekShellId :: Text
 timesheetWeekShellId = surfaceDomTokenValue @Surface.TimesheetsSurface @Surface.TimesheetWeekShell
 
 timesheetWeekToolbarId :: Text
-timesheetWeekToolbarId = "timesheet-week-toolbar"
+timesheetWeekToolbarId = surfaceFragmentTargetId @Surface.TimesheetsSurface @Surface.TimesheetToolbar NoSurfaceFields
 
 timesheetDayColumnsId :: Text
-timesheetDayColumnsId = "timesheet-day-columns"
+timesheetDayColumnsId = surfaceFragmentTargetId @Surface.TimesheetsSurface @Surface.TimesheetDayColumns NoSurfaceFields
 
 instance View IndexView where
     html = renderTimesheetWeekShell
@@ -341,7 +341,9 @@ renderNewEntryOverlayLink newEntryUrl weekdayLabel weekdayShortLabel dayDate =
         |]
 
 timesheetDaySectionDomId :: Int -> Text
-timesheetDaySectionDomId dayOffset = "timesheet-day-section-" <> tshow dayOffset
+timesheetDaySectionDomId dayOffset =
+    surfaceFragmentTargetId @Surface.TimesheetsSurface @Surface.TimesheetDaySection
+        (surfaceField @Surface.DayOffset dayOffset :& NoSurfaceFields)
 
 renderDayEntries :: (?context :: ControllerContext) => TimesheetDayRenderModel -> [TimesheetEntry] -> Html
 renderDayEntries model dayEntries

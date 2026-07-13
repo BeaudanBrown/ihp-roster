@@ -66,6 +66,7 @@ fragmentValue fragment = Aeson.object
     [ "marker" Aeson..= fragment.fragmentMarker
     , "name" Aeson..= fragment.fragmentName
     , "params" Aeson..= map fieldValue fragment.fragmentParams
+    , "mountTarget" Aeson..= listToMaybe (collectOptions mountTargetValue fragment.fragmentOptions)
     , "live" Aeson..= hasOption isLiveOption fragment.fragmentOptions
     , "resyncOnly" Aeson..= hasOption isResyncOnlyOption fragment.fragmentOptions
     , "dependsOnFragments" Aeson..= collectOptionTexts dependsOnFragmentName fragment.fragmentOptions
@@ -169,6 +170,11 @@ isResyncOnlyOption = \case
 dependsOnFragmentName :: OptionIR -> Maybe Text
 dependsOnFragmentName = \case
     DependsOnFragmentOption name -> Just name
+    _ -> Nothing
+
+mountTargetValue :: OptionIR -> Maybe Aeson.Value
+mountTargetValue = \case
+    MountTargetOption name fields -> Just (Aeson.object ["name" Aeson..= name, "fields" Aeson..= map fieldValue fields])
     _ -> Nothing
 
 containedSurfaceName :: OptionIR -> Maybe Text

@@ -20,6 +20,7 @@ data BillingVenue
 data VenueId
 
 data BillingStatus
+data BillingStatusFragment
 
 data BillingMountState
 data CheckoutReturned
@@ -37,5 +38,5 @@ type BillingSurface =
             '[ Field CheckoutReturned 'WireBool
              , Field CheckoutSessionId ('WireOptional 'WireText)
              ]
-         , Fragment BillingStatus '[] '[ 'Eager, 'Live, 'DependsOn BillingResource '[ 'FromScope VenueId ] ]
+         , Fragment BillingStatus '[] '[ 'MountTarget BillingStatusFragment '[], 'Eager, 'Live, 'DependsOn BillingResource '[ 'FromScope VenueId ] ]
          ]

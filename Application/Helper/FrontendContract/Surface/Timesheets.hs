@@ -37,6 +37,7 @@ data ShowAllStaff
 data StaffFilterId
 
 data TimesheetToolbar
+data TimesheetWeekToolbar
 data TimesheetDayColumns
 data TimesheetDaySection
 data DayOffset
@@ -119,7 +120,8 @@ type TimesheetActionBundle =
 type TimesheetFragmentBundle =
     '[ Fragment TimesheetToolbar
         '[]
-        '[ 'Eager
+        '[ 'MountTarget TimesheetWeekToolbar '[]
+         , 'Eager
          , 'Live
          , 'DependsOn TimesheetWeekResource '[ 'FromScope VenueId, 'FromScope WeekOffset ]
          , 'DependsOn TimesheetWeekBoundaryConfigResource '[ 'FromScope VenueId ]
@@ -127,7 +129,8 @@ type TimesheetFragmentBundle =
          ]
      , Fragment TimesheetDayColumns
         '[]
-        '[ 'Eager
+        '[ 'MountTarget TimesheetDayColumns '[]
+         , 'Eager
          , 'Live
          , 'DependsOn TimesheetWeekResource '[ 'FromScope VenueId, 'FromScope WeekOffset ]
          , 'DependsOn TimesheetWeekBoundaryConfigResource '[ 'FromScope VenueId ]
@@ -135,7 +138,8 @@ type TimesheetFragmentBundle =
          ]
      , Fragment TimesheetDaySection
         '[ Field DayOffset 'WireInt ]
-        '[ 'Lazy '[ 'DependsOnFragment TimesheetDayColumns ]
+        '[ 'MountTarget TimesheetDaySection '[ Field DayOffset 'WireInt ]
+         , 'Lazy '[ 'DependsOnFragment TimesheetDayColumns ]
          , 'Live
          , 'DependsOn TimesheetDayResource '[ 'FromScope VenueId, 'FromScope WeekOffset, 'FromFragment DayOffset ]
          , 'DependsOn TimesheetWeekBoundaryConfigResource '[ 'FromScope VenueId ]

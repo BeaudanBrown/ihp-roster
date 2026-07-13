@@ -1,0 +1,44 @@
+#!/usr/bin/env bash
+set -euo pipefail
+# shellcheck source=../lib/ghc.sh
+. "@scriptsRoot@/lib/ghc.sh"
+
+weeder_build_dir="${WEEDER_BUILD_DIR:-$(ihp_roster_verification_build_dir)/weeder}"
+hie_dir="${WEEDER_HIE_DIR:-$weeder_build_dir/hie}"
+ghc_opts="$(ihp_roster_ghc_opts) -iTest -fwrite-ide-info -fforce-recomp"
+
+# Build a fresh, complete HIE graph so deleted declarations and locally stale
+# editor/typecheck artifacts can never affect the reachability result.
+rm -rf "$weeder_build_dir"
+mkdir -p "$weeder_build_dir/hi" "$hie_dir"
+ghc -fno-code $ghc_opts -main-is Test.HspecMain Test/HspecMain.hs \
+    -hidir "$weeder_build_dir/hi" \
+    -hiedir "$hie_dir"
+
+set +e
+output="$(weeder \
+    --config weeder.toml \
+    --hie-directory "$hie_dir" \
+    --require-hs-files \
+    -N 2>&1)"
+status=$?
+set -e
+
+if [[ "$status" -ne 0 && "$status" -ne 228 ]]; then
+    printf '%s\n' "$output" >&2
+    exit "$status"
+fi
+
+# IHP controllers, views, scripts, and shared helpers expose framework/test entry
+# points that are intentionally broader than Main's static call graph. The
+# closeout gate is deliberately scoped to the deep FrontendContract module,
+# whose public runtime interface should contain no unreachable value helpers.
+curated="$(printf '%s\n' "$output" | grep '^main: \./Application/Helper/FrontendContract/' || true)"
+if [[ -n "$curated" ]]; then
+    echo "weeder-check: unreachable FrontendContract declarations" >&2
+    printf '%s\n' "$curated" >&2
+    exit 1
+fi
+
+ignored_count="$(printf '%s\n' "$output" | grep -c '^main: \./' || true)"
+echo "weeder-check: ok (FrontendContract clean; $ignored_count framework/application candidates outside the curated gate)"

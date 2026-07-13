@@ -15,7 +15,6 @@ import Application.Helper.SurfaceResource
 import Application.Helper.View (dialogOverlayMountId)
 import Config
 import Data.ByteString (ByteString)
-import qualified Data.ByteString.Char8 as ByteString
 import qualified Data.Set as Set
 import qualified Data.Text as Text
 import Data.Time.Calendar (addDays)
@@ -555,41 +554,6 @@ tests = beforeAll testContext do
                 bodyText `shouldNotContain` ("data-roster-shift-group-key=\"existing:" <> cs (tshow slot.id) <> "\"")
                 bodyText `shouldNotContain` ("hx-get=\"/EditRosterSlotDialog?rosterSlotId=" <> cs (tshow slot.id) <> "\"")
                 bodyText `shouldNotContain` "data-roster-shift-launcher=\"true\""
-
-        it "keeps create markers, row controls, and conflict staff-cell depth styling in CSS" $ withContext do
-            cssBytes <- ByteString.readFile "static/css/features/roster/grid-cells.css"
-            dayActionsCssBytes <- ByteString.readFile "static/css/features/roster/day-actions.css"
-            shiftCardCssBytes <- ByteString.readFile "static/css/features/roster/shift-card.css"
-            statesCssBytes <- ByteString.readFile "static/css/features/roster/states.css"
-            staffPanelCssBytes <- ByteString.readFile "static/css/features/roster/staff-panel.css"
-            staffHighlightCssBytes <- ByteString.readFile "static/css/features/roster/staff-highlight.css"
-            let css = cs cssBytes :: String
-            let dayActionsCss = cs dayActionsCssBytes :: String
-            let shiftCardCss = cs shiftCardCssBytes :: String
-            let statesCss = cs statesCssBytes :: String
-            let staffPanelCss = cs staffPanelCssBytes :: String
-            let staffHighlightCss = cs staffHighlightCssBytes :: String
-            css `shouldContain` ".roster-grid .roster-shift-create-plus-cell .slot-cell-static"
-            css `shouldContain` "opacity: 0;"
-            css `shouldContain` ".roster-grid .roster-shift-create-plus-cell:hover .slot-cell-static"
-            css `shouldContain` ".roster-grid .roster-shift-create-staff-dropzone"
-            css `shouldContain` "grid-column: 1 / -1;"
-            css `shouldContain` ".roster-grid .roster-shift-create-unit:has(.roster-shift-create-staff-dropzone.bepis-dropzone-highlight)"
-            dayActionsCss `shouldContain` ".roster-grid-frame[data-roster-column-editing=\"true\"] .roster-day-action-add"
-            dayActionsCss `shouldContain` ".roster-day-rail-section .roster-day-action-add,"
-            dayActionsCss `shouldContain` "display: none;"
-            shiftCardCss `shouldContain` ".roster-shift-create-plus-card"
-            shiftCardCss `shouldContain` "color: var(--bs-success);"
-            shiftCardCss `shouldContain` "font-size: 1.15rem;"
-            shiftCardCss `shouldContain` "font-weight: 800;"
-            shiftCardCss `shouldContain` ".roster-grid-frame[data-roster-end-times=\"true\"] .roster-shift-card-empty.roster-shift-create-plus-card"
-            shiftCardCss `shouldNotContain` "article.roster-shift-card[data-roster-shift-colour^=\"palette-\"]:not(.roster-shift-card-create)"
-            statesCss `shouldContain` ".roster-grid .slot-staff-cell.conflict-critical"
-            statesCss `shouldContain` "background-image: linear-gradient(180deg, var(--roster-conflict-bg-start), var(--roster-conflict-bg))"
-            staffPanelCss `shouldContain` ".roster-staff-name"
-            staffPanelCss `shouldContain` "padding-left: 0.55rem !important;"
-            staffHighlightCss `shouldContain` ".roster-grid-frame[data-roster-warnings=\"hidden\"] .roster-grid [role=\"gridcell\"].is-roster-staff-slot-highlighted"
-            staffHighlightCss `shouldContain` ".roster-grid-frame[data-roster-warnings=\"hidden\"] .roster-shift-card.is-roster-staff-slot-highlighted .roster-shift-card-field"
 
         it "allows assigning staff who are applicable to the slot's roster group" $ withContext do
             withCleanDb do

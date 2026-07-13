@@ -7,5 +7,21 @@ typecheck
 echo "verify-full: complete Hspec"
 hspec-test
 
+echo "verify-full: curated FrontendContract warnings"
+frontend-contract-warnings
+
+echo "verify-full: curated Haskell reachability"
+weeder-check
+
+echo "verify-full: generated frontend, TypeScript, and browser unit checks"
+frontend-check
+
+echo "verify-full: CSS ownership and stale-selector checks"
+bash ./bin/style-audit
+
+echo "verify-full: architecture and documentation drift"
+architecture-check-fresh
+bash ./bin/doc-drift-check
+
 echo "verify-full: complete Playwright"
 e2e

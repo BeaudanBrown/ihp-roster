@@ -12,13 +12,16 @@
 {-# LANGUAGE UndecidableInstances #-}
 
 module Application.Helper.FrontendContract.Surface.Values
-    ( RequireSurfaceField
+    ( FindMountTarget
+    , KnownMountTarget
+    , RequireSurfaceField
     , SurfaceActionFieldSpecs
     , SurfaceActionPrimitive
     , SurfaceActivationRefPrimitive
     , SurfaceFields (..)
     , SurfaceFragmentFieldSpecs
     , SurfaceFragmentOptionSpecs
+    , SurfaceFragmentTargetFieldSpecs
     , SurfaceDomTokenPrimitive
     , SurfaceDropzoneRefPrimitive
     , SurfaceFragmentPrimitive
@@ -43,6 +46,7 @@ module Application.Helper.FrontendContract.Surface.Values
     , surfaceDropzoneRefValue
     , surfaceFragmentFieldName
     , surfaceFragmentNameValue
+    , surfaceFragmentTargetId
     , surfaceFragmentValue
     , surfaceIntentFieldName
     , surfaceIntentNameValue
@@ -64,6 +68,7 @@ import qualified Data.Aeson.Key as Aeson.Key
 import qualified Data.Aeson.Types as Aeson.Types
 import qualified Data.ByteString.Lazy as LBS
 import Data.Kind (Constraint, Type)
+import qualified Data.Text as Text
 import qualified Data.Text.Encoding as Text.Encoding
 import Data.Time (Day, defaultTimeLocale, formatTime)
 import Data.Typeable (Typeable)
@@ -207,6 +212,7 @@ type SurfaceResourceSpec spec marker = RequireSurfaceResource spec marker (FindS
 type SurfaceScopeFieldSpecs spec marker = PrimitiveFieldSpecs (SurfaceScopePrimitive spec marker)
 type SurfaceFragmentFieldSpecs spec marker = PrimitiveFieldSpecs (SurfaceFragmentPrimitive spec marker)
 type SurfaceFragmentOptionSpecs spec marker = FragmentOptionSpecs (SurfaceFragmentPrimitive spec marker)
+type SurfaceFragmentTargetFieldSpecs spec marker = MountTargetFieldSpecs (FindMountTarget (SurfaceFragmentOptionSpecs spec marker))
 type SurfaceActionFieldSpecs spec marker = PrimitiveFieldSpecs (SurfaceActionPrimitive spec marker)
 type SurfaceIntentFieldSpecs spec marker = PrimitiveFieldSpecs (SurfaceIntentPrimitive spec marker)
 type SurfaceResourceFieldSpecs spec marker = ResourceFieldSpecs (SurfaceResourceSpec spec marker)
@@ -221,6 +227,22 @@ type family PrimitiveFieldSpecs (primitive :: SurfacePrimitive) :: [FieldSpec] w
 
 type family FragmentOptionSpecs (primitive :: SurfacePrimitive) :: [PrimitiveOption] where
     FragmentOptionSpecs ('Fragment marker fields options) = options
+
+type family FindMountTarget (options :: [PrimitiveOption]) :: PrimitiveOption where
+    FindMountTarget (('MountTarget marker fields) ': rest) = 'MountTarget marker fields
+    FindMountTarget (option ': rest) = FindMountTarget rest
+    FindMountTarget '[] = TypeError
+        ( 'Text "FrontendSurface fragment does not declare a MountTarget"
+        )
+
+type family MountTargetFieldSpecs (target :: PrimitiveOption) :: [FieldSpec] where
+    MountTargetFieldSpecs ('MountTarget marker fields) = fields
+
+class KnownMountTarget (target :: PrimitiveOption) where
+    mountTargetName :: Text
+
+instance Typeable marker => KnownMountTarget ('MountTarget marker fields) where
+    mountTargetName = Naming.deriveFrontendSurfaceTypeName @marker Naming.DomTokenName
 
 type family ResourceFieldSpecs (resource :: ResourceSpec) :: [FieldSpec] where
     ResourceFieldSpecs ('Resource marker fields) = fields
@@ -402,6 +424,14 @@ surfaceScopeValue =
 
 surfaceFragmentNameValue :: forall spec marker. ReflectPrimitive (SurfaceFragmentPrimitive spec marker) => Text
 surfaceFragmentNameValue = (surfaceFragmentValue @spec @marker).fragmentName
+
+surfaceFragmentTargetId ::
+    forall spec marker.
+    KnownMountTarget (FindMountTarget (SurfaceFragmentOptionSpecs spec marker)) =>
+    SurfaceFields (SurfaceFragmentTargetFieldSpecs spec marker) ->
+    Text
+surfaceFragmentTargetId fields =
+    Text.intercalate "-" (mountTargetName @(FindMountTarget (SurfaceFragmentOptionSpecs spec marker)) : map snd (surfaceFieldsText fields))
 
 surfaceFragmentValue :: forall spec marker. ReflectPrimitive (SurfaceFragmentPrimitive spec marker) => FragmentIR
 surfaceFragmentValue =

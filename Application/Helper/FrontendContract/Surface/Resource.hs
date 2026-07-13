@@ -3,29 +3,24 @@
 {-# LANGUAGE TypeApplications    #-}
 
 module Application.Helper.FrontendContract.Surface.Resource
-    ( FrontendSurfaceResourceDefinition (..)
-    , SurfaceResourceValue (..)
+    ( SurfaceResourceValue (..)
     , adminExportsResource
     , adminInvitesResource
     , adminRosterGroupsResource
     , adminShiftTypesResource
     , adminVenueSettingsResource
     , billingResource
-    , frontendSurfaceResourceDefinitions
     , archivedLeaveRequestsResource
     , approvedLeaveRequestsResource
     , deniedLeaveRequestsResource
     , leaveRequestsSectionResource
     , pendingLeaveRequestsResource
     , resource
-    , resourceFieldInt
-    , resourceFieldIntFor
     , resourceFieldUuidFor
     , resourceForSurface
     , resourceMatchesFor
     , resourceFieldText
     , resourceFieldUuid
-    , resourceMatches
     , rosterDayResource
     , rosterEndTimesConfigResource
     , rosterWeekBoundaryConfigResource
@@ -49,8 +44,7 @@ module Application.Helper.FrontendContract.Surface.Resource
 import qualified Application.Helper.FrontendContract.Surface.ContractIR as SurfaceIR
 import qualified Application.Helper.FrontendContract.Surface.LeaveRequests as LeaveRequestsSurface
 import qualified Application.Helper.FrontendContract.Surface.Profile as ProfileSurface
-import Application.Helper.FrontendContract.Surface.Reflect (ReflectResource,
-                                                            reflectRegisteredFrontendSurfaces)
+import Application.Helper.FrontendContract.Surface.Reflect (ReflectResource)
 import qualified Application.Helper.FrontendContract.Surface.Roster as RosterSurface
 import qualified Application.Helper.FrontendContract.Surface.Support as SupportSurface
 import qualified Application.Helper.FrontendContract.Surface.Timesheets as TimesheetsSurface
@@ -59,19 +53,9 @@ import qualified Data.Aeson as Aeson
 import qualified Data.Aeson.Key as Aeson.Key
 import qualified Data.Aeson.KeyMap as Aeson.KeyMap
 import qualified Data.Aeson.Types as Aeson.Types
-import qualified Data.List as List
-import qualified Data.Scientific as Scientific
 import Data.Typeable (Typeable)
 import qualified Data.UUID as UUID
 import IHP.Prelude
-
--- | Generated-surface resource definition discovered from explicit
--- FrontendSurface DependsOn declarations.
-data FrontendSurfaceResourceDefinition = FrontendSurfaceResourceDefinition
-    { resourceName   :: !Text
-    , resourceFields :: ![SurfaceIR.FieldIR]
-    }
-    deriving (Eq, Show)
 
 -- | Concrete runtime resource value consumed by the generated FrontendSurface
 -- dependency planner.
@@ -80,22 +64,6 @@ data SurfaceResourceValue = SurfaceResourceValue
     , resourceValueFields :: !Aeson.Value
     }
     deriving (Eq, Ord, Show)
-
-frontendSurfaceResourceDefinitions :: [FrontendSurfaceResourceDefinition]
-frontendSurfaceResourceDefinitions =
-    dependencies
-        |> map (definitionFromDependency . (.dependencyResource))
-        |> List.nub
-        |> List.sortOn (.resourceName)
-    where
-        dependencies =
-            reflectRegisteredFrontendSurfaces.contractSurfaces
-                >>= (.surfaceFragments)
-                >>= (SurfaceIR.optionResourceDependencies . (.fragmentOptions))
-        definitionFromDependency resourceDefinition = FrontendSurfaceResourceDefinition
-            { resourceName = resourceDefinition.resourceName
-            , resourceFields = resourceDefinition.resourceFields
-            }
 
 pendingLeaveRequestsResource, approvedLeaveRequestsResource, deniedLeaveRequestsResource, archivedLeaveRequestsResource, staffLeaveRequestsResource, staffProfileResource, staffPreferencesResource, staffRsaDocumentsResource, rosterDayResource, adminVenueSettingsResource, rosterEndTimesConfigResource, rosterWeekBoundaryConfigResource, timesheetWeekBoundaryConfigResource, timePickerConfigResource, adminRosterGroupsResource, adminShiftTypesResource, adminInvitesResource, adminExportsResource, billingResource, xeroConnectionResource, xeroMappingsResource, xeroPayItemsResource, xeroTimesheetsResource :: UUID.UUID -> SurfaceResourceValue
 pendingLeaveRequestsResource venueId = leaveRequestsSectionResource venueId "pending"
@@ -204,30 +172,10 @@ resourceFieldUuidFor ::
 resourceFieldUuidFor =
     resourceFieldUuid (surfaceResourceFieldName @spec @resourceMarker @fieldMarker)
 
-resourceFieldIntFor ::
-    forall spec resourceMarker fieldMarker.
-    ( Typeable fieldMarker
-    , RequireSurfaceField resourceMarker fieldMarker (SurfaceResourceFieldSpecs spec resourceMarker)
-    ) =>
-    SurfaceResourceValue ->
-    Maybe Int
-resourceFieldIntFor =
-    resourceFieldInt (surfaceResourceFieldName @spec @resourceMarker @fieldMarker)
-
-resourceMatches :: Text -> SurfaceResourceValue -> Bool
-resourceMatches name value = value.resourceValueName == name
-
 resourceFieldUuid :: Text -> SurfaceResourceValue -> Maybe UUID.UUID
 resourceFieldUuid fieldName value = do
     text <- resourceFieldText fieldName value
     UUID.fromText text
-
-resourceFieldInt :: Text -> SurfaceResourceValue -> Maybe Int
-resourceFieldInt fieldName value = do
-    raw <- resourceField fieldName value
-    case raw of
-        Aeson.Number number -> Scientific.toBoundedInteger number
-        _                   -> Nothing
 
 resourceFieldText :: Text -> SurfaceResourceValue -> Maybe Text
 resourceFieldText fieldName value = do

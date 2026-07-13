@@ -45,8 +45,12 @@ data StaffPreferencesSection
 data StaffLeaveSection
 data ProfileDetails
 data ProfilePreferences
-data StaffDetailsTarget
-data StaffPreferencesTarget
+data ProfileSecurity
+data ProfileLeave
+data ProfileRsa
+data StaffProfileDetails
+data StaffProfilePreferences
+data StaffProfileLeave
 data ProfileSecuritySection
 data ProfileLeaveSection
 data ProfileRsaSection
@@ -133,17 +137,18 @@ type ProfileSurface =
             '[ 'Authorize 'CurrentVenueStaff '[ VenueId, StaffId ] ]
          , Fragment ProfileDetailsSection
             '[]
-            '[ 'Eager
+            '[ 'MountTarget ProfileDetails '[]
+             , 'Eager
              , 'Live
              , 'DependsOn StaffProfileResource '[ 'FromScope StaffId ]
              , 'DependsOn StaffPreferencesResource '[ 'FromScope StaffId ]
              ]
-         , Fragment ProfilePreferencesSection '[] '[ 'Eager, 'Live, 'DependsOn StaffPreferencesResource '[ 'FromScope StaffId ] ]
+         , Fragment ProfilePreferencesSection '[] '[ 'MountTarget ProfilePreferences '[], 'Eager, 'Live, 'DependsOn StaffPreferencesResource '[ 'FromScope StaffId ] ]
          , Action UpdateProfileDetails StaffProfileFields StaffProfileSubmitOptions
          , Action UpdateProfileShiftPreferences StaffShiftPreferenceFields StaffProfileSubmitOptions
-         , Fragment ProfileSecuritySection '[] '[ 'Eager, 'Live, 'ResyncOnly ]
-         , Fragment ProfileLeaveSection '[] '[ 'Eager, 'Live, 'DependsOn StaffLeaveRequestsResource '[ 'FromScope StaffId ] ]
-         , Fragment ProfileRsaSection '[] '[ 'Eager, 'Live, 'DependsOn StaffRsaDocumentsResource '[ 'FromScope StaffId ] ]
+         , Fragment ProfileSecuritySection '[] '[ 'MountTarget ProfileSecurity '[], 'Eager, 'Live, 'ResyncOnly ]
+         , Fragment ProfileLeaveSection '[] '[ 'MountTarget ProfileLeave '[], 'Eager, 'Live, 'DependsOn StaffLeaveRequestsResource '[ 'FromScope StaffId ] ]
+         , Fragment ProfileRsaSection '[] '[ 'MountTarget ProfileRsa '[], 'Eager, 'Live, 'DependsOn StaffRsaDocumentsResource '[ 'FromScope StaffId ] ]
          , Action CreateProfileLeaveRequest
             '[ Field StartDate 'WireDay
              , Field EndDate 'WireDay
@@ -154,8 +159,6 @@ type ProfileSurface =
              , 'HtmxSwap 'HtmxOuterHTML
              , 'HtmxPushUrl 'HtmxPushUrlFalse
              ]
-         , DomToken ProfileDetails
-         , DomToken ProfilePreferences
          , DomToken ProfileLeaveRequestFormFragment
          ]
 
@@ -168,13 +171,14 @@ type StaffSurface =
             '[ 'Authorize 'CurrentVenueManager '[ VenueId, StaffId ] ]
          , Fragment StaffDetailsSection
             '[]
-            '[ 'Eager
+            '[ 'MountTarget StaffProfileDetails '[]
+             , 'Eager
              , 'Live
              , 'DependsOn StaffProfileResource '[ 'FromScope StaffId ]
              , 'DependsOn StaffPreferencesResource '[ 'FromScope StaffId ]
              ]
-         , Fragment StaffPreferencesSection '[] '[ 'Eager, 'Live, 'DependsOn StaffPreferencesResource '[ 'FromScope StaffId ] ]
-         , Fragment StaffLeaveSection '[] '[ 'Eager, 'Live, 'DependsOn StaffLeaveRequestsResource '[ 'FromScope StaffId ] ]
+         , Fragment StaffPreferencesSection '[] '[ 'MountTarget StaffProfilePreferences '[], 'Eager, 'Live, 'DependsOn StaffPreferencesResource '[ 'FromScope StaffId ] ]
+         , Fragment StaffLeaveSection '[] '[ 'MountTarget StaffProfileLeave '[], 'Eager, 'Live, 'DependsOn StaffLeaveRequestsResource '[ 'FromScope StaffId ] ]
          , Action UpdateStaffProfile StaffProfileFields StaffProfileSubmitOptions
          , Action UpdateStaffShiftPreferences StaffShiftPreferenceFields StaffProfileSubmitOptions
          , Action CreateStaffLeaveRequest
@@ -187,7 +191,5 @@ type StaffSurface =
              , 'HtmxSwap 'HtmxOuterHTML
              , 'HtmxPushUrl 'HtmxPushUrlFalse
              ]
-         , DomToken StaffDetailsTarget
-         , DomToken StaffPreferencesTarget
          , DomToken StaffLeaveRequestFormFragment
          ]

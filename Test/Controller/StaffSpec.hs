@@ -331,6 +331,8 @@ tests = beforeAll testContext do
                     callActionWithParams (EditStaffAction staff.id) [("weekOffset", "0")]
 
                 response `responseStatusShouldBe` status200
+                response `responseBodyShouldContain` "data-bepis-surface=\"staff\""
+                response `responseBodyShouldContain` "data-bepis-surface-config="
                 response `responseBodyShouldContain` "id=\"staff-profile-details-collapse\" class=\"accordion-collapse collapse\""
                 response `responseBodyShouldContain` "id=\"staff-profile-preferences-collapse\" class=\"accordion-collapse collapse\""
                 response `responseBodyShouldContain` "id=\"staff-shift-preferences-form\""

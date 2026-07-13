@@ -25,7 +25,6 @@ module Application.Helper.FrontendContract.Interaction
     , ActiveSourceRef
     ) where
 
-import qualified Application.Helper.FrontendContract.App as App
 import Application.Helper.FrontendContract.DSL hiding (Action, DomId, Fragment,
                                                 Global, Intent, Surface)
 import qualified Application.Helper.FrontendContract.DSL as DSL

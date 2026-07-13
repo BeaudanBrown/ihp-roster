@@ -64,8 +64,7 @@ parameterized by those server-rendered attrs.
 Production live surfaces must be declared with a type-level `FrontendSurface`
 spec in `Application.Helper.FrontendContract.Surface.Registry` and rendered with
 `SurfaceImpl` helpers as `data-bepis-surface` plus
-`data-bepis-surface-config`. The old typed-live-surface compatibility layer and
-legacy `data-live-update-surface` mount format have been removed.
+`data-bepis-surface-config`. This is the only production mount format.
 
 A surface owns:
 
@@ -145,8 +144,8 @@ consumer.
 Feature modules should keep fragment enums feature-local and cross the
 typed-to-wire boundary only through strict helpers. Feature modules cross the
 surface-to-key boundary through `SurfaceImpl`/`renderFrontendSurfaceMount` and
-mount-local fragment/action/intent handlers. The runtime no longer keeps
-feature-facing broadcast, typed-live compatibility, or typed mutation helpers.
+mount-local fragment/action/intent handlers. The runtime exposes semantic-key transport and typed mutation response helpers
+only through its focused public facades.
 
 Actor responses and passive live updates should use one semantic fragment model
 with multiple delivery triggers. A feature-local fragment enum and `SurfaceImpl`
@@ -262,8 +261,8 @@ that region only.
 - `frontend/ts/live-updates/focus.ts` is the single focused-field protection
   owner. It defers the latest protected fragment while a matching field is
   focused, captures its exact configured key/name/value, refetches on blur, and
-  restores that value in the replacement row/container. Do not wrap Morphdom or
-  add IHP Auto Refresh compatibility hooks. Fragments with `replace` protection,
+  restores that value in the replacement row/container. Keep this as the only
+  DOM replacement/focus-protection owner. Fragments with `replace` protection,
   including roster shift launchers, refresh immediately.
 - `frontend/ts/app-live-updates.ts` is orchestration-only. Mount parsing,
   subscription merge/request scoping, websocket/reconnect lifecycle,
@@ -356,8 +355,8 @@ transport runtime, and actor-only response helpers:
   `setActorLocalFragmentsRefresh` is limited to requester-local, non-resource workflows
 - background jobs should call the touched-resource invalidation boundary, such
   as `invalidateTouchedResourcesWithoutContext`, when passive viewers need updates
-- controllers and mutation modules must not call typed broadcast/mutation
-  helpers for passive updates; those compatibility pathways have been removed
+- controllers and mutation modules must not bypass touched resources with
+  direct typed broadcast/mutation helpers for passive updates
 
 When adding or migrating a mutation flow:
 

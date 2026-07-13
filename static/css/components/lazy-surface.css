@@ -57,25 +57,10 @@
     background: var(--app-slate-alpha-18);
 }
 
-.app-lazy-surface-spinner {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    min-height: 3rem;
-    color: var(--app-accent);
-}
-
 .app-lazy-surface-skeleton {
     display: flex;
     flex-direction: column;
     gap: var(--app-space-3);
-}
-
-.app-lazy-surface-stack,
-.app-lazy-surface-list-skeleton {
-    display: flex;
-    flex-direction: column;
-    gap: var(--app-space-2);
 }
 
 .app-lazy-surface-row {
@@ -110,22 +95,6 @@
 
 .app-lazy-surface-bar-short {
     width: 68%;
-}
-
-.app-lazy-surface-table-skeleton {
-    gap: var(--app-space-2);
-}
-
-.app-lazy-surface-table-row {
-    display: grid;
-    grid-template-columns: minmax(7rem, 1fr) minmax(4rem, 0.7fr) minmax(4rem, 0.45fr) minmax(3rem, 0.25fr);
-    gap: var(--app-space-2);
-    align-items: center;
-}
-
-.app-lazy-surface-table-row-head .app-lazy-surface-bar {
-    min-height: 0.55rem;
-    opacity: 0.62;
 }
 
 .app-lazy-surface-cell {

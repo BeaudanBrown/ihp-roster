@@ -97,7 +97,7 @@ billingStatusMountedFragment :: Text -> FrontendSurfaceMountedFragment
 billingStatusMountedFragment statusUrl =
     frontendSurfaceMountedFragmentFor @Surface.BillingSurface @Surface.BillingStatus
         NoSurfaceFields
-        "billing-status-fragment"
+        NoSurfaceFields
         statusUrl
         FrontendSurfaceReplace
 

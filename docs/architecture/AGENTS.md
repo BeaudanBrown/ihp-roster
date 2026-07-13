@@ -56,11 +56,6 @@ Report provenance and confidence whenever a query uses source scanning or naming
 fallback. Do not present heuristic request-flow, table-use, or realtime edges as
 compiler-perfect truth.
 
-IHP Auto Refresh is page/action oriented: it tracks table reads, reruns the
-action, and morphs the whole document body. It may inspire or supply table-read
-signals in future work, but it does not replace Bepis domain/surface/viewer
-scopes or authorized fragment refetches.
-
 ## Flexibility
 
 Keep architecture tooling adaptable:

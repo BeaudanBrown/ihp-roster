@@ -1,0 +1,9 @@
+# App-owned dead-code gate. Main.main is the runtime root; IHP route/controller
+# instances are reached through the mounted FrontController graph.
+roots = ["Main.main", "Test.HspecMain.main", "^Paths_.*"]
+type-class-roots = true
+root-instances = [{ class = "\\.IsString$" }, { class = "\\.IsList$" }]
+# Marker/type aliases are reflected or exercised by compile-fail fixtures; the
+# actionable gate is unreachable app-owned value declarations.
+unused-types = false
+root-modules = []

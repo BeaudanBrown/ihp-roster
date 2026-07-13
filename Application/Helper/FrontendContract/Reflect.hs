@@ -21,9 +21,7 @@ import Application.Helper.FrontendContract.Naming (deriveDomAttributeName,
                                                    deriveJsonFieldName,
                                                    nameToKebab)
 import qualified Application.Helper.FrontendContract.Naming as Naming
-import Data.Kind (Type)
-import Data.Typeable (Proxy (..), Typeable, tyConName, typeRep, typeRepTyCon)
-import GHC.TypeLits (KnownSymbol, symbolVal)
+import Data.Typeable (tyConName, typeRep, typeRepTyCon)
 import IHP.Prelude
 
 reflectFrontendContracts :: forall contracts. ReflectFrontendContractRegistry contracts => FrontendContractIR

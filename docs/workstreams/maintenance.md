@@ -24,10 +24,7 @@ Living docs to update:
 Archived context:
 
 - `docs/archive/plans/54-styling-system-refactor.md`
-- `docs/archive/plans/56-declarative-live-fragments.md`
-- `docs/archive/plans/59-code-smell-remediation.md`
 - `docs/archive/plans/61-view-helper-split.md`
-- `docs/archive/plans/62-live-fragment-system-refactor.md`
 - `docs/archive/plans/65-spec-agent-doc-alignment.md`
 - `docs/archive/plans/66-input-handling-and-injection-hardening.md`
 - `docs/archive/plans/67-component-boundary-cleanup.md`
@@ -43,8 +40,10 @@ Several maintenance plans have already produced good subsystem patterns:
 roster feature modules, split export helpers, split FWC MAPD modules, focused
 view helper modules, and declarative live surfaces. Verification now follows the
 same boundary discipline: `verify-fast` composes typecheck, pure Hspec, and the
-one-profile-per-behavior browser tier; `verify-full` composes the complete Hspec
-and browser gates. Compatible normal GHC checks share fingerprinted artifacts,
+one-profile-per-behavior browser tier; `verify-full` composes complete Hspec,
+curated FrontendContract warnings and Haskell reachability, generated frontend,
+TypeScript, CSS, architecture,
+documentation, and browser gates. Compatible normal GHC checks share fingerprinted artifacts,
 while HPC stays isolated. The required CI scope remains typecheck plus complete
 Hspec and reuses that cache sequentially. Remaining work should keep those
 patterns local and documented beside the code.

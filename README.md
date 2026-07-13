@@ -20,6 +20,25 @@ application helpers.
 - `docs/` - documentation system, workstreams, ADRs, and archived plans.
 - `specs/` - product, domain, compliance, and acceptance specs.
 
+## Retained Feature Reachability
+
+Epic #136's initial inventory grouped four features as disabled-but-retained.
+The closeout state is more precise:
+
+- the roster month-overview read model/fragment is intentionally dormant: its
+  controller and behavior coverage remain, but the week header has no trigger;
+- the single-day timeline remains a supported URL-scoped roster view with
+  server rendering and direct behavior coverage, but the week-grid layout menu
+  does not advertise it;
+- trial-staff invitation create/resend routes and modal rendering are active
+  through the staff-edit invitation flow; and
+- the four fixed exports are active. Only the configurable report-definition
+  engine was retired.
+
+These are intentional application roots, not evidence for broad generated
+browser reachability. Their server-only facts stay out of generated TypeScript
+unless a production browser consumer requires them.
+
 ## Local Workflow
 
 Run project commands through the wrapper unless you are already inside the
@@ -29,7 +48,7 @@ activated devenv shell:
 # Additive fast feedback: typecheck, pure Hspec, desktop + canonical Pixel browser tier
 bash ./bin/in-env verify-fast
 
-# Complete local verification: typecheck, full Hspec, full desktop/Pixel/Galaxy/iPad browser tier
+# Complete local verification: Haskell/reachability, generated frontend, CSS/docs/architecture, and full browser tier
 bash ./bin/in-env verify-full
 
 # Individual canonical gates remain available
@@ -101,10 +120,9 @@ Do not hand-edit generated app JS.
   evaluated through the single checked reflection path and generate TypeScript
   under `frontend/ts/generated/`; use them for backend-emitted JSON/data
   boundaries instead of duplicating broad backend or database models in browser
-  code.
-  Planned typed interaction-surface work should also derive surface, disposable
-  layer, intent, intent-field, and conflict-policy browser contracts from
-  Haskell instead of hand-defining canonical strings in TypeScript.
+  code. Surface, mount-target, disposable-layer, intent, intent-field, and
+  conflict-policy contracts are derived from Haskell rather than hand-defined
+  as canonical browser strings.
 
 Feature CSS is split under `static/css/`; update the narrowest matching file
 and keep linked stylesheet paths mirrored in `Web/View/Layout.hs` and
@@ -125,8 +143,11 @@ bash ./bin/in-env frontend-contracts-watch
 bash ./bin/in-env frontend-watch
 ```
 
-`frontend-check` runs contract drift, TypeScript validation, frontend unit/DOM
-tests, and generated JS drift. `dev-start` and `just dev` run the frontend
+`frontend-check` runs contract drift, strict TypeScript validation including
+unused-code checks, frontend unit/DOM tests, and generated JS drift. The full
+verification gate additionally runs curated FrontendContract GHC warnings and
+Weeder reachability, CSS
+stale-selector ownership, architecture freshness, and documentation drift. `dev-start` and `just dev` run the frontend
 contract watcher plus frontend asset watcher; `just dev` also runs the local
 observability stack in foreground dev; `dev-stop` cleans up detached dev
 processes. There is no Vite dev server or true HMR requirement. Contract-source

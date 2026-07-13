@@ -25,13 +25,14 @@ module Application.Helper.FrontendContract.Surface.Runtime
     , FrontendSurfaceInteractionShellConfig (..)
     , FrontendSurfaceIntentForm (..)
     , FrontendSurfaceMountConfig (..)
-    , FrontendSurfaceMountedFragment (..)
+    , FrontendSurfaceMountedFragment
+    , mountedFragmentKey
+    , mountedFragmentTargetId
+    , mountedFragmentUrl
     , FrontendSurfaceProtection (..)
     , KnownFragmentOptions (..)
     , SurfaceImpl (..)
     , frontendSurfaceFragmentKeyFor
-    , frontendSurfaceFragmentKeyFromPairs
-    , frontendSurfaceMountedFragment
     , frontendSurfaceMountedFragmentFor
     , defaultFrontendSurfaceLazyFragmentConfig
     , customPlaceholderFrontendSurfaceLazyFragmentConfig
@@ -138,7 +139,7 @@ instance {-# OVERLAPPABLE #-} KnownLazyOptions rest => KnownLazyOptions (option 
 -- | Construct the complete runtime mount from marker-indexed values. Scope
 -- identity, exact JSON fields, live subscription metadata, and Surface name all
 -- come from the owning type-level declaration; callers provide only local
--- fragment URLs/targets and the mount instance key.
+-- fragment URLs, exact target-field values, and the mount instance key.
 mkSurfaceImplFromValues ::
     forall spec scopeMarker.
     ( KnownLiveFragments spec
@@ -256,10 +257,6 @@ frontendSurfaceFragmentKeyFor fields =
         , fragmentParams = surfaceFieldsJson fields
         }
 
-frontendSurfaceFragmentKeyFromPairs :: Text -> [Aeson.Types.Pair] -> FrontendSurfaceFragmentKey
-frontendSurfaceFragmentKeyFromPairs kind params =
-    FrontendSurfaceFragmentKey kind (Aeson.object params)
-
 data FrontendSurfaceMountedFragment = FrontendSurfaceMountedFragment
     { mountedFragmentKey             :: !FrontendSurfaceFragmentKey
     , mountedFragmentTargetId        :: !Text
@@ -283,33 +280,23 @@ data FrontendSurfaceProtection
     | FrontendSurfaceFocusedFieldConfig !FrontendSurfaceFocusedFieldProtectionConfig
     deriving (Eq, Show)
 
-frontendSurfaceMountedFragment :: Text -> Aeson.Value -> Text -> Text -> FrontendSurfaceProtection -> FrontendSurfaceMountedFragment
-frontendSurfaceMountedFragment kind params targetId url protection =
-    FrontendSurfaceMountedFragment
-        { mountedFragmentKey = FrontendSurfaceFragmentKey kind params
-        , mountedFragmentTargetId = targetId
-        , mountedFragmentUrl = url
-        , mountedFragmentProtection = protection
-        , mountedFragmentLazyTrigger = Nothing
-        , mountedFragmentPlaceholderKind = Nothing
-        }
-
 frontendSurfaceMountedFragmentFor ::
     forall spec marker.
     ( ReflectPrimitive (SurfaceFragmentPrimitive spec marker)
     , KnownFragmentOptions (SurfaceFragmentOptionSpecs spec marker)
+    , KnownMountTarget (FindMountTarget (SurfaceFragmentOptionSpecs spec marker))
     ) =>
     SurfaceFields (SurfaceFragmentFieldSpecs spec marker) ->
-    Text ->
+    SurfaceFields (SurfaceFragmentTargetFieldSpecs spec marker) ->
     Text ->
     FrontendSurfaceProtection ->
     FrontendSurfaceMountedFragment
-frontendSurfaceMountedFragmentFor fields targetId url protection =
+frontendSurfaceMountedFragmentFor fields targetFields url protection =
     applyFrontendSurfaceLazyFragmentDefaults
         (knownFragmentOptions @(SurfaceFragmentOptionSpecs spec marker))
         ( FrontendSurfaceMountedFragment
             { mountedFragmentKey = frontendSurfaceFragmentKeyFor @spec @marker fields
-            , mountedFragmentTargetId = targetId
+            , mountedFragmentTargetId = surfaceFragmentTargetId @spec @marker targetFields
             , mountedFragmentUrl = url
             , mountedFragmentProtection = protection
             , mountedFragmentLazyTrigger = Nothing

@@ -78,7 +78,7 @@ HTML form attributes are not validation. Keep `required`, hidden inputs, and sel
 - Do not add blur deferral for roster shift launchers or committed dialog submits. Reintroduce narrow protection only if a delayed free-text control returns.
 
 ## FrontendSurface Live Shell Pattern
-- Treat a `FrontendSurface` mount as the subscription owner. Render mounts with `renderFrontendSurfaceMount`; do not handwrite `data-bepis-surface`, `data-bepis-surface-config`, legacy `data-live-update-surface`, target ids, URLs, or focused-protection metadata in feature views. The renderer emits the exact generated mount envelope; server-only mount state and lazy/load decisions do not belong in browser JSON.
+- Treat a `FrontendSurface` mount as the subscription owner. Render mounts with `renderFrontendSurfaceMount`; do not handwrite mount attributes, target ids, URLs, or focused-protection metadata in feature views. The renderer emits the exact generated mount envelope; server-only mount state and lazy/load decisions do not belong in browser JSON.
 - Keep scopes as authorized logical data slices rather than page names. A page may render multiple child surface mounts when independently stale feature areas live together.
 - Keep fragment/region enums and `SurfaceImpl` handlers feature-local. Views should consume the typed surface implementation and render helpers; avoid duplicating scope, target id, URL, action, intent, or focused-protection wiring beside the markup.
 - A parent fragment/region may contain nested child surface mounts when its type-level spec declares the contained surface topology. Child surfaces still own their own subscriptions, fragments, request decoration, and invalidations.
@@ -96,7 +96,7 @@ HTML form attributes are not validation. Keep `required`, hidden inputs, and sel
   - support venue switching, venue creation, owner invitations, passkeys, and auth/session flows should stay full-page or explicit HTMX workflows unless there is a concrete collaborative stale-DOM requirement
 
 ## Typed Interaction Surface Pattern
-- Typed interaction work is planned under `docs/workstreams/typed-interaction-surfaces.md` and `ir-jsyd`. Read that workstream before adding `data-bepis-*` markup or frontend interaction behavior.
+- Read `Application/Helper/Interaction.SPEC.md` and `Application/Helper/FrontendContract/Surface/README.md` before adding `data-bepis-*` markup or frontend interaction behavior.
 - Interaction-capable views should render surface mounts, server layers, disposable layers, activation markers, item/slot/handle attrs, and HTMX intent forms through Haskell helpers generated from typed contracts. Do not handwrite raw interaction attrs/forms in feature views once those helpers exist.
 - Keep concrete surface mounts portable: derive ids, HTMX targets, and form ids from the typed surface scope plus mount key so the same surface can move across pages or appear more than once.
 - Disposable UI belongs in declared disposable layers and is not authoritative. Views should keep server-owned business DOM separate from disposable layers so live fragments can update behind non-conflicting active sessions.

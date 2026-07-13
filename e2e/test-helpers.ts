@@ -468,6 +468,20 @@ export async function ensureRosterLayout(page: Page, layoutMode: RosterLayoutMod
     }
 }
 
+export async function waitForRosterWeekShell(page: Page) {
+    const shell = page.locator('#roster-week-shell');
+    await expect.poll(() => shell.count(), { timeout: E2E_TIMEOUT.assertion }).toBe(1);
+    await expect(shell).toBeVisible({ timeout: E2E_TIMEOUT.assertion });
+    await expect.poll(
+        () => shell.evaluate((element) => (
+            element.classList.contains('htmx-added')
+            || element.classList.contains('htmx-settling')
+            || element.classList.contains('htmx-swapping')
+        )),
+        { timeout: E2E_TIMEOUT.assertion },
+    ).toBe(false);
+}
+
 export async function openRoster(page: Page, options: OpenRosterOptions = {}) {
     const {
         email = 'e2e-test@example.com',
@@ -511,19 +525,19 @@ export async function openRoster(page: Page, options: OpenRosterOptions = {}) {
             const copyPreviousWeekButton = page.getByRole('button', { name: 'Copy Previous Week' });
             if (await createDraftButton.isVisible().catch(() => false)) {
                 await createDraftButton.click();
-                await expect(page.locator('#roster-week-shell')).toBeVisible();
+                await waitForRosterWeekShell(page);
                 continue;
             }
             if (await copyPreviousWeekButton.isVisible().catch(() => false)) {
                 page.once('dialog', (dialog) => dialog.accept());
                 await copyPreviousWeekButton.click();
-                await expect(page.locator('#roster-week-shell')).toBeVisible();
+                await waitForRosterWeekShell(page);
                 continue;
             }
         }
 
         await page.getByRole('link', { name: 'Next week' }).click();
-        await expect(page.locator('#roster-week-shell')).toBeVisible();
+        await waitForRosterWeekShell(page);
     }
 }
 

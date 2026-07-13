@@ -149,6 +149,7 @@ data PrimitiveOption
     | Placeholder Type
     | DependsOn ResourceSpec [DependencySource]
     | DependsOnFragment Type
+    | MountTarget Type [FieldSpec]
     | Target Type
     | BackedBy Type
     | Layer Type

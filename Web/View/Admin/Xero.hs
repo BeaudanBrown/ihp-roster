@@ -19,7 +19,9 @@ import Application.Helper.FrontendContract.Surface.Runtime (FrontendSurfaceActio
                                                             FrontendSurfaceCustomHtmxAttrs (..),
                                                             renderFrontendSurfaceActionForm,
                                                             renderFrontendSurfaceMount)
-import Application.Helper.FrontendContract.Surface.Values (surfaceActionValue)
+import Application.Helper.FrontendContract.Surface.Values (SurfaceFields (NoSurfaceFields),
+                                                           surfaceActionValue,
+                                                           surfaceFragmentTargetId)
 import Application.Helper.XeroAdminTypes
 import Web.Admin.FrontendSurface (AdminVenueScopeValue (..),
                                   adminXeroPageSurfaceImpl,
@@ -65,7 +67,7 @@ currentVenueScopeId =
 renderXeroPageContentSurface :: (?context :: ControllerContext) => Html -> Html
 renderXeroPageContentSurface body =
     renderFrontendSurfaceMount (adminXeroPageSurfaceImpl AdminVenueScopeValue { adminVenueId = currentVenueScopeId, adminRosterGroupId = Nothing }) [hsx|
-        <div id="admin-xero-page-content-fragment">
+        <div id={surfaceFragmentTargetId @Surface.AdminXeroPageSurface @Surface.AdminXeroPageContentFragment NoSurfaceFields}>
             {body}
         </div>
     |]
@@ -85,7 +87,7 @@ renderXeroSectionFragmentWithAutoSync =
 renderXeroSectionFragmentWithSwap :: OobSwapAttr -> Bool -> XeroAdminSectionData -> Html
 renderXeroSectionFragmentWithSwap maybeSwapOob shouldAutoSync xeroSectionData =
     renderFrontendSurfaceMount (adminXeroSurfaceImpl AdminVenueScopeValue { adminVenueId = currentVenueScopeId, adminRosterGroupId = Nothing }) [hsx|
-        <div id="admin-xero-fragment"
+        <div id={surfaceFragmentTargetId @Surface.AdminXeroSurface @Surface.AdminXeroShellFragment NoSurfaceFields}
              hx-swap-oob={maybeSwapOob}>
             {renderXeroAutoSyncTrigger shouldAutoSync xeroSectionData.xeroConnection}
             {renderXeroSection xeroSectionData}

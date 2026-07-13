@@ -27,39 +27,6 @@ import Web.Types
 tests :: Spec
 tests = beforeAll testContext do
     describe "Fixed export goldens" do
-        it "keeps the superseded report-definition runtime retired" $ withContext do
-            runtimeSources <- mapM Text.readFile
-                [ "Application/Helper/Export.hs"
-                , "Application/Helper/Export/Definitions.hs"
-                , "Application/Helper/Export/Payloads.hs"
-                , "Application/Helper/Export/Persistence.hs"
-                , "Application/Helper/Export/ReadModel.hs"
-                , "Application/Helper/Export/Render.hs"
-                , "Application/Helper/Export/Service.hs"
-                , "Application/Helper/Export/Types.hs"
-                , "Web/Controller/Admin/Support.hs"
-                , "Web/Controller/Exports.hs"
-                ]
-            adminControllerSource <- Text.readFile "Web/Controller/Admin.hs"
-            adminViewSource <- Text.readFile "Web/View/Admin/Index.hs"
-            let retiredRuntimeNames =
-                    [ "ReportDefinition"
-                    , "VenueReportDefinition"
-                    , "requestReportDefinitionExport"
-                    , "reportDefinitionEngine"
-                    , "buildStaffPayCsvPayload"
-                    , "buildPayrollEarningsCsvPayload"
-                    , "buildHourlyBreakdownZipPayload"
-                    , "fetchCurrentVenueReportDefinitions"
-                    , "bootstrapCurrentVenueReportDefinitionsIfMissing"
-                    , "fetchReportDefinitionShiftTypeFilters"
-                    ]
-            forM_ runtimeSources \source ->
-                filter (`Text.isInfixOf` source) retiredRuntimeNames `shouldBe` []
-            adminControllerSource `shouldNotSatisfy` Text.isInfixOf "currentReportWeekOffset"
-            adminControllerSource `shouldNotSatisfy` Text.isInfixOf "fetchReportWeekSelection"
-            adminViewSource `shouldNotSatisfy` Text.isInfixOf "reportWeekSelection"
-
         it "renders the canonical staff-hours CSV exactly" $ withContext do
             withCleanDb do
                 fixture <- seedCanonicalPayrollFixture

@@ -18,7 +18,9 @@ import Application.Helper.FrontendContract.Surface.Runtime (FrontendSurfaceActio
                                                             FrontendSurfaceCustomHtmxAttrs (..),
                                                             renderFrontendSurfaceActionForm,
                                                             renderFrontendSurfaceMount)
-import Application.Helper.FrontendContract.Surface.Values (surfaceActionValue)
+import Application.Helper.FrontendContract.Surface.Values (SurfaceFields (NoSurfaceFields),
+                                                           surfaceActionValue,
+                                                           surfaceFragmentTargetId)
 import Application.Helper.StaffShiftPreferences
 import Web.Profiles.FrontendSurface (ProfileScopeValue (..), staffSurfaceImpl)
 import Web.View.LeaveRequests.New (renderLeaveRequestFormFields)
@@ -27,6 +29,11 @@ import Web.View.Profiles.Edit (renderProfileLeaveRequestsList)
 import Web.View.StaffDocuments.Rsa
 import Web.View.StaffProfileForm
 import Web.View.StaffProfileSections
+
+staffProfileDetailsSectionId, staffProfilePreferencesSectionId, staffProfileLeaveSectionId :: Text
+staffProfileDetailsSectionId = surfaceFragmentTargetId @Surface.StaffSurface @Surface.StaffDetailsSection NoSurfaceFields
+staffProfilePreferencesSectionId = surfaceFragmentTargetId @Surface.StaffSurface @Surface.StaffPreferencesSection NoSurfaceFields
+staffProfileLeaveSectionId = surfaceFragmentTargetId @Surface.StaffSurface @Surface.StaffLeaveSection NoSurfaceFields
 
 data NewView = NewView
     { staff                  :: Staff
@@ -72,7 +79,7 @@ instance View EditView where
         renderStaffEditPageModalWithButtons
             weekOffset
             []
-            (renderStaffEditBody PageOverlayForm staff maybeLinkedUserEmail pendingTrialStaffInvitation rosterGroups awardLevels awardLevelBaseRates importedPayItems selectedRosterGroupIds maybeVenueMembership preferenceWeekdays selectedShiftPreferences staffRsaDocument leaveRequest leaveRequests today weekOffset maybeRosterGroupId openSection)
+            (renderStaffSurfaceMount staff (renderStaffEditBody PageOverlayForm staff maybeLinkedUserEmail pendingTrialStaffInvitation rosterGroups awardLevels awardLevelBaseRates importedPayItems selectedRosterGroupIds maybeVenueMembership preferenceWeekdays selectedShiftPreferences staffRsaDocument leaveRequest leaveRequests today weekOffset maybeRosterGroupId openSection))
 
 staffEditFormId :: Text
 staffEditFormId = "staff-edit-form"
@@ -158,13 +165,13 @@ renderStaffEditBody formMode staff maybeLinkedUserEmail pendingTrialStaffInvitat
                 , staffProfileAccordionSections =
                     [ StaffProfileAccordionSection
                         { staffProfileSectionKey = "profile"
-                        , staffProfileSectionId = "staff-profile-details"
+                        , staffProfileSectionId = staffProfileDetailsSectionId
                         , staffProfileSectionTitle = "Profile Details"
                         , staffProfileSectionBody = renderStaffDetailsForm formMode staff maybeLinkedUserEmail pendingTrialStaffInvitation managementFields staffAction
                         }
                     , StaffProfileAccordionSection
                         { staffProfileSectionKey = "preferences"
-                        , staffProfileSectionId = "staff-profile-preferences"
+                        , staffProfileSectionId = staffProfilePreferencesSectionId
                         , staffProfileSectionTitle = "Shift Preferences"
                         , staffProfileSectionBody = renderStaffShiftPreferencesEditForm formMode preferenceWeekdays selectedShiftPreferences weekOffset maybeRosterGroupId staffAction
                         }
@@ -177,7 +184,7 @@ renderStaffEditBody formMode staff maybeLinkedUserEmail pendingTrialStaffInvitat
                     ]
                     <> [ StaffProfileAccordionSection
                             { staffProfileSectionKey = "leave"
-                            , staffProfileSectionId = "staff-profile-leave"
+                            , staffProfileSectionId = staffProfileLeaveSectionId
                             , staffProfileSectionTitle = "Unavailability"
                             , staffProfileSectionBody = renderStaffleaveRequestsContentLiveFragment staff leaveRequest leaveRequests
                             }
@@ -207,19 +214,19 @@ renderStaffEditSectionFragment formMode staff maybeLinkedUserEmail pendingTrialS
         section = case openSection of
             "preferences" -> StaffProfileAccordionSection
                 { staffProfileSectionKey = "preferences"
-                , staffProfileSectionId = "staff-profile-preferences"
+                , staffProfileSectionId = staffProfilePreferencesSectionId
                 , staffProfileSectionTitle = "Shift Preferences"
                 , staffProfileSectionBody = renderStaffShiftPreferencesEditForm formMode preferenceWeekdays selectedShiftPreferences weekOffset maybeRosterGroupId staffAction
                 }
             "leave" -> StaffProfileAccordionSection
                 { staffProfileSectionKey = "leave"
-                , staffProfileSectionId = "staff-profile-leave"
+                , staffProfileSectionId = staffProfileLeaveSectionId
                 , staffProfileSectionTitle = "Unavailability"
                 , staffProfileSectionBody = renderStaffleaveRequestsContentLiveFragment staff leaveRequest leaveRequests
                 }
             _ -> StaffProfileAccordionSection
                 { staffProfileSectionKey = "profile"
-                , staffProfileSectionId = "staff-profile-details"
+                , staffProfileSectionId = staffProfileDetailsSectionId
                 , staffProfileSectionTitle = "Profile Details"
                 , staffProfileSectionBody = renderStaffDetailsForm formMode staff maybeLinkedUserEmail pendingTrialStaffInvitation managementFields staffAction
                 }
@@ -568,7 +575,7 @@ staffDetailsFormRequestMode :: OverlayFormMode -> Text -> StaffDetailsOverlayMar
 staffDetailsFormRequestMode HtmxOverlayForm actionUrl marker =
     case marker of
         UpdateStaffProfileOverlayMarker ->
-            Just (StaffProfileSurfaceAction (surfaceActionValue @Surface.StaffSurface @Surface.UpdateStaffProfile) (staffSectionActionRoute actionUrl "#staff-profile-details" "outerHTML show:none"))
+            Just (StaffProfileSurfaceAction (surfaceActionValue @Surface.StaffSurface @Surface.UpdateStaffProfile) (staffSectionActionRoute actionUrl ("#" <> staffProfileDetailsSectionId) "outerHTML show:none"))
         CreateTrialStaffOverlayMarker ->
             Just (StaffProfileAppShellAction (staffDetailsAppShellAction marker) (staffAppShellActionRoute actionUrl))
 staffDetailsFormRequestMode PageOverlayForm _ _ = Nothing
@@ -579,7 +586,7 @@ staffDetailsAppShellAction UpdateStaffProfileOverlayMarker = appShellActionByMar
 
 staffShiftPreferencesOverlayRequestMode :: OverlayFormMode -> Text -> Maybe StaffProfileFormRequestMode
 staffShiftPreferencesOverlayRequestMode HtmxOverlayForm actionUrl =
-    Just (StaffProfileSurfaceAction (surfaceActionValue @Surface.StaffSurface @Surface.UpdateStaffShiftPreferences) (staffSectionActionRoute actionUrl "#staff-profile-preferences" "outerHTML show:none"))
+    Just (StaffProfileSurfaceAction (surfaceActionValue @Surface.StaffSurface @Surface.UpdateStaffShiftPreferences) (staffSectionActionRoute actionUrl ("#" <> staffProfilePreferencesSectionId) "outerHTML show:none"))
 staffShiftPreferencesOverlayRequestMode PageOverlayForm _ = Nothing
 
 staffAppShellActionRoute :: Text -> AppShellActionRoute

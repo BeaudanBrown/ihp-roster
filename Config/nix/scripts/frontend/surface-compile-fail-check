@@ -34,7 +34,7 @@ expect_compile_failure() {
     fi
 
     for expected in "$@"; do
-        if ! grep -q "$expected" "$log"; then
+        if ! grep -Fq "$expected" "$log"; then
             echo "surface-compile-fail-check: $fixture missing expected diagnostic substring: $expected" >&2
             cat "$log" >&2
             exit 1
@@ -43,6 +43,11 @@ expect_compile_failure() {
 
     echo "surface-compile-fail-check: $fixture failed as expected"
 }
+
+expect_compile_failure \
+    "Test/CompileFail/FrontendSurfaceRawMountedTarget.hs" \
+    "IsString (SurfaceFields" \
+    "raw-target-id"
 
 expect_compile_failure \
     "Test/CompileFail/FrontendSurfaceWrongFragmentMarker.hs" \

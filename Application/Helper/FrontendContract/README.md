@@ -77,14 +77,11 @@ authority. Reflection generates one exact per-surface mount type/guard and their
 `FrontendSurfaceMountConfig` union; handwritten aggregate mount parsers and
 compatibility aliases are forbidden. The live bundle consumes only
 `FrontendSurfaceFragmentRegistry`; the interaction bundle consumes only
-`FrontendSurfaceInteractionRegistry`. Do not restore an omnibus registry or
-emit action manifests/contained-surface topology merely because Haskell owns
-those facts. Subscriptions, websocket invalidations, and actor details use the
+`FrontendSurfaceInteractionRegistry`. They remain separate and minimal; action
+metadata and contained-surface topology stay server-only. Subscriptions, websocket invalidations, and actor details use the
 generated `SurfaceScope` and semantic `SurfaceFragmentKey` contract types only.
 Shared server/browser DOM ids and semantic tokens come from reflected global or
-Surface declarations, rather than copied string literals. Server-only
+Surface declarations, rather than copied string literals. Every fragment owns
+one typed `MountTarget`; descriptor and view IDs are rendered through
+`surfaceFragmentTargetId` from declaration-ordered typed fields. Server-only
 `MountState` declarations are deliberately absent from browser output.
-
-The old `Application.Helper.Frontend` codec/DTO/schema-group tree has been
-removed. Guardrails fail if production Haskell modules or imports under that
-namespace return.

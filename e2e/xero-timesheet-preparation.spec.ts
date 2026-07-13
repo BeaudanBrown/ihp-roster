@@ -146,35 +146,6 @@ function resetXeroTimesheetPreparationFixture() {
             raw_payload = EXCLUDED.raw_payload,
             synced_at = EXCLUDED.synced_at,
             updated_at = NOW();
-
-        INSERT INTO xero_payroll_calendar_selections (
-            id,
-            venue_id,
-            xero_connection_id,
-            xero_payroll_calendar_id,
-            xero_payroll_calendar_name,
-            calendar_status,
-            last_verified_at,
-            updated_by_user_id
-        )
-        VALUES (
-            'b1000000-0000-0000-0000-000000000302',
-            '${alphaVenueId}',
-            '${xeroConnectionId}',
-            'e2e-timesheet-calendar',
-            'E2E Weekly Payroll',
-            'verified',
-            NOW(),
-            '${ownerUserId}'
-        )
-        ON CONFLICT (xero_connection_id) DO UPDATE SET
-            venue_id = EXCLUDED.venue_id,
-            xero_payroll_calendar_id = EXCLUDED.xero_payroll_calendar_id,
-            xero_payroll_calendar_name = EXCLUDED.xero_payroll_calendar_name,
-            calendar_status = EXCLUDED.calendar_status,
-            last_verified_at = EXCLUDED.last_verified_at,
-            updated_by_user_id = EXCLUDED.updated_by_user_id,
-            updated_at = NOW();
     `);
 }
 

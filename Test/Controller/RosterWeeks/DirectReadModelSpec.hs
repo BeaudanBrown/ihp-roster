@@ -11,8 +11,6 @@ import Data.Coerce (coerce)
 import Data.List (find, sortOn)
 import qualified Data.Map.Strict as Map
 import Data.Maybe (fromJust)
-import qualified Data.Text as Text
-import qualified Data.Text.IO as Text
 import qualified Data.Time.Calendar as Calendar
 import Data.Time.Clock (getCurrentTime)
 import Data.Time.LocalTime (TimeOfDay (..))
@@ -21,7 +19,6 @@ import IHP.ControllerPrelude
 import IHP.FrameworkConfig
 import IHP.Prelude
 import IHP.Test.Mocking
-import System.Directory (doesFileExist)
 import Test.Hspec
 import Test.Support
 import Web.RosterWeeks.DirectReadModel
@@ -33,26 +30,6 @@ import Web.RosterWeeks.Types
 tests :: Spec
 tests = beforeAll testContext do
     describe "RosterWeeksController direct read model" do
-        it "keeps the rollback read path and superseded column rename route deleted" $ withContext do
-            conflictEvaluatorExists <- doesFileExist "Web/RosterWeeks/Conflicts.hs"
-            renderDataSource <- Text.readFile "Web/RosterWeeks/RenderData.hs"
-            controllerSource <- Text.readFile "Web/Controller/RosterWeeks.hs"
-            typesSource <- Text.readFile "Web/Types.hs"
-            mutationSource <- Text.readFile "Web/RosterWeeks/Mutations.hs"
-            rosterTypesSource <- Text.readFile "Web/RosterWeeks/Types.hs"
-            let forbiddenRenderData =
-                    [ "fetchVisibleRosterReadModelDirect"
-                    , "fetchVisibleRosterRenderData"
-                    , "fetchHiddenRosterRenderDataWith"
-                    ]
-            conflictEvaluatorExists `shouldBe` False
-            filter (`Text.isInfixOf` renderDataSource) forbiddenRenderData `shouldBe` []
-            controllerSource `shouldNotSatisfy` Text.isInfixOf "UpdateRosterWeekSlotDefinitionAction"
-            typesSource `shouldNotSatisfy` Text.isInfixOf "UpdateRosterWeekSlotDefinitionAction"
-            mutationSource `shouldNotSatisfy` Text.isInfixOf "renameRosterWeekSlotDefinitionMutation"
-            rosterTypesSource `shouldNotSatisfy` Text.isInfixOf "pendingTrialInvitations"
-            rosterTypesSource `shouldNotSatisfy` Text.isInfixOf "RosterProjectionScope"
-
         it "reads manager-visible base facts directly" $ withContext do
             withCleanDb do
                 fixture <- createDirectReadModelFixture

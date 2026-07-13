@@ -73,6 +73,43 @@ reject_text AGENTS.md 'https://cdn.jsdelivr.net'
 reject_text Web/View/AGENTS.md 'https://unpkg.com'
 reject_text Web/View/AGENTS.md 'https://cdn.jsdelivr.net'
 
+documentation_files=()
+while IFS= read -r -d '' documentation_path; do
+    case "$documentation_path" in
+        .tickets/*|.pi/*)
+            continue
+            ;;
+    esac
+    if [[ -f "$documentation_path" ]]; then
+        documentation_files+=("$documentation_path")
+    fi
+done < <(git ls-files -z --cached --others --exclude-standard -- '*.md')
+retired_frontend_terms=(
+    'GenerateFrontendContractsGhc'
+    'FrontendSurfaceGhc'
+    'Surface.Ghc'
+    'Surface.Adapter'
+    'TypedLiveSurfaceDefinition'
+    'typed-live'
+    'data-live-update-surface'
+    'IHP Auto Refresh'
+    'ihp-auto-refresh'
+    'Morphdom'
+    'morphdom'
+    'SurfaceProjection'
+    'Application.Helper.Frontend.'
+    'omnibus registry'
+    'GHC probe'
+    'GHC API extraction'
+    'compiler-type inspection'
+)
+for term in "${retired_frontend_terms[@]}"; do
+    matches="$(rg -n --fixed-strings "$term" "${documentation_files[@]}" || true)"
+    if [[ -n "$matches" ]]; then
+        fail $'retired frontend/runtime documentation term: '"$term"$'\n'"$matches"
+    fi
+done
+
 require_text Web/View/AGENTS.md 'Dialog-style modals must go through `Application.Helper.View.Overlay`'
 
 raw_modal_matches="$(

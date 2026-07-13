@@ -14,13 +14,10 @@ module Application.Helper.SurfaceResource
     , pendingLeaveRequestsResource
     , liveMutationResult
     , recordLiveMutationDiagnostics
-    , resourceFieldInt
-    , resourceFieldIntFor
     , resourceFieldText
     , resourceFieldUuid
     , resourceFieldUuidFor
     , resourceForSurface
-    , resourceMatches
     , resourceMatchesFor
     , rosterDayResource
     , rosterEndTimesConfigResource

@@ -8,7 +8,9 @@ import Application.Helper.FrontendContract.Surface.Runtime (FrontendSurfaceActio
                                                             SurfaceImpl,
                                                             renderFrontendSurfaceActionForm,
                                                             renderFrontendSurfaceMount)
-import Application.Helper.FrontendContract.Surface.Values (surfaceActionValue)
+import Application.Helper.FrontendContract.Surface.Values (SurfaceFields (NoSurfaceFields),
+                                                           surfaceActionValue,
+                                                           surfaceFragmentTargetId)
 import Application.Helper.StaffShiftPreferences
 import Data.List (sortOn)
 import Data.Ord (Down (..))
@@ -28,19 +30,19 @@ profileSurfaceId :: Text
 profileSurfaceId = "profile-live-surface"
 
 profileDetailsSectionId :: Text
-profileDetailsSectionId = "profile-details"
+profileDetailsSectionId = surfaceFragmentTargetId @Surface.ProfileSurface @Surface.ProfileDetailsSection NoSurfaceFields
 
 profilePreferencesSectionId :: Text
-profilePreferencesSectionId = "profile-preferences"
+profilePreferencesSectionId = surfaceFragmentTargetId @Surface.ProfileSurface @Surface.ProfilePreferencesSection NoSurfaceFields
 
 profileSecuritySectionId :: Text
-profileSecuritySectionId = "profile-security"
+profileSecuritySectionId = surfaceFragmentTargetId @Surface.ProfileSurface @Surface.ProfileSecuritySection NoSurfaceFields
 
 profileLeaveSectionId :: Text
-profileLeaveSectionId = "profile-leave"
+profileLeaveSectionId = surfaceFragmentTargetId @Surface.ProfileSurface @Surface.ProfileLeaveSection NoSurfaceFields
 
 profileRsaSectionId :: Text
-profileRsaSectionId = "profile-rsa"
+profileRsaSectionId = surfaceFragmentTargetId @Surface.ProfileSurface @Surface.ProfileRsaSection NoSurfaceFields
 
 profileDetailsFormId :: Text
 profileDetailsFormId = "profile-details-form"

@@ -154,14 +154,6 @@ still locate usage sites and enforce no-legacy rules, but Bepis semantic
 vocabularies should prefer generated Haskell-owned contract JSON and runtime
 fact artifacts.
 
-IHP Auto Refresh is not a replacement for Bepis live scopes. It tracks table
-reads for an action, reruns the action after matching database changes, and
-morphs the browser `document.body`. Bepis collaborative surfaces need
-domain/surface/viewer authorization scopes and fragment refetch behavior. Future
-work may reuse or learn from IHP table-read tracking, but Bepis retains the
-scope and authorized-fragment model. See `ihp-auto-refresh-spike.md` for the
-current reuse decision.
-
 ## Web Surface
 
 - `Web/Controller/` owns request handling, params, redirects, HTMX response

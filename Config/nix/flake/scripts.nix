@@ -57,6 +57,8 @@ in
         architecture-check-fresh = script ../scripts/architecture/check-fresh;
         haskell-module-name-check = script ../scripts/haskell/module-name-check;
         typecheck = script ../scripts/haskell/typecheck;
+        frontend-contract-warnings = script ../scripts/haskell/frontend-contract-warnings;
+        weeder-check = script ../scripts/haskell/weeder-check;
         regen-types = script ../scripts/haskell/regen-types;
         test-db-reset = script ../scripts/db/test-db-reset;
         hspec-test = script ../scripts/haskell/hspec-test;

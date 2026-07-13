@@ -5,13 +5,27 @@ import Data.Either (isLeft)
 import qualified Database.PostgreSQL.Simple as PG
 import Generated.Types
 import IHP.ControllerPrelude
-import IHP.ModelSupport (sqlExecDiscardResult, unpackId)
+import IHP.ModelSupport (sqlExecDiscardResult, sqlQuery, unpackId)
 import IHP.Test.Mocking
 import Test.Hspec
 import Test.Support
 
 tests :: Spec
 tests = beforeAll testContext do
+    describe "database schema retirement" do
+        it "removes only the approved legacy tables and retains current export and Xero records" $ withContext do
+            retiredTables :: [PG.Only (Maybe Text)] <-
+                sqlQuery
+                    "SELECT to_regclass(name)::text FROM unnest(ARRAY['report_definitions', 'report_definition_shift_type_filters', 'xero_payroll_calendar_selections']) AS names(name) ORDER BY name"
+                    ()
+            retainedTables :: [PG.Only (Maybe Text)] <-
+                sqlQuery
+                    "SELECT to_regclass(name)::text FROM unnest(ARRAY['export_jobs', 'xero_payroll_calendars', 'xero_timesheet_preparation_runs', 'xero_timesheet_submissions']) AS names(name) ORDER BY name"
+                    ()
+
+            map PG.fromOnly retiredTables `shouldBe` replicate 3 Nothing
+            map PG.fromOnly retainedTables `shouldSatisfy` all isJust
+
     describe "database hard-delete protection" do
         it "blocks direct DELETEs on protected operational records" $ withContext do
             withCleanDb do

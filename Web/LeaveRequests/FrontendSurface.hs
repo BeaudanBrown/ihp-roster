@@ -25,12 +25,7 @@ import qualified Data.UUID as UUID
 import qualified IHP.Prelude as Prelude
 import Web.Controller.Prelude
 import Web.View.LeaveRequests.Index (leaveApprovedSection, leaveArchiveSection,
-                                     leaveDeniedSection, leavePendingSection,
-                                     leaveRequestsContentFragmentId,
-                                     leaveSectionCountFragmentId,
-                                     leaveSectionCountFragmentKind,
-                                     leaveSectionListFragmentId,
-                                     leaveSectionListFragmentKind)
+                                     leaveDeniedSection, leavePendingSection)
 
 data LeaveRequestsScopeValue = LeaveRequestsScopeValue
     { leaveRequestsVenueId :: !UUID.UUID
@@ -74,6 +69,12 @@ leaveRequestsSectionFields :: Text -> SurfaceFields '[ 'Field Surface.LeaveSecti
 leaveRequestsSectionFields section =
     surfaceField @Surface.LeaveSection section :& NoSurfaceFields
 
+leaveRequestsTargetFields :: Text -> Text -> SurfaceFields '[ 'Field Surface.LeaveSection 'WireText, 'Field Surface.LeaveTargetSuffix 'WireText]
+leaveRequestsTargetFields section suffix =
+    surfaceField @Surface.LeaveSection section
+        :& surfaceField @Surface.LeaveTargetSuffix suffix
+        :& NoSurfaceFields
+
 leaveRequestsSectionMountedFragments :: [FrontendSurfaceMountedFragment]
 leaveRequestsSectionMountedFragments =
     concatMap leaveRequestsSectionMountedFragmentsFor
@@ -87,12 +88,12 @@ leaveRequestsSectionMountedFragmentsFor :: Text -> [FrontendSurfaceMountedFragme
 leaveRequestsSectionMountedFragmentsFor section =
     [ frontendSurfaceMountedFragmentFor @Surface.LeaveRequestsSurface @Surface.LeaveSectionCount
         (leaveRequestsSectionFields section)
-        (leaveSectionCountFragmentId section)
+        (leaveRequestsTargetFields section "count")
         (leaveRequestsFragmentUrl @Surface.LeaveSectionCount section)
         FrontendSurfaceReplace
     , frontendSurfaceMountedFragmentFor @Surface.LeaveRequestsSurface @Surface.LeaveSectionList
         (leaveRequestsSectionFields section)
-        (leaveSectionListFragmentId section)
+        (leaveRequestsTargetFields section (if section == leaveArchiveSection then "page-content" else "list"))
         (leaveRequestsFragmentUrl @Surface.LeaveSectionList section)
         FrontendSurfaceReplace
     ]

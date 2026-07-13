@@ -6,6 +6,7 @@ module Application.Helper.FrontendContract.Surface.LeaveRequests
     , LeaveSection
     , LeaveSectionCount
     , LeaveSectionList
+    , LeaveTargetSuffix
     , LeaveRequestsSection
     , LeaveRequestsSectionResource
     , LeaveRequestsSurface
@@ -28,6 +29,8 @@ data LeaveRequestsContent
 data LeaveSection
 data LeaveSectionCount
 data LeaveSectionList
+data Leave
+data LeaveTargetSuffix
 data ArchiveLeaveRequestsPage
 data ApproveLeaveRequest
 data DenyLeaveRequest
@@ -46,13 +49,15 @@ type LeaveRequestsSurface =
             '[ 'Authorize 'CurrentVenueManager '[ VenueId ] ]
          , Fragment LeaveSectionCount
             '[ Field LeaveSection 'WireText ]
-            '[ 'Eager
+            '[ 'MountTarget Leave '[ Field LeaveSection 'WireText, Field LeaveTargetSuffix 'WireText ]
+             , 'Eager
              , 'Live
              , 'DependsOn LeaveRequestsSectionResource '[ 'FromScope VenueId, 'FromFragment LeaveSection ]
              ]
          , Fragment LeaveSectionList
             '[ Field LeaveSection 'WireText ]
-            '[ 'Eager
+            '[ 'MountTarget Leave '[ Field LeaveSection 'WireText, Field LeaveTargetSuffix 'WireText ]
+             , 'Eager
              , 'Live
              , 'DependsOn LeaveRequestsSectionResource '[ 'FromScope VenueId, 'FromFragment LeaveSection ]
              ]
@@ -78,7 +83,5 @@ type LeaveRequestsSurface =
              , 'HtmxPushUrl 'HtmxPushUrlFalse
              ]
          , DomToken LeaveRequestsContent
-         , DomToken LeaveSectionCount
-         , DomToken LeaveSectionList
          , DomToken LeaveArchivePageContent
          ]

@@ -206,7 +206,7 @@ surfaceFragmentKeyCaseGuard surface =
         <> "({ kind: value.kind, params: value.params }))"
 
 fragmentKeyGuard :: SurfaceIR -> (Text, Text, [FieldIR]) -> Text
-fragmentKeyGuard surface (marker, fragmentName, fields) =
+fragmentKeyGuard _surface (_marker, fragmentName, fields) =
     "(isRecord(value) && hasExactKeys(value, [\"kind\", \"params\"]) && value.kind === " <> quote fragmentName <> " && (" <> paramsGuard <> "))"
     where
         paramsAccess = "value[\"params\"]"
@@ -771,19 +771,6 @@ caseGuard discriminator caseIR =
 
 surfaceTypePrefix :: SurfaceIR -> Text
 surfaceTypePrefix surface = typeNameFromMarker surface.surfaceMarker
-
-protocolTypeName :: Text -> Text
-protocolTypeName name =
-    name
-        |> Text.splitOn "-"
-        |> filter (not . Text.null)
-        |> fmap title
-        |> mconcat
-    where
-        title text =
-            case Text.uncons text of
-                Nothing -> ""
-                Just (firstChar, rest) -> Text.singleton (Char.toUpper firstChar) <> rest
 
 typeNameFromMarker :: Text -> Text
 typeNameFromMarker marker

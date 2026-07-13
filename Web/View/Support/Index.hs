@@ -8,7 +8,9 @@ import Application.Helper.FrontendContract.Surface.Runtime (FrontendSurfaceActio
                                                             renderFrontendSurfaceActionForm,
                                                             renderFrontendSurfaceMount)
 import qualified Application.Helper.FrontendContract.Surface.Support as Surface
-import Application.Helper.FrontendContract.Surface.Values (surfaceActionValue)
+import Application.Helper.FrontendContract.Surface.Values (SurfaceFields (NoSurfaceFields),
+                                                           surfaceActionValue,
+                                                           surfaceFragmentTargetId)
 import Application.Helper.FwcMapd (FwcMapdAdminData (..),
                                    FwcMapdDisplayPayRate (..))
 import Application.PublicHolidays.Coverage (PublicHolidayCoverageStatus (..),
@@ -273,7 +275,7 @@ feedbackControlId prefix feedbackItemId = prefix <> "-" <> inputValue feedbackIt
 
 renderAwardRatesSection :: FwcMapdAdminData -> Maybe AppJob -> Maybe AppJob -> Html
 renderAwardRatesSection FwcMapdAdminData { latestSyncRun, currentAwards, currentCoreClassifications, currentCoreAdultPayRates, rateTypeBreakdown } latestRefreshJob activeRefreshJob = [hsx|
-    <div id="support-award-rates"
+    <div id={surfaceFragmentTargetId @Surface.SupportSurface @Surface.SupportAwardRates NoSurfaceFields}
          class="d-flex flex-column gap-3">
         <div class="d-flex flex-column flex-lg-row justify-content-between gap-3">
             <div>
@@ -289,7 +291,7 @@ renderAwardRatesSection FwcMapdAdminData { latestSyncRun, currentAwards, current
 
 renderPublicHolidaysSection :: [PublicHolidayCoverageYear] -> Maybe AppJob -> Maybe AppJob -> Html
 renderPublicHolidaysSection publicHolidayCoverage latestRefreshJob activeRefreshJob = [hsx|
-    <div id="support-public-holidays"
+    <div id={surfaceFragmentTargetId @Surface.SupportSurface @Surface.SupportPublicHolidays NoSurfaceFields}
          class="d-flex flex-column gap-3">
         <div class="d-flex flex-column flex-lg-row justify-content-between gap-3">
             <div class="small app-muted">

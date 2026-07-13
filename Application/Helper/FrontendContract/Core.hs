@@ -18,7 +18,6 @@ module Application.Helper.FrontendContract.Core
     , duplicateDiagnostics
     , fieldRefs
     , htmxMethodText
-    , htmxPushUrlBool
     , htmxSyntaxRawReason
     , htmxSyntaxReferences
     , htmxSyntaxText
@@ -87,11 +86,6 @@ htmxMethodText = \case
     HtmxPutIR -> "put"
     HtmxPatchIR -> "patch"
     HtmxDeleteIR -> "delete"
-
-htmxPushUrlBool :: HtmxPushUrlIR -> Bool
-htmxPushUrlBool = \case
-    HtmxPushUrlTrueIR -> True
-    HtmxPushUrlFalseIR -> False
 
 data HtmxSyntaxIR
     = HtmxTypedSyntaxIR !Text ![Text]

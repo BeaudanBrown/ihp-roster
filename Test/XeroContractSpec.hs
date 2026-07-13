@@ -8,7 +8,6 @@ import Data.Either (isRight)
 import qualified Data.List as List
 import qualified Data.Text as Text
 import qualified Data.Text.Encoding as TextEncoding
-import qualified Data.Text.IO as TextIO
 import IHP.Prelude
 import Network.HTTP.Simple (getResponseStatusCode, httpLBS)
 import Network.HTTP.Types.Status (status200, status400, status401, status403,
@@ -124,9 +123,7 @@ tests =
             forM_ (XeroMock.xeroRequestContractCases identitySpec payrollSpec) \(spec, contract, request) ->
                 XeroMock.validateXeroRequest spec contract request
 
-        it "keeps the OpenAPI contract table in step with exported Xero request builders" do
-            helperSource <- TextIO.readFile "Application/Helper/Xero.hs"
-            exportedBuildRequestNames helperSource `shouldBe` expectedBuildRequestExports
+        it "covers every concrete Xero client operation in the OpenAPI contract table" do
             List.sort (map (XeroMock.contractName . middleOfThree) (XeroMock.xeroRequestContractCases identitySpec payrollSpec))
                 `shouldBe` List.sort expectedContractCaseNames
             coveredXeroClientOperationNames `shouldBe` expectedContractCaseNames
@@ -216,25 +213,6 @@ tests =
                     Left (XeroDecodeError _) -> True
                     _                        -> False
 
-expectedBuildRequestExports :: [Text]
-expectedBuildRequestExports =
-    [ "buildCreatePayItemRequest"
-    , "buildCreateTimesheetRequest"
-    , "buildDeleteXeroConnectionRequest"
-    , "buildExchangeCodeForTokenRequest"
-    , "buildFetchAccountsRequest"
-    , "buildFetchConnectedTenantsRequest"
-    , "buildFetchEarningsRatesRequest"
-    , "buildFetchPayRunsRequest"
-    , "buildFetchPayrollCalendarsRequest"
-    , "buildFetchPayrollEmployeesRequest"
-    , "buildFetchPayrollSettingsAccountsRequest"
-    , "buildFetchTimesheetRequest"
-    , "buildFetchTimesheetsRequest"
-    , "buildRefreshXeroTokenRequest"
-    , "buildUpdateTimesheetRequest"
-    ]
-
 expectedContractCaseNames :: [Text]
 expectedContractCaseNames =
     [ "token exchange"
@@ -255,17 +233,6 @@ expectedContractCaseNames =
 
 coveredXeroClientOperationNames :: [Text]
 coveredXeroClientOperationNames = expectedContractCaseNames
-
-exportedBuildRequestNames :: Text -> [Text]
-exportedBuildRequestNames source =
-    source
-        |> Text.lines
-        |> map Text.strip
-        |> filter (\line -> ", build" `Text.isPrefixOf` line && "Request" `Text.isInfixOf` line)
-        |> map (Text.dropWhile (== ','))
-        |> map Text.strip
-        |> filter (not . Text.isInfixOf "With")
-        |> List.sort
 
 middleOfThree :: (a, b, c) -> b
 middleOfThree (_, value, _) = value

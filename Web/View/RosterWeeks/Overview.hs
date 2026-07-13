@@ -1,18 +1,20 @@
+{-# LANGUAGE TypeApplications #-}
+
 module Web.View.RosterWeeks.Overview
     ( renderRosterWeekLabel
     , renderWeekOverviewDropdown
     , renderWeekOverviewPanelFragment
     ) where
 
-import Application.Helper.FrontendContract.Surface.Runtime (FrontendSurfaceFragmentKey (..),
-                                                            FrontendSurfaceLazyFragmentConfig (..),
-                                                            FrontendSurfaceMountedFragment (..),
+import qualified Application.Helper.FrontendContract.Surface.Roster as Surface
+import Application.Helper.FrontendContract.Surface.Runtime (FrontendSurfaceLazyFragmentConfig (..),
                                                             FrontendSurfaceProtection (..),
                                                             defaultFrontendSurfaceLazyFragmentConfig,
+                                                            frontendSurfaceMountedFragmentFor,
                                                             renderFrontendSurfaceLazyFragmentWithConfig)
+import Application.Helper.FrontendContract.Surface.Values
 import Application.Helper.WeekBoundaries (orderedWeekdayIndexes, startOfWeekFor,
                                           weekdayIndexForDay)
-import qualified Data.Aeson as Aeson
 import Data.List (find, findIndex)
 import qualified Data.Text as Text
 import Data.Time.Calendar (Day)
@@ -22,15 +24,10 @@ import Web.RosterWeeks.Paths (rosterOverviewFragmentUrl, rosterWeekWithDateUrl)
 import Web.RosterWeeks.Types
 import Web.View.Prelude
 
-rosterWeekOverviewMountId :: Id RosterGroup -> Int -> Text
-rosterWeekOverviewMountId rosterGroupId weekOffset =
-    "roster-week-overview-mount-" <> tshow rosterGroupId <> "-" <> tshow weekOffset
-
 renderWeekOverviewDropdown :: (?context :: ControllerContext) => Int -> Id RosterGroup -> Day -> Html
 renderWeekOverviewDropdown weekOffset rosterGroupId weekStartDate =
     let
         triggerId = "roster-week-overview-trigger-" <> tshow rosterGroupId <> "-" <> tshow weekOffset
-        mountId = rosterWeekOverviewMountId rosterGroupId weekOffset
         fragmentUrl = rosterOverviewFragmentUrl weekOffset rosterGroupId
      in
         [hsx|
@@ -48,13 +45,13 @@ renderWeekOverviewDropdown weekOffset rosterGroupId weekStartDate =
                     <span>{renderRosterWeekLabel weekStartDate}</span>
                 </button>
                 <div class="dropdown-menu dropdown-menu-end roster-week-overview-menu" aria-labelledby={triggerId}>
-                    {renderWeekOverviewLazyMount mountId fragmentUrl}
+                    {renderWeekOverviewLazyMount rosterGroupId weekOffset fragmentUrl}
                 </div>
             </div>
         |]
 
-renderWeekOverviewLazyMount :: Text -> Text -> Html
-renderWeekOverviewLazyMount mountId fragmentUrl =
+renderWeekOverviewLazyMount :: Id RosterGroup -> Int -> Text -> Html
+renderWeekOverviewLazyMount rosterGroupId weekOffset fragmentUrl =
     renderFrontendSurfaceLazyFragmentWithConfig
         defaultFrontendSurfaceLazyFragmentConfig
             { lazyFragmentRootClasses = []
@@ -63,14 +60,15 @@ renderWeekOverviewLazyMount mountId fragmentUrl =
             , lazyFragmentRetryEnabled = True
             , lazyFragmentTriggerOverride = Just "load"
             }
-        FrontendSurfaceMountedFragment
-            { mountedFragmentKey = FrontendSurfaceFragmentKey "roster-week-overview" Aeson.Null
-            , mountedFragmentTargetId = mountId
-            , mountedFragmentUrl = fragmentUrl
-            , mountedFragmentProtection = FrontendSurfaceReplace
-            , mountedFragmentLazyTrigger = Just "load"
-            , mountedFragmentPlaceholderKind = Nothing
-            }
+        ( frontendSurfaceMountedFragmentFor @Surface.RosterSurface @Surface.RosterWeekOverview
+            NoSurfaceFields
+            ( surfaceField @Surface.RosterGroupId (unpackId rosterGroupId)
+                :& surfaceField @Surface.WeekOffset weekOffset
+                :& NoSurfaceFields
+            )
+            fragmentUrl
+            FrontendSurfaceReplace
+        )
         renderWeekOverviewDropdownLoading
 
 renderWeekOverviewDropdownLoading :: Html

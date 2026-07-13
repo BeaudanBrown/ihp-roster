@@ -53,6 +53,7 @@ data TypedHtmxScope
 data TypedHtmxAction
 data RawHtmxAction
 data TypedHtmxShell
+data NullableTestField
 
 type TypedHtmxSurface =
     Surface TypedHtmx
@@ -73,7 +74,7 @@ type TypedHtmxSurface =
 type ParentSurface =
     Surface Parent
         '[ Scope ParentScope '[] '[ 'NoAuth ]
-         , Fragment ParentContent '[] '[ 'ContainsSurface Child ]
+         , Fragment ParentContent '[] '[ 'MountTarget ParentContent '[], 'ContainsSurface Child ]
          ]
 
 type ChildSurface =
@@ -115,12 +116,15 @@ tests = describe "FrontendSurface DSL foundation" do
     it "resolves Surface values by owning surface and marker without registry scans" do
         (surfaceNameValue @TimesheetsSurface.TimesheetsSurface) `shouldBe` "timesheets"
         (surfaceScopeValue @TimesheetsSurface.TimesheetsSurface @TimesheetsSurface.TimesheetWeek).scopeName `shouldBe` "timesheet-week"
+        (surfaceScopeFieldName @TimesheetsSurface.TimesheetsSurface @TimesheetsSurface.TimesheetWeek @TimesheetsSurface.VenueId) `shouldBe` "venueId"
         (surfaceFragmentValue @TimesheetsSurface.TimesheetsSurface @TimesheetsSurface.TimesheetDaySection).fragmentName `shouldBe` "timesheet-day-section"
+        (surfaceFragmentFieldName @TimesheetsSurface.TimesheetsSurface @TimesheetsSurface.TimesheetDaySection @TimesheetsSurface.DayOffset) `shouldBe` "dayOffset"
         (surfaceActionValue @TimesheetsSurface.TimesheetsSurface @TimesheetsSurface.NavigateTimesheetWeek).htmxActionName `shouldBe` "navigate-timesheet-week"
         (surfaceResourceValue @TimesheetsSurface.TimesheetsSurface @TimesheetsSurface.TimesheetDay).resourceName `shouldBe` "timesheet-day"
         (surfaceDomTokenValue @TimesheetsSurface.TimesheetsSurface @TimesheetsSurface.TimesheetWeekShell) `shouldBe` "timesheet-week-shell"
         (surfaceSourceRefValue @RosterSurface.RosterDayTimelineSurface @SurfaceInteraction.DragSourceRef).sourceRefName `shouldBe` "drag-source"
         (surfaceDropzoneRefValue @RosterSurface.RosterDayTimelineSurface @SurfaceInteraction.DragDropzoneRef).dropzoneRefName `shouldBe` "drag-dropzone"
+        (surfaceIntentFieldName @LabSurface.SurfaceLabSurface @LabSurface.MoveLabCard @LabSurface.SourceItemKey) `shouldBe` "sourceItemKey"
 
     it "renders typed HTMX selector, trigger, swap, and sync syntax deterministically" do
         let surface = reflectSurfaceSpec @TypedHtmxSurface
@@ -159,6 +163,9 @@ tests = describe "FrontendSurface DSL foundation" do
             absentOptionalFields = surfaceOptionalField @TimesheetsSurface.StaffFilterId Nothing :& NoSurfaceFields
         surfaceFieldsJson absentOptionalFields `shouldBe` Aeson.object []
         surfaceFieldsText absentOptionalFields `shouldBe` []
+        let nullFields :: SurfaceFields '[ 'NullableField NullableTestField 'WireText]
+            nullFields = surfaceNullableField @NullableTestField Nothing :& NoSurfaceFields
+        surfaceFieldsJson nullFields `shouldBe` Aeson.object ["nullableTest" Aeson..= Aeson.Null]
         (surfaceActionFieldName @TimesheetsSurface.TimesheetsSurface @TimesheetsSurface.NavigateTimesheetWeek @TimesheetsSurface.WeekOffset)
             `shouldBe` "weekOffset"
 
@@ -168,7 +175,7 @@ tests = describe "FrontendSurface DSL foundation" do
         let fragment =
                 frontendSurfaceMountedFragmentFor @LabSurface.SurfaceLabSurface @LabSurface.LabPanel
                     (surfaceField @LabSurface.PanelId panelId :& NoSurfaceFields)
-                    "surface-lab-panel"
+                    NoSurfaceFields
                     "/ShowFrontendSurfaceLabPanelFragment?panelId=11111111-1111-1111-1111-111111111111"
                     ( FrontendSurfaceFocusedFieldConfig FrontendSurfaceFocusedFieldProtectionConfig
                         { focusedProtectionActiveSelector = "input[data-lab-field]:focus"
@@ -220,14 +227,13 @@ tests = describe "FrontendSurface DSL foundation" do
         Text.count "\"url\":" mountConfigJson `shouldBe` length config.mountFragments
 
     it "renders lazy fragments with canonical UI-region attrs and feature slot classes" do
-        let fragment = FrontendSurfaceMountedFragment
-                { mountedFragmentKey = FrontendSurfaceFragmentKey "lab-panel" Aeson.Null
-                , mountedFragmentTargetId = "surface-lab-panel"
-                , mountedFragmentUrl = "/ShowFrontendSurfaceLabPanelFragment"
-                , mountedFragmentProtection = FrontendSurfaceReplace
-                , mountedFragmentLazyTrigger = Just "load"
-                , mountedFragmentPlaceholderKind = Just "panel"
-                }
+        let panelId = fromMaybe (error "invalid Lab panel UUID") (UUID.fromString "11111111-1111-1111-1111-111111111111")
+        let fragment =
+                frontendSurfaceMountedFragmentFor @LabSurface.SurfaceLabSurface @LabSurface.LabPanel
+                    (surfaceField @LabSurface.PanelId panelId :& NoSurfaceFields)
+                    NoSurfaceFields
+                    "/ShowFrontendSurfaceLabPanelFragment"
+                    FrontendSurfaceReplace
         let html = cs (HtmlRenderer.renderHtml (renderFrontendSurfaceLazyFragmentWithConfig defaultFrontendSurfaceLazyFragmentConfig { lazyFragmentRootClasses = ["col-12", "col-xl-4", "surface-lab-side"] } fragment (Html5.toHtml ("Loading" :: Text))))
         html `shouldContainText` "id=\"surface-lab-panel\""
         html `shouldContainText` "class=\"col-12 col-xl-4 surface-lab-side app-lazy-surface app-lazy-surface-compact app-lazy-surface-panel\""
@@ -254,14 +260,14 @@ tests = describe "FrontendSurface DSL foundation" do
         let fragment =
                 frontendSurfaceMountedFragmentFor @LabSurface.SurfaceLabSurface @LabSurface.LabPanel
                     fields
-                    "surface-lab-panel-11111111-1111-1111-1111-111111111111"
+                    NoSurfaceFields
                     "/lab/panel?panelId=11111111-1111-1111-1111-111111111111"
                     FrontendSurfaceReplace
 
         surfaceFieldsText fields `shouldBe` [("panelId", "11111111-1111-1111-1111-111111111111")]
         key `shouldBe` FrontendSurfaceFragmentKey "lab-panel" (Aeson.object ["panelId" Aeson..= ("11111111-1111-1111-1111-111111111111" :: Text)])
         fragment.mountedFragmentKey `shouldBe` key
-        fragment.mountedFragmentTargetId `shouldBe` "surface-lab-panel-11111111-1111-1111-1111-111111111111"
+        fragment.mountedFragmentTargetId `shouldBe` surfaceFragmentTargetId @LabSurface.SurfaceLabSurface @LabSurface.LabPanel NoSurfaceFields
         fragment.mountedFragmentUrl `shouldBe` "/lab/panel?panelId=11111111-1111-1111-1111-111111111111"
 
     it "reflects the complete production Surface registry in declared order" do
@@ -292,7 +298,7 @@ tests = describe "FrontendSurface DSL foundation" do
         parent.surfaceFragments
             |> listToMaybe
             |> fmap (.fragmentOptions)
-            `shouldBe` Just [ContainsSurfaceOption "child"]
+            `shouldBe` Just [MountTargetOption "parent-content" [], ContainsSurfaceOption "child"]
         let fixtureContract = FrontendContractIR
                 { contractGlobals = registeredFrontendContractIR.contractGlobals
                 , contractSurfaces = reflected.contractSurfaces
@@ -317,20 +323,20 @@ tests = describe "FrontendSurface DSL foundation" do
         map (.intentName) surface.surfaceIntents `shouldBe` ["move-lab-card"]
         surface.surfaceSessions `shouldBe` ["drag"]
         surface.surfaceLayers `shouldBe` ["drag-preview"]
-        surface.surfaceDomTokens `shouldBe` ["lab-root", "lab-dropzone", "lab-panel-target", "lab-panel-include"]
+        surface.surfaceDomTokens `shouldBe` ["lab-root", "lab-dropzone", "lab-panel-include"]
         surface.surfaceBrowserDomTokens `shouldBe` []
         map (fst . schemaNameAndMarker) surface.surfaceDtos `shouldBe` ["LabPayload", "LabRelatedPayload"]
         surface.surfaceFragments
             |> find (\fragment -> fragment.fragmentName == "lab-panel")
             |> fmap (.fragmentOptions)
-            `shouldBe` Just [LazyOption [TriggerOption "load", PlaceholderOption "panel"]]
+            `shouldBe` Just [MountTargetOption "surface-lab-panel" [], LazyOption [TriggerOption "load", PlaceholderOption "panel"]]
         surface.surfaceHtmxActions
             |> find (\action -> action.htmxActionName == "refresh-panel")
             |> fmap (.htmxActionOptions)
             `shouldBe` Just
                 [ TargetOption "lab-panel"
                 , HtmxOption (HtmxActionMethodIR HtmxPostIR)
-                , HtmxOption (HtmxActionTargetIR (HtmxTypedSyntaxIR "#lab-panel-target" ["lab-panel-target"]))
+                , HtmxOption (HtmxActionTargetIR (HtmxTypedSyntaxIR "#surface-lab-panel" ["surface-lab-panel"]))
                 , HtmxOption (HtmxActionSwapIR (HtmxTypedSyntaxIR "outerHTML" []))
                 , HtmxOption (HtmxActionIncludeIR (HtmxTypedSyntaxIR "#lab-panel-include" ["lab-panel-include"]))
                 , HtmxOption (HtmxActionPushUrlIR HtmxPushUrlFalseIR)
@@ -429,6 +435,11 @@ tests = describe "FrontendSurface DSL foundation" do
                        , "duplicate-roster-shift-to-day"
                        , "drop-roster-staff"
                        ]
+        ( surface.surfaceHtmxActions
+            |> find (\action -> action.htmxActionName == "navigate-roster-week")
+            |> maybe [] (.htmxActionOptions)
+            )
+            `shouldContain` [HtmxOption (HtmxActionSwapIR (HtmxTypedSyntaxIR "outerHTML" []))]
         map (.intentName) surface.surfaceIntents `shouldBe` ["set-roster-layout-mode", "move-roster-shift-to-slot", "duplicate-roster-shift-to-day", "drop-roster-staff"]
         surface.surfaceSessions `shouldBe` ["drag"]
         map (.sourceRefName) surface.surfaceSourceRefs `shouldBe` ["shift-drag-source", "staff-drag-source"]
@@ -535,7 +546,7 @@ tests = describe "FrontendSurface DSL foundation" do
         formHtml `shouldContainText` "method=\"post\""
         formHtml `shouldContainText` "action=\"/RefreshFrontendSurfaceLabPanel\""
         formHtml `shouldContainText` "hx-post=\"/RefreshFrontendSurfaceLabPanel\""
-        formHtml `shouldContainText` "hx-target=\"#lab-panel-target\""
+        formHtml `shouldContainText` "hx-target=\"#surface-lab-panel\""
         formHtml `shouldContainText` "hx-swap=\"outerHTML\""
         formHtml `shouldContainText` "hx-include=\"#lab-panel-include\""
         formHtml `shouldContainText` "hx-push-url=\"false\""

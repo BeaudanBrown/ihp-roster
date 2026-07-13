@@ -111,7 +111,7 @@ adminPageContentFragment :: FrontendSurfaceMountedFragment
 adminPageContentFragment =
     frontendSurfaceMountedFragmentFor @Surface.AdminPageSurface @Surface.AdminPageContentFragment
         NoSurfaceFields
-        "admin-page-content-fragment"
+        NoSurfaceFields
         (pathTo AdminAction)
         FrontendSurfaceReplace
 
@@ -119,7 +119,7 @@ adminXeroPageContentFragment :: FrontendSurfaceMountedFragment
 adminXeroPageContentFragment =
     frontendSurfaceMountedFragmentFor @Surface.AdminXeroPageSurface @Surface.AdminXeroPageContentFragment
         NoSurfaceFields
-        "admin-xero-page-content-fragment"
+        NoSurfaceFields
         (pathTo XeroAction)
         FrontendSurfaceReplace
 
@@ -127,7 +127,7 @@ adminVenueSettingsFragment :: FrontendSurfaceMountedFragment
 adminVenueSettingsFragment =
     frontendSurfaceMountedFragmentFor @Surface.AdminVenueSettingsSurface @Surface.AdminVenueSettingsFragment
         NoSurfaceFields
-        "admin-venue-settings-fragment"
+        NoSurfaceFields
         (pathTo ShowAdminVenueSettingsFragmentAction)
         FrontendSurfaceReplace
 
@@ -135,7 +135,7 @@ adminInvitesFragment :: Maybe UUID.UUID -> FrontendSurfaceMountedFragment
 adminInvitesFragment maybeRosterGroupId =
     frontendSurfaceMountedFragmentFor @Surface.AdminInvitesSurface @Surface.AdminInvitesFragment
         NoSurfaceFields
-        "admin-invites-fragment"
+        NoSurfaceFields
         (appendQueryParams (pathTo ShowadminInvitesLiveFragmentAction) query)
         FrontendSurfaceReplace
   where
@@ -145,7 +145,7 @@ adminExportsFragment :: FrontendSurfaceMountedFragment
 adminExportsFragment =
     frontendSurfaceMountedFragmentFor @Surface.AdminExportsSurface @Surface.AdminExportsFragment
         NoSurfaceFields
-        "admin-exports-fragment"
+        NoSurfaceFields
         (pathTo ShowadminExportsLiveFragmentAction)
         FrontendSurfaceReplace
 
@@ -153,7 +153,7 @@ adminShiftTypesFragment :: FrontendSurfaceMountedFragment
 adminShiftTypesFragment =
     frontendSurfaceMountedFragmentFor @Surface.AdminShiftTypesSurface @Surface.AdminShiftTypesFragment
         NoSurfaceFields
-        "admin-shift-types-fragment"
+        NoSurfaceFields
         (pathTo ShowadminShiftTypesLiveFragmentAction)
         ( FrontendSurfaceFocusedFieldConfig
             FrontendSurfaceFocusedFieldProtectionConfig
@@ -168,7 +168,7 @@ adminRosterGroupsFragment :: FrontendSurfaceMountedFragment
 adminRosterGroupsFragment =
     frontendSurfaceMountedFragmentFor @Surface.AdminRosterGroupsSurface @Surface.AdminRosterGroupsFragment
         NoSurfaceFields
-        "admin-roster-groups-fragment"
+        NoSurfaceFields
         (pathTo ShowadminRosterGroupsLiveFragmentAction)
         FrontendSurfaceReplace
 
@@ -176,7 +176,7 @@ adminXeroShellFragment :: FrontendSurfaceMountedFragment
 adminXeroShellFragment =
     frontendSurfaceMountedFragmentFor @Surface.AdminXeroSurface @Surface.AdminXeroShellFragment
         NoSurfaceFields
-        "admin-xero-fragment"
+        NoSurfaceFields
         (pathTo ShowadminXeroShellLiveFragmentAction)
         FrontendSurfaceReplace
 

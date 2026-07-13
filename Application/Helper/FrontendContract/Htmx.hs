@@ -8,20 +8,16 @@ module Application.Helper.FrontendContract.Htmx
     , HtmxActionMetadata (..)
     , HtmxMethod (..)
     , HtmxPushUrl (..)
-    , defaultHtmxActionMetadata
     , htmxActionMetadataFromOptions
     , htmxActionMetadataFromSurfaceOptions
     , htmxActionOptionAttrPairs
     , htmxCustomAttrPairs
     , htmxMethodAttr
     , htmxMethodAttrSegment
-    , htmxMethodFromText
-    , htmxMethodText
     , htmxStandardMethodText
     ) where
 
 import qualified Application.Helper.FrontendContract.IR as IR
-import qualified Data.Text as Text
 import IHP.Prelude
 
 -- | Shared generated HTMX request method vocabulary used by contract-owned
@@ -61,21 +57,6 @@ data HtmxActionMetadata = HtmxActionMetadata
     , htmxCustom    :: ![HtmxActionCustom]
     }
     deriving (Eq, Show)
-
-defaultHtmxActionMetadata :: HtmxActionMetadata
-defaultHtmxActionMetadata = HtmxActionMetadata
-    { htmxMethod = Nothing
-    , htmxTrigger = Nothing
-    , htmxInclude = Nothing
-    , htmxSync = Nothing
-    , htmxIndicator = Nothing
-    , htmxConfirm = Nothing
-    , htmxSelect = Nothing
-    , htmxTarget = Nothing
-    , htmxSwap = Nothing
-    , htmxPushUrl = Nothing
-    , htmxCustom = []
-    }
 
 htmxActionMetadataFromOptions :: [IR.HtmxActionOptionIR] -> HtmxActionMetadata
 htmxActionMetadataFromOptions options = HtmxActionMetadata
@@ -142,18 +123,6 @@ htmxMethodAttrSegment = \case
     HtmxPut -> "put"
     HtmxPatch -> "patch"
     HtmxDelete -> "delete"
-
-htmxMethodText :: HtmxMethod -> Text
-htmxMethodText = Text.toUpper . htmxMethodAttrSegment
-
-htmxMethodFromText :: Text -> Maybe HtmxMethod
-htmxMethodFromText = \case
-    "get" -> Just HtmxGet
-    "post" -> Just HtmxPost
-    "put" -> Just HtmxPut
-    "patch" -> Just HtmxPatch
-    "delete" -> Just HtmxDelete
-    _ -> Nothing
 
 htmxStandardMethodText :: HtmxMethod -> Text
 htmxStandardMethodText = \case

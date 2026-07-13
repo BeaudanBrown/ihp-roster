@@ -1,4 +1,4 @@
-# FrontendContract Surface Authoring Guide
+# FrontendSurface Authoring Guide
 
 `Application.Helper.FrontendContract.Surface` owns the type-level surface contract system
 for server-rendered interactive surfaces. New production surfaces should use this
@@ -137,7 +137,7 @@ checks after adding markers.
 
 ## Generated Interaction Registry
 
-`FrontendContract Surface` is also the source of truth for feature-specific
+`FrontendSurface` is also the source of truth for feature-specific
 browser interaction names. `InteractionContract` keeps only generic runtime
 shapes and generated DOM vocabulary. Reflection emits one minimal
 `FrontendSurfaceInteractionRegistry` containing only production-consumed source,
@@ -274,8 +274,11 @@ rendering and action routes, use `mkSurfaceImplFromValues`. It is the sole
 production constructor and derives the surface name, canonical scope key, exact
 scope/mount-state JSON, and live subscription from marker-indexed values in one
 step. Build descriptors with `frontendSurfaceMountedFragmentFor`; it derives
-fragment identity and lazy defaults from the owning Surface declaration while
-URLs, target IDs, and protection remain mount-local.
+fragment identity, the exact target ID, and lazy defaults from the owning
+Surface declaration. Every fragment declares one `MountTarget marker fields`;
+views render the same declaration through `surfaceFragmentTargetId`. Static and
+parameterized target IDs therefore share the reflection naming evaluator and
+declaration-ordered typed fields. URLs and protection remain mount-local.
 
 Pass each concrete dynamic or repeated fragment set directly to that constructor
 (or a feature helper that calls it). There is no post-construction descriptor
@@ -285,7 +288,7 @@ interaction shell; ordinary action routes remain next to their server-rendered
 views. Compile-failure tests enforce Surface, marker, and field ownership rather
 than ceremonial handler counts.
 
-Render mounts with `renderFrontendContract SurfaceMount impl body`. This emits
+Render mounts with `renderFrontendSurfaceMount impl body`. This emits
 `data-bepis-surface` and `data-bepis-surface-config`. Do not handwrite these
 attributes in feature views except in guardrail fixtures. Reflection generates a
 surface-discriminated exact `FrontendSurfaceMountConfig` parser. The only mount
@@ -324,7 +327,7 @@ successful actor responses must not carry authoritative business OOB HTML.
 
 ## Live Authorization, Resources, And Fragment Rendering
 
-Migrated `FrontendContract Surface` invalidations are semantic and surface-native:
+`FrontendSurface` invalidations are semantic and surface-native:
 transport identifies generated kebab-case surface names, generated scope DTOs,
 and generated fragment names plus typed params. Haskell emits ready-to-use mount
 subscription JSON from `Scope` plus mounted `Fragment ... Live` values;
@@ -337,7 +340,7 @@ app-specific surface/fragment names.
 `Scope` owns websocket subscription identity and authorization. Every scope must
 carry exactly one auth marker: `Authorize SomePolicy` for server-checked scopes,
 or explicit `NoAuth` for public/test-only scopes. `Web.SurfaceInvalidation`
-derives subscription authorization from the reflected `RegisteredFrontendContract Surfaces`
+derives subscription authorization from the reflected `RegisteredFrontendSurfaces`
 metadata; feature code must not add hard-coded fallback authorization for a
 surface/scope pair.
 
@@ -376,13 +379,12 @@ Runtime/domain expansion is separate from static fragment dependency planning.
 When a mutation has broad semantic effects, expand it in the producer or a small
 feature-owned helper to concrete generated resources before invalidation (for
 example, active roster-week resources for roster-affecting leave/staff changes).
-Do not encode broad fanout as a `FrontendContract Surface` custom dependency or fragment
+Do not encode broad fanout as a `FrontendSurface` custom dependency or fragment
 fanout DSL.
 
-Use direct database/read-model rendering first. There is no shared
-`Application.Helper.SurfaceProjection` cache. If profiling later proves caching
-is needed, add an explicit feature-owned read-model/cache seam or `SurfaceImpl`
-backend with viewer-aware keys, dependency versions, and tests.
+Use direct database/read-model rendering first. If profiling later proves
+caching is needed, add an explicit feature-owned read-model/cache seam or
+`SurfaceImpl` backend with viewer-aware keys, dependency versions, and tests.
 
 `MountState` models Haskell/server view state separately from the live
 subscription scope. Keep query-param or future persisted state behind a small
@@ -406,26 +408,23 @@ field names, surface names, or mutation endpoints.
 
 ## Authoring Rules
 
-Production feature surfaces have migrated to the `FrontendContract Surface` path. Do not
-start new production work with deleted typed-live compatibility concepts,
-legacy mount attributes, handwritten
-live-surface manifest DTOs, legacy registry/catalog adapters, or a shared
-`SurfaceProjection` cache. Feature-facing authoring uses
-type-level specs plus `SurfaceImpl`.
+Production feature surfaces use type-level `FrontendSurface` specs plus
+`SurfaceImpl`. Keep one reflected registry, one checked IR, generated mount
+parsers, and generated interaction/fragment registries; do not author parallel
+mount metadata, registry catalogs, or cross-feature projection caches.
 
 For a new surface or migration:
 
-1. Define the type-level spec and add it to `RegisteredFrontendContract Surfaces`.
+1. Define the type-level spec and add it to `RegisteredFrontendSurfaces`.
 2. Implement `SurfaceImpl` handlers and render mounts with runtime helpers.
 3. Move static interaction/action metadata into the spec or shared helper
    aliases, including generated source/dropzone/activation refs and their
    session/intent compatibility.
-4. Render role-specific refs with `withFrontendContract SurfaceSourceRef`,
-   `withFrontendContract SurfaceDropzoneRef`, or `withFrontendContract SurfaceActivationRef`, and
+4. Render role-specific refs with `renderFrontendSurfaceSourceRef`,
+   `renderFrontendSurfaceDropzoneRef`, or `renderFrontendSurfaceActivationRef`, and
    render intent forms through `SurfaceImpl`/runtime helpers so URLs, targets,
    swaps, sync, hidden values, and triggers remain server-owned.
-5. Render fragments directly from feature read models; do not add a
-   `SurfaceProjection` cache.
+5. Render fragments directly from feature read models.
 6. Generate contracts and update TypeScript to consume generated surface data.
 7. Add/adjust Hspec, frontend, and E2E coverage for mount discovery, duplicate
    mounts, actor-local invalidation, passive invalidation, lazy fragments, and
@@ -462,7 +461,7 @@ bash ./bin/in-env frontend-surface-compile-fail-check
 bash ./bin/in-env frontend-surface-guardrails
 bash ./bin/in-env typecheck
 bash ./bin/in-env frontend-check
-bash ./bin/in-env hspec-test --match "FrontendContract Surface"
+bash ./bin/in-env hspec-test --match "FrontendSurface"
 ```
 
 Run feature-specific Hspec/E2E checks for the migrated surface as well.

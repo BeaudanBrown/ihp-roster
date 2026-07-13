@@ -17,7 +17,6 @@ module Application.Helper.FrontendContract.Naming
     , deriveJsonFieldName
     , deriveWireTagName
     , nameToKebab
-    , nameToLowerCamel
     , nameToSnake
     , validateFrontendSurfaceNameCollisions
     , wordsFromTypeName
@@ -26,8 +25,7 @@ module Application.Helper.FrontendContract.Naming
 import qualified Data.Char as Char
 import qualified Data.List as List
 import qualified Data.Text as Text
-import Data.Typeable (Proxy (..), Typeable, tyConName, typeRep, typeRepTyCon)
-import GHC.TypeLits (KnownSymbol, symbolVal)
+import Data.Typeable (tyConName, typeRep, typeRepTyCon)
 import IHP.Prelude
 
 data FrontendSurfaceNameContext
@@ -169,9 +167,6 @@ nameToKebab = Text.intercalate "-" . wordsFromTypeName
 
 nameToSnake :: Text -> Text
 nameToSnake = Text.intercalate "_" . wordsFromTypeName
-
-nameToLowerCamel :: Text -> Text
-nameToLowerCamel = nameToLowerCamelWords . wordsFromTypeName
 
 wordsFromTypeName :: Text -> [Text]
 wordsFromTypeName name =

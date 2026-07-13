@@ -57,7 +57,6 @@ import qualified Application.Helper.FrontendContract.Interaction as Interaction
 import Application.Helper.FrontendContract.Naming (deriveDomAttributeTypeName)
 import Application.Helper.FrontendContract.Surface.ContractIR
 import Application.Helper.FrontendContract.Surface.DSL
-import Data.Kind (Type)
 import IHP.Prelude
 import qualified Text.Blaze.Html as Blaze
 import qualified Text.Blaze.Html5 as Html5

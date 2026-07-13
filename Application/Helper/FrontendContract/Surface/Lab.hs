@@ -33,6 +33,8 @@ data StaffFilterId
 data LabShell
 data LabPanel
 data PanelId
+data SurfaceLabShell
+data SurfaceLabPanel
 
 data RefreshPanel
 data MoveLabCard
@@ -79,15 +81,17 @@ type LabScopeBundle =
      ]
 
 type LabFragmentBundle =
-    '[ Fragment LabShell '[] '[ 'Eager ]
+    '[ Fragment LabShell '[] '[ 'MountTarget SurfaceLabShell '[], 'Eager ]
      , Fragment LabPanel
         '[ Field PanelId 'WireUUID ]
-        '[ 'Lazy '[ 'Trigger Load, 'Placeholder Panel ] ]
+        '[ 'MountTarget SurfaceLabPanel '[]
+         , 'Lazy '[ 'Trigger Load, 'Placeholder Panel ]
+         ]
      , Action RefreshPanel
         '[ Field PanelId 'WireUUID ]
         '[ 'Target LabPanel
          , 'HtmxMethod 'HtmxPost
-         , 'HtmxTarget ('HtmxId LabPanelTarget)
+         , 'HtmxTarget ('HtmxId SurfaceLabPanel)
          , 'HtmxSwap 'HtmxOuterHTML
          , 'HtmxInclude ('HtmxId LabPanelInclude)
          , 'HtmxPushUrl 'HtmxPushUrlFalse
@@ -109,7 +113,6 @@ type LabSharedBundle =
     '[ Event LabCommitted '[ Field PanelId 'WireUUID ]
      , DomToken LabRoot
      , DomToken LabDropzone
-     , DomToken LabPanelTarget
      , DomToken LabPanelInclude
      , Dto LabPayload
         '[ Field Label 'WireText

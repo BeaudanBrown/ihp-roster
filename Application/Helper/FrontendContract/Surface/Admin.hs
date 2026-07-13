@@ -156,7 +156,8 @@ type AdminPageSurface =
     Surface AdminPage
         '[ Scope AdminPageScope '[ Field VenueId 'WireUUID ] '[ 'Authorize 'CurrentVenueAdmin '[ VenueId ] ]
          , Fragment AdminPageContentFragment '[]
-            '[ 'Eager
+            '[ 'MountTarget AdminPageContentFragment '[]
+             , 'Eager
              , ContainsSurface AdminInvites
              , ContainsSurface AdminVenueConfig
              , ContainsSurface AdminExports
@@ -169,7 +170,8 @@ type AdminXeroPageSurface =
     Surface AdminXeroPage
         '[ Scope AdminXeroPageScope '[ Field VenueId 'WireUUID ] '[ 'Authorize 'CurrentVenueOwner '[ VenueId ] ]
          , Fragment AdminXeroPageContentFragment '[]
-            '[ 'Eager
+            '[ 'MountTarget AdminXeroPageContentFragment '[]
+             , 'Eager
              , ContainsSurface AdminXero
              ]
          ]
@@ -177,7 +179,7 @@ type AdminXeroPageSurface =
 type AdminVenueSettingsSurface =
     Surface AdminVenueConfig
         '[ Scope AdminVenueConfigScope '[ Field VenueId 'WireUUID ] '[ 'Authorize 'CurrentVenueAdmin '[ VenueId ] ]
-         , Fragment AdminVenueSettingsFragment '[] '[ 'Eager, 'Live, 'DependsOn AdminVenueSettingsResource '[ 'FromScope VenueId ] ]
+         , Fragment AdminVenueSettingsFragment '[] '[ 'MountTarget AdminVenueSettingsFragment '[], 'Eager, 'Live, 'DependsOn AdminVenueSettingsResource '[ 'FromScope VenueId ] ]
          , Action UpdateVenueConfig
             '[ Field ConfigFieldField 'WireText
              , OptionalField RosterEndTimesEnabled 'WireBool
@@ -189,13 +191,12 @@ type AdminVenueSettingsSurface =
              , 'HtmxPushUrl 'HtmxPushUrlFalse
              , 'CustomHtmx ChangeAutosaveCustomHtmx "venue setting toggles submit the containing form on change"
              ]
-         , DomToken AdminVenueSettingsFragment
          ]
 
 type AdminInvitesSurface =
     Surface AdminInvites
         '[ Scope AdminInvitesScope '[ Field VenueId 'WireUUID ] '[ 'Authorize 'CurrentVenueAdmin '[ VenueId ] ]
-         , Fragment AdminInvitesFragment '[] '[ 'Eager, 'Live, 'DependsOn AdminInvitesResource '[ 'FromScope VenueId ] ]
+         , Fragment AdminInvitesFragment '[] '[ 'MountTarget AdminInvitesFragment '[], 'Eager, 'Live, 'DependsOn AdminInvitesResource '[ 'FromScope VenueId ] ]
          , Action CreateVenueInvitation
             '[ Field Email 'WireText ]
             '[ 'HtmxMethod 'HtmxPost
@@ -208,13 +209,12 @@ type AdminInvitesSurface =
              , 'HtmxTarget ('HtmxId AdminInvitesFragment)
              , 'HtmxSwap 'HtmxNoSwap
              ]
-         , DomToken AdminInvitesFragment
          ]
 
 type AdminExportsSurface =
     Surface AdminExports
         '[ Scope AdminExportsScope '[ Field VenueId 'WireUUID ] '[ 'Authorize 'CurrentVenueAdmin '[ VenueId ] ]
-         , Fragment AdminExportsFragment '[] '[ 'Eager, 'Live, 'DependsOn AdminExportsResource '[ 'FromScope VenueId ] ]
+         , Fragment AdminExportsFragment '[] '[ 'MountTarget AdminExportsFragment '[], 'Eager, 'Live, 'DependsOn AdminExportsResource '[ 'FromScope VenueId ] ]
          , Action CreateExportJob
             '[ Field RangeStart 'WireDay
              , Field RangeEnd 'WireDay
@@ -225,13 +225,12 @@ type AdminExportsSurface =
              , 'HtmxSwap 'HtmxNoSwap
              , 'HtmxPushUrl 'HtmxPushUrlFalse
              ]
-         , DomToken AdminExportsFragment
          ]
 
 type AdminShiftTypesSurface =
     Surface AdminShiftTypes
         '[ Scope AdminShiftTypesScope '[ Field VenueId 'WireUUID ] '[ 'Authorize 'CurrentVenueAdmin '[ VenueId ] ]
-         , Fragment AdminShiftTypesFragment '[] '[ 'Eager, 'Live, 'DependsOn AdminShiftTypesResource '[ 'FromScope VenueId ] ]
+         , Fragment AdminShiftTypesFragment '[] '[ 'MountTarget AdminShiftTypesFragment '[], 'Eager, 'Live, 'DependsOn AdminShiftTypesResource '[ 'FromScope VenueId ] ]
          , Action CreateShiftType
             '[ Field ShowInactiveShiftTypes 'WireBool
              , Field Name 'WireText
@@ -302,13 +301,12 @@ type AdminShiftTypesSurface =
              , 'HtmxTarget ('HtmxId AdminShiftTypesFragment)
              , 'HtmxSwap 'HtmxOuterHTML
              ]
-         , DomToken AdminShiftTypesFragment
          ]
 
 type AdminRosterGroupsSurface =
     Surface AdminRosterGroups
         '[ Scope AdminRosterGroupsScope '[ Field VenueId 'WireUUID ] '[ 'Authorize 'CurrentVenueAdmin '[ VenueId ] ]
-         , Fragment AdminRosterGroupsFragment '[] '[ 'Eager, 'Live, 'DependsOn AdminRosterGroupsResource '[ 'FromScope VenueId ] ]
+         , Fragment AdminRosterGroupsFragment '[] '[ 'MountTarget AdminRosterGroupsFragment '[], 'Eager, 'Live, 'DependsOn AdminRosterGroupsResource '[ 'FromScope VenueId ] ]
          , Action CreateRosterGroup
             '[ Field ShowInactiveRosterGroups 'WireBool
              , Field Name 'WireText
@@ -354,13 +352,12 @@ type AdminRosterGroupsSurface =
              , 'HtmxSwap 'HtmxOuterHTML
              , 'HtmxPushUrl 'HtmxPushUrlFalse
              ]
-         , DomToken AdminRosterGroupsFragment
          ]
 
 type AdminXeroSurface =
     Surface AdminXero
         '[ Scope AdminXeroScope '[ Field VenueId 'WireUUID ] '[ 'Authorize 'CurrentVenueOwner '[ VenueId ] ]
-         , Fragment AdminXeroShellFragment '[] '[ 'Eager, 'Live, 'DependsOn XeroConnectionResource '[ 'FromScope VenueId ] ]
+         , Fragment AdminXeroShellFragment '[] '[ 'MountTarget AdminXeroFragment '[], 'Eager, 'Live, 'DependsOn XeroConnectionResource '[ 'FromScope VenueId ] ]
          , Action SyncXeroPayrollReferenceData
             '[]
             '[ 'HtmxMethod 'HtmxPost
@@ -376,6 +373,5 @@ type AdminXeroSurface =
              , 'HtmxTarget ('HtmxId XeroPreparationStaffMappings)
              , 'HtmxSwap 'HtmxOuterHTML
              ]
-         , DomToken AdminXeroFragment
          , DomToken XeroPreparationStaffMappings
          ]

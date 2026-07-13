@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { gotoWhenReady, loginAsPrivilegedUserWithSeededPasskeySession, openAdminWithSeededPasskeySession, openRoster, runSql } from './test-helpers';
+import { E2E_TIMEOUT, gotoWhenReady, loginAsPrivilegedUserWithSeededPasskeySession, openAdminWithSeededPasskeySession, openRoster, runSql } from './test-helpers';
 
 const venueId = 'a1000000-0000-0000-0000-000000000001';
 const rosterGroupId = 'a1000000-0000-0000-0000-000000000211';
@@ -140,22 +140,22 @@ test.describe('Admin and roster UI polish', () => {
         await gotoWhenReady(page, `/EditStaff?staffId=${staffId}&weekOffset=0&rosterGroupId=${rosterGroupId}&section=profile`, '#staff-sections');
 
         const roleSelect = page.locator('#staff-edit-form select[name="venueRole"]');
-        await expect(roleSelect).toBeVisible({ timeout: 3_000 });
+        await expect(roleSelect).toBeVisible({ timeout: E2E_TIMEOUT.assertion });
         await expect(roleSelect).toHaveValue('worker');
         await expect(roleSelect.locator('option')).toContainText(['Worker', 'Manager', 'Venue Admin']);
 
-        await page.locator('#staff-profile-leave-heading button').click({ timeout: 3_000 });
-        await expect(page.locator('#staff-leave-request-form')).toBeVisible({ timeout: 3_000 });
+        await page.locator('#staff-profile-leave-heading button').click({ timeout: E2E_TIMEOUT.action });
+        await expect(page.locator('#staff-leave-request-form')).toBeVisible({ timeout: E2E_TIMEOUT.assertion });
 
         const startDateBefore = await page.locator('#staff-leave-request-form input[name="startDate"]').inputValue();
         const endDateBefore = await page.locator('#staff-leave-request-form input[name="endDate"]').inputValue();
         const note = `e2e staff modal unavailable ${Date.now()}`;
-        await page.locator('#staff-leave-request-form textarea[name="notes"]').fill(note, { timeout: 3_000 });
-        await page.locator('#staff-leave-request-form button[type="submit"]').click({ timeout: 3_000 });
+        await page.locator('#staff-leave-request-form textarea[name="notes"]').fill(note, { timeout: E2E_TIMEOUT.action });
+        await page.locator('#staff-leave-request-form button[type="submit"]').click({ timeout: E2E_TIMEOUT.action });
 
-        await expect(page.locator('#staff-leave-requests-list-fragment')).toContainText(note, { timeout: 3_000 });
-        await expect(page.locator('#staff-leave-request-form textarea[name="notes"]')).toHaveValue('', { timeout: 3_000 });
-        await expect(page.locator('#staff-leave-request-form input[name="startDate"]')).toHaveValue(startDateBefore, { timeout: 3_000 });
-        await expect(page.locator('#staff-leave-request-form input[name="endDate"]')).toHaveValue(endDateBefore, { timeout: 3_000 });
+        await expect(page.locator('#staff-leave-requests-list-fragment')).toContainText(note, { timeout: E2E_TIMEOUT.assertion });
+        await expect(page.locator('#staff-leave-request-form textarea[name="notes"]')).toHaveValue('', { timeout: E2E_TIMEOUT.assertion });
+        await expect(page.locator('#staff-leave-request-form input[name="startDate"]')).toHaveValue(startDateBefore, { timeout: E2E_TIMEOUT.assertion });
+        await expect(page.locator('#staff-leave-request-form input[name="endDate"]')).toHaveValue(endDateBefore, { timeout: E2E_TIMEOUT.assertion });
     });
 });

@@ -11,7 +11,9 @@ import qualified Application.Helper.FrontendContract.Surface.Admin as Surface
 import Application.Helper.FrontendContract.Surface.Runtime (FrontendSurfaceActionRoute (..),
                                                             renderFrontendSurfaceActionForm,
                                                             renderFrontendSurfaceMount)
-import Application.Helper.FrontendContract.Surface.Values (surfaceActionValue)
+import Application.Helper.FrontendContract.Surface.Values (SurfaceFields (NoSurfaceFields),
+                                                           surfaceActionValue,
+                                                           surfaceFragmentTargetId)
 import Application.Helper.UiRegion (UiRegionTransitionProfile (..))
 import qualified Text.Blaze.Html as Blaze
 import Text.Blaze.Html ((!))
@@ -62,7 +64,7 @@ renderInvitesSectionFragmentWithSwap :: Maybe Text -> [VenueInvitation] -> Id Ro
 renderInvitesSectionFragmentWithSwap maybeSwapOob invitations rosterGroupId =
     renderFrontendSurfaceMount (adminInvitesSurfaceImpl AdminVenueScopeValue { adminVenueId = currentVenueScopeId, adminRosterGroupId = Just (unpackId rosterGroupId) }) $
         Html5.div
-            ! attr "id" "admin-invites-fragment"
+            ! attr "id" (surfaceFragmentTargetId @Surface.AdminInvitesSurface @Surface.AdminInvitesFragment NoSurfaceFields)
             ! maybeAttr "hx-swap-oob" maybeSwapOob
             ! uiRegionTransitionAttrs UiRegionTransitionFade
             $ renderInvitesSection invitations rosterGroupId

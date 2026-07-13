@@ -25,16 +25,6 @@ WHERE venue_id IN ('a1000000-0000-0000-0000-000000000001', 'a1000000-0000-0000-0
 DELETE FROM shift_type_pay_versions
 WHERE venue_id IN ('a1000000-0000-0000-0000-000000000001', 'a1000000-0000-0000-0000-000000000002');
 
-DELETE FROM report_definition_shift_type_filters
-WHERE report_definition_id IN (
-    SELECT id
-    FROM report_definitions
-    WHERE venue_id IN ('a1000000-0000-0000-0000-000000000001', 'a1000000-0000-0000-0000-000000000002')
-);
-
-DELETE FROM report_definitions
-WHERE venue_id IN ('a1000000-0000-0000-0000-000000000001', 'a1000000-0000-0000-0000-000000000002');
-
 DELETE FROM day_names
 WHERE venue_id IN ('a1000000-0000-0000-0000-000000000001', 'a1000000-0000-0000-0000-000000000002');
 
@@ -691,28 +681,6 @@ ON CONFLICT (id) DO UPDATE SET
     locked_at = EXCLUDED.locked_at,
     locked_by_user_id = EXCLUDED.locked_by_user_id,
     updated_at = NOW();
-
-INSERT INTO report_definitions (id, venue_id, slug, name, description, engine, sort_order, is_active)
-VALUES
-    ('a1000000-0000-0000-0000-000000000191', 'a1000000-0000-0000-0000-000000000001', 'wage', 'Wage Report', 'Hourly staff count breakdown per day (ZIP of CSVs)', 'hourly_breakdown_zip', 10, TRUE),
-    ('a1000000-0000-0000-0000-000000000192', 'a1000000-0000-0000-0000-000000000001', 'staff_hours', 'Staff Hours Report', 'Staff hours broken down by pay level and day', 'staff_pay_csv', 20, TRUE),
-    ('a1000000-0000-0000-0000-000000000193', 'a1000000-0000-0000-0000-000000000001', 'kitchen', 'Kitchen Report', 'Kitchen staff hours by day', 'staff_pay_csv', 30, TRUE),
-    ('a1000000-0000-0000-0000-000000000194', 'a1000000-0000-0000-0000-000000000002', 'beta_hours', 'Beta Hours', 'Beta venue report', 'staff_pay_csv', 10, TRUE)
-ON CONFLICT (id) DO UPDATE SET
-    venue_id = EXCLUDED.venue_id,
-    slug = EXCLUDED.slug,
-    name = EXCLUDED.name,
-    description = EXCLUDED.description,
-    engine = EXCLUDED.engine,
-    sort_order = EXCLUDED.sort_order,
-    is_active = EXCLUDED.is_active;
-
-INSERT INTO report_definition_shift_type_filters (id, report_definition_id, shift_type_id)
-VALUES
-    ('a1000000-0000-0000-0000-000000000201', 'a1000000-0000-0000-0000-000000000193', 'a1000000-0000-0000-0000-000000000132')
-ON CONFLICT (id) DO UPDATE SET
-    report_definition_id = EXCLUDED.report_definition_id,
-    shift_type_id = EXCLUDED.shift_type_id;
 
 INSERT INTO roster_groups (id, venue_id, name, sort_order, is_active, is_default)
 VALUES

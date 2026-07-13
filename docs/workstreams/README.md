@@ -35,29 +35,10 @@ for forward-looking design.
 - `schema-hardening.md` - V1 schema hardening.
 - `subscription-billing.md` - per-venue Stripe Billing subscriptions.
 - `maintenance.md` - cross-cutting refactors and doc/agent cleanup.
-- `live-surface-architecture.md` - historical typed live-fragment surface
-  ergonomics; superseded by generated `FrontendSurface` runtime docs.
-- `strict-live-surface-overhaul.md` - historical removal plan for the old
-  live-surface compatibility/manual authoring layer; superseded by
-  `Application/Helper/FrontendContract/Surface/README.md`.
-- `live-update-runtime-simplification.md` - historical cleanup of internal
-  live-update compatibility primitives; current behavior lives in
-  `Application/Helper/LiveUpdate.SPEC.md` and FrontendSurface docs.
-- `typed-interaction-surfaces.md` - generated `FrontendSurface` interaction
-  refs, disposable layers, generated intent contracts, and HTMX form bridge.
 - `bepis-component-pipelines.md` - typed Bepis component pipelines for action
   contracts, mutations, scope/audit/realtime evidence, and generated facts.
 - `bepis-effect-evidence-finalization.md` - final no-legacy Bepis runtime fact
   model where actual effect helpers emit typed facts and telemetry.
-- `frontend-codec-contracts.md` - historical/superseded codec/schema-first
-  replacement history for handwritten TypeScript contract emission; do not use
-  as an implementation guide.
-- `generic-frontend-contracts.md` - historical/superseded DTO-codec history;
-  current browser contracts live under `Application.Helper.FrontendContract`.
-- `type-level-frontend-surfaces.md` - implementation record for fully type-level
-  FrontendSurface specs, the current single reflection evaluator/generator,
-  `SurfaceImpl` runtime replacement for typed live-surface authoring, and the
-  retired GHC API extraction path.
 - `opentelemetry-observability.md` - OpenTelemetry traces, agent profile
   artifacts, production trace/log capture, and tailnet Grafana viewing.
 - `backlog.md` - smaller open streams that do not yet need dedicated files.

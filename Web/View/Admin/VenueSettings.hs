@@ -13,7 +13,9 @@ import Application.Helper.FrontendContract.Surface.Runtime (FrontendSurfaceActio
                                                             FrontendSurfaceCustomHtmxAttrs (..),
                                                             renderFrontendSurfaceActionForm,
                                                             renderFrontendSurfaceMount)
-import Application.Helper.FrontendContract.Surface.Values (surfaceActionValue)
+import Application.Helper.FrontendContract.Surface.Values (SurfaceFields (NoSurfaceFields),
+                                                           surfaceActionValue,
+                                                           surfaceFragmentTargetId)
 import Application.Helper.TimeRules (venueTimePickerFinalSelectableTimeText,
                                      venueTimePickerStartTimeText)
 import Web.Admin.FrontendSurface (AdminVenueScopeValue (..),
@@ -22,7 +24,7 @@ import Web.View.Admin.Common
 import Web.View.Prelude
 
 adminVenueSettingsFragmentId :: Text
-adminVenueSettingsFragmentId = "admin-venue-settings-fragment"
+adminVenueSettingsFragmentId = surfaceFragmentTargetId @Surface.AdminVenueSettingsSurface @Surface.AdminVenueSettingsFragment NoSurfaceFields
 
 currentVenueScopeId :: (?context :: ControllerContext) => UUID
 currentVenueScopeId =

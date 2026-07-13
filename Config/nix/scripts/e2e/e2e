@@ -10,6 +10,13 @@ BASE_E2E_DATABASE_NAME="${TEST_DATABASE_NAME:-app_e2e}"
 export E2E_RUN_ID="${E2E_RUN_ID:-$(date +%s)-$$-$RANDOM}"
 export IHP_ROSTER_E2E=1
 export E2E_TEST_TOKEN="${E2E_TEST_TOKEN:-e2e-$E2E_RUN_ID-$RANDOM}"
+# Keep Xero error-path fixtures deterministic in isolated shells without
+# loading developer or operator secrets. Fixture tokens are intentionally not
+# encrypted with this local-only key.
+export XERO_CLIENT_ID="${XERO_CLIENT_ID:-e2e-client}"
+export XERO_CLIENT_SECRET="${XERO_CLIENT_SECRET:-e2e-secret}"
+export XERO_REDIRECT_URI="${XERO_REDIRECT_URI:-http://127.0.0.1/xero/callback}"
+export XERO_TOKEN_ENCRYPTION_KEY="${XERO_TOKEN_ENCRYPTION_KEY:-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=}"
 E2E_SHARDS_MAX="${E2E_SHARDS_MAX:-8}"
 case "$E2E_SHARDS_MAX" in
     ""|*[!0-9]*)

@@ -165,8 +165,6 @@ Work:
 
 - Update `Web/View/AGENTS.md` nav order.
 - Update root `AGENTS.md` frontend asset list.
-- Annotate old CDN findings in `docs/archive/plans/59-code-smell-remediation.md` if they are
-  still presented as active work.
 
 Ticket: `ir-e3o5`
 

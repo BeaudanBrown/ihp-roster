@@ -13,14 +13,16 @@ import qualified Application.Helper.FrontendContract.Surface.Admin as Surface
 import Application.Helper.FrontendContract.Surface.Runtime (FrontendSurfaceActionRoute (..),
                                                             renderFrontendSurfaceActionForm,
                                                             renderFrontendSurfaceMount)
-import Application.Helper.FrontendContract.Surface.Values (surfaceActionValue)
+import Application.Helper.FrontendContract.Surface.Values (SurfaceFields (NoSurfaceFields),
+                                                           surfaceActionValue,
+                                                           surfaceFragmentTargetId)
 import Web.Admin.FrontendSurface (AdminVenueScopeValue (..),
                                   adminExportsSurfaceImpl)
 import Web.View.Admin.Common
 import Web.View.Prelude
 
 adminExportsFragmentId :: Text
-adminExportsFragmentId = "admin-exports-fragment"
+adminExportsFragmentId = surfaceFragmentTargetId @Surface.AdminExportsSurface @Surface.AdminExportsFragment NoSurfaceFields
 
 currentVenueScopeId :: (?context :: ControllerContext) => UUID
 currentVenueScopeId =

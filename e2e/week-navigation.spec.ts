@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { gotoWhenReady, loginAs, openRoster } from './test-helpers';
+import { gotoWhenReady, loginAs, openRoster, waitForRosterWeekShell } from './test-helpers';
 
 test.describe('Week navigation', () => {
     test('roster week pager swaps the shell without a full page navigation', async ({ page }) => {
@@ -13,7 +13,7 @@ test.describe('Week navigation', () => {
 
         await page.getByRole('link', { name: 'Next week' }).click();
         await expect(page).toHaveURL(/ShowRosterWeek/);
-        await expect(page.locator('#roster-week-shell')).toBeVisible();
+        await waitForRosterWeekShell(page);
 
         const marker = await page.evaluate(() => window.__rosterWeekNavMarker);
         expect(marker).toBe('still-here');

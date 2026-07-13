@@ -16,7 +16,9 @@ import Application.Helper.FrontendContract.Surface.Runtime (FrontendSurfaceActio
                                                             renderFrontendSurfaceActionForm,
                                                             renderFrontendSurfaceMount)
 import qualified Application.Helper.FrontendContract.Surface.Timesheets as Surface
-import Application.Helper.FrontendContract.Surface.Values (surfaceActionValue)
+import Application.Helper.FrontendContract.Surface.Values (SurfaceFields (NoSurfaceFields),
+                                                           surfaceActionValue,
+                                                           surfaceFragmentTargetId)
 import Application.Helper.Url (appendQueryParams)
 import Data.Time.Calendar (diffDays)
 import Web.RosterWeeks.Types (RosterStaffSelfServicePanel (..))
@@ -32,7 +34,8 @@ rosterStaffSelfServicePanelFragmentId :: Text
 rosterStaffSelfServicePanelFragmentId = "roster-staff-self-service-panel-fragment"
 
 rosterStaffSelfServiceLeaveFormFragmentId :: Text
-rosterStaffSelfServiceLeaveFormFragmentId = "roster-staff-self-service-leave-form-fragment"
+rosterStaffSelfServiceLeaveFormFragmentId =
+    surfaceFragmentTargetId @RosterSurface.RosterSurface @RosterSurface.RosterStaffSelfServiceLeaveFormFragment NoSurfaceFields
 
 rosterStaffSelfServiceTimesheetSurfaceId :: Text
 rosterStaffSelfServiceTimesheetSurfaceId = "roster-staff-self-service-timesheet-live-surface"

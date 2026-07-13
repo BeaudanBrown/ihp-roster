@@ -24,9 +24,6 @@ import Web.Controller.Prelude
 import Web.Timesheets.Paths (timesheetDayColumnsFragmentUrl,
                              timesheetDaySectionFragmentUrl,
                              timesheetToolbarFragmentUrl)
-import Web.View.Timesheets.Index (timesheetDayColumnsId,
-                                  timesheetDaySectionDomId,
-                                  timesheetWeekToolbarId)
 
 -- | Logical live invalidation scope. Filter/query state intentionally lives in
 -- 'TimesheetsMountStateValue' instead of the scope so a future mount-state store
@@ -100,7 +97,7 @@ timesheetToolbarMountedFragment :: TimesheetsMountStateValue -> Int -> FrontendS
 timesheetToolbarMountedFragment mountState weekOffset =
     frontendSurfaceMountedFragmentFor @Surface.TimesheetsSurface @Surface.TimesheetToolbar
         NoSurfaceFields
-        timesheetWeekToolbarId
+        NoSurfaceFields
         (timesheetToolbarFragmentUrl weekOffset mountState.timesheetsMountShowApproved mountState.timesheetsMountShowAllStaff mountState.timesheetsMountStaffFilterId)
         FrontendSurfaceReplace
 
@@ -108,7 +105,7 @@ timesheetDayColumnsMountedFragment :: TimesheetsMountStateValue -> Int -> Fronte
 timesheetDayColumnsMountedFragment mountState weekOffset =
     frontendSurfaceMountedFragmentFor @Surface.TimesheetsSurface @Surface.TimesheetDayColumns
         NoSurfaceFields
-        timesheetDayColumnsId
+        NoSurfaceFields
         (timesheetDayColumnsFragmentUrl weekOffset mountState.timesheetsMountShowApproved mountState.timesheetsMountShowAllStaff mountState.timesheetsMountStaffFilterId)
         FrontendSurfaceReplace
 
@@ -116,6 +113,6 @@ timesheetDaySectionMountedFragment :: TimesheetsMountStateValue -> Int -> Int ->
 timesheetDaySectionMountedFragment mountState weekOffset dayOffset =
     frontendSurfaceMountedFragmentFor @Surface.TimesheetsSurface @Surface.TimesheetDaySection
         (surfaceField @Surface.DayOffset dayOffset :& NoSurfaceFields)
-        (timesheetDaySectionDomId dayOffset)
+        (surfaceField @Surface.DayOffset dayOffset :& NoSurfaceFields)
         (timesheetDaySectionFragmentUrl weekOffset dayOffset mountState.timesheetsMountShowApproved mountState.timesheetsMountShowAllStaff mountState.timesheetsMountStaffFilterId)
         FrontendSurfaceReplace

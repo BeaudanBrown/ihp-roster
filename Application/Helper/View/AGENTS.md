@@ -11,8 +11,9 @@ Read this before editing shared view helpers under `Application/Helper/View/`.
 - Shared forms should usually render fields plus the `<form>` wrapper; overlay
   footers own save/cancel buttons.
 - For typed interaction-surface helpers, read
-  `docs/workstreams/typed-interaction-surfaces.md` first. Helpers should render
-  `data-bepis-*` attrs and HTMX intent forms from typed Haskell contracts rather
+  `Application/Helper/Interaction.SPEC.md` and
+  `Application/Helper/FrontendContract/Surface/README.md` first. Helpers should
+  render `data-bepis-*` attrs and HTMX intent forms from typed Haskell contracts rather
   than accepting free-text surface/layer/intent names from call sites.
 
 ## Module Ownership

@@ -15,7 +15,6 @@ import Application.Helper.FrontendContract.LiveUpdate
 import Application.Helper.FrontendContract.Reflect
 import Application.Helper.FrontendContract.Surface.Contracts (registeredFrontendSurfaceContractIR)
 import Application.Helper.FrontendContract.UiRegion
-import IHP.Prelude
 
 -- | Root frontend browser contract registry. Global roots live here; Surface
 -- roots are appended from the registered surface contract registry.

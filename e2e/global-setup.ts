@@ -1,4 +1,4 @@
-import { execSync } from 'child_process';
+import { execFileSync } from 'node:child_process';
 import path from 'path';
 
 export default function globalSetup() {
@@ -8,7 +8,7 @@ export default function globalSetup() {
     const dbName = process.env.TEST_DATABASE_NAME ?? 'app_e2e';
 
     console.log('E2E setup: seeding test data...');
-    execSync(`psql -h "${dbSocket}" "${dbName}" -f "${seedFile}"`, {
+    execFileSync('psql', ['-h', dbSocket, dbName, '-v', 'ON_ERROR_STOP=1', '-f', seedFile], {
         stdio: 'inherit',
     });
     console.log('E2E setup: done.');

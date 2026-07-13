@@ -184,6 +184,7 @@ data OptionIR
     | PlaceholderOption !Text
     | DependsOnOption !ResourceDependencyIR
     | DependsOnFragmentOption !Text
+    | MountTargetOption !Text ![FieldIR]
     | TargetOption !Text
     | BackedByOption !Text
     | LayerOption !Text
@@ -268,6 +269,7 @@ validateSurface surface =
         <> concatMap (validateDuplicateFields surface.surfaceName "scope" . scopeFields) surface.surfaceScopes
         <> concatMap (validateDuplicateFields surface.surfaceName "mount state" . mountStateFields) surface.surfaceMountStates
         <> concatMap (validateDuplicateFields surface.surfaceName "fragment" . fragmentParams) surface.surfaceFragments
+        <> concatMap validateFragmentMountTarget surface.surfaceFragments
         <> concatMap (validateDuplicateFields surface.surfaceName "htmx action" . htmxActionFields) surface.surfaceHtmxActions
         <> concatMap (validateDuplicateFields surface.surfaceName "intent" . intentFields) surface.surfaceIntents
         <> concatMap (validateDuplicateFields surface.surfaceName "event" . snd) surface.surfaceClientEvents
@@ -288,6 +290,13 @@ validateSurface surface =
         <> validateResourceDependencies surface
         <> validateCrossReferences surface
         <> validateActionRequestOptions surface
+
+validateFragmentMountTarget :: FragmentIR -> [ContractDiagnostic]
+validateFragmentMountTarget fragment =
+    case [fields | MountTargetOption _ fields <- fragment.fragmentOptions] of
+        [] -> [diagnostic "missing-mount-target" ("fragment " <> fragment.fragmentName <> " must declare exactly one MountTarget")]
+        [fields] -> validateDuplicateFields fragment.fragmentName "mount target" fields
+        _ -> [diagnostic "multiple-mount-targets" ("fragment " <> fragment.fragmentName <> " declares multiple MountTarget options")]
 
 validateSingleScope :: SurfaceIR -> [ContractDiagnostic]
 validateSingleScope surface =
@@ -453,6 +462,7 @@ validateWireReferences surface =
             concatMap scopeFields surface.surfaceScopes
                 <> concatMap mountStateFields surface.surfaceMountStates
                 <> concatMap fragmentParams surface.surfaceFragments
+                <> concatMap (concatMap mountTargetFields . fragmentOptions) surface.surfaceFragments
                 <> concatMap (concatMap (resourceFields . dependencyResource) . optionResourceDependencies . fragmentOptions) surface.surfaceFragments
                 <> concatMap htmxActionFields surface.surfaceHtmxActions
                 <> concatMap intentFields surface.surfaceIntents
@@ -461,6 +471,10 @@ validateWireReferences surface =
 
         validateFieldWire field =
             validateWire field.fieldName field.fieldWire
+
+        mountTargetFields = \case
+            MountTargetOption _ fields -> fields
+            _ -> []
 
         validateWire fieldName = \case
             WireRefIR name
@@ -521,7 +535,7 @@ validateCrossReferences surface =
         dropzoneNames = map (.dropzoneRefName) surface.surfaceDropzoneRefs
         eventNames = map fst surface.surfaceClientEvents
         dtoNames = map (fst . schemaNameAndMarker) surface.surfaceDtos
-        domTokenNames = surface.surfaceDomTokens
+        domTokenNames = surface.surfaceDomTokens <> [name | fragment <- surface.surfaceFragments, MountTargetOption name _ <- fragment.fragmentOptions]
         intentFields = [(intent.intentName, map (.fieldName) intent.intentFields) | intent <- surface.surfaceIntents]
 
         validateFragmentOption fragment = concatMap (validateOptionRef ("fragment " <> fragment.fragmentName)) fragment.fragmentOptions
@@ -535,6 +549,7 @@ validateCrossReferences surface =
             ModifierVariantOption variant ->
                 requireRef (owner <> " modifier variant " <> variant.modifierVariantSemantic) RefIntent intentNames variant.modifierVariantIntent
                     <> concatMap (validateOptionRef (owner <> " modifier variant " <> variant.modifierVariantSemantic <> " effect")) (concatMap snd variant.modifierVariantEffects)
+            MountTargetOption {} -> []
             TargetOption name -> requireRef owner RefFragment fragmentNames name
             BackedByOption name -> requireRef owner RefAction actionNames name
             LayerOption name -> requireRef owner RefLayer layerNames name

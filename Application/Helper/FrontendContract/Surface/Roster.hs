@@ -130,6 +130,8 @@ data RosterEndTimesConfig
 data RosterWeekBoundaryConfig
 data TimePickerConfig
 data RosterStaffSelfServiceLeaveFormFragment
+data RosterStaffPanelFragment
+data RosterWeekOverviewMount
 data StartDate
 data EndDate
 data Reason
@@ -152,7 +154,8 @@ type RosterScopeBundle =
 type RosterFragmentBundle =
     '[ Fragment RosterContent
         '[]
-        '[ 'Eager
+        '[ 'MountTarget RosterContent '[]
+         , 'Eager
          , 'Live
          , 'DependsOn RosterWeekResource '[ 'FromScope RosterGroupId, 'FromScope WeekOffset ]
          , 'DependsOn RosterEndTimesConfigResource '[ 'FromScope VenueId ]
@@ -162,7 +165,8 @@ type RosterFragmentBundle =
          ]
      , Fragment RosterGridToolbar
         '[]
-        '[ 'Eager
+        '[ 'MountTarget RosterGridToolbar '[]
+         , 'Eager
          , 'Live
          , 'DependsOn RosterWeekResource '[ 'FromScope RosterGroupId, 'FromScope WeekOffset ]
          , 'DependsOn RosterEndTimesConfigResource '[ 'FromScope VenueId ]
@@ -170,7 +174,8 @@ type RosterFragmentBundle =
          ]
      , Fragment RosterGridFrame
         '[]
-        '[ 'Eager
+        '[ 'MountTarget RosterGridFrame '[]
+         , 'Eager
          , 'Live
          , 'DependsOn RosterWeekResource '[ 'FromScope RosterGroupId, 'FromScope WeekOffset ]
          , 'DependsOn RosterEndTimesConfigResource '[ 'FromScope VenueId ]
@@ -181,16 +186,17 @@ type RosterFragmentBundle =
          , 'Contains RosterSlotsGrid
          , 'Contains RosterDaySection
          ]
-     , Fragment RosterDayColumns '[] '[ 'Eager, 'Live, 'DependsOn RosterWeekResource '[ 'FromScope RosterGroupId, 'FromScope WeekOffset ], 'DependsOn RosterEndTimesConfigResource '[ 'FromScope VenueId ], 'DependsOn RosterWeekBoundaryConfigResource '[ 'FromScope VenueId ] ]
-     , Fragment RosterDayRail '[] '[ 'Eager, 'Live, 'DependsOn RosterWeekResource '[ 'FromScope RosterGroupId, 'FromScope WeekOffset ], 'DependsOn RosterEndTimesConfigResource '[ 'FromScope VenueId ], 'DependsOn RosterWeekBoundaryConfigResource '[ 'FromScope VenueId ] ]
-     , Fragment RosterWageRail '[] '[ 'Eager, 'Live, 'DependsOn RosterWeekResource '[ 'FromScope RosterGroupId, 'FromScope WeekOffset ], 'DependsOn RosterEndTimesConfigResource '[ 'FromScope VenueId ], 'DependsOn RosterWeekBoundaryConfigResource '[ 'FromScope VenueId ] ]
-     , Fragment RosterSlotsGrid '[] '[ 'Eager, 'Live, 'DependsOn RosterWeekResource '[ 'FromScope RosterGroupId, 'FromScope WeekOffset ], 'DependsOn RosterEndTimesConfigResource '[ 'FromScope VenueId ], 'DependsOn RosterWeekBoundaryConfigResource '[ 'FromScope VenueId ] ]
-     , Fragment RosterStaffPanel '[] '[ 'Lazy '[ 'DependsOnFragment RosterContent ], 'Live, 'DependsOn RosterWeekResource '[ 'FromScope RosterGroupId, 'FromScope WeekOffset ] ]
-     , Fragment RosterStaffSelfServiceLeaveFormFragment '[] '[ 'Eager, 'Live, 'ResyncOnly ]
-     , Fragment RosterWeekOverview '[] '[ 'Lazy '[ 'DependsOnFragment RosterContent ], 'DependsOn RosterWeekResource '[ 'FromScope RosterGroupId, 'FromScope WeekOffset ] ]
+     , Fragment RosterDayColumns '[] '[ 'MountTarget RosterDayColumns '[], 'Eager, 'Live, 'DependsOn RosterWeekResource '[ 'FromScope RosterGroupId, 'FromScope WeekOffset ], 'DependsOn RosterEndTimesConfigResource '[ 'FromScope VenueId ], 'DependsOn RosterWeekBoundaryConfigResource '[ 'FromScope VenueId ] ]
+     , Fragment RosterDayRail '[] '[ 'MountTarget RosterDayRail '[], 'Eager, 'Live, 'DependsOn RosterWeekResource '[ 'FromScope RosterGroupId, 'FromScope WeekOffset ], 'DependsOn RosterEndTimesConfigResource '[ 'FromScope VenueId ], 'DependsOn RosterWeekBoundaryConfigResource '[ 'FromScope VenueId ] ]
+     , Fragment RosterWageRail '[] '[ 'MountTarget RosterWageRail '[], 'Eager, 'Live, 'DependsOn RosterWeekResource '[ 'FromScope RosterGroupId, 'FromScope WeekOffset ], 'DependsOn RosterEndTimesConfigResource '[ 'FromScope VenueId ], 'DependsOn RosterWeekBoundaryConfigResource '[ 'FromScope VenueId ] ]
+     , Fragment RosterSlotsGrid '[] '[ 'MountTarget RosterSlotsGrid '[], 'Eager, 'Live, 'DependsOn RosterWeekResource '[ 'FromScope RosterGroupId, 'FromScope WeekOffset ], 'DependsOn RosterEndTimesConfigResource '[ 'FromScope VenueId ], 'DependsOn RosterWeekBoundaryConfigResource '[ 'FromScope VenueId ] ]
+     , Fragment RosterStaffPanel '[] '[ 'MountTarget RosterStaffPanelFragment '[], 'Lazy '[ 'DependsOnFragment RosterContent ], 'Live, 'DependsOn RosterWeekResource '[ 'FromScope RosterGroupId, 'FromScope WeekOffset ] ]
+     , Fragment RosterStaffSelfServiceLeaveFormFragment '[] '[ 'MountTarget RosterStaffSelfServiceLeaveFormFragment '[], 'Eager, 'Live, 'ResyncOnly ]
+     , Fragment RosterWeekOverview '[] '[ 'MountTarget RosterWeekOverviewMount '[ Field RosterGroupId 'WireUUID, Field WeekOffset 'WireInt ], 'Lazy '[ 'DependsOnFragment RosterContent ], 'DependsOn RosterWeekResource '[ 'FromScope RosterGroupId, 'FromScope WeekOffset ] ]
      , Fragment RosterDaySection
         '[ Field RosterDayId 'WireUUID ]
-        '[ 'Lazy '[ 'DependsOnFragment RosterGridFrame, 'Contains RosterRow ]
+        '[ 'MountTarget RosterDaySection '[ Field RosterDayId 'WireUUID ]
+         , 'Lazy '[ 'DependsOnFragment RosterGridFrame, 'Contains RosterRow ]
          , 'Live
          , 'DependsOn RosterDayResource '[ 'FromFragment RosterDayId ]
          , 'DependsOn RosterEndTimesConfigResource '[ 'FromScope VenueId ]
@@ -200,7 +206,8 @@ type RosterFragmentBundle =
         '[ Field RosterDayId 'WireUUID
          , Field RowIndex 'WireInt
          ]
-        '[ 'Lazy '[ 'DependsOnFragment RosterDaySection ]
+        '[ 'MountTarget RosterRow '[ Field RosterDayId 'WireUUID, Field RowIndex 'WireInt ]
+         , 'Lazy '[ 'DependsOnFragment RosterDaySection ]
          , 'Live
          , 'DependsOn RosterDayResource '[ 'FromFragment RosterDayId ]
          , 'DependsOn RosterEndTimesConfigResource '[ 'FromScope VenueId ]
@@ -215,6 +222,7 @@ type RosterActionBundle =
          ]
         '[ 'HtmxMethod 'HtmxGet
          , 'HtmxTarget ('HtmxId RosterWeekShell)
+         , 'HtmxSwap 'HtmxOuterHTML
          , 'HtmxPushUrl 'HtmxPushUrlTrue
          , 'HtmxSync ('HtmxSyncOn ('HtmxId RosterWeekShell) 'HtmxSyncReplace)
          ]
@@ -377,7 +385,8 @@ type RosterDayTimelineScopeBundle =
 type RosterDayTimelineFragmentBundle =
     '[ Fragment RosterDayTimelineContent
         '[ Field RosterDayId 'WireUUID ]
-        '[ 'Eager
+        '[ 'MountTarget RosterDayTimelineContent '[ Field RosterDayId 'WireUUID ]
+         , 'Eager
          , 'Live
          , 'DependsOn RosterDayResource '[ 'FromFragment RosterDayId ]
          , 'DependsOn RosterEndTimesConfigResource '[ 'FromScope VenueId ]

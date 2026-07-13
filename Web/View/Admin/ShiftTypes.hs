@@ -39,7 +39,7 @@ renderShiftTypesSection shiftTypes showInactive awardLevels awardLevelBaseRates 
 renderShiftTypesSectionFragment :: [ShiftType] -> Bool -> [AwardLevel] -> [AwardLevelBaseRate] -> [XeroImportedPayItem] -> Html
 renderShiftTypesSectionFragment shiftTypes showInactive awardLevels awardLevelBaseRates importedPayItems =
     renderFrontendSurfaceMount (adminShiftTypesSurfaceImpl AdminVenueScopeValue { adminVenueId = currentVenueScopeId, adminRosterGroupId = Nothing }) [hsx|
-        <div id="admin-shift-types-fragment">
+        <div id={surfaceFragmentTargetId @Surface.AdminShiftTypesSurface @Surface.AdminShiftTypesFragment NoSurfaceFields}>
             {renderShiftTypesSection shiftTypes showInactive awardLevels awardLevelBaseRates importedPayItems}
         </div>
     |]

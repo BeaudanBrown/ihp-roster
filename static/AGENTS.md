@@ -86,22 +86,21 @@ Read this before editing `static/` assets.
   mismatches must be reported and skipped. Live code imports only the generated
   fragment registry; interaction code imports only the generated interaction
   registry. Do not add browser mount state/load policy/duplicated resync fields,
-  raw live endpoint/header/DOM strings, `data-live-update-surface` support,
+  raw live endpoint/header/DOM strings, alternate mount protocol support,
   feature-specific live transport switches, or a client-id DOM readiness
   attribute. Observe subscription diagnostics when E2E needs readiness.
 - Focused-field protection is owned only by the live-update runtime and consumes
-  the exact generated descriptor policy. Do not add Morphdom wrappers, IHP Auto
-  Refresh compatibility, feature-local blur queues, or fallback field-key
-  attributes. `replace` fragments must not be delayed merely because a control
+  the exact generated descriptor policy. Do not add another DOM-diff owner,
+  feature-local blur queues, or fallback field-key attributes. `replace`
+  fragments must not be delayed merely because a control
   inside them has focus.
 - Feature scripts may handle genuinely feature-specific UI behavior.
 
 ## Typed Interaction Runtime
 
-- Read `Application/Helper/Interaction.SPEC.md` before adding `data-bepis-*`
-  interaction markup or runtime behavior. Use
-  `docs/workstreams/typed-interaction-surfaces.md` only for remaining ticket
-  history while it is still active.
+- Read `Application/Helper/Interaction.SPEC.md` and
+  `Application/Helper/FrontendContract/Surface/README.md` before adding
+  `data-bepis-*` interaction markup or runtime behavior.
 - Interaction surfaces, server layers, disposable layers, item/slot/handle
   markers, intent names, intent fields, HTMX triggers, targets, and swaps should
   be rendered by Haskell helpers from typed Haskell contracts. Do not handwrite

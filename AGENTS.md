@@ -150,8 +150,10 @@ the linked repo-local `ir-*` ticket for implementation details.
   disposable-layer, intent, intent-field, and conflict-policy contracts consumed
   by TypeScript.
 - Static and frontend runtime rules live in `static/AGENTS.md` and
-  `frontend/AGENTS.md`; read `docs/workstreams/typed-interaction-surfaces.md`
-  before adding interaction runtime or `data-bepis-*` markup.
+  `frontend/AGENTS.md`; read
+  `Application/Helper/FrontendContract/Surface/README.md` and
+  `Application/Helper/Interaction.SPEC.md` before adding interaction runtime or
+  `data-bepis-*` markup.
 
 ## Roster Week Navigation
 

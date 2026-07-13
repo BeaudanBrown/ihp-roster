@@ -144,10 +144,9 @@ collision with the application `Main` while preserving reuse of the application
 graph. A changed or missing compiler/options fingerprint clears cached objects.
 HPC remains isolated under `build/TestCoverage`.
 
-Frontend contract generation and its GHC probe now retain their generator
-artifacts in dedicated build directories. The nested GHC API compilation also
-writes to those directories rather than producing `.hi` and `.o` files beside
-application sources.
+Frontend contract generation retains temporary generator artifacts in dedicated
+build directories rather than producing `.hi` and `.o` files beside application
+sources.
 
 Same-host verification on 2026-07-11 produced the following evidence:
 

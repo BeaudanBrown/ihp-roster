@@ -21,11 +21,8 @@ import Application.Helper.FrontendContract.Naming (FrontendSurfaceNameContext (.
 import Application.Helper.FrontendContract.Surface.ContractIR
 import Application.Helper.FrontendContract.Surface.DSL
 import Application.Helper.FrontendContract.Surface.Registry (RegisteredFrontendSurfaces)
-import Data.Kind (Type)
 import qualified Data.List as List
-import qualified Data.Text as Text
-import Data.Typeable (Proxy (..), Typeable, tyConName, typeRep, typeRepTyCon)
-import GHC.TypeLits (KnownSymbol, symbolVal)
+import Data.Typeable (tyConName, typeRep, typeRepTyCon)
 import IHP.Prelude
 
 reflectRegisteredFrontendSurfaces :: SurfaceContractIR
@@ -305,6 +302,8 @@ instance (ReflectResource resource, ReflectDependencySourceList sources) => Refl
         , dependencySources = reflectDependencySourceList @sources
         }
 instance Typeable marker => ReflectOption ('DependsOnFragment marker) where reflectOption = DependsOnFragmentOption (protocolName @marker FragmentName)
+instance (Typeable marker, ReflectFieldList fields) => ReflectOption ('MountTarget marker fields) where
+    reflectOption = MountTargetOption (protocolName @marker DomTokenName) (reflectFieldList @fields)
 instance Typeable marker => ReflectOption ('Target marker) where reflectOption = TargetOption (protocolName @marker FragmentName)
 instance Typeable marker => ReflectOption ('BackedBy marker) where reflectOption = BackedByOption (protocolName @marker ActionName)
 instance Typeable marker => ReflectOption ('Layer marker) where reflectOption = LayerOption (protocolName @marker LayerName)

@@ -15,9 +15,11 @@ async function loginAndOpenRoster(page: Page) {
 
 async function setHideAlreadyAssignedToday(page: Page) {
     await page.getByLabel('Roster settings').click();
+    const doubleShiftsLabel = page.locator('label[for="hide-staff-assigned-today"]');
+    await expect(doubleShiftsLabel).toBeVisible();
     await Promise.all([
         page.waitForResponse((response) => response.request().method() === 'POST' && response.url().includes('/UpdateRosterAssignmentFilters')),
-        page.getByLabel('Double shifts').check({ force: true }),
+        doubleShiftsLabel.click(),
     ]);
     await expect(page.locator('#roster-content')).toBeVisible();
 }

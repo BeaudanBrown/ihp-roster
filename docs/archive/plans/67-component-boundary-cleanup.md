@@ -1,7 +1,6 @@
 # Pipeline 67 - Component Boundary Cleanup
 
-Read after `IMPLEMENTATION_PLAN.md`, `AGENTS.md`, and
-`docs/archive/plans/59-code-smell-remediation.md`.
+Read after `IMPLEMENTATION_PLAN.md` and `AGENTS.md`.
 
 ## Goal
 
@@ -239,7 +238,6 @@ explicitly calls for it.
 Start by reading:
 - AGENTS.md
 - IMPLEMENTATION_PLAN.md
-- docs/archive/plans/59-code-smell-remediation.md
 - docs/archive/plans/67-component-boundary-cleanup.md
 - tk show ir-18tm
 - tk ready

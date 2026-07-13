@@ -1,0 +1,18 @@
+#!/usr/bin/env bash
+set -euo pipefail
+# shellcheck source=../lib/ghc.sh
+. "@scriptsRoot@/lib/ghc.sh"
+
+build_dir="${FRONTEND_CONTRACT_WARNINGS_BUILD_DIR:-$(ihp_roster_verification_build_dir)/frontend-contract-warnings}"
+ghc_opts="$(ihp_roster_ghc_opts) -Werror=unused-imports -Werror=unused-local-binds -Werror=unused-matches -Werror=incomplete-patterns -Werror=missing-methods"
+
+# Compile the complete reflected contract registry from a fresh app-owned graph.
+# Deliberately omit unused-top-binds: closed DSL marker types are consumed at the
+# type level and are reported as unused value declarations by that warning.
+rm -rf "$build_dir"
+mkdir -p "$build_dir/obj" "$build_dir/hi"
+ghc -fno-code $ghc_opts Application/Helper/FrontendContract/Contracts.hs \
+    -odir "$build_dir/obj" \
+    -hidir "$build_dir/hi"
+
+echo "frontend-contract-warnings: ok"

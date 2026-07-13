@@ -304,4 +304,7 @@ if (( ${#failed_gates[@]} > 0 )); then
 fi
 
 echo
+bash ./bin/css-stale-selector-check
+
+echo
 echo "style-audit hard gates passed"

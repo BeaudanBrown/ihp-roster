@@ -281,10 +281,6 @@
     opacity: 0.55;
 }
 
-.roster-grid .roster-time-picker-control {
-    width: 100%;
-}
-
 .time-picker-grid {
     display: grid;
     grid-template-columns: repeat(4, minmax(0, 1fr));

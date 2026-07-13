@@ -55,10 +55,18 @@ leaveDeniedSection = "denied"
 leaveArchiveSection = "archive"
 
 leaveSectionCountFragmentId, leaveSectionListFragmentId :: Text -> Text
-leaveSectionCountFragmentId section = "leave-" <> section <> "-count"
-leaveSectionListFragmentId section
-    | section == leaveArchiveSection = "leave-archive-page-content"
-    | otherwise = "leave-" <> section <> "-list"
+leaveSectionCountFragmentId section =
+    surfaceFragmentTargetId @Surface.LeaveRequestsSurface @Surface.LeaveSectionCount
+        ( surfaceField @Surface.LeaveSection section
+            :& surfaceField @Surface.LeaveTargetSuffix "count"
+            :& NoSurfaceFields
+        )
+leaveSectionListFragmentId section =
+    surfaceFragmentTargetId @Surface.LeaveRequestsSurface @Surface.LeaveSectionList
+        ( surfaceField @Surface.LeaveSection section
+            :& surfaceField @Surface.LeaveTargetSuffix (if section == leaveArchiveSection then "page-content" else "list")
+            :& NoSurfaceFields
+        )
 
 leavePendingCountFragmentId, leavePendingListFragmentId, leaveApprovedCountFragmentId, leaveApprovedListFragmentId, leaveDeniedCountFragmentId, leaveDeniedListFragmentId, leaveArchiveCountFragmentId, leaveArchiveListFragmentId :: Text
 leavePendingCountFragmentId = leaveSectionCountFragmentId leavePendingSection

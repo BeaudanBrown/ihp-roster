@@ -37,9 +37,9 @@ Read this before editing `frontend/ts/`.
 
 ## Typed Interaction Work
 
-- Start with `Application/Helper/Interaction.SPEC.md` before implementing
-  interaction-layer work. Use `docs/workstreams/typed-interaction-surfaces.md`
-  only for remaining ticket history while it is still active.
+- Start with `Application/Helper/Interaction.SPEC.md` and
+  `Application/Helper/FrontendContract/Surface/README.md` before implementing
+  interaction-layer work.
 - Author new interaction-layer browser code in TypeScript under `frontend/ts/`.
 - It may use esbuild-resolved imports, but keep project commands Nix/devenv-owned
   and avoid introducing developer-facing npm/npx workflows.
@@ -59,7 +59,7 @@ Read this before editing `frontend/ts/`.
   DOM or construct persistence URLs. Committed intents submit through
   Haskell-rendered HTMX forms. For production surfaces, closest-mount discovery
   is based on `data-bepis-surface`/`data-bepis-surface-config` only. Do not add
-  browser support for `data-live-update-surface`.
+  browser support for alternate mount protocols.
 - Generic UI region runtime may adapt HTMX lifecycle events, lazy retry UI, and
   transition classes only for `data-bepis-fragment="true"` roots rendered by
   Haskell helpers/contracts. Do not make ordinary HTMX, dialogs, validation
@@ -96,9 +96,9 @@ Read this before editing `frontend/ts/`.
   is the sole focused-field protection owner. Do not collapse these concerns
   back into the entrypoint or restore a DOM client-id readiness attribute.
 - Focused-field protection belongs to the live-update runtime. Consume the exact
-  generated policy fields without `data-live-field-key` or selector fallbacks;
-  do not add Morphdom/auto-refresh compatibility or feature-specific focus/blur
-  queues. The `replace` protection variant always remains immediately
+  generated policy fields without compatibility selector fallbacks; do not add
+  another DOM-diff owner or feature-specific focus/blur queues. The `replace`
+  protection variant always remains immediately
   replaceable.
 - Nested/composable FrontendSurface behavior must stay generic. If a parent
   fragment/region contains child surface mounts, TypeScript should reconcile

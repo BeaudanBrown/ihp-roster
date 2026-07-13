@@ -30,8 +30,8 @@ type SupportPublicHolidaysResource = Resource SupportPublicHolidays '[]
 type SupportSurface =
     Surface Support
         '[ Scope SupportPlatform '[] '[ 'Authorize 'SupportSuperAdmin '[] ]
-         , Fragment SupportAwardRates '[] '[ 'Eager, 'Live, 'DependsOn SupportAwardRatesResource '[] ]
-         , Fragment SupportPublicHolidays '[] '[ 'Eager, 'Live, 'DependsOn SupportPublicHolidaysResource '[] ]
+         , Fragment SupportAwardRates '[] '[ 'MountTarget SupportAwardRates '[], 'Eager, 'Live, 'DependsOn SupportAwardRatesResource '[] ]
+         , Fragment SupportPublicHolidays '[] '[ 'MountTarget SupportPublicHolidays '[], 'Eager, 'Live, 'DependsOn SupportPublicHolidaysResource '[] ]
          , Action CreatePublicHolidayRefreshJob
             '[]
             '[ 'HtmxMethod 'HtmxPost
@@ -44,6 +44,4 @@ type SupportSurface =
              , 'HtmxTarget ('HtmxId SupportAwardRates)
              , 'HtmxSwap 'HtmxOuterHTML
              ]
-         , DomToken SupportPublicHolidays
-         , DomToken SupportAwardRates
          ]

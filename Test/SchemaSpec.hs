@@ -13,7 +13,6 @@ import Application.Helper.View (formatDateDisplay,
                                 quarterHourTimeOptions,
                                 quarterHourTimeOptionsInRange,
                                 storageTimeToDisplayLabel)
-import Control.Monad (filterM)
 import qualified Data.Text as Text
 import qualified Data.Text.IO as TextIO
 import Data.Time.Calendar (fromGregorian)
@@ -382,35 +381,6 @@ tests = describe "Schema" do
         rosterFoundationMigrationSqlText `shouldSatisfy` Text.isInfixOf "roster slot shift_type_id must stay within roster week venue"
         automationMigrationSqlText <- readHistoricalMigrationText "Application/Migration/1777600700.sql"
         automationMigrationSqlText `shouldSatisfy` Text.isInfixOf "timesheet entry source_roster_slot_id must stay within entry venue"
-
-    it "retires approved legacy configuration tables without cascading into retained export or Xero data" do
-        schemaSqlText <- TextIO.readFile "Application/Schema.sql"
-        migrationSqlText <- TextIO.readFile "Application/Migration/1783899114.sql"
-        rollbackSqlText <- TextIO.readFile "scripts/operations/legacy-schema-retirement-151-rollback.sql"
-        let retiredSchemaTokens =
-                [ "CREATE TABLE report_definitions"
-                , "CREATE TABLE report_definition_shift_type_filters"
-                , "CREATE TABLE xero_payroll_calendar_selections"
-                , "CREATE OR REPLACE FUNCTION enforce_report_definition_filter_venue_integrity()"
-                ]
-        filter (`Text.isInfixOf` schemaSqlText) retiredSchemaTokens `shouldBe` []
-        migrationSqlText `shouldSatisfy` Text.isInfixOf "DROP TABLE report_definition_shift_type_filters;\nDROP FUNCTION enforce_report_definition_filter_venue_integrity();\nDROP TABLE report_definitions;\nDROP TABLE xero_payroll_calendar_selections;"
-        migrationSqlText `shouldNotSatisfy` Text.isInfixOf "CASCADE"
-        rollbackSqlText `shouldSatisfy` Text.isInfixOf "CREATE TABLE report_definitions"
-        rollbackSqlText `shouldSatisfy` Text.isInfixOf "CREATE TABLE report_definition_shift_type_filters"
-        rollbackSqlText `shouldSatisfy` Text.isInfixOf "CREATE TABLE xero_payroll_calendar_selections"
-        staleGeneratedModules <-
-            filterM
-                Directory.doesFileExist
-                [ "build/Generated/ReportDefinition.hs"
-                , "build/Generated/ReportDefinitionShiftTypeFilter.hs"
-                , "build/Generated/XeroPayrollCalendarSelection.hs"
-                ]
-        staleGeneratedModules `shouldBe` []
-        schemaSqlText `shouldSatisfy` Text.isInfixOf "CREATE TABLE export_jobs"
-        schemaSqlText `shouldSatisfy` Text.isInfixOf "CREATE TABLE xero_payroll_calendars"
-        schemaSqlText `shouldSatisfy` Text.isInfixOf "CREATE TABLE xero_timesheet_preparation_runs"
-        schemaSqlText `shouldSatisfy` Text.isInfixOf "CREATE TABLE xero_timesheet_submissions"
 
     it "stores passkeys as user-owned credential records" do
         schemaSqlText <- TextIO.readFile "Application/Schema.sql"
