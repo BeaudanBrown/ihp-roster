@@ -91,7 +91,7 @@ Start Bepis before launching the emulator:
 ```bash
 bash ./bin/in-env dev-start
 bash ./bin/in-env dev-wait
-nix run .#bepis-pwa-android -- start
+just android-start
 ```
 
 The launcher uses `adb reverse` to expose the host app as
@@ -100,9 +100,9 @@ Chrome's first-run screen on a new AVD, then use **Install Bepis** or Chrome's
 **Install app** menu action.
 
 ```bash
-nix run .#bepis-pwa-android -- status
-nix run .#bepis-pwa-android -- open
-nix run .#bepis-pwa-android -- stop
+just android-status
+just android-open
+just android-stop
 ```
 
 The host must provide writable `/dev/kvm`; on NixOS this normally means KVM is

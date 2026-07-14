@@ -18,6 +18,18 @@ stop:
 status:
     dev-status
 
+android-start:
+    nix run .#bepis-pwa-android -- start
+
+android-open:
+    nix run .#bepis-pwa-android -- open
+
+android-status:
+    nix run .#bepis-pwa-android -- status
+
+android-stop:
+    nix run .#bepis-pwa-android -- stop
+
 tunnel-grill:
     ssh -N -T \
         -L 8000:localhost:8000 \
