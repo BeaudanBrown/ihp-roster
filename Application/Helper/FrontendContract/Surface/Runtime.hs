@@ -213,7 +213,6 @@ type family OptionsContainLive (options :: [PrimitiveOption]) :: Bool where
     OptionsContainLive '[] = 'False
     OptionsContainLive ('Live ': rest) = 'True
     OptionsContainLive (('Lazy nested) ': rest) = OptionsContainLive nested || OptionsContainLive rest
-    OptionsContainLive (('Effect marker nested) ': rest) = OptionsContainLive nested || OptionsContainLive rest
     OptionsContainLive (option ': rest) = OptionsContainLive rest
 
 type family IfLive (live :: Bool) (marker :: Type) (rest :: [Type]) :: [Type] where

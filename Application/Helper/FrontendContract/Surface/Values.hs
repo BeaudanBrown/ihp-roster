@@ -396,8 +396,6 @@ type family FindResourceInOptions (marker :: Type) (options :: [PrimitiveOption]
     FindResourceInOptions marker (('DependsOn ('Resource marker fields) sources) ': rest) = 'Just ('Resource marker fields)
     FindResourceInOptions marker (('Lazy nested) ': rest) =
         FirstResource (FindResourceInOptions marker nested) (FindResourceInOptions marker rest)
-    FindResourceInOptions marker (('Effect effect nested) ': rest) =
-        FirstResource (FindResourceInOptions marker nested) (FindResourceInOptions marker rest)
     FindResourceInOptions marker (option ': rest) = FindResourceInOptions marker rest
 
 type family FirstResource (left :: Maybe ResourceSpec) (right :: Maybe ResourceSpec) :: Maybe ResourceSpec where

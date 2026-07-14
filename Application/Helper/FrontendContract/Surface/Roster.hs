@@ -348,7 +348,7 @@ type RosterInteractionBundle =
                  , 'CompatibleDropzone ShiftSlotDropzone
                  , 'CompatibleDropzone DayColumnDropzone
                  , 'CompatibleDropzone DeleteShiftDropzone
-                 , 'ModifierVariant Copy DuplicateRosterShiftToDay '[ 'Effect CloneShadowCopy '[ 'Layer DragPreviewLayer ], 'Effect DropzoneHighlight '[] ]
+                 , 'ModifierVariant Copy DuplicateRosterShiftToDay '[ CloneShadowCopy DragPreviewLayer, DropzoneHighlight ]
                  ]
             , SourceRef StaffDragSource
                 '[ 'SessionOption DragSession

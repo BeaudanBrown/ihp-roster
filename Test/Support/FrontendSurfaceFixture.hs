@@ -19,6 +19,8 @@ module Test.Support.FrontendSurfaceFixture
     ) where
 
 import Application.Helper.FrontendContract.Surface.DSL
+import Application.Helper.FrontendContract.Surface.Interaction (CloneShadow,
+                                                                DropzoneHighlight)
 
 -- This fixture deliberately stays outside RegisteredFrontendSurfaces. It gives
 -- reflection, runtime, generator, and compile-failure tests a declaration-rich
@@ -46,8 +48,6 @@ data TargetDropzoneKey
 
 data DragSession
 data DragPreview
-data CloneShadow
-data DropzoneHighlight
 
 data Dialog
 data FixtureCommitted
@@ -107,7 +107,7 @@ type FixtureInteractionBundle =
          , Field TargetDropzoneKey 'WireText
          ]
         '[ 'BackedBy RefreshPanel ]
-     , Session DragSession '[ 'Layer DragPreview, 'Effect CloneShadow '[ 'Layer DragPreview ], 'Effect DropzoneHighlight '[] ]
+     , Session DragSession '[ 'Layer DragPreview, 'Effect (CloneShadow DragPreview), 'Effect DropzoneHighlight ]
      , ConflictPolicy DragSession FixturePanel 'Defer
      ]
 

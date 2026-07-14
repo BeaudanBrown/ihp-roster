@@ -28,7 +28,7 @@ surfaceValue surface = Aeson.object
     , "fragments" Aeson..= map fragmentValue surface.surfaceFragments
     , "actions" Aeson..= map actionValue surface.surfaceHtmxActions
     , "intents" Aeson..= map intentValue surface.surfaceIntents
-    , "sessions" Aeson..= surface.surfaceSessions
+    , "sessions" Aeson..= map (.sessionName) surface.surfaceSessions
     , "sourceRefs" Aeson..= map (.sourceRefName) surface.surfaceSourceRefs
     , "dropzoneRefs" Aeson..= map (.dropzoneRefName) surface.surfaceDropzoneRefs
     , "activationRefs" Aeson..= map (.activationRefName) surface.surfaceActivationRefs
@@ -48,10 +48,10 @@ scopeAuthorizationValue = \case
     NoAuthIR -> Aeson.object
         [ "kind" Aeson..= ("none" :: Text)
         ]
-    AuthorizeIR policy fields -> Aeson.object
+    auth -> Aeson.object
         [ "kind" Aeson..= ("authorize" :: Text)
-        , "policy" Aeson..= policy
-        , "fields" Aeson..= fields
+        , "policy" Aeson..= maybe (error "authorized scope is missing policy IR") scopeAuthPolicyName (scopeAuthPolicy auth)
+        , "fields" Aeson..= scopeAuthFieldNames auth
         ]
 
 mountStateValue :: MountStateIR -> Aeson.Value
@@ -91,7 +91,7 @@ intentValue intent = Aeson.object
     , "name" Aeson..= intent.intentName
     , "fields" Aeson..= map fieldValue intent.intentFields
     , "backedBy" Aeson..= listToMaybe (collectOptionTexts backedByActionName intent.intentOptions)
-    , "session" Aeson..= listToMaybe (collectOptionTexts sessionName intent.intentOptions)
+    , "session" Aeson..= listToMaybe (collectOptionTexts sessionOptionName intent.intentOptions)
     ]
 
 fieldValue :: FieldIR -> Aeson.Value
@@ -153,8 +153,6 @@ allOptions = concatMap \option -> option : nestedOptions option
     where
         nestedOptions = \case
             LazyOption options -> allOptions options
-            EffectOption _ options -> allOptions options
-            ModifierVariantOption variant -> concatMap (allOptions . snd) variant.modifierVariantEffects
             _ -> []
 
 isLiveOption :: OptionIR -> Bool
@@ -202,8 +200,8 @@ backedByActionName = \case
     BackedByOption name -> Just name
     _ -> Nothing
 
-sessionName :: OptionIR -> Maybe Text
-sessionName = \case
+sessionOptionName :: OptionIR -> Maybe Text
+sessionOptionName = \case
     SessionOptionIR name -> Just name
     _ -> Nothing
 

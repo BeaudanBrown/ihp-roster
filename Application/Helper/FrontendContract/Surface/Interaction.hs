@@ -121,9 +121,11 @@ attr name value =
 -- pointer/session field vocabulary.
 data DragSession
 data DragPreviewLayer
-data CloneShadow
-data CloneShadowCopy
-data DropzoneHighlight
+
+type CloneShadow layer = 'CloneShadowEffect 'StandardCloneShadow layer
+type CloneShadowCopy layer = 'CloneShadowEffect 'CopyCloneShadow layer
+type DropzoneHighlight = 'DropzoneHighlightEffect
+
 data Copy
 data DragSourceRef
 data DragDropzoneRef
@@ -166,7 +168,7 @@ type family CompatibleDropzoneOptions (dropzoneRefs :: [Type]) :: [PrimitiveOpti
     CompatibleDropzoneOptions (dropzoneRef ': rest) = 'CompatibleDropzone dropzoneRef ': CompatibleDropzoneOptions rest
 
 type DragSessionDefinition =
-    Session DragSession '[ 'Layer DragPreviewLayer, 'Effect CloneShadow '[ 'Layer DragPreviewLayer ], 'Effect DropzoneHighlight '[] ]
+    Session DragSession '[ 'Layer DragPreviewLayer, 'Effect (CloneShadow DragPreviewLayer), 'Effect DropzoneHighlight ]
 
 type DragSourceRefFor (sourceRef :: Type) (intent :: Type) (compatibleDropzoneRefs :: [Type]) (variants :: [PrimitiveOption]) =
     SourceRef sourceRef (Concat '[ '[ 'SessionOption DragSession, 'Submits intent, 'SourceField SourceItemKey ], CompatibleDropzoneOptions compatibleDropzoneRefs, variants ])

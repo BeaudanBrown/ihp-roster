@@ -34,6 +34,7 @@ data FrontendSurfaceNameContext
     | FragmentName
     | IntentName
     | ActionName
+    | AuthorizationPolicyName
     | SessionName
     | LayerName
     | FieldName
@@ -221,6 +222,7 @@ contextSuffix = \case
     FragmentName -> Just "Fragment"
     IntentName   -> Just "Intent"
     ActionName   -> Just "Action"
+    AuthorizationPolicyName -> Just "Policy"
     SessionName  -> Just "Session"
     LayerName    -> Just "Layer"
     FieldName    -> Just "Field"

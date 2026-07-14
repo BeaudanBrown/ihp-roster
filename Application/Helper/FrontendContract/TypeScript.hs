@@ -18,7 +18,7 @@ renderFrontendContractTypeScript contract = do
     checked <- case checkedFrontendContractIR contract of
         Right value -> Right value
         Left diagnostics -> Left (Text.intercalate "\n" (fmap (.diagnosticMessage) diagnostics))
-    pure (Text.unlines (header checked <> renderDerivedSurfaceWireTypes checked.contractSurfaces <> concatMap (renderGlobal checked.contractSurfaces) checked.contractGlobals <> concatMap renderSurface checked.contractSurfaces <> renderFrontendSurfaceRuntime checked.contractSurfaces))
+    pure (Text.unlines (header checked <> renderDerivedSurfaceWireTypes checked.contractSurfaces <> concatMap renderGlobal checked.contractGlobals <> concatMap renderSurface checked.contractSurfaces <> renderFrontendSurfaceRuntime checked.contractSurfaces))
 
 data WirePrimitiveTypeScript = WirePrimitiveTypeScript
     { primitiveWire      :: !WireIR
@@ -240,8 +240,10 @@ surfaceScopeTypeName surface marker = surfaceTypePrefix surface <> typeNameFromM
 surfaceFragmentParamsTypeName :: SurfaceIR -> Text -> Text
 surfaceFragmentParamsTypeName surface marker = surfaceTypePrefix surface <> typeNameFromMarker marker <> "FragmentParams"
 
-renderGlobal :: [SurfaceIR] -> GlobalIR -> [Text]
-renderGlobal surfaces global = concatMap renderGlobalPrimitive global.globalPrimitives <> renderGlobalConvenienceGroups surfaces global
+renderGlobal :: GlobalIR -> [Text]
+renderGlobal global =
+    concatMap renderGlobalPrimitive global.globalPrimitives
+        <> concatMap (renderGlobalProjection global.globalPrimitives) [projection | GlobalProjectionIR projection <- global.globalPrimitives]
 
 renderGlobalPrimitive :: GlobalPrimitiveIR -> [Text]
 renderGlobalPrimitive = \case
@@ -259,12 +261,12 @@ renderGlobalPrimitive = \case
     GlobalFieldNameIR marker name -> ["export const " <> constName marker <> "FieldName = " <> quote name <> " as const;", ""]
     GlobalDomTokenIR marker token -> ["export const " <> constName marker <> "DomToken = " <> quote token <> " as const;", ""]
     GlobalConstantIR marker value -> ["export const " <> constName marker <> " = " <> quote value <> " as const;", ""]
+    GlobalProjectionIR _ -> []
     GlobalAppShellActionIR _ -> []
 
-renderGlobalConvenienceGroups :: [SurfaceIR] -> GlobalIR -> [Text]
-renderGlobalConvenienceGroups _ global
-    | global.globalName == "interaction" = renderInteractionDomGroup global.globalPrimitives
-    | otherwise = []
+renderGlobalProjection :: [GlobalPrimitiveIR] -> GlobalProjectionIR -> [Text]
+renderGlobalProjection primitives = \case
+    InteractionDomProjectionIR -> renderInteractionDomGroup primitives
 
 renderInteractionDomGroup :: [GlobalPrimitiveIR] -> [Text]
 renderInteractionDomGroup primitives =
@@ -383,7 +385,7 @@ renderFrontendSurfaceInteractionDefinition surface = objectLiteral
     [ ("sourceRefs", arrayLiteral (fmap renderSourceRef surface.surfaceSourceRefs))
     , ("dropzoneRefs", arrayLiteral (fmap renderDropzoneRef surface.surfaceDropzoneRefs))
     , ("activationRefs", arrayLiteral (fmap renderActivationRef surface.surfaceActivationRefs))
-    , ("sessionKinds", arrayLiteral [renderBrowserSessionKind surface session | session <- surface.surfaceSessions])
+    , ("sessionKinds", arrayLiteral (fmap renderBrowserSessionKind surface.surfaceSessions))
     ]
 
 renderSourceRef :: InteractionSourceRefIR -> Text
@@ -418,46 +420,37 @@ renderActivationRef ref = objectLiteral
     , ("trigger", quote ref.activationRefTrigger)
     ]
 
-renderBrowserSessionKind :: SurfaceIR -> Text -> Text
-renderBrowserSessionKind surface session = objectLiteral
-    [ ("kind", quote session)
-    , ("effects", renderSessionEffects surface.surfaceEffects)
+renderBrowserSessionKind :: InteractionSessionIR -> Text
+renderBrowserSessionKind session = objectLiteral
+    [ ("kind", quote session.sessionName)
+    , ("effects", renderSessionEffects session.sessionEffects)
     ]
 
-renderSessionEffects :: [(Text, [OptionIR])] -> Text
+data RenderedInteractionEffect
+    = RenderedGlobalInteractionEffect !Text
+    | RenderedContextualInteractionEffect !Text
+
+renderSessionEffects :: [InteractionEffectIR] -> Text
 renderSessionEffects effects = objectLiteral
-    [ ("global", arrayLiteral (mapMaybe renderGlobalEffect effects))
-    , ("contextual", arrayLiteral (mapMaybe renderContextualEffect effects))
+    [ ("global", arrayLiteral [rendered | RenderedGlobalInteractionEffect rendered <- renderedEffects])
+    , ("contextual", arrayLiteral [rendered | RenderedContextualInteractionEffect rendered <- renderedEffects])
     ]
+    where
+        renderedEffects = fmap renderInteractionEffect effects
 
-renderGlobalEffect :: (Text, [OptionIR]) -> Maybe Text
-renderGlobalEffect ("clone-shadow", options) = Just $ renderCloneShadowEffect "bepis-pointer-clone-shadow" (optionLayerNames options)
-renderGlobalEffect ("clone-shadow-copy", options) = Just $ renderCloneShadowEffect "bepis-pointer-clone-shadow bepis-pointer-clone-shadow-copy" (optionLayerNames options)
-renderGlobalEffect _ = Nothing
-
-renderCloneShadowEffect :: Text -> [Text] -> Text
-renderCloneShadowEffect className layers = objectLiteral
-    [ ("className", quote className)
-    , ("kind", quote "clone-shadow")
-    , ("layer", quote (fromMaybe "drag-preview" (listToMaybe layers)))
-    , ("preserveGrabOffset", "true")
-    , ("source", quote "pointer-marker")
-    ]
-
-renderContextualEffect :: (Text, [OptionIR]) -> Maybe Text
-renderContextualEffect ("dropzone-highlight", _) = Just $ objectLiteral
-    [ ("className", quote "bepis-dropzone-highlight")
-    , ("kind", quote "dropzone-highlight")
-    ]
-renderContextualEffect _ = Nothing
-
-optionLayerNames :: [OptionIR] -> [Text]
-optionLayerNames = concatMap \case
-    LayerOption name -> [name]
-    LazyOption options -> optionLayerNames options
-    EffectOption _ options -> optionLayerNames options
-    ModifierVariantOption variant -> concatMap (optionLayerNames . snd) variant.modifierVariantEffects
-    _ -> []
+renderInteractionEffect :: InteractionEffectIR -> RenderedInteractionEffect
+renderInteractionEffect effect =
+    case effect.interactionEffectLifecycle of
+        SessionGlobalEffectLifecycleIR -> RenderedGlobalInteractionEffect rendered
+        ContextualTargetEffectLifecycleIR -> RenderedContextualInteractionEffect rendered
+    where
+        rendered = objectLiteral $
+            [ ("className", quote (Text.unwords (interactionEffectClassNames effect)))
+            , ("kind", quote (interactionEffectBrowserKind effect))
+            ]
+                <> maybe [] (\layer -> [("layer", quote layer)]) effect.interactionEffectLayer
+                <> maybe [] (\preserveGrabOffset -> [("preserveGrabOffset", if preserveGrabOffset then "true" else "false")]) effect.interactionEffectPreserveGrabOffset
+                <> maybe [] (\source -> [("source", quote (interactionEffectSourceName source))]) effect.interactionEffectSource
 
 surfaceLiveFragmentNames :: SurfaceIR -> [Text]
 surfaceLiveFragmentNames surface =
@@ -470,8 +463,6 @@ optionsContainLive :: [OptionIR] -> Bool
 optionsContainLive = any \case
     LiveOption -> True
     LazyOption options -> optionsContainLive options
-    EffectOption _ options -> optionsContainLive options
-    ModifierVariantOption variant -> any (optionsContainLive . snd) variant.modifierVariantEffects
     _ -> False
 
 objectLiteral :: [(Text, Text)] -> Text

@@ -22,10 +22,13 @@ deterministic punctuation; raw syntax requires a non-empty recorded reason.
 
 Every browser root declares explicit reachability: unreachable/server-only,
 type-only, guard-only, inbound (type/guard/parser), outbound (type/encoder), or
-bidirectional. The TypeScript renderer emits only the operations justified by
-that direction. `ServerSchema`, `ServerEvent`, `ServerDomId`, and
-`ServerDomAttr` keep Haskell runtime vocabulary in the reflected IR without
-creating browser exports. A Haskell-only schema or Surface declaration remains
+bidirectional. Exceptional aggregate projections are likewise explicit checked
+IR declarations such as `ProjectInteractionDom`; the generator never selects
+behavior from a reflected root or Surface name. The TypeScript renderer emits
+only the operations justified by that direction. `ServerSchema`, `ServerEvent`,
+`ServerDomId`, and `ServerDomAttr` keep Haskell runtime vocabulary in the
+reflected IR without creating browser exports. A Haskell-only schema or Surface
+declaration remains
 available to validation, rendering, and architecture facts without
 automatically becoming browser output. Wire primitive aliases are likewise
 emitted only when a reachable browser shape uses them.
@@ -51,8 +54,11 @@ business fragments OOB.
 `InteractionContract` is intentionally generic runtime vocabulary: activation
 triggers, field presence, conflict/effect shapes, DOM attrs, values, and pointer
 field names. Browser code consumes those names through the generated
-`InteractionDom` object. Feature-specific interaction runtime data is derived
-from registered `FrontendSurface` declarations into the minimal
+`InteractionDom` object. Interaction effects lower to closed semantic IR
+carrying typed lifecycle, layer, source, option, and CSS-class choices; browser
+spellings are derived from typed markers and never recovered from effect text.
+Feature-specific interaction runtime data is derived from registered
+`FrontendSurface` declarations into the minimal
 `FrontendSurfaceInteractionRegistry`; action metadata, DTO aliases, full static
 schemas, and other server-only Surface data are not emitted. Do not add
 compatibility shim aliases that resurrect global `Interaction*` roster enums.

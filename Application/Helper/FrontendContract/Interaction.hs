@@ -23,6 +23,13 @@ module Application.Helper.FrontendContract.Interaction
     , DropzoneKey
     , ActivationRef
     , ActiveSourceRef
+    , CloneShadow
+    , CloneShadowCopy
+    , DropzoneHighlight
+    , PointerMarker
+    , BepisPointerCloneShadow
+    , BepisPointerCloneShadowCopy
+    , BepisDropzoneHighlight
     ) where
 
 import Application.Helper.FrontendContract.DSL hiding (Action, DomId, Fragment,
@@ -51,7 +58,11 @@ data PointerMarker
 
 data InteractionSessionEffect
 data CloneShadow
+data CloneShadowCopy
 data DropzoneHighlight
+data BepisPointerCloneShadow
+data BepisPointerCloneShadowCopy
+data BepisDropzoneHighlight
 data Source
 data ClassName
 data PreserveGrabOffset
@@ -136,4 +147,5 @@ type InteractionContract =
          , FieldName CurrentClientY
          , FieldName DeltaX
          , FieldName DeltaY
+         , ProjectInteractionDom
          ]

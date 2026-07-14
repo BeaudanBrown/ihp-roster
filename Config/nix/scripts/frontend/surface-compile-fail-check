@@ -78,3 +78,8 @@ expect_compile_failure \
     "Test/CompileFail/FrontendSurfaceWrongActionField.hs" \
     "does not declare field marker" \
     "RosterGroupId"
+
+expect_compile_failure \
+    "Test/CompileFail/FrontendSurfaceUnknownInteractionEffect.hs" \
+    "Expected kind" \
+    "InteractionEffect"

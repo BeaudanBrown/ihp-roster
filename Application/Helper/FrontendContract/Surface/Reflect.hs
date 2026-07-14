@@ -64,12 +64,11 @@ data ReflectedPrimitive
     | ReflectedFragment !FragmentIR
     | ReflectedHtmxAction !HtmxActionIR
     | ReflectedIntent !IntentIR
-    | ReflectedSessionWithOptions !Text ![OptionIR]
+    | ReflectedSession !InteractionSessionIR
     | ReflectedSourceRef !InteractionSourceRefIR
     | ReflectedDropzoneRef !InteractionDropzoneRefIR
     | ReflectedActivationRef !InteractionActivationRefIR
     | ReflectedLayer !Text
-    | ReflectedEffect !Text ![OptionIR]
     | ReflectedPolicy !ConflictPolicyIR
     | ReflectedLoadPolicy !Text
     | ReflectedOverlayLane !Text
@@ -154,8 +153,15 @@ instance (Typeable marker, ReflectOptionList options) => ReflectPrimitive ('Acti
             , activationRefTrigger = "click"
             }
 
-instance (Typeable marker, ReflectOptionList options) => ReflectPrimitive ('Session marker options) where
-    reflectPrimitive = ReflectedSessionWithOptions (protocolName @marker SessionName) (reflectOptionList @options)
+instance (Typeable marker, ReflectInteractionSessionOptionList options) => ReflectPrimitive ('Session marker options) where
+    reflectPrimitive =
+        let reflectedOptions = reflectInteractionSessionOptionList @options
+         in ReflectedSession InteractionSessionIR
+                { sessionMarker = typeMarker @marker
+                , sessionName = protocolName @marker SessionName
+                , sessionLayers = reflectedOptions.reflectedSessionLayers
+                , sessionEffects = reflectedOptions.reflectedSessionEffects
+                }
 
 instance (ReflectSessionSelector session, ReflectFragmentSelector fragment, ReflectConflictResolution resolution) => ReflectPrimitive ('ConflictPolicy session fragment resolution) where
     reflectPrimitive = ReflectedPolicy ConflictPolicyIR
@@ -226,20 +232,46 @@ instance ReflectScopeOption 'NoAuth where
     reflectScopeOption = NoAuthIR
 
 instance (ReflectAuthPolicy policy, ReflectMarkerList fields) => ReflectScopeOption ('Authorize policy fields) where
-    reflectScopeOption = AuthorizeIR (reflectAuthPolicy @policy) (reflectMarkerList @fields FieldName)
+    reflectScopeOption = reflectAuthPolicy @policy (reflectMarkerList @fields FieldName)
 
 class ReflectAuthPolicy (policy :: AuthPolicy) where
-    reflectAuthPolicy :: Text
+    reflectAuthPolicy :: [Text] -> ScopeAuthIR
 
-instance ReflectAuthPolicy 'CurrentVenue where reflectAuthPolicy = "current-venue"
-instance ReflectAuthPolicy 'CurrentVenueUser where reflectAuthPolicy = "current-venue-user"
-instance ReflectAuthPolicy 'CurrentVenueStaff where reflectAuthPolicy = "current-venue-staff"
-instance ReflectAuthPolicy 'CurrentVenueRosterGroup where reflectAuthPolicy = "current-venue-roster-group"
-instance ReflectAuthPolicy 'CurrentVenueAdmin where reflectAuthPolicy = "current-venue-admin"
-instance ReflectAuthPolicy 'CurrentVenueManager where reflectAuthPolicy = "current-venue-manager"
-instance ReflectAuthPolicy 'CurrentVenueOwner where reflectAuthPolicy = "current-venue-owner"
-instance ReflectAuthPolicy 'CurrentVenueAdminRosterGroup where reflectAuthPolicy = "current-venue-admin-roster-group"
-instance ReflectAuthPolicy 'SupportSuperAdmin where reflectAuthPolicy = "support-super-admin"
+instance ReflectAuthPolicy 'CurrentVenue where
+    reflectAuthPolicy [venueId] = AuthorizeCurrentVenueIR venueId
+    reflectAuthPolicy fields    = InvalidAuthorizeIR CurrentVenuePolicyIR fields
+
+instance ReflectAuthPolicy 'CurrentVenueUser where
+    reflectAuthPolicy [venueId, userId] = AuthorizeCurrentVenueUserIR venueId userId
+    reflectAuthPolicy fields = InvalidAuthorizeIR CurrentVenueUserPolicyIR fields
+
+instance ReflectAuthPolicy 'CurrentVenueStaff where
+    reflectAuthPolicy [venueId, staffId] = AuthorizeCurrentVenueStaffIR venueId staffId
+    reflectAuthPolicy fields = InvalidAuthorizeIR CurrentVenueStaffPolicyIR fields
+
+instance ReflectAuthPolicy 'CurrentVenueRosterGroup where
+    reflectAuthPolicy [venueId, rosterGroupId] = AuthorizeCurrentVenueRosterGroupIR venueId rosterGroupId
+    reflectAuthPolicy fields = InvalidAuthorizeIR CurrentVenueRosterGroupPolicyIR fields
+
+instance ReflectAuthPolicy 'CurrentVenueAdmin where
+    reflectAuthPolicy [venueId] = AuthorizeCurrentVenueAdminIR venueId
+    reflectAuthPolicy fields = InvalidAuthorizeIR CurrentVenueAdminPolicyIR fields
+
+instance ReflectAuthPolicy 'CurrentVenueManager where
+    reflectAuthPolicy [venueId] = AuthorizeCurrentVenueManagerIR venueId
+    reflectAuthPolicy fields = InvalidAuthorizeIR CurrentVenueManagerPolicyIR fields
+
+instance ReflectAuthPolicy 'CurrentVenueOwner where
+    reflectAuthPolicy [venueId] = AuthorizeCurrentVenueOwnerIR venueId
+    reflectAuthPolicy fields = InvalidAuthorizeIR CurrentVenueOwnerPolicyIR fields
+
+instance ReflectAuthPolicy 'CurrentVenueAdminRosterGroup where
+    reflectAuthPolicy [venueId, rosterGroupId] = AuthorizeCurrentVenueAdminRosterGroupIR venueId rosterGroupId
+    reflectAuthPolicy fields = InvalidAuthorizeIR CurrentVenueAdminRosterGroupPolicyIR fields
+
+instance ReflectAuthPolicy 'SupportSuperAdmin where
+    reflectAuthPolicy [] = AuthorizeSupportSuperAdminIR
+    reflectAuthPolicy fields = InvalidAuthorizeIR SupportSuperAdminPolicyIR fields
 
 class ReflectMarkerList (markers :: [Type]) where
     reflectMarkerList :: FrontendSurfaceNameContext -> [Text]
@@ -278,6 +310,48 @@ instance Typeable marker => ReflectDependencySource ('FromScope marker) where
 instance Typeable marker => ReflectDependencySource ('FromFragment marker) where
     reflectDependencySource = FromFragmentIR (protocolName @marker FieldName)
 
+class ReflectInteractionEffect (effect :: InteractionEffect) where
+    reflectInteractionEffect :: InteractionEffectIR
+
+instance Typeable layer => ReflectInteractionEffect ('CloneShadowEffect 'StandardCloneShadow layer) where
+    reflectInteractionEffect = cloneShadowEffectIR (protocolName @layer LayerName)
+
+instance Typeable layer => ReflectInteractionEffect ('CloneShadowEffect 'CopyCloneShadow layer) where
+    reflectInteractionEffect = cloneShadowCopyEffectIR (protocolName @layer LayerName)
+
+instance ReflectInteractionEffect 'DropzoneHighlightEffect where
+    reflectInteractionEffect = dropzoneHighlightEffectIR
+
+data ReflectedInteractionSessionOptions = ReflectedInteractionSessionOptions
+    { reflectedSessionLayers  :: ![Text]
+    , reflectedSessionEffects :: ![InteractionEffectIR]
+    }
+
+class ReflectInteractionSessionOptionList (options :: [InteractionSessionOption]) where
+    reflectInteractionSessionOptionList :: ReflectedInteractionSessionOptions
+
+instance ReflectInteractionSessionOptionList '[] where
+    reflectInteractionSessionOptionList = ReflectedInteractionSessionOptions [] []
+
+instance (Typeable layer, ReflectInteractionSessionOptionList rest) => ReflectInteractionSessionOptionList ('Layer layer ': rest) where
+    reflectInteractionSessionOptionList =
+        let reflectedRest = reflectInteractionSessionOptionList @rest
+         in reflectedRest { reflectedSessionLayers = protocolName @layer LayerName : reflectedRest.reflectedSessionLayers }
+
+instance (ReflectInteractionEffect effect, ReflectInteractionSessionOptionList rest) => ReflectInteractionSessionOptionList ('Effect effect ': rest) where
+    reflectInteractionSessionOptionList =
+        let reflectedRest = reflectInteractionSessionOptionList @rest
+         in reflectedRest { reflectedSessionEffects = reflectInteractionEffect @effect : reflectedRest.reflectedSessionEffects }
+
+class ReflectInteractionEffectList (effects :: [InteractionEffect]) where
+    reflectInteractionEffectList :: [InteractionEffectIR]
+
+instance ReflectInteractionEffectList '[] where
+    reflectInteractionEffectList = []
+
+instance (ReflectInteractionEffect effect, ReflectInteractionEffectList rest) => ReflectInteractionEffectList (effect ': rest) where
+    reflectInteractionEffectList = reflectInteractionEffect @effect : reflectInteractionEffectList @rest
+
 class ReflectOptionList (options :: [PrimitiveOption]) where
     reflectOptionList :: [OptionIR]
 
@@ -306,13 +380,11 @@ instance (Typeable marker, ReflectFieldList fields) => ReflectOption ('MountTarg
     reflectOption = MountTargetOption (protocolName @marker DomTokenName) (reflectFieldList @fields)
 instance Typeable marker => ReflectOption ('Target marker) where reflectOption = TargetOption (protocolName @marker FragmentName)
 instance Typeable marker => ReflectOption ('BackedBy marker) where reflectOption = BackedByOption (protocolName @marker ActionName)
-instance Typeable marker => ReflectOption ('Layer marker) where reflectOption = LayerOption (protocolName @marker LayerName)
-instance (Typeable marker, ReflectOptionList options) => ReflectOption ('Effect marker options) where reflectOption = EffectOption (protocolName @marker ActionName) (reflectOptionList @options)
-instance (Typeable semantic, Typeable intent, ReflectOptionList effects) => ReflectOption ('ModifierVariant semantic intent effects) where
+instance (Typeable semantic, Typeable intent, ReflectInteractionEffectList effects) => ReflectOption ('ModifierVariant semantic intent effects) where
     reflectOption = ModifierVariantOption InteractionModifierVariantIR
         { modifierVariantSemantic = protocolName @semantic ActionName
         , modifierVariantIntent = protocolName @intent IntentName
-        , modifierVariantEffects = effectsInOptions (reflectOptionList @effects)
+        , modifierVariantEffects = reflectInteractionEffectList @effects
         }
 instance Typeable marker => ReflectOption ('SessionOption marker) where reflectOption = SessionOptionIR (protocolName @marker SessionName)
 instance Typeable marker => ReflectOption ('Submits marker) where reflectOption = SubmitsOption (protocolName @marker IntentName)
@@ -475,12 +547,14 @@ addPrimitives primitives surface =
             ReflectedFragment fragment -> current { surfaceFragments = current.surfaceFragments <> [fragment] }
             ReflectedHtmxAction action -> current { surfaceHtmxActions = current.surfaceHtmxActions <> [action] }
             ReflectedIntent intent -> current { surfaceIntents = current.surfaceIntents <> [intent] }
-            ReflectedSessionWithOptions name options -> current { surfaceSessions = current.surfaceSessions <> [name] } |> addOptionMetadata options
+            ReflectedSession session -> current
+                { surfaceSessions = current.surfaceSessions <> [session]
+                , surfaceLayers = List.nub (current.surfaceLayers <> session.sessionLayers)
+                }
             ReflectedSourceRef ref -> current { surfaceSourceRefs = current.surfaceSourceRefs <> [ref] }
             ReflectedDropzoneRef ref -> current { surfaceDropzoneRefs = current.surfaceDropzoneRefs <> [ref] }
             ReflectedActivationRef ref -> current { surfaceActivationRefs = current.surfaceActivationRefs <> [ref] }
             ReflectedLayer name -> current { surfaceLayers = current.surfaceLayers <> [name] }
-            ReflectedEffect name options -> current { surfaceEffects = current.surfaceEffects <> [(name, options)] }
             ReflectedPolicy policy -> current { surfacePolicies = current.surfacePolicies <> [policy] }
             ReflectedLoadPolicy name -> current { surfaceLoadPolicies = current.surfaceLoadPolicies <> [name] }
             ReflectedOverlayLane name -> current { surfaceOverlayLanes = current.surfaceOverlayLanes <> [name] }
@@ -491,28 +565,6 @@ addPrimitives primitives surface =
                 , surfaceBrowserDomTokens = current.surfaceBrowserDomTokens <> [name]
                 }
             ReflectedDto marker fields -> current { surfaceDtos = current.surfaceDtos <> [RecordIR marker marker fields] }
-
-addOptionMetadata :: [OptionIR] -> SurfaceIR -> SurfaceIR
-addOptionMetadata options surface =
-    surface
-        { surfaceLayers = List.nub (surface.surfaceLayers <> layersIn options)
-        , surfaceEffects = List.nub (surface.surfaceEffects <> effectsIn options)
-        }
-    where
-        layersIn = concatMap \case
-            LazyOption nested -> layersIn nested
-            LayerOption name -> [name]
-            EffectOption _ nested -> layersIn nested
-            ModifierVariantOption variant -> concatMap (layersIn . snd) variant.modifierVariantEffects
-            _ -> []
-        effectsIn = effectsInOptions
-
-effectsInOptions :: [OptionIR] -> [(Text, [OptionIR])]
-effectsInOptions = concatMap \case
-    LazyOption nested -> effectsInOptions nested
-    EffectOption name nested -> (name, nested) : effectsInOptions nested
-    ModifierVariantOption variant -> variant.modifierVariantEffects <> concatMap (effectsInOptions . snd) variant.modifierVariantEffects
-    _ -> []
 
 emptySurface :: SurfaceIR
 emptySurface = SurfaceIR
@@ -528,7 +580,6 @@ emptySurface = SurfaceIR
     , surfaceDropzoneRefs = []
     , surfaceActivationRefs = []
     , surfaceLayers = []
-    , surfaceEffects = []
     , surfacePolicies = []
     , surfaceLoadPolicies = []
     , surfaceOverlayLanes = []

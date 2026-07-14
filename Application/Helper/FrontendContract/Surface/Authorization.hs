@@ -41,9 +41,7 @@ frontendSurfaceScopeAuthorizationRequirement scope = do
     surface <- find ((== surfaceName) . (.surfaceName)) reflectRegisteredFrontendSurfaces.contractSurfaces
     scopeIR <- listToMaybe surface.surfaceScopes
     auth <- listToMaybe scopeIR.scopeOptions
-    case auth of
-        SurfaceIR.NoAuthIR -> Just Nothing
-        SurfaceIR.AuthorizeIR policy fields -> Just <$> requirementFor policy fields scopePayload
+    authorizationRequirementFor auth scopePayload
 
 validateFrontendSurfaceLiveSubscription :: SurfaceSubscription -> Bool
 validateFrontendSurfaceLiveSubscription SurfaceSubscription { subscriptionScope, subscriptionScopeKey, subscriptionFragmentKeys } =
@@ -126,23 +124,31 @@ liveScopeSurfaceAndPayload scope = do
     scopePayload <- Aeson.KeyMap.lookup "scope" object
     pure (surfaceName, scopePayload)
 
-requirementFor :: Text -> [Text] -> Aeson.Value -> Maybe SurfaceScopeAuthorizationRequirement
-requirementFor policy fields payload =
-    case policy of
-        "current-venue" -> RequireCurrentVenue <$> uuidField "venueId"
-        "current-venue-user" -> RequireCurrentVenueUser <$> uuidField "venueId" <*> uuidField "userId"
-        "current-venue-staff" -> RequireCurrentVenueStaff <$> uuidField "venueId" <*> uuidField "staffId"
-        "current-venue-roster-group" -> RequireCurrentVenueRosterGroup <$> uuidField "venueId" <*> uuidField "rosterGroupId"
-        "current-venue-admin" -> RequireCurrentVenueAdmin <$> uuidField "venueId"
-        "current-venue-manager" -> RequireCurrentVenueManager <$> uuidField "venueId"
-        "current-venue-owner" -> RequireCurrentVenueOwner <$> uuidField "venueId"
-        "current-venue-admin-roster-group" -> RequireCurrentVenueAdminRosterGroup <$> uuidField "venueId" <*> uuidField "rosterGroupId"
-        "support-super-admin" -> Just RequireSupportSuperAdmin
-        _ -> Nothing
+authorizationRequirementFor :: SurfaceIR.ScopeAuthIR -> Aeson.Value -> Maybe (Maybe SurfaceScopeAuthorizationRequirement)
+authorizationRequirementFor auth payload =
+    case auth of
+        SurfaceIR.AuthorizeCurrentVenueIR venueIdField ->
+            authorize (RequireCurrentVenue <$> uuidField venueIdField)
+        SurfaceIR.AuthorizeCurrentVenueUserIR venueIdField userIdField ->
+            authorize (RequireCurrentVenueUser <$> uuidField venueIdField <*> uuidField userIdField)
+        SurfaceIR.AuthorizeCurrentVenueStaffIR venueIdField staffIdField ->
+            authorize (RequireCurrentVenueStaff <$> uuidField venueIdField <*> uuidField staffIdField)
+        SurfaceIR.AuthorizeCurrentVenueRosterGroupIR venueIdField rosterGroupIdField ->
+            authorize (RequireCurrentVenueRosterGroup <$> uuidField venueIdField <*> uuidField rosterGroupIdField)
+        SurfaceIR.AuthorizeCurrentVenueAdminIR venueIdField ->
+            authorize (RequireCurrentVenueAdmin <$> uuidField venueIdField)
+        SurfaceIR.AuthorizeCurrentVenueManagerIR venueIdField ->
+            authorize (RequireCurrentVenueManager <$> uuidField venueIdField)
+        SurfaceIR.AuthorizeCurrentVenueOwnerIR venueIdField ->
+            authorize (RequireCurrentVenueOwner <$> uuidField venueIdField)
+        SurfaceIR.AuthorizeCurrentVenueAdminRosterGroupIR venueIdField rosterGroupIdField ->
+            authorize (RequireCurrentVenueAdminRosterGroup <$> uuidField venueIdField <*> uuidField rosterGroupIdField)
+        SurfaceIR.AuthorizeSupportSuperAdminIR -> Just (Just RequireSupportSuperAdmin)
+        SurfaceIR.NoAuthIR -> Just Nothing
+        SurfaceIR.InvalidAuthorizeIR {} -> Nothing
     where
-        uuidField name
-            | name `elem` fields = parseUuidField name payload
-            | otherwise = Nothing
+        authorize = fmap Just
+        uuidField name = parseUuidField name payload
 
 parseUuidField :: Text -> Aeson.Value -> Maybe UUID.UUID
 parseUuidField fieldName =

@@ -245,9 +245,15 @@ Preview phases are local only; the server DOM remains authoritative until a
 committed intent submits through a generated intent form.
 
 Pointer-session effects are Haskell-owned interaction metadata, not
-frontend-only configuration. A `SessionKindDefinition` may declare a bounded
-set of generated effect values. TypeScript resolves the mounted surface, looks
-up `FrontendSurfaceInteractionRegistry[surface].sessionKinds`, and constructs a
+frontend-only configuration. Surface declarations select a closed
+`InteractionEffect`; arbitrary marker effects, selectors, and callbacks are not
+an escape hatch. Reflection lowers each selection to closed semantic IR carrying
+its lifecycle, required layer, source, options, and canonical CSS-class markers.
+Unknown effects fail to compile, while missing declarations or incomplete IR fail
+checked validation. TypeScript rendering is structural over that IR and cannot
+silently omit an effect or invent a fallback layer. TypeScript resolves the
+mounted surface, looks up
+`FrontendSurfaceInteractionRegistry[surface].sessionKinds`, and constructs a
 generic effect runner for the active session kind. If no registry entry, session
 kind, or effects are present, the runner is a no-op and intent submission remains
 unchanged. Runtime code may switch only on the generated closed effect union and

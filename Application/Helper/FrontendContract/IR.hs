@@ -10,6 +10,7 @@ module Application.Helper.FrontendContract.IR
     , FrontendContractIR (..)
     , GlobalIR (..)
     , GlobalPrimitiveIR (..)
+    , GlobalProjectionIR (..)
     , BrowserReachabilityIR (..)
     , checkedFrontendContractIR
     , validateFrontendContractIR
@@ -51,6 +52,10 @@ data BrowserReachabilityIR
     | BrowserBidirectionalIR
     deriving (Eq, Show)
 
+data GlobalProjectionIR
+    = InteractionDomProjectionIR
+    deriving (Eq, Show)
+
 data GlobalPrimitiveIR
     = GlobalSchemaIR !BrowserReachabilityIR !SchemaIR
     | GlobalEventIR !BrowserReachabilityIR !Text !Text ![FieldIR]
@@ -62,6 +67,7 @@ data GlobalPrimitiveIR
     | GlobalFieldNameIR !Text !Text
     | GlobalDomTokenIR !Text !Text
     | GlobalConstantIR !Text !Text
+    | GlobalProjectionIR !GlobalProjectionIR
     | GlobalAppShellActionIR !AppShellActionIR
     deriving (Eq, Show)
 
@@ -95,7 +101,16 @@ validateFrontendContractIR contract =
     globalPrimitiveNames = concatMap globalNamedPrimitives contract.contractGlobals
 
 validateGlobal :: GlobalIR -> [ContractDiagnostic]
-validateGlobal global = concatMap validateGlobalPrimitive global.globalPrimitives
+validateGlobal global =
+    concatMap validateGlobalPrimitive global.globalPrimitives
+        <> validateGlobalProjections global
+
+validateGlobalProjections :: GlobalIR -> [ContractDiagnostic]
+validateGlobalProjections global =
+    case [projection | GlobalProjectionIR projection <- global.globalPrimitives] of
+        []  -> []
+        [_] -> []
+        _   -> [ContractDiagnostic "duplicate-global-projection" ("global " <> global.globalName <> " declares more than one exceptional browser projection")]
 
 validateGlobalPrimitive :: GlobalPrimitiveIR -> [ContractDiagnostic]
 validateGlobalPrimitive = \case
@@ -109,6 +124,7 @@ validateGlobalPrimitive = \case
     GlobalFieldNameIR _ _ -> []
     GlobalDomTokenIR _ _ -> []
     GlobalConstantIR _ _ -> []
+    GlobalProjectionIR _ -> []
     GlobalAppShellActionIR action -> validateFieldNames action.appShellActionFields
 
 globalSchemas :: GlobalIR -> [(Text, Text)]
@@ -132,6 +148,7 @@ globalNamedPrimitives global =
         GlobalFieldNameIR marker name -> [(marker, name)]
         GlobalDomTokenIR marker name  -> [(marker, name)]
         GlobalConstantIR marker value -> [(marker, "constant:" <> value)]
+        GlobalProjectionIR _ -> []
         GlobalAppShellActionIR action -> [(action.appShellActionMarker, "app-shell-action:" <> action.appShellActionName)]
     ]
 
@@ -150,6 +167,7 @@ globalPrimitiveRefs = \case
     GlobalFieldNameIR _ _ -> []
     GlobalDomTokenIR _ _ -> []
     GlobalConstantIR _ _ -> []
+    GlobalProjectionIR _ -> []
     GlobalAppShellActionIR action -> fieldRefs action.appShellActionFields
 
 surfaceRefs :: SurfaceIR -> [Text]

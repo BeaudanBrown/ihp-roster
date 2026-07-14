@@ -110,6 +110,9 @@ instance Typeable marker => ReflectGlobalPrimitive ('DomToken marker) where
 instance (Typeable marker, KnownSymbol value) => ReflectGlobalPrimitive ('Constant marker value) where
     reflectGlobalPrimitive = GlobalConstantIR (typeMarker @marker) (cs (symbolVal (Proxy @value)))
 
+instance ReflectGlobalPrimitive ('Project 'InteractionDomProjection) where
+    reflectGlobalPrimitive = GlobalProjectionIR InteractionDomProjectionIR
+
 instance (Typeable marker, ReflectFieldList fields, ReflectAppShellActionOptionList options) => ReflectGlobalPrimitive ('AppShellAction marker fields options) where
     reflectGlobalPrimitive = GlobalAppShellActionIR AppShellActionIR
         { appShellActionMarker = typeMarker @marker

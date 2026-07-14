@@ -168,7 +168,7 @@ type StaffSurface =
             '[ Field VenueId 'WireUUID
              , Field StaffId 'WireUUID
              ]
-            '[ 'Authorize 'CurrentVenueManager '[ VenueId, StaffId ] ]
+            '[ 'Authorize 'CurrentVenueManager '[ VenueId ] ]
          , Fragment StaffDetailsSection
             '[]
             '[ 'MountTarget StaffProfileDetails '[]

@@ -391,6 +391,44 @@ expect_match \
     'FrontendSurfaceInteractionRegistry = .*"intent":"move-roster-shift-to-slot"' \
     frontend/ts/generated/contracts.ts
 
+expect_no_match_including_generated \
+    "checked IR renderers must not redispatch interaction or authorization semantics from text" \
+    '"(clone-shadow|clone-shadow-copy|dropzone-highlight|pointer-marker|bepis-pointer-clone-shadow|bepis-pointer-clone-shadow-copy|bepis-dropzone-highlight|current-venue(-user|-staff|-roster-group|-admin|-manager|-owner|-admin-roster-group)?|support-super-admin|drag-preview)"|render(Global|Contextual)Effect|requirementFor[[:space:]]*::[[:space:]]*Text' \
+    Application/Helper/FrontendContract/TypeScript.hs \
+    Application/Helper/FrontendContract/Surface/Authorization.hs \
+    Application/Helper/FrontendContract/Surface/ContractIR.hs \
+    Application/Helper/FrontendContract/Surface/SemanticIR.hs
+
+expect_no_match \
+    "browser projection must use explicit IR rather than reflected root or Surface name switches" \
+    '(global\.globalName|surface\.surfaceName)[[:space:]]*(==|/=)' \
+    Application/Helper/FrontendContract/TypeScript.hs
+
+expect_no_match \
+    "Surface interaction effects and variants must use the closed effect kind" \
+    'Effect Type|ModifierVariant Type Type \[PrimitiveOption\]' \
+    Application/Helper/FrontendContract/Surface/DSL.hs
+
+expect_match \
+    "Surface sessions accept only closed interaction-session options" \
+    'Session Type \[InteractionSessionOption\]' \
+    Application/Helper/FrontendContract/Surface/DSL.hs
+
+mapfile -t emitted_interaction_effect_classes < <(
+    rg -o '"className":"[^"]+"' frontend/ts/generated/contracts.ts \
+        | sed -E 's/^"className":"([^"]+)"$/\1/' \
+        | tr ' ' '\n' \
+        | sort -u
+)
+if [ "${#emitted_interaction_effect_classes[@]}" -eq 0 ]; then
+    report_failure "generated interaction effects must emit at least one canonical CSS class"
+fi
+for effect_class in "${emitted_interaction_effect_classes[@]}"; do
+    if ! rg --quiet --glob '*.css' "\\.${effect_class}([^A-Za-z0-9_-]|$)" static/css; then
+        report_failure "generated interaction effect class has no CSS selector coverage: $effect_class"
+    fi
+done
+
 expect_no_match \
     "roster must use generic FrontendSurface interaction shell rendering" \
     'renderRosterFrontendSurfaceInteractionShell|renderRosterFrontendSurfaceIntentForm|rosterInteractionConflictPoliciesJson|renderRosterDisposableLayer|renderRosterServerLayer' \

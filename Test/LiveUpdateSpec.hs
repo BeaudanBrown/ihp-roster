@@ -391,12 +391,23 @@ tests = describe "LiveUpdate runtime types" do
         validateFrontendSurfaceLiveSubscription subscription { subscriptionFragmentKeys = [leavePendingCountLiveFragment] } `shouldBe` False
         validateFrontendSurfaceLiveSubscription subscription { subscriptionFragmentKeys = [timesheetToolbarLiveFragment] } `shouldBe` True
 
-    it "declares live authorization requirements at the surface boundary" do
+    it "projects closed live authorization IR without policy-name redispatch" do
         let venueId = expectUuid "11111111-1111-1111-1111-111111111111"
+        let rosterGroupId = expectUuid "33333333-3333-3333-3333-333333333333"
+        let staffId = expectUuid "44444444-4444-4444-4444-444444444444"
+        let staffScope = frontendSurfaceLiveScope
+                "staff"
+                (Aeson.object ["venueId" Aeson..= venueId, "staffId" Aeson..= staffId])
+                "staff-fixture"
 
         frontendSurfaceScopeAuthorizationRequirement supportPlatformLiveScope `shouldBe` Just (Just RequireSupportSuperAdmin)
         frontendSurfaceScopeAuthorizationRequirement (adminXeroLiveScope venueId) `shouldBe` Just (Just (RequireCurrentVenueOwner venueId))
+        frontendSurfaceScopeAuthorizationRequirement (adminVenueConfigLiveScope venueId) `shouldBe` Just (Just (RequireCurrentVenueAdmin venueId))
+        frontendSurfaceScopeAuthorizationRequirement (leaveRequestsLiveScope venueId) `shouldBe` Just (Just (RequireCurrentVenueManager venueId))
+        frontendSurfaceScopeAuthorizationRequirement (profileLiveScope venueId staffId) `shouldBe` Just (Just (RequireCurrentVenueStaff venueId staffId))
+        frontendSurfaceScopeAuthorizationRequirement (rosterWeekLiveScope venueId rosterGroupId 0) `shouldBe` Just (Just (RequireCurrentVenueRosterGroup venueId rosterGroupId))
         frontendSurfaceScopeAuthorizationRequirement (timesheetWeekLiveScope venueId 0) `shouldBe` Just (Just (RequireCurrentVenue venueId))
+        frontendSurfaceScopeAuthorizationRequirement staffScope `shouldBe` Just (Just (RequireCurrentVenueManager venueId))
 
 leavePendingCountLiveFragment :: SurfaceFragmentKey
 leavePendingCountLiveFragment =

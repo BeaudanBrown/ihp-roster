@@ -7,6 +7,7 @@
 module Application.Helper.FrontendContract.DSL
     ( FrontendContract (..)
     , GlobalPrimitive (..)
+    , GlobalProjection (..)
     , BrowserReachability (..)
     , AppShellActionOption (..)
     , AppShellRequestMethod (..)
@@ -46,6 +47,7 @@ module Application.Helper.FrontendContract.DSL
     , FieldName
     , DomToken
     , Constant
+    , ProjectInteractionDom
     , AppShellAction
     , AppShellHtmxMethod
     , AppShellHtmxTrigger
@@ -136,6 +138,11 @@ data BrowserReachability
     | BrowserOutbound
     | BrowserBidirectional
 
+-- | Exceptional browser projections are explicit closed declarations rather
+-- than behavior recovered from a reflected root name.
+data GlobalProjection
+    = InteractionDomProjection
+
 -- | App-wide/shared browser vocabulary.
 data GlobalPrimitive
     = GlobalSchema BrowserReachability SchemaPrimitive
@@ -148,6 +155,7 @@ data GlobalPrimitive
     | FieldName Type
     | DomToken Type
     | Constant Type Symbol
+    | Project GlobalProjection
     | AppShellAction Type [FieldSpec] [AppShellActionOption]
 
 -- | Registry root for app-wide browser vocabulary. Mounted feature topology is
@@ -188,6 +196,7 @@ type DomValue name value = 'DomValue name value
 type FieldName name = 'FieldName name
 type DomToken name = 'DomToken name
 type Constant name value = 'Constant name value
+type ProjectInteractionDom = 'Project 'InteractionDomProjection
 type AppShellAction name fields options = 'AppShellAction name fields options
 type AppShellHtmxMethod method = 'AppShellHtmxMethod method
 type AppShellHtmxTrigger value = 'AppShellHtmxTrigger value

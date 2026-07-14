@@ -120,6 +120,14 @@ tests = describe "Frontend contract generator foundation" do
             `shouldBe` [("FixturePayload", "FixturePayload"), ("FixtureRelatedPayload", "FixtureRelatedPayload")]
         actionOptions `shouldContain` [Contract.HtmxActionMethodIR Contract.HtmxPostIR]
 
+    it "declares exceptional browser projections in closed IR instead of root-name switches" do
+        let projections =
+                [ projection
+                | global <- registeredFrontendContractIR.contractGlobals
+                , Contract.GlobalProjectionIR projection <- global.globalPrimitives
+                ]
+        projections `shouldBe` [Contract.InteractionDomProjectionIR]
+
     it "uses one shared HTMX metadata model for generated request primitives" do
         let genericOptions =
                 [ Contract.HtmxActionMethodIR Contract.HtmxPostIR

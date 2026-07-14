@@ -336,7 +336,10 @@ tests = describe "FrontendSurface DSL foundation" do
         map (.fragmentName) surface.surfaceFragments `shouldBe` ["fixture-shell", "fixture-panel"]
         map (.htmxActionName) surface.surfaceHtmxActions `shouldBe` ["refresh-panel"]
         map (.intentName) surface.surfaceIntents `shouldBe` ["move-card"]
-        surface.surfaceSessions `shouldBe` ["drag"]
+        map (.sessionName) surface.surfaceSessions `shouldBe` ["drag"]
+        map (.sessionLayers) surface.surfaceSessions `shouldBe` [["drag-preview"]]
+        map (map interactionEffectSemanticName . (.sessionEffects)) surface.surfaceSessions
+            `shouldBe` [["clone-shadow", "dropzone-highlight"]]
         surface.surfaceLayers `shouldBe` ["drag-preview"]
         surface.surfaceDomTokens `shouldBe` ["fixture-root", "fixture-dropzone", "fixture-panel-include"]
         surface.surfaceBrowserDomTokens `shouldBe` []
@@ -362,6 +365,7 @@ tests = describe "FrontendSurface DSL foundation" do
         let surface = expectSurface "timesheets" registeredFrontendSurfaceContractIR
 
         map (.scopeName) surface.surfaceScopes `shouldBe` ["timesheet-week"]
+        map (.scopeOptions) surface.surfaceScopes `shouldBe` [[AuthorizeCurrentVenueIR "venueId"]]
         map (.mountStateName) surface.surfaceMountStates `shouldBe` ["timesheets-mount-state"]
         map (.fragmentName) surface.surfaceFragments `shouldBe` ["timesheet-toolbar", "timesheet-day-columns", "timesheet-day-section"]
         surface.surfaceBrowserDomTokens `shouldBe` ["timesheet-week-shell"]
@@ -458,7 +462,8 @@ tests = describe "FrontendSurface DSL foundation" do
             )
             `shouldContain` [HtmxOption (HtmxActionSwapIR (HtmxTypedSyntaxIR "outerHTML" []))]
         map (.intentName) surface.surfaceIntents `shouldBe` ["set-roster-layout-mode", "move-roster-shift-to-slot", "duplicate-roster-shift-to-day", "drop-roster-staff"]
-        surface.surfaceSessions `shouldBe` ["drag"]
+        map (.sessionName) surface.surfaceSessions `shouldBe` ["drag"]
+        map (.sessionLayers) surface.surfaceSessions `shouldBe` [["drag-preview"]]
         map (.sourceRefName) surface.surfaceSourceRefs `shouldBe` ["shift-drag-source", "staff-drag-source"]
         map (.sourceRefCompatibleDropzones) surface.surfaceSourceRefs
             `shouldBe` [ ["shift-slot-dropzone", "day-column-dropzone", "delete-shift-dropzone"]
@@ -467,9 +472,14 @@ tests = describe "FrontendSurface DSL foundation" do
         map (.dropzoneRefName) surface.surfaceDropzoneRefs `shouldBe` ["shift-slot-dropzone", "staff-create-dropzone", "day-column-dropzone", "existing-shift-dropzone", "delete-shift-dropzone"]
         map (.activationRefName) surface.surfaceActivationRefs `shouldBe` ["roster-layout-mode-activation"]
         surface.surfaceLayers `shouldBe` ["drag-preview"]
-        map fst surface.surfaceEffects `shouldBe` ["clone-shadow", "dropzone-highlight"]
+        map (map interactionEffectSemanticName . (.sessionEffects)) surface.surfaceSessions
+            `shouldBe` [["clone-shadow", "dropzone-highlight"]]
+        map (map interactionEffectBrowserKind . (.sessionEffects)) surface.surfaceSessions
+            `shouldBe` [["clone-shadow", "dropzone-highlight"]]
+        map (map interactionEffectClassNames . (.sessionEffects)) surface.surfaceSessions
+            `shouldBe` [[["bepis-pointer-clone-shadow"], ["bepis-dropzone-highlight"]]]
         map (map (.modifierVariantSemantic) . (.sourceRefVariants)) surface.surfaceSourceRefs `shouldBe` [["copy"], []]
-        map (concatMap (map fst . (.modifierVariantEffects)) . (.sourceRefVariants)) surface.surfaceSourceRefs `shouldBe` [["clone-shadow-copy", "dropzone-highlight"], []]
+        map (concatMap (map interactionEffectSemanticName . (.modifierVariantEffects)) . (.sourceRefVariants)) surface.surfaceSourceRefs `shouldBe` [["clone-shadow-copy", "dropzone-highlight"], []]
         surface.surfacePolicies `shouldBe` []
 
     it "renders minimal live, interaction, and DOM-token contracts for the roster surface" do
@@ -492,6 +502,9 @@ tests = describe "FrontendSurface DSL foundation" do
         let conflictingShared = checkedSurfaceContractIR (SurfaceContractIR (reflectSurfaceRegistry @'[SharedScopeA, SharedScopeB]))
         let missingDtoRef = checkedSurfaceContractIR (SurfaceContractIR (reflectSurfaceRegistry @'[MissingDtoRefSurface]))
         let missingAuth = checkedSurfaceContractIR (SurfaceContractIR (reflectSurfaceRegistry @'[MissingAuthSurface]))
+        let invalidAuthFields = checkedSurfaceContractIR (SurfaceContractIR (reflectSurfaceRegistry @'[InvalidAuthFieldsSurface]))
+        let duplicateAuthFields = checkedSurfaceContractIR (SurfaceContractIR (reflectSurfaceRegistry @'[DuplicateAuthFieldsSurface]))
+        let invalidAuthWire = checkedSurfaceContractIR (SurfaceContractIR (reflectSurfaceRegistry @'[InvalidAuthWireSurface]))
         let missingLiveInvalidation = checkedSurfaceContractIR (SurfaceContractIR (reflectSurfaceRegistry @'[MissingLiveInvalidationSurface]))
         let missingResourceSource = checkedSurfaceContractIR (SurfaceContractIR (reflectSurfaceRegistry @'[MissingResourceSourceSurface]))
         let invalidScopeSource = checkedSurfaceContractIR (SurfaceContractIR (reflectSurfaceRegistry @'[InvalidScopeSourceSurface]))
@@ -500,6 +513,19 @@ tests = describe "FrontendSurface DSL foundation" do
         let duplicateResourceSource = checkedSurfaceContractIR (SurfaceContractIR (reflectSurfaceRegistry @'[DuplicateResourceSourceSurface]))
         let conflictingResources = checkedSurfaceContractIR (SurfaceContractIR (reflectSurfaceRegistry @'[DuplicateResourceSurfaceA, DuplicateResourceSurfaceB]))
         let invalidInteractionRef = checkedSurfaceContractIR (SurfaceContractIR (reflectSurfaceRegistry @'[InvalidInteractionRefSurface]))
+        let missingEffectLayer = checkedSurfaceContractIR (SurfaceContractIR (reflectSurfaceRegistry @'[MissingInteractionEffectLayerSurface]))
+        let fixtureWithIncompleteEffect =
+                (reflectSurfaceSpec @SurfaceFixture.FrontendSurfaceFixture)
+                    { surfaceSessions =
+                        [ InteractionSessionIR
+                            { sessionMarker = "DragSession"
+                            , sessionName = "drag"
+                            , sessionLayers = ["drag-preview"]
+                            , sessionEffects = [(cloneShadowEffectIR "drag-preview") { interactionEffectClasses = [] }]
+                            }
+                        ]
+                    }
+        let incompleteEffect = checkedSurfaceContractIR (SurfaceContractIR [fixtureWithIncompleteEffect])
         let invalidHtmxTargetRef = checkedSurfaceContractIR (SurfaceContractIR (reflectSurfaceRegistry @'[InvalidHtmxTargetRefSurface]))
         let duplicateHtmxMethod = checkedSurfaceContractIR (SurfaceContractIR (reflectSurfaceRegistry @'[DuplicateHtmxMethodSurface]))
         let emptyCustomHtmxReason = checkedSurfaceContractIR (SurfaceContractIR (reflectSurfaceRegistry @'[EmptyCustomHtmxReasonSurface]))
@@ -510,6 +536,9 @@ tests = describe "FrontendSurface DSL foundation" do
         diagnosticMessages conflictingShared `shouldContain` ["conflicting shared declaration: scope shared"]
         diagnosticMessages missingDtoRef `shouldContain` ["field missingPayload references missing dto MissingPayload on surface missing-dto-ref"]
         diagnosticMessages missingAuth `shouldContain` ["surface missing-auth scope test must declare exactly one authorization policy"]
+        diagnosticMessages invalidAuthFields `shouldContain` ["surface invalid-auth-fields scope test authorization current-venue expects 1 fields but declares 2"]
+        diagnosticMessages duplicateAuthFields `shouldContain` ["surface duplicate-auth-fields scope test authorization current-venue-user repeats field venueId"]
+        diagnosticMessages invalidAuthWire `shouldContain` ["surface invalid-auth-wire scope test authorization current-venue field venueId must be a required UUID"]
         diagnosticMessages missingLiveInvalidation `shouldContain` ["surface missing-live-invalidation live fragment bad must declare DependsOn or ResyncOnly"]
         diagnosticMessages missingResourceSource `shouldContain` ["surface missing-resource-source fragment bad dependency test-resource missing source for resource field weekOffset"]
         diagnosticMessages invalidScopeSource `shouldContain` ["surface invalid-scope-source fragment bad dependency test-resource references missing scope field weekOffset"]
@@ -519,6 +548,8 @@ tests = describe "FrontendSurface DSL foundation" do
         diagnosticMessages conflictingResources `shouldContain` ["conflicting shared declaration: resource test-resource"]
         diagnosticMessages invalidInteractionRef `shouldContain` ["source ref bad references missing session missing-fragment on surface invalid-interaction-ref"]
         diagnosticMessages invalidInteractionRef `shouldContain` ["source ref bad references missing intent field missingPayload for intent bad on surface invalid-interaction-ref"]
+        diagnosticMessages missingEffectLayer `shouldContain` ["surface missing-effect-layer session layerless effect clone-shadow references missing layer missing"]
+        diagnosticMessages incompleteEffect `shouldContain` ["surface contract-fixture session drag has incomplete or non-canonical clone-shadow effect"]
         diagnosticMessages invalidHtmxTargetRef `shouldContain` ["htmx action bad references missing dom token missing-fragment on surface invalid-htmx-target-ref"]
         diagnosticMessages duplicateHtmxMethod `shouldContain` ["surface duplicate-htmx-method htmx action bad declares method more than once"]
         diagnosticMessages emptyCustomHtmxReason `shouldContain` ["surface empty-custom-htmx-reason custom HTMX missing-fragment must include a non-empty reason"]
@@ -615,6 +646,9 @@ data MismatchedResource
 data MissingFragment
 data MissingDtoRef
 data MissingAuth
+data InvalidAuthFields
+data DuplicateAuthFields
+data InvalidAuthWire
 data MissingLiveInvalidation
 data MissingResourceSource
 data InvalidScopeSource
@@ -624,6 +658,9 @@ data DuplicateResourceSource
 data DuplicateResourceA
 data DuplicateResourceB
 data InvalidInteractionRef
+data MissingEffectLayer
+data MissingLayer
+data LayerlessSession
 data InvalidHtmxTargetRef
 data DuplicateHtmxMethod
 data EmptyCustomHtmxReason
@@ -664,6 +701,27 @@ type MissingDtoRefSurface =
 type MissingAuthSurface =
     Surface MissingAuth
         '[ Scope TestScope '[ Field VenueId 'WireUUID ] '[]
+         ]
+
+type InvalidAuthFieldsSurface =
+    Surface InvalidAuthFields
+        '[ Scope TestScope
+            '[ Field VenueId 'WireUUID
+             , Field StaffFilterId 'WireUUID
+             ]
+            '[ 'Authorize 'CurrentVenue '[ VenueId, StaffFilterId ] ]
+         ]
+
+type DuplicateAuthFieldsSurface =
+    Surface DuplicateAuthFields
+        '[ Scope TestScope
+            '[ Field VenueId 'WireUUID ]
+            '[ 'Authorize 'CurrentVenueUser '[ VenueId, VenueId ] ]
+         ]
+
+type InvalidAuthWireSurface =
+    Surface InvalidAuthWire
+        '[ Scope TestScope '[ Field VenueId 'WireText ] '[ 'Authorize 'CurrentVenue '[ VenueId ] ]
          ]
 
 type MissingLiveInvalidationSurface =
@@ -747,6 +805,12 @@ type InvalidInteractionRefSurface =
         '[ Scope TestScope '[ Field VenueId 'WireUUID ] '[ 'NoAuth ]
          , Intent Bad '[ Field PanelId 'WireUUID ] '[]
          , SourceRef Bad '[ 'SessionOption MissingFragment, 'Submits Bad, 'SourceField MissingPayload ]
+         ]
+
+type MissingInteractionEffectLayerSurface =
+    Surface MissingEffectLayer
+        '[ Scope TestScope '[ Field VenueId 'WireUUID ] '[ 'NoAuth ]
+         , Session LayerlessSession '[ 'Effect (SurfaceInteraction.CloneShadow MissingLayer) ]
          ]
 
 type InvalidHtmxTargetRefSurface =

@@ -180,6 +180,15 @@ source and target a distinct generated ref, then list the compatible dropzone
 refs on each source; the browser runtime uses that manifest data for hit-testing
 and highlighting while controllers keep validating opaque keys server-side.
 
+Effect declarations select the closed `InteractionEffect` kind. Clone-shadow
+effects carry their required typed layer; modifier variants carry only closed
+effects, not arbitrary nested options. Reflection lowers these declarations to
+`Surface.SemanticIR`, whose constructors carry canonical effect classes, source,
+and options. Checked-IR validation rejects missing layer declarations,
+non-canonical values, duplicate effects, and effects placed outside sessions or
+modifier variants. The TypeScript renderer serializes those constructors without
+name-based dispatch, omission, or fallback layers.
+
 Concrete HTMX forms remain DOM-owned and server-rendered. `SurfaceImpl` intent
 handlers/render helpers own action URLs, methods, hidden inputs, targets, swaps,
 sync selectors, disabled selectors, and trigger events. Mount JSON must not
@@ -343,10 +352,16 @@ app-specific surface/fragment names.
 
 `Scope` owns websocket subscription identity and authorization. Every scope must
 carry exactly one auth marker: `Authorize SomePolicy` for server-checked scopes,
-or explicit `NoAuth` for public/test-only scopes. `Web.SurfaceInvalidation`
-derives subscription authorization from the reflected `RegisteredFrontendSurfaces`
-metadata; feature code must not add hard-coded fallback authorization for a
-surface/scope pair.
+or explicit `NoAuth` for public/test-only scopes. Authorization reflection lowers
+to closed `ScopeAuthIR` constructors with the exact required field count. Every
+referenced field must be a required UUID; missing, extra, absent, or incorrectly
+typed fields fail checked-IR validation. The authorization field list contains
+only fields consumed by that policy; other scope-identity fields remain separate
+and must still be authorized by their fragment routes. Runtime authorization
+pattern-matches those constructors and parses their carried field names; it never
+redispatches policy text. `Web.SurfaceInvalidation` derives subscription authorization from
+the reflected `RegisteredFrontendSurfaces` metadata; feature code must not add
+hard-coded fallback authorization for a surface/scope pair.
 
 Fragments that participate in passive invalidation declare `Live` and then one
 invalidation mode. Prefer explicit `DependsOn SomeResource '[ ...sources... ]`,

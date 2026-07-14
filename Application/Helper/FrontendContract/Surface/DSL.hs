@@ -12,6 +12,9 @@ module Application.Helper.FrontendContract.Surface.DSL
     , ResourceSpec (..)
     , ScopeOption (..)
     , AuthPolicy (..)
+    , InteractionEffect (..)
+    , InteractionSessionOption (..)
+    , CloneShadowStyle (..)
     , WireType (..)
     , PrimitiveOption (..)
     , HtmxMethod (..)
@@ -140,6 +143,18 @@ data ScopeOption
     = Authorize AuthPolicy [Type]
     | NoAuth
 
+data CloneShadowStyle
+    = StandardCloneShadow
+    | CopyCloneShadow
+
+data InteractionEffect
+    = CloneShadowEffect CloneShadowStyle Type
+    | DropzoneHighlightEffect
+
+data InteractionSessionOption
+    = Layer Type
+    | Effect InteractionEffect
+
 data PrimitiveOption
     = Eager
     | Lazy [PrimitiveOption]
@@ -152,9 +167,7 @@ data PrimitiveOption
     | MountTarget Type [FieldSpec]
     | Target Type
     | BackedBy Type
-    | Layer Type
-    | Effect Type [PrimitiveOption]
-    | ModifierVariant Type Type [PrimitiveOption]
+    | ModifierVariant Type Type [InteractionEffect]
     | SessionOption Type
     | Submits Type
     | SourceField Type
@@ -197,7 +210,7 @@ data SurfacePrimitive
     | Action Type [FieldSpec] [PrimitiveOption]
     | Intent Type [FieldSpec] [PrimitiveOption]
     | MountState Type [FieldSpec]
-    | Session Type [PrimitiveOption]
+    | Session Type [InteractionSessionOption]
     | SourceRef Type [PrimitiveOption]
     | DropzoneRef Type [PrimitiveOption]
     | ActivationRef Type [PrimitiveOption]

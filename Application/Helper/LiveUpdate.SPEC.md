@@ -387,8 +387,10 @@ When adding or migrating a mutation flow:
   `SurfaceImpl`/FrontendSurface fragment handler and return the authoritative
   target node. Legacy typed helpers remain compatibility-only.
 - Websocket subscription authorization must go through registered generated
-  surface metadata and `Web.SurfaceInvalidation`; unregistered wire scopes are
-  denied instead of falling back to default scope authorization.
+  surface metadata and `Web.SurfaceInvalidation`. Checked `ScopeAuthIR` owns the
+  closed policy constructor and exact required UUID fields; runtime code must not
+  recover policy behavior from reflected text. Unregistered or malformed wire
+  scopes are denied instead of falling back to default scope authorization.
 - Mutating controllers should use actor-only refresh helpers only for
   requester-local refresh triggers; passive invalidation belongs behind touched
   resources.

@@ -38,6 +38,8 @@ tests = describe "FrontendSurface naming policy" do
         deriveEventName "bepis" "LabCommitted" `shouldBe` "bepis:lab-committed"
         deriveWireTagName ScopeName "RosterWeekScope" `shouldBe` "roster_week"
         deriveWireTagName FragmentName "HTMXPanelFragment" `shouldBe` "htmx_panel"
+        deriveFrontendSurfaceName AuthorizationPolicyName "CurrentVenueRosterGroupPolicy" `shouldBe` "current-venue-roster-group"
+        deriveFrontendSurfaceName DomTokenName "BepisPointerCloneShadowCopy" `shouldBe` "bepis-pointer-clone-shadow-copy"
 
     it "requires exact names to be allowlisted with a reason" do
         let allowlist =

@@ -5,7 +5,8 @@
 {-# LANGUAGE OverloadedStrings   #-}
 
 module Application.Helper.FrontendContract.Surface.ContractIR
-    ( ContractDiagnostic (..)
+    ( module SemanticIR
+    , ContractDiagnostic (..)
     , ConflictPolicyIR (..)
     , ConflictResolutionIR (..)
     , FieldIR (..)
@@ -20,6 +21,7 @@ module Application.Helper.FrontendContract.Surface.ContractIR
     , InteractionActivationRefIR (..)
     , InteractionDropzoneRefIR (..)
     , InteractionModifierVariantIR (..)
+    , InteractionSessionIR (..)
     , InteractionSourceRefIR (..)
     , IntentIR (..)
     , MountStateIR (..)
@@ -28,7 +30,6 @@ module Application.Helper.FrontendContract.Surface.ContractIR
     , ResourceIR (..)
     , ResourceSourceIR (..)
     , PrimitiveRefKind (..)
-    , ScopeAuthIR (..)
     , ScopeIR (..)
     , SchemaIR (..)
     , SessionSelectorIR (..)
@@ -45,6 +46,7 @@ module Application.Helper.FrontendContract.Surface.ContractIR
     ) where
 
 import Application.Helper.FrontendContract.Core
+import Application.Helper.FrontendContract.Surface.SemanticIR as SemanticIR
 import qualified Data.List as List
 import qualified Data.Text as Text
 import IHP.Prelude
@@ -62,12 +64,11 @@ data SurfaceIR = SurfaceIR
     , surfaceFragments        :: ![FragmentIR]
     , surfaceHtmxActions      :: ![HtmxActionIR]
     , surfaceIntents          :: ![IntentIR]
-    , surfaceSessions         :: ![Text]
+    , surfaceSessions         :: ![InteractionSessionIR]
     , surfaceSourceRefs       :: ![InteractionSourceRefIR]
     , surfaceDropzoneRefs     :: ![InteractionDropzoneRefIR]
     , surfaceActivationRefs   :: ![InteractionActivationRefIR]
     , surfaceLayers           :: ![Text]
-    , surfaceEffects          :: ![(Text, [OptionIR])]
     , surfacePolicies         :: ![ConflictPolicyIR]
     , surfaceLoadPolicies     :: ![Text]
     , surfaceOverlayLanes     :: ![Text]
@@ -84,11 +85,6 @@ data ScopeIR = ScopeIR
     , scopeFields  :: ![FieldIR]
     , scopeOptions :: ![ScopeAuthIR]
     }
-    deriving (Eq, Show)
-
-data ScopeAuthIR
-    = AuthorizeIR !Text ![Text]
-    | NoAuthIR
     deriving (Eq, Show)
 
 data MountStateIR = MountStateIR
@@ -122,6 +118,14 @@ data IntentIR = IntentIR
     }
     deriving (Eq, Show)
 
+data InteractionSessionIR = InteractionSessionIR
+    { sessionMarker  :: !Text
+    , sessionName    :: !Text
+    , sessionLayers  :: ![Text]
+    , sessionEffects :: ![InteractionEffectIR]
+    }
+    deriving (Eq, Show)
+
 data InteractionSourceRefIR = InteractionSourceRefIR
     { sourceRefMarker              :: !Text
     , sourceRefName                :: !Text
@@ -136,7 +140,7 @@ data InteractionSourceRefIR = InteractionSourceRefIR
 data InteractionModifierVariantIR = InteractionModifierVariantIR
     { modifierVariantSemantic :: !Text
     , modifierVariantIntent   :: !Text
-    , modifierVariantEffects  :: ![(Text, [OptionIR])]
+    , modifierVariantEffects  :: ![InteractionEffectIR]
     }
     deriving (Eq, Show)
 
@@ -187,8 +191,6 @@ data OptionIR
     | MountTargetOption !Text ![FieldIR]
     | TargetOption !Text
     | BackedByOption !Text
-    | LayerOption !Text
-    | EffectOption !Text ![OptionIR]
     | ModifierVariantOption !InteractionModifierVariantIR
     | SessionOptionIR !Text
     | SubmitsOption !Text
@@ -207,8 +209,6 @@ optionHtmxActionOptions :: [OptionIR] -> [HtmxActionOptionIR]
 optionHtmxActionOptions = concatMap \case
     HtmxOption option -> [option]
     LazyOption options -> optionHtmxActionOptions options
-    EffectOption _ options -> optionHtmxActionOptions options
-    ModifierVariantOption variant -> concatMap (optionHtmxActionOptions . snd) variant.modifierVariantEffects
     _ -> []
 
 data SessionSelectorIR
@@ -278,7 +278,7 @@ validateSurface surface =
         <> validateUnique surface.surfaceName "fragment" (map (.fragmentName) surface.surfaceFragments)
         <> validateUnique surface.surfaceName "htmx action" (map (.htmxActionName) surface.surfaceHtmxActions)
         <> validateUnique surface.surfaceName "intent" (map (.intentName) surface.surfaceIntents)
-        <> validateUnique surface.surfaceName "session" surface.surfaceSessions
+        <> validateUnique surface.surfaceName "session" (map (.sessionName) surface.surfaceSessions)
         <> validateUnique surface.surfaceName "source ref" (map (.sourceRefName) surface.surfaceSourceRefs)
         <> validateUnique surface.surfaceName "dropzone ref" (map (.dropzoneRefName) surface.surfaceDropzoneRefs)
         <> validateUnique surface.surfaceName "activation ref" (map (.activationRefName) surface.surfaceActivationRefs)
@@ -286,6 +286,7 @@ validateSurface surface =
         <> validateUnique surface.surfaceName "dom token" surface.surfaceDomTokens
         <> validateUnique surface.surfaceName "dto" (map (fst . schemaNameAndMarker) surface.surfaceDtos)
         <> validateScopeAuthorization surface
+        <> validateInteractionEffects surface
         <> validateLiveFragmentInvalidation surface
         <> validateResourceDependencies surface
         <> validateCrossReferences surface
@@ -321,13 +322,92 @@ validateScopeAuthorization surface =
                 []  -> [diagnostic "missing-scope-auth" ("surface " <> surface.surfaceName <> " scope " <> scope.scopeName <> " must declare exactly one authorization policy")]
                 _   -> [diagnostic "multiple-scope-auth" ("surface " <> surface.surfaceName <> " scope " <> scope.scopeName <> " must declare exactly one authorization policy")]
 
-        validateAuthFields scope = \case
-            NoAuthIR -> []
-            AuthorizeIR policy fields ->
-                [ diagnostic "invalid-auth-field" ("surface " <> surface.surfaceName <> " scope " <> scope.scopeName <> " authorization " <> policy <> " references missing field " <> fieldName)
-                | fieldName <- fields
-                , fieldName `notElem` map (.fieldName) scope.scopeFields
+        validateAuthFields _ NoAuthIR = []
+        validateAuthFields scope (InvalidAuthorizeIR policy fields) =
+            [ diagnostic "invalid-authorization-policy"
+                ( "surface " <> surface.surfaceName
+                    <> " scope " <> scope.scopeName
+                    <> " authorization " <> scopeAuthPolicyName policy
+                    <> " expects " <> tshow (scopeAuthPolicyFieldCount policy)
+                    <> " fields but declares " <> tshow (length fields)
+                )
+            ]
+        validateAuthFields scope auth =
+            let fields = scopeAuthFieldNames auth
+             in [ diagnostic "duplicate-auth-field" ("surface " <> surface.surfaceName <> " scope " <> scope.scopeName <> " authorization " <> authorizationPolicyName auth <> " repeats field " <> fieldName)
+                | fieldName <- duplicateNames fields
                 ]
+                    <> concatMap (validateAuthField scope auth) fields
+
+        validateAuthField scope auth fieldName =
+            case List.find ((== fieldName) . (.fieldName)) scope.scopeFields of
+                Nothing ->
+                    [ diagnostic "invalid-auth-field" ("surface " <> surface.surfaceName <> " scope " <> scope.scopeName <> " authorization " <> authorizationPolicyName auth <> " references missing field " <> fieldName)
+                    ]
+                Just field
+                    | field.fieldWire == WireUuidIR && field.fieldPresence == RequiredField -> []
+                    | otherwise ->
+                        [ diagnostic "invalid-auth-field-type" ("surface " <> surface.surfaceName <> " scope " <> scope.scopeName <> " authorization " <> authorizationPolicyName auth <> " field " <> fieldName <> " must be a required UUID")
+                        ]
+
+        authorizationPolicyName auth =
+            case scopeAuthPolicy auth of
+                Just policy -> scopeAuthPolicyName policy
+                Nothing     -> error "NoAuth cannot own authorization fields"
+
+validateInteractionEffects :: SurfaceIR -> [ContractDiagnostic]
+validateInteractionEffects surface =
+    concatMap validateSession surface.surfaceSessions
+        <> concatMap validateSourceRefVariants surface.surfaceSourceRefs
+        <> concatMap validateMisplacedEffects surface.surfaceFragments
+        <> concatMap validateMisplacedActionEffects surface.surfaceHtmxActions
+        <> concatMap validateMisplacedIntentEffects surface.surfaceIntents
+    where
+        validateSession session =
+            validateUnique surface.surfaceName ("session " <> session.sessionName <> " layer") session.sessionLayers
+                <> validateEffectSet ("session " <> session.sessionName) session.sessionLayers session.sessionEffects
+
+        validateSourceRefVariants ref =
+            let availableLayers =
+                    maybe [] (.sessionLayers) (List.find ((== ref.sourceRefSession) . (.sessionName)) surface.surfaceSessions)
+             in concatMap
+                    (\variant -> validateEffectSet ("source ref " <> ref.sourceRefName <> " modifier variant " <> variant.modifierVariantSemantic) availableLayers variant.modifierVariantEffects)
+                    ref.sourceRefVariants
+
+        validateEffectSet owner availableLayers effects =
+            validateUnique surface.surfaceName (owner <> " interaction effect") (map interactionEffectBrowserKind effects)
+                <> concatMap (validateEffect owner availableLayers) effects
+
+        validateEffect owner availableLayers effect =
+            validateCanonicalEffect owner effect <> validateEffectLayer owner availableLayers effect
+
+        validateCanonicalEffect owner effect =
+            let expected = case effect.interactionEffectSemantic of
+                    CloneShadowEffectSemanticIR -> cloneShadowEffectIR <$> effect.interactionEffectLayer
+                    CloneShadowCopyEffectSemanticIR -> cloneShadowCopyEffectIR <$> effect.interactionEffectLayer
+                    DropzoneHighlightEffectSemanticIR -> Just dropzoneHighlightEffectIR
+             in if Just effect == expected
+                    then []
+                    else [diagnostic "invalid-interaction-effect" ("surface " <> surface.surfaceName <> " " <> owner <> " has incomplete or non-canonical " <> interactionEffectSemanticName effect <> " effect")]
+
+        validateEffectLayer owner availableLayers effect =
+            case interactionEffectLayerName effect of
+                Nothing -> []
+                Just layer
+                    | layer `elem` availableLayers -> []
+                    | otherwise -> [diagnostic "invalid-interaction-effect-layer" ("surface " <> surface.surfaceName <> " " <> owner <> " effect " <> interactionEffectSemanticName effect <> " references missing layer " <> layer)]
+
+        validateMisplacedEffects fragment =
+            misplacedOptionDiagnostics ("fragment " <> fragment.fragmentName) fragment.fragmentOptions
+        validateMisplacedActionEffects action =
+            misplacedOptionDiagnostics ("htmx action " <> action.htmxActionName) action.htmxActionOptions
+        validateMisplacedIntentEffects intent =
+            misplacedOptionDiagnostics ("intent " <> intent.intentName) intent.intentOptions
+
+        misplacedOptionDiagnostics owner = concatMap \case
+            ModifierVariantOption variant -> [diagnostic "invalid-interaction-effect-placement" ("surface " <> surface.surfaceName <> " " <> owner <> " places modifier variant " <> variant.modifierVariantSemantic <> " outside a source ref")]
+            LazyOption options -> misplacedOptionDiagnostics owner options
+            _ -> []
 
 validateLiveFragmentInvalidation :: SurfaceIR -> [ContractDiagnostic]
 validateLiveFragmentInvalidation surface =
@@ -349,8 +429,6 @@ validateResourceDependencies surface =
 
         validateOptionDependency fragment = \case
             LazyOption options -> concatMap (validateOptionDependency fragment) options
-            EffectOption _ options -> concatMap (validateOptionDependency fragment) options
-            ModifierVariantOption variant -> concatMap (validateOptionDependency fragment) (concatMap snd variant.modifierVariantEffects)
             DependsOnOption dependency -> validateDependency fragment dependency
             _ -> []
 
@@ -424,8 +502,6 @@ validateActionRequestOptions surface =
                 | otherwise -> []
             HtmxOption option -> maybe [] validateRawReason (htmxOptionSyntax option)
             LazyOption options -> concatMap validateHtmxEscape options
-            EffectOption _ options -> concatMap validateHtmxEscape options
-            ModifierVariantOption variant -> concatMap validateHtmxEscape (concatMap snd variant.modifierVariantEffects)
             _ -> []
 
         validateRawReason syntax =
@@ -497,8 +573,6 @@ optionsContainLive :: [OptionIR] -> Bool
 optionsContainLive = any \case
     LiveOption -> True
     LazyOption options -> optionsContainLive options
-    EffectOption _ options -> optionsContainLive options
-    ModifierVariantOption variant -> any (optionsContainLive . snd) variant.modifierVariantEffects
     _ -> False
 
 optionsContainLiveInvalidation :: [OptionIR] -> Bool
@@ -506,16 +580,12 @@ optionsContainLiveInvalidation = any \case
     ResyncOnlyOption -> True
     DependsOnOption _ -> True
     LazyOption options -> optionsContainLiveInvalidation options
-    EffectOption _ options -> optionsContainLiveInvalidation options
-    ModifierVariantOption variant -> any (optionsContainLiveInvalidation . snd) variant.modifierVariantEffects
     _ -> False
 
 optionResourceDependencies :: [OptionIR] -> [ResourceDependencyIR]
 optionResourceDependencies = concatMap \case
     DependsOnOption dependency -> [dependency]
     LazyOption options -> optionResourceDependencies options
-    EffectOption _ options -> optionResourceDependencies options
-    ModifierVariantOption variant -> concatMap (optionResourceDependencies . snd) variant.modifierVariantEffects
     _ -> []
 
 validateCrossReferences :: SurfaceIR -> [ContractDiagnostic]
@@ -523,15 +593,13 @@ validateCrossReferences surface =
     concatMap validateFragmentOption surface.surfaceFragments
         <> concatMap validateActionOption surface.surfaceHtmxActions
         <> concatMap validateIntentOption surface.surfaceIntents
-        <> concatMap validateEffectOption surface.surfaceEffects
         <> validateInteractionRefs
         <> concatMap validatePolicy surface.surfacePolicies
     where
         fragmentNames = map (.fragmentName) surface.surfaceFragments
         actionNames = map (.htmxActionName) surface.surfaceHtmxActions
         intentNames = map (.intentName) surface.surfaceIntents
-        layerNames = surface.surfaceLayers
-        sessionNames = surface.surfaceSessions
+        sessionNames = map (.sessionName) surface.surfaceSessions
         dropzoneNames = map (.dropzoneRefName) surface.surfaceDropzoneRefs
         eventNames = map fst surface.surfaceClientEvents
         dtoNames = map (fst . schemaNameAndMarker) surface.surfaceDtos
@@ -541,18 +609,14 @@ validateCrossReferences surface =
         validateFragmentOption fragment = concatMap (validateOptionRef ("fragment " <> fragment.fragmentName)) fragment.fragmentOptions
         validateActionOption action = concatMap (validateOptionRef ("htmx action " <> action.htmxActionName)) action.htmxActionOptions
         validateIntentOption intent = concatMap (validateOptionRef ("intent " <> intent.intentName)) intent.intentOptions
-        validateEffectOption (effectName, options) = concatMap (validateOptionRef ("effect " <> effectName)) options
 
         validateOptionRef owner = \case
             LazyOption options -> concatMap (validateOptionRef owner) options
-            EffectOption _ options -> concatMap (validateOptionRef owner) options
             ModifierVariantOption variant ->
                 requireRef (owner <> " modifier variant " <> variant.modifierVariantSemantic) RefIntent intentNames variant.modifierVariantIntent
-                    <> concatMap (validateOptionRef (owner <> " modifier variant " <> variant.modifierVariantSemantic <> " effect")) (concatMap snd variant.modifierVariantEffects)
             MountTargetOption {} -> []
             TargetOption name -> requireRef owner RefFragment fragmentNames name
             BackedByOption name -> requireRef owner RefAction actionNames name
-            LayerOption name -> requireRef owner RefLayer layerNames name
             SessionOptionIR name -> requireRef owner RefSession sessionNames name
             SubmitsOption name -> requireRef owner RefIntent intentNames name
             SourceFieldOption name -> requireAnyIntentField owner name
@@ -586,7 +650,6 @@ validateCrossReferences surface =
         validateSourceRefVariant ref variant =
             requireRef ("source ref " <> ref.sourceRefName <> " modifier variant " <> variant.modifierVariantSemantic) RefIntent intentNames variant.modifierVariantIntent
                 <> requireIntentField ("source ref " <> ref.sourceRefName <> " modifier variant " <> variant.modifierVariantSemantic) variant.modifierVariantIntent ref.sourceRefSourceField
-                <> concatMap (validateOptionRef ("source ref " <> ref.sourceRefName <> " modifier variant " <> variant.modifierVariantSemantic <> " effect")) (concatMap snd variant.modifierVariantEffects)
         validateDropzoneRef ref =
             requireRef ("dropzone ref " <> ref.dropzoneRefName) RefSession sessionNames ref.dropzoneRefSession
                 <> requireAnyIntentField ("dropzone ref " <> ref.dropzoneRefName) ref.dropzoneRefTargetField
@@ -667,8 +730,6 @@ validateContainmentCycles contract =
 containedSurfaceNames :: [OptionIR] -> [Text]
 containedSurfaceNames = concatMap \case
     LazyOption options -> containedSurfaceNames options
-    EffectOption _ options -> containedSurfaceNames options
-    ModifierVariantOption variant -> concatMap (containedSurfaceNames . snd) variant.modifierVariantEffects
     ContainsSurfaceOption surfaceName -> [surfaceName]
     _ -> []
 
