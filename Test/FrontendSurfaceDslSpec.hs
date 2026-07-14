@@ -13,7 +13,6 @@ import Application.Helper.FrontendContract.Surface.ContractIR
 import Application.Helper.FrontendContract.Surface.Contracts (registeredFrontendSurfaceContractIR)
 import Application.Helper.FrontendContract.Surface.DSL
 import qualified Application.Helper.FrontendContract.Surface.Interaction as SurfaceInteraction
-import qualified Application.Helper.FrontendContract.Surface.Lab as LabSurface
 import Application.Helper.FrontendContract.Surface.Reflect
 import Application.Helper.FrontendContract.Surface.Registry (RegisteredFrontendSurfaces)
 import Application.Helper.FrontendContract.Surface.Resource
@@ -29,6 +28,7 @@ import qualified Data.Text as Text
 import qualified Data.UUID as UUID
 import IHP.Prelude
 import Test.Hspec
+import qualified Test.Support.FrontendSurfaceFixture as SurfaceFixture
 import qualified Text.Blaze.Html.Renderer.Text as HtmlRenderer
 import qualified Text.Blaze.Html5 as Html5
 
@@ -104,10 +104,25 @@ frontendSurfaceContractsTypeScript :: Text
 frontendSurfaceContractsTypeScript =
     either error id (renderFrontendContractTypeScript registeredFrontendContractIR)
 
+frontendSurfaceFixtureContractIR :: SurfaceContractIR
+frontendSurfaceFixtureContractIR =
+    let reflected = SurfaceContractIR (reflectSurfaceRegistry @'[SurfaceFixture.FrontendSurfaceFixture])
+     in either (error . cs . tshow) id (checkedSurfaceContractIR reflected)
+
+frontendSurfaceFixtureTypeScript :: Text
+frontendSurfaceFixtureTypeScript =
+    either error id (renderFrontendContractTypeScript fixtureContract)
+  where
+    fixtureContract :: FrontendContractIR
+    fixtureContract = FrontendContractIR
+        { contractGlobals = registeredFrontendContractIR.contractGlobals
+        , contractSurfaces = frontendSurfaceFixtureContractIR.contractSurfaces
+        }
+
 tests :: Spec
 tests = describe "FrontendSurface DSL foundation" do
-    it "kind-checks the support lab surface and root registry" do
-        let _lab = Proxy @LabSurface.SurfaceLabSurface
+    it "kind-checks the unregistered contract fixture and production root registry" do
+        let _fixture = Proxy @SurfaceFixture.FrontendSurfaceFixture
         let _timesheets = Proxy @TimesheetsSurface.TimesheetsSurface
         let _roster = Proxy @RosterSurface.RosterSurface
         let _registry = Proxy @RegisteredFrontendSurfaces
@@ -124,7 +139,7 @@ tests = describe "FrontendSurface DSL foundation" do
         (surfaceDomTokenValue @TimesheetsSurface.TimesheetsSurface @TimesheetsSurface.TimesheetWeekShell) `shouldBe` "timesheet-week-shell"
         (surfaceSourceRefValue @RosterSurface.RosterDayTimelineSurface @SurfaceInteraction.DragSourceRef).sourceRefName `shouldBe` "drag-source"
         (surfaceDropzoneRefValue @RosterSurface.RosterDayTimelineSurface @SurfaceInteraction.DragDropzoneRef).dropzoneRefName `shouldBe` "drag-dropzone"
-        (surfaceIntentFieldName @LabSurface.SurfaceLabSurface @LabSurface.MoveLabCard @LabSurface.SourceItemKey) `shouldBe` "sourceItemKey"
+        (surfaceIntentFieldName @SurfaceFixture.FrontendSurfaceFixture @SurfaceFixture.MoveCard @SurfaceFixture.SourceItemKey) `shouldBe` "sourceItemKey"
 
     it "renders typed HTMX selector, trigger, swap, and sync syntax deterministically" do
         let surface = reflectSurfaceSpec @TypedHtmxSurface
@@ -169,30 +184,31 @@ tests = describe "FrontendSurface DSL foundation" do
         (surfaceActionFieldName @TimesheetsSurface.TimesheetsSurface @TimesheetsSurface.NavigateTimesheetWeek @TimesheetsSurface.WeekOffset)
             `shouldBe` "weekOffset"
 
-    it "renders minimal mount-local runtime metadata without legacy live-surface config" do
-        let venueId = fromMaybe (error "invalid Lab venue UUID") (UUID.fromString "22222222-2222-2222-2222-222222222222")
-        let panelId = fromMaybe (error "invalid Lab panel UUID") (UUID.fromString "11111111-1111-1111-1111-111111111111")
+    it "renders minimal mount-local runtime metadata from production Surface values" do
+        let venueId = fromMaybe (error "invalid fixture venue UUID") (UUID.fromString "22222222-2222-2222-2222-222222222222")
         let fragment =
-                frontendSurfaceMountedFragmentFor @LabSurface.SurfaceLabSurface @LabSurface.LabPanel
-                    (surfaceField @LabSurface.PanelId panelId :& NoSurfaceFields)
+                frontendSurfaceMountedFragmentFor @TimesheetsSurface.TimesheetsSurface @TimesheetsSurface.TimesheetToolbar
                     NoSurfaceFields
-                    "/ShowFrontendSurfaceLabPanelFragment?panelId=11111111-1111-1111-1111-111111111111"
+                    NoSurfaceFields
+                    "/fixture/timesheet-toolbar"
                     ( FrontendSurfaceFocusedFieldConfig FrontendSurfaceFocusedFieldProtectionConfig
-                        { focusedProtectionActiveSelector = "input[data-lab-field]:focus"
-                        , focusedProtectionFieldKeyAttr = "data-lab-field"
+                        { focusedProtectionActiveSelector = "input[data-fixture-field]:focus"
+                        , focusedProtectionFieldKeyAttr = "data-fixture-field"
                         , focusedProtectionFieldNameFallback = True
-                        , focusedProtectionContainerSelector = Just "form[data-lab-row]"
+                        , focusedProtectionContainerSelector = Just "form[data-fixture-row]"
                         }
                     )
         let impl =
-                mkSurfaceImplFromValues @LabSurface.SurfaceLabSurface @LabSurface.LabScope
+                mkSurfaceImplFromValues @TimesheetsSurface.TimesheetsSurface @TimesheetsSurface.TimesheetWeek
                     "primary"
-                    ( surfaceField @LabSurface.VenueId venueId
-                        :& surfaceField @LabSurface.WeekOffset (0 :: Int)
+                    ( surfaceField @TimesheetsSurface.VenueId venueId
+                        :& surfaceField @TimesheetsSurface.WeekOffset (0 :: Int)
                         :& NoSurfaceFields
                     )
-                    ( surfaceField @LabSurface.ShowArchived False
-                        :& surfaceOptionalField @LabSurface.StaffFilterId Nothing
+                    ( surfaceField @TimesheetsSurface.ShowApproved False
+                        :& surfaceField @TimesheetsSurface.ShowAllStaff False
+                        :& surfaceField @TimesheetsSurface.ShowSuggestions True
+                        :& surfaceField @TimesheetsSurface.StaffFilterId Nothing
                         :& NoSurfaceFields
                     )
                     [fragment]
@@ -201,22 +217,22 @@ tests = describe "FrontendSurface DSL foundation" do
         let parameterlessConfig = config
                 { mountFragments =
                     [ fragment
-                        { mountedFragmentKey = FrontendSurfaceFragmentKey "lab-shell" Aeson.Null
+                        { mountedFragmentKey = FrontendSurfaceFragmentKey "timesheet-toolbar" Aeson.Null
                         }
                     ]
                 }
 
-        impl.surfaceImplName `shouldBe` "surface-lab"
-        surfaceActionNameValue @LabSurface.SurfaceLabSurface @LabSurface.RefreshPanel `shouldBe` "refresh-panel"
-        surfaceIntentNameValue @LabSurface.SurfaceLabSurface @LabSurface.MoveLabCard `shouldBe` "move-lab-card"
-        html `shouldContainText` "data-bepis-surface=\"surface-lab\""
+        impl.surfaceImplName `shouldBe` "timesheets"
+        surfaceActionNameValue @SurfaceFixture.FrontendSurfaceFixture @SurfaceFixture.RefreshPanel `shouldBe` "refresh-panel"
+        surfaceIntentNameValue @SurfaceFixture.FrontendSurfaceFixture @SurfaceFixture.MoveCard `shouldBe` "move-card"
+        html `shouldContainText` "data-bepis-surface=\"timesheets\""
         html `shouldContainText` "data-bepis-surface-config="
         html `shouldNotContainText` "data-live-update-surface"
         frontendSurfaceMountConfigJson config `shouldContainText` "\"mountKey\":\"primary\""
-        frontendSurfaceMountConfigJson config `shouldContainText` "\"targetId\":\"surface-lab-panel\""
+        frontendSurfaceMountConfigJson config `shouldContainText` "\"targetId\":\"timesheet-week-toolbar\""
         frontendSurfaceMountConfigJson config `shouldContainText` "\"kind\":\"focused-field\""
-        frontendSurfaceMountConfigJson config `shouldContainText` "\"activeSelector\":\"input[data-lab-field]:focus\""
-        frontendSurfaceMountConfigJson parameterlessConfig `shouldContainText` "\"fragmentKey\":{\"kind\":\"lab-shell\",\"params\":{},\"surface\":\"surface-lab\"}"
+        frontendSurfaceMountConfigJson config `shouldContainText` "\"activeSelector\":\"input[data-fixture-field]:focus\""
+        frontendSurfaceMountConfigJson parameterlessConfig `shouldContainText` "\"fragmentKey\":{\"kind\":\"timesheet-toolbar\",\"params\":{},\"surface\":\"timesheets\"}"
         let mountConfigJson = frontendSurfaceMountConfigJson config
         mountConfigJson `shouldContainText` "\"fragmentKey\""
         mountConfigJson `shouldNotContainText` "\"mountState\""
@@ -227,26 +243,26 @@ tests = describe "FrontendSurface DSL foundation" do
         Text.count "\"url\":" mountConfigJson `shouldBe` length config.mountFragments
 
     it "renders lazy fragments with canonical UI-region attrs and feature slot classes" do
-        let panelId = fromMaybe (error "invalid Lab panel UUID") (UUID.fromString "11111111-1111-1111-1111-111111111111")
+        let panelId = fromMaybe (error "invalid fixture panel UUID") (UUID.fromString "11111111-1111-1111-1111-111111111111")
         let fragment =
-                frontendSurfaceMountedFragmentFor @LabSurface.SurfaceLabSurface @LabSurface.LabPanel
-                    (surfaceField @LabSurface.PanelId panelId :& NoSurfaceFields)
+                frontendSurfaceMountedFragmentFor @SurfaceFixture.FrontendSurfaceFixture @SurfaceFixture.FixturePanel
+                    (surfaceField @SurfaceFixture.PanelId panelId :& NoSurfaceFields)
                     NoSurfaceFields
-                    "/ShowFrontendSurfaceLabPanelFragment"
+                    "/fixture/panel"
                     FrontendSurfaceReplace
-        let html = cs (HtmlRenderer.renderHtml (renderFrontendSurfaceLazyFragmentWithConfig defaultFrontendSurfaceLazyFragmentConfig { lazyFragmentRootClasses = ["col-12", "col-xl-4", "surface-lab-side"] } fragment (Html5.toHtml ("Loading" :: Text))))
-        html `shouldContainText` "id=\"surface-lab-panel\""
-        html `shouldContainText` "class=\"col-12 col-xl-4 surface-lab-side app-lazy-surface app-lazy-surface-compact app-lazy-surface-panel\""
+        let html = cs (HtmlRenderer.renderHtml (renderFrontendSurfaceLazyFragmentWithConfig defaultFrontendSurfaceLazyFragmentConfig { lazyFragmentRootClasses = ["col-12", "col-xl-4", "contract-fixture-side"] } fragment (Html5.toHtml ("Loading" :: Text))))
+        html `shouldContainText` "id=\"contract-fixture-panel\""
+        html `shouldContainText` "class=\"col-12 col-xl-4 contract-fixture-side app-lazy-surface app-lazy-surface-compact app-lazy-surface-panel\""
         html `shouldContainText` "data-bepis-fragment=\"true\""
         html `shouldContainText` "data-bepis-lazy-surface=\"true\""
-        html `shouldContainText` "data-bepis-lazy-fragment=\"lab-panel\""
+        html `shouldContainText` "data-bepis-lazy-fragment=\"fixture-panel\""
         html `shouldContainText` "data-bepis-lazy-retry=\"true\""
-        html `shouldContainText` "hx-get=\"/ShowFrontendSurfaceLabPanelFragment\""
+        html `shouldContainText` "hx-get=\"/fixture/panel\""
         html `shouldContainText` "hx-trigger=\"load\""
         html `shouldNotContainText` "data-bepis-surface-lazy"
 
-        let customPlaceholderHtml = cs (HtmlRenderer.renderHtml (renderFrontendSurfaceLazyFragmentWithConfig customPlaceholderFrontendSurfaceLazyFragmentConfig { lazyFragmentRootClasses = ["col-12", "col-xl-4", "surface-lab-side"] } fragment (Html5.toHtml ("Loading" :: Text))))
-        customPlaceholderHtml `shouldContainText` "class=\"col-12 col-xl-4 surface-lab-side app-lazy-surface app-lazy-surface-custom app-lazy-surface-panel\""
+        let customPlaceholderHtml = cs (HtmlRenderer.renderHtml (renderFrontendSurfaceLazyFragmentWithConfig customPlaceholderFrontendSurfaceLazyFragmentConfig { lazyFragmentRootClasses = ["col-12", "col-xl-4", "contract-fixture-side"] } fragment (Html5.toHtml ("Loading" :: Text))))
+        customPlaceholderHtml `shouldContainText` "class=\"col-12 col-xl-4 contract-fixture-side app-lazy-surface app-lazy-surface-custom app-lazy-surface-panel\""
 
     it "derives lazy trigger and placeholder defaults from existing primitive options" do
         let defaults = knownFragmentOptions @'[ 'Lazy '[ 'Trigger TestLoad, 'Placeholder TestPanel ]]
@@ -254,26 +270,25 @@ tests = describe "FrontendSurface DSL foundation" do
         defaults.lazyFragmentDefaultPlaceholderKind `shouldBe` Just "test-panel"
 
     it "builds mounted parameterized fragment keys from exact marker-indexed values" do
-        let panelId = fromMaybe (error "invalid Lab panel UUID") (UUID.fromString "11111111-1111-1111-1111-111111111111")
-        let fields = surfaceField @LabSurface.PanelId panelId :& NoSurfaceFields
-        let key = frontendSurfaceFragmentKeyFor @LabSurface.SurfaceLabSurface @LabSurface.LabPanel fields
+        let panelId = fromMaybe (error "invalid fixture panel UUID") (UUID.fromString "11111111-1111-1111-1111-111111111111")
+        let fields = surfaceField @SurfaceFixture.PanelId panelId :& NoSurfaceFields
+        let key = frontendSurfaceFragmentKeyFor @SurfaceFixture.FrontendSurfaceFixture @SurfaceFixture.FixturePanel fields
         let fragment =
-                frontendSurfaceMountedFragmentFor @LabSurface.SurfaceLabSurface @LabSurface.LabPanel
+                frontendSurfaceMountedFragmentFor @SurfaceFixture.FrontendSurfaceFixture @SurfaceFixture.FixturePanel
                     fields
                     NoSurfaceFields
-                    "/lab/panel?panelId=11111111-1111-1111-1111-111111111111"
+                    "/fixture/panel?panelId=11111111-1111-1111-1111-111111111111"
                     FrontendSurfaceReplace
 
         surfaceFieldsText fields `shouldBe` [("panelId", "11111111-1111-1111-1111-111111111111")]
-        key `shouldBe` FrontendSurfaceFragmentKey "lab-panel" (Aeson.object ["panelId" Aeson..= ("11111111-1111-1111-1111-111111111111" :: Text)])
+        key `shouldBe` FrontendSurfaceFragmentKey "fixture-panel" (Aeson.object ["panelId" Aeson..= ("11111111-1111-1111-1111-111111111111" :: Text)])
         fragment.mountedFragmentKey `shouldBe` key
-        fragment.mountedFragmentTargetId `shouldBe` surfaceFragmentTargetId @LabSurface.SurfaceLabSurface @LabSurface.LabPanel NoSurfaceFields
-        fragment.mountedFragmentUrl `shouldBe` "/lab/panel?panelId=11111111-1111-1111-1111-111111111111"
+        fragment.mountedFragmentTargetId `shouldBe` surfaceFragmentTargetId @SurfaceFixture.FrontendSurfaceFixture @SurfaceFixture.FixturePanel NoSurfaceFields
+        fragment.mountedFragmentUrl `shouldBe` "/fixture/panel?panelId=11111111-1111-1111-1111-111111111111"
 
     it "reflects the complete production Surface registry in declared order" do
         map (.surfaceName) registeredFrontendSurfaceContractIR.contractSurfaces
-            `shouldBe` [ "surface-lab"
-                       , "timesheets"
+            `shouldBe` [ "timesheets"
                        , "roster"
                        , "roster-day-timeline"
                        , "leave-requests"
@@ -313,34 +328,34 @@ tests = describe "FrontendSurface DSL foundation" do
         diagnosticMessages missingChild `shouldContain` ["surface missing-contained fragment missing-contained-content contains missing surface child"]
         diagnosticMessages cycle `shouldContain` ["surface containment cycle includes cycle-a"]
 
-    it "reflects the registered lab surface into checked contract IR" do
-        let surface = expectSurface "surface-lab" registeredFrontendSurfaceContractIR
+    it "reflects the unregistered fixture surface into checked contract IR" do
+        let surface = expectSurface "contract-fixture" frontendSurfaceFixtureContractIR
 
-        surface.surfaceName `shouldBe` "surface-lab"
-        map (.scopeName) surface.surfaceScopes `shouldBe` ["lab"]
-        map (.fragmentName) surface.surfaceFragments `shouldBe` ["lab-shell", "lab-panel"]
+        surface.surfaceName `shouldBe` "contract-fixture"
+        map (.scopeName) surface.surfaceScopes `shouldBe` ["fixture"]
+        map (.fragmentName) surface.surfaceFragments `shouldBe` ["fixture-shell", "fixture-panel"]
         map (.htmxActionName) surface.surfaceHtmxActions `shouldBe` ["refresh-panel"]
-        map (.intentName) surface.surfaceIntents `shouldBe` ["move-lab-card"]
+        map (.intentName) surface.surfaceIntents `shouldBe` ["move-card"]
         surface.surfaceSessions `shouldBe` ["drag"]
         surface.surfaceLayers `shouldBe` ["drag-preview"]
-        surface.surfaceDomTokens `shouldBe` ["lab-root", "lab-dropzone", "lab-panel-include"]
+        surface.surfaceDomTokens `shouldBe` ["fixture-root", "fixture-dropzone", "fixture-panel-include"]
         surface.surfaceBrowserDomTokens `shouldBe` []
-        map (fst . schemaNameAndMarker) surface.surfaceDtos `shouldBe` ["LabPayload", "LabRelatedPayload"]
+        map (fst . schemaNameAndMarker) surface.surfaceDtos `shouldBe` ["FixturePayload", "FixtureRelatedPayload"]
         surface.surfaceFragments
-            |> find (\fragment -> fragment.fragmentName == "lab-panel")
+            |> find (\fragment -> fragment.fragmentName == "fixture-panel")
             |> fmap (.fragmentOptions)
-            `shouldBe` Just [MountTargetOption "surface-lab-panel" [], LazyOption [TriggerOption "load", PlaceholderOption "panel"]]
+            `shouldBe` Just [MountTargetOption "contract-fixture-panel" [], LazyOption [TriggerOption "load", PlaceholderOption "panel"]]
         surface.surfaceHtmxActions
             |> find (\action -> action.htmxActionName == "refresh-panel")
             |> fmap (.htmxActionOptions)
             `shouldBe` Just
-                [ TargetOption "lab-panel"
+                [ TargetOption "fixture-panel"
                 , HtmxOption (HtmxActionMethodIR HtmxPostIR)
-                , HtmxOption (HtmxActionTargetIR (HtmxTypedSyntaxIR "#surface-lab-panel" ["surface-lab-panel"]))
+                , HtmxOption (HtmxActionTargetIR (HtmxTypedSyntaxIR "#contract-fixture-panel" ["contract-fixture-panel"]))
                 , HtmxOption (HtmxActionSwapIR (HtmxTypedSyntaxIR "outerHTML" []))
-                , HtmxOption (HtmxActionIncludeIR (HtmxTypedSyntaxIR "#lab-panel-include" ["lab-panel-include"]))
+                , HtmxOption (HtmxActionIncludeIR (HtmxTypedSyntaxIR "#fixture-panel-include" ["fixture-panel-include"]))
                 , HtmxOption (HtmxActionPushUrlIR HtmxPushUrlFalseIR)
-                , HtmxOption (HtmxActionCustomHtmxIR "lab-panel-custom-htmx" "lab fixture covers auditable custom HTMX metadata")
+                , HtmxOption (HtmxActionCustomHtmxIR "fixture-panel-custom-htmx" "test fixture covers auditable custom HTMX metadata")
                 ]
 
     it "reflects the registered timesheets surface into checked contract IR" do
@@ -371,17 +386,18 @@ tests = describe "FrontendSurface DSL foundation" do
         navigateAction.htmxActionOptions
             `shouldSatisfy` all (\case HtmxOption HtmxActionCustomHtmxIR {} -> False; _ -> True)
 
-    it "renders only browser-reachable contracts for the Surface Lab fixture" do
-        frontendSurfaceContractsTypeScript `shouldContainText` "export type SurfaceLabSurfaceFragmentKey ="
-        frontendSurfaceContractsTypeScript `shouldContainText` "export type SurfaceLabMountConfig = { surface: \"surface-lab\"; scopeKey: string; mountKey: string; fragments: ReadonlyArray<SurfaceLabMountedFragmentConfig>; subscription: null };"
-        frontendSurfaceContractsTypeScript `shouldContainText` "{ kind: \"lab-panel\"; params: SurfaceLabLabPanelFragmentParams }"
-        frontendSurfaceContractsTypeScript `shouldContainText` "\"surface-lab\":[]"
-        frontendSurfaceContractsTypeScript `shouldNotContainText` "RefreshPanelActionFields"
-        frontendSurfaceContractsTypeScript `shouldNotContainText` "FrontendSurfaceActionManifest"
-        frontendSurfaceContractsTypeScript `shouldNotContainText` "MoveLabCardIntentFields"
-        frontendSurfaceContractsTypeScript `shouldNotContainText` "export type LabPayload"
-        frontendSurfaceContractsTypeScript `shouldNotContainText` "surfaceLabSurfaceManifest"
-        frontendSurfaceContractsTypeScript `shouldNotContainText` "parseFrontendSurfaceName"
+    it "renders only browser-reachable contracts for the unregistered fixture" do
+        frontendSurfaceFixtureTypeScript `shouldContainText` "export type ContractFixtureSurfaceFragmentKey ="
+        frontendSurfaceFixtureTypeScript `shouldContainText` "export type ContractFixtureMountConfig = { surface: \"contract-fixture\"; scopeKey: string; mountKey: string; fragments: ReadonlyArray<ContractFixtureMountedFragmentConfig>; subscription: null };"
+        frontendSurfaceFixtureTypeScript `shouldContainText` "{ kind: \"fixture-panel\"; params: ContractFixtureFixturePanelFragmentParams }"
+        frontendSurfaceFixtureTypeScript `shouldContainText` "\"contract-fixture\":[]"
+        frontendSurfaceFixtureTypeScript `shouldContainText` "\"contract-fixture\":{\"sourceRefs\":[]"
+        frontendSurfaceFixtureTypeScript `shouldNotContainText` "RefreshPanelActionFields"
+        frontendSurfaceFixtureTypeScript `shouldNotContainText` "FrontendSurfaceActionManifest"
+        frontendSurfaceFixtureTypeScript `shouldNotContainText` "MoveCardIntentFields"
+        frontendSurfaceFixtureTypeScript `shouldNotContainText` "export type FixturePayload"
+        frontendSurfaceFixtureTypeScript `shouldNotContainText` "contractFixtureSurfaceManifest"
+        frontendSurfaceFixtureTypeScript `shouldNotContainText` "parseFrontendSurfaceName"
 
     it "renders generated TypeScript contracts for the timesheets surface" do
         frontendSurfaceContractsTypeScript `shouldContainText` "export type TimesheetsSurfaceFragmentKey ="
@@ -493,7 +509,7 @@ tests = describe "FrontendSurface DSL foundation" do
         diagnosticMessages missingReference `shouldContain` ["htmx action bad references missing fragment missing on surface missing-reference"]
         diagnosticMessages conflictingShared `shouldContain` ["conflicting shared declaration: scope shared"]
         diagnosticMessages missingDtoRef `shouldContain` ["field missingPayload references missing dto MissingPayload on surface missing-dto-ref"]
-        diagnosticMessages missingAuth `shouldContain` ["surface missing-auth scope lab must declare exactly one authorization policy"]
+        diagnosticMessages missingAuth `shouldContain` ["surface missing-auth scope test must declare exactly one authorization policy"]
         diagnosticMessages missingLiveInvalidation `shouldContain` ["surface missing-live-invalidation live fragment bad must declare DependsOn or ResyncOnly"]
         diagnosticMessages missingResourceSource `shouldContain` ["surface missing-resource-source fragment bad dependency test-resource missing source for resource field weekOffset"]
         diagnosticMessages invalidScopeSource `shouldContain` ["surface invalid-scope-source fragment bad dependency test-resource references missing scope field weekOffset"]
@@ -534,13 +550,13 @@ tests = describe "FrontendSurface DSL foundation" do
         activationHtml `shouldContainText` "data-bepis-activation-ref=\"roster-layout-mode-activation\""
         activationHtml `shouldNotContainText` "data-bepis-activation-intent"
 
-    it "renders generated HTMX action attrs from surface action metadata" do
-        let surface = expectSurface "surface-lab" registeredFrontendSurfaceContractIR
-        let action = fromMaybe (error "missing lab action") (listToMaybe surface.surfaceHtmxActions)
+    it "renders generated HTMX action attrs from fixture action metadata" do
+        let surface = expectSurface "contract-fixture" frontendSurfaceFixtureContractIR
+        let action = fromMaybe (error "missing fixture action") (listToMaybe surface.surfaceHtmxActions)
         let route = FrontendSurfaceActionRoute
-                { actionRouteUrl = "/RefreshFrontendSurfaceLabPanel"
+                { actionRouteUrl = "/fixture/refresh-panel"
                 , actionRouteFields = [FrontendSurfaceFieldValue "panelId" "panel-1"]
-                , actionRouteCustomHtmx = [FrontendSurfaceCustomHtmxAttrs "lab-panel-custom-htmx" [("hx-vals", "{}")]]
+                , actionRouteCustomHtmx = [FrontendSurfaceCustomHtmxAttrs "fixture-panel-custom-htmx" [("hx-vals", "{}")]]
                 , actionRouteStandardUrl = Nothing
                 , actionRouteExtraAttrs = [("class", "surface-action-test")]
                 }
@@ -549,38 +565,38 @@ tests = describe "FrontendSurface DSL foundation" do
         let buttonHtml = cs (HtmlRenderer.renderHtml (renderFrontendSurfaceActionSubmitButton action route (Html5.toHtml ("refresh" :: Text))))
 
         formHtml `shouldContainText` "method=\"post\""
-        formHtml `shouldContainText` "action=\"/RefreshFrontendSurfaceLabPanel\""
-        formHtml `shouldContainText` "hx-post=\"/RefreshFrontendSurfaceLabPanel\""
-        formHtml `shouldContainText` "hx-target=\"#surface-lab-panel\""
+        formHtml `shouldContainText` "action=\"/fixture/refresh-panel\""
+        formHtml `shouldContainText` "hx-post=\"/fixture/refresh-panel\""
+        formHtml `shouldContainText` "hx-target=\"#contract-fixture-panel\""
         formHtml `shouldContainText` "hx-swap=\"outerHTML\""
-        formHtml `shouldContainText` "hx-include=\"#lab-panel-include\""
+        formHtml `shouldContainText` "hx-include=\"#fixture-panel-include\""
         formHtml `shouldContainText` "hx-push-url=\"false\""
         formHtml `shouldContainText` "hx-vals=\"{}\""
         formHtml `shouldContainText` "data-bepis-surface-action=\"refresh-panel\""
         formHtml `shouldNotContainText` "data-bepis-surface-action-config="
-        linkHtml `shouldContainText` "href=\"/RefreshFrontendSurfaceLabPanel\""
-        linkHtml `shouldContainText` "hx-post=\"/RefreshFrontendSurfaceLabPanel\""
-        buttonHtml `shouldContainText` "formaction=\"/RefreshFrontendSurfaceLabPanel\""
-        buttonHtml `shouldContainText` "hx-post=\"/RefreshFrontendSurfaceLabPanel\""
+        linkHtml `shouldContainText` "href=\"/fixture/refresh-panel\""
+        linkHtml `shouldContainText` "hx-post=\"/fixture/refresh-panel\""
+        buttonHtml `shouldContainText` "formaction=\"/fixture/refresh-panel\""
+        buttonHtml `shouldContainText` "hx-post=\"/fixture/refresh-panel\""
 
     it "renders minimal HTMX action and intent forms from SurfaceImpl metadata" do
         let request = FrontendSurfaceHtmxRequest
                 { htmxRequestName = "refresh-panel"
                 , htmxRequestMethod = FrontendSurfacePost
-                , htmxRequestUrl = "/RefreshFrontendSurfaceLabPanel"
-                , htmxRequestTarget = "#surface-lab-panel"
+                , htmxRequestUrl = "/fixture/refresh-panel"
+                , htmxRequestTarget = "#contract-fixture-panel"
                 , htmxRequestSwap = "outerHTML"
                 , htmxRequestFields = [FrontendSurfaceFieldValue "panelId" "panel-1"]
                 }
-        let intent = FrontendSurfaceIntentForm "move-lab-card" request
+        let intent = FrontendSurfaceIntentForm "move-card" request
         let actionHtml = cs (HtmlRenderer.renderHtml (renderFrontendSurfaceHtmxForm request (Html5.toHtml ("refresh" :: Text))))
         let intentHtml = cs (HtmlRenderer.renderHtml (renderFrontendSurfaceIntentForm intent (Html5.toHtml ("move" :: Text))))
 
-        actionHtml `shouldContainText` "hx-post=\"/RefreshFrontendSurfaceLabPanel\""
+        actionHtml `shouldContainText` "hx-post=\"/fixture/refresh-panel\""
         actionHtml `shouldContainText` "data-bepis-surface-action=\"refresh-panel\""
         actionHtml `shouldContainText` "name=\"panelId\""
-        intentHtml `shouldContainText` "data-bepis-intent-form=\"move-lab-card\""
-        intentHtml `shouldContainText` "hx-target=\"#surface-lab-panel\""
+        intentHtml `shouldContainText` "data-bepis-intent-form=\"move-card\""
+        intentHtml `shouldContainText` "hx-target=\"#contract-fixture-panel\""
 
 diagnosticMessages :: Either [ContractDiagnostic] SurfaceContractIR -> [Text]
 diagnosticMessages = \case
@@ -616,7 +632,7 @@ data PanelId
 data StaffFilterId
 data VenueId
 data WeekOffset
-data LabScope
+data TestScope
 
 expectSurface :: Text -> SurfaceContractIR -> SurfaceIR
 expectSurface surfaceName SurfaceContractIR { contractSurfaces } =
@@ -635,30 +651,30 @@ type DuplicateFieldSurface =
 
 type MissingReferenceSurface =
     Surface MissingReference
-        '[ Scope LabScope '[ Field VenueId 'WireUUID ] '[ 'NoAuth ]
+        '[ Scope TestScope '[ Field VenueId 'WireUUID ] '[ 'NoAuth ]
          , Action Bad '[] '[ 'Target MissingFragment ]
          ]
 
 type MissingDtoRefSurface =
     Surface MissingDtoRef
-        '[ Scope LabScope '[ Field VenueId 'WireUUID ] '[ 'NoAuth ]
+        '[ Scope TestScope '[ Field VenueId 'WireUUID ] '[ 'NoAuth ]
          , Dto Bad '[ Field MissingPayload ('WireRef MissingPayload) ]
          ]
 
 type MissingAuthSurface =
     Surface MissingAuth
-        '[ Scope LabScope '[ Field VenueId 'WireUUID ] '[]
+        '[ Scope TestScope '[ Field VenueId 'WireUUID ] '[]
          ]
 
 type MissingLiveInvalidationSurface =
     Surface MissingLiveInvalidation
-        '[ Scope LabScope '[ Field VenueId 'WireUUID ] '[ 'NoAuth ]
+        '[ Scope TestScope '[ Field VenueId 'WireUUID ] '[ 'NoAuth ]
          , Fragment Bad '[] '[ 'Live ]
          ]
 
 type MissingResourceSourceSurface =
     Surface MissingResourceSource
-        '[ Scope LabScope '[ Field VenueId 'WireUUID ] '[ 'NoAuth ]
+        '[ Scope TestScope '[ Field VenueId 'WireUUID ] '[ 'NoAuth ]
          , Fragment Bad '[]
             '[ 'Live
              , 'DependsOn ('Resource TestResource '[ Field VenueId 'WireUUID, Field WeekOffset 'WireInt ])
@@ -668,7 +684,7 @@ type MissingResourceSourceSurface =
 
 type InvalidScopeSourceSurface =
     Surface InvalidScopeSource
-        '[ Scope LabScope '[ Field VenueId 'WireUUID ] '[ 'NoAuth ]
+        '[ Scope TestScope '[ Field VenueId 'WireUUID ] '[ 'NoAuth ]
          , Fragment Bad '[]
             '[ 'Live
              , 'DependsOn ('Resource TestResource '[ Field WeekOffset 'WireInt ])
@@ -678,7 +694,7 @@ type InvalidScopeSourceSurface =
 
 type InvalidFragmentSourceSurface =
     Surface InvalidFragmentSource
-        '[ Scope LabScope '[ Field VenueId 'WireUUID ] '[ 'NoAuth ]
+        '[ Scope TestScope '[ Field VenueId 'WireUUID ] '[ 'NoAuth ]
          , Fragment Bad '[]
             '[ 'Live
              , 'DependsOn ('Resource TestResource '[ Field PanelId 'WireUUID ])
@@ -688,7 +704,7 @@ type InvalidFragmentSourceSurface =
 
 type ResourceSourceTypeMismatchSurface =
     Surface ResourceSourceTypeMismatch
-        '[ Scope LabScope '[ Field VenueId 'WireUUID ] '[ 'NoAuth ]
+        '[ Scope TestScope '[ Field VenueId 'WireUUID ] '[ 'NoAuth ]
          , Fragment Bad '[]
             '[ 'Live
              , 'DependsOn ('Resource MismatchedResource '[ Field VenueId 'WireText ])
@@ -698,7 +714,7 @@ type ResourceSourceTypeMismatchSurface =
 
 type DuplicateResourceSourceSurface =
     Surface DuplicateResourceSource
-        '[ Scope LabScope '[ Field VenueId 'WireUUID ] '[ 'NoAuth ]
+        '[ Scope TestScope '[ Field VenueId 'WireUUID ] '[ 'NoAuth ]
          , Fragment Bad '[ Field VenueId 'WireUUID ]
             '[ 'Live
              , 'DependsOn ('Resource TestResource '[ Field VenueId 'WireUUID ])
@@ -708,7 +724,7 @@ type DuplicateResourceSourceSurface =
 
 type DuplicateResourceSurfaceA =
     Surface DuplicateResourceA
-        '[ Scope LabScope '[ Field VenueId 'WireUUID ] '[ 'NoAuth ]
+        '[ Scope TestScope '[ Field VenueId 'WireUUID ] '[ 'NoAuth ]
          , Fragment Bad '[]
             '[ 'Live
              , 'DependsOn ('Resource TestResource '[ Field VenueId 'WireUUID ])
@@ -718,7 +734,7 @@ type DuplicateResourceSurfaceA =
 
 type DuplicateResourceSurfaceB =
     Surface DuplicateResourceB
-        '[ Scope LabScope '[ Field VenueId 'WireUUID ] '[ 'NoAuth ]
+        '[ Scope TestScope '[ Field VenueId 'WireUUID ] '[ 'NoAuth ]
          , Fragment Bad '[]
             '[ 'Live
              , 'DependsOn ('Resource TestResource '[ Field VenueId 'WireText ])
@@ -728,26 +744,26 @@ type DuplicateResourceSurfaceB =
 
 type InvalidInteractionRefSurface =
     Surface InvalidInteractionRef
-        '[ Scope LabScope '[ Field VenueId 'WireUUID ] '[ 'NoAuth ]
+        '[ Scope TestScope '[ Field VenueId 'WireUUID ] '[ 'NoAuth ]
          , Intent Bad '[ Field PanelId 'WireUUID ] '[]
          , SourceRef Bad '[ 'SessionOption MissingFragment, 'Submits Bad, 'SourceField MissingPayload ]
          ]
 
 type InvalidHtmxTargetRefSurface =
     Surface InvalidHtmxTargetRef
-        '[ Scope LabScope '[ Field VenueId 'WireUUID ] '[ 'NoAuth ]
+        '[ Scope TestScope '[ Field VenueId 'WireUUID ] '[ 'NoAuth ]
          , Action Bad '[] '[ 'HtmxTarget ('HtmxId MissingFragment) ]
          ]
 
 type DuplicateHtmxMethodSurface =
     Surface DuplicateHtmxMethod
-        '[ Scope LabScope '[ Field VenueId 'WireUUID ] '[ 'NoAuth ]
+        '[ Scope TestScope '[ Field VenueId 'WireUUID ] '[ 'NoAuth ]
          , Action Bad '[] '[ 'HtmxMethod 'HtmxPost, 'HtmxMethod 'HtmxDelete ]
          ]
 
 type EmptyCustomHtmxReasonSurface =
     Surface EmptyCustomHtmxReason
-        '[ Scope LabScope '[ Field VenueId 'WireUUID ] '[ 'NoAuth ]
+        '[ Scope TestScope '[ Field VenueId 'WireUUID ] '[ 'NoAuth ]
          , Action Bad '[] '[ 'CustomHtmx MissingFragment "" ]
          ]
 
@@ -755,7 +771,7 @@ data EmptyRawHtmxReason
 
 type EmptyRawHtmxReasonSurface =
     Surface EmptyRawHtmxReason
-        '[ Scope LabScope '[ Field VenueId 'WireUUID ] '[ 'NoAuth ]
+        '[ Scope TestScope '[ Field VenueId 'WireUUID ] '[ 'NoAuth ]
          , Action Bad '[] '[ 'HtmxTarget ('HtmxRawSelector "[data-fixture]" "") ]
          ]
 

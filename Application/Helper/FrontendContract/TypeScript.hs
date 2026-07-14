@@ -144,7 +144,7 @@ renderTopLevelInteractionSurfaceVocabulary :: [SurfaceIR] -> [Text]
 renderTopLevelInteractionSurfaceVocabulary surfaces =
     renderTopLevelStringUnion "FrontendSurfaceInteractionSurfaceName" (fmap (.surfaceName) interactionSurfaces)
     where
-        interactionSurfaces = filter (\surface -> surface.surfaceName /= "surface-lab" && surfaceHasBrowserInteraction surface) surfaces
+        interactionSurfaces = filter surfaceHasBrowserInteraction surfaces
 
 renderTopLevelStringUnion :: Text -> [Text] -> [Text]
 renderTopLevelStringUnion typeName rawValues =
@@ -368,7 +368,6 @@ renderFrontendSurfaceRegistries surfaces =
     interactionEntries =
         [ (surface.surfaceName, renderFrontendSurfaceInteractionDefinition surface)
         | surface <- surfaces
-        , surface.surfaceName /= "surface-lab"
         , surfaceHasBrowserInteraction surface
         ]
 

@@ -177,10 +177,6 @@ data HelpController
 
 data SupportController
     = SupportAction
-    | FrontendSurfaceLabAction
-    | ShowFrontendSurfaceLabPanelFragmentAction { panelId :: !Text }
-    | RefreshFrontendSurfaceLabPanelAction
-    | MoveFrontendSurfaceLabCardAction
     | ShowFwcMapdAwardRatesSectionAction
     | ShowPublicHolidaysSectionAction
     | CreateSupportVenueOnboardingInvitationAction

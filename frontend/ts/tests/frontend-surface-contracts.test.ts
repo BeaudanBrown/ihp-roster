@@ -6,17 +6,16 @@ import {
     rosterContentDomToken,
     rosterWeekShellDomToken,
     timesheetWeekShellDomToken,
-    type SurfaceLabSurfaceFragmentKey,
     type TimesheetsSurfaceFragmentKey,
 } from "../generated/contracts";
 import { assertDeepEqual, assertEqual, test } from "./harness";
 
-test("generated live fragment registry contains only semantic live fragment names", () => {
-    assertEqual(isFrontendSurfaceName("surface-lab"), true);
+test("generated live fragment registry contains only production semantic live fragment names", () => {
+    assertEqual(isFrontendSurfaceName("surface-lab"), false);
+    assertEqual(isFrontendSurfaceName("contract-fixture"), false);
     assertEqual(isFrontendSurfaceName("timesheets"), true);
     assertEqual(isFrontendSurfaceName("legacy-roster"), false);
 
-    assertDeepEqual(FrontendSurfaceFragmentRegistry["surface-lab"], []);
     assertDeepEqual(FrontendSurfaceFragmentRegistry.timesheets, [
         "timesheet-toolbar",
         "timesheet-day-columns",
@@ -48,11 +47,8 @@ test("surface DOM tokens are generated as tree-shakeable feature constants", () 
     assertEqual(timesheetWeekShellDomToken, "timesheet-week-shell");
 });
 
-test("browser-reachable surface fragment types remain consumable", () => {
-    const panelId = "00000000-0000-0000-0000-000000000001";
-    const labFragment: SurfaceLabSurfaceFragmentKey = { kind: "lab-panel", params: { panelId } };
+test("browser-reachable production surface fragment types remain consumable", () => {
     const timesheetFragment: TimesheetsSurfaceFragmentKey = { kind: "timesheet-day-section", params: { dayOffset: 2 } };
 
-    assertEqual(labFragment.kind, "lab-panel");
     assertEqual(timesheetFragment.params.dayOffset, 2);
 });

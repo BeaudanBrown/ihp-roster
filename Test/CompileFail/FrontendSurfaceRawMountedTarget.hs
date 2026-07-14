@@ -3,14 +3,14 @@
 
 module Test.CompileFail.FrontendSurfaceRawMountedTarget where
 
-import qualified Application.Helper.FrontendContract.Surface.Lab as Surface
 import Application.Helper.FrontendContract.Surface.Runtime
 import Application.Helper.FrontendContract.Surface.Values
 import IHP.Prelude
+import qualified Test.Support.FrontendSurfaceFixture as Surface
 
 rawMountedTarget :: FrontendSurfaceMountedFragment
 rawMountedTarget =
-    frontendSurfaceMountedFragmentFor @Surface.SurfaceLabSurface @Surface.LabPanel
+    frontendSurfaceMountedFragmentFor @Surface.FrontendSurfaceFixture @Surface.FixturePanel
         (surfaceField @Surface.PanelId (error "fixture UUID") :& NoSurfaceFields)
         "raw-target-id"
         "/fixture"

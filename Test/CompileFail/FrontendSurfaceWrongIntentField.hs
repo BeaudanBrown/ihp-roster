@@ -2,9 +2,9 @@
 
 module Test.CompileFail.FrontendSurfaceWrongIntentField where
 
-import qualified Application.Helper.FrontendContract.Surface.Lab as Lab
 import Application.Helper.FrontendContract.Surface.Values
+import qualified Test.Support.FrontendSurfaceFixture as Fixture
 
--- PanelId is not carried by MoveLabCard. Intent field ownership must fail at
+-- PanelId is not carried by MoveCard. Intent field ownership must fail at
 -- compile time rather than becoming an unchecked hidden input.
-wrongIntentField = surfaceIntentFieldName @Lab.SurfaceLabSurface @Lab.MoveLabCard @Lab.PanelId
+wrongIntentField = surfaceIntentFieldName @Fixture.FrontendSurfaceFixture @Fixture.MoveCard @Fixture.PanelId

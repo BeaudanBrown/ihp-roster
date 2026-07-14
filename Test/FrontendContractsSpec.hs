@@ -36,6 +36,7 @@ import Application.Helper.FrontendContract.RosterValues (RosterStaffSortKey (..)
                                                          rosterStaffSortKeyValues)
 import qualified Application.Helper.FrontendContract.Surface.ContractIR as SurfaceIR
 import Application.Helper.FrontendContract.Surface.Contracts (registeredFrontendSurfaceContractIR)
+import Application.Helper.FrontendContract.Surface.Reflect (reflectSurfaceSpec)
 import Application.Helper.FrontendContract.Values (domIdValue, enumLiteralValue,
                                                    eventNameValue,
                                                    lookupDomIdValue,
@@ -59,6 +60,7 @@ import qualified Data.Text.Encoding as TextEncoding
 import qualified Data.Text.IO as Text
 import IHP.Prelude
 import Test.Hspec
+import qualified Test.Support.FrontendSurfaceFixture as SurfaceFixture
 
 tests :: Spec
 tests = describe "Frontend contract generator foundation" do
@@ -106,16 +108,16 @@ tests = describe "Frontend contract generator foundation" do
         registeredFrontendContractIR.contractSurfaces
             `shouldBe` registeredFrontendSurfaceContractIR.contractSurfaces
 
-    it "uses the canonical field, wire, schema, and HTMX core inside Surface topology" do
-        let lab = fromMaybe (error "missing reflected lab Surface") (find ((== "surface-lab") . (.surfaceName)) registeredFrontendContractIR.contractSurfaces)
-        let scopeFields :: [Contract.FieldIR] = concatMap (.scopeFields) lab.surfaceScopes
-        let dtoSchemas :: [Contract.SchemaIR] = lab.surfaceDtos
-        let actionOptions :: [Contract.HtmxActionOptionIR] = concatMap (Contract.optionHtmxActionOptions . (.htmxActionOptions)) lab.surfaceHtmxActions
+    it "uses the canonical field, wire, schema, and HTMX core inside an unregistered Surface fixture" do
+        let fixture = reflectSurfaceSpec @SurfaceFixture.FrontendSurfaceFixture
+        let scopeFields :: [Contract.FieldIR] = concatMap (.scopeFields) fixture.surfaceScopes
+        let dtoSchemas :: [Contract.SchemaIR] = fixture.surfaceDtos
+        let actionOptions :: [Contract.HtmxActionOptionIR] = concatMap (Contract.optionHtmxActionOptions . (.htmxActionOptions)) fixture.surfaceHtmxActions
 
         map (\field -> (field.fieldName, field.fieldWire)) scopeFields
             `shouldBe` [("venueId", Contract.WireUuidIR), ("weekOffset", Contract.WireIntIR)]
         map Contract.schemaNameAndMarker dtoSchemas
-            `shouldBe` [("LabPayload", "LabPayload"), ("LabRelatedPayload", "LabRelatedPayload")]
+            `shouldBe` [("FixturePayload", "FixturePayload"), ("FixtureRelatedPayload", "FixtureRelatedPayload")]
         actionOptions `shouldContain` [Contract.HtmxActionMethodIR Contract.HtmxPostIR]
 
     it "uses one shared HTMX metadata model for generated request primitives" do
@@ -333,7 +335,7 @@ tests = describe "Frontend contract generator foundation" do
         frontendContractsTypeScript `shouldNotSatisfy` Text.isInfixOf "htmxActions"
         frontendContractsTypeScript `shouldNotSatisfy` Text.isInfixOf "containedSurfaces"
         frontendContractsTypeScript `shouldNotSatisfy` Text.isInfixOf "FrontendSurfaceActionManifest"
-        frontendContractsTypeScript `shouldNotSatisfy` Text.isInfixOf "surfaceLabSurfaceManifest"
+        frontendContractsTypeScript `shouldNotSatisfy` Text.isInfixOf "timesheetsSurfaceManifest"
 
 generatedContractTypeNames :: Text -> [Text]
 generatedContractTypeNames source =

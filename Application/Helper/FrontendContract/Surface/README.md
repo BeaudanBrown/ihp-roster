@@ -13,8 +13,7 @@ The root registry is the type-level list in
 
 ```haskell
 type RegisteredFrontendSurfaces =
-    '[ SurfaceLabSurface
-     , TimesheetsSurface
+    '[ TimesheetsSurface
      , RosterSurface
      , RosterDayTimelineSurface
      , LeaveRequestsSurface
@@ -53,9 +52,14 @@ vocabulary to the reflection and checked-IR path rather than introducing another
 evaluator.
 
 Feature specs normally live beside this directory as focused modules such as
-`Lab.hs`, `Timesheets.hs`, and `Roster.hs`. Runtime feature behavior may live in
-the feature area when it is tightly coupled to controllers/views, but it must
-implement the same declared spec through `SurfaceImpl`.
+`Timesheets.hs` and `Roster.hs`. Runtime feature behavior may live in the feature
+area when it is tightly coupled to controllers/views, but it must implement the
+same declared spec through `SurfaceImpl`.
+
+Declaration-rich fixtures for reflection, validation, rendering, and
+compile-failure coverage live under `Test/` and remain absent from
+`RegisteredFrontendSurfaces`. Do not register test or diagnostic surfaces in the
+production application merely to exercise DSL vocabulary.
 
 ## Composition Terminology
 

@@ -165,8 +165,7 @@ tests = describe "LiveUpdate runtime types" do
         let staffId = "44444444-4444-4444-4444-444444444444"
         let rosterDayId = "22222222-2222-2222-2222-222222222222"
         let cases =
-                [ (Wire.SurfaceScope "surface-lab" (Aeson.object ["venueId" Aeson..= venueId, "weekOffset" Aeson..= (0 :: Int)]), "surface-lab:" <> venueId <> ":0")
-                , (Wire.SurfaceScope "timesheets" (Aeson.object ["venueId" Aeson..= venueId, "weekOffset" Aeson..= (2 :: Int)]), "timesheets:" <> venueId <> ":2")
+                [ (Wire.SurfaceScope "timesheets" (Aeson.object ["venueId" Aeson..= venueId, "weekOffset" Aeson..= (2 :: Int)]), "timesheets:" <> venueId <> ":2")
                 , (Wire.SurfaceScope "roster" (Aeson.object ["venueId" Aeson..= venueId, "rosterGroupId" Aeson..= rosterGroupId, "weekOffset" Aeson..= (-1 :: Int)]), "roster:" <> venueId <> ":" <> rosterGroupId <> ":-1")
                 , (Wire.SurfaceScope "roster-day-timeline" (Aeson.object ["venueId" Aeson..= venueId, "rosterGroupId" Aeson..= rosterGroupId, "weekOffset" Aeson..= (1 :: Int), "rosterDayId" Aeson..= rosterDayId]), "roster-day-timeline:" <> venueId <> ":" <> rosterGroupId <> ":1:" <> rosterDayId)
                 , (Wire.SurfaceScope "leave-requests" (Aeson.object ["venueId" Aeson..= venueId]), "leave-requests:" <> venueId)

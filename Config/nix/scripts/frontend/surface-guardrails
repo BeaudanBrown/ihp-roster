@@ -49,12 +49,6 @@ expect_match() {
     fi
 }
 
-lab_paths=(
-    Application/Helper/FrontendContract/Surface/Lab.hs
-    Web/Support/FrontendSurfaceLab.hs
-    Web/View/Support/FrontendSurfaceLab.hs
-)
-
 timesheets_paths=(
     Web/Timesheets
     Web/Controller/Timesheets.hs
@@ -156,21 +150,6 @@ for token in "${browser_dom_tokens[@]}"; do
         report_failure "generated browser DOM token has no production import and use: $token"
     fi
 done
-
-expect_no_match \
-    "migrated FrontendSurface lab must not author old frontend codec/DTO/schema groups" \
-    'Application\.Helper\.Frontend\.(Codec|Generic|ContractGroup|Options|Contracts|TypeScript|Dto\.|.*Schema)|FrontendCodec|HasFrontendCodec|someFrontendCodec|genericFrontendCodec' \
-    "${lab_paths[@]}"
-
-expect_no_match \
-    "migrated FrontendSurface lab must not author TypedLiveSurfaceDefinition paths" \
-    'TypedLiveSurfaceDefinition|descriptorToTypedLiveSurfaceDefinition|mkTypedDefinedLiveSurface|serveTypedLiveFragment' \
-    "${lab_paths[@]}"
-
-expect_no_match \
-    "migrated FrontendSurface lab must use helpers instead of handwritten data-bepis-* attrs" \
-    'data-bepis-' \
-    "${lab_paths[@]}"
 
 if [ -e Web/LiveSurfaceRegistry.hs ]; then
     report_failure "legacy Web.LiveSurfaceRegistry adapter module must stay deleted"
@@ -297,16 +276,6 @@ expect_no_match_including_generated \
     '\b(SurfaceWireFragment|WireSurfaceWireFragment|FrontendSurfaceLiveWireFragment)\b' \
     Application/Helper/FrontendContract/LiveUpdate.hs \
     Application/Helper/FrontendContract/Wire/LiveUpdate.hs \
-    frontend/ts/generated/contracts.ts
-
-expect_match \
-    "generated contracts must expose the browser-reachable lab fragment key union" \
-    'SurfaceLabSurfaceFragmentKey' \
-    frontend/ts/generated/contracts.ts
-
-expect_match \
-    "generated fragment registry must retain the lab as a non-live diagnostic fixture" \
-    'FrontendSurfaceFragmentRegistry = \{"surface-lab":\[\]' \
     frontend/ts/generated/contracts.ts
 
 expect_no_match \
@@ -437,7 +406,6 @@ expect_no_match \
     '\b(HtmxAction|ClientEvent|DisposableLayer|InteractionEffect)\b' \
     Application/Helper/FrontendContract/Surface/Admin.hs \
     Application/Helper/FrontendContract/Surface/Billing.hs \
-    Application/Helper/FrontendContract/Surface/Lab.hs \
     Application/Helper/FrontendContract/Surface/LeaveRequests.hs \
     Application/Helper/FrontendContract/Surface/Profile.hs \
     Application/Helper/FrontendContract/Surface/Roster.hs \

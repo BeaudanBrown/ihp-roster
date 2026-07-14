@@ -12,7 +12,9 @@ shared field, wire, schema, diagnostic, and HTMX model, while
 `Application.Helper.FrontendContract.Naming` owns naming for both roots.
 Generation, server runtime metadata, validation, and semantic Surface
 architecture facts consume that model directly; there is no shallow Surface
-copy or conversion layer. Haskell feature code consumes Surface declarations
+copy or conversion layer. Test-only Surface fixtures are reflected explicitly
+from `Test/` and never enter `RegisteredFrontendSurfaces` or generated production
+browser output. Haskell feature code consumes Surface declarations
 through marker-indexed accessors and exact `SurfaceFields` in
 `Surface.Values`, rather than registry scans or phantom JSON. Common Surface
 HTMX selectors, triggers, swaps, and sync recipes are typed and render their own

@@ -2,8 +2,8 @@
 
 module Test.CompileFail.FrontendSurfaceWrongScopeField where
 
-import qualified Application.Helper.FrontendContract.Surface.Lab as Lab
 import Application.Helper.FrontendContract.Surface.Values
+import qualified Test.Support.FrontendSurfaceFixture as Fixture
 
--- PanelId belongs to a Lab fragment/action, not the LabScope identity.
-wrongScopeField = surfaceScopeFieldName @Lab.SurfaceLabSurface @Lab.LabScope @Lab.PanelId
+-- PanelId belongs to a fixture fragment/action, not the FixtureScope identity.
+wrongScopeField = surfaceScopeFieldName @Fixture.FrontendSurfaceFixture @Fixture.FixtureScope @Fixture.PanelId
