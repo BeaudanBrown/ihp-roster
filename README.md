@@ -79,6 +79,37 @@ observability stack. After making app
 requests, open Grafana Explore at `http://127.0.0.1:3300/explore` and search the
 Tempo datasource for service `ihp-roster-dev`.
 
+### Android PWA emulator
+
+The opt-in Android emulator is separate from the default development shell and
+normal verification gates. Its first launch currently downloads about 2.4 GiB
+for the pinned Android API 35 Google Play image and emulator closure; later
+launches reuse the AVD under `.devenv/android/`.
+
+Start Bepis before launching the emulator:
+
+```bash
+bash ./bin/in-env dev-start
+bash ./bin/in-env dev-wait
+nix run .#bepis-pwa-android -- start
+```
+
+The launcher uses `adb reverse` to expose the host app as
+`http://localhost:8000`, then opens `/InstallApp` in Android Chrome. Complete
+Chrome's first-run screen on a new AVD, then use **Install Bepis** or Chrome's
+**Install app** menu action.
+
+```bash
+nix run .#bepis-pwa-android -- status
+nix run .#bepis-pwa-android -- open
+nix run .#bepis-pwa-android -- stop
+```
+
+The host must provide writable `/dev/kvm`; on NixOS this normally means KVM is
+enabled and the user belongs to the `kvm` group. The flake keeps Android's
+unfree-package and SDK-license acceptance isolated to this emulator package
+set.
+
 After schema edits, run:
 
 ```bash

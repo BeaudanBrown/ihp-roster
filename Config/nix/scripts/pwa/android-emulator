@@ -1,0 +1,99 @@
+# shellcheck shell=bash
+set -euo pipefail
+
+adb="@adb@"
+emulator_runner="@androidEmulator@/bin/run-test-emulator"
+install_url="@installUrl@"
+device_name="@deviceName@"
+
+usage() {
+    cat <<'EOF'
+Usage: bepis-pwa-android start|open|status|stop
+
+  start   Boot the emulator, connect it to localhost:8000, and open Bepis
+  open    Reconnect the running emulator and open the Bepis install page
+  status  Show the running emulator and Android boot state
+  stop    Stop the running Bepis Android emulator
+EOF
+}
+
+find_serial() {
+    local serial state avd_name
+    while read -r serial state; do
+        if [[ "$serial" != emulator-* || "$state" != "device" ]]; then
+            continue
+        fi
+
+        avd_name="$("$adb" -s "$serial" emu avd name 2>/dev/null | head -n 1 | tr -d '\r')"
+        if [[ "$avd_name" == "$device_name" ]]; then
+            printf '%s\n' "$serial"
+            return
+        fi
+    done < <("$adb" devices)
+}
+
+require_serial() {
+    local serial
+    serial="$(find_serial)"
+    if [[ -z "$serial" ]]; then
+        echo "bepis-pwa-android: the $device_name emulator is not running" >&2
+        exit 1
+    fi
+    printf '%s\n' "$serial"
+}
+
+connect_and_open() {
+    local serial="$1"
+    "$adb" -s "$serial" wait-for-device
+    "$adb" -s "$serial" reverse tcp:8000 tcp:8000
+
+    if ! curl --silent --show-error --fail --max-time 2 "$install_url" >/dev/null; then
+        echo "bepis-pwa-android: warning: Bepis is not responding on localhost:8000" >&2
+        echo "Run: bash ./bin/in-env dev-start && bash ./bin/in-env dev-wait" >&2
+    fi
+
+    "$adb" -s "$serial" shell am start \
+        -a android.intent.action.VIEW \
+        -d "$install_url" \
+        com.android.chrome >/dev/null
+
+    echo "Bepis opened in Android Chrome at $install_url"
+    echo "Complete Chrome's first-run screen if this is a new emulator."
+}
+
+command="${1:-}"
+case "$command" in
+    start)
+        if [[ ! -r /dev/kvm || ! -w /dev/kvm ]]; then
+            echo "bepis-pwa-android: /dev/kvm is unavailable to this user" >&2
+            exit 1
+        fi
+
+        serial="$(find_serial)"
+        if [[ -z "$serial" ]]; then
+            "$emulator_runner"
+            serial="$(require_serial)"
+        else
+            echo "Reusing running emulator $serial"
+        fi
+        connect_and_open "$serial"
+        ;;
+    open)
+        connect_and_open "$(require_serial)"
+        ;;
+    status)
+        serial="$(require_serial)"
+        boot_completed="$("$adb" -s "$serial" shell getprop sys.boot_completed | tr -d '\r')"
+        echo "serial=$serial"
+        echo "boot_completed=${boot_completed:-0}"
+        ;;
+    stop)
+        serial="$(require_serial)"
+        "$adb" -s "$serial" emu kill >/dev/null
+        echo "Stopped $serial"
+        ;;
+    *)
+        usage >&2
+        exit 2
+        ;;
+esac
