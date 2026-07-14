@@ -2,6 +2,8 @@ module Test.Controller.LeaveRequestsSpec where
 
 import Application.Helper.Controller (LeaveRequestStatus (LeavePending),
                                       PlatformRole (SuperAdminRole))
+import qualified Application.Helper.FrontendContract.Surface.LeaveRequests.Live as LeaveLive
+import qualified Application.Helper.FrontendContract.Surface.Roster.Live as RosterLive
 import Application.Helper.LiveUpdate
 import Application.Helper.RosterGroups (ensureVenueDefaultRosterGroup)
 import Application.Helper.SurfaceResource
@@ -96,18 +98,18 @@ tests = beforeAll testContext do
                             ]
                 activeTargets `shouldBe` [(rosterGroupA.id, 0), (rosterGroupA.id, 1)]
 
-                versionA0Before <- currentLiveUpdateVersion (rosterWeekLiveScope (unpackId venueA.id) (unpackId rosterGroupA.id) 0)
-                versionA1Before <- currentLiveUpdateVersion (rosterWeekLiveScope (unpackId venueA.id) (unpackId rosterGroupA.id) 1)
-                versionB0Before <- currentLiveUpdateVersion (rosterWeekLiveScope (unpackId venueB.id) (unpackId rosterGroupB.id) 0)
+                versionA0Before <- currentLiveUpdateVersion (RosterLive.rosterWeekLiveScope (unpackId venueA.id) (unpackId rosterGroupA.id) 0)
+                versionA1Before <- currentLiveUpdateVersion (RosterLive.rosterWeekLiveScope (unpackId venueA.id) (unpackId rosterGroupA.id) 1)
+                versionB0Before <- currentLiveUpdateVersion (RosterLive.rosterWeekLiveScope (unpackId venueB.id) (unpackId rosterGroupB.id) 0)
 
                 response <- withUserAndCurrentVenue manager venueA.id do
                     callAction ApproveLeaveRequestAction { leaveRequestId = leaveRequest.id }
 
                 response `responseStatusShouldBe` status302
 
-                versionA0After <- currentLiveUpdateVersion (rosterWeekLiveScope (unpackId venueA.id) (unpackId rosterGroupA.id) 0)
-                versionA1After <- currentLiveUpdateVersion (rosterWeekLiveScope (unpackId venueA.id) (unpackId rosterGroupA.id) 1)
-                versionB0After <- currentLiveUpdateVersion (rosterWeekLiveScope (unpackId venueB.id) (unpackId rosterGroupB.id) 0)
+                versionA0After <- currentLiveUpdateVersion (RosterLive.rosterWeekLiveScope (unpackId venueA.id) (unpackId rosterGroupA.id) 0)
+                versionA1After <- currentLiveUpdateVersion (RosterLive.rosterWeekLiveScope (unpackId venueA.id) (unpackId rosterGroupA.id) 1)
+                versionB0After <- currentLiveUpdateVersion (RosterLive.rosterWeekLiveScope (unpackId venueB.id) (unpackId rosterGroupB.id) 0)
                 refreshedWeekA <- fetch rosterWeekA.id
                 refreshedWeekA1 <- fetch rosterWeekA1.id
                 refreshedWeekB <- fetch rosterWeekB.id
@@ -426,14 +428,14 @@ tests = beforeAll testContext do
                 _ <- createRosterWeekRecord venue 0 False
                 leaveRequest <- createLeaveRequestRecord venue staff (fromGregorian 2025 1 8) (fromGregorian 2025 1 10) "approved"
 
-                versionBefore <- currentLiveUpdateVersion (rosterWeekLiveScope (unpackId venue.id) (unpackId rosterGroup.id) 0)
+                versionBefore <- currentLiveUpdateVersion (RosterLive.rosterWeekLiveScope (unpackId venue.id) (unpackId rosterGroup.id) 0)
 
                 response <- withUserAndCurrentVenue manager venue.id do
                     callAction DenyLeaveRequestAction { leaveRequestId = leaveRequest.id }
 
                 response `responseStatusShouldBe` status302
 
-                versionAfter <- currentLiveUpdateVersion (rosterWeekLiveScope (unpackId venue.id) (unpackId rosterGroup.id) 0)
+                versionAfter <- currentLiveUpdateVersion (RosterLive.rosterWeekLiveScope (unpackId venue.id) (unpackId rosterGroup.id) 0)
                 versionAfter `shouldBe` versionBefore
 
         it "plans manager leave-page actor keys from the same rendered-section resource as passive viewers" $ withContext do
@@ -466,7 +468,7 @@ tests = beforeAll testContext do
                 _ <- createVenueMembershipRecord venue user "worker"
                 _ <- createStaffRecord venue (Just user) "Liv" "Create"
 
-                versionBefore <- currentLiveUpdateVersion (leaveRequestsLiveScope (unpackId venue.id))
+                versionBefore <- currentLiveUpdateVersion (LeaveLive.leaveRequestsLiveScope (unpackId venue.id))
 
                 response <- withUserAndCurrentVenue user venue.id do
                     withRequestHeaders
@@ -496,7 +498,7 @@ tests = beforeAll testContext do
                 profileLeaveTriggerHeader `shouldSatisfy` maybe False (Text.isInfixOf "profile-leave-section")
                 profileLeaveTriggerHeader `shouldSatisfy` maybe False (Text.isInfixOf "profile-leave")
 
-                versionAfter <- currentLiveUpdateVersion (leaveRequestsLiveScope (unpackId venue.id))
+                versionAfter <- currentLiveUpdateVersion (LeaveLive.leaveRequestsLiveScope (unpackId venue.id))
                 versionAfter `shouldBe` versionBefore
 
         it "resets the roster self-service form OOB without inventing a roster dependency target" $ withContext do
@@ -593,7 +595,7 @@ tests = beforeAll testContext do
                 today <- utctDay <$> getCurrentTime
                 leaveRequest <- createLeaveRequestRecord venue staff (addDays 7 today) (addDays 9 today) "pending"
 
-                versionBefore <- currentLiveUpdateVersion (leaveRequestsLiveScope (unpackId venue.id))
+                versionBefore <- currentLiveUpdateVersion (LeaveLive.leaveRequestsLiveScope (unpackId venue.id))
 
                 response <- withUserAndCurrentVenue manager venue.id do
                     withRequestHeaders [("HX-Request", "true"), ("X-Live-Update-Client-Id", "leave-approve-client")] do
@@ -612,7 +614,7 @@ tests = beforeAll testContext do
                 leaveReviewTriggerHeader `shouldSatisfy` maybe False (Text.isInfixOf "\"leaveSection\":\"pending\"")
                 leaveReviewTriggerHeader `shouldSatisfy` maybe False (Text.isInfixOf "\"leaveSection\":\"approved\"")
                 leaveReviewTriggerHeader `shouldSatisfy` maybe False (not . Text.isInfixOf "leave-requests-content")
-                versionAfter <- currentLiveUpdateVersion (leaveRequestsLiveScope (unpackId venue.id))
+                versionAfter <- currentLiveUpdateVersion (LeaveLive.leaveRequestsLiveScope (unpackId venue.id))
                 versionAfter `shouldBe` versionBefore
 
         it "writes an audit event when approving a leave request" $ withContext do

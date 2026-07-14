@@ -13,6 +13,7 @@ import Application.Helper.FrontendContract.Surface.ContractIR
 import Application.Helper.FrontendContract.Surface.Contracts (registeredFrontendSurfaceContractIR)
 import Application.Helper.FrontendContract.Surface.DSL
 import qualified Application.Helper.FrontendContract.Surface.Interaction as SurfaceInteraction
+import Application.Helper.FrontendContract.Surface.Live (frontendSurfaceFragmentKey)
 import Application.Helper.FrontendContract.Surface.Reflect
 import Application.Helper.FrontendContract.Surface.Registry (RegisteredFrontendSurfaces)
 import Application.Helper.FrontendContract.Surface.Resource
@@ -214,14 +215,6 @@ tests = describe "FrontendSurface DSL foundation" do
                     [fragment]
         let config = impl.surfaceImplMountConfig
         let html = cs (HtmlRenderer.renderHtml (renderFrontendSurfaceMount impl (Html5.toHtml ("body" :: Text))))
-        let parameterlessConfig = config
-                { mountFragments =
-                    [ fragment
-                        { mountedFragmentKey = FrontendSurfaceFragmentKey "timesheet-toolbar" Aeson.Null
-                        }
-                    ]
-                }
-
         impl.surfaceImplName `shouldBe` "timesheets"
         surfaceActionNameValue @SurfaceFixture.FrontendSurfaceFixture @SurfaceFixture.RefreshPanel `shouldBe` "refresh-panel"
         surfaceIntentNameValue @SurfaceFixture.FrontendSurfaceFixture @SurfaceFixture.MoveCard `shouldBe` "move-card"
@@ -232,7 +225,7 @@ tests = describe "FrontendSurface DSL foundation" do
         frontendSurfaceMountConfigJson config `shouldContainText` "\"targetId\":\"timesheet-week-toolbar\""
         frontendSurfaceMountConfigJson config `shouldContainText` "\"kind\":\"focused-field\""
         frontendSurfaceMountConfigJson config `shouldContainText` "\"activeSelector\":\"input[data-fixture-field]:focus\""
-        frontendSurfaceMountConfigJson parameterlessConfig `shouldContainText` "\"fragmentKey\":{\"kind\":\"timesheet-toolbar\",\"params\":{},\"surface\":\"timesheets\"}"
+        frontendSurfaceMountConfigJson config `shouldContainText` "\"fragmentKey\":{\"kind\":\"timesheet-toolbar\",\"params\":{},\"surface\":\"timesheets\"}"
         let mountConfigJson = frontendSurfaceMountConfigJson config
         mountConfigJson `shouldContainText` "\"fragmentKey\""
         mountConfigJson `shouldNotContainText` "\"mountState\""
@@ -272,7 +265,7 @@ tests = describe "FrontendSurface DSL foundation" do
     it "builds mounted parameterized fragment keys from exact marker-indexed values" do
         let panelId = fromMaybe (error "invalid fixture panel UUID") (UUID.fromString "11111111-1111-1111-1111-111111111111")
         let fields = surfaceField @SurfaceFixture.PanelId panelId :& NoSurfaceFields
-        let key = frontendSurfaceFragmentKeyFor @SurfaceFixture.FrontendSurfaceFixture @SurfaceFixture.FixturePanel fields
+        let key = frontendSurfaceFragmentKey @SurfaceFixture.FrontendSurfaceFixture @SurfaceFixture.FixturePanel fields
         let fragment =
                 frontendSurfaceMountedFragmentFor @SurfaceFixture.FrontendSurfaceFixture @SurfaceFixture.FixturePanel
                     fields
@@ -281,7 +274,11 @@ tests = describe "FrontendSurface DSL foundation" do
                     FrontendSurfaceReplace
 
         surfaceFieldsText fields `shouldBe` [("panelId", "11111111-1111-1111-1111-111111111111")]
-        key `shouldBe` FrontendSurfaceFragmentKey "fixture-panel" (Aeson.object ["panelId" Aeson..= ("11111111-1111-1111-1111-111111111111" :: Text)])
+        Aeson.toJSON key `shouldBe` Aeson.object
+            [ "surface" Aeson..= ("contract-fixture" :: Text)
+            , "kind" Aeson..= ("fixture-panel" :: Text)
+            , "params" Aeson..= Aeson.object ["panelId" Aeson..= ("11111111-1111-1111-1111-111111111111" :: Text)]
+            ]
         fragment.mountedFragmentKey `shouldBe` key
         fragment.mountedFragmentTargetId `shouldBe` surfaceFragmentTargetId @SurfaceFixture.FrontendSurfaceFixture @SurfaceFixture.FixturePanel NoSurfaceFields
         fragment.mountedFragmentUrl `shouldBe` "/fixture/panel?panelId=11111111-1111-1111-1111-111111111111"

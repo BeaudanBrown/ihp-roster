@@ -17,6 +17,7 @@ unavailability views.
 
 - Do not seed `start_date == end_date`; the schema rejects empty ranges.
 - Approved-state changes are the roster-invalidation boundary.
+- Construct leave live scopes/keys through `Application.Helper.FrontendContract.Surface.LeaveRequests.Live`; do not import or pattern-match raw live transport identity.
 - Sensitive future data such as medical details needs a separate spec before
   storage.
 

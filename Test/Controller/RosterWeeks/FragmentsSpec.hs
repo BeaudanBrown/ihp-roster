@@ -1,8 +1,8 @@
 module Test.Controller.RosterWeeks.FragmentsSpec where
 
 import Application.Helper.Controller (PlatformRole (SuperAdminRole))
-import Application.Helper.FrontendContract.Surface.Runtime (FrontendSurfaceFragmentKey (..),
-                                                            FrontendSurfaceHtmxRequest (..),
+import qualified Application.Helper.FrontendContract.Surface.Roster.Live as RosterLive
+import Application.Helper.FrontendContract.Surface.Runtime (FrontendSurfaceHtmxRequest (..),
                                                             FrontendSurfaceIntentForm (..),
                                                             FrontendSurfaceMountConfig (..),
                                                             FrontendSurfaceMountedFragment (..),
@@ -137,7 +137,7 @@ tests = beforeAll testContext do
 
                 targets <- withUserAndCurrentVenue manager venue.id do
                     withCurrentControllerContext do
-                        let scope = rosterWeekLiveScope (unpackId venue.id) rosterWeek.rosterGroupId rosterWeek.weekOffset
+                        let scope = RosterLive.rosterWeekLiveScope (unpackId venue.id) rosterWeek.rosterGroupId rosterWeek.weekOffset
                         let scopeValue = RosterWeekScopeValue { rosterWeekVenueId = unpackId venue.id, rosterWeekGroupId = Id rosterWeek.rosterGroupId, rosterWeekWeekOffset = rosterWeek.weekOffset, rosterWeekTimelineDayOffset = Nothing }
                         let mountedPlan = RosterMountedFragmentPlan { rosterMountedDayIds = [], rosterMountedRows = [] }
                         let subscription =
@@ -151,7 +151,7 @@ tests = beforeAll testContext do
                             [subscription]
 
                 targetFragmentKeys targets
-                    `shouldBe` [[rosterContentLiveFragment, rosterGridToolbarLiveFragment, rosterGridFrameLiveFragment, rosterDayColumnsLiveFragment, rosterDayRailLiveFragment, rosterWageRailLiveFragment, rosterSlotsGridLiveFragment, rosterStaffPanelLiveFragment]]
+                    `shouldBe` [[RosterLive.rosterContentLiveFragment, RosterLive.rosterGridToolbarLiveFragment, RosterLive.rosterGridFrameLiveFragment, RosterLive.rosterDayColumnsLiveFragment, RosterLive.rosterDayRailLiveFragment, RosterLive.rosterWageRailLiveFragment, RosterLive.rosterSlotsGridLiveFragment, RosterLive.rosterStaffPanelLiveFragment]]
 
         it "builds typed FrontendSurface mount metadata for roster fragments" $ withContext do
             withCurrentControllerContext do
@@ -162,7 +162,6 @@ tests = beforeAll testContext do
                 let plan = RosterMountedFragmentPlan { rosterMountedDayIds = [rosterDayId], rosterMountedRows = [(rosterDayId, 0), (rosterDayId, 1)] }
                 let impl = rosterSurfaceImpl scope plan
                 let mountConfig = impl.surfaceImplMountConfig
-                let fragmentKinds = map (\fragment -> fragment.mountedFragmentKey.fragmentKind) mountConfig.mountFragments
                 let fragmentTargets = map (.mountedFragmentTargetId) mountConfig.mountFragments
                 let fragmentUrls = map (.mountedFragmentUrl) mountConfig.mountFragments
                 let fragmentKeys = rosterSurfaceFragmentKeys mountConfig.mountFragments
@@ -172,25 +171,25 @@ tests = beforeAll testContext do
                     `shouldBe` ["set-roster-layout-mode", "move-roster-shift-to-slot", "duplicate-roster-shift-to-day", "drop-roster-staff"]
                 mountConfig.mountSurfaceName `shouldBe` "roster"
                 mountConfig.mountScopeKey `shouldBe` "roster:00000000-0000-0000-0000-000000000111:00000000-0000-0000-0000-000000000222:3"
-                fragmentKinds
-                    `shouldBe` [ "roster-content"
-                               , "roster-grid-toolbar"
-                               , "roster-grid-frame"
-                               , "roster-day-columns"
-                               , "roster-day-rail"
-                               , "roster-wage-rail"
-                               , "roster-slots-grid"
-                               , "roster-staff-panel"
-                               , "roster-staff-self-service-leave-form"
-                               , "roster-day-section"
-                               , "roster-row"
-                               , "roster-row"
+                fragmentKeys
+                    `shouldBe` [ RosterLive.rosterContentLiveFragment
+                               , RosterLive.rosterGridToolbarLiveFragment
+                               , RosterLive.rosterGridFrameLiveFragment
+                               , RosterLive.rosterDayColumnsLiveFragment
+                               , RosterLive.rosterDayRailLiveFragment
+                               , RosterLive.rosterWageRailLiveFragment
+                               , RosterLive.rosterSlotsGridLiveFragment
+                               , RosterLive.rosterStaffPanelLiveFragment
+                               , RosterLive.rosterStaffSelfServiceLeaveFormLiveFragment
+                               , RosterLive.rosterDaySectionLiveFragment (unpackId rosterDayId)
+                               , RosterLive.rosterRowLiveFragment (unpackId rosterDayId) 0
+                               , RosterLive.rosterRowLiveFragment (unpackId rosterDayId) 1
                                ]
                 fragmentTargets `shouldContain` [rosterDaySectionDomId rosterDayId]
                 fragmentTargets `shouldContain` [rosterRowDomIdText rosterDayId 1]
                 fragmentUrls `shouldSatisfy` all (Text.isInfixOf "weekOffset=3")
                 fragmentUrls `shouldSatisfy` all (Text.isInfixOf "rosterGroupId=00000000-0000-0000-0000-000000000222")
-                fragmentKeys `shouldContain` [rosterRowLiveFragment (unpackId rosterDayId) 1]
+                fragmentKeys `shouldContain` [RosterLive.rosterRowLiveFragment (unpackId rosterDayId) 1]
 
         it "renders hidden draft roster fragments without leaking closed days or slots to staff" $ withContext do
             withCleanDb do

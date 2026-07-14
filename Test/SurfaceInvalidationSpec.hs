@@ -1,6 +1,7 @@
 module Test.SurfaceInvalidationSpec where
 
 import Application.Bepis.Fact (BepisLiveFact (..), BepisLiveMechanism (..))
+import qualified Application.Helper.FrontendContract.Surface.Billing.Live as BillingLive
 import Application.Helper.LiveUpdate.Runtime
 import Application.Helper.SurfaceResource
 import qualified Data.Set as Set
@@ -65,8 +66,8 @@ tests = do
 
         it "renders live invalidation profile counts for timing diagnostics" do
             let venueId = fromWords 1 0 0 0
-            let scope = billingLiveScope venueId
-            let target = SurfaceInvalidationTarget scope [billingStatusLiveFragment]
+            let scope = BillingLive.billingLiveScope venueId
+            let target = SurfaceInvalidationTarget scope [BillingLive.billingStatusLiveFragment]
             let broadcastResult =
                     LiveUpdateBroadcastResult
                         { broadcastVersion = 3

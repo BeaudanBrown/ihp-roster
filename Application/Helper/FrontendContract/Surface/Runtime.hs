@@ -15,7 +15,6 @@
 module Application.Helper.FrontendContract.Surface.Runtime
     ( FrontendSurfaceFieldValue (..)
     , FrontendSurfaceFocusedFieldProtectionConfig (..)
-    , FrontendSurfaceFragmentKey (..)
     , FrontendSurfaceHtmxMethod (..)
     , FrontendSurfaceLazyFragmentConfig (..)
     , FrontendSurfaceLazyFragmentDefaults (..)
@@ -32,16 +31,12 @@ module Application.Helper.FrontendContract.Surface.Runtime
     , FrontendSurfaceProtection (..)
     , KnownFragmentOptions (..)
     , SurfaceImpl (..)
-    , frontendSurfaceFragmentKeyFor
     , frontendSurfaceMountedFragmentFor
     , defaultFrontendSurfaceLazyFragmentConfig
     , customPlaceholderFrontendSurfaceLazyFragmentConfig
     , frontendSurfaceMountConfigJson
-    , frontendSurfaceMountedFragmentsToKeys
-    , frontendSurfaceMountedFragmentsToKeysFor
     , frontendSurfaceActionFields
     , frontendSurfaceIntentFieldValues
-    , frontendSurfaceScopeKeyFor
     , applyFrontendSurfaceActionAttrs
     , frontendSurfaceActionHtmxAttrPairs
     , renderFrontendSurfaceActionForm
@@ -65,22 +60,18 @@ import Application.Helper.FrontendContract.LiveUpdateValues (surfaceActionDomAtt
 import qualified Application.Helper.FrontendContract.Naming as Naming
 import qualified Application.Helper.FrontendContract.Surface.ContractIR as SurfaceIR
 import Application.Helper.FrontendContract.Surface.DSL
-import Application.Helper.FrontendContract.Surface.Identity (canonicalFrontendSurfaceScopeKey)
+import qualified Application.Helper.FrontendContract.Surface.Live as Live
 import Application.Helper.FrontendContract.Surface.Reflect (ReflectPrimitive,
                                                             ReflectSurfaceSpec)
 import Application.Helper.FrontendContract.Surface.Values
-import qualified Application.Helper.LiveUpdate.Runtime as LiveUpdate
 import Application.Helper.UiRegion (UiRegionDomAttributes (..),
                                     canonicalUiRegionDomAttributes,
                                     uiRegionFragmentEnabledValue)
 import qualified Data.Aeson as Aeson
-import qualified Data.Aeson.Types as Aeson.Types
 import qualified Data.ByteString.Lazy as LBS
 import qualified Data.Char as Char
-import Data.Kind (Type)
 import qualified Data.Text as Text
 import qualified Data.Text.Encoding as Text.Encoding
-import Data.Type.Bool (type (||))
 import Data.Typeable (Typeable)
 import IHP.ViewPrelude
 import Text.Blaze (toValue)
@@ -97,6 +88,7 @@ data SurfaceImpl spec = SurfaceImpl
 data FrontendSurfaceLazyFragmentDefaults = FrontendSurfaceLazyFragmentDefaults
     { lazyFragmentDefaultTrigger         :: !(Maybe Text)
     , lazyFragmentDefaultPlaceholderKind :: !(Maybe Text)
+    , lazyFragmentDefaultIsLive          :: !Bool
     }
     deriving (Eq, Show)
 
@@ -104,10 +96,13 @@ class KnownFragmentOptions (options :: [PrimitiveOption]) where
     knownFragmentOptions :: FrontendSurfaceLazyFragmentDefaults
 
 instance KnownFragmentOptions '[] where
-    knownFragmentOptions = FrontendSurfaceLazyFragmentDefaults Nothing Nothing
+    knownFragmentOptions = FrontendSurfaceLazyFragmentDefaults Nothing Nothing False
 
 instance KnownFragmentOptions rest => KnownFragmentOptions ('Eager ': rest) where
     knownFragmentOptions = knownFragmentOptions @rest
+
+instance KnownFragmentOptions rest => KnownFragmentOptions ('Live ': rest) where
+    knownFragmentOptions = (knownFragmentOptions @rest) { lazyFragmentDefaultIsLive = True }
 
 instance (KnownLazyOptions nested, KnownFragmentOptions rest) => KnownFragmentOptions ('Lazy nested ': rest) where
     knownFragmentOptions =
@@ -116,6 +111,7 @@ instance (KnownLazyOptions nested, KnownFragmentOptions rest) => KnownFragmentOp
          in restDefaults
                 { lazyFragmentDefaultTrigger = lazyFragmentDefaultTrigger lazyDefaults <|> lazyFragmentDefaultTrigger restDefaults
                 , lazyFragmentDefaultPlaceholderKind = lazyFragmentDefaultPlaceholderKind lazyDefaults <|> lazyFragmentDefaultPlaceholderKind restDefaults
+                , lazyFragmentDefaultIsLive = lazyFragmentDefaultIsLive lazyDefaults || lazyFragmentDefaultIsLive restDefaults
                 }
 
 instance {-# OVERLAPPABLE #-} KnownFragmentOptions rest => KnownFragmentOptions (option ': rest) where
@@ -125,7 +121,7 @@ class KnownLazyOptions (options :: [PrimitiveOption]) where
     knownLazyOptions :: FrontendSurfaceLazyFragmentDefaults
 
 instance KnownLazyOptions '[] where
-    knownLazyOptions = FrontendSurfaceLazyFragmentDefaults Nothing Nothing
+    knownLazyOptions = FrontendSurfaceLazyFragmentDefaults Nothing Nothing False
 
 instance (Typeable marker, KnownLazyOptions rest) => KnownLazyOptions ('Trigger marker ': rest) where
     knownLazyOptions = (knownLazyOptions @rest) { lazyFragmentDefaultTrigger = Just (Naming.deriveFrontendSurfaceTypeName @marker Naming.DomTokenName) }
@@ -142,8 +138,7 @@ instance {-# OVERLAPPABLE #-} KnownLazyOptions rest => KnownLazyOptions (option 
 -- fragment URLs, exact target-field values, and the mount instance key.
 mkSurfaceImplFromValues ::
     forall spec scopeMarker.
-    ( KnownLiveFragments spec
-    , ReflectSurfaceSpec spec
+    ( ReflectSurfaceSpec spec
     , ReflectPrimitive (SurfaceScopePrimitive spec scopeMarker)
     ) =>
     Text ->
@@ -158,12 +153,9 @@ mkSurfaceImplFromValues mountKey scopeFields mountStateFields fragments =
         }
   where
     surfaceName = surfaceNameValue @spec
+    liveScope = Live.frontendSurfaceScope @spec @scopeMarker scopeFields
     scopeValue = surfaceFieldsJson scopeFields
-    scopeKey =
-        either
-            (\message -> error ("Typed Surface scope invariant failed: " <> message))
-            id
-            (frontendSurfaceScopeKeyFor @spec @scopeMarker scopeFields)
+    scopeKey = Live.surfaceScopeKey liveScope
     baseMountConfig = FrontendSurfaceMountConfig
         { mountSurfaceName = surfaceName
         , mountScopeKey = scopeKey
@@ -174,59 +166,16 @@ mkSurfaceImplFromValues mountKey scopeFields mountStateFields fragments =
         , mountSubscription = Nothing
         }
     mountConfig = baseMountConfig
-        { mountSubscription = frontendSurfaceLiveSubscription surfaceName (liveFragmentNames @spec) baseMountConfig
+        { mountSubscription = frontendSurfaceLiveSubscription liveScope baseMountConfig
         }
-
-frontendSurfaceScopeKeyFor ::
-    forall spec marker.
-    ( ReflectSurfaceSpec spec
-    , ReflectPrimitive (SurfaceScopePrimitive spec marker)
-    ) =>
-    SurfaceFields (SurfaceScopeFieldSpecs spec marker) ->
-    Either Text Text
-frontendSurfaceScopeKeyFor fields =
-    case Aeson.Types.parseEither
-        (canonicalFrontendSurfaceScopeKey (surfaceNameValue @spec))
-        (surfaceFieldsJson fields) of
-        Left message   -> Left (cs message)
-        Right scopeKey -> Right scopeKey
 
 applyFrontendSurfaceLazyFragmentDefaults :: FrontendSurfaceLazyFragmentDefaults -> FrontendSurfaceMountedFragment -> FrontendSurfaceMountedFragment
 applyFrontendSurfaceLazyFragmentDefaults defaults fragment =
     fragment
         { mountedFragmentLazyTrigger = defaults.lazyFragmentDefaultTrigger
         , mountedFragmentPlaceholderKind = defaults.lazyFragmentDefaultPlaceholderKind
+        , mountedFragmentIsLive = defaults.lazyFragmentDefaultIsLive
         }
-
-class KnownLiveFragments (spec :: SurfaceSpec) where
-    liveFragmentNames :: [Text]
-
-instance KnownLiveFragmentMarkers (LiveFragmentMarkers primitives) => KnownLiveFragments ('Surface name primitives) where
-    liveFragmentNames = liveFragmentMarkerNames @(LiveFragmentMarkers primitives)
-
-type family LiveFragmentMarkers (primitives :: [SurfacePrimitive]) :: [Type] where
-    LiveFragmentMarkers '[] = '[]
-    LiveFragmentMarkers (('Fragment marker fields options) ': rest) = IfLive (OptionsContainLive options) marker (LiveFragmentMarkers rest)
-    LiveFragmentMarkers (primitive ': rest) = LiveFragmentMarkers rest
-
-type family OptionsContainLive (options :: [PrimitiveOption]) :: Bool where
-    OptionsContainLive '[] = 'False
-    OptionsContainLive ('Live ': rest) = 'True
-    OptionsContainLive (('Lazy nested) ': rest) = OptionsContainLive nested || OptionsContainLive rest
-    OptionsContainLive (option ': rest) = OptionsContainLive rest
-
-type family IfLive (live :: Bool) (marker :: Type) (rest :: [Type]) :: [Type] where
-    IfLive 'True marker rest = marker ': rest
-    IfLive 'False marker rest = rest
-
-class KnownLiveFragmentMarkers (markers :: [Type]) where
-    liveFragmentMarkerNames :: [Text]
-
-instance KnownLiveFragmentMarkers '[] where
-    liveFragmentMarkerNames = []
-
-instance (Typeable marker, KnownLiveFragmentMarkers rest) => KnownLiveFragmentMarkers (marker ': rest) where
-    liveFragmentMarkerNames = Naming.deriveFrontendSurfaceTypeName @marker Naming.FragmentName : liveFragmentMarkerNames @rest
 
 data FrontendSurfaceMountConfig = FrontendSurfaceMountConfig
     { mountSurfaceName  :: !Text
@@ -239,30 +188,15 @@ data FrontendSurfaceMountConfig = FrontendSurfaceMountConfig
     }
     deriving (Eq, Show)
 
-data FrontendSurfaceFragmentKey = FrontendSurfaceFragmentKey
-    { fragmentKind   :: !Text
-    , fragmentParams :: !Aeson.Value
-    }
-    deriving (Eq, Show)
-
-frontendSurfaceFragmentKeyFor ::
-    forall spec marker.
-    ReflectPrimitive (SurfaceFragmentPrimitive spec marker) =>
-    SurfaceFields (SurfaceFragmentFieldSpecs spec marker) ->
-    FrontendSurfaceFragmentKey
-frontendSurfaceFragmentKeyFor fields =
-    FrontendSurfaceFragmentKey
-        { fragmentKind = (surfaceFragmentValue @spec @marker).fragmentName
-        , fragmentParams = surfaceFieldsJson fields
-        }
-
 data FrontendSurfaceMountedFragment = FrontendSurfaceMountedFragment
-    { mountedFragmentKey             :: !FrontendSurfaceFragmentKey
+    { mountedFragmentKey             :: !Live.SurfaceFragmentKey
+    , mountedFragmentName            :: !Text
     , mountedFragmentTargetId        :: !Text
     , mountedFragmentUrl             :: !Text
     , mountedFragmentProtection      :: !FrontendSurfaceProtection
     , mountedFragmentLazyTrigger     :: !(Maybe Text)
     , mountedFragmentPlaceholderKind :: !(Maybe Text)
+    , mountedFragmentIsLive          :: !Bool
     }
     deriving (Eq, Show)
 
@@ -281,7 +215,8 @@ data FrontendSurfaceProtection
 
 frontendSurfaceMountedFragmentFor ::
     forall spec marker.
-    ( ReflectPrimitive (SurfaceFragmentPrimitive spec marker)
+    ( ReflectSurfaceSpec spec
+    , ReflectPrimitive (SurfaceFragmentPrimitive spec marker)
     , KnownFragmentOptions (SurfaceFragmentOptionSpecs spec marker)
     , KnownMountTarget (FindMountTarget (SurfaceFragmentOptionSpecs spec marker))
     ) =>
@@ -294,12 +229,14 @@ frontendSurfaceMountedFragmentFor fields targetFields url protection =
     applyFrontendSurfaceLazyFragmentDefaults
         (knownFragmentOptions @(SurfaceFragmentOptionSpecs spec marker))
         ( FrontendSurfaceMountedFragment
-            { mountedFragmentKey = frontendSurfaceFragmentKeyFor @spec @marker fields
+            { mountedFragmentKey = Live.frontendSurfaceFragmentKey @spec @marker fields
+            , mountedFragmentName = surfaceFragmentNameValue @spec @marker
             , mountedFragmentTargetId = surfaceFragmentTargetId @spec @marker targetFields
             , mountedFragmentUrl = url
             , mountedFragmentProtection = protection
             , mountedFragmentLazyTrigger = Nothing
             , mountedFragmentPlaceholderKind = Nothing
+            , mountedFragmentIsLive = False
             }
         )
 
@@ -418,7 +355,7 @@ renderFrontendSurfaceLazyFragmentWithConfig config fragment placeholder =
         ! attr "class" (Text.unwords (config.lazyFragmentRootClasses <> config.lazyFragmentPlaceholderClasses <> placeholderKindClasses))
         ! attr uiAttrs.uiRegionFragmentAttribute uiRegionFragmentEnabledValue
         ! attr uiAttrs.uiRegionLazySurfaceAttribute uiRegionFragmentEnabledValue
-        ! attr uiAttrs.uiRegionLazyFragmentAttribute fragment.mountedFragmentKey.fragmentKind
+        ! attr uiAttrs.uiRegionLazyFragmentAttribute fragment.mountedFragmentName
         ! attr uiAttrs.uiRegionLazyRetryAttribute (if config.lazyFragmentRetryEnabled then uiRegionFragmentEnabledValue else "false")
         ! maybeAttr "aria-label" config.lazyFragmentAriaLabel
         ! attr "aria-busy" "true"
@@ -724,56 +661,24 @@ mountConfigToJson config =
         [ "surface" Aeson..= config.mountSurfaceName
         , "scopeKey" Aeson..= config.mountScopeKey
         , "mountKey" Aeson..= config.mountKey
-        , "fragments" Aeson..= fmap (mountedFragmentToJson config.mountSurfaceName) config.mountFragments
+        , "fragments" Aeson..= fmap mountedFragmentToJson config.mountFragments
         , "subscription" Aeson..= config.mountSubscription
         ]
 
-frontendSurfaceLiveSubscription :: Text -> [Text] -> FrontendSurfaceMountConfig -> Maybe Aeson.Value
-frontendSurfaceLiveSubscription surfaceName liveFragmentNamesForSurface config =
-    case liveMountedFragments of
-        [] -> Nothing
-        _ -> Just (Aeson.object
-            [ "scope" Aeson..= Aeson.object
-                [ "surface" Aeson..= surfaceName
-                , "scope" Aeson..= config.mountScope
-                ]
-            ])
-    where
-        liveMountedFragments = filter (\fragment -> fragment.mountedFragmentKey.fragmentKind `elem` liveFragmentNamesForSurface) config.mountFragments
+frontendSurfaceLiveSubscription :: Live.SurfaceScope -> FrontendSurfaceMountConfig -> Maybe Aeson.Value
+frontendSurfaceLiveSubscription liveScope config
+    | any (.mountedFragmentIsLive) config.mountFragments =
+        Just (Aeson.object ["scope" Aeson..= liveScope])
+    | otherwise = Nothing
 
-mountedFragmentToJson :: Text -> FrontendSurfaceMountedFragment -> Aeson.Value
-mountedFragmentToJson surfaceName fragment =
+mountedFragmentToJson :: FrontendSurfaceMountedFragment -> Aeson.Value
+mountedFragmentToJson fragment =
     Aeson.object
-        [ "fragmentKey" Aeson..= Aeson.object
-            [ "surface" Aeson..= surfaceName
-            , "kind" Aeson..= fragment.mountedFragmentKey.fragmentKind
-            , "params" Aeson..= canonicalMountedFragmentParams fragment.mountedFragmentKey.fragmentParams
-            ]
+        [ "fragmentKey" Aeson..= fragment.mountedFragmentKey
         , "targetId" Aeson..= fragment.mountedFragmentTargetId
         , "url" Aeson..= fragment.mountedFragmentUrl
         , "protection" Aeson..= protectionToJson fragment.mountedFragmentProtection
         ]
-
-canonicalMountedFragmentParams :: Aeson.Value -> Aeson.Value
-canonicalMountedFragmentParams Aeson.Null = Aeson.object []
-canonicalMountedFragmentParams value      = value
-
-frontendSurfaceMountedFragmentsToKeys :: Text -> [FrontendSurfaceMountedFragment] -> [LiveUpdate.SurfaceFragmentKey]
-frontendSurfaceMountedFragmentsToKeys surfaceName =
-    fmap \fragment ->
-        LiveUpdate.FrontendSurfaceSurfaceFragmentKey
-            { surfaceFragmentSurface = surfaceName
-            , surfaceFragmentWireKind = fragment.mountedFragmentKey.fragmentKind
-            , surfaceFragmentParams = canonicalMountedFragmentParams fragment.mountedFragmentKey.fragmentParams
-            }
-
-frontendSurfaceMountedFragmentsToKeysFor ::
-    forall spec.
-    ReflectSurfaceSpec spec =>
-    [FrontendSurfaceMountedFragment] ->
-    [LiveUpdate.SurfaceFragmentKey]
-frontendSurfaceMountedFragmentsToKeysFor =
-    frontendSurfaceMountedFragmentsToKeys (surfaceNameValue @spec)
 
 protectionToJson :: FrontendSurfaceProtection -> Aeson.Value
 protectionToJson = \case

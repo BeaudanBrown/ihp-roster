@@ -9,6 +9,7 @@ import Application.Helper.FrontendContract.Surface.AuthorizationRequirement (Sur
 import qualified Application.Helper.FrontendContract.Surface.ContractIR as SurfaceIR
 import Application.Helper.FrontendContract.Surface.Reflect (reflectRegisteredFrontendSurfaces)
 import qualified Application.Helper.FrontendContract.Wire.LiveUpdate as Wire
+import qualified Application.Helper.LiveUpdate.Internal as LiveUpdateInternal
 import Application.Helper.LiveUpdate.Runtime
 import Control.Monad (guard)
 import qualified Data.Aeson as Aeson
@@ -46,7 +47,7 @@ frontendSurfaceScopeAuthorizationRequirement scope = do
 validateFrontendSurfaceLiveSubscription :: SurfaceSubscription -> Bool
 validateFrontendSurfaceLiveSubscription SurfaceSubscription { subscriptionScope, subscriptionScopeKey, subscriptionFragmentKeys } =
     fromMaybe False do
-        let Wire.SurfaceScope { surface = scopeSurface, scope = scopePayload } = surfaceScopeToWire subscriptionScope
+        let Wire.SurfaceScope { surface = scopeSurface, scope = scopePayload } = LiveUpdateInternal.surfaceScopeToWire subscriptionScope
         surface <- find ((== scopeSurface) . (.surfaceName)) reflectRegisteredFrontendSurfaces.contractSurfaces
         scopeIR <- listToMaybe surface.surfaceScopes
         guard (subscriptionScopeKey == surfaceScopeKey subscriptionScope)
@@ -56,12 +57,13 @@ validateFrontendSurfaceLiveSubscription SurfaceSubscription { subscriptionScope,
 
 validateFragmentKey :: SurfaceIR.SurfaceIR -> Text -> SurfaceFragmentKey -> Bool
 validateFragmentKey surface expectedSurface fragmentKey =
-    fragmentKey.surfaceFragmentSurface == expectedSurface
-        && fromMaybe False do
-            fragmentIR <- List.find ((== fragmentKey.surfaceFragmentWireKind) . (.fragmentName)) surface.surfaceFragments
-            guard (SurfaceIR.LiveOption `elem` fragmentIR.fragmentOptions)
-            guard (validateFields fragmentIR.fragmentParams fragmentKey.surfaceFragmentParams)
-            pure True
+    let (fragmentSurface, fragmentKind, fragmentParams) = LiveUpdateInternal.surfaceFragmentKeyIdentity fragmentKey
+     in fragmentSurface == expectedSurface
+            && fromMaybe False do
+                fragmentIR <- List.find ((== fragmentKind) . (.fragmentName)) surface.surfaceFragments
+                guard (SurfaceIR.LiveOption `elem` fragmentIR.fragmentOptions)
+                guard (validateFields fragmentIR.fragmentParams fragmentParams)
+                pure True
 
 validateFields :: [SurfaceIR.FieldIR] -> Aeson.Value -> Bool
 validateFields fields = \case
@@ -116,13 +118,7 @@ validateWire wire value =
             _              -> False
 
 liveScopeSurfaceAndPayload :: SurfaceScope -> Maybe (Text, Aeson.Value)
-liveScopeSurfaceAndPayload scope = do
-    object <- case Aeson.toJSON scope of
-        Aeson.Object object -> Just object
-        _                   -> Nothing
-    surfaceName <- lookupText "surface" object
-    scopePayload <- Aeson.KeyMap.lookup "scope" object
-    pure (surfaceName, scopePayload)
+liveScopeSurfaceAndPayload = Just . LiveUpdateInternal.surfaceScopeIdentity
 
 authorizationRequirementFor :: SurfaceIR.ScopeAuthIR -> Aeson.Value -> Maybe (Maybe SurfaceScopeAuthorizationRequirement)
 authorizationRequirementFor auth payload =
@@ -153,10 +149,3 @@ authorizationRequirementFor auth payload =
 parseUuidField :: Text -> Aeson.Value -> Maybe UUID.UUID
 parseUuidField fieldName =
     Aeson.parseMaybe (Aeson.withObject "FrontendSurface live scope" (Aeson..: Aeson.Key.fromText fieldName))
-
-lookupText :: Text -> Aeson.Object -> Maybe Text
-lookupText key object = do
-    value <- Aeson.KeyMap.lookup (Aeson.Key.fromText key) object
-    case value of
-        Aeson.String text -> Just text
-        _                 -> Nothing

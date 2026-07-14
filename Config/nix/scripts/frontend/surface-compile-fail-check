@@ -70,6 +70,21 @@ expect_compile_failure \
     "PanelId"
 
 expect_compile_failure \
+    "Test/CompileFail/FrontendSurfaceWrongLiveScopeMarker.hs" \
+    "does not declare scope marker" \
+    "RosterWeek"
+
+expect_compile_failure \
+    "Test/CompileFail/FrontendSurfaceIncompleteLiveFragment.hs" \
+    "Couldn't match type" \
+    "RowIndex"
+
+expect_compile_failure \
+    "Test/CompileFail/FrontendSurfaceRawLiveIdentity.hs" \
+    "Data constructor not in scope" \
+    "FrontendSurfaceScope"
+
+expect_compile_failure \
     "Test/CompileFail/FrontendSurfaceWrongActionMarker.hs" \
     "does not declare action marker" \
     "NavigateRosterWeek"

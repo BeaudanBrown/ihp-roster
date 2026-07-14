@@ -1,10 +1,12 @@
 module Test.SurfaceDependencySpec where
 
+import qualified Application.Helper.FrontendContract.Surface.Admin.Live as AdminLive
 import Application.Helper.FrontendContract.Surface.Runtime (FrontendSurfaceMountConfig (..),
                                                             FrontendSurfaceMountedFragment (..),
                                                             SurfaceImpl (..),
-                                                            frontendSurfaceMountConfigJson,
-                                                            frontendSurfaceMountedFragmentsToKeys)
+                                                            frontendSurfaceMountConfigJson)
+import qualified Application.Helper.FrontendContract.Surface.Support.Live as SupportLive
+import qualified Application.Helper.FrontendContract.Surface.Timesheets.Live as TimesheetsLive
 import Application.Helper.LiveUpdate (actorLiveFragmentsRefreshKeys)
 import Application.Helper.LiveUpdate.Runtime
 import Application.Helper.SurfaceResource
@@ -74,7 +76,7 @@ tests = do
                         [liveTestSubscription scope (timesheetsSurfaceFragmentKeys duplicatedMount)]
 
             actorFragmentKeys `shouldBe` concatMap (.targetFragments) passiveTargets
-            actorFragmentKeys `shouldBe` [timesheetDaySectionLiveFragment 4]
+            actorFragmentKeys `shouldBe` [TimesheetsLive.timesheetDaySectionLiveFragment 4]
 
         it "selects parameterized leave section fragments from generated dependencies" do
             let venueId = fromWords 10 0 0 0
@@ -104,40 +106,40 @@ tests = do
 
         it "plans affected semantic fragment keys from generated dependencies" do
             let venueId = fromWords 1 0 0 0
-            let scope = timesheetWeekLiveScope venueId 2
-            let subscription = liveTestSubscription scope [timesheetDaySectionLiveFragment 4]
+            let scope = TimesheetsLive.timesheetWeekLiveScope venueId 2
+            let subscription = liveTestSubscription scope [TimesheetsLive.timesheetDaySectionLiveFragment 4]
             let targets = planSurfaceInvalidationsWithoutContext (Set.fromList [timesheetDayResource venueId 2 4]) [subscription]
 
             map targetFragments targets
-                `shouldBe` [[timesheetDaySectionLiveFragment 4]]
+                `shouldBe` [[TimesheetsLive.timesheetDaySectionLiveFragment 4]]
 
         it "keeps generated dependency planning precise across surface resources" do
             let venueId = fromWords 2 0 0 0
-            let adminScope = adminXeroLiveScope venueId
-            let supportScope = supportPlatformLiveScope
+            let adminScope = AdminLive.adminXeroLiveScope venueId
+            let supportScope = SupportLive.supportPlatformLiveScope
             let subscriptions =
-                    [ liveTestSubscription adminScope [adminXeroShellLiveFragment]
-                    , liveTestSubscription supportScope [supportAwardRatesSectionLiveFragment]
+                    [ liveTestSubscription adminScope [AdminLive.adminXeroShellLiveFragment]
+                    , liveTestSubscription supportScope [SupportLive.supportAwardRatesSectionLiveFragment]
                     ]
             let targets = planSurfaceInvalidationsWithoutContext (Set.fromList [xeroConnectionResource venueId]) subscriptions
 
-            map targetFragments targets `shouldBe` [[adminXeroShellLiveFragment]]
+            map targetFragments targets `shouldBe` [[AdminLive.adminXeroShellLiveFragment]]
 
         it "keeps the retained Admin Xero refetch descriptor local to the mount" do
             let mountedFragments = [AdminSurface.adminXeroShellFragment]
 
-            AdminSurface.adminXeroFragmentKeys mountedFragments `shouldBe` [adminXeroShellLiveFragment]
+            AdminSurface.adminXeroFragmentKeys mountedFragments `shouldBe` [AdminLive.adminXeroShellLiveFragment]
             map (.mountedFragmentTargetId) mountedFragments `shouldBe` ["admin-xero-fragment"]
             map (.mountedFragmentUrl) mountedFragments `shouldBe` [pathTo ShowadminXeroShellLiveFragmentAction]
 
         it "maps only Xero connection changes to the retained shell" do
             let venueId = fromWords 3 0 0 0
-            let scope = adminXeroLiveScope venueId
+            let scope = AdminLive.adminXeroLiveScope venueId
             let fragmentKeys = AdminSurface.adminXeroFragmentKeys [AdminSurface.adminXeroShellFragment]
             let subscription = liveTestSubscription scope fragmentKeys
             let plannedFor resource = map (.targetFragments) (planSurfaceInvalidationsWithoutContext (Set.fromList [resource venueId]) [subscription])
 
-            plannedFor xeroConnectionResource `shouldBe` [[adminXeroShellLiveFragment]]
+            plannedFor xeroConnectionResource `shouldBe` [[AdminLive.adminXeroShellLiveFragment]]
             plannedFor xeroMappingsResource `shouldBe` []
             plannedFor xeroPayItemsResource `shouldBe` []
             plannedFor xeroTimesheetsResource `shouldBe` []
@@ -206,14 +208,14 @@ planMountedFragments resources scope mountedFragments =
     , fragmentKey `Set.member` affectedKeys
     ]
   where
-    mountedKeys = frontendSurfaceMountedFragmentsToKeys (surfaceScopeKind scope) mountedFragments
+    mountedKeys = map (.mountedFragmentKey) mountedFragments
     affectedKeys = Set.fromList (actorLiveFragmentsRefreshKeys scope resources mountedFragments)
 
 passiveFragmentKeys :: Set.Set SurfaceResourceValue -> SurfaceScope -> [FrontendSurfaceMountedFragment] -> [SurfaceFragmentKey]
 passiveFragmentKeys resources scope mountedFragments =
     planSurfaceInvalidationsWithoutContext
         resources
-        [liveTestSubscription scope (frontendSurfaceMountedFragmentsToKeys (surfaceScopeKind scope) mountedFragments)]
+        [liveTestSubscription scope (map (.mountedFragmentKey) mountedFragments)]
         |> concatMap (.targetFragments)
 
 liveTestSubscription :: SurfaceScope -> [SurfaceFragmentKey] -> SurfaceSubscription

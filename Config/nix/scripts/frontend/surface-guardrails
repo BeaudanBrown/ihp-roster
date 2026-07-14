@@ -204,6 +204,30 @@ expect_no_match \
     Web/SurfaceInvalidation.hs
 
 expect_no_match \
+    "generic live modules must not own feature scope, fragment, or field catalogs" \
+    '"(roster|timesheets|leave-requests|billing|support|profile|staff|admin-[^"]+|venueId|rosterGroupId|weekOffset|staffId|dayOffset|rowIndex|leaveSection)"|\b(roster|timesheet|leave|billing|support|profile|admin)[A-Za-z0-9_]*(LiveScope|LiveFragment)\b' \
+    Application/Helper/LiveUpdate.hs \
+    Application/Helper/LiveUpdate \
+    Application/Helper/FrontendContract/Surface/DependencyPlanner.hs
+
+expect_no_match \
+    "public live facades must keep raw scope and fragment constructors opaque" \
+    'Surface(Scope|FragmentKey)[[:space:]]*\(\.\.\)|FrontendSurface(Scope|SurfaceFragmentKey)' \
+    Application/Helper/LiveUpdate.hs \
+    Application/Helper/LiveUpdate/Runtime.hs
+
+expect_no_match \
+    "feature modules must not import raw live transport authorities" \
+    'Application\.Helper\.LiveUpdate\.Internal|Application\.Helper\.FrontendContract\.Wire\.LiveUpdate' \
+    Application/Support \
+    Web/Admin \
+    Web/Billing \
+    Web/LeaveRequests \
+    Web/Profiles \
+    Web/RosterWeeks \
+    Web/Timesheets
+
+expect_no_match \
     "retired live candidate-scope planning and misleading metrics must stay deleted" \
     'candidateLiveScopes|candidate(Duration|Scope|_ms|_scopes)|planningScope|planning_scopes|liveFactPlanned|planned_(scope|fragment)_count' \
     Application \

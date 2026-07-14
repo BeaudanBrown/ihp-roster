@@ -1,47 +1,10 @@
 module Application.Helper.LiveUpdate
-    ( SurfaceFragmentKey (..)
-    , SurfaceScope (..)
-    , adminExportsLiveFragment
-    , adminExportsLiveScope
-    , adminInvitesLiveFragment
-    , adminInvitesLiveScope
-    , adminRosterGroupsLiveFragment
-    , adminRosterGroupsLiveScope
-    , adminShiftTypesLiveFragment
-    , adminShiftTypesLiveScope
-    , adminVenueConfigLiveFragment
-    , adminVenueConfigLiveScope
-    , adminXeroLiveScope
-    , adminXeroShellLiveFragment
-    , billingLiveScope
-    , billingStatusLiveFragment
-    , frontendSurfaceLiveScope
-    , leaveRequestsContentLiveFragment
-    , leaveRequestsLiveScope
-    , profileContentLiveFragment
-    , profileLiveScope
-    , rosterContentLiveFragment
-    , rosterDayColumnsLiveFragment
-    , rosterDayRailLiveFragment
-    , rosterGridFrameLiveFragment
-    , rosterGridToolbarLiveFragment
-    , rosterRowLiveFragment
-    , rosterSlotsGridLiveFragment
-    , rosterStaffPanelLiveFragment
-    , rosterWageRailLiveFragment
-    , rosterWeekLiveScope
-    , supportAwardRatesSectionLiveFragment
-    , supportPlatformLiveScope
-    , supportPublicHolidaysSectionLiveFragment
-    , timesheetDaySectionLiveFragment
-    , timesheetToolbarLiveFragment
-    , timesheetWeekLiveScope
-    , activeRosterWeekScopes
+    ( SurfaceFragmentKey
+    , SurfaceScope
     , actorLiveFragmentsRefreshKeys
     , actorLiveFragmentsRefreshTriggerPayload
     , currentLiveUpdateVersion
     , surfaceScopeKey
-    , surfaceScopeKind
     , setActorLocalFragmentsRefresh
     , setActorLiveResourcesRefresh
     ) where
@@ -52,7 +15,7 @@ import Application.Helper.FrontendContract.Surface.DependencyPlanner (SurfaceInv
                                                                       planFrontendSurfaceInvalidations)
 import Application.Helper.FrontendContract.Surface.Resource (SurfaceResourceValue)
 import Application.Helper.FrontendContract.Surface.Runtime (FrontendSurfaceMountedFragment,
-                                                            frontendSurfaceMountedFragmentsToKeys)
+                                                            mountedFragmentKey)
 import qualified Application.Helper.FrontendContract.Wire.LiveUpdate as Wire
 import Application.Helper.LiveUpdate.Internal
 import qualified Data.Aeson as Aeson
@@ -84,7 +47,7 @@ actorLiveFragmentsRefreshKeys scope touchedResources mountedFragments =
     mountSubscription = SurfaceSubscription
         { subscriptionScope = scope
         , subscriptionScopeKey = surfaceScopeKey scope
-        , subscriptionFragmentKeys = frontendSurfaceMountedFragmentsToKeys (surfaceScopeKind scope) mountedFragments
+        , subscriptionFragmentKeys = map (.mountedFragmentKey) mountedFragments
         }
 
 actorLiveFragmentsRefreshTriggerPayload :: SurfaceScope -> [SurfaceFragmentKey] -> Aeson.Value

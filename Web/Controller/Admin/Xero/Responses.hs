@@ -10,8 +10,8 @@ module Web.Controller.Admin.Xero.Responses
     , xeroSuccessToast
     ) where
 
-import Application.Helper.LiveUpdate (adminXeroLiveScope,
-                                      setActorLiveResourcesRefresh)
+import Application.Helper.FrontendContract.Surface.Admin.Live (adminXeroLiveScope)
+import Application.Helper.LiveUpdate (setActorLiveResourcesRefresh)
 import Application.Helper.Profiling
 import Application.Helper.SurfaceResource (SurfaceResourceValue)
 import Application.Helper.View (ToastOverlayConfig,

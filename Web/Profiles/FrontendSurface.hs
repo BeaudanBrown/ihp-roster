@@ -19,13 +19,15 @@ module Web.Profiles.FrontendSurface
     , staffSurfaceFragmentKeys
     ) where
 
+import Application.Helper.FrontendContract.Surface.Live (SurfaceFragmentKey,
+                                                         SurfaceScope,
+                                                         surfaceScopeKey)
 import qualified Application.Helper.FrontendContract.Surface.Profile as Surface
+import qualified Application.Helper.FrontendContract.Surface.Profile.Live as SurfaceLive
 import Application.Helper.FrontendContract.Surface.Runtime
 import Application.Helper.FrontendContract.Surface.Values
-import Application.Helper.LiveUpdate.Runtime
 import Application.Helper.Url (appendQueryParams)
 import qualified Data.UUID as UUID
-import qualified IHP.Prelude as Prelude
 import Web.Controller.Prelude
 
 data ProfileScopeValue = ProfileScopeValue
@@ -49,13 +51,11 @@ profileSurfaceMountConfig scope =
     (profileSurfaceImpl scope).surfaceImplMountConfig
 
 profileSurfaceScopeKey :: ProfileScopeValue -> Text
-profileSurfaceScopeKey scope =
-    frontendSurfaceScopeKeyFor @Surface.ProfileSurface @Surface.ProfileScope (profileScopeFields scope)
-        |> either (error . ("Typed Profile scope invariant failed: " <>)) Prelude.id
+profileSurfaceScopeKey = surfaceScopeKey . profileSurfaceScope
 
 profileSurfaceScope :: ProfileScopeValue -> SurfaceScope
 profileSurfaceScope scope =
-    profileLiveScope scope.profileVenueId scope.profileStaffId
+    SurfaceLive.profileLiveScope scope.profileVenueId scope.profileStaffId
 
 profileCandidateMountedFragments :: ProfileScopeValue -> [FrontendSurfaceMountedFragment]
 profileCandidateMountedFragments _ =
@@ -67,8 +67,7 @@ profileCandidateMountedFragments _ =
     ]
 
 profileSurfaceFragmentKeys :: [FrontendSurfaceMountedFragment] -> [SurfaceFragmentKey]
-profileSurfaceFragmentKeys =
-    frontendSurfaceMountedFragmentsToKeysFor @Surface.ProfileSurface
+profileSurfaceFragmentKeys = map (.mountedFragmentKey)
 
 staffSurfaceImpl :: StaffScopeValue -> SurfaceImpl Surface.StaffSurface
 staffSurfaceImpl scope =
@@ -83,16 +82,11 @@ staffSurfaceMountConfig scope =
     (staffSurfaceImpl scope).surfaceImplMountConfig
 
 staffSurfaceScopeKey :: StaffScopeValue -> Text
-staffSurfaceScopeKey scope =
-    frontendSurfaceScopeKeyFor @Surface.StaffSurface @Surface.StaffScope (staffScopeFields scope)
-        |> either (error . ("Typed Staff scope invariant failed: " <>)) Prelude.id
+staffSurfaceScopeKey = surfaceScopeKey . staffSurfaceScope
 
 staffSurfaceScope :: StaffScopeValue -> SurfaceScope
 staffSurfaceScope scope =
-    frontendSurfaceLiveScope
-        (surfaceNameValue @Surface.StaffSurface)
-        (surfaceFieldsJson (staffScopeFields scope))
-        (staffSurfaceScopeKey scope)
+    SurfaceLive.staffLiveScope scope.profileVenueId scope.profileStaffId
 
 staffCandidateMountedFragments :: StaffScopeValue -> [FrontendSurfaceMountedFragment]
 staffCandidateMountedFragments scope =
@@ -102,8 +96,7 @@ staffCandidateMountedFragments scope =
     ]
 
 staffSurfaceFragmentKeys :: [FrontendSurfaceMountedFragment] -> [SurfaceFragmentKey]
-staffSurfaceFragmentKeys =
-    frontendSurfaceMountedFragmentsToKeysFor @Surface.StaffSurface
+staffSurfaceFragmentKeys = map (.mountedFragmentKey)
 
 staffSectionFragmentForSection :: StaffScopeValue -> Text -> FrontendSurfaceMountedFragment
 staffSectionFragmentForSection scope = \case

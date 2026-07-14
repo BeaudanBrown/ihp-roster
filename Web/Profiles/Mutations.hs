@@ -6,7 +6,7 @@ module Web.Profiles.Mutations
     , updateCurrentUserProfile
     ) where
 
-import Application.Helper.LiveUpdate
+import Application.Helper.FrontendContract.Surface.Roster.Live (activeRosterWeekScopes)
 import Application.Helper.RosterGroups (fetchCurrentVenueDefaultRosterGroup,
                                         fetchStaffRosterGroupIds,
                                         syncStaffRosterGroupAssignments)

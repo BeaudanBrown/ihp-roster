@@ -1,8 +1,8 @@
 module Web.Controller.Admin where
 
 import Application.Helper.Export
-import Application.Helper.LiveUpdate (adminShiftTypesLiveScope,
-                                      setActorLiveResourcesRefresh)
+import Application.Helper.FrontendContract.Surface.Admin.Live (adminShiftTypesLiveScope)
+import Application.Helper.LiveUpdate (setActorLiveResourcesRefresh)
 import Application.Helper.PasskeySetupTokens
 import Application.Helper.Profiling
 import Application.Helper.RosterGroups

@@ -9,7 +9,10 @@ module Web.Timesheets.Responses
     ) where
 
 import Application.Helper.FrontendContract.Surface.FragmentRender (FragmentRenderMode (..))
-import Application.Helper.FrontendContract.Surface.Runtime (FrontendSurfaceMountedFragment (..))
+import Application.Helper.FrontendContract.Surface.Live (matchFrontendSurfaceFragmentKey)
+import Application.Helper.FrontendContract.Surface.Runtime (FrontendSurfaceMountedFragment,
+                                                            mountedFragmentKey)
+import qualified Application.Helper.FrontendContract.Surface.Timesheets as Surface
 import Application.Helper.LiveUpdate (setActorLiveResourcesRefresh,
                                       setActorLocalFragmentsRefresh)
 import Application.Helper.Profiling
@@ -64,13 +67,23 @@ respondWithTimesheetResourceInvalidation requestKey touchedResources extraHtml =
 
 selectTimesheetMountedFragments :: TimesheetProjectionRequest -> [TimesheetProjectionFragment] -> [FrontendSurfaceMountedFragment] -> [FrontendSurfaceMountedFragment]
 selectTimesheetMountedFragments _ fragments mountedFragments =
-    filter (\mountedFragment -> mountedFragment.mountedFragmentTargetId `elem` targetIds) mountedFragments
-    where
-        targetIds = mapMaybe fragmentTargetId fragments
-        fragmentTargetId = \case
-            TimesheetProjectionToolbar -> Just timesheetWeekToolbarId
-            TimesheetProjectionDayColumns -> Just timesheetDayColumnsId
-            TimesheetProjectionDaySection dayOffset -> Just (timesheetDaySectionDomId dayOffset)
+    filter (\mountedFragment -> any (matchesFragment mountedFragment) fragments) mountedFragments
+  where
+    matchesFragment mountedFragment = \case
+        TimesheetProjectionToolbar ->
+            isJust
+                ( matchFrontendSurfaceFragmentKey @Surface.TimesheetsSurface @Surface.TimesheetToolbar
+                    mountedFragment.mountedFragmentKey
+                )
+        TimesheetProjectionDayColumns ->
+            isJust
+                ( matchFrontendSurfaceFragmentKey @Surface.TimesheetsSurface @Surface.TimesheetDayColumns
+                    mountedFragment.mountedFragmentKey
+                )
+        TimesheetProjectionDaySection dayOffset ->
+            matchFrontendSurfaceFragmentKey @Surface.TimesheetsSurface @Surface.TimesheetDaySection
+                mountedFragment.mountedFragmentKey
+                == Just (dayOffset, ())
 
 normalizeTimesheetFragments :: [TimesheetProjectionFragment] -> [TimesheetProjectionFragment]
 normalizeTimesheetFragments fragments =

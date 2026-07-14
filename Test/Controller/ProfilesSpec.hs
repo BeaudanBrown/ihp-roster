@@ -1,6 +1,8 @@
 module Test.Controller.ProfilesSpec where
 
 import Application.Helper.Controller (PlatformRole (SuperAdminRole))
+import qualified Application.Helper.FrontendContract.Surface.Profile.Live as ProfileLive
+import qualified Application.Helper.FrontendContract.Surface.Roster.Live as RosterLive
 import Application.Helper.LiveUpdate
 import Application.Helper.RosterGroups (createVenueRosterGroupWithDefaults)
 import Application.Helper.StaffShiftPreferences (ShiftPreferenceSelection (..),
@@ -399,7 +401,7 @@ tests = beforeAll testContext do
                 user <- createUserRecord "profile-htmx@example.com" "staff" True
                 _ <- createVenueMembershipRecord venue user "worker"
                 staff <- createStaffRecord venue (Just user) "Taylor" "Smith"
-                profileVersionBefore <- currentLiveUpdateVersion (profileLiveScope (unpackId venue.id) (unpackId staff.id))
+                profileVersionBefore <- currentLiveUpdateVersion (ProfileLive.profileLiveScope (unpackId venue.id) (unpackId staff.id))
 
                 response <- withUserAndCurrentVenue user venue.id do
                     withRequestHeaders [("HX-Request", "true"), ("X-Live-Update-Client-Id", "profile-htmx-client")] do
@@ -422,7 +424,7 @@ tests = beforeAll testContext do
                 profileTriggerHeader `shouldSatisfy` maybe False (Text.isInfixOf "bepis:live-fragments-refresh")
                 profileTriggerHeader `shouldSatisfy` maybe False (Text.isInfixOf "profile-details-section")
                 profileTriggerHeader `shouldSatisfy` maybe False (Text.isInfixOf "profile-details")
-                profileVersionAfter <- currentLiveUpdateVersion (profileLiveScope (unpackId venue.id) (unpackId staff.id))
+                profileVersionAfter <- currentLiveUpdateVersion (ProfileLive.profileLiveScope (unpackId venue.id) (unpackId staff.id))
                 profileVersionAfter `shouldBe` profileVersionBefore
 
         it "selects profile roster invalidation targets from active roster week scopes" $ withContext do
@@ -460,9 +462,9 @@ tests = beforeAll testContext do
                 fmap (\(_, _, rowKeys) -> rowKeys) frontEntry `shouldBe` Just [(unpackId frontDay.id, assignedSlot.rowIndex)]
                 backEntry `shouldBe` Nothing
 
-                frontVersionBefore <- currentLiveUpdateVersion (rosterWeekLiveScope (unpackId venue.id) (unpackId frontGroup.id) 0)
-                backVersionBefore <- currentLiveUpdateVersion (rosterWeekLiveScope (unpackId venue.id) (unpackId backGroup.id) 0)
-                profileVersionBefore <- currentLiveUpdateVersion (profileLiveScope (unpackId venue.id) (unpackId staff.id))
+                frontVersionBefore <- currentLiveUpdateVersion (RosterLive.rosterWeekLiveScope (unpackId venue.id) (unpackId frontGroup.id) 0)
+                backVersionBefore <- currentLiveUpdateVersion (RosterLive.rosterWeekLiveScope (unpackId venue.id) (unpackId backGroup.id) 0)
+                profileVersionBefore <- currentLiveUpdateVersion (ProfileLive.profileLiveScope (unpackId venue.id) (unpackId staff.id))
 
                 response <- withUserAndCurrentVenue user venue.id do
                     withRequestHeaders [("HX-Request", "true"), ("X-Live-Update-Client-Id", "profile-update-client")] do
@@ -477,9 +479,9 @@ tests = beforeAll testContext do
                             ]
 
                 response `responseStatusShouldBe` status200
-                frontVersionAfter <- currentLiveUpdateVersion (rosterWeekLiveScope (unpackId venue.id) (unpackId frontGroup.id) 0)
-                backVersionAfter <- currentLiveUpdateVersion (rosterWeekLiveScope (unpackId venue.id) (unpackId backGroup.id) 0)
-                profileVersionAfter <- currentLiveUpdateVersion (profileLiveScope (unpackId venue.id) (unpackId staff.id))
+                frontVersionAfter <- currentLiveUpdateVersion (RosterLive.rosterWeekLiveScope (unpackId venue.id) (unpackId frontGroup.id) 0)
+                backVersionAfter <- currentLiveUpdateVersion (RosterLive.rosterWeekLiveScope (unpackId venue.id) (unpackId backGroup.id) 0)
+                profileVersionAfter <- currentLiveUpdateVersion (ProfileLive.profileLiveScope (unpackId venue.id) (unpackId staff.id))
 
                 frontVersionAfter `shouldBe` frontVersionBefore
                 backVersionAfter `shouldBe` backVersionBefore

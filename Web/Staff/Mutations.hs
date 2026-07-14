@@ -10,7 +10,7 @@ module Web.Staff.Mutations
     ) where
 
 import Application.Helper.Audit (updateVenueMembershipRoleWithAudit)
-import Application.Helper.LiveUpdate.Runtime
+import Application.Helper.FrontendContract.Surface.Roster.Live (activeRosterWeekScopes)
 import Application.Helper.Pay (ensureStaffPayVersionForStaff)
 import Application.Helper.RosterGroups (fetchStaffRosterGroupIds,
                                         syncStaffRosterGroupAssignments)

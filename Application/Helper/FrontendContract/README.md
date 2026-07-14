@@ -16,7 +16,11 @@ copy or conversion layer. Test-only Surface fixtures are reflected explicitly
 from `Test/` and never enter `RegisteredFrontendSurfaces` or generated production
 browser output. Haskell feature code consumes Surface declarations
 through marker-indexed accessors and exact `SurfaceFields` in
-`Surface.Values`, rather than registry scans or phantom JSON. Common Surface
+`Surface.Values`, rather than registry scans or phantom JSON. Live scopes and
+fragment keys use the declaration-complete constructors and typed matchers in
+`Surface.Live`; raw transport constructors remain internal and feature-owned
+identity values live in the corresponding `Surface.<Feature>.Live` module.
+Common Surface
 HTMX selectors, triggers, swaps, and sync recipes are typed and render their own
 deterministic punctuation; raw syntax requires a non-empty recorded reason.
 

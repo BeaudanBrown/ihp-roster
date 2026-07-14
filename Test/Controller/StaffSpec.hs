@@ -1,5 +1,6 @@
 module Test.Controller.StaffSpec where
 
+import qualified Application.Helper.FrontendContract.Surface.Admin.Live as AdminLive
 import qualified Application.Helper.LiveUpdate as LiveUpdate
 import Application.Helper.RosterGroups (createVenueRosterGroupWithDefaults)
 import Application.Helper.StaffShiftPreferences (encodeShiftPreferenceKey,
@@ -369,7 +370,7 @@ tests = beforeAll testContext do
                 manager <- createUserRecord "staff-trial-invite-manager@example.com" "staff" True
                 _ <- createVenueMembershipRecord venue manager "manager"
                 staff <- createStaffRecord venue Nothing "Trial" "Invite"
-                versionBefore <- LiveUpdate.currentLiveUpdateVersion (LiveUpdate.adminInvitesLiveScope (unpackId venue.id))
+                versionBefore <- LiveUpdate.currentLiveUpdateVersion (AdminLive.adminInvitesLiveScope (unpackId venue.id))
 
                 response <- withUserAndCurrentVenue manager venue.id do
                     withRequestHeaders [("HX-Request", "true")] do
@@ -394,7 +395,7 @@ tests = beforeAll testContext do
                     |> filterWhere (#relatedId, Just (unpackId invitation.id))
                     |> fetchOne
                 appJob.jobKind `shouldBe` venueInvitationDeliveryJobKind
-                versionAfter <- LiveUpdate.currentLiveUpdateVersion (LiveUpdate.adminInvitesLiveScope (unpackId venue.id))
+                versionAfter <- LiveUpdate.currentLiveUpdateVersion (AdminLive.adminInvitesLiveScope (unpackId venue.id))
                 versionAfter `shouldBe` versionBefore
 
         it "closes the dedicated dialog after resending a trial staff invitation" $ withContext do
@@ -601,7 +602,7 @@ tests = beforeAll testContext do
                 payLevel <- createPayLevelRecord venue "Level 2"
                 staff <- createStaffRecord venue Nothing "Alpha" "Crew"
 
-                xeroVersionBefore <- LiveUpdate.currentLiveUpdateVersion (LiveUpdate.adminXeroLiveScope (unpackId venue.id))
+                xeroVersionBefore <- LiveUpdate.currentLiveUpdateVersion (AdminLive.adminXeroLiveScope (unpackId venue.id))
                 response <- withPasskeyVerifiedUserAndCurrentVenue admin (get #id venue) do
                     callActionWithParams
                         (UpdateStaffAction staff.id)
@@ -622,7 +623,7 @@ tests = beforeAll testContext do
                 updatedStaff <- fetch staff.id
                 updatedStaff.employmentBasis `shouldBe` Permanent
                 updatedStaff.defaultAwardLevelId `shouldBe` Just payLevel.id
-                xeroVersionAfter <- LiveUpdate.currentLiveUpdateVersion (LiveUpdate.adminXeroLiveScope (unpackId venue.id))
+                xeroVersionAfter <- LiveUpdate.currentLiveUpdateVersion (AdminLive.adminXeroLiveScope (unpackId venue.id))
                 xeroVersionAfter `shouldBe` xeroVersionBefore
 
         it "shows synced award level hourly rates in the staff pay selector" $ withContext do

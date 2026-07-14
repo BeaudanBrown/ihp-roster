@@ -14,12 +14,14 @@ module Web.Timesheets.FrontendSurface
     , timesheetsSurfaceFragmentKeys
     ) where
 
+import Application.Helper.FrontendContract.Surface.Live (SurfaceFragmentKey,
+                                                         SurfaceScope,
+                                                         surfaceScopeKey)
 import Application.Helper.FrontendContract.Surface.Runtime
 import qualified Application.Helper.FrontendContract.Surface.Timesheets as Surface
+import qualified Application.Helper.FrontendContract.Surface.Timesheets.Live as SurfaceLive
 import Application.Helper.FrontendContract.Surface.Values
-import Application.Helper.LiveUpdate.Runtime
 import qualified Data.UUID as UUID
-import qualified IHP.Prelude as Prelude
 import Web.Controller.Prelude
 import Web.Timesheets.Paths (timesheetDayColumnsFragmentUrl,
                              timesheetDaySectionFragmentUrl,
@@ -63,17 +65,14 @@ timesheetsSurfaceMountConfig scope mountState =
     (timesheetsSurfaceImpl scope mountState).surfaceImplMountConfig
 
 timesheetsSurfaceScopeKey :: TimesheetWeekScopeValue -> Text
-timesheetsSurfaceScopeKey scope =
-    frontendSurfaceScopeKeyFor @Surface.TimesheetsSurface @Surface.TimesheetWeek (timesheetWeekScopeFields scope)
-        |> either (error . ("Typed Timesheets scope invariant failed: " <>)) Prelude.id
+timesheetsSurfaceScopeKey = surfaceScopeKey . timesheetsSurfaceScope
 
 timesheetsSurfaceScope :: TimesheetWeekScopeValue -> SurfaceScope
 timesheetsSurfaceScope scope =
-    timesheetWeekLiveScope scope.timesheetWeekVenueId scope.timesheetWeekWeekOffset
+    SurfaceLive.timesheetWeekLiveScope scope.timesheetWeekVenueId scope.timesheetWeekWeekOffset
 
 timesheetsSurfaceFragmentKeys :: [FrontendSurfaceMountedFragment] -> [SurfaceFragmentKey]
-timesheetsSurfaceFragmentKeys =
-    frontendSurfaceMountedFragmentsToKeysFor @Surface.TimesheetsSurface
+timesheetsSurfaceFragmentKeys = map (.mountedFragmentKey)
 
 timesheetsCandidateMountedFragments :: TimesheetWeekScopeValue -> TimesheetsMountStateValue -> [FrontendSurfaceMountedFragment]
 timesheetsCandidateMountedFragments scope mountState =

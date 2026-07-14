@@ -6,7 +6,7 @@ module Web.LeaveRequests.Mutations
     , submitLeaveRequest
     ) where
 
-import Application.Helper.LiveUpdate
+import Application.Helper.FrontendContract.Surface.Roster.Live (activeRosterWeekScopes)
 import Application.Helper.SurfaceResource
 import Application.Helper.WeekBoundaries (affectedVenueWeekOffsetsForDateRange)
 import Control.Monad (void)

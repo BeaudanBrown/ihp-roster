@@ -12,6 +12,7 @@ or roster views.
   controller.
 - Keep DOM ids/selectors centralized in `Dom.hs`.
 - Keep roster `FrontendSurface` fragment metadata, resource dependencies, and live fanout semantics in `FrontendSurface.hs`; passive fanout must go through touched resources and the FrontendSurface registry/runtime path.
+- Construct and match roster live identity through `Application.Helper.FrontendContract.Surface.Roster.Live`; do not import raw live transport modules or recover fragment identity from target IDs.
 - Preserve `hx-sync` on stable shells that are not replaced by the response.
 - When changing roster page controls, gestures, settings, warnings, wage estimates, live/publish behavior, or role-visible draft/live semantics, update the `roster` topic in `Application.Helper.View.PageHelp`.
 

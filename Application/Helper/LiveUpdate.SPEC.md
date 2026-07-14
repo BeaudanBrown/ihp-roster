@@ -122,7 +122,18 @@ that browser refetches and swaps HTML.
 
 The semantic-key transport boundary is isolated behind
 `Application.Helper.LiveUpdate.Runtime`, `Application.Helper.LiveUpdate.Internal`,
-and `Application.Helper.FrontendContract.Surface.Runtime`. Browser-visible live-update
+`Application.Helper.FrontendContract.Surface.Live`, and
+`Application.Helper.FrontendContract.Surface.Runtime`. `SurfaceScope` and
+`SurfaceFragmentKey` constructors are visible only to the transport internals.
+The public live facades expose opaque carriers; feature modules construct and
+match them with the marker-indexed, declaration-complete functions in
+`Surface.Live`. Feature-owned values and typed matchers live beside their
+contracts (`Surface.Roster.Live`, `Surface.Timesheets.Live`, and peers), not in
+generic live modules. Generic transport, authorization, dependency planning,
+coalescing, and bus code may inspect internal transport identity mechanically,
+but it contains no feature Surface, fragment, or field catalog.
+
+Browser-visible live-update
 contracts are owned by `Application.Helper.FrontendContract.LiveUpdate` and the
 registered surface contracts: generated TypeScript exposes closed `SurfaceScope`
 and `SurfaceFragmentKey` unions derived from the registered surface scope and
@@ -142,10 +153,15 @@ Server-side `MountState` remains available to Haskell renderers and route
 builders but is not emitted as a browser contract when the browser has no
 consumer.
 Feature modules should keep fragment enums feature-local and cross the
-typed-to-wire boundary only through strict helpers. Feature modules cross the
-surface-to-key boundary through `SurfaceImpl`/`renderFrontendSurfaceMount` and
-mount-local fragment/action/intent handlers. The runtime exposes semantic-key transport and typed mutation response helpers
-only through its focused public facades.
+typed-to-wire boundary only through strict helpers. Scope/fragment construction
+uses complete `SurfaceFields`; scope/fragment matching returns complete typed
+field values and never raw JSON. Mounted fragments retain the opaque semantic
+key created by their owning marker, so actor helpers map mounted keys directly
+rather than reconstructing identity from a Surface name or target ID. Feature
+modules cross the surface-to-key boundary through
+`SurfaceImpl`/`renderFrontendSurfaceMount` and mount-local
+fragment/action/intent handlers. The runtime exposes semantic-key transport and
+typed mutation response helpers only through its focused public facades.
 
 Actor responses and passive live updates should use one semantic fragment model
 with multiple delivery triggers. A feature-local fragment enum and `SurfaceImpl`

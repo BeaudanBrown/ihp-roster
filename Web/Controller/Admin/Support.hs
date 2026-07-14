@@ -1,7 +1,7 @@
 module Web.Controller.Admin.Support where
 
-import Application.Helper.LiveUpdate (adminRosterGroupsLiveScope,
-                                      setActorLiveResourcesRefresh,
+import Application.Helper.FrontendContract.Surface.Admin.Live (adminRosterGroupsLiveScope)
+import Application.Helper.LiveUpdate (setActorLiveResourcesRefresh,
                                       setActorLocalFragmentsRefresh)
 import Application.Helper.Pay
 import Application.Helper.RosterGroups

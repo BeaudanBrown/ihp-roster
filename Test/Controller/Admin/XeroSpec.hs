@@ -1,6 +1,7 @@
 module Test.Controller.Admin.XeroSpec where
 
 import Application.Helper.Controller (PlatformRole (SuperAdminRole))
+import qualified Application.Helper.FrontendContract.Surface.Admin.Live as AdminLive
 import Application.Helper.LiveUpdate
 import Application.Helper.RosterGroups (createVenueRosterGroupWithDefaults,
                                         fetchActiveRosterGroupSlotNames)
@@ -436,14 +437,14 @@ tests = beforeAll testContext do
                 pageResponse `responseBodyShouldNotContain` "Connected</dt>"
                 pageResponse `responseBodyShouldNotContain` "Last sync:"
 
-                xeroVersionBefore <- currentLiveUpdateVersion (adminXeroLiveScope (unpackId venue.id))
+                xeroVersionBefore <- currentLiveUpdateVersion (AdminLive.adminXeroLiveScope (unpackId venue.id))
                 response <- withXeroConfigForTest (Right testXeroConfig) do
                     withXeroClientForTest (referenceSyncXeroClient tokenResponse employees earningsRates payrollCalendars) do
                         withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
                             callAction SyncXeroPayrollReferenceDataAction
 
                 response `responseStatusShouldBe` status302
-                xeroVersionAfter <- currentLiveUpdateVersion (adminXeroLiveScope (unpackId venue.id))
+                xeroVersionAfter <- currentLiveUpdateVersion (AdminLive.adminXeroLiveScope (unpackId venue.id))
                 xeroVersionAfter `shouldBe` xeroVersionBefore
                 employeeCount <- query @XeroEmployee |> fetchCount
                 employeeCount `shouldBe` 1

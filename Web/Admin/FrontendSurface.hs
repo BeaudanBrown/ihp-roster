@@ -26,9 +26,9 @@ module Web.Admin.FrontendSurface
 import qualified Application.Helper.FrontendContract.Surface.Admin as Surface
 import Application.Helper.FrontendContract.Surface.DSL (FieldSpec (..),
                                                         WireType (..))
+import Application.Helper.FrontendContract.Surface.Live (SurfaceFragmentKey)
 import Application.Helper.FrontendContract.Surface.Runtime
 import Application.Helper.FrontendContract.Surface.Values
-import Application.Helper.LiveUpdate.Runtime (SurfaceFragmentKey)
 import Application.Helper.Url (appendQueryParams)
 import qualified Data.UUID as UUID
 import Web.Controller.Prelude
@@ -181,13 +181,10 @@ adminXeroShellFragment =
         FrontendSurfaceReplace
 
 adminShiftTypesFragmentKeys :: [FrontendSurfaceMountedFragment] -> [SurfaceFragmentKey]
-adminShiftTypesFragmentKeys =
-    frontendSurfaceMountedFragmentsToKeysFor @Surface.AdminShiftTypesSurface
+adminShiftTypesFragmentKeys = map (.mountedFragmentKey)
 
 adminRosterGroupsFragmentKeys :: [FrontendSurfaceMountedFragment] -> [SurfaceFragmentKey]
-adminRosterGroupsFragmentKeys =
-    frontendSurfaceMountedFragmentsToKeysFor @Surface.AdminRosterGroupsSurface
+adminRosterGroupsFragmentKeys = map (.mountedFragmentKey)
 
 adminXeroFragmentKeys :: [FrontendSurfaceMountedFragment] -> [SurfaceFragmentKey]
-adminXeroFragmentKeys =
-    frontendSurfaceMountedFragmentsToKeysFor @Surface.AdminXeroSurface
+adminXeroFragmentKeys = map (.mountedFragmentKey)

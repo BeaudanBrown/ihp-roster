@@ -6,8 +6,8 @@ module Application.Helper.FrontendContract.Surface.DependencyPlanner
 import qualified Application.Helper.FrontendContract.Surface.ContractIR as SurfaceIR
 import Application.Helper.FrontendContract.Surface.Reflect (reflectRegisteredFrontendSurfaces)
 import Application.Helper.FrontendContract.Surface.Resource (SurfaceResourceValue (..))
-import Application.Helper.FrontendContract.Surface.Runtime (FrontendSurfaceFragmentKey (..))
 import qualified Application.Helper.FrontendContract.Wire.LiveUpdate as Wire
+import qualified Application.Helper.LiveUpdate.Internal as LiveUpdateInternal
 import Application.Helper.LiveUpdate.Runtime
 import Application.Helper.SurfaceResource
 import qualified Data.Aeson as Aeson
@@ -51,12 +51,13 @@ frontendSurfaceFragmentKeyDependsOnTouchedResource touchedValues scope fragmentK
 
 fragmentKeyDependencies :: SurfaceScope -> SurfaceFragmentKey -> [SurfaceResourceValue]
 fragmentKeyDependencies scope fragmentKey = do
-    let Wire.SurfaceScope { surface = scopeSurface, scope = scopePayload } = surfaceScopeToWire scope
-    True <- pure (fragmentKey.surfaceFragmentSurface == scopeSurface)
+    let Wire.SurfaceScope { surface = scopeSurface, scope = scopePayload } = LiveUpdateInternal.surfaceScopeToWire scope
+    let (fragmentSurface, fragmentKind, fragmentParams) = LiveUpdateInternal.surfaceFragmentKeyIdentity fragmentKey
+    True <- pure (fragmentSurface == scopeSurface)
     surface <- maybeToList (findSurface scopeSurface)
-    fragmentIR <- maybeToList (findFragment fragmentKey.surfaceFragmentWireKind surface)
+    fragmentIR <- maybeToList (findFragment fragmentKind surface)
     dependency <- SurfaceIR.optionResourceDependencies fragmentIR.fragmentOptions
-    maybeToList (resourceValueFromDependency scopePayload fragmentKey.surfaceFragmentParams dependency)
+    maybeToList (resourceValueFromDependency scopePayload fragmentParams dependency)
 
 findSurface :: Text -> Maybe SurfaceIR.SurfaceIR
 findSurface surfaceName =

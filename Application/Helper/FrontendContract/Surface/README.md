@@ -276,6 +276,18 @@ explicit null. Use `surfaceFieldsJson` only at the JSON boundary and
 `frontendSurfaceActionFields` for hidden/query fields; do not introduce phantom
 `Aeson.Value` carriers or recover required fields with runtime fallbacks.
 
+Live identity crosses this boundary through
+`Application.Helper.FrontendContract.Surface.Live` only.
+`frontendSurfaceScope` and `frontendSurfaceFragmentKey` accept the complete
+marker-indexed field list and return opaque transport identities;
+`matchFrontendSurfaceScope` and `matchFrontendSurfaceFragmentKey` recover only
+the declaration-ordered typed values. Feature-owned adapters live beside their
+contracts, for example `Surface.Roster.Live` and `Surface.Timesheets.Live`.
+Adding, removing, reordering, or retyping a declared identity field therefore
+breaks every incomplete constructor or matcher at compile time. Feature code
+must not import `LiveUpdate.Internal`, pattern-match transport constructors, or
+recover feature meaning from raw Surface/fragment text or JSON fields.
+
 ## Runtime Implementation
 
 Migrated surfaces expose mount behavior through
@@ -294,12 +306,15 @@ parameterized target IDs therefore share the reflection naming evaluator and
 declaration-ordered typed fields. URLs and protection remain mount-local.
 
 Pass each concrete dynamic or repeated fragment set directly to that constructor
-(or a feature helper that calls it). There is no post-construction descriptor
+(or a feature helper that calls it). Each mounted fragment stores the opaque
+semantic key created by its own Surface/fragment marker; actor planning maps
+mounted keys directly and never reattaches a free-text Surface name or selects a
+fragment through its target ID. There is no post-construction descriptor
 patching and no generic handler/action/intent catalog on `SurfaceImpl`. Real
 interaction intent forms are feature-owned marker-indexed values supplied to the
 interaction shell; ordinary action routes remain next to their server-rendered
-views. Compile-failure tests enforce Surface, marker, and field ownership rather
-than ceremonial handler counts.
+views. Compile-failure tests enforce Surface, marker, field completeness, and
+transport opacity rather than ceremonial handler counts.
 
 Render mounts with `renderFrontendSurfaceMount impl body`. This emits
 `data-bepis-surface` and `data-bepis-surface-config`. Do not handwrite these

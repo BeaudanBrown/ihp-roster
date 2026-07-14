@@ -1,5 +1,10 @@
 module Application.Script.ProfileLiveInvalidation where
 
+import qualified Application.Helper.FrontendContract.Surface.Admin.Live as AdminLive
+import qualified Application.Helper.FrontendContract.Surface.Billing.Live as BillingLive
+import qualified Application.Helper.FrontendContract.Surface.Roster.Live as RosterLive
+import qualified Application.Helper.FrontendContract.Surface.Support.Live as SupportLive
+import qualified Application.Helper.FrontendContract.Surface.Timesheets.Live as TimesheetsLive
 import Application.Helper.LiveUpdate.Runtime
 import Application.Helper.SurfaceResource
 import qualified Data.Aeson as Aeson
@@ -63,9 +68,9 @@ allScenarios =
     ]
 
 data BenchmarkPlan = BenchmarkPlan
-    { planResources          :: !(Set.Set SurfaceResourceValue)
-    , planActiveScopes       :: ![SurfaceScope]
-    , planActiveRosterScopes :: ![(UUID, UUID, Int)]
+    { planResources           :: !(Set.Set SurfaceResourceValue)
+    , planActiveSubscriptions :: ![SurfaceSubscription]
+    , planActiveRosterScopes  :: ![(UUID, UUID, Int)]
     }
 
 scenarioName :: LiveInvalidationBenchmarkScenario -> Text
@@ -114,7 +119,7 @@ runOne scenario requestedScopeCount = do
     startedAtNs <- getMonotonicTimeNSec
     (expandedResources, expandMs) <- measureDuration do
         pure (expandSurfaceResourcesWithoutContext benchmarkPlan.planActiveRosterScopes benchmarkPlan.planResources)
-    let activeSubscriptions = map benchmarkSubscription benchmarkPlan.planActiveScopes
+    let activeSubscriptions = benchmarkPlan.planActiveSubscriptions
     (targets, planMs) <- measureDuration do
         pure (planSurfaceInvalidationsWithoutContext expandedResources activeSubscriptions)
     (broadcastResults, broadcastMs) <- measureDuration do
@@ -126,7 +131,7 @@ runOne scenario requestedScopeCount = do
             , resultScopeCount = requestedScopeCount
             , resultIterations = 1
             , resultTouchedResourceCount = Set.size benchmarkPlan.planResources
-            , resultActiveScopeCount = length benchmarkPlan.planActiveScopes
+            , resultActiveScopeCount = length benchmarkPlan.planActiveSubscriptions
             , resultExpandedResourceCount = Set.size expandedResources
             , resultTargetCount = length targets
             , resultTargetFragmentCount = sum (map (length . targetFragments) targets)
@@ -169,25 +174,45 @@ buildBenchmarkPlan scenario requestedScopeCount =
         BillingDirectScenario ->
             BenchmarkPlan
                 { planResources = Set.singleton (billingResource targetVenueId)
-                , planActiveScopes = [billingLiveScope (venueIdFor index) | index <- [0 .. requestedScopeCount - 1]]
+                , planActiveSubscriptions =
+                    [ benchmarkSubscription
+                        (BillingLive.billingLiveScope (venueIdFor index))
+                        [BillingLive.billingStatusLiveFragment]
+                    | index <- [0 .. requestedScopeCount - 1]
+                    ]
                 , planActiveRosterScopes = []
                 }
         TimesheetWeekScenario ->
             BenchmarkPlan
                 { planResources = Set.singleton (timesheetWeekResource targetVenueId targetWeekOffset)
-                , planActiveScopes = [timesheetWeekLiveScope (venueIdFor index) (index `mod` 52) | index <- [0 .. requestedScopeCount - 1]]
+                , planActiveSubscriptions =
+                    [ benchmarkSubscription
+                        (TimesheetsLive.timesheetWeekLiveScope (venueIdFor index) (index `mod` 52))
+                        [TimesheetsLive.timesheetToolbarLiveFragment]
+                    | index <- [0 .. requestedScopeCount - 1]
+                    ]
                 , planActiveRosterScopes = []
                 }
         XeroMappingsScenario ->
             BenchmarkPlan
                 { planResources = Set.singleton (xeroMappingsResource targetVenueId)
-                , planActiveScopes = [adminXeroLiveScope (venueIdFor index) | index <- [0 .. requestedScopeCount - 1]]
+                , planActiveSubscriptions =
+                    [ benchmarkSubscription
+                        (AdminLive.adminXeroLiveScope (venueIdFor index))
+                        [AdminLive.adminXeroShellLiveFragment]
+                    | index <- [0 .. requestedScopeCount - 1]
+                    ]
                 , planActiveRosterScopes = []
                 }
         RosterWeekFanoutScenario ->
             BenchmarkPlan
                 { planResources = Set.fromList [rosterWeekResource (rosterGroupIdFor index) targetWeekOffset | index <- [0 .. requestedScopeCount - 1]]
-                , planActiveScopes = [rosterWeekLiveScope targetVenueId (rosterGroupIdFor index) targetWeekOffset | index <- [0 .. requestedScopeCount - 1]]
+                , planActiveSubscriptions =
+                    [ benchmarkSubscription
+                        (RosterLive.rosterWeekLiveScope targetVenueId (rosterGroupIdFor index) targetWeekOffset)
+                        [RosterLive.rosterContentLiveFragment]
+                    | index <- [0 .. requestedScopeCount - 1]
+                    ]
                 , planActiveRosterScopes = [(targetVenueId, rosterGroupIdFor index, targetWeekOffset) | index <- [0 .. requestedScopeCount - 1]]
                 }
         MixedContextFreeScenario ->
@@ -200,44 +225,27 @@ buildBenchmarkPlan scenario requestedScopeCount =
                         , timesheetWeekResource targetVenueId targetWeekOffset
                         , xeroMappingsResource targetVenueId
                         ]
-                , planActiveScopes = take requestedScopeCount (cycle mixedScopes)
+                , planActiveSubscriptions = take requestedScopeCount (cycle mixedSubscriptions)
                 , planActiveRosterScopes = []
                 }
     where
         targetVenueId = venueIdFor 0
         targetWeekOffset = 0
-        mixedScopes =
-            [ supportPlatformLiveScope
-            , billingLiveScope targetVenueId
-            , adminInvitesLiveScope targetVenueId
-            , timesheetWeekLiveScope targetVenueId targetWeekOffset
-            , adminXeroLiveScope targetVenueId
+        mixedSubscriptions =
+            [ benchmarkSubscription SupportLive.supportPlatformLiveScope [SupportLive.supportAwardRatesSectionLiveFragment]
+            , benchmarkSubscription (BillingLive.billingLiveScope targetVenueId) [BillingLive.billingStatusLiveFragment]
+            , benchmarkSubscription (AdminLive.adminInvitesLiveScope targetVenueId) [AdminLive.adminInvitesLiveFragment]
+            , benchmarkSubscription (TimesheetsLive.timesheetWeekLiveScope targetVenueId targetWeekOffset) [TimesheetsLive.timesheetToolbarLiveFragment]
+            , benchmarkSubscription (AdminLive.adminXeroLiveScope targetVenueId) [AdminLive.adminXeroShellLiveFragment]
             ]
 
-benchmarkSubscription :: SurfaceScope -> SurfaceSubscription
-benchmarkSubscription scope =
+benchmarkSubscription :: SurfaceScope -> [SurfaceFragmentKey] -> SurfaceSubscription
+benchmarkSubscription scope fragmentKeys =
     SurfaceSubscription
         { subscriptionScope = scope
         , subscriptionScopeKey = surfaceScopeKey scope
-        , subscriptionFragmentKeys = benchmarkFragmentKeys scope
+        , subscriptionFragmentKeys = fragmentKeys
         }
-
-benchmarkFragmentKeys :: SurfaceScope -> [SurfaceFragmentKey]
-benchmarkFragmentKeys = \case
-    scope
-        | surfaceScopeKind scope == "billing" -> [billingStatusLiveFragment]
-        | surfaceScopeKind scope == "timesheets" -> [timesheetToolbarLiveFragment]
-        | surfaceScopeKind scope == "admin-xero" -> [adminXeroShellLiveFragment]
-        | surfaceScopeKind scope == "roster" -> [rosterContentLiveFragment]
-        | surfaceScopeKind scope == "support" -> [supportAwardRatesSectionLiveFragment]
-        | surfaceScopeKind scope == "admin-invites" -> [adminInvitesLiveFragment]
-        | surfaceScopeKind scope == "admin-venue-config" -> [adminVenueConfigLiveFragment]
-        | surfaceScopeKind scope == "admin-shift-types" -> [adminShiftTypesLiveFragment]
-        | surfaceScopeKind scope == "admin-roster-groups" -> [adminRosterGroupsLiveFragment]
-        | surfaceScopeKind scope == "admin-exports" -> [adminExportsLiveFragment]
-        | surfaceScopeKind scope == "leave-requests" -> [leaveRequestsContentLiveFragment]
-        | surfaceScopeKind scope == "profile" -> [profileContentLiveFragment]
-        | otherwise -> []
 
 venueIdFor :: Int -> UUID
 venueIdFor index =

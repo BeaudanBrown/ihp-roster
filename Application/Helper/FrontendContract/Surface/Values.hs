@@ -14,10 +14,12 @@
 module Application.Helper.FrontendContract.Surface.Values
     ( FindMountTarget
     , KnownMountTarget
+    , KnownSurfaceFieldValues
     , RequireSurfaceField
     , SurfaceActionFieldSpecs
     , SurfaceActionPrimitive
     , SurfaceActivationRefPrimitive
+    , SurfaceFieldValues
     , SurfaceFields (..)
     , SurfaceFragmentFieldSpecs
     , SurfaceFragmentOptionSpecs
@@ -40,6 +42,7 @@ module Application.Helper.FrontendContract.Surface.Values
     , surfaceFieldsText
     , surfaceNullableField
     , surfaceOptionalField
+    , parseSurfaceFieldValues
     , surfaceActionValue
     , surfaceActivationRefValue
     , surfaceDomTokenValue
@@ -65,12 +68,14 @@ import Application.Helper.FrontendContract.Surface.DSL
 import Application.Helper.FrontendContract.Surface.Reflect
 import qualified Data.Aeson as Aeson
 import qualified Data.Aeson.Key as Aeson.Key
+import qualified Data.Aeson.KeyMap as Aeson.KeyMap
 import qualified Data.Aeson.Types as Aeson.Types
 import qualified Data.ByteString.Lazy as LBS
+import Data.Foldable (toList)
 import Data.Kind (Constraint, Type)
 import qualified Data.Text as Text
 import qualified Data.Text.Encoding as Text.Encoding
-import Data.Time (Day, defaultTimeLocale, formatTime)
+import Data.Time (Day, defaultTimeLocale, formatTime, parseTimeM)
 import Data.Typeable (Typeable)
 import qualified Data.UUID as UUID
 import GHC.TypeLits (ErrorMessage (..), TypeError)
@@ -107,45 +112,68 @@ type family SurfaceWireValue (wire :: WireType) :: Type where
     SurfaceWireValue ('WireNullable inner) = Maybe (SurfaceWireValue inner)
     SurfaceWireValue ('WireRef dto) = Aeson.Value
 
+-- | Declaration-ordered typed values recovered by live identity matchers.
+-- Field names, presence, and wire types remain indexed by the owning Surface
+-- declaration; feature code receives values, never raw JSON identity.
+type family SurfaceFieldValues (fields :: [FieldSpec]) :: Type where
+    SurfaceFieldValues '[] = ()
+    SurfaceFieldValues (('Field marker wire) ': rest) = (SurfaceWireValue wire, SurfaceFieldValues rest)
+    SurfaceFieldValues (('OptionalField marker wire) ': rest) = (Maybe (SurfaceWireValue wire), SurfaceFieldValues rest)
+    SurfaceFieldValues (('NullableField marker wire) ': rest) = (Maybe (SurfaceWireValue wire), SurfaceFieldValues rest)
+
 class KnownSurfaceWireValue (wire :: WireType) where
     surfaceWireJson :: SurfaceWireValue wire -> Aeson.Value
     surfaceWireText :: SurfaceWireValue wire -> Text
+    parseSurfaceWireValue :: Aeson.Value -> Aeson.Types.Parser (SurfaceWireValue wire)
 
 instance KnownSurfaceWireValue 'WireText where
     surfaceWireJson = Aeson.String
     surfaceWireText = id
+    parseSurfaceWireValue = Aeson.withText "Surface WireText" pure
 
 instance KnownSurfaceWireValue 'WireInt where
     surfaceWireJson = Aeson.toJSON
     surfaceWireText = tshow
+    parseSurfaceWireValue = Aeson.parseJSON
 
 instance KnownSurfaceWireValue 'WireBool where
     surfaceWireJson = Aeson.Bool
     surfaceWireText value = if value then "true" else "false"
+    parseSurfaceWireValue = Aeson.parseJSON
 
 instance KnownSurfaceWireValue 'WireUUID where
     surfaceWireJson = Aeson.String . UUID.toText
     surfaceWireText = UUID.toText
+    parseSurfaceWireValue = Aeson.withText "Surface WireUUID" \value ->
+        maybe (fail "Surface UUID field is malformed") pure (UUID.fromText value)
 
 instance KnownSurfaceWireValue 'WireDay where
     surfaceWireJson = Aeson.String . surfaceWireText @'WireDay
     surfaceWireText = cs . formatTime defaultTimeLocale "%F"
+    parseSurfaceWireValue = Aeson.withText "Surface WireDay" \value ->
+        maybe (fail "Surface day field is malformed") pure (parseTimeM True defaultTimeLocale "%F" (cs value))
 
 instance KnownSurfaceWireValue inner => KnownSurfaceWireValue ('WireList inner) where
     surfaceWireJson = Aeson.toJSON . fmap (surfaceWireJson @inner)
     surfaceWireText = jsonText . surfaceWireJson @('WireList inner)
+    parseSurfaceWireValue = Aeson.withArray "Surface WireList" (mapM (parseSurfaceWireValue @inner) . toList)
 
 instance KnownSurfaceWireValue inner => KnownSurfaceWireValue ('WireOptional inner) where
     surfaceWireJson = maybe Aeson.Null (surfaceWireJson @inner)
     surfaceWireText = maybe "" (surfaceWireText @inner)
+    parseSurfaceWireValue Aeson.Null = pure Nothing
+    parseSurfaceWireValue value      = Just <$> parseSurfaceWireValue @inner value
 
 instance KnownSurfaceWireValue inner => KnownSurfaceWireValue ('WireNullable inner) where
     surfaceWireJson = maybe Aeson.Null (surfaceWireJson @inner)
     surfaceWireText = maybe "" (surfaceWireText @inner)
+    parseSurfaceWireValue Aeson.Null = pure Nothing
+    parseSurfaceWireValue value      = Just <$> parseSurfaceWireValue @inner value
 
 instance KnownSurfaceWireValue ('WireRef dto) where
     surfaceWireJson = id
     surfaceWireText = jsonText
+    parseSurfaceWireValue = pure
 
 surfaceField ::
     forall marker wire.
@@ -164,6 +192,72 @@ surfaceNullableField ::
     (Typeable marker, KnownSurfaceWireValue wire) =>
     Maybe (SurfaceWireValue wire) -> SurfaceField ('NullableField marker wire)
 surfaceNullableField = NullableSurfaceField
+
+class KnownSurfaceFieldValues (fields :: [FieldSpec]) where
+    surfaceFieldValueNames :: [Text]
+    parseSurfaceFieldValuesObject :: Aeson.Object -> Aeson.Types.Parser (SurfaceFieldValues fields)
+
+instance KnownSurfaceFieldValues '[] where
+    surfaceFieldValueNames = []
+    parseSurfaceFieldValuesObject _ = pure ()
+
+instance
+    ( Typeable marker
+    , KnownSurfaceWireValue wire
+    , KnownSurfaceFieldValues rest
+    ) => KnownSurfaceFieldValues (('Field marker wire) ': rest) where
+    surfaceFieldValueNames = surfaceFieldName @marker : surfaceFieldValueNames @rest
+    parseSurfaceFieldValuesObject object = do
+        value <- requiredFieldValue @marker object
+        parsed <- parseSurfaceWireValue @wire value
+        rest <- parseSurfaceFieldValuesObject @rest object
+        pure (parsed, rest)
+
+instance
+    ( Typeable marker
+    , KnownSurfaceWireValue wire
+    , KnownSurfaceFieldValues rest
+    ) => KnownSurfaceFieldValues (('OptionalField marker wire) ': rest) where
+    surfaceFieldValueNames = surfaceFieldName @marker : surfaceFieldValueNames @rest
+    parseSurfaceFieldValuesObject object = do
+        parsed <- case Aeson.KeyMap.lookup (Aeson.Key.fromText (surfaceFieldName @marker)) object of
+            Nothing    -> pure Nothing
+            Just value -> Just <$> parseSurfaceWireValue @wire value
+        rest <- parseSurfaceFieldValuesObject @rest object
+        pure (parsed, rest)
+
+instance
+    ( Typeable marker
+    , KnownSurfaceWireValue wire
+    , KnownSurfaceFieldValues rest
+    ) => KnownSurfaceFieldValues (('NullableField marker wire) ': rest) where
+    surfaceFieldValueNames = surfaceFieldName @marker : surfaceFieldValueNames @rest
+    parseSurfaceFieldValuesObject object = do
+        value <- requiredFieldValue @marker object
+        parsed <- case value of
+            Aeson.Null -> pure Nothing
+            present    -> Just <$> parseSurfaceWireValue @wire present
+        rest <- parseSurfaceFieldValuesObject @rest object
+        pure (parsed, rest)
+
+parseSurfaceFieldValues :: forall fields. KnownSurfaceFieldValues fields => Aeson.Value -> Aeson.Types.Parser (SurfaceFieldValues fields)
+parseSurfaceFieldValues value = do
+    object <- case value of
+        Aeson.Object object -> pure object
+        Aeson.Null | null (surfaceFieldValueNames @fields) -> pure mempty
+        _ -> fail "Surface field values must be an object"
+    let allowed = fmap Aeson.Key.fromText (surfaceFieldValueNames @fields)
+    let unknown = filter (`notElem` allowed) (Aeson.KeyMap.keys object)
+    unless (null unknown) do
+        fail (cs ("Surface field values contain unknown fields: " <> tshow unknown))
+    parseSurfaceFieldValuesObject @fields object
+
+requiredFieldValue :: forall marker. Typeable marker => Aeson.Object -> Aeson.Types.Parser Aeson.Value
+requiredFieldValue object =
+    maybe
+        (fail ("Missing Surface field: " <> cs (surfaceFieldName @marker)))
+        pure
+        (Aeson.KeyMap.lookup (Aeson.Key.fromText (surfaceFieldName @marker)) object)
 
 surfaceFieldsJson :: SurfaceFields fields -> Aeson.Value
 surfaceFieldsJson = Aeson.object . surfaceFieldJsonPairs

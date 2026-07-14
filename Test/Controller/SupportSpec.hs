@@ -3,8 +3,7 @@ module Test.Controller.SupportSpec where
 import Application.Async.Queue (activeAppJobStatuses)
 import Application.FwcMapd.Job (fwcMapdRefreshJobKind)
 import Application.Helper.Controller (PlatformRole (SuperAdminRole))
-import Application.Helper.FrontendContract.Surface.Runtime (FrontendSurfaceFragmentKey (..),
-                                                            FrontendSurfaceMountedFragment (..))
+import Application.Helper.FrontendContract.Surface.Runtime (FrontendSurfaceMountedFragment (..))
 import Application.Helper.LiveUpdate
 import Application.Support.LiveUpdates
 import Config
@@ -25,15 +24,9 @@ import Web.Types
 
 supportFragmentRef :: SupportLiveFragment -> FrontendSurfaceMountedFragment
 supportFragmentRef fragment =
-    case filter matchesFragment supportCandidateMountedFragments of
+    case filter ((== supportLiveFragmentKey fragment) . (.mountedFragmentKey)) supportCandidateMountedFragments of
         [fragmentRef] -> fragmentRef
         _             -> error "Expected one support mounted fragment"
-    where
-        matchesFragment mountedFragment =
-            case (fragment, mountedFragment.mountedFragmentKey.fragmentKind) of
-                (SupportAwardRatesLiveFragment, "support-award-rates") -> True
-                (SupportPublicHolidaysLiveFragment, "support-public-holidays") -> True
-                _ -> False
 
 tests :: Spec
 tests = beforeAll testContext do

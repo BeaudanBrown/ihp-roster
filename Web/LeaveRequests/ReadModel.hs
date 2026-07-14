@@ -16,8 +16,9 @@ module Web.LeaveRequests.ReadModel
 
 import Application.Helper.FrontendContract.Surface.FragmentRender (FragmentRenderMode (..))
 import qualified Application.Helper.FrontendContract.Surface.LeaveRequests as Surface
+import Application.Helper.FrontendContract.Surface.LeaveRequests.Live (leaveRequestsLiveScope)
+import Application.Helper.FrontendContract.Surface.Live (SurfaceScope)
 import Application.Helper.FrontendContract.Surface.Runtime (SurfaceImpl)
-import Application.Helper.LiveUpdate
 import Application.Helper.Profiling
 import Data.Coerce (coerce)
 import qualified Data.Set as Set

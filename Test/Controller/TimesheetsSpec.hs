@@ -2,10 +2,10 @@ module Test.Controller.TimesheetsSpec where
 
 import Application.Helper.Controller (PlatformRole (SuperAdminRole),
                                       parseTimeParam)
-import Application.Helper.FrontendContract.Surface.Runtime (FrontendSurfaceFragmentKey (..),
-                                                            FrontendSurfaceMountConfig (..),
+import Application.Helper.FrontendContract.Surface.Runtime (FrontendSurfaceMountConfig (..),
                                                             FrontendSurfaceMountedFragment (..),
                                                             SurfaceImpl (..))
+import qualified Application.Helper.FrontendContract.Surface.Timesheets.Live as TimesheetsLive
 import Application.Helper.LiveUpdate
 import Application.Helper.LiveUpdate.Runtime
 import Application.Helper.SurfaceResource
@@ -121,7 +121,7 @@ tests = beforeAll testContext do
                 let mountState = TimesheetsMountStateValue { timesheetsMountShowApproved = False, timesheetsMountShowAllStaff = True, timesheetsMountShowSuggestions = True, timesheetsMountStaffFilterId = Nothing }
                 let impl = timesheetsSurfaceImpl scope mountState
                 let mountConfig = impl.surfaceImplMountConfig
-                let fragmentKinds = map (\fragment -> fragment.mountedFragmentKey.fragmentKind) mountConfig.mountFragments
+                let fragmentKeys = map (.mountedFragmentKey) mountConfig.mountFragments
                 let fragmentTargets = map (.mountedFragmentTargetId) mountConfig.mountFragments
                 let fragmentUrls = map (.mountedFragmentUrl) mountConfig.mountFragments
 
@@ -134,7 +134,9 @@ tests = beforeAll testContext do
                     , "showSuggestions" Aeson..= True
                     , "staffFilterId" Aeson..= (Nothing :: Maybe Text)
                     ]
-                fragmentKinds `shouldBe` ["timesheet-toolbar", "timesheet-day-columns"] <> replicate 7 "timesheet-day-section"
+                fragmentKeys
+                    `shouldBe` [TimesheetsLive.timesheetToolbarLiveFragment, TimesheetsLive.timesheetDayColumnsLiveFragment]
+                        <> map TimesheetsLive.timesheetDaySectionLiveFragment [0 .. 6]
                 fragmentTargets `shouldBe` ["timesheet-week-toolbar", "timesheet-day-columns"] <> map (\dayOffset -> "timesheet-day-section-" <> tshow dayOffset) [0 .. 6]
                 fragmentUrls `shouldSatisfy` all (Text.isInfixOf "weekOffset=2")
                 fragmentUrls `shouldSatisfy` all (Text.isInfixOf "showApproved=false")
@@ -173,7 +175,7 @@ tests = beforeAll testContext do
                         let mountState = TimesheetsMountStateValue { timesheetsMountShowApproved = False, timesheetsMountShowAllStaff = True, timesheetsMountShowSuggestions = True, timesheetsMountStaffFilterId = Nothing }
                         let daySectionRef =
                                 timesheetsCandidateMountedFragments scope mountState
-                                    |> find (\fragment -> fragment.mountedFragmentTargetId == "timesheet-day-section-0")
+                                    |> find (\fragment -> fragment.mountedFragmentKey == TimesheetsLive.timesheetDaySectionLiveFragment 0)
                                     |> fromMaybe (error "Expected day section fragment ref")
                         callAction ShowTimesheetWeekAction { weekOffset = 0 }
                         response <- callAction ShowTimesheetDaySectionFragmentAction { weekOffset = 0, dayOffset = 0 }
@@ -1250,7 +1252,7 @@ tests = beforeAll testContext do
                 payLevel <- createPayLevelRecord venue "Level 1"
                 shiftType <- createShiftTypeRecord venue payLevel "Ordinary"
 
-                versionBefore <- currentLiveUpdateVersion (timesheetWeekLiveScope (unpackId venue.id) 0)
+                versionBefore <- currentLiveUpdateVersion (TimesheetsLive.timesheetWeekLiveScope (unpackId venue.id) 0)
 
                 response <- withUserAndCurrentVenue user venue.id do
                     withRequestHeaders
@@ -1276,7 +1278,7 @@ tests = beforeAll testContext do
                 createTriggerHeader `shouldSatisfy` maybe False (Text.isInfixOf "\"dayOffset\":1")
                 createTriggerHeader `shouldSatisfy` maybe False (not . Text.isInfixOf "timesheet-day-section-1")
 
-                versionAfter <- currentLiveUpdateVersion (timesheetWeekLiveScope (unpackId venue.id) 0)
+                versionAfter <- currentLiveUpdateVersion (TimesheetsLive.timesheetWeekLiveScope (unpackId venue.id) 0)
                 versionAfter `shouldBe` versionBefore
 
         it "editing a timesheet date refreshes both old and new day sections" $ withContext do
@@ -1289,7 +1291,7 @@ tests = beforeAll testContext do
                 shiftType <- createShiftTypeRecord venue payLevel "Ordinary"
                 entry <- createTimesheetEntryRecord venue staff (fromGregorian 2025 1 7)
 
-                versionBefore <- currentLiveUpdateVersion (timesheetWeekLiveScope (unpackId venue.id) 0)
+                versionBefore <- currentLiveUpdateVersion (TimesheetsLive.timesheetWeekLiveScope (unpackId venue.id) 0)
 
                 response <- withUserAndCurrentVenue manager venue.id do
                     withRequestHeaders
@@ -1319,7 +1321,7 @@ tests = beforeAll testContext do
 
                 updatedEntry <- fetch entry.id
                 updatedEntry.workedOn `shouldBe` fromGregorian 2025 1 8
-                versionAfter <- currentLiveUpdateVersion (timesheetWeekLiveScope (unpackId venue.id) 0)
+                versionAfter <- currentLiveUpdateVersion (TimesheetsLive.timesheetWeekLiveScope (unpackId venue.id) 0)
                 versionAfter `shouldBe` versionBefore
 
         it "manager review actions bump the timesheet week scope version" $ withContext do
@@ -1330,7 +1332,7 @@ tests = beforeAll testContext do
                 staff <- createStaffRecord venue Nothing "Tia" "Shift"
                 entry <- createTimesheetEntryRecord venue staff (fromGregorian 2025 1 7)
 
-                versionBefore <- currentLiveUpdateVersion (timesheetWeekLiveScope (unpackId venue.id) 0)
+                versionBefore <- currentLiveUpdateVersion (TimesheetsLive.timesheetWeekLiveScope (unpackId venue.id) 0)
 
                 response <- withUserAndCurrentVenue manager venue.id do
                     withRequestHeaders [("HX-Request", "true"), ("X-Live-Update-Client-Id", "timesheet-approve-client")] do
@@ -1343,7 +1345,7 @@ tests = beforeAll testContext do
                 approveTriggerHeader `shouldSatisfy` maybe False (Text.isInfixOf "\"kind\":\"timesheet-day-section\"")
                 approveTriggerHeader `shouldSatisfy` maybe False (Text.isInfixOf "\"dayOffset\":1")
                 approveTriggerHeader `shouldSatisfy` maybe False (not . Text.isInfixOf "timesheet-day-section-1")
-                versionAfter <- currentLiveUpdateVersion (timesheetWeekLiveScope (unpackId venue.id) 0)
+                versionAfter <- currentLiveUpdateVersion (TimesheetsLive.timesheetWeekLiveScope (unpackId venue.id) 0)
                 versionAfter `shouldBe` versionBefore
 
         it "writes an audit event when approving a timesheet entry" $ withContext do

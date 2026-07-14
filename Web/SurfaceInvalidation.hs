@@ -21,6 +21,7 @@ import Application.Bepis.Fact (BepisFact (..), BepisLiveFact (..),
 import Application.Helper.FrontendContract.Surface.Authorization (authorizeFrontendSurfaceScope)
 import Application.Helper.FrontendContract.Surface.DependencyPlanner (SurfaceInvalidationTarget (..),
                                                                       planFrontendSurfaceInvalidations)
+import Application.Helper.FrontendContract.Surface.Roster.Live (activeRosterWeekScopes)
 import Application.Helper.LiveUpdate.Runtime
 import Application.Helper.Profiling (profileActionSpanWithDetail)
 import Application.Helper.SurfaceResource

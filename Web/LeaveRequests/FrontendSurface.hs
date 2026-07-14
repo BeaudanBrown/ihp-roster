@@ -16,13 +16,15 @@ module Web.LeaveRequests.FrontendSurface
 import Application.Helper.FrontendContract.Surface.DSL (FieldSpec (..),
                                                         WireType (..))
 import qualified Application.Helper.FrontendContract.Surface.LeaveRequests as Surface
+import qualified Application.Helper.FrontendContract.Surface.LeaveRequests.Live as SurfaceLive
+import Application.Helper.FrontendContract.Surface.Live (SurfaceFragmentKey,
+                                                         SurfaceScope,
+                                                         surfaceScopeKey)
 import Application.Helper.FrontendContract.Surface.Reflect (ReflectPrimitive)
 import Application.Helper.FrontendContract.Surface.Runtime
 import Application.Helper.FrontendContract.Surface.Values
-import Application.Helper.LiveUpdate.Runtime
 import Application.Helper.Url (appendQueryParams)
 import qualified Data.UUID as UUID
-import qualified IHP.Prelude as Prelude
 import Web.Controller.Prelude
 import Web.View.LeaveRequests.Index (leaveApprovedSection, leaveArchiveSection,
                                      leaveDeniedSection, leavePendingSection)
@@ -45,21 +47,18 @@ leaveRequestsSurfaceMountConfig scope =
     (leaveRequestsSurfaceImpl scope).surfaceImplMountConfig
 
 leaveRequestsSurfaceScopeKey :: LeaveRequestsScopeValue -> Text
-leaveRequestsSurfaceScopeKey scope =
-    frontendSurfaceScopeKeyFor @Surface.LeaveRequestsSurface @Surface.LeaveRequestsScope (leaveRequestsScopeFields scope)
-        |> either (error . ("Typed Leave Requests scope invariant failed: " <>)) Prelude.id
+leaveRequestsSurfaceScopeKey = surfaceScopeKey . leaveRequestsSurfaceScope
 
 leaveRequestsSurfaceScope :: LeaveRequestsScopeValue -> SurfaceScope
 leaveRequestsSurfaceScope scope =
-    leaveRequestsLiveScope scope.leaveRequestsVenueId
+    SurfaceLive.leaveRequestsLiveScope scope.leaveRequestsVenueId
 
 leaveRequestsCandidateMountedFragments :: LeaveRequestsScopeValue -> [FrontendSurfaceMountedFragment]
 leaveRequestsCandidateMountedFragments _ =
     leaveRequestsSectionMountedFragments
 
 leaveRequestsSurfaceFragmentKeys :: [FrontendSurfaceMountedFragment] -> [SurfaceFragmentKey]
-leaveRequestsSurfaceFragmentKeys =
-    frontendSurfaceMountedFragmentsToKeysFor @Surface.LeaveRequestsSurface
+leaveRequestsSurfaceFragmentKeys = map (.mountedFragmentKey)
 
 leaveRequestsScopeFields :: LeaveRequestsScopeValue -> SurfaceFields (SurfaceScopeFieldSpecs Surface.LeaveRequestsSurface Surface.LeaveRequestsScope)
 leaveRequestsScopeFields scope =

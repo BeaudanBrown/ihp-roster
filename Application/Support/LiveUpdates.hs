@@ -6,16 +6,18 @@
 module Application.Support.LiveUpdates
     ( SupportLiveFragment (..)
     , supportCandidateMountedFragments
+    , supportLiveFragmentKey
     , supportSurface
     , supportSurfaceScope
     , supportSurfaceFragmentKeys
     ) where
 
+import Application.Helper.FrontendContract.Surface.Live (SurfaceFragmentKey,
+                                                         SurfaceScope)
 import Application.Helper.FrontendContract.Surface.Runtime
 import qualified Application.Helper.FrontendContract.Surface.Support as Surface
+import qualified Application.Helper.FrontendContract.Surface.Support.Live as SurfaceLive
 import Application.Helper.FrontendContract.Surface.Values
-import Application.Helper.LiveUpdate
-import Application.Helper.LiveUpdate.Runtime
 import IHP.Prelude
 
 data SupportLiveFragment
@@ -23,8 +25,13 @@ data SupportLiveFragment
     | SupportPublicHolidaysLiveFragment
     deriving (Eq, Show)
 
+supportLiveFragmentKey :: SupportLiveFragment -> SurfaceFragmentKey
+supportLiveFragmentKey = \case
+    SupportAwardRatesLiveFragment -> SurfaceLive.supportAwardRatesSectionLiveFragment
+    SupportPublicHolidaysLiveFragment -> SurfaceLive.supportPublicHolidaysSectionLiveFragment
+
 supportSurfaceScope :: SurfaceScope
-supportSurfaceScope = supportPlatformLiveScope
+supportSurfaceScope = SurfaceLive.supportPlatformLiveScope
 
 supportSurface :: SurfaceImpl Surface.SupportSurface
 supportSurface =
@@ -41,8 +48,7 @@ supportCandidateMountedFragments =
     ]
 
 supportSurfaceFragmentKeys :: [FrontendSurfaceMountedFragment] -> [SurfaceFragmentKey]
-supportSurfaceFragmentKeys =
-    frontendSurfaceMountedFragmentsToKeysFor @Surface.SupportSurface
+supportSurfaceFragmentKeys = map (.mountedFragmentKey)
 
 supportAwardRatesMountedFragment :: FrontendSurfaceMountedFragment
 supportAwardRatesMountedFragment =

@@ -43,15 +43,17 @@ module Web.RosterWeeks.FrontendSurface
 import qualified Application.Helper.FrontendContract.Surface.ContractIR as SurfaceIR
 import Application.Helper.FrontendContract.Surface.DSL
 import qualified Application.Helper.FrontendContract.Surface.Interaction as SurfaceInteraction
+import Application.Helper.FrontendContract.Surface.Live (SurfaceFragmentKey,
+                                                         SurfaceScope,
+                                                         surfaceScopeKey)
 import Application.Helper.FrontendContract.Surface.Reflect (reflectSurfaceSpec)
 import qualified Application.Helper.FrontendContract.Surface.Roster as Surface
+import qualified Application.Helper.FrontendContract.Surface.Roster.Live as SurfaceLive
 import Application.Helper.FrontendContract.Surface.Runtime
 import Application.Helper.FrontendContract.Surface.Values
-import Application.Helper.LiveUpdate.Runtime
 import qualified Data.Map.Strict as Map
 import qualified Data.UUID as UUID
 import Generated.Types
-import qualified IHP.Prelude as Prelude
 import Web.Controller.Prelude
 import Web.RosterWeeks.Dom
 import Web.RosterWeeks.Paths (rosterDayTimelineContentFragmentUrl,
@@ -130,14 +132,17 @@ rosterSurfaceMountConfig scope plan =
     (rosterSurfaceImpl scope plan).surfaceImplMountConfig
 
 rosterSurfaceScopeKey :: RosterWeekScopeValue -> Text
-rosterSurfaceScopeKey scope =
-    frontendSurfaceScopeKeyFor @Surface.RosterSurface @Surface.RosterWeek (rosterWeekScopeFields scope)
-        |> either (error . ("Typed Roster scope invariant failed: " <>)) Prelude.id
+rosterSurfaceScopeKey = surfaceScopeKey . rosterSurfaceScope
 
 rosterDayTimelineSurfaceScopeKey :: RosterDayTimelineScopeValue -> Text
 rosterDayTimelineSurfaceScopeKey scope =
-    frontendSurfaceScopeKeyFor @Surface.RosterDayTimelineSurface @Surface.RosterDayTimeline (rosterDayTimelineScopeFields scope)
-        |> either (error . ("Typed Roster timeline scope invariant failed: " <>)) Prelude.id
+    surfaceScopeKey
+        ( SurfaceLive.rosterDayTimelineLiveScope
+            scope.rosterDayTimelineVenueId
+            (unpackId scope.rosterDayTimelineGroupId)
+            scope.rosterDayTimelineWeekOffset
+            (unpackId scope.rosterDayTimelineDayId)
+        )
 
 rosterInteractionMountKey :: Text
 rosterInteractionMountKey = "primary"
@@ -204,11 +209,10 @@ rosterDayTimelineFrontendSurfaceIR = reflectSurfaceSpec @Surface.RosterDayTimeli
 
 rosterSurfaceScope :: RosterWeekScopeValue -> SurfaceScope
 rosterSurfaceScope scope =
-    rosterWeekLiveScope scope.rosterWeekVenueId (unpackId scope.rosterWeekGroupId) scope.rosterWeekWeekOffset
+    SurfaceLive.rosterWeekLiveScope scope.rosterWeekVenueId (unpackId scope.rosterWeekGroupId) scope.rosterWeekWeekOffset
 
 rosterSurfaceFragmentKeys :: [FrontendSurfaceMountedFragment] -> [SurfaceFragmentKey]
-rosterSurfaceFragmentKeys =
-    frontendSurfaceMountedFragmentsToKeysFor @Surface.RosterSurface
+rosterSurfaceFragmentKeys = map (.mountedFragmentKey)
 
 rosterCandidateMountedFragments :: RosterWeekScopeValue -> RosterMountedFragmentPlan -> [FrontendSurfaceMountedFragment]
 rosterCandidateMountedFragments scope plan =
