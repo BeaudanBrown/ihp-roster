@@ -20,6 +20,9 @@ for browser-visible and Surface contracts.
 - Explicit typeclass reflection is the sole evaluator.
 - The checked unified IR is the input to validation, runtime metadata,
   architecture facts, and TypeScript rendering.
+- Reflected names may be rendered, transported, compared as identities, and
+  validated, but downstream code must not switch on them to recover semantics;
+  reflection produces closed IR constructors for behavioral choices.
 - Marker-indexed values and declaration-ordered `SurfaceFields` are the Haskell
   runtime interface.
 - Every fragment declares one typed `MountTarget`; mounted descriptors and
@@ -31,6 +34,9 @@ for browser-visible and Surface contracts.
   server-rendered mount.
 - Unknown properties, Surface disagreement, undeclared fields, and ownership
   mismatches fail at generated parser, IR-validation, or compile time.
+- App-owned Haskell-to-TypeScript roles, state, keys, and payloads are reflected
+  contracts with generated names and exact boundary parsers. Standard/vendor
+  vocabulary and presentation-only HTML/CSS hooks remain behind focused adapters.
 
 ## Consequences
 
@@ -42,7 +48,8 @@ into executable request authority.
 The DSL remains deliberately closed. New wire or HTMX vocabulary requires a
 reflection instance, checked-IR representation, rendering behavior, and focused
 property/compile-fail coverage. Browser reachability must have a real production
-consumer.
+consumer. A completed migration removes its raw/open interface rather than
+retaining a compatibility path.
 
 ## Alternatives Considered
 
@@ -58,6 +65,7 @@ consumer.
 ## Links
 
 - Tickets: GitHub #136, #143–#152
+- Workstream: `docs/workstreams/frontend-contract-authority-hardening.md`
 - Living docs: `Application/Helper/FrontendContract/README.md`,
   `Application/Helper/FrontendContract/Surface/README.md`,
   `Application/Helper/LiveUpdate.SPEC.md`, `Application/Helper/Interaction.SPEC.md`
