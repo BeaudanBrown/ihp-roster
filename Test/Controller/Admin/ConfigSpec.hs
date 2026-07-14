@@ -36,7 +36,6 @@ import Test.Hspec
 import Test.Support
 import qualified Test.XeroMock as XeroMock
 import Web.Admin.Mutations (adminVenueSettingsTouchedResources,
-                            autoTimesheetCreationTouchedResources,
                             rosterEndTimesTouchedResources,
                             rosterTimePickerWindowTouchedResources,
                             rosterWeekStartsOnTouchedResources)
@@ -82,8 +81,6 @@ tests = beforeAll testContext do
                 let venueId = unpackId venue.id
 
                 Set.fromList (adminVenueSettingsTouchedResources venue.id)
-                    `shouldBe` Set.fromList [adminVenueSettingsResource venueId]
-                Set.fromList (autoTimesheetCreationTouchedResources venue.id)
                     `shouldBe` Set.fromList [adminVenueSettingsResource venueId]
                 Set.fromList (rosterEndTimesTouchedResources venue.id)
                     `shouldBe` Set.fromList
@@ -307,6 +304,8 @@ tests = beforeAll testContext do
                 venueSettingsResponse `responseBodyShouldNotContain` "Roster week starts on"
                 venueSettingsResponse `responseBodyShouldNotContain` "admin-roster-week-starts-on"
                 venueSettingsResponse `responseBodyShouldNotContain` "name=\"rosterWeekStartsOn\""
+                venueSettingsResponse `responseBodyShouldNotContain` "Automatically create pending timesheets"
+                venueSettingsResponse `responseBodyShouldNotContain` "autoTimesheetCreationEnabled"
                 venueSettingsResponse `responseBodyShouldNotContain` "id=\"app\""
 
                 exportsResponse <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
@@ -890,7 +889,7 @@ tests = beforeAll testContext do
                 venueConfig.timePickerStartMinuteOfDay `shouldBe` originalConfig.timePickerStartMinuteOfDay
                 venueConfig.timePickerFinalSelectableMinuteOfDay `shouldBe` originalConfig.timePickerFinalSelectableMinuteOfDay
 
-        it "toggles auto-created pending timesheets without changing the roster week start" $ withContext do
+        it "ignores the retired automatic-timesheet venue setting" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Admin Venue"
                 admin <- createUserRecord "admin-auto-timesheets@example.com" "staff" True
@@ -906,7 +905,7 @@ tests = beforeAll testContext do
                 response `responseStatusShouldBe` status302
 
                 venueConfig <- query @VenueConfig |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
-                venueConfig.autoTimesheetCreationEnabled `shouldBe` True
+                venueConfig.autoTimesheetCreationEnabled `shouldBe` False
                 venueConfig.rosterWeekStartsOn `shouldBe` originalConfig.rosterWeekStartsOn
 
         it "rejects updates to config rows outside the current venue" $ withContext do

@@ -33,6 +33,8 @@ or roster views.
   current venue before mutation.
 - Full-content actor refreshes are acceptable when a slot mutation can change
   conflict state across multiple rows.
+- Roster publication/draft and source-slot mutations can change Timesheet
+  suggestions; include the corresponding Timesheet week touched resource.
 - Do not return `hx-swap-oob` wrappers from viewer-side fragment GET actions;
   return the plain target fragment and let the live runtime replace it.
 

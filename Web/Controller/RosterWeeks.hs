@@ -284,14 +284,10 @@ instance Controller RosterWeeksController where
                         redirectToPath (rosterWeekUrl rosterWeek.weekOffset rosterGroupId)
             Nothing -> do
                 mutationResult <- toggleRosterWeekLiveStatusMutation rosterGroupId rosterWeek nextLiveStatus
-                let (_, queuedTimesheetJobCount) = mutationResult.liveMutationValue
                 let successMessage =
                         if nextLiveStatus
-                            then
-                                if queuedTimesheetJobCount == 0
-                                    then "Roster week is now live."
-                                    else "Roster week is now live. Pending timesheet jobs queued for " <> tshow queuedTimesheetJobCount <> " shifts."
-                            else "Roster week moved back to draft."
+                            then "Roster week is now live. Timesheet suggestions are available immediately."
+                            else "Roster week moved back to draft. Timesheet suggestions are hidden."
                 let targetPath = rosterWeekUrl rosterWeek.weekOffset rosterGroupId
                 if isHtmxRequest
                     then do
@@ -599,7 +595,7 @@ instance Controller RosterWeeksController where
                 mutationResult <- updateRosterSlotMutation rosterGroup.id staffDropRosterWeek staffDropRosterDay staffDropSlot updatedSlot
                 let warningToast = mutationResult.liveMutationValue.rosterSlotMutationShouldWarnSourceTimesheetUnchanged
                 respondToRosterSlotMutation rosterGroup.id staffDropRosterWeek staffDropRosterDay updatedSlot.rowIndex mutationResult $
-                    if warningToast then "Staff assigned. A pending timesheet already exists for this roster slot, so the timesheet was not changed." else "Staff assigned."
+                    if warningToast then "Staff assigned. A timesheet entry was already created from this roster shift. The timesheet snapshot was not changed." else "Staff assigned."
             Right RosterStaffCreateShiftDropIntent { staffDropStaff, staffDropRosterDay, staffDropRosterWeek, staffDropSlotDefinition, staffDropRowIndex } ->
                 respondWithRosterShiftCreateDialogOob staffDropRosterDay staffDropRosterWeek staffDropSlotDefinition staffDropRowIndex emptyRosterShiftDialogValues { rosterShiftStaffId = Just (coerce staffDropStaff.id) }
 
@@ -1320,7 +1316,7 @@ respondToRosterSlotUpdate rosterGroupId rosterWeek mutationResult impactedRowKey
 sourceTimesheetWarningToast :: (?context :: ControllerContext, ?request :: Request) => Bool -> Blaze.Html
 sourceTimesheetWarningToast shouldWarn =
     if shouldWarn
-        then renderToastOob ToastBottomCenter (errorToast "A pending timesheet already exists for this roster slot, so the timesheet was not changed. Edit the timesheet entry directly.")
+        then renderToastOob ToastBottomCenter (errorToast "A timesheet entry was already created from this roster shift. The timesheet snapshot was not changed. Edit the timesheet entry directly.")
         else mempty
 
 resolveRequestedRosterGroup :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => IO RosterGroup

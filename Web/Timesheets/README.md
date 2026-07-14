@@ -2,7 +2,8 @@
 
 ## Purpose
 
-`Web/Timesheets/` owns timesheet week paths, direct read models, validation,
+`Web/Timesheets/` owns timesheet week paths, direct read models (including
+transient roster-derived suggestions), materialization mutations, validation,
 FrontendSurface metadata, and response helpers. The controller remains
 responsible for request orchestration, authorization, params, and
 redirects/fragments.
@@ -11,7 +12,9 @@ redirects/fragments.
 
 - `Web/Controller/Timesheets.hs` - controller actions.
 - `Web/Timesheets/Paths.hs` - canonical week/day routes.
-- `Web/Timesheets/Projection.hs` - direct timesheet week read-model construction.
+- `Web/Timesheets/Projection.hs` - entry and roster-suggestion read-model construction.
+- `Web/Timesheets/Suggestion.hs` - suggestion value and snapshot conversion.
+- `Web/Timesheets/Mutations.hs` - entry persistence, provenance, idempotency, and invalidation.
 - `Web/Timesheets/FrontendSurface.hs` - FrontendSurface contract/runtime bridge.
 - `Web/Timesheets/Responses.hs` - HTMX/OOB response helpers.
 - `Web/Timesheets/Validation.hs` - input validation helpers.

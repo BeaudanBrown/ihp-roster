@@ -23,11 +23,10 @@ defaultVenueBootstrapTimezone :: Text
 defaultVenueBootstrapTimezone = "Australia/Melbourne"
 
 data VenueBootstrapConfig = VenueBootstrapConfig
-    { venueBootstrapName                         :: Text
-    , venueBootstrapTimezone                     :: Text
-    , venueBootstrapRosterWeekStartsOn           :: Int
-    , venueBootstrapRosterEndTimesEnabled        :: Bool
-    , venueBootstrapAutoTimesheetCreationEnabled :: Bool
+    { venueBootstrapName                  :: Text
+    , venueBootstrapTimezone              :: Text
+    , venueBootstrapRosterWeekStartsOn    :: Int
+    , venueBootstrapRosterEndTimesEnabled :: Bool
     }
 
 createVenueWithBootstrapConfig :: (?modelContext :: ModelContext) => VenueBootstrapConfig -> IO (Venue, VenueConfig)
@@ -49,7 +48,6 @@ createVenueWithBootstrapConfigInCurrentTransaction bootstrapConfig = do
             |> set #rosterWeekStartsOn bootstrapConfig.venueBootstrapRosterWeekStartsOn
             |> set #weekOffsetEpoch (defaultWeekOffsetEpochForStartDay bootstrapConfig.venueBootstrapRosterWeekStartsOn)
             |> set #rosterEndTimesEnabled bootstrapConfig.venueBootstrapRosterEndTimesEnabled
-            |> set #autoTimesheetCreationEnabled bootstrapConfig.venueBootstrapAutoTimesheetCreationEnabled
             |> set #lateToEarlyMinStartGapMinutes 600
             |> set #staffTimesheetEditWindowDays 7
             |> createRecord
@@ -63,7 +61,6 @@ defaultVenueBootstrapConfig venueName = VenueBootstrapConfig
     , venueBootstrapTimezone = defaultVenueBootstrapTimezone
     , venueBootstrapRosterWeekStartsOn = 1
     , venueBootstrapRosterEndTimesEnabled = True
-    , venueBootstrapAutoTimesheetCreationEnabled = False
     }
 
 provisionVenueMembership :: (?modelContext :: ModelContext) => Venue -> User -> Text -> IO VenueMembership

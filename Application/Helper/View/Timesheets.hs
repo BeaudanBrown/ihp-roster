@@ -1,7 +1,8 @@
 {-# LANGUAGE TypeApplications #-}
 
 module Application.Helper.View.Timesheets
-    ( hasErrorFor
+    ( TimesheetFormOrigin (..)
+    , hasErrorFor
     , renderFieldError
     , renderShiftTypeField
     , renderShiftTypeOption
@@ -33,6 +34,13 @@ import Generated.Types
 import IHP.ViewPrelude
 import Web.Types
 
+data TimesheetFormOrigin
+    = AdHocTimesheetForm
+    | AdHocTimesheetFormWithSuggestion
+    | RosteredTimesheetForm
+    | RosteredTimesheetEntryForm
+    deriving (Eq, Show)
+
 timesheetModalTitle :: Day -> Text
 timesheetModalTitle day =
     "Timesheet "
@@ -41,8 +49,8 @@ timesheetModalTitle day =
         <> formatDayMonthDisplay day
 
 -- | Shared timesheet entry form used by New and Edit views.
-renderTimesheetForm :: (?context :: ControllerContext) => AppShellActionIR -> TimesheetEntry -> [Staff] -> [ShiftType] -> Int -> Bool -> Bool -> Maybe UUID -> Maybe UUID -> Text -> Text -> Text -> Text -> OverlayFormMode -> Html
-renderTimesheetForm appShellAction entry staffMembers shiftTypes weekOffset showApproved showAllStaff selectedStaffFilterId currentViewerStaffId pickerStart pickerEnd actionUrl formId formMode =
+renderTimesheetForm :: (?context :: ControllerContext) => AppShellActionIR -> TimesheetFormOrigin -> TimesheetEntry -> [Staff] -> [ShiftType] -> Int -> Bool -> Bool -> Bool -> Maybe UUID -> Maybe UUID -> Text -> Text -> Text -> Text -> OverlayFormMode -> Html
+renderTimesheetForm appShellAction formOrigin entry staffMembers shiftTypes weekOffset showApproved showAllStaff showSuggestions selectedStaffFilterId currentViewerStaffId pickerStart pickerEnd actionUrl formId formMode =
     case formMode of
         HtmxOverlayForm ->
             renderAppShellActionForm
@@ -58,23 +66,25 @@ renderTimesheetForm appShellAction entry staffMembers shiftTypes weekOffset show
 
                         ]
                     }
-                (renderTimesheetFormFields entry staffMembers shiftTypes weekOffset showApproved showAllStaff selectedStaffFilterId currentViewerStaffId pickerStart pickerEnd)
+                (renderTimesheetFormFields formOrigin entry staffMembers shiftTypes weekOffset showApproved showAllStaff showSuggestions selectedStaffFilterId currentViewerStaffId pickerStart pickerEnd)
         PageOverlayForm -> [hsx|
             <form id={formId}
                   method="POST"
                   action={actionUrl}
                   class="mt-3">
-                {renderTimesheetFormFields entry staffMembers shiftTypes weekOffset showApproved showAllStaff selectedStaffFilterId currentViewerStaffId pickerStart pickerEnd}
+                {renderTimesheetFormFields formOrigin entry staffMembers shiftTypes weekOffset showApproved showAllStaff showSuggestions selectedStaffFilterId currentViewerStaffId pickerStart pickerEnd}
             </form>
         |]
 
-renderTimesheetFormFields :: (?context :: ControllerContext) => TimesheetEntry -> [Staff] -> [ShiftType] -> Int -> Bool -> Bool -> Maybe UUID -> Maybe UUID -> Text -> Text -> Html
-renderTimesheetFormFields entry staffMembers shiftTypes weekOffset showApproved showAllStaff selectedStaffFilterId currentViewerStaffId pickerStart pickerEnd = [hsx|
+renderTimesheetFormFields :: (?context :: ControllerContext) => TimesheetFormOrigin -> TimesheetEntry -> [Staff] -> [ShiftType] -> Int -> Bool -> Bool -> Bool -> Maybe UUID -> Maybe UUID -> Text -> Text -> Html
+renderTimesheetFormFields formOrigin entry staffMembers shiftTypes weekOffset showApproved showAllStaff showSuggestions selectedStaffFilterId currentViewerStaffId pickerStart pickerEnd = [hsx|
     <input type="hidden" name="weekOffset" value={tshow weekOffset} />
     <input type="hidden" name="showApproved" value={if showApproved then ("true" :: Text) else "false"} />
     <input type="hidden" name="showAllStaff" value={if showAllStaff then ("true" :: Text) else "false"} />
+    <input type="hidden" name="showSuggestions" value={if showSuggestions then ("true" :: Text) else "false"} />
     <input type="hidden" name="staffFilterId" value={maybe "" tshow selectedStaffFilterId} />
-    {renderStaffField entry staffMembers}
+    {renderTimesheetFormOriginNotice formOrigin}
+    {renderStaffFieldForOrigin formOrigin entry staffMembers}
     {renderShiftTypeField entry shiftTypes}
     <input type="hidden" name="workedOn" value={dateValueIso} />
     {renderFieldError entry "workedOn"}
@@ -119,6 +129,48 @@ renderTimesheetFormFields entry staffMembers shiftTypes weekOffset showApproved 
         breakStartTimeValue = optionalTimeOfDayToStorageValue entry.breakStartTime
         breakEndTimeValue = optionalTimeOfDayToStorageValue entry.breakEndTime
         dateValueIso = tshow entry.workedOn :: Text
+
+renderTimesheetFormOriginNotice :: TimesheetFormOrigin -> Html
+renderTimesheetFormOriginNotice AdHocTimesheetForm = mempty
+renderTimesheetFormOriginNotice AdHocTimesheetFormWithSuggestion = [hsx|
+    <div class="alert alert-warning" role="status">
+        <strong>This creates a separate timesheet entry.</strong>
+        The rostered suggestion will remain until it is created from its own card.
+    </div>
+|]
+renderTimesheetFormOriginNotice RosteredTimesheetForm = [hsx|
+    <div class="alert alert-info d-flex align-items-start gap-2" role="status">
+        <span class="badge text-bg-info">Rostered</span>
+        <span>This form starts from the current roster shift. Your changes are saved only to the new timesheet entry.</span>
+    </div>
+|]
+renderTimesheetFormOriginNotice RosteredTimesheetEntryForm = [hsx|
+    <div class="alert alert-info d-flex align-items-start gap-2" role="status">
+        <span class="badge text-bg-info">Rostered</span>
+        <span>This entry is a snapshot of a roster shift. Its staff member and date stay fixed; edits do not change the roster.</span>
+    </div>
+|]
+
+renderStaffFieldForOrigin :: (?context :: ControllerContext) => TimesheetFormOrigin -> TimesheetEntry -> [Staff] -> Html
+renderStaffFieldForOrigin AdHocTimesheetForm entry staffMembers = renderStaffField entry staffMembers
+renderStaffFieldForOrigin AdHocTimesheetFormWithSuggestion entry staffMembers = renderStaffField entry staffMembers
+renderStaffFieldForOrigin RosteredTimesheetForm entry staffMembers = renderRosteredStaffField entry staffMembers
+renderStaffFieldForOrigin RosteredTimesheetEntryForm entry staffMembers = renderRosteredStaffField entry staffMembers
+
+renderRosteredStaffField :: (?context :: ControllerContext) => TimesheetEntry -> [Staff] -> Html
+renderRosteredStaffField entry staffMembers = [hsx|
+    <input type="hidden" name="staffId" value={inputValue entry.staffId} />
+    <div class="mb-3">
+        <label class="form-label">Staff Member</label>
+        <div class="form-control-plaintext border rounded px-3 py-2">{staffLabel}</div>
+        {renderFieldError entry "staffId"}
+    </div>
+|]
+    where
+        staffLabel =
+            case find (\staff -> unpackId staff.id == entry.staffId) staffMembers of
+                Just staff -> staff.firstName <> " " <> staff.lastName
+                Nothing    -> "Rostered staff" :: Text
 
 renderTimesheetBreakToggle :: TimesheetEntry -> Html
 renderTimesheetBreakToggle entry =

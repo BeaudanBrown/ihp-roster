@@ -11,6 +11,8 @@ import Application.Helper.LiveUpdate.Runtime
 import Application.Helper.SurfaceResource
 import Application.Helper.WeekBoundaries (venueWeekOffsetForDay)
 import Config
+import Control.Concurrent (forkIO, newEmptyMVar, putMVar, takeMVar)
+import Control.Exception (SomeException, try)
 import qualified Data.Aeson as Aeson
 import qualified Data.Set as Set
 import qualified Data.Text as Text
@@ -33,9 +35,12 @@ import Web.Controller.Timesheets ()
 import Web.FrontController ()
 import Web.Routes
 import Web.Timesheets.FrontendSurface
-import Web.Timesheets.Mutations (timesheetEntryTouchedResources)
+import Web.Timesheets.Mutations (materializeTimesheetSuggestionMutation,
+                                 timesheetEntryTouchedResources)
 import Web.Timesheets.Projection (TimesheetProjectionFragment (..),
-                                  TimesheetProjectionRequest (..))
+                                  TimesheetProjectionRequest (..),
+                                  fetchTimesheetSuggestionForRosterSlot)
+import Web.Timesheets.Suggestion (newTimesheetEntryFromSuggestion)
 import Web.Types
 
 tests :: Spec
@@ -91,7 +96,7 @@ tests = beforeAll testContext do
                 (response, mountConfig, expectedRefs) <- withUserAndCurrentVenue user venue.id do
                     withCurrentControllerContext do
                         let scope = TimesheetWeekScopeValue { timesheetWeekVenueId = unpackId venue.id, timesheetWeekWeekOffset = 0 }
-                        let mountState = TimesheetsMountStateValue { timesheetsMountShowApproved = False, timesheetsMountShowAllStaff = True, timesheetsMountStaffFilterId = Nothing }
+                        let mountState = TimesheetsMountStateValue { timesheetsMountShowApproved = False, timesheetsMountShowAllStaff = True, timesheetsMountShowSuggestions = True, timesheetsMountStaffFilterId = Nothing }
                         let impl = timesheetsSurfaceImpl scope mountState
                         response <- callAction ShowTimesheetWeekAction { weekOffset = 0 }
                         pure (response, impl.surfaceImplMountConfig, impl.surfaceImplMountConfig.mountFragments)
@@ -113,7 +118,7 @@ tests = beforeAll testContext do
             withCurrentControllerContext do
                 let venueId = fromMaybe (error "invalid test UUID") (UUID.fromString "00000000-0000-0000-0000-000000000123")
                 let scope = TimesheetWeekScopeValue { timesheetWeekVenueId = venueId, timesheetWeekWeekOffset = 2 }
-                let mountState = TimesheetsMountStateValue { timesheetsMountShowApproved = False, timesheetsMountShowAllStaff = True, timesheetsMountStaffFilterId = Nothing }
+                let mountState = TimesheetsMountStateValue { timesheetsMountShowApproved = False, timesheetsMountShowAllStaff = True, timesheetsMountShowSuggestions = True, timesheetsMountStaffFilterId = Nothing }
                 let impl = timesheetsSurfaceImpl scope mountState
                 let mountConfig = impl.surfaceImplMountConfig
                 let fragmentKinds = map (\fragment -> fragment.mountedFragmentKey.fragmentKind) mountConfig.mountFragments
@@ -126,6 +131,7 @@ tests = beforeAll testContext do
                 mountConfig.mountState `shouldBe` Aeson.object
                     [ "showApproved" Aeson..= False
                     , "showAllStaff" Aeson..= True
+                    , "showSuggestions" Aeson..= True
                     , "staffFilterId" Aeson..= (Nothing :: Maybe Text)
                     ]
                 fragmentKinds `shouldBe` ["timesheet-toolbar", "timesheet-day-columns"] <> replicate 7 "timesheet-day-section"
@@ -164,7 +170,7 @@ tests = beforeAll testContext do
                 (response, fragmentRef) <- withUserAndCurrentVenue user venue.id do
                     withCurrentControllerContext do
                         let scope = TimesheetWeekScopeValue { timesheetWeekVenueId = unpackId venue.id, timesheetWeekWeekOffset = 0 }
-                        let mountState = TimesheetsMountStateValue { timesheetsMountShowApproved = False, timesheetsMountShowAllStaff = True, timesheetsMountStaffFilterId = Nothing }
+                        let mountState = TimesheetsMountStateValue { timesheetsMountShowApproved = False, timesheetsMountShowAllStaff = True, timesheetsMountShowSuggestions = True, timesheetsMountStaffFilterId = Nothing }
                         let daySectionRef =
                                 timesheetsCandidateMountedFragments scope mountState
                                     |> find (\fragment -> fragment.mountedFragmentTargetId == "timesheet-day-section-0")
@@ -445,6 +451,493 @@ tests = beforeAll testContext do
                 workerResponse `responseBodyShouldContain` "Ava Hours"
                 workerResponse `responseBodyShouldNotContain` "Bea Hours"
 
+        it "renders a roster-derived suggestion for a complete shift on a live roster" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Timesheet Suggestion Venue"
+                manager <- createUserRecord "timesheet-suggestion-manager@example.com" "staff" True
+                workerUser <- createUserRecord "timesheet-suggestion-worker@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue manager "manager"
+                _ <- createVenueMembershipRecord venue workerUser "worker"
+                worker <- createStaffRecord venue (Just workerUser) "Rita" "Rostered"
+                payLevel <- createPayLevelRecord venue "Level 1"
+                shiftType <- createShiftTypeRecord venue payLevel "Dinner"
+                rosterWeek <- createRosterWeekRecord venue 0 True
+                rosterDay <- createRosterDayRecord rosterWeek 1
+                slotName <- fetchSlotNameRecord venue "Early"
+                rosterSlot <- createRosterSlotRecord rosterDay slotName (Just worker) 0
+                rosterSlot <- updateRecord
+                    ( rosterSlot
+                        |> set #startTime (Just (TimeOfDay 9 0 0))
+                        |> set #endTime (Just (TimeOfDay 17 0 0))
+                        |> set #durationMinutes (Just 480)
+                        |> set #shiftTypeId (Just (unpackId shiftType.id))
+                    )
+
+                response <- withUserAndCurrentVenue manager venue.id do
+                    callAction ShowTimesheetWeekAction { weekOffset = 0 }
+
+                response `responseStatusShouldBe` status200
+                response `responseBodyShouldContain` "Rostered"
+                response `responseBodyShouldContain` "Rita Rostered"
+                response `responseBodyShouldContain` cs ("data-timesheet-suggestion-id=\"" <> tshow rosterSlot.id <> "\"")
+                response `responseBodyShouldContain` "class=\"timesheet-entry-card timesheet-suggestion-card\""
+                response `responseBodyShouldContain` cs (pathTo CreateTimesheetEntryFromSuggestionAction { rosterSlotId = rosterSlot.id })
+                response `responseBodyShouldContain` cs (pathTo NewTimesheetEntryFromSuggestionAction { rosterSlotId = rosterSlot.id })
+                response `responseBodyShouldContain` "timesheet-entry-card-link"
+                response `responseBodyShouldContain` "timesheet-shape-bar"
+                response `responseBodyShouldContain` "timesheet-shape-segment-shift"
+                response `responseBodyShouldContain` "timesheet-shape-segment-break"
+                response `responseBodyShouldContain` ">Create</button>"
+                response `responseBodyShouldNotContain` ">Edit first</a>"
+                query @TimesheetEntry |> fetchCount >>= (`shouldBe` 0)
+
+        it "shows future live-roster suggestions immediately" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Timesheet Future Suggestion Venue"
+                workerUser <- createUserRecord "timesheet-future-suggestion-worker@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue workerUser "worker"
+                worker <- createStaffRecord venue (Just workerUser) "Faye" "Future"
+                payLevel <- createPayLevelRecord venue "Level 1"
+                shiftType <- createShiftTypeRecord venue payLevel "Day"
+                rosterWeek <- createRosterWeekRecord venue 3 True
+                rosterDay <- createRosterDayRecord rosterWeek 4
+                slotName <- fetchSlotNameRecord venue "Late"
+                rosterSlot <- createRosterSlotRecord rosterDay slotName (Just worker) 0
+                rosterSlot <- updateRecord
+                    ( rosterSlot
+                        |> set #startTime (Just (TimeOfDay 12 0 0))
+                        |> set #endTime (Just (TimeOfDay 20 0 0))
+                        |> set #durationMinutes (Just 480)
+                        |> set #shiftTypeId (Just (unpackId shiftType.id))
+                    )
+
+                response <- withUserAndCurrentVenue workerUser venue.id do
+                    callActionWithParams ShowTimesheetWeekAction { weekOffset = 3 }
+                        [("showSuggestions", "true")]
+
+                response `responseStatusShouldBe` status200
+                response `responseBodyShouldContain` cs ("data-timesheet-suggestion-id=\"" <> tshow rosterSlot.id <> "\"")
+                query @TimesheetEntry |> fetchCount >>= (`shouldBe` 0)
+
+        it "hides suggestions with the URL-scoped filter and preserves that filter in week navigation" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Timesheet Suggestion Filter Venue"
+                manager <- createUserRecord "timesheet-suggestion-filter-manager@example.com" "staff" True
+                workerUser <- createUserRecord "timesheet-suggestion-filter-worker@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue manager "manager"
+                _ <- createVenueMembershipRecord venue workerUser "worker"
+                worker <- createStaffRecord venue (Just workerUser) "Fiona" "Filtered"
+                payLevel <- createPayLevelRecord venue "Level 1"
+                shiftType <- createShiftTypeRecord venue payLevel "Lunch"
+                rosterWeek <- createRosterWeekRecord venue 0 True
+                rosterDay <- createRosterDayRecord rosterWeek 1
+                slotName <- fetchSlotNameRecord venue "Early"
+                rosterSlot <- createRosterSlotRecord rosterDay slotName (Just worker) 0
+                _ <- updateRecord
+                    ( rosterSlot
+                        |> set #startTime (Just (TimeOfDay 10 0 0))
+                        |> set #endTime (Just (TimeOfDay 16 0 0))
+                        |> set #durationMinutes (Just 360)
+                        |> set #shiftTypeId (Just (unpackId shiftType.id))
+                    )
+
+                response <- withUserAndCurrentVenue manager venue.id do
+                    callActionWithParams ShowTimesheetWeekAction { weekOffset = 0 }
+                        [("showSuggestions", "false")]
+
+                response `responseStatusShouldBe` status200
+                response `responseBodyShouldContain` "Show suggestions"
+                response `responseBodyShouldNotContain` cs ("data-timesheet-suggestion-id=\"" <> tshow rosterSlot.id <> "\"")
+                response `responseBodyShouldContain` "showSuggestions=false"
+                response `responseBodyShouldContain` "href=\"/ShowTimesheetWeek?weekOffset=1&amp;showApproved=false&amp;showAllStaff=true&amp;showSuggestions=false"
+
+        it "quick-creates one unapproved snapshot from an authorized roster suggestion" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Timesheet Suggestion Create Venue"
+                workerUser <- createUserRecord "timesheet-suggestion-create-worker@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue workerUser "worker"
+                worker <- createStaffRecord venue (Just workerUser) "Quinn" "QuickCreate"
+                payLevel <- createPayLevelRecord venue "Level 1"
+                shiftType <- createShiftTypeRecord venue payLevel "Day"
+                rosterWeek <- createRosterWeekRecord venue 0 True
+                rosterDay <- createRosterDayRecord rosterWeek 1
+                slotName <- fetchSlotNameRecord venue "Early"
+                rosterSlot <- createRosterSlotRecord rosterDay slotName (Just worker) 0
+                rosterSlot <- updateRecord
+                    ( rosterSlot
+                        |> set #startTime (Just (TimeOfDay 9 0 0))
+                        |> set #endTime (Just (TimeOfDay 15 15 0))
+                        |> set #durationMinutes (Just 375)
+                        |> set #shiftTypeId (Just (unpackId shiftType.id))
+                    )
+
+                response <- withUserAndCurrentVenue workerUser venue.id do
+                    callActionWithParams CreateTimesheetEntryFromSuggestionAction { rosterSlotId = rosterSlot.id }
+                        [ ("weekOffset", "0")
+                        , ("showApproved", "false")
+                        , ("showAllStaff", "true")
+                        , ("showSuggestions", "true")
+                        ]
+
+                response `responseStatusShouldBe` status302
+                entry <- query @TimesheetEntry |> fetchOne
+                entry.venueId `shouldBe` unpackId venue.id
+                entry.staffId `shouldBe` unpackId worker.id
+                entry.shiftTypeId `shouldBe` unpackId shiftType.id
+                entry.workedOn `shouldBe` fromGregorian 2025 1 7
+                entry.startTime `shouldBe` TimeOfDay 9 0 0
+                entry.endTime `shouldBe` TimeOfDay 15 15 0
+                entry.hadBreak `shouldBe` True
+                entry.breakStartTime `shouldBe` Just (TimeOfDay 14 30 0)
+                entry.breakEndTime `shouldBe` Just (TimeOfDay 15 0 0)
+                entry.breakMinutes `shouldBe` 30
+                entry.isApproved `shouldBe` False
+                entry.sourceRosterSlotId `shouldBe` Just (unpackId rosterSlot.id)
+                version <- query @TimesheetEntryVersion |> fetchOne
+                version.payload `shouldBe` Aeson.object
+                    [ "source" Aeson..= ("roster_suggestion" :: Text)
+                    , "rosterSlotId" Aeson..= tshow rosterSlot.id
+                    ]
+
+        it "scopes suggestion visibility and creation to the viewer's timesheet authority" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Timesheet Suggestion Authority Venue"
+                manager <- createUserRecord "timesheet-suggestion-authority-manager@example.com" "staff" True
+                workerAUser <- createUserRecord "timesheet-suggestion-authority-a@example.com" "staff" True
+                workerBUser <- createUserRecord "timesheet-suggestion-authority-b@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue manager "manager"
+                _ <- createVenueMembershipRecord venue workerAUser "worker"
+                _ <- createVenueMembershipRecord venue workerBUser "worker"
+                workerA <- createStaffRecord venue (Just workerAUser) "Alice" "Authority"
+                workerB <- createStaffRecord venue (Just workerBUser) "Bob" "Boundary"
+                payLevel <- createPayLevelRecord venue "Level 1"
+                shiftType <- createShiftTypeRecord venue payLevel "Day"
+                rosterWeek <- createRosterWeekRecord venue 0 True
+                rosterDay <- createRosterDayRecord rosterWeek 1
+                slotName <- fetchSlotNameRecord venue "Early"
+                slotA <- createRosterSlotRecord rosterDay slotName (Just workerA) 0
+                slotB <- createRosterSlotRecord rosterDay slotName (Just workerB) 1
+                slotA <- updateRecord
+                    ( slotA
+                        |> set #startTime (Just (TimeOfDay 9 0 0))
+                        |> set #endTime (Just (TimeOfDay 17 0 0))
+                        |> set #durationMinutes (Just 480)
+                        |> set #shiftTypeId (Just (unpackId shiftType.id))
+                    )
+                slotB <- updateRecord
+                    ( slotB
+                        |> set #startTime (Just (TimeOfDay 10 0 0))
+                        |> set #endTime (Just (TimeOfDay 18 0 0))
+                        |> set #durationMinutes (Just 480)
+                        |> set #shiftTypeId (Just (unpackId shiftType.id))
+                    )
+
+                workerResponse <- withUserAndCurrentVenue workerAUser venue.id do
+                    callActionWithParams ShowTimesheetWeekAction { weekOffset = 0 }
+                        [("showSuggestions", "true")]
+                workerResponse `responseBodyShouldContain` cs ("data-timesheet-suggestion-id=\"" <> tshow slotA.id <> "\"")
+                workerResponse `responseBodyShouldNotContain` cs ("data-timesheet-suggestion-id=\"" <> tshow slotB.id <> "\"")
+
+                deniedResponse <- withUserAndCurrentVenue workerAUser venue.id do
+                    callActionWithParams CreateTimesheetEntryFromSuggestionAction { rosterSlotId = slotB.id }
+                        [("weekOffset", "0"), ("showSuggestions", "true")]
+                deniedResponse `responseStatusShouldBe` status302
+                query @TimesheetEntry |> fetchCount >>= (`shouldBe` 0)
+
+                managerResponse <- withUserAndCurrentVenue manager venue.id do
+                    callActionWithParams ShowTimesheetWeekAction { weekOffset = 0 }
+                        [("showAllStaff", "true"), ("showSuggestions", "true"), ("staffFilterId", idToParam workerA.id)]
+                managerResponse `responseBodyShouldContain` cs ("data-timesheet-suggestion-id=\"" <> tshow slotA.id <> "\"")
+                managerResponse `responseBodyShouldNotContain` cs ("data-timesheet-suggestion-id=\"" <> tshow slotB.id <> "\"")
+
+                -- URL filters limit presentation, not the manager's venue-wide
+                -- Timesheets authority over an otherwise eligible source.
+                createdResponse <- withUserAndCurrentVenue manager venue.id do
+                    callActionWithParams CreateTimesheetEntryFromSuggestionAction { rosterSlotId = slotB.id }
+                        [("weekOffset", "0"), ("showAllStaff", "true"), ("showSuggestions", "true")]
+                createdResponse `responseStatusShouldBe` status302
+                createdEntry <- query @TimesheetEntry |> fetchOne
+                createdEntry.staffId `shouldBe` unpackId workerB.id
+
+        it "rejects materialization when the roster source changes after projection" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Timesheet Suggestion Stale Venue"
+                workerUser <- createUserRecord "timesheet-suggestion-stale-worker@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue workerUser "worker"
+                worker <- createStaffRecord venue (Just workerUser) "Stella" "Stale"
+                payLevel <- createPayLevelRecord venue "Level 1"
+                shiftType <- createShiftTypeRecord venue payLevel "Day"
+                rosterWeek <- createRosterWeekRecord venue 0 True
+                rosterDay <- createRosterDayRecord rosterWeek 1
+                slotName <- fetchSlotNameRecord venue "Early"
+                rosterSlot <- createRosterSlotRecord rosterDay slotName (Just worker) 0
+                rosterSlot <- updateRecord
+                    ( rosterSlot
+                        |> set #startTime (Just (TimeOfDay 9 0 0))
+                        |> set #endTime (Just (TimeOfDay 17 0 0))
+                        |> set #durationMinutes (Just 480)
+                        |> set #shiftTypeId (Just (unpackId shiftType.id))
+                    )
+
+                materializationResult <- withUserAndCurrentVenue workerUser venue.id do
+                    withCurrentControllerContext do
+                        suggestion <- fetchTimesheetSuggestionForRosterSlot rosterSlot.id >>= maybe (expectationFailure "Expected initial suggestion" >> error "unreachable") pure
+                        _ <- updateRecord (rosterSlot |> set #endTime (Just (TimeOfDay 18 0 0)) |> set #durationMinutes (Just 540))
+                        let entry = newTimesheetEntryFromSuggestion (unpackId venue.id) suggestion
+                        materializeTimesheetSuggestionMutation 0 suggestion entry
+
+                materializationResult `shouldBe` Nothing
+                query @TimesheetEntry |> fetchCount >>= (`shouldBe` 0)
+
+        it "materializes a suggestion idempotently under concurrent submissions" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Timesheet Suggestion Concurrent Venue"
+                workerUser <- createUserRecord "timesheet-suggestion-concurrent-worker@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue workerUser "worker"
+                worker <- createStaffRecord venue (Just workerUser) "Connie" "Concurrent"
+                payLevel <- createPayLevelRecord venue "Level 1"
+                shiftType <- createShiftTypeRecord venue payLevel "Day"
+                rosterWeek <- createRosterWeekRecord venue 0 True
+                rosterDay <- createRosterDayRecord rosterWeek 1
+                slotName <- fetchSlotNameRecord venue "Early"
+                rosterSlot <- createRosterSlotRecord rosterDay slotName (Just worker) 0
+                rosterSlot <- updateRecord
+                    ( rosterSlot
+                        |> set #startTime (Just (TimeOfDay 9 0 0))
+                        |> set #endTime (Just (TimeOfDay 17 0 0))
+                        |> set #durationMinutes (Just 480)
+                        |> set #shiftTypeId (Just (unpackId shiftType.id))
+                    )
+
+                results <- runConcurrentTimesheetActions 8 do
+                    withUserAndCurrentVenue workerUser venue.id do
+                        callActionWithParams CreateTimesheetEntryFromSuggestionAction { rosterSlotId = rosterSlot.id }
+                            [("weekOffset", "0"), ("showSuggestions", "true")]
+
+                lefts results `shouldSatisfy` null
+                mapM_ (`responseStatusShouldBe` status302) (rights results)
+                activeEntries <-
+                    query @TimesheetEntry
+                        |> filterWhere (#sourceRosterSlotId, Just (unpackId rosterSlot.id))
+                        |> filterWhere (#deletedAt, Nothing)
+                        |> fetch
+                length activeEntries `shouldBe` 1
+
+        it "lets staff edit rostered values before creating the linked snapshot" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Timesheet Suggestion Edit Venue"
+                workerUser <- createUserRecord "timesheet-suggestion-edit-worker@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue workerUser "worker"
+                worker <- createStaffRecord venue (Just workerUser) "Edie" "Editor"
+                payLevel <- createPayLevelRecord venue "Level 1"
+                shiftType <- createShiftTypeRecord venue payLevel "Day"
+                rosterWeek <- createRosterWeekRecord venue 0 True
+                rosterDay <- createRosterDayRecord rosterWeek 1
+                slotName <- fetchSlotNameRecord venue "Early"
+                rosterSlot <- createRosterSlotRecord rosterDay slotName (Just worker) 0
+                rosterSlot <- updateRecord
+                    ( rosterSlot
+                        |> set #startTime (Just (TimeOfDay 9 0 0))
+                        |> set #endTime (Just (TimeOfDay 17 0 0))
+                        |> set #durationMinutes (Just 480)
+                        |> set #shiftTypeId (Just (unpackId shiftType.id))
+                    )
+
+                formResponse <- withUserAndCurrentVenue workerUser venue.id do
+                    withRequestHeaders [("HX-Request", "true")] do
+                        callActionWithParams NewTimesheetEntryFromSuggestionAction { rosterSlotId = rosterSlot.id }
+                            [("weekOffset", "0"), ("showSuggestions", "true")]
+
+                formResponse `responseStatusShouldBe` status200
+                formResponse `responseBodyShouldContain` "This form starts from the current roster shift"
+                formResponse `responseBodyShouldContain` "name=\"staffId\""
+                formResponse `responseBodyShouldNotContain` "<select name=\"staffId\""
+                formResponse `responseBodyShouldContain` "name=\"startTime\" value=\"09:00\""
+                formResponse `responseBodyShouldContain` "name=\"endTime\" value=\"17:00\""
+
+                createResponse <- withUserAndCurrentVenue workerUser venue.id do
+                    callActionWithParams CreateTimesheetEntryFromSuggestionAction { rosterSlotId = rosterSlot.id }
+                        [ ("weekOffset", "0")
+                        , ("showSuggestions", "true")
+                        , ("staffId", idToParam worker.id)
+                        , ("shiftTypeId", idToParam shiftType.id)
+                        , ("workedOn", "2025-01-07")
+                        , ("startTime", "10:00")
+                        , ("endTime", "16:00")
+                        ]
+
+                createResponse `responseStatusShouldBe` status302
+                entry <- query @TimesheetEntry |> fetchOne
+                entry.startTime `shouldBe` TimeOfDay 10 0 0
+                entry.endTime `shouldBe` TimeOfDay 16 0 0
+                entry.hadBreak `shouldBe` False
+                entry.sourceRosterSlotId `shouldBe` Just (unpackId rosterSlot.id)
+
+        it "warns that an ad-hoc entry is separate when a roster suggestion exists" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Timesheet Ad Hoc Warning Venue"
+                workerUser <- createUserRecord "timesheet-ad-hoc-warning-worker@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue workerUser "worker"
+                worker <- createStaffRecord venue (Just workerUser) "Ada" "AdHoc"
+                payLevel <- createPayLevelRecord venue "Level 1"
+                shiftType <- createShiftTypeRecord venue payLevel "Day"
+                rosterWeek <- createRosterWeekRecord venue 0 True
+                rosterDay <- createRosterDayRecord rosterWeek 1
+                slotName <- fetchSlotNameRecord venue "Early"
+                rosterSlot <- createRosterSlotRecord rosterDay slotName (Just worker) 0
+                _ <- updateRecord
+                    ( rosterSlot
+                        |> set #startTime (Just (TimeOfDay 9 0 0))
+                        |> set #endTime (Just (TimeOfDay 17 0 0))
+                        |> set #durationMinutes (Just 480)
+                        |> set #shiftTypeId (Just (unpackId shiftType.id))
+                    )
+
+                response <- withUserAndCurrentVenue workerUser venue.id do
+                    withRequestHeaders [("HX-Request", "true")] do
+                        callActionWithParams NewTimesheetEntryAction
+                            [ ("weekOffset", "0")
+                            , ("workedOn", "2025-01-07")
+                            , ("showSuggestions", "false")
+                            ]
+
+                response `responseStatusShouldBe` status200
+                response `responseBodyShouldContain` "This creates a separate timesheet entry"
+                response `responseBodyShouldContain` "The rostered suggestion will remain"
+                response `responseBodyShouldContain` cs (pathTo CreateTimesheetEntryAction)
+                response `responseBodyShouldNotContain` cs (pathTo CreateTimesheetEntryFromSuggestionAction { rosterSlotId = rosterSlot.id })
+
+                createResponse <- withUserAndCurrentVenue workerUser venue.id do
+                    callActionWithParams CreateTimesheetEntryAction
+                        [ ("weekOffset", "0")
+                        , ("showSuggestions", "true")
+                        , ("staffId", idToParam worker.id)
+                        , ("shiftTypeId", idToParam shiftType.id)
+                        , ("workedOn", "2025-01-07")
+                        , ("startTime", "12:00")
+                        , ("endTime", "14:00")
+                        ]
+                createResponse `responseStatusShouldBe` status302
+                adHocEntry <- query @TimesheetEntry |> fetchOne
+                adHocEntry.sourceRosterSlotId `shouldBe` Nothing
+
+                refreshedResponse <- withUserAndCurrentVenue workerUser venue.id do
+                    callActionWithParams ShowTimesheetWeekAction { weekOffset = 0 }
+                        [("showSuggestions", "true")]
+                refreshedResponse `responseBodyShouldContain` cs ("data-timesheet-suggestion-id=\"" <> tshow rosterSlot.id <> "\"")
+
+        it "restores a suggestion after its linked entry is soft-deleted and preserves both snapshots" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Timesheet Suggestion Restore Venue"
+                workerUser <- createUserRecord "timesheet-suggestion-restore-worker@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue workerUser "worker"
+                worker <- createStaffRecord venue (Just workerUser) "Rory" "Restore"
+                payLevel <- createPayLevelRecord venue "Level 1"
+                shiftType <- createShiftTypeRecord venue payLevel "Day"
+                rosterWeek <- createRosterWeekRecord venue 0 True
+                rosterDay <- createRosterDayRecord rosterWeek 1
+                slotName <- fetchSlotNameRecord venue "Early"
+                rosterSlot <- createRosterSlotRecord rosterDay slotName (Just worker) 0
+                rosterSlot <- updateRecord
+                    ( rosterSlot
+                        |> set #startTime (Just (TimeOfDay 9 0 0))
+                        |> set #endTime (Just (TimeOfDay 17 0 0))
+                        |> set #durationMinutes (Just 480)
+                        |> set #shiftTypeId (Just (unpackId shiftType.id))
+                    )
+                oldEntry <-
+                    newRecord @TimesheetEntry
+                        |> set #venueId (unpackId venue.id)
+                        |> set #staffId (unpackId worker.id)
+                        |> set #shiftTypeId (unpackId shiftType.id)
+                        |> set #workedOn (fromGregorian 2025 1 7)
+                        |> set #startTime (TimeOfDay 9 0 0)
+                        |> set #endTime (TimeOfDay 17 0 0)
+                        |> set #sourceRosterSlotId (Just (unpackId rosterSlot.id))
+                        |> createRecord
+                now <- getCurrentTime
+                _ <- updateRecord
+                    ( oldEntry
+                        |> set #deletedAt (Just now)
+                        |> set #deletedByUserId (Just (unpackId workerUser.id))
+                        |> set #deleteReason (Just "test_deleted")
+                    )
+
+                suggestionResponse <- withUserAndCurrentVenue workerUser venue.id do
+                    callActionWithParams ShowTimesheetWeekAction { weekOffset = 0 }
+                        [("showSuggestions", "true")]
+                suggestionResponse `responseBodyShouldContain` cs ("data-timesheet-suggestion-id=\"" <> tshow rosterSlot.id <> "\"")
+
+                createResponse <- withUserAndCurrentVenue workerUser venue.id do
+                    callActionWithParams CreateTimesheetEntryFromSuggestionAction { rosterSlotId = rosterSlot.id }
+                        [("weekOffset", "0"), ("showSuggestions", "true")]
+
+                createResponse `responseStatusShouldBe` status302
+                linkedEntries :: [TimesheetEntry] <-
+                    query @TimesheetEntry
+                        |> filterWhere (#sourceRosterSlotId, Just (unpackId rosterSlot.id))
+                        |> orderByAsc #createdAt
+                        |> fetch
+                length linkedEntries `shouldBe` 2
+                length (filter (isNothing . (.deletedAt)) linkedEntries) `shouldBe` 1
+
+        it "keeps roster-derived staff, date, and source immutable during edits" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Timesheet Suggestion Immutable Venue"
+                manager <- createUserRecord "timesheet-suggestion-immutable-manager@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue manager "manager"
+                rosteredUser <- createUserRecord "timesheet-suggestion-immutable-rostered@example.com" "staff" True
+                otherUser <- createUserRecord "timesheet-suggestion-immutable-other@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue rosteredUser "worker"
+                _ <- createVenueMembershipRecord venue otherUser "worker"
+                rosteredStaff <- createStaffRecord venue (Just rosteredUser) "Robin" "Rostered"
+                otherStaff <- createStaffRecord venue (Just otherUser) "Sam" "Separate"
+                payLevel <- createPayLevelRecord venue "Level 1"
+                shiftType <- createShiftTypeRecord venue payLevel "Day"
+                rosterWeek <- createRosterWeekRecord venue 0 True
+                rosterDay <- createRosterDayRecord rosterWeek 1
+                slotName <- fetchSlotNameRecord venue "Early"
+                rosterSlot <- createRosterSlotRecord rosterDay slotName (Just rosteredStaff) 0
+                rosterSlot <- updateRecord
+                    ( rosterSlot
+                        |> set #startTime (Just (TimeOfDay 9 0 0))
+                        |> set #endTime (Just (TimeOfDay 17 0 0))
+                        |> set #durationMinutes (Just 480)
+                        |> set #shiftTypeId (Just (unpackId shiftType.id))
+                    )
+
+                creationResponse <- withUserAndCurrentVenue manager venue.id do
+                    callActionWithParams CreateTimesheetEntryFromSuggestionAction { rosterSlotId = rosterSlot.id }
+                        [("weekOffset", "0"), ("showAllStaff", "true"), ("showSuggestions", "true")]
+                creationResponse `responseStatusShouldBe` status302
+                query @TimesheetEntry |> fetchCount >>= (`shouldBe` 1)
+                entry <- query @TimesheetEntry |> fetchOne
+
+                editResponse <- withUserAndCurrentVenue manager venue.id do
+                    withRequestHeaders [("HX-Request", "true")] do
+                        callActionWithParams EditTimesheetEntryAction { timesheetEntryId = entry.id }
+                            [("weekOffset", "0"), ("showAllStaff", "true")]
+                editResponse `responseStatusShouldBe` status200
+                editResponse `responseBodyShouldContain` "Rostered"
+                editResponse `responseBodyShouldNotContain` "<select name=\"staffId\""
+
+                updateResponse <- withUserAndCurrentVenue manager venue.id do
+                    callActionWithParams UpdateTimesheetEntryAction { timesheetEntryId = entry.id }
+                        [ ("weekOffset", "0")
+                        , ("showAllStaff", "true")
+                        , ("staffId", idToParam otherStaff.id)
+                        , ("shiftTypeId", idToParam shiftType.id)
+                        , ("workedOn", "2025-01-08")
+                        , ("startTime", "10:00")
+                        , ("endTime", "16:00")
+                        ]
+                updateResponse `responseStatusShouldBe` status403
+
+                unchanged <- fetch entry.id
+                unchanged.staffId `shouldBe` unpackId rosteredStaff.id
+                unchanged.workedOn `shouldBe` fromGregorian 2025 1 7
+                unchanged.sourceRosterSlotId `shouldBe` Just (unpackId rosterSlot.id)
+
         it "shows approved entries to staff with a disabled approved button" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Timesheet Approved Staff Venue"
@@ -541,9 +1034,9 @@ tests = beforeAll testContext do
                 response `responseBodyShouldContain` "name=\"staffFilterId\""
                 response `responseBodyShouldContain` "timesheet-entry-staff-name\">Ava Filter"
                 response `responseBodyShouldNotContain` "timesheet-entry-staff-name\">Bea Filter"
-                response `responseBodyShouldContain` cs ("href=\"/Timesheets?showApproved=true&amp;showAllStaff=true&amp;staffFilterId=" <> tshow workerA.id <> "\"")
-                response `responseBodyShouldContain` cs ("href=\"/ShowTimesheetWeek?weekOffset=-1&amp;showApproved=true&amp;showAllStaff=true&amp;staffFilterId=" <> tshow workerA.id)
-                response `responseBodyShouldContain` cs ("href=\"/ShowTimesheetWeek?weekOffset=1&amp;showApproved=true&amp;showAllStaff=true&amp;staffFilterId=" <> tshow workerA.id)
+                response `responseBodyShouldContain` cs ("href=\"/Timesheets?showApproved=true&amp;showAllStaff=true&amp;showSuggestions=true&amp;staffFilterId=" <> tshow workerA.id <> "\"")
+                response `responseBodyShouldContain` cs ("href=\"/ShowTimesheetWeek?weekOffset=-1&amp;showApproved=true&amp;showAllStaff=true&amp;showSuggestions=true&amp;staffFilterId=" <> tshow workerA.id)
+                response `responseBodyShouldContain` cs ("href=\"/ShowTimesheetWeek?weekOffset=1&amp;showApproved=true&amp;showAllStaff=true&amp;showSuggestions=true&amp;staffFilterId=" <> tshow workerA.id)
                 response `responseBodyShouldContain` "timesheet-entry-card-link"
                 response `responseBodyShouldContain` cs (pathTo (EditTimesheetEntryAction entryA.id))
 
@@ -592,9 +1085,9 @@ tests = beforeAll testContext do
                 response `responseBodyShouldContain` "data-week-toolbar-section=\"navigation\""
                 response `responseBodyShouldContain` "data-week-toolbar-section=\"settings\""
                 response `responseBodyShouldContain` "btn btn-outline-secondary app-week-nav-button"
-                response `responseBodyShouldContain` "href=\"/Timesheets?showApproved=true&amp;showAllStaff=false\""
-                response `responseBodyShouldContain` "href=\"/ShowTimesheetWeek?weekOffset=1&amp;showApproved=true&amp;showAllStaff=false\""
-                response `responseBodyShouldContain` "href=\"/ShowTimesheetWeek?weekOffset=3&amp;showApproved=true&amp;showAllStaff=false\""
+                response `responseBodyShouldContain` "href=\"/Timesheets?showApproved=true&amp;showAllStaff=false&amp;showSuggestions=true\""
+                response `responseBodyShouldContain` "href=\"/ShowTimesheetWeek?weekOffset=1&amp;showApproved=true&amp;showAllStaff=false&amp;showSuggestions=true\""
+                response `responseBodyShouldContain` "href=\"/ShowTimesheetWeek?weekOffset=3&amp;showApproved=true&amp;showAllStaff=false&amp;showSuggestions=true\""
                 response `responseBodyShouldContain` "action=\"/ShowTimesheetWeek?weekOffset=2\""
                 response `responseBodyShouldContain` "hx-get=\"/ShowTimesheetWeek?weekOffset=2\""
                 response `responseBodyShouldContain` "name=\"weekOffset\" value=\"2\""
@@ -945,3 +1438,9 @@ tests = beforeAll testContext do
 
                 versionCount <- query @TimesheetEntryVersion |> fetchCount
                 versionCount `shouldBe` 1
+
+runConcurrentTimesheetActions :: Int -> IO a -> IO [Either SomeException a]
+runConcurrentTimesheetActions count action = do
+    vars <- mapM (const newEmptyMVar) [1 .. count]
+    _ <- mapM (\var -> forkIO (try action >>= putMVar var)) vars
+    mapM takeMVar vars

@@ -1,7 +1,6 @@
 module Web.Admin.Mutations
     ( AdminShiftTypeMutationResult (..)
     , adminVenueSettingsTouchedResources
-    , autoTimesheetCreationTouchedResources
     , createRosterGroupMutation
     , createShiftTypeMutation
     , createVenueInvitationMutation
@@ -12,7 +11,6 @@ module Web.Admin.Mutations
     , rosterEndTimesTouchedResources
     , rosterTimePickerWindowTouchedResources
     , rosterWeekStartsOnTouchedResources
-    , setAutoTimesheetCreationEnabledMutation
     , setRosterEndTimesEnabledMutation
     , setRosterTimePickerWindowMutation
     , setRosterWeekStartsOnMutation
@@ -52,13 +50,6 @@ setRosterEndTimesEnabledMutation venueConfig rosterEndTimesEnabled = do
         |> updateRecord
     invalidateTouchedResources "admin.venue_config.roster_end_times" (liveMutationResult updated (rosterEndTimesTouchedResources currentVenueId))
 
-setAutoTimesheetCreationEnabledMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => VenueConfig -> Bool -> IO (LiveMutationResult VenueConfig)
-setAutoTimesheetCreationEnabledMutation venueConfig autoTimesheetCreationEnabled = do
-    updated <- venueConfig
-        |> set #autoTimesheetCreationEnabled autoTimesheetCreationEnabled
-        |> updateRecord
-    invalidateTouchedResources "admin.venue_config.auto_timesheets" (liveMutationResult updated (autoTimesheetCreationTouchedResources currentVenueId))
-
 setRosterWeekStartsOnMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => VenueConfig -> Int -> IO (LiveMutationResult VenueConfig)
 setRosterWeekStartsOnMutation venueConfig rosterWeekStartsOn = do
     updated <- withTransaction do
@@ -85,10 +76,6 @@ adminVenueSettingsTouchedResources venueId =
 rosterEndTimesTouchedResources :: Id Venue -> [SurfaceResourceValue]
 rosterEndTimesTouchedResources venueId =
     adminVenueSettingsTouchedResources venueId <> [rosterEndTimesConfigResource (unpackId venueId)]
-
-autoTimesheetCreationTouchedResources :: Id Venue -> [SurfaceResourceValue]
-autoTimesheetCreationTouchedResources =
-    adminVenueSettingsTouchedResources
 
 rosterTimePickerWindowTouchedResources :: Id Venue -> [SurfaceResourceValue]
 rosterTimePickerWindowTouchedResources venueId =

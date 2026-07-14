@@ -1,6 +1,7 @@
 module Web.Timesheets.Mutations
     ( approveTimesheetEntryMutation
     , createTimesheetEntryMutation
+    , materializeTimesheetSuggestionMutation
     , deleteTimesheetEntryMutation
     , timesheetEntryTouchedResources
     , unapproveTimesheetEntryMutation
@@ -15,18 +16,75 @@ import Control.Monad (void)
 import qualified Data.Aeson as Aeson
 import Data.Time.Calendar (diffDays)
 import Data.Time.Clock (getCurrentTime)
+import Data.Tuple.Only (Only (..))
+import IHP.ModelSupport (sqlQuery)
 import Web.Controller.Prelude
 import Web.SurfaceInvalidation (invalidateTouchedResources)
+import Web.Timesheets.Projection (fetchTimesheetSuggestionForRosterSlot)
+import Web.Timesheets.Suggestion (TimesheetSuggestion (..))
 import Web.Timesheets.Validation (resetApprovalOnEdit)
 
 createTimesheetEntryMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Int -> TimesheetEntry -> IO (LiveMutationResult TimesheetEntry)
 createTimesheetEntryMutation _weekOffset timesheetEntry = do
-    createdEntry <- withTransaction do
-        createdEntry <- timesheetEntry |> createRecord
-        void $ recordCurrentUserTimesheetEntryVersion (unsafeEnumFromText @EntryVersionActionEnum "created") createdEntry Aeson.Null
-        pure createdEntry
+    accessDeniedUnless (isNothing timesheetEntry.sourceRosterSlotId)
+    createdEntry <- withTransaction (createTimesheetEntryWithVersion timesheetEntry)
+    invalidateTimesheetCreation "timesheet.create" createdEntry
+
+materializeTimesheetSuggestionMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Int -> TimesheetSuggestion -> TimesheetEntry -> IO (Maybe (LiveMutationResult TimesheetEntry))
+materializeTimesheetSuggestionMutation _weekOffset expectedSuggestion timesheetEntry = do
+    materialization <- withTransaction do
+        let rosterSlotId = unpackId expectedSuggestion.suggestionRosterSlotId
+        lockRosterSlot rosterSlotId
+        existingEntry <- fetchActiveEntryForRosterSlot rosterSlotId
+        case existingEntry of
+            Just existingEntry
+                | existingEntry.staffId == expectedSuggestion.suggestionStaffId
+                    && existingEntry.workedOn == expectedSuggestion.suggestionWorkedOn ->
+                    pure (Just (existingEntry, False))
+                | otherwise -> pure Nothing
+            Nothing -> do
+                currentSuggestion <- fetchTimesheetSuggestionForRosterSlot expectedSuggestion.suggestionRosterSlotId
+                if currentSuggestion /= Just expectedSuggestion
+                    then pure Nothing
+                    else Just . (, True) <$> createTimesheetEntryWithVersion timesheetEntry
+    case materialization of
+        Nothing -> pure Nothing
+        Just (materializedEntry, wasCreated) ->
+            Just <$> invalidateTimesheetCreation (if wasCreated then "timesheet.suggestion.create" else "timesheet.suggestion.create.idempotent") materializedEntry
+
+lockRosterSlot :: (?modelContext :: ModelContext) => UUID -> IO ()
+lockRosterSlot rosterSlotId = do
+    _lockedRosterSlots :: [RosterSlot] <-
+        sqlQuery
+            "SELECT roster_slots.* FROM roster_slots WHERE id = ? FOR UPDATE"
+            (Only rosterSlotId)
+    pure ()
+
+fetchActiveEntryForRosterSlot :: (?modelContext :: ModelContext) => UUID -> IO (Maybe TimesheetEntry)
+fetchActiveEntryForRosterSlot rosterSlotId =
+    query @TimesheetEntry
+        |> filterWhere (#sourceRosterSlotId, Just rosterSlotId)
+        |> filterWhere (#deletedAt, Nothing)
+        |> fetchOneOrNothing
+
+createTimesheetEntryWithVersion :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => TimesheetEntry -> IO TimesheetEntry
+createTimesheetEntryWithVersion timesheetEntry = do
+    createdEntry <- timesheetEntry |> createRecord
+    let versionPayload =
+            case createdEntry.sourceRosterSlotId of
+                Nothing -> Aeson.Null
+                Just rosterSlotId ->
+                    Aeson.object
+                        [ "source" Aeson..= ("roster_suggestion" :: Text)
+                        , "rosterSlotId" Aeson..= tshow rosterSlotId
+                        ]
+    void $ recordCurrentUserTimesheetEntryVersion (unsafeEnumFromText @EntryVersionActionEnum "created") createdEntry versionPayload
+    pure createdEntry
+
+invalidateTimesheetCreation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Text -> TimesheetEntry -> IO (LiveMutationResult TimesheetEntry)
+invalidateTimesheetCreation eventName entry = do
     venueConfig <- fetchVenueConfig
-    invalidateTouchedResources "timesheet.create" (liveMutationResult createdEntry (timesheetEntryTouchedResources venueConfig [createdEntry]))
+    invalidateTouchedResources eventName (liveMutationResult entry (timesheetEntryTouchedResources venueConfig [entry]))
 
 updateTimesheetEntryMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Int -> TimesheetEntry -> TimesheetEntry -> Bool -> IO (LiveMutationResult TimesheetEntry)
 updateTimesheetEntryMutation _weekOffset existingEntry timesheetEntry shouldResetApproval = do

@@ -262,12 +262,7 @@ instance Controller AdminController where
                         else "Roster end times hidden from the roster."
                 respondToVenueSettingsMutation
             "autoTimesheetCreationEnabled" -> do
-                let autoTimesheetCreationEnabled = isJust (paramOrNothing @Text "autoTimesheetCreationEnabled")
-                _ <- setAutoTimesheetCreationEnabledMutation venueConfig autoTimesheetCreationEnabled
-                setSuccessMessage $
-                    if autoTimesheetCreationEnabled
-                        then "Auto-created pending timesheets enabled."
-                        else "Auto-created pending timesheets disabled."
+                setErrorMessage "Automatic timesheet creation has been replaced by rostered timesheet suggestions."
                 respondToVenueSettingsMutation
             "timePickerWindow" -> do
                 let maybeStartMinute = parseQuarterHourMinuteOfDay =<< paramOrNothing @Text "timePickerStart"

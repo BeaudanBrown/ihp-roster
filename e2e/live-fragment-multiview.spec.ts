@@ -203,6 +203,135 @@ test.describe('Live fragment multi-view coverage', () => {
         await viewerContext.close();
     });
 
+    test('roster suggestion cards materialize once and update another timesheet viewer live', async ({ browser }) => {
+        const actorContext = await browser.newContext();
+        const viewerContext = await browser.newContext();
+        const actorPage = await actorContext.newPage();
+        const viewerPage = await viewerContext.newPage();
+        const rosterSlotId = 'e2000000-0000-0000-0000-000000000901';
+        const renderedRange = '6:15–7:15 AM';
+
+        runSql(`
+            UPDATE timesheet_entries
+            SET deleted_at = NOW(), delete_reason = 'e2e_reset', updated_at = NOW()
+            WHERE source_roster_slot_id = '${rosterSlotId}' AND deleted_at IS NULL;
+
+            UPDATE roster_slots
+            SET deleted_at = NOW(), delete_reason = 'e2e_reset', updated_at = NOW()
+            WHERE id = '${rosterSlotId}' AND deleted_at IS NULL;
+
+            UPDATE roster_weeks
+            SET is_live = TRUE, updated_at = NOW()
+            WHERE venue_id = 'a1000000-0000-0000-0000-000000000001'
+              AND week_offset = 0;
+
+            INSERT INTO roster_slots (
+                id,
+                roster_day_id,
+                staff_id,
+                roster_week_slot_definition_id,
+                slot_sort_order,
+                row_index,
+                start_time,
+                end_time,
+                shift_type_id,
+                duration_minutes,
+                deleted_at,
+                delete_reason
+            )
+            SELECT
+                '${rosterSlotId}',
+                roster_days.id,
+                staff.id,
+                roster_week_slot_definitions.id,
+                0,
+                10,
+                '06:15'::time,
+                '07:15'::time,
+                shift_types.id,
+                60,
+                NULL,
+                NULL
+            FROM roster_weeks
+            JOIN roster_days
+              ON roster_days.roster_week_id = roster_weeks.id
+             AND roster_days.day_offset = 0
+            JOIN roster_week_slot_definitions
+              ON roster_week_slot_definitions.roster_week_id = roster_weeks.id
+             AND roster_week_slot_definitions.deleted_at IS NULL
+            JOIN users
+              ON users.email = '${workerCreds.email}'
+            JOIN staff
+              ON staff.venue_id = roster_weeks.venue_id
+             AND staff.user_id = users.id
+             AND staff.is_active = TRUE
+            JOIN shift_types
+              ON shift_types.venue_id = roster_weeks.venue_id
+             AND shift_types.is_active = TRUE
+             AND shift_types.archived_at IS NULL
+            WHERE roster_weeks.venue_id = 'a1000000-0000-0000-0000-000000000001'
+              AND roster_weeks.week_offset = 0
+            ORDER BY roster_week_slot_definitions.sort_order, shift_types.created_at
+            LIMIT 1
+            ON CONFLICT (id) DO UPDATE SET
+                roster_day_id = EXCLUDED.roster_day_id,
+                staff_id = EXCLUDED.staff_id,
+                roster_week_slot_definition_id = EXCLUDED.roster_week_slot_definition_id,
+                row_index = EXCLUDED.row_index,
+                start_time = EXCLUDED.start_time,
+                end_time = EXCLUDED.end_time,
+                shift_type_id = EXCLUDED.shift_type_id,
+                duration_minutes = EXCLUDED.duration_minutes,
+                deleted_at = NULL,
+                deleted_by_user_id = NULL,
+                delete_reason = NULL,
+                updated_at = NOW();
+        `);
+
+        await loginWorker(actorPage);
+        await loginWorker(viewerPage);
+        await gotoWhenReady(actorPage, '/Timesheets?showSuggestions=true', '#timesheet-week-shell');
+        await gotoWhenReady(viewerPage, '/Timesheets?showSuggestions=true', '#timesheet-week-shell');
+
+        const actorSuggestion = actorPage.locator(`.timesheet-suggestion-card[data-timesheet-suggestion-id="${rosterSlotId}"]`);
+        const viewerSuggestion = viewerPage.locator(`.timesheet-suggestion-card[data-timesheet-suggestion-id="${rosterSlotId}"]`);
+        await expect(actorSuggestion).toHaveCount(1);
+        await expect(actorSuggestion).toHaveClass(/timesheet-entry-card/);
+        await expect(actorSuggestion).toHaveCSS('opacity', '0.72');
+        await expect(actorSuggestion).toHaveCSS('cursor', 'pointer');
+        await expect(actorSuggestion).toContainText('Rostered');
+        await expect(actorSuggestion).toContainText(renderedRange);
+        await expect(actorSuggestion.locator('.timesheet-shape-bar')).toHaveCount(1);
+        await expect(actorSuggestion.getByRole('button', { name: 'Create', exact: true })).toBeVisible();
+        await expect(actorSuggestion).not.toContainText('Edit first');
+        await expect(viewerSuggestion).toHaveCount(1);
+
+        await actorSuggestion.locator('.timesheet-entry-card-link').click();
+        await expect(actorPage.locator('#timesheet-suggestion-create-form')).toBeVisible();
+        await expect(actorPage.locator('#timesheet-suggestion-create-form select[name="staffId"]')).toHaveCount(0);
+        await actorPage.getByRole('button', { name: 'Save', exact: true }).click();
+
+        const actorEntry = actorPage.locator('.timesheet-entry-card:not(.timesheet-suggestion-card)').filter({ hasText: renderedRange });
+        const viewerEntry = viewerPage.locator('.timesheet-entry-card:not(.timesheet-suggestion-card)').filter({ hasText: renderedRange });
+        await expect(actorSuggestion).toHaveCount(0);
+        await expect(actorEntry).toHaveCount(1);
+        await expect(actorEntry).not.toContainText('Approved');
+        await expect(viewerSuggestion).toHaveCount(0, { timeout: E2E_TIMEOUT.liveUpdate });
+        await expect(viewerEntry).toHaveCount(1, { timeout: E2E_TIMEOUT.liveUpdate });
+
+        runSql(`
+            UPDATE timesheet_entries
+            SET deleted_at = NOW(), delete_reason = 'e2e_cleanup', updated_at = NOW()
+            WHERE source_roster_slot_id = '${rosterSlotId}' AND deleted_at IS NULL;
+            UPDATE roster_slots
+            SET deleted_at = NOW(), delete_reason = 'e2e_cleanup', updated_at = NOW()
+            WHERE id = '${rosterSlotId}' AND deleted_at IS NULL;
+        `);
+
+        await actorContext.close();
+        await viewerContext.close();
+    });
+
     test('manager approval updates the worker timesheet page live', async ({ browser }) => {
         const managerContext = await browser.newContext();
         const workerContext = await browser.newContext();

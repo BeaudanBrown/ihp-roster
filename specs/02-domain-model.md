@@ -75,8 +75,14 @@
 
 ## Time and approval
 
+- **Timesheet suggestion**
+  - A transient read model derived from an eligible shift on a live roster.
+  - It has no table and is not a Timesheet entry status.
 - `timesheet_entries`
   - Staff, venue, date/day reference, start/end/break, approval status.
+  - Optional immutable `source_roster_slot_id` records roster provenance.
+  - At most one active entry may reference a source slot; deleted historical
+    snapshots do not block a later active snapshot.
   - Inputs must be exact 15-minute increments.
   - Must support additive correction or version history.
   - Hard deletion is not the normal correction path once business use begins.
@@ -100,6 +106,8 @@
   - `week_offset_epoch` (global fixed epoch value unless later re-specified).
   - `late_to_early_min_start_gap_minutes` (venue-level threshold).
   - Current editable configuration surfaced on the venue admin page.
+  - `auto_timesheet_creation_enabled` is a deprecated, false, inert compatibility
+    column and is not current editable configuration.
 - Supporting config tables:
   - `slot_names`
   - `day_names`

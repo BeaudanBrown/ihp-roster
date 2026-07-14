@@ -143,7 +143,8 @@ tests = beforeAll testContext do
                 response `responseBodyShouldNotContain` "id=\"staff-email\""
                 response `responseBodyShouldNotContain` "id=\"invite-email\""
                 response `responseBodyShouldContain` "Show shift end times in roster"
-                response `responseBodyShouldContain` "Auto-create pending timesheets"
+                response `responseBodyShouldNotContain` "Auto-create pending timesheets"
+                response `responseBodyShouldNotContain` "autoTimesheetCreationEnabled"
                 response `responseBodyShouldNotContain` "venue-timezone"
                 response `responseBodyShouldNotContain` "Already have an account?"
 
@@ -174,7 +175,7 @@ tests = beforeAll testContext do
                 venueConfig.timezone `shouldBe` defaultVenueBootstrapTimezone
                 venueConfig.rosterWeekStartsOn `shouldBe` 2
                 venueConfig.rosterEndTimesEnabled `shouldBe` False
-                venueConfig.autoTimesheetCreationEnabled `shouldBe` True
+                venueConfig.autoTimesheetCreationEnabled `shouldBe` False
                 venueConfig.rosterWeekStartsOn `shouldSatisfy` (`elem` validRosterWeekStartDays)
                 inputValue membership.venueRole `shouldBe` "venue_owner"
                 staff `shouldSatisfy` isJust

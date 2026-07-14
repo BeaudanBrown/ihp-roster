@@ -6,6 +6,7 @@ GitHub issues:
 
 - `#43` - parent epic
 - `#119` - staff-level Xero custom pay item overrides
+- `#52` - roster-derived Timesheet suggestions
 
 Living docs to update:
 
@@ -36,11 +37,12 @@ onboarding remains deferred pending legal/product review.
 
 ## Current State
 
-Lower-risk pilot slices have already landed for availability language, typed
-user preferences, timesheet staff filtering/clickable cards/comments, and
-roster end-time/shift-type foundations. The open pilot-critical gaps are RSA
-document handling, roster wage prediction, live-roster-to-timesheet automation,
-and Xero custom pay item overrides.
+Lower-risk pilot slices have landed for availability language, typed user
+preferences, Timesheet filtering/cards/comments, roster end-time/shift-type
+foundations, and explicit roster-derived Timesheet suggestions. Delayed automatic
+Timesheet creation is retired. The remaining pilot-critical gaps are tracked in
+the linked issues, including RSA, roster wage prediction follow-up, and Xero
+custom pay item overrides.
 
 ## Intended Contract
 
@@ -64,14 +66,20 @@ and Xero custom pay item overrides.
 - V1 assumes a 30-minute unpaid break for shifts over 6 hours.
 - Predictions are not final payroll and must not be presented as Xero output.
 
-### Roster-to-timesheet automation
+### Roster-derived Timesheet suggestions
 
-- Automation is venue opt-in.
-- Only live rosters participate.
-- Pending timesheets are created 2 hours after the actual shift end datetime.
-- Auto-created entries are pending, never auto-approved.
-- Later roster edits do not mutate already-created timesheets; the actor should
-  see a warning or toast.
+- Complete linked-staff shifts on live rosters appear immediately as transient
+  Rostered cards in Timesheets, including future weeks.
+- Staff create their own entries explicitly; managers can create entries within
+  their normal Timesheets staff scope.
+- Quick Create or opening the Rostered card and saving its prefilled form
+  produces an unapproved snapshot with immutable roster-source provenance.
+  Approval remains a separate manager action.
+- Ad-hoc entries remain allowed and do not consume a suggestion.
+- Returning a roster to draft hides unmaterialized suggestions. Later roster
+  edits never mutate an already-created Timesheet entry.
+- No venue opt-in, grace period, background creation job, bulk create, or
+  create-and-approve behavior exists.
 
 ### Xero custom pay item overrides
 

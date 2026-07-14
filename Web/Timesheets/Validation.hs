@@ -1,5 +1,6 @@
 module Web.Timesheets.Validation
     ( buildTimesheetEntry
+    , ensureRosterDerivedIdentityUnchanged
     , ensureShiftTypeAllowed
     , ensureStaffAssignmentAllowed
     , ensureTimesheetEntryNotPayrollLocked
@@ -23,17 +24,18 @@ ensureTimesheetEntryNotPayrollLocked ::
     Int ->
     Bool ->
     Bool ->
+    Bool ->
     Maybe UUID.UUID ->
     IO ()
-ensureTimesheetEntryNotPayrollLocked timesheetEntry weekOffset showApproved showAllStaff staffFilterId = do
+ensureTimesheetEntryNotPayrollLocked timesheetEntry weekOffset showApproved showAllStaff showSuggestions staffFilterId = do
     locked <- timesheetEntryHasPayrollProvenance timesheetEntry
     when locked do
         let message = "This approved timesheet entry is locked because it has been exported or submitted to Xero."
         if isHtmxRequest
-            then respondWithTimesheetDaySectionUpdate weekOffset timesheetEntry.workedOn showApproved showAllStaff staffFilterId message True
+            then respondWithTimesheetDaySectionUpdate weekOffset timesheetEntry.workedOn showApproved showAllStaff showSuggestions staffFilterId message True
             else do
                 setErrorMessage message
-                redirectToPath (timesheetWeekUrl weekOffset showApproved showAllStaff staffFilterId)
+                redirectToPath (timesheetWeekUrl weekOffset showApproved showAllStaff showSuggestions staffFilterId)
 
 timesheetEntryHasPayrollProvenance :: (?modelContext :: ModelContext) => TimesheetEntry -> IO Bool
 timesheetEntryHasPayrollProvenance timesheetEntry = do
@@ -56,6 +58,13 @@ ensureTimesheetVisibility entry =
                 maybeStaff <- fetchCurrentUserStaff
                 let ownsEntry = maybe False (\staff -> unpackId (get #id staff) == entry.staffId) maybeStaff
                 accessDeniedUnless ownsEntry
+
+ensureRosterDerivedIdentityUnchanged :: (?context :: ControllerContext) => TimesheetEntry -> TimesheetEntry -> IO ()
+ensureRosterDerivedIdentityUnchanged existingEntry updatedEntry =
+    when (isJust existingEntry.sourceRosterSlotId) do
+        accessDeniedUnless (updatedEntry.staffId == existingEntry.staffId)
+        accessDeniedUnless (updatedEntry.workedOn == existingEntry.workedOn)
+        accessDeniedUnless (updatedEntry.sourceRosterSlotId == existingEntry.sourceRosterSlotId)
 
 ensureStaffAssignmentAllowed :: (?context :: ControllerContext, ?modelContext :: ModelContext) => UUID.UUID -> IO ()
 ensureStaffAssignmentAllowed staffId = do

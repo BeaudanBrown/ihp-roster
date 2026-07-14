@@ -7,6 +7,23 @@
 - Shift duration caps and sanity checks apply (e.g. max duration, break <= shift duration).
 - UI should reuse the shared quarter-hour modal time picker component (same as roster), while persisting canonical local wall-clock values as `HH:MM` for time-only fields.
 
+## Roster-derived Timesheet suggestions
+
+- Complete eligible shifts on active live rosters are derived immediately as
+  transient **Timesheet suggestions**, including future shifts.
+- Suggestions are not stored rows or statuses. Returning the roster to draft
+  hides them; no elapsed grace period may create an entry.
+- Staff may create their own suggestion. Managers may create suggestions within
+  their normal Timesheet staff scope.
+- Create snapshots current values into one unapproved **Timesheet entry** and
+  records immutable roster-slot provenance. Clicking the Rostered card opens the
+  same prefilled form shape as an entry; time, break, shift type, and authorized
+  comments may change, but source staff/date/link may not.
+- Approval remains a separate manager action.
+- Ad-hoc entries remain valid, unlinked, and do not consume a suggestion.
+- One active linked entry per roster slot is enforced under concurrent requests.
+  Soft-deleting it restores the suggestion without deleting history.
+
 ## Timesheet edit windows
 
 - Staff edits are restricted to configured operational window.

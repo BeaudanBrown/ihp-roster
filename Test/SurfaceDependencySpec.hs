@@ -51,7 +51,7 @@ tests = do
         it "selects affected timesheet fragments from generated dependencies" do
             let venueId = fromWords 1 0 0 0
             let scopeValue = TimesheetWeekScopeValue venueId 2
-            let mountState = TimesheetsMountStateValue True True Nothing
+            let mountState = TimesheetsMountStateValue True True True Nothing
             let candidates = timesheetsCandidateMountedFragments scopeValue mountState
             let affectedByDay = planMountedFragments (Set.fromList [timesheetDayResource venueId 2 4]) (timesheetsSurfaceScope scopeValue) candidates
             let affectedByWeek = planMountedFragments (Set.fromList [timesheetWeekResource venueId 2]) (timesheetsSurfaceScope scopeValue) candidates
@@ -62,7 +62,7 @@ tests = do
         it "coalesces actor mount keys through the same dependency plan as passive subscriptions" do
             let venueId = fromWords 1 0 0 0
             let scopeValue = TimesheetWeekScopeValue venueId 2
-            let mountState = TimesheetsMountStateValue True True Nothing
+            let mountState = TimesheetsMountStateValue True True True Nothing
             let scope = timesheetsSurfaceScope scopeValue
             let mountedFragments = timesheetsCandidateMountedFragments scopeValue mountState
             let duplicatedMount = mountedFragments <> mountedFragments

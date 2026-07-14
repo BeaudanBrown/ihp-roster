@@ -55,7 +55,6 @@ renderVenueSettingsSection venueConfig =
             <div class="admin-settings-grid">
                 {renderRosterTimePickerWindowForm venueConfig}
                 {renderRosterEndTimesForm venueConfig}
-                {renderAutoTimesheetCreationForm venueConfig}
             </div>
         |]
 
@@ -97,19 +96,6 @@ renderRosterEndTimesForm venueConfig =
         </div>
         <div class="admin-setting-row-control">
             {renderVenueSettingToggle "venue-roster-end-times-enabled" "rosterEndTimesEnabled" venueConfig.rosterEndTimesEnabled}
-        </div>
-    |]
-
-renderAutoTimesheetCreationForm :: VenueConfig -> Html
-renderAutoTimesheetCreationForm venueConfig =
-    renderFrontendSurfaceActionForm (surfaceActionValue @Surface.AdminVenueSettingsSurface @Surface.UpdateVenueConfig) venueSettingRoute [hsx|
-        <input type="hidden" name="configField" value="autoTimesheetCreationEnabled" />
-        <div class="admin-setting-row-copy">
-            <div class="fw-semibold">Auto-create pending timesheets</div>
-            <p class="small app-muted mb-0">When a live rostered shift ends, create a pending timesheet after a 2-hour grace period.</p>
-        </div>
-        <div class="admin-setting-row-control">
-            {renderVenueSettingToggle "venue-auto-timesheet-creation-enabled" "autoTimesheetCreationEnabled" venueConfig.autoTimesheetCreationEnabled}
         </div>
     |]
 

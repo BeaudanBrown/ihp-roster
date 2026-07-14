@@ -132,6 +132,50 @@ tests = beforeAll testContext do
 
                 result `shouldSatisfy` isLeft
 
+        it "keeps roster-derived timesheet staff, date, and source immutable" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Timesheet Provenance Guard Venue"
+                sourceStaff <- createStaffRecord venue Nothing "Source" "Staff"
+                otherStaff <- createStaffRecord venue Nothing "Other" "Staff"
+                rosterWeek <- createRosterWeekRecord venue 0 True
+                rosterDay <- createRosterDayRecord rosterWeek 1
+                slotName <- fetchSlotNameRecord venue "Early"
+                rosterSlot <- createRosterSlotRecord rosterDay slotName (Just sourceStaff) 0
+                shiftType <- ensureVenueDefaultShiftType venue
+                linkedEntry <-
+                    newRecord @TimesheetEntry
+                        |> set #venueId (unpackId venue.id)
+                        |> set #staffId (unpackId sourceStaff.id)
+                        |> set #shiftTypeId (unpackId shiftType.id)
+                        |> set #workedOn defaultWeekEpoch
+                        |> set #startTime (TimeOfDay 9 0 0)
+                        |> set #endTime (TimeOfDay 17 0 0)
+                        |> set #sourceRosterSlotId (Just (unpackId rosterSlot.id))
+                        |> createRecord
+
+                result <-
+                    try
+                        ( sqlExecDiscardResult
+                            "UPDATE timesheet_entries SET staff_id = ?, worked_on = ?, source_roster_slot_id = NULL WHERE id = ?"
+                            (unpackId otherStaff.id, addDays 1 defaultWeekEpoch, unpackId linkedEntry.id)
+                        ) :: IO (Either SomeException ())
+
+                result `shouldSatisfy` isLeft
+                retainedEntry <- fetch linkedEntry.id
+                retainedEntry.staffId `shouldBe` unpackId sourceStaff.id
+                retainedEntry.workedOn `shouldBe` defaultWeekEpoch
+                retainedEntry.sourceRosterSlotId `shouldBe` Just (unpackId rosterSlot.id)
+
+                secondRosterSlot <- createRosterSlotRecord rosterDay slotName (Just sourceStaff) 1
+                adHocEntry <- createTimesheetEntryRecord venue sourceStaff (addDays 1 defaultWeekEpoch)
+                linkAfterInsertResult <-
+                    try
+                        ( sqlExecDiscardResult
+                            "UPDATE timesheet_entries SET source_roster_slot_id = ? WHERE id = ?"
+                            (unpackId secondRosterSlot.id, unpackId adHocEntry.id)
+                        ) :: IO (Either SomeException ())
+                linkAfterInsertResult `shouldSatisfy` isLeft
+
         it "rejects direct SQL leave requests whose staff belongs to another venue" $ withContext do
             withCleanDb do
                 venueA <- createVenueWithConfig "Tenant Leave A"

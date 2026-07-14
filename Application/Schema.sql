@@ -370,6 +370,8 @@ CREATE TABLE day_names (
     FOREIGN KEY (archived_by_user_id) REFERENCES users (id) ON DELETE RESTRICT,
     CHECK ((weekday_index >= 0) AND (weekday_index <= 6))
 );
+-- auto_timesheet_creation_enabled is a deprecated compatibility column;
+-- background roster-to-timesheet creation is retired.
 CREATE TABLE venue_config (
     id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
     venue_id UUID NOT NULL,
@@ -1509,7 +1511,7 @@ CREATE INDEX idx_timesheet_entries_venue_staff ON timesheet_entries (venue_id, s
 CREATE INDEX idx_timesheet_entries_venue_worked_on ON timesheet_entries (venue_id, worked_on) WHERE deleted_at IS NULL;
 CREATE INDEX idx_timesheet_entries_staff_pay_version ON timesheet_entries (staff_pay_version_id);
 CREATE INDEX idx_timesheet_entries_shift_type_pay_version ON timesheet_entries (shift_type_pay_version_id);
-CREATE UNIQUE INDEX idx_timesheet_entries_source_roster_slot ON timesheet_entries (source_roster_slot_id) WHERE source_roster_slot_id IS NOT NULL;
+CREATE UNIQUE INDEX idx_timesheet_entries_source_roster_slot ON timesheet_entries (source_roster_slot_id) WHERE source_roster_slot_id IS NOT NULL AND deleted_at IS NULL;
 CREATE INDEX idx_timesheet_entry_versions_entry_created_at ON timesheet_entry_versions (timesheet_entry_id, created_at DESC);
 CREATE INDEX idx_leave_requests_venue_staff ON leave_requests (venue_id, staff_id) WHERE deleted_at IS NULL;
 CREATE INDEX idx_leave_requests_venue_start_date ON leave_requests (venue_id, start_date) WHERE deleted_at IS NULL;
@@ -1852,6 +1854,24 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+CREATE OR REPLACE FUNCTION enforce_roster_derived_timesheet_identity_immutable()
+RETURNS TRIGGER
+AS $$
+BEGIN
+    IF (OLD.source_roster_slot_id IS NOT NULL OR NEW.source_roster_slot_id IS NOT NULL)
+        AND (
+            NEW.source_roster_slot_id IS DISTINCT FROM OLD.source_roster_slot_id
+            OR NEW.staff_id IS DISTINCT FROM OLD.staff_id
+            OR NEW.worked_on IS DISTINCT FROM OLD.worked_on
+        )
+    THEN
+        RAISE EXCEPTION 'roster-derived timesheet staff, worked date, and source are immutable';
+    END IF;
+
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
 CREATE OR REPLACE FUNCTION enforce_xero_connection_venue_integrity()
 RETURNS TRIGGER
 AS $$
@@ -1959,6 +1979,7 @@ CREATE TRIGGER enforce_staff_shift_preference_venue_integrity BEFORE INSERT OR U
 CREATE TRIGGER enforce_staff_document_venue_integrity BEFORE INSERT OR UPDATE ON staff_documents FOR EACH ROW EXECUTE FUNCTION enforce_staff_document_venue_integrity();
 CREATE TRIGGER enforce_leave_request_venue_integrity BEFORE INSERT OR UPDATE ON leave_requests FOR EACH ROW EXECUTE FUNCTION enforce_leave_request_venue_integrity();
 CREATE TRIGGER enforce_timesheet_entry_venue_integrity BEFORE INSERT OR UPDATE ON timesheet_entries FOR EACH ROW EXECUTE FUNCTION enforce_timesheet_entry_venue_integrity();
+CREATE TRIGGER enforce_roster_derived_timesheet_identity_immutable BEFORE UPDATE ON timesheet_entries FOR EACH ROW EXECUTE FUNCTION enforce_roster_derived_timesheet_identity_immutable();
 CREATE TRIGGER enforce_xero_sync_runs_venue_integrity BEFORE INSERT OR UPDATE ON xero_sync_runs FOR EACH ROW EXECUTE FUNCTION enforce_xero_connection_venue_integrity();
 CREATE TRIGGER enforce_xero_employees_venue_integrity BEFORE INSERT OR UPDATE ON xero_employees FOR EACH ROW EXECUTE FUNCTION enforce_xero_connection_venue_integrity();
 CREATE TRIGGER enforce_staff_xero_pay_item_venue BEFORE INSERT OR UPDATE ON staff FOR EACH ROW EXECUTE FUNCTION enforce_imported_xero_pay_item_venue_integrity();

@@ -8,7 +8,9 @@ module Web.RosterWeeks.Mutations
     , removeRosterDayRowMutation
     , repackRosterWeekMutation
     , rosterDayTouchedResources
+    , rosterSlotMutationTouchedResources
     , rosterSlotTouchedResources
+    , rosterWeekLiveStatusTouchedResources
     , rosterWeekTouchedResources
     , saveRosterSlotMutation
     , toggleRosterDayClosedMutation
@@ -19,9 +21,6 @@ module Web.RosterWeeks.Mutations
     ) where
 
 import Application.Helper.SurfaceResource
-import Application.RosterTimesheets.Automation (cancelPendingRosterTimesheetCreationJobsForWeek,
-                                                enqueueRosterTimesheetCreationJobsForWeek,
-                                                rosterSlotHasGeneratedTimesheet)
 import Data.Coerce (coerce)
 import Data.List (nub)
 import Data.Time (getCurrentTime)
@@ -56,25 +55,18 @@ copyRosterWeekFromSourceMutation rosterGroupId sourceWeek targetWeekOffset = do
             Nothing         -> copyRosterWeek sourceWeek targetWeekOffset
     invalidateTouchedResources "roster.week.copy" (liveMutationResult targetWeek (rosterWeekTouchedResources rosterGroupId targetWeekOffset))
 
-toggleRosterWeekLiveStatusMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id RosterGroup -> RosterWeek -> Bool -> IO (LiveMutationResult (RosterWeek, Int))
+toggleRosterWeekLiveStatusMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id RosterGroup -> RosterWeek -> Bool -> IO (LiveMutationResult RosterWeek)
 toggleRosterWeekLiveStatusMutation rosterGroupId rosterWeek nextLiveStatus = do
-    (updatedRosterWeek, queuedTimesheetJobs) <-
-        if nextLiveStatus
-            then do
-                updatedRosterWeek <- rosterWeek
-                    |> set #isLive True
-                    |> updateRecord
-                queuedTimesheetJobs <- enqueueRosterTimesheetCreationJobsForWeek (Just currentUser.id) updatedRosterWeek
-                pure (updatedRosterWeek, queuedTimesheetJobs)
-            else do
-                updatedRosterWeek <- withTransaction do
-                    updatedRosterWeek <- rosterWeek
-                        |> set #isLive False
-                        |> updateRecord
-                    _cancelledJobCount <- cancelPendingRosterTimesheetCreationJobsForWeek updatedRosterWeek
-                    pure updatedRosterWeek
-                pure (updatedRosterWeek, [])
-    invalidateTouchedResources "roster.week.live_status" (liveMutationResult (updatedRosterWeek, length queuedTimesheetJobs) (rosterWeekTouchedResources rosterGroupId rosterWeek.weekOffset))
+    updatedRosterWeek <-
+        rosterWeek
+            |> set #isLive nextLiveStatus
+            |> updateRecord
+    invalidateTouchedResources
+        "roster.week.live_status"
+        ( liveMutationResult
+            updatedRosterWeek
+            (rosterWeekLiveStatusTouchedResources rosterGroupId rosterWeek)
+        )
 
 appendRosterWeekSlotDefinitionMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id RosterGroup -> RosterWeek -> Text -> IO (LiveMutationResult RosterWeekSlotDefinition)
 appendRosterWeekSlotDefinitionMutation rosterGroupId rosterWeek slotName = do
@@ -122,7 +114,7 @@ saveRosterSlotMutation rosterGroupId rosterWeek rosterDay existingSlot newSlot =
         case existingSlot of
             Just _  -> updateRecord newSlot
             Nothing -> createRecord newSlot
-    invalidateTouchedResources "roster.slot.save" (liveMutationResult (RosterSlotMutationResult (Just persistedSlot) Nothing False) (rosterSlotTouchedResources rosterGroupId rosterWeek.weekOffset rosterDay (Just persistedSlot)))
+    invalidateTouchedResources "roster.slot.save" (liveMutationResult (RosterSlotMutationResult (Just persistedSlot) Nothing False) (rosterSlotMutationTouchedResources rosterGroupId rosterWeek rosterDay (Just persistedSlot)))
 
 moveRosterSlotMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id RosterGroup -> RosterWeek -> RosterDay -> RosterDay -> RosterSlot -> RosterSlot -> IO (LiveMutationResult RosterSlotMutationResult)
 moveRosterSlotMutation rosterGroupId rosterWeek sourceRosterDay targetRosterDay originalSlot updatedSlot = do
@@ -141,7 +133,7 @@ moveRosterSlotMutation rosterGroupId rosterWeek sourceRosterDay targetRosterDay 
                 , rosterSlotMutationPreviousStaffId = previousStaffId
                 , rosterSlotMutationShouldWarnSourceTimesheetUnchanged = shouldWarnSourceTimesheetUnchanged
                 }
-            (nub (rosterDayTouchedResources rosterGroupId rosterWeek.weekOffset sourceRosterDay <> rosterSlotTouchedResources rosterGroupId rosterWeek.weekOffset targetRosterDay (Just persistedSlot)))
+            (nub (rosterDayTouchedResources rosterGroupId rosterWeek.weekOffset sourceRosterDay <> rosterSlotMutationTouchedResources rosterGroupId rosterWeek targetRosterDay (Just persistedSlot)))
 
 updateRosterSlotMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id RosterGroup -> RosterWeek -> RosterDay -> RosterSlot -> RosterSlot -> IO (LiveMutationResult RosterSlotMutationResult)
 updateRosterSlotMutation rosterGroupId rosterWeek rosterDay originalSlot updatedSlot = do
@@ -155,7 +147,7 @@ updateRosterSlotMutation rosterGroupId rosterWeek rosterDay originalSlot updated
                 , rosterSlotMutationPreviousStaffId = previousStaffId
                 , rosterSlotMutationShouldWarnSourceTimesheetUnchanged = shouldWarnSourceTimesheetUnchanged
                 }
-            (rosterSlotTouchedResources rosterGroupId rosterWeek.weekOffset rosterDay (Just persistedSlot))
+            (rosterSlotMutationTouchedResources rosterGroupId rosterWeek rosterDay (Just persistedSlot))
 
 
 deleteRosterSlotMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id RosterGroup -> RosterWeek -> RosterDay -> RosterSlot -> IO (LiveMutationResult RosterSlotMutationResult)
@@ -174,7 +166,7 @@ deleteRosterSlotMutation rosterGroupId rosterWeek rosterDay rosterSlot = do
                 , rosterSlotMutationPreviousStaffId = previousStaffId
                 , rosterSlotMutationShouldWarnSourceTimesheetUnchanged = False
                 }
-            (rosterSlotTouchedResources rosterGroupId rosterWeek.weekOffset rosterDay (Just deletedSlot))
+            (rosterSlotMutationTouchedResources rosterGroupId rosterWeek rosterDay (Just deletedSlot))
 
 rosterWeekTouchedResources :: Id RosterGroup -> Int -> [SurfaceResourceValue]
 rosterWeekTouchedResources rosterGroupId weekOffset =
@@ -189,6 +181,20 @@ rosterSlotTouchedResources :: Id RosterGroup -> Int -> RosterDay -> Maybe Roster
 rosterSlotTouchedResources rosterGroupId weekOffset rosterDay maybeSlot =
     rosterDayTouchedResources rosterGroupId weekOffset rosterDay
 
+rosterWeekLiveStatusTouchedResources :: Id RosterGroup -> RosterWeek -> [SurfaceResourceValue]
+rosterWeekLiveStatusTouchedResources rosterGroupId rosterWeek =
+    rosterWeekTouchedResources rosterGroupId rosterWeek.weekOffset
+        <> timesheetWeekTouchedResources rosterWeek
+
+rosterSlotMutationTouchedResources :: Id RosterGroup -> RosterWeek -> RosterDay -> Maybe RosterSlot -> [SurfaceResourceValue]
+rosterSlotMutationTouchedResources rosterGroupId rosterWeek rosterDay maybeSlot =
+    rosterSlotTouchedResources rosterGroupId rosterWeek.weekOffset rosterDay maybeSlot
+        <> timesheetWeekTouchedResources rosterWeek
+
+timesheetWeekTouchedResources :: RosterWeek -> [SurfaceResourceValue]
+timesheetWeekTouchedResources rosterWeek =
+    [timesheetWeekResource rosterWeek.venueId rosterWeek.weekOffset]
+
 rosterSlotTimesheetSourceChangeRequiresWarning :: (?modelContext :: ModelContext) => RosterSlot -> RosterSlot -> IO Bool
 rosterSlotTimesheetSourceChangeRequiresWarning previous next
     | rosterSlotTimesheetSourceChanged previous next = rosterSlotHasGeneratedTimesheet previous
@@ -199,3 +205,10 @@ rosterSlotTimesheetSourceChangeRequiresWarning previous next
             || left.startTime /= right.startTime
             || left.endTime /= right.endTime
             || left.shiftTypeId /= right.shiftTypeId
+
+rosterSlotHasGeneratedTimesheet :: (?modelContext :: ModelContext) => RosterSlot -> IO Bool
+rosterSlotHasGeneratedTimesheet rosterSlot =
+    query @TimesheetEntry
+        |> filterWhere (#sourceRosterSlotId, Just (unpackId rosterSlot.id))
+        |> filterWhere (#deletedAt, Nothing)
+        |> fetchExists

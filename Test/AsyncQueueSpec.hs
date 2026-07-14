@@ -1,11 +1,14 @@
 module Test.AsyncQueueSpec where
 
 import Application.Async.Queue
+import Application.Async.Registry (dispatchAppJob)
+import Config
 import Control.Concurrent (forkIO, newEmptyMVar, putMVar, takeMVar)
 import Control.Exception (SomeException, try)
 import qualified Data.Aeson as Aeson
 import Generated.Types
 import IHP.ControllerPrelude
+import IHP.FrameworkConfig (withFrameworkConfig)
 import IHP.Job.Types
 import IHP.Prelude
 import IHP.Test.Mocking
@@ -38,6 +41,26 @@ tests = beforeAll testContext do
                     |> filterWhereIn (#status, activeAppJobStatuses)
                     |> fetch
                 length activeJobs `shouldBe` 1
+
+        it "retires a claimed legacy roster-timesheet job without creating an entry" $ withContext do
+            withCleanDb do
+                legacyJob <-
+                    newRecord @AppJob
+                        |> set #jobKind "roster_timesheet_creation"
+                        |> set #status JobStatusRunning
+                        |> createRecord
+
+                withFrameworkConfig config \frameworkConfig -> do
+                    let ?context = frameworkConfig
+                    dispatchAppJob legacyJob
+
+                retiredJob <- fetch legacyJob.id
+                retiredJob.status `shouldBe` JobStatusSucceeded
+                retiredJob.result `shouldBe` Aeson.object
+                    [ "status" Aeson..= ("retired" :: Text)
+                    , "reason" Aeson..= ("replaced_by_roster_timesheet_suggestions" :: Text)
+                    ]
+                query @TimesheetEntry |> fetchCount >>= (`shouldBe` 0)
 
         it "does not deduplicate jobs without a dedupe key" $ withContext do
             withCleanDb do

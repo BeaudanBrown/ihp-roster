@@ -9,6 +9,12 @@ Read this before editing timesheet controllers, views, or helpers.
 - Keep direct read-model construction in `Projection.hs`; do not reintroduce shared surface projection caching.
 - Keep HTMX/OOB response shape in `Responses.hs`; successful actor refreshes should go through the shared typed fragment helper, not local OOB-only fragment helpers.
 - Keep parsing and validation helpers in `Validation.hs`.
+- Roster-derived suggestions are transient projection values; persist only an
+  explicitly created `TimesheetEntry` with immutable source provenance.
+- Suggestions must use the same parameterized `renderTimesheetCard` markup as
+  persisted entries and differ visually only by opacity plus the Rostered/action
+  state; do not create parallel card HTML, typography, shape bars, palettes, or
+  border systems.
 - Use IHP form helpers plus explicit server-side checks for required fields.
 - When changing visible timesheet entry, week navigation, approval, provenance, or role-specific review behavior, update the `timesheets` topic in `Application.Helper.View.PageHelp`.
 
@@ -19,8 +25,11 @@ Read this before editing timesheet controllers, views, or helpers.
   redirect, or no-op, never an unhandled 500.
 - If `workedOn` changes, old and new visible day fragments may both need
   refresh.
-- Avoid broad body-text assertions in tests; use stable shells and seeded
-  labels.
+- Avoid broad body-text assertions in tests; use stable shells, source ids, and
+  seeded labels.
+- Active `source_roster_slot_id` uniqueness is partial on `deleted_at IS NULL`;
+  materialization must serialize on the source slot rather than surfacing a
+  uniqueness race.
 
 ## Verification
 

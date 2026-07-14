@@ -336,7 +336,7 @@ tests = describe "Schema" do
         schemaSqlText `shouldSatisfy` Text.isInfixOf "CREATE UNIQUE INDEX idx_venue_onboarding_invitations_pending_email_unique ON venue_onboarding_invitations (LOWER(email)) WHERE status = 'pending' AND accepted_at IS NULL;"
         schemaSqlText `shouldSatisfy` Text.isInfixOf "source_roster_slot_id UUID DEFAULT NULL"
         schemaSqlText `shouldSatisfy` Text.isInfixOf "FOREIGN KEY (source_roster_slot_id) REFERENCES roster_slots (id) ON DELETE RESTRICT"
-        schemaSqlText `shouldSatisfy` Text.isInfixOf "CREATE UNIQUE INDEX idx_timesheet_entries_source_roster_slot ON timesheet_entries (source_roster_slot_id) WHERE source_roster_slot_id IS NOT NULL;"
+        schemaSqlText `shouldSatisfy` Text.isInfixOf "CREATE UNIQUE INDEX idx_timesheet_entries_source_roster_slot ON timesheet_entries (source_roster_slot_id) WHERE source_roster_slot_id IS NOT NULL AND deleted_at IS NULL;"
         schemaSqlText `shouldSatisfy` Text.isInfixOf "CREATE UNIQUE INDEX idx_roster_groups_one_active_default ON roster_groups (venue_id) WHERE is_default = TRUE AND is_active = TRUE AND archived_at IS NULL;"
         schemaSqlText `shouldSatisfy` Text.isInfixOf "CREATE UNIQUE INDEX idx_shift_types_active_name ON shift_types (venue_id, name) WHERE is_active = TRUE AND archived_at IS NULL;"
         schemaSqlText `shouldSatisfy` Text.isInfixOf "colour_key TEXT DEFAULT '' NOT NULL"
@@ -364,6 +364,17 @@ tests = describe "Schema" do
         automationMigrationSqlText `shouldSatisfy` Text.isInfixOf "ADD COLUMN IF NOT EXISTS source_roster_slot_id UUID DEFAULT NULL"
         automationMigrationSqlText `shouldSatisfy` Text.isInfixOf "CREATE UNIQUE INDEX IF NOT EXISTS idx_timesheet_entries_source_roster_slot"
 
+    it "migrates roster-derived timesheet suggestions without deleting historical data" do
+        migrationSqlText <- TextIO.readFile "Application/Migration/1784005193.sql"
+        migrationSqlText `shouldSatisfy` Text.isInfixOf "WHERE source_roster_slot_id IS NOT NULL\n      AND deleted_at IS NULL"
+        migrationSqlText `shouldSatisfy` Text.isInfixOf "SET auto_timesheet_creation_enabled = FALSE"
+        migrationSqlText `shouldSatisfy` Text.isInfixOf "WHERE job_kind = 'roster_timesheet_creation'"
+        migrationSqlText `shouldSatisfy` Text.isInfixOf "'replaced_by_roster_timesheet_suggestions'"
+        migrationSqlText `shouldSatisfy` Text.isInfixOf "'job_status_running'"
+        migrationSqlText `shouldSatisfy` Text.isInfixOf "CREATE TRIGGER enforce_roster_derived_timesheet_identity_immutable"
+        migrationSqlText `shouldSatisfy` (not . Text.isInfixOf "DROP COLUMN")
+        migrationSqlText `shouldSatisfy` (not . Text.isInfixOf "DELETE FROM timesheet_entries")
+
     it "enforces database-level tenant integrity for cross-venue relationships" do
         schemaSqlText <- TextIO.readFile "Application/Schema.sql"
         migrationSqlText <- readHistoricalMigrationText "Application/Migration/1777420100.sql"
@@ -371,6 +382,7 @@ tests = describe "Schema" do
         schemaSqlText `shouldSatisfy` Text.isInfixOf "CREATE TRIGGER enforce_roster_week_venue_integrity BEFORE INSERT OR UPDATE ON roster_weeks"
         schemaSqlText `shouldSatisfy` Text.isInfixOf "CREATE TRIGGER enforce_staff_roster_group_venue_integrity BEFORE INSERT OR UPDATE ON staff_roster_groups"
         schemaSqlText `shouldSatisfy` Text.isInfixOf "CREATE TRIGGER enforce_timesheet_entry_venue_integrity BEFORE INSERT OR UPDATE ON timesheet_entries"
+        schemaSqlText `shouldSatisfy` Text.isInfixOf "CREATE TRIGGER enforce_roster_derived_timesheet_identity_immutable BEFORE UPDATE ON timesheet_entries"
         schemaSqlText `shouldSatisfy` Text.isInfixOf "CREATE TRIGGER enforce_xero_staff_mappings_venue_integrity BEFORE INSERT OR UPDATE ON xero_staff_mappings"
         schemaSqlText `shouldSatisfy` Text.isInfixOf "roster slot shift_type_id must stay within roster week venue"
         schemaSqlText `shouldSatisfy` Text.isInfixOf "timesheet entry source_roster_slot_id must stay within entry venue"

@@ -61,7 +61,6 @@ import qualified Test.PaySpec
 import qualified Test.ProfilingSpec
 import qualified Test.PublicHolidaySyncSpec
 import qualified Test.RosterGridSpec
-import qualified Test.RosterTimesheetsAutomationSpec
 import qualified Test.SchemaSpec
 import qualified Test.StaffDocumentsRsaSpec
 import qualified Test.StripeBillingSpec
@@ -261,7 +260,6 @@ allSuites =
     , pureSuite "Profiling" 5 Test.ProfilingSpec.tests
     , databaseSuite "PublicHolidaySync" 15 Test.PublicHolidaySyncSpec.tests
     , databaseSuite "FwcMapdSync" 20 Test.FwcMapdSyncSpec.tests
-    , databaseSuite "RosterTimesheetsAutomation" 20 Test.RosterTimesheetsAutomationSpec.tests
     , databaseSuite "VenueAccess" 35 Test.Controller.VenueAccessSpec.tests
     , databaseSuite "FixedExportGolden" 30 Test.Controller.FixedExportGoldenSpec.tests
     , databaseSuite "StaffController" 35 Test.Controller.StaffSpec.tests

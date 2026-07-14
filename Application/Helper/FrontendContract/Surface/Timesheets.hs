@@ -5,6 +5,7 @@ module Application.Helper.FrontendContract.Surface.Timesheets
     ( DayOffset
     , ShowAllStaff
     , ShowApproved
+    , ShowSuggestions
     , StaffFilterId
     , TimesheetDay
     , TimesheetDayColumns
@@ -15,6 +16,7 @@ module Application.Helper.FrontendContract.Surface.Timesheets
     , NavigateTimesheetWeek
     , UpdateTimesheetFilters
     , ApproveTimesheetEntry
+    , CreateTimesheetEntryFromSuggestion
     , UnapproveTimesheetEntry
     , TimesheetWeek
     , TimesheetsMountState
@@ -34,6 +36,7 @@ data WeekOffset
 data TimesheetsMountState
 data ShowApproved
 data ShowAllStaff
+data ShowSuggestions
 data StaffFilterId
 
 data TimesheetToolbar
@@ -48,6 +51,7 @@ data TimesheetWeekBoundaryConfig
 data NavigateTimesheetWeek
 data UpdateTimesheetFilters
 data ApproveTimesheetEntry
+data CreateTimesheetEntryFromSuggestion
 data UnapproveTimesheetEntry
 data TimesheetWeekShell
 
@@ -67,6 +71,7 @@ type TimesheetScopeBundle =
      , MountState TimesheetsMountState
         '[ Field ShowApproved 'WireBool
          , Field ShowAllStaff 'WireBool
+         , Field ShowSuggestions 'WireBool
          , Field StaffFilterId ('WireOptional 'WireUUID)
          ]
      ]
@@ -77,6 +82,7 @@ type TimesheetActionBundle =
         '[ Field WeekOffset 'WireInt
          , Field ShowApproved 'WireBool
          , Field ShowAllStaff 'WireBool
+         , Field ShowSuggestions 'WireBool
          , OptionalField StaffFilterId 'WireUUID
          ]
         '[ 'HtmxMethod 'HtmxGet
@@ -88,6 +94,7 @@ type TimesheetActionBundle =
         '[ Field WeekOffset 'WireInt
          , Field ShowApproved 'WireBool
          , Field ShowAllStaff 'WireBool
+         , Field ShowSuggestions 'WireBool
          , OptionalField StaffFilterId 'WireUUID
          ]
         '[ 'HtmxMethod 'HtmxGet
@@ -95,10 +102,22 @@ type TimesheetActionBundle =
          , 'HtmxPushUrl 'HtmxPushUrlTrue
          , 'HtmxSync ('HtmxSyncOn ('HtmxClosest ('HtmxId TimesheetWeekShell)) 'HtmxSyncReplace)
          ]
+     , Action CreateTimesheetEntryFromSuggestion
+        '[ Field WeekOffset 'WireInt
+         , Field ShowApproved 'WireBool
+         , Field ShowAllStaff 'WireBool
+         , Field ShowSuggestions 'WireBool
+         , OptionalField StaffFilterId 'WireUUID
+         ]
+        '[ 'HtmxMethod 'HtmxPost
+         , 'HtmxSwap 'HtmxNoSwap
+         , 'HtmxPushUrl 'HtmxPushUrlFalse
+         ]
      , Action ApproveTimesheetEntry
         '[ Field WeekOffset 'WireInt
          , Field ShowApproved 'WireBool
          , Field ShowAllStaff 'WireBool
+         , Field ShowSuggestions 'WireBool
          , OptionalField StaffFilterId 'WireUUID
          ]
         '[ 'HtmxMethod 'HtmxPost
@@ -109,6 +128,7 @@ type TimesheetActionBundle =
         '[ Field WeekOffset 'WireInt
          , Field ShowApproved 'WireBool
          , Field ShowAllStaff 'WireBool
+         , Field ShowSuggestions 'WireBool
          , OptionalField StaffFilterId 'WireUUID
          ]
         '[ 'HtmxMethod 'HtmxPost

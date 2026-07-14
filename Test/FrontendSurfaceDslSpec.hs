@@ -362,6 +362,7 @@ tests = describe "FrontendSurface DSL foundation" do
             `shouldBe` Just
                 [ ("showApproved", WireBoolIR)
                 , ("showAllStaff", WireBoolIR)
+                , ("showSuggestions", WireBoolIR)
                 , ("staffFilterId", WireOptionalIR WireUuidIR)
                 ]
         let navigateAction = surfaceActionValue @TimesheetsSurface.TimesheetsSurface @TimesheetsSurface.NavigateTimesheetWeek

@@ -130,6 +130,7 @@ timesheetDayModel panel =
      in
     TimesheetDayRenderModel
         { dayEntries = panel.quickToolsTimesheetEntries
+        , daySuggestions = []
         , dayStaffMembers = panel.quickToolsStaffMembers
         , dayShiftTypes = panel.quickToolsShiftTypes
         , dayToday = panel.quickToolsOperationalDay
@@ -138,6 +139,7 @@ timesheetDayModel panel =
         , dayWeekStartDate = panel.quickToolsTimesheetWeekStartDate
         , dayShowApproved = True
         , dayShowAllStaff = False
+        , dayShowSuggestions = False
         , dayStaffFilterId = Nothing
         , dayOffset = operationalDayOffset
         }
@@ -151,6 +153,7 @@ timesheetSurface panel =
         mountState = TimesheetsMountStateValue
             { timesheetsMountShowApproved = True
             , timesheetsMountShowAllStaff = False
+            , timesheetsMountShowSuggestions = False
             , timesheetsMountStaffFilterId = Nothing
             }
      in timesheetsDaySurfaceImpl scope mountState (quickToolsTimesheetDayOffset panel)

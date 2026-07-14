@@ -44,18 +44,16 @@ lands.
 - Publishing requires every staffed shift to have a start time, valid end time,
   and shift type. Shift end times are always collected; the venue setting only
   controls whether end times are rendered in the roster grid/cards.
-- Publishing an auto-timesheet-enabled roster queues `roster_timesheet_creation`
-  app jobs for complete linked-staff slots using the slot state and calculated
-  run time at the moment of publishing. Complete trial-staff slots are valid for
-  roster publishing but are roster-only and do not queue timesheet creation jobs.
-- Moving a live roster week back to draft cancels that week's not-started and
-  retry `roster_timesheet_creation` jobs by marking them succeeded with result
-  `{status: "cancelled", reason: "roster_week_moved_to_draft"}`. Running jobs
-  are not force-cancelled; they rely on their execution-time live-week checks and
-  may remain active until the worker finishes them.
-- Republishing after draft edits creates fresh roster-timesheet jobs from the
-  current complete slot state and recalculated run times after older active jobs
-  for those slots have been cancelled or finished.
+- Publishing never queues or creates Timesheet entries. Complete linked-staff
+  shifts become transient Timesheet suggestions immediately, including future
+  live weeks. Complete trial-staff shifts remain roster-only and do not produce
+  suggestions.
+- Moving a live roster week back to draft immediately hides its unmaterialized
+  Timesheet suggestions. Existing roster-derived Timesheet entries remain
+  immutable snapshots and are not changed or deleted.
+- Draft edits and republishing change the next derived suggestion. If a
+  Timesheet entry was already created from the slot, roster edits warn that the
+  Timesheet snapshot remains unchanged and must be edited from Timesheets.
 - Roster forms must submit full cell payloads so single-field edits do not
   clear sibling slot fields.
 - Roster conflict warning highlights are manager-controlled display chrome. They
@@ -179,6 +177,9 @@ lands.
 - The roster shell stays subscribed even when a week is empty or hidden so
   create/copy/publish transitions can update passive viewers.
 - Actor browser responses return HTMX fragments or OOB swaps.
+- Roster publication/draft transitions and slot mutations also touch the
+  corresponding Timesheet week resource so open Timesheets pages refetch
+  authorized suggestion fragments.
 - Passive viewers receive websocket invalidations containing semantic fragment keys; each browser resolves them through its local roster mount descriptors.
 - Fragment GET routes must enforce the same venue/visibility rules as the full
   page.

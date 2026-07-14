@@ -119,7 +119,6 @@ instance Controller UsersController where
                         let staff = newRecord @Staff
                         let venueRosterWeekStartsOn = defaultRosterWeekStartsOn
                         let venueRosterEndTimesEnabled = True
-                        let venueAutoTimesheetCreationEnabled = False
                         setTitle "Create Venue"
                         render VenueOnboardingSignupView
                             { user
@@ -128,7 +127,6 @@ instance Controller UsersController where
                             , staff
                             , venueRosterWeekStartsOn
                             , venueRosterEndTimesEnabled
-                            , venueAutoTimesheetCreationEnabled
                             }
                     _ -> do
                         setErrorMessage "That onboarding link is no longer valid. Contact support for a new venue owner invitation."
@@ -151,7 +149,6 @@ instance Controller UsersController where
                         let venueTimezone = defaultVenueBootstrapTimezone
                         let venueRosterWeekStartsOn = fromMaybe defaultRosterWeekStartsOn (paramOrNothing @Int "rosterWeekStartsOn")
                         let venueRosterEndTimesEnabled = isJust (paramOrNothing @Text "rosterEndTimesEnabled")
-                        let venueAutoTimesheetCreationEnabled = isJust (paramOrNothing @Text "autoTimesheetCreationEnabled")
                         let user = newRecord @User |> set #email invitation.email
                         let staff = buildRequiredPersonalProfileStaff (newRecord @Staff)
                         let venue =
@@ -176,7 +173,6 @@ instance Controller UsersController where
                                         , staff
                                         , venueRosterWeekStartsOn
                                         , venueRosterEndTimesEnabled
-                                        , venueAutoTimesheetCreationEnabled
                                         }
                                 Right user -> do
                                     let venueWithName =
@@ -195,7 +191,6 @@ instance Controller UsersController where
                                                 , staff
                                                 , venueRosterWeekStartsOn
                                                 , venueRosterEndTimesEnabled
-                                                , venueAutoTimesheetCreationEnabled
                                                 }
                                         Right staff -> case venueWithName.meta.annotations of
                                             [] | venueRosterWeekStartsOn `elem` validRosterWeekStartDays -> do
@@ -213,7 +208,6 @@ instance Controller UsersController where
                                                             , venueBootstrapTimezone = venueTimezone
                                                             , venueBootstrapRosterWeekStartsOn = venueRosterWeekStartsOn
                                                             , venueBootstrapRosterEndTimesEnabled = venueRosterEndTimesEnabled
-                                                            , venueBootstrapAutoTimesheetCreationEnabled = venueAutoTimesheetCreationEnabled
                                                             }
                                                     (createdVenue, _) <- createVenueWithBootstrapConfigInCurrentTransaction bootstrapConfig
                                                     membership <- provisionVenueMembership createdVenue user "venue_owner"
@@ -281,7 +275,6 @@ instance Controller UsersController where
                                                     , staff
                                                     , venueRosterWeekStartsOn
                                                     , venueRosterEndTimesEnabled
-                                                    , venueAutoTimesheetCreationEnabled
                                                     }
                     _ -> do
                         setErrorMessage "That onboarding link is no longer valid. Contact support for a new venue owner invitation."
