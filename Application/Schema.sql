@@ -1861,11 +1861,10 @@ BEGIN
     IF (OLD.source_roster_slot_id IS NOT NULL OR NEW.source_roster_slot_id IS NOT NULL)
         AND (
             NEW.source_roster_slot_id IS DISTINCT FROM OLD.source_roster_slot_id
-            OR NEW.staff_id IS DISTINCT FROM OLD.staff_id
             OR NEW.worked_on IS DISTINCT FROM OLD.worked_on
         )
     THEN
-        RAISE EXCEPTION 'roster-derived timesheet staff, worked date, and source are immutable';
+        RAISE EXCEPTION 'roster-derived timesheet worked date and source are immutable';
     END IF;
 
     RETURN NEW;

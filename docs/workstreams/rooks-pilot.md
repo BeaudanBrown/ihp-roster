@@ -68,13 +68,14 @@ custom pay item overrides.
 
 ### Roster-derived Timesheet suggestions
 
-- Complete linked-staff shifts on live rosters appear immediately as transient
-  Rostered cards in Timesheets, including future weeks.
+- Complete linked-staff shifts on live rosters appear immediately as transient,
+  accent-highlighted suggestion cards in Timesheets, including future weeks.
 - Staff create their own entries explicitly; managers can create entries within
   their normal Timesheets staff scope.
-- Quick Create or opening the Rostered card and saving its prefilled form
-  produces an unapproved snapshot with immutable roster-source provenance.
-  Approval remains a separate manager action.
+- Quick Create or opening the highlighted suggestion card and saving its
+  prefilled form produces an unapproved snapshot with immutable roster-source
+  provenance. Managers may later correct its staff assignment while its worked
+  date and source link remain fixed. Approval remains a separate manager action.
 - Ad-hoc entries remain allowed and do not consume a suggestion.
 - Returning a roster to draft hides unmaterialized suggestions. Later roster
   edits never mutate an already-created Timesheet entry.

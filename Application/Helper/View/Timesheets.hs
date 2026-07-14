@@ -139,15 +139,15 @@ renderTimesheetFormOriginNotice AdHocTimesheetFormWithSuggestion = [hsx|
     </div>
 |]
 renderTimesheetFormOriginNotice RosteredTimesheetForm = [hsx|
-    <div class="alert alert-info d-flex align-items-start gap-2" role="status">
-        <span class="badge text-bg-info">Rostered</span>
-        <span>This form starts from the current roster shift. Your changes are saved only to the new timesheet entry.</span>
+    <div class="alert alert-info" role="status">
+        <strong>Roster suggestion.</strong>
+        This form starts from the current roster shift. Your changes are saved only to the new timesheet entry.
     </div>
 |]
 renderTimesheetFormOriginNotice RosteredTimesheetEntryForm = [hsx|
-    <div class="alert alert-info d-flex align-items-start gap-2" role="status">
-        <span class="badge text-bg-info">Rostered</span>
-        <span>This entry is a snapshot of a roster shift. Its staff member and date stay fixed; edits do not change the roster.</span>
+    <div class="alert alert-info" role="status">
+        <strong>Roster-derived entry.</strong>
+        This entry is a snapshot of a roster shift. Its roster source and date stay fixed; edits do not change the roster.
     </div>
 |]
 
@@ -155,7 +155,9 @@ renderStaffFieldForOrigin :: (?context :: ControllerContext) => TimesheetFormOri
 renderStaffFieldForOrigin AdHocTimesheetForm entry staffMembers = renderStaffField entry staffMembers
 renderStaffFieldForOrigin AdHocTimesheetFormWithSuggestion entry staffMembers = renderStaffField entry staffMembers
 renderStaffFieldForOrigin RosteredTimesheetForm entry staffMembers = renderRosteredStaffField entry staffMembers
-renderStaffFieldForOrigin RosteredTimesheetEntryForm entry staffMembers = renderRosteredStaffField entry staffMembers
+renderStaffFieldForOrigin RosteredTimesheetEntryForm entry staffMembers
+    | currentUserIsManager = renderStaffField entry staffMembers
+    | otherwise = renderRosteredStaffField entry staffMembers
 
 renderRosteredStaffField :: (?context :: ControllerContext) => TimesheetEntry -> [Staff] -> Html
 renderRosteredStaffField entry staffMembers = [hsx|

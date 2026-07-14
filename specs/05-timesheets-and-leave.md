@@ -16,9 +16,10 @@
 - Staff may create their own suggestion. Managers may create suggestions within
   their normal Timesheet staff scope.
 - Create snapshots current values into one unapproved **Timesheet entry** and
-  records immutable roster-slot provenance. Clicking the Rostered card opens the
-  same prefilled form shape as an entry; time, break, shift type, and authorized
-  comments may change, but source staff/date/link may not.
+  records immutable roster-slot provenance. Clicking the highlighted suggestion
+  card opens the same prefilled form shape as an entry; time, break, shift type,
+  and authorized comments may change before creation. After creation, managers
+  may correct staff assignment while the worked date and source link stay fixed.
 - Approval remains a separate manager action.
 - Ad-hoc entries remain valid, unlinked, and do not consume a suggestion.
 - One active linked entry per roster slot is enforced under concurrent requests.

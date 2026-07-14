@@ -10,7 +10,8 @@ submission work belongs in `docs/workstreams/` until it lands.
   roster shift. It is not a database row and is not a timesheet status.
 - A **Timesheet entry** is the persisted work record used for review, approval,
   export, and payroll.
-- Customer-facing suggestion cards use the badge **Rostered**.
+- Customer-facing suggestion cards use an accent-highlighted treatment and the
+  **Create** action rather than a status badge.
 
 ## Current Contract
 
@@ -48,8 +49,9 @@ submission work belongs in `docs/workstreams/` until it lands.
   user preference.
 - Suggestions use the same parameterized Timesheet card renderer as persisted
   entries, including fonts, hover behavior, time/break summary, and shape bar.
-  Opacity and the Rostered badge identify the transient state. Create is shown
-  in place of approval, and clicking the card body opens the prefilled form.
+  A full-contrast accent border and tinted card background identify the
+  transient state without a status badge. Create is shown in place of approval,
+  and clicking the card body opens the prefilled form.
 
 ## Materialization And Ad-Hoc Entries
 
@@ -59,8 +61,10 @@ submission work belongs in `docs/workstreams/` until it lands.
 - Opening the suggestion card starts from the same snapshot. Staff/date/source
   stay locked while time, break, shift type, staff comment, and authorized
   manager note remain editable before creation.
-- A roster-derived entry keeps its source staff, worked date, and source link on
-  later edits. Later roster changes never update or delete the entry.
+- On a persisted roster-derived entry, managers may correct the assigned staff
+  within their normal venue scope. Staff cannot reassign an entry. The worked
+  date and source link stay immutable, and later roster changes never update or
+  delete the entry.
 - Creation and approval are separate actions. There is no create-and-approve or
   bulk-create path.
 - The day add control always creates an unrelated ad-hoc entry with no source

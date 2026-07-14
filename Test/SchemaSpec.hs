@@ -375,6 +375,14 @@ tests = describe "Schema" do
         migrationSqlText `shouldSatisfy` (not . Text.isInfixOf "DROP COLUMN")
         migrationSqlText `shouldSatisfy` (not . Text.isInfixOf "DELETE FROM timesheet_entries")
 
+    it "migrates roster-derived staff correction without weakening date or source provenance" do
+        migrationSqlText <- TextIO.readFile "Application/Migration/1784026788.sql"
+        migrationSqlText `shouldSatisfy` Text.isInfixOf "CREATE OR REPLACE FUNCTION enforce_roster_derived_timesheet_identity_immutable()"
+        migrationSqlText `shouldSatisfy` Text.isInfixOf "NEW.source_roster_slot_id IS DISTINCT FROM OLD.source_roster_slot_id"
+        migrationSqlText `shouldSatisfy` Text.isInfixOf "NEW.worked_on IS DISTINCT FROM OLD.worked_on"
+        migrationSqlText `shouldSatisfy` (not . Text.isInfixOf "NEW.staff_id IS DISTINCT FROM OLD.staff_id")
+        migrationSqlText `shouldSatisfy` (not . Text.isInfixOf "DROP COLUMN")
+
     it "enforces database-level tenant integrity for cross-venue relationships" do
         schemaSqlText <- TextIO.readFile "Application/Schema.sql"
         migrationSqlText <- readHistoricalMigrationText "Application/Migration/1777420100.sql"

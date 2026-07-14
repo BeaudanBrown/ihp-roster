@@ -451,7 +451,7 @@ tests = beforeAll testContext do
                 workerResponse `responseBodyShouldContain` "Ava Hours"
                 workerResponse `responseBodyShouldNotContain` "Bea Hours"
 
-        it "renders a roster-derived suggestion for a complete shift on a live roster" $ withContext do
+        it "renders a highlighted roster-derived suggestion without a status badge" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Timesheet Suggestion Venue"
                 manager <- createUserRecord "timesheet-suggestion-manager@example.com" "staff" True
@@ -477,10 +477,10 @@ tests = beforeAll testContext do
                     callAction ShowTimesheetWeekAction { weekOffset = 0 }
 
                 response `responseStatusShouldBe` status200
-                response `responseBodyShouldContain` "Rostered"
                 response `responseBodyShouldContain` "Rita Rostered"
                 response `responseBodyShouldContain` cs ("data-timesheet-suggestion-id=\"" <> tshow rosterSlot.id <> "\"")
                 response `responseBodyShouldContain` "class=\"timesheet-entry-card timesheet-suggestion-card\""
+                response `responseBodyShouldNotContain` "<span class=\"badge text-bg-info\">Rostered</span>"
                 response `responseBodyShouldContain` cs (pathTo CreateTimesheetEntryFromSuggestionAction { rosterSlotId = rosterSlot.id })
                 response `responseBodyShouldContain` cs (pathTo NewTimesheetEntryFromSuggestionAction { rosterSlotId = rosterSlot.id })
                 response `responseBodyShouldContain` "timesheet-entry-card-link"
@@ -750,6 +750,7 @@ tests = beforeAll testContext do
 
                 formResponse `responseStatusShouldBe` status200
                 formResponse `responseBodyShouldContain` "This form starts from the current roster shift"
+                formResponse `responseBodyShouldNotContain` "<span class=\"badge text-bg-info\">Rostered</span>"
                 formResponse `responseBodyShouldContain` "name=\"staffId\""
                 formResponse `responseBodyShouldNotContain` "<select name=\"staffId\""
                 formResponse `responseBodyShouldContain` "name=\"startTime\" value=\"09:00\""
@@ -881,9 +882,11 @@ tests = beforeAll testContext do
                 length linkedEntries `shouldBe` 2
                 length (filter (isNothing . (.deletedAt)) linkedEntries) `shouldBe` 1
 
-        it "keeps roster-derived staff, date, and source immutable during edits" $ withContext do
+        it "lets only managers reassign roster-derived staff without changing date or source" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Timesheet Suggestion Immutable Venue"
+                venueConfig <- query @VenueConfig |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
+                _ <- updateRecord (venueConfig |> set #staffTimesheetEditWindowDays 10000)
                 manager <- createUserRecord "timesheet-suggestion-immutable-manager@example.com" "staff" True
                 _ <- createVenueMembershipRecord venue manager "manager"
                 rosteredUser <- createUserRecord "timesheet-suggestion-immutable-rostered@example.com" "staff" True
@@ -913,15 +916,57 @@ tests = beforeAll testContext do
                 query @TimesheetEntry |> fetchCount >>= (`shouldBe` 1)
                 entry <- query @TimesheetEntry |> fetchOne
 
+                workerEditResponse <- withUserAndCurrentVenue rosteredUser venue.id do
+                    withRequestHeaders [("HX-Request", "true")] do
+                        callActionWithParams EditTimesheetEntryAction { timesheetEntryId = entry.id }
+                            [("weekOffset", "0")]
+                workerEditResponse `responseStatusShouldBe` status200
+                workerEditResponse `responseBodyShouldContain` "<input type=\"hidden\" name=\"staffId\""
+                workerEditResponse `responseBodyShouldNotContain` "<select name=\"staffId\""
+
+                deniedWorkerUpdate <- withUserAndCurrentVenue rosteredUser venue.id do
+                    callActionWithParams UpdateTimesheetEntryAction { timesheetEntryId = entry.id }
+                        [ ("weekOffset", "0")
+                        , ("staffId", idToParam otherStaff.id)
+                        , ("shiftTypeId", idToParam shiftType.id)
+                        , ("workedOn", "2025-01-07")
+                        , ("startTime", "09:00")
+                        , ("endTime", "17:00")
+                        ]
+                deniedWorkerUpdate `responseStatusShouldBe` status403
+
                 editResponse <- withUserAndCurrentVenue manager venue.id do
                     withRequestHeaders [("HX-Request", "true")] do
                         callActionWithParams EditTimesheetEntryAction { timesheetEntryId = entry.id }
                             [("weekOffset", "0"), ("showAllStaff", "true")]
                 editResponse `responseStatusShouldBe` status200
-                editResponse `responseBodyShouldContain` "Rostered"
-                editResponse `responseBodyShouldNotContain` "<select name=\"staffId\""
+                editResponse `responseBodyShouldContain` "<strong>Roster-derived entry.</strong>"
+                editResponse `responseBodyShouldNotContain` "<span class=\"badge text-bg-info\">Rostered</span>"
+                editResponse `responseBodyShouldContain` "<select name=\"staffId\""
+                editResponse `responseBodyShouldContain` "Sam Separate"
+                editResponse `responseBodyShouldContain` "<input type=\"hidden\" name=\"workedOn\""
+                editResponse `responseBodyShouldNotContain` "<input type=\"date\" name=\"workedOn\""
 
                 updateResponse <- withUserAndCurrentVenue manager venue.id do
+                    callActionWithParams UpdateTimesheetEntryAction { timesheetEntryId = entry.id }
+                        [ ("weekOffset", "0")
+                        , ("showAllStaff", "true")
+                        , ("staffId", idToParam otherStaff.id)
+                        , ("shiftTypeId", idToParam shiftType.id)
+                        , ("workedOn", "2025-01-07")
+                        , ("startTime", "10:00")
+                        , ("endTime", "16:00")
+                        ]
+                updateResponse `responseStatusShouldBe` status302
+
+                reassigned <- fetch entry.id
+                reassigned.staffId `shouldBe` unpackId otherStaff.id
+                reassigned.workedOn `shouldBe` fromGregorian 2025 1 7
+                reassigned.sourceRosterSlotId `shouldBe` Just (unpackId rosterSlot.id)
+                reassigned.startTime `shouldBe` TimeOfDay 10 0 0
+                reassigned.endTime `shouldBe` TimeOfDay 16 0 0
+
+                deniedDateUpdate <- withUserAndCurrentVenue manager venue.id do
                     callActionWithParams UpdateTimesheetEntryAction { timesheetEntryId = entry.id }
                         [ ("weekOffset", "0")
                         , ("showAllStaff", "true")
@@ -931,12 +976,12 @@ tests = beforeAll testContext do
                         , ("startTime", "10:00")
                         , ("endTime", "16:00")
                         ]
-                updateResponse `responseStatusShouldBe` status403
+                deniedDateUpdate `responseStatusShouldBe` status403
 
-                unchanged <- fetch entry.id
-                unchanged.staffId `shouldBe` unpackId rosteredStaff.id
-                unchanged.workedOn `shouldBe` fromGregorian 2025 1 7
-                unchanged.sourceRosterSlotId `shouldBe` Just (unpackId rosterSlot.id)
+                provenanceRetained <- fetch entry.id
+                provenanceRetained.staffId `shouldBe` unpackId otherStaff.id
+                provenanceRetained.workedOn `shouldBe` fromGregorian 2025 1 7
+                provenanceRetained.sourceRosterSlotId `shouldBe` Just (unpackId rosterSlot.id)
 
         it "shows approved entries to staff with a disabled approved button" $ withContext do
             withCleanDb do

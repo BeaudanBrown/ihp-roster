@@ -297,9 +297,10 @@ test.describe('Live fragment multi-view coverage', () => {
         const viewerSuggestion = viewerPage.locator(`.timesheet-suggestion-card[data-timesheet-suggestion-id="${rosterSlotId}"]`);
         await expect(actorSuggestion).toHaveCount(1);
         await expect(actorSuggestion).toHaveClass(/timesheet-entry-card/);
-        await expect(actorSuggestion).toHaveCSS('opacity', '0.72');
+        await expect(actorSuggestion).toHaveCSS('opacity', '1');
+        await expect(actorSuggestion).toHaveCSS('border-top-width', '2px');
         await expect(actorSuggestion).toHaveCSS('cursor', 'pointer');
-        await expect(actorSuggestion).toContainText('Rostered');
+        await expect(actorSuggestion).not.toContainText('Rostered');
         await expect(actorSuggestion).toContainText(renderedRange);
         await expect(actorSuggestion.locator('.timesheet-shape-bar')).toHaveCount(1);
         await expect(actorSuggestion.getByRole('button', { name: 'Create', exact: true })).toBeVisible();
@@ -315,6 +316,7 @@ test.describe('Live fragment multi-view coverage', () => {
         const viewerEntry = viewerPage.locator('.timesheet-entry-card:not(.timesheet-suggestion-card)').filter({ hasText: renderedRange });
         await expect(actorSuggestion).toHaveCount(0);
         await expect(actorEntry).toHaveCount(1);
+        await expect(actorEntry).toHaveCSS('border-top-width', '1px');
         await expect(actorEntry).not.toContainText('Approved');
         await expect(viewerSuggestion).toHaveCount(0, { timeout: E2E_TIMEOUT.liveUpdate });
         await expect(viewerEntry).toHaveCount(1, { timeout: E2E_TIMEOUT.liveUpdate });

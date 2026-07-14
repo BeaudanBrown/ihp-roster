@@ -62,7 +62,6 @@ ensureTimesheetVisibility entry =
 ensureRosterDerivedIdentityUnchanged :: (?context :: ControllerContext) => TimesheetEntry -> TimesheetEntry -> IO ()
 ensureRosterDerivedIdentityUnchanged existingEntry updatedEntry =
     when (isJust existingEntry.sourceRosterSlotId) do
-        accessDeniedUnless (updatedEntry.staffId == existingEntry.staffId)
         accessDeniedUnless (updatedEntry.workedOn == existingEntry.workedOn)
         accessDeniedUnless (updatedEntry.sourceRosterSlotId == existingEntry.sourceRosterSlotId)
 

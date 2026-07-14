@@ -108,7 +108,12 @@
 }
 
 .timesheet-suggestion-card {
-    opacity: 0.72;
+    border: 2px solid var(--app-info);
+    background: linear-gradient(
+        180deg,
+        color-mix(in srgb, var(--app-timesheet-card-start) 78%, var(--app-info) 22%),
+        color-mix(in srgb, var(--app-timesheet-card-end) 84%, var(--app-info) 16%)
+    );
 }
 
 .timesheet-entry-card-link {

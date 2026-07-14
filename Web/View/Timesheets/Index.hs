@@ -389,7 +389,6 @@ renderSuggestionCard model@TimesheetDayRenderModel { dayWeekOffset, dayShowAppro
 
 renderSuggestionCreateAction :: Text -> [FrontendSurfaceFieldValue] -> Html
 renderSuggestionCreateAction createUrl actionFields = [hsx|
-    <span class="badge text-bg-info">Rostered</span>
     {createForm}
 |]
   where

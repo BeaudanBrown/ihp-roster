@@ -50,7 +50,8 @@ lands.
   suggestions.
 - Moving a live roster week back to draft immediately hides its unmaterialized
   Timesheet suggestions. Existing roster-derived Timesheet entries remain
-  immutable snapshots and are not changed or deleted.
+  independent snapshots and are not changed or deleted by roster lifecycle
+  actions.
 - Draft edits and republishing change the next derived suggestion. If a
   Timesheet entry was already created from the slot, roster edits warn that the
   Timesheet snapshot remains unchanged and must be edited from Timesheets.

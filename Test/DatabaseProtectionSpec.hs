@@ -132,7 +132,7 @@ tests = beforeAll testContext do
 
                 result `shouldSatisfy` isLeft
 
-        it "keeps roster-derived timesheet staff, date, and source immutable" $ withContext do
+        it "allows roster-derived staff corrections while keeping date and source immutable" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Timesheet Provenance Guard Venue"
                 sourceStaff <- createStaffRecord venue Nothing "Source" "Staff"
@@ -153,16 +153,32 @@ tests = beforeAll testContext do
                         |> set #sourceRosterSlotId (Just (unpackId rosterSlot.id))
                         |> createRecord
 
-                result <-
+                sqlExecDiscardResult
+                    "UPDATE timesheet_entries SET staff_id = ? WHERE id = ?"
+                    (unpackId otherStaff.id, unpackId linkedEntry.id)
+                reassignedEntry <- fetch linkedEntry.id
+                reassignedEntry.staffId `shouldBe` unpackId otherStaff.id
+                reassignedEntry.workedOn `shouldBe` defaultWeekEpoch
+                reassignedEntry.sourceRosterSlotId `shouldBe` Just (unpackId rosterSlot.id)
+
+                changedDateResult <-
                     try
                         ( sqlExecDiscardResult
-                            "UPDATE timesheet_entries SET staff_id = ?, worked_on = ?, source_roster_slot_id = NULL WHERE id = ?"
-                            (unpackId otherStaff.id, addDays 1 defaultWeekEpoch, unpackId linkedEntry.id)
+                            "UPDATE timesheet_entries SET worked_on = ? WHERE id = ?"
+                            (addDays 1 defaultWeekEpoch, unpackId linkedEntry.id)
                         ) :: IO (Either SomeException ())
+                changedDateResult `shouldSatisfy` isLeft
 
-                result `shouldSatisfy` isLeft
+                removedSourceResult <-
+                    try
+                        ( sqlExecDiscardResult
+                            "UPDATE timesheet_entries SET source_roster_slot_id = NULL WHERE id = ?"
+                            (PG.Only (unpackId linkedEntry.id))
+                        ) :: IO (Either SomeException ())
+                removedSourceResult `shouldSatisfy` isLeft
+
                 retainedEntry <- fetch linkedEntry.id
-                retainedEntry.staffId `shouldBe` unpackId sourceStaff.id
+                retainedEntry.staffId `shouldBe` unpackId otherStaff.id
                 retainedEntry.workedOn `shouldBe` defaultWeekEpoch
                 retainedEntry.sourceRosterSlotId `shouldBe` Just (unpackId rosterSlot.id)
 
