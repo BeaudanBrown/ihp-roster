@@ -6,6 +6,7 @@ GitHub issues:
 
 - `#136` - Make FrontendContract the executable runtime authority and retire stale runtime code
 - Contract authority: `#161`-`#166`
+- Haskell adapter ergonomics: `#180`-`#184`
 - Shared browser capabilities: `#167`-`#173`
 - Roster browser capabilities: `#174`-`#178`
 - Final reconciliation: `#179`
@@ -159,35 +160,52 @@ guardrails, and living-doc updates.
 5. `#165` - Add schema-indexed Haskell record/tagged-union builders and migrate carriers.
 6. `#166` - Replace semantic string redispatch with closed checked IR.
 
+### Haskell adapter ergonomics
+
+These follow the typed authority slices. They generate only deterministic,
+checked-IR projections; feature-local business semantics remain handwritten.
+They run after their native blockers and in parallel with browser capability
+slices, and all block final reconciliation.
+
+7. `#180` - Improve compact type diagnostics for marker-indexed Surface APIs.
+8. `#181` - Add deterministic Haskell Surface adapter generator foundation after
+   schema-indexed carrier/source-type mapping.
+9. `#182` - Generate feature-owned typed Surface resource adapters.
+10. `#183` - Generate feature-owned typed Surface live identity adapters.
+11. `#184` - Generate typed Surface action and intent adapter facades.
+
 ### Shared browser capabilities
 
-7. `#167` - Time picker roles and exact configuration payload.
-8. `#168` - Dialog/toast overlay DOM vocabulary.
-9. `#169` - Toggle presentation and timesheet break controls.
-10. `#170` - Ordered-range shift preferences.
-11. `#171` - Horizontal drag/snap scrolling.
-12. `#172` - PWA installation adapter.
-13. `#173` - Xero candidate filtering adapter.
+12. `#167` - Time picker roles and exact configuration payload.
+13. `#168` - Dialog/toast overlay DOM vocabulary.
+14. `#169` - Toggle presentation and timesheet break controls.
+15. `#170` - Ordered-range shift preferences.
+16. `#171` - Horizontal drag/snap scrolling.
+17. `#172` - PWA installation adapter.
+18. `#173` - Xero candidate filtering adapter.
 
 ### Roster browser capabilities
 
-14. `#174` - Surface-owned linked-highlight roles and stale interaction class cleanup.
-15. `#175` - Staff-panel sorting/tabs and browser-reachable Surface DTOs.
-16. `#176` - Fullscreen and column-edit controls.
-17. `#177` - Image-export annotations and configuration.
-18. `#178` - Retained dormant week overview.
+19. `#174` - Surface-owned linked-highlight roles and stale interaction class cleanup.
+20. `#175` - Staff-panel sorting/tabs and browser-reachable Surface DTOs.
+21. `#176` - Fullscreen and column-edit controls.
+22. `#177` - Image-export annotations and configuration.
+23. `#178` - Retained dormant week overview.
 
 ### Reconciliation
 
-19. `#179` - Run the zero-legacy audit, finish dynamic CSS/source guardrails,
+24. `#179` - Run the zero-legacy audit, finish dynamic CSS/source guardrails,
     reconcile living docs, and verify the full repository before closing `#136`.
 
-The initial implementation frontier is slices 1-5. Closed interaction IR follows
-Surface Lab deletion. Shared browser slices depend on typed schema builders;
-ordered ranges also depend on toggle presentation. Roster linked highlighting
-depends on closed interaction IR. Staff-panel work establishes the
-browser-reachable Surface DTO path for image export and week overview. Final
-reconciliation depends on every preceding slice.
+The current authority frontier is #162, #164, and #165; #180 may proceed
+independently. Closed interaction IR follows Surface Lab deletion. #181 follows
+#165; #182 follows #181; #183 follows #162 and #181; #184 follows #164 and
+#181. Shared browser slices depend on typed schema builders; ordered ranges
+also depend on toggle presentation. Roster linked highlighting depends on
+closed interaction IR. Staff-panel work establishes the browser-reachable
+Surface DTO path for image export and week overview. The Haskell adapter slices
+run in parallel with capability slices and final reconciliation depends on every
+preceding slice.
 
 ## Behavior Constraints
 
