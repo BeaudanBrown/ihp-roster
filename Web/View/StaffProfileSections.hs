@@ -5,9 +5,11 @@ module Web.View.StaffProfileSections where
 import Application.Helper.FrontendContract.AppShell.Runtime (AppShellActionRoute (..),
                                                              renderAppShellActionForm)
 import Application.Helper.FrontendContract.IR (AppShellActionIR)
-import qualified Application.Helper.FrontendContract.Surface.ContractIR as SurfaceIR
-import Application.Helper.FrontendContract.Surface.Runtime (FrontendSurfaceActionRoute (..),
+import qualified Application.Helper.FrontendContract.Surface.Profile as Surface
+import Application.Helper.FrontendContract.Surface.Runtime (FrontendSurfaceAction,
+                                                            FrontendSurfaceActionRoute (..),
                                                             renderFrontendSurfaceActionForm)
+import Application.Helper.FrontendContract.Surface.Values (SurfaceFields)
 import Application.Helper.StaffShiftPreferences
 import Web.View.Prelude
 import Web.View.StaffProfileForm
@@ -25,23 +27,28 @@ data StaffProfileAccordionSection = StaffProfileAccordionSection
     , staffProfileSectionBody  :: Html
     }
 
-data StaffProfileFormRequestMode
-    = StaffProfileSurfaceAction SurfaceIR.HtmxActionIR FrontendSurfaceActionRoute
-    | StaffProfileAppShellAction AppShellActionIR AppShellActionRoute
+data StaffProfileDetailsFormRequestMode
+    = StaffProfileDetailsSurfaceAction (SurfaceFields Surface.StaffProfileFields -> FrontendSurfaceAction) FrontendSurfaceActionRoute
+    | StaffProfileDetailsAppShellAction AppShellActionIR AppShellActionRoute
+
+data StaffShiftPreferencesFormRequestMode
+    = StaffShiftPreferencesSurfaceAction (SurfaceFields Surface.StaffShiftPreferenceFields -> FrontendSurfaceAction) FrontendSurfaceActionRoute
+    | StaffShiftPreferencesAppShellAction AppShellActionIR AppShellActionRoute
 
 data StaffProfileDetailsFormConfig = StaffProfileDetailsFormConfig
     { staffProfileDetailsFormId             :: Text
     , staffProfileDetailsFormAction         :: Text
     , staffProfileDetailsFormClass          :: Text
-    , staffProfileDetailsFormRequestMode    :: Maybe StaffProfileFormRequestMode
+    , staffProfileDetailsFormRequestMode    :: Maybe StaffProfileDetailsFormRequestMode
+    , staffProfileDetailsSurfaceFields      :: SurfaceFields Surface.StaffProfileFields
     , staffProfileDetailsFormAttributes     :: [(Text, Text)]
     , staffProfileDetailsFormHiddenInputs   :: Html
     , staffProfileDetailsFormBeforeFields   :: Html
     , staffProfileDetailsFormFieldsHeading  :: Maybe Text
-    , staffProfileDetailsFormEmailField     :: Staff -> Maybe Text -> Html
+    , staffProfileDetailsFormEmailField     :: SurfaceFields Surface.StaffProfileFields -> Staff -> Maybe Text -> Html
     , staffProfileDetailsFormAfterFields    :: Html
     , staffProfileDetailsFormManagement     :: Maybe StaffManagementFieldData
-    , staffProfileDetailsFormManagementBody :: StaffManagementFieldData -> Html
+    , staffProfileDetailsFormManagementBody :: SurfaceFields Surface.StaffProfileFields -> StaffManagementFieldData -> Html
     , staffProfileDetailsFormSubmitLabel    :: Text
     }
 
@@ -49,7 +56,8 @@ data StaffShiftPreferencesFormConfig = StaffShiftPreferencesFormConfig
     { staffShiftPreferencesFormId           :: Text
     , staffShiftPreferencesFormAction       :: Text
     , staffShiftPreferencesFormClass        :: Text
-    , staffShiftPreferencesFormRequestMode  :: Maybe StaffProfileFormRequestMode
+    , staffShiftPreferencesFormRequestMode  :: Maybe StaffShiftPreferencesFormRequestMode
+    , staffShiftPreferencesSurfaceFields    :: SurfaceFields Surface.StaffShiftPreferenceFields
     , staffShiftPreferencesFormHiddenInputs :: Html
     , staffShiftPreferencesFormSubmitLabel  :: Text
     }
@@ -80,13 +88,13 @@ renderStaffProfileDetailsForm config@StaffProfileDetailsFormConfig { staffProfil
 renderStaffProfileDetailsForm config staff maybeEmail =
     renderStaffProfileDetailsFormNative config staff maybeEmail
 
-renderStaffProfileDetailsFormWithRequestMode :: StaffProfileDetailsFormConfig -> StaffProfileFormRequestMode -> Staff -> Maybe Text -> Html
-renderStaffProfileDetailsFormWithRequestMode config (StaffProfileSurfaceAction action route) staff maybeEmail =
-    renderStaffProfileDetailsFormWithSurfaceAction config action route staff maybeEmail
-renderStaffProfileDetailsFormWithRequestMode config (StaffProfileAppShellAction action route) staff maybeEmail =
+renderStaffProfileDetailsFormWithRequestMode :: StaffProfileDetailsFormConfig -> StaffProfileDetailsFormRequestMode -> Staff -> Maybe Text -> Html
+renderStaffProfileDetailsFormWithRequestMode config (StaffProfileDetailsSurfaceAction buildAction route) staff maybeEmail =
+    renderStaffProfileDetailsFormWithSurfaceAction config (buildAction config.staffProfileDetailsSurfaceFields) route staff maybeEmail
+renderStaffProfileDetailsFormWithRequestMode config (StaffProfileDetailsAppShellAction action route) staff maybeEmail =
     renderStaffProfileDetailsFormWithAppShellAction config action route staff maybeEmail
 
-renderStaffProfileDetailsFormWithSurfaceAction :: StaffProfileDetailsFormConfig -> SurfaceIR.HtmxActionIR -> FrontendSurfaceActionRoute -> Staff -> Maybe Text -> Html
+renderStaffProfileDetailsFormWithSurfaceAction :: StaffProfileDetailsFormConfig -> FrontendSurfaceAction -> FrontendSurfaceActionRoute -> Staff -> Maybe Text -> Html
 renderStaffProfileDetailsFormWithSurfaceAction config@StaffProfileDetailsFormConfig { .. } action route staff maybeEmail =
     renderFrontendSurfaceActionForm
         action
@@ -132,8 +140,8 @@ renderStaffProfileDetailsFormBody StaffProfileDetailsFormConfig { .. } staff may
     {staffProfileDetailsFormHiddenInputs}
     {staffProfileDetailsFormBeforeFields}
     {renderStaffProfileDetailsFieldsHeading staffProfileDetailsFormFieldsHeading}
-    {staffProfileDetailsFormEmailField staff maybeEmail}
-    {maybe mempty staffProfileDetailsFormManagementBody staffProfileDetailsFormManagement}
+    {staffProfileDetailsFormEmailField staffProfileDetailsSurfaceFields staff maybeEmail}
+    {maybe mempty (staffProfileDetailsFormManagementBody staffProfileDetailsSurfaceFields) staffProfileDetailsFormManagement}
     {staffProfileDetailsFormAfterFields}
     <div class="d-grid mt-4 app-modal-sticky-actions">
         <button type="submit" class="btn btn-primary">{staffProfileDetailsFormSubmitLabel}</button>
@@ -150,13 +158,13 @@ renderStaffShiftPreferencesForm config@StaffShiftPreferencesFormConfig { staffSh
 renderStaffShiftPreferencesForm config preferenceWeekdays selectedShiftPreferences =
     renderStaffShiftPreferencesFormNative config preferenceWeekdays selectedShiftPreferences
 
-renderStaffShiftPreferencesFormWithRequestMode :: StaffShiftPreferencesFormConfig -> StaffProfileFormRequestMode -> [PreferenceWeekday] -> [ShiftPreferenceSelection] -> Html
-renderStaffShiftPreferencesFormWithRequestMode config (StaffProfileSurfaceAction action route) preferenceWeekdays selectedShiftPreferences =
-    renderStaffShiftPreferencesFormWithSurfaceAction config action route preferenceWeekdays selectedShiftPreferences
-renderStaffShiftPreferencesFormWithRequestMode config (StaffProfileAppShellAction action route) preferenceWeekdays selectedShiftPreferences =
+renderStaffShiftPreferencesFormWithRequestMode :: StaffShiftPreferencesFormConfig -> StaffShiftPreferencesFormRequestMode -> [PreferenceWeekday] -> [ShiftPreferenceSelection] -> Html
+renderStaffShiftPreferencesFormWithRequestMode config (StaffShiftPreferencesSurfaceAction buildAction route) preferenceWeekdays selectedShiftPreferences =
+    renderStaffShiftPreferencesFormWithSurfaceAction config (buildAction config.staffShiftPreferencesSurfaceFields) route preferenceWeekdays selectedShiftPreferences
+renderStaffShiftPreferencesFormWithRequestMode config (StaffShiftPreferencesAppShellAction action route) preferenceWeekdays selectedShiftPreferences =
     renderStaffShiftPreferencesFormWithAppShellAction config action route preferenceWeekdays selectedShiftPreferences
 
-renderStaffShiftPreferencesFormWithSurfaceAction :: StaffShiftPreferencesFormConfig -> SurfaceIR.HtmxActionIR -> FrontendSurfaceActionRoute -> [PreferenceWeekday] -> [ShiftPreferenceSelection] -> Html
+renderStaffShiftPreferencesFormWithSurfaceAction :: StaffShiftPreferencesFormConfig -> FrontendSurfaceAction -> FrontendSurfaceActionRoute -> [PreferenceWeekday] -> [ShiftPreferenceSelection] -> Html
 renderStaffShiftPreferencesFormWithSurfaceAction config@StaffShiftPreferencesFormConfig { .. } action route preferenceWeekdays selectedShiftPreferences =
     renderFrontendSurfaceActionForm
         action
@@ -197,7 +205,7 @@ renderStaffShiftPreferencesFormNative config@StaffShiftPreferencesFormConfig { .
 renderStaffShiftPreferencesFormBody :: StaffShiftPreferencesFormConfig -> [PreferenceWeekday] -> [ShiftPreferenceSelection] -> Html
 renderStaffShiftPreferencesFormBody StaffShiftPreferencesFormConfig { .. } preferenceWeekdays selectedShiftPreferences = [hsx|
     {staffShiftPreferencesFormHiddenInputs}
-    {renderShiftPreferenceSections preferenceWeekdays selectedShiftPreferences}
+    {renderShiftPreferenceSections staffShiftPreferencesSurfaceFields preferenceWeekdays selectedShiftPreferences}
     <div class="d-grid mt-4 app-modal-sticky-actions">
         <button type="submit" class="btn btn-primary">{staffShiftPreferencesFormSubmitLabel}</button>
     </div>

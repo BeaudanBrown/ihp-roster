@@ -64,45 +64,60 @@ renderLeaveRequestForm formMode leaveRequest =
             </form>
         |]
 
+data LeaveRequestFieldNames = LeaveRequestFieldNames
+    { leaveRequestStartDateFieldName :: Text
+    , leaveRequestEndDateFieldName   :: Text
+    , leaveRequestNotesFieldName     :: Text
+    }
+
 renderLeaveRequestFormFields :: LeaveRequest -> Html
-renderLeaveRequestFormFields leaveRequest = [hsx|
+renderLeaveRequestFormFields =
+    renderLeaveRequestFormFieldsWithNames
+        LeaveRequestFieldNames
+            { leaveRequestStartDateFieldName = "startDate"
+            , leaveRequestEndDateFieldName = "endDate"
+            , leaveRequestNotesFieldName = "notes"
+            }
+
+renderLeaveRequestFormFieldsWithNames :: LeaveRequestFieldNames -> LeaveRequest -> Html
+renderLeaveRequestFormFieldsWithNames fieldNames leaveRequest = [hsx|
     <div class="app-form-width">
         <div class="mb-3">
             <label for="startDate" class="form-label">Unavailable From</label>
             <input
                 id="startDate"
-                name="startDate"
+                name={fieldNames.leaveRequestStartDateFieldName}
                 type="date"
-                class={classes [("form-control", True), ("is-invalid", leaveHasErrorFor leaveRequest "startDate")]}
+                class={classes [("form-control", True), ("is-invalid", leaveHasErrorFor leaveRequest fieldNames.leaveRequestStartDateFieldName)]}
                 value={tshow leaveRequest.startDate}
                 required="required"
             />
-            {renderLeaveFieldError leaveRequest "startDate"}
+            {renderLeaveFieldError leaveRequest fieldNames.leaveRequestStartDateFieldName}
         </div>
 
         <div class="mb-3">
             <label for="endDate" class="form-label">Available Again</label>
             <input
                 id="endDate"
-                name="endDate"
+                name={fieldNames.leaveRequestEndDateFieldName}
                 type="date"
-                class={classes [("form-control", True), ("is-invalid", leaveHasErrorFor leaveRequest "endDate")]}
+                class={classes [("form-control", True), ("is-invalid", leaveHasErrorFor leaveRequest fieldNames.leaveRequestEndDateFieldName)]}
                 value={tshow leaveRequest.endDate}
                 required="required"
             />
             <div class="form-text">Available again must be at least one day after unavailable from.</div>
-            {renderLeaveFieldError leaveRequest "endDate"}
+            {renderLeaveFieldError leaveRequest fieldNames.leaveRequestEndDateFieldName}
         </div>
 
         <div class="mb-3">
             <label for="notes" class="form-label">Notes</label>
             <textarea
                 id="notes"
-                name="notes"
+                name={fieldNames.leaveRequestNotesFieldName}
                 rows="3"
-                class={classes [("form-control", True), ("is-invalid", leaveHasErrorFor leaveRequest "notes")]}
+                class={classes [("form-control", True), ("is-invalid", leaveHasErrorFor leaveRequest fieldNames.leaveRequestNotesFieldName)]}
             >{fromMaybe "" leaveRequest.notes}</textarea>
-            {renderLeaveFieldError leaveRequest "notes"}
+            {renderLeaveFieldError leaveRequest fieldNames.leaveRequestNotesFieldName}
         </div>
     </div>
 |]

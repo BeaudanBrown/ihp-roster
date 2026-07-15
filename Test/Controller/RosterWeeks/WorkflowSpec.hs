@@ -851,7 +851,7 @@ tests = beforeAll testContext do
                     withRequestHeaders [("HX-Request", "true")] do
                         callActionWithParams
                             (UpdateRosterWageEstimatePreferenceAction 0)
-                            []
+                            [("showWageEstimates", "false")]
 
                 hiddenWagesResponse `responseStatusShouldBe` status200
                 lookup "HX-Reswap" (responseHeaders hiddenWagesResponse) `shouldBe` Just "none"
@@ -1006,7 +1006,7 @@ tests = beforeAll testContext do
 
                 timesheetsResponse <- withUserAndCurrentVenue manager venue.id do
                     callActionWithParams ShowTimesheetWeekAction { weekOffset = 0 }
-                        [("showAllStaff", "true"), ("showSuggestions", "true")]
+                        [("weekOffset", "0"), ("showApproved", "false"), ("showAllStaff", "true"), ("showSuggestions", "true")]
                 timesheetsResponse `responseBodyShouldContain` cs ("data-timesheet-suggestion-id=\"" <> tshow slot.id <> "\"")
 
         it "hides draft-roster suggestions while preserving materialized timesheet snapshots" $ withContext do
@@ -1039,24 +1039,24 @@ tests = beforeAll testContext do
 
                 liveResponse <- withUserAndCurrentVenue manager venue.id do
                     callActionWithParams ShowTimesheetWeekAction { weekOffset = 0 }
-                        [("showAllStaff", "true"), ("showSuggestions", "true")]
+                        [("weekOffset", "0"), ("showApproved", "false"), ("showAllStaff", "true"), ("showSuggestions", "true")]
                 liveResponse `responseBodyShouldContain` cs ("data-timesheet-suggestion-id=\"" <> tshow sourceSlot.id <> "\"")
                 liveResponse `responseBodyShouldContain` cs ("data-timesheet-suggestion-id=\"" <> tshow pendingSlot.id <> "\"")
 
                 createResponse <- withUserAndCurrentVenue manager venue.id do
                     callActionWithParams CreateTimesheetEntryFromSuggestionAction { rosterSlotId = sourceSlot.id }
-                        [("weekOffset", "0"), ("showAllStaff", "true"), ("showSuggestions", "true")]
+                        [("weekOffset", "0"), ("showApproved", "false"), ("showAllStaff", "true"), ("showSuggestions", "true")]
                 createResponse `responseStatusShouldBe` status302
                 materializedEntry <- query @TimesheetEntry |> fetchOne
 
                 draftResponse <- withUserAndCurrentVenue manager venue.id do
                     withRequestHeaders [("HX-Request", "true")] do
-                        callAction (ToggleRosterWeekLiveStatusAction rosterWeek.id)
+                        callActionWithParams (ToggleRosterWeekLiveStatusAction rosterWeek.id) [("isLive", "false")]
                 draftResponse `responseStatusShouldBe` status200
 
                 timesheetsResponse <- withUserAndCurrentVenue manager venue.id do
                     callActionWithParams ShowTimesheetWeekAction { weekOffset = 0 }
-                        [("showAllStaff", "true"), ("showSuggestions", "true")]
+                        [("weekOffset", "0"), ("showApproved", "false"), ("showAllStaff", "true"), ("showSuggestions", "true")]
                 timesheetsResponse `responseBodyShouldNotContain` cs ("data-timesheet-suggestion-id=\"" <> tshow pendingSlot.id <> "\"")
                 timesheetsResponse `responseBodyShouldContain` cs (pathTo EditTimesheetEntryAction { timesheetEntryId = materializedEntry.id })
                 unchangedEntry <- fetch materializedEntry.id
@@ -1089,7 +1089,7 @@ tests = beforeAll testContext do
 
                 createResponse <- withUserAndCurrentVenue manager venue.id do
                     callActionWithParams CreateTimesheetEntryFromSuggestionAction { rosterSlotId = completeSlot.id }
-                        [("weekOffset", "0"), ("showAllStaff", "true"), ("showSuggestions", "true")]
+                        [("weekOffset", "0"), ("showApproved", "false"), ("showAllStaff", "true"), ("showSuggestions", "true")]
                 createResponse `responseStatusShouldBe` status302
                 entry <- query @TimesheetEntry |> fetchOne
 
@@ -1291,7 +1291,7 @@ tests = beforeAll testContext do
                 rosterWeek <- createRosterWeekRecord venue 0 True
 
                 response <- withUser manager do
-                    callAction (ToggleRosterWeekLiveStatusAction rosterWeek.id)
+                    callActionWithParams (ToggleRosterWeekLiveStatusAction rosterWeek.id) [("isLive", "false")]
 
                 response `responseStatusShouldBe` status302
 

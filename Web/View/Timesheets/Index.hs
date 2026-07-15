@@ -11,14 +11,14 @@ import Application.Helper.FrontendContract.AppShell (EditTimesheetEntryDialog,
 import Application.Helper.FrontendContract.AppShell.Runtime (AppShellActionRoute (..),
                                                              appShellActionByMarker,
                                                              renderAppShellActionLink)
-import qualified Application.Helper.FrontendContract.Surface.ContractIR as SurfaceIR
 import Application.Helper.FrontendContract.Surface.DSL (FieldSpec (..),
                                                         WireType (..))
-import Application.Helper.FrontendContract.Surface.Runtime (FrontendSurfaceActionRoute (..),
-                                                            FrontendSurfaceFieldValue,
+import Application.Helper.FrontendContract.Surface.Runtime (FrontendSurfaceAction,
+                                                            FrontendSurfaceActionRoute (..),
                                                             SurfaceImpl,
-                                                            frontendSurfaceActionFields,
+                                                            frontendSurfaceAction,
                                                             renderFrontendSurfaceActionForm,
+                                                            renderFrontendSurfaceActionFormWithHiddenFields,
                                                             renderFrontendSurfaceActionLink,
                                                             renderFrontendSurfaceMount)
 import qualified Application.Helper.FrontendContract.Surface.Timesheets as Surface
@@ -59,7 +59,6 @@ timesheetsActionRoute :: Text -> FrontendSurfaceActionRoute
 timesheetsActionRoute actionUrl =
     FrontendSurfaceActionRoute
         { actionRouteUrl = actionUrl
-        , actionRouteFields = []
         , actionRouteCustomHtmx = []
         , actionRouteStandardUrl = Nothing
         , actionRouteExtraAttrs = []
@@ -177,11 +176,11 @@ renderTimesheetDayColumnsWithSwap maybeSwapOob view = [hsx|
 renderTimesheetWeekNavigationLink :: Text -> Text -> Int -> Bool -> Bool -> Bool -> Maybe UUID -> Html
 renderTimesheetWeekNavigationLink label url targetWeekOffset showApproved showAllStaff showSuggestions selectedStaffFilterId =
     renderFrontendSurfaceActionLink
-        (surfaceActionValue @Surface.TimesheetsSurface @Surface.NavigateTimesheetWeek)
+        ( frontendSurfaceAction @Surface.TimesheetsSurface @Surface.NavigateTimesheetWeek
+            (timesheetStateSurfaceFields targetWeekOffset showApproved showAllStaff showSuggestions selectedStaffFilterId)
+        )
         (timesheetsActionRoute url)
-            { actionRouteFields = frontendSurfaceActionFields @Surface.TimesheetsSurface @Surface.NavigateTimesheetWeek
-                (timesheetStateSurfaceFields targetWeekOffset showApproved showAllStaff showSuggestions selectedStaffFilterId)
-            , actionRouteStandardUrl = Just url
+            { actionRouteStandardUrl = Just url
             , actionRouteExtraAttrs = [("class", weekNavigationButtonClass "")]
             }
         [hsx|{label}|]
@@ -222,31 +221,33 @@ renderTimesheetWeekMoreMenu weekOffset showApproved showAllStaff showSuggestions
 renderTimesheetFilterForm :: (?context :: ControllerContext) => Text -> Int -> Bool -> Bool -> Bool -> Maybe UUID -> [Staff] -> Html
 renderTimesheetFilterForm updateUrl weekOffset showApproved showAllStaff showSuggestions selectedStaffFilterId staffMembers =
     renderFrontendSurfaceActionForm
-        (surfaceActionValue @Surface.TimesheetsSurface @Surface.UpdateTimesheetFilters)
+        (frontendSurfaceAction @Surface.TimesheetsSurface @Surface.UpdateTimesheetFilters fields)
         (timesheetsActionRoute updateUrl)
             { actionRouteStandardUrl = Just updateUrl
             , actionRouteExtraAttrs = [("class", "px-1 py-1")]
             }
         [hsx|
-            <input type="hidden" name={surfaceActionFieldName @Surface.TimesheetsSurface @Surface.UpdateTimesheetFilters @Surface.WeekOffset} value={tshow weekOffset} />
-            <input type="hidden" name={surfaceActionFieldName @Surface.TimesheetsSurface @Surface.UpdateTimesheetFilters @Surface.ShowApproved} id="timesheet-show-approved-value" value={boolParam showApproved} />
-            <input type="hidden" name={surfaceActionFieldName @Surface.TimesheetsSurface @Surface.UpdateTimesheetFilters @Surface.ShowAllStaff} id="timesheet-show-all-staff-value" value={boolParam showAllStaff} />
-            <input type="hidden" name={surfaceActionFieldName @Surface.TimesheetsSurface @Surface.UpdateTimesheetFilters @Surface.ShowSuggestions} id="timesheet-show-suggestions-value" value={boolParam showSuggestions} />
+            <input type="hidden" name={surfaceFieldNameFrom @Surface.WeekOffset fields} value={tshow weekOffset} />
+            <input type="hidden" name={surfaceFieldNameFrom @Surface.ShowApproved fields} id="timesheet-show-approved-value" value={boolParam showApproved} />
+            <input type="hidden" name={surfaceFieldNameFrom @Surface.ShowAllStaff fields} id="timesheet-show-all-staff-value" value={boolParam showAllStaff} />
+            <input type="hidden" name={surfaceFieldNameFrom @Surface.ShowSuggestions fields} id="timesheet-show-suggestions-value" value={boolParam showSuggestions} />
             <div class="small text-uppercase fw-semibold app-muted px-1 pb-2">Filters</div>
             <div class="timesheet-settings-toggle-grid mb-2">
                 {renderTimesheetHideApprovedToggle showApproved}
                 {renderTimesheetMenuToggle "timesheet-show-suggestions-toggle" "timesheet-show-suggestions-value" showSuggestions "Show suggestions"}
                 {when currentUserIsManager (renderTimesheetMenuToggle "timesheet-show-all-staff-toggle" "timesheet-show-all-staff-value" showAllStaff "Show all staff")}
             </div>
-            {when currentUserIsManager (renderTimesheetStaffFilter selectedStaffFilterId staffMembers)}
+            {when currentUserIsManager (renderTimesheetStaffFilter fields selectedStaffFilterId staffMembers)}
         |]
+  where
+    fields = timesheetStateSurfaceFields weekOffset showApproved showAllStaff showSuggestions selectedStaffFilterId
 
-renderTimesheetStaffFilter :: Maybe UUID -> [Staff] -> Html
-renderTimesheetStaffFilter selectedStaffFilterId staffMembers = [hsx|
+renderTimesheetStaffFilter :: SurfaceFields (SurfaceActionFieldSpecs Surface.TimesheetsSurface Surface.UpdateTimesheetFilters) -> Maybe UUID -> [Staff] -> Html
+renderTimesheetStaffFilter fields selectedStaffFilterId staffMembers = [hsx|
     <div class="mt-3">
         <label for="timesheet-staff-filter" class="form-label small mb-1">Staff</label>
         <select id="timesheet-staff-filter"
-                name={surfaceActionFieldName @Surface.TimesheetsSurface @Surface.UpdateTimesheetFilters @Surface.StaffFilterId}
+                name={surfaceFieldNameFrom @Surface.StaffFilterId fields}
                 class="form-select form-select-sm"
                 onchange="this.form.requestSubmit();">
             <option value="" selected={isNothing selectedStaffFilterId}>All staff</option>
@@ -379,23 +380,22 @@ renderSuggestionCard model@TimesheetDayRenderModel { dayWeekOffset, dayShowAppro
         "timesheet-entry-card timesheet-suggestion-card"
         (Just (tshow suggestion.suggestionRosterSlotId))
         (renderSuggestionCardOverlayLink suggestion.suggestionWorkedOn editUrl)
-        (renderSuggestionCreateAction createUrl actionFields)
+        (renderSuggestionCreateAction createUrl action)
   where
     suggestedEntry = newTimesheetEntryFromSuggestion (unpackId currentVenueId) suggestion
     stateFields = timesheetStateSurfaceFields dayWeekOffset dayShowApproved dayShowAllStaff dayShowSuggestions dayStaffFilterId
     createUrl = createTimesheetEntryFromSuggestionUrl suggestion.suggestionRosterSlotId dayWeekOffset dayShowApproved dayShowAllStaff dayShowSuggestions dayStaffFilterId
     editUrl = newTimesheetEntryFromSuggestionUrl suggestion.suggestionRosterSlotId dayWeekOffset dayShowApproved dayShowAllStaff dayShowSuggestions dayStaffFilterId
-    actionFields = frontendSurfaceActionFields @Surface.TimesheetsSurface @Surface.CreateTimesheetEntryFromSuggestion stateFields
+    action = frontendSurfaceAction @Surface.TimesheetsSurface @Surface.CreateTimesheetEntryFromSuggestion stateFields
 
-renderSuggestionCreateAction :: Text -> [FrontendSurfaceFieldValue] -> Html
-renderSuggestionCreateAction createUrl actionFields = [hsx|
+renderSuggestionCreateAction :: Text -> FrontendSurfaceAction -> Html
+renderSuggestionCreateAction createUrl action = [hsx|
     {createForm}
 |]
   where
     createForm =
         renderTimesheetApprovalForm
-            (surfaceActionValue @Surface.TimesheetsSurface @Surface.CreateTimesheetEntryFromSuggestion)
-            actionFields
+            action
             createUrl
             [hsx|<button type="submit" class="btn btn-sm btn-outline-success timesheet-approval-toggle">Create</button>|]
 
@@ -517,26 +517,23 @@ renderApprovalAction dayOffset entry weekOffset showApproved showAllStaff showSu
     | not currentUserIsManager = mempty
     | entry.isApproved =
         renderTimesheetApprovalForm
-            (surfaceActionValue @Surface.TimesheetsSurface @Surface.UnapproveTimesheetEntry)
-            (frontendSurfaceActionFields @Surface.TimesheetsSurface @Surface.UnapproveTimesheetEntry stateFields)
+            (frontendSurfaceAction @Surface.TimesheetsSurface @Surface.UnapproveTimesheetEntry stateFields)
             (pathTo (UnapproveTimesheetEntryAction entry.id))
             [hsx|<button type="submit" class="btn btn-sm btn-success timesheet-approval-toggle">Approved</button>|]
     | otherwise =
         renderTimesheetApprovalForm
-            (surfaceActionValue @Surface.TimesheetsSurface @Surface.ApproveTimesheetEntry)
-            (frontendSurfaceActionFields @Surface.TimesheetsSurface @Surface.ApproveTimesheetEntry stateFields)
+            (frontendSurfaceAction @Surface.TimesheetsSurface @Surface.ApproveTimesheetEntry stateFields)
             (pathTo (ApproveTimesheetEntryAction entry.id))
             [hsx|<button type="submit" class="btn btn-sm btn-outline-success timesheet-approval-toggle">Approve</button>|]
   where
     stateFields = timesheetStateSurfaceFields weekOffset showApproved showAllStaff showSuggestions staffFilterId
 
-renderTimesheetApprovalForm :: SurfaceIR.HtmxActionIR -> [FrontendSurfaceFieldValue] -> Text -> Html -> Html
-renderTimesheetApprovalForm action actionFields actionUrl button =
-    renderFrontendSurfaceActionForm
+renderTimesheetApprovalForm :: FrontendSurfaceAction -> Text -> Html -> Html
+renderTimesheetApprovalForm action actionUrl button =
+    renderFrontendSurfaceActionFormWithHiddenFields
         action
         (timesheetsActionRoute actionUrl)
-            { actionRouteFields = actionFields
-            , actionRouteStandardUrl = Just actionUrl
+            { actionRouteStandardUrl = Just actionUrl
             , actionRouteExtraAttrs = [("class", "timesheet-entry-action-form")]
             }
         [hsx|

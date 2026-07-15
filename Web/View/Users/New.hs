@@ -2,7 +2,8 @@ module Web.View.Users.New where
 
 import Application.Helper.View.VenueBootstrap (renderVenueBootstrapFields)
 import Web.View.Prelude
-import Web.View.StaffProfileForm (renderPersonalProfileFields)
+import Web.View.StaffProfileForm (buildStaffProfileDetailsSurfaceFields,
+                                  renderPersonalProfileFields)
 import Web.View.StaffProfileSections
 
 data NewView
@@ -123,6 +124,7 @@ renderInvitedProfileDetailsForm NewAccountProfileFormConfig { .. } user staff em
             , staffProfileDetailsFormAction = newAccountProfileFormAction
             , staffProfileDetailsFormClass = ""
             , staffProfileDetailsFormRequestMode = Nothing
+            , staffProfileDetailsSurfaceFields = buildStaffProfileDetailsSurfaceFields "profile" staff Nothing
             , staffProfileDetailsFormAttributes = []
             , staffProfileDetailsFormHiddenInputs = newAccountProfileFormHiddenInputs
             , staffProfileDetailsFormBeforeFields = [hsx|
@@ -137,7 +139,7 @@ renderInvitedProfileDetailsForm NewAccountProfileFormConfig { .. } user staff em
             , staffProfileDetailsFormEmailField = renderPersonalProfileFields
             , staffProfileDetailsFormAfterFields = mempty
             , staffProfileDetailsFormManagement = Nothing
-            , staffProfileDetailsFormManagementBody = const mempty
+            , staffProfileDetailsFormManagementBody = \_ _ -> mempty
             , staffProfileDetailsFormSubmitLabel = newAccountProfileFormSubmitLabel
             }
         staff

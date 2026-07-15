@@ -198,6 +198,13 @@ expect_no_match \
     Web
 
 expect_no_match \
+    "replaced open Surface action and intent field interfaces must stay deleted" \
+    '\b(FrontendSurfaceFieldValue|frontendSurfaceActionFields|actionRouteFields|surfaceActionFieldName|surfaceIntentFieldName|surfaceActionValue|surfaceIntentValue|renderFrontendSurfaceHtmxForm)\b|FrontendSurface(Action|IntentForm)[[:space:]]*\(\.\.\)' \
+    Application \
+    Web \
+    Test
+
+expect_no_match \
     "generic live dependency planning must not embed feature resource names or field strings" \
     'resource(Matches|FieldUuid|FieldInt|FieldText)[[:space:]]+"' \
     Application/Helper/FrontendContract/Surface/DependencyPlanner.hs \

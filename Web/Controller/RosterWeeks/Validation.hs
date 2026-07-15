@@ -18,7 +18,6 @@ module Web.Controller.RosterWeeks.Validation
     , rosterSlotBlocksPublish
     , rosterSlotHasValidStartEnd
     , rosterSlotTimesheetSourceChanged
-    , rosterStaffPanelScopeFromParams
     , validateRosterWeekCanGoLive
     ) where
 
@@ -125,12 +124,6 @@ ensureRosterWeekIsDraftForEdit rosterWeek =
             else do
                 setErrorMessage errorMessage
                 redirectToPath targetPath
-
-rosterStaffPanelScopeFromParams :: (?request :: Request) => RosterStaffPanelScope
-rosterStaffPanelScopeFromParams =
-    case Text.toLower (paramOrDefault @Text "group" "staffScope") of
-        "all" -> RosterStaffPanelAllVenue
-        _     -> RosterStaffPanelCurrentGroup
 
 normalizeRosterSlotDefinitionName :: Text -> Either Text Text
 normalizeRosterSlotDefinitionName submittedName =

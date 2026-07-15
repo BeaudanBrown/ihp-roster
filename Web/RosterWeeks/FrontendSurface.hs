@@ -21,7 +21,6 @@ module Web.RosterWeeks.FrontendSurface
     , rosterStaffDragSourceRef
     , rosterInteractionMountKey
     , rosterLayoutModeActivationRef
-    , rosterLayoutModeIntentFieldName
     , rosterLayoutModeIntentName
     , rosterSurfaceScope
     , rosterMountedFragmentPlanFromRenderData
@@ -153,9 +152,6 @@ rosterDragSessionKindName = "drag"
 rosterLayoutModeIntentName :: Text
 rosterLayoutModeIntentName = surfaceIntentNameValue @Surface.RosterSurface @Surface.SetRosterLayoutMode
 
-rosterLayoutModeIntentFieldName :: Text
-rosterLayoutModeIntentFieldName = surfaceIntentFieldName @Surface.RosterSurface @Surface.SetRosterLayoutMode @Surface.RosterLayoutMode
-
 rosterMoveShiftIntentName :: Text
 rosterMoveShiftIntentName = surfaceIntentNameValue @Surface.RosterSurface @Surface.MoveRosterShiftToSlot
 
@@ -277,25 +273,25 @@ rosterDayTimelineScopeFields scope =
 
 rosterIntentForms :: RosterWeekScopeValue -> [FrontendSurfaceIntentForm]
 rosterIntentForms scope =
-    [ FrontendSurfaceIntentForm
-        rosterLayoutModeIntentName
-        (rosterLayoutModeRequest scope (frontendSurfaceIntentFieldValues @Surface.RosterSurface @Surface.SetRosterLayoutMode rosterLayoutModeFields))
-    , FrontendSurfaceIntentForm
-        rosterMoveShiftIntentName
-        (rosterMoveShiftRequest scope (frontendSurfaceIntentFieldValues @Surface.RosterSurface @Surface.MoveRosterShiftToSlot emptyRosterDragDropFields))
-    , FrontendSurfaceIntentForm
-        rosterDuplicateShiftIntentName
-        (rosterDuplicateShiftRequest scope (frontendSurfaceIntentFieldValues @Surface.RosterSurface @Surface.DuplicateRosterShiftToDay emptyRosterDragDropFields))
-    , FrontendSurfaceIntentForm
-        (surfaceIntentNameValue @Surface.RosterSurface @Surface.DropRosterStaff)
-        (rosterDropStaffRequest scope (frontendSurfaceIntentFieldValues @Surface.RosterSurface @Surface.DropRosterStaff emptyRosterDragDropFields))
+    [ frontendSurfaceIntentForm @Surface.RosterSurface @Surface.SetRosterLayoutMode
+        rosterLayoutModeFields
+        (rosterLayoutModeRequest scope)
+    , frontendSurfaceIntentForm @Surface.RosterSurface @Surface.MoveRosterShiftToSlot
+        emptyRosterDragDropFields
+        (rosterMoveShiftRequest scope)
+    , frontendSurfaceIntentForm @Surface.RosterSurface @Surface.DuplicateRosterShiftToDay
+        emptyRosterDragDropFields
+        (rosterDuplicateShiftRequest scope)
+    , frontendSurfaceIntentForm @Surface.RosterSurface @Surface.DropRosterStaff
+        emptyRosterDragDropFields
+        (rosterDropStaffRequest scope)
     ]
 
 rosterDayTimelineIntentForms :: RosterDayTimelineScopeValue -> [FrontendSurfaceIntentForm]
 rosterDayTimelineIntentForms scope =
-    [ FrontendSurfaceIntentForm
-        rosterDayTimelineMoveShiftIntentName
-        (rosterDayTimelineMoveShiftRequest scope (frontendSurfaceIntentFieldValues @Surface.RosterDayTimelineSurface @Surface.MoveRosterTimelineShift emptyRosterDragDropFields))
+    [ frontendSurfaceIntentForm @Surface.RosterDayTimelineSurface @Surface.MoveRosterTimelineShift
+        emptyRosterDragDropFields
+        (rosterDayTimelineMoveShiftRequest scope)
     ]
 
 rosterLayoutModeFields :: SurfaceFields '[ 'Field Surface.RosterLayoutMode 'WireText]
@@ -317,46 +313,39 @@ emptyRosterDragDropFields =
         :& surfaceOptionalField @SurfaceInteraction.DeltaY (Just "")
         :& NoSurfaceFields
 
-rosterLayoutModeRequest :: RosterWeekScopeValue -> [FrontendSurfaceFieldValue] -> FrontendSurfaceHtmxRequest
-rosterLayoutModeRequest scope fields =
+rosterLayoutModeRequest :: RosterWeekScopeValue -> FrontendSurfaceHtmxRequest
+rosterLayoutModeRequest scope =
     FrontendSurfaceHtmxRequest
-        { htmxRequestName = rosterLayoutModeIntentName
-        , htmxRequestMethod = FrontendSurfacePost
+        { htmxRequestMethod = FrontendSurfacePost
         , htmxRequestUrl = rosterLayoutPreferenceUrl scope.rosterWeekWeekOffset scope.rosterWeekGroupId
         , htmxRequestTarget = "#" <> rosterContentFragmentId
         , htmxRequestSwap = "none"
-        , htmxRequestFields = fields
         }
 
-rosterMoveShiftRequest :: RosterWeekScopeValue -> [FrontendSurfaceFieldValue] -> FrontendSurfaceHtmxRequest
+rosterMoveShiftRequest :: RosterWeekScopeValue -> FrontendSurfaceHtmxRequest
 rosterMoveShiftRequest scope =
-    rosterDragDropRequest rosterMoveShiftIntentName (rosterMoveShiftUrl scope.rosterWeekWeekOffset scope.rosterWeekGroupId)
+    rosterDragDropRequest (rosterMoveShiftUrl scope.rosterWeekWeekOffset scope.rosterWeekGroupId)
 
-rosterDuplicateShiftRequest :: RosterWeekScopeValue -> [FrontendSurfaceFieldValue] -> FrontendSurfaceHtmxRequest
+rosterDuplicateShiftRequest :: RosterWeekScopeValue -> FrontendSurfaceHtmxRequest
 rosterDuplicateShiftRequest scope =
-    rosterDragDropRequest rosterDuplicateShiftIntentName (rosterDuplicateShiftUrl scope.rosterWeekWeekOffset scope.rosterWeekGroupId)
+    rosterDragDropRequest (rosterDuplicateShiftUrl scope.rosterWeekWeekOffset scope.rosterWeekGroupId)
 
-rosterDropStaffRequest :: RosterWeekScopeValue -> [FrontendSurfaceFieldValue] -> FrontendSurfaceHtmxRequest
+rosterDropStaffRequest :: RosterWeekScopeValue -> FrontendSurfaceHtmxRequest
 rosterDropStaffRequest scope =
-    rosterDragDropRequest
-        (surfaceIntentNameValue @Surface.RosterSurface @Surface.DropRosterStaff)
-        (rosterDropStaffUrl scope.rosterWeekWeekOffset scope.rosterWeekGroupId)
+    rosterDragDropRequest (rosterDropStaffUrl scope.rosterWeekWeekOffset scope.rosterWeekGroupId)
 
-rosterDayTimelineMoveShiftRequest :: RosterDayTimelineScopeValue -> [FrontendSurfaceFieldValue] -> FrontendSurfaceHtmxRequest
+rosterDayTimelineMoveShiftRequest :: RosterDayTimelineScopeValue -> FrontendSurfaceHtmxRequest
 rosterDayTimelineMoveShiftRequest scope =
     rosterDragDropRequest
-        rosterDayTimelineMoveShiftIntentName
         (rosterTimelineMoveShiftUrl scope.rosterDayTimelineWeekOffset scope.rosterDayTimelineGroupId scope.rosterDayTimelineDayOffset)
 
-rosterDragDropRequest :: Text -> Text -> [FrontendSurfaceFieldValue] -> FrontendSurfaceHtmxRequest
-rosterDragDropRequest requestName requestUrl fields =
+rosterDragDropRequest :: Text -> FrontendSurfaceHtmxRequest
+rosterDragDropRequest requestUrl =
     FrontendSurfaceHtmxRequest
-        { htmxRequestName = requestName
-        , htmxRequestMethod = FrontendSurfacePost
+        { htmxRequestMethod = FrontendSurfacePost
         , htmxRequestUrl = requestUrl
         , htmxRequestTarget = "#" <> rosterContentFragmentId
         , htmxRequestSwap = "none"
-        , htmxRequestFields = fields
         }
 
 rosterContentMountedFragment :: RosterWeekScopeValue -> FrontendSurfaceMountedFragment

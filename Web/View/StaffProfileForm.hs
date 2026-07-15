@@ -1,7 +1,11 @@
+{-# LANGUAGE TypeApplications #-}
+
 module Web.View.StaffProfileForm where
 
 import Application.Helper.Controller (VenueRole (..), currentUserIsSuperAdmin,
                                       hasRole, parseVenueRole, venueRoleToText)
+import qualified Application.Helper.FrontendContract.Surface.Profile as Surface
+import Application.Helper.FrontendContract.Surface.Values
 import Application.Helper.StaffShiftPreferences
 import qualified Data.Text as Text
 import Numeric (showFFloat)
@@ -19,12 +23,48 @@ data StaffManagementFieldData = StaffManagementFieldData
     , managementRosterGroupId          :: Maybe (Id RosterGroup)
     }
 
-renderPersonalProfileFields :: Staff -> Maybe Text -> Html
-renderPersonalProfileFields = renderPersonalProfileFieldsWithEmailId "email"
+buildStaffProfileDetailsSurfaceFields :: Text -> Staff -> Maybe StaffManagementFieldData -> SurfaceFields Surface.StaffProfileFields
+buildStaffProfileDetailsSurfaceFields section staff maybeManagement =
+    surfaceField @Surface.FirstNameField staff.firstName
+        :& surfaceField @Surface.LastNameField staff.lastName
+        :& surfaceField @Surface.PreferredNameField (fromMaybe "" staff.preferredName)
+        :& surfaceField @Surface.PhoneField staff.phone
+        :& surfaceField @Surface.IdealShiftsPerWeekField staff.idealShiftsPerWeek
+        :& surfaceField @Surface.EmergencyContactNameField staff.emergencyContactName
+        :& surfaceField @Surface.EmergencyContactPhoneField staff.emergencyContactPhone
+        :& surfaceField @Surface.SectionField section
+        :& surfaceOptionalField @Surface.VenueRoleField submittedVenueRole
+        :& surfaceOptionalField @Surface.EmploymentBasisField submittedEmploymentBasis
+        :& surfaceOptionalField @Surface.PayRateSelectionField submittedPayRateSelection
+        :& surfaceOptionalField @Surface.IsActiveField submittedIsActive
+        :& surfaceOptionalField @Surface.RosterGroupIdsField submittedRosterGroupIds
+        :& NoSurfaceFields
+  where
+    submittedVenueRole = maybeManagement >>= (.managementVenueMembership) >>= parseVenueRole >>= (Just . venueRoleToText)
+    submittedEmploymentBasis = inputValue . (.employmentBasis) . (.managementStaff) <$> maybeManagement
+    submittedPayRateSelection = staffPayRateSelectionValue . (.managementStaff) <$> maybeManagement
+    submittedIsActive = (.isActive) . (.managementStaff) <$> maybeManagement
+    submittedRosterGroupIds = fmap (map unpackId . (.managementSelectedRosterGroupIds)) maybeManagement
 
-renderPersonalProfileFieldsWithEmailId :: Text -> Staff -> Maybe Text -> Html
-renderPersonalProfileFieldsWithEmailId emailFieldId staff maybeEmail =
-    renderPersonalProfileFieldsWithEmailSlot (renderReadonlyEmailField emailFieldId maybeEmail) staff
+buildStaffShiftPreferencesSurfaceFields :: Text -> [ShiftPreferenceSelection] -> SurfaceFields Surface.StaffShiftPreferenceFields
+buildStaffShiftPreferencesSurfaceFields section selectedShiftPreferences =
+    surfaceField @Surface.SectionField section
+        :& surfaceOptionalField @Surface.ShiftPreferenceKeysField (Just (map (encodeShiftPreferenceKey . (.weekdayIndex)) selectedShiftPreferences))
+        :& NoSurfaceFields
+
+staffPayRateSelectionValue :: Staff -> Text
+staffPayRateSelectionValue staff =
+    case (staff.importedXeroPayItemId, staff.defaultAwardLevelId) of
+        (Just importedPayItemId, _)  -> "xero:" <> inputValue importedPayItemId
+        (Nothing, Just awardLevelId) -> "award:" <> inputValue awardLevelId
+        (Nothing, Nothing)           -> ""
+
+renderPersonalProfileFields :: SurfaceFields Surface.StaffProfileFields -> Staff -> Maybe Text -> Html
+renderPersonalProfileFields fields = renderPersonalProfileFieldsWithEmailId fields "email"
+
+renderPersonalProfileFieldsWithEmailId :: SurfaceFields Surface.StaffProfileFields -> Text -> Staff -> Maybe Text -> Html
+renderPersonalProfileFieldsWithEmailId fields emailFieldId staff maybeEmail =
+    renderPersonalProfileFieldsWithEmailSlot fields (renderReadonlyEmailField emailFieldId maybeEmail) staff
 
 renderReadonlyEmailField :: Text -> Maybe Text -> Html
 renderReadonlyEmailField emailFieldId maybeEmail = [hsx|
@@ -41,93 +81,93 @@ renderReadonlyEmailField emailFieldId maybeEmail = [hsx|
     </div>
 |]
 
-renderPersonalProfileFieldsWithEmailSlot :: Html -> Staff -> Html
-renderPersonalProfileFieldsWithEmailSlot emailField staff = [hsx|
+renderPersonalProfileFieldsWithEmailSlot :: SurfaceFields Surface.StaffProfileFields -> Html -> Staff -> Html
+renderPersonalProfileFieldsWithEmailSlot fields emailField staff = [hsx|
     <div class="row g-3 profile-field-grid">
         <div class="col-12 col-lg-6">
             <label for="firstName" class="form-label">First Name</label>
             <input
                 id="firstName"
-                name="firstName"
+                name={surfaceFieldNameFrom @Surface.FirstNameField fields}
                 type="text"
-                class={inputClass staff "firstName"}
+                class={inputClass staff (surfaceFieldNameFrom @Surface.FirstNameField fields)}
                 value={staff.firstName}
                 required="required"
             />
-            {renderStaffFieldError staff "firstName"}
+            {renderStaffFieldError staff (surfaceFieldNameFrom @Surface.FirstNameField fields)}
         </div>
         <div class="col-12 col-lg-6">
             <label for="lastName" class="form-label">Last Name</label>
             <input
                 id="lastName"
-                name="lastName"
+                name={surfaceFieldNameFrom @Surface.LastNameField fields}
                 type="text"
-                class={inputClass staff "lastName"}
+                class={inputClass staff (surfaceFieldNameFrom @Surface.LastNameField fields)}
                 value={staff.lastName}
                 required="required"
             />
-            {renderStaffFieldError staff "lastName"}
+            {renderStaffFieldError staff (surfaceFieldNameFrom @Surface.LastNameField fields)}
         </div>
         <div class="col-12 col-lg-6">
             <label for="preferredName" class="form-label">Preferred Name</label>
             <input
                 id="preferredName"
-                name="preferredName"
+                name={surfaceFieldNameFrom @Surface.PreferredNameField fields}
                 type="text"
-                class={inputClass staff "preferredName"}
+                class={inputClass staff (surfaceFieldNameFrom @Surface.PreferredNameField fields)}
                 value={fromMaybe "" staff.preferredName}
                 placeholder="Optional"
             />
-            {renderStaffFieldError staff "preferredName"}
+            {renderStaffFieldError staff (surfaceFieldNameFrom @Surface.PreferredNameField fields)}
         </div>
         {emailField}
         <div class="col-12 col-lg-6">
             <label for="phone" class="form-label">Phone #</label>
             <input
                 id="phone"
-                name="phone"
+                name={surfaceFieldNameFrom @Surface.PhoneField fields}
                 type="text"
-                class={inputClass staff "phone"}
+                class={inputClass staff (surfaceFieldNameFrom @Surface.PhoneField fields)}
                 value={staff.phone}
                 required="required"
             />
-            {renderStaffFieldError staff "phone"}
+            {renderStaffFieldError staff (surfaceFieldNameFrom @Surface.PhoneField fields)}
         </div>
         <div class="col-12 col-lg-6">
             <label for="idealShiftsPerWeek" class="form-label">Ideal # Shifts</label>
             <select
                 id="idealShiftsPerWeek"
-                name="idealShiftsPerWeek"
-                class={selectClass staff "idealShiftsPerWeek"}
+                name={surfaceFieldNameFrom @Surface.IdealShiftsPerWeekField fields}
+                class={selectClass staff (surfaceFieldNameFrom @Surface.IdealShiftsPerWeekField fields)}
                 required="required"
             >
                 {forEach [0 :: Int .. 7] (renderIdealShiftsOption staff.idealShiftsPerWeek)}
             </select>
-            {renderStaffFieldError staff "idealShiftsPerWeek"}
+            {renderStaffFieldError staff (surfaceFieldNameFrom @Surface.IdealShiftsPerWeekField fields)}
         </div>
         <div class="col-12 col-lg-6">
             <label for="emergencyContactName" class="form-label">Emergency Contact Name</label>
             <input
                 id="emergencyContactName"
-                name="emergencyContactName"
+                name={surfaceFieldNameFrom @Surface.EmergencyContactNameField fields}
                 type="text"
-                class={inputClass staff "emergencyContactName"}
+                class={inputClass staff (surfaceFieldNameFrom @Surface.EmergencyContactNameField fields)}
                 value={staff.emergencyContactName}
                 required="required"
             />
-            {renderStaffFieldError staff "emergencyContactName"}
+            {renderStaffFieldError staff (surfaceFieldNameFrom @Surface.EmergencyContactNameField fields)}
         </div>
         <div class="col-12 col-lg-6">
             <label for="emergencyContactPhone" class="form-label">Emergency Contact Number</label>
             <input
                 id="emergencyContactPhone"
-                name="emergencyContactPhone"
+                name={surfaceFieldNameFrom @Surface.EmergencyContactPhoneField fields}
                 type="text"
-                class={inputClass staff "emergencyContactPhone"}
+                class={inputClass staff (surfaceFieldNameFrom @Surface.EmergencyContactPhoneField fields)}
                 value={staff.emergencyContactPhone}
                 required="required"
             />
-            {renderStaffFieldError staff "emergencyContactPhone"}
+            {renderStaffFieldError staff (surfaceFieldNameFrom @Surface.EmergencyContactPhoneField fields)}
         </div>
     </div>
 |]
@@ -137,18 +177,18 @@ renderIdealShiftsOption selectedValue optionValue = [hsx|
     <option value={tshow optionValue} selected={optionValue == selectedValue}>{optionValue}</option>
 |]
 
-renderShiftPreferenceSections :: [PreferenceWeekday] -> [ShiftPreferenceSelection] -> Html
-renderShiftPreferenceSections weekdays selectedShiftPreferences =
+renderShiftPreferenceSections :: SurfaceFields Surface.StaffShiftPreferenceFields -> [PreferenceWeekday] -> [ShiftPreferenceSelection] -> Html
+renderShiftPreferenceSections fields weekdays selectedShiftPreferences =
     if null weekdays
         then [hsx|<p class="app-muted mb-0">Shift preferences will appear once the venue calendar is configured.</p>|]
         else [hsx|
     <section class={appSurfaceClasses "p-3"}>
-        {renderShiftPreferenceRows weekdays selectedShiftPreferences}
+        {renderShiftPreferenceRows fields weekdays selectedShiftPreferences}
     </section>
 |]
 
-renderShiftPreferenceRows :: [PreferenceWeekday] -> [ShiftPreferenceSelection] -> Html
-renderShiftPreferenceRows weekdays selectedShiftPreferences = [hsx|
+renderShiftPreferenceRows :: SurfaceFields Surface.StaffShiftPreferenceFields -> [PreferenceWeekday] -> [ShiftPreferenceSelection] -> Html
+renderShiftPreferenceRows fields weekdays selectedShiftPreferences = [hsx|
     <table class="table table-sm align-middle shift-preference-table mb-0">
         <thead>
             <tr>
@@ -156,13 +196,13 @@ renderShiftPreferenceRows weekdays selectedShiftPreferences = [hsx|
             </tr>
         </thead>
         <tbody>
-            {forEach weekdays (renderShiftPreferenceDayRow selectedShiftPreferences)}
+            {forEach weekdays (renderShiftPreferenceDayRow fields selectedShiftPreferences)}
         </tbody>
     </table>
 |]
 
-renderShiftPreferenceDayRow :: [ShiftPreferenceSelection] -> PreferenceWeekday -> Html
-renderShiftPreferenceDayRow selectedShiftPreferences weekday =
+renderShiftPreferenceDayRow :: SurfaceFields Surface.StaffShiftPreferenceFields -> [ShiftPreferenceSelection] -> PreferenceWeekday -> Html
+renderShiftPreferenceDayRow fields selectedShiftPreferences weekday =
     let key = encodeShiftPreferenceKey weekday.weekdayIndex
         selectedPreference = findSelectedShiftPreference weekday.weekdayIndex selectedShiftPreferences
         isSelected = isJust selectedPreference
@@ -176,7 +216,7 @@ renderShiftPreferenceDayRow selectedShiftPreferences weekday =
              data-min-hour={tshow preferenceMinimumHour}
              data-max-hour={tshow preferenceMaximumHour}>
             <th scope="row" class="shift-preference-table__available">
-                {renderShiftPreferenceAvailabilityToggle key weekdayLabel weekday.label isSelected}
+                {renderShiftPreferenceAvailabilityToggle fields key weekdayLabel weekday.label isSelected}
             </th>
             <td class="shift-preference-table__start-time">
                 <div class="shift-preference-window__controls">
@@ -220,13 +260,13 @@ renderShiftPreferenceDayRow selectedShiftPreferences weekday =
         </tr>
     |]
 
-renderShiftPreferenceAvailabilityToggle :: Text -> Text -> Text -> Bool -> Html
-renderShiftPreferenceAvailabilityToggle key weekdayLabel fullWeekdayLabel isSelected =
+renderShiftPreferenceAvailabilityToggle :: SurfaceFields Surface.StaffShiftPreferenceFields -> Text -> Text -> Text -> Bool -> Html
+renderShiftPreferenceAvailabilityToggle fields key weekdayLabel fullWeekdayLabel isSelected =
     renderAppToggleButton $ (defaultAppToggleButtonConfig ("shiftPreferenceAvailable-" <> key) isSelected [hsx|
         <span>{weekdayLabel}</span>
         <span class="visually-hidden">{fullWeekdayLabel} available</span>
     |])
-        { appToggleInputName = Just "shiftPreferenceKeys"
+        { appToggleInputName = Just (surfaceFieldNameFrom @Surface.ShiftPreferenceKeysField fields)
         , appToggleInputValue = key
         , appToggleButtonClass = "btn-sm timesheet-approval-toggle shift-preference-availability-button"
         , appToggleShiftPreferenceAvailable = True
@@ -280,24 +320,24 @@ renderStaffFieldError staff fieldName =
 hasStaffErrorFor :: Staff -> Text -> Bool
 hasStaffErrorFor staff fieldName = isJust (lookup fieldName staff.meta.annotations)
 
-renderStaffManagementFields :: StaffManagementFieldData -> Html
-renderStaffManagementFields StaffManagementFieldData { managementStaff = staff, managementRosterGroups = rosterGroups, managementAwardLevels = awardLevels, managementAwardLevelBaseRates = awardLevelBaseRates, managementImportedPayItems = importedPayItems, managementSelectedRosterGroupIds = selectedRosterGroupIds, managementVenueMembership = maybeMembership, managementWeekOffset = maybeWeekOffset, managementRosterGroupId = maybeRosterGroupId } = [hsx|
+renderStaffManagementFields :: SurfaceFields Surface.StaffProfileFields -> StaffManagementFieldData -> Html
+renderStaffManagementFields fields StaffManagementFieldData { managementStaff = staff, managementRosterGroups = rosterGroups, managementAwardLevels = awardLevels, managementAwardLevelBaseRates = awardLevelBaseRates, managementImportedPayItems = importedPayItems, managementSelectedRosterGroupIds = selectedRosterGroupIds, managementVenueMembership = maybeMembership, managementWeekOffset = maybeWeekOffset, managementRosterGroupId = maybeRosterGroupId } = [hsx|
     {maybe mempty renderWeekOffsetHiddenInput maybeWeekOffset}
     {renderRosterGroupHiddenInput maybeRosterGroupId}
-    {when currentUserIsAdmin (renderStaffRoleField maybeMembership)}
-    {when currentUserIsAdmin (renderStaffPayFields staff awardLevels awardLevelBaseRates importedPayItems)}
+    {when currentUserIsAdmin (renderStaffRoleField fields maybeMembership)}
+    {when currentUserIsAdmin (renderStaffPayFields fields staff awardLevels awardLevelBaseRates importedPayItems)}
     <div class="mt-3">
         <label for="isActive" class="form-label">Status</label>
-        <select name="isActive" id="isActive" class={selectClass staff "isActive"}>
-            <option value="on" selected={staff.isActive}>Active</option>
-            <option value="" selected={not staff.isActive}>Inactive</option>
+        <select name={surfaceFieldNameFrom @Surface.IsActiveField fields} id="isActive" class={selectClass staff (surfaceFieldNameFrom @Surface.IsActiveField fields)}>
+            <option value="true" selected={staff.isActive}>Active</option>
+            <option value="false" selected={not staff.isActive}>Inactive</option>
         </select>
-        {renderStaffFieldError staff "isActive"}
+        {renderStaffFieldError staff (surfaceFieldNameFrom @Surface.IsActiveField fields)}
     </div>
     <div class="mt-3">
         <label class="form-label d-block">Roster Groups</label>
         <div class="row g-2">
-            {forEach rosterGroups (renderRosterGroupCheckbox selectedRosterGroupIds)}
+            {forEach rosterGroups (renderRosterGroupCheckbox fields selectedRosterGroupIds)}
         </div>
     </div>
 |]
@@ -305,8 +345,8 @@ renderStaffManagementFields StaffManagementFieldData { managementStaff = staff, 
 renderWeekOffsetHiddenInput :: Int -> Html
 renderWeekOffsetHiddenInput weekOffset = [hsx|<input type="hidden" name="weekOffset" value={tshow weekOffset} />|]
 
-renderStaffRoleField :: Maybe VenueMembership -> Html
-renderStaffRoleField Nothing = [hsx|
+renderStaffRoleField :: SurfaceFields Surface.StaffProfileFields -> Maybe VenueMembership -> Html
+renderStaffRoleField _ Nothing = [hsx|
     <div class="mt-3">
         <div class="form-label">Staff Role</div>
         <div class="alert alert-secondary py-2 mb-0" role="note">
@@ -314,10 +354,10 @@ renderStaffRoleField Nothing = [hsx|
         </div>
     </div>
 |]
-renderStaffRoleField (Just membership) = [hsx|
+renderStaffRoleField fields (Just membership) = [hsx|
     <div class="mt-3">
         <label for="venueRole" class="form-label">Staff Role</label>
-        <select name="venueRole" id="venueRole" class="form-select">
+        <select name={surfaceFieldNameFrom @Surface.VenueRoleField fields} id="venueRole" class="form-select">
             {forEach assignableVenueRoles (renderVenueRoleOption membership)}
         </select>
         <div class="form-text">Controls this person's access level in the current venue.</div>
@@ -341,20 +381,20 @@ venueRoleLabel ManagerRole'   = "Manager"
 venueRoleLabel VenueAdminRole = "Venue Admin"
 venueRoleLabel VenueOwnerRole = "Venue Owner"
 
-renderStaffPayFields :: Staff -> [AwardLevel] -> [AwardLevelBaseRate] -> [XeroImportedPayItem] -> Html
-renderStaffPayFields staff awardLevels awardLevelBaseRates importedPayItems = [hsx|
+renderStaffPayFields :: SurfaceFields Surface.StaffProfileFields -> Staff -> [AwardLevel] -> [AwardLevelBaseRate] -> [XeroImportedPayItem] -> Html
+renderStaffPayFields fields staff awardLevels awardLevelBaseRates importedPayItems = [hsx|
     <div class="row g-3 mt-3 staff-pay-field-grid">
         <div class="col-12 col-md-6">
             <label for="employmentBasis" class="form-label">Employment Basis</label>
-            <select name="employmentBasis" id="employmentBasis" class={selectClass staff "employmentBasis"}>
+            <select name={surfaceFieldNameFrom @Surface.EmploymentBasisField fields} id="employmentBasis" class={selectClass staff (surfaceFieldNameFrom @Surface.EmploymentBasisField fields)}>
                 <option value="permanent" selected={staff.employmentBasis == Permanent}>Permanent</option>
                 <option value="casual" selected={staff.employmentBasis == Casual}>Casual</option>
             </select>
-            {renderStaffFieldError staff "employmentBasis"}
+            {renderStaffFieldError staff (surfaceFieldNameFrom @Surface.EmploymentBasisField fields)}
         </div>
         <div class="col-12 col-md-6">
             <label for="payRateSelection" class="form-label">Default Pay Rate</label>
-            <select name="payRateSelection" id="payRateSelection" class={selectClass staff "defaultAwardLevelId"}>
+            <select name={surfaceFieldNameFrom @Surface.PayRateSelectionField fields} id="payRateSelection" class={selectClass staff "defaultAwardLevelId"}>
                 <option value="" selected={isNothing staff.defaultAwardLevelId && isNothing staff.importedXeroPayItemId}>Not assigned</option>
                 {renderAwardLevelOptionsGroup staff awardLevels awardLevelBaseRates}
                 {renderImportedPayItemOptionsGroup staff.importedXeroPayItemId importedPayItems}
@@ -401,19 +441,19 @@ renderRosterGroupHiddenInput maybeRosterGroupId =
         Just rosterGroupId -> [hsx|<input type="hidden" name="rosterGroupId" value={tshow rosterGroupId} />|]
         Nothing -> mempty
 
-renderRosterGroupCheckbox :: [Id RosterGroup] -> RosterGroup -> Html
-renderRosterGroupCheckbox selectedRosterGroupIds rosterGroup =
+renderRosterGroupCheckbox :: SurfaceFields Surface.StaffProfileFields -> [Id RosterGroup] -> RosterGroup -> Html
+renderRosterGroupCheckbox fields selectedRosterGroupIds rosterGroup =
     let isSelected = rosterGroup.id `elem` selectedRosterGroupIds
      in [hsx|
         <div class="col-12 col-md-6">
-            {renderRosterGroupToggle rosterGroup isSelected}
+            {renderRosterGroupToggle fields rosterGroup isSelected}
         </div>
     |]
 
-renderRosterGroupToggle :: RosterGroup -> Bool -> Html
-renderRosterGroupToggle rosterGroup isSelected =
+renderRosterGroupToggle :: SurfaceFields Surface.StaffProfileFields -> RosterGroup -> Bool -> Html
+renderRosterGroupToggle fields rosterGroup isSelected =
     renderAppToggleButton $ (defaultAppToggleButtonConfig ("staff-roster-group-" <> tshow rosterGroup.id) isSelected [hsx|<span>{rosterGroup.name}</span>|])
-        { appToggleInputName = Just "rosterGroupIds"
+        { appToggleInputName = Just (surfaceFieldNameFrom @Surface.RosterGroupIdsField fields)
         , appToggleInputValue = tshow rosterGroup.id
         , appToggleButtonClass = "btn-sm timesheet-approval-toggle shift-preference-availability-button w-100 d-flex align-items-center justify-content-center gap-1"
         }

@@ -70,8 +70,7 @@ expect_compile_failure \
 
 expect_compile_failure \
     "Test/CompileFail/FrontendSurfaceWrongIntentField.hs" \
-    "FrontendSurface declaration Fixture.MoveCard does not declare field marker Fixture.PanelId" \
-    "Declared fields: [Fixture.SourceItemKey :: required WireText, Fixture.TargetDropzoneKey :: required WireText]"
+    "FrontendSurface field bundle does not declare marker Fixture.PanelId"
 
 expect_compile_failure \
     "Test/CompileFail/FrontendSurfaceWrongScopeField.hs" \
@@ -144,8 +143,23 @@ expect_compile_failure \
 
 expect_compile_failure \
     "Test/CompileFail/FrontendSurfaceWrongActionField.hs" \
-    "FrontendSurface declaration Timesheets.NavigateTimesheetWeek does not declare field marker Roster.RosterGroupId" \
-    "Declared fields: [Timesheets.WeekOffset :: required WireInt"
+    "FrontendSurface field bundle does not declare marker Roster.RosterGroupId"
+
+expect_compile_failure \
+    "Test/CompileFail/FrontendSurfaceIncompleteAction.hs" \
+    "FrontendSurface field list is incomplete" \
+    "Missing next field: Timesheets.StaffFilterId :: optional WireUUID"
+
+expect_compile_failure \
+    "Test/CompileFail/FrontendSurfaceWrongActionWireType.hs" \
+    "FrontendSurface field wire mismatch" \
+    "Declared field: Timesheets.WeekOffset :: required WireInt" \
+    "Received Haskell value: Text"
+
+expect_compile_failure \
+    "Test/CompileFail/FrontendSurfaceIncompleteIntent.hs" \
+    "FrontendSurface field list is incomplete" \
+    "Missing next field: Fixture.TargetDropzoneKey :: required WireText"
 
 expect_compile_failure \
     "Test/CompileFail/FrontendSurfaceUnknownInteractionEffect.hs" \

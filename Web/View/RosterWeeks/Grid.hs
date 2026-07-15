@@ -31,15 +31,16 @@ import Application.Helper.FrontendContract.AppShell (OpenRosterShiftDialog)
 import Application.Helper.FrontendContract.AppShell.Runtime (AppShellActionRoute (..),
                                                              appShellActionByMarker,
                                                              applyAppShellActionAttrs)
-import qualified Application.Helper.FrontendContract.Surface.ContractIR as SurfaceIR
 import qualified Application.Helper.FrontendContract.Surface.Interaction as SurfaceInteraction
 import qualified Application.Helper.FrontendContract.Surface.Roster as Surface
-import Application.Helper.FrontendContract.Surface.Runtime (FrontendSurfaceActionRoute (..),
+import Application.Helper.FrontendContract.Surface.Runtime (FrontendSurfaceAction,
+                                                            FrontendSurfaceActionRoute (..),
                                                             FrontendSurfaceInteractionShellConfig (..),
                                                             FrontendSurfaceMountConfig (..),
+                                                            frontendSurfaceAction,
                                                             renderFrontendSurfaceActionForm,
                                                             renderFrontendSurfaceInteractionShell)
-import Application.Helper.FrontendContract.Surface.Values (surfaceActionValue)
+import Application.Helper.FrontendContract.Surface.Values (SurfaceFields (NoSurfaceFields))
 import Application.Helper.Profiling (profileHtmlComponent, profileRenderCounter)
 import Application.Helper.RosterWagePrediction
 import Application.Helper.ShiftTypeColours (shiftTypeColourPaletteKeys)
@@ -77,7 +78,6 @@ rosterGridActionRoute :: Text -> FrontendSurfaceActionRoute
 rosterGridActionRoute actionUrl =
     FrontendSurfaceActionRoute
         { actionRouteUrl = actionUrl
-        , actionRouteFields = []
         , actionRouteCustomHtmx = []
         , actionRouteStandardUrl = Just actionUrl
         , actionRouteExtraAttrs = []
@@ -425,7 +425,7 @@ renderSlotHeaderGroup endTimesEnabled _ _ _ (slotIndex, _) = [hsx|
 renderSlotDeleteForm :: Int -> RosterWeekSlotDefinition -> Html
 renderSlotDeleteForm slotCount slotName =
     renderFrontendSurfaceActionForm
-        (surfaceActionValue @Surface.RosterSurface @Surface.DeleteRosterWeekSlotDefinition)
+        (frontendSurfaceAction @Surface.RosterSurface @Surface.DeleteRosterWeekSlotDefinition NoSurfaceFields)
         (rosterGridActionRoute (pathTo (DeleteRosterWeekSlotDefinitionAction slotName.id)))
             { actionRouteExtraAttrs = [("class", "mb-0")]
             }
@@ -447,7 +447,7 @@ slotHeaderGridColumnStyle endTimesEnabled =
 renderSlotAddButton :: (?context :: ControllerContext) => RosterWeek -> Bool -> Html
 renderSlotAddButton rosterWeek True =
     renderFrontendSurfaceActionForm
-        (surfaceActionValue @Surface.RosterSurface @Surface.CreateRosterWeekSlotDefinition)
+        (frontendSurfaceAction @Surface.RosterSurface @Surface.CreateRosterWeekSlotDefinition NoSurfaceFields)
         (rosterGridActionRoute (pathTo (CreateRosterWeekSlotDefinitionAction rosterWeek.id)))
             { actionRouteExtraAttrs = [("class", "mb-0 roster-slot-column-add-form")]
             }
@@ -814,7 +814,7 @@ renderToggleClosedButton rosterDay =
             let buttonLabel = if rosterDay.isClosed then ("Reopen day" :: Text) else ("Mark day closed" :: Text)
                 iconClass = if rosterDay.isClosed then ("bi bi-lock-fill" :: Text) else ("bi bi-unlock" :: Text)
                 closedLabel = if rosterDay.isClosed then [hsx|<span class="roster-day-action-label">CLOSED</span>|] else mempty
-             in renderRosterDayActionForm (surfaceActionValue @Surface.RosterSurface @Surface.ToggleRosterDayClosed) (pathTo (ToggleRosterDayClosedAction rosterDay.id)) [hsx|
+             in renderRosterDayActionForm (frontendSurfaceAction @Surface.RosterSurface @Surface.ToggleRosterDayClosed NoSurfaceFields) (pathTo (ToggleRosterDayClosedAction rosterDay.id)) [hsx|
                 <button type="submit"
                         class={classes [("btn btn-sm app-compact-action-button roster-day-action roster-day-action-toggle", True), ("is-active", rosterDay.isClosed)]}
                         aria-label={buttonLabel}
@@ -829,7 +829,7 @@ renderToggleClosedButton rosterDay =
 renderAddRowButton :: (?context :: ControllerContext) => RosterDay -> Html
 renderAddRowButton rosterDay =
     if currentUserIsManager
-        then renderRosterDayActionForm (surfaceActionValue @Surface.RosterSurface @Surface.AddRosterRow) (pathTo (AddRosterRowAction rosterDay.id)) [hsx|
+        then renderRosterDayActionForm (frontendSurfaceAction @Surface.RosterSurface @Surface.AddRosterRow NoSurfaceFields) (pathTo (AddRosterRowAction rosterDay.id)) [hsx|
             <button type="submit"
                     class="btn btn-sm app-compact-action-button roster-day-action roster-day-action-add"
                     aria-label="Add shift row"
@@ -845,7 +845,7 @@ renderDeleteLastRowButton rosterDay rowIndex =
     if currentUserIsManager
         then
             let canDelete = rowIndex >= minimumOpenRosterRows
-             in renderRosterDayActionForm (surfaceActionValue @Surface.RosterSurface @Surface.RemoveRosterRow) (pathTo (RemoveRosterRowAction rosterDay.id)) [hsx|
+             in renderRosterDayActionForm (frontendSurfaceAction @Surface.RosterSurface @Surface.RemoveRosterRow NoSurfaceFields) (pathTo (RemoveRosterRowAction rosterDay.id)) [hsx|
                 <button type="submit"
                         class="btn btn-sm app-compact-action-button roster-day-action roster-day-action-remove"
                         aria-label={if canDelete then ("Delete last shift row" :: Text) else ("Minimum day size reached" :: Text)}
@@ -857,7 +857,7 @@ renderDeleteLastRowButton rosterDay rowIndex =
             |]
         else [hsx|<span></span>|]
 
-renderRosterDayActionForm :: SurfaceIR.HtmxActionIR -> Text -> Html -> Html
+renderRosterDayActionForm :: FrontendSurfaceAction -> Text -> Html -> Html
 renderRosterDayActionForm action actionUrl body =
     renderFrontendSurfaceActionForm
         action

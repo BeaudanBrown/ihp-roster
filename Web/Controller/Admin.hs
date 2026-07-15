@@ -1,13 +1,19 @@
 module Web.Controller.Admin where
 
 import Application.Helper.Export
+import qualified Application.Helper.FrontendContract.Surface.Admin as Surface
 import Application.Helper.FrontendContract.Surface.Admin.Live (adminShiftTypesLiveScope)
 import Application.Helper.FrontendContract.Surface.Admin.Resource (adminInvitesResource,
                                                                    xeroConnectionResource)
 import Application.Helper.FrontendContract.Surface.Billing.Resource (billingResource)
 import Application.Helper.FrontendContract.Surface.LeaveRequests.Resource (pendingLeaveRequestsResource)
+import Application.Helper.FrontendContract.Surface.Request (SurfaceRequestFieldError,
+                                                            parseSurfaceActionParams,
+                                                            surfaceActionParamsPresent,
+                                                            surfaceRequestFieldErrorsMessage)
 import Application.Helper.FrontendContract.Surface.Roster.Resource (rosterWeekResource)
 import Application.Helper.FrontendContract.Surface.Timesheets.Resource (timesheetWeekResource)
+import Application.Helper.FrontendContract.Surface.Values
 import Application.Helper.LiveUpdate (setActorLiveResourcesRefresh)
 import Application.Helper.PasskeySetupTokens
 import Application.Helper.Profiling
@@ -62,6 +68,13 @@ respondToVenueSettingsMutation =
             respondHtml (renderVenueSettingsSectionFragmentWithSwap (Just "outerHTML") venueConfig)
         else redirectToAdminFor (paramOrNothing "rosterGroupId")
 
+reportSurfaceRequestErrors ::
+    (?context :: ControllerContext, ?request :: Request) =>
+    [SurfaceRequestFieldError] ->
+    IO ()
+reportSurfaceRequestErrors errors =
+    setErrorMessage ("Check the submitted fields: " <> surfaceRequestFieldErrorsMessage errors)
+
 respondToShiftTypesSectionMutationWithXeroRefresh ::
     (?context :: ControllerContext, ?request :: Request) =>
     LiveMutationResult value ->
@@ -115,6 +128,16 @@ fetchCurrentVenueStaffUser staffId = do
         Nothing     -> pure Nothing
         Just userId -> Just <$> fetch (Id userId :: Id User)
 
+parseAdminShiftTypesVisibility :: (?request :: Request) => Either [SurfaceRequestFieldError] Bool
+parseAdminShiftTypesVisibility
+    | not (surfaceActionParamsPresent @Surface.AdminShiftTypesSurface @Surface.ToggleInactiveShiftTypes) = Right False
+    | otherwise = surfaceFieldValue @Surface.ShowInactiveShiftTypes <$> parseSurfaceActionParams @Surface.AdminShiftTypesSurface @Surface.ToggleInactiveShiftTypes
+
+parseAdminRosterGroupsVisibility :: (?request :: Request) => Either [SurfaceRequestFieldError] Bool
+parseAdminRosterGroupsVisibility
+    | not (surfaceActionParamsPresent @Surface.AdminRosterGroupsSurface @Surface.ToggleInactiveRosterGroups) = Right False
+    | otherwise = surfaceFieldValue @Surface.ShowInactiveRosterGroups <$> parseSurfaceActionParams @Surface.AdminRosterGroupsSurface @Surface.ToggleInactiveRosterGroups
+
 instance Controller AdminController where
     beforeAction = bepisBeforeAction BepisAdminVenueController do
         annotateTelemetryAction
@@ -133,8 +156,12 @@ instance Controller AdminController where
             awardLevels <- profileActionSpan "admin.page.fetch_award_levels" fetchActiveAwardLevels
             awardLevelBaseRates <- profileActionSpan "admin.page.fetch_award_rates" fetchCurrentAwardLevelBaseRates
             importedPayItems <- profileActionSpan "admin.page.fetch_imported_pay_items" fetchActiveImportedXeroPayItems
-            let showInactiveRosterGroups = parseShowInactiveParam "showInactiveRosterGroups"
-            let showInactiveShiftTypes = parseShowInactiveParam "showInactiveShiftTypes"
+            showInactiveRosterGroups <- case parseAdminRosterGroupsVisibility of
+                Left errors -> reportSurfaceRequestErrors errors >> pure False
+                Right value -> pure value
+            showInactiveShiftTypes <- case parseAdminShiftTypesVisibility of
+                Left errors -> reportSurfaceRequestErrors errors >> pure False
+                Right value -> pure value
             invitations <- profileActionSpan "admin.page.fetch_invitations" fetchCurrentVenueInvitations
             today <- utctDay <$> getCurrentTime
             profileActionSpan "admin.page.render_response" (render IndexView { .. })
@@ -244,44 +271,48 @@ instance Controller AdminController where
     action currentAction@UpdateVenueConfigAction = runBepis currentAction BepisMutationAction do
         ensureVenueWritable
         venueConfig <- fetchVenueConfig
-        let configField = paramOrDefault @Text "rosterWeekStartsOn" "configField"
-        case configField of
-            "rosterEndTimesEnabled" -> do
-                let rosterEndTimesEnabled = isJust (paramOrNothing @Text "rosterEndTimesEnabled")
-                _ <- setRosterEndTimesEnabledMutation venueConfig rosterEndTimesEnabled
-                setSuccessMessage $
-                    if rosterEndTimesEnabled
-                        then "Roster end times shown in the roster."
-                        else "Roster end times hidden from the roster."
+        case parseSurfaceActionParams @Surface.AdminVenueSettingsSurface @Surface.UpdateVenueConfig of
+            Left errors -> do
+                reportSurfaceRequestErrors errors
                 respondToVenueSettingsMutation
-            "autoTimesheetCreationEnabled" -> do
-                setErrorMessage "Automatic timesheet creation has been replaced by rostered timesheet suggestions."
-                respondToVenueSettingsMutation
-            "timePickerWindow" -> do
-                let maybeStartMinute = parseQuarterHourMinuteOfDay =<< paramOrNothing @Text "timePickerStart"
-                let maybeFinalSelectableMinute = parseQuarterHourMinuteOfDay =<< paramOrNothing @Text "timePickerEnd"
-                case (maybeStartMinute, maybeFinalSelectableMinute) of
-                    (Just startMinute, Just finalSelectableMinute) | startMinute /= finalSelectableMinute -> do
-                        _ <- setRosterTimePickerWindowMutation venueConfig startMinute finalSelectableMinute
-                        setSuccessMessage "Valid shift window updated."
+            Right fields ->
+                case surfaceFieldValue @Surface.ConfigFieldField fields of
+                    "rosterEndTimesEnabled" -> do
+                        let rosterEndTimesEnabled = fromMaybe False (surfaceFieldValue @Surface.RosterEndTimesEnabled fields)
+                        _ <- setRosterEndTimesEnabledMutation venueConfig rosterEndTimesEnabled
+                        setSuccessMessage $
+                            if rosterEndTimesEnabled
+                                then "Roster end times shown in the roster."
+                                else "Roster end times hidden from the roster."
                         respondToVenueSettingsMutation
+                    "autoTimesheetCreationEnabled" -> do
+                        setErrorMessage "Automatic timesheet creation has been replaced by rostered timesheet suggestions."
+                        respondToVenueSettingsMutation
+                    "timePickerWindow" -> do
+                        let maybeStartMinute = parseQuarterHourMinuteOfDay =<< surfaceFieldValue @Surface.TimePickerStart fields
+                        let maybeFinalSelectableMinute = parseQuarterHourMinuteOfDay =<< surfaceFieldValue @Surface.TimePickerEnd fields
+                        case (maybeStartMinute, maybeFinalSelectableMinute) of
+                            (Just startMinute, Just finalSelectableMinute) | startMinute /= finalSelectableMinute -> do
+                                _ <- setRosterTimePickerWindowMutation venueConfig startMinute finalSelectableMinute
+                                setSuccessMessage "Valid shift window updated."
+                                respondToVenueSettingsMutation
+                            _ -> do
+                                setErrorMessage "Choose different start and end times on 15-minute increments."
+                                respondToVenueSettingsMutation
                     _ -> do
-                        setErrorMessage "Choose different start and end times on 15-minute increments."
-                        respondToVenueSettingsMutation
-            _ -> do
-                requestedRosterWeekStartsOn <- parseRosterWeekStartsOn
-                case requestedRosterWeekStartsOn of
-                    Nothing -> respondToVenueSettingsMutation
-                    Just rosterWeekStartsOn -> do
-                        isLocked <- isVenueRosterWeekStartLocked
-                        if isLocked
-                            then do
-                                setErrorMessage "Roster week start can only be configured before roster, timesheet, leave, export, or payroll version data exists."
-                                respondToVenueSettingsMutation
-                            else do
-                                _ <- setRosterWeekStartsOnMutation venueConfig rosterWeekStartsOn
-                                setSuccessMessage ("Roster week will start on " <> weekdayIndexLabel rosterWeekStartsOn)
-                                respondToVenueSettingsMutation
+                        requestedRosterWeekStartsOn <- validateRosterWeekStartsOn (surfaceFieldValue @Surface.RosterWeekStartsOn fields)
+                        case requestedRosterWeekStartsOn of
+                            Nothing -> respondToVenueSettingsMutation
+                            Just rosterWeekStartsOn -> do
+                                isLocked <- isVenueRosterWeekStartLocked
+                                if isLocked
+                                    then do
+                                        setErrorMessage "Roster week start can only be configured before roster, timesheet, leave, export, or payroll version data exists."
+                                        respondToVenueSettingsMutation
+                                    else do
+                                        _ <- setRosterWeekStartsOnMutation venueConfig rosterWeekStartsOn
+                                        setSuccessMessage ("Roster week will start on " <> weekdayIndexLabel rosterWeekStartsOn)
+                                        respondToVenueSettingsMutation
 
     action currentAction@ShowAdminVenueSettingsFragmentAction = runBepis currentAction BepisFragmentAction $
         profileActionSpan "admin.venue_settings_fragment.respond" do
@@ -300,14 +331,18 @@ instance Controller AdminController where
             awardLevels <- profileActionSpan "admin.shift_types_fragment.fetch_award_levels" fetchActiveAwardLevels
             awardLevelBaseRates <- profileActionSpan "admin.shift_types_fragment.fetch_award_rates" fetchCurrentAwardLevelBaseRates
             importedPayItems <- profileActionSpan "admin.shift_types_fragment.fetch_imported_pay_items" fetchActiveImportedXeroPayItems
-            let showInactiveShiftTypes = parseShowInactiveParam "showInactiveShiftTypes"
+            showInactiveShiftTypes <- case parseAdminShiftTypesVisibility of
+                Left errors -> reportSurfaceRequestErrors errors >> pure False
+                Right value -> pure value
             profileActionSpan "admin.shift_types_fragment.render_response" (respondFragmentHtml (renderShiftTypesSectionFragment shiftTypes showInactiveShiftTypes awardLevels awardLevelBaseRates importedPayItems))
 
     action currentAction@ShowadminRosterGroupsLiveFragmentAction = runBepis currentAction BepisFragmentAction $
         profileActionSpan "admin.roster_groups_fragment.respond" do
             _ <- profileActionSpan "admin.roster_groups_fragment.normalize_roster_groups" ensureAdminRosterGroupsNormalizedMutation
             rosterGroups <- profileActionSpan "admin.roster_groups_fragment.fetch_roster_groups" fetchCurrentVenueRosterGroups
-            let showInactiveRosterGroups = parseShowInactiveParam "showInactiveRosterGroups"
+            showInactiveRosterGroups <- case parseAdminRosterGroupsVisibility of
+                Left errors -> reportSurfaceRequestErrors errors >> pure False
+                Right value -> pure value
             profileActionSpan "admin.roster_groups_fragment.render_response" (respondFragmentHtml (renderRosterGroupsSectionFragment rosterGroups showInactiveRosterGroups))
 
     action currentAction@ShowadminExportsLiveFragmentAction = runBepis currentAction BepisFragmentAction $
@@ -323,13 +358,17 @@ instance Controller AdminController where
     action currentAction@CreateVenueInvitationAction = runBepis currentAction BepisMutationAction do
         ensureVenueWritable
         currentRosterGroup <- fetchCurrentVenueRosterGroupOrDefault (paramOrNothing "rosterGroupId")
-        maybeEmail <- parseRequiredEmail "email" "Invite email is required."
-        case maybeEmail of
-            Just email -> do
-                _ <- createVenueInvitationMutation email
-                respondToInvitesSectionMutation ("Invitation queued for " <> email) currentRosterGroup.id
-            _ ->
+        case parseSurfaceActionParams @Surface.AdminInvitesSurface @Surface.CreateVenueInvitation of
+            Left errors -> do
+                reportSurfaceRequestErrors errors
                 respondToInvitesSectionMutation "" currentRosterGroup.id
+            Right fields -> do
+                maybeEmail <- validateRequiredEmail (surfaceFieldValue @Surface.Email fields) "Invite email is required."
+                case maybeEmail of
+                    Just email -> do
+                        _ <- createVenueInvitationMutation email
+                        respondToInvitesSectionMutation ("Invitation queued for " <> email) currentRosterGroup.id
+                    Nothing -> respondToInvitesSectionMutation "" currentRosterGroup.id
 
     action currentAction@RevokeVenueInvitationAction { venueInvitationId } = runBepis currentAction BepisMutationAction do
         ensureVenueWritable
@@ -345,101 +384,124 @@ instance Controller AdminController where
     action currentAction@CreateRosterGroupAction = runBepis currentAction BepisMutationAction do
         ensureVenueWritable
         venue <- fetch currentVenueId
-        maybeName <- parseRequiredName "name" "Roster group name is required."
-        case maybeName of
-            Nothing -> respondToRosterGroupsSectionMutation Nothing
-            Just name -> do
-                let isActive = parseIsActiveParam
-                mutationResult <- createRosterGroupMutation venue name isActive
-                let rosterGroup = mutationResult.liveMutationValue
-                setSuccessMessage "Roster group added"
-                respondToRosterGroupsResourceMutation mutationResult (Just rosterGroup.id)
+        case parseSurfaceActionParams @Surface.AdminRosterGroupsSurface @Surface.CreateRosterGroup of
+            Left errors -> do
+                reportSurfaceRequestErrors errors
+                respondToRosterGroupsSectionMutation Nothing
+            Right fields -> do
+                maybeName <- validateRequiredName (surfaceFieldValue @Surface.Name fields) "Roster group name is required."
+                case maybeName of
+                    Nothing -> respondToRosterGroupsSectionMutation Nothing
+                    Just name -> do
+                        mutationResult <- createRosterGroupMutation venue name (surfaceFieldValue @Surface.IsActive fields)
+                        let rosterGroup = mutationResult.liveMutationValue
+                        setSuccessMessage "Roster group added"
+                        respondToRosterGroupsResourceMutation mutationResult (Just rosterGroup.id)
 
     action currentAction@UpdateRosterGroupAction { rosterGroupId } = runBepis currentAction BepisMutationAction do
         ensureVenueWritable
         venue <- fetch currentVenueId
         rosterGroup <- fetch rosterGroupId
         ensureRecordInCurrentVenue rosterGroup.venueId
-        maybeName <- parseRequiredName "name" "Roster group name is required."
-        case maybeName of
-            Nothing -> respondToRosterGroupsSectionMutation (Just rosterGroup.id)
-            Just name -> do
-                let isActive = parseIsActiveParam
-                rosterGroups <- fetchCurrentVenueRosterGroups
-                let otherActiveGroups = filter (\group -> group.id /= rosterGroup.id && group.isActive) rosterGroups
-                if not isActive && null otherActiveGroups
-                    then do
-                        setErrorMessage "Each venue needs at least one active roster group."
-                        respondToRosterGroupsSectionMutation (Just rosterGroup.id)
-                    else do
-                        mutationResult <- updateRosterGroupMutation venue rosterGroup name isActive
-                        let updatedRosterGroup = mutationResult.liveMutationValue
-                        setSuccessMessage "Roster group updated"
-                        respondToRosterGroupsResourceMutation mutationResult (Just updatedRosterGroup.id)
+        case parseSurfaceActionParams @Surface.AdminRosterGroupsSurface @Surface.UpdateRosterGroup of
+            Left errors -> do
+                reportSurfaceRequestErrors errors
+                respondToRosterGroupsSectionMutation (Just rosterGroup.id)
+            Right fields -> do
+                maybeName <- validateRequiredName (surfaceFieldValue @Surface.Name fields) "Roster group name is required."
+                case maybeName of
+                    Nothing -> respondToRosterGroupsSectionMutation (Just rosterGroup.id)
+                    Just name -> do
+                        let isActive = surfaceFieldValue @Surface.IsActive fields
+                        rosterGroups <- fetchCurrentVenueRosterGroups
+                        let otherActiveGroups = filter (\group -> group.id /= rosterGroup.id && group.isActive) rosterGroups
+                        if not isActive && null otherActiveGroups
+                            then do
+                                setErrorMessage "Each venue needs at least one active roster group."
+                                respondToRosterGroupsSectionMutation (Just rosterGroup.id)
+                            else do
+                                mutationResult <- updateRosterGroupMutation venue rosterGroup name isActive
+                                let updatedRosterGroup = mutationResult.liveMutationValue
+                                setSuccessMessage "Roster group updated"
+                                respondToRosterGroupsResourceMutation mutationResult (Just updatedRosterGroup.id)
 
     action currentAction@MoveRosterGroupUpAction { rosterGroupId } = runBepis currentAction BepisMutationAction do
         ensureVenueWritable
         rosterGroup <- fetch rosterGroupId
         ensureRecordInCurrentVenue rosterGroup.venueId
-        mutationResult <- moveRosterGroupMutation rosterGroup (-1)
-        setSuccessMessage "Roster group order updated"
-        respondToRosterGroupsResourceMutation mutationResult (Just rosterGroup.id)
+        case parseSurfaceActionParams @Surface.AdminRosterGroupsSurface @Surface.MoveRosterGroupUp of
+            Left errors -> reportSurfaceRequestErrors errors >> respondToRosterGroupsSectionMutation (Just rosterGroup.id)
+            Right _ -> do
+                mutationResult <- moveRosterGroupMutation rosterGroup (-1)
+                setSuccessMessage "Roster group order updated"
+                respondToRosterGroupsResourceMutation mutationResult (Just rosterGroup.id)
 
     action currentAction@MoveRosterGroupDownAction { rosterGroupId } = runBepis currentAction BepisMutationAction do
         ensureVenueWritable
         rosterGroup <- fetch rosterGroupId
         ensureRecordInCurrentVenue rosterGroup.venueId
-        mutationResult <- moveRosterGroupMutation rosterGroup 1
-        setSuccessMessage "Roster group order updated"
-        respondToRosterGroupsResourceMutation mutationResult (Just rosterGroup.id)
+        case parseSurfaceActionParams @Surface.AdminRosterGroupsSurface @Surface.MoveRosterGroupDown of
+            Left errors -> reportSurfaceRequestErrors errors >> respondToRosterGroupsSectionMutation (Just rosterGroup.id)
+            Right _ -> do
+                mutationResult <- moveRosterGroupMutation rosterGroup 1
+                setSuccessMessage "Roster group order updated"
+                respondToRosterGroupsResourceMutation mutationResult (Just rosterGroup.id)
 
     action currentAction@CreateShiftTypeAction = runBepis currentAction BepisMutationAction do
         ensureVenueWritable
-        maybeName <- parseRequiredName "name" "Shift type name is required."
-        case maybeName of
-            Nothing -> respondToShiftTypesSectionMutation
-            Just name -> do
-                let isActive = parseIsActiveParam
-                maybePayRateSelection <- parseSubmittedPayRateSelection "payRateSelection"
-                case maybePayRateSelection of
-                    Just payRateSelection -> do
-                        let maybeColourKey = parseSubmittedShiftTypeColourKey
-                        mutationResult <- createShiftTypeMutation name isActive payRateSelection.submittedAwardLevelId payRateSelection.submittedImportedXeroPayItemId maybeColourKey
-                        setSuccessMessage "Shift type added"
-                        respondToShiftTypesSectionMutationWithXeroRefresh mutationResult
-                    Nothing -> respondToShiftTypesSectionMutation
+        case parseSurfaceActionParams @Surface.AdminShiftTypesSurface @Surface.CreateShiftType of
+            Left errors -> reportSurfaceRequestErrors errors >> respondToShiftTypesSectionMutation False
+            Right fields -> do
+                maybeName <- validateRequiredName (surfaceFieldValue @Surface.Name fields) "Shift type name is required."
+                case maybeName of
+                    Nothing -> respondToShiftTypesSectionMutation (surfaceFieldValue @Surface.ShowInactiveShiftTypes fields)
+                    Just name -> do
+                        maybePayRateSelection <- parseSubmittedPayRateSelectionValue (surfaceFieldValue @Surface.PayRateSelection fields)
+                        case maybePayRateSelection of
+                            Just payRateSelection -> do
+                                mutationResult <- createShiftTypeMutation name (surfaceFieldValue @Surface.IsActive fields) payRateSelection.submittedAwardLevelId payRateSelection.submittedImportedXeroPayItemId (Just (surfaceFieldValue @Surface.ColourKey fields))
+                                setSuccessMessage "Shift type added"
+                                respondToShiftTypesSectionMutationWithXeroRefresh mutationResult
+                            Nothing -> respondToShiftTypesSectionMutation (surfaceFieldValue @Surface.ShowInactiveShiftTypes fields)
 
     action currentAction@UpdateShiftTypeAction { shiftTypeId } = runBepis currentAction BepisMutationAction do
         ensureVenueWritable
         shiftType <- fetch shiftTypeId
         ensureRecordInCurrentVenue shiftType.venueId
-        maybeName <- parseRequiredName "name" "Shift type name is required."
-        case maybeName of
-            Nothing -> respondToShiftTypesSectionMutation
-            Just name -> do
-                let isActive = parseIsActiveParam
-                maybePayRateSelection <- parseSubmittedPayRateSelection "payRateSelection"
-                case maybePayRateSelection of
-                    Just payRateSelection -> do
-                        let maybeColourKey = parseSubmittedShiftTypeColourKey
-                        mutationResult <- updateShiftTypeMutation shiftType name isActive payRateSelection.submittedAwardLevelId payRateSelection.submittedImportedXeroPayItemId maybeColourKey
-                        unless isHtmxRequest do
-                            setSuccessMessage "Shift type updated"
-                        respondToShiftTypesSectionMutationWithXeroRefresh mutationResult
-                    Nothing -> respondToShiftTypesSectionMutation
+        case parseSurfaceActionParams @Surface.AdminShiftTypesSurface @Surface.UpdateShiftType of
+            Left errors -> reportSurfaceRequestErrors errors >> respondToShiftTypesSectionMutation False
+            Right fields -> do
+                maybeName <- validateRequiredName (surfaceFieldValue @Surface.Name fields) "Shift type name is required."
+                case maybeName of
+                    Nothing -> respondToShiftTypesSectionMutation (surfaceFieldValue @Surface.ShowInactiveShiftTypes fields)
+                    Just name -> do
+                        maybePayRateSelection <- parseSubmittedPayRateSelectionValue (surfaceFieldValue @Surface.PayRateSelection fields)
+                        case maybePayRateSelection of
+                            Just payRateSelection -> do
+                                mutationResult <- updateShiftTypeMutation shiftType name (surfaceFieldValue @Surface.IsActive fields) payRateSelection.submittedAwardLevelId payRateSelection.submittedImportedXeroPayItemId (Just (surfaceFieldValue @Surface.ColourKey fields))
+                                unless isHtmxRequest do
+                                    setSuccessMessage "Shift type updated"
+                                respondToShiftTypesSectionMutationWithXeroRefresh mutationResult
+                            Nothing -> respondToShiftTypesSectionMutation (surfaceFieldValue @Surface.ShowInactiveShiftTypes fields)
 
     action currentAction@MoveShiftTypeUpAction { shiftTypeId } = runBepis currentAction BepisMutationAction do
         ensureVenueWritable
         shiftType <- fetch shiftTypeId
         ensureRecordInCurrentVenue shiftType.venueId
-        mutationResult <- moveShiftTypeMutation shiftType (-1)
-        setSuccessMessage "Shift type order updated"
-        respondToShiftTypesSectionMutationWithXeroRefresh mutationResult
+        case parseSurfaceActionParams @Surface.AdminShiftTypesSurface @Surface.MoveShiftTypeUp of
+            Left errors -> reportSurfaceRequestErrors errors >> respondToShiftTypesSectionMutation False
+            Right _ -> do
+                mutationResult <- moveShiftTypeMutation shiftType (-1)
+                setSuccessMessage "Shift type order updated"
+                respondToShiftTypesSectionMutationWithXeroRefresh mutationResult
 
     action currentAction@MoveShiftTypeDownAction { shiftTypeId } = runBepis currentAction BepisMutationAction do
         ensureVenueWritable
         shiftType <- fetch shiftTypeId
         ensureRecordInCurrentVenue shiftType.venueId
-        mutationResult <- moveShiftTypeMutation shiftType 1
-        setSuccessMessage "Shift type order updated"
-        respondToShiftTypesSectionMutationWithXeroRefresh mutationResult
+        case parseSurfaceActionParams @Surface.AdminShiftTypesSurface @Surface.MoveShiftTypeDown of
+            Left errors -> reportSurfaceRequestErrors errors >> respondToShiftTypesSectionMutation False
+            Right _ -> do
+                mutationResult <- moveShiftTypeMutation shiftType 1
+                setSuccessMessage "Shift type order updated"
+                respondToShiftTypesSectionMutationWithXeroRefresh mutationResult

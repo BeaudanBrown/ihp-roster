@@ -113,9 +113,9 @@ renderActiveBadge isActive =
         then renderAppStatusBadge AppStatusSuccess "active"
         else renderAppStatusBadge AppStatusNeutral "inactive"
 
-renderAdminActiveToggle :: Text -> Maybe Text -> Text -> Bool -> Html
-renderAdminActiveToggle inputId maybePostPath targetId isActive =
-    renderAdminActiveToggleWithInputAttrs inputId isActive generatedAttrs
+renderAdminActiveToggle :: Text -> Text -> Maybe Text -> Text -> Bool -> Html
+renderAdminActiveToggle inputId fieldName maybePostPath targetId isActive =
+    renderAdminActiveToggleWithInputAttrs inputId fieldName isActive generatedAttrs
     where
         generatedAttrs =
             case maybePostPath of
@@ -128,14 +128,14 @@ renderAdminActiveToggle inputId maybePostPath targetId isActive =
                     , ("hx-swap", "outerHTML")
                     ]
 
-renderAdminActiveToggleWithInputAttrs :: Text -> Bool -> [(Text, Text)] -> Html
-renderAdminActiveToggleWithInputAttrs inputId isActive inputAttrs = [hsx|
+renderAdminActiveToggleWithInputAttrs :: Text -> Text -> Bool -> [(Text, Text)] -> Html
+renderAdminActiveToggleWithInputAttrs inputId fieldName isActive inputAttrs = [hsx|
     {renderAppToggleButton toggleConfig}
-    <input type="hidden" name="isActive" value="false" />
+    <input type="hidden" name={fieldName} value="false" />
 |]
     where
         toggleConfig = (defaultAppToggleStateButtonConfig inputId isActive [hsx|<span class="small">Enabled</span>|] [hsx|<span class="small">Disabled</span>|])
-            { appToggleInputName = Just "isActive"
+            { appToggleInputName = Just fieldName
             , appToggleInputValue = "true"
             , appToggleButtonClass = "btn-sm w-100"
             , appToggleRoleSwitch = True

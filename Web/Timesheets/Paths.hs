@@ -1,3 +1,5 @@
+{-# LANGUAGE TypeApplications #-}
+
 module Web.Timesheets.Paths
     ( createTimesheetEntryFromSuggestionUrl
     , editTimesheetEntryUrl
@@ -6,11 +8,14 @@ module Web.Timesheets.Paths
     , timesheetDayColumnsFragmentUrl
     , timesheetDaySectionFragmentUrl
     , timesheetToolbarFragmentUrl
+    , timesheetStateQueryParams
     , timesheetWeekResetUrl
     , timesheetWeekUrl
     ) where
 
-import Application.Helper.Url (appendQueryParams)
+import qualified Application.Helper.FrontendContract.Surface.Timesheets as Surface
+import Application.Helper.FrontendContract.Surface.Values
+import Application.Helper.Url (replaceQueryParams)
 import Data.Time.Calendar (Day)
 import Data.UUID (UUID)
 import Generated.Types
@@ -21,99 +26,66 @@ import Web.Types
 
 timesheetWeekUrl :: Int -> Bool -> Bool -> Bool -> Maybe UUID -> Text
 timesheetWeekUrl weekOffset showApproved showAllStaff showSuggestions staffFilterId =
-    appendQueryParams
+    replaceQueryParams
         (pathTo (ShowTimesheetWeekAction weekOffset))
-        [ ("showApproved", toBoolText showApproved)
-        , ("showAllStaff", toBoolText showAllStaff)
-        , ("showSuggestions", toBoolText showSuggestions)
-        , ("staffFilterId", maybe "" tshow staffFilterId)
-        ]
+        (timesheetStateQueryParams weekOffset showApproved showAllStaff showSuggestions staffFilterId)
 
 timesheetWeekResetUrl :: Bool -> Bool -> Bool -> Maybe UUID -> Text
 timesheetWeekResetUrl showApproved showAllStaff showSuggestions staffFilterId =
-    appendQueryParams
+    replaceQueryParams
         (pathTo TimesheetsAction)
-        [ ("showApproved", toBoolText showApproved)
-        , ("showAllStaff", toBoolText showAllStaff)
-        , ("showSuggestions", toBoolText showSuggestions)
-        , ("staffFilterId", maybe "" tshow staffFilterId)
-        ]
+        (timesheetStateQueryParams 0 showApproved showAllStaff showSuggestions staffFilterId)
 
 timesheetToolbarFragmentUrl :: Int -> Bool -> Bool -> Bool -> Maybe UUID -> Text
 timesheetToolbarFragmentUrl weekOffset showApproved showAllStaff showSuggestions staffFilterId =
-    appendQueryParams
+    replaceQueryParams
         (pathTo ShowtimesheetToolbarLiveFragmentAction { weekOffset })
-        [ ("showApproved", toBoolText showApproved)
-        , ("showAllStaff", toBoolText showAllStaff)
-        , ("showSuggestions", toBoolText showSuggestions)
-        , ("staffFilterId", maybe "" tshow staffFilterId)
-        ]
+        (timesheetStateQueryParams weekOffset showApproved showAllStaff showSuggestions staffFilterId)
 
 timesheetDayColumnsFragmentUrl :: Int -> Bool -> Bool -> Bool -> Maybe UUID -> Text
 timesheetDayColumnsFragmentUrl weekOffset showApproved showAllStaff showSuggestions staffFilterId =
-    appendQueryParams
+    replaceQueryParams
         (pathTo ShowtimesheetDayColumnsLiveFragmentAction { weekOffset })
-        [ ("showApproved", toBoolText showApproved)
-        , ("showAllStaff", toBoolText showAllStaff)
-        , ("showSuggestions", toBoolText showSuggestions)
-        , ("staffFilterId", maybe "" tshow staffFilterId)
-        ]
+        (timesheetStateQueryParams weekOffset showApproved showAllStaff showSuggestions staffFilterId)
 
 timesheetDaySectionFragmentUrl :: Int -> Int -> Bool -> Bool -> Bool -> Maybe UUID -> Text
 timesheetDaySectionFragmentUrl weekOffset dayOffset showApproved showAllStaff showSuggestions staffFilterId =
-    appendQueryParams
+    replaceQueryParams
         (pathTo ShowTimesheetDaySectionFragmentAction { weekOffset, dayOffset })
-        [ ("showApproved", toBoolText showApproved)
-        , ("showAllStaff", toBoolText showAllStaff)
-        , ("showSuggestions", toBoolText showSuggestions)
-        , ("staffFilterId", maybe "" tshow staffFilterId)
-        ]
+        (timesheetStateQueryParams weekOffset showApproved showAllStaff showSuggestions staffFilterId)
 
 newTimesheetEntryUrl :: Int -> Day -> Bool -> Bool -> Bool -> Maybe UUID -> Text
 newTimesheetEntryUrl weekOffset workedOn showApproved showAllStaff showSuggestions staffFilterId =
-    appendQueryParams
+    replaceQueryParams
         (pathTo NewTimesheetEntryAction)
-        [ ("weekOffset", tshow weekOffset)
-        , ("workedOn", tshow workedOn)
-        , ("showApproved", toBoolText showApproved)
-        , ("showAllStaff", toBoolText showAllStaff)
-        , ("showSuggestions", toBoolText showSuggestions)
-        , ("staffFilterId", maybe "" tshow staffFilterId)
-        ]
+        (("workedOn", tshow workedOn) : timesheetStateQueryParams weekOffset showApproved showAllStaff showSuggestions staffFilterId)
 
 newTimesheetEntryFromSuggestionUrl :: Id RosterSlot -> Int -> Bool -> Bool -> Bool -> Maybe UUID -> Text
 newTimesheetEntryFromSuggestionUrl rosterSlotId weekOffset showApproved showAllStaff showSuggestions staffFilterId =
-    appendQueryParams
+    replaceQueryParams
         (pathTo NewTimesheetEntryFromSuggestionAction { rosterSlotId })
-        [ ("weekOffset", tshow weekOffset)
-        , ("showApproved", toBoolText showApproved)
-        , ("showAllStaff", toBoolText showAllStaff)
-        , ("showSuggestions", toBoolText showSuggestions)
-        , ("staffFilterId", maybe "" tshow staffFilterId)
-        ]
+        (timesheetStateQueryParams weekOffset showApproved showAllStaff showSuggestions staffFilterId)
 
 createTimesheetEntryFromSuggestionUrl :: Id RosterSlot -> Int -> Bool -> Bool -> Bool -> Maybe UUID -> Text
 createTimesheetEntryFromSuggestionUrl rosterSlotId weekOffset showApproved showAllStaff showSuggestions staffFilterId =
-    appendQueryParams
+    replaceQueryParams
         (pathTo CreateTimesheetEntryFromSuggestionAction { rosterSlotId })
-        [ ("weekOffset", tshow weekOffset)
-        , ("showApproved", toBoolText showApproved)
-        , ("showAllStaff", toBoolText showAllStaff)
-        , ("showSuggestions", toBoolText showSuggestions)
-        , ("staffFilterId", maybe "" tshow staffFilterId)
-        ]
+        (timesheetStateQueryParams weekOffset showApproved showAllStaff showSuggestions staffFilterId)
 
 editTimesheetEntryUrl :: Id TimesheetEntry -> Int -> Bool -> Bool -> Bool -> Maybe UUID -> Text
 editTimesheetEntryUrl timesheetEntryId weekOffset showApproved showAllStaff showSuggestions staffFilterId =
-    appendQueryParams
+    replaceQueryParams
         (pathTo EditTimesheetEntryAction { timesheetEntryId })
-        [ ("weekOffset", tshow weekOffset)
-        , ("showApproved", toBoolText showApproved)
-        , ("showAllStaff", toBoolText showAllStaff)
-        , ("showSuggestions", toBoolText showSuggestions)
-        , ("staffFilterId", maybe "" tshow staffFilterId)
-        ]
+        (timesheetStateQueryParams weekOffset showApproved showAllStaff showSuggestions staffFilterId)
 
-toBoolText :: Bool -> Text
-toBoolText True  = "true"
-toBoolText False = "false"
+timesheetStateQueryParams :: Int -> Bool -> Bool -> Bool -> Maybe UUID -> [(Text, Text)]
+timesheetStateQueryParams weekOffset showApproved showAllStaff showSuggestions staffFilterId =
+    surfaceFieldsText
+        ( surfaceField @Surface.WeekOffset weekOffset
+            :& surfaceField @Surface.ShowApproved showApproved
+            :& surfaceField @Surface.ShowAllStaff showAllStaff
+            :& surfaceField @Surface.ShowSuggestions showSuggestions
+            :& surfaceOptionalField @Surface.StaffFilterId staffFilterId
+            :& NoSurfaceFields
+            :: SurfaceFields (SurfaceActionFieldSpecs Surface.TimesheetsSurface Surface.NavigateTimesheetWeek)
+        )

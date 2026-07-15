@@ -42,8 +42,10 @@ tests = beforeAll testContext do
 
         it "redirects unauthenticated users from update staff" $ withContext do
             response <- callActionWithParams (UpdateStaffAction sampleStaffId)
-                [ ("firstName", "Test")
+                [ ("section", "profile")
+                , ("firstName", "Test")
                 , ("lastName", "User")
+                , ("preferredName", "")
                 , ("phone", "0400000000")
                 , ("emergencyContactName", "Casey User")
                 , ("emergencyContactPhone", "0411111111")
@@ -217,8 +219,10 @@ tests = beforeAll testContext do
                     withRequestHeaders [("HX-Request", "true")] do
                         callActionWithParams
                             (UpdateStaffAction staff.id)
-                            [ ("firstName", "Updated")
+                            [ ("section", "profile")
+                            , ("firstName", "Updated")
                             , ("lastName", "Crew")
+                            , ("preferredName", "")
                             , ("phone", "0400000000")
                             , ("emergencyContactName", "Morgan Crew")
                             , ("emergencyContactPhone", "0411111111")
@@ -487,8 +491,10 @@ tests = beforeAll testContext do
                 response <- withUserAndCurrentVenue manager (get #id venue) do
                     callActionWithParams
                         (UpdateStaffAction staff.id)
-                        [ ("firstName", "Alpha")
+                        [ ("section", "profile")
+                        , ("firstName", "Alpha")
                         , ("lastName", "Crew")
+                        , ("preferredName", "")
                         , ("phone", "0400000000")
                         , ("emergencyContactName", "Jordan Crew")
                         , ("emergencyContactPhone", "0411111111")
@@ -528,6 +534,7 @@ tests = beforeAll testContext do
                         [ ("section", "profile")
                         , ("firstName", "Alpha")
                         , ("lastName", "Crew")
+                        , ("preferredName", "")
                         , ("phone", "0400000000")
                         , ("emergencyContactName", "Jordan Crew")
                         , ("emergencyContactPhone", "0411111111")
@@ -578,8 +585,10 @@ tests = beforeAll testContext do
                     withRequestHeaders [("HX-Request", "true")] do
                         callActionWithParams
                             (UpdateStaffAction staff.id)
-                            [ ("firstName", "Alpha")
+                            [ ("section", "profile")
+                            , ("firstName", "Alpha")
                             , ("lastName", "Crew")
+                            , ("preferredName", "")
                             , ("phone", "0400000000")
                             , ("emergencyContactName", "Jordan Crew")
                             , ("emergencyContactPhone", "0411111111")
@@ -607,8 +616,10 @@ tests = beforeAll testContext do
                 response <- withPasskeyVerifiedUserAndCurrentVenue admin (get #id venue) do
                     callActionWithParams
                         (UpdateStaffAction staff.id)
-                        [ ("firstName", "Alpha")
+                        [ ("section", "profile")
+                        , ("firstName", "Alpha")
                         , ("lastName", "Crew")
+                        , ("preferredName", "")
                         , ("phone", "0400000000")
                         , ("emergencyContactName", "Jordan Crew")
                         , ("emergencyContactPhone", "0411111111")
@@ -680,8 +691,10 @@ tests = beforeAll testContext do
 
                 updateResponse <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
                     callActionWithParams (UpdateStaffAction staff.id)
-                        [ ("firstName", "Role")
+                        [ ("section", "profile")
+                        , ("firstName", "Role")
                         , ("lastName", "Target")
+                        , ("preferredName", "")
                         , ("phone", "0400000000")
                         , ("emergencyContactName", "Jordan Crew")
                         , ("emergencyContactPhone", "0411111111")
@@ -724,8 +737,10 @@ tests = beforeAll testContext do
                 rosterGroup <- query @RosterGroup |> filterWhere (#venueId, unpackId venue.id) |> filterWhere (#isDefault, True) |> fetchOne
                 updateResponse <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
                     callActionWithParams (UpdateStaffAction staff.id)
-                        [ ("firstName", "Alpha")
+                        [ ("section", "profile")
+                        , ("firstName", "Alpha")
                         , ("lastName", "Crew")
+                        , ("preferredName", "")
                         , ("phone", "0400000000")
                         , ("emergencyContactName", "Jordan Crew")
                         , ("emergencyContactPhone", "0411111111")
@@ -796,8 +811,10 @@ tests = beforeAll testContext do
                 response <- withUserAndCurrentVenue manager (get #id venue) do
                     callActionWithParams
                         (UpdateStaffAction staff.id)
-                        [ ("firstName", "Alpha")
+                        [ ("section", "profile")
+                        , ("firstName", "Alpha")
                         , ("lastName", "Crew")
+                        , ("preferredName", "")
                         , ("phone", "0400000000")
                         , ("emergencyContactName", "Jordan Crew")
                         , ("emergencyContactPhone", "0411111111")

@@ -189,20 +189,22 @@ non-canonical values, duplicate effects, and effects placed outside sessions or
 modifier variants. The TypeScript renderer serializes those constructors without
 name-based dispatch, omission, or fallback layers.
 
-Concrete HTMX forms remain DOM-owned and server-rendered. `SurfaceImpl` intent
-handlers/render helpers own action URLs, methods, hidden inputs, targets, swaps,
-sync selectors, disabled selectors, and trigger events. Mount JSON must not
-become a custom mutation transport contract. The generic browser runtime only
-validates generated semantics and matching DOM forms, fills declared fields, and
-dispatches the generated HTMX trigger.
+Concrete HTMX forms remain DOM-owned and server-rendered. Opaque typed action
+and intent values plus their runtime render helpers own declared field bundles,
+methods, hidden inputs, targets, swaps, sync selectors, disabled selectors, and
+trigger events. Mount JSON must not become a custom mutation transport contract.
+The generic browser runtime only validates generated semantics and matching DOM
+forms, fills declared intent fields, and dispatches the generated HTMX trigger.
 
 ## Generated HTMX Request Actions
 
 `Action name fields options` describes surface-owned request initiators, not
 successful business refresh behavior. Its `fields` list is the browser-submitted
-payload/form boundary. Route params and venue/page context stay in Haskell route
-builders such as `pathTo` and `appendQueryParams`; do not move IHP routes into
-the type-level DSL.
+payload/form boundary. Unrelated route params and venue/page context stay in
+Haskell route builders such as `pathTo` and `appendQueryParams`; do not move IHP
+routes into the type-level DSL. Declared action fields do not belong in
+`FrontendSurfaceActionRoute`: construct the complete `SurfaceFields` bundle and
+pass it to `frontendSurfaceAction`.
 
 Use standard HTMX options for stable request metadata:
 
@@ -225,12 +227,30 @@ Reflection renders common punctuation deterministically: an ID selector owns its
 sync recipes own their `:` strategy delimiter. Views must not add or strip this
 punctuation.
 
-Runtime views combine the generated action IR with a `FrontendSurfaceActionRoute`
-using the form, submit-button, link, or HTMX-only render helper. These helpers
-render generated `data-bepis-surface-action` metadata plus the declared HTMX
-attrs. They can also render standard `method`/`action`, `formaction`, or `href`
-attrs for browser semantics, but that is not a complete no-JS UX unless the
-controller returns full-page or redirect fallbacks.
+Runtime views combine opaque `FrontendSurfaceAction` values with a
+`FrontendSurfaceActionRoute` using the form, submit-button, link, or HTMX-only
+render helper. These helpers render generated `data-bepis-surface-action`
+metadata plus the declared HTMX attrs. Links serialize the complete typed bundle
+into the request URL and replace stale same-named query values while preserving
+unrelated route context. Forms and form-owned controls remove declared fields
+from route URLs; named controls in the body own mutable values, while
+`renderFrontendSurfaceActionFormWithHiddenFields` emits a complete fixed bundle.
+They can also render standard `method`/`action`, `formaction`, or `href` attrs for
+browser semantics, but that is not a complete no-JS UX unless the controller
+returns full-page or redirect fallbacks.
+
+Controllers parse the same declaration with `parseSurfaceActionParams` or
+`parseSurfaceIntentParams`. Parsing ignores unrelated request parameters,
+returns declaration-ordered `SurfaceFields`, and accumulates structured field
+errors. Required fields reject absence, optional fields map absence or blank to
+`Nothing`, and nullable fields require presence while mapping blank to
+`Nothing`. Repeated form parameters are decoded through `WireList`. Attach
+transport errors to normal model validation with
+`attachSurfaceRequestFieldErrors`; do not recover required fields with
+`paramOrDefault`. A route that also supports partial, ordinary URL filters may
+use `surfaceActionParamsComplete` only to decide whether a complete Surface
+envelope was submitted. Those partial filters remain route context; after a
+Surface envelope is selected, always parse it strictly and report every error.
 
 Successful migrated mutations must not return authoritative business fragment
 HTML/OOB for the same surface. They should set `HX-Reswap: none`, emit
@@ -261,27 +281,30 @@ reintroducing the old semantic marker protocol.
 
 Use `Application.Helper.FrontendContract.Surface.Values` instead of scanning the
 reflected registry by protocol strings. `surfaceNameValue`, `surfaceScopeValue`,
-`surfaceFragmentValue`, `surfaceActionValue`, `surfaceIntentValue`,
-`surfaceResourceValue`, `surfaceSourceRefValue`, `surfaceDropzoneRefValue`,
-`surfaceActivationRefValue`, and `surfaceDomTokenValue`
-are indexed by both the owning `Surface` and marker. A marker owned by another
-surface is a compile error.
+`surfaceFragmentValue`, `surfaceResourceValue`, `surfaceSourceRefValue`,
+`surfaceDropzoneRefValue`, `surfaceActivationRefValue`, and
+`surfaceDomTokenValue` are indexed by both the owning `Surface` and marker.
+Actions and intents are selected through the opaque `frontendSurfaceAction` and
+`frontendSurfaceIntentForm` constructors. A marker owned by another surface is
+a compile error.
 
 Build scope, mount-state, fragment, and action payloads with declaration-ordered
 `SurfaceFields`, `surfaceField`, `surfaceOptionalField`, and
 `surfaceNullableField`. The field marker, presence, wire type, and Haskell value
 must match the owning declaration. `WireUUID` values are `UUID`, not unchecked
 text; an absent `OptionalField` is omitted, while `NullableField` retains its
-explicit null. Use `surfaceFieldsJson` only at the JSON boundary and
-`frontendSurfaceActionFields` for hidden/query fields; do not introduce phantom
-`Aeson.Value` carriers or recover required fields with runtime fallbacks.
+explicit null. Use `surfaceFieldNameFrom` to obtain an input name only after a
+complete bundle exists, and use `surfaceFieldsJson` only at the JSON boundary.
+Do not introduce phantom `Aeson.Value` carriers, open field-value lists, or
+runtime fallbacks for required fields.
 
 ### Compile-time diagnostic contract
 
 Marker-indexed ownership failures name the compact Surface owner marker and the
 requested scope, fragment, resource, action, intent, ref, or token marker. They
-must not render the expanded `Surface ...` primitive list. Field-name accessor
-failures name the owning declaration marker and render its complete field shape.
+must not render the expanded `Surface ...` primitive list. Bundle field-name
+accessor failures identify the marker absent from the complete bundle; action or
+intent ownership failures remain attached to the opaque constructor call.
 
 `SurfaceFields` construction keeps the exact declared field list as its
 contextual type. Do not replace that context with a separately inferred generic

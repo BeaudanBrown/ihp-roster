@@ -115,6 +115,23 @@ tests = beforeAll testContext do
                 response `responseBodyShouldContain` "hx-sync=\"closest #timesheet-week-shell:replace\""
                 response `responseBodyShouldNotContain` "timesheet-week-shell-sync-custom-htmx"
 
+        it "preserves partial direct-route filters outside complete Surface action submissions" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Timesheet Partial Route Venue"
+                user <- createUserRecord "timesheet-partial-route@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue user "worker"
+                _ <- createStaffRecord venue (Just user) "Partial" "Route"
+
+                response <- withUserAndCurrentVenue user venue.id do
+                    callActionWithParams TimesheetsAction [("showApproved", "true")]
+
+                response `responseStatusShouldBe` status302
+                let location = cs <$> lookup "Location" (responseHeaders response)
+                location `shouldSatisfy` maybe False (Text.isInfixOf "weekOffset=")
+                location `shouldSatisfy` maybe False (Text.isInfixOf "showApproved=true")
+                location `shouldSatisfy` maybe False (Text.isInfixOf "showAllStaff=true")
+                location `shouldSatisfy` maybe False (Text.isInfixOf "showSuggestions=true")
+
         it "builds typed FrontendSurface mount metadata for the current timesheet query state" $ withContext do
             withCurrentControllerContext do
                 let venueId = fromMaybe (error "invalid test UUID") (UUID.fromString "00000000-0000-0000-0000-000000000123")
@@ -194,8 +211,10 @@ tests = beforeAll testContext do
                 response <- withUserAndCurrentVenue manager venue.id do
                     withRequestHeaders [("HX-Request", "true")] do
                         callActionWithParams ShowTimesheetWeekAction { weekOffset = 1 }
-                            [ ("showApproved", "true")
+                            [ ("weekOffset", "1")
+                            , ("showApproved", "true")
                             , ("showAllStaff", "false")
+                            , ("showSuggestions", "true")
                             ]
 
                 response `responseStatusShouldBe` status200
@@ -516,7 +535,7 @@ tests = beforeAll testContext do
 
                 response <- withUserAndCurrentVenue workerUser venue.id do
                     callActionWithParams ShowTimesheetWeekAction { weekOffset = 3 }
-                        [("showSuggestions", "true")]
+                        [("weekOffset", "3"), ("showApproved", "false"), ("showAllStaff", "false"), ("showSuggestions", "true")]
 
                 response `responseStatusShouldBe` status200
                 response `responseBodyShouldContain` cs ("data-timesheet-suggestion-id=\"" <> tshow rosterSlot.id <> "\"")
@@ -546,7 +565,7 @@ tests = beforeAll testContext do
 
                 response <- withUserAndCurrentVenue manager venue.id do
                     callActionWithParams ShowTimesheetWeekAction { weekOffset = 0 }
-                        [("showSuggestions", "false")]
+                        [("weekOffset", "0"), ("showApproved", "false"), ("showAllStaff", "true"), ("showSuggestions", "false")]
 
                 response `responseStatusShouldBe` status200
                 response `responseBodyShouldContain` "Show suggestions"
@@ -637,19 +656,19 @@ tests = beforeAll testContext do
 
                 workerResponse <- withUserAndCurrentVenue workerAUser venue.id do
                     callActionWithParams ShowTimesheetWeekAction { weekOffset = 0 }
-                        [("showSuggestions", "true")]
+                        [("weekOffset", "0"), ("showApproved", "false"), ("showAllStaff", "false"), ("showSuggestions", "true")]
                 workerResponse `responseBodyShouldContain` cs ("data-timesheet-suggestion-id=\"" <> tshow slotA.id <> "\"")
                 workerResponse `responseBodyShouldNotContain` cs ("data-timesheet-suggestion-id=\"" <> tshow slotB.id <> "\"")
 
                 deniedResponse <- withUserAndCurrentVenue workerAUser venue.id do
                     callActionWithParams CreateTimesheetEntryFromSuggestionAction { rosterSlotId = slotB.id }
-                        [("weekOffset", "0"), ("showSuggestions", "true")]
+                        [("weekOffset", "0"), ("showApproved", "false"), ("showAllStaff", "false"), ("showSuggestions", "true")]
                 deniedResponse `responseStatusShouldBe` status302
                 query @TimesheetEntry |> fetchCount >>= (`shouldBe` 0)
 
                 managerResponse <- withUserAndCurrentVenue manager venue.id do
                     callActionWithParams ShowTimesheetWeekAction { weekOffset = 0 }
-                        [("showAllStaff", "true"), ("showSuggestions", "true"), ("staffFilterId", idToParam workerA.id)]
+                        [("weekOffset", "0"), ("showApproved", "false"), ("showAllStaff", "true"), ("showSuggestions", "true"), ("staffFilterId", idToParam workerA.id)]
                 managerResponse `responseBodyShouldContain` cs ("data-timesheet-suggestion-id=\"" <> tshow slotA.id <> "\"")
                 managerResponse `responseBodyShouldNotContain` cs ("data-timesheet-suggestion-id=\"" <> tshow slotB.id <> "\"")
 
@@ -657,7 +676,7 @@ tests = beforeAll testContext do
                 -- Timesheets authority over an otherwise eligible source.
                 createdResponse <- withUserAndCurrentVenue manager venue.id do
                     callActionWithParams CreateTimesheetEntryFromSuggestionAction { rosterSlotId = slotB.id }
-                        [("weekOffset", "0"), ("showAllStaff", "true"), ("showSuggestions", "true")]
+                        [("weekOffset", "0"), ("showApproved", "false"), ("showAllStaff", "true"), ("showSuggestions", "true")]
                 createdResponse `responseStatusShouldBe` status302
                 createdEntry <- query @TimesheetEntry |> fetchOne
                 createdEntry.staffId `shouldBe` unpackId workerB.id
@@ -715,7 +734,7 @@ tests = beforeAll testContext do
                 results <- runConcurrentTimesheetActions 8 do
                     withUserAndCurrentVenue workerUser venue.id do
                         callActionWithParams CreateTimesheetEntryFromSuggestionAction { rosterSlotId = rosterSlot.id }
-                            [("weekOffset", "0"), ("showSuggestions", "true")]
+                            [("weekOffset", "0"), ("showApproved", "false"), ("showAllStaff", "false"), ("showSuggestions", "true")]
 
                 lefts results `shouldSatisfy` null
                 mapM_ (`responseStatusShouldBe` status302) (rights results)
@@ -762,6 +781,8 @@ tests = beforeAll testContext do
                 createResponse <- withUserAndCurrentVenue workerUser venue.id do
                     callActionWithParams CreateTimesheetEntryFromSuggestionAction { rosterSlotId = rosterSlot.id }
                         [ ("weekOffset", "0")
+                        , ("showApproved", "false")
+                        , ("showAllStaff", "false")
                         , ("showSuggestions", "true")
                         , ("staffId", idToParam worker.id)
                         , ("shiftTypeId", idToParam shiftType.id)
@@ -827,7 +848,7 @@ tests = beforeAll testContext do
 
                 refreshedResponse <- withUserAndCurrentVenue workerUser venue.id do
                     callActionWithParams ShowTimesheetWeekAction { weekOffset = 0 }
-                        [("showSuggestions", "true")]
+                        [("weekOffset", "0"), ("showApproved", "false"), ("showAllStaff", "false"), ("showSuggestions", "true")]
                 refreshedResponse `responseBodyShouldContain` cs ("data-timesheet-suggestion-id=\"" <> tshow rosterSlot.id <> "\"")
 
         it "restores a suggestion after its linked entry is soft-deleted and preserves both snapshots" $ withContext do
@@ -869,12 +890,12 @@ tests = beforeAll testContext do
 
                 suggestionResponse <- withUserAndCurrentVenue workerUser venue.id do
                     callActionWithParams ShowTimesheetWeekAction { weekOffset = 0 }
-                        [("showSuggestions", "true")]
+                        [("weekOffset", "0"), ("showApproved", "false"), ("showAllStaff", "false"), ("showSuggestions", "true")]
                 suggestionResponse `responseBodyShouldContain` cs ("data-timesheet-suggestion-id=\"" <> tshow rosterSlot.id <> "\"")
 
                 createResponse <- withUserAndCurrentVenue workerUser venue.id do
                     callActionWithParams CreateTimesheetEntryFromSuggestionAction { rosterSlotId = rosterSlot.id }
-                        [("weekOffset", "0"), ("showSuggestions", "true")]
+                        [("weekOffset", "0"), ("showApproved", "false"), ("showAllStaff", "false"), ("showSuggestions", "true")]
 
                 createResponse `responseStatusShouldBe` status302
                 linkedEntries :: [TimesheetEntry] <-
@@ -914,7 +935,7 @@ tests = beforeAll testContext do
 
                 creationResponse <- withUserAndCurrentVenue manager venue.id do
                     callActionWithParams CreateTimesheetEntryFromSuggestionAction { rosterSlotId = rosterSlot.id }
-                        [("weekOffset", "0"), ("showAllStaff", "true"), ("showSuggestions", "true")]
+                        [("weekOffset", "0"), ("showApproved", "false"), ("showAllStaff", "true"), ("showSuggestions", "true")]
                 creationResponse `responseStatusShouldBe` status302
                 query @TimesheetEntry |> fetchCount >>= (`shouldBe` 1)
                 entry <- query @TimesheetEntry |> fetchOne
@@ -1021,8 +1042,10 @@ tests = beforeAll testContext do
 
                 response <- withUserAndCurrentVenue manager venue.id do
                     callActionWithParams ShowTimesheetWeekAction { weekOffset = 0 }
-                        [ ("showApproved", "false")
+                        [ ("weekOffset", "0")
+                        , ("showApproved", "false")
                         , ("showAllStaff", "false")
+                        , ("showSuggestions", "true")
                         ]
 
                 response `responseStatusShouldBe` status200
@@ -1044,8 +1067,10 @@ tests = beforeAll testContext do
 
                 response <- withUserAndCurrentVenue manager venue.id do
                     callActionWithParams ShowTimesheetWeekAction { weekOffset = 0 }
-                        [ ("showApproved", "false")
+                        [ ("weekOffset", "0")
+                        , ("showApproved", "false")
                         , ("showAllStaff", "true")
+                        , ("showSuggestions", "true")
                         , ("staffFilterId", idToParam staff.id)
                         ]
 
@@ -1073,8 +1098,10 @@ tests = beforeAll testContext do
 
                 response <- withUserAndCurrentVenue manager venue.id do
                     callActionWithParams ShowTimesheetWeekAction { weekOffset = 0 }
-                        [ ("showApproved", "true")
+                        [ ("weekOffset", "0")
+                        , ("showApproved", "true")
                         , ("showAllStaff", "true")
+                        , ("showSuggestions", "true")
                         , ("staffFilterId", idToParam workerA.id)
                         ]
 
@@ -1082,7 +1109,7 @@ tests = beforeAll testContext do
                 response `responseBodyShouldContain` "name=\"staffFilterId\""
                 response `responseBodyShouldContain` "timesheet-entry-staff-name\">Ava Filter"
                 response `responseBodyShouldNotContain` "timesheet-entry-staff-name\">Bea Filter"
-                response `responseBodyShouldContain` cs ("href=\"/Timesheets?showApproved=true&amp;showAllStaff=true&amp;showSuggestions=true&amp;staffFilterId=" <> tshow workerA.id <> "\"")
+                response `responseBodyShouldContain` cs ("href=\"/Timesheets?weekOffset=0&amp;showApproved=true&amp;showAllStaff=true&amp;showSuggestions=true&amp;staffFilterId=" <> tshow workerA.id <> "\"")
                 response `responseBodyShouldContain` cs ("href=\"/ShowTimesheetWeek?weekOffset=-1&amp;showApproved=true&amp;showAllStaff=true&amp;showSuggestions=true&amp;staffFilterId=" <> tshow workerA.id)
                 response `responseBodyShouldContain` cs ("href=\"/ShowTimesheetWeek?weekOffset=1&amp;showApproved=true&amp;showAllStaff=true&amp;showSuggestions=true&amp;staffFilterId=" <> tshow workerA.id)
                 response `responseBodyShouldContain` "timesheet-entry-card-link"
@@ -1123,8 +1150,10 @@ tests = beforeAll testContext do
 
                 response <- withUserAndCurrentVenue manager venue.id do
                     callActionWithParams ShowTimesheetWeekAction { weekOffset = 2 }
-                        [ ("showApproved", "true")
+                        [ ("weekOffset", "2")
+                        , ("showApproved", "true")
                         , ("showAllStaff", "false")
+                        , ("showSuggestions", "true")
                         ]
 
                 response `responseStatusShouldBe` status200
@@ -1133,14 +1162,14 @@ tests = beforeAll testContext do
                 response `responseBodyShouldContain` "data-week-toolbar-section=\"navigation\""
                 response `responseBodyShouldContain` "data-week-toolbar-section=\"settings\""
                 response `responseBodyShouldContain` "btn btn-outline-secondary app-week-nav-button"
-                response `responseBodyShouldContain` "href=\"/Timesheets?showApproved=true&amp;showAllStaff=false&amp;showSuggestions=true\""
+                response `responseBodyShouldContain` "href=\"/Timesheets?weekOffset=0&amp;showApproved=true&amp;showAllStaff=false&amp;showSuggestions=true\""
                 response `responseBodyShouldContain` "href=\"/ShowTimesheetWeek?weekOffset=1&amp;showApproved=true&amp;showAllStaff=false&amp;showSuggestions=true\""
                 response `responseBodyShouldContain` "href=\"/ShowTimesheetWeek?weekOffset=3&amp;showApproved=true&amp;showAllStaff=false&amp;showSuggestions=true\""
-                response `responseBodyShouldContain` "action=\"/ShowTimesheetWeek?weekOffset=2\""
-                response `responseBodyShouldContain` "hx-get=\"/ShowTimesheetWeek?weekOffset=2\""
+                response `responseBodyShouldContain` "action=\"/ShowTimesheetWeek\""
+                response `responseBodyShouldContain` "hx-get=\"/ShowTimesheetWeek\""
                 response `responseBodyShouldContain` "name=\"weekOffset\" value=\"2\""
-                response `responseBodyShouldNotContain` "action=\"/ShowTimesheetWeek?weekOffset=2&amp;showApproved=true"
-                response `responseBodyShouldNotContain` "hx-get=\"/ShowTimesheetWeek?weekOffset=2&amp;showApproved=true"
+                response `responseBodyShouldNotContain` "<form method=\"get\" action=\"/ShowTimesheetWeek?weekOffset="
+                response `responseBodyShouldNotContain` "action=\"/ShowTimesheetWeek\" hx-get=\"/ShowTimesheetWeek?weekOffset="
 
         it "keeps comment-only edits from resetting approved timesheets" $ withContext do
             withCleanDb do
@@ -1337,7 +1366,12 @@ tests = beforeAll testContext do
 
                 response <- withUserAndCurrentVenue manager venue.id do
                     withRequestHeaders [("HX-Request", "true"), ("X-Live-Update-Client-Id", "timesheet-approve-client")] do
-                        callAction ApproveTimesheetEntryAction { timesheetEntryId = entry.id }
+                        callActionWithParams ApproveTimesheetEntryAction { timesheetEntryId = entry.id }
+                            [ ("weekOffset", "0")
+                            , ("showApproved", "false")
+                            , ("showAllStaff", "true")
+                            , ("showSuggestions", "true")
+                            ]
 
                 response `responseStatusShouldBe` status200
                 response `responseBodyShouldNotContain` "id=\"timesheet-day-section-1\""
@@ -1358,7 +1392,12 @@ tests = beforeAll testContext do
                 entry <- createTimesheetEntryRecord venue staff (fromGregorian 2025 1 7)
 
                 response <- withUserAndCurrentVenue manager venue.id do
-                    callAction ApproveTimesheetEntryAction { timesheetEntryId = entry.id }
+                    callActionWithParams ApproveTimesheetEntryAction { timesheetEntryId = entry.id }
+                        [ ("weekOffset", "0")
+                        , ("showApproved", "false")
+                        , ("showAllStaff", "true")
+                        , ("showSuggestions", "true")
+                        ]
 
                 response `responseStatusShouldBe` status302
 
@@ -1393,7 +1432,12 @@ tests = beforeAll testContext do
                 entry <- createApprovedTimesheetEntryRecord venue staff manager (fromGregorian 2025 1 8)
 
                 response <- withUserAndCurrentVenue manager venue.id do
-                    callAction UnapproveTimesheetEntryAction { timesheetEntryId = entry.id }
+                    callActionWithParams UnapproveTimesheetEntryAction { timesheetEntryId = entry.id }
+                        [ ("weekOffset", "0")
+                        , ("showApproved", "false")
+                        , ("showAllStaff", "true")
+                        , ("showSuggestions", "true")
+                        ]
 
                 response `responseStatusShouldBe` status302
 

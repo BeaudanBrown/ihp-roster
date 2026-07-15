@@ -13,6 +13,10 @@ module Web.Controller.Admin.Xero.Timesheets
     , submitXeroTimesheetPreparationAction
     ) where
 
+import qualified Application.Helper.FrontendContract.Surface.Admin as Surface
+import Application.Helper.FrontendContract.Surface.Request (parseSurfaceActionParams,
+                                                            surfaceRequestFieldErrorsMessage)
+import Application.Helper.FrontendContract.Surface.Values (surfaceFieldValue)
 import Application.Helper.SurfaceResource (LiveMutationResult (..))
 import Application.Helper.View (ToastOverlayPosition (ToastBottomCenter),
                                 renderToastOverlayHostOob)
@@ -62,12 +66,15 @@ showXeroTimesheetPreparationStaffMappingsFragmentAction ::
     IO ()
 showXeroTimesheetPreparationStaffMappingsFragmentAction runId = do
     result <- loadXeroTimesheetPreparationView runId
-    let showMatched = paramOrDefault @Bool False "showMatched"
-        editStaffId = paramOrNothing @(Id Staff) "editStaffId"
     respondHtml $
-        case result of
-            Left message -> [hsx|<section id="xero-preparation-staff-mappings"><div class="alert alert-danger mb-0">{message}</div></section>|]
-            Right view -> renderXeroTimesheetPreparationStaffMappingsFragment showMatched editStaffId view
+        case (parseSurfaceActionParams @Surface.AdminXeroSurface @Surface.ShowXeroTimesheetPreparationStaffMappings, result) of
+            (Left errors, _) -> [hsx|<section id="xero-preparation-staff-mappings"><div class="alert alert-danger mb-0">{surfaceRequestFieldErrorsMessage errors}</div></section>|]
+            (_, Left message) -> [hsx|<section id="xero-preparation-staff-mappings"><div class="alert alert-danger mb-0">{message}</div></section>|]
+            (Right fields, Right view) ->
+                renderXeroTimesheetPreparationStaffMappingsFragment
+                    (surfaceFieldValue @Surface.ShowMatched fields)
+                    (Id <$> surfaceFieldValue @Surface.EditStaffId fields)
+                    view
 
 applyXeroTimesheetPreparationStaffDecisionAction ::
     (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>

@@ -1,5 +1,12 @@
 module Web.Controller.LeaveRequests where
 
+import qualified Application.Helper.FrontendContract.Surface.Profile as ProfileSurface
+import Application.Helper.FrontendContract.Surface.Request (SurfaceRequestFieldError,
+                                                            attachSurfaceRequestFieldErrors,
+                                                            parseSurfaceActionParams,
+                                                            surfaceRequestFieldErrorsMessage)
+import qualified Application.Helper.FrontendContract.Surface.Roster as RosterSurface
+import Application.Helper.FrontendContract.Surface.Values (surfaceFieldValue)
 import Application.Helper.LiveUpdate (setActorLiveResourcesRefresh)
 import Application.Helper.ProfileLeave (buildDefaultLeaveRequest,
                                         fetchStaffLeaveRequests)
@@ -44,6 +51,7 @@ instance Controller LeaveRequestsController where
         profileActionSpan "leave.page.render" do
             ensureProfileCompleted
             ensureManagerRole
+            reportLeaveArchivePageErrors
             readModel <- profileActionSpan "leave.page.fetch_read_model" fetchLeaveRequestsReadModel
             profileActionSpan "leave.page.render_response" (renderProfiled (leaveRequestsIndexView readModel))
 
@@ -51,6 +59,7 @@ instance Controller LeaveRequestsController where
         profileActionSpan "leave.fragment.respond" do
             ensureProfileCompleted
             ensureManagerRole
+            reportLeaveArchivePageErrors
             if paramOrDefault @Text "" "swapOob" == "true"
                 then do
                     readModel <- profileActionSpan "leave.fragment.fetch_read_model" fetchLeaveRequestsReadModel
@@ -92,21 +101,25 @@ instance Controller LeaveRequestsController where
             Nothing -> do
                 respondWithLeaveContextError responseContext "No staff record found. Contact an administrator."
             Just staff -> do
-                let leaveRequest =
+                let baseLeaveRequest =
                         newRecord @LeaveRequest
                             |> set #venueId (unpackId currentVenueId)
                             |> set #staffId (coerce (get #id staff))
                             |> set #status (leaveRequestStatusToEnum LeavePending)
-                            |> buildLeaveRequest
+                let leaveRequest =
+                        case parseSurfaceLeaveRequest responseContext of
+                            Nothing -> buildLeaveRequest baseLeaveRequest
+                            Just (Left errors) -> attachSurfaceRequestFieldErrors errors baseLeaveRequest
+                            Just (Right submitted) -> buildLeaveRequestFromSurface submitted baseLeaveRequest
 
                 leaveRequest
                     |> ifValid \case
-                        Left leaveRequest ->
+                        Left invalidLeaveRequest ->
                             if isHtmxRequest
-                                then respondWithLeaveRequestValidationFailure responseContext leaveRequest
-                                else render NewView { .. }
-                        Right leaveRequest -> do
-                            mutationResult <- submitLeaveRequest leaveRequest
+                                then respondWithLeaveRequestValidationFailure responseContext invalidLeaveRequest
+                                else render NewView { leaveRequest = invalidLeaveRequest }
+                        Right validLeaveRequest -> do
+                            mutationResult <- submitLeaveRequest validLeaveRequest
                             if isHtmxRequest
                                 then respondWithLeaveMutationSuccess responseContext mutationResult.liveMutationTouchedResources "Unavailable period submitted"
                                 else do
@@ -140,6 +153,12 @@ instance Controller LeaveRequestsController where
             else do
                 setSuccessMessage "Unavailable period denied"
                 redirectTo LeaveRequestsAction
+
+reportLeaveArchivePageErrors :: (?context :: ControllerContext, ?request :: Request) => IO ()
+reportLeaveArchivePageErrors =
+    case currentLeaveArchivePageResult of
+        Left errors -> setErrorMessage (surfaceRequestFieldErrorsMessage errors)
+        Right _     -> pure ()
 
 requestedLeaveRequestsFragment :: (?request :: Request) => LeaveRequestsFragment
 requestedLeaveRequestsFragment =
@@ -192,6 +211,51 @@ data LeaveResponseContext
     | LeaveRosterResponseContext
     | LeaveStaffResponseContext
     deriving (Eq, Show)
+
+data SurfaceLeaveRequest = SurfaceLeaveRequest
+    { surfaceLeaveStartDate :: !Day
+    , surfaceLeaveEndDate   :: !Day
+    , surfaceLeaveNotes     :: !Text
+    }
+
+parseSurfaceLeaveRequest ::
+    (?request :: Request) =>
+    LeaveResponseContext ->
+    Maybe (Either [SurfaceRequestFieldError] SurfaceLeaveRequest)
+parseSurfaceLeaveRequest LeavePageResponseContext = Nothing
+parseSurfaceLeaveRequest LeaveProfileResponseContext =
+    Just $
+        toProfileLeaveRequest
+            <$> parseSurfaceActionParams @ProfileSurface.ProfileSurface @ProfileSurface.CreateProfileLeaveRequest
+  where
+    toProfileLeaveRequest fields =
+        SurfaceLeaveRequest
+            { surfaceLeaveStartDate = surfaceFieldValue @ProfileSurface.StartDate fields
+            , surfaceLeaveEndDate = surfaceFieldValue @ProfileSurface.EndDate fields
+            , surfaceLeaveNotes = surfaceFieldValue @ProfileSurface.Notes fields
+            }
+parseSurfaceLeaveRequest LeaveStaffResponseContext =
+    Just $
+        toStaffLeaveRequest
+            <$> parseSurfaceActionParams @ProfileSurface.StaffSurface @ProfileSurface.CreateStaffLeaveRequest
+  where
+    toStaffLeaveRequest fields =
+        SurfaceLeaveRequest
+            { surfaceLeaveStartDate = surfaceFieldValue @ProfileSurface.StartDate fields
+            , surfaceLeaveEndDate = surfaceFieldValue @ProfileSurface.EndDate fields
+            , surfaceLeaveNotes = surfaceFieldValue @ProfileSurface.Notes fields
+            }
+parseSurfaceLeaveRequest LeaveRosterResponseContext =
+    Just $
+        toRosterLeaveRequest
+            <$> parseSurfaceActionParams @RosterSurface.RosterSurface @RosterSurface.CreateRosterSelfServiceLeaveRequest
+  where
+    toRosterLeaveRequest fields =
+        SurfaceLeaveRequest
+            { surfaceLeaveStartDate = surfaceFieldValue @RosterSurface.StartDate fields
+            , surfaceLeaveEndDate = surfaceFieldValue @RosterSurface.EndDate fields
+            , surfaceLeaveNotes = surfaceFieldValue @RosterSurface.Notes fields
+            }
 
 parseLeaveResponseContext :: Text -> LeaveResponseContext
 parseLeaveResponseContext responseContext
@@ -320,11 +384,26 @@ buildLeaveRequest leaveRequest =
         |> requireParam #startDate "startDate" "Please choose an unavailable from date"
         |> requireParam #endDate "endDate" "Please choose an available again date"
         |> fill @'["startDate", "endDate", "notes"]
-        |> normalizeMaybeTextField #notes
-        |> validateField #notes (validateMaybe (boundedText 1000))
-        |> validateField #endDate (validateEndDate leaveRequest.startDate)
-    where
-        validateEndDate startDate endDate =
-            if isLeaveDateRangeValid startDate endDate
-                then Success
-                else Failure "Available again must be at least one day after unavailable from"
+        |> validateLeaveRequest
+
+buildLeaveRequestFromSurface :: SurfaceLeaveRequest -> LeaveRequest -> LeaveRequest
+buildLeaveRequestFromSurface submitted leaveRequest =
+    leaveRequest
+        |> set #startDate submitted.surfaceLeaveStartDate
+        |> set #endDate submitted.surfaceLeaveEndDate
+        |> set #notes (Just submitted.surfaceLeaveNotes)
+        |> validateLeaveRequest
+
+validateLeaveRequest :: LeaveRequest -> LeaveRequest
+validateLeaveRequest leaveRequest =
+    let normalized =
+            leaveRequest
+                |> normalizeMaybeTextField #notes
+                |> validateField #notes (validateMaybe (boundedText 1000))
+     in normalized
+            |> validateField #endDate (validateEndDate normalized.startDate)
+  where
+    validateEndDate startDate endDate =
+        if isLeaveDateRangeValid startDate endDate
+            then Success
+            else Failure "Available again must be at least one day after unavailable from"

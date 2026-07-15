@@ -7,11 +7,11 @@ module Web.View.Admin.ShiftTypes
 
 import Application.Helper.Controller (currentVenueOrNothing)
 import qualified Application.Helper.FrontendContract.Surface.Admin as Surface
-import qualified Application.Helper.FrontendContract.Surface.ContractIR as SurfaceIR
-import Application.Helper.FrontendContract.Surface.Runtime (FrontendSurfaceActionRoute (..),
+import Application.Helper.FrontendContract.Surface.Runtime (FrontendSurfaceAction,
+                                                            FrontendSurfaceActionRoute (..),
                                                             FrontendSurfaceCustomHtmxAttrs (..),
                                                             applyFrontendSurfaceActionAttrs,
-                                                            frontendSurfaceActionFields,
+                                                            frontendSurfaceAction,
                                                             frontendSurfaceActionHtmxAttrPairs,
                                                             renderFrontendSurfaceActionForm,
                                                             renderFrontendSurfaceActionLink,
@@ -50,6 +50,20 @@ currentVenueScopeId =
         Just venue -> unpackId venue.id
         Nothing -> error "Admin shift types live surface requires a current venue"
 
+shiftTypeActionFields :: Bool -> Text -> Text -> Text -> Bool -> SurfaceFields (SurfaceActionFieldSpecs Surface.AdminShiftTypesSurface Surface.CreateShiftType)
+shiftTypeActionFields showInactive name payRateSelection colourKey isActive =
+    surfaceField @Surface.ShowInactiveShiftTypes showInactive
+        :& surfaceField @Surface.Name name
+        :& surfaceField @Surface.PayRateSelection payRateSelection
+        :& surfaceField @Surface.ColourKey colourKey
+        :& surfaceField @Surface.IsActive isActive
+        :& NoSurfaceFields
+
+submittedPayRateSelectionValue :: Maybe (Id AwardLevel) -> Maybe (Id XeroImportedPayItem) -> Text
+submittedPayRateSelectionValue _ (Just importedPayItemId) = "xero:" <> tshow importedPayItemId
+submittedPayRateSelectionValue (Just awardLevelId) Nothing = "award:" <> tshow awardLevelId
+submittedPayRateSelectionValue Nothing Nothing = ""
+
 renderShiftTypesInactiveSummary :: [ShiftType] -> Bool -> Html
 renderShiftTypesInactiveSummary shiftTypes showInactive = [hsx|
     <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-3">
@@ -57,7 +71,7 @@ renderShiftTypesInactiveSummary shiftTypes showInactive = [hsx|
             {tshow (length shiftTypes)} rows total, {tshow activeCount} active, {tshow inactiveCount} inactive.
         </p>
         <div>
-            {renderFrontendSurfaceActionLink (surfaceActionValue @Surface.AdminShiftTypesSurface @Surface.ToggleInactiveShiftTypes) toggleRoute toggleLabel}
+            {renderFrontendSurfaceActionLink toggleAction toggleRoute toggleLabel}
         </div>
     </div>
 |]
@@ -65,11 +79,11 @@ renderShiftTypesInactiveSummary shiftTypes showInactive = [hsx|
         activeCount = countActiveRows shiftTypes
         inactiveCount = length shiftTypes - activeCount
         toggleLabel = [hsx|<span class="small">Show disabled</span>|]
-        toggleHref = appendQueryParams (pathTo ShowadminShiftTypesLiveFragmentAction) [("showInactiveShiftTypes", if showInactive then "false" else "true")]
+        toggleHref = appendQueryParams (pathTo ShowadminShiftTypesLiveFragmentAction) [(surfaceFieldNameFrom @Surface.ShowInactiveShiftTypes toggleFields, if showInactive then "false" else "true")]
+        toggleFields = surfaceField @Surface.ShowInactiveShiftTypes (not showInactive) :& NoSurfaceFields
+        toggleAction = frontendSurfaceAction @Surface.AdminShiftTypesSurface @Surface.ToggleInactiveShiftTypes toggleFields
         toggleRoute = FrontendSurfaceActionRoute
             { actionRouteUrl = toggleHref
-            , actionRouteFields = frontendSurfaceActionFields @Surface.AdminShiftTypesSurface @Surface.ToggleInactiveShiftTypes
-                    (surfaceField @Surface.ShowInactiveShiftTypes (not showInactive) :& NoSurfaceFields)
             , actionRouteCustomHtmx = []
             , actionRouteStandardUrl = Just toggleHref
             , actionRouteExtraAttrs = [("class", toggleClass), ("role", "switch"), ("aria-checked", if showInactive then "true" else "false")]
@@ -82,22 +96,22 @@ renderShiftTypesInactiveSummary shiftTypes showInactive = [hsx|
 
 renderShiftTypeCreateForm :: [ShiftType] -> Bool -> [AwardLevel] -> [AwardLevelBaseRate] -> [XeroImportedPayItem] -> Html
 renderShiftTypeCreateForm _shiftTypes showInactive awardLevels awardLevelBaseRates importedPayItems =
-    renderFrontendSurfaceActionForm (surfaceActionValue @Surface.AdminShiftTypesSurface @Surface.CreateShiftType) route [hsx|
-        <input type="hidden" name="showInactiveShiftTypes" value={boolParam showInactive} />
+    renderFrontendSurfaceActionForm (frontendSurfaceAction @Surface.AdminShiftTypesSurface @Surface.CreateShiftType fields) route [hsx|
+        <input type="hidden" name={surfaceFieldNameFrom @Surface.ShowInactiveShiftTypes fields} value={boolParam showInactive} />
         <div class="row g-2 align-items-end">
             <div class="col-12 col-lg-3">
                 <label class="form-label" for="new-shift-type-name">Name</label>
-                <input id="new-shift-type-name" class="form-control" type="text" name="name" placeholder="Standard Shift" />
+                <input id="new-shift-type-name" class="form-control" type="text" name={surfaceFieldNameFrom @Surface.Name fields} placeholder="Standard Shift" />
             </div>
             <div class="col-12 col-lg-4">
-                {renderPayRateSelect "new-shift-type-pay-rate" Nothing Nothing awardLevels awardLevelBaseRates importedPayItems Nothing}
+                {renderPayRateSelect fields "new-shift-type-pay-rate" Nothing Nothing awardLevels awardLevelBaseRates importedPayItems Nothing}
             </div>
             <div class="col-12 col-lg-3">
-                {renderShiftTypeColourSelect "new-shift-type-colour" defaultCreateColourKey Nothing}
+                {renderShiftTypeColourSelect fields "new-shift-type-colour" defaultCreateColourKey Nothing}
             </div>
             <div class="col-6 col-lg-1">
                 <label class="form-label" for="new-shift-type-active">Status</label>
-                {renderAdminActiveToggle "new-shift-type-active" Nothing "admin-shift-types-fragment" True}
+                {renderAdminActiveToggle "new-shift-type-active" (surfaceFieldNameFrom @Surface.IsActive fields) Nothing "admin-shift-types-fragment" True}
             </div>
             <div class="col-6 col-lg-1">
                 <button class="btn btn-outline-primary w-100" type="submit">Add</button>
@@ -106,9 +120,9 @@ renderShiftTypeCreateForm _shiftTypes showInactive awardLevels awardLevelBaseRat
     |]
     where
         defaultCreateColourKey = blankShiftTypeColourKey
+        fields = shiftTypeActionFields showInactive "" "" defaultCreateColourKey True
         route = FrontendSurfaceActionRoute
             { actionRouteUrl = pathTo CreateShiftTypeAction
-            , actionRouteFields = []
             , actionRouteCustomHtmx = []
             , actionRouteStandardUrl = Just (pathTo CreateShiftTypeAction)
             , actionRouteExtraAttrs = [("class", appSurfaceClasses "p-3")]
@@ -130,14 +144,14 @@ renderShiftTypeRows shiftTypes showInactive awardLevels awardLevelBaseRates impo
 
 renderShiftTypeRow :: [ShiftType] -> Bool -> [AwardLevel] -> [AwardLevelBaseRate] -> [XeroImportedPayItem] -> Int -> (Int, ShiftType) -> Html
 renderShiftTypeRow shiftTypes showInactive awardLevels awardLevelBaseRates importedPayItems activeCount (shiftTypeIndex, shiftType) =
-    renderFrontendSurfaceActionForm (surfaceActionValue @Surface.AdminShiftTypesSurface @Surface.UpdateShiftType) updateRoute rowFormBody
+    renderFrontendSurfaceActionForm (frontendSurfaceAction @Surface.AdminShiftTypesSurface @Surface.UpdateShiftType fields) updateRoute rowFormBody
     where
         rowFormBody = [hsx|
-        <input type="hidden" name="showInactiveShiftTypes" value={boolParam showInactive} />
+        <input type="hidden" name={surfaceFieldNameFrom @Surface.ShowInactiveShiftTypes fields} value={boolParam showInactive} />
         <div class="d-flex justify-content-end align-items-center mb-2">
             <div class="btn-group btn-group-sm" role="group" aria-label="Reorder shift type">
-                {renderShiftTypeMoveButton (not shiftType.isActive || shiftTypeIndex == 0) (surfaceActionValue @Surface.AdminShiftTypesSurface @Surface.MoveShiftTypeUp) (pathTo (MoveShiftTypeUpAction shiftType.id)) "Up"}
-                {renderShiftTypeMoveButton (not shiftType.isActive || shiftTypeIndex == activeCount - 1) (surfaceActionValue @Surface.AdminShiftTypesSurface @Surface.MoveShiftTypeDown) (pathTo (MoveShiftTypeDownAction shiftType.id)) "Down"}
+                {renderShiftTypeMoveButton (not shiftType.isActive || shiftTypeIndex == 0) (frontendSurfaceAction @Surface.AdminShiftTypesSurface @Surface.MoveShiftTypeUp moveFields) (pathTo (MoveShiftTypeUpAction shiftType.id)) "Up"}
+                {renderShiftTypeMoveButton (not shiftType.isActive || shiftTypeIndex == activeCount - 1) (frontendSurfaceAction @Surface.AdminShiftTypesSurface @Surface.MoveShiftTypeDown moveFields) (pathTo (MoveShiftTypeDownAction shiftType.id)) "Down"}
             </div>
         </div>
         <div class="row g-2 align-items-end">
@@ -146,43 +160,43 @@ renderShiftTypeRow shiftTypes showInactive awardLevels awardLevelBaseRates impor
                 {autosaveNameInput}
             </div>
             <div class="col-12 col-lg-4">
-                {renderPayRateSelect ("shift-type-pay-rate-" <> tshow shiftType.id) shiftType.overrideAwardLevelId shiftType.importedXeroPayItemId awardLevels awardLevelBaseRates importedPayItems (Just (autosaveSelectionAction, autosaveSelectionRoute shiftType))}
+                {renderPayRateSelect fields ("shift-type-pay-rate-" <> tshow shiftType.id) shiftType.overrideAwardLevelId shiftType.importedXeroPayItemId awardLevels awardLevelBaseRates importedPayItems (Just (autosaveSelectionAction, autosaveSelectionRoute shiftType))}
             </div>
             <div class="col-12 col-lg-3">
-                {renderShiftTypeColourSelect ("shift-type-colour-" <> tshow shiftType.id) shiftType.colourKey (Just (autosaveSelectionAction, autosaveSelectionRoute shiftType))}
+                {renderShiftTypeColourSelect fields ("shift-type-colour-" <> tshow shiftType.id) shiftType.colourKey (Just (autosaveSelectionAction, autosaveSelectionRoute shiftType))}
             </div>
             <div class="col-12 col-lg-2">
                 <label class="form-label" for={"shift-type-active-" <> tshow shiftType.id}>Status</label>
-                {renderAdminActiveToggleWithInputAttrs ("shift-type-active-" <> tshow shiftType.id) shiftType.isActive (frontendSurfaceActionHtmxAttrPairs autosaveSelectionAction (autosaveSelectionRoute shiftType))}
+                {renderAdminActiveToggleWithInputAttrs ("shift-type-active-" <> tshow shiftType.id) (surfaceFieldNameFrom @Surface.IsActive fields) shiftType.isActive (frontendSurfaceActionHtmxAttrPairs autosaveSelectionAction (autosaveSelectionRoute shiftType))}
             </div>
         </div>
     |]
-        autosaveSelectionAction = surfaceActionValue @Surface.AdminShiftTypesSurface @Surface.AutosaveShiftTypeSelection
-        autosaveNameInput = applyFrontendSurfaceActionAttrs (surfaceActionValue @Surface.AdminShiftTypesSurface @Surface.AutosaveShiftTypeName) (autosaveNameRoute shiftType) [hsx|
+        selectedPayRate = submittedPayRateSelectionValue shiftType.overrideAwardLevelId shiftType.importedXeroPayItemId
+        fields = shiftTypeActionFields showInactive shiftType.name selectedPayRate shiftType.colourKey shiftType.isActive
+        moveFields = surfaceField @Surface.ShowInactiveShiftTypes showInactive :& NoSurfaceFields
+        autosaveSelectionAction = frontendSurfaceAction @Surface.AdminShiftTypesSurface @Surface.AutosaveShiftTypeSelection fields
+        autosaveNameInput = applyFrontendSurfaceActionAttrs (frontendSurfaceAction @Surface.AdminShiftTypesSurface @Surface.AutosaveShiftTypeName fields) (autosaveNameRoute shiftType) [hsx|
             <input class="form-control"
                    type="text"
-                   name="name"
+                   name={surfaceFieldNameFrom @Surface.Name fields}
                    value={shiftType.name}
                    data-admin-shift-type-field-key={shiftTypeFieldKey shiftType.id "name"} />
         |]
         updateUrl = pathTo (UpdateShiftTypeAction (get #id shiftType))
         autosaveNameRoute rowShiftType = FrontendSurfaceActionRoute
             { actionRouteUrl = pathTo (UpdateShiftTypeAction rowShiftType.id)
-            , actionRouteFields = []
             , actionRouteCustomHtmx = [FrontendSurfaceCustomHtmxAttrs "input-changed-autosave-custom-htmx" [("hx-trigger", "input changed delay:600ms, blur changed"), ("hx-include", "closest form")]]
             , actionRouteStandardUrl = Nothing
             , actionRouteExtraAttrs = []
             }
         autosaveSelectionRoute rowShiftType = FrontendSurfaceActionRoute
             { actionRouteUrl = pathTo (UpdateShiftTypeAction rowShiftType.id)
-            , actionRouteFields = []
             , actionRouteCustomHtmx = [FrontendSurfaceCustomHtmxAttrs "change-autosave-custom-htmx" [("hx-trigger", "change"), ("hx-include", "closest form")]]
             , actionRouteStandardUrl = Nothing
             , actionRouteExtraAttrs = []
             }
         updateRoute = FrontendSurfaceActionRoute
             { actionRouteUrl = updateUrl
-            , actionRouteFields = []
             , actionRouteCustomHtmx = []
             , actionRouteStandardUrl = Just updateUrl
             , actionRouteExtraAttrs =
@@ -193,7 +207,7 @@ renderShiftTypeRow shiftTypes showInactive awardLevels awardLevelBaseRates impor
                 ]
             }
 
-renderShiftTypeMoveButton :: Bool -> SurfaceIR.HtmxActionIR -> Text -> Text -> Html
+renderShiftTypeMoveButton :: Bool -> FrontendSurfaceAction -> Text -> Text -> Html
 renderShiftTypeMoveButton isDisabled action actionUrl label =
     if isDisabled
         then [hsx|
@@ -203,14 +217,13 @@ renderShiftTypeMoveButton isDisabled action actionUrl label =
     where
         route = FrontendSurfaceActionRoute
             { actionRouteUrl = actionUrl
-            , actionRouteFields = []
             , actionRouteCustomHtmx = [FrontendSurfaceCustomHtmxAttrs "closest-form-custom-htmx" [("hx-include", "closest form")]]
             , actionRouteStandardUrl = Just actionUrl
             , actionRouteExtraAttrs = [("class", "btn btn-outline-secondary")]
             }
 
-renderPayRateSelect :: Text -> Maybe (Id AwardLevel) -> Maybe (Id XeroImportedPayItem) -> [AwardLevel] -> [AwardLevelBaseRate] -> [XeroImportedPayItem] -> Maybe (SurfaceIR.HtmxActionIR, FrontendSurfaceActionRoute) -> Html
-renderPayRateSelect fieldId selectedAwardLevelId selectedImportedPayItemId awardLevels awardLevelBaseRates importedPayItems maybeAutosave = [hsx|
+renderPayRateSelect :: SurfaceFields (SurfaceActionFieldSpecs Surface.AdminShiftTypesSurface Surface.CreateShiftType) -> Text -> Maybe (Id AwardLevel) -> Maybe (Id XeroImportedPayItem) -> [AwardLevel] -> [AwardLevelBaseRate] -> [XeroImportedPayItem] -> Maybe (FrontendSurfaceAction, FrontendSurfaceActionRoute) -> Html
+renderPayRateSelect fields fieldId selectedAwardLevelId selectedImportedPayItemId awardLevels awardLevelBaseRates importedPayItems maybeAutosave = [hsx|
     <label class="form-label" for={fieldId}>Pay Rate</label>
     {renderSelect selectBody}
 |]
@@ -218,7 +231,7 @@ renderPayRateSelect fieldId selectedAwardLevelId selectedImportedPayItemId award
         selectBody = [hsx|
             <select id={fieldId}
                     class="form-select"
-                    name="payRateSelection">
+                    name={surfaceFieldNameFrom @Surface.PayRateSelection fields}>
                 <option value="" selected={isNothing selectedAwardLevelId && isNothing selectedImportedPayItemId}>Use staff default pay rate</option>
                 {renderAwardLevelOptionsGroup awardLevels awardLevelBaseRates selectedAwardLevelId selectedImportedPayItemId}
                 {renderImportedPayItemOptionsGroup selectedImportedPayItemId importedPayItems}
@@ -243,8 +256,8 @@ renderImportedPayItemOption selectedImportedPayItemId importedPayItem = [hsx|
     </option>
 |]
 
-renderShiftTypeColourSelect :: Text -> Text -> Maybe (SurfaceIR.HtmxActionIR, FrontendSurfaceActionRoute) -> Html
-renderShiftTypeColourSelect fieldId selectedColourKey maybeAutosave = [hsx|
+renderShiftTypeColourSelect :: SurfaceFields (SurfaceActionFieldSpecs Surface.AdminShiftTypesSurface Surface.CreateShiftType) -> Text -> Text -> Maybe (FrontendSurfaceAction, FrontendSurfaceActionRoute) -> Html
+renderShiftTypeColourSelect fields fieldId selectedColourKey maybeAutosave = [hsx|
     <label class="form-label" for={fieldId}>Optional Colour</label>
     {renderSelect selectBody}
 |]
@@ -253,7 +266,7 @@ renderShiftTypeColourSelect fieldId selectedColourKey maybeAutosave = [hsx|
         selectBody = [hsx|
             <select id={fieldId}
                     class="form-select admin-shift-colour-select"
-                    name="colourKey"
+                    name={surfaceFieldNameFrom @Surface.ColourKey fields}
                     data-roster-shift-colour={effectiveSelectedColourKey}>
                 {renderBlankShiftTypeColourOption effectiveSelectedColourKey}
                 {forEach shiftTypeColourPaletteKeys (renderShiftTypeColourOption effectiveSelectedColourKey)}

@@ -7,7 +7,6 @@ module Web.RosterWeeks.Filters
     , parseOptionalShiftTypeId
     , parseOptionalStaffId
     , parseOptionalTime
-    , rosterAssignmentFiltersFromParams
     , setRosterAssignmentFiltersSession
     ) where
 
@@ -75,15 +74,6 @@ decodeRosterAssignmentFilters encoded =
     where
         decodeFlag '1' = True
         decodeFlag _   = False
-
-rosterAssignmentFiltersFromParams :: (?context :: ControllerContext, ?request :: Request) => RosterAssignmentFilters
-rosterAssignmentFiltersFromParams =
-    RosterAssignmentFilters
-        { hideStaffAtIdealShifts = isJust (paramOrNothing @Text "hideStaffAtIdealShifts")
-        , hideStaffUnavailable = isJust (paramOrNothing @Text "hideStaffUnavailable")
-        , hideStaffOnApprovedLeave = isJust (paramOrNothing @Text "hideStaffOnApprovedLeave")
-        , hideStaffAlreadyAssignedToday = isJust (paramOrNothing @Text "hideStaffAlreadyAssignedToday")
-        }
 
 fetchRosterAssignmentFilters :: (?context :: ControllerContext, ?request :: Request) => IO RosterAssignmentFilters
 fetchRosterAssignmentFilters = do

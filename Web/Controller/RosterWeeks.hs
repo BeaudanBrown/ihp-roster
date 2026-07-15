@@ -13,6 +13,14 @@ import Application.Helper.FrontendContract.AppShell.Runtime (AppShellActionRoute
                                                              appShellActionByMarker,
                                                              appShellDialogAutoSubmitOnceAttr,
                                                              renderAppShellActionForm)
+import qualified Application.Helper.FrontendContract.Surface.Interaction as SurfaceInteraction
+import Application.Helper.FrontendContract.Surface.Request (SurfaceRequestFieldError,
+                                                            parseSurfaceActionParams,
+                                                            parseSurfaceIntentParams,
+                                                            surfaceActionParamsPresent,
+                                                            surfaceRequestFieldErrorsMessage)
+import qualified Application.Helper.FrontendContract.Surface.Roster as Surface
+import Application.Helper.FrontendContract.Surface.Values
 import Application.Helper.Profiling
 import Application.Helper.RosterGroups
 import Application.Helper.SurfaceResource (LiveMutationResult (..))
@@ -72,6 +80,22 @@ import Web.View.RosterWeeks.StaffPanel (renderrosterStaffPanelLiveFragment)
 import Web.View.RosterWeeks.StaffSelfServicePanel (renderRosterStaffSelfServiceLeaveFormFragmentForRoster)
 import Web.View.RosterWeeks.Timeline (renderRosterDayTimelineContent)
 
+rosterSurfaceRequestErrorMessage :: [SurfaceRequestFieldError] -> Text
+rosterSurfaceRequestErrorMessage errors =
+    "Check the roster controls: " <> surfaceRequestFieldErrorsMessage errors
+
+parseRosterStaffPanelScope :: (?request :: Request) => Either Text RosterStaffPanelScope
+parseRosterStaffPanelScope
+    | not (surfaceActionParamsPresent @Surface.RosterSurface @Surface.ToggleRosterStaffScope) = Right RosterStaffPanelCurrentGroup
+    | otherwise =
+        case parseSurfaceActionParams @Surface.RosterSurface @Surface.ToggleRosterStaffScope of
+            Left errors -> Left (rosterSurfaceRequestErrorMessage errors)
+            Right fields ->
+                case Text.toLower (surfaceFieldValue @Surface.StaffScope fields) of
+                    "all"   -> Right RosterStaffPanelAllVenue
+                    "group" -> Right RosterStaffPanelCurrentGroup
+                    _       -> Left "Choose a valid roster staff scope."
+
 instance Controller RosterWeeksController where
     beforeAction = bepisBeforeAction BepisAuthenticatedVenueController do
         annotateTelemetryAction
@@ -103,6 +127,14 @@ instance Controller RosterWeeksController where
 
     action currentAction@ShowRosterWeekAction { weekOffset } = runBepis currentAction BepisPageAction do
         rosterGroup <- resolveRequestedRosterGroup
+        when (surfaceActionParamsPresent @Surface.RosterSurface @Surface.NavigateRosterWeek) do
+            case parseSurfaceActionParams @Surface.RosterSurface @Surface.NavigateRosterWeek of
+                Left errors -> do
+                    setErrorMessage (rosterSurfaceRequestErrorMessage errors)
+                    redirectTo RosterWeeksAction
+                Right fields -> do
+                    accessDeniedUnless (surfaceFieldValue @Surface.WeekOffset fields == weekOffset)
+                    accessDeniedUnless (surfaceFieldValue @Surface.RosterGroupId fields == unpackId rosterGroup.id)
         case paramOrNothing @Calendar.Day "weekDate" of
             Just weekDate -> do
                 venueConfig <- fetchVenueConfig
@@ -184,7 +216,9 @@ instance Controller RosterWeeksController where
 
     action currentAction@ShowRosterWeekStaffPanelFragmentAction { weekOffset } = runBepis currentAction BepisFragmentAction do
         rosterGroup <- resolveRequestedRosterGroup
-        let panelScope = rosterStaffPanelScopeFromParams
+        panelScope <- case parseRosterStaffPanelScope of
+            Left errorMessage -> setErrorMessage errorMessage >> pure RosterStaffPanelCurrentGroup
+            Right scope -> pure scope
         panelModel <- fetchVisibleRosterStaffPanelRenderModel panelScope rosterGroup.id weekOffset
         respondHtmlProfiled (renderrosterStaffPanelLiveFragment panelModel)
 
@@ -203,11 +237,25 @@ instance Controller RosterWeeksController where
         rowHtml <- renderVisibleRosterReadModelFragment rosterGroupId weekOffset (RosterProjectionRow (unpackId rosterDayId) rowIndex)
         respondHtmlProfiled (fromMaybe mempty rowHtml)
 
-    action currentAction@UpdateRosterAssignmentFiltersAction { weekOffset = _ } = runBepis currentAction BepisPreferenceAction do
+    action currentAction@UpdateRosterAssignmentFiltersAction { weekOffset } = runBepis currentAction BepisPreferenceAction do
         ensureManagerRole
-        _ <- resolveRequestedRosterGroup
-        setRosterAssignmentFiltersSession rosterAssignmentFiltersFromParams
-        respondHtmlProfiled mempty
+        rosterGroup <- resolveRequestedRosterGroup
+        case parseSurfaceActionParams @Surface.RosterSurface @Surface.ToggleRosterAssignmentFilters of
+            Left errors -> do
+                let errorMessage = rosterSurfaceRequestErrorMessage errors
+                if isHtmxRequest
+                    then respondWithRosterToast errorMessage "app-toast-error"
+                    else do
+                        setErrorMessage errorMessage
+                        redirectToPath (rosterWeekUrl weekOffset rosterGroup.id)
+            Right fields -> do
+                setRosterAssignmentFiltersSession RosterAssignmentFilters
+                    { hideStaffAtIdealShifts = surfaceFieldValue @Surface.HideStaffAtIdealShifts fields
+                    , hideStaffUnavailable = surfaceFieldValue @Surface.HideStaffUnavailable fields
+                    , hideStaffOnApprovedLeave = surfaceFieldValue @Surface.HideStaffOnApprovedLeave fields
+                    , hideStaffAlreadyAssignedToday = surfaceFieldValue @Surface.HideStaffAlreadyAssignedToday fields
+                    }
+                respondHtmlProfiled mempty
 
     action currentAction@CreateRosterWeekAction { weekOffset } = runBepis currentAction BepisMutationAction do
         ensureManagerRole
@@ -272,30 +320,39 @@ instance Controller RosterWeeksController where
         ensureVenueWritable
         rosterWeek <- fetch rosterWeekId
         ensureRecordInCurrentVenue rosterWeek.venueId
-        let nextLiveStatus = isJust (paramOrNothing @Text "isLive")
         let rosterGroupId = coerce rosterWeek.rosterGroupId
-        publishValidationError <- validateRosterWeekCanGoLive rosterWeek nextLiveStatus
-        case publishValidationError of
-            Just errorMessage ->
+        case parseSurfaceActionParams @Surface.RosterSurface @Surface.ToggleRosterWeekLiveStatus of
+            Left errors -> do
+                let errorMessage = rosterSurfaceRequestErrorMessage errors
                 if isHtmxRequest
                     then respondWithRosterContentError rosterGroupId rosterWeek.weekOffset errorMessage
                     else do
                         setErrorMessage errorMessage
                         redirectToPath (rosterWeekUrl rosterWeek.weekOffset rosterGroupId)
-            Nothing -> do
-                mutationResult <- toggleRosterWeekLiveStatusMutation rosterGroupId rosterWeek nextLiveStatus
-                let successMessage =
-                        if nextLiveStatus
-                            then "Roster week is now live. Timesheet suggestions are available immediately."
-                            else "Roster week moved back to draft. Timesheet suggestions are hidden."
-                let targetPath = rosterWeekUrl rosterWeek.weekOffset rosterGroupId
-                if isHtmxRequest
-                    then do
-                        setHtmxPushUrl targetPath
-                        respondWithRosterContentUpdate rosterGroupId rosterWeek.weekOffset mutationResult.liveMutationTouchedResources successMessage
-                    else do
-                        setSuccessMessage successMessage
-                        redirectToPath targetPath
+            Right fields -> do
+                let nextLiveStatus = surfaceFieldValue @Surface.IsLive fields
+                publishValidationError <- validateRosterWeekCanGoLive rosterWeek nextLiveStatus
+                case publishValidationError of
+                    Just errorMessage ->
+                        if isHtmxRequest
+                            then respondWithRosterContentError rosterGroupId rosterWeek.weekOffset errorMessage
+                            else do
+                                setErrorMessage errorMessage
+                                redirectToPath (rosterWeekUrl rosterWeek.weekOffset rosterGroupId)
+                    Nothing -> do
+                        mutationResult <- toggleRosterWeekLiveStatusMutation rosterGroupId rosterWeek nextLiveStatus
+                        let successMessage =
+                                if nextLiveStatus
+                                    then "Roster week is now live. Timesheet suggestions are available immediately."
+                                    else "Roster week moved back to draft. Timesheet suggestions are hidden."
+                        let targetPath = rosterWeekUrl rosterWeek.weekOffset rosterGroupId
+                        if isHtmxRequest
+                            then do
+                                setHtmxPushUrl targetPath
+                                respondWithRosterContentUpdate rosterGroupId rosterWeek.weekOffset mutationResult.liveMutationTouchedResources successMessage
+                            else do
+                                setSuccessMessage successMessage
+                                redirectToPath targetPath
 
     action currentAction@CreateRosterWeekSlotDefinitionAction { rosterWeekId } = runBepis currentAction BepisMutationAction do
         ensureManagerRole
@@ -488,16 +545,23 @@ instance Controller RosterWeeksController where
 
     action currentAction@UpdateRosterLayoutPreferenceAction { weekOffset } = runBepis currentAction BepisPreferenceAction do
         rosterGroup <- resolveRequestedRosterGroup
-        let requestedLayoutMode = paramOrDefault @Text "day_rows" "rosterLayoutMode"
-        case parseRosterLayoutMode requestedLayoutMode of
-            Nothing -> do
-                let errorMessage = "Choose a valid roster layout."
+        let requestedLayoutMode =
+                case parseSurfaceIntentParams @Surface.RosterSurface @Surface.SetRosterLayoutMode of
+                    Left errors -> Left (rosterSurfaceRequestErrorMessage errors)
+                    Right fields ->
+                        maybe
+                            (Left "Choose a valid roster layout.")
+                            Right
+                            (parseRosterLayoutMode (surfaceFieldValue @Surface.RosterLayoutMode fields))
+        case requestedLayoutMode of
+            Left requestError -> do
+                let errorMessage = requestError
                 if isHtmxRequest
                     then respondWithRosterToast errorMessage "app-toast-error"
                     else do
                         setErrorMessage errorMessage
                         redirectToPath (rosterWeekUrl weekOffset rosterGroup.id)
-            Just layoutMode -> do
+            Right layoutMode -> do
                 _ <- upsertCurrentUserRosterLayoutMode layoutMode
                 if isHtmxRequest
                     then respondWithRosterFragmentsUpdate rosterGroup.id weekOffset rosterGridStructuralAndStaffPanelFragments (successToast "Roster layout preference saved.")
@@ -509,118 +573,150 @@ instance Controller RosterWeeksController where
         ensureManagerRole
         ensureVenueWritable
         rosterGroup <- resolveRequestedRosterGroup
-        if paramOrDefault @Text "" "targetDropzoneKey" == "delete"
-            then do
-                result <- validateRosterShiftDeleteDropIntent rosterGroup.id weekOffset
-                case result of
-                    Left message -> respondWithMoveRosterShiftFailure rosterGroup.id weekOffset message
-                    Right rosterSlot -> respondWithDeleteRosterSlotDropConfirmation rosterSlot
-            else do
-                result <- validateMoveRosterShiftIntent rosterGroup.id weekOffset
-                case result of
-                    Left message -> respondWithMoveRosterShiftFailure rosterGroup.id weekOffset message
-                    Right MoveRosterShiftIntent { moveIsNoOp = True } -> respondWithSilentRosterNoOp rosterGroup.id weekOffset
-                    Right MoveRosterShiftIntent { sourceSlot, sourceRosterDay, targetRosterDay, targetSlotDefinition, targetRowIndex } -> do
-                        let updatedSlot = sourceSlot
-                                |> set #rosterDayId (unpackId targetRosterDay.id)
-                                |> set #rosterWeekSlotDefinitionId (unpackId targetSlotDefinition.id)
-                                |> set #slotSortOrder targetSlotDefinition.sortOrder
-                                |> set #rowIndex targetRowIndex
-                        rosterWeek <- fetch (Id targetRosterDay.rosterWeekId :: Id RosterWeek)
-                        mutationResult <- moveRosterSlotMutation rosterGroup.id rosterWeek sourceRosterDay targetRosterDay sourceSlot updatedSlot
-                        let shouldWarnSourceTimesheetUnchanged = mutationResult.liveMutationValue.rosterSlotMutationShouldWarnSourceTimesheetUnchanged
-                        let impactedRows = nub [(sourceSlot.rosterDayId, sourceSlot.rowIndex), (unpackId targetRosterDay.id, targetRowIndex)]
-                        respondToRosterSlotMove rosterGroup.id rosterWeek mutationResult impactedRows shouldWarnSourceTimesheetUnchanged
+        case parseSurfaceIntentParams @Surface.RosterSurface @Surface.MoveRosterShiftToSlot of
+            Left errors -> respondWithMoveRosterShiftFailure rosterGroup.id weekOffset (rosterSurfaceRequestErrorMessage errors)
+            Right fields -> do
+                let sourceToken = surfaceFieldValue @SurfaceInteraction.SourceItemKey fields
+                let targetToken = surfaceFieldValue @SurfaceInteraction.TargetDropzoneKey fields
+                if targetToken == "delete"
+                    then do
+                        result <- validateRosterShiftDeleteDropIntent rosterGroup.id weekOffset sourceToken targetToken
+                        case result of
+                            Left message -> respondWithMoveRosterShiftFailure rosterGroup.id weekOffset message
+                            Right rosterSlot -> respondWithDeleteRosterSlotDropConfirmation rosterSlot
+                    else do
+                        result <- validateMoveRosterShiftIntent rosterGroup.id weekOffset sourceToken targetToken
+                        case result of
+                            Left message -> respondWithMoveRosterShiftFailure rosterGroup.id weekOffset message
+                            Right MoveRosterShiftIntent { moveIsNoOp = True } -> respondWithSilentRosterNoOp rosterGroup.id weekOffset
+                            Right MoveRosterShiftIntent { sourceSlot, sourceRosterDay, targetRosterDay, targetSlotDefinition, targetRowIndex } -> do
+                                let updatedSlot = sourceSlot
+                                        |> set #rosterDayId (unpackId targetRosterDay.id)
+                                        |> set #rosterWeekSlotDefinitionId (unpackId targetSlotDefinition.id)
+                                        |> set #slotSortOrder targetSlotDefinition.sortOrder
+                                        |> set #rowIndex targetRowIndex
+                                rosterWeek <- fetch (Id targetRosterDay.rosterWeekId :: Id RosterWeek)
+                                mutationResult <- moveRosterSlotMutation rosterGroup.id rosterWeek sourceRosterDay targetRosterDay sourceSlot updatedSlot
+                                let shouldWarnSourceTimesheetUnchanged = mutationResult.liveMutationValue.rosterSlotMutationShouldWarnSourceTimesheetUnchanged
+                                let impactedRows = nub [(sourceSlot.rosterDayId, sourceSlot.rowIndex), (unpackId targetRosterDay.id, targetRowIndex)]
+                                respondToRosterSlotMove rosterGroup.id rosterWeek mutationResult impactedRows shouldWarnSourceTimesheetUnchanged
 
     action currentAction@MoveRosterTimelineShiftAction { weekOffset } = runBepis currentAction BepisMutationAction do
         ensureManagerRole
         ensureVenueWritable
         rosterGroup <- resolveRequestedRosterGroup
-        result <- validateMoveRosterTimelineShiftIntent rosterGroup.id weekOffset
-        case result of
-            Left message -> respondWithMoveRosterShiftFailure rosterGroup.id weekOffset message
-            Right MoveRosterTimelineShiftIntent { timelineMoveIsNoOp = True } -> respondWithSilentRosterNoOp rosterGroup.id weekOffset
-            Right MoveRosterTimelineShiftIntent { timelineSourceSlot, timelineSourceRosterDay, timelineTargetRosterDay, timelineTargetSlotDefinition, timelineTargetRowIndex, timelineTargetStartTime, timelineTargetEndTime } -> do
-                let updatedSlot = timelineSourceSlot
-                        |> set #rosterDayId (unpackId timelineTargetRosterDay.id)
-                        |> set #rosterWeekSlotDefinitionId (unpackId timelineTargetSlotDefinition.id)
-                        |> set #slotSortOrder timelineTargetSlotDefinition.sortOrder
-                        |> set #rowIndex timelineTargetRowIndex
-                        |> set #startTime (Just timelineTargetStartTime)
-                        |> set #endTime (Just timelineTargetEndTime)
-                        |> applyRosterSlotDuration
-                rosterWeek <- fetch (Id timelineTargetRosterDay.rosterWeekId :: Id RosterWeek)
-                mutationResult <- moveRosterSlotMutation rosterGroup.id rosterWeek timelineSourceRosterDay timelineTargetRosterDay timelineSourceSlot updatedSlot
-                let shouldWarnSourceTimesheetUnchanged = mutationResult.liveMutationValue.rosterSlotMutationShouldWarnSourceTimesheetUnchanged
-                respondToRosterTimelineSlotMove rosterGroup.id rosterWeek mutationResult shouldWarnSourceTimesheetUnchanged
+        case parseSurfaceIntentParams @Surface.RosterDayTimelineSurface @Surface.MoveRosterTimelineShift of
+            Left errors -> respondWithMoveRosterShiftFailure rosterGroup.id weekOffset (rosterSurfaceRequestErrorMessage errors)
+            Right fields -> do
+                let sourceToken = surfaceFieldValue @SurfaceInteraction.SourceItemKey fields
+                let targetToken = surfaceFieldValue @SurfaceInteraction.TargetDropzoneKey fields
+                result <- validateMoveRosterTimelineShiftIntent rosterGroup.id weekOffset sourceToken targetToken
+                case result of
+                    Left message -> respondWithMoveRosterShiftFailure rosterGroup.id weekOffset message
+                    Right MoveRosterTimelineShiftIntent { timelineMoveIsNoOp = True } -> respondWithSilentRosterNoOp rosterGroup.id weekOffset
+                    Right MoveRosterTimelineShiftIntent { timelineSourceSlot, timelineSourceRosterDay, timelineTargetRosterDay, timelineTargetSlotDefinition, timelineTargetRowIndex, timelineTargetStartTime, timelineTargetEndTime } -> do
+                        let updatedSlot = timelineSourceSlot
+                                |> set #rosterDayId (unpackId timelineTargetRosterDay.id)
+                                |> set #rosterWeekSlotDefinitionId (unpackId timelineTargetSlotDefinition.id)
+                                |> set #slotSortOrder timelineTargetSlotDefinition.sortOrder
+                                |> set #rowIndex timelineTargetRowIndex
+                                |> set #startTime (Just timelineTargetStartTime)
+                                |> set #endTime (Just timelineTargetEndTime)
+                                |> applyRosterSlotDuration
+                        rosterWeek <- fetch (Id timelineTargetRosterDay.rosterWeekId :: Id RosterWeek)
+                        mutationResult <- moveRosterSlotMutation rosterGroup.id rosterWeek timelineSourceRosterDay timelineTargetRosterDay timelineSourceSlot updatedSlot
+                        let shouldWarnSourceTimesheetUnchanged = mutationResult.liveMutationValue.rosterSlotMutationShouldWarnSourceTimesheetUnchanged
+                        respondToRosterTimelineSlotMove rosterGroup.id rosterWeek mutationResult shouldWarnSourceTimesheetUnchanged
 
     action currentAction@DuplicateRosterShiftToDayAction { weekOffset } = runBepis currentAction BepisMutationAction do
         ensureManagerRole
         ensureVenueWritable
         rosterGroup <- resolveRequestedRosterGroup
-        if paramOrDefault @Text "" "targetDropzoneKey" == "delete"
-            then do
-                result <- validateRosterShiftDeleteDropIntent rosterGroup.id weekOffset
-                case result of
-                    Left message -> respondWithMoveRosterShiftFailure rosterGroup.id weekOffset message
-                    Right rosterSlot -> respondWithDeleteRosterSlotDropConfirmation rosterSlot
-            else do
-                result <- validateDuplicateRosterShiftIntent rosterGroup.id weekOffset
-                case result of
-                    Left message -> respondWithMoveRosterShiftFailure rosterGroup.id weekOffset message
-                    Right MoveRosterShiftIntent { sourceSlot, targetRosterDay, targetSlotDefinition, targetRowIndex } -> do
-                        rosterWeek <- fetch (Id targetRosterDay.rosterWeekId :: Id RosterWeek)
-                        let copiedSlot = newRecord @RosterSlot
-                                |> set #rosterDayId (unpackId targetRosterDay.id)
-                                |> set #staffId sourceSlot.staffId
-                                |> set #rosterWeekSlotDefinitionId (unpackId targetSlotDefinition.id)
-                                |> set #slotSortOrder targetSlotDefinition.sortOrder
-                                |> set #rowIndex targetRowIndex
-                                |> set #startTime sourceSlot.startTime
-                                |> set #endTime sourceSlot.endTime
-                                |> set #shiftTypeId sourceSlot.shiftTypeId
-                                |> set #durationMinutes sourceSlot.durationMinutes
-                        mutationResult <- saveRosterSlotMutation rosterGroup.id rosterWeek targetRosterDay Nothing copiedSlot
-                        respondToRosterSlotMutation rosterGroup.id rosterWeek targetRosterDay targetRowIndex mutationResult "Roster shift duplicated."
+        case parseSurfaceIntentParams @Surface.RosterSurface @Surface.DuplicateRosterShiftToDay of
+            Left errors -> respondWithMoveRosterShiftFailure rosterGroup.id weekOffset (rosterSurfaceRequestErrorMessage errors)
+            Right fields -> do
+                let sourceToken = surfaceFieldValue @SurfaceInteraction.SourceItemKey fields
+                let targetToken = surfaceFieldValue @SurfaceInteraction.TargetDropzoneKey fields
+                if targetToken == "delete"
+                    then do
+                        result <- validateRosterShiftDeleteDropIntent rosterGroup.id weekOffset sourceToken targetToken
+                        case result of
+                            Left message -> respondWithMoveRosterShiftFailure rosterGroup.id weekOffset message
+                            Right rosterSlot -> respondWithDeleteRosterSlotDropConfirmation rosterSlot
+                    else do
+                        result <- validateDuplicateRosterShiftIntent rosterGroup.id weekOffset sourceToken targetToken
+                        case result of
+                            Left message -> respondWithMoveRosterShiftFailure rosterGroup.id weekOffset message
+                            Right MoveRosterShiftIntent { sourceSlot, targetRosterDay, targetSlotDefinition, targetRowIndex } -> do
+                                rosterWeek <- fetch (Id targetRosterDay.rosterWeekId :: Id RosterWeek)
+                                let copiedSlot = newRecord @RosterSlot
+                                        |> set #rosterDayId (unpackId targetRosterDay.id)
+                                        |> set #staffId sourceSlot.staffId
+                                        |> set #rosterWeekSlotDefinitionId (unpackId targetSlotDefinition.id)
+                                        |> set #slotSortOrder targetSlotDefinition.sortOrder
+                                        |> set #rowIndex targetRowIndex
+                                        |> set #startTime sourceSlot.startTime
+                                        |> set #endTime sourceSlot.endTime
+                                        |> set #shiftTypeId sourceSlot.shiftTypeId
+                                        |> set #durationMinutes sourceSlot.durationMinutes
+                                mutationResult <- saveRosterSlotMutation rosterGroup.id rosterWeek targetRosterDay Nothing copiedSlot
+                                respondToRosterSlotMutation rosterGroup.id rosterWeek targetRosterDay targetRowIndex mutationResult "Roster shift duplicated."
 
     action currentAction@DropRosterStaffAction { weekOffset } = runBepis currentAction BepisMutationAction do
         ensureManagerRole
         ensureVenueWritable
         rosterGroup <- resolveRequestedRosterGroup
-        result <- validateRosterStaffDropIntent rosterGroup.id weekOffset
-        case result of
-            Left message -> respondWithMoveRosterShiftFailure rosterGroup.id weekOffset message
-            Right RosterStaffExistingShiftDropIntent { staffDropStaff, staffDropSlot, staffDropRosterDay, staffDropRosterWeek } -> do
-                let updatedSlot = staffDropSlot |> set #staffId (Just (coerce staffDropStaff.id))
-                mutationResult <- updateRosterSlotMutation rosterGroup.id staffDropRosterWeek staffDropRosterDay staffDropSlot updatedSlot
-                let warningToast = mutationResult.liveMutationValue.rosterSlotMutationShouldWarnSourceTimesheetUnchanged
-                respondToRosterSlotMutation rosterGroup.id staffDropRosterWeek staffDropRosterDay updatedSlot.rowIndex mutationResult $
-                    if warningToast then "Staff assigned. A timesheet entry was already created from this roster shift. The timesheet snapshot was not changed." else "Staff assigned."
-            Right RosterStaffCreateShiftDropIntent { staffDropStaff, staffDropRosterDay, staffDropRosterWeek, staffDropSlotDefinition, staffDropRowIndex } ->
-                respondWithRosterShiftCreateDialogOob staffDropRosterDay staffDropRosterWeek staffDropSlotDefinition staffDropRowIndex emptyRosterShiftDialogValues { rosterShiftStaffId = Just (coerce staffDropStaff.id) }
+        case parseSurfaceIntentParams @Surface.RosterSurface @Surface.DropRosterStaff of
+            Left errors -> respondWithMoveRosterShiftFailure rosterGroup.id weekOffset (rosterSurfaceRequestErrorMessage errors)
+            Right fields -> do
+                let sourceToken = surfaceFieldValue @SurfaceInteraction.SourceItemKey fields
+                let targetToken = surfaceFieldValue @SurfaceInteraction.TargetDropzoneKey fields
+                result <- validateRosterStaffDropIntent rosterGroup.id weekOffset sourceToken targetToken
+                case result of
+                    Left message -> respondWithMoveRosterShiftFailure rosterGroup.id weekOffset message
+                    Right RosterStaffExistingShiftDropIntent { staffDropStaff, staffDropSlot, staffDropRosterDay, staffDropRosterWeek } -> do
+                        let updatedSlot = staffDropSlot |> set #staffId (Just (coerce staffDropStaff.id))
+                        mutationResult <- updateRosterSlotMutation rosterGroup.id staffDropRosterWeek staffDropRosterDay staffDropSlot updatedSlot
+                        let warningToast = mutationResult.liveMutationValue.rosterSlotMutationShouldWarnSourceTimesheetUnchanged
+                        respondToRosterSlotMutation rosterGroup.id staffDropRosterWeek staffDropRosterDay updatedSlot.rowIndex mutationResult $
+                            if warningToast then "Staff assigned. A timesheet entry was already created from this roster shift. The timesheet snapshot was not changed." else "Staff assigned."
+                    Right RosterStaffCreateShiftDropIntent { staffDropStaff, staffDropRosterDay, staffDropRosterWeek, staffDropSlotDefinition, staffDropRowIndex } ->
+                        respondWithRosterShiftCreateDialogOob staffDropRosterDay staffDropRosterWeek staffDropSlotDefinition staffDropRowIndex emptyRosterShiftDialogValues { rosterShiftStaffId = Just (coerce staffDropStaff.id) }
 
     action currentAction@UpdateRosterWarningPreferenceAction { weekOffset } =
         runBepis currentAction BepisMutationAction do
             ensureManagerRole
             rosterGroup <- resolveRequestedRosterGroup
-            let showRosterWarnings = paramOrDefault @Text "false" "showRosterWarnings" == "true"
-            _ <- upsertCurrentUserShowRosterWarnings showRosterWarnings
-            if isHtmxRequest
-                then respondWithRosterFragmentsUpdate rosterGroup.id weekOffset rosterGridStructuralAndStaffPanelFragments (successToast "Roster warning preference saved.")
-                else do
-                    setSuccessMessage "Roster warning preference saved."
-                    redirectToPath (rosterWeekUrl weekOffset rosterGroup.id)
+            case parseSurfaceActionParams @Surface.RosterSurface @Surface.ToggleRosterWarnings of
+                Left errors -> do
+                    let errorMessage = rosterSurfaceRequestErrorMessage errors
+                    if isHtmxRequest
+                        then respondWithRosterToast errorMessage "app-toast-error"
+                        else setErrorMessage errorMessage >> redirectToPath (rosterWeekUrl weekOffset rosterGroup.id)
+                Right fields -> do
+                    _ <- upsertCurrentUserShowRosterWarnings (surfaceFieldValue @Surface.ShowRosterWarnings fields)
+                    if isHtmxRequest
+                        then respondWithRosterFragmentsUpdate rosterGroup.id weekOffset rosterGridStructuralAndStaffPanelFragments (successToast "Roster warning preference saved.")
+                        else do
+                            setSuccessMessage "Roster warning preference saved."
+                            redirectToPath (rosterWeekUrl weekOffset rosterGroup.id)
 
     action currentAction@UpdateRosterWageEstimatePreferenceAction { weekOffset } = runBepis currentAction BepisPreferenceAction do
         accessDeniedUnless (hasRole VenueAdminRole)
         rosterGroup <- resolveRequestedRosterGroup
-        let showWageEstimates = paramOrDefault @Text "false" "showWageEstimates" == "true"
-        _ <- upsertCurrentUserShowWageEstimates showWageEstimates
-        if isHtmxRequest
-            then respondWithRosterFragmentsUpdate rosterGroup.id weekOffset rosterGridStructuralAndStaffPanelFragments (successToast "Roster wage estimate preference saved.")
-            else do
-                setSuccessMessage "Roster wage estimate preference saved."
-                redirectToPath (rosterWeekUrl weekOffset rosterGroup.id)
+        case parseSurfaceActionParams @Surface.RosterSurface @Surface.ToggleRosterWageEstimates of
+            Left errors -> do
+                let errorMessage = rosterSurfaceRequestErrorMessage errors
+                if isHtmxRequest
+                    then respondWithRosterToast errorMessage "app-toast-error"
+                    else setErrorMessage errorMessage >> redirectToPath (rosterWeekUrl weekOffset rosterGroup.id)
+            Right fields -> do
+                _ <- upsertCurrentUserShowWageEstimates (surfaceFieldValue @Surface.ShowWageEstimates fields)
+                if isHtmxRequest
+                    then respondWithRosterFragmentsUpdate rosterGroup.id weekOffset rosterGridStructuralAndStaffPanelFragments (successToast "Roster wage estimate preference saved.")
+                    else do
+                        setSuccessMessage "Roster wage estimate preference saved."
+                        redirectToPath (rosterWeekUrl weekOffset rosterGroup.id)
 
     action currentAction@NewRosterSlotDialogAction { rosterDayId, rosterWeekSlotDefinitionId, rowIndex } = runBepis currentAction BepisDialogAction do
         ensureManagerRole
@@ -743,38 +839,32 @@ data RosterStaffDropIntent
         , staffDropRowIndex       :: !Int
         }
 
-validateMoveRosterShiftIntent :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id RosterGroup -> Int -> IO (Either Text MoveRosterShiftIntent)
-validateMoveRosterShiftIntent rosterGroupId weekOffset =
-    validateRosterShiftDropIntent rosterGroupId weekOffset True
+validateMoveRosterShiftIntent :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id RosterGroup -> Int -> Text -> Text -> IO (Either Text MoveRosterShiftIntent)
+validateMoveRosterShiftIntent rosterGroupId weekOffset sourceToken targetToken =
+    validateRosterShiftDropIntent rosterGroupId weekOffset True sourceToken targetToken
 
-validateDuplicateRosterShiftIntent :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id RosterGroup -> Int -> IO (Either Text MoveRosterShiftIntent)
-validateDuplicateRosterShiftIntent rosterGroupId weekOffset =
-    validateRosterShiftDropIntent rosterGroupId weekOffset False
+validateDuplicateRosterShiftIntent :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id RosterGroup -> Int -> Text -> Text -> IO (Either Text MoveRosterShiftIntent)
+validateDuplicateRosterShiftIntent rosterGroupId weekOffset sourceToken targetToken =
+    validateRosterShiftDropIntent rosterGroupId weekOffset False sourceToken targetToken
 
-validateMoveRosterTimelineShiftIntent :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id RosterGroup -> Int -> IO (Either Text MoveRosterTimelineShiftIntent)
-validateMoveRosterTimelineShiftIntent rosterGroupId weekOffset = do
-    let sourceToken = paramOrDefault @Text "" "sourceItemKey"
-    let targetToken = paramOrDefault @Text "" "targetDropzoneKey"
+validateMoveRosterTimelineShiftIntent :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id RosterGroup -> Int -> Text -> Text -> IO (Either Text MoveRosterTimelineShiftIntent)
+validateMoveRosterTimelineShiftIntent rosterGroupId weekOffset sourceToken targetToken = do
     case (parseExistingSlotToken sourceToken, parseTimelineShiftDropTargetToken targetToken) of
         (Just sourceSlotId, Just target) -> do
             maybeResult <- validateRosterTimelineShiftDropTarget rosterGroupId weekOffset sourceSlotId target
             pure (maybe (Left "Drag the shift onto an open timeline time target.") Right maybeResult)
         _ -> pure (Left "Drag the shift onto an open timeline time target.")
 
-validateRosterShiftDropIntent :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id RosterGroup -> Int -> Bool -> IO (Either Text MoveRosterShiftIntent)
-validateRosterShiftDropIntent rosterGroupId weekOffset allowSemanticDayNoOp = do
-    let sourceToken = paramOrDefault @Text "" "sourceItemKey"
-    let targetToken = paramOrDefault @Text "" "targetDropzoneKey"
+validateRosterShiftDropIntent :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id RosterGroup -> Int -> Bool -> Text -> Text -> IO (Either Text MoveRosterShiftIntent)
+validateRosterShiftDropIntent rosterGroupId weekOffset allowSemanticDayNoOp sourceToken targetToken = do
     case (parseExistingSlotToken sourceToken, parseRosterShiftDropTargetToken targetToken) of
         (Just sourceSlotId, Just target) -> do
             maybeResult <- validateRosterShiftDropTarget rosterGroupId weekOffset allowSemanticDayNoOp sourceSlotId target
             pure (maybe (Left "Choose an open roster day in this week.") Right maybeResult)
         _ -> pure (Left "Drag the shift onto an open roster day.")
 
-validateRosterShiftDeleteDropIntent :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id RosterGroup -> Int -> IO (Either Text RosterSlot)
-validateRosterShiftDeleteDropIntent rosterGroupId weekOffset = do
-    let sourceToken = paramOrDefault @Text "" "sourceItemKey"
-    let targetToken = paramOrDefault @Text "" "targetDropzoneKey"
+validateRosterShiftDeleteDropIntent :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id RosterGroup -> Int -> Text -> Text -> IO (Either Text RosterSlot)
+validateRosterShiftDeleteDropIntent rosterGroupId weekOffset sourceToken targetToken = do
     case (parseExistingSlotToken sourceToken, targetToken) of
         (Just rosterSlotId, "delete") -> do
             maybeSlot <- fetchOneOrNothing (query @RosterSlot |> filterWhere (#id, rosterSlotId) |> filterWhere (#deletedAt, Nothing))
@@ -789,10 +879,8 @@ validateRosterShiftDeleteDropIntent rosterGroupId weekOffset = do
                         else pure (Left "Drag an editable shift from this roster week to the delete area.")
         _ -> pure (Left "Drag a shift to the delete area.")
 
-validateRosterStaffDropIntent :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id RosterGroup -> Int -> IO (Either Text RosterStaffDropIntent)
-validateRosterStaffDropIntent rosterGroupId weekOffset = do
-    let sourceToken = paramOrDefault @Text "" "sourceItemKey"
-    let targetToken = paramOrDefault @Text "" "targetDropzoneKey"
+validateRosterStaffDropIntent :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id RosterGroup -> Int -> Text -> Text -> IO (Either Text RosterStaffDropIntent)
+validateRosterStaffDropIntent rosterGroupId weekOffset sourceToken targetToken = do
     case (parseStaffToken sourceToken, parseExistingSlotToken targetToken, parseRosterShiftDropTargetToken targetToken) of
         (Just staffId, Just rosterSlotId, _) -> do
             maybeResult <- validateRosterStaffExistingShiftDropTarget rosterGroupId weekOffset staffId rosterSlotId

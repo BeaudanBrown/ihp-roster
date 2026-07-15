@@ -1,6 +1,10 @@
 module Web.Controller.Exports where
 
 import Application.Helper.Export
+import qualified Application.Helper.FrontendContract.Surface.Admin as Surface
+import Application.Helper.FrontendContract.Surface.Request (parseSurfaceActionParams,
+                                                            surfaceRequestFieldErrorsMessage)
+import Application.Helper.FrontendContract.Surface.Values (surfaceFieldValue)
 import Application.Helper.SurfaceResource (LiveMutationResult (..))
 import qualified Data.ByteString.Base64 as Base64
 import qualified Data.Text as Text
@@ -39,20 +43,20 @@ instance Controller ExportsController where
 
     action currentAction@CreateExportJobAction = runBepis currentAction BepisExportAction do
         ensureVenueWritable
-        let maybeRangeStart = paramOrNothing @Day "rangeStart"
-        let maybeRangeEnd = paramOrNothing @Day "rangeEnd"
-        let maybeExportType = paramOrNothing @Text "exportType" >>= parseExportJobType
-
-        case (maybeExportType, maybeRangeStart, maybeRangeEnd) of
-            (Just exportType, Just rangeStart, Just rangeEnd) -> do
-                requestFixedExportMutation exportType rangeStart rangeEnd >>= \case
-                    Left message -> setErrorMessage message
-                    Right _ -> do
-                        setSuccessMessage "Export generated"
+        case parseSurfaceActionParams @Surface.AdminExportsSurface @Surface.CreateExportJob of
+            Left errors -> do
+                setErrorMessage ("Choose an export type and a valid start and end date. " <> surfaceRequestFieldErrorsMessage errors)
                 respondToAdminExportsSectionMutation
-            _ -> do
-                setErrorMessage "Choose an export type and a valid start and end date."
-                respondToAdminExportsSectionMutation
+            Right fields ->
+                case parseExportJobType (surfaceFieldValue @Surface.ExportType fields) of
+                    Just exportType -> do
+                        requestFixedExportMutation exportType (surfaceFieldValue @Surface.RangeStart fields) (surfaceFieldValue @Surface.RangeEnd fields) >>= \case
+                            Left message -> setErrorMessage message
+                            Right _ -> setSuccessMessage "Export generated"
+                        respondToAdminExportsSectionMutation
+                    Nothing -> do
+                        setErrorMessage "Choose an export type and a valid start and end date."
+                        respondToAdminExportsSectionMutation
 
     action currentAction@DownloadExportJobAction { exportJobId } = runBepis currentAction BepisExportAction do
         let downloadToken = param @UUID "token"

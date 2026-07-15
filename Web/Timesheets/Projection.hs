@@ -4,6 +4,7 @@ module Web.Timesheets.Projection
     ( TimesheetProjectionFragment (..)
     , TimesheetProjectionRequest (..)
     , TimesheetSuggestion (..)
+    , TimesheetSurfaceRequestState (..)
     , TimesheetWeekProjection (..)
     , currentTimesheetWeekOffset
     , fetchShiftTypesForForm
@@ -19,6 +20,11 @@ module Web.Timesheets.Projection
     , timesheetDaySectionFragment
     , timesheetIndexView
     , timesheetToolbarFragment
+    , parseApproveTimesheetEntryState
+    , parseCreateTimesheetEntryFromSuggestionState
+    , parseNavigateTimesheetWeekState
+    , parseUnapproveTimesheetEntryState
+    , parseUpdateTimesheetFiltersState
     , timesheetViewFiltersFromRequest
     , viewerHasTimesheetSuggestionOnDay
     , weekOffsetFromParamOrCurrent
@@ -28,6 +34,10 @@ module Web.Timesheets.Projection
 import Application.Helper.Controller (automaticMealBreakForShift,
                                       validRosterShiftDurationMinutes)
 import Application.Helper.FrontendContract.Surface.FragmentRender (FragmentRenderMode (..))
+import Application.Helper.FrontendContract.Surface.Request (SurfaceRequestFieldError,
+                                                            parseSurfaceActionParams)
+import qualified Application.Helper.FrontendContract.Surface.Timesheets as Surface
+import Application.Helper.FrontendContract.Surface.Values
 import Application.Helper.Profiling
 import Application.Helper.VenueScopedQueries (fetchLinkedActiveVenueStaff)
 import Control.Monad (guard)
@@ -416,16 +426,59 @@ timesheetIndexView TimesheetWeekProjection { timesheetEntries, timesheetSuggesti
             }
         surfaceImpl = timesheetsSurfaceImpl scopeValue mountStateValue
 
+data TimesheetSurfaceRequestState = TimesheetSurfaceRequestState
+    { surfaceRequestWeekOffset      :: !Int
+    , surfaceRequestShowApproved    :: !Bool
+    , surfaceRequestShowAllStaff    :: !Bool
+    , surfaceRequestShowSuggestions :: !Bool
+    , surfaceRequestStaffFilterId   :: !(Maybe UUID.UUID)
+    }
+
+parseNavigateTimesheetWeekState :: (?request :: Request) => Either [SurfaceRequestFieldError] TimesheetSurfaceRequestState
+parseNavigateTimesheetWeekState =
+    timesheetSurfaceRequestState
+        <$> parseSurfaceActionParams @Surface.TimesheetsSurface @Surface.NavigateTimesheetWeek
+
+parseUpdateTimesheetFiltersState :: (?request :: Request) => Either [SurfaceRequestFieldError] TimesheetSurfaceRequestState
+parseUpdateTimesheetFiltersState =
+    timesheetSurfaceRequestState
+        <$> parseSurfaceActionParams @Surface.TimesheetsSurface @Surface.UpdateTimesheetFilters
+
+parseCreateTimesheetEntryFromSuggestionState :: (?request :: Request) => Either [SurfaceRequestFieldError] TimesheetSurfaceRequestState
+parseCreateTimesheetEntryFromSuggestionState =
+    timesheetSurfaceRequestState
+        <$> parseSurfaceActionParams @Surface.TimesheetsSurface @Surface.CreateTimesheetEntryFromSuggestion
+
+parseApproveTimesheetEntryState :: (?request :: Request) => Either [SurfaceRequestFieldError] TimesheetSurfaceRequestState
+parseApproveTimesheetEntryState =
+    timesheetSurfaceRequestState
+        <$> parseSurfaceActionParams @Surface.TimesheetsSurface @Surface.ApproveTimesheetEntry
+
+parseUnapproveTimesheetEntryState :: (?request :: Request) => Either [SurfaceRequestFieldError] TimesheetSurfaceRequestState
+parseUnapproveTimesheetEntryState =
+    timesheetSurfaceRequestState
+        <$> parseSurfaceActionParams @Surface.TimesheetsSurface @Surface.UnapproveTimesheetEntry
+
+timesheetSurfaceRequestState :: SurfaceFields (SurfaceActionFieldSpecs Surface.TimesheetsSurface Surface.UpdateTimesheetFilters) -> TimesheetSurfaceRequestState
+timesheetSurfaceRequestState fields =
+    TimesheetSurfaceRequestState
+        { surfaceRequestWeekOffset = surfaceFieldValue @Surface.WeekOffset fields
+        , surfaceRequestShowApproved = surfaceFieldValue @Surface.ShowApproved fields
+        , surfaceRequestShowAllStaff = surfaceFieldValue @Surface.ShowAllStaff fields
+        , surfaceRequestShowSuggestions = surfaceFieldValue @Surface.ShowSuggestions fields
+        , surfaceRequestStaffFilterId = surfaceFieldValue @Surface.StaffFilterId fields
+        }
+
 weekOffsetFromParamOrCurrent :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => IO Int
 weekOffsetFromParamOrCurrent = do
     currentOffset <- currentTimesheetWeekOffset
-    pure (paramOrDefault currentOffset "weekOffset")
+    pure (paramOrDefault currentOffset (cs (surfaceFieldNameFrom @Surface.WeekOffset timesheetRequestFieldWitness)))
 
 weekOffsetFromParamOrEntry :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Day -> IO Int
 weekOffsetFromParamOrEntry workedOnDate = do
     venueConfig <- fetchVenueConfig
     let entryOffset = venueWeekOffsetForDay venueConfig workedOnDate
-    pure (paramOrDefault entryOffset "weekOffset")
+    pure (paramOrDefault entryOffset (cs (surfaceFieldNameFrom @Surface.WeekOffset timesheetRequestFieldWitness)))
 
 currentTimesheetWeekOffset :: (?context :: ControllerContext, ?modelContext :: ModelContext) => IO Int
 currentTimesheetWeekOffset = do
@@ -450,8 +503,17 @@ timesheetDaySectionFragment =
 
 timesheetViewFiltersFromRequest :: (?request :: Request) => (Bool, Bool, Bool, Maybe UUID.UUID)
 timesheetViewFiltersFromRequest =
-    ( paramOrDefault @Bool False "showApproved"
-    , paramOrDefault @Bool True "showAllStaff"
-    , paramOrDefault @Bool True "showSuggestions"
-    , parseUUIDText =<< paramOrNothing @Text "staffFilterId"
+    ( paramOrDefault @Bool False (cs (surfaceFieldNameFrom @Surface.ShowApproved timesheetRequestFieldWitness))
+    , paramOrDefault @Bool True (cs (surfaceFieldNameFrom @Surface.ShowAllStaff timesheetRequestFieldWitness))
+    , paramOrDefault @Bool True (cs (surfaceFieldNameFrom @Surface.ShowSuggestions timesheetRequestFieldWitness))
+    , parseUUIDText =<< paramOrNothing @Text (cs (surfaceFieldNameFrom @Surface.StaffFilterId timesheetRequestFieldWitness))
     )
+
+timesheetRequestFieldWitness :: SurfaceFields (SurfaceActionFieldSpecs Surface.TimesheetsSurface Surface.NavigateTimesheetWeek)
+timesheetRequestFieldWitness =
+    surfaceField @Surface.WeekOffset 0
+        :& surfaceField @Surface.ShowApproved False
+        :& surfaceField @Surface.ShowAllStaff True
+        :& surfaceField @Surface.ShowSuggestions True
+        :& surfaceOptionalField @Surface.StaffFilterId Nothing
+        :& NoSurfaceFields

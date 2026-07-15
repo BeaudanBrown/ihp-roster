@@ -23,8 +23,9 @@ import Application.Helper.FrontendContract.AppShell.Runtime (AppShellActionRoute
 import Application.Helper.FrontendContract.IR (AppShellActionIR)
 import qualified Application.Helper.FrontendContract.Surface.Admin as Surface
 import Application.Helper.FrontendContract.Surface.Runtime (FrontendSurfaceActionRoute (..),
+                                                            frontendSurfaceAction,
                                                             renderFrontendSurfaceActionForm)
-import Application.Helper.FrontendContract.Surface.Values (surfaceActionValue)
+import Application.Helper.FrontendContract.Surface.Values
 import Application.Helper.View.Overlay
 import Application.Helper.XeroAdminTypes
 import Application.Xero.Admin.ReadModel (xeroEmployeeAvailableForStaff)
@@ -557,19 +558,23 @@ renderStaffEmployeeReadOnly view row = [hsx|
 renderStaffEmployeeEditForm :: XeroTimesheetPreparationView -> XeroPreparationStaffRow -> Html
 renderStaffEmployeeEditForm view row =
     renderFrontendSurfaceActionForm
-        (surfaceActionValue @Surface.AdminXeroSurface @Surface.ShowXeroTimesheetPreparationStaffMappings)
+        (frontendSurfaceAction @Surface.AdminXeroSurface @Surface.ShowXeroTimesheetPreparationStaffMappings fields)
         FrontendSurfaceActionRoute
             { actionRouteUrl = pathTo (ShowXeroTimesheetPreparationStaffMappingsFragmentAction view.preparationRun.id)
-            , actionRouteFields = []
             , actionRouteCustomHtmx = []
             , actionRouteStandardUrl = Just (pathTo (ShowXeroTimesheetPreparationStaffMappingsFragmentAction view.preparationRun.id))
             , actionRouteExtraAttrs = []
             }
         [hsx|
-            <input type="hidden" name="showMatched" value="true" />
-            <input type="hidden" name="editStaffId" value={tshow row.preparationStaffMappingRow.mappingRowStaff.id} />
+            <input type="hidden" name={surfaceFieldNameFrom @Surface.ShowMatched fields} value="true" />
+            <input type="hidden" name={surfaceFieldNameFrom @Surface.EditStaffId fields} value={tshow row.preparationStaffMappingRow.mappingRowStaff.id} />
             <button type="submit" class="btn btn-sm btn-outline-secondary">Edit</button>
         |]
+  where
+    fields =
+        surfaceField @Surface.ShowMatched True
+            :& surfaceOptionalField @Surface.EditStaffId (Just (unpackId row.preparationStaffMappingRow.mappingRowStaff.id))
+            :& NoSurfaceFields
 
 staffEmployeeDisplay :: XeroPreparationStaffRow -> Text
 staffEmployeeDisplay row

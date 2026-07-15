@@ -16,6 +16,7 @@ import qualified Application.Helper.FrontendContract.Surface.Interaction as Surf
 import Application.Helper.FrontendContract.Surface.Live (frontendSurfaceFragmentKey)
 import Application.Helper.FrontendContract.Surface.Reflect
 import Application.Helper.FrontendContract.Surface.Registry (RegisteredFrontendSurfaces)
+import Application.Helper.FrontendContract.Surface.Request
 import Application.Helper.FrontendContract.Surface.Resource
 import qualified Application.Helper.FrontendContract.Surface.Roster as RosterSurface
 import Application.Helper.FrontendContract.Surface.Runtime
@@ -55,6 +56,34 @@ data TypedHtmxAction
 data RawHtmxAction
 data TypedHtmxShell
 data NullableTestField
+data NestedOptionalTestField
+data RequestContract
+data RequestContractScope
+data RequestAction
+data RequestIntent
+data RequestCount
+data RequestFilterId
+data RequestTags
+data RequestNote
+
+type RequestContractSurface =
+    Surface RequestContract
+        '[ Scope RequestContractScope '[] '[ 'NoAuth ]
+         , Action RequestAction
+            '[ Field RequestCount 'WireInt
+             , OptionalField RequestFilterId 'WireUUID
+             , OptionalField RequestTags ('WireList 'WireText)
+             , NullableField RequestNote 'WireText
+             ]
+            '[]
+         , Intent RequestIntent
+            '[ Field RequestCount 'WireInt
+             , OptionalField RequestFilterId 'WireUUID
+             , OptionalField RequestTags ('WireList 'WireText)
+             , NullableField RequestNote 'WireText
+             ]
+            '[]
+         ]
 
 type TypedHtmxSurface =
     Surface TypedHtmx
@@ -135,12 +164,17 @@ tests = describe "FrontendSurface DSL foundation" do
         (surfaceScopeFieldName @TimesheetsSurface.TimesheetsSurface @TimesheetsSurface.TimesheetWeek @TimesheetsSurface.VenueId) `shouldBe` "venueId"
         (surfaceFragmentValue @TimesheetsSurface.TimesheetsSurface @TimesheetsSurface.TimesheetDaySection).fragmentName `shouldBe` "timesheet-day-section"
         (surfaceFragmentFieldName @TimesheetsSurface.TimesheetsSurface @TimesheetsSurface.TimesheetDaySection @TimesheetsSurface.DayOffset) `shouldBe` "dayOffset"
-        (surfaceActionValue @TimesheetsSurface.TimesheetsSurface @TimesheetsSurface.NavigateTimesheetWeek).htmxActionName `shouldBe` "navigate-timesheet-week"
+        surfaceActionNameValue @TimesheetsSurface.TimesheetsSurface @TimesheetsSurface.NavigateTimesheetWeek `shouldBe` "navigate-timesheet-week"
         (surfaceResourceValue @TimesheetsSurface.TimesheetsSurface @TimesheetsSurface.TimesheetDay).resourceName `shouldBe` "timesheet-day"
         (surfaceDomTokenValue @TimesheetsSurface.TimesheetsSurface @TimesheetsSurface.TimesheetWeekShell) `shouldBe` "timesheet-week-shell"
         (surfaceSourceRefValue @RosterSurface.RosterDayTimelineSurface @SurfaceInteraction.DragSourceRef).sourceRefName `shouldBe` "drag-source"
         (surfaceDropzoneRefValue @RosterSurface.RosterDayTimelineSurface @SurfaceInteraction.DragDropzoneRef).dropzoneRefName `shouldBe` "drag-dropzone"
-        (surfaceIntentFieldName @SurfaceFixture.FrontendSurfaceFixture @SurfaceFixture.MoveCard @SurfaceFixture.SourceItemKey) `shouldBe` "sourceItemKey"
+        let intentFields =
+                surfaceField @SurfaceFixture.SourceItemKey "source"
+                    :& surfaceField @SurfaceFixture.TargetDropzoneKey "target"
+                    :& NoSurfaceFields
+                :: SurfaceFields (SurfaceIntentFieldSpecs SurfaceFixture.FrontendSurfaceFixture SurfaceFixture.MoveCard)
+        surfaceFieldNameFrom @SurfaceFixture.SourceItemKey intentFields `shouldBe` "sourceItemKey"
 
     it "renders typed HTMX selector, trigger, swap, and sync syntax deterministically" do
         let surface = reflectSurfaceSpec @TypedHtmxSurface
@@ -182,8 +216,84 @@ tests = describe "FrontendSurface DSL foundation" do
         let nullFields :: SurfaceFields '[ 'NullableField NullableTestField 'WireText]
             nullFields = surfaceNullableField @NullableTestField Nothing :& NoSurfaceFields
         surfaceFieldsJson nullFields `shouldBe` Aeson.object ["nullableTest" Aeson..= Aeson.Null]
-        (surfaceActionFieldName @TimesheetsSurface.TimesheetsSurface @TimesheetsSurface.NavigateTimesheetWeek @TimesheetsSurface.WeekOffset)
-            `shouldBe` "weekOffset"
+        let nestedOptionalFields :: SurfaceFields '[ 'OptionalField NestedOptionalTestField ('WireOptional 'WireInt)]
+            nestedOptionalFields = surfaceOptionalField @NestedOptionalTestField (Just Nothing) :& NoSurfaceFields
+        surfaceFieldValue @NestedOptionalTestField nestedOptionalFields `shouldBe` Just Nothing
+        let actionFields =
+                surfaceField @TimesheetsSurface.WeekOffset 0
+                    :& surfaceField @TimesheetsSurface.ShowApproved False
+                    :& surfaceField @TimesheetsSurface.ShowAllStaff True
+                    :& surfaceField @TimesheetsSurface.ShowSuggestions True
+                    :& surfaceOptionalField @TimesheetsSurface.StaffFilterId Nothing
+                    :& NoSurfaceFields
+                :: SurfaceFields (SurfaceActionFieldSpecs TimesheetsSurface.TimesheetsSurface TimesheetsSurface.NavigateTimesheetWeek)
+        surfaceFieldNameFrom @TimesheetsSurface.WeekOffset actionFields `shouldBe` "weekOffset"
+
+    it "parses complete typed action fields and exposes only marker-indexed values" do
+        let filterId = fromMaybe (error "invalid fixture filter UUID") (UUID.fromString "33333333-3333-3333-3333-333333333333")
+        let parsed = parseSurfaceActionParamPairs @RequestContractSurface @RequestAction
+                [ ("requestCount", Just "7")
+                , ("requestFilterId", Just (cs (UUID.toText filterId)))
+                , ("requestNote", Just "")
+                , ("routeContext", Just "outside-the-contract")
+                ]
+
+        case parsed of
+            Left errors -> expectationFailure (cs ("expected valid request fields, got " <> show errors))
+            Right fields -> do
+                surfaceFieldValue @RequestCount fields `shouldBe` 7
+                surfaceFieldValue @RequestFilterId fields `shouldBe` Just filterId
+                surfaceFieldValue @RequestTags fields `shouldBe` Nothing
+                surfaceFieldValue @RequestNote fields `shouldBe` Nothing
+
+    it "parses repeated form values through declared list wires" do
+        let parsed = parseSurfaceActionParamPairs @RequestContractSurface @RequestAction
+                [ ("requestCount", Just "2")
+                , ("requestTags", Just "first")
+                , ("requestTags", Just "second")
+                , ("requestNote", Just "ready")
+                ]
+
+        case parsed of
+            Left errors -> expectationFailure (cs ("expected repeated list fields, got " <> show errors))
+            Right fields -> surfaceFieldValue @RequestTags fields `shouldBe` Just ["first", "second"]
+
+    it "treats a valueless declared parameter as present and blank" do
+        let parsed = parseSurfaceActionParamPairs @RequestContractSurface @RequestAction
+                [ ("requestCount", Just "2")
+                , ("requestNote", Nothing)
+                ]
+
+        case parsed of
+            Left errors -> expectationFailure (cs ("expected valueless nullable field, got " <> show errors))
+            Right fields -> surfaceFieldValue @RequestNote fields `shouldBe` Nothing
+
+    it "accumulates structured missing and malformed action field validation" do
+        let parsed = parseSurfaceActionParamPairs @RequestContractSurface @RequestAction
+                [ ("requestCount", Just "not-an-int")
+                ]
+
+        case parsed of
+            Right _ -> expectationFailure "expected request field validation errors"
+            Left errors ->
+                map (\fieldError -> (fieldError.surfaceRequestFieldErrorName, fieldError.surfaceRequestFieldErrorKind)) errors
+                    `shouldBe` [ ("requestCount", MalformedSurfaceRequestField)
+                               , ("requestNote", MissingSurfaceRequestField)
+                               ]
+
+    it "parses intent fields through the same complete presence and wire contract" do
+        let parsed = parseSurfaceIntentParamPairs @RequestContractSurface @RequestIntent
+                [ ("requestCount", Just "4")
+                , ("requestNote", Just "ready")
+                ]
+
+        case parsed of
+            Left errors -> expectationFailure (cs ("expected valid intent fields, got " <> show errors))
+            Right fields -> do
+                surfaceFieldValue @RequestCount fields `shouldBe` 4
+                surfaceFieldValue @RequestFilterId fields `shouldBe` Nothing
+                surfaceFieldValue @RequestTags fields `shouldBe` Nothing
+                surfaceFieldValue @RequestNote fields `shouldBe` Just "ready"
 
     it "renders minimal mount-local runtime metadata from production Surface values" do
         let venueId = fromMaybe (error "invalid fixture venue UUID") (UUID.fromString "22222222-2222-2222-2222-222222222222")
@@ -381,7 +491,7 @@ tests = describe "FrontendSurface DSL foundation" do
                 , ("showSuggestions", WireBoolIR)
                 , ("staffFilterId", WireOptionalIR WireUuidIR)
                 ]
-        let navigateAction = surfaceActionValue @TimesheetsSurface.TimesheetsSurface @TimesheetsSurface.NavigateTimesheetWeek
+        let navigateAction = fromMaybe (error "missing navigate action") (find ((== "navigate-timesheet-week") . (.htmxActionName)) surface.surfaceHtmxActions)
         navigateAction.htmxActionOptions
             `shouldContain` [HtmxOption (HtmxActionSyncIR (HtmxTypedSyntaxIR "closest #timesheet-week-shell:replace" ["timesheet-week-shell"]))]
         navigateAction.htmxActionOptions
@@ -576,53 +686,54 @@ tests = describe "FrontendSurface DSL foundation" do
         activationHtml `shouldContainText` "data-bepis-activation-ref=\"roster-layout-mode-activation\""
         activationHtml `shouldNotContainText` "data-bepis-activation-intent"
 
-    it "renders generated HTMX action attrs from fixture action metadata" do
-        let surface = expectSurface "contract-fixture" frontendSurfaceFixtureContractIR
-        let action = fromMaybe (error "missing fixture action") (listToMaybe surface.surfaceHtmxActions)
+    it "renders generated HTMX action attrs from complete typed fixture fields" do
+        let panelId = fromMaybe (error "invalid fixture panel UUID") (UUID.fromString "11111111-1111-1111-1111-111111111111")
+        let fields = surfaceField @SurfaceFixture.PanelId panelId :& NoSurfaceFields
+        let action = frontendSurfaceAction @SurfaceFixture.FrontendSurfaceFixture @SurfaceFixture.RefreshPanel fields
         let route = FrontendSurfaceActionRoute
-                { actionRouteUrl = "/fixture/refresh-panel"
-                , actionRouteFields = [FrontendSurfaceFieldValue "panelId" "panel-1"]
+                { actionRouteUrl = "/fixture/refresh-panel?panelId=wrong&routeContext=keep"
                 , actionRouteCustomHtmx = [FrontendSurfaceCustomHtmxAttrs "fixture-panel-custom-htmx" [("hx-vals", "{}")]]
                 , actionRouteStandardUrl = Nothing
                 , actionRouteExtraAttrs = [("class", "surface-action-test")]
                 }
-        let formHtml = cs (HtmlRenderer.renderHtml (renderFrontendSurfaceActionForm action route (Html5.toHtml ("refresh" :: Text))))
+        let formHtml = cs (HtmlRenderer.renderHtml (renderFrontendSurfaceActionFormWithHiddenFields action route (Html5.toHtml ("refresh" :: Text))))
         let linkHtml = cs (HtmlRenderer.renderHtml (renderFrontendSurfaceActionLink action route (Html5.toHtml ("refresh" :: Text))))
         let buttonHtml = cs (HtmlRenderer.renderHtml (renderFrontendSurfaceActionSubmitButton action route (Html5.toHtml ("refresh" :: Text))))
 
         formHtml `shouldContainText` "method=\"post\""
-        formHtml `shouldContainText` "action=\"/fixture/refresh-panel\""
-        formHtml `shouldContainText` "hx-post=\"/fixture/refresh-panel\""
+        formHtml `shouldContainText` "action=\"/fixture/refresh-panel?routeContext=keep\""
+        formHtml `shouldContainText` "hx-post=\"/fixture/refresh-panel?routeContext=keep\""
         formHtml `shouldContainText` "hx-target=\"#contract-fixture-panel\""
         formHtml `shouldContainText` "hx-swap=\"outerHTML\""
         formHtml `shouldContainText` "hx-include=\"#fixture-panel-include\""
         formHtml `shouldContainText` "hx-push-url=\"false\""
         formHtml `shouldContainText` "hx-vals=\"{}\""
         formHtml `shouldContainText` "data-bepis-surface-action=\"refresh-panel\""
+        formHtml `shouldContainText` "name=\"panelId\" value=\"11111111-1111-1111-1111-111111111111\""
         formHtml `shouldNotContainText` "data-bepis-surface-action-config="
-        linkHtml `shouldContainText` "href=\"/fixture/refresh-panel\""
-        linkHtml `shouldContainText` "hx-post=\"/fixture/refresh-panel\""
-        buttonHtml `shouldContainText` "formaction=\"/fixture/refresh-panel\""
-        buttonHtml `shouldContainText` "hx-post=\"/fixture/refresh-panel\""
+        linkHtml `shouldContainText` "href=\"/fixture/refresh-panel?routeContext=keep&amp;panelId=11111111-1111-1111-1111-111111111111\""
+        linkHtml `shouldContainText` "hx-post=\"/fixture/refresh-panel?routeContext=keep&amp;panelId=11111111-1111-1111-1111-111111111111\""
+        buttonHtml `shouldContainText` "formaction=\"/fixture/refresh-panel?routeContext=keep\""
+        buttonHtml `shouldContainText` "hx-post=\"/fixture/refresh-panel?routeContext=keep\""
 
-    it "renders minimal HTMX action and intent forms from SurfaceImpl metadata" do
+    it "renders intent forms only from complete typed intent fields" do
+        let fields =
+                surfaceField @SurfaceFixture.SourceItemKey "card-1"
+                    :& surfaceField @SurfaceFixture.TargetDropzoneKey "panel-1"
+                    :& NoSurfaceFields
         let request = FrontendSurfaceHtmxRequest
-                { htmxRequestName = "refresh-panel"
-                , htmxRequestMethod = FrontendSurfacePost
+                { htmxRequestMethod = FrontendSurfacePost
                 , htmxRequestUrl = "/fixture/refresh-panel"
                 , htmxRequestTarget = "#contract-fixture-panel"
                 , htmxRequestSwap = "outerHTML"
-                , htmxRequestFields = [FrontendSurfaceFieldValue "panelId" "panel-1"]
                 }
-        let intent = FrontendSurfaceIntentForm "move-card" request
-        let actionHtml = cs (HtmlRenderer.renderHtml (renderFrontendSurfaceHtmxForm request (Html5.toHtml ("refresh" :: Text))))
+        let intent = frontendSurfaceIntentForm @SurfaceFixture.FrontendSurfaceFixture @SurfaceFixture.MoveCard fields request
         let intentHtml = cs (HtmlRenderer.renderHtml (renderFrontendSurfaceIntentForm intent (Html5.toHtml ("move" :: Text))))
 
-        actionHtml `shouldContainText` "hx-post=\"/fixture/refresh-panel\""
-        actionHtml `shouldContainText` "data-bepis-surface-action=\"refresh-panel\""
-        actionHtml `shouldContainText` "name=\"panelId\""
         intentHtml `shouldContainText` "data-bepis-intent-form=\"move-card\""
         intentHtml `shouldContainText` "hx-target=\"#contract-fixture-panel\""
+        intentHtml `shouldContainText` "name=\"sourceItemKey\" value=\"card-1\""
+        intentHtml `shouldContainText` "name=\"targetDropzoneKey\" value=\"panel-1\""
 
 diagnosticMessages :: Either [ContractDiagnostic] SurfaceContractIR -> [Text]
 diagnosticMessages = \case

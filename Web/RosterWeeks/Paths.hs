@@ -1,3 +1,5 @@
+{-# LANGUAGE TypeApplications #-}
+
 module Web.RosterWeeks.Paths
     ( rosterAssignmentFiltersUrl
     , rosterCopyWeekUrl
@@ -26,10 +28,14 @@ module Web.RosterWeeks.Paths
     , rosterWeekWithDateUrl
     ) where
 
-import Application.Helper.Url (appendQueryParams)
+import qualified Application.Helper.FrontendContract.Surface.Roster as Surface
+import Application.Helper.FrontendContract.Surface.Values
+import Application.Helper.Url (appendQueryParams, replaceQueryParams)
+import Data.Coerce (coerce)
 import Data.Time.Calendar (Day)
 import Data.Time.Format (defaultTimeLocale, formatTime)
 import Generated.Types
+import IHP.ModelSupport.Types (Id' (..))
 import IHP.Prelude
 import IHP.Router.UrlGenerator (pathTo)
 import Web.Routes ()
@@ -37,15 +43,13 @@ import Web.Types
 
 rosterWeekUrl :: Int -> Id RosterGroup -> Text
 rosterWeekUrl weekOffset rosterGroupId =
-    appendQueryParams (pathTo ShowRosterWeekAction { weekOffset }) [("rosterGroupId", tshow rosterGroupId)]
+    replaceQueryParams (pathTo ShowRosterWeekAction { weekOffset }) (rosterNavigateQueryParams weekOffset rosterGroupId)
 
 rosterWeekWithDateUrl :: Int -> Id RosterGroup -> Day -> Text
 rosterWeekWithDateUrl weekOffset rosterGroupId date =
-    appendQueryParams
+    replaceQueryParams
         (pathTo ShowRosterWeekAction { weekOffset })
-        [ ("rosterGroupId", tshow rosterGroupId)
-        , ("weekDate", formatDayParam date)
-        ]
+        (rosterNavigateQueryParams weekOffset rosterGroupId <> [("weekDate", formatDayParam date)])
 
 rosterViewQueryParams :: Id RosterGroup -> Maybe Int -> [(Text, Text)]
 rosterViewQueryParams rosterGroupId maybeTimelineDayOffset =
@@ -55,12 +59,13 @@ rosterViewQueryParams rosterGroupId maybeTimelineDayOffset =
 
 rosterDayTimelineUrl :: Int -> Id RosterGroup -> Int -> Text
 rosterDayTimelineUrl weekOffset rosterGroupId dayOffset =
-    appendQueryParams
+    replaceQueryParams
         (pathTo ShowRosterWeekAction { weekOffset })
-        [ ("rosterGroupId", tshow rosterGroupId)
-        , ("rosterView", "timeline")
-        , ("dayOffset", tshow dayOffset)
-        ]
+        ( rosterNavigateQueryParams weekOffset rosterGroupId
+            <> [ ("rosterView", "timeline")
+               , ("dayOffset", tshow dayOffset)
+               ]
+        )
 
 rosterDayTimelineContentFragmentUrl :: Int -> Id RosterGroup -> Id RosterDay -> Text
 rosterDayTimelineContentFragmentUrl weekOffset rosterGroupId rosterDayId =
@@ -162,6 +167,15 @@ rosterCopyWeekUrl sourceWeekOffset targetWeekOffset rosterGroupId =
     appendQueryParams
         (pathTo CopyRosterWeekAction { sourceWeekOffset, targetWeekOffset })
         [("rosterGroupId", tshow rosterGroupId)]
+
+rosterNavigateQueryParams :: Int -> Id RosterGroup -> [(Text, Text)]
+rosterNavigateQueryParams weekOffset rosterGroupId =
+    surfaceFieldsText
+        ( surfaceField @Surface.WeekOffset weekOffset
+            :& surfaceField @Surface.RosterGroupId (coerce rosterGroupId)
+            :& NoSurfaceFields
+            :: SurfaceFields (SurfaceActionFieldSpecs Surface.RosterSurface Surface.NavigateRosterWeek)
+        )
 
 formatDayParam :: Day -> Text
 formatDayParam date = cs (formatTime defaultTimeLocale "%Y-%m-%d" date)

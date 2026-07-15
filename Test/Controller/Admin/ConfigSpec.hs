@@ -196,9 +196,11 @@ tests = beforeAll testContext do
 
                 createResponse <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
                     callActionWithParams CreateShiftTypeAction
-                        [ ("name", "Imported Pay Rate Shift")
-                        , ("isActive", "true")
+                        [ ("showInactiveShiftTypes", "false")
+                        , ("name", "Imported Pay Rate Shift")
                         , ("payRateSelection", cs ("xero:" <> tshow importedPayItem.id))
+                        , ("colourKey", "")
+                        , ("isActive", "true")
                         ]
                 createResponse `responseStatusShouldBe` status302
                 createdShiftType <- query @ShiftType
@@ -399,10 +401,11 @@ tests = beforeAll testContext do
                 createShiftResponse <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
                     withRequestHeaders [("HX-Request", "true")] do
                         callActionWithParams CreateShiftTypeAction
-                            [ ("name", "Fragment Shift")
+                            [ ("showInactiveShiftTypes", "true")
+                            , ("name", "Fragment Shift")
+                            , ("payRateSelection", cs ("award:" <> tshow level.id))
+                            , ("colourKey", "")
                             , ("isActive", "true")
-                            , ("overrideAwardLevelId", idToParam level.id)
-                            , ("showInactiveShiftTypes", "true")
                             ]
                 createShiftResponse `responseStatusShouldBe` status200
                 lookup "HX-Reswap" (responseHeaders createShiftResponse) `shouldBe` Just "none"
@@ -438,10 +441,11 @@ tests = beforeAll testContext do
                 updateShiftResponse <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
                     withRequestHeaders [("HX-Request", "true")] do
                         callActionWithParams (UpdateShiftTypeAction shiftType.id)
-                            [ ("name", "Updated Fragment Shift")
+                            [ ("showInactiveShiftTypes", "true")
+                            , ("name", "Updated Fragment Shift")
+                            , ("payRateSelection", "")
+                            , ("colourKey", "")
                             , ("isActive", "false")
-                            , ("overrideAwardLevelId", "")
-                            , ("showInactiveShiftTypes", "true")
                             ]
                 updateShiftResponse `responseStatusShouldBe` status200
                 lookup "HX-Reswap" (responseHeaders updateShiftResponse) `shouldBe` Just "none"
@@ -459,9 +463,9 @@ tests = beforeAll testContext do
                 createRosterGroupResponse <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
                     withRequestHeaders [("HX-Request", "true")] do
                         callActionWithParams CreateRosterGroupAction
-                            [ ("name", "Fragment Group")
+                            [ ("showInactiveRosterGroups", "true")
+                            , ("name", "Fragment Group")
                             , ("isActive", "true")
-                            , ("showInactiveRosterGroups", "true")
                             ]
                 createRosterGroupResponse `responseStatusShouldBe` status200
                 lookup "HX-Reswap" (responseHeaders createRosterGroupResponse) `shouldBe` Just "none"
@@ -495,9 +499,9 @@ tests = beforeAll testContext do
                 updateRosterGroupResponse <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
                     withRequestHeaders [("HX-Request", "true")] do
                         callActionWithParams (UpdateRosterGroupAction rosterGroup.id)
-                            [ ("name", "Updated Fragment Group")
+                            [ ("showInactiveRosterGroups", "true")
+                            , ("name", "Updated Fragment Group")
                             , ("isActive", "true")
-                            , ("showInactiveRosterGroups", "true")
                             ]
                 updateRosterGroupResponse `responseStatusShouldBe` status200
                 lookup "HX-Reswap" (responseHeaders updateRosterGroupResponse) `shouldBe` Just "none"
@@ -516,7 +520,8 @@ tests = beforeAll testContext do
 
                 rosterGroupResponse <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
                     callActionWithParams CreateRosterGroupAction
-                        [ ("name", "Back of House")
+                        [ ("showInactiveRosterGroups", "false")
+                        , ("name", "Back of House")
                         , ("isActive", "true")
                         ]
                 rosterGroupResponse `responseStatusShouldBe` status302
@@ -524,9 +529,11 @@ tests = beforeAll testContext do
 
                 shiftTypeResponse <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
                     callActionWithParams CreateShiftTypeAction
-                        [ ("name", "Supervisor")
+                        [ ("showInactiveShiftTypes", "false")
+                        , ("name", "Supervisor")
+                        , ("payRateSelection", "")
+                        , ("colourKey", "")
                         , ("isActive", "true")
-                        , ("overrideAwardLevelId", "")
                         ]
                 shiftTypeResponse `responseStatusShouldBe` status302
 
@@ -596,9 +603,11 @@ tests = beforeAll testContext do
 
                 response <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
                     callActionWithParams CreateShiftTypeAction
-                        [ ("name", "Unhighlighted Shift")
+                        [ ("showInactiveShiftTypes", "false")
+                        , ("name", "Unhighlighted Shift")
+                        , ("payRateSelection", "")
+                        , ("colourKey", "")
                         , ("isActive", "true")
-                        , ("overrideAwardLevelId", "")
                         ]
                 response `responseStatusShouldBe` status302
 
@@ -627,9 +636,11 @@ tests = beforeAll testContext do
 
                 response <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
                     callActionWithParams (UpdateShiftTypeAction inactiveShiftType.id)
-                        [ ("name", "Inactive Shift")
+                        [ ("showInactiveShiftTypes", "false")
+                        , ("name", "Inactive Shift")
+                        , ("payRateSelection", cs ("award:" <> tshow level.id))
+                        , ("colourKey", cs activeShiftType.colourKey)
                         , ("isActive", "true")
-                        , ("overrideAwardLevelId", idToParam level.id)
                         ]
                 response `responseStatusShouldBe` status302
 
@@ -652,10 +663,11 @@ tests = beforeAll testContext do
 
                 createResponse <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
                     callActionWithParams CreateShiftTypeAction
-                        [ ("name", "Manual Colour Shift")
-                        , ("isActive", "true")
-                        , ("overrideAwardLevelId", "")
+                        [ ("showInactiveShiftTypes", "false")
+                        , ("name", "Manual Colour Shift")
+                        , ("payRateSelection", "")
                         , ("colourKey", "palette-4")
+                        , ("isActive", "true")
                         ]
                 createResponse `responseStatusShouldBe` status302
                 createdShiftType <- query @ShiftType |> filterWhere (#name, "Manual Colour Shift") |> fetchOne
@@ -664,10 +676,11 @@ tests = beforeAll testContext do
                 duplicateResponse <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
                     withRequestHeaders [("HX-Request", "true")] do
                         callActionWithParams (UpdateShiftTypeAction secondShiftType.id)
-                            [ ("name", "Second Shift")
-                            , ("isActive", "true")
-                            , ("overrideAwardLevelId", idToParam level.id)
+                            [ ("showInactiveShiftTypes", "false")
+                            , ("name", "Second Shift")
+                            , ("payRateSelection", cs ("award:" <> tshow level.id))
                             , ("colourKey", cs firstShiftType.colourKey)
+                            , ("isActive", "true")
                             ]
                 duplicateResponse `responseStatusShouldBe` status200
                 duplicatedSecondShiftType <- fetch secondShiftType.id
@@ -675,10 +688,11 @@ tests = beforeAll testContext do
 
                 duplicateCreateResponse <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
                     callActionWithParams CreateShiftTypeAction
-                        [ ("name", "Another Manual Colour Shift")
-                        , ("isActive", "true")
-                        , ("overrideAwardLevelId", "")
+                        [ ("showInactiveShiftTypes", "false")
+                        , ("name", "Another Manual Colour Shift")
+                        , ("payRateSelection", "")
                         , ("colourKey", cs firstShiftType.colourKey)
+                        , ("isActive", "true")
                         ]
                 duplicateCreateResponse `responseStatusShouldBe` status302
                 duplicateCreatedShiftType <- query @ShiftType |> filterWhere (#name, "Another Manual Colour Shift") |> fetchOne
@@ -722,9 +736,9 @@ tests = beforeAll testContext do
                 response <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
                     withRequestHeaders [("HX-Request", "true")] do
                         callActionWithParams (UpdateRosterGroupAction rosterGroup.id)
-                            [ ("name", "Only Group")
+                            [ ("showInactiveRosterGroups", "true")
+                            , ("name", "Only Group")
                             , ("isActive", "false")
-                            , ("showInactiveRosterGroups", "true")
                             ]
 
                 response `responseStatusShouldBe` status200
@@ -787,21 +801,24 @@ tests = beforeAll testContext do
                 rosterGroup <- createVenueRosterGroupWithDefaults venue "Back of House" 5 True
 
                 moveGroupUpResponse <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
-                    callAction (MoveRosterGroupUpAction rosterGroup.id)
+                    callActionWithParams (MoveRosterGroupUpAction rosterGroup.id) [("showInactiveRosterGroups", "false")]
                 moveGroupUpResponse `responseStatusShouldBe` status302
 
                 rosterGroupResponse <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
                     callActionWithParams (UpdateRosterGroupAction rosterGroup.id)
-                        [ ("name", "Back of House Updated")
+                        [ ("showInactiveRosterGroups", "false")
+                        , ("name", "Back of House Updated")
                         , ("isActive", "true")
                         ]
                 rosterGroupResponse `responseStatusShouldBe` status302
 
                 shiftTypeResponse <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
                     callActionWithParams (UpdateShiftTypeAction shiftType.id)
-                        [ ("name", "Kitchen Updated")
+                        [ ("showInactiveShiftTypes", "false")
+                        , ("name", "Kitchen Updated")
+                        , ("payRateSelection", cs ("award:" <> tshow overrideLevel.id))
+                        , ("colourKey", cs shiftType.colourKey)
                         , ("isActive", "false")
-                        , ("overrideAwardLevelId", idToParam overrideLevel.id)
                         ]
                 shiftTypeResponse `responseStatusShouldBe` status302
 
@@ -825,7 +842,9 @@ tests = beforeAll testContext do
 
                 response <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
                     callActionWithParams UpdateVenueConfigAction
-                        [("rosterWeekStartsOn", "2")]
+                        [ ("configField", "rosterWeekStartsOn")
+                        , ("rosterWeekStartsOn", "2")
+                        ]
 
                 response `responseStatusShouldBe` status302
 
@@ -925,9 +944,11 @@ tests = beforeAll testContext do
 
                 response <- withPasskeyVerifiedUserAndCurrentVenue admin venueA.id do
                     callActionWithParams (UpdateShiftTypeAction foreignShiftType.id)
-                        [ ("name", "Should Not Work")
+                        [ ("showInactiveShiftTypes", "false")
+                        , ("name", "Should Not Work")
+                        , ("payRateSelection", "")
+                        , ("colourKey", "")
                         , ("isActive", "false")
-                        , ("overrideAwardLevelId", "")
                         ]
 
                 response `responseStatusShouldBe` status403
@@ -944,7 +965,8 @@ tests = beforeAll testContext do
 
                 rosterGroupResponse <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
                     callActionWithParams CreateRosterGroupAction
-                        [ ("name", "Back of House")
+                        [ ("showInactiveRosterGroups", "false")
+                        , ("name", "Back of House")
                         , ("isActive", "true")
                         ]
                 rosterGroupResponse `responseStatusShouldBe` status302
@@ -954,9 +976,11 @@ tests = beforeAll testContext do
 
                 shiftTypeResponse <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
                     callActionWithParams CreateShiftTypeAction
-                        [ ("name", "Supervisor")
+                        [ ("showInactiveShiftTypes", "false")
+                        , ("name", "Supervisor")
+                        , ("payRateSelection", "")
+                        , ("colourKey", "")
                         , ("isActive", "true")
-                        , ("overrideAwardLevelId", "")
                         ]
                 shiftTypeResponse `responseStatusShouldBe` status302
                 (query @ShiftTypePayVersion |> orderByDesc #createdAt |> fetch >>= pure . map (.payrollLabel)) `shouldReturn` ["Supervisor"]

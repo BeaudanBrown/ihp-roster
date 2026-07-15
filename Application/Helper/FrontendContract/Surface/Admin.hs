@@ -55,6 +55,9 @@ module Application.Helper.FrontendContract.Surface.Admin
     , ConfigFieldField
     , RosterEndTimesEnabled
     , AutoTimesheetCreationEnabled
+    , TimePickerStart
+    , TimePickerEnd
+    , RosterWeekStartsOn
     , Email
     , RangeStart
     , RangeEnd
@@ -121,6 +124,9 @@ data ShowXeroTimesheetPreparationStaffMappings
 data ConfigFieldField
 data RosterEndTimesEnabled
 data AutoTimesheetCreationEnabled
+data TimePickerStart
+data TimePickerEnd
+data RosterWeekStartsOn
 data Email
 data RangeStart
 data RangeEnd
@@ -186,6 +192,9 @@ type AdminVenueSettingsSurface =
             '[ Field ConfigFieldField 'WireText
              , OptionalField RosterEndTimesEnabled 'WireBool
              , OptionalField AutoTimesheetCreationEnabled 'WireBool
+             , OptionalField TimePickerStart 'WireText
+             , OptionalField TimePickerEnd 'WireText
+             , OptionalField RosterWeekStartsOn 'WireText
              ]
             '[ 'HtmxMethod 'HtmxPost
              , 'HtmxTarget ('HtmxId AdminVenueSettingsFragment)
@@ -368,8 +377,8 @@ type AdminXeroSurface =
              , 'CustomHtmx LoadReferenceSyncCustomHtmx "automatic post-connect sync supplies load/push-url/indicator attributes; the manual shell action supplies this marker with no extra attributes"
              ]
          , Action ShowXeroTimesheetPreparationStaffMappings
-            '[ Field ShowMatched 'WireText
-             , Field EditStaffId 'WireText
+            '[ Field ShowMatched 'WireBool
+             , OptionalField EditStaffId 'WireUUID
              ]
             '[ 'HtmxMethod 'HtmxGet
              , 'HtmxTarget ('HtmxId XeroPreparationStaffMappings)

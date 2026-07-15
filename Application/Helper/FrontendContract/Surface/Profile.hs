@@ -26,6 +26,27 @@ module Application.Helper.FrontendContract.Surface.Profile
     , CreateStaffLeaveRequest
     , StaffId
     , VenueId
+    , FirstNameField
+    , LastNameField
+    , PreferredNameField
+    , PhoneField
+    , IdealShiftsPerWeekField
+    , EmergencyContactNameField
+    , EmergencyContactPhoneField
+    , SectionField
+    , WeekOffsetField
+    , RosterGroupIdField
+    , VenueRoleField
+    , EmploymentBasisField
+    , PayRateSelectionField
+    , IsActiveField
+    , RosterGroupIdsField
+    , ShiftPreferenceKeysField
+    , StartDate
+    , EndDate
+    , Notes
+    , StaffProfileFields
+    , StaffShiftPreferenceFields
     ) where
 
 import Application.Helper.FrontendContract.Surface.DSL
@@ -88,7 +109,7 @@ data StaffProfileSectionHtmxAttrs
 data StaffLeaveRequestFormFragment
 data StartDate
 data EndDate
-data Reason
+data Notes
 data ProfileLeaveRequestFormFragment
 data OuterHTML
 
@@ -102,24 +123,20 @@ type StaffProfileFields =
      , Field LastNameField 'WireText
      , Field PreferredNameField 'WireText
      , Field PhoneField 'WireText
-     , Field IdealShiftsPerWeekField 'WireText
+     , Field IdealShiftsPerWeekField 'WireInt
      , Field EmergencyContactNameField 'WireText
      , Field EmergencyContactPhoneField 'WireText
      , Field SectionField 'WireText
-     , Field WeekOffsetField 'WireText
-     , Field RosterGroupIdField 'WireText
-     , Field VenueRoleField 'WireText
-     , Field EmploymentBasisField 'WireText
-     , Field PayRateSelectionField 'WireText
-     , Field IsActiveField 'WireText
-     , Field RosterGroupIdsField 'WireText
+     , OptionalField VenueRoleField 'WireText
+     , OptionalField EmploymentBasisField 'WireText
+     , OptionalField PayRateSelectionField 'WireText
+     , OptionalField IsActiveField 'WireBool
+     , OptionalField RosterGroupIdsField ('WireList 'WireUUID)
      ]
 
 type StaffShiftPreferenceFields =
     '[ Field SectionField 'WireText
-     , Field WeekOffsetField 'WireText
-     , Field RosterGroupIdField 'WireText
-     , Field ShiftPreferenceKeysField 'WireText
+     , OptionalField ShiftPreferenceKeysField ('WireList 'WireText)
      ]
 
 type StaffProfileSubmitOptions =
@@ -152,7 +169,7 @@ type ProfileSurface =
          , Action CreateProfileLeaveRequest
             '[ Field StartDate 'WireDay
              , Field EndDate 'WireDay
-             , Field Reason 'WireText
+             , Field Notes 'WireText
              ]
             '[ 'HtmxMethod 'HtmxPost
              , 'HtmxTarget ('HtmxId ProfileLeaveRequestFormFragment)
@@ -184,7 +201,7 @@ type StaffSurface =
          , Action CreateStaffLeaveRequest
             '[ Field StartDate 'WireDay
              , Field EndDate 'WireDay
-             , Field Reason 'WireText
+             , Field Notes 'WireText
              ]
             '[ 'HtmxMethod 'HtmxPost
              , 'HtmxTarget ('HtmxId StaffLeaveRequestFormFragment)

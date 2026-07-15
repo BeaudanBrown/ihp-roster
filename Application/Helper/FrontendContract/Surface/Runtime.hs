@@ -13,7 +13,7 @@
 {-# LANGUAGE UndecidableInstances  #-}
 
 module Application.Helper.FrontendContract.Surface.Runtime
-    ( FrontendSurfaceFieldValue (..)
+    ( FrontendSurfaceAction
     , FrontendSurfaceFocusedFieldProtectionConfig (..)
     , FrontendSurfaceHtmxMethod (..)
     , FrontendSurfaceLazyFragmentConfig (..)
@@ -22,7 +22,8 @@ module Application.Helper.FrontendContract.Surface.Runtime
     , FrontendSurfaceActionRoute (..)
     , FrontendSurfaceCustomHtmxAttrs (..)
     , FrontendSurfaceInteractionShellConfig (..)
-    , FrontendSurfaceIntentForm (..)
+    , FrontendSurfaceIntentForm
+    , intentFormName
     , FrontendSurfaceMountConfig (..)
     , FrontendSurfaceMountedFragment
     , mountedFragmentKey
@@ -35,14 +36,14 @@ module Application.Helper.FrontendContract.Surface.Runtime
     , defaultFrontendSurfaceLazyFragmentConfig
     , customPlaceholderFrontendSurfaceLazyFragmentConfig
     , frontendSurfaceMountConfigJson
-    , frontendSurfaceActionFields
-    , frontendSurfaceIntentFieldValues
+    , frontendSurfaceAction
+    , frontendSurfaceIntentForm
     , applyFrontendSurfaceActionAttrs
     , frontendSurfaceActionHtmxAttrPairs
     , renderFrontendSurfaceActionForm
+    , renderFrontendSurfaceActionFormWithHiddenFields
     , renderFrontendSurfaceActionLink
     , renderFrontendSurfaceActionSubmitButton
-    , renderFrontendSurfaceHtmxForm
     , renderFrontendSurfaceInteractionShell
     , renderFrontendSurfaceIntentForm
     , renderFrontendSurfaceLazyFragment
@@ -61,12 +62,14 @@ import qualified Application.Helper.FrontendContract.Naming as Naming
 import qualified Application.Helper.FrontendContract.Surface.ContractIR as SurfaceIR
 import Application.Helper.FrontendContract.Surface.DSL
 import qualified Application.Helper.FrontendContract.Surface.Live as Live
-import Application.Helper.FrontendContract.Surface.Reflect (ReflectPrimitive,
-                                                            ReflectSurfaceSpec)
+import Application.Helper.FrontendContract.Surface.Reflect (ReflectPrimitive (..),
+                                                            ReflectSurfaceSpec,
+                                                            ReflectedPrimitive (..))
 import Application.Helper.FrontendContract.Surface.Values
 import Application.Helper.UiRegion (UiRegionDomAttributes (..),
                                     canonicalUiRegionDomAttributes,
                                     uiRegionFragmentEnabledValue)
+import Application.Helper.Url (replaceQueryParams)
 import qualified Data.Aeson as Aeson
 import qualified Data.ByteString.Lazy as LBS
 import qualified Data.Char as Char
@@ -248,37 +251,37 @@ data FrontendSurfaceHtmxMethod
     | FrontendSurfaceDelete
     deriving (Eq, Show)
 
-data FrontendSurfaceFieldValue = FrontendSurfaceFieldValue
-    { fieldValueName  :: !Text
-    , fieldValueValue :: !Text
+-- | One action together with its complete declaration-indexed field bundle.
+-- The constructor is intentionally hidden: callers must select an owning
+-- Surface/action marker and provide every declared field through
+-- 'frontendSurfaceAction'.
+data FrontendSurfaceAction = FrontendSurfaceAction
+    { frontendSurfaceActionIR         :: !SurfaceIR.HtmxActionIR
+    , frontendSurfaceActionFieldPairs :: ![(Text, Text)]
     }
     deriving (Eq, Show)
 
-frontendSurfaceActionFields ::
+frontendSurfaceAction ::
     forall spec marker.
+    ReflectPrimitive (SurfaceActionPrimitive spec marker) =>
     SurfaceFields (SurfaceActionFieldSpecs spec marker) ->
-    [FrontendSurfaceFieldValue]
-frontendSurfaceActionFields fields =
-    [ FrontendSurfaceFieldValue name value
-    | (name, value) <- surfaceFieldsText fields
-    ]
-
-frontendSurfaceIntentFieldValues ::
-    forall spec marker.
-    SurfaceFields (SurfaceIntentFieldSpecs spec marker) ->
-    [FrontendSurfaceFieldValue]
-frontendSurfaceIntentFieldValues fields =
-    [ FrontendSurfaceFieldValue name value
-    | (name, value) <- surfaceFieldsText fields
-    ]
+    FrontendSurfaceAction
+frontendSurfaceAction fields =
+    FrontendSurfaceAction
+        { frontendSurfaceActionIR = action
+        , frontendSurfaceActionFieldPairs = surfaceFieldsText fields
+        }
+  where
+    action =
+        case reflectPrimitive @(SurfaceActionPrimitive spec marker) of
+            ReflectedHtmxAction reflectedAction -> reflectedAction
+            _ -> error "impossible: action lookup reflected a different primitive"
 
 data FrontendSurfaceHtmxRequest = FrontendSurfaceHtmxRequest
-    { htmxRequestName   :: !Text
-    , htmxRequestMethod :: !FrontendSurfaceHtmxMethod
+    { htmxRequestMethod :: !FrontendSurfaceHtmxMethod
     , htmxRequestUrl    :: !Text
     , htmxRequestTarget :: !Text
     , htmxRequestSwap   :: !Text
-    , htmxRequestFields :: ![FrontendSurfaceFieldValue]
     }
     deriving (Eq, Show)
 
@@ -290,12 +293,6 @@ data FrontendSurfaceCustomHtmxAttrs = FrontendSurfaceCustomHtmxAttrs
 
 data FrontendSurfaceActionRoute = FrontendSurfaceActionRoute
     { actionRouteUrl         :: !Text
-    -- ^ Hidden request fields rendered before a form body by
-    -- 'renderFrontendSurfaceActionForm'. Use these for stable route/context
-    -- values only. Do not mirror a field that is also rendered as a mutable
-    -- input/select/textarea in the form body; IHP reads the first scalar
-    -- parameter value.
-    , actionRouteFields      :: ![FrontendSurfaceFieldValue]
     , actionRouteCustomHtmx  :: ![FrontendSurfaceCustomHtmxAttrs]
     , actionRouteStandardUrl :: !(Maybe Text)
     , actionRouteExtraAttrs  :: ![(Text, Text)]
@@ -305,8 +302,34 @@ data FrontendSurfaceActionRoute = FrontendSurfaceActionRoute
 data FrontendSurfaceIntentForm = FrontendSurfaceIntentForm
     { intentFormName   :: !Text
     , intentFormSubmit :: !FrontendSurfaceHtmxRequest
+    , intentFormFields :: ![(SurfaceIR.FieldIR, Text)]
     }
     deriving (Eq, Show)
+
+frontendSurfaceIntentForm ::
+    forall spec marker.
+    ReflectPrimitive (SurfaceIntentPrimitive spec marker) =>
+    SurfaceFields (SurfaceIntentFieldSpecs spec marker) ->
+    FrontendSurfaceHtmxRequest ->
+    FrontendSurfaceIntentForm
+frontendSurfaceIntentForm fields request =
+    FrontendSurfaceIntentForm
+        { intentFormName = intent.intentName
+        , intentFormSubmit = request
+        , intentFormFields = resolveIntentFields intent.intentFields (surfaceFieldsText fields)
+        }
+  where
+    intent =
+        case reflectPrimitive @(SurfaceIntentPrimitive spec marker) of
+            ReflectedIntent reflectedIntent -> reflectedIntent
+            _ -> error "impossible: intent lookup reflected a different primitive"
+
+resolveIntentFields :: [SurfaceIR.FieldIR] -> [(Text, Text)] -> [(SurfaceIR.FieldIR, Text)]
+resolveIntentFields declaredFields values =
+    [ (field, value)
+    | field <- declaredFields
+    , value <- maybeToList (lookup field.fieldName values)
+    ]
 
 frontendSurfaceMountConfigJson :: FrontendSurfaceMountConfig -> Text
 frontendSurfaceMountConfigJson =
@@ -423,7 +446,7 @@ renderFrontendSurfaceInteractionDisposableLayer mountId layerName =
         $ mempty
 
 renderFrontendSurfaceInteractionIntentForm :: SurfaceIR.SurfaceIR -> FrontendSurfaceInteractionShellConfig -> Text -> FrontendSurfaceIntentForm -> Blaze.Html
-renderFrontendSurfaceInteractionIntentForm surface config mountId FrontendSurfaceIntentForm { intentFormName, intentFormSubmit } =
+renderFrontendSurfaceInteractionIntentForm _surface config mountId FrontendSurfaceIntentForm { intentFormName, intentFormSubmit, intentFormFields } =
     Html5.form
         ! attr "id" (mountId <> "--intent-form--" <> domIdSegment intentFormName)
         ! attr (interactionDomAttribute @Interaction.IntentForm) intentFormName
@@ -434,44 +457,16 @@ renderFrontendSurfaceInteractionIntentForm surface config mountId FrontendSurfac
         ! attr "hx-target" intentFormSubmit.htmxRequestTarget
         ! attr "hx-swap" intentFormSubmit.htmxRequestSwap
         ! maybe mempty (attr "hx-sync") config.interactionShellHtmxSync
-        $ mapM_ renderFrontendSurfaceInteractionIntentInput
-            (frontendSurfaceInteractionIntentInputs surface intentFormName intentFormSubmit.htmxRequestFields)
+        $ mapM_ renderFrontendSurfaceInteractionIntentInput intentFormFields
 
-renderFrontendSurfaceInteractionIntentInput :: (SurfaceIR.FieldIR, FrontendSurfaceFieldValue) -> Blaze.Html
+renderFrontendSurfaceInteractionIntentInput :: (SurfaceIR.FieldIR, Text) -> Blaze.Html
 renderFrontendSurfaceInteractionIntentInput (field, value) =
     Html5.input
         ! attr "type" "hidden"
         ! attr "name" field.fieldName
-        ! attr "value" value.fieldValueValue
+        ! attr "value" value
         ! attr (interactionDomAttribute @Interaction.IntentField) field.fieldName
         ! attr (interactionDomAttribute @Interaction.FieldPresence) (frontendSurfaceIntentFieldPresence field.fieldPresence)
-
-frontendSurfaceInteractionIntentInputs :: SurfaceIR.SurfaceIR -> Text -> [FrontendSurfaceFieldValue] -> [(SurfaceIR.FieldIR, FrontendSurfaceFieldValue)]
-frontendSurfaceInteractionIntentInputs surface intentName values
-    | providedNames /= resolvedNames =
-        error ("FrontendSurface intent field order/ownership mismatch for " <> intentName)
-    | not (null missingRequiredNames) =
-        error ("FrontendSurface intent missing required fields for " <> intentName <> ": " <> Text.intercalate ", " missingRequiredNames)
-    | otherwise = resolved
-  where
-    declaredFields = frontendSurfaceIntentFields surface intentName
-    providedNames = map (.fieldValueName) values
-    resolved =
-        [ (field, value)
-        | field <- declaredFields
-        , value <- maybeToList (find ((== field.fieldName) . (.fieldValueName)) values)
-        ]
-    resolvedNames = map ((.fieldValueName) . snd) resolved
-    missingRequiredNames =
-        [ field.fieldName
-        | field <- declaredFields
-        , field.fieldPresence == SurfaceIR.RequiredField
-        , field.fieldName `notElem` providedNames
-        ]
-
-frontendSurfaceIntentFields :: SurfaceIR.SurfaceIR -> Text -> [SurfaceIR.FieldIR]
-frontendSurfaceIntentFields surface intentName =
-    maybe [] (.intentFields) (find ((== intentName) . (.intentName)) surface.surfaceIntents)
 
 frontendSurfaceIntentFieldPresence :: SurfaceIR.FieldPresence -> Text
 frontendSurfaceIntentFieldPresence SurfaceIR.RequiredField         = "required"
@@ -522,58 +517,101 @@ domIdSegment value =
             | Char.isAlphaNum char = char
             | otherwise = '-'
 
-applyFrontendSurfaceActionAttrs :: SurfaceIR.HtmxActionIR -> FrontendSurfaceActionRoute -> Blaze.Html -> Blaze.Html
+applyFrontendSurfaceActionAttrs :: FrontendSurfaceAction -> FrontendSurfaceActionRoute -> Blaze.Html -> Blaze.Html
 applyFrontendSurfaceActionAttrs action route element =
-    applyAttributes element (frontendSurfaceActionHtmxAttrs action route <> routeExtraAttrs route)
+    applyAttributes
+        element
+        (frontendSurfaceActionHtmxAttrsForUrl action route (frontendSurfaceActionControlUrl action route.actionRouteUrl) <> routeExtraAttrs route)
 
-renderFrontendSurfaceActionForm :: SurfaceIR.HtmxActionIR -> FrontendSurfaceActionRoute -> Blaze.Html -> Blaze.Html
-renderFrontendSurfaceActionForm action route body =
+-- | Render an action form whose declared fields are rendered in its body. The
+-- action value still carries the complete typed bundle, so field completeness is
+-- established before any markup is produced.
+renderFrontendSurfaceActionForm :: FrontendSurfaceAction -> FrontendSurfaceActionRoute -> Blaze.Html -> Blaze.Html
+renderFrontendSurfaceActionForm =
+    renderFrontendSurfaceActionFormWith False
+
+-- | Render an action form whose complete field bundle consists of hidden
+-- controls. Use the ordinary form renderer when mutable controls in the body own
+-- the submitted values.
+renderFrontendSurfaceActionFormWithHiddenFields :: FrontendSurfaceAction -> FrontendSurfaceActionRoute -> Blaze.Html -> Blaze.Html
+renderFrontendSurfaceActionFormWithHiddenFields =
+    renderFrontendSurfaceActionFormWith True
+
+renderFrontendSurfaceActionFormWith :: Bool -> FrontendSurfaceAction -> FrontendSurfaceActionRoute -> Blaze.Html -> Blaze.Html
+renderFrontendSurfaceActionFormWith renderFields action route body =
     applyAttributes
         (Html5.form $ do
-            forM_ route.actionRouteFields renderHiddenField
+            when renderFields (mapM_ renderHiddenField action.frontendSurfaceActionFieldPairs)
             body)
-        ( standardFormAttrs method url
-            <> frontendSurfaceActionHtmxAttrs action route
+        ( standardFormAttrs method standardUrl
+            <> frontendSurfaceActionHtmxAttrsForUrl action route requestUrl
             <> routeExtraAttrs route
         )
     where
-        method = frontendSurfaceActionMethod action
-        url = fromMaybe route.actionRouteUrl route.actionRouteStandardUrl
+        method = frontendSurfaceActionMethod action.frontendSurfaceActionIR
+        requestUrl = frontendSurfaceActionControlUrl action route.actionRouteUrl
+        standardUrl = frontendSurfaceActionControlUrl action (fromMaybe route.actionRouteUrl route.actionRouteStandardUrl)
 
-renderFrontendSurfaceActionSubmitButton :: SurfaceIR.HtmxActionIR -> FrontendSurfaceActionRoute -> Blaze.Html -> Blaze.Html
+renderFrontendSurfaceActionSubmitButton :: FrontendSurfaceAction -> FrontendSurfaceActionRoute -> Blaze.Html -> Blaze.Html
 renderFrontendSurfaceActionSubmitButton action route body =
     applyAttributes
         (Html5.button ! attr "type" "submit" $ body)
-        ( standardSubmitButtonAttrs route
-            <> frontendSurfaceActionHtmxAttrs action route
+        ( [attr "formaction" standardUrl]
+            <> frontendSurfaceActionHtmxAttrsForUrl action route requestUrl
             <> routeExtraAttrs route
         )
+    where
+        requestUrl = frontendSurfaceActionControlUrl action route.actionRouteUrl
+        standardUrl = frontendSurfaceActionControlUrl action (fromMaybe route.actionRouteUrl route.actionRouteStandardUrl)
 
-renderFrontendSurfaceActionLink :: SurfaceIR.HtmxActionIR -> FrontendSurfaceActionRoute -> Blaze.Html -> Blaze.Html
+renderFrontendSurfaceActionLink :: FrontendSurfaceAction -> FrontendSurfaceActionRoute -> Blaze.Html -> Blaze.Html
 renderFrontendSurfaceActionLink action route body =
     applyAttributes
         (Html5.a $ body)
-        ( attr "href" (fromMaybe route.actionRouteUrl route.actionRouteStandardUrl)
-            : (frontendSurfaceActionHtmxAttrs action route <> routeExtraAttrs route)
+        ( attr "href" standardUrl
+            : (frontendSurfaceActionHtmxAttrsForUrl action route requestUrl <> routeExtraAttrs route)
         )
+    where
+        requestUrl = frontendSurfaceActionLinkUrl action route.actionRouteUrl
+        standardUrl = frontendSurfaceActionLinkUrl action (fromMaybe route.actionRouteUrl route.actionRouteStandardUrl)
+
+frontendSurfaceActionControlUrl :: FrontendSurfaceAction -> Text -> Text
+frontendSurfaceActionControlUrl action =
+    flip replaceQueryParams (fmap (, "") (frontendSurfaceActionFieldNames action))
+
+frontendSurfaceActionLinkUrl :: FrontendSurfaceAction -> Text -> Text
+frontendSurfaceActionLinkUrl action =
+    flip replaceQueryParams
+        ( fmap (, "") (frontendSurfaceActionFieldNames action)
+            <> action.frontendSurfaceActionFieldPairs
+        )
+
+frontendSurfaceActionFieldNames :: FrontendSurfaceAction -> [Text]
+frontendSurfaceActionFieldNames action =
+    fmap (.fieldName) action.frontendSurfaceActionIR.htmxActionFields
 
 routeExtraAttrs :: FrontendSurfaceActionRoute -> [Blaze.Attribute]
 routeExtraAttrs route = fmap (uncurry attr) route.actionRouteExtraAttrs
 
-frontendSurfaceActionHtmxAttrs :: SurfaceIR.HtmxActionIR -> FrontendSurfaceActionRoute -> [Blaze.Attribute]
-frontendSurfaceActionHtmxAttrs action route =
-    fmap (uncurry attr) (frontendSurfaceActionHtmxAttrPairs action route)
-
-frontendSurfaceActionHtmxAttrPairs :: SurfaceIR.HtmxActionIR -> FrontendSurfaceActionRoute -> [(Text, Text)]
+frontendSurfaceActionHtmxAttrPairs :: FrontendSurfaceAction -> FrontendSurfaceActionRoute -> [(Text, Text)]
 frontendSurfaceActionHtmxAttrPairs action route =
-    [ (Htmx.htmxMethodAttr sharedMethod, route.actionRouteUrl)
-    , (surfaceActionDomAttribute, action.htmxActionName)
+    frontendSurfaceActionHtmxAttrPairsForUrl action route (frontendSurfaceActionControlUrl action route.actionRouteUrl)
+
+frontendSurfaceActionHtmxAttrsForUrl :: FrontendSurfaceAction -> FrontendSurfaceActionRoute -> Text -> [Blaze.Attribute]
+frontendSurfaceActionHtmxAttrsForUrl action route url =
+    fmap (uncurry attr) (frontendSurfaceActionHtmxAttrPairsForUrl action route url)
+
+frontendSurfaceActionHtmxAttrPairsForUrl :: FrontendSurfaceAction -> FrontendSurfaceActionRoute -> Text -> [(Text, Text)]
+frontendSurfaceActionHtmxAttrPairsForUrl action route url =
+    [ (Htmx.htmxMethodAttr sharedMethod, url)
+    , (surfaceActionDomAttribute, actionIR.htmxActionName)
     ]
         <> Htmx.htmxActionOptionAttrPairs metadata
-        <> customHtmxAttrPairs action metadata route
+        <> customHtmxAttrPairs actionIR metadata route
     where
-        metadata = Htmx.htmxActionMetadataFromSurfaceOptions action.htmxActionOptions
-        sharedMethod = frontendSurfaceMethodToHtmx (frontendSurfaceActionMethod action)
+        actionIR = action.frontendSurfaceActionIR
+        metadata = Htmx.htmxActionMetadataFromSurfaceOptions actionIR.htmxActionOptions
+        sharedMethod = frontendSurfaceMethodToHtmx (frontendSurfaceActionMethod actionIR)
 
 frontendSurfaceActionMethod :: SurfaceIR.HtmxActionIR -> FrontendSurfaceHtmxMethod
 frontendSurfaceActionMethod action =
@@ -603,11 +641,6 @@ standardFormAttrs method url =
     , attr "action" url
     ]
 
-standardSubmitButtonAttrs :: FrontendSurfaceActionRoute -> [Blaze.Attribute]
-standardSubmitButtonAttrs route =
-    [ attr "formaction" (fromMaybe route.actionRouteUrl route.actionRouteStandardUrl)
-    ]
-
 frontendSurfaceStandardMethodText :: FrontendSurfaceHtmxMethod -> Text
 frontendSurfaceStandardMethodText = Htmx.htmxStandardMethodText . frontendSurfaceMethodToHtmx
 
@@ -623,17 +656,6 @@ frontendSurfaceHtmxMethodAttrSegment = Htmx.htmxMethodAttrSegment . frontendSurf
 applyAttributes :: Blaze.Html -> [Blaze.Attribute] -> Blaze.Html
 applyAttributes = foldl' (!)
 
-renderFrontendSurfaceHtmxForm :: FrontendSurfaceHtmxRequest -> Blaze.Html -> Blaze.Html
-renderFrontendSurfaceHtmxForm request body =
-    Html5.form
-        ! attr (frontendSurfaceHtmxMethodAttr request.htmxRequestMethod) request.htmxRequestUrl
-        ! attr "hx-target" request.htmxRequestTarget
-        ! attr "hx-swap" request.htmxRequestSwap
-        ! attr surfaceActionDomAttribute request.htmxRequestName
-        $ do
-            forM_ request.htmxRequestFields renderHiddenField
-            body
-
 renderFrontendSurfaceIntentForm :: FrontendSurfaceIntentForm -> Blaze.Html -> Blaze.Html
 renderFrontendSurfaceIntentForm intent body =
     Html5.form
@@ -642,15 +664,15 @@ renderFrontendSurfaceIntentForm intent body =
         ! attr "hx-swap" intent.intentFormSubmit.htmxRequestSwap
         ! attr (interactionDomAttribute @Interaction.IntentForm) intent.intentFormName
         $ do
-            forM_ intent.intentFormSubmit.htmxRequestFields renderHiddenField
+            mapM_ renderFrontendSurfaceInteractionIntentInput intent.intentFormFields
             body
 
-renderHiddenField :: FrontendSurfaceFieldValue -> Blaze.Html
-renderHiddenField field =
+renderHiddenField :: (Text, Text) -> Blaze.Html
+renderHiddenField (fieldName, fieldValue) =
     Html5.input
         ! attr "type" "hidden"
-        ! attr "name" field.fieldValueName
-        ! attr "value" field.fieldValueValue
+        ! attr "name" fieldName
+        ! attr "value" fieldValue
 
 frontendSurfaceHtmxMethodAttr :: FrontendSurfaceHtmxMethod -> Text
 frontendSurfaceHtmxMethodAttr method = "hx-" <> frontendSurfaceHtmxMethodAttrSegment method

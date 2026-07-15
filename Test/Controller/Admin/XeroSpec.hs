@@ -1222,7 +1222,9 @@ tests = beforeAll testContext do
                 matchedResponse <- withPasskeyVerifiedUserAndCurrentVenue fixture.owner fixture.venue.id do
                     withRequestHeaders [("HX-Request", "true")] do
                         callActionWithParams (ShowXeroTimesheetPreparationStaffMappingsFragmentAction run.id)
-                            [("editStaffId", idToParam fixture.staffA.id)]
+                            [ ("showMatched", "true")
+                            , ("editStaffId", idToParam fixture.staffA.id)
+                            ]
                 matchedResponse `responseStatusShouldBe` status200
                 matchedResponse `responseBodyShouldContain` "Not paid through Xero"
                 matchedResponse `responseBodyShouldContain` "value=\"not_applicable\" selected"

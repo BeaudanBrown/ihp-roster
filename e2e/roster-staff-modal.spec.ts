@@ -43,28 +43,30 @@ test.describe('Roster Staff Modal', () => {
         const firstNameField = staffEditForm.locator('#firstName');
         const lastNameField = staffEditForm.locator('#lastName');
         const formAction = await staffEditForm.getAttribute('action');
-        const weekOffset = await staffEditForm.locator('input[name="weekOffset"]').inputValue();
 
         const validationResponse = await page.evaluate(
-            async ({ action, currentWeekOffset }) => {
+            async ({ action }) => {
+                const form = document.querySelector<HTMLFormElement>('#staff-edit-form');
+                if (form === null) throw new Error('Expected visible staff edit form');
+
+                const body = new URLSearchParams();
+                new FormData(form).forEach((value, key) => {
+                    if (typeof value === 'string') body.append(key, value);
+                });
+                body.set('firstName', '');
+
                 const response = await fetch(action, {
                     method: 'POST',
                     headers: {
                         'HX-Request': 'true',
                         'Content-Type': 'application/x-www-form-urlencoded',
                     },
-                    body: new URLSearchParams({
-                        weekOffset: currentWeekOffset,
-                        firstName: '',
-                        lastName: 'User',
-                        idealShiftsPerWeek: '4',
-                        isActive: 'on',
-                    }).toString(),
+                    body: body.toString(),
                 });
 
                 return await response.text();
             },
-            { action: formAction ?? '', currentWeekOffset: weekOffset },
+            { action: formAction ?? '' },
         );
 
         expect(validationResponse).toContain('Edit Staff Member');

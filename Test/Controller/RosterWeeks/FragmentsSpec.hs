@@ -4,10 +4,11 @@ import Application.Helper.Controller (PlatformRole (SuperAdminRole))
 import qualified Application.Helper.FrontendContract.Surface.Roster.Live as RosterLive
 import Application.Helper.FrontendContract.Surface.Roster.Resource (rosterWeekResource)
 import Application.Helper.FrontendContract.Surface.Runtime (FrontendSurfaceHtmxRequest (..),
-                                                            FrontendSurfaceIntentForm (..),
+                                                            FrontendSurfaceIntentForm,
                                                             FrontendSurfaceMountConfig (..),
                                                             FrontendSurfaceMountedFragment (..),
-                                                            SurfaceImpl (..))
+                                                            SurfaceImpl (..),
+                                                            intentFormName)
 import Application.Helper.LiveUpdate
 import Application.Helper.LiveUpdate.Runtime
 import Application.Helper.RosterGroups (createVenueRosterGroupWithDefaults,
@@ -265,7 +266,12 @@ tests = beforeAll testContext do
                 slot <- createRosterSlotRecord rosterDay slotName (Just staffMember) 0
 
                 response <- withUserAndCurrentVenue manager venue.id do
-                    _ <- callActionWithParams (UpdateRosterAssignmentFiltersAction 0) [("hideStaffAtIdealShifts", "true")]
+                    _ <- callActionWithParams (UpdateRosterAssignmentFiltersAction 0)
+                        [ ("hideStaffAtIdealShifts", "true")
+                        , ("hideStaffUnavailable", "false")
+                        , ("hideStaffOnApprovedLeave", "false")
+                        , ("hideStaffAlreadyAssignedToday", "false")
+                        ]
                     callAction (EditRosterSlotDialogAction slot.id)
 
                 response `responseStatusShouldBe` status200
@@ -297,7 +303,12 @@ tests = beforeAll testContext do
                 slot <- createRosterSlotRecord mondayRosterDay slotName (Just selectedStaff) 0
 
                 response <- withUserAndCurrentVenue manager venue.id do
-                    _ <- callActionWithParams (UpdateRosterAssignmentFiltersAction 0) [("hideStaffUnavailable", "true")]
+                    _ <- callActionWithParams (UpdateRosterAssignmentFiltersAction 0)
+                        [ ("hideStaffAtIdealShifts", "false")
+                        , ("hideStaffUnavailable", "true")
+                        , ("hideStaffOnApprovedLeave", "false")
+                        , ("hideStaffAlreadyAssignedToday", "false")
+                        ]
                     callAction (EditRosterSlotDialogAction slot.id)
 
                 response `responseStatusShouldBe` status200
@@ -330,7 +341,12 @@ tests = beforeAll testContext do
                 slotDefinition <- ensureRosterWeekSlotDefinitionForSlotName mondayRosterDay frontSlotName
 
                 response <- withUserAndCurrentVenue manager venue.id do
-                    _ <- callActionWithParams (UpdateRosterAssignmentFiltersAction 0) [("hideStaffUnavailable", "true")]
+                    _ <- callActionWithParams (UpdateRosterAssignmentFiltersAction 0)
+                        [ ("hideStaffAtIdealShifts", "false")
+                        , ("hideStaffUnavailable", "true")
+                        , ("hideStaffOnApprovedLeave", "false")
+                        , ("hideStaffAlreadyAssignedToday", "false")
+                        ]
                     callAction (NewRosterSlotDialogAction mondayRosterDay.id slotDefinition.id 0)
 
                 response `responseStatusShouldBe` status200
@@ -411,7 +427,12 @@ tests = beforeAll testContext do
                 slotDefinition <- ensureRosterWeekSlotDefinitionForSlotName mondayRosterDay slotName
 
                 response <- withUserAndCurrentVenue manager venue.id do
-                    _ <- callActionWithParams (UpdateRosterAssignmentFiltersAction 0) [("hideStaffOnApprovedLeave", "true")]
+                    _ <- callActionWithParams (UpdateRosterAssignmentFiltersAction 0)
+                        [ ("hideStaffAtIdealShifts", "false")
+                        , ("hideStaffUnavailable", "false")
+                        , ("hideStaffOnApprovedLeave", "true")
+                        , ("hideStaffAlreadyAssignedToday", "false")
+                        ]
                     callAction (NewRosterSlotDialogAction mondayRosterDay.id slotDefinition.id 0)
 
                 response `responseStatusShouldBe` status200

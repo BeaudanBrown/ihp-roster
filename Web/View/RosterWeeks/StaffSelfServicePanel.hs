@@ -13,19 +13,19 @@ module Web.View.RosterWeeks.StaffSelfServicePanel
 import qualified Application.Helper.FrontendContract.Surface.Roster as RosterSurface
 import Application.Helper.FrontendContract.Surface.Runtime (FrontendSurfaceActionRoute (..),
                                                             SurfaceImpl,
+                                                            frontendSurfaceAction,
                                                             renderFrontendSurfaceActionForm,
                                                             renderFrontendSurfaceMount)
 import qualified Application.Helper.FrontendContract.Surface.Timesheets as Surface
-import Application.Helper.FrontendContract.Surface.Values (SurfaceFields (NoSurfaceFields),
-                                                           surfaceActionValue,
-                                                           surfaceFragmentTargetId)
+import Application.Helper.FrontendContract.Surface.Values
 import Application.Helper.Url (appendQueryParams)
 import Data.Time.Calendar (diffDays)
 import Web.RosterWeeks.Types (RosterStaffSelfServicePanel (..))
 import Web.Timesheets.FrontendSurface (TimesheetWeekScopeValue (..),
                                        TimesheetsMountStateValue (..),
                                        timesheetsDaySurfaceImpl)
-import Web.View.LeaveRequests.New (renderLeaveRequestFormFields)
+import Web.View.LeaveRequests.New (LeaveRequestFieldNames (..),
+                                   renderLeaveRequestFormFieldsWithNames)
 import Web.View.Prelude
 import Web.View.Timesheets.Index (TimesheetDayRenderModel (..),
                                   renderDaySection)
@@ -91,10 +91,9 @@ renderRosterStaffSelfServiceLeaveFormFragmentWithSwap maybeSwapOob maybeRosterSc
 renderRosterStaffSelfServiceLeaveForm :: (?context :: ControllerContext) => Maybe (Id RosterGroup, Int) -> LeaveRequest -> Html
 renderRosterStaffSelfServiceLeaveForm maybeRosterScope leaveRequest =
     renderFrontendSurfaceActionForm
-        (surfaceActionValue @RosterSurface.RosterSurface @RosterSurface.CreateRosterSelfServiceLeaveRequest)
+        (frontendSurfaceAction @RosterSurface.RosterSurface @RosterSurface.CreateRosterSelfServiceLeaveRequest fields)
         FrontendSurfaceActionRoute
             { actionRouteUrl = rosterCreateLeaveRequestPath
-            , actionRouteFields = []
             , actionRouteCustomHtmx = []
             , actionRouteStandardUrl = Just rosterCreateLeaveRequestPath
             , actionRouteExtraAttrs =
@@ -105,11 +104,23 @@ renderRosterStaffSelfServiceLeaveForm maybeRosterScope leaveRequest =
         [hsx|
             <input type="hidden" name="responseContext" value="roster"/>
             {renderRosterScopeFields maybeRosterScope}
-            {renderLeaveRequestFormFields leaveRequest}
+            {renderLeaveRequestFormFieldsWithNames fieldNames leaveRequest}
             <div class="d-grid mt-4 app-form-width">
                 <button type="submit" class="btn btn-primary">Add unavailable time</button>
             </div>
         |]
+  where
+    fields =
+        surfaceField @RosterSurface.StartDate leaveRequest.startDate
+            :& surfaceField @RosterSurface.EndDate leaveRequest.endDate
+            :& surfaceField @RosterSurface.Notes (fromMaybe "" leaveRequest.notes)
+            :& NoSurfaceFields
+    fieldNames =
+        LeaveRequestFieldNames
+            { leaveRequestStartDateFieldName = surfaceFieldNameFrom @RosterSurface.StartDate fields
+            , leaveRequestEndDateFieldName = surfaceFieldNameFrom @RosterSurface.EndDate fields
+            , leaveRequestNotesFieldName = surfaceFieldNameFrom @RosterSurface.Notes fields
+            }
 
 renderRosterScopeFields :: Maybe (Id RosterGroup, Int) -> Html
 renderRosterScopeFields Nothing = mempty

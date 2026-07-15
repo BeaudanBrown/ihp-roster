@@ -7,10 +7,10 @@ module Web.View.RosterWeeks.Header
 import qualified Application.Helper.FrontendContract.Surface.Interaction as SurfaceInteraction
 import qualified Application.Helper.FrontendContract.Surface.Roster as Surface
 import Application.Helper.FrontendContract.Surface.Runtime (FrontendSurfaceActionRoute (..),
-                                                            FrontendSurfaceFieldValue (..),
+                                                            frontendSurfaceAction,
                                                             frontendSurfaceActionHtmxAttrPairs,
                                                             renderFrontendSurfaceActionLink)
-import Application.Helper.FrontendContract.Surface.Values (surfaceActionValue)
+import Application.Helper.FrontendContract.Surface.Values
 import Application.Helper.RosterWagePrediction (RosterWagePrediction (..),
                                                 formatMoneyAmount)
 import Application.Helper.Url (appendQueryParams)
@@ -29,7 +29,6 @@ rosterActionRoute :: Text -> FrontendSurfaceActionRoute
 rosterActionRoute actionUrl =
     FrontendSurfaceActionRoute
         { actionRouteUrl = actionUrl
-        , actionRouteFields = []
         , actionRouteCustomHtmx = []
         , actionRouteStandardUrl = Nothing
         , actionRouteExtraAttrs = []
@@ -106,13 +105,14 @@ renderRosterWeekControls weekOffset currentRosterGroup weekStartDate (RosterDayT
 renderWeekNavigationLink :: Text -> Text -> Text -> Int -> Id RosterGroup -> Html
 renderWeekNavigationLink iconClass ariaLabel url targetWeekOffset rosterGroupId =
     renderFrontendSurfaceActionLink
-        (surfaceActionValue @Surface.RosterSurface @Surface.NavigateRosterWeek)
+        ( frontendSurfaceAction @Surface.RosterSurface @Surface.NavigateRosterWeek
+            ( surfaceField @Surface.WeekOffset targetWeekOffset
+                :& surfaceField @Surface.RosterGroupId (unpackId rosterGroupId)
+                :& NoSurfaceFields
+            )
+        )
         (rosterActionRoute url)
-            { actionRouteFields =
-                [ FrontendSurfaceFieldValue "weekOffset" (tshow targetWeekOffset)
-                , FrontendSurfaceFieldValue "rosterGroupId" (tshow rosterGroupId)
-                ]
-            , actionRouteStandardUrl = Just url
+            { actionRouteStandardUrl = Just url
             , actionRouteExtraAttrs =
                 [ ("class", weekNavigationButtonClass "roster-week-nav-button roster-week-nav-arrow")
                 , ("aria-label", ariaLabel)
@@ -154,25 +154,32 @@ renderLiveToggleForm rosterWeek = [hsx|
     <form method="POST"
           action={ToggleRosterWeekLiveStatusAction rosterWeek.id}
           class="mb-0">
-        {renderLiveToggleButton rosterWeek}
+        <input type="hidden" id={liveToggleValueInputId rosterWeek.id} name={surfaceFieldNameFrom @Surface.IsLive fields} value={boolParam rosterWeek.isLive}/>
+        {renderLiveToggleButton fields rosterWeek}
     </form>
 |]
+  where
+    fields = surfaceField @Surface.IsLive rosterWeek.isLive :& NoSurfaceFields
 
-renderLiveToggleButton :: RosterWeek -> Html
-renderLiveToggleButton rosterWeek =
+renderLiveToggleButton :: SurfaceFields (SurfaceActionFieldSpecs Surface.RosterSurface Surface.ToggleRosterWeekLiveStatus) -> RosterWeek -> Html
+renderLiveToggleButton fields rosterWeek =
     renderAppToggleButton $ (defaultAppToggleButtonConfig (liveToggleInputId rosterWeek.id) rosterWeek.isLive [hsx|<span class="fw-semibold">Live</span>|])
-        { appToggleInputName = Just "isLive"
+        { appToggleInputName = Nothing
         , appToggleInputValue = "true"
         , appToggleButtonClass = "app-week-live-toggle"
         , appToggleRoleSwitch = True
+        , appToggleHiddenInputId = Just (liveToggleValueInputId rosterWeek.id)
+        , appToggleHiddenInputCheckedValue = Just "true"
+        , appToggleHiddenInputUncheckedValue = Just "false"
         , appToggleInputExtraAttrs =
             frontendSurfaceActionHtmxAttrPairs
-                (surfaceActionValue @Surface.RosterSurface @Surface.ToggleRosterWeekLiveStatus)
+                (frontendSurfaceAction @Surface.RosterSurface @Surface.ToggleRosterWeekLiveStatus fields)
                 (rosterActionRoute (pathTo (ToggleRosterWeekLiveStatusAction rosterWeek.id)))
-                    { actionRouteFields = [FrontendSurfaceFieldValue "isLive" (boolParam rosterWeek.isLive)]
-                    }
                 <> [("hx-trigger", "change"), ("hx-include", "closest form")]
         }
 
 liveToggleInputId :: Id RosterWeek -> Text
 liveToggleInputId rosterWeekId = "roster-live-toggle-" <> tshow rosterWeekId
+
+liveToggleValueInputId :: Id RosterWeek -> Text
+liveToggleValueInputId rosterWeekId = "roster-live-toggle-value-" <> tshow rosterWeekId

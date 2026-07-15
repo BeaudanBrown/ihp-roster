@@ -11,11 +11,10 @@ import Application.Helper.Controller (currentVenueOrNothing)
 import Application.Helper.Export
 import qualified Application.Helper.FrontendContract.Surface.Admin as Surface
 import Application.Helper.FrontendContract.Surface.Runtime (FrontendSurfaceActionRoute (..),
+                                                            frontendSurfaceAction,
                                                             renderFrontendSurfaceActionForm,
                                                             renderFrontendSurfaceMount)
-import Application.Helper.FrontendContract.Surface.Values (SurfaceFields (NoSurfaceFields),
-                                                           surfaceActionValue,
-                                                           surfaceFragmentTargetId)
+import Application.Helper.FrontendContract.Surface.Values
 import Web.Admin.FrontendSurface (AdminVenueScopeValue (..),
                                   adminExportsSurfaceImpl)
 import Web.View.Admin.Common
@@ -59,28 +58,36 @@ renderExportsSection defaultRangeStart defaultRangeEnd exportJobs =
 
 renderExportGenerationForm :: Day -> Day -> Html
 renderExportGenerationForm defaultRangeStart defaultRangeEnd =
-    renderFrontendSurfaceActionForm (surfaceActionValue @Surface.AdminExportsSurface @Surface.CreateExportJob) createExportRoute [hsx|
-        <div class="row g-3 align-items-end">
-            <div class="col-12 col-md-4 col-lg-3">
-                <label class="form-label" for="admin-export-range-start">From</label>
-                <input id="admin-export-range-start" class="form-control" type="date" name="rangeStart" value={tshow defaultRangeStart} required={True} />
-            </div>
-            <div class="col-12 col-md-4 col-lg-3">
-                <label class="form-label" for="admin-export-range-end">To</label>
-                <input id="admin-export-range-end" class="form-control" type="date" name="rangeEnd" value={tshow defaultRangeEnd} required={True} />
-            </div>
-            <div class="col-12">
-                <div class="row g-2">
-                    {forEach fixedExportDefinitions renderFixedExportAction}
+    renderFrontendSurfaceActionForm
+        (frontendSurfaceAction @Surface.AdminExportsSurface @Surface.CreateExportJob fields)
+        createExportRoute
+        [hsx|
+            <div class="row g-3 align-items-end">
+                <div class="col-12 col-md-4 col-lg-3">
+                    <label class="form-label" for="admin-export-range-start">From</label>
+                    <input id="admin-export-range-start" class="form-control" type="date" name={surfaceFieldNameFrom @Surface.RangeStart fields} value={tshow defaultRangeStart} required={True} />
+                </div>
+                <div class="col-12 col-md-4 col-lg-3">
+                    <label class="form-label" for="admin-export-range-end">To</label>
+                    <input id="admin-export-range-end" class="form-control" type="date" name={surfaceFieldNameFrom @Surface.RangeEnd fields} value={tshow defaultRangeEnd} required={True} />
+                </div>
+                <div class="col-12">
+                    <div class="row g-2">
+                        {forEach fixedExportDefinitions (renderFixedExportAction fields)}
+                    </div>
                 </div>
             </div>
-        </div>
-    |]
+        |]
+  where
+    fields =
+        surfaceField @Surface.RangeStart defaultRangeStart
+            :& surfaceField @Surface.RangeEnd defaultRangeEnd
+            :& surfaceField @Surface.ExportType ""
+            :& NoSurfaceFields
 
 createExportRoute :: FrontendSurfaceActionRoute
 createExportRoute = FrontendSurfaceActionRoute
     { actionRouteUrl = pathTo CreateExportJobAction
-    , actionRouteFields = []
     , actionRouteCustomHtmx = []
     , actionRouteStandardUrl = Just (pathTo CreateExportJobAction)
     , actionRouteExtraAttrs = [("id", "admin-export-generation-form"), ("class", appSurfaceClasses "p-3")]
@@ -93,8 +100,8 @@ renderExportSummary exportJobs = [hsx|
     </p>
 |]
 
-renderFixedExportAction :: FixedExportDefinition -> Html
-renderFixedExportAction exportDefinition = [hsx|
+renderFixedExportAction :: SurfaceFields (SurfaceActionFieldSpecs Surface.AdminExportsSurface Surface.CreateExportJob) -> FixedExportDefinition -> Html
+renderFixedExportAction fields exportDefinition = [hsx|
     <div class="col-12 col-lg-6">
         <div class={appSurfaceClasses "p-3 h-100"} data-fixed-export-card="true" data-export-type={exportJobTypeToText exportDefinition.fixedExportType}>
             <div class="d-flex justify-content-between align-items-start gap-3">
@@ -108,7 +115,7 @@ renderFixedExportAction exportDefinition = [hsx|
                 <button
                     class="btn btn-outline-primary btn-sm"
                     type="submit"
-                    name="exportType"
+                    name={surfaceFieldNameFrom @Surface.ExportType fields}
                     value={exportJobTypeToText exportDefinition.fixedExportType}
                 >
                     Generate

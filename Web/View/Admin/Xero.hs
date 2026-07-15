@@ -17,10 +17,10 @@ import Application.Helper.FrontendContract.AppShell.Runtime (AppShellActionRoute
 import qualified Application.Helper.FrontendContract.Surface.Admin as Surface
 import Application.Helper.FrontendContract.Surface.Runtime (FrontendSurfaceActionRoute (..),
                                                             FrontendSurfaceCustomHtmxAttrs (..),
+                                                            frontendSurfaceAction,
                                                             renderFrontendSurfaceActionForm,
                                                             renderFrontendSurfaceMount)
 import Application.Helper.FrontendContract.Surface.Values (SurfaceFields (NoSurfaceFields),
-                                                           surfaceActionValue,
                                                            surfaceFragmentTargetId)
 import Application.Helper.XeroAdminTypes
 import Web.Admin.FrontendSurface (AdminVenueScopeValue (..),
@@ -98,7 +98,7 @@ renderXeroAutoSyncTrigger :: Bool -> Maybe XeroConnection -> Html
 renderXeroAutoSyncTrigger True (Just connection)
     | connection.connectionStatus == "active" =
         renderFrontendSurfaceActionForm
-            (surfaceActionValue @Surface.AdminXeroSurface @Surface.SyncXeroPayrollReferenceData)
+            (frontendSurfaceAction @Surface.AdminXeroSurface @Surface.SyncXeroPayrollReferenceData NoSurfaceFields)
             xeroReferenceSyncActionRoute
                 { actionRouteCustomHtmx =
                     [ FrontendSurfaceCustomHtmxAttrs
@@ -153,7 +153,6 @@ xeroReferenceSyncActionRoute :: FrontendSurfaceActionRoute
 xeroReferenceSyncActionRoute =
     FrontendSurfaceActionRoute
         { actionRouteUrl = pathTo SyncXeroPayrollReferenceDataAction
-        , actionRouteFields = []
         , actionRouteCustomHtmx =
             [ FrontendSurfaceCustomHtmxAttrs
                 { customHtmxAttrMarker = "load-reference-sync-custom-htmx"
@@ -181,7 +180,7 @@ renderXeroActionControls connection connectionActionsAllowed = [hsx|
 renderXeroReferenceSyncForm :: Bool -> Html
 renderXeroReferenceSyncForm actionsAllowed =
     renderFrontendSurfaceActionForm
-        (surfaceActionValue @Surface.AdminXeroSurface @Surface.SyncXeroPayrollReferenceData)
+        (frontendSurfaceAction @Surface.AdminXeroSurface @Surface.SyncXeroPayrollReferenceData NoSurfaceFields)
         xeroReferenceSyncActionRoute
         [hsx|<button type="submit" class="btn btn-outline-primary" disabled={not actionsAllowed}>Sync Xero data</button>|]
 

@@ -5,11 +5,11 @@ module Web.View.Support.Index where
 import Application.Helper.Feedback (allowedFeedbackPriorities,
                                     allowedFeedbackStatuses)
 import Application.Helper.FrontendContract.Surface.Runtime (FrontendSurfaceActionRoute (..),
+                                                            frontendSurfaceAction,
                                                             renderFrontendSurfaceActionForm,
                                                             renderFrontendSurfaceMount)
 import qualified Application.Helper.FrontendContract.Surface.Support as Surface
 import Application.Helper.FrontendContract.Surface.Values (SurfaceFields (NoSurfaceFields),
-                                                           surfaceActionValue,
                                                            surfaceFragmentTargetId)
 import Application.Helper.FwcMapd (FwcMapdAdminData (..),
                                    FwcMapdDisplayPayRate (..))
@@ -27,7 +27,6 @@ supportActionRoute :: Text -> FrontendSurfaceActionRoute
 supportActionRoute actionUrl =
     FrontendSurfaceActionRoute
         { actionRouteUrl = actionUrl
-        , actionRouteFields = []
         , actionRouteCustomHtmx = []
         , actionRouteStandardUrl = Just actionUrl
         , actionRouteExtraAttrs = []
@@ -355,7 +354,7 @@ renderPublicHolidayCoverageStatus status =
 renderPublicHolidayRefreshForm :: Maybe AppJob -> Html
 renderPublicHolidayRefreshForm activeRefreshJob =
     renderFrontendSurfaceActionForm
-        (surfaceActionValue @Surface.SupportSurface @Surface.CreatePublicHolidayRefreshJob)
+        (frontendSurfaceAction @Surface.SupportSurface @Surface.CreatePublicHolidayRefreshJob NoSurfaceFields)
         (supportActionRoute (pathTo CreatePublicHolidayRefreshJobAction))
             { actionRouteExtraAttrs = [("class", "d-grid")]
             }
@@ -387,7 +386,7 @@ renderPublicHolidayRefreshJobStatus maybeJob =
 renderAwardRefreshForm :: Maybe AppJob -> Html
 renderAwardRefreshForm activeRefreshJob =
     renderFrontendSurfaceActionForm
-        (surfaceActionValue @Surface.SupportSurface @Surface.CreateFwcMapdRefreshJob)
+        (frontendSurfaceAction @Surface.SupportSurface @Surface.CreateFwcMapdRefreshJob NoSurfaceFields)
         (supportActionRoute (pathTo CreateFwcMapdRefreshJobAction))
             { actionRouteExtraAttrs = [("class", "d-grid")]
             }

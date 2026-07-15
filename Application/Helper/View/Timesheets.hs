@@ -22,6 +22,8 @@ module Application.Helper.View.Timesheets
 import Application.Helper.FrontendContract.AppShell.Runtime (AppShellActionRoute (..),
                                                              renderAppShellActionForm)
 import Application.Helper.FrontendContract.IR (AppShellActionIR)
+import qualified Application.Helper.FrontendContract.Surface.Timesheets as Surface
+import Application.Helper.FrontendContract.Surface.Values
 import Application.Helper.View.Audience
 import Application.Helper.View.Format
 import Application.Helper.View.Overlay
@@ -78,11 +80,11 @@ renderTimesheetForm appShellAction formOrigin entry staffMembers shiftTypes week
 
 renderTimesheetFormFields :: (?context :: ControllerContext) => TimesheetFormOrigin -> TimesheetEntry -> [Staff] -> [ShiftType] -> Int -> Bool -> Bool -> Bool -> Maybe UUID -> Maybe UUID -> Text -> Text -> Html
 renderTimesheetFormFields formOrigin entry staffMembers shiftTypes weekOffset showApproved showAllStaff showSuggestions selectedStaffFilterId currentViewerStaffId pickerStart pickerEnd = [hsx|
-    <input type="hidden" name="weekOffset" value={tshow weekOffset} />
-    <input type="hidden" name="showApproved" value={if showApproved then ("true" :: Text) else "false"} />
-    <input type="hidden" name="showAllStaff" value={if showAllStaff then ("true" :: Text) else "false"} />
-    <input type="hidden" name="showSuggestions" value={if showSuggestions then ("true" :: Text) else "false"} />
-    <input type="hidden" name="staffFilterId" value={maybe "" tshow selectedStaffFilterId} />
+    <input type="hidden" name={surfaceFieldNameFrom @Surface.WeekOffset stateFields} value={tshow weekOffset} />
+    <input type="hidden" name={surfaceFieldNameFrom @Surface.ShowApproved stateFields} value={if showApproved then ("true" :: Text) else "false"} />
+    <input type="hidden" name={surfaceFieldNameFrom @Surface.ShowAllStaff stateFields} value={if showAllStaff then ("true" :: Text) else "false"} />
+    <input type="hidden" name={surfaceFieldNameFrom @Surface.ShowSuggestions stateFields} value={if showSuggestions then ("true" :: Text) else "false"} />
+    <input type="hidden" name={surfaceFieldNameFrom @Surface.StaffFilterId stateFields} value={maybe "" tshow selectedStaffFilterId} />
     {renderTimesheetFormOriginNotice formOrigin}
     {renderStaffFieldForOrigin formOrigin entry staffMembers}
     {renderShiftTypeField entry shiftTypes}
@@ -129,6 +131,14 @@ renderTimesheetFormFields formOrigin entry staffMembers shiftTypes weekOffset sh
         breakStartTimeValue = optionalTimeOfDayToStorageValue entry.breakStartTime
         breakEndTimeValue = optionalTimeOfDayToStorageValue entry.breakEndTime
         dateValueIso = tshow entry.workedOn :: Text
+        stateFields =
+            surfaceField @Surface.WeekOffset weekOffset
+                :& surfaceField @Surface.ShowApproved showApproved
+                :& surfaceField @Surface.ShowAllStaff showAllStaff
+                :& surfaceField @Surface.ShowSuggestions showSuggestions
+                :& surfaceOptionalField @Surface.StaffFilterId selectedStaffFilterId
+                :& NoSurfaceFields
+                :: SurfaceFields (SurfaceActionFieldSpecs Surface.TimesheetsSurface Surface.CreateTimesheetEntryFromSuggestion)
 
 renderTimesheetFormOriginNotice :: TimesheetFormOrigin -> Html
 renderTimesheetFormOriginNotice AdHocTimesheetForm = mempty

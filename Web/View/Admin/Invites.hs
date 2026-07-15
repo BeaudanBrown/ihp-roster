@@ -9,11 +9,10 @@ module Web.View.Admin.Invites
 import Application.Helper.Controller (currentVenueOrNothing)
 import qualified Application.Helper.FrontendContract.Surface.Admin as Surface
 import Application.Helper.FrontendContract.Surface.Runtime (FrontendSurfaceActionRoute (..),
+                                                            frontendSurfaceAction,
                                                             renderFrontendSurfaceActionForm,
                                                             renderFrontendSurfaceMount)
-import Application.Helper.FrontendContract.Surface.Values (SurfaceFields (NoSurfaceFields),
-                                                           surfaceActionValue,
-                                                           surfaceFragmentTargetId)
+import Application.Helper.FrontendContract.Surface.Values
 import Application.Helper.UiRegion (UiRegionTransitionProfile (..))
 import qualified Text.Blaze.Html as Blaze
 import Text.Blaze.Html ((!))
@@ -35,22 +34,26 @@ renderInvitesSection invitations rosterGroupId =
 
 renderInviteCreateForm :: Id RosterGroup -> Html
 renderInviteCreateForm rosterGroupId =
-    renderFrontendSurfaceActionForm (surfaceActionValue @Surface.AdminInvitesSurface @Surface.CreateVenueInvitation) (inviteCreateRoute rosterGroupId) [hsx|
-        <div class="row g-2 align-items-end">
-            <div class="col-12 col-md-9">
-                <label class="form-label" for="new-invite-email">Email</label>
-                <input id="new-invite-email" class="form-control" type="email" name="email" placeholder="new-user@example.com" required="required" />
+    renderFrontendSurfaceActionForm
+        (frontendSurfaceAction @Surface.AdminInvitesSurface @Surface.CreateVenueInvitation fields)
+        (inviteCreateRoute rosterGroupId)
+        [hsx|
+            <div class="row g-2 align-items-end">
+                <div class="col-12 col-md-9">
+                    <label class="form-label" for="new-invite-email">Email</label>
+                    <input id="new-invite-email" class="form-control" type="email" name={surfaceFieldNameFrom @Surface.Email fields} placeholder="new-user@example.com" required="required" />
+                </div>
+                <div class="col-12 col-md-3">
+                    <button class="btn btn-outline-primary w-100" type="submit">Send</button>
+                </div>
             </div>
-            <div class="col-12 col-md-3">
-                <button class="btn btn-outline-primary w-100" type="submit">Send</button>
-            </div>
-        </div>
-    |]
+        |]
+  where
+    fields = surfaceField @Surface.Email "" :& NoSurfaceFields
 
 inviteCreateRoute :: Id RosterGroup -> FrontendSurfaceActionRoute
 inviteCreateRoute rosterGroupId = FrontendSurfaceActionRoute
     { actionRouteUrl = appendQueryParams (pathTo CreateVenueInvitationAction) [("rosterGroupId", tshow rosterGroupId)]
-    , actionRouteFields = []
     , actionRouteCustomHtmx = []
     , actionRouteStandardUrl = Just (appendQueryParams (pathTo CreateVenueInvitationAction) [("rosterGroupId", tshow rosterGroupId)])
     , actionRouteExtraAttrs = [("class", appSurfaceClasses "p-3")]
@@ -123,14 +126,13 @@ renderInviteRowActions :: Id RosterGroup -> VenueInvitation -> Html
 renderInviteRowActions rosterGroupId invitation
     | inputValue invitation.status /= "pending" = mempty
     | otherwise =
-        renderFrontendSurfaceActionForm (surfaceActionValue @Surface.AdminInvitesSurface @Surface.RevokeVenueInvitation) revokeRoute [hsx|
+        renderFrontendSurfaceActionForm (frontendSurfaceAction @Surface.AdminInvitesSurface @Surface.RevokeVenueInvitation NoSurfaceFields) revokeRoute [hsx|
             <button class="btn btn-sm btn-outline-danger" type="submit">Revoke</button>
         |]
     where
         revokeUrl = appendQueryParams (pathTo (RevokeVenueInvitationAction invitation.id)) [("rosterGroupId", tshow rosterGroupId)]
         revokeRoute = FrontendSurfaceActionRoute
             { actionRouteUrl = revokeUrl
-            , actionRouteFields = []
             , actionRouteCustomHtmx = []
             , actionRouteStandardUrl = Just revokeUrl
             , actionRouteExtraAttrs = [("class", "d-inline")]

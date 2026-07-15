@@ -238,7 +238,7 @@ tests = beforeAll testContext do
                             ]
 
                 response `responseStatusShouldBe` status200
-                response `responseBodyShouldContain` "Please choose an unavailable from date"
+                response `responseBodyShouldContain` "is required by the Surface request contract"
                 leaveExists <- query @LeaveRequest |> filterWhere (#venueId, unpackId venue.id) |> fetchExists
                 leaveExists `shouldBe` False
 

@@ -41,8 +41,10 @@ tests = beforeAll testContext do
 
         it "redirects unauthenticated users away from update profile" $ withContext do
             response <- callActionWithParams UpdateProfileAction
-                [ ("firstName", "Taylor")
+                [ ("section", "profile")
+                , ("firstName", "Taylor")
                 , ("lastName", "Smith")
+                , ("preferredName", "")
                 , ("phone", "0400000000")
                 , ("emergencyContactName", "Casey Smith")
                 , ("emergencyContactPhone", "0411111111")
@@ -76,8 +78,10 @@ tests = beforeAll testContext do
 
                 response <- withUserAndCurrentVenue superAdmin venue.id do
                     callActionWithParams UpdateProfileAction
-                        [ ("firstName", "Support")
+                        [ ("section", "profile")
+                        , ("firstName", "Support")
                         , ("lastName", "Admin")
+                        , ("preferredName", "")
                         , ("phone", "0400000000")
                         , ("emergencyContactName", "Casey")
                         , ("emergencyContactPhone", "0411111111")
@@ -303,6 +307,30 @@ tests = beforeAll testContext do
                         , staffPreferencesResource (unpackId staff.id)
                         ]
 
+        it "ignores staff status fields submitted by workers" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Profile Status Venue"
+                user <- createUserRecord "profile-status-worker@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue user "worker"
+                staff <- createStaffRecord venue (Just user) "Taylor" "Smith"
+
+                response <- withUserAndCurrentVenue user venue.id do
+                    callActionWithParams UpdateProfileAction
+                        [ ("section", "profile")
+                        , ("firstName", "Taylor")
+                        , ("lastName", "Smith")
+                        , ("preferredName", "")
+                        , ("phone", "0400000000")
+                        , ("emergencyContactName", "Casey Smith")
+                        , ("emergencyContactPhone", "0411111111")
+                        , ("idealShiftsPerWeek", "3")
+                        , ("isActive", "false")
+                        ]
+
+                response `responseStatusShouldBe` status302
+                updatedStaff <- fetch staff.id
+                updatedStaff.isActive `shouldBe` True
+
         it "creates a linked staff row on the first successful profile submission" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Profile Bootstrap Venue"
@@ -311,7 +339,8 @@ tests = beforeAll testContext do
 
                 response <- withUserAndCurrentVenue user venue.id do
                     callActionWithParams UpdateProfileAction
-                        [ ("firstName", "Taylor")
+                        [ ("section", "profile")
+                        , ("firstName", "Taylor")
                         , ("lastName", "Smith")
                         , ("preferredName", "")
                         , ("phone", "0400000000")
@@ -343,7 +372,8 @@ tests = beforeAll testContext do
 
                 profileResponse <- withUserAndCurrentVenue user venue.id do
                     callActionWithParams UpdateProfileAction
-                        [ ("firstName", "Taylor")
+                        [ ("section", "profile")
+                        , ("firstName", "Taylor")
                         , ("lastName", "Smith")
                         , ("preferredName", "")
                         , ("phone", "0400000000")
@@ -382,7 +412,8 @@ tests = beforeAll testContext do
                 response <- withUserAndCurrentVenue user venue.id do
                     withRequestHeaders [("HX-Request", "true")] do
                         callActionWithParams UpdateProfileAction
-                            [ ("firstName", cs oversizedName)
+                            [ ("section", "profile")
+                            , ("firstName", cs oversizedName)
                             , ("lastName", "  Smith  ")
                             , ("preferredName", "   ")
                             , ("phone", "  0400000000  ")
@@ -407,7 +438,8 @@ tests = beforeAll testContext do
                 response <- withUserAndCurrentVenue user venue.id do
                     withRequestHeaders [("HX-Request", "true"), ("X-Live-Update-Client-Id", "profile-htmx-client")] do
                         callActionWithParams UpdateProfileAction
-                            [ ("firstName", "Taylor")
+                            [ ("section", "profile")
+                            , ("firstName", "Taylor")
                             , ("lastName", "Smith")
                             , ("preferredName", "Tay")
                             , ("phone", "0400000000")
@@ -470,7 +502,8 @@ tests = beforeAll testContext do
                 response <- withUserAndCurrentVenue user venue.id do
                     withRequestHeaders [("HX-Request", "true"), ("X-Live-Update-Client-Id", "profile-update-client")] do
                         callActionWithParams UpdateProfileAction
-                            [ ("firstName", "Taylor")
+                            [ ("section", "profile")
+                            , ("firstName", "Taylor")
                             , ("lastName", "Updated")
                             , ("preferredName", "")
                             , ("phone", "0400000000")

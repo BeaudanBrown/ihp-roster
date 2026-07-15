@@ -14,11 +14,15 @@
 module Application.Helper.FrontendContract.Surface.Values
     ( FindMountTarget
     , KnownMountTarget
+    , KnownSurfaceFieldLookup
     , KnownSurfaceFieldValues
+    , KnownSurfaceWireValue (..)
+    , LookupSurfaceField
     , RequireSurfaceField
     , SurfaceActionFieldSpecs
     , SurfaceActionPrimitive
     , SurfaceActivationRefPrimitive
+    , SurfaceFieldValue
     , SurfaceFieldValues
     , SurfaceFields (..)
     , SurfaceFragmentFieldSpecs
@@ -35,15 +39,19 @@ module Application.Helper.FrontendContract.Surface.Values
     , SurfaceScopeFieldSpecs
     , SurfaceScopePrimitive
     , SurfaceSourceRefPrimitive
-    , surfaceActionFieldName
+    , SurfaceWireValue
     , surfaceActionNameValue
     , surfaceField
+    , surfaceFieldNameFrom
     , surfaceFieldsJson
     , surfaceFieldsText
+    , surfaceFieldValue
     , surfaceNullableField
     , surfaceOptionalField
     , parseSurfaceFieldValues
-    , surfaceActionValue
+    , prependRequiredSurfaceField
+    , prependOptionalSurfaceField
+    , prependNullableSurfaceField
     , surfaceActivationRefValue
     , surfaceDomTokenValue
     , surfaceDropzoneRefValue
@@ -51,9 +59,7 @@ module Application.Helper.FrontendContract.Surface.Values
     , surfaceFragmentNameValue
     , surfaceFragmentTargetId
     , surfaceFragmentValue
-    , surfaceIntentFieldName
     , surfaceIntentNameValue
-    , surfaceIntentValue
     , surfaceNameValue
     , surfaceResourceFieldName
     , surfaceResourceValue
@@ -135,6 +141,36 @@ type family SurfaceFieldValues (fields :: [FieldSpec]) :: Type where
     SurfaceFieldValues (('OptionalField marker wire) ': rest) = (Maybe (SurfaceWireValue wire), SurfaceFieldValues rest)
     SurfaceFieldValues (('NullableField marker wire) ': rest) = (Maybe (SurfaceWireValue wire), SurfaceFieldValues rest)
 
+-- | Presence and wire information for one marker inside an exact field bundle.
+-- Looking up a marker not owned by the bundle is a compile-time error.
+data SurfaceFieldLookup
+    = SurfaceFieldRequired WireType
+    | SurfaceFieldOptional WireType
+    | SurfaceFieldNullable WireType
+
+-- | Resolve a field marker against the complete declaration carried by
+-- 'SurfaceFields'. Callers cannot ask for a marker absent from that declaration.
+type family LookupSurfaceField (marker :: Type) (fields :: [FieldSpec]) :: SurfaceFieldLookup where
+    LookupSurfaceField marker (('Field marker wire) ': rest) = 'SurfaceFieldRequired wire
+    LookupSurfaceField marker (('OptionalField marker wire) ': rest) = 'SurfaceFieldOptional wire
+    LookupSurfaceField marker (('NullableField marker wire) ': rest) = 'SurfaceFieldNullable wire
+    LookupSurfaceField marker (field ': rest) = LookupSurfaceField marker rest
+    LookupSurfaceField marker '[] = TypeError
+        ( 'Text "FrontendSurface field bundle does not declare marker "
+            ':<>: 'ShowType marker
+        )
+
+-- | The Haskell value returned by a marker-indexed field lookup. Required
+-- fields return their declared wire value; optional and nullable fields retain
+-- their distinct @Maybe@ boundary.
+type family SurfaceFieldValue (marker :: Type) (fields :: [FieldSpec]) :: Type where
+    SurfaceFieldValue marker fields = SurfaceFieldLookupValue (LookupSurfaceField marker fields)
+
+type family SurfaceFieldLookupValue (lookup :: SurfaceFieldLookup) :: Type where
+    SurfaceFieldLookupValue ('SurfaceFieldRequired wire) = SurfaceWireValue wire
+    SurfaceFieldLookupValue ('SurfaceFieldOptional wire) = Maybe (SurfaceWireValue wire)
+    SurfaceFieldLookupValue ('SurfaceFieldNullable wire) = Maybe (SurfaceWireValue wire)
+
 class KnownSurfaceWireValue (wire :: WireType) where
     surfaceWireJson :: SurfaceWireValue wire -> Aeson.Value
     surfaceWireText :: SurfaceWireValue wire -> Text
@@ -189,6 +225,61 @@ instance KnownSurfaceWireValue ('WireRef dto) where
     surfaceWireText = jsonText
     parseSurfaceWireValue = pure
 
+class KnownSurfaceFieldLookup (lookup :: SurfaceFieldLookup) where
+    parseSurfaceFieldLookup :: Text -> Aeson.Object -> Aeson.Types.Parser (SurfaceFieldLookupValue lookup)
+
+instance KnownSurfaceWireValue wire => KnownSurfaceFieldLookup ('SurfaceFieldRequired wire) where
+    parseSurfaceFieldLookup fieldName object = do
+        value <- requiredNamedFieldValue fieldName object
+        parseSurfaceWireValue @wire value
+
+instance KnownSurfaceWireValue wire => KnownSurfaceFieldLookup ('SurfaceFieldOptional wire) where
+    parseSurfaceFieldLookup fieldName object =
+        case Aeson.KeyMap.lookup (Aeson.Key.fromText fieldName) object of
+            Nothing    -> pure Nothing
+            Just value -> Just <$> parseSurfaceWireValue @wire value
+
+instance KnownSurfaceWireValue wire => KnownSurfaceFieldLookup ('SurfaceFieldNullable wire) where
+    parseSurfaceFieldLookup fieldName object = do
+        value <- requiredNamedFieldValue fieldName object
+        case value of
+            Aeson.Null -> pure Nothing
+            present    -> Just <$> parseSurfaceWireValue @wire present
+
+-- | Read one declared value from a complete typed field bundle. The marker must
+-- occur in the bundle at compile time; runtime parsing can only fail if the
+-- internal 'SurfaceFields' serialization invariant is broken.
+surfaceFieldValue ::
+    forall marker fields.
+    ( Typeable marker
+    , KnownSurfaceFieldLookup (LookupSurfaceField marker fields)
+    ) =>
+    SurfaceFields fields -> SurfaceFieldValue marker fields
+surfaceFieldValue fields =
+    case Aeson.Types.parseEither parser (surfaceFieldsJson fields) of
+        Right value -> value
+        Left message -> error ("Typed Surface field lookup invariant failed: " <> cs message)
+  where
+    parser = Aeson.withObject "SurfaceFields" (parseSurfaceFieldLookup @(LookupSurfaceField marker fields) (surfaceFieldName @marker))
+
+-- | Canonical form/input name for a marker proven to belong to this complete
+-- bundle. Unlike the removed owner-only accessors, obtaining a name requires
+-- constructing every field in the declaration first.
+surfaceFieldNameFrom ::
+    forall marker fields.
+    ( Typeable marker
+    , KnownSurfaceFieldLookup (LookupSurfaceField marker fields)
+    ) =>
+    SurfaceFields fields -> Text
+surfaceFieldNameFrom _ = surfaceFieldName @marker
+
+requiredNamedFieldValue :: Text -> Aeson.Object -> Aeson.Types.Parser Aeson.Value
+requiredNamedFieldValue fieldName object =
+    maybe
+        (fail ("Missing Surface field: " <> cs fieldName))
+        pure
+        (Aeson.KeyMap.lookup (Aeson.Key.fromText fieldName) object)
+
 surfaceField ::
     forall marker wire value.
     ( Typeable marker
@@ -218,6 +309,30 @@ surfaceNullableField ::
     ) =>
     Maybe value -> SurfaceFieldInput 'SurfaceNullable marker wire
 surfaceNullableField = NullableSurfaceField
+
+-- | Parser-facing exact cons helpers. Unlike the authoring smart constructors,
+-- these already know the declaration head and therefore do not need to recover
+-- a caller-provided value shape for diagnostics.
+prependRequiredSurfaceField ::
+    forall marker wire rest.
+    (Typeable marker, KnownSurfaceWireValue wire) =>
+    SurfaceWireValue wire -> SurfaceFields rest -> SurfaceFields (('Field marker wire) ': rest)
+prependRequiredSurfaceField value rest =
+    RequiredSurfaceField @marker @wire value :& rest
+
+prependOptionalSurfaceField ::
+    forall marker wire rest.
+    (Typeable marker, KnownSurfaceWireValue wire) =>
+    Maybe (SurfaceWireValue wire) -> SurfaceFields rest -> SurfaceFields (('OptionalField marker wire) ': rest)
+prependOptionalSurfaceField value rest =
+    OptionalSurfaceField @marker @wire value :& rest
+
+prependNullableSurfaceField ::
+    forall marker wire rest.
+    (Typeable marker, KnownSurfaceWireValue wire) =>
+    Maybe (SurfaceWireValue wire) -> SurfaceFields rest -> SurfaceFields (('NullableField marker wire) ': rest)
+prependNullableSurfaceField value rest =
+    NullableSurfaceField @marker @wire value :& rest
 
 class KnownSurfaceFieldValues (fields :: [FieldSpec]) where
     surfaceFieldValueNames :: [Text]
@@ -396,22 +511,6 @@ surfaceFragmentFieldName ::
     Text
 surfaceFragmentFieldName = surfaceFieldName @marker
 
-surfaceActionFieldName ::
-    forall spec action marker.
-    ( Typeable marker
-    , RequireSurfaceField action marker (SurfaceActionFieldSpecs spec action)
-    ) =>
-    Text
-surfaceActionFieldName = surfaceFieldName @marker
-
-surfaceIntentFieldName ::
-    forall spec intent marker.
-    ( Typeable marker
-    , RequireSurfaceField intent marker (SurfaceIntentFieldSpecs spec intent)
-    ) =>
-    Text
-surfaceIntentFieldName = surfaceFieldName @marker
-
 type family FindSurfaceScope (spec :: SurfaceSpec) (marker :: Type) (primitives :: [SurfacePrimitive]) :: SurfacePrimitive where
     FindSurfaceScope spec marker (('Scope marker fields options) ': rest) = 'Scope marker fields options
     FindSurfaceScope spec marker (primitive ': rest) = FindSurfaceScope spec marker rest
@@ -501,21 +600,15 @@ surfaceFragmentValue =
         _ -> error "impossible: fragment lookup reflected a different primitive"
 
 surfaceActionNameValue :: forall spec marker. ReflectPrimitive (SurfaceActionPrimitive spec marker) => Text
-surfaceActionNameValue = (surfaceActionValue @spec @marker).htmxActionName
-
-surfaceActionValue :: forall spec marker. ReflectPrimitive (SurfaceActionPrimitive spec marker) => HtmxActionIR
-surfaceActionValue =
+surfaceActionNameValue =
     case reflectPrimitive @(SurfaceActionPrimitive spec marker) of
-        ReflectedHtmxAction action -> action
+        ReflectedHtmxAction action -> action.htmxActionName
         _ -> error "impossible: action lookup reflected a different primitive"
 
 surfaceIntentNameValue :: forall spec marker. ReflectPrimitive (SurfaceIntentPrimitive spec marker) => Text
-surfaceIntentNameValue = (surfaceIntentValue @spec @marker).intentName
-
-surfaceIntentValue :: forall spec marker. ReflectPrimitive (SurfaceIntentPrimitive spec marker) => IntentIR
-surfaceIntentValue =
+surfaceIntentNameValue =
     case reflectPrimitive @(SurfaceIntentPrimitive spec marker) of
-        ReflectedIntent intent -> intent
+        ReflectedIntent intent -> intent.intentName
         _ -> error "impossible: intent lookup reflected a different primitive"
 
 surfaceResourceValue :: forall spec marker. ReflectResource (SurfaceResourceSpec spec marker) => ResourceIR

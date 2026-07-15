@@ -56,6 +56,17 @@ module Application.Helper.FrontendContract.Surface.Roster
     , SetRosterLayoutMode
     , VenueId
     , WeekOffset
+    , ShowRosterWarnings
+    , IsLive
+    , ShowWageEstimates
+    , HideStaffAtIdealShifts
+    , HideStaffUnavailable
+    , HideStaffOnApprovedLeave
+    , HideStaffAlreadyAssignedToday
+    , StaffScope
+    , StartDate
+    , EndDate
+    , Notes
     ) where
 
 import Application.Helper.FrontendContract.Surface.DSL
@@ -135,7 +146,7 @@ data RosterStaffPanelFragment
 data RosterWeekOverviewMount
 data StartDate
 data EndDate
-data Reason
+data Notes
 
 type RosterWeekResource = Resource RosterWeek '[ Field RosterGroupId 'WireUUID, Field WeekOffset 'WireInt ]
 type RosterDayResource = Resource RosterDay '[ Field RosterDayId 'WireUUID ]
@@ -280,7 +291,7 @@ type RosterActionBundle =
      , Action CreateRosterSelfServiceLeaveRequest
         '[ Field StartDate 'WireDay
          , Field EndDate 'WireDay
-         , Field Reason 'WireText
+         , Field Notes 'WireText
          ]
         '[ 'HtmxMethod 'HtmxPost
          , 'HtmxTarget ('HtmxId RosterStaffSelfServiceLeaveFormFragment)

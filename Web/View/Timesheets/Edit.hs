@@ -6,7 +6,7 @@ import Application.Helper.FrontendContract.AppShell (DeleteTimesheetEntryOverlay
                                                      UpdateTimesheetEntryOverlay)
 import Application.Helper.FrontendContract.AppShell.Runtime (AppShellActionRoute (..),
                                                              appShellActionByMarker)
-import Web.Timesheets.Paths (timesheetWeekUrl)
+import Web.Timesheets.Paths (timesheetStateQueryParams, timesheetWeekUrl)
 import Web.View.Prelude
 
 data EditView = EditView
@@ -67,15 +67,9 @@ deleteButtonsFor timesheetEntry weekOffset showApproved showAllStaff showSuggest
                     , appShellActionRouteStandardUrl = Nothing
                     , appShellActionRouteExtraAttrs = []
                     }
-                [ ("_method", "DELETE")
-                , ("weekOffset", tshow weekOffset)
-                , ("showApproved", boolParam showApproved)
-                , ("showAllStaff", boolParam showAllStaff)
-                , ("showSuggestions", boolParam showSuggestions)
-                , ("staffFilterId", maybe "" tshow selectedStaffFilterId)
-                ]
+                (("_method", "DELETE") : timesheetStateQueryParams weekOffset showApproved showAllStaff showSuggestions selectedStaffFilterId)
                 (Just "Delete this timesheet entry? This cannot be undone.")
         }
     ]
     where
-        deleteUrl = appendQueryParams (pathTo (DeleteTimesheetEntryAction (get #id timesheetEntry))) [("weekOffset", tshow weekOffset), ("showSuggestions", boolParam showSuggestions), ("staffFilterId", maybe "" tshow selectedStaffFilterId)]
+        deleteUrl = appendQueryParams (pathTo (DeleteTimesheetEntryAction (get #id timesheetEntry))) (timesheetStateQueryParams weekOffset showApproved showAllStaff showSuggestions selectedStaffFilterId)

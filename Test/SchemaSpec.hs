@@ -7,7 +7,7 @@ import Application.Helper.Staff (adoptableTrialStaff, isAdoptableTrialStaff,
                                  isLinkedActiveStaff, isRosterableStaff,
                                  isTrialStaff, linkedActiveStaff,
                                  rosterableStaff)
-import Application.Helper.Url (appendQueryParams)
+import Application.Helper.Url (appendQueryParams, replaceQueryParams)
 import Application.Helper.View (formatDateDisplay,
                                 linkedActiveStaffForRosterPanel,
                                 quarterHourTimeOptions,
@@ -748,6 +748,16 @@ tests = describe "Schema" do
         it "URL-encodes arbitrary query keys and values while omitting empty values" do
             appendQueryParams "/Reports?existing=true" [("staff name", "Ava & Bea"), ("token", "a=b%c"), ("empty", "")]
                 `shouldBe` "/Reports?existing=true&staff%20name=Ava%20%26%20Bea&token=a%3Db%25c"
+
+        it "replaces owned params while preserving unrelated context, repeated values, and fragments" do
+            replaceQueryParams
+                "/Reports?weekOffset=wrong&context=keep#results"
+                [("weekOffset", "2"), ("tag", "first"), ("tag", "second")]
+                `shouldBe` "/Reports?context=keep&weekOffset=2&tag=first&tag=second#results"
+
+        it "removes an owned query param when its replacement is empty" do
+            replaceQueryParams "/Reports?staffFilterId=old&context=keep" [("staffFilterId", "")]
+                `shouldBe` "/Reports?context=keep"
 
     describe "CSV rendering helpers" do
         it "neutralizes spreadsheet formulas while preserving CSV escaping" do

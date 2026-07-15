@@ -778,6 +778,8 @@ export type StaffFilterId = FrontendContractUuid;
 export type RosterGroupId = FrontendContractUuid;
 export type RosterDayId = FrontendContractUuid;
 export type StaffId = FrontendContractUuid;
+export type RosterGroupIdsField = FrontendContractUuid;
+export type EditStaffId = FrontendContractUuid;
 
 export const timesheetWeekShellDomToken = "timesheet-week-shell" as const;
 

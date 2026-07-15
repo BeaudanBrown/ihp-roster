@@ -17,6 +17,7 @@ import qualified Data.List as List
 import qualified Data.Text as Text
 import Data.Time.Clock (NominalDiffTime, UTCTime, addUTCTime, getCurrentTime)
 import qualified Text.Blaze.Html as Blaze
+import Text.Read (readMaybe)
 import qualified Web.Admin.FrontendSurface as AdminSurface
 import Web.Controller.Prelude
 import Web.View.Admin.Invites
@@ -114,8 +115,9 @@ respondToInvitesSectionMutation successMessage rosterGroupId =
 
 respondToShiftTypesSectionMutation ::
     (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
+    Bool ->
     IO ()
-respondToShiftTypesSectionMutation =
+respondToShiftTypesSectionMutation showInactiveShiftTypes =
     respondToAdminSectionMutation AdminSectionMutationResponse
         { adminSectionSuccessMessage = Nothing
         , adminSectionRedirectGroup = paramOrNothing "rosterGroupId"
@@ -124,7 +126,6 @@ respondToShiftTypesSectionMutation =
             awardLevels <- fetchActiveAwardLevels
             awardLevelBaseRates <- fetchCurrentAwardLevelBaseRates
             importedPayItems <- fetchActiveImportedXeroPayItems
-            let showInactiveShiftTypes = parseShowInactiveParam "showInactiveShiftTypes"
             pure (renderShiftTypesSectionFragment shiftTypes showInactiveShiftTypes awardLevels awardLevelBaseRates importedPayItems)
         }
 
@@ -274,9 +275,9 @@ isVenueRosterWeekStartLocked = do
             |> fetchCount
     pure (any (> 0) [rosterWeekCount, timesheetEntryCount, leaveRequestCount, exportJobCount, staffPayVersionCount, shiftTypePayVersionCount])
 
-parseRequiredName :: (?context :: ControllerContext, ?request :: Request) => ByteString -> Text -> IO (Maybe Text)
-parseRequiredName paramName errorMessage =
-    let value = Text.strip (paramOrDefault "" paramName)
+validateRequiredName :: (?context :: ControllerContext, ?request :: Request) => Text -> Text -> IO (Maybe Text)
+validateRequiredName rawValue errorMessage =
+    let value = Text.strip rawValue
      in if Text.null value
             then do
                 setErrorMessage errorMessage
@@ -287,9 +288,9 @@ parseRequiredName paramName errorMessage =
                     pure Nothing
             else pure (Just value)
 
-parseRequiredEmail :: (?context :: ControllerContext, ?request :: Request) => ByteString -> Text -> IO (Maybe Text)
-parseRequiredEmail paramName emptyMessage =
-    case Text.strip (paramOrDefault "" paramName) of
+validateRequiredEmail :: (?context :: ControllerContext, ?request :: Request) => Text -> Text -> IO (Maybe Text)
+validateRequiredEmail rawValue emptyMessage =
+    case Text.strip rawValue of
         value | Text.null value -> do
             setErrorMessage emptyMessage
             pure Nothing
@@ -308,18 +309,6 @@ parseRequiredEmail paramName emptyMessage =
                             setErrorMessage "Enter a valid email address."
                             pure Nothing
 
-parseIsActiveParam :: (?context :: ControllerContext, ?request :: Request) => Bool
-parseIsActiveParam =
-    case paramList @Text "isActive" of
-        []     -> True
-        values -> "true" `elem` values
-
-parseShowInactiveParam :: (?context :: ControllerContext, ?request :: Request) => ByteString -> Bool
-parseShowInactiveParam paramName = paramOrDefault "false" paramName == ("true" :: Text)
-
-parseSubmittedShiftTypeColourKey :: (?context :: ControllerContext, ?request :: Request) => Maybe Text
-parseSubmittedShiftTypeColourKey = paramOrNothing "colourKey"
-
 data SubmittedPayRateSelection = SubmittedPayRateSelection
     { submittedAwardLevelId          :: !(Maybe (Id AwardLevel))
     , submittedImportedXeroPayItemId :: !(Maybe (Id XeroImportedPayItem))
@@ -333,17 +322,21 @@ parseSubmittedPayRateSelection ::
     ByteString ->
     IO (Maybe SubmittedPayRateSelection)
 parseSubmittedPayRateSelection paramName =
-    case paramOrNothing @Text paramName of
-        Nothing -> parseLegacySubmittedPayRateSelection
-        Just "" -> pure (Just emptySubmittedPayRateSelection)
-        Just value
-            | Just rawAwardLevelId <- Text.stripPrefix "award:" value ->
-                validateSubmittedAwardLevelId rawAwardLevelId
-            | Just rawImportedPayItemId <- Text.stripPrefix "xero:" value ->
-                validateSubmittedImportedPayItemId rawImportedPayItemId
-            | otherwise -> do
-                setErrorMessage "Choose a pay rate from the list, or leave the default selected."
-                pure Nothing
+    maybe parseLegacySubmittedPayRateSelection parseSubmittedPayRateSelectionValue (paramOrNothing @Text paramName)
+
+parseSubmittedPayRateSelectionValue ::
+    (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
+    Text ->
+    IO (Maybe SubmittedPayRateSelection)
+parseSubmittedPayRateSelectionValue "" = pure (Just emptySubmittedPayRateSelection)
+parseSubmittedPayRateSelectionValue value
+    | Just rawAwardLevelId <- Text.stripPrefix "award:" value =
+        validateSubmittedAwardLevelId rawAwardLevelId
+    | Just rawImportedPayItemId <- Text.stripPrefix "xero:" value =
+        validateSubmittedImportedPayItemId rawImportedPayItemId
+    | otherwise = do
+        setErrorMessage "Choose a pay rate from the list, or leave the default selected."
+        pure Nothing
 
 parseLegacySubmittedPayRateSelection ::
     (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
@@ -447,11 +440,12 @@ parseSubmittedOverrideAwardLevelId =
                     setErrorMessage "Choose a synced award level, or leave the shift type using the staff default."
                     pure Nothing
 
-parseRosterWeekStartsOn ::
+validateRosterWeekStartsOn ::
     (?context :: ControllerContext, ?request :: Request) =>
+    Maybe Text ->
     IO (Maybe Int)
-parseRosterWeekStartsOn =
-    case paramOrNothing @Int "rosterWeekStartsOn" of
+validateRosterWeekStartsOn maybeValue =
+    case maybeValue >>= readMaybe . cs of
         Nothing -> do
             setErrorMessage "Choose the first day of the roster week."
             pure Nothing

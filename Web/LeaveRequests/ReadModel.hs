@@ -8,6 +8,7 @@ module Web.LeaveRequests.ReadModel
     , buildLeaveRequestsScope
     , currentLeaveArchiveOpen
     , currentLeaveArchivePage
+    , currentLeaveArchivePageResult
     , fetchLeaveRequestsReadModel
     , leaveRequestsIndexView
     , renderLeaveRequestsFragment
@@ -18,7 +19,11 @@ import Application.Helper.FrontendContract.Surface.FragmentRender (FragmentRende
 import qualified Application.Helper.FrontendContract.Surface.LeaveRequests as Surface
 import Application.Helper.FrontendContract.Surface.LeaveRequests.Live (leaveRequestsLiveScope)
 import Application.Helper.FrontendContract.Surface.Live (SurfaceScope)
+import Application.Helper.FrontendContract.Surface.Request (SurfaceRequestFieldError,
+                                                            parseSurfaceActionParams,
+                                                            surfaceActionParamsPresent)
 import Application.Helper.FrontendContract.Surface.Runtime (SurfaceImpl)
+import Application.Helper.FrontendContract.Surface.Values (surfaceFieldValue)
 import Application.Helper.Profiling
 import Data.Coerce (coerce)
 import qualified Data.Set as Set
@@ -124,7 +129,14 @@ leaveRequestsIndexView LeaveRequestsReadModel { leaveReadModelRequests, leaveRea
 
 currentLeaveArchivePage :: (?request :: Request) => Int
 currentLeaveArchivePage =
-    fromMaybe 1 (paramOrNothing @Int "archivePage")
+    case currentLeaveArchivePageResult of
+        Left _     -> 1
+        Right page -> page
+
+currentLeaveArchivePageResult :: (?request :: Request) => Either [SurfaceRequestFieldError] Int
+currentLeaveArchivePageResult
+    | not (surfaceActionParamsPresent @Surface.LeaveRequestsSurface @Surface.ArchiveLeaveRequestsPage) = Right 1
+    | otherwise = max 1 . surfaceFieldValue @Surface.ArchivePage <$> parseSurfaceActionParams @Surface.LeaveRequestsSurface @Surface.ArchiveLeaveRequestsPage
 
 currentLeaveArchiveOpen :: (?request :: Request) => Bool
 currentLeaveArchiveOpen =
