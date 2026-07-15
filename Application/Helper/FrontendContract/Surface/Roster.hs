@@ -23,6 +23,7 @@ module Application.Helper.FrontendContract.Surface.Roster
     , RosterWageRail
     , RosterWeek
     , RosterWeekBoundaryConfig
+    , TimePickerConfig
     , RosterWeekOverview
     , RosterStaffSelfServiceLeaveFormFragment
     , MoveRosterShiftToSlot

@@ -188,55 +188,61 @@ function supportPlan() {
 
 function billingPlan(seed = 0) {
     const venue = venueFor(seed);
-    return venuePlan('billing', venue, { kind: 'billing', venueId: venue.id }, 'billing');
+    return venuePlan('billing', venue, { kind: 'billing', venueId: venue.id }, '/ProfileLiveInvalidateBilling');
 }
 
 function adminInvitesPlan(seed = 0) {
     const venue = venueFor(seed);
-    return venuePlan('admin-invites', venue, { kind: 'admin_invites', venueId: venue.id }, 'admin-invites');
+    return venuePlan('admin-invites', venue, { kind: 'admin_invites', venueId: venue.id }, '/ProfileLiveInvalidateAdminInvites');
 }
 
 function xeroPlan(seed = 0) {
     const venue = venueFor(seed);
-    return venuePlan('xero', venue, { kind: 'admin_xero', venueId: venue.id }, 'xero-mappings');
+    return venuePlan('xero', venue, { kind: 'admin_xero', venueId: venue.id }, '/ProfileLiveInvalidateXero');
 }
 
 function timesheetPlan(seed = 0) {
     const venue = venueFor(seed);
     const weekOffset = weekOffsetFor(seed);
-    return venuePlan('timesheet', venue, { kind: 'timesheet_week', venueId: venue.id, weekOffset }, 'timesheet-week', { weekOffset });
+    return venuePlan(
+        'timesheet',
+        venue,
+        { kind: 'timesheet_week', venueId: venue.id, weekOffset },
+        profileMutationPath('ProfileLiveInvalidateTimesheetWeek', { weekOffset }),
+    );
 }
 
 function rosterPlan(seed = 0) {
     const venue = venueFor(seed);
     const rosterGroup = venue.rosterGroups?.[seed % (venue.rosterGroups?.length || 1)] || { id: venue.defaultRosterGroupId };
     const weekOffset = weekOffsetFor(seed);
-    return venuePlan('roster', venue, { kind: 'roster_week', venueId: venue.id, rosterGroupId: rosterGroup.id, weekOffset }, 'roster-week', { weekOffset, rosterGroupId: rosterGroup.id });
+    return venuePlan(
+        'roster',
+        venue,
+        { kind: 'roster_week', venueId: venue.id, rosterGroupId: rosterGroup.id, weekOffset },
+        profileMutationPath('ProfileLiveInvalidateRosterWeek', { weekOffset, rosterGroupId: rosterGroup.id }),
+    );
 }
 
 function leavePlan(seed = 0) {
     const venue = venueFor(seed);
-    return venuePlan('leave', venue, { kind: 'leave_requests', venueId: venue.id }, 'leave-requests');
+    return venuePlan('leave', venue, { kind: 'leave_requests', venueId: venue.id }, '/ProfileLiveInvalidateLeaveRequests');
 }
 
-function venuePlan(surface, venue, scope, resource, extra = {}) {
+function venuePlan(surface, venue, scope, mutationPath) {
     return {
         surface,
         venue,
         account: { email: venue.adminEmail, password: manifest.accounts?.venueAdmin?.password || 'password123' },
         scope,
-        mutationPath: venueMutationPath(resource, venue, extra),
+        mutationPath,
         mutationRoute: `live.${surface}_mutation`,
     };
 }
 
-function venueMutationPath(resource, venue, extra = {}) {
-    const params = [['resource', resource]];
-    if (extra.weekOffset !== undefined) params.push(['weekOffset', String(extra.weekOffset)]);
-    if (extra.rosterGroupId) params.push(['rosterGroupId', extra.rosterGroupId]);
-    if (extra.dayOffset !== undefined) params.push(['dayOffset', String(extra.dayOffset)]);
-    if (extra.staffId) params.push(['staffId', extra.staffId]);
-    return `/ProfileLiveInvalidateVenue?${params.map(([key, value]) => `${encodeURIComponent(key)}=${encodeURIComponent(value)}`).join('&')}`;
+function profileMutationPath(action, fields) {
+    const params = Object.entries(fields).map(([key, value]) => `${encodeURIComponent(key)}=${encodeURIComponent(String(value))}`);
+    return `/${action}?${params.join('&')}`;
 }
 
 function performMutation(plan, clientId) {

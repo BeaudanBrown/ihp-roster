@@ -3,6 +3,9 @@ module Web.Users.Mutations
     , acceptedVenueInvitationTouchedResources
     ) where
 
+import Application.Helper.FrontendContract.Surface.Admin.Resource (adminInvitesResource)
+import Application.Helper.FrontendContract.Surface.Profile.Resource (staffPreferencesResource,
+                                                                     staffProfileResource)
 import Application.Helper.SurfaceResource
 import Application.Helper.VenueBootstrap (ensureLinkedStaffRecord,
                                           provisionVenueMembership)

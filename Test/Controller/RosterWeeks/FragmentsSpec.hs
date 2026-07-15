@@ -2,6 +2,7 @@ module Test.Controller.RosterWeeks.FragmentsSpec where
 
 import Application.Helper.Controller (PlatformRole (SuperAdminRole))
 import qualified Application.Helper.FrontendContract.Surface.Roster.Live as RosterLive
+import Application.Helper.FrontendContract.Surface.Roster.Resource (rosterWeekResource)
 import Application.Helper.FrontendContract.Surface.Runtime (FrontendSurfaceHtmxRequest (..),
                                                             FrontendSurfaceIntentForm (..),
                                                             FrontendSurfaceMountConfig (..),

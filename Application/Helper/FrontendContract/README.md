@@ -20,7 +20,10 @@ through marker-indexed accessors and exact `SurfaceFields` in
 fragment keys use the declaration-complete constructors and typed matchers in
 `Surface.Live`; raw transport constructors remain internal and feature-owned
 identity values live in the corresponding `Surface.<Feature>.Live` module.
-Common Surface
+Surface resources follow the same shape: `Surface.Resource` owns the opaque
+marker-indexed constructor/matcher seam, and concrete values plus domain
+matchers live in `Surface.<Feature>.Resource`. No feature-facing free-name/JSON
+resource constructor exists. Common Surface
 HTMX selectors, triggers, swaps, and sync recipes are typed and render their own
 deterministic punctuation; raw syntax requires a non-empty recorded reason.
 

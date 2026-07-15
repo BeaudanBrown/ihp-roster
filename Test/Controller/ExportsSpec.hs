@@ -1,6 +1,7 @@
 module Test.Controller.ExportsSpec where
 
 import Application.Helper.Export
+import Application.Helper.FrontendContract.Surface.Admin.Resource (adminExportsResource)
 import Application.Helper.SurfaceResource
 import qualified Codec.Archive.Zip as Zip
 import Config

@@ -4,6 +4,7 @@ module Web.StaffDocuments.Mutations
     , uploadRsaDocument
     ) where
 
+import Application.Helper.FrontendContract.Surface.Profile.Resource (staffRsaDocumentsResource)
 import Application.Helper.SurfaceResource
 import Application.StaffDocuments.Rsa
 import Control.Monad (void)

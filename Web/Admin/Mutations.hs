@@ -20,6 +20,9 @@ module Web.Admin.Mutations
     , updateShiftTypeMutation
     ) where
 
+import Application.Helper.FrontendContract.Surface.Admin.Resource
+import Application.Helper.FrontendContract.Surface.Roster.Resource
+import Application.Helper.FrontendContract.Surface.Timesheets.Resource
 import Application.Helper.Pay (ensureShiftTypePayVersionForShiftType)
 import Application.Helper.RosterGroups (createVenueRosterGroupWithDefaults,
                                         ensureDefaultRosterSlots,
@@ -165,7 +168,7 @@ createShiftTypeMutation name isActive overrideAwardLevelId importedXeroPayItemId
         _ <- ensureShiftTypePayVersionForShiftType currentUser.id shiftType (utctDay now)
         pure shiftType
     let shouldRefreshXero = shiftTypeAffectsXeroPayItems shiftType
-    invalidateTouchedResources "admin.shift_type.create" (liveMutationResult (AdminShiftTypeMutationResult shiftType shouldRefreshXero) (shiftTypeTouchedResources shouldRefreshXero))
+    invalidateTouchedResources "admin.shift_type.create" (liveMutationResult (AdminShiftTypeMutationResult shiftType shouldRefreshXero) shiftTypeTouchedResources)
 
 updateShiftTypeMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => ShiftType -> Text -> Bool -> Maybe (Id AwardLevel) -> Maybe (Id XeroImportedPayItem) -> Maybe Text -> IO (LiveMutationResult AdminShiftTypeMutationResult)
 updateShiftTypeMutation shiftType name isActive overrideAwardLevelId importedXeroPayItemId maybeSubmittedColourKey = do
@@ -189,7 +192,7 @@ updateShiftTypeMutation shiftType name isActive overrideAwardLevelId importedXer
             pure ()
         pure updated
     let shouldRefreshXero = shiftTypeXeroPayItemScopeChanged shiftType updatedShiftType
-    invalidateTouchedResources "admin.shift_type.update" (liveMutationResult (AdminShiftTypeMutationResult updatedShiftType shouldRefreshXero) (shiftTypeTouchedResources shouldRefreshXero))
+    invalidateTouchedResources "admin.shift_type.update" (liveMutationResult (AdminShiftTypeMutationResult updatedShiftType shouldRefreshXero) shiftTypeTouchedResources)
 
 resolveSubmittedShiftTypeColourKey :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Maybe (Id ShiftType) -> Bool -> Maybe Text -> Text -> IO Text
 resolveSubmittedShiftTypeColourKey maybeCurrentShiftTypeId isActive maybeSubmittedColourKey fallbackColourKey =
@@ -204,10 +207,9 @@ moveShiftTypeMutation shiftType direction = do
         pure ()
     invalidateTouchedResources "admin.shift_type.move" (liveMutationResult () [adminShiftTypesResource (unpackId currentVenueId)])
 
-shiftTypeTouchedResources :: (?context :: ControllerContext) => Bool -> [SurfaceResourceValue]
-shiftTypeTouchedResources shouldRefreshXero =
+shiftTypeTouchedResources :: (?context :: ControllerContext) => [SurfaceResourceValue]
+shiftTypeTouchedResources =
     [adminShiftTypesResource (unpackId currentVenueId)]
-        <> [xeroPayItemsResource (unpackId currentVenueId) | shouldRefreshXero]
 
 shiftTypeAffectsXeroPayItems :: ShiftType -> Bool
 shiftTypeAffectsXeroPayItems shiftType =

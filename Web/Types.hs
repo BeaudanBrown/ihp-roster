@@ -163,7 +163,12 @@ data AdminController
     | UpdateShiftTypeAction { shiftTypeId :: !(Id ShiftType) }
     | MoveShiftTypeUpAction { shiftTypeId :: !(Id ShiftType) }
     | MoveShiftTypeDownAction { shiftTypeId :: !(Id ShiftType) }
-    | ProfileLiveInvalidateVenueAction
+    | ProfileLiveInvalidateBillingAction
+    | ProfileLiveInvalidateAdminInvitesAction
+    | ProfileLiveInvalidateXeroAction
+    | ProfileLiveInvalidateTimesheetWeekAction { weekOffset :: !Int }
+    | ProfileLiveInvalidateRosterWeekAction { rosterGroupId :: !(Id RosterGroup), weekOffset :: !Int }
+    | ProfileLiveInvalidateLeaveRequestsAction
     deriving (Eq, Show, Data)
 
 data FeedbackController

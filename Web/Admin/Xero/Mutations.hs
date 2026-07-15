@@ -22,6 +22,7 @@ module Web.Admin.Xero.Mutations
     , xeroTimesheetsTouchedResources
     ) where
 
+import Application.Helper.FrontendContract.Surface.Admin.Resource
 import Application.Helper.SurfaceResource
 import Application.Helper.Xero
 import Application.Helper.XeroAdminTypes
@@ -222,7 +223,7 @@ syncXeroReferenceDataMutation connection = do
 recordXeroTimesheetsMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Text -> a -> IO (LiveMutationResult a)
 recordXeroTimesheetsMutation label value =
     invalidateTouchedResources label $
-        liveMutationResult value (xeroTimesheetsTouchedResources currentVenueId)
+        liveMutationResult value xeroTimesheetsTouchedResources
 
 runXeroTimesheetPreparationMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => IO (LiveMutationResult (Either Text XeroTimesheetPreparationView))
 runXeroTimesheetPreparationMutation =
@@ -262,16 +263,14 @@ xeroConnectionTouchedResources venueId =
 
 xeroPayItemsTouchedResources :: Id Venue -> [SurfaceResourceValue]
 xeroPayItemsTouchedResources venueId =
-    [ xeroPayItemsResource (unpackId venueId)
-    , adminShiftTypesResource (unpackId venueId)
-    ]
+    [adminShiftTypesResource (unpackId venueId)]
 
-xeroTimesheetsTouchedResources :: Id Venue -> [SurfaceResourceValue]
-xeroTimesheetsTouchedResources venueId =
-    [xeroTimesheetsResource (unpackId venueId)]
+-- Guided preparation is dialog-local and no registered live fragment depends
+-- on a Xero-timesheet resource. Keep this empty instead of emitting the retired
+-- undeclared sentinel, which never selected an actor or passive target.
+xeroTimesheetsTouchedResources :: [SurfaceResourceValue]
+xeroTimesheetsTouchedResources = []
 
 xeroReferenceSyncTouchedResources :: Id Venue -> [SurfaceResourceValue]
 xeroReferenceSyncTouchedResources venueId =
-    [ xeroConnectionResource (unpackId venueId)
-    , xeroMappingsResource (unpackId venueId)
-    ]
+    [xeroConnectionResource (unpackId venueId)]

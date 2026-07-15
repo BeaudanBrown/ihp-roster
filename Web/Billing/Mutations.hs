@@ -6,6 +6,7 @@ module Web.Billing.Mutations
     ) where
 
 import Application.Billing.Webhook (BillingWebhookResult (..))
+import Application.Helper.FrontendContract.Surface.Billing.Resource (billingResource)
 import Application.Helper.SurfaceResource
 import Control.Monad (void)
 import qualified Data.Aeson as Aeson

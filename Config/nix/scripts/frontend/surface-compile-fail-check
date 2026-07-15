@@ -85,6 +85,26 @@ expect_compile_failure \
     "FrontendSurfaceScope"
 
 expect_compile_failure \
+    "Test/CompileFail/FrontendSurfaceRawResource.hs" \
+    "Illegal term-level use of the type constructor" \
+    "SurfaceResourceValue"
+
+expect_compile_failure \
+    "Test/CompileFail/FrontendSurfaceWrongResourceMarker.hs" \
+    "does not declare resource marker" \
+    "RosterWeek"
+
+expect_compile_failure \
+    "Test/CompileFail/FrontendSurfaceIncompleteResource.hs" \
+    "Couldn't match type" \
+    "DayOffset"
+
+expect_compile_failure \
+    "Test/CompileFail/FrontendSurfaceWrongResourceWireType.hs" \
+    "Couldn't match type" \
+    "with ‘UUID’"
+
+expect_compile_failure \
     "Test/CompileFail/FrontendSurfaceWrongActionMarker.hs" \
     "does not declare action marker" \
     "NavigateRosterWeek"

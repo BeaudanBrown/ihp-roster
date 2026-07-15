@@ -5,11 +5,11 @@ module Application.Helper.FrontendContract.Surface.DependencyPlanner
 
 import qualified Application.Helper.FrontendContract.Surface.ContractIR as SurfaceIR
 import Application.Helper.FrontendContract.Surface.Reflect (reflectRegisteredFrontendSurfaces)
-import Application.Helper.FrontendContract.Surface.Resource (SurfaceResourceValue (..))
+import Application.Helper.FrontendContract.Surface.Resource (SurfaceResourceValue)
+import qualified Application.Helper.FrontendContract.Surface.Resource.Internal as ResourceInternal
 import qualified Application.Helper.FrontendContract.Wire.LiveUpdate as Wire
 import qualified Application.Helper.LiveUpdate.Internal as LiveUpdateInternal
 import Application.Helper.LiveUpdate.Runtime
-import Application.Helper.SurfaceResource
 import qualified Data.Aeson as Aeson
 import qualified Data.Aeson.Key as Aeson.Key
 import qualified Data.Aeson.KeyMap as Aeson.KeyMap
@@ -33,31 +33,33 @@ planFrontendSurfaceInvalidations touchedResources subscriptions =
     | (scope, fragments) <- Map.toAscList grouped
     ]
   where
+    touchedIdentities = Set.map ResourceInternal.surfaceResourceIdentity touchedResources
     grouped = Map.fromListWith (<>)
         [ (subscription.subscriptionScope, affectedFragments)
         | subscription <- subscriptions
         , let affectedFragments =
                 filter
-                    (frontendSurfaceFragmentKeyDependsOnTouchedResource touchedResources subscription.subscriptionScope)
+                    (frontendSurfaceFragmentKeyDependsOnTouchedResource touchedIdentities subscription.subscriptionScope)
                     subscription.subscriptionFragmentKeys
         , not (null affectedFragments)
         ]
 
-frontendSurfaceFragmentKeyDependsOnTouchedResource :: Set.Set SurfaceResourceValue -> SurfaceScope -> SurfaceFragmentKey -> Bool
-frontendSurfaceFragmentKeyDependsOnTouchedResource touchedValues scope fragmentKey =
-    case fragmentKeyDependencies scope fragmentKey of
-        [] -> False
-        dependencies -> not (Set.null (Set.intersection touchedValues (Set.fromList dependencies)))
+frontendSurfaceFragmentKeyDependsOnTouchedResource :: Set.Set (Text, Aeson.Value) -> SurfaceScope -> SurfaceFragmentKey -> Bool
+frontendSurfaceFragmentKeyDependsOnTouchedResource touchedIdentities scope fragmentKey =
+    any (`Set.member` touchedIdentities) (fragmentKeyDependencyIdentities scope fragmentKey)
 
-fragmentKeyDependencies :: SurfaceScope -> SurfaceFragmentKey -> [SurfaceResourceValue]
-fragmentKeyDependencies scope fragmentKey = do
+-- Dependency identities are projected directly from checked reflected IR and
+-- exact live identities. The planner never constructs a free resource value;
+-- every touched value entered through a marker-indexed feature constructor.
+fragmentKeyDependencyIdentities :: SurfaceScope -> SurfaceFragmentKey -> [(Text, Aeson.Value)]
+fragmentKeyDependencyIdentities scope fragmentKey = do
     let Wire.SurfaceScope { surface = scopeSurface, scope = scopePayload } = LiveUpdateInternal.surfaceScopeToWire scope
     let (fragmentSurface, fragmentKind, fragmentParams) = LiveUpdateInternal.surfaceFragmentKeyIdentity fragmentKey
     True <- pure (fragmentSurface == scopeSurface)
     surface <- maybeToList (findSurface scopeSurface)
     fragmentIR <- maybeToList (findFragment fragmentKind surface)
     dependency <- SurfaceIR.optionResourceDependencies fragmentIR.fragmentOptions
-    maybeToList (resourceValueFromDependency scopePayload fragmentParams dependency)
+    maybeToList (resourceIdentityFromDependency scopePayload fragmentParams dependency)
 
 findSurface :: Text -> Maybe SurfaceIR.SurfaceIR
 findSurface surfaceName =
@@ -67,13 +69,10 @@ findFragment :: Text -> SurfaceIR.SurfaceIR -> Maybe SurfaceIR.FragmentIR
 findFragment fragmentKind surface =
     List.find ((== fragmentKind) . (.fragmentName)) surface.surfaceFragments
 
-resourceValueFromDependency :: Aeson.Value -> Aeson.Value -> SurfaceIR.ResourceDependencyIR -> Maybe SurfaceResourceValue
-resourceValueFromDependency scopeValue fragmentValue dependency = do
+resourceIdentityFromDependency :: Aeson.Value -> Aeson.Value -> SurfaceIR.ResourceDependencyIR -> Maybe (Text, Aeson.Value)
+resourceIdentityFromDependency scopeValue fragmentValue dependency = do
     fieldPairs <- mapM sourceFieldValue (zip dependency.dependencyResource.resourceFields dependency.dependencySources)
-    pure SurfaceResourceValue
-        { resourceValueName = dependency.dependencyResource.resourceName
-        , resourceValueFields = Aeson.object fieldPairs
-        }
+    pure (dependency.dependencyResource.resourceName, Aeson.object fieldPairs)
     where
         sourceFieldValue (resourceField, source) = do
             value <- case source of

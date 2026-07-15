@@ -20,6 +20,8 @@ module Web.RosterWeeks.Mutations
     , removeRosterWeekSlotDefinitionMutation
     ) where
 
+import Application.Helper.FrontendContract.Surface.Roster.Resource
+import Application.Helper.FrontendContract.Surface.Timesheets.Resource
 import Application.Helper.SurfaceResource
 import Data.Coerce (coerce)
 import Data.List (nub)

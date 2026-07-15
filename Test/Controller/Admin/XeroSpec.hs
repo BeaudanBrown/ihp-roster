@@ -2,6 +2,7 @@ module Test.Controller.Admin.XeroSpec where
 
 import Application.Helper.Controller (PlatformRole (SuperAdminRole))
 import qualified Application.Helper.FrontendContract.Surface.Admin.Live as AdminLive
+import Application.Helper.FrontendContract.Surface.Admin.Resource
 import Application.Helper.LiveUpdate
 import Application.Helper.RosterGroups (createVenueRosterGroupWithDefaults,
                                         fetchActiveRosterGroupSlotNames)
@@ -128,16 +129,10 @@ tests = beforeAll testContext do
 
                 Set.fromList (xeroPayItemsTouchedResources venue.id)
                     `shouldBe` Set.fromList
-                        [ xeroPayItemsResource (unpackId venue.id)
-                        , adminShiftTypesResource (unpackId venue.id)
-                        ]
+                        [adminShiftTypesResource (unpackId venue.id)]
 
-        it "records touched resources for Xero timesheet mutations" $ withContext do
-            withCleanDb do
-                venue <- createVenueWithConfig "Xero Timesheet Touch Venue"
-
-                Set.fromList (xeroTimesheetsTouchedResources venue.id)
-                    `shouldBe` Set.fromList [xeroTimesheetsResource (unpackId venue.id)]
+        it "does not invent an undeclared resource for Xero timesheet mutations" $ withContext do
+            Set.fromList xeroTimesheetsTouchedResources `shouldBe` Set.empty
 
         it "records touched resources for Xero reference sync mutations" $ withContext do
             withCleanDb do
@@ -145,9 +140,7 @@ tests = beforeAll testContext do
 
                 Set.fromList (xeroReferenceSyncTouchedResources venue.id)
                     `shouldBe` Set.fromList
-                        [ xeroConnectionResource (unpackId venue.id)
-                        , xeroMappingsResource (unpackId venue.id)
-                        ]
+                        [xeroConnectionResource (unpackId venue.id)]
 
         it "decodes Xero payroll calendar dates from API date wrappers" $ withContext do
             let decoded =

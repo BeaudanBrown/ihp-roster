@@ -28,6 +28,12 @@ module Application.Helper.FrontendContract.Surface.Admin
     , AdminShiftTypesFragment
     , AdminRosterGroupsFragment
     , AdminXeroShellFragment
+    , AdminVenueSettings
+    , AdminInvites
+    , AdminExports
+    , AdminShiftTypes
+    , AdminRosterGroups
+    , XeroConnection
     , CreateRosterGroup
     , UpdateRosterGroup
     , MoveRosterGroupUp
@@ -139,10 +145,6 @@ data LoadReferenceSyncCustomHtmx
 data AdminXeroFragment
 
 data AdminVenueSettings
-data AdminInvitesResourceMarker
-data AdminExportsResourceMarker
-data AdminShiftTypesResourceMarker
-data AdminRosterGroupsResourceMarker
 data XeroConnection
 
 type AdminVenueSettingsResource = Resource AdminVenueSettings '[ Field VenueId 'WireUUID ]

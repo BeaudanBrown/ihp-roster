@@ -1,12 +1,18 @@
 module Test.SurfaceDependencySpec where
 
 import qualified Application.Helper.FrontendContract.Surface.Admin.Live as AdminLive
+import Application.Helper.FrontendContract.Surface.Admin.Resource
+import Application.Helper.FrontendContract.Surface.Billing.Resource
+import Application.Helper.FrontendContract.Surface.LeaveRequests.Resource
+import Application.Helper.FrontendContract.Surface.Profile.Resource
 import Application.Helper.FrontendContract.Surface.Runtime (FrontendSurfaceMountConfig (..),
                                                             FrontendSurfaceMountedFragment (..),
                                                             SurfaceImpl (..),
                                                             frontendSurfaceMountConfigJson)
 import qualified Application.Helper.FrontendContract.Surface.Support.Live as SupportLive
+import Application.Helper.FrontendContract.Surface.Support.Resource
 import qualified Application.Helper.FrontendContract.Surface.Timesheets.Live as TimesheetsLive
+import Application.Helper.FrontendContract.Surface.Timesheets.Resource
 import Application.Helper.LiveUpdate (actorLiveFragmentsRefreshKeys)
 import Application.Helper.LiveUpdate.Runtime
 import Application.Helper.SurfaceResource
@@ -140,9 +146,9 @@ tests = do
             let plannedFor resource = map (.targetFragments) (planSurfaceInvalidationsWithoutContext (Set.fromList [resource venueId]) [subscription])
 
             plannedFor xeroConnectionResource `shouldBe` [[AdminLive.adminXeroShellLiveFragment]]
-            plannedFor xeroMappingsResource `shouldBe` []
-            plannedFor xeroPayItemsResource `shouldBe` []
-            plannedFor xeroTimesheetsResource `shouldBe` []
+            plannedFor adminShiftTypesResource `shouldBe` []
+            plannedFor billingResource `shouldBe` []
+            plannedFor timesheetWeekBoundaryConfigResource `shouldBe` []
 
         it "declares exact roster projection fragment targets for mounted refetches" do
             let venueId = fromWords 7 0 0 0

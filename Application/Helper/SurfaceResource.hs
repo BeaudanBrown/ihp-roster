@@ -1,45 +1,11 @@
 module Application.Helper.SurfaceResource
-    ( SurfaceResourceValue (..)
+    ( SurfaceResourceValue
     , LiveMutationResult (..)
-    , adminExportsResource
-    , adminInvitesResource
-    , adminRosterGroupsResource
-    , archivedLeaveRequestsResource
-    , approvedLeaveRequestsResource
-    , adminShiftTypesResource
-    , adminVenueSettingsResource
-    , billingResource
-    , deniedLeaveRequestsResource
-    , leaveRequestsSectionResource
-    , pendingLeaveRequestsResource
     , liveMutationResult
     , recordLiveMutationDiagnostics
-    , resourceFieldText
-    , resourceFieldUuid
-    , resourceFieldUuidFor
-    , resourceForSurface
-    , resourceMatchesFor
-    , rosterDayResource
-    , rosterEndTimesConfigResource
-    , rosterWeekBoundaryConfigResource
-    , rosterWeekResource
-    , staffLeaveRequestsResource
-    , staffPreferencesResource
-    , staffProfileResource
-    , staffRsaDocumentsResource
-    , supportAwardRatesResource
-    , supportPublicHolidaysResource
-    , timesheetDayResource
-    , timesheetWeekBoundaryConfigResource
-    , timesheetWeekResource
-    , timePickerConfigResource
-    , xeroConnectionResource
-    , xeroMappingsResource
-    , xeroPayItemsResource
-    , xeroTimesheetsResource
     ) where
 
-import Application.Helper.FrontendContract.Surface.Resource
+import Application.Helper.FrontendContract.Surface.Resource (SurfaceResourceValue)
 import qualified Data.Set as Set
 import qualified Data.Text.IO as TextIO
 import IHP.Prelude

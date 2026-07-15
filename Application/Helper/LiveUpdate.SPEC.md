@@ -315,7 +315,11 @@ subscription.
 `Application.Helper.SurfaceResource` is the business-mutation boundary for passive
 live invalidation. A mutation returns `LiveMutationResult a`, where
 `liveMutationValue` is the domain result and `liveMutationTouchedResources` is
-the set of semantic `SurfaceResourceValue` values changed by the write.
+the set of semantic, opaque `SurfaceResourceValue` values changed by the write.
+Concrete values come from the owning `Surface.<Feature>.Resource` module. Those
+modules build declaration-complete values through `frontendSurfaceResource` and
+use `matchFrontendSurfaceResource` for typed domain expansion; feature code
+cannot construct or inspect raw resource names and JSON fields.
 
 Mutation modules own three things together:
 
@@ -332,9 +336,10 @@ must stay out of success responses. Validation-local direct fragments and
 legacy/non-FrontendSurface exceptions must be explicit.
 
 `Application.Helper.FrontendContract.Surface.DependencyPlanner` is the singular
-pure actor/passive planning seam. It receives concrete generated
+pure actor/passive planning seam. It receives concrete marker-indexed
 `SurfaceResourceValue`s plus exact mounted/subscribed semantic keys, evaluates
-reflected `DependsOn` metadata, and returns coalesced scope/fragment targets.
+reflected `DependsOn` metadata without constructing resource values or
+redispatching feature names, and returns coalesced scope/fragment targets.
 `Web.SurfaceInvalidation` observes active subscriptions and owns passive broadcast
 orchestration. Domain expansion stays in feature modules such as
 `Web.RosterWeeks.SurfaceInvalidation`; the generic planner contains no feature

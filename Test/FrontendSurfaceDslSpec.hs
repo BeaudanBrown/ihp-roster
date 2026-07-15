@@ -20,9 +20,9 @@ import Application.Helper.FrontendContract.Surface.Resource
 import qualified Application.Helper.FrontendContract.Surface.Roster as RosterSurface
 import Application.Helper.FrontendContract.Surface.Runtime
 import qualified Application.Helper.FrontendContract.Surface.Timesheets as TimesheetsSurface
+import qualified Application.Helper.FrontendContract.Surface.Timesheets.Resource as TimesheetsResource
 import Application.Helper.FrontendContract.Surface.Values
 import Application.Helper.FrontendContract.TypeScript (renderFrontendContractTypeScript)
-import Application.Helper.SurfaceResource
 import qualified Data.Aeson as Aeson
 import Data.Proxy (Proxy (..))
 import qualified Data.Text as Text
@@ -554,12 +554,10 @@ tests = describe "FrontendSurface DSL foundation" do
 
     it "constructs generated FrontendSurface resource values" do
         let venueId = fromMaybe (error "invalid UUID") (UUID.fromString "11111111-1111-1111-1111-111111111111")
+        let resourceValue = TimesheetsResource.timesheetDayResource venueId 0 2
 
-        timesheetDayResource venueId 0 2
-            `shouldBe` SurfaceResourceValue
-                { resourceValueName = "timesheet-day"
-                , resourceValueFields = Aeson.object ["venueId" Aeson..= ("11111111-1111-1111-1111-111111111111" :: Text), "weekOffset" Aeson..= (0 :: Int), "dayOffset" Aeson..= (2 :: Int)]
-                }
+        matchFrontendSurfaceResource @TimesheetsSurface.TimesheetsSurface @TimesheetsSurface.TimesheetDay resourceValue
+            `shouldBe` Just (venueId, (0, (2, ())))
 
     it "renders generated role-specific interaction refs" do
         let surface = expectSurface "roster" registeredFrontendSurfaceContractIR

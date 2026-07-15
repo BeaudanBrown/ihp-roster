@@ -11,6 +11,7 @@ module Application.Helper.FrontendContract.Surface.Timesheets
     , TimesheetDayColumns
     , TimesheetDaySection
     , TimesheetWeekBoundaryConfig
+    , TimePickerConfig
     , TimesheetWeekShell
     , TimesheetToolbar
     , NavigateTimesheetWeek

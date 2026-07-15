@@ -10,7 +10,10 @@ module Web.Staff.Mutations
     ) where
 
 import Application.Helper.Audit (updateVenueMembershipRoleWithAudit)
+import Application.Helper.FrontendContract.Surface.Admin.Resource (adminInvitesResource)
+import Application.Helper.FrontendContract.Surface.Profile.Resource
 import Application.Helper.FrontendContract.Surface.Roster.Live (activeRosterWeekScopes)
+import Application.Helper.FrontendContract.Surface.Roster.Resource (rosterWeekResource)
 import Application.Helper.Pay (ensureStaffPayVersionForStaff)
 import Application.Helper.RosterGroups (fetchStaffRosterGroupIds,
                                         syncStaffRosterGroupAssignments)
@@ -119,17 +122,15 @@ updateStaffMember originalStaff staff selectedRosterGroupIds submittedSelections
             membership
             venueRole
             (Aeson.object ["staffId" Aeson..= tshow staff.id])
-    let payScopeChanged = staffXeroPayItemScopeChanged originalStaff updatedStaff
     activeRosterScopes <- activeRosterWeekScopes
     let affectedRosterGroupIds = nub (previousRosterGroupIds <> selectedRosterGroupIds)
-    invalidateTouchedResources "staff.update" (liveMutationResult updatedStaff (staffUpdateTouchedResources payScopeChanged updatedStaff <> staffRosterGroupResources (unpackId currentVenueId) activeRosterScopes affectedRosterGroupIds))
+    invalidateTouchedResources "staff.update" (liveMutationResult updatedStaff (staffUpdateTouchedResources updatedStaff <> staffRosterGroupResources (unpackId currentVenueId) activeRosterScopes affectedRosterGroupIds))
 
-staffUpdateTouchedResources :: Bool -> Staff -> [SurfaceResourceValue]
-staffUpdateTouchedResources payScopeChanged staff =
+staffUpdateTouchedResources :: Staff -> [SurfaceResourceValue]
+staffUpdateTouchedResources staff =
     [ staffProfileResource (unpackId staff.id)
     , staffPreferencesResource (unpackId staff.id)
     ]
-        <> [xeroMappingsResource staff.venueId | payScopeChanged]
 
 staffRosterGroupResources :: UUID -> [(UUID, UUID, Int)] -> [Id RosterGroup] -> [SurfaceResourceValue]
 staffRosterGroupResources venueId activeScopes rosterGroupIds =

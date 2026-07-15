@@ -204,6 +204,72 @@ expect_no_match \
     Web/SurfaceInvalidation.hs
 
 expect_no_match \
+    "generic dependency planning must not construct raw Surface resource values" \
+    'mkSurfaceResourceValue|SurfaceResourceValue[[:space:]]*\\{' \
+    Application/Helper/FrontendContract/Surface/DependencyPlanner.hs \
+    Web/SurfaceInvalidation.hs
+
+expect_no_match \
+    "feature code must not import raw Surface resource internals" \
+    'Application\.Helper\.FrontendContract\.Surface\.Resource\.Internal' \
+    Application/Helper/FrontendContract/Surface/Admin \
+    Application/Helper/FrontendContract/Surface/Billing \
+    Application/Helper/FrontendContract/Surface/LeaveRequests \
+    Application/Helper/FrontendContract/Surface/Profile \
+    Application/Helper/FrontendContract/Surface/Roster \
+    Application/Helper/FrontendContract/Surface/Support \
+    Application/Helper/FrontendContract/Surface/Timesheets \
+    Application/FwcMapd \
+    Application/InvitationDelivery \
+    Application/PublicHolidays \
+    Application/Support \
+    Application/Xero \
+    Web
+
+mapfile -t raw_resource_internal_importers < <(
+    rg -l 'import .*Application\.Helper\.FrontendContract\.Surface\.Resource\.Internal' Application Web 2>/dev/null || true
+)
+for importer in "${raw_resource_internal_importers[@]}"; do
+    case "$importer" in
+        Application/Helper/FrontendContract/Surface/Resource.hs|Application/Helper/FrontendContract/Surface/DependencyPlanner.hs)
+            ;;
+        *)
+            report_failure "raw Surface resource internal imported outside generic constructor/planner: $importer"
+            ;;
+    esac
+done
+
+expect_no_match \
+    "replaced free-text Surface resource constructors and destructors must stay deleted" \
+    '\b(resourceForSurface|resourceMatchesFor|resourceFieldUuidFor|resourceFieldUuid|resourceFieldText)\b|resource[[:space:]]*::[[:space:]]*Text' \
+    Application \
+    Web \
+    Test
+
+expect_no_match \
+    "the mutation-result facade must not re-export a feature resource catalog" \
+    '\b(admin|billing|leaveRequests|roster|staff|support|timesheet|timePicker|xero)[A-Za-z0-9_]*Resource\b' \
+    Application/Helper/SurfaceResource.hs
+
+expect_no_match \
+    "profiling routes must not dispatch free Surface resource names" \
+    'ProfileLiveInvalidateVenueAction|param[^\n]*"resource"|[?&]resource=' \
+    Application \
+    Web \
+    e2e
+
+expect_match \
+    "feature resource modules use the marker-indexed constructor" \
+    'frontendSurfaceResource' \
+    Application/Helper/FrontendContract/Surface/Admin/Resource.hs \
+    Application/Helper/FrontendContract/Surface/Billing/Resource.hs \
+    Application/Helper/FrontendContract/Surface/LeaveRequests/Resource.hs \
+    Application/Helper/FrontendContract/Surface/Profile/Resource.hs \
+    Application/Helper/FrontendContract/Surface/Roster/Resource.hs \
+    Application/Helper/FrontendContract/Surface/Support/Resource.hs \
+    Application/Helper/FrontendContract/Surface/Timesheets/Resource.hs
+
+expect_no_match \
     "generic live modules must not own feature scope, fragment, or field catalogs" \
     '"(roster|timesheets|leave-requests|billing|support|profile|staff|admin-[^"]+|venueId|rosterGroupId|weekOffset|staffId|dayOffset|rowIndex|leaveSection)"|\b(roster|timesheet|leave|billing|support|profile|admin)[A-Za-z0-9_]*(LiveScope|LiveFragment)\b' \
     Application/Helper/LiveUpdate.hs \

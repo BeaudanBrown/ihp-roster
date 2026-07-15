@@ -6,6 +6,7 @@ import Application.Helper.FrontendContract.Surface.Runtime (FrontendSurfaceMount
                                                             FrontendSurfaceMountedFragment (..),
                                                             SurfaceImpl (..))
 import qualified Application.Helper.FrontendContract.Surface.Timesheets.Live as TimesheetsLive
+import Application.Helper.FrontendContract.Surface.Timesheets.Resource
 import Application.Helper.LiveUpdate
 import Application.Helper.LiveUpdate.Runtime
 import Application.Helper.SurfaceResource

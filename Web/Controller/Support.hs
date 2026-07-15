@@ -11,11 +11,10 @@ import Application.Helper.Feedback (SupportUnreadFeedbackCount (..),
                                     allowedFeedbackPriorities,
                                     allowedFeedbackStatuses,
                                     fetchSupportUnreadFeedbackCount)
+import Application.Helper.FrontendContract.Surface.Support.Resource
 import Application.Helper.FwcMapd (FwcMapdAdminData, fetchFwcMapdAdminData)
 import Application.Helper.SurfaceResource (SurfaceResourceValue,
-                                           liveMutationResult,
-                                           supportAwardRatesResource,
-                                           supportPublicHolidaysResource)
+                                           liveMutationResult)
 import Application.Helper.VenueOnboardingInvitation (venueOnboardingInvitationLifetime)
 import Application.InvitationDelivery.Job (enqueueVenueOnboardingInvitationDeliveryJob)
 import Application.PublicHolidays.Coverage (PublicHolidayCoverageYear,

@@ -7,6 +7,7 @@ module Application.Xero.Keepalive
     ) where
 
 import Application.Async.Queue
+import Application.Helper.FrontendContract.Surface.Admin.Resource (xeroConnectionResource)
 import Application.Helper.SurfaceResource
 import Application.Helper.Xero
 import Application.Xero.Connection

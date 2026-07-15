@@ -8,6 +8,7 @@ module Web.Timesheets.Mutations
     , updateTimesheetEntryMutation
     ) where
 
+import Application.Helper.FrontendContract.Surface.Timesheets.Resource
 import Application.Helper.Pay (ensurePayVersionsForTimesheetApproval,
                                lockPayVersionsForApproval,
                                payVersionManifestForEntry)

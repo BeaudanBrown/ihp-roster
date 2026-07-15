@@ -9,6 +9,7 @@ module Application.InvitationDelivery.Job
 
 import Application.Async.Queue
 import Application.Helper.Controller (unsafeEnumFromText)
+import Application.Helper.FrontendContract.Surface.Admin.Resource (adminInvitesResource)
 import Application.Helper.SurfaceResource
 import Application.Helper.VenueInvitation (deliverVenueInvitationEmail)
 import Application.Helper.VenueOnboardingInvitation (deliverVenueOnboardingInvitationEmail)

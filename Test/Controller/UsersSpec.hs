@@ -3,6 +3,9 @@ module Test.Controller.UsersSpec where
 import Application.Helper.Controller (unsafeEnumFromText,
                                       updateVenueMembershipRoleWithAudit,
                                       validRosterWeekStartDays)
+import Application.Helper.FrontendContract.Surface.Admin.Resource (adminInvitesResource)
+import Application.Helper.FrontendContract.Surface.Profile.Resource (staffPreferencesResource,
+                                                                     staffProfileResource)
 import Application.Helper.SurfaceResource
 import Application.Helper.VenueBootstrap (defaultVenueBootstrapTimezone)
 import Config

@@ -3,6 +3,8 @@ module Test.Controller.LeaveRequestsSpec where
 import Application.Helper.Controller (LeaveRequestStatus (LeavePending),
                                       PlatformRole (SuperAdminRole))
 import qualified Application.Helper.FrontendContract.Surface.LeaveRequests.Live as LeaveLive
+import Application.Helper.FrontendContract.Surface.LeaveRequests.Resource
+import Application.Helper.FrontendContract.Surface.Profile.Resource (staffLeaveRequestsResource)
 import qualified Application.Helper.FrontendContract.Surface.Roster.Live as RosterLive
 import Application.Helper.LiveUpdate
 import Application.Helper.RosterGroups (ensureVenueDefaultRosterGroup)

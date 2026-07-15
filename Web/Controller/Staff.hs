@@ -2,6 +2,7 @@ module Web.Controller.Staff where
 
 import Application.Helper.Controller (VenueRole (..), parseVenueRole,
                                       venueRoleToEnum)
+import Application.Helper.FrontendContract.Surface.Roster.Resource (rosterWeekResource)
 import Application.Helper.Pay (rateEffectiveOn)
 import Application.Helper.ProfileLeave (buildDefaultLeaveRequest,
                                         fetchStaffLeaveRequests)
@@ -12,8 +13,7 @@ import Application.Helper.RosterGroups (fetchCurrentVenueDefaultRosterGroup,
                                         fetchStaffRosterGroupIds)
 import Application.Helper.Staff (isAdoptableTrialStaff)
 import Application.Helper.StaffShiftPreferences
-import Application.Helper.SurfaceResource (LiveMutationResult (..),
-                                           rosterWeekResource)
+import Application.Helper.SurfaceResource (LiveMutationResult (..))
 import Application.Helper.Url (appendQueryParams)
 import Application.Helper.View (OverlayFormMode (HtmxOverlayForm),
                                 ToastOverlayPosition (..), dialogOverlayMountId,

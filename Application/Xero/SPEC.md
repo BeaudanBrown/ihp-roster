@@ -64,6 +64,10 @@ lands.
 - Background Xero jobs that mutate connection state should route passive
   invalidation through touched resources, not through direct live-surface
   broadcasts.
+- The retained Xero live shell depends only on its declared connection
+  resource. Guided timesheet preparation mutations are dialog-local and emit no
+  Surface resource; do not recreate the retired undeclared Xero mappings,
+  pay-items, or timesheets sentinel resources, which selected no live target.
 
 ## Timesheet Submission Direction
 

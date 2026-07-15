@@ -1,6 +1,8 @@
 module Test.Controller.StaffSpec where
 
 import qualified Application.Helper.FrontendContract.Surface.Admin.Live as AdminLive
+import Application.Helper.FrontendContract.Surface.Profile.Resource
+import Application.Helper.FrontendContract.Surface.Roster.Resource (rosterWeekResource)
 import qualified Application.Helper.LiveUpdate as LiveUpdate
 import Application.Helper.RosterGroups (createVenueRosterGroupWithDefaults)
 import Application.Helper.StaffShiftPreferences (encodeShiftPreferenceKey,
@@ -173,11 +175,10 @@ tests = beforeAll testContext do
                 venue <- createVenueWithConfig "Staff Touched Venue"
                 staff <- createStaffRecord venue Nothing "Sam" "Touched"
 
-                Set.fromList (staffUpdateTouchedResources True staff)
+                Set.fromList (staffUpdateTouchedResources staff)
                     `shouldBe` Set.fromList
                         [ staffProfileResource (unpackId staff.id)
                         , staffPreferencesResource (unpackId staff.id)
-                        , xeroMappingsResource (unpackId venue.id)
                         ]
 
         it "touches active roster weeks for every previous and newly selected staff group" $ withContext do

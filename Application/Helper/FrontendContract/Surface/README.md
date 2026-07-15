@@ -288,6 +288,18 @@ breaks every incomplete constructor or matcher at compile time. Feature code
 must not import `LiveUpdate.Internal`, pattern-match transport constructors, or
 recover feature meaning from raw Surface/fragment text or JSON fields.
 
+Resource identity crosses the planner seam through
+`Application.Helper.FrontendContract.Surface.Resource` only.
+`frontendSurfaceResource` accepts the complete marker-indexed resource field
+list and returns an opaque `SurfaceResourceValue`;
+`matchFrontendSurfaceResource` recovers only declaration-ordered typed values.
+Concrete values and the matchers needed by feature-owned domain expansion live
+beside their contracts in modules such as `Surface.Roster.Resource` and
+`Surface.Profile.Resource`. Adding, removing, reordering, or retyping a resource
+field breaks incomplete constructors and matchers at compile time. Feature code
+must not import `Surface.Resource.Internal`, construct resource names/JSON, or
+recover resource fields by text.
+
 ## Runtime Implementation
 
 Migrated surfaces expose mount behavior through
@@ -346,9 +358,11 @@ HTMX attributes and hidden fields stay Haskell-owned.
 Controllers remain normal IHP mutation entrypoints in this epic. They parse and
 authorize params, call feature mutation/read-model code, and render validation
 failures or successful actor extras. Successful migrated `FrontendSurface`
-mutations should report typed `SurfaceResourceValue` touches using the generated
-smart constructors exported from `Application.Helper.SurfaceResource`, then return
-actor-local semantic invalidation instructions plus extras. The actor tab and
+mutations should report typed `SurfaceResourceValue` touches using the
+feature-owned smart constructors in `Surface.<Feature>.Resource`, while
+`Application.Helper.SurfaceResource` owns only `LiveMutationResult` and its
+opaque touched-resource set. Mutations then return actor-local semantic
+invalidation instructions plus extras. The actor tab and
 passive viewers both refresh by resolving semantic scope and fragment keys
 through mounted surface metadata and each mount's plain fragment GET URL, so
 successful actor responses must not carry authoritative business OOB HTML.
@@ -395,12 +409,14 @@ dependency. The generator validates that live fragments have one mode and that
 resource field sources are concrete and non-conflicting.
 
 `Resource` declarations live in the type-level surface specs and are discovered
-by walking `RegisteredFrontendSurfaces`. Generated Haskell smart constructors in
-`Application.Helper.FrontendContract.Surface.Resource` / `Application.Helper.SurfaceResource`
-construct concrete `SurfaceResourceValue`s such as `rosterWeekResource`,
-`timesheetDayResource`, or `xeroMappingsResource`. Mutation/domain code emits
-those concrete generated values; it must not introduce legacy sentinel resources,
-custom dependency hooks, or bridge conversions.
+by walking `RegisteredFrontendSurfaces`. The generic marker-indexed constructor
+and matcher live in `Application.Helper.FrontendContract.Surface.Resource`;
+feature modules such as `Surface.Roster.Resource` and
+`Surface.Timesheets.Resource` expose concrete values such as
+`rosterWeekResource`, `timesheetDayResource`, or `xeroConnectionResource`.
+Mutation/domain code emits only those declared values. The carrier constructor
+is internal, and no free resource-name/field constructor, undeclared sentinel,
+custom dependency hook, or bridge conversion is supported.
 
 The singular actor/passive planner is generated-data driven:
 

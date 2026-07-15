@@ -7,6 +7,7 @@ module Application.FwcMapd.Job
 
 import Application.Async.Queue
 import Application.FwcMapd.Sync
+import Application.Helper.FrontendContract.Surface.Support.Resource (supportAwardRatesResource)
 import Application.Helper.SurfaceResource
 import Control.Monad (void)
 import qualified Data.Aeson as Aeson

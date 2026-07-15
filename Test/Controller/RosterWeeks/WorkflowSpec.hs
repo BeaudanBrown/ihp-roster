@@ -2,6 +2,8 @@ module Test.Controller.RosterWeeks.WorkflowSpec where
 
 import Application.Helper.Controller (PlatformRole (SuperAdminRole),
                                       venueWeekStartDate)
+import Application.Helper.FrontendContract.Surface.Roster.Resource
+import Application.Helper.FrontendContract.Surface.Timesheets.Resource (timesheetWeekResource)
 import Application.Helper.RosterGroups (createVenueRosterGroupWithDefaults,
                                         syncStaffRosterGroupAssignments)
 import Application.Helper.SurfaceResource

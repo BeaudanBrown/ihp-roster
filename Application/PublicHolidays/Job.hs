@@ -6,6 +6,7 @@ module Application.PublicHolidays.Job
     ) where
 
 import Application.Async.Queue
+import Application.Helper.FrontendContract.Surface.Support.Resource (supportPublicHolidaysResource)
 import Application.Helper.SurfaceResource
 import qualified Application.PublicHolidays.Policy as PublicHolidayPolicy
 import Application.PublicHolidays.Sync

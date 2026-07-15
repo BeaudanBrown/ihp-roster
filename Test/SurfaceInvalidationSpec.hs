@@ -1,7 +1,13 @@
 module Test.SurfaceInvalidationSpec where
 
 import Application.Bepis.Fact (BepisLiveFact (..), BepisLiveMechanism (..))
+import Application.Helper.FrontendContract.Surface.Admin.Resource
 import qualified Application.Helper.FrontendContract.Surface.Billing.Live as BillingLive
+import Application.Helper.FrontendContract.Surface.Billing.Resource
+import Application.Helper.FrontendContract.Surface.Profile.Resource
+import Application.Helper.FrontendContract.Surface.Roster.Resource
+import Application.Helper.FrontendContract.Surface.Support.Resource
+import Application.Helper.FrontendContract.Surface.Timesheets.Resource
 import Application.Helper.LiveUpdate.Runtime
 import Application.Helper.SurfaceResource
 import qualified Data.Set as Set
@@ -56,9 +62,6 @@ tests = do
                         , supportAwardRatesResource
                         , supportPublicHolidaysResource
                         , xeroConnectionResource venueId
-                        , xeroMappingsResource venueId
-                        , xeroPayItemsResource venueId
-                        , xeroTimesheetsResource venueId
                         ]
 
             expandSurfaceResourcesWithoutContext [] directResources

@@ -5,6 +5,7 @@ module Web.Exports.Mutations
     ) where
 
 import Application.Helper.Export
+import Application.Helper.FrontendContract.Surface.Admin.Resource (adminExportsResource)
 import Application.Helper.SurfaceResource
 import Web.Controller.Prelude
 import Web.SurfaceInvalidation (invalidateTouchedResources)

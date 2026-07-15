@@ -1,10 +1,16 @@
 module Application.Script.ProfileLiveInvalidation where
 
 import qualified Application.Helper.FrontendContract.Surface.Admin.Live as AdminLive
+import Application.Helper.FrontendContract.Surface.Admin.Resource (adminInvitesResource,
+                                                                   xeroConnectionResource)
 import qualified Application.Helper.FrontendContract.Surface.Billing.Live as BillingLive
+import Application.Helper.FrontendContract.Surface.Billing.Resource (billingResource)
 import qualified Application.Helper.FrontendContract.Surface.Roster.Live as RosterLive
+import Application.Helper.FrontendContract.Surface.Roster.Resource (rosterWeekResource)
 import qualified Application.Helper.FrontendContract.Surface.Support.Live as SupportLive
+import Application.Helper.FrontendContract.Surface.Support.Resource (supportAwardRatesResource)
 import qualified Application.Helper.FrontendContract.Surface.Timesheets.Live as TimesheetsLive
+import Application.Helper.FrontendContract.Surface.Timesheets.Resource (timesheetWeekResource)
 import Application.Helper.LiveUpdate.Runtime
 import Application.Helper.SurfaceResource
 import qualified Data.Aeson as Aeson
@@ -53,7 +59,7 @@ defaultOptions =
 data LiveInvalidationBenchmarkScenario
     = BillingDirectScenario
     | TimesheetWeekScenario
-    | XeroMappingsScenario
+    | XeroConnectionScenario
     | RosterWeekFanoutScenario
     | MixedContextFreeScenario
     deriving (Eq, Ord, Show)
@@ -62,7 +68,7 @@ allScenarios :: [LiveInvalidationBenchmarkScenario]
 allScenarios =
     [ BillingDirectScenario
     , TimesheetWeekScenario
-    , XeroMappingsScenario
+    , XeroConnectionScenario
     , RosterWeekFanoutScenario
     , MixedContextFreeScenario
     ]
@@ -77,7 +83,7 @@ scenarioName :: LiveInvalidationBenchmarkScenario -> Text
 scenarioName = \case
     BillingDirectScenario -> "billing-direct"
     TimesheetWeekScenario -> "timesheet-week"
-    XeroMappingsScenario -> "xero-mappings"
+    XeroConnectionScenario -> "xero-connection"
     RosterWeekFanoutScenario -> "roster-week-fanout"
     MixedContextFreeScenario -> "mixed-context-free"
 
@@ -85,7 +91,7 @@ scenarioDescription :: LiveInvalidationBenchmarkScenario -> Text
 scenarioDescription = \case
     BillingDirectScenario -> "One billing resource planned against many billing scopes."
     TimesheetWeekScenario -> "One timesheet week resource planned against many timesheet week scopes."
-    XeroMappingsScenario -> "One Xero mappings resource planned against many Xero admin scopes."
+    XeroConnectionScenario -> "One Xero connection resource planned against many Xero admin scopes."
     RosterWeekFanoutScenario -> "Concrete roster week resources planned across active roster week scopes."
     MixedContextFreeScenario -> "Mixed support, billing, invites, timesheet, and Xero resources/scopes."
 
@@ -193,9 +199,9 @@ buildBenchmarkPlan scenario requestedScopeCount =
                     ]
                 , planActiveRosterScopes = []
                 }
-        XeroMappingsScenario ->
+        XeroConnectionScenario ->
             BenchmarkPlan
-                { planResources = Set.singleton (xeroMappingsResource targetVenueId)
+                { planResources = Set.singleton (xeroConnectionResource targetVenueId)
                 , planActiveSubscriptions =
                     [ benchmarkSubscription
                         (AdminLive.adminXeroLiveScope (venueIdFor index))
@@ -223,7 +229,7 @@ buildBenchmarkPlan scenario requestedScopeCount =
                         , billingResource targetVenueId
                         , adminInvitesResource targetVenueId
                         , timesheetWeekResource targetVenueId targetWeekOffset
-                        , xeroMappingsResource targetVenueId
+                        , xeroConnectionResource targetVenueId
                         ]
                 , planActiveSubscriptions = take requestedScopeCount (cycle mixedSubscriptions)
                 , planActiveRosterScopes = []
@@ -296,7 +302,7 @@ usageText =
         , "  --output-dir=path                 Artifact directory"
         , "  --scopes=0,10,100,500,1000       Active scope counts"
         , "  --iterations=N                   Samples per scenario/count"
-        , "  --scenario=name[,name...]        billing-direct|timesheet-week|xero-mappings|roster-week-fanout|mixed-context-free"
+        , "  --scenario=name[,name...]        billing-direct|timesheet-week|xero-connection|roster-week-fanout|mixed-context-free"
         ]
 
 parseIntList :: Text -> Text -> [Int]
@@ -316,7 +322,7 @@ parseScenario value =
     case value of
         "billing-direct" -> BillingDirectScenario
         "timesheet-week" -> TimesheetWeekScenario
-        "xero-mappings" -> XeroMappingsScenario
+        "xero-connection" -> XeroConnectionScenario
         "roster-week-fanout" -> RosterWeekFanoutScenario
         "mixed-context-free" -> MixedContextFreeScenario
         _ -> error ("Unsupported live invalidation profile scenario: " <> cs value)

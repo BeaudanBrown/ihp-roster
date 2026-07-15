@@ -2,6 +2,12 @@ module Web.Controller.Admin where
 
 import Application.Helper.Export
 import Application.Helper.FrontendContract.Surface.Admin.Live (adminShiftTypesLiveScope)
+import Application.Helper.FrontendContract.Surface.Admin.Resource (adminInvitesResource,
+                                                                   xeroConnectionResource)
+import Application.Helper.FrontendContract.Surface.Billing.Resource (billingResource)
+import Application.Helper.FrontendContract.Surface.LeaveRequests.Resource (pendingLeaveRequestsResource)
+import Application.Helper.FrontendContract.Surface.Roster.Resource (rosterWeekResource)
+import Application.Helper.FrontendContract.Surface.Timesheets.Resource (timesheetWeekResource)
 import Application.Helper.LiveUpdate (setActorLiveResourcesRefresh)
 import Application.Helper.PasskeySetupTokens
 import Application.Helper.Profiling
@@ -19,7 +25,6 @@ import qualified Data.Aeson as Aeson
 import qualified Data.List as List
 import qualified Data.Text as Text
 import Data.Time.Clock (utctDay)
-import Data.UUID (UUID)
 import qualified Web.Admin.FrontendSurface as AdminSurface
 import Web.Admin.Mutations
 import Web.Controller.Admin.Support
@@ -35,38 +40,16 @@ import Web.View.Admin.ShiftTypes
 import Web.View.Admin.VenueSettings
 import Web.View.Admin.Xero
 
-profileSurfaceResourcesFor ::
-    (?context :: ControllerContext, ?request :: Request) =>
+respondToProfileLiveInvalidation ::
+    (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
     Text ->
-    IO [SurfaceResourceValue]
-profileSurfaceResourcesFor resourceName = do
-    let venueUuid = unpackId currentVenueId
-    let weekOffset = paramOrDefault @Int 0 "weekOffset"
-    let dayOffset = paramOrDefault @Int 0 "dayOffset"
-    let rosterGroupId = paramOrNothing @UUID "rosterGroupId"
-    let staffId = paramOrNothing @UUID "staffId"
-    pure case resourceName of
-        "billing" -> [billingResource venueUuid]
-        "admin-venue-config" -> [adminVenueSettingsResource venueUuid]
-        "roster-end-times-config" -> [rosterEndTimesConfigResource venueUuid]
-        "roster-week-boundary-config" -> [rosterWeekBoundaryConfigResource venueUuid]
-        "timesheet-week-boundary-config" -> [timesheetWeekBoundaryConfigResource venueUuid]
-        "time-picker-config" -> [timePickerConfigResource venueUuid]
-        "admin-invites" -> [adminInvitesResource venueUuid]
-        "admin-roster-groups" -> [adminRosterGroupsResource venueUuid]
-        "admin-shift-types" -> [adminShiftTypesResource venueUuid]
-        "admin-exports" -> [adminExportsResource venueUuid]
-        "xero-connection" -> [xeroConnectionResource venueUuid]
-        "xero-mappings" -> [xeroMappingsResource venueUuid]
-        "xero-pay-items" -> [xeroPayItemsResource venueUuid]
-        "xero-timesheets" -> [xeroTimesheetsResource venueUuid]
-        "timesheet-week" -> [timesheetWeekResource venueUuid weekOffset]
-        "timesheet-day" -> [timesheetDayResource venueUuid weekOffset dayOffset]
-        "roster-week" -> maybe [] (\value -> [rosterWeekResource value weekOffset]) rosterGroupId
-        "staff-leave" -> maybe [] (\value -> [staffLeaveRequestsResource value]) staffId
-        "staff-profile" -> maybe [] (\value -> [staffProfileResource value]) staffId
-        "staff-preferences" -> maybe [] (\value -> [staffPreferencesResource value]) staffId
-        _ -> []
+    [SurfaceResourceValue] ->
+    IO ()
+respondToProfileLiveInvalidation label resources = do
+    profilingEnabled <- liftIO isRequestProfilingEnabled
+    redirectPermissionDeniedUnless profilingEnabled "Live profiling endpoints are only available while profiling is enabled."
+    _ <- invalidateTouchedResources ("profile.live." <> label) (liveMutationResult () resources)
+    respondHtml "ok"
 
 respondToVenueSettingsMutation ::
     (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
@@ -163,13 +146,23 @@ instance Controller AdminController where
             xeroSectionData <- profileActionSpan "admin.xero.page.fetch_section_data" fetchCurrentVenueXeroAdminSectionData
             profileActionSpan "admin.xero.page.render_response" (render XeroView { .. })
 
-    action currentAction@ProfileLiveInvalidateVenueAction = runBepis currentAction BepisPageAction do
-        profilingEnabled <- liftIO isRequestProfilingEnabled
-        redirectPermissionDeniedUnless profilingEnabled "Live profiling endpoints are only available while profiling is enabled."
-        let resourceName = param @Text "resource"
-        resources <- profileSurfaceResourcesFor resourceName
-        _ <- invalidateTouchedResources ("profile.live." <> resourceName) (liveMutationResult () resources)
-        respondHtml "ok"
+    action currentAction@ProfileLiveInvalidateBillingAction = runBepis currentAction BepisPageAction $
+        respondToProfileLiveInvalidation "billing" [billingResource (unpackId currentVenueId)]
+
+    action currentAction@ProfileLiveInvalidateAdminInvitesAction = runBepis currentAction BepisPageAction $
+        respondToProfileLiveInvalidation "admin_invites" [adminInvitesResource (unpackId currentVenueId)]
+
+    action currentAction@ProfileLiveInvalidateXeroAction = runBepis currentAction BepisPageAction $
+        respondToProfileLiveInvalidation "xero" [xeroConnectionResource (unpackId currentVenueId)]
+
+    action currentAction@ProfileLiveInvalidateTimesheetWeekAction { weekOffset } = runBepis currentAction BepisPageAction $
+        respondToProfileLiveInvalidation "timesheet_week" [timesheetWeekResource (unpackId currentVenueId) weekOffset]
+
+    action currentAction@ProfileLiveInvalidateRosterWeekAction { rosterGroupId, weekOffset } = runBepis currentAction BepisPageAction $
+        respondToProfileLiveInvalidation "roster_week" [rosterWeekResource (unpackId rosterGroupId) weekOffset]
+
+    action currentAction@ProfileLiveInvalidateLeaveRequestsAction = runBepis currentAction BepisPageAction $
+        respondToProfileLiveInvalidation "leave_requests" [pendingLeaveRequestsResource (unpackId currentVenueId)]
 
     action currentAction@SendStaffPasskeySetupEmailAction { staffId } = runBepis currentAction BepisMutationAction do
         sendStaffPasskeySetupLink staffId StaffNewDevicePasskeySetup "Passkey setup email sent."

@@ -2,7 +2,8 @@
 {-# LANGUAGE TypeOperators #-}
 
 module Application.Helper.FrontendContract.Surface.Billing
-    ( BillingResource
+    ( Billing
+    , BillingResource
     , BillingStatus
     , BillingMountState
     , BillingSurface
