@@ -376,6 +376,25 @@ expect_no_match_including_generated \
     frontend/ts/generated/contracts.ts
 
 expect_no_match \
+    "live Haskell carriers must not repeat declared discriminator, case, or field literals" \
+    '"(type|subscribe|unsubscribe|subscribed|invalidate|error|surface|scope|scopeKey|kind|params|fragments|subscription|clientId|lastSeenVersion|currentVersion|resync|version|sourceClientId|message)"|Aeson\.(object|withObject)|Aeson\.\.[:=]' \
+    Application/Helper/FrontendContract/Wire/LiveUpdate.hs
+
+expect_no_match \
+    "Haskell carriers must not round-trip validated values through encoded JSON" \
+    'Aeson\.(encode|decode|eitherDecode|eitherDecodeStrict)' \
+    Application/Helper/FrontendContract/Wire/Carrier.hs \
+    Application/Helper/FrontendContract/Wire/LiveUpdate.hs
+
+expect_no_match \
+    "feature-facing production modules must not import carrier parser internals" \
+    '\b(ContractReference|CustomWire|KnownWireCodec|CarrierField|UnionCaseParsers)\b' \
+    Application/Helper/FrontendContract/Surface \
+    Application/Helper/LiveUpdate.hs \
+    Application/Helper/LiveUpdate \
+    Web
+
+expect_no_match \
     "migrated overlay request initiators must not hand-author dialog mount targets" \
     'hx-target=\{?"?#"? <> dialogOverlayMountId|hx-target="#dialog-overlay-mount"' \
     "${migrated_overlay_paths[@]}"

@@ -1,14 +1,16 @@
+{-# LANGUAGE AllowAmbiguousTypes #-}
 {-# LANGUAGE LambdaCase          #-}
 {-# LANGUAGE OverloadedRecordDot #-}
 {-# LANGUAGE OverloadedStrings   #-}
+{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE TypeApplications    #-}
 
 module Application.Helper.FrontendContract.Wire.Json
-    ( validateContractValue
-    , validateContractValueWith
+    ( validateContractMarkerValue
+    , validateContractMarkerValueWith
     , validateSurfaceScopeValue
     , validateSurfaceFragmentKeyValue
     , validateWireValue
-    , schemaByName
     ) where
 
 import qualified Application.Helper.FrontendContract.IR as Contract
@@ -18,20 +20,38 @@ import qualified Data.Aeson.Key as AesonKey
 import qualified Data.Aeson.KeyMap as KeyMap
 import qualified Data.Aeson.Types as AesonTypes
 import qualified Data.Scientific as Scientific
+import Data.Typeable (Proxy (..), Typeable, tyConName, typeRep, typeRepTyCon)
 import IHP.Prelude
 
--- | Validate an Aeson value against a named schema in the registered frontend
--- contract registry. This is the generic Haskell-side interpreter for the
--- FrontendContract IR; typed wire carrier modules should delegate here instead
--- of re-declaring browser-visible JSON shapes.
-validateContractValue :: Text -> Aeson.Value -> AesonTypes.Parser ()
-validateContractValue = validateContractValueWith registeredFrontendContractIR
+-- | Validate an Aeson value against the schema or event detail selected by its
+-- declaration marker. Carrier code uses this marker-indexed entrypoint so the
+-- reflected registry remains the only source of schema names.
+validateContractMarkerValue :: forall marker. Typeable marker => Aeson.Value -> AesonTypes.Parser ()
+validateContractMarkerValue = validateContractMarkerValueWith @marker registeredFrontendContractIR
 
-validateContractValueWith :: Contract.FrontendContractIR -> Text -> Aeson.Value -> AesonTypes.Parser ()
-validateContractValueWith contract name value =
+validateContractMarkerValueWith :: forall marker. Typeable marker => Contract.FrontendContractIR -> Aeson.Value -> AesonTypes.Parser ()
+validateContractMarkerValueWith contract value =
+    case schemaByMarker contract markerName of
+        Nothing -> fail ("unknown frontend contract schema marker " <> cs markerName)
+        Just schema -> validateSchema contract (schemaLabel schema) schema value
+  where
+    markerName = typeMarker @marker
+
+-- Schema refs in checked IR carry their reflected target name. Keep this
+-- lookup private; Haskell carrier callers select roots by marker.
+validateContractValueWithName :: Contract.FrontendContractIR -> Text -> Aeson.Value -> AesonTypes.Parser ()
+validateContractValueWithName contract name value =
     case schemaByName contract name of
         Nothing     -> fail ("unknown frontend contract schema " <> cs name)
         Just schema -> validateSchema contract name schema value
+
+schemaByMarker :: Contract.FrontendContractIR -> Text -> Maybe Contract.SchemaIR
+schemaByMarker contract marker =
+    listToMaybe
+        [ schema
+        | schema <- contractSchemas contract
+        , snd (Contract.schemaNameAndMarker schema) == marker
+        ]
 
 schemaByName :: Contract.FrontendContractIR -> Text -> Maybe Contract.SchemaIR
 schemaByName contract name =
@@ -49,6 +69,9 @@ contractSchemas contract =
            , Contract.GlobalEventIR _ marker _ fields <- global.globalPrimitives
            ]
         <> concatMap (.surfaceDtos) contract.contractSurfaces
+
+schemaLabel :: Contract.SchemaIR -> Text
+schemaLabel = schemaName
 
 schemaName :: Contract.SchemaIR -> Text
 schemaName = \case
@@ -89,8 +112,8 @@ validateSurfaceScopeValue = validateSurfaceScopeValueWith registeredFrontendCont
 validateSurfaceScopeValueWith :: Contract.FrontendContractIR -> Aeson.Value -> AesonTypes.Parser ()
 validateSurfaceScopeValueWith contract = \case
     Aeson.Object object -> do
-        surfaceName <- parseTextField object "surface"
-        scope <- parseRequiredField object "scope"
+        surfaceName <- parseTextField object surfaceFieldName
+        scope <- parseRequiredField object scopeFieldName
         case find ((== surfaceName) . (.surfaceName)) contract.contractSurfaces of
             Nothing -> fail ("unknown surface scope " <> cs surfaceName)
             Just surfaceIR ->
@@ -98,8 +121,11 @@ validateSurfaceScopeValueWith contract = \case
                     [scopeIR] -> validateFieldObject contract ("surface scope " <> surfaceName) scopeIR.scopeFields scope
                     [] -> fail ("surface " <> cs surfaceName <> " has no registered scope")
                     _ -> fail ("surface " <> cs surfaceName <> " has multiple registered scopes")
-        rejectUnknownKeys "SurfaceScope" (fmap AesonKey.fromText ["surface", "scope"]) object
+        rejectUnknownKeys "SurfaceScope" (fmap AesonKey.fromText [surfaceFieldName, scopeFieldName]) object
     _ -> fail "SurfaceScope must be an object"
+  where
+    surfaceFieldName = Contract.surfaceWireFieldName Contract.SurfaceWireSurfaceField
+    scopeFieldName = Contract.surfaceWireFieldName Contract.SurfaceWireScopeField
 
 validateSurfaceFragmentKeyValue :: Aeson.Value -> AesonTypes.Parser ()
 validateSurfaceFragmentKeyValue = validateSurfaceFragmentKeyValueWith registeredFrontendContractIR
@@ -107,9 +133,9 @@ validateSurfaceFragmentKeyValue = validateSurfaceFragmentKeyValueWith registered
 validateSurfaceFragmentKeyValueWith :: Contract.FrontendContractIR -> Aeson.Value -> AesonTypes.Parser ()
 validateSurfaceFragmentKeyValueWith contract = \case
     Aeson.Object object -> do
-        surfaceName <- parseTextField object "surface"
-        kind <- parseTextField object "kind"
-        params <- parseRequiredField object "params"
+        surfaceName <- parseTextField object surfaceFieldName
+        kind <- parseTextField object kindFieldName
+        params <- parseRequiredField object paramsFieldName
         case find ((== surfaceName) . (.surfaceName)) contract.contractSurfaces of
             Nothing -> fail ("unknown surface fragment " <> cs surfaceName)
             Just surfaceIR ->
@@ -117,8 +143,12 @@ validateSurfaceFragmentKeyValueWith contract = \case
                     [fields] -> validateFieldObject contract ("surface fragment " <> surfaceName <> ":" <> kind) fields params
                     [] -> fail ("unknown fragment " <> cs kind <> " on surface " <> cs surfaceName)
                     _ -> fail ("duplicate fragment " <> cs kind <> " on surface " <> cs surfaceName)
-        rejectUnknownKeys "SurfaceFragmentKey" (fmap AesonKey.fromText ["surface", "kind", "params"]) object
+        rejectUnknownKeys "SurfaceFragmentKey" (fmap AesonKey.fromText [surfaceFieldName, kindFieldName, paramsFieldName]) object
     _ -> fail "SurfaceFragmentKey must be an object"
+  where
+    surfaceFieldName = Contract.surfaceWireFieldName Contract.SurfaceWireSurfaceField
+    kindFieldName = Contract.surfaceWireFieldName Contract.SurfaceWireKindField
+    paramsFieldName = Contract.surfaceWireFieldName Contract.SurfaceWireParamsField
 
 validateFieldObject :: Contract.FrontendContractIR -> Text -> [Contract.FieldIR] -> Aeson.Value -> AesonTypes.Parser ()
 validateFieldObject contract label fields value =
@@ -160,7 +190,7 @@ validateWireValueWith contract fieldName wire value =
             if value == Aeson.Null then pure () else validateWireValueWith contract fieldName inner value
         Contract.WireNullableIR inner ->
             if value == Aeson.Null then pure () else validateWireValueWith contract fieldName inner value
-        Contract.WireRefIR refName -> validateContractValueWith contract refName value
+        Contract.WireRefIR refName -> validateContractValueWithName contract refName value
         Contract.WireSurfaceScopeIR -> validateSurfaceScopeValueWith contract value
         Contract.WireSurfaceFragmentKeyIR -> validateSurfaceFragmentKeyValueWith contract value
     where
@@ -187,6 +217,9 @@ parseRequiredField object name =
     case KeyMap.lookup (AesonKey.fromText name) object of
         Just value -> pure value
         Nothing    -> fail ("missing required field " <> cs name)
+
+typeMarker :: forall marker. Typeable marker => Text
+typeMarker = cs (tyConName (typeRepTyCon (typeRep (Proxy @marker))))
 
 rejectUnknownKeys :: Text -> [AesonKey.Key] -> KeyMap.KeyMap Aeson.Value -> AesonTypes.Parser ()
 rejectUnknownKeys label allowed object =

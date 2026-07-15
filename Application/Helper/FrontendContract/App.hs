@@ -10,6 +10,9 @@ module Application.Helper.FrontendContract.App
     , Shifts
     , PageReady
     , LiveFragmentsRefresh
+    , Scope
+    , ScopeKey
+    , Fragments
     , InteractionIntent
     , IntentSubmit
     , InteractionSessionStart

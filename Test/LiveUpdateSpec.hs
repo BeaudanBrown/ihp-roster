@@ -4,8 +4,10 @@
 
 module Test.LiveUpdateSpec where
 
+import qualified Application.Helper.FrontendContract.App as AppContract
 import Application.Helper.FrontendContract.AppValues (AppEvents (..),
                                                       canonicalAppEvents)
+import qualified Application.Helper.FrontendContract.LiveUpdate as LiveContract
 import qualified Application.Helper.FrontendContract.Surface.Admin.Live as AdminLive
 import Application.Helper.FrontendContract.Surface.Authorization (frontendSurfaceScopeAuthorizationRequirement,
                                                                   validateFrontendSurfaceLiveSubscription)
@@ -25,7 +27,7 @@ import qualified Application.Helper.FrontendContract.Surface.Timesheets as Times
 import qualified Application.Helper.FrontendContract.Surface.Timesheets.Live as TimesheetsLive
 import Application.Helper.FrontendContract.Surface.Values (SurfaceFields (..),
                                                            surfaceField)
-import Application.Helper.FrontendContract.Wire.Json (validateContractValue,
+import Application.Helper.FrontendContract.Wire.Json (validateContractMarkerValue,
                                                       validateSurfaceFragmentKeyValue,
                                                       validateSurfaceScopeValue)
 import qualified Application.Helper.FrontendContract.Wire.LiveUpdate as Wire
@@ -293,10 +295,10 @@ tests = describe "LiveUpdate runtime types" do
 
         AesonTypes.parseEither validateSurfaceScopeValue (Aeson.toJSON scope) `shouldSatisfy` isRight
         AesonTypes.parseEither validateSurfaceFragmentKeyValue (Aeson.toJSON fragmentKey) `shouldSatisfy` isRight
-        AesonTypes.parseEither (validateContractValue "SurfaceSubscription") (Aeson.toJSON subscription) `shouldSatisfy` isRight
-        AesonTypes.parseEither (validateContractValue "LiveFragmentsRefreshEventDetail") (Aeson.toJSON (Wire.LiveFragmentsRefreshEventDetail scope subscription.scopeKey [fragmentKey])) `shouldSatisfy` isRight
-        forM_ commands \value -> AesonTypes.parseEither (validateContractValue "LiveUpdateCommand") (Aeson.toJSON value) `shouldSatisfy` isRight
-        forM_ messages \value -> AesonTypes.parseEither (validateContractValue "LiveUpdateMessage") (Aeson.toJSON value) `shouldSatisfy` isRight
+        AesonTypes.parseEither (validateContractMarkerValue @LiveContract.SurfaceSubscription) (Aeson.toJSON subscription) `shouldSatisfy` isRight
+        AesonTypes.parseEither (validateContractMarkerValue @AppContract.LiveFragmentsRefresh) (Aeson.toJSON (Wire.LiveFragmentsRefreshEventDetail scope subscription.scopeKey [fragmentKey])) `shouldSatisfy` isRight
+        forM_ commands \value -> AesonTypes.parseEither (validateContractMarkerValue @LiveContract.LiveUpdateCommand) (Aeson.toJSON value) `shouldSatisfy` isRight
+        forM_ messages \value -> AesonTypes.parseEither (validateContractMarkerValue @LiveContract.LiveUpdateMessage) (Aeson.toJSON value) `shouldSatisfy` isRight
 
     it "round-trips commands and encodes subscribed, invalidation, and error payloads as JSON" do
         let venueId = expectUuid "11111111-1111-1111-1111-111111111111"

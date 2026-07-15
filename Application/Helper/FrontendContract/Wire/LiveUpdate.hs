@@ -1,5 +1,8 @@
+{-# LANGUAGE DataKinds           #-}
+{-# LANGUAGE FlexibleInstances   #-}
 {-# LANGUAGE OverloadedRecordDot #-}
 {-# LANGUAGE TypeApplications    #-}
+{-# LANGUAGE TypeFamilies        #-}
 
 module Application.Helper.FrontendContract.Wire.LiveUpdate
     ( LiveFragmentsRefreshEventDetail (..)
@@ -10,17 +13,17 @@ module Application.Helper.FrontendContract.Wire.LiveUpdate
     , SurfaceSubscription (..)
     ) where
 
-import Application.Helper.FrontendContract.Wire.Json (validateContractValue,
-                                                      validateSurfaceFragmentKeyValue,
-                                                      validateSurfaceScopeValue)
+import qualified Application.Helper.FrontendContract.App as AppContract
+import Application.Helper.FrontendContract.DSL (WireType (..))
+import qualified Application.Helper.FrontendContract.LiveUpdate as Contract
+import Application.Helper.FrontendContract.Wire.Carrier
 import qualified Data.Aeson as Aeson
-import qualified Data.Aeson.Types as AesonTypes
 import IHP.Prelude
 
--- Surface-native live transport. The surface/scope/fragment names and payloads
--- are validated against the FrontendContract registry. These runtime types are
--- JSON plumbing only; the browser-visible contract shape is owned by
--- Application.Helper.FrontendContract.LiveUpdate and registered Surface roots.
+-- Surface-native live transport. Surface names and payloads are validated
+-- against registered Surface declarations. Global record fields, union
+-- discriminators, cases, presence, and recursive wire types are selected from
+-- their registered FrontendContract declarations by Wire.Carrier.
 data SurfaceScope = SurfaceScope
     { surface :: !Text
     , scope   :: !Aeson.Value
@@ -78,135 +81,119 @@ data LiveUpdateMessage
         }
     deriving (Eq, Show)
 
+instance CustomWire 'WireSurfaceScope where
+    type CustomWireSourceType 'WireSurfaceScope = SurfaceScope
+    customWireJson = Aeson.toJSON
+    parseCustomWire = Aeson.parseJSON
+
+instance CustomWire 'WireSurfaceFragmentKey where
+    type CustomWireSourceType 'WireSurfaceFragmentKey = SurfaceFragmentKey
+    customWireJson = Aeson.toJSON
+    parseCustomWire = Aeson.parseJSON
+
+instance ContractReference Contract.SurfaceSubscription where
+    type ContractReferenceValue Contract.SurfaceSubscription = SurfaceSubscription
+    contractReferenceJson = Aeson.toJSON
+    parseContractReference = Aeson.parseJSON
+
 instance Aeson.ToJSON SurfaceScope where
-    toJSON SurfaceScope { surface, scope } = Aeson.object
-        [ "surface" Aeson..= surface
-        , "scope" Aeson..= scope
-        ]
+    toJSON SurfaceScope { surface, scope } = semanticSurfaceScopeJson surface scope
 
 instance Aeson.FromJSON SurfaceScope where
-    parseJSON raw = do
-        validateSurfaceScopeValue raw
-        Aeson.withObject "SurfaceScope" (\object -> SurfaceScope <$> object Aeson..: "surface" <*> object Aeson..: "scope") raw
+    parseJSON raw = uncurry SurfaceScope <$> parseSemanticSurfaceScopeJson raw
 
 instance Aeson.ToJSON SurfaceFragmentKey where
-    toJSON SurfaceFragmentKey { surface, kind, params } = Aeson.object
-        [ "surface" Aeson..= surface
-        , "kind" Aeson..= kind
-        , "params" Aeson..= params
-        ]
+    toJSON SurfaceFragmentKey { surface, kind, params } = semanticSurfaceFragmentKeyJson surface kind params
 
 instance Aeson.FromJSON SurfaceFragmentKey where
     parseJSON raw = do
-        validateSurfaceFragmentKeyValue raw
-        Aeson.withObject "SurfaceFragmentKey" (\object -> SurfaceFragmentKey <$> object Aeson..: "surface" <*> object Aeson..: "kind" <*> object Aeson..: "params") raw
+        (surface, kind, params) <- parseSemanticSurfaceFragmentKeyJson raw
+        pure SurfaceFragmentKey { surface, kind, params }
 
 instance Aeson.ToJSON SurfaceSubscription where
-    toJSON SurfaceSubscription { scope, scopeKey, fragments } = Aeson.object
-        [ "scope" Aeson..= scope
-        , "scopeKey" Aeson..= scopeKey
-        , "fragments" Aeson..= fragments
-        ]
+    toJSON SurfaceSubscription { scope, scopeKey, fragments } =
+        recordValue @Contract.SurfaceSubscription
+            ( requiredField @Contract.Scope scope
+                &: requiredField @Contract.ScopeKey scopeKey
+                &: requiredField @Contract.Fragments fragments
+                &: noFields
+            )
 
 instance Aeson.FromJSON SurfaceSubscription where
-    parseJSON raw = do
-        validateContractValue "SurfaceSubscription" raw
-        Aeson.withObject "SurfaceSubscription"
-            ( \object ->
-                SurfaceSubscription
-                    <$> object Aeson..: "scope"
-                    <*> object Aeson..: "scopeKey"
-                    <*> object Aeson..: "fragments"
-            )
-            raw
+    parseJSON =
+        parseRecord @Contract.SurfaceSubscription
+            (\(scope, (scopeKey, (fragments, ()))) -> pure SurfaceSubscription { scope, scopeKey, fragments })
 
 instance Aeson.ToJSON LiveFragmentsRefreshEventDetail where
-    toJSON LiveFragmentsRefreshEventDetail { scope, scopeKey, fragments } = Aeson.object
-        [ "scope" Aeson..= scope
-        , "scopeKey" Aeson..= scopeKey
-        , "fragments" Aeson..= fragments
-        ]
+    toJSON LiveFragmentsRefreshEventDetail { scope, scopeKey, fragments } =
+        eventValue @AppContract.LiveFragmentsRefresh
+            ( requiredField @AppContract.Scope scope
+                &: requiredField @AppContract.ScopeKey scopeKey
+                &: requiredField @AppContract.Fragments fragments
+                &: noFields
+            )
 
 instance Aeson.FromJSON LiveFragmentsRefreshEventDetail where
-    parseJSON raw = do
-        validateContractValue "LiveFragmentsRefreshEventDetail" raw
-        Aeson.withObject "LiveFragmentsRefreshEventDetail"
-            ( \object ->
-                LiveFragmentsRefreshEventDetail
-                    <$> object Aeson..: "scope"
-                    <*> object Aeson..: "scopeKey"
-                    <*> object Aeson..: "fragments"
-            )
-            raw
+    parseJSON =
+        parseEvent @AppContract.LiveFragmentsRefresh
+            (\(scope, (scopeKey, (fragments, ()))) -> pure LiveFragmentsRefreshEventDetail { scope, scopeKey, fragments })
 
 instance Aeson.ToJSON LiveUpdateCommand where
-    toJSON Subscribe { subscription, clientId, lastSeenVersion } = Aeson.object
-        [ "type" Aeson..= ("subscribe" :: Text)
-        , "subscription" Aeson..= subscription
-        , "clientId" Aeson..= clientId
-        , "lastSeenVersion" Aeson..= lastSeenVersion
-        ]
-    toJSON Unsubscribe { subscription } = Aeson.object
-        [ "type" Aeson..= ("unsubscribe" :: Text)
-        , "subscription" Aeson..= subscription
-        ]
+    toJSON Subscribe { subscription, clientId, lastSeenVersion } =
+        taggedUnionValue @Contract.LiveUpdateCommand @Contract.Subscribe
+            ( requiredField @Contract.Subscription subscription
+                &: requiredField @Contract.ClientId clientId
+                &: nullableField @Contract.LastSeenVersion lastSeenVersion
+                &: noFields
+            )
+    toJSON Unsubscribe { subscription } =
+        taggedUnionValue @Contract.LiveUpdateCommand @Contract.Unsubscribe
+            ( requiredField @Contract.Subscription subscription
+                &: noFields
+            )
 
 instance Aeson.FromJSON LiveUpdateCommand where
-    parseJSON raw = do
-        validateContractValue "LiveUpdateCommand" raw
-        Aeson.withObject "LiveUpdateCommand"
-            ( \object -> do
-                commandType <- object Aeson..: "type" :: AesonTypes.Parser Text
-                case commandType of
-                    "subscribe" -> Subscribe
-                        <$> object Aeson..: "subscription"
-                        <*> object Aeson..: "clientId"
-                        <*> object Aeson..: "lastSeenVersion"
-                    "unsubscribe" -> Unsubscribe <$> object Aeson..: "subscription"
-                    other -> fail ("unsupported LiveUpdateCommand type " <> cs other)
+    parseJSON =
+        parseTaggedUnion @Contract.LiveUpdateCommand
+            ( unionCase @Contract.Subscribe
+                (\(subscription, (clientId, (lastSeenVersion, ()))) -> pure Subscribe { subscription, clientId, lastSeenVersion })
+                |: unionCase @Contract.Unsubscribe
+                    (\(subscription, ()) -> pure Unsubscribe { subscription })
+                |: noUnionCases
             )
-            raw
 
 instance Aeson.ToJSON LiveUpdateMessage where
-    toJSON Subscribed { scope, scopeKey, currentVersion, resync } = Aeson.object
-        [ "type" Aeson..= ("subscribed" :: Text)
-        , "scope" Aeson..= scope
-        , "scopeKey" Aeson..= scopeKey
-        , "currentVersion" Aeson..= currentVersion
-        , "resync" Aeson..= resync
-        ]
-    toJSON Invalidate { scope, scopeKey, version, fragments, sourceClientId } = Aeson.object
-        [ "type" Aeson..= ("invalidate" :: Text)
-        , "scope" Aeson..= scope
-        , "scopeKey" Aeson..= scopeKey
-        , "version" Aeson..= version
-        , "fragments" Aeson..= fragments
-        , "sourceClientId" Aeson..= sourceClientId
-        ]
-    toJSON Error { message } = Aeson.object
-        [ "type" Aeson..= ("error" :: Text)
-        , "message" Aeson..= message
-        ]
+    toJSON Subscribed { scope, scopeKey, currentVersion, resync } =
+        taggedUnionValue @Contract.LiveUpdateMessage @Contract.Subscribed
+            ( requiredField @Contract.Scope scope
+                &: requiredField @Contract.ScopeKey scopeKey
+                &: requiredField @Contract.CurrentVersion currentVersion
+                &: requiredField @Contract.Resync resync
+                &: noFields
+            )
+    toJSON Invalidate { scope, scopeKey, version, fragments, sourceClientId } =
+        taggedUnionValue @Contract.LiveUpdateMessage @Contract.Invalidate
+            ( requiredField @Contract.Scope scope
+                &: requiredField @Contract.ScopeKey scopeKey
+                &: requiredField @Contract.Version version
+                &: requiredField @Contract.Fragments fragments
+                &: nullableField @Contract.SourceClientId sourceClientId
+                &: noFields
+            )
+    toJSON Error { message } =
+        taggedUnionValue @Contract.LiveUpdateMessage @Contract.Error
+            ( requiredField @Contract.Message message
+                &: noFields
+            )
 
 instance Aeson.FromJSON LiveUpdateMessage where
-    parseJSON raw = do
-        validateContractValue "LiveUpdateMessage" raw
-        Aeson.withObject "LiveUpdateMessage"
-            ( \object -> do
-                messageType <- object Aeson..: "type" :: AesonTypes.Parser Text
-                case messageType of
-                    "subscribed" -> Subscribed
-                        <$> object Aeson..: "scope"
-                        <*> object Aeson..: "scopeKey"
-                        <*> object Aeson..: "currentVersion"
-                        <*> object Aeson..: "resync"
-                    "invalidate" -> Invalidate
-                        <$> object Aeson..: "scope"
-                        <*> object Aeson..: "scopeKey"
-                        <*> object Aeson..: "version"
-                        <*> object Aeson..: "fragments"
-                        <*> object Aeson..: "sourceClientId"
-                    "error" -> Error <$> object Aeson..: "message"
-                    other -> fail ("unsupported LiveUpdateMessage type " <> cs other)
+    parseJSON =
+        parseTaggedUnion @Contract.LiveUpdateMessage
+            ( unionCase @Contract.Subscribed
+                (\(scope, (scopeKey, (currentVersion, (resync, ())))) -> pure Subscribed { scope, scopeKey, currentVersion, resync })
+                |: unionCase @Contract.Invalidate
+                    (\(scope, (scopeKey, (version, (fragments, (sourceClientId, ()))))) -> pure Invalidate { scope, scopeKey, version, fragments, sourceClientId })
+                |: unionCase @Contract.Error
+                    (\(message, ()) -> pure Error { message })
+                |: noUnionCases
             )
-            raw

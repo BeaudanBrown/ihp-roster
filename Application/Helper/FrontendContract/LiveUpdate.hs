@@ -6,6 +6,25 @@ module Application.Helper.FrontendContract.LiveUpdate
     , LiveUpdateSocketPath
     , SurfaceAction
     , SurfaceConfig
+    , SurfaceSubscription
+    , Scope
+    , ScopeKey
+    , Fragments
+    , LiveUpdateCommand
+    , Subscribe
+    , Unsubscribe
+    , Subscription
+    , ClientId
+    , LastSeenVersion
+    , LiveUpdateMessage
+    , Subscribed
+    , Invalidate
+    , Error
+    , CurrentVersion
+    , Resync
+    , Version
+    , SourceClientId
+    , Message
     ) where
 
 import Application.Helper.FrontendContract.DSL hiding (Scope)

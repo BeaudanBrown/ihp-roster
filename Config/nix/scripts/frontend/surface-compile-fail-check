@@ -162,6 +162,35 @@ expect_compile_failure \
     "Missing next field: Fixture.TargetDropzoneKey :: required WireText"
 
 expect_compile_failure \
+    "Test/CompileFail/FrontendContractCarrierMissingField.hs" \
+    "Couldn't match type: '[]" \
+    "Fixture.NestedValues"
+
+expect_compile_failure \
+    "Test/CompileFail/FrontendContractCarrierExtraField.hs" \
+    "Fixture.CarrierUserId WireText" \
+    "with: '[]"
+
+expect_compile_failure \
+    "Test/CompileFail/FrontendContractCarrierWrongField.hs" \
+    "Fixture.CarrierUserId" \
+    "Fixture.MemberIds"
+
+expect_compile_failure \
+    "Test/CompileFail/FrontendContractCarrierWrongCase.hs" \
+    "FrontendContract schema Fixture.CarrierUnion does not declare union case marker Fixture.CarrierOtherCase"
+
+expect_compile_failure \
+    "Test/CompileFail/FrontendContractCarrierIncompleteUnionParser.hs" \
+    "Couldn't match type: '[]" \
+    "Fixture.CarrierDeleted"
+
+expect_compile_failure \
+    "Test/CompileFail/FrontendContractCarrierWrongWireType.hs" \
+    "Expected: WireSourceType" \
+    "Actual: Text"
+
+expect_compile_failure \
     "Test/CompileFail/FrontendSurfaceUnknownInteractionEffect.hs" \
     "Expected kind" \
     "InteractionEffect"

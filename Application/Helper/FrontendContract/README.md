@@ -73,11 +73,26 @@ Feature-specific interaction runtime data is derived from registered
 schemas, and other server-only Surface data are not emitted. Do not add
 compatibility shim aliases that resurrect global `Interaction*` roster enums.
 
-Haskell wire code must not re-declare browser shapes. Typed carrier modules may
-exist for ergonomic runtime APIs, but JSON validation/parsing/rendering delegates
-to `Application.Helper.FrontendContract.Wire.Json` over the registered IR. The
-live-update carrier module is
-`Application.Helper.FrontendContract.Wire.LiveUpdate`.
+Haskell wire code must not re-declare browser shapes. Ergonomic carrier ADTs use
+the declaration-indexed builders and exact parsers in
+`Application.Helper.FrontendContract.Wire.Carrier`. `recordValue`, `eventValue`,
+and `taggedUnionValue` select their complete field/case shape from
+`RegisteredFrontendContracts`; their matching parsers validate the unknown
+`Aeson.Value` against reflected IR, then expose declaration-ordered typed values
+directly to the carrier constructor. No validated value is encoded and decoded
+again, and ordinary feature code does not import parser classes or field
+constructors.
+
+Outer field presence remains separate from recursive wire nullability. An absent
+`OptionalField` is omitted, a present optional nullable value can be explicit
+`null`, every `NullableField` must be present, and list/optional/nullable source
+containers remain recursive (`WireList WireUUID` maps to `[UUID]`, not `UUID`).
+`haskellWireSource` is the canonical checked-IR projection for deterministic
+Haskell source generation. Exact marker-indexed IR validation lives in
+`Application.Helper.FrontendContract.Wire.Json`; its old name-indexed public
+entrypoint is intentionally absent. The migrated live-update carrier module is
+`Application.Helper.FrontendContract.Wire.LiveUpdate`, which contains no wire
+field, discriminator, or case literals.
 
 Generated TypeScript comes through
 `Application.Helper.FrontendContract.Contracts`. Exported TypeScript contract

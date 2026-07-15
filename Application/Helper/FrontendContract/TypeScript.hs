@@ -91,6 +91,12 @@ header contract =
            , ""
            ]
 
+semanticSurfaceFieldName, semanticScopeFieldName, semanticKindFieldName, semanticParamsFieldName :: Text
+semanticSurfaceFieldName = surfaceWireFieldName SurfaceWireSurfaceField
+semanticScopeFieldName = surfaceWireFieldName SurfaceWireScopeField
+semanticKindFieldName = surfaceWireFieldName SurfaceWireKindField
+semanticParamsFieldName = surfaceWireFieldName SurfaceWireParamsField
+
 renderDerivedSurfaceWireTypes :: [SurfaceIR] -> [Text]
 renderDerivedSurfaceWireTypes surfaces =
     concatMap renderSurfaceScopeUnion surfaces
@@ -132,7 +138,7 @@ renderTopLevelSurfaceFragmentKeyUnion surfaces =
            , "    return JSON.stringify(value) ?? \"null\";"
            , "}"
            , "export function surfaceFragmentKeyIdentity(value: SurfaceFragmentKey): string {"
-           , "    return __canonicalFrontendContractJson([value.surface, value.kind, value.params]);"
+           , "    return __canonicalFrontendContractJson([value." <> semanticSurfaceFieldName <> ", value." <> semanticKindFieldName <> ", value." <> semanticParamsFieldName <> "]);"
            , "}"
            , "export function surfaceFragmentKeysEqual(left: SurfaceFragmentKey, right: SurfaceFragmentKey): boolean {"
            , "    return surfaceFragmentKeyIdentity(left) === surfaceFragmentKeyIdentity(right);"
@@ -178,38 +184,71 @@ renderSurfaceScopeCases surfaces =
         _  -> zipWith render surfaces [0 :: Int ..]
     where
         render surface index =
-            (if index == 0 then "    " else "  | ") <> "{ surface: " <> quote surface.surfaceName <> "; scope: " <> surfaceScopeUnionName surface <> " }" <> if index == length surfaces - 1 then ";" else ""
+            (if index == 0 then "    " else "  | ") <> "{ " <> semanticSurfaceFieldName <> ": " <> quote surface.surfaceName <> "; " <> semanticScopeFieldName <> ": " <> surfaceScopeUnionName surface <> " }" <> if index == length surfaces - 1 then ";" else ""
 
 renderFragmentKeyCases :: SurfaceIR -> [(Text, Text, [FieldIR])] -> [Text]
 renderFragmentKeyCases _ [] = ["    never;", ""]
 renderFragmentKeyCases surface fragments = zipWith render fragments [0 :: Int ..]
     where
         render (marker, fragmentName, fields) index =
-            (if index == 0 then "    " else "  | ") <> "{ kind: " <> quote fragmentName <> "; params: " <> fragmentParamsType surface marker fields <> " }" <> if index == length fragments - 1 then ";" else ""
+            (if index == 0 then "    " else "  | ") <> "{ " <> semanticKindFieldName <> ": " <> quote fragmentName <> "; " <> semanticParamsFieldName <> ": " <> fragmentParamsType surface marker fields <> " }" <> if index == length fragments - 1 then ";" else ""
 
 renderTopLevelFragmentKeyCases :: [SurfaceIR] -> [Text]
 renderTopLevelFragmentKeyCases [] = ["    never;", ""]
 renderTopLevelFragmentKeyCases surfaces = zipWith render surfaces [0 :: Int ..]
     where
         render surface index =
-            (if index == 0 then "    " else "  | ") <> "({ surface: " <> quote surface.surfaceName <> " } & " <> surfaceFragmentKeyUnionName surface <> ")" <> if index == length surfaces - 1 then ";" else ""
+            (if index == 0 then "    " else "  | ") <> "({ " <> semanticSurfaceFieldName <> ": " <> quote surface.surfaceName <> " } & " <> surfaceFragmentKeyUnionName surface <> ")" <> if index == length surfaces - 1 then ";" else ""
 
 surfaceScopeCaseGuard :: SurfaceIR -> Text
-surfaceScopeCaseGuard surface = "(isRecord(value) && hasExactKeys(value, [\"surface\", \"scope\"]) && value.surface === " <> quote surface.surfaceName <> " && is" <> surfaceScopeUnionName surface <> "(value.scope))"
+surfaceScopeCaseGuard surface =
+    "(isRecord(value) && hasExactKeys(value, ["
+        <> quote semanticSurfaceFieldName
+        <> ", "
+        <> quote semanticScopeFieldName
+        <> "]) && value."
+        <> semanticSurfaceFieldName
+        <> " === "
+        <> quote surface.surfaceName
+        <> " && is"
+        <> surfaceScopeUnionName surface
+        <> "(value."
+        <> semanticScopeFieldName
+        <> "))"
 
 surfaceFragmentKeyCaseGuard :: SurfaceIR -> Text
 surfaceFragmentKeyCaseGuard surface =
-    "(isRecord(value) && hasExactKeys(value, [\"surface\", \"kind\", \"params\"]) && value.surface === "
+    "(isRecord(value) && hasExactKeys(value, ["
+        <> Text.intercalate ", " (fmap quote [semanticSurfaceFieldName, semanticKindFieldName, semanticParamsFieldName])
+        <> "]) && value."
+        <> semanticSurfaceFieldName
+        <> " === "
         <> quote surface.surfaceName
         <> " && is"
         <> surfaceFragmentKeyUnionName surface
-        <> "({ kind: value.kind, params: value.params }))"
+        <> "({ "
+        <> semanticKindFieldName
+        <> ": value."
+        <> semanticKindFieldName
+        <> ", "
+        <> semanticParamsFieldName
+        <> ": value."
+        <> semanticParamsFieldName
+        <> " }))"
 
 fragmentKeyGuard :: SurfaceIR -> (Text, Text, [FieldIR]) -> Text
 fragmentKeyGuard _surface (_marker, fragmentName, fields) =
-    "(isRecord(value) && hasExactKeys(value, [\"kind\", \"params\"]) && value.kind === " <> quote fragmentName <> " && (" <> paramsGuard <> "))"
+    "(isRecord(value) && hasExactKeys(value, ["
+        <> Text.intercalate ", " (fmap quote [semanticKindFieldName, semanticParamsFieldName])
+        <> "]) && value."
+        <> semanticKindFieldName
+        <> " === "
+        <> quote fragmentName
+        <> " && ("
+        <> paramsGuard
+        <> "))"
     where
-        paramsAccess = "value[\"params\"]"
+        paramsAccess = "value[" <> quote semanticParamsFieldName <> "]"
         paramsGuard
             | null fields = paramsAccess <> " === null || " <> recordGuardExpressionWithAccess paramsAccess fields
             | otherwise = recordGuardExpressionWithAccess paramsAccess fields

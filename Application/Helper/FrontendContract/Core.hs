@@ -13,6 +13,7 @@ module Application.Helper.FrontendContract.Core
     , HtmxPushUrlIR (..)
     , HtmxSyntaxIR (..)
     , SchemaIR (..)
+    , SurfaceWireField (..)
     , UnionCaseIR (..)
     , WireIR (..)
     , duplicateDiagnostics
@@ -24,6 +25,7 @@ module Application.Helper.FrontendContract.Core
     , schemaFields
     , schemaNameAndMarker
     , schemaRefs
+    , surfaceWireFieldName
     , validateFieldNames
     , validateSchemaIR
     , wireRefs
@@ -49,6 +51,23 @@ data FieldPresence
     | OptionalFieldPresence
     | NullableFieldPresence
     deriving (Eq, Show)
+
+-- | Closed envelope fields synthesized by the semantic Surface wire terminals.
+-- These names are shared by Haskell validation/carriers and TypeScript
+-- rendering; feature carrier modules never spell them independently.
+data SurfaceWireField
+    = SurfaceWireSurfaceField
+    | SurfaceWireScopeField
+    | SurfaceWireKindField
+    | SurfaceWireParamsField
+    deriving (Eq, Ord, Show)
+
+surfaceWireFieldName :: SurfaceWireField -> Text
+surfaceWireFieldName = \case
+    SurfaceWireSurfaceField -> "surface"
+    SurfaceWireScopeField -> "scope"
+    SurfaceWireKindField -> "kind"
+    SurfaceWireParamsField -> "params"
 
 data WireIR
     = WireTextIR

@@ -24,6 +24,7 @@ import Application.Helper.FrontendContract.Contracts (TypeScriptDeclaration (..)
                                                       frontendContractsTypeScript)
 import qualified Application.Helper.FrontendContract.Htmx as Htmx
 import qualified Application.Helper.FrontendContract.IR as Contract
+import qualified Application.Helper.FrontendContract.LiveUpdate as LiveContract
 import Application.Helper.FrontendContract.LiveUpdateValues (liveUpdateClientIdHeaderName,
                                                              liveUpdateSocketPathSegment,
                                                              surfaceActionDomAttribute,
@@ -42,8 +43,8 @@ import Application.Helper.FrontendContract.Values (domIdValue, enumLiteralValue,
                                                    lookupDomIdValue,
                                                    lookupEnumLiteralValue,
                                                    lookupEventNameValue)
-import Application.Helper.FrontendContract.Wire.Json (validateContractValue,
-                                                      validateContractValueWith,
+import Application.Helper.FrontendContract.Wire.Json (validateContractMarkerValue,
+                                                      validateContractMarkerValueWith,
                                                       validateSurfaceFragmentKeyValue,
                                                       validateSurfaceScopeValue,
                                                       validateWireValue)
@@ -61,6 +62,10 @@ import qualified Data.Text.IO as Text
 import IHP.Prelude
 import Test.Hspec
 import qualified Test.Support.FrontendSurfaceFixture as SurfaceFixture
+
+data SpecNested
+data SpecRecord
+data SpecUnion
 
 tests :: Spec
 tests = describe "Frontend contract generator foundation" do
@@ -262,9 +267,9 @@ tests = describe "Frontend contract generator foundation" do
         let command = Live.Subscribe subscription "client-1" (Just 9)
         let message = Live.Invalidate scope "timesheets:11111111-1111-1111-1111-111111111111:4" 10 [fragmentKey] (Just "client-2")
 
-        AesonTypes.parseEither (validateContractValue "SurfaceSubscription") (Aeson.toJSON subscription) `shouldSatisfy` isRight
-        AesonTypes.parseEither (validateContractValue "LiveUpdateCommand") (Aeson.toJSON command) `shouldSatisfy` isRight
-        AesonTypes.parseEither (validateContractValue "LiveUpdateMessage") (Aeson.toJSON message) `shouldSatisfy` isRight
+        AesonTypes.parseEither (validateContractMarkerValue @LiveContract.SurfaceSubscription) (Aeson.toJSON subscription) `shouldSatisfy` isRight
+        AesonTypes.parseEither (validateContractMarkerValue @LiveContract.LiveUpdateCommand) (Aeson.toJSON command) `shouldSatisfy` isRight
+        AesonTypes.parseEither (validateContractMarkerValue @LiveContract.LiveUpdateMessage) (Aeson.toJSON message) `shouldSatisfy` isRight
         Aeson.eitherDecode (Aeson.encode command) `shouldBe` Right command
         Aeson.eitherDecode (Aeson.encode message) `shouldBe` Right message
 
@@ -275,7 +280,7 @@ tests = describe "Frontend contract generator foundation" do
 
         AesonTypes.parseEither validateSurfaceScopeValue badScope `shouldSatisfy` isLeft
         AesonTypes.parseEither validateSurfaceFragmentKeyValue badFragment `shouldSatisfy` isLeft
-        AesonTypes.parseEither (validateContractValue "LiveUpdateCommand") badCommand `shouldSatisfy` isLeft
+        AesonTypes.parseEither (validateContractMarkerValue @LiveContract.LiveUpdateCommand) badCommand `shouldSatisfy` isLeft
 
     it "covers Wire.Json field presence, nested refs, arrays, enums, and tagged unions" do
         let contract = wireJsonSpecContract
@@ -295,24 +300,24 @@ tests = describe "Frontend contract generator foundation" do
                 [ "nested" Aeson..= goodNested
                 , "items" Aeson..= [goodNested]
                 ]
-        AesonTypes.parseEither (validateContractValueWith contract "SpecRecord") goodRecord `shouldSatisfy` isRight
-        AesonTypes.parseEither (validateContractValueWith contract "SpecUnion") (Aeson.object ["kind" Aeson..= ("one" :: Text), "value" Aeson..= goodNested]) `shouldSatisfy` isRight
-        AesonTypes.parseEither (validateContractValueWith contract "SpecUnion") (Aeson.object ["kind" Aeson..= ("two" :: Text), "note" Aeson..= ("ok" :: Text)]) `shouldSatisfy` isRight
+        AesonTypes.parseEither (validateContractMarkerValueWith @SpecRecord contract) goodRecord `shouldSatisfy` isRight
+        AesonTypes.parseEither (validateContractMarkerValueWith @SpecUnion contract) (Aeson.object ["kind" Aeson..= ("one" :: Text), "value" Aeson..= goodNested]) `shouldSatisfy` isRight
+        AesonTypes.parseEither (validateContractMarkerValueWith @SpecUnion contract) (Aeson.object ["kind" Aeson..= ("two" :: Text), "note" Aeson..= ("ok" :: Text)]) `shouldSatisfy` isRight
         AesonTypes.parseEither (validateWireValue "uuid" Contract.WireUuidIR) (Aeson.String "not-a-uuid-but-contract-string") `shouldSatisfy` isRight
         AesonTypes.parseEither (validateWireValue "day" Contract.WireDayIR) (Aeson.String "not-a-day-but-contract-string") `shouldSatisfy` isRight
 
-        AesonTypes.parseEither (validateContractValueWith contract "SpecNested") (addJsonField "extra" (Aeson.Bool True) goodNested) `shouldSatisfy` isLeft
-        AesonTypes.parseEither (validateContractValueWith contract "SpecNested") (removeJsonField "name" goodNested) `shouldSatisfy` isLeft
-        AesonTypes.parseEither (validateContractValueWith contract "SpecNested") (removeJsonField "maybeText" goodNested) `shouldSatisfy` isRight
-        AesonTypes.parseEither (validateContractValueWith contract "SpecNested") (removeJsonField "nullableText" goodNested) `shouldSatisfy` isLeft
-        AesonTypes.parseEither (validateContractValueWith contract "SpecNested") (replaceJsonField "name" (Aeson.Number 1) goodNested) `shouldSatisfy` isLeft
-        AesonTypes.parseEither (validateContractValueWith contract "SpecNested") (replaceJsonField "count" (Aeson.Number 1.5) goodNested) `shouldSatisfy` isLeft
-        AesonTypes.parseEither (validateContractValueWith contract "SpecNested") (replaceJsonField "tags" (Aeson.String "alpha") goodNested) `shouldSatisfy` isLeft
-        AesonTypes.parseEither (validateContractValueWith contract "SpecNested") (replaceJsonField "status" (Aeson.String "missing") goodNested) `shouldSatisfy` isLeft
-        AesonTypes.parseEither (validateContractValueWith contract "SpecNested") (replaceJsonField "literal" (Aeson.String "case") goodNested) `shouldSatisfy` isLeft
-        AesonTypes.parseEither (validateContractValueWith contract "SpecRecord") (replaceJsonField "nested" (Aeson.object []) goodRecord) `shouldSatisfy` isLeft
-        AesonTypes.parseEither (validateContractValueWith contract "SpecUnion") (Aeson.object ["kind" Aeson..= ("missing" :: Text)]) `shouldSatisfy` isLeft
-        AesonTypes.parseEither (validateContractValueWith contract "SpecUnion") (Aeson.object ["kind" Aeson..= ("one" :: Text), "value" Aeson..= goodNested, "extra" Aeson..= True]) `shouldSatisfy` isLeft
+        AesonTypes.parseEither (validateContractMarkerValueWith @SpecNested contract) (addJsonField "extra" (Aeson.Bool True) goodNested) `shouldSatisfy` isLeft
+        AesonTypes.parseEither (validateContractMarkerValueWith @SpecNested contract) (removeJsonField "name" goodNested) `shouldSatisfy` isLeft
+        AesonTypes.parseEither (validateContractMarkerValueWith @SpecNested contract) (removeJsonField "maybeText" goodNested) `shouldSatisfy` isRight
+        AesonTypes.parseEither (validateContractMarkerValueWith @SpecNested contract) (removeJsonField "nullableText" goodNested) `shouldSatisfy` isLeft
+        AesonTypes.parseEither (validateContractMarkerValueWith @SpecNested contract) (replaceJsonField "name" (Aeson.Number 1) goodNested) `shouldSatisfy` isLeft
+        AesonTypes.parseEither (validateContractMarkerValueWith @SpecNested contract) (replaceJsonField "count" (Aeson.Number 1.5) goodNested) `shouldSatisfy` isLeft
+        AesonTypes.parseEither (validateContractMarkerValueWith @SpecNested contract) (replaceJsonField "tags" (Aeson.String "alpha") goodNested) `shouldSatisfy` isLeft
+        AesonTypes.parseEither (validateContractMarkerValueWith @SpecNested contract) (replaceJsonField "status" (Aeson.String "missing") goodNested) `shouldSatisfy` isLeft
+        AesonTypes.parseEither (validateContractMarkerValueWith @SpecNested contract) (replaceJsonField "literal" (Aeson.String "case") goodNested) `shouldSatisfy` isLeft
+        AesonTypes.parseEither (validateContractMarkerValueWith @SpecRecord contract) (replaceJsonField "nested" (Aeson.object []) goodRecord) `shouldSatisfy` isLeft
+        AesonTypes.parseEither (validateContractMarkerValueWith @SpecUnion contract) (Aeson.object ["kind" Aeson..= ("missing" :: Text)]) `shouldSatisfy` isLeft
+        AesonTypes.parseEither (validateContractMarkerValueWith @SpecUnion contract) (Aeson.object ["kind" Aeson..= ("one" :: Text), "value" Aeson..= goodNested, "extra" Aeson..= True]) `shouldSatisfy` isLeft
 
     it "validates semantic scope and fragment-key wire constructors without executable descriptors" do
         let scope = Aeson.object ["surface" Aeson..= ("timesheets" :: Text), "scope" Aeson..= Aeson.object ["venueId" Aeson..= ("11111111-1111-1111-1111-111111111111" :: Text), "weekOffset" Aeson..= (0 :: Int)]]

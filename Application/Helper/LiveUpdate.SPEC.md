@@ -139,11 +139,16 @@ registered surface contracts: generated TypeScript exposes closed `SurfaceScope`
 and `SurfaceFragmentKey` unions derived from the registered surface scope and
 fragment payloads, generated canonical fragment-key identity/equality, and live
 command/message/actor-detail guards, `parseX`, and `encodeX` helpers consumed by
-the runtime. The Haskell carrier types live in
-`Application.Helper.FrontendContract.Wire.LiveUpdate`; their Aeson parse/render
-validates against `registeredFrontendContractIR` through
-`Application.Helper.FrontendContract.Wire.Json`, so the DSL/IR remains the only
-browser-visible wire authority. The same reflected Surface IR generates the
+the runtime. The Haskell carrier ADTs live in
+`Application.Helper.FrontendContract.Wire.LiveUpdate`. Their Aeson instances use
+the marker-indexed record/event/tagged-union interface in
+`Application.Helper.FrontendContract.Wire.Carrier`: field names, presence,
+recursive wire source types, discriminator, case tags, and complete inbound case
+handlers all come from registered declarations. Inbound unknown JSON is checked
+exactly against `registeredFrontendContractIR` and is then mapped from direct
+typed field values to the ergonomic carrier constructor; there is no JSON
+encode/decode round trip or carrier-side string dispatch. The same reflected
+Surface IR generates the
 exact mount envelope for every registered surface: `{ surface, scopeKey,
 mountKey, fragments, subscription }`. Each local descriptor is exactly `{
 fragmentKey, targetId, url, protection }`; the optional subscription contains
