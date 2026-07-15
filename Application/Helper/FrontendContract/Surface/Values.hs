@@ -64,6 +64,7 @@ module Application.Helper.FrontendContract.Surface.Values
 
 import qualified Application.Helper.FrontendContract.Naming as Naming
 import Application.Helper.FrontendContract.Surface.ContractIR
+import Application.Helper.FrontendContract.Surface.Diagnostics
 import Application.Helper.FrontendContract.Surface.DSL
 import Application.Helper.FrontendContract.Surface.Reflect
 import qualified Data.Aeson as Aeson
@@ -72,7 +73,7 @@ import qualified Data.Aeson.KeyMap as Aeson.KeyMap
 import qualified Data.Aeson.Types as Aeson.Types
 import qualified Data.ByteString.Lazy as LBS
 import Data.Foldable (toList)
-import Data.Kind (Constraint, Type)
+import Data.Kind (Type)
 import qualified Data.Text as Text
 import qualified Data.Text.Encoding as Text.Encoding
 import Data.Time (Day, defaultTimeLocale, formatTime, parseTimeM)
@@ -81,23 +82,36 @@ import qualified Data.UUID as UUID
 import GHC.TypeLits (ErrorMessage (..), TypeError)
 import IHP.Prelude
 
--- | Exact, declaration-ordered values for one Surface field list. Unlike the
--- legacy phantom JSON carrier, values can only be constructed with the field
--- marker, presence, and Haskell type declared by the Surface DSL.
-data SurfaceField (field :: FieldSpec) where
+-- | One caller-provided field whose wire is still fixed by the exact owning
+-- declaration. Presence and marker stay separate long enough for focused
+-- diagnostics, while the stored value remains the same typed runtime value.
+data SurfaceFieldInput (presence :: SurfaceFieldPresence) (marker :: Type) (wire :: WireType) where
     RequiredSurfaceField ::
+        forall marker wire.
         (Typeable marker, KnownSurfaceWireValue wire) =>
-        SurfaceWireValue wire -> SurfaceField ('Field marker wire)
+        SurfaceWireValue wire -> SurfaceFieldInput 'SurfaceRequired marker wire
     OptionalSurfaceField ::
+        forall marker wire.
         (Typeable marker, KnownSurfaceWireValue wire) =>
-        Maybe (SurfaceWireValue wire) -> SurfaceField ('OptionalField marker wire)
+        Maybe (SurfaceWireValue wire) -> SurfaceFieldInput 'SurfaceOptional marker wire
     NullableSurfaceField ::
+        forall marker wire.
         (Typeable marker, KnownSurfaceWireValue wire) =>
-        Maybe (SurfaceWireValue wire) -> SurfaceField ('NullableField marker wire)
+        Maybe (SurfaceWireValue wire) -> SurfaceFieldInput 'SurfaceNullable marker wire
 
+-- | Exact, declaration-ordered values for one Surface field list. The expected
+-- declaration remains the sole index, preserving declaration-driven inference.
+-- Constructor constraints replace generic promoted-list errors with compact
+-- missing, extra, order, presence, and wire diagnostics.
 data SurfaceFields (fields :: [FieldSpec]) where
-    NoSurfaceFields :: SurfaceFields '[]
-    (:&) :: SurfaceField field -> SurfaceFields rest -> SurfaceFields (field ': rest)
+    NoSurfaceFields ::
+        AssertSurfaceFieldsEnd fields =>
+        SurfaceFields fields
+    (:&) ::
+        AssertSurfaceFieldHead presence marker (SurfaceFieldInputWire fields fallback) fields =>
+        SurfaceFieldInput presence marker (SurfaceFieldInputWire fields fallback) ->
+        SurfaceFields (SurfaceFieldsTail fields) ->
+        SurfaceFields fields
 
 infixr 5 :&
 
@@ -176,21 +190,33 @@ instance KnownSurfaceWireValue ('WireRef dto) where
     parseSurfaceWireValue = pure
 
 surfaceField ::
-    forall marker wire.
-    (Typeable marker, KnownSurfaceWireValue wire) =>
-    SurfaceWireValue wire -> SurfaceField ('Field marker wire)
+    forall marker wire value.
+    ( Typeable marker
+    , KnownSurfaceWireValue wire
+    , AssertSurfaceFieldValue 'SurfaceRequired marker wire value
+    , value ~ SurfaceWireValue wire
+    ) =>
+    value -> SurfaceFieldInput 'SurfaceRequired marker wire
 surfaceField = RequiredSurfaceField
 
 surfaceOptionalField ::
-    forall marker wire.
-    (Typeable marker, KnownSurfaceWireValue wire) =>
-    Maybe (SurfaceWireValue wire) -> SurfaceField ('OptionalField marker wire)
+    forall marker wire value.
+    ( Typeable marker
+    , KnownSurfaceWireValue wire
+    , AssertSurfaceFieldValue 'SurfaceOptional marker wire (Maybe value)
+    , value ~ SurfaceWireValue wire
+    ) =>
+    Maybe value -> SurfaceFieldInput 'SurfaceOptional marker wire
 surfaceOptionalField = OptionalSurfaceField
 
 surfaceNullableField ::
-    forall marker wire.
-    (Typeable marker, KnownSurfaceWireValue wire) =>
-    Maybe (SurfaceWireValue wire) -> SurfaceField ('NullableField marker wire)
+    forall marker wire value.
+    ( Typeable marker
+    , KnownSurfaceWireValue wire
+    , AssertSurfaceFieldValue 'SurfaceNullable marker wire (Maybe value)
+    , value ~ SurfaceWireValue wire
+    ) =>
+    Maybe value -> SurfaceFieldInput 'SurfaceNullable marker wire
 surfaceNullableField = NullableSurfaceField
 
 class KnownSurfaceFieldValues (fields :: [FieldSpec]) where
@@ -346,18 +372,6 @@ type family FindMountStateFields (primitives :: [SurfacePrimitive]) :: [FieldSpe
     FindMountStateFields (('MountState marker fields) ': rest) = fields
     FindMountStateFields (primitive ': rest) = FindMountStateFields rest
 
-type family RequireSurfaceField (owner :: Type) (marker :: Type) (fields :: [FieldSpec]) :: Constraint where
-    RequireSurfaceField owner marker (('Field marker wire) ': rest) = ()
-    RequireSurfaceField owner marker (('OptionalField marker wire) ': rest) = ()
-    RequireSurfaceField owner marker (('NullableField marker wire) ': rest) = ()
-    RequireSurfaceField owner marker (field ': rest) = RequireSurfaceField owner marker rest
-    RequireSurfaceField owner marker '[] = TypeError
-        ( 'Text "FrontendSurface owner "
-            ':<>: 'ShowType owner
-            ':<>: 'Text " does not declare field marker "
-            ':<>: 'ShowType marker
-        )
-
 surfaceResourceFieldName ::
     forall spec resource marker.
     ( Typeable marker
@@ -401,83 +415,43 @@ surfaceIntentFieldName = surfaceFieldName @marker
 type family FindSurfaceScope (spec :: SurfaceSpec) (marker :: Type) (primitives :: [SurfacePrimitive]) :: SurfacePrimitive where
     FindSurfaceScope spec marker (('Scope marker fields options) ': rest) = 'Scope marker fields options
     FindSurfaceScope spec marker (primitive ': rest) = FindSurfaceScope spec marker rest
-    FindSurfaceScope spec marker '[] = TypeError
-        ( 'Text "FrontendSurface "
-            ':<>: 'ShowType spec
-            ':<>: 'Text " does not declare scope marker "
-            ':<>: 'ShowType marker
-        )
+    FindSurfaceScope spec marker '[] = SurfaceOwnershipError spec "scope" marker
 
 type family FindSurfaceFragment (spec :: SurfaceSpec) (marker :: Type) (primitives :: [SurfacePrimitive]) :: SurfacePrimitive where
     FindSurfaceFragment spec marker (('Fragment marker fields options) ': rest) = 'Fragment marker fields options
     FindSurfaceFragment spec marker (primitive ': rest) = FindSurfaceFragment spec marker rest
-    FindSurfaceFragment spec marker '[] = TypeError
-        ( 'Text "FrontendSurface "
-            ':<>: 'ShowType spec
-            ':<>: 'Text " does not declare fragment marker "
-            ':<>: 'ShowType marker
-        )
+    FindSurfaceFragment spec marker '[] = SurfaceOwnershipError spec "fragment" marker
 
 type family FindSurfaceAction (spec :: SurfaceSpec) (marker :: Type) (primitives :: [SurfacePrimitive]) :: SurfacePrimitive where
     FindSurfaceAction spec marker (('Action marker fields options) ': rest) = 'Action marker fields options
     FindSurfaceAction spec marker (primitive ': rest) = FindSurfaceAction spec marker rest
-    FindSurfaceAction spec marker '[] = TypeError
-        ( 'Text "FrontendSurface "
-            ':<>: 'ShowType spec
-            ':<>: 'Text " does not declare action marker "
-            ':<>: 'ShowType marker
-        )
+    FindSurfaceAction spec marker '[] = SurfaceOwnershipError spec "action" marker
 
 type family FindSurfaceIntent (spec :: SurfaceSpec) (marker :: Type) (primitives :: [SurfacePrimitive]) :: SurfacePrimitive where
     FindSurfaceIntent spec marker (('Intent marker fields options) ': rest) = 'Intent marker fields options
     FindSurfaceIntent spec marker (primitive ': rest) = FindSurfaceIntent spec marker rest
-    FindSurfaceIntent spec marker '[] = TypeError
-        ( 'Text "FrontendSurface "
-            ':<>: 'ShowType spec
-            ':<>: 'Text " does not declare intent marker "
-            ':<>: 'ShowType marker
-        )
+    FindSurfaceIntent spec marker '[] = SurfaceOwnershipError spec "intent" marker
 
 type family FindSurfaceActivationRef (spec :: SurfaceSpec) (marker :: Type) (primitives :: [SurfacePrimitive]) :: SurfacePrimitive where
     FindSurfaceActivationRef spec marker (('ActivationRef marker options) ': rest) = 'ActivationRef marker options
     FindSurfaceActivationRef spec marker (primitive ': rest) = FindSurfaceActivationRef spec marker rest
-    FindSurfaceActivationRef spec marker '[] = TypeError
-        ( 'Text "FrontendSurface "
-            ':<>: 'ShowType spec
-            ':<>: 'Text " does not declare activation-ref marker "
-            ':<>: 'ShowType marker
-        )
+    FindSurfaceActivationRef spec marker '[] = SurfaceOwnershipError spec "activation-ref" marker
 
 type family FindSurfaceDomToken (spec :: SurfaceSpec) (marker :: Type) (primitives :: [SurfacePrimitive]) :: SurfacePrimitive where
     FindSurfaceDomToken spec marker (('DomToken marker) ': rest) = 'DomToken marker
     FindSurfaceDomToken spec marker (('BrowserDomToken marker) ': rest) = 'BrowserDomToken marker
     FindSurfaceDomToken spec marker (primitive ': rest) = FindSurfaceDomToken spec marker rest
-    FindSurfaceDomToken spec marker '[] = TypeError
-        ( 'Text "FrontendSurface "
-            ':<>: 'ShowType spec
-            ':<>: 'Text " does not declare DOM token marker "
-            ':<>: 'ShowType marker
-        )
+    FindSurfaceDomToken spec marker '[] = SurfaceOwnershipError spec "DOM token" marker
 
 type family FindSurfaceSourceRef (spec :: SurfaceSpec) (marker :: Type) (primitives :: [SurfacePrimitive]) :: SurfacePrimitive where
     FindSurfaceSourceRef spec marker (('SourceRef marker options) ': rest) = 'SourceRef marker options
     FindSurfaceSourceRef spec marker (primitive ': rest) = FindSurfaceSourceRef spec marker rest
-    FindSurfaceSourceRef spec marker '[] = TypeError
-        ( 'Text "FrontendSurface "
-            ':<>: 'ShowType spec
-            ':<>: 'Text " does not declare source-ref marker "
-            ':<>: 'ShowType marker
-        )
+    FindSurfaceSourceRef spec marker '[] = SurfaceOwnershipError spec "source-ref" marker
 
 type family FindSurfaceDropzoneRef (spec :: SurfaceSpec) (marker :: Type) (primitives :: [SurfacePrimitive]) :: SurfacePrimitive where
     FindSurfaceDropzoneRef spec marker (('DropzoneRef marker options) ': rest) = 'DropzoneRef marker options
     FindSurfaceDropzoneRef spec marker (primitive ': rest) = FindSurfaceDropzoneRef spec marker rest
-    FindSurfaceDropzoneRef spec marker '[] = TypeError
-        ( 'Text "FrontendSurface "
-            ':<>: 'ShowType spec
-            ':<>: 'Text " does not declare dropzone-ref marker "
-            ':<>: 'ShowType marker
-        )
+    FindSurfaceDropzoneRef spec marker '[] = SurfaceOwnershipError spec "dropzone-ref" marker
 
 type family FindSurfaceResource (marker :: Type) (primitives :: [SurfacePrimitive]) :: Maybe ResourceSpec where
     FindSurfaceResource marker '[] = 'Nothing
@@ -498,12 +472,7 @@ type family FirstResource (left :: Maybe ResourceSpec) (right :: Maybe ResourceS
 
 type family RequireSurfaceResource (spec :: SurfaceSpec) (marker :: Type) (result :: Maybe ResourceSpec) :: ResourceSpec where
     RequireSurfaceResource spec marker ('Just resource) = resource
-    RequireSurfaceResource spec marker 'Nothing = TypeError
-        ( 'Text "FrontendSurface "
-            ':<>: 'ShowType spec
-            ':<>: 'Text " does not declare resource marker "
-            ':<>: 'ShowType marker
-        )
+    RequireSurfaceResource spec marker 'Nothing = SurfaceOwnershipError spec "resource" marker
 
 surfaceNameValue :: forall spec. ReflectSurfaceSpec spec => Text
 surfaceNameValue = (reflectSurfaceSpec @spec).surfaceName

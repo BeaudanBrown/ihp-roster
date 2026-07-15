@@ -24,6 +24,8 @@ expect_compile_failure() {
     local fixture="$1"
     shift
     local log="$tmp_dir/$(basename "$fixture").log"
+    local mode="expected"
+    local diagnostic
 
     if ghc $GHC_OPTS -fno-code "$fixture" \
         -odir "$tmp_dir/obj" \
@@ -33,9 +35,15 @@ expect_compile_failure() {
         exit 1
     fi
 
-    for expected in "$@"; do
-        if ! grep -Fq "$expected" "$log"; then
-            echo "surface-compile-fail-check: $fixture missing expected diagnostic substring: $expected" >&2
+    for diagnostic in "$@"; do
+        if [ "$diagnostic" = "--reject" ]; then
+            mode="rejected"
+        elif [ "$mode" = "expected" ] && ! grep -Fq "$diagnostic" "$log"; then
+            echo "surface-compile-fail-check: $fixture missing expected diagnostic substring: $diagnostic" >&2
+            cat "$log" >&2
+            exit 1
+        elif [ "$mode" = "rejected" ] && grep -Fq "$diagnostic" "$log"; then
+            echo "surface-compile-fail-check: $fixture contains rejected diagnostic substring: $diagnostic" >&2
             cat "$log" >&2
             exit 1
         fi
@@ -51,33 +59,36 @@ expect_compile_failure \
 
 expect_compile_failure \
     "Test/CompileFail/FrontendSurfaceWrongFragmentMarker.hs" \
-    "does not declare fragment marker" \
-    "RosterContent"
+    "Timesheets.Timesheets does not declare fragment marker Roster.RosterContent" \
+    "--reject" \
+    "Surface.DSL.Surface"
 
 expect_compile_failure \
     "Test/CompileFail/FrontendSurfaceWrongFragmentField.hs" \
-    "does not declare field marker" \
-    "RowIndex"
+    "FrontendSurface declaration Roster.RosterDaySection does not declare field marker Roster.RowIndex" \
+    "Declared fields: [Roster.RosterDayId :: required WireUUID]"
 
 expect_compile_failure \
     "Test/CompileFail/FrontendSurfaceWrongIntentField.hs" \
-    "does not declare field marker" \
-    "PanelId"
+    "FrontendSurface declaration Fixture.MoveCard does not declare field marker Fixture.PanelId" \
+    "Declared fields: [Fixture.SourceItemKey :: required WireText, Fixture.TargetDropzoneKey :: required WireText]"
 
 expect_compile_failure \
     "Test/CompileFail/FrontendSurfaceWrongScopeField.hs" \
-    "does not declare field marker" \
-    "PanelId"
+    "FrontendSurface declaration Fixture.FixtureScope does not declare field marker Fixture.PanelId" \
+    "Declared fields: [Fixture.VenueId :: required WireUUID, Fixture.WeekOffset :: required WireInt]"
 
 expect_compile_failure \
     "Test/CompileFail/FrontendSurfaceWrongLiveScopeMarker.hs" \
-    "does not declare scope marker" \
-    "RosterWeek"
+    "Timesheets.Timesheets does not declare scope marker Roster.RosterWeek" \
+    "--reject" \
+    "Surface.DSL.Surface"
 
 expect_compile_failure \
     "Test/CompileFail/FrontendSurfaceIncompleteLiveFragment.hs" \
-    "Couldn't match type" \
-    "RowIndex"
+    "FrontendSurface field list is incomplete" \
+    "Missing next field: Roster.RowIndex :: required WireInt" \
+    "Expected remaining fields: [Roster.RowIndex :: required WireInt]"
 
 expect_compile_failure \
     "Test/CompileFail/FrontendSurfaceRawLiveIdentity.hs" \
@@ -91,28 +102,50 @@ expect_compile_failure \
 
 expect_compile_failure \
     "Test/CompileFail/FrontendSurfaceWrongResourceMarker.hs" \
-    "does not declare resource marker" \
-    "RosterWeek"
+    "Timesheets.Timesheets does not declare resource marker Roster.RosterWeek" \
+    "--reject" \
+    "Surface.DSL.Surface"
 
 expect_compile_failure \
     "Test/CompileFail/FrontendSurfaceIncompleteResource.hs" \
-    "Couldn't match type" \
-    "DayOffset"
+    "FrontendSurface field list is incomplete" \
+    "Missing next field: Timesheets.DayOffset :: required WireInt" \
+    "Expected remaining fields: [Timesheets.DayOffset :: required WireInt]"
+
+expect_compile_failure \
+    "Test/CompileFail/FrontendSurfaceExtraResourceField.hs" \
+    "FrontendSurface field list has an extra field" \
+    "Received field: Timesheets.DayOffset :: required (no declared wire)" \
+    "Expected remaining fields: []"
+
+expect_compile_failure \
+    "Test/CompileFail/FrontendSurfaceWrongResourceFieldOrder.hs" \
+    "FrontendSurface field order mismatch" \
+    "Expected next field: Timesheets.WeekOffset :: required WireInt" \
+    "Received field: Timesheets.DayOffset :: required WireInt"
+
+expect_compile_failure \
+    "Test/CompileFail/FrontendSurfaceWrongFieldPresence.hs" \
+    "FrontendSurface field presence mismatch" \
+    "Expected next field: Fixture.StaffFilterId :: optional WireUUID" \
+    "Received field: Fixture.StaffFilterId :: required WireUUID"
 
 expect_compile_failure \
     "Test/CompileFail/FrontendSurfaceWrongResourceWireType.hs" \
-    "Couldn't match type" \
-    "with ‘UUID’"
+    "FrontendSurface field wire mismatch" \
+    "Declared field: Timesheets.VenueId :: required WireUUID" \
+    "Received Haskell value: Text"
 
 expect_compile_failure \
     "Test/CompileFail/FrontendSurfaceWrongActionMarker.hs" \
-    "does not declare action marker" \
-    "NavigateRosterWeek"
+    "Timesheets.Timesheets does not declare action marker Roster.NavigateRosterWeek" \
+    "--reject" \
+    "Surface.DSL.Surface"
 
 expect_compile_failure \
     "Test/CompileFail/FrontendSurfaceWrongActionField.hs" \
-    "does not declare field marker" \
-    "RosterGroupId"
+    "FrontendSurface declaration Timesheets.NavigateTimesheetWeek does not declare field marker Roster.RosterGroupId" \
+    "Declared fields: [Timesheets.WeekOffset :: required WireInt"
 
 expect_compile_failure \
     "Test/CompileFail/FrontendSurfaceUnknownInteractionEffect.hs" \

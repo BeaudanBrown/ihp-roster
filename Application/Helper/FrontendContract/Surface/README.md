@@ -276,6 +276,34 @@ explicit null. Use `surfaceFieldsJson` only at the JSON boundary and
 `frontendSurfaceActionFields` for hidden/query fields; do not introduce phantom
 `Aeson.Value` carriers or recover required fields with runtime fallbacks.
 
+### Compile-time diagnostic contract
+
+Marker-indexed ownership failures name the compact Surface owner marker and the
+requested scope, fragment, resource, action, intent, ref, or token marker. They
+must not render the expanded `Surface ...` primitive list. Field-name accessor
+failures name the owning declaration marker and render its complete field shape.
+
+`SurfaceFields` construction keeps the exact declared field list as its
+contextual type. Do not replace that context with a separately inferred generic
+provided-field list: the declaration must continue to infer numeric values,
+`Nothing`, nested wires, and other valid inputs. The declaration-directed
+`NoSurfaceFields` and `(:&)` checks report:
+
+- the next missing field and remaining declared shape;
+- an extra field's marker and presence, explicitly noting that it has no
+  declared wire;
+- expected and received markers for an ordering mismatch;
+- expected and received presence for a presence mismatch; and
+- the affected marker, declared presence/wire, and received Haskell type for a
+  wire mismatch.
+
+Diagnostic shapes use DSL spellings such as `required WireUUID`,
+`optional WireText`, and `nullable WireRef SomeDto`. GHC may qualify marker names
+or wrap lines, but the diagnostic category, affected marker, and expected
+contract shape are a tested authoring interface. Keep the focused expectations
+in `Config/nix/scripts/frontend/surface-compile-fail-check` in sync when this
+contract intentionally changes.
+
 Live identity crosses this boundary through
 `Application.Helper.FrontendContract.Surface.Live` only.
 `frontendSurfaceScope` and `frontendSurfaceFragmentKey` accept the complete

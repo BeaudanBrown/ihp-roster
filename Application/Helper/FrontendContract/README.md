@@ -16,7 +16,10 @@ copy or conversion layer. Test-only Surface fixtures are reflected explicitly
 from `Test/` and never enter `RegisteredFrontendSurfaces` or generated production
 browser output. Haskell feature code consumes Surface declarations
 through marker-indexed accessors and exact `SurfaceFields` in
-`Surface.Values`, rather than registry scans or phantom JSON. Live scopes and
+`Surface.Values`, rather than registry scans or phantom JSON. Those APIs keep
+the declared field list as their inference context and expose compact,
+marker-named ownership and field-shape diagnostics; the diagnostic contract is
+documented in `Surface/README.md`. Live scopes and
 fragment keys use the declaration-complete constructors and typed matchers in
 `Surface.Live`; raw transport constructors remain internal and feature-owned
 identity values live in the corresponding `Surface.<Feature>.Live` module.
