@@ -6,7 +6,7 @@ GitHub issues:
 
 - `#136` - Make FrontendContract the executable runtime authority and retire stale runtime code
 - Contract authority: `#161`-`#166`
-- Haskell adapter ergonomics: `#180`-`#184`
+- Haskell adapter ergonomics: `#180`-`#187`
 - Shared browser capabilities: `#167`-`#173`
 - Roster browser capabilities: `#174`-`#178`
 - Final reconciliation: `#179`
@@ -170,9 +170,15 @@ slices, and all block final reconciliation.
 7. `#180` - Improve compact type diagnostics for marker-indexed Surface APIs.
 8. `#181` - Add deterministic Haskell Surface adapter generator foundation after
    schema-indexed carrier/source-type mapping.
-9. `#182` - Generate feature-owned typed Surface resource adapters.
-10. `#183` - Generate feature-owned typed Surface live identity adapters.
-11. `#184` - Generate typed Surface action and intent adapter facades.
+9. `#182` - Generate feature-owned typed Surface resource adapters, beginning
+   with a representative locality/net-deletion checkpoint.
+10. `#183` - Generate feature-owned typed Surface live identity adapters from an
+    explicit checked eligibility rule.
+11. `#184` - Track typed Surface action and intent adapter facades through native
+    sub-issues:
+    - `#185` - Add the generated action/intent renderer and compiled fixture.
+    - `#186` - Migrate typed Surface action facades.
+    - `#187` - Migrate typed Surface intent facades.
 
 ### Shared browser capabilities
 
@@ -197,15 +203,18 @@ slices, and all block final reconciliation.
 24. `#179` - Run the zero-legacy audit, finish dynamic CSS/source guardrails,
     reconcile living docs, and verify the full repository before closing `#136`.
 
-The current authority frontier is #162, #164, and #165; #180 may proceed
-independently. Closed interaction IR follows Surface Lab deletion. #181 follows
-#165; #182 follows #181; #183 follows #162 and #181; #184 follows #164 and
-#181. Shared browser slices depend on typed schema builders; ordered ranges
-also depend on toggle presentation. Roster linked highlighting depends on
-closed interaction IR. Staff-panel work establishes the browser-reachable
-Surface DTO path for image export and week overview. The Haskell adapter slices
-run in parallel with capability slices and final reconciliation depends on every
-preceding slice.
+The authority foundations through #181 are complete. #182 is the Haskell
+adapter checkpoint: its first representative resource migration must prove
+feature-local imports, net deletion, and acceptable focused compile impact
+before bulk registration. #183 follows #162, #181, and the #182 checkpoint.
+#184 follows #164 and #181; #185 also follows the #182 checkpoint and establishes
+its generated renderer/fixture before #186 and #187 migrate action and intent
+facades independently. Shared browser slices depend on typed schema builders;
+ordered ranges also depend on toggle presentation.
+Roster linked highlighting depends on closed interaction IR. Staff-panel work
+establishes the browser-reachable Surface DTO path for image export and week
+overview. The Haskell adapter slices run in parallel with capability slices and
+final reconciliation depends on every preceding slice.
 
 ## Behavior Constraints
 
