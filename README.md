@@ -155,7 +155,9 @@ Do not hand-edit generated app JS.
   boundaries instead of duplicating broad backend or database models in browser
   code. Surface, mount-target, disposable-layer, intent, intent-field, and
   conflict-policy contracts are derived from Haskell rather than hand-defined
-  as canonical browser strings.
+  as canonical browser strings. Private mechanical Haskell Surface adapters use
+  the same checked IR and typed ownership registry; they are written and checked
+  by the `frontend-surface-adapters` commands.
 
 Feature CSS is split under `static/css/`; update the narrowest matching file
 and keep linked stylesheet paths mirrored in `Web/View/Layout.hs` and
@@ -173,6 +175,8 @@ bash ./bin/in-env frontend-test
 bash ./bin/in-env frontend-contracts
 bash ./bin/in-env frontend-contracts-check
 bash ./bin/in-env frontend-contracts-watch
+bash ./bin/in-env frontend-surface-adapters
+bash ./bin/in-env frontend-surface-adapters-check
 bash ./bin/in-env frontend-watch
 ```
 

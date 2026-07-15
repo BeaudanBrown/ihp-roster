@@ -41,6 +41,8 @@ in
         frontend-no-ts-nocheck = script ../scripts/frontend/no-ts-nocheck;
         frontend-surface-guardrails = script ../scripts/frontend/surface-guardrails;
         frontend-surface-compile-fail-check = script ../scripts/frontend/surface-compile-fail-check;
+        frontend-surface-adapters = script ../scripts/frontend/surface-adapters;
+        frontend-surface-adapters-check = script ../scripts/frontend/surface-adapters-check;
         frontend-test = script ../scripts/frontend/test;
         frontend-watch = script ../scripts/frontend/watch;
         git-install-hooks = script ../scripts/git/install-hooks;

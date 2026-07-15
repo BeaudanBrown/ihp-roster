@@ -90,6 +90,37 @@ expect_no_match_including_generated \
     '"export (type|function) (FrontendSurface(UUID|Day)|HtmxActionOptions|FrontendSurfaceActionManifest|AppShellActionManifest|FrontendSurfaceLiveSubscription|FrontendSurfaceLiveWireFragment|FrontendSurfaceSurfaceFragmentProtection)' \
     Application/Helper/FrontendContract/TypeScript.hs
 
+expect_match \
+    "Haskell Surface adapter families must retain a typed Surface association" \
+    'type AdapterFamilySurface adapterFamily :: SurfaceSpec' \
+    Application/Helper/FrontendContract/Surface/HaskellAdapter/Family.hs
+expect_match \
+    "Haskell Surface adapter generation must consume the canonical wire source projection" \
+    'haskellWireSource field.fieldWire' \
+    Application/Helper/FrontendContract/Surface/HaskellAdapter/Generator.hs
+expect_match \
+    "Haskell Surface adapter generation must consume the checked production Surface IR" \
+    'registeredFrontendSurfaceContractIR' \
+    Application/Script/GenerateFrontendSurfaceAdapters.hs
+expect_no_match_including_generated \
+    "Haskell Surface adapter generation must not inspect GHC or source ASTs" \
+    'GHC\.|Language\.Haskell|ghc-lib-parser|haskell-src|parseModule|runGhc' \
+    Application/Helper/FrontendContract/Surface/HaskellAdapter \
+    Application/Script/GenerateFrontendSurfaceAdapters.hs
+expect_no_match_including_generated \
+    "Haskell Surface adapter registries must not repeat field or wire schemas" \
+    '\b(Field|OptionalField|NullableField)\b|Wire(Text|Int|Bool|UUID|Day|List|Optional|Nullable|Ref)' \
+    Application/Helper/FrontendContract/Surface/HaskellAdapter/Registry.hs
+expect_no_match_including_generated \
+    "Haskell Surface adapter output must not import opaque internal constructors" \
+    '^import .*\.Internal' \
+    Application/Helper/FrontendContract/Surface/HaskellAdapter \
+    Application/Script/GenerateFrontendSurfaceAdapters.hs
+expect_no_match_including_generated \
+    "Haskell Surface adapter generation must not dispatch on production feature-name literals" \
+    '"(timesheets|roster|roster-day-timeline|leave-requests|billing|support|profile|staff|admin-[a-z-]+)"' \
+    Application/Helper/FrontendContract/Surface/HaskellAdapter/Generator.hs
+
 expect_no_match_including_generated \
     "generated browser contracts must not restore action manifests or the omnibus Surface registry" \
     'FrontendSurfaceRegistry|InteractionStaticSchemas|SurfaceManifest|AppShellActionManifest|FrontendSurfaceActionManifest|htmxActions|containedSurfaces' \

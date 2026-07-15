@@ -50,6 +50,7 @@ import qualified Test.DatabaseProtectionSpec
 import qualified Test.DevSeedSpec
 import qualified Test.FrontendContractSpec
 import qualified Test.FrontendContractsSpec
+import qualified Test.FrontendSurfaceAdapterGeneratorSpec
 import qualified Test.FrontendSurfaceDslSpec
 import qualified Test.FrontendSurfaceNamingSpec
 import qualified Test.FwcMapdSyncSpec
@@ -271,6 +272,7 @@ allSuites =
     , pureSuite "Conflict" 5 Test.ConflictSpec.tests
     , pureSuite "FrontendContract" 5 Test.FrontendContractSpec.tests
     , pureSuite "FrontendContracts" 15 Test.FrontendContractsSpec.tests
+    , pureSuite "FrontendSurfaceAdapterGenerator" 5 Test.FrontendSurfaceAdapterGeneratorSpec.tests
     , pureSuite "FrontendSurfaceNaming" 5 Test.FrontendSurfaceNamingSpec.tests
     , pureSuite "FrontendSurfaceDSL" 15 Test.FrontendSurfaceDslSpec.tests
     , pureSuite "LiveUpdate" 20 Test.LiveUpdateSpec.tests

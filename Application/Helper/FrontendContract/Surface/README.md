@@ -351,6 +351,35 @@ field breaks incomplete constructors and matchers at compile time. Feature code
 must not import `Surface.Resource.Internal`, construct resource names/JSON, or
 recover resource fields by text.
 
+## Generated Haskell Adapter Foundation
+
+Mechanical feature adapters are generated from the same checked declarations;
+they are not another Surface evaluator. A nominal adapter family has one typed
+`AdapterFamilySurface` association to an existing Surface alias. Resource homes
+register only `(family, resource marker)`, while declaration order, presence,
+wire shape, protocol names, and Haskell source types come from checked IR and the
+canonical `haskellWireSource` projection. The production family registry mirrors
+`RegisteredFrontendSurfaces`; production resource homes remain empty until the
+resource-adapter migration ticket.
+
+Generated modules live beside the Surface source module under
+`.Generated.Resource`, stay private behind curated feature facades, and invoke
+`frontendSurfaceResource` and `matchFrontendSurfaceResource`. They must not
+import opaque internal constructors. Unsupported carriers stop generation with
+a resource/field-specific diagnostic rather than falling back to JSON or a
+handwritten type. The generator uses normal Haskell reflection plus `Typeable`
+module/type metadata; it does not parse source or compiler syntax trees.
+
+Write and verify output with:
+
+```bash
+bash ./bin/in-env frontend-surface-adapters
+bash ./bin/in-env frontend-surface-adapters-check
+```
+
+The check formats a temporary rendering, compares the complete managed module
+set, and rejects missing, extra, stale, or unformatted generated files.
+
 ## Runtime Implementation
 
 Migrated surfaces expose mount behavior through

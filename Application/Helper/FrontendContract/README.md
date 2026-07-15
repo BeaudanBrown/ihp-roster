@@ -94,6 +94,24 @@ entrypoint is intentionally absent. The migrated live-update carrier module is
 `Application.Helper.FrontendContract.Wire.LiveUpdate`, which contains no wire
 field, discriminator, or case literals.
 
+Mechanical Haskell Surface adapters use the separate foundation under
+`Application.Helper.FrontendContract.Surface.HaskellAdapter`. Nominal adapter
+families are associated with existing Surface aliases through
+`AdapterFamilySurface`; a `SurfaceResourceAdapterHome family resource` registers
+only ownership and never repeats fields, presence, or wires. The normal Haskell
+generator combines that typed registry with the checked `SurfaceContractIR`,
+Typeable source-module metadata, and `haskellWireSource`. It emits private
+feature-adjacent `.Generated.Resource` modules that call only the public
+marker-indexed resource builders and matchers. Unsupported source carriers fail
+with the owning resource and field in the diagnostic. The foundation ticket
+leaves production resource homes empty; follow-up migrations add homes while
+retaining curated feature facades.
+
+Use `frontend-surface-adapters` to write generated Haskell modules and
+`frontend-surface-adapters-check` to reject missing, extra, unformatted, or stale
+output. Generation does not inspect compiler syntax trees, parse source modules,
+or choose behavior from feature-name text.
+
 Generated TypeScript comes through
 `Application.Helper.FrontendContract.Contracts`. Exported TypeScript contract
 shapes must be rendered from Haskell DSL declarations, `FrontendContract.IR`, or
