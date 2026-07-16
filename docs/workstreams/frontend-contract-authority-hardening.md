@@ -210,8 +210,10 @@ The authority foundations through #182 are complete. The #182 implementation
 used Timesheets as its first representative resource migration, recorded the
 feature-local import, handwritten-line deletion, and focused compile checkpoint
 in the Surface authoring guide, then registered every remaining unique resource
-home. #188 now extracts a kind-indexed shared core before #183 and #185 extend
-live and action/intent generation in parallel. #183 also follows #162 and #181;
+home. #188 has extracted the kind-indexed shared core, fixed the four private
+output/facade pairs, and retained byte-identical resource output; #183 and #185
+can now extend live and action/intent generation in parallel. #183 also follows
+#162 and #181;
 #184 follows #164 and #181, while #185 establishes separate generated Action and
 Intent renderers before #186 and #187 migrate those facades independently.
 Shared browser slices depend on typed schema builders;

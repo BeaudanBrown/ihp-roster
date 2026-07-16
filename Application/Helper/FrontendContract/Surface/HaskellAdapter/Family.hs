@@ -1,7 +1,9 @@
 {-# LANGUAGE AllowAmbiguousTypes   #-}
+{-# LANGUAGE ConstraintKinds       #-}
 {-# LANGUAGE DataKinds             #-}
 {-# LANGUAGE FlexibleContexts      #-}
 {-# LANGUAGE FlexibleInstances     #-}
+{-# LANGUAGE KindSignatures        #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE PolyKinds             #-}
 {-# LANGUAGE ScopedTypeVariables   #-}
@@ -13,53 +15,69 @@
 -- | Typed ownership input for deterministic Haskell Surface adapters.
 --
 -- A family is a nominal marker associated with one existing Surface alias.
--- Homes mention only a family and a declaration marker; field order, presence,
--- and wires continue to come from the associated Surface declaration.
+-- Kind-indexed homes mention only that family and one declaration marker;
+-- field order, presence, and wires continue to come from the associated
+-- Surface declaration.
 module Application.Helper.FrontendContract.Surface.HaskellAdapter.Family
     ( AdapterFamilySurface
     , HaskellTypeMetadata (..)
     , ReflectSurfaceAdapterFamilies
+    , ReflectSurfaceAdapterHomes
     , ReflectSurfaceResourceAdapterHomes
+    , SurfaceActionAdapterHome
     , SurfaceAdapterFamily
     , SurfaceAdapterFamilyMetadata (..)
+    , SurfaceAdapterHome
+    , SurfaceAdapterHomeMetadata (..)
     , SurfaceAdapterRegistry (..)
+    , SurfaceFragmentAdapterHome
+    , SurfaceIntentAdapterHome
     , SurfaceResourceAdapterHome
-    , SurfaceResourceAdapterHomeMetadata (..)
+    , SurfaceResourceAdapterHomeMetadata
+    , SurfaceScopeAdapterHome
+    , reflectSurfaceAdapterHomes
     , reflectSurfaceAdapterRegistry
+    , reflectSurfaceResourceAdapterHomes
     ) where
 
 import Application.Helper.FrontendContract.Surface.DSL
-import Application.Helper.FrontendContract.Surface.Values (SurfaceResourceFieldSpecs)
+import Application.Helper.FrontendContract.Surface.HaskellAdapter.Core
+import Application.Helper.FrontendContract.Surface.Values (SurfaceActionFieldSpecs,
+                                                           SurfaceFragmentFieldSpecs,
+                                                           SurfaceIntentFieldSpecs,
+                                                           SurfaceResourceFieldSpecs,
+                                                           SurfaceScopeFieldSpecs)
 import Data.Kind (Type)
-import Data.Typeable (Typeable, tyConModule, tyConName, typeRep, typeRepTyCon)
+import Data.Typeable (Typeable)
 import IHP.Prelude
 
 class SurfaceAdapterFamily adapterFamily where
     type AdapterFamilySurface adapterFamily :: SurfaceSpec
 
--- | A typed declaration that one resource marker is generated in a family's
--- feature-adjacent home. It deliberately carries no field or wire schema.
-data SurfaceResourceAdapterHome (adapterFamily :: Type) (resource :: Type)
+-- | One typed declaration home. The promoted kind selects the declaration
+-- lookup and prevents homes from crossing resource/live/action/intent seams.
+data SurfaceAdapterHome
+    (kind :: SurfaceAdapterKind)
+    (adapterFamily :: Type)
+    (declaration :: Type)
 
-data HaskellTypeMetadata = HaskellTypeMetadata
-    { haskellTypeModule :: !Text
-    , haskellTypeName   :: !Text
-    }
-    deriving (Eq, Ord, Show)
+type SurfaceResourceAdapterHome adapterFamily resource =
+    SurfaceAdapterHome 'ResourceAdapterKind adapterFamily resource
 
-data SurfaceAdapterFamilyMetadata = SurfaceAdapterFamilyMetadata
-    { adapterFamilyType          :: !HaskellTypeMetadata
-    , adapterFamilySurfaceMarker :: !HaskellTypeMetadata
-    }
-    deriving (Eq, Show)
+type SurfaceScopeAdapterHome adapterFamily scope =
+    SurfaceAdapterHome 'ScopeAdapterKind adapterFamily scope
 
-data SurfaceResourceAdapterHomeMetadata = SurfaceResourceAdapterHomeMetadata
-    { resourceAdapterHomeFamily       :: !HaskellTypeMetadata
-    , resourceAdapterHomeSurface      :: !HaskellTypeMetadata
-    , resourceAdapterHomeResource     :: !HaskellTypeMetadata
-    , resourceAdapterHomeFieldMarkers :: ![HaskellTypeMetadata]
-    }
-    deriving (Eq, Show)
+type SurfaceFragmentAdapterHome adapterFamily fragment =
+    SurfaceAdapterHome 'FragmentAdapterKind adapterFamily fragment
+
+type SurfaceActionAdapterHome adapterFamily action =
+    SurfaceAdapterHome 'ActionAdapterKind adapterFamily action
+
+type SurfaceIntentAdapterHome adapterFamily intent =
+    SurfaceAdapterHome 'IntentAdapterKind adapterFamily intent
+
+type SurfaceResourceAdapterHomeMetadata =
+    SurfaceAdapterHomeMetadata 'ResourceAdapterKind
 
 data SurfaceAdapterRegistry = SurfaceAdapterRegistry
     { surfaceAdapterFamilies      :: ![SurfaceAdapterFamilyMetadata]
@@ -69,6 +87,21 @@ data SurfaceAdapterRegistry = SurfaceAdapterRegistry
 
 type family AdapterSurfaceMarker (surface :: SurfaceSpec) :: Type where
     AdapterSurfaceMarker ('Surface marker primitives) = marker
+
+type family SurfaceAdapterFieldSpecs
+    (kind :: SurfaceAdapterKind)
+    (surface :: SurfaceSpec)
+    (declaration :: Type) :: [FieldSpec] where
+    SurfaceAdapterFieldSpecs 'ResourceAdapterKind surface declaration =
+        SurfaceResourceFieldSpecs surface declaration
+    SurfaceAdapterFieldSpecs 'ScopeAdapterKind surface declaration =
+        SurfaceScopeFieldSpecs surface declaration
+    SurfaceAdapterFieldSpecs 'FragmentAdapterKind surface declaration =
+        SurfaceFragmentFieldSpecs surface declaration
+    SurfaceAdapterFieldSpecs 'ActionAdapterKind surface declaration =
+        SurfaceActionFieldSpecs surface declaration
+    SurfaceAdapterFieldSpecs 'IntentAdapterKind surface declaration =
+        SurfaceIntentFieldSpecs surface declaration
 
 class ReflectSurfaceAdapterFamilies (families :: [Type]) where
     reflectSurfaceAdapterFamilies :: [SurfaceAdapterFamilyMetadata]
@@ -89,28 +122,47 @@ instance
             }
             : reflectSurfaceAdapterFamilies @rest
 
-class ReflectSurfaceResourceAdapterHomes (homes :: [Type]) where
-    reflectSurfaceResourceAdapterHomes :: [SurfaceResourceAdapterHomeMetadata]
+class ReflectSurfaceAdapterHomes
+    (kind :: SurfaceAdapterKind)
+    (homes :: [Type]) where
+    reflectSurfaceAdapterHomes :: [SurfaceAdapterHomeMetadata kind]
 
-instance ReflectSurfaceResourceAdapterHomes '[] where
-    reflectSurfaceResourceAdapterHomes = []
+instance ReflectSurfaceAdapterHomes kind '[] where
+    reflectSurfaceAdapterHomes = []
 
 instance
     ( SurfaceAdapterFamily adapterFamily
     , Typeable adapterFamily
-    , Typeable resource
+    , Typeable declaration
     , Typeable (AdapterSurfaceMarker (AdapterFamilySurface adapterFamily))
-    , ReflectSurfaceFieldMarkerTypes (SurfaceResourceFieldSpecs (AdapterFamilySurface adapterFamily) resource)
-    , ReflectSurfaceResourceAdapterHomes rest
-    ) => ReflectSurfaceResourceAdapterHomes (SurfaceResourceAdapterHome adapterFamily resource ': rest) where
-    reflectSurfaceResourceAdapterHomes =
-        SurfaceResourceAdapterHomeMetadata
-            { resourceAdapterHomeFamily = haskellTypeMetadata @adapterFamily
-            , resourceAdapterHomeSurface = haskellTypeMetadata @(AdapterSurfaceMarker (AdapterFamilySurface adapterFamily))
-            , resourceAdapterHomeResource = haskellTypeMetadata @resource
-            , resourceAdapterHomeFieldMarkers = reflectSurfaceFieldMarkerTypes @(SurfaceResourceFieldSpecs (AdapterFamilySurface adapterFamily) resource)
+    , ReflectSurfaceFieldMarkerTypes
+        (SurfaceAdapterFieldSpecs kind (AdapterFamilySurface adapterFamily) declaration)
+    , ReflectSurfaceAdapterHomes kind rest
+    ) => ReflectSurfaceAdapterHomes
+        kind
+        (SurfaceAdapterHome kind adapterFamily declaration ': rest) where
+    reflectSurfaceAdapterHomes =
+        SurfaceAdapterHomeMetadata
+            { adapterHomeFamily = haskellTypeMetadata @adapterFamily
+            , adapterHomeSurface = haskellTypeMetadata @(AdapterSurfaceMarker (AdapterFamilySurface adapterFamily))
+            , adapterHomeDeclaration = haskellTypeMetadata @declaration
+            , adapterHomeFieldMarkers =
+                reflectSurfaceFieldMarkerTypes
+                    @(SurfaceAdapterFieldSpecs kind (AdapterFamilySurface adapterFamily) declaration)
             }
-            : reflectSurfaceResourceAdapterHomes @rest
+            : reflectSurfaceAdapterHomes @kind @rest
+
+-- Compatibility name retained for the existing resource registry while the
+-- focused future renderers use the kind-indexed class directly.
+type ReflectSurfaceResourceAdapterHomes homes =
+    ReflectSurfaceAdapterHomes 'ResourceAdapterKind homes
+
+reflectSurfaceResourceAdapterHomes ::
+    forall homes.
+    ReflectSurfaceResourceAdapterHomes homes =>
+    [SurfaceResourceAdapterHomeMetadata]
+reflectSurfaceResourceAdapterHomes =
+    reflectSurfaceAdapterHomes @'ResourceAdapterKind @homes
 
 class ReflectSurfaceFieldMarkerTypes (fields :: [FieldSpec]) where
     reflectSurfaceFieldMarkerTypes :: [HaskellTypeMetadata]
@@ -147,11 +199,3 @@ reflectSurfaceAdapterRegistry =
         { surfaceAdapterFamilies = reflectSurfaceAdapterFamilies @families
         , surfaceResourceAdapterHomes = reflectSurfaceResourceAdapterHomes @homes
         }
-
-haskellTypeMetadata :: forall value. Typeable value => HaskellTypeMetadata
-haskellTypeMetadata =
-    let tyCon = typeRepTyCon (typeRep (Proxy @value))
-     in HaskellTypeMetadata
-            { haskellTypeModule = cs (tyConModule tyCon)
-            , haskellTypeName = cs (tyConName tyCon)
-            }

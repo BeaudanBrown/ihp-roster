@@ -355,27 +355,53 @@ recover resource fields by text.
 
 Mechanical feature adapters are generated from the same checked declarations;
 they are not another Surface evaluator. A nominal adapter family has one typed
-`AdapterFamilySurface` association to an existing Surface alias. Resource homes
-register only `(family, resource marker)`, while declaration order, presence,
-wire shape, protocol names, and Haskell source types come from checked IR and the
-canonical `haskellWireSource` projection. The production family registry mirrors
-`RegisteredFrontendSurfaces`; feature-local `Surface.<Feature>.HaskellAdapter`
-modules own those associations, and the aggregate registry must assign exactly
-one canonical home to every unique checked production resource identity.
-Repeated dependency occurrences do not create extra homes. The shared
-`time-picker-config` identity, for example, has its canonical home in the Roster
-day-timeline family even though Timesheets also depends on it.
+`AdapterFamilySurface` association to an existing Surface alias. The
+kind-indexed `SurfaceAdapterHome` aliases register only `(family, declaration
+marker)` for resources, scopes, fragments, actions, and intents. Declaration
+order, presence, wire shape, protocol names, and Haskell source types still come
+from checked IR and the canonical `haskellWireSource` projection. The production
+family registry mirrors `RegisteredFrontendSurfaces`; feature-local
+`Surface.<Feature>.HaskellAdapter` modules own those associations, and later
+adapter kinds reuse them instead of adding parallel family registries.
 
-Generated modules live beside the Surface source module under
-`.Generated.Resource`, stay private behind curated feature facades, and invoke
-`frontendSurfaceResource` and `matchFrontendSurfaceResource`. Only the matching
+`HaskellAdapter.Core` owns the one shared implementation of home/family
+resolution, `Typeable` metadata, Haskell source types, import aliasing, locality,
+collision checks, deterministic module rendering, and generated-file
+bookkeeping. Focused renderers supply checked declarations and their
+function-level source only; they do not switch on reflected feature names or
+adapter-kind text. Completeness uses these kind-indexed identities:
+
+- a resource uses its checked shared resource identity;
+- a scope uses its runtime Surface identity;
+- a fragment, action, or intent uses owning Surface plus declaration identity.
+
+An action and intent may therefore share the same marker and reflected name.
+Generated-name collisions are checked across each complete physical output
+module (including scope and fragment declarations sharing `Generated.Live`),
+not across kind-separated modules such as Action and Intent.
+
+The private output/facade pairs are fixed as `.Generated.Resource` / `Resource`,
+`.Generated.Live` / `Live`, `.Generated.Action` / `Action`, and
+`.Generated.Intent` / `Intent`. Scope and fragment declarations deliberately
+share the Live pair. Today the focused resource renderer uses the core and the
+aggregate registry assigns exactly one canonical home to every unique checked
+production resource identity. Repeated dependency occurrences do not create
+extra homes. The shared `time-picker-config` identity, for example, has its
+canonical home in the Roster day-timeline family even though Timesheets also
+depends on it. The live/action/intent tickets add only their focused checked
+eligibility, homes, and source shapes over this core.
+
+Generated resource modules invoke `frontendSurfaceResource` and
+`matchFrontendSurfaceResource`; only the matching
 `Surface.<Feature>.Resource` facade may import one. Those facades re-export
 canonical constructors and retain handwritten domain aliases and matchers only
-where they add domain meaning. Generated modules must not import opaque internal
-constructors. Unsupported carriers stop generation with a resource/field-specific
-diagnostic rather than falling back to JSON or a handwritten type. The generator
-uses normal Haskell reflection plus `Typeable` module/type metadata; it does not
-parse source or compiler syntax trees.
+where they add domain meaning. Every generated-kind module must stay behind its
+matching curated facade and must not import opaque internal constructors.
+Unsupported carriers stop generation with an adapter-kind/declaration/field
+specific diagnostic rather than falling back to JSON, a generated carrier
+record, or a handwritten type. The generator uses normal Haskell reflection plus
+`Typeable` module/type metadata;
+it does not parse source or compiler syntax trees.
 
 The Timesheets family was the representative migration checkpoint. Its
 handwritten `Resource` module moved from 35 lines to a 9-line curated facade,

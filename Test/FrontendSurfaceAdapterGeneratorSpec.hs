@@ -1,3 +1,4 @@
+{-# LANGUAGE DataKinds        #-}
 {-# LANGUAGE TypeApplications #-}
 
 module Test.FrontendSurfaceAdapterGeneratorSpec
@@ -6,6 +7,7 @@ module Test.FrontendSurfaceAdapterGeneratorSpec
 
 import Application.Helper.FrontendContract.Surface.ContractIR
 import Application.Helper.FrontendContract.Surface.Contracts (registeredFrontendSurfaceContractIR)
+import Application.Helper.FrontendContract.Surface.HaskellAdapter.Core
 import Application.Helper.FrontendContract.Surface.HaskellAdapter.Family
 import Application.Helper.FrontendContract.Surface.HaskellAdapter.Generator
 import Application.Helper.FrontendContract.Surface.HaskellAdapter.Registry (registeredSurfaceAdapterRegistry)
@@ -73,6 +75,101 @@ tests = describe "FrontendSurface Haskell adapter generator" do
         map (.haskellTypeName) (map (.adapterFamilySurfaceMarker) registeredSurfaceAdapterRegistry.surfaceAdapterFamilies)
             `shouldBe` map (.surfaceMarker) registeredFrontendSurfaceContractIR.contractSurfaces
 
+    it "defines kind-indexed generated namespaces and matching curated facade boundaries" do
+        let surfaceMetadata =
+                maybe
+                    (error "expected one fixture action home")
+                    (.adapterHomeSurface)
+                    (listToMaybe fixtureActionHomes)
+        adapterGeneratedModuleName resourceAdapterLayout surfaceMetadata
+            `shouldBe` "Test.Support.FrontendSurfaceAdapterFixture.Generated.Resource"
+        adapterFacadeModuleName resourceAdapterLayout surfaceMetadata
+            `shouldBe` "Test.Support.FrontendSurfaceAdapterFixture.Resource"
+        adapterGeneratedModuleName scopeAdapterLayout surfaceMetadata
+            `shouldBe` "Test.Support.FrontendSurfaceAdapterFixture.Generated.Live"
+        adapterFacadeModuleName scopeAdapterLayout surfaceMetadata
+            `shouldBe` "Test.Support.FrontendSurfaceAdapterFixture.Live"
+        adapterGeneratedModuleName fragmentAdapterLayout surfaceMetadata
+            `shouldBe` "Test.Support.FrontendSurfaceAdapterFixture.Generated.Live"
+        adapterFacadeModuleName fragmentAdapterLayout surfaceMetadata
+            `shouldBe` "Test.Support.FrontendSurfaceAdapterFixture.Live"
+        adapterGeneratedModuleName actionAdapterLayout surfaceMetadata
+            `shouldBe` "Test.Support.FrontendSurfaceAdapterFixture.Generated.Action"
+        adapterFacadeModuleName actionAdapterLayout surfaceMetadata
+            `shouldBe` "Test.Support.FrontendSurfaceAdapterFixture.Action"
+        adapterGeneratedModuleName intentAdapterLayout surfaceMetadata
+            `shouldBe` "Test.Support.FrontendSurfaceAdapterFixture.Generated.Intent"
+        adapterFacadeModuleName intentAdapterLayout surfaceMetadata
+            `shouldBe` "Test.Support.FrontendSurfaceAdapterFixture.Intent"
+
+    it "indexes checked identities by declaration kind and permits action/intent marker reuse" do
+        fixtureActionDeclaration.checkedAdapterDeclarationMarker
+            `shouldBe` fixtureIntentDeclaration.checkedAdapterDeclarationMarker
+        fixtureActionDeclaration.checkedAdapterDeclarationName
+            `shouldBe` fixtureIntentDeclaration.checkedAdapterDeclarationName
+        map (.adapterHomeDeclaration) fixtureActionHomes
+            `shouldBe` map (.adapterHomeDeclaration) fixtureIntentHomes
+        adapterIdentityCollisionKey actionAdapterLayout fixtureActionDeclaration.checkedAdapterIdentity
+            `shouldNotBe` adapterIdentityCollisionKey intentAdapterLayout fixtureIntentDeclaration.checkedAdapterIdentity
+        diagnosticCodes resolveFixtureActions `shouldBe` []
+        diagnosticCodes resolveFixtureIntents `shouldBe` []
+        case renderFixtureActionIntentModules of
+            Left diagnostics -> expectationFailure (cs (show diagnostics))
+            Right generatedModules ->
+                map (.generatedModuleName) generatedModules
+                    `shouldBe`
+                        [ "Test.Support.FrontendSurfaceAdapterFixture.Generated.Action"
+                        , "Test.Support.FrontendSurfaceAdapterFixture.Generated.Intent"
+                        ]
+
+    it "checks generated-name collisions across kinds that share one output namespace" do
+        diagnosticCodes renderFixtureLiveCollision
+            `shouldContain` ["generated-adapter-name-collision"]
+
+    it "applies shared locality validation to non-resource adapter kinds" do
+        let unrelatedFamily =
+                HaskellTypeMetadata
+                    { haskellTypeModule = "Application.Helper.FrontendContract.Surface.HaskellAdapter.Registry"
+                    , haskellTypeName = "AdapterFixtureFamily"
+                    }
+        let nonLocalFamilies =
+                map (\family -> family { adapterFamilyType = unrelatedFamily }) fixtureRegistry.surfaceAdapterFamilies
+        let nonLocalHomes =
+                map (\home -> home { adapterHomeFamily = unrelatedFamily }) fixtureActionHomes
+        diagnosticCodes
+            ( resolveAdapterGeneration
+                actionAdapterLayout
+                fixtureContract
+                nonLocalFamilies
+                nonLocalHomes
+                [fixtureActionDeclaration]
+                (const ["crossKindDeclarationFields"])
+            )
+            `shouldContain` ["adapter-import-locality"]
+
+    it "reports unsupported source types with adapter kind, owning declaration, and field" do
+        let unsupportedAction =
+                fixtureActionDeclaration
+                    { checkedAdapterFields = map replaceLabelWire fixtureActionDeclaration.checkedAdapterFields
+                    }
+        case resolveAdapterGeneration
+            actionAdapterLayout
+            fixtureContract
+            fixtureRegistry.surfaceAdapterFamilies
+            fixtureActionHomes
+            [unsupportedAction]
+            (const ["crossKindDeclarationFields"]) of
+            Right _ -> expectationFailure "expected unsupported action source generation to fail"
+            Left diagnostics -> do
+                map (.diagnosticCode) diagnostics
+                    `shouldContain` ["unsupported-generated-source-type"]
+                map (.diagnosticMessage) diagnostics
+                    `shouldSatisfy` any (\message ->
+                        "Action " `Text.isInfixOf` message
+                            && " field label " `Text.isInfixOf` message
+                            && "Map Text Text" `Text.isInfixOf` message
+                    )
+
     it "renders the Timesheets pilot through a feature-local generated module" do
         case generateSurfaceResourceAdapterModules registeredFrontendSurfaceContractIR registeredSurfaceAdapterRegistry of
             Left diagnostics -> expectationFailure (cs (show diagnostics))
@@ -129,8 +226,8 @@ tests = describe "FrontendSurface Haskell adapter generator" do
                 case homes of
                     home : rest ->
                         home
-                            { resourceAdapterHomeResource =
-                                home.resourceAdapterHomeResource { haskellTypeName = "MissingResource" }
+                            { adapterHomeDeclaration =
+                                home.adapterHomeDeclaration { haskellTypeName = "MissingResource" }
                             }
                             : rest
                     [] -> []
@@ -149,7 +246,7 @@ tests = describe "FrontendSurface Haskell adapter generator" do
                     { surfaceAdapterFamilies =
                         map (\family -> family { adapterFamilyType = unrelatedFamily }) fixtureRegistry.surfaceAdapterFamilies
                     , surfaceResourceAdapterHomes =
-                        map (\home -> home { resourceAdapterHomeFamily = unrelatedFamily }) fixtureRegistry.surfaceResourceAdapterHomes
+                        map (\home -> home { adapterHomeFamily = unrelatedFamily }) fixtureRegistry.surfaceResourceAdapterHomes
                     }
         diagnosticCodes (generateFixture nonLocalRegistry)
             `shouldContain` ["adapter-import-locality"]
@@ -189,6 +286,177 @@ diagnosticCodes = \case
     Right _ -> []
     Left diagnostics -> map (.diagnosticCode) diagnostics
 
+fixtureScopeHomes :: [SurfaceAdapterHomeMetadata 'ScopeAdapterKind]
+fixtureScopeHomes =
+    reflectSurfaceAdapterHomes
+        @'ScopeAdapterKind
+        @Fixture.FixtureScopeHomes
+
+fixtureFragmentHomes :: [SurfaceAdapterHomeMetadata 'FragmentAdapterKind]
+fixtureFragmentHomes =
+    reflectSurfaceAdapterHomes
+        @'FragmentAdapterKind
+        @Fixture.FixtureFragmentHomes
+
+fixtureActionHomes :: [SurfaceAdapterHomeMetadata 'ActionAdapterKind]
+fixtureActionHomes =
+    reflectSurfaceAdapterHomes
+        @'ActionAdapterKind
+        @Fixture.FixtureActionHomes
+
+fixtureIntentHomes :: [SurfaceAdapterHomeMetadata 'IntentAdapterKind]
+fixtureIntentHomes =
+    reflectSurfaceAdapterHomes
+        @'IntentAdapterKind
+        @Fixture.FixtureIntentHomes
+
+fixtureScopeDeclaration :: CheckedAdapterDeclaration 'ScopeAdapterKind ScopeIR
+fixtureScopeDeclaration =
+    let surface = fixtureSurface
+        scope = case surface.surfaceScopes of
+            [value] -> value
+            values  -> error ("expected one fixture scope, got " <> show (length values))
+     in CheckedAdapterDeclaration
+            { checkedAdapterIdentity = scopeAdapterIdentity surface.surfaceName
+            , checkedAdapterSurfaceMarker = surface.surfaceMarker
+            , checkedAdapterSurfaceName = surface.surfaceName
+            , checkedAdapterDeclarationMarker = scope.scopeMarker
+            , checkedAdapterDeclarationName = scope.scopeName
+            , checkedAdapterFields = scope.scopeFields
+            , checkedAdapterPayload = scope
+            }
+
+fixtureFragmentDeclaration :: CheckedAdapterDeclaration 'FragmentAdapterKind FragmentIR
+fixtureFragmentDeclaration =
+    let surface = fixtureSurface
+        fragment = case surface.surfaceFragments of
+            [value] -> value
+            values  -> error ("expected one fixture fragment, got " <> show (length values))
+     in CheckedAdapterDeclaration
+            { checkedAdapterIdentity = fragmentAdapterIdentity surface.surfaceName fragment.fragmentName
+            , checkedAdapterSurfaceMarker = surface.surfaceMarker
+            , checkedAdapterSurfaceName = surface.surfaceName
+            , checkedAdapterDeclarationMarker = fragment.fragmentMarker
+            , checkedAdapterDeclarationName = fragment.fragmentName
+            , checkedAdapterFields = fragment.fragmentParams
+            , checkedAdapterPayload = fragment
+            }
+
+fixtureActionDeclaration :: CheckedAdapterDeclaration 'ActionAdapterKind HtmxActionIR
+fixtureActionDeclaration =
+    let surface = fixtureSurface
+        action = case surface.surfaceHtmxActions of
+            [value] -> value
+            values  -> error ("expected one fixture action, got " <> show (length values))
+     in CheckedAdapterDeclaration
+            { checkedAdapterIdentity = actionAdapterIdentity surface.surfaceName action.htmxActionName
+            , checkedAdapterSurfaceMarker = surface.surfaceMarker
+            , checkedAdapterSurfaceName = surface.surfaceName
+            , checkedAdapterDeclarationMarker = action.htmxActionMarker
+            , checkedAdapterDeclarationName = action.htmxActionName
+            , checkedAdapterFields = action.htmxActionFields
+            , checkedAdapterPayload = action
+            }
+
+fixtureIntentDeclaration :: CheckedAdapterDeclaration 'IntentAdapterKind IntentIR
+fixtureIntentDeclaration =
+    let surface = fixtureSurface
+        intent = case surface.surfaceIntents of
+            [value] -> value
+            values  -> error ("expected one fixture intent, got " <> show (length values))
+     in CheckedAdapterDeclaration
+            { checkedAdapterIdentity = intentAdapterIdentity surface.surfaceName intent.intentName
+            , checkedAdapterSurfaceMarker = surface.surfaceMarker
+            , checkedAdapterSurfaceName = surface.surfaceName
+            , checkedAdapterDeclarationMarker = intent.intentMarker
+            , checkedAdapterDeclarationName = intent.intentName
+            , checkedAdapterFields = intent.intentFields
+            , checkedAdapterPayload = intent
+            }
+
+fixtureSurface :: SurfaceIR
+fixtureSurface =
+    case fixtureContract.contractSurfaces of
+        [surface] -> surface
+        surfaces  -> error ("expected one fixture Surface, got " <> show (length surfaces))
+
+resolveFixtureScopes :: Either [ContractDiagnostic] [ResolvedAdapter 'ScopeAdapterKind ScopeIR]
+resolveFixtureScopes =
+    resolveAdapterGeneration
+        scopeAdapterLayout
+        fixtureContract
+        fixtureRegistry.surfaceAdapterFamilies
+        fixtureScopeHomes
+        [fixtureScopeDeclaration]
+        (const ["crossKindDeclaration"])
+
+resolveFixtureFragments :: Either [ContractDiagnostic] [ResolvedAdapter 'FragmentAdapterKind FragmentIR]
+resolveFixtureFragments =
+    resolveAdapterGeneration
+        fragmentAdapterLayout
+        fixtureContract
+        fixtureRegistry.surfaceAdapterFamilies
+        fixtureFragmentHomes
+        [fixtureFragmentDeclaration]
+        (const ["crossKindDeclaration"])
+
+resolveFixtureActions :: Either [ContractDiagnostic] [ResolvedAdapter 'ActionAdapterKind HtmxActionIR]
+resolveFixtureActions =
+    resolveAdapterGeneration
+        actionAdapterLayout
+        fixtureContract
+        fixtureRegistry.surfaceAdapterFamilies
+        fixtureActionHomes
+        [fixtureActionDeclaration]
+        (const ["crossKindDeclarationFields"])
+
+resolveFixtureIntents :: Either [ContractDiagnostic] [ResolvedAdapter 'IntentAdapterKind IntentIR]
+resolveFixtureIntents =
+    resolveAdapterGeneration
+        intentAdapterLayout
+        fixtureContract
+        fixtureRegistry.surfaceAdapterFamilies
+        fixtureIntentHomes
+        [fixtureIntentDeclaration]
+        (const ["crossKindDeclarationFields"])
+
+fixtureKindRenderer :: AdapterModuleRenderer ()
+fixtureKindRenderer =
+    AdapterModuleRenderer
+        { adapterRendererLanguagePragmas = ["{-# LANGUAGE TypeApplications #-}"]
+        , adapterRendererHeaderLines = ["-- generated fixture"]
+        , adapterRendererImports = \_ _ -> ["import IHP.Prelude"]
+        , adapterRendererDeclaration = \_ adapter ->
+            case adapter.renderableAdapterGeneratedNames of
+                generatedName : _ -> [generatedName <> " = ()"]
+                []                -> []
+        }
+
+renderFixtureActionIntentModules :: Either [ContractDiagnostic] [GeneratedHaskellModule]
+renderFixtureActionIntentModules = do
+    actions <- resolveFixtureActions
+    intents <- resolveFixtureIntents
+    renderGeneratedAdapterModules
+        fixtureKindRenderer
+        ( map (toRenderableAdapter (const ())) actions
+            <> map (toRenderableAdapter (const ())) intents
+        )
+
+renderFixtureLiveCollision :: Either [ContractDiagnostic] [GeneratedHaskellModule]
+renderFixtureLiveCollision = do
+    scopes <- resolveFixtureScopes
+    fragments <- resolveFixtureFragments
+    renderGeneratedAdapterModules
+        fixtureKindRenderer
+        ( map (toRenderableAdapter (const ())) scopes
+            <> map (toRenderableAdapter (const ())) fragments
+        )
+
+replaceLabelWire :: FieldIR -> FieldIR
+replaceLabelWire field
+    | field.fieldName == "label" = field { fieldWire = WireMapIR WireTextIR WireTextIR }
+    | otherwise = field
+
 productionResourceNames :: [Text]
 productionResourceNames =
     [ dependency.dependencyResource.resourceName
@@ -204,8 +472,8 @@ collisionHomes =
         [accountHome, heartbeatHome] ->
             [ accountHome
             , heartbeatHome
-                { resourceAdapterHomeResource =
-                    heartbeatHome.resourceAdapterHomeResource
+                { adapterHomeDeclaration =
+                    heartbeatHome.adapterHomeDeclaration
                         { haskellTypeName = "FixtureAccountResource"
                         }
                 }

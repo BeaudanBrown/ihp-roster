@@ -96,19 +96,30 @@ field, discriminator, or case literals.
 
 Mechanical Haskell Surface adapters use the separate foundation under
 `Application.Helper.FrontendContract.Surface.HaskellAdapter`. Nominal adapter
-families are associated with existing Surface aliases through
-`AdapterFamilySurface`; a `SurfaceResourceAdapterHome family resource` registers
-only ownership and never repeats fields, presence, or wires. The normal Haskell
-generator combines that typed registry with the checked `SurfaceContractIR`,
-Typeable source-module metadata, and `haskellWireSource`. It emits private
-feature-adjacent `.Generated.Resource` modules that call only the public
-marker-indexed resource builders and matchers. Unsupported source carriers fail
-with the owning resource and field in the diagnostic. Production family
-associations live in feature-local `Surface.<Feature>.HaskellAdapter` modules,
-and the checked aggregate registry assigns exactly one canonical home to every
-unique production resource identity. Curated `Surface.<Feature>.Resource`
-facades are the generated modules' only consumers and retain only domain aliases,
-domain matchers, and meaningful public exports.
+families are associated with existing Surface aliases once through
+`AdapterFamilySurface`; resource, scope, fragment, action, and intent homes are
+kind-indexed uses of that same family association and never repeat fields,
+presence, or wires. `HaskellAdapter.Core` is the single checked implementation
+of Typeable metadata, source-type rendering, home/family/locality validation,
+kind-indexed identity and collision checks, import aliases, deterministic module
+layout, and generated-file bookkeeping. Resource identity is the checked shared
+resource identity, scope identity is the runtime Surface identity, and fragment,
+action, and intent identities are owning-Surface plus declaration identity, so
+cross-kind marker/name reuse is valid.
+
+Focused renderers select checked declarations and own only their function-level
+source shapes. The current resource renderer emits the byte-stable private
+feature-adjacent `.Generated.Resource` modules through the core; live, action,
+and intent extensions have reserved `.Generated.Live`, `.Generated.Action`, and
+`.Generated.Intent` layouts with matching `Live`, `Action`, and `Intent` curated
+facades. Generated resource code calls only the public marker-indexed builders
+and matchers. Unsupported source carriers fail with adapter kind, declaration,
+and field in the diagnostic. Production family associations remain feature-local,
+and the checked aggregate resource registry assigns exactly one canonical home
+to every unique production resource identity. Curated
+`Surface.<Feature>.Resource` facades are the generated resource modules' only
+consumers and retain only domain aliases, domain matchers, and meaningful public
+exports.
 
 Use `frontend-surface-adapters` to write generated Haskell modules and
 `frontend-surface-adapters-check` to reject missing, extra, unformatted, or stale

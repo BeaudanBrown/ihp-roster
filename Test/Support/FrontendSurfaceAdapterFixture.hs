@@ -6,11 +6,16 @@ module Test.Support.FrontendSurfaceAdapterFixture
     ( AdapterFixtureFamily
     , AdapterFixtureSurface
     , ArchivedAt
+    , CrossKindDeclaration
     , Enabled
     , FixtureAccount
+    , FixtureActionHomes
     , FixtureAdapterFamilies
+    , FixtureFragmentHomes
     , FixtureHeartbeatResource
+    , FixtureIntentHomes
     , FixtureResourceHomes
+    , FixtureScopeHomes
     , Label
     , MaybeIds
     , MaybeNote
@@ -26,8 +31,7 @@ import Application.Helper.FrontendContract.Surface.HaskellAdapter.Family
 -- to the application or browser registries.
 data AdapterFixture
 data AdapterFixtureFamily
-data AdapterFixtureScope
-data AdapterFixturePanel
+data CrossKindDeclaration
 data AdapterFixturePanelTarget
 
 data FixtureAccount
@@ -57,8 +61,8 @@ type FixtureHeartbeat = Resource FixtureHeartbeatResource '[]
 
 type AdapterFixtureSurface =
     Surface AdapterFixture
-        '[ Scope AdapterFixtureScope '[] '[ 'NoAuth ]
-         , Fragment AdapterFixturePanel FixtureAccountFields
+        '[ Scope CrossKindDeclaration FixtureAccountFields '[ 'NoAuth ]
+         , Fragment CrossKindDeclaration FixtureAccountFields
             '[ 'MountTarget AdapterFixturePanelTarget '[]
              , 'DependsOn FixtureAccountResource
                 '[ 'FromFragment Label
@@ -71,6 +75,8 @@ type AdapterFixtureSurface =
                  ]
              , 'DependsOn FixtureHeartbeat '[]
              ]
+         , Action CrossKindDeclaration FixtureAccountFields '[]
+         , Intent CrossKindDeclaration FixtureAccountFields '[]
          ]
 
 instance SurfaceAdapterFamily AdapterFixtureFamily where
@@ -82,3 +88,15 @@ type FixtureResourceHomes =
     '[ SurfaceResourceAdapterHome AdapterFixtureFamily FixtureAccount
      , SurfaceResourceAdapterHome AdapterFixtureFamily FixtureHeartbeatResource
      ]
+
+type FixtureScopeHomes =
+    '[SurfaceScopeAdapterHome AdapterFixtureFamily CrossKindDeclaration]
+
+type FixtureFragmentHomes =
+    '[SurfaceFragmentAdapterHome AdapterFixtureFamily CrossKindDeclaration]
+
+type FixtureActionHomes =
+    '[SurfaceActionAdapterHome AdapterFixtureFamily CrossKindDeclaration]
+
+type FixtureIntentHomes =
+    '[SurfaceIntentAdapterHome AdapterFixtureFamily CrossKindDeclaration]
