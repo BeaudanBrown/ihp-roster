@@ -1,0 +1,195 @@
+{-# LANGUAGE DataKinds           #-}
+{-# LANGUAGE OverloadedRecordDot #-}
+
+-- | Focused checked-IR projection for generated Surface Action adapters. The
+-- shared core owns identity, source types, locality, collisions, and module
+-- layout; this renderer owns only the canonical Action operation shapes.
+module Application.Helper.FrontendContract.Surface.HaskellAdapter.Action
+    ( SurfaceActionAdapterDeclaration
+    , checkedSurfaceActionAdapterDeclarations
+    , generateSurfaceActionAdapterModules
+    , renderSurfaceActionAdapterModules
+    ) where
+
+import Application.Helper.FrontendContract.Naming (wordsFromTypeName)
+import Application.Helper.FrontendContract.Surface.ContractIR
+import Application.Helper.FrontendContract.Surface.HaskellAdapter.Core
+import Application.Helper.FrontendContract.Surface.HaskellAdapter.Family
+import Application.Helper.FrontendContract.Surface.HaskellAdapter.RequestRenderer
+import qualified Data.List as List
+import qualified Data.Map.Strict as Map
+import IHP.Prelude
+
+-- | The only payload admitted to the Generated.Action output lane. It is
+-- created after checked IR inventory resolution and retains the exact
+-- operation eligibility selected for this Action declaration.
+data SurfaceActionAdapterDeclaration = SurfaceActionAdapterDeclaration
+    { surfaceActionDeclarationIR         :: !HtmxActionIR
+    , surfaceActionDeclarationOperations :: !SurfaceRequestAdapterOperations
+    }
+    deriving (Eq, Show)
+
+checkedSurfaceActionAdapterDeclarations ::
+    SurfaceContractIR ->
+    Either [ContractDiagnostic] [CheckedAdapterDeclaration 'ActionAdapterKind HtmxActionIR]
+checkedSurfaceActionAdapterDeclarations contract =
+    case stableDiagnostics (validateSurfaceContractIR contract) of
+        [] ->
+            Right
+                [ checkedActionAdapterDeclaration surface action
+                | surface <- contract.contractSurfaces
+                , action <- surface.surfaceHtmxActions
+                ]
+        diagnostics -> Left diagnostics
+
+generateSurfaceActionAdapterModules ::
+    SurfaceContractIR ->
+    SurfaceAdapterRegistry ->
+    Either [ContractDiagnostic] [GeneratedHaskellModule]
+generateSurfaceActionAdapterModules contract registry = do
+    declarations <- checkedSurfaceActionAdapterDeclarations contract
+    inventory <-
+        resolveSurfaceRequestAdapterRegistrations
+            actionAdapterLayout
+            contract
+            registry.surfaceAdapterFamilies
+            declarations
+            registry.surfaceActionAdapterRegistrations
+    let generatedDeclarations = mapMaybe generatedDeclaration inventory
+    case stableDiagnostics
+        ( validateSurfaceAdapterLanePublication
+            actionAdapterLayout
+            registry.surfaceActionAdapterPublication
+            registry.surfaceActionAdapterHomes
+        ) of
+        diagnostics@(_ : _) -> Left diagnostics
+        [] -> case registry.surfaceActionAdapterPublication of
+            StageEmptySurfaceAdapterLane _ _ -> Right []
+            PublishSurfaceAdapterLane -> do
+                adapters <-
+                    resolveAdapterGeneration
+                        actionAdapterLayout
+                        contract
+                        registry.surfaceAdapterFamilies
+                        registry.surfaceActionAdapterHomes
+                        generatedDeclarations
+                        actionGeneratedNames
+                renderSurfaceActionAdapterModules adapters
+  where
+    generatedDeclaration registration = do
+        operations <- registration.checkedSurfaceRequestAdapterOperations
+        pure
+            ( mapCheckedAdapterPayload
+                (`SurfaceActionAdapterDeclaration` operations)
+                registration.checkedSurfaceRequestAdapterDeclaration
+            )
+
+-- | Resolution remains Action-indexed until this conversion into the private
+-- Action renderer. Intent declarations cannot inhabit this input type.
+renderSurfaceActionAdapterModules ::
+    [ResolvedAdapter 'ActionAdapterKind SurfaceActionAdapterDeclaration] ->
+    Either [ContractDiagnostic] [GeneratedHaskellModule]
+renderSurfaceActionAdapterModules adapters =
+    renderGeneratedAdapterModules
+        actionModuleRenderer
+        (map (toRenderableAdapter id) adapters)
+
+actionGeneratedNames ::
+    CheckedAdapterDeclaration 'ActionAdapterKind SurfaceActionAdapterDeclaration ->
+    [Text]
+actionGeneratedNames declaration =
+    concat
+        [ operationName operations.surfaceAdapterFieldsBuilderOperation fieldsName
+        , operationName operations.surfaceAdapterRenderMetadataOperation metadataName
+        , operationName operations.surfaceAdapterRequestParserOperation parserName
+        ]
+  where
+    operations = declaration.checkedAdapterPayload.surfaceActionDeclarationOperations
+    baseName = actionBaseName declaration.checkedAdapterDeclarationMarker
+    fieldsName = baseName <> "Fields"
+    metadataName = baseName
+    parserName = "parse" <> upperFirst baseName <> "Params"
+    operationName eligibility name =
+        [name | surfaceAdapterOperationIsGenerated eligibility]
+
+actionModuleRenderer :: AdapterModuleRenderer SurfaceActionAdapterDeclaration
+actionModuleRenderer =
+    AdapterModuleRenderer
+        { adapterRendererLanguagePragmas =
+            [ "{-# LANGUAGE ImplicitParams   #-}"
+            , "{-# LANGUAGE TypeApplications #-}"
+            ]
+        , adapterRendererHeaderLines =
+            [ "-- @generated by Application.Helper.FrontendContract.Surface.HaskellAdapter.Generator"
+            , "-- Do not edit; run `bash ./bin/in-env frontend-surface-adapters`."
+            ]
+        , adapterRendererImports = renderActionImports
+        , adapterRendererDeclaration = renderActionAdapter
+        }
+
+renderActionImports ::
+    Map.Map Text Text ->
+    [RenderableAdapter SurfaceActionAdapterDeclaration] ->
+    [Text]
+renderActionImports =
+    renderSurfaceRequestAdapterImports
+        "SurfaceActionFieldSpecs"
+        ["FrontendSurfaceAction", "frontendSurfaceAction"]
+        "parseSurfaceActionParams"
+        (.surfaceActionDeclarationOperations)
+
+renderActionAdapter ::
+    Map.Map Text Text ->
+    RenderableAdapter SurfaceActionAdapterDeclaration ->
+    [Text]
+renderActionAdapter aliases adapter =
+    renderSurfaceRequestAdapterOperationBlocks
+        [ ( operations.surfaceAdapterFieldsBuilderOperation
+          , renderSurfaceRequestAdapterFieldsBuilder "SurfaceActionFieldSpecs" fieldsName aliases adapter
+          )
+        , ( operations.surfaceAdapterRenderMetadataOperation
+          , renderActionMetadata aliases adapter
+          )
+        , ( operations.surfaceAdapterRequestParserOperation
+          , renderSurfaceRequestAdapterParser
+                "SurfaceActionFieldSpecs"
+                parserName
+                "parseSurfaceActionParams"
+                aliases
+                adapter
+          )
+        ]
+  where
+    operations = adapter.renderableAdapterPayload.surfaceActionDeclarationOperations
+
+renderActionMetadata ::
+    Map.Map Text Text ->
+    RenderableAdapter SurfaceActionAdapterDeclaration ->
+    [Text]
+renderActionMetadata aliases adapter =
+    [ metadataName adapter <> " :: " <> renderSurfaceRequestAdapterFieldsType "SurfaceActionFieldSpecs" aliases adapter <> " -> FrontendSurfaceAction"
+    , metadataName adapter <> " ="
+    , "    frontendSurfaceAction"
+    , "        @(AdapterFamilySurface " <> qualifyHaskellType aliases adapter.renderableAdapterHomeFamily <> ")"
+    , "        @" <> qualifyHaskellType aliases adapter.renderableAdapterHomeDeclaration
+    ]
+
+fieldsName :: RenderableAdapter SurfaceActionAdapterDeclaration -> Text
+fieldsName adapter = actionBaseName adapter.renderableAdapterHomeDeclaration.haskellTypeName <> "Fields"
+
+metadataName :: RenderableAdapter SurfaceActionAdapterDeclaration -> Text
+metadataName = actionBaseName . (.haskellTypeName) . (.renderableAdapterHomeDeclaration)
+
+parserName :: RenderableAdapter SurfaceActionAdapterDeclaration -> Text
+parserName adapter = "parse" <> upperFirst (metadataName adapter) <> "Params"
+
+actionBaseName :: Text -> Text
+actionBaseName typeName =
+    wordsFromTypeName typeName
+        |> preserveOrAddActionSuffix
+        |> lowerCamel
+        |> haskellValueIdentifier
+  where
+    preserveOrAddActionSuffix words
+        | ["action"] `List.isSuffixOf` words = words
+        | otherwise = words <> ["action"]

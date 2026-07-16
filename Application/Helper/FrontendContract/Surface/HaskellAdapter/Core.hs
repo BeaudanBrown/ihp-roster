@@ -18,6 +18,8 @@
 module Application.Helper.FrontendContract.Surface.HaskellAdapter.Core
     ( AdapterIdentity
     , AdapterModuleLayout
+    , adapterKindLabel
+    , adapterKindSlug
     , AdapterModuleRenderer (..)
     , CheckedAdapterDeclaration
     , checkedAdapterDeclarationMarker
@@ -30,9 +32,23 @@ module Application.Helper.FrontendContract.Surface.HaskellAdapter.Core
     , GeneratedHaskellModule (..)
     , HaskellSourceType
     , HaskellTypeMetadata (..)
-    , RenderableAdapter (..)
-    , ResolvedAdapter (..)
-    , ResolvedAdapterField (..)
+    , RenderableAdapter
+    , renderableAdapterFields
+    , renderableAdapterGeneratedNames
+    , renderableAdapterHomeDeclaration
+    , renderableAdapterHomeFamily
+    , renderableAdapterOutputModule
+    , renderableAdapterPayload
+    , ResolvedAdapter
+    , resolvedAdapterDeclaration
+    , resolvedAdapterFields
+    , resolvedAdapterGeneratedNames
+    , resolvedAdapterHome
+    , resolvedAdapterOutputModule
+    , ResolvedAdapterField
+    , resolvedAdapterFieldIR
+    , resolvedAdapterFieldMarker
+    , resolvedAdapterFieldType
     , SurfaceAdapterFamilyMetadata (..)
     , SurfaceAdapterHomeMetadata (..)
     , SurfaceAdapterKind (..)
@@ -53,10 +69,12 @@ module Application.Helper.FrontendContract.Surface.HaskellAdapter.Core
     , intentAdapterIdentity
     , intentAdapterLayout
     , lowerCamel
+    , mapCheckedAdapterPayload
     , qualifyHaskellType
     , renderAdapterArguments
     , renderAdapterFieldValueTuple
     , renderAdapterFieldsExpression
+    , renderAdapterFieldsValueExpression
     , renderGeneratedAdapterModules
     , renderHaskellSourceType
     , renderImportList
@@ -304,6 +322,15 @@ checkedIntentAdapterDeclaration surface intent =
         , checkedAdapterFields = intent.intentFields
         , checkedAdapterPayload = intent
         }
+
+-- | Attach focused-renderer data without reopening checked identity, names, or
+-- fields. This is the only payload conversion before kind-indexed resolution.
+mapCheckedAdapterPayload ::
+    (sourcePayload -> renderedPayload) ->
+    CheckedAdapterDeclaration kind sourcePayload ->
+    CheckedAdapterDeclaration kind renderedPayload
+mapCheckedAdapterPayload transform declaration =
+    declaration { checkedAdapterPayload = transform declaration.checkedAdapterPayload }
 
 data HaskellSourceType
     = HaskellNamedType !HaskellNamedType
@@ -847,13 +874,24 @@ renderAdapterArguments fields =
         names -> " " <> Text.unwords names
 
 renderAdapterFieldsExpression :: Map.Map Text Text -> [ResolvedAdapterField] -> [Text]
-renderAdapterFieldsExpression _ [] = ["        NoSurfaceFields"]
-renderAdapterFieldsExpression aliases (first : rest) =
-    ["        ( " <> renderAdapterFieldBuilder aliases first]
-        <> ["            :& " <> renderAdapterFieldBuilder aliases field | field <- rest]
-        <> [ "            :& NoSurfaceFields"
-           , "        )"
+renderAdapterFieldsExpression = renderAdapterFieldsExpressionWithIndent "        "
+
+-- | Render a standalone SurfaceFields value. Action and Intent field-bundle
+-- builders share this shape, while Resource/Live constructors keep the nested
+-- expression indentation above byte-for-byte stable.
+renderAdapterFieldsValueExpression :: Map.Map Text Text -> [ResolvedAdapterField] -> [Text]
+renderAdapterFieldsValueExpression = renderAdapterFieldsExpressionWithIndent "    "
+
+renderAdapterFieldsExpressionWithIndent :: Text -> Map.Map Text Text -> [ResolvedAdapterField] -> [Text]
+renderAdapterFieldsExpressionWithIndent indentation _ [] = [indentation <> "NoSurfaceFields"]
+renderAdapterFieldsExpressionWithIndent indentation aliases (first : rest) =
+    [indentation <> "( " <> renderAdapterFieldBuilder aliases first]
+        <> [continuationIndentation <> ":& " <> renderAdapterFieldBuilder aliases field | field <- rest]
+        <> [ continuationIndentation <> ":& NoSurfaceFields"
+           , indentation <> ")"
            ]
+  where
+    continuationIndentation = indentation <> "    "
 
 renderAdapterFieldBuilder :: Map.Map Text Text -> ResolvedAdapterField -> Text
 renderAdapterFieldBuilder aliases field =
@@ -993,6 +1031,14 @@ featureModuleOwns :: Text -> Text -> Bool
 featureModuleOwns featureModule candidateModule =
     candidateModule == featureModule
         || (featureModule <> ".") `Text.isPrefixOf` candidateModule
+        || candidateModule `elem` sharedSurfaceAdapterSourceModules
+
+-- Shared Surface aliases may own field markers used by more than one feature,
+-- but they must remain focused contract modules rather than another feature's
+-- source tree. Action and Intent drag/drop adapters both exercise this module.
+sharedSurfaceAdapterSourceModules :: [Text]
+sharedSurfaceAdapterSourceModules =
+    ["Application.Helper.FrontendContract.Surface.Interaction"]
 
 diagnostic :: Text -> Text -> ContractDiagnostic
 diagnostic diagnosticCode diagnosticMessage =

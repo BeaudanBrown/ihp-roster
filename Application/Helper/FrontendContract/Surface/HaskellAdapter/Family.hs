@@ -4,6 +4,7 @@
 {-# LANGUAGE FlexibleContexts      #-}
 {-# LANGUAGE FlexibleInstances     #-}
 {-# LANGUAGE KindSignatures        #-}
+{-# LANGUAGE LambdaCase            #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE PolyKinds             #-}
 {-# LANGUAGE ScopedTypeVariables   #-}
@@ -21,27 +22,42 @@
 module Application.Helper.FrontendContract.Surface.HaskellAdapter.Family
     ( ActorOnlyFragmentAdapterMetadata (..)
     , AdapterFamilySurface
+    , CheckedSurfaceRequestAdapterRegistration
+    , checkedSurfaceRequestAdapterDeclaration
+    , checkedSurfaceRequestAdapterOperations
     , HaskellTypeMetadata (..)
     , ReflectSurfaceAdapterFamilies
     , ReflectSurfaceAdapterHomes
     , ReflectSurfaceResourceAdapterHomes
     , SurfaceActionAdapterHome
     , SurfaceAdapterFamily
+    , SurfaceAdapterLanePublication (..)
+    , SurfaceAdapterOperationEligibility (..)
     , SurfaceAdapterFamilyMetadata (..)
     , SurfaceAdapterHome
     , SurfaceAdapterHomeMetadata (..)
     , SurfaceAdapterRegistry (..)
     , SurfaceFragmentAdapterHome
     , SurfaceIntentAdapterHome
+    , SurfaceRequestAdapterOperations (..)
+    , SurfaceRequestAdapterRegistration
     , SurfaceResourceAdapterHome
     , SurfaceResourceAdapterHomeMetadata
     , SurfaceScopeAdapterHome
     , reflectSurfaceAdapterHomes
     , reflectSurfaceAdapterRegistry
     , reflectSurfaceResourceAdapterHomes
+    , resolveSurfaceRequestAdapterRegistrations
+    , surfaceActionAdapter
+    , surfaceActionAdapterExcluded
     , surfaceActorOnlyFragmentAdapter
+    , surfaceAdapterOperationIsGenerated
+    , surfaceIntentAdapter
+    , validateSurfaceAdapterLanePublication
     ) where
 
+import Application.Helper.FrontendContract.Surface.ContractIR (ContractDiagnostic (..),
+                                                               SurfaceContractIR)
 import Application.Helper.FrontendContract.Surface.DSL
 import Application.Helper.FrontendContract.Surface.HaskellAdapter.Association
 import Application.Helper.FrontendContract.Surface.HaskellAdapter.Core
@@ -51,6 +67,7 @@ import Application.Helper.FrontendContract.Surface.Values (SurfaceActionFieldSpe
                                                            SurfaceResourceFieldSpecs,
                                                            SurfaceScopeFieldSpecs)
 import Data.Kind (Type)
+import qualified Data.Text as Text
 import Data.Typeable (Typeable)
 import IHP.Prelude
 
@@ -88,12 +105,62 @@ data ActorOnlyFragmentAdapterMetadata = ActorOnlyFragmentAdapterMetadata
 type SurfaceResourceAdapterHomeMetadata =
     SurfaceAdapterHomeMetadata 'ResourceAdapterKind
 
+-- | Whether one operation has an inventoried current consumer. Exclusions are
+-- explicit and carry the reviewable reason that prevents speculative output.
+data SurfaceAdapterOperationEligibility
+    = GenerateSurfaceAdapterOperation
+    | ExcludeSurfaceAdapterOperation !Text
+    deriving (Eq, Show)
+
+data SurfaceRequestAdapterOperations = SurfaceRequestAdapterOperations
+    { surfaceAdapterFieldsBuilderOperation :: !SurfaceAdapterOperationEligibility
+    , surfaceAdapterRenderMetadataOperation :: !SurfaceAdapterOperationEligibility
+    , surfaceAdapterRequestParserOperation :: !SurfaceAdapterOperationEligibility
+    }
+    deriving (Eq, Show)
+
+-- | One complete typed inventory decision. A generated declaration records an
+-- explicit decision for every supported operation; an excluded declaration
+-- records why no Haskell action/intent adapter currently has a consumer.
+data SurfaceRequestAdapterRegistration (kind :: SurfaceAdapterKind)
+    = GenerateSurfaceRequestAdapter
+        !(SurfaceAdapterHomeMetadata kind)
+        !SurfaceRequestAdapterOperations
+    | ExcludeSurfaceRequestAdapter
+        !(SurfaceAdapterHomeMetadata kind)
+        !Text
+    deriving (Eq, Show)
+
+-- | Empty production lanes are temporary, explicit publication states. The
+-- Action and Intent migrations remove their respective staged constructor.
+data SurfaceAdapterLanePublication (kind :: SurfaceAdapterKind)
+    = PublishSurfaceAdapterLane
+    | StageEmptySurfaceAdapterLane
+        !Text
+        !Text
+    deriving (Eq, Show)
+
+-- | Validated inventory row. Its declaration was normalized from checked IR
+-- and resolved through the same family/home/source-type seam as emitted code.
+data CheckedSurfaceRequestAdapterRegistration kind payload =
+    CheckedSurfaceRequestAdapterRegistration
+        { checkedSurfaceRequestAdapterDeclaration :: !(CheckedAdapterDeclaration kind payload)
+        , checkedSurfaceRequestAdapterOperations :: !(Maybe SurfaceRequestAdapterOperations)
+        }
+    deriving (Eq, Show)
+
 data SurfaceAdapterRegistry = SurfaceAdapterRegistry
-    { surfaceAdapterFamilies             :: ![SurfaceAdapterFamilyMetadata]
-    , surfaceResourceAdapterHomes        :: ![SurfaceResourceAdapterHomeMetadata]
-    , surfaceScopeAdapterHomes           :: ![SurfaceAdapterHomeMetadata 'ScopeAdapterKind]
-    , surfaceFragmentAdapterHomes        :: ![SurfaceAdapterHomeMetadata 'FragmentAdapterKind]
-    , surfaceActorOnlyFragmentAdapters   :: ![ActorOnlyFragmentAdapterMetadata]
+    { surfaceAdapterFamilies              :: ![SurfaceAdapterFamilyMetadata]
+    , surfaceResourceAdapterHomes         :: ![SurfaceResourceAdapterHomeMetadata]
+    , surfaceScopeAdapterHomes            :: ![SurfaceAdapterHomeMetadata 'ScopeAdapterKind]
+    , surfaceFragmentAdapterHomes         :: ![SurfaceAdapterHomeMetadata 'FragmentAdapterKind]
+    , surfaceActorOnlyFragmentAdapters    :: ![ActorOnlyFragmentAdapterMetadata]
+    , surfaceActionAdapterHomes           :: ![SurfaceAdapterHomeMetadata 'ActionAdapterKind]
+    , surfaceActionAdapterRegistrations   :: ![SurfaceRequestAdapterRegistration 'ActionAdapterKind]
+    , surfaceActionAdapterPublication     :: !(SurfaceAdapterLanePublication 'ActionAdapterKind)
+    , surfaceIntentAdapterHomes           :: ![SurfaceAdapterHomeMetadata 'IntentAdapterKind]
+    , surfaceIntentAdapterRegistrations   :: ![SurfaceRequestAdapterRegistration 'IntentAdapterKind]
+    , surfaceIntentAdapterPublication     :: !(SurfaceAdapterLanePublication 'IntentAdapterKind)
     }
     deriving (Eq, Show)
 
@@ -186,13 +253,197 @@ surfaceActorOnlyFragmentAdapter ::
 surfaceActorOnlyFragmentAdapter actorOnlyFragmentReason =
     ActorOnlyFragmentAdapterMetadata
         { actorOnlyFragmentHome =
-            case reflectSurfaceAdapterHomes
+            singleSurfaceAdapterHome
                 @'FragmentAdapterKind
-                @'[SurfaceFragmentAdapterHome adapterFamily fragment] of
-                [home] -> home
-                _      -> error "actor-only fragment reflection did not produce exactly one typed home"
+                @adapterFamily
+                @fragment
         , actorOnlyFragmentReason
         }
+
+surfaceActionAdapter ::
+    forall adapterFamily action.
+    ReflectSurfaceAdapterHomes
+        'ActionAdapterKind
+        '[SurfaceActionAdapterHome adapterFamily action] =>
+    SurfaceRequestAdapterOperations ->
+    SurfaceRequestAdapterRegistration 'ActionAdapterKind
+surfaceActionAdapter operations =
+    GenerateSurfaceRequestAdapter
+        (singleSurfaceAdapterHome @'ActionAdapterKind @adapterFamily @action)
+        operations
+
+surfaceActionAdapterExcluded ::
+    forall adapterFamily action.
+    ReflectSurfaceAdapterHomes
+        'ActionAdapterKind
+        '[SurfaceActionAdapterHome adapterFamily action] =>
+    Text ->
+    SurfaceRequestAdapterRegistration 'ActionAdapterKind
+surfaceActionAdapterExcluded reason =
+    ExcludeSurfaceRequestAdapter
+        (singleSurfaceAdapterHome @'ActionAdapterKind @adapterFamily @action)
+        reason
+
+surfaceIntentAdapter ::
+    forall adapterFamily intent.
+    ReflectSurfaceAdapterHomes
+        'IntentAdapterKind
+        '[SurfaceIntentAdapterHome adapterFamily intent] =>
+    SurfaceRequestAdapterOperations ->
+    SurfaceRequestAdapterRegistration 'IntentAdapterKind
+surfaceIntentAdapter operations =
+    GenerateSurfaceRequestAdapter
+        (singleSurfaceAdapterHome @'IntentAdapterKind @adapterFamily @intent)
+        operations
+
+singleSurfaceAdapterHome ::
+    forall kind adapterFamily declaration.
+    ReflectSurfaceAdapterHomes
+        kind
+        '[SurfaceAdapterHome kind adapterFamily declaration] =>
+    SurfaceAdapterHomeMetadata kind
+singleSurfaceAdapterHome =
+    case reflectSurfaceAdapterHomes
+        @kind
+        @'[SurfaceAdapterHome kind adapterFamily declaration] of
+        [home] -> home
+        _      -> error "single Surface adapter reflection did not produce exactly one typed home"
+
+surfaceAdapterOperationIsGenerated :: SurfaceAdapterOperationEligibility -> Bool
+surfaceAdapterOperationIsGenerated GenerateSurfaceAdapterOperation    = True
+surfaceAdapterOperationIsGenerated (ExcludeSurfaceAdapterOperation _) = False
+
+resolveSurfaceRequestAdapterRegistrations ::
+    AdapterModuleLayout kind ->
+    SurfaceContractIR ->
+    [SurfaceAdapterFamilyMetadata] ->
+    [CheckedAdapterDeclaration kind payload] ->
+    [SurfaceRequestAdapterRegistration kind] ->
+    Either [ContractDiagnostic] [CheckedSurfaceRequestAdapterRegistration kind payload]
+resolveSurfaceRequestAdapterRegistrations layout contract families declarations registrations =
+    case stableDiagnostics (registrationDiagnostics <> resolutionDiagnostics) of
+        []          -> Right (map checkedRegistration resolvedAdapters)
+        diagnostics -> Left diagnostics
+  where
+    resolution =
+        resolveAdapterGeneration
+            layout
+            contract
+            families
+            (map requestAdapterRegistrationHome registrations)
+            declarations
+            (const [])
+    (resolutionDiagnostics, resolvedAdapters) =
+        case resolution of
+            Left diagnostics -> (diagnostics, [])
+            Right adapters   -> ([], adapters)
+    registrationDiagnostics = concatMap validateRegistration registrations
+
+    checkedRegistration adapter =
+        let registration =
+                fromMaybe
+                    (error "resolved Surface request adapter has no inventory registration")
+                    (find ((== adapter.resolvedAdapterHome) . requestAdapterRegistrationHome) registrations)
+         in CheckedSurfaceRequestAdapterRegistration
+                { checkedSurfaceRequestAdapterDeclaration = adapter.resolvedAdapterDeclaration
+                , checkedSurfaceRequestAdapterOperations = requestAdapterGeneratedOperations registration
+                }
+
+    validateRegistration registration =
+        case registration of
+            ExcludeSurfaceRequestAdapter home reason ->
+                [ ContractDiagnostic
+                    { diagnosticCode = "adapter-" <> layout.adapterKindSlug <> "-declaration-exclusion-reason"
+                    , diagnosticMessage =
+                        layout.adapterKindLabel <> " adapter " <> requestAdapterHomeLabel home
+                            <> " must record a non-empty declaration exclusion reason"
+                    }
+                | Text.null (Text.strip reason)
+                ]
+            GenerateSurfaceRequestAdapter home operations ->
+                operationReasonDiagnostics home operations
+                    <> [ ContractDiagnostic
+                            { diagnosticCode = "adapter-" <> layout.adapterKindSlug <> "-empty-operation-set"
+                            , diagnosticMessage =
+                                layout.adapterKindLabel <> " adapter " <> requestAdapterHomeLabel home
+                                    <> " emits no inventoried operations; exclude the declaration instead"
+                            }
+                       | not (any surfaceAdapterOperationIsGenerated (requestAdapterOperationValues operations))
+                       ]
+
+    operationReasonDiagnostics home operations =
+        [ ContractDiagnostic
+            { diagnosticCode = "adapter-" <> layout.adapterKindSlug <> "-operation-exclusion-reason"
+            , diagnosticMessage =
+                layout.adapterKindLabel <> " adapter " <> requestAdapterHomeLabel home
+                    <> " operation " <> operationLabel
+                    <> " must record a non-empty exclusion reason"
+            }
+        | (operationLabel, ExcludeSurfaceAdapterOperation reason) <- requestAdapterOperationRows operations
+        , Text.null (Text.strip reason)
+        ]
+
+requestAdapterRegistrationHome ::
+    SurfaceRequestAdapterRegistration kind ->
+    SurfaceAdapterHomeMetadata kind
+requestAdapterRegistrationHome = \case
+    GenerateSurfaceRequestAdapter home _ -> home
+    ExcludeSurfaceRequestAdapter home _  -> home
+
+requestAdapterGeneratedOperations ::
+    SurfaceRequestAdapterRegistration kind ->
+    Maybe SurfaceRequestAdapterOperations
+requestAdapterGeneratedOperations = \case
+    GenerateSurfaceRequestAdapter _ operations -> Just operations
+    ExcludeSurfaceRequestAdapter _ _            -> Nothing
+
+requestAdapterOperationRows :: SurfaceRequestAdapterOperations -> [(Text, SurfaceAdapterOperationEligibility)]
+requestAdapterOperationRows operations =
+    [ ("fields-builder", operations.surfaceAdapterFieldsBuilderOperation)
+    , ("render-metadata", operations.surfaceAdapterRenderMetadataOperation)
+    , ("request-parser", operations.surfaceAdapterRequestParserOperation)
+    ]
+
+requestAdapterOperationValues :: SurfaceRequestAdapterOperations -> [SurfaceAdapterOperationEligibility]
+requestAdapterOperationValues = map snd . requestAdapterOperationRows
+
+requestAdapterHomeLabel :: SurfaceAdapterHomeMetadata kind -> Text
+requestAdapterHomeLabel home =
+    home.adapterHomeSurface.haskellTypeName <> "/" <> home.adapterHomeDeclaration.haskellTypeName
+
+validateSurfaceAdapterLanePublication ::
+    AdapterModuleLayout kind ->
+    SurfaceAdapterLanePublication kind ->
+    [SurfaceAdapterHomeMetadata kind] ->
+    [ContractDiagnostic]
+validateSurfaceAdapterLanePublication layout publication homes =
+    case publication of
+        PublishSurfaceAdapterLane -> []
+        StageEmptySurfaceAdapterLane migrationTicket parentExpiry ->
+            [ ContractDiagnostic
+                { diagnosticCode = "adapter-" <> layout.adapterKindSlug <> "-staging-reason"
+                , diagnosticMessage =
+                    "Staged empty " <> layout.adapterKindLabel
+                        <> " adapter lane must record its migration ticket"
+                }
+            | Text.null (Text.strip migrationTicket)
+            ]
+                <> [ ContractDiagnostic
+                        { diagnosticCode = "adapter-" <> layout.adapterKindSlug <> "-staging-parent-expiry"
+                        , diagnosticMessage =
+                            "Staged empty " <> layout.adapterKindLabel
+                                <> " adapter lane must expire before parent #184 closes"
+                        }
+                   | Text.strip parentExpiry /= "#184"
+                   ]
+                <> [ ContractDiagnostic
+                        { diagnosticCode = "adapter-" <> layout.adapterKindSlug <> "-staged-homes"
+                        , diagnosticMessage =
+                            "Staged empty " <> layout.adapterKindLabel
+                                <> " adapter lane must not register production homes"
+                        }
+                   | not (null homes)
+                   ]
 
 class ReflectSurfaceFieldMarkerTypes (fields :: [FieldSpec]) where
     reflectSurfaceFieldMarkerTypes :: [HaskellTypeMetadata]
@@ -219,19 +470,36 @@ instance
         haskellTypeMetadata @marker : reflectSurfaceFieldMarkerTypes @rest
 
 reflectSurfaceAdapterRegistry ::
-    forall families resourceHomes scopeHomes fragmentHomes.
+    forall families resourceHomes scopeHomes fragmentHomes actionHomes intentHomes.
     ( ReflectSurfaceAdapterFamilies families
     , ReflectSurfaceResourceAdapterHomes resourceHomes
     , ReflectSurfaceAdapterHomes 'ScopeAdapterKind scopeHomes
     , ReflectSurfaceAdapterHomes 'FragmentAdapterKind fragmentHomes
+    , ReflectSurfaceAdapterHomes 'ActionAdapterKind actionHomes
+    , ReflectSurfaceAdapterHomes 'IntentAdapterKind intentHomes
     ) =>
     [ActorOnlyFragmentAdapterMetadata] ->
+    SurfaceAdapterLanePublication 'ActionAdapterKind ->
+    [SurfaceRequestAdapterRegistration 'ActionAdapterKind] ->
+    SurfaceAdapterLanePublication 'IntentAdapterKind ->
+    [SurfaceRequestAdapterRegistration 'IntentAdapterKind] ->
     SurfaceAdapterRegistry
-reflectSurfaceAdapterRegistry surfaceActorOnlyFragmentAdapters =
-    SurfaceAdapterRegistry
-        { surfaceAdapterFamilies = reflectSurfaceAdapterFamilies @families
-        , surfaceResourceAdapterHomes = reflectSurfaceResourceAdapterHomes @resourceHomes
-        , surfaceScopeAdapterHomes = reflectSurfaceAdapterHomes @'ScopeAdapterKind @scopeHomes
-        , surfaceFragmentAdapterHomes = reflectSurfaceAdapterHomes @'FragmentAdapterKind @fragmentHomes
-        , surfaceActorOnlyFragmentAdapters = surfaceActorOnlyFragmentAdapters
-        }
+reflectSurfaceAdapterRegistry
+    surfaceActorOnlyFragmentAdapters
+    surfaceActionAdapterPublication
+    surfaceActionAdapterRegistrations
+    surfaceIntentAdapterPublication
+    surfaceIntentAdapterRegistrations =
+        SurfaceAdapterRegistry
+            { surfaceAdapterFamilies = reflectSurfaceAdapterFamilies @families
+            , surfaceResourceAdapterHomes = reflectSurfaceResourceAdapterHomes @resourceHomes
+            , surfaceScopeAdapterHomes = reflectSurfaceAdapterHomes @'ScopeAdapterKind @scopeHomes
+            , surfaceFragmentAdapterHomes = reflectSurfaceAdapterHomes @'FragmentAdapterKind @fragmentHomes
+            , surfaceActorOnlyFragmentAdapters = surfaceActorOnlyFragmentAdapters
+            , surfaceActionAdapterHomes = reflectSurfaceAdapterHomes @'ActionAdapterKind @actionHomes
+            , surfaceActionAdapterRegistrations = surfaceActionAdapterRegistrations
+            , surfaceActionAdapterPublication = surfaceActionAdapterPublication
+            , surfaceIntentAdapterHomes = reflectSurfaceAdapterHomes @'IntentAdapterKind @intentHomes
+            , surfaceIntentAdapterRegistrations = surfaceIntentAdapterRegistrations
+            , surfaceIntentAdapterPublication = surfaceIntentAdapterPublication
+            }

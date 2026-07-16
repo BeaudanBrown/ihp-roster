@@ -115,7 +115,11 @@ through home resolution, and combines only `LiveScope` and `LiveFragment` in
 `.Generated.Live`; resources, actions, and intents cannot enter that lane.
 Passive fragments are eligible from their closed `Live` option. The two
 non-passive Admin parent-page keys remain typed, reason-bearing actor-only
-exceptions.
+exceptions. Separate Action and Intent renderers normalize checked declarations
+through kind-specific constructors, cross the private checked-resolution seam,
+and can emit only inventoried field builders, render metadata, and exact request
+parsers. The compiled cross-kind fixture proves same-marker Action/Intent output
+in separate private modules behind separate facades.
 
 The production registry assigns exactly one typed home to every checked Live
 scope and eligible fragment. Empty, partial, extra, or duplicate production
@@ -127,19 +131,34 @@ unregistered fixture continues to prove zero-field and parameterized adapters,
 shared-module collision checks, and public generic builder use.
 
 Generated Resource and Live code calls only public marker-indexed builders and
-matchers. Unsupported source carriers fail with adapter kind, owning Surface,
-declaration, and field in the diagnostic. Production family associations remain
-feature-local, and the checked aggregate resource registry assigns exactly one
-canonical home to every unique production resource identity. Each private
-Resource or Live module has only its matching curated facade consumer. The
-lightweight `HaskellAdapter.Association` seam carries `AdapterFamilySurface` into
-production generated modules without pulling registry/reflection mechanics from
-`HaskellAdapter.Family` and `HaskellAdapter.Core` into focused feature compiles.
+matchers. Generated Action/Intent fixture code likewise calls only the existing
+public `SurfaceFields`, `frontendSurfaceAction`/`frontendSurfaceIntentForm`, and
+structured request-parser boundaries. Unsupported source carriers fail with
+adapter kind, owning Surface, declaration, and field in the diagnostic.
+Production family associations remain feature-local, and the checked aggregate
+resource registry assigns exactly one canonical home to every unique production
+resource identity. Every private generated module has only its matching curated
+facade consumer. The lightweight `HaskellAdapter.Association` seam carries
+`AdapterFamilySurface` into generated modules without pulling
+registry/reflection mechanics from `HaskellAdapter.Family` and
+`HaskellAdapter.Core` into focused feature compiles.
+
+The production operation inventory covers all 53 actions and five intents. It
+marks 48 actions as adapter-eligible, with builders/render metadata for all 48
+and exact parsers for the 33 current parser consumers; five same-named
+intent-backed actions and 15 absent parser operations are typed, reason-bearing
+exclusions. Every intent operation is currently eligible. Production Action and
+Intent homes are still explicitly empty, assigned to #186 and #187, and checked
+against a mandatory #184 parent expiry, so the foundation validates both
+complete inventories without emitting production
+Action/Intent modules before their caller migrations.
 
 `generateSurfaceAdapterModules` is the mandatory all-kind composer used by the
-write/drift workflow. It accumulates focused-lane diagnostics and validates
-duplicate physical paths before exposing the complete managed set. The writer
-stages nothing when any lane fails; the shell workflow formats and typechecks the
+write/drift workflow. It accumulates Resource, Live, Action, and Intent focused
+lane diagnostics and validates duplicate physical paths before exposing the
+complete managed set. Staged Action/Intent lanes still validate declaration and
+operation inventory while returning no production files. The writer stages
+nothing when any lane fails; the shell workflow formats and typechecks the
 entire staged tree before any managed stale deletion or write, so one failed or
 omitted lane cannot discard another. Use `frontend-surface-adapters` to write
 generated Haskell modules and `frontend-surface-adapters-check` to reject

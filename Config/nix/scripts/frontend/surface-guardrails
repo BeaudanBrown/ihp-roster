@@ -101,10 +101,13 @@ expect_match \
 expect_no_match_including_generated \
     "focused Haskell Surface adapter renderers must not duplicate shared source-type resolution" \
     'sourceTypeFor(Field|Wire)|haskellWireSourceLabel' \
+    Application/Helper/FrontendContract/Surface/HaskellAdapter/Action.hs \
     Application/Helper/FrontendContract/Surface/HaskellAdapter/Family.hs \
     Application/Helper/FrontendContract/Surface/HaskellAdapter/Generator.hs \
+    Application/Helper/FrontendContract/Surface/HaskellAdapter/Intent.hs \
     Application/Helper/FrontendContract/Surface/HaskellAdapter/Live.hs \
     Application/Helper/FrontendContract/Surface/HaskellAdapter/Registry.hs \
+    Application/Helper/FrontendContract/Surface/HaskellAdapter/RequestRenderer.hs \
     Application/Helper/FrontendContract/Surface/HaskellAdapter/Resource.hs
 for adapter_namespace in Resource Live Action Intent; do
     expect_match \
@@ -112,6 +115,26 @@ for adapter_namespace in Resource Live Action Intent; do
         'adapterGeneratedSuffix = "Generated\.'"${adapter_namespace}"'"' \
         Application/Helper/FrontendContract/Surface/HaskellAdapter/Core.hs
 done
+expect_match \
+    "the temporary empty Action lane assigns its removal to #186 and expiry to #184" \
+    'StageEmptySurfaceAdapterLane "#186 migrates production Action facades" "#184"' \
+    Application/Helper/FrontendContract/Surface/HaskellAdapter/Registry.hs
+expect_match \
+    "the temporary empty Intent lane assigns its removal to #187 and expiry to #184" \
+    'StageEmptySurfaceAdapterLane "#187 migrates production Intent facades" "#184"' \
+    Application/Helper/FrontendContract/Surface/HaskellAdapter/Registry.hs
+expect_match \
+    "staged Action/Intent lanes must reject a parent expiry other than #184" \
+    'Text.strip parentExpiry /= "#184"' \
+    Application/Helper/FrontendContract/Surface/HaskellAdapter/Family.hs
+current_action_parser_consumers="$( (rg -o --glob '*.hs' 'parseSurfaceActionParams[[:space:]]*@' Web || true) | wc -l)"
+if [ "$current_action_parser_consumers" -ne 33 ]; then
+    report_failure "typed Action operation inventory expects 33 current generic parser consumers before #186; found $current_action_parser_consumers"
+fi
+current_intent_parser_consumers="$( (rg -o --glob '*.hs' 'parseSurfaceIntentParams[[:space:]]*@' Web || true) | wc -l)"
+if [ "$current_intent_parser_consumers" -ne 5 ]; then
+    report_failure "typed Intent operation inventory expects 5 current generic parser consumers before #187; found $current_intent_parser_consumers"
+fi
 expect_match \
     "Haskell Surface adapter generation must consume the checked production Surface IR" \
     'registeredFrontendSurfaceContractIR' \
@@ -139,10 +162,25 @@ fi
 expect_no_match_including_generated \
     "checked Surface adapter declarations must be normalized only by the shared core" \
     'CheckedAdapterDeclaration[[:space:]]*\{' \
+    Application/Helper/FrontendContract/Surface/HaskellAdapter/Action.hs \
     Application/Helper/FrontendContract/Surface/HaskellAdapter/Family.hs \
     Application/Helper/FrontendContract/Surface/HaskellAdapter/Generator.hs \
+    Application/Helper/FrontendContract/Surface/HaskellAdapter/Intent.hs \
     Application/Helper/FrontendContract/Surface/HaskellAdapter/Live.hs \
     Application/Helper/FrontendContract/Surface/HaskellAdapter/Registry.hs \
+    Application/Helper/FrontendContract/Surface/HaskellAdapter/RequestRenderer.hs \
+    Application/Helper/FrontendContract/Surface/HaskellAdapter/Resource.hs \
+    Test
+expect_no_match_including_generated \
+    "focused renderers must cross checked resolution before creating erased render input" \
+    'RenderableAdapter[[:space:]]*\{' \
+    Application/Helper/FrontendContract/Surface/HaskellAdapter/Action.hs \
+    Application/Helper/FrontendContract/Surface/HaskellAdapter/Family.hs \
+    Application/Helper/FrontendContract/Surface/HaskellAdapter/Generator.hs \
+    Application/Helper/FrontendContract/Surface/HaskellAdapter/Intent.hs \
+    Application/Helper/FrontendContract/Surface/HaskellAdapter/Live.hs \
+    Application/Helper/FrontendContract/Surface/HaskellAdapter/Registry.hs \
+    Application/Helper/FrontendContract/Surface/HaskellAdapter/RequestRenderer.hs \
     Application/Helper/FrontendContract/Surface/HaskellAdapter/Resource.hs \
     Test
 expect_no_match_including_generated \
@@ -317,6 +355,45 @@ else
         report_failure "generated Live fixture bypasses the public generic Live boundary"
     fi
 fi
+
+for fixture_kind in Action Intent; do
+    fixture_generated="Test/Support/FrontendSurfaceAdapterFixture/Generated/${fixture_kind}.hs"
+    fixture_facade="Test/Support/FrontendSurfaceAdapterFixture/${fixture_kind}.hs"
+    if [ ! -f "$fixture_generated" ] || [ ! -f "$fixture_facade" ]; then
+        report_failure "generated Surface ${fixture_kind} fixture or curated facade is missing"
+        continue
+    fi
+
+    fixture_generated_module="Test.Support.FrontendSurfaceAdapterFixture.Generated.${fixture_kind}"
+    fixture_generated_pattern="${fixture_generated_module//./\\.}"
+    mapfile -t fixture_consumers < <(
+        rg -l --glob '*.hs' "^import (qualified )?${fixture_generated_pattern}([[:space:]]|$)" Test 2>/dev/null \
+            | sort \
+            || true
+    )
+    if [ "${#fixture_consumers[@]}" -ne 1 ] || [ "${fixture_consumers[0]:-}" != "$fixture_facade" ]; then
+        report_failure "private generated ${fixture_kind} fixture must be consumed only by $fixture_facade"
+        printf '  %s\n' "${fixture_consumers[@]:-<no consumers>}" >&2
+    fi
+
+    if rg --line-number '^import .*\.Internal|HaskellAdapter\.Registry|Data\.Aeson' "$fixture_generated" >&2; then
+        report_failure "generated ${fixture_kind} fixture bypasses a public generic boundary"
+    fi
+    if rg --line-number '\b(frontendSurface(Action|IntentForm)|parseSurface(Action|Intent)Params|surface(Field|OptionalField|NullableField))\b' "$fixture_facade" >&2; then
+        report_failure "curated ${fixture_kind} fixture facade contains mechanical adapter code"
+    fi
+done
+
+for action_generic in frontendSurfaceAction parseSurfaceActionParams; do
+    if ! rg --quiet "\\b${action_generic}\\b" Test/Support/FrontendSurfaceAdapterFixture/Generated/Action.hs; then
+        report_failure "generated Action fixture does not delegate to ${action_generic}"
+    fi
+done
+for intent_generic in frontendSurfaceIntentForm parseSurfaceIntentParams; do
+    if ! rg --quiet "\\b${intent_generic}\\b" Test/Support/FrontendSurfaceAdapterFixture/Generated/Intent.hs; then
+        report_failure "generated Intent fixture does not delegate to ${intent_generic}"
+    fi
+done
 
 expect_no_match_including_generated \
     "generated browser contracts must not restore action manifests or the omnibus Surface registry" \

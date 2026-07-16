@@ -113,6 +113,23 @@ expect_compile_failure \
     "renderSurfaceLiveAdapterModules"
 
 expect_compile_failure \
+    "Test/CompileFail/FrontendSurfaceIntentInActionAdapterLane.hs" \
+    "IntentAdapterKind" \
+    "ActionAdapterKind" \
+    "renderSurfaceActionAdapterModules"
+
+expect_compile_failure \
+    "Test/CompileFail/FrontendSurfaceActionInIntentAdapterLane.hs" \
+    "ActionAdapterKind" \
+    "IntentAdapterKind" \
+    "renderSurfaceIntentAdapterModules"
+
+expect_compile_failure \
+    "Test/CompileFail/FrontendSurfaceDirectRenderableAdapter.hs" \
+    "Illegal term-level use of the type constructor" \
+    "RenderableAdapter"
+
+expect_compile_failure \
     "Test/CompileFail/FrontendSurfaceRawResource.hs" \
     "Illegal term-level use of the type constructor" \
     "SurfaceResourceValue"

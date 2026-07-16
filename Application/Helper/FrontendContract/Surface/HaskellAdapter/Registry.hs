@@ -10,6 +10,8 @@
 module Application.Helper.FrontendContract.Surface.HaskellAdapter.Registry
     ( RegisteredSurfaceAdapterFamilies
     , RegisteredSurfaceFragmentAdapterHomes
+    , registeredSurfaceActionAdapterRegistrations
+    , registeredSurfaceIntentAdapterRegistrations
     , RegisteredSurfaceResourceAdapterHomes
     , RegisteredSurfaceScopeAdapterHomes
     , registeredSurfaceActorOnlyFragments
@@ -20,6 +22,7 @@ import qualified Application.Helper.FrontendContract.Surface.Admin as Admin
 import Application.Helper.FrontendContract.Surface.Admin.HaskellAdapter
 import qualified Application.Helper.FrontendContract.Surface.Billing as Billing
 import Application.Helper.FrontendContract.Surface.Billing.HaskellAdapter
+import Application.Helper.FrontendContract.Surface.HaskellAdapter.Core (SurfaceAdapterKind (..))
 import Application.Helper.FrontendContract.Surface.HaskellAdapter.Family
 import qualified Application.Helper.FrontendContract.Surface.LeaveRequests as LeaveRequests
 import Application.Helper.FrontendContract.Surface.LeaveRequests.HaskellAdapter
@@ -31,6 +34,7 @@ import qualified Application.Helper.FrontendContract.Surface.Support as Support
 import Application.Helper.FrontendContract.Surface.Support.HaskellAdapter
 import qualified Application.Helper.FrontendContract.Surface.Timesheets as Timesheets
 import Application.Helper.FrontendContract.Surface.Timesheets.HaskellAdapter
+import IHP.Prelude (Text)
 
 type RegisteredSurfaceAdapterFamilies =
     '[ TimesheetsAdapterFamily
@@ -146,6 +150,115 @@ type RegisteredSurfaceResourceAdapterHomes =
      , SurfaceResourceAdapterHome AdminXeroAdapterFamily Admin.XeroConnection
      ]
 
+-- Current generic parser consumers are the 33 marker-indexed calls in
+-- Web/Timesheets/Projection.hs (5), Web/Controller/RosterWeeks.hs (6),
+-- Web/Controller/Admin.hs (12), Web/Controller/Admin/Xero/Timesheets.hs (1),
+-- Web/Controller/Exports.hs (1), Web/Controller/LeaveRequests.hs (3),
+-- Web/LeaveRequests/ReadModel.hs (1), and Web/Staff/ProfileSurfaceRequest.hs
+-- (4). The focused spec pins their exact declaration identities; the source
+-- guardrail pins this pre-migration count until #186 replaces those callers.
+registeredSurfaceActionAdapterRegistrations :: [SurfaceRequestAdapterRegistration 'ActionAdapterKind]
+registeredSurfaceActionAdapterRegistrations =
+    [ surfaceActionAdapter @TimesheetsAdapterFamily @Timesheets.NavigateTimesheetWeek allRequestAdapterOperations
+    , surfaceActionAdapter @TimesheetsAdapterFamily @Timesheets.UpdateTimesheetFilters allRequestAdapterOperations
+    , surfaceActionAdapter @TimesheetsAdapterFamily @Timesheets.CreateTimesheetEntryFromSuggestion allRequestAdapterOperations
+    , surfaceActionAdapter @TimesheetsAdapterFamily @Timesheets.ApproveTimesheetEntry allRequestAdapterOperations
+    , surfaceActionAdapter @TimesheetsAdapterFamily @Timesheets.UnapproveTimesheetEntry allRequestAdapterOperations
+    , surfaceActionAdapter @RosterAdapterFamily @Roster.NavigateRosterWeek allRequestAdapterOperations
+    , surfaceActionAdapter @RosterAdapterFamily @Roster.ToggleRosterWarnings allRequestAdapterOperations
+    , surfaceActionAdapter @RosterAdapterFamily @Roster.ToggleRosterWageEstimates allRequestAdapterOperations
+    , surfaceActionAdapter @RosterAdapterFamily @Roster.SortRosterWeek
+        (requestAdapterOperationsWithoutParser "The zero-field sort endpoint consumes route context and has no Surface request parser")
+    , surfaceActionAdapter @RosterAdapterFamily @Roster.ToggleRosterWeekLiveStatus allRequestAdapterOperations
+    , surfaceActionAdapter @RosterAdapterFamily @Roster.ToggleRosterAssignmentFilters allRequestAdapterOperations
+    , surfaceActionAdapter @RosterAdapterFamily @Roster.CopyRosterWeek
+        (requestAdapterOperationsWithoutParser "The zero-field copy endpoint consumes route context and has no Surface request parser")
+    , surfaceActionAdapter @RosterAdapterFamily @Roster.CreateRosterSelfServiceLeaveRequest allRequestAdapterOperations
+    , surfaceActionAdapter @RosterAdapterFamily @Roster.CreateRosterWeekSlotDefinition
+        (requestAdapterOperationsWithoutParser "The zero-field slot creation endpoint consumes route context and has no Surface request parser")
+    , surfaceActionAdapter @RosterAdapterFamily @Roster.DeleteRosterWeekSlotDefinition
+        (requestAdapterOperationsWithoutParser "The zero-field slot deletion endpoint consumes route context and has no Surface request parser")
+    , surfaceActionAdapter @RosterAdapterFamily @Roster.ToggleRosterDayClosed
+        (requestAdapterOperationsWithoutParser "The zero-field day toggle endpoint consumes its route id and has no Surface request parser")
+    , surfaceActionAdapter @RosterAdapterFamily @Roster.AddRosterRow
+        (requestAdapterOperationsWithoutParser "The zero-field row creation endpoint consumes its route id and has no Surface request parser")
+    , surfaceActionAdapter @RosterAdapterFamily @Roster.RemoveRosterRow
+        (requestAdapterOperationsWithoutParser "The zero-field row removal endpoint consumes its route id and has no Surface request parser")
+    , surfaceActionAdapter @RosterAdapterFamily @Roster.ToggleRosterStaffScope allRequestAdapterOperations
+    , surfaceActionAdapterExcluded @RosterAdapterFamily @Roster.SetRosterLayoutMode intentOnlyActionReason
+    , surfaceActionAdapterExcluded @RosterAdapterFamily @Roster.MoveRosterShiftToSlot intentOnlyActionReason
+    , surfaceActionAdapterExcluded @RosterAdapterFamily @Roster.DuplicateRosterShiftToDay intentOnlyActionReason
+    , surfaceActionAdapterExcluded @RosterAdapterFamily @Roster.DropRosterStaff intentOnlyActionReason
+    , surfaceActionAdapterExcluded @RosterDayTimelineAdapterFamily @Roster.MoveRosterTimelineShift intentOnlyActionReason
+    , surfaceActionAdapter @LeaveRequestsAdapterFamily @LeaveRequests.ArchiveLeaveRequestsPage allRequestAdapterOperations
+    , surfaceActionAdapter @LeaveRequestsAdapterFamily @LeaveRequests.ApproveLeaveRequest
+        (requestAdapterOperationsWithoutParser "The zero-field approval endpoint consumes its route id and has no Surface request parser")
+    , surfaceActionAdapter @LeaveRequestsAdapterFamily @LeaveRequests.DenyLeaveRequest
+        (requestAdapterOperationsWithoutParser "The zero-field denial endpoint consumes its route id and has no Surface request parser")
+    , surfaceActionAdapter @SupportAdapterFamily @Support.CreatePublicHolidayRefreshJob
+        (requestAdapterOperationsWithoutParser "The zero-field refresh endpoint has no Surface request parser")
+    , surfaceActionAdapter @SupportAdapterFamily @Support.CreateFwcMapdRefreshJob
+        (requestAdapterOperationsWithoutParser "The zero-field refresh endpoint has no Surface request parser")
+    , surfaceActionAdapter @ProfileAdapterFamily @Profile.UpdateProfileDetails allRequestAdapterOperations
+    , surfaceActionAdapter @ProfileAdapterFamily @Profile.UpdateProfileShiftPreferences allRequestAdapterOperations
+    , surfaceActionAdapter @ProfileAdapterFamily @Profile.CreateProfileLeaveRequest allRequestAdapterOperations
+    , surfaceActionAdapter @StaffAdapterFamily @Profile.UpdateStaffProfile allRequestAdapterOperations
+    , surfaceActionAdapter @StaffAdapterFamily @Profile.UpdateStaffShiftPreferences allRequestAdapterOperations
+    , surfaceActionAdapter @StaffAdapterFamily @Profile.CreateStaffLeaveRequest allRequestAdapterOperations
+    , surfaceActionAdapter @AdminVenueSettingsAdapterFamily @Admin.UpdateVenueConfig allRequestAdapterOperations
+    , surfaceActionAdapter @AdminInvitesAdapterFamily @Admin.CreateVenueInvitation allRequestAdapterOperations
+    , surfaceActionAdapter @AdminInvitesAdapterFamily @Admin.RevokeVenueInvitation
+        (requestAdapterOperationsWithoutParser "The zero-field revoke endpoint consumes its route id and has no Surface request parser")
+    , surfaceActionAdapter @AdminExportsAdapterFamily @Admin.CreateExportJob allRequestAdapterOperations
+    , surfaceActionAdapter @AdminShiftTypesAdapterFamily @Admin.CreateShiftType allRequestAdapterOperations
+    , surfaceActionAdapter @AdminShiftTypesAdapterFamily @Admin.UpdateShiftType allRequestAdapterOperations
+    , surfaceActionAdapter @AdminShiftTypesAdapterFamily @Admin.MoveShiftTypeUp allRequestAdapterOperations
+    , surfaceActionAdapter @AdminShiftTypesAdapterFamily @Admin.MoveShiftTypeDown allRequestAdapterOperations
+    , surfaceActionAdapter @AdminShiftTypesAdapterFamily @Admin.AutosaveShiftTypeName
+        (requestAdapterOperationsWithoutParser "Existing shift-type form handling consumes this field directly; no exact Surface parser is called")
+    , surfaceActionAdapter @AdminShiftTypesAdapterFamily @Admin.AutosaveShiftTypeSelection
+        (requestAdapterOperationsWithoutParser "Existing shift-type form handling consumes these fields directly; no exact Surface parser is called")
+    , surfaceActionAdapter @AdminShiftTypesAdapterFamily @Admin.ToggleInactiveShiftTypes allRequestAdapterOperations
+    , surfaceActionAdapter @AdminRosterGroupsAdapterFamily @Admin.CreateRosterGroup allRequestAdapterOperations
+    , surfaceActionAdapter @AdminRosterGroupsAdapterFamily @Admin.UpdateRosterGroup allRequestAdapterOperations
+    , surfaceActionAdapter @AdminRosterGroupsAdapterFamily @Admin.MoveRosterGroupUp allRequestAdapterOperations
+    , surfaceActionAdapter @AdminRosterGroupsAdapterFamily @Admin.MoveRosterGroupDown allRequestAdapterOperations
+    , surfaceActionAdapter @AdminRosterGroupsAdapterFamily @Admin.ToggleInactiveRosterGroups allRequestAdapterOperations
+    , surfaceActionAdapter @AdminXeroAdapterFamily @Admin.SyncXeroPayrollReferenceData
+        (requestAdapterOperationsWithoutParser "The zero-field Xero sync endpoint has no Surface request parser")
+    , surfaceActionAdapter @AdminXeroAdapterFamily @Admin.ShowXeroTimesheetPreparationStaffMappings allRequestAdapterOperations
+    ]
+
+-- All five intents have current form-metadata and exact parser consumers in
+-- Web/RosterWeeks/FrontendSurface.hs and Web/Controller/RosterWeeks.hs. The
+-- source guardrail pins the five generic parser calls until #187 migrates them.
+registeredSurfaceIntentAdapterRegistrations :: [SurfaceRequestAdapterRegistration 'IntentAdapterKind]
+registeredSurfaceIntentAdapterRegistrations =
+    [ surfaceIntentAdapter @RosterAdapterFamily @Roster.SetRosterLayoutMode allRequestAdapterOperations
+    , surfaceIntentAdapter @RosterAdapterFamily @Roster.MoveRosterShiftToSlot allRequestAdapterOperations
+    , surfaceIntentAdapter @RosterAdapterFamily @Roster.DuplicateRosterShiftToDay allRequestAdapterOperations
+    , surfaceIntentAdapter @RosterAdapterFamily @Roster.DropRosterStaff allRequestAdapterOperations
+    , surfaceIntentAdapter @RosterDayTimelineAdapterFamily @Roster.MoveRosterTimelineShift allRequestAdapterOperations
+    ]
+
+allRequestAdapterOperations :: SurfaceRequestAdapterOperations
+allRequestAdapterOperations =
+    SurfaceRequestAdapterOperations
+        { surfaceAdapterFieldsBuilderOperation = GenerateSurfaceAdapterOperation
+        , surfaceAdapterRenderMetadataOperation = GenerateSurfaceAdapterOperation
+        , surfaceAdapterRequestParserOperation = GenerateSurfaceAdapterOperation
+        }
+
+requestAdapterOperationsWithoutParser :: Text -> SurfaceRequestAdapterOperations
+requestAdapterOperationsWithoutParser reason =
+    allRequestAdapterOperations
+        { surfaceAdapterRequestParserOperation = ExcludeSurfaceAdapterOperation reason
+        }
+
+intentOnlyActionReason :: Text
+intentOnlyActionReason =
+    "The declaration is consumed only through its corresponding Intent form and parser; no Haskell Action adapter operation has a current consumer"
+
 registeredSurfaceAdapterRegistry :: SurfaceAdapterRegistry
 registeredSurfaceAdapterRegistry =
     reflectSurfaceAdapterRegistry
@@ -153,4 +266,10 @@ registeredSurfaceAdapterRegistry =
         @RegisteredSurfaceResourceAdapterHomes
         @RegisteredSurfaceScopeAdapterHomes
         @RegisteredSurfaceFragmentAdapterHomes
+        @'[]
+        @'[]
         registeredSurfaceActorOnlyFragments
+        (StageEmptySurfaceAdapterLane "#186 migrates production Action facades" "#184")
+        registeredSurfaceActionAdapterRegistrations
+        (StageEmptySurfaceAdapterLane "#187 migrates production Intent facades" "#184")
+        registeredSurfaceIntentAdapterRegistrations

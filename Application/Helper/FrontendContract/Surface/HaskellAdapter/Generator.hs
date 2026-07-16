@@ -8,15 +8,19 @@ module Application.Helper.FrontendContract.Surface.HaskellAdapter.Generator
     ( GeneratedHaskellModule (..)
     , GeneratedSurfaceAdapterLane (..)
     , composeGeneratedSurfaceAdapterModules
+    , generateSurfaceActionAdapterModules
     , generateSurfaceAdapterModules
+    , generateSurfaceIntentAdapterModules
     , generateSurfaceLiveAdapterModules
     , generateSurfaceResourceAdapterModules
     ) where
 
 import Application.Helper.FrontendContract.Surface.ContractIR
+import Application.Helper.FrontendContract.Surface.HaskellAdapter.Action (generateSurfaceActionAdapterModules)
 import Application.Helper.FrontendContract.Surface.HaskellAdapter.Core (GeneratedHaskellModule (..),
                                                                         stableDiagnostics)
 import Application.Helper.FrontendContract.Surface.HaskellAdapter.Family
+import Application.Helper.FrontendContract.Surface.HaskellAdapter.Intent (generateSurfaceIntentAdapterModules)
 import Application.Helper.FrontendContract.Surface.HaskellAdapter.Live (generateSurfaceLiveAdapterModules)
 import Application.Helper.FrontendContract.Surface.HaskellAdapter.Resource (generateSurfaceResourceAdapterModules)
 import Data.Either (lefts)
@@ -29,6 +33,8 @@ import IHP.Prelude
 data GeneratedSurfaceAdapterLane
     = GeneratedResourceAdapterLane ![GeneratedHaskellModule]
     | GeneratedLiveAdapterLane ![GeneratedHaskellModule]
+    | GeneratedActionAdapterLane ![GeneratedHaskellModule]
+    | GeneratedIntentAdapterLane ![GeneratedHaskellModule]
     deriving (Eq, Show)
 
 -- | Generate every currently enabled kind and compose one atomic managed set.
@@ -44,6 +50,10 @@ generateSurfaceAdapterModules contract registry =
             <$> generateSurfaceResourceAdapterModules contract registry
         , GeneratedLiveAdapterLane
             <$> generateSurfaceLiveAdapterModules contract registry
+        , GeneratedActionAdapterLane
+            <$> generateSurfaceActionAdapterModules contract registry
+        , GeneratedIntentAdapterLane
+            <$> generateSurfaceIntentAdapterModules contract registry
         ]
 
 -- | Accumulate focused-lane diagnostics, reject duplicate physical modules
@@ -80,11 +90,15 @@ laneLabel :: GeneratedSurfaceAdapterLane -> Text
 laneLabel = \case
     GeneratedResourceAdapterLane _ -> "Resource"
     GeneratedLiveAdapterLane _     -> "Live"
+    GeneratedActionAdapterLane _   -> "Action"
+    GeneratedIntentAdapterLane _   -> "Intent"
 
 laneModules :: GeneratedSurfaceAdapterLane -> [GeneratedHaskellModule]
 laneModules = \case
     GeneratedResourceAdapterLane modules -> modules
     GeneratedLiveAdapterLane modules     -> modules
+    GeneratedActionAdapterLane modules   -> modules
+    GeneratedIntentAdapterLane modules   -> modules
 
 duplicateModuleDiagnostics ::
     (Ord key, Show key) =>

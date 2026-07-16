@@ -408,12 +408,49 @@ goldens in `Test.LiveUpdateSpec` continue to pin production scope JSON,
 fragment-key JSON, and canonical `surfaceScopeKey` values across the replacement;
 generated-vs-generic equality is not their source of truth.
 
+The focused Action and Intent renderers independently normalize every checked
+`HtmxActionIR` and `IntentIR`, validate a kind-indexed typed registration, and
+retain their kind through home resolution. Only then can `toRenderableAdapter`
+cross into deterministic module rendering; its constructor and the
+`ResolvedAdapter` constructor are private. Action output therefore cannot enter
+the Intent renderer or vice versa. The only shared request-adapter operations
+are a declaration-complete `SurfaceFields` builder, marker-indexed render
+metadata (`FrontendSurfaceAction` or `FrontendSurfaceIntentForm`), and an exact
+request parser delegating to `parseSurfaceActionParams` or
+`parseSurfaceIntentParams`. Each operation has an explicit generated/excluded
+decision, and every exclusion requires a non-empty reason.
+
+The production inventory contains all 53 checked actions and all five checked
+intents. Forty-eight actions currently have Haskell adapter consumers; the five
+action declarations backing the same-named interaction intents are typed,
+reason-bearing declaration exclusions. All 48 eligible actions have current
+field-builder and render-metadata consumers, while 33 have exact parser
+consumers and 15 record why no parser is called. The 33 current generic Action
+parser calls are distributed across eight `Web/` modules; all five generic
+Intent parser calls and form-metadata consumers are in the Roster feature. The
+focused inventory test pins exact declaration identities and the source
+guardrail pins both pre-migration call counts. All five intents have current
+builder, form-metadata, and parser consumers. The temporary production states
+are explicit:
+
+- Action homes are empty and assigned to #186.
+- Intent homes are empty and assigned to #187.
+
+Both inventories, migration tickets, and the mandatory parent-#184 expiry are
+validated on every all-kind run, but no production `.Generated.Action` or
+`.Generated.Intent` file is emitted before those migration tickets add homes and
+matching facades.
+
 Generated resource modules invoke `frontendSurfaceResource` and
 `matchFrontendSurfaceResource`; generated Live modules invoke only
 `frontendSurfaceScope`, `matchFrontendSurfaceScope`,
-`frontendSurfaceFragmentKey`, and `matchFrontendSurfaceFragmentKey`. Only the
-matching curated facade may import a production generated module. Resource and
-Live facades re-export canonical constructors and retain handwritten domain
+`frontendSurfaceFragmentKey`, and `matchFrontendSurfaceFragmentKey`. Generated
+Action/Intent fixtures build only the existing declaration-indexed
+`SurfaceFields`, delegate metadata to `frontendSurfaceAction` or
+`frontendSurfaceIntentForm`, and preserve
+`Either [SurfaceRequestFieldError] (SurfaceFields ...)` through the exact generic
+request parsers. Only the matching curated facade may import a generated module.
+Resource and Live facades re-export canonical constructors and retain handwritten domain
 matchers or live orchestration only where they add meaning. Mechanical aliases,
 generic builder/matcher bodies, and the old Billing, Support, Profile, Staff,
 and Admin fragment naming synonyms are absent. Every generated-kind module must
@@ -464,13 +501,38 @@ zero-field, parameterized, actor-only, matcher, and collision behavior without
 entering the production registry. Production behavior coverage also exercises
 zero-field and parameterized Timesheets adapters through the curated facade.
 
-`generateSurfaceAdapterModules` composes every implemented adapter lane,
-accumulates diagnostics, and rejects duplicate physical module paths before the
-script writes or removes files. Live generation is mandatory. A failed Live
-lane exposes no managed module set; failure-injection coverage proves the staging
-barrier leaves existing Resource, Action, and Intent files untouched and
-publishes no partial Live tree. The write workflow renders, formats, and
-typechecks the complete staged set before any managed stale deletion or write.
+The Action/Intent foundation adds two private unregistered fixture modules:
+a 62-line `.Generated.Action` and a 63-line `.Generated.Intent`, each behind its
+matching eight-line curated fixture facade. They exercise one cross-kind
+same-marker declaration through required, optional, nullable, nested-list,
+builder, render-metadata, successful parser, missing, and malformed paths.
+Separate fixtures reject same-lane collisions and Action/Intent output-lane
+misuse. In isolated cold focused samples using a fresh build directory for each
+facade, `typecheck Test/Support/FrontendSurfaceAdapterFixture/Action.hs` loaded
+52 modules in 36.908 seconds and the matching `Intent.hs` target loaded 52
+modules in 16.118 seconds. These noisy one-sample figures record pre-production
+fixture/import impact for #186/#187; they are not benchmarks.
+
+`generateSurfaceAdapterModules` composes Resource, Live, Action, and Intent lane
+results, accumulates complete diagnostics, and rejects duplicate physical module
+paths before the script writes or removes files. Live generation is mandatory;
+Action and Intent inventory validation is mandatory while their explicitly
+staged homes emit no production files. A failed lane exposes no managed module
+set. Failure-injection coverage proves a failed Action lane leaves existing
+Resource, Live, and Intent files untouched, while the existing Live injection
+leaves Resource, Action, and Intent untouched. The write workflow renders,
+formats, and typechecks the complete staged set before any managed stale deletion
+or write.
+
+The #185 shared-file merge boundary is intentionally narrow:
+`HaskellAdapter.Core` adds private checked-conversion input, standalone shared
+field rendering, and the already-exercised shared Interaction-marker locality;
+`HaskellAdapter.RequestRenderer` owns only the import, operation-filtering,
+field-builder, and parser source mechanics exercised by both focused renderers;
+`HaskellAdapter.Family` owns typed operation inventory and explicit staging; and
+`HaskellAdapter.Generator` owns the two new closed lane constructors. #186 and
+#187 consume these seams by changing homes/facades/callers and must not evolve a
+parallel registry, operation model, universal renderer, or publication path.
 
 Write and verify output with:
 

@@ -1,0 +1,198 @@
+{-# LANGUAGE DataKinds           #-}
+{-# LANGUAGE OverloadedRecordDot #-}
+
+-- | Focused checked-IR projection for generated Surface Intent adapters. The
+-- shared core owns identity, source types, locality, collisions, and module
+-- layout; this renderer owns only the canonical Intent operation shapes.
+module Application.Helper.FrontendContract.Surface.HaskellAdapter.Intent
+    ( SurfaceIntentAdapterDeclaration
+    , checkedSurfaceIntentAdapterDeclarations
+    , generateSurfaceIntentAdapterModules
+    , renderSurfaceIntentAdapterModules
+    ) where
+
+import Application.Helper.FrontendContract.Naming (wordsFromTypeName)
+import Application.Helper.FrontendContract.Surface.ContractIR
+import Application.Helper.FrontendContract.Surface.HaskellAdapter.Core
+import Application.Helper.FrontendContract.Surface.HaskellAdapter.Family
+import Application.Helper.FrontendContract.Surface.HaskellAdapter.RequestRenderer
+import qualified Data.List as List
+import qualified Data.Map.Strict as Map
+import IHP.Prelude
+
+-- | The only payload admitted to the Generated.Intent output lane. It is
+-- created after checked IR inventory resolution and retains the exact
+-- operation eligibility selected for this Intent declaration.
+data SurfaceIntentAdapterDeclaration = SurfaceIntentAdapterDeclaration
+    { surfaceIntentDeclarationIR         :: !IntentIR
+    , surfaceIntentDeclarationOperations :: !SurfaceRequestAdapterOperations
+    }
+    deriving (Eq, Show)
+
+checkedSurfaceIntentAdapterDeclarations ::
+    SurfaceContractIR ->
+    Either [ContractDiagnostic] [CheckedAdapterDeclaration 'IntentAdapterKind IntentIR]
+checkedSurfaceIntentAdapterDeclarations contract =
+    case stableDiagnostics (validateSurfaceContractIR contract) of
+        [] ->
+            Right
+                [ checkedIntentAdapterDeclaration surface intent
+                | surface <- contract.contractSurfaces
+                , intent <- surface.surfaceIntents
+                ]
+        diagnostics -> Left diagnostics
+
+generateSurfaceIntentAdapterModules ::
+    SurfaceContractIR ->
+    SurfaceAdapterRegistry ->
+    Either [ContractDiagnostic] [GeneratedHaskellModule]
+generateSurfaceIntentAdapterModules contract registry = do
+    declarations <- checkedSurfaceIntentAdapterDeclarations contract
+    inventory <-
+        resolveSurfaceRequestAdapterRegistrations
+            intentAdapterLayout
+            contract
+            registry.surfaceAdapterFamilies
+            declarations
+            registry.surfaceIntentAdapterRegistrations
+    let generatedDeclarations = mapMaybe generatedDeclaration inventory
+    case stableDiagnostics
+        ( validateSurfaceAdapterLanePublication
+            intentAdapterLayout
+            registry.surfaceIntentAdapterPublication
+            registry.surfaceIntentAdapterHomes
+        ) of
+        diagnostics@(_ : _) -> Left diagnostics
+        [] -> case registry.surfaceIntentAdapterPublication of
+            StageEmptySurfaceAdapterLane _ _ -> Right []
+            PublishSurfaceAdapterLane -> do
+                adapters <-
+                    resolveAdapterGeneration
+                        intentAdapterLayout
+                        contract
+                        registry.surfaceAdapterFamilies
+                        registry.surfaceIntentAdapterHomes
+                        generatedDeclarations
+                        intentGeneratedNames
+                renderSurfaceIntentAdapterModules adapters
+  where
+    generatedDeclaration registration = do
+        operations <- registration.checkedSurfaceRequestAdapterOperations
+        pure
+            ( mapCheckedAdapterPayload
+                (`SurfaceIntentAdapterDeclaration` operations)
+                registration.checkedSurfaceRequestAdapterDeclaration
+            )
+
+-- | Resolution remains Intent-indexed until this conversion into the private
+-- Intent renderer. Action declarations cannot inhabit this input type.
+renderSurfaceIntentAdapterModules ::
+    [ResolvedAdapter 'IntentAdapterKind SurfaceIntentAdapterDeclaration] ->
+    Either [ContractDiagnostic] [GeneratedHaskellModule]
+renderSurfaceIntentAdapterModules adapters =
+    renderGeneratedAdapterModules
+        intentModuleRenderer
+        (map (toRenderableAdapter id) adapters)
+
+intentGeneratedNames ::
+    CheckedAdapterDeclaration 'IntentAdapterKind SurfaceIntentAdapterDeclaration ->
+    [Text]
+intentGeneratedNames declaration =
+    concat
+        [ operationName operations.surfaceAdapterFieldsBuilderOperation fieldsName
+        , operationName operations.surfaceAdapterRenderMetadataOperation formName
+        , operationName operations.surfaceAdapterRequestParserOperation parserName
+        ]
+  where
+    operations = declaration.checkedAdapterPayload.surfaceIntentDeclarationOperations
+    baseName = intentBaseName declaration.checkedAdapterDeclarationMarker
+    fieldsName = baseName <> "Fields"
+    formName = baseName <> "Form"
+    parserName = "parse" <> upperFirst baseName <> "Params"
+    operationName eligibility name =
+        [name | surfaceAdapterOperationIsGenerated eligibility]
+
+intentModuleRenderer :: AdapterModuleRenderer SurfaceIntentAdapterDeclaration
+intentModuleRenderer =
+    AdapterModuleRenderer
+        { adapterRendererLanguagePragmas =
+            [ "{-# LANGUAGE ImplicitParams   #-}"
+            , "{-# LANGUAGE TypeApplications #-}"
+            ]
+        , adapterRendererHeaderLines =
+            [ "-- @generated by Application.Helper.FrontendContract.Surface.HaskellAdapter.Generator"
+            , "-- Do not edit; run `bash ./bin/in-env frontend-surface-adapters`."
+            ]
+        , adapterRendererImports = renderIntentImports
+        , adapterRendererDeclaration = renderIntentAdapter
+        }
+
+renderIntentImports ::
+    Map.Map Text Text ->
+    [RenderableAdapter SurfaceIntentAdapterDeclaration] ->
+    [Text]
+renderIntentImports =
+    renderSurfaceRequestAdapterImports
+        "SurfaceIntentFieldSpecs"
+        [ "FrontendSurfaceHtmxRequest"
+        , "FrontendSurfaceIntentForm"
+        , "frontendSurfaceIntentForm"
+        ]
+        "parseSurfaceIntentParams"
+        (.surfaceIntentDeclarationOperations)
+
+renderIntentAdapter ::
+    Map.Map Text Text ->
+    RenderableAdapter SurfaceIntentAdapterDeclaration ->
+    [Text]
+renderIntentAdapter aliases adapter =
+    renderSurfaceRequestAdapterOperationBlocks
+        [ ( operations.surfaceAdapterFieldsBuilderOperation
+          , renderSurfaceRequestAdapterFieldsBuilder "SurfaceIntentFieldSpecs" fieldsName aliases adapter
+          )
+        , ( operations.surfaceAdapterRenderMetadataOperation
+          , renderIntentMetadata aliases adapter
+          )
+        , ( operations.surfaceAdapterRequestParserOperation
+          , renderSurfaceRequestAdapterParser
+                "SurfaceIntentFieldSpecs"
+                parserName
+                "parseSurfaceIntentParams"
+                aliases
+                adapter
+          )
+        ]
+  where
+    operations = adapter.renderableAdapterPayload.surfaceIntentDeclarationOperations
+
+renderIntentMetadata ::
+    Map.Map Text Text ->
+    RenderableAdapter SurfaceIntentAdapterDeclaration ->
+    [Text]
+renderIntentMetadata aliases adapter =
+    [ formName adapter <> " :: " <> renderSurfaceRequestAdapterFieldsType "SurfaceIntentFieldSpecs" aliases adapter <> " -> FrontendSurfaceHtmxRequest -> FrontendSurfaceIntentForm"
+    , formName adapter <> " ="
+    , "    frontendSurfaceIntentForm"
+    , "        @(AdapterFamilySurface " <> qualifyHaskellType aliases adapter.renderableAdapterHomeFamily <> ")"
+    , "        @" <> qualifyHaskellType aliases adapter.renderableAdapterHomeDeclaration
+    ]
+
+fieldsName :: RenderableAdapter SurfaceIntentAdapterDeclaration -> Text
+fieldsName adapter = intentBaseName adapter.renderableAdapterHomeDeclaration.haskellTypeName <> "Fields"
+
+formName :: RenderableAdapter SurfaceIntentAdapterDeclaration -> Text
+formName adapter = intentBaseName adapter.renderableAdapterHomeDeclaration.haskellTypeName <> "Form"
+
+parserName :: RenderableAdapter SurfaceIntentAdapterDeclaration -> Text
+parserName adapter = "parse" <> upperFirst (intentBaseName adapter.renderableAdapterHomeDeclaration.haskellTypeName) <> "Params"
+
+intentBaseName :: Text -> Text
+intentBaseName typeName =
+    wordsFromTypeName typeName
+        |> preserveOrAddIntentSuffix
+        |> lowerCamel
+        |> haskellValueIdentifier
+  where
+    preserveOrAddIntentSuffix words
+        | ["intent"] `List.isSuffixOf` words = words
+        | otherwise = words <> ["intent"]
