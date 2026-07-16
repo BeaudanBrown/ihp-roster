@@ -36,10 +36,12 @@ websocket controllers, and `static/app-live-updates.js`.
   Live TypeScript imports the generated fragment registry only; interaction
   TypeScript imports a separate interaction registry. Server-only action,
   intent/DTO, and containment metadata does not enter either bundle.
-- Scope keys are server-owned and carried through surface config/messages. The
-  websocket boundary derives the canonical key from the registered typed Surface
-  scope fields and rejects browser-supplied scope or fragment keys whose Surface
-  identity disagrees; browser keys are assertions, not authority.
+- Scope keys are server-owned and carried through surface config/messages. Typed
+  construction canonicalizes from the exact reflected scope field list; this
+  also lets unregistered compiled contract fixtures exercise the same algorithm.
+  The websocket boundary still validates against registered production Surfaces
+  and rejects browser-supplied scope or fragment keys whose Surface identity
+  disagrees; browser keys are assertions, not authority.
 - Bepis live facts are emitted by `invalidateTouchedResources*` after actual
   touched-resource expansion/planning/broadcast. Their target and target-fragment
   counts describe coalesced executable targets, not hypothetical candidate or

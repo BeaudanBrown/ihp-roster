@@ -103,6 +103,7 @@ expect_no_match_including_generated \
     'sourceTypeFor(Field|Wire)|haskellWireSourceLabel' \
     Application/Helper/FrontendContract/Surface/HaskellAdapter/Family.hs \
     Application/Helper/FrontendContract/Surface/HaskellAdapter/Generator.hs \
+    Application/Helper/FrontendContract/Surface/HaskellAdapter/Live.hs \
     Application/Helper/FrontendContract/Surface/HaskellAdapter/Registry.hs \
     Application/Helper/FrontendContract/Surface/HaskellAdapter/Resource.hs
 for adapter_namespace in Resource Live Action Intent; do
@@ -115,6 +116,19 @@ expect_match \
     "Haskell Surface adapter generation must consume the checked production Surface IR" \
     'registeredFrontendSurfaceContractIR' \
     Application/Script/GenerateFrontendSurfaceAdapters.hs
+expect_match \
+    "Haskell Surface adapter writes and stale cleanup must consume the complete all-kind module set" \
+    'generateSurfaceAdapterModules registeredFrontendSurfaceContractIR registeredSurfaceAdapterRegistry' \
+    Application/Script/GenerateFrontendSurfaceAdapters.hs
+expect_no_match_including_generated \
+    "checked Surface adapter declarations must be normalized only by the shared core" \
+    'CheckedAdapterDeclaration[[:space:]]*\{' \
+    Application/Helper/FrontendContract/Surface/HaskellAdapter/Family.hs \
+    Application/Helper/FrontendContract/Surface/HaskellAdapter/Generator.hs \
+    Application/Helper/FrontendContract/Surface/HaskellAdapter/Live.hs \
+    Application/Helper/FrontendContract/Surface/HaskellAdapter/Registry.hs \
+    Application/Helper/FrontendContract/Surface/HaskellAdapter/Resource.hs \
+    Test
 expect_no_match_including_generated \
     "Haskell Surface adapter generation must not inspect GHC or source ASTs" \
     'GHC\.|Language\.Haskell|ghc-lib-parser|haskell-src|parseModule|runGhc' \
@@ -215,7 +229,31 @@ for generated_module_path in "${generated_adapter_modules[@]}"; do
             report_failure "curated resource facade retains a handwritten mechanical adapter: $curated_facade"
         fi
     fi
+    if [ "$generated_kind" = "Live" ]; then
+        for generic_builder in frontendSurfaceScope matchFrontendSurfaceScope frontendSurfaceFragmentKey matchFrontendSurfaceFragmentKey; do
+            if ! rg --quiet "\\b${generic_builder}\\b" "$generated_module_path"; then
+                report_failure "generated Live adapter does not use $generic_builder: $generated_module_path"
+            fi
+        done
+        if rg --line-number '\b(frontendSurface(Scope|FragmentKey)|matchFrontendSurface(Scope|FragmentKey)|surface(Field|OptionalField|NullableField))\b' "$curated_facade" >&2; then
+            report_failure "curated Live facade retains a handwritten mechanical adapter: $curated_facade"
+        fi
+    fi
 done
+
+fixture_live_module="Test/Support/FrontendSurfaceAdapterFixture/Generated/Live.hs"
+if [ ! -f "$fixture_live_module" ]; then
+    report_failure "generated Surface Live adapter fixture is missing"
+else
+    for generic_builder in frontendSurfaceScope matchFrontendSurfaceScope frontendSurfaceFragmentKey matchFrontendSurfaceFragmentKey; do
+        if ! rg --quiet "\\b${generic_builder}\\b" "$fixture_live_module"; then
+            report_failure "generated Live fixture does not use $generic_builder: $fixture_live_module"
+        fi
+    done
+    if rg --line-number '^import .*\.Internal|HaskellAdapter\.Registry|Data\.Aeson' "$fixture_live_module" >&2; then
+        report_failure "generated Live fixture bypasses the public generic Live boundary"
+    fi
+fi
 
 expect_no_match_including_generated \
     "generated browser contracts must not restore action manifests or the omnibus Surface registry" \

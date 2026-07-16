@@ -149,7 +149,23 @@ tests = describe "LiveUpdate runtime types" do
         forM_ fragmentKeys \fragmentKey ->
             Aeson.decode (Aeson.encode fragmentKey) `shouldBe` Just fragmentKey
 
-    it "keeps wire fragment payloads semantic and non-executable" do
+    it "pins the pre-migration scope JSON boundary independently of generated adapters" do
+        let venueId = expectUuid "11111111-1111-1111-1111-111111111111"
+        let rosterGroupId = expectUuid "33333333-3333-3333-3333-333333333333"
+        let scope = RosterLive.rosterWeekLiveScope venueId rosterGroupId (-1)
+
+        Aeson.toJSON scope
+            `shouldBe`
+                Aeson.object
+                    [ "surface" Aeson..= ("roster" :: Text)
+                    , "scope" Aeson..= Aeson.object
+                        [ "venueId" Aeson..= UUID.toText venueId
+                        , "rosterGroupId" Aeson..= UUID.toText rosterGroupId
+                        , "weekOffset" Aeson..= (-1 :: Int)
+                        ]
+                    ]
+
+    it "pins the pre-migration fragment-key JSON boundary independently of generated adapters" do
         let rosterDayId = expectUuid "22222222-2222-2222-2222-222222222222"
         let fragmentKey = RosterLive.rosterRowLiveFragment rosterDayId 2
 
@@ -164,7 +180,7 @@ tests = describe "LiveUpdate runtime types" do
                         ]
                     ]
 
-    it "uses stable live scope keys for client/server subscription matching" do
+    it "pins pre-migration stable scope keys independently of generated adapters" do
         let venueId = expectUuid "11111111-1111-1111-1111-111111111111"
         let rosterGroupId = expectUuid "33333333-3333-3333-3333-333333333333"
         let staffId = expectUuid "44444444-4444-4444-4444-444444444444"

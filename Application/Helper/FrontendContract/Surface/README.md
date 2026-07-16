@@ -383,24 +383,39 @@ not across kind-separated modules such as Action and Intent.
 The private output/facade pairs are fixed as `.Generated.Resource` / `Resource`,
 `.Generated.Live` / `Live`, `.Generated.Action` / `Action`, and
 `.Generated.Intent` / `Intent`. Scope and fragment declarations deliberately
-share the Live pair. Today the focused resource renderer uses the core and the
+share the Live pair. The focused resource renderer uses the core and the
 aggregate registry assigns exactly one canonical home to every unique checked
-production resource identity. Repeated dependency occurrences do not create
-extra homes. The shared `time-picker-config` identity, for example, has its
-canonical home in the Roster day-timeline family even though Timesheets also
-depends on it. The live/action/intent tickets add only their focused checked
-eligibility, homes, and source shapes over this core.
+production resource identity.
+Repeated dependency occurrences do not create extra homes. The shared
+`time-picker-config` identity, for example, has its canonical home in the Roster
+day-timeline family even though Timesheets also depends on it.
+
+The focused Live renderer is also implemented. It selects every checked Surface
+scope and every fragment with `Live`; non-passive fragments that already own an
+actor-local semantic key require a typed, non-empty, reason-bearing exception.
+At this pre-migration stage those exceptions cover the Admin and Admin Xero
+parent-page content keys. Scope and fragment `CheckedAdapterDeclaration` values
+come only from kind-specific `SurfaceIR` + `ScopeIR`/`FragmentIR` normalizers.
+Their kinds survive home resolution and only the closed `LiveScope` /
+`LiveFragment` payload reaches the shared `.Generated.Live` renderer. Production
+Live homes and facade migration remain in `#189`; no production live caller is
+replaced by this foundation slice. Independent literal goldens in
+`Test.LiveUpdateSpec` pin production scope JSON, fragment-key JSON, and canonical
+`surfaceScopeKey` values before that replacement; generated-vs-generic equality
+is not their source of truth.
 
 Generated resource modules invoke `frontendSurfaceResource` and
-`matchFrontendSurfaceResource`; only the matching
-`Surface.<Feature>.Resource` facade may import one. Those facades re-export
-canonical constructors and retain handwritten domain aliases and matchers only
-where they add domain meaning. Every generated-kind module must stay behind its
-matching curated facade and must not import opaque internal constructors.
-Unsupported carriers stop generation with an adapter-kind/declaration/field
-specific diagnostic rather than falling back to JSON, a generated carrier
-record, or a handwritten type. The generator uses normal Haskell reflection plus
-`Typeable` module/type metadata;
+`matchFrontendSurfaceResource`; generated Live modules invoke only
+`frontendSurfaceScope`, `matchFrontendSurfaceScope`,
+`frontendSurfaceFragmentKey`, and `matchFrontendSurfaceFragmentKey`. Only the
+matching curated facade may import a production generated module. Resource
+facades re-export canonical constructors and retain handwritten domain aliases
+and matchers only where they add domain meaning. Every generated-kind module
+must stay behind its matching curated facade and must not import opaque internal
+constructors. Unsupported carriers stop generation with an
+adapter-kind/Surface/declaration/field-specific diagnostic rather than falling
+back to JSON, a generated carrier record, or a handwritten type. The generator
+uses normal Haskell type-level reflection plus `Typeable` module/type metadata;
 it does not parse source or compiler syntax trees.
 
 The Timesheets family was the representative migration checkpoint. Its
@@ -413,6 +428,18 @@ changed from 22 modules in 9.711 seconds to 25 modules in 9.772 seconds: three
 expected modules and 0.061 seconds (+0.6%) in that sample. This checkpoint was
 accepted before registering the remaining homes; it is a compile-impact record,
 not a benchmark.
+
+The Live foundation adds one 83-line compiled fixture module at
+`Test.Support.FrontendSurfaceAdapterFixture.Generated.Live`. One isolated cold
+focused compile of that module loaded 44 modules in 23.522 seconds. The sample
+records the pre-production fixture/module impact for `#189`; it is not a
+benchmark and does not claim production migration cost.
+
+`generateSurfaceAdapterModules` composes every implemented adapter lane,
+accumulates diagnostics, and rejects duplicate physical module paths before the
+script writes or removes files. A staged empty production Live-home set still
+runs eligibility validation but emits no production Live module, preserving all
+seven Resource outputs until `#189` enables those homes.
 
 Write and verify output with:
 

@@ -28,7 +28,7 @@ main = do
 
 writeGeneratedModules :: FilePath -> IO ()
 writeGeneratedModules outputRoot =
-    case generateSurfaceResourceAdapterModules registeredFrontendSurfaceContractIR registeredSurfaceAdapterRegistry of
+    case generateSurfaceAdapterModules registeredFrontendSurfaceContractIR registeredSurfaceAdapterRegistry of
         Left diagnostics -> do
             forM_ diagnostics \diagnostic ->
                 Text.hPutStrLn stderr

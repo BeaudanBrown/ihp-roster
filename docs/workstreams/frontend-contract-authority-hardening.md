@@ -215,9 +215,10 @@ used Timesheets as its first representative resource migration, recorded the
 feature-local import, handwritten-line deletion, and focused compile checkpoint
 in the Surface authoring guide, then registered every remaining unique resource
 home. #188 has extracted the kind-indexed shared core, fixed the four private
-output/facade pairs, and retained byte-identical resource output. #190 now
-establishes the checked Live renderer/output lane and independent identity
-goldens before #189 migrates production Live facades. #185 can establish the
+output/facade pairs, and retained byte-identical resource output. #190 has
+established the checked Live renderer/output lane, compiled fixture, atomic
+all-kind composition, and independent identity goldens; #189 can now migrate
+production Live facades. #185 can establish the
 separate generated Action and Intent renderers in parallel once selected; #186
 and #187 then migrate those facades independently. #183 also follows #162 and
 #181, while #184 follows #164 and #181. Shared browser slices depend on typed

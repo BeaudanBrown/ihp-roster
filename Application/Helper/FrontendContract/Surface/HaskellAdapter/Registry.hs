@@ -9,6 +9,7 @@
 module Application.Helper.FrontendContract.Surface.HaskellAdapter.Registry
     ( RegisteredSurfaceAdapterFamilies
     , RegisteredSurfaceResourceAdapterHomes
+    , registeredSurfaceActorOnlyFragments
     , registeredSurfaceAdapterRegistry
     ) where
 
@@ -47,6 +48,18 @@ type RegisteredSurfaceAdapterFamilies =
      , AdminXeroAdapterFamily
      ]
 
+registeredSurfaceActorOnlyFragments :: [ActorOnlyFragmentAdapterMetadata]
+registeredSurfaceActorOnlyFragments =
+    [ surfaceActorOnlyFragmentAdapter
+        @AdminPageAdapterFamily
+        @Admin.AdminPageContentFragment
+        "Actor-local parent-page composition still constructs this non-passive semantic key"
+    , surfaceActorOnlyFragmentAdapter
+        @AdminXeroPageAdapterFamily
+        @Admin.AdminXeroPageContentFragment
+        "Actor-local parent-page composition still constructs this non-passive semantic key"
+    ]
+
 type RegisteredSurfaceResourceAdapterHomes =
     '[ SurfaceResourceAdapterHome TimesheetsAdapterFamily Timesheets.TimesheetDay
      , SurfaceResourceAdapterHome TimesheetsAdapterFamily Timesheets.TimesheetWeekBoundaryConfig
@@ -77,3 +90,6 @@ registeredSurfaceAdapterRegistry =
     reflectSurfaceAdapterRegistry
         @RegisteredSurfaceAdapterFamilies
         @RegisteredSurfaceResourceAdapterHomes
+        @'[]
+        @'[]
+        registeredSurfaceActorOnlyFragments

@@ -4,6 +4,7 @@
 
 module Application.Helper.FrontendContract.Surface.Identity
     ( canonicalFrontendSurfaceScopeKey
+    , canonicalFrontendSurfaceScopeKeyFromFields
     ) where
 
 import qualified Application.Helper.FrontendContract.IR as Contract
@@ -36,6 +37,18 @@ canonicalFrontendSurfaceScopeKey surfaceName scopePayload = do
             [scope] -> pure scope.scopeFields
             [] -> fail ("Frontend Surface has no registered scope: " <> cs surfaceName)
             _ -> fail ("Frontend Surface has multiple registered scopes: " <> cs surfaceName)
+    canonicalFrontendSurfaceScopeKeyFromFields surfaceName fields scopePayload
+
+-- | Canonicalize a scope already checked and constructed through a
+-- marker-indexed Surface declaration. Unlike the wire-boundary entrypoint this
+-- does not require membership in the production registry, so unregistered
+-- compiled fixtures exercise the exact same stable-key algorithm.
+canonicalFrontendSurfaceScopeKeyFromFields ::
+    Text ->
+    [Contract.FieldIR] ->
+    Aeson.Value ->
+    Aeson.Parser Text
+canonicalFrontendSurfaceScopeKeyFromFields surfaceName fields scopePayload = do
     object <-
         case scopePayload of
             Aeson.Object value -> pure value

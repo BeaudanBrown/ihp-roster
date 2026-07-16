@@ -17,7 +17,6 @@ import Application.Helper.FrontendContract.Surface.HaskellAdapter.Core
 import Application.Helper.FrontendContract.Surface.HaskellAdapter.Family
 import qualified Data.List as List
 import qualified Data.Map.Strict as Map
-import qualified Data.Text as Text
 import IHP.Prelude
 
 generateSurfaceResourceAdapterModules ::
@@ -39,15 +38,7 @@ generateSurfaceResourceAdapterModules contract registry = do
 
 resourceAdapterDeclarations :: SurfaceContractIR -> [CheckedAdapterDeclaration 'ResourceAdapterKind ResourceIR]
 resourceAdapterDeclarations contract =
-    [ CheckedAdapterDeclaration
-        { checkedAdapterIdentity = resourceAdapterIdentity resource.resourceName
-        , checkedAdapterSurfaceMarker = surface.surfaceMarker
-        , checkedAdapterSurfaceName = surface.surfaceName
-        , checkedAdapterDeclarationMarker = resource.resourceMarker
-        , checkedAdapterDeclarationName = resource.resourceName
-        , checkedAdapterFields = resource.resourceFields
-        , checkedAdapterPayload = resource
-        }
+    [ checkedResourceAdapterDeclaration surface resource
     | surface <- contract.contractSurfaces
     , resource <- resourcesForSurface surface
     ]
@@ -138,42 +129,17 @@ renderConstructorBody ::
     RenderableAdapter ResourceIR ->
     [Text]
 renderConstructorBody aliases adapter =
-    [ resolvedConstructor adapter <> renderArguments adapter.renderableAdapterFields <> " ="
+    [ resolvedConstructor adapter <> renderAdapterArguments adapter.renderableAdapterFields <> " ="
     , "    frontendSurfaceResource"
     , "        @(AdapterFamilySurface " <> qualifyHaskellType aliases adapter.renderableAdapterHomeFamily <> ")"
     , "        @" <> qualifyHaskellType aliases adapter.renderableAdapterHomeDeclaration
     ]
-        <> renderFieldsExpression aliases adapter.renderableAdapterFields
-
-renderArguments :: [ResolvedAdapterField] -> Text
-renderArguments fields =
-    case map (haskellValueIdentifier . (.fieldName) . (.resolvedAdapterFieldIR)) fields of
-        []    -> ""
-        names -> " " <> Text.unwords names
-
-renderFieldsExpression :: Map.Map Text Text -> [ResolvedAdapterField] -> [Text]
-renderFieldsExpression _ [] = ["        NoSurfaceFields"]
-renderFieldsExpression aliases (first : rest) =
-    ["        ( " <> renderFieldBuilder aliases first]
-        <> ["            :& " <> renderFieldBuilder aliases field | field <- rest]
-        <> [ "            :& NoSurfaceFields"
-           , "        )"
-           ]
-
-renderFieldBuilder :: Map.Map Text Text -> ResolvedAdapterField -> Text
-renderFieldBuilder aliases field =
-    helper <> " @" <> qualifyHaskellType aliases field.resolvedAdapterFieldMarker <> " " <> argument
-  where
-    helper = case field.resolvedAdapterFieldIR.fieldPresence of
-        RequiredField         -> "surfaceField"
-        OptionalFieldPresence -> "surfaceOptionalField"
-        NullableFieldPresence -> "surfaceNullableField"
-    argument = haskellValueIdentifier field.resolvedAdapterFieldIR.fieldName
+        <> renderAdapterFieldsExpression aliases adapter.renderableAdapterFields
 
 renderMatcherSignature :: RenderableAdapter ResourceIR -> [Text]
 renderMatcherSignature adapter =
     [ resolvedMatcher adapter <> " :: SurfaceResourceValue -> Maybe "
-        <> renderFieldValueTuple (map (.resolvedAdapterFieldType) adapter.renderableAdapterFields)
+        <> renderAdapterFieldValueTuple (map (.resolvedAdapterFieldType) adapter.renderableAdapterFields)
     ]
 
 renderMatcherBody ::
@@ -187,22 +153,13 @@ renderMatcherBody aliases adapter =
     , "        @" <> qualifyHaskellType aliases adapter.renderableAdapterHomeDeclaration
     ]
 
-renderFieldValueTuple :: [HaskellSourceType] -> Text
-renderFieldValueTuple = \case
-    [] -> "()"
-    field : rest -> "(" <> renderHaskellSourceType field <> ", " <> renderFieldValueTuple rest <> ")"
-
 resolvedConstructor :: RenderableAdapter ResourceIR -> Text
-resolvedConstructor adapter =
-    case adapter.renderableAdapterGeneratedNames of
-        constructorName : _ -> constructorName
-        [] -> resourceConstructorName adapter.renderableAdapterHomeDeclaration.haskellTypeName
+resolvedConstructor =
+    resolvedAdapterConstructorName
+        (resourceConstructorName . (.haskellTypeName) . (.renderableAdapterHomeDeclaration))
 
 resolvedMatcher :: RenderableAdapter ResourceIR -> Text
-resolvedMatcher adapter =
-    case adapter.renderableAdapterGeneratedNames of
-        _ : matcherName : _ -> matcherName
-        _ -> "match" <> upperFirst (resolvedConstructor adapter)
+resolvedMatcher = resolvedAdapterMatcherName resolvedConstructor
 
 resourceConstructorName :: Text -> Text
 resourceConstructorName typeName =

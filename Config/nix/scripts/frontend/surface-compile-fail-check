@@ -95,6 +95,24 @@ expect_compile_failure \
     "FrontendSurfaceScope"
 
 expect_compile_failure \
+    "Test/CompileFail/FrontendSurfaceResourceInLiveAdapterLane.hs" \
+    "ResourceAdapterKind" \
+    "ScopeAdapterKind" \
+    "renderSurfaceLiveAdapterModules"
+
+expect_compile_failure \
+    "Test/CompileFail/FrontendSurfaceActionInLiveAdapterLane.hs" \
+    "ActionAdapterKind" \
+    "ScopeAdapterKind" \
+    "renderSurfaceLiveAdapterModules"
+
+expect_compile_failure \
+    "Test/CompileFail/FrontendSurfaceIntentInLiveAdapterLane.hs" \
+    "IntentAdapterKind" \
+    "FragmentAdapterKind" \
+    "renderSurfaceLiveAdapterModules"
+
+expect_compile_failure \
     "Test/CompileFail/FrontendSurfaceRawResource.hs" \
     "Illegal term-level use of the type constructor" \
     "SurfaceResourceValue"

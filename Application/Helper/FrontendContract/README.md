@@ -108,23 +108,35 @@ action, and intent identities are owning-Surface plus declaration identity, so
 cross-kind marker/name reuse is valid.
 
 Focused renderers select checked declarations and own only their function-level
-source shapes. The current resource renderer emits the byte-stable private
-feature-adjacent `.Generated.Resource` modules through the core; live, action,
-and intent extensions have reserved `.Generated.Live`, `.Generated.Action`, and
-`.Generated.Intent` layouts with matching `Live`, `Action`, and `Intent` curated
-facades. Generated resource code calls only the public marker-indexed builders
-and matchers. Unsupported source carriers fail with adapter kind, declaration,
-and field in the diagnostic. Production family associations remain feature-local,
-and the checked aggregate resource registry assigns exactly one canonical home
-to every unique production resource identity. Curated
+source shapes. The resource renderer continues to emit byte-stable private
+feature-adjacent `.Generated.Resource` modules. The focused Live renderer now
+normalizes scopes and fragments directly from checked `SurfaceIR`, preserves
+their kind through home resolution, and combines only `LiveScope` and
+`LiveFragment` in `.Generated.Live`; resources, actions, and intents cannot enter
+that lane. Passive fragments are eligible from their closed `Live` option. The
+two current non-passive Admin parent-page keys are typed, reason-bearing
+actor-only exceptions. Production Live homes and call-site migration remain for
+`#189`; the compiled unregistered fixture proves scope/fragment constructors,
+zero-field constants, matchers, shared-module collision checks, and public
+generic builder use without changing production facades.
+
+Generated Resource and Live code calls only public marker-indexed builders and
+matchers. Unsupported source carriers fail with adapter kind, owning Surface,
+declaration, and field in the diagnostic. Production family associations remain
+feature-local, and the checked aggregate resource registry assigns exactly one
+canonical home to every unique production resource identity. Curated
 `Surface.<Feature>.Resource` facades are the generated resource modules' only
 consumers and retain only domain aliases, domain matchers, and meaningful public
 exports.
 
-Use `frontend-surface-adapters` to write generated Haskell modules and
-`frontend-surface-adapters-check` to reject missing, extra, unformatted, or stale
-output. Generation does not inspect compiler syntax trees, parse source modules,
-or choose behavior from feature-name text.
+`generateSurfaceAdapterModules` is the all-kind composer used by the write/drift
+workflow. It accumulates focused-lane diagnostics and validates duplicate
+physical paths before exposing the complete managed set, so stale cleanup cannot
+silently discard another implemented lane. Use `frontend-surface-adapters` to
+write generated Haskell modules and `frontend-surface-adapters-check` to reject
+missing, extra, unformatted, or stale output. Generation does not inspect
+compiler syntax trees, parse source modules, or choose behavior from feature-name
+text.
 
 Generated TypeScript comes through
 `Application.Helper.FrontendContract.Contracts`. Exported TypeScript contract

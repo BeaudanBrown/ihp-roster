@@ -19,7 +19,8 @@
 -- field order, presence, and wires continue to come from the associated
 -- Surface declaration.
 module Application.Helper.FrontendContract.Surface.HaskellAdapter.Family
-    ( AdapterFamilySurface
+    ( ActorOnlyFragmentAdapterMetadata (..)
+    , AdapterFamilySurface
     , HaskellTypeMetadata (..)
     , ReflectSurfaceAdapterFamilies
     , ReflectSurfaceAdapterHomes
@@ -38,6 +39,7 @@ module Application.Helper.FrontendContract.Surface.HaskellAdapter.Family
     , reflectSurfaceAdapterHomes
     , reflectSurfaceAdapterRegistry
     , reflectSurfaceResourceAdapterHomes
+    , surfaceActorOnlyFragmentAdapter
     ) where
 
 import Application.Helper.FrontendContract.Surface.DSL
@@ -76,12 +78,24 @@ type SurfaceActionAdapterHome adapterFamily action =
 type SurfaceIntentAdapterHome adapterFamily intent =
     SurfaceAdapterHome 'IntentAdapterKind adapterFamily intent
 
+-- | Explicit eligibility for a semantic fragment key used only by actor-local
+-- workflows. The owning family and fragment remain type checked, while the
+-- required reason remains reviewable term-level documentation.
+data ActorOnlyFragmentAdapterMetadata = ActorOnlyFragmentAdapterMetadata
+    { actorOnlyFragmentHome   :: !(SurfaceAdapterHomeMetadata 'FragmentAdapterKind)
+    , actorOnlyFragmentReason :: !Text
+    }
+    deriving (Eq, Show)
+
 type SurfaceResourceAdapterHomeMetadata =
     SurfaceAdapterHomeMetadata 'ResourceAdapterKind
 
 data SurfaceAdapterRegistry = SurfaceAdapterRegistry
-    { surfaceAdapterFamilies      :: ![SurfaceAdapterFamilyMetadata]
-    , surfaceResourceAdapterHomes :: ![SurfaceResourceAdapterHomeMetadata]
+    { surfaceAdapterFamilies             :: ![SurfaceAdapterFamilyMetadata]
+    , surfaceResourceAdapterHomes        :: ![SurfaceResourceAdapterHomeMetadata]
+    , surfaceScopeAdapterHomes           :: ![SurfaceAdapterHomeMetadata 'ScopeAdapterKind]
+    , surfaceFragmentAdapterHomes        :: ![SurfaceAdapterHomeMetadata 'FragmentAdapterKind]
+    , surfaceActorOnlyFragmentAdapters   :: ![ActorOnlyFragmentAdapterMetadata]
     }
     deriving (Eq, Show)
 
@@ -164,6 +178,24 @@ reflectSurfaceResourceAdapterHomes ::
 reflectSurfaceResourceAdapterHomes =
     reflectSurfaceAdapterHomes @'ResourceAdapterKind @homes
 
+surfaceActorOnlyFragmentAdapter ::
+    forall adapterFamily fragment.
+    ReflectSurfaceAdapterHomes
+        'FragmentAdapterKind
+        '[SurfaceFragmentAdapterHome adapterFamily fragment] =>
+    Text ->
+    ActorOnlyFragmentAdapterMetadata
+surfaceActorOnlyFragmentAdapter actorOnlyFragmentReason =
+    ActorOnlyFragmentAdapterMetadata
+        { actorOnlyFragmentHome =
+            case reflectSurfaceAdapterHomes
+                @'FragmentAdapterKind
+                @'[SurfaceFragmentAdapterHome adapterFamily fragment] of
+                [home] -> home
+                _      -> error "actor-only fragment reflection did not produce exactly one typed home"
+        , actorOnlyFragmentReason
+        }
+
 class ReflectSurfaceFieldMarkerTypes (fields :: [FieldSpec]) where
     reflectSurfaceFieldMarkerTypes :: [HaskellTypeMetadata]
 
@@ -189,13 +221,19 @@ instance
         haskellTypeMetadata @marker : reflectSurfaceFieldMarkerTypes @rest
 
 reflectSurfaceAdapterRegistry ::
-    forall families homes.
+    forall families resourceHomes scopeHomes fragmentHomes.
     ( ReflectSurfaceAdapterFamilies families
-    , ReflectSurfaceResourceAdapterHomes homes
+    , ReflectSurfaceResourceAdapterHomes resourceHomes
+    , ReflectSurfaceAdapterHomes 'ScopeAdapterKind scopeHomes
+    , ReflectSurfaceAdapterHomes 'FragmentAdapterKind fragmentHomes
     ) =>
+    [ActorOnlyFragmentAdapterMetadata] ->
     SurfaceAdapterRegistry
-reflectSurfaceAdapterRegistry =
+reflectSurfaceAdapterRegistry surfaceActorOnlyFragmentAdapters =
     SurfaceAdapterRegistry
         { surfaceAdapterFamilies = reflectSurfaceAdapterFamilies @families
-        , surfaceResourceAdapterHomes = reflectSurfaceResourceAdapterHomes @homes
+        , surfaceResourceAdapterHomes = reflectSurfaceResourceAdapterHomes @resourceHomes
+        , surfaceScopeAdapterHomes = reflectSurfaceAdapterHomes @'ScopeAdapterKind @scopeHomes
+        , surfaceFragmentAdapterHomes = reflectSurfaceAdapterHomes @'FragmentAdapterKind @fragmentHomes
+        , surfaceActorOnlyFragmentAdapters = surfaceActorOnlyFragmentAdapters
         }
