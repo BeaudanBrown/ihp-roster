@@ -75,6 +75,7 @@ generateSurfaceResourceAdapterModules contract registry =
     (homeDiagnostics, ownedAdapters) =
         unzip (map (resolveResourceHome contract registry) registry.surfaceResourceAdapterHomes)
     resolvedOwnedAdapters = catMaybes ownedAdapters
+    resourceHomeCoverageDiagnostics = validateResourceHomeCoverage contract resolvedOwnedAdapters
     (sourceDiagnostics, resolvedAdapters) =
         unzip (map resolveResourceSourceTypes resolvedOwnedAdapters)
             |> second catMaybes
@@ -84,6 +85,7 @@ generateSurfaceResourceAdapterModules contract registry =
             <> familyDiagnostics
             <> duplicateHomeDiagnostics
             <> concat homeDiagnostics
+            <> resourceHomeCoverageDiagnostics
             <> concat sourceDiagnostics
             <> collisionDiagnostics
 
@@ -182,6 +184,21 @@ resolveResourceHome contract registry home =
             <> validateHaskellTypeModule "adapter-surface-source-module" "adapter Surface" home.resourceAdapterHomeSurface
             <> validateHaskellTypeModule "adapter-resource-source-module" "adapter resource" home.resourceAdapterHomeResource
             <> concatMap (validateHaskellTypeModule "adapter-field-source-module" "adapter field") home.resourceAdapterHomeFieldMarkers
+            <> concatMap validateGeneratedImportLocality generatedImports
+    generatedImports =
+        ("adapter family", home.resourceAdapterHomeFamily)
+            : ("resource marker", home.resourceAdapterHomeResource)
+            : map (\marker -> ("field marker", marker)) home.resourceAdapterHomeFieldMarkers
+    validateGeneratedImportLocality (label, importedType)
+        | featureModuleOwns home.resourceAdapterHomeSurface.haskellTypeModule importedType.haskellTypeModule = []
+        | otherwise =
+            [ diagnostic
+                "adapter-import-locality"
+                ( "Resource " <> renderHaskellType home.resourceAdapterHomeResource
+                    <> " would import " <> label <> " " <> renderHaskellType importedType
+                    <> " outside owning feature module tree " <> home.resourceAdapterHomeSurface.haskellTypeModule
+                )
+            ]
     ownershipDiagnostics =
         missingFamilyDiagnostics <> missingSurfaceDiagnostics <> missingResourceDiagnostics
     missingFamilyDiagnostics =
@@ -325,6 +342,39 @@ validateDuplicateHomes homes =
                 )
             ]
     duplicateGroup _ = []
+
+validateResourceHomeCoverage :: SurfaceContractIR -> [ResolvedResourceAdapter] -> [ContractDiagnostic]
+validateResourceHomeCoverage contract adapters =
+    missingHomeDiagnostics <> duplicateIdentityDiagnostics
+  where
+    checkedResources =
+        contract.contractSurfaces
+            |> concatMap resourcesForSurface
+            |> List.sortOn (.resourceName)
+            |> List.groupBy (\left right -> left.resourceName == right.resourceName)
+            |> mapMaybe listToMaybe
+    adaptersByResourceName =
+        adapters
+            |> List.sortOn ((.resourceName) . (.resolvedResource))
+            |> List.groupBy
+                (\left right -> left.resolvedResource.resourceName == right.resolvedResource.resourceName)
+    missingHomeDiagnostics =
+        [ diagnostic
+            "missing-adapter-resource-home"
+            ("Checked resource " <> resource.resourceName <> " has no generated adapter home")
+        | resource <- checkedResources
+        , not (any ((== resource.resourceName) . (.resourceName) . (.resolvedResource)) adapters)
+        ]
+    duplicateIdentityDiagnostics =
+        [ diagnostic
+            "duplicate-adapter-resource-home"
+            ( "Checked resource " <> first.resolvedResource.resourceName
+                <> " has duplicate adapter homes: "
+                <> Text.intercalate ", " (map (renderHaskellType . (.resourceAdapterHomeFamily) . (.resolvedHome)) group)
+            )
+        | group@(first : _) <- adaptersByResourceName
+        , length group > 1
+        ]
 
 validateGeneratedNameCollisions :: [ResolvedResourceAdapter] -> [ContractDiagnostic]
 validateGeneratedNameCollisions adapters =
@@ -641,6 +691,11 @@ duplicateMetadataDiagnostics code label metadataOf values =
 
 renderHaskellType :: HaskellTypeMetadata -> Text
 renderHaskellType metadata = metadata.haskellTypeModule <> "." <> metadata.haskellTypeName
+
+featureModuleOwns :: Text -> Text -> Bool
+featureModuleOwns featureModule candidateModule =
+    candidateModule == featureModule
+        || (featureModule <> ".") `Text.isPrefixOf` candidateModule
 
 diagnostic :: Text -> Text -> ContractDiagnostic
 diagnostic diagnosticCode diagnosticMessage =

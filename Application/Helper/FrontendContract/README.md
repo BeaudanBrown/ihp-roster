@@ -103,9 +103,12 @@ generator combines that typed registry with the checked `SurfaceContractIR`,
 Typeable source-module metadata, and `haskellWireSource`. It emits private
 feature-adjacent `.Generated.Resource` modules that call only the public
 marker-indexed resource builders and matchers. Unsupported source carriers fail
-with the owning resource and field in the diagnostic. The foundation ticket
-leaves production resource homes empty; follow-up migrations add homes while
-retaining curated feature facades.
+with the owning resource and field in the diagnostic. Production family
+associations live in feature-local `Surface.<Feature>.HaskellAdapter` modules,
+and the checked aggregate registry assigns exactly one canonical home to every
+unique production resource identity. Curated `Surface.<Feature>.Resource`
+facades are the generated modules' only consumers and retain only domain aliases,
+domain matchers, and meaningful public exports.
 
 Use `frontend-surface-adapters` to write generated Haskell modules and
 `frontend-surface-adapters-check` to reject missing, extra, unformatted, or stale

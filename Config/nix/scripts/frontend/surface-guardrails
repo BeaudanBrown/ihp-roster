@@ -120,6 +120,72 @@ expect_no_match_including_generated \
     "Haskell Surface adapter generation must not dispatch on production feature-name literals" \
     '"(timesheets|roster|roster-day-timeline|leave-requests|billing|support|profile|staff|admin-[a-z-]+)"' \
     Application/Helper/FrontendContract/Surface/HaskellAdapter/Generator.hs
+expect_no_match_including_generated \
+    "Surface adapter family associations must stay feature-local" \
+    '^(data .*AdapterFamily|instance SurfaceAdapterFamily)' \
+    Application/Helper/FrontendContract/Surface/HaskellAdapter/Registry.hs
+
+mapfile -t generated_resource_modules < <(
+    find Application/Helper/FrontendContract/Surface -path '*/Generated/Resource.hs' -type f | sort
+)
+if [ "${#generated_resource_modules[@]}" -eq 0 ]; then
+    report_failure "generated Surface resource adapter modules are missing"
+fi
+
+for generated_module_path in "${generated_resource_modules[@]}"; do
+    feature_dir="${generated_module_path%/Generated/Resource.hs}"
+    resource_facade="$feature_dir/Resource.hs"
+    family_module="$feature_dir/HaskellAdapter.hs"
+    generated_module_name="${generated_module_path%.hs}"
+    generated_module_name="${generated_module_name//\//.}"
+    generated_module_pattern="${generated_module_name//./\\.}"
+    feature_module_name="${feature_dir//\//.}"
+
+    if [ ! -f "$resource_facade" ]; then
+        report_failure "generated Surface resource adapter has no curated facade: $generated_module_path"
+        continue
+    fi
+    if [ ! -f "$family_module" ]; then
+        report_failure "generated Surface resource adapter has no feature-local family module: $generated_module_path"
+        continue
+    fi
+
+    mapfile -t generated_consumers < <(
+        rg -l --glob '*.hs' "^import (qualified )?${generated_module_pattern}([[:space:]]|$)" Application Web Test 2>/dev/null \
+            | sort \
+            || true
+    )
+    if [ "${#generated_consumers[@]}" -ne 1 ] || [ "${generated_consumers[0]:-}" != "$resource_facade" ]; then
+        report_failure "private generated resource module must be consumed only by $resource_facade: $generated_module_name"
+        printf '  %s\n' "${generated_consumers[@]:-<no consumers>}" >&2
+    fi
+
+    if rg --line-number '^import .*\.Internal|HaskellAdapter\.Registry' "$generated_module_path" >&2; then
+        report_failure "generated resource adapter bypasses an opaque boundary or imports the omnibus registry: $generated_module_path"
+    fi
+    for generic_builder in frontendSurfaceResource matchFrontendSurfaceResource; do
+        if ! rg --quiet "\\b${generic_builder}\\b" "$generated_module_path"; then
+            report_failure "generated resource adapter does not use $generic_builder: $generated_module_path"
+        fi
+    done
+
+    while IFS= read -r family_import; do
+        case "$family_import" in
+            *Application.Helper.FrontendContract.Surface.HaskellAdapter.Family*)
+                ;;
+            *"$feature_module_name"*)
+                ;;
+            *)
+                report_failure "feature adapter family imports an unrelated Surface module: $family_module"
+                echo "$family_import" >&2
+                ;;
+        esac
+    done < <(rg '^import (qualified )?Application\.Helper\.FrontendContract\.Surface\.' "$family_module" || true)
+
+    if rg --line-number '\b(frontendSurfaceResource|matchFrontendSurfaceResource|surface(Field|OptionalField|NullableField))\b' "$resource_facade" >&2; then
+        report_failure "curated resource facade retains a handwritten mechanical adapter: $resource_facade"
+    fi
+done
 
 expect_no_match_including_generated \
     "generated browser contracts must not restore action manifests or the omnibus Surface registry" \
@@ -295,17 +361,6 @@ expect_no_match \
     Application \
     Web \
     e2e
-
-expect_match \
-    "feature resource modules use the marker-indexed constructor" \
-    'frontendSurfaceResource' \
-    Application/Helper/FrontendContract/Surface/Admin/Resource.hs \
-    Application/Helper/FrontendContract/Surface/Billing/Resource.hs \
-    Application/Helper/FrontendContract/Surface/LeaveRequests/Resource.hs \
-    Application/Helper/FrontendContract/Surface/Profile/Resource.hs \
-    Application/Helper/FrontendContract/Surface/Roster/Resource.hs \
-    Application/Helper/FrontendContract/Surface/Support/Resource.hs \
-    Application/Helper/FrontendContract/Surface/Timesheets/Resource.hs
 
 expect_no_match \
     "generic live modules must not own feature scope, fragment, or field catalogs" \

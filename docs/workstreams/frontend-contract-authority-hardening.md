@@ -203,13 +203,14 @@ slices, and all block final reconciliation.
 24. `#179` - Run the zero-legacy audit, finish dynamic CSS/source guardrails,
     reconcile living docs, and verify the full repository before closing `#136`.
 
-The authority foundations through #181 are complete. #182 is the Haskell
-adapter checkpoint: its first representative resource migration must prove
-feature-local imports, net deletion, and acceptable focused compile impact
-before bulk registration. #183 follows #162, #181, and the #182 checkpoint.
-#184 follows #164 and #181; #185 also follows the #182 checkpoint and establishes
-its generated renderer/fixture before #186 and #187 migrate action and intent
-facades independently. Shared browser slices depend on typed schema builders;
+The authority foundations through #181 are complete. The #182 implementation
+used Timesheets as its first representative resource migration, recorded the
+feature-local import, handwritten-line deletion, and focused compile checkpoint
+in the Surface authoring guide, then registered every remaining unique resource
+home. #183 follows #162, #181, and that checkpoint. #184 follows #164 and #181;
+#185 also follows the #182 checkpoint and establishes its generated
+renderer/fixture before #186 and #187 migrate action and intent facades
+independently. Shared browser slices depend on typed schema builders;
 ordered ranges also depend on toggle presentation.
 Roster linked highlighting depends on closed interaction IR. Staff-panel work
 establishes the browser-reachable Surface DTO path for image export and week

@@ -359,16 +359,34 @@ they are not another Surface evaluator. A nominal adapter family has one typed
 register only `(family, resource marker)`, while declaration order, presence,
 wire shape, protocol names, and Haskell source types come from checked IR and the
 canonical `haskellWireSource` projection. The production family registry mirrors
-`RegisteredFrontendSurfaces`; production resource homes remain empty until the
-resource-adapter migration ticket.
+`RegisteredFrontendSurfaces`; feature-local `Surface.<Feature>.HaskellAdapter`
+modules own those associations, and the aggregate registry must assign exactly
+one canonical home to every unique checked production resource identity.
+Repeated dependency occurrences do not create extra homes. The shared
+`time-picker-config` identity, for example, has its canonical home in the Roster
+day-timeline family even though Timesheets also depends on it.
 
 Generated modules live beside the Surface source module under
 `.Generated.Resource`, stay private behind curated feature facades, and invoke
-`frontendSurfaceResource` and `matchFrontendSurfaceResource`. They must not
-import opaque internal constructors. Unsupported carriers stop generation with
-a resource/field-specific diagnostic rather than falling back to JSON or a
-handwritten type. The generator uses normal Haskell reflection plus `Typeable`
-module/type metadata; it does not parse source or compiler syntax trees.
+`frontendSurfaceResource` and `matchFrontendSurfaceResource`. Only the matching
+`Surface.<Feature>.Resource` facade may import one. Those facades re-export
+canonical constructors and retain handwritten domain aliases and matchers only
+where they add domain meaning. Generated modules must not import opaque internal
+constructors. Unsupported carriers stop generation with a resource/field-specific
+diagnostic rather than falling back to JSON or a handwritten type. The generator
+uses normal Haskell reflection plus `Typeable` module/type metadata; it does not
+parse source or compiler syntax trees.
+
+The Timesheets family was the representative migration checkpoint. Its
+handwritten `Resource` module moved from 35 lines to a 9-line curated facade,
+removing all three mechanical bodies and 26 net handwritten lines. Generation
+added an 80-line private adapter module and a 14-line feature-local family
+association. A single isolated cold focused compile of the facade with
+`typecheck Application/Helper/FrontendContract/Surface/Timesheets/Resource.hs`
+changed from 22 modules in 9.711 seconds to 25 modules in 9.772 seconds: three
+expected modules and 0.061 seconds (+0.6%) in that sample. This checkpoint was
+accepted before registering the remaining homes; it is a compile-impact record,
+not a benchmark.
 
 Write and verify output with:
 

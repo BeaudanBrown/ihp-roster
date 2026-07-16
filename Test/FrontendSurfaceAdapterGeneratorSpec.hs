@@ -10,6 +10,7 @@ import Application.Helper.FrontendContract.Surface.HaskellAdapter.Family
 import Application.Helper.FrontendContract.Surface.HaskellAdapter.Generator
 import Application.Helper.FrontendContract.Surface.HaskellAdapter.Registry (registeredSurfaceAdapterRegistry)
 import Application.Helper.FrontendContract.Surface.Reflect (reflectSurfaceRegistry)
+import qualified Data.List as List
 import qualified Data.Text as Text
 import qualified Data.Text.IO as Text
 import Data.Time (fromGregorian)
@@ -68,18 +69,41 @@ tests = describe "FrontendSurface Haskell adapter generator" do
         Generated.matchFixtureHeartbeatResource account
             `shouldBe` Nothing
 
-    it "associates one nominal production family with every registered Surface without migrating adapters" do
+    it "associates one nominal production family with every registered Surface" do
         map (.haskellTypeName) (map (.adapterFamilySurfaceMarker) registeredSurfaceAdapterRegistry.surfaceAdapterFamilies)
             `shouldBe` map (.surfaceMarker) registeredFrontendSurfaceContractIR.contractSurfaces
-        generateSurfaceResourceAdapterModules registeredFrontendSurfaceContractIR registeredSurfaceAdapterRegistry
-            `shouldBe` Right []
+
+    it "renders the Timesheets pilot through a feature-local generated module" do
+        case generateSurfaceResourceAdapterModules registeredFrontendSurfaceContractIR registeredSurfaceAdapterRegistry of
+            Left diagnostics -> expectationFailure (cs (show diagnostics))
+            Right generatedModules ->
+                case find ((== "Application.Helper.FrontendContract.Surface.Timesheets.Generated.Resource") . (.generatedModuleName)) generatedModules of
+                    Nothing -> expectationFailure "expected the Timesheets generated resource module"
+                    Just generated -> do
+                        generated.generatedModuleSource `shouldSatisfy` Text.isInfixOf "timesheetDayResource"
+                        generated.generatedModuleSource `shouldSatisfy` Text.isInfixOf "timesheetWeekBoundaryConfigResource"
+                        generated.generatedModuleSource `shouldSatisfy` Text.isInfixOf "timesheetWeekResource"
+                        generated.generatedModuleSource `shouldNotSatisfy` Text.isInfixOf "HaskellAdapter.Registry"
+
+    it "registers exactly one home for every unique checked production resource" do
+        let incompleteRegistry =
+                registeredSurfaceAdapterRegistry
+                    { surfaceResourceAdapterHomes = drop 1 registeredSurfaceAdapterRegistry.surfaceResourceAdapterHomes
+                    }
+        diagnosticCodes (generateSurfaceResourceAdapterModules registeredFrontendSurfaceContractIR incompleteRegistry)
+            `shouldContain` ["missing-adapter-resource-home"]
+        length registeredSurfaceAdapterRegistry.surfaceResourceAdapterHomes
+            `shouldBe` length productionResourceNames
+        case generateSurfaceResourceAdapterModules registeredFrontendSurfaceContractIR registeredSurfaceAdapterRegistry of
+            Left diagnostics       -> expectationFailure (cs (show diagnostics))
+            Right generatedModules -> length generatedModules `shouldBe` 7
 
     it "renders zero-field constants without unused field-builder imports" do
         let heartbeatOnly =
                 fixtureRegistry
                     { surfaceResourceAdapterHomes = drop 1 fixtureRegistry.surfaceResourceAdapterHomes
                     }
-        case generateFixture heartbeatOnly of
+        case generateSurfaceResourceAdapterModules heartbeatOnlyContract heartbeatOnly of
             Right [generated] -> do
                 generated.generatedModuleSource
                     `shouldSatisfy` Text.isInfixOf "SurfaceFields (NoSurfaceFields)"
@@ -113,6 +137,22 @@ tests = describe "FrontendSurface Haskell adapter generator" do
         let missingRegistry = fixtureRegistry { surfaceResourceAdapterHomes = missingResource }
         diagnosticCodes (generateFixture missingRegistry)
             `shouldContain` ["adapter-resource-home-ownership"]
+
+    it "rejects generated imports outside the owning feature module tree" do
+        let unrelatedFamily =
+                HaskellTypeMetadata
+                    { haskellTypeModule = "Application.Helper.FrontendContract.Surface.HaskellAdapter.Registry"
+                    , haskellTypeName = "AdapterFixtureFamily"
+                    }
+        let nonLocalRegistry =
+                fixtureRegistry
+                    { surfaceAdapterFamilies =
+                        map (\family -> family { adapterFamilyType = unrelatedFamily }) fixtureRegistry.surfaceAdapterFamilies
+                    , surfaceResourceAdapterHomes =
+                        map (\home -> home { resourceAdapterHomeFamily = unrelatedFamily }) fixtureRegistry.surfaceResourceAdapterHomes
+                    }
+        diagnosticCodes (generateFixture nonLocalRegistry)
+            `shouldContain` ["adapter-import-locality"]
 
     it "rejects generated declaration collisions in one feature home" do
         let collisionRegistry = fixtureRegistry { surfaceResourceAdapterHomes = collisionHomes }
@@ -149,6 +189,15 @@ diagnosticCodes = \case
     Right _ -> []
     Left diagnostics -> map (.diagnosticCode) diagnostics
 
+productionResourceNames :: [Text]
+productionResourceNames =
+    [ dependency.dependencyResource.resourceName
+    | surface <- registeredFrontendSurfaceContractIR.contractSurfaces
+    , fragment <- surface.surfaceFragments
+    , dependency <- optionResourceDependencies fragment.fragmentOptions
+    ]
+        |> List.nub
+
 collisionHomes :: [SurfaceResourceAdapterHomeMetadata]
 collisionHomes =
     case fixtureRegistry.surfaceResourceAdapterHomes of
@@ -171,6 +220,27 @@ collisionContract =
         | resource.resourceMarker == "FixtureHeartbeatResource" =
             resource { resourceMarker = "FixtureAccountResource" }
         | otherwise = resource
+
+heartbeatOnlyContract :: SurfaceContractIR
+heartbeatOnlyContract =
+    fixtureContract
+        { contractSurfaces = map keepHeartbeatDependencies fixtureContract.contractSurfaces
+        }
+  where
+    keepHeartbeatDependencies surface =
+        surface
+            { surfaceFragments = map keepFragmentDependencies surface.surfaceFragments
+            }
+    keepFragmentDependencies fragment =
+        fragment
+            { fragmentOptions = mapMaybe keepOption fragment.fragmentOptions
+            }
+    keepOption = \case
+        DependsOnOption dependency
+            | dependency.dependencyResource.resourceName == "fixture-heartbeat-resource" -> Just (DependsOnOption dependency)
+            | otherwise -> Nothing
+        LazyOption options -> Just (LazyOption (mapMaybe keepOption options))
+        option -> Just option
 
 unsupportedSourceContract :: SurfaceContractIR
 unsupportedSourceContract =
