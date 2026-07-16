@@ -59,6 +59,14 @@ bash ./bin/in-env lint
 bash ./bin/in-env format
 ```
 
+Within a checkout, named devenv commands execute their current source under
+`Config/nix/scripts/` rather than a materialized Nix-store snapshot. Editing a
+script body therefore does not require reloading the shell; changing command
+registration or package dependencies under `Config/nix/flake/` still invalidates
+direnv normally. Outside a checkout, packaged commands emit a warning before
+using their embedded snapshot fallback. `verify-fast` and `verify-full` include
+the deterministic `devenv-script-freshness-check` regression gate.
+
 `e2e-fast` runs every browser source behavior once across desktop Chromium and
 the canonical Pixel 7 profile. `e2e` remains the complete gate and repeats
 profile-sensitive mobile behaviors on Galaxy S9+ and iPad Mini. Normal

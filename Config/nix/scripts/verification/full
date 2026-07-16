@@ -1,6 +1,9 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+echo "verify-full: working-tree devenv script freshness"
+devenv-script-freshness-check
+
 echo "verify-full: typecheck"
 typecheck
 
