@@ -6,7 +6,7 @@ module Application.Helper.FrontendContract.Surface.Billing.HaskellAdapter
     ) where
 
 import qualified Application.Helper.FrontendContract.Surface.Billing as Billing
-import Application.Helper.FrontendContract.Surface.HaskellAdapter.Family
+import Application.Helper.FrontendContract.Surface.HaskellAdapter.Association
 
 data BillingAdapterFamily
 

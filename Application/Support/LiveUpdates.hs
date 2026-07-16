@@ -27,8 +27,8 @@ data SupportLiveFragment
 
 supportLiveFragmentKey :: SupportLiveFragment -> SurfaceFragmentKey
 supportLiveFragmentKey = \case
-    SupportAwardRatesLiveFragment -> SurfaceLive.supportAwardRatesSectionLiveFragment
-    SupportPublicHolidaysLiveFragment -> SurfaceLive.supportPublicHolidaysSectionLiveFragment
+    SupportAwardRatesLiveFragment -> SurfaceLive.supportAwardRatesLiveFragment
+    SupportPublicHolidaysLiveFragment -> SurfaceLive.supportPublicHolidaysLiveFragment
 
 supportSurfaceScope :: SurfaceScope
 supportSurfaceScope = SurfaceLive.supportPlatformLiveScope

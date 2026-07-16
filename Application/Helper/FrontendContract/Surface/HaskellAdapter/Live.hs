@@ -151,7 +151,7 @@ renderLiveImports ::
     [Text]
 renderLiveImports aliases adapters =
     renderImportList
-        "Application.Helper.FrontendContract.Surface.HaskellAdapter.Family"
+        "Application.Helper.FrontendContract.Surface.HaskellAdapter.Association"
         ["AdapterFamilySurface"]
         <> renderImportList
             "Application.Helper.FrontendContract.Surface.Live"

@@ -127,13 +127,15 @@ The semantic-key transport boundary is isolated behind
 `Application.Helper.FrontendContract.Surface.Live`, and
 `Application.Helper.FrontendContract.Surface.Runtime`. `SurfaceScope` and
 `SurfaceFragmentKey` constructors are visible only to the transport internals.
-The public live facades expose opaque carriers; feature modules construct and
-match them with the marker-indexed, declaration-complete functions in
-`Surface.Live`. Feature-owned values and typed matchers live beside their
-contracts (`Surface.Roster.Live`, `Surface.Timesheets.Live`, and peers), not in
-generic live modules. Generic transport, authorization, dependency planning,
-coalescing, and bus code may inspect internal transport identity mechanically,
-but it contains no feature Surface, fragment, or field catalog.
+The public live facades expose opaque carriers. Private feature-adjacent
+`.Generated.Live` modules construct and match them with the marker-indexed,
+declaration-complete functions in `Surface.Live`; each private module is imported
+only by its matching curated `Surface.<Feature>.Live` facade. Feature code uses
+those canonical facade exports, while handwritten facade logic is limited to
+domain-shaped matching and active-scope orchestration. Generic transport,
+authorization, dependency planning, coalescing, and bus code may inspect internal
+transport identity mechanically, but it contains no feature Surface, fragment,
+or field catalog.
 
 Browser-visible live-update
 contracts are owned by `Application.Helper.FrontendContract.LiveUpdate` and the

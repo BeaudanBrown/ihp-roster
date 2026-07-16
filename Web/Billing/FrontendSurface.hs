@@ -66,7 +66,7 @@ billingSurfaceScopeKey = surfaceScopeKey . billingSurfaceScope
 
 billingSurfaceScope :: BillingScopeValue -> SurfaceScope
 billingSurfaceScope scope =
-    SurfaceLive.billingLiveScope scope.billingVenueId
+    SurfaceLive.billingVenueLiveScope scope.billingVenueId
 
 billingCandidateMountedFragments :: BillingCheckoutReturnState -> [FrontendSurfaceMountedFragment]
 billingCandidateMountedFragments checkoutReturnState =

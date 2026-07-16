@@ -13,6 +13,8 @@ import Application.Helper.FrontendContract.Surface.HaskellAdapter.Generator
 import Application.Helper.FrontendContract.Surface.HaskellAdapter.Live
 import Application.Helper.FrontendContract.Surface.HaskellAdapter.Registry (registeredSurfaceAdapterRegistry)
 import Application.Helper.FrontendContract.Surface.Reflect (reflectSurfaceRegistry)
+import qualified Application.Script.GenerateFrontendSurfaceAdapters as AdapterScript
+import Control.Exception (bracket)
 import Data.Either (isRight)
 import qualified Data.List as List
 import qualified Data.Text as Text
@@ -20,6 +22,9 @@ import qualified Data.Text.IO as Text
 import Data.Time (fromGregorian)
 import qualified Data.UUID as UUID
 import IHP.Prelude
+import qualified System.Directory as Directory
+import System.FilePath (takeDirectory, (</>))
+import System.IO (hClose, openTempFile)
 import Test.Hspec
 import qualified Test.Support.FrontendSurfaceAdapterFixture as Fixture
 import qualified Test.Support.FrontendSurfaceAdapterFixture.Generated.Live as GeneratedLive
@@ -61,6 +66,8 @@ tests = describe "FrontendSurface Haskell adapter generator" do
                 generated.generatedModuleSource `shouldSatisfy` Text.isInfixOf "matchFrontendSurfaceFragmentKey"
                 generated.generatedModuleSource `shouldNotSatisfy` Text.isInfixOf ".Internal"
                 generated.generatedModuleSource `shouldNotSatisfy` Text.isInfixOf "HaskellAdapter.Registry"
+                generated.generatedModuleSource `shouldSatisfy` Text.isInfixOf "HaskellAdapter.Association"
+                generated.generatedModuleSource `shouldNotSatisfy` Text.isInfixOf "HaskellAdapter.Family"
                 generated.generatedModuleSource `shouldNotSatisfy` Text.isInfixOf "Aeson"
             Right generated -> expectationFailure (cs ("expected one generated Live module, got " <> tshow (length generated)))
 
@@ -90,6 +97,39 @@ tests = describe "FrontendSurface Haskell adapter generator" do
                 [Left [resourceDiagnostic], Left [liveDiagnostic]]
             )
             `shouldBe` ["live-lane-fixture", "resource-lane-fixture"]
+
+    it "leaves existing Resource, Action, and Intent files untouched when the Live lane fails" do
+        withAdapterPublicationDirectory \outputRoot -> do
+            let existingFiles =
+                    [ ("Application/Fixture/Generated/Resource.hs", "resource-sentinel\n")
+                    , ("Application/Fixture/Generated/Action.hs", "action-sentinel\n")
+                    , ("Application/Fixture/Generated/Intent.hs", "intent-sentinel\n")
+                    ]
+            forM_ existingFiles \(relativePath, source) -> do
+                let path = outputRoot </> relativePath
+                Directory.createDirectoryIfMissing True (takeDirectory path)
+                Text.writeFile path source
+
+            let liveFailureRegistry =
+                    registeredSurfaceAdapterRegistry
+                        { surfaceScopeAdapterHomes = []
+                        , surfaceFragmentAdapterHomes = []
+                        }
+            result <-
+                AdapterScript.stageGeneratedModules
+                    outputRoot
+                    registeredFrontendSurfaceContractIR
+                    liveFailureRegistry
+
+            case result of
+                Right () -> expectationFailure "expected injected production Live completeness failure"
+                Left diagnostics -> do
+                    map (.diagnosticCode) diagnostics `shouldContain` ["missing-adapter-scope-home"]
+                    map (.diagnosticCode) diagnostics `shouldContain` ["missing-adapter-fragment-home"]
+            forM_ existingFiles \(relativePath, source) ->
+                Text.readFile (outputRoot </> relativePath) `shouldReturn` source
+            Directory.doesFileExist (outputRoot </> "Application/Fixture/Generated/Live.hs")
+                `shouldReturn` False
 
     it "rejects duplicate physical module paths across output lanes" do
         let duplicate =
@@ -309,6 +349,91 @@ tests = describe "FrontendSurface Haskell adapter generator" do
                         , ("admin-roster-groups", "admin-roster-groups")
                         , ("admin-xero", "admin-xero-shell")
                         ]
+
+    it "registers exactly one production home for every checked Live declaration" do
+        case checkedSurfaceLiveAdapterDeclarations registeredFrontendSurfaceContractIR registeredSurfaceAdapterRegistry of
+            Left diagnostics -> expectationFailure (cs (show diagnostics))
+            Right declarations -> do
+                length registeredSurfaceAdapterRegistry.surfaceScopeAdapterHomes
+                    `shouldBe` length declarations.checkedLiveScopeDeclarations
+                length registeredSurfaceAdapterRegistry.surfaceFragmentAdapterHomes
+                    `shouldBe` length declarations.checkedLiveFragmentDeclarations
+
+        case generateSurfaceLiveAdapterModules registeredFrontendSurfaceContractIR registeredSurfaceAdapterRegistry of
+            Left diagnostics -> expectationFailure (cs (show diagnostics))
+            Right generatedModules -> do
+                length generatedModules `shouldBe` 7
+                map (.generatedModuleName) generatedModules
+                    `shouldBe`
+                        [ "Application.Helper.FrontendContract.Surface.Admin.Generated.Live"
+                        , "Application.Helper.FrontendContract.Surface.Billing.Generated.Live"
+                        , "Application.Helper.FrontendContract.Surface.LeaveRequests.Generated.Live"
+                        , "Application.Helper.FrontendContract.Surface.Profile.Generated.Live"
+                        , "Application.Helper.FrontendContract.Surface.Roster.Generated.Live"
+                        , "Application.Helper.FrontendContract.Surface.Support.Generated.Live"
+                        , "Application.Helper.FrontendContract.Surface.Timesheets.Generated.Live"
+                        ]
+
+        case generateSurfaceAdapterModules registeredFrontendSurfaceContractIR registeredSurfaceAdapterRegistry of
+            Left diagnostics -> expectationFailure (cs (show diagnostics))
+            Right generatedModules -> do
+                length generatedModules `shouldBe` 14
+                length (filter (Text.isSuffixOf ".Generated.Live" . (.generatedModuleName)) generatedModules)
+                    `shouldBe` 7
+                length (filter (Text.isSuffixOf ".Generated.Resource" . (.generatedModuleName)) generatedModules)
+                    `shouldBe` 7
+
+    it "rejects empty, partial, extra, and duplicate production Live homes" do
+        let emptyRegistry =
+                registeredSurfaceAdapterRegistry
+                    { surfaceScopeAdapterHomes = []
+                    , surfaceFragmentAdapterHomes = []
+                    }
+        let emptyDiagnosticCodes =
+                diagnosticCodes (generateSurfaceLiveAdapterModules registeredFrontendSurfaceContractIR emptyRegistry)
+        emptyDiagnosticCodes `shouldContain` ["missing-adapter-scope-home"]
+        emptyDiagnosticCodes `shouldContain` ["missing-adapter-fragment-home"]
+
+        let partialRegistry =
+                registeredSurfaceAdapterRegistry
+                    { surfaceScopeAdapterHomes = drop 1 registeredSurfaceAdapterRegistry.surfaceScopeAdapterHomes
+                    , surfaceFragmentAdapterHomes = drop 1 registeredSurfaceAdapterRegistry.surfaceFragmentAdapterHomes
+                    }
+        let partialDiagnosticCodes =
+                diagnosticCodes (generateSurfaceLiveAdapterModules registeredFrontendSurfaceContractIR partialRegistry)
+        partialDiagnosticCodes `shouldContain` ["missing-adapter-scope-home"]
+        partialDiagnosticCodes `shouldContain` ["missing-adapter-fragment-home"]
+
+        let duplicateRegistry =
+                registeredSurfaceAdapterRegistry
+                    { surfaceScopeAdapterHomes =
+                        registeredSurfaceAdapterRegistry.surfaceScopeAdapterHomes
+                            <> take 1 registeredSurfaceAdapterRegistry.surfaceScopeAdapterHomes
+                    , surfaceFragmentAdapterHomes =
+                        registeredSurfaceAdapterRegistry.surfaceFragmentAdapterHomes
+                            <> take 1 registeredSurfaceAdapterRegistry.surfaceFragmentAdapterHomes
+                    }
+        let duplicateDiagnosticCodes =
+                diagnosticCodes (generateSurfaceLiveAdapterModules registeredFrontendSurfaceContractIR duplicateRegistry)
+        duplicateDiagnosticCodes `shouldContain` ["duplicate-adapter-scope-home"]
+        duplicateDiagnosticCodes `shouldContain` ["duplicate-adapter-fragment-home"]
+
+        let extraRegistry =
+                registeredSurfaceAdapterRegistry
+                    { surfaceScopeAdapterHomes =
+                        case registeredSurfaceAdapterRegistry.surfaceScopeAdapterHomes of
+                            home : rest ->
+                                home
+                                    { adapterHomeDeclaration =
+                                        home.adapterHomeDeclaration { haskellTypeName = "MissingLiveScope" }
+                                    }
+                                    : rest
+                            [] -> []
+                    }
+        let extraDiagnosticCodes =
+                diagnosticCodes (generateSurfaceLiveAdapterModules registeredFrontendSurfaceContractIR extraRegistry)
+        extraDiagnosticCodes `shouldContain` ["adapter-scope-home-ownership"]
+        extraDiagnosticCodes `shouldContain` ["missing-adapter-scope-home"]
 
     it "derives checked scope and fragment declarations only from their owning Surface IR" do
         fixtureScopeDeclaration.checkedAdapterSurfaceName
@@ -816,6 +941,17 @@ unsupportedSourceContract =
                         resource.resourceFields
                 }
         | otherwise = resource
+
+withAdapterPublicationDirectory :: (FilePath -> IO value) -> IO value
+withAdapterPublicationDirectory action =
+    bracket create Directory.removePathForcibly action
+  where
+    create = do
+        (path, handle) <- openTempFile "/tmp" "bepis-surface-adapter-publication"
+        hClose handle
+        Directory.removeFile path
+        Directory.createDirectory path
+        pure path
 
 mapResources :: (ResourceIR -> ResourceIR) -> SurfaceContractIR -> SurfaceContractIR
 mapResources transform contract =

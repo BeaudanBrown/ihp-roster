@@ -67,6 +67,18 @@ tests = describe "LiveUpdate runtime types" do
         matchFrontendSurfaceFragmentKey @Timesheets.TimesheetsSurface @Timesheets.TimesheetToolbar fragmentKey
             `shouldBe` Nothing
 
+    it "matches generated zero-field and parameterized Live fragments through the curated facade" do
+        let parameterized = TimesheetsLive.timesheetDaySectionLiveFragment 2
+
+        TimesheetsLive.matchTimesheetDaySectionLiveFragment parameterized
+            `shouldBe` Just (2, ())
+        TimesheetsLive.matchTimesheetToolbarLiveFragment TimesheetsLive.timesheetToolbarLiveFragment
+            `shouldBe` Just ()
+        TimesheetsLive.matchTimesheetDayColumnsLiveFragment TimesheetsLive.timesheetDayColumnsLiveFragment
+            `shouldBe` Just ()
+        TimesheetsLive.matchTimesheetToolbarLiveFragment parameterized
+            `shouldBe` Nothing
+
     it "encodes websocket invalidations with semantic fragment keys only" do
         let venueId = expectUuid "11111111-1111-1111-1111-111111111111"
         let rosterGroupId = expectUuid "33333333-3333-3333-3333-333333333333"
@@ -116,7 +128,7 @@ tests = describe "LiveUpdate runtime types" do
                 , AdminLive.adminInvitesLiveScope venueId
                 , AdminLive.adminExportsLiveScope venueId
                 , AdminLive.adminXeroLiveScope venueId
-                , BillingLive.billingLiveScope venueId
+                , BillingLive.billingVenueLiveScope venueId
                 , LeaveLive.leaveRequestsLiveScope venueId
                 , TimesheetsLive.timesheetWeekLiveScope venueId 2
                 , ProfileLive.profileLiveScope venueId staffId
@@ -134,22 +146,22 @@ tests = describe "LiveUpdate runtime types" do
                 , RosterLive.rosterRowLiveFragment rosterDayId 1
                 , leavePendingCountLiveFragment
                 , TimesheetsLive.timesheetDaySectionLiveFragment 4
-                , AdminLive.adminVenueConfigLiveFragment
+                , AdminLive.adminVenueSettingsLiveFragment
                 , AdminLive.adminInvitesLiveFragment
                 , AdminLive.adminExportsLiveFragment
                 , AdminLive.adminShiftTypesLiveFragment
                 , AdminLive.adminRosterGroupsLiveFragment
                 , AdminLive.adminXeroShellLiveFragment
                 , BillingLive.billingStatusLiveFragment
-                , ProfileLive.profileDetailsLiveFragment
-                , SupportLive.supportAwardRatesSectionLiveFragment
-                , SupportLive.supportPublicHolidaysSectionLiveFragment
+                , ProfileLive.profileDetailsSectionLiveFragment
+                , SupportLive.supportAwardRatesLiveFragment
+                , SupportLive.supportPublicHolidaysLiveFragment
                 ]
 
         forM_ fragmentKeys \fragmentKey ->
             Aeson.decode (Aeson.encode fragmentKey) `shouldBe` Just fragmentKey
 
-    it "pins the pre-migration scope JSON boundary independently of generated adapters" do
+    it "pins the canonical scope JSON boundary across generated adapter migration" do
         let venueId = expectUuid "11111111-1111-1111-1111-111111111111"
         let rosterGroupId = expectUuid "33333333-3333-3333-3333-333333333333"
         let scope = RosterLive.rosterWeekLiveScope venueId rosterGroupId (-1)
@@ -165,7 +177,7 @@ tests = describe "LiveUpdate runtime types" do
                         ]
                     ]
 
-    it "pins the pre-migration fragment-key JSON boundary independently of generated adapters" do
+    it "pins the canonical fragment-key JSON boundary across generated adapter migration" do
         let rosterDayId = expectUuid "22222222-2222-2222-2222-222222222222"
         let fragmentKey = RosterLive.rosterRowLiveFragment rosterDayId 2
 
@@ -180,7 +192,7 @@ tests = describe "LiveUpdate runtime types" do
                         ]
                     ]
 
-    it "pins pre-migration stable scope keys independently of generated adapters" do
+    it "pins stable scope keys across generated adapter migration" do
         let venueId = expectUuid "11111111-1111-1111-1111-111111111111"
         let rosterGroupId = expectUuid "33333333-3333-3333-3333-333333333333"
         let staffId = expectUuid "44444444-4444-4444-4444-444444444444"
@@ -199,7 +211,7 @@ tests = describe "LiveUpdate runtime types" do
             `shouldBe` "admin-exports:11111111-1111-1111-1111-111111111111"
         surfaceScopeKey (AdminLive.adminXeroLiveScope venueId)
             `shouldBe` "admin-xero:11111111-1111-1111-1111-111111111111"
-        surfaceScopeKey (BillingLive.billingLiveScope venueId)
+        surfaceScopeKey (BillingLive.billingVenueLiveScope venueId)
             `shouldBe` "billing:11111111-1111-1111-1111-111111111111"
         surfaceScopeKey (LeaveLive.leaveRequestsLiveScope venueId)
             `shouldBe` "leave-requests:11111111-1111-1111-1111-111111111111"
@@ -429,8 +441,8 @@ tests = describe "LiveUpdate runtime types" do
     it "projects FrontendSurface support mounts to semantic fragment keys" do
         supportSurfaceFragmentKeys supportCandidateMountedFragments
             `shouldBe`
-                [ SupportLive.supportAwardRatesSectionLiveFragment
-                , SupportLive.supportPublicHolidaysSectionLiveFragment
+                [ SupportLive.supportAwardRatesLiveFragment
+                , SupportLive.supportPublicHolidaysLiveFragment
                 ]
 
     it "validates live subscriptions from generated FrontendSurface metadata" do

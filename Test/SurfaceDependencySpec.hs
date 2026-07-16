@@ -125,7 +125,7 @@ tests = do
             let supportScope = SupportLive.supportPlatformLiveScope
             let subscriptions =
                     [ liveTestSubscription adminScope [AdminLive.adminXeroShellLiveFragment]
-                    , liveTestSubscription supportScope [SupportLive.supportAwardRatesSectionLiveFragment]
+                    , liveTestSubscription supportScope [SupportLive.supportAwardRatesLiveFragment]
                     ]
             let targets = planSurfaceInvalidationsWithoutContext (Set.fromList [xeroConnectionResource venueId]) subscriptions
 

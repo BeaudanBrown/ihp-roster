@@ -390,29 +390,42 @@ Repeated dependency occurrences do not create extra homes. The shared
 `time-picker-config` identity, for example, has its canonical home in the Roster
 day-timeline family even though Timesheets also depends on it.
 
-The focused Live renderer is also implemented. It selects every checked Surface
-scope and every fragment with `Live`; non-passive fragments that already own an
-actor-local semantic key require a typed, non-empty, reason-bearing exception.
-At this pre-migration stage those exceptions cover the Admin and Admin Xero
-parent-page content keys. Scope and fragment `CheckedAdapterDeclaration` values
-come only from kind-specific `SurfaceIR` + `ScopeIR`/`FragmentIR` normalizers.
-Their kinds survive home resolution and only the closed `LiveScope` /
-`LiveFragment` payload reaches the shared `.Generated.Live` renderer. Production
-Live homes and facade migration remain in `#189`; no production live caller is
-replaced by this foundation slice. Independent literal goldens in
-`Test.LiveUpdateSpec` pin production scope JSON, fragment-key JSON, and canonical
-`surfaceScopeKey` values before that replacement; generated-vs-generic equality
-is not their source of truth.
+The focused Live renderer selects every checked Surface scope and every fragment
+with `Live`; non-passive fragments that already own an actor-local semantic key
+require a typed, non-empty, reason-bearing exception. Those exceptions cover the
+Admin and Admin Xero parent-page content keys. Scope and fragment
+`CheckedAdapterDeclaration` values come only from kind-specific `SurfaceIR` +
+`ScopeIR`/`FragmentIR` normalizers. Their kinds survive home resolution and only
+the closed `LiveScope` / `LiveFragment` payload reaches the shared
+`.Generated.Live` renderer.
+
+`RegisteredSurfaceScopeAdapterHomes` and
+`RegisteredSurfaceFragmentAdapterHomes` assign exactly one typed production home
+to every selected declaration. Once the first production family migrated, the
+staged empty-home branch was removed: empty, partial, extra, or duplicate Live
+homes now fail the mandatory all-kind generation run. Independent literal
+goldens in `Test.LiveUpdateSpec` continue to pin production scope JSON,
+fragment-key JSON, and canonical `surfaceScopeKey` values across the replacement;
+generated-vs-generic equality is not their source of truth.
 
 Generated resource modules invoke `frontendSurfaceResource` and
 `matchFrontendSurfaceResource`; generated Live modules invoke only
 `frontendSurfaceScope`, `matchFrontendSurfaceScope`,
 `frontendSurfaceFragmentKey`, and `matchFrontendSurfaceFragmentKey`. Only the
-matching curated facade may import a production generated module. Resource
-facades re-export canonical constructors and retain handwritten domain aliases
-and matchers only where they add domain meaning. Every generated-kind module
-must stay behind its matching curated facade and must not import opaque internal
-constructors. Unsupported carriers stop generation with an
+matching curated facade may import a production generated module. Resource and
+Live facades re-export canonical constructors and retain handwritten domain
+matchers or live orchestration only where they add meaning. Mechanical aliases,
+generic builder/matcher bodies, and the old Billing, Support, Profile, Staff,
+and Admin fragment naming synonyms are absent. Every generated-kind module must
+stay behind its matching curated facade and must not import opaque internal
+constructors.
+
+The lightweight `HaskellAdapter.Association` module owns only
+`SurfaceAdapterFamily` and `AdapterFamilySurface`. Production family modules and
+private Live output import that seam, while reflection, registry validation, and
+generator mechanics remain in `HaskellAdapter.Family` and
+`HaskellAdapter.Core`. Focused feature compiles therefore do not transitively
+load the generator implementation. Unsupported carriers stop generation with an
 adapter-kind/Surface/declaration/field-specific diagnostic rather than falling
 back to JSON, a generated carrier record, or a handwritten type. The generator
 uses normal Haskell type-level reflection plus `Typeable` module/type metadata;
@@ -429,17 +442,35 @@ expected modules and 0.061 seconds (+0.6%) in that sample. This checkpoint was
 accepted before registering the remaining homes; it is a compile-impact record,
 not a benchmark.
 
-The Live foundation adds one 83-line compiled fixture module at
-`Test.Support.FrontendSurfaceAdapterFixture.Generated.Live`. One isolated cold
-focused compile of that module loaded 44 modules in 23.522 seconds. The sample
-records the pre-production fixture/module impact for `#189`; it is not a
-benchmark and does not claim production migration cost.
+Timesheets was also the representative Live migration checkpoint. Its
+handwritten `Live` module moved from 38 lines to a 29-line curated facade,
+removing all four mechanical constructor bodies and field assembly while
+retaining the domain-shaped scope matcher: nine net handwritten lines deleted.
+Generation added one 90-line private `.Generated.Live` module; the final bulk
+registration emits seven Live modules (1,020 generated lines) alongside the
+unchanged seven Resource modules. A paired same-host isolated cold focused
+compile of the historical and candidate facades with
+`typecheck Application/Helper/FrontendContract/Surface/Timesheets/Live.hs`
+changed from 41 modules in 27.023 seconds to 44 modules in 22.979 seconds: the
+three expected modules (`Generated.Live`, the feature family module, and the
+lightweight association), and -4.044 seconds (-15.0%) in that sample. The module
+closure, net deletion, and absence of `Family`/`Core` from the production import
+closure were accepted before bulk home registration. This is a checkpoint
+record, not a benchmark; cold wall-clock samples on the host were noisy.
+
+The compiled unregistered Live fixture remains at
+`Test.Support.FrontendSurfaceAdapterFixture.Generated.Live` and covers
+zero-field, parameterized, actor-only, matcher, and collision behavior without
+entering the production registry. Production behavior coverage also exercises
+zero-field and parameterized Timesheets adapters through the curated facade.
 
 `generateSurfaceAdapterModules` composes every implemented adapter lane,
 accumulates diagnostics, and rejects duplicate physical module paths before the
-script writes or removes files. A staged empty production Live-home set still
-runs eligibility validation but emits no production Live module, preserving all
-seven Resource outputs until `#189` enables those homes.
+script writes or removes files. Live generation is mandatory. A failed Live
+lane exposes no managed module set; failure-injection coverage proves the staging
+barrier leaves existing Resource, Action, and Intent files untouched and
+publishes no partial Live tree. The write workflow renders, formats, and
+typechecks the complete staged set before any managed stale deletion or write.
 
 Write and verify output with:
 

@@ -182,7 +182,7 @@ buildBenchmarkPlan scenario requestedScopeCount =
                 { planResources = Set.singleton (billingResource targetVenueId)
                 , planActiveSubscriptions =
                     [ benchmarkSubscription
-                        (BillingLive.billingLiveScope (venueIdFor index))
+                        (BillingLive.billingVenueLiveScope (venueIdFor index))
                         [BillingLive.billingStatusLiveFragment]
                     | index <- [0 .. requestedScopeCount - 1]
                     ]
@@ -238,8 +238,8 @@ buildBenchmarkPlan scenario requestedScopeCount =
         targetVenueId = venueIdFor 0
         targetWeekOffset = 0
         mixedSubscriptions =
-            [ benchmarkSubscription SupportLive.supportPlatformLiveScope [SupportLive.supportAwardRatesSectionLiveFragment]
-            , benchmarkSubscription (BillingLive.billingLiveScope targetVenueId) [BillingLive.billingStatusLiveFragment]
+            [ benchmarkSubscription SupportLive.supportPlatformLiveScope [SupportLive.supportAwardRatesLiveFragment]
+            , benchmarkSubscription (BillingLive.billingVenueLiveScope targetVenueId) [BillingLive.billingStatusLiveFragment]
             , benchmarkSubscription (AdminLive.adminInvitesLiveScope targetVenueId) [AdminLive.adminInvitesLiveFragment]
             , benchmarkSubscription (TimesheetsLive.timesheetWeekLiveScope targetVenueId targetWeekOffset) [TimesheetsLive.timesheetToolbarLiveFragment]
             , benchmarkSubscription (AdminLive.adminXeroLiveScope targetVenueId) [AdminLive.adminXeroShellLiveFragment]

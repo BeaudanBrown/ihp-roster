@@ -11,7 +11,7 @@ module Test.Support.FrontendSurfaceAdapterFixture.Generated.Live
     , matchFixtureActorOnlyPanelLiveFragment
     ) where
 
-import Application.Helper.FrontendContract.Surface.HaskellAdapter.Family (AdapterFamilySurface)
+import Application.Helper.FrontendContract.Surface.HaskellAdapter.Association (AdapterFamilySurface)
 import Application.Helper.FrontendContract.Surface.Live (SurfaceFragmentKey,
                                                          SurfaceScope,
                                                          frontendSurfaceFragmentKey,

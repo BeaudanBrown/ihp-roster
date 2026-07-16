@@ -13,7 +13,7 @@ module Application.Helper.FrontendContract.Surface.Admin.HaskellAdapter
     ) where
 
 import qualified Application.Helper.FrontendContract.Surface.Admin as Admin
-import Application.Helper.FrontendContract.Surface.HaskellAdapter.Family
+import Application.Helper.FrontendContract.Surface.HaskellAdapter.Association
 
 data AdminPageAdapterFamily
 data AdminXeroPageAdapterFamily

@@ -1,60 +1,42 @@
-{-# LANGUAGE TypeApplications #-}
-
 module Application.Helper.FrontendContract.Surface.Profile.Live
     ( matchProfileLiveScope
     , matchStaffLiveScope
-    , profileDetailsLiveFragment
-    , profileLeaveLiveFragment
+    , profileDetailsSectionLiveFragment
+    , profileLeaveSectionLiveFragment
     , profileLiveScope
-    , profilePreferencesLiveFragment
-    , profileRsaLiveFragment
-    , profileSecurityLiveFragment
-    , staffDetailsLiveFragment
-    , staffLeaveLiveFragment
+    , profilePreferencesSectionLiveFragment
+    , profileRsaSectionLiveFragment
+    , profileSecuritySectionLiveFragment
+    , staffDetailsSectionLiveFragment
+    , staffLeaveSectionLiveFragment
     , staffLiveScope
-    , staffPreferencesLiveFragment
+    , staffPreferencesSectionLiveFragment
     ) where
 
-import Application.Helper.FrontendContract.Surface.Live
-import qualified Application.Helper.FrontendContract.Surface.Profile as Surface
-import Application.Helper.FrontendContract.Surface.Values
+import Application.Helper.FrontendContract.Surface.Live (SurfaceScope)
+import Application.Helper.FrontendContract.Surface.Profile.Generated.Live (profileDetailsSectionLiveFragment,
+                                                                           profileLeaveSectionLiveFragment,
+                                                                           profileLiveScope,
+                                                                           profilePreferencesSectionLiveFragment,
+                                                                           profileRsaSectionLiveFragment,
+                                                                           profileSecuritySectionLiveFragment,
+                                                                           staffDetailsSectionLiveFragment,
+                                                                           staffLeaveSectionLiveFragment,
+                                                                           staffLiveScope,
+                                                                           staffPreferencesSectionLiveFragment)
+import qualified Application.Helper.FrontendContract.Surface.Profile.Generated.Live as Generated
 import qualified Data.UUID as UUID
 import IHP.Prelude
 
-profileLiveScope :: UUID.UUID -> UUID.UUID -> SurfaceScope
-profileLiveScope venueId staffId =
-    frontendSurfaceScope @Surface.ProfileSurface @Surface.ProfileScope (profileAndStaffScopeFields venueId staffId)
-
-staffLiveScope :: UUID.UUID -> UUID.UUID -> SurfaceScope
-staffLiveScope venueId staffId =
-    frontendSurfaceScope @Surface.StaffSurface @Surface.StaffScope (profileAndStaffScopeFields venueId staffId)
-
+-- | Recover the domain-shaped profile scope rather than exposing the
+-- declaration-internal nested field tuple.
 matchProfileLiveScope :: SurfaceScope -> Maybe (UUID.UUID, UUID.UUID)
 matchProfileLiveScope scope = do
-    (venueId, (staffId, ())) <-
-        matchFrontendSurfaceScope @Surface.ProfileSurface @Surface.ProfileScope scope
+    (venueId, (staffId, ())) <- Generated.matchProfileLiveScope scope
     pure (venueId, staffId)
 
+-- | Recover the domain-shaped staff-management scope.
 matchStaffLiveScope :: SurfaceScope -> Maybe (UUID.UUID, UUID.UUID)
 matchStaffLiveScope scope = do
-    (venueId, (staffId, ())) <-
-        matchFrontendSurfaceScope @Surface.StaffSurface @Surface.StaffScope scope
+    (venueId, (staffId, ())) <- Generated.matchStaffLiveScope scope
     pure (venueId, staffId)
-
-profileAndStaffScopeFields :: UUID.UUID -> UUID.UUID -> SurfaceFields (SurfaceScopeFieldSpecs Surface.ProfileSurface Surface.ProfileScope)
-profileAndStaffScopeFields venueId staffId =
-    surfaceField @Surface.VenueId venueId
-        :& surfaceField @Surface.StaffId staffId
-        :& NoSurfaceFields
-
-profileDetailsLiveFragment, profilePreferencesLiveFragment, profileSecurityLiveFragment, profileLeaveLiveFragment, profileRsaLiveFragment :: SurfaceFragmentKey
-profileDetailsLiveFragment = frontendSurfaceFragmentKey @Surface.ProfileSurface @Surface.ProfileDetailsSection NoSurfaceFields
-profilePreferencesLiveFragment = frontendSurfaceFragmentKey @Surface.ProfileSurface @Surface.ProfilePreferencesSection NoSurfaceFields
-profileSecurityLiveFragment = frontendSurfaceFragmentKey @Surface.ProfileSurface @Surface.ProfileSecuritySection NoSurfaceFields
-profileLeaveLiveFragment = frontendSurfaceFragmentKey @Surface.ProfileSurface @Surface.ProfileLeaveSection NoSurfaceFields
-profileRsaLiveFragment = frontendSurfaceFragmentKey @Surface.ProfileSurface @Surface.ProfileRsaSection NoSurfaceFields
-
-staffDetailsLiveFragment, staffPreferencesLiveFragment, staffLeaveLiveFragment :: SurfaceFragmentKey
-staffDetailsLiveFragment = frontendSurfaceFragmentKey @Surface.StaffSurface @Surface.StaffDetailsSection NoSurfaceFields
-staffPreferencesLiveFragment = frontendSurfaceFragmentKey @Surface.StaffSurface @Surface.StaffPreferencesSection NoSurfaceFields
-staffLeaveLiveFragment = frontendSurfaceFragmentKey @Surface.StaffSurface @Surface.StaffLeaveSection NoSurfaceFields

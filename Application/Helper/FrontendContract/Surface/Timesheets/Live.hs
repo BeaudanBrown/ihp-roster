@@ -1,38 +1,29 @@
-{-# LANGUAGE TypeApplications #-}
-
 module Application.Helper.FrontendContract.Surface.Timesheets.Live
-    ( matchTimesheetWeekLiveScope
+    ( matchTimesheetDayColumnsLiveFragment
+    , matchTimesheetDaySectionLiveFragment
+    , matchTimesheetToolbarLiveFragment
+    , matchTimesheetWeekLiveScope
     , timesheetDayColumnsLiveFragment
     , timesheetDaySectionLiveFragment
     , timesheetToolbarLiveFragment
     , timesheetWeekLiveScope
     ) where
 
-import Application.Helper.FrontendContract.Surface.Live
-import qualified Application.Helper.FrontendContract.Surface.Timesheets as Surface
-import Application.Helper.FrontendContract.Surface.Values
+import Application.Helper.FrontendContract.Surface.Live (SurfaceScope)
+import Application.Helper.FrontendContract.Surface.Timesheets.Generated.Live (matchTimesheetDayColumnsLiveFragment,
+                                                                              matchTimesheetDaySectionLiveFragment,
+                                                                              matchTimesheetToolbarLiveFragment,
+                                                                              timesheetDayColumnsLiveFragment,
+                                                                              timesheetDaySectionLiveFragment,
+                                                                              timesheetToolbarLiveFragment,
+                                                                              timesheetWeekLiveScope)
+import qualified Application.Helper.FrontendContract.Surface.Timesheets.Generated.Live as Generated
 import qualified Data.UUID as UUID
 import IHP.Prelude
 
-timesheetWeekLiveScope :: UUID.UUID -> Int -> SurfaceScope
-timesheetWeekLiveScope venueId weekOffset =
-    frontendSurfaceScope @Surface.TimesheetsSurface @Surface.TimesheetWeek
-        ( surfaceField @Surface.VenueId venueId
-            :& surfaceField @Surface.WeekOffset weekOffset
-            :& NoSurfaceFields
-        )
-
+-- | Recover the domain-shaped Timesheets scope used by feature code rather
+-- than exposing the declaration-internal nested field tuple.
 matchTimesheetWeekLiveScope :: SurfaceScope -> Maybe (UUID.UUID, Int)
 matchTimesheetWeekLiveScope scope = do
-    (venueId, (weekOffset, ())) <-
-        matchFrontendSurfaceScope @Surface.TimesheetsSurface @Surface.TimesheetWeek scope
+    (venueId, (weekOffset, ())) <- Generated.matchTimesheetWeekLiveScope scope
     pure (venueId, weekOffset)
-
-timesheetToolbarLiveFragment, timesheetDayColumnsLiveFragment :: SurfaceFragmentKey
-timesheetToolbarLiveFragment = frontendSurfaceFragmentKey @Surface.TimesheetsSurface @Surface.TimesheetToolbar NoSurfaceFields
-timesheetDayColumnsLiveFragment = frontendSurfaceFragmentKey @Surface.TimesheetsSurface @Surface.TimesheetDayColumns NoSurfaceFields
-
-timesheetDaySectionLiveFragment :: Int -> SurfaceFragmentKey
-timesheetDaySectionLiveFragment dayOffset =
-    frontendSurfaceFragmentKey @Surface.TimesheetsSurface @Surface.TimesheetDaySection
-        (surfaceField @Surface.DayOffset dayOffset :& NoSurfaceFields)

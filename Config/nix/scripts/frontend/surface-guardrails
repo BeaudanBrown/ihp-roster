@@ -93,7 +93,7 @@ expect_no_match_including_generated \
 expect_match \
     "Haskell Surface adapter families must retain a typed Surface association" \
     'type AdapterFamilySurface adapterFamily :: SurfaceSpec' \
-    Application/Helper/FrontendContract/Surface/HaskellAdapter/Family.hs
+    Application/Helper/FrontendContract/Surface/HaskellAdapter/Association.hs
 expect_match \
     "Haskell Surface adapter generation must consume the canonical wire source projection" \
     'haskellWireSource field.fieldWire' \
@@ -117,9 +117,25 @@ expect_match \
     'registeredFrontendSurfaceContractIR' \
     Application/Script/GenerateFrontendSurfaceAdapters.hs
 expect_match \
-    "Haskell Surface adapter writes and stale cleanup must consume the complete all-kind module set" \
-    'generateSurfaceAdapterModules registeredFrontendSurfaceContractIR registeredSurfaceAdapterRegistry' \
+    "Haskell Surface adapter writes and stale cleanup must cross the complete all-kind publication barrier" \
+    'case generateSurfaceAdapterModules contract registry of' \
     Application/Script/GenerateFrontendSurfaceAdapters.hs
+expect_match \
+    "Surface adapter publication must typecheck the complete staged module set" \
+    'ghc -no-link \$validation_ghc_opts' \
+    Config/nix/scripts/frontend/surface-adapters
+expect_match \
+    "Surface adapter publication must use the validate-before-mutation helper" \
+    'surface_adapter_publish_managed_set' \
+    Config/nix/scripts/frontend/surface-adapters
+if [ -f "@scriptsRoot@/frontend/surface-adapter-publication-test" ]; then
+    publication_test="@scriptsRoot@/frontend/surface-adapter-publication-test"
+else
+    publication_test="Config/nix/scripts/frontend/surface-adapter-publication-test"
+fi
+if ! bash "$publication_test"; then
+    report_failure "Surface adapter validation failure must leave the managed set untouched"
+fi
 expect_no_match_including_generated \
     "checked Surface adapter declarations must be normalized only by the shared core" \
     'CheckedAdapterDeclaration[[:space:]]*\{' \
@@ -182,6 +198,7 @@ for generated_module_path in "${generated_adapter_modules[@]}"; do
     generated_module_name="${generated_module_name//\//.}"
     generated_module_pattern="${generated_module_name//./\\.}"
     feature_module_name="${feature_dir//\//.}"
+    feature_module_pattern="${feature_module_name//./\\.}"
 
     if [ ! -f "$curated_facade" ]; then
         report_failure "generated Surface $generated_kind adapter has no matching curated facade: $generated_module_path"
@@ -208,6 +225,8 @@ for generated_module_path in "${generated_adapter_modules[@]}"; do
 
     while IFS= read -r family_import; do
         case "$family_import" in
+            *Application.Helper.FrontendContract.Surface.HaskellAdapter.Association*)
+                ;;
             *Application.Helper.FrontendContract.Surface.HaskellAdapter.Family*)
                 ;;
             *"$feature_module_name"*)
@@ -218,6 +237,13 @@ for generated_module_path in "${generated_adapter_modules[@]}"; do
                 ;;
         esac
     done < <(rg '^import (qualified )?Application\.Helper\.FrontendContract\.Surface\.' "$family_module" || true)
+
+    surface_spec="${feature_dir}.hs"
+    if rg --line-number \
+        "^import (qualified )?(${feature_module_pattern}\\.Generated\\.|${feature_module_pattern}\\.${generated_kind}([[:space:]]|$))" \
+        "$family_module" "$surface_spec" >&2; then
+        report_failure "Surface specs and family associations must not import generated adapters or curated facades: $feature_module_name"
+    fi
 
     if [ "$generated_kind" = "Resource" ]; then
         for generic_builder in frontendSurfaceResource matchFrontendSurfaceResource; do
@@ -240,6 +266,43 @@ for generated_module_path in "${generated_adapter_modules[@]}"; do
         fi
     fi
 done
+
+live_feature_paths=(
+    Application/Helper/FrontendContract/Surface/Admin
+    Application/Helper/FrontendContract/Surface/Billing
+    Application/Helper/FrontendContract/Surface/LeaveRequests
+    Application/Helper/FrontendContract/Surface/Profile
+    Application/Helper/FrontendContract/Surface/Roster
+    Application/Helper/FrontendContract/Surface/Support
+    Application/Helper/FrontendContract/Surface/Timesheets
+    Application/Support
+    Web/Admin
+    Web/Billing
+    Web/LeaveRequests
+    Web/Profiles
+    Web/RosterWeeks
+    Web/Timesheets
+)
+mapfile -t handwritten_live_adapter_users < <(
+    rg -l \
+        --glob '*.hs' \
+        --glob '!**/Generated/*.hs' \
+        '\b(frontendSurfaceScope|matchFrontendSurfaceScope|frontendSurfaceFragmentKey|matchFrontendSurfaceFragmentKey)\b' \
+        "${live_feature_paths[@]}" 2>/dev/null \
+        | sort \
+        || true
+)
+if [ "${#handwritten_live_adapter_users[@]}" -ne 0 ]; then
+    report_failure "migrated feature modules must use curated generated Live adapters instead of generic mechanical builders or matchers"
+    printf '  %s\n' "${handwritten_live_adapter_users[@]}" >&2
+fi
+
+expect_no_match \
+    "replaced Live adapter compatibility names must stay deleted" \
+    '\b(billingLiveScope|matchBillingLiveScope|adminPageContentFragmentKey|adminXeroPageContentFragmentKey|adminVenueConfigLiveFragment|supportAwardRatesSectionLiveFragment|supportPublicHolidaysSectionLiveFragment|profileDetailsLiveFragment|profilePreferencesLiveFragment|profileSecurityLiveFragment|profileLeaveLiveFragment|profileRsaLiveFragment|staffDetailsLiveFragment|staffPreferencesLiveFragment|staffLeaveLiveFragment)\b' \
+    Application \
+    Web \
+    Test
 
 fixture_live_module="Test/Support/FrontendSurfaceAdapterFixture/Generated/Live.hs"
 if [ ! -f "$fixture_live_module" ]; then

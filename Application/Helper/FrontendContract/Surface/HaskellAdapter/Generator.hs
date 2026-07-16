@@ -17,8 +17,7 @@ import Application.Helper.FrontendContract.Surface.ContractIR
 import Application.Helper.FrontendContract.Surface.HaskellAdapter.Core (GeneratedHaskellModule (..),
                                                                         stableDiagnostics)
 import Application.Helper.FrontendContract.Surface.HaskellAdapter.Family
-import Application.Helper.FrontendContract.Surface.HaskellAdapter.Live (checkedSurfaceLiveAdapterDeclarations,
-                                                                        generateSurfaceLiveAdapterModules)
+import Application.Helper.FrontendContract.Surface.HaskellAdapter.Live (generateSurfaceLiveAdapterModules)
 import Application.Helper.FrontendContract.Surface.HaskellAdapter.Resource (generateSurfaceResourceAdapterModules)
 import Data.Either (lefts)
 import qualified Data.List as List
@@ -33,8 +32,8 @@ data GeneratedSurfaceAdapterLane
     deriving (Eq, Show)
 
 -- | Generate every currently enabled kind and compose one atomic managed set.
--- Live eligibility is checked even before production Live homes are enabled;
--- an empty staged home set emits no Live files until migration registers one.
+-- Production Live generation is mandatory: empty or partial homes fail the
+-- same checked-IR completeness validation as every other implemented lane.
 generateSurfaceAdapterModules ::
     SurfaceContractIR ->
     SurfaceAdapterRegistry ->
@@ -43,14 +42,9 @@ generateSurfaceAdapterModules contract registry =
     composeGeneratedSurfaceAdapterModules
         [ GeneratedResourceAdapterLane
             <$> generateSurfaceResourceAdapterModules contract registry
-        , GeneratedLiveAdapterLane <$> liveModules
+        , GeneratedLiveAdapterLane
+            <$> generateSurfaceLiveAdapterModules contract registry
         ]
-  where
-    liveModules
-        | null registry.surfaceScopeAdapterHomes
-            && null registry.surfaceFragmentAdapterHomes =
-                [] <$ checkedSurfaceLiveAdapterDeclarations contract registry
-        | otherwise = generateSurfaceLiveAdapterModules contract registry
 
 -- | Accumulate focused-lane diagnostics, reject duplicate physical modules
 -- across the complete set, and expose modules only after all lanes validate.

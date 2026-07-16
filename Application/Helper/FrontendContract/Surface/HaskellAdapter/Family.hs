@@ -43,6 +43,7 @@ module Application.Helper.FrontendContract.Surface.HaskellAdapter.Family
     ) where
 
 import Application.Helper.FrontendContract.Surface.DSL
+import Application.Helper.FrontendContract.Surface.HaskellAdapter.Association
 import Application.Helper.FrontendContract.Surface.HaskellAdapter.Core
 import Application.Helper.FrontendContract.Surface.Values (SurfaceActionFieldSpecs,
                                                            SurfaceFragmentFieldSpecs,
@@ -52,9 +53,6 @@ import Application.Helper.FrontendContract.Surface.Values (SurfaceActionFieldSpe
 import Data.Kind (Type)
 import Data.Typeable (Typeable)
 import IHP.Prelude
-
-class SurfaceAdapterFamily adapterFamily where
-    type AdapterFamilySurface adapterFamily :: SurfaceSpec
 
 -- | One typed declaration home. The promoted kind selects the declaration
 -- lookup and prevents homes from crossing resource/live/action/intent seams.

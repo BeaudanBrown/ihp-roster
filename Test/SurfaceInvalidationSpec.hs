@@ -69,7 +69,7 @@ tests = do
 
         it "renders live invalidation profile counts for timing diagnostics" do
             let venueId = fromWords 1 0 0 0
-            let scope = BillingLive.billingLiveScope venueId
+            let scope = BillingLive.billingVenueLiveScope venueId
             let target = SurfaceInvalidationTarget scope [BillingLive.billingStatusLiveFragment]
             let broadcastResult =
                     LiveUpdateBroadcastResult

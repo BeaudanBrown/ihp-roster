@@ -5,7 +5,7 @@ module Application.Helper.FrontendContract.Surface.Support.HaskellAdapter
     ( SupportAdapterFamily
     ) where
 
-import Application.Helper.FrontendContract.Surface.HaskellAdapter.Family
+import Application.Helper.FrontendContract.Surface.HaskellAdapter.Association
 import qualified Application.Helper.FrontendContract.Surface.Support as Support
 
 data SupportAdapterFamily

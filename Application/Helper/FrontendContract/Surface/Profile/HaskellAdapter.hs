@@ -6,7 +6,7 @@ module Application.Helper.FrontendContract.Surface.Profile.HaskellAdapter
     , StaffAdapterFamily
     ) where
 
-import Application.Helper.FrontendContract.Surface.HaskellAdapter.Family
+import Application.Helper.FrontendContract.Surface.HaskellAdapter.Association
 import qualified Application.Helper.FrontendContract.Surface.Profile as Profile
 
 data ProfileAdapterFamily

@@ -214,15 +214,16 @@ The authority foundations through #182 are complete. The #182 implementation
 used Timesheets as its first representative resource migration, recorded the
 feature-local import, handwritten-line deletion, and focused compile checkpoint
 in the Surface authoring guide, then registered every remaining unique resource
-home. #188 has extracted the kind-indexed shared core, fixed the four private
-output/facade pairs, and retained byte-identical resource output. #190 has
+home. #188 extracted the kind-indexed shared core, fixed the four private
+output/facade pairs, and retained byte-identical resource output. #190
 established the checked Live renderer/output lane, compiled fixture, atomic
-all-kind composition, and independent identity goldens; #189 can now migrate
-production Live facades. #185 can establish the
-separate generated Action and Intent renderers in parallel once selected; #186
-and #187 then migrate those facades independently. #183 also follows #162 and
-#181, while #184 follows #164 and #181. Shared browser slices depend on typed
-schema builders;
+all-kind composition, and independent identity goldens. #189 then accepted a
+Timesheets Live checkpoint, registered every production scope/eligible fragment
+home, and migrated all curated Live facades behind seven private generated
+modules. #185 can establish the separate generated Action and Intent renderers
+in parallel once selected; #186 and #187 then migrate those facades
+independently. #183 also follows #162 and #181, while #184 follows #164 and
+#181. Shared browser slices depend on typed schema builders;
 ordered ranges also depend on toggle presentation.
 Roster linked highlighting depends on closed interaction IR. Staff-panel work
 establishes the browser-reachable Surface DTO path for image export and week

@@ -109,31 +109,40 @@ cross-kind marker/name reuse is valid.
 
 Focused renderers select checked declarations and own only their function-level
 source shapes. The resource renderer continues to emit byte-stable private
-feature-adjacent `.Generated.Resource` modules. The focused Live renderer now
-normalizes scopes and fragments directly from checked `SurfaceIR`, preserves
-their kind through home resolution, and combines only `LiveScope` and
-`LiveFragment` in `.Generated.Live`; resources, actions, and intents cannot enter
-that lane. Passive fragments are eligible from their closed `Live` option. The
-two current non-passive Admin parent-page keys are typed, reason-bearing
-actor-only exceptions. Production Live homes and call-site migration remain for
-`#189`; the compiled unregistered fixture proves scope/fragment constructors,
-zero-field constants, matchers, shared-module collision checks, and public
-generic builder use without changing production facades.
+feature-adjacent `.Generated.Resource` modules. The Live renderer normalizes
+scopes and fragments directly from checked `SurfaceIR`, preserves their kind
+through home resolution, and combines only `LiveScope` and `LiveFragment` in
+`.Generated.Live`; resources, actions, and intents cannot enter that lane.
+Passive fragments are eligible from their closed `Live` option. The two
+non-passive Admin parent-page keys remain typed, reason-bearing actor-only
+exceptions.
+
+The production registry assigns exactly one typed home to every checked Live
+scope and eligible fragment. Empty, partial, extra, or duplicate production
+homes fail generation. Seven private feature-adjacent `.Generated.Live` modules
+now sit behind the seven curated `Surface.<Feature>.Live` facades. All mechanical
+scope/fragment construction and matching is generated; handwritten facade code
+is limited to domain-shaped matchers and active-scope orchestration. The
+unregistered fixture continues to prove zero-field and parameterized adapters,
+shared-module collision checks, and public generic builder use.
 
 Generated Resource and Live code calls only public marker-indexed builders and
 matchers. Unsupported source carriers fail with adapter kind, owning Surface,
 declaration, and field in the diagnostic. Production family associations remain
 feature-local, and the checked aggregate resource registry assigns exactly one
-canonical home to every unique production resource identity. Curated
-`Surface.<Feature>.Resource` facades are the generated resource modules' only
-consumers and retain only domain aliases, domain matchers, and meaningful public
-exports.
+canonical home to every unique production resource identity. Each private
+Resource or Live module has only its matching curated facade consumer. The
+lightweight `HaskellAdapter.Association` seam carries `AdapterFamilySurface` into
+production generated modules without pulling registry/reflection mechanics from
+`HaskellAdapter.Family` and `HaskellAdapter.Core` into focused feature compiles.
 
-`generateSurfaceAdapterModules` is the all-kind composer used by the write/drift
-workflow. It accumulates focused-lane diagnostics and validates duplicate
-physical paths before exposing the complete managed set, so stale cleanup cannot
-silently discard another implemented lane. Use `frontend-surface-adapters` to
-write generated Haskell modules and `frontend-surface-adapters-check` to reject
+`generateSurfaceAdapterModules` is the mandatory all-kind composer used by the
+write/drift workflow. It accumulates focused-lane diagnostics and validates
+duplicate physical paths before exposing the complete managed set. The writer
+stages nothing when any lane fails; the shell workflow formats and typechecks the
+entire staged tree before any managed stale deletion or write, so one failed or
+omitted lane cannot discard another. Use `frontend-surface-adapters` to write
+generated Haskell modules and `frontend-surface-adapters-check` to reject
 missing, extra, unformatted, or stale output. Generation does not inspect
 compiler syntax trees, parse source modules, or choose behavior from feature-name
 text.

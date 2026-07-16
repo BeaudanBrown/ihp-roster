@@ -5,10 +5,13 @@
 --
 -- Feature-local modules own family-to-Surface associations. This aggregate
 -- selects each registered family and exactly one canonical home for every
--- checked resource identity without repeating field or wire declarations.
+-- checked resource identity, runtime scope, and eligible Live fragment without
+-- repeating field or wire declarations.
 module Application.Helper.FrontendContract.Surface.HaskellAdapter.Registry
     ( RegisteredSurfaceAdapterFamilies
+    , RegisteredSurfaceFragmentAdapterHomes
     , RegisteredSurfaceResourceAdapterHomes
+    , RegisteredSurfaceScopeAdapterHomes
     , registeredSurfaceActorOnlyFragments
     , registeredSurfaceAdapterRegistry
     ) where
@@ -60,6 +63,64 @@ registeredSurfaceActorOnlyFragments =
         "Actor-local parent-page composition still constructs this non-passive semantic key"
     ]
 
+type RegisteredSurfaceScopeAdapterHomes =
+    '[ SurfaceScopeAdapterHome TimesheetsAdapterFamily Timesheets.TimesheetWeek
+     , SurfaceScopeAdapterHome RosterAdapterFamily Roster.RosterWeek
+     , SurfaceScopeAdapterHome RosterDayTimelineAdapterFamily Roster.RosterDayTimeline
+     , SurfaceScopeAdapterHome LeaveRequestsAdapterFamily LeaveRequests.LeaveRequestsScope
+     , SurfaceScopeAdapterHome BillingAdapterFamily Billing.BillingVenue
+     , SurfaceScopeAdapterHome SupportAdapterFamily Support.SupportPlatform
+     , SurfaceScopeAdapterHome ProfileAdapterFamily Profile.ProfileScope
+     , SurfaceScopeAdapterHome StaffAdapterFamily Profile.StaffScope
+     , SurfaceScopeAdapterHome AdminPageAdapterFamily Admin.AdminPageScope
+     , SurfaceScopeAdapterHome AdminXeroPageAdapterFamily Admin.AdminXeroPageScope
+     , SurfaceScopeAdapterHome AdminVenueSettingsAdapterFamily Admin.AdminVenueConfigScope
+     , SurfaceScopeAdapterHome AdminInvitesAdapterFamily Admin.AdminInvitesScope
+     , SurfaceScopeAdapterHome AdminExportsAdapterFamily Admin.AdminExportsScope
+     , SurfaceScopeAdapterHome AdminShiftTypesAdapterFamily Admin.AdminShiftTypesScope
+     , SurfaceScopeAdapterHome AdminRosterGroupsAdapterFamily Admin.AdminRosterGroupsScope
+     , SurfaceScopeAdapterHome AdminXeroAdapterFamily Admin.AdminXeroScope
+     ]
+
+type RegisteredSurfaceFragmentAdapterHomes =
+    '[ SurfaceFragmentAdapterHome TimesheetsAdapterFamily Timesheets.TimesheetToolbar
+     , SurfaceFragmentAdapterHome TimesheetsAdapterFamily Timesheets.TimesheetDayColumns
+     , SurfaceFragmentAdapterHome TimesheetsAdapterFamily Timesheets.TimesheetDaySection
+     , SurfaceFragmentAdapterHome RosterAdapterFamily Roster.RosterContent
+     , SurfaceFragmentAdapterHome RosterAdapterFamily Roster.RosterGridToolbar
+     , SurfaceFragmentAdapterHome RosterAdapterFamily Roster.RosterGridFrame
+     , SurfaceFragmentAdapterHome RosterAdapterFamily Roster.RosterDayColumns
+     , SurfaceFragmentAdapterHome RosterAdapterFamily Roster.RosterDayRail
+     , SurfaceFragmentAdapterHome RosterAdapterFamily Roster.RosterWageRail
+     , SurfaceFragmentAdapterHome RosterAdapterFamily Roster.RosterSlotsGrid
+     , SurfaceFragmentAdapterHome RosterAdapterFamily Roster.RosterStaffPanel
+     , SurfaceFragmentAdapterHome RosterAdapterFamily Roster.RosterStaffSelfServiceLeaveFormFragment
+     , SurfaceFragmentAdapterHome RosterAdapterFamily Roster.RosterDaySection
+     , SurfaceFragmentAdapterHome RosterAdapterFamily Roster.RosterRow
+     , SurfaceFragmentAdapterHome RosterDayTimelineAdapterFamily Roster.RosterDayTimelineContent
+     , SurfaceFragmentAdapterHome LeaveRequestsAdapterFamily LeaveRequests.LeaveSectionCount
+     , SurfaceFragmentAdapterHome LeaveRequestsAdapterFamily LeaveRequests.LeaveSectionList
+     , SurfaceFragmentAdapterHome BillingAdapterFamily Billing.BillingStatus
+     , SurfaceFragmentAdapterHome SupportAdapterFamily Support.SupportAwardRates
+     , SurfaceFragmentAdapterHome SupportAdapterFamily Support.SupportPublicHolidays
+     , SurfaceFragmentAdapterHome ProfileAdapterFamily Profile.ProfileDetailsSection
+     , SurfaceFragmentAdapterHome ProfileAdapterFamily Profile.ProfilePreferencesSection
+     , SurfaceFragmentAdapterHome ProfileAdapterFamily Profile.ProfileSecuritySection
+     , SurfaceFragmentAdapterHome ProfileAdapterFamily Profile.ProfileLeaveSection
+     , SurfaceFragmentAdapterHome ProfileAdapterFamily Profile.ProfileRsaSection
+     , SurfaceFragmentAdapterHome StaffAdapterFamily Profile.StaffDetailsSection
+     , SurfaceFragmentAdapterHome StaffAdapterFamily Profile.StaffPreferencesSection
+     , SurfaceFragmentAdapterHome StaffAdapterFamily Profile.StaffLeaveSection
+     , SurfaceFragmentAdapterHome AdminPageAdapterFamily Admin.AdminPageContentFragment
+     , SurfaceFragmentAdapterHome AdminXeroPageAdapterFamily Admin.AdminXeroPageContentFragment
+     , SurfaceFragmentAdapterHome AdminVenueSettingsAdapterFamily Admin.AdminVenueSettingsFragment
+     , SurfaceFragmentAdapterHome AdminInvitesAdapterFamily Admin.AdminInvitesFragment
+     , SurfaceFragmentAdapterHome AdminExportsAdapterFamily Admin.AdminExportsFragment
+     , SurfaceFragmentAdapterHome AdminShiftTypesAdapterFamily Admin.AdminShiftTypesFragment
+     , SurfaceFragmentAdapterHome AdminRosterGroupsAdapterFamily Admin.AdminRosterGroupsFragment
+     , SurfaceFragmentAdapterHome AdminXeroAdapterFamily Admin.AdminXeroShellFragment
+     ]
+
 type RegisteredSurfaceResourceAdapterHomes =
     '[ SurfaceResourceAdapterHome TimesheetsAdapterFamily Timesheets.TimesheetDay
      , SurfaceResourceAdapterHome TimesheetsAdapterFamily Timesheets.TimesheetWeekBoundaryConfig
@@ -90,6 +151,6 @@ registeredSurfaceAdapterRegistry =
     reflectSurfaceAdapterRegistry
         @RegisteredSurfaceAdapterFamilies
         @RegisteredSurfaceResourceAdapterHomes
-        @'[]
-        @'[]
+        @RegisteredSurfaceScopeAdapterHomes
+        @RegisteredSurfaceFragmentAdapterHomes
         registeredSurfaceActorOnlyFragments
