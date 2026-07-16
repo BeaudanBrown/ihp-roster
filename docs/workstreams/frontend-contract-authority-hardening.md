@@ -6,7 +6,7 @@ GitHub issues:
 
 - `#136` - Make FrontendContract the executable runtime authority and retire stale runtime code
 - Contract authority: `#161`-`#166`
-- Haskell adapter ergonomics: `#180`-`#187`
+- Haskell adapter ergonomics: `#180`-`#188`
 - Shared browser capabilities: `#167`-`#173`
 - Roster browser capabilities: `#174`-`#178`
 - Final reconciliation: `#179`
@@ -172,45 +172,49 @@ slices, and all block final reconciliation.
    schema-indexed carrier/source-type mapping.
 9. `#182` - Generate feature-owned typed Surface resource adapters, beginning
    with a representative locality/net-deletion checkpoint.
-10. `#183` - Generate feature-owned typed Surface live identity adapters from an
+10. `#188` - Extract the shared kind-indexed adapter generation core while
+    preserving resource output byte-for-byte.
+11. `#183` - Generate feature-owned typed Surface live identity adapters from an
     explicit checked eligibility rule.
-11. `#184` - Track typed Surface action and intent adapter facades through native
+12. `#184` - Track typed Surface action and intent adapter facades through native
     sub-issues:
-    - `#185` - Add the generated action/intent renderer and compiled fixture.
+    - `#185` - Add the kind-separated generated action/intent renderers and
+      compiled fixture.
     - `#186` - Migrate typed Surface action facades.
     - `#187` - Migrate typed Surface intent facades.
 
 ### Shared browser capabilities
 
-12. `#167` - Time picker roles and exact configuration payload.
-13. `#168` - Dialog/toast overlay DOM vocabulary.
-14. `#169` - Toggle presentation and timesheet break controls.
-15. `#170` - Ordered-range shift preferences.
-16. `#171` - Horizontal drag/snap scrolling.
-17. `#172` - PWA installation adapter.
-18. `#173` - Xero candidate filtering adapter.
+13. `#167` - Time picker roles and exact configuration payload.
+14. `#168` - Dialog/toast overlay DOM vocabulary.
+15. `#169` - Toggle presentation and timesheet break controls.
+16. `#170` - Ordered-range shift preferences.
+17. `#171` - Horizontal drag/snap scrolling.
+18. `#172` - PWA installation adapter.
+19. `#173` - Xero candidate filtering adapter.
 
 ### Roster browser capabilities
 
-19. `#174` - Surface-owned linked-highlight roles and stale interaction class cleanup.
-20. `#175` - Staff-panel sorting/tabs and browser-reachable Surface DTOs.
-21. `#176` - Fullscreen and column-edit controls.
-22. `#177` - Image-export annotations and configuration.
-23. `#178` - Retained dormant week overview.
+20. `#174` - Surface-owned linked-highlight roles and stale interaction class cleanup.
+21. `#175` - Staff-panel sorting/tabs and browser-reachable Surface DTOs.
+22. `#176` - Fullscreen and column-edit controls.
+23. `#177` - Image-export annotations and configuration.
+24. `#178` - Retained dormant week overview.
 
 ### Reconciliation
 
-24. `#179` - Run the zero-legacy audit, finish dynamic CSS/source guardrails,
+25. `#179` - Run the zero-legacy audit, finish dynamic CSS/source guardrails,
     reconcile living docs, and verify the full repository before closing `#136`.
 
-The authority foundations through #181 are complete. The #182 implementation
+The authority foundations through #182 are complete. The #182 implementation
 used Timesheets as its first representative resource migration, recorded the
 feature-local import, handwritten-line deletion, and focused compile checkpoint
 in the Surface authoring guide, then registered every remaining unique resource
-home. #183 follows #162, #181, and that checkpoint. #184 follows #164 and #181;
-#185 also follows the #182 checkpoint and establishes its generated
-renderer/fixture before #186 and #187 migrate action and intent facades
-independently. Shared browser slices depend on typed schema builders;
+home. #188 now extracts a kind-indexed shared core before #183 and #185 extend
+live and action/intent generation in parallel. #183 also follows #162 and #181;
+#184 follows #164 and #181, while #185 establishes separate generated Action and
+Intent renderers before #186 and #187 migrate those facades independently.
+Shared browser slices depend on typed schema builders;
 ordered ranges also depend on toggle presentation.
 Roster linked highlighting depends on closed interaction IR. Staff-panel work
 establishes the browser-reachable Surface DTO path for image export and week
