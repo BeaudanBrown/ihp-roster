@@ -174,8 +174,12 @@ slices, and all block final reconciliation.
    with a representative locality/net-deletion checkpoint.
 10. `#188` - Extract the shared kind-indexed adapter generation core while
     preserving resource output byte-for-byte.
-11. `#183` - Generate feature-owned typed Surface live identity adapters from an
-    explicit checked eligibility rule.
+11. `#183` - Track typed Surface live identity adapters through native
+    sub-issues:
+    - `#190` - Add the focused generated Live renderer, checked normalization
+      seam, compiled fixture, atomic output composition, and identity goldens.
+    - `#189` - Migrate production scope/fragment adapters through private
+      `.Generated.Live` modules and curated `Live` facades.
 12. `#184` - Track typed Surface action and intent adapter facades through native
     sub-issues:
     - `#185` - Add the kind-separated generated action/intent renderers and
@@ -211,12 +215,13 @@ used Timesheets as its first representative resource migration, recorded the
 feature-local import, handwritten-line deletion, and focused compile checkpoint
 in the Surface authoring guide, then registered every remaining unique resource
 home. #188 has extracted the kind-indexed shared core, fixed the four private
-output/facade pairs, and retained byte-identical resource output; #183 and #185
-can now extend live and action/intent generation in parallel. #183 also follows
-#162 and #181;
-#184 follows #164 and #181, while #185 establishes separate generated Action and
-Intent renderers before #186 and #187 migrate those facades independently.
-Shared browser slices depend on typed schema builders;
+output/facade pairs, and retained byte-identical resource output. #190 now
+establishes the checked Live renderer/output lane and independent identity
+goldens before #189 migrates production Live facades. #185 can establish the
+separate generated Action and Intent renderers in parallel once selected; #186
+and #187 then migrate those facades independently. #183 also follows #162 and
+#181, while #184 follows #164 and #181. Shared browser slices depend on typed
+schema builders;
 ordered ranges also depend on toggle presentation.
 Roster linked highlighting depends on closed interaction IR. Staff-panel work
 establishes the browser-reachable Surface DTO path for image export and week
