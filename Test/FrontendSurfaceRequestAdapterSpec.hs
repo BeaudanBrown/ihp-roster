@@ -14,6 +14,7 @@ import Application.Helper.FrontendContract.Surface.HaskellAdapter.Family
 import Application.Helper.FrontendContract.Surface.HaskellAdapter.Intent
 import Application.Helper.FrontendContract.Surface.HaskellAdapter.Registry (registeredSurfaceAdapterRegistry)
 import qualified Application.Helper.FrontendContract.Surface.Profile as Profile
+import qualified Application.Helper.FrontendContract.Surface.Profile.Action as ProfileAction
 import Application.Helper.FrontendContract.Surface.Reflect (reflectSurfaceRegistry)
 import Application.Helper.FrontendContract.Surface.Request (SurfaceRequestFieldError (..),
                                                             SurfaceRequestFieldErrorKind (..),
@@ -22,7 +23,6 @@ import Application.Helper.FrontendContract.Surface.Runtime (FrontendSurfaceActio
                                                             FrontendSurfaceCustomHtmxAttrs (..),
                                                             FrontendSurfaceHtmxMethod (..),
                                                             FrontendSurfaceHtmxRequest (..),
-                                                            frontendSurfaceAction,
                                                             frontendSurfaceActionHtmxAttrPairs,
                                                             intentFormName)
 import Application.Helper.FrontendContract.Surface.Values (SurfaceActionFieldSpecs,
@@ -416,7 +416,7 @@ tests = describe "FrontendSurfaceRequestAdapter" do
 
     it "pins all Profile and Staff Action metadata from independent literals" do
         frontendSurfaceActionHtmxAttrPairs
-            (frontendSurfaceAction @Profile.ProfileSurface @Profile.UpdateProfileDetails profileDetailsFields)
+            (ProfileAction.updateProfileDetailsAction profileDetailsFields)
             (sectionActionRoute "/profile/details" "#profile-details")
             `shouldBe`
                 [ ("hx-post", "/profile/details")
@@ -426,7 +426,7 @@ tests = describe "FrontendSurfaceRequestAdapter" do
                 , ("hx-swap", "outerHTML show:none")
                 ]
         frontendSurfaceActionHtmxAttrPairs
-            (frontendSurfaceAction @Profile.ProfileSurface @Profile.UpdateProfileShiftPreferences preferenceFields)
+            (ProfileAction.updateProfileShiftPreferencesAction preferenceFields)
             (sectionActionRoute "/profile/preferences" "#profile-preferences")
             `shouldBe`
                 [ ("hx-post", "/profile/preferences")
@@ -436,7 +436,7 @@ tests = describe "FrontendSurfaceRequestAdapter" do
                 , ("hx-swap", "outerHTML show:none")
                 ]
         frontendSurfaceActionHtmxAttrPairs
-            (frontendSurfaceAction @Profile.StaffSurface @Profile.UpdateStaffProfile profileDetailsFields)
+            (ProfileAction.updateStaffProfileAction profileDetailsFields)
             (sectionActionRoute "/staff/details" "#staff-profile-details")
             `shouldBe`
                 [ ("hx-post", "/staff/details")
@@ -446,7 +446,7 @@ tests = describe "FrontendSurfaceRequestAdapter" do
                 , ("hx-swap", "outerHTML show:none")
                 ]
         frontendSurfaceActionHtmxAttrPairs
-            (frontendSurfaceAction @Profile.StaffSurface @Profile.UpdateStaffShiftPreferences preferenceFields)
+            (ProfileAction.updateStaffShiftPreferencesAction preferenceFields)
             (sectionActionRoute "/staff/preferences" "#staff-profile-preferences")
             `shouldBe`
                 [ ("hx-post", "/staff/preferences")
@@ -456,7 +456,7 @@ tests = describe "FrontendSurfaceRequestAdapter" do
                 , ("hx-swap", "outerHTML show:none")
                 ]
         frontendSurfaceActionHtmxAttrPairs
-            (frontendSurfaceAction @Profile.ProfileSurface @Profile.CreateProfileLeaveRequest profileLeaveRequestFields)
+            (ProfileAction.createProfileLeaveRequestAction profileLeaveRequestFields)
             (emptyActionRoute "/profile/leave")
             `shouldBe`
                 [ ("hx-post", "/profile/leave")
@@ -466,7 +466,7 @@ tests = describe "FrontendSurfaceRequestAdapter" do
                 , ("hx-push-url", "false")
                 ]
         frontendSurfaceActionHtmxAttrPairs
-            (frontendSurfaceAction @Profile.StaffSurface @Profile.CreateStaffLeaveRequest staffLeaveRequestFields)
+            (ProfileAction.createStaffLeaveRequestAction staffLeaveRequestFields)
             (emptyActionRoute "/staff/leave")
             `shouldBe`
                 [ ("hx-post", "/staff/leave")

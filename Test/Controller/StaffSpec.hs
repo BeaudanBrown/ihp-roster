@@ -469,11 +469,15 @@ tests = beforeAll testContext do
                 staff <- createStaffRecord venue Nothing "Alpha" "Crew"
 
                 response <- withUserAndCurrentVenue manager venue.id do
-                    callActionWithParams (EditStaffAction staff.id) [("weekOffset", "0")]
+                    withRequestHeaders [("HX-Request", "true")] do
+                        callActionWithParams (EditStaffAction staff.id) [("weekOffset", "0")]
 
                 response `responseStatusShouldBe` status200
                 response `responseBodyShouldContain` "data-bepis-surface=\"staff\""
                 response `responseBodyShouldContain` "data-bepis-surface-config="
+                response `responseBodyShouldContain` "data-bepis-surface-action=\"update-staff-profile\""
+                response `responseBodyShouldContain` "data-bepis-surface-action=\"update-staff-shift-preferences\""
+                response `responseBodyShouldContain` "data-bepis-surface-action=\"create-staff-leave-request\""
                 response `responseBodyShouldContain` "id=\"staff-profile-details-collapse\" class=\"accordion-collapse collapse\""
                 response `responseBodyShouldContain` "id=\"staff-profile-preferences-collapse\" class=\"accordion-collapse collapse\""
                 response `responseBodyShouldContain` "id=\"staff-shift-preferences-form\""

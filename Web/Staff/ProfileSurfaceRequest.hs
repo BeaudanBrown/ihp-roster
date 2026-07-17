@@ -7,8 +7,8 @@ module Web.Staff.ProfileSurfaceRequest
     ) where
 
 import qualified Application.Helper.FrontendContract.Surface.Profile as Surface
-import Application.Helper.FrontendContract.Surface.Request (SurfaceRequestFieldError,
-                                                            parseSurfaceActionParams)
+import qualified Application.Helper.FrontendContract.Surface.Profile.Action as ProfileAction
+import Application.Helper.FrontendContract.Surface.Request (SurfaceRequestFieldError)
 import Application.Helper.FrontendContract.Surface.Values (SurfaceFields,
                                                            surfaceFieldValue)
 import qualified Data.UUID as UUID
@@ -42,14 +42,14 @@ data StaffProfileSurfaceSubmission
 parseProfileSurfaceSubmission :: (?request :: Request) => Either [SurfaceRequestFieldError] StaffProfileSurfaceSubmission
 parseProfileSurfaceSubmission =
     chooseSubmission
-        (parseSurfaceActionParams @Surface.ProfileSurface @Surface.UpdateProfileShiftPreferences)
-        (parseSurfaceActionParams @Surface.ProfileSurface @Surface.UpdateProfileDetails)
+        ProfileAction.parseUpdateProfileShiftPreferencesActionParams
+        ProfileAction.parseUpdateProfileDetailsActionParams
 
 parseStaffSurfaceSubmission :: (?request :: Request) => Either [SurfaceRequestFieldError] StaffProfileSurfaceSubmission
 parseStaffSurfaceSubmission =
     chooseSubmission
-        (parseSurfaceActionParams @Surface.StaffSurface @Surface.UpdateStaffShiftPreferences)
-        (parseSurfaceActionParams @Surface.StaffSurface @Surface.UpdateStaffProfile)
+        ProfileAction.parseUpdateStaffShiftPreferencesActionParams
+        ProfileAction.parseUpdateStaffProfileActionParams
 
 chooseSubmission ::
     Either [SurfaceRequestFieldError] (SurfaceFields Surface.StaffShiftPreferenceFields) ->

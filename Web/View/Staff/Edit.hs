@@ -14,9 +14,9 @@ import Application.Helper.FrontendContract.AppShell.Runtime (AppShellActionRoute
                                                              applyAppShellActionAttrs)
 import Application.Helper.FrontendContract.IR (AppShellActionIR)
 import qualified Application.Helper.FrontendContract.Surface.Profile as Surface
+import qualified Application.Helper.FrontendContract.Surface.Profile.Action as ProfileAction
 import Application.Helper.FrontendContract.Surface.Runtime (FrontendSurfaceActionRoute (..),
                                                             FrontendSurfaceCustomHtmxAttrs (..),
-                                                            frontendSurfaceAction,
                                                             renderFrontendSurfaceActionForm,
                                                             renderFrontendSurfaceMount)
 import Application.Helper.FrontendContract.Surface.Values
@@ -115,7 +115,12 @@ renderNewStaffBody formMode staff rosterGroups awardLevels awardLevelBaseRates i
                 , staffProfileDetailsFormAction = pathTo CreateStaffAction
                 , staffProfileDetailsFormClass = "mt-3"
                 , staffProfileDetailsFormRequestMode = staffDetailsFormRequestMode formMode (pathTo CreateStaffAction) CreateTrialStaffOverlayMarker
-                , staffProfileDetailsSurfaceFields = buildStaffProfileDetailsSurfaceFields "profile" staff (Just managementFields)
+                , staffProfileDetailsSurfaceFields =
+                    buildStaffProfileDetailsSurfaceFields
+                        ProfileAction.updateStaffProfileActionFields
+                        "profile"
+                        staff
+                        (Just managementFields)
                 , staffProfileDetailsFormAttributes = []
                 , staffProfileDetailsFormHiddenInputs = mempty
                 , staffProfileDetailsFormBeforeFields = [hsx|
@@ -257,7 +262,7 @@ renderStaffLeaveRequestFormFragment staffId leaveRequest = [hsx|
 renderStaffLeaveRequestForm :: Id Staff -> LeaveRequest -> Html
 renderStaffLeaveRequestForm staffId leaveRequest =
     renderFrontendSurfaceActionForm
-        (frontendSurfaceAction @Surface.StaffSurface @Surface.CreateStaffLeaveRequest fields)
+        (ProfileAction.createStaffLeaveRequestAction fields)
         FrontendSurfaceActionRoute
             { actionRouteUrl = pathTo CreateLeaveRequestAction
             , actionRouteCustomHtmx = []
@@ -277,10 +282,10 @@ renderStaffLeaveRequestForm staffId leaveRequest =
         |]
   where
     fields =
-        surfaceField @Surface.StartDate leaveRequest.startDate
-            :& surfaceField @Surface.EndDate leaveRequest.endDate
-            :& surfaceField @Surface.Notes (fromMaybe "" leaveRequest.notes)
-            :& NoSurfaceFields
+        ProfileAction.createStaffLeaveRequestActionFields
+            leaveRequest.startDate
+            leaveRequest.endDate
+            (fromMaybe "" leaveRequest.notes)
     fieldNames =
         LeaveRequestFieldNames
             { leaveRequestStartDateFieldName = surfaceFieldNameFrom @Surface.StartDate fields
@@ -375,7 +380,12 @@ renderStaffDetailsForm formMode staff maybeLinkedUserEmail managementFields acti
         staff
         maybeLinkedUserEmail
   where
-    fields = buildStaffProfileDetailsSurfaceFields "profile" staff (Just managementFields)
+    fields =
+        buildStaffProfileDetailsSurfaceFields
+            ProfileAction.updateStaffProfileActionFields
+            "profile"
+            staff
+            (Just managementFields)
 
 renderTrialStaffInvitationModalFragment :: Staff -> [VenueInvitation] -> Maybe Text -> Maybe Text -> Int -> Maybe (Id RosterGroup) -> Html
 renderTrialStaffInvitationModalFragment staff pendingInvitations maybeError submittedEmail weekOffset maybeRosterGroupId =
@@ -487,7 +497,11 @@ renderStaffShiftPreferencesEditForm formMode preferenceWeekdays selectedShiftPre
         preferenceWeekdays
         selectedShiftPreferences
   where
-    fields = buildStaffShiftPreferencesSurfaceFields "preferences" selectedShiftPreferences
+    fields =
+        buildStaffShiftPreferencesSurfaceFields
+            ProfileAction.updateStaffShiftPreferencesActionFields
+            "preferences"
+            selectedShiftPreferences
 
 data StaffDetailsOverlayMarker
     = CreateTrialStaffOverlayMarker
@@ -497,7 +511,7 @@ staffDetailsFormRequestMode :: OverlayFormMode -> Text -> StaffDetailsOverlayMar
 staffDetailsFormRequestMode HtmxOverlayForm actionUrl marker =
     case marker of
         UpdateStaffProfileOverlayMarker ->
-            Just (StaffProfileDetailsSurfaceAction (frontendSurfaceAction @Surface.StaffSurface @Surface.UpdateStaffProfile) (staffSectionActionRoute actionUrl ("#" <> staffProfileDetailsSectionId) "outerHTML show:none"))
+            Just (StaffProfileDetailsSurfaceAction ProfileAction.updateStaffProfileAction (staffSectionActionRoute actionUrl ("#" <> staffProfileDetailsSectionId) "outerHTML show:none"))
         CreateTrialStaffOverlayMarker ->
             Just (StaffProfileDetailsAppShellAction (staffDetailsAppShellAction marker) (staffAppShellActionRoute actionUrl))
 staffDetailsFormRequestMode PageOverlayForm _ _ = Nothing
@@ -508,7 +522,7 @@ staffDetailsAppShellAction UpdateStaffProfileOverlayMarker = appShellActionByMar
 
 staffShiftPreferencesOverlayRequestMode :: OverlayFormMode -> Text -> Maybe StaffShiftPreferencesFormRequestMode
 staffShiftPreferencesOverlayRequestMode HtmxOverlayForm actionUrl =
-    Just (StaffShiftPreferencesSurfaceAction (frontendSurfaceAction @Surface.StaffSurface @Surface.UpdateStaffShiftPreferences) (staffSectionActionRoute actionUrl ("#" <> staffProfilePreferencesSectionId) "outerHTML show:none"))
+    Just (StaffShiftPreferencesSurfaceAction ProfileAction.updateStaffShiftPreferencesAction (staffSectionActionRoute actionUrl ("#" <> staffProfilePreferencesSectionId) "outerHTML show:none"))
 staffShiftPreferencesOverlayRequestMode PageOverlayForm _ = Nothing
 
 staffAppShellActionRoute :: Text -> AppShellActionRoute

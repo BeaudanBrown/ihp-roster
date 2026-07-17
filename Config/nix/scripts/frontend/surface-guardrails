@@ -132,8 +132,8 @@ expect_match \
     'Text.strip parentExpiry /= "#184"' \
     Application/Helper/FrontendContract/Surface/HaskellAdapter/Family.hs
 current_action_parser_consumers="$( (rg -o --glob '*.hs' 'parseSurfaceActionParams[[:space:]]*@' Web || true) | wc -l)"
-if [ "$current_action_parser_consumers" -ne 33 ]; then
-    report_failure "typed Action migration expects 33 remaining generic parser consumers at this #192 checkpoint; found $current_action_parser_consumers"
+if [ "$current_action_parser_consumers" -ne 27 ]; then
+    report_failure "typed Action migration expects 27 remaining generic parser consumers after the Profile/Staff checkpoint; found $current_action_parser_consumers"
 fi
 current_intent_parser_consumers="$( (rg -o --glob '*.hs' 'parseSurfaceIntentParams[[:space:]]*@' Web || true) | wc -l)"
 if [ "$current_intent_parser_consumers" -ne 5 ]; then

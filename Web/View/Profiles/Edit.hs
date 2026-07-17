@@ -3,10 +3,10 @@
 module Web.View.Profiles.Edit where
 
 import qualified Application.Helper.FrontendContract.Surface.Profile as Surface
+import qualified Application.Helper.FrontendContract.Surface.Profile.Action as ProfileAction
 import Application.Helper.FrontendContract.Surface.Runtime (FrontendSurfaceActionRoute (..),
                                                             FrontendSurfaceCustomHtmxAttrs (..),
                                                             SurfaceImpl,
-                                                            frontendSurfaceAction,
                                                             renderFrontendSurfaceActionForm,
                                                             renderFrontendSurfaceMount)
 import Application.Helper.FrontendContract.Surface.Values
@@ -265,7 +265,7 @@ renderProfileForm staff currentUserEmail staffManagementFields =
             , staffProfileDetailsFormAction = pathTo UpdateProfileAction
             , staffProfileDetailsFormClass = ""
             , staffProfileDetailsFormRequestMode =
-                Just (StaffProfileDetailsSurfaceAction (frontendSurfaceAction @Surface.ProfileSurface @Surface.UpdateProfileDetails) (profileSectionActionRoute (pathTo UpdateProfileAction) profileDetailsSectionId "outerHTML show:none"))
+                Just (StaffProfileDetailsSurfaceAction ProfileAction.updateProfileDetailsAction (profileSectionActionRoute (pathTo UpdateProfileAction) profileDetailsSectionId "outerHTML show:none"))
             , staffProfileDetailsSurfaceFields = fields
             , staffProfileDetailsFormAttributes = []
             , staffProfileDetailsFormHiddenInputs = [hsx|<input type="hidden" name={surfaceFieldNameFrom @Surface.SectionField fields} value="profile"/>|]
@@ -280,7 +280,12 @@ renderProfileForm staff currentUserEmail staffManagementFields =
         staff
         (Just currentUserEmail)
   where
-    fields = buildStaffProfileDetailsSurfaceFields "profile" staff staffManagementFields
+    fields =
+        buildStaffProfileDetailsSurfaceFields
+            ProfileAction.updateProfileDetailsActionFields
+            "profile"
+            staff
+            staffManagementFields
 
 renderProfileShiftPreferencesForm :: [PreferenceWeekday] -> [ShiftPreferenceSelection] -> Html
 renderProfileShiftPreferencesForm preferenceWeekdays selectedShiftPreferences =
@@ -290,7 +295,7 @@ renderProfileShiftPreferencesForm preferenceWeekdays selectedShiftPreferences =
             , staffShiftPreferencesFormAction = pathTo UpdateProfileAction
             , staffShiftPreferencesFormClass = ""
             , staffShiftPreferencesFormRequestMode =
-                Just (StaffShiftPreferencesSurfaceAction (frontendSurfaceAction @Surface.ProfileSurface @Surface.UpdateProfileShiftPreferences) (profileSectionActionRoute (pathTo UpdateProfileAction) profilePreferencesSectionId "outerHTML show:none"))
+                Just (StaffShiftPreferencesSurfaceAction ProfileAction.updateProfileShiftPreferencesAction (profileSectionActionRoute (pathTo UpdateProfileAction) profilePreferencesSectionId "outerHTML show:none"))
             , staffShiftPreferencesSurfaceFields = fields
             , staffShiftPreferencesFormHiddenInputs = [hsx|<input type="hidden" name={surfaceFieldNameFrom @Surface.SectionField fields} value="preferences"/>|]
             , staffShiftPreferencesFormSubmitLabel = "Save shift preferences"
@@ -298,7 +303,11 @@ renderProfileShiftPreferencesForm preferenceWeekdays selectedShiftPreferences =
         preferenceWeekdays
         selectedShiftPreferences
   where
-    fields = buildStaffShiftPreferencesSurfaceFields "preferences" selectedShiftPreferences
+    fields =
+        buildStaffShiftPreferencesSurfaceFields
+            ProfileAction.updateProfileShiftPreferencesActionFields
+            "preferences"
+            selectedShiftPreferences
 
 renderProfileStaffManagementSection :: SurfaceFields Surface.StaffProfileFields -> StaffManagementFieldData -> Html
 renderProfileStaffManagementSection fields managementFields = [hsx|
@@ -347,7 +356,7 @@ renderProfileLeaveRequestFormFragment leaveRequest = [hsx|
 renderProfileLeaveRequestActionForm :: LeaveRequest -> Html
 renderProfileLeaveRequestActionForm leaveRequest =
     renderFrontendSurfaceActionForm
-        (frontendSurfaceAction @Surface.ProfileSurface @Surface.CreateProfileLeaveRequest fields)
+        (ProfileAction.createProfileLeaveRequestAction fields)
         (profileActionRoute profileCreateLeaveRequestPath)
             { actionRouteExtraAttrs = [("id", "profile-leave-request-form")]
             }
@@ -361,10 +370,10 @@ renderProfileLeaveRequestActionForm leaveRequest =
         |]
   where
     fields =
-        surfaceField @Surface.StartDate leaveRequest.startDate
-            :& surfaceField @Surface.EndDate leaveRequest.endDate
-            :& surfaceField @Surface.Notes (fromMaybe "" leaveRequest.notes)
-            :& NoSurfaceFields
+        ProfileAction.createProfileLeaveRequestActionFields
+            leaveRequest.startDate
+            leaveRequest.endDate
+            (fromMaybe "" leaveRequest.notes)
     fieldNames =
         LeaveRequestFieldNames
             { leaveRequestStartDateFieldName = surfaceFieldNameFrom @Surface.StartDate fields

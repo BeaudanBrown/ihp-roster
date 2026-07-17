@@ -1,5 +1,6 @@
 module Web.View.Users.New where
 
+import qualified Application.Helper.FrontendContract.Surface.Profile.Action as ProfileAction
 import Application.Helper.View.VenueBootstrap (renderVenueBootstrapFields)
 import Web.View.Prelude
 import Web.View.StaffProfileForm (buildStaffProfileDetailsSurfaceFields,
@@ -124,7 +125,12 @@ renderInvitedProfileDetailsForm NewAccountProfileFormConfig { .. } user staff em
             , staffProfileDetailsFormAction = newAccountProfileFormAction
             , staffProfileDetailsFormClass = ""
             , staffProfileDetailsFormRequestMode = Nothing
-            , staffProfileDetailsSurfaceFields = buildStaffProfileDetailsSurfaceFields "profile" staff Nothing
+            , staffProfileDetailsSurfaceFields =
+                buildStaffProfileDetailsSurfaceFields
+                    ProfileAction.updateProfileDetailsActionFields
+                    "profile"
+                    staff
+                    Nothing
             , staffProfileDetailsFormAttributes = []
             , staffProfileDetailsFormHiddenInputs = newAccountProfileFormHiddenInputs
             , staffProfileDetailsFormBeforeFields = [hsx|

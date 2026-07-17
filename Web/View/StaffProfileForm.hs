@@ -5,7 +5,8 @@ module Web.View.StaffProfileForm where
 import Application.Helper.Controller (VenueRole (..), currentUserIsSuperAdmin,
                                       hasRole, parseVenueRole, venueRoleToText)
 import qualified Application.Helper.FrontendContract.Surface.Profile as Surface
-import Application.Helper.FrontendContract.Surface.Values
+import Application.Helper.FrontendContract.Surface.Values (SurfaceFields,
+                                                           surfaceFieldNameFrom)
 import Application.Helper.StaffShiftPreferences
 import qualified Data.Text as Text
 import Numeric (showFFloat)
@@ -23,34 +24,66 @@ data StaffManagementFieldData = StaffManagementFieldData
     , managementRosterGroupId          :: Maybe (Id RosterGroup)
     }
 
-buildStaffProfileDetailsSurfaceFields :: Text -> Staff -> Maybe StaffManagementFieldData -> SurfaceFields Surface.StaffProfileFields
-buildStaffProfileDetailsSurfaceFields section staff maybeManagement =
-    surfaceField @Surface.FirstNameField staff.firstName
-        :& surfaceField @Surface.LastNameField staff.lastName
-        :& surfaceField @Surface.PreferredNameField (fromMaybe "" staff.preferredName)
-        :& surfaceField @Surface.PhoneField staff.phone
-        :& surfaceField @Surface.IdealShiftsPerWeekField staff.idealShiftsPerWeek
-        :& surfaceField @Surface.EmergencyContactNameField staff.emergencyContactName
-        :& surfaceField @Surface.EmergencyContactPhoneField staff.emergencyContactPhone
-        :& surfaceField @Surface.SectionField section
-        :& surfaceOptionalField @Surface.VenueRoleField submittedVenueRole
-        :& surfaceOptionalField @Surface.EmploymentBasisField submittedEmploymentBasis
-        :& surfaceOptionalField @Surface.PayRateSelectionField submittedPayRateSelection
-        :& surfaceOptionalField @Surface.IsActiveField submittedIsActive
-        :& surfaceOptionalField @Surface.RosterGroupIdsField submittedRosterGroupIds
-        :& NoSurfaceFields
+type StaffProfileDetailsSurfaceFieldsBuilder =
+    Text ->
+    Text ->
+    Text ->
+    Text ->
+    Int ->
+    Text ->
+    Text ->
+    Text ->
+    Maybe Text ->
+    Maybe Text ->
+    Maybe Text ->
+    Maybe Bool ->
+    Maybe [UUID] ->
+    SurfaceFields Surface.StaffProfileFields
+
+buildStaffProfileDetailsSurfaceFields :: StaffProfileDetailsSurfaceFieldsBuilder -> Text -> Staff -> Maybe StaffManagementFieldData -> SurfaceFields Surface.StaffProfileFields
+buildStaffProfileDetailsSurfaceFields buildFields section staff maybeManagement =
+    buildFields
+        submittedFirstName
+        submittedLastName
+        submittedPreferredName
+        submittedPhone
+        submittedIdealShiftsPerWeek
+        submittedEmergencyContactName
+        submittedEmergencyContactPhone
+        submittedSection
+        submittedVenueRole
+        submittedEmploymentBasis
+        submittedPayRateSelection
+        submittedIsActive
+        submittedRosterGroupIds
   where
+    submittedFirstName = staff.firstName
+    submittedLastName = staff.lastName
+    submittedPreferredName = fromMaybe "" staff.preferredName
+    submittedPhone = staff.phone
+    submittedIdealShiftsPerWeek = staff.idealShiftsPerWeek
+    submittedEmergencyContactName = staff.emergencyContactName
+    submittedEmergencyContactPhone = staff.emergencyContactPhone
+    submittedSection = section
     submittedVenueRole = maybeManagement >>= (.managementVenueMembership) >>= parseVenueRole >>= (Just . venueRoleToText)
     submittedEmploymentBasis = inputValue . (.employmentBasis) . (.managementStaff) <$> maybeManagement
     submittedPayRateSelection = staffPayRateSelectionValue . (.managementStaff) <$> maybeManagement
     submittedIsActive = (.isActive) . (.managementStaff) <$> maybeManagement
     submittedRosterGroupIds = fmap (map unpackId . (.managementSelectedRosterGroupIds)) maybeManagement
 
-buildStaffShiftPreferencesSurfaceFields :: Text -> [ShiftPreferenceSelection] -> SurfaceFields Surface.StaffShiftPreferenceFields
-buildStaffShiftPreferencesSurfaceFields section selectedShiftPreferences =
-    surfaceField @Surface.SectionField section
-        :& surfaceOptionalField @Surface.ShiftPreferenceKeysField (Just (map (encodeShiftPreferenceKey . (.weekdayIndex)) selectedShiftPreferences))
-        :& NoSurfaceFields
+type StaffShiftPreferencesSurfaceFieldsBuilder =
+    Text ->
+    Maybe [Text] ->
+    SurfaceFields Surface.StaffShiftPreferenceFields
+
+buildStaffShiftPreferencesSurfaceFields :: StaffShiftPreferencesSurfaceFieldsBuilder -> Text -> [ShiftPreferenceSelection] -> SurfaceFields Surface.StaffShiftPreferenceFields
+buildStaffShiftPreferencesSurfaceFields buildFields section selectedShiftPreferences =
+    buildFields
+        submittedSection
+        submittedShiftPreferenceKeys
+  where
+    submittedSection = section
+    submittedShiftPreferenceKeys = Just (map (encodeShiftPreferenceKey . (.weekdayIndex)) selectedShiftPreferences)
 
 staffPayRateSelectionValue :: Staff -> Text
 staffPayRateSelectionValue staff =

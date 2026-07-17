@@ -1,6 +1,7 @@
 module Web.Controller.LeaveRequests where
 
 import qualified Application.Helper.FrontendContract.Surface.Profile as ProfileSurface
+import qualified Application.Helper.FrontendContract.Surface.Profile.Action as ProfileAction
 import Application.Helper.FrontendContract.Surface.Request (SurfaceRequestFieldError,
                                                             attachSurfaceRequestFieldErrors,
                                                             parseSurfaceActionParams,
@@ -226,7 +227,7 @@ parseSurfaceLeaveRequest LeavePageResponseContext = Nothing
 parseSurfaceLeaveRequest LeaveProfileResponseContext =
     Just $
         toProfileLeaveRequest
-            <$> parseSurfaceActionParams @ProfileSurface.ProfileSurface @ProfileSurface.CreateProfileLeaveRequest
+            <$> ProfileAction.parseCreateProfileLeaveRequestActionParams
   where
     toProfileLeaveRequest fields =
         SurfaceLeaveRequest
@@ -237,7 +238,7 @@ parseSurfaceLeaveRequest LeaveProfileResponseContext =
 parseSurfaceLeaveRequest LeaveStaffResponseContext =
     Just $
         toStaffLeaveRequest
-            <$> parseSurfaceActionParams @ProfileSurface.StaffSurface @ProfileSurface.CreateStaffLeaveRequest
+            <$> ProfileAction.parseCreateStaffLeaveRequestActionParams
   where
     toStaffLeaveRequest fields =
         SurfaceLeaveRequest
