@@ -113,6 +113,8 @@ tests = beforeAll testContext do
                 response `responseBodyShouldContain` "timesheets:"
                 response `responseBodyShouldContain` "data-timesheet-day-offset=\"0\""
                 response `responseBodyShouldContain` "hx-sync=\"closest #timesheet-week-shell:replace\""
+                response `responseBodyShouldContain` "data-bepis-surface-action=\"navigate-timesheet-week\""
+                response `responseBodyShouldContain` "data-bepis-surface-action=\"update-timesheet-filters\""
                 response `responseBodyShouldNotContain` "timesheet-week-shell-sync-custom-htmx"
 
         it "preserves partial direct-route filters outside complete Surface action submissions" $ withContext do
@@ -510,6 +512,7 @@ tests = beforeAll testContext do
                 response `responseBodyShouldContain` "timesheet-shape-segment-shift"
                 response `responseBodyShouldContain` "timesheet-shape-segment-break"
                 response `responseBodyShouldContain` ">Create</button>"
+                response `responseBodyShouldContain` "data-bepis-surface-action=\"create-timesheet-entry-from-suggestion\""
                 response `responseBodyShouldNotContain` ">Edit first</a>"
                 query @TimesheetEntry |> fetchCount >>= (`shouldBe` 0)
 

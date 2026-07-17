@@ -13,8 +13,8 @@ module Web.Timesheets.Paths
     , timesheetWeekUrl
     ) where
 
-import qualified Application.Helper.FrontendContract.Surface.Timesheets as Surface
-import Application.Helper.FrontendContract.Surface.Values
+import qualified Application.Helper.FrontendContract.Surface.Timesheets.Action as TimesheetsAction
+import Application.Helper.FrontendContract.Surface.Values (surfaceFieldsText)
 import Application.Helper.Url (replaceQueryParams)
 import Data.Time.Calendar (Day)
 import Data.UUID (UUID)
@@ -81,11 +81,10 @@ editTimesheetEntryUrl timesheetEntryId weekOffset showApproved showAllStaff show
 timesheetStateQueryParams :: Int -> Bool -> Bool -> Bool -> Maybe UUID -> [(Text, Text)]
 timesheetStateQueryParams weekOffset showApproved showAllStaff showSuggestions staffFilterId =
     surfaceFieldsText
-        ( surfaceField @Surface.WeekOffset weekOffset
-            :& surfaceField @Surface.ShowApproved showApproved
-            :& surfaceField @Surface.ShowAllStaff showAllStaff
-            :& surfaceField @Surface.ShowSuggestions showSuggestions
-            :& surfaceOptionalField @Surface.StaffFilterId staffFilterId
-            :& NoSurfaceFields
-            :: SurfaceFields (SurfaceActionFieldSpecs Surface.TimesheetsSurface Surface.NavigateTimesheetWeek)
+        ( TimesheetsAction.navigateTimesheetWeekActionFields
+            weekOffset
+            showApproved
+            showAllStaff
+            showSuggestions
+            staffFilterId
         )
