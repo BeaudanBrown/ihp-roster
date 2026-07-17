@@ -14,8 +14,8 @@ module Web.Controller.Admin.Xero.Timesheets
     ) where
 
 import qualified Application.Helper.FrontendContract.Surface.Admin as Surface
-import Application.Helper.FrontendContract.Surface.Request (parseSurfaceActionParams,
-                                                            surfaceRequestFieldErrorsMessage)
+import qualified Application.Helper.FrontendContract.Surface.Admin.Action as AdminAction
+import Application.Helper.FrontendContract.Surface.Request (surfaceRequestFieldErrorsMessage)
 import Application.Helper.FrontendContract.Surface.Values (surfaceFieldValue)
 import Application.Helper.SurfaceResource (LiveMutationResult (..))
 import Application.Helper.View (ToastOverlayPosition (ToastBottomCenter),
@@ -67,7 +67,7 @@ showXeroTimesheetPreparationStaffMappingsFragmentAction ::
 showXeroTimesheetPreparationStaffMappingsFragmentAction runId = do
     result <- loadXeroTimesheetPreparationView runId
     respondHtml $
-        case (parseSurfaceActionParams @Surface.AdminXeroSurface @Surface.ShowXeroTimesheetPreparationStaffMappings, result) of
+        case (AdminAction.parseShowXeroTimesheetPreparationStaffMappingsActionParams, result) of
             (Left errors, _) -> [hsx|<section id="xero-preparation-staff-mappings"><div class="alert alert-danger mb-0">{surfaceRequestFieldErrorsMessage errors}</div></section>|]
             (_, Left message) -> [hsx|<section id="xero-preparation-staff-mappings"><div class="alert alert-danger mb-0">{message}</div></section>|]
             (Right fields, Right view) ->

@@ -9,9 +9,9 @@ module Web.View.Admin.VenueSettings
 
 import Application.Helper.Controller (currentVenueOrNothing)
 import qualified Application.Helper.FrontendContract.Surface.Admin as Surface
+import qualified Application.Helper.FrontendContract.Surface.Admin.Action as AdminAction
 import Application.Helper.FrontendContract.Surface.Runtime (FrontendSurfaceActionRoute (..),
                                                             FrontendSurfaceCustomHtmxAttrs (..),
-                                                            frontendSurfaceAction,
                                                             renderFrontendSurfaceActionForm,
                                                             renderFrontendSurfaceMount)
 import Application.Helper.FrontendContract.Surface.Values
@@ -60,7 +60,7 @@ renderVenueSettingsSection venueConfig =
 renderRosterTimePickerWindowForm :: VenueConfig -> Html
 renderRosterTimePickerWindowForm venueConfig =
     renderFrontendSurfaceActionForm
-        (frontendSurfaceAction @Surface.AdminVenueSettingsSurface @Surface.UpdateVenueConfig fields)
+        (AdminAction.updateVenueConfigAction fields)
         venueSettingRoute
         [hsx|
         <input type="hidden" name={surfaceFieldNameFrom @Surface.ConfigFieldField fields} value="timePickerWindow" />
@@ -89,18 +89,18 @@ renderRosterTimePickerWindowForm venueConfig =
     |]
   where
     fields =
-        surfaceField @Surface.ConfigFieldField "timePickerWindow"
-            :& surfaceOptionalField @Surface.RosterEndTimesEnabled Nothing
-            :& surfaceOptionalField @Surface.AutoTimesheetCreationEnabled Nothing
-            :& surfaceOptionalField @Surface.TimePickerStart (Just (venueTimePickerStartTimeText venueConfig))
-            :& surfaceOptionalField @Surface.TimePickerEnd (Just (venueTimePickerFinalSelectableTimeText venueConfig))
-            :& surfaceOptionalField @Surface.RosterWeekStartsOn Nothing
-            :& NoSurfaceFields
+        AdminAction.updateVenueConfigActionFields
+            "timePickerWindow"
+            Nothing
+            Nothing
+            (Just (venueTimePickerStartTimeText venueConfig))
+            (Just (venueTimePickerFinalSelectableTimeText venueConfig))
+            Nothing
 
 renderRosterEndTimesForm :: VenueConfig -> Html
 renderRosterEndTimesForm venueConfig =
     renderFrontendSurfaceActionForm
-        (frontendSurfaceAction @Surface.AdminVenueSettingsSurface @Surface.UpdateVenueConfig fields)
+        (AdminAction.updateVenueConfigAction fields)
         venueSettingRoute
         [hsx|
         <input type="hidden" name={surfaceFieldNameFrom @Surface.ConfigFieldField fields} value="rosterEndTimesEnabled" />
@@ -114,13 +114,13 @@ renderRosterEndTimesForm venueConfig =
     |]
   where
     fields =
-        surfaceField @Surface.ConfigFieldField "rosterEndTimesEnabled"
-            :& surfaceOptionalField @Surface.RosterEndTimesEnabled (Just venueConfig.rosterEndTimesEnabled)
-            :& surfaceOptionalField @Surface.AutoTimesheetCreationEnabled Nothing
-            :& surfaceOptionalField @Surface.TimePickerStart Nothing
-            :& surfaceOptionalField @Surface.TimePickerEnd Nothing
-            :& surfaceOptionalField @Surface.RosterWeekStartsOn Nothing
-            :& NoSurfaceFields
+        AdminAction.updateVenueConfigActionFields
+            "rosterEndTimesEnabled"
+            (Just venueConfig.rosterEndTimesEnabled)
+            Nothing
+            Nothing
+            Nothing
+            Nothing
 
 renderVenueSettingToggle :: Text -> Text -> Bool -> Html
 renderVenueSettingToggle inputId fieldName isEnabled =

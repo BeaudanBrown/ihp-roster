@@ -15,9 +15,9 @@ import Application.Helper.FrontendContract.AppShell.Runtime (AppShellActionRoute
                                                              appShellActionByMarker,
                                                              renderAppShellActionForm)
 import qualified Application.Helper.FrontendContract.Surface.Admin as Surface
+import qualified Application.Helper.FrontendContract.Surface.Admin.Action as AdminAction
 import Application.Helper.FrontendContract.Surface.Runtime (FrontendSurfaceActionRoute (..),
                                                             FrontendSurfaceCustomHtmxAttrs (..),
-                                                            frontendSurfaceAction,
                                                             renderFrontendSurfaceActionForm,
                                                             renderFrontendSurfaceMount)
 import Application.Helper.FrontendContract.Surface.Values (SurfaceFields (NoSurfaceFields),
@@ -98,7 +98,7 @@ renderXeroAutoSyncTrigger :: Bool -> Maybe XeroConnection -> Html
 renderXeroAutoSyncTrigger True (Just connection)
     | connection.connectionStatus == "active" =
         renderFrontendSurfaceActionForm
-            (frontendSurfaceAction @Surface.AdminXeroSurface @Surface.SyncXeroPayrollReferenceData NoSurfaceFields)
+            (AdminAction.syncXeroPayrollReferenceDataAction AdminAction.syncXeroPayrollReferenceDataActionFields)
             xeroReferenceSyncActionRoute
                 { actionRouteCustomHtmx =
                     [ FrontendSurfaceCustomHtmxAttrs
@@ -180,7 +180,7 @@ renderXeroActionControls connection connectionActionsAllowed = [hsx|
 renderXeroReferenceSyncForm :: Bool -> Html
 renderXeroReferenceSyncForm actionsAllowed =
     renderFrontendSurfaceActionForm
-        (frontendSurfaceAction @Surface.AdminXeroSurface @Surface.SyncXeroPayrollReferenceData NoSurfaceFields)
+        (AdminAction.syncXeroPayrollReferenceDataAction AdminAction.syncXeroPayrollReferenceDataActionFields)
         xeroReferenceSyncActionRoute
         [hsx|<button type="submit" class="btn btn-outline-primary" disabled={not actionsAllowed}>Sync Xero data</button>|]
 

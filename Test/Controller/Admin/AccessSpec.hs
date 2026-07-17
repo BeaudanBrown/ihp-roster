@@ -88,6 +88,7 @@ tests = beforeAll testContext do
                 response `responseBodyShouldNotContain` "Payroll Earnings CSV"
                 response `responseBodyShouldNotContain` "admin-slot-names-fragment"
                 response `responseBodyShouldContain` "admin-invites-fragment"
+                response `responseBodyShouldContain` "data-bepis-surface-action=\"create-venue-invitation\""
                 body <- responseBody response
                 (cs body :: String) `shouldContainInOrder` ["Invites", "Shift Types", "Roster Groups"]
                 response `responseBodyShouldNotContain` "Compliance"

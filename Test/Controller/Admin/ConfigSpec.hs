@@ -308,6 +308,7 @@ tests = beforeAll testContext do
                 venueSettingsResponse `responseBodyShouldContain` "hx-target=\"#admin-venue-settings-fragment\""
                 venueSettingsResponse `responseBodyShouldContain` "hx-swap=\"none\""
                 venueSettingsResponse `responseBodyShouldContain` "hx-push-url=\"false\""
+                venueSettingsResponse `responseBodyShouldContain` "data-bepis-surface-action=\"update-venue-config\""
                 venueSettingsResponse `responseBodyShouldNotContain` "Roster week starts on"
                 venueSettingsResponse `responseBodyShouldNotContain` "admin-roster-week-starts-on"
                 venueSettingsResponse `responseBodyShouldNotContain` "name=\"rosterWeekStartsOn\""
@@ -325,6 +326,7 @@ tests = beforeAll testContext do
                 exportsResponse `responseBodyShouldContain` "hx-post=\"/CreateExportJob\""
                 exportsResponse `responseBodyShouldContain` "hx-target=\"#admin-exports-fragment\""
                 exportsResponse `responseBodyShouldContain` "hx-swap=\"none\""
+                exportsResponse `responseBodyShouldContain` "data-bepis-surface-action=\"create-export-job\""
                 exportsResponse `responseBodyShouldNotContain` "id=\"app\""
 
         it "creates export jobs through targeted admin fragments" $ withContext do
@@ -378,6 +380,11 @@ tests = beforeAll testContext do
                 pageResponse `responseBodyShouldContain` "hx-trigger=\"change\""
                 pageResponse `responseBodyShouldContain` "hx-include=\"closest form\""
                 pageResponse `responseBodyShouldContain` "data-admin-shift-type-field-key=\""
+                pageResponse `responseBodyShouldContain` "data-bepis-surface-action=\"create-shift-type\""
+                pageResponse `responseBodyShouldContain` "data-bepis-surface-action=\"update-shift-type\""
+                pageResponse `responseBodyShouldContain` "data-bepis-surface-action=\"autosave-shift-type-name\""
+                pageResponse `responseBodyShouldContain` "data-bepis-surface-action=\"autosave-shift-type-selection\""
+                pageResponse `responseBodyShouldContain` "data-bepis-surface-action=\"toggle-inactive-shift-types\""
                 pageResponse `responseBodyShouldContain` "name=\"colourKey\""
                 pageResponse `responseBodyShouldContain` "Optional Colour"
                 pageBody <- responseBody pageResponse
@@ -395,6 +402,9 @@ tests = beforeAll testContext do
                 pageResponse `responseBodyShouldNotContain` "app-status-info\">Default</span>"
                 pageResponse `responseBodyShouldContain` ("hx-post=\"/UpdateRosterGroup?rosterGroupId=" <> tshow rosterGroup.id)
                 pageResponse `responseBodyShouldContain` "hx-push-url=\"false\""
+                pageResponse `responseBodyShouldContain` "data-bepis-surface-action=\"create-roster-group\""
+                pageResponse `responseBodyShouldContain` "data-bepis-surface-action=\"update-roster-group\""
+                pageResponse `responseBodyShouldContain` "data-bepis-surface-action=\"toggle-inactive-roster-groups\""
 
                 shiftTypesVersionBefore <- currentLiveUpdateVersion (AdminLive.adminShiftTypesLiveScope (unpackId venue.id))
                 xeroVersionBefore <- currentLiveUpdateVersion (AdminLive.adminXeroLiveScope (unpackId venue.id))

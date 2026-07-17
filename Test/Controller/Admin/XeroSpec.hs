@@ -106,6 +106,7 @@ tests = beforeAll testContext do
                 response `responseBodyShouldContain` "Import pay items"
                 response `responseBodyShouldContain` "Sync Xero data"
                 response `responseBodyShouldContain` "hx-post=\"/SyncXeroPayrollReferenceData\""
+                response `responseBodyShouldContain` "data-bepis-surface-action=\"sync-xero-payroll-reference-data\""
                 response `responseBodyShouldContain` "hx-swap=\"none\""
                 response `responseBodyShouldNotContain` "hx-trigger=\"load\""
                 response `responseBodyShouldNotContain` "xero-staff-mappings-data"
@@ -809,6 +810,7 @@ tests = beforeAll testContext do
                 response `responseStatusShouldBe` status200
                 response `responseBodyShouldContain` "Staff mappings"
                 response `responseBodyShouldNotContain` "Show matched"
+                response `responseBodyShouldContain` "data-bepis-surface-action=\"show-xero-timesheet-preparation-staff-mappings\""
                 response `responseBodyShouldContain` "Xero employee"
                 response `responseBodyShouldContain` "Suggested match — click Approve to confirm"
                 response `responseBodyShouldContain` "Ada Lovelace"
