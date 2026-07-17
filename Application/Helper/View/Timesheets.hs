@@ -23,6 +23,7 @@ import Application.Helper.FrontendContract.AppShell.Runtime (AppShellActionRoute
                                                              renderAppShellActionForm)
 import Application.Helper.FrontendContract.IR (AppShellActionIR)
 import qualified Application.Helper.FrontendContract.Surface.Timesheets as Surface
+import qualified Application.Helper.FrontendContract.Surface.Timesheets.Action as TimesheetsAction
 import Application.Helper.FrontendContract.Surface.Values
 import Application.Helper.View.Audience
 import Application.Helper.View.Format
@@ -132,13 +133,12 @@ renderTimesheetFormFields formOrigin entry staffMembers shiftTypes weekOffset sh
         breakEndTimeValue = optionalTimeOfDayToStorageValue entry.breakEndTime
         dateValueIso = tshow entry.workedOn :: Text
         stateFields =
-            surfaceField @Surface.WeekOffset weekOffset
-                :& surfaceField @Surface.ShowApproved showApproved
-                :& surfaceField @Surface.ShowAllStaff showAllStaff
-                :& surfaceField @Surface.ShowSuggestions showSuggestions
-                :& surfaceOptionalField @Surface.StaffFilterId selectedStaffFilterId
-                :& NoSurfaceFields
-                :: SurfaceFields (SurfaceActionFieldSpecs Surface.TimesheetsSurface Surface.CreateTimesheetEntryFromSuggestion)
+            TimesheetsAction.createTimesheetEntryFromSuggestionActionFields
+                weekOffset
+                showApproved
+                showAllStaff
+                showSuggestions
+                selectedStaffFilterId
 
 renderTimesheetFormOriginNotice :: TimesheetFormOrigin -> Html
 renderTimesheetFormOriginNotice AdHocTimesheetForm = mempty
