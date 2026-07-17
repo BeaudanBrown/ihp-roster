@@ -70,6 +70,8 @@ tests = beforeAll testContext do
                 response `responseBodyShouldContain` "hx-target=\"#support-award-rates\""
                 response `responseBodyShouldContain` "id=\"support-public-holidays\""
                 response `responseBodyShouldContain` "hx-target=\"#support-public-holidays\""
+                response `responseBodyShouldContain` "data-bepis-surface-action=\"create-public-holiday-refresh-job\""
+                response `responseBodyShouldContain` "data-bepis-surface-action=\"create-fwc-mapd-refresh-job\""
 
         it "shows submitted feedback without the submit-feedback button for super admins" $ withContext do
             withCleanDb do

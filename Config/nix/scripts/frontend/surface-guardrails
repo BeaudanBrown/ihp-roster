@@ -135,6 +135,10 @@ expect_no_match \
     "production callers must use generated exact Surface Action parser adapters" \
     'parseSurfaceActionParams[[:space:]]*@' \
     Web
+expect_no_match \
+    "production callers must use curated generated Surface Action metadata adapters" \
+    'frontendSurfaceAction[[:space:]]*@' \
+    Web
 current_intent_parser_consumers="$( (rg -o --glob '*.hs' 'parseSurfaceIntentParams[[:space:]]*@' Web || true) | wc -l)"
 if [ "$current_intent_parser_consumers" -ne 5 ]; then
     report_failure "typed Intent operation inventory expects 5 current generic parser consumers before #187; found $current_intent_parser_consumers"

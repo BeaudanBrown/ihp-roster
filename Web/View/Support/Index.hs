@@ -5,10 +5,10 @@ module Web.View.Support.Index where
 import Application.Helper.Feedback (allowedFeedbackPriorities,
                                     allowedFeedbackStatuses)
 import Application.Helper.FrontendContract.Surface.Runtime (FrontendSurfaceActionRoute (..),
-                                                            frontendSurfaceAction,
                                                             renderFrontendSurfaceActionForm,
                                                             renderFrontendSurfaceMount)
 import qualified Application.Helper.FrontendContract.Surface.Support as Surface
+import qualified Application.Helper.FrontendContract.Surface.Support.Action as SupportAction
 import Application.Helper.FrontendContract.Surface.Values (SurfaceFields (NoSurfaceFields),
                                                            surfaceFragmentTargetId)
 import Application.Helper.FwcMapd (FwcMapdAdminData (..),
@@ -354,7 +354,7 @@ renderPublicHolidayCoverageStatus status =
 renderPublicHolidayRefreshForm :: Maybe AppJob -> Html
 renderPublicHolidayRefreshForm activeRefreshJob =
     renderFrontendSurfaceActionForm
-        (frontendSurfaceAction @Surface.SupportSurface @Surface.CreatePublicHolidayRefreshJob NoSurfaceFields)
+        (SupportAction.createPublicHolidayRefreshJobAction SupportAction.createPublicHolidayRefreshJobActionFields)
         (supportActionRoute (pathTo CreatePublicHolidayRefreshJobAction))
             { actionRouteExtraAttrs = [("class", "d-grid")]
             }
@@ -386,7 +386,7 @@ renderPublicHolidayRefreshJobStatus maybeJob =
 renderAwardRefreshForm :: Maybe AppJob -> Html
 renderAwardRefreshForm activeRefreshJob =
     renderFrontendSurfaceActionForm
-        (frontendSurfaceAction @Surface.SupportSurface @Surface.CreateFwcMapdRefreshJob NoSurfaceFields)
+        (SupportAction.createFwcMapdRefreshJobAction SupportAction.createFwcMapdRefreshJobActionFields)
         (supportActionRoute (pathTo CreateFwcMapdRefreshJobAction))
             { actionRouteExtraAttrs = [("class", "d-grid")]
             }
