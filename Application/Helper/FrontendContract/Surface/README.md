@@ -203,8 +203,12 @@ successful business refresh behavior. Its `fields` list is the browser-submitted
 payload/form boundary. Unrelated route params and venue/page context stay in
 Haskell route builders such as `pathTo` and `appendQueryParams`; do not move IHP
 routes into the type-level DSL. Declared action fields do not belong in
-`FrontendSurfaceActionRoute`: construct the complete `SurfaceFields` bundle and
-pass it to `frontendSurfaceAction`.
+`FrontendSurfaceActionRoute`. Production callers import their feature-owned
+`Surface.<Feature>.Action` facade, build the complete bundle with its generated
+operation field builder, and pass that bundle to the generated operation
+metadata function. The generic `frontendSurfaceAction` constructor remains an
+implementation seam for private generated modules and focused fixtures, not a
+feature-call-site API.
 
 Use standard HTMX options for stable request metadata:
 
@@ -239,8 +243,10 @@ They can also render standard `method`/`action`, `formaction`, or `href` attrs f
 browser semantics, but that is not a complete no-JS UX unless the controller
 returns full-page or redirect fallbacks.
 
-Controllers parse the same declaration with `parseSurfaceActionParams` or
-`parseSurfaceIntentParams`. Parsing ignores unrelated request parameters,
+Controllers parse the same declaration through the exact operation parser from
+their feature-owned `Surface.<Feature>.Action` facade. Intent callers remain on
+`parseSurfaceIntentParams` until the coordinated Intent publication. Parsing
+ignores unrelated request parameters,
 returns declaration-ordered `SurfaceFields`, and accumulates structured field
 errors. Required fields reject absence, optional fields map absence or blank to
 `Nothing`, and nullable fields require presence while mapping blank to
@@ -284,9 +290,10 @@ reflected registry by protocol strings. `surfaceNameValue`, `surfaceScopeValue`,
 `surfaceFragmentValue`, `surfaceResourceValue`, `surfaceSourceRefValue`,
 `surfaceDropzoneRefValue`, `surfaceActivationRefValue`, and
 `surfaceDomTokenValue` are indexed by both the owning `Surface` and marker.
-Actions and intents are selected through the opaque `frontendSurfaceAction` and
-`frontendSurfaceIntentForm` constructors. A marker owned by another surface is
-a compile error.
+Actions are selected through generated operation functions exported by the
+feature-owned `Action` facade. Intents remain selected through the opaque
+`frontendSurfaceIntentForm` constructor until their coordinated migration. A
+marker owned by another surface is a compile error.
 
 Build scope, mount-state, fragment, and action payloads with declaration-ordered
 `SurfaceFields`, `surfaceField`, `surfaceOptionalField`, and
@@ -421,37 +428,32 @@ request parser delegating to `parseSurfaceActionParams` or
 decision, and every exclusion requires a non-empty reason.
 
 The production inventory contains all 53 checked actions and all five checked
-intents. Forty-eight actions currently have Haskell adapter consumers; the five
-action declarations backing the same-named interaction intents are typed,
-reason-bearing declaration exclusions. All 48 eligible actions have current
-field-builder and render-metadata consumers, while 33 have exact parser
-consumers and 15 record why no parser is called. The 33 current generic Action
-parser calls are distributed across eight `Web/` modules; all five generic
-Intent parser calls and form-metadata consumers are in the Roster feature. The
-focused inventory test pins exact declaration identities and the source
-guardrail pins both pre-migration call counts. All five intents have current
-builder, form-metadata, and parser consumers. The temporary production states
-are explicit:
+intents. Forty-eight actions have Haskell adapter consumers; the five action
+declarations backing the same-named interaction intents remain typed,
+reason-bearing declaration exclusions. Exactly one checked home is registered
+for each eligible action across the Admin, LeaveRequests, Profile, Roster,
+Support, and Timesheets families. All 48 provide generated field-builder and
+render-metadata operations; 33 provide exact parsers and the other 15 retain
+typed, operation-specific no-parser reasons. Production callers use the six
+curated `Action` facades: the former 33 generic parser calls and 50 generic
+metadata calls under `Web/` are both zero, enforced by source guardrails.
 
-- Action homes are empty and assigned to #186.
-- Intent homes are empty and assigned to #187.
-
-Both inventories, migration tickets, and the mandatory parent-#184 expiry are
-validated on every all-kind run, but no production `.Generated.Action` or
-`.Generated.Intent` file is emitted before those migration tickets add homes and
-matching facades.
+All five intents still have current builder, form-metadata, and parser consumers
+in Roster. Their homes remain explicitly staged empty for #187. Intent
+inventory, migration ticket, and the mandatory parent-#184 expiry are validated
+on every all-kind run, but no production `.Generated.Intent` file is emitted
+before that migration adds all homes and its matching facade.
 
 Generated resource modules invoke `frontendSurfaceResource` and
 `matchFrontendSurfaceResource`; generated Live modules invoke only
 `frontendSurfaceScope`, `matchFrontendSurfaceScope`,
-`frontendSurfaceFragmentKey`, and `matchFrontendSurfaceFragmentKey`. Generated
-Action/Intent fixtures build only the existing declaration-indexed
-`SurfaceFields`, delegate metadata to `frontendSurfaceAction` or
-`frontendSurfaceIntentForm`, and preserve
+`frontendSurfaceFragmentKey`, and `matchFrontendSurfaceFragmentKey`. Generated Action modules and the Action/Intent fixtures build only the existing
+declaration-indexed `SurfaceFields`, delegate metadata to
+`frontendSurfaceAction` or `frontendSurfaceIntentForm`, and preserve
 `Either [SurfaceRequestFieldError] (SurfaceFields ...)` through the exact generic
 request parsers. Only the matching curated facade may import a generated module.
-Resource and Live facades re-export canonical constructors and retain handwritten domain
-matchers or live orchestration only where they add meaning. Mechanical aliases,
+Resource, Live, and Action facades re-export canonical operations and retain
+handwritten domain matchers or live orchestration only where they add meaning. Mechanical aliases,
 generic builder/matcher bodies, and the old Billing, Support, Profile, Staff,
 and Admin fragment naming synonyms are absent. Every generated-kind module must
 stay behind its matching curated facade and must not import opaque internal
@@ -515,24 +517,26 @@ fixture/import impact for #186/#187; they are not benchmarks.
 
 `generateSurfaceAdapterModules` composes Resource, Live, Action, and Intent lane
 results, accumulates complete diagnostics, and rejects duplicate physical module
-paths before the script writes or removes files. Live generation is mandatory;
-Action and Intent inventory validation is mandatory while their explicitly
-staged homes emit no production files. A failed lane exposes no managed module
-set. Failure-injection coverage proves a failed Action lane leaves existing
-Resource, Live, and Intent files untouched, while the existing Live injection
-leaves Resource, Action, and Intent untouched. The write workflow renders,
-formats, and typechecks the complete staged set before any managed stale deletion
-or write.
+paths before the script writes or removes files. Resource, Live, and Action
+generation are mandatory and complete; Intent inventory validation remains
+mandatory while its explicit staging emits no production file. Empty, partial,
+extra, or duplicate Action homes fail before a managed module set is exposed.
+Failure-injection coverage proves a failed Action lane leaves existing Resource,
+Live, and Intent files untouched, while the existing Live injection leaves
+Resource, Action, and Intent untouched. The write workflow renders, formats,
+and typechecks the complete staged set before any managed stale deletion or
+write.
 
-The #185 shared-file merge boundary is intentionally narrow:
-`HaskellAdapter.Core` adds private checked-conversion input, standalone shared
+The #185 shared-file merge boundary remains intentionally narrow:
+`HaskellAdapter.Core` owns private checked-conversion input, standalone shared
 field rendering, and the already-exercised shared Interaction-marker locality;
 `HaskellAdapter.RequestRenderer` owns only the import, operation-filtering,
 field-builder, and parser source mechanics exercised by both focused renderers;
 `HaskellAdapter.Family` owns typed operation inventory and explicit staging; and
-`HaskellAdapter.Generator` owns the two new closed lane constructors. #186 and
-#187 consume these seams by changing homes/facades/callers and must not evolve a
-parallel registry, operation model, universal renderer, or publication path.
+`HaskellAdapter.Generator` owns the two closed lane constructors. #192 consumed
+those seams only by adding homes, facades, and callers. #187 must do the same;
+neither slice may evolve a parallel registry, operation model, universal
+renderer, or publication path.
 
 The #191 Profile/Staff checkpoint keeps production Action homes empty while
 capturing the first migration boundary. Action/Intent builder, metadata, parser,
@@ -577,8 +581,55 @@ modules, and four `Web.*` modules. The complete non-generated closure was:
 
 No `HaskellAdapter` implementation, registry, generator, request renderer, or
 future generated Action module appears in that baseline closure. The module and
-wall-clock figures are one noisy checkpoint sample, not a benchmark; #192 owns
-the paired post-migration deletion and compile/import comparison.
+wall-clock figures are one noisy checkpoint sample, not a benchmark.
+
+#192 published all 48 eligible Action homes in one mandatory set: 18 Admin,
+three LeaveRequests, six Profile/Staff, 14 Roster, two Support, and five
+Timesheets declarations. It added six private `.Generated.Action` modules
+(1,307 lines) and six curated facades (276 lines). The complete managed Haskell
+adapter set is now 20 modules: seven Resource, seven Live, and six Action; Intent
+remains staged for #187. Measured against the #191 checkpoint commit over all
+changed `Web/**` production callers plus
+`Application/Helper/View/Timesheets.hs`, the migration added 249 handwritten
+lines and removed 250, for one net handwritten production-caller line deleted.
+That deliberately modest net retains domain-shaped mappings for Profile/Staff,
+Timesheets, and Admin shift-type same-shape bundles instead of replacing them
+with opaque wide positional calls. The former 33 generic parser calls and 50
+generic metadata calls are zero.
+
+The paired fresh-build cold compile of
+`Web/Staff/ProfileSurfaceRequest.hs` moved from 522 modules in 47.679 seconds to
+547 modules in 86.380 seconds: 25 modules (+4.8%) and 38.701 seconds (+81.2%) in
+these noisy one-sample measurements. Both closures contained the same 480 IHP
+model `Generated.*` modules and four `Web.*` modules; `Application.*` increased
+from 38 to 63. The complete 25-module addition was:
+
+- `Application.Helper.FrontendContract.{App,AppShell,AppValues,Htmx,IR,LiveUpdate,LiveUpdateValues,Reflect,Registry,UiRegion,Values}`;
+- `Application.Helper.FrontendContract.Surface.{Contracts,Identity,Live,Runtime}`;
+- `Application.Helper.FrontendContract.Wire.{Carrier,Json,LiveUpdate}`;
+- `Application.Helper.{LiveUpdate.Internal,UiRegion,Url}`; and
+- `Application.Helper.FrontendContract.Surface.HaskellAdapter.Association`,
+  `Surface.Profile.HaskellAdapter`, `Surface.Profile.Generated.Action`, and
+  `Surface.Profile.Action`.
+
+The required isolated cold compile of `Surface.Profile.Action` loaded 50
+`Application.*` modules in 37.783 seconds, with no model `Generated.*` or `Web.*`
+modules. Its complete closure grouped by module family was:
+
+- `Application.Helper.FrontendContract.{App,AppShell,AppValues,Core,DSL,Htmx,IR,Interaction,LiveUpdate,LiveUpdateValues,Naming,Reflect,Registry,UiRegion,Values}`;
+- `Application.Helper.FrontendContract.Surface.{Admin,Billing,ContractIR,Contracts,DSL,Diagnostics,Identity,Interaction,LeaveRequests,Live,Profile,Reflect,Registry,Request,Roster,Runtime,SemanticIR,Support,Timesheets,Values}`;
+- `Application.Helper.FrontendContract.Surface.HaskellAdapter.Association`,
+  `Surface.Profile.HaskellAdapter`, `Surface.Profile.Generated.Action`, and
+  `Surface.Profile.Action`;
+- `Application.Helper.FrontendContract.Wire.{Carrier,Json,LiveUpdate}`;
+- `Application.Bepis.{Action,Fact,Response}`; and
+- `Application.Helper.{LiveUpdate.Internal,Profiling,Telemetry,UiRegion,Url}`.
+
+Neither post-migration closure contains
+`Surface.HaskellAdapter.{Core,Family,Generator,Registry,RequestRenderer}`. The
+wall-clock figures are compile-impact records, not benchmarks; the bounded,
+feature-owned closure and absence of generator implementation modules are the
+acceptance signal.
 
 Write and verify output with:
 

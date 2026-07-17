@@ -228,13 +228,15 @@ home, and migrated all curated Live facades behind seven private generated
 modules, completing #183. #185 established separate checked Action and Intent
 renderers, operation-complete production inventories, curated compiled fixtures,
 and two explicitly staged empty production lanes while retaining all 14
-Resource/Live outputs. #191 has now captured the independent Profile/Staff
-boundary, focused request-adapter spec, deletion estimate, and cold
-compile/import baseline without
-publishing a partial home set. #192 owns complete Action publication and caller
-migration; partial production Action homes are never valid. #187 follows #186,
-migrates all five Roster intents together, and owns deletion of the final shared
-staging and temporary source-count machinery. #184 follows #164 and #181.
+Resource/Live outputs. #191 captured the independent Profile/Staff boundary, focused request-adapter
+spec, deletion estimate, and cold compile/import baseline without publishing a
+partial home set. #192 then atomically published all 48 eligible Action homes
+behind six curated facades, migrated every production builder/metadata/parser
+consumer, made Action output mandatory, and installed zero-generic-parser and
+zero-generic-metadata guards while preserving the five typed declaration
+exclusions. #187 follows the completed #186 Action migration, migrates all five
+Roster intents together, and owns deletion of the final shared staging and
+temporary Intent source-count machinery. #184 follows #164 and #181.
 Shared browser slices depend on typed schema builders;
 ordered ranges also depend on toggle presentation.
 Roster linked highlighting depends on closed interaction IR. Staff-panel work

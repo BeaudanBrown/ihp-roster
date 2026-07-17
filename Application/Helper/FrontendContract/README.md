@@ -131,9 +131,10 @@ unregistered fixture continues to prove zero-field and parameterized adapters,
 shared-module collision checks, and public generic builder use.
 
 Generated Resource and Live code calls only public marker-indexed builders and
-matchers. Generated Action/Intent fixture code likewise calls only the existing
-public `SurfaceFields`, `frontendSurfaceAction`/`frontendSurfaceIntentForm`, and
-structured request-parser boundaries. Unsupported source carriers fail with
+matchers. Generated production Action code and the Action/Intent fixtures
+likewise call only the existing public `SurfaceFields`,
+`frontendSurfaceAction`/`frontendSurfaceIntentForm`, and structured
+request-parser boundaries. Unsupported source carriers fail with
 adapter kind, owning Surface, declaration, and field in the diagnostic.
 Production family associations remain feature-local, and the checked aggregate
 resource registry assigns exactly one canonical home to every unique production
@@ -145,27 +146,27 @@ registry/reflection mechanics from `HaskellAdapter.Family` and
 
 The production operation inventory covers all 53 actions and five intents. It
 marks 48 actions as adapter-eligible, with builders/render metadata for all 48
-and exact parsers for the 33 current parser consumers; five same-named
-intent-backed actions and 15 absent parser operations are typed, reason-bearing
-exclusions. Every intent operation is currently eligible. Production Action and
-Intent homes are still explicitly empty, assigned to #186 and #187, and checked
-against a mandatory #184 parent expiry, so the foundation validates both
-complete inventories without emitting production
-Action/Intent modules before their caller migrations. The #191 checkpoint adds
-an independently registered request-adapter spec that pins all six current
-Profile/Staff Action bundles, literal HTMX metadata, structured parsing and
-diagnostics, and semantic submission selection before #192 changes callers.
-Nullable and nested-list Action shapes remain owned by the compiled #185 fixture
-rather than invented production declarations.
+and exact parsers for 33; five same-named intent-backed actions and 15 absent
+parser operations remain typed, reason-bearing exclusions. Exactly one checked
+home is registered for every eligible Action. Six private feature-adjacent
+`.Generated.Action` modules sit behind six curated `Surface.<Feature>.Action`
+facades, and production callers contain no generic Action parser or metadata
+calls. Every Intent operation is eligible, but production Intent homes remain
+explicitly empty for #187 and checked against the mandatory #184 parent expiry.
+The #191 request-adapter checkpoint continues to pin all six Profile/Staff
+Action bundles, literal HTMX metadata, structured parsing and diagnostics, and
+semantic submission selection independently of the #192 migration. Nullable
+and nested-list Action shapes remain owned by the compiled #185 fixture rather
+than invented production declarations.
 
 `generateSurfaceAdapterModules` is the mandatory all-kind composer used by the
 write/drift workflow. It accumulates Resource, Live, Action, and Intent focused
 lane diagnostics and validates duplicate physical paths before exposing the
-complete managed set. Staged Action/Intent lanes still validate declaration and
-operation inventory while returning no production files. The writer stages
-nothing when any lane fails; the shell workflow formats and typechecks the
-entire staged tree before any managed stale deletion or write, so one failed or
-omitted lane cannot discard another. Use `frontend-surface-adapters` to write
+complete managed set. Resource, Live, and Action output is mandatory; only the
+staged Intent lane validates declaration and operation inventory while returning
+no production file. The writer stages nothing when any lane fails; the shell
+workflow formats and typechecks the entire staged tree before any managed stale
+deletion or write, so one failed or omitted lane cannot discard another. Use `frontend-surface-adapters` to write
 generated Haskell modules and `frontend-surface-adapters-check` to reject
 missing, extra, unformatted, or stale output. Generation does not inspect
 compiler syntax trees, parse source modules, or choose behavior from feature-name
