@@ -30,19 +30,19 @@ profileSurfaceId :: Text
 profileSurfaceId = "profile-live-surface"
 
 profileDetailsSectionId :: Text
-profileDetailsSectionId = surfaceFragmentTargetId @Surface.ProfileSurface @Surface.ProfileDetailsSection NoSurfaceFields
+profileDetailsSectionId = surfaceFragmentTargetId @Surface.ProfileSurface @Surface.ProfileDetailsSection noSurfaceFields
 
 profilePreferencesSectionId :: Text
-profilePreferencesSectionId = surfaceFragmentTargetId @Surface.ProfileSurface @Surface.ProfilePreferencesSection NoSurfaceFields
+profilePreferencesSectionId = surfaceFragmentTargetId @Surface.ProfileSurface @Surface.ProfilePreferencesSection noSurfaceFields
 
 profileSecuritySectionId :: Text
-profileSecuritySectionId = surfaceFragmentTargetId @Surface.ProfileSurface @Surface.ProfileSecuritySection NoSurfaceFields
+profileSecuritySectionId = surfaceFragmentTargetId @Surface.ProfileSurface @Surface.ProfileSecuritySection noSurfaceFields
 
 profileLeaveSectionId :: Text
-profileLeaveSectionId = surfaceFragmentTargetId @Surface.ProfileSurface @Surface.ProfileLeaveSection NoSurfaceFields
+profileLeaveSectionId = surfaceFragmentTargetId @Surface.ProfileSurface @Surface.ProfileLeaveSection noSurfaceFields
 
 profileRsaSectionId :: Text
-profileRsaSectionId = surfaceFragmentTargetId @Surface.ProfileSurface @Surface.ProfileRsaSection NoSurfaceFields
+profileRsaSectionId = surfaceFragmentTargetId @Surface.ProfileSurface @Surface.ProfileRsaSection noSurfaceFields
 
 profileDetailsFormId :: Text
 profileDetailsFormId = "profile-details-form"
@@ -280,8 +280,22 @@ renderProfileForm staff currentUserEmail staffManagementFields =
         staff
         (Just currentUserEmail)
   where
+    values = staffProfileDetailsSurfaceValues "profile" staff staffManagementFields
     fields =
-        buildStaffProfileDetailsSurfaceFields ProfileFormSurface "profile" staff staffManagementFields
+        ProfileAction.updateProfileDetailsActionFields
+            values.profileDetailsFirstName
+            values.profileDetailsLastName
+            values.profileDetailsPreferredName
+            values.profileDetailsPhone
+            values.profileDetailsIdealShiftsPerWeek
+            values.profileDetailsEmergencyContactName
+            values.profileDetailsEmergencyContactPhone
+            values.profileDetailsSection
+            values.profileDetailsVenueRole
+            values.profileDetailsEmploymentBasis
+            values.profileDetailsPayRateSelection
+            values.profileDetailsIsActive
+            values.profileDetailsRosterGroupIds
 
 renderProfileShiftPreferencesForm :: [PreferenceWeekday] -> [ShiftPreferenceSelection] -> Html
 renderProfileShiftPreferencesForm preferenceWeekdays selectedShiftPreferences =
@@ -299,10 +313,13 @@ renderProfileShiftPreferencesForm preferenceWeekdays selectedShiftPreferences =
         preferenceWeekdays
         selectedShiftPreferences
   where
+    values = staffShiftPreferencesSurfaceValues "preferences" selectedShiftPreferences
     fields =
-        buildStaffShiftPreferencesSurfaceFields ProfileFormSurface "preferences" selectedShiftPreferences
+        ProfileAction.updateProfileShiftPreferencesActionFields
+            values.shiftPreferencesSection
+            values.shiftPreferenceKeys
 
-renderProfileStaffManagementSection :: SurfaceFields Surface.StaffProfileFields -> StaffManagementFieldData -> Html
+renderProfileStaffManagementSection :: SurfaceActionFields Surface.ProfileSurface Surface.UpdateProfileDetails -> StaffManagementFieldData -> Html
 renderProfileStaffManagementSection fields managementFields = [hsx|
     <div class="mt-4">
         <h5 class="mb-3">Staff Admin</h5>

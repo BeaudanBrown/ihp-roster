@@ -131,11 +131,18 @@ unregistered fixture continues to prove zero-field and parameterized adapters,
 shared-module collision checks, and public generic builder use.
 
 Generated Resource and Live code calls only public marker-indexed builders and
-matchers. Generated production Action code and the Action/Intent fixtures
-likewise call only the existing public `SurfaceFields`,
-`frontendSurfaceAction`/`frontendSurfaceIntentForm`, and structured
-request-parser boundaries. Unsupported source carriers fail with
-adapter kind, owning Surface, declaration, and field in the diagnostic.
+matchers. Raw `SurfaceFields` data constructors stay hidden behind the
+construction-only `noSurfaceFields` and `(&:)` functions. Generated production
+Action/Intent builders construct nominal `SurfaceActionFields surface action`
+or `SurfaceIntentFields surface intent` directly from the declared first field
+and exact tail (or the explicit zero-field constructor). The request parser
+keeps its recursive parsed-field view private and calls that same public nominal
+construction seam; no parser-only rebind operation is exported. Generated
+metadata and structured parser interfaces carry the exact wrapper, so
+operations with equal normalized field lists remain distinct. Read-only marker
+lookup and serialization stay shared through `SurfaceFieldBundle`, which
+exposes no unwrap operation. Unsupported source carriers fail with adapter kind,
+owning Surface, declaration, and field in the diagnostic.
 Production family associations remain feature-local, and the checked aggregate
 resource registry assigns exactly one canonical home to every unique production
 resource identity. Every private generated module has only its matching curated
@@ -153,7 +160,11 @@ feature-adjacent `.Generated.Action` modules sit behind six curated
 `Surface.<Feature>.Action` facades, while the five Roster intents share one
 private `Surface.Roster.Generated.Intent` module behind `Surface.Roster.Intent`.
 Production callers contain no generic Action or Intent parser/metadata calls.
-The #191 and #187 independent request-adapter checkpoints pin production
+Raw `SurfaceFields` constructors are hidden behind construction-only builders.
+Nominal construction accepts only the declared first field plus its exact typed
+tail (or an explicit zero-field constructor), so the compiler exposes no raw
+bundle split/re-indexing path. Compile-failure coverage rejects
+cross-operation Action and Intent reuse for identical field shapes. The #191 and #187 independent request-adapter checkpoints pin production
 bundles, literal DOM-owned metadata, structured parsing, and diagnostics across
 the migrated Profile/Staff Actions and Roster Intents. Nullable and nested-list
 request shapes remain owned by the compiled #185 fixture rather than invented

@@ -21,8 +21,8 @@ import Application.Helper.FrontendContract.Surface.Resource (SurfaceResourceValu
                                                              matchFrontendSurfaceResource)
 import qualified Application.Helper.FrontendContract.Surface.Roster as Types1
 import qualified Application.Helper.FrontendContract.Surface.Roster.HaskellAdapter as Types2
-import Application.Helper.FrontendContract.Surface.Values (SurfaceFields (NoSurfaceFields, (:&)),
-                                                           surfaceField)
+import Application.Helper.FrontendContract.Surface.Values (noSurfaceFields,
+                                                           surfaceField, (&:))
 import qualified Data.UUID as UUID
 import IHP.Prelude
 
@@ -34,7 +34,7 @@ rosterDayResource rosterDayId =
         @(AdapterFamilySurface Types2.RosterAdapterFamily)
         @Types1.RosterDay
         ( surfaceField @Types1.RosterDayId rosterDayId
-            :& NoSurfaceFields
+            &: noSurfaceFields
         )
 
 matchRosterDayResource :: SurfaceResourceValue -> Maybe (UUID.UUID, ())
@@ -51,7 +51,7 @@ rosterEndTimesConfigResource venueId =
         @(AdapterFamilySurface Types2.RosterAdapterFamily)
         @Types1.RosterEndTimesConfig
         ( surfaceField @Types1.VenueId venueId
-            :& NoSurfaceFields
+            &: noSurfaceFields
         )
 
 matchRosterEndTimesConfigResource :: SurfaceResourceValue -> Maybe (UUID.UUID, ())
@@ -68,7 +68,7 @@ rosterWeekBoundaryConfigResource venueId =
         @(AdapterFamilySurface Types2.RosterAdapterFamily)
         @Types1.RosterWeekBoundaryConfig
         ( surfaceField @Types1.VenueId venueId
-            :& NoSurfaceFields
+            &: noSurfaceFields
         )
 
 matchRosterWeekBoundaryConfigResource :: SurfaceResourceValue -> Maybe (UUID.UUID, ())
@@ -86,8 +86,8 @@ rosterWeekResource rosterGroupId weekOffset =
         @(AdapterFamilySurface Types2.RosterAdapterFamily)
         @Types1.RosterWeek
         ( surfaceField @Types1.RosterGroupId rosterGroupId
-            :& surfaceField @Types1.WeekOffset weekOffset
-            :& NoSurfaceFields
+            &: surfaceField @Types1.WeekOffset weekOffset
+            &: noSurfaceFields
         )
 
 matchRosterWeekResource :: SurfaceResourceValue -> Maybe (UUID.UUID, (Int, ()))
@@ -104,7 +104,7 @@ timePickerConfigResource venueId =
         @(AdapterFamilySurface Types2.RosterDayTimelineAdapterFamily)
         @Types1.TimePickerConfig
         ( surfaceField @Types1.VenueId venueId
-            :& NoSurfaceFields
+            &: noSurfaceFields
         )
 
 matchTimePickerConfigResource :: SurfaceResourceValue -> Maybe (UUID.UUID, ())

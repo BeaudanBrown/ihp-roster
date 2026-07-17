@@ -14,11 +14,13 @@ import Application.Helper.FrontendContract.Surface.Request (SurfaceRequestFieldE
                                                             parseSurfaceActionParams)
 import Application.Helper.FrontendContract.Surface.Runtime (FrontendSurfaceAction,
                                                             frontendSurfaceAction)
-import Application.Helper.FrontendContract.Surface.Values (SurfaceActionFieldSpecs,
-                                                           SurfaceFields (NoSurfaceFields, (:&)),
+import Application.Helper.FrontendContract.Surface.Values (SurfaceActionFields,
+                                                           noSurfaceFields,
+                                                           surfaceActionFields,
                                                            surfaceField,
                                                            surfaceNullableField,
-                                                           surfaceOptionalField)
+                                                           surfaceOptionalField,
+                                                           (&:))
 import Data.Time (Day)
 import qualified Data.UUID as UUID
 import IHP.Prelude
@@ -34,20 +36,21 @@ crossKindDeclarationActionFields ::
     Maybe [UUID.UUID] ->
     Bool ->
     [[UUID.UUID]] ->
-    SurfaceFields (SurfaceActionFieldSpecs (AdapterFamilySurface Family.AdapterFixtureFamily) Family.CrossKindDeclaration)
+    SurfaceActionFields (AdapterFamilySurface Family.AdapterFixtureFamily) Family.CrossKindDeclaration
 crossKindDeclarationActionFields label retryCount archivedAt memberIds maybeNote maybeIds enabled nestedMemberIds =
-    ( surfaceField @Family.Label label
-        :& surfaceOptionalField @Family.RetryCount retryCount
-        :& surfaceNullableField @Family.ArchivedAt archivedAt
-        :& surfaceField @Family.MemberIds memberIds
-        :& surfaceOptionalField @Family.MaybeNote maybeNote
-        :& surfaceNullableField @Family.MaybeIds maybeIds
-        :& surfaceField @Family.Enabled enabled
-        :& surfaceField @Family.NestedMemberIds nestedMemberIds
-        :& NoSurfaceFields
-    )
+    surfaceActionFields
+        (surfaceField @Family.Label label)
+        ( surfaceOptionalField @Family.RetryCount retryCount
+            &: surfaceNullableField @Family.ArchivedAt archivedAt
+            &: surfaceField @Family.MemberIds memberIds
+            &: surfaceOptionalField @Family.MaybeNote maybeNote
+            &: surfaceNullableField @Family.MaybeIds maybeIds
+            &: surfaceField @Family.Enabled enabled
+            &: surfaceField @Family.NestedMemberIds nestedMemberIds
+            &: noSurfaceFields
+        )
 
-crossKindDeclarationAction :: SurfaceFields (SurfaceActionFieldSpecs (AdapterFamilySurface Family.AdapterFixtureFamily) Family.CrossKindDeclaration) -> FrontendSurfaceAction
+crossKindDeclarationAction :: SurfaceActionFields (AdapterFamilySurface Family.AdapterFixtureFamily) Family.CrossKindDeclaration -> FrontendSurfaceAction
 crossKindDeclarationAction =
     frontendSurfaceAction
         @(AdapterFamilySurface Family.AdapterFixtureFamily)
@@ -55,7 +58,7 @@ crossKindDeclarationAction =
 
 parseCrossKindDeclarationActionParams ::
     (?request :: Request) =>
-    Either [SurfaceRequestFieldError] (SurfaceFields (SurfaceActionFieldSpecs (AdapterFamilySurface Family.AdapterFixtureFamily) Family.CrossKindDeclaration))
+    Either [SurfaceRequestFieldError] (SurfaceActionFields (AdapterFamilySurface Family.AdapterFixtureFamily) Family.CrossKindDeclaration)
 parseCrossKindDeclarationActionParams =
     parseSurfaceActionParams
         @(AdapterFamilySurface Family.AdapterFixtureFamily)

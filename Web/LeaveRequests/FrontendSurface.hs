@@ -39,7 +39,7 @@ leaveRequestsSurfaceImpl scope =
     mkSurfaceImplFromValues @Surface.LeaveRequestsSurface @Surface.LeaveRequestsScope
         "primary"
         (leaveRequestsScopeFields scope)
-        NoSurfaceFields
+        noSurfaceFields
         (leaveRequestsCandidateMountedFragments scope)
 
 leaveRequestsSurfaceMountConfig :: LeaveRequestsScopeValue -> FrontendSurfaceMountConfig
@@ -62,17 +62,17 @@ leaveRequestsSurfaceFragmentKeys = map (.mountedFragmentKey)
 
 leaveRequestsScopeFields :: LeaveRequestsScopeValue -> SurfaceFields (SurfaceScopeFieldSpecs Surface.LeaveRequestsSurface Surface.LeaveRequestsScope)
 leaveRequestsScopeFields scope =
-    surfaceField @Surface.VenueId scope.leaveRequestsVenueId :& NoSurfaceFields
+    surfaceField @Surface.VenueId scope.leaveRequestsVenueId &: noSurfaceFields
 
 leaveRequestsSectionFields :: Text -> SurfaceFields '[ 'Field Surface.LeaveSection 'WireText]
 leaveRequestsSectionFields section =
-    surfaceField @Surface.LeaveSection section :& NoSurfaceFields
+    surfaceField @Surface.LeaveSection section &: noSurfaceFields
 
 leaveRequestsTargetFields :: Text -> Text -> SurfaceFields '[ 'Field Surface.LeaveSection 'WireText, 'Field Surface.LeaveTargetSuffix 'WireText]
 leaveRequestsTargetFields section suffix =
     surfaceField @Surface.LeaveSection section
-        :& surfaceField @Surface.LeaveTargetSuffix suffix
-        :& NoSurfaceFields
+        &: surfaceField @Surface.LeaveTargetSuffix suffix
+        &: noSurfaceFields
 
 leaveRequestsSectionMountedFragments :: [FrontendSurfaceMountedFragment]
 leaveRequestsSectionMountedFragments =

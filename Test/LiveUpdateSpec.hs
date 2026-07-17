@@ -25,8 +25,9 @@ import Application.Helper.FrontendContract.Surface.Runtime (FrontendSurfaceMount
 import qualified Application.Helper.FrontendContract.Surface.Support.Live as SupportLive
 import qualified Application.Helper.FrontendContract.Surface.Timesheets as Timesheets
 import qualified Application.Helper.FrontendContract.Surface.Timesheets.Live as TimesheetsLive
-import Application.Helper.FrontendContract.Surface.Values (SurfaceFields (..),
-                                                           surfaceField)
+import Application.Helper.FrontendContract.Surface.Values (SurfaceFields,
+                                                           noSurfaceFields,
+                                                           surfaceField, (&:))
 import Application.Helper.FrontendContract.Wire.Json (validateContractMarkerValue,
                                                       validateSurfaceFragmentKeyValue,
                                                       validateSurfaceScopeValue)
@@ -53,12 +54,12 @@ tests = describe "LiveUpdate runtime types" do
         let scope =
                 frontendSurfaceScope @Timesheets.TimesheetsSurface @Timesheets.TimesheetWeek
                     ( surfaceField @Timesheets.VenueId venueId
-                        :& surfaceField @Timesheets.WeekOffset 4
-                        :& NoSurfaceFields
+                        &: surfaceField @Timesheets.WeekOffset 4
+                        &: noSurfaceFields
                     )
         let fragmentKey =
                 frontendSurfaceFragmentKey @Timesheets.TimesheetsSurface @Timesheets.TimesheetDaySection
-                    (surfaceField @Timesheets.DayOffset 2 :& NoSurfaceFields)
+                    (surfaceField @Timesheets.DayOffset 2 &: noSurfaceFields)
 
         matchFrontendSurfaceScope @Timesheets.TimesheetsSurface @Timesheets.TimesheetWeek scope
             `shouldBe` Just (venueId, (4, ()))

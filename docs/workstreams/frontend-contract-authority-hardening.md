@@ -10,6 +10,7 @@ GitHub issues:
 - Shared browser capabilities: `#167`-`#173`
 - Roster browser capabilities: `#174`-`#178`
 - Final reconciliation: `#179`
+- Post-reconciliation hardening: `#193`-`#196`
 
 GitHub owns live status, native sub-issue relationships, and blocker state.
 

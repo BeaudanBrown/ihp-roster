@@ -46,8 +46,8 @@ import Application.Helper.FrontendContract.Surface.Live (SurfaceFragmentKey,
                                                          frontendSurfaceScope,
                                                          matchFrontendSurfaceFragmentKey,
                                                          matchFrontendSurfaceScope)
-import Application.Helper.FrontendContract.Surface.Values (SurfaceFields (NoSurfaceFields, (:&)),
-                                                           surfaceField)
+import Application.Helper.FrontendContract.Surface.Values (noSurfaceFields,
+                                                           surfaceField, (&:))
 import qualified Data.UUID as UUID
 import IHP.Prelude
 
@@ -56,7 +56,7 @@ adminExportsLiveFragment =
     frontendSurfaceFragmentKey
         @(AdapterFamilySurface Types2.AdminExportsAdapterFamily)
         @Types1.AdminExportsFragment
-        NoSurfaceFields
+        noSurfaceFields
 
 matchAdminExportsLiveFragment :: SurfaceFragmentKey -> Maybe ()
 matchAdminExportsLiveFragment =
@@ -72,7 +72,7 @@ adminExportsLiveScope venueId =
         @(AdapterFamilySurface Types2.AdminExportsAdapterFamily)
         @Types1.AdminExportsScope
         ( surfaceField @Types1.VenueId venueId
-            :& NoSurfaceFields
+            &: noSurfaceFields
         )
 
 matchAdminExportsLiveScope :: SurfaceScope -> Maybe (UUID.UUID, ())
@@ -86,7 +86,7 @@ adminInvitesLiveFragment =
     frontendSurfaceFragmentKey
         @(AdapterFamilySurface Types2.AdminInvitesAdapterFamily)
         @Types1.AdminInvitesFragment
-        NoSurfaceFields
+        noSurfaceFields
 
 matchAdminInvitesLiveFragment :: SurfaceFragmentKey -> Maybe ()
 matchAdminInvitesLiveFragment =
@@ -102,7 +102,7 @@ adminInvitesLiveScope venueId =
         @(AdapterFamilySurface Types2.AdminInvitesAdapterFamily)
         @Types1.AdminInvitesScope
         ( surfaceField @Types1.VenueId venueId
-            :& NoSurfaceFields
+            &: noSurfaceFields
         )
 
 matchAdminInvitesLiveScope :: SurfaceScope -> Maybe (UUID.UUID, ())
@@ -116,7 +116,7 @@ adminPageContentLiveFragment =
     frontendSurfaceFragmentKey
         @(AdapterFamilySurface Types2.AdminPageAdapterFamily)
         @Types1.AdminPageContentFragment
-        NoSurfaceFields
+        noSurfaceFields
 
 matchAdminPageContentLiveFragment :: SurfaceFragmentKey -> Maybe ()
 matchAdminPageContentLiveFragment =
@@ -132,7 +132,7 @@ adminPageLiveScope venueId =
         @(AdapterFamilySurface Types2.AdminPageAdapterFamily)
         @Types1.AdminPageScope
         ( surfaceField @Types1.VenueId venueId
-            :& NoSurfaceFields
+            &: noSurfaceFields
         )
 
 matchAdminPageLiveScope :: SurfaceScope -> Maybe (UUID.UUID, ())
@@ -146,7 +146,7 @@ adminRosterGroupsLiveFragment =
     frontendSurfaceFragmentKey
         @(AdapterFamilySurface Types2.AdminRosterGroupsAdapterFamily)
         @Types1.AdminRosterGroupsFragment
-        NoSurfaceFields
+        noSurfaceFields
 
 matchAdminRosterGroupsLiveFragment :: SurfaceFragmentKey -> Maybe ()
 matchAdminRosterGroupsLiveFragment =
@@ -162,7 +162,7 @@ adminRosterGroupsLiveScope venueId =
         @(AdapterFamilySurface Types2.AdminRosterGroupsAdapterFamily)
         @Types1.AdminRosterGroupsScope
         ( surfaceField @Types1.VenueId venueId
-            :& NoSurfaceFields
+            &: noSurfaceFields
         )
 
 matchAdminRosterGroupsLiveScope :: SurfaceScope -> Maybe (UUID.UUID, ())
@@ -176,7 +176,7 @@ adminShiftTypesLiveFragment =
     frontendSurfaceFragmentKey
         @(AdapterFamilySurface Types2.AdminShiftTypesAdapterFamily)
         @Types1.AdminShiftTypesFragment
-        NoSurfaceFields
+        noSurfaceFields
 
 matchAdminShiftTypesLiveFragment :: SurfaceFragmentKey -> Maybe ()
 matchAdminShiftTypesLiveFragment =
@@ -192,7 +192,7 @@ adminShiftTypesLiveScope venueId =
         @(AdapterFamilySurface Types2.AdminShiftTypesAdapterFamily)
         @Types1.AdminShiftTypesScope
         ( surfaceField @Types1.VenueId venueId
-            :& NoSurfaceFields
+            &: noSurfaceFields
         )
 
 matchAdminShiftTypesLiveScope :: SurfaceScope -> Maybe (UUID.UUID, ())
@@ -209,7 +209,7 @@ adminVenueConfigLiveScope venueId =
         @(AdapterFamilySurface Types2.AdminVenueSettingsAdapterFamily)
         @Types1.AdminVenueConfigScope
         ( surfaceField @Types1.VenueId venueId
-            :& NoSurfaceFields
+            &: noSurfaceFields
         )
 
 matchAdminVenueConfigLiveScope :: SurfaceScope -> Maybe (UUID.UUID, ())
@@ -223,7 +223,7 @@ adminVenueSettingsLiveFragment =
     frontendSurfaceFragmentKey
         @(AdapterFamilySurface Types2.AdminVenueSettingsAdapterFamily)
         @Types1.AdminVenueSettingsFragment
-        NoSurfaceFields
+        noSurfaceFields
 
 matchAdminVenueSettingsLiveFragment :: SurfaceFragmentKey -> Maybe ()
 matchAdminVenueSettingsLiveFragment =
@@ -239,7 +239,7 @@ adminXeroLiveScope venueId =
         @(AdapterFamilySurface Types2.AdminXeroAdapterFamily)
         @Types1.AdminXeroScope
         ( surfaceField @Types1.VenueId venueId
-            :& NoSurfaceFields
+            &: noSurfaceFields
         )
 
 matchAdminXeroLiveScope :: SurfaceScope -> Maybe (UUID.UUID, ())
@@ -253,7 +253,7 @@ adminXeroPageContentLiveFragment =
     frontendSurfaceFragmentKey
         @(AdapterFamilySurface Types2.AdminXeroPageAdapterFamily)
         @Types1.AdminXeroPageContentFragment
-        NoSurfaceFields
+        noSurfaceFields
 
 matchAdminXeroPageContentLiveFragment :: SurfaceFragmentKey -> Maybe ()
 matchAdminXeroPageContentLiveFragment =
@@ -269,7 +269,7 @@ adminXeroPageLiveScope venueId =
         @(AdapterFamilySurface Types2.AdminXeroPageAdapterFamily)
         @Types1.AdminXeroPageScope
         ( surfaceField @Types1.VenueId venueId
-            :& NoSurfaceFields
+            &: noSurfaceFields
         )
 
 matchAdminXeroPageLiveScope :: SurfaceScope -> Maybe (UUID.UUID, ())
@@ -283,7 +283,7 @@ adminXeroShellLiveFragment =
     frontendSurfaceFragmentKey
         @(AdapterFamilySurface Types2.AdminXeroAdapterFamily)
         @Types1.AdminXeroShellFragment
-        NoSurfaceFields
+        noSurfaceFields
 
 matchAdminXeroShellLiveFragment :: SurfaceFragmentKey -> Maybe ()
 matchAdminXeroShellLiveFragment =

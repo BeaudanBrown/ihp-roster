@@ -12,7 +12,7 @@ import IHP.Prelude
 extraResourceField =
     frontendSurfaceResource @Timesheets.TimesheetsSurface @Timesheets.TimesheetWeek
         ( surfaceField @Timesheets.VenueId (error "fixture UUID")
-            :& surfaceField @Timesheets.WeekOffset 0
-            :& surfaceField @Timesheets.DayOffset 1
-            :& NoSurfaceFields
+            &: surfaceField @Timesheets.WeekOffset 0
+            &: surfaceField @Timesheets.DayOffset 1
+            &: noSurfaceFields
         )

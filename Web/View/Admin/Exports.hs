@@ -21,7 +21,7 @@ import Web.View.Admin.Common
 import Web.View.Prelude
 
 adminExportsFragmentId :: Text
-adminExportsFragmentId = surfaceFragmentTargetId @Surface.AdminExportsSurface @Surface.AdminExportsFragment NoSurfaceFields
+adminExportsFragmentId = surfaceFragmentTargetId @Surface.AdminExportsSurface @Surface.AdminExportsFragment noSurfaceFields
 
 currentVenueScopeId :: (?context :: ControllerContext) => UUID
 currentVenueScopeId =
@@ -96,7 +96,7 @@ renderExportSummary exportJobs = [hsx|
     </p>
 |]
 
-renderFixedExportAction :: SurfaceFields (SurfaceActionFieldSpecs Surface.AdminExportsSurface Surface.CreateExportJob) -> FixedExportDefinition -> Html
+renderFixedExportAction :: SurfaceActionFields Surface.AdminExportsSurface Surface.CreateExportJob -> FixedExportDefinition -> Html
 renderFixedExportAction fields exportDefinition = [hsx|
     <div class="col-12 col-lg-6">
         <div class={appSurfaceClasses "p-3 h-100"} data-fixed-export-card="true" data-export-type={exportJobTypeToText exportDefinition.fixedExportType}>

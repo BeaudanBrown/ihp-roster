@@ -34,7 +34,7 @@ renderRosterGroupsSection rosterGroups showInactive =
 renderRosterGroupsSectionFragment :: [RosterGroup] -> Bool -> Html
 renderRosterGroupsSectionFragment rosterGroups showInactive =
     renderFrontendSurfaceMount (adminRosterGroupsSurfaceImpl AdminVenueScopeValue { adminVenueId = currentVenueScopeId, adminRosterGroupId = Nothing }) [hsx|
-        <div id={surfaceFragmentTargetId @Surface.AdminRosterGroupsSurface @Surface.AdminRosterGroupsFragment NoSurfaceFields}>
+        <div id={surfaceFragmentTargetId @Surface.AdminRosterGroupsSurface @Surface.AdminRosterGroupsFragment noSurfaceFields}>
             {renderRosterGroupsSection rosterGroups showInactive}
         </div>
     |]

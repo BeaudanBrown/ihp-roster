@@ -171,8 +171,8 @@ tests = describe "FrontendSurface DSL foundation" do
         (surfaceDropzoneRefValue @RosterSurface.RosterDayTimelineSurface @SurfaceInteraction.DragDropzoneRef).dropzoneRefName `shouldBe` "drag-dropzone"
         let intentFields =
                 surfaceField @SurfaceFixture.SourceItemKey "source"
-                    :& surfaceField @SurfaceFixture.TargetDropzoneKey "target"
-                    :& NoSurfaceFields
+                    &: surfaceField @SurfaceFixture.TargetDropzoneKey "target"
+                    &: noSurfaceFields
                 :: SurfaceFields (SurfaceIntentFieldSpecs SurfaceFixture.FrontendSurfaceFixture SurfaceFixture.MoveCard)
         surfaceFieldNameFrom @SurfaceFixture.SourceItemKey intentFields `shouldBe` "sourceItemKey"
 
@@ -198,8 +198,8 @@ tests = describe "FrontendSurface DSL foundation" do
         let fields =
                 surfaceField @TimesheetsSurface.VenueId
                     (fromMaybe (error "invalid fixture UUID") (UUID.fromString "11111111-1111-1111-1111-111111111111"))
-                    :& surfaceField @TimesheetsSurface.WeekOffset (2 :: Int)
-                    :& NoSurfaceFields
+                    &: surfaceField @TimesheetsSurface.WeekOffset (2 :: Int)
+                    &: noSurfaceFields
         let scopeFields = fields :: SurfaceFields (SurfaceScopeFieldSpecs TimesheetsSurface.TimesheetsSurface TimesheetsSurface.TimesheetWeek)
 
         surfaceFieldsJson scopeFields
@@ -210,22 +210,22 @@ tests = describe "FrontendSurface DSL foundation" do
         surfaceFieldsText scopeFields
             `shouldBe` [("venueId", "11111111-1111-1111-1111-111111111111"), ("weekOffset", "2")]
         let absentOptionalFields :: SurfaceFields '[ 'OptionalField TimesheetsSurface.StaffFilterId 'WireUUID]
-            absentOptionalFields = surfaceOptionalField @TimesheetsSurface.StaffFilterId Nothing :& NoSurfaceFields
+            absentOptionalFields = surfaceOptionalField @TimesheetsSurface.StaffFilterId Nothing &: noSurfaceFields
         surfaceFieldsJson absentOptionalFields `shouldBe` Aeson.object []
         surfaceFieldsText absentOptionalFields `shouldBe` []
         let nullFields :: SurfaceFields '[ 'NullableField NullableTestField 'WireText]
-            nullFields = surfaceNullableField @NullableTestField Nothing :& NoSurfaceFields
+            nullFields = surfaceNullableField @NullableTestField Nothing &: noSurfaceFields
         surfaceFieldsJson nullFields `shouldBe` Aeson.object ["nullableTest" Aeson..= Aeson.Null]
         let nestedOptionalFields :: SurfaceFields '[ 'OptionalField NestedOptionalTestField ('WireOptional 'WireInt)]
-            nestedOptionalFields = surfaceOptionalField @NestedOptionalTestField (Just Nothing) :& NoSurfaceFields
+            nestedOptionalFields = surfaceOptionalField @NestedOptionalTestField (Just Nothing) &: noSurfaceFields
         surfaceFieldValue @NestedOptionalTestField nestedOptionalFields `shouldBe` Just Nothing
         let actionFields =
                 surfaceField @TimesheetsSurface.WeekOffset 0
-                    :& surfaceField @TimesheetsSurface.ShowApproved False
-                    :& surfaceField @TimesheetsSurface.ShowAllStaff True
-                    :& surfaceField @TimesheetsSurface.ShowSuggestions True
-                    :& surfaceOptionalField @TimesheetsSurface.StaffFilterId Nothing
-                    :& NoSurfaceFields
+                    &: surfaceField @TimesheetsSurface.ShowApproved False
+                    &: surfaceField @TimesheetsSurface.ShowAllStaff True
+                    &: surfaceField @TimesheetsSurface.ShowSuggestions True
+                    &: surfaceOptionalField @TimesheetsSurface.StaffFilterId Nothing
+                    &: noSurfaceFields
                 :: SurfaceFields (SurfaceActionFieldSpecs TimesheetsSurface.TimesheetsSurface TimesheetsSurface.NavigateTimesheetWeek)
         surfaceFieldNameFrom @TimesheetsSurface.WeekOffset actionFields `shouldBe` "weekOffset"
 
@@ -299,8 +299,8 @@ tests = describe "FrontendSurface DSL foundation" do
         let venueId = fromMaybe (error "invalid fixture venue UUID") (UUID.fromString "22222222-2222-2222-2222-222222222222")
         let fragment =
                 frontendSurfaceMountedFragmentFor @TimesheetsSurface.TimesheetsSurface @TimesheetsSurface.TimesheetToolbar
-                    NoSurfaceFields
-                    NoSurfaceFields
+                    noSurfaceFields
+                    noSurfaceFields
                     "/fixture/timesheet-toolbar"
                     ( FrontendSurfaceFocusedFieldConfig FrontendSurfaceFocusedFieldProtectionConfig
                         { focusedProtectionActiveSelector = "input[data-fixture-field]:focus"
@@ -313,14 +313,14 @@ tests = describe "FrontendSurface DSL foundation" do
                 mkSurfaceImplFromValues @TimesheetsSurface.TimesheetsSurface @TimesheetsSurface.TimesheetWeek
                     "primary"
                     ( surfaceField @TimesheetsSurface.VenueId venueId
-                        :& surfaceField @TimesheetsSurface.WeekOffset (0 :: Int)
-                        :& NoSurfaceFields
+                        &: surfaceField @TimesheetsSurface.WeekOffset (0 :: Int)
+                        &: noSurfaceFields
                     )
                     ( surfaceField @TimesheetsSurface.ShowApproved False
-                        :& surfaceField @TimesheetsSurface.ShowAllStaff False
-                        :& surfaceField @TimesheetsSurface.ShowSuggestions True
-                        :& surfaceField @TimesheetsSurface.StaffFilterId Nothing
-                        :& NoSurfaceFields
+                        &: surfaceField @TimesheetsSurface.ShowAllStaff False
+                        &: surfaceField @TimesheetsSurface.ShowSuggestions True
+                        &: surfaceField @TimesheetsSurface.StaffFilterId Nothing
+                        &: noSurfaceFields
                     )
                     [fragment]
         let config = impl.surfaceImplMountConfig
@@ -349,8 +349,8 @@ tests = describe "FrontendSurface DSL foundation" do
         let panelId = fromMaybe (error "invalid fixture panel UUID") (UUID.fromString "11111111-1111-1111-1111-111111111111")
         let fragment =
                 frontendSurfaceMountedFragmentFor @SurfaceFixture.FrontendSurfaceFixture @SurfaceFixture.FixturePanel
-                    (surfaceField @SurfaceFixture.PanelId panelId :& NoSurfaceFields)
-                    NoSurfaceFields
+                    (surfaceField @SurfaceFixture.PanelId panelId &: noSurfaceFields)
+                    noSurfaceFields
                     "/fixture/panel"
                     FrontendSurfaceReplace
         let html = cs (HtmlRenderer.renderHtml (renderFrontendSurfaceLazyFragmentWithConfig defaultFrontendSurfaceLazyFragmentConfig { lazyFragmentRootClasses = ["col-12", "col-xl-4", "contract-fixture-side"] } fragment (Html5.toHtml ("Loading" :: Text))))
@@ -374,12 +374,12 @@ tests = describe "FrontendSurface DSL foundation" do
 
     it "builds mounted parameterized fragment keys from exact marker-indexed values" do
         let panelId = fromMaybe (error "invalid fixture panel UUID") (UUID.fromString "11111111-1111-1111-1111-111111111111")
-        let fields = surfaceField @SurfaceFixture.PanelId panelId :& NoSurfaceFields
+        let fields = surfaceField @SurfaceFixture.PanelId panelId &: noSurfaceFields
         let key = frontendSurfaceFragmentKey @SurfaceFixture.FrontendSurfaceFixture @SurfaceFixture.FixturePanel fields
         let fragment =
                 frontendSurfaceMountedFragmentFor @SurfaceFixture.FrontendSurfaceFixture @SurfaceFixture.FixturePanel
                     fields
-                    NoSurfaceFields
+                    noSurfaceFields
                     "/fixture/panel?panelId=11111111-1111-1111-1111-111111111111"
                     FrontendSurfaceReplace
 
@@ -390,7 +390,7 @@ tests = describe "FrontendSurface DSL foundation" do
             , "params" Aeson..= Aeson.object ["panelId" Aeson..= ("11111111-1111-1111-1111-111111111111" :: Text)]
             ]
         fragment.mountedFragmentKey `shouldBe` key
-        fragment.mountedFragmentTargetId `shouldBe` surfaceFragmentTargetId @SurfaceFixture.FrontendSurfaceFixture @SurfaceFixture.FixturePanel NoSurfaceFields
+        fragment.mountedFragmentTargetId `shouldBe` surfaceFragmentTargetId @SurfaceFixture.FrontendSurfaceFixture @SurfaceFixture.FixturePanel noSurfaceFields
         fragment.mountedFragmentUrl `shouldBe` "/fixture/panel?panelId=11111111-1111-1111-1111-111111111111"
 
     it "reflects the complete production Surface registry in declared order" do
@@ -688,7 +688,12 @@ tests = describe "FrontendSurface DSL foundation" do
 
     it "renders generated HTMX action attrs from complete typed fixture fields" do
         let panelId = fromMaybe (error "invalid fixture panel UUID") (UUID.fromString "11111111-1111-1111-1111-111111111111")
-        let fields = surfaceField @SurfaceFixture.PanelId panelId :& NoSurfaceFields
+        let fields =
+                surfaceActionFields
+                    @SurfaceFixture.FrontendSurfaceFixture
+                    @SurfaceFixture.RefreshPanel
+                    (surfaceField @SurfaceFixture.PanelId panelId)
+                    noSurfaceFields
         let action = frontendSurfaceAction @SurfaceFixture.FrontendSurfaceFixture @SurfaceFixture.RefreshPanel fields
         let route = FrontendSurfaceActionRoute
                 { actionRouteUrl = "/fixture/refresh-panel?panelId=wrong&routeContext=keep"
@@ -718,9 +723,13 @@ tests = describe "FrontendSurface DSL foundation" do
 
     it "renders intent forms only from complete typed intent fields" do
         let fields =
-                surfaceField @SurfaceFixture.SourceItemKey "card-1"
-                    :& surfaceField @SurfaceFixture.TargetDropzoneKey "panel-1"
-                    :& NoSurfaceFields
+                surfaceIntentFields
+                    @SurfaceFixture.FrontendSurfaceFixture
+                    @SurfaceFixture.MoveCard
+                    (surfaceField @SurfaceFixture.SourceItemKey "card-1")
+                    ( surfaceField @SurfaceFixture.TargetDropzoneKey "panel-1"
+                        &: noSurfaceFields
+                    )
         let request = FrontendSurfaceHtmxRequest
                 { htmxRequestMethod = FrontendSurfacePost
                 , htmxRequestUrl = "/fixture/refresh-panel"

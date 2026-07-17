@@ -11,4 +11,7 @@ import qualified Test.Support.FrontendSurfaceFixture as Fixture
 -- constructed with only the source field.
 incompleteIntent =
     frontendSurfaceIntentForm @Fixture.FrontendSurfaceFixture @Fixture.MoveCard
-        (surfaceField @Fixture.SourceItemKey "source" :& NoSurfaceFields)
+        ( surfaceIntentFields
+            (surfaceField @Fixture.SourceItemKey "source")
+            noSurfaceFields
+        )

@@ -22,8 +22,8 @@ import Application.Helper.FrontendContract.Surface.Live (SurfaceFragmentKey,
                                                          matchFrontendSurfaceScope)
 import qualified Application.Helper.FrontendContract.Surface.Timesheets as Types1
 import qualified Application.Helper.FrontendContract.Surface.Timesheets.HaskellAdapter as Types2
-import Application.Helper.FrontendContract.Surface.Values (SurfaceFields (NoSurfaceFields, (:&)),
-                                                           surfaceField)
+import Application.Helper.FrontendContract.Surface.Values (noSurfaceFields,
+                                                           surfaceField, (&:))
 import qualified Data.UUID as UUID
 import IHP.Prelude
 
@@ -32,7 +32,7 @@ timesheetDayColumnsLiveFragment =
     frontendSurfaceFragmentKey
         @(AdapterFamilySurface Types2.TimesheetsAdapterFamily)
         @Types1.TimesheetDayColumns
-        NoSurfaceFields
+        noSurfaceFields
 
 matchTimesheetDayColumnsLiveFragment :: SurfaceFragmentKey -> Maybe ()
 matchTimesheetDayColumnsLiveFragment =
@@ -48,7 +48,7 @@ timesheetDaySectionLiveFragment dayOffset =
         @(AdapterFamilySurface Types2.TimesheetsAdapterFamily)
         @Types1.TimesheetDaySection
         ( surfaceField @Types1.DayOffset dayOffset
-            :& NoSurfaceFields
+            &: noSurfaceFields
         )
 
 matchTimesheetDaySectionLiveFragment :: SurfaceFragmentKey -> Maybe (Int, ())
@@ -62,7 +62,7 @@ timesheetToolbarLiveFragment =
     frontendSurfaceFragmentKey
         @(AdapterFamilySurface Types2.TimesheetsAdapterFamily)
         @Types1.TimesheetToolbar
-        NoSurfaceFields
+        noSurfaceFields
 
 matchTimesheetToolbarLiveFragment :: SurfaceFragmentKey -> Maybe ()
 matchTimesheetToolbarLiveFragment =
@@ -79,8 +79,8 @@ timesheetWeekLiveScope venueId weekOffset =
         @(AdapterFamilySurface Types2.TimesheetsAdapterFamily)
         @Types1.TimesheetWeek
         ( surfaceField @Types1.VenueId venueId
-            :& surfaceField @Types1.WeekOffset weekOffset
-            :& NoSurfaceFields
+            &: surfaceField @Types1.WeekOffset weekOffset
+            &: noSurfaceFields
         )
 
 matchTimesheetWeekLiveScope :: SurfaceScope -> Maybe (UUID.UUID, (Int, ()))

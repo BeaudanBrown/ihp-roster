@@ -10,10 +10,12 @@ import IHP.Prelude
 -- WeekOffset is declared WireInt. A Text value must fail at construction.
 wrongActionWireType =
     frontendSurfaceAction @Timesheets.TimesheetsSurface @Timesheets.NavigateTimesheetWeek
-        ( surfaceField @Timesheets.WeekOffset ("two" :: Text)
-            :& surfaceField @Timesheets.ShowApproved False
-            :& surfaceField @Timesheets.ShowAllStaff True
-            :& surfaceField @Timesheets.ShowSuggestions True
-            :& surfaceOptionalField @Timesheets.StaffFilterId Nothing
-            :& NoSurfaceFields
+        ( surfaceActionFields
+            (surfaceField @Timesheets.WeekOffset ("two" :: Text))
+            ( surfaceField @Timesheets.ShowApproved False
+                &: surfaceField @Timesheets.ShowAllStaff True
+                &: surfaceField @Timesheets.ShowSuggestions True
+                &: surfaceOptionalField @Timesheets.StaffFilterId Nothing
+                &: noSurfaceFields
+            )
         )

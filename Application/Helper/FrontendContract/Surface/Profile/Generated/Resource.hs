@@ -19,8 +19,8 @@ import qualified Application.Helper.FrontendContract.Surface.Profile.HaskellAdap
 import Application.Helper.FrontendContract.Surface.Resource (SurfaceResourceValue,
                                                              frontendSurfaceResource,
                                                              matchFrontendSurfaceResource)
-import Application.Helper.FrontendContract.Surface.Values (SurfaceFields (NoSurfaceFields, (:&)),
-                                                           surfaceField)
+import Application.Helper.FrontendContract.Surface.Values (noSurfaceFields,
+                                                           surfaceField, (&:))
 import qualified Data.UUID as UUID
 import IHP.Prelude
 
@@ -32,7 +32,7 @@ staffLeaveRequestsResource staffId =
         @(AdapterFamilySurface Types2.ProfileAdapterFamily)
         @Types1.StaffLeaveRequests
         ( surfaceField @Types1.StaffId staffId
-            :& NoSurfaceFields
+            &: noSurfaceFields
         )
 
 matchStaffLeaveRequestsResource :: SurfaceResourceValue -> Maybe (UUID.UUID, ())
@@ -49,7 +49,7 @@ staffPreferencesResource staffId =
         @(AdapterFamilySurface Types2.ProfileAdapterFamily)
         @Types1.StaffPreferences
         ( surfaceField @Types1.StaffId staffId
-            :& NoSurfaceFields
+            &: noSurfaceFields
         )
 
 matchStaffPreferencesResource :: SurfaceResourceValue -> Maybe (UUID.UUID, ())
@@ -66,7 +66,7 @@ staffProfileResource staffId =
         @(AdapterFamilySurface Types2.ProfileAdapterFamily)
         @Types1.StaffProfile
         ( surfaceField @Types1.StaffId staffId
-            :& NoSurfaceFields
+            &: noSurfaceFields
         )
 
 matchStaffProfileResource :: SurfaceResourceValue -> Maybe (UUID.UUID, ())
@@ -83,7 +83,7 @@ staffRsaDocumentsResource staffId =
         @(AdapterFamilySurface Types2.ProfileAdapterFamily)
         @Types1.StaffRsaDocuments
         ( surfaceField @Types1.StaffId staffId
-            :& NoSurfaceFields
+            &: noSurfaceFields
         )
 
 matchStaffRsaDocumentsResource :: SurfaceResourceValue -> Maybe (UUID.UUID, ())

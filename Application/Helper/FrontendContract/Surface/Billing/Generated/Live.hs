@@ -18,8 +18,8 @@ import Application.Helper.FrontendContract.Surface.Live (SurfaceFragmentKey,
                                                          frontendSurfaceScope,
                                                          matchFrontendSurfaceFragmentKey,
                                                          matchFrontendSurfaceScope)
-import Application.Helper.FrontendContract.Surface.Values (SurfaceFields (NoSurfaceFields, (:&)),
-                                                           surfaceField)
+import Application.Helper.FrontendContract.Surface.Values (noSurfaceFields,
+                                                           surfaceField, (&:))
 import qualified Data.UUID as UUID
 import IHP.Prelude
 
@@ -28,7 +28,7 @@ billingStatusLiveFragment =
     frontendSurfaceFragmentKey
         @(AdapterFamilySurface Types2.BillingAdapterFamily)
         @Types1.BillingStatus
-        NoSurfaceFields
+        noSurfaceFields
 
 matchBillingStatusLiveFragment :: SurfaceFragmentKey -> Maybe ()
 matchBillingStatusLiveFragment =
@@ -44,7 +44,7 @@ billingVenueLiveScope venueId =
         @(AdapterFamilySurface Types2.BillingAdapterFamily)
         @Types1.BillingVenue
         ( surfaceField @Types1.VenueId venueId
-            :& NoSurfaceFields
+            &: noSurfaceFields
         )
 
 matchBillingVenueLiveScope :: SurfaceScope -> Maybe (UUID.UUID, ())

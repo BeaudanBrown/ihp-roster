@@ -314,10 +314,12 @@ accessor failures identify the marker absent from the complete bundle; action or
 intent ownership failures remain attached to the opaque constructor call.
 
 `SurfaceFields` construction keeps the exact declared field list as its
-contextual type. Do not replace that context with a separately inferred generic
-provided-field list: the declaration must continue to infer numeric values,
-`Nothing`, nested wires, and other valid inputs. The declaration-directed
-`NoSurfaceFields` and `(:&)` checks report:
+contextual type. Its raw data constructors stay hidden: use the
+`noSurfaceFields` and `(&:)` construction functions, which deliberately provide
+no matching or unwrapping path. Do not replace that context with a separately
+inferred generic provided-field list: the declaration must continue to infer
+numeric values, `Nothing`, nested wires, and other valid inputs. These
+declaration-directed builder checks report:
 
 - the next missing field and remaining declared shape;
 - an extra field's marker and presence, explicitly noting that it has no
@@ -449,11 +451,21 @@ reason-bearing.
 Generated resource modules invoke `frontendSurfaceResource` and
 `matchFrontendSurfaceResource`; generated Live modules invoke only
 `frontendSurfaceScope`, `matchFrontendSurfaceScope`,
-`frontendSurfaceFragmentKey`, and `matchFrontendSurfaceFragmentKey`. Generated Action modules and the Action/Intent fixtures build only the existing
-declaration-indexed `SurfaceFields`, delegate metadata to
-`frontendSurfaceAction` or `frontendSurfaceIntentForm`, and preserve
-`Either [SurfaceRequestFieldError] (SurfaceFields ...)` through the exact generic
-request parsers. Only the matching curated facade may import a generated module.
+`frontendSurfaceFragmentKey`, and `matchFrontendSurfaceFragmentKey`. Generated
+Action and Intent builders construct nominal
+`SurfaceActionFields surface action` or `SurfaceIntentFields surface intent`
+from the declaration-owned first field plus its exact typed tail; zero-field
+operations use explicit zero constructors. Raw `SurfaceFields` data
+constructors are hidden behind construction-only functions, and operation
+constructors never accept a complete raw bundle. An existing bundle therefore
+cannot be split or re-indexed to another same-shaped operation. Generated metadata functions consume the
+exact operation wrapper and generated parsers return it inside
+`Either [SurfaceRequestFieldError]`; equal normalized field lists therefore
+cannot make two generated operations interchangeable. The read-only
+`SurfaceFieldBundle` interface preserves `surfaceFieldNameFrom`,
+`surfaceFieldValue`, `surfaceFieldsJson`, and `surfaceFieldsText` for raw and
+nominal bundles without exposing an unwrap operation. Only the matching curated
+facade may import a generated module.
 Resource, Live, and Action facades re-export canonical operations and retain
 handwritten domain matchers or live orchestration only where they add meaning. Mechanical aliases,
 generic builder/matcher bodies, and the old Billing, Support, Profile, Staff,
@@ -596,6 +608,30 @@ deleted. That deliberately modest net retains domain-shaped mappings for
 Profile/Staff, Timesheets, and Admin shift-type same-shape bundles instead of replacing them
 with opaque wide positional calls. The former 33 generic parser calls and 50
 generic metadata calls are zero.
+
+The post-migration operation-identity hardening keeps those mappings while
+making their result type operation-polymorphic: each caller supplies its exact
+generated builder, and the helper returns that builder's nominal bundle instead
+of normalizing it back to one representative operation. The same-shape
+production inventory at this seam is:
+
+- all 13 zero-field generated Actions (two Support refreshes, seven Roster
+  controls, two LeaveRequests decisions, Admin invite revoke, and Admin Xero
+  sync);
+- all five Timesheets state Actions;
+- the four Admin shift-type create/update/autosave Actions;
+- the three one-field Admin roster-group move/toggle Actions and the three
+  one-field Admin shift-type move/toggle Actions;
+- Admin roster-group create/update;
+- Profile/Staff details, preferences, and leave-request pairs; and
+- the four drag/drop Roster Intents, including the day-timeline operation.
+
+`FrontendSurfaceWrongActionOperation` and
+`FrontendSurfaceWrongIntentOperation` compile-failure fixtures select concrete
+members of those groups and prove that a bundle from one operation cannot feed
+another. The generator still derives every wrapper from the existing typed home
+and checked declaration; no carrier record, consumer source scan, or parallel
+operation registry was added.
 
 The paired fresh-build cold compile of
 `Web/Staff/ProfileSurfaceRequest.hs` moved from 522 modules in 47.679 seconds to

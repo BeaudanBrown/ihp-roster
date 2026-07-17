@@ -1,3 +1,5 @@
+{-# LANGUAGE FlexibleContexts #-}
+
 module Web.Staff.ProfileSurfaceRequest
     ( StaffProfileDetailsSubmission (..)
     , StaffProfileSurfaceSubmission (..)
@@ -9,7 +11,7 @@ module Web.Staff.ProfileSurfaceRequest
 import qualified Application.Helper.FrontendContract.Surface.Profile as Surface
 import qualified Application.Helper.FrontendContract.Surface.Profile.Action as ProfileAction
 import Application.Helper.FrontendContract.Surface.Request (SurfaceRequestFieldError)
-import Application.Helper.FrontendContract.Surface.Values (SurfaceFields,
+import Application.Helper.FrontendContract.Surface.Values (SurfaceFieldBundleOf,
                                                            surfaceFieldValue)
 import qualified Data.UUID as UUID
 import Web.Controller.Prelude
@@ -52,8 +54,11 @@ parseStaffSurfaceSubmission =
         ProfileAction.parseUpdateStaffProfileActionParams
 
 chooseSubmission ::
-    Either [SurfaceRequestFieldError] (SurfaceFields Surface.StaffShiftPreferenceFields) ->
-    Either [SurfaceRequestFieldError] (SurfaceFields Surface.StaffProfileFields) ->
+    ( SurfaceFieldBundleOf Surface.StaffShiftPreferenceFields preferenceFields
+    , SurfaceFieldBundleOf Surface.StaffProfileFields detailsFields
+    ) =>
+    Either [SurfaceRequestFieldError] preferenceFields ->
+    Either [SurfaceRequestFieldError] detailsFields ->
     Either [SurfaceRequestFieldError] StaffProfileSurfaceSubmission
 chooseSubmission preferenceResult detailsResult = do
     preferenceFields <- preferenceResult
@@ -61,14 +66,14 @@ chooseSubmission preferenceResult detailsResult = do
         then Right (SubmittedStaffShiftPreferences (preferencesSubmission preferenceFields))
         else SubmittedStaffProfileDetails . detailsSubmission <$> detailsResult
 
-preferencesSubmission :: SurfaceFields Surface.StaffShiftPreferenceFields -> StaffShiftPreferencesSubmission
+preferencesSubmission :: SurfaceFieldBundleOf Surface.StaffShiftPreferenceFields fields => fields -> StaffShiftPreferencesSubmission
 preferencesSubmission fields =
     StaffShiftPreferencesSubmission
         { submittedPreferencesSection = surfaceFieldValue @Surface.SectionField fields
         , submittedShiftPreferenceKeys = fromMaybe [] (surfaceFieldValue @Surface.ShiftPreferenceKeysField fields)
         }
 
-detailsSubmission :: SurfaceFields Surface.StaffProfileFields -> StaffProfileDetailsSubmission
+detailsSubmission :: SurfaceFieldBundleOf Surface.StaffProfileFields fields => fields -> StaffProfileDetailsSubmission
 detailsSubmission fields =
     StaffProfileDetailsSubmission
         { submittedFirstName = surfaceFieldValue @Surface.FirstNameField fields

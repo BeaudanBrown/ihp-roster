@@ -15,25 +15,25 @@ import Application.Helper.FrontendContract.Surface.Runtime (FrontendSurfaceActio
                                                             frontendSurfaceAction)
 import qualified Application.Helper.FrontendContract.Surface.Support as Types1
 import qualified Application.Helper.FrontendContract.Surface.Support.HaskellAdapter as Types2
-import Application.Helper.FrontendContract.Surface.Values (SurfaceActionFieldSpecs,
-                                                           SurfaceFields (NoSurfaceFields))
+import Application.Helper.FrontendContract.Surface.Values (SurfaceActionFields,
+                                                           noSurfaceActionFields)
 import IHP.Prelude
 
-createFwcMapdRefreshJobActionFields :: SurfaceFields (SurfaceActionFieldSpecs (AdapterFamilySurface Types2.SupportAdapterFamily) Types1.CreateFwcMapdRefreshJob)
+createFwcMapdRefreshJobActionFields :: SurfaceActionFields (AdapterFamilySurface Types2.SupportAdapterFamily) Types1.CreateFwcMapdRefreshJob
 createFwcMapdRefreshJobActionFields =
-    NoSurfaceFields
+    noSurfaceActionFields
 
-createFwcMapdRefreshJobAction :: SurfaceFields (SurfaceActionFieldSpecs (AdapterFamilySurface Types2.SupportAdapterFamily) Types1.CreateFwcMapdRefreshJob) -> FrontendSurfaceAction
+createFwcMapdRefreshJobAction :: SurfaceActionFields (AdapterFamilySurface Types2.SupportAdapterFamily) Types1.CreateFwcMapdRefreshJob -> FrontendSurfaceAction
 createFwcMapdRefreshJobAction =
     frontendSurfaceAction
         @(AdapterFamilySurface Types2.SupportAdapterFamily)
         @Types1.CreateFwcMapdRefreshJob
 
-createPublicHolidayRefreshJobActionFields :: SurfaceFields (SurfaceActionFieldSpecs (AdapterFamilySurface Types2.SupportAdapterFamily) Types1.CreatePublicHolidayRefreshJob)
+createPublicHolidayRefreshJobActionFields :: SurfaceActionFields (AdapterFamilySurface Types2.SupportAdapterFamily) Types1.CreatePublicHolidayRefreshJob
 createPublicHolidayRefreshJobActionFields =
-    NoSurfaceFields
+    noSurfaceActionFields
 
-createPublicHolidayRefreshJobAction :: SurfaceFields (SurfaceActionFieldSpecs (AdapterFamilySurface Types2.SupportAdapterFamily) Types1.CreatePublicHolidayRefreshJob) -> FrontendSurfaceAction
+createPublicHolidayRefreshJobAction :: SurfaceActionFields (AdapterFamilySurface Types2.SupportAdapterFamily) Types1.CreatePublicHolidayRefreshJob -> FrontendSurfaceAction
 createPublicHolidayRefreshJobAction =
     frontendSurfaceAction
         @(AdapterFamilySurface Types2.SupportAdapterFamily)

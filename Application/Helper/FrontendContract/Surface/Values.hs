@@ -1,10 +1,12 @@
 {-# LANGUAGE AllowAmbiguousTypes  #-}
+{-# LANGUAGE ConstraintKinds      #-}
 {-# LANGUAGE DataKinds            #-}
 {-# LANGUAGE FlexibleContexts     #-}
 {-# LANGUAGE FlexibleInstances    #-}
 {-# LANGUAGE GADTs                #-}
 {-# LANGUAGE LambdaCase           #-}
 {-# LANGUAGE PolyKinds            #-}
+{-# LANGUAGE RoleAnnotations      #-}
 {-# LANGUAGE ScopedTypeVariables  #-}
 {-# LANGUAGE TypeApplications     #-}
 {-# LANGUAGE TypeFamilies         #-}
@@ -20,11 +22,15 @@ module Application.Helper.FrontendContract.Surface.Values
     , LookupSurfaceField
     , RequireSurfaceField
     , SurfaceActionFieldSpecs
+    , SurfaceActionFields
     , SurfaceActionPrimitive
     , SurfaceActivationRefPrimitive
+    , SurfaceFieldBundle
+    , SurfaceFieldBundleOf
+    , SurfaceFieldBundleSpecs
     , SurfaceFieldValue
     , SurfaceFieldValues
-    , SurfaceFields (..)
+    , SurfaceFields
     , SurfaceFragmentFieldSpecs
     , SurfaceFragmentOptionSpecs
     , SurfaceFragmentTargetFieldSpecs
@@ -32,6 +38,7 @@ module Application.Helper.FrontendContract.Surface.Values
     , SurfaceDropzoneRefPrimitive
     , SurfaceFragmentPrimitive
     , SurfaceIntentFieldSpecs
+    , SurfaceIntentFields
     , SurfaceIntentPrimitive
     , SurfaceMountStateFieldSpecs
     , SurfaceResourceFieldSpecs
@@ -40,6 +47,10 @@ module Application.Helper.FrontendContract.Surface.Values
     , SurfaceScopePrimitive
     , SurfaceSourceRefPrimitive
     , SurfaceWireValue
+    , noSurfaceActionFields
+    , noSurfaceFields
+    , noSurfaceIntentFields
+    , surfaceActionFields
     , surfaceActionNameValue
     , surfaceField
     , surfaceFieldNameFrom
@@ -59,6 +70,7 @@ module Application.Helper.FrontendContract.Surface.Values
     , surfaceFragmentNameValue
     , surfaceFragmentTargetId
     , surfaceFragmentValue
+    , surfaceIntentFields
     , surfaceIntentNameValue
     , surfaceNameValue
     , surfaceResourceFieldName
@@ -66,6 +78,7 @@ module Application.Helper.FrontendContract.Surface.Values
     , surfaceScopeFieldName
     , surfaceScopeValue
     , surfaceSourceRefValue
+    , (&:)
     ) where
 
 import qualified Application.Helper.FrontendContract.Naming as Naming
@@ -120,6 +133,126 @@ data SurfaceFields (fields :: [FieldSpec]) where
         SurfaceFields fields
 
 infixr 5 :&
+
+-- | Complete an exact declaration without exposing its raw data constructor.
+noSurfaceFields ::
+    AssertSurfaceFieldsEnd fields =>
+    SurfaceFields fields
+noSurfaceFields = NoSurfaceFields
+
+-- | Add one declaration-directed field without exposing a pattern that can
+-- destructure and re-index a completed field bundle.
+(&:) ::
+    forall presence marker fields fallback.
+    AssertSurfaceFieldHead presence marker (SurfaceFieldInputWire fields fallback) fields =>
+    SurfaceFieldInput presence marker (SurfaceFieldInputWire fields fallback) ->
+    SurfaceFields (SurfaceFieldsTail fields) ->
+    SurfaceFields fields
+(&:) field rest = (:&) @presence @marker @fields @fallback field rest
+
+infixr 5 &:
+
+-- | Internal first-field-plus-tail representation for one nominal operation.
+-- Unlike 'SurfaceFields', its first input may carry an existential wire from a
+-- parser; the closed head assertion still proves that it is the declared field.
+data BoundSurfaceFields (fields :: [FieldSpec]) where
+    NoBoundSurfaceFields ::
+        AssertSurfaceFieldsEnd fields =>
+        BoundSurfaceFields fields
+    BoundSurfaceField ::
+        AssertSurfaceFieldHead presence marker wire fields =>
+        SurfaceFieldInput presence marker wire ->
+        SurfaceFields (SurfaceFieldsTail fields) ->
+        BoundSurfaceFields fields
+
+-- | Nominal, operation-indexed request bundles exposed by generated adapters.
+-- The declaration-shaped values remain private, while the owning Surface and
+-- operation marker stay generative at the generated builder/metadata/parser
+-- seam even when two declarations normalize to the same field list.
+newtype SurfaceActionFields (spec :: SurfaceSpec) (marker :: Type) =
+    SurfaceActionFields (BoundSurfaceFields (SurfaceActionFieldSpecs spec marker))
+
+type role SurfaceActionFields nominal nominal
+
+newtype SurfaceIntentFields (spec :: SurfaceSpec) (marker :: Type) =
+    SurfaceIntentFields (BoundSurfaceFields (SurfaceIntentFieldSpecs spec marker))
+
+type role SurfaceIntentFields nominal nominal
+
+type family SurfaceFieldBundleSpecs (bundle :: Type) :: [FieldSpec] where
+    SurfaceFieldBundleSpecs (SurfaceFields fields) = fields
+    SurfaceFieldBundleSpecs (SurfaceActionFields spec marker) = SurfaceActionFieldSpecs spec marker
+    SurfaceFieldBundleSpecs (SurfaceIntentFields spec marker) = SurfaceIntentFieldSpecs spec marker
+
+-- | Read-only common interface for raw declaration fields and nominal generated
+-- request bundles. Construction of the nominal wrappers remains explicit in
+-- generated builders; consumers can still use marker-indexed lookup,
+-- serialization, and form-name access without discarding operation identity or
+-- gaining access to the wrapped raw bundle.
+class SurfaceFieldBundle bundle where
+    surfaceFieldBundleJsonPairs :: bundle -> [Aeson.Types.Pair]
+    surfaceFieldBundleTextValue :: bundle -> [(Text, Text)]
+
+instance SurfaceFieldBundle (SurfaceFields fields) where
+    surfaceFieldBundleJsonPairs = surfaceFieldJsonPairs
+    surfaceFieldBundleTextValue = surfaceFieldsTextValue
+
+instance SurfaceFieldBundle (SurfaceActionFields spec marker) where
+    surfaceFieldBundleJsonPairs (SurfaceActionFields fields) = boundSurfaceFieldJsonPairs fields
+    surfaceFieldBundleTextValue (SurfaceActionFields fields) = boundSurfaceFieldsTextValue fields
+
+instance SurfaceFieldBundle (SurfaceIntentFields spec marker) where
+    surfaceFieldBundleJsonPairs (SurfaceIntentFields fields) = boundSurfaceFieldJsonPairs fields
+    surfaceFieldBundleTextValue (SurfaceIntentFields fields) = boundSurfaceFieldsTextValue fields
+
+type SurfaceFieldBundleOf fields bundle =
+    ( SurfaceFieldBundle bundle
+    , SurfaceFieldBundleSpecs bundle ~ fields
+    )
+
+noSurfaceActionFields ::
+    forall spec operation.
+    AssertSurfaceFieldsEnd (SurfaceActionFieldSpecs spec operation) =>
+    SurfaceActionFields spec operation
+noSurfaceActionFields = SurfaceActionFields NoBoundSurfaceFields
+
+surfaceActionFields ::
+    forall spec operation presence fieldMarker fallback.
+    AssertSurfaceFieldHead
+        presence
+        fieldMarker
+        (SurfaceFieldInputWire (SurfaceActionFieldSpecs spec operation) fallback)
+        (SurfaceActionFieldSpecs spec operation) =>
+    SurfaceFieldInput
+        presence
+        fieldMarker
+        (SurfaceFieldInputWire (SurfaceActionFieldSpecs spec operation) fallback) ->
+    SurfaceFields (SurfaceFieldsTail (SurfaceActionFieldSpecs spec operation)) ->
+    SurfaceActionFields spec operation
+surfaceActionFields field rest =
+    SurfaceActionFields (BoundSurfaceField field rest)
+
+noSurfaceIntentFields ::
+    forall spec operation.
+    AssertSurfaceFieldsEnd (SurfaceIntentFieldSpecs spec operation) =>
+    SurfaceIntentFields spec operation
+noSurfaceIntentFields = SurfaceIntentFields NoBoundSurfaceFields
+
+surfaceIntentFields ::
+    forall spec operation presence fieldMarker fallback.
+    AssertSurfaceFieldHead
+        presence
+        fieldMarker
+        (SurfaceFieldInputWire (SurfaceIntentFieldSpecs spec operation) fallback)
+        (SurfaceIntentFieldSpecs spec operation) =>
+    SurfaceFieldInput
+        presence
+        fieldMarker
+        (SurfaceFieldInputWire (SurfaceIntentFieldSpecs spec operation) fallback) ->
+    SurfaceFields (SurfaceFieldsTail (SurfaceIntentFieldSpecs spec operation)) ->
+    SurfaceIntentFields spec operation
+surfaceIntentFields field rest =
+    SurfaceIntentFields (BoundSurfaceField field rest)
 
 type family SurfaceWireValue (wire :: WireType) :: Type where
     SurfaceWireValue 'WireText = Text
@@ -250,27 +383,35 @@ instance KnownSurfaceWireValue wire => KnownSurfaceFieldLookup ('SurfaceFieldNul
 -- occur in the bundle at compile time; runtime parsing can only fail if the
 -- internal 'SurfaceFields' serialization invariant is broken.
 surfaceFieldValue ::
-    forall marker fields.
-    ( Typeable marker
-    , KnownSurfaceFieldLookup (LookupSurfaceField marker fields)
+    forall marker bundle.
+    ( SurfaceFieldBundle bundle
+    , Typeable marker
+    , KnownSurfaceFieldLookup (LookupSurfaceField marker (SurfaceFieldBundleSpecs bundle))
     ) =>
-    SurfaceFields fields -> SurfaceFieldValue marker fields
+    bundle -> SurfaceFieldValue marker (SurfaceFieldBundleSpecs bundle)
 surfaceFieldValue fields =
     case Aeson.Types.parseEither parser (surfaceFieldsJson fields) of
         Right value -> value
         Left message -> error ("Typed Surface field lookup invariant failed: " <> cs message)
   where
-    parser = Aeson.withObject "SurfaceFields" (parseSurfaceFieldLookup @(LookupSurfaceField marker fields) (surfaceFieldName @marker))
+    parser =
+        Aeson.withObject
+            "SurfaceFields"
+            ( parseSurfaceFieldLookup
+                @(LookupSurfaceField marker (SurfaceFieldBundleSpecs bundle))
+                (surfaceFieldName @marker)
+            )
 
 -- | Canonical form/input name for a marker proven to belong to this complete
 -- bundle. Unlike the removed owner-only accessors, obtaining a name requires
 -- constructing every field in the declaration first.
 surfaceFieldNameFrom ::
-    forall marker fields.
-    ( Typeable marker
-    , KnownSurfaceFieldLookup (LookupSurfaceField marker fields)
+    forall marker bundle.
+    ( SurfaceFieldBundle bundle
+    , Typeable marker
+    , KnownSurfaceFieldLookup (LookupSurfaceField marker (SurfaceFieldBundleSpecs bundle))
     ) =>
-    SurfaceFields fields -> Text
+    bundle -> Text
 surfaceFieldNameFrom _ = surfaceFieldName @marker
 
 requiredNamedFieldValue :: Text -> Aeson.Object -> Aeson.Types.Parser Aeson.Value
@@ -400,30 +541,51 @@ requiredFieldValue object =
         pure
         (Aeson.KeyMap.lookup (Aeson.Key.fromText (surfaceFieldName @marker)) object)
 
-surfaceFieldsJson :: SurfaceFields fields -> Aeson.Value
-surfaceFieldsJson = Aeson.object . surfaceFieldJsonPairs
+surfaceFieldsJson :: SurfaceFieldBundle bundle => bundle -> Aeson.Value
+surfaceFieldsJson = Aeson.object . surfaceFieldBundleJsonPairs
 
-surfaceFieldsText :: SurfaceFields fields -> [(Text, Text)]
-surfaceFieldsText = \case
+surfaceFieldsText :: SurfaceFieldBundle bundle => bundle -> [(Text, Text)]
+surfaceFieldsText = surfaceFieldBundleTextValue
+
+surfaceFieldsTextValue :: SurfaceFields fields -> [(Text, Text)]
+surfaceFieldsTextValue = \case
     NoSurfaceFields -> []
-    RequiredSurfaceField @marker @wire value :& rest ->
-        (surfaceFieldName @marker, surfaceWireText @wire value) : surfaceFieldsText rest
-    OptionalSurfaceField @marker @wire (Just value) :& rest ->
-        (surfaceFieldName @marker, surfaceWireText @wire value) : surfaceFieldsText rest
-    OptionalSurfaceField Nothing :& rest -> surfaceFieldsText rest
-    NullableSurfaceField @marker @wire value :& rest ->
-        (surfaceFieldName @marker, maybe "" (surfaceWireText @wire) value) : surfaceFieldsText rest
+    field :& rest -> surfaceFieldInputText field <> surfaceFieldsTextValue rest
+
+boundSurfaceFieldsTextValue :: BoundSurfaceFields fields -> [(Text, Text)]
+boundSurfaceFieldsTextValue = \case
+    NoBoundSurfaceFields -> []
+    BoundSurfaceField field rest -> surfaceFieldInputText field <> surfaceFieldsTextValue rest
+
+surfaceFieldInputText :: SurfaceFieldInput presence marker wire -> [(Text, Text)]
+surfaceFieldInputText = \case
+    RequiredSurfaceField @marker @wire value ->
+        [(surfaceFieldName @marker, surfaceWireText @wire value)]
+    OptionalSurfaceField @marker @wire (Just value) ->
+        [(surfaceFieldName @marker, surfaceWireText @wire value)]
+    OptionalSurfaceField Nothing -> []
+    NullableSurfaceField @marker @wire value ->
+        [(surfaceFieldName @marker, maybe "" (surfaceWireText @wire) value)]
 
 surfaceFieldJsonPairs :: SurfaceFields fields -> [Aeson.Types.Pair]
 surfaceFieldJsonPairs = \case
     NoSurfaceFields -> []
-    RequiredSurfaceField @marker @wire value :& rest ->
-        Aeson.Key.fromText (surfaceFieldName @marker) Aeson..= surfaceWireJson @wire value : surfaceFieldJsonPairs rest
-    OptionalSurfaceField @marker @wire (Just value) :& rest ->
-        Aeson.Key.fromText (surfaceFieldName @marker) Aeson..= surfaceWireJson @wire value : surfaceFieldJsonPairs rest
-    OptionalSurfaceField Nothing :& rest -> surfaceFieldJsonPairs rest
-    NullableSurfaceField @marker @wire value :& rest ->
-        Aeson.Key.fromText (surfaceFieldName @marker) Aeson..= maybe Aeson.Null (surfaceWireJson @wire) value : surfaceFieldJsonPairs rest
+    field :& rest -> surfaceFieldInputJsonPairs field <> surfaceFieldJsonPairs rest
+
+boundSurfaceFieldJsonPairs :: BoundSurfaceFields fields -> [Aeson.Types.Pair]
+boundSurfaceFieldJsonPairs = \case
+    NoBoundSurfaceFields -> []
+    BoundSurfaceField field rest -> surfaceFieldInputJsonPairs field <> surfaceFieldJsonPairs rest
+
+surfaceFieldInputJsonPairs :: SurfaceFieldInput presence marker wire -> [Aeson.Types.Pair]
+surfaceFieldInputJsonPairs = \case
+    RequiredSurfaceField @marker @wire value ->
+        [Aeson.Key.fromText (surfaceFieldName @marker) Aeson..= surfaceWireJson @wire value]
+    OptionalSurfaceField @marker @wire (Just value) ->
+        [Aeson.Key.fromText (surfaceFieldName @marker) Aeson..= surfaceWireJson @wire value]
+    OptionalSurfaceField Nothing -> []
+    NullableSurfaceField @marker @wire value ->
+        [Aeson.Key.fromText (surfaceFieldName @marker) Aeson..= maybe Aeson.Null (surfaceWireJson @wire) value]
 
 surfaceFieldName :: forall marker. Typeable marker => Text
 surfaceFieldName = Naming.deriveFrontendSurfaceTypeName @marker Naming.FieldName

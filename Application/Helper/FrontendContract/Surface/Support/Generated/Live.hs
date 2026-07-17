@@ -20,7 +20,7 @@ import Application.Helper.FrontendContract.Surface.Live (SurfaceFragmentKey,
                                                          matchFrontendSurfaceScope)
 import qualified Application.Helper.FrontendContract.Surface.Support as Types1
 import qualified Application.Helper.FrontendContract.Surface.Support.HaskellAdapter as Types2
-import Application.Helper.FrontendContract.Surface.Values (SurfaceFields (NoSurfaceFields))
+import Application.Helper.FrontendContract.Surface.Values (noSurfaceFields)
 import IHP.Prelude
 
 supportAwardRatesLiveFragment :: SurfaceFragmentKey
@@ -28,7 +28,7 @@ supportAwardRatesLiveFragment =
     frontendSurfaceFragmentKey
         @(AdapterFamilySurface Types2.SupportAdapterFamily)
         @Types1.SupportAwardRates
-        NoSurfaceFields
+        noSurfaceFields
 
 matchSupportAwardRatesLiveFragment :: SurfaceFragmentKey -> Maybe ()
 matchSupportAwardRatesLiveFragment =
@@ -41,7 +41,7 @@ supportPlatformLiveScope =
     frontendSurfaceScope
         @(AdapterFamilySurface Types2.SupportAdapterFamily)
         @Types1.SupportPlatform
-        NoSurfaceFields
+        noSurfaceFields
 
 matchSupportPlatformLiveScope :: SurfaceScope -> Maybe ()
 matchSupportPlatformLiveScope =
@@ -54,7 +54,7 @@ supportPublicHolidaysLiveFragment =
     frontendSurfaceFragmentKey
         @(AdapterFamilySurface Types2.SupportAdapterFamily)
         @Types1.SupportPublicHolidays
-        NoSurfaceFields
+        noSurfaceFields
 
 matchSupportPublicHolidaysLiveFragment :: SurfaceFragmentKey -> Maybe ()
 matchSupportPublicHolidaysLiveFragment =

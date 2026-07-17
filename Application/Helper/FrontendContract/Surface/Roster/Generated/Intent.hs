@@ -30,10 +30,12 @@ import qualified Application.Helper.FrontendContract.Surface.Roster.HaskellAdapt
 import Application.Helper.FrontendContract.Surface.Runtime (FrontendSurfaceHtmxRequest,
                                                             FrontendSurfaceIntentForm,
                                                             frontendSurfaceIntentForm)
-import Application.Helper.FrontendContract.Surface.Values (SurfaceFields (NoSurfaceFields, (:&)),
-                                                           SurfaceIntentFieldSpecs,
+import Application.Helper.FrontendContract.Surface.Values (SurfaceIntentFields,
+                                                           noSurfaceFields,
                                                            surfaceField,
-                                                           surfaceOptionalField)
+                                                           surfaceIntentFields,
+                                                           surfaceOptionalField,
+                                                           (&:))
 import IHP.Prelude
 import Network.Wai (Request)
 
@@ -49,23 +51,24 @@ dropRosterStaffIntentFields ::
     Maybe Text ->
     Maybe Text ->
     Maybe Text ->
-    SurfaceFields (SurfaceIntentFieldSpecs (AdapterFamilySurface Types3.RosterAdapterFamily) Types2.DropRosterStaff)
+    SurfaceIntentFields (AdapterFamilySurface Types3.RosterAdapterFamily) Types2.DropRosterStaff
 dropRosterStaffIntentFields sourceItemKey targetDropzoneKey sessionKind pointerId pointerType startClientX startClientY currentClientX currentClientY deltaX deltaY =
-    ( surfaceField @Types1.SourceItemKey sourceItemKey
-        :& surfaceField @Types1.TargetDropzoneKey targetDropzoneKey
-        :& surfaceOptionalField @Types1.SessionKind sessionKind
-        :& surfaceOptionalField @Types1.PointerId pointerId
-        :& surfaceOptionalField @Types1.PointerType pointerType
-        :& surfaceOptionalField @Types1.StartClientX startClientX
-        :& surfaceOptionalField @Types1.StartClientY startClientY
-        :& surfaceOptionalField @Types1.CurrentClientX currentClientX
-        :& surfaceOptionalField @Types1.CurrentClientY currentClientY
-        :& surfaceOptionalField @Types1.DeltaX deltaX
-        :& surfaceOptionalField @Types1.DeltaY deltaY
-        :& NoSurfaceFields
-    )
+    surfaceIntentFields
+        (surfaceField @Types1.SourceItemKey sourceItemKey)
+        ( surfaceField @Types1.TargetDropzoneKey targetDropzoneKey
+            &: surfaceOptionalField @Types1.SessionKind sessionKind
+            &: surfaceOptionalField @Types1.PointerId pointerId
+            &: surfaceOptionalField @Types1.PointerType pointerType
+            &: surfaceOptionalField @Types1.StartClientX startClientX
+            &: surfaceOptionalField @Types1.StartClientY startClientY
+            &: surfaceOptionalField @Types1.CurrentClientX currentClientX
+            &: surfaceOptionalField @Types1.CurrentClientY currentClientY
+            &: surfaceOptionalField @Types1.DeltaX deltaX
+            &: surfaceOptionalField @Types1.DeltaY deltaY
+            &: noSurfaceFields
+        )
 
-dropRosterStaffIntentForm :: SurfaceFields (SurfaceIntentFieldSpecs (AdapterFamilySurface Types3.RosterAdapterFamily) Types2.DropRosterStaff) -> FrontendSurfaceHtmxRequest -> FrontendSurfaceIntentForm
+dropRosterStaffIntentForm :: SurfaceIntentFields (AdapterFamilySurface Types3.RosterAdapterFamily) Types2.DropRosterStaff -> FrontendSurfaceHtmxRequest -> FrontendSurfaceIntentForm
 dropRosterStaffIntentForm =
     frontendSurfaceIntentForm
         @(AdapterFamilySurface Types3.RosterAdapterFamily)
@@ -73,7 +76,7 @@ dropRosterStaffIntentForm =
 
 parseDropRosterStaffIntentParams ::
     (?request :: Request) =>
-    Either [SurfaceRequestFieldError] (SurfaceFields (SurfaceIntentFieldSpecs (AdapterFamilySurface Types3.RosterAdapterFamily) Types2.DropRosterStaff))
+    Either [SurfaceRequestFieldError] (SurfaceIntentFields (AdapterFamilySurface Types3.RosterAdapterFamily) Types2.DropRosterStaff)
 parseDropRosterStaffIntentParams =
     parseSurfaceIntentParams
         @(AdapterFamilySurface Types3.RosterAdapterFamily)
@@ -91,23 +94,24 @@ duplicateRosterShiftToDayIntentFields ::
     Maybe Text ->
     Maybe Text ->
     Maybe Text ->
-    SurfaceFields (SurfaceIntentFieldSpecs (AdapterFamilySurface Types3.RosterAdapterFamily) Types2.DuplicateRosterShiftToDay)
+    SurfaceIntentFields (AdapterFamilySurface Types3.RosterAdapterFamily) Types2.DuplicateRosterShiftToDay
 duplicateRosterShiftToDayIntentFields sourceItemKey targetDropzoneKey sessionKind pointerId pointerType startClientX startClientY currentClientX currentClientY deltaX deltaY =
-    ( surfaceField @Types1.SourceItemKey sourceItemKey
-        :& surfaceField @Types1.TargetDropzoneKey targetDropzoneKey
-        :& surfaceOptionalField @Types1.SessionKind sessionKind
-        :& surfaceOptionalField @Types1.PointerId pointerId
-        :& surfaceOptionalField @Types1.PointerType pointerType
-        :& surfaceOptionalField @Types1.StartClientX startClientX
-        :& surfaceOptionalField @Types1.StartClientY startClientY
-        :& surfaceOptionalField @Types1.CurrentClientX currentClientX
-        :& surfaceOptionalField @Types1.CurrentClientY currentClientY
-        :& surfaceOptionalField @Types1.DeltaX deltaX
-        :& surfaceOptionalField @Types1.DeltaY deltaY
-        :& NoSurfaceFields
-    )
+    surfaceIntentFields
+        (surfaceField @Types1.SourceItemKey sourceItemKey)
+        ( surfaceField @Types1.TargetDropzoneKey targetDropzoneKey
+            &: surfaceOptionalField @Types1.SessionKind sessionKind
+            &: surfaceOptionalField @Types1.PointerId pointerId
+            &: surfaceOptionalField @Types1.PointerType pointerType
+            &: surfaceOptionalField @Types1.StartClientX startClientX
+            &: surfaceOptionalField @Types1.StartClientY startClientY
+            &: surfaceOptionalField @Types1.CurrentClientX currentClientX
+            &: surfaceOptionalField @Types1.CurrentClientY currentClientY
+            &: surfaceOptionalField @Types1.DeltaX deltaX
+            &: surfaceOptionalField @Types1.DeltaY deltaY
+            &: noSurfaceFields
+        )
 
-duplicateRosterShiftToDayIntentForm :: SurfaceFields (SurfaceIntentFieldSpecs (AdapterFamilySurface Types3.RosterAdapterFamily) Types2.DuplicateRosterShiftToDay) -> FrontendSurfaceHtmxRequest -> FrontendSurfaceIntentForm
+duplicateRosterShiftToDayIntentForm :: SurfaceIntentFields (AdapterFamilySurface Types3.RosterAdapterFamily) Types2.DuplicateRosterShiftToDay -> FrontendSurfaceHtmxRequest -> FrontendSurfaceIntentForm
 duplicateRosterShiftToDayIntentForm =
     frontendSurfaceIntentForm
         @(AdapterFamilySurface Types3.RosterAdapterFamily)
@@ -115,7 +119,7 @@ duplicateRosterShiftToDayIntentForm =
 
 parseDuplicateRosterShiftToDayIntentParams ::
     (?request :: Request) =>
-    Either [SurfaceRequestFieldError] (SurfaceFields (SurfaceIntentFieldSpecs (AdapterFamilySurface Types3.RosterAdapterFamily) Types2.DuplicateRosterShiftToDay))
+    Either [SurfaceRequestFieldError] (SurfaceIntentFields (AdapterFamilySurface Types3.RosterAdapterFamily) Types2.DuplicateRosterShiftToDay)
 parseDuplicateRosterShiftToDayIntentParams =
     parseSurfaceIntentParams
         @(AdapterFamilySurface Types3.RosterAdapterFamily)
@@ -133,23 +137,24 @@ moveRosterShiftToSlotIntentFields ::
     Maybe Text ->
     Maybe Text ->
     Maybe Text ->
-    SurfaceFields (SurfaceIntentFieldSpecs (AdapterFamilySurface Types3.RosterAdapterFamily) Types2.MoveRosterShiftToSlot)
+    SurfaceIntentFields (AdapterFamilySurface Types3.RosterAdapterFamily) Types2.MoveRosterShiftToSlot
 moveRosterShiftToSlotIntentFields sourceItemKey targetDropzoneKey sessionKind pointerId pointerType startClientX startClientY currentClientX currentClientY deltaX deltaY =
-    ( surfaceField @Types1.SourceItemKey sourceItemKey
-        :& surfaceField @Types1.TargetDropzoneKey targetDropzoneKey
-        :& surfaceOptionalField @Types1.SessionKind sessionKind
-        :& surfaceOptionalField @Types1.PointerId pointerId
-        :& surfaceOptionalField @Types1.PointerType pointerType
-        :& surfaceOptionalField @Types1.StartClientX startClientX
-        :& surfaceOptionalField @Types1.StartClientY startClientY
-        :& surfaceOptionalField @Types1.CurrentClientX currentClientX
-        :& surfaceOptionalField @Types1.CurrentClientY currentClientY
-        :& surfaceOptionalField @Types1.DeltaX deltaX
-        :& surfaceOptionalField @Types1.DeltaY deltaY
-        :& NoSurfaceFields
-    )
+    surfaceIntentFields
+        (surfaceField @Types1.SourceItemKey sourceItemKey)
+        ( surfaceField @Types1.TargetDropzoneKey targetDropzoneKey
+            &: surfaceOptionalField @Types1.SessionKind sessionKind
+            &: surfaceOptionalField @Types1.PointerId pointerId
+            &: surfaceOptionalField @Types1.PointerType pointerType
+            &: surfaceOptionalField @Types1.StartClientX startClientX
+            &: surfaceOptionalField @Types1.StartClientY startClientY
+            &: surfaceOptionalField @Types1.CurrentClientX currentClientX
+            &: surfaceOptionalField @Types1.CurrentClientY currentClientY
+            &: surfaceOptionalField @Types1.DeltaX deltaX
+            &: surfaceOptionalField @Types1.DeltaY deltaY
+            &: noSurfaceFields
+        )
 
-moveRosterShiftToSlotIntentForm :: SurfaceFields (SurfaceIntentFieldSpecs (AdapterFamilySurface Types3.RosterAdapterFamily) Types2.MoveRosterShiftToSlot) -> FrontendSurfaceHtmxRequest -> FrontendSurfaceIntentForm
+moveRosterShiftToSlotIntentForm :: SurfaceIntentFields (AdapterFamilySurface Types3.RosterAdapterFamily) Types2.MoveRosterShiftToSlot -> FrontendSurfaceHtmxRequest -> FrontendSurfaceIntentForm
 moveRosterShiftToSlotIntentForm =
     frontendSurfaceIntentForm
         @(AdapterFamilySurface Types3.RosterAdapterFamily)
@@ -157,7 +162,7 @@ moveRosterShiftToSlotIntentForm =
 
 parseMoveRosterShiftToSlotIntentParams ::
     (?request :: Request) =>
-    Either [SurfaceRequestFieldError] (SurfaceFields (SurfaceIntentFieldSpecs (AdapterFamilySurface Types3.RosterAdapterFamily) Types2.MoveRosterShiftToSlot))
+    Either [SurfaceRequestFieldError] (SurfaceIntentFields (AdapterFamilySurface Types3.RosterAdapterFamily) Types2.MoveRosterShiftToSlot)
 parseMoveRosterShiftToSlotIntentParams =
     parseSurfaceIntentParams
         @(AdapterFamilySurface Types3.RosterAdapterFamily)
@@ -175,23 +180,24 @@ moveRosterTimelineShiftIntentFields ::
     Maybe Text ->
     Maybe Text ->
     Maybe Text ->
-    SurfaceFields (SurfaceIntentFieldSpecs (AdapterFamilySurface Types3.RosterDayTimelineAdapterFamily) Types2.MoveRosterTimelineShift)
+    SurfaceIntentFields (AdapterFamilySurface Types3.RosterDayTimelineAdapterFamily) Types2.MoveRosterTimelineShift
 moveRosterTimelineShiftIntentFields sourceItemKey targetDropzoneKey sessionKind pointerId pointerType startClientX startClientY currentClientX currentClientY deltaX deltaY =
-    ( surfaceField @Types1.SourceItemKey sourceItemKey
-        :& surfaceField @Types1.TargetDropzoneKey targetDropzoneKey
-        :& surfaceOptionalField @Types1.SessionKind sessionKind
-        :& surfaceOptionalField @Types1.PointerId pointerId
-        :& surfaceOptionalField @Types1.PointerType pointerType
-        :& surfaceOptionalField @Types1.StartClientX startClientX
-        :& surfaceOptionalField @Types1.StartClientY startClientY
-        :& surfaceOptionalField @Types1.CurrentClientX currentClientX
-        :& surfaceOptionalField @Types1.CurrentClientY currentClientY
-        :& surfaceOptionalField @Types1.DeltaX deltaX
-        :& surfaceOptionalField @Types1.DeltaY deltaY
-        :& NoSurfaceFields
-    )
+    surfaceIntentFields
+        (surfaceField @Types1.SourceItemKey sourceItemKey)
+        ( surfaceField @Types1.TargetDropzoneKey targetDropzoneKey
+            &: surfaceOptionalField @Types1.SessionKind sessionKind
+            &: surfaceOptionalField @Types1.PointerId pointerId
+            &: surfaceOptionalField @Types1.PointerType pointerType
+            &: surfaceOptionalField @Types1.StartClientX startClientX
+            &: surfaceOptionalField @Types1.StartClientY startClientY
+            &: surfaceOptionalField @Types1.CurrentClientX currentClientX
+            &: surfaceOptionalField @Types1.CurrentClientY currentClientY
+            &: surfaceOptionalField @Types1.DeltaX deltaX
+            &: surfaceOptionalField @Types1.DeltaY deltaY
+            &: noSurfaceFields
+        )
 
-moveRosterTimelineShiftIntentForm :: SurfaceFields (SurfaceIntentFieldSpecs (AdapterFamilySurface Types3.RosterDayTimelineAdapterFamily) Types2.MoveRosterTimelineShift) -> FrontendSurfaceHtmxRequest -> FrontendSurfaceIntentForm
+moveRosterTimelineShiftIntentForm :: SurfaceIntentFields (AdapterFamilySurface Types3.RosterDayTimelineAdapterFamily) Types2.MoveRosterTimelineShift -> FrontendSurfaceHtmxRequest -> FrontendSurfaceIntentForm
 moveRosterTimelineShiftIntentForm =
     frontendSurfaceIntentForm
         @(AdapterFamilySurface Types3.RosterDayTimelineAdapterFamily)
@@ -199,7 +205,7 @@ moveRosterTimelineShiftIntentForm =
 
 parseMoveRosterTimelineShiftIntentParams ::
     (?request :: Request) =>
-    Either [SurfaceRequestFieldError] (SurfaceFields (SurfaceIntentFieldSpecs (AdapterFamilySurface Types3.RosterDayTimelineAdapterFamily) Types2.MoveRosterTimelineShift))
+    Either [SurfaceRequestFieldError] (SurfaceIntentFields (AdapterFamilySurface Types3.RosterDayTimelineAdapterFamily) Types2.MoveRosterTimelineShift)
 parseMoveRosterTimelineShiftIntentParams =
     parseSurfaceIntentParams
         @(AdapterFamilySurface Types3.RosterDayTimelineAdapterFamily)
@@ -207,13 +213,13 @@ parseMoveRosterTimelineShiftIntentParams =
 
 setRosterLayoutModeIntentFields ::
     Text ->
-    SurfaceFields (SurfaceIntentFieldSpecs (AdapterFamilySurface Types3.RosterAdapterFamily) Types2.SetRosterLayoutMode)
+    SurfaceIntentFields (AdapterFamilySurface Types3.RosterAdapterFamily) Types2.SetRosterLayoutMode
 setRosterLayoutModeIntentFields rosterLayoutMode =
-    ( surfaceField @Types2.RosterLayoutMode rosterLayoutMode
-        :& NoSurfaceFields
-    )
+    surfaceIntentFields
+        (surfaceField @Types2.RosterLayoutMode rosterLayoutMode)
+        noSurfaceFields
 
-setRosterLayoutModeIntentForm :: SurfaceFields (SurfaceIntentFieldSpecs (AdapterFamilySurface Types3.RosterAdapterFamily) Types2.SetRosterLayoutMode) -> FrontendSurfaceHtmxRequest -> FrontendSurfaceIntentForm
+setRosterLayoutModeIntentForm :: SurfaceIntentFields (AdapterFamilySurface Types3.RosterAdapterFamily) Types2.SetRosterLayoutMode -> FrontendSurfaceHtmxRequest -> FrontendSurfaceIntentForm
 setRosterLayoutModeIntentForm =
     frontendSurfaceIntentForm
         @(AdapterFamilySurface Types3.RosterAdapterFamily)
@@ -221,7 +227,7 @@ setRosterLayoutModeIntentForm =
 
 parseSetRosterLayoutModeIntentParams ::
     (?request :: Request) =>
-    Either [SurfaceRequestFieldError] (SurfaceFields (SurfaceIntentFieldSpecs (AdapterFamilySurface Types3.RosterAdapterFamily) Types2.SetRosterLayoutMode))
+    Either [SurfaceRequestFieldError] (SurfaceIntentFields (AdapterFamilySurface Types3.RosterAdapterFamily) Types2.SetRosterLayoutMode)
 parseSetRosterLayoutModeIntentParams =
     parseSurfaceIntentParams
         @(AdapterFamilySurface Types3.RosterAdapterFamily)

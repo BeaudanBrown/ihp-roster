@@ -1,3 +1,4 @@
+{-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE TypeApplications #-}
 {-# OPTIONS_GHC -Werror=incomplete-patterns #-}
 
@@ -39,7 +40,7 @@ renderShiftTypesSection shiftTypes showInactive awardLevels awardLevelBaseRates 
 renderShiftTypesSectionFragment :: [ShiftType] -> Bool -> [AwardLevel] -> [AwardLevelBaseRate] -> [XeroImportedPayItem] -> Html
 renderShiftTypesSectionFragment shiftTypes showInactive awardLevels awardLevelBaseRates importedPayItems =
     renderFrontendSurfaceMount (adminShiftTypesSurfaceImpl AdminVenueScopeValue { adminVenueId = currentVenueScopeId, adminRosterGroupId = Nothing }) [hsx|
-        <div id={surfaceFragmentTargetId @Surface.AdminShiftTypesSurface @Surface.AdminShiftTypesFragment NoSurfaceFields}>
+        <div id={surfaceFragmentTargetId @Surface.AdminShiftTypesSurface @Surface.AdminShiftTypesFragment noSurfaceFields}>
             {renderShiftTypesSection shiftTypes showInactive awardLevels awardLevelBaseRates importedPayItems}
         </div>
     |]
@@ -49,17 +50,6 @@ currentVenueScopeId =
     case currentVenueOrNothing of
         Just venue -> unpackId venue.id
         Nothing -> error "Admin shift types live surface requires a current venue"
-
-type ShiftTypeActionFieldsBuilder = Bool -> Text -> Text -> Text -> Bool -> SurfaceFields (SurfaceActionFieldSpecs Surface.AdminShiftTypesSurface Surface.UpdateShiftType)
-
-shiftTypeActionFields :: ShiftTypeActionFieldsBuilder -> Bool -> Text -> Text -> Text -> Bool -> SurfaceFields (SurfaceActionFieldSpecs Surface.AdminShiftTypesSurface Surface.UpdateShiftType)
-shiftTypeActionFields buildFields showInactive name payRateSelection colourKey isActive =
-    buildFields
-        showInactive
-        name
-        payRateSelection
-        colourKey
-        isActive
 
 submittedPayRateSelectionValue :: Maybe (Id AwardLevel) -> Maybe (Id XeroImportedPayItem) -> Text
 submittedPayRateSelectionValue _ (Just importedPayItemId) = "xero:" <> tshow importedPayItemId
@@ -122,7 +112,7 @@ renderShiftTypeCreateForm _shiftTypes showInactive awardLevels awardLevelBaseRat
     |]
     where
         defaultCreateColourKey = blankShiftTypeColourKey
-        fields = shiftTypeActionFields AdminAction.createShiftTypeActionFields showInactive "" "" defaultCreateColourKey True
+        fields = AdminAction.createShiftTypeActionFields showInactive "" "" defaultCreateColourKey True
         route = FrontendSurfaceActionRoute
             { actionRouteUrl = pathTo CreateShiftTypeAction
             , actionRouteCustomHtmx = []
@@ -174,11 +164,11 @@ renderShiftTypeRow shiftTypes showInactive awardLevels awardLevelBaseRates impor
         </div>
     |]
         selectedPayRate = submittedPayRateSelectionValue shiftType.overrideAwardLevelId shiftType.importedXeroPayItemId
-        fields = shiftTypeActionFields AdminAction.updateShiftTypeActionFields showInactive shiftType.name selectedPayRate shiftType.colourKey shiftType.isActive
+        fields = AdminAction.updateShiftTypeActionFields showInactive shiftType.name selectedPayRate shiftType.colourKey shiftType.isActive
         moveUpFields = AdminAction.moveShiftTypeUpActionFields showInactive
         moveDownFields = AdminAction.moveShiftTypeDownActionFields showInactive
-        autosaveSelectionFields = shiftTypeActionFields AdminAction.autosaveShiftTypeSelectionActionFields showInactive shiftType.name selectedPayRate shiftType.colourKey shiftType.isActive
-        autosaveNameFields = shiftTypeActionFields AdminAction.autosaveShiftTypeNameActionFields showInactive shiftType.name selectedPayRate shiftType.colourKey shiftType.isActive
+        autosaveSelectionFields = AdminAction.autosaveShiftTypeSelectionActionFields showInactive shiftType.name selectedPayRate shiftType.colourKey shiftType.isActive
+        autosaveNameFields = AdminAction.autosaveShiftTypeNameActionFields showInactive shiftType.name selectedPayRate shiftType.colourKey shiftType.isActive
         autosaveSelectionAction = AdminAction.autosaveShiftTypeSelectionAction autosaveSelectionFields
         autosaveNameInput = applyFrontendSurfaceActionAttrs (AdminAction.autosaveShiftTypeNameAction autosaveNameFields) (autosaveNameRoute shiftType) [hsx|
             <input class="form-control"
@@ -227,7 +217,7 @@ renderShiftTypeMoveButton isDisabled action actionUrl label =
             , actionRouteExtraAttrs = [("class", "btn btn-outline-secondary")]
             }
 
-renderPayRateSelect :: SurfaceFields (SurfaceActionFieldSpecs Surface.AdminShiftTypesSurface Surface.CreateShiftType) -> Text -> Maybe (Id AwardLevel) -> Maybe (Id XeroImportedPayItem) -> [AwardLevel] -> [AwardLevelBaseRate] -> [XeroImportedPayItem] -> Maybe (FrontendSurfaceAction, FrontendSurfaceActionRoute) -> Html
+renderPayRateSelect :: SurfaceFieldBundleOf (SurfaceActionFieldSpecs Surface.AdminShiftTypesSurface Surface.CreateShiftType) fields => fields -> Text -> Maybe (Id AwardLevel) -> Maybe (Id XeroImportedPayItem) -> [AwardLevel] -> [AwardLevelBaseRate] -> [XeroImportedPayItem] -> Maybe (FrontendSurfaceAction, FrontendSurfaceActionRoute) -> Html
 renderPayRateSelect fields fieldId selectedAwardLevelId selectedImportedPayItemId awardLevels awardLevelBaseRates importedPayItems maybeAutosave = [hsx|
     <label class="form-label" for={fieldId}>Pay Rate</label>
     {renderSelect selectBody}
@@ -261,7 +251,7 @@ renderImportedPayItemOption selectedImportedPayItemId importedPayItem = [hsx|
     </option>
 |]
 
-renderShiftTypeColourSelect :: SurfaceFields (SurfaceActionFieldSpecs Surface.AdminShiftTypesSurface Surface.CreateShiftType) -> Text -> Text -> Maybe (FrontendSurfaceAction, FrontendSurfaceActionRoute) -> Html
+renderShiftTypeColourSelect :: SurfaceFieldBundleOf (SurfaceActionFieldSpecs Surface.AdminShiftTypesSurface Surface.CreateShiftType) fields => fields -> Text -> Text -> Maybe (FrontendSurfaceAction, FrontendSurfaceActionRoute) -> Html
 renderShiftTypeColourSelect fields fieldId selectedColourKey maybeAutosave = [hsx|
     <label class="form-label" for={fieldId}>Optional Colour</label>
     {renderSelect selectBody}

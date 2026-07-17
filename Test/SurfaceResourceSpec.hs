@@ -31,9 +31,9 @@ tests = do
             let resourceValue =
                     frontendSurfaceResource @TimesheetsSurface.TimesheetsSurface @TimesheetsSurface.TimesheetDay
                         ( surfaceField @TimesheetsSurface.VenueId nil
-                            :& surfaceField @TimesheetsSurface.WeekOffset 2
-                            :& surfaceField @TimesheetsSurface.DayOffset 4
-                            :& NoSurfaceFields
+                            &: surfaceField @TimesheetsSurface.WeekOffset 2
+                            &: surfaceField @TimesheetsSurface.DayOffset 4
+                            &: noSurfaceFields
                         )
 
             matchFrontendSurfaceResource @TimesheetsSurface.TimesheetsSurface @TimesheetsSurface.TimesheetDay resourceValue

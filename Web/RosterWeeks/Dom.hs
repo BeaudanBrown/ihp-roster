@@ -38,33 +38,33 @@ rosterWeekShellId :: Text
 rosterWeekShellId = surfaceDomTokenValue @Surface.RosterSurface @Surface.RosterWeekShell
 
 rosterContentFragmentId :: Text
-rosterContentFragmentId = surfaceFragmentTargetId @Surface.RosterSurface @Surface.RosterContent NoSurfaceFields
+rosterContentFragmentId = surfaceFragmentTargetId @Surface.RosterSurface @Surface.RosterContent noSurfaceFields
 
 rosterDayTimelineContentFragmentId :: Id RosterDay -> Text
 rosterDayTimelineContentFragmentId rosterDayId =
     surfaceFragmentTargetId @Surface.RosterDayTimelineSurface @Surface.RosterDayTimelineContent
-        (surfaceField @Surface.RosterDayId (unpackId rosterDayId) :& NoSurfaceFields)
+        (surfaceField @Surface.RosterDayId (unpackId rosterDayId) &: noSurfaceFields)
 
 rosterGridToolbarFragmentId :: Text
-rosterGridToolbarFragmentId = surfaceFragmentTargetId @Surface.RosterSurface @Surface.RosterGridToolbar NoSurfaceFields
+rosterGridToolbarFragmentId = surfaceFragmentTargetId @Surface.RosterSurface @Surface.RosterGridToolbar noSurfaceFields
 
 rosterGridFrameFragmentId :: Text
-rosterGridFrameFragmentId = surfaceFragmentTargetId @Surface.RosterSurface @Surface.RosterGridFrame NoSurfaceFields
+rosterGridFrameFragmentId = surfaceFragmentTargetId @Surface.RosterSurface @Surface.RosterGridFrame noSurfaceFields
 
 rosterDayColumnsFragmentId :: Text
-rosterDayColumnsFragmentId = surfaceFragmentTargetId @Surface.RosterSurface @Surface.RosterDayColumns NoSurfaceFields
+rosterDayColumnsFragmentId = surfaceFragmentTargetId @Surface.RosterSurface @Surface.RosterDayColumns noSurfaceFields
 
 rosterDayRailFragmentId :: Text
-rosterDayRailFragmentId = surfaceFragmentTargetId @Surface.RosterSurface @Surface.RosterDayRail NoSurfaceFields
+rosterDayRailFragmentId = surfaceFragmentTargetId @Surface.RosterSurface @Surface.RosterDayRail noSurfaceFields
 
 rosterWageRailFragmentId :: Text
-rosterWageRailFragmentId = surfaceFragmentTargetId @Surface.RosterSurface @Surface.RosterWageRail NoSurfaceFields
+rosterWageRailFragmentId = surfaceFragmentTargetId @Surface.RosterSurface @Surface.RosterWageRail noSurfaceFields
 
 rosterSlotsGridFragmentId :: Text
-rosterSlotsGridFragmentId = surfaceFragmentTargetId @Surface.RosterSurface @Surface.RosterSlotsGrid NoSurfaceFields
+rosterSlotsGridFragmentId = surfaceFragmentTargetId @Surface.RosterSurface @Surface.RosterSlotsGrid noSurfaceFields
 
 rosterStaffPanelFragmentId :: Text
-rosterStaffPanelFragmentId = surfaceFragmentTargetId @Surface.RosterSurface @Surface.RosterStaffPanel NoSurfaceFields
+rosterStaffPanelFragmentId = surfaceFragmentTargetId @Surface.RosterSurface @Surface.RosterStaffPanel noSurfaceFields
 
 rosterStaffPanelFragmentClasses :: [Text]
 rosterStaffPanelFragmentClasses = ["col-12", "col-xl-4", "col-xxl-3", "roster-layout-side"]
@@ -78,12 +78,12 @@ rosterStaffPanelSettingsPaneId = "roster-staff-panel-settings-pane"
 rosterDaySectionDomId :: Id RosterDay -> Text
 rosterDaySectionDomId rosterDayId =
     surfaceFragmentTargetId @Surface.RosterSurface @Surface.RosterDaySection
-        (surfaceField @Surface.RosterDayId (unpackId rosterDayId) :& NoSurfaceFields)
+        (surfaceField @Surface.RosterDayId (unpackId rosterDayId) &: noSurfaceFields)
 
 rosterRowDomIdText :: Id RosterDay -> Int -> Text
 rosterRowDomIdText rosterDayId rowIndex =
     surfaceFragmentTargetId @Surface.RosterSurface @Surface.RosterRow
         ( surfaceField @Surface.RosterDayId (unpackId rosterDayId)
-            :& surfaceField @Surface.RowIndex rowIndex
-            :& NoSurfaceFields
+            &: surfaceField @Surface.RowIndex rowIndex
+            &: noSurfaceFields
         )

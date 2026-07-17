@@ -1,3 +1,4 @@
+{-# LANGUAGE FlexibleContexts #-}
 {-# OPTIONS_GHC -Werror=incomplete-patterns #-}
 
 module Web.Timesheets.Projection
@@ -459,7 +460,7 @@ parseUnapproveTimesheetEntryState =
     timesheetSurfaceRequestState
         <$> TimesheetsAction.parseUnapproveTimesheetEntryActionParams
 
-timesheetSurfaceRequestState :: SurfaceFields (SurfaceActionFieldSpecs Surface.TimesheetsSurface Surface.UpdateTimesheetFilters) -> TimesheetSurfaceRequestState
+timesheetSurfaceRequestState :: SurfaceFieldBundleOf (SurfaceActionFieldSpecs Surface.TimesheetsSurface Surface.UpdateTimesheetFilters) fields => fields -> TimesheetSurfaceRequestState
 timesheetSurfaceRequestState fields =
     TimesheetSurfaceRequestState
         { surfaceRequestWeekOffset = surfaceFieldValue @Surface.WeekOffset fields
@@ -509,7 +510,7 @@ timesheetViewFiltersFromRequest =
     , parseUUIDText =<< paramOrNothing @Text (cs (surfaceFieldNameFrom @Surface.StaffFilterId timesheetRequestFieldWitness))
     )
 
-timesheetRequestFieldWitness :: SurfaceFields (SurfaceActionFieldSpecs Surface.TimesheetsSurface Surface.NavigateTimesheetWeek)
+timesheetRequestFieldWitness :: SurfaceActionFields Surface.TimesheetsSurface Surface.NavigateTimesheetWeek
 timesheetRequestFieldWitness =
     TimesheetsAction.navigateTimesheetWeekActionFields
         0

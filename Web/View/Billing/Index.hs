@@ -5,7 +5,8 @@ module Web.View.Billing.Index where
 import Application.Helper.Controller (currentVenueOrNothing)
 import qualified Application.Helper.FrontendContract.Surface.Billing as Surface
 import Application.Helper.FrontendContract.Surface.Runtime (renderFrontendSurfaceMount)
-import Application.Helper.FrontendContract.Surface.Values (SurfaceFields (NoSurfaceFields),
+import Application.Helper.FrontendContract.Surface.Values (SurfaceFields,
+                                                           noSurfaceFields,
                                                            surfaceFragmentTargetId)
 import qualified Data.Text as Text
 import Web.Billing.FrontendSurface (BillingCheckoutReturnState (..),
@@ -82,7 +83,7 @@ renderBillingResultPage title message =
 
 renderbillingStatusLiveFragment :: BillingViewModel -> Html
 renderbillingStatusLiveFragment viewModel@BillingViewModel { recentEvents, maybeControl, checkoutReturn } = [hsx|
-    <div id={surfaceFragmentTargetId @Surface.BillingSurface @Surface.BillingStatus NoSurfaceFields}>
+    <div id={surfaceFragmentTargetId @Surface.BillingSurface @Surface.BillingStatus noSurfaceFields}>
         {renderBillingStatusPanel viewModel}
         {if currentUserIsSupportAdmin then renderBillingControlPanel maybeControl else mempty}
         {renderBillingEventsPanel recentEvents}

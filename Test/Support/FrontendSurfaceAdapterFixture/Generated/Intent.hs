@@ -15,11 +15,13 @@ import Application.Helper.FrontendContract.Surface.Request (SurfaceRequestFieldE
 import Application.Helper.FrontendContract.Surface.Runtime (FrontendSurfaceHtmxRequest,
                                                             FrontendSurfaceIntentForm,
                                                             frontendSurfaceIntentForm)
-import Application.Helper.FrontendContract.Surface.Values (SurfaceFields (NoSurfaceFields, (:&)),
-                                                           SurfaceIntentFieldSpecs,
+import Application.Helper.FrontendContract.Surface.Values (SurfaceIntentFields,
+                                                           noSurfaceFields,
                                                            surfaceField,
+                                                           surfaceIntentFields,
                                                            surfaceNullableField,
-                                                           surfaceOptionalField)
+                                                           surfaceOptionalField,
+                                                           (&:))
 import Data.Time (Day)
 import qualified Data.UUID as UUID
 import IHP.Prelude
@@ -35,20 +37,21 @@ crossKindDeclarationIntentFields ::
     Maybe [UUID.UUID] ->
     Bool ->
     [[UUID.UUID]] ->
-    SurfaceFields (SurfaceIntentFieldSpecs (AdapterFamilySurface Family.AdapterFixtureFamily) Family.CrossKindDeclaration)
+    SurfaceIntentFields (AdapterFamilySurface Family.AdapterFixtureFamily) Family.CrossKindDeclaration
 crossKindDeclarationIntentFields label retryCount archivedAt memberIds maybeNote maybeIds enabled nestedMemberIds =
-    ( surfaceField @Family.Label label
-        :& surfaceOptionalField @Family.RetryCount retryCount
-        :& surfaceNullableField @Family.ArchivedAt archivedAt
-        :& surfaceField @Family.MemberIds memberIds
-        :& surfaceOptionalField @Family.MaybeNote maybeNote
-        :& surfaceNullableField @Family.MaybeIds maybeIds
-        :& surfaceField @Family.Enabled enabled
-        :& surfaceField @Family.NestedMemberIds nestedMemberIds
-        :& NoSurfaceFields
-    )
+    surfaceIntentFields
+        (surfaceField @Family.Label label)
+        ( surfaceOptionalField @Family.RetryCount retryCount
+            &: surfaceNullableField @Family.ArchivedAt archivedAt
+            &: surfaceField @Family.MemberIds memberIds
+            &: surfaceOptionalField @Family.MaybeNote maybeNote
+            &: surfaceNullableField @Family.MaybeIds maybeIds
+            &: surfaceField @Family.Enabled enabled
+            &: surfaceField @Family.NestedMemberIds nestedMemberIds
+            &: noSurfaceFields
+        )
 
-crossKindDeclarationIntentForm :: SurfaceFields (SurfaceIntentFieldSpecs (AdapterFamilySurface Family.AdapterFixtureFamily) Family.CrossKindDeclaration) -> FrontendSurfaceHtmxRequest -> FrontendSurfaceIntentForm
+crossKindDeclarationIntentForm :: SurfaceIntentFields (AdapterFamilySurface Family.AdapterFixtureFamily) Family.CrossKindDeclaration -> FrontendSurfaceHtmxRequest -> FrontendSurfaceIntentForm
 crossKindDeclarationIntentForm =
     frontendSurfaceIntentForm
         @(AdapterFamilySurface Family.AdapterFixtureFamily)
@@ -56,7 +59,7 @@ crossKindDeclarationIntentForm =
 
 parseCrossKindDeclarationIntentParams ::
     (?request :: Request) =>
-    Either [SurfaceRequestFieldError] (SurfaceFields (SurfaceIntentFieldSpecs (AdapterFamilySurface Family.AdapterFixtureFamily) Family.CrossKindDeclaration))
+    Either [SurfaceRequestFieldError] (SurfaceIntentFields (AdapterFamilySurface Family.AdapterFixtureFamily) Family.CrossKindDeclaration)
 parseCrossKindDeclarationIntentParams =
     parseSurfaceIntentParams
         @(AdapterFamilySurface Family.AdapterFixtureFamily)

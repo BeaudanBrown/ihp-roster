@@ -181,13 +181,11 @@ renderLiveImports aliases adapters =
             <> ["matchFrontendSurfaceScope" | hasScopes]
     fields = concatMap (.renderableAdapterFields) adapters
     valueImports =
-        [ if null fields
-            then "SurfaceFields (NoSurfaceFields)"
-            else "SurfaceFields (NoSurfaceFields, (:&))"
-        ]
+        ["noSurfaceFields"]
             <> ["surfaceField" | any ((== RequiredField) . (.fieldPresence) . (.resolvedAdapterFieldIR)) fields]
             <> ["surfaceNullableField" | any ((== NullableFieldPresence) . (.fieldPresence) . (.resolvedAdapterFieldIR)) fields]
             <> ["surfaceOptionalField" | any ((== OptionalFieldPresence) . (.fieldPresence) . (.resolvedAdapterFieldIR)) fields]
+            <> ["(&:)" | not (null fields)]
     allTypes = concatMap (map (.resolvedAdapterFieldType) . (.renderableAdapterFields)) adapters
     needsDay = any sourceTypeContainsDay allTypes
     needsUuid = any sourceTypeContainsUuid allTypes

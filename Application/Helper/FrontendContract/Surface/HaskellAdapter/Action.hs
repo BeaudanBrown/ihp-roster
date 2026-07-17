@@ -123,7 +123,9 @@ renderActionImports ::
     [Text]
 renderActionImports =
     renderSurfaceRequestAdapterImports
-        "SurfaceActionFieldSpecs"
+        "SurfaceActionFields"
+        "surfaceActionFields"
+        "noSurfaceActionFields"
         ["FrontendSurfaceAction", "frontendSurfaceAction"]
         "parseSurfaceActionParams"
         (.surfaceActionDeclarationOperations)
@@ -135,14 +137,14 @@ renderActionAdapter ::
 renderActionAdapter aliases adapter =
     renderSurfaceRequestAdapterOperationBlocks
         [ ( operations.surfaceAdapterFieldsBuilderOperation
-          , renderSurfaceRequestAdapterFieldsBuilder "SurfaceActionFieldSpecs" fieldsName aliases adapter
+          , renderSurfaceRequestAdapterFieldsBuilder "SurfaceActionFields" "surfaceActionFields" "noSurfaceActionFields" fieldsName aliases adapter
           )
         , ( operations.surfaceAdapterRenderMetadataOperation
           , renderActionMetadata aliases adapter
           )
         , ( operations.surfaceAdapterRequestParserOperation
           , renderSurfaceRequestAdapterParser
-                "SurfaceActionFieldSpecs"
+                "SurfaceActionFields"
                 parserName
                 "parseSurfaceActionParams"
                 aliases
@@ -157,7 +159,7 @@ renderActionMetadata ::
     RenderableAdapter SurfaceActionAdapterDeclaration ->
     [Text]
 renderActionMetadata aliases adapter =
-    [ metadataName adapter <> " :: " <> renderSurfaceRequestAdapterFieldsType "SurfaceActionFieldSpecs" aliases adapter <> " -> FrontendSurfaceAction"
+    [ metadataName adapter <> " :: " <> renderSurfaceRequestAdapterFieldsType "SurfaceActionFields" aliases adapter <> " -> FrontendSurfaceAction"
     , metadataName adapter <> " ="
     , "    frontendSurfaceAction"
     , "        @(AdapterFamilySurface " <> qualifyHaskellType aliases adapter.renderableAdapterHomeFamily <> ")"

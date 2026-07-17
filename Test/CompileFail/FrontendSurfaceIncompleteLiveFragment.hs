@@ -11,4 +11,4 @@ import IHP.Prelude
 -- at compile time rather than producing a partial fragment params object.
 incompleteLiveFragment =
     frontendSurfaceFragmentKey @Roster.RosterSurface @Roster.RosterRow
-        (surfaceField @Roster.RosterDayId (error "fixture UUID") :& NoSurfaceFields)
+        (surfaceField @Roster.RosterDayId (error "fixture UUID") &: noSurfaceFields)

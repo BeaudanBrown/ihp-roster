@@ -20,17 +20,19 @@ import Application.Helper.FrontendContract.Surface.Request (SurfaceRequestFieldE
                                                             parseSurfaceActionParams)
 import Application.Helper.FrontendContract.Surface.Runtime (FrontendSurfaceAction,
                                                             frontendSurfaceAction)
-import Application.Helper.FrontendContract.Surface.Values (SurfaceActionFieldSpecs,
-                                                           SurfaceFields (NoSurfaceFields, (:&)),
+import Application.Helper.FrontendContract.Surface.Values (SurfaceActionFields,
+                                                           noSurfaceActionFields,
+                                                           noSurfaceFields,
+                                                           surfaceActionFields,
                                                            surfaceField)
 import IHP.Prelude
 import Network.Wai (Request)
 
-approveLeaveRequestActionFields :: SurfaceFields (SurfaceActionFieldSpecs (AdapterFamilySurface Types2.LeaveRequestsAdapterFamily) Types1.ApproveLeaveRequest)
+approveLeaveRequestActionFields :: SurfaceActionFields (AdapterFamilySurface Types2.LeaveRequestsAdapterFamily) Types1.ApproveLeaveRequest
 approveLeaveRequestActionFields =
-    NoSurfaceFields
+    noSurfaceActionFields
 
-approveLeaveRequestAction :: SurfaceFields (SurfaceActionFieldSpecs (AdapterFamilySurface Types2.LeaveRequestsAdapterFamily) Types1.ApproveLeaveRequest) -> FrontendSurfaceAction
+approveLeaveRequestAction :: SurfaceActionFields (AdapterFamilySurface Types2.LeaveRequestsAdapterFamily) Types1.ApproveLeaveRequest -> FrontendSurfaceAction
 approveLeaveRequestAction =
     frontendSurfaceAction
         @(AdapterFamilySurface Types2.LeaveRequestsAdapterFamily)
@@ -38,13 +40,13 @@ approveLeaveRequestAction =
 
 archiveLeaveRequestsPageActionFields ::
     Int ->
-    SurfaceFields (SurfaceActionFieldSpecs (AdapterFamilySurface Types2.LeaveRequestsAdapterFamily) Types1.ArchiveLeaveRequestsPage)
+    SurfaceActionFields (AdapterFamilySurface Types2.LeaveRequestsAdapterFamily) Types1.ArchiveLeaveRequestsPage
 archiveLeaveRequestsPageActionFields archivePage =
-    ( surfaceField @Types1.ArchivePage archivePage
-        :& NoSurfaceFields
-    )
+    surfaceActionFields
+        (surfaceField @Types1.ArchivePage archivePage)
+        noSurfaceFields
 
-archiveLeaveRequestsPageAction :: SurfaceFields (SurfaceActionFieldSpecs (AdapterFamilySurface Types2.LeaveRequestsAdapterFamily) Types1.ArchiveLeaveRequestsPage) -> FrontendSurfaceAction
+archiveLeaveRequestsPageAction :: SurfaceActionFields (AdapterFamilySurface Types2.LeaveRequestsAdapterFamily) Types1.ArchiveLeaveRequestsPage -> FrontendSurfaceAction
 archiveLeaveRequestsPageAction =
     frontendSurfaceAction
         @(AdapterFamilySurface Types2.LeaveRequestsAdapterFamily)
@@ -52,17 +54,17 @@ archiveLeaveRequestsPageAction =
 
 parseArchiveLeaveRequestsPageActionParams ::
     (?request :: Request) =>
-    Either [SurfaceRequestFieldError] (SurfaceFields (SurfaceActionFieldSpecs (AdapterFamilySurface Types2.LeaveRequestsAdapterFamily) Types1.ArchiveLeaveRequestsPage))
+    Either [SurfaceRequestFieldError] (SurfaceActionFields (AdapterFamilySurface Types2.LeaveRequestsAdapterFamily) Types1.ArchiveLeaveRequestsPage)
 parseArchiveLeaveRequestsPageActionParams =
     parseSurfaceActionParams
         @(AdapterFamilySurface Types2.LeaveRequestsAdapterFamily)
         @Types1.ArchiveLeaveRequestsPage
 
-denyLeaveRequestActionFields :: SurfaceFields (SurfaceActionFieldSpecs (AdapterFamilySurface Types2.LeaveRequestsAdapterFamily) Types1.DenyLeaveRequest)
+denyLeaveRequestActionFields :: SurfaceActionFields (AdapterFamilySurface Types2.LeaveRequestsAdapterFamily) Types1.DenyLeaveRequest
 denyLeaveRequestActionFields =
-    NoSurfaceFields
+    noSurfaceActionFields
 
-denyLeaveRequestAction :: SurfaceFields (SurfaceActionFieldSpecs (AdapterFamilySurface Types2.LeaveRequestsAdapterFamily) Types1.DenyLeaveRequest) -> FrontendSurfaceAction
+denyLeaveRequestAction :: SurfaceActionFields (AdapterFamilySurface Types2.LeaveRequestsAdapterFamily) Types1.DenyLeaveRequest -> FrontendSurfaceAction
 denyLeaveRequestAction =
     frontendSurfaceAction
         @(AdapterFamilySurface Types2.LeaveRequestsAdapterFamily)

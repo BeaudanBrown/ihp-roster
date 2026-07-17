@@ -28,10 +28,12 @@ import Application.Helper.FrontendContract.Surface.Runtime (FrontendSurfaceActio
                                                             frontendSurfaceAction)
 import qualified Application.Helper.FrontendContract.Surface.Timesheets as Types1
 import qualified Application.Helper.FrontendContract.Surface.Timesheets.HaskellAdapter as Types2
-import Application.Helper.FrontendContract.Surface.Values (SurfaceActionFieldSpecs,
-                                                           SurfaceFields (NoSurfaceFields, (:&)),
+import Application.Helper.FrontendContract.Surface.Values (SurfaceActionFields,
+                                                           noSurfaceFields,
+                                                           surfaceActionFields,
                                                            surfaceField,
-                                                           surfaceOptionalField)
+                                                           surfaceOptionalField,
+                                                           (&:))
 import qualified Data.UUID as UUID
 import IHP.Prelude
 import Network.Wai (Request)
@@ -42,17 +44,18 @@ approveTimesheetEntryActionFields ::
     Bool ->
     Bool ->
     Maybe UUID.UUID ->
-    SurfaceFields (SurfaceActionFieldSpecs (AdapterFamilySurface Types2.TimesheetsAdapterFamily) Types1.ApproveTimesheetEntry)
+    SurfaceActionFields (AdapterFamilySurface Types2.TimesheetsAdapterFamily) Types1.ApproveTimesheetEntry
 approveTimesheetEntryActionFields weekOffset showApproved showAllStaff showSuggestions staffFilterId =
-    ( surfaceField @Types1.WeekOffset weekOffset
-        :& surfaceField @Types1.ShowApproved showApproved
-        :& surfaceField @Types1.ShowAllStaff showAllStaff
-        :& surfaceField @Types1.ShowSuggestions showSuggestions
-        :& surfaceOptionalField @Types1.StaffFilterId staffFilterId
-        :& NoSurfaceFields
-    )
+    surfaceActionFields
+        (surfaceField @Types1.WeekOffset weekOffset)
+        ( surfaceField @Types1.ShowApproved showApproved
+            &: surfaceField @Types1.ShowAllStaff showAllStaff
+            &: surfaceField @Types1.ShowSuggestions showSuggestions
+            &: surfaceOptionalField @Types1.StaffFilterId staffFilterId
+            &: noSurfaceFields
+        )
 
-approveTimesheetEntryAction :: SurfaceFields (SurfaceActionFieldSpecs (AdapterFamilySurface Types2.TimesheetsAdapterFamily) Types1.ApproveTimesheetEntry) -> FrontendSurfaceAction
+approveTimesheetEntryAction :: SurfaceActionFields (AdapterFamilySurface Types2.TimesheetsAdapterFamily) Types1.ApproveTimesheetEntry -> FrontendSurfaceAction
 approveTimesheetEntryAction =
     frontendSurfaceAction
         @(AdapterFamilySurface Types2.TimesheetsAdapterFamily)
@@ -60,7 +63,7 @@ approveTimesheetEntryAction =
 
 parseApproveTimesheetEntryActionParams ::
     (?request :: Request) =>
-    Either [SurfaceRequestFieldError] (SurfaceFields (SurfaceActionFieldSpecs (AdapterFamilySurface Types2.TimesheetsAdapterFamily) Types1.ApproveTimesheetEntry))
+    Either [SurfaceRequestFieldError] (SurfaceActionFields (AdapterFamilySurface Types2.TimesheetsAdapterFamily) Types1.ApproveTimesheetEntry)
 parseApproveTimesheetEntryActionParams =
     parseSurfaceActionParams
         @(AdapterFamilySurface Types2.TimesheetsAdapterFamily)
@@ -72,17 +75,18 @@ createTimesheetEntryFromSuggestionActionFields ::
     Bool ->
     Bool ->
     Maybe UUID.UUID ->
-    SurfaceFields (SurfaceActionFieldSpecs (AdapterFamilySurface Types2.TimesheetsAdapterFamily) Types1.CreateTimesheetEntryFromSuggestion)
+    SurfaceActionFields (AdapterFamilySurface Types2.TimesheetsAdapterFamily) Types1.CreateTimesheetEntryFromSuggestion
 createTimesheetEntryFromSuggestionActionFields weekOffset showApproved showAllStaff showSuggestions staffFilterId =
-    ( surfaceField @Types1.WeekOffset weekOffset
-        :& surfaceField @Types1.ShowApproved showApproved
-        :& surfaceField @Types1.ShowAllStaff showAllStaff
-        :& surfaceField @Types1.ShowSuggestions showSuggestions
-        :& surfaceOptionalField @Types1.StaffFilterId staffFilterId
-        :& NoSurfaceFields
-    )
+    surfaceActionFields
+        (surfaceField @Types1.WeekOffset weekOffset)
+        ( surfaceField @Types1.ShowApproved showApproved
+            &: surfaceField @Types1.ShowAllStaff showAllStaff
+            &: surfaceField @Types1.ShowSuggestions showSuggestions
+            &: surfaceOptionalField @Types1.StaffFilterId staffFilterId
+            &: noSurfaceFields
+        )
 
-createTimesheetEntryFromSuggestionAction :: SurfaceFields (SurfaceActionFieldSpecs (AdapterFamilySurface Types2.TimesheetsAdapterFamily) Types1.CreateTimesheetEntryFromSuggestion) -> FrontendSurfaceAction
+createTimesheetEntryFromSuggestionAction :: SurfaceActionFields (AdapterFamilySurface Types2.TimesheetsAdapterFamily) Types1.CreateTimesheetEntryFromSuggestion -> FrontendSurfaceAction
 createTimesheetEntryFromSuggestionAction =
     frontendSurfaceAction
         @(AdapterFamilySurface Types2.TimesheetsAdapterFamily)
@@ -90,7 +94,7 @@ createTimesheetEntryFromSuggestionAction =
 
 parseCreateTimesheetEntryFromSuggestionActionParams ::
     (?request :: Request) =>
-    Either [SurfaceRequestFieldError] (SurfaceFields (SurfaceActionFieldSpecs (AdapterFamilySurface Types2.TimesheetsAdapterFamily) Types1.CreateTimesheetEntryFromSuggestion))
+    Either [SurfaceRequestFieldError] (SurfaceActionFields (AdapterFamilySurface Types2.TimesheetsAdapterFamily) Types1.CreateTimesheetEntryFromSuggestion)
 parseCreateTimesheetEntryFromSuggestionActionParams =
     parseSurfaceActionParams
         @(AdapterFamilySurface Types2.TimesheetsAdapterFamily)
@@ -102,17 +106,18 @@ navigateTimesheetWeekActionFields ::
     Bool ->
     Bool ->
     Maybe UUID.UUID ->
-    SurfaceFields (SurfaceActionFieldSpecs (AdapterFamilySurface Types2.TimesheetsAdapterFamily) Types1.NavigateTimesheetWeek)
+    SurfaceActionFields (AdapterFamilySurface Types2.TimesheetsAdapterFamily) Types1.NavigateTimesheetWeek
 navigateTimesheetWeekActionFields weekOffset showApproved showAllStaff showSuggestions staffFilterId =
-    ( surfaceField @Types1.WeekOffset weekOffset
-        :& surfaceField @Types1.ShowApproved showApproved
-        :& surfaceField @Types1.ShowAllStaff showAllStaff
-        :& surfaceField @Types1.ShowSuggestions showSuggestions
-        :& surfaceOptionalField @Types1.StaffFilterId staffFilterId
-        :& NoSurfaceFields
-    )
+    surfaceActionFields
+        (surfaceField @Types1.WeekOffset weekOffset)
+        ( surfaceField @Types1.ShowApproved showApproved
+            &: surfaceField @Types1.ShowAllStaff showAllStaff
+            &: surfaceField @Types1.ShowSuggestions showSuggestions
+            &: surfaceOptionalField @Types1.StaffFilterId staffFilterId
+            &: noSurfaceFields
+        )
 
-navigateTimesheetWeekAction :: SurfaceFields (SurfaceActionFieldSpecs (AdapterFamilySurface Types2.TimesheetsAdapterFamily) Types1.NavigateTimesheetWeek) -> FrontendSurfaceAction
+navigateTimesheetWeekAction :: SurfaceActionFields (AdapterFamilySurface Types2.TimesheetsAdapterFamily) Types1.NavigateTimesheetWeek -> FrontendSurfaceAction
 navigateTimesheetWeekAction =
     frontendSurfaceAction
         @(AdapterFamilySurface Types2.TimesheetsAdapterFamily)
@@ -120,7 +125,7 @@ navigateTimesheetWeekAction =
 
 parseNavigateTimesheetWeekActionParams ::
     (?request :: Request) =>
-    Either [SurfaceRequestFieldError] (SurfaceFields (SurfaceActionFieldSpecs (AdapterFamilySurface Types2.TimesheetsAdapterFamily) Types1.NavigateTimesheetWeek))
+    Either [SurfaceRequestFieldError] (SurfaceActionFields (AdapterFamilySurface Types2.TimesheetsAdapterFamily) Types1.NavigateTimesheetWeek)
 parseNavigateTimesheetWeekActionParams =
     parseSurfaceActionParams
         @(AdapterFamilySurface Types2.TimesheetsAdapterFamily)
@@ -132,17 +137,18 @@ unapproveTimesheetEntryActionFields ::
     Bool ->
     Bool ->
     Maybe UUID.UUID ->
-    SurfaceFields (SurfaceActionFieldSpecs (AdapterFamilySurface Types2.TimesheetsAdapterFamily) Types1.UnapproveTimesheetEntry)
+    SurfaceActionFields (AdapterFamilySurface Types2.TimesheetsAdapterFamily) Types1.UnapproveTimesheetEntry
 unapproveTimesheetEntryActionFields weekOffset showApproved showAllStaff showSuggestions staffFilterId =
-    ( surfaceField @Types1.WeekOffset weekOffset
-        :& surfaceField @Types1.ShowApproved showApproved
-        :& surfaceField @Types1.ShowAllStaff showAllStaff
-        :& surfaceField @Types1.ShowSuggestions showSuggestions
-        :& surfaceOptionalField @Types1.StaffFilterId staffFilterId
-        :& NoSurfaceFields
-    )
+    surfaceActionFields
+        (surfaceField @Types1.WeekOffset weekOffset)
+        ( surfaceField @Types1.ShowApproved showApproved
+            &: surfaceField @Types1.ShowAllStaff showAllStaff
+            &: surfaceField @Types1.ShowSuggestions showSuggestions
+            &: surfaceOptionalField @Types1.StaffFilterId staffFilterId
+            &: noSurfaceFields
+        )
 
-unapproveTimesheetEntryAction :: SurfaceFields (SurfaceActionFieldSpecs (AdapterFamilySurface Types2.TimesheetsAdapterFamily) Types1.UnapproveTimesheetEntry) -> FrontendSurfaceAction
+unapproveTimesheetEntryAction :: SurfaceActionFields (AdapterFamilySurface Types2.TimesheetsAdapterFamily) Types1.UnapproveTimesheetEntry -> FrontendSurfaceAction
 unapproveTimesheetEntryAction =
     frontendSurfaceAction
         @(AdapterFamilySurface Types2.TimesheetsAdapterFamily)
@@ -150,7 +156,7 @@ unapproveTimesheetEntryAction =
 
 parseUnapproveTimesheetEntryActionParams ::
     (?request :: Request) =>
-    Either [SurfaceRequestFieldError] (SurfaceFields (SurfaceActionFieldSpecs (AdapterFamilySurface Types2.TimesheetsAdapterFamily) Types1.UnapproveTimesheetEntry))
+    Either [SurfaceRequestFieldError] (SurfaceActionFields (AdapterFamilySurface Types2.TimesheetsAdapterFamily) Types1.UnapproveTimesheetEntry)
 parseUnapproveTimesheetEntryActionParams =
     parseSurfaceActionParams
         @(AdapterFamilySurface Types2.TimesheetsAdapterFamily)
@@ -162,17 +168,18 @@ updateTimesheetFiltersActionFields ::
     Bool ->
     Bool ->
     Maybe UUID.UUID ->
-    SurfaceFields (SurfaceActionFieldSpecs (AdapterFamilySurface Types2.TimesheetsAdapterFamily) Types1.UpdateTimesheetFilters)
+    SurfaceActionFields (AdapterFamilySurface Types2.TimesheetsAdapterFamily) Types1.UpdateTimesheetFilters
 updateTimesheetFiltersActionFields weekOffset showApproved showAllStaff showSuggestions staffFilterId =
-    ( surfaceField @Types1.WeekOffset weekOffset
-        :& surfaceField @Types1.ShowApproved showApproved
-        :& surfaceField @Types1.ShowAllStaff showAllStaff
-        :& surfaceField @Types1.ShowSuggestions showSuggestions
-        :& surfaceOptionalField @Types1.StaffFilterId staffFilterId
-        :& NoSurfaceFields
-    )
+    surfaceActionFields
+        (surfaceField @Types1.WeekOffset weekOffset)
+        ( surfaceField @Types1.ShowApproved showApproved
+            &: surfaceField @Types1.ShowAllStaff showAllStaff
+            &: surfaceField @Types1.ShowSuggestions showSuggestions
+            &: surfaceOptionalField @Types1.StaffFilterId staffFilterId
+            &: noSurfaceFields
+        )
 
-updateTimesheetFiltersAction :: SurfaceFields (SurfaceActionFieldSpecs (AdapterFamilySurface Types2.TimesheetsAdapterFamily) Types1.UpdateTimesheetFilters) -> FrontendSurfaceAction
+updateTimesheetFiltersAction :: SurfaceActionFields (AdapterFamilySurface Types2.TimesheetsAdapterFamily) Types1.UpdateTimesheetFilters -> FrontendSurfaceAction
 updateTimesheetFiltersAction =
     frontendSurfaceAction
         @(AdapterFamilySurface Types2.TimesheetsAdapterFamily)
@@ -180,7 +187,7 @@ updateTimesheetFiltersAction =
 
 parseUpdateTimesheetFiltersActionParams ::
     (?request :: Request) =>
-    Either [SurfaceRequestFieldError] (SurfaceFields (SurfaceActionFieldSpecs (AdapterFamilySurface Types2.TimesheetsAdapterFamily) Types1.UpdateTimesheetFilters))
+    Either [SurfaceRequestFieldError] (SurfaceActionFields (AdapterFamilySurface Types2.TimesheetsAdapterFamily) Types1.UpdateTimesheetFilters)
 parseUpdateTimesheetFiltersActionParams =
     parseSurfaceActionParams
         @(AdapterFamilySurface Types2.TimesheetsAdapterFamily)

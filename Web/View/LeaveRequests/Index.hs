@@ -57,14 +57,14 @@ leaveSectionCountFragmentId, leaveSectionListFragmentId :: Text -> Text
 leaveSectionCountFragmentId section =
     surfaceFragmentTargetId @Surface.LeaveRequestsSurface @Surface.LeaveSectionCount
         ( surfaceField @Surface.LeaveSection section
-            :& surfaceField @Surface.LeaveTargetSuffix "count"
-            :& NoSurfaceFields
+            &: surfaceField @Surface.LeaveTargetSuffix "count"
+            &: noSurfaceFields
         )
 leaveSectionListFragmentId section =
     surfaceFragmentTargetId @Surface.LeaveRequestsSurface @Surface.LeaveSectionList
         ( surfaceField @Surface.LeaveSection section
-            :& surfaceField @Surface.LeaveTargetSuffix (if section == leaveArchiveSection then "page-content" else "list")
-            :& NoSurfaceFields
+            &: surfaceField @Surface.LeaveTargetSuffix (if section == leaveArchiveSection then "page-content" else "list")
+            &: noSurfaceFields
         )
 
 leavePendingCountFragmentId, leavePendingListFragmentId, leaveApprovedCountFragmentId, leaveApprovedListFragmentId, leaveDeniedCountFragmentId, leaveDeniedListFragmentId, leaveArchiveCountFragmentId, leaveArchiveListFragmentId :: Text

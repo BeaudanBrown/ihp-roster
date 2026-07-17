@@ -42,8 +42,8 @@ import Application.Helper.FrontendContract.Surface.Live (SurfaceFragmentKey,
                                                          matchFrontendSurfaceScope)
 import qualified Application.Helper.FrontendContract.Surface.Roster as Types1
 import qualified Application.Helper.FrontendContract.Surface.Roster.HaskellAdapter as Types2
-import Application.Helper.FrontendContract.Surface.Values (SurfaceFields (NoSurfaceFields, (:&)),
-                                                           surfaceField)
+import Application.Helper.FrontendContract.Surface.Values (noSurfaceFields,
+                                                           surfaceField, (&:))
 import qualified Data.UUID as UUID
 import IHP.Prelude
 
@@ -52,7 +52,7 @@ rosterContentLiveFragment =
     frontendSurfaceFragmentKey
         @(AdapterFamilySurface Types2.RosterAdapterFamily)
         @Types1.RosterContent
-        NoSurfaceFields
+        noSurfaceFields
 
 matchRosterContentLiveFragment :: SurfaceFragmentKey -> Maybe ()
 matchRosterContentLiveFragment =
@@ -65,7 +65,7 @@ rosterDayColumnsLiveFragment =
     frontendSurfaceFragmentKey
         @(AdapterFamilySurface Types2.RosterAdapterFamily)
         @Types1.RosterDayColumns
-        NoSurfaceFields
+        noSurfaceFields
 
 matchRosterDayColumnsLiveFragment :: SurfaceFragmentKey -> Maybe ()
 matchRosterDayColumnsLiveFragment =
@@ -78,7 +78,7 @@ rosterDayRailLiveFragment =
     frontendSurfaceFragmentKey
         @(AdapterFamilySurface Types2.RosterAdapterFamily)
         @Types1.RosterDayRail
-        NoSurfaceFields
+        noSurfaceFields
 
 matchRosterDayRailLiveFragment :: SurfaceFragmentKey -> Maybe ()
 matchRosterDayRailLiveFragment =
@@ -94,7 +94,7 @@ rosterDaySectionLiveFragment rosterDayId =
         @(AdapterFamilySurface Types2.RosterAdapterFamily)
         @Types1.RosterDaySection
         ( surfaceField @Types1.RosterDayId rosterDayId
-            :& NoSurfaceFields
+            &: noSurfaceFields
         )
 
 matchRosterDaySectionLiveFragment :: SurfaceFragmentKey -> Maybe (UUID.UUID, ())
@@ -111,7 +111,7 @@ rosterDayTimelineContentLiveFragment rosterDayId =
         @(AdapterFamilySurface Types2.RosterDayTimelineAdapterFamily)
         @Types1.RosterDayTimelineContent
         ( surfaceField @Types1.RosterDayId rosterDayId
-            :& NoSurfaceFields
+            &: noSurfaceFields
         )
 
 matchRosterDayTimelineContentLiveFragment :: SurfaceFragmentKey -> Maybe (UUID.UUID, ())
@@ -131,10 +131,10 @@ rosterDayTimelineLiveScope venueId rosterGroupId weekOffset rosterDayId =
         @(AdapterFamilySurface Types2.RosterDayTimelineAdapterFamily)
         @Types1.RosterDayTimeline
         ( surfaceField @Types1.VenueId venueId
-            :& surfaceField @Types1.RosterGroupId rosterGroupId
-            :& surfaceField @Types1.WeekOffset weekOffset
-            :& surfaceField @Types1.RosterDayId rosterDayId
-            :& NoSurfaceFields
+            &: surfaceField @Types1.RosterGroupId rosterGroupId
+            &: surfaceField @Types1.WeekOffset weekOffset
+            &: surfaceField @Types1.RosterDayId rosterDayId
+            &: noSurfaceFields
         )
 
 matchRosterDayTimelineLiveScope :: SurfaceScope -> Maybe (UUID.UUID, (UUID.UUID, (Int, (UUID.UUID, ()))))
@@ -148,7 +148,7 @@ rosterGridFrameLiveFragment =
     frontendSurfaceFragmentKey
         @(AdapterFamilySurface Types2.RosterAdapterFamily)
         @Types1.RosterGridFrame
-        NoSurfaceFields
+        noSurfaceFields
 
 matchRosterGridFrameLiveFragment :: SurfaceFragmentKey -> Maybe ()
 matchRosterGridFrameLiveFragment =
@@ -161,7 +161,7 @@ rosterGridToolbarLiveFragment =
     frontendSurfaceFragmentKey
         @(AdapterFamilySurface Types2.RosterAdapterFamily)
         @Types1.RosterGridToolbar
-        NoSurfaceFields
+        noSurfaceFields
 
 matchRosterGridToolbarLiveFragment :: SurfaceFragmentKey -> Maybe ()
 matchRosterGridToolbarLiveFragment =
@@ -178,8 +178,8 @@ rosterRowLiveFragment rosterDayId rowIndex =
         @(AdapterFamilySurface Types2.RosterAdapterFamily)
         @Types1.RosterRow
         ( surfaceField @Types1.RosterDayId rosterDayId
-            :& surfaceField @Types1.RowIndex rowIndex
-            :& NoSurfaceFields
+            &: surfaceField @Types1.RowIndex rowIndex
+            &: noSurfaceFields
         )
 
 matchRosterRowLiveFragment :: SurfaceFragmentKey -> Maybe (UUID.UUID, (Int, ()))
@@ -193,7 +193,7 @@ rosterSlotsGridLiveFragment =
     frontendSurfaceFragmentKey
         @(AdapterFamilySurface Types2.RosterAdapterFamily)
         @Types1.RosterSlotsGrid
-        NoSurfaceFields
+        noSurfaceFields
 
 matchRosterSlotsGridLiveFragment :: SurfaceFragmentKey -> Maybe ()
 matchRosterSlotsGridLiveFragment =
@@ -206,7 +206,7 @@ rosterStaffPanelLiveFragment =
     frontendSurfaceFragmentKey
         @(AdapterFamilySurface Types2.RosterAdapterFamily)
         @Types1.RosterStaffPanel
-        NoSurfaceFields
+        noSurfaceFields
 
 matchRosterStaffPanelLiveFragment :: SurfaceFragmentKey -> Maybe ()
 matchRosterStaffPanelLiveFragment =
@@ -219,7 +219,7 @@ rosterStaffSelfServiceLeaveFormLiveFragment =
     frontendSurfaceFragmentKey
         @(AdapterFamilySurface Types2.RosterAdapterFamily)
         @Types1.RosterStaffSelfServiceLeaveFormFragment
-        NoSurfaceFields
+        noSurfaceFields
 
 matchRosterStaffSelfServiceLeaveFormLiveFragment :: SurfaceFragmentKey -> Maybe ()
 matchRosterStaffSelfServiceLeaveFormLiveFragment =
@@ -232,7 +232,7 @@ rosterWageRailLiveFragment =
     frontendSurfaceFragmentKey
         @(AdapterFamilySurface Types2.RosterAdapterFamily)
         @Types1.RosterWageRail
-        NoSurfaceFields
+        noSurfaceFields
 
 matchRosterWageRailLiveFragment :: SurfaceFragmentKey -> Maybe ()
 matchRosterWageRailLiveFragment =
@@ -250,9 +250,9 @@ rosterWeekLiveScope venueId rosterGroupId weekOffset =
         @(AdapterFamilySurface Types2.RosterAdapterFamily)
         @Types1.RosterWeek
         ( surfaceField @Types1.VenueId venueId
-            :& surfaceField @Types1.RosterGroupId rosterGroupId
-            :& surfaceField @Types1.WeekOffset weekOffset
-            :& NoSurfaceFields
+            &: surfaceField @Types1.RosterGroupId rosterGroupId
+            &: surfaceField @Types1.WeekOffset weekOffset
+            &: noSurfaceFields
         )
 
 matchRosterWeekLiveScope :: SurfaceScope -> Maybe (UUID.UUID, (UUID.UUID, (Int, ())))

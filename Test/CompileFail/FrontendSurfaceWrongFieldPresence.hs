@@ -11,5 +11,5 @@ import qualified Test.Support.FrontendSurfaceFixture as Fixture
 wrongFieldPresence :: SurfaceFields (SurfaceMountStateFieldSpecs Fixture.FrontendSurfaceFixture)
 wrongFieldPresence =
     surfaceField @Fixture.ShowArchived False
-        :& surfaceField @Fixture.StaffFilterId (error "fixture UUID")
-        :& NoSurfaceFields
+        &: surfaceField @Fixture.StaffFilterId (error "fixture UUID")
+        &: noSurfaceFields

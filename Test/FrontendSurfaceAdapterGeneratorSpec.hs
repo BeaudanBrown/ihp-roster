@@ -868,7 +868,7 @@ tests = describe "FrontendSurfaceAdapterGenerator" do
         case generateSurfaceResourceAdapterModules heartbeatOnlyContract heartbeatOnly of
             Right [generated] -> do
                 generated.generatedModuleSource
-                    `shouldSatisfy` Text.isInfixOf "SurfaceFields (NoSurfaceFields)"
+                    `shouldSatisfy` Text.isInfixOf "noSurfaceFields"
                 generated.generatedModuleSource
                     `shouldNotSatisfy` Text.isInfixOf "surfaceField"
             Right _ -> expectationFailure "expected one zero-field generated module"

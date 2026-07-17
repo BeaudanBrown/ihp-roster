@@ -123,7 +123,9 @@ renderIntentImports ::
     [Text]
 renderIntentImports =
     renderSurfaceRequestAdapterImports
-        "SurfaceIntentFieldSpecs"
+        "SurfaceIntentFields"
+        "surfaceIntentFields"
+        "noSurfaceIntentFields"
         [ "FrontendSurfaceHtmxRequest"
         , "FrontendSurfaceIntentForm"
         , "frontendSurfaceIntentForm"
@@ -138,14 +140,14 @@ renderIntentAdapter ::
 renderIntentAdapter aliases adapter =
     renderSurfaceRequestAdapterOperationBlocks
         [ ( operations.surfaceAdapterFieldsBuilderOperation
-          , renderSurfaceRequestAdapterFieldsBuilder "SurfaceIntentFieldSpecs" fieldsName aliases adapter
+          , renderSurfaceRequestAdapterFieldsBuilder "SurfaceIntentFields" "surfaceIntentFields" "noSurfaceIntentFields" fieldsName aliases adapter
           )
         , ( operations.surfaceAdapterRenderMetadataOperation
           , renderIntentMetadata aliases adapter
           )
         , ( operations.surfaceAdapterRequestParserOperation
           , renderSurfaceRequestAdapterParser
-                "SurfaceIntentFieldSpecs"
+                "SurfaceIntentFields"
                 parserName
                 "parseSurfaceIntentParams"
                 aliases
@@ -160,7 +162,7 @@ renderIntentMetadata ::
     RenderableAdapter SurfaceIntentAdapterDeclaration ->
     [Text]
 renderIntentMetadata aliases adapter =
-    [ formName adapter <> " :: " <> renderSurfaceRequestAdapterFieldsType "SurfaceIntentFieldSpecs" aliases adapter <> " -> FrontendSurfaceHtmxRequest -> FrontendSurfaceIntentForm"
+    [ formName adapter <> " :: " <> renderSurfaceRequestAdapterFieldsType "SurfaceIntentFields" aliases adapter <> " -> FrontendSurfaceHtmxRequest -> FrontendSurfaceIntentForm"
     , formName adapter <> " ="
     , "    frontendSurfaceIntentForm"
     , "        @(AdapterFamilySurface " <> qualifyHaskellType aliases adapter.renderableAdapterHomeFamily <> ")"

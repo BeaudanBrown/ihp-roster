@@ -37,8 +37,8 @@ supportSurface :: SurfaceImpl Surface.SupportSurface
 supportSurface =
     mkSurfaceImplFromValues @Surface.SupportSurface @Surface.SupportPlatform
         "primary"
-        NoSurfaceFields
-        NoSurfaceFields
+        noSurfaceFields
+        noSurfaceFields
         supportCandidateMountedFragments
 
 supportCandidateMountedFragments :: [FrontendSurfaceMountedFragment]
@@ -53,15 +53,15 @@ supportSurfaceFragmentKeys = map (.mountedFragmentKey)
 supportAwardRatesMountedFragment :: FrontendSurfaceMountedFragment
 supportAwardRatesMountedFragment =
     frontendSurfaceMountedFragmentFor @Surface.SupportSurface @Surface.SupportAwardRates
-        NoSurfaceFields
-        NoSurfaceFields
+        noSurfaceFields
+        noSurfaceFields
         "/ShowFwcMapdAwardRatesSection"
         FrontendSurfaceReplace
 
 supportPublicHolidaysMountedFragment :: FrontendSurfaceMountedFragment
 supportPublicHolidaysMountedFragment =
     frontendSurfaceMountedFragmentFor @Surface.SupportSurface @Surface.SupportPublicHolidays
-        NoSurfaceFields
-        NoSurfaceFields
+        noSurfaceFields
+        noSurfaceFields
         "/ShowPublicHolidaysSection"
         FrontendSurfaceReplace

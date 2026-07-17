@@ -34,8 +34,8 @@ import Application.Helper.FrontendContract.Surface.Live (SurfaceFragmentKey,
                                                          matchFrontendSurfaceScope)
 import qualified Application.Helper.FrontendContract.Surface.Profile as Types1
 import qualified Application.Helper.FrontendContract.Surface.Profile.HaskellAdapter as Types2
-import Application.Helper.FrontendContract.Surface.Values (SurfaceFields (NoSurfaceFields, (:&)),
-                                                           surfaceField)
+import Application.Helper.FrontendContract.Surface.Values (noSurfaceFields,
+                                                           surfaceField, (&:))
 import qualified Data.UUID as UUID
 import IHP.Prelude
 
@@ -44,7 +44,7 @@ profileDetailsSectionLiveFragment =
     frontendSurfaceFragmentKey
         @(AdapterFamilySurface Types2.ProfileAdapterFamily)
         @Types1.ProfileDetailsSection
-        NoSurfaceFields
+        noSurfaceFields
 
 matchProfileDetailsSectionLiveFragment :: SurfaceFragmentKey -> Maybe ()
 matchProfileDetailsSectionLiveFragment =
@@ -57,7 +57,7 @@ profileLeaveSectionLiveFragment =
     frontendSurfaceFragmentKey
         @(AdapterFamilySurface Types2.ProfileAdapterFamily)
         @Types1.ProfileLeaveSection
-        NoSurfaceFields
+        noSurfaceFields
 
 matchProfileLeaveSectionLiveFragment :: SurfaceFragmentKey -> Maybe ()
 matchProfileLeaveSectionLiveFragment =
@@ -74,8 +74,8 @@ profileLiveScope venueId staffId =
         @(AdapterFamilySurface Types2.ProfileAdapterFamily)
         @Types1.ProfileScope
         ( surfaceField @Types1.VenueId venueId
-            :& surfaceField @Types1.StaffId staffId
-            :& NoSurfaceFields
+            &: surfaceField @Types1.StaffId staffId
+            &: noSurfaceFields
         )
 
 matchProfileLiveScope :: SurfaceScope -> Maybe (UUID.UUID, (UUID.UUID, ()))
@@ -89,7 +89,7 @@ profilePreferencesSectionLiveFragment =
     frontendSurfaceFragmentKey
         @(AdapterFamilySurface Types2.ProfileAdapterFamily)
         @Types1.ProfilePreferencesSection
-        NoSurfaceFields
+        noSurfaceFields
 
 matchProfilePreferencesSectionLiveFragment :: SurfaceFragmentKey -> Maybe ()
 matchProfilePreferencesSectionLiveFragment =
@@ -102,7 +102,7 @@ profileRsaSectionLiveFragment =
     frontendSurfaceFragmentKey
         @(AdapterFamilySurface Types2.ProfileAdapterFamily)
         @Types1.ProfileRsaSection
-        NoSurfaceFields
+        noSurfaceFields
 
 matchProfileRsaSectionLiveFragment :: SurfaceFragmentKey -> Maybe ()
 matchProfileRsaSectionLiveFragment =
@@ -115,7 +115,7 @@ profileSecuritySectionLiveFragment =
     frontendSurfaceFragmentKey
         @(AdapterFamilySurface Types2.ProfileAdapterFamily)
         @Types1.ProfileSecuritySection
-        NoSurfaceFields
+        noSurfaceFields
 
 matchProfileSecuritySectionLiveFragment :: SurfaceFragmentKey -> Maybe ()
 matchProfileSecuritySectionLiveFragment =
@@ -128,7 +128,7 @@ staffDetailsSectionLiveFragment =
     frontendSurfaceFragmentKey
         @(AdapterFamilySurface Types2.StaffAdapterFamily)
         @Types1.StaffDetailsSection
-        NoSurfaceFields
+        noSurfaceFields
 
 matchStaffDetailsSectionLiveFragment :: SurfaceFragmentKey -> Maybe ()
 matchStaffDetailsSectionLiveFragment =
@@ -141,7 +141,7 @@ staffLeaveSectionLiveFragment =
     frontendSurfaceFragmentKey
         @(AdapterFamilySurface Types2.StaffAdapterFamily)
         @Types1.StaffLeaveSection
-        NoSurfaceFields
+        noSurfaceFields
 
 matchStaffLeaveSectionLiveFragment :: SurfaceFragmentKey -> Maybe ()
 matchStaffLeaveSectionLiveFragment =
@@ -158,8 +158,8 @@ staffLiveScope venueId staffId =
         @(AdapterFamilySurface Types2.StaffAdapterFamily)
         @Types1.StaffScope
         ( surfaceField @Types1.VenueId venueId
-            :& surfaceField @Types1.StaffId staffId
-            :& NoSurfaceFields
+            &: surfaceField @Types1.StaffId staffId
+            &: noSurfaceFields
         )
 
 matchStaffLiveScope :: SurfaceScope -> Maybe (UUID.UUID, (UUID.UUID, ()))
@@ -173,7 +173,7 @@ staffPreferencesSectionLiveFragment =
     frontendSurfaceFragmentKey
         @(AdapterFamilySurface Types2.StaffAdapterFamily)
         @Types1.StaffPreferencesSection
-        NoSurfaceFields
+        noSurfaceFields
 
 matchStaffPreferencesSectionLiveFragment :: SurfaceFragmentKey -> Maybe ()
 matchStaffPreferencesSectionLiveFragment =

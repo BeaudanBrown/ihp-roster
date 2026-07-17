@@ -330,7 +330,7 @@ renderStaffScopeToggle weekOffset currentRosterGroupId panelScope = [hsx|
   where
     fields = RosterAction.toggleRosterStaffScopeActionFields (if panelScope == RosterStaffPanelAllVenue then "all" else "group")
 
-renderStaffScopeToggleButton :: (?context :: ControllerContext) => SurfaceFields (SurfaceActionFieldSpecs Surface.RosterSurface Surface.ToggleRosterStaffScope) -> Int -> Id RosterGroup -> RosterStaffPanelScope -> Html
+renderStaffScopeToggleButton :: (?context :: ControllerContext) => SurfaceActionFields Surface.RosterSurface Surface.ToggleRosterStaffScope -> Int -> Id RosterGroup -> RosterStaffPanelScope -> Html
 renderStaffScopeToggleButton fields weekOffset currentRosterGroupId panelScope =
     renderAppToggleButton $ (defaultAppToggleButtonConfig (staffScopeToggleInputId currentRosterGroupId) (panelScope == RosterStaffPanelAllVenue) [hsx|<span class="small fw-semibold">Show all staff</span>|])
         { appToggleInputName = Nothing

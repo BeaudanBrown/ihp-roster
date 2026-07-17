@@ -313,19 +313,31 @@ for generated_module_path in "${generated_adapter_modules[@]}"; do
         fi
     fi
     if [ "$generated_kind" = "Action" ]; then
+        if ! rg --quiet '\b(noSurfaceActionFields|surfaceActionFields)\b' "$generated_module_path"; then
+            report_failure "generated Action adapter does not use a nominal field constructor: $generated_module_path"
+        fi
         if ! rg --quiet '\bfrontendSurfaceAction\b' "$generated_module_path"; then
             report_failure "generated Action adapter does not use frontendSurfaceAction: $generated_module_path"
+        fi
+        if rg --line-number 'SurfaceFields[[:space:]]*\(SurfaceActionFieldSpecs' "$generated_module_path" >&2; then
+            report_failure "generated Action adapter exposes structurally typed request bundles: $generated_module_path"
         fi
         if rg --line-number '\b(frontendSurfaceAction|parseSurfaceActionParams|surface(Field|OptionalField|NullableField))\b' "$curated_facade" >&2; then
             report_failure "curated Action facade retains a handwritten mechanical adapter: $curated_facade"
         fi
     fi
     if [ "$generated_kind" = "Intent" ]; then
+        if ! rg --quiet '\b(noSurfaceIntentFields|surfaceIntentFields)\b' "$generated_module_path"; then
+            report_failure "generated Intent adapter does not use a nominal field constructor: $generated_module_path"
+        fi
         for generic_builder in frontendSurfaceIntentForm parseSurfaceIntentParams; do
             if ! rg --quiet "\\b${generic_builder}\\b" "$generated_module_path"; then
                 report_failure "generated Intent adapter does not use $generic_builder: $generated_module_path"
             fi
         done
+        if rg --line-number 'SurfaceFields[[:space:]]*\(SurfaceIntentFieldSpecs' "$generated_module_path" >&2; then
+            report_failure "generated Intent adapter exposes structurally typed request bundles: $generated_module_path"
+        fi
         if rg --line-number '\b(frontendSurfaceIntentForm|parseSurfaceIntentParams|surface(Field|OptionalField|NullableField))\b' "$curated_facade" >&2; then
             report_failure "curated Intent facade retains a handwritten mechanical adapter: $curated_facade"
         fi
@@ -411,12 +423,12 @@ for fixture_kind in Action Intent; do
     fi
 done
 
-for action_generic in frontendSurfaceAction parseSurfaceActionParams; do
+for action_generic in surfaceActionFields frontendSurfaceAction parseSurfaceActionParams; do
     if ! rg --quiet "\\b${action_generic}\\b" Test/Support/FrontendSurfaceAdapterFixture/Generated/Action.hs; then
         report_failure "generated Action fixture does not delegate to ${action_generic}"
     fi
 done
-for intent_generic in frontendSurfaceIntentForm parseSurfaceIntentParams; do
+for intent_generic in surfaceIntentFields frontendSurfaceIntentForm parseSurfaceIntentParams; do
     if ! rg --quiet "\\b${intent_generic}\\b" Test/Support/FrontendSurfaceAdapterFixture/Generated/Intent.hs; then
         report_failure "generated Intent fixture does not delegate to ${intent_generic}"
     fi

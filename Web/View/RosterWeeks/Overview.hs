@@ -61,10 +61,10 @@ renderWeekOverviewLazyMount rosterGroupId weekOffset fragmentUrl =
             , lazyFragmentTriggerOverride = Just "load"
             }
         ( frontendSurfaceMountedFragmentFor @Surface.RosterSurface @Surface.RosterWeekOverview
-            NoSurfaceFields
+            noSurfaceFields
             ( surfaceField @Surface.RosterGroupId (unpackId rosterGroupId)
-                :& surfaceField @Surface.WeekOffset weekOffset
-                :& NoSurfaceFields
+                &: surfaceField @Surface.WeekOffset weekOffset
+                &: noSurfaceFields
             )
             fragmentUrl
             FrontendSurfaceReplace

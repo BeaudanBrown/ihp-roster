@@ -31,9 +31,9 @@ import Web.View.StaffProfileForm
 import Web.View.StaffProfileSections
 
 staffProfileDetailsSectionId, staffProfilePreferencesSectionId, staffProfileLeaveSectionId :: Text
-staffProfileDetailsSectionId = surfaceFragmentTargetId @Surface.StaffSurface @Surface.StaffDetailsSection NoSurfaceFields
-staffProfilePreferencesSectionId = surfaceFragmentTargetId @Surface.StaffSurface @Surface.StaffPreferencesSection NoSurfaceFields
-staffProfileLeaveSectionId = surfaceFragmentTargetId @Surface.StaffSurface @Surface.StaffLeaveSection NoSurfaceFields
+staffProfileDetailsSectionId = surfaceFragmentTargetId @Surface.StaffSurface @Surface.StaffDetailsSection noSurfaceFields
+staffProfilePreferencesSectionId = surfaceFragmentTargetId @Surface.StaffSurface @Surface.StaffPreferencesSection noSurfaceFields
+staffProfileLeaveSectionId = surfaceFragmentTargetId @Surface.StaffSurface @Surface.StaffLeaveSection noSurfaceFields
 
 data NewView = NewView
     { staff                  :: Staff
@@ -97,26 +97,13 @@ renderNewStaffModalFragment staff rosterGroups awardLevels awardLevelBaseRates i
 
 renderNewStaffBody :: OverlayFormMode -> Staff -> [RosterGroup] -> [AwardLevel] -> [AwardLevelBaseRate] -> [XeroImportedPayItem] -> [Id RosterGroup] -> Int -> Maybe (Id RosterGroup) -> Html
 renderNewStaffBody formMode staff rosterGroups awardLevels awardLevelBaseRates importedPayItems selectedRosterGroupIds weekOffset maybeRosterGroupId =
-    let managementFields =
-            StaffManagementFieldData
-                { managementStaff = staff
-                , managementRosterGroups = rosterGroups
-                , managementAwardLevels = awardLevels
-                , managementAwardLevelBaseRates = awardLevelBaseRates
-                , managementImportedPayItems = importedPayItems
-                , managementSelectedRosterGroupIds = selectedRosterGroupIds
-                , managementVenueMembership = Nothing
-                , managementWeekOffset = Just weekOffset
-                , managementRosterGroupId = maybeRosterGroupId
-                }
-     in renderStaffProfileDetailsForm
+    renderStaffProfileDetailsForm
             StaffProfileDetailsFormConfig
                 { staffProfileDetailsFormId = "staff-new-form"
                 , staffProfileDetailsFormAction = pathTo CreateStaffAction
                 , staffProfileDetailsFormClass = "mt-3"
                 , staffProfileDetailsFormRequestMode = staffDetailsFormRequestMode formMode (pathTo CreateStaffAction) CreateTrialStaffOverlayMarker
-                , staffProfileDetailsSurfaceFields =
-                    buildStaffProfileDetailsSurfaceFields StaffFormSurface "profile" staff (Just managementFields)
+                , staffProfileDetailsSurfaceFields = fields
                 , staffProfileDetailsFormAttributes = []
                 , staffProfileDetailsFormHiddenInputs = mempty
                 , staffProfileDetailsFormBeforeFields = [hsx|
@@ -133,6 +120,35 @@ renderNewStaffBody formMode staff rosterGroups awardLevels awardLevelBaseRates i
                 }
             staff
             Nothing
+  where
+    managementFields =
+        StaffManagementFieldData
+            { managementStaff = staff
+            , managementRosterGroups = rosterGroups
+            , managementAwardLevels = awardLevels
+            , managementAwardLevelBaseRates = awardLevelBaseRates
+            , managementImportedPayItems = importedPayItems
+            , managementSelectedRosterGroupIds = selectedRosterGroupIds
+            , managementVenueMembership = Nothing
+            , managementWeekOffset = Just weekOffset
+            , managementRosterGroupId = maybeRosterGroupId
+            }
+    values = staffProfileDetailsSurfaceValues "profile" staff (Just managementFields)
+    fields =
+        ProfileAction.updateStaffProfileActionFields
+            values.profileDetailsFirstName
+            values.profileDetailsLastName
+            values.profileDetailsPreferredName
+            values.profileDetailsPhone
+            values.profileDetailsIdealShiftsPerWeek
+            values.profileDetailsEmergencyContactName
+            values.profileDetailsEmergencyContactPhone
+            values.profileDetailsSection
+            values.profileDetailsVenueRole
+            values.profileDetailsEmploymentBasis
+            values.profileDetailsPayRateSelection
+            values.profileDetailsIsActive
+            values.profileDetailsRosterGroupIds
 
 renderStaffEditModalFragment :: Staff -> Maybe Text -> [RosterGroup] -> [AwardLevel] -> [AwardLevelBaseRate] -> [XeroImportedPayItem] -> [Id RosterGroup] -> Maybe VenueMembership -> [PreferenceWeekday] -> [ShiftPreferenceSelection] -> Maybe StaffDocument -> LeaveRequest -> [LeaveRequest] -> Day -> Int -> Maybe (Id RosterGroup) -> Text -> Html
 renderStaffEditModalFragment staff maybeLinkedUserEmail rosterGroups awardLevels awardLevelBaseRates importedPayItems selectedRosterGroupIds maybeVenueMembership preferenceWeekdays selectedShiftPreferences staffRsaDocument leaveRequest leaveRequests today weekOffset maybeRosterGroupId openSection =
@@ -372,8 +388,22 @@ renderStaffDetailsForm formMode staff maybeLinkedUserEmail managementFields acti
         staff
         maybeLinkedUserEmail
   where
+    values = staffProfileDetailsSurfaceValues "profile" staff (Just managementFields)
     fields =
-        buildStaffProfileDetailsSurfaceFields StaffFormSurface "profile" staff (Just managementFields)
+        ProfileAction.updateStaffProfileActionFields
+            values.profileDetailsFirstName
+            values.profileDetailsLastName
+            values.profileDetailsPreferredName
+            values.profileDetailsPhone
+            values.profileDetailsIdealShiftsPerWeek
+            values.profileDetailsEmergencyContactName
+            values.profileDetailsEmergencyContactPhone
+            values.profileDetailsSection
+            values.profileDetailsVenueRole
+            values.profileDetailsEmploymentBasis
+            values.profileDetailsPayRateSelection
+            values.profileDetailsIsActive
+            values.profileDetailsRosterGroupIds
 
 renderTrialStaffInvitationModalFragment :: Staff -> [VenueInvitation] -> Maybe Text -> Maybe Text -> Int -> Maybe (Id RosterGroup) -> Html
 renderTrialStaffInvitationModalFragment staff pendingInvitations maybeError submittedEmail weekOffset maybeRosterGroupId =
@@ -485,14 +515,17 @@ renderStaffShiftPreferencesEditForm formMode preferenceWeekdays selectedShiftPre
         preferenceWeekdays
         selectedShiftPreferences
   where
+    values = staffShiftPreferencesSurfaceValues "preferences" selectedShiftPreferences
     fields =
-        buildStaffShiftPreferencesSurfaceFields StaffFormSurface "preferences" selectedShiftPreferences
+        ProfileAction.updateStaffShiftPreferencesActionFields
+            values.shiftPreferencesSection
+            values.shiftPreferenceKeys
 
 data StaffDetailsOverlayMarker
     = CreateTrialStaffOverlayMarker
     | UpdateStaffProfileOverlayMarker
 
-staffDetailsFormRequestMode :: OverlayFormMode -> Text -> StaffDetailsOverlayMarker -> Maybe StaffProfileDetailsFormRequestMode
+staffDetailsFormRequestMode :: OverlayFormMode -> Text -> StaffDetailsOverlayMarker -> Maybe (StaffProfileDetailsFormRequestMode (SurfaceActionFields Surface.StaffSurface Surface.UpdateStaffProfile))
 staffDetailsFormRequestMode HtmxOverlayForm actionUrl marker =
     case marker of
         UpdateStaffProfileOverlayMarker ->
@@ -505,7 +538,7 @@ staffDetailsAppShellAction :: StaffDetailsOverlayMarker -> AppShellActionIR
 staffDetailsAppShellAction CreateTrialStaffOverlayMarker = appShellActionByMarker @CreateTrialStaffOverlay
 staffDetailsAppShellAction UpdateStaffProfileOverlayMarker = appShellActionByMarker @UpdateStaffProfileOverlay
 
-staffShiftPreferencesOverlayRequestMode :: OverlayFormMode -> Text -> Maybe StaffShiftPreferencesFormRequestMode
+staffShiftPreferencesOverlayRequestMode :: OverlayFormMode -> Text -> Maybe (StaffShiftPreferencesFormRequestMode (SurfaceActionFields Surface.StaffSurface Surface.UpdateStaffShiftPreferences))
 staffShiftPreferencesOverlayRequestMode HtmxOverlayForm actionUrl =
     Just (StaffShiftPreferencesSurfaceAction ProfileAction.updateStaffShiftPreferencesAction (staffSectionActionRoute actionUrl ("#" <> staffProfilePreferencesSectionId) "outerHTML show:none"))
 staffShiftPreferencesOverlayRequestMode PageOverlayForm _ = Nothing

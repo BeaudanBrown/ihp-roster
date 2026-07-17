@@ -31,10 +31,12 @@ import Application.Helper.FrontendContract.Surface.Request (SurfaceRequestFieldE
                                                             parseSurfaceActionParams)
 import Application.Helper.FrontendContract.Surface.Runtime (FrontendSurfaceAction,
                                                             frontendSurfaceAction)
-import Application.Helper.FrontendContract.Surface.Values (SurfaceActionFieldSpecs,
-                                                           SurfaceFields (NoSurfaceFields, (:&)),
+import Application.Helper.FrontendContract.Surface.Values (SurfaceActionFields,
+                                                           noSurfaceFields,
+                                                           surfaceActionFields,
                                                            surfaceField,
-                                                           surfaceOptionalField)
+                                                           surfaceOptionalField,
+                                                           (&:))
 import Data.Time (Day)
 import qualified Data.UUID as UUID
 import IHP.Prelude
@@ -44,15 +46,16 @@ createProfileLeaveRequestActionFields ::
     Day ->
     Day ->
     Text ->
-    SurfaceFields (SurfaceActionFieldSpecs (AdapterFamilySurface Types2.ProfileAdapterFamily) Types1.CreateProfileLeaveRequest)
+    SurfaceActionFields (AdapterFamilySurface Types2.ProfileAdapterFamily) Types1.CreateProfileLeaveRequest
 createProfileLeaveRequestActionFields startDate endDate notes =
-    ( surfaceField @Types1.StartDate startDate
-        :& surfaceField @Types1.EndDate endDate
-        :& surfaceField @Types1.Notes notes
-        :& NoSurfaceFields
-    )
+    surfaceActionFields
+        (surfaceField @Types1.StartDate startDate)
+        ( surfaceField @Types1.EndDate endDate
+            &: surfaceField @Types1.Notes notes
+            &: noSurfaceFields
+        )
 
-createProfileLeaveRequestAction :: SurfaceFields (SurfaceActionFieldSpecs (AdapterFamilySurface Types2.ProfileAdapterFamily) Types1.CreateProfileLeaveRequest) -> FrontendSurfaceAction
+createProfileLeaveRequestAction :: SurfaceActionFields (AdapterFamilySurface Types2.ProfileAdapterFamily) Types1.CreateProfileLeaveRequest -> FrontendSurfaceAction
 createProfileLeaveRequestAction =
     frontendSurfaceAction
         @(AdapterFamilySurface Types2.ProfileAdapterFamily)
@@ -60,7 +63,7 @@ createProfileLeaveRequestAction =
 
 parseCreateProfileLeaveRequestActionParams ::
     (?request :: Request) =>
-    Either [SurfaceRequestFieldError] (SurfaceFields (SurfaceActionFieldSpecs (AdapterFamilySurface Types2.ProfileAdapterFamily) Types1.CreateProfileLeaveRequest))
+    Either [SurfaceRequestFieldError] (SurfaceActionFields (AdapterFamilySurface Types2.ProfileAdapterFamily) Types1.CreateProfileLeaveRequest)
 parseCreateProfileLeaveRequestActionParams =
     parseSurfaceActionParams
         @(AdapterFamilySurface Types2.ProfileAdapterFamily)
@@ -70,15 +73,16 @@ createStaffLeaveRequestActionFields ::
     Day ->
     Day ->
     Text ->
-    SurfaceFields (SurfaceActionFieldSpecs (AdapterFamilySurface Types2.StaffAdapterFamily) Types1.CreateStaffLeaveRequest)
+    SurfaceActionFields (AdapterFamilySurface Types2.StaffAdapterFamily) Types1.CreateStaffLeaveRequest
 createStaffLeaveRequestActionFields startDate endDate notes =
-    ( surfaceField @Types1.StartDate startDate
-        :& surfaceField @Types1.EndDate endDate
-        :& surfaceField @Types1.Notes notes
-        :& NoSurfaceFields
-    )
+    surfaceActionFields
+        (surfaceField @Types1.StartDate startDate)
+        ( surfaceField @Types1.EndDate endDate
+            &: surfaceField @Types1.Notes notes
+            &: noSurfaceFields
+        )
 
-createStaffLeaveRequestAction :: SurfaceFields (SurfaceActionFieldSpecs (AdapterFamilySurface Types2.StaffAdapterFamily) Types1.CreateStaffLeaveRequest) -> FrontendSurfaceAction
+createStaffLeaveRequestAction :: SurfaceActionFields (AdapterFamilySurface Types2.StaffAdapterFamily) Types1.CreateStaffLeaveRequest -> FrontendSurfaceAction
 createStaffLeaveRequestAction =
     frontendSurfaceAction
         @(AdapterFamilySurface Types2.StaffAdapterFamily)
@@ -86,7 +90,7 @@ createStaffLeaveRequestAction =
 
 parseCreateStaffLeaveRequestActionParams ::
     (?request :: Request) =>
-    Either [SurfaceRequestFieldError] (SurfaceFields (SurfaceActionFieldSpecs (AdapterFamilySurface Types2.StaffAdapterFamily) Types1.CreateStaffLeaveRequest))
+    Either [SurfaceRequestFieldError] (SurfaceActionFields (AdapterFamilySurface Types2.StaffAdapterFamily) Types1.CreateStaffLeaveRequest)
 parseCreateStaffLeaveRequestActionParams =
     parseSurfaceActionParams
         @(AdapterFamilySurface Types2.StaffAdapterFamily)
@@ -106,25 +110,26 @@ updateProfileDetailsActionFields ::
     Maybe Text ->
     Maybe Bool ->
     Maybe [UUID.UUID] ->
-    SurfaceFields (SurfaceActionFieldSpecs (AdapterFamilySurface Types2.ProfileAdapterFamily) Types1.UpdateProfileDetails)
+    SurfaceActionFields (AdapterFamilySurface Types2.ProfileAdapterFamily) Types1.UpdateProfileDetails
 updateProfileDetailsActionFields firstName lastName preferredName phone idealShiftsPerWeek emergencyContactName emergencyContactPhone section venueRole employmentBasis payRateSelection isActive rosterGroupIds =
-    ( surfaceField @Types1.FirstNameField firstName
-        :& surfaceField @Types1.LastNameField lastName
-        :& surfaceField @Types1.PreferredNameField preferredName
-        :& surfaceField @Types1.PhoneField phone
-        :& surfaceField @Types1.IdealShiftsPerWeekField idealShiftsPerWeek
-        :& surfaceField @Types1.EmergencyContactNameField emergencyContactName
-        :& surfaceField @Types1.EmergencyContactPhoneField emergencyContactPhone
-        :& surfaceField @Types1.SectionField section
-        :& surfaceOptionalField @Types1.VenueRoleField venueRole
-        :& surfaceOptionalField @Types1.EmploymentBasisField employmentBasis
-        :& surfaceOptionalField @Types1.PayRateSelectionField payRateSelection
-        :& surfaceOptionalField @Types1.IsActiveField isActive
-        :& surfaceOptionalField @Types1.RosterGroupIdsField rosterGroupIds
-        :& NoSurfaceFields
-    )
+    surfaceActionFields
+        (surfaceField @Types1.FirstNameField firstName)
+        ( surfaceField @Types1.LastNameField lastName
+            &: surfaceField @Types1.PreferredNameField preferredName
+            &: surfaceField @Types1.PhoneField phone
+            &: surfaceField @Types1.IdealShiftsPerWeekField idealShiftsPerWeek
+            &: surfaceField @Types1.EmergencyContactNameField emergencyContactName
+            &: surfaceField @Types1.EmergencyContactPhoneField emergencyContactPhone
+            &: surfaceField @Types1.SectionField section
+            &: surfaceOptionalField @Types1.VenueRoleField venueRole
+            &: surfaceOptionalField @Types1.EmploymentBasisField employmentBasis
+            &: surfaceOptionalField @Types1.PayRateSelectionField payRateSelection
+            &: surfaceOptionalField @Types1.IsActiveField isActive
+            &: surfaceOptionalField @Types1.RosterGroupIdsField rosterGroupIds
+            &: noSurfaceFields
+        )
 
-updateProfileDetailsAction :: SurfaceFields (SurfaceActionFieldSpecs (AdapterFamilySurface Types2.ProfileAdapterFamily) Types1.UpdateProfileDetails) -> FrontendSurfaceAction
+updateProfileDetailsAction :: SurfaceActionFields (AdapterFamilySurface Types2.ProfileAdapterFamily) Types1.UpdateProfileDetails -> FrontendSurfaceAction
 updateProfileDetailsAction =
     frontendSurfaceAction
         @(AdapterFamilySurface Types2.ProfileAdapterFamily)
@@ -132,7 +137,7 @@ updateProfileDetailsAction =
 
 parseUpdateProfileDetailsActionParams ::
     (?request :: Request) =>
-    Either [SurfaceRequestFieldError] (SurfaceFields (SurfaceActionFieldSpecs (AdapterFamilySurface Types2.ProfileAdapterFamily) Types1.UpdateProfileDetails))
+    Either [SurfaceRequestFieldError] (SurfaceActionFields (AdapterFamilySurface Types2.ProfileAdapterFamily) Types1.UpdateProfileDetails)
 parseUpdateProfileDetailsActionParams =
     parseSurfaceActionParams
         @(AdapterFamilySurface Types2.ProfileAdapterFamily)
@@ -141,14 +146,15 @@ parseUpdateProfileDetailsActionParams =
 updateProfileShiftPreferencesActionFields ::
     Text ->
     Maybe [Text] ->
-    SurfaceFields (SurfaceActionFieldSpecs (AdapterFamilySurface Types2.ProfileAdapterFamily) Types1.UpdateProfileShiftPreferences)
+    SurfaceActionFields (AdapterFamilySurface Types2.ProfileAdapterFamily) Types1.UpdateProfileShiftPreferences
 updateProfileShiftPreferencesActionFields section shiftPreferenceKeys =
-    ( surfaceField @Types1.SectionField section
-        :& surfaceOptionalField @Types1.ShiftPreferenceKeysField shiftPreferenceKeys
-        :& NoSurfaceFields
-    )
+    surfaceActionFields
+        (surfaceField @Types1.SectionField section)
+        ( surfaceOptionalField @Types1.ShiftPreferenceKeysField shiftPreferenceKeys
+            &: noSurfaceFields
+        )
 
-updateProfileShiftPreferencesAction :: SurfaceFields (SurfaceActionFieldSpecs (AdapterFamilySurface Types2.ProfileAdapterFamily) Types1.UpdateProfileShiftPreferences) -> FrontendSurfaceAction
+updateProfileShiftPreferencesAction :: SurfaceActionFields (AdapterFamilySurface Types2.ProfileAdapterFamily) Types1.UpdateProfileShiftPreferences -> FrontendSurfaceAction
 updateProfileShiftPreferencesAction =
     frontendSurfaceAction
         @(AdapterFamilySurface Types2.ProfileAdapterFamily)
@@ -156,7 +162,7 @@ updateProfileShiftPreferencesAction =
 
 parseUpdateProfileShiftPreferencesActionParams ::
     (?request :: Request) =>
-    Either [SurfaceRequestFieldError] (SurfaceFields (SurfaceActionFieldSpecs (AdapterFamilySurface Types2.ProfileAdapterFamily) Types1.UpdateProfileShiftPreferences))
+    Either [SurfaceRequestFieldError] (SurfaceActionFields (AdapterFamilySurface Types2.ProfileAdapterFamily) Types1.UpdateProfileShiftPreferences)
 parseUpdateProfileShiftPreferencesActionParams =
     parseSurfaceActionParams
         @(AdapterFamilySurface Types2.ProfileAdapterFamily)
@@ -176,25 +182,26 @@ updateStaffProfileActionFields ::
     Maybe Text ->
     Maybe Bool ->
     Maybe [UUID.UUID] ->
-    SurfaceFields (SurfaceActionFieldSpecs (AdapterFamilySurface Types2.StaffAdapterFamily) Types1.UpdateStaffProfile)
+    SurfaceActionFields (AdapterFamilySurface Types2.StaffAdapterFamily) Types1.UpdateStaffProfile
 updateStaffProfileActionFields firstName lastName preferredName phone idealShiftsPerWeek emergencyContactName emergencyContactPhone section venueRole employmentBasis payRateSelection isActive rosterGroupIds =
-    ( surfaceField @Types1.FirstNameField firstName
-        :& surfaceField @Types1.LastNameField lastName
-        :& surfaceField @Types1.PreferredNameField preferredName
-        :& surfaceField @Types1.PhoneField phone
-        :& surfaceField @Types1.IdealShiftsPerWeekField idealShiftsPerWeek
-        :& surfaceField @Types1.EmergencyContactNameField emergencyContactName
-        :& surfaceField @Types1.EmergencyContactPhoneField emergencyContactPhone
-        :& surfaceField @Types1.SectionField section
-        :& surfaceOptionalField @Types1.VenueRoleField venueRole
-        :& surfaceOptionalField @Types1.EmploymentBasisField employmentBasis
-        :& surfaceOptionalField @Types1.PayRateSelectionField payRateSelection
-        :& surfaceOptionalField @Types1.IsActiveField isActive
-        :& surfaceOptionalField @Types1.RosterGroupIdsField rosterGroupIds
-        :& NoSurfaceFields
-    )
+    surfaceActionFields
+        (surfaceField @Types1.FirstNameField firstName)
+        ( surfaceField @Types1.LastNameField lastName
+            &: surfaceField @Types1.PreferredNameField preferredName
+            &: surfaceField @Types1.PhoneField phone
+            &: surfaceField @Types1.IdealShiftsPerWeekField idealShiftsPerWeek
+            &: surfaceField @Types1.EmergencyContactNameField emergencyContactName
+            &: surfaceField @Types1.EmergencyContactPhoneField emergencyContactPhone
+            &: surfaceField @Types1.SectionField section
+            &: surfaceOptionalField @Types1.VenueRoleField venueRole
+            &: surfaceOptionalField @Types1.EmploymentBasisField employmentBasis
+            &: surfaceOptionalField @Types1.PayRateSelectionField payRateSelection
+            &: surfaceOptionalField @Types1.IsActiveField isActive
+            &: surfaceOptionalField @Types1.RosterGroupIdsField rosterGroupIds
+            &: noSurfaceFields
+        )
 
-updateStaffProfileAction :: SurfaceFields (SurfaceActionFieldSpecs (AdapterFamilySurface Types2.StaffAdapterFamily) Types1.UpdateStaffProfile) -> FrontendSurfaceAction
+updateStaffProfileAction :: SurfaceActionFields (AdapterFamilySurface Types2.StaffAdapterFamily) Types1.UpdateStaffProfile -> FrontendSurfaceAction
 updateStaffProfileAction =
     frontendSurfaceAction
         @(AdapterFamilySurface Types2.StaffAdapterFamily)
@@ -202,7 +209,7 @@ updateStaffProfileAction =
 
 parseUpdateStaffProfileActionParams ::
     (?request :: Request) =>
-    Either [SurfaceRequestFieldError] (SurfaceFields (SurfaceActionFieldSpecs (AdapterFamilySurface Types2.StaffAdapterFamily) Types1.UpdateStaffProfile))
+    Either [SurfaceRequestFieldError] (SurfaceActionFields (AdapterFamilySurface Types2.StaffAdapterFamily) Types1.UpdateStaffProfile)
 parseUpdateStaffProfileActionParams =
     parseSurfaceActionParams
         @(AdapterFamilySurface Types2.StaffAdapterFamily)
@@ -211,14 +218,15 @@ parseUpdateStaffProfileActionParams =
 updateStaffShiftPreferencesActionFields ::
     Text ->
     Maybe [Text] ->
-    SurfaceFields (SurfaceActionFieldSpecs (AdapterFamilySurface Types2.StaffAdapterFamily) Types1.UpdateStaffShiftPreferences)
+    SurfaceActionFields (AdapterFamilySurface Types2.StaffAdapterFamily) Types1.UpdateStaffShiftPreferences
 updateStaffShiftPreferencesActionFields section shiftPreferenceKeys =
-    ( surfaceField @Types1.SectionField section
-        :& surfaceOptionalField @Types1.ShiftPreferenceKeysField shiftPreferenceKeys
-        :& NoSurfaceFields
-    )
+    surfaceActionFields
+        (surfaceField @Types1.SectionField section)
+        ( surfaceOptionalField @Types1.ShiftPreferenceKeysField shiftPreferenceKeys
+            &: noSurfaceFields
+        )
 
-updateStaffShiftPreferencesAction :: SurfaceFields (SurfaceActionFieldSpecs (AdapterFamilySurface Types2.StaffAdapterFamily) Types1.UpdateStaffShiftPreferences) -> FrontendSurfaceAction
+updateStaffShiftPreferencesAction :: SurfaceActionFields (AdapterFamilySurface Types2.StaffAdapterFamily) Types1.UpdateStaffShiftPreferences -> FrontendSurfaceAction
 updateStaffShiftPreferencesAction =
     frontendSurfaceAction
         @(AdapterFamilySurface Types2.StaffAdapterFamily)
@@ -226,7 +234,7 @@ updateStaffShiftPreferencesAction =
 
 parseUpdateStaffShiftPreferencesActionParams ::
     (?request :: Request) =>
-    Either [SurfaceRequestFieldError] (SurfaceFields (SurfaceActionFieldSpecs (AdapterFamilySurface Types2.StaffAdapterFamily) Types1.UpdateStaffShiftPreferences))
+    Either [SurfaceRequestFieldError] (SurfaceActionFields (AdapterFamilySurface Types2.StaffAdapterFamily) Types1.UpdateStaffShiftPreferences)
 parseUpdateStaffShiftPreferencesActionParams =
     parseSurfaceActionParams
         @(AdapterFamilySurface Types2.StaffAdapterFamily)

@@ -13,10 +13,11 @@ import Application.Helper.FrontendContract.Surface.HaskellAdapter.Family (Adapte
 import Application.Helper.FrontendContract.Surface.Resource (SurfaceResourceValue,
                                                              frontendSurfaceResource,
                                                              matchFrontendSurfaceResource)
-import Application.Helper.FrontendContract.Surface.Values (SurfaceFields (NoSurfaceFields, (:&)),
+import Application.Helper.FrontendContract.Surface.Values (noSurfaceFields,
                                                            surfaceField,
                                                            surfaceNullableField,
-                                                           surfaceOptionalField)
+                                                           surfaceOptionalField,
+                                                           (&:))
 import Data.Time (Day)
 import qualified Data.UUID as UUID
 import IHP.Prelude
@@ -36,13 +37,13 @@ fixtureAccountResource label retryCount archivedAt memberIds maybeNote maybeIds 
         @(AdapterFamilySurface Family.AdapterFixtureFamily)
         @Family.FixtureAccount
         ( surfaceField @Family.Label label
-            :& surfaceOptionalField @Family.RetryCount retryCount
-            :& surfaceNullableField @Family.ArchivedAt archivedAt
-            :& surfaceField @Family.MemberIds memberIds
-            :& surfaceOptionalField @Family.MaybeNote maybeNote
-            :& surfaceNullableField @Family.MaybeIds maybeIds
-            :& surfaceField @Family.Enabled enabled
-            :& NoSurfaceFields
+            &: surfaceOptionalField @Family.RetryCount retryCount
+            &: surfaceNullableField @Family.ArchivedAt archivedAt
+            &: surfaceField @Family.MemberIds memberIds
+            &: surfaceOptionalField @Family.MaybeNote maybeNote
+            &: surfaceNullableField @Family.MaybeIds maybeIds
+            &: surfaceField @Family.Enabled enabled
+            &: noSurfaceFields
         )
 
 matchFixtureAccountResource :: SurfaceResourceValue -> Maybe (Text, (Maybe Int, (Maybe Day, ([UUID.UUID], (Maybe (Maybe Text), (Maybe [UUID.UUID], (Bool, ())))))))
@@ -56,7 +57,7 @@ fixtureHeartbeatResource =
     frontendSurfaceResource
         @(AdapterFamilySurface Family.AdapterFixtureFamily)
         @Family.FixtureHeartbeatResource
-        NoSurfaceFields
+        noSurfaceFields
 
 matchFixtureHeartbeatResource :: SurfaceResourceValue -> Maybe ()
 matchFixtureHeartbeatResource =

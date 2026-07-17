@@ -1,10 +1,11 @@
 module Web.View.Users.New where
 
+import qualified Application.Helper.FrontendContract.Surface.Profile.Action as ProfileAction
 import Application.Helper.View.VenueBootstrap (renderVenueBootstrapFields)
 import Web.View.Prelude
-import Web.View.StaffProfileForm (StaffProfileFormSurface (ProfileFormSurface),
-                                  buildStaffProfileDetailsSurfaceFields,
-                                  renderPersonalProfileFields)
+import Web.View.StaffProfileForm (StaffProfileDetailsSurfaceValues (..),
+                                  renderPersonalProfileFields,
+                                  staffProfileDetailsSurfaceValues)
 import Web.View.StaffProfileSections
 
 data NewView
@@ -125,8 +126,7 @@ renderInvitedProfileDetailsForm NewAccountProfileFormConfig { .. } user staff em
             , staffProfileDetailsFormAction = newAccountProfileFormAction
             , staffProfileDetailsFormClass = ""
             , staffProfileDetailsFormRequestMode = Nothing
-            , staffProfileDetailsSurfaceFields =
-                buildStaffProfileDetailsSurfaceFields ProfileFormSurface "profile" staff Nothing
+            , staffProfileDetailsSurfaceFields = fields
             , staffProfileDetailsFormAttributes = []
             , staffProfileDetailsFormHiddenInputs = newAccountProfileFormHiddenInputs
             , staffProfileDetailsFormBeforeFields = [hsx|
@@ -146,6 +146,23 @@ renderInvitedProfileDetailsForm NewAccountProfileFormConfig { .. } user staff em
             }
         staff
         (Just email)
+  where
+    values = staffProfileDetailsSurfaceValues "profile" staff Nothing
+    fields =
+        ProfileAction.updateProfileDetailsActionFields
+            values.profileDetailsFirstName
+            values.profileDetailsLastName
+            values.profileDetailsPreferredName
+            values.profileDetailsPhone
+            values.profileDetailsIdealShiftsPerWeek
+            values.profileDetailsEmergencyContactName
+            values.profileDetailsEmergencyContactPhone
+            values.profileDetailsSection
+            values.profileDetailsVenueRole
+            values.profileDetailsEmploymentBasis
+            values.profileDetailsPayRateSelection
+            values.profileDetailsIsActive
+            values.profileDetailsRosterGroupIds
 
 renderAccountPasswordFields :: User -> Html
 renderAccountPasswordFields user = [hsx|

@@ -18,10 +18,11 @@ import Application.Helper.FrontendContract.Surface.Live (SurfaceFragmentKey,
                                                          frontendSurfaceScope,
                                                          matchFrontendSurfaceFragmentKey,
                                                          matchFrontendSurfaceScope)
-import Application.Helper.FrontendContract.Surface.Values (SurfaceFields (NoSurfaceFields, (:&)),
+import Application.Helper.FrontendContract.Surface.Values (noSurfaceFields,
                                                            surfaceField,
                                                            surfaceNullableField,
-                                                           surfaceOptionalField)
+                                                           surfaceOptionalField,
+                                                           (&:))
 import Data.Time (Day)
 import qualified Data.UUID as UUID
 import IHP.Prelude
@@ -41,13 +42,13 @@ crossKindDeclarationLiveFragment label retryCount archivedAt memberIds maybeNote
         @(AdapterFamilySurface Family.AdapterFixtureFamily)
         @Family.CrossKindDeclaration
         ( surfaceField @Family.Label label
-            :& surfaceOptionalField @Family.RetryCount retryCount
-            :& surfaceNullableField @Family.ArchivedAt archivedAt
-            :& surfaceField @Family.MemberIds memberIds
-            :& surfaceOptionalField @Family.MaybeNote maybeNote
-            :& surfaceNullableField @Family.MaybeIds maybeIds
-            :& surfaceField @Family.Enabled enabled
-            :& NoSurfaceFields
+            &: surfaceOptionalField @Family.RetryCount retryCount
+            &: surfaceNullableField @Family.ArchivedAt archivedAt
+            &: surfaceField @Family.MemberIds memberIds
+            &: surfaceOptionalField @Family.MaybeNote maybeNote
+            &: surfaceNullableField @Family.MaybeIds maybeIds
+            &: surfaceField @Family.Enabled enabled
+            &: noSurfaceFields
         )
 
 matchCrossKindDeclarationLiveFragment :: SurfaceFragmentKey -> Maybe (Text, (Maybe Int, (Maybe Day, ([UUID.UUID], (Maybe (Maybe Text), (Maybe [UUID.UUID], (Bool, ())))))))
@@ -61,7 +62,7 @@ crossKindDeclarationLiveScope =
     frontendSurfaceScope
         @(AdapterFamilySurface Family.AdapterFixtureFamily)
         @Family.CrossKindDeclaration
-        NoSurfaceFields
+        noSurfaceFields
 
 matchCrossKindDeclarationLiveScope :: SurfaceScope -> Maybe ()
 matchCrossKindDeclarationLiveScope =
@@ -74,7 +75,7 @@ fixtureActorOnlyPanelLiveFragment =
     frontendSurfaceFragmentKey
         @(AdapterFamilySurface Family.AdapterFixtureFamily)
         @Family.FixtureActorOnlyPanel
-        NoSurfaceFields
+        noSurfaceFields
 
 matchFixtureActorOnlyPanelLiveFragment :: SurfaceFragmentKey -> Maybe ()
 matchFixtureActorOnlyPanelLiveFragment =

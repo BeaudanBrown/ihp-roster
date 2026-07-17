@@ -67,7 +67,7 @@ renderInvitesSectionFragmentWithSwap :: Maybe Text -> [VenueInvitation] -> Id Ro
 renderInvitesSectionFragmentWithSwap maybeSwapOob invitations rosterGroupId =
     renderFrontendSurfaceMount (adminInvitesSurfaceImpl AdminVenueScopeValue { adminVenueId = currentVenueScopeId, adminRosterGroupId = Just (unpackId rosterGroupId) }) $
         Html5.div
-            ! attr "id" (surfaceFragmentTargetId @Surface.AdminInvitesSurface @Surface.AdminInvitesFragment NoSurfaceFields)
+            ! attr "id" (surfaceFragmentTargetId @Surface.AdminInvitesSurface @Surface.AdminInvitesFragment noSurfaceFields)
             ! maybeAttr "hx-swap-oob" maybeSwapOob
             ! uiRegionTransitionAttrs UiRegionTransitionFade
             $ renderInvitesSection invitations rosterGroupId

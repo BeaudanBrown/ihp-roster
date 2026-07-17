@@ -43,7 +43,7 @@ profileSurfaceImpl scope =
     mkSurfaceImplFromValues @Surface.ProfileSurface @Surface.ProfileScope
         "primary"
         (profileScopeFields scope)
-        NoSurfaceFields
+        noSurfaceFields
         (profileCandidateMountedFragments scope)
 
 profileSurfaceMountConfig :: ProfileScopeValue -> FrontendSurfaceMountConfig
@@ -74,7 +74,7 @@ staffSurfaceImpl scope =
     mkSurfaceImplFromValues @Surface.StaffSurface @Surface.StaffScope
         ("staff-" <> tshow scope.profileStaffId)
         (staffScopeFields scope)
-        NoSurfaceFields
+        noSurfaceFields
         (staffCandidateMountedFragments scope)
 
 staffSurfaceMountConfig :: StaffScopeValue -> FrontendSurfaceMountConfig
@@ -107,24 +107,24 @@ staffSectionFragmentForSection scope = \case
 staffDetailsMountedFragment :: StaffScopeValue -> FrontendSurfaceMountedFragment
 staffDetailsMountedFragment scope =
     frontendSurfaceMountedFragmentFor @Surface.StaffSurface @Surface.StaffDetailsSection
-        NoSurfaceFields
-        NoSurfaceFields
+        noSurfaceFields
+        noSurfaceFields
         (staffSectionFragmentUrl scope "profile")
         FrontendSurfaceReplace
 
 staffPreferencesMountedFragment :: StaffScopeValue -> FrontendSurfaceMountedFragment
 staffPreferencesMountedFragment scope =
     frontendSurfaceMountedFragmentFor @Surface.StaffSurface @Surface.StaffPreferencesSection
-        NoSurfaceFields
-        NoSurfaceFields
+        noSurfaceFields
+        noSurfaceFields
         (staffSectionFragmentUrl scope "preferences")
         FrontendSurfaceReplace
 
 staffLeaveMountedFragment :: StaffScopeValue -> FrontendSurfaceMountedFragment
 staffLeaveMountedFragment scope =
     frontendSurfaceMountedFragmentFor @Surface.StaffSurface @Surface.StaffLeaveSection
-        NoSurfaceFields
-        NoSurfaceFields
+        noSurfaceFields
+        noSurfaceFields
         (staffSectionFragmentUrl scope "leave")
         FrontendSurfaceReplace
 
@@ -137,14 +137,14 @@ staffSectionFragmentUrl scope section =
 profileScopeFields :: ProfileScopeValue -> SurfaceFields (SurfaceScopeFieldSpecs Surface.ProfileSurface Surface.ProfileScope)
 profileScopeFields scope =
     surfaceField @Surface.VenueId scope.profileVenueId
-        :& surfaceField @Surface.StaffId scope.profileStaffId
-        :& NoSurfaceFields
+        &: surfaceField @Surface.StaffId scope.profileStaffId
+        &: noSurfaceFields
 
 staffScopeFields :: StaffScopeValue -> SurfaceFields (SurfaceScopeFieldSpecs Surface.StaffSurface Surface.StaffScope)
 staffScopeFields scope =
     surfaceField @Surface.VenueId scope.profileVenueId
-        :& surfaceField @Surface.StaffId scope.profileStaffId
-        :& NoSurfaceFields
+        &: surfaceField @Surface.StaffId scope.profileStaffId
+        &: noSurfaceFields
 
 profileSectionFragmentForSection :: Text -> FrontendSurfaceMountedFragment
 profileSectionFragmentForSection = \case
@@ -157,40 +157,40 @@ profileSectionFragmentForSection = \case
 profileDetailsMountedFragment :: FrontendSurfaceMountedFragment
 profileDetailsMountedFragment =
     frontendSurfaceMountedFragmentFor @Surface.ProfileSurface @Surface.ProfileDetailsSection
-        NoSurfaceFields
-        NoSurfaceFields
+        noSurfaceFields
+        noSurfaceFields
         (profileSectionFragmentUrl "profile")
         FrontendSurfaceReplace
 
 profilePreferencesMountedFragment :: FrontendSurfaceMountedFragment
 profilePreferencesMountedFragment =
     frontendSurfaceMountedFragmentFor @Surface.ProfileSurface @Surface.ProfilePreferencesSection
-        NoSurfaceFields
-        NoSurfaceFields
+        noSurfaceFields
+        noSurfaceFields
         (profileSectionFragmentUrl "preferences")
         FrontendSurfaceReplace
 
 profileSecurityMountedFragment :: FrontendSurfaceMountedFragment
 profileSecurityMountedFragment =
     frontendSurfaceMountedFragmentFor @Surface.ProfileSurface @Surface.ProfileSecuritySection
-        NoSurfaceFields
-        NoSurfaceFields
+        noSurfaceFields
+        noSurfaceFields
         (profileSectionFragmentUrl "security")
         FrontendSurfaceReplace
 
 profileLeaveMountedFragment :: FrontendSurfaceMountedFragment
 profileLeaveMountedFragment =
     frontendSurfaceMountedFragmentFor @Surface.ProfileSurface @Surface.ProfileLeaveSection
-        NoSurfaceFields
-        NoSurfaceFields
+        noSurfaceFields
+        noSurfaceFields
         (profileSectionFragmentUrl "leave")
         FrontendSurfaceReplace
 
 profileRsaMountedFragment :: FrontendSurfaceMountedFragment
 profileRsaMountedFragment =
     frontendSurfaceMountedFragmentFor @Surface.ProfileSurface @Surface.ProfileRsaSection
-        NoSurfaceFields
-        NoSurfaceFields
+        noSurfaceFields
+        noSurfaceFields
         (profileSectionFragmentUrl "rsa")
         FrontendSurfaceReplace
 

@@ -72,6 +72,7 @@ module Application.Helper.FrontendContract.Surface.HaskellAdapter.Core
     , mapCheckedAdapterPayload
     , qualifyHaskellType
     , renderAdapterArguments
+    , renderAdapterFieldBuilder
     , renderAdapterFieldValueTuple
     , renderAdapterFieldsExpression
     , renderAdapterFieldsValueExpression
@@ -883,11 +884,11 @@ renderAdapterFieldsValueExpression :: Map.Map Text Text -> [ResolvedAdapterField
 renderAdapterFieldsValueExpression = renderAdapterFieldsExpressionWithIndent "    "
 
 renderAdapterFieldsExpressionWithIndent :: Text -> Map.Map Text Text -> [ResolvedAdapterField] -> [Text]
-renderAdapterFieldsExpressionWithIndent indentation _ [] = [indentation <> "NoSurfaceFields"]
+renderAdapterFieldsExpressionWithIndent indentation _ [] = [indentation <> "noSurfaceFields"]
 renderAdapterFieldsExpressionWithIndent indentation aliases (first : rest) =
     [indentation <> "( " <> renderAdapterFieldBuilder aliases first]
-        <> [continuationIndentation <> ":& " <> renderAdapterFieldBuilder aliases field | field <- rest]
-        <> [ continuationIndentation <> ":& NoSurfaceFields"
+        <> [continuationIndentation <> "&: " <> renderAdapterFieldBuilder aliases field | field <- rest]
+        <> [ continuationIndentation <> "&: noSurfaceFields"
            , indentation <> ")"
            ]
   where

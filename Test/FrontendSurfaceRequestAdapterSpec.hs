@@ -1,4 +1,5 @@
 {-# LANGUAGE DataKinds        #-}
+{-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE ImplicitParams   #-}
 {-# LANGUAGE TypeApplications #-}
 
@@ -30,11 +31,9 @@ import Application.Helper.FrontendContract.Surface.Runtime (FrontendSurfaceActio
                                                             frontendSurfaceActionHtmxAttrPairs,
                                                             intentFormName,
                                                             renderFrontendSurfaceIntentForm)
-import Application.Helper.FrontendContract.Surface.Values (SurfaceActionFieldSpecs,
-                                                           SurfaceFields (NoSurfaceFields, (:&)),
-                                                           surfaceField,
-                                                           surfaceFieldValue,
-                                                           surfaceOptionalField)
+import Application.Helper.FrontendContract.Surface.Values (SurfaceActionFields,
+                                                           SurfaceFieldBundleOf,
+                                                           surfaceFieldValue)
 import qualified Data.ByteString as ByteString
 import qualified Data.ByteString.Lazy as LBS
 import qualified Data.List as List
@@ -490,14 +489,11 @@ tests = describe "FrontendSurfaceRequestAdapter" do
             Right fields ->
                 surfaceFieldValue @Roster.RosterLayoutMode fields `shouldBe` "day_columns"
 
-        let parsedDragIntents =
-                let ?request = requestWithParams validRosterDragIntentParams
-                 in [ RosterIntent.parseMoveRosterShiftToSlotIntentParams
-                    , RosterIntent.parseDuplicateRosterShiftToDayIntentParams
-                    , RosterIntent.parseDropRosterStaffIntentParams
-                    , RosterIntent.parseMoveRosterTimelineShiftIntentParams
-                    ]
-        forM_ parsedDragIntents assertRosterDragIntentFields
+        let ?request = requestWithParams validRosterDragIntentParams
+        assertRosterDragIntentFields RosterIntent.parseMoveRosterShiftToSlotIntentParams
+        assertRosterDragIntentFields RosterIntent.parseDuplicateRosterShiftToDayIntentParams
+        assertRosterDragIntentFields RosterIntent.parseDropRosterStaffIntentParams
+        assertRosterDragIntentFields RosterIntent.parseMoveRosterTimelineShiftIntentParams
 
     it "preserves canonical Roster Intent facade missing and malformed diagnostics" do
         let missingLayout =
@@ -510,25 +506,23 @@ tests = describe "FrontendSurfaceRequestAdapter" do
                  in RosterIntent.parseSetRosterLayoutModeIntentParams
         assertRequestErrors ["rosterLayoutMode"] MalformedSurfaceRequestField malformedLayout
 
-        let missingDragIntents =
+        let missingDragIntentChecks =
                 let ?request = requestWithParams []
-                 in [ RosterIntent.parseMoveRosterShiftToSlotIntentParams
-                    , RosterIntent.parseDuplicateRosterShiftToDayIntentParams
-                    , RosterIntent.parseDropRosterStaffIntentParams
-                    , RosterIntent.parseMoveRosterTimelineShiftIntentParams
-                    ]
-        forM_ missingDragIntents
-            (assertRequestErrors ["sourceItemKey", "targetDropzoneKey"] MissingSurfaceRequestField)
+                 in do
+                    assertRequestErrors ["sourceItemKey", "targetDropzoneKey"] MissingSurfaceRequestField RosterIntent.parseMoveRosterShiftToSlotIntentParams
+                    assertRequestErrors ["sourceItemKey", "targetDropzoneKey"] MissingSurfaceRequestField RosterIntent.parseDuplicateRosterShiftToDayIntentParams
+                    assertRequestErrors ["sourceItemKey", "targetDropzoneKey"] MissingSurfaceRequestField RosterIntent.parseDropRosterStaffIntentParams
+                    assertRequestErrors ["sourceItemKey", "targetDropzoneKey"] MissingSurfaceRequestField RosterIntent.parseMoveRosterTimelineShiftIntentParams
+        missingDragIntentChecks
 
-        let malformedDragIntents =
+        let malformedDragIntentChecks =
                 let ?request = requestWithParams invalidRosterDragIntentParams
-                 in [ RosterIntent.parseMoveRosterShiftToSlotIntentParams
-                    , RosterIntent.parseDuplicateRosterShiftToDayIntentParams
-                    , RosterIntent.parseDropRosterStaffIntentParams
-                    , RosterIntent.parseMoveRosterTimelineShiftIntentParams
-                    ]
-        forM_ malformedDragIntents
-            (assertRequestErrors ["sourceItemKey", "targetDropzoneKey"] MalformedSurfaceRequestField)
+                 in do
+                    assertRequestErrors ["sourceItemKey", "targetDropzoneKey"] MalformedSurfaceRequestField RosterIntent.parseMoveRosterShiftToSlotIntentParams
+                    assertRequestErrors ["sourceItemKey", "targetDropzoneKey"] MalformedSurfaceRequestField RosterIntent.parseDuplicateRosterShiftToDayIntentParams
+                    assertRequestErrors ["sourceItemKey", "targetDropzoneKey"] MalformedSurfaceRequestField RosterIntent.parseDropRosterStaffIntentParams
+                    assertRequestErrors ["sourceItemKey", "targetDropzoneKey"] MalformedSurfaceRequestField RosterIntent.parseMoveRosterTimelineShiftIntentParams
+        malformedDragIntentChecks
 
     it "pins all Profile and Staff Action metadata from independent literals" do
         frontendSurfaceActionHtmxAttrPairs
@@ -552,7 +546,7 @@ tests = describe "FrontendSurfaceRequestAdapter" do
                 , ("hx-swap", "outerHTML show:none")
                 ]
         frontendSurfaceActionHtmxAttrPairs
-            (ProfileAction.updateStaffProfileAction profileDetailsFields)
+            (ProfileAction.updateStaffProfileAction staffProfileDetailsFields)
             (sectionActionRoute "/staff/details" "#staff-profile-details")
             `shouldBe`
                 [ ("hx-post", "/staff/details")
@@ -562,7 +556,7 @@ tests = describe "FrontendSurfaceRequestAdapter" do
                 , ("hx-swap", "outerHTML show:none")
                 ]
         frontendSurfaceActionHtmxAttrPairs
-            (ProfileAction.updateStaffShiftPreferencesAction preferenceFields)
+            (ProfileAction.updateStaffShiftPreferencesAction staffPreferenceFields)
             (sectionActionRoute "/staff/preferences" "#staff-profile-preferences")
             `shouldBe`
                 [ ("hx-post", "/staff/preferences")
@@ -721,7 +715,8 @@ invalidRosterDragIntentParams =
     ]
 
 assertRosterDragIntentFields ::
-    Either [SurfaceRequestFieldError] (SurfaceFields SurfaceInteraction.DragDropFields) ->
+    SurfaceFieldBundleOf SurfaceInteraction.DragDropFields fields =>
+    Either [SurfaceRequestFieldError] fields ->
     Expectation
 assertRosterDragIntentFields = \case
     Left errors -> expectationFailure (cs (show errors))
@@ -815,42 +810,65 @@ sectionActionRoute url target =
             ]
         }
 
-profileDetailsFields :: SurfaceFields Profile.StaffProfileFields
+profileDetailsFields :: SurfaceActionFields Profile.ProfileSurface Profile.UpdateProfileDetails
 profileDetailsFields =
-    surfaceField @Profile.FirstNameField "Ada"
-        :& surfaceField @Profile.LastNameField "Lovelace"
-        :& surfaceField @Profile.PreferredNameField ""
-        :& surfaceField @Profile.PhoneField "0400000000"
-        :& surfaceField @Profile.IdealShiftsPerWeekField 4
-        :& surfaceField @Profile.EmergencyContactNameField "Charles"
-        :& surfaceField @Profile.EmergencyContactPhoneField "0411111111"
-        :& surfaceField @Profile.SectionField "profile"
-        :& surfaceOptionalField @Profile.VenueRoleField (Just "manager")
-        :& surfaceOptionalField @Profile.EmploymentBasisField Nothing
-        :& surfaceOptionalField @Profile.PayRateSelectionField (Just "award:level-1")
-        :& surfaceOptionalField @Profile.IsActiveField (Just True)
-        :& surfaceOptionalField @Profile.RosterGroupIdsField (Just [firstRosterGroupId, secondRosterGroupId])
-        :& NoSurfaceFields
+    ProfileAction.updateProfileDetailsActionFields
+        "Ada"
+        "Lovelace"
+        ""
+        "0400000000"
+        4
+        "Charles"
+        "0411111111"
+        "profile"
+        (Just "manager")
+        Nothing
+        (Just "award:level-1")
+        (Just True)
+        (Just [firstRosterGroupId, secondRosterGroupId])
 
-preferenceFields :: SurfaceFields Profile.StaffShiftPreferenceFields
+staffProfileDetailsFields :: SurfaceActionFields Profile.StaffSurface Profile.UpdateStaffProfile
+staffProfileDetailsFields =
+    ProfileAction.updateStaffProfileActionFields
+        "Ada"
+        "Lovelace"
+        ""
+        "0400000000"
+        4
+        "Charles"
+        "0411111111"
+        "profile"
+        (Just "manager")
+        Nothing
+        (Just "award:level-1")
+        (Just True)
+        (Just [firstRosterGroupId, secondRosterGroupId])
+
+preferenceFields :: SurfaceActionFields Profile.ProfileSurface Profile.UpdateProfileShiftPreferences
 preferenceFields =
-    surfaceField @Profile.SectionField "preferences"
-        :& surfaceOptionalField @Profile.ShiftPreferenceKeysField (Just ["monday:9:17", "friday:10:18"])
-        :& NoSurfaceFields
+    ProfileAction.updateProfileShiftPreferencesActionFields
+        "preferences"
+        (Just ["monday:9:17", "friday:10:18"])
 
-profileLeaveRequestFields :: SurfaceFields (SurfaceActionFieldSpecs Profile.ProfileSurface Profile.CreateProfileLeaveRequest)
+staffPreferenceFields :: SurfaceActionFields Profile.StaffSurface Profile.UpdateStaffShiftPreferences
+staffPreferenceFields =
+    ProfileAction.updateStaffShiftPreferencesActionFields
+        "preferences"
+        (Just ["monday:9:17", "friday:10:18"])
+
+profileLeaveRequestFields :: SurfaceActionFields Profile.ProfileSurface Profile.CreateProfileLeaveRequest
 profileLeaveRequestFields =
-    surfaceField @Profile.StartDate (fromGregorian 2026 7 20)
-        :& surfaceField @Profile.EndDate (fromGregorian 2026 7 22)
-        :& surfaceField @Profile.Notes "Family event"
-        :& NoSurfaceFields
+    ProfileAction.createProfileLeaveRequestActionFields
+        (fromGregorian 2026 7 20)
+        (fromGregorian 2026 7 22)
+        "Family event"
 
-staffLeaveRequestFields :: SurfaceFields (SurfaceActionFieldSpecs Profile.StaffSurface Profile.CreateStaffLeaveRequest)
+staffLeaveRequestFields :: SurfaceActionFields Profile.StaffSurface Profile.CreateStaffLeaveRequest
 staffLeaveRequestFields =
-    surfaceField @Profile.StartDate (fromGregorian 2026 7 20)
-        :& surfaceField @Profile.EndDate (fromGregorian 2026 7 22)
-        :& surfaceField @Profile.Notes "Family event"
-        :& NoSurfaceFields
+    ProfileAction.createStaffLeaveRequestActionFields
+        (fromGregorian 2026 7 20)
+        (fromGregorian 2026 7 22)
+        "Family event"
 
 validDetailsParams :: [(ByteString.ByteString, Maybe ByteString.ByteString)]
 validDetailsParams =

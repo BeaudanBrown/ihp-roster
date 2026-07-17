@@ -11,7 +11,7 @@ import qualified Test.Support.FrontendSurfaceFixture as Surface
 rawMountedTarget :: FrontendSurfaceMountedFragment
 rawMountedTarget =
     frontendSurfaceMountedFragmentFor @Surface.FrontendSurfaceFixture @Surface.FixturePanel
-        (surfaceField @Surface.PanelId (error "fixture UUID") :& NoSurfaceFields)
+        (surfaceField @Surface.PanelId (error "fixture UUID") &: noSurfaceFields)
         "raw-target-id"
         "/fixture"
         FrontendSurfaceReplace

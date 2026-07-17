@@ -11,9 +11,11 @@ import IHP.Prelude
 -- its final optional field must fail before rendering.
 incompleteAction =
     frontendSurfaceAction @Timesheets.TimesheetsSurface @Timesheets.NavigateTimesheetWeek
-        ( surfaceField @Timesheets.WeekOffset 0
-            :& surfaceField @Timesheets.ShowApproved False
-            :& surfaceField @Timesheets.ShowAllStaff True
-            :& surfaceField @Timesheets.ShowSuggestions True
-            :& NoSurfaceFields
+        ( surfaceActionFields
+            (surfaceField @Timesheets.WeekOffset 0)
+            ( surfaceField @Timesheets.ShowApproved False
+                &: surfaceField @Timesheets.ShowAllStaff True
+                &: surfaceField @Timesheets.ShowSuggestions True
+                &: noSurfaceFields
+            )
         )

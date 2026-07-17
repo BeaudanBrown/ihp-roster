@@ -77,13 +77,13 @@ billingSurfaceFragmentKeys = map (.mountedFragmentKey)
 
 billingScopeFields :: BillingScopeValue -> SurfaceFields (SurfaceScopeFieldSpecs Surface.BillingSurface Surface.BillingVenue)
 billingScopeFields scope =
-    surfaceField @Surface.VenueId scope.billingVenueId :& NoSurfaceFields
+    surfaceField @Surface.VenueId scope.billingVenueId &: noSurfaceFields
 
 billingMountStateFields :: BillingCheckoutReturnState -> SurfaceFields (SurfaceMountStateFieldSpecs Surface.BillingSurface)
 billingMountStateFields checkoutReturnState =
     surfaceField @Surface.CheckoutReturned checkoutReturnState.billingCheckoutReturned
-        :& surfaceField @Surface.CheckoutSessionId checkoutReturnState.billingCheckoutSessionId
-        :& NoSurfaceFields
+        &: surfaceField @Surface.CheckoutSessionId checkoutReturnState.billingCheckoutSessionId
+        &: noSurfaceFields
 
 billingStatusFragmentUrl :: BillingCheckoutReturnState -> Text
 billingStatusFragmentUrl BillingCheckoutReturnState { billingCheckoutReturned = False } =
@@ -95,8 +95,8 @@ billingStatusFragmentUrl BillingCheckoutReturnState { billingCheckoutReturned = 
 billingStatusMountedFragment :: Text -> FrontendSurfaceMountedFragment
 billingStatusMountedFragment statusUrl =
     frontendSurfaceMountedFragmentFor @Surface.BillingSurface @Surface.BillingStatus
-        NoSurfaceFields
-        NoSurfaceFields
+        noSurfaceFields
+        noSurfaceFields
         statusUrl
         FrontendSurfaceReplace
 

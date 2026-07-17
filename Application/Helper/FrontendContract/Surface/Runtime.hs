@@ -253,7 +253,7 @@ data FrontendSurfaceHtmxMethod
 
 -- | One action together with its complete declaration-indexed field bundle.
 -- The constructor is intentionally hidden: callers must select an owning
--- Surface/action marker and provide every declared field through
+-- Surface/action marker and pass that operation's nominal generated bundle to
 -- 'frontendSurfaceAction'.
 data FrontendSurfaceAction = FrontendSurfaceAction
     { frontendSurfaceActionIR         :: !SurfaceIR.HtmxActionIR
@@ -264,7 +264,7 @@ data FrontendSurfaceAction = FrontendSurfaceAction
 frontendSurfaceAction ::
     forall spec marker.
     ReflectPrimitive (SurfaceActionPrimitive spec marker) =>
-    SurfaceFields (SurfaceActionFieldSpecs spec marker) ->
+    SurfaceActionFields spec marker ->
     FrontendSurfaceAction
 frontendSurfaceAction fields =
     FrontendSurfaceAction
@@ -309,7 +309,7 @@ data FrontendSurfaceIntentForm = FrontendSurfaceIntentForm
 frontendSurfaceIntentForm ::
     forall spec marker.
     ReflectPrimitive (SurfaceIntentPrimitive spec marker) =>
-    SurfaceFields (SurfaceIntentFieldSpecs spec marker) ->
+    SurfaceIntentFields spec marker ->
     FrontendSurfaceHtmxRequest ->
     FrontendSurfaceIntentForm
 frontendSurfaceIntentForm fields request =

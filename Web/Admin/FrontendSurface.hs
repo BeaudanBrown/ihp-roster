@@ -44,7 +44,7 @@ adminPageSurfaceImpl scope =
     mkSurfaceImplFromValues @Surface.AdminPageSurface @Surface.AdminPageScope
         "primary"
         (adminVenueScopeFields scope)
-        NoSurfaceFields
+        noSurfaceFields
         [adminPageContentFragment]
 
 adminXeroPageSurfaceImpl :: AdminVenueScopeValue -> SurfaceImpl Surface.AdminXeroPageSurface
@@ -52,7 +52,7 @@ adminXeroPageSurfaceImpl scope =
     mkSurfaceImplFromValues @Surface.AdminXeroPageSurface @Surface.AdminXeroPageScope
         "primary"
         (adminVenueScopeFields scope)
-        NoSurfaceFields
+        noSurfaceFields
         [adminXeroPageContentFragment]
 
 adminVenueSettingsSurfaceImpl :: AdminVenueScopeValue -> SurfaceImpl Surface.AdminVenueSettingsSurface
@@ -60,7 +60,7 @@ adminVenueSettingsSurfaceImpl scope =
     mkSurfaceImplFromValues @Surface.AdminVenueSettingsSurface @Surface.AdminVenueConfigScope
         "primary"
         (adminVenueScopeFields scope)
-        NoSurfaceFields
+        noSurfaceFields
         [adminVenueSettingsFragment]
 
 adminInvitesSurfaceImpl :: AdminVenueScopeValue -> SurfaceImpl Surface.AdminInvitesSurface
@@ -68,7 +68,7 @@ adminInvitesSurfaceImpl scope =
     mkSurfaceImplFromValues @Surface.AdminInvitesSurface @Surface.AdminInvitesScope
         "primary"
         (adminVenueScopeFields scope)
-        NoSurfaceFields
+        noSurfaceFields
         [adminInvitesFragment scope.adminRosterGroupId]
 
 adminExportsSurfaceImpl :: AdminVenueScopeValue -> SurfaceImpl Surface.AdminExportsSurface
@@ -76,7 +76,7 @@ adminExportsSurfaceImpl scope =
     mkSurfaceImplFromValues @Surface.AdminExportsSurface @Surface.AdminExportsScope
         "primary"
         (adminVenueScopeFields scope)
-        NoSurfaceFields
+        noSurfaceFields
         [adminExportsFragment]
 
 adminShiftTypesSurfaceImpl :: AdminVenueScopeValue -> SurfaceImpl Surface.AdminShiftTypesSurface
@@ -84,7 +84,7 @@ adminShiftTypesSurfaceImpl scope =
     mkSurfaceImplFromValues @Surface.AdminShiftTypesSurface @Surface.AdminShiftTypesScope
         "primary"
         (adminVenueScopeFields scope)
-        NoSurfaceFields
+        noSurfaceFields
         [adminShiftTypesFragment]
 
 adminRosterGroupsSurfaceImpl :: AdminVenueScopeValue -> SurfaceImpl Surface.AdminRosterGroupsSurface
@@ -92,7 +92,7 @@ adminRosterGroupsSurfaceImpl scope =
     mkSurfaceImplFromValues @Surface.AdminRosterGroupsSurface @Surface.AdminRosterGroupsScope
         "primary"
         (adminVenueScopeFields scope)
-        NoSurfaceFields
+        noSurfaceFields
         [adminRosterGroupsFragment]
 
 adminXeroSurfaceImpl :: AdminVenueScopeValue -> SurfaceImpl Surface.AdminXeroSurface
@@ -100,42 +100,42 @@ adminXeroSurfaceImpl scope =
     mkSurfaceImplFromValues @Surface.AdminXeroSurface @Surface.AdminXeroScope
         "primary"
         (adminVenueScopeFields scope)
-        NoSurfaceFields
+        noSurfaceFields
         [adminXeroShellFragment]
 
 adminVenueScopeFields :: AdminVenueScopeValue -> SurfaceFields '[ 'Field Surface.VenueId 'WireUUID]
 adminVenueScopeFields scope =
-    surfaceField @Surface.VenueId scope.adminVenueId :& NoSurfaceFields
+    surfaceField @Surface.VenueId scope.adminVenueId &: noSurfaceFields
 
 adminPageContentFragment :: FrontendSurfaceMountedFragment
 adminPageContentFragment =
     frontendSurfaceMountedFragmentFor @Surface.AdminPageSurface @Surface.AdminPageContentFragment
-        NoSurfaceFields
-        NoSurfaceFields
+        noSurfaceFields
+        noSurfaceFields
         (pathTo AdminAction)
         FrontendSurfaceReplace
 
 adminXeroPageContentFragment :: FrontendSurfaceMountedFragment
 adminXeroPageContentFragment =
     frontendSurfaceMountedFragmentFor @Surface.AdminXeroPageSurface @Surface.AdminXeroPageContentFragment
-        NoSurfaceFields
-        NoSurfaceFields
+        noSurfaceFields
+        noSurfaceFields
         (pathTo XeroAction)
         FrontendSurfaceReplace
 
 adminVenueSettingsFragment :: FrontendSurfaceMountedFragment
 adminVenueSettingsFragment =
     frontendSurfaceMountedFragmentFor @Surface.AdminVenueSettingsSurface @Surface.AdminVenueSettingsFragment
-        NoSurfaceFields
-        NoSurfaceFields
+        noSurfaceFields
+        noSurfaceFields
         (pathTo ShowAdminVenueSettingsFragmentAction)
         FrontendSurfaceReplace
 
 adminInvitesFragment :: Maybe UUID.UUID -> FrontendSurfaceMountedFragment
 adminInvitesFragment maybeRosterGroupId =
     frontendSurfaceMountedFragmentFor @Surface.AdminInvitesSurface @Surface.AdminInvitesFragment
-        NoSurfaceFields
-        NoSurfaceFields
+        noSurfaceFields
+        noSurfaceFields
         (appendQueryParams (pathTo ShowadminInvitesLiveFragmentAction) query)
         FrontendSurfaceReplace
   where
@@ -144,16 +144,16 @@ adminInvitesFragment maybeRosterGroupId =
 adminExportsFragment :: FrontendSurfaceMountedFragment
 adminExportsFragment =
     frontendSurfaceMountedFragmentFor @Surface.AdminExportsSurface @Surface.AdminExportsFragment
-        NoSurfaceFields
-        NoSurfaceFields
+        noSurfaceFields
+        noSurfaceFields
         (pathTo ShowadminExportsLiveFragmentAction)
         FrontendSurfaceReplace
 
 adminShiftTypesFragment :: FrontendSurfaceMountedFragment
 adminShiftTypesFragment =
     frontendSurfaceMountedFragmentFor @Surface.AdminShiftTypesSurface @Surface.AdminShiftTypesFragment
-        NoSurfaceFields
-        NoSurfaceFields
+        noSurfaceFields
+        noSurfaceFields
         (pathTo ShowadminShiftTypesLiveFragmentAction)
         ( FrontendSurfaceFocusedFieldConfig
             FrontendSurfaceFocusedFieldProtectionConfig
@@ -167,16 +167,16 @@ adminShiftTypesFragment =
 adminRosterGroupsFragment :: FrontendSurfaceMountedFragment
 adminRosterGroupsFragment =
     frontendSurfaceMountedFragmentFor @Surface.AdminRosterGroupsSurface @Surface.AdminRosterGroupsFragment
-        NoSurfaceFields
-        NoSurfaceFields
+        noSurfaceFields
+        noSurfaceFields
         (pathTo ShowadminRosterGroupsLiveFragmentAction)
         FrontendSurfaceReplace
 
 adminXeroShellFragment :: FrontendSurfaceMountedFragment
 adminXeroShellFragment =
     frontendSurfaceMountedFragmentFor @Surface.AdminXeroSurface @Surface.AdminXeroShellFragment
-        NoSurfaceFields
-        NoSurfaceFields
+        noSurfaceFields
+        noSurfaceFields
         (pathTo ShowadminXeroShellLiveFragmentAction)
         FrontendSurfaceReplace
 

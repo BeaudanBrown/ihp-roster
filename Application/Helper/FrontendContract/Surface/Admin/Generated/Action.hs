@@ -63,10 +63,13 @@ import Application.Helper.FrontendContract.Surface.Request (SurfaceRequestFieldE
                                                             parseSurfaceActionParams)
 import Application.Helper.FrontendContract.Surface.Runtime (FrontendSurfaceAction,
                                                             frontendSurfaceAction)
-import Application.Helper.FrontendContract.Surface.Values (SurfaceActionFieldSpecs,
-                                                           SurfaceFields (NoSurfaceFields, (:&)),
+import Application.Helper.FrontendContract.Surface.Values (SurfaceActionFields,
+                                                           noSurfaceActionFields,
+                                                           noSurfaceFields,
+                                                           surfaceActionFields,
                                                            surfaceField,
-                                                           surfaceOptionalField)
+                                                           surfaceOptionalField,
+                                                           (&:))
 import Data.Time (Day)
 import qualified Data.UUID as UUID
 import IHP.Prelude
@@ -78,17 +81,18 @@ autosaveShiftTypeNameActionFields ::
     Text ->
     Text ->
     Bool ->
-    SurfaceFields (SurfaceActionFieldSpecs (AdapterFamilySurface Types2.AdminShiftTypesAdapterFamily) Types1.AutosaveShiftTypeName)
+    SurfaceActionFields (AdapterFamilySurface Types2.AdminShiftTypesAdapterFamily) Types1.AutosaveShiftTypeName
 autosaveShiftTypeNameActionFields showInactiveShiftTypes name payRateSelection colourKey isActive =
-    ( surfaceField @Types1.ShowInactiveShiftTypes showInactiveShiftTypes
-        :& surfaceField @Types1.Name name
-        :& surfaceField @Types1.PayRateSelection payRateSelection
-        :& surfaceField @Types1.ColourKey colourKey
-        :& surfaceField @Types1.IsActive isActive
-        :& NoSurfaceFields
-    )
+    surfaceActionFields
+        (surfaceField @Types1.ShowInactiveShiftTypes showInactiveShiftTypes)
+        ( surfaceField @Types1.Name name
+            &: surfaceField @Types1.PayRateSelection payRateSelection
+            &: surfaceField @Types1.ColourKey colourKey
+            &: surfaceField @Types1.IsActive isActive
+            &: noSurfaceFields
+        )
 
-autosaveShiftTypeNameAction :: SurfaceFields (SurfaceActionFieldSpecs (AdapterFamilySurface Types2.AdminShiftTypesAdapterFamily) Types1.AutosaveShiftTypeName) -> FrontendSurfaceAction
+autosaveShiftTypeNameAction :: SurfaceActionFields (AdapterFamilySurface Types2.AdminShiftTypesAdapterFamily) Types1.AutosaveShiftTypeName -> FrontendSurfaceAction
 autosaveShiftTypeNameAction =
     frontendSurfaceAction
         @(AdapterFamilySurface Types2.AdminShiftTypesAdapterFamily)
@@ -100,17 +104,18 @@ autosaveShiftTypeSelectionActionFields ::
     Text ->
     Text ->
     Bool ->
-    SurfaceFields (SurfaceActionFieldSpecs (AdapterFamilySurface Types2.AdminShiftTypesAdapterFamily) Types1.AutosaveShiftTypeSelection)
+    SurfaceActionFields (AdapterFamilySurface Types2.AdminShiftTypesAdapterFamily) Types1.AutosaveShiftTypeSelection
 autosaveShiftTypeSelectionActionFields showInactiveShiftTypes name payRateSelection colourKey isActive =
-    ( surfaceField @Types1.ShowInactiveShiftTypes showInactiveShiftTypes
-        :& surfaceField @Types1.Name name
-        :& surfaceField @Types1.PayRateSelection payRateSelection
-        :& surfaceField @Types1.ColourKey colourKey
-        :& surfaceField @Types1.IsActive isActive
-        :& NoSurfaceFields
-    )
+    surfaceActionFields
+        (surfaceField @Types1.ShowInactiveShiftTypes showInactiveShiftTypes)
+        ( surfaceField @Types1.Name name
+            &: surfaceField @Types1.PayRateSelection payRateSelection
+            &: surfaceField @Types1.ColourKey colourKey
+            &: surfaceField @Types1.IsActive isActive
+            &: noSurfaceFields
+        )
 
-autosaveShiftTypeSelectionAction :: SurfaceFields (SurfaceActionFieldSpecs (AdapterFamilySurface Types2.AdminShiftTypesAdapterFamily) Types1.AutosaveShiftTypeSelection) -> FrontendSurfaceAction
+autosaveShiftTypeSelectionAction :: SurfaceActionFields (AdapterFamilySurface Types2.AdminShiftTypesAdapterFamily) Types1.AutosaveShiftTypeSelection -> FrontendSurfaceAction
 autosaveShiftTypeSelectionAction =
     frontendSurfaceAction
         @(AdapterFamilySurface Types2.AdminShiftTypesAdapterFamily)
@@ -120,15 +125,16 @@ createExportJobActionFields ::
     Day ->
     Day ->
     Text ->
-    SurfaceFields (SurfaceActionFieldSpecs (AdapterFamilySurface Types2.AdminExportsAdapterFamily) Types1.CreateExportJob)
+    SurfaceActionFields (AdapterFamilySurface Types2.AdminExportsAdapterFamily) Types1.CreateExportJob
 createExportJobActionFields rangeStart rangeEnd exportType =
-    ( surfaceField @Types1.RangeStart rangeStart
-        :& surfaceField @Types1.RangeEnd rangeEnd
-        :& surfaceField @Types1.ExportType exportType
-        :& NoSurfaceFields
-    )
+    surfaceActionFields
+        (surfaceField @Types1.RangeStart rangeStart)
+        ( surfaceField @Types1.RangeEnd rangeEnd
+            &: surfaceField @Types1.ExportType exportType
+            &: noSurfaceFields
+        )
 
-createExportJobAction :: SurfaceFields (SurfaceActionFieldSpecs (AdapterFamilySurface Types2.AdminExportsAdapterFamily) Types1.CreateExportJob) -> FrontendSurfaceAction
+createExportJobAction :: SurfaceActionFields (AdapterFamilySurface Types2.AdminExportsAdapterFamily) Types1.CreateExportJob -> FrontendSurfaceAction
 createExportJobAction =
     frontendSurfaceAction
         @(AdapterFamilySurface Types2.AdminExportsAdapterFamily)
@@ -136,7 +142,7 @@ createExportJobAction =
 
 parseCreateExportJobActionParams ::
     (?request :: Request) =>
-    Either [SurfaceRequestFieldError] (SurfaceFields (SurfaceActionFieldSpecs (AdapterFamilySurface Types2.AdminExportsAdapterFamily) Types1.CreateExportJob))
+    Either [SurfaceRequestFieldError] (SurfaceActionFields (AdapterFamilySurface Types2.AdminExportsAdapterFamily) Types1.CreateExportJob)
 parseCreateExportJobActionParams =
     parseSurfaceActionParams
         @(AdapterFamilySurface Types2.AdminExportsAdapterFamily)
@@ -146,15 +152,16 @@ createRosterGroupActionFields ::
     Bool ->
     Text ->
     Bool ->
-    SurfaceFields (SurfaceActionFieldSpecs (AdapterFamilySurface Types2.AdminRosterGroupsAdapterFamily) Types1.CreateRosterGroup)
+    SurfaceActionFields (AdapterFamilySurface Types2.AdminRosterGroupsAdapterFamily) Types1.CreateRosterGroup
 createRosterGroupActionFields showInactiveRosterGroups name isActive =
-    ( surfaceField @Types1.ShowInactiveRosterGroups showInactiveRosterGroups
-        :& surfaceField @Types1.Name name
-        :& surfaceField @Types1.IsActive isActive
-        :& NoSurfaceFields
-    )
+    surfaceActionFields
+        (surfaceField @Types1.ShowInactiveRosterGroups showInactiveRosterGroups)
+        ( surfaceField @Types1.Name name
+            &: surfaceField @Types1.IsActive isActive
+            &: noSurfaceFields
+        )
 
-createRosterGroupAction :: SurfaceFields (SurfaceActionFieldSpecs (AdapterFamilySurface Types2.AdminRosterGroupsAdapterFamily) Types1.CreateRosterGroup) -> FrontendSurfaceAction
+createRosterGroupAction :: SurfaceActionFields (AdapterFamilySurface Types2.AdminRosterGroupsAdapterFamily) Types1.CreateRosterGroup -> FrontendSurfaceAction
 createRosterGroupAction =
     frontendSurfaceAction
         @(AdapterFamilySurface Types2.AdminRosterGroupsAdapterFamily)
@@ -162,7 +169,7 @@ createRosterGroupAction =
 
 parseCreateRosterGroupActionParams ::
     (?request :: Request) =>
-    Either [SurfaceRequestFieldError] (SurfaceFields (SurfaceActionFieldSpecs (AdapterFamilySurface Types2.AdminRosterGroupsAdapterFamily) Types1.CreateRosterGroup))
+    Either [SurfaceRequestFieldError] (SurfaceActionFields (AdapterFamilySurface Types2.AdminRosterGroupsAdapterFamily) Types1.CreateRosterGroup)
 parseCreateRosterGroupActionParams =
     parseSurfaceActionParams
         @(AdapterFamilySurface Types2.AdminRosterGroupsAdapterFamily)
@@ -174,17 +181,18 @@ createShiftTypeActionFields ::
     Text ->
     Text ->
     Bool ->
-    SurfaceFields (SurfaceActionFieldSpecs (AdapterFamilySurface Types2.AdminShiftTypesAdapterFamily) Types1.CreateShiftType)
+    SurfaceActionFields (AdapterFamilySurface Types2.AdminShiftTypesAdapterFamily) Types1.CreateShiftType
 createShiftTypeActionFields showInactiveShiftTypes name payRateSelection colourKey isActive =
-    ( surfaceField @Types1.ShowInactiveShiftTypes showInactiveShiftTypes
-        :& surfaceField @Types1.Name name
-        :& surfaceField @Types1.PayRateSelection payRateSelection
-        :& surfaceField @Types1.ColourKey colourKey
-        :& surfaceField @Types1.IsActive isActive
-        :& NoSurfaceFields
-    )
+    surfaceActionFields
+        (surfaceField @Types1.ShowInactiveShiftTypes showInactiveShiftTypes)
+        ( surfaceField @Types1.Name name
+            &: surfaceField @Types1.PayRateSelection payRateSelection
+            &: surfaceField @Types1.ColourKey colourKey
+            &: surfaceField @Types1.IsActive isActive
+            &: noSurfaceFields
+        )
 
-createShiftTypeAction :: SurfaceFields (SurfaceActionFieldSpecs (AdapterFamilySurface Types2.AdminShiftTypesAdapterFamily) Types1.CreateShiftType) -> FrontendSurfaceAction
+createShiftTypeAction :: SurfaceActionFields (AdapterFamilySurface Types2.AdminShiftTypesAdapterFamily) Types1.CreateShiftType -> FrontendSurfaceAction
 createShiftTypeAction =
     frontendSurfaceAction
         @(AdapterFamilySurface Types2.AdminShiftTypesAdapterFamily)
@@ -192,7 +200,7 @@ createShiftTypeAction =
 
 parseCreateShiftTypeActionParams ::
     (?request :: Request) =>
-    Either [SurfaceRequestFieldError] (SurfaceFields (SurfaceActionFieldSpecs (AdapterFamilySurface Types2.AdminShiftTypesAdapterFamily) Types1.CreateShiftType))
+    Either [SurfaceRequestFieldError] (SurfaceActionFields (AdapterFamilySurface Types2.AdminShiftTypesAdapterFamily) Types1.CreateShiftType)
 parseCreateShiftTypeActionParams =
     parseSurfaceActionParams
         @(AdapterFamilySurface Types2.AdminShiftTypesAdapterFamily)
@@ -200,13 +208,13 @@ parseCreateShiftTypeActionParams =
 
 createVenueInvitationActionFields ::
     Text ->
-    SurfaceFields (SurfaceActionFieldSpecs (AdapterFamilySurface Types2.AdminInvitesAdapterFamily) Types1.CreateVenueInvitation)
+    SurfaceActionFields (AdapterFamilySurface Types2.AdminInvitesAdapterFamily) Types1.CreateVenueInvitation
 createVenueInvitationActionFields email =
-    ( surfaceField @Types1.Email email
-        :& NoSurfaceFields
-    )
+    surfaceActionFields
+        (surfaceField @Types1.Email email)
+        noSurfaceFields
 
-createVenueInvitationAction :: SurfaceFields (SurfaceActionFieldSpecs (AdapterFamilySurface Types2.AdminInvitesAdapterFamily) Types1.CreateVenueInvitation) -> FrontendSurfaceAction
+createVenueInvitationAction :: SurfaceActionFields (AdapterFamilySurface Types2.AdminInvitesAdapterFamily) Types1.CreateVenueInvitation -> FrontendSurfaceAction
 createVenueInvitationAction =
     frontendSurfaceAction
         @(AdapterFamilySurface Types2.AdminInvitesAdapterFamily)
@@ -214,7 +222,7 @@ createVenueInvitationAction =
 
 parseCreateVenueInvitationActionParams ::
     (?request :: Request) =>
-    Either [SurfaceRequestFieldError] (SurfaceFields (SurfaceActionFieldSpecs (AdapterFamilySurface Types2.AdminInvitesAdapterFamily) Types1.CreateVenueInvitation))
+    Either [SurfaceRequestFieldError] (SurfaceActionFields (AdapterFamilySurface Types2.AdminInvitesAdapterFamily) Types1.CreateVenueInvitation)
 parseCreateVenueInvitationActionParams =
     parseSurfaceActionParams
         @(AdapterFamilySurface Types2.AdminInvitesAdapterFamily)
@@ -222,13 +230,13 @@ parseCreateVenueInvitationActionParams =
 
 moveRosterGroupDownActionFields ::
     Bool ->
-    SurfaceFields (SurfaceActionFieldSpecs (AdapterFamilySurface Types2.AdminRosterGroupsAdapterFamily) Types1.MoveRosterGroupDown)
+    SurfaceActionFields (AdapterFamilySurface Types2.AdminRosterGroupsAdapterFamily) Types1.MoveRosterGroupDown
 moveRosterGroupDownActionFields showInactiveRosterGroups =
-    ( surfaceField @Types1.ShowInactiveRosterGroups showInactiveRosterGroups
-        :& NoSurfaceFields
-    )
+    surfaceActionFields
+        (surfaceField @Types1.ShowInactiveRosterGroups showInactiveRosterGroups)
+        noSurfaceFields
 
-moveRosterGroupDownAction :: SurfaceFields (SurfaceActionFieldSpecs (AdapterFamilySurface Types2.AdminRosterGroupsAdapterFamily) Types1.MoveRosterGroupDown) -> FrontendSurfaceAction
+moveRosterGroupDownAction :: SurfaceActionFields (AdapterFamilySurface Types2.AdminRosterGroupsAdapterFamily) Types1.MoveRosterGroupDown -> FrontendSurfaceAction
 moveRosterGroupDownAction =
     frontendSurfaceAction
         @(AdapterFamilySurface Types2.AdminRosterGroupsAdapterFamily)
@@ -236,7 +244,7 @@ moveRosterGroupDownAction =
 
 parseMoveRosterGroupDownActionParams ::
     (?request :: Request) =>
-    Either [SurfaceRequestFieldError] (SurfaceFields (SurfaceActionFieldSpecs (AdapterFamilySurface Types2.AdminRosterGroupsAdapterFamily) Types1.MoveRosterGroupDown))
+    Either [SurfaceRequestFieldError] (SurfaceActionFields (AdapterFamilySurface Types2.AdminRosterGroupsAdapterFamily) Types1.MoveRosterGroupDown)
 parseMoveRosterGroupDownActionParams =
     parseSurfaceActionParams
         @(AdapterFamilySurface Types2.AdminRosterGroupsAdapterFamily)
@@ -244,13 +252,13 @@ parseMoveRosterGroupDownActionParams =
 
 moveRosterGroupUpActionFields ::
     Bool ->
-    SurfaceFields (SurfaceActionFieldSpecs (AdapterFamilySurface Types2.AdminRosterGroupsAdapterFamily) Types1.MoveRosterGroupUp)
+    SurfaceActionFields (AdapterFamilySurface Types2.AdminRosterGroupsAdapterFamily) Types1.MoveRosterGroupUp
 moveRosterGroupUpActionFields showInactiveRosterGroups =
-    ( surfaceField @Types1.ShowInactiveRosterGroups showInactiveRosterGroups
-        :& NoSurfaceFields
-    )
+    surfaceActionFields
+        (surfaceField @Types1.ShowInactiveRosterGroups showInactiveRosterGroups)
+        noSurfaceFields
 
-moveRosterGroupUpAction :: SurfaceFields (SurfaceActionFieldSpecs (AdapterFamilySurface Types2.AdminRosterGroupsAdapterFamily) Types1.MoveRosterGroupUp) -> FrontendSurfaceAction
+moveRosterGroupUpAction :: SurfaceActionFields (AdapterFamilySurface Types2.AdminRosterGroupsAdapterFamily) Types1.MoveRosterGroupUp -> FrontendSurfaceAction
 moveRosterGroupUpAction =
     frontendSurfaceAction
         @(AdapterFamilySurface Types2.AdminRosterGroupsAdapterFamily)
@@ -258,7 +266,7 @@ moveRosterGroupUpAction =
 
 parseMoveRosterGroupUpActionParams ::
     (?request :: Request) =>
-    Either [SurfaceRequestFieldError] (SurfaceFields (SurfaceActionFieldSpecs (AdapterFamilySurface Types2.AdminRosterGroupsAdapterFamily) Types1.MoveRosterGroupUp))
+    Either [SurfaceRequestFieldError] (SurfaceActionFields (AdapterFamilySurface Types2.AdminRosterGroupsAdapterFamily) Types1.MoveRosterGroupUp)
 parseMoveRosterGroupUpActionParams =
     parseSurfaceActionParams
         @(AdapterFamilySurface Types2.AdminRosterGroupsAdapterFamily)
@@ -266,13 +274,13 @@ parseMoveRosterGroupUpActionParams =
 
 moveShiftTypeDownActionFields ::
     Bool ->
-    SurfaceFields (SurfaceActionFieldSpecs (AdapterFamilySurface Types2.AdminShiftTypesAdapterFamily) Types1.MoveShiftTypeDown)
+    SurfaceActionFields (AdapterFamilySurface Types2.AdminShiftTypesAdapterFamily) Types1.MoveShiftTypeDown
 moveShiftTypeDownActionFields showInactiveShiftTypes =
-    ( surfaceField @Types1.ShowInactiveShiftTypes showInactiveShiftTypes
-        :& NoSurfaceFields
-    )
+    surfaceActionFields
+        (surfaceField @Types1.ShowInactiveShiftTypes showInactiveShiftTypes)
+        noSurfaceFields
 
-moveShiftTypeDownAction :: SurfaceFields (SurfaceActionFieldSpecs (AdapterFamilySurface Types2.AdminShiftTypesAdapterFamily) Types1.MoveShiftTypeDown) -> FrontendSurfaceAction
+moveShiftTypeDownAction :: SurfaceActionFields (AdapterFamilySurface Types2.AdminShiftTypesAdapterFamily) Types1.MoveShiftTypeDown -> FrontendSurfaceAction
 moveShiftTypeDownAction =
     frontendSurfaceAction
         @(AdapterFamilySurface Types2.AdminShiftTypesAdapterFamily)
@@ -280,7 +288,7 @@ moveShiftTypeDownAction =
 
 parseMoveShiftTypeDownActionParams ::
     (?request :: Request) =>
-    Either [SurfaceRequestFieldError] (SurfaceFields (SurfaceActionFieldSpecs (AdapterFamilySurface Types2.AdminShiftTypesAdapterFamily) Types1.MoveShiftTypeDown))
+    Either [SurfaceRequestFieldError] (SurfaceActionFields (AdapterFamilySurface Types2.AdminShiftTypesAdapterFamily) Types1.MoveShiftTypeDown)
 parseMoveShiftTypeDownActionParams =
     parseSurfaceActionParams
         @(AdapterFamilySurface Types2.AdminShiftTypesAdapterFamily)
@@ -288,13 +296,13 @@ parseMoveShiftTypeDownActionParams =
 
 moveShiftTypeUpActionFields ::
     Bool ->
-    SurfaceFields (SurfaceActionFieldSpecs (AdapterFamilySurface Types2.AdminShiftTypesAdapterFamily) Types1.MoveShiftTypeUp)
+    SurfaceActionFields (AdapterFamilySurface Types2.AdminShiftTypesAdapterFamily) Types1.MoveShiftTypeUp
 moveShiftTypeUpActionFields showInactiveShiftTypes =
-    ( surfaceField @Types1.ShowInactiveShiftTypes showInactiveShiftTypes
-        :& NoSurfaceFields
-    )
+    surfaceActionFields
+        (surfaceField @Types1.ShowInactiveShiftTypes showInactiveShiftTypes)
+        noSurfaceFields
 
-moveShiftTypeUpAction :: SurfaceFields (SurfaceActionFieldSpecs (AdapterFamilySurface Types2.AdminShiftTypesAdapterFamily) Types1.MoveShiftTypeUp) -> FrontendSurfaceAction
+moveShiftTypeUpAction :: SurfaceActionFields (AdapterFamilySurface Types2.AdminShiftTypesAdapterFamily) Types1.MoveShiftTypeUp -> FrontendSurfaceAction
 moveShiftTypeUpAction =
     frontendSurfaceAction
         @(AdapterFamilySurface Types2.AdminShiftTypesAdapterFamily)
@@ -302,17 +310,17 @@ moveShiftTypeUpAction =
 
 parseMoveShiftTypeUpActionParams ::
     (?request :: Request) =>
-    Either [SurfaceRequestFieldError] (SurfaceFields (SurfaceActionFieldSpecs (AdapterFamilySurface Types2.AdminShiftTypesAdapterFamily) Types1.MoveShiftTypeUp))
+    Either [SurfaceRequestFieldError] (SurfaceActionFields (AdapterFamilySurface Types2.AdminShiftTypesAdapterFamily) Types1.MoveShiftTypeUp)
 parseMoveShiftTypeUpActionParams =
     parseSurfaceActionParams
         @(AdapterFamilySurface Types2.AdminShiftTypesAdapterFamily)
         @Types1.MoveShiftTypeUp
 
-revokeVenueInvitationActionFields :: SurfaceFields (SurfaceActionFieldSpecs (AdapterFamilySurface Types2.AdminInvitesAdapterFamily) Types1.RevokeVenueInvitation)
+revokeVenueInvitationActionFields :: SurfaceActionFields (AdapterFamilySurface Types2.AdminInvitesAdapterFamily) Types1.RevokeVenueInvitation
 revokeVenueInvitationActionFields =
-    NoSurfaceFields
+    noSurfaceActionFields
 
-revokeVenueInvitationAction :: SurfaceFields (SurfaceActionFieldSpecs (AdapterFamilySurface Types2.AdminInvitesAdapterFamily) Types1.RevokeVenueInvitation) -> FrontendSurfaceAction
+revokeVenueInvitationAction :: SurfaceActionFields (AdapterFamilySurface Types2.AdminInvitesAdapterFamily) Types1.RevokeVenueInvitation -> FrontendSurfaceAction
 revokeVenueInvitationAction =
     frontendSurfaceAction
         @(AdapterFamilySurface Types2.AdminInvitesAdapterFamily)
@@ -321,14 +329,15 @@ revokeVenueInvitationAction =
 showXeroTimesheetPreparationStaffMappingsActionFields ::
     Bool ->
     Maybe UUID.UUID ->
-    SurfaceFields (SurfaceActionFieldSpecs (AdapterFamilySurface Types2.AdminXeroAdapterFamily) Types1.ShowXeroTimesheetPreparationStaffMappings)
+    SurfaceActionFields (AdapterFamilySurface Types2.AdminXeroAdapterFamily) Types1.ShowXeroTimesheetPreparationStaffMappings
 showXeroTimesheetPreparationStaffMappingsActionFields showMatched editStaffId =
-    ( surfaceField @Types1.ShowMatched showMatched
-        :& surfaceOptionalField @Types1.EditStaffId editStaffId
-        :& NoSurfaceFields
-    )
+    surfaceActionFields
+        (surfaceField @Types1.ShowMatched showMatched)
+        ( surfaceOptionalField @Types1.EditStaffId editStaffId
+            &: noSurfaceFields
+        )
 
-showXeroTimesheetPreparationStaffMappingsAction :: SurfaceFields (SurfaceActionFieldSpecs (AdapterFamilySurface Types2.AdminXeroAdapterFamily) Types1.ShowXeroTimesheetPreparationStaffMappings) -> FrontendSurfaceAction
+showXeroTimesheetPreparationStaffMappingsAction :: SurfaceActionFields (AdapterFamilySurface Types2.AdminXeroAdapterFamily) Types1.ShowXeroTimesheetPreparationStaffMappings -> FrontendSurfaceAction
 showXeroTimesheetPreparationStaffMappingsAction =
     frontendSurfaceAction
         @(AdapterFamilySurface Types2.AdminXeroAdapterFamily)
@@ -336,17 +345,17 @@ showXeroTimesheetPreparationStaffMappingsAction =
 
 parseShowXeroTimesheetPreparationStaffMappingsActionParams ::
     (?request :: Request) =>
-    Either [SurfaceRequestFieldError] (SurfaceFields (SurfaceActionFieldSpecs (AdapterFamilySurface Types2.AdminXeroAdapterFamily) Types1.ShowXeroTimesheetPreparationStaffMappings))
+    Either [SurfaceRequestFieldError] (SurfaceActionFields (AdapterFamilySurface Types2.AdminXeroAdapterFamily) Types1.ShowXeroTimesheetPreparationStaffMappings)
 parseShowXeroTimesheetPreparationStaffMappingsActionParams =
     parseSurfaceActionParams
         @(AdapterFamilySurface Types2.AdminXeroAdapterFamily)
         @Types1.ShowXeroTimesheetPreparationStaffMappings
 
-syncXeroPayrollReferenceDataActionFields :: SurfaceFields (SurfaceActionFieldSpecs (AdapterFamilySurface Types2.AdminXeroAdapterFamily) Types1.SyncXeroPayrollReferenceData)
+syncXeroPayrollReferenceDataActionFields :: SurfaceActionFields (AdapterFamilySurface Types2.AdminXeroAdapterFamily) Types1.SyncXeroPayrollReferenceData
 syncXeroPayrollReferenceDataActionFields =
-    NoSurfaceFields
+    noSurfaceActionFields
 
-syncXeroPayrollReferenceDataAction :: SurfaceFields (SurfaceActionFieldSpecs (AdapterFamilySurface Types2.AdminXeroAdapterFamily) Types1.SyncXeroPayrollReferenceData) -> FrontendSurfaceAction
+syncXeroPayrollReferenceDataAction :: SurfaceActionFields (AdapterFamilySurface Types2.AdminXeroAdapterFamily) Types1.SyncXeroPayrollReferenceData -> FrontendSurfaceAction
 syncXeroPayrollReferenceDataAction =
     frontendSurfaceAction
         @(AdapterFamilySurface Types2.AdminXeroAdapterFamily)
@@ -354,13 +363,13 @@ syncXeroPayrollReferenceDataAction =
 
 toggleInactiveRosterGroupsActionFields ::
     Bool ->
-    SurfaceFields (SurfaceActionFieldSpecs (AdapterFamilySurface Types2.AdminRosterGroupsAdapterFamily) Types1.ToggleInactiveRosterGroups)
+    SurfaceActionFields (AdapterFamilySurface Types2.AdminRosterGroupsAdapterFamily) Types1.ToggleInactiveRosterGroups
 toggleInactiveRosterGroupsActionFields showInactiveRosterGroups =
-    ( surfaceField @Types1.ShowInactiveRosterGroups showInactiveRosterGroups
-        :& NoSurfaceFields
-    )
+    surfaceActionFields
+        (surfaceField @Types1.ShowInactiveRosterGroups showInactiveRosterGroups)
+        noSurfaceFields
 
-toggleInactiveRosterGroupsAction :: SurfaceFields (SurfaceActionFieldSpecs (AdapterFamilySurface Types2.AdminRosterGroupsAdapterFamily) Types1.ToggleInactiveRosterGroups) -> FrontendSurfaceAction
+toggleInactiveRosterGroupsAction :: SurfaceActionFields (AdapterFamilySurface Types2.AdminRosterGroupsAdapterFamily) Types1.ToggleInactiveRosterGroups -> FrontendSurfaceAction
 toggleInactiveRosterGroupsAction =
     frontendSurfaceAction
         @(AdapterFamilySurface Types2.AdminRosterGroupsAdapterFamily)
@@ -368,7 +377,7 @@ toggleInactiveRosterGroupsAction =
 
 parseToggleInactiveRosterGroupsActionParams ::
     (?request :: Request) =>
-    Either [SurfaceRequestFieldError] (SurfaceFields (SurfaceActionFieldSpecs (AdapterFamilySurface Types2.AdminRosterGroupsAdapterFamily) Types1.ToggleInactiveRosterGroups))
+    Either [SurfaceRequestFieldError] (SurfaceActionFields (AdapterFamilySurface Types2.AdminRosterGroupsAdapterFamily) Types1.ToggleInactiveRosterGroups)
 parseToggleInactiveRosterGroupsActionParams =
     parseSurfaceActionParams
         @(AdapterFamilySurface Types2.AdminRosterGroupsAdapterFamily)
@@ -376,13 +385,13 @@ parseToggleInactiveRosterGroupsActionParams =
 
 toggleInactiveShiftTypesActionFields ::
     Bool ->
-    SurfaceFields (SurfaceActionFieldSpecs (AdapterFamilySurface Types2.AdminShiftTypesAdapterFamily) Types1.ToggleInactiveShiftTypes)
+    SurfaceActionFields (AdapterFamilySurface Types2.AdminShiftTypesAdapterFamily) Types1.ToggleInactiveShiftTypes
 toggleInactiveShiftTypesActionFields showInactiveShiftTypes =
-    ( surfaceField @Types1.ShowInactiveShiftTypes showInactiveShiftTypes
-        :& NoSurfaceFields
-    )
+    surfaceActionFields
+        (surfaceField @Types1.ShowInactiveShiftTypes showInactiveShiftTypes)
+        noSurfaceFields
 
-toggleInactiveShiftTypesAction :: SurfaceFields (SurfaceActionFieldSpecs (AdapterFamilySurface Types2.AdminShiftTypesAdapterFamily) Types1.ToggleInactiveShiftTypes) -> FrontendSurfaceAction
+toggleInactiveShiftTypesAction :: SurfaceActionFields (AdapterFamilySurface Types2.AdminShiftTypesAdapterFamily) Types1.ToggleInactiveShiftTypes -> FrontendSurfaceAction
 toggleInactiveShiftTypesAction =
     frontendSurfaceAction
         @(AdapterFamilySurface Types2.AdminShiftTypesAdapterFamily)
@@ -390,7 +399,7 @@ toggleInactiveShiftTypesAction =
 
 parseToggleInactiveShiftTypesActionParams ::
     (?request :: Request) =>
-    Either [SurfaceRequestFieldError] (SurfaceFields (SurfaceActionFieldSpecs (AdapterFamilySurface Types2.AdminShiftTypesAdapterFamily) Types1.ToggleInactiveShiftTypes))
+    Either [SurfaceRequestFieldError] (SurfaceActionFields (AdapterFamilySurface Types2.AdminShiftTypesAdapterFamily) Types1.ToggleInactiveShiftTypes)
 parseToggleInactiveShiftTypesActionParams =
     parseSurfaceActionParams
         @(AdapterFamilySurface Types2.AdminShiftTypesAdapterFamily)
@@ -400,15 +409,16 @@ updateRosterGroupActionFields ::
     Bool ->
     Text ->
     Bool ->
-    SurfaceFields (SurfaceActionFieldSpecs (AdapterFamilySurface Types2.AdminRosterGroupsAdapterFamily) Types1.UpdateRosterGroup)
+    SurfaceActionFields (AdapterFamilySurface Types2.AdminRosterGroupsAdapterFamily) Types1.UpdateRosterGroup
 updateRosterGroupActionFields showInactiveRosterGroups name isActive =
-    ( surfaceField @Types1.ShowInactiveRosterGroups showInactiveRosterGroups
-        :& surfaceField @Types1.Name name
-        :& surfaceField @Types1.IsActive isActive
-        :& NoSurfaceFields
-    )
+    surfaceActionFields
+        (surfaceField @Types1.ShowInactiveRosterGroups showInactiveRosterGroups)
+        ( surfaceField @Types1.Name name
+            &: surfaceField @Types1.IsActive isActive
+            &: noSurfaceFields
+        )
 
-updateRosterGroupAction :: SurfaceFields (SurfaceActionFieldSpecs (AdapterFamilySurface Types2.AdminRosterGroupsAdapterFamily) Types1.UpdateRosterGroup) -> FrontendSurfaceAction
+updateRosterGroupAction :: SurfaceActionFields (AdapterFamilySurface Types2.AdminRosterGroupsAdapterFamily) Types1.UpdateRosterGroup -> FrontendSurfaceAction
 updateRosterGroupAction =
     frontendSurfaceAction
         @(AdapterFamilySurface Types2.AdminRosterGroupsAdapterFamily)
@@ -416,7 +426,7 @@ updateRosterGroupAction =
 
 parseUpdateRosterGroupActionParams ::
     (?request :: Request) =>
-    Either [SurfaceRequestFieldError] (SurfaceFields (SurfaceActionFieldSpecs (AdapterFamilySurface Types2.AdminRosterGroupsAdapterFamily) Types1.UpdateRosterGroup))
+    Either [SurfaceRequestFieldError] (SurfaceActionFields (AdapterFamilySurface Types2.AdminRosterGroupsAdapterFamily) Types1.UpdateRosterGroup)
 parseUpdateRosterGroupActionParams =
     parseSurfaceActionParams
         @(AdapterFamilySurface Types2.AdminRosterGroupsAdapterFamily)
@@ -428,17 +438,18 @@ updateShiftTypeActionFields ::
     Text ->
     Text ->
     Bool ->
-    SurfaceFields (SurfaceActionFieldSpecs (AdapterFamilySurface Types2.AdminShiftTypesAdapterFamily) Types1.UpdateShiftType)
+    SurfaceActionFields (AdapterFamilySurface Types2.AdminShiftTypesAdapterFamily) Types1.UpdateShiftType
 updateShiftTypeActionFields showInactiveShiftTypes name payRateSelection colourKey isActive =
-    ( surfaceField @Types1.ShowInactiveShiftTypes showInactiveShiftTypes
-        :& surfaceField @Types1.Name name
-        :& surfaceField @Types1.PayRateSelection payRateSelection
-        :& surfaceField @Types1.ColourKey colourKey
-        :& surfaceField @Types1.IsActive isActive
-        :& NoSurfaceFields
-    )
+    surfaceActionFields
+        (surfaceField @Types1.ShowInactiveShiftTypes showInactiveShiftTypes)
+        ( surfaceField @Types1.Name name
+            &: surfaceField @Types1.PayRateSelection payRateSelection
+            &: surfaceField @Types1.ColourKey colourKey
+            &: surfaceField @Types1.IsActive isActive
+            &: noSurfaceFields
+        )
 
-updateShiftTypeAction :: SurfaceFields (SurfaceActionFieldSpecs (AdapterFamilySurface Types2.AdminShiftTypesAdapterFamily) Types1.UpdateShiftType) -> FrontendSurfaceAction
+updateShiftTypeAction :: SurfaceActionFields (AdapterFamilySurface Types2.AdminShiftTypesAdapterFamily) Types1.UpdateShiftType -> FrontendSurfaceAction
 updateShiftTypeAction =
     frontendSurfaceAction
         @(AdapterFamilySurface Types2.AdminShiftTypesAdapterFamily)
@@ -446,7 +457,7 @@ updateShiftTypeAction =
 
 parseUpdateShiftTypeActionParams ::
     (?request :: Request) =>
-    Either [SurfaceRequestFieldError] (SurfaceFields (SurfaceActionFieldSpecs (AdapterFamilySurface Types2.AdminShiftTypesAdapterFamily) Types1.UpdateShiftType))
+    Either [SurfaceRequestFieldError] (SurfaceActionFields (AdapterFamilySurface Types2.AdminShiftTypesAdapterFamily) Types1.UpdateShiftType)
 parseUpdateShiftTypeActionParams =
     parseSurfaceActionParams
         @(AdapterFamilySurface Types2.AdminShiftTypesAdapterFamily)
@@ -459,18 +470,19 @@ updateVenueConfigActionFields ::
     Maybe Text ->
     Maybe Text ->
     Maybe Text ->
-    SurfaceFields (SurfaceActionFieldSpecs (AdapterFamilySurface Types2.AdminVenueSettingsAdapterFamily) Types1.UpdateVenueConfig)
+    SurfaceActionFields (AdapterFamilySurface Types2.AdminVenueSettingsAdapterFamily) Types1.UpdateVenueConfig
 updateVenueConfigActionFields configField rosterEndTimesEnabled autoTimesheetCreationEnabled timePickerStart timePickerEnd rosterWeekStartsOn =
-    ( surfaceField @Types1.ConfigFieldField configField
-        :& surfaceOptionalField @Types1.RosterEndTimesEnabled rosterEndTimesEnabled
-        :& surfaceOptionalField @Types1.AutoTimesheetCreationEnabled autoTimesheetCreationEnabled
-        :& surfaceOptionalField @Types1.TimePickerStart timePickerStart
-        :& surfaceOptionalField @Types1.TimePickerEnd timePickerEnd
-        :& surfaceOptionalField @Types1.RosterWeekStartsOn rosterWeekStartsOn
-        :& NoSurfaceFields
-    )
+    surfaceActionFields
+        (surfaceField @Types1.ConfigFieldField configField)
+        ( surfaceOptionalField @Types1.RosterEndTimesEnabled rosterEndTimesEnabled
+            &: surfaceOptionalField @Types1.AutoTimesheetCreationEnabled autoTimesheetCreationEnabled
+            &: surfaceOptionalField @Types1.TimePickerStart timePickerStart
+            &: surfaceOptionalField @Types1.TimePickerEnd timePickerEnd
+            &: surfaceOptionalField @Types1.RosterWeekStartsOn rosterWeekStartsOn
+            &: noSurfaceFields
+        )
 
-updateVenueConfigAction :: SurfaceFields (SurfaceActionFieldSpecs (AdapterFamilySurface Types2.AdminVenueSettingsAdapterFamily) Types1.UpdateVenueConfig) -> FrontendSurfaceAction
+updateVenueConfigAction :: SurfaceActionFields (AdapterFamilySurface Types2.AdminVenueSettingsAdapterFamily) Types1.UpdateVenueConfig -> FrontendSurfaceAction
 updateVenueConfigAction =
     frontendSurfaceAction
         @(AdapterFamilySurface Types2.AdminVenueSettingsAdapterFamily)
@@ -478,7 +490,7 @@ updateVenueConfigAction =
 
 parseUpdateVenueConfigActionParams ::
     (?request :: Request) =>
-    Either [SurfaceRequestFieldError] (SurfaceFields (SurfaceActionFieldSpecs (AdapterFamilySurface Types2.AdminVenueSettingsAdapterFamily) Types1.UpdateVenueConfig))
+    Either [SurfaceRequestFieldError] (SurfaceActionFields (AdapterFamilySurface Types2.AdminVenueSettingsAdapterFamily) Types1.UpdateVenueConfig)
 parseUpdateVenueConfigActionParams =
     parseSurfaceActionParams
         @(AdapterFamilySurface Types2.AdminVenueSettingsAdapterFamily)

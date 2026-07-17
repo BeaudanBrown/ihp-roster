@@ -20,7 +20,8 @@ import Application.Helper.FrontendContract.Surface.Runtime (FrontendSurfaceActio
                                                             FrontendSurfaceCustomHtmxAttrs (..),
                                                             renderFrontendSurfaceActionForm,
                                                             renderFrontendSurfaceMount)
-import Application.Helper.FrontendContract.Surface.Values (SurfaceFields (NoSurfaceFields),
+import Application.Helper.FrontendContract.Surface.Values (SurfaceFields,
+                                                           noSurfaceFields,
                                                            surfaceFragmentTargetId)
 import Application.Helper.XeroAdminTypes
 import Web.Admin.FrontendSurface (AdminVenueScopeValue (..),
@@ -67,7 +68,7 @@ currentVenueScopeId =
 renderXeroPageContentSurface :: (?context :: ControllerContext) => Html -> Html
 renderXeroPageContentSurface body =
     renderFrontendSurfaceMount (adminXeroPageSurfaceImpl AdminVenueScopeValue { adminVenueId = currentVenueScopeId, adminRosterGroupId = Nothing }) [hsx|
-        <div id={surfaceFragmentTargetId @Surface.AdminXeroPageSurface @Surface.AdminXeroPageContentFragment NoSurfaceFields}>
+        <div id={surfaceFragmentTargetId @Surface.AdminXeroPageSurface @Surface.AdminXeroPageContentFragment noSurfaceFields}>
             {body}
         </div>
     |]
@@ -87,7 +88,7 @@ renderXeroSectionFragmentWithAutoSync =
 renderXeroSectionFragmentWithSwap :: OobSwapAttr -> Bool -> XeroAdminSectionData -> Html
 renderXeroSectionFragmentWithSwap maybeSwapOob shouldAutoSync xeroSectionData =
     renderFrontendSurfaceMount (adminXeroSurfaceImpl AdminVenueScopeValue { adminVenueId = currentVenueScopeId, adminRosterGroupId = Nothing }) [hsx|
-        <div id={surfaceFragmentTargetId @Surface.AdminXeroSurface @Surface.AdminXeroShellFragment NoSurfaceFields}
+        <div id={surfaceFragmentTargetId @Surface.AdminXeroSurface @Surface.AdminXeroShellFragment noSurfaceFields}
              hx-swap-oob={maybeSwapOob}>
             {renderXeroAutoSyncTrigger shouldAutoSync xeroSectionData.xeroConnection}
             {renderXeroSection xeroSectionData}

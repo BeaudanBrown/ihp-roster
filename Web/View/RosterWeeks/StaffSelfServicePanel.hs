@@ -35,7 +35,7 @@ rosterStaffSelfServicePanelFragmentId = "roster-staff-self-service-panel-fragmen
 
 rosterStaffSelfServiceLeaveFormFragmentId :: Text
 rosterStaffSelfServiceLeaveFormFragmentId =
-    surfaceFragmentTargetId @RosterSurface.RosterSurface @RosterSurface.RosterStaffSelfServiceLeaveFormFragment NoSurfaceFields
+    surfaceFragmentTargetId @RosterSurface.RosterSurface @RosterSurface.RosterStaffSelfServiceLeaveFormFragment noSurfaceFields
 
 rosterStaffSelfServiceTimesheetSurfaceId :: Text
 rosterStaffSelfServiceTimesheetSurfaceId = "roster-staff-self-service-timesheet-live-surface"

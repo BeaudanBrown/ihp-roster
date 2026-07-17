@@ -21,13 +21,15 @@ import IHP.Prelude
 
 renderSurfaceRequestAdapterImports ::
     Text ->
+    Text ->
+    Text ->
     [Text] ->
     Text ->
     (payload -> SurfaceRequestAdapterOperations) ->
     Map.Map Text Text ->
     [RenderableAdapter payload] ->
     [Text]
-renderSurfaceRequestAdapterImports fieldSpecsImport metadataImports parserImport operationsOf aliases adapters =
+renderSurfaceRequestAdapterImports requestFieldsImport bindFieldsImport emptyFieldsImport metadataImports parserImport operationsOf aliases adapters =
     renderImportList
         "Application.Helper.FrontendContract.Surface.HaskellAdapter.Association"
         ["AdapterFamilySurface"]
@@ -53,18 +55,21 @@ renderSurfaceRequestAdapterImports fieldSpecsImport metadataImports parserImport
            ]
   where
     builderAdapters = filter (hasGeneratedOperation (.surfaceAdapterFieldsBuilderOperation)) adapters
+    emptyBuilderAdapters = filter (null . (.renderableAdapterFields)) builderAdapters
+    nonEmptyBuilderAdapters = filter (not . null . (.renderableAdapterFields)) builderAdapters
     builderFields = concatMap (.renderableAdapterFields) builderAdapters
     hasMetadata = any (hasGeneratedOperation (.surfaceAdapterRenderMetadataOperation)) adapters
     hasParser = any (hasGeneratedOperation (.surfaceAdapterRequestParserOperation)) adapters
     valueImports =
-        List.sort [fieldSpecsImport, surfaceFieldsImport]
-            <> ["surfaceField" | any ((== RequiredField) . (.fieldPresence) . (.resolvedAdapterFieldIR)) builderFields]
-            <> ["surfaceNullableField" | any ((== NullableFieldPresence) . (.fieldPresence) . (.resolvedAdapterFieldIR)) builderFields]
-            <> ["surfaceOptionalField" | any ((== OptionalFieldPresence) . (.fieldPresence) . (.resolvedAdapterFieldIR)) builderFields]
-    surfaceFieldsImport
-        | null builderAdapters = "SurfaceFields"
-        | null builderFields = "SurfaceFields (NoSurfaceFields)"
-        | otherwise = "SurfaceFields (NoSurfaceFields, (:&))"
+        List.sort
+            ( [requestFieldsImport]
+                <> [emptyFieldsImport | not (null emptyBuilderAdapters)]
+                <> (if null nonEmptyBuilderAdapters then [] else [bindFieldsImport, "noSurfaceFields"])
+                <> ["surfaceField" | any ((== RequiredField) . (.fieldPresence) . (.resolvedAdapterFieldIR)) builderFields]
+                <> ["surfaceNullableField" | any ((== NullableFieldPresence) . (.fieldPresence) . (.resolvedAdapterFieldIR)) builderFields]
+                <> ["surfaceOptionalField" | any ((== OptionalFieldPresence) . (.fieldPresence) . (.resolvedAdapterFieldIR)) builderFields]
+            )
+            <> ["(&:)" | any ((> 1) . length . (.renderableAdapterFields)) nonEmptyBuilderAdapters]
     builderTypes = concatMap (map (.resolvedAdapterFieldType) . (.renderableAdapterFields)) builderAdapters
     needsDay = any sourceTypeContainsDay builderTypes
     needsUuid = any sourceTypeContainsUuid builderTypes
@@ -87,16 +92,28 @@ renderSurfaceRequestAdapterOperationBlocks operations =
 
 renderSurfaceRequestAdapterFieldsBuilder ::
     Text ->
+    Text ->
+    Text ->
     (RenderableAdapter payload -> Text) ->
     Map.Map Text Text ->
     RenderableAdapter payload ->
     [Text]
-renderSurfaceRequestAdapterFieldsBuilder fieldSpecsType fieldsName aliases adapter =
-    renderFieldsBuilderSignature
-        <> [fieldsName adapter <> renderAdapterArguments adapter.renderableAdapterFields <> " ="]
-        <> renderAdapterFieldsValueExpression aliases adapter.renderableAdapterFields
+renderSurfaceRequestAdapterFieldsBuilder requestFieldsType bindFieldsName emptyFieldsName fieldsName aliases adapter =
+    renderFieldsBuilderSignature <> renderFieldsBuilderBody
   where
-    resultType = renderSurfaceRequestAdapterFieldsType fieldSpecsType aliases adapter
+    renderFieldsBuilderBody =
+        case adapter.renderableAdapterFields of
+            [] ->
+                [ fieldsName adapter <> " ="
+                , "    " <> emptyFieldsName
+                ]
+            first : rest ->
+                [ fieldsName adapter <> renderAdapterArguments adapter.renderableAdapterFields <> " ="
+                , "    " <> bindFieldsName
+                , "        (" <> renderAdapterFieldBuilder aliases first <> ")"
+                ]
+                    <> renderAdapterFieldsExpression aliases rest
+    resultType = renderSurfaceRequestAdapterFieldsType requestFieldsType aliases adapter
     renderFieldsBuilderSignature =
         case adapter.renderableAdapterFields of
             [] -> [fieldsName adapter <> " :: " <> resultType]
@@ -114,7 +131,7 @@ renderSurfaceRequestAdapterParser ::
     Map.Map Text Text ->
     RenderableAdapter payload ->
     [Text]
-renderSurfaceRequestAdapterParser fieldSpecsType parserName genericParser aliases adapter =
+renderSurfaceRequestAdapterParser requestFieldsType parserName genericParser aliases adapter =
     [ parserName adapter <> " ::"
     , "    (?request :: Request) =>"
     , "    Either [SurfaceRequestFieldError] (" <> fieldsType <> ")"
@@ -124,16 +141,15 @@ renderSurfaceRequestAdapterParser fieldSpecsType parserName genericParser aliase
     , "        @" <> qualifyHaskellType aliases adapter.renderableAdapterHomeDeclaration
     ]
   where
-    fieldsType = renderSurfaceRequestAdapterFieldsType fieldSpecsType aliases adapter
+    fieldsType = renderSurfaceRequestAdapterFieldsType requestFieldsType aliases adapter
 
 renderSurfaceRequestAdapterFieldsType ::
     Text ->
     Map.Map Text Text ->
     RenderableAdapter payload ->
     Text
-renderSurfaceRequestAdapterFieldsType fieldSpecsType aliases adapter =
-    "SurfaceFields (" <> fieldSpecsType <> " (AdapterFamilySurface "
+renderSurfaceRequestAdapterFieldsType requestFieldsType aliases adapter =
+    requestFieldsType <> " (AdapterFamilySurface "
         <> qualifyHaskellType aliases adapter.renderableAdapterHomeFamily
         <> ") "
         <> qualifyHaskellType aliases adapter.renderableAdapterHomeDeclaration
-        <> ")"

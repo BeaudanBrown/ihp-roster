@@ -20,8 +20,8 @@ import Application.Helper.FrontendContract.Surface.Live (SurfaceFragmentKey,
                                                          frontendSurfaceScope,
                                                          matchFrontendSurfaceFragmentKey,
                                                          matchFrontendSurfaceScope)
-import Application.Helper.FrontendContract.Surface.Values (SurfaceFields (NoSurfaceFields, (:&)),
-                                                           surfaceField)
+import Application.Helper.FrontendContract.Surface.Values (noSurfaceFields,
+                                                           surfaceField, (&:))
 import qualified Data.UUID as UUID
 import IHP.Prelude
 
@@ -33,7 +33,7 @@ leaveRequestsLiveScope venueId =
         @(AdapterFamilySurface Types2.LeaveRequestsAdapterFamily)
         @Types1.LeaveRequestsScope
         ( surfaceField @Types1.VenueId venueId
-            :& NoSurfaceFields
+            &: noSurfaceFields
         )
 
 matchLeaveRequestsLiveScope :: SurfaceScope -> Maybe (UUID.UUID, ())
@@ -50,7 +50,7 @@ leaveSectionCountLiveFragment leaveSection =
         @(AdapterFamilySurface Types2.LeaveRequestsAdapterFamily)
         @Types1.LeaveSectionCount
         ( surfaceField @Types1.LeaveSection leaveSection
-            :& NoSurfaceFields
+            &: noSurfaceFields
         )
 
 matchLeaveSectionCountLiveFragment :: SurfaceFragmentKey -> Maybe (Text, ())
@@ -67,7 +67,7 @@ leaveSectionListLiveFragment leaveSection =
         @(AdapterFamilySurface Types2.LeaveRequestsAdapterFamily)
         @Types1.LeaveSectionList
         ( surfaceField @Types1.LeaveSection leaveSection
-            :& NoSurfaceFields
+            &: noSurfaceFields
         )
 
 matchLeaveSectionListLiveFragment :: SurfaceFragmentKey -> Maybe (Text, ())

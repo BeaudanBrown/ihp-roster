@@ -73,6 +73,16 @@ expect_compile_failure \
     "FrontendSurface field bundle does not declare marker Fixture.PanelId"
 
 expect_compile_failure \
+    "Test/CompileFail/FrontendSurfaceWrongIntentOperation.hs" \
+    "SurfaceIntentFields" \
+    "MoveRosterShiftToSlot" \
+    "DuplicateRosterShiftToDay"
+
+expect_compile_failure \
+    "Test/CompileFail/FrontendSurfaceRawIntentRebinding.hs" \
+    "Not in scope: data constructor ‘:&’"
+
+expect_compile_failure \
     "Test/CompileFail/FrontendSurfaceWrongScopeField.hs" \
     "FrontendSurface declaration Fixture.FixtureScope does not declare field marker Fixture.PanelId" \
     "Declared fields: [Fixture.VenueId :: required WireUUID, Fixture.WeekOffset :: required WireInt]"
@@ -179,6 +189,16 @@ expect_compile_failure \
 expect_compile_failure \
     "Test/CompileFail/FrontendSurfaceWrongActionField.hs" \
     "FrontendSurface field bundle does not declare marker Roster.RosterGroupId"
+
+expect_compile_failure \
+    "Test/CompileFail/FrontendSurfaceWrongActionOperation.hs" \
+    "SurfaceActionFields" \
+    "NavigateTimesheetWeek" \
+    "ApproveTimesheetEntry"
+
+expect_compile_failure \
+    "Test/CompileFail/FrontendSurfaceRawActionRebinding.hs" \
+    "Not in scope: data constructor ‘:&’"
 
 expect_compile_failure \
     "Test/CompileFail/FrontendSurfaceIncompleteAction.hs" \

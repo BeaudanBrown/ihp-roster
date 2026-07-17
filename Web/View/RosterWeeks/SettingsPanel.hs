@@ -7,6 +7,7 @@ module Web.View.RosterWeeks.SettingsPanel
 import qualified Application.Helper.FrontendContract.Surface.Interaction as SurfaceInteraction
 import qualified Application.Helper.FrontendContract.Surface.Roster as Surface
 import qualified Application.Helper.FrontendContract.Surface.Roster.Action as RosterAction
+import qualified Application.Helper.FrontendContract.Surface.Roster.Intent as RosterIntent
 import Application.Helper.FrontendContract.Surface.Runtime (FrontendSurfaceActionRoute (..),
                                                             FrontendSurfaceCustomHtmxAttrs (..),
                                                             renderFrontendSurfaceActionForm)
@@ -75,7 +76,7 @@ renderRosterGroupSwitcher weekOffset rosterGroups currentRosterGroup = [hsx|
     </form>
 |]
   where
-    fields :: SurfaceFields (SurfaceActionFieldSpecs Surface.RosterSurface Surface.NavigateRosterWeek)
+    fields :: SurfaceActionFields Surface.RosterSurface Surface.NavigateRosterWeek
     fields =
         RosterAction.navigateRosterWeekActionFields
             weekOffset
@@ -102,8 +103,8 @@ renderRosterLayoutModeOption :: RosterLayoutModeEnum -> RosterLayoutModeEnum -> 
 renderRosterLayoutModeOption selectedLayoutMode layoutMode =
     let inputId = "roster-layout-mode-" <> rosterLayoutModeValue layoutMode
         layoutValue = rosterLayoutModeValue layoutMode
-        fields :: SurfaceFields (SurfaceIntentFieldSpecs Surface.RosterSurface Surface.SetRosterLayoutMode)
-        fields = surfaceField @Surface.RosterLayoutMode layoutValue :& NoSurfaceFields
+        fields :: SurfaceIntentFields Surface.RosterSurface Surface.SetRosterLayoutMode
+        fields = RosterIntent.setRosterLayoutModeIntentFields layoutValue
         inputHtml = [hsx|
             <input type="radio"
                    class="btn-check"
@@ -151,7 +152,7 @@ renderRosterWageEstimatePreferenceForm weekOffset rosterGroupId viewCapabilities
   where
     fields = RosterAction.toggleRosterWageEstimatesActionFields showWageEstimates
 
-renderRosterWarningToggle :: SurfaceFields (SurfaceActionFieldSpecs Surface.RosterSurface Surface.ToggleRosterWarnings) -> Bool -> Html
+renderRosterWarningToggle :: SurfaceActionFields Surface.RosterSurface Surface.ToggleRosterWarnings -> Bool -> Html
 renderRosterWarningToggle fields showRosterWarnings = [hsx|
     <input type="hidden" id="show-roster-warnings-value" name={surfaceFieldNameFrom @Surface.ShowRosterWarnings fields} value={boolParam showRosterWarnings}/>
     {toggleButton}
@@ -168,7 +169,7 @@ renderRosterWarningToggle fields showRosterWarnings = [hsx|
             , appToggleHiddenInputUncheckedValue = Just "false"
             }
 
-renderRosterWageEstimateToggle :: SurfaceFields (SurfaceActionFieldSpecs Surface.RosterSurface Surface.ToggleRosterWageEstimates) -> Bool -> Html
+renderRosterWageEstimateToggle :: SurfaceActionFields Surface.RosterSurface Surface.ToggleRosterWageEstimates -> Bool -> Html
 renderRosterWageEstimateToggle fields showWageEstimates = [hsx|
     <input type="hidden" id="show-wage-estimates-value" name={surfaceFieldNameFrom @Surface.ShowWageEstimates fields} value={boolParam showWageEstimates}/>
     {toggleButton}

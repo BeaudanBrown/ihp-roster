@@ -62,17 +62,6 @@ timesheetsActionRoute actionUrl =
         , actionRouteExtraAttrs = []
         }
 
-type TimesheetStateSurfaceFieldsBuilder = Int -> Bool -> Bool -> Bool -> Maybe UUID -> SurfaceFields (SurfaceActionFieldSpecs Surface.TimesheetsSurface Surface.NavigateTimesheetWeek)
-
-timesheetStateSurfaceFields :: TimesheetStateSurfaceFieldsBuilder -> Int -> Bool -> Bool -> Bool -> Maybe UUID -> SurfaceFields (SurfaceActionFieldSpecs Surface.TimesheetsSurface Surface.NavigateTimesheetWeek)
-timesheetStateSurfaceFields buildFields weekOffset showApproved showAllStaff showSuggestions staffFilterId =
-    buildFields
-        weekOffset
-        showApproved
-        showAllStaff
-        showSuggestions
-        staffFilterId
-
 data TimesheetDayRenderModel = TimesheetDayRenderModel
     { dayEntries         :: [TimesheetEntry]
     , daySuggestions     :: [TimesheetSuggestion]
@@ -93,10 +82,10 @@ timesheetWeekShellId :: Text
 timesheetWeekShellId = surfaceDomTokenValue @Surface.TimesheetsSurface @Surface.TimesheetWeekShell
 
 timesheetWeekToolbarId :: Text
-timesheetWeekToolbarId = surfaceFragmentTargetId @Surface.TimesheetsSurface @Surface.TimesheetToolbar NoSurfaceFields
+timesheetWeekToolbarId = surfaceFragmentTargetId @Surface.TimesheetsSurface @Surface.TimesheetToolbar noSurfaceFields
 
 timesheetDayColumnsId :: Text
-timesheetDayColumnsId = surfaceFragmentTargetId @Surface.TimesheetsSurface @Surface.TimesheetDayColumns NoSurfaceFields
+timesheetDayColumnsId = surfaceFragmentTargetId @Surface.TimesheetsSurface @Surface.TimesheetDayColumns noSurfaceFields
 
 instance View IndexView where
     html = renderTimesheetWeekShell
@@ -171,7 +160,7 @@ renderTimesheetWeekNavigationLink :: Text -> Text -> Int -> Bool -> Bool -> Bool
 renderTimesheetWeekNavigationLink label url targetWeekOffset showApproved showAllStaff showSuggestions selectedStaffFilterId =
     renderFrontendSurfaceActionLink
         ( TimesheetsAction.navigateTimesheetWeekAction
-            (timesheetStateSurfaceFields TimesheetsAction.navigateTimesheetWeekActionFields targetWeekOffset showApproved showAllStaff showSuggestions selectedStaffFilterId)
+            (TimesheetsAction.navigateTimesheetWeekActionFields targetWeekOffset showApproved showAllStaff showSuggestions selectedStaffFilterId)
         )
         (timesheetsActionRoute url)
             { actionRouteStandardUrl = Just url
@@ -234,9 +223,9 @@ renderTimesheetFilterForm updateUrl weekOffset showApproved showAllStaff showSug
             {when currentUserIsManager (renderTimesheetStaffFilter fields selectedStaffFilterId staffMembers)}
         |]
   where
-    fields = timesheetStateSurfaceFields TimesheetsAction.updateTimesheetFiltersActionFields weekOffset showApproved showAllStaff showSuggestions selectedStaffFilterId
+    fields = TimesheetsAction.updateTimesheetFiltersActionFields weekOffset showApproved showAllStaff showSuggestions selectedStaffFilterId
 
-renderTimesheetStaffFilter :: SurfaceFields (SurfaceActionFieldSpecs Surface.TimesheetsSurface Surface.UpdateTimesheetFilters) -> Maybe UUID -> [Staff] -> Html
+renderTimesheetStaffFilter :: SurfaceActionFields Surface.TimesheetsSurface Surface.UpdateTimesheetFilters -> Maybe UUID -> [Staff] -> Html
 renderTimesheetStaffFilter fields selectedStaffFilterId staffMembers = [hsx|
     <div class="mt-3">
         <label for="timesheet-staff-filter" class="form-label small mb-1">Staff</label>
@@ -354,7 +343,7 @@ renderNewEntryOverlayLink newEntryUrl weekdayLabel weekdayShortLabel dayDate =
 timesheetDaySectionDomId :: Int -> Text
 timesheetDaySectionDomId dayOffset =
     surfaceFragmentTargetId @Surface.TimesheetsSurface @Surface.TimesheetDaySection
-        (surfaceField @Surface.DayOffset dayOffset :& NoSurfaceFields)
+        (surfaceField @Surface.DayOffset dayOffset &: noSurfaceFields)
 
 renderDayEntries :: (?context :: ControllerContext) => TimesheetDayRenderModel -> [TimesheetEntry] -> [TimesheetSuggestion] -> Html
 renderDayEntries model dayEntries daySuggestions
@@ -377,7 +366,7 @@ renderSuggestionCard model@TimesheetDayRenderModel { dayWeekOffset, dayShowAppro
         (renderSuggestionCreateAction createUrl action)
   where
     suggestedEntry = newTimesheetEntryFromSuggestion (unpackId currentVenueId) suggestion
-    stateFields = timesheetStateSurfaceFields TimesheetsAction.createTimesheetEntryFromSuggestionActionFields dayWeekOffset dayShowApproved dayShowAllStaff dayShowSuggestions dayStaffFilterId
+    stateFields = TimesheetsAction.createTimesheetEntryFromSuggestionActionFields dayWeekOffset dayShowApproved dayShowAllStaff dayShowSuggestions dayStaffFilterId
     createUrl = createTimesheetEntryFromSuggestionUrl suggestion.suggestionRosterSlotId dayWeekOffset dayShowApproved dayShowAllStaff dayShowSuggestions dayStaffFilterId
     editUrl = newTimesheetEntryFromSuggestionUrl suggestion.suggestionRosterSlotId dayWeekOffset dayShowApproved dayShowAllStaff dayShowSuggestions dayStaffFilterId
     action = TimesheetsAction.createTimesheetEntryFromSuggestionAction stateFields
@@ -520,8 +509,8 @@ renderApprovalAction dayOffset entry weekOffset showApproved showAllStaff showSu
             (pathTo (ApproveTimesheetEntryAction entry.id))
             [hsx|<button type="submit" class="btn btn-sm btn-outline-success timesheet-approval-toggle">Approve</button>|]
   where
-    approveFields = timesheetStateSurfaceFields TimesheetsAction.approveTimesheetEntryActionFields weekOffset showApproved showAllStaff showSuggestions staffFilterId
-    unapproveFields = timesheetStateSurfaceFields TimesheetsAction.unapproveTimesheetEntryActionFields weekOffset showApproved showAllStaff showSuggestions staffFilterId
+    approveFields = TimesheetsAction.approveTimesheetEntryActionFields weekOffset showApproved showAllStaff showSuggestions staffFilterId
+    unapproveFields = TimesheetsAction.unapproveTimesheetEntryActionFields weekOffset showApproved showAllStaff showSuggestions staffFilterId
 
 renderTimesheetApprovalForm :: FrontendSurfaceAction -> Text -> Html -> Html
 renderTimesheetApprovalForm action actionUrl button =

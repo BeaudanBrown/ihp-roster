@@ -161,7 +161,7 @@ renderLiveToggleForm rosterWeek = [hsx|
   where
     fields = RosterAction.toggleRosterWeekLiveStatusActionFields rosterWeek.isLive
 
-renderLiveToggleButton :: SurfaceFields (SurfaceActionFieldSpecs Surface.RosterSurface Surface.ToggleRosterWeekLiveStatus) -> RosterWeek -> Html
+renderLiveToggleButton :: SurfaceActionFields Surface.RosterSurface Surface.ToggleRosterWeekLiveStatus -> RosterWeek -> Html
 renderLiveToggleButton fields rosterWeek =
     renderAppToggleButton $ (defaultAppToggleButtonConfig (liveToggleInputId rosterWeek.id) rosterWeek.isLive [hsx|<span class="fw-semibold">Live</span>|])
         { appToggleInputName = Nothing
