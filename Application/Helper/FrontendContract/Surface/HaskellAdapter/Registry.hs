@@ -5,12 +5,13 @@
 --
 -- Feature-local modules own family-to-Surface associations. This aggregate
 -- selects each registered family and exactly one canonical home for every
--- checked resource identity, runtime scope, and eligible Live fragment without
--- repeating field or wire declarations.
+-- eligible Resource, Live, Action, and Intent declaration without repeating
+-- field or wire declarations.
 module Application.Helper.FrontendContract.Surface.HaskellAdapter.Registry
     ( RegisteredSurfaceActionAdapterHomes
     , RegisteredSurfaceAdapterFamilies
     , RegisteredSurfaceFragmentAdapterHomes
+    , RegisteredSurfaceIntentAdapterHomes
     , registeredSurfaceActionAdapterRegistrations
     , registeredSurfaceIntentAdapterRegistrations
     , RegisteredSurfaceResourceAdapterHomes
@@ -202,13 +203,9 @@ type RegisteredSurfaceActionAdapterHomes =
      , SurfaceActionAdapterHome AdminXeroAdapterFamily Admin.ShowXeroTimesheetPreparationStaffMappings
      ]
 
--- Current generic parser consumers are the 33 marker-indexed calls in
--- Web/Timesheets/Projection.hs (5), Web/Controller/RosterWeeks.hs (6),
--- Web/Controller/Admin.hs (12), Web/Controller/Admin/Xero/Timesheets.hs (1),
--- Web/Controller/Exports.hs (1), Web/Controller/LeaveRequests.hs (3),
--- Web/LeaveRequests/ReadModel.hs (1), and Web/Staff/ProfileSurfaceRequest.hs
--- (4). The focused spec pins their exact declaration identities; the source
--- guardrail pins this pre-migration count until #186 replaces those callers.
+-- Every eligible Action emits builders and render metadata. The exact parser
+-- inventory contains 33 generated operations and 15 typed exclusions for
+-- declarations whose current endpoint consumes no complete Surface envelope.
 registeredSurfaceActionAdapterRegistrations :: [SurfaceRequestAdapterRegistration 'ActionAdapterKind]
 registeredSurfaceActionAdapterRegistrations =
     [ surfaceActionAdapter @TimesheetsAdapterFamily @Timesheets.NavigateTimesheetWeek allRequestAdapterOperations
@@ -281,9 +278,16 @@ registeredSurfaceActionAdapterRegistrations =
     , surfaceActionAdapter @AdminXeroAdapterFamily @Admin.ShowXeroTimesheetPreparationStaffMappings allRequestAdapterOperations
     ]
 
--- All five intents have current form-metadata and exact parser consumers in
--- Web/RosterWeeks/FrontendSurface.hs and Web/Controller/RosterWeeks.hs. The
--- source guardrail pins the five generic parser calls until #187 migrates them.
+type RegisteredSurfaceIntentAdapterHomes =
+    '[ SurfaceIntentAdapterHome RosterAdapterFamily Roster.SetRosterLayoutMode
+     , SurfaceIntentAdapterHome RosterAdapterFamily Roster.MoveRosterShiftToSlot
+     , SurfaceIntentAdapterHome RosterAdapterFamily Roster.DuplicateRosterShiftToDay
+     , SurfaceIntentAdapterHome RosterAdapterFamily Roster.DropRosterStaff
+     , SurfaceIntentAdapterHome RosterDayTimelineAdapterFamily Roster.MoveRosterTimelineShift
+     ]
+
+-- All five production intents emit the complete inventoried builder,
+-- form-metadata, and exact parser operation set through the Roster facade.
 registeredSurfaceIntentAdapterRegistrations :: [SurfaceRequestAdapterRegistration 'IntentAdapterKind]
 registeredSurfaceIntentAdapterRegistrations =
     [ surfaceIntentAdapter @RosterAdapterFamily @Roster.SetRosterLayoutMode allRequestAdapterOperations
@@ -319,9 +323,7 @@ registeredSurfaceAdapterRegistry =
         @RegisteredSurfaceScopeAdapterHomes
         @RegisteredSurfaceFragmentAdapterHomes
         @RegisteredSurfaceActionAdapterHomes
-        @'[]
+        @RegisteredSurfaceIntentAdapterHomes
         registeredSurfaceActorOnlyFragments
-        PublishSurfaceAdapterLane
         registeredSurfaceActionAdapterRegistrations
-        (StageEmptySurfaceAdapterLane "#187 migrates production Intent facades" "#184")
         registeredSurfaceIntentAdapterRegistrations

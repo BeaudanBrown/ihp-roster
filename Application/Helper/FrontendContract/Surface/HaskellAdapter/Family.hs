@@ -31,7 +31,6 @@ module Application.Helper.FrontendContract.Surface.HaskellAdapter.Family
     , ReflectSurfaceResourceAdapterHomes
     , SurfaceActionAdapterHome
     , SurfaceAdapterFamily
-    , SurfaceAdapterLanePublication (..)
     , SurfaceAdapterOperationEligibility (..)
     , SurfaceAdapterFamilyMetadata (..)
     , SurfaceAdapterHome
@@ -53,7 +52,6 @@ module Application.Helper.FrontendContract.Surface.HaskellAdapter.Family
     , surfaceActorOnlyFragmentAdapter
     , surfaceAdapterOperationIsGenerated
     , surfaceIntentAdapter
-    , validateSurfaceAdapterLanePublication
     ) where
 
 import Application.Helper.FrontendContract.Surface.ContractIR (ContractDiagnostic (..),
@@ -131,15 +129,6 @@ data SurfaceRequestAdapterRegistration (kind :: SurfaceAdapterKind)
         !Text
     deriving (Eq, Show)
 
--- | Empty production lanes are temporary, explicit publication states. The
--- Action and Intent migrations remove their respective staged constructor.
-data SurfaceAdapterLanePublication (kind :: SurfaceAdapterKind)
-    = PublishSurfaceAdapterLane
-    | StageEmptySurfaceAdapterLane
-        !Text
-        !Text
-    deriving (Eq, Show)
-
 -- | Validated inventory row. Its declaration was normalized from checked IR
 -- and resolved through the same family/home/source-type seam as emitted code.
 data CheckedSurfaceRequestAdapterRegistration kind payload =
@@ -157,10 +146,8 @@ data SurfaceAdapterRegistry = SurfaceAdapterRegistry
     , surfaceActorOnlyFragmentAdapters    :: ![ActorOnlyFragmentAdapterMetadata]
     , surfaceActionAdapterHomes           :: ![SurfaceAdapterHomeMetadata 'ActionAdapterKind]
     , surfaceActionAdapterRegistrations   :: ![SurfaceRequestAdapterRegistration 'ActionAdapterKind]
-    , surfaceActionAdapterPublication     :: !(SurfaceAdapterLanePublication 'ActionAdapterKind)
     , surfaceIntentAdapterHomes           :: ![SurfaceAdapterHomeMetadata 'IntentAdapterKind]
     , surfaceIntentAdapterRegistrations   :: ![SurfaceRequestAdapterRegistration 'IntentAdapterKind]
-    , surfaceIntentAdapterPublication     :: !(SurfaceAdapterLanePublication 'IntentAdapterKind)
     }
     deriving (Eq, Show)
 
@@ -411,40 +398,6 @@ requestAdapterHomeLabel :: SurfaceAdapterHomeMetadata kind -> Text
 requestAdapterHomeLabel home =
     home.adapterHomeSurface.haskellTypeName <> "/" <> home.adapterHomeDeclaration.haskellTypeName
 
-validateSurfaceAdapterLanePublication ::
-    AdapterModuleLayout kind ->
-    SurfaceAdapterLanePublication kind ->
-    [SurfaceAdapterHomeMetadata kind] ->
-    [ContractDiagnostic]
-validateSurfaceAdapterLanePublication layout publication homes =
-    case publication of
-        PublishSurfaceAdapterLane -> []
-        StageEmptySurfaceAdapterLane migrationTicket parentExpiry ->
-            [ ContractDiagnostic
-                { diagnosticCode = "adapter-" <> layout.adapterKindSlug <> "-staging-reason"
-                , diagnosticMessage =
-                    "Staged empty " <> layout.adapterKindLabel
-                        <> " adapter lane must record its migration ticket"
-                }
-            | Text.null (Text.strip migrationTicket)
-            ]
-                <> [ ContractDiagnostic
-                        { diagnosticCode = "adapter-" <> layout.adapterKindSlug <> "-staging-parent-expiry"
-                        , diagnosticMessage =
-                            "Staged empty " <> layout.adapterKindLabel
-                                <> " adapter lane must expire before parent #184 closes"
-                        }
-                   | Text.strip parentExpiry /= "#184"
-                   ]
-                <> [ ContractDiagnostic
-                        { diagnosticCode = "adapter-" <> layout.adapterKindSlug <> "-staged-homes"
-                        , diagnosticMessage =
-                            "Staged empty " <> layout.adapterKindLabel
-                                <> " adapter lane must not register production homes"
-                        }
-                   | not (null homes)
-                   ]
-
 class ReflectSurfaceFieldMarkerTypes (fields :: [FieldSpec]) where
     reflectSurfaceFieldMarkerTypes :: [HaskellTypeMetadata]
 
@@ -479,16 +432,12 @@ reflectSurfaceAdapterRegistry ::
     , ReflectSurfaceAdapterHomes 'IntentAdapterKind intentHomes
     ) =>
     [ActorOnlyFragmentAdapterMetadata] ->
-    SurfaceAdapterLanePublication 'ActionAdapterKind ->
     [SurfaceRequestAdapterRegistration 'ActionAdapterKind] ->
-    SurfaceAdapterLanePublication 'IntentAdapterKind ->
     [SurfaceRequestAdapterRegistration 'IntentAdapterKind] ->
     SurfaceAdapterRegistry
 reflectSurfaceAdapterRegistry
     surfaceActorOnlyFragmentAdapters
-    surfaceActionAdapterPublication
     surfaceActionAdapterRegistrations
-    surfaceIntentAdapterPublication
     surfaceIntentAdapterRegistrations =
         SurfaceAdapterRegistry
             { surfaceAdapterFamilies = reflectSurfaceAdapterFamilies @families
@@ -498,8 +447,6 @@ reflectSurfaceAdapterRegistry
             , surfaceActorOnlyFragmentAdapters = surfaceActorOnlyFragmentAdapters
             , surfaceActionAdapterHomes = reflectSurfaceAdapterHomes @'ActionAdapterKind @actionHomes
             , surfaceActionAdapterRegistrations = surfaceActionAdapterRegistrations
-            , surfaceActionAdapterPublication = surfaceActionAdapterPublication
             , surfaceIntentAdapterHomes = reflectSurfaceAdapterHomes @'IntentAdapterKind @intentHomes
             , surfaceIntentAdapterRegistrations = surfaceIntentAdapterRegistrations
-            , surfaceIntentAdapterPublication = surfaceIntentAdapterPublication
             }

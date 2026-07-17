@@ -73,7 +73,7 @@ tests = describe "FrontendSurfaceAdapterGenerator" do
                 generated.generatedModuleSource `shouldNotSatisfy` Text.isInfixOf "Aeson"
             Right generated -> expectationFailure (cs ("expected one generated Live module, got " <> tshow (length generated)))
 
-    it "composes every enabled output lane before exposing the managed module set" do
+    it "composes every mandatory output lane before exposing the managed module set" do
         case generateSurfaceAdapterModules fixtureContract fixtureRegistry of
             Left diagnostics -> expectationFailure (cs (show diagnostics))
             Right generatedModules ->
@@ -180,6 +180,34 @@ tests = describe "FrontendSurfaceAdapterGenerator" do
             forM_ existingFiles \(relativePath, source) ->
                 Text.readFile (outputRoot </> relativePath) `shouldReturn` source
             Directory.doesFileExist (outputRoot </> "Application/Fixture/Generated/Action.hs")
+                `shouldReturn` False
+
+    it "leaves existing Resource, Live, and Action files untouched when the Intent lane fails" do
+        withAdapterPublicationDirectory \outputRoot -> do
+            let existingFiles =
+                    [ ("Application/Fixture/Generated/Resource.hs", "resource-sentinel\n")
+                    , ("Application/Fixture/Generated/Live.hs", "live-sentinel\n")
+                    , ("Application/Fixture/Generated/Action.hs", "action-sentinel\n")
+                    ]
+            forM_ existingFiles \(relativePath, source) -> do
+                let path = outputRoot </> relativePath
+                Directory.createDirectoryIfMissing True (takeDirectory path)
+                Text.writeFile path source
+
+            let intentFailureRegistry = fixtureRegistry { surfaceIntentAdapterHomes = [] }
+            result <-
+                AdapterScript.stageGeneratedModules
+                    outputRoot
+                    fixtureContract
+                    intentFailureRegistry
+
+            case result of
+                Right () -> expectationFailure "expected injected Intent completeness failure"
+                Left diagnostics ->
+                    map (.diagnosticCode) diagnostics `shouldContain` ["missing-adapter-intent-home"]
+            forM_ existingFiles \(relativePath, source) ->
+                Text.readFile (outputRoot </> relativePath) `shouldReturn` source
+            Directory.doesFileExist (outputRoot </> "Application/Fixture/Generated/Intent.hs")
                 `shouldReturn` False
 
     it "rejects duplicate physical module paths across output lanes" do
@@ -430,7 +458,7 @@ tests = describe "FrontendSurfaceAdapterGenerator" do
         case generateSurfaceAdapterModules registeredFrontendSurfaceContractIR registeredSurfaceAdapterRegistry of
             Left diagnostics -> expectationFailure (cs (show diagnostics))
             Right generatedModules -> do
-                length generatedModules `shouldBe` 20
+                length generatedModules `shouldBe` 21
                 length (filter (Text.isSuffixOf ".Generated.Live" . (.generatedModuleName)) generatedModules)
                     `shouldBe` 7
                 length (filter (Text.isSuffixOf ".Generated.Resource" . (.generatedModuleName)) generatedModules)
@@ -438,7 +466,7 @@ tests = describe "FrontendSurfaceAdapterGenerator" do
                 length (filter (Text.isSuffixOf ".Generated.Action" . (.generatedModuleName)) generatedModules)
                     `shouldBe` 6
                 length (filter (Text.isSuffixOf ".Generated.Intent" . (.generatedModuleName)) generatedModules)
-                    `shouldBe` 0
+                    `shouldBe` 1
 
     it "rejects empty, partial, extra, and duplicate production Live homes" do
         let emptyRegistry =
@@ -548,6 +576,55 @@ tests = describe "FrontendSurfaceAdapterGenerator" do
         extraDiagnosticCodes `shouldContain` ["adapter-action-home-ownership"]
         extraDiagnosticCodes `shouldContain` ["missing-adapter-action-home"]
 
+    it "publishes exactly one production home for every eligible Intent declaration" do
+        length registeredSurfaceAdapterRegistry.surfaceIntentAdapterHomes `shouldBe` 5
+        case generateSurfaceIntentAdapterModules registeredFrontendSurfaceContractIR registeredSurfaceAdapterRegistry of
+            Left diagnostics -> expectationFailure (cs (show diagnostics))
+            Right generatedModules ->
+                map (.generatedModuleName) generatedModules
+                    `shouldBe` ["Application.Helper.FrontendContract.Surface.Roster.Generated.Intent"]
+
+    it "rejects empty, partial, extra, and duplicate production Intent homes" do
+        let emptyRegistry =
+                registeredSurfaceAdapterRegistry
+                    { surfaceIntentAdapterHomes = []
+                    }
+        diagnosticCodes (generateSurfaceIntentAdapterModules registeredFrontendSurfaceContractIR emptyRegistry)
+            `shouldContain` ["missing-adapter-intent-home"]
+
+        let partialRegistry =
+                registeredSurfaceAdapterRegistry
+                    { surfaceIntentAdapterHomes = drop 1 registeredSurfaceAdapterRegistry.surfaceIntentAdapterHomes
+                    }
+        diagnosticCodes (generateSurfaceIntentAdapterModules registeredFrontendSurfaceContractIR partialRegistry)
+            `shouldContain` ["missing-adapter-intent-home"]
+
+        let duplicateRegistry =
+                registeredSurfaceAdapterRegistry
+                    { surfaceIntentAdapterHomes =
+                        registeredSurfaceAdapterRegistry.surfaceIntentAdapterHomes
+                            <> take 1 registeredSurfaceAdapterRegistry.surfaceIntentAdapterHomes
+                    }
+        diagnosticCodes (generateSurfaceIntentAdapterModules registeredFrontendSurfaceContractIR duplicateRegistry)
+            `shouldContain` ["duplicate-adapter-intent-home"]
+
+        let extraRegistry =
+                registeredSurfaceAdapterRegistry
+                    { surfaceIntentAdapterHomes =
+                        case registeredSurfaceAdapterRegistry.surfaceIntentAdapterHomes of
+                            home : rest ->
+                                home
+                                    { adapterHomeDeclaration =
+                                        home.adapterHomeDeclaration { haskellTypeName = "MissingIntent" }
+                                    }
+                                    : rest
+                            [] -> []
+                    }
+        let extraDiagnosticCodes =
+                diagnosticCodes (generateSurfaceIntentAdapterModules registeredFrontendSurfaceContractIR extraRegistry)
+        extraDiagnosticCodes `shouldContain` ["adapter-intent-home-ownership"]
+        extraDiagnosticCodes `shouldContain` ["missing-adapter-intent-home"]
+
     it "derives checked scope and fragment declarations only from their owning Surface IR" do
         fixtureScopeDeclaration.checkedAdapterSurfaceName
             `shouldBe` fixtureSurface.surfaceName
@@ -592,7 +669,7 @@ tests = describe "FrontendSurfaceAdapterGenerator" do
         diagnosticCodes (generateSurfaceLiveAdapterModules liveCollisionContract liveCollisionRegistry)
             `shouldContain` ["generated-adapter-name-collision"]
 
-    it "rejects empty, extra, duplicate, and invalidly staged Action and Intent homes" do
+    it "rejects empty, extra, and duplicate Action and Intent fixture homes" do
         diagnosticCodes
             ( generateSurfaceActionAdapterModules
                 fixtureContract
@@ -649,27 +726,6 @@ tests = describe "FrontendSurfaceAdapterGenerator" do
                     }
         diagnosticCodes (generateSurfaceIntentAdapterModules fixtureContract extraIntentHome)
             `shouldContain` ["adapter-intent-home-ownership", "missing-adapter-intent-home"]
-
-        let blankActionStage =
-                fixtureRegistry
-                    { surfaceActionAdapterHomes = []
-                    , surfaceActionAdapterPublication = StageEmptySurfaceAdapterLane "" "#184"
-                    }
-        diagnosticCodes (generateSurfaceActionAdapterModules fixtureContract blankActionStage)
-            `shouldContain` ["adapter-action-staging-reason"]
-        let stagedIntentHomes =
-                fixtureRegistry
-                    { surfaceIntentAdapterPublication = StageEmptySurfaceAdapterLane "#187 fixture stage" "#184"
-                    }
-        diagnosticCodes (generateSurfaceIntentAdapterModules fixtureContract stagedIntentHomes)
-            `shouldContain` ["adapter-intent-staged-homes"]
-        let wrongParentExpiry =
-                fixtureRegistry
-                    { surfaceActionAdapterHomes = []
-                    , surfaceActionAdapterPublication = StageEmptySurfaceAdapterLane "#186 fixture stage" "#999"
-                    }
-        diagnosticCodes (generateSurfaceActionAdapterModules fixtureContract wrongParentExpiry)
-            `shouldContain` ["adapter-action-staging-parent-expiry"]
 
     it "rejects same-lane Action and Intent symbol collisions deterministically" do
         diagnosticCodes (generateSurfaceActionAdapterModules requestCollisionContract requestCollisionRegistry)
@@ -884,13 +940,11 @@ fixtureRegistry =
         @Fixture.FixtureActionHomes
         @Fixture.FixtureIntentHomes
         Fixture.fixtureActorOnlyFragments
-        PublishSurfaceAdapterLane
         [ surfaceActionAdapter
             @Fixture.AdapterFixtureFamily
             @Fixture.CrossKindDeclaration
             allFixtureRequestAdapterOperations
         ]
-        PublishSurfaceAdapterLane
         [ surfaceIntentAdapter
             @Fixture.AdapterFixtureFamily
             @Fixture.CrossKindDeclaration
@@ -929,9 +983,7 @@ liveCollisionRegistry =
         @'[]
         @'[]
         []
-        PublishSurfaceAdapterLane
         []
-        PublishSurfaceAdapterLane
         []
 
 requestCollisionContract :: SurfaceContractIR
@@ -951,11 +1003,9 @@ requestCollisionRegistry =
         @Fixture.RequestCollisionActionHomes
         @Fixture.RequestCollisionIntentHomes
         []
-        PublishSurfaceAdapterLane
         [ surfaceActionAdapter @Fixture.RequestCollisionFamilyOne @Fixture.Shared allFixtureRequestAdapterOperations
         , surfaceActionAdapter @Fixture.RequestCollisionFamilyTwo @Fixture.SharedAction allFixtureRequestAdapterOperations
         ]
-        PublishSurfaceAdapterLane
         [ surfaceIntentAdapter @Fixture.RequestCollisionFamilyOne @Fixture.Shared allFixtureRequestAdapterOperations
         , surfaceIntentAdapter @Fixture.RequestCollisionFamilyTwo @Fixture.SharedIntent allFixtureRequestAdapterOperations
         ]

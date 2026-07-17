@@ -119,30 +119,31 @@ expect_match \
     "the production Action lane must register its complete typed home set" \
     'type RegisteredSurfaceActionAdapterHomes =' \
     Application/Helper/FrontendContract/Surface/HaskellAdapter/Registry.hs
+expect_match \
+    "the production Intent lane must register its complete typed home set" \
+    'type RegisteredSurfaceIntentAdapterHomes =' \
+    Application/Helper/FrontendContract/Surface/HaskellAdapter/Registry.hs
 expect_no_match_including_generated \
-    "the temporary empty production Action lane must stay removed" \
-    '#186 migrates production Action facades' \
-    Application/Helper/FrontendContract/Surface/HaskellAdapter/Registry.hs
-expect_match \
-    "the temporary empty Intent lane assigns its removal to #187 and expiry to #184" \
-    'StageEmptySurfaceAdapterLane "#187 migrates production Intent facades" "#184"' \
-    Application/Helper/FrontendContract/Surface/HaskellAdapter/Registry.hs
-expect_match \
-    "staged Action/Intent lanes must reject a parent expiry other than #184" \
-    'Text.strip parentExpiry /= "#184"' \
-    Application/Helper/FrontendContract/Surface/HaskellAdapter/Family.hs
+    "completed Action and Intent publication must not retain staging or parent-expiry machinery" \
+    'SurfaceAdapterLanePublication|StageEmptySurfaceAdapterLane|staging-parent-expiry|parent #184' \
+    Application/Helper/FrontendContract/Surface/HaskellAdapter \
+    Test
 expect_no_match \
     "production callers must use generated exact Surface Action parser adapters" \
-    'parseSurfaceActionParams[[:space:]]*@' \
+    '\bparseSurfaceActionParams\b' \
+    Web
+expect_no_match \
+    "production callers must use generated exact Surface Intent parser adapters" \
+    '\bparseSurfaceIntentParams\b' \
     Web
 expect_no_match \
     "production callers must use curated generated Surface Action metadata adapters" \
-    'frontendSurfaceAction[[:space:]]*@' \
+    '\bfrontendSurfaceAction\b' \
     Web
-current_intent_parser_consumers="$( (rg -o --glob '*.hs' 'parseSurfaceIntentParams[[:space:]]*@' Web || true) | wc -l)"
-if [ "$current_intent_parser_consumers" -ne 5 ]; then
-    report_failure "typed Intent operation inventory expects 5 current generic parser consumers before #187; found $current_intent_parser_consumers"
-fi
+expect_no_match \
+    "production callers must use curated generated Surface Intent form adapters" \
+    '\bfrontendSurfaceIntentForm\b' \
+    Web
 expect_match \
     "Haskell Surface adapter generation must consume the checked production Surface IR" \
     'registeredFrontendSurfaceContractIR' \
@@ -317,6 +318,16 @@ for generated_module_path in "${generated_adapter_modules[@]}"; do
         fi
         if rg --line-number '\b(frontendSurfaceAction|parseSurfaceActionParams|surface(Field|OptionalField|NullableField))\b' "$curated_facade" >&2; then
             report_failure "curated Action facade retains a handwritten mechanical adapter: $curated_facade"
+        fi
+    fi
+    if [ "$generated_kind" = "Intent" ]; then
+        for generic_builder in frontendSurfaceIntentForm parseSurfaceIntentParams; do
+            if ! rg --quiet "\\b${generic_builder}\\b" "$generated_module_path"; then
+                report_failure "generated Intent adapter does not use $generic_builder: $generated_module_path"
+            fi
+        done
+        if rg --line-number '\b(frontendSurfaceIntentForm|parseSurfaceIntentParams|surface(Field|OptionalField|NullableField))\b' "$curated_facade" >&2; then
+            report_failure "curated Intent facade retains a handwritten mechanical adapter: $curated_facade"
         fi
     fi
 done

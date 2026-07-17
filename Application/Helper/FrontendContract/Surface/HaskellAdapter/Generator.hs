@@ -28,8 +28,7 @@ import qualified Data.List as List
 import qualified Data.Text as Text
 import IHP.Prelude
 
--- | Closed bookkeeping lanes for every currently implemented private adapter
--- namespace. Future focused renderers extend this composer when they land.
+-- | Closed bookkeeping lanes for every private Surface adapter namespace.
 data GeneratedSurfaceAdapterLane
     = GeneratedResourceAdapterLane ![GeneratedHaskellModule]
     | GeneratedLiveAdapterLane ![GeneratedHaskellModule]
@@ -37,9 +36,9 @@ data GeneratedSurfaceAdapterLane
     | GeneratedIntentAdapterLane ![GeneratedHaskellModule]
     deriving (Eq, Show)
 
--- | Generate every currently enabled kind and compose one atomic managed set.
--- Production Live generation is mandatory: empty or partial homes fail the
--- same checked-IR completeness validation as every other implemented lane.
+-- | Generate every adapter kind and compose one atomic managed set. Resource,
+-- Live, Action, and Intent publication is mandatory: empty or partial homes fail
+-- checked-IR completeness before any managed module is exposed.
 generateSurfaceAdapterModules ::
     SurfaceContractIR ->
     SurfaceAdapterRegistry ->

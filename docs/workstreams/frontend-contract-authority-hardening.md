@@ -189,8 +189,8 @@ slices, and all block final reconciliation.
         focused request-adapter test seam without publishing partial homes.
       - `#192` - Publish the complete Action home set and migrate all production
         Action callers.
-    - `#187` - Migrate the complete Roster Intent set after `#186`, then remove
-      the final shared Action/Intent staging machinery.
+    - `#187` - Publish and migrate the complete Roster Intent set, then make
+      every Action/Intent output lane mandatory. **Complete.**
 
 ### Shared browser capabilities
 
@@ -227,16 +227,18 @@ Timesheets Live checkpoint, registered every production scope/eligible fragment
 home, and migrated all curated Live facades behind seven private generated
 modules, completing #183. #185 established separate checked Action and Intent
 renderers, operation-complete production inventories, curated compiled fixtures,
-and two explicitly staged empty production lanes while retaining all 14
-Resource/Live outputs. #191 captured the independent Profile/Staff boundary, focused request-adapter
+and atomic all-kind composition while retaining all 14 Resource/Live outputs.
+#191 captured the independent Profile/Staff boundary, focused request-adapter
 spec, deletion estimate, and cold compile/import baseline without publishing a
 partial home set. #192 then atomically published all 48 eligible Action homes
 behind six curated facades, migrated every production builder/metadata/parser
 consumer, made Action output mandatory, and installed zero-generic-parser and
 zero-generic-metadata guards while preserving the five typed declaration
-exclusions. #187 follows the completed #186 Action migration, migrates all five
-Roster intents together, and owns deletion of the final shared staging and
-temporary Intent source-count machinery. #184 follows #164 and #181.
+exclusions. #187 then published all five Roster intents together behind one
+private generated module and curated facade, migrated every production caller,
+made all four generated lanes mandatory, removed the temporary publication and
+parent-expiry abstractions, and installed final zero-generic-parser/metadata
+guardrails. #184 follows #164 and #181.
 Shared browser slices depend on typed schema builders;
 ordered ranges also depend on toggle presentation.
 Roster linked highlighting depends on closed interaction IR. Staff-panel work

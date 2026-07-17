@@ -15,11 +15,11 @@ import Application.Helper.FrontendContract.AppShell.Runtime (AppShellActionRoute
                                                              renderAppShellActionForm)
 import qualified Application.Helper.FrontendContract.Surface.Interaction as SurfaceInteraction
 import Application.Helper.FrontendContract.Surface.Request (SurfaceRequestFieldError,
-                                                            parseSurfaceIntentParams,
                                                             surfaceActionParamsPresent,
                                                             surfaceRequestFieldErrorsMessage)
 import qualified Application.Helper.FrontendContract.Surface.Roster as Surface
 import qualified Application.Helper.FrontendContract.Surface.Roster.Action as RosterAction
+import qualified Application.Helper.FrontendContract.Surface.Roster.Intent as RosterIntent
 import Application.Helper.FrontendContract.Surface.Values
 import Application.Helper.Profiling
 import Application.Helper.RosterGroups
@@ -546,7 +546,7 @@ instance Controller RosterWeeksController where
     action currentAction@UpdateRosterLayoutPreferenceAction { weekOffset } = runBepis currentAction BepisPreferenceAction do
         rosterGroup <- resolveRequestedRosterGroup
         let requestedLayoutMode =
-                case parseSurfaceIntentParams @Surface.RosterSurface @Surface.SetRosterLayoutMode of
+                case RosterIntent.parseSetRosterLayoutModeIntentParams of
                     Left errors -> Left (rosterSurfaceRequestErrorMessage errors)
                     Right fields ->
                         maybe
@@ -573,7 +573,7 @@ instance Controller RosterWeeksController where
         ensureManagerRole
         ensureVenueWritable
         rosterGroup <- resolveRequestedRosterGroup
-        case parseSurfaceIntentParams @Surface.RosterSurface @Surface.MoveRosterShiftToSlot of
+        case RosterIntent.parseMoveRosterShiftToSlotIntentParams of
             Left errors -> respondWithMoveRosterShiftFailure rosterGroup.id weekOffset (rosterSurfaceRequestErrorMessage errors)
             Right fields -> do
                 let sourceToken = surfaceFieldValue @SurfaceInteraction.SourceItemKey fields
@@ -605,7 +605,7 @@ instance Controller RosterWeeksController where
         ensureManagerRole
         ensureVenueWritable
         rosterGroup <- resolveRequestedRosterGroup
-        case parseSurfaceIntentParams @Surface.RosterDayTimelineSurface @Surface.MoveRosterTimelineShift of
+        case RosterIntent.parseMoveRosterTimelineShiftIntentParams of
             Left errors -> respondWithMoveRosterShiftFailure rosterGroup.id weekOffset (rosterSurfaceRequestErrorMessage errors)
             Right fields -> do
                 let sourceToken = surfaceFieldValue @SurfaceInteraction.SourceItemKey fields
@@ -632,7 +632,7 @@ instance Controller RosterWeeksController where
         ensureManagerRole
         ensureVenueWritable
         rosterGroup <- resolveRequestedRosterGroup
-        case parseSurfaceIntentParams @Surface.RosterSurface @Surface.DuplicateRosterShiftToDay of
+        case RosterIntent.parseDuplicateRosterShiftToDayIntentParams of
             Left errors -> respondWithMoveRosterShiftFailure rosterGroup.id weekOffset (rosterSurfaceRequestErrorMessage errors)
             Right fields -> do
                 let sourceToken = surfaceFieldValue @SurfaceInteraction.SourceItemKey fields
@@ -666,7 +666,7 @@ instance Controller RosterWeeksController where
         ensureManagerRole
         ensureVenueWritable
         rosterGroup <- resolveRequestedRosterGroup
-        case parseSurfaceIntentParams @Surface.RosterSurface @Surface.DropRosterStaff of
+        case RosterIntent.parseDropRosterStaffIntentParams of
             Left errors -> respondWithMoveRosterShiftFailure rosterGroup.id weekOffset (rosterSurfaceRequestErrorMessage errors)
             Right fields -> do
                 let sourceToken = surfaceFieldValue @SurfaceInteraction.SourceItemKey fields

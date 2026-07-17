@@ -56,25 +56,15 @@ generateSurfaceIntentAdapterModules contract registry = do
             declarations
             registry.surfaceIntentAdapterRegistrations
     let generatedDeclarations = mapMaybe generatedDeclaration inventory
-    case stableDiagnostics
-        ( validateSurfaceAdapterLanePublication
+    adapters <-
+        resolveAdapterGeneration
             intentAdapterLayout
-            registry.surfaceIntentAdapterPublication
+            contract
+            registry.surfaceAdapterFamilies
             registry.surfaceIntentAdapterHomes
-        ) of
-        diagnostics@(_ : _) -> Left diagnostics
-        [] -> case registry.surfaceIntentAdapterPublication of
-            StageEmptySurfaceAdapterLane _ _ -> Right []
-            PublishSurfaceAdapterLane -> do
-                adapters <-
-                    resolveAdapterGeneration
-                        intentAdapterLayout
-                        contract
-                        registry.surfaceAdapterFamilies
-                        registry.surfaceIntentAdapterHomes
-                        generatedDeclarations
-                        intentGeneratedNames
-                renderSurfaceIntentAdapterModules adapters
+            generatedDeclarations
+            intentGeneratedNames
+    renderSurfaceIntentAdapterModules adapters
   where
     generatedDeclaration registration = do
         operations <- registration.checkedSurfaceRequestAdapterOperations

@@ -47,6 +47,7 @@ import Application.Helper.FrontendContract.Surface.Live (SurfaceFragmentKey,
                                                          surfaceScopeKey)
 import Application.Helper.FrontendContract.Surface.Reflect (reflectSurfaceSpec)
 import qualified Application.Helper.FrontendContract.Surface.Roster as Surface
+import qualified Application.Helper.FrontendContract.Surface.Roster.Intent as SurfaceIntent
 import qualified Application.Helper.FrontendContract.Surface.Roster.Live as SurfaceLive
 import Application.Helper.FrontendContract.Surface.Runtime
 import Application.Helper.FrontendContract.Surface.Values
@@ -273,45 +274,26 @@ rosterDayTimelineScopeFields scope =
 
 rosterIntentForms :: RosterWeekScopeValue -> [FrontendSurfaceIntentForm]
 rosterIntentForms scope =
-    [ frontendSurfaceIntentForm @Surface.RosterSurface @Surface.SetRosterLayoutMode
-        rosterLayoutModeFields
+    [ SurfaceIntent.setRosterLayoutModeIntentForm
+        (SurfaceIntent.setRosterLayoutModeIntentFields "day_rows")
         (rosterLayoutModeRequest scope)
-    , frontendSurfaceIntentForm @Surface.RosterSurface @Surface.MoveRosterShiftToSlot
-        emptyRosterDragDropFields
+    , SurfaceIntent.moveRosterShiftToSlotIntentForm
+        (SurfaceIntent.moveRosterShiftToSlotIntentFields "" "" (Just "") (Just "") (Just "") (Just "") (Just "") (Just "") (Just "") (Just "") (Just ""))
         (rosterMoveShiftRequest scope)
-    , frontendSurfaceIntentForm @Surface.RosterSurface @Surface.DuplicateRosterShiftToDay
-        emptyRosterDragDropFields
+    , SurfaceIntent.duplicateRosterShiftToDayIntentForm
+        (SurfaceIntent.duplicateRosterShiftToDayIntentFields "" "" (Just "") (Just "") (Just "") (Just "") (Just "") (Just "") (Just "") (Just "") (Just ""))
         (rosterDuplicateShiftRequest scope)
-    , frontendSurfaceIntentForm @Surface.RosterSurface @Surface.DropRosterStaff
-        emptyRosterDragDropFields
+    , SurfaceIntent.dropRosterStaffIntentForm
+        (SurfaceIntent.dropRosterStaffIntentFields "" "" (Just "") (Just "") (Just "") (Just "") (Just "") (Just "") (Just "") (Just "") (Just ""))
         (rosterDropStaffRequest scope)
     ]
 
 rosterDayTimelineIntentForms :: RosterDayTimelineScopeValue -> [FrontendSurfaceIntentForm]
 rosterDayTimelineIntentForms scope =
-    [ frontendSurfaceIntentForm @Surface.RosterDayTimelineSurface @Surface.MoveRosterTimelineShift
-        emptyRosterDragDropFields
+    [ SurfaceIntent.moveRosterTimelineShiftIntentForm
+        (SurfaceIntent.moveRosterTimelineShiftIntentFields "" "" (Just "") (Just "") (Just "") (Just "") (Just "") (Just "") (Just "") (Just "") (Just ""))
         (rosterDayTimelineMoveShiftRequest scope)
     ]
-
-rosterLayoutModeFields :: SurfaceFields '[ 'Field Surface.RosterLayoutMode 'WireText]
-rosterLayoutModeFields =
-    surfaceField @Surface.RosterLayoutMode "day_rows" :& NoSurfaceFields
-
-emptyRosterDragDropFields :: SurfaceFields SurfaceInteraction.DragDropFields
-emptyRosterDragDropFields =
-    surfaceField @SurfaceInteraction.SourceItemKey ""
-        :& surfaceField @SurfaceInteraction.TargetDropzoneKey ""
-        :& surfaceOptionalField @SurfaceInteraction.SessionKind (Just "")
-        :& surfaceOptionalField @SurfaceInteraction.PointerId (Just "")
-        :& surfaceOptionalField @SurfaceInteraction.PointerType (Just "")
-        :& surfaceOptionalField @SurfaceInteraction.StartClientX (Just "")
-        :& surfaceOptionalField @SurfaceInteraction.StartClientY (Just "")
-        :& surfaceOptionalField @SurfaceInteraction.CurrentClientX (Just "")
-        :& surfaceOptionalField @SurfaceInteraction.CurrentClientY (Just "")
-        :& surfaceOptionalField @SurfaceInteraction.DeltaX (Just "")
-        :& surfaceOptionalField @SurfaceInteraction.DeltaY (Just "")
-        :& NoSurfaceFields
 
 rosterLayoutModeRequest :: RosterWeekScopeValue -> FrontendSurfaceHtmxRequest
 rosterLayoutModeRequest scope =

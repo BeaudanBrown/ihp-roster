@@ -13,18 +13,23 @@ import Application.Helper.FrontendContract.Surface.HaskellAdapter.Core
 import Application.Helper.FrontendContract.Surface.HaskellAdapter.Family
 import Application.Helper.FrontendContract.Surface.HaskellAdapter.Intent
 import Application.Helper.FrontendContract.Surface.HaskellAdapter.Registry (registeredSurfaceAdapterRegistry)
+import qualified Application.Helper.FrontendContract.Surface.Interaction as SurfaceInteraction
 import qualified Application.Helper.FrontendContract.Surface.Profile as Profile
 import qualified Application.Helper.FrontendContract.Surface.Profile.Action as ProfileAction
 import Application.Helper.FrontendContract.Surface.Reflect (reflectSurfaceRegistry)
 import Application.Helper.FrontendContract.Surface.Request (SurfaceRequestFieldError (..),
                                                             SurfaceRequestFieldErrorKind (..),
                                                             parseSurfaceActionParamPairs)
+import qualified Application.Helper.FrontendContract.Surface.Roster as Roster
+import qualified Application.Helper.FrontendContract.Surface.Roster.Intent as RosterIntent
 import Application.Helper.FrontendContract.Surface.Runtime (FrontendSurfaceActionRoute (..),
                                                             FrontendSurfaceCustomHtmxAttrs (..),
                                                             FrontendSurfaceHtmxMethod (..),
                                                             FrontendSurfaceHtmxRequest (..),
+                                                            FrontendSurfaceIntentForm,
                                                             frontendSurfaceActionHtmxAttrPairs,
-                                                            intentFormName)
+                                                            intentFormName,
+                                                            renderFrontendSurfaceIntentForm)
 import Application.Helper.FrontendContract.Surface.Values (SurfaceActionFieldSpecs,
                                                            SurfaceFields (NoSurfaceFields, (:&)),
                                                            surfaceField,
@@ -38,14 +43,21 @@ import qualified Data.Text.IO as Text
 import Data.Time (fromGregorian)
 import qualified Data.UUID as UUID
 import qualified Data.Vault.Lazy as Vault
+import Generated.Types (RosterDay, RosterGroup)
+import IHP.ModelSupport.Types (Id' (Id))
 import IHP.Prelude
 import qualified Network.Wai as Wai
 import Test.Hspec
 import qualified Test.Support.FrontendSurfaceAdapterFixture as Fixture
 import qualified Test.Support.FrontendSurfaceAdapterFixture.Action as FixtureAction
 import qualified Test.Support.FrontendSurfaceAdapterFixture.Intent as FixtureIntent
+import qualified Text.Blaze.Html.Renderer.Text as HtmlRenderer
 import Wai.Request.Params.Middleware (RequestBody (FormBody),
                                       requestBodyVaultKey)
+import Web.RosterWeeks.FrontendSurface (RosterDayTimelineScopeValue (..),
+                                        RosterWeekScopeValue (..),
+                                        rosterDayTimelineIntentForms,
+                                        rosterIntentForms)
 import Web.Staff.ProfileSurfaceRequest (StaffProfileDetailsSubmission (..),
                                         StaffProfileSurfaceSubmission (..),
                                         StaffShiftPreferencesSubmission (..),
@@ -411,8 +423,112 @@ tests = describe "FrontendSurfaceRequestAdapter" do
                         , "Application.Helper.FrontendContract.Surface.Support.Generated.Action"
                         , "Application.Helper.FrontendContract.Surface.Timesheets.Generated.Action"
                         ]
-        generateSurfaceIntentAdapterModules registeredFrontendSurfaceContractIR registeredSurfaceAdapterRegistry
-            `shouldBe` Right []
+        length registeredSurfaceAdapterRegistry.surfaceIntentAdapterHomes `shouldBe` 5
+        case generateSurfaceIntentAdapterModules registeredFrontendSurfaceContractIR registeredSurfaceAdapterRegistry of
+            Left diagnostics -> expectationFailure (cs (show diagnostics))
+            Right generatedModules ->
+                map (.generatedModuleName) generatedModules
+                    `shouldBe` ["Application.Helper.FrontendContract.Surface.Roster.Generated.Intent"]
+
+    it "pins complete Roster Intent bundles and DOM-owned form metadata from independent literals" do
+        let venueId = fixtureMemberId "00000000-0000-0000-0000-000000000111"
+        let rosterGroupId = Id (fixtureMemberId "00000000-0000-0000-0000-000000000222") :: Id RosterGroup
+        let rosterDayId = Id (fixtureMemberId "00000000-0000-0000-0000-000000000333") :: Id RosterDay
+        let rosterScope =
+                RosterWeekScopeValue
+                    { rosterWeekVenueId = venueId
+                    , rosterWeekGroupId = rosterGroupId
+                    , rosterWeekWeekOffset = 3
+                    , rosterWeekTimelineDayOffset = Nothing
+                    }
+        let timelineScope =
+                RosterDayTimelineScopeValue
+                    { rosterDayTimelineVenueId = venueId
+                    , rosterDayTimelineGroupId = rosterGroupId
+                    , rosterDayTimelineWeekOffset = 3
+                    , rosterDayTimelineDayOffset = 2
+                    , rosterDayTimelineDayId = rosterDayId
+                    }
+        let rosterForms = rosterIntentForms rosterScope
+        let timelineForms = rosterDayTimelineIntentForms timelineScope
+        map intentFormName rosterForms
+            `shouldBe`
+                [ "set-roster-layout-mode"
+                , "move-roster-shift-to-slot"
+                , "duplicate-roster-shift-to-day"
+                , "drop-roster-staff"
+                ]
+        map intentFormName timelineForms `shouldBe` ["move-roster-timeline-shift"]
+
+        let renderedForms = map renderIntentFormText (rosterForms <> timelineForms)
+        let expectedFormMetadata =
+                [ ("set-roster-layout-mode", "/UpdateRosterLayoutPreference?weekOffset=3&amp;rosterGroupId=00000000-0000-0000-0000-000000000222", 1)
+                , ("move-roster-shift-to-slot", "/MoveRosterShiftToSlot?weekOffset=3&amp;rosterGroupId=00000000-0000-0000-0000-000000000222", 11)
+                , ("duplicate-roster-shift-to-day", "/DuplicateRosterShiftToDay?weekOffset=3&amp;rosterGroupId=00000000-0000-0000-0000-000000000222", 11)
+                , ("drop-roster-staff", "/DropRosterStaff?weekOffset=3&amp;rosterGroupId=00000000-0000-0000-0000-000000000222", 11)
+                , ("move-roster-timeline-shift", "/MoveRosterTimelineShift?weekOffset=3&amp;rosterGroupId=00000000-0000-0000-0000-000000000222&amp;rosterView=timeline&amp;dayOffset=2", 11)
+                ]
+        forM_ (zip expectedFormMetadata renderedForms) \(metadata, html) ->
+            assertRosterIntentFormMetadata metadata html
+
+        let layoutHtml = fromMaybe (error "missing rendered Roster layout Intent form") (listToMaybe renderedForms)
+        layoutHtml
+            `shouldSatisfy` Text.isInfixOf "name=\"rosterLayoutMode\" value=\"day_rows\" data-bepis-intent-field=\"rosterLayoutMode\" data-bepis-field-presence=\"required\""
+        forM_ (drop 1 renderedForms) \dragHtml -> do
+            forM_ ["sourceItemKey", "targetDropzoneKey"] \fieldName ->
+                dragHtml `shouldSatisfy` Text.isInfixOf (renderedIntentField fieldName "required")
+            forM_ rosterOptionalDragFieldNames \fieldName ->
+                dragHtml `shouldSatisfy` Text.isInfixOf (renderedIntentField fieldName "optional")
+
+    it "parses every production Roster Intent shape through the canonical facade" do
+        let parsedLayout =
+                let ?request = requestWithParams
+                        [("rosterLayoutMode", Just "day_columns"), ("unrelated-route-context", Just "ignored")]
+                 in RosterIntent.parseSetRosterLayoutModeIntentParams
+        case parsedLayout of
+            Left errors -> expectationFailure (cs (show errors))
+            Right fields ->
+                surfaceFieldValue @Roster.RosterLayoutMode fields `shouldBe` "day_columns"
+
+        let parsedDragIntents =
+                let ?request = requestWithParams validRosterDragIntentParams
+                 in [ RosterIntent.parseMoveRosterShiftToSlotIntentParams
+                    , RosterIntent.parseDuplicateRosterShiftToDayIntentParams
+                    , RosterIntent.parseDropRosterStaffIntentParams
+                    , RosterIntent.parseMoveRosterTimelineShiftIntentParams
+                    ]
+        forM_ parsedDragIntents assertRosterDragIntentFields
+
+    it "preserves canonical Roster Intent facade missing and malformed diagnostics" do
+        let missingLayout =
+                let ?request = requestWithParams []
+                 in RosterIntent.parseSetRosterLayoutModeIntentParams
+        assertRequestErrors ["rosterLayoutMode"] MissingSurfaceRequestField missingLayout
+
+        let malformedLayout =
+                let ?request = requestWithParams [("rosterLayoutMode", Just invalidUtf8)]
+                 in RosterIntent.parseSetRosterLayoutModeIntentParams
+        assertRequestErrors ["rosterLayoutMode"] MalformedSurfaceRequestField malformedLayout
+
+        let missingDragIntents =
+                let ?request = requestWithParams []
+                 in [ RosterIntent.parseMoveRosterShiftToSlotIntentParams
+                    , RosterIntent.parseDuplicateRosterShiftToDayIntentParams
+                    , RosterIntent.parseDropRosterStaffIntentParams
+                    , RosterIntent.parseMoveRosterTimelineShiftIntentParams
+                    ]
+        forM_ missingDragIntents
+            (assertRequestErrors ["sourceItemKey", "targetDropzoneKey"] MissingSurfaceRequestField)
+
+        let malformedDragIntents =
+                let ?request = requestWithParams invalidRosterDragIntentParams
+                 in [ RosterIntent.parseMoveRosterShiftToSlotIntentParams
+                    , RosterIntent.parseDuplicateRosterShiftToDayIntentParams
+                    , RosterIntent.parseDropRosterStaffIntentParams
+                    , RosterIntent.parseMoveRosterTimelineShiftIntentParams
+                    ]
+        forM_ malformedDragIntents
+            (assertRequestErrors ["sourceItemKey", "targetDropzoneKey"] MalformedSurfaceRequestField)
 
     it "pins all Profile and Staff Action metadata from independent literals" do
         frontendSurfaceActionHtmxAttrPairs
@@ -549,6 +665,79 @@ tests = describe "FrontendSurfaceRequestAdapter" do
             MalformedSurfaceRequestField
             (parseSurfaceActionParamPairs @Profile.StaffSurface @Profile.CreateStaffLeaveRequest malformedLeaveParams)
 
+renderIntentFormText :: FrontendSurfaceIntentForm -> Text
+renderIntentFormText intentForm =
+    cs (HtmlRenderer.renderHtml (renderFrontendSurfaceIntentForm intentForm mempty))
+
+assertRosterIntentFormMetadata :: (Text, Text, Int) -> Text -> Expectation
+assertRosterIntentFormMetadata (intentName, actionUrl, expectedFieldCount) html = do
+    html `shouldSatisfy` Text.isInfixOf ("hx-post=\"" <> actionUrl <> "\"")
+    html `shouldSatisfy` Text.isInfixOf "hx-target=\"#roster-content\""
+    html `shouldSatisfy` Text.isInfixOf "hx-swap=\"none\""
+    html `shouldSatisfy` Text.isInfixOf ("data-bepis-intent-form=\"" <> intentName <> "\"")
+    Text.count "data-bepis-intent-field=" html `shouldBe` expectedFieldCount
+
+renderedIntentField :: Text -> Text -> Text
+renderedIntentField fieldName presence =
+    "name=\"" <> fieldName <> "\" value=\"\" data-bepis-intent-field=\"" <> fieldName
+        <> "\" data-bepis-field-presence=\"" <> presence <> "\""
+
+rosterOptionalDragFieldNames :: [Text]
+rosterOptionalDragFieldNames =
+    [ "sessionKind"
+    , "pointerId"
+    , "pointerType"
+    , "startClientX"
+    , "startClientY"
+    , "currentClientX"
+    , "currentClientY"
+    , "deltaX"
+    , "deltaY"
+    ]
+
+validRosterDragIntentParams :: [(ByteString.ByteString, Maybe ByteString.ByteString)]
+validRosterDragIntentParams =
+    [ ("sourceItemKey", Just "existing:source")
+    , ("targetDropzoneKey", Just "new:target")
+    , ("sessionKind", Just "drag")
+    , ("pointerId", Just "7")
+    , ("pointerType", Just "mouse")
+    , ("startClientX", Just "100")
+    , ("startClientY", Just "200")
+    , ("currentClientX", Just "140")
+    , ("currentClientY", Just "250")
+    , ("deltaX", Just "40")
+    , ("deltaY", Just "50")
+    , ("unrelated-route-context", Just "ignored")
+    ]
+
+invalidUtf8 :: ByteString.ByteString
+invalidUtf8 = ByteString.pack [0xff]
+
+invalidRosterDragIntentParams :: [(ByteString.ByteString, Maybe ByteString.ByteString)]
+invalidRosterDragIntentParams =
+    [ ("sourceItemKey", Just invalidUtf8)
+    , ("targetDropzoneKey", Just invalidUtf8)
+    ]
+
+assertRosterDragIntentFields ::
+    Either [SurfaceRequestFieldError] (SurfaceFields SurfaceInteraction.DragDropFields) ->
+    Expectation
+assertRosterDragIntentFields = \case
+    Left errors -> expectationFailure (cs (show errors))
+    Right fields -> do
+        surfaceFieldValue @SurfaceInteraction.SourceItemKey fields `shouldBe` "existing:source"
+        surfaceFieldValue @SurfaceInteraction.TargetDropzoneKey fields `shouldBe` "new:target"
+        surfaceFieldValue @SurfaceInteraction.SessionKind fields `shouldBe` Just "drag"
+        surfaceFieldValue @SurfaceInteraction.PointerId fields `shouldBe` Just "7"
+        surfaceFieldValue @SurfaceInteraction.PointerType fields `shouldBe` Just "mouse"
+        surfaceFieldValue @SurfaceInteraction.StartClientX fields `shouldBe` Just "100"
+        surfaceFieldValue @SurfaceInteraction.StartClientY fields `shouldBe` Just "200"
+        surfaceFieldValue @SurfaceInteraction.CurrentClientX fields `shouldBe` Just "140"
+        surfaceFieldValue @SurfaceInteraction.CurrentClientY fields `shouldBe` Just "250"
+        surfaceFieldValue @SurfaceInteraction.DeltaX fields `shouldBe` Just "40"
+        surfaceFieldValue @SurfaceInteraction.DeltaY fields `shouldBe` Just "50"
+
 fixtureRegistry :: SurfaceAdapterRegistry
 fixtureRegistry =
     reflectSurfaceAdapterRegistry
@@ -559,13 +748,11 @@ fixtureRegistry =
         @Fixture.FixtureActionHomes
         @Fixture.FixtureIntentHomes
         Fixture.fixtureActorOnlyFragments
-        PublishSurfaceAdapterLane
         [ surfaceActionAdapter
             @Fixture.AdapterFixtureFamily
             @Fixture.CrossKindDeclaration
             allFixtureRequestAdapterOperations
         ]
-        PublishSurfaceAdapterLane
         [ surfaceIntentAdapter
             @Fixture.AdapterFixtureFamily
             @Fixture.CrossKindDeclaration
