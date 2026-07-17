@@ -116,11 +116,7 @@ renderNewStaffBody formMode staff rosterGroups awardLevels awardLevelBaseRates i
                 , staffProfileDetailsFormClass = "mt-3"
                 , staffProfileDetailsFormRequestMode = staffDetailsFormRequestMode formMode (pathTo CreateStaffAction) CreateTrialStaffOverlayMarker
                 , staffProfileDetailsSurfaceFields =
-                    buildStaffProfileDetailsSurfaceFields
-                        ProfileAction.updateStaffProfileActionFields
-                        "profile"
-                        staff
-                        (Just managementFields)
+                    buildStaffProfileDetailsSurfaceFields "profile" staff (Just managementFields)
                 , staffProfileDetailsFormAttributes = []
                 , staffProfileDetailsFormHiddenInputs = mempty
                 , staffProfileDetailsFormBeforeFields = [hsx|
@@ -381,11 +377,7 @@ renderStaffDetailsForm formMode staff maybeLinkedUserEmail managementFields acti
         maybeLinkedUserEmail
   where
     fields =
-        buildStaffProfileDetailsSurfaceFields
-            ProfileAction.updateStaffProfileActionFields
-            "profile"
-            staff
-            (Just managementFields)
+        buildStaffProfileDetailsSurfaceFields "profile" staff (Just managementFields)
 
 renderTrialStaffInvitationModalFragment :: Staff -> [VenueInvitation] -> Maybe Text -> Maybe Text -> Int -> Maybe (Id RosterGroup) -> Html
 renderTrialStaffInvitationModalFragment staff pendingInvitations maybeError submittedEmail weekOffset maybeRosterGroupId =
@@ -498,10 +490,7 @@ renderStaffShiftPreferencesEditForm formMode preferenceWeekdays selectedShiftPre
         selectedShiftPreferences
   where
     fields =
-        buildStaffShiftPreferencesSurfaceFields
-            ProfileAction.updateStaffShiftPreferencesActionFields
-            "preferences"
-            selectedShiftPreferences
+        buildStaffShiftPreferencesSurfaceFields "preferences" selectedShiftPreferences
 
 data StaffDetailsOverlayMarker
     = CreateTrialStaffOverlayMarker

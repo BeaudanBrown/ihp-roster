@@ -281,11 +281,7 @@ renderProfileForm staff currentUserEmail staffManagementFields =
         (Just currentUserEmail)
   where
     fields =
-        buildStaffProfileDetailsSurfaceFields
-            ProfileAction.updateProfileDetailsActionFields
-            "profile"
-            staff
-            staffManagementFields
+        buildStaffProfileDetailsSurfaceFields "profile" staff staffManagementFields
 
 renderProfileShiftPreferencesForm :: [PreferenceWeekday] -> [ShiftPreferenceSelection] -> Html
 renderProfileShiftPreferencesForm preferenceWeekdays selectedShiftPreferences =
@@ -304,10 +300,7 @@ renderProfileShiftPreferencesForm preferenceWeekdays selectedShiftPreferences =
         selectedShiftPreferences
   where
     fields =
-        buildStaffShiftPreferencesSurfaceFields
-            ProfileAction.updateProfileShiftPreferencesActionFields
-            "preferences"
-            selectedShiftPreferences
+        buildStaffShiftPreferencesSurfaceFields "preferences" selectedShiftPreferences
 
 renderProfileStaffManagementSection :: SurfaceFields Surface.StaffProfileFields -> StaffManagementFieldData -> Html
 renderProfileStaffManagementSection fields managementFields = [hsx|
