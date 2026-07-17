@@ -57,19 +57,6 @@
     background: var(--app-slate-alpha-18);
 }
 
-.app-lazy-surface-skeleton {
-    display: flex;
-    flex-direction: column;
-    gap: var(--app-space-3);
-}
-
-.app-lazy-surface-row {
-    display: grid;
-    grid-template-columns: minmax(7rem, 1fr) minmax(4rem, 0.45fr);
-    gap: var(--app-space-2);
-    align-items: center;
-}
-
 .app-lazy-surface-bar {
     display: block;
     min-height: 0.75rem;
