@@ -281,7 +281,7 @@ renderProfileForm staff currentUserEmail staffManagementFields =
         (Just currentUserEmail)
   where
     fields =
-        buildStaffProfileDetailsSurfaceFields "profile" staff staffManagementFields
+        buildStaffProfileDetailsSurfaceFields ProfileFormSurface "profile" staff staffManagementFields
 
 renderProfileShiftPreferencesForm :: [PreferenceWeekday] -> [ShiftPreferenceSelection] -> Html
 renderProfileShiftPreferencesForm preferenceWeekdays selectedShiftPreferences =
@@ -300,7 +300,7 @@ renderProfileShiftPreferencesForm preferenceWeekdays selectedShiftPreferences =
         selectedShiftPreferences
   where
     fields =
-        buildStaffShiftPreferencesSurfaceFields "preferences" selectedShiftPreferences
+        buildStaffShiftPreferencesSurfaceFields ProfileFormSurface "preferences" selectedShiftPreferences
 
 renderProfileStaffManagementSection :: SurfaceFields Surface.StaffProfileFields -> StaffManagementFieldData -> Html
 renderProfileStaffManagementSection fields managementFields = [hsx|
@@ -362,11 +362,7 @@ renderProfileLeaveRequestActionForm leaveRequest =
             </div>
         |]
   where
-    fields =
-        ProfileAction.createProfileLeaveRequestActionFields
-            leaveRequest.startDate
-            leaveRequest.endDate
-            (fromMaybe "" leaveRequest.notes)
+    fields = ProfileAction.createProfileLeaveRequestActionFields leaveRequest.startDate leaveRequest.endDate (fromMaybe "" leaveRequest.notes)
     fieldNames =
         LeaveRequestFieldNames
             { leaveRequestStartDateFieldName = surfaceFieldNameFrom @Surface.StartDate fields

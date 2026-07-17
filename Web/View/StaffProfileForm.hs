@@ -24,9 +24,11 @@ data StaffManagementFieldData = StaffManagementFieldData
     , managementRosterGroupId          :: Maybe (Id RosterGroup)
     }
 
-buildStaffProfileDetailsSurfaceFields :: Text -> Staff -> Maybe StaffManagementFieldData -> SurfaceFields Surface.StaffProfileFields
-buildStaffProfileDetailsSurfaceFields section staff maybeManagement =
-    ProfileAction.updateStaffProfileActionFields
+data StaffProfileFormSurface = ProfileFormSurface | StaffFormSurface
+
+buildStaffProfileDetailsSurfaceFields :: StaffProfileFormSurface -> Text -> Staff -> Maybe StaffManagementFieldData -> SurfaceFields Surface.StaffProfileFields
+buildStaffProfileDetailsSurfaceFields formSurface section staff maybeManagement =
+    buildFields
         staff.firstName
         staff.lastName
         (fromMaybe "" staff.preferredName)
@@ -41,18 +43,24 @@ buildStaffProfileDetailsSurfaceFields section staff maybeManagement =
         submittedIsActive
         submittedRosterGroupIds
   where
+    buildFields = case formSurface of
+        ProfileFormSurface -> ProfileAction.updateProfileDetailsActionFields
+        StaffFormSurface   -> ProfileAction.updateStaffProfileActionFields
     submittedVenueRole = maybeManagement >>= (.managementVenueMembership) >>= parseVenueRole >>= (Just . venueRoleToText)
     submittedEmploymentBasis = inputValue . (.employmentBasis) . (.managementStaff) <$> maybeManagement
     submittedPayRateSelection = staffPayRateSelectionValue . (.managementStaff) <$> maybeManagement
     submittedIsActive = (.isActive) . (.managementStaff) <$> maybeManagement
     submittedRosterGroupIds = fmap (map unpackId . (.managementSelectedRosterGroupIds)) maybeManagement
 
-buildStaffShiftPreferencesSurfaceFields :: Text -> [ShiftPreferenceSelection] -> SurfaceFields Surface.StaffShiftPreferenceFields
-buildStaffShiftPreferencesSurfaceFields section selectedShiftPreferences =
-    ProfileAction.updateStaffShiftPreferencesActionFields
+buildStaffShiftPreferencesSurfaceFields :: StaffProfileFormSurface -> Text -> [ShiftPreferenceSelection] -> SurfaceFields Surface.StaffShiftPreferenceFields
+buildStaffShiftPreferencesSurfaceFields formSurface section selectedShiftPreferences =
+    buildFields
         submittedSection
         submittedShiftPreferenceKeys
   where
+    buildFields = case formSurface of
+        ProfileFormSurface -> ProfileAction.updateProfileShiftPreferencesActionFields
+        StaffFormSurface -> ProfileAction.updateStaffShiftPreferencesActionFields
     submittedSection = section
     submittedShiftPreferenceKeys = Just (map (encodeShiftPreferenceKey . (.weekdayIndex)) selectedShiftPreferences)
 

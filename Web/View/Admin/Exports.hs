@@ -79,11 +79,7 @@ renderExportGenerationForm defaultRangeStart defaultRangeEnd =
             </div>
         |]
   where
-    fields =
-        AdminAction.createExportJobActionFields
-            defaultRangeStart
-            defaultRangeEnd
-            ""
+    fields = AdminAction.createExportJobActionFields defaultRangeStart defaultRangeEnd ""
 
 createExportRoute :: FrontendSurfaceActionRoute
 createExportRoute = FrontendSurfaceActionRoute

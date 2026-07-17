@@ -94,11 +94,7 @@ renderRosterGroupCreateForm showInactive =
         </div>
     |]
     where
-        fields =
-            AdminAction.createRosterGroupActionFields
-                showInactive
-                ""
-                True
+        fields = AdminAction.createRosterGroupActionFields showInactive "" True
         route = FrontendSurfaceActionRoute
             { actionRouteUrl = pathTo CreateRosterGroupAction
             , actionRouteCustomHtmx = []
@@ -127,11 +123,7 @@ renderRosterGroupRow showInactive activeCount (rosterGroupIndex, rosterGroup) = 
 |]
     where
         updateUrl = appendQueryParams (pathTo (UpdateRosterGroupAction (get #id rosterGroup))) [("rosterGroupId", tshow rosterGroup.id)]
-        fields =
-            AdminAction.updateRosterGroupActionFields
-                showInactive
-                rosterGroup.name
-                rosterGroup.isActive
+        fields = AdminAction.updateRosterGroupActionFields showInactive rosterGroup.name rosterGroup.isActive
         updateRoute = FrontendSurfaceActionRoute
             { actionRouteUrl = updateUrl
             , actionRouteCustomHtmx = []

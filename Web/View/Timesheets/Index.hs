@@ -62,9 +62,11 @@ timesheetsActionRoute actionUrl =
         , actionRouteExtraAttrs = []
         }
 
-timesheetStateSurfaceFields :: Int -> Bool -> Bool -> Bool -> Maybe UUID -> SurfaceFields (SurfaceActionFieldSpecs Surface.TimesheetsSurface Surface.NavigateTimesheetWeek)
-timesheetStateSurfaceFields weekOffset showApproved showAllStaff showSuggestions staffFilterId =
-    TimesheetsAction.navigateTimesheetWeekActionFields
+type TimesheetStateSurfaceFieldsBuilder = Int -> Bool -> Bool -> Bool -> Maybe UUID -> SurfaceFields (SurfaceActionFieldSpecs Surface.TimesheetsSurface Surface.NavigateTimesheetWeek)
+
+timesheetStateSurfaceFields :: TimesheetStateSurfaceFieldsBuilder -> Int -> Bool -> Bool -> Bool -> Maybe UUID -> SurfaceFields (SurfaceActionFieldSpecs Surface.TimesheetsSurface Surface.NavigateTimesheetWeek)
+timesheetStateSurfaceFields buildFields weekOffset showApproved showAllStaff showSuggestions staffFilterId =
+    buildFields
         weekOffset
         showApproved
         showAllStaff
@@ -169,7 +171,7 @@ renderTimesheetWeekNavigationLink :: Text -> Text -> Int -> Bool -> Bool -> Bool
 renderTimesheetWeekNavigationLink label url targetWeekOffset showApproved showAllStaff showSuggestions selectedStaffFilterId =
     renderFrontendSurfaceActionLink
         ( TimesheetsAction.navigateTimesheetWeekAction
-            (timesheetStateSurfaceFields targetWeekOffset showApproved showAllStaff showSuggestions selectedStaffFilterId)
+            (timesheetStateSurfaceFields TimesheetsAction.navigateTimesheetWeekActionFields targetWeekOffset showApproved showAllStaff showSuggestions selectedStaffFilterId)
         )
         (timesheetsActionRoute url)
             { actionRouteStandardUrl = Just url
@@ -232,7 +234,7 @@ renderTimesheetFilterForm updateUrl weekOffset showApproved showAllStaff showSug
             {when currentUserIsManager (renderTimesheetStaffFilter fields selectedStaffFilterId staffMembers)}
         |]
   where
-    fields = timesheetStateSurfaceFields weekOffset showApproved showAllStaff showSuggestions selectedStaffFilterId
+    fields = timesheetStateSurfaceFields TimesheetsAction.updateTimesheetFiltersActionFields weekOffset showApproved showAllStaff showSuggestions selectedStaffFilterId
 
 renderTimesheetStaffFilter :: SurfaceFields (SurfaceActionFieldSpecs Surface.TimesheetsSurface Surface.UpdateTimesheetFilters) -> Maybe UUID -> [Staff] -> Html
 renderTimesheetStaffFilter fields selectedStaffFilterId staffMembers = [hsx|
@@ -375,7 +377,7 @@ renderSuggestionCard model@TimesheetDayRenderModel { dayWeekOffset, dayShowAppro
         (renderSuggestionCreateAction createUrl action)
   where
     suggestedEntry = newTimesheetEntryFromSuggestion (unpackId currentVenueId) suggestion
-    stateFields = timesheetStateSurfaceFields dayWeekOffset dayShowApproved dayShowAllStaff dayShowSuggestions dayStaffFilterId
+    stateFields = timesheetStateSurfaceFields TimesheetsAction.createTimesheetEntryFromSuggestionActionFields dayWeekOffset dayShowApproved dayShowAllStaff dayShowSuggestions dayStaffFilterId
     createUrl = createTimesheetEntryFromSuggestionUrl suggestion.suggestionRosterSlotId dayWeekOffset dayShowApproved dayShowAllStaff dayShowSuggestions dayStaffFilterId
     editUrl = newTimesheetEntryFromSuggestionUrl suggestion.suggestionRosterSlotId dayWeekOffset dayShowApproved dayShowAllStaff dayShowSuggestions dayStaffFilterId
     action = TimesheetsAction.createTimesheetEntryFromSuggestionAction stateFields
@@ -509,16 +511,17 @@ renderApprovalAction dayOffset entry weekOffset showApproved showAllStaff showSu
     | not currentUserIsManager = mempty
     | entry.isApproved =
         renderTimesheetApprovalForm
-            (TimesheetsAction.unapproveTimesheetEntryAction stateFields)
+            (TimesheetsAction.unapproveTimesheetEntryAction unapproveFields)
             (pathTo (UnapproveTimesheetEntryAction entry.id))
             [hsx|<button type="submit" class="btn btn-sm btn-success timesheet-approval-toggle">Approved</button>|]
     | otherwise =
         renderTimesheetApprovalForm
-            (TimesheetsAction.approveTimesheetEntryAction stateFields)
+            (TimesheetsAction.approveTimesheetEntryAction approveFields)
             (pathTo (ApproveTimesheetEntryAction entry.id))
             [hsx|<button type="submit" class="btn btn-sm btn-outline-success timesheet-approval-toggle">Approve</button>|]
   where
-    stateFields = timesheetStateSurfaceFields weekOffset showApproved showAllStaff showSuggestions staffFilterId
+    approveFields = timesheetStateSurfaceFields TimesheetsAction.approveTimesheetEntryActionFields weekOffset showApproved showAllStaff showSuggestions staffFilterId
+    unapproveFields = timesheetStateSurfaceFields TimesheetsAction.unapproveTimesheetEntryActionFields weekOffset showApproved showAllStaff showSuggestions staffFilterId
 
 renderTimesheetApprovalForm :: FrontendSurfaceAction -> Text -> Html -> Html
 renderTimesheetApprovalForm action actionUrl button =

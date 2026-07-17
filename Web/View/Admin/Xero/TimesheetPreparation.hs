@@ -571,10 +571,7 @@ renderStaffEmployeeEditForm view row =
             <button type="submit" class="btn btn-sm btn-outline-secondary">Edit</button>
         |]
   where
-    fields =
-        AdminAction.showXeroTimesheetPreparationStaffMappingsActionFields
-            True
-            (Just (unpackId row.preparationStaffMappingRow.mappingRowStaff.id))
+    fields = AdminAction.showXeroTimesheetPreparationStaffMappingsActionFields True (Just (unpackId row.preparationStaffMappingRow.mappingRowStaff.id))
 
 staffEmployeeDisplay :: XeroPreparationStaffRow -> Text
 staffEmployeeDisplay row

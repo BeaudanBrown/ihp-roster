@@ -116,7 +116,7 @@ renderNewStaffBody formMode staff rosterGroups awardLevels awardLevelBaseRates i
                 , staffProfileDetailsFormClass = "mt-3"
                 , staffProfileDetailsFormRequestMode = staffDetailsFormRequestMode formMode (pathTo CreateStaffAction) CreateTrialStaffOverlayMarker
                 , staffProfileDetailsSurfaceFields =
-                    buildStaffProfileDetailsSurfaceFields "profile" staff (Just managementFields)
+                    buildStaffProfileDetailsSurfaceFields StaffFormSurface "profile" staff (Just managementFields)
                 , staffProfileDetailsFormAttributes = []
                 , staffProfileDetailsFormHiddenInputs = mempty
                 , staffProfileDetailsFormBeforeFields = [hsx|
@@ -277,11 +277,7 @@ renderStaffLeaveRequestForm staffId leaveRequest =
             </div>
         |]
   where
-    fields =
-        ProfileAction.createStaffLeaveRequestActionFields
-            leaveRequest.startDate
-            leaveRequest.endDate
-            (fromMaybe "" leaveRequest.notes)
+    fields = ProfileAction.createStaffLeaveRequestActionFields leaveRequest.startDate leaveRequest.endDate (fromMaybe "" leaveRequest.notes)
     fieldNames =
         LeaveRequestFieldNames
             { leaveRequestStartDateFieldName = surfaceFieldNameFrom @Surface.StartDate fields
@@ -377,7 +373,7 @@ renderStaffDetailsForm formMode staff maybeLinkedUserEmail managementFields acti
         maybeLinkedUserEmail
   where
     fields =
-        buildStaffProfileDetailsSurfaceFields "profile" staff (Just managementFields)
+        buildStaffProfileDetailsSurfaceFields StaffFormSurface "profile" staff (Just managementFields)
 
 renderTrialStaffInvitationModalFragment :: Staff -> [VenueInvitation] -> Maybe Text -> Maybe Text -> Int -> Maybe (Id RosterGroup) -> Html
 renderTrialStaffInvitationModalFragment staff pendingInvitations maybeError submittedEmail weekOffset maybeRosterGroupId =
@@ -490,7 +486,7 @@ renderStaffShiftPreferencesEditForm formMode preferenceWeekdays selectedShiftPre
         selectedShiftPreferences
   where
     fields =
-        buildStaffShiftPreferencesSurfaceFields "preferences" selectedShiftPreferences
+        buildStaffShiftPreferencesSurfaceFields StaffFormSurface "preferences" selectedShiftPreferences
 
 data StaffDetailsOverlayMarker
     = CreateTrialStaffOverlayMarker

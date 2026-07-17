@@ -590,10 +590,10 @@ Timesheets declarations. It added six private `.Generated.Action` modules
 adapter set is now 20 modules: seven Resource, seven Live, and six Action; Intent
 remains staged for #187. Measured against the #191 checkpoint commit over all
 changed `Web/**` production callers plus
-`Application/Helper/View/Timesheets.hs`, the migration added 249 handwritten
-lines and removed 250, for one net handwritten production-caller line deleted.
-That deliberately modest net retains domain-shaped mappings for Profile/Staff,
-Timesheets, and Admin shift-type same-shape bundles instead of replacing them
+`Application/Helper/View/Timesheets.hs`, the migration added 262 handwritten
+lines and removed 269, for seven net handwritten production-caller lines
+deleted. That deliberately modest net retains domain-shaped mappings for
+Profile/Staff, Timesheets, and Admin shift-type same-shape bundles instead of replacing them
 with opaque wide positional calls. The former 33 generic parser calls and 50
 generic metadata calls are zero.
 
