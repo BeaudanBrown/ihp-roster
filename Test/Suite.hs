@@ -53,6 +53,7 @@ import qualified Test.FrontendContractsSpec
 import qualified Test.FrontendSurfaceAdapterGeneratorSpec
 import qualified Test.FrontendSurfaceDslSpec
 import qualified Test.FrontendSurfaceNamingSpec
+import qualified Test.FrontendSurfaceRequestAdapterSpec
 import qualified Test.FwcMapdSyncSpec
 import qualified Test.LiveUpdateSpec
 import qualified Test.MailSpec
@@ -273,6 +274,7 @@ allSuites =
     , pureSuite "FrontendContract" 5 Test.FrontendContractSpec.tests
     , pureSuite "FrontendContracts" 15 Test.FrontendContractsSpec.tests
     , pureSuite "FrontendSurfaceAdapterGenerator" 5 Test.FrontendSurfaceAdapterGeneratorSpec.tests
+    , pureSuite "FrontendSurfaceRequestAdapter" 5 Test.FrontendSurfaceRequestAdapterSpec.tests
     , pureSuite "FrontendSurfaceNaming" 5 Test.FrontendSurfaceNamingSpec.tests
     , pureSuite "FrontendSurfaceDSL" 15 Test.FrontendSurfaceDslSpec.tests
     , pureSuite "LiveUpdate" 20 Test.LiveUpdateSpec.tests

@@ -228,9 +228,11 @@ home, and migrated all curated Live facades behind seven private generated
 modules, completing #183. #185 established separate checked Action and Intent
 renderers, operation-complete production inventories, curated compiled fixtures,
 and two explicitly staged empty production lanes while retaining all 14
-Resource/Live outputs. #186 now coordinates an evidence-only Profile/Staff
-checkpoint in #191 followed by complete Action publication and migration in
-#192; partial production Action homes are never valid. #187 follows #186,
+Resource/Live outputs. #191 has now captured the independent Profile/Staff
+boundary, focused request-adapter spec, deletion estimate, and cold
+compile/import baseline without
+publishing a partial home set. #192 owns complete Action publication and caller
+migration; partial production Action homes are never valid. #187 follows #186,
 migrates all five Roster intents together, and owns deletion of the final shared
 staging and temporary source-count machinery. #184 follows #164 and #181.
 Shared browser slices depend on typed schema builders;

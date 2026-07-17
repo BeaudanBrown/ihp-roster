@@ -151,7 +151,12 @@ exclusions. Every intent operation is currently eligible. Production Action and
 Intent homes are still explicitly empty, assigned to #186 and #187, and checked
 against a mandatory #184 parent expiry, so the foundation validates both
 complete inventories without emitting production
-Action/Intent modules before their caller migrations.
+Action/Intent modules before their caller migrations. The #191 checkpoint adds
+an independently registered request-adapter spec that pins all six current
+Profile/Staff Action bundles, literal HTMX metadata, structured parsing and
+diagnostics, and semantic submission selection before #192 changes callers.
+Nullable and nested-list Action shapes remain owned by the compiled #185 fixture
+rather than invented production declarations.
 
 `generateSurfaceAdapterModules` is the mandatory all-kind composer used by the
 write/drift workflow. It accumulates Resource, Live, Action, and Intent focused

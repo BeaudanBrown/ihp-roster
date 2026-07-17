@@ -534,6 +534,52 @@ field-builder, and parser source mechanics exercised by both focused renderers;
 #187 consume these seams by changing homes/facades/callers and must not evolve a
 parallel registry, operation model, universal renderer, or publication path.
 
+The #191 Profile/Staff checkpoint keeps production Action homes empty while
+capturing the first migration boundary. Action/Intent builder, metadata, parser,
+diagnostic, and operation-inventory contracts moved out of the former
+1,578-line generator spec into the independently registered
+`Test.FrontendSurfaceRequestAdapterSpec`; the shared core/composer spec is now
+1,186 lines and the focused spec is 739 lines after adding production
+characterization coverage. Literal expectations pin all six Profile/Staff
+Action names and HTMX metadata. The same seam exercises required text, integer,
+and day fields; optional text and boolean fields; optional UUID and text lists;
+structured success; declaration-ordered missing/malformed diagnostics; and the
+semantic details-versus-preferences selection. Nullable and nested-list shapes
+remain compiled only through #185's unregistered fixture because production has
+no such Action declaration.
+
+The pre-migration Profile/Staff mechanical boundary is 37 source lines: four
+field-bundle bodies occupy 25 lines (13 profile-detail fields, two preference
+fields, and the two three-field leave bundles), six generic
+`frontendSurfaceAction` expressions live in `Web/View/Profiles/Edit.hs` and
+`Web/View/Staff/Edit.hs`, and six generic parser expressions live in
+`Web/Staff/ProfileSurfaceRequest.hs` and `Web/Controller/LeaveRequests.hs`.
+Domain projection, semantic submission selection, route context, and response
+orchestration are deliberately excluded because they remain handwritten. Those
+six parsers are part of the repository-wide 33-call Action baseline recorded by
+#185.
+
+A test-only checked rendering restricted to the six Profile/Staff declarations
+estimates one 233-line private `.Generated.Action` module plus a 39-line curated
+re-export facade: 272 added generated/facade lines across two modules. This did
+not register partial production homes or materialize either production file. A
+single same-host isolated cold compile with a fresh `TYPECHECK_BUILD_DIR` of
+`typecheck Web/Staff/ProfileSurfaceRequest.hs` loaded 522 modules in 47.679
+seconds. Its closure was 480 `Generated.*` model modules, 38 `Application.*`
+modules, and four `Web.*` modules. The complete non-generated closure was:
+
+- `Application.Helper.FrontendContract.{Core,DSL,Interaction,Naming}`;
+- `Application.Helper.FrontendContract.Surface.{DSL,Admin,Billing,ContractIR,Diagnostics,Interaction,LeaveRequests,Profile,Reflect,Registry,Request,Roster,SemanticIR,Support,Timesheets,Values}`;
+- `Application.Bepis.{Action,Architecture,Controller,Fact,Prelude,Response}`;
+- `Application.Helper.{Audit,Conflict,Controller,ControllerAccess,ControllerContext,ControllerSupport,Htmx,Profiling,Telemetry,TimeRules,WeekBoundaries}` plus `Application.Helper.Controller.Input`;
+- `Web.Types`, `Web.Routes`, `Web.Controller.Prelude`, and
+  `Web.Staff.ProfileSurfaceRequest`.
+
+No `HaskellAdapter` implementation, registry, generator, request renderer, or
+future generated Action module appears in that baseline closure. The module and
+wall-clock figures are one noisy checkpoint sample, not a benchmark; #192 owns
+the paired post-migration deletion and compile/import comparison.
+
 Write and verify output with:
 
 ```bash
