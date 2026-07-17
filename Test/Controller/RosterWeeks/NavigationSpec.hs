@@ -206,6 +206,7 @@ tests = beforeAll testContext do
                 response `responseBodyShouldContain` "data-bepis-surface-config=\""
                 response `responseBodyShouldContain` "timesheets:"
                 response `responseBodyShouldContain` "timesheet-day-section"
+                response `responseBodyShouldContain` "data-bepis-surface-action=\"create-roster-self-service-leave-request\""
                 response `responseBodyShouldNotContain` "data-live-update-surface"
 
                 body <- responseBody response
@@ -259,6 +260,7 @@ tests = beforeAll testContext do
                 manager <- createUserRecord "roster-manager-empty-create@example.com" "staff" True
                 _ <- createVenueMembershipRecord venue manager "manager"
                 _ <- fetchSlotNameRecord venue "Early"
+                _ <- createVenueRosterGroupWithDefaults venue "Back of House" 1 False
 
                 response <- withUserAndCurrentVenue manager venue.id do
                     callAction (ShowRosterWeekAction 0)
@@ -286,6 +288,13 @@ tests = beforeAll testContext do
                 response `responseBodyShouldContain` "app-toggle-button btn-outline-success"
                 response `responseBodyShouldContain` "aria-pressed=\"false\""
                 response `responseBodyShouldContain` "role=\"switch\" aria-checked=\"false\""
+                response `responseBodyShouldContain` "data-bepis-surface-action=\"navigate-roster-week\""
+                response `responseBodyShouldContain` "data-bepis-surface-action=\"toggle-roster-week-live-status\""
+                response `responseBodyShouldContain` "data-bepis-surface-action=\"toggle-roster-staff-scope\""
+                response `responseBodyShouldContain` "data-bepis-surface-action=\"toggle-roster-warnings\""
+                response `responseBodyShouldContain` "data-bepis-surface-action=\"toggle-roster-assignment-filters\""
+                response `responseBodyShouldContain` "data-bepis-surface-action=\"sort-roster-week\""
+                response `responseBodyShouldContain` "data-bepis-surface-action=\"copy-roster-week\""
 
         it "hides copy previous week controls from staff users" $ withContext do
             withCleanDb do

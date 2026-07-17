@@ -15,11 +15,11 @@ import Application.Helper.FrontendContract.AppShell.Runtime (AppShellActionRoute
                                                              renderAppShellActionForm)
 import qualified Application.Helper.FrontendContract.Surface.Interaction as SurfaceInteraction
 import Application.Helper.FrontendContract.Surface.Request (SurfaceRequestFieldError,
-                                                            parseSurfaceActionParams,
                                                             parseSurfaceIntentParams,
                                                             surfaceActionParamsPresent,
                                                             surfaceRequestFieldErrorsMessage)
 import qualified Application.Helper.FrontendContract.Surface.Roster as Surface
+import qualified Application.Helper.FrontendContract.Surface.Roster.Action as RosterAction
 import Application.Helper.FrontendContract.Surface.Values
 import Application.Helper.Profiling
 import Application.Helper.RosterGroups
@@ -88,7 +88,7 @@ parseRosterStaffPanelScope :: (?request :: Request) => Either Text RosterStaffPa
 parseRosterStaffPanelScope
     | not (surfaceActionParamsPresent @Surface.RosterSurface @Surface.ToggleRosterStaffScope) = Right RosterStaffPanelCurrentGroup
     | otherwise =
-        case parseSurfaceActionParams @Surface.RosterSurface @Surface.ToggleRosterStaffScope of
+        case RosterAction.parseToggleRosterStaffScopeActionParams of
             Left errors -> Left (rosterSurfaceRequestErrorMessage errors)
             Right fields ->
                 case Text.toLower (surfaceFieldValue @Surface.StaffScope fields) of
@@ -128,7 +128,7 @@ instance Controller RosterWeeksController where
     action currentAction@ShowRosterWeekAction { weekOffset } = runBepis currentAction BepisPageAction do
         rosterGroup <- resolveRequestedRosterGroup
         when (surfaceActionParamsPresent @Surface.RosterSurface @Surface.NavigateRosterWeek) do
-            case parseSurfaceActionParams @Surface.RosterSurface @Surface.NavigateRosterWeek of
+            case RosterAction.parseNavigateRosterWeekActionParams of
                 Left errors -> do
                     setErrorMessage (rosterSurfaceRequestErrorMessage errors)
                     redirectTo RosterWeeksAction
@@ -240,7 +240,7 @@ instance Controller RosterWeeksController where
     action currentAction@UpdateRosterAssignmentFiltersAction { weekOffset } = runBepis currentAction BepisPreferenceAction do
         ensureManagerRole
         rosterGroup <- resolveRequestedRosterGroup
-        case parseSurfaceActionParams @Surface.RosterSurface @Surface.ToggleRosterAssignmentFilters of
+        case RosterAction.parseToggleRosterAssignmentFiltersActionParams of
             Left errors -> do
                 let errorMessage = rosterSurfaceRequestErrorMessage errors
                 if isHtmxRequest
@@ -321,7 +321,7 @@ instance Controller RosterWeeksController where
         rosterWeek <- fetch rosterWeekId
         ensureRecordInCurrentVenue rosterWeek.venueId
         let rosterGroupId = coerce rosterWeek.rosterGroupId
-        case parseSurfaceActionParams @Surface.RosterSurface @Surface.ToggleRosterWeekLiveStatus of
+        case RosterAction.parseToggleRosterWeekLiveStatusActionParams of
             Left errors -> do
                 let errorMessage = rosterSurfaceRequestErrorMessage errors
                 if isHtmxRequest
@@ -687,7 +687,7 @@ instance Controller RosterWeeksController where
         runBepis currentAction BepisMutationAction do
             ensureManagerRole
             rosterGroup <- resolveRequestedRosterGroup
-            case parseSurfaceActionParams @Surface.RosterSurface @Surface.ToggleRosterWarnings of
+            case RosterAction.parseToggleRosterWarningsActionParams of
                 Left errors -> do
                     let errorMessage = rosterSurfaceRequestErrorMessage errors
                     if isHtmxRequest
@@ -704,7 +704,7 @@ instance Controller RosterWeeksController where
     action currentAction@UpdateRosterWageEstimatePreferenceAction { weekOffset } = runBepis currentAction BepisPreferenceAction do
         accessDeniedUnless (hasRole VenueAdminRole)
         rosterGroup <- resolveRequestedRosterGroup
-        case parseSurfaceActionParams @Surface.RosterSurface @Surface.ToggleRosterWageEstimates of
+        case RosterAction.parseToggleRosterWageEstimatesActionParams of
             Left errors -> do
                 let errorMessage = rosterSurfaceRequestErrorMessage errors
                 if isHtmxRequest

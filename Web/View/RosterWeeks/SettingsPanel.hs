@@ -6,9 +6,9 @@ module Web.View.RosterWeeks.SettingsPanel
 
 import qualified Application.Helper.FrontendContract.Surface.Interaction as SurfaceInteraction
 import qualified Application.Helper.FrontendContract.Surface.Roster as Surface
+import qualified Application.Helper.FrontendContract.Surface.Roster.Action as RosterAction
 import Application.Helper.FrontendContract.Surface.Runtime (FrontendSurfaceActionRoute (..),
                                                             FrontendSurfaceCustomHtmxAttrs (..),
-                                                            frontendSurfaceAction,
                                                             renderFrontendSurfaceActionForm)
 import Application.Helper.FrontendContract.Surface.Values
 import Application.Helper.UserPreferences (rosterLayoutModeLabel,
@@ -77,9 +77,9 @@ renderRosterGroupSwitcher weekOffset rosterGroups currentRosterGroup = [hsx|
   where
     fields :: SurfaceFields (SurfaceActionFieldSpecs Surface.RosterSurface Surface.NavigateRosterWeek)
     fields =
-        surfaceField @Surface.WeekOffset weekOffset
-            :& surfaceField @Surface.RosterGroupId (unpackId currentRosterGroup.id)
-            :& NoSurfaceFields
+        RosterAction.navigateRosterWeekActionFields
+            weekOffset
+            (unpackId currentRosterGroup.id)
 
 renderRosterGroupSwitchOption :: Id RosterGroup -> RosterGroup -> Html
 renderRosterGroupSwitchOption selectedRosterGroupId rosterGroup = [hsx|
@@ -128,28 +128,28 @@ renderRosterDisplayPreferencesSection weekOffset rosterGroupId viewCapabilities 
 renderRosterWarningPreferenceForm :: (?context :: ControllerContext) => Int -> Id RosterGroup -> Bool -> Html
 renderRosterWarningPreferenceForm weekOffset rosterGroupId showRosterWarnings =
     renderFrontendSurfaceActionForm
-        (frontendSurfaceAction @Surface.RosterSurface @Surface.ToggleRosterWarnings fields)
+        (RosterAction.toggleRosterWarningsAction fields)
         (rosterWeekShellSyncRoute (rosterWarningPreferenceUrl weekOffset rosterGroupId))
             { actionRouteStandardUrl = Just (rosterWarningPreferenceUrl weekOffset rosterGroupId)
             , actionRouteExtraAttrs = [("class", "mb-0")]
             }
         [hsx|<div class="roster-display-toggle">{renderRosterWarningToggle fields showRosterWarnings}</div>|]
   where
-    fields = surfaceField @Surface.ShowRosterWarnings showRosterWarnings :& NoSurfaceFields
+    fields = RosterAction.toggleRosterWarningsActionFields showRosterWarnings
 
 renderRosterWageEstimatePreferenceForm :: (?context :: ControllerContext) => Int -> Id RosterGroup -> RosterViewCapabilities -> Bool -> Html
 renderRosterWageEstimatePreferenceForm weekOffset rosterGroupId viewCapabilities showWageEstimates
     | not viewCapabilities.canViewWageEstimates = mempty
     | otherwise =
         renderFrontendSurfaceActionForm
-            (frontendSurfaceAction @Surface.RosterSurface @Surface.ToggleRosterWageEstimates fields)
+            (RosterAction.toggleRosterWageEstimatesAction fields)
             (rosterWeekShellSyncRoute (rosterWageEstimatePreferenceUrl weekOffset rosterGroupId))
                 { actionRouteStandardUrl = Just (rosterWageEstimatePreferenceUrl weekOffset rosterGroupId)
                 , actionRouteExtraAttrs = [("class", "mb-0")]
                 }
             [hsx|<div class="roster-display-toggle">{renderRosterWageEstimateToggle fields showWageEstimates}</div>|]
   where
-    fields = surfaceField @Surface.ShowWageEstimates showWageEstimates :& NoSurfaceFields
+    fields = RosterAction.toggleRosterWageEstimatesActionFields showWageEstimates
 
 renderRosterWarningToggle :: SurfaceFields (SurfaceActionFieldSpecs Surface.RosterSurface Surface.ToggleRosterWarnings) -> Bool -> Html
 renderRosterWarningToggle fields showRosterWarnings = [hsx|
@@ -188,7 +188,7 @@ renderRosterWageEstimateToggle fields showWageEstimates = [hsx|
 renderRosterAssignmentFiltersSection :: (?context :: ControllerContext) => Int -> Id RosterGroup -> RosterAssignmentFilters -> Html
 renderRosterAssignmentFiltersSection weekOffset rosterGroupId filters =
     renderFrontendSurfaceActionForm
-        (frontendSurfaceAction @Surface.RosterSurface @Surface.ToggleRosterAssignmentFilters fields)
+        (RosterAction.toggleRosterAssignmentFiltersAction fields)
         (rosterWeekShellSyncRoute (rosterAssignmentFiltersUrl weekOffset rosterGroupId))
             { actionRouteStandardUrl = Just (rosterAssignmentFiltersUrl weekOffset rosterGroupId)
             , actionRouteExtraAttrs =
@@ -206,11 +206,11 @@ renderRosterAssignmentFiltersSection weekOffset rosterGroupId filters =
         |]
   where
     fields =
-        surfaceField @Surface.HideStaffAtIdealShifts filters.hideStaffAtIdealShifts
-            :& surfaceField @Surface.HideStaffUnavailable filters.hideStaffUnavailable
-            :& surfaceField @Surface.HideStaffOnApprovedLeave filters.hideStaffOnApprovedLeave
-            :& surfaceField @Surface.HideStaffAlreadyAssignedToday filters.hideStaffAlreadyAssignedToday
-            :& NoSurfaceFields
+        RosterAction.toggleRosterAssignmentFiltersActionFields
+            filters.hideStaffAtIdealShifts
+            filters.hideStaffUnavailable
+            filters.hideStaffOnApprovedLeave
+            filters.hideStaffAlreadyAssignedToday
 
 renderRosterAssignmentFilterToggle :: Text -> Text -> Bool -> Text -> Html
 renderRosterAssignmentFilterToggle inputId fieldName isChecked label = [hsx|
@@ -252,7 +252,7 @@ renderRosterSortForm :: (?context :: ControllerContext) => Maybe RosterWeek -> R
 renderRosterSortForm (Just rosterWeek) viewCapabilities
     | shouldShowRosterSortForm (Just rosterWeek) viewCapabilities =
         renderFrontendSurfaceActionForm
-            (frontendSurfaceAction @Surface.RosterSurface @Surface.SortRosterWeek NoSurfaceFields)
+            (RosterAction.sortRosterWeekAction RosterAction.sortRosterWeekActionFields)
             (rosterWeekShellSyncRoute (pathTo (SortRosterWeekAction rosterWeek.id)))
                 { actionRouteStandardUrl = Just (pathTo (SortRosterWeekAction rosterWeek.id))
                 , actionRouteExtraAttrs = [("class", "mb-0 roster-week-action-form")]
@@ -268,7 +268,7 @@ renderRosterSortForm _ _ = mempty
 renderCopyPreviousWeekForm :: (?context :: ControllerContext) => Int -> Id RosterGroup -> Html
 renderCopyPreviousWeekForm weekOffset rosterGroupId =
     renderFrontendSurfaceActionForm
-        (frontendSurfaceAction @Surface.RosterSurface @Surface.CopyRosterWeek NoSurfaceFields)
+        (RosterAction.copyRosterWeekAction RosterAction.copyRosterWeekActionFields)
         (rosterWeekShellSyncRoute (rosterCopyWeekUrl (weekOffset - 1) weekOffset rosterGroupId))
             { actionRouteCustomHtmx =
                 [ FrontendSurfaceCustomHtmxAttrs "copy-roster-week-custom-htmx" [("hx-confirm", "This will overwrite the current week with the previous week's roster. Continue?")]

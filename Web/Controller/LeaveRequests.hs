@@ -4,9 +4,9 @@ import qualified Application.Helper.FrontendContract.Surface.Profile as ProfileS
 import qualified Application.Helper.FrontendContract.Surface.Profile.Action as ProfileAction
 import Application.Helper.FrontendContract.Surface.Request (SurfaceRequestFieldError,
                                                             attachSurfaceRequestFieldErrors,
-                                                            parseSurfaceActionParams,
                                                             surfaceRequestFieldErrorsMessage)
 import qualified Application.Helper.FrontendContract.Surface.Roster as RosterSurface
+import qualified Application.Helper.FrontendContract.Surface.Roster.Action as RosterAction
 import Application.Helper.FrontendContract.Surface.Values (surfaceFieldValue)
 import Application.Helper.LiveUpdate (setActorLiveResourcesRefresh)
 import Application.Helper.ProfileLeave (buildDefaultLeaveRequest,
@@ -249,7 +249,7 @@ parseSurfaceLeaveRequest LeaveStaffResponseContext =
 parseSurfaceLeaveRequest LeaveRosterResponseContext =
     Just $
         toRosterLeaveRequest
-            <$> parseSurfaceActionParams @RosterSurface.RosterSurface @RosterSurface.CreateRosterSelfServiceLeaveRequest
+            <$> RosterAction.parseCreateRosterSelfServiceLeaveRequestActionParams
   where
     toRosterLeaveRequest fields =
         SurfaceLeaveRequest

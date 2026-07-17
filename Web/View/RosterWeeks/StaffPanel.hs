@@ -18,8 +18,8 @@ import Application.Helper.FrontendContract.RosterValues (RosterStaffSortKey (..)
                                                          rosterStaffSortKeyAttribute)
 import qualified Application.Helper.FrontendContract.Surface.Interaction as SurfaceInteraction
 import qualified Application.Helper.FrontendContract.Surface.Roster as Surface
+import qualified Application.Helper.FrontendContract.Surface.Roster.Action as RosterAction
 import Application.Helper.FrontendContract.Surface.Runtime (FrontendSurfaceActionRoute (..),
-                                                            frontendSurfaceAction,
                                                             frontendSurfaceActionHtmxAttrPairs)
 import Application.Helper.FrontendContract.Surface.Values
 import Application.Helper.Profiling (profileHtmlComponent, profileRenderCounter)
@@ -328,7 +328,7 @@ renderStaffScopeToggle weekOffset currentRosterGroupId panelScope = [hsx|
     </form>
 |]
   where
-    fields = surfaceField @Surface.StaffScope (if panelScope == RosterStaffPanelAllVenue then "all" else "group") :& NoSurfaceFields
+    fields = RosterAction.toggleRosterStaffScopeActionFields (if panelScope == RosterStaffPanelAllVenue then "all" else "group")
 
 renderStaffScopeToggleButton :: (?context :: ControllerContext) => SurfaceFields (SurfaceActionFieldSpecs Surface.RosterSurface Surface.ToggleRosterStaffScope) -> Int -> Id RosterGroup -> RosterStaffPanelScope -> Html
 renderStaffScopeToggleButton fields weekOffset currentRosterGroupId panelScope =
@@ -342,7 +342,7 @@ renderStaffScopeToggleButton fields weekOffset currentRosterGroupId panelScope =
         , appToggleHiddenInputUncheckedValue = Just "group"
         , appToggleInputExtraAttrs =
             frontendSurfaceActionHtmxAttrPairs
-                (frontendSurfaceAction @Surface.RosterSurface @Surface.ToggleRosterStaffScope fields)
+                (RosterAction.toggleRosterStaffScopeAction fields)
                 FrontendSurfaceActionRoute
                     { actionRouteUrl = pathTo (ShowRosterWeekStaffPanelFragmentAction weekOffset)
                     , actionRouteCustomHtmx = []

@@ -11,9 +11,9 @@ module Web.View.RosterWeeks.StaffSelfServicePanel
     ) where
 
 import qualified Application.Helper.FrontendContract.Surface.Roster as RosterSurface
+import qualified Application.Helper.FrontendContract.Surface.Roster.Action as RosterAction
 import Application.Helper.FrontendContract.Surface.Runtime (FrontendSurfaceActionRoute (..),
                                                             SurfaceImpl,
-                                                            frontendSurfaceAction,
                                                             renderFrontendSurfaceActionForm,
                                                             renderFrontendSurfaceMount)
 import qualified Application.Helper.FrontendContract.Surface.Timesheets as Surface
@@ -91,7 +91,7 @@ renderRosterStaffSelfServiceLeaveFormFragmentWithSwap maybeSwapOob maybeRosterSc
 renderRosterStaffSelfServiceLeaveForm :: (?context :: ControllerContext) => Maybe (Id RosterGroup, Int) -> LeaveRequest -> Html
 renderRosterStaffSelfServiceLeaveForm maybeRosterScope leaveRequest =
     renderFrontendSurfaceActionForm
-        (frontendSurfaceAction @RosterSurface.RosterSurface @RosterSurface.CreateRosterSelfServiceLeaveRequest fields)
+        (RosterAction.createRosterSelfServiceLeaveRequestAction fields)
         FrontendSurfaceActionRoute
             { actionRouteUrl = rosterCreateLeaveRequestPath
             , actionRouteCustomHtmx = []
@@ -111,10 +111,10 @@ renderRosterStaffSelfServiceLeaveForm maybeRosterScope leaveRequest =
         |]
   where
     fields =
-        surfaceField @RosterSurface.StartDate leaveRequest.startDate
-            :& surfaceField @RosterSurface.EndDate leaveRequest.endDate
-            :& surfaceField @RosterSurface.Notes (fromMaybe "" leaveRequest.notes)
-            :& NoSurfaceFields
+        RosterAction.createRosterSelfServiceLeaveRequestActionFields
+            leaveRequest.startDate
+            leaveRequest.endDate
+            (fromMaybe "" leaveRequest.notes)
     fieldNames =
         LeaveRequestFieldNames
             { leaveRequestStartDateFieldName = surfaceFieldNameFrom @RosterSurface.StartDate fields
