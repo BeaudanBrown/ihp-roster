@@ -17,10 +17,10 @@ module Web.LeaveRequests.ReadModel
 
 import Application.Helper.FrontendContract.Surface.FragmentRender (FragmentRenderMode (..))
 import qualified Application.Helper.FrontendContract.Surface.LeaveRequests as Surface
+import qualified Application.Helper.FrontendContract.Surface.LeaveRequests.Action as LeaveRequestsAction
 import Application.Helper.FrontendContract.Surface.LeaveRequests.Live (leaveRequestsLiveScope)
 import Application.Helper.FrontendContract.Surface.Live (SurfaceScope)
 import Application.Helper.FrontendContract.Surface.Request (SurfaceRequestFieldError,
-                                                            parseSurfaceActionParams,
                                                             surfaceActionParamsPresent)
 import Application.Helper.FrontendContract.Surface.Runtime (SurfaceImpl)
 import Application.Helper.FrontendContract.Surface.Values (surfaceFieldValue)
@@ -136,7 +136,7 @@ currentLeaveArchivePage =
 currentLeaveArchivePageResult :: (?request :: Request) => Either [SurfaceRequestFieldError] Int
 currentLeaveArchivePageResult
     | not (surfaceActionParamsPresent @Surface.LeaveRequestsSurface @Surface.ArchiveLeaveRequestsPage) = Right 1
-    | otherwise = max 1 . surfaceFieldValue @Surface.ArchivePage <$> parseSurfaceActionParams @Surface.LeaveRequestsSurface @Surface.ArchiveLeaveRequestsPage
+    | otherwise = max 1 . surfaceFieldValue @Surface.ArchivePage <$> LeaveRequestsAction.parseArchiveLeaveRequestsPageActionParams
 
 currentLeaveArchiveOpen :: (?request :: Request) => Bool
 currentLeaveArchiveOpen =

@@ -185,6 +185,8 @@ tests = beforeAll testContext do
                 response `responseBodyShouldContain` "Pending (1)"
                 response `responseBodyShouldContain` "Approve"
                 response `responseBodyShouldContain` "hx-swap=\"none\""
+                response `responseBodyShouldContain` "data-bepis-surface-action=\"approve-leave-request\""
+                response `responseBodyShouldContain` "data-bepis-surface-action=\"deny-leave-request\""
                 response `responseBodyShouldNotContain` "Add unavailable time"
 
         it "denies super-admin self-service leave creation" $ withContext do
@@ -333,6 +335,7 @@ tests = beforeAll testContext do
                 firstPageResponse `responseBodyShouldNotContain` "archive-page-note-11"
                 firstPageResponse `responseBodyShouldContain` "Older"
                 firstPageResponse `responseBodyShouldContain` "archivePage=2"
+                firstPageResponse `responseBodyShouldContain` "data-bepis-surface-action=\"archive-leave-requests-page\""
 
                 olderPageResponse `responseStatusShouldBe` status200
                 olderPageResponse `responseBodyShouldContain` "Pending (1)"

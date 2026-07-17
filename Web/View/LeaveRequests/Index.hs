@@ -6,9 +6,9 @@ import Application.Helper.Controller (LeaveRequestStatus (..),
                                       leaveRequestIsArchivedOn,
                                       parseLeaveRequestStatus)
 import qualified Application.Helper.FrontendContract.Surface.LeaveRequests as Surface
+import qualified Application.Helper.FrontendContract.Surface.LeaveRequests.Action as LeaveRequestsAction
 import Application.Helper.FrontendContract.Surface.Runtime (FrontendSurfaceActionRoute (..),
                                                             SurfaceImpl,
-                                                            frontendSurfaceAction,
                                                             renderFrontendSurfaceActionForm,
                                                             renderFrontendSurfaceActionLink,
                                                             renderFrontendSurfaceMount)
@@ -355,7 +355,7 @@ renderArchivePageNumber pagination@ArchivePagination { archivePaginationCurrentP
 renderArchivePageLink :: (?context :: ControllerContext) => ArchivePagination -> Int -> Text -> Bool -> Text -> Html
 renderArchivePageLink ArchivePagination { archivePaginationCurrentPage, archivePaginationTotalPages } requestedPage label isDisabled ariaLabel =
     renderFrontendSurfaceActionLink
-        (frontendSurfaceAction @Surface.LeaveRequestsSurface @Surface.ArchiveLeaveRequestsPage fields)
+        (LeaveRequestsAction.archiveLeaveRequestsPageAction fields)
         (leaveRequestsActionRoute fragmentHref)
             { actionRouteStandardUrl = Just href
             , actionRouteExtraAttrs =
@@ -369,9 +369,7 @@ renderArchivePageLink ArchivePagination { archivePaginationCurrentPage, archiveP
     where
         targetPage = min archivePaginationTotalPages (max 1 requestedPage)
         effectivePage = if isDisabled then archivePaginationCurrentPage else targetPage
-        fields =
-            surfaceField @Surface.ArchivePage effectivePage :& NoSurfaceFields
-                :: SurfaceFields (SurfaceActionFieldSpecs Surface.LeaveRequestsSurface Surface.ArchiveLeaveRequestsPage)
+        fields = LeaveRequestsAction.archiveLeaveRequestsPageActionFields effectivePage
         pageParam = [(surfaceFieldNameFrom @Surface.ArchivePage fields, tshow effectivePage), ("openSection", "archive")]
         href = appendQueryParams (pathTo LeaveRequestsAction) pageParam
         fragmentHref = appendQueryParams (pathTo ShowleaveRequestsContentLiveFragmentAction) (pageParam <> [("swapOob", "true")])
@@ -487,8 +485,8 @@ renderReviewActions leaveRequest
 renderReviewActionForm :: (?context :: ControllerContext) => LeaveRequestsController -> Text -> Text -> Html
 renderReviewActionForm action buttonClass label =
     case action of
-        ApproveLeaveRequestAction {} -> render (frontendSurfaceAction @Surface.LeaveRequestsSurface @Surface.ApproveLeaveRequest NoSurfaceFields)
-        DenyLeaveRequestAction {} -> render (frontendSurfaceAction @Surface.LeaveRequestsSurface @Surface.DenyLeaveRequest NoSurfaceFields)
+        ApproveLeaveRequestAction {} -> render (LeaveRequestsAction.approveLeaveRequestAction LeaveRequestsAction.approveLeaveRequestActionFields)
+        DenyLeaveRequestAction {} -> render (LeaveRequestsAction.denyLeaveRequestAction LeaveRequestsAction.denyLeaveRequestActionFields)
         _ -> error "unsupported leave request review action"
     where
         render actionContract =
