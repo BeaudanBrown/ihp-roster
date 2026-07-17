@@ -6,7 +6,7 @@ GitHub issues:
 
 - `#136` - Make FrontendContract the executable runtime authority and retire stale runtime code
 - Contract authority: `#161`-`#166`
-- Haskell adapter ergonomics: `#180`-`#188`
+- Haskell adapter ergonomics: `#180`-`#192`
 - Shared browser capabilities: `#167`-`#173`
 - Roster browser capabilities: `#174`-`#178`
 - Final reconciliation: `#179`
@@ -184,8 +184,13 @@ slices, and all block final reconciliation.
     sub-issues:
     - `#185` - Add the kind-separated generated action/intent renderers and
       compiled fixture.
-    - `#186` - Migrate typed Surface action facades.
-    - `#187` - Migrate typed Surface intent facades.
+    - `#186` - Coordinate the all-or-nothing Action migration through:
+      - `#191` - Capture the independent Profile/Staff boundary and split the
+        focused request-adapter test seam without publishing partial homes.
+      - `#192` - Publish the complete Action home set and migrate all production
+        Action callers.
+    - `#187` - Migrate the complete Roster Intent set after `#186`, then remove
+      the final shared Action/Intent staging machinery.
 
 ### Shared browser capabilities
 
@@ -220,12 +225,15 @@ established the checked Live renderer/output lane, compiled fixture, atomic
 all-kind composition, and independent identity goldens. #189 then accepted a
 Timesheets Live checkpoint, registered every production scope/eligible fragment
 home, and migrated all curated Live facades behind seven private generated
-modules. #185 establishes separate checked Action and Intent renderers,
-operation-complete production inventories, curated compiled fixtures, and two
-explicitly staged empty production lanes while retaining all 14 Resource/Live
-outputs. #186 and #187 consume that fixed seam to migrate their facades
-independently. #183 also follows #162 and #181, while #184 follows #164 and
-#181. Shared browser slices depend on typed schema builders;
+modules, completing #183. #185 established separate checked Action and Intent
+renderers, operation-complete production inventories, curated compiled fixtures,
+and two explicitly staged empty production lanes while retaining all 14
+Resource/Live outputs. #186 now coordinates an evidence-only Profile/Staff
+checkpoint in #191 followed by complete Action publication and migration in
+#192; partial production Action homes are never valid. #187 follows #186,
+migrates all five Roster intents together, and owns deletion of the final shared
+staging and temporary source-count machinery. #184 follows #164 and #181.
+Shared browser slices depend on typed schema builders;
 ordered ranges also depend on toggle presentation.
 Roster linked highlighting depends on closed interaction IR. Staff-panel work
 establishes the browser-reachable Surface DTO path for image export and week
