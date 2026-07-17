@@ -33,7 +33,7 @@ import qualified Test.Support.FrontendSurfaceAdapterFixture.Generated.Live as Ge
 import qualified Test.Support.FrontendSurfaceAdapterFixture.Generated.Resource as Generated
 
 tests :: Spec
-tests = describe "FrontendSurface Haskell adapter generator" do
+tests = describe "FrontendSurfaceAdapterGenerator" do
     it "renders the typed fixture registry as one deterministic formatted golden module" do
         expected <- Text.readFile "Test/Support/FrontendSurfaceAdapterFixture/Generated/Resource.hs"
         case generateFixture fixtureRegistry of
@@ -430,11 +430,15 @@ tests = describe "FrontendSurface Haskell adapter generator" do
         case generateSurfaceAdapterModules registeredFrontendSurfaceContractIR registeredSurfaceAdapterRegistry of
             Left diagnostics -> expectationFailure (cs (show diagnostics))
             Right generatedModules -> do
-                length generatedModules `shouldBe` 14
+                length generatedModules `shouldBe` 20
                 length (filter (Text.isSuffixOf ".Generated.Live" . (.generatedModuleName)) generatedModules)
                     `shouldBe` 7
                 length (filter (Text.isSuffixOf ".Generated.Resource" . (.generatedModuleName)) generatedModules)
                     `shouldBe` 7
+                length (filter (Text.isSuffixOf ".Generated.Action" . (.generatedModuleName)) generatedModules)
+                    `shouldBe` 6
+                length (filter (Text.isSuffixOf ".Generated.Intent" . (.generatedModuleName)) generatedModules)
+                    `shouldBe` 0
 
     it "rejects empty, partial, extra, and duplicate production Live homes" do
         let emptyRegistry =
@@ -487,6 +491,62 @@ tests = describe "FrontendSurface Haskell adapter generator" do
                 diagnosticCodes (generateSurfaceLiveAdapterModules registeredFrontendSurfaceContractIR extraRegistry)
         extraDiagnosticCodes `shouldContain` ["adapter-scope-home-ownership"]
         extraDiagnosticCodes `shouldContain` ["missing-adapter-scope-home"]
+
+    it "publishes exactly one production home for every eligible Action declaration" do
+        length registeredSurfaceAdapterRegistry.surfaceActionAdapterHomes `shouldBe` 48
+        case generateSurfaceActionAdapterModules registeredFrontendSurfaceContractIR registeredSurfaceAdapterRegistry of
+            Left diagnostics -> expectationFailure (cs (show diagnostics))
+            Right generatedModules ->
+                map (.generatedModuleName) generatedModules
+                    `shouldBe`
+                        [ "Application.Helper.FrontendContract.Surface.Admin.Generated.Action"
+                        , "Application.Helper.FrontendContract.Surface.LeaveRequests.Generated.Action"
+                        , "Application.Helper.FrontendContract.Surface.Profile.Generated.Action"
+                        , "Application.Helper.FrontendContract.Surface.Roster.Generated.Action"
+                        , "Application.Helper.FrontendContract.Surface.Support.Generated.Action"
+                        , "Application.Helper.FrontendContract.Surface.Timesheets.Generated.Action"
+                        ]
+
+    it "rejects empty, partial, extra, and duplicate production Action homes" do
+        let emptyRegistry =
+                registeredSurfaceAdapterRegistry
+                    { surfaceActionAdapterHomes = []
+                    }
+        diagnosticCodes (generateSurfaceActionAdapterModules registeredFrontendSurfaceContractIR emptyRegistry)
+            `shouldContain` ["missing-adapter-action-home"]
+
+        let partialRegistry =
+                registeredSurfaceAdapterRegistry
+                    { surfaceActionAdapterHomes = drop 1 registeredSurfaceAdapterRegistry.surfaceActionAdapterHomes
+                    }
+        diagnosticCodes (generateSurfaceActionAdapterModules registeredFrontendSurfaceContractIR partialRegistry)
+            `shouldContain` ["missing-adapter-action-home"]
+
+        let duplicateRegistry =
+                registeredSurfaceAdapterRegistry
+                    { surfaceActionAdapterHomes =
+                        registeredSurfaceAdapterRegistry.surfaceActionAdapterHomes
+                            <> take 1 registeredSurfaceAdapterRegistry.surfaceActionAdapterHomes
+                    }
+        diagnosticCodes (generateSurfaceActionAdapterModules registeredFrontendSurfaceContractIR duplicateRegistry)
+            `shouldContain` ["duplicate-adapter-action-home"]
+
+        let extraRegistry =
+                registeredSurfaceAdapterRegistry
+                    { surfaceActionAdapterHomes =
+                        case registeredSurfaceAdapterRegistry.surfaceActionAdapterHomes of
+                            home : rest ->
+                                home
+                                    { adapterHomeDeclaration =
+                                        home.adapterHomeDeclaration { haskellTypeName = "MissingAction" }
+                                    }
+                                    : rest
+                            [] -> []
+                    }
+        let extraDiagnosticCodes =
+                diagnosticCodes (generateSurfaceActionAdapterModules registeredFrontendSurfaceContractIR extraRegistry)
+        extraDiagnosticCodes `shouldContain` ["adapter-action-home-ownership"]
+        extraDiagnosticCodes `shouldContain` ["missing-adapter-action-home"]
 
     it "derives checked scope and fragment declarations only from their owning Surface IR" do
         fixtureScopeDeclaration.checkedAdapterSurfaceName

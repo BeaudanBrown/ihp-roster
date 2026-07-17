@@ -308,7 +308,7 @@ tests = describe "FrontendSurfaceRequestAdapter" do
         diagnosticCodes (generateSurfaceActionAdapterModules fixtureContract blankDeclarationRegistry)
             `shouldContain` ["adapter-action-declaration-exclusion-reason"]
 
-    it "records complete typed production Action and Intent operation inventories before migration" do
+    it "records complete typed production Action and Intent operation inventories" do
         actionDeclarations <-
             case checkedSurfaceActionAdapterDeclarations registeredFrontendSurfaceContractIR of
                 Left diagnostics -> expectationFailure (cs (show diagnostics)) >> pure []
@@ -399,8 +399,18 @@ tests = describe "FrontendSurfaceRequestAdapter" do
                         ]
                 )
 
-        generateSurfaceActionAdapterModules registeredFrontendSurfaceContractIR registeredSurfaceAdapterRegistry
-            `shouldBe` Right []
+        case generateSurfaceActionAdapterModules registeredFrontendSurfaceContractIR registeredSurfaceAdapterRegistry of
+            Left diagnostics -> expectationFailure (cs (show diagnostics))
+            Right generatedModules ->
+                map (.generatedModuleName) generatedModules
+                    `shouldBe`
+                        [ "Application.Helper.FrontendContract.Surface.Admin.Generated.Action"
+                        , "Application.Helper.FrontendContract.Surface.LeaveRequests.Generated.Action"
+                        , "Application.Helper.FrontendContract.Surface.Profile.Generated.Action"
+                        , "Application.Helper.FrontendContract.Surface.Roster.Generated.Action"
+                        , "Application.Helper.FrontendContract.Surface.Support.Generated.Action"
+                        , "Application.Helper.FrontendContract.Surface.Timesheets.Generated.Action"
+                        ]
         generateSurfaceIntentAdapterModules registeredFrontendSurfaceContractIR registeredSurfaceAdapterRegistry
             `shouldBe` Right []
 

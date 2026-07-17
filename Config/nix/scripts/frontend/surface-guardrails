@@ -116,8 +116,12 @@ for adapter_namespace in Resource Live Action Intent; do
         Application/Helper/FrontendContract/Surface/HaskellAdapter/Core.hs
 done
 expect_match \
-    "the temporary empty Action lane assigns its removal to #186 and expiry to #184" \
-    'StageEmptySurfaceAdapterLane "#186 migrates production Action facades" "#184"' \
+    "the production Action lane must register its complete typed home set" \
+    'type RegisteredSurfaceActionAdapterHomes =' \
+    Application/Helper/FrontendContract/Surface/HaskellAdapter/Registry.hs
+expect_no_match_including_generated \
+    "the temporary empty production Action lane must stay removed" \
+    '#186 migrates production Action facades' \
     Application/Helper/FrontendContract/Surface/HaskellAdapter/Registry.hs
 expect_match \
     "the temporary empty Intent lane assigns its removal to #187 and expiry to #184" \
@@ -129,7 +133,7 @@ expect_match \
     Application/Helper/FrontendContract/Surface/HaskellAdapter/Family.hs
 current_action_parser_consumers="$( (rg -o --glob '*.hs' 'parseSurfaceActionParams[[:space:]]*@' Web || true) | wc -l)"
 if [ "$current_action_parser_consumers" -ne 33 ]; then
-    report_failure "typed Action operation inventory expects 33 current generic parser consumers before #186; found $current_action_parser_consumers"
+    report_failure "typed Action migration expects 33 remaining generic parser consumers at this #192 checkpoint; found $current_action_parser_consumers"
 fi
 current_intent_parser_consumers="$( (rg -o --glob '*.hs' 'parseSurfaceIntentParams[[:space:]]*@' Web || true) | wc -l)"
 if [ "$current_intent_parser_consumers" -ne 5 ]; then
@@ -301,6 +305,14 @@ for generated_module_path in "${generated_adapter_modules[@]}"; do
         done
         if rg --line-number '\b(frontendSurface(Scope|FragmentKey)|matchFrontendSurface(Scope|FragmentKey)|surface(Field|OptionalField|NullableField))\b' "$curated_facade" >&2; then
             report_failure "curated Live facade retains a handwritten mechanical adapter: $curated_facade"
+        fi
+    fi
+    if [ "$generated_kind" = "Action" ]; then
+        if ! rg --quiet '\bfrontendSurfaceAction\b' "$generated_module_path"; then
+            report_failure "generated Action adapter does not use frontendSurfaceAction: $generated_module_path"
+        fi
+        if rg --line-number '\b(frontendSurfaceAction|parseSurfaceActionParams|surface(Field|OptionalField|NullableField))\b' "$curated_facade" >&2; then
+            report_failure "curated Action facade retains a handwritten mechanical adapter: $curated_facade"
         fi
     fi
 done

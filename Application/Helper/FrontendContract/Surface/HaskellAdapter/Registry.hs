@@ -8,7 +8,8 @@
 -- checked resource identity, runtime scope, and eligible Live fragment without
 -- repeating field or wire declarations.
 module Application.Helper.FrontendContract.Surface.HaskellAdapter.Registry
-    ( RegisteredSurfaceAdapterFamilies
+    ( RegisteredSurfaceActionAdapterHomes
+    , RegisteredSurfaceAdapterFamilies
     , RegisteredSurfaceFragmentAdapterHomes
     , registeredSurfaceActionAdapterRegistrations
     , registeredSurfaceIntentAdapterRegistrations
@@ -150,6 +151,57 @@ type RegisteredSurfaceResourceAdapterHomes =
      , SurfaceResourceAdapterHome AdminXeroAdapterFamily Admin.XeroConnection
      ]
 
+type RegisteredSurfaceActionAdapterHomes =
+    '[ SurfaceActionAdapterHome TimesheetsAdapterFamily Timesheets.NavigateTimesheetWeek
+     , SurfaceActionAdapterHome TimesheetsAdapterFamily Timesheets.UpdateTimesheetFilters
+     , SurfaceActionAdapterHome TimesheetsAdapterFamily Timesheets.CreateTimesheetEntryFromSuggestion
+     , SurfaceActionAdapterHome TimesheetsAdapterFamily Timesheets.ApproveTimesheetEntry
+     , SurfaceActionAdapterHome TimesheetsAdapterFamily Timesheets.UnapproveTimesheetEntry
+     , SurfaceActionAdapterHome RosterAdapterFamily Roster.NavigateRosterWeek
+     , SurfaceActionAdapterHome RosterAdapterFamily Roster.ToggleRosterWarnings
+     , SurfaceActionAdapterHome RosterAdapterFamily Roster.ToggleRosterWageEstimates
+     , SurfaceActionAdapterHome RosterAdapterFamily Roster.SortRosterWeek
+     , SurfaceActionAdapterHome RosterAdapterFamily Roster.ToggleRosterWeekLiveStatus
+     , SurfaceActionAdapterHome RosterAdapterFamily Roster.ToggleRosterAssignmentFilters
+     , SurfaceActionAdapterHome RosterAdapterFamily Roster.CopyRosterWeek
+     , SurfaceActionAdapterHome RosterAdapterFamily Roster.CreateRosterSelfServiceLeaveRequest
+     , SurfaceActionAdapterHome RosterAdapterFamily Roster.CreateRosterWeekSlotDefinition
+     , SurfaceActionAdapterHome RosterAdapterFamily Roster.DeleteRosterWeekSlotDefinition
+     , SurfaceActionAdapterHome RosterAdapterFamily Roster.ToggleRosterDayClosed
+     , SurfaceActionAdapterHome RosterAdapterFamily Roster.AddRosterRow
+     , SurfaceActionAdapterHome RosterAdapterFamily Roster.RemoveRosterRow
+     , SurfaceActionAdapterHome RosterAdapterFamily Roster.ToggleRosterStaffScope
+     , SurfaceActionAdapterHome LeaveRequestsAdapterFamily LeaveRequests.ArchiveLeaveRequestsPage
+     , SurfaceActionAdapterHome LeaveRequestsAdapterFamily LeaveRequests.ApproveLeaveRequest
+     , SurfaceActionAdapterHome LeaveRequestsAdapterFamily LeaveRequests.DenyLeaveRequest
+     , SurfaceActionAdapterHome SupportAdapterFamily Support.CreatePublicHolidayRefreshJob
+     , SurfaceActionAdapterHome SupportAdapterFamily Support.CreateFwcMapdRefreshJob
+     , SurfaceActionAdapterHome ProfileAdapterFamily Profile.UpdateProfileDetails
+     , SurfaceActionAdapterHome ProfileAdapterFamily Profile.UpdateProfileShiftPreferences
+     , SurfaceActionAdapterHome ProfileAdapterFamily Profile.CreateProfileLeaveRequest
+     , SurfaceActionAdapterHome StaffAdapterFamily Profile.UpdateStaffProfile
+     , SurfaceActionAdapterHome StaffAdapterFamily Profile.UpdateStaffShiftPreferences
+     , SurfaceActionAdapterHome StaffAdapterFamily Profile.CreateStaffLeaveRequest
+     , SurfaceActionAdapterHome AdminVenueSettingsAdapterFamily Admin.UpdateVenueConfig
+     , SurfaceActionAdapterHome AdminInvitesAdapterFamily Admin.CreateVenueInvitation
+     , SurfaceActionAdapterHome AdminInvitesAdapterFamily Admin.RevokeVenueInvitation
+     , SurfaceActionAdapterHome AdminExportsAdapterFamily Admin.CreateExportJob
+     , SurfaceActionAdapterHome AdminShiftTypesAdapterFamily Admin.CreateShiftType
+     , SurfaceActionAdapterHome AdminShiftTypesAdapterFamily Admin.UpdateShiftType
+     , SurfaceActionAdapterHome AdminShiftTypesAdapterFamily Admin.MoveShiftTypeUp
+     , SurfaceActionAdapterHome AdminShiftTypesAdapterFamily Admin.MoveShiftTypeDown
+     , SurfaceActionAdapterHome AdminShiftTypesAdapterFamily Admin.AutosaveShiftTypeName
+     , SurfaceActionAdapterHome AdminShiftTypesAdapterFamily Admin.AutosaveShiftTypeSelection
+     , SurfaceActionAdapterHome AdminShiftTypesAdapterFamily Admin.ToggleInactiveShiftTypes
+     , SurfaceActionAdapterHome AdminRosterGroupsAdapterFamily Admin.CreateRosterGroup
+     , SurfaceActionAdapterHome AdminRosterGroupsAdapterFamily Admin.UpdateRosterGroup
+     , SurfaceActionAdapterHome AdminRosterGroupsAdapterFamily Admin.MoveRosterGroupUp
+     , SurfaceActionAdapterHome AdminRosterGroupsAdapterFamily Admin.MoveRosterGroupDown
+     , SurfaceActionAdapterHome AdminRosterGroupsAdapterFamily Admin.ToggleInactiveRosterGroups
+     , SurfaceActionAdapterHome AdminXeroAdapterFamily Admin.SyncXeroPayrollReferenceData
+     , SurfaceActionAdapterHome AdminXeroAdapterFamily Admin.ShowXeroTimesheetPreparationStaffMappings
+     ]
+
 -- Current generic parser consumers are the 33 marker-indexed calls in
 -- Web/Timesheets/Projection.hs (5), Web/Controller/RosterWeeks.hs (6),
 -- Web/Controller/Admin.hs (12), Web/Controller/Admin/Xero/Timesheets.hs (1),
@@ -266,10 +318,10 @@ registeredSurfaceAdapterRegistry =
         @RegisteredSurfaceResourceAdapterHomes
         @RegisteredSurfaceScopeAdapterHomes
         @RegisteredSurfaceFragmentAdapterHomes
-        @'[]
+        @RegisteredSurfaceActionAdapterHomes
         @'[]
         registeredSurfaceActorOnlyFragments
-        (StageEmptySurfaceAdapterLane "#186 migrates production Action facades" "#184")
+        PublishSurfaceAdapterLane
         registeredSurfaceActionAdapterRegistrations
         (StageEmptySurfaceAdapterLane "#187 migrates production Intent facades" "#184")
         registeredSurfaceIntentAdapterRegistrations
