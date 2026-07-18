@@ -34,7 +34,6 @@ module Application.Helper.FrontendContract.Wire.Carrier
     , nullableField
     , optionalField
     , parseEvent
-    , parseEventIn
     , parseRecord
     , parseRecordIn
     , parseTaggedUnion
@@ -524,19 +523,6 @@ eventValue ::
     CarrierFields (EventFieldSpecs RegisteredFrontendContracts marker) ->
     Aeson.Value
 eventValue = eventValueIn @RegisteredFrontendContracts @marker
-
-parseEventIn ::
-    forall contracts marker result.
-    ( ReflectFrontendContractRegistry contracts
-    , Typeable marker
-    , KnownCarrierFields (EventFieldSpecs contracts marker)
-    ) =>
-    (CarrierFieldValues (EventFieldSpecs contracts marker) -> AesonTypes.Parser result) ->
-    Aeson.Value ->
-    AesonTypes.Parser result
-parseEventIn =
-    parseRecordWith @marker @(EventFieldSpecs contracts marker)
-        (reflectFrontendContracts @contracts)
 
 parseEvent ::
     forall marker result.

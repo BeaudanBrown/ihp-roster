@@ -73,7 +73,6 @@ module Application.Helper.FrontendContract.Surface.Values
     , surfaceIntentFields
     , surfaceIntentNameValue
     , surfaceNameValue
-    , surfaceResourceFieldName
     , surfaceResourceValue
     , surfaceScopeFieldName
     , surfaceScopeValue
@@ -648,14 +647,6 @@ type family FindMountStateFields (primitives :: [SurfacePrimitive]) :: [FieldSpe
     FindMountStateFields '[] = '[]
     FindMountStateFields (('MountState marker fields) ': rest) = fields
     FindMountStateFields (primitive ': rest) = FindMountStateFields rest
-
-surfaceResourceFieldName ::
-    forall spec resource marker.
-    ( Typeable marker
-    , RequireSurfaceField resource marker (SurfaceResourceFieldSpecs spec resource)
-    ) =>
-    Text
-surfaceResourceFieldName = surfaceFieldName @marker
 
 surfaceScopeFieldName ::
     forall spec scope marker.

@@ -467,11 +467,22 @@ cannot make two generated operations interchangeable. The read-only
 nominal bundles without exposing an unwrap operation. Only the matching curated
 facade may import a generated module.
 Resource, Live, and Action facades re-export canonical operations and retain
-handwritten domain matchers or live orchestration only where they add meaning. Mechanical aliases,
-generic builder/matcher bodies, and the old Billing, Support, Profile, Staff,
-and Admin fragment naming synonyms are absent. Every generated-kind module must
-stay behind its matching curated facade and must not import opaque internal
-constructors.
+handwritten domain matchers or live orchestration only where they add meaning.
+They import and expose only API with a production or test semantic consumer.
+Mechanical aliases, generic builder/matcher bodies, and the old Billing,
+Support, Profile, Staff, and Admin fragment naming synonyms are absent. Every
+generated-kind module must stay behind its matching curated facade and must not
+import opaque internal constructors.
+
+Private production `.Generated.Resource` and `.Generated.Live` modules are
+registry-derived declaration-complete APIs: each checked declaration keeps its
+constructor and matcher even when the executable graph needs only one side.
+`weeder.toml` therefore roots exactly those two generated module categories.
+Typed-home completeness, all-kind generation, generated drift, and source
+import guardrails enforce that exception structurally. Generated Action/Intent,
+curated facades, and handwritten modules remain under normal Weeder
+reachability; symbol allowlists and blanket FrontendContract exclusions are not
+permitted.
 
 The lightweight `HaskellAdapter.Association` module owns only
 `SurfaceAdapterFamily` and `AdapterFamilySurface`. Production family modules and
@@ -767,10 +778,11 @@ attribute names come from reflected global constants shared by Haskell and
 TypeScript. Add or change those values in the frontend contract registry, not as
 runtime string literals.
 
-Lazy placeholders must
-use the `renderFrontendSurfaceLazyFragmentWithConfig` runtime helper (or its
-plain default wrapper) so canonical UI-region attrs, HTMX swap attrs, retry
-metadata, and primitive-derived lazy behavior stay Haskell-owned. Use
+Lazy placeholders must use the
+`renderFrontendSurfaceLazyFragmentWithConfig` runtime helper with
+`defaultFrontendSurfaceLazyFragmentConfig` when the defaults suffice, so
+canonical UI-region attrs, HTMX swap attrs, retry metadata, and
+primitive-derived lazy behavior stay Haskell-owned. Use
 `customPlaceholderFrontendSurfaceLazyFragmentConfig` when the placeholder markup
 already renders its own panel/card chrome, so the outer lazy region stays a
 transparent HTMX/region shell instead of visually nesting surfaces. Feature views

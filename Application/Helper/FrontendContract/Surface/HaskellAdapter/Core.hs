@@ -75,7 +75,6 @@ module Application.Helper.FrontendContract.Surface.HaskellAdapter.Core
     , renderAdapterFieldBuilder
     , renderAdapterFieldValueTuple
     , renderAdapterFieldsExpression
-    , renderAdapterFieldsValueExpression
     , renderGeneratedAdapterModules
     , renderHaskellSourceType
     , renderImportList
@@ -876,12 +875,6 @@ renderAdapterArguments fields =
 
 renderAdapterFieldsExpression :: Map.Map Text Text -> [ResolvedAdapterField] -> [Text]
 renderAdapterFieldsExpression = renderAdapterFieldsExpressionWithIndent "        "
-
--- | Render a standalone SurfaceFields value. Action and Intent field-bundle
--- builders share this shape, while Resource/Live constructors keep the nested
--- expression indentation above byte-for-byte stable.
-renderAdapterFieldsValueExpression :: Map.Map Text Text -> [ResolvedAdapterField] -> [Text]
-renderAdapterFieldsValueExpression = renderAdapterFieldsExpressionWithIndent "    "
 
 renderAdapterFieldsExpressionWithIndent :: Text -> Map.Map Text Text -> [ResolvedAdapterField] -> [Text]
 renderAdapterFieldsExpressionWithIndent indentation _ [] = [indentation <> "noSurfaceFields"]

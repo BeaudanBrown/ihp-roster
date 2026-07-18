@@ -3,8 +3,6 @@ module Application.Helper.FrontendContract.Surface.Admin.Live
     , adminExportsLiveScope
     , adminInvitesLiveFragment
     , adminInvitesLiveScope
-    , adminPageContentLiveFragment
-    , adminPageLiveScope
     , adminRosterGroupsLiveFragment
     , adminRosterGroupsLiveScope
     , adminShiftTypesLiveFragment
@@ -12,8 +10,6 @@ module Application.Helper.FrontendContract.Surface.Admin.Live
     , adminVenueConfigLiveScope
     , adminVenueSettingsLiveFragment
     , adminXeroLiveScope
-    , adminXeroPageContentLiveFragment
-    , adminXeroPageLiveScope
     , adminXeroShellLiveFragment
     ) where
 
@@ -21,8 +17,6 @@ import Application.Helper.FrontendContract.Surface.Admin.Generated.Live (adminEx
                                                                          adminExportsLiveScope,
                                                                          adminInvitesLiveFragment,
                                                                          adminInvitesLiveScope,
-                                                                         adminPageContentLiveFragment,
-                                                                         adminPageLiveScope,
                                                                          adminRosterGroupsLiveFragment,
                                                                          adminRosterGroupsLiveScope,
                                                                          adminShiftTypesLiveFragment,
@@ -30,6 +24,4 @@ import Application.Helper.FrontendContract.Surface.Admin.Generated.Live (adminEx
                                                                          adminVenueConfigLiveScope,
                                                                          adminVenueSettingsLiveFragment,
                                                                          adminXeroLiveScope,
-                                                                         adminXeroPageContentLiveFragment,
-                                                                         adminXeroPageLiveScope,
                                                                          adminXeroShellLiveFragment)

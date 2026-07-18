@@ -126,9 +126,20 @@ scope and eligible fragment. Empty, partial, extra, or duplicate production
 homes fail generation. Seven private feature-adjacent `.Generated.Live` modules
 now sit behind the seven curated `Surface.<Feature>.Live` facades. All mechanical
 scope/fragment construction and matching is generated; handwritten facade code
-is limited to domain-shaped matchers and active-scope orchestration. The
-unregistered fixture continues to prove zero-field and parameterized adapters,
-shared-module collision checks, and public generic builder use.
+is limited to domain-shaped matchers and active-scope orchestration. Curated
+facades import and expose only operations with a production or test semantic
+consumer.
+
+Reachability deliberately distinguishes declaration-complete generated API from
+curated runtime API. `weeder.toml` roots only private production
+`.Generated.Resource` and `.Generated.Live` modules: registry, typed-home,
+all-kind generation, drift, and guardrail checks require every declared
+constructor/matcher even when the executable graph consumes only one side.
+Generated Action/Intent modules, curated facades, and all handwritten modules
+remain subject to ordinary Weeder reachability; there is no symbol allowlist or
+blanket FrontendContract suppression. The unregistered fixture continues to
+prove zero-field and parameterized adapters, shared-module collision checks,
+and public generic builder use.
 
 Generated Resource and Live code calls only public marker-indexed builders and
 matchers. Raw `SurfaceFields` data constructors stay hidden behind the

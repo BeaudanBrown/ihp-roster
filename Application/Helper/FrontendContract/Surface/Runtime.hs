@@ -46,7 +46,6 @@ module Application.Helper.FrontendContract.Surface.Runtime
     , renderFrontendSurfaceActionSubmitButton
     , renderFrontendSurfaceInteractionShell
     , renderFrontendSurfaceIntentForm
-    , renderFrontendSurfaceLazyFragment
     , renderFrontendSurfaceLazyFragmentWithConfig
     , mkSurfaceImplFromValues
     , renderFrontendSurfaceMount
@@ -366,10 +365,6 @@ customPlaceholderFrontendSurfaceLazyFragmentConfig =
     defaultFrontendSurfaceLazyFragmentConfig
         { lazyFragmentPlaceholderClasses = ["app-lazy-surface", "app-lazy-surface-custom"]
         }
-
-renderFrontendSurfaceLazyFragment :: FrontendSurfaceMountedFragment -> Blaze.Html -> Blaze.Html
-renderFrontendSurfaceLazyFragment =
-    renderFrontendSurfaceLazyFragmentWithConfig defaultFrontendSurfaceLazyFragmentConfig
 
 renderFrontendSurfaceLazyFragmentWithConfig :: FrontendSurfaceLazyFragmentConfig -> FrontendSurfaceMountedFragment -> Blaze.Html -> Blaze.Html
 renderFrontendSurfaceLazyFragmentWithConfig config fragment placeholder =
