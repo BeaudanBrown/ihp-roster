@@ -133,9 +133,12 @@ mapped to a carrier constructor. Carrier modules do not repeat wire literals.
 Add Surface-owned browser role/state attributes when one mounted Surface owns
 the vocabulary. Reusable capabilities use focused global contracts. Explicitly
 browser-reachable DTOs generate types and exact parsers; server-only Surface
-DTOs remain absent from browser output. The active time-picker capability is the
-first generated role/config payload slice. The retained dormant week overview
-is migrated only after the active foundations exist.
+DTOs remain absent from browser output. The active toggle capability is the
+first generated role/config payload slice because the handwritten bridge has a
+confirmed event-time stale-value regression. The time-picker capability follows
+as the owner of picker-internal roles/configuration; it does not recreate toggle
+submission or break-region authority. The retained dormant week overview is
+migrated only after the active foundations exist.
 
 ### Interaction and authorization semantics
 
@@ -195,9 +198,9 @@ slices, and all block final reconciliation.
 
 ### Shared browser capabilities
 
-13. `#167` - Time picker roles and exact configuration payload.
-14. `#168` - Dialog/toast overlay DOM vocabulary.
-15. `#169` - Toggle presentation and timesheet break controls.
+13. `#169` - Reliable toggle submission/presentation and timesheet break controls, including the active roster live-status regression.
+14. `#167` - Time picker roles and exact configuration payload, consuming but not duplicating the toggle/break boundary.
+15. `#168` - Dialog/toast overlay DOM vocabulary.
 16. `#170` - Ordered-range shift preferences.
 17. `#171` - Horizontal drag/snap scrolling.
 18. `#172` - PWA installation adapter.
@@ -240,8 +243,13 @@ private generated module and curated facade, migrated every production caller,
 made all four generated lanes mandatory, removed the temporary publication and
 parent-expiry abstractions, and installed final zero-generic-parser/metadata
 guardrails. #184 follows #164 and #181.
-Shared browser slices depend on typed schema builders;
-ordered ranges also depend on toggle presentation.
+Shared browser slices depend on typed schema builders. `#169` is the next
+priority: it must distinguish rendered presentation state from submitted target
+state, generate the checked/unchecked mapping, retain one generic form-local
+browser adapter, remove semantic inline handlers and duplicate responsive ids,
+and prove event-time payload plus authoritative persistence on desktop/mobile.
+Ordered ranges also depend on toggle presentation. `#167` owns picker internals
+whereas `#169` owns toggle submission and break-region activation.
 Roster linked highlighting depends on closed interaction IR. Staff-panel work
 establishes the browser-reachable Surface DTO path for image export and week
 overview. The Haskell adapter slices run in parallel with capability slices and
@@ -268,8 +276,11 @@ Primary enforcement uses hidden raw constructors, marker-indexed builders,
 compile-failure ownership/type tests, exact runtime parsers, and generated drift
 checks. Targeted source guards reject raw app contract attributes, raw field
 construction, feature access to transport constructors, semantic text dispatch,
-and bypasses of typed HTMX helpers. A blanket scan for every common reflected
-word is prohibited because unrelated contexts may share spellings.
+bypasses of typed HTMX helpers, and inline event handlers that translate
+contract values or duplicate generic submission behavior. Simple native
+submit-only handlers remain valid when they carry no contract mapping. A blanket
+scan for every common reflected word is prohibited because unrelated contexts
+may share spellings.
 
 CSS checks are deterministic:
 
@@ -303,6 +314,9 @@ documentation-drift gates. No database schema or migration work is expected.
   cross-language attribute names.
 - Shared semantic state/classes follow the native/ARIA, generated state, or
   closed-effect hierarchy.
+- Generated interactive controls use mount-local relationships, unique ids, one
+  generic adapter, and browser tests that prove event-time submitted values
+  converge to authoritative server state.
 - Surface scopes, fragments, resources, action/intent fields, and global wire
   cases have no feature-facing open constructors.
 - Checked runtime/generator code performs no semantic redispatch on reflected
