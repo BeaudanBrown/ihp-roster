@@ -12,8 +12,8 @@ module Test.Support.FrontendSurfaceAdapterFixture.Generated.Action
 import Application.Helper.FrontendContract.Surface.HaskellAdapter.Association (AdapterFamilySurface)
 import Application.Helper.FrontendContract.Surface.Request (SurfaceRequestFieldError,
                                                             parseSurfaceActionParams)
-import Application.Helper.FrontendContract.Surface.Runtime (FrontendSurfaceAction,
-                                                            frontendSurfaceAction)
+import Application.Helper.FrontendContract.Surface.Request.Runtime (FrontendSurfaceAction,
+                                                                    frontendSurfaceAction)
 import Application.Helper.FrontendContract.Surface.Values (SurfaceActionFields,
                                                            noSurfaceFields,
                                                            surfaceActionFields,

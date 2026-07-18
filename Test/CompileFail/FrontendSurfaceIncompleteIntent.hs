@@ -2,7 +2,7 @@
 
 module Test.CompileFail.FrontendSurfaceIncompleteIntent where
 
-import Application.Helper.FrontendContract.Surface.Runtime (frontendSurfaceIntentForm)
+import Application.Helper.FrontendContract.Surface.Request.Runtime (frontendSurfaceIntentForm)
 import Application.Helper.FrontendContract.Surface.Values
 import IHP.Prelude
 import qualified Test.Support.FrontendSurfaceFixture as Fixture

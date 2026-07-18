@@ -2,8 +2,8 @@
 
 module Test.CompileFail.FrontendSurfaceWrongActionMarker where
 
+import Application.Helper.FrontendContract.Surface.Request.Runtime (frontendSurfaceAction)
 import qualified Application.Helper.FrontendContract.Surface.Roster as Roster
-import Application.Helper.FrontendContract.Surface.Runtime (frontendSurfaceAction)
 import qualified Application.Helper.FrontendContract.Surface.Timesheets as Timesheets
 import Application.Helper.FrontendContract.Surface.Values (noSurfaceActionFields)
 

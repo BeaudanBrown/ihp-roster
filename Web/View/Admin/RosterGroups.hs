@@ -8,8 +8,8 @@ module Web.View.Admin.RosterGroups
 import Application.Helper.Controller (currentVenueOrNothing)
 import qualified Application.Helper.FrontendContract.Surface.Admin as Surface
 import qualified Application.Helper.FrontendContract.Surface.Admin.Action as AdminAction
-import Application.Helper.FrontendContract.Surface.Runtime (FrontendSurfaceAction,
-                                                            FrontendSurfaceActionRoute (..),
+import Application.Helper.FrontendContract.Surface.Request.Runtime (FrontendSurfaceAction)
+import Application.Helper.FrontendContract.Surface.Runtime (FrontendSurfaceActionRoute (..),
                                                             FrontendSurfaceCustomHtmxAttrs (..),
                                                             renderFrontendSurfaceActionForm,
                                                             renderFrontendSurfaceActionLink,

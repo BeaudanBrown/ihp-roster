@@ -61,8 +61,8 @@ import qualified Application.Helper.FrontendContract.Surface.Admin.HaskellAdapte
 import Application.Helper.FrontendContract.Surface.HaskellAdapter.Association (AdapterFamilySurface)
 import Application.Helper.FrontendContract.Surface.Request (SurfaceRequestFieldError,
                                                             parseSurfaceActionParams)
-import Application.Helper.FrontendContract.Surface.Runtime (FrontendSurfaceAction,
-                                                            frontendSurfaceAction)
+import Application.Helper.FrontendContract.Surface.Request.Runtime (FrontendSurfaceAction,
+                                                                    frontendSurfaceAction)
 import Application.Helper.FrontendContract.Surface.Values (SurfaceActionFields,
                                                            noSurfaceActionFields,
                                                            noSurfaceFields,

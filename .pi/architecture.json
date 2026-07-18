@@ -35,6 +35,10 @@
       "description": "Generate Haskell module dependency DOT/SVG graph.",
       "command": ["bash", "./bin/in-env", "architecture-module-graph"]
     },
+    "surface-request-closure": {
+      "description": "Verify exact generated Surface Action/Intent facade module closures.",
+      "command": ["bash", "./bin/in-env", "architecture-surface-request-closure", "--print-modules"]
+    },
     "runtime-overlay": {
       "description": "Generate architecture timing overlay from OpenTelemetry profile artifacts.",
       "command": ["bash", "./bin/in-env", "architecture-runtime-overlay"]

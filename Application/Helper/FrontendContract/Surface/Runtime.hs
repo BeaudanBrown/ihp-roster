@@ -13,17 +13,12 @@
 {-# LANGUAGE UndecidableInstances  #-}
 
 module Application.Helper.FrontendContract.Surface.Runtime
-    ( FrontendSurfaceAction
-    , FrontendSurfaceFocusedFieldProtectionConfig (..)
-    , FrontendSurfaceHtmxMethod (..)
+    ( FrontendSurfaceFocusedFieldProtectionConfig (..)
     , FrontendSurfaceLazyFragmentConfig (..)
     , FrontendSurfaceLazyFragmentDefaults (..)
-    , FrontendSurfaceHtmxRequest (..)
     , FrontendSurfaceActionRoute (..)
     , FrontendSurfaceCustomHtmxAttrs (..)
     , FrontendSurfaceInteractionShellConfig (..)
-    , FrontendSurfaceIntentForm
-    , intentFormName
     , FrontendSurfaceMountConfig (..)
     , FrontendSurfaceMountedFragment
     , mountedFragmentKey
@@ -36,8 +31,6 @@ module Application.Helper.FrontendContract.Surface.Runtime
     , defaultFrontendSurfaceLazyFragmentConfig
     , customPlaceholderFrontendSurfaceLazyFragmentConfig
     , frontendSurfaceMountConfigJson
-    , frontendSurfaceAction
-    , frontendSurfaceIntentForm
     , applyFrontendSurfaceActionAttrs
     , frontendSurfaceActionHtmxAttrPairs
     , renderFrontendSurfaceActionForm
@@ -61,9 +54,21 @@ import qualified Application.Helper.FrontendContract.Naming as Naming
 import qualified Application.Helper.FrontendContract.Surface.ContractIR as SurfaceIR
 import Application.Helper.FrontendContract.Surface.DSL
 import qualified Application.Helper.FrontendContract.Surface.Live as Live
-import Application.Helper.FrontendContract.Surface.Reflect (ReflectPrimitive (..),
-                                                            ReflectSurfaceSpec,
-                                                            ReflectedPrimitive (..))
+import Application.Helper.FrontendContract.Surface.Reflect (ReflectPrimitive,
+                                                            ReflectSurfaceSpec)
+import Application.Helper.FrontendContract.Surface.Request.Runtime (FrontendSurfaceAction,
+                                                                    FrontendSurfaceHtmxMethod (..),
+                                                                    FrontendSurfaceHtmxRequest,
+                                                                    FrontendSurfaceIntentForm,
+                                                                    frontendSurfaceActionFieldPairs,
+                                                                    frontendSurfaceActionIR,
+                                                                    htmxRequestMethod,
+                                                                    htmxRequestSwap,
+                                                                    htmxRequestTarget,
+                                                                    htmxRequestUrl,
+                                                                    intentFormFields,
+                                                                    intentFormName,
+                                                                    intentFormSubmit)
 import Application.Helper.FrontendContract.Surface.Values
 import Application.Helper.UiRegion (UiRegionDomAttributes (..),
                                     canonicalUiRegionDomAttributes,
@@ -242,48 +247,6 @@ frontendSurfaceMountedFragmentFor fields targetFields url protection =
             }
         )
 
-data FrontendSurfaceHtmxMethod
-    = FrontendSurfaceGet
-    | FrontendSurfacePost
-    | FrontendSurfacePut
-    | FrontendSurfacePatch
-    | FrontendSurfaceDelete
-    deriving (Eq, Show)
-
--- | One action together with its complete declaration-indexed field bundle.
--- The constructor is intentionally hidden: callers must select an owning
--- Surface/action marker and pass that operation's nominal generated bundle to
--- 'frontendSurfaceAction'.
-data FrontendSurfaceAction = FrontendSurfaceAction
-    { frontendSurfaceActionIR         :: !SurfaceIR.HtmxActionIR
-    , frontendSurfaceActionFieldPairs :: ![(Text, Text)]
-    }
-    deriving (Eq, Show)
-
-frontendSurfaceAction ::
-    forall spec marker.
-    ReflectPrimitive (SurfaceActionPrimitive spec marker) =>
-    SurfaceActionFields spec marker ->
-    FrontendSurfaceAction
-frontendSurfaceAction fields =
-    FrontendSurfaceAction
-        { frontendSurfaceActionIR = action
-        , frontendSurfaceActionFieldPairs = surfaceFieldsText fields
-        }
-  where
-    action =
-        case reflectPrimitive @(SurfaceActionPrimitive spec marker) of
-            ReflectedHtmxAction reflectedAction -> reflectedAction
-            _ -> error "impossible: action lookup reflected a different primitive"
-
-data FrontendSurfaceHtmxRequest = FrontendSurfaceHtmxRequest
-    { htmxRequestMethod :: !FrontendSurfaceHtmxMethod
-    , htmxRequestUrl    :: !Text
-    , htmxRequestTarget :: !Text
-    , htmxRequestSwap   :: !Text
-    }
-    deriving (Eq, Show)
-
 data FrontendSurfaceCustomHtmxAttrs = FrontendSurfaceCustomHtmxAttrs
     { customHtmxAttrMarker :: !Text
     , customHtmxAttrValues :: ![(Text, Text)]
@@ -297,38 +260,6 @@ data FrontendSurfaceActionRoute = FrontendSurfaceActionRoute
     , actionRouteExtraAttrs  :: ![(Text, Text)]
     }
     deriving (Eq, Show)
-
-data FrontendSurfaceIntentForm = FrontendSurfaceIntentForm
-    { intentFormName   :: !Text
-    , intentFormSubmit :: !FrontendSurfaceHtmxRequest
-    , intentFormFields :: ![(SurfaceIR.FieldIR, Text)]
-    }
-    deriving (Eq, Show)
-
-frontendSurfaceIntentForm ::
-    forall spec marker.
-    ReflectPrimitive (SurfaceIntentPrimitive spec marker) =>
-    SurfaceIntentFields spec marker ->
-    FrontendSurfaceHtmxRequest ->
-    FrontendSurfaceIntentForm
-frontendSurfaceIntentForm fields request =
-    FrontendSurfaceIntentForm
-        { intentFormName = intent.intentName
-        , intentFormSubmit = request
-        , intentFormFields = resolveIntentFields intent.intentFields (surfaceFieldsText fields)
-        }
-  where
-    intent =
-        case reflectPrimitive @(SurfaceIntentPrimitive spec marker) of
-            ReflectedIntent reflectedIntent -> reflectedIntent
-            _ -> error "impossible: intent lookup reflected a different primitive"
-
-resolveIntentFields :: [SurfaceIR.FieldIR] -> [(Text, Text)] -> [(SurfaceIR.FieldIR, Text)]
-resolveIntentFields declaredFields values =
-    [ (field, value)
-    | field <- declaredFields
-    , value <- maybeToList (lookup field.fieldName values)
-    ]
 
 frontendSurfaceMountConfigJson :: FrontendSurfaceMountConfig -> Text
 frontendSurfaceMountConfigJson =
@@ -441,18 +372,18 @@ renderFrontendSurfaceInteractionDisposableLayer mountId layerName =
         $ mempty
 
 renderFrontendSurfaceInteractionIntentForm :: SurfaceIR.SurfaceIR -> FrontendSurfaceInteractionShellConfig -> Text -> FrontendSurfaceIntentForm -> Blaze.Html
-renderFrontendSurfaceInteractionIntentForm _surface config mountId FrontendSurfaceIntentForm { intentFormName, intentFormSubmit, intentFormFields } =
+renderFrontendSurfaceInteractionIntentForm _surface config mountId intentForm =
     Html5.form
-        ! attr "id" (mountId <> "--intent-form--" <> domIdSegment intentFormName)
-        ! attr (interactionDomAttribute @Interaction.IntentForm) intentFormName
-        ! attr (interactionDomAttribute @Interaction.Intent) intentFormName
-        ! attr "action" intentFormSubmit.htmxRequestUrl
-        ! attr (frontendSurfaceHtmxMethodAttr intentFormSubmit.htmxRequestMethod) intentFormSubmit.htmxRequestUrl
+        ! attr "id" (mountId <> "--intent-form--" <> domIdSegment intentForm.intentFormName)
+        ! attr (interactionDomAttribute @Interaction.IntentForm) intentForm.intentFormName
+        ! attr (interactionDomAttribute @Interaction.Intent) intentForm.intentFormName
+        ! attr "action" intentForm.intentFormSubmit.htmxRequestUrl
+        ! attr (frontendSurfaceHtmxMethodAttr intentForm.intentFormSubmit.htmxRequestMethod) intentForm.intentFormSubmit.htmxRequestUrl
         ! attr "hx-trigger" interactionIntentSubmitHtmxTrigger
-        ! attr "hx-target" intentFormSubmit.htmxRequestTarget
-        ! attr "hx-swap" intentFormSubmit.htmxRequestSwap
+        ! attr "hx-target" intentForm.intentFormSubmit.htmxRequestTarget
+        ! attr "hx-swap" intentForm.intentFormSubmit.htmxRequestSwap
         ! maybe mempty (attr "hx-sync") config.interactionShellHtmxSync
-        $ mapM_ renderFrontendSurfaceInteractionIntentInput intentFormFields
+        $ mapM_ renderFrontendSurfaceInteractionIntentInput intentForm.intentFormFields
 
 renderFrontendSurfaceInteractionIntentInput :: (SurfaceIR.FieldIR, Text) -> Blaze.Html
 renderFrontendSurfaceInteractionIntentInput (field, value) =

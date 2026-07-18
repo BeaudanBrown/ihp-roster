@@ -34,9 +34,10 @@ type RegisteredFrontendSurfaces =
 
 A surface is added by defining a type-level spec with the primitives from
 `Application.Helper.FrontendContract.Surface.DSL`, then adding it to this list.
-`Application.Helper.FrontendContract.Surface.Reflect` recursively evaluates the
-closed type-level DSL with typeclass instances, and
-`Application.Helper.FrontendContract.Surface.Contracts` validates that reflected
+`Application.Helper.FrontendContract.Surface.Reflect` recursively evaluates any
+provided closed type-level DSL with typeclass instances without importing the
+production registry. `Application.Helper.FrontendContract.Surface.Contracts`
+binds that evaluator to `RegisteredFrontendSurfaces` and validates the reflected
 value into the single checked `SurfaceContractIR`. Its `SurfaceIR` values are
 embedded directly in the unified `FrontendContractIR`; no compact Surface copy
 or conversion layer exists. Field, wire, schema, diagnostic, and HTMX values come
@@ -723,6 +724,107 @@ Neither #187 closure contains
 wall-clock samples are compile-impact records, not benchmarks; the exact
 feature-owned two-module caller increase and bounded facade closure are the
 acceptance signals.
+
+#196 split generated request metadata from the mount/live runtime. The focused
+`Surface.Request.Runtime` module owns only the opaque `FrontendSurfaceAction`,
+`FrontendSurfaceIntentForm`, and `FrontendSurfaceHtmxRequest` metadata types and
+the marker-indexed Action/Intent metadata constructors. `Surface.Runtime`
+consumes their read-only selectors for HTML rendering but does not re-export the
+focused interface. Generated Action/Intent modules import the focused module
+directly. Separately, production-registry binding moved out of
+`Surface.Reflect` and into `Surface.Contracts`, so feature-local values and
+request metadata can use the shared reflection evaluator without loading the
+registered Surface catalog.
+
+The deterministic cold-compile capture used a fresh build and log directory for
+every target/run. Run the function at baseline fixed point `ba13567d` and again
+at the #196 candidate; use separate worktrees when retaining both trees:
+
+```bash
+capture_surface_request_closure() {
+    run="$1"
+    target="$2"
+    out="$PWD/.pi/tmp/issue-196-closures/$run"
+    rm -rf "$out"
+    mkdir -p "$out"
+    TYPECHECK_BUILD_DIR="$out/build" \
+        bash ./bin/in-env typecheck "$target" >"$out/typecheck.log" 2>&1
+    sed -nE \
+        's/^\[[^]]+\][[:space:]]+Compiling[[:space:]]+(Application\.[^[:space:]]+).*/\1/p' \
+        "$out/typecheck.log" | sort -u | tee "$out/application-modules.txt"
+}
+
+capture_surface_request_closure \
+    profile \
+    Application/Helper/FrontendContract/Surface/Profile/Action.hs
+capture_surface_request_closure \
+    roster-intent \
+    Application/Helper/FrontendContract/Surface/Roster/Intent.hs
+```
+
+The post-#193/#195 baseline was 50 `Application.*` modules for each target. Its
+exact 47-module common set was:
+
+- `Application.Bepis.{Action,Fact,Response}`;
+- `Application.Helper.FrontendContract.{App,AppShell,AppValues,Core,DSL,Htmx,IR,Interaction,LiveUpdate,LiveUpdateValues,Naming,Reflect,Registry,UiRegion,Values}`;
+- `Application.Helper.FrontendContract.Surface.{Admin,Billing,ContractIR,Contracts,DSL,Diagnostics,Identity,Interaction,LeaveRequests,Live,Profile,Reflect,Registry,Request,Roster,Runtime,SemanticIR,Support,Timesheets,Values}` plus
+  `Surface.HaskellAdapter.Association`;
+- `Application.Helper.FrontendContract.Wire.{Carrier,Json,LiveUpdate}`; and
+- `Application.Helper.{LiveUpdate.Internal,Profiling,Telemetry,UiRegion,Url}`.
+
+Profile added only `Surface.Profile.{Action,Generated.Action,HaskellAdapter}`;
+Roster Intent added only
+`Surface.Roster.{Generated.Intent,HaskellAdapter,Intent}`.
+
+The candidate compiler-observed closures are 17 modules for Profile Action and
+18 for Roster Intent. Their exact 13-module common set is:
+
+- `Application.Helper.FrontendContract.{Core,DSL,Interaction,Naming}`;
+- `Application.Helper.FrontendContract.Surface.{ContractIR,DSL,Diagnostics,Reflect,Request,Request.Runtime,SemanticIR,Values}`; and
+- `Application.Helper.FrontendContract.Surface.HaskellAdapter.Association`.
+
+Profile retains only `Surface.Profile` plus
+`Surface.Profile.{Action,Generated.Action,HaskellAdapter}`. Roster Intent
+retains `Surface.Interaction`, `Surface.Roster`, and
+`Surface.Roster.{Generated.Intent,HaskellAdapter,Intent}`. The exact delta for
+both targets adds only `Surface.Request.Runtime`. Both remove the shared
+32-module set:
+
+- `Application.Bepis.{Action,Fact,Response}`;
+- `Application.Helper.FrontendContract.{App,AppShell,AppValues,Htmx,IR,LiveUpdate,LiveUpdateValues,Reflect,Registry,UiRegion,Values}`;
+- `Application.Helper.FrontendContract.Surface.{Admin,Billing,Contracts,Identity,LeaveRequests,Live,Registry,Runtime,Support,Timesheets}`;
+- `Application.Helper.FrontendContract.Wire.{Carrier,Json,LiveUpdate}`; and
+- `Application.Helper.{LiveUpdate.Internal,Profiling,Telemetry,UiRegion,Url}`.
+
+Profile additionally removes `Surface.Interaction` and `Surface.Roster` (34
+removed, one added, 50 to 17); Roster Intent additionally removes
+`Surface.Profile` (33 removed, one added, 50 to 18).
+
+Every retained dependency has one request-facade role:
+
+- `Surface.DSL`, `Surface.Diagnostics`, and `Surface.Values` own declaration
+  lookup, nominal field construction, diagnostics, and read-only serialization;
+- `Surface.Request` owns exact parsers and structured field errors;
+- `Surface.Request.Runtime`, `Surface.Reflect`, and `Naming` own opaque metadata
+  construction and marker-derived names;
+- `Surface.ContractIR`, `Surface.SemanticIR`, `Core`, and the global
+  `DSL`/`Interaction` modules are the canonical reflected metadata model rather
+  than a request-specific duplicate IR;
+- `HaskellAdapter.Association` supplies the feature family's nominal Surface;
+  and
+- the Profile or Roster feature modules supply only the selected declarations,
+  generated operations, curated facade, and Roster's shared interaction aliases.
+
+The architecture regression check computes transitive membership from generated
+source facts and compares these exact sets, not just counts:
+
+```bash
+bash ./bin/in-env architecture-surface-request-closure --print-modules
+```
+
+It is also part of `architecture-check-fresh`. Both closures exclude unrelated
+Surface specs, `Surface.Runtime`, mount/live/wire implementation, and
+`Surface.HaskellAdapter.{Core,Family,Generator,Registry,RequestRenderer}`.
 
 Write and verify output with:
 

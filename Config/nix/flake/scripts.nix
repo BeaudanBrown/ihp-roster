@@ -95,6 +95,7 @@ in
         architecture-schema = script ../scripts/architecture/schema;
         architecture-web-map = script ../scripts/architecture/web-map;
         architecture-module-graph = script ../scripts/architecture/module-graph;
+        architecture-surface-request-closure = script ../scripts/architecture/surface-request-closure;
         architecture-runtime-overlay = script ../scripts/architecture/runtime-overlay;
         architecture-query = script ../scripts/architecture/query;
         architecture-trace-diagram = script ../scripts/architecture/trace-diagram;

@@ -1,8 +1,8 @@
 module Test.CompileFail.FrontendSurfaceWrongIntentOperation where
 
+import Application.Helper.FrontendContract.Surface.Request.Runtime (FrontendSurfaceHtmxRequest,
+                                                                    FrontendSurfaceIntentForm)
 import qualified Application.Helper.FrontendContract.Surface.Roster.Intent as RosterIntent
-import Application.Helper.FrontendContract.Surface.Runtime (FrontendSurfaceHtmxRequest,
-                                                            FrontendSurfaceIntentForm)
 import IHP.Prelude
 
 wrongIntentOperation :: FrontendSurfaceHtmxRequest -> FrontendSurfaceIntentForm

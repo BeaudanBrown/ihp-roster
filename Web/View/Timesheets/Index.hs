@@ -11,8 +11,8 @@ import Application.Helper.FrontendContract.AppShell (EditTimesheetEntryDialog,
 import Application.Helper.FrontendContract.AppShell.Runtime (AppShellActionRoute (..),
                                                              appShellActionByMarker,
                                                              renderAppShellActionLink)
-import Application.Helper.FrontendContract.Surface.Runtime (FrontendSurfaceAction,
-                                                            FrontendSurfaceActionRoute (..),
+import Application.Helper.FrontendContract.Surface.Request.Runtime (FrontendSurfaceAction)
+import Application.Helper.FrontendContract.Surface.Runtime (FrontendSurfaceActionRoute (..),
                                                             SurfaceImpl,
                                                             renderFrontendSurfaceActionForm,
                                                             renderFrontendSurfaceActionFormWithHiddenFields,

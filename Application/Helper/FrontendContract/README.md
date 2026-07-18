@@ -6,8 +6,10 @@ typeclass reflection, checked as contract IR, and rendered to
 `frontend/ts/generated/contracts.ts`. Global roots come from
 `RegisteredFrontendContracts`; Surface roots come from
 `RegisteredFrontendSurfaces` through the single checked reflected
-`SurfaceContractIR`. The unified `FrontendContractIR` embeds those checked
-`SurfaceIR` values directly. `Application.Helper.FrontendContract.Core` owns the
+`SurfaceContractIR`. The generic `Surface.Reflect` evaluator stays independent
+of the production registry; `Surface.Contracts` binds the two for aggregate
+runtime/generation consumers. The unified `FrontendContractIR` embeds those
+checked `SurfaceIR` values directly. `Application.Helper.FrontendContract.Core` owns the
 shared field, wire, schema, diagnostic, and HTMX model, while
 `Application.Helper.FrontendContract.Naming` owns naming for both roots.
 Generation, server runtime metadata, validation, and semantic Surface
@@ -160,7 +162,20 @@ resource identity. Every private generated module has only its matching curated
 facade consumer. The lightweight `HaskellAdapter.Association` seam carries
 `AdapterFamilySurface` into generated modules without pulling
 registry/reflection mechanics from `HaskellAdapter.Family` and
-`HaskellAdapter.Core` into focused feature compiles.
+`HaskellAdapter.Core` into focused feature compiles. Generated Action/Intent
+modules also import the focused `Surface.Request.Runtime` metadata seam rather
+than the mount/live `Surface.Runtime`. The focused seam owns opaque request
+metadata values and marker-indexed constructors; field construction remains in
+`Surface.Values`, exact parsing remains in `Surface.Request`, and HTML rendering
+remains in `Surface.Runtime`. The broad runtime consumes read-only metadata
+selectors without re-exporting the focused interface.
+
+The exact source-derived closure contract is checked by
+`architecture-surface-request-closure`: Profile Action retains 17
+`Application.*` modules and Roster Intent retains 18, with no unrelated Surface
+catalog, mount/live/wire runtime, or Haskell adapter generator implementation.
+The compiler-observed baseline, candidate sets, deltas, and retained-dependency
+classification are recorded in `Surface/README.md`.
 
 The production operation inventory covers all 53 actions and five intents. It
 marks 48 actions as adapter-eligible, with builders/render metadata for all 48

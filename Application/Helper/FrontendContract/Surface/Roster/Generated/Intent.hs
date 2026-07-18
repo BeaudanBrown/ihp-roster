@@ -25,11 +25,11 @@ import Application.Helper.FrontendContract.Surface.HaskellAdapter.Association (A
 import qualified Application.Helper.FrontendContract.Surface.Interaction as Types1
 import Application.Helper.FrontendContract.Surface.Request (SurfaceRequestFieldError,
                                                             parseSurfaceIntentParams)
+import Application.Helper.FrontendContract.Surface.Request.Runtime (FrontendSurfaceHtmxRequest,
+                                                                    FrontendSurfaceIntentForm,
+                                                                    frontendSurfaceIntentForm)
 import qualified Application.Helper.FrontendContract.Surface.Roster as Types2
 import qualified Application.Helper.FrontendContract.Surface.Roster.HaskellAdapter as Types3
-import Application.Helper.FrontendContract.Surface.Runtime (FrontendSurfaceHtmxRequest,
-                                                            FrontendSurfaceIntentForm,
-                                                            frontendSurfaceIntentForm)
 import Application.Helper.FrontendContract.Surface.Values (SurfaceIntentFields,
                                                            noSurfaceFields,
                                                            surfaceField,

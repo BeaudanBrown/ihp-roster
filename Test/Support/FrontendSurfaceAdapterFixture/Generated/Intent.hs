@@ -12,9 +12,9 @@ module Test.Support.FrontendSurfaceAdapterFixture.Generated.Intent
 import Application.Helper.FrontendContract.Surface.HaskellAdapter.Association (AdapterFamilySurface)
 import Application.Helper.FrontendContract.Surface.Request (SurfaceRequestFieldError,
                                                             parseSurfaceIntentParams)
-import Application.Helper.FrontendContract.Surface.Runtime (FrontendSurfaceHtmxRequest,
-                                                            FrontendSurfaceIntentForm,
-                                                            frontendSurfaceIntentForm)
+import Application.Helper.FrontendContract.Surface.Request.Runtime (FrontendSurfaceHtmxRequest,
+                                                                    FrontendSurfaceIntentForm,
+                                                                    frontendSurfaceIntentForm)
 import Application.Helper.FrontendContract.Surface.Values (SurfaceIntentFields,
                                                            noSurfaceFields,
                                                            surfaceField,

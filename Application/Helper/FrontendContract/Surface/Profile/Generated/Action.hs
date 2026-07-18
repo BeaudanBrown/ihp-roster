@@ -29,8 +29,8 @@ import qualified Application.Helper.FrontendContract.Surface.Profile as Types1
 import qualified Application.Helper.FrontendContract.Surface.Profile.HaskellAdapter as Types2
 import Application.Helper.FrontendContract.Surface.Request (SurfaceRequestFieldError,
                                                             parseSurfaceActionParams)
-import Application.Helper.FrontendContract.Surface.Runtime (FrontendSurfaceAction,
-                                                            frontendSurfaceAction)
+import Application.Helper.FrontendContract.Surface.Request.Runtime (FrontendSurfaceAction,
+                                                                    frontendSurfaceAction)
 import Application.Helper.FrontendContract.Surface.Values (SurfaceActionFields,
                                                            noSurfaceFields,
                                                            surfaceActionFields,

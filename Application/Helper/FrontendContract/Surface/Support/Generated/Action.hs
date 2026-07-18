@@ -11,8 +11,8 @@ module Application.Helper.FrontendContract.Surface.Support.Generated.Action
     ) where
 
 import Application.Helper.FrontendContract.Surface.HaskellAdapter.Association (AdapterFamilySurface)
-import Application.Helper.FrontendContract.Surface.Runtime (FrontendSurfaceAction,
-                                                            frontendSurfaceAction)
+import Application.Helper.FrontendContract.Surface.Request.Runtime (FrontendSurfaceAction,
+                                                                    frontendSurfaceAction)
 import qualified Application.Helper.FrontendContract.Surface.Support as Types1
 import qualified Application.Helper.FrontendContract.Surface.Support.HaskellAdapter as Types2
 import Application.Helper.FrontendContract.Surface.Values (SurfaceActionFields,

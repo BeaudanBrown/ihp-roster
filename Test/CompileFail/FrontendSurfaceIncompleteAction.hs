@@ -2,7 +2,7 @@
 
 module Test.CompileFail.FrontendSurfaceIncompleteAction where
 
-import Application.Helper.FrontendContract.Surface.Runtime (frontendSurfaceAction)
+import Application.Helper.FrontendContract.Surface.Request.Runtime (frontendSurfaceAction)
 import qualified Application.Helper.FrontendContract.Surface.Timesheets as Timesheets
 import Application.Helper.FrontendContract.Surface.Values
 import IHP.Prelude

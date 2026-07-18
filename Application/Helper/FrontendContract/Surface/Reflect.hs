@@ -13,21 +13,15 @@ module Application.Helper.FrontendContract.Surface.Reflect
     , ReflectResource (..)
     , ReflectSurfaceRegistry (..)
     , ReflectSurfaceSpec (..)
-    , reflectRegisteredFrontendSurfaces
     ) where
 
 import Application.Helper.FrontendContract.Naming (FrontendSurfaceNameContext (..),
                                                    deriveFrontendSurfaceName)
 import Application.Helper.FrontendContract.Surface.ContractIR
 import Application.Helper.FrontendContract.Surface.DSL
-import Application.Helper.FrontendContract.Surface.Registry (RegisteredFrontendSurfaces)
 import qualified Data.List as List
 import Data.Typeable (tyConName, typeRep, typeRepTyCon)
 import IHP.Prelude
-
-reflectRegisteredFrontendSurfaces :: SurfaceContractIR
-reflectRegisteredFrontendSurfaces =
-    SurfaceContractIR { contractSurfaces = reflectSurfaceRegistry @RegisteredFrontendSurfaces }
 
 class ReflectSurfaceRegistry (surfaces :: [SurfaceSpec]) where
     reflectSurfaceRegistry :: [SurfaceIR]

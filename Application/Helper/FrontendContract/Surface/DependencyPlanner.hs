@@ -4,7 +4,7 @@ module Application.Helper.FrontendContract.Surface.DependencyPlanner
     ) where
 
 import qualified Application.Helper.FrontendContract.Surface.ContractIR as SurfaceIR
-import Application.Helper.FrontendContract.Surface.Reflect (reflectRegisteredFrontendSurfaces)
+import Application.Helper.FrontendContract.Surface.Contracts (registeredFrontendSurfaceContractIR)
 import Application.Helper.FrontendContract.Surface.Resource (SurfaceResourceValue)
 import qualified Application.Helper.FrontendContract.Surface.Resource.Internal as ResourceInternal
 import qualified Application.Helper.FrontendContract.Wire.LiveUpdate as Wire
@@ -63,7 +63,7 @@ fragmentKeyDependencyIdentities scope fragmentKey = do
 
 findSurface :: Text -> Maybe SurfaceIR.SurfaceIR
 findSurface surfaceName =
-    List.find ((== surfaceName) . (.surfaceName)) reflectRegisteredFrontendSurfaces.contractSurfaces
+    List.find ((== surfaceName) . (.surfaceName)) registeredFrontendSurfaceContractIR.contractSurfaces
 
 findFragment :: Text -> SurfaceIR.SurfaceIR -> Maybe SurfaceIR.FragmentIR
 findFragment fragmentKind surface =

@@ -40,7 +40,7 @@ renderSurfaceRequestAdapterImports requestFieldsImport bindFieldsImport emptyFie
             )
         <> conditionalImports hasMetadata
             ( renderImportList
-                "Application.Helper.FrontendContract.Surface.Runtime"
+                "Application.Helper.FrontendContract.Surface.Request.Runtime"
                 metadataImports
             )
         <> renderImportList

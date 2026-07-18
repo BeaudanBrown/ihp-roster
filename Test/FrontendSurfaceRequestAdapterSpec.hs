@@ -21,15 +21,15 @@ import Application.Helper.FrontendContract.Surface.Reflect (reflectSurfaceRegist
 import Application.Helper.FrontendContract.Surface.Request (SurfaceRequestFieldError (..),
                                                             SurfaceRequestFieldErrorKind (..),
                                                             parseSurfaceActionParamPairs)
+import Application.Helper.FrontendContract.Surface.Request.Runtime (FrontendSurfaceHtmxMethod (..),
+                                                                    FrontendSurfaceHtmxRequest (..),
+                                                                    FrontendSurfaceIntentForm,
+                                                                    intentFormName)
 import qualified Application.Helper.FrontendContract.Surface.Roster as Roster
 import qualified Application.Helper.FrontendContract.Surface.Roster.Intent as RosterIntent
 import Application.Helper.FrontendContract.Surface.Runtime (FrontendSurfaceActionRoute (..),
                                                             FrontendSurfaceCustomHtmxAttrs (..),
-                                                            FrontendSurfaceHtmxMethod (..),
-                                                            FrontendSurfaceHtmxRequest (..),
-                                                            FrontendSurfaceIntentForm,
                                                             frontendSurfaceActionHtmxAttrPairs,
-                                                            intentFormName,
                                                             renderFrontendSurfaceIntentForm)
 import Application.Helper.FrontendContract.Surface.Values (SurfaceActionFields,
                                                            SurfaceFieldBundleOf,
@@ -80,6 +80,10 @@ tests = describe "FrontendSurfaceRequestAdapter" do
                 generated.generatedModuleSource `shouldSatisfy` Text.isInfixOf "parseCrossKindDeclarationActionParams"
                 generated.generatedModuleSource `shouldSatisfy` Text.isInfixOf "frontendSurfaceAction"
                 generated.generatedModuleSource `shouldSatisfy` Text.isInfixOf "parseSurfaceActionParams"
+                generated.generatedModuleSource
+                    `shouldSatisfy` Text.isInfixOf "Application.Helper.FrontendContract.Surface.Request.Runtime"
+                generated.generatedModuleSource
+                    `shouldNotSatisfy` Text.isInfixOf "Application.Helper.FrontendContract.Surface.Runtime"
                 generated.generatedModuleSource `shouldNotSatisfy` Text.isInfixOf ".Internal"
                 generated.generatedModuleSource `shouldNotSatisfy` Text.isInfixOf "Aeson"
             Right generated -> expectationFailure (cs ("expected one generated Action module, got " <> tshow (length generated)))
@@ -99,6 +103,10 @@ tests = describe "FrontendSurfaceRequestAdapter" do
                 generated.generatedModuleSource `shouldSatisfy` Text.isInfixOf "parseCrossKindDeclarationIntentParams"
                 generated.generatedModuleSource `shouldSatisfy` Text.isInfixOf "frontendSurfaceIntentForm"
                 generated.generatedModuleSource `shouldSatisfy` Text.isInfixOf "parseSurfaceIntentParams"
+                generated.generatedModuleSource
+                    `shouldSatisfy` Text.isInfixOf "Application.Helper.FrontendContract.Surface.Request.Runtime"
+                generated.generatedModuleSource
+                    `shouldNotSatisfy` Text.isInfixOf "Application.Helper.FrontendContract.Surface.Runtime"
                 generated.generatedModuleSource `shouldNotSatisfy` Text.isInfixOf ".Internal"
                 generated.generatedModuleSource `shouldNotSatisfy` Text.isInfixOf "Aeson"
             Right generated -> expectationFailure (cs ("expected one generated Intent module, got " <> tshow (length generated)))

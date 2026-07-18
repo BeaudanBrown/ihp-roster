@@ -7,7 +7,7 @@ module Application.Helper.FrontendContract.Surface.Authorization
 import Application.Helper.FrontendContract.Surface.AuthorizationRequirement (SurfaceScopeAuthorizationRequirement (..),
                                                                              authorizeSurfaceScopeRequirement)
 import qualified Application.Helper.FrontendContract.Surface.ContractIR as SurfaceIR
-import Application.Helper.FrontendContract.Surface.Reflect (reflectRegisteredFrontendSurfaces)
+import Application.Helper.FrontendContract.Surface.Contracts (registeredFrontendSurfaceContractIR)
 import qualified Application.Helper.FrontendContract.Wire.LiveUpdate as Wire
 import qualified Application.Helper.LiveUpdate.Internal as LiveUpdateInternal
 import Application.Helper.LiveUpdate.Runtime
@@ -39,7 +39,7 @@ authorizeFrontendSurfaceScope scope =
 frontendSurfaceScopeAuthorizationRequirement :: SurfaceScope -> Maybe (Maybe SurfaceScopeAuthorizationRequirement)
 frontendSurfaceScopeAuthorizationRequirement scope = do
     (surfaceName, scopePayload) <- liveScopeSurfaceAndPayload scope
-    surface <- find ((== surfaceName) . (.surfaceName)) reflectRegisteredFrontendSurfaces.contractSurfaces
+    surface <- find ((== surfaceName) . (.surfaceName)) registeredFrontendSurfaceContractIR.contractSurfaces
     scopeIR <- listToMaybe surface.surfaceScopes
     auth <- listToMaybe scopeIR.scopeOptions
     authorizationRequirementFor auth scopePayload
@@ -48,7 +48,7 @@ validateFrontendSurfaceLiveSubscription :: SurfaceSubscription -> Bool
 validateFrontendSurfaceLiveSubscription SurfaceSubscription { subscriptionScope, subscriptionScopeKey, subscriptionFragmentKeys } =
     fromMaybe False do
         let Wire.SurfaceScope { surface = scopeSurface, scope = scopePayload } = LiveUpdateInternal.surfaceScopeToWire subscriptionScope
-        surface <- find ((== scopeSurface) . (.surfaceName)) reflectRegisteredFrontendSurfaces.contractSurfaces
+        surface <- find ((== scopeSurface) . (.surfaceName)) registeredFrontendSurfaceContractIR.contractSurfaces
         scopeIR <- listToMaybe surface.surfaceScopes
         guard (subscriptionScopeKey == surfaceScopeKey subscriptionScope)
         guard (validateFields scopeIR.scopeFields scopePayload)
