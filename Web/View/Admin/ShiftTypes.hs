@@ -13,7 +13,6 @@ import Application.Helper.FrontendContract.Surface.Request.Runtime (FrontendSurf
 import Application.Helper.FrontendContract.Surface.Runtime (FrontendSurfaceActionRoute (..),
                                                             FrontendSurfaceCustomHtmxAttrs (..),
                                                             applyFrontendSurfaceActionAttrs,
-                                                            frontendSurfaceActionHtmxAttrPairs,
                                                             renderFrontendSurfaceActionForm,
                                                             renderFrontendSurfaceActionLink,
                                                             renderFrontendSurfaceActionSubmitButton,
@@ -103,7 +102,7 @@ renderShiftTypeCreateForm _shiftTypes showInactive awardLevels awardLevelBaseRat
             </div>
             <div class="col-6 col-lg-1">
                 <label class="form-label" for="new-shift-type-active">Status</label>
-                {renderAdminActiveToggle "new-shift-type-active" (surfaceFieldNameFrom @Surface.IsActive fields) Nothing "admin-shift-types-fragment" True}
+                {renderAdminActiveToggle "new-shift-type-active" (surfaceToggleScalarField @Surface.IsActive fields True False) True}
             </div>
             <div class="col-6 col-lg-1">
                 <button class="btn btn-outline-primary w-100" type="submit">Add</button>
@@ -159,7 +158,7 @@ renderShiftTypeRow shiftTypes showInactive awardLevels awardLevelBaseRates impor
             </div>
             <div class="col-12 col-lg-2">
                 <label class="form-label" for={"shift-type-active-" <> tshow shiftType.id}>Status</label>
-                {renderAdminActiveToggleWithInputAttrs ("shift-type-active-" <> tshow shiftType.id) (surfaceFieldNameFrom @Surface.IsActive fields) shiftType.isActive (frontendSurfaceActionHtmxAttrPairs autosaveSelectionAction (autosaveSelectionRoute shiftType))}
+                {renderAdminActiveToggleImmediate ("shift-type-active-" <> tshow shiftType.id) (surfaceToggleScalarField @Surface.IsActive fields True False) shiftType.isActive}
             </div>
         </div>
     |]

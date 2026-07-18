@@ -372,7 +372,9 @@ tests = beforeAll testContext do
                 pageResponse `responseBodyShouldContain` "name=\"isActive\" value=\"true\""
                 pageResponse `responseBodyShouldContain` "type=\"hidden\" name=\"isActive\" value=\"false\""
                 pageResponse `responseBodyShouldContain` ("id=\"shift-type-active-" <> tshow shiftType.id <> "\"")
-                pageResponse `responseBodyShouldContain` "app-toggle-button btn-success"
+                pageResponse `responseBodyShouldContain` "btn btn-outline-success app-toggle-button"
+                pageResponse `responseBodyShouldContain` "data-bepis-toggle-transport=\""
+                pageResponse `responseBodyShouldContain` "data-bepis-toggle-config=\""
                 pageResponse `responseBodyShouldContain` "aria-pressed=\"true\""
                 pageResponse `responseBodyShouldContain` "role=\"switch\" aria-checked=\"true\""
                 pageResponse `responseBodyShouldContain` ("hx-post=\"/UpdateShiftType?shiftTypeId=" <> tshow shiftType.id <> "\"")

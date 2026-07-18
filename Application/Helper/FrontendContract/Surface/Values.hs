@@ -28,6 +28,7 @@ module Application.Helper.FrontendContract.Surface.Values
     , SurfaceFieldBundle
     , SurfaceFieldBundleOf
     , SurfaceFieldBundleSpecs
+    , SurfaceFieldLookup (..)
     , SurfaceFieldValue
     , SurfaceFieldValues
     , SurfaceFields

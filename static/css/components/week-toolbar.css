@@ -15,7 +15,7 @@
     z-index: 4;
     display: grid;
     grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
-    grid-template-areas: "quick navigation settings";
+    grid-template-areas: "quick navigation end";
     gap: 0.75rem;
     align-items: center;
     min-height: 4.5rem;
@@ -36,14 +36,11 @@
 
 .app-week-toolbar-primary,
 .app-week-toolbar-reset,
-.app-week-toolbar-aux {
+.app-week-toolbar-aux,
+.app-week-toolbar-settings {
     display: inline-flex;
     align-items: center;
     min-width: 0;
-}
-
-.app-week-toolbar-mobile-control {
-    display: none;
 }
 
 .app-week-toolbar-navigation {
@@ -52,24 +49,16 @@
     justify-content: center;
 }
 
-.app-week-toolbar-settings {
-    grid-area: settings;
+.app-week-toolbar-end {
+    grid-area: end;
     display: flex;
     align-items: center;
     justify-content: flex-end;
     gap: 0.5rem;
 }
 
-.app-week-toolbar-aux {
-    min-width: 0;
-}
-
-.app-week-toolbar-aux-mobile {
-    display: none;
-}
-
-.app-week-toolbar-aux-desktop {
-    display: inline-flex;
+.app-week-toolbar-settings {
+    justify-content: flex-end;
 }
 
 @media (max-width: 991.98px) {
@@ -94,19 +83,16 @@
             "navigation navigation navigation";
     }
 
-    .app-week-toolbar-desktop-start {
-        display: none;
-    }
-
-    .app-week-toolbar-mobile-control {
-        display: flex;
+    .app-week-toolbar-quick,
+    .app-week-toolbar-end {
+        display: contents;
     }
 
     .app-week-toolbar-primary,
     .app-week-toolbar-reset,
     .app-week-toolbar-navigation,
     .app-week-toolbar-settings,
-    .app-week-toolbar-aux-mobile {
+    .app-week-toolbar-aux {
         position: relative;
         z-index: 1;
     }
@@ -129,6 +115,11 @@
         width: 100%;
         min-width: 0;
         margin-inline: 0;
+        pointer-events: none;
+    }
+
+    .app-week-toolbar-reset > * {
+        pointer-events: auto;
     }
 
     .app-week-toolbar-settings {
@@ -142,37 +133,46 @@
         justify-content: center;
     }
 
-    .app-week-toolbar-aux-desktop {
-        display: none;
-    }
-
-    .app-week-toolbar-aux-mobile {
+    .app-week-toolbar-aux {
         grid-area: auxiliary;
-        display: flex;
         justify-content: center;
     }
 
-    .app-week-toolbar-timesheets .app-week-toolbar-aux-mobile {
+    .app-week-toolbar-timesheets .app-week-toolbar-aux {
         display: none;
     }
 }
 
 @media (min-width: 576px) and (max-width: 991.98px) {
     .app-week-toolbar-timesheets {
-        grid-template-areas: "quick navigation settings";
+        grid-template-areas: "quick navigation end";
         min-height: 4.5rem;
     }
 
-    .app-week-toolbar-timesheets .app-week-toolbar-desktop-start {
+    .app-week-toolbar-timesheets .app-week-toolbar-quick {
+        grid-area: quick;
         display: flex;
     }
 
-    .app-week-toolbar-timesheets .app-week-toolbar-mobile-control,
-    .app-week-toolbar-timesheets .app-week-toolbar-aux-mobile {
-        display: none;
+    .app-week-toolbar-timesheets .app-week-toolbar-reset {
+        grid-column: auto;
+        grid-row: auto;
+        justify-self: auto;
+        width: auto;
+        pointer-events: auto;
     }
 
-    .app-week-toolbar-timesheets .app-week-toolbar-aux-desktop {
+    .app-week-toolbar-timesheets .app-week-toolbar-end {
+        grid-area: end;
+        display: flex;
+    }
+
+    .app-week-toolbar-timesheets .app-week-toolbar-settings {
+        grid-area: auto;
+    }
+
+    .app-week-toolbar-timesheets .app-week-toolbar-aux {
+        grid-area: auto;
         display: inline-flex;
     }
 }

@@ -61,7 +61,7 @@ renderRosterTimePickerWindowForm :: VenueConfig -> Html
 renderRosterTimePickerWindowForm venueConfig =
     renderFrontendSurfaceActionForm
         (AdminAction.updateVenueConfigAction fields)
-        venueSettingRoute
+        venueTimePickerSettingRoute
         [hsx|
         <input type="hidden" name={surfaceFieldNameFrom @Surface.ConfigFieldField fields} value="timePickerWindow" />
         <div class="admin-setting-row-copy">
@@ -101,7 +101,7 @@ renderRosterEndTimesForm :: VenueConfig -> Html
 renderRosterEndTimesForm venueConfig =
     renderFrontendSurfaceActionForm
         (AdminAction.updateVenueConfigAction fields)
-        venueSettingRoute
+        venueToggleSettingRoute
         [hsx|
         <input type="hidden" name={surfaceFieldNameFrom @Surface.ConfigFieldField fields} value="rosterEndTimesEnabled" />
         <div class="admin-setting-row-copy">
@@ -109,7 +109,7 @@ renderRosterEndTimesForm venueConfig =
             <p class="small app-muted mb-0">Shift end times are always collected; this controls whether they appear in the roster.</p>
         </div>
         <div class="admin-setting-row-control">
-            {renderVenueSettingToggle "venue-roster-end-times-enabled" (surfaceFieldNameFrom @Surface.RosterEndTimesEnabled fields) venueConfig.rosterEndTimesEnabled}
+            {renderVenueSettingToggle fields "venue-roster-end-times-enabled" venueConfig.rosterEndTimesEnabled}
         </div>
     |]
   where
@@ -122,20 +122,33 @@ renderRosterEndTimesForm venueConfig =
             Nothing
             Nothing
 
-renderVenueSettingToggle :: Text -> Text -> Bool -> Html
-renderVenueSettingToggle inputId fieldName isEnabled =
-    renderAppToggleButton $ (defaultAppToggleStateButtonConfig inputId isEnabled [hsx|<span class="small">Enabled</span>|] [hsx|<span class="small">Disabled</span>|])
-        { appToggleInputName = Just fieldName
-        , appToggleInputValue = "true"
-        , appToggleButtonClass = "btn-sm"
-        , appToggleRoleSwitch = True
-        , appToggleOnChange = Just "if (!window.htmx) this.form.requestSubmit()"
-        }
+renderVenueSettingToggle :: SurfaceActionFields Surface.AdminVenueSettingsSurface Surface.UpdateVenueConfig -> Text -> Bool -> Html
+renderVenueSettingToggle fields inputId isEnabled =
+    renderAppToggleButton $
+        ( defaultAppToggleStateButtonConfig
+            inputId
+            (surfaceToggleScalarField @Surface.RosterEndTimesEnabled fields True False)
+            isEnabled
+            [hsx|<span class="small">Enabled</span>|]
+            [hsx|<span class="small">Disabled</span>|]
+        )
+            { appToggleButtonClass = "btn-sm"
+            , appToggleRoleSwitch = True
+            , appToggleSubmitPolicy = ToggleSubmitImmediate
+            }
 
-venueSettingRoute :: FrontendSurfaceActionRoute
-venueSettingRoute = FrontendSurfaceActionRoute
+venueTimePickerSettingRoute :: FrontendSurfaceActionRoute
+venueTimePickerSettingRoute = FrontendSurfaceActionRoute
     { actionRouteUrl = pathTo UpdateVenueConfigAction
     , actionRouteCustomHtmx = [FrontendSurfaceCustomHtmxAttrs "change-autosave-custom-htmx" [("hx-trigger", "change")]]
+    , actionRouteStandardUrl = Just (pathTo UpdateVenueConfigAction)
+    , actionRouteExtraAttrs = [("class", "admin-setting-row")]
+    }
+
+venueToggleSettingRoute :: FrontendSurfaceActionRoute
+venueToggleSettingRoute = FrontendSurfaceActionRoute
+    { actionRouteUrl = pathTo UpdateVenueConfigAction
+    , actionRouteCustomHtmx = []
     , actionRouteStandardUrl = Just (pathTo UpdateVenueConfigAction)
     , actionRouteExtraAttrs = [("class", "admin-setting-row")]
     }

@@ -211,19 +211,26 @@ renderTimesheetFilterForm updateUrl weekOffset showApproved showAllStaff showSug
             }
         [hsx|
             <input type="hidden" name={surfaceFieldNameFrom @Surface.WeekOffset fields} value={tshow weekOffset} />
-            <input type="hidden" name={surfaceFieldNameFrom @Surface.ShowApproved fields} id="timesheet-show-approved-value" value={boolParam showApproved} />
-            <input type="hidden" name={surfaceFieldNameFrom @Surface.ShowAllStaff fields} id="timesheet-show-all-staff-value" value={boolParam showAllStaff} />
-            <input type="hidden" name={surfaceFieldNameFrom @Surface.ShowSuggestions fields} id="timesheet-show-suggestions-value" value={boolParam showSuggestions} />
+            {renderWorkerShowAllStaffFilterTransport fields}
             <div class="small text-uppercase fw-semibold app-muted px-1 pb-2">Filters</div>
             <div class="timesheet-settings-toggle-grid mb-2">
-                {renderTimesheetHideApprovedToggle showApproved}
-                {renderTimesheetMenuToggle "timesheet-show-suggestions-toggle" "timesheet-show-suggestions-value" showSuggestions "Show suggestions"}
-                {when currentUserIsManager (renderTimesheetMenuToggle "timesheet-show-all-staff-toggle" "timesheet-show-all-staff-value" showAllStaff "Show all staff")}
+                {renderTimesheetHideApprovedToggle fields showApproved}
+                {renderTimesheetMenuToggle "timesheet-show-suggestions-toggle" (surfaceToggleScalarField @Surface.ShowSuggestions fields True False) showSuggestions "Show suggestions"}
+                {when currentUserIsManager (renderTimesheetMenuToggle "timesheet-show-all-staff-toggle" (surfaceToggleScalarField @Surface.ShowAllStaff fields True False) showAllStaff "Show all staff")}
             </div>
             {when currentUserIsManager (renderTimesheetStaffFilter fields selectedStaffFilterId staffMembers)}
         |]
   where
     fields = TimesheetsAction.updateTimesheetFiltersActionFields weekOffset showApproved showAllStaff showSuggestions selectedStaffFilterId
+
+renderWorkerShowAllStaffFilterTransport :: (?context :: ControllerContext) => SurfaceActionFields Surface.TimesheetsSurface Surface.UpdateTimesheetFilters -> Html
+renderWorkerShowAllStaffFilterTransport fields
+    | currentUserIsManager = mempty
+    | otherwise = [hsx|
+        <input type="hidden"
+               name={surfaceFieldNameFrom @Surface.ShowAllStaff fields}
+               value={boolParam (surfaceFieldValue @Surface.ShowAllStaff fields)} />
+    |]
 
 renderTimesheetStaffFilter :: SurfaceActionFields Surface.TimesheetsSurface Surface.UpdateTimesheetFilters -> Maybe UUID -> [Staff] -> Html
 renderTimesheetStaffFilter fields selectedStaffFilterId staffMembers = [hsx|
@@ -247,29 +254,27 @@ renderTimesheetStaffFilter fields selectedStaffFilterId staffMembers = [hsx|
                 </option>
             |]
 
-renderTimesheetHideApprovedToggle :: Bool -> Html
-renderTimesheetHideApprovedToggle showApproved = [hsx|
+renderTimesheetHideApprovedToggle :: SurfaceActionFields Surface.TimesheetsSurface Surface.UpdateTimesheetFilters -> Bool -> Html
+renderTimesheetHideApprovedToggle fields showApproved = [hsx|
     <div class="timesheet-settings-toggle">
-        {renderTimesheetToggleButton "timesheet-hide-approved-toggle" "timesheet-show-approved-value" (not showApproved) "false" "true" "Hide approved"}
+        {renderTimesheetToggleButton "timesheet-hide-approved-toggle" (surfaceToggleScalarField @Surface.ShowApproved fields False True) (not showApproved) "Hide approved"}
     </div>
 |]
 
-renderTimesheetMenuToggle :: Text -> Text -> Bool -> Text -> Html
-renderTimesheetMenuToggle inputId hiddenInputId isChecked label = [hsx|
+renderTimesheetMenuToggle :: Text -> ToggleFieldBinding -> Bool -> Text -> Html
+renderTimesheetMenuToggle inputId binding isChecked label = [hsx|
     <div class="timesheet-settings-toggle">
-        {renderTimesheetToggleButton inputId hiddenInputId isChecked "true" "false" label}
+        {renderTimesheetToggleButton inputId binding isChecked label}
     </div>
 |]
 
-renderTimesheetToggleButton :: Text -> Text -> Bool -> Text -> Text -> Text -> Html
-renderTimesheetToggleButton inputId hiddenInputId isChecked checkedValue uncheckedValue label =
-    renderAppToggleButton $ (defaultAppToggleButtonConfig inputId isChecked [hsx|<span class="small">{label}</span>|])
-        { appToggleButtonClass = "btn-sm w-100 justify-content-start"
-        , appToggleHiddenInputId = Just hiddenInputId
-        , appToggleHiddenInputCheckedValue = Just checkedValue
-        , appToggleHiddenInputUncheckedValue = Just uncheckedValue
-        , appToggleOnChange = Just ("document.getElementById('" <> hiddenInputId <> "').value = this.checked ? '" <> checkedValue <> "' : '" <> uncheckedValue <> "'; this.form.requestSubmit();")
-        }
+renderTimesheetToggleButton :: Text -> ToggleFieldBinding -> Bool -> Text -> Html
+renderTimesheetToggleButton inputId binding isChecked label =
+    renderAppToggleButton $
+        (defaultAppToggleButtonConfig inputId binding isChecked [hsx|<span class="small">{label}</span>|])
+            { appToggleButtonClass = "btn-sm w-100 justify-content-start"
+            , appToggleSubmitPolicy = ToggleSubmitImmediate
+            }
 
 renderTimesheetWeekLabel :: Day -> Text
 renderTimesheetWeekLabel weekStartDate =

@@ -153,37 +153,31 @@ renderRosterWageEstimatePreferenceForm weekOffset rosterGroupId viewCapabilities
     fields = RosterAction.toggleRosterWageEstimatesActionFields showWageEstimates
 
 renderRosterWarningToggle :: SurfaceActionFields Surface.RosterSurface Surface.ToggleRosterWarnings -> Bool -> Html
-renderRosterWarningToggle fields showRosterWarnings = [hsx|
-    <input type="hidden" id="show-roster-warnings-value" name={surfaceFieldNameFrom @Surface.ShowRosterWarnings fields} value={boolParam showRosterWarnings}/>
-    {toggleButton}
-|]
-  where
-    toggleButton =
-        renderAppToggleButton $ (defaultAppToggleStateButtonConfig "show-roster-warnings" showRosterWarnings [hsx|<span class="small">Warnings enabled</span>|] [hsx|<span class="small">Warnings disabled</span>|])
-            { appToggleInputName = Nothing
-            , appToggleInputValue = "true"
-            , appToggleButtonClass = "btn-sm w-100 justify-content-start"
-            , appToggleOnChange = Just (syncToggleHiddenInputAndSubmit "show-roster-warnings-value")
-            , appToggleHiddenInputId = Just "show-roster-warnings-value"
-            , appToggleHiddenInputCheckedValue = Just "true"
-            , appToggleHiddenInputUncheckedValue = Just "false"
+renderRosterWarningToggle fields showRosterWarnings =
+    renderAppToggleButton $
+        ( defaultAppToggleStateButtonConfig
+            "show-roster-warnings"
+            (surfaceToggleScalarField @Surface.ShowRosterWarnings fields True False)
+            showRosterWarnings
+            [hsx|<span class="small">Warnings enabled</span>|]
+            [hsx|<span class="small">Warnings disabled</span>|]
+        )
+            { appToggleButtonClass = "btn-sm w-100 justify-content-start"
+            , appToggleSubmitPolicy = ToggleSubmitImmediate
             }
 
 renderRosterWageEstimateToggle :: SurfaceActionFields Surface.RosterSurface Surface.ToggleRosterWageEstimates -> Bool -> Html
-renderRosterWageEstimateToggle fields showWageEstimates = [hsx|
-    <input type="hidden" id="show-wage-estimates-value" name={surfaceFieldNameFrom @Surface.ShowWageEstimates fields} value={boolParam showWageEstimates}/>
-    {toggleButton}
-|]
-  where
-    toggleButton =
-        renderAppToggleButton $ (defaultAppToggleStateButtonConfig "show-wage-estimates" showWageEstimates [hsx|<span class="small">Wages enabled</span>|] [hsx|<span class="small">Wages disabled</span>|])
-            { appToggleInputName = Nothing
-            , appToggleInputValue = "true"
-            , appToggleButtonClass = "btn-sm w-100 justify-content-start"
-            , appToggleOnChange = Just (syncToggleHiddenInputAndSubmit "show-wage-estimates-value")
-            , appToggleHiddenInputId = Just "show-wage-estimates-value"
-            , appToggleHiddenInputCheckedValue = Just "true"
-            , appToggleHiddenInputUncheckedValue = Just "false"
+renderRosterWageEstimateToggle fields showWageEstimates =
+    renderAppToggleButton $
+        ( defaultAppToggleStateButtonConfig
+            "show-wage-estimates"
+            (surfaceToggleScalarField @Surface.ShowWageEstimates fields True False)
+            showWageEstimates
+            [hsx|<span class="small">Wages enabled</span>|]
+            [hsx|<span class="small">Wages disabled</span>|]
+        )
+            { appToggleButtonClass = "btn-sm w-100 justify-content-start"
+            , appToggleSubmitPolicy = ToggleSubmitImmediate
             }
 
 renderRosterAssignmentFiltersSection :: (?context :: ControllerContext) => Int -> Id RosterGroup -> RosterAssignmentFilters -> Html
@@ -199,10 +193,10 @@ renderRosterAssignmentFiltersSection weekOffset rosterGroupId filters =
             }
         [hsx|
             <div class="roster-assignment-filter-grid">
-                {renderRosterAssignmentFilterToggle "hide-staff-at-ideal" (surfaceFieldNameFrom @Surface.HideStaffAtIdealShifts fields) filters.hideStaffAtIdealShifts "Too many shifts"}
-                {renderRosterAssignmentFilterToggle "hide-staff-unavailable" (surfaceFieldNameFrom @Surface.HideStaffUnavailable fields) filters.hideStaffUnavailable "Regular day off"}
-                {renderRosterAssignmentFilterToggle "hide-staff-on-leave" (surfaceFieldNameFrom @Surface.HideStaffOnApprovedLeave fields) filters.hideStaffOnApprovedLeave "Unavailable"}
-                {renderRosterAssignmentFilterToggle "hide-staff-assigned-today" (surfaceFieldNameFrom @Surface.HideStaffAlreadyAssignedToday fields) filters.hideStaffAlreadyAssignedToday "Double shifts"}
+                {renderRosterAssignmentFilterToggle "hide-staff-at-ideal" (surfaceToggleScalarField @Surface.HideStaffAtIdealShifts fields True False) filters.hideStaffAtIdealShifts "Too many shifts"}
+                {renderRosterAssignmentFilterToggle "hide-staff-unavailable" (surfaceToggleScalarField @Surface.HideStaffUnavailable fields True False) filters.hideStaffUnavailable "Regular day off"}
+                {renderRosterAssignmentFilterToggle "hide-staff-on-leave" (surfaceToggleScalarField @Surface.HideStaffOnApprovedLeave fields True False) filters.hideStaffOnApprovedLeave "Unavailable"}
+                {renderRosterAssignmentFilterToggle "hide-staff-assigned-today" (surfaceToggleScalarField @Surface.HideStaffAlreadyAssignedToday fields True False) filters.hideStaffAlreadyAssignedToday "Double shifts"}
             </div>
         |]
   where
@@ -213,29 +207,20 @@ renderRosterAssignmentFiltersSection weekOffset rosterGroupId filters =
             filters.hideStaffOnApprovedLeave
             filters.hideStaffAlreadyAssignedToday
 
-renderRosterAssignmentFilterToggle :: Text -> Text -> Bool -> Text -> Html
-renderRosterAssignmentFilterToggle inputId fieldName isChecked label = [hsx|
+renderRosterAssignmentFilterToggle :: Text -> ToggleFieldBinding -> Bool -> Text -> Html
+renderRosterAssignmentFilterToggle inputId binding isChecked label = [hsx|
     <div>
-        <input type="hidden" id={inputId <> "-value"} name={fieldName} value={boolParam isChecked}/>
-        {renderRosterAssignmentFilterToggleButton inputId (inputId <> "-value") isChecked label}
+        {renderRosterAssignmentFilterToggleButton inputId binding isChecked label}
     </div>
 |]
 
-renderRosterAssignmentFilterToggleButton :: Text -> Text -> Bool -> Text -> Html
-renderRosterAssignmentFilterToggleButton inputId hiddenInputId isChecked label =
-    renderAppToggleButton $ (defaultAppToggleButtonConfig inputId isChecked [hsx|<span class="small">{label}</span>|])
-        { appToggleInputName = Nothing
-        , appToggleInputValue = "true"
-        , appToggleButtonClass = "btn-sm w-100 justify-content-start text-start"
-        , appToggleOnChange = Just (syncToggleHiddenInputAndSubmit hiddenInputId)
-        , appToggleHiddenInputId = Just hiddenInputId
-        , appToggleHiddenInputCheckedValue = Just "true"
-        , appToggleHiddenInputUncheckedValue = Just "false"
-        }
-
-syncToggleHiddenInputAndSubmit :: Text -> Text
-syncToggleHiddenInputAndSubmit hiddenInputId =
-    "document.getElementById('" <> hiddenInputId <> "').value = this.checked ? 'true' : 'false'; this.form.requestSubmit()"
+renderRosterAssignmentFilterToggleButton :: Text -> ToggleFieldBinding -> Bool -> Text -> Html
+renderRosterAssignmentFilterToggleButton inputId binding isChecked label =
+    renderAppToggleButton $
+        (defaultAppToggleButtonConfig inputId binding isChecked [hsx|<span class="small">{label}</span>|])
+            { appToggleButtonClass = "btn-sm w-100 justify-content-start text-start"
+            , appToggleSubmitPolicy = ToggleSubmitImmediate
+            }
 
 renderRosterWeekActions :: (?context :: ControllerContext) => Maybe RosterWeek -> Int -> Id RosterGroup -> RosterViewCapabilities -> Html
 renderRosterWeekActions maybeRosterWeek weekOffset rosterGroupId viewCapabilities = [hsx|

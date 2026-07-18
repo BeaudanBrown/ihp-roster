@@ -1,11 +1,20 @@
 module Application.Helper.View.ToggleButton
     ( AppToggleButtonConfig (..)
     , AppToggleButtonLabel (..)
+    , ToggleBreakRegion
+    , ToggleFieldBinding
+    , ToggleSubmissionPolicy (..)
     , defaultAppToggleButtonConfig
     , defaultAppToggleStateButtonConfig
+    , namedBooleanToggleField
+    , renderAppToggleBreakRegion
     , renderAppToggleButton
+    , surfaceToggleListItemField
+    , surfaceToggleScalarField
+    , toggleBreakRegion
     ) where
 
+import Application.Helper.FrontendContract.Toggle.Runtime
 import qualified Data.Text as Text
 import IHP.ViewPrelude
 import Text.Blaze (toValue, (!))
@@ -21,96 +30,110 @@ data AppToggleButtonLabel
         }
 
 data AppToggleButtonConfig = AppToggleButtonConfig
-    { appToggleInputId                   :: !Text
-    , appToggleInputName                 :: !(Maybe Text)
-    , appToggleInputValue                :: !Text
-    , appToggleChecked                   :: !Bool
-    , appToggleLabel                     :: !AppToggleButtonLabel
-    , appToggleButtonClass               :: !Text
-    , appToggleInputClass                :: !Text
-    , appToggleRoleSwitch                :: !Bool
-    , appToggleOnChange                  :: !(Maybe Text)
-    , appToggleHiddenInputId             :: !(Maybe Text)
-    , appToggleHiddenInputCheckedValue   :: !(Maybe Text)
-    , appToggleHiddenInputUncheckedValue :: !(Maybe Text)
-    , appToggleBreakTarget               :: !(Maybe Text)
-    , appToggleShiftPreferenceAvailable  :: !Bool
-    , appToggleInputExtraAttrs           :: ![(Text, Text)]
+    { appToggleInputId      :: !Text
+    , appToggleFieldBinding :: !ToggleFieldBinding
+    , appToggleChecked      :: !Bool
+    , appToggleLabel        :: !AppToggleButtonLabel
+    , appToggleButtonClass  :: !Text
+    , appToggleInputClass   :: !Text
+    , appToggleRoleSwitch   :: !Bool
+    , appToggleSubmitPolicy :: !ToggleSubmissionPolicy
+    , appToggleBreakRegion  :: !(Maybe ToggleBreakRegion)
     }
 
-defaultAppToggleButtonConfig :: Text -> Bool -> Html -> AppToggleButtonConfig
-defaultAppToggleButtonConfig inputId checked label = AppToggleButtonConfig
+defaultAppToggleButtonConfig :: Text -> ToggleFieldBinding -> Bool -> Html -> AppToggleButtonConfig
+defaultAppToggleButtonConfig inputId fieldBinding checked label = AppToggleButtonConfig
     { appToggleInputId = inputId
-    , appToggleInputName = Nothing
-    , appToggleInputValue = "true"
+    , appToggleFieldBinding = fieldBinding
     , appToggleChecked = checked
     , appToggleLabel = AppToggleStaticLabel label
     , appToggleButtonClass = ""
     , appToggleInputClass = ""
     , appToggleRoleSwitch = False
-    , appToggleOnChange = Nothing
-    , appToggleHiddenInputId = Nothing
-    , appToggleHiddenInputCheckedValue = Nothing
-    , appToggleHiddenInputUncheckedValue = Nothing
-    , appToggleBreakTarget = Nothing
-    , appToggleShiftPreferenceAvailable = False
-    , appToggleInputExtraAttrs = []
+    , appToggleSubmitPolicy = ToggleSubmitDeferred
+    , appToggleBreakRegion = Nothing
     }
 
-defaultAppToggleStateButtonConfig :: Text -> Bool -> Html -> Html -> AppToggleButtonConfig
-defaultAppToggleStateButtonConfig inputId checked checkedLabel uncheckedLabel =
-    (defaultAppToggleButtonConfig inputId checked mempty)
+defaultAppToggleStateButtonConfig :: Text -> ToggleFieldBinding -> Bool -> Html -> Html -> AppToggleButtonConfig
+defaultAppToggleStateButtonConfig inputId fieldBinding checked checkedLabel uncheckedLabel =
+    (defaultAppToggleButtonConfig inputId fieldBinding checked mempty)
         { appToggleLabel = AppToggleStateLabels { appToggleCheckedLabel = checkedLabel, appToggleUncheckedLabel = uncheckedLabel }
         }
 
 renderAppToggleButton :: AppToggleButtonConfig -> Html
-renderAppToggleButton config@AppToggleButtonConfig { .. } = [hsx|
-    <label class={appToggleButtonClasses config}
-           for={appToggleInputId}
-           data-app-toggle-button="true"
-           aria-pressed={boolAttr appToggleChecked}>
-        {renderAppToggleInput config}
-        {renderAppToggleLabel appToggleChecked appToggleLabel}
-    </label>
-|]
+renderAppToggleButton config@AppToggleButtonConfig { .. } =
+    applyAttributes
+        (Html5.label $ do
+            renderAppToggleTransport config
+            renderAppToggleInput config
+            renderAppToggleLabel appToggleChecked appToggleLabel)
+        [ attr "class" (appToggleButtonClasses config)
+        , attr "for" appToggleInputId
+        , attr toggleDom.toggleRootAttribute transportKey
+        , attr "aria-pressed" (boolAttr appToggleChecked)
+        ]
+  where
+    toggleDom = canonicalToggleDomAttributes
+    transportKey = toggleTransportKey appToggleInputId
 
 renderAppToggleLabel :: Bool -> AppToggleButtonLabel -> Html
 renderAppToggleLabel _ (AppToggleStaticLabel label) = label
 renderAppToggleLabel checked AppToggleStateLabels { .. } =
-    renderStateLabel "checked" checked appToggleCheckedLabel
-        <> renderStateLabel "unchecked" (not checked) appToggleUncheckedLabel
+    renderStateLabel ToggleChecked checked appToggleCheckedLabel
+        <> renderStateLabel ToggleUnchecked (not checked) appToggleUncheckedLabel
 
-renderStateLabel :: Text -> Bool -> Html -> Html
+renderStateLabel :: TogglePresentationState -> Bool -> Html -> Html
 renderStateLabel state visible label =
     applyAttributes
         (Html5.span label)
-        [ attr "data-app-toggle-label-state" state
+        [ attr canonicalToggleDomAttributes.toggleLabelStateAttribute (togglePresentationStateValue state)
         , hiddenAttr (not visible)
         ]
+
+renderAppToggleTransport :: AppToggleButtonConfig -> Html
+renderAppToggleTransport AppToggleButtonConfig { appToggleInputId, appToggleFieldBinding, appToggleChecked } =
+    applyAttributes
+        Html5.input
+        [ attr "type" "hidden"
+        , attr "name" (toggleFieldName appToggleFieldBinding)
+        , attr "value" transportValue
+        , attr canonicalToggleDomAttributes.toggleTransportAttribute (toggleTransportKey appToggleInputId)
+        , disabledAttr transportOmitted
+        ]
+  where
+    target = toggleTargetForState appToggleFieldBinding (togglePresentationState appToggleChecked)
+    (transportValue, transportOmitted) = case target of
+        ToggleTargetValue value -> (value, False)
+        ToggleTargetOmitted     -> ("", True)
 
 renderAppToggleInput :: AppToggleButtonConfig -> Html
 renderAppToggleInput config@AppToggleButtonConfig { .. } =
     applyAttributes
         Html5.input
-        ( [ attr "id" appToggleInputId
-          , attr "class" (appToggleInputClasses config)
-          , attr "type" "checkbox"
-          , maybeAttr "role" (switchRoleAttr appToggleRoleSwitch)
-          , maybeAttr "aria-checked" (switchAriaCheckedAttr appToggleRoleSwitch appToggleChecked)
-          , maybeAttr "name" appToggleInputName
-          , attr "value" appToggleInputValue
-          , checkedAttr appToggleChecked
-          , maybeAttr "onchange" appToggleOnChange
-          , attr "data-app-toggle-button-input" "true"
-          , maybeAttr "data-app-toggle-hidden-input-id" appToggleHiddenInputId
-          , maybeAttr "data-app-toggle-hidden-checked-value" appToggleHiddenInputCheckedValue
-          , maybeAttr "data-app-toggle-hidden-unchecked-value" appToggleHiddenInputUncheckedValue
-          , maybeAttr "data-break-toggle" (breakToggleAttr appToggleBreakTarget)
-          , maybeAttr "data-break-target" appToggleBreakTarget
-          , maybeAttr "data-shift-preference-available" (boolDataAttr appToggleShiftPreferenceAvailable)
-          ]
-            <> fmap (uncurry attr) appToggleInputExtraAttrs
-        )
+        [ attr "id" appToggleInputId
+        , attr "class" (appToggleInputClasses config)
+        , attr "type" "checkbox"
+        , maybeAttr "role" (switchRoleAttr appToggleRoleSwitch)
+        , maybeAttr "aria-checked" (switchAriaCheckedAttr appToggleRoleSwitch appToggleChecked)
+        , maybeAttr "aria-controls" (toggleBreakRegionId <$> appToggleBreakRegion)
+        , checkedAttr appToggleChecked
+        , attr canonicalToggleDomAttributes.toggleInputAttribute (toggleTransportKey appToggleInputId)
+        , attr canonicalToggleDomAttributes.toggleConfigAttribute
+            (toggleConfigJson appToggleInputId appToggleFieldBinding appToggleChecked appToggleSubmitPolicy appToggleBreakRegion)
+        ]
+
+-- | Render the native fieldset controlled by a toggle. The generated opaque key
+-- is the browser relationship; the id is retained only for aria-controls.
+renderAppToggleBreakRegion :: ToggleBreakRegion -> Bool -> Text -> Html -> Html
+renderAppToggleBreakRegion region enabled className body =
+    applyAttributes
+        (Html5.fieldset body)
+        [ attr "id" (toggleBreakRegionId region)
+        , attr "class" className
+        , attr canonicalToggleDomAttributes.toggleBreakRegionAttribute (toggleBreakRegionKey region)
+        , disabledAttr (not enabled)
+        , attr "aria-disabled" (boolAttr (not enabled))
+        ]
 
 applyAttributes :: Blaze.Html -> [Blaze.Attribute] -> Blaze.Html
 applyAttributes = foldl' (!)
@@ -126,17 +149,20 @@ checkedAttr :: Bool -> Blaze.Attribute
 checkedAttr True  = attr "checked" "checked"
 checkedAttr False = mempty
 
+disabledAttr :: Bool -> Blaze.Attribute
+disabledAttr True  = attr "disabled" "disabled"
+disabledAttr False = mempty
+
 hiddenAttr :: Bool -> Blaze.Attribute
 hiddenAttr True  = attr "hidden" "hidden"
 hiddenAttr False = mempty
 
 appToggleButtonClasses :: AppToggleButtonConfig -> Text
-appToggleButtonClasses AppToggleButtonConfig { appToggleChecked, appToggleButtonClass } =
+appToggleButtonClasses AppToggleButtonConfig { appToggleButtonClass } =
     classes
         [ ("btn", True)
+        , ("btn-outline-success", True)
         , ("app-toggle-button", True)
-        , ("btn-success", appToggleChecked)
-        , ("btn-outline-success", not appToggleChecked)
         , (appToggleButtonClass, not (Text.null appToggleButtonClass))
         ]
 
@@ -155,14 +181,6 @@ switchRoleAttr False = Nothing
 switchAriaCheckedAttr :: Bool -> Bool -> Maybe Text
 switchAriaCheckedAttr True checked = Just (boolAttr checked)
 switchAriaCheckedAttr False _      = Nothing
-
-breakToggleAttr :: Maybe Text -> Maybe Text
-breakToggleAttr (Just _) = Just "true"
-breakToggleAttr Nothing  = Nothing
-
-boolDataAttr :: Bool -> Maybe Text
-boolDataAttr True  = Just "true"
-boolDataAttr False = Nothing
 
 boolAttr :: Bool -> Text
 boolAttr True  = "true"

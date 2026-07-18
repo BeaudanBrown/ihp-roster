@@ -8,7 +8,7 @@ import qualified Application.Helper.FrontendContract.Surface.Interaction as Surf
 import qualified Application.Helper.FrontendContract.Surface.Roster as Surface
 import qualified Application.Helper.FrontendContract.Surface.Roster.Action as RosterAction
 import Application.Helper.FrontendContract.Surface.Runtime (FrontendSurfaceActionRoute (..),
-                                                            frontendSurfaceActionHtmxAttrPairs,
+                                                            renderFrontendSurfaceActionForm,
                                                             renderFrontendSurfaceActionLink)
 import Application.Helper.FrontendContract.Surface.Values
 import Application.Helper.RosterWagePrediction (RosterWagePrediction (..),
@@ -150,36 +150,31 @@ renderThisWeekButton gridViewMode currentRosterGroup timelineTodayUrl =
             RosterWeekGridView -> pathTo RosterWeeksAction
 
 renderLiveToggleForm :: RosterWeek -> Html
-renderLiveToggleForm rosterWeek = [hsx|
-    <form method="POST"
-          action={ToggleRosterWeekLiveStatusAction rosterWeek.id}
-          class="mb-0">
-        <input type="hidden" id={liveToggleValueInputId rosterWeek.id} name={surfaceFieldNameFrom @Surface.IsLive fields} value={boolParam rosterWeek.isLive}/>
-        {renderLiveToggleButton fields rosterWeek}
-    </form>
-|]
+renderLiveToggleForm rosterWeek =
+    renderFrontendSurfaceActionForm
+        (RosterAction.toggleRosterWeekLiveStatusAction fields)
+        (rosterActionRoute actionUrl)
+            { actionRouteStandardUrl = Just actionUrl
+            , actionRouteExtraAttrs = [("class", "mb-0")]
+            }
+        (renderLiveToggleButton fields rosterWeek)
   where
+    actionUrl = pathTo (ToggleRosterWeekLiveStatusAction rosterWeek.id)
     fields = RosterAction.toggleRosterWeekLiveStatusActionFields rosterWeek.isLive
 
 renderLiveToggleButton :: SurfaceActionFields Surface.RosterSurface Surface.ToggleRosterWeekLiveStatus -> RosterWeek -> Html
 renderLiveToggleButton fields rosterWeek =
-    renderAppToggleButton $ (defaultAppToggleButtonConfig (liveToggleInputId rosterWeek.id) rosterWeek.isLive [hsx|<span class="fw-semibold">Live</span>|])
-        { appToggleInputName = Nothing
-        , appToggleInputValue = "true"
-        , appToggleButtonClass = "app-week-live-toggle"
-        , appToggleRoleSwitch = True
-        , appToggleHiddenInputId = Just (liveToggleValueInputId rosterWeek.id)
-        , appToggleHiddenInputCheckedValue = Just "true"
-        , appToggleHiddenInputUncheckedValue = Just "false"
-        , appToggleInputExtraAttrs =
-            frontendSurfaceActionHtmxAttrPairs
-                (RosterAction.toggleRosterWeekLiveStatusAction fields)
-                (rosterActionRoute (pathTo (ToggleRosterWeekLiveStatusAction rosterWeek.id)))
-                <> [("hx-trigger", "change"), ("hx-include", "closest form")]
-        }
+    renderAppToggleButton $
+        ( defaultAppToggleButtonConfig
+            (liveToggleInputId rosterWeek.id)
+            (surfaceToggleScalarField @Surface.IsLive fields True False)
+            rosterWeek.isLive
+            [hsx|<span class="fw-semibold">Live</span>|]
+        )
+            { appToggleButtonClass = "app-week-live-toggle"
+            , appToggleRoleSwitch = True
+            , appToggleSubmitPolicy = ToggleSubmitImmediate
+            }
 
 liveToggleInputId :: Id RosterWeek -> Text
 liveToggleInputId rosterWeekId = "roster-live-toggle-" <> tshow rosterWeekId
-
-liveToggleValueInputId :: Id RosterWeek -> Text
-liveToggleValueInputId rosterWeekId = "roster-live-toggle-value-" <> tshow rosterWeekId

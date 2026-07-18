@@ -53,6 +53,14 @@ Roots are split by meaning:
 - **Surface**: mounted feature UI semantics: scopes, fragments, actions,
   intents, server-side mount state, resources, and interaction metadata.
 
+`ToggleContract` is the focused global checkbox-style capability. It owns closed
+presentation and submission states, explicit value-or-omitted targets, the exact
+browser configuration parser, and shared DOM role attributes. Its Haskell
+runtime accepts complete marker-indexed Surface Action bundles for scalar and
+list fields, preserving a compile-time link from feature declarations to the
+form-local browser transport. The full authoring/runtime rules live in
+`Surface/README.md`.
+
 `AppShellAction` is the server-rendered lane for app-owned shell request initiators
 that are not owned by a mounted `FrontendSurface`, including dialog/overlay
 workflows targeting the shared dialog overlay mount (initially

@@ -1,5 +1,9 @@
 "use strict";
 (() => {
+  // frontend/ts/generated/contracts.ts
+  var pageReadyEvent = "bepis:page-ready";
+  var toggleInputDomAttr = "data-bepis-toggle-input";
+
   // frontend/ts/shared/dom.ts
   function isElement(value) {
     return typeof Element !== "undefined" && value instanceof Element;
@@ -16,9 +20,6 @@
   function rootFromTarget(target, fallback = document) {
     return isDomRoot(target) ? target : fallback;
   }
-
-  // frontend/ts/generated/contracts.ts
-  var pageReadyEvent = "bepis:page-ready";
 
   // frontend/ts/shared/lifecycle.ts
   function eventDetailRecord(event) {
@@ -76,8 +77,9 @@
     startLabel.textContent = formatHour(startHour);
     endLabel.textContent = formatHour(endHour);
   }
+  var toggleInputSelector = `[${toggleInputDomAttr}]`;
   function syncAvailability(container) {
-    const availableInput = container.querySelector('[data-shift-preference-available], [data-app-toggle-button-input="true"]');
+    const availableInput = container.querySelector(toggleInputSelector);
     const startInput = container.querySelector("[data-shift-preference-start]");
     const endInput = container.querySelector("[data-shift-preference-end]");
     if (availableInput === null || startInput === null || endInput === null) return;
@@ -91,7 +93,7 @@
     root.querySelectorAll("[data-shift-preference-window]").forEach((container) => {
       if (container.dataset.shiftPreferenceWindowReady === "true") return;
       container.dataset.shiftPreferenceWindowReady = "true";
-      const availableInput = container.querySelector('[data-shift-preference-available], [data-app-toggle-button-input="true"]');
+      const availableInput = container.querySelector(toggleInputSelector);
       const startInput = container.querySelector("[data-shift-preference-start]");
       const endInput = container.querySelector("[data-shift-preference-end]");
       if (availableInput !== null) {

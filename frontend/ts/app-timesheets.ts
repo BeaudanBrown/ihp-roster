@@ -1,44 +1,5 @@
 import { dialogOverlayMountDomId, timesheetWeekShellDomToken } from "./generated/contracts";
-import { type DomRoot } from "./shared/dom";
-import { detailRoot, onAppPageReady } from "./shared/lifecycle";
-
-// Enable/disable break-time controls based on the "Had break" checkbox.
-function syncBreakToggle(checkboxEl: HTMLInputElement): void {
-    const targetSelector = checkboxEl.dataset.breakTarget;
-    if (targetSelector === undefined || targetSelector === "") return;
-
-    const targetEl = document.querySelector(targetSelector);
-    if (targetEl === null) return;
-
-    const isEnabled = checkboxEl.checked;
-    targetEl.querySelectorAll<HTMLInputElement | HTMLButtonElement>(".js-time-picker-input, .js-time-picker-trigger, .js-time-picker-step-down, .js-time-picker-step-up").forEach((element) => {
-        element.disabled = !isEnabled;
-    });
-    document.dispatchEvent(new CustomEvent("time-picker:sync", { detail: { target: targetEl } }));
-}
-
-function syncAllBreakTogglesWithin(root: DomRoot): void {
-    root.querySelectorAll<HTMLInputElement>('[data-break-toggle="true"]').forEach((checkboxEl) => {
-        syncBreakToggle(checkboxEl);
-    });
-}
-
-function enableBreakTimeToggle(): void {
-    if (typeof window === "undefined") return;
-
-    document.addEventListener("change", (event) => {
-        if (!(event.target instanceof Element)) return;
-        const checkboxEl = event.target.closest<HTMLInputElement>('[data-break-toggle="true"]');
-        if (checkboxEl === null) return;
-        syncBreakToggle(checkboxEl);
-    });
-
-    onAppPageReady((event) => {
-        syncAllBreakTogglesWithin(detailRoot(event, "target"));
-    });
-}
-
-enableBreakTimeToggle();
+import { onAppPageReady } from "./shared/lifecycle";
 
 const dialogMountId = dialogOverlayMountDomId;
 const entryLinkSelector = `#${timesheetWeekShellDomToken} .timesheet-entry-card-link`;

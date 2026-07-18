@@ -253,6 +253,7 @@ stylesheets = [hsx|
         <link rel="stylesheet" href={assetPath "/css/components/buttons.css"}/>
         <link rel="stylesheet" href={assetPath "/css/components/bootstrap-overrides.css"}/>
         <link rel="stylesheet" href={assetPath "/css/components/accordions.css"}/>
+        <link rel="stylesheet" href={assetPath "/css/components/toggles.css"}/>
         <link rel="stylesheet" href={assetPath "/css/components/admin.css"}/>
         <link rel="stylesheet" href={assetPath "/css/components/week-toolbar.css"}/>
         <link rel="stylesheet" href={assetPath "/css/components/admin-responsive.css"}/>

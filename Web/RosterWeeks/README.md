@@ -29,6 +29,14 @@ centered merged `+` affordance only on hover/focus/highlight.
 Read-only row-grid shifts intentionally use separate non-launcher cells and must
 not emit edit/create launcher attributes.
 
+## Week Toolbar Contract
+
+`Application.Helper.View.WeekToolbar` renders each supplied control exactly
+once. Its wrappers are layout slots only; `static/css/components/week-toolbar.css`
+repositions the same primary, reset, navigation, auxiliary, and settings nodes
+at responsive breakpoints. In particular, the roster live switch has one form,
+one input id, and one generated form-local transport on every viewport.
+
 ## Drag/Drop Interaction Contract
 
 The roster `FrontendSurface` declares distinct source/dropzone refs so the

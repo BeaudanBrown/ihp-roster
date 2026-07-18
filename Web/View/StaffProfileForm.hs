@@ -281,15 +281,17 @@ renderShiftPreferenceDayRow fields selectedShiftPreferences weekday =
 
 renderShiftPreferenceAvailabilityToggle :: SurfaceFieldBundleOf Surface.StaffShiftPreferenceFields fields => fields -> Text -> Text -> Text -> Bool -> Html
 renderShiftPreferenceAvailabilityToggle fields key weekdayLabel fullWeekdayLabel isSelected =
-    renderAppToggleButton $ (defaultAppToggleButtonConfig ("shiftPreferenceAvailable-" <> key) isSelected [hsx|
-        <span>{weekdayLabel}</span>
-        <span class="visually-hidden">{fullWeekdayLabel} available</span>
-    |])
-        { appToggleInputName = Just (surfaceFieldNameFrom @Surface.ShiftPreferenceKeysField fields)
-        , appToggleInputValue = key
-        , appToggleButtonClass = "btn-sm timesheet-approval-toggle shift-preference-availability-button"
-        , appToggleShiftPreferenceAvailable = True
-        }
+    renderAppToggleButton $
+        ( defaultAppToggleButtonConfig
+            ("shiftPreferenceAvailable-" <> key)
+            (surfaceToggleListItemField @Surface.ShiftPreferenceKeysField fields key)
+            isSelected
+            [hsx|
+                <span>{weekdayLabel}</span>
+                <span class="visually-hidden">{fullWeekdayLabel} available</span>
+            |]
+        )
+            { appToggleButtonClass = "btn-sm timesheet-approval-toggle shift-preference-availability-button" }
 
 abbreviateWeekdayLabel :: Text -> Text
 abbreviateWeekdayLabel = Text.take 3
@@ -471,9 +473,12 @@ renderRosterGroupCheckbox fields selectedRosterGroupIds rosterGroup =
 
 renderRosterGroupToggle :: SurfaceFieldBundleOf Surface.StaffProfileFields fields => fields -> RosterGroup -> Bool -> Html
 renderRosterGroupToggle fields rosterGroup isSelected =
-    renderAppToggleButton $ (defaultAppToggleButtonConfig ("staff-roster-group-" <> tshow rosterGroup.id) isSelected [hsx|<span>{rosterGroup.name}</span>|])
-        { appToggleInputName = Just (surfaceFieldNameFrom @Surface.RosterGroupIdsField fields)
-        , appToggleInputValue = tshow rosterGroup.id
-        , appToggleButtonClass = "btn-sm timesheet-approval-toggle shift-preference-availability-button w-100 d-flex align-items-center justify-content-center gap-1"
-        }
+    renderAppToggleButton $
+        ( defaultAppToggleButtonConfig
+            ("staff-roster-group-" <> tshow rosterGroup.id)
+            (surfaceToggleListItemField @Surface.RosterGroupIdsField fields (unpackId rosterGroup.id))
+            isSelected
+            [hsx|<span>{rosterGroup.name}</span>|]
+        )
+            { appToggleButtonClass = "btn-sm timesheet-approval-toggle shift-preference-availability-button w-100 d-flex align-items-center justify-content-center gap-1" }
 

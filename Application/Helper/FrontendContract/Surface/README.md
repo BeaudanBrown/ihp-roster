@@ -361,6 +361,34 @@ field breaks incomplete constructors and matchers at compile time. Feature code
 must not import `Surface.Resource.Internal`, construct resource names/JSON, or
 recover resource fields by text.
 
+### Generated toggle capability
+
+`Application.Helper.FrontendContract.Toggle` is the focused global contract for
+checkbox-style presentation backed by explicit form transport. It generates the
+closed presentation/submission enums, value-or-omitted targets, exact
+`ToggleConfig` parser, and root/input/label/transport/break-region DOM
+attributes. Presentation state is deliberately separate from submitted target
+state, so inverted controls such as **Hide approved** are represented without
+browser-side business translation.
+
+Feature views build Surface-owned scalar and repeated-field mappings through
+`surfaceToggleScalarField` and `surfaceToggleListItemField`. Both require the
+complete generated Action field bundle and the declaration's Haskell source
+type; scalar/list misuse and wrong item wire types fail at compile time. Native
+business forms outside a Surface Action may use `namedBooleanToggleField`, but
+must not restate boolean wire values in the view.
+
+`Application.Helper.View.ToggleButton` renders one unnamed checkbox plus one
+named hidden transport inside the same form. The generated opaque key relates
+the root, input, and transport without document-global id lookup. The generic
+browser adapter parses the exact config, synchronizes the transport during
+capture phase before any submit serialization, then applies immediate or
+deferred submission policy. It also owns checked presentation, state labels,
+ARIA switch state, and an optional native break `fieldset`; feature JavaScript
+must not duplicate those mappings or rediscover picker internals. Responsive
+layouts render each control once and move that one node with CSS rather than
+emitting duplicate ids.
+
 ## Generated Haskell Adapter Foundation
 
 Mechanical feature adapters are generated from the same checked declarations;

@@ -338,14 +338,13 @@ type RosterActionBundle =
      , Action ToggleRosterStaffScope
         '[ Field StaffScope 'WireText ]
         '[ 'HtmxMethod 'HtmxGet
-         , 'HtmxTarget ('HtmxId RosterStaffPanel)
+         , 'HtmxTarget ('HtmxId RosterStaffPanelFragment)
          , 'HtmxSwap 'HtmxOuterHTML
          , 'HtmxPushUrl 'HtmxPushUrlFalse
          ]
      , BrowserDomToken RosterContent
      , BrowserDomToken RosterWeekShell
      , DomToken RosterDaySection
-     , DomToken RosterStaffPanel
      , DomToken RosterStaffSelfServiceLeaveFormFragment
      ]
 

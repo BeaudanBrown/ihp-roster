@@ -21,6 +21,13 @@ lands.
   markup. The wage toggle is independent of the venue-wide roster end-time
   display setting because shift end times are always collected.
 - Publishing a roster is the visibility gate for staff-facing roster content.
+  The live switch submits an explicit `true` or `false` transport synchronized
+  before HTMX serialization; actor responses and reloads must converge to the
+  persisted roster-week state in both directions.
+- Responsive roster week chrome renders the live switch, reset link, navigation,
+  settings, and auxiliary action once each. CSS repositions those canonical
+  nodes on narrow viewports; desktop/mobile copies and duplicate interactive ids
+  are not permitted.
 - Staff-facing draft roster pages keep the week shell and day column mounted for
   live updates, but hide slot rows, closed-day state, and other draft roster
   details behind a non-live placeholder.

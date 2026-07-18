@@ -20,7 +20,7 @@ import qualified Application.Helper.FrontendContract.Surface.Interaction as Surf
 import qualified Application.Helper.FrontendContract.Surface.Roster as Surface
 import qualified Application.Helper.FrontendContract.Surface.Roster.Action as RosterAction
 import Application.Helper.FrontendContract.Surface.Runtime (FrontendSurfaceActionRoute (..),
-                                                            frontendSurfaceActionHtmxAttrPairs)
+                                                            renderFrontendSurfaceActionForm)
 import Application.Helper.FrontendContract.Surface.Values
 import Application.Helper.Profiling (profileHtmlComponent, profileRenderCounter)
 import Application.Helper.Staff (isAdoptableTrialStaff)
@@ -318,48 +318,42 @@ sortRosterStaffPanelEntries panelStaffMembers =
         sortName entry = Text.toCaseFold (staffDisplayName panelStaffMembers entry.staff)
 
 renderStaffScopeToggle :: (?context :: ControllerContext) => Int -> Id RosterGroup -> RosterStaffPanelScope -> Html
-renderStaffScopeToggle weekOffset currentRosterGroupId panelScope = [hsx|
-    <form method="GET"
-          action={ShowRosterWeekStaffPanelFragmentAction weekOffset}
-          class="mb-0 roster-staff-scope-toggle">
-        <input type="hidden" name="rosterGroupId" value={tshow currentRosterGroupId} />
-        <input type="hidden" id={staffScopeHiddenInputId currentRosterGroupId} name={surfaceFieldNameFrom @Surface.StaffScope fields} value={surfaceFieldValue @Surface.StaffScope fields} />
-        {renderStaffScopeToggleButton fields weekOffset currentRosterGroupId panelScope}
-    </form>
-|]
+renderStaffScopeToggle weekOffset currentRosterGroupId panelScope =
+    renderFrontendSurfaceActionForm
+        (RosterAction.toggleRosterStaffScopeAction fields)
+        FrontendSurfaceActionRoute
+            { actionRouteUrl = actionUrl
+            , actionRouteCustomHtmx = []
+            , actionRouteStandardUrl = Just actionUrl
+            , actionRouteExtraAttrs = [("class", "mb-0 roster-staff-scope-toggle")]
+            }
+        [hsx|
+            <input type="hidden" name="rosterGroupId" value={tshow currentRosterGroupId} />
+            {renderStaffScopeToggleButton fields currentRosterGroupId panelScope}
+        |]
   where
+    actionUrl = pathTo (ShowRosterWeekStaffPanelFragmentAction weekOffset)
     fields = RosterAction.toggleRosterStaffScopeActionFields (if panelScope == RosterStaffPanelAllVenue then "all" else "group")
 
-renderStaffScopeToggleButton :: (?context :: ControllerContext) => SurfaceActionFields Surface.RosterSurface Surface.ToggleRosterStaffScope -> Int -> Id RosterGroup -> RosterStaffPanelScope -> Html
-renderStaffScopeToggleButton fields weekOffset currentRosterGroupId panelScope =
-    renderAppToggleButton $ (defaultAppToggleButtonConfig (staffScopeToggleInputId currentRosterGroupId) (panelScope == RosterStaffPanelAllVenue) [hsx|<span class="small fw-semibold">Show all staff</span>|])
-        { appToggleInputName = Nothing
-        , appToggleInputValue = "all"
-        , appToggleButtonClass = "btn-sm"
-        , appToggleRoleSwitch = True
-        , appToggleHiddenInputId = Just (staffScopeHiddenInputId currentRosterGroupId)
-        , appToggleHiddenInputCheckedValue = Just "all"
-        , appToggleHiddenInputUncheckedValue = Just "group"
-        , appToggleInputExtraAttrs =
-            frontendSurfaceActionHtmxAttrPairs
-                (RosterAction.toggleRosterStaffScopeAction fields)
-                FrontendSurfaceActionRoute
-                    { actionRouteUrl = pathTo (ShowRosterWeekStaffPanelFragmentAction weekOffset)
-                    , actionRouteCustomHtmx = []
-                    , actionRouteStandardUrl = Just (pathTo (ShowRosterWeekStaffPanelFragmentAction weekOffset))
-                    , actionRouteExtraAttrs = []
-                    }
-                <> [("hx-trigger", "change"), ("hx-include", "closest form")]
-        }
+renderStaffScopeToggleButton :: SurfaceActionFields Surface.RosterSurface Surface.ToggleRosterStaffScope -> Id RosterGroup -> RosterStaffPanelScope -> Html
+renderStaffScopeToggleButton fields currentRosterGroupId panelScope =
+    renderAppToggleButton $
+        ( defaultAppToggleButtonConfig
+            (staffScopeToggleInputId currentRosterGroupId)
+            (surfaceToggleScalarField @Surface.StaffScope fields "all" "group")
+            (panelScope == RosterStaffPanelAllVenue)
+            [hsx|<span class="small fw-semibold">Show all staff</span>|]
+        )
+            { appToggleButtonClass = "btn-sm"
+            , appToggleRoleSwitch = True
+            , appToggleSubmitPolicy = ToggleSubmitImmediate
+            }
 
 staffPanelTargetSelector :: Text
 staffPanelTargetSelector = "#" <> rosterStaffPanelFragmentId
 
 staffScopeToggleInputId :: Id RosterGroup -> Text
 staffScopeToggleInputId rosterGroupId = "roster-staff-scope-toggle-" <> tshow rosterGroupId
-
-staffScopeHiddenInputId :: Id RosterGroup -> Text
-staffScopeHiddenInputId rosterGroupId = "roster-staff-scope-value-" <> tshow rosterGroupId
 
 renderRosterStaffPanelEntry :: [Staff] -> Int -> Id RosterGroup -> RosterStaffPanelEntry -> Html
 renderRosterStaffPanelEntry panelStaffMembers weekOffset currentRosterGroupId entry =

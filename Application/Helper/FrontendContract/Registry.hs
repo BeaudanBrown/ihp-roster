@@ -14,6 +14,7 @@ import Application.Helper.FrontendContract.IR
 import Application.Helper.FrontendContract.LiveUpdate
 import Application.Helper.FrontendContract.Reflect
 import Application.Helper.FrontendContract.Surface.Contracts (registeredFrontendSurfaceContractIR)
+import Application.Helper.FrontendContract.Toggle
 import Application.Helper.FrontendContract.UiRegion
 
 -- | Root frontend browser contract registry. Global roots live here; Surface
@@ -23,6 +24,7 @@ type RegisteredFrontendContracts =
      , AppShellContract
      , UiRegionContract
      , InteractionContract
+     , ToggleContract
      , LiveUpdateContract
      ] :: [FrontendContractSpec]
 

@@ -80,6 +80,12 @@ SurfaceFamily
   committed intents. They are server-owned contracts; TypeScript only fills
   validated generated inputs and dispatches the generated trigger. Mount JSON is
   not a mutation transport contract and must not replace DOM-owned HTMX forms.
+- **Form toggle widgets** are server-rendered controls governed by the global
+  generated Toggle contract. The checkbox owns presentation only; a form-local
+  hidden transport owns the explicit submitted value or omission. The generic
+  adapter synchronizes that transport before submission and may control one
+  related native fieldset. Feature JavaScript must not translate toggle meaning,
+  resolve transport by global id, or duplicate break-control behavior.
 
 Views should not handwrite raw interaction `data-bepis-*` attributes, ref names,
 disposable layer mounts, intent forms, HTMX intent attributes, or target ids once

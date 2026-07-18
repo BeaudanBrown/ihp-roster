@@ -65,27 +65,24 @@ renderWeekToolbar WeekToolbarConfig { weekToolbarVariant, weekToolbarAriaLabel, 
          role="navigation"
          aria-label={weekToolbarAriaLabel}
          data-week-toolbar={variantName}>
-        <div class="app-week-toolbar-section app-week-toolbar-quick app-week-toolbar-desktop-start" data-week-toolbar-section="quick">
-            {weekToolbarPrimary}
-            {weekToolbarReset}
-        </div>
-        <div class="app-week-toolbar-section app-week-toolbar-primary app-week-toolbar-mobile-control" data-week-toolbar-section="primary">
-            {weekToolbarPrimary}
-        </div>
-        <div class="app-week-toolbar-section app-week-toolbar-reset app-week-toolbar-mobile-control" data-week-toolbar-section="reset">
-            {weekToolbarReset}
+        <div class="app-week-toolbar-section app-week-toolbar-quick" data-week-toolbar-section="quick">
+            <div class="app-week-toolbar-primary" data-week-toolbar-section="primary">
+                {weekToolbarPrimary}
+            </div>
+            <div class="app-week-toolbar-reset" data-week-toolbar-section="reset">
+                {weekToolbarReset}
+            </div>
         </div>
         <div class="app-week-toolbar-section app-week-toolbar-navigation" data-week-toolbar-section="navigation">
             {weekToolbarNavigation}
         </div>
-        <div class="app-week-toolbar-section app-week-toolbar-settings" data-week-toolbar-section="settings">
-            <div class="app-week-toolbar-aux app-week-toolbar-aux-desktop" data-week-toolbar-section="auxiliary-desktop">
+        <div class="app-week-toolbar-section app-week-toolbar-end">
+            <div class="app-week-toolbar-aux" data-week-toolbar-section="auxiliary">
                 {weekToolbarAuxiliary}
             </div>
-            {weekToolbarSettings}
-        </div>
-        <div class="app-week-toolbar-section app-week-toolbar-aux app-week-toolbar-aux-mobile" data-week-toolbar-section="auxiliary">
-            {weekToolbarAuxiliary}
+            <div class="app-week-toolbar-settings" data-week-toolbar-section="settings">
+                {weekToolbarSettings}
+            </div>
         </div>
     </div>
 |]

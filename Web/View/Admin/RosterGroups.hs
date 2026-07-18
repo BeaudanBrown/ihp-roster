@@ -86,7 +86,7 @@ renderRosterGroupCreateForm showInactive =
             </div>
             <div class="col-12 col-md-2">
                 <label class="form-label" for="new-roster-group-active">Status</label>
-                {renderAdminActiveToggle "new-roster-group-active" (surfaceFieldNameFrom @Surface.IsActive fields) Nothing "admin-roster-groups-fragment" True}
+                {renderAdminActiveToggle "new-roster-group-active" (surfaceToggleScalarField @Surface.IsActive fields True False) True}
             </div>
             <div class="col-12 col-md-2">
                 <button class="btn btn-outline-primary w-100" type="submit">Add Group</button>
@@ -149,7 +149,7 @@ renderRosterGroupRow showInactive activeCount (rosterGroupIndex, rosterGroup) = 
                 </div>
                 <div class="col-12 col-md-2">
                     <label class="form-label" for={"roster-group-active-" <> tshow rosterGroup.id}>Status</label>
-                    {renderAdminActiveToggle ("roster-group-active-" <> tshow rosterGroup.id) (surfaceFieldNameFrom @Surface.IsActive fields) Nothing "admin-roster-groups-fragment" rosterGroup.isActive}
+                    {renderAdminActiveToggle ("roster-group-active-" <> tshow rosterGroup.id) (surfaceToggleScalarField @Surface.IsActive fields True False) rosterGroup.isActive}
                 </div>
                 <div class="col-12 col-md-2">
                     <button class="btn btn-outline-secondary w-100" type="submit">Update</button>

@@ -303,11 +303,9 @@ renderProviderObject event =
 
 renderBillingManualReadOnlyToggle :: Bool -> Html
 renderBillingManualReadOnlyToggle isReadOnly =
-    renderAppToggleButton $ (defaultAppToggleButtonConfig "billing-manual-read-only" isReadOnly [hsx|<span>Manual read-only</span>|])
-        { appToggleInputName = Just "manualReadOnly"
-        , appToggleInputValue = "true"
-        , appToggleRoleSwitch = True
-        }
+    renderAppToggleButton $
+        (defaultAppToggleButtonConfig "billing-manual-read-only" (namedBooleanToggleField "manualReadOnly") isReadOnly [hsx|<span>Manual read-only</span>|])
+            { appToggleRoleSwitch = True }
 
 renderControlAudit :: VenueBillingControl -> Text
 renderControlAudit control =

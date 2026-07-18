@@ -481,6 +481,49 @@ export const InteractionDom: InteractionDom = {
     pointerFields: { sessionKind: sessionKindFieldName, pointerId: pointerIdFieldName, pointerType: pointerTypeFieldName, startClientX: startClientXFieldName, startClientY: startClientYFieldName, currentClientX: currentClientXFieldName, currentClientY: currentClientYFieldName, deltaX: deltaXFieldName, deltaY: deltaYFieldName },
 };
 
+export type TogglePresentationState =
+    "checked"
+  | "unchecked";
+export function isTogglePresentationState(value: unknown): value is TogglePresentationState {
+    return typeof value === "string" && ["checked", "unchecked"].includes(value);
+}
+
+export type ToggleSubmissionPolicy =
+    "deferred"
+  | "immediate";
+export function isToggleSubmissionPolicy(value: unknown): value is ToggleSubmissionPolicy {
+    return typeof value === "string" && ["deferred", "immediate"].includes(value);
+}
+
+export type ToggleTarget =
+    { tag: "value"; value: string }
+  | { tag: "omitted" };
+export function isToggleTarget(value: unknown): value is ToggleTarget {
+    return ((isRecord(value) && hasExactKeys(value, ["tag", "value"]) && (value["tag"] === "value") && (typeof value["value"] === "string")) || (isRecord(value) && hasExactKeys(value, ["tag"]) && (value["tag"] === "omitted")));
+}
+
+export type ToggleConfig = { presentationState: TogglePresentationState; checkedTarget: ToggleTarget; uncheckedTarget: ToggleTarget; transportKey: string; submissionPolicy: ToggleSubmissionPolicy; breakRegionKey: string | null };
+export function isToggleConfig(value: unknown): value is ToggleConfig {
+    return isRecord(value) && hasExactKeys(value, ["presentationState", "checkedTarget", "uncheckedTarget", "transportKey", "submissionPolicy", "breakRegionKey"]) && (isTogglePresentationState(value["presentationState"])) && (isToggleTarget(value["checkedTarget"])) && (isToggleTarget(value["uncheckedTarget"])) && (typeof value["transportKey"] === "string") && (isToggleSubmissionPolicy(value["submissionPolicy"])) && (value["breakRegionKey"] === null || (typeof value["breakRegionKey"] === "string"));
+}
+
+export function parseToggleConfig(value: unknown): ToggleConfig {
+    if (isToggleConfig(value)) return value;
+    throw new Error("Invalid ToggleConfig");
+}
+
+export const toggleRootDomAttr = "data-bepis-toggle-root" as const;
+
+export const toggleInputDomAttr = "data-bepis-toggle-input" as const;
+
+export const toggleLabelStateDomAttr = "data-bepis-toggle-label-state" as const;
+
+export const toggleTransportDomAttr = "data-bepis-toggle-transport" as const;
+
+export const toggleBreakRegionDomAttr = "data-bepis-toggle-break-region" as const;
+
+export const toggleConfigDomAttr = "data-bepis-toggle-config" as const;
+
 export const liveUpdateSocketPath = "live-updates" as const;
 
 export const liveUpdateClientIdHeader = "X-Live-Update-Client-Id" as const;

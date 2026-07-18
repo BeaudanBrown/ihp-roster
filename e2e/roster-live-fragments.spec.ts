@@ -1,4 +1,5 @@
 import { test, expect, type Page, type Locator } from '@playwright/test';
+import { toggleInputDomAttr } from '../frontend/ts/generated/contracts';
 import { E2E_TIMEOUT } from './timeouts';
 import { ensureRosterLayout, fillRosterShiftDialogDefaults, openRoster, openRosterSettings, openRosterShiftDialog, saveRosterShiftDialog } from './test-helpers';
 
@@ -52,7 +53,7 @@ async function openRosterWeekOffset(page: Page, weekOffset: number) {
 async function expectAutoCreatedDraftWeek(page: Page) {
     await expect(page.locator('#roster-content')).toBeVisible();
     await expect(page.locator('[data-roster-row]')).toHaveCount(28);
-    await expect(page.locator('[data-app-toggle-button-input="true"][role="switch"]').first()).not.toBeChecked();
+    await expect(page.locator(`[${toggleInputDomAttr}][role="switch"]`).first()).not.toBeChecked();
     await expect(page.getByRole('button', { name: 'Create Draft Roster' })).toHaveCount(0);
 }
 

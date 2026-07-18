@@ -1,3 +1,4 @@
+import { toggleInputDomAttr } from "./generated/contracts";
 import { rootFromTarget } from "./shared/dom";
 import { detailTarget, onAppPageReady, onHtmxLoad } from "./shared/lifecycle";
 
@@ -44,8 +45,10 @@ function syncWindow(container: HTMLElement): void {
     endLabel.textContent = formatHour(endHour);
 }
 
+const toggleInputSelector = `[${toggleInputDomAttr}]`;
+
 function syncAvailability(container: HTMLElement): void {
-    const availableInput = container.querySelector<HTMLInputElement>('[data-shift-preference-available], [data-app-toggle-button-input="true"]');
+    const availableInput = container.querySelector<HTMLInputElement>(toggleInputSelector);
     const startInput = container.querySelector<HTMLInputElement>("[data-shift-preference-start]");
     const endInput = container.querySelector<HTMLInputElement>("[data-shift-preference-end]");
     if (availableInput === null || startInput === null || endInput === null) return;
@@ -62,7 +65,7 @@ function initShiftPreferenceWindows(target: unknown): void {
         if (container.dataset.shiftPreferenceWindowReady === "true") return;
         container.dataset.shiftPreferenceWindowReady = "true";
 
-        const availableInput = container.querySelector<HTMLInputElement>('[data-shift-preference-available], [data-app-toggle-button-input="true"]');
+        const availableInput = container.querySelector<HTMLInputElement>(toggleInputSelector);
         const startInput = container.querySelector<HTMLInputElement>("[data-shift-preference-start]");
         const endInput = container.querySelector<HTMLInputElement>("[data-shift-preference-end]");
         if (availableInput !== null) {

@@ -954,6 +954,31 @@ expect_no_match \
     'appToggleHx(Get|Post|Trigger|Include|Target|Swap|PushUrl|Sync)' \
     Application Web Test
 
+expect_no_match \
+    "replaced handwritten toggle and break DOM agreements must stay deleted" \
+    'data-app-toggle|data-break-(toggle|target)|data-shift-preference-available' \
+    Application Web frontend/ts static/css e2e
+
+expect_no_match \
+    "toggle feature views must not restore raw mapping, hidden-id, or inline-handler configuration" \
+    'appToggle(InputName|InputValue|OnChange|HiddenInput|BreakTarget|ShiftPreferenceAvailable|InputExtraAttrs)|syncToggleHiddenInputAndSubmit' \
+    Application Web
+
+expect_no_match \
+    "the generic toggle adapter must resolve relationships form-locally without document-global ids" \
+    'document\.getElementById|document\.querySelector' \
+    frontend/ts/app-toggle-buttons.ts
+
+expect_no_match \
+    "timesheet break activation must not rediscover time-picker internals" \
+    'breakTarget|js-time-picker-(input|trigger|step)' \
+    frontend/ts/app-timesheets.ts
+
+expect_match \
+    "the generic toggle adapter consumes the generated exact config parser" \
+    'parseToggleConfig' \
+    frontend/ts/app-toggle-buttons.ts
+
 if [ "$failures" -ne 0 ]; then
     exit 1
 fi

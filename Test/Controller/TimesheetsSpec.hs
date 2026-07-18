@@ -1031,6 +1031,27 @@ tests = beforeAll testContext do
                 response `responseBodyShouldContain` "disabled"
                 response `responseBodyShouldNotContain` "UnapproveTimesheetEntry"
 
+        it "preserves the required all-staff filter transport for workers" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Timesheet Worker Filter Venue"
+                workerUser <- createUserRecord "timesheet-filter-worker@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue workerUser "worker"
+                _ <- createStaffRecord venue (Just workerUser) "Willa" "Worker"
+
+                response <- withUserAndCurrentVenue workerUser venue.id do
+                    callActionWithParams ShowTimesheetWeekAction { weekOffset = 0 }
+                        [ ("weekOffset", "0")
+                        , ("showApproved", "true")
+                        , ("showAllStaff", "false")
+                        , ("showSuggestions", "true")
+                        ]
+
+                response `responseStatusShouldBe` status200
+                response `responseBodyShouldContain` "name=\"showAllStaff\" value=\"false\""
+                response `responseBodyShouldContain` "Hide approved"
+                response `responseBodyShouldContain` "Show suggestions"
+                response `responseBodyShouldNotContain` ">Show all staff</span>"
+
         it "applies manager timesheet filters from the week query params" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Timesheet Filter Venue"
@@ -1054,9 +1075,11 @@ tests = beforeAll testContext do
                 response `responseStatusShouldBe` status200
                 response `responseBodyShouldContain` "Hide approved"
                 response `responseBodyShouldContain` "Show all staff"
-                response `responseBodyShouldContain` "app-toggle-button btn-success"
-                response `responseBodyShouldContain` "app-toggle-button btn-outline-success"
+                response `responseBodyShouldContain` "btn btn-outline-success app-toggle-button"
+                response `responseBodyShouldContain` "data-bepis-toggle-transport=\"toggle-transport:timesheet-hide-approved-toggle\""
+                response `responseBodyShouldContain` "data-bepis-toggle-config=\""
                 response `responseBodyShouldContain` "aria-pressed=\"true\""
+                response `responseBodyShouldContain` "aria-pressed=\"false\""
                 response `responseBodyShouldContain` "No entries for this day."
                 response `responseBodyShouldNotContain` "timesheet-entry-staff-name\">Ava Hours"
                 response `responseBodyShouldNotContain` "timesheet-entry-card\" data-timesheet-entry-approved=\"true\""

@@ -34,11 +34,13 @@ tests = do
             rendered `shouldSatisfy` any (Text.isInfixOf "drag")
             rendered `shouldSatisfy` any (Text.isInfixOf "Ctrl")
             rendered `shouldSatisfy` any (Text.isInfixOf "Option, or Alt")
+            rendered `shouldSatisfy` any (Text.isInfixOf "Turn Live on")
 
         it "omits manager-only planning details from staff-only viewers" do
             roster <- maybe (expectationFailure "missing roster topic" >> error "missing roster topic") pure (lookupPageHelpTopic (PageHelpTopicId "roster"))
             let rendered = flattenHelpText (filterPageHelpTopic defaultPageHelpContext roster)
             rendered `shouldSatisfy` all (not . Text.isInfixOf "drag")
+            rendered `shouldSatisfy` all (not . Text.isInfixOf "Turn Live on")
             rendered `shouldSatisfy` any (Text.isInfixOf "future roster")
   where
     topicContexts =

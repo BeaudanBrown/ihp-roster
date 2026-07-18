@@ -2,6 +2,7 @@ import "./frontend-surface-contracts.test";
 import "./interaction-contracts.test";
 import "./interaction-runtime.test";
 import "./shared.test";
+import "./toggle.test";
 import "./low-risk.test";
 import "./medium-risk.test";
 import "./live-updates.test";

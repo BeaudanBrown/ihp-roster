@@ -198,7 +198,7 @@ slices, and all block final reconciliation.
 
 ### Shared browser capabilities
 
-13. `#169` - Reliable toggle submission/presentation and timesheet break controls, including the active roster live-status regression.
+13. `#169` - Reliable toggle submission/presentation and timesheet break controls, including the active roster live-status regression. **Complete.**
 14. `#167` - Time picker roles and exact configuration payload, consuming but not duplicating the toggle/break boundary.
 15. `#168` - Dialog/toast overlay DOM vocabulary.
 16. `#170` - Ordered-range shift preferences.
@@ -243,13 +243,15 @@ private generated module and curated facade, migrated every production caller,
 made all four generated lanes mandatory, removed the temporary publication and
 parent-expiry abstractions, and installed final zero-generic-parser/metadata
 guardrails. #184 follows #164 and #181.
-Shared browser slices depend on typed schema builders. `#169` is the next
-priority: it must distinguish rendered presentation state from submitted target
-state, generate the checked/unchecked mapping, retain one generic form-local
-browser adapter, remove semantic inline handlers and duplicate responsive ids,
-and prove event-time payload plus authoritative persistence on desktop/mobile.
-Ordered ranges also depend on toggle presentation. `#167` owns picker internals
-whereas `#169` owns toggle submission and break-region activation.
+Shared browser slices depend on typed schema builders. #169 added the global
+Toggle contract, declaration-checked scalar/list mapping builders, exact browser
+config parser, and one form-local generic adapter. Active consumers now separate
+presentation from submitted target state, roster live submission is synchronized
+before HTMX serialization, timesheet break controls use a native fieldset, and
+responsive week toolbars render canonical controls once. Focused Haskell,
+TypeScript, compile-failure, and desktop/mobile browser coverage pins those
+boundaries. Ordered ranges also depend on toggle presentation. `#167` owns picker
+internals whereas `#169` owns toggle submission and break-region activation.
 Roster linked highlighting depends on closed interaction IR. Staff-panel work
 establishes the browser-reachable Surface DTO path for image export and week
 overview. The Haskell adapter slices run in parallel with capability slices and
