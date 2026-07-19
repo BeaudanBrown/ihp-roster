@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { dialogMountDomAttr, dialogOverlayMountDomId } from '../frontend/ts/generated/contracts';
 import { addRowToFirstRosterDay, openRoster } from './test-helpers';
 import { attachRosterMobileDiagnostics, expectRosterMobileLayoutStable } from './roster-mobile-diagnostics';
 
@@ -21,7 +22,7 @@ test.describe('Roster mobile screenshots', () => {
         await attachRosterMobileDiagnostics(page, testInfo, 'after-launcher-focus');
 
         await firstLauncher.click();
-        await expect(page.locator('#dialog-overlay-mount [data-dialog-overlay="true"]')).toBeVisible();
+        await expect(page.locator(`#${dialogOverlayMountDomId} [${dialogMountDomAttr}]`)).toBeVisible();
         await expectRosterMobileLayoutStable(page);
         await attachRosterMobileDiagnostics(page, testInfo, 'after-shift-dialog-open');
     });

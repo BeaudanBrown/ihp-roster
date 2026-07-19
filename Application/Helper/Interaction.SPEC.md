@@ -86,6 +86,12 @@ SurfaceFamily
   adapter synchronizes that transport before submission and may control one
   related native fieldset. Feature JavaScript must not translate toggle meaning,
   resolve transport by global id, or duplicate break-control behavior.
+- **Workflow dialog and toast lanes** are governed by the focused global Overlay
+  contract for mount ids, browser roles, auto-submit state, and exact mechanical
+  configuration. Overlay rendering does not replace AppShell/Surface Action
+  authority for HTMX forms, and the picker lane remains independent. Bootstrap
+  vocabulary stays adapter-local while disabled and accessibility state use
+  native/ARIA semantics.
 
 Views should not handwrite raw interaction `data-bepis-*` attributes, ref names,
 disposable layer mounts, intent forms, HTMX intent attributes, or target ids once

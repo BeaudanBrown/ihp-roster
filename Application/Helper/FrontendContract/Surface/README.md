@@ -389,6 +389,23 @@ must not duplicate those mappings or rediscover picker internals. Responsive
 layouts render each control once and move that one node with CSS rather than
 emitting duplicate ids.
 
+### Generated overlay capability
+
+`Application.Helper.FrontendContract.Overlay` owns the shared workflow-dialog
+and toast lane mount ids, role attributes, dialog auto-submit state, and exact
+submit/toast configuration schemas. Shared Haskell overlay helpers render those
+roles and serialize loading-label/auto-hide configuration through the focused
+runtime. Dialog and toast TypeScript parse the generated exact records and keep
+one-time/original-markup state in `WeakSet`/`WeakMap` storage rather than adding
+browser-only data attributes.
+
+This capability does not own mutation semantics. Dialog launchers and forms
+continue to use their generated AppShell or Surface Action metadata, and picker
+markup remains a separate overlay lane. Bootstrap modal classes/events and
+module-owned toast transition classes stay inside the adapters; native disabled
+state and ARIA dialog/control state remain native rather than being duplicated
+as app DOM vocabulary.
+
 ## Generated Haskell Adapter Foundation
 
 Mechanical feature adapters are generated from the same checked declarations;

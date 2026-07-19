@@ -58,6 +58,7 @@ import qualified Test.FwcMapdSyncSpec
 import qualified Test.LiveUpdateSpec
 import qualified Test.MailSpec
 import qualified Test.MutationBoundarySpec
+import qualified Test.OverlaySpec
 import qualified Test.PageHelpSpec
 import qualified Test.PaySpec
 import qualified Test.ProfilingSpec
@@ -283,6 +284,7 @@ allSuites =
     , pureSuite "SurfaceDependency" 10 Test.SurfaceDependencySpec.tests
     , pureSuite "SurfaceGuard" 5 Test.SurfaceGuardSpec.tests
     , databaseSuite "ToggleButton" 5 Test.ToggleButtonSpec.tests
+    , databaseSuite "Overlay" 5 Test.OverlaySpec.tests
     , databaseSuite "Mail" 10 Test.MailSpec.tests
     , pureSuite "MutationBoundary" 5 Test.MutationBoundarySpec.tests
     , pureSuite "XeroContract" 20 Test.XeroContractSpec.tests

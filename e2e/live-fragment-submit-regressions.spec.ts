@@ -1,7 +1,7 @@
 import { test, expect } from '@playwright/test';
 import { E2E_TIMEOUT } from './timeouts';
 import { writeFile } from 'node:fs/promises';
-import { pageReadyEvent, surfaceConfigDomAttr, surfaceDomAttr } from '../frontend/ts/generated/contracts';
+import { dialogOverlayMountDomId, pageReadyEvent, surfaceConfigDomAttr, surfaceDomAttr, toastOverlayMountDomId } from '../frontend/ts/generated/contracts';
 import { defaultE2ERosterGroupId, gotoWhenReady, loginAs, openNewLeaveRequestDialog, openProfileLeaveSection, setFlatpickrDate } from './test-helpers';
 
 async function login(page) {
@@ -25,7 +25,7 @@ test.describe('HTMX submit regressions', () => {
         await page.locator('#roster-staff-self-service-leave-form textarea[name="notes"]').fill(note);
         await page.locator('#roster-staff-self-service-leave-form button[type="submit"]').click();
 
-        await expect(page.locator('#toast-overlay-mount')).toContainText('Unavailable period submitted', { timeout: E2E_TIMEOUT.assertion });
+        await expect(page.locator(`#${toastOverlayMountDomId}`)).toContainText('Unavailable period submitted', { timeout: E2E_TIMEOUT.assertion });
         await expect(page.locator('#roster-staff-self-service-leave-form textarea[name="notes"]')).toHaveValue('', { timeout: E2E_TIMEOUT.assertion });
         await expect(page.locator('#roster-staff-self-service-leave-form input[name="startDate"]')).toHaveValue(startDateBefore, { timeout: E2E_TIMEOUT.assertion });
         await expect(page.locator('#roster-staff-self-service-leave-form input[name="endDate"]')).toHaveValue(endDateBefore, { timeout: E2E_TIMEOUT.assertion });
@@ -114,7 +114,7 @@ test.describe('HTMX submit regressions', () => {
         await page.fill('#notes', note);
         await page.getByRole('button', { name: 'Save' }).click();
 
-        await expect(page.locator('#dialog-overlay-mount')).toBeEmpty();
+        await expect(page.locator(`#${dialogOverlayMountDomId}`)).toBeEmpty();
         await expect(page.locator('#leave-requests-content')).toContainText(note);
         await expect(page.locator('#leave-requests-content article').filter({ hasText: note })).toHaveCount(1);
     });
@@ -139,7 +139,7 @@ test.describe('HTMX submit regressions', () => {
         await page.fill('textarea[name="staffComment"]', note);
         await page.getByRole('button', { name: 'Save' }).click();
 
-        await expect(page.locator('#dialog-overlay-mount')).toBeEmpty();
+        await expect(page.locator(`#${dialogOverlayMountDomId}`)).toBeEmpty();
         await expect(page.locator('#timesheet-day-section-0')).toContainText('10:15 AM');
         await expect(page.locator('#timesheet-day-section-0')).toContainText('2:15 PM');
         await expect(
@@ -168,7 +168,7 @@ test.describe('HTMX submit regressions', () => {
         await page.fill('textarea[name="staffComment"]', note);
         await page.getByRole('button', { name: 'Save' }).click();
 
-        await expect(page.locator('#dialog-overlay-mount')).toBeEmpty();
+        await expect(page.locator(`#${dialogOverlayMountDomId}`)).toBeEmpty();
         await expect(page).toHaveURL(/showApproved=false/);
         await expect(page.locator('#timesheet-day-section-0')).toContainText('10:30 AM');
         await expect(page.locator('#timesheet-day-section-0')).toContainText('2:30 PM');
@@ -213,7 +213,7 @@ test.describe('HTMX submit regressions', () => {
         await page.getByRole('button', { name: 'Delete' }).click();
         await deleteResponsePromise;
 
-        await expect(page.locator('#dialog-overlay-mount')).toBeEmpty();
+        await expect(page.locator(`#${dialogOverlayMountDomId}`)).toBeEmpty();
         await expect(updatedDaySection.locator(`.timesheet-entry-card a[href*="${deletedEntryId}"]`)).toHaveCount(0);
         await expect
             .poll(() => page.evaluate(() => (window as Window & { __timesheetDeleteConfirmCalls?: number }).__timesheetDeleteConfirmCalls ?? 0))

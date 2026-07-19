@@ -1,4 +1,5 @@
 import { expect, Page, TestInfo } from '@playwright/test';
+import { dialogOverlayMountDomId } from '../frontend/ts/generated/contracts';
 
 type RosterLayoutMetrics = {
     viewport: { width: number; height: number };
@@ -24,7 +25,7 @@ const rosterDiagnosticSelectors = {
     rosterGrid: '.roster-grid',
     staffPanel: '.roster-staff-panel',
     firstEditableRow: '[data-roster-row]:has(select[name="staffId"])',
-    dialogMount: '#dialog-overlay-mount',
+    dialogMount: `#${dialogOverlayMountDomId}`,
     picker: '[data-time-picker-menu], .flatpickr-calendar.open',
 };
 

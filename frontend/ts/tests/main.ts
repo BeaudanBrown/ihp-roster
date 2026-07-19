@@ -5,6 +5,7 @@ import "./shared.test";
 import "./toggle.test";
 import "./low-risk.test";
 import "./medium-risk.test";
+import "./overlay.test";
 import "./live-updates.test";
 import "./live-updates-validation.test";
 import "./lazy-surface.test";

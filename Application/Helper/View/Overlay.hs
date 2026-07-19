@@ -3,8 +3,8 @@ module Application.Helper.View.Overlay where
 import Application.Helper.FrontendContract.AppShell.Runtime (AppShellActionRoute (..),
                                                              AppShellFieldValue (..),
                                                              renderAppShellActionForm)
-import Application.Helper.FrontendContract.AppValues (sharedDialogOverlayMountId)
 import Application.Helper.FrontendContract.IR (AppShellActionIR)
+import Application.Helper.FrontendContract.Overlay.Runtime
 import qualified Data.Text as Text
 import Generated.Types
 import IHP.ViewPrelude
@@ -12,10 +12,7 @@ import Web.Routes ()
 import Web.Types
 
 dialogOverlayMountId :: Text
-dialogOverlayMountId = sharedDialogOverlayMountId
-
-htmxModalMountId :: Text
-htmxModalMountId = dialogOverlayMountId
+dialogOverlayMountId = canonicalOverlayDom.overlayDialogMountId
 
 data OverlayFormMode
     = HtmxOverlayForm
@@ -59,7 +56,7 @@ defaultOverlayButtons formId =
 renderDialogOverlay :: DialogOverlayConfig -> Html
 renderDialogOverlay DialogOverlayConfig { dialogOverlayTitle, dialogOverlayBody, dialogOverlayStartButtons, dialogOverlayButtons, dialogOverlayDialogClass } = [hsx|
     <div class="modal fade show d-block"
-         data-dialog-overlay="true"
+         {...dialogMountAttrs}
          tabindex="-1"
          role="dialog"
          aria-modal="true"
@@ -69,20 +66,20 @@ renderDialogOverlay DialogOverlayConfig { dialogOverlayTitle, dialogOverlayBody,
             <div class="modal-content shadow">
                 <div class="modal-header">
                     <h5 class="modal-title" id="dialog-overlay-title">{dialogOverlayTitle}</h5>
-                    <button type="button" class="btn-close" aria-label="Close" data-dialog-overlay-close="true"></button>
+                    <button type="button" class="btn-close" aria-label="Close" {...dialogCloseAttrs}></button>
                 </div>
                 <div class="modal-body">{dialogOverlayBody}</div>
                 {renderDialogOverlayFooter dialogOverlayStartButtons dialogOverlayButtons}
             </div>
         </div>
     </div>
-    <div class="modal-backdrop fade show" data-dialog-overlay-backdrop="true"></div>
+    <div class="modal-backdrop fade show" {...dialogBackdropAttrs}></div>
 |]
 
 renderDialogOverlayBodyOnly :: Text -> Text -> Html -> Html
 renderDialogOverlayBodyOnly ariaLabel dialogOverlayDialogClass dialogOverlayBody = [hsx|
     <div class="modal fade show d-block"
-         data-dialog-overlay="true"
+         {...dialogMountAttrs}
          tabindex="-1"
          role="dialog"
          aria-modal="true"
@@ -94,7 +91,7 @@ renderDialogOverlayBodyOnly ariaLabel dialogOverlayDialogClass dialogOverlayBody
             </div>
         </div>
     </div>
-    <div class="modal-backdrop fade show" data-dialog-overlay-backdrop="true"></div>
+    <div class="modal-backdrop fade show" {...dialogBackdropAttrs}></div>
 |]
 
 renderDialogOverlayFooter :: [OverlayButton] -> [OverlayButton] -> Html
@@ -115,7 +112,7 @@ renderDialogOverlayButton :: OverlayButton -> Html
 renderDialogOverlayButton button =
     case button.overlayButtonAction of
         OverlayCloseAction -> [hsx|
-            <button type="button" class={button.overlayButtonClass} data-dialog-overlay-close="true">
+            <button type="button" class={button.overlayButtonClass} {...dialogCloseAttrs}>
                 {button.overlayButtonLabel}
             </button>
         |]
@@ -123,8 +120,7 @@ renderDialogOverlayButton button =
             <button type="submit"
                     class={button.overlayButtonClass}
                     form={formId}
-                    data-dialog-overlay-submit-button="true"
-                    data-loading-label="Working...">
+                    {...dialogSubmitAttrs "Working..."}>
                 {button.overlayButtonLabel}
             </button>
         |]
@@ -228,8 +224,7 @@ renderPageDialogButton closeUrl button =
             <button type="submit"
                     class={button.overlayButtonClass}
                     form={formId}
-                    data-dialog-overlay-submit-button="true"
-                    data-loading-label="Working...">
+                    {...dialogSubmitAttrs "Working..."}>
                 {button.overlayButtonLabel}
             </button>
         |]

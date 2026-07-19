@@ -8,6 +8,8 @@ import Application.Helper.Controller (PlatformRole (SuperAdminRole),
                                       passkeyVerifiedAtSessionKey,
                                       passkeyVerifiedUserSessionKey,
                                       unsafeEnumFromText)
+import Application.Helper.FrontendContract.Overlay.Runtime (OverlayDom (..),
+                                                            canonicalOverlayDom)
 import Application.Helper.PasskeyRecoveryCodes (hashRecoveryCode)
 import Application.Helper.Passkeys (allowedOrigins, rpIdTextFromRequest)
 import Application.Helper.PasskeySetupTokens (PasskeySetupTokenPurpose (SelfNewDevicePasskeySetup),
@@ -153,7 +155,7 @@ tests = beforeAll testContext do
                     callActionWithParams ShowPasskeySetupDialogAction [("successRedirect", "/EditProfile?section=security")]
 
                 response `responseStatusShouldBe` status200
-                response `responseBodyShouldContain` "data-dialog-overlay=\"true\""
+                response `responseBodyShouldContain` (cs canonicalOverlayDom.overlayDialogMountAttribute)
                 response `responseBodyShouldContain` "Set up faster sign-in"
                 response `responseBodyShouldContain` "data-begin-url=\"/BeginPasskeyRegistration\""
                 response `responseBodyShouldContain` "data-finish-url=\"/FinishPasskeyRegistration\""

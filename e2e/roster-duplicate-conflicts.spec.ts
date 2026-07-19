@@ -1,4 +1,5 @@
 import { test, expect, type Page } from '@playwright/test';
+import { dialogCloseDomAttr, dialogOverlayMountDomId } from '../frontend/ts/generated/contracts';
 import { E2E_TIMEOUT } from './timeouts';
 import {
     addRowToRosterDay,
@@ -41,8 +42,8 @@ function rowShiftLauncher(page: Page, rowIndex: number) {
 async function staffOptionsForRow(page: Page, rowIndex: number) {
     await openRosterShiftDialog(page, rowShiftLauncher(page, rowIndex));
     const values = await rosterShiftDialogStaffOptionValues(page);
-    await page.locator('[data-dialog-overlay-close="true"]').first().click();
-    await expect(page.locator('#dialog-overlay-mount')).toBeEmpty({ timeout: E2E_TIMEOUT.action });
+    await page.locator(`[${dialogCloseDomAttr}]`).first().click();
+    await expect(page.locator(`#${dialogOverlayMountDomId}`)).toBeEmpty({ timeout: E2E_TIMEOUT.action });
     return values;
 }
 

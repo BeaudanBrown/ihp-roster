@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
+import { dialogOverlayMountDomId } from '../frontend/ts/generated/contracts';
 import { E2E_TIMEOUT } from './timeouts';
 import {
     gotoWhenReady,
@@ -57,20 +58,20 @@ test.describe('No automatic focus', () => {
         await gotoWhenReady(page, '/Timesheets', '#timesheet-week-shell');
         await page.locator('[data-timesheet-day-add="true"]').first().click();
         await expect(page.locator('#timesheet-entry-create-form')).toBeVisible();
-        await expectNoFocusedControl(page, '#dialog-overlay-mount');
+        await expectNoFocusedControl(page, `#${dialogOverlayMountDomId}`);
     });
 
     test('leave dialog does not focus controls when opened', async ({ page }) => {
         await loginAs(page, 'e2e-worker@example.com', 'test-password-123');
         await gotoWhenReady(page, '/EditProfile', '#profile-content-fragment');
 
-        await page.evaluate(() => {
+        await page.evaluate((dialogTarget) => {
             const htmx = (window as Window & { htmx?: { ajax: (method: string, url: string, options: { target: string; swap: string }) => unknown } }).htmx;
             if (!htmx) throw new Error('Expected htmx runtime');
-            htmx.ajax('GET', '/NewLeaveRequest', { target: '#dialog-overlay-mount', swap: 'innerHTML' });
-        });
+            htmx.ajax('GET', '/NewLeaveRequest', { target: dialogTarget, swap: 'innerHTML' });
+        }, `#${dialogOverlayMountDomId}`);
         await expect(page.locator('#leave-request-form')).toBeVisible();
-        await expectNoFocusedControl(page, '#dialog-overlay-mount');
+        await expectNoFocusedControl(page, `#${dialogOverlayMountDomId}`);
     });
 
     test('passkey setup page does not focus controls when shown', async ({ page }) => {

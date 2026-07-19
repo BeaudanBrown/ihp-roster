@@ -18,7 +18,7 @@ expect_no_match() {
 
     local tmp_log
     tmp_log="$(mktemp)"
-    if rg --line-number --glob '!*.md' --glob '!*.test.ts' --glob '!*.log' --glob '!generated/**' "$pattern" "$@" >"$tmp_log" 2>/dev/null; then
+    if rg --line-number --glob '!*.md' --glob '!*.test.ts' --glob '!*.log' --glob '!**/generated/**' "$pattern" "$@" >"$tmp_log" 2>/dev/null; then
         report_failure "$label"
         cat "$tmp_log" >&2
     fi
@@ -726,6 +726,63 @@ expect_no_match \
     Application/Helper/LiveUpdate.hs \
     Application/Helper/LiveUpdate \
     Web
+
+expect_no_match \
+    "replaced handwritten overlay role and config attributes must stay deleted" \
+    'data-(dialog-overlay(-close|-backdrop|-submit-button)?|overlay-toast|toast-close|loading-label|auto-hide-ms)' \
+    Application \
+    Web \
+    frontend/ts \
+    e2e
+
+expect_no_match \
+    "production Haskell and TypeScript must consume generated overlay attribute names" \
+    'data-bepis-(dialog-(mount|backdrop|close|submit|submit-config|auto-submit-once)|toast-(mount|close|config))' \
+    Application \
+    Web \
+    frontend/ts \
+    e2e
+
+expect_no_match \
+    "production Haskell and TypeScript must consume generated overlay mount ids" \
+    '(dialog|toast)-overlay-mount' \
+    Application \
+    Web \
+    frontend/ts \
+    e2e
+
+expect_no_match \
+    "overlay adapter transient state must not use handwritten DOM data attributes" \
+    'dataset\.(bepisDialogAutoSubmitted|originalHtml|toastInitialized|autoHideMs)' \
+    frontend/ts/app-dialog-overlays.ts \
+    frontend/ts/app-toasts.ts
+
+expect_match \
+    "dialog overlay adapter consumes the generated exact submit config parser" \
+    'parseDialogSubmitConfig' \
+    frontend/ts/app-dialog-overlays.ts
+
+expect_match \
+    "toast overlay adapter consumes the generated exact toast config parser" \
+    'parseToastConfig' \
+    frontend/ts/app-toasts.ts
+
+expect_match \
+    "passkey prompt dismissal consumes the generated dialog close role" \
+    'dialogCloseDomAttr' \
+    frontend/ts/app-passkeys.ts
+
+expect_no_match_including_generated \
+    "generated overlay contract must not duplicate Bootstrap vendor vocabulary" \
+    'data-bs-|modal-open|shown\.bs\.modal|hidden\.bs\.modal' \
+    Application/Helper/FrontendContract/Overlay.hs
+
+expect_no_match \
+    "replaced broad overlay value helpers and aliases must stay deleted" \
+    '\b(AppOverlayDom|canonicalAppOverlayDom|sharedDialogOverlayMountId|sharedToastOverlayMountId|appShellDialogAutoSubmitOnceAttr|htmxModalMountId)\b' \
+    Application \
+    Web \
+    Test
 
 expect_no_match \
     "migrated overlay request initiators must not hand-author dialog mount targets" \

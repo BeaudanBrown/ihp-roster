@@ -1,4 +1,5 @@
 import { test, expect, Page } from '@playwright/test';
+import { dialogMountDomAttr, dialogOverlayMountDomId } from '../frontend/ts/generated/contracts';
 import { gotoWhenReady, loginAs, openRoster } from './test-helpers';
 import { E2E_TIMEOUT } from './timeouts';
 
@@ -449,9 +450,9 @@ test.describe('Styling regression contracts', () => {
         await expectStylesheetServed(page, '/css/overlays.css');
 
         await page.getByRole('button', { name: 'feedback', exact: true }).click();
-        await expect(page.locator('#dialog-overlay-mount [data-dialog-overlay="true"]')).toBeVisible();
+        await expect(page.locator(`#${dialogOverlayMountDomId} [${dialogMountDomAttr}]`)).toBeVisible();
 
-        const modalMetrics = await page.locator('#dialog-overlay-mount [data-dialog-overlay="true"]').evaluate((dialog) => {
+        const modalMetrics = await page.locator(`#${dialogOverlayMountDomId} [${dialogMountDomAttr}]`).evaluate((dialog) => {
             if (!(dialog instanceof HTMLElement)) {
                 throw new Error('Expected workflow dialog overlay to be an HTMLElement');
             }

@@ -1,9 +1,48 @@
-import { pageReadyEvent, dialogAutoSubmitOnceDomAttr, dialogOverlayMountDomId } from "./generated/contracts";
+import {
+    dialogAutoSubmitOnceDomAttr,
+    dialogBackdropDomAttr,
+    dialogCloseDomAttr,
+    dialogMountDomAttr,
+    dialogOverlayMountDomId,
+    dialogSubmitConfigDomAttr,
+    dialogSubmitDomAttr,
+    pageReadyEvent,
+    parseDialogSubmitConfig,
+    type DialogSubmitConfig,
+} from "./generated/contracts";
 import { closestHTMLElement, isHTMLElement } from "./shared/dom";
 import { detailTarget } from "./shared/lifecycle";
 
+const dialogMountSelector = `[${dialogMountDomAttr}]`;
+const dialogBackdropSelector = `[${dialogBackdropDomAttr}]`;
+const dialogCloseSelector = `[${dialogCloseDomAttr}]`;
+const autoSubmittedForms = new WeakSet<HTMLFormElement>();
+const originalSubmitHtml = new WeakMap<HTMLButtonElement, string>();
+
 export function dialogSubmitLoadingHtml(label: string): string {
     return '<span class="spinner-border spinner-border-sm" aria-hidden="true"></span><span>' + label + "</span>";
+}
+
+export function parseDialogSubmitConfiguration(raw: string): DialogSubmitConfig {
+    const config = parseDialogSubmitConfig(JSON.parse(raw));
+    if (config.loadingLabel.trim().length === 0) {
+        throw new Error("DialogSubmitConfig loadingLabel must not be empty");
+    }
+    return config;
+}
+
+function dialogSubmitConfiguration(submitter: HTMLButtonElement): DialogSubmitConfig | null {
+    const rawConfig = submitter.getAttribute(dialogSubmitConfigDomAttr);
+    try {
+        if (rawConfig === null) throw new Error(`Missing ${dialogSubmitConfigDomAttr}`);
+        return parseDialogSubmitConfiguration(rawConfig);
+    } catch (error) {
+        console.error?.("Invalid generated dialog submit configuration", {
+            code: "invalid-dialog-submit-config",
+            message: error instanceof Error ? error.message : String(error),
+        });
+        return null;
+    }
 }
 
 // Shared workflow dialog mount for HTMX-driven form overlays.
@@ -19,12 +58,12 @@ export function dialogSubmitLoadingHtml(label: string): string {
     function getActiveDialog(): HTMLElement | null {
         const mountEl = getMount();
         if (mountEl === null) return null;
-        const dialogEl = mountEl.querySelector('[data-dialog-overlay="true"]');
+        const dialogEl = mountEl.querySelector(dialogMountSelector);
         return isHTMLElement(dialogEl) ? dialogEl : null;
     }
 
     function hasVisibleBootstrapModal(): boolean {
-        return Boolean(document.querySelector('.modal.show:not([data-dialog-overlay="true"])'));
+        return Boolean(document.querySelector(`.modal.show:not(${dialogMountSelector})`));
     }
 
     function syncDialogState(): void {
@@ -45,25 +84,25 @@ export function dialogSubmitLoadingHtml(label: string): string {
     }
 
     function submitAutoFormsOnce(container: HTMLElement): void {
-        container.querySelectorAll(`form[${dialogAutoSubmitOnceDomAttr}="true"]`).forEach(function (form) {
+        container.querySelectorAll(`form[${dialogAutoSubmitOnceDomAttr}]`).forEach(function (form) {
             if (!(form instanceof HTMLFormElement)) return;
-            if (form.dataset.bepisDialogAutoSubmitted === "true") return;
+            if (autoSubmittedForms.has(form)) return;
 
-            form.dataset.bepisDialogAutoSubmitted = "true";
+            autoSubmittedForms.add(form);
             form.requestSubmit();
         });
     }
 
     document.addEventListener("click", function (event) {
         const activeDialog = getActiveDialog();
-        const closeEl = closestHTMLElement(event.target, '[data-dialog-overlay-close="true"]');
+        const closeEl = closestHTMLElement(event.target, dialogCloseSelector);
         if (closeEl !== null && activeDialog !== null) {
             event.preventDefault();
             clearMount();
             return;
         }
 
-        const backdropEl = closestHTMLElement(event.target, '[data-dialog-overlay-backdrop="true"]');
+        const backdropEl = closestHTMLElement(event.target, dialogBackdropSelector);
         if (backdropEl !== null && activeDialog !== null) {
             event.preventDefault();
             clearMount();
@@ -95,7 +134,9 @@ export function dialogSubmitLoadingHtml(label: string): string {
 
         const submitter = event instanceof SubmitEvent ? event.submitter : null;
         if (!(submitter instanceof HTMLButtonElement)) return;
-        if (!submitter.matches('[data-dialog-overlay-submit-button="true"]')) return;
+        if (!submitter.hasAttribute(dialogSubmitDomAttr)) return;
+        const config = dialogSubmitConfiguration(submitter);
+        if (config === null) return;
 
         activeDialog.querySelectorAll("button, a.btn").forEach(function (control) {
             if (control instanceof HTMLButtonElement) {
@@ -106,11 +147,10 @@ export function dialogSubmitLoadingHtml(label: string): string {
             }
         });
 
-        if (!submitter.dataset.originalHtml) {
-            submitter.dataset.originalHtml = submitter.innerHTML;
+        if (!originalSubmitHtml.has(submitter)) {
+            originalSubmitHtml.set(submitter, submitter.innerHTML);
         }
-        const label = submitter.getAttribute("data-loading-label") || "Working...";
-        submitter.innerHTML = dialogSubmitLoadingHtml(label);
+        submitter.innerHTML = dialogSubmitLoadingHtml(config.loadingLabel);
         submitter.classList.add("d-inline-flex", "align-items-center", "gap-2");
     }, true);
 
@@ -130,10 +170,11 @@ export function dialogSubmitLoadingHtml(label: string): string {
             }
         });
 
-        activeDialog.querySelectorAll('[data-dialog-overlay-submit-button="true"]').forEach(function (control) {
+        activeDialog.querySelectorAll(`[${dialogSubmitDomAttr}]`).forEach(function (control) {
             if (!(control instanceof HTMLButtonElement)) return;
-            if (control.dataset.originalHtml) {
-                control.innerHTML = control.dataset.originalHtml;
+            const originalHtml = originalSubmitHtml.get(control);
+            if (originalHtml !== undefined) {
+                control.innerHTML = originalHtml;
             }
             control.classList.remove("d-inline-flex", "align-items-center", "gap-2");
         });

@@ -1,6 +1,6 @@
 module Application.Helper.View.Toast where
 
-import Application.Helper.FrontendContract.AppValues (sharedToastOverlayMountId)
+import Application.Helper.FrontendContract.Overlay.Runtime
 import Application.Helper.View.Oob
 import Generated.Types
 import IHP.ViewPrelude
@@ -9,7 +9,7 @@ import Web.Routes ()
 import Web.Types
 
 toastOverlayMountId :: Text
-toastOverlayMountId = sharedToastOverlayMountId
+toastOverlayMountId = canonicalOverlayDom.overlayToastMountId
 
 data ToastOverlayConfig = ToastOverlayConfig
     { toastOverlayTitle      :: !(Maybe Text)
@@ -73,14 +73,13 @@ toastOverlayHostClass position =
 renderToastOverlay :: ToastOverlayConfig -> Html
 renderToastOverlay toast = [hsx|
     <div class={classes [("app-toast", True), (toast.toastOverlayClass, True)]}
-         data-overlay-toast="true"
-         data-auto-hide-ms={tshow toast.toastOverlayAutoHideMs}>
+         {...toastMountAttrs toast.toastOverlayAutoHideMs}>
         <div class="app-toast-body">
             {renderToastCopy toast}
             <button type="button"
                     class="btn-close btn-close-white app-toast-close"
                     aria-label="Dismiss"
-                    data-toast-close="true"></button>
+                    {...toastCloseAttrs}></button>
         </div>
     </div>
 |]

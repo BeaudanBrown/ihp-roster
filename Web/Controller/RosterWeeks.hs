@@ -11,8 +11,8 @@ import Application.Helper.FrontendContract.AppShell (ConfirmRemoveRosterRowOverl
                                                      DeleteRosterSlotOverlay)
 import Application.Helper.FrontendContract.AppShell.Runtime (AppShellActionRoute (..),
                                                              appShellActionByMarker,
-                                                             appShellDialogAutoSubmitOnceAttr,
                                                              renderAppShellActionForm)
+import Application.Helper.FrontendContract.Overlay.Runtime (dialogAutoSubmitOnceAttr)
 import qualified Application.Helper.FrontendContract.Surface.Interaction as SurfaceInteraction
 import Application.Helper.FrontendContract.Surface.Request (SurfaceRequestFieldError,
                                                             surfaceActionParamsPresent,
@@ -1428,7 +1428,7 @@ respondWithDeleteRosterSlotDropConfirmation rosterSlot =
                 (rosterDeleteSlotActionRoute (pathTo (DeleteRosterSlotAction rosterSlot.id)))
                     { appShellActionRouteExtraAttrs =
                         [ ("class", "d-none")
-                        , appShellDialogAutoSubmitOnceAttr
+                        , dialogAutoSubmitOnceAttr
                         ]
                     }
                 mempty}

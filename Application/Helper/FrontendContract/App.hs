@@ -18,8 +18,6 @@ module Application.Helper.FrontendContract.App
     , InteractionSessionStart
     , InteractionSessionEnd
     , InteractionSessionCancelRequest
-    , DialogOverlayMount
-    , ToastOverlayMount
     , HtmxActionMethod
     , HtmxGet
     , HtmxPost
@@ -55,9 +53,6 @@ data InteractionSessionStart
 data InteractionSessionEnd
 data InteractionSessionCancelRequest
 
-data DialogOverlayMount
-data ToastOverlayMount
-
 data HtmxActionMethod
 data HtmxGet
 data HtmxPost
@@ -87,6 +82,4 @@ type AppContract =
          , Event InteractionSessionStart '[]
          , Event InteractionSessionEnd '[]
          , Event InteractionSessionCancelRequest '[]
-         , DomId DialogOverlayMount
-         , DomId ToastOverlayMount
          ]

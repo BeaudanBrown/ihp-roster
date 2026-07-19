@@ -12,18 +12,15 @@ module Application.Helper.FrontendContract.AppShell.Runtime
     , appShellActionByMarker
     , appShellActionByName
     , appShellActionHtmxAttrPairs
-    , appShellDialogAutoSubmitOnceAttr
     , applyAppShellActionAttrs
     , renderAppShellActionForm
     , renderAppShellActionHtmxControl
     , renderAppShellActionLink
     ) where
 
-import qualified Application.Helper.FrontendContract.AppShell as AppShell
 import qualified Application.Helper.FrontendContract.Htmx as Htmx
 import Application.Helper.FrontendContract.IR
 import Application.Helper.FrontendContract.Naming (FrontendSurfaceNameContext (ActionName),
-                                                   deriveDomAttributeTypeName,
                                                    deriveFrontendSurfaceTypeName)
 import Application.Helper.FrontendContract.Registry (registeredFrontendContractIR)
 import Data.Typeable (Typeable)
@@ -53,9 +50,6 @@ data AppShellActionRoute = AppShellActionRoute
     , appShellActionRouteExtraAttrs  :: ![(Text, Text)]
     }
     deriving (Eq, Show)
-
-appShellDialogAutoSubmitOnceAttr :: (Text, Text)
-appShellDialogAutoSubmitOnceAttr = (deriveDomAttributeTypeName @AppShell.DialogAutoSubmitOnce, "true")
 
 appShellActionByMarker :: forall marker. Typeable marker => AppShellActionIR
 appShellActionByMarker = appShellActionByName (deriveFrontendSurfaceTypeName @marker ActionName)

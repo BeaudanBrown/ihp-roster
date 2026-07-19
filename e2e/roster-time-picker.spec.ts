@@ -1,4 +1,5 @@
 import { test, expect, type Locator, type Page } from '@playwright/test';
+import { dialogOverlayMountDomId } from '../frontend/ts/generated/contracts';
 import { E2E_TIMEOUT } from './timeouts';
 import { addRowToRosterDay, editableRosterRows, firstEditableRosterDaySection, openRoster, openRosterShiftDialog } from './test-helpers';
 
@@ -20,7 +21,7 @@ async function addFreshRowAndGetFirstTimeField(page: Page): Promise<Locator> {
     await expect(editableRows).toHaveCount(initialRowCount + 1);
     const launcher = editableRows.last().locator('[data-roster-shift-launcher="true"]').first();
     await openRosterShiftDialog(page, launcher);
-    const firstField = page.locator('#dialog-overlay-mount [data-time-picker-field]').first();
+    const firstField = page.locator(`#${dialogOverlayMountDomId} [data-time-picker-field]`).first();
     await expect(firstField.locator('.js-time-picker-label')).toHaveText('6:00 AM');
     await expect(firstField.locator('.js-time-picker-input')).toHaveValue('06:00');
     return firstField;

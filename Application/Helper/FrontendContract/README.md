@@ -48,10 +48,22 @@ emitted only when a reachable browser shape uses them.
 Roots are split by meaning:
 
 - **Global**: app-wide browser/runtime vocabulary such as DOM ids, event names,
-  closed enums, UI-region data, generic interaction runtime shapes,
-  live-update wire schemas, and app-shell/dialog request contracts.
+  closed enums, UI-region data, generic interaction runtime shapes, focused
+  toggle/overlay capabilities, live-update wire schemas, and app-shell request
+  contracts.
 - **Surface**: mounted feature UI semantics: scopes, fragments, actions,
   intents, server-side mount state, resources, and interaction metadata.
+
+`OverlayContract` is the focused global workflow-dialog/toast capability. It
+owns the two lane mount ids, generated dialog/backdrop/close/submit and
+toast/close roles, dialog auto-submit state, and exact dialog-submit/toast
+configuration schemas. `Application.Helper.FrontendContract.Overlay.Runtime`
+serializes those configs from declaration-indexed fields for the shared view
+helpers. The TypeScript adapters parse only the generated exact configs and keep
+transient initialization/original-markup state outside the DOM. Bootstrap
+classes/events and ARIA/native state remain inside the focused adapters rather
+than becoming app DOM primitives. Overlay request routes, HTMX methods, targets,
+and fields remain owned by generated AppShell or Surface Action helpers.
 
 `ToggleContract` is the focused global checkbox-style capability. It owns closed
 presentation and submission states, explicit value-or-omitted targets, the exact
@@ -63,9 +75,9 @@ form-local browser transport. The full authoring/runtime rules live in
 
 `AppShellAction` is the server-rendered lane for app-owned shell request initiators
 that are not owned by a mounted `FrontendSurface`, including dialog/overlay
-workflows targeting the shared dialog overlay mount (initially
-`#dialog-overlay-mount`). The DSL owns browser-visible HTMX metadata and
-submitted fields; Haskell still owns IHP route/path construction through
+workflows targeting the generated shared dialog mount. The DSL owns
+browser-visible HTMX metadata and submitted fields; Haskell still owns IHP
+route/path construction through
 `Application.Helper.FrontendContract.AppShell.Runtime`. Successful final dialog
 workflow mutations should close/clear overlays and refresh business surfaces
 through actor-local/passive invalidation rather than returning authoritative

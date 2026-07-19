@@ -12,12 +12,8 @@ import Application.Helper.FrontendContract.AppShell.Runtime (AppShellActionRoute
                                                              appShellActionByMarker,
                                                              appShellActionHtmxAttrPairs)
 import Application.Helper.FrontendContract.AppValues (AppEvents (..),
-                                                      AppOverlayDom (..),
                                                       canonicalAppEvents,
-                                                      canonicalAppOverlayDom,
-                                                      interactionIntentSubmitHtmxTrigger,
-                                                      sharedDialogOverlayMountId,
-                                                      sharedToastOverlayMountId)
+                                                      interactionIntentSubmitHtmxTrigger)
 import Application.Helper.FrontendContract.Contracts (TypeScriptDeclaration (..),
                                                       TypeScriptDeclarationOrigin (..),
                                                       frontendContractDeclarations,
@@ -31,6 +27,9 @@ import Application.Helper.FrontendContract.LiveUpdateValues (liveUpdateClientIdH
                                                              surfaceConfigDomAttribute,
                                                              surfaceDomAttribute)
 import qualified Application.Helper.FrontendContract.Naming as Naming
+import qualified Application.Helper.FrontendContract.Overlay as Overlay
+import Application.Helper.FrontendContract.Overlay.Runtime (OverlayDom (..),
+                                                            canonicalOverlayDom)
 import Application.Helper.FrontendContract.Registry (registeredFrontendContractIR)
 import Application.Helper.FrontendContract.RosterValues (RosterStaffSortKey (..),
                                                          rosterStaffSortKeyAttribute,
@@ -38,8 +37,10 @@ import Application.Helper.FrontendContract.RosterValues (RosterStaffSortKey (..)
 import qualified Application.Helper.FrontendContract.Surface.ContractIR as SurfaceIR
 import Application.Helper.FrontendContract.Surface.Contracts (registeredFrontendSurfaceContractIR)
 import Application.Helper.FrontendContract.Surface.Reflect (reflectSurfaceSpec)
-import Application.Helper.FrontendContract.Values (domIdValue, enumLiteralValue,
+import Application.Helper.FrontendContract.Values (domAttrValue, domIdValue,
+                                                   enumLiteralValue,
                                                    eventNameValue,
+                                                   lookupDomAttrValue,
                                                    lookupDomIdValue,
                                                    lookupEnumLiteralValue,
                                                    lookupEventNameValue)
@@ -242,11 +243,13 @@ tests = describe "Frontend contract generator foundation" do
         frontendContractsTypeScript `shouldNotSatisfy` Text.isInfixOf "staffSurfaceManifest"
 
     it "resolves canonical Haskell value accessors from registered FrontendContract IR" do
-        lookupDomIdValue @App.DialogOverlayMount `shouldBe` Right sharedDialogOverlayMountId
-        lookupDomIdValue @App.ToastOverlayMount `shouldBe` Right sharedToastOverlayMountId
+        lookupDomIdValue @Overlay.DialogOverlayMount `shouldBe` Right canonicalOverlayDom.overlayDialogMountId
+        lookupDomIdValue @Overlay.ToastOverlayMount `shouldBe` Right canonicalOverlayDom.overlayToastMountId
+        lookupDomAttrValue @Overlay.DialogMount `shouldBe` Right canonicalOverlayDom.overlayDialogMountAttribute
         lookupEventNameValue @App.IntentSubmit `shouldBe` Right interactionIntentSubmitHtmxTrigger
         lookupEnumLiteralValue @App.RosterStaffSortKey @App.Name `shouldBe` Right "name"
-        domIdValue @App.DialogOverlayMount `shouldBe` canonicalAppOverlayDom.appDialogOverlayMountId
+        domIdValue @Overlay.DialogOverlayMount `shouldBe` canonicalOverlayDom.overlayDialogMountId
+        domAttrValue @Overlay.ToastMount `shouldBe` canonicalOverlayDom.overlayToastMountAttribute
         eventNameValue @App.IntentSubmit `shouldBe` canonicalAppEvents.appInteractionIntentSubmitEventName
         enumLiteralValue @App.RosterStaffSortKey @App.Name `shouldBe` rosterStaffSortKeyAttribute RosterStaffSortByName
         rosterStaffSortKeyValues

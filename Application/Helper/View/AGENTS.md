@@ -10,6 +10,11 @@ Read this before editing shared view helpers under `Application/Helper/View/`.
   view builders.
 - Shared forms should usually render fields plus the `<form>` wrapper; overlay
   footers own save/cancel buttons.
+- Dialog/toast helpers consume `FrontendContract.Overlay.Runtime` for generated
+  lane ids, roles, auto-submit state, and exact loading/auto-hide config. Keep
+  Bootstrap markup and native/ARIA state in these focused adapters; do not add
+  handwritten overlay `data-*` names or move request semantics out of typed
+  AppShell/Surface Action helpers.
 - For typed interaction-surface helpers, read
   `Application/Helper/Interaction.SPEC.md` and
   `Application/Helper/FrontendContract/Surface/README.md` first. Helpers should

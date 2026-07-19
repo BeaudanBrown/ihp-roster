@@ -313,11 +313,47 @@ export const interactionSessionEndEvent = "bepis:interaction-session-end" as con
 
 export const interactionSessionCancelRequestEvent = "bepis:interaction-session-cancel-request" as const;
 
+export type DialogSubmitConfig = { loadingLabel: string };
+export function isDialogSubmitConfig(value: unknown): value is DialogSubmitConfig {
+    return isRecord(value) && hasExactKeys(value, ["loadingLabel"]) && (typeof value["loadingLabel"] === "string");
+}
+
+export function parseDialogSubmitConfig(value: unknown): DialogSubmitConfig {
+    if (isDialogSubmitConfig(value)) return value;
+    throw new Error("Invalid DialogSubmitConfig");
+}
+
+export type ToastConfig = { autoHideMs: number };
+export function isToastConfig(value: unknown): value is ToastConfig {
+    return isRecord(value) && hasExactKeys(value, ["autoHideMs"]) && (typeof value["autoHideMs"] === "number" && Number.isInteger(value["autoHideMs"]));
+}
+
+export function parseToastConfig(value: unknown): ToastConfig {
+    if (isToastConfig(value)) return value;
+    throw new Error("Invalid ToastConfig");
+}
+
 export const dialogOverlayMountDomId = "dialog-overlay-mount" as const;
 
 export const toastOverlayMountDomId = "toast-overlay-mount" as const;
 
+export const dialogMountDomAttr = "data-bepis-dialog-mount" as const;
+
+export const dialogBackdropDomAttr = "data-bepis-dialog-backdrop" as const;
+
+export const dialogCloseDomAttr = "data-bepis-dialog-close" as const;
+
+export const dialogSubmitDomAttr = "data-bepis-dialog-submit" as const;
+
+export const dialogSubmitConfigDomAttr = "data-bepis-dialog-submit-config" as const;
+
 export const dialogAutoSubmitOnceDomAttr = "data-bepis-dialog-auto-submit-once" as const;
+
+export const toastMountDomAttr = "data-bepis-toast-mount" as const;
+
+export const toastCloseDomAttr = "data-bepis-toast-close" as const;
+
+export const toastConfigDomAttr = "data-bepis-toast-config" as const;
 
 export type UiRegionTransitionProfile =
     "none"

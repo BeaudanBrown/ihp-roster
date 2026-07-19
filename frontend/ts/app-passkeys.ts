@@ -1,3 +1,4 @@
+import { dialogCloseDomAttr } from "./generated/contracts";
 import { isDomRoot } from "./shared/dom";
 import { detailTarget, onAppPageReady } from "./shared/lifecycle";
 import { arrayBufferToBase64Url, base64UrlToArrayBuffer } from "./passkeys/base64url";
@@ -147,7 +148,7 @@ type AuthenticationCredentialPayload = {
         container.classList.remove("d-none");
         document.body.classList.add("modal-open");
 
-        const dismissButton = container.querySelector('[data-dialog-overlay-close="true"]');
+        const dismissButton = container.querySelector(`[${dialogCloseDomAttr}]`);
         if (dismissButton !== null) {
             dismissButton.addEventListener("click", function (event) {
                 event.preventDefault();

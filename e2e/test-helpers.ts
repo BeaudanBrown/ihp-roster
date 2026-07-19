@@ -4,7 +4,11 @@ import { readFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { APIRequestContext, Download, expect, Locator, Page } from '@playwright/test';
+import { dialogMountDomAttr, dialogOverlayMountDomId } from '../frontend/ts/generated/contracts';
 import { E2E_TIMEOUT } from './timeouts';
+
+const dialogOverlaySelector = `#${dialogOverlayMountDomId}`;
+const mountedDialogSelector = `${dialogOverlaySelector} [${dialogMountDomAttr}]`;
 
 export const defaultE2ERosterGroupId = 'a1000000-0000-0000-0000-000000000211';
 export const webauthnBaseURL = (process.env.E2E_BASE_URL ?? 'http://127.0.0.1:8000').replace('127.0.0.1', 'localhost');
@@ -423,11 +427,11 @@ export async function openNewLeaveRequestDialog(page: Page) {
     if (await trigger.first().isVisible().catch(() => false)) {
         await trigger.first().click();
     } else {
-        await page.evaluate(() => {
+        await page.evaluate((dialogTarget) => {
             const htmx = (window as Window & { htmx?: { ajax: (method: string, url: string, options: { target: string; swap: string }) => unknown } }).htmx;
             if (!htmx) throw new Error('Expected htmx runtime');
-            htmx.ajax('GET', '/NewLeaveRequest', { target: '#dialog-overlay-mount', swap: 'innerHTML' });
-        });
+            htmx.ajax('GET', '/NewLeaveRequest', { target: dialogTarget, swap: 'innerHTML' });
+        }, dialogOverlaySelector);
     }
 
     await expect(page.locator('#leave-request-form')).toBeVisible();
@@ -609,15 +613,15 @@ export async function openRosterShiftDialog(page: Page, launcher: Locator) {
         response.request().method() === 'GET'
         && response.url().includes(dialogUrl),
     );
-    await launcher.evaluate((element) => {
+    await launcher.evaluate((element, dialogTarget) => {
         const htmx = (window as Window & { htmx?: { ajax: (method: string, url: string, options: { target: string; swap: string }) => unknown } }).htmx;
         const hxGet = element.getAttribute('hx-get');
         if (!htmx || !hxGet) throw new Error('Expected HTMX roster shift dialog launcher');
-        htmx.ajax('GET', hxGet, { target: '#dialog-overlay-mount', swap: 'innerHTML' });
-    });
+        htmx.ajax('GET', hxGet, { target: dialogTarget, swap: 'innerHTML' });
+    }, dialogOverlaySelector);
     const response = await responsePromise;
     expect(response.status(), await response.text()).toBe(200);
-    await expect(page.locator('#dialog-overlay-mount [data-dialog-overlay="true"]')).toBeVisible({ timeout: E2E_TIMEOUT.action });
+    await expect(page.locator(mountedDialogSelector)).toBeVisible({ timeout: E2E_TIMEOUT.action });
 }
 
 export async function rosterShiftDialogStaffOptionValues(page: Page) {
@@ -658,7 +662,7 @@ export async function saveRosterShiftDialog(page: Page) {
     await page.getByRole('button', { name: 'Save' }).click();
     const response = await responsePromise;
     expect(response.status(), await response.text()).toBe(200);
-    await expect(page.locator('#dialog-overlay-mount')).toBeEmpty({ timeout: E2E_TIMEOUT.liveUpdate });
+    await expect(page.locator(dialogOverlaySelector)).toBeEmpty({ timeout: E2E_TIMEOUT.liveUpdate });
 }
 
 export async function assignRosterShiftStaff(page: Page, launcher: Locator, staffId: string) {

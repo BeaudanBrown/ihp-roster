@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { dialogOverlayMountDomId } from '../frontend/ts/generated/contracts';
 import { E2E_TIMEOUT } from './timeouts';
 import {
     expectContainerToManageHorizontalOverflow,
@@ -181,7 +182,7 @@ test.describe('Mobile experience smoke', () => {
         await expectNoHorizontalViewportOverflow(page);
 
         await openNewLeaveRequestDialog(page);
-        await expectDialogToFitViewport(page, '#dialog-overlay-mount .modal-dialog, #dialog-overlay-mount [role="dialog"]');
+        await expectDialogToFitViewport(page, `#${dialogOverlayMountDomId} .modal-dialog, #${dialogOverlayMountDomId} [role="dialog"]`);
     });
 
     test('timesheet creation dialog remains usable on a phone-sized viewport', async ({ page }) => {
@@ -196,7 +197,7 @@ test.describe('Mobile experience smoke', () => {
         await expect(addBar).toBeVisible();
         await addBar.click();
         await expect(page.locator('#timesheet-entry-create-form')).toBeVisible();
-        await expectDialogToFitViewport(page, '#dialog-overlay-mount .modal-dialog, #dialog-overlay-mount [role="dialog"]');
+        await expectDialogToFitViewport(page, `#${dialogOverlayMountDomId} .modal-dialog, #${dialogOverlayMountDomId} [role="dialog"]`);
     });
 
     test('timesheet day columns do not auto-scroll initially and snap to the nearest day after user scroll', async ({ page }) => {

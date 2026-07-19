@@ -1,4 +1,5 @@
 import { expect, Page, test } from '@playwright/test';
+import { dialogOverlayMountDomId } from '../frontend/ts/generated/contracts';
 import { E2E_TIMEOUT } from './timeouts';
 import { gotoWhenReady, loginAs, openProfileLeaveSection, openRoster, runSql, setFlatpickrDate } from './test-helpers';
 
@@ -70,7 +71,7 @@ async function fillAndSaveTimesheetDialog(page: Page, startTime: string, endTime
         (input as HTMLInputElement).value = value as string;
     }, endTime);
     await page.getByRole('button', { name: 'Save' }).click();
-    await expect(page.locator('#dialog-overlay-mount')).toBeEmpty();
+    await expect(page.locator(`#${dialogOverlayMountDomId}`)).toBeEmpty();
 }
 
 async function openProfileDetailsSection(page: Page) {

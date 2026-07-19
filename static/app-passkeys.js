@@ -1,5 +1,9 @@
 "use strict";
 (() => {
+  // frontend/ts/generated/contracts.ts
+  var pageReadyEvent = "bepis:page-ready";
+  var dialogCloseDomAttr = "data-bepis-dialog-close";
+
   // frontend/ts/shared/dom.ts
   function isElement(value) {
     return typeof Element !== "undefined" && value instanceof Element;
@@ -13,9 +17,6 @@
   function isDomRoot(value) {
     return isElement(value) || isDocument(value) || isDocumentFragment(value);
   }
-
-  // frontend/ts/generated/contracts.ts
-  var pageReadyEvent = "bepis:page-ready";
 
   // frontend/ts/shared/lifecycle.ts
   function eventDetailRecord(event) {
@@ -144,7 +145,7 @@
       }
       container.classList.remove("d-none");
       document.body.classList.add("modal-open");
-      const dismissButton = container.querySelector('[data-dialog-overlay-close="true"]');
+      const dismissButton = container.querySelector(`[${dialogCloseDomAttr}]`);
       if (dismissButton !== null) {
         dismissButton.addEventListener("click", function(event) {
           event.preventDefault();

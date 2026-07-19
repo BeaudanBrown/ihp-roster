@@ -1,4 +1,5 @@
 import { test, expect, Page } from '@playwright/test';
+import { dialogMountDomAttr, dialogOverlayMountDomId } from '../frontend/ts/generated/contracts';
 import { openRoster } from './test-helpers';
 
 type RosterLayoutMetrics = {
@@ -135,7 +136,7 @@ test.describe('Roster layout scale baseline', () => {
             const dialogResponse = await dialogResponsePromise;
             expect(dialogResponse.status(), await dialogResponse.text()).toBe(200);
 
-            const dialog = page.locator('#dialog-overlay-mount [data-dialog-overlay="true"]');
+            const dialog = page.locator(`#${dialogOverlayMountDomId} [${dialogMountDomAttr}]`);
             await expect(dialog).toBeVisible();
             await expect(page.locator('#roster-shift-staff-id')).toBeVisible();
             await expect(page.locator('#roster-shift-type-id')).toBeVisible();

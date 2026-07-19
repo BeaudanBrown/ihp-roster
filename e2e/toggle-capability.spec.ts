@@ -6,6 +6,7 @@ import {
     toggleInputDomAttr,
     toggleRootDomAttr,
     toggleTransportDomAttr,
+    toastOverlayMountDomId,
 } from '../frontend/ts/generated/contracts';
 import { E2E_TIMEOUT, gotoWhenReady, loginAs, openRoster, runSql } from './test-helpers';
 
@@ -50,7 +51,7 @@ async function exerciseRosterLivePersistence(page: Page, viewport: { width: numb
     await expect(input).not.toBeChecked();
 
     await expectRosterLiveRequest(page, 'true', () => root.click());
-    await expect(page.locator('#toast-overlay-mount')).toContainText('Roster week is now live', { timeout: E2E_TIMEOUT.assertion });
+    await expect(page.locator(`#${toastOverlayMountDomId}`)).toContainText('Roster week is now live', { timeout: E2E_TIMEOUT.assertion });
     root = await rosterLiveRoot(page);
     input = root.locator(`[${toggleInputDomAttr}]`);
     await expect(input).toBeChecked({ timeout: E2E_TIMEOUT.liveUpdate });
@@ -61,7 +62,7 @@ async function exerciseRosterLivePersistence(page: Page, viewport: { width: numb
     await expect(input).toBeChecked();
 
     await expectRosterLiveRequest(page, 'false', () => root.click());
-    await expect(page.locator('#toast-overlay-mount')).toContainText('Roster week moved back to draft', { timeout: E2E_TIMEOUT.assertion });
+    await expect(page.locator(`#${toastOverlayMountDomId}`)).toContainText('Roster week moved back to draft', { timeout: E2E_TIMEOUT.assertion });
     root = await rosterLiveRoot(page);
     input = root.locator(`[${toggleInputDomAttr}]`);
     await expect(input).not.toBeChecked({ timeout: E2E_TIMEOUT.liveUpdate });

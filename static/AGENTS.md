@@ -18,6 +18,11 @@ Read this before editing `static/` assets.
   encoders, and type-only roots generate neither codec. Use generated contracts for backend-emitted JSON/data-* boundaries;
   do not restore server-only action/DTO/topology manifests or an omnibus Surface
   registry.
+- Dialog/toast bundles consume the generated Overlay ids, role attributes, and
+  exact configuration parsers. Bootstrap modal vocabulary and transient toast
+  classes stay adapter-owned; do not restore legacy overlay data attributes or
+  DOM-backed initialization/original-markup state. Passkey prompts reuse the
+  generated dialog-close role.
 - Keep app JavaScript split by concern:
   - `app-bootstrap.js`
   - `app-date-pickers.js`

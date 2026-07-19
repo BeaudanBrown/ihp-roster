@@ -200,7 +200,7 @@ slices, and all block final reconciliation.
 
 13. `#169` - Reliable toggle submission/presentation and timesheet break controls, including the active roster live-status regression. **Complete.**
 14. `#167` - Time picker roles and exact configuration payload, consuming but not duplicating the toggle/break boundary.
-15. `#168` - Dialog/toast overlay DOM vocabulary.
+15. `#168` - Dialog/toast overlay DOM vocabulary. **Complete.**
 16. `#170` - Ordered-range shift preferences.
 17. `#171` - Horizontal drag/snap scrolling.
 18. `#172` - PWA installation adapter.
@@ -250,8 +250,16 @@ presentation from submitted target state, roster live submission is synchronized
 before HTMX serialization, timesheet break controls use a native fieldset, and
 responsive week toolbars render canonical controls once. Focused Haskell,
 TypeScript, compile-failure, and desktop/mobile browser coverage pins those
-boundaries. Ordered ranges also depend on toggle presentation. `#167` owns picker
-internals whereas `#169` owns toggle submission and break-region activation.
+boundaries. #168 moved dialog/toast lane ids, roles, auto-submit state, loading
+labels, and auto-hide configuration into the focused global Overlay contract.
+Shared Haskell render helpers now serialize exact config records; dialog, toast,
+and passkey TypeScript consume generated vocabulary, keep transient state out of
+the DOM, and retain Bootstrap/native/ARIA behavior inside the adapters. Typed
+AppShell/Surface request helpers and the separate picker lane remain unchanged.
+Focused render, parser, browser-lifecycle, source-guard, CSS, and drift coverage
+pins the migration. Ordered ranges also depend on toggle presentation. `#167`
+owns picker internals whereas `#169` owns toggle submission and break-region
+activation.
 Roster linked highlighting depends on closed interaction IR. Staff-panel work
 establishes the browser-reachable Surface DTO path for image export and week
 overview. The Haskell adapter slices run in parallel with capability slices and

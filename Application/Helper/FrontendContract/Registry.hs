@@ -12,6 +12,7 @@ import Application.Helper.FrontendContract.DSL
 import Application.Helper.FrontendContract.Interaction
 import Application.Helper.FrontendContract.IR
 import Application.Helper.FrontendContract.LiveUpdate
+import Application.Helper.FrontendContract.Overlay
 import Application.Helper.FrontendContract.Reflect
 import Application.Helper.FrontendContract.Surface.Contracts (registeredFrontendSurfaceContractIR)
 import Application.Helper.FrontendContract.Toggle
@@ -21,6 +22,7 @@ import Application.Helper.FrontendContract.UiRegion
 -- roots are appended from the registered surface contract registry.
 type RegisteredFrontendContracts =
     '[ AppContract
+     , OverlayContract
      , AppShellContract
      , UiRegionContract
      , InteractionContract

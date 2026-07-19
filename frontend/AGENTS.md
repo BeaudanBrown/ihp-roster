@@ -11,6 +11,11 @@ Read this before editing `frontend/ts/`.
   drift check, and its watcher all render the same checked typeclass-reflected
   Haskell registry used by server runtime metadata.
 - Contracts are for browser boundary data only: JSON/data-* payloads, live-update config/messages, exact FrontendSurface mounts, minimal fragment/interaction registries, shared DOM vocabulary, roster UI config, and overlay lanes. Do not generate broad database models, server-only Surface action/DTO/topology data, or omnibus registries for frontend use.
+- Dialog/toast adapters import generated Overlay role/id constants and exact
+  config parsers. Keep Bootstrap selectors/events and ephemeral CSS classes
+  adapter-local; keep one-time/original-markup state in `WeakSet`/`WeakMap`
+  storage instead of inventing browser-only overlay data attributes. Passkey
+  prompt dismissal consumes the same generated dialog-close role.
 - Each reflected root declares browser reachability. Server-only roots emit nothing; type-only roots emit only a type/constant; inbound roots add guards/parsers; outbound roots add encoders; bidirectional roots add both. Unknown JSON boundaries should use generated `parseX`; outbound JSON-shaped DTOs should use generated `encodeX`; runtime code must not recreate generated validators/parsers/encoders by hand.
 - Use Nix/devenv entrypoints, not developer-facing `npm`/`npx` commands.
 - Supported commands:
