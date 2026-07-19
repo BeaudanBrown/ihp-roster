@@ -20,6 +20,11 @@ Read this before editing shared view helpers under `Application/Helper/View/`.
   ranges, steps, option labels, empty-state copy, and initial native/ARIA state
   in Haskell. Do not reintroduce browser-selector classes or make the picker own
   Toggle break-region activation.
+- Ordered ranges consume `FrontendContract.OrderedRange.Runtime` for generated
+  roles, exact config/state, position properties, and the closed crossing
+  policy. Keep ranges, steps, defaults, labels, initial values, native endpoint
+  labels, and availability in Haskell; compose with Toggle without exposing raw
+  extra attrs or duplicating its form transport.
 - For typed interaction-surface helpers, read
   `Application/Helper/Interaction.SPEC.md` and
   `Application/Helper/FrontendContract/Surface/README.md` first. Helpers should

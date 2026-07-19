@@ -58,6 +58,7 @@ import qualified Test.FwcMapdSyncSpec
 import qualified Test.LiveUpdateSpec
 import qualified Test.MailSpec
 import qualified Test.MutationBoundarySpec
+import qualified Test.OrderedRangeSpec
 import qualified Test.OverlaySpec
 import qualified Test.PageHelpSpec
 import qualified Test.PaySpec
@@ -285,6 +286,7 @@ allSuites =
     , pureSuite "SurfaceDependency" 10 Test.SurfaceDependencySpec.tests
     , pureSuite "SurfaceGuard" 5 Test.SurfaceGuardSpec.tests
     , databaseSuite "ToggleButton" 5 Test.ToggleButtonSpec.tests
+    , databaseSuite "OrderedRange" 5 Test.OrderedRangeSpec.tests
     , databaseSuite "Overlay" 5 Test.OverlaySpec.tests
     , databaseSuite "TimePicker" 5 Test.TimePickerSpec.tests
     , databaseSuite "Mail" 10 Test.MailSpec.tests

@@ -201,7 +201,7 @@ slices, and all block final reconciliation.
 13. `#169` - Reliable toggle submission/presentation and timesheet break controls, including the active roster live-status regression. **Complete.**
 14. `#167` - Time picker roles and exact configuration payload, consuming but not duplicating the toggle/break boundary. **Complete.**
 15. `#168` - Dialog/toast overlay DOM vocabulary. **Complete.**
-16. `#170` - Ordered-range shift preferences.
+16. `#170` - Ordered-range shift preferences. **Complete.**
 17. `#171` - Horizontal drag/snap scrolling.
 18. `#172` - PWA installation adapter.
 19. `#173` - Xero candidate filtering adapter.
@@ -266,7 +266,16 @@ replacement, and consumes native disabled state without querying Toggle roles.
 Focused render, compile-failure, parser, browser, CSS, contract-drift, and source
 guards pin that ownership split. Ordered ranges also depend on toggle
 presentation. `#167` owns picker internals whereas `#169` owns toggle submission
-and break-region activation.
+and break-region activation. #170 added the global OrderedRange contract, exact
+configuration/state parsers, generated root/start/end/availability roles,
+position properties, and the closed `clamp-other-endpoint` policy. Profile and
+staff rendering now supplies the complete allowed range, step, defaults, label
+inventory, initial values, and native accessibility relationships. The generic
+adapter validates each local subtree before mutation, keeps initialization state
+outside the DOM, and leaves Toggle transport plus server endpoint validation in
+their existing authoritative owners. Focused render, semantic validation,
+compile-failure, TypeScript, real-browser, CSS, drift, and source guards pin the
+slice.
 Roster linked highlighting depends on closed interaction IR. Staff-panel work
 establishes the browser-reachable Surface DTO path for image export and week
 overview. The Haskell adapter slices run in parallel with capability slices and

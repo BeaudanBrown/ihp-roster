@@ -415,6 +415,30 @@ submission, and the native timesheet break fieldset. The picker reads ordinary
 native disabled state and neither imports Toggle roles nor installs a break
 handler.
 
+### Generated ordered-range capability
+
+`Application.Helper.FrontendContract.OrderedRange` owns the reusable two-endpoint
+range's root, exact config/state, start, end, and availability roles. The config
+carries the complete allowed integer range, step, workflow defaults, ordered
+label inventory, and closed crossing policy. The state carries current start/end
+values and native availability. Generated position-property constants are the
+only Haskell/TypeScript agreement used for disposable track presentation.
+
+`Application.Helper.FrontendContract.OrderedRange.Runtime` validates and
+serializes both declaration-indexed records. The staff/profile shift-preference
+view composes those attrs with ordinary named range inputs, native labels and
+`output[for]` relationships, plus the existing generated Toggle control. The
+ordered-range adapter validates that whole local subtree before installing
+listeners or changing server HTML, keeps initialization state outside the DOM,
+and looks up every dynamic label from the Haskell inventory. It implements the
+generated `clamp-other-endpoint` policy mechanically in either direction and
+uses native disabled state for availability styling.
+
+The capability does not own request transport or business validation. Toggle
+continues to synchronize the repeated availability field, the named range inputs
+submit unchanged values, and `parseShiftPreferenceSelections` remains
+server-authoritative for weekday, bounds, and endpoint ordering.
+
 ### Generated overlay capability
 
 `Application.Helper.FrontendContract.Overlay` owns the shared workflow-dialog

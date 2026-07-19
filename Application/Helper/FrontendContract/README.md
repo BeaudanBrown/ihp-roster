@@ -82,6 +82,17 @@ rearranges validated server-rendered option nodes. Malformed elements are
 reported and skipped without replacing their server HTML. Toggle transport and
 break-field activation remain exclusively owned by `ToggleContract`.
 
+`OrderedRangeContract` is the focused global two-endpoint range capability. It
+owns root/config/state/start/end/availability roles, exact allowed range, step,
+default, label inventory and initial-state records, generated CSS position
+properties, and the closed `clamp-other-endpoint` crossing policy. Its Haskell
+runtime serializes declaration-indexed records and rejects inconsistent semantic
+inventories. The generic TypeScript adapter validates the complete local native
+checkbox/range/output subtree before mutation, keeps initialized state in a
+`WeakMap`, and supplies no fallback values or labels. Toggle remains the owner of
+availability submission transport, while controller validation remains the
+business authority for submitted endpoints.
+
 `AppShellAction` is the server-rendered lane for app-owned shell request initiators
 that are not owned by a mounted `FrontendSurface`, including dialog/overlay
 workflows targeting the generated shared dialog mount. The DSL owns

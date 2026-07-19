@@ -28,6 +28,12 @@ Read this before editing `static/` assets.
   server-rendered option nodes; it does not generate fallback values/labels,
   discover controls through CSS classes, or duplicate Toggle break-region
   behavior.
+- `app-preferences.js` is the generic ordered-range adapter. It consumes
+  generated exact config/state parsers, roles, policy values, and position
+  properties; it discovers only native controls/outputs inside the generated
+  root and supplies no feature fallback bounds, labels, defaults, or policy.
+  Availability styling follows native disabled state, while Toggle separately
+  owns the submitted availability field.
 - Keep app JavaScript split by concern:
   - `app-bootstrap.js`
   - `app-date-pickers.js`

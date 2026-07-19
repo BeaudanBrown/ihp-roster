@@ -12,6 +12,7 @@ import Application.Helper.FrontendContract.DSL
 import Application.Helper.FrontendContract.Interaction
 import Application.Helper.FrontendContract.IR
 import Application.Helper.FrontendContract.LiveUpdate
+import Application.Helper.FrontendContract.OrderedRange
 import Application.Helper.FrontendContract.Overlay
 import Application.Helper.FrontendContract.Reflect
 import Application.Helper.FrontendContract.Surface.Contracts (registeredFrontendSurfaceContractIR)
@@ -29,6 +30,7 @@ type RegisteredFrontendContracts =
      , InteractionContract
      , ToggleContract
      , TimePickerContract
+     , OrderedRangeContract
      , LiveUpdateContract
      ] :: [FrontendContractSpec]
 

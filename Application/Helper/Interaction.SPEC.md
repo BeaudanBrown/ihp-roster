@@ -98,6 +98,13 @@ SurfaceFamily
   adapter rearranges validated server-rendered option nodes and leaves malformed
   elements intact. It does not own Toggle form transport or break-fieldset
   activation.
+- **Two-endpoint ordered ranges** are governed by the focused global
+  OrderedRange contract for root/endpoint/availability roles, exact
+  range/step/default/label and initial-state records, generated presentation
+  properties, and a closed crossing policy. The adapter validates one local
+  native checkbox/range/output subtree before mutation, applies
+  `clamp-other-endpoint` mechanically, and leaves request fields plus endpoint
+  validation server-owned. Toggle remains the availability transport owner.
 
 Views should not handwrite raw interaction `data-bepis-*` attributes, ref names,
 disposable layer mounts, intent forms, HTMX intent attributes, or target ids once

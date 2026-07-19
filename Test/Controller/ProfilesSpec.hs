@@ -151,8 +151,9 @@ tests = beforeAll testContext do
                 response `responseBodyShouldContain` "Available"
                 response `responseBodyShouldContain` "<th scope=\"col\" class=\"shift-preference-table__available\">Available</th>"
                 response `responseBodyShouldNotContain` "<th scope=\"col\" class=\"shift-preference-table__start-time\">Start time</th>"
-                response `responseBodyShouldContain` "style=\"--preference-start: 5.556%; --preference-end: 66.667%;\""
-                response `responseBodyShouldContain` "class=\"shift-preference-window is-unavailable\""
+                response `responseBodyShouldContain` "style=\"--ordered-range-start-position: 5.556%; --ordered-range-end-position: 66.667%;\""
+                response `responseBodyShouldContain` "class=\"shift-preference-window\""
+                response `responseBodyShouldNotContain` "is-unavailable"
                 response `responseBodyShouldContain` ">Mon<"
                 response `responseBodyShouldContain` "shift-preference-availability-button"
                 response `responseBodyShouldContain` "timesheet-approval-toggle"
@@ -296,6 +297,33 @@ tests = beforeAll testContext do
                 map (.weekdayIndex) preferences `shouldBe` [1]
                 map (.preferredStartHour) preferences `shouldBe` [12]
                 map (.preferredEndHour) preferences `shouldBe` [20]
+
+        it "keeps server validation authoritative for crossed and out-of-range preference endpoints" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Profile Preference Validation Venue"
+                user <- createUserRecord "profile-preference-validation@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue user "worker"
+                staff <- createStaffRecord venue (Just user) "Taylor" "Validation"
+                let preferenceKey = encodeShiftPreferenceKey 1
+                let submitRange startHour endHour =
+                        withUserAndCurrentVenue user venue.id do
+                            withRequestHeaders [("HX-Request", "true")] do
+                                callActionWithParams UpdateProfileAction
+                                    [ ("section", "preferences")
+                                    , ("shiftPreferenceKeys", cs preferenceKey)
+                                    , (cs (shiftPreferenceStartHourParamName preferenceKey), startHour)
+                                    , (cs (shiftPreferenceEndHourParamName preferenceKey), endHour)
+                                    ]
+
+                crossedResponse <- submitRange "18" "9"
+                crossedResponse `responseStatusShouldBe` status200
+                crossedExists <- query @StaffShiftPreference |> filterWhere (#staffId, unpackId staff.id) |> fetchExists
+                crossedExists `shouldBe` False
+
+                outOfRangeResponse <- submitRange "4" "17"
+                outOfRangeResponse `responseStatusShouldBe` status200
+                outOfRangeExists <- query @StaffShiftPreference |> filterWhere (#staffId, unpackId staff.id) |> fetchExists
+                outOfRangeExists `shouldBe` False
 
         it "records touched resources for profile updates" $ withContext do
             withCleanDb do

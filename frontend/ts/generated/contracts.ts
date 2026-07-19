@@ -602,6 +602,50 @@ export const timePickerOptionDomAttr = "data-bepis-time-picker-option" as const;
 
 export const timePickerClearDomAttr = "data-bepis-time-picker-clear" as const;
 
+export type OrderedRangeCrossingPolicy =
+    "clamp-other-endpoint";
+export function isOrderedRangeCrossingPolicy(value: unknown): value is OrderedRangeCrossingPolicy {
+    return typeof value === "string" && ["clamp-other-endpoint"].includes(value);
+}
+
+export type OrderedRangeConfig = { minimumValue: number; maximumValue: number; stepValue: number; defaultStartValue: number; defaultEndValue: number; valueLabels: ReadonlyArray<string>; crossingPolicy: OrderedRangeCrossingPolicy };
+export function isOrderedRangeConfig(value: unknown): value is OrderedRangeConfig {
+    return isRecord(value) && hasExactKeys(value, ["minimumValue", "maximumValue", "stepValue", "defaultStartValue", "defaultEndValue", "valueLabels", "crossingPolicy"]) && (typeof value["minimumValue"] === "number" && Number.isInteger(value["minimumValue"])) && (typeof value["maximumValue"] === "number" && Number.isInteger(value["maximumValue"])) && (typeof value["stepValue"] === "number" && Number.isInteger(value["stepValue"])) && (typeof value["defaultStartValue"] === "number" && Number.isInteger(value["defaultStartValue"])) && (typeof value["defaultEndValue"] === "number" && Number.isInteger(value["defaultEndValue"])) && (Array.isArray(value["valueLabels"]) && value["valueLabels"].every((item) => typeof item === "string")) && (isOrderedRangeCrossingPolicy(value["crossingPolicy"]));
+}
+
+export function parseOrderedRangeConfig(value: unknown): OrderedRangeConfig {
+    if (isOrderedRangeConfig(value)) return value;
+    throw new Error("Invalid OrderedRangeConfig");
+}
+
+export type OrderedRangeState = { startValue: number; endValue: number; available: boolean };
+export function isOrderedRangeState(value: unknown): value is OrderedRangeState {
+    return isRecord(value) && hasExactKeys(value, ["startValue", "endValue", "available"]) && (typeof value["startValue"] === "number" && Number.isInteger(value["startValue"])) && (typeof value["endValue"] === "number" && Number.isInteger(value["endValue"])) && (typeof value["available"] === "boolean");
+}
+
+export function parseOrderedRangeState(value: unknown): OrderedRangeState {
+    if (isOrderedRangeState(value)) return value;
+    throw new Error("Invalid OrderedRangeState");
+}
+
+export const orderedRangeClampOtherEndpoint = "clamp-other-endpoint" as const;
+
+export const orderedRangeStartPositionProperty = "--ordered-range-start-position" as const;
+
+export const orderedRangeEndPositionProperty = "--ordered-range-end-position" as const;
+
+export const orderedRangeRootDomAttr = "data-bepis-ordered-range-root" as const;
+
+export const orderedRangeConfigDomAttr = "data-bepis-ordered-range-config" as const;
+
+export const orderedRangeStateDomAttr = "data-bepis-ordered-range-state" as const;
+
+export const orderedRangeStartDomAttr = "data-bepis-ordered-range-start" as const;
+
+export const orderedRangeEndDomAttr = "data-bepis-ordered-range-end" as const;
+
+export const orderedRangeAvailabilityDomAttr = "data-bepis-ordered-range-availability" as const;
+
 export const liveUpdateSocketPath = "live-updates" as const;
 
 export const liveUpdateClientIdHeader = "X-Live-Update-Client-Id" as const;

@@ -27,6 +27,9 @@ import Application.Helper.FrontendContract.LiveUpdateValues (liveUpdateClientIdH
                                                              surfaceConfigDomAttribute,
                                                              surfaceDomAttribute)
 import qualified Application.Helper.FrontendContract.Naming as Naming
+import qualified Application.Helper.FrontendContract.OrderedRange as OrderedRange
+import Application.Helper.FrontendContract.OrderedRange.Runtime (OrderedRangeDom (..),
+                                                                 canonicalOrderedRangeDom)
 import qualified Application.Helper.FrontendContract.Overlay as Overlay
 import Application.Helper.FrontendContract.Overlay.Runtime (OverlayDom (..),
                                                             canonicalOverlayDom)
@@ -40,9 +43,10 @@ import Application.Helper.FrontendContract.Surface.Reflect (reflectSurfaceSpec)
 import qualified Application.Helper.FrontendContract.TimePicker as TimePicker
 import Application.Helper.FrontendContract.TimePicker.Runtime (TimePickerDom (..),
                                                                canonicalTimePickerDom)
-import Application.Helper.FrontendContract.Values (domAttrValue, domIdValue,
-                                                   enumLiteralValue,
+import Application.Helper.FrontendContract.Values (constantValue, domAttrValue,
+                                                   domIdValue, enumLiteralValue,
                                                    eventNameValue,
+                                                   lookupConstantValue,
                                                    lookupDomAttrValue,
                                                    lookupDomIdValue,
                                                    lookupEnumLiteralValue,
@@ -252,12 +256,17 @@ tests = describe "Frontend contract generator foundation" do
         lookupDomIdValue @TimePicker.TimePickerModal `shouldBe` Right canonicalTimePickerDom.timePickerModalId
         lookupDomAttrValue @TimePicker.TimePickerField `shouldBe` Right canonicalTimePickerDom.timePickerFieldAttribute
         lookupDomAttrValue @TimePicker.TimePickerOption `shouldBe` Right canonicalTimePickerDom.timePickerOptionAttribute
+        lookupDomAttrValue @OrderedRange.OrderedRangeRoot `shouldBe` Right canonicalOrderedRangeDom.orderedRangeRootAttribute
+        lookupDomAttrValue @OrderedRange.OrderedRangeAvailability `shouldBe` Right canonicalOrderedRangeDom.orderedRangeAvailabilityAttribute
+        lookupConstantValue @OrderedRange.OrderedRangeClampOtherEndpoint `shouldBe` Right "clamp-other-endpoint"
         lookupEventNameValue @App.IntentSubmit `shouldBe` Right interactionIntentSubmitHtmxTrigger
         lookupEnumLiteralValue @App.RosterStaffSortKey @App.Name `shouldBe` Right "name"
         domIdValue @Overlay.DialogOverlayMount `shouldBe` canonicalOverlayDom.overlayDialogMountId
         domAttrValue @Overlay.ToastMount `shouldBe` canonicalOverlayDom.overlayToastMountAttribute
         domIdValue @TimePicker.TimePickerModal `shouldBe` canonicalTimePickerDom.timePickerModalId
         domAttrValue @TimePicker.TimePickerValue `shouldBe` canonicalTimePickerDom.timePickerValueAttribute
+        domAttrValue @OrderedRange.OrderedRangeStart `shouldBe` canonicalOrderedRangeDom.orderedRangeStartAttribute
+        constantValue @OrderedRange.OrderedRangeStartPositionProperty `shouldBe` canonicalOrderedRangeDom.orderedRangeStartPositionCssProperty
         eventNameValue @App.IntentSubmit `shouldBe` canonicalAppEvents.appInteractionIntentSubmitEventName
         enumLiteralValue @App.RosterStaffSortKey @App.Name `shouldBe` rosterStaffSortKeyAttribute RosterStaffSortByName
         rosterStaffSortKeyValues

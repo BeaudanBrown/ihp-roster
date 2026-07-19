@@ -22,6 +22,12 @@ Read this before editing `frontend/ts/`.
   option nodes but must not synthesize fallback options/copy or use presentation
   classes as discovery selectors. Picker code must not import Toggle roles or
   own break-field activation.
+- The ordered-range adapter imports generated root/config/state/endpoint/
+  availability roles, exact parsers, policy values, and position properties.
+  It validates one local native checkbox/range/output subtree before mutation,
+  stores initialization state in `WeakMap`, and must not infer fallback bounds,
+  labels, defaults, policy, Toggle roles, or feature presentation classes.
+  Toggle owns availability transport and server parsing owns submitted validity.
 - Each reflected root declares browser reachability. Server-only roots emit nothing; type-only roots emit only a type/constant; inbound roots add guards/parsers; outbound roots add encoders; bidirectional roots add both. Unknown JSON boundaries should use generated `parseX`; outbound JSON-shaped DTOs should use generated `encodeX`; runtime code must not recreate generated validators/parsers/encoders by hand.
 - Use Nix/devenv entrypoints, not developer-facing `npm`/`npx` commands.
 - Supported commands:

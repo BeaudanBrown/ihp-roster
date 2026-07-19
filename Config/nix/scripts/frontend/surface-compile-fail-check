@@ -266,3 +266,8 @@ expect_compile_failure \
     "Test/CompileFail/FrontendTimePickerIncompleteConfig.hs" \
     "Couldn't match type: '[]" \
     "TimePicker.EmptyLabel"
+
+expect_compile_failure \
+    "Test/CompileFail/FrontendOrderedRangeIncompleteConfig.hs" \
+    "Couldn't match type: '[]" \
+    "OrderedRange.CrossingPolicy"

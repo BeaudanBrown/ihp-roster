@@ -1,5 +1,4 @@
 import { datePickerConfigFor } from "../app-date-pickers";
-import { formatHour } from "../app-preferences";
 import { fuzzyIncludes } from "../app-xero";
 import { assertDeepEqual, assertEqual, test } from "./harness";
 
@@ -19,12 +18,4 @@ test("datePickerConfigFor preserves date and datetime picker options", () => {
         altInput: true,
         altFormat: "d.m.y, H:i",
     });
-});
-
-test("formatHour formats shift preference hour labels", () => {
-    assertEqual(formatHour("0"), "12 AM");
-    assertEqual(formatHour("5"), "5 AM");
-    assertEqual(formatHour("12"), "12 PM");
-    assertEqual(formatHour("23"), "11 PM");
-    assertEqual(formatHour("not-an-hour"), "");
 });

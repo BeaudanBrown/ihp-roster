@@ -112,6 +112,23 @@ HTML form attributes are not validation. Keep `required`, hidden inputs, and sel
 - The generated Toggle capability separately owns timesheet break-field activation. The picker consumes native disabled state and must not query toggle/break roles, synchronize toggle transport, or add a duplicate break handler.
 - Keep HTMX autosave on the generated hidden picker value when a workflow needs it, and let the generic adapter dispatch `change` after selecting or clearing an option.
 
+## Reusable Ordered Range Pattern
+- `Application.Helper.FrontendContract.OrderedRange` owns generated
+  root/config/state/start/end/availability roles, exact configuration/state
+  schemas, position properties, and the closed crossing policy. Views must use
+  its runtime attr helpers rather than handwrite range datasets.
+- Haskell owns the complete allowed range, step, workflow defaults, ordered
+  display-label inventory, current values, native accessibility labels/output
+  relationships, and initial availability. Keep these values shared with server
+  validation rather than reconstructing them in TypeScript.
+- Compose availability with the generated Toggle control, but keep the
+  OrderedRange availability role on a local wrapper. OrderedRange may read the
+  one native checkbox inside that wrapper; it must not import Toggle roles or
+  take over Toggle's repeated-field transport.
+- Malformed config/state or local DOM disagreement must be reported and skipped
+  before mutation. Use native disabled state for unavailable styling and keep
+  initialized browser state outside server DOM.
+
 ## Theming Pattern (Dark Mode)
 - The app uses a centralized token system in `static/css/tokens.css` (`:root` CSS variables) with dark mode as the default. Read `static/css/README.md` before adding or moving app-owned CSS.
 - Root layout sets dark mode via `<html data-bs-theme="dark">`; all new views should inherit this instead of setting per-page theme flags.

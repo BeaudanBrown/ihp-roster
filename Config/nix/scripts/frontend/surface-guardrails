@@ -1072,6 +1072,52 @@ expect_no_match \
     frontend/ts/app-toggle-buttons.ts \
     frontend/ts/app-timesheets.ts
 
+expect_no_match \
+    "replaced handwritten shift-preference range DOM and presentation state must stay deleted" \
+    'data-shift-preference|data-(min|max)-hour|dataset\.(minHour|maxHour|shiftPreference)|--preference-(start|end)|\.is-unavailable' \
+    Web/View/StaffProfileForm.hs \
+    frontend/ts/app-preferences.ts \
+    frontend/ts/ordered-range \
+    static/css/features/preferences.css \
+    e2e
+
+expect_no_match \
+    "production Haskell and TypeScript must consume generated ordered-range attribute names" \
+    'data-bepis-ordered-range-' \
+    Application \
+    Web \
+    frontend/ts \
+    e2e
+
+expect_no_match \
+    "ordered-range consumers must not repeat the Haskell-owned crossing policy literal" \
+    'clamp-other-endpoint' \
+    Application/Helper/FrontendContract/OrderedRange/Runtime.hs \
+    Web \
+    frontend/ts \
+    e2e
+
+expect_match \
+    "the ordered-range boundary consumes the generated exact config parser" \
+    'parseOrderedRangeConfig' \
+    frontend/ts/ordered-range/configuration.ts
+
+expect_match \
+    "the ordered-range boundary consumes the generated exact state parser" \
+    'parseOrderedRangeState' \
+    frontend/ts/ordered-range/configuration.ts
+
+expect_match \
+    "the ordered-range adapter keeps initialization state outside server DOM" \
+    'new WeakMap<HTMLElement, OrderedRangeControl>' \
+    frontend/ts/app-preferences.ts
+
+expect_no_match \
+    "the ordered-range adapter must not rediscover Toggle roles or feature presentation classes" \
+    'toggle[A-Z].*DomAttr|data-bepis-toggle|shift-preference' \
+    frontend/ts/app-preferences.ts \
+    frontend/ts/ordered-range
+
 if [ "$failures" -ne 0 ]; then
     exit 1
 fi

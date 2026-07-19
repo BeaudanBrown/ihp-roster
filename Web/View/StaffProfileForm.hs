@@ -5,12 +5,12 @@ module Web.View.StaffProfileForm where
 
 import Application.Helper.Controller (VenueRole (..), currentUserIsSuperAdmin,
                                       hasRole, parseVenueRole, venueRoleToText)
+import Application.Helper.FrontendContract.OrderedRange.Runtime
 import qualified Application.Helper.FrontendContract.Surface.Profile as Surface
 import Application.Helper.FrontendContract.Surface.Values
 import Application.Helper.StaffShiftPreferences
 import qualified Data.Text as Text
 import qualified Data.UUID as UUID
-import Numeric (showFFloat)
 import Web.View.Prelude
 
 data StaffManagementFieldData = StaffManagementFieldData
@@ -228,50 +228,48 @@ renderShiftPreferenceDayRow fields selectedShiftPreferences weekday =
         startHour = maybe defaultPreferenceStartHour (.startHour) selectedPreference
         endHour = maybe defaultPreferenceEndHour (.endHour) selectedPreference
         weekdayLabel = abbreviateWeekdayLabel weekday.label
+        rangeConfig = shiftPreferenceOrderedRangeConfig
+        rangeState = OrderedRangeBrowserState
+            { orderedRangeStartValue = startHour
+            , orderedRangeEndValue = endHour
+            , orderedRangeAvailable = isSelected
+            }
      in [hsx|
-        <tr class={shiftPreferenceWindowClass isSelected}
-             style={shiftPreferenceWindowStyle startHour endHour}
-             data-shift-preference-window="true"
-             data-min-hour={tshow preferenceMinimumHour}
-             data-max-hour={tshow preferenceMaximumHour}>
-            <th scope="row" class="shift-preference-table__available">
+        <tr class="shift-preference-window"
+             style={orderedRangePositionStyle rangeConfig rangeState}
+             {...orderedRangeRootAttrs rangeConfig rangeState}>
+            <th scope="row" class="shift-preference-table__available" {...orderedRangeAvailabilityAttrs}>
                 {renderShiftPreferenceAvailabilityToggle fields key weekdayLabel weekday.label isSelected}
             </th>
             <td class="shift-preference-table__start-time">
                 <div class="shift-preference-window__controls">
                     <div class="shift-preference-range">
                         <div class="shift-preference-range__labels" aria-hidden="true">
-                            <span class="shift-preference-range__bubble" data-shift-preference-start-label="true">{formatPreferenceHour startHour}</span>
-                            <span class="shift-preference-range__bubble" data-shift-preference-end-label="true">{formatPreferenceHour endHour}</span>
+                            <output class="shift-preference-range__bubble shift-preference-range__bubble--start" for={"shiftPreferenceStart-" <> key} aria-hidden="true">{formatPreferenceHour startHour}</output>
+                            <output class="shift-preference-range__bubble shift-preference-range__bubble--end" for={"shiftPreferenceEnd-" <> key} aria-hidden="true">{formatPreferenceHour endHour}</output>
                         </div>
                         <div class="shift-preference-range__track" aria-hidden="true">
-                            <div class="shift-preference-range__fill" data-shift-preference-fill="true"></div>
+                            <div class="shift-preference-range__fill"></div>
                         </div>
                         <label class="visually-hidden" for={"shiftPreferenceStart-" <> key}>Earliest preferred start</label>
                         <input
                             id={"shiftPreferenceStart-" <> key}
                             class="shift-preference-range__input"
                             type="range"
-                            min={tshow preferenceMinimumHour}
-                            max={tshow preferenceMaximumHour}
-                            step="1"
                             name={shiftPreferenceStartHourParamName key}
                             value={tshow startHour}
                             disabled={not isSelected}
-                            data-shift-preference-start="true"
+                            {...orderedRangeStartAttrs rangeConfig}
                         />
                         <label class="visually-hidden" for={"shiftPreferenceEnd-" <> key}>Latest preferred start</label>
                         <input
                             id={"shiftPreferenceEnd-" <> key}
                             class="shift-preference-range__input"
                             type="range"
-                            min={tshow preferenceMinimumHour}
-                            max={tshow preferenceMaximumHour}
-                            step="1"
                             name={shiftPreferenceEndHourParamName key}
                             value={tshow endHour}
                             disabled={not isSelected}
-                            data-shift-preference-end="true"
+                            {...orderedRangeEndAttrs rangeConfig}
                         />
                     </div>
                 </div>
@@ -296,28 +294,16 @@ renderShiftPreferenceAvailabilityToggle fields key weekdayLabel fullWeekdayLabel
 abbreviateWeekdayLabel :: Text -> Text
 abbreviateWeekdayLabel = Text.take 3
 
-shiftPreferenceWindowClass :: Bool -> Text
-shiftPreferenceWindowClass isSelected =
-    classes
-        [ ("shift-preference-window", True)
-        , ("is-unavailable", not isSelected)
-        ]
-
-shiftPreferenceWindowStyle :: Int -> Int -> Text
-shiftPreferenceWindowStyle startHour endHour =
-    "--preference-start: "
-        <> preferenceHourPercent startHour
-        <> "; --preference-end: "
-        <> preferenceHourPercent endHour
-        <> ";"
-
-preferenceHourPercent :: Int -> Text
-preferenceHourPercent hour =
-    cs (showFFloat (Just 3) percent "%")
-    where
-        spanHours = max 1 (preferenceMaximumHour - preferenceMinimumHour)
-        boundedHour = max preferenceMinimumHour (min preferenceMaximumHour hour)
-        percent = (fromIntegral (boundedHour - preferenceMinimumHour) / fromIntegral spanHours) * (100 :: Double)
+shiftPreferenceOrderedRangeConfig :: OrderedRangeBrowserConfig
+shiftPreferenceOrderedRangeConfig = OrderedRangeBrowserConfig
+    { orderedRangeMinimumValue = preferenceMinimumHour
+    , orderedRangeMaximumValue = preferenceMaximumHour
+    , orderedRangeStepValue = 1
+    , orderedRangeDefaultStartValue = defaultPreferenceStartHour
+    , orderedRangeDefaultEndValue = defaultPreferenceEndHour
+    , orderedRangeValueLabels = map formatPreferenceHour preferenceHourOptions
+    , orderedRangeCrossingPolicy = ClampOtherEndpoint
+    }
 
 findSelectedShiftPreference :: Int -> [ShiftPreferenceSelection] -> Maybe ShiftPreferenceSelection
 findSelectedShiftPreference weekdayIndex =

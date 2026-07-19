@@ -1,6 +1,6 @@
 .shift-preference-table {
-    --preference-start: 22.222%;
-    --preference-end: 66.667%;
+    --ordered-range-start-position: 22.222%;
+    --ordered-range-end-position: 66.667%;
     table-layout: fixed;
     width: 100%;
 }
@@ -71,12 +71,12 @@
     white-space: nowrap;
 }
 
-.shift-preference-range__bubble[data-shift-preference-start-label] {
-    left: var(--preference-start);
+.shift-preference-range__bubble--start {
+    left: var(--ordered-range-start-position);
 }
 
-.shift-preference-range__bubble[data-shift-preference-end-label] {
-    left: var(--preference-end);
+.shift-preference-range__bubble--end {
+    left: var(--ordered-range-end-position);
 }
 
 .shift-preference-range__track {
@@ -92,8 +92,8 @@
 
 .shift-preference-range__fill {
     position: absolute;
-    left: var(--preference-start);
-    right: calc(100% - var(--preference-end));
+    left: var(--ordered-range-start-position);
+    right: calc(100% - var(--ordered-range-end-position));
     top: 0;
     bottom: 0;
     border-radius: inherit;
@@ -159,16 +159,16 @@
     box-shadow: 0 0 0 1px var(--bs-primary), 0 0 0 0.25rem var(--app-focus-ring-primary);
 }
 
-.shift-preference-window.is-unavailable .shift-preference-window__controls {
+.shift-preference-window:has(.shift-preference-range__input:disabled) .shift-preference-window__controls {
     opacity: 0.42;
     filter: grayscale(1);
 }
 
-.shift-preference-window.is-unavailable .shift-preference-range__input::-webkit-slider-thumb {
+.shift-preference-range__input:disabled::-webkit-slider-thumb {
     cursor: not-allowed;
 }
 
-.shift-preference-window.is-unavailable .shift-preference-range__input::-moz-range-thumb {
+.shift-preference-range__input:disabled::-moz-range-thumb {
     cursor: not-allowed;
 }
 
