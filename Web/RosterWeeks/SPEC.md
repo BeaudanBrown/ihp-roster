@@ -147,7 +147,9 @@ lands.
   8-hour end time clamped to the configured picker end when the window is
   shorter than 8 hours. Existing saved shift times outside the picker window
   remain valid/displayed; picker +/- buttons stay unavailable until the field is
-  changed to an in-window option.
+  changed to an in-window option. Haskell renders exact generated range/step and
+  option value/label payloads; the generic browser adapter supplies no fallback
+  time data or copy.
 - Timeline resize handles, creating shifts, deleting shifts, configurable
   slot-definition titles, staff reassignment, and live-roster editing are not
   part of the implemented timeline contract.

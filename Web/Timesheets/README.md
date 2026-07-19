@@ -42,7 +42,10 @@ toggle capability; this includes the inverted checked-to-`showApproved=false`
 boolean field and `renderAppToggleBreakRegion`. The generic toggle adapter owns
 transport synchronization, checked presentation, and fieldset activation;
 `frontend/ts/app-timesheets.ts` owns timesheet preferences only and must not
-query time-picker internals to manage break state.
+query time-picker internals to manage break state. Start/end and break controls
+all use the separate generated TimePicker capability: Haskell supplies the venue
+range, quarter-hour step, empty copy, and exact options, while the generic picker
+adapter consumes native fieldset disabled state without importing Toggle roles.
 
 ## Related Docs
 

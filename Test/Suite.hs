@@ -72,6 +72,7 @@ import qualified Test.SurfaceDependencySpec
 import qualified Test.SurfaceGuardSpec
 import qualified Test.SurfaceInvalidationSpec
 import qualified Test.SurfaceResourceSpec
+import qualified Test.TimePickerSpec
 import qualified Test.ToggleButtonSpec
 import qualified Test.VenueInvitationSpec
 import qualified Test.VenueOnboardingInvitationSpec
@@ -285,6 +286,7 @@ allSuites =
     , pureSuite "SurfaceGuard" 5 Test.SurfaceGuardSpec.tests
     , databaseSuite "ToggleButton" 5 Test.ToggleButtonSpec.tests
     , databaseSuite "Overlay" 5 Test.OverlaySpec.tests
+    , databaseSuite "TimePicker" 5 Test.TimePickerSpec.tests
     , databaseSuite "Mail" 10 Test.MailSpec.tests
     , pureSuite "MutationBoundary" 5 Test.MutationBoundarySpec.tests
     , pureSuite "XeroContract" 20 Test.XeroContractSpec.tests

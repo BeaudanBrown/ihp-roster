@@ -107,7 +107,7 @@
     grid-column: span var(--roster-grid-column-span, 1);
 }
 
-.roster-shift-dialog-time-picker .time-picker-trigger-button .js-time-picker-label {
+.roster-shift-dialog-time-picker .time-picker-trigger-button .time-picker-label {
     margin-inline: auto;
     text-align: center;
 }

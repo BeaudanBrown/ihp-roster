@@ -261,3 +261,8 @@ expect_compile_failure \
     "Couldn't match type" \
     "Text" \
     "UUID"
+
+expect_compile_failure \
+    "Test/CompileFail/FrontendTimePickerIncompleteConfig.hs" \
+    "Couldn't match type: '[]" \
+    "TimePicker.EmptyLabel"

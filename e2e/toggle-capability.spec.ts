@@ -7,6 +7,8 @@ import {
     toggleRootDomAttr,
     toggleTransportDomAttr,
     toastOverlayMountDomId,
+    timePickerModalDomId,
+    timePickerTriggerDomAttr,
 } from '../frontend/ts/generated/contracts';
 import { E2E_TIMEOUT, gotoWhenReady, loginAs, openRoster, runSql } from './test-helpers';
 
@@ -201,10 +203,12 @@ test.describe('Generated toggle capability', () => {
         const input = form.locator(`[${toggleInputDomAttr}]#hadBreak`);
         const transport = form.locator(`[${toggleTransportDomAttr}][name="hadBreak"]`);
         const breakRegion = form.locator(`[${toggleBreakRegionDomAttr}]`);
+        const breakPickerTrigger = breakRegion.locator(`[${timePickerTriggerDomAttr}]`).first();
         await expect(input).not.toBeChecked();
         await expect(transport).toHaveValue('false');
         await expect(breakRegion).toBeDisabled();
         await expect(breakRegion).toHaveAttribute('aria-disabled', 'true');
+        await expect(breakPickerTrigger).toBeDisabled();
 
         await input.focus();
         await input.press('Space');
@@ -212,11 +216,18 @@ test.describe('Generated toggle capability', () => {
         await expect(transport).toHaveValue('true');
         await expect(breakRegion).toBeEnabled();
         await expect(breakRegion).toHaveAttribute('aria-disabled', 'false');
+        await expect(breakPickerTrigger).toBeEnabled();
+        await breakPickerTrigger.click();
+        await expect(page.locator(`#${timePickerModalDomId}`)).toBeVisible();
+        await page.keyboard.press('Escape');
+        await expect(page.locator(`#${timePickerModalDomId}`)).toBeHidden();
+        await expect(form).toBeVisible();
 
         await input.press('Space');
         await expect(input).not.toBeChecked();
         await expect(transport).toHaveValue('false');
         await expect(breakRegion).toBeDisabled();
+        await expect(breakPickerTrigger).toBeDisabled();
 
         const diagnostics: string[] = [];
         page.on('console', (message) => {

@@ -66,6 +66,14 @@ All rendered keys remain opaque (`existing:<slot-id>`, `staff:<staff-id>`,
 venue, roster-group, draft/open-day, active staff, and eligibility before any
 mutation or dialog render.
 
+## Shift Time Picker Contract
+
+Roster shift dialogs use the shared generated TimePicker capability. Haskell
+supplies the venue range, quarter-hour step, empty-state/accessibility copy, and
+canonical value/label option payloads. Roster views do not own picker selectors
+or browser fallback data; the generic adapter owns only mechanical modal,
+selection, clear, and step behavior.
+
 ## Day Timeline Rendering Contract
 
 The single-day timeline is selected on the normal roster week page via

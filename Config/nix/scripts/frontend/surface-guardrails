@@ -1036,6 +1036,42 @@ expect_match \
     'parseToggleConfig' \
     frontend/ts/app-toggle-buttons.ts
 
+expect_no_match \
+    "replaced handwritten time-picker DOM agreements must stay deleted" \
+    'quarter-hour-time-picker-modal|js-time-picker|data-time-picker-(field|start|end|step|empty)|data-default-(start|end)-time|data-time-value|time-picker:sync' \
+    Application Web frontend/ts static/css e2e
+
+expect_no_match \
+    "production time-picker code must not repeat generated app-owned DOM names" \
+    'data-bepis-time-picker-' \
+    Application Web frontend/ts
+
+expect_match \
+    "the time-picker boundary consumes the generated exact config parser" \
+    'parseTimePickerConfig' \
+    frontend/ts/time-picker/configuration.ts
+
+expect_match \
+    "the time-picker boundary consumes the generated exact option parser" \
+    'parseTimePickerOption' \
+    frontend/ts/time-picker/configuration.ts
+
+expect_no_match \
+    "malformed time-picker payloads must not rewrite server-rendered option markup" \
+    'innerHTML|insertAdjacentHTML' \
+    frontend/ts/app-time-picker.ts
+
+expect_no_match \
+    "time-picker internals must not recreate toggle or break-region authority" \
+    'toggle(BreakRegion|Input|Transport|Config)DomAttr|data-bepis-toggle|breakRegion' \
+    frontend/ts/app-time-picker.ts
+
+expect_no_match \
+    "toggle and timesheet adapters must not rediscover picker internals" \
+    'timePicker[A-Z]|data-bepis-time-picker|js-time-picker' \
+    frontend/ts/app-toggle-buttons.ts \
+    frontend/ts/app-timesheets.ts
+
 if [ "$failures" -ne 0 ]; then
     exit 1
 fi

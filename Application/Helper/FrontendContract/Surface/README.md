@@ -389,6 +389,32 @@ must not duplicate those mappings or rediscover picker internals. Responsive
 layouts render each control once and move that one node with CSS rather than
 emitting duplicate ids.
 
+### Generated time-picker capability
+
+`Application.Helper.FrontendContract.TimePicker` owns the reusable quarter-hour
+picker's modal id and field, configuration, value, trigger, label, step-down,
+step-up, options-grid, option, and clear roles. `TimePickerConfig` is an exact
+inbound record of `rangeStart`, `rangeEnd`, `stepMinutes`, and `emptyLabel`;
+`TimePickerOption` is an exact inbound record of `value` and `label`.
+`Application.Helper.FrontendContract.TimePicker.Runtime` serializes both records
+through declaration-indexed carrier fields, so missing or reordered Haskell
+fields fail compilation and malformed browser records fail generated parsing.
+
+`Application.Helper.View.TimePicker` remains semantic authority for overnight
+range resolution, the quarter-hour step, default/empty/modal/accessibility copy,
+canonical option values and display labels, and initial disabled/button state.
+The generic browser adapter resolves only generated roles, parses every field
+and option locally, and rearranges the existing validated server-rendered option
+buttons for the active range. It supplies no fallback range, option, value,
+label, or copy. A malformed field or option emits a structured diagnostic and
+is skipped before its server HTML is mutated.
+
+This capability deliberately ends at picker-internal behavior. The generated
+Toggle capability remains the sole owner of explicit form mapping, synchronized
+submission, and the native timesheet break fieldset. The picker reads ordinary
+native disabled state and neither imports Toggle roles nor installs a break
+handler.
+
 ### Generated overlay capability
 
 `Application.Helper.FrontendContract.Overlay` owns the shared workflow-dialog

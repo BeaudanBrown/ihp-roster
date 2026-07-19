@@ -37,6 +37,9 @@ import Application.Helper.FrontendContract.RosterValues (RosterStaffSortKey (..)
 import qualified Application.Helper.FrontendContract.Surface.ContractIR as SurfaceIR
 import Application.Helper.FrontendContract.Surface.Contracts (registeredFrontendSurfaceContractIR)
 import Application.Helper.FrontendContract.Surface.Reflect (reflectSurfaceSpec)
+import qualified Application.Helper.FrontendContract.TimePicker as TimePicker
+import Application.Helper.FrontendContract.TimePicker.Runtime (TimePickerDom (..),
+                                                               canonicalTimePickerDom)
 import Application.Helper.FrontendContract.Values (domAttrValue, domIdValue,
                                                    enumLiteralValue,
                                                    eventNameValue,
@@ -246,10 +249,15 @@ tests = describe "Frontend contract generator foundation" do
         lookupDomIdValue @Overlay.DialogOverlayMount `shouldBe` Right canonicalOverlayDom.overlayDialogMountId
         lookupDomIdValue @Overlay.ToastOverlayMount `shouldBe` Right canonicalOverlayDom.overlayToastMountId
         lookupDomAttrValue @Overlay.DialogMount `shouldBe` Right canonicalOverlayDom.overlayDialogMountAttribute
+        lookupDomIdValue @TimePicker.TimePickerModal `shouldBe` Right canonicalTimePickerDom.timePickerModalId
+        lookupDomAttrValue @TimePicker.TimePickerField `shouldBe` Right canonicalTimePickerDom.timePickerFieldAttribute
+        lookupDomAttrValue @TimePicker.TimePickerOption `shouldBe` Right canonicalTimePickerDom.timePickerOptionAttribute
         lookupEventNameValue @App.IntentSubmit `shouldBe` Right interactionIntentSubmitHtmxTrigger
         lookupEnumLiteralValue @App.RosterStaffSortKey @App.Name `shouldBe` Right "name"
         domIdValue @Overlay.DialogOverlayMount `shouldBe` canonicalOverlayDom.overlayDialogMountId
         domAttrValue @Overlay.ToastMount `shouldBe` canonicalOverlayDom.overlayToastMountAttribute
+        domIdValue @TimePicker.TimePickerModal `shouldBe` canonicalTimePickerDom.timePickerModalId
+        domAttrValue @TimePicker.TimePickerValue `shouldBe` canonicalTimePickerDom.timePickerValueAttribute
         eventNameValue @App.IntentSubmit `shouldBe` canonicalAppEvents.appInteractionIntentSubmitEventName
         enumLiteralValue @App.RosterStaffSortKey @App.Name `shouldBe` rosterStaffSortKeyAttribute RosterStaffSortByName
         rosterStaffSortKeyValues

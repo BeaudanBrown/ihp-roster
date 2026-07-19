@@ -103,17 +103,14 @@ HTML form attributes are not validation. Keep `required`, hidden inputs, and sel
 - Mutating interaction intents submit through Haskell-rendered HTMX forms. TypeScript fills generated hidden fields and dispatches generated triggers; views/controllers keep routes, methods, targets, swaps, and validation server-owned.
 
 ## Reusable Time Picker Pattern
-- Use a shared picker overlay + JS behavior for quarter-hour time selection instead of native `<input type="time">` in dense grids.
-- Markup contract:
-  - wrap field with `data-time-picker-field`
-  - store canonical value in hidden `.js-time-picker-input` (`HH:MM` 24-hour)
-  - open picker via `.js-time-picker-trigger`
-  - render text in `.js-time-picker-label` (12-hour with AM/PM)
-  - optional range override per field: `data-time-picker-start="HH:MM"` + `data-time-picker-end="HH:MM"` (end may wrap past midnight)
-  - optional empty-label override per field: `data-time-picker-empty-label="Time"`
-  - step buttons are optional; when omitted, the shared picker should still use the same wrapper/input/trigger contract
+- Use `renderTimePickerField` plus the shared picker overlay for quarter-hour time selection instead of native `<input type="time">` in dense grids.
+- `Application.Helper.FrontendContract.TimePicker` owns the focused global field, value, trigger, label, step, option-grid, option, clear, and modal identities. Views and feature scripts must not handwrite picker role attributes or use presentation classes as browser selectors.
+- `TimePickerConfig` is the complete Haskell construction boundary. Haskell owns the range (including overnight wrapping), step, empty-state copy, option values/labels, initial display label, disabled state, and accessibility copy. The view helper serializes exact generated field and option records; TypeScript parses them with the generated parsers and supplies no fallback range, value, label, or copy.
+- Step buttons may be omitted through `timePickerShowStepButtons`; the shared renderer still owns the complete generated field/value/trigger/label boundary.
+- Malformed field or option payloads are reported locally and skipped without rewriting the server-rendered field or modal options.
 - Render `renderQuarterHourTimePickerModal` once in the global layout so it stays in the picker lane and can open above a workflow dialog without competing for the shared dialog mount.
-- Keep HTMX autosave on the hidden input (`hx-trigger="change"`), and let JS dispatch `change` after selecting/clearing a modal option.
+- The generated Toggle capability separately owns timesheet break-field activation. The picker consumes native disabled state and must not query toggle/break roles, synchronize toggle transport, or add a duplicate break handler.
+- Keep HTMX autosave on the generated hidden picker value when a workflow needs it, and let the generic adapter dispatch `change` after selecting or clearing an option.
 
 ## Theming Pattern (Dark Mode)
 - The app uses a centralized token system in `static/css/tokens.css` (`:root` CSS variables) with dark mode as the default. Read `static/css/README.md` before adding or moving app-owned CSS.

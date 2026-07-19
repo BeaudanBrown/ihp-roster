@@ -3,6 +3,7 @@ import "./interaction-contracts.test";
 import "./interaction-runtime.test";
 import "./shared.test";
 import "./toggle.test";
+import "./time-picker.test";
 import "./low-risk.test";
 import "./medium-risk.test";
 import "./overlay.test";

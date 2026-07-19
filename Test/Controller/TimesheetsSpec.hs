@@ -295,8 +295,9 @@ tests = beforeAll testContext do
                 response `responseBodyShouldContain` "Timesheet Tuesday 07/01"
                 response `responseBodyShouldContain` "name=\"startTime\" value=\"06:00\""
                 response `responseBodyShouldContain` "name=\"endTime\" value=\"14:00\""
-                response `responseBodyShouldContain` "data-time-picker-start=\"06:00\""
-                response `responseBodyShouldContain` "data-time-picker-end=\"05:45\""
+                response `responseBodyShouldContain` "data-bepis-time-picker-config="
+                response `responseBodyShouldContain` "&quot;rangeStart&quot;:&quot;06:00&quot;"
+                response `responseBodyShouldContain` "&quot;rangeEnd&quot;:&quot;05:45&quot;"
                 response `responseBodyShouldNotContain` ">Day<"
                 response `responseBodyShouldNotContain` "07/01/2025</div>"
 
@@ -321,8 +322,9 @@ tests = beforeAll testContext do
                 response `responseStatusShouldBe` status200
                 response `responseBodyShouldContain` "name=\"startTime\" value=\"09:00\""
                 response `responseBodyShouldContain` "name=\"endTime\" value=\"13:00\""
-                response `responseBodyShouldContain` "data-time-picker-start=\"09:00\""
-                response `responseBodyShouldContain` "data-time-picker-end=\"13:00\""
+                response `responseBodyShouldContain` "data-bepis-time-picker-config="
+                response `responseBodyShouldContain` "&quot;rangeStart&quot;:&quot;09:00&quot;"
+                response `responseBodyShouldContain` "&quot;rangeEnd&quot;:&quot;13:00&quot;"
 
         it "excludes trial staff from manager timesheet forms and staff filters" $ withContext do
             withCleanDb do

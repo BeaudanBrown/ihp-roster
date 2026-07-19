@@ -560,6 +560,48 @@ export const toggleBreakRegionDomAttr = "data-bepis-toggle-break-region" as cons
 
 export const toggleConfigDomAttr = "data-bepis-toggle-config" as const;
 
+export type TimePickerConfig = { rangeStart: string; rangeEnd: string; stepMinutes: number; emptyLabel: string };
+export function isTimePickerConfig(value: unknown): value is TimePickerConfig {
+    return isRecord(value) && hasExactKeys(value, ["rangeStart", "rangeEnd", "stepMinutes", "emptyLabel"]) && (typeof value["rangeStart"] === "string") && (typeof value["rangeEnd"] === "string") && (typeof value["stepMinutes"] === "number" && Number.isInteger(value["stepMinutes"])) && (typeof value["emptyLabel"] === "string");
+}
+
+export function parseTimePickerConfig(value: unknown): TimePickerConfig {
+    if (isTimePickerConfig(value)) return value;
+    throw new Error("Invalid TimePickerConfig");
+}
+
+export type TimePickerOption = { value: string; label: string };
+export function isTimePickerOption(value: unknown): value is TimePickerOption {
+    return isRecord(value) && hasExactKeys(value, ["value", "label"]) && (typeof value["value"] === "string") && (typeof value["label"] === "string");
+}
+
+export function parseTimePickerOption(value: unknown): TimePickerOption {
+    if (isTimePickerOption(value)) return value;
+    throw new Error("Invalid TimePickerOption");
+}
+
+export const timePickerModalDomId = "time-picker-modal" as const;
+
+export const timePickerFieldDomAttr = "data-bepis-time-picker-field" as const;
+
+export const timePickerConfigDomAttr = "data-bepis-time-picker-config" as const;
+
+export const timePickerTriggerDomAttr = "data-bepis-time-picker-trigger" as const;
+
+export const timePickerValueDomAttr = "data-bepis-time-picker-value" as const;
+
+export const timePickerLabelDomAttr = "data-bepis-time-picker-label" as const;
+
+export const timePickerStepDownDomAttr = "data-bepis-time-picker-step-down" as const;
+
+export const timePickerStepUpDomAttr = "data-bepis-time-picker-step-up" as const;
+
+export const timePickerOptionsDomAttr = "data-bepis-time-picker-options" as const;
+
+export const timePickerOptionDomAttr = "data-bepis-time-picker-option" as const;
+
+export const timePickerClearDomAttr = "data-bepis-time-picker-clear" as const;
+
 export const liveUpdateSocketPath = "live-updates" as const;
 
 export const liveUpdateClientIdHeader = "X-Live-Update-Client-Id" as const;

@@ -539,7 +539,7 @@ tests = beforeAll testContext do
                 contentResponse `responseBodyShouldNotContain` "data-roster-day-add=\"true\""
                 contentResponse `responseBodyShouldNotContain` "data-roster-day-remove=\"true\""
                 contentResponse `responseBodyShouldNotContain` "name=\"staffId\""
-                contentResponse `responseBodyShouldNotContain` "js-time-picker-trigger"
+                contentResponse `responseBodyShouldNotContain` "data-bepis-time-picker-trigger"
 
         it "rejects invalid roster slot timing on create and update" $ withContext do
             withCleanDb do

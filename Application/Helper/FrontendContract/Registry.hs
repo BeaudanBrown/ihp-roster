@@ -15,6 +15,7 @@ import Application.Helper.FrontendContract.LiveUpdate
 import Application.Helper.FrontendContract.Overlay
 import Application.Helper.FrontendContract.Reflect
 import Application.Helper.FrontendContract.Surface.Contracts (registeredFrontendSurfaceContractIR)
+import Application.Helper.FrontendContract.TimePicker
 import Application.Helper.FrontendContract.Toggle
 import Application.Helper.FrontendContract.UiRegion
 
@@ -27,6 +28,7 @@ type RegisteredFrontendContracts =
      , UiRegionContract
      , InteractionContract
      , ToggleContract
+     , TimePickerContract
      , LiveUpdateContract
      ] :: [FrontendContractSpec]
 

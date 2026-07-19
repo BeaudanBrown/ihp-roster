@@ -73,6 +73,15 @@ list fields, preserving a compile-time link from feature declarations to the
 form-local browser transport. The full authoring/runtime rules live in
 `Surface/README.md`.
 
+`TimePickerContract` is the focused global quarter-hour picker capability. It
+owns the modal id, picker-internal field/value/trigger/label/step/options/option/
+clear roles, and exact field configuration and option schemas. The Haskell
+runtime serializes declaration-indexed range, step, empty-state copy, value, and
+label fields; the generic TypeScript adapter parses those exact records and only
+rearranges validated server-rendered option nodes. Malformed elements are
+reported and skipped without replacing their server HTML. Toggle transport and
+break-field activation remain exclusively owned by `ToggleContract`.
+
 `AppShellAction` is the server-rendered lane for app-owned shell request initiators
 that are not owned by a mounted `FrontendSurface`, including dialog/overlay
 workflows targeting the generated shared dialog mount. The DSL owns

@@ -15,6 +15,11 @@ Read this before editing shared view helpers under `Application/Helper/View/`.
   Bootstrap markup and native/ARIA state in these focused adapters; do not add
   handwritten overlay `data-*` names or move request semantics out of typed
   AppShell/Surface Action helpers.
+- Time-picker helpers consume `FrontendContract.TimePicker.Runtime` for the
+  generated modal/field/internal roles and exact field/option payloads. Keep
+  ranges, steps, option labels, empty-state copy, and initial native/ARIA state
+  in Haskell. Do not reintroduce browser-selector classes or make the picker own
+  Toggle break-region activation.
 - For typed interaction-surface helpers, read
   `Application/Helper/Interaction.SPEC.md` and
   `Application/Helper/FrontendContract/Surface/README.md` first. Helpers should

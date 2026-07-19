@@ -1,5 +1,5 @@
 import { expect, Page, TestInfo } from '@playwright/test';
-import { dialogOverlayMountDomId } from '../frontend/ts/generated/contracts';
+import { dialogOverlayMountDomId, timePickerModalDomId } from '../frontend/ts/generated/contracts';
 
 type RosterLayoutMetrics = {
     viewport: { width: number; height: number };
@@ -26,7 +26,7 @@ const rosterDiagnosticSelectors = {
     staffPanel: '.roster-staff-panel',
     firstEditableRow: '[data-roster-row]:has(select[name="staffId"])',
     dialogMount: `#${dialogOverlayMountDomId}`,
-    picker: '[data-time-picker-menu], .flatpickr-calendar.open',
+    picker: `#${timePickerModalDomId}, .flatpickr-calendar.open`,
 };
 
 function safeLabel(label: string) {

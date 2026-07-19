@@ -395,8 +395,9 @@ tests = beforeAll testContext do
                 response `responseStatusShouldBe` status200
                 response `responseBodyShouldContain` "name=\"startTime\" value=\"09:00\""
                 response `responseBodyShouldContain` "name=\"endTime\" value=\"13:00\""
-                response `responseBodyShouldContain` "data-time-picker-start=\"09:00\""
-                response `responseBodyShouldContain` "data-time-picker-end=\"13:00\""
+                response `responseBodyShouldContain` "data-bepis-time-picker-config="
+                response `responseBodyShouldContain` "&quot;rangeStart&quot;:&quot;09:00&quot;"
+                response `responseBodyShouldContain` "&quot;rangeEnd&quot;:&quot;13:00&quot;"
 
         it "only hides staff for approved leave overlapping the roster week" $ withContext do
             withCleanDb do

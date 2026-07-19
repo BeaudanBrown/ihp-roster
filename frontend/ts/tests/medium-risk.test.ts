@@ -4,7 +4,6 @@ import { pageReadyEvent } from "../generated/contracts";
 import { clampHorizontalScrollLeft, parsePositiveIntegerForHorizontalScroll } from "../horizontal-scroll/math";
 import { arrayBufferToBase64Url, base64UrlToArrayBuffer } from "../passkeys/base64url";
 import { localStorageKeyForPasskey } from "../passkeys/storage";
-import { buildTimeOptionsWithStepForRange, displayLabelFromTimeValue, minuteOfDayFromTimeValue } from "../time-picker/options";
 import { assertDeepEqual, assertEqual, test } from "./harness";
 
 test("app bootstrap preserves page-ready event contract defaults", () => {
@@ -21,18 +20,6 @@ test("dialog overlay loading HTML keeps spinner and label", () => {
         dialogSubmitLoadingHtml("Saving..."),
         '<span class="spinner-border spinner-border-sm" aria-hidden="true"></span><span>Saving...</span>'
     );
-});
-
-test("time picker parses, labels, and builds stepped options", () => {
-    assertEqual(minuteOfDayFromTimeValue("06:15"), 375);
-    assertEqual(minuteOfDayFromTimeValue("24:00"), null);
-    assertEqual(displayLabelFromTimeValue("00:00"), "12:00 AM");
-    assertEqual(displayLabelFromTimeValue("13:30"), "1:30 PM");
-    assertDeepEqual(buildTimeOptionsWithStepForRange({ startMinute: 60, endMinute: 90 }, 15), [
-        { value: "01:00", label: "1:00 AM" },
-        { value: "01:15", label: "1:15 AM" },
-        { value: "01:30", label: "1:30 AM" },
-    ]);
 });
 
 test("passkey helpers preserve storage key and base64url roundtrip", () => {

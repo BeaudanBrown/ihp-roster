@@ -92,6 +92,12 @@ SurfaceFamily
   authority for HTMX forms, and the picker lane remains independent. Bootstrap
   vocabulary stays adapter-local while disabled and accessibility state use
   native/ARIA semantics.
+- **Quarter-hour picker fields** are governed by the focused global TimePicker
+  contract for modal/internal roles plus exact range/step/empty-label and
+  value/label option records. Haskell owns semantic options and copy; the generic
+  adapter rearranges validated server-rendered option nodes and leaves malformed
+  elements intact. It does not own Toggle form transport or break-fieldset
+  activation.
 
 Views should not handwrite raw interaction `data-bepis-*` attributes, ref names,
 disposable layer mounts, intent forms, HTMX intent attributes, or target ids once

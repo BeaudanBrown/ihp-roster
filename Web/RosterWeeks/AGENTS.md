@@ -10,7 +10,9 @@ or roster views.
 - Keep `RosterWeeksAction` as the this-week reset endpoint.
 - Use the feature modules here instead of adding more orchestration to the root
   controller.
-- Keep DOM ids/selectors centralized in `Dom.hs`.
+- Keep roster-owned DOM ids/selectors centralized in `Dom.hs`. Reusable shift
+  time fields use `Application.Helper.View.TimePicker`; do not add roster-local
+  picker attributes, selector classes, option data, or browser fallback copy.
 - Keep roster `FrontendSurface` fragment metadata, resource dependencies, and live fanout semantics in `FrontendSurface.hs`; passive fanout must go through touched resources and the FrontendSurface registry/runtime path.
 - Construct and match roster live identity through `Application.Helper.FrontendContract.Surface.Roster.Live`; do not import raw live transport modules or recover fragment identity from target IDs.
 - Construct roster dependency resources through `Application.Helper.FrontendContract.Surface.Roster.Resource`; roster domain expansion must use typed feature matchers rather than raw resource names or fields.

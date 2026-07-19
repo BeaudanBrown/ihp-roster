@@ -23,6 +23,11 @@ Read this before editing `static/` assets.
   classes stay adapter-owned; do not restore legacy overlay data attributes or
   DOM-backed initialization/original-markup state. Passkey prompts reuse the
   generated dialog-close role.
+- `app-time-picker.js` consumes generated picker ids/roles and exact config and
+  option parsers. Its mechanical modal adapter rearranges validated
+  server-rendered option nodes; it does not generate fallback values/labels,
+  discover controls through CSS classes, or duplicate Toggle break-region
+  behavior.
 - Keep app JavaScript split by concern:
   - `app-bootstrap.js`
   - `app-date-pickers.js`
