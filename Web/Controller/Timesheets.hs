@@ -220,7 +220,7 @@ instance Controller TimesheetsController where
                 let pickerEnd = venueTimePickerFinalSelectableTimeText venueConfig
                 let suggestedEntry = newTimesheetEntryFromSuggestion (unpackId currentVenueId) suggestion
                 let timesheetEntry =
-                        if isJust (paramOrNothing @Text "startTime")
+                        if hasParam "startTime" || hasParam "hadBreak"
                             then buildTimesheetEntry currentViewerStaffId suggestedEntry
                             else suggestedEntry
                 timesheetEntry

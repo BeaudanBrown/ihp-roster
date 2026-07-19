@@ -760,6 +760,7 @@
       if (value !== null) activeTab = value;
     });
     onAppPageReady(restoreActiveTab);
+    document.addEventListener("htmx:afterSettle", restoreActiveTab);
   }
 
   // frontend/ts/roster/week-overview.ts

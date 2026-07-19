@@ -32,4 +32,8 @@ export function enableRosterStaffPanelTabs(): void {
     });
 
     onAppPageReady(restoreActiveTab);
+
+    // HTMX restores server-rendered class attributes after the afterSwap page-ready
+    // event. Reapply the remembered tab once those settling attributes are final.
+    document.addEventListener("htmx:afterSettle", restoreActiveTab);
 }
