@@ -29,7 +29,7 @@ supportFragmentRef fragment =
         _             -> error "Expected one support mounted fragment"
 
 tests :: Spec
-tests = beforeAll testContext do
+tests = aroundAll withDatabaseTestContext do
     describe "SupportController" do
         it "redirects unauthenticated users from live support fragments" $ withContext do
             response <- callAction ShowFwcMapdAwardRatesSectionAction

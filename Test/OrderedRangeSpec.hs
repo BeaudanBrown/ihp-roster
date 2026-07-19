@@ -33,7 +33,7 @@ fixtureState = OrderedRangeBrowserState
     }
 
 tests :: Spec
-tests = beforeAll testContext do
+tests = aroundAll withDatabaseTestContext do
     describe "Ordered range contract runtime" do
         it "serializes exact generated configuration, state, and roles" $ withContext do
             orderedRangeConfigJson fixtureConfig

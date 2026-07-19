@@ -42,7 +42,7 @@ import Web.Routes
 import Web.Types
 
 tests :: Spec
-tests = beforeAll testContext do
+tests = aroundAll withDatabaseTestContext do
     describe "RosterWeeksController" do
         it "records touched resources for roster mutations" $ withContext do
             withCleanDb do

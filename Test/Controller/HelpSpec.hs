@@ -15,7 +15,7 @@ import Web.FrontController ()
 import Web.Types
 
 tests :: Spec
-tests = beforeAll testContext do
+tests = aroundAll withDatabaseTestContext do
     describe "HelpController" do
         it "renders HTMX page help dialog through the shared overlay" $ withContext do
             withCleanDb do

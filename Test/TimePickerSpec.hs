@@ -12,7 +12,7 @@ import Text.Blaze.Html (Html)
 import qualified Text.Blaze.Html.Renderer.Text as HtmlRenderer
 
 tests :: Spec
-tests = beforeAll testContext do
+tests = aroundAll withDatabaseTestContext do
     describe "Time picker render helpers" do
         it "renders the global picker from generated roles and exact option payloads" $ withContext do
             withCurrentControllerContext do

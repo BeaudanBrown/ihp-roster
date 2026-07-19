@@ -45,7 +45,7 @@ import Web.Timesheets.Suggestion (newTimesheetEntryFromSuggestion)
 import Web.Types
 
 tests :: Spec
-tests = beforeAll testContext do
+tests = aroundAll withDatabaseTestContext do
     describe "TimesheetsController" do
         it "redirects unauthenticated users from timesheets page" $ withContext do
             response <- callAction TimesheetsAction

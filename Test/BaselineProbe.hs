@@ -18,7 +18,7 @@ import Web.Types
 -- in the canonical suite. It keeps measurement phase boundaries out of product
 -- and ordinary test behavior.
 tests :: Spec
-tests = beforeAll testContext do
+tests = aroundAll withDatabaseTestContext do
     describe "Hspec baseline fixture/application probe" do
         it "times representative roster fixture construction and application execution separately" $ withContext do
             withCleanDb do

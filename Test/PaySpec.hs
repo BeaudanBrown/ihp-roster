@@ -88,7 +88,7 @@ tests = do
                     fmap (.weekendApplied) (Map.lookup "a" summaries) `shouldBe` Just False
                     fmap (.weekendApplied) (Map.lookup "b" summaries) `shouldBe` Just True
 
-    beforeAll testContext do
+    aroundAll withDatabaseTestContext do
         describe "Award-backed pay calculations" do
             it "uses the staff default award level for ordinary weekday hours" $ withContext do
                 withCleanDb do

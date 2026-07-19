@@ -32,7 +32,7 @@ import Web.FrontController ()
 import Web.Types
 
 tests :: Spec
-tests = beforeAll testContext do
+tests = aroundAll withDatabaseTestContext do
     describe "BillingWebhook" do
         it "upserts venue subscription state from subscription lifecycle events" $ withContext do
             withCleanDb do

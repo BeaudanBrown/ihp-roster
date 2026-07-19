@@ -33,7 +33,7 @@ import Web.Routes
 import Web.Types
 
 tests :: Spec
-tests = beforeAll testContext do
+tests = aroundAll withDatabaseTestContext do
     describe "ProfilesController" do
         it "redirects unauthenticated users away from edit profile" $ withContext do
             response <- callAction EditProfileAction

@@ -25,7 +25,7 @@ import Test.XeroTimesheetPreviewSpec (EntrySpec (..), PreviewFixture (..),
 
 tests :: Spec
 tests =
-    beforeAll testContext do
+    aroundAll withDatabaseTestContext do
         describe "Xero draft timesheet submission" do
             (identitySpec, payrollSpec) <- runIO XeroMock.loadXeroOpenApiSpecs
 

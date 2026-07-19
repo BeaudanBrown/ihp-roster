@@ -25,7 +25,7 @@ import Web.Routes
 import Web.Types
 
 tests :: Spec
-tests = beforeAll testContext do
+tests = aroundAll withDatabaseTestContext do
     describe "StaticController" do
         it "renders the welcome page for unauthenticated users" $ withContext do
             response <- callAction WelcomeAction

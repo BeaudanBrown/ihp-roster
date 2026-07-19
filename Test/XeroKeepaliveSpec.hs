@@ -18,7 +18,7 @@ import Web.Routes
 import Web.Types
 
 tests :: Spec
-tests = beforeAll testContext do
+tests = aroundAll withDatabaseTestContext do
     describe "Xero keepalive jobs" do
         it "enqueues due active Xero connections and deduplicates active keepalive jobs" $ withContext do
             withCleanDb do

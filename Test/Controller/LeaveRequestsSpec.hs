@@ -36,7 +36,7 @@ import Web.Routes
 import Web.Types
 
 tests :: Spec
-tests = beforeAll testContext do
+tests = aroundAll withDatabaseTestContext do
     describe "LeaveRequestsController" do
         it "redirects unauthenticated users from leave requests page" $ withContext do
             response <- callAction LeaveRequestsAction

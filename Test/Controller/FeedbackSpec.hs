@@ -12,7 +12,7 @@ import Web.FrontController ()
 import Web.Types
 
 tests :: Spec
-tests = beforeAll testContext do
+tests = aroundAll withDatabaseTestContext do
     describe "FeedbackController" do
         it "renders HTMX feedback dialog forms through generated AppShellAction metadata" $ withContext do
             withCleanDb do

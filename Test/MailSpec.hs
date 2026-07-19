@@ -22,7 +22,7 @@ import Web.Mail.Users.VenueInvitation
 import Web.Mail.Users.VenueOnboardingInvitation
 
 tests :: Spec
-tests = beforeAll testContext do
+tests = aroundAll withDatabaseTestContext do
     describe "Mail templates" do
         it "renders venue invitation recipient, sender, subject, and role-specific text" $ withContext do
             withCleanDb do

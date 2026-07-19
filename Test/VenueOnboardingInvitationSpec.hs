@@ -19,7 +19,7 @@ import Test.Hspec
 import Test.Support
 
 tests :: Spec
-tests = beforeAll testContext do
+tests = aroundAll withDatabaseTestContext do
     describe "Venue onboarding invitation helper" do
         it "builds the onboarding signup URL from the invitation id" $ withContext do
             withCleanDb do

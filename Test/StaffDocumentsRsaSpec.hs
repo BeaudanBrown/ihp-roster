@@ -24,7 +24,7 @@ import Web.View.StaffDocuments.Rsa (RsaReturnContext (..))
 import Web.View.StaffDocuments.RsaScan
 
 tests :: Spec
-tests = beforeAll testContext do
+tests = aroundAll withDatabaseTestContext do
     describe "RSA PDF extraction" do
         let sampleText = Text.unlines
                 [ "Victorian Responsible Service of Alcohol Certificate"

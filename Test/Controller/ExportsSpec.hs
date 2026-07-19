@@ -33,7 +33,7 @@ import Web.Routes
 import Web.Types
 
 tests :: Spec
-tests = beforeAll testContext do
+tests = aroundAll withDatabaseTestContext do
     describe "ExportsController" do
         it "redirects unauthenticated users from export jobs page" $ withContext do
             response <- callAction ExportJobsAction

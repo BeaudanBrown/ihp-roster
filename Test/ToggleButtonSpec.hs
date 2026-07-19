@@ -18,7 +18,7 @@ import qualified Text.Blaze.Html.Renderer.Text as HtmlRenderer
 import qualified Text.Blaze.Html5 as Html5
 
 tests :: Spec
-tests = beforeAll testContext do
+tests = aroundAll withDatabaseTestContext do
     describe "App toggle button" do
         it "renders generated roles and an exact boolean transport without legacy DOM agreements" $ withContext do
             withCurrentControllerContext do

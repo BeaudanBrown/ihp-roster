@@ -54,7 +54,7 @@ countText needle haystack
                 (_, afterMatch) -> go (Text.drop (Text.length needle) afterMatch) (count + 1)
 
 tests :: Spec
-tests = beforeAll testContext do
+tests = aroundAll withDatabaseTestContext do
     describe "RosterWeeksController" do
         it "returns fragment refresh instructions when a slot assignment changes" $ withContext do
             withCleanDb do

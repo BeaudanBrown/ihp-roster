@@ -36,7 +36,7 @@ import Web.Routes
 import Web.Types
 
 tests :: Spec
-tests = beforeAll testContext do
+tests = aroundAll withDatabaseTestContext do
     describe "AdminController" do
         it "redirects unauthenticated users from admin page" $ withContext do
             response <- callAction AdminAction

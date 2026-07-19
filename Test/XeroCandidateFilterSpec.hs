@@ -37,7 +37,7 @@ tests = do
                 (attrsTextLength (xeroCandidateFilterCandidateAttrs (xeroCandidateSearchProjection ["  ", "\t"])))
                 `shouldThrow` errorCall "Xero candidate search projection must not be empty"
 
-    beforeAll testContext do
+    aroundAll withDatabaseTestContext do
         describe "Xero candidate filter rendering" do
             it "renders generated filter roles, Haskell-selected projection, accessibility, and import fields" $ withContext do
                 withCurrentControllerContext do

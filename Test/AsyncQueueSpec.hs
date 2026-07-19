@@ -16,7 +16,7 @@ import Test.Hspec
 import Test.Support
 
 tests :: Spec
-tests = beforeAll testContext do
+tests = aroundAll withDatabaseTestContext do
     describe "Async queue" do
         it "deduplicates sequential active jobs" $ withContext do
             withCleanDb do

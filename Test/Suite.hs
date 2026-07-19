@@ -21,6 +21,7 @@ import qualified Test.BillingPersistenceSpec
 import qualified Test.BillingReadOnlySpec
 import qualified Test.BillingWebhookSpec
 import qualified Test.ConflictSpec
+import qualified Test.ContextLifecycleSpec
 import qualified Test.Controller.Admin.AccessSpec
 import qualified Test.Controller.Admin.ConfigSpec
 import qualified Test.Controller.Admin.XeroSpec
@@ -249,6 +250,7 @@ allSuites =
     , databaseSuite "PasskeysController" 25 Test.Controller.PasskeysSpec.tests
     , pureSuite "Schema" 10 Test.SchemaSpec.tests
     , databaseSuite "DatabaseProtection" 10 Test.DatabaseProtectionSpec.tests
+    , databaseSuite "ContextLifecycle" 5 Test.ContextLifecycleSpec.tests
     , databaseSuite "SessionsController" 25 Test.Controller.SessionsSpec.tests
     , databaseSuite "RosterWeeksController.Navigation" 15 Test.Controller.RosterWeeks.NavigationSpec.tests
     , databaseSuite "RosterWeeksController.Workflow" 50 Test.Controller.RosterWeeks.WorkflowSpec.tests

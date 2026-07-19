@@ -42,7 +42,7 @@ signupStaffParams =
     ]
 
 tests :: Spec
-tests = beforeAll testContext do
+tests = aroundAll withDatabaseTestContext do
     describe "UsersController" do
         it "renders the invitation-only access page without an invitation" $ withContext do
             response <- callAction NewUserAction

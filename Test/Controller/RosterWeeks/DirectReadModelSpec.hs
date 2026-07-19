@@ -28,7 +28,7 @@ import Web.RosterWeeks.Types
 
 
 tests :: Spec
-tests = beforeAll testContext do
+tests = aroundAll withDatabaseTestContext do
     describe "RosterWeeksController direct read model" do
         it "reads manager-visible base facts directly" $ withContext do
             withCleanDb do

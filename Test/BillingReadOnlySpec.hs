@@ -19,7 +19,7 @@ import Web.Routes
 import Web.Types
 
 tests :: Spec
-tests = beforeAll testContext do
+tests = aroundAll withDatabaseTestContext do
     describe "Billing manual read-only enforcement" do
         it "keeps venue read pages available" $ withContext do
             withCleanDb do

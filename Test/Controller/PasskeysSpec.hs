@@ -47,7 +47,7 @@ import Web.Types
 import Web.View.Passkeys.Management (formatRelativeLastUsed)
 
 tests :: Spec
-tests = beforeAll testContext do
+tests = aroundAll withDatabaseTestContext do
     describe "PasskeysController" do
         it "formats relative passkey last-used times with one unit" $ withContext do
             let now = UTCTime (fromGregorian 2026 5 28) (secondsToDiffTime (12 * 60 * 60))

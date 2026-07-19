@@ -50,7 +50,7 @@ import Web.SurfaceInvalidation (authorizeSurfaceScope)
 import Web.Types
 
 tests :: Spec
-tests = beforeAll testContext do
+tests = aroundAll withDatabaseTestContext do
     describe "Venue-scoped access control" do
         it "denies editing a staff record from another venue" $ withContext do
             withCleanDb do

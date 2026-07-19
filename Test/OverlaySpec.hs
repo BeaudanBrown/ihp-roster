@@ -13,7 +13,7 @@ import qualified Text.Blaze.Html.Renderer.Text as HtmlRenderer
 import qualified Text.Blaze.Html5 as Html5
 
 tests :: Spec
-tests = beforeAll testContext do
+tests = aroundAll withDatabaseTestContext do
     describe "Overlay render helpers" do
         it "renders generated dialog roles and exact submit config with native accessibility state" $ withContext do
             withCurrentControllerContext do

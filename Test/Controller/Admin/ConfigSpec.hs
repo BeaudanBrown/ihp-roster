@@ -52,7 +52,7 @@ import Web.SurfaceInvalidation (SurfaceInvalidationTarget (..),
 import Web.Types
 
 tests :: Spec
-tests = beforeAll testContext do
+tests = aroundAll withDatabaseTestContext do
     describe "AdminController" do
         it "allows venue owners to access admin config screens" $ withContext do
             withCleanDb do

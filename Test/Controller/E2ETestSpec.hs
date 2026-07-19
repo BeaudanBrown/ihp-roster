@@ -18,7 +18,7 @@ import Web.Routes
 import Web.Types
 
 tests :: Spec
-tests = beforeAll testContext do
+tests = aroundAll withDatabaseTestContext do
     describe "E2ETestController" do
         it "marks the authenticated E2E session as passkey verified" $ withContext do
             withCleanDb do

@@ -47,10 +47,10 @@ import System.IO.Unsafe (unsafePerformIO)
 import Web.FrontController ()
 import Web.Types
 
-testContext :: IO (MockContext WebApplication)
-testContext = do
+withDatabaseTestContext :: (MockContext WebApplication -> IO a) -> IO a
+withDatabaseTestContext action = do
     setEnv "IHP_ROSTER_REQUIRE_PRIVILEGED_STRONG_AUTH" "true"
-    mockContextNoDatabase WebApplication config
+    withMockContext WebApplication config action
 
 withCleanDb :: (?modelContext :: ModelContext) => IO a -> IO a
 withCleanDb action = do

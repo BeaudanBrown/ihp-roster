@@ -24,7 +24,7 @@ import Web.Routes
 import Web.Types
 
 tests :: Spec
-tests = beforeAll testContext do
+tests = aroundAll withDatabaseTestContext do
     describe "SessionsController" do
         it "renders the login form" $ withContext do
             response <- callAction NewSessionAction

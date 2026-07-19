@@ -19,7 +19,7 @@ import Web.Routes
 import Web.Types
 
 tests :: Spec
-tests = beforeAll testContext do
+tests = aroundAll withDatabaseTestContext do
     describe "BillingController" do
         it "redirects unauthenticated users from billing" $ withContext do
             response <- callAction BillingAction

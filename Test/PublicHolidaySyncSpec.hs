@@ -45,7 +45,7 @@ tests = do
             publicHolidayImportFromDataVic melbourneCupRecord { dateType = "SCHOOL_TERM" }
                 `shouldSatisfy` isLeft
 
-    beforeAll testContext do
+    aroundAll withDatabaseTestContext do
         describe "DataVic public holiday import" do
             it "replaces matching statewide holiday rows from the latest API read" $ withContext do
                 withCleanDb do

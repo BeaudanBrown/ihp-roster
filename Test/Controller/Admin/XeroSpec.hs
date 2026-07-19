@@ -50,7 +50,7 @@ import Web.Routes
 import Web.Types
 
 tests :: Spec
-tests = beforeAll testContext do
+tests = aroundAll withDatabaseTestContext do
     describe "AdminController Xero" do
         it "shows the Xero page as not connected" $ withContext do
             withCleanDb do

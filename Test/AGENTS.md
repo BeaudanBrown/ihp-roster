@@ -1,7 +1,7 @@
 # Test Guidelines
 
 ## Reference
-Read `/home/beau/documents/projects/ihp/Guide/testing.markdown` for full IHP testing documentation.
+Read `../ihp/Guide/testing.markdown` for full IHP testing documentation.
 
 ## Running Tests
 
@@ -126,8 +126,13 @@ For URL helpers, include existing-query URLs, spaces, ampersands, equals signs, 
 
 Useful patterns:
 
-- `tests = beforeAll testContext do ...`
-- `withContext do withCleanDb do ...` to reset the DB between examples
+- `tests = aroundAll withDatabaseTestContext do ...` creates one DB-backed
+  context per suite and releases its model pool/listener after success, failure,
+  exception, or asynchronous interruption.
+- `withContext do withCleanDb do ...` resets the DB between examples.
+- Do not use `beforeAll testContext`, `mockContextNoDatabase`, or another
+  unbracketed context constructor. The deprecated path retains Hasql pools until
+  process exit. `Test.ContextLifecycleSpec` is the regression contract.
 - `createVenueWithConfig`, `createUserRecord`, `createUserRecordWithPlatformRole`, `createVenueMembershipRecord`, `createStaffRecord`, and related helpers to seed only the rows the example needs. Shared test-user builders use the fixed valid `testPasswordHash`; do not reintroduce per-user `hashPassword` calls. Sessions and user-creation specs retain real verifier and runtime hashing coverage.
 - `withUserAndCurrentVenue user venueId do ...` when the request needs both authenticated user session and `currentVenueId`
 - `withControllerTestContext do ...` when the test needs a real `ControllerContext`, e.g. to call `beforeLogin` and then `getSession`
@@ -172,7 +177,7 @@ Example shape:
 
 ```haskell
 tests :: Spec
-tests = beforeAll testContext do
+tests = aroundAll withDatabaseTestContext do
     describe "LeaveRequestsController" do
         it "scopes manager queries to the current venue" $ withContext do
             withCleanDb do
@@ -197,10 +202,9 @@ When adding a new controller (e.g., `PostsController`), create a corresponding s
    import Network.HTTP.Types.Status
    import IHP.Prelude
    import IHP.Test.Mocking
-   import IHP.FrameworkConfig
    import IHP.HaskellSupport
    import Test.Hspec
-   import Config
+   import Test.Support
    import Generated.Types
    import Web.Routes
    import Web.Types
@@ -210,7 +214,7 @@ When adding a new controller (e.g., `PostsController`), create a corresponding s
    import IHP.ControllerPrelude
 
    tests :: Spec
-   tests = beforeAll (mockContextNoDatabase WebApplication config) do
+   tests = aroundAll withDatabaseTestContext do
        describe "PostsController" do
            it "renders the index page" $ withContext do
                response <- callAction PostsAction
@@ -237,10 +241,26 @@ When adding a new controller (e.g., `PostsController`), create a corresponding s
        ]
    ```
 
-## Available Test Helpers (from `IHP.Test.Mocking`)
+## Test Context Ownership
 
-- `mockContextNoDatabase` — Create a mock context without a real DB connection (for static/form-render tests)
-- `callAction SomeAction` — Call a controller action, returns `Response`
+- `withDatabaseTestContext` from `Test.Support` is the only supported shared
+  application-context constructor. It applies test environment configuration
+  centrally and delegates ownership to IHP's bracketed `withMockContext`.
+- Use it with Hspec's `aroundAll`, not `beforeAll`; `aroundAll` gives the
+  bracket a continuation whose completion releases the pool and PG listener.
+- A genuinely no-database suite belongs in the registry's pure lane and must
+  not construct a `MockContext`, call `withCleanDb`, or open PostgreSQL. A
+  controller spec using `withContext`, authentication/current-venue setup, or
+  database-backed middleware is a database suite even if one example only
+  renders or redirects.
+- Never use the deprecated name `mockContextNoDatabase`: in current IHP it
+  still creates a real `ModelContext` pool, despite its historical name, and
+  it has no release continuation.
+
+## Available Test Helpers
+
+- `withDatabaseTestContext` — Bracket a DB-backed IHP mock context with proper resource cleanup.
+- `callAction SomeAction` — Call a controller action, returns `Response`.
 - `callActionWithParams SomeAction [("key", "value")]` — Call with form params
 - `responseStatusShouldBe response status200` — Assert HTTP status
 - `responseBodyShouldContain response "text"` — Assert body contains text
@@ -248,17 +268,9 @@ When adding a new controller (e.g., `PostsController`), create a corresponding s
 - `responseBody response` — Extract response body as `LBS.ByteString`
 - `withUser user do ...` — Set current user for auth-protected actions
 
-## `mockContextNoDatabase` Limitations
-
-`mockContextNoDatabase` sets up a connection pool but leaves the underlying DB connection `undefined`. Any action that touches the database at runtime will return a **500**.
-
-This means:
-
-- **Safe to test** with `mockContextNoDatabase`: rendering forms, unauthenticated redirects (`ensureIsUser` with no session), any action that never queries the DB
-- **Cannot test** with `mockContextNoDatabase` by itself: `CreateSessionAction`/`DeleteSessionAction`, `withUser` + an auth-gated page, or any controller path that resolves current venue/membership from the DB
-- **Can test** these flows now by combining `testContext` with the helpers in `Test/Support.hs`
-
-Do not add new `pendingWith "requires real DB"` placeholders for normal controller work without checking `Test/Support.hs` first. Most auth-gated and venue-scoped controller tests should now be implemented directly.
+Do not add new `pendingWith "requires real DB"` placeholders for normal
+controller work without checking `Test/Support.hs` first. Most auth-gated and
+venue-scoped controller tests should use the bracketed DB context directly.
 
 ## What to Test
 

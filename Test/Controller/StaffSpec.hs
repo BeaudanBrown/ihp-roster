@@ -33,7 +33,7 @@ import Web.Staff.Mutations (staffCreateTouchedResources,
 import Web.Types
 
 tests :: Spec
-tests = beforeAll testContext do
+tests = aroundAll withDatabaseTestContext do
     describe "StaffController" do
         let sampleStaffId = Id "6f9638dc-f13c-4ed3-b4f1-a2f860532cab"
         it "redirects unauthenticated users from edit staff form" $ withContext do

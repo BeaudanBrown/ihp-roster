@@ -11,7 +11,7 @@ import Test.Hspec
 import Test.Support
 
 tests :: Spec
-tests = beforeAll testContext do
+tests = aroundAll withDatabaseTestContext do
     describe "Billing persistence" do
         it "stores venue-scoped Stripe identifiers and manual controls without payment details" $ withContext do
             withCleanDb do
