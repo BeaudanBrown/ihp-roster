@@ -454,6 +454,21 @@ work. Pointer thresholds, debounce timing, click suppression, and transient
 `is-horizontal-*` classes remain module-owned browser mechanics rather than
 contract fields or persistent DOM state.
 
+### Generated PWA installation capability
+
+`Application.Helper.FrontendContract.PwaInstall` owns the public installation
+page, install button, result, result-state, and installed-status roles. Its
+closed accepted/dismissed/failed state relates browser outcomes to complete
+Haskell-rendered result messages; no browser prompt or platform object crosses a
+wire schema.
+
+The adapter imports those generated roles and state guard while retaining native
+`beforeinstallprompt`, `appinstalled`, display-mode, and Apple standalone
+handling locally. Availability and installed/result visibility use native
+`hidden`; status and live-region accessibility remain ordinary HTML/ARIA. The
+adapter selects existing server-rendered copy and must not synthesize fallback
+messages or persist an availability/installed state attribute.
+
 ### Generated overlay capability
 
 `Application.Helper.FrontendContract.Overlay` owns the shared workflow-dialog

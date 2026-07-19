@@ -15,6 +15,7 @@ import Application.Helper.FrontendContract.IR
 import Application.Helper.FrontendContract.LiveUpdate
 import Application.Helper.FrontendContract.OrderedRange
 import Application.Helper.FrontendContract.Overlay
+import Application.Helper.FrontendContract.PwaInstall
 import Application.Helper.FrontendContract.Reflect
 import Application.Helper.FrontendContract.Surface.Contracts (registeredFrontendSurfaceContractIR)
 import Application.Helper.FrontendContract.TimePicker
@@ -33,6 +34,7 @@ type RegisteredFrontendContracts =
      , TimePickerContract
      , OrderedRangeContract
      , HorizontalScrollContract
+     , PwaInstallContract
      , LiveUpdateContract
      ] :: [FrontendContractSpec]
 

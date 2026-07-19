@@ -93,6 +93,14 @@ checkbox/range/output subtree before mutation, keeps initialized state in a
 availability submission transport, while controller validation remains the
 business authority for submitted endpoints.
 
+`PwaInstallContract` is the focused global installation-page capability. It owns
+generated page, button, result, result-state, and installed-status roles plus the
+closed accepted/dismissed/failed result state. The Haskell runtime renders every
+workflow message and associates it with that state. The TypeScript adapter keeps
+`beforeinstallprompt`, `appinstalled`, prompt objects, and platform detection
+local, and changes only native `hidden` state to expose server-rendered copy.
+Those browser-platform objects are not wire schemas.
+
 `AppShellAction` is the server-rendered lane for app-owned shell request initiators
 that are not owned by a mounted `FrontendSurface`, including dialog/overlay
 workflows targeting the generated shared dialog mount. The DSL owns

@@ -111,6 +111,13 @@ SurfaceFamily
   scroller and is disposed with its HTMX replacement subtree. Pointer
   thresholds, debounce scheduling, click suppression, and transient classes are
   browser-module state rather than server configuration or DOM authority.
+- **PWA installation pages** are governed by the focused global
+  `PwaInstallContract` for page/button/result/installed roles and the closed
+  result state.
+  Haskell renders all workflow copy; the adapter keeps native install events,
+  prompt objects, and platform detection local. Visibility uses native `hidden`,
+  and status announcements keep ordinary status/live-region semantics rather
+  than duplicating availability or installed state in app attributes.
 
 Views should not handwrite raw interaction `data-bepis-*` attributes, ref names,
 disposable layer mounts, intent forms, HTMX intent attributes, or target ids once

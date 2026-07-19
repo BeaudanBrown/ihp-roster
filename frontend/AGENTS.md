@@ -32,6 +32,11 @@ Read this before editing `frontend/ts/`.
   configuration parsers. It initializes each scroller locally, disposes replaced
   subtrees on HTMX cleanup, and keeps thresholds, timers, click suppression, and
   transient dragging classes module-owned rather than serializing browser state.
+- The PWA install adapter imports generated page/button/result/installed roles
+  and validates the generated closed result state. Haskell renders all workflow
+  copy. Keep `beforeinstallprompt`, `appinstalled`, prompt objects, display-mode,
+  and Apple standalone detection adapter-local; use native `hidden` and ARIA
+  semantics rather than serializing availability or installed platform state.
 - Each reflected root declares browser reachability. Server-only roots emit nothing; type-only roots emit only a type/constant; inbound roots add guards/parsers; outbound roots add encoders; bidirectional roots add both. Unknown JSON boundaries should use generated `parseX`; outbound JSON-shaped DTOs should use generated `encodeX`; runtime code must not recreate generated validators/parsers/encoders by hand.
 - Use Nix/devenv entrypoints, not developer-facing `npm`/`npx` commands.
 - Supported commands:

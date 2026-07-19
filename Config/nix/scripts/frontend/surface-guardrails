@@ -1143,6 +1143,60 @@ expect_match \
     'htmx:beforeCleanupElement' \
     frontend/ts/app-horizontal-scroll.ts
 
+expect_no_match \
+    "replaced handwritten PWA install roles must stay deleted" \
+    'data-pwa-(install-(page|button|result)|installed-status)' \
+    Application Web frontend/ts e2e static
+
+expect_no_match \
+    "production Haskell and TypeScript must consume generated PWA install attribute names" \
+    'data-bepis-pwa-(install-(page|button|result|result-state)|installed-status)' \
+    Application Web frontend/ts e2e
+
+for pwa_contract_name in \
+    isPwaInstallState \
+    pwaInstallPageDomAttr \
+    pwaInstallButtonDomAttr \
+    pwaInstallResultDomAttr \
+    pwaInstallResultStateDomAttr \
+    pwaInstalledStatusDomAttr; do
+    expect_match \
+        "the PWA adapter must consume generated ${pwa_contract_name}" \
+        "\\b${pwa_contract_name}\\b" \
+        frontend/ts/app-pwa.ts
+done
+
+expect_no_match \
+    "the PWA adapter must not synthesize Haskell-owned workflow copy" \
+    'textContent|innerHTML|insertAdjacentHTML|Installation (accepted|was not completed|could not start)|Bepis is installed on this device' \
+    frontend/ts/app-pwa.ts
+
+expect_no_match_including_generated \
+    "browser-native PWA platform objects must stay out of generated wire contracts" \
+    '\b(BeforeInstallPromptEvent|InstallChoice|AppleNavigator)\b' \
+    Application/Helper/FrontendContract/PwaInstall.hs \
+    frontend/ts/generated/contracts.ts
+
+expect_no_match_including_generated \
+    "the focused PWA contract must expose only closed state and DOM roles" \
+    'Browser(Inbound|Outbound|Bidirectional)Schema|Record|TaggedUnion|Event' \
+    Application/Helper/FrontendContract/PwaInstall.hs
+
+expect_match \
+    "browser-native PWA prompt events remain adapter-local" \
+    'beforeinstallprompt' \
+    frontend/ts/app-pwa.ts
+
+expect_match \
+    "browser-native PWA installed events remain adapter-local" \
+    'appinstalled' \
+    frontend/ts/app-pwa.ts
+
+expect_match \
+    "browser-native PWA standalone detection remains adapter-local" \
+    'display-mode: standalone' \
+    frontend/ts/app-pwa.ts
+
 if [ "$failures" -ne 0 ]; then
     exit 1
 fi

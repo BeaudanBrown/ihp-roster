@@ -36,6 +36,9 @@ import Application.Helper.FrontendContract.OrderedRange.Runtime (OrderedRangeDom
 import qualified Application.Helper.FrontendContract.Overlay as Overlay
 import Application.Helper.FrontendContract.Overlay.Runtime (OverlayDom (..),
                                                             canonicalOverlayDom)
+import qualified Application.Helper.FrontendContract.PwaInstall as PwaInstall
+import Application.Helper.FrontendContract.PwaInstall.Runtime (PwaInstallDom (..),
+                                                               canonicalPwaInstallDom)
 import Application.Helper.FrontendContract.Registry (registeredFrontendContractIR)
 import Application.Helper.FrontendContract.RosterValues (RosterStaffSortKey (..),
                                                          rosterStaffSortKeyAttribute,
@@ -263,6 +266,9 @@ tests = describe "Frontend contract generator foundation" do
         lookupDomAttrValue @OrderedRange.OrderedRangeAvailability `shouldBe` Right canonicalOrderedRangeDom.orderedRangeAvailabilityAttribute
         lookupDomAttrValue @HorizontalScroll.HorizontalScrollSnap `shouldBe` Right canonicalHorizontalScrollDom.horizontalScrollSnapAttribute
         lookupDomAttrValue @HorizontalScroll.HorizontalScrollDrag `shouldBe` Right canonicalHorizontalScrollDom.horizontalScrollDragAttribute
+        lookupDomAttrValue @PwaInstall.PwaInstallPage `shouldBe` Right canonicalPwaInstallDom.pwaInstallPageAttribute
+        lookupDomAttrValue @PwaInstall.PwaInstallResultState `shouldBe` Right canonicalPwaInstallDom.pwaInstallResultStateAttribute
+        lookupEnumLiteralValue @PwaInstall.PwaInstallState @PwaInstall.Accepted `shouldBe` Right "accepted"
         lookupConstantValue @OrderedRange.OrderedRangeClampOtherEndpoint `shouldBe` Right "clamp-other-endpoint"
         lookupEventNameValue @App.IntentSubmit `shouldBe` Right interactionIntentSubmitHtmxTrigger
         lookupEnumLiteralValue @App.RosterStaffSortKey @App.Name `shouldBe` Right "name"

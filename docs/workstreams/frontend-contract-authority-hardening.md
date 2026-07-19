@@ -203,7 +203,7 @@ slices, and all block final reconciliation.
 15. `#168` - Dialog/toast overlay DOM vocabulary. **Complete.**
 16. `#170` - Ordered-range shift preferences. **Complete.**
 17. `#171` - Horizontal drag/snap scrolling.
-18. `#172` - PWA installation adapter.
+18. `#172` - PWA installation adapter. **Complete.**
 19. `#173` - Xero candidate filtering adapter.
 
 ### Roster browser capabilities
@@ -281,7 +281,13 @@ Timesheets now render the focused runtime attrs, while the generic adapter owns
 one controller per mounted scroller, cleans replacement subtrees, and keeps
 thresholds, scheduling, click suppression, and transient classes browser-local.
 Focused render, parser, pointer/snap browser, CSS, drift, and source guards pin
-that boundary.
+that boundary. #172 added the global `PwaInstallContract` with generated
+page/button/result/installed roles and a closed accepted/dismissed/failed result
+state. The public install view now renders every workflow message and native
+status/live-region semantics, while the adapter retains prompt events, prompt
+objects, display-mode/Apple detection, and `hidden` visibility mechanics. Focused
+view/runtime, generated-state, browser outcome/accessibility, CSS, drift, and
+source guards pin the boundary and keep platform objects out of wire schemas.
 Roster linked highlighting depends on closed interaction IR. Staff-panel work
 establishes the browser-reachable Surface DTO path for image export and week
 overview. The Haskell adapter slices run in parallel with capability slices and

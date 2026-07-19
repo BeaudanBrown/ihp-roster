@@ -681,6 +681,24 @@ export const horizontalScrollDragDomAttr = "data-bepis-horizontal-scroll-drag" a
 
 export const horizontalDragConfigDomAttr = "data-bepis-horizontal-drag-config" as const;
 
+export type PwaInstallState =
+    "accepted"
+  | "dismissed"
+  | "failed";
+export function isPwaInstallState(value: unknown): value is PwaInstallState {
+    return typeof value === "string" && ["accepted", "dismissed", "failed"].includes(value);
+}
+
+export const pwaInstallPageDomAttr = "data-bepis-pwa-install-page" as const;
+
+export const pwaInstallButtonDomAttr = "data-bepis-pwa-install-button" as const;
+
+export const pwaInstallResultDomAttr = "data-bepis-pwa-install-result" as const;
+
+export const pwaInstallResultStateDomAttr = "data-bepis-pwa-install-result-state" as const;
+
+export const pwaInstalledStatusDomAttr = "data-bepis-pwa-installed-status" as const;
+
 export const liveUpdateSocketPath = "live-updates" as const;
 
 export const liveUpdateClientIdHeader = "X-Live-Update-Client-Id" as const;

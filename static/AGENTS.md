@@ -34,6 +34,10 @@ Read this before editing `static/` assets.
   root and supplies no feature fallback bounds, labels, defaults, or policy.
   Availability styling follows native disabled state, while Toggle separately
   owns the submitted availability field.
+- `app-pwa.js` consumes generated install page/button/result/installed roles and
+  the closed result-state guard. Haskell owns all workflow messages. Browser
+  install events, prompt objects, and standalone/platform detection stay in the
+  adapter, while visibility and accessibility use native `hidden`/ARIA state.
 - Keep app JavaScript split by concern:
   - `app-bootstrap.js`
   - `app-date-pickers.js`

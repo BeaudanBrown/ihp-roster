@@ -65,6 +65,7 @@ import qualified Test.PageHelpSpec
 import qualified Test.PaySpec
 import qualified Test.ProfilingSpec
 import qualified Test.PublicHolidaySyncSpec
+import qualified Test.PwaInstallSpec
 import qualified Test.RosterGridSpec
 import qualified Test.SchemaSpec
 import qualified Test.StaffDocumentsRsaSpec
@@ -288,6 +289,7 @@ allSuites =
     , pureSuite "SurfaceGuard" 5 Test.SurfaceGuardSpec.tests
     , databaseSuite "ToggleButton" 5 Test.ToggleButtonSpec.tests
     , pureSuite "HorizontalScroll" 5 Test.HorizontalScrollSpec.tests
+    , pureSuite "PwaInstall" 5 Test.PwaInstallSpec.tests
     , databaseSuite "OrderedRange" 5 Test.OrderedRangeSpec.tests
     , databaseSuite "Overlay" 5 Test.OverlaySpec.tests
     , databaseSuite "TimePicker" 5 Test.TimePickerSpec.tests
