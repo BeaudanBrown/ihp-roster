@@ -11,6 +11,7 @@ import Application.Helper.FrontendContract.AppShell (EditTimesheetEntryDialog,
 import Application.Helper.FrontendContract.AppShell.Runtime (AppShellActionRoute (..),
                                                              appShellActionByMarker,
                                                              renderAppShellActionLink)
+import Application.Helper.FrontendContract.HorizontalScroll.Runtime
 import Application.Helper.FrontendContract.Surface.Request.Runtime (FrontendSurfaceAction)
 import Application.Helper.FrontendContract.Surface.Runtime (FrontendSurfaceActionRoute (..),
                                                             SurfaceImpl,
@@ -111,9 +112,8 @@ renderTimesheetWeekShell view@IndexView { .. } =
                     , appPanelBody = [hsx|
                         <div class="timesheet-week-frame app-horizontal-frame"
                              data-timesheet-layout="day_columns"
-                             data-horizontal-snap="nearest-item"
-                             data-horizontal-snap-item-selector=".timesheet-day-panel"
-                             data-horizontal-drag-scroll="mouse">
+                             {...horizontalSnapAttrs (HorizontalSnapNearestItem ".timesheet-day-panel")}
+                             {...horizontalDragAttrs (HorizontalDragConfig Nothing)}>
                             {renderTimesheetDayColumns view}
                         </div>
                     |]

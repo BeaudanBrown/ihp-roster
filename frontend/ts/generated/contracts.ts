@@ -646,6 +646,41 @@ export const orderedRangeEndDomAttr = "data-bepis-ordered-range-end" as const;
 
 export const orderedRangeAvailabilityDomAttr = "data-bepis-ordered-range-availability" as const;
 
+export type HorizontalSnapMode =
+    "equal-groups"
+  | "nearest-item";
+export function isHorizontalSnapMode(value: unknown): value is HorizontalSnapMode {
+    return typeof value === "string" && ["equal-groups", "nearest-item"].includes(value);
+}
+
+export type HorizontalSnapConfig = { snapMode: HorizontalSnapMode; itemSelector: string | null; groupCount: number | null; groupProperty: string | null; groupScopeSelector: string | null };
+export function isHorizontalSnapConfig(value: unknown): value is HorizontalSnapConfig {
+    return isRecord(value) && hasExactKeys(value, ["snapMode", "itemSelector", "groupCount", "groupProperty", "groupScopeSelector"]) && (isHorizontalSnapMode(value["snapMode"])) && (value["itemSelector"] === null || (typeof value["itemSelector"] === "string")) && (value["groupCount"] === null || (typeof value["groupCount"] === "number" && Number.isInteger(value["groupCount"]))) && (value["groupProperty"] === null || (typeof value["groupProperty"] === "string")) && (value["groupScopeSelector"] === null || (typeof value["groupScopeSelector"] === "string"));
+}
+
+export function parseHorizontalSnapConfig(value: unknown): HorizontalSnapConfig {
+    if (isHorizontalSnapConfig(value)) return value;
+    throw new Error("Invalid HorizontalSnapConfig");
+}
+
+export type HorizontalDragConfig = { ignoreSelector: string | null };
+export function isHorizontalDragConfig(value: unknown): value is HorizontalDragConfig {
+    return isRecord(value) && hasExactKeys(value, ["ignoreSelector"]) && (value["ignoreSelector"] === null || (typeof value["ignoreSelector"] === "string"));
+}
+
+export function parseHorizontalDragConfig(value: unknown): HorizontalDragConfig {
+    if (isHorizontalDragConfig(value)) return value;
+    throw new Error("Invalid HorizontalDragConfig");
+}
+
+export const horizontalScrollSnapDomAttr = "data-bepis-horizontal-scroll-snap" as const;
+
+export const horizontalSnapConfigDomAttr = "data-bepis-horizontal-snap-config" as const;
+
+export const horizontalScrollDragDomAttr = "data-bepis-horizontal-scroll-drag" as const;
+
+export const horizontalDragConfigDomAttr = "data-bepis-horizontal-drag-config" as const;
+
 export const liveUpdateSocketPath = "live-updates" as const;
 
 export const liveUpdateClientIdHeader = "X-Live-Update-Client-Id" as const;

@@ -275,7 +275,13 @@ adapter validates each local subtree before mutation, keeps initialization state
 outside the DOM, and leaves Toggle transport plus server endpoint validation in
 their existing authoritative owners. Focused render, semantic validation,
 compile-failure, TypeScript, real-browser, CSS, drift, and source guards pin the
-slice.
+slice. #171 added the global HorizontalScroll contract with generated snap/drag
+roles and exact nearest-item/equal-group/ignore configuration. Roster and
+Timesheets now render the focused runtime attrs, while the generic adapter owns
+one controller per mounted scroller, cleans replacement subtrees, and keeps
+thresholds, scheduling, click suppression, and transient classes browser-local.
+Focused render, parser, pointer/snap browser, CSS, drift, and source guards pin
+that boundary.
 Roster linked highlighting depends on closed interaction IR. Staff-panel work
 establishes the browser-reachable Surface DTO path for image export and week
 overview. The Haskell adapter slices run in parallel with capability slices and

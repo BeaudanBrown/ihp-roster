@@ -105,6 +105,12 @@ SurfaceFamily
   native checkbox/range/output subtree before mutation, applies
   `clamp-other-endpoint` mechanically, and leaves request fields plus endpoint
   validation server-owned. Toggle remains the availability transport owner.
+- **Horizontal drag/snap scrollers** are governed by the focused global
+  HorizontalScroll contract for snap/drag roles and exact mode, item, group,
+  scope, and ignore relationships. Each adapter instance owns one mounted
+  scroller and is disposed with its HTMX replacement subtree. Pointer
+  thresholds, debounce scheduling, click suppression, and transient classes are
+  browser-module state rather than server configuration or DOM authority.
 
 Views should not handwrite raw interaction `data-bepis-*` attributes, ref names,
 disposable layer mounts, intent forms, HTMX intent attributes, or target ids once

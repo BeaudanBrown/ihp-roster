@@ -55,6 +55,7 @@ import qualified Test.FrontendSurfaceDslSpec
 import qualified Test.FrontendSurfaceNamingSpec
 import qualified Test.FrontendSurfaceRequestAdapterSpec
 import qualified Test.FwcMapdSyncSpec
+import qualified Test.HorizontalScrollSpec
 import qualified Test.LiveUpdateSpec
 import qualified Test.MailSpec
 import qualified Test.MutationBoundarySpec
@@ -286,6 +287,7 @@ allSuites =
     , pureSuite "SurfaceDependency" 10 Test.SurfaceDependencySpec.tests
     , pureSuite "SurfaceGuard" 5 Test.SurfaceGuardSpec.tests
     , databaseSuite "ToggleButton" 5 Test.ToggleButtonSpec.tests
+    , pureSuite "HorizontalScroll" 5 Test.HorizontalScrollSpec.tests
     , databaseSuite "OrderedRange" 5 Test.OrderedRangeSpec.tests
     , databaseSuite "Overlay" 5 Test.OverlaySpec.tests
     , databaseSuite "TimePicker" 5 Test.TimePickerSpec.tests

@@ -9,6 +9,7 @@ module Application.Helper.FrontendContract.Registry
 import Application.Helper.FrontendContract.App
 import Application.Helper.FrontendContract.AppShell
 import Application.Helper.FrontendContract.DSL
+import Application.Helper.FrontendContract.HorizontalScroll
 import Application.Helper.FrontendContract.Interaction
 import Application.Helper.FrontendContract.IR
 import Application.Helper.FrontendContract.LiveUpdate
@@ -31,6 +32,7 @@ type RegisteredFrontendContracts =
      , ToggleContract
      , TimePickerContract
      , OrderedRangeContract
+     , HorizontalScrollContract
      , LiveUpdateContract
      ] :: [FrontendContractSpec]
 

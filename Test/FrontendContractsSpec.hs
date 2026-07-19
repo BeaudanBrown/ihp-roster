@@ -18,6 +18,9 @@ import Application.Helper.FrontendContract.Contracts (TypeScriptDeclaration (..)
                                                       TypeScriptDeclarationOrigin (..),
                                                       frontendContractDeclarations,
                                                       frontendContractsTypeScript)
+import qualified Application.Helper.FrontendContract.HorizontalScroll as HorizontalScroll
+import Application.Helper.FrontendContract.HorizontalScroll.Runtime (HorizontalScrollDom (..),
+                                                                     canonicalHorizontalScrollDom)
 import qualified Application.Helper.FrontendContract.Htmx as Htmx
 import qualified Application.Helper.FrontendContract.IR as Contract
 import qualified Application.Helper.FrontendContract.LiveUpdate as LiveContract
@@ -258,6 +261,8 @@ tests = describe "Frontend contract generator foundation" do
         lookupDomAttrValue @TimePicker.TimePickerOption `shouldBe` Right canonicalTimePickerDom.timePickerOptionAttribute
         lookupDomAttrValue @OrderedRange.OrderedRangeRoot `shouldBe` Right canonicalOrderedRangeDom.orderedRangeRootAttribute
         lookupDomAttrValue @OrderedRange.OrderedRangeAvailability `shouldBe` Right canonicalOrderedRangeDom.orderedRangeAvailabilityAttribute
+        lookupDomAttrValue @HorizontalScroll.HorizontalScrollSnap `shouldBe` Right canonicalHorizontalScrollDom.horizontalScrollSnapAttribute
+        lookupDomAttrValue @HorizontalScroll.HorizontalScrollDrag `shouldBe` Right canonicalHorizontalScrollDom.horizontalScrollDragAttribute
         lookupConstantValue @OrderedRange.OrderedRangeClampOtherEndpoint `shouldBe` Right "clamp-other-endpoint"
         lookupEventNameValue @App.IntentSubmit `shouldBe` Right interactionIntentSubmitHtmxTrigger
         lookupEnumLiteralValue @App.RosterStaffSortKey @App.Name `shouldBe` Right "name"

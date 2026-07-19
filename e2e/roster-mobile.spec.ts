@@ -228,7 +228,7 @@ test.describe('Roster mobile baseline', () => {
         expect(snapMetrics.scrollerLeft).toBeGreaterThanOrEqual(snapMetrics.dayRailRight - 1);
     });
 
-    test('waits until pointer release before applying phone horizontal snap', async ({ page }) => {
+    test('waits until all pointer input ends before applying phone horizontal snap', async ({ page }) => {
         await page.setViewportSize({ width: 390, height: 844 });
         await page.emulateMedia({ reducedMotion: 'reduce' });
         await ensureAtLeastTwoRosterColumns(page);
@@ -253,17 +253,31 @@ test.describe('Roster mobile baseline', () => {
                 pointerId: 101,
                 pointerType: 'touch',
             }));
+            scroller.dispatchEvent(new PointerEvent('pointerdown', {
+                bubbles: true,
+                pointerId: 102,
+                pointerType: 'touch',
+            }));
             scroller.scrollLeft = rawScrollLeft;
             scroller.dispatchEvent(new Event('scroll', { bubbles: false }));
 
             await new Promise((resolve) => window.setTimeout(resolve, 260));
             const duringPointerScrollLeft = scroller.scrollLeft;
             const snapTypeDuringPointer = getComputedStyle(scroller).scrollSnapType;
-            const draggingDuringPointer = scroller.dataset.horizontalSnapDragging;
+            const draggingDuringPointer = scroller.classList.contains('is-horizontal-snap-dragging');
 
             scroller.dispatchEvent(new PointerEvent('pointerup', {
                 bubbles: true,
                 pointerId: 101,
+                pointerType: 'touch',
+            }));
+            await new Promise((resolve) => window.setTimeout(resolve, 260));
+            const afterFirstPointerScrollLeft = scroller.scrollLeft;
+            const draggingAfterFirstPointer = scroller.classList.contains('is-horizontal-snap-dragging');
+
+            scroller.dispatchEvent(new PointerEvent('pointercancel', {
+                bubbles: true,
+                pointerId: 102,
                 pointerType: 'touch',
             }));
             await new Promise((resolve) => window.setTimeout(resolve, 260));
@@ -272,17 +286,21 @@ test.describe('Roster mobile baseline', () => {
                 rawScrollLeft,
                 expectedScrollLeft,
                 duringPointerScrollLeft,
+                afterFirstPointerScrollLeft,
                 finalScrollLeft: scroller.scrollLeft,
                 snapTypeDuringPointer,
                 draggingDuringPointer,
-                draggingAfterPointer: scroller.dataset.horizontalSnapDragging ?? '',
+                draggingAfterFirstPointer,
+                draggingAfterPointer: scroller.classList.contains('is-horizontal-snap-dragging'),
             };
         });
 
         expect(Math.abs(snapMetrics.duringPointerScrollLeft - snapMetrics.rawScrollLeft)).toBeLessThanOrEqual(2);
+        expect(Math.abs(snapMetrics.afterFirstPointerScrollLeft - snapMetrics.rawScrollLeft)).toBeLessThanOrEqual(2);
         expect(snapMetrics.snapTypeDuringPointer).toBe('none');
-        expect(snapMetrics.draggingDuringPointer).toBe('true');
-        expect(snapMetrics.draggingAfterPointer).toBe('');
+        expect(snapMetrics.draggingDuringPointer).toBe(true);
+        expect(snapMetrics.draggingAfterFirstPointer).toBe(true);
+        expect(snapMetrics.draggingAfterPointer).toBe(false);
         expect(Math.abs(snapMetrics.finalScrollLeft - snapMetrics.expectedScrollLeft)).toBeLessThanOrEqual(2);
     });
 

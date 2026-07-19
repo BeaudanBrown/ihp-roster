@@ -140,16 +140,17 @@ Read this before editing `static/` assets.
 ## Horizontal Scroll Components
 
 - Use `app-horizontal-frame`, `app-horizontal-grid`, and
-  `app-horizontal-panel` for reusable horizontal strip layout, with
-  `data-horizontal-snap` for reusable horizontal snapping and
-  `data-horizontal-drag-scroll` for reusable mouse drag-scroll.
-- Use generic runtime attrs only: `data-horizontal-snap-dragging` and
-  `data-horizontal-dragging`. Do not add feature-specific aliases.
-- Interactive descendants are ignored by drag-scroll by default; add a narrow
-  `data-horizontal-drag-scroll-ignore-selector` only for extra feature-specific
-  controls.
-- The newest user scroll or drag must cancel stale snap intent. Do not add
-  feature scripts that fight `app-horizontal-scroll.js` for the same scroller.
+  `app-horizontal-panel` for reusable horizontal strip layout.
+- Render drag/snap roles and exact configuration through
+  `Application.Helper.FrontendContract.HorizontalScroll.Runtime`; browser code
+  consumes only the generated attributes and parsers.
+- Pointer thresholds, scheduling, click suppression, and the transient
+  `is-horizontal-dragging`/`is-horizontal-snap-dragging` classes remain private
+  to the generic adapter. Do not add feature-specific aliases or DOM state.
+- Interactive descendants are ignored by default; Haskell may add one narrow
+  ignore selector through `HorizontalDragConfig` for extra feature controls.
+- The newest user scroll or drag must cancel stale snap intent. Initialization
+  and cleanup are local to each mounted scroller and HTMX replacement subtree.
 
 ## UI Rules
 

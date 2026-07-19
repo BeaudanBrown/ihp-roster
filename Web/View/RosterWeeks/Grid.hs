@@ -31,6 +31,7 @@ import Application.Helper.FrontendContract.AppShell (OpenRosterShiftDialog)
 import Application.Helper.FrontendContract.AppShell.Runtime (AppShellActionRoute (..),
                                                              appShellActionByMarker,
                                                              applyAppShellActionAttrs)
+import Application.Helper.FrontendContract.HorizontalScroll.Runtime
 import qualified Application.Helper.FrontendContract.Surface.Interaction as SurfaceInteraction
 import Application.Helper.FrontendContract.Surface.Request.Runtime (FrontendSurfaceAction)
 import qualified Application.Helper.FrontendContract.Surface.Roster as Surface
@@ -200,10 +201,10 @@ renderrosterGridFrameLiveFragmentWithSwap maybeSwapOob gridModel@RosterGridRende
              hx-swap-oob={maybeSwapOob}
              data-roster-layout={frameLayoutValue}
              data-roster-visibility={if rosterIsHiddenDraft then ("hidden-draft" :: Text) else "visible"}
-             data-horizontal-snap={if isDayColumnsLayout then ("nearest-item" :: Text) else ""}
-             data-horizontal-snap-item-selector={if isDayColumnsLayout then (".roster-day-column" :: Text) else ""}
-             data-horizontal-drag-scroll={if isDayColumnsLayout then ("mouse" :: Text) else ""}
-             data-horizontal-drag-scroll-ignore-selector={if isDayColumnsLayout then ("[data-roster-shift-launcher]" :: Text) else ""}
+             {...if isDayColumnsLayout
+                    then horizontalSnapAttrs (HorizontalSnapNearestItem ".roster-day-column")
+                        <> horizontalDragAttrs (HorizontalDragConfig (Just "[data-roster-shift-launcher]"))
+                    else []}
              data-roster-end-times={if gridRosterEndTimesEnabled then ("true" :: Text) else "false"}
              data-roster-column-editor={if slotColumnsAreEditable && not rosterIsHiddenDraft then ("available" :: Text) else "unavailable"}
              data-roster-wages={if gridShowWageEstimates && not rosterIsHiddenDraft then ("visible" :: Text) else "hidden"}
@@ -268,14 +269,18 @@ renderDayColumnWageEstimate (Just prediction) date =
             </div>
         |]
 
+rosterSlotsHorizontalSnapConfig :: HorizontalSnapConfig
+rosterSlotsHorizontalSnapConfig = HorizontalSnapEqualGroups (HorizontalSnapGroupProperty
+    { horizontalSnapGroupProperty = "--roster-slot-count"
+    , horizontalSnapGroupScopeSelector = ".roster-grid-frame"
+    })
+
 renderRosterDayRowsGrid :: (?context :: ControllerContext) => Bool -> Bool -> Maybe RosterWeek -> [RosterWeekSlotDefinition] -> RosterDayRenderModel -> [RosterDay] -> Html
 renderRosterDayRowsGrid endTimesEnabled slotColumnsAreEditable maybeRosterWeek slotNames dayModel rosterDays = [hsx|
     {renderrosterDayRailLiveFragment slotColumnsAreEditable dayModel rosterDays}
     {when dayModel.dayShowWageEstimates (renderrosterWageRailLiveFragment dayModel rosterDays)}
     <div class="roster-slots-scroller"
-         data-horizontal-snap="equal-groups"
-         data-horizontal-snap-group-var="--roster-slot-count"
-         data-horizontal-snap-group-var-scope=".roster-grid-frame">
+         {...horizontalSnapAttrs rosterSlotsHorizontalSnapConfig}>
         {renderrosterSlotsGridLiveFragment endTimesEnabled slotColumnsAreEditable maybeRosterWeek slotNames dayModel rosterDays}
     </div>
 |]

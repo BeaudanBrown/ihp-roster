@@ -439,6 +439,21 @@ continues to synchronize the repeated availability field, the named range inputs
 submit unchanged values, and `parseShiftPreferenceSelections` remains
 server-authoritative for weekday, bounds, and endpoint ordering.
 
+### Generated horizontal-scroll capability
+
+`Application.Helper.FrontendContract.HorizontalScroll` owns reusable snap and
+mouse drag-scroll roles plus exact snap/drag configuration. Haskell constructors
+select nearest-item or equal-group snapping and provide the required local item,
+CSS-property/scope, or drag-ignore relationship. Roster and Timesheets views
+render only the focused runtime attrs; TypeScript imports the generated roles
+and exact parsers.
+
+The adapter initializes one controller per mounted scroller and disposes every
+controller in an HTMX cleanup subtree. New user input invalidates stale snap
+work. Pointer thresholds, debounce timing, click suppression, and transient
+`is-horizontal-*` classes remain module-owned browser mechanics rather than
+contract fields or persistent DOM state.
+
 ### Generated overlay capability
 
 `Application.Helper.FrontendContract.Overlay` owns the shared workflow-dialog

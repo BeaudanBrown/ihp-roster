@@ -271,3 +271,8 @@ expect_compile_failure \
     "Test/CompileFail/FrontendOrderedRangeIncompleteConfig.hs" \
     "Couldn't match type: '[]" \
     "OrderedRange.CrossingPolicy"
+
+expect_compile_failure \
+    "Test/CompileFail/FrontendHorizontalScrollIncompleteConfig.hs" \
+    "Couldn't match type: '[]" \
+    "HorizontalScroll.GroupScopeSelector"

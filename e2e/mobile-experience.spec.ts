@@ -326,17 +326,15 @@ test.describe('Mobile experience smoke', () => {
             return {
                 nearestIndex: nearestPanel?.index ?? -1,
                 nearestCenterOffset: nearestPanel?.centerOffset ?? Number.NaN,
-                snapDragging: frame.dataset.horizontalSnapDragging ?? '',
-                dragDragging: frame.dataset.horizontalDragging ?? '',
-                suppressClickUntil: frame.dataset.horizontalSuppressClickUntil ?? '',
+                snapDragging: frame.classList.contains('is-horizontal-snap-dragging'),
+                dragDragging: frame.classList.contains('is-horizontal-dragging'),
             };
         });
 
         expect(snapMetrics.nearestIndex).toBe(2);
         expect(Math.abs(snapMetrics.nearestCenterOffset)).toBeLessThanOrEqual(2);
-        expect(snapMetrics.snapDragging).toBe('');
-        expect(snapMetrics.dragDragging).toBe('');
-        expect(snapMetrics.suppressClickUntil).toBe('');
+        expect(snapMetrics.snapDragging).toBe(false);
+        expect(snapMetrics.dragDragging).toBe(false);
     });
 
     test('roster assignment filters preserve horizontal scroll in both layouts', async ({ page }) => {

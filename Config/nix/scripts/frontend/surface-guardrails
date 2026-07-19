@@ -1118,6 +1118,31 @@ expect_no_match \
     frontend/ts/app-preferences.ts \
     frontend/ts/ordered-range
 
+expect_no_match \
+    "replaced handwritten horizontal-scroll roles and DOM state must stay deleted" \
+    'data-horizontal-|dataset\.horizontal' \
+    Application Web frontend/ts e2e static/css
+
+expect_no_match \
+    "production Haskell and TypeScript must consume generated horizontal-scroll attribute names" \
+    'data-bepis-horizontal-(scroll|snap|drag)-' \
+    Application Web frontend/ts
+
+expect_match \
+    "the horizontal-scroll boundary consumes the generated exact snap parser" \
+    'parseHorizontalSnapConfig' \
+    frontend/ts/horizontal-scroll/configuration.ts
+
+expect_match \
+    "the horizontal-scroll boundary consumes the generated exact drag parser" \
+    'parseHorizontalDragConfig' \
+    frontend/ts/horizontal-scroll/configuration.ts
+
+expect_match \
+    "the horizontal-scroll adapter cleans HTMX replacement subtrees" \
+    'htmx:beforeCleanupElement' \
+    frontend/ts/app-horizontal-scroll.ts
+
 if [ "$failures" -ne 0 ]; then
     exit 1
 fi
