@@ -59,8 +59,10 @@ bash ./bin/in-env ./bin/hspec-baseline inventory \
 
 Use one warm-up plus three measured runs for short comparisons. Report failed
 runs separately, do not include them in medians, and label single expensive
-full runs as such. `HSPEC_METRICS_DIR` and `HSPEC_RESET_METRICS_FILE` are
-internal instrumentation variables; leave them unset during normal Hspec use.
+full runs as such. `HSPEC_METRICS_DIR`, the phase metric variables, and
+`HSPEC_BASELINE_PROBE` are internal instrumentation controls; leave them unset
+during normal Hspec use. The opt-in fixture/application probe is deliberately
+absent from `Test/Suite.hs` and must never change canonical example counts.
 The issue #198 protocol and baseline are archived in
 `docs/archive/hspec-critical-path-baseline-2026-07-19.md`.
 

@@ -2,7 +2,7 @@
   "classificationCaveats": [
     "Mapping is at suite-family level. It does not assert that every example in a mapped suite protects every listed invariant.",
     "Names and counts are inventory evidence only; they are not redundancy evidence.",
-    "broad-acceptance and mixed are candidates for later lane analysis, not implemented lane metadata.",
+    "broad-acceptance-candidate and routine-correctness are conservative suite-level decisions, not implemented lane metadata.",
     "committedVisibility is a source-inspection assessment. required is reserved for an explicit concurrency or separate-context path; possible requires follow-up proof."
   ],
   "invariantCatalog": [
@@ -550,12 +550,13 @@
       "label": "StaticController",
       "majorInvariantFamily": "access-and-onboarding",
       "module": "Test.Controller.StaticSpec",
+      "roleRationale": "Focused helper, contract, adapter, or wiring correctness. Any mapped mandatory invariant must still remain in the complete gate.",
       "source": "Test/Controller/StaticSpec.hs",
       "specInvariantIds": [],
       "withCleanDbCallSites": 2
     },
     {
-      "candidateRole": "mixed",
+      "candidateRole": "broad-acceptance-candidate",
       "committedVisibility": {
         "assessment": "required",
         "reason": "The suite forks concurrent queue inserts; child threads must observe committed state and compete on the database uniqueness boundary."
@@ -573,12 +574,13 @@
       "label": "AsyncQueue",
       "majorInvariantFamily": "operations-and-test-infrastructure",
       "module": "Test.AsyncQueueSpec",
+      "roleRationale": "Conservative suite-level classification: this suite contains cross-component, mandatory-invariant, or committed-visibility evidence. Keep it in broad acceptance unless #202 safely splits that evidence.",
       "source": "Test/AsyncQueueSpec.hs",
       "specInvariantIds": [],
       "withCleanDbCallSites": 5
     },
     {
-      "candidateRole": "mixed",
+      "candidateRole": "broad-acceptance-candidate",
       "committedVisibility": {
         "assessment": "not-apparent",
         "reason": "No explicit cross-thread or separately constructed ModelContext was identified; database use alone is not evidence of committed-visibility dependence."
@@ -599,6 +601,7 @@
       "label": "Billing",
       "majorInvariantFamily": "billing",
       "module": "Test.BillingPersistenceSpec",
+      "roleRationale": "Conservative suite-level classification: this suite contains cross-component, mandatory-invariant, or committed-visibility evidence. Keep it in broad acceptance unless #202 safely splits that evidence.",
       "source": "Test/BillingPersistenceSpec.hs",
       "specInvariantIds": [
         "B5",
@@ -607,7 +610,7 @@
       "withCleanDbCallSites": 4
     },
     {
-      "candidateRole": "broad-acceptance",
+      "candidateRole": "broad-acceptance-candidate",
       "committedVisibility": {
         "assessment": "not-apparent",
         "reason": "No explicit cross-thread or separately constructed ModelContext was identified; database use alone is not evidence of committed-visibility dependence."
@@ -631,12 +634,13 @@
       "label": "BillingReadOnly",
       "majorInvariantFamily": "billing",
       "module": "Test.BillingReadOnlySpec",
+      "roleRationale": "Conservative suite-level classification: this suite contains cross-component, mandatory-invariant, or committed-visibility evidence. Keep it in broad acceptance unless #202 safely splits that evidence.",
       "source": "Test/BillingReadOnlySpec.hs",
       "specInvariantIds": [],
       "withCleanDbCallSites": 7
     },
     {
-      "candidateRole": "mixed",
+      "candidateRole": "broad-acceptance-candidate",
       "committedVisibility": {
         "assessment": "not-apparent",
         "reason": "No explicit cross-thread or separately constructed ModelContext was identified; database use alone is not evidence of committed-visibility dependence."
@@ -659,6 +663,7 @@
       "label": "BillingController",
       "majorInvariantFamily": "billing",
       "module": "Test.Controller.BillingSpec",
+      "roleRationale": "Conservative suite-level classification: this suite contains cross-component, mandatory-invariant, or committed-visibility evidence. Keep it in broad acceptance unless #202 safely splits that evidence.",
       "source": "Test/Controller/BillingSpec.hs",
       "specInvariantIds": [
         "A4",
@@ -668,7 +673,7 @@
       "withCleanDbCallSites": 11
     },
     {
-      "candidateRole": "broad-acceptance",
+      "candidateRole": "broad-acceptance-candidate",
       "committedVisibility": {
         "assessment": "required",
         "reason": "Controller middleware calls runActionWithNewContext, so setup rows must be visible to a separately constructed request context."
@@ -692,6 +697,7 @@
       "label": "BillingWebhook",
       "majorInvariantFamily": "billing",
       "module": "Test.BillingWebhookSpec",
+      "roleRationale": "Conservative suite-level classification: this suite contains cross-component, mandatory-invariant, or committed-visibility evidence. Keep it in broad acceptance unless #202 safely splits that evidence.",
       "source": "Test/BillingWebhookSpec.hs",
       "specInvariantIds": [
         "B4",
@@ -724,6 +730,7 @@
       "label": "E2ETestController",
       "majorInvariantFamily": "access-and-onboarding",
       "module": "Test.Controller.E2ETestSpec",
+      "roleRationale": "Focused helper, contract, adapter, or wiring correctness. Any mapped mandatory invariant must still remain in the complete gate.",
       "source": "Test/Controller/E2ETestSpec.hs",
       "specInvariantIds": [],
       "withCleanDbCallSites": 4
@@ -748,6 +755,7 @@
       "label": "StripeBilling",
       "majorInvariantFamily": "billing",
       "module": "Test.StripeBillingSpec",
+      "roleRationale": "Focused helper, contract, adapter, or wiring correctness. Any mapped mandatory invariant must still remain in the complete gate.",
       "source": "Test/StripeBillingSpec.hs",
       "specInvariantIds": [
         "B1",
@@ -777,6 +785,7 @@
       "label": "StripeContract",
       "majorInvariantFamily": "billing",
       "module": "Test.StripeContractSpec",
+      "roleRationale": "Focused helper, contract, adapter, or wiring correctness. Any mapped mandatory invariant must still remain in the complete gate.",
       "source": "Test/StripeContractSpec.hs",
       "specInvariantIds": [
         "B1",
@@ -786,7 +795,7 @@
       "withCleanDbCallSites": 0
     },
     {
-      "candidateRole": "mixed",
+      "candidateRole": "routine-correctness",
       "committedVisibility": {
         "assessment": "not-apparent",
         "reason": "No explicit cross-thread or separately constructed ModelContext was identified; database use alone is not evidence of committed-visibility dependence."
@@ -811,6 +820,7 @@
       "label": "AdminController.Access",
       "majorInvariantFamily": "access-and-onboarding",
       "module": "Test.Controller.Admin.AccessSpec",
+      "roleRationale": "Focused helper, contract, adapter, or wiring correctness. Any mapped mandatory invariant must still remain in the complete gate.",
       "source": "Test/Controller/Admin/AccessSpec.hs",
       "specInvariantIds": [
         "A4"
@@ -818,7 +828,7 @@
       "withCleanDbCallSites": 4
     },
     {
-      "candidateRole": "mixed",
+      "candidateRole": "broad-acceptance-candidate",
       "committedVisibility": {
         "assessment": "possible",
         "reason": "Several examples cross strict localhost HTTP mocks and controller callbacks; no explicit second database context was identified."
@@ -843,6 +853,7 @@
       "label": "AdminController.Xero",
       "majorInvariantFamily": "xero-payroll",
       "module": "Test.Controller.Admin.XeroSpec",
+      "roleRationale": "Conservative suite-level classification: this suite contains cross-component, mandatory-invariant, or committed-visibility evidence. Keep it in broad acceptance unless #202 safely splits that evidence.",
       "source": "Test/Controller/Admin/XeroSpec.hs",
       "specInvariantIds": [
         "A4",
@@ -851,7 +862,7 @@
       "withCleanDbCallSites": 44
     },
     {
-      "candidateRole": "mixed",
+      "candidateRole": "broad-acceptance-candidate",
       "committedVisibility": {
         "assessment": "not-apparent",
         "reason": "No explicit cross-thread or separately constructed ModelContext was identified; database use alone is not evidence of committed-visibility dependence."
@@ -876,6 +887,7 @@
       "label": "AdminController.Config",
       "majorInvariantFamily": "pay-and-exports",
       "module": "Test.Controller.Admin.ConfigSpec",
+      "roleRationale": "Conservative suite-level classification: this suite contains cross-component, mandatory-invariant, or committed-visibility evidence. Keep it in broad acceptance unless #202 safely splits that evidence.",
       "source": "Test/Controller/Admin/ConfigSpec.hs",
       "specInvariantIds": [
         "A4",
@@ -884,7 +896,7 @@
       "withCleanDbCallSites": 27
     },
     {
-      "candidateRole": "mixed",
+      "candidateRole": "broad-acceptance-candidate",
       "committedVisibility": {
         "assessment": "not-apparent",
         "reason": "No explicit cross-thread or separately constructed ModelContext was identified; database use alone is not evidence of committed-visibility dependence."
@@ -910,6 +922,7 @@
       "label": "ProfilesController",
       "majorInvariantFamily": "access-and-onboarding",
       "module": "Test.Controller.ProfilesSpec",
+      "roleRationale": "Conservative suite-level classification: this suite contains cross-component, mandatory-invariant, or committed-visibility evidence. Keep it in broad acceptance unless #202 safely splits that evidence.",
       "source": "Test/Controller/ProfilesSpec.hs",
       "specInvariantIds": [
         "A3",
@@ -918,7 +931,7 @@
       "withCleanDbCallSites": 17
     },
     {
-      "candidateRole": "mixed",
+      "candidateRole": "broad-acceptance-candidate",
       "committedVisibility": {
         "assessment": "not-apparent",
         "reason": "No explicit cross-thread or separately constructed ModelContext was identified; database use alone is not evidence of committed-visibility dependence."
@@ -941,6 +954,7 @@
       "label": "PasskeysController",
       "majorInvariantFamily": "access-and-onboarding",
       "module": "Test.Controller.PasskeysSpec",
+      "roleRationale": "Conservative suite-level classification: this suite contains cross-component, mandatory-invariant, or committed-visibility evidence. Keep it in broad acceptance unless #202 safely splits that evidence.",
       "source": "Test/Controller/PasskeysSpec.hs",
       "specInvariantIds": [
         "A4"
@@ -948,7 +962,7 @@
       "withCleanDbCallSites": 29
     },
     {
-      "candidateRole": "mixed",
+      "candidateRole": "broad-acceptance-candidate",
       "committedVisibility": {
         "assessment": "not-applicable",
         "reason": "Registry classifies this suite as pure; it does not open PostgreSQL connections."
@@ -968,6 +982,7 @@
       "label": "Schema",
       "majorInvariantFamily": "data-integrity-and-audit",
       "module": "Test.SchemaSpec",
+      "roleRationale": "Conservative suite-level classification: this suite contains cross-component, mandatory-invariant, or committed-visibility evidence. Keep it in broad acceptance unless #202 safely splits that evidence.",
       "source": "Test/SchemaSpec.hs",
       "specInvariantIds": [
         "A4",
@@ -980,7 +995,7 @@
       "withCleanDbCallSites": 0
     },
     {
-      "candidateRole": "broad-acceptance",
+      "candidateRole": "broad-acceptance-candidate",
       "committedVisibility": {
         "assessment": "not-apparent",
         "reason": "No explicit cross-thread or separately constructed ModelContext was identified; database use alone is not evidence of committed-visibility dependence."
@@ -1007,6 +1022,7 @@
       "label": "DatabaseProtection",
       "majorInvariantFamily": "data-integrity-and-audit",
       "module": "Test.DatabaseProtectionSpec",
+      "roleRationale": "Conservative suite-level classification: this suite contains cross-component, mandatory-invariant, or committed-visibility evidence. Keep it in broad acceptance unless #202 safely splits that evidence.",
       "source": "Test/DatabaseProtectionSpec.hs",
       "specInvariantIds": [
         "A6",
@@ -1016,7 +1032,7 @@
       "withCleanDbCallSites": 8
     },
     {
-      "candidateRole": "mixed",
+      "candidateRole": "broad-acceptance-candidate",
       "committedVisibility": {
         "assessment": "not-apparent",
         "reason": "No explicit cross-thread or separately constructed ModelContext was identified; database use alone is not evidence of committed-visibility dependence."
@@ -1039,6 +1055,7 @@
       "label": "SessionsController",
       "majorInvariantFamily": "access-and-onboarding",
       "module": "Test.Controller.SessionsSpec",
+      "roleRationale": "Conservative suite-level classification: this suite contains cross-component, mandatory-invariant, or committed-visibility evidence. Keep it in broad acceptance unless #202 safely splits that evidence.",
       "source": "Test/Controller/SessionsSpec.hs",
       "specInvariantIds": [
         "A3"
@@ -1046,7 +1063,7 @@
       "withCleanDbCallSites": 14
     },
     {
-      "candidateRole": "mixed",
+      "candidateRole": "broad-acceptance-candidate",
       "committedVisibility": {
         "assessment": "not-apparent",
         "reason": "No explicit cross-thread or separately constructed ModelContext was identified; database use alone is not evidence of committed-visibility dependence."
@@ -1076,6 +1093,7 @@
       "label": "RosterWeeksController.Navigation",
       "majorInvariantFamily": "rostering",
       "module": "Test.Controller.RosterWeeks.NavigationSpec",
+      "roleRationale": "Conservative suite-level classification: this suite contains cross-component, mandatory-invariant, or committed-visibility evidence. Keep it in broad acceptance unless #202 safely splits that evidence.",
       "source": "Test/Controller/RosterWeeks/NavigationSpec.hs",
       "specInvariantIds": [
         "A3",
@@ -1084,7 +1102,7 @@
       "withCleanDbCallSites": 12
     },
     {
-      "candidateRole": "mixed",
+      "candidateRole": "broad-acceptance-candidate",
       "committedVisibility": {
         "assessment": "not-apparent",
         "reason": "No explicit cross-thread or separately constructed ModelContext was identified; database use alone is not evidence of committed-visibility dependence."
@@ -1114,6 +1132,7 @@
       "label": "RosterWeeksController.Workflow",
       "majorInvariantFamily": "rostering",
       "module": "Test.Controller.RosterWeeks.WorkflowSpec",
+      "roleRationale": "Conservative suite-level classification: this suite contains cross-component, mandatory-invariant, or committed-visibility evidence. Keep it in broad acceptance unless #202 safely splits that evidence.",
       "source": "Test/Controller/RosterWeeks/WorkflowSpec.hs",
       "specInvariantIds": [
         "R1",
@@ -1124,7 +1143,7 @@
       "withCleanDbCallSites": 47
     },
     {
-      "candidateRole": "mixed",
+      "candidateRole": "broad-acceptance-candidate",
       "committedVisibility": {
         "assessment": "not-apparent",
         "reason": "No explicit cross-thread or separately constructed ModelContext was identified; database use alone is not evidence of committed-visibility dependence."
@@ -1153,6 +1172,7 @@
       "label": "RosterWeeksController.Fragments",
       "majorInvariantFamily": "rostering",
       "module": "Test.Controller.RosterWeeks.FragmentsSpec",
+      "roleRationale": "Conservative suite-level classification: this suite contains cross-component, mandatory-invariant, or committed-visibility evidence. Keep it in broad acceptance unless #202 safely splits that evidence.",
       "source": "Test/Controller/RosterWeeks/FragmentsSpec.hs",
       "specInvariantIds": [
         "R1",
@@ -1162,7 +1182,7 @@
       "withCleanDbCallSites": 39
     },
     {
-      "candidateRole": "mixed",
+      "candidateRole": "broad-acceptance-candidate",
       "committedVisibility": {
         "assessment": "not-apparent",
         "reason": "No explicit cross-thread or separately constructed ModelContext was identified; database use alone is not evidence of committed-visibility dependence."
@@ -1189,6 +1209,7 @@
       "label": "RosterWeeksController.Baseline",
       "majorInvariantFamily": "rostering",
       "module": "Test.Controller.RosterWeeks.BaselineSpec",
+      "roleRationale": "Conservative suite-level classification: this suite contains cross-component, mandatory-invariant, or committed-visibility evidence. Keep it in broad acceptance unless #202 safely splits that evidence.",
       "source": "Test/Controller/RosterWeeks/BaselineSpec.hs",
       "specInvariantIds": [
         "R1"
@@ -1196,7 +1217,7 @@
       "withCleanDbCallSites": 2
     },
     {
-      "candidateRole": "mixed",
+      "candidateRole": "broad-acceptance-candidate",
       "committedVisibility": {
         "assessment": "not-apparent",
         "reason": "No explicit cross-thread or separately constructed ModelContext was identified; database use alone is not evidence of committed-visibility dependence."
@@ -1224,6 +1245,7 @@
       "label": "RosterWeeksController.DirectReadModel",
       "majorInvariantFamily": "rostering",
       "module": "Test.Controller.RosterWeeks.DirectReadModelSpec",
+      "roleRationale": "Conservative suite-level classification: this suite contains cross-component, mandatory-invariant, or committed-visibility evidence. Keep it in broad acceptance unless #202 safely splits that evidence.",
       "source": "Test/Controller/RosterWeeks/DirectReadModelSpec.hs",
       "specInvariantIds": [
         "R4",
@@ -1232,7 +1254,7 @@
       "withCleanDbCallSites": 5
     },
     {
-      "candidateRole": "mixed",
+      "candidateRole": "broad-acceptance-candidate",
       "committedVisibility": {
         "assessment": "not-apparent",
         "reason": "No explicit cross-thread or separately constructed ModelContext was identified; database use alone is not evidence of committed-visibility dependence."
@@ -1258,6 +1280,7 @@
       "label": "LeaveRequestsController",
       "majorInvariantFamily": "timesheets-and-leave",
       "module": "Test.Controller.LeaveRequestsSpec",
+      "roleRationale": "Conservative suite-level classification: this suite contains cross-component, mandatory-invariant, or committed-visibility evidence. Keep it in broad acceptance unless #202 safely splits that evidence.",
       "source": "Test/Controller/LeaveRequestsSpec.hs",
       "specInvariantIds": [
         "T3",
@@ -1290,6 +1313,7 @@
       "label": "FeedbackController",
       "majorInvariantFamily": "product-support",
       "module": "Test.Controller.FeedbackSpec",
+      "roleRationale": "Focused helper, contract, adapter, or wiring correctness. Any mapped mandatory invariant must still remain in the complete gate.",
       "source": "Test/Controller/FeedbackSpec.hs",
       "specInvariantIds": [],
       "withCleanDbCallSites": 4
@@ -1317,12 +1341,13 @@
       "label": "HelpController",
       "majorInvariantFamily": "product-support",
       "module": "Test.Controller.HelpSpec",
+      "roleRationale": "Focused helper, contract, adapter, or wiring correctness. Any mapped mandatory invariant must still remain in the complete gate.",
       "source": "Test/Controller/HelpSpec.hs",
       "specInvariantIds": [],
       "withCleanDbCallSites": 2
     },
     {
-      "candidateRole": "mixed",
+      "candidateRole": "broad-acceptance-candidate",
       "committedVisibility": {
         "assessment": "required",
         "reason": "The suite forks concurrent controller actions to exercise durable queue deduplication."
@@ -1344,6 +1369,7 @@
       "label": "SupportController",
       "majorInvariantFamily": "operations-and-test-infrastructure",
       "module": "Test.Controller.SupportSpec",
+      "roleRationale": "Conservative suite-level classification: this suite contains cross-component, mandatory-invariant, or committed-visibility evidence. Keep it in broad acceptance unless #202 safely splits that evidence.",
       "source": "Test/Controller/SupportSpec.hs",
       "specInvariantIds": [
         "A4"
@@ -1370,12 +1396,13 @@
       "label": "RosterGrid",
       "majorInvariantFamily": "rostering",
       "module": "Test.RosterGridSpec",
+      "roleRationale": "Focused helper, contract, adapter, or wiring correctness. Any mapped mandatory invariant must still remain in the complete gate.",
       "source": "Test/RosterGridSpec.hs",
       "specInvariantIds": [],
       "withCleanDbCallSites": 0
     },
     {
-      "candidateRole": "mixed",
+      "candidateRole": "broad-acceptance-candidate",
       "committedVisibility": {
         "assessment": "not-apparent",
         "reason": "No explicit cross-thread or separately constructed ModelContext was identified; database use alone is not evidence of committed-visibility dependence."
@@ -1401,6 +1428,7 @@
       "label": "UsersController",
       "majorInvariantFamily": "access-and-onboarding",
       "module": "Test.Controller.UsersSpec",
+      "roleRationale": "Conservative suite-level classification: this suite contains cross-component, mandatory-invariant, or committed-visibility evidence. Keep it in broad acceptance unless #202 safely splits that evidence.",
       "source": "Test/Controller/UsersSpec.hs",
       "specInvariantIds": [
         "A1",
@@ -1412,7 +1440,7 @@
       "withCleanDbCallSites": 15
     },
     {
-      "candidateRole": "mixed",
+      "candidateRole": "broad-acceptance-candidate",
       "committedVisibility": {
         "assessment": "not-apparent",
         "reason": "No explicit cross-thread or separately constructed ModelContext was identified; database use alone is not evidence of committed-visibility dependence."
@@ -1439,6 +1467,7 @@
       "label": "ExportsController",
       "majorInvariantFamily": "pay-and-exports",
       "module": "Test.Controller.ExportsSpec",
+      "roleRationale": "Conservative suite-level classification: this suite contains cross-component, mandatory-invariant, or committed-visibility evidence. Keep it in broad acceptance unless #202 safely splits that evidence.",
       "source": "Test/Controller/ExportsSpec.hs",
       "specInvariantIds": [
         "A7",
@@ -1447,7 +1476,7 @@
       "withCleanDbCallSites": 13
     },
     {
-      "candidateRole": "mixed",
+      "candidateRole": "broad-acceptance-candidate",
       "committedVisibility": {
         "assessment": "required",
         "reason": "The roster-suggestion idempotency example forks concurrent controller actions against shared committed rows."
@@ -1480,6 +1509,7 @@
       "label": "TimesheetsController",
       "majorInvariantFamily": "timesheets-and-leave",
       "module": "Test.Controller.TimesheetsSpec",
+      "roleRationale": "Conservative suite-level classification: this suite contains cross-component, mandatory-invariant, or committed-visibility evidence. Keep it in broad acceptance unless #202 safely splits that evidence.",
       "source": "Test/Controller/TimesheetsSpec.hs",
       "specInvariantIds": [
         "A6",
@@ -1491,7 +1521,7 @@
       "withCleanDbCallSites": 48
     },
     {
-      "candidateRole": "mixed",
+      "candidateRole": "broad-acceptance-candidate",
       "committedVisibility": {
         "assessment": "not-apparent",
         "reason": "No explicit cross-thread or separately constructed ModelContext was identified; database use alone is not evidence of committed-visibility dependence."
@@ -1520,6 +1550,7 @@
       "label": "Pay",
       "majorInvariantFamily": "pay-and-exports",
       "module": "Test.PaySpec",
+      "roleRationale": "Conservative suite-level classification: this suite contains cross-component, mandatory-invariant, or committed-visibility evidence. Keep it in broad acceptance unless #202 safely splits that evidence.",
       "source": "Test/PaySpec.hs",
       "specInvariantIds": [
         "P1",
@@ -1550,6 +1581,7 @@
       "label": "PageHelp",
       "majorInvariantFamily": "product-support",
       "module": "Test.PageHelpSpec",
+      "roleRationale": "Focused helper, contract, adapter, or wiring correctness. Any mapped mandatory invariant must still remain in the complete gate.",
       "source": "Test/PageHelpSpec.hs",
       "specInvariantIds": [],
       "withCleanDbCallSites": 0
@@ -1574,12 +1606,13 @@
       "label": "Profiling",
       "majorInvariantFamily": "observability",
       "module": "Test.ProfilingSpec",
+      "roleRationale": "Focused helper, contract, adapter, or wiring correctness. Any mapped mandatory invariant must still remain in the complete gate.",
       "source": "Test/ProfilingSpec.hs",
       "specInvariantIds": [],
       "withCleanDbCallSites": 0
     },
     {
-      "candidateRole": "mixed",
+      "candidateRole": "routine-correctness",
       "committedVisibility": {
         "assessment": "not-apparent",
         "reason": "No explicit cross-thread or separately constructed ModelContext was identified; database use alone is not evidence of committed-visibility dependence."
@@ -1597,6 +1630,7 @@
       "label": "PublicHolidaySync",
       "majorInvariantFamily": "pay-and-exports",
       "module": "Test.PublicHolidaySyncSpec",
+      "roleRationale": "Focused helper, contract, adapter, or wiring correctness. Any mapped mandatory invariant must still remain in the complete gate.",
       "source": "Test/PublicHolidaySyncSpec.hs",
       "specInvariantIds": [
         "P2",
@@ -1605,7 +1639,7 @@
       "withCleanDbCallSites": 4
     },
     {
-      "candidateRole": "mixed",
+      "candidateRole": "routine-correctness",
       "committedVisibility": {
         "assessment": "not-apparent",
         "reason": "No explicit cross-thread or separately constructed ModelContext was identified; database use alone is not evidence of committed-visibility dependence."
@@ -1626,6 +1660,7 @@
       "label": "FwcMapdSync",
       "majorInvariantFamily": "pay-and-exports",
       "module": "Test.FwcMapdSyncSpec",
+      "roleRationale": "Focused helper, contract, adapter, or wiring correctness. Any mapped mandatory invariant must still remain in the complete gate.",
       "source": "Test/FwcMapdSyncSpec.hs",
       "specInvariantIds": [
         "P3",
@@ -1634,7 +1669,7 @@
       "withCleanDbCallSites": 2
     },
     {
-      "candidateRole": "broad-acceptance",
+      "candidateRole": "broad-acceptance-candidate",
       "committedVisibility": {
         "assessment": "not-apparent",
         "reason": "No explicit cross-thread or separately constructed ModelContext was identified; database use alone is not evidence of committed-visibility dependence."
@@ -1665,6 +1700,7 @@
       "label": "VenueAccess",
       "majorInvariantFamily": "access-and-onboarding",
       "module": "Test.Controller.VenueAccessSpec",
+      "roleRationale": "Conservative suite-level classification: this suite contains cross-component, mandatory-invariant, or committed-visibility evidence. Keep it in broad acceptance unless #202 safely splits that evidence.",
       "source": "Test/Controller/VenueAccessSpec.hs",
       "specInvariantIds": [
         "A4",
@@ -1674,7 +1710,7 @@
       "withCleanDbCallSites": 43
     },
     {
-      "candidateRole": "broad-acceptance",
+      "candidateRole": "broad-acceptance-candidate",
       "committedVisibility": {
         "assessment": "not-apparent",
         "reason": "No explicit cross-thread or separately constructed ModelContext was identified; database use alone is not evidence of committed-visibility dependence."
@@ -1700,6 +1736,7 @@
       "label": "FixedExportGolden",
       "majorInvariantFamily": "pay-and-exports",
       "module": "Test.Controller.FixedExportGoldenSpec",
+      "roleRationale": "Conservative suite-level classification: this suite contains cross-component, mandatory-invariant, or committed-visibility evidence. Keep it in broad acceptance unless #202 safely splits that evidence.",
       "source": "Test/Controller/FixedExportGoldenSpec.hs",
       "specInvariantIds": [
         "P4",
@@ -1709,7 +1746,7 @@
       "withCleanDbCallSites": 7
     },
     {
-      "candidateRole": "mixed",
+      "candidateRole": "broad-acceptance-candidate",
       "committedVisibility": {
         "assessment": "not-apparent",
         "reason": "No explicit cross-thread or separately constructed ModelContext was identified; database use alone is not evidence of committed-visibility dependence."
@@ -1734,6 +1771,7 @@
       "label": "StaffController",
       "majorInvariantFamily": "staff-and-compliance",
       "module": "Test.Controller.StaffSpec",
+      "roleRationale": "Conservative suite-level classification: this suite contains cross-component, mandatory-invariant, or committed-visibility evidence. Keep it in broad acceptance unless #202 safely splits that evidence.",
       "source": "Test/Controller/StaffSpec.hs",
       "specInvariantIds": [
         "A4",
@@ -1743,7 +1781,7 @@
       "withCleanDbCallSites": 32
     },
     {
-      "candidateRole": "mixed",
+      "candidateRole": "broad-acceptance-candidate",
       "committedVisibility": {
         "assessment": "not-apparent",
         "reason": "No explicit cross-thread or separately constructed ModelContext was identified; database use alone is not evidence of committed-visibility dependence."
@@ -1766,6 +1804,7 @@
       "label": "StaffDocumentsController",
       "majorInvariantFamily": "staff-and-compliance",
       "module": "Test.Controller.StaffDocumentsSpec",
+      "roleRationale": "Conservative suite-level classification: this suite contains cross-component, mandatory-invariant, or committed-visibility evidence. Keep it in broad acceptance unless #202 safely splits that evidence.",
       "source": "Test/Controller/StaffDocumentsSpec.hs",
       "specInvariantIds": [
         "A6"
@@ -1773,7 +1812,7 @@
       "withCleanDbCallSites": 8
     },
     {
-      "candidateRole": "mixed",
+      "candidateRole": "broad-acceptance-candidate",
       "committedVisibility": {
         "assessment": "not-apparent",
         "reason": "No explicit cross-thread or separately constructed ModelContext was identified; database use alone is not evidence of committed-visibility dependence."
@@ -1796,6 +1835,7 @@
       "label": "StaffDocumentsRSA",
       "majorInvariantFamily": "staff-and-compliance",
       "module": "Test.StaffDocumentsRsaSpec",
+      "roleRationale": "Conservative suite-level classification: this suite contains cross-component, mandatory-invariant, or committed-visibility evidence. Keep it in broad acceptance unless #202 safely splits that evidence.",
       "source": "Test/StaffDocumentsRsaSpec.hs",
       "specInvariantIds": [
         "T6"
@@ -1803,7 +1843,7 @@
       "withCleanDbCallSites": 4
     },
     {
-      "candidateRole": "mixed",
+      "candidateRole": "broad-acceptance-candidate",
       "committedVisibility": {
         "assessment": "possible",
         "reason": "Examples enqueue and dispatch durable app jobs; source inspection did not prove that every handler query stays on one context."
@@ -1824,6 +1864,7 @@
       "label": "VenueInvitation",
       "majorInvariantFamily": "access-and-onboarding",
       "module": "Test.VenueInvitationSpec",
+      "roleRationale": "Conservative suite-level classification: this suite contains cross-component, mandatory-invariant, or committed-visibility evidence. Keep it in broad acceptance unless #202 safely splits that evidence.",
       "source": "Test/VenueInvitationSpec.hs",
       "specInvariantIds": [
         "A1",
@@ -1832,7 +1873,7 @@
       "withCleanDbCallSites": 4
     },
     {
-      "candidateRole": "mixed",
+      "candidateRole": "broad-acceptance-candidate",
       "committedVisibility": {
         "assessment": "possible",
         "reason": "Examples enqueue and dispatch durable app jobs; source inspection did not prove that every handler query stays on one context."
@@ -1852,6 +1893,7 @@
       "label": "VenueOnboardingInvitation",
       "majorInvariantFamily": "access-and-onboarding",
       "module": "Test.VenueOnboardingInvitationSpec",
+      "roleRationale": "Conservative suite-level classification: this suite contains cross-component, mandatory-invariant, or committed-visibility evidence. Keep it in broad acceptance unless #202 safely splits that evidence.",
       "source": "Test/VenueOnboardingInvitationSpec.hs",
       "specInvariantIds": [
         "A1",
@@ -1860,7 +1902,7 @@
       "withCleanDbCallSites": 6
     },
     {
-      "candidateRole": "mixed",
+      "candidateRole": "broad-acceptance-candidate",
       "committedVisibility": {
         "assessment": "not-apparent",
         "reason": "No explicit cross-thread or separately constructed ModelContext was identified; database use alone is not evidence of committed-visibility dependence."
@@ -1880,12 +1922,13 @@
       "label": "DevSeed",
       "majorInvariantFamily": "operations-and-test-infrastructure",
       "module": "Test.DevSeedSpec",
+      "roleRationale": "Conservative suite-level classification: this suite contains cross-component, mandatory-invariant, or committed-visibility evidence. Keep it in broad acceptance unless #202 safely splits that evidence.",
       "source": "Test/DevSeedSpec.hs",
       "specInvariantIds": [],
       "withCleanDbCallSites": 2
     },
     {
-      "candidateRole": "mixed",
+      "candidateRole": "routine-correctness",
       "committedVisibility": {
         "assessment": "not-applicable",
         "reason": "Registry classifies this suite as pure; it does not open PostgreSQL connections."
@@ -1904,6 +1947,7 @@
       "label": "Conflict",
       "majorInvariantFamily": "rostering",
       "module": "Test.ConflictSpec",
+      "roleRationale": "Focused helper, contract, adapter, or wiring correctness. Any mapped mandatory invariant must still remain in the complete gate.",
       "source": "Test/ConflictSpec.hs",
       "specInvariantIds": [
         "R4",
@@ -1932,6 +1976,7 @@
       "label": "FrontendContract",
       "majorInvariantFamily": "frontend-contracts-and-live-update",
       "module": "Test.FrontendContractSpec",
+      "roleRationale": "Focused helper, contract, adapter, or wiring correctness. Any mapped mandatory invariant must still remain in the complete gate.",
       "source": "Test/FrontendContractSpec.hs",
       "specInvariantIds": [],
       "withCleanDbCallSites": 0
@@ -1956,6 +2001,7 @@
       "label": "FrontendContracts",
       "majorInvariantFamily": "frontend-contracts-and-live-update",
       "module": "Test.FrontendContractsSpec",
+      "roleRationale": "Focused helper, contract, adapter, or wiring correctness. Any mapped mandatory invariant must still remain in the complete gate.",
       "source": "Test/FrontendContractsSpec.hs",
       "specInvariantIds": [],
       "withCleanDbCallSites": 0
@@ -1981,6 +2027,7 @@
       "label": "FrontendSurfaceAdapterGenerator",
       "majorInvariantFamily": "frontend-contracts-and-live-update",
       "module": "Test.FrontendSurfaceAdapterGeneratorSpec",
+      "roleRationale": "Focused helper, contract, adapter, or wiring correctness. Any mapped mandatory invariant must still remain in the complete gate.",
       "source": "Test/FrontendSurfaceAdapterGeneratorSpec.hs",
       "specInvariantIds": [],
       "withCleanDbCallSites": 0
@@ -2005,6 +2052,7 @@
       "label": "FrontendSurfaceRequestAdapter",
       "majorInvariantFamily": "frontend-contracts-and-live-update",
       "module": "Test.FrontendSurfaceRequestAdapterSpec",
+      "roleRationale": "Focused helper, contract, adapter, or wiring correctness. Any mapped mandatory invariant must still remain in the complete gate.",
       "source": "Test/FrontendSurfaceRequestAdapterSpec.hs",
       "specInvariantIds": [],
       "withCleanDbCallSites": 0
@@ -2029,6 +2077,7 @@
       "label": "FrontendSurfaceNaming",
       "majorInvariantFamily": "frontend-contracts-and-live-update",
       "module": "Test.FrontendSurfaceNamingSpec",
+      "roleRationale": "Focused helper, contract, adapter, or wiring correctness. Any mapped mandatory invariant must still remain in the complete gate.",
       "source": "Test/FrontendSurfaceNamingSpec.hs",
       "specInvariantIds": [],
       "withCleanDbCallSites": 0
@@ -2053,6 +2102,7 @@
       "label": "FrontendSurfaceDSL",
       "majorInvariantFamily": "frontend-contracts-and-live-update",
       "module": "Test.FrontendSurfaceDslSpec",
+      "roleRationale": "Focused helper, contract, adapter, or wiring correctness. Any mapped mandatory invariant must still remain in the complete gate.",
       "source": "Test/FrontendSurfaceDslSpec.hs",
       "specInvariantIds": [],
       "withCleanDbCallSites": 0
@@ -2077,6 +2127,7 @@
       "label": "LiveUpdate",
       "majorInvariantFamily": "frontend-contracts-and-live-update",
       "module": "Test.LiveUpdateSpec",
+      "roleRationale": "Focused helper, contract, adapter, or wiring correctness. Any mapped mandatory invariant must still remain in the complete gate.",
       "source": "Test/LiveUpdateSpec.hs",
       "specInvariantIds": [],
       "withCleanDbCallSites": 0
@@ -2101,6 +2152,7 @@
       "label": "SurfaceResource",
       "majorInvariantFamily": "frontend-contracts-and-live-update",
       "module": "Test.SurfaceResourceSpec",
+      "roleRationale": "Focused helper, contract, adapter, or wiring correctness. Any mapped mandatory invariant must still remain in the complete gate.",
       "source": "Test/SurfaceResourceSpec.hs",
       "specInvariantIds": [],
       "withCleanDbCallSites": 0
@@ -2125,6 +2177,7 @@
       "label": "SurfaceInvalidation",
       "majorInvariantFamily": "frontend-contracts-and-live-update",
       "module": "Test.SurfaceInvalidationSpec",
+      "roleRationale": "Focused helper, contract, adapter, or wiring correctness. Any mapped mandatory invariant must still remain in the complete gate.",
       "source": "Test/SurfaceInvalidationSpec.hs",
       "specInvariantIds": [],
       "withCleanDbCallSites": 0
@@ -2149,6 +2202,7 @@
       "label": "SurfaceDependency",
       "majorInvariantFamily": "frontend-contracts-and-live-update",
       "module": "Test.SurfaceDependencySpec",
+      "roleRationale": "Focused helper, contract, adapter, or wiring correctness. Any mapped mandatory invariant must still remain in the complete gate.",
       "source": "Test/SurfaceDependencySpec.hs",
       "specInvariantIds": [],
       "withCleanDbCallSites": 0
@@ -2173,6 +2227,7 @@
       "label": "SurfaceGuard",
       "majorInvariantFamily": "frontend-contracts-and-live-update",
       "module": "Test.SurfaceGuardSpec",
+      "roleRationale": "Focused helper, contract, adapter, or wiring correctness. Any mapped mandatory invariant must still remain in the complete gate.",
       "source": "Test/SurfaceGuardSpec.hs",
       "specInvariantIds": [],
       "withCleanDbCallSites": 0
@@ -2196,6 +2251,7 @@
       "label": "ToggleButton",
       "majorInvariantFamily": "frontend-contracts-and-live-update",
       "module": "Test.ToggleButtonSpec",
+      "roleRationale": "Focused helper, contract, adapter, or wiring correctness. Any mapped mandatory invariant must still remain in the complete gate.",
       "source": "Test/ToggleButtonSpec.hs",
       "specInvariantIds": [],
       "withCleanDbCallSites": 0
@@ -2220,6 +2276,7 @@
       "label": "HorizontalScroll",
       "majorInvariantFamily": "frontend-contracts-and-live-update",
       "module": "Test.HorizontalScrollSpec",
+      "roleRationale": "Focused helper, contract, adapter, or wiring correctness. Any mapped mandatory invariant must still remain in the complete gate.",
       "source": "Test/HorizontalScrollSpec.hs",
       "specInvariantIds": [],
       "withCleanDbCallSites": 0
@@ -2244,6 +2301,7 @@
       "label": "PwaInstall",
       "majorInvariantFamily": "frontend-contracts-and-live-update",
       "module": "Test.PwaInstallSpec",
+      "roleRationale": "Focused helper, contract, adapter, or wiring correctness. Any mapped mandatory invariant must still remain in the complete gate.",
       "source": "Test/PwaInstallSpec.hs",
       "specInvariantIds": [],
       "withCleanDbCallSites": 0
@@ -2267,6 +2325,7 @@
       "label": "OrderedRange",
       "majorInvariantFamily": "frontend-contracts-and-live-update",
       "module": "Test.OrderedRangeSpec",
+      "roleRationale": "Focused helper, contract, adapter, or wiring correctness. Any mapped mandatory invariant must still remain in the complete gate.",
       "source": "Test/OrderedRangeSpec.hs",
       "specInvariantIds": [],
       "withCleanDbCallSites": 0
@@ -2290,6 +2349,7 @@
       "label": "Overlay",
       "majorInvariantFamily": "frontend-contracts-and-live-update",
       "module": "Test.OverlaySpec",
+      "roleRationale": "Focused helper, contract, adapter, or wiring correctness. Any mapped mandatory invariant must still remain in the complete gate.",
       "source": "Test/OverlaySpec.hs",
       "specInvariantIds": [],
       "withCleanDbCallSites": 0
@@ -2313,6 +2373,7 @@
       "label": "TimePicker",
       "majorInvariantFamily": "frontend-contracts-and-live-update",
       "module": "Test.TimePickerSpec",
+      "roleRationale": "Focused helper, contract, adapter, or wiring correctness. Any mapped mandatory invariant must still remain in the complete gate.",
       "source": "Test/TimePickerSpec.hs",
       "specInvariantIds": [],
       "withCleanDbCallSites": 0
@@ -2340,6 +2401,7 @@
       "label": "Mail",
       "majorInvariantFamily": "communications",
       "module": "Test.MailSpec",
+      "roleRationale": "Focused helper, contract, adapter, or wiring correctness. Any mapped mandatory invariant must still remain in the complete gate.",
       "source": "Test/MailSpec.hs",
       "specInvariantIds": [
         "B7"
@@ -2367,6 +2429,7 @@
       "label": "MutationBoundary",
       "majorInvariantFamily": "data-integrity-and-audit",
       "module": "Test.MutationBoundarySpec",
+      "roleRationale": "Focused helper, contract, adapter, or wiring correctness. Any mapped mandatory invariant must still remain in the complete gate.",
       "source": "Test/MutationBoundarySpec.hs",
       "specInvariantIds": [],
       "withCleanDbCallSites": 0
@@ -2390,6 +2453,7 @@
       "label": "XeroCandidateFilter",
       "majorInvariantFamily": "xero-payroll",
       "module": "Test.XeroCandidateFilterSpec",
+      "roleRationale": "Focused helper, contract, adapter, or wiring correctness. Any mapped mandatory invariant must still remain in the complete gate.",
       "source": "Test/XeroCandidateFilterSpec.hs",
       "specInvariantIds": [],
       "withCleanDbCallSites": 0
@@ -2414,6 +2478,7 @@
       "label": "XeroContract",
       "majorInvariantFamily": "xero-payroll",
       "module": "Test.XeroContractSpec",
+      "roleRationale": "Focused helper, contract, adapter, or wiring correctness. Any mapped mandatory invariant must still remain in the complete gate.",
       "source": "Test/XeroContractSpec.hs",
       "specInvariantIds": [],
       "withCleanDbCallSites": 0
@@ -2438,12 +2503,13 @@
       "label": "XeroImportedPayItems",
       "majorInvariantFamily": "xero-payroll",
       "module": "Test.XeroImportedPayItemsSpec",
+      "roleRationale": "Focused helper, contract, adapter, or wiring correctness. Any mapped mandatory invariant must still remain in the complete gate.",
       "source": "Test/XeroImportedPayItemsSpec.hs",
       "specInvariantIds": [],
       "withCleanDbCallSites": 0
     },
     {
-      "candidateRole": "mixed",
+      "candidateRole": "routine-correctness",
       "committedVisibility": {
         "assessment": "possible",
         "reason": "Examples execute persisted jobs and transport callbacks; no explicit second ModelContext was identified."
@@ -2464,12 +2530,13 @@
       "label": "XeroKeepalive",
       "majorInvariantFamily": "xero-payroll",
       "module": "Test.XeroKeepaliveSpec",
+      "roleRationale": "Focused helper, contract, adapter, or wiring correctness. Any mapped mandatory invariant must still remain in the complete gate.",
       "source": "Test/XeroKeepaliveSpec.hs",
       "specInvariantIds": [],
       "withCleanDbCallSites": 3
     },
     {
-      "candidateRole": "mixed",
+      "candidateRole": "broad-acceptance-candidate",
       "committedVisibility": {
         "assessment": "not-apparent",
         "reason": "No explicit cross-thread or separately constructed ModelContext was identified; database use alone is not evidence of committed-visibility dependence."
@@ -2494,6 +2561,7 @@
       "label": "XeroTimesheetPreview",
       "majorInvariantFamily": "xero-payroll",
       "module": "Test.XeroTimesheetPreviewSpec",
+      "roleRationale": "Conservative suite-level classification: this suite contains cross-component, mandatory-invariant, or committed-visibility evidence. Keep it in broad acceptance unless #202 safely splits that evidence.",
       "source": "Test/XeroTimesheetPreviewSpec.hs",
       "specInvariantIds": [
         "P5",
@@ -2502,7 +2570,7 @@
       "withCleanDbCallSites": 13
     },
     {
-      "candidateRole": "mixed",
+      "candidateRole": "broad-acceptance-candidate",
       "committedVisibility": {
         "assessment": "not-apparent",
         "reason": "No explicit cross-thread or separately constructed ModelContext was identified; database use alone is not evidence of committed-visibility dependence."
@@ -2527,6 +2595,7 @@
       "label": "XeroTimesheetReadiness",
       "majorInvariantFamily": "xero-payroll",
       "module": "Test.XeroTimesheetReadinessSpec",
+      "roleRationale": "Conservative suite-level classification: this suite contains cross-component, mandatory-invariant, or committed-visibility evidence. Keep it in broad acceptance unless #202 safely splits that evidence.",
       "source": "Test/XeroTimesheetReadinessSpec.hs",
       "specInvariantIds": [
         "P5",
@@ -2535,7 +2604,7 @@
       "withCleanDbCallSites": 19
     },
     {
-      "candidateRole": "mixed",
+      "candidateRole": "broad-acceptance-candidate",
       "committedVisibility": {
         "assessment": "not-apparent",
         "reason": "No explicit cross-thread or separately constructed ModelContext was identified; database use alone is not evidence of committed-visibility dependence."
@@ -2553,6 +2622,7 @@
       "label": "XeroTimesheetSubmission",
       "majorInvariantFamily": "xero-payroll",
       "module": "Test.XeroTimesheetSubmissionSpec",
+      "roleRationale": "Conservative suite-level classification: this suite contains cross-component, mandatory-invariant, or committed-visibility evidence. Keep it in broad acceptance unless #202 safely splits that evidence.",
       "source": "Test/XeroTimesheetSubmissionSpec.hs",
       "specInvariantIds": [
         "P6"

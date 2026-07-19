@@ -39,6 +39,13 @@ bash ./bin/in-env ./bin/hspec-baseline run \
 # Rebuild summary.json from a retained raw run.
 bash ./bin/in-env ./bin/hspec-baseline summarize \
   output/hspec-baseline/issue-198/full-shards-6-default
+
+# Run the opt-in, unregistered fixture/application boundary probe.
+bash ./bin/in-env ./bin/hspec-baseline run \
+  --name phase-probe-measured-1 \
+  --output output/hspec-baseline/issue-198/phase-probe-measured-1 -- \
+  env TEST_SHARDS=1 HSPEC_BASELINE_PROBE=fixture-application \
+    hspec-db --format=progress --no-color
 ```
 
 Important short comparisons used one warm-up and three measured runs. Complete
@@ -105,7 +112,8 @@ The machine-readable inventory is
 It accounts for every `TestSuite` with label, module/path, pure/DB kind, exact
 dry-run example count, static `withCleanDb do` call sites, declared weight,
 measured or labelled-estimated duration, major invariant family,
-committed-visibility assessment, and routine/broad/mixed candidate role.
+committed-visibility assessment, and an explicit `routine-correctness` or
+conservative `broad-acceptance-candidate` role.
 
 | Inventory fact | Count |
 | --- | ---: |
@@ -152,9 +160,11 @@ Two mappings need care rather than an overclaim:
   `subscription.created` and `subscription.deleted` fixtures were not found.
   This is an input to the later domain/acceptance audit, not a change made here.
 
-The JSON records these statuses and the exact mapped suites. It deliberately
-uses candidate classifications; issue #202 owns enforceable registry metadata
-and issue #207 owns lane semantics.
+The JSON records these statuses and the exact mapped suites. Its suite-level
+role decision is conservative: any suite containing cross-component,
+mandatory-invariant, or committed-visibility evidence stays a broad-acceptance
+candidate unless #202 can safely split it. Issue #202 owns enforceable registry
+metadata and issue #207 owns lane semantics.
 
 ## Compilation And Pure Lane
 
@@ -216,10 +226,29 @@ Hspec value is the median of three measured runs.
 | Pay | 25 | 15.455s | 21 / 8.159s | 7.436s |
 | XeroTimesheetPreview | 13 | 27.421s | 13 / 5.832s | 21.692s |
 
-DevSeed is the clearest fixture-heavy bound: only 0.860s of its 23.474s was
-reset time, while the examples build deterministic scenario fixtures and then
-assert their contract. No helper-level timing was added because that would be
-more invasive and could distort the fixture under measurement.
+DevSeed is the clearest fixture-heavy suite bound: only 0.860s of its 23.474s
+was reset time, while the examples build deterministic scenario fixtures and
+then assert their contract.
+
+### Separate fixture/application boundary probe
+
+An opt-in probe in `Test/BaselineProbe.hs` is not registered in `Test/Suite.hs`
+and therefore does not change canonical example counts or selection. It times a
+representative roster request in explicit boundaries: broad reset; venue/user/
+membership fixture construction; authenticated application action; assertion.
+After one warm-up, the three measured values were:
+
+| Run | Reset | Fixture construction | Application action | Hspec `Finished in` |
+| --- | ---: | ---: | ---: | ---: |
+| 1 | 1,382.880ms | 104.653ms | 458.370ms | 1.952s |
+| 2 | 1,227.175ms | 116.592ms | 187.916ms | 1.539s |
+| 3 | 917.361ms | 114.349ms | 143.288ms | 1.184s |
+| **Median** | **1,227.175ms** | **114.349ms** | **187.916ms** | **1.539s** |
+
+This supplies a real fixture-versus-application seam without adding logging to
+ordinary examples. It is representative rather than a claim that all suites
+have the same phase proportions. The per-suite non-reset values above remain
+upper bounds where existing tests do not expose a boundary.
 
 ## Complete Hspec And Shard Scaling
 
@@ -364,6 +393,21 @@ This is issue routing, not implementation on the #198 branch:
    pure Hspec is already below 0.5s, so guard deletion is not the main runtime
    lever and complete acceptance must remain mandatory.
 
+## Validation
+
+- `typecheck`: passed after the final instrumentation/probe changes.
+- structural inventory regeneration/check: 70 suites and 1,021 examples; passed.
+- opt-in phase probe: 1 example, 0 failures; canonical pure focused: 1/0;
+  canonical DB focused: 4/0.
+- canonical metrics-unset `hspec-test`: 1,021 examples, 0 failures across six
+  shards after the review fixes; no shard database or test backend remained.
+- `format`, focused HLint for the new probe/runner, Ruff for
+  `bin/hspec-baseline`, and `doc-drift-check`: passed.
+- repository-wide `lint` remains blocked by a pre-existing HLint suggestion in
+  unchanged `Web/Timesheets/Validation.hs`; a whole-file HLint run on
+  `Test/Support.hs` likewise reports an unchanged suggestion around line 246.
+  Neither finding is in the #198 diff.
+
 ## Limitations And Failed Measurements
 
 - Pure, reset, and native short comparisons use one warm-up plus three measured
@@ -375,14 +419,19 @@ This is issue routing, not implementation on the #198 branch:
   failed artifact is retained under
   `full-shards-2-attempt-1-failed-name-collision/`, and the successful two-shard
   run was repeated. It is excluded from all medians/comparisons.
+- The first two fixture/application probe attempts failed at compile time while
+  the new opt-in probe was being wired (`phase-probe-attempt-{1,2}-compile-failure`).
+  Neither produced timing samples; both are retained as failed attempts and the
+  fixed probe then received one warm-up plus three successful measurements.
 - The exclusive lock coordinates compliant local agents and the tool checks for
   known benchmark/full-suite processes. It cannot eliminate unrelated host or
   hypervisor noise.
 - PostgreSQL polling at one second is bounded but not free. Raw command wall
   includes that monitoring load; its process is on the `postgres` database and
   excluded from test-connection counts.
-- Fixture timing is an upper bound, not helper-level attribution. No permanent
-  verbose SQL/test logging was enabled.
+- The opt-in boundary probe separates fixture and application time for one
+  representative roster path. Existing-suite residuals remain upper bounds;
+  no permanent verbose SQL/test logging was enabled.
 - Committed-visibility classifications are source-inspection assessments.
   `required` is reserved for explicit concurrency or a separately constructed
   context; `possible` cases require proof in #202/#203.
@@ -399,6 +448,7 @@ Generated raw artifacts are intentionally ignored by Git:
   `output/hspec-baseline/issue-198/environment-wrapper.json`
 - cold/warm pure runs: `output/hspec-baseline/issue-198/pure-*`
 - focused DB runs: `output/hspec-baseline/issue-198/focused-*`
+- separate fixture/application probe: `output/hspec-baseline/issue-198/phase-probe-*`
 - reset runs: `output/hspec-baseline/issue-198/reset-*`
 - native ext4 runs and server evidence:
   `output/hspec-baseline/issue-198/native-*`

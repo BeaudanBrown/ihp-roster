@@ -27,8 +27,13 @@ DEFAULT_LOCK = Path("/tmp/bepis-exclusive-performance.lock")
 RELEVANT_PROCESS_MARKERS = (
     "build/Test/Main",
     "hspec-test",
+    "hspec-pure",
     "hspec-db",
+    "hspec-coverage",
+    "verify-fast",
+    "verify-full",
     "playwright",
+    "/e2e ",
     "profile-load",
     "test-db-reset",
     "/k6 ",
@@ -426,12 +431,12 @@ def parse_shard_log(path: Path) -> dict[str, Any] | None:
     return result
 
 
-def reset_metrics(metrics_dir: Path) -> dict[str, Any]:
+def duration_metrics(metrics_dir: Path, prefix: str) -> dict[str, Any]:
     all_seconds: list[float] = []
     by_shard: dict[str, Any] = {}
-    for path in sorted(metrics_dir.glob("reset-shard-*-ns.txt")):
+    for path in sorted(metrics_dir.glob(f"{prefix}-shard-*-ns.txt")):
         values = [int(line) / 1_000_000_000 for line in path.read_text().splitlines() if line.strip()]
-        shard_match = re.search(r"reset-shard-(\d+)-ns", path.name)
+        shard_match = re.search(rf"{re.escape(prefix)}-shard-(\d+)-ns", path.name)
         shard = shard_match.group(1) if shard_match else path.stem
         all_seconds.extend(values)
         by_shard[shard] = {
@@ -485,7 +490,9 @@ def summarize_run(run_dir: Path) -> dict[str, Any]:
         max_test_connections = max(max_test_connections, test_connections)
 
     host_samples = parse_json_lines(run_dir / "host-samples.jsonl")
-    reset = reset_metrics(run_dir / "metrics")
+    reset = duration_metrics(run_dir / "metrics", "reset")
+    fixture = duration_metrics(run_dir / "metrics", "fixture")
+    application = duration_metrics(run_dir / "metrics", "application")
     execution_by_shard = {
         str(item["shard"]): item["durationSeconds"]
         for item in phase_groups.get("hspec_execution", [])
@@ -532,6 +539,8 @@ def summarize_run(run_dir: Path) -> dict[str, Any]:
         ),
         "internalLauncherAndReportingSeconds": internal_launcher_seconds,
         "resets": reset,
+        "fixtureConstruction": fixture,
+        "applicationExecution": application,
         "aggregateNonResetHspecSecondsByShard": non_reset_by_shard,
         "shards": sorted(shards, key=lambda item: item["shard"]),
         "postgresSampling": {
@@ -631,6 +640,20 @@ def capture_run(args: argparse.Namespace) -> int:
         )
 
         interrupted = False
+        termination_signal: int | None = None
+        handling_termination = False
+        previous_signal_handlers: dict[int, Any] = {}
+
+        def request_termination(signum: int, _frame: Any) -> None:
+            nonlocal termination_signal
+            termination_signal = signum
+            if not handling_termination:
+                raise KeyboardInterrupt
+
+        for handled_signal in (signal.SIGINT, signal.SIGTERM, signal.SIGHUP):
+            previous_signal_handlers[handled_signal] = signal.getsignal(handled_signal)
+            signal.signal(handled_signal, request_termination)
+
         try:
             while process.poll() is None:
                 sample_started = time.monotonic()
@@ -641,15 +664,19 @@ def capture_run(args: argparse.Namespace) -> int:
                     time.sleep(remaining)
         except KeyboardInterrupt:
             interrupted = True
-            os.killpg(process.pid, signal.SIGTERM)
-            try:
-                process.wait(timeout=10)
-            except subprocess.TimeoutExpired:
-                os.killpg(process.pid, signal.SIGKILL)
-                process.wait()
+            handling_termination = True
+            if process.poll() is None:
+                os.killpg(process.pid, signal.SIGTERM)
+                try:
+                    process.wait(timeout=10)
+                except subprocess.TimeoutExpired:
+                    os.killpg(process.pid, signal.SIGKILL)
+                    process.wait()
         finally:
             exit_code = process.wait()
             command_log.close()
+            for handled_signal, previous_handler in previous_signal_handlers.items():
+                signal.signal(handled_signal, previous_handler)
 
         finished_monotonic = time.monotonic()
         finished_at = dt.datetime.now(dt.timezone.utc)
@@ -672,7 +699,11 @@ def capture_run(args: argparse.Namespace) -> int:
             "finishedAt": finished_at.isoformat(),
             "wallSeconds": finished_monotonic - started_monotonic,
             "sampleIntervalSeconds": args.sample_interval,
-            "exitCode": 130 if interrupted else exit_code,
+            "exitCode": (
+                128 + termination_signal
+                if interrupted and termination_signal is not None
+                else 130 if interrupted else exit_code
+            ),
         }
         json_write(run_dir / "run.json", metadata)
         summary = summarize_run(run_dir)
