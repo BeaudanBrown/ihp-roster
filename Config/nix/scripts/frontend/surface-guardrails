@@ -1197,6 +1197,63 @@ expect_match \
     'display-mode: standalone' \
     frontend/ts/app-pwa.ts
 
+expect_no_match \
+    "replaced handwritten Xero candidate-filter roles must stay deleted" \
+    'data-xero-import-(loading|search|candidates?)' \
+    Application Web frontend/ts e2e static
+
+expect_no_match \
+    "production Haskell and TypeScript must consume generated Xero candidate-filter attribute names" \
+    'data-bepis-xero-candidate-filter-(root|search|candidate|config|empty)' \
+    Application Web frontend/ts e2e
+
+for xero_filter_contract_name in \
+    xeroCandidateFilterRootDomAttr \
+    xeroCandidateFilterSearchDomAttr \
+    xeroCandidateFilterCandidateDomAttr \
+    xeroCandidateFilterConfigDomAttr \
+    xeroCandidateFilterEmptyDomAttr; do
+    expect_match \
+        "the Xero candidate-filter adapter must consume generated ${xero_filter_contract_name}" \
+        "\\b${xero_filter_contract_name}\\b" \
+        frontend/ts/app-xero.ts
+done
+
+expect_match \
+    "the Xero candidate-filter boundary must consume the generated exact config parser" \
+    'parseXeroCandidateFilterConfig' \
+    frontend/ts/xero-candidate-filter/configuration.ts
+
+expect_match \
+    "the Xero candidate-filter adapter must report structured boundary diagnostics" \
+    'XeroCandidateFilterDiagnostic' \
+    frontend/ts/app-xero.ts
+
+expect_match \
+    "Xero candidate rendering must build the opaque normalized projection in Haskell" \
+    'xeroCandidateSearchProjection' \
+    Web/View/Admin/Xero/ImportedPayItems.hs
+
+expect_no_match \
+    "the Xero candidate-filter adapter must not infer feature fields or presentation selectors" \
+    'xeroEarningsRate|accountCode|ratePerUnit|textContent|innerText|\.modal-content|\.list-group|d-none' \
+    frontend/ts/app-xero.ts
+
+expect_no_match \
+    "the Xero candidate-filter adapter must not replace server-rendered candidate markup" \
+    'innerHTML|insertAdjacentHTML|replaceChildren' \
+    frontend/ts/app-xero.ts
+
+expect_no_match \
+    "replaced Xero filter adapter aliases must stay deleted" \
+    '\bupdateXeroImportFilter\b' \
+    frontend/ts e2e static
+
+expect_match \
+    "Xero candidate visibility CSS must preserve native hidden state against Bootstrap flex utilities" \
+    '\[data-bepis-xero-candidate-filter-candidate\]\[hidden\]' \
+    static/css/features/xero.css
+
 if [ "$failures" -ne 0 ]; then
     exit 1
 fi

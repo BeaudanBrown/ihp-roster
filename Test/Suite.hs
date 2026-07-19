@@ -79,6 +79,7 @@ import qualified Test.TimePickerSpec
 import qualified Test.ToggleButtonSpec
 import qualified Test.VenueInvitationSpec
 import qualified Test.VenueOnboardingInvitationSpec
+import qualified Test.XeroCandidateFilterSpec
 import qualified Test.XeroContractSpec
 import qualified Test.XeroImportedPayItemsSpec
 import qualified Test.XeroKeepaliveSpec
@@ -295,6 +296,7 @@ allSuites =
     , databaseSuite "TimePicker" 5 Test.TimePickerSpec.tests
     , databaseSuite "Mail" 10 Test.MailSpec.tests
     , pureSuite "MutationBoundary" 5 Test.MutationBoundarySpec.tests
+    , databaseSuite "XeroCandidateFilter" 5 Test.XeroCandidateFilterSpec.tests
     , pureSuite "XeroContract" 20 Test.XeroContractSpec.tests
     , pureSuite "XeroImportedPayItems" 10 Test.XeroImportedPayItemsSpec.tests
     , databaseSuite "XeroKeepalive" 10 Test.XeroKeepaliveSpec.tests

@@ -699,6 +699,26 @@ export const pwaInstallResultStateDomAttr = "data-bepis-pwa-install-result-state
 
 export const pwaInstalledStatusDomAttr = "data-bepis-pwa-installed-status" as const;
 
+export type XeroCandidateFilterConfig = { searchProjection: string };
+export function isXeroCandidateFilterConfig(value: unknown): value is XeroCandidateFilterConfig {
+    return isRecord(value) && hasExactKeys(value, ["searchProjection"]) && (typeof value["searchProjection"] === "string");
+}
+
+export function parseXeroCandidateFilterConfig(value: unknown): XeroCandidateFilterConfig {
+    if (isXeroCandidateFilterConfig(value)) return value;
+    throw new Error("Invalid XeroCandidateFilterConfig");
+}
+
+export const xeroCandidateFilterRootDomAttr = "data-bepis-xero-candidate-filter-root" as const;
+
+export const xeroCandidateFilterSearchDomAttr = "data-bepis-xero-candidate-filter-search" as const;
+
+export const xeroCandidateFilterCandidateDomAttr = "data-bepis-xero-candidate-filter-candidate" as const;
+
+export const xeroCandidateFilterConfigDomAttr = "data-bepis-xero-candidate-filter-config" as const;
+
+export const xeroCandidateFilterEmptyDomAttr = "data-bepis-xero-candidate-filter-empty" as const;
+
 export const liveUpdateSocketPath = "live-updates" as const;
 
 export const liveUpdateClientIdHeader = "X-Live-Update-Client-Id" as const;

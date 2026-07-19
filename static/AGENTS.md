@@ -38,6 +38,12 @@ Read this before editing `static/` assets.
   the closed result-state guard. Haskell owns all workflow messages. Browser
   install events, prompt objects, and standalone/platform detection stay in the
   adapter, while visibility and accessibility use native `hidden`/ARIA state.
+- `app-xero.js` consumes generated candidate-filter root/search/candidate/
+  config/empty roles and the exact config parser. Haskell owns the opaque
+  normalized projection and all import identity/copy; the adapter validates and
+  diagnoses the complete local boundary before fuzzy matching and native
+  `hidden` changes. Xero feature CSS must keep `[hidden]` authoritative over
+  Bootstrap flex utilities without introducing a second browser state class.
 - Keep app JavaScript split by concern:
   - `app-bootstrap.js`
   - `app-date-pickers.js`
@@ -53,6 +59,7 @@ Read this before editing `static/` assets.
   - `app-time-picker.js`
   - `app-timesheets.js`
   - `app-toasts.js`
+  - `app-xero.js`
 - Keep CSS split by concern under `static/css/`; read `static/css/README.md`
   before adding or moving app-owned CSS.
 - Choose the narrowest owner: semantic tokens in `static/css/tokens.css`,

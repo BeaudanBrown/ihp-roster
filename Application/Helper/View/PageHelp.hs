@@ -234,7 +234,7 @@ pageHelpTopics =
         [ section HelpOwnerPlus "Xero tasks"
             [ iconItem HelpOwnerPlus "bi-link-45deg" "Connect" "Connect Xero first" "Use the connection section before syncing payroll data or preparing timesheets."
             , iconItem HelpOwnerPlus "bi-arrow-repeat" "Sync" "Sync payroll reference data" "Refresh Xero employees, earnings rates, calendars, and accounts from the connection shell."
-            , iconItem HelpOwnerPlus "bi-cloud-download" "Import" "Import optional pay items" "Use Import pay items to bring supported hourly earnings rates into Bepis."
+            , iconItem HelpOwnerPlus "bi-cloud-download" "Import" "Import optional pay items" "Use Import pay items to search by name or account code, then select supported hourly earnings rates to bring into Bepis."
             , iconItem HelpOwnerPlus "bi-send-check" "Prepare" "Review before submitting" "Upload timesheets opens the guided workflow for staff decisions, pay items, readiness, preview, and draft submission."
             ]
         ]

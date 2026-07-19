@@ -63,6 +63,9 @@ import Application.Helper.FrontendContract.Wire.Json (validateContractMarkerValu
                                                       validateSurfaceScopeValue,
                                                       validateWireValue)
 import qualified Application.Helper.FrontendContract.Wire.LiveUpdate as Live
+import qualified Application.Helper.FrontendContract.XeroCandidateFilter as XeroCandidateFilter
+import Application.Helper.FrontendContract.XeroCandidateFilter.Runtime (XeroCandidateFilterDom (..),
+                                                                        canonicalXeroCandidateFilterDom)
 import qualified Data.Aeson as Aeson
 import qualified Data.Aeson.Key as AesonKey
 import qualified Data.Aeson.KeyMap as KeyMap
@@ -269,6 +272,8 @@ tests = describe "Frontend contract generator foundation" do
         lookupDomAttrValue @PwaInstall.PwaInstallPage `shouldBe` Right canonicalPwaInstallDom.pwaInstallPageAttribute
         lookupDomAttrValue @PwaInstall.PwaInstallResultState `shouldBe` Right canonicalPwaInstallDom.pwaInstallResultStateAttribute
         lookupEnumLiteralValue @PwaInstall.PwaInstallState @PwaInstall.Accepted `shouldBe` Right "accepted"
+        lookupDomAttrValue @XeroCandidateFilter.XeroCandidateFilterRoot `shouldBe` Right canonicalXeroCandidateFilterDom.xeroCandidateFilterRootAttribute
+        lookupDomAttrValue @XeroCandidateFilter.XeroCandidateFilterConfig `shouldBe` Right canonicalXeroCandidateFilterDom.xeroCandidateFilterConfigAttribute
         lookupConstantValue @OrderedRange.OrderedRangeClampOtherEndpoint `shouldBe` Right "clamp-other-endpoint"
         lookupEventNameValue @App.IntentSubmit `shouldBe` Right interactionIntentSubmitHtmxTrigger
         lookupEnumLiteralValue @App.RosterStaffSortKey @App.Name `shouldBe` Right "name"

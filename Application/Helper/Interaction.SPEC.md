@@ -118,6 +118,13 @@ SurfaceFamily
   prompt objects, and platform detection local. Visibility uses native `hidden`,
   and status announcements keep ordinary status/live-region semantics rather
   than duplicating availability or installed state in app attributes.
+- **Xero imported-pay-item candidate filters** are governed by the focused global
+  `XeroCandidateFilterContract` for root, search, candidate, and empty-state
+  roles plus exact configuration carrying one opaque normalized projection. The
+  Xero view selects projection fields and renders workflow identity/copy; the
+  adapter parses and diagnoses the exact boundary before generic matching and
+  native visibility changes inside one generated root. Import validation and
+  mutation authority remain server-owned.
 
 Views should not handwrite raw interaction `data-bepis-*` attributes, ref names,
 disposable layer mounts, intent forms, HTMX intent attributes, or target ids once

@@ -37,6 +37,12 @@ Read this before editing `frontend/ts/`.
   copy. Keep `beforeinstallprompt`, `appinstalled`, prompt objects, display-mode,
   and Apple standalone detection adapter-local; use native `hidden` and ARIA
   semantics rather than serializing availability or installed platform state.
+- The Xero candidate-filter adapter imports generated root/search/candidate/
+  config/empty roles and the exact candidate-config parser. Treat each
+  Haskell-normalized projection as opaque: validate the complete local boundary,
+  emit structured diagnostics, then perform only generic query normalization,
+  fuzzy matching, and native `hidden` updates. Do not inspect candidate text,
+  infer Xero fields, or reconstruct import identity in TypeScript.
 - Each reflected root declares browser reachability. Server-only roots emit nothing; type-only roots emit only a type/constant; inbound roots add guards/parsers; outbound roots add encoders; bidirectional roots add both. Unknown JSON boundaries should use generated `parseX`; outbound JSON-shaped DTOs should use generated `encodeX`; runtime code must not recreate generated validators/parsers/encoders by hand.
 - Use Nix/devenv entrypoints, not developer-facing `npm`/`npx` commands.
 - Supported commands:

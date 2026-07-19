@@ -276,3 +276,8 @@ expect_compile_failure \
     "Test/CompileFail/FrontendHorizontalScrollIncompleteConfig.hs" \
     "Couldn't match type: '[]" \
     "HorizontalScroll.GroupScopeSelector"
+
+expect_compile_failure \
+    "Test/CompileFail/FrontendXeroCandidateRawProjection.hs" \
+    "Illegal term-level use of the type constructor" \
+    "XeroCandidateSearchProjection"

@@ -469,6 +469,25 @@ handling locally. Availability and installed/result visibility use native
 adapter selects existing server-rendered copy and must not synthesize fallback
 messages or persist an availability/installed state attribute.
 
+### Generated Xero candidate-filter capability
+
+`Application.Helper.FrontendContract.XeroCandidateFilter` owns the root, search,
+candidate, and filtered-empty roles plus one exact candidate configuration for
+the imported pay-item dialog. Its runtime accepts only Haskell-selected text
+fields, normalizes them once, hides the projection constructor, and serializes
+that projection through a declaration-indexed record. Views cannot attach raw
+feature text without crossing the boundary, while the generated exact parser
+rejects absent, extra, or incorrectly typed configuration fields.
+
+The Xero view chooses earnings-rate name and account code as projection inputs
+while retaining checkbox names, remote earnings-rate ids, validation, and import
+routes on the server. The adapter imports every role and the exact config parser,
+validates a complete root before mutation, reports structured diagnostics, then
+fuzzy-matches the opaque projection and changes only native `hidden` state. A
+feature CSS rule keeps hidden candidate labels invisible
+when Bootstrap's `d-flex !important` utility is present. Filtered-empty copy and
+status/live-region semantics remain server-rendered.
+
 ### Generated overlay capability
 
 `Application.Helper.FrontendContract.Overlay` owns the shared workflow-dialog

@@ -21,6 +21,7 @@ import Application.Helper.FrontendContract.Surface.Contracts (registeredFrontend
 import Application.Helper.FrontendContract.TimePicker
 import Application.Helper.FrontendContract.Toggle
 import Application.Helper.FrontendContract.UiRegion
+import Application.Helper.FrontendContract.XeroCandidateFilter
 
 -- | Root frontend browser contract registry. Global roots live here; Surface
 -- roots are appended from the registered surface contract registry.
@@ -35,6 +36,7 @@ type RegisteredFrontendContracts =
      , OrderedRangeContract
      , HorizontalScrollContract
      , PwaInstallContract
+     , XeroCandidateFilterContract
      , LiveUpdateContract
      ] :: [FrontendContractSpec]
 

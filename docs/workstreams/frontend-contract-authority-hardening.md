@@ -204,7 +204,7 @@ slices, and all block final reconciliation.
 16. `#170` - Ordered-range shift preferences. **Complete.**
 17. `#171` - Horizontal drag/snap scrolling.
 18. `#172` - PWA installation adapter. **Complete.**
-19. `#173` - Xero candidate filtering adapter.
+19. `#173` - Xero candidate filtering adapter. **Complete.**
 
 ### Roster browser capabilities
 
@@ -288,6 +288,15 @@ status/live-region semantics, while the adapter retains prompt events, prompt
 objects, display-mode/Apple detection, and `hidden` visibility mechanics. Focused
 view/runtime, generated-state, browser outcome/accessibility, CSS, drift, and
 source guards pin the boundary and keep platform objects out of wire schemas.
+#173 added the global `XeroCandidateFilterContract` with generated root, search,
+candidate, config, and filtered-empty roles plus an exact candidate config parser.
+Imported-pay-item rendering now selects and normalizes name/account-code
+projection fields in Haskell while retaining checkbox identity, validation, and
+mutations on the server. The root-local adapter validates the complete boundary,
+reports structured diagnostics, then performs only generic query normalization,
+fuzzy matching, and native visibility updates; focused render, TypeScript,
+single-worker browser, CSS, drift, compile-failure, and source guards pin that
+boundary.
 Roster linked highlighting depends on closed interaction IR. Staff-panel work
 establishes the browser-reachable Surface DTO path for image export and week
 overview. The Haskell adapter slices run in parallel with capability slices and

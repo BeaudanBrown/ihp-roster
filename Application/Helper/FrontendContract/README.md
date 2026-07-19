@@ -101,6 +101,17 @@ workflow message and associates it with that state. The TypeScript adapter keeps
 local, and changes only native `hidden` state to expose server-rendered copy.
 Those browser-platform objects are not wire schemas.
 
+`XeroCandidateFilterContract` is the focused global pay-item candidate-filter
+capability. It owns generated root, search, candidate, and empty-state roles plus
+an exact candidate config carrying one search projection. The Haskell runtime
+keeps normalized search projections opaque and the
+Xero view explicitly selects the earnings-rate name and account code that
+contribute. The TypeScript adapter scopes itself to one generated root, performs
+only exact config parsing, structured boundary diagnostics, generic query
+normalization/fuzzy matching, and native `hidden` changes. Server-rendered
+checkbox identity, copy, validation, and import mutations
+remain Xero-owned.
+
 `AppShellAction` is the server-rendered lane for app-owned shell request initiators
 that are not owned by a mounted `FrontendSurface`, including dialog/overlay
 workflows targeting the generated shared dialog mount. The DSL owns
