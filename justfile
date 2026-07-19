@@ -38,6 +38,14 @@ tunnel-grill:
         -L 1025:localhost:1025 \
         grill
 
+tunnel-agent:
+    ssh -N -T \
+        -L 8000:localhost:8000 \
+        -L 8001:localhost:8001 \
+        -L 8025:localhost:8025 \
+        -L 1025:localhost:1025 \
+        agent
+
 db:
     make db
 
