@@ -9,6 +9,40 @@ export TEST_DB_SOCKET="${TEST_DB_SOCKET:-${PGHOST:-$PWD/build/db}}"
 TEST_LANE="${TEST_LANE:-all}"
 export TEST_LANE
 
+HSPEC_METRICS_DIR="${HSPEC_METRICS_DIR:-}"
+HSPEC_PHASE_METRICS_FILE=""
+if [ -n "$HSPEC_METRICS_DIR" ]; then
+    mkdir -p "$HSPEC_METRICS_DIR"
+    HSPEC_PHASE_METRICS_FILE="$HSPEC_METRICS_DIR/phases.jsonl"
+    : > "$HSPEC_PHASE_METRICS_FILE"
+fi
+
+metrics_now() {
+    if [ -n "$HSPEC_PHASE_METRICS_FILE" ]; then
+        date +%s.%N
+    else
+        printf '0\n'
+    fi
+}
+
+record_phase() {
+    local phase="$1"
+    local shard="$2"
+    local started_at="$3"
+    local finished_at="$4"
+
+    if [ -z "$HSPEC_PHASE_METRICS_FILE" ]; then
+        return 0
+    fi
+
+    local duration
+    duration="$(awk -v started_at="$started_at" -v finished_at="$finished_at" 'BEGIN { printf "%.9f", finished_at - started_at }')"
+    printf '{"phase":"%s","shard":%s,"startedAt":%s,"finishedAt":%s,"durationSeconds":%s}\n' \
+        "$phase" "$shard" "$started_at" "$finished_at" "$duration" >> "$HSPEC_PHASE_METRICS_FILE"
+}
+
+script_started_at="$(metrics_now)"
+
 case "$TEST_LANE" in
     all|pure|db)
         ;;
@@ -66,17 +100,43 @@ GHC_OPTS="$(ihp_roster_ghc_opts) -iTest"
 VERIFICATION_DIR="$(ihp_roster_verification_build_dir)"
 ihp_roster_prepare_ghc_build_dir "$VERIFICATION_DIR" "$GHC_OPTS"
 mkdir -p build/Test
+compile_started_at="$(metrics_now)"
 ghc $GHC_OPTS -main-is Test.HspecMain Test/HspecMain.hs -o build/Test/Main \
     -odir "$VERIFICATION_DIR/obj" \
     -hidir "$VERIFICATION_DIR/hi"
+compile_finished_at="$(metrics_now)"
+record_phase "compile" 0 "$compile_started_at" "$compile_finished_at"
 
 if [ "$TEST_SHARDS" -eq 1 ]; then
+    if [ -n "$HSPEC_METRICS_DIR" ]; then
+        export HSPEC_RESET_METRICS_FILE="$HSPEC_METRICS_DIR/reset-shard-1-ns.txt"
+        : > "$HSPEC_RESET_METRICS_FILE"
+    fi
+
     if [ "$TEST_LANE" != "pure" ]; then
         export TEST_DATABASE_NAME="$BASE_TEST_DATABASE_NAME"
         export DATABASE_URL="postgresql:///$TEST_DATABASE_NAME?host=$TEST_DB_SOCKET"
+        database_started_at="$(metrics_now)"
         test-db-reset
+        database_finished_at="$(metrics_now)"
+        record_phase "shard_database_create" 1 "$database_started_at" "$database_finished_at"
     fi
-    exec build/Test/Main "$@"
+
+    if [ -z "$HSPEC_PHASE_METRICS_FILE" ]; then
+        exec build/Test/Main "$@"
+    fi
+
+    execution_started_at="$(metrics_now)"
+    if build/Test/Main "$@"; then
+        status=0
+    else
+        status=$?
+    fi
+    execution_finished_at="$(metrics_now)"
+    record_phase "hspec_execution" 1 "$execution_started_at" "$execution_finished_at"
+    script_finished_at="$(metrics_now)"
+    record_phase "command_total" 0 "$script_started_at" "$script_finished_at"
+    exit "$status"
 fi
 
 RUN_ID="${TEST_RUN_ID:-$(date +%s)-$$-$RANDOM}"
@@ -100,27 +160,48 @@ run_test_shard() {
         export TEST_DATABASE_NAME="$shard_db_name"
         export DATABASE_URL="postgresql:///$TEST_DATABASE_NAME?host=$TEST_DB_SOCKET"
 
+        if [ -n "$HSPEC_METRICS_DIR" ]; then
+            export HSPEC_RESET_METRICS_FILE="$HSPEC_METRICS_DIR/reset-shard-$shard_index-ns.txt"
+            : > "$HSPEC_RESET_METRICS_FILE"
+        fi
+
         cleanup() {
             if [ "$TEST_LANE" = "pure" ] || [ "${TEST_KEEP_DATABASES:-0}" = "1" ]; then
                 return 0
             fi
 
+            local cleanup_started_at cleanup_finished_at
+            cleanup_started_at="$(metrics_now)"
             psql -h "$TEST_DB_SOCKET" -d postgres -v ON_ERROR_STOP=1 <<SQL >/dev/null 2>&1 || true
 DROP DATABASE IF EXISTS "$TEST_DATABASE_NAME" WITH (FORCE);
 SQL
+            cleanup_finished_at="$(metrics_now)"
+            record_phase "shard_database_drop" "$shard_index" "$cleanup_started_at" "$cleanup_finished_at"
         }
         trap cleanup EXIT INT TERM
 
         if [ "$TEST_LANE" != "pure" ]; then
+            database_started_at="$(metrics_now)"
             test-db-reset
+            database_finished_at="$(metrics_now)"
+            record_phase "shard_database_create" "$shard_index" "$database_started_at" "$database_finished_at"
         fi
-        build/Test/Main "$@"
-        exit $?
+
+        execution_started_at="$(metrics_now)"
+        if build/Test/Main "$@"; then
+            status=0
+        else
+            status=$?
+        fi
+        execution_finished_at="$(metrics_now)"
+        record_phase "hspec_execution" "$shard_index" "$execution_started_at" "$execution_finished_at"
+        exit "$status"
     ) >"$shard_log" 2>&1 &
 
     shard_pids+=("$!")
 }
 
+parallel_started_at="$(metrics_now)"
 for shard_index in $(seq 1 "$TEST_SHARDS"); do
     run_test_shard "$shard_index" "$@"
 done
@@ -135,6 +216,9 @@ for shard_offset in "${!shard_pids[@]}"; do
     fi
 done
 
+parallel_finished_at="$(metrics_now)"
+record_phase "parallel_run" 0 "$parallel_started_at" "$parallel_finished_at"
+
 if [ "$failed" -ne 0 ]; then
     echo "Parallel hspec run failed; shard logs are under $STATE_DIR" >&2
     for shard_index in $(seq 1 "$TEST_SHARDS"); do
@@ -145,8 +229,12 @@ if [ "$failed" -ne 0 ]; then
             tail -n 120 "$STATE_DIR/shard-$shard_index.log" >&2 || true
         fi
     done
+    script_finished_at="$(metrics_now)"
+    record_phase "command_total" 0 "$script_started_at" "$script_finished_at"
     exit 1
 fi
 
 echo "Parallel hspec run completed across $TEST_SHARDS shards"
 echo "Shard logs: $STATE_DIR"
+script_finished_at="$(metrics_now)"
+record_phase "command_total" 0 "$script_started_at" "$script_finished_at"

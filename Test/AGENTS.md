@@ -38,6 +38,32 @@ For debugging:
 - `TEST_KEEP_DATABASES=1` preserves shard databases after the run instead of dropping them
 - `.devenv/test/latest/` points at the most recent shard log directory
 
+## Reproducible Baselines
+
+Use `bin/hspec-baseline` for performance evidence rather than ad-hoc timing. It
+holds the host-global `/tmp/bepis-exclusive-performance.lock`, refuses to
+measure alongside another known full test/profile process, separates compile,
+shard database, Hspec, reset, and cleanup phases, and samples PostgreSQL
+connections/waits at a bounded rate. Raw artifacts belong under the ignored
+`output/hspec-baseline/` tree.
+
+```bash
+bash ./bin/in-env ./bin/hspec-baseline run \
+  --name local-full-6 --output output/hspec-baseline/local-full-6 -- \
+  env TEST_SHARDS=6 hspec-test --format=progress --no-color --times
+
+bash ./bin/in-env ./bin/hspec-baseline inventory \
+  --check docs/archive/hspec-suite-inventory-2026-07-19.json \
+  --output output/hspec-baseline/inventory-check.json
+```
+
+Use one warm-up plus three measured runs for short comparisons. Report failed
+runs separately, do not include them in medians, and label single expensive
+full runs as such. `HSPEC_METRICS_DIR` and `HSPEC_RESET_METRICS_FILE` are
+internal instrumentation variables; leave them unset during normal Hspec use.
+The issue #198 protocol and baseline are archived in
+`docs/archive/hspec-critical-path-baseline-2026-07-19.md`.
+
 ## Coverage
 
 Use `bash ./bin/in-env hspec-coverage [hspec-args...]` when adding or materially changing Hspec coverage. It compiles the test runner with GHC HPC instrumentation, runs serially against the isolated `app_test_coverage` database, prints an app-source per-module text report, and writes durable artifacts under `output/coverage/hspec/latest/`:

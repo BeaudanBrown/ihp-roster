@@ -26,6 +26,7 @@ import Data.Time.LocalTime (TimeOfDay (..))
 import qualified Data.Vault.Lazy as Vault
 import Database.PostgreSQL.Simple.Types (Binary (Binary))
 import Generated.Types
+import GHC.Clock (getMonotonicTimeNSec)
 import IHP.Controller.Context (ControllerContext, newControllerContext)
 import IHP.Controller.Session (sessionVaultKey)
 import IHP.ControllerPrelude
@@ -40,7 +41,9 @@ import IHP.Test.Mocking
 import Network.HTTP.Types.Header (RequestHeaders)
 import qualified Network.Wai as Wai
 import qualified Network.Wai.Session.Maybe as WaiSession
-import System.Environment (setEnv)
+import System.Environment (lookupEnv, setEnv)
+import qualified System.IO as IO
+import System.IO.Unsafe (unsafePerformIO)
 import Web.FrontController ()
 import Web.Types
 
@@ -51,8 +54,20 @@ testContext = do
 
 withCleanDb :: (?modelContext :: ModelContext) => IO a -> IO a
 withCleanDb action = do
-    resetDatabase
+    case hspecResetMetricsFile of
+        Nothing -> resetDatabase
+        Just metricsFile -> do
+            startedAt <- getMonotonicTimeNSec
+            resetDatabase
+            finishedAt <- getMonotonicTimeNSec
+            IO.appendFile metricsFile (Text.unpack (tshow (finishedAt - startedAt)) <> "\n")
     action
+
+-- Optional, process-local measurement only. The canonical test path performs
+-- the same reset without filesystem writes when the variable is unset.
+{-# NOINLINE hspecResetMetricsFile #-}
+hspecResetMetricsFile :: Maybe FilePath
+hspecResetMetricsFile = unsafePerformIO (lookupEnv "HSPEC_RESET_METRICS_FILE")
 
 withControllerTestContext ::
     (?mocking :: MockContext WebApplication, ?request :: Wai.Request, ?respond :: Respond) =>
