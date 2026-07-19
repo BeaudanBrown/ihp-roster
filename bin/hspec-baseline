@@ -26,6 +26,7 @@ ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_LOCK = Path("/tmp/bepis-exclusive-performance.lock")
 RELEVANT_PROCESS_MARKERS = (
     "build/Test/Main",
+    "build/TestCoverage/Main",
     "hspec-test",
     "hspec-pure",
     "hspec-db",
@@ -630,19 +631,14 @@ def capture_run(args: argparse.Namespace) -> int:
         started_at = dt.datetime.now(dt.timezone.utc)
         started_monotonic = time.monotonic()
         command_log = (run_dir / "command.log").open("w")
-        process = subprocess.Popen(
-            command,
-            cwd=ROOT,
-            env=env,
-            stdout=command_log,
-            stderr=subprocess.STDOUT,
-            start_new_session=True,
-        )
-
+        process: subprocess.Popen[str] | None = None
         interrupted = False
         termination_signal: int | None = None
         handling_termination = False
+        handled_signals = (signal.SIGINT, signal.SIGTERM, signal.SIGHUP)
         previous_signal_handlers: dict[int, Any] = {}
+        previous_signal_mask: set[signal.Signals] | None = None
+        signal_mask_restored = False
 
         def request_termination(signum: int, _frame: Any) -> None:
             nonlocal termination_signal
@@ -650,11 +646,27 @@ def capture_run(args: argparse.Namespace) -> int:
             if not handling_termination:
                 raise KeyboardInterrupt
 
-        for handled_signal in (signal.SIGINT, signal.SIGTERM, signal.SIGHUP):
-            previous_signal_handlers[handled_signal] = signal.getsignal(handled_signal)
-            signal.signal(handled_signal, request_termination)
-
         try:
+            for handled_signal in handled_signals:
+                previous_signal_handlers[handled_signal] = signal.getsignal(handled_signal)
+                signal.signal(handled_signal, request_termination)
+
+            # Block termination while Popen creates the new process group. A
+            # pending signal is delivered only after `process` is assigned, so
+            # the handler can never release the lock with an orphaned child.
+            previous_signal_mask = signal.pthread_sigmask(signal.SIG_BLOCK, handled_signals)
+            process = subprocess.Popen(
+                command,
+                cwd=ROOT,
+                env=env,
+                stdout=command_log,
+                stderr=subprocess.STDOUT,
+                start_new_session=True,
+                text=True,
+            )
+            signal.pthread_sigmask(signal.SIG_SETMASK, previous_signal_mask)
+            signal_mask_restored = True
+
             while process.poll() is None:
                 sample_started = time.monotonic()
                 append_json_line(run_dir / "postgres-samples.jsonl", postgres_activity_sample(env))
@@ -664,16 +676,20 @@ def capture_run(args: argparse.Namespace) -> int:
                     time.sleep(remaining)
         except KeyboardInterrupt:
             interrupted = True
-            handling_termination = True
-            if process.poll() is None:
-                os.killpg(process.pid, signal.SIGTERM)
-                try:
-                    process.wait(timeout=10)
-                except subprocess.TimeoutExpired:
-                    os.killpg(process.pid, signal.SIGKILL)
-                    process.wait()
         finally:
-            exit_code = process.wait()
+            handling_termination = True
+            if previous_signal_mask is not None and not signal_mask_restored:
+                signal.pthread_sigmask(signal.SIG_SETMASK, previous_signal_mask)
+            if process is not None:
+                if (interrupted or sys.exc_info()[0] is not None) and process.poll() is None:
+                    os.killpg(process.pid, signal.SIGTERM)
+                    try:
+                        process.wait(timeout=10)
+                    except subprocess.TimeoutExpired:
+                        os.killpg(process.pid, signal.SIGKILL)
+                exit_code = process.wait()
+            else:
+                exit_code = 1
             command_log.close()
             for handled_signal, previous_handler in previous_signal_handlers.items():
                 signal.signal(handled_signal, previous_handler)

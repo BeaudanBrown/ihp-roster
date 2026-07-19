@@ -403,6 +403,10 @@ This is issue routing, not implementation on the #198 branch:
   shards after the review fixes; no shard database or test backend remained.
 - `format`, focused HLint for the new probe/runner, Ruff for
   `bin/hspec-baseline`, and `doc-drift-check`: passed.
+- termination smoke: SIGTERM produced exit 143, terminated the child process
+  group before releasing the host lock, and left no metrics staging directory;
+  synthetic `hspec-coverage` and direct `build/TestCoverage/Main` conflicts were
+  detected.
 - repository-wide `lint` remains blocked by a pre-existing HLint suggestion in
   unchanged `Web/Timesheets/Validation.hs`; a whole-file HLint run on
   `Test/Support.hs` likewise reports an unchanged suggestion around line 246.
