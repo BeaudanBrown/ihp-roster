@@ -209,17 +209,22 @@ lands.
 - Roster live fragments refresh immediately; discrete autosaved controls should
   commit on change instead of relying on blur-deferred protection.
 - `#roster-content` owns only the main roster column, header, and grid. It does
-  not render `#roster-staff-panel-fragment`.
-- `#roster-staff-panel-fragment` is a sibling side-panel fragment. Broad roster
-  week refreshes may request content and staff panel together because their
-  containment paths are siblings.
+  not render `#roster-staff-panel-fragment`. `#roster-content` and
+  `#roster-grid-frame` are resync-only structural wrappers; ordinary
+  resource-backed updates target their authoritative child fragments so the
+  mounted grid frame retains horizontal scroll ownership.
+- `#roster-staff-panel-fragment` is a sibling side-panel fragment. Ordinary broad
+  roster-week updates may request the contained grid children and staff panel
+  together because those targets are siblings.
 - The manager staff panel is eagerly rendered in the full roster shell for the
   release candidate. Its fragment endpoint remains the same permission-checked
   source of truth for live/actor refreshes and must keep returning the root node
   with id `roster-staff-panel-fragment`.
-- Day and row fragments remain descendants of `#roster-content`; when a parent
-  content refresh is selected, actor/passive planning drops overlapping day or
-  row refs.
+- Day and row fragments remain descendants of `#roster-content`; when a resync
+  or explicit parent refresh is selected, actor/passive planning drops
+  overlapping descendants. Parameterized containment applies only when ancestor
+  parameter values match the descendant, so one day section never suppresses a
+  row belonging to another day.
 
 ## Extension Rules
 

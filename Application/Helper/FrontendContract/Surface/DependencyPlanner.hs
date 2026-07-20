@@ -29,7 +29,7 @@ data SurfaceInvalidationTarget = SurfaceInvalidationTarget
 -- dependency graph selects and coalesces concrete refresh targets.
 planFrontendSurfaceInvalidations :: Set.Set SurfaceResourceValue -> [SurfaceSubscription] -> [SurfaceInvalidationTarget]
 planFrontendSurfaceInvalidations touchedResources subscriptions =
-    [ SurfaceInvalidationTarget scope (coalesceSurfaceFragmentKeys fragments)
+    [ SurfaceInvalidationTarget scope (normalizeContainedFragmentKeys fragments)
     | (scope, fragments) <- Map.toAscList grouped
     ]
   where
@@ -68,6 +68,69 @@ findSurface surfaceName =
 findFragment :: Text -> SurfaceIR.SurfaceIR -> Maybe SurfaceIR.FragmentIR
 findFragment fragmentKind surface =
     List.find ((== fragmentKind) . (.fragmentName)) surface.surfaceFragments
+
+-- Fragment keys are normalized while containment metadata is still available
+-- on the server. This prevents the browser from receiving overlapping swaps.
+-- Parameter matching matters for repeated fragments: a day section contains
+-- only rows carrying that same day id, not every row of the same kind.
+normalizeContainedFragmentKeys :: [SurfaceFragmentKey] -> [SurfaceFragmentKey]
+normalizeContainedFragmentKeys fragmentKeys =
+    filter (not . hasSelectedAncestor) coalescedKeys
+  where
+    coalescedKeys = coalesceSurfaceFragmentKeys fragmentKeys
+    hasSelectedAncestor descendantKey =
+        any (`fragmentKeyContains` descendantKey) coalescedKeys
+
+fragmentKeyContains :: SurfaceFragmentKey -> SurfaceFragmentKey -> Bool
+fragmentKeyContains ancestorKey descendantKey
+    | ancestorKey == descendantKey = False
+    | ancestorSurface /= descendantSurface = False
+    | otherwise = fromMaybe False do
+        surface <- findSurface ancestorSurface
+        ancestorFragment <- findFragment ancestorKind surface
+        descendantFragment <- findFragment descendantKind surface
+        pure
+            ( fragmentKindContains surface ancestorKind descendantKind
+                && fragmentParamsContain ancestorFragment ancestorParams descendantFragment descendantParams
+            )
+  where
+    (ancestorSurface, ancestorKind, ancestorParams) = LiveUpdateInternal.surfaceFragmentKeyIdentity ancestorKey
+    (descendantSurface, descendantKind, descendantParams) = LiveUpdateInternal.surfaceFragmentKeyIdentity descendantKey
+
+fragmentKindContains :: SurfaceIR.SurfaceIR -> Text -> Text -> Bool
+fragmentKindContains surface ancestorKind descendantKind =
+    walk Set.empty ancestorKind
+  where
+    walk visited fragmentKind
+        | fragmentKind `Set.member` visited = False
+        | otherwise =
+            any
+                (\childKind -> childKind == descendantKind || walk (Set.insert fragmentKind visited) childKind)
+                (containedFragmentKinds surface fragmentKind)
+
+containedFragmentKinds :: SurfaceIR.SurfaceIR -> Text -> [Text]
+containedFragmentKinds surface fragmentKind =
+    maybe [] (concatMap containedKind . (.fragmentOptions)) (findFragment fragmentKind surface)
+  where
+    containedKind = \case
+        SurfaceIR.ContainsOption childKind -> [childKind]
+        SurfaceIR.LazyOption options -> concatMap containedKind options
+        _ -> []
+
+fragmentParamsContain :: SurfaceIR.FragmentIR -> Aeson.Value -> SurfaceIR.FragmentIR -> Aeson.Value -> Bool
+fragmentParamsContain ancestorFragment ancestorParams descendantFragment descendantParams =
+    case (ancestorParams, descendantParams) of
+        (Aeson.Object ancestorObject, Aeson.Object descendantObject) ->
+            all (fieldMatches ancestorObject descendantObject) ancestorFragment.fragmentParams
+        _ -> null ancestorFragment.fragmentParams
+  where
+    descendantFieldNames = Set.fromList (map (.fieldName) descendantFragment.fragmentParams)
+    fieldMatches ancestorObject descendantObject field =
+        field.fieldName `Set.member` descendantFieldNames
+            && let key = Aeson.Key.fromText field.fieldName
+               in case (Aeson.KeyMap.lookup key ancestorObject, Aeson.KeyMap.lookup key descendantObject) of
+                    (Just ancestorValue, Just descendantValue) -> ancestorValue == descendantValue
+                    _ -> False
 
 resourceIdentityFromDependency :: Aeson.Value -> Aeson.Value -> SurfaceIR.ResourceDependencyIR -> Maybe (Text, Aeson.Value)
 resourceIdentityFromDependency scopeValue fragmentValue dependency = do

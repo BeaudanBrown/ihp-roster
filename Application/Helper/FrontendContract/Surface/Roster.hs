@@ -224,9 +224,7 @@ type RosterFragmentBundle =
         '[ 'MountTarget RosterContent '[]
          , 'Eager
          , 'Live
-         , 'DependsOn RosterWeekResource '[ 'FromScope RosterGroupId, 'FromScope WeekOffset ]
-         , 'DependsOn RosterEndTimesConfigResource '[ 'FromScope VenueId ]
-         , 'DependsOn RosterWeekBoundaryConfigResource '[ 'FromScope VenueId ]
+         , 'ResyncOnly
          , 'Contains RosterGridToolbar
          , 'Contains RosterGridFrame
          ]
@@ -244,9 +242,7 @@ type RosterFragmentBundle =
         '[ 'MountTarget RosterGridFrame '[]
          , 'Eager
          , 'Live
-         , 'DependsOn RosterWeekResource '[ 'FromScope RosterGroupId, 'FromScope WeekOffset ]
-         , 'DependsOn RosterEndTimesConfigResource '[ 'FromScope VenueId ]
-         , 'DependsOn RosterWeekBoundaryConfigResource '[ 'FromScope VenueId ]
+         , 'ResyncOnly
          , 'Contains RosterDayColumns
          , 'Contains RosterDayRail
          , 'Contains RosterWageRail

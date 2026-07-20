@@ -216,7 +216,7 @@ buildBenchmarkPlan scenario requestedScopeCount =
                 , planActiveSubscriptions =
                     [ benchmarkSubscription
                         (RosterLive.rosterWeekLiveScope targetVenueId (rosterGroupIdFor index) targetWeekOffset)
-                        [RosterLive.rosterContentLiveFragment]
+                        [RosterLive.rosterGridToolbarLiveFragment]
                     | index <- [0 .. requestedScopeCount - 1]
                     ]
                 , planActiveRosterScopes = [(targetVenueId, rosterGroupIdFor index, targetWeekOffset) | index <- [0 .. requestedScopeCount - 1]]

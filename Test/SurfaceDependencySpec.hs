@@ -5,6 +5,8 @@ import Application.Helper.FrontendContract.Surface.Admin.Resource
 import Application.Helper.FrontendContract.Surface.Billing.Resource
 import Application.Helper.FrontendContract.Surface.LeaveRequests.Resource
 import Application.Helper.FrontendContract.Surface.Profile.Resource
+import qualified Application.Helper.FrontendContract.Surface.Roster.Live as RosterLive
+import Application.Helper.FrontendContract.Surface.Roster.Resource
 import Application.Helper.FrontendContract.Surface.Runtime (FrontendSurfaceMountConfig (..),
                                                             FrontendSurfaceMountedFragment (..),
                                                             SurfaceImpl (..),
@@ -41,7 +43,8 @@ import Web.Profiles.FrontendSurface (ProfileScopeValue (..),
 import Web.RosterWeeks.FrontendSurface (RosterMountedFragmentPlan (..),
                                         RosterWeekScopeValue (..),
                                         rosterCandidateMountedFragments,
-                                        rosterMountedFragmentForProjection)
+                                        rosterMountedFragmentForProjection,
+                                        rosterSurfaceScope)
 import Web.RosterWeeks.Types (RosterProjectionFragment (..))
 import Web.Routes ()
 import Web.SurfaceInvalidation (SurfaceInvalidationTarget (..),
@@ -177,6 +180,55 @@ tests = do
                     [ "roster-grid-toolbar"
                     , "roster-day-section-" <> tshow rosterDayId
                     , "roster-row-" <> tshow rosterDayId <> "-2"
+                    ]
+
+        it "normalizes roster wrapper containment without replacing the grid scroll owner" do
+            let venueId = fromWords 7 0 0 0
+            let rosterGroupUuid = fromWords 8 0 0 0
+            let rosterDayUuid = fromWords 9 0 0 0
+            let rosterGroupId = Id rosterGroupUuid :: Id RosterGroup
+            let rosterDayId = Id rosterDayUuid :: Id RosterDay
+            let scopeValue = RosterWeekScopeValue venueId rosterGroupId 3 Nothing
+            let scope = rosterSurfaceScope scopeValue
+            let plan = RosterMountedFragmentPlan { rosterMountedDayIds = [rosterDayId], rosterMountedRows = [(rosterDayId, 2)] }
+            let resources = Set.fromList
+                    [ rosterWeekResource rosterGroupUuid 3
+                    , rosterDayResource rosterDayUuid
+                    ]
+
+            passiveFragmentKeys resources scope (rosterCandidateMountedFragments scopeValue plan)
+                `shouldBe`
+                    [ RosterLive.rosterGridToolbarLiveFragment
+                    , RosterLive.rosterDayColumnsLiveFragment
+                    , RosterLive.rosterDayRailLiveFragment
+                    , RosterLive.rosterWageRailLiveFragment
+                    , RosterLive.rosterSlotsGridLiveFragment
+                    , RosterLive.rosterStaffPanelLiveFragment
+                    , RosterLive.rosterDaySectionLiveFragment rosterDayUuid
+                    ]
+
+        it "keeps a parameterized child when the selected ancestor is a different instance" do
+            let venueId = fromWords 17 0 0 0
+            let rosterGroupId = Id (fromWords 18 0 0 0) :: Id RosterGroup
+            let ancestorDayUuid = fromWords 19 0 0 0
+            let childDayUuid = fromWords 20 0 0 0
+            let ancestorDayId = Id ancestorDayUuid :: Id RosterDay
+            let childDayId = Id childDayUuid :: Id RosterDay
+            let scopeValue = RosterWeekScopeValue venueId rosterGroupId 3 Nothing
+            let plan = RosterMountedFragmentPlan { rosterMountedDayIds = [ancestorDayId], rosterMountedRows = [(childDayId, 2)] }
+
+            passiveFragmentKeys
+                (Set.singleton (rosterEndTimesConfigResource venueId))
+                (rosterSurfaceScope scopeValue)
+                (rosterCandidateMountedFragments scopeValue plan)
+                `shouldBe`
+                    [ RosterLive.rosterGridToolbarLiveFragment
+                    , RosterLive.rosterDayColumnsLiveFragment
+                    , RosterLive.rosterDayRailLiveFragment
+                    , RosterLive.rosterWageRailLiveFragment
+                    , RosterLive.rosterSlotsGridLiveFragment
+                    , RosterLive.rosterDaySectionLiveFragment ancestorDayUuid
+                    , RosterLive.rosterRowLiveFragment childDayUuid 2
                     ]
 
         it "selects support fragments through generated dependencies" do

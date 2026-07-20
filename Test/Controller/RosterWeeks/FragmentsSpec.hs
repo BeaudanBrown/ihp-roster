@@ -153,7 +153,14 @@ tests = aroundAll withDatabaseTestContext do
                             [subscription]
 
                 targetFragmentKeys targets
-                    `shouldBe` [[RosterLive.rosterContentLiveFragment, RosterLive.rosterGridToolbarLiveFragment, RosterLive.rosterGridFrameLiveFragment, RosterLive.rosterDayColumnsLiveFragment, RosterLive.rosterDayRailLiveFragment, RosterLive.rosterWageRailLiveFragment, RosterLive.rosterSlotsGridLiveFragment, RosterLive.rosterStaffPanelLiveFragment]]
+                    `shouldBe`
+                        [[ RosterLive.rosterGridToolbarLiveFragment
+                         , RosterLive.rosterDayColumnsLiveFragment
+                         , RosterLive.rosterDayRailLiveFragment
+                         , RosterLive.rosterWageRailLiveFragment
+                         , RosterLive.rosterSlotsGridLiveFragment
+                         , RosterLive.rosterStaffPanelLiveFragment
+                         ]]
 
         it "builds typed FrontendSurface mount metadata for roster fragments" $ withContext do
             withCurrentControllerContext do

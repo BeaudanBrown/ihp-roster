@@ -104,7 +104,7 @@ tests = aroundAll withDatabaseTestContext do
                         , timesheetWeekBoundaryConfigResource venueId
                         ]
 
-        it "plans roster content refreshes for roster-affecting venue config resources" $ withContext do
+        it "plans non-overlapping roster child refreshes for roster-affecting venue config resources" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Admin Roster Config Planning Venue"
                 admin <- createUserRecord "admin-roster-config-planning@example.com" "staff" True
@@ -112,10 +112,17 @@ tests = aroundAll withDatabaseTestContext do
                 rosterGroup <- query @RosterGroup |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
                 let venueId = unpackId venue.id
                 let scope = RosterLive.rosterWeekLiveScope venueId (unpackId rosterGroup.id) 0
-                let rosterContentFragments =
+                let mountedFragments =
                         [ RosterLive.rosterContentLiveFragment
                         , RosterLive.rosterGridToolbarLiveFragment
                         , RosterLive.rosterGridFrameLiveFragment
+                        , RosterLive.rosterDayColumnsLiveFragment
+                        , RosterLive.rosterDayRailLiveFragment
+                        , RosterLive.rosterWageRailLiveFragment
+                        , RosterLive.rosterSlotsGridLiveFragment
+                        ]
+                let expectedFragments =
+                        [ RosterLive.rosterGridToolbarLiveFragment
                         , RosterLive.rosterDayColumnsLiveFragment
                         , RosterLive.rosterDayRailLiveFragment
                         , RosterLive.rosterWageRailLiveFragment
@@ -125,7 +132,7 @@ tests = aroundAll withDatabaseTestContext do
                         SurfaceSubscription
                             { subscriptionScope = scope
                             , subscriptionScopeKey = surfaceScopeKey scope
-                            , subscriptionFragmentKeys = rosterContentFragments
+                            , subscriptionFragmentKeys = mountedFragments
                             }
                 let planFragments resource = withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
                         withCurrentControllerContext do
@@ -135,9 +142,9 @@ tests = aroundAll withDatabaseTestContext do
                                 ]
 
                 planFragments (rosterEndTimesConfigResource venueId)
-                    `shouldReturn` [(scope, rosterContentFragments)]
+                    `shouldReturn` [(scope, expectedFragments)]
                 planFragments (rosterWeekBoundaryConfigResource venueId)
-                    `shouldReturn` [(scope, rosterContentFragments)]
+                    `shouldReturn` [(scope, expectedFragments)]
 
         it "shows the Xero header button and page to super admins" $ withContext do
             withCleanDb do

@@ -1181,7 +1181,17 @@ The singular actor/passive planner is generated-data driven:
 1. accept exact semantic keys from an actor mount or active subscription;
 2. evaluate each key's fragment `DependsOn` declarations from scope/fragment params;
 3. intersect those concrete dependency values with touched generated resources;
-4. coalesce affected scope/fragment targets before actor delivery or passive broadcast.
+4. collapse exact duplicates, then use reflected `Contains` paths to drop a
+   selected descendant when its matching ancestor is also selected before actor
+   delivery or passive broadcast.
+
+Containment matching is transitive and parameter-aware. For repeated fragments,
+an ancestor's declared parameter fields must have equal values on the descendant,
+so one roster day section does not suppress a row mounted under another day.
+Siblings remain independent. Structural wrapper fragments whose children own all
+ordinary resource-backed updates should be `ResyncOnly`; otherwise ancestor-wins
+normalization would correctly avoid overlapping swaps but unnecessarily replace
+the wrapper's focus or scroll ownership.
 
 Runtime/domain expansion is separate from static fragment dependency planning.
 When a mutation has broad semantic effects, expand it in the producer or a small
