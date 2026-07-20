@@ -40,11 +40,7 @@ ihp_roster_configure_test_postgres() {
     scripts_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
     if [ -z "$mode" ]; then
-        if [ -n "${TEST_DB_SOCKET:-}" ]; then
-            mode=external
-        else
-            mode=managed
-        fi
+        mode=managed
     fi
 
     case "$mode" in

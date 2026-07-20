@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
+umask 077
 
 usage() {
     cat <<'EOF'
@@ -89,7 +90,7 @@ if [ "$command_name" = "root" ]; then
 fi
 
 marker_file="$state_root/.bepis-hspec-postgres"
-lock_file="${state_root}.lock"
+lock_file="$state_root/manager.lock"
 data_dir="$state_root/data"
 socket_dir="$state_root/socket"
 postgres_log="$state_root/postgres.log"
@@ -164,11 +165,18 @@ validate_or_create_state_root() {
             return 1
         fi
         if find "$state_root" -mindepth 1 -maxdepth 1 -print -quit | grep -q .; then
-            echo "test-postgres: refusing non-empty unowned state root: $state_root" >&2
+            if [ ! -f "$marker_file" ]; then
+                echo "test-postgres: refusing non-empty unowned state root: $state_root" >&2
+                exit 73
+            fi
+        elif ! (
+            set -o noclobber
+            printf '%s\nuid=%s\nproject=%s\n' \
+                "$expected_marker_magic" "$owner_uid" "$project_id" > "$marker_file"
+        ) 2>/dev/null && [ ! -f "$marker_file" ]; then
+            echo "test-postgres: could not create ownership marker: $marker_file" >&2
             exit 73
         fi
-        printf '%s\nuid=%s\nproject=%s\n' \
-            "$expected_marker_magic" "$owner_uid" "$project_id" > "$marker_file"
     fi
 
     local marker_magic marker_uid marker_project
@@ -309,8 +317,24 @@ ensure_instance() {
     initialize_and_start
 }
 
-mkdir -p "$(dirname "$lock_file")"
-umask 077
+case "$command_name" in
+    ensure|recreate)
+        validate_or_create_state_root 1
+        ;;
+    status)
+        if ! validate_or_create_state_root 0; then
+            printf 'state=absent\nroot=%s\n' "$state_root"
+            exit 3
+        fi
+        ;;
+    stop)
+        if ! validate_or_create_state_root 0; then
+            printf 'test-postgres: stopped; next ensure will recreate %s\n' "$state_root"
+            exit 0
+        fi
+        ;;
+esac
+
 (
     flock 9
     case "$command_name" in
@@ -326,17 +350,11 @@ umask 077
             printf '%s\n' "$socket_dir"
             ;;
         stop)
-            if validate_or_create_state_root 0; then
-                stop_running_server
-                remove_disposable_instance
-            fi
+            stop_running_server
+            remove_disposable_instance
             printf 'test-postgres: stopped; next ensure will recreate %s\n' "$state_root"
             ;;
         status)
-            if ! validate_or_create_state_root 0; then
-                printf 'state=absent\nroot=%s\n' "$state_root"
-                exit 3
-            fi
             printf 'root=%s\ndata=%s\nsocket=%s\nfilesystem=%s\n' \
                 "$state_root" "$data_dir" "$socket_dir" "$(filesystem_type)"
             if server_running && server_ready; then
@@ -349,4 +367,4 @@ umask 077
             fi
             ;;
     esac
-) 9> "$lock_file"
+) 9>> "$lock_file"

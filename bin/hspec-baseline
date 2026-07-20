@@ -99,8 +99,6 @@ def command_uses_managed_test_postgres(command: list[str], env: dict[str, str]) 
     mode = env.get("TEST_POSTGRES_MODE", "")
     if mode == "external":
         return False
-    if env.get("TEST_DB_SOCKET") and mode != "managed":
-        return False
     return True
 
 

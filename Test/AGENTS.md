@@ -51,7 +51,8 @@ For debugging:
   deliberately replaces it.
 - Set `TEST_POSTGRES_MODE=external` together with an explicit
   `TEST_DB_SOCKET` only when comparing against another PostgreSQL instance.
-  An inherited `PGHOST` alone never opts out of managed mode; this prevents the
+  Neither an inherited `PGHOST` nor `TEST_DB_SOCKET` alone opts out of managed
+  mode; both the external mode and socket must be explicit. This prevents the
   normal devenv server from being selected accidentally. External mode never
   changes that server's settings.
 - `TEST_POSTGRES_ROOT` may select another managed location, but known virtual
