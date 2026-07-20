@@ -4,6 +4,7 @@ import qualified Data.Text as Text
 import IHP.Prelude
 import Test.Hspec
 import Test.Suite.Metadata
+import Test.Suite.Selection (hspecArgumentsMayFilter)
 
 tests :: Spec
 tests = do
@@ -38,6 +39,9 @@ tests = do
                 selected = selectSuiteMetadata DatabaseTests RoutineFeedbackOnly registry
 
             map suiteLabel selected `shouldBe` ["database-routine"]
+            hspecArgumentsMayFilter ["--match", "FeedbackController"] `shouldBe` True
+            hspecArgumentsMayFilter ["--match=FeedbackController"] `shouldBe` True
+            hspecArgumentsMayFilter ["--format=progress", "--no-color"] `shouldBe` False
 
         it "reports omitted owners and known partial acceptance coverage" do
             let routineOwner = pureMetadata "routine-owner" RoutineCorrectness [A1, A2]

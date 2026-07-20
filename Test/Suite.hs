@@ -17,6 +17,7 @@ import IHP.Prelude
 import System.Environment (lookupEnv)
 import Test.Hspec (Spec)
 import Test.Suite.Metadata
+import Test.Suite.Selection (hspecArgumentsMayFilter)
 import Text.Printf (printf)
 import Text.Read (readMaybe)
 
@@ -181,18 +182,25 @@ renderShardSelection selection =
                 <> tshow selection.shardTotal
                 <> summaryTail
 
-renderSelectionCoverage :: ShardSelection -> String
-renderSelectionCoverage selection =
-    cs $
-        "Hspec feedback="
-            <> renderFeedbackSelection selection.feedbackSelection
-            <> " mandatory-acceptance-excluded=["
-            <> renderInvariantList selection.excludedMandatoryInvariants
-            <> "] mandatory-acceptance-partial=["
-            <> renderInvariantList (incompleteAcceptanceInvariants allSuiteMetadata)
-            <> "] mandatory-acceptance-composed=["
-            <> renderInvariantList composedAcceptanceInvariants
-            <> "]"
+renderSelectionCoverage :: [Text] -> ShardSelection -> String
+renderSelectionCoverage arguments selection =
+    let
+        filtered = hspecArgumentsMayFilter arguments
+        coverageScope = if filtered then "focused-conservative" else "selected-suites"
+        excluded = if filtered then allAcceptanceInvariants else selection.excludedMandatoryInvariants
+     in
+        cs $
+            "Hspec feedback="
+                <> renderFeedbackSelection selection.feedbackSelection
+                <> " coverage-scope="
+                <> coverageScope
+                <> " mandatory-acceptance-excluded=["
+                <> renderInvariantList excluded
+                <> "] mandatory-acceptance-partial=["
+                <> renderInvariantList (incompleteAcceptanceInvariants allSuiteMetadata)
+                <> "] mandatory-acceptance-composed=["
+                <> renderInvariantList composedAcceptanceInvariants
+                <> "]"
 
 renderSuiteMetadataReport :: Text
 renderSuiteMetadataReport =

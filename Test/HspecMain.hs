@@ -13,10 +13,10 @@ main = do
     setEnv "DISABLE_EMAIL_DELIVERY" "1"
     getArgs >>= \case
         ["--suite-metadata"] -> reportSuiteMetadata
-        _ ->
+        arguments ->
             lookupEnv "HSPEC_BASELINE_PROBE" >>= \case
-                Nothing -> runRegisteredSuites
-                Just "" -> runRegisteredSuites
+                Nothing -> runRegisteredSuites arguments
+                Just "" -> runRegisteredSuites arguments
                 Just "fixture-application" -> do
                     putStrLn ("Hspec probe shard 1/1 weight=0 [BaselineFixtureApplicationProbe]" :: Text)
                     hspec BaselineProbe.tests
@@ -28,9 +28,9 @@ reportSuiteMetadata =
         [] -> putStr TestSuite.renderSuiteMetadataReport
         diagnostics -> error (cs ("Invalid Hspec suite registry:\n" <> Text.unlines (map ("- " <>) diagnostics)))
 
-runRegisteredSuites :: IO ()
-runRegisteredSuites = do
+runRegisteredSuites :: [Text] -> IO ()
+runRegisteredSuites arguments = do
     selection <- TestSuite.shardSelectionFromEnv
     putStrLn (cs (TestSuite.renderShardSelection selection) :: Text)
-    putStrLn (cs (TestSuite.renderSelectionCoverage selection) :: Text)
+    putStrLn (cs (TestSuite.renderSelectionCoverage arguments selection) :: Text)
     hspec (mapM_ TestSuite.suiteSpec selection.suites)
