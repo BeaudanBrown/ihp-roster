@@ -22,6 +22,7 @@ import Application.Helper.FrontendContract.AppShell.Runtime (AppShellActionRoute
                                                              appShellActionByMarker,
                                                              applyAppShellActionAttrs)
 import qualified Application.Helper.FrontendContract.Surface.Interaction as SurfaceInteraction
+import qualified Application.Helper.FrontendContract.Surface.LinkedHighlight as SurfaceLinkedHighlight
 import Application.Helper.Profiling (profileRenderCounter)
 import Application.Helper.ShiftTypeColours (shiftTypeColourPaletteKeys)
 import Application.Helper.TimeRules (rosterOperationalFinalSelectableTimeText,
@@ -34,11 +35,14 @@ import Data.Maybe (fromMaybe, isJust, isNothing)
 import qualified Data.Text as Text
 import Data.Time.Format (defaultTimeLocale, formatTime)
 import Data.Time.LocalTime (TimeOfDay)
+import qualified Text.Blaze.Html as Blaze
 import Web.RosterWeeks.Dom
 import Web.RosterWeeks.FrontendSurface (rosterDragDropzoneRef,
                                         rosterDragSourceRef,
                                         rosterExistingShiftDropzoneRef,
-                                        rosterStaffCreateDropzoneRef)
+                                        rosterShiftGroupLinkedHighlight,
+                                        rosterStaffCreateDropzoneRef,
+                                        rosterStaffLinkedHighlight)
 import Web.RosterWeeks.Types
 import Web.View.Prelude
 
@@ -114,7 +118,7 @@ renderEditableExistingSlotBlockCells _assignmentFilters _staffMembers shiftTypes
         cellCount = if endTimesEnabled then 4 else 3
      in mconcat
         [ profileExistingSlotCounters display endTimesEnabled cellCount
-        , profileEditableLauncherCounters 1
+        , profileEditableLauncherCounters 1 (isJust slot.staffId)
         , if endTimesEnabled
             then renderEditableEndTimeSlotCells display target groupKey blockIndex slot
             else renderEditableNoEndTimeSlotCells display target groupKey blockIndex slot
@@ -145,19 +149,18 @@ renderEditableShiftUnit :: (?context :: ControllerContext) => RosterSlotCellTarg
 renderEditableShiftUnit target groupKey slot gridSpan cells =
     SurfaceInteraction.withFrontendSurfaceSourceRef rosterDragSourceRef groupKey $
         SurfaceInteraction.withFrontendSurfaceDropzoneRef rosterExistingShiftDropzoneRef groupKey $
-            applyRosterShiftDialogLauncherAttrs (pathTo (rosterSlotDialogAction target)) [hsx|
-            <div role="gridcell"
-                 class="roster-shift-unit roster-shift-launcher"
-                 style={rosterGridColumnSpanStyle gridSpan}
-                 data-roster-shift-colour={shiftUnitColour cells}
-                 data-roster-staff-id={maybe "" tshow slot.staffId}
-                 data-roster-slot-id={tshow slot.id}
-                 data-roster-shift-group-key={groupKey}
-                 data-roster-shift-launcher="true"
-                 tabindex="0">
-                {forEach cells renderEditableShiftUnitCell}
-            </div>
-        |]
+            withRosterShiftGroupHighlight groupKey $
+                withRosterStaffHighlight slot.staffId groupKey $
+                    applyRosterShiftDialogLauncherAttrs (pathTo (rosterSlotDialogAction target)) [hsx|
+                    <div role="gridcell"
+                         class="roster-shift-unit roster-shift-launcher"
+                         style={rosterGridColumnSpanStyle gridSpan}
+                         data-roster-shift-colour={shiftUnitColour cells}
+                         data-roster-shift-launcher="true"
+                         tabindex="0">
+                        {forEach cells renderEditableShiftUnitCell}
+                    </div>
+                |]
 
 shiftUnitColour :: [ReadOnlyExistingSlotCell] -> Text
 shiftUnitColour []       = ""
@@ -223,13 +226,15 @@ profileExistingSlotCounters display endTimesEnabled cellCount = mconcat
     , profileRenderCounter "render.roster.publish_required_marker" (sum (map fromEnum [display.displayMissingStartTime, display.displayMissingEndTime, display.displayMissingShiftType]))
     ]
 
-profileEditableLauncherCounters :: Int -> Html
-profileEditableLauncherCounters launcherCount = mconcat
+profileEditableLauncherCounters :: Int -> Bool -> Html
+profileEditableLauncherCounters launcherCount hasStaffHighlight = mconcat
     [ profileRenderCounter "render.roster.shift_launcher" launcherCount
     , profileRenderCounter "render.roster.launcher_attr_bundle" launcherCount
     , profileRenderCounter "render.roster.launcher_hx_attr" (launcherCount * 4)
-    , profileRenderCounter "render.roster.launcher_data_attr" (launcherCount * 5)
+    , profileRenderCounter "render.roster.launcher_data_attr" (launcherCount * dataAttributeCount)
     ]
+  where
+    dataAttributeCount = 4 + if hasStaffHighlight then 2 else 0
 
 readOnlyExistingSlotCells :: ExistingSlotDisplay -> Bool -> Int -> [ReadOnlyExistingSlotCell]
 readOnlyExistingSlotCells display True blockIndex =
@@ -299,16 +304,16 @@ renderDayColumnCreateLauncherCard :: (?context :: ControllerContext) => RosterSl
 renderDayColumnCreateLauncherCard target =
     let groupKey = rosterShiftGroupKey target
      in SurfaceInteraction.withFrontendSurfaceDropzoneRef rosterStaffCreateDropzoneRef groupKey $
-        applyRosterShiftDialogLauncherAttrs (pathTo (rosterSlotDialogAction target)) [hsx|
-        <article class="roster-shift-card roster-shift-card-empty roster-shift-card-create roster-shift-launcher roster-shift-create-plus-card"
-                 data-roster-shift-group-key={groupKey}
-                 data-roster-shift-launcher="true"
-                 tabindex="0"
-                 aria-label="Add shift">
-            <span class="roster-shift-create-plus" aria-hidden="true">+</span>
-            <span class="visually-hidden">Add shift</span>
-        </article>
-    |]
+        withRosterShiftGroupHighlight groupKey $
+            applyRosterShiftDialogLauncherAttrs (pathTo (rosterSlotDialogAction target)) [hsx|
+            <article class="roster-shift-card roster-shift-card-empty roster-shift-card-create roster-shift-launcher roster-shift-create-plus-card"
+                     data-roster-shift-launcher={("true" :: Text)}
+                     tabindex="0"
+                     aria-label="Add shift">
+                <span class="roster-shift-create-plus" aria-hidden="true">+</span>
+                <span class="visually-hidden">Add shift</span>
+            </article>
+        |]
 
 renderDayColumnSlotCard :: (?context :: ControllerContext) => Bool -> RosterAssignmentFilters -> [Staff] -> [ShiftType] -> Bool -> Bool -> RosterDay -> Int -> [RosterSlot] -> RosterRenderIndexes -> (Int, RosterWeekSlotDefinition) -> Html
 renderDayColumnSlotCard isEditable assignmentFilters staffMembers shiftTypes endTimesEnabled publishAttempted rosterDay rowIndex rowSlots renderIndexes (_, slotName)
@@ -325,9 +330,6 @@ renderDayColumnSlotCardContent isEditable _assignmentFilters _staffMembers shift
         currentEndTime = optionalTimeOfDayToStorageValue endTime
         currentStaffLabel = fromMaybe "" (renderAssignedStaffLabel staffId renderIndexes)
         currentShiftType = findShiftTypeForSlot shiftTypes shiftTypeId
-        rosterSlotDataId = case target of
-            ExistingRosterSlotTarget slotId -> tshow slotId
-            NewRosterSlotTarget {}          -> ""
         currentShiftTypeColourKey = shiftTypeBadgeColourKey currentShiftType
         missingStartTime = publishAttempted && isJust staffId && isNothing startTime
         missingEndTime = publishAttempted && isJust staffId && isNothing endTime
@@ -343,10 +345,7 @@ renderDayColumnSlotCardContent isEditable _assignmentFilters _staffMembers shift
                 else mempty
         card = [hsx|
             <article class={classes [("roster-shift-card", True), ("roster-shift-card-create", not (targetHasExistingSlot target)), ("roster-shift-launcher", isEditable)]}
-                     data-roster-slot-id={rosterSlotDataId}
-                     data-roster-staff-id={maybe "" tshow staffId}
                      data-roster-shift-colour={currentShiftTypeColourKey}
-                     data-roster-shift-group-key={groupKey}
                      data-roster-shift-launcher={if isEditable then ("true" :: Text) else ""}
                      tabindex={if isEditable then ("0" :: Text) else ""}
                      title={renderConflictMessage currentPrimaryConflict}
@@ -366,14 +365,19 @@ renderDayColumnSlotCardContent isEditable _assignmentFilters _staffMembers shift
                 </div>
             </article>
         |]
+        staffHighlightedCard = withRosterStaffHighlight staffId groupKey card
         launcherCard =
             if isEditable
-                then applyRosterShiftDialogLauncherAttrs (pathTo (rosterSlotDialogAction target)) card
-                else card
+                then applyRosterShiftDialogLauncherAttrs (pathTo (rosterSlotDialogAction target)) staffHighlightedCard
+                else staffHighlightedCard
+        linkedLauncherCard =
+            if isEditable
+                then withRosterShiftGroupHighlight groupKey launcherCard
+                else launcherCard
      in if isEditable && targetHasExistingSlot target
             then SurfaceInteraction.withFrontendSurfaceSourceRef rosterDragSourceRef groupKey $
-                SurfaceInteraction.withFrontendSurfaceDropzoneRef rosterExistingShiftDropzoneRef groupKey launcherCard
-            else launcherCard
+                SurfaceInteraction.withFrontendSurfaceDropzoneRef rosterExistingShiftDropzoneRef groupKey linkedLauncherCard
+            else linkedLauncherCard
 
 targetHasExistingSlot :: RosterSlotCellTarget -> Bool
 targetHasExistingSlot ExistingRosterSlotTarget {} = True
@@ -419,7 +423,7 @@ profileCreateSlotCounters endTimesEnabled cellCount = mconcat
     , profileRenderCounter "render.roster.shift_launcher" 1
     , profileRenderCounter "render.roster.launcher_attr_bundle" 1
     , profileRenderCounter "render.roster.launcher_hx_attr" 4
-    , profileRenderCounter "render.roster.launcher_data_attr" 2
+    , profileRenderCounter "render.roster.launcher_data_attr" 3
     ]
 
 createShiftUnitVisualCellClasses :: Bool -> Int -> [Text]
@@ -438,22 +442,38 @@ createShiftUnitVisualCellClasses False blockIndex =
 renderCreateShiftUnit :: (?context :: ControllerContext) => RosterSlotCellTarget -> Text -> [Text] -> Int -> Html
 renderCreateShiftUnit target groupKey visualCellClasses gridSpan =
     SurfaceInteraction.withFrontendSurfaceDropzoneRef rosterDragDropzoneRef groupKey $
-        applyRosterShiftDialogLauncherAttrs (pathTo (rosterSlotDialogAction target)) [hsx|
-            <div role="gridcell"
-                 class="roster-shift-unit roster-shift-launcher roster-shift-create-unit"
-                 style={rosterGridColumnSpanStyle gridSpan}
-                 data-roster-shift-group-key={groupKey}
-                 data-roster-shift-launcher="true"
-                 tabindex="0">
-                <div class="roster-shift-create-staff-dropzone">
-                    {forEach visualCellClasses renderCreateShiftUnitVisualCell}
-                    <div class="roster-shift-create-plus-overlay" aria-hidden="true">+</div>
+        withRosterShiftGroupHighlight groupKey $
+            applyRosterShiftDialogLauncherAttrs (pathTo (rosterSlotDialogAction target)) [hsx|
+                <div role="gridcell"
+                     class="roster-shift-unit roster-shift-launcher roster-shift-create-unit"
+                     style={rosterGridColumnSpanStyle gridSpan}
+                     data-roster-shift-launcher="true"
+                     tabindex="0">
+                    <div class="roster-shift-create-grid">
+                        {forEach visualCellClasses renderCreateShiftUnitVisualCell}
+                        <div class="roster-shift-create-plus-overlay" aria-hidden="true">+</div>
+                    </div>
                 </div>
-            </div>
-        |]
+            |]
 
 renderCreateShiftUnitVisualCell :: Text -> Html
 renderCreateShiftUnitVisualCell cellClasses = [hsx|<div class={cellClasses}></div>|]
+
+withRosterShiftGroupHighlight :: Text -> Blaze.Html -> Blaze.Html
+withRosterShiftGroupHighlight membershipKey =
+    SurfaceLinkedHighlight.withFrontendSurfaceLinkedHighlightSource rosterShiftGroupLinkedHighlight membershipKey
+        . SurfaceLinkedHighlight.withFrontendSurfaceLinkedHighlightMember rosterShiftGroupLinkedHighlight membershipKey Nothing
+
+withRosterStaffHighlight :: Maybe UUID -> Text -> Blaze.Html -> Blaze.Html
+withRosterStaffHighlight maybeStaffId orderKey html =
+    case maybeStaffId of
+        Nothing -> html
+        Just staffId ->
+            SurfaceLinkedHighlight.withFrontendSurfaceLinkedHighlightMember
+                rosterStaffLinkedHighlight
+                ("staff:" <> tshow staffId)
+                (Just orderKey)
+                html
 
 renderClosedBlockCells :: (?context :: ControllerContext) => Bool -> Int -> Html
 renderClosedBlockCells =

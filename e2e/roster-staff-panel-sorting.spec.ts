@@ -1,4 +1,5 @@
 import { test, expect, type Page } from '@playwright/test';
+import { rosterStaffHighlightSourceDomAttr } from '../frontend/ts/generated/contracts';
 import { assignRosterShiftStaff, existingRosterShiftLaunchers, openRoster } from './test-helpers';
 
 async function loginAndOpenRoster(page: Page) {
@@ -55,8 +56,9 @@ test.describe('Roster staff panel sorting', () => {
         );
 
         const targetStaffId = 'a0000000-0000-0000-0000-000000000101';
+        const targetStaffKey = 'staff:a0000000-0000-0000-0000-000000000101';
         const targetStaffName = await page
-            .locator(`#roster-staff-panel-fragment .roster-staff-panel-entry[data-roster-staff-id="${targetStaffId}"]`)
+            .locator(`#roster-staff-panel-fragment .roster-staff-panel-entry[${rosterStaffHighlightSourceDomAttr}="${targetStaffKey}"]`)
             .getAttribute('data-roster-staff-name');
         expect(targetStaffName).toBeTruthy();
 

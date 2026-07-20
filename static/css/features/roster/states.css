@@ -90,9 +90,9 @@
     .roster-grid .slot-staff-cell.conflict-critical:hover,
     .roster-grid .slot-staff-cell.conflict-preference:hover,
     .roster-grid .slot-staff-cell.conflict-ideal:hover,
-    .roster-grid .slot-staff-cell.conflict-critical.is-roster-shift-group-highlighted,
-    .roster-grid .slot-staff-cell.conflict-preference.is-roster-shift-group-highlighted,
-    .roster-grid .slot-staff-cell.conflict-ideal.is-roster-shift-group-highlighted {
+    .roster-grid .roster-shift-launcher[data-bepis-roster-shift-group-highlight-member].is-linked-highlight-member .slot-staff-cell.conflict-critical,
+    .roster-grid .roster-shift-launcher[data-bepis-roster-shift-group-highlight-member].is-linked-highlight-member .slot-staff-cell.conflict-preference,
+    .roster-grid .roster-shift-launcher[data-bepis-roster-shift-group-highlight-member].is-linked-highlight-member .slot-staff-cell.conflict-ideal {
         background-image: linear-gradient(180deg, var(--roster-conflict-bg-hover), var(--roster-conflict-bg-hover-end)) !important;
     }
 }
@@ -169,9 +169,9 @@
     color: inherit !important;
 }
 
-.roster-shift-card.is-roster-staff-slot-highlighted .roster-shift-card-field,
-.roster-shift-card.is-roster-staff-slot-highlighted-start .roster-shift-card-field,
-.roster-shift-card.is-roster-staff-slot-highlighted-end .roster-shift-card-field {
+.roster-shift-card[data-bepis-roster-staff-highlight-member].is-linked-highlight-member .roster-shift-card-field,
+.roster-shift-card[data-bepis-roster-staff-highlight-member].is-linked-highlight-member-first .roster-shift-card-field,
+.roster-shift-card[data-bepis-roster-staff-highlight-member].is-linked-highlight-member-last .roster-shift-card-field {
     background-color: transparent !important;
     color: var(--app-text) !important;
 }

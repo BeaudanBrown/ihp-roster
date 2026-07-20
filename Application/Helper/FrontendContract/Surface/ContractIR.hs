@@ -23,6 +23,7 @@ module Application.Helper.FrontendContract.Surface.ContractIR
     , InteractionModifierVariantIR (..)
     , InteractionSessionIR (..)
     , InteractionSourceRefIR (..)
+    , LinkedHighlightIR (..)
     , IntentIR (..)
     , MountStateIR (..)
     , OptionIR (..)
@@ -68,6 +69,9 @@ data SurfaceIR = SurfaceIR
     , surfaceSourceRefs       :: ![InteractionSourceRefIR]
     , surfaceDropzoneRefs     :: ![InteractionDropzoneRefIR]
     , surfaceActivationRefs   :: ![InteractionActivationRefIR]
+    , surfaceBrowserRoles     :: ![BrowserAttributeIR]
+    , surfaceBrowserStates    :: ![BrowserAttributeIR]
+    , surfaceLinkedHighlights :: ![LinkedHighlightIR]
     , surfaceLayers           :: ![Text]
     , surfacePolicies         :: ![ConflictPolicyIR]
     , surfaceLoadPolicies     :: ![Text]
@@ -158,6 +162,19 @@ data InteractionActivationRefIR = InteractionActivationRefIR
     , activationRefIntent     :: !Text
     , activationRefValueField :: !(Maybe Text)
     , activationRefTrigger    :: !Text
+    }
+    deriving (Eq, Show)
+
+-- | One closed linked-highlight channel. Role/state references already carry
+-- their exact generated attributes; validation proves they are declared by the
+-- owning Surface before TypeScript projection or view rendering.
+data LinkedHighlightIR = LinkedHighlightIR
+    { linkedHighlightMarker      :: !Text
+    , linkedHighlightName        :: !Text
+    , linkedHighlightSourceRole  :: !BrowserAttributeIR
+    , linkedHighlightMemberRole  :: !BrowserAttributeIR
+    , linkedHighlightActivations :: ![LinkedHighlightActivationIR]
+    , linkedHighlightEffects     :: ![LinkedHighlightEffectIR]
     }
     deriving (Eq, Show)
 
@@ -282,10 +299,15 @@ validateSurface surface =
         <> validateUnique surface.surfaceName "source ref" (map (.sourceRefName) surface.surfaceSourceRefs)
         <> validateUnique surface.surfaceName "dropzone ref" (map (.dropzoneRefName) surface.surfaceDropzoneRefs)
         <> validateUnique surface.surfaceName "activation ref" (map (.activationRefName) surface.surfaceActivationRefs)
+        <> validateUnique surface.surfaceName "browser role" (map (.browserAttributeName) surface.surfaceBrowserRoles)
+        <> validateUnique surface.surfaceName "browser state" (map (.browserAttributeName) surface.surfaceBrowserStates)
+        <> validateUnique surface.surfaceName "browser attribute" (map (.browserAttributeDomAttribute) (surface.surfaceBrowserRoles <> surface.surfaceBrowserStates))
+        <> validateUnique surface.surfaceName "linked highlight" (map (.linkedHighlightName) surface.surfaceLinkedHighlights)
         <> validateUnique surface.surfaceName "layer" surface.surfaceLayers
         <> validateUnique surface.surfaceName "dom token" surface.surfaceDomTokens
         <> validateUnique surface.surfaceName "dto" (map (fst . schemaNameAndMarker) surface.surfaceDtos)
         <> validateScopeAuthorization surface
+        <> validateLinkedHighlights surface
         <> validateInteractionEffects surface
         <> validateLiveFragmentInvalidation surface
         <> validateResourceDependencies surface
@@ -354,6 +376,63 @@ validateScopeAuthorization surface =
             case scopeAuthPolicy auth of
                 Just policy -> scopeAuthPolicyName policy
                 Nothing     -> error "NoAuth cannot own authorization fields"
+
+validateLinkedHighlights :: SurfaceIR -> [ContractDiagnostic]
+validateLinkedHighlights surface =
+    concatMap validateHighlight surface.surfaceLinkedHighlights
+  where
+    roleMarkers = map (.browserAttributeMarker) surface.surfaceBrowserRoles
+    stateMarkers = map (.browserAttributeMarker) surface.surfaceBrowserStates
+
+    validateHighlight highlight =
+        requireAttribute "source role" roleMarkers highlight.linkedHighlightSourceRole
+            <> requireAttribute "member role" roleMarkers highlight.linkedHighlightMemberRole
+            <> concatMap requirePinRole highlight.linkedHighlightActivations
+            <> concatMap requireOrderState highlight.linkedHighlightEffects
+            <> validateUnique surface.surfaceName ("linked highlight " <> highlight.linkedHighlightName <> " activation") (map linkedHighlightActivationName highlight.linkedHighlightActivations)
+            <> validateUnique surface.surfaceName ("linked highlight " <> highlight.linkedHighlightName <> " effect") (map linkedHighlightEffectName highlight.linkedHighlightEffects)
+            <> requireNonEmpty "activation" (null highlight.linkedHighlightActivations)
+            <> requireNonEmpty "effect" (null highlight.linkedHighlightEffects)
+            <> distinctSourceAndMember highlight
+            <> requireMatchingMemberForOrder highlight
+      where
+        requireNonEmpty label isEmpty
+            | isEmpty = [diagnostic ("missing-linked-highlight-" <> label) (highlightLabel highlight <> " must declare at least one " <> label)]
+            | otherwise = []
+
+    requirePinRole = \case
+        LinkedHighlightPinActivationIR role -> requireAttribute "pin role" roleMarkers role
+        _ -> []
+
+    requireOrderState = \case
+        LinkedHighlightOrderedMemberBoundsEffectIR state -> requireAttribute "ordered-member state" stateMarkers state
+        _ -> []
+
+    requireAttribute label available attribute
+        | attribute.browserAttributeMarker `elem` available = []
+        | otherwise =
+            [ diagnostic "invalid-linked-highlight-reference"
+                ( "surface " <> surface.surfaceName
+                    <> " linked highlight references missing " <> label
+                    <> " " <> attribute.browserAttributeName
+                )
+            ]
+
+    distinctSourceAndMember highlight
+        | highlight.linkedHighlightSourceRole.browserAttributeDomAttribute /= highlight.linkedHighlightMemberRole.browserAttributeDomAttribute = []
+        | otherwise = [diagnostic "invalid-linked-highlight-roles" (highlightLabel highlight <> " must use distinct source and member roles")]
+
+    requireMatchingMemberForOrder highlight
+        | any isOrderedEffect highlight.linkedHighlightEffects
+            && LinkedHighlightMatchingMemberEffectIR `notElem` highlight.linkedHighlightEffects =
+                [diagnostic "invalid-linked-highlight-effects" (highlightLabel highlight <> " ordered member bounds require the matching-member effect")]
+        | otherwise = []
+
+    isOrderedEffect = \case
+        LinkedHighlightOrderedMemberBoundsEffectIR {} -> True
+        _ -> False
+
+    highlightLabel highlight = "surface " <> surface.surfaceName <> " linked highlight " <> highlight.linkedHighlightName
 
 validateInteractionEffects :: SurfaceIR -> [ContractDiagnostic]
 validateInteractionEffects surface =

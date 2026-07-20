@@ -5,8 +5,22 @@
     return typeof value === "string" && ["name", "role", "shifts"].includes(value);
   }
   var pageReadyEvent = "bepis:page-ready";
+  var surfaceDomAttr = "data-bepis-surface";
   var rosterContentDomToken = "roster-content";
   var rosterWeekShellDomToken = "roster-week-shell";
+  var rosterStaffHighlightSourceDomAttr = "data-bepis-roster-staff-highlight-source";
+  var rosterStaffHighlightMemberDomAttr = "data-bepis-roster-staff-highlight-member";
+  var rosterStaffHighlightPinDomAttr = "data-bepis-roster-staff-highlight-pin";
+  var rosterShiftGroupHighlightSourceDomAttr = "data-bepis-roster-shift-group-highlight-source";
+  var rosterShiftGroupHighlightMemberDomAttr = "data-bepis-roster-shift-group-highlight-member";
+  var rosterStaffHighlightOrderDomAttr = "data-bepis-roster-staff-highlight-order";
+  var rosterDayTimelineShiftGroupHighlightSourceDomAttr = "data-bepis-roster-day-timeline-shift-group-highlight-source";
+  var rosterDayTimelineShiftGroupHighlightMemberDomAttr = "data-bepis-roster-day-timeline-shift-group-highlight-member";
+  var FrontendSurfaceLinkedHighlightRegistry = { "timesheets": [], "roster": [{ "name": "staff-shifts-highlight", "sourceRoleAttribute": rosterStaffHighlightSourceDomAttr, "memberRoleAttribute": rosterStaffHighlightMemberDomAttr, "pinRoleAttribute": rosterStaffHighlightPinDomAttr, "orderStateAttribute": rosterStaffHighlightOrderDomAttr, "activations": ["hover", "focus", "keyboard", "pin"], "effects": ["matching-source", "matching-member", "ordered-member-bounds"] }, { "name": "shift-group-highlight", "sourceRoleAttribute": rosterShiftGroupHighlightSourceDomAttr, "memberRoleAttribute": rosterShiftGroupHighlightMemberDomAttr, "pinRoleAttribute": null, "orderStateAttribute": null, "activations": ["hover", "focus", "keyboard"], "effects": ["matching-member"] }], "roster-day-timeline": [{ "name": "shift-group-highlight", "sourceRoleAttribute": rosterDayTimelineShiftGroupHighlightSourceDomAttr, "memberRoleAttribute": rosterDayTimelineShiftGroupHighlightMemberDomAttr, "pinRoleAttribute": null, "orderStateAttribute": null, "activations": ["hover", "focus", "keyboard"], "effects": ["matching-member"] }], "leave-requests": [], "billing": [], "support": [], "profile": [], "staff": [], "admin-page": [], "admin-xero-page": [], "admin-venue-config": [], "admin-invites": [], "admin-exports": [], "admin-shift-types": [], "admin-roster-groups": [], "admin-xero": [] };
+  var FrontendSurfaceFragmentRegistry = { "timesheets": ["timesheet-toolbar", "timesheet-day-columns", "timesheet-day-section"], "roster": ["roster-content", "roster-grid-toolbar", "roster-grid-frame", "roster-day-columns", "roster-day-rail", "roster-wage-rail", "roster-slots-grid", "roster-staff-panel", "roster-staff-self-service-leave-form", "roster-day-section", "roster-row"], "roster-day-timeline": ["roster-day-timeline-content"], "leave-requests": ["leave-section-count", "leave-section-list"], "billing": ["billing-status"], "support": ["support-award-rates", "support-public-holidays"], "profile": ["profile-details-section", "profile-preferences-section", "profile-security-section", "profile-leave-section", "profile-rsa-section"], "staff": ["staff-details-section", "staff-preferences-section", "staff-leave-section"], "admin-page": [], "admin-xero-page": [], "admin-venue-config": ["admin-venue-settings"], "admin-invites": ["admin-invites"], "admin-exports": ["admin-exports"], "admin-shift-types": ["admin-shift-types"], "admin-roster-groups": ["admin-roster-groups"], "admin-xero": ["admin-xero-shell"] };
+  function isFrontendSurfaceName(value) {
+    return typeof value === "string" && Object.prototype.hasOwnProperty.call(FrontendSurfaceFragmentRegistry, value);
+  }
 
   // frontend/ts/shared/lifecycle.ts
   function onAppPageReady(handler) {
@@ -134,6 +148,260 @@
     });
     document.addEventListener("htmx:afterSwap", syncAllShells);
     document.addEventListener("DOMContentLoaded", syncAllShells);
+  }
+
+  // frontend/ts/shared/exhaustive.ts
+  function assertNever(value, message = "Unexpected generated union variant") {
+    throw new Error(`${message}: ${JSON.stringify(value)}`);
+  }
+
+  // frontend/ts/linked-highlight/runtime.ts
+  var sourceHighlightClass = "is-linked-highlight-source";
+  var memberHighlightClass = "is-linked-highlight-member";
+  var firstMemberHighlightClass = "is-linked-highlight-member-first";
+  var lastMemberHighlightClass = "is-linked-highlight-member-last";
+  var effectClasses = [
+    sourceHighlightClass,
+    memberHighlightClass,
+    firstMemberHighlightClass,
+    lastMemberHighlightClass
+  ];
+  function createLinkedHighlightController() {
+    const statesByMount = /* @__PURE__ */ new WeakMap();
+    function stateFor(mount, definition) {
+      let mountStates = statesByMount.get(mount);
+      if (!mountStates) {
+        mountStates = /* @__PURE__ */ new Map();
+        statesByMount.set(mount, mountStates);
+      }
+      let state = mountStates.get(definition.name);
+      if (!state) {
+        state = { hoverKey: null, focusKey: null, pinnedKey: null };
+        mountStates.set(definition.name, state);
+      }
+      return state;
+    }
+    function pointerEntered(target, relatedTarget) {
+      const context = sourceContext(target);
+      if (!context || !context.definition.activations.includes("hover")) return;
+      if (relatedSourceMatches(context, relatedTarget)) return;
+      stateFor(context.mount, context.definition).hoverKey = context.membershipKey;
+      refreshMount(context.mount);
+    }
+    function pointerLeft(target, relatedTarget) {
+      const context = sourceContext(target);
+      if (!context || !context.definition.activations.includes("hover")) return;
+      if (relatedSourceMatches(context, relatedTarget)) return;
+      const state = stateFor(context.mount, context.definition);
+      if (state.hoverKey === context.membershipKey) state.hoverKey = null;
+      refreshMount(context.mount);
+    }
+    function focusEntered(target) {
+      const context = sourceContext(target);
+      if (!context || !context.definition.activations.includes("focus")) return;
+      stateFor(context.mount, context.definition).focusKey = context.membershipKey;
+      refreshMount(context.mount);
+    }
+    function focusLeft(target, relatedTarget) {
+      const context = sourceContext(target);
+      if (!context || !context.definition.activations.includes("focus")) return;
+      if (relatedSourceMatches(context, relatedTarget)) return;
+      const state = stateFor(context.mount, context.definition);
+      if (state.focusKey === context.membershipKey) state.focusKey = null;
+      refreshMount(context.mount);
+    }
+    function togglePin(target) {
+      const context = pinContext(target);
+      if (!context || !context.definition.activations.includes("pin")) return false;
+      const state = stateFor(context.mount, context.definition);
+      if (state.pinnedKey === context.membershipKey) {
+        state.pinnedKey = null;
+        state.hoverKey = null;
+        state.focusKey = null;
+      } else {
+        state.pinnedKey = context.membershipKey;
+      }
+      refreshMount(context.mount);
+      return true;
+    }
+    function activateKeyboard(target, key) {
+      const context = sourceContext(target);
+      if (!context || context.source !== target) return false;
+      if (!context.definition.activations.includes("keyboard")) return false;
+      if (key !== "Enter" && key !== " ") return false;
+      context.source.click?.();
+      return true;
+    }
+    function reconcile(root) {
+      const queryRoot = root;
+      const mounts = Array.from(queryRoot.querySelectorAll(`[${surfaceDomAttr}]`)).filter(isElementLike);
+      if (isElementLike(root) && root.getAttribute(surfaceDomAttr) !== null) mounts.unshift(root);
+      for (const mount of mounts) {
+        for (const definition of definitionsForMount(mount)) {
+          const state = stateFor(mount, definition);
+          if (state.pinnedKey && !sourceExists(mount, definition, state.pinnedKey)) state.pinnedKey = null;
+          if (state.hoverKey && !sourceExists(mount, definition, state.hoverKey)) state.hoverKey = null;
+          if (state.focusKey && !sourceExists(mount, definition, state.focusKey)) state.focusKey = null;
+        }
+        refreshMount(mount);
+      }
+    }
+    function refreshMount(mount) {
+      const definitions = definitionsForMount(mount);
+      clearEffectClasses(mount);
+      for (const definition of definitions) {
+        const state = stateFor(mount, definition);
+        const activeKey = state.pinnedKey ?? state.focusKey ?? state.hoverKey;
+        if (activeKey) applyEffects(mount, definition, activeKey);
+        syncPinControls(mount, definition, state.pinnedKey);
+      }
+    }
+    return {
+      pointerEntered,
+      pointerLeft,
+      focusEntered,
+      focusLeft,
+      togglePin,
+      activateKeyboard,
+      reconcile
+    };
+  }
+  function sourceContext(target) {
+    if (!isElementLike(target)) return null;
+    const mount = closestSurfaceMount(target);
+    if (!mount) return null;
+    for (const definition of definitionsForMount(mount)) {
+      const source = closestOwnedRole(target, mount, definition.sourceRoleAttribute);
+      const membershipKey = source?.getAttribute(definition.sourceRoleAttribute) ?? "";
+      if (source && membershipKey !== "") return { mount, definition, source, membershipKey };
+    }
+    return null;
+  }
+  function pinContext(target) {
+    if (!isElementLike(target)) return null;
+    const mount = closestSurfaceMount(target);
+    if (!mount) return null;
+    for (const definition of definitionsForMount(mount)) {
+      if (!definition.pinRoleAttribute) continue;
+      const pin = closestOwnedRole(target, mount, definition.pinRoleAttribute);
+      const membershipKey = pin?.getAttribute(definition.pinRoleAttribute) ?? "";
+      if (pin && membershipKey !== "") return { mount, definition, pin, membershipKey };
+    }
+    return null;
+  }
+  function relatedSourceMatches(context, relatedTarget) {
+    if (!relatedTarget || !isElementLike(relatedTarget)) return false;
+    const relatedSource = closestOwnedRole(relatedTarget, context.mount, context.definition.sourceRoleAttribute);
+    return relatedSource?.getAttribute(context.definition.sourceRoleAttribute) === context.membershipKey;
+  }
+  function closestOwnedRole(target, mount, attribute) {
+    const candidate = target.closest(`[${attribute}]`);
+    if (!isElementLike(candidate)) return null;
+    return closestSurfaceMount(candidate) === mount ? candidate : null;
+  }
+  function closestSurfaceMount(target) {
+    const mount = target.closest(`[${surfaceDomAttr}]`);
+    return isElementLike(mount) ? mount : null;
+  }
+  function definitionsForMount(mount) {
+    const surface = mount.getAttribute(surfaceDomAttr);
+    return isFrontendSurfaceName(surface) ? FrontendSurfaceLinkedHighlightRegistry[surface] : [];
+  }
+  function sourceExists(mount, definition, membershipKey) {
+    return elementsForKey(mount, definition.sourceRoleAttribute, membershipKey).length > 0;
+  }
+  function clearEffectClasses(mount) {
+    const highlightedElements = /* @__PURE__ */ new Set();
+    for (const className of effectClasses) {
+      Array.from(mount.querySelectorAll(`.${className}`)).filter(isElementLike).filter((element) => closestSurfaceMount(element) === mount).forEach((element) => highlightedElements.add(element));
+    }
+    highlightedElements.forEach((element) => element.classList.remove(...effectClasses));
+  }
+  function applyEffects(mount, definition, membershipKey) {
+    const sources = elementsForKey(mount, definition.sourceRoleAttribute, membershipKey);
+    const members = elementsForKey(mount, definition.memberRoleAttribute, membershipKey);
+    for (const effect of definition.effects) {
+      applyEffect(effect, definition, sources, members);
+    }
+  }
+  function applyEffect(effect, definition, sources, members) {
+    switch (effect) {
+      case "matching-source":
+        sources.forEach((source) => source.classList.add(sourceHighlightClass));
+        return;
+      case "matching-member":
+        members.forEach((member) => member.classList.add(memberHighlightClass));
+        return;
+      case "ordered-member-bounds":
+        markOrderedMemberBounds(definition, members);
+        return;
+      default:
+        assertNever(effect);
+    }
+  }
+  function markOrderedMemberBounds(definition, members) {
+    if (!definition.orderStateAttribute) return;
+    const membersByOrderKey = /* @__PURE__ */ new Map();
+    for (const member of members) {
+      const orderKey = member.getAttribute(definition.orderStateAttribute);
+      if (!orderKey) continue;
+      const orderedMembers = membersByOrderKey.get(orderKey) ?? [];
+      orderedMembers.push(member);
+      membersByOrderKey.set(orderKey, orderedMembers);
+    }
+    for (const orderedMembers of membersByOrderKey.values()) {
+      orderedMembers[0]?.classList.add(firstMemberHighlightClass);
+      orderedMembers[orderedMembers.length - 1]?.classList.add(lastMemberHighlightClass);
+    }
+  }
+  function syncPinControls(mount, definition, pinnedKey) {
+    if (!definition.pinRoleAttribute) return;
+    for (const pin of ownedRoleElements(mount, definition.pinRoleAttribute)) {
+      pin.setAttribute("aria-pressed", pin.getAttribute(definition.pinRoleAttribute) === pinnedKey ? "true" : "false");
+    }
+  }
+  function elementsForKey(mount, attribute, membershipKey) {
+    return ownedRoleElements(mount, attribute).filter((element) => element.getAttribute(attribute) === membershipKey);
+  }
+  function ownedRoleElements(mount, attribute) {
+    return Array.from(mount.querySelectorAll(`[${attribute}]`)).filter(isElementLike).filter((element) => closestSurfaceMount(element) === mount);
+  }
+  function isElementLike(value) {
+    if (value === null || typeof value !== "object") return false;
+    const candidate = value;
+    return Boolean(candidate.classList) && typeof candidate.getAttribute === "function" && typeof candidate.setAttribute === "function" && typeof candidate.closest === "function" && typeof candidate.querySelectorAll === "function";
+  }
+  var browserRuntimeEnabled = false;
+  function enableFrontendSurfaceLinkedHighlight() {
+    if (browserRuntimeEnabled || typeof document === "undefined") return;
+    browserRuntimeEnabled = true;
+    const controller = createLinkedHighlightController();
+    document.addEventListener("mouseover", (event) => {
+      controller.pointerEntered(event.target, relatedElement(event));
+    });
+    document.addEventListener("mouseout", (event) => {
+      controller.pointerLeft(event.target, relatedElement(event));
+    });
+    document.addEventListener("focusin", (event) => {
+      controller.focusEntered(event.target);
+    });
+    document.addEventListener("focusout", (event) => {
+      controller.focusLeft(event.target, relatedElement(event));
+    });
+    document.addEventListener("click", (event) => {
+      if (!controller.togglePin(event.target)) return;
+      event.preventDefault();
+      event.stopPropagation();
+    }, true);
+    document.addEventListener("keydown", (event) => {
+      if (!controller.activateKeyboard(event.target, event.key)) return;
+      event.preventDefault();
+    });
+    onAppPageReady(() => controller.reconcile(document));
+    controller.reconcile(document);
+  }
+  function relatedElement(event) {
+    return isElementLike(event.relatedTarget) ? event.relatedTarget : null;
   }
 
   // frontend/ts/roster/image-export.ts
@@ -449,192 +717,6 @@
     };
   }
 
-  // frontend/ts/roster/staff-highlight.ts
-  var rosterStaffRowSelector = ".roster-staff-panel-entry[data-roster-staff-id]";
-  var rowHighlightClass = "is-roster-staff-highlighted";
-  var slotHighlightClass = "is-roster-staff-slot-highlighted";
-  var slotHighlightStartClass = "is-roster-staff-slot-highlighted-start";
-  var slotHighlightEndClass = "is-roster-staff-slot-highlighted-end";
-  var highlightClasses = [
-    rowHighlightClass,
-    slotHighlightClass,
-    slotHighlightStartClass,
-    slotHighlightEndClass
-  ];
-  var shiftGroupHighlightClass = "is-roster-shift-group-highlighted";
-  var hoverRosterStaffId = "";
-  var pinnedRosterStaffId = "";
-  function clearRosterStaffHighlights() {
-    const selector = highlightClasses.map((className) => `.${className}`).join(", ");
-    document.querySelectorAll(selector).forEach((element) => {
-      element.classList.remove(...highlightClasses);
-    });
-  }
-  function highlightSlotElements(elements) {
-    const slotElementsById = /* @__PURE__ */ new Map();
-    elements.forEach((element) => {
-      const slotId = element.dataset.rosterSlotId || "";
-      if (!slotId) return;
-      const slotElements = slotElementsById.get(slotId) || [];
-      slotElements.push(element);
-      slotElementsById.set(slotId, slotElements);
-    });
-    slotElementsById.forEach((slotElements) => {
-      slotElements.forEach((element, index) => {
-        element.classList.add(slotHighlightClass);
-        if (index === 0) element.classList.add(slotHighlightStartClass);
-        if (index === slotElements.length - 1) element.classList.add(slotHighlightEndClass);
-      });
-    });
-  }
-  function staffElements(selector, staffId) {
-    return Array.from(document.querySelectorAll(selector)).filter(
-      (element) => element instanceof HTMLElement && element.dataset.rosterStaffId === staffId
-    );
-  }
-  function staffRowFromEvent(event) {
-    if (!(event.target instanceof Element)) return null;
-    const row = event.target.closest(rosterStaffRowSelector);
-    return row instanceof HTMLElement ? row : null;
-  }
-  function movedWithinRow(event, row) {
-    return event.relatedTarget instanceof Node && row.contains(event.relatedTarget);
-  }
-  function syncLocateButtons() {
-    document.querySelectorAll('[data-roster-staff-highlight-toggle="true"]').forEach((button) => {
-      if (!(button instanceof HTMLElement)) return;
-      const row = button.closest(rosterStaffRowSelector);
-      const isPressed = Boolean(row instanceof HTMLElement && row.dataset.rosterStaffId === pinnedRosterStaffId);
-      button.setAttribute("aria-pressed", isPressed ? "true" : "false");
-    });
-  }
-  function highlightRosterStaff(staffId) {
-    clearRosterStaffHighlights();
-    if (!staffId) {
-      syncLocateButtons();
-      return;
-    }
-    staffElements(rosterStaffRowSelector, staffId).forEach((element) => {
-      element.classList.add(rowHighlightClass);
-    });
-    highlightSlotElements(staffElements('.roster-grid [role="gridcell"][data-roster-staff-id][data-roster-slot-id]', staffId));
-    highlightSlotElements(staffElements(".roster-shift-card[data-roster-staff-id][data-roster-slot-id]", staffId));
-    syncLocateButtons();
-  }
-  function refreshRosterStaffHighlight() {
-    highlightRosterStaff(pinnedRosterStaffId || hoverRosterStaffId);
-  }
-  function activateRosterStaff(row) {
-    const staffId = row.dataset.rosterStaffId || "";
-    if (!staffId) return;
-    hoverRosterStaffId = staffId;
-    refreshRosterStaffHighlight();
-  }
-  function deactivateRosterStaff(row) {
-    const staffId = row.dataset.rosterStaffId || "";
-    if (!staffId || staffId !== hoverRosterStaffId) {
-      return;
-    }
-    hoverRosterStaffId = "";
-    refreshRosterStaffHighlight();
-  }
-  function togglePinnedRosterStaff(row) {
-    const staffId = row.dataset.rosterStaffId || "";
-    if (!staffId) return;
-    if (pinnedRosterStaffId === staffId) {
-      pinnedRosterStaffId = "";
-      hoverRosterStaffId = "";
-    } else {
-      pinnedRosterStaffId = staffId;
-    }
-    refreshRosterStaffHighlight();
-  }
-  function shiftLauncherFromEvent(event) {
-    if (!(event.target instanceof Element)) return null;
-    const launcher = event.target.closest("[data-roster-shift-group-key]");
-    return launcher instanceof HTMLElement ? launcher : null;
-  }
-  function movedWithinShiftGroup(event, launcher) {
-    const groupKey = launcher.dataset.rosterShiftGroupKey || "";
-    if (!groupKey || !(event.relatedTarget instanceof Element)) return false;
-    const nextLauncher = event.relatedTarget.closest("[data-roster-shift-group-key]");
-    return nextLauncher instanceof HTMLElement && nextLauncher.dataset.rosterShiftGroupKey === groupKey;
-  }
-  function setShiftGroupHighlight(groupKey, shouldHighlight) {
-    if (!groupKey) return;
-    document.querySelectorAll(`[data-roster-shift-group-key="${CSS.escape(groupKey)}"]`).forEach((element) => {
-      element.classList.toggle(shiftGroupHighlightClass, shouldHighlight);
-    });
-  }
-  function handleShiftGroupEnter(event) {
-    const launcher = shiftLauncherFromEvent(event);
-    if (!launcher || movedWithinShiftGroup(event, launcher)) return;
-    setShiftGroupHighlight(launcher.dataset.rosterShiftGroupKey || "", true);
-  }
-  function handleShiftGroupLeave(event) {
-    const launcher = shiftLauncherFromEvent(event);
-    if (!launcher || movedWithinShiftGroup(event, launcher)) return;
-    setShiftGroupHighlight(launcher.dataset.rosterShiftGroupKey || "", false);
-  }
-  function handleShiftLauncherKeydown(event) {
-    const launcher = shiftLauncherFromEvent(event);
-    if (!launcher || event.target !== launcher || event.key !== "Enter" && event.key !== " ") return;
-    event.preventDefault();
-    launcher.click();
-  }
-  function handleStaffRowEnter(event) {
-    const row = staffRowFromEvent(event);
-    if (!row || movedWithinRow(event, row)) return;
-    activateRosterStaff(row);
-  }
-  function handleStaffRowLeave(event) {
-    const row = staffRowFromEvent(event);
-    if (!row || movedWithinRow(event, row)) return;
-    deactivateRosterStaff(row);
-  }
-  function enableRosterStaffShiftHighlight() {
-    if (typeof window === "undefined") return;
-    document.addEventListener("mouseover", handleShiftGroupEnter);
-    document.addEventListener("mouseout", handleShiftGroupLeave);
-    document.addEventListener("focusin", handleShiftGroupEnter);
-    document.addEventListener("focusout", handleShiftGroupLeave);
-    document.addEventListener("keydown", handleShiftLauncherKeydown);
-    document.addEventListener("mouseover", handleStaffRowEnter);
-    document.addEventListener("mouseout", handleStaffRowLeave);
-    document.addEventListener("focusin", (event) => {
-      const row = staffRowFromEvent(event);
-      if (!row) return;
-      activateRosterStaff(row);
-    });
-    document.addEventListener("focusout", (event) => {
-      const row = staffRowFromEvent(event);
-      if (!row || movedWithinRow(event, row)) return;
-      deactivateRosterStaff(row);
-    });
-    document.addEventListener("click", (event) => {
-      if (!(event.target instanceof Element)) return;
-      const toggleButton = event.target.closest('[data-roster-staff-highlight-toggle="true"]');
-      if (!(toggleButton instanceof HTMLElement)) return;
-      const row = toggleButton.closest(rosterStaffRowSelector);
-      if (!(row instanceof HTMLElement)) return;
-      event.preventDefault();
-      event.stopPropagation();
-      togglePinnedRosterStaff(row);
-    }, true);
-    document.addEventListener("keydown", (event) => {
-      const row = staffRowFromEvent(event);
-      if (!row || event.target !== row || event.key !== "Enter" && event.key !== " ") return;
-      event.preventDefault();
-      row.click();
-    });
-    onAppPageReady(() => {
-      if (pinnedRosterStaffId && !staffElements(rosterStaffRowSelector, pinnedRosterStaffId).length) {
-        pinnedRosterStaffId = "";
-      }
-      refreshRosterStaffHighlight();
-    });
-  }
-
   // frontend/ts/roster/staff-sort.ts
   function rosterParseNumber(value) {
     const parsed = Number.parseInt(value || "0", 10);
@@ -839,5 +921,5 @@
   enableRosterImageExport();
   enableRosterStaffPanelSorting();
   enableRosterStaffPanelTabs();
-  enableRosterStaffShiftHighlight();
+  enableFrontendSurfaceLinkedHighlight();
 })();

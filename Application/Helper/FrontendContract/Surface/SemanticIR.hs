@@ -2,7 +2,10 @@
 {-# LANGUAGE TypeApplications #-}
 
 module Application.Helper.FrontendContract.Surface.SemanticIR
-    ( InteractionEffectClassIR (..)
+    ( BrowserAttributeIR (..)
+    , LinkedHighlightActivationIR (..)
+    , LinkedHighlightEffectIR (..)
+    , InteractionEffectClassIR (..)
     , InteractionEffectIR (..)
     , InteractionEffectKindIR (..)
     , InteractionEffectLifecycleIR (..)
@@ -19,6 +22,8 @@ module Application.Helper.FrontendContract.Surface.SemanticIR
     , interactionEffectLayerName
     , interactionEffectSemanticName
     , interactionEffectSourceName
+    , linkedHighlightActivationName
+    , linkedHighlightEffectName
     , scopeAuthFieldNames
     , scopeAuthPolicy
     , scopeAuthPolicyFieldCount
@@ -29,6 +34,14 @@ import qualified Application.Helper.FrontendContract.Interaction as Interaction
 import Application.Helper.FrontendContract.Naming (FrontendSurfaceNameContext (..),
                                                    deriveFrontendSurfaceTypeName)
 import IHP.Prelude
+
+data Hover
+data Focus
+data Keyboard
+data Pin
+data MatchingSource
+data MatchingMember
+data OrderedMemberBounds
 
 data CurrentVenuePolicy
 data CurrentVenueUserPolicy
@@ -119,6 +132,42 @@ scopeAuthPolicyName = \case
     CurrentVenueOwnerPolicyIR            -> deriveFrontendSurfaceTypeName @CurrentVenueOwnerPolicy AuthorizationPolicyName
     CurrentVenueAdminRosterGroupPolicyIR -> deriveFrontendSurfaceTypeName @CurrentVenueAdminRosterGroupPolicy AuthorizationPolicyName
     SupportSuperAdminPolicyIR            -> deriveFrontendSurfaceTypeName @SupportSuperAdminPolicy AuthorizationPolicyName
+
+-- | One generated Surface-owned browser attribute. Roles identify adapter
+-- participants; states carry adapter-owned values. Both use the same checked,
+-- collision-validated attribute representation after reflection.
+data BrowserAttributeIR = BrowserAttributeIR
+    { browserAttributeMarker       :: !Text
+    , browserAttributeName         :: !Text
+    , browserAttributeDomAttribute :: !Text
+    }
+    deriving (Eq, Show)
+
+data LinkedHighlightActivationIR
+    = LinkedHighlightHoverActivationIR
+    | LinkedHighlightFocusActivationIR
+    | LinkedHighlightKeyboardActivationIR
+    | LinkedHighlightPinActivationIR !BrowserAttributeIR
+    deriving (Eq, Show)
+
+data LinkedHighlightEffectIR
+    = LinkedHighlightMatchingSourceEffectIR
+    | LinkedHighlightMatchingMemberEffectIR
+    | LinkedHighlightOrderedMemberBoundsEffectIR !BrowserAttributeIR
+    deriving (Eq, Show)
+
+linkedHighlightActivationName :: LinkedHighlightActivationIR -> Text
+linkedHighlightActivationName = \case
+    LinkedHighlightHoverActivationIR -> deriveFrontendSurfaceTypeName @Hover DomTokenName
+    LinkedHighlightFocusActivationIR -> deriveFrontendSurfaceTypeName @Focus DomTokenName
+    LinkedHighlightKeyboardActivationIR -> deriveFrontendSurfaceTypeName @Keyboard DomTokenName
+    LinkedHighlightPinActivationIR {} -> deriveFrontendSurfaceTypeName @Pin DomTokenName
+
+linkedHighlightEffectName :: LinkedHighlightEffectIR -> Text
+linkedHighlightEffectName = \case
+    LinkedHighlightMatchingSourceEffectIR -> deriveFrontendSurfaceTypeName @MatchingSource DomTokenName
+    LinkedHighlightMatchingMemberEffectIR -> deriveFrontendSurfaceTypeName @MatchingMember DomTokenName
+    LinkedHighlightOrderedMemberBoundsEffectIR {} -> deriveFrontendSurfaceTypeName @OrderedMemberBounds DomTokenName
 
 -- Effect behavior, lifecycle, classes, and source are explicit checked fields.
 -- Browser spellings are derived from typed markers only when rendered.

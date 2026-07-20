@@ -1,9 +1,16 @@
 import {
     FrontendSurfaceFragmentRegistry,
     FrontendSurfaceInteractionRegistry,
+    FrontendSurfaceLinkedHighlightRegistry,
     isFrontendSurfaceLiveFragmentName,
     isFrontendSurfaceName,
     rosterContentDomToken,
+    rosterDayTimelineShiftGroupHighlightMemberDomAttr,
+    rosterShiftGroupHighlightMemberDomAttr,
+    rosterStaffHighlightMemberDomAttr,
+    rosterStaffHighlightOrderDomAttr,
+    rosterStaffHighlightPinDomAttr,
+    rosterStaffHighlightSourceDomAttr,
     rosterWeekShellDomToken,
     timesheetWeekShellDomToken,
     type TimesheetsSurfaceFragmentKey,
@@ -39,6 +46,24 @@ test("generated interaction registry contains only runtime-consumed interaction 
     assertDeepEqual(roster.activationRefs.map((activation) => activation.ref), ["roster-layout-mode-activation"]);
     assertDeepEqual(roster.sessionKinds.map((session) => session.kind), ["drag"]);
     assertDeepEqual(Object.keys(roster).sort(), ["activationRefs", "dropzoneRefs", "sessionKinds", "sourceRefs"]);
+});
+
+test("generated linked-highlight registry owns roster roles and closed behavior", () => {
+    const [staffHighlight, shiftGroupHighlight] = FrontendSurfaceLinkedHighlightRegistry.roster;
+    assertDeepEqual(staffHighlight, {
+        name: "staff-shifts-highlight",
+        sourceRoleAttribute: rosterStaffHighlightSourceDomAttr,
+        memberRoleAttribute: rosterStaffHighlightMemberDomAttr,
+        pinRoleAttribute: rosterStaffHighlightPinDomAttr,
+        orderStateAttribute: rosterStaffHighlightOrderDomAttr,
+        activations: ["hover", "focus", "keyboard", "pin"],
+        effects: ["matching-source", "matching-member", "ordered-member-bounds"],
+    });
+    assertEqual(shiftGroupHighlight?.memberRoleAttribute, rosterShiftGroupHighlightMemberDomAttr);
+    assertEqual(
+        FrontendSurfaceLinkedHighlightRegistry["roster-day-timeline"][0]?.memberRoleAttribute,
+        rosterDayTimelineShiftGroupHighlightMemberDomAttr,
+    );
 });
 
 test("surface DOM tokens are generated as tree-shakeable feature constants", () => {

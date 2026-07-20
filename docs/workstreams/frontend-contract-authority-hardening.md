@@ -208,7 +208,7 @@ slices, and all block final reconciliation.
 
 ### Roster browser capabilities
 
-20. `#174` - Surface-owned linked-highlight roles and stale interaction class cleanup.
+20. `#174` - Surface-owned linked-highlight roles and stale interaction class cleanup. **Complete.**
 21. `#175` - Staff-panel sorting/tabs and browser-reachable Surface DTOs.
 22. `#176` - Fullscreen and column-edit controls.
 23. `#177` - Image-export annotations and configuration.
@@ -296,7 +296,17 @@ mutations on the server. The root-local adapter validates the complete boundary,
 reports structured diagnostics, then performs only generic query normalization,
 fuzzy matching, and native visibility updates; focused render, TypeScript,
 single-worker browser, CSS, drift, compile-failure, and source guards pin that
-boundary.
+boundary. #174 added checked Surface `BrowserRole`, `BrowserState`, and
+`LinkedHighlight` declarations with closed hover/focus/keyboard/pin activations
+and matching-source/member/ordered-bounds effects. Roster staff and shift-group
+markup now renders generated role attributes with opaque membership/order keys;
+the contained day timeline owns a separate shift-group declaration. One generic,
+mount-local TypeScript runtime consumes the generated registry, owns transient
+`is-linked-highlight-*` classes and pin accessibility state, and reconciles
+server-rendered replacements. The old roster-specific runtime, raw staff/slot
+attributes, feature highlight selectors, and misleading create-dropzone class
+are deleted; focused Haskell/TypeScript/browser coverage, CSS migration, drift,
+and source guards pin the boundary.
 Roster linked highlighting depends on closed interaction IR. Staff-panel work
 establishes the browser-reachable Surface DTO path for image export and week
 overview. The Haskell adapter slices run in parallel with capability slices and

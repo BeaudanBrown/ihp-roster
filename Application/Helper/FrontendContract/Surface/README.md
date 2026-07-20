@@ -116,6 +116,8 @@ Available primitives include:
   interaction runtime coordination;
 - generated source, dropzone, and activation refs for generic browser
   interactions;
+- `BrowserRole`, `BrowserState`, and `LinkedHighlight` for mount-local,
+  generated browser relationships and their closed activations/effects;
 - `ConflictPolicy` for session/fragment conflict behavior;
 - `Event`, `DomToken`, and `Dto` for checked Surface metadata. `DomToken` is
   server-only; use `BrowserDomToken` only when production TypeScript also
@@ -196,6 +198,34 @@ methods, hidden inputs, targets, swaps, sync selectors, disabled selectors, and
 trigger events. Mount JSON must not become a custom mutation transport contract.
 The generic browser runtime only validates generated semantics and matching DOM
 forms, fills declared intent fields, and dispatches the generated HTMX trigger.
+
+## Generated Linked Highlights
+
+`LinkedHighlight` declares a Surface-owned relationship without exposing feature
+selectors or browser business logic. Its source/member roles, optional pin role,
+and ordered-member state are `BrowserRole`/`BrowserState` markers reflected to
+`data-bepis-<surface>-<role-or-state>` names. Activations are closed to hover,
+focus, keyboard, and optional pin; effects are closed to matching source,
+matching member, and ordered member bounds. Checked-IR validation rejects
+undeclared role/state references and generated-name collisions.
+
+Views attach opaque membership and ordering keys with
+`Application.Helper.FrontendContract.Surface.LinkedHighlight`. The generic
+`frontend/ts/linked-highlight/runtime.ts` adapter imports only the generated
+`FrontendSurfaceLinkedHighlightRegistry`, scopes every lookup to the nearest
+surface mount, and applies browser-local transient classes:
+`is-linked-highlight-source`, `is-linked-highlight-member`,
+`is-linked-highlight-member-first`, and `is-linked-highlight-member-last`.
+It may compare opaque keys for equality but must not parse them into domain
+fields. Server-rendered HTML remains authoritative across HTMX reconciliation;
+the runtime removes stale effects and resets pin accessibility state when a
+source disappears.
+
+Roster currently declares staff-to-shift highlighting on the roster surface and
+shift-group highlighting independently on the roster and contained day-timeline
+surfaces. Their views consume generated Haskell role helpers; raw staff/slot IDs,
+feature selector attributes, and feature-specific highlight runtimes are not a
+parallel contract.
 
 ## Generated HTMX Request Actions
 

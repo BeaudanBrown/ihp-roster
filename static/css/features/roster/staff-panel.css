@@ -280,7 +280,7 @@
     cursor: pointer;
 }
 
-.roster-staff-panel-entry.is-roster-staff-highlighted {
+.roster-staff-panel-entry.is-linked-highlight-source {
     background: color-mix(in srgb, var(--app-accent) 18%, transparent);
 }
 

@@ -1,5 +1,8 @@
 import { expect, Page, test } from '@playwright/test';
-import { dialogOverlayMountDomId } from '../frontend/ts/generated/contracts';
+import {
+    dialogOverlayMountDomId,
+    rosterStaffHighlightMemberDomAttr,
+} from '../frontend/ts/generated/contracts';
 import { E2E_TIMEOUT } from './timeouts';
 import { gotoWhenReady, loginAs, openProfileLeaveSection, openRoster, runSql, setFlatpickrDate } from './test-helpers';
 
@@ -162,12 +165,12 @@ test.describe('Live fragment multi-view coverage', () => {
               AND notes = '${note}';
         `);
         await loginAndOpenRoster(viewerPage);
+        const targetStaffId = 'a1000000-0000-0000-0000-000000000031';
+        const targetStaffKey = 'staff:a1000000-0000-0000-0000-000000000031';
         const viewerTargetLauncher = viewerPage
-            .locator('[data-roster-shift-launcher="true"][data-roster-staff-id]:not([data-roster-staff-id=""])')
+            .locator(`[data-roster-shift-launcher="true"][${rosterStaffHighlightMemberDomAttr}="${targetStaffKey}"]`)
             .first();
         await expect(viewerTargetLauncher).toBeVisible({ timeout: E2E_TIMEOUT.assertion });
-        const targetStaffId = await viewerTargetLauncher.getAttribute('data-roster-staff-id');
-        expect(targetStaffId).toBeTruthy();
         const viewerTargetStaffCell = viewerTargetLauncher.locator('.slot-staff-cell').first();
 
         const { startDate, endDate } = await currentBroadLeaveRange(actorPage);

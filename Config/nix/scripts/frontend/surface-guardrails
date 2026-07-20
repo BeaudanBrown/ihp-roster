@@ -1254,6 +1254,20 @@ expect_match \
     '\[data-bepis-xero-candidate-filter-candidate\]\[hidden\]' \
     static/css/features/xero.css
 
+expect_no_match_including_generated \
+    "stale roster linked-highlight IDs, selectors, feature runtime vocabulary, and opaque-key prefix parsing must stay deleted" \
+    '\bdata-roster-(staff-id|slot-id|shift-group-key|staff-highlight-toggle)\b|\bis-roster-(staff-highlighted|staff-slot-highlighted|shift-group-highlighted)\b|\broster-shift-create-staff-dropzone\b|\benableRosterStaffShiftHighlight\b|replace\(/\^(staff|existing|new):|\^=\"(staff|existing|new):|(staff|existing|new):\$\{' \
+    Application Web frontend/ts static/css Test e2e
+
+if [ -e frontend/ts/roster/staff-highlight.ts ]; then
+    report_failure "feature-specific roster staff-highlight runtime must stay deleted in favor of linked-highlight/runtime.ts"
+fi
+
+expect_match \
+    "the roster entrypoint must enable the generic generated linked-highlight runtime" \
+    '\benableFrontendSurfaceLinkedHighlight\b' \
+    frontend/ts/app-roster.ts
+
 if [ "$failures" -ne 0 ]; then
     exit 1
 fi

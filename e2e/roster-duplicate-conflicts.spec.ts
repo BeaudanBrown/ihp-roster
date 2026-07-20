@@ -50,11 +50,13 @@ async function staffOptionsForRow(page: Page, rowIndex: number) {
 async function assignStaffToRow(page: Page, rowIndex: number, staffId: string) {
     await openRosterShiftDialog(page, rowShiftLauncher(page, rowIndex));
     await fillRosterShiftDialogDefaults(page);
-    await page.locator('#roster-shift-staff-id').selectOption(staffId);
+    const staffSelect = page.locator('#roster-shift-staff-id');
+    await staffSelect.selectOption(staffId);
+    const expectedStaffLabel = (await staffSelect.locator('option:checked').textContent())?.trim() ?? '';
     await saveRosterShiftDialog(page);
-    await expect
-        .poll(async () => rowShiftLauncher(page, rowIndex).getAttribute('data-roster-staff-id'), { timeout: E2E_TIMEOUT.liveUpdate })
-        .toBe(staffId);
+    await expect(rowShiftLauncher(page, rowIndex).locator('.slot-staff-cell')).toContainText(expectedStaffLabel, {
+        timeout: E2E_TIMEOUT.liveUpdate,
+    });
 }
 
 async function normalizeRosterForDuplicateConflict(actorPage: Page) {

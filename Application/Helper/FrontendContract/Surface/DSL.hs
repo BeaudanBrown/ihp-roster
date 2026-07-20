@@ -14,6 +14,8 @@ module Application.Helper.FrontendContract.Surface.DSL
     , AuthPolicy (..)
     , InteractionEffect (..)
     , InteractionSessionOption (..)
+    , LinkedHighlightActivation (..)
+    , LinkedHighlightEffect (..)
     , CloneShadowStyle (..)
     , WireType (..)
     , PrimitiveOption (..)
@@ -41,6 +43,9 @@ module Application.Helper.FrontendContract.Surface.DSL
     , SourceRef
     , DropzoneRef
     , ActivationRef
+    , BrowserRole
+    , BrowserState
+    , LinkedHighlight
     , ConflictPolicy
     , ConflictPolicyFor
     , Event
@@ -155,6 +160,24 @@ data InteractionSessionOption
     = Layer Type
     | Effect InteractionEffect
 
+-- | Closed activation mechanics supported by the generic linked-highlight
+-- runtime. A pin activation names the Surface-owned browser role rendered on
+-- the matching toggle controls.
+data LinkedHighlightActivation
+    = ActivateOnHover
+    | ActivateOnFocus
+    | ActivateOnKeyboard
+    | ActivateWithPin Type
+
+-- | Closed presentation effects supported by linked highlighting. CSS class
+-- names remain browser-module-owned transient state; Haskell selects only the
+-- allowed mechanical effect. Ordered bounds name the Surface-owned state attr
+-- carrying an opaque order-group key.
+data LinkedHighlightEffect
+    = HighlightMatchingSource
+    | HighlightMatchingMember
+    | HighlightOrderedMemberBounds Type
+
 data PrimitiveOption
     = Eager
     | Lazy [PrimitiveOption]
@@ -214,6 +237,9 @@ data SurfacePrimitive
     | SourceRef Type [PrimitiveOption]
     | DropzoneRef Type [PrimitiveOption]
     | ActivationRef Type [PrimitiveOption]
+    | BrowserRole Type
+    | BrowserState Type
+    | LinkedHighlight Type Type Type [LinkedHighlightActivation] [LinkedHighlightEffect]
     | ConflictPolicy SessionSelector FragmentSelector ConflictResolution
     | Event Type [FieldSpec]
     | DomToken Type
@@ -237,6 +263,9 @@ type Session name options = 'Session name options
 type SourceRef name options = 'SourceRef name options
 type DropzoneRef name options = 'DropzoneRef name options
 type ActivationRef name options = 'ActivationRef name options
+type BrowserRole name = 'BrowserRole name
+type BrowserState name = 'BrowserState name
+type LinkedHighlight name sourceRole memberRole activations effects = 'LinkedHighlight name sourceRole memberRole activations effects
 type ConflictPolicy session fragment resolution = 'ConflictPolicy ('SessionKind session) ('FragmentKind fragment) resolution
 type ConflictPolicyFor sessionSelector fragmentSelector resolution = 'ConflictPolicy sessionSelector fragmentSelector resolution
 type Event name detail = 'Event name detail

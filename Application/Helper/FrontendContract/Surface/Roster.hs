@@ -34,6 +34,14 @@ module Application.Helper.FrontendContract.Surface.Roster
     , DayColumnDropzone
     , ExistingShiftDropzone
     , DeleteShiftDropzone
+    , StaffShiftsHighlight
+    , StaffHighlightSourceRole
+    , StaffHighlightMemberRole
+    , StaffHighlightPinRole
+    , StaffHighlightOrderState
+    , ShiftGroupHighlight
+    , ShiftGroupHighlightSourceRole
+    , ShiftGroupHighlightMemberRole
     , MoveRosterTimelineShift
     , DuplicateRosterShiftToDay
     , DropRosterStaff
@@ -106,6 +114,17 @@ data StaffCreateDropzone
 data DayColumnDropzone
 data ExistingShiftDropzone
 data DeleteShiftDropzone
+
+data StaffShiftsHighlight
+data StaffHighlightSourceRole
+data StaffHighlightMemberRole
+data StaffHighlightPinRole
+data StaffHighlightOrderState
+
+data ShiftGroupHighlight
+data ShiftGroupHighlightSourceRole
+data ShiftGroupHighlightMemberRole
+
 data NavigateRosterWeek
 data ToggleRosterWarnings
 data ToggleRosterWageEstimates
@@ -381,8 +400,33 @@ type RosterInteractionBundle =
          , DragDropIntent DropRosterStaff RosterContent
          ]
 
+type RosterLinkedHighlightBundle =
+    '[ BrowserRole StaffHighlightSourceRole
+     , BrowserRole StaffHighlightMemberRole
+     , BrowserRole StaffHighlightPinRole
+     , BrowserState StaffHighlightOrderState
+     , LinkedHighlight StaffShiftsHighlight StaffHighlightSourceRole StaffHighlightMemberRole
+        '[ 'ActivateOnHover
+         , 'ActivateOnFocus
+         , 'ActivateOnKeyboard
+         , 'ActivateWithPin StaffHighlightPinRole
+         ]
+        '[ 'HighlightMatchingSource
+         , 'HighlightMatchingMember
+         , 'HighlightOrderedMemberBounds StaffHighlightOrderState
+         ]
+     , BrowserRole ShiftGroupHighlightSourceRole
+     , BrowserRole ShiftGroupHighlightMemberRole
+     , LinkedHighlight ShiftGroupHighlight ShiftGroupHighlightSourceRole ShiftGroupHighlightMemberRole
+        '[ 'ActivateOnHover
+         , 'ActivateOnFocus
+         , 'ActivateOnKeyboard
+         ]
+        '[ 'HighlightMatchingMember ]
+     ]
+
 type RosterSurface =
-    Surface Roster (Concat '[ RosterScopeBundle, RosterFragmentBundle, RosterActionBundle, RosterInteractionBundle ])
+    Surface Roster (Concat '[ RosterScopeBundle, RosterFragmentBundle, RosterActionBundle, RosterInteractionBundle, RosterLinkedHighlightBundle ])
 
 type RosterDayTimelineScopeBundle =
     '[ Scope RosterDayTimeline
@@ -414,5 +458,16 @@ type RosterDayTimelineActionBundle =
 type RosterDayTimelineInteractionBundle =
     DragDropInteraction MoveRosterTimelineShift RosterDayTimelineContent
 
+type RosterDayTimelineLinkedHighlightBundle =
+    '[ BrowserRole ShiftGroupHighlightSourceRole
+     , BrowserRole ShiftGroupHighlightMemberRole
+     , LinkedHighlight ShiftGroupHighlight ShiftGroupHighlightSourceRole ShiftGroupHighlightMemberRole
+        '[ 'ActivateOnHover
+         , 'ActivateOnFocus
+         , 'ActivateOnKeyboard
+         ]
+        '[ 'HighlightMatchingMember ]
+     ]
+
 type RosterDayTimelineSurface =
-    Surface RosterDayTimeline (Concat '[ RosterDayTimelineScopeBundle, RosterDayTimelineFragmentBundle, RosterDayTimelineActionBundle, RosterDayTimelineInteractionBundle ])
+    Surface RosterDayTimeline (Concat '[ RosterDayTimelineScopeBundle, RosterDayTimelineFragmentBundle, RosterDayTimelineActionBundle, RosterDayTimelineInteractionBundle, RosterDayTimelineLinkedHighlightBundle ])

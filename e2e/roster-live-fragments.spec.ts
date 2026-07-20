@@ -1,5 +1,9 @@
 import { test, expect, type Page, type Locator } from '@playwright/test';
-import { toggleInputDomAttr } from '../frontend/ts/generated/contracts';
+import {
+    rosterShiftGroupHighlightMemberDomAttr,
+    rosterStaffHighlightMemberDomAttr,
+    toggleInputDomAttr,
+} from '../frontend/ts/generated/contracts';
 import { E2E_TIMEOUT } from './timeouts';
 import { ensureRosterLayout, fillRosterShiftDialogDefaults, openRoster, openRosterSettings, openRosterShiftDialog, saveRosterShiftDialog } from './test-helpers';
 
@@ -58,27 +62,28 @@ async function expectAutoCreatedDraftWeek(page: Page) {
 }
 
 function existingShiftLaunchers(page: Page): Locator {
-    return page.locator('[data-roster-shift-launcher="true"][data-roster-slot-id]:not([data-roster-slot-id=""])');
+    return page.locator('[data-roster-shift-launcher="true"][hx-get*="EditRosterSlotDialog"]');
 }
 
 async function firstExistingShiftGroupKey(page: Page): Promise<string> {
     const launcher = existingShiftLaunchers(page).first();
     await expect(launcher).toBeVisible();
-    const groupKey = await launcher.getAttribute('data-roster-shift-group-key');
+    const groupKey = await launcher.getAttribute(rosterShiftGroupHighlightMemberDomAttr);
     expect(groupKey).toBeTruthy();
     return groupKey ?? '';
 }
 
 function shiftGroupLaunchers(page: Page, groupKey: string): Locator {
-    return page.locator(`[data-roster-shift-group-key="${groupKey}"][data-roster-shift-launcher="true"]`);
+    return page.locator(`[${rosterShiftGroupHighlightMemberDomAttr}="${groupKey}"][data-roster-shift-launcher="true"]`);
 }
 
-async function shiftGroupStaffId(page: Page, groupKey: string): Promise<string> {
-    return (await shiftGroupLaunchers(page, groupKey).first().getAttribute('data-roster-staff-id')) ?? '';
+async function shiftGroupStaffKey(page: Page, groupKey: string): Promise<string> {
+    return await shiftGroupLaunchers(page, groupKey).first().getAttribute(rosterStaffHighlightMemberDomAttr) ?? '';
 }
 
-async function changeShiftToAlternateStaff(page: Page, groupKey: string): Promise<string> {
-    const launcher = page.locator(`[data-roster-shift-group-key="${groupKey}"][hx-get*="EditRosterSlotDialog"]`).first();
+async function changeShiftToAlternateStaffKey(page: Page, groupKey: string): Promise<string> {
+    const previousStaffKey = await shiftGroupStaffKey(page, groupKey);
+    const launcher = page.locator(`[${rosterShiftGroupHighlightMemberDomAttr}="${groupKey}"][hx-get*="EditRosterSlotDialog"]`).first();
     await openRosterShiftDialog(page, launcher);
 
     const staffSelect = page.locator('#roster-shift-staff-id');
@@ -94,21 +99,26 @@ async function changeShiftToAlternateStaff(page: Page, groupKey: string): Promis
     await fillRosterShiftDialogDefaults(page);
     await staffSelect.selectOption(nextStaffId);
     await saveRosterShiftDialog(page);
-    return nextStaffId;
+    await expect
+        .poll(() => shiftGroupStaffKey(page, groupKey), { timeout: E2E_TIMEOUT.liveUpdate })
+        .not.toBe(previousStaffKey);
+    return await shiftGroupStaffKey(page, groupKey);
 }
 
 async function assignedShiftCount(page: Page): Promise<number> {
-    return page.locator('[data-roster-shift-group-key^="existing:"][data-roster-staff-id]:not([data-roster-staff-id=""])').evaluateAll((elements) => {
-        return new Set(elements.map((element) => (element as HTMLElement).dataset.rosterShiftGroupKey ?? '')).size;
-    });
+    return page
+        .locator(`[hx-get*="EditRosterSlotDialog"][${rosterShiftGroupHighlightMemberDomAttr}][${rosterStaffHighlightMemberDomAttr}]`)
+        .evaluateAll((elements, groupAttr) => {
+            return new Set(elements.map((element) => element.getAttribute(groupAttr) ?? '')).size;
+        }, rosterShiftGroupHighlightMemberDomAttr);
 }
 
 async function expectAssignedShiftCount(page: Page, count: number) {
     await expect.poll(() => assignedShiftCount(page), { timeout: E2E_TIMEOUT.liveUpdate }).toBe(count);
 }
 
-async function expectShiftGroupStaffId(page: Page, groupKey: string, staffId: string) {
-    await expect.poll(() => shiftGroupStaffId(page, groupKey), { timeout: E2E_TIMEOUT.liveUpdate }).toBe(staffId);
+async function expectShiftGroupStaffKey(page: Page, groupKey: string, staffKey: string) {
+    await expect.poll(() => shiftGroupStaffKey(page, groupKey), { timeout: E2E_TIMEOUT.liveUpdate }).toBe(staffKey);
 }
 
 async function copyPreviousWeek(page: Page) {
@@ -135,15 +145,15 @@ test.describe('Roster live fragments', () => {
         await loginAndOpenRoster(viewerPage);
 
         const groupKey = await firstExistingShiftGroupKey(viewerPage);
-        const initialStaffId = await shiftGroupStaffId(viewerPage, groupKey);
-        await expectShiftGroupStaffId(actorPage, groupKey, initialStaffId);
+        const initialStaffKey = await shiftGroupStaffKey(viewerPage, groupKey);
+        await expectShiftGroupStaffKey(actorPage, groupKey, initialStaffKey);
 
-        const nextStaffId = await changeShiftToAlternateStaff(actorPage, groupKey);
+        const nextStaffKey = await changeShiftToAlternateStaffKey(actorPage, groupKey);
 
-        await expectShiftGroupStaffId(actorPage, groupKey, nextStaffId);
+        await expectShiftGroupStaffKey(actorPage, groupKey, nextStaffKey);
         await viewerPage.reload();
         await expect(viewerPage.locator('#roster-content')).toBeVisible({ timeout: E2E_TIMEOUT.navigation });
-        await expectShiftGroupStaffId(viewerPage, groupKey, nextStaffId);
+        await expectShiftGroupStaffKey(viewerPage, groupKey, nextStaffKey);
 
         await actorContext.close();
         await viewerContext.close();
@@ -162,7 +172,7 @@ test.describe('Roster live fragments', () => {
         const viewerScroll = await markRosterScrollOwner(viewerPage, 'viewer-scroll-owner');
         const groupKey = await firstExistingShiftGroupKey(viewerPage);
 
-        await changeShiftToAlternateStaff(actorPage, groupKey);
+        await changeShiftToAlternateStaffKey(actorPage, groupKey);
 
         await expectRosterScrollOwnerPreserved(actorPage, 'actor-scroll-owner', actorScroll);
         await expectRosterScrollOwnerPreserved(viewerPage, 'viewer-scroll-owner', viewerScroll);
@@ -214,12 +224,12 @@ test.describe('Roster live fragments', () => {
         await viewerLauncher.focus();
         await expect(viewerLauncher).toBeFocused();
 
-        const nextStaffId = await changeShiftToAlternateStaff(actorPage, groupKey);
+        const nextStaffKey = await changeShiftToAlternateStaffKey(actorPage, groupKey);
 
-        await expectShiftGroupStaffId(actorPage, groupKey, nextStaffId);
+        await expectShiftGroupStaffKey(actorPage, groupKey, nextStaffKey);
         await viewerPage.reload();
         await expect(viewerPage.locator('#roster-content')).toBeVisible({ timeout: E2E_TIMEOUT.navigation });
-        await expectShiftGroupStaffId(viewerPage, groupKey, nextStaffId);
+        await expectShiftGroupStaffKey(viewerPage, groupKey, nextStaffKey);
 
         await actorContext.close();
         await viewerContext.close();
@@ -237,14 +247,14 @@ test.describe('Roster live fragments', () => {
         const groupKey = await firstExistingShiftGroupKey(viewerPage);
         await viewerContext.setOffline(true);
 
-        const nextStaffId = await changeShiftToAlternateStaff(actorPage, groupKey);
-        await expectShiftGroupStaffId(actorPage, groupKey, nextStaffId);
+        const nextStaffKey = await changeShiftToAlternateStaffKey(actorPage, groupKey);
+        await expectShiftGroupStaffKey(actorPage, groupKey, nextStaffKey);
 
         await viewerContext.setOffline(false);
         await viewerPage.reload();
         await expect(viewerPage.locator('#roster-content')).toBeVisible({ timeout: E2E_TIMEOUT.navigation });
 
-        await expectShiftGroupStaffId(viewerPage, groupKey, nextStaffId);
+        await expectShiftGroupStaffKey(viewerPage, groupKey, nextStaffKey);
 
         await actorContext.close();
         await viewerContext.close();

@@ -6,6 +6,7 @@ module Web.View.RosterWeeks.Timeline
     ) where
 
 import qualified Application.Helper.FrontendContract.Surface.Interaction as SurfaceInteraction
+import qualified Application.Helper.FrontendContract.Surface.LinkedHighlight as SurfaceLinkedHighlight
 import Application.Helper.FrontendContract.Surface.Runtime (FrontendSurfaceInteractionShellConfig (..),
                                                             renderFrontendSurfaceInteractionShell,
                                                             renderFrontendSurfaceMount)
@@ -27,6 +28,7 @@ import Web.RosterWeeks.FrontendSurface (RosterDayTimelineScopeValue (..),
                                         rosterDayTimelineDropzoneRef,
                                         rosterDayTimelineFrontendSurfaceIR,
                                         rosterDayTimelineIntentForms,
+                                        rosterDayTimelineShiftGroupLinkedHighlight,
                                         rosterDayTimelineSourceRef,
                                         rosterDayTimelineSurfaceImpl)
 import Web.RosterWeeks.Types
@@ -179,11 +181,10 @@ renderTimelineShift :: TimelineWindow -> Bool -> Map.Map UUID.UUID Staff -> Map.
 renderTimelineShift timelineWindow editable staffById shiftTypeById TimelineShift { timelineShiftSlot, timelineShiftStartMin, timelineShiftEndMin, timelineShiftTrack } =
     let staffLabel = maybe "Unassigned" staffTimelineLabel (timelineShiftSlot.staffId >>= (`Map.lookup` staffById))
         shiftTypeLabel = maybe "Shift" (.name) (timelineShiftSlot.shiftTypeId >>= (`Map.lookup` shiftTypeById))
+        groupKey = "existing:" <> tshow timelineShiftSlot.id
         card = [hsx|
             <article class={classes [("roster-day-timeline-shift", True), ("roster-shift-launcher", editable)]}
                      style={timelineShiftStyle timelineWindow timelineShiftStartMin timelineShiftEndMin timelineShiftTrack}
-                     data-roster-slot-id={tshow timelineShiftSlot.id}
-                     data-roster-shift-group-key={"existing:" <> tshow timelineShiftSlot.id}
                      tabindex={if editable then ("0" :: Text) else ""}>
                 <div class="roster-day-timeline-shift-time">{minuteLabel timelineShiftStartMin}–{minuteLabel timelineShiftEndMin}</div>
                 <div class="roster-day-timeline-shift-staff">{staffLabel}</div>
@@ -191,7 +192,9 @@ renderTimelineShift timelineWindow editable staffById shiftTypeById TimelineShif
             </article>
         |]
      in if editable
-            then SurfaceInteraction.withFrontendSurfaceSourceRef rosterDayTimelineSourceRef ("existing:" <> tshow timelineShiftSlot.id) card
+            then SurfaceInteraction.withFrontendSurfaceSourceRef rosterDayTimelineSourceRef groupKey $
+                SurfaceLinkedHighlight.withFrontendSurfaceLinkedHighlightSource rosterDayTimelineShiftGroupLinkedHighlight groupKey $
+                    SurfaceLinkedHighlight.withFrontendSurfaceLinkedHighlightMember rosterDayTimelineShiftGroupLinkedHighlight groupKey Nothing card
             else card
 
 staffTimelineLabel :: Staff -> Text

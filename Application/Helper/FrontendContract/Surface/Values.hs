@@ -25,6 +25,9 @@ module Application.Helper.FrontendContract.Surface.Values
     , SurfaceActionFields
     , SurfaceActionPrimitive
     , SurfaceActivationRefPrimitive
+    , SurfaceBrowserRolePrimitive
+    , SurfaceBrowserStatePrimitive
+    , SurfaceLinkedHighlightPrimitive
     , SurfaceFieldBundle
     , SurfaceFieldBundleOf
     , SurfaceFieldBundleSpecs
@@ -65,6 +68,9 @@ module Application.Helper.FrontendContract.Surface.Values
     , prependOptionalSurfaceField
     , prependNullableSurfaceField
     , surfaceActivationRefValue
+    , surfaceBrowserRoleValue
+    , surfaceBrowserStateValue
+    , surfaceLinkedHighlightValue
     , surfaceDomTokenValue
     , surfaceDropzoneRefValue
     , surfaceFragmentFieldName
@@ -601,6 +607,9 @@ type SurfaceFragmentPrimitive spec marker = FindSurfaceFragment spec marker (Sur
 type SurfaceActionPrimitive spec marker = FindSurfaceAction spec marker (SurfacePrimitives spec)
 type SurfaceIntentPrimitive spec marker = FindSurfaceIntent spec marker (SurfacePrimitives spec)
 type SurfaceActivationRefPrimitive spec marker = FindSurfaceActivationRef spec marker (SurfacePrimitives spec)
+type SurfaceBrowserRolePrimitive spec marker = FindSurfaceBrowserRole spec marker (SurfacePrimitives spec)
+type SurfaceBrowserStatePrimitive spec marker = FindSurfaceBrowserState spec marker (SurfacePrimitives spec)
+type SurfaceLinkedHighlightPrimitive spec marker = FindSurfaceLinkedHighlight spec marker (SurfacePrimitives spec)
 type SurfaceDomTokenPrimitive spec marker = FindSurfaceDomToken spec marker (SurfacePrimitives spec)
 type SurfaceSourceRefPrimitive spec marker = FindSurfaceSourceRef spec marker (SurfacePrimitives spec)
 type SurfaceDropzoneRefPrimitive spec marker = FindSurfaceDropzoneRef spec marker (SurfacePrimitives spec)
@@ -690,6 +699,21 @@ type family FindSurfaceActivationRef (spec :: SurfaceSpec) (marker :: Type) (pri
     FindSurfaceActivationRef spec marker (primitive ': rest) = FindSurfaceActivationRef spec marker rest
     FindSurfaceActivationRef spec marker '[] = SurfaceOwnershipError spec "activation-ref" marker
 
+type family FindSurfaceBrowserRole (spec :: SurfaceSpec) (marker :: Type) (primitives :: [SurfacePrimitive]) :: SurfacePrimitive where
+    FindSurfaceBrowserRole spec marker (('BrowserRole marker) ': rest) = 'BrowserRole marker
+    FindSurfaceBrowserRole spec marker (primitive ': rest) = FindSurfaceBrowserRole spec marker rest
+    FindSurfaceBrowserRole spec marker '[] = SurfaceOwnershipError spec "browser-role" marker
+
+type family FindSurfaceBrowserState (spec :: SurfaceSpec) (marker :: Type) (primitives :: [SurfacePrimitive]) :: SurfacePrimitive where
+    FindSurfaceBrowserState spec marker (('BrowserState marker) ': rest) = 'BrowserState marker
+    FindSurfaceBrowserState spec marker (primitive ': rest) = FindSurfaceBrowserState spec marker rest
+    FindSurfaceBrowserState spec marker '[] = SurfaceOwnershipError spec "browser-state" marker
+
+type family FindSurfaceLinkedHighlight (spec :: SurfaceSpec) (marker :: Type) (primitives :: [SurfacePrimitive]) :: SurfacePrimitive where
+    FindSurfaceLinkedHighlight spec marker (('LinkedHighlight marker sourceRole memberRole activations effects) ': rest) = 'LinkedHighlight marker sourceRole memberRole activations effects
+    FindSurfaceLinkedHighlight spec marker (primitive ': rest) = FindSurfaceLinkedHighlight spec marker rest
+    FindSurfaceLinkedHighlight spec marker '[] = SurfaceOwnershipError spec "linked-highlight" marker
+
 type family FindSurfaceDomToken (spec :: SurfaceSpec) (marker :: Type) (primitives :: [SurfacePrimitive]) :: SurfacePrimitive where
     FindSurfaceDomToken spec marker (('DomToken marker) ': rest) = 'DomToken marker
     FindSurfaceDomToken spec marker (('BrowserDomToken marker) ': rest) = 'BrowserDomToken marker
@@ -773,6 +797,49 @@ surfaceActivationRefValue =
     case reflectPrimitive @(SurfaceActivationRefPrimitive spec marker) of
         ReflectedActivationRef ref -> ref
         _ -> error "impossible: activation-ref lookup reflected a different primitive"
+
+qualifySurfaceLinkedHighlight :: forall spec. ReflectSurfaceSpec spec => LinkedHighlightIR -> LinkedHighlightIR
+qualifySurfaceLinkedHighlight highlight =
+    highlight
+        { linkedHighlightSourceRole = qualifySurfaceBrowserAttribute @spec highlight.linkedHighlightSourceRole
+        , linkedHighlightMemberRole = qualifySurfaceBrowserAttribute @spec highlight.linkedHighlightMemberRole
+        , linkedHighlightActivations = map qualifyActivation highlight.linkedHighlightActivations
+        , linkedHighlightEffects = map qualifyEffect highlight.linkedHighlightEffects
+        }
+  where
+    qualifyActivation = \case
+        LinkedHighlightPinActivationIR roleAttribute ->
+            LinkedHighlightPinActivationIR (qualifySurfaceBrowserAttribute @spec roleAttribute)
+        activation -> activation
+    qualifyEffect = \case
+        LinkedHighlightOrderedMemberBoundsEffectIR stateAttribute ->
+            LinkedHighlightOrderedMemberBoundsEffectIR (qualifySurfaceBrowserAttribute @spec stateAttribute)
+        effect -> effect
+
+qualifySurfaceBrowserAttribute :: forall spec. ReflectSurfaceSpec spec => BrowserAttributeIR -> BrowserAttributeIR
+qualifySurfaceBrowserAttribute attribute =
+    attribute
+        { browserAttributeDomAttribute =
+            Naming.deriveSurfaceBrowserAttributeName (surfaceNameValue @spec) attribute.browserAttributeName
+        }
+
+surfaceBrowserRoleValue :: forall spec marker. (ReflectSurfaceSpec spec, ReflectPrimitive (SurfaceBrowserRolePrimitive spec marker)) => BrowserAttributeIR
+surfaceBrowserRoleValue =
+    case reflectPrimitive @(SurfaceBrowserRolePrimitive spec marker) of
+        ReflectedBrowserRole attribute -> qualifySurfaceBrowserAttribute @spec attribute
+        _ -> error "impossible: browser-role lookup reflected a different primitive"
+
+surfaceBrowserStateValue :: forall spec marker. (ReflectSurfaceSpec spec, ReflectPrimitive (SurfaceBrowserStatePrimitive spec marker)) => BrowserAttributeIR
+surfaceBrowserStateValue =
+    case reflectPrimitive @(SurfaceBrowserStatePrimitive spec marker) of
+        ReflectedBrowserState attribute -> qualifySurfaceBrowserAttribute @spec attribute
+        _ -> error "impossible: browser-state lookup reflected a different primitive"
+
+surfaceLinkedHighlightValue :: forall spec marker. (ReflectSurfaceSpec spec, ReflectPrimitive (SurfaceLinkedHighlightPrimitive spec marker)) => LinkedHighlightIR
+surfaceLinkedHighlightValue =
+    case reflectPrimitive @(SurfaceLinkedHighlightPrimitive spec marker) of
+        ReflectedLinkedHighlight highlight -> qualifySurfaceLinkedHighlight @spec highlight
+        _ -> error "impossible: linked-highlight lookup reflected a different primitive"
 
 surfaceDomTokenValue :: forall spec marker. ReflectPrimitive (SurfaceDomTokenPrimitive spec marker) => Text
 surfaceDomTokenValue =

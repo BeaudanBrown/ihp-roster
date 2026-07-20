@@ -3,6 +3,7 @@ import {
     addRowToRosterDay,
     editableRosterRows,
     assignRosterShiftStaff,
+    existingRosterShiftLaunchers,
     firstEditableRosterDaySection,
     openRoster,
     openRosterSettings,
@@ -235,7 +236,7 @@ test.describe('Roster row controls', () => {
     test('clips day-column cards and keeps compact controls aligned', async ({ page }) => {
         await loginAndOpenRoster(page);
         await page.setViewportSize({ width: 1280, height: 900 });
-        if ((await page.locator('[data-roster-shift-launcher="true"][data-roster-slot-id]:not([data-roster-slot-id=""])').count()) === 0) {
+        if ((await existingRosterShiftLaunchers(page).count()) === 0) {
             await assignRosterShiftStaff(page, rosterShiftLaunchers(page).first(), 'a1000000-0000-0000-0000-000000000031');
         }
 

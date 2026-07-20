@@ -22,6 +22,9 @@ module Web.RosterWeeks.FrontendSurface
     , rosterInteractionMountKey
     , rosterLayoutModeActivationRef
     , rosterLayoutModeIntentName
+    , rosterStaffLinkedHighlight
+    , rosterShiftGroupLinkedHighlight
+    , rosterDayTimelineShiftGroupLinkedHighlight
     , rosterSurfaceScope
     , rosterMountedFragmentPlanFromRenderData
     , rosterMoveShiftIntentName
@@ -198,6 +201,15 @@ rosterDayTimelineDropzoneRef = surfaceDropzoneRefValue @Surface.RosterDayTimelin
 
 rosterLayoutModeActivationRef :: SurfaceIR.InteractionActivationRefIR
 rosterLayoutModeActivationRef = surfaceActivationRefValue @Surface.RosterSurface @SurfaceInteraction.RosterLayoutModeActivationRef
+
+rosterStaffLinkedHighlight :: SurfaceIR.LinkedHighlightIR
+rosterStaffLinkedHighlight = surfaceLinkedHighlightValue @Surface.RosterSurface @Surface.StaffShiftsHighlight
+
+rosterShiftGroupLinkedHighlight :: SurfaceIR.LinkedHighlightIR
+rosterShiftGroupLinkedHighlight = surfaceLinkedHighlightValue @Surface.RosterSurface @Surface.ShiftGroupHighlight
+
+rosterDayTimelineShiftGroupLinkedHighlight :: SurfaceIR.LinkedHighlightIR
+rosterDayTimelineShiftGroupLinkedHighlight = surfaceLinkedHighlightValue @Surface.RosterDayTimelineSurface @Surface.ShiftGroupHighlight
 
 rosterFrontendSurfaceIR :: SurfaceIR.SurfaceIR
 rosterFrontendSurfaceIR = reflectSurfaceSpec @Surface.RosterSurface

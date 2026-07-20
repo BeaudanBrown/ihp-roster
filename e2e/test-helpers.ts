@@ -588,7 +588,7 @@ export function rosterShiftLaunchers(scope: Page | Locator) {
 }
 
 export function existingRosterShiftLaunchers(scope: Page | Locator) {
-    return scope.locator('[data-roster-shift-launcher="true"][data-roster-slot-id]:not([data-roster-slot-id=""])');
+    return scope.locator('[data-roster-shift-launcher="true"][hx-get*="EditRosterSlotDialog"]');
 }
 
 export function rosterShiftLaunchersForDaySection(daySection: Locator) {

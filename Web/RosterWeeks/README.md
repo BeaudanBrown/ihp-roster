@@ -29,6 +29,24 @@ centered merged `+` affordance only on hover/focus/highlight.
 Read-only row-grid shifts intentionally use separate non-launcher cells and must
 not emit edit/create launcher attributes.
 
+## Linked-Highlight Contract
+
+The roster Surface declares generated staff-highlight source/member/pin roles
+and an ordered-member state. Staff-panel rows are sources, locate controls are
+optional pin controls, and assigned row-grid cells or day-column cards are
+members. Membership keys (`staff:<staff-id>`) and order keys
+(`existing:<slot-id>`) are opaque browser correlation values. The generic
+linked-highlight runtime owns hover, focus, keyboard/pin activation,
+`aria-pressed`, ordered bounds, mount isolation, and transient
+`is-linked-highlight-*` effect classes.
+
+Editable roster shift launchers also carry generated shift-group source/member
+roles so their existing hover/focus appearance uses the same generic runtime.
+The contained day-timeline Surface declares its own shift-group roles; it does
+not reach through its mount boundary to reuse outer-roster elements. Views and
+tests consume generated role names rather than raw staff/slot ID attributes or
+feature-specific highlight selectors.
+
 ## Week Toolbar Contract
 
 `Application.Helper.View.WeekToolbar` renders each supplied control exactly

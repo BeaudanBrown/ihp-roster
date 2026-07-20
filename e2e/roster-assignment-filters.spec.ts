@@ -43,22 +43,21 @@ test.describe('Roster assignment filters', () => {
         const firstRowLauncher = rows.nth(0).locator('[data-roster-shift-launcher="true"]').first();
         await openRosterShiftDialog(page, firstRowLauncher);
         const staffValues = await rosterShiftDialogStaffOptionValues(page);
+        const currentStaffId = await page.locator('#roster-shift-staff-id').inputValue();
         await page.locator(`[${dialogCloseDomAttr}]`).first().click();
         await expect(page.locator(`#${dialogOverlayMountDomId}`)).toBeEmpty();
 
-        const assignedStaffId = await firstRowLauncher.getAttribute('data-roster-staff-id') || staffValues[0];
+        const assignedStaffId = currentStaffId || staffValues[0];
         const alternateStaffId = staffValues.find((value) => value !== assignedStaffId);
         expect(assignedStaffId).toBeTruthy();
         expect(alternateStaffId).toBeTruthy();
 
-        if ((await firstRowLauncher.getAttribute('data-roster-staff-id')) !== assignedStaffId) {
+        if (!currentStaffId) {
             await assignRosterShiftStaff(page, firstRowLauncher, assignedStaffId);
         }
 
         const secondRowLauncher = rows.nth(1).locator('[data-roster-shift-launcher="true"]').first();
-        if ((await secondRowLauncher.getAttribute('data-roster-staff-id')) !== alternateStaffId) {
-            await assignRosterShiftStaff(page, secondRowLauncher, alternateStaffId!);
-        }
+        await assignRosterShiftStaff(page, secondRowLauncher, alternateStaffId!);
 
         await setHideAlreadyAssignedToday(page);
         await openRosterShiftDialog(page, secondRowLauncher);

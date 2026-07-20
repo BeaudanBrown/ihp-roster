@@ -349,6 +349,7 @@ renderFrontendSurfaceRuntime :: [SurfaceIR] -> [Text]
 renderFrontendSurfaceRuntime surfaces =
     renderFrontendSurfaceBrandAliases surfaces
         <> concatMap renderFrontendSurfaceDomTokenConstants surfaces
+        <> concatMap renderFrontendSurfaceBrowserAttributeConstants surfaces
         <> renderFrontendSurfaceRegistries surfaces
         <> renderFrontendSurfaceMountConfigTypes surfaces
 
@@ -388,19 +389,30 @@ renderFrontendSurfaceDomTokenConstants surface =
     | token <- surface.surfaceBrowserDomTokens
     ] <> ["" | not (null surface.surfaceBrowserDomTokens)]
 
+renderFrontendSurfaceBrowserAttributeConstants :: SurfaceIR -> [Text]
+renderFrontendSurfaceBrowserAttributeConstants surface =
+    [ "export const " <> surfaceBrowserAttributeConstName surface attribute <> " = " <> quote attribute.browserAttributeDomAttribute <> " as const;"
+    | attribute <- surface.surfaceBrowserRoles <> surface.surfaceBrowserStates
+    ] <> ["" | not (null surface.surfaceBrowserRoles && null surface.surfaceBrowserStates)]
+
+surfaceBrowserAttributeConstName :: SurfaceIR -> BrowserAttributeIR -> Text
+surfaceBrowserAttributeConstName surface attribute =
+    constName (surface.surfaceName <> "-" <> attribute.browserAttributeName) <> "DomAttr"
+
 renderFrontendSurfaceRegistries :: [SurfaceIR] -> [Text]
 renderFrontendSurfaceRegistries surfaces =
-    [ "export type FrontendSurfaceName = " <> renderStringUnion (fmap (.surfaceName) surfaces) <> ";"
-    , "export const FrontendSurfaceFragmentRegistry = " <> objectLiteral fragmentEntries <> " as const;"
-    , "export function isFrontendSurfaceName(value: unknown): value is FrontendSurfaceName {"
-    , "    return typeof value === \"string\" && Object.prototype.hasOwnProperty.call(FrontendSurfaceFragmentRegistry, value);"
-    , "}"
-    , "export function isFrontendSurfaceLiveFragmentName(surface: FrontendSurfaceName, value: unknown): value is string {"
-    , "    return typeof value === \"string\" && (FrontendSurfaceFragmentRegistry[surface] as readonly string[]).includes(value);"
-    , "}"
-    , "export const FrontendSurfaceInteractionRegistry = " <> objectLiteral interactionEntries <> " as const;"
-    , ""
-    ]
+    ["export type FrontendSurfaceName = " <> renderStringUnion (fmap (.surfaceName) surfaces) <> ";"]
+        <> renderFrontendSurfaceLinkedHighlightContracts surfaces
+        <> [ "export const FrontendSurfaceFragmentRegistry = " <> objectLiteral fragmentEntries <> " as const;"
+           , "export function isFrontendSurfaceName(value: unknown): value is FrontendSurfaceName {"
+           , "    return typeof value === \"string\" && Object.prototype.hasOwnProperty.call(FrontendSurfaceFragmentRegistry, value);"
+           , "}"
+           , "export function isFrontendSurfaceLiveFragmentName(surface: FrontendSurfaceName, value: unknown): value is string {"
+           , "    return typeof value === \"string\" && (FrontendSurfaceFragmentRegistry[surface] as readonly string[]).includes(value);"
+           , "}"
+           , "export const FrontendSurfaceInteractionRegistry = " <> objectLiteral interactionEntries <> " as const;"
+           , ""
+           ]
   where
     fragmentEntries =
         [ (surface.surfaceName, arrayLiteral (fmap quote (surfaceLiveFragmentNames surface)))
@@ -411,6 +423,53 @@ renderFrontendSurfaceRegistries surfaces =
         | surface <- surfaces
         , surfaceHasBrowserInteraction surface
         ]
+
+renderFrontendSurfaceLinkedHighlightContracts :: [SurfaceIR] -> [Text]
+renderFrontendSurfaceLinkedHighlightContracts surfaces =
+    [ "export type FrontendSurfaceLinkedHighlightActivation = " <> renderStringUnion activationNames <> ";"
+    , "export type FrontendSurfaceLinkedHighlightEffect = " <> renderStringUnion effectNames <> ";"
+    , "export type FrontendSurfaceLinkedHighlightDefinition = { name: string; sourceRoleAttribute: string; memberRoleAttribute: string; pinRoleAttribute: string | null; orderStateAttribute: string | null; activations: ReadonlyArray<FrontendSurfaceLinkedHighlightActivation>; effects: ReadonlyArray<FrontendSurfaceLinkedHighlightEffect> };"
+    , "export const FrontendSurfaceLinkedHighlightRegistry: Record<FrontendSurfaceName, ReadonlyArray<FrontendSurfaceLinkedHighlightDefinition>> = " <> objectLiteral entries <> ";"
+    , ""
+    ]
+  where
+    emptyAttribute = BrowserAttributeIR "" "" ""
+    activationNames =
+        map linkedHighlightActivationName
+            [ LinkedHighlightHoverActivationIR
+            , LinkedHighlightFocusActivationIR
+            , LinkedHighlightKeyboardActivationIR
+            , LinkedHighlightPinActivationIR emptyAttribute
+            ]
+    effectNames =
+        map linkedHighlightEffectName
+            [ LinkedHighlightMatchingSourceEffectIR
+            , LinkedHighlightMatchingMemberEffectIR
+            , LinkedHighlightOrderedMemberBoundsEffectIR emptyAttribute
+            ]
+    entries =
+        [ (surface.surfaceName, arrayLiteral (map (renderLinkedHighlight surface) surface.surfaceLinkedHighlights))
+        | surface <- surfaces
+        ]
+
+renderLinkedHighlight :: SurfaceIR -> LinkedHighlightIR -> Text
+renderLinkedHighlight surface highlight = objectLiteral
+    [ ("name", quote highlight.linkedHighlightName)
+    , ("sourceRoleAttribute", surfaceBrowserAttributeConstName surface highlight.linkedHighlightSourceRole)
+    , ("memberRoleAttribute", surfaceBrowserAttributeConstName surface highlight.linkedHighlightMemberRole)
+    , ("pinRoleAttribute", maybe "null" (surfaceBrowserAttributeConstName surface) (linkedHighlightPinRole highlight))
+    , ("orderStateAttribute", maybe "null" (surfaceBrowserAttributeConstName surface) (linkedHighlightOrderState highlight))
+    , ("activations", arrayLiteral (map (quote . linkedHighlightActivationName) highlight.linkedHighlightActivations))
+    , ("effects", arrayLiteral (map (quote . linkedHighlightEffectName) highlight.linkedHighlightEffects))
+    ]
+
+linkedHighlightPinRole :: LinkedHighlightIR -> Maybe BrowserAttributeIR
+linkedHighlightPinRole highlight =
+    listToMaybe [attribute | LinkedHighlightPinActivationIR attribute <- highlight.linkedHighlightActivations]
+
+linkedHighlightOrderState :: LinkedHighlightIR -> Maybe BrowserAttributeIR
+linkedHighlightOrderState highlight =
+    listToMaybe [attribute | LinkedHighlightOrderedMemberBoundsEffectIR attribute <- highlight.linkedHighlightEffects]
 
 surfaceHasBrowserInteraction :: SurfaceIR -> Bool
 surfaceHasBrowserInteraction surface =

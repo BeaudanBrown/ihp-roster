@@ -259,6 +259,7 @@ tests = aroundAll withDatabaseTestContext do
                 venue <- createVenueWithConfig "Venue A"
                 manager <- createUserRecord "roster-manager-empty-create@example.com" "staff" True
                 _ <- createVenueMembershipRecord venue manager "manager"
+                panelStaff <- createStaffRecord venue Nothing "Alpha" "Crew"
                 _ <- fetchSlotNameRecord venue "Early"
                 _ <- createVenueRosterGroupWithDefaults venue "Back of House" 1 False
 
@@ -277,6 +278,8 @@ tests = aroundAll withDatabaseTestContext do
                 response `responseBodyShouldContain` "data-roster-staff-panel-tab=\"staff\""
                 response `responseBodyShouldContain` "data-roster-staff-panel-tab=\"settings\""
                 response `responseBodyShouldContain` "id=\"roster-staff-panel-settings-pane\""
+                response `responseBodyShouldContain` ("data-bepis-roster-staff-highlight-source=\"staff:" <> cs (tshow panelStaff.id) <> "\"")
+                response `responseBodyShouldContain` ("data-bepis-roster-staff-highlight-pin=\"staff:" <> cs (tshow panelStaff.id) <> "\"")
                 response `responseBodyShouldContain` "Week actions"
                 response `responseBodyShouldContain` "hx-post=\"/CopyRosterWeek?sourceWeekOffset=-1&amp;targetWeekOffset=0&amp;rosterGroupId="
                 response `responseBodyShouldContain` "hx-confirm=\"This will overwrite the current week with the previous week&#39;s roster. Continue?\""

@@ -13,6 +13,7 @@ import Application.Helper.FrontendContract.Surface.ContractIR
 import Application.Helper.FrontendContract.Surface.Contracts (registeredFrontendSurfaceContractIR)
 import Application.Helper.FrontendContract.Surface.DSL
 import qualified Application.Helper.FrontendContract.Surface.Interaction as SurfaceInteraction
+import qualified Application.Helper.FrontendContract.Surface.LinkedHighlight as SurfaceLinkedHighlight
 import Application.Helper.FrontendContract.Surface.Live (frontendSurfaceFragmentKey)
 import Application.Helper.FrontendContract.Surface.Reflect
 import Application.Helper.FrontendContract.Surface.Registry (RegisteredFrontendSurfaces)
@@ -66,6 +67,43 @@ data RequestCount
 data RequestFilterId
 data RequestTags
 data RequestNote
+data BrowserFixture
+data BrowserFixtureScope
+data StaffShiftsHighlight
+data StaffHighlightSourceRole
+data StaffHighlightMemberRole
+data StaffHighlightPinRole
+data StaffHighlightOrderState
+data BrowserAttributeCollision
+data BrowserAttributeCollisionScope
+data SharedHighlightAttributeRole
+data SharedHighlightAttributeState
+
+type BrowserFixtureSurface =
+    Surface BrowserFixture
+        '[ Scope BrowserFixtureScope '[] '[ 'NoAuth ]
+         , BrowserRole StaffHighlightSourceRole
+         , BrowserRole StaffHighlightMemberRole
+         , BrowserRole StaffHighlightPinRole
+         , BrowserState StaffHighlightOrderState
+         , LinkedHighlight StaffShiftsHighlight StaffHighlightSourceRole StaffHighlightMemberRole
+            '[ 'ActivateOnHover
+             , 'ActivateOnFocus
+             , 'ActivateOnKeyboard
+             , 'ActivateWithPin StaffHighlightPinRole
+             ]
+            '[ 'HighlightMatchingSource
+             , 'HighlightMatchingMember
+             , 'HighlightOrderedMemberBounds StaffHighlightOrderState
+             ]
+         ]
+
+type BrowserAttributeCollisionSurface =
+    Surface BrowserAttributeCollision
+        '[ Scope BrowserAttributeCollisionScope '[] '[ 'NoAuth ]
+         , BrowserRole SharedHighlightAttributeRole
+         , BrowserState SharedHighlightAttributeState
+         ]
 
 type RequestContractSurface =
     Surface RequestContract
@@ -150,6 +188,15 @@ frontendSurfaceFixtureTypeScript =
         , contractSurfaces = frontendSurfaceFixtureContractIR.contractSurfaces
         }
 
+browserFixtureTypeScript :: Text
+browserFixtureTypeScript =
+    either error id (renderFrontendContractTypeScript fixtureContract)
+  where
+    fixtureContract = FrontendContractIR
+        { contractGlobals = registeredFrontendContractIR.contractGlobals
+        , contractSurfaces = [reflectSurfaceSpec @BrowserFixtureSurface]
+        }
+
 tests :: Spec
 tests = describe "FrontendSurface DSL foundation" do
     it "kind-checks the unregistered contract fixture and production root registry" do
@@ -176,6 +223,50 @@ tests = describe "FrontendSurface DSL foundation" do
                     &: noSurfaceFields
                 :: SurfaceFields (SurfaceIntentFieldSpecs SurfaceFixture.FrontendSurfaceFixture SurfaceFixture.MoveCard)
         surfaceFieldNameFrom @SurfaceFixture.SourceItemKey intentFields `shouldBe` "sourceItemKey"
+
+    it "reflects Surface-owned browser roles, state, and closed linked-highlight semantics" do
+        let surface = reflectSurfaceSpec @BrowserFixtureSurface
+        map (\role -> (role.browserAttributeName, role.browserAttributeDomAttribute)) surface.surfaceBrowserRoles
+            `shouldBe` [ ("staff-highlight-source", "data-bepis-browser-fixture-staff-highlight-source")
+                       , ("staff-highlight-member", "data-bepis-browser-fixture-staff-highlight-member")
+                       , ("staff-highlight-pin", "data-bepis-browser-fixture-staff-highlight-pin")
+                       ]
+        map (\state -> (state.browserAttributeName, state.browserAttributeDomAttribute)) surface.surfaceBrowserStates
+            `shouldBe` [("staff-highlight-order", "data-bepis-browser-fixture-staff-highlight-order")]
+        let highlight = surfaceLinkedHighlightValue @BrowserFixtureSurface @StaffShiftsHighlight
+        highlight.linkedHighlightName `shouldBe` "staff-shifts-highlight"
+        highlight.linkedHighlightSourceRole.browserAttributeDomAttribute
+            `shouldBe` "data-bepis-browser-fixture-staff-highlight-source"
+        highlight.linkedHighlightMemberRole.browserAttributeDomAttribute
+            `shouldBe` "data-bepis-browser-fixture-staff-highlight-member"
+        map linkedHighlightActivationName highlight.linkedHighlightActivations
+            `shouldBe` ["hover", "focus", "keyboard", "pin"]
+        map linkedHighlightEffectName highlight.linkedHighlightEffects
+            `shouldBe` ["matching-source", "matching-member", "ordered-member-bounds"]
+        surfaceBrowserRoleValue @BrowserFixtureSurface @StaffHighlightPinRole
+            `shouldBe` BrowserAttributeIR
+                { browserAttributeMarker = "StaffHighlightPinRole"
+                , browserAttributeName = "staff-highlight-pin"
+                , browserAttributeDomAttribute = "data-bepis-browser-fixture-staff-highlight-pin"
+                }
+        surfaceBrowserStateValue @BrowserFixtureSurface @StaffHighlightOrderState
+            `shouldBe` BrowserAttributeIR
+                { browserAttributeMarker = "StaffHighlightOrderState"
+                , browserAttributeName = "staff-highlight-order"
+                , browserAttributeDomAttribute = "data-bepis-browser-fixture-staff-highlight-order"
+                }
+
+    it "rejects collisions between Surface-owned browser role and state attributes" do
+        let result = checkedSurfaceContractIR (SurfaceContractIR (reflectSurfaceRegistry @'[BrowserAttributeCollisionSurface]))
+        diagnosticMessages result
+            `shouldContain` ["surface browser-attribute-collision has duplicate browser attribute data-bepis-browser-attribute-collision-shared-highlight-attribute"]
+
+    it "renders Surface-owned browser attributes and linked-highlight registry data" do
+        browserFixtureTypeScript `shouldContainText` "export const browserFixtureStaffHighlightSourceDomAttr = \"data-bepis-browser-fixture-staff-highlight-source\" as const;"
+        browserFixtureTypeScript `shouldContainText` "export const browserFixtureStaffHighlightOrderDomAttr = \"data-bepis-browser-fixture-staff-highlight-order\" as const;"
+        browserFixtureTypeScript `shouldContainText` "export type FrontendSurfaceLinkedHighlightActivation = \"hover\" | \"focus\" | \"keyboard\" | \"pin\";"
+        browserFixtureTypeScript `shouldContainText` "export type FrontendSurfaceLinkedHighlightEffect = \"matching-source\" | \"matching-member\" | \"ordered-member-bounds\";"
+        browserFixtureTypeScript `shouldContainText` "export const FrontendSurfaceLinkedHighlightRegistry: Record<FrontendSurfaceName, ReadonlyArray<FrontendSurfaceLinkedHighlightDefinition>> = {\"browser-fixture\":[{\"name\":\"staff-shifts-highlight\",\"sourceRoleAttribute\":browserFixtureStaffHighlightSourceDomAttr,\"memberRoleAttribute\":browserFixtureStaffHighlightMemberDomAttr,\"pinRoleAttribute\":browserFixtureStaffHighlightPinDomAttr,\"orderStateAttribute\":browserFixtureStaffHighlightOrderDomAttr,\"activations\":[\"hover\",\"focus\",\"keyboard\",\"pin\"],\"effects\":[\"matching-source\",\"matching-member\",\"ordered-member-bounds\"]}]};"
 
     it "renders typed HTMX selector, trigger, swap, and sync syntax deterministically" do
         let surface = reflectSurfaceSpec @TypedHtmxSurface
@@ -579,6 +670,25 @@ tests = describe "FrontendSurface DSL foundation" do
                        ]
         map (.dropzoneRefName) surface.surfaceDropzoneRefs `shouldBe` ["shift-slot-dropzone", "staff-create-dropzone", "day-column-dropzone", "existing-shift-dropzone", "delete-shift-dropzone"]
         map (.activationRefName) surface.surfaceActivationRefs `shouldBe` ["roster-layout-mode-activation"]
+        map (.browserAttributeDomAttribute) surface.surfaceBrowserRoles
+            `shouldBe` [ "data-bepis-roster-staff-highlight-source"
+                       , "data-bepis-roster-staff-highlight-member"
+                       , "data-bepis-roster-staff-highlight-pin"
+                       , "data-bepis-roster-shift-group-highlight-source"
+                       , "data-bepis-roster-shift-group-highlight-member"
+                       ]
+        map (.browserAttributeDomAttribute) surface.surfaceBrowserStates
+            `shouldBe` ["data-bepis-roster-staff-highlight-order"]
+        map (.linkedHighlightName) surface.surfaceLinkedHighlights
+            `shouldBe` ["staff-shifts-highlight", "shift-group-highlight"]
+        map (map linkedHighlightActivationName . (.linkedHighlightActivations)) surface.surfaceLinkedHighlights
+            `shouldBe` [ ["hover", "focus", "keyboard", "pin"]
+                       , ["hover", "focus", "keyboard"]
+                       ]
+        map (map linkedHighlightEffectName . (.linkedHighlightEffects)) surface.surfaceLinkedHighlights
+            `shouldBe` [ ["matching-source", "matching-member", "ordered-member-bounds"]
+                       , ["matching-member"]
+                       ]
         surface.surfaceLayers `shouldBe` ["drag-preview"]
         map (map interactionEffectSemanticName . (.sessionEffects)) surface.surfaceSessions
             `shouldBe` [["clone-shadow", "dropzone-highlight"]]
@@ -596,6 +706,9 @@ tests = describe "FrontendSurface DSL foundation" do
         frontendSurfaceContractsTypeScript `shouldContainText` "{ kind: \"roster-row\"; params: RosterRosterRowFragmentParams }"
         frontendSurfaceContractsTypeScript `shouldContainText` "export const rosterContentDomToken = \"roster-content\" as const;"
         frontendSurfaceContractsTypeScript `shouldContainText` "export const rosterWeekShellDomToken = \"roster-week-shell\" as const;"
+        frontendSurfaceContractsTypeScript `shouldContainText` "export const rosterStaffHighlightSourceDomAttr = \"data-bepis-roster-staff-highlight-source\" as const;"
+        frontendSurfaceContractsTypeScript `shouldContainText` "export const rosterDayTimelineShiftGroupHighlightMemberDomAttr = \"data-bepis-roster-day-timeline-shift-group-highlight-member\" as const;"
+        frontendSurfaceContractsTypeScript `shouldContainText` "\"roster\":[{\"name\":\"staff-shifts-highlight\",\"sourceRoleAttribute\":rosterStaffHighlightSourceDomAttr,\"memberRoleAttribute\":rosterStaffHighlightMemberDomAttr,\"pinRoleAttribute\":rosterStaffHighlightPinDomAttr,\"orderStateAttribute\":rosterStaffHighlightOrderDomAttr,\"activations\":[\"hover\",\"focus\",\"keyboard\",\"pin\"],\"effects\":[\"matching-source\",\"matching-member\",\"ordered-member-bounds\"]},{\"name\":\"shift-group-highlight\""
         frontendSurfaceContractsTypeScript `shouldContainText` "\"roster\":{\"sourceRefs\":[{\"ref\":\"shift-drag-source\",\"session\":\"drag\",\"intent\":\"move-roster-shift-to-slot\",\"sourceField\":\"sourceItemKey\",\"compatibleDropzones\":[\"shift-slot-dropzone\",\"day-column-dropzone\",\"delete-shift-dropzone\"],\"modifierVariants\":[{\"semantic\":\"copy\",\"intent\":\"duplicate-roster-shift-to-day\""
         frontendSurfaceContractsTypeScript `shouldContainText` "\"dropzoneRefs\":[{\"ref\":\"shift-slot-dropzone\",\"session\":\"drag\",\"targetField\":\"targetDropzoneKey\"},{\"ref\":\"staff-create-dropzone\",\"session\":\"drag\",\"targetField\":\"targetDropzoneKey\"}"
         frontendSurfaceContractsTypeScript `shouldContainText` "\"activationRefs\":[{\"ref\":\"roster-layout-mode-activation\",\"intent\":\"set-roster-layout-mode\",\"valueField\":\"rosterLayoutMode\",\"trigger\":\"click\"}]"
@@ -686,6 +799,17 @@ tests = describe "FrontendSurface DSL foundation" do
         dropzoneHtml `shouldContainText` "data-bepis-dropzone-key=\"slot:2\""
         activationHtml `shouldContainText` "data-bepis-activation-ref=\"roster-layout-mode-activation\""
         activationHtml `shouldNotContainText` "data-bepis-activation-intent"
+
+    it "renders linked-highlight roles with opaque membership and order keys" do
+        let highlight = surfaceLinkedHighlightValue @BrowserFixtureSurface @StaffShiftsHighlight
+        let sourceHtml = cs (HtmlRenderer.renderHtml (SurfaceLinkedHighlight.withFrontendSurfaceLinkedHighlightSource highlight "opaque:staff" (Html5.div "source")))
+        let memberHtml = cs (HtmlRenderer.renderHtml (SurfaceLinkedHighlight.withFrontendSurfaceLinkedHighlightMember highlight "opaque:staff" (Just "opaque:shift") (Html5.div "member")))
+        let pinHtml = cs (HtmlRenderer.renderHtml (SurfaceLinkedHighlight.withFrontendSurfaceLinkedHighlightPin highlight "opaque:staff" (Html5.button "pin")))
+
+        sourceHtml `shouldContainText` "data-bepis-browser-fixture-staff-highlight-source=\"opaque:staff\""
+        memberHtml `shouldContainText` "data-bepis-browser-fixture-staff-highlight-member=\"opaque:staff\""
+        memberHtml `shouldContainText` "data-bepis-browser-fixture-staff-highlight-order=\"opaque:shift\""
+        pinHtml `shouldContainText` "data-bepis-browser-fixture-staff-highlight-pin=\"opaque:staff\""
 
     it "renders generated HTMX action attrs from complete typed fixture fields" do
         let panelId = fromMaybe (error "invalid fixture panel UUID") (UUID.fromString "11111111-1111-1111-1111-111111111111")

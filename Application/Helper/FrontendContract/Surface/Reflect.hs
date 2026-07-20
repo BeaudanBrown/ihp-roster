@@ -16,7 +16,8 @@ module Application.Helper.FrontendContract.Surface.Reflect
     ) where
 
 import Application.Helper.FrontendContract.Naming (FrontendSurfaceNameContext (..),
-                                                   deriveFrontendSurfaceName)
+                                                   deriveFrontendSurfaceName,
+                                                   deriveSurfaceBrowserAttributeName)
 import Application.Helper.FrontendContract.Surface.ContractIR
 import Application.Helper.FrontendContract.Surface.DSL
 import qualified Data.List as List
@@ -62,6 +63,9 @@ data ReflectedPrimitive
     | ReflectedSourceRef !InteractionSourceRefIR
     | ReflectedDropzoneRef !InteractionDropzoneRefIR
     | ReflectedActivationRef !InteractionActivationRefIR
+    | ReflectedBrowserRole !BrowserAttributeIR
+    | ReflectedBrowserState !BrowserAttributeIR
+    | ReflectedLinkedHighlight !LinkedHighlightIR
     | ReflectedLayer !Text
     | ReflectedPolicy !ConflictPolicyIR
     | ReflectedLoadPolicy !Text
@@ -146,6 +150,28 @@ instance (Typeable marker, ReflectOptionList options) => ReflectPrimitive ('Acti
             , activationRefValueField = optionalUniqueOption "activation ref" (typeMarker @marker) "ValueField" [name | ValueFieldOption name <- options]
             , activationRefTrigger = "click"
             }
+
+instance Typeable marker => ReflectPrimitive ('BrowserRole marker) where
+    reflectPrimitive = ReflectedBrowserRole (reflectedBrowserAttribute @marker BrowserRoleName)
+
+instance Typeable marker => ReflectPrimitive ('BrowserState marker) where
+    reflectPrimitive = ReflectedBrowserState (reflectedBrowserAttribute @marker BrowserStateName)
+
+instance
+    ( Typeable marker
+    , Typeable sourceRole
+    , Typeable memberRole
+    , ReflectLinkedHighlightActivationList activations
+    , ReflectLinkedHighlightEffectList effects
+    ) => ReflectPrimitive ('LinkedHighlight marker sourceRole memberRole activations effects) where
+    reflectPrimitive = ReflectedLinkedHighlight LinkedHighlightIR
+        { linkedHighlightMarker = typeMarker @marker
+        , linkedHighlightName = protocolName @marker DomTokenName
+        , linkedHighlightSourceRole = reflectedBrowserAttribute @sourceRole BrowserRoleName
+        , linkedHighlightMemberRole = reflectedBrowserAttribute @memberRole BrowserRoleName
+        , linkedHighlightActivations = reflectLinkedHighlightActivationList @activations
+        , linkedHighlightEffects = reflectLinkedHighlightEffectList @effects
+        }
 
 instance (Typeable marker, ReflectInteractionSessionOptionList options) => ReflectPrimitive ('Session marker options) where
     reflectPrimitive =
@@ -315,6 +341,51 @@ instance Typeable layer => ReflectInteractionEffect ('CloneShadowEffect 'CopyClo
 
 instance ReflectInteractionEffect 'DropzoneHighlightEffect where
     reflectInteractionEffect = dropzoneHighlightEffectIR
+
+class ReflectLinkedHighlightActivationList (activations :: [LinkedHighlightActivation]) where
+    reflectLinkedHighlightActivationList :: [LinkedHighlightActivationIR]
+
+instance ReflectLinkedHighlightActivationList '[] where
+    reflectLinkedHighlightActivationList = []
+
+instance (ReflectLinkedHighlightActivation activation, ReflectLinkedHighlightActivationList rest) => ReflectLinkedHighlightActivationList (activation ': rest) where
+    reflectLinkedHighlightActivationList = reflectLinkedHighlightActivation @activation : reflectLinkedHighlightActivationList @rest
+
+class ReflectLinkedHighlightActivation (activation :: LinkedHighlightActivation) where
+    reflectLinkedHighlightActivation :: LinkedHighlightActivationIR
+
+instance ReflectLinkedHighlightActivation 'ActivateOnHover where
+    reflectLinkedHighlightActivation = LinkedHighlightHoverActivationIR
+
+instance ReflectLinkedHighlightActivation 'ActivateOnFocus where
+    reflectLinkedHighlightActivation = LinkedHighlightFocusActivationIR
+
+instance ReflectLinkedHighlightActivation 'ActivateOnKeyboard where
+    reflectLinkedHighlightActivation = LinkedHighlightKeyboardActivationIR
+
+instance Typeable pinRole => ReflectLinkedHighlightActivation ('ActivateWithPin pinRole) where
+    reflectLinkedHighlightActivation = LinkedHighlightPinActivationIR (reflectedBrowserAttribute @pinRole BrowserRoleName)
+
+class ReflectLinkedHighlightEffectList (effects :: [LinkedHighlightEffect]) where
+    reflectLinkedHighlightEffectList :: [LinkedHighlightEffectIR]
+
+instance ReflectLinkedHighlightEffectList '[] where
+    reflectLinkedHighlightEffectList = []
+
+instance (ReflectLinkedHighlightEffect effect, ReflectLinkedHighlightEffectList rest) => ReflectLinkedHighlightEffectList (effect ': rest) where
+    reflectLinkedHighlightEffectList = reflectLinkedHighlightEffect @effect : reflectLinkedHighlightEffectList @rest
+
+class ReflectLinkedHighlightEffect (effect :: LinkedHighlightEffect) where
+    reflectLinkedHighlightEffect :: LinkedHighlightEffectIR
+
+instance ReflectLinkedHighlightEffect 'HighlightMatchingSource where
+    reflectLinkedHighlightEffect = LinkedHighlightMatchingSourceEffectIR
+
+instance ReflectLinkedHighlightEffect 'HighlightMatchingMember where
+    reflectLinkedHighlightEffect = LinkedHighlightMatchingMemberEffectIR
+
+instance Typeable state => ReflectLinkedHighlightEffect ('HighlightOrderedMemberBounds state) where
+    reflectLinkedHighlightEffect = LinkedHighlightOrderedMemberBoundsEffectIR (reflectedBrowserAttribute @state BrowserStateName)
 
 data ReflectedInteractionSessionOptions = ReflectedInteractionSessionOptions
     { reflectedSessionLayers  :: ![Text]
@@ -548,6 +619,15 @@ addPrimitives primitives surface =
             ReflectedSourceRef ref -> current { surfaceSourceRefs = current.surfaceSourceRefs <> [ref] }
             ReflectedDropzoneRef ref -> current { surfaceDropzoneRefs = current.surfaceDropzoneRefs <> [ref] }
             ReflectedActivationRef ref -> current { surfaceActivationRefs = current.surfaceActivationRefs <> [ref] }
+            ReflectedBrowserRole roleAttribute -> current
+                { surfaceBrowserRoles = current.surfaceBrowserRoles <> [qualifyBrowserAttribute current.surfaceName roleAttribute]
+                }
+            ReflectedBrowserState stateAttribute -> current
+                { surfaceBrowserStates = current.surfaceBrowserStates <> [qualifyBrowserAttribute current.surfaceName stateAttribute]
+                }
+            ReflectedLinkedHighlight highlight -> current
+                { surfaceLinkedHighlights = current.surfaceLinkedHighlights <> [qualifyLinkedHighlight current.surfaceName highlight]
+                }
             ReflectedLayer name -> current { surfaceLayers = current.surfaceLayers <> [name] }
             ReflectedPolicy policy -> current { surfacePolicies = current.surfacePolicies <> [policy] }
             ReflectedLoadPolicy name -> current { surfaceLoadPolicies = current.surfaceLoadPolicies <> [name] }
@@ -573,6 +653,9 @@ emptySurface = SurfaceIR
     , surfaceSourceRefs = []
     , surfaceDropzoneRefs = []
     , surfaceActivationRefs = []
+    , surfaceBrowserRoles = []
+    , surfaceBrowserStates = []
+    , surfaceLinkedHighlights = []
     , surfaceLayers = []
     , surfacePolicies = []
     , surfaceLoadPolicies = []
@@ -581,6 +664,38 @@ emptySurface = SurfaceIR
     , surfaceDomTokens = []
     , surfaceBrowserDomTokens = []
     , surfaceDtos = []
+    }
+
+qualifyLinkedHighlight :: Text -> LinkedHighlightIR -> LinkedHighlightIR
+qualifyLinkedHighlight surfaceName highlight =
+    highlight
+        { linkedHighlightSourceRole = qualifyBrowserAttribute surfaceName highlight.linkedHighlightSourceRole
+        , linkedHighlightMemberRole = qualifyBrowserAttribute surfaceName highlight.linkedHighlightMemberRole
+        , linkedHighlightActivations = map qualifyActivation highlight.linkedHighlightActivations
+        , linkedHighlightEffects = map qualifyEffect highlight.linkedHighlightEffects
+        }
+  where
+    qualifyActivation = \case
+        LinkedHighlightPinActivationIR roleAttribute ->
+            LinkedHighlightPinActivationIR (qualifyBrowserAttribute surfaceName roleAttribute)
+        activation -> activation
+    qualifyEffect = \case
+        LinkedHighlightOrderedMemberBoundsEffectIR stateAttribute ->
+            LinkedHighlightOrderedMemberBoundsEffectIR (qualifyBrowserAttribute surfaceName stateAttribute)
+        effect -> effect
+
+qualifyBrowserAttribute :: Text -> BrowserAttributeIR -> BrowserAttributeIR
+qualifyBrowserAttribute surfaceName attribute =
+    attribute
+        { browserAttributeDomAttribute =
+            deriveSurfaceBrowserAttributeName surfaceName attribute.browserAttributeName
+        }
+
+reflectedBrowserAttribute :: forall marker. Typeable marker => FrontendSurfaceNameContext -> BrowserAttributeIR
+reflectedBrowserAttribute context = BrowserAttributeIR
+    { browserAttributeMarker = typeMarker @marker
+    , browserAttributeName = protocolName @marker context
+    , browserAttributeDomAttribute = ""
     }
 
 reflectedField :: forall marker wire. (Typeable marker, ReflectWire wire) => FieldPresence -> FieldIR

@@ -35,6 +35,7 @@ renderPost post = [hsx|
 - Action values work directly as `href` values: `href={ShowPostAction postId}`
 - Conditional rendering: `{when condition [hsx|...|]}`
 - HSX is strict about valid HTML — close all tags
+- Blaze attribute decorators (`element ! attr`, including typed contract helpers) cannot decorate an HSX fragment that the quasi-quoter reduced to static pre-rendered text. Keep at least one genuine dynamic expression on the root element or construct that root with Blaze when attrs are applied outside the quote; pin the decorated output in a render test.
 
 ## Forms
 Read `/home/beau/documents/projects/ihp/Guide/form.markdown` for full details. Basic pattern:
