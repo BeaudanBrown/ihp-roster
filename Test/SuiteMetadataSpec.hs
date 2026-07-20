@@ -26,7 +26,7 @@ tests = do
                 diagnostics = validateSuiteRegistry [duplicated, duplicated]
 
             diagnostics `shouldSatisfy` any (Text.isInfixOf "duplicate suite label: duplicate")
-            diagnostics `shouldSatisfy` any (Text.isInfixOf "mandatory invariant has no coverage declaration: A2")
+            diagnostics `shouldSatisfy` any (Text.isInfixOf "mandatory complete invariant has no owning suite: A2")
 
     describe "suite metadata selection" do
         it "selects database and feedback dimensions independently" do
@@ -44,14 +44,16 @@ tests = do
                 acceptanceOwner = databaseMetadata "acceptance-owner" BroadAcceptance [A2]
                 partialOwner =
                     databaseMetadata "partial-owner" BroadAcceptance []
-                        |> withPartialAcceptanceCoverage [A3]
+                        |> withPartialAcceptanceCoverage [B6]
                 registry = [routineOwner, acceptanceOwner, partialOwner]
                 selected = selectSuiteMetadata AllTests RoutineFeedbackOnly registry
                 excluded = excludedAcceptanceInvariants registry selected
 
             excluded `shouldNotContain` [A1]
-            excluded `shouldContain` [A2, A3]
-            incompleteAcceptanceInvariants registry `shouldContain` [A3]
+            excluded `shouldContain` [A2]
+            excluded `shouldContain` [B6]
+            incompleteAcceptanceInvariants registry `shouldContain` [B6]
+            acceptanceEvidenceShape T4 `shouldBe` ComposedEvidence
 
 pureMetadata :: String -> FeedbackLane -> [AcceptanceInvariant] -> SuiteMetadata
 pureMetadata label feedback invariants =

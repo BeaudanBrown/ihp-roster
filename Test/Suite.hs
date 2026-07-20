@@ -190,6 +190,8 @@ renderSelectionCoverage selection =
             <> renderInvariantList selection.excludedMandatoryInvariants
             <> "] mandatory-acceptance-partial=["
             <> renderInvariantList (incompleteAcceptanceInvariants allSuiteMetadata)
+            <> "] mandatory-acceptance-composed=["
+            <> renderInvariantList composedAcceptanceInvariants
             <> "]"
 
 renderSuiteMetadataReport :: Text
@@ -198,6 +200,7 @@ renderSuiteMetadataReport =
         [ "Hspec suite metadata: " <> tshow (length allSuiteMetadata) <> " suites"
         , "Routine feedback mandatory-acceptance-excluded=[" <> renderInvariantList routineExcluded <> "]"
         , "Known partial mandatory-acceptance=[" <> renderInvariantList (incompleteAcceptanceInvariants allSuiteMetadata) <> "]"
+        , "Known composed mandatory-acceptance=[" <> renderInvariantList composedAcceptanceInvariants <> "]"
         , "label\tdatabase\tclean-state\tcommitted-visibility\tfeedback\tinvariant-family\testimated-seconds\tfixture-cost\texternal-mocks\towned-invariants\tpartial-invariants"
         ]
             <> map renderSuiteMetadataRow allSuiteMetadata

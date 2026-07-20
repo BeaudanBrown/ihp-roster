@@ -1,5 +1,6 @@
 module Test.Suite.Metadata
-    ( AcceptanceInvariant (..)
+    ( AcceptanceEvidenceShape (..)
+    , AcceptanceInvariant (..)
     , CleanStateRequirement (..)
     , CommittedVisibilityRequirement (..)
     , ExternalMock (..)
@@ -11,7 +12,9 @@ module Test.Suite.Metadata
     , SuiteKind (..)
     , SuiteMetadata (..)
     , TestLane (..)
+    , acceptanceEvidenceShape
     , allAcceptanceInvariants
+    , composedAcceptanceInvariants
     , excludedAcceptanceInvariants
     , incompleteAcceptanceInvariants
     , selectSuiteMetadata
@@ -129,6 +132,12 @@ data AcceptanceInvariant
     | B7
     deriving (Bounded, Enum, Eq, Ord, Show)
 
+data AcceptanceEvidenceShape
+    = CompleteEvidence
+    | ComposedEvidence
+    | PartialEvidence
+    deriving (Eq, Show)
+
 data SuiteMetadata = SuiteMetadata
     { suiteLabel                           :: String
     , estimatedRuntimeSeconds              :: Double
@@ -178,6 +187,16 @@ suiteKind metadata =
 allAcceptanceInvariants :: [AcceptanceInvariant]
 allAcceptanceInvariants = [minBound .. maxBound]
 
+acceptanceEvidenceShape :: AcceptanceInvariant -> AcceptanceEvidenceShape
+acceptanceEvidenceShape = \case
+    T4 -> ComposedEvidence
+    B6 -> PartialEvidence
+    _ -> CompleteEvidence
+
+composedAcceptanceInvariants :: [AcceptanceInvariant]
+composedAcceptanceInvariants =
+    filter ((== ComposedEvidence) . acceptanceEvidenceShape) allAcceptanceInvariants
+
 selectSuiteMetadata :: TestLane -> FeedbackSelection -> [SuiteMetadata] -> [SuiteMetadata]
 selectSuiteMetadata lane feedback = filter \metadata ->
     matchesTestLane lane metadata && matchesFeedbackSelection feedback metadata
@@ -197,7 +216,11 @@ excludedAcceptanceInvariants registry selected =
 incompleteAcceptanceInvariants :: [SuiteMetadata] -> [AcceptanceInvariant]
 incompleteAcceptanceInvariants registry =
     allAcceptanceInvariants
-        |> filter (\invariant -> all (notElem invariant . ownedAcceptanceInvariants) registry)
+        |> filter
+            ( \invariant ->
+                acceptanceEvidenceShape invariant == PartialEvidence
+                    && all (notElem invariant . ownedAcceptanceInvariants) registry
+            )
 
 declaredAcceptanceInvariants :: SuiteMetadata -> [AcceptanceInvariant]
 declaredAcceptanceInvariants metadata =
@@ -207,15 +230,24 @@ validateSuiteRegistry :: [SuiteMetadata] -> [Text]
 validateSuiteRegistry registry =
     concatMap validateSuiteMetadata registry
         <> duplicateLabelDiagnostics
-        <> missingInvariantDiagnostics
+        <> concatMap validateInvariantCoverage allAcceptanceInvariants
   where
     duplicateLabelDiagnostics =
         duplicateValues (map suiteLabel registry)
             |> map (\label -> "duplicate suite label: " <> cs label)
-    missingInvariantDiagnostics =
-        allAcceptanceInvariants
-            |> filter (\invariant -> all (notElem invariant . declaredAcceptanceInvariants) registry)
-            |> map (\invariant -> "mandatory invariant has no coverage declaration: " <> tshow invariant)
+    validateInvariantCoverage invariant =
+        let completeOwners = filter (elem invariant . ownedAcceptanceInvariants) registry
+            partialOwners = filter (elem invariant . partiallyCoveredAcceptanceInvariants) registry
+         in case acceptanceEvidenceShape invariant of
+                CompleteEvidence ->
+                    ["mandatory complete invariant has no owning suite: " <> tshow invariant | null completeOwners]
+                        <> ["complete invariant cannot have partial declarations: " <> tshow invariant | not (null partialOwners)]
+                ComposedEvidence ->
+                    ["mandatory composed invariant needs at least two owning suites: " <> tshow invariant | length completeOwners < 2]
+                        <> ["composed invariant cannot have partial declarations: " <> tshow invariant | not (null partialOwners)]
+                PartialEvidence ->
+                    ["mandatory partial invariant has no partial declaration: " <> tshow invariant | null partialOwners]
+                        <> ["partial invariant cannot claim complete ownership: " <> tshow invariant | not (null completeOwners)]
 
 validateSuiteMetadata :: SuiteMetadata -> [Text]
 validateSuiteMetadata metadata =
@@ -225,6 +257,7 @@ validateSuiteMetadata metadata =
         <> duplicateInvariantDiagnostics
         <> duplicatePartialInvariantDiagnostics
         <> overlappingInvariantDiagnostics
+        <> partialShapeDiagnostics
         <> duplicateMockDiagnostics
   where
     label = cs metadata.suiteLabel :: Text
@@ -251,6 +284,10 @@ validateSuiteMetadata metadata =
         metadata.ownedAcceptanceInvariants
             |> filter (`elem` metadata.partiallyCoveredAcceptanceInvariants)
             |> map (\invariant -> label <> ": invariant cannot be both complete and partial: " <> tshow invariant)
+    partialShapeDiagnostics =
+        metadata.partiallyCoveredAcceptanceInvariants
+            |> filter ((/= PartialEvidence) . acceptanceEvidenceShape)
+            |> map (\invariant -> label <> ": only catalogued partial evidence can use partial coverage: " <> tshow invariant)
     duplicateMockDiagnostics =
         duplicateValues metadata.externalMocks
             |> map (\mock -> label <> ": duplicate external mock requirement: " <> tshow mock)
