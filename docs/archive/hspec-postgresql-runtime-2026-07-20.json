@@ -1,0 +1,709 @@
+{
+  "provenance": {
+    "issue": 200,
+    "measuredAt": "2026-07-20",
+    "measurementBaseCommit": "eeba4bc094358d5255ea6b5ab5a77cab0190e72d",
+    "implementationBranch": "issue-200-disposable-test-postgres",
+    "protocol": "one warm-up plus three measured focused runs; two selected serial and two selected six-shard complete runs",
+    "rawArtifactRoot": "output/hspec-baseline/issue-200"
+  },
+  "fullSuite": {
+    "selected-serial-1": {
+      "compileSeconds": 9.910803795,
+      "criticalHspecSeconds": 101.2625,
+      "databaseCreateSumSeconds": 1.228035688,
+      "databaseDropMaxSeconds": 0,
+      "databaseDropSumSeconds": 0,
+      "examples": 1024,
+      "failures": 0,
+      "hspecExecutionSumSeconds": 101.610102892,
+      "maxTestConnections": 13,
+      "resetCount": 586,
+      "resetMedianMilliseconds": 84.12367700000001,
+      "resetP95Milliseconds": 156.215006,
+      "resetSumSeconds": 59.740180778,
+      "wallSeconds": 114.0284293500008
+    },
+    "selected-serial-2": {
+      "compileSeconds": 3.51447463,
+      "criticalHspecSeconds": 90.0147,
+      "databaseCreateSumSeconds": 4.413338661,
+      "databaseDropMaxSeconds": 0,
+      "databaseDropSumSeconds": 0,
+      "examples": 1024,
+      "failures": 0,
+      "hspecExecutionSumSeconds": 90.246873379,
+      "maxTestConnections": 13,
+      "resetCount": 586,
+      "resetMedianMilliseconds": 81.448047,
+      "resetP95Milliseconds": 113.15225600000001,
+      "resetSumSeconds": 52.088237361,
+      "wallSeconds": 99.01850926299812
+    },
+    "selected-six-shard-1": {
+      "compileSeconds": 3.453625917,
+      "criticalHspecSeconds": 48.1338,
+      "databaseCreateSumSeconds": 2.876688242,
+      "databaseDropMaxSeconds": 33.477730751,
+      "databaseDropSumSeconds": 143.019051313,
+      "examples": 1024,
+      "failures": 0,
+      "hspecExecutionSumSeconds": 180.310284137,
+      "maxTestConnections": 13,
+      "resetCount": 586,
+      "resetMedianMilliseconds": 159.257112,
+      "resetP95Milliseconds": 326.062432,
+      "resetSumSeconds": 106.039064742,
+      "wallSeconds": 59.018644752999535
+    },
+    "selected-six-shard-2": {
+      "compileSeconds": 3.959301949,
+      "criticalHspecSeconds": 41.2987,
+      "databaseCreateSumSeconds": 2.364279747,
+      "databaseDropMaxSeconds": 14.020761728,
+      "databaseDropSumSeconds": 50.348304034,
+      "examples": 1024,
+      "failures": 0,
+      "hspecExecutionSumSeconds": 161.822835207,
+      "maxTestConnections": 22,
+      "resetCount": 586,
+      "resetMedianMilliseconds": 148.5384235,
+      "resetP95Milliseconds": 217.66154300000002,
+      "resetSumSeconds": 92.036941795,
+      "wallSeconds": 47.018625900003826
+    },
+    "virtiofs-serial": {
+      "compileSeconds": 42.977101326,
+      "criticalHspecSeconds": 1131.7272,
+      "databaseCreateSumSeconds": 10.324163675,
+      "databaseDropMaxSeconds": 0,
+      "databaseDropSumSeconds": 0,
+      "examples": 1024,
+      "failures": 0,
+      "hspecExecutionSumSeconds": 1131.834663153,
+      "maxTestConnections": 20,
+      "resetCount": 586,
+      "resetMedianMilliseconds": 548.200198,
+      "resetP95Milliseconds": 7428.092737,
+      "resetSumSeconds": 791.006472477,
+      "wallSeconds": 1186.2324354019947
+    },
+    "virtiofs-six-shard": {
+      "compileSeconds": 28.931249619,
+      "criticalHspecSeconds": 1078.8738,
+      "databaseCreateSumSeconds": 27.043037414,
+      "databaseDropMaxSeconds": 703.962530851,
+      "databaseDropSumSeconds": 1666.122835635,
+      "examples": 1024,
+      "failures": 0,
+      "hspecExecutionSumSeconds": 4374.411186694,
+      "maxTestConnections": 24,
+      "resetCount": 586,
+      "resetMedianMilliseconds": 4432.3979715000005,
+      "resetP95Milliseconds": 17847.956594,
+      "resetSumSeconds": 3735.801385645,
+      "wallSeconds": 1114.9929119299923
+    }
+  },
+  "heavyDurability": {
+    "all-off": {
+      "cloneMedianSeconds": 0.310414791,
+      "cloneSeconds": [
+        0.325340748,
+        0.295372725,
+        0.310414791
+      ],
+      "examples": [
+        46,
+        46,
+        46
+      ],
+      "failures": [
+        0,
+        0,
+        0
+      ],
+      "hspecMedianSeconds": 8.068064928,
+      "hspecSeconds": [
+        8.068064928,
+        8.663871765,
+        7.672313213
+      ],
+      "resetCount": 132,
+      "resetMedianMilliseconds": 80.494418,
+      "resetP95Milliseconds": 101.368519,
+      "resetSumSecondsByRun": [
+        3.729018537,
+        3.668931711,
+        3.447176701
+      ],
+      "runs": 3,
+      "sampledTestWaits": {
+        "Client:ClientRead": 7
+      },
+      "walDeltaMedians": {
+        "wal_buffers_full": 35,
+        "wal_bytes": 21207687,
+        "wal_fpi": 13687,
+        "wal_records": 161734,
+        "wal_sync": 0,
+        "wal_write": 128
+      },
+      "walDeltas": [
+        {
+          "wal_buffers_full": 184,
+          "wal_bytes": 21208243,
+          "wal_fpi": 13687,
+          "wal_records": 161735,
+          "wal_sync": 0,
+          "wal_write": 278
+        },
+        {
+          "wal_buffers_full": 0,
+          "wal_bytes": 21207687,
+          "wal_fpi": 13687,
+          "wal_records": 161734,
+          "wal_sync": 0,
+          "wal_write": 97
+        },
+        {
+          "wal_buffers_full": 35,
+          "wal_bytes": 21207667,
+          "wal_fpi": 13687,
+          "wal_records": 161734,
+          "wal_sync": 0,
+          "wal_write": 128
+        }
+      ],
+      "wallMedianSeconds": 13.004802180978004,
+      "wallSeconds": [
+        13.003893459012033,
+        13.004802180978004,
+        13.005354644992622
+      ]
+    },
+    "durable": {
+      "cloneMedianSeconds": 0.455631971,
+      "cloneSeconds": [
+        0.565372944,
+        0.387949467,
+        0.455631971
+      ],
+      "examples": [
+        46,
+        46,
+        46
+      ],
+      "failures": [
+        0,
+        0,
+        0
+      ],
+      "hspecMedianSeconds": 33.77308917,
+      "hspecSeconds": [
+        18.677428007,
+        83.043073416,
+        33.77308917
+      ],
+      "resetCount": 132,
+      "resetMedianMilliseconds": 88.4176305,
+      "resetP95Milliseconds": 192.077903,
+      "resetSumSecondsByRun": [
+        3.812920306,
+        5.508481976,
+        5.067274696
+      ],
+      "runs": 3,
+      "sampledTestWaits": {
+        "Client:ClientRead": 10,
+        "IO:DataFileExtend": 1,
+        "IO:WalSync": 97,
+        "LWLock:WALWrite": 2
+      },
+      "walDeltaMedians": {
+        "wal_buffers_full": 223,
+        "wal_bytes": 21446582,
+        "wal_fpi": 13699,
+        "wal_records": 162875,
+        "wal_sync": 4068,
+        "wal_write": 4295
+      },
+      "walDeltas": [
+        {
+          "wal_buffers_full": 223,
+          "wal_bytes": 21206940,
+          "wal_fpi": 13690,
+          "wal_records": 161694,
+          "wal_sync": 4033,
+          "wal_write": 4260
+        },
+        {
+          "wal_buffers_full": 223,
+          "wal_bytes": 22410018,
+          "wal_fpi": 13819,
+          "wal_records": 163354,
+          "wal_sync": 4068,
+          "wal_write": 4295
+        },
+        {
+          "wal_buffers_full": 232,
+          "wal_bytes": 21446582,
+          "wal_fpi": 13699,
+          "wal_records": 162875,
+          "wal_sync": 4076,
+          "wal_write": 4310
+        }
+      ],
+      "wallMedianSeconds": 39.0082151540264,
+      "wallSeconds": [
+        24.00512574001914,
+        88.02326440901379,
+        39.0082151540264
+      ]
+    },
+    "fsync-off": {
+      "cloneMedianSeconds": 0.33745122,
+      "cloneSeconds": [
+        0.308092833,
+        0.345479012,
+        0.33745122
+      ],
+      "examples": [
+        46,
+        46,
+        46
+      ],
+      "failures": [
+        0,
+        0,
+        0
+      ],
+      "hspecMedianSeconds": 8.273741961,
+      "hspecSeconds": [
+        8.180137396,
+        8.821580648,
+        8.273741961
+      ],
+      "resetCount": 132,
+      "resetMedianMilliseconds": 81.16149,
+      "resetP95Milliseconds": 95.247681,
+      "resetSumSecondsByRun": [
+        3.613983842,
+        3.6688384960000002,
+        3.524688198
+      ],
+      "runs": 3,
+      "sampledTestWaits": {
+        "Client:ClientRead": 8
+      },
+      "walDeltaMedians": {
+        "wal_buffers_full": 223,
+        "wal_bytes": 21207362,
+        "wal_fpi": 13690,
+        "wal_records": 161695,
+        "wal_sync": 0,
+        "wal_write": 4263
+      },
+      "walDeltas": [
+        {
+          "wal_buffers_full": 122,
+          "wal_bytes": 21207362,
+          "wal_fpi": 13690,
+          "wal_records": 161695,
+          "wal_sync": 0,
+          "wal_write": 4164
+        },
+        {
+          "wal_buffers_full": 223,
+          "wal_bytes": 21206760,
+          "wal_fpi": 13690,
+          "wal_records": 161693,
+          "wal_sync": 0,
+          "wal_write": 4263
+        },
+        {
+          "wal_buffers_full": 223,
+          "wal_bytes": 21207440,
+          "wal_fpi": 13690,
+          "wal_records": 161697,
+          "wal_sync": 0,
+          "wal_write": 4263
+        }
+      ],
+      "wallMedianSeconds": 13.004748364997795,
+      "wallSeconds": [
+        13.004661020007916,
+        15.00434269401012,
+        13.004748364997795
+      ]
+    },
+    "full-page-writes-off": {
+      "cloneMedianSeconds": 0.751853228,
+      "cloneSeconds": [
+        0.643854618,
+        0.751853228,
+        1.129621744
+      ],
+      "examples": [
+        46,
+        46,
+        46
+      ],
+      "failures": [
+        0,
+        0,
+        0
+      ],
+      "hspecMedianSeconds": 25.723531008,
+      "hspecSeconds": [
+        31.339322567,
+        20.288334608,
+        25.723531008
+      ],
+      "resetCount": 132,
+      "resetMedianMilliseconds": 90.943581,
+      "resetP95Milliseconds": 111.359005,
+      "resetSumSecondsByRun": [
+        3.993901445,
+        3.786829006,
+        4.371386682
+      ],
+      "runs": 3,
+      "sampledTestWaits": {
+        "Client:ClientRead": 8,
+        "IO:WalSync": 51
+      },
+      "walDeltaMedians": {
+        "wal_buffers_full": 223,
+        "wal_bytes": 21300195,
+        "wal_fpi": 13687,
+        "wal_records": 162198,
+        "wal_sync": 4045,
+        "wal_write": 4263
+      },
+      "walDeltas": [
+        {
+          "wal_buffers_full": 223,
+          "wal_bytes": 21206195,
+          "wal_fpi": 13687,
+          "wal_records": 161699,
+          "wal_sync": 4036,
+          "wal_write": 4263
+        },
+        {
+          "wal_buffers_full": 223,
+          "wal_bytes": 21300195,
+          "wal_fpi": 13687,
+          "wal_records": 162198,
+          "wal_sync": 4045,
+          "wal_write": 4272
+        },
+        {
+          "wal_buffers_full": 30,
+          "wal_bytes": 21422399,
+          "wal_fpi": 13697,
+          "wal_records": 162568,
+          "wal_sync": 4050,
+          "wal_write": 4083
+        }
+      ],
+      "wallMedianSeconds": 32.006905320013175,
+      "wallSeconds": [
+        37.00856776200817,
+        26.007968046993483,
+        32.006905320013175
+      ]
+    },
+    "sync-off": {
+      "cloneMedianSeconds": 0.637894869,
+      "cloneSeconds": [
+        8.584538221,
+        0.427676916,
+        0.637894869
+      ],
+      "examples": [
+        46,
+        46,
+        46
+      ],
+      "failures": [
+        0,
+        0,
+        0
+      ],
+      "hspecMedianSeconds": 9.135087013,
+      "hspecSeconds": [
+        9.381223202,
+        9.135087013,
+        8.884824514
+      ],
+      "resetCount": 132,
+      "resetMedianMilliseconds": 87.537965,
+      "resetP95Milliseconds": 120.983723,
+      "resetSumSecondsByRun": [
+        3.86950799,
+        4.003174956,
+        4.371628867
+      ],
+      "runs": 3,
+      "sampledTestWaits": {
+        "Client:ClientRead": 5,
+        "IO:DataFileExtend": 2,
+        "LWLock:WALWrite": 1
+      },
+      "walDeltaMedians": {
+        "wal_buffers_full": 223,
+        "wal_bytes": 21212731,
+        "wal_fpi": 13690,
+        "wal_records": 161736,
+        "wal_sync": 92,
+        "wal_write": 317
+      },
+      "walDeltas": [
+        {
+          "wal_buffers_full": 223,
+          "wal_bytes": 21212597,
+          "wal_fpi": 13690,
+          "wal_records": 161736,
+          "wal_sync": 93,
+          "wal_write": 320
+        },
+        {
+          "wal_buffers_full": 223,
+          "wal_bytes": 21213142,
+          "wal_fpi": 13690,
+          "wal_records": 161735,
+          "wal_sync": 92,
+          "wal_write": 317
+        },
+        {
+          "wal_buffers_full": 224,
+          "wal_bytes": 21212731,
+          "wal_fpi": 13690,
+          "wal_records": 161736,
+          "wal_sync": 88,
+          "wal_write": 316
+        }
+      ],
+      "wallMedianSeconds": 15.005897483002627,
+      "wallSeconds": [
+        23.00560247802059,
+        15.005897483002627,
+        14.003381954011275
+      ]
+    }
+  },
+  "schemaVersion": 1,
+  "shortFeedback": {
+    "native-all-off": {
+      "cloneMedianSeconds": 0.155788422,
+      "cloneSeconds": [
+        0.760277033,
+        0.155788422,
+        0.151376247
+      ],
+      "examplesPerRun": [
+        4,
+        4,
+        4
+      ],
+      "failuresPerRun": [
+        0,
+        0,
+        0
+      ],
+      "hspecMedianSeconds": 0.661269665,
+      "hspecSeconds": [
+        1.199371338,
+        0.59546566,
+        0.661269665
+      ],
+      "resetCount": 12,
+      "resetMeanMilliseconds": 142.63270875,
+      "resetMedianMilliseconds": 103.47932349999999,
+      "resetP95Milliseconds": 527.425339,
+      "successfulRuns": 3,
+      "wallMedianSeconds": 6.003275148017565,
+      "wallSeconds": [
+        7.003499106009258,
+        6.0030128530052025,
+        6.003275148017565
+      ]
+    },
+    "native-durable": {
+      "cloneMedianSeconds": 0.237666607,
+      "cloneSeconds": [
+        2.636441231,
+        0.226925611,
+        0.237666607
+      ],
+      "examplesPerRun": [
+        4,
+        4,
+        4
+      ],
+      "failuresPerRun": [
+        0,
+        0,
+        0
+      ],
+      "hspecMedianSeconds": 0.692354679,
+      "hspecSeconds": [
+        0.710950375,
+        0.684592247,
+        0.692354679
+      ],
+      "resetCount": 12,
+      "resetMeanMilliseconds": 97.9452515,
+      "resetMedianMilliseconds": 97.4664875,
+      "resetP95Milliseconds": 108.472436,
+      "successfulRuns": 3,
+      "wallMedianSeconds": 5.003648944984889,
+      "wallSeconds": [
+        8.004889672010904,
+        5.003648944984889,
+        5.003577884985134
+      ]
+    },
+    "native-fsync-off": {
+      "cloneMedianSeconds": 0.173702002,
+      "cloneSeconds": [
+        0.173702002,
+        0.148716211,
+        0.181034803
+      ],
+      "examplesPerRun": [
+        4,
+        4,
+        4
+      ],
+      "failuresPerRun": [
+        0,
+        0,
+        0
+      ],
+      "hspecMedianSeconds": 0.633342266,
+      "hspecSeconds": [
+        0.633342266,
+        0.569569349,
+        0.639060736
+      ],
+      "resetCount": 12,
+      "resetMeanMilliseconds": 92.77617166666667,
+      "resetMedianMilliseconds": 88.5537085,
+      "resetP95Milliseconds": 129.690938,
+      "successfulRuns": 3,
+      "wallMedianSeconds": 6.02805163199082,
+      "wallSeconds": [
+        6.02805163199082,
+        5.003000428027008,
+        7.571448076982051
+      ]
+    },
+    "native-full-page-writes-off": {
+      "cloneMedianSeconds": 0.64474225,
+      "cloneSeconds": [
+        1.812041521,
+        0.64474225,
+        0.312674046
+      ],
+      "examplesPerRun": [
+        4,
+        4,
+        4
+      ],
+      "failuresPerRun": [
+        0,
+        0,
+        0
+      ],
+      "hspecMedianSeconds": 0.85661149,
+      "hspecSeconds": [
+        0.7533741,
+        1.795984268,
+        0.85661149
+      ],
+      "resetCount": 12,
+      "resetMeanMilliseconds": 126.56362333333334,
+      "resetMedianMilliseconds": 117.057448,
+      "resetP95Milliseconds": 199.003893,
+      "successfulRuns": 3,
+      "wallMedianSeconds": 8.003168247989379,
+      "wallSeconds": [
+        8.005196614016313,
+        7.003763286018511,
+        8.003168247989379
+      ]
+    },
+    "native-sync-off": {
+      "cloneMedianSeconds": 1.70088172,
+      "cloneSeconds": [
+        1.70088172,
+        2.133465052,
+        0.258084059
+      ],
+      "examplesPerRun": [
+        4,
+        4,
+        4
+      ],
+      "failuresPerRun": [
+        0,
+        0,
+        0
+      ],
+      "hspecMedianSeconds": 0.651001453,
+      "hspecSeconds": [
+        0.618626118,
+        0.651001453,
+        0.746157169
+      ],
+      "resetCount": 12,
+      "resetMeanMilliseconds": 102.76125825,
+      "resetMedianMilliseconds": 103.737324,
+      "resetP95Milliseconds": 130.841005,
+      "successfulRuns": 3,
+      "wallMedianSeconds": 7.003437725012191,
+      "wallSeconds": [
+        7.003437725012191,
+        8.005294681002852,
+        6.006062447995646
+      ]
+    },
+    "virtiofs-durable": {
+      "cloneMedianSeconds": 1.170521021,
+      "cloneSeconds": [
+        1.542427778,
+        1.170521021,
+        1.123738527
+      ],
+      "examplesPerRun": [
+        4,
+        4,
+        4
+      ],
+      "failuresPerRun": [
+        0,
+        0,
+        0
+      ],
+      "hspecMedianSeconds": 2.519864559,
+      "hspecSeconds": [
+        2.59672451,
+        2.519864559,
+        2.173714399
+      ],
+      "resetCount": 12,
+      "resetMeanMilliseconds": 447.8080088333333,
+      "resetMedianMilliseconds": 417.3616505,
+      "resetP95Milliseconds": 647.003797,
+      "successfulRuns": 3,
+      "wallMedianSeconds": 9.003538846998708,
+      "wallSeconds": [
+        9.004510822996963,
+        9.003538846998708,
+        8.003012852976099
+      ]
+    }
+  }
+}

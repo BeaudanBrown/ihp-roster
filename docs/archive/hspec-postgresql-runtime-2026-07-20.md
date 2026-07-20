@@ -9,7 +9,10 @@ Related issues: [#197](https://github.com/BeaudanBrown/ihp-roster/issues/197),
 
 This report records the selection evidence for the private PostgreSQL runtime
 used by DB-backed Hspec. Current operating guidance lives in `Test/AGENTS.md`.
-Raw benchmark artifacts remain ignored under
+The committed
+[`hspec-postgresql-runtime-2026-07-20.json`](hspec-postgresql-runtime-2026-07-20.json)
+retains per-run aggregate values used below. Voluminous command logs, one-second
+samples, and reset traces remain ignored under
 `output/hspec-baseline/issue-200/`.
 
 ## Selected Runtime

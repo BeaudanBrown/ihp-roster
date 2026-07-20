@@ -52,7 +52,10 @@ ihp_roster_configure_test_postgres() {
             TEST_DB_SOCKET="$("$scripts_root/db/test-postgres" ensure)"
             ;;
         external)
-            TEST_DB_SOCKET="${TEST_DB_SOCKET:-${PGHOST:-$PWD/build/db}}"
+            if [ -z "${TEST_DB_SOCKET:-}" ]; then
+                echo "TEST_POSTGRES_MODE=external requires an explicit TEST_DB_SOCKET" >&2
+                return 64
+            fi
             ;;
         *)
             echo "TEST_POSTGRES_MODE must be managed or external; got: $mode" >&2
