@@ -42,9 +42,11 @@ RELEVANT_PROCESS_MARKERS = (
     "/k6 ",
 )
 SUITE_PATTERN = re.compile(
-    r'^\s*(?:\[|,)\s*(pureSuite|databaseSuite(?:WithPartialCoverage)?)\s+"([^"]+)"\s+(\d+(?:\.\d+)?)\s+[\s\S]*?([A-Za-z][A-Za-z0-9_.]+)\.tests\s*$',
+    r'^\s*(?:\[|,)\s*(pureSuite|databaseSuite)\s+[\s\S]*?SuiteDefinition\s*\{([\s\S]*?)\}\s+([A-Za-z][A-Za-z0-9_.]+)\.tests\s*$',
     re.MULTILINE,
 )
+SUITE_LABEL_PATTERN = re.compile(r'definitionLabel\s*=\s*"([^"]+)"')
+SUITE_WEIGHT_PATTERN = re.compile(r"definitionEstimatedRuntimeSeconds\s*=\s*(\d+(?:\.\d+)?)")
 FIXTURE_BUILDERS = (
     "createVenueWithConfig",
     "createUserRecord",
@@ -860,7 +862,13 @@ def parse_registry(runner: Path) -> list[dict[str, Any]]:
     suite_source = (ROOT / "Test/Suite.hs").read_text()
     reported_metadata = parse_metadata_report(runner)
     suites: list[dict[str, Any]] = []
-    for constructor, label, weight, module in SUITE_PATTERN.findall(suite_source):
+    for constructor, definition_source, module in SUITE_PATTERN.findall(suite_source):
+        label_match = SUITE_LABEL_PATTERN.search(definition_source)
+        weight_match = SUITE_WEIGHT_PATTERN.search(definition_source)
+        if label_match is None or weight_match is None:
+            raise RuntimeError(f"could not parse suite identity from definition for {module}")
+        label = label_match.group(1)
+        weight = weight_match.group(1)
         source_path = module.replace(".", "/") + ".hs"
         source_text = (ROOT / source_path).read_text()
         metadata = reported_metadata.get(label)

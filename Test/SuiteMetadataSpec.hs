@@ -11,13 +11,9 @@ tests = do
     describe "suite metadata validation" do
         it "rejects committed visibility without broad clean-state isolation" do
             let invalid =
-                    suiteMetadata "invalid-visibility" 5
+                    suiteMetadataFromDefinition
                         (DatabaseIsolation CleanStateNotRequired CommittedVisibilityRequired)
-                        RoutineCorrectness
-                        TestInfrastructure
-                        FixtureFree
-                        []
-                        []
+                        (metadataDefinition "invalid-visibility" RoutineCorrectness FixtureFree [])
 
             validateSuiteMetadata invalid
                 `shouldContain` ["invalid-visibility: committed visibility requires broad clean-state isolation"]
@@ -61,14 +57,23 @@ tests = do
 
 pureMetadata :: String -> FeedbackLane -> [AcceptanceInvariant] -> SuiteMetadata
 pureMetadata label feedback invariants =
-    suiteMetadata label 1 PureIsolation feedback TestInfrastructure FixtureFree [] invariants
+    suiteMetadataFromDefinition PureIsolation (metadataDefinition label feedback FixtureFree invariants)
 
 databaseMetadata :: String -> FeedbackLane -> [AcceptanceInvariant] -> SuiteMetadata
 databaseMetadata label feedback invariants =
-    suiteMetadata label 1
+    suiteMetadataFromDefinition
         (DatabaseIsolation BroadCleanStateRequired CommittedVisibilityNotRequired)
-        feedback
-        TestInfrastructure
-        SmallFixture
-        []
-        invariants
+        (metadataDefinition label feedback SmallFixture invariants)
+
+metadataDefinition :: String -> FeedbackLane -> FixtureCost -> [AcceptanceInvariant] -> SuiteDefinition
+metadataDefinition label feedback fixtures invariants =
+    SuiteDefinition
+        { definitionLabel = label
+        , definitionEstimatedRuntimeSeconds = 1
+        , definitionFeedbackLane = feedback
+        , definitionInvariantFamily = TestInfrastructure
+        , definitionFixtureCost = fixtures
+        , definitionExternalMocks = []
+        , definitionOwnedInvariants = invariants
+        , definitionPartialInvariants = []
+        }

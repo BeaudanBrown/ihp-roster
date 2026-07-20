@@ -9,6 +9,7 @@ module Test.Suite.Metadata
     , FixtureCost (..)
     , InvariantFamily (..)
     , IsolationRequirement (..)
+    , SuiteDefinition (..)
     , SuiteKind (..)
     , SuiteMetadata (..)
     , TestLane (..)
@@ -19,7 +20,7 @@ module Test.Suite.Metadata
     , incompleteAcceptanceInvariants
     , selectSuiteMetadata
     , suiteKind
-    , suiteMetadata
+    , suiteMetadataFromDefinition
     , validateSuiteMetadata
     , validateSuiteRegistry
     , withPartialAcceptanceCoverage
@@ -138,6 +139,18 @@ data AcceptanceEvidenceShape
     | PartialEvidence
     deriving (Eq, Show)
 
+data SuiteDefinition = SuiteDefinition
+    { definitionLabel                   :: String
+    , definitionEstimatedRuntimeSeconds :: Double
+    , definitionFeedbackLane            :: FeedbackLane
+    , definitionInvariantFamily         :: InvariantFamily
+    , definitionFixtureCost             :: FixtureCost
+    , definitionExternalMocks           :: [ExternalMock]
+    , definitionOwnedInvariants         :: [AcceptanceInvariant]
+    , definitionPartialInvariants       :: [AcceptanceInvariant]
+    }
+    deriving (Eq, Show)
+
 data SuiteMetadata = SuiteMetadata
     { suiteLabel                           :: String
     , estimatedRuntimeSeconds              :: Double
@@ -151,27 +164,18 @@ data SuiteMetadata = SuiteMetadata
     }
     deriving (Eq, Show)
 
-suiteMetadata
-    :: String
-    -> Double
-    -> IsolationRequirement
-    -> FeedbackLane
-    -> InvariantFamily
-    -> FixtureCost
-    -> [ExternalMock]
-    -> [AcceptanceInvariant]
-    -> SuiteMetadata
-suiteMetadata label runtime isolation feedback family fixtures mocks invariants =
+suiteMetadataFromDefinition :: IsolationRequirement -> SuiteDefinition -> SuiteMetadata
+suiteMetadataFromDefinition isolation definition =
     SuiteMetadata
-        { suiteLabel = label
-        , estimatedRuntimeSeconds = runtime
+        { suiteLabel = definition.definitionLabel
+        , estimatedRuntimeSeconds = definition.definitionEstimatedRuntimeSeconds
         , isolationRequirement = isolation
-        , feedbackLane = feedback
-        , invariantFamily = family
-        , fixtureCost = fixtures
-        , externalMocks = mocks
-        , ownedAcceptanceInvariants = invariants
-        , partiallyCoveredAcceptanceInvariants = []
+        , feedbackLane = definition.definitionFeedbackLane
+        , invariantFamily = definition.definitionInvariantFamily
+        , fixtureCost = definition.definitionFixtureCost
+        , externalMocks = definition.definitionExternalMocks
+        , ownedAcceptanceInvariants = definition.definitionOwnedInvariants
+        , partiallyCoveredAcceptanceInvariants = definition.definitionPartialInvariants
         }
 
 withPartialAcceptanceCoverage :: [AcceptanceInvariant] -> SuiteMetadata -> SuiteMetadata
