@@ -1,8 +1,8 @@
 module Test.HspecMain where
 
 import qualified Data.Text as Text
-import IHP.Prelude
-import System.Environment (lookupEnv, setEnv)
+import IHP.Prelude hiding (getArgs)
+import System.Environment (getArgs, lookupEnv, setEnv)
 import Test.Hspec
 
 import qualified Test.BaselineProbe as BaselineProbe
@@ -11,7 +11,7 @@ import qualified Test.Suite as TestSuite
 main :: IO ()
 main = do
     setEnv "DISABLE_EMAIL_DELIVERY" "1"
-    getArgs >>= \case
+    map cs <$> getArgs >>= \case
         ["--suite-metadata"] -> reportSuiteMetadata
         arguments ->
             lookupEnv "HSPEC_BASELINE_PROBE" >>= \case
