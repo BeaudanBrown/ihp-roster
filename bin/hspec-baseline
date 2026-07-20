@@ -42,7 +42,7 @@ RELEVANT_PROCESS_MARKERS = (
     "/k6 ",
 )
 SUITE_PATTERN = re.compile(
-    r'^\s*(?:\[|,)\s*(pureSuite|databaseSuite)\s+"([^"]+)"\s+(\d+(?:\.\d+)?)\s+[\s\S]*?([A-Za-z][A-Za-z0-9_.]+)\.tests\s*$',
+    r'^\s*(?:\[|,)\s*(pureSuite|databaseSuite(?:WithPartialCoverage)?)\s+"([^"]+)"\s+(\d+(?:\.\d+)?)\s+[\s\S]*?([A-Za-z][A-Za-z0-9_.]+)\.tests\s*$',
     re.MULTILINE,
 )
 FIXTURE_BUILDERS = (
@@ -813,7 +813,7 @@ def parse_metadata_report(runner: Path) -> dict[str, dict[str, Any]]:
 
     header = (
         "label\tdatabase\tclean-state\tcommitted-visibility\tfeedback\t"
-        "invariant-family\testimated-seconds\tfixture-cost\texternal-mocks\towned-invariants"
+        "invariant-family\testimated-seconds\tfixture-cost\texternal-mocks\towned-invariants\tpartial-invariants"
     )
     lines = completed.stdout.splitlines()
     try:
@@ -826,7 +826,7 @@ def parse_metadata_report(runner: Path) -> dict[str, dict[str, Any]]:
         if not line.strip():
             continue
         fields = line.split("\t")
-        if len(fields) != 10:
+        if len(fields) != 11:
             raise RuntimeError(f"invalid suite metadata row: {line}")
         (
             label,
@@ -839,6 +839,7 @@ def parse_metadata_report(runner: Path) -> dict[str, dict[str, Any]]:
             fixture_cost,
             external_mocks,
             owned_invariants,
+            partial_invariants,
         ) = fields
         metadata[label] = {
             "kind": kind,
@@ -850,6 +851,7 @@ def parse_metadata_report(runner: Path) -> dict[str, dict[str, Any]]:
             "fixtureCost": fixture_cost,
             "externalMocks": [] if external_mocks == "none" else external_mocks.split(","),
             "ownedInvariants": [] if owned_invariants == "none" else owned_invariants.split(","),
+            "partialInvariants": [] if partial_invariants == "none" else partial_invariants.split(","),
         }
     return metadata
 
@@ -901,6 +903,7 @@ def parse_registry(runner: Path) -> list[dict[str, Any]]:
                 "fixtureCost": metadata["fixtureCost"],
                 "externalMocks": metadata["externalMocks"],
                 "ownedInvariants": metadata["ownedInvariants"],
+                "partialInvariants": metadata["partialInvariants"],
                 "withCleanDbCallSites": clean_db_call_sites,
                 "fixtureBuilderCallSites": {
                     builder: len(re.findall(rf"\b{builder}\b", source_text))
@@ -1000,6 +1003,7 @@ def generate_inventory(args: argparse.Namespace) -> int:
             "committedVisibilityRequiredSuites": sum(
                 suite["committedVisibility"] == "required" for suite in suites
             ),
+            "partialInvariantDeclarations": sum(len(suite["partialInvariants"]) for suite in suites),
             "fixtureBuilderCallSites": {
                 builder: sum(
                     suite["fixtureBuilderCallSites"].get(builder, 0) for suite in suites
@@ -1034,6 +1038,7 @@ def generate_inventory(args: argparse.Namespace) -> int:
             "fixtureCost",
             "externalMocks",
             "ownedInvariants",
+            "partialInvariants",
             "exampleCount",
             "withCleanDbCallSites",
             "fixtureBuilderCallSites",

@@ -188,6 +188,8 @@ renderSelectionCoverage selection =
             <> renderFeedbackSelection selection.feedbackSelection
             <> " mandatory-acceptance-excluded=["
             <> renderInvariantList selection.excludedMandatoryInvariants
+            <> "] mandatory-acceptance-partial=["
+            <> renderInvariantList (incompleteAcceptanceInvariants allSuiteMetadata)
             <> "]"
 
 renderSuiteMetadataReport :: Text
@@ -195,7 +197,8 @@ renderSuiteMetadataReport =
     Text.unlines $
         [ "Hspec suite metadata: " <> tshow (length allSuiteMetadata) <> " suites"
         , "Routine feedback mandatory-acceptance-excluded=[" <> renderInvariantList routineExcluded <> "]"
-        , "label\tdatabase\tclean-state\tcommitted-visibility\tfeedback\tinvariant-family\testimated-seconds\tfixture-cost\texternal-mocks\towned-invariants"
+        , "Known partial mandatory-acceptance=[" <> renderInvariantList (incompleteAcceptanceInvariants allSuiteMetadata) <> "]"
+        , "label\tdatabase\tclean-state\tcommitted-visibility\tfeedback\tinvariant-family\testimated-seconds\tfixture-cost\texternal-mocks\towned-invariants\tpartial-invariants"
         ]
             <> map renderSuiteMetadataRow allSuiteMetadata
   where
@@ -216,6 +219,7 @@ renderSuiteMetadataRow metadata =
         , tshow metadata.fixtureCost
         , renderList metadata.externalMocks
         , renderInvariantList metadata.ownedAcceptanceInvariants
+        , renderInvariantList metadata.partiallyCoveredAcceptanceInvariants
         ]
 
 renderSuiteKind :: SuiteKind -> Text
@@ -361,6 +365,23 @@ databaseSuite
 databaseSuite label weight cleanState visibility feedback family fixtures mocks invariants =
     TestSuite (suiteMetadata label weight (DatabaseIsolation cleanState visibility) feedback family fixtures mocks invariants)
 
+databaseSuiteWithPartialCoverage
+    :: String
+    -> Double
+    -> CleanStateRequirement
+    -> CommittedVisibilityRequirement
+    -> FeedbackLane
+    -> InvariantFamily
+    -> FixtureCost
+    -> [ExternalMock]
+    -> [AcceptanceInvariant]
+    -> [AcceptanceInvariant]
+    -> Spec
+    -> TestSuite
+databaseSuiteWithPartialCoverage label weight cleanState visibility feedback family fixtures mocks invariants partialInvariants spec =
+    let suite = databaseSuite label weight cleanState visibility feedback family fixtures mocks invariants spec
+     in suite{testSuiteMetadata = withPartialAcceptanceCoverage partialInvariants suite.testSuiteMetadata}
+
 allSuiteMetadata :: [SuiteMetadata]
 allSuiteMetadata = map testSuiteMetadata allSuites
 
@@ -371,10 +392,10 @@ allSuites =
     , databaseSuite "Billing" 0.4 BroadCleanStateRequired CommittedVisibilityNotRequired BroadAcceptance Billing SmallFixture [] [B5, B7] Test.BillingPersistenceSpec.tests
     , databaseSuite "BillingReadOnly" 0.8 BroadCleanStateRequired CommittedVisibilityNotRequired BroadAcceptance Billing MediumFixture [] [] Test.BillingReadOnlySpec.tests
     , databaseSuite "BillingController" 1.0 BroadCleanStateRequired CommittedVisibilityNotRequired BroadAcceptance Billing MediumFixture [] [A4, B1, B2] Test.Controller.BillingSpec.tests
-    , databaseSuite "BillingWebhook" 0.9 BroadCleanStateRequired CommittedVisibilityRequired BroadAcceptance Billing SmallFixture [] [B4, B5, B6, B7] Test.BillingWebhookSpec.tests
+    , databaseSuiteWithPartialCoverage "BillingWebhook" 0.9 BroadCleanStateRequired CommittedVisibilityRequired BroadAcceptance Billing SmallFixture [] [B4, B5, B7] [B6] Test.BillingWebhookSpec.tests
     , databaseSuite "E2ETestController" 0.4 BroadCleanStateRequired CommittedVisibilityNotRequired RoutineCorrectness AccessAndOnboarding SmallFixture [] [] Test.Controller.E2ETestSpec.tests
     , pureSuite "StripeBilling" 0.1 RoutineCorrectness Billing FixtureFree [] [B1, B2, B4, B7] Test.StripeBillingSpec.tests
-    , pureSuite "StripeContract" 0.1 RoutineCorrectness Billing SmallFixture [StripeTransportMock] [B1, B2, B3] Test.StripeContractSpec.tests
+    , pureSuite "StripeContract" 0.1 BroadAcceptance Billing SmallFixture [StripeTransportMock] [B1, B2, B3] Test.StripeContractSpec.tests
     , databaseSuite "AdminController.Access" 0.5 BroadCleanStateRequired CommittedVisibilityNotRequired RoutineCorrectness AccessAndOnboarding SmallFixture [] [A4] Test.Controller.Admin.AccessSpec.tests
     , databaseSuite "AdminController.Xero" 11.5 BroadCleanStateRequired CommittedVisibilityNotRequired BroadAcceptance XeroPayroll MediumFixture [XeroHttpMock] [A4, P6] Test.Controller.Admin.XeroSpec.tests
     , databaseSuite "AdminController.Config" 3.0 BroadCleanStateRequired CommittedVisibilityNotRequired BroadAcceptance PayAndExports MediumFixture [] [A4, P7] Test.Controller.Admin.ConfigSpec.tests

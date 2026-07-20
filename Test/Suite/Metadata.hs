@@ -13,11 +13,13 @@ module Test.Suite.Metadata
     , TestLane (..)
     , allAcceptanceInvariants
     , excludedAcceptanceInvariants
+    , incompleteAcceptanceInvariants
     , selectSuiteMetadata
     , suiteKind
     , suiteMetadata
     , validateSuiteMetadata
     , validateSuiteRegistry
+    , withPartialAcceptanceCoverage
     )
 where
 
@@ -128,14 +130,15 @@ data AcceptanceInvariant
     deriving (Bounded, Enum, Eq, Ord, Show)
 
 data SuiteMetadata = SuiteMetadata
-    { suiteLabel                :: String
-    , estimatedRuntimeSeconds   :: Double
-    , isolationRequirement      :: IsolationRequirement
-    , feedbackLane              :: FeedbackLane
-    , invariantFamily           :: InvariantFamily
-    , fixtureCost               :: FixtureCost
-    , externalMocks             :: [ExternalMock]
-    , ownedAcceptanceInvariants :: [AcceptanceInvariant]
+    { suiteLabel                           :: String
+    , estimatedRuntimeSeconds              :: Double
+    , isolationRequirement                 :: IsolationRequirement
+    , feedbackLane                         :: FeedbackLane
+    , invariantFamily                      :: InvariantFamily
+    , fixtureCost                          :: FixtureCost
+    , externalMocks                        :: [ExternalMock]
+    , ownedAcceptanceInvariants            :: [AcceptanceInvariant]
+    , partiallyCoveredAcceptanceInvariants :: [AcceptanceInvariant]
     }
     deriving (Eq, Show)
 
@@ -159,7 +162,12 @@ suiteMetadata label runtime isolation feedback family fixtures mocks invariants 
         , fixtureCost = fixtures
         , externalMocks = mocks
         , ownedAcceptanceInvariants = invariants
+        , partiallyCoveredAcceptanceInvariants = []
         }
+
+withPartialAcceptanceCoverage :: [AcceptanceInvariant] -> SuiteMetadata -> SuiteMetadata
+withPartialAcceptanceCoverage invariants metadata =
+    metadata{partiallyCoveredAcceptanceInvariants = invariants}
 
 suiteKind :: SuiteMetadata -> SuiteKind
 suiteKind metadata =
@@ -182,9 +190,18 @@ excludedAcceptanceInvariants registry selected =
     invariantIsExcluded invariant =
         let ownerLabels =
                 registry
-                    |> filter (elem invariant . ownedAcceptanceInvariants)
+                    |> filter (elem invariant . declaredAcceptanceInvariants)
                     |> map suiteLabel
          in null ownerLabels || any (`Set.notMember` selectedLabels) ownerLabels
+
+incompleteAcceptanceInvariants :: [SuiteMetadata] -> [AcceptanceInvariant]
+incompleteAcceptanceInvariants registry =
+    allAcceptanceInvariants
+        |> filter (\invariant -> all (notElem invariant . ownedAcceptanceInvariants) registry)
+
+declaredAcceptanceInvariants :: SuiteMetadata -> [AcceptanceInvariant]
+declaredAcceptanceInvariants metadata =
+    metadata.ownedAcceptanceInvariants <> metadata.partiallyCoveredAcceptanceInvariants
 
 validateSuiteRegistry :: [SuiteMetadata] -> [Text]
 validateSuiteRegistry registry =
@@ -197,8 +214,8 @@ validateSuiteRegistry registry =
             |> map (\label -> "duplicate suite label: " <> cs label)
     missingInvariantDiagnostics =
         allAcceptanceInvariants
-            |> filter (\invariant -> all (notElem invariant . ownedAcceptanceInvariants) registry)
-            |> map (\invariant -> "mandatory invariant has no owning suite: " <> tshow invariant)
+            |> filter (\invariant -> all (notElem invariant . declaredAcceptanceInvariants) registry)
+            |> map (\invariant -> "mandatory invariant has no coverage declaration: " <> tshow invariant)
 
 validateSuiteMetadata :: SuiteMetadata -> [Text]
 validateSuiteMetadata metadata =
@@ -206,6 +223,8 @@ validateSuiteMetadata metadata =
         <> runtimeDiagnostics
         <> isolationDiagnostics
         <> duplicateInvariantDiagnostics
+        <> duplicatePartialInvariantDiagnostics
+        <> overlappingInvariantDiagnostics
         <> duplicateMockDiagnostics
   where
     label = cs metadata.suiteLabel :: Text
@@ -225,6 +244,13 @@ validateSuiteMetadata metadata =
     duplicateInvariantDiagnostics =
         duplicateValues metadata.ownedAcceptanceInvariants
             |> map (\invariant -> label <> ": duplicate mandatory invariant: " <> tshow invariant)
+    duplicatePartialInvariantDiagnostics =
+        duplicateValues metadata.partiallyCoveredAcceptanceInvariants
+            |> map (\invariant -> label <> ": duplicate partial mandatory invariant: " <> tshow invariant)
+    overlappingInvariantDiagnostics =
+        metadata.ownedAcceptanceInvariants
+            |> filter (`elem` metadata.partiallyCoveredAcceptanceInvariants)
+            |> map (\invariant -> label <> ": invariant cannot be both complete and partial: " <> tshow invariant)
     duplicateMockDiagnostics =
         duplicateValues metadata.externalMocks
             |> map (\mock -> label <> ": duplicate external mock requirement: " <> tshow mock)

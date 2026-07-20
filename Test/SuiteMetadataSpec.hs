@@ -26,7 +26,7 @@ tests = do
                 diagnostics = validateSuiteRegistry [duplicated, duplicated]
 
             diagnostics `shouldSatisfy` any (Text.isInfixOf "duplicate suite label: duplicate")
-            diagnostics `shouldSatisfy` any (Text.isInfixOf "mandatory invariant has no owning suite: A2")
+            diagnostics `shouldSatisfy` any (Text.isInfixOf "mandatory invariant has no coverage declaration: A2")
 
     describe "suite metadata selection" do
         it "selects database and feedback dimensions independently" do
@@ -39,15 +39,19 @@ tests = do
 
             map suiteLabel selected `shouldBe` ["database-routine"]
 
-        it "reports an invariant as excluded when any owning suite is outside the fast selection" do
+        it "reports omitted owners and known partial acceptance coverage" do
             let routineOwner = pureMetadata "routine-owner" RoutineCorrectness [A1, A2]
                 acceptanceOwner = databaseMetadata "acceptance-owner" BroadAcceptance [A2]
-                registry = [routineOwner, acceptanceOwner]
+                partialOwner =
+                    databaseMetadata "partial-owner" BroadAcceptance []
+                        |> withPartialAcceptanceCoverage [A3]
+                registry = [routineOwner, acceptanceOwner, partialOwner]
                 selected = selectSuiteMetadata AllTests RoutineFeedbackOnly registry
                 excluded = excludedAcceptanceInvariants registry selected
 
             excluded `shouldNotContain` [A1]
-            excluded `shouldContain` [A2]
+            excluded `shouldContain` [A2, A3]
+            incompleteAcceptanceInvariants registry `shouldContain` [A3]
 
 pureMetadata :: String -> FeedbackLane -> [AcceptanceInvariant] -> SuiteMetadata
 pureMetadata label feedback invariants =
