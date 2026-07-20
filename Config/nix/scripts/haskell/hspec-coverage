@@ -2,8 +2,11 @@
 set -euo pipefail
 # shellcheck source=../lib/ghc.sh
 . "@scriptsRoot@/lib/ghc.sh"
+# shellcheck source=../lib/common.sh
+. "@scriptsRoot@/lib/common.sh"
 BASE_TEST_DATABASE_NAME="${TEST_DATABASE_NAME:-app_test_coverage}"
-export TEST_DB_SOCKET="${TEST_DB_SOCKET:-${PGHOST:-$PWD/build/db}}"
+ihp_roster_configure_test_postgres
+ihp_roster_report_test_postgres
 
 RUN_ID="${COVERAGE_RUN_ID:-$(date +%s)-$$-$RANDOM}"
 COVERAGE_ROOT="$PWD/output/coverage/hspec"

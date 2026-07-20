@@ -5,7 +5,6 @@ set -euo pipefail
 # shellcheck source=../lib/common.sh
 . "@scriptsRoot@/lib/common.sh"
 BASE_TEST_DATABASE_NAME="${TEST_DATABASE_NAME:-app_test}"
-export TEST_DB_SOCKET="${TEST_DB_SOCKET:-${PGHOST:-$PWD/build/db}}"
 TEST_LANE="${TEST_LANE:-all}"
 export TEST_LANE
 
@@ -51,6 +50,13 @@ case "$TEST_LANE" in
         exit 1
         ;;
 esac
+
+if [ "$TEST_LANE" != "pure" ]; then
+    ihp_roster_configure_test_postgres
+    ihp_roster_report_test_postgres
+else
+    export TEST_DB_SOCKET="${TEST_DB_SOCKET:-${PGHOST:-$PWD/build/db}}"
+fi
 
 TEST_DB_SHARDS_MAX="${TEST_DB_SHARDS_MAX:-8}"
 case "$TEST_DB_SHARDS_MAX" in

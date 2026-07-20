@@ -24,7 +24,16 @@ bash ./bin/in-env verify-full                       # complete Haskell/reachabil
 
 `bash ./bin/in-env hspec-test` auto-shards the full Hspec suite when no Hspec filter args are passed. DB-backed full runs cap automatic fan-out at eight shards because same-host measurements found eight shards faster than six while higher raw host core counts would add PostgreSQL reset and connection pressure without splitting the remaining indivisible suites. `TEST_SHARDS` remains an explicit override and `TEST_DB_SHARDS_MAX` can tune the automatic cap for a measured host. Each DB-backed shard gets its own ephemeral database, compiled test binary invocation, and shard log directory under `.devenv/test/`.
 
-Use `hspec-pure` for the fastest broad feedback when changing pure helpers, renderers, contracts, or validation logic. Pure suites are selected by registry metadata and do not run `test-db-reset` or connect to PostgreSQL. Use `hspec-db` to exercise only DB-backed suites. Both are additive lanes: `hspec-test` remains the complete canonical gate.
+DB-backed Hspec and Hspec coverage use a private managed PostgreSQL cluster under
+`/tmp/bepis-hspec-postgres-<uid>-<project-id>` by default. The predictable
+project-scoped root is native temporary storage, not the checkout's virtiofs
+mount. Every DB command reports its mode, data directory, socket, filesystem,
+and effective durability settings before compilation. The managed cluster uses
+`fsync=on`, `synchronous_commit=off`, and `full_page_writes=on`; only commit
+acknowledgement is relaxed, and only for discardable test databases. Normal
+development and deployed PostgreSQL instances are never reconfigured.
+
+Use `hspec-pure` for the fastest broad feedback when changing pure helpers, renderers, contracts, or validation logic. Pure suites are selected by registry metadata and do not start managed PostgreSQL, run `test-db-reset`, or connect to a database. Use `hspec-db` to exercise only DB-backed suites. Both are additive lanes: `hspec-test` remains the complete canonical gate.
 
 Normal typecheck, Hspec, and compiled E2E commands share compatible GHC object and interface files under fingerprinted `build/Verification` directories. `Test/HspecMain.hs` deliberately uses a distinct module name from the application `Main`, and coverage remains isolated under `build/TestCoverage` because HPC artifacts are incompatible. Do not point concurrent compiler invocations at the shared directory; run normal verification commands sequentially. Override `VERIFICATION_BUILD_DIR` only when a task needs its own isolated cache.
 
@@ -34,9 +43,18 @@ Focused runs default to serial execution because they are usually small. Use `TE
 
 For debugging:
 
-- `TEST_SHARDS=1` forces a single serial shard
-- `TEST_KEEP_DATABASES=1` preserves shard databases after the run instead of dropping them
-- `.devenv/test/latest/` points at the most recent shard log directory
+- `TEST_SHARDS=1` forces a single serial shard.
+- `TEST_KEEP_DATABASES=1` preserves shard databases after the run instead of dropping them.
+- `.devenv/test/latest/` points at the most recent shard log directory.
+- `test-postgres status` reports the managed instance; `test-postgres stop`
+  cleanly stops it and deletes its disposable data; `test-postgres recreate`
+  deliberately replaces it.
+- Set `TEST_POSTGRES_MODE=external` together with an explicit
+  `TEST_DB_SOCKET` only when comparing against another PostgreSQL instance.
+  External mode never changes that server's settings.
+- `TEST_POSTGRES_ROOT` may select another managed location, but known virtual
+  or shared filesystems are refused unless
+  `TEST_POSTGRES_ALLOW_NON_NATIVE=1` is explicitly set for diagnostics.
 
 ## Reproducible Baselines
 
@@ -144,6 +162,17 @@ For approved timesheet fixtures, use `createApprovedTimesheetEntryRecord` or `cr
 Leave request `end_date` is exclusive: a one-day leave request is `start_date = day`, `end_date = day + 1`. Do not seed `start_date == end_date`; the schema rejects empty ranges.
 
 Shard databases are cloned from an immutable content-addressed schema template keyed by IHP schema, app schema, and app fixtures. Missing-template creation is serialized across shards. Set `TEST_DB_RESET_MODE=direct` to replay schema files when diagnosing template/reset behavior. E2E fixture resets always use the direct path because their data is run/date-sensitive. Per-example `withCleanDb` remains an explicit full-table truncate; do not replace it with an outer transaction because normal helpers use legitimate nested transactions and some tests require committed visibility.
+
+The managed cluster is persistent across healthy test commands so templates can
+be reused, but its contents have no recovery contract. If the postmaster is not
+running—whether after a crash, interruption, reboot, or explicit stop—the next
+`ensure` deletes the complete owned data directory and runs `initdb`; it never
+attempts data repair or WAL recovery. A marker tied to the current uid and
+checkout protects deletion, non-empty unowned roots are refused, and the
+postmaster must not inherit the manager lock. `TEST_POSTGRES_DURABILITY=durable`
+is available for same-instance comparisons. `custom` plus explicit values for
+all three durability settings is benchmark-only; these settings still apply
+solely to a newly initialized managed test cluster.
 
 The shard architecture assumes:
 

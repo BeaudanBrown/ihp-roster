@@ -37,6 +37,8 @@ RELEVANT_PROCESS_MARKERS = (
     "/e2e ",
     "profile-load",
     "test-db-reset",
+    "/db/test-postgres ",
+    "-test-postgres/bin/test-postgres",
     "/k6 ",
 )
 SUITE_PATTERN = re.compile(
@@ -69,6 +71,39 @@ def command_text(command: Iterable[str]) -> str:
     return " ".join(command)
 
 
+def command_environment_overrides(command: list[str]) -> dict[str, str]:
+    """Read leading KEY=VALUE operands passed through an `env` command."""
+    overrides: dict[str, str] = {}
+    for index, token in enumerate(command):
+        if Path(token).name != "env":
+            continue
+        for operand in command[index + 1 :]:
+            if operand == "--":
+                continue
+            if "=" not in operand or operand.startswith("-"):
+                break
+            name, value = operand.split("=", 1)
+            if re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", name):
+                overrides[name] = value
+        break
+    return overrides
+
+
+def command_uses_managed_test_postgres(command: list[str], env: dict[str, str]) -> bool:
+    command_names = {Path(token).name for token in command if "=" not in token}
+    database_commands = {"hspec-test", "hspec-db", "hspec-coverage", "verify-full"}
+    if not command_names.intersection(database_commands):
+        return False
+    if env.get("TEST_LANE") == "pure":
+        return False
+    mode = env.get("TEST_POSTGRES_MODE", "")
+    if mode == "external":
+        return False
+    if env.get("TEST_DB_SOCKET") and mode != "managed":
+        return False
+    return True
+
+
 def run_capture(
     command: list[str],
     *,
@@ -96,6 +131,26 @@ def run_capture(
             "command": command,
             "error": str(exception),
         }
+
+
+def prepare_managed_test_postgres(env: dict[str, str]) -> None:
+    result = run_capture(
+        ["bash", str(ROOT / "Config/nix/scripts/db/test-postgres"), "ensure"],
+        env=env,
+        timeout=60,
+    )
+    if result.get("exitCode") != 0:
+        raise RuntimeError(
+            "could not prepare managed disposable PostgreSQL: "
+            + (result.get("output") or result.get("error") or "unknown error")
+        )
+    lines = result.get("output", "").splitlines()
+    if not lines:
+        raise RuntimeError("managed disposable PostgreSQL did not report its socket")
+    socket = lines[-1]
+    env["TEST_POSTGRES_MODE"] = "managed"
+    env["TEST_DB_SOCKET"] = socket
+    env["PGHOST"] = socket
 
 
 def psql_environment(env: dict[str, str]) -> dict[str, str]:
@@ -206,6 +261,9 @@ def environment_snapshot(env: dict[str, str]) -> dict[str, Any]:
             ["findmnt", "--json", "-T", str(ROOT), "-o", "TARGET,SOURCE,FSTYPE,OPTIONS"]
         ),
         "postgresSocket": env.get("TEST_DB_SOCKET") or env.get("PGHOST") or str(ROOT / "build/db"),
+        "testPostgresMode": env.get("TEST_POSTGRES_MODE", "external"),
+        "testPostgresDurability": env.get("TEST_POSTGRES_DURABILITY")
+        or ("disposable" if env.get("TEST_POSTGRES_MODE") == "managed" else "external"),
         "postgresVersion": psql_query("SELECT version()", env),
         "postgresDataDirectory": data_directory_result,
         "postgresSettings": psql_query(settings_sql, env),
@@ -613,6 +671,7 @@ def capture_run(args: argparse.Namespace) -> int:
     atexit.register(shutil.rmtree, metrics_staging_dir, ignore_errors=True)
 
     env = os.environ.copy()
+    env.update(command_environment_overrides(command))
     env["HSPEC_METRICS_DIR"] = str(metrics_staging_dir)
     env.setdefault("TEST_RUN_ID", sanitized_run_id(args.name))
 
@@ -625,6 +684,9 @@ def capture_run(args: argparse.Namespace) -> int:
                 "another benchmark/full test process is active; see "
                 + str(run_dir / "conflicts.json")
             )
+
+        if command_uses_managed_test_postgres(command, env):
+            prepare_managed_test_postgres(env)
 
         json_write(run_dir / "environment.json", environment_snapshot(env))
         json_write(run_dir / "postgres-before.json", postgres_snapshot(env))

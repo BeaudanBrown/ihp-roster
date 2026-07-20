@@ -107,6 +107,7 @@ in
         weeder-check = script ../scripts/haskell/weeder-check;
         regen-types = script ../scripts/haskell/regen-types;
         test-db-reset = script ../scripts/db/test-db-reset;
+        test-postgres = script ../scripts/db/test-postgres;
         hspec-test = script ../scripts/haskell/hspec-test;
         hspec-pure = script ../scripts/haskell/hspec-pure;
         hspec-db = script ../scripts/haskell/hspec-db;

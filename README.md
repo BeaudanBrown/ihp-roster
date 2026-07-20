@@ -71,7 +71,10 @@ the deterministic `devenv-script-freshness-check` regression gate.
 the canonical Pixel 7 profile. `e2e` remains the complete gate and repeats
 profile-sensitive mobile behaviors on Galaxy S9+ and iPad Mini. Normal
 typecheck, Hspec, and compiled E2E commands reuse a compatible fingerprinted
-GHC cache; HPC remains isolated.
+GHC cache; HPC remains isolated. DB-backed Hspec uses a private disposable
+PostgreSQL instance on native temporary storage and prints its effective path
+and durability settings at startup; use `bash ./bin/in-env test-postgres status`
+or `stop` to inspect or remove it. The normal development database is separate.
 
 For browser or integration work, use the managed dev server helpers:
 

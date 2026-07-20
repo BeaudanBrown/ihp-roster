@@ -1,0 +1,352 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+usage() {
+    cat <<'EOF'
+Usage: test-postgres ensure|status|recreate|stop|root
+
+Manages the private disposable PostgreSQL instance used by DB-backed Hspec.
+The default state directory is /tmp/bepis-hspec-postgres-<uid>-<project-id>.
+
+Environment:
+  TEST_POSTGRES_ROOT                 Override the managed state directory.
+  TEST_POSTGRES_DURABILITY           disposable (default), durable, or custom.
+  TEST_POSTGRES_FSYNC                Required on/off value for custom mode.
+  TEST_POSTGRES_SYNCHRONOUS_COMMIT   Required on/off value for custom mode.
+  TEST_POSTGRES_FULL_PAGE_WRITES     Required on/off value for custom mode.
+  TEST_POSTGRES_ALLOW_NON_NATIVE=1   Permit a known shared/virtual filesystem.
+  TEST_POSTGRES_REPO_ROOT            Override project identity discovery.
+EOF
+}
+
+command_name="${1:-}"
+if [ -z "$command_name" ]; then
+    usage >&2
+    exit 64
+fi
+shift
+if [ "$#" -ne 0 ]; then
+    usage >&2
+    exit 64
+fi
+
+case "$command_name" in
+    ensure|status|recreate|stop|root)
+        ;;
+    -h|--help|help)
+        usage
+        exit 0
+        ;;
+    *)
+        echo "test-postgres: unknown command: $command_name" >&2
+        usage >&2
+        exit 64
+        ;;
+esac
+
+for required_command in flock initdb pg_ctl postgres psql realpath sha256sum stat; do
+    if ! command -v "$required_command" >/dev/null 2>&1; then
+        echo "test-postgres: required command is unavailable: $required_command" >&2
+        exit 69
+    fi
+done
+
+repo_root="${TEST_POSTGRES_REPO_ROOT:-}"
+if [ -z "$repo_root" ]; then
+    repo_root="$(git rev-parse --show-toplevel 2>/dev/null || true)"
+fi
+if [ -z "$repo_root" ] || [ ! -f "$repo_root/Config/nix/flake/scripts.nix" ]; then
+    echo "test-postgres: run from an ihp-roster checkout or set TEST_POSTGRES_REPO_ROOT" >&2
+    exit 66
+fi
+repo_root="$(realpath "$repo_root")"
+if [[ "$repo_root" == *$'\n'* || "$repo_root" == *$'\r'* ]]; then
+    echo "test-postgres: checkout paths containing newlines are unsupported" >&2
+    exit 64
+fi
+
+project_id="$(printf '%s' "$repo_root" | sha256sum | cut -c1-12)"
+owner_uid="$(id -u)"
+state_root="${TEST_POSTGRES_ROOT:-/tmp/bepis-hspec-postgres-${owner_uid}-${project_id}}"
+if [[ "$state_root" != /* ]]; then
+    echo "test-postgres: TEST_POSTGRES_ROOT must be absolute: $state_root" >&2
+    exit 64
+fi
+if [[ "$state_root" == *$'\n'* || "$state_root" == *$'\r'* || "$state_root" == *"'"* ]]; then
+    echo "test-postgres: TEST_POSTGRES_ROOT may not contain quotes or newlines" >&2
+    exit 64
+fi
+case "$state_root" in
+    /|/tmp|/var|/var/tmp|/run|/run/user|"$repo_root")
+        echo "test-postgres: refusing unsafe state root: $state_root" >&2
+        exit 64
+        ;;
+esac
+
+if [ "$command_name" = "root" ]; then
+    printf '%s\n' "$state_root"
+    exit 0
+fi
+
+marker_file="$state_root/.bepis-hspec-postgres"
+lock_file="${state_root}.lock"
+data_dir="$state_root/data"
+socket_dir="$state_root/socket"
+postgres_log="$state_root/postgres.log"
+initdb_log="$state_root/initdb.log"
+signature_file="$state_root/config.signature"
+instance_file="$state_root/instance-id"
+durability="${TEST_POSTGRES_DURABILITY:-disposable}"
+
+case "$durability" in
+    disposable)
+        # Keep crash-consistency machinery enabled; only commit acknowledgement
+        # is relaxed because every database in this cluster is throwaway.
+        fsync_setting=on
+        synchronous_commit_setting=off
+        full_page_writes_setting=on
+        ;;
+    durable)
+        fsync_setting=on
+        synchronous_commit_setting=on
+        full_page_writes_setting=on
+        ;;
+    custom)
+        fsync_setting="${TEST_POSTGRES_FSYNC:-}"
+        synchronous_commit_setting="${TEST_POSTGRES_SYNCHRONOUS_COMMIT:-}"
+        full_page_writes_setting="${TEST_POSTGRES_FULL_PAGE_WRITES:-}"
+        ;;
+    *)
+        echo "test-postgres: TEST_POSTGRES_DURABILITY must be disposable, durable, or custom; got: $durability" >&2
+        exit 64
+        ;;
+esac
+
+for setting_name in fsync_setting synchronous_commit_setting full_page_writes_setting; do
+    setting_value="${!setting_name}"
+    case "$setting_value" in
+        on|off)
+            ;;
+        *)
+            echo "test-postgres: custom durability requires explicit on/off values for all three settings" >&2
+            exit 64
+            ;;
+    esac
+done
+
+postgres_version="$(postgres --version | awk '{ print $NF }')"
+expected_signature="postgres=$postgres_version durability=$durability fsync=$fsync_setting synchronous_commit=$synchronous_commit_setting full_page_writes=$full_page_writes_setting"
+expected_marker_magic="bepis-hspec-postgres-v1"
+
+validate_or_create_state_root() {
+    local allow_create="$1"
+
+    if [ -L "$state_root" ]; then
+        echo "test-postgres: refusing symlink state root: $state_root" >&2
+        exit 73
+    fi
+
+    if [ ! -d "$state_root" ]; then
+        if [ "$allow_create" != "1" ]; then
+            return 1
+        fi
+        mkdir -p "$state_root"
+        chmod 700 "$state_root"
+    fi
+
+    if [ "$(stat -c %u "$state_root")" != "$owner_uid" ]; then
+        echo "test-postgres: state root is not owned by uid $owner_uid: $state_root" >&2
+        exit 73
+    fi
+
+    if [ ! -f "$marker_file" ]; then
+        if [ "$allow_create" != "1" ]; then
+            return 1
+        fi
+        if find "$state_root" -mindepth 1 -maxdepth 1 -print -quit | grep -q .; then
+            echo "test-postgres: refusing non-empty unowned state root: $state_root" >&2
+            exit 73
+        fi
+        printf '%s\nuid=%s\nproject=%s\n' \
+            "$expected_marker_magic" "$owner_uid" "$project_id" > "$marker_file"
+    fi
+
+    local marker_magic marker_uid marker_project
+    marker_magic="$(sed -n '1p' "$marker_file")"
+    marker_uid="$(sed -n '2p' "$marker_file")"
+    marker_project="$(sed -n '3p' "$marker_file")"
+    if [ "$marker_magic" != "$expected_marker_magic" ] \
+        || [ "$marker_uid" != "uid=$owner_uid" ] \
+        || [ "$marker_project" != "project=$project_id" ]; then
+        echo "test-postgres: state ownership marker does not match this checkout: $marker_file" >&2
+        exit 73
+    fi
+    chmod 700 "$state_root"
+    return 0
+}
+
+filesystem_type() {
+    stat -f -c %T "$state_root"
+}
+
+validate_native_storage() {
+    local fs_type
+    fs_type="$(filesystem_type)"
+    case "$fs_type" in
+        virtiofs|9p|nfs|nfs4|fuse*|smb*|cifs)
+            if [ "${TEST_POSTGRES_ALLOW_NON_NATIVE:-0}" != "1" ]; then
+                echo "test-postgres: refusing $fs_type state storage at $state_root" >&2
+                echo "Set TEST_POSTGRES_ROOT to native temporary storage; override only for explicit diagnostics with TEST_POSTGRES_ALLOW_NON_NATIVE=1." >&2
+                exit 78
+            fi
+            ;;
+    esac
+}
+
+server_running() {
+    [ -d "$data_dir" ] && pg_ctl -D "$data_dir" status >/dev/null 2>&1
+}
+
+stale_live_pid() {
+    local pid=""
+    if [ -s "$data_dir/postmaster.pid" ]; then
+        pid="$(sed -n '1p' "$data_dir/postmaster.pid")"
+    fi
+    [[ "$pid" =~ ^[0-9]+$ ]] && kill -0 "$pid" 2>/dev/null
+}
+
+server_ready() {
+    psql -X -q -h "$socket_dir" -d postgres -At \
+        -v ON_ERROR_STOP=1 -c 'SELECT 1' >/dev/null 2>&1
+}
+
+stop_running_server() {
+    if server_running; then
+        pg_ctl -D "$data_dir" stop -m fast -w -t 30 >/dev/null
+    elif stale_live_pid; then
+        echo "test-postgres: a live process owns stale-looking data at $data_dir; refusing to delete it" >&2
+        exit 73
+    fi
+}
+
+remove_disposable_instance() {
+    validate_or_create_state_root 1
+    rm -rf "$data_dir" "$socket_dir"
+    rm -f "$signature_file" "$instance_file" "$postgres_log" "$initdb_log"
+}
+
+actual_settings() {
+    psql -X -q -h "$socket_dir" -d postgres -At -F ' ' -v ON_ERROR_STOP=1 -c \
+        "SELECT current_setting('fsync'), current_setting('synchronous_commit'), current_setting('full_page_writes')"
+}
+
+initialize_and_start() {
+    remove_disposable_instance
+    mkdir -m 700 "$socket_dir"
+
+    if ! initdb -D "$data_dir" --no-locale --encoding=UTF8 \
+        --auth-local=trust --auth-host=reject --no-sync > "$initdb_log" 2>&1; then
+        echo "test-postgres: initdb failed; see $initdb_log" >&2
+        exit 70
+    fi
+
+    cat >> "$data_dir/postgresql.conf" <<EOF
+
+# Managed exclusively by ihp-roster test-postgres. This cluster is disposable.
+listen_addresses = ''
+unix_socket_directories = '$socket_dir'
+unix_socket_permissions = 0700
+fsync = $fsync_setting
+synchronous_commit = $synchronous_commit_setting
+full_page_writes = $full_page_writes_setting
+EOF
+
+    printf '%s\n' "$expected_signature" > "$signature_file"
+    printf '%s-%s-%s\n' "$(date +%s)" "$$" "$RANDOM" > "$instance_file"
+
+    # The postmaster is intentionally long-lived, so it must not inherit the
+    # manager's flock descriptor and hold the lifecycle lock forever.
+    if ! pg_ctl -D "$data_dir" -l "$postgres_log" -w -t 30 start 9>&- >/dev/null; then
+        echo "test-postgres: PostgreSQL failed to start; see $postgres_log" >&2
+        stop_running_server || true
+        exit 70
+    fi
+
+    if ! server_ready; then
+        echo "test-postgres: PostgreSQL started but is not reachable at $socket_dir" >&2
+        stop_running_server || true
+        exit 70
+    fi
+
+    local observed_settings
+    observed_settings="$(actual_settings)"
+    if [ "$observed_settings" != "$fsync_setting $synchronous_commit_setting $full_page_writes_setting" ]; then
+        echo "test-postgres: unexpected settings after startup: $observed_settings" >&2
+        stop_running_server || true
+        exit 70
+    fi
+}
+
+ensure_instance() {
+    validate_or_create_state_root 1
+    validate_native_storage
+
+    if server_running; then
+        if [ -f "$signature_file" ] \
+            && [ "$(cat "$signature_file")" = "$expected_signature" ] \
+            && server_ready \
+            && [ "$(actual_settings)" = "$fsync_setting $synchronous_commit_setting $full_page_writes_setting" ]; then
+            return 0
+        fi
+        stop_running_server
+    elif stale_live_pid; then
+        echo "test-postgres: managed postmaster exists but is not healthy; refusing automatic deletion" >&2
+        exit 73
+    fi
+
+    # A stopped or crashed reduced-durability cluster is never recovered. Its
+    # complete state is discarded and initialized again.
+    initialize_and_start
+}
+
+mkdir -p "$(dirname "$lock_file")"
+umask 077
+(
+    flock 9
+    case "$command_name" in
+        ensure)
+            ensure_instance
+            printf '%s\n' "$socket_dir"
+            ;;
+        recreate)
+            validate_or_create_state_root 1
+            validate_native_storage
+            stop_running_server
+            initialize_and_start
+            printf '%s\n' "$socket_dir"
+            ;;
+        stop)
+            if validate_or_create_state_root 0; then
+                stop_running_server
+                remove_disposable_instance
+            fi
+            printf 'test-postgres: stopped; next ensure will recreate %s\n' "$state_root"
+            ;;
+        status)
+            if ! validate_or_create_state_root 0; then
+                printf 'state=absent\nroot=%s\n' "$state_root"
+                exit 3
+            fi
+            printf 'root=%s\ndata=%s\nsocket=%s\nfilesystem=%s\n' \
+                "$state_root" "$data_dir" "$socket_dir" "$(filesystem_type)"
+            if server_running && server_ready; then
+                configured_durability="$(sed -n 's/.* durability=\([^ ]*\).*/\1/p' "$signature_file" 2>/dev/null || true)"
+                printf 'state=running\ndurability=%s\nsettings=%s\ninstance=%s\n' \
+                    "${configured_durability:-unknown}" "$(actual_settings)" "$(cat "$instance_file" 2>/dev/null || true)"
+            else
+                printf 'state=stopped\n'
+                exit 3
+            fi
+            ;;
+    esac
+) 9> "$lock_file"
