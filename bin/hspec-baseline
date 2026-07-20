@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Bounded, behavior-neutral Hspec baseline capture for issue #198."""
+"""Bounded, behavior-neutral Hspec performance and registry capture."""
 
 from __future__ import annotations
 
@@ -42,7 +42,8 @@ RELEVANT_PROCESS_MARKERS = (
     "/k6 ",
 )
 SUITE_PATTERN = re.compile(
-    r'(?:\[|,)\s*(pureSuite|databaseSuite)\s+"([^"]+)"\s+(\d+)\s+([A-Za-z0-9_.]+)\.tests'
+    r'^\s*(?:\[|,)\s*(pureSuite|databaseSuite)\s+"([^"]+)"\s+(\d+(?:\.\d+)?)\s+[\s\S]*?([A-Za-z][A-Za-z0-9_.]+)\.tests\s*$',
+    re.MULTILINE,
 )
 FIXTURE_BUILDERS = (
     "createVenueWithConfig",
@@ -462,7 +463,7 @@ def parse_json_lines(path: Path) -> list[dict[str, Any]]:
 def parse_shard_log(path: Path) -> dict[str, Any] | None:
     text = path.read_text(errors="replace")
     header = re.search(
-        r"^Hspec\s+(\w+)\s+shard\s+(\d+)/(\d+)(?:\s+weight=(\d+)\s+\[([^]]*)\])?",
+        r"^Hspec\s+(\w+)\s+shard\s+(\d+)/(\d+)(?:\s+weight=([0-9.]+)\s+\[([^]]*)\])?",
         text,
         re.MULTILINE,
     )
@@ -470,7 +471,7 @@ def parse_shard_log(path: Path) -> dict[str, Any] | None:
         return None
     finished = re.search(r"^Finished in ([0-9.]+) seconds", text, re.MULTILINE)
     examples = re.search(r"^(\d+) examples?, (\d+) failures?", text, re.MULTILINE)
-    declared_weight = int(header.group(4)) if header.group(4) else 0
+    declared_weight = float(header.group(4)) if header.group(4) else 0.0
     duration = float(finished.group(1)) if finished else None
     result: dict[str, Any] = {
         "log": str(path),
@@ -797,20 +798,110 @@ def capture_run(args: argparse.Namespace) -> int:
     return int(summary["exitCode"])
 
 
-def parse_registry() -> list[dict[str, Any]]:
+def parse_metadata_report(runner: Path) -> dict[str, dict[str, Any]]:
+    completed = subprocess.run(
+        [str(runner), "--suite-metadata"],
+        cwd=ROOT,
+        env=os.environ.copy(),
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        check=False,
+    )
+    if completed.returncode != 0:
+        raise RuntimeError(f"suite metadata report failed:\n{completed.stdout}")
+
+    header = (
+        "label\tdatabase\tclean-state\tcommitted-visibility\tfeedback\t"
+        "invariant-family\testimated-seconds\tfixture-cost\texternal-mocks\towned-invariants"
+    )
+    lines = completed.stdout.splitlines()
+    try:
+        first_row = lines.index(header) + 1
+    except ValueError as exception:
+        raise RuntimeError(f"suite metadata report has no tabular header:\n{completed.stdout}") from exception
+
+    metadata: dict[str, dict[str, Any]] = {}
+    for line in lines[first_row:]:
+        if not line.strip():
+            continue
+        fields = line.split("\t")
+        if len(fields) != 10:
+            raise RuntimeError(f"invalid suite metadata row: {line}")
+        (
+            label,
+            kind,
+            clean_state,
+            committed_visibility,
+            feedback_lane,
+            invariant_family,
+            estimated_seconds,
+            fixture_cost,
+            external_mocks,
+            owned_invariants,
+        ) = fields
+        metadata[label] = {
+            "kind": kind,
+            "cleanState": clean_state,
+            "committedVisibility": committed_visibility,
+            "feedbackLane": feedback_lane,
+            "invariantFamily": invariant_family,
+            "estimatedRuntimeSeconds": float(estimated_seconds),
+            "fixtureCost": fixture_cost,
+            "externalMocks": [] if external_mocks == "none" else external_mocks.split(","),
+            "ownedInvariants": [] if owned_invariants == "none" else owned_invariants.split(","),
+        }
+    return metadata
+
+
+def parse_registry(runner: Path) -> list[dict[str, Any]]:
     suite_source = (ROOT / "Test/Suite.hs").read_text()
+    reported_metadata = parse_metadata_report(runner)
     suites: list[dict[str, Any]] = []
     for constructor, label, weight, module in SUITE_PATTERN.findall(suite_source):
         source_path = module.replace(".", "/") + ".hs"
         source_text = (ROOT / source_path).read_text()
+        metadata = reported_metadata.get(label)
+        if metadata is None:
+            raise RuntimeError(f"suite source entry is missing from metadata report: {label}")
+        expected_kind = "pure" if constructor == "pureSuite" else "database"
+        if metadata["kind"] != expected_kind:
+            raise RuntimeError(
+                f"suite kind differs between source constructor and metadata report: "
+                f"{label} ({expected_kind} != {metadata['kind']})"
+            )
+        if metadata["estimatedRuntimeSeconds"] != float(weight):
+            raise RuntimeError(
+                f"suite weight differs between source and metadata report: "
+                f"{label} ({weight} != {metadata['estimatedRuntimeSeconds']})"
+            )
+        clean_db_call_sites = len(re.findall(r"\bwithCleanDb\s+do\b", source_text))
+        expected_clean_state = (
+            "not-applicable"
+            if expected_kind == "pure"
+            else "broad-reset-required" if clean_db_call_sites else "not-required"
+        )
+        if metadata["cleanState"] != expected_clean_state:
+            raise RuntimeError(
+                f"suite clean-state metadata differs from source use: "
+                f"{label} ({metadata['cleanState']} != {expected_clean_state})"
+            )
         suites.append(
             {
                 "label": label,
                 "module": module,
                 "source": source_path,
-                "kind": "pure" if constructor == "pureSuite" else "database",
-                "declaredWeight": int(weight),
-                "withCleanDbCallSites": len(re.findall(r"\bwithCleanDb\s+do\b", source_text)),
+                "kind": expected_kind,
+                "declaredWeight": float(weight),
+                "cleanState": metadata["cleanState"],
+                "committedVisibility": metadata["committedVisibility"],
+                "feedbackLane": metadata["feedbackLane"],
+                "invariantFamily": metadata["invariantFamily"],
+                "estimatedRuntimeSeconds": metadata["estimatedRuntimeSeconds"],
+                "fixtureCost": metadata["fixtureCost"],
+                "externalMocks": metadata["externalMocks"],
+                "ownedInvariants": metadata["ownedInvariants"],
+                "withCleanDbCallSites": clean_db_call_sites,
                 "fixtureBuilderCallSites": {
                     builder: len(re.findall(rf"\b{builder}\b", source_text))
                     for builder in FIXTURE_BUILDERS
@@ -818,6 +909,11 @@ def parse_registry() -> list[dict[str, Any]]:
                 },
             }
         )
+
+    parsed_labels = {suite["label"] for suite in suites}
+    if parsed_labels != set(reported_metadata):
+        missing_from_source = sorted(set(reported_metadata) - parsed_labels)
+        raise RuntimeError(f"metadata report entries are missing from parsed registry source: {missing_from_source}")
     return suites
 
 
@@ -846,7 +942,7 @@ def generate_inventory(args: argparse.Namespace) -> int:
     if not runner.exists():
         raise RuntimeError(f"Hspec runner does not exist: {runner}")
 
-    suites = parse_registry()
+    suites = parse_registry(runner)
     by_label = {suite["label"]: suite for suite in suites}
     total = len(suites)
     for shard_index in range(1, total + 1):
@@ -899,6 +995,11 @@ def generate_inventory(args: argparse.Namespace) -> int:
             ),
             "withCleanDbCallSites": sum(suite["withCleanDbCallSites"] for suite in suites),
             "declaredWeight": sum(suite["declaredWeight"] for suite in suites),
+            "routineSuites": sum(suite["feedbackLane"] == "routine-correctness" for suite in suites),
+            "broadAcceptanceSuites": sum(suite["feedbackLane"] == "broad-acceptance" for suite in suites),
+            "committedVisibilityRequiredSuites": sum(
+                suite["committedVisibility"] == "required" for suite in suites
+            ),
             "fixtureBuilderCallSites": {
                 builder: sum(
                     suite["fixtureBuilderCallSites"].get(builder, 0) for suite in suites
@@ -925,6 +1026,14 @@ def generate_inventory(args: argparse.Namespace) -> int:
             "source",
             "kind",
             "declaredWeight",
+            "cleanState",
+            "committedVisibility",
+            "feedbackLane",
+            "invariantFamily",
+            "estimatedRuntimeSeconds",
+            "fixtureCost",
+            "externalMocks",
+            "ownedInvariants",
             "exampleCount",
             "withCleanDbCallSites",
             "fixtureBuilderCallSites",

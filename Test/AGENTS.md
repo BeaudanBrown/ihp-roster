@@ -13,6 +13,8 @@ bash ./bin/in-env hspec-test --match "PostsController"  # run tests matching a p
 bash ./bin/in-env hspec-test --match "PasskeysController" --match "LiveUpdate"  # OR multiple patterns in one run
 bash ./bin/in-env hspec-pure                        # pure/contract suites, no PostgreSQL reset or connection
 bash ./bin/in-env hspec-db                          # DB-backed suites only, with isolated shard databases
+bash ./bin/in-env hspec-pure --suite-metadata       # validate/report the authoritative suite inventory without PostgreSQL
+TEST_FEEDBACK_LANE=routine bash ./bin/in-env hspec-test  # metadata-selected routine feedback; output names omitted acceptance invariants
 TEST_SHARDS=1 bash ./bin/in-env hspec-test          # force serial execution
 TEST_SHARDS=4 bash ./bin/in-env hspec-test          # override shard count explicitly
 TEST_SHARDS=2 bash ./bin/in-env hspec-test --match "PasskeysController" --match "LiveUpdate"  # shard a focused multi-suite run
@@ -22,7 +24,7 @@ bash ./bin/in-env verify-fast                       # typecheck + pure Hspec + f
 bash ./bin/in-env verify-full                       # complete Haskell/reachability/frontend/CSS/docs/architecture/browser gate
 ```
 
-`bash ./bin/in-env hspec-test` auto-shards the full Hspec suite when no Hspec filter args are passed. DB-backed full runs cap automatic fan-out at eight shards because same-host measurements found eight shards faster than six while higher raw host core counts would add PostgreSQL reset and connection pressure without splitting the remaining indivisible suites. `TEST_SHARDS` remains an explicit override and `TEST_DB_SHARDS_MAX` can tune the automatic cap for a measured host. Each DB-backed shard gets its own ephemeral database, compiled test binary invocation, and shard log directory under `.devenv/test/`.
+`bash ./bin/in-env hspec-test` auto-shards the full Hspec suite when no Hspec filter args are passed. DB-backed full runs cap automatic fan-out at six shards. The issue #201 same-host matrix found six and eight tied at a 37.02-second median plateau, while six used 23% less aggregate worker time, 25% fewer reset-seconds, fewer connections, and a lower shard tail ratio. `TEST_SHARDS` remains an explicit override and `TEST_DB_SHARDS_MAX` can tune the automatic cap for a measured host. Each DB-backed shard gets its own ephemeral database, compiled test binary invocation, and shard log directory under `.devenv/test/`. The point-in-time evidence is archived in `docs/archive/hspec-shard-retuning-2026-07-20.md`.
 
 DB-backed Hspec and Hspec coverage use a private managed PostgreSQL cluster under
 `/tmp/bepis-hspec-postgres-<uid>-<project-id>` by default. The predictable
@@ -35,11 +37,13 @@ development and deployed PostgreSQL instances are never reconfigured.
 
 Use `hspec-pure` for the fastest broad feedback when changing pure helpers, renderers, contracts, or validation logic. Pure suites are selected by registry metadata and do not start managed PostgreSQL, run `test-db-reset`, or connect to a database. Use `hspec-db` to exercise only DB-backed suites. Both are additive lanes: `hspec-test` remains the complete canonical gate.
 
+Database selection (`all`/`pure`/`db`) and feedback selection (`all`/`routine`/`acceptance`) are orthogonal metadata dimensions. `TEST_FEEDBACK_LANE` is the low-level selection interface; issue #207 owns final user-facing lane commands and CI semantics. A non-complete selection prints `mandatory-acceptance-excluded=[...]`, conservatively listing an automated invariant whenever any registered owner is outside the selection. `B8` remains operator/runbook evidence outside Hspec metadata. Never describe a routine/pure/DB-only result as the complete Hspec gate.
+
 Normal typecheck, Hspec, and compiled E2E commands share compatible GHC object and interface files under fingerprinted `build/Verification` directories. `Test/HspecMain.hs` deliberately uses a distinct module name from the application `Main`, and coverage remains isolated under `build/TestCoverage` because HPC artifacts are incompatible. Do not point concurrent compiler invocations at the shared directory; run normal verification commands sequentially. Override `VERIFICATION_BUILD_DIR` only when a task needs its own isolated cache.
 
 Hspec accepts repeated `--match` flags and treats them as OR filters. When checking several focused areas, prefer one command with multiple `--match` flags instead of running multiple `hspec-test --match ...` processes at the same time. Separate focused invocations compile into the shared `build/Test` directory and can race on GHC object files; they also default to the same `app_test` database unless explicitly isolated.
 
-Focused runs default to serial execution because they are usually small. Use `TEST_SHARDS=N` with focused matches only when the matches span multiple suites and the extra database setup/log fan-out is worth it. Sharding is by `TestSuite` entry, not by individual example, so forcing shards for a single-suite match usually adds overhead without parallel speedup.
+Focused runs default to serial execution because they are usually small. The complete pure lane also defaults to serial execution because its sub-second Hspec work does not justify process fan-out. Explicit `TEST_SHARDS=N` still overrides both defaults. Use it with focused matches only when the matches span multiple suites and the extra database setup/log fan-out is worth it. Sharding is by `TestSuite` entry, not by individual example, so forcing shards for a single-suite match usually adds overhead without parallel speedup.
 
 For debugging:
 
@@ -73,9 +77,9 @@ bash ./bin/in-env ./bin/hspec-baseline run \
   --name local-full-6 --output output/hspec-baseline/local-full-6 -- \
   env TEST_SHARDS=6 hspec-test --format=progress --no-color --times
 
+bash ./bin/in-env hspec-pure --suite-metadata
 bash ./bin/in-env ./bin/hspec-baseline inventory \
-  --check docs/archive/hspec-suite-inventory-2026-07-19.json \
-  --output output/hspec-baseline/inventory-check.json
+  --output output/hspec-baseline/current-inventory.json
 ```
 
 Use one warm-up plus three measured runs for short comparisons. Report failed
@@ -104,11 +108,16 @@ The coverage command is intentionally separate from `hspec-test`: use `hspec-tes
 
 When adding a new spec module:
 
-1. Import it in `Test/Suite.hs`
-2. Add a `pureSuite "Label" weight Module.tests` or `databaseSuite "Label" weight Module.tests` entry to `allSuites`. A pure suite must pass with PostgreSQL unavailable; classify any suite that opens a DB connection as database-backed.
-3. Choose an initial `weight` that roughly matches the suite's expected runtime in seconds, rounded to the nearest 5 or 10 seconds. Use a small value such as `5` or `10` for tiny pure/contract specs.
+1. Import it in `Test/Suite.hs`.
+2. Add one `pureSuite` or `databaseSuite` entry to `allSuites`. A pure suite must pass with PostgreSQL unavailable; any suite that constructs an IHP database context remains database-backed until it is actually moved to a no-database context.
+3. For a database suite, choose `BroadCleanStateRequired` when its source uses `withCleanDb`; otherwise choose `CleanStateNotRequired`. The inventory command checks this classification against source use. Choose `CommittedVisibilityRequired` only for an explicit second context/thread that must see committed rows; ordinary database access is not enough.
+4. Classify the responsibility as `RoutineCorrectness` for focused helper/wiring feedback or `BroadAcceptance` for broad deterministic scenarios, cross-component acceptance, or suites that own irreplaceable `specs/09-testing-and-acceptance.md` evidence.
+5. Assign one broad `InvariantFamily` and list the exact `A*`/`R*`/`T*`/`P*`/`B*` invariants the suite owns. An empty list is valid for infrastructure or focused correctness, but registry validation rejects any mandatory automated invariant with no owner.
+6. Estimate fixture cost by setup shape, not example count: `FixtureFree`, `SmallFixture`, `MediumFixture`, or `LargeFixture`. Record `StripeTransportMock` or `XeroHttpMock` only when the suite actually depends on that controlled external-service boundary.
+7. Start the runtime estimate from a focused measurement. Round suites at or above one second to about 0.5 seconds and sub-second suites to about 0.1 seconds; do not encode transient millisecond differences or use example count as a runtime proxy.
+8. Run `hspec-pure --suite-metadata` and a focused test. The report validates combinations and shows the mandatory acceptance evidence omitted by routine feedback.
 
-`Test/Suite.hs` uses weighted greedy sharding independently within the selected all/pure/DB lane. The suite order is no longer a balancing mechanism; do not manually cluster or reorder suites to tune shards unless the weighted algorithm itself is changing. Keep large controller families registered at their independently runnable child-spec boundary while retaining a common label prefix such as `AdminController.*` or `RosterWeeksController.*` for broad matching.
+`Test/Suite.hs` uses weighted greedy sharding independently within the selected database and feedback dimensions. The suite order is no longer a balancing mechanism; do not manually cluster or reorder suites to tune shards unless the weighted algorithm itself is changing. Keep large controller families registered at their independently runnable child-spec boundary while retaining a common label prefix such as `AdminController.*` or `RosterWeeksController.*` for broad matching.
 
 To rebalance weights when full-suite shard times drift:
 
@@ -120,15 +129,15 @@ To rebalance weights when full-suite shard times drift:
    ```bash
    for f in .devenv/test/latest/shard-*.log; do
        echo "--- $(basename "$f")"
-       grep -E 'Hspec shard|Finished in|examples' "$f"
+       grep -E 'Hspec .* shard|Finished in|examples' "$f"
    done
    ```
-3. Identify slow shards from `Finished in ... seconds` and the suite list in the `Hspec shard N/M weight=... [...]` header.
+3. Identify slow shards from `Finished in ... seconds` and the suite list in the `Hspec <lane> shard N/M weight=... [...]` header.
 4. If one suite appears to dominate a slow shard, estimate it with a focused run:
    ```bash
    bash ./bin/in-env hspec-test --match "PasskeysController"
    ```
-5. Update only the relevant `suiteWeight` values in `Test/Suite.hs`. Prefer approximate relative runtime; round to the nearest 5 or 10 seconds and avoid overfitting tiny differences.
+5. Update only the relevant estimated-runtime arguments in `Test/Suite.hs`. Prefer approximate relative runtime and the rounding rule above; avoid overfitting tiny differences.
 6. Re-run the full suite when practical, or at least run `TEST_SHARDS=N bash ./bin/in-env hspec-test --match "some small suite"` to verify shard selection still works and prints weighted headers.
 
 Do not reintroduce a hard-coded linear `hspec do ...` list in `Test/HspecMain.hs`; that bypasses shard selection.

@@ -6,7 +6,8 @@ set -euo pipefail
 . "@scriptsRoot@/lib/common.sh"
 BASE_TEST_DATABASE_NAME="${TEST_DATABASE_NAME:-app_test}"
 TEST_LANE="${TEST_LANE:-all}"
-export TEST_LANE
+TEST_FEEDBACK_LANE="${TEST_FEEDBACK_LANE:-all}"
+export TEST_LANE TEST_FEEDBACK_LANE
 
 HSPEC_METRICS_DIR="${HSPEC_METRICS_DIR:-}"
 HSPEC_PHASE_METRICS_FILE=""
@@ -51,6 +52,15 @@ case "$TEST_LANE" in
         ;;
 esac
 
+case "$TEST_FEEDBACK_LANE" in
+    all|routine|acceptance)
+        ;;
+    *)
+        echo "TEST_FEEDBACK_LANE must be one of all, routine, or acceptance; got: $TEST_FEEDBACK_LANE" >&2
+        exit 1
+        ;;
+esac
+
 if [ "$TEST_LANE" != "pure" ]; then
     ihp_roster_configure_test_postgres
     ihp_roster_report_test_postgres
@@ -58,7 +68,7 @@ else
     export TEST_DB_SOCKET="${TEST_DB_SOCKET:-${PGHOST:-$PWD/build/db}}"
 fi
 
-TEST_DB_SHARDS_MAX="${TEST_DB_SHARDS_MAX:-8}"
+TEST_DB_SHARDS_MAX="${TEST_DB_SHARDS_MAX:-6}"
 case "$TEST_DB_SHARDS_MAX" in
     ""|*[!0-9]*)
         echo "TEST_DB_SHARDS_MAX must be a positive integer, got: $TEST_DB_SHARDS_MAX" >&2
@@ -76,15 +86,15 @@ detect_test_shards() {
         return 0
     fi
 
-    if [ "$#" -gt 0 ]; then
+    if [ "$TEST_LANE" = "pure" ] || [ "$#" -gt 0 ]; then
         printf '1\n'
         return 0
     fi
 
     local detected_shards
     detected_shards="$(ihp_roster_detect_cpu_count)"
-    if [ "$TEST_LANE" != "pure" ] && [ "$detected_shards" -gt "${TEST_DB_SHARDS_MAX:-8}" ]; then
-        printf '%s\n' "${TEST_DB_SHARDS_MAX:-8}"
+    if [ "$TEST_LANE" != "pure" ] && [ "$detected_shards" -gt "${TEST_DB_SHARDS_MAX:-6}" ]; then
+        printf '%s\n' "${TEST_DB_SHARDS_MAX:-6}"
     else
         printf '%s\n' "$detected_shards"
     fi

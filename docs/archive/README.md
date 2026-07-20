@@ -12,5 +12,6 @@ Archived cross-cutting workstream evidence:
 - `test-verification-efficiency.md` - 2026 Hspec, E2E, compilation reuse, tiering, concurrency, and measured closeout
 - `hspec-critical-path-baseline-2026-07-19.md` - issue #198 pre-refactor Hspec environment, phase, PostgreSQL, shard, and intervention evidence
 - `hspec-postgresql-runtime-2026-07-20.md` and `.json` - issue #200 native-storage, disposable-durability, recovery-safety, and machine-readable complete-suite selection evidence
+- `hspec-shard-retuning-2026-07-20.md` - issue #201 focused suite timings, 1/2/4/6/8 throughput matrix, weight calibration, and six-shard selection evidence
 - `hspec-suite-inventory-2026-07-19.json` - issue #198 machine-readable suite and mandatory-invariant inventory
 - `e2e-coverage-audit.md` - source-behavior classification and faster-layer replacement map for that workstream
