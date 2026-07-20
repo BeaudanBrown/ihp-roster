@@ -9,9 +9,13 @@ module Test.FrontendSurfaceDslSpec
 import Application.Helper.FrontendContract.Core (schemaNameAndMarker)
 import Application.Helper.FrontendContract.IR (FrontendContractIR (..))
 import Application.Helper.FrontendContract.Registry (registeredFrontendContractIR)
+import Application.Helper.FrontendContract.Surface.CompleteSetSort (surfaceCompleteSetSortControlAttrs,
+                                                                    surfaceCompleteSetSortRootAttrs,
+                                                                    surfaceCompleteSetSortRowAttrs)
 import Application.Helper.FrontendContract.Surface.ContractIR
 import Application.Helper.FrontendContract.Surface.Contracts (registeredFrontendSurfaceContractIR)
 import Application.Helper.FrontendContract.Surface.DSL
+import Application.Helper.FrontendContract.Surface.Dto (surfaceBrowserDtoRoleAttrs)
 import qualified Application.Helper.FrontendContract.Surface.Interaction as SurfaceInteraction
 import qualified Application.Helper.FrontendContract.Surface.LinkedHighlight as SurfaceLinkedHighlight
 import Application.Helper.FrontendContract.Surface.Live (frontendSurfaceFragmentKey)
@@ -22,6 +26,7 @@ import Application.Helper.FrontendContract.Surface.Request.Runtime
 import Application.Helper.FrontendContract.Surface.Resource
 import qualified Application.Helper.FrontendContract.Surface.Roster as RosterSurface
 import Application.Helper.FrontendContract.Surface.Runtime
+import Application.Helper.FrontendContract.Surface.TabSet (surfaceTabSetAttrs)
 import qualified Application.Helper.FrontendContract.Surface.Timesheets as TimesheetsSurface
 import qualified Application.Helper.FrontendContract.Surface.Timesheets.Resource as TimesheetsResource
 import Application.Helper.FrontendContract.Surface.Values
@@ -69,6 +74,26 @@ data RequestTags
 data RequestNote
 data BrowserFixture
 data BrowserFixtureScope
+data BrowserFixturePayload
+data BrowserFixturePayloadLabel
+data BrowserFixtureTypeOnlyPayload
+data BrowserFixtureGuardPayload
+data BrowserFixtureOutboundPayload
+data BrowserFixtureBidirectionalPayload
+data BrowserFixtureSortRow
+data BrowserFixtureSortLabel
+data BrowserFixtureSortCount
+data BrowserFixtureSortRowKey
+data BrowserFixtureSort
+data BrowserFixtureSortRootRole
+data BrowserFixtureSortRowRole
+data BrowserFixtureSortControlRole
+data LabelSortKey
+data CountSortKey
+data BrowserFixtureTabs
+data BrowserFixtureTabRole
+data StaffTabKey
+data SettingsTabKey
 data StaffShiftsHighlight
 data StaffHighlightSourceRole
 data StaffHighlightMemberRole
@@ -82,6 +107,39 @@ data SharedHighlightAttributeState
 type BrowserFixtureSurface =
     Surface BrowserFixture
         '[ Scope BrowserFixtureScope '[] '[ 'NoAuth ]
+         , BrowserInboundDto BrowserFixturePayload
+            '[ Field BrowserFixturePayloadLabel 'WireText ]
+         , BrowserTypeDto BrowserFixtureTypeOnlyPayload
+            '[ Field BrowserFixturePayloadLabel 'WireText ]
+         , BrowserGuardDto BrowserFixtureGuardPayload
+            '[ Field BrowserFixturePayloadLabel 'WireText ]
+         , BrowserOutboundDto BrowserFixtureOutboundPayload
+            '[ Field BrowserFixturePayloadLabel 'WireText ]
+         , BrowserBidirectionalDto BrowserFixtureBidirectionalPayload
+            '[ Field BrowserFixturePayloadLabel 'WireText ]
+         , BrowserInboundDto BrowserFixtureSortRow
+            '[ Field BrowserFixtureSortLabel 'WireText
+             , Field BrowserFixtureSortCount 'WireInt
+             , Field BrowserFixtureSortRowKey 'WireText
+             ]
+         , BrowserRole BrowserFixtureSortRootRole
+         , BrowserRole BrowserFixtureSortRowRole
+         , BrowserRole BrowserFixtureSortControlRole
+         , CompleteSetSort BrowserFixtureSort BrowserFixtureSortRootRole BrowserFixtureSortRowRole BrowserFixtureSortControlRole BrowserFixtureSortRow
+            '[ SortKey LabelSortKey
+                '[ SortComparator BrowserFixtureSortLabel 'SortText 'FollowSortDirection
+                 , SortComparator BrowserFixtureSortRowKey 'SortOpaque 'AlwaysAscending
+                 ]
+             , SortKey CountSortKey
+                '[ SortComparator BrowserFixtureSortCount 'SortInteger 'FollowSortDirection
+                 , SortComparator BrowserFixtureSortLabel 'SortText 'AlwaysAscending
+                 , SortComparator BrowserFixtureSortRowKey 'SortOpaque 'AlwaysAscending
+                 ]
+             ]
+            LabelSortKey
+            'SortAscending
+         , BrowserRole BrowserFixtureTabRole
+         , TabSet BrowserFixtureTabs BrowserFixtureTabRole '[ StaffTabKey, SettingsTabKey ] StaffTabKey
          , BrowserRole StaffHighlightSourceRole
          , BrowserRole StaffHighlightMemberRole
          , BrowserRole StaffHighlightPinRole
@@ -227,7 +285,11 @@ tests = describe "FrontendSurface DSL foundation" do
     it "reflects Surface-owned browser roles, state, and closed linked-highlight semantics" do
         let surface = reflectSurfaceSpec @BrowserFixtureSurface
         map (\role -> (role.browserAttributeName, role.browserAttributeDomAttribute)) surface.surfaceBrowserRoles
-            `shouldBe` [ ("staff-highlight-source", "data-bepis-browser-fixture-staff-highlight-source")
+            `shouldBe` [ ("browser-fixture-sort-root", "data-bepis-browser-fixture-browser-fixture-sort-root")
+                       , ("browser-fixture-sort-row", "data-bepis-browser-fixture-browser-fixture-sort-row")
+                       , ("browser-fixture-sort-control", "data-bepis-browser-fixture-browser-fixture-sort-control")
+                       , ("browser-fixture-tab", "data-bepis-browser-fixture-browser-fixture-tab")
+                       , ("staff-highlight-source", "data-bepis-browser-fixture-staff-highlight-source")
                        , ("staff-highlight-member", "data-bepis-browser-fixture-staff-highlight-member")
                        , ("staff-highlight-pin", "data-bepis-browser-fixture-staff-highlight-pin")
                        ]
@@ -267,6 +329,128 @@ tests = describe "FrontendSurface DSL foundation" do
         browserFixtureTypeScript `shouldContainText` "export type FrontendSurfaceLinkedHighlightActivation = \"hover\" | \"focus\" | \"keyboard\" | \"pin\";"
         browserFixtureTypeScript `shouldContainText` "export type FrontendSurfaceLinkedHighlightEffect = \"matching-source\" | \"matching-member\" | \"ordered-member-bounds\";"
         browserFixtureTypeScript `shouldContainText` "export const FrontendSurfaceLinkedHighlightRegistry: Record<FrontendSurfaceName, ReadonlyArray<FrontendSurfaceLinkedHighlightDefinition>> = {\"browser-fixture\":[{\"name\":\"staff-shifts-highlight\",\"sourceRoleAttribute\":browserFixtureStaffHighlightSourceDomAttr,\"memberRoleAttribute\":browserFixtureStaffHighlightMemberDomAttr,\"pinRoleAttribute\":browserFixtureStaffHighlightPinDomAttr,\"orderStateAttribute\":browserFixtureStaffHighlightOrderDomAttr,\"activations\":[\"hover\",\"focus\",\"keyboard\",\"pin\"],\"effects\":[\"matching-source\",\"matching-member\",\"ordered-member-bounds\"]}]};"
+
+    it "renders exact codecs only for browser-reachable Surface DTOs" do
+        browserFixtureTypeScript `shouldContainText` "export type BrowserFixturePayload = { browserFixturePayloadLabel: string };"
+        browserFixtureTypeScript `shouldContainText` "export function isBrowserFixturePayload(value: unknown): value is BrowserFixturePayload"
+        browserFixtureTypeScript `shouldContainText` "export function parseBrowserFixturePayload(value: unknown): BrowserFixturePayload"
+        browserFixtureTypeScript `shouldNotContainText` "export function encodeBrowserFixturePayload"
+        browserFixtureTypeScript `shouldContainText` "export type BrowserFixtureTypeOnlyPayload"
+        browserFixtureTypeScript `shouldNotContainText` "export function isBrowserFixtureTypeOnlyPayload"
+        browserFixtureTypeScript `shouldContainText` "export function isBrowserFixtureGuardPayload"
+        browserFixtureTypeScript `shouldNotContainText` "export function parseBrowserFixtureGuardPayload"
+        browserFixtureTypeScript `shouldContainText` "export function encodeBrowserFixtureOutboundPayload"
+        browserFixtureTypeScript `shouldNotContainText` "export function isBrowserFixtureOutboundPayload"
+        browserFixtureTypeScript `shouldContainText` "export function isBrowserFixtureBidirectionalPayload"
+        browserFixtureTypeScript `shouldContainText` "export function parseBrowserFixtureBidirectionalPayload"
+        browserFixtureTypeScript `shouldContainText` "export function encodeBrowserFixtureBidirectionalPayload"
+        frontendSurfaceFixtureTypeScript `shouldNotContainText` "export type FixturePayload"
+        frontendSurfaceFixtureTypeScript `shouldNotContainText` "export type FixtureRelatedPayload"
+
+    it "rejects browser DTO codecs that reference a DTO without the required browser reachability" do
+        let surface = reflectSurfaceSpec @BrowserFixtureSurface
+        let malformed = surface
+                { surfaceDtos = surface.surfaceDtos
+                    <> [ SurfaceDtoIR BrowserUnreachableIR (RecordIR "ServerOnlyPayload" "ServerOnlyPayload" [])
+                       , SurfaceDtoIR BrowserInboundIR
+                            (RecordIR "NestedBrowserPayload" "NestedBrowserPayload"
+                                [FieldIR "NestedServerValue" "nestedServerValue" (WireRefIR "ServerOnlyPayload") RequiredField]
+                            )
+                       ]
+                }
+        diagnosticMessages (checkedSurfaceContractIR (SurfaceContractIR [malformed]))
+            `shouldContain`
+                [ "surface browser-fixture browser dto NestedBrowserPayload references dto ServerOnlyPayload without the browser reachability required by its generated codec"
+                ]
+
+    it "renders browser Surface DTO payloads from exact marker-indexed fields" do
+        let attrs =
+                surfaceBrowserDtoRoleAttrs
+                    @BrowserFixtureSurface
+                    @StaffHighlightSourceRole
+                    @BrowserFixturePayload
+                    (surfaceField @BrowserFixturePayloadLabel "typed payload" &: noSurfaceFields)
+        attrs
+            `shouldBe` [("data-bepis-browser-fixture-staff-highlight-source", "{\"browserFixturePayloadLabel\":\"typed payload\"}")]
+
+    it "reflects and renders complete-set sorting semantics without TypeScript redispatch" do
+        let surface = reflectSurfaceSpec @BrowserFixtureSurface
+        let sortDefinition = fromMaybe (error "missing fixture sort") (listToMaybe surface.surfaceCompleteSetSorts)
+        sortDefinition.completeSetSortName `shouldBe` "browser-fixture-sort"
+        sortDefinition.completeSetSortDefaultKey `shouldBe` "label"
+        sortDefinition.completeSetSortDefaultDirection `shouldBe` CompleteSetSortAscendingIR
+        map (.completeSetSortKeyName) sortDefinition.completeSetSortKeys `shouldBe` ["label", "count"]
+        map (map (.completeSetSortComparatorField) . (.completeSetSortKeyComparators)) sortDefinition.completeSetSortKeys
+            `shouldBe` [["browserFixtureSortLabel", "browserFixtureSortRowKey"], ["browserFixtureSortCount", "browserFixtureSortLabel", "browserFixtureSortRowKey"]]
+        browserFixtureTypeScript `shouldContainText` "export type BrowserFixtureSortRow = { browserFixtureSortLabel: string; browserFixtureSortCount: number; browserFixtureSortRowKey: string };"
+        browserFixtureTypeScript `shouldContainText` "export type BrowserFixtureSortKey = \"label\" | \"count\";"
+        browserFixtureTypeScript `shouldContainText` "export const FrontendSurfaceCompleteSetSortRegistry"
+        browserFixtureTypeScript `shouldContainText` "\"rowRoleAttribute\":browserFixtureBrowserFixtureSortRowDomAttr"
+        browserFixtureTypeScript `shouldContainText` "\"parseRow\":parseBrowserFixtureSortRow"
+        browserFixtureTypeScript `shouldContainText` "\"defaultKey\":\"label\",\"defaultDirection\":\"ascending\""
+        browserFixtureTypeScript `shouldContainText` "\"field\":\"browserFixtureSortCount\",\"valueType\":\"integer\",\"direction\":\"selected\""
+        browserFixtureTypeScript `shouldContainText` "\"field\":\"browserFixtureSortRowKey\",\"valueType\":\"opaque\",\"direction\":\"ascending\""
+
+    it "reflects and renders mount-local tab keys and defaults" do
+        let surface = reflectSurfaceSpec @BrowserFixtureSurface
+        let tabSet = fromMaybe (error "missing fixture tabs") (listToMaybe surface.surfaceTabSets)
+        tabSet.tabSetName `shouldBe` "browser-fixture-tabs"
+        tabSet.tabSetKeys `shouldBe` ["staff", "settings"]
+        tabSet.tabSetDefaultKey `shouldBe` "staff"
+        browserFixtureTypeScript `shouldContainText` "export type BrowserFixtureTabsKey = \"staff\" | \"settings\";"
+        browserFixtureTypeScript `shouldContainText` "export const FrontendSurfaceTabSetRegistry"
+        browserFixtureTypeScript `shouldContainText` "\"tabRoleAttribute\":browserFixtureBrowserFixtureTabDomAttr"
+        browserFixtureTypeScript `shouldContainText` "\"keys\":[\"staff\",\"settings\"],\"defaultKey\":\"staff\""
+
+    it "rejects malformed complete-set sort and tab semantics before TypeScript rendering" do
+        let surface = reflectSurfaceSpec @BrowserFixtureSurface
+        let sortDefinition = fromMaybe (error "missing fixture sort") (listToMaybe surface.surfaceCompleteSetSorts)
+        let firstKey = fromMaybe (error "missing fixture sort key") (listToMaybe sortDefinition.completeSetSortKeys)
+        let firstComparator = fromMaybe (error "missing fixture comparator") (listToMaybe firstKey.completeSetSortKeyComparators)
+        let malformedSort = sortDefinition
+                { completeSetSortRootRole = sortDefinition.completeSetSortRootRole
+                    { browserAttributeDomAttribute = "data-bepis-wrong-root" }
+                , completeSetSortDefaultKey = "missing"
+                , completeSetSortKeys = firstKey
+                    { completeSetSortKeyComparators = firstComparator
+                        { completeSetSortComparatorValueType = CompleteSetSortIntegerIR }
+                        : drop 1 firstKey.completeSetSortKeyComparators
+                    }
+                    : drop 1 sortDefinition.completeSetSortKeys
+                }
+        let tabSet = fromMaybe (error "missing fixture tab set") (listToMaybe surface.surfaceTabSets)
+        let malformed = surface
+                { surfaceCompleteSetSorts = [malformedSort]
+                , surfaceTabSets = [tabSet { tabSetDefaultKey = "missing" }]
+                }
+        let messages = diagnosticMessages (checkedSurfaceContractIR (SurfaceContractIR [malformed]))
+        messages `shouldContain`
+            [ "surface browser-fixture complete-set sort references missing root role browser-fixture-sort-root"
+            , "surface browser-fixture complete-set sort browser-fixture-sort references missing default key missing"
+            , "surface browser-fixture complete-set sort browser-fixture-sort key label comparator browserFixtureSortLabel has a wire type that disagrees with its declared sort value type"
+            , "surface browser-fixture tab set browser-fixture-tabs references missing default key missing"
+            ]
+
+    it "renders complete-set sort and tab roles through marker-indexed Haskell helpers" do
+        surfaceCompleteSetSortRootAttrs @BrowserFixtureSurface @BrowserFixtureSort
+            `shouldBe` [("data-bepis-browser-fixture-browser-fixture-sort-root", "true")]
+        surfaceCompleteSetSortControlAttrs @BrowserFixtureSurface @BrowserFixtureSort @CountSortKey
+            `shouldBe` [("data-bepis-browser-fixture-browser-fixture-sort-control", "count")]
+        surfaceCompleteSetSortRowAttrs
+            @BrowserFixtureSurface
+            @BrowserFixtureSort
+            ( surfaceField @BrowserFixtureSortLabel "Alpha"
+                &: surfaceField @BrowserFixtureSortCount (3 :: Int)
+                &: surfaceField @BrowserFixtureSortRowKey "opaque:row"
+                &: noSurfaceFields
+            )
+            `shouldBe`
+                [ ( "data-bepis-browser-fixture-browser-fixture-sort-row"
+                  , "{\"browserFixtureSortCount\":3,\"browserFixtureSortLabel\":\"Alpha\",\"browserFixtureSortRowKey\":\"opaque:row\"}"
+                  )
+                ]
+        surfaceTabSetAttrs @BrowserFixtureSurface @BrowserFixtureTabs @SettingsTabKey
+            `shouldBe` [("data-bepis-browser-fixture-browser-fixture-tab", "settings")]
 
     it "renders typed HTMX selector, trigger, swap, and sync syntax deterministically" do
         let surface = reflectSurfaceSpec @TypedHtmxSurface
@@ -542,7 +726,7 @@ tests = describe "FrontendSurface DSL foundation" do
         surface.surfaceLayers `shouldBe` ["drag-preview"]
         surface.surfaceDomTokens `shouldBe` ["fixture-root", "fixture-dropzone", "fixture-panel-include"]
         surface.surfaceBrowserDomTokens `shouldBe` []
-        map (fst . schemaNameAndMarker) surface.surfaceDtos `shouldBe` ["FixturePayload", "FixtureRelatedPayload"]
+        map (fst . schemaNameAndMarker . (.surfaceDtoSchema)) surface.surfaceDtos `shouldBe` ["FixturePayload", "FixtureRelatedPayload"]
         surface.surfaceFragments
             |> find (\fragment -> fragment.fragmentName == "fixture-panel")
             |> fmap (.fragmentOptions)
@@ -671,7 +855,11 @@ tests = describe "FrontendSurface DSL foundation" do
         map (.dropzoneRefName) surface.surfaceDropzoneRefs `shouldBe` ["shift-slot-dropzone", "staff-create-dropzone", "day-column-dropzone", "existing-shift-dropzone", "delete-shift-dropzone"]
         map (.activationRefName) surface.surfaceActivationRefs `shouldBe` ["roster-layout-mode-activation"]
         map (.browserAttributeDomAttribute) surface.surfaceBrowserRoles
-            `shouldBe` [ "data-bepis-roster-staff-highlight-source"
+            `shouldBe` [ "data-bepis-roster-staff-panel-sort-root"
+                       , "data-bepis-roster-staff-panel-sort-row"
+                       , "data-bepis-roster-staff-panel-sort-control"
+                       , "data-bepis-roster-staff-panel-tab"
+                       , "data-bepis-roster-staff-highlight-source"
                        , "data-bepis-roster-staff-highlight-member"
                        , "data-bepis-roster-staff-highlight-pin"
                        , "data-bepis-roster-shift-group-highlight-source"
@@ -681,6 +869,20 @@ tests = describe "FrontendSurface DSL foundation" do
             `shouldBe` ["data-bepis-roster-staff-highlight-order"]
         map (.linkedHighlightName) surface.surfaceLinkedHighlights
             `shouldBe` ["staff-shifts-highlight", "shift-group-highlight"]
+        let staffSort = fromMaybe (error "missing roster staff sort") (listToMaybe surface.surfaceCompleteSetSorts)
+        staffSort.completeSetSortName `shouldBe` "roster-staff-panel-sort"
+        staffSort.completeSetSortDefaultKey `shouldBe` "name"
+        staffSort.completeSetSortDefaultDirection `shouldBe` CompleteSetSortAscendingIR
+        map (.completeSetSortKeyName) staffSort.completeSetSortKeys `shouldBe` ["name", "role", "shifts"]
+        map (map (.completeSetSortComparatorField) . (.completeSetSortKeyComparators)) staffSort.completeSetSortKeys
+            `shouldBe`
+                [ ["staffName", "staffRowKey"]
+                , ["staffRole", "staffName", "staffRowKey"]
+                , ["assignedShifts", "idealShifts", "staffName", "staffRowKey"]
+                ]
+        map (.tabSetName) surface.surfaceTabSets `shouldBe` ["roster-staff-panel-tabs"]
+        map (.tabSetKeys) surface.surfaceTabSets `shouldBe` [["staff", "settings"]]
+        map (.tabSetDefaultKey) surface.surfaceTabSets `shouldBe` ["staff"]
         map (map linkedHighlightActivationName . (.linkedHighlightActivations)) surface.surfaceLinkedHighlights
             `shouldBe` [ ["hover", "focus", "keyboard", "pin"]
                        , ["hover", "focus", "keyboard"]
@@ -708,6 +910,12 @@ tests = describe "FrontendSurface DSL foundation" do
         frontendSurfaceContractsTypeScript `shouldContainText` "export const rosterWeekShellDomToken = \"roster-week-shell\" as const;"
         frontendSurfaceContractsTypeScript `shouldContainText` "export const rosterStaffHighlightSourceDomAttr = \"data-bepis-roster-staff-highlight-source\" as const;"
         frontendSurfaceContractsTypeScript `shouldContainText` "export const rosterDayTimelineShiftGroupHighlightMemberDomAttr = \"data-bepis-roster-day-timeline-shift-group-highlight-member\" as const;"
+        frontendSurfaceContractsTypeScript `shouldContainText` "export type RosterStaffPanelSortRow = { staffRowKey: string; staffName: string; staffRole: string; assignedShifts: number; idealShifts: number };"
+        frontendSurfaceContractsTypeScript `shouldContainText` "export function parseRosterStaffPanelSortRow(value: unknown): RosterStaffPanelSortRow"
+        frontendSurfaceContractsTypeScript `shouldContainText` "export type RosterStaffPanelSortKey = \"name\" | \"role\" | \"shifts\";"
+        frontendSurfaceContractsTypeScript `shouldContainText` "export type RosterStaffPanelTabsKey = \"staff\" | \"settings\";"
+        frontendSurfaceContractsTypeScript `shouldContainText` "\"roster\":[{\"name\":\"roster-staff-panel-sort\",\"rootRoleAttribute\":rosterStaffPanelSortRootDomAttr"
+        frontendSurfaceContractsTypeScript `shouldContainText` "\"roster\":[{\"name\":\"roster-staff-panel-tabs\",\"tabRoleAttribute\":rosterStaffPanelTabDomAttr,\"keys\":[\"staff\",\"settings\"],\"defaultKey\":\"staff\""
         frontendSurfaceContractsTypeScript `shouldContainText` "\"roster\":[{\"name\":\"staff-shifts-highlight\",\"sourceRoleAttribute\":rosterStaffHighlightSourceDomAttr,\"memberRoleAttribute\":rosterStaffHighlightMemberDomAttr,\"pinRoleAttribute\":rosterStaffHighlightPinDomAttr,\"orderStateAttribute\":rosterStaffHighlightOrderDomAttr,\"activations\":[\"hover\",\"focus\",\"keyboard\",\"pin\"],\"effects\":[\"matching-source\",\"matching-member\",\"ordered-member-bounds\"]},{\"name\":\"shift-group-highlight\""
         frontendSurfaceContractsTypeScript `shouldContainText` "\"roster\":{\"sourceRefs\":[{\"ref\":\"shift-drag-source\",\"session\":\"drag\",\"intent\":\"move-roster-shift-to-slot\",\"sourceField\":\"sourceItemKey\",\"compatibleDropzones\":[\"shift-slot-dropzone\",\"day-column-dropzone\",\"delete-shift-dropzone\"],\"modifierVariants\":[{\"semantic\":\"copy\",\"intent\":\"duplicate-roster-shift-to-day\""
         frontendSurfaceContractsTypeScript `shouldContainText` "\"dropzoneRefs\":[{\"ref\":\"shift-slot-dropzone\",\"session\":\"drag\",\"targetField\":\"targetDropzoneKey\"},{\"ref\":\"staff-create-dropzone\",\"session\":\"drag\",\"targetField\":\"targetDropzoneKey\"}"

@@ -79,7 +79,7 @@ lookupEnumLiteralValue =
         caseMarkerName = typeMarker @caseMarker
         contractSchemas =
             [ schema | global <- registeredFrontendContractIR.contractGlobals, GlobalSchemaIR _ schema <- global.globalPrimitives ]
-                <> concatMap (.surfaceDtos) registeredFrontendContractIR.contractSurfaces
+                <> concatMap (map (.surfaceDtoSchema) . (.surfaceDtos)) registeredFrontendContractIR.contractSurfaces
         matchingEnumCase = \case
             EnumIR marker _ values | marker == enumMarkerName -> filter (== kebabCaseMarker) values
             LiteralEnumIR marker _ values | marker == enumMarkerName -> [value | (caseMarker, value) <- values, caseMarker == caseMarkerName]

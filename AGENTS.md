@@ -190,7 +190,9 @@ advanced SQL are involved.
 
 ## Verification
 
-Use the repo wrapper unless you are already inside the devenv shell:
+Use the repo wrapper unless you are already inside the devenv shell. Run
+`bin/in-env` commands serially: concurrent wrapper entries can race on generated
+`.devenv` shell files and produce false setup failures.
 
 ```bash
 bash ./bin/in-env regen-types

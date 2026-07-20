@@ -4,8 +4,9 @@
   function isRecord(value) {
     return typeof value === "object" && value !== null && !Array.isArray(value);
   }
-  function hasExactKeys(value, keys) {
-    return Object.keys(value).every((key) => keys.includes(key));
+  function hasExactKeys(value, keys, requiredKeys = keys) {
+    const valueKeys = Object.keys(value);
+    return valueKeys.every((key) => keys.includes(key)) && requiredKeys.every((key) => Object.prototype.hasOwnProperty.call(value, key));
   }
   function isTimesheetsSurfaceScope(value) {
     return isTimesheetsTimesheetWeekScope(value);
@@ -56,52 +57,52 @@
     return isAdminXeroAdminXeroScopeScope(value);
   }
   function isTimesheetsSurfaceFragmentKey(value) {
-    return isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "timesheet-toolbar" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [])) || isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "timesheet-day-columns" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [])) || isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "timesheet-day-section" && (isRecord(value["params"]) && hasExactKeys(value["params"], ["dayOffset"]) && (typeof value["params"]["dayOffset"] === "number" && Number.isInteger(value["params"]["dayOffset"])));
+    return isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "timesheet-toolbar" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], [])) || isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "timesheet-day-columns" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], [])) || isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "timesheet-day-section" && (isRecord(value["params"]) && hasExactKeys(value["params"], ["dayOffset"], ["dayOffset"]) && (typeof value["params"]["dayOffset"] === "number" && Number.isInteger(value["params"]["dayOffset"])));
   }
   function isRosterSurfaceFragmentKey(value) {
-    return isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "roster-content" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [])) || isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "roster-grid-toolbar" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [])) || isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "roster-grid-frame" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [])) || isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "roster-day-columns" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [])) || isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "roster-day-rail" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [])) || isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "roster-wage-rail" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [])) || isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "roster-slots-grid" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [])) || isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "roster-staff-panel" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [])) || isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "roster-staff-self-service-leave-form" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [])) || isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "roster-week-overview" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [])) || isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "roster-day-section" && (isRecord(value["params"]) && hasExactKeys(value["params"], ["rosterDayId"]) && typeof value["params"]["rosterDayId"] === "string") || isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "roster-row" && (isRecord(value["params"]) && hasExactKeys(value["params"], ["rosterDayId", "rowIndex"]) && typeof value["params"]["rosterDayId"] === "string" && (typeof value["params"]["rowIndex"] === "number" && Number.isInteger(value["params"]["rowIndex"])));
+    return isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "roster-content" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], [])) || isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "roster-grid-toolbar" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], [])) || isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "roster-grid-frame" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], [])) || isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "roster-day-columns" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], [])) || isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "roster-day-rail" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], [])) || isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "roster-wage-rail" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], [])) || isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "roster-slots-grid" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], [])) || isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "roster-staff-panel" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], [])) || isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "roster-staff-self-service-leave-form" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], [])) || isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "roster-week-overview" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], [])) || isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "roster-day-section" && (isRecord(value["params"]) && hasExactKeys(value["params"], ["rosterDayId"], ["rosterDayId"]) && typeof value["params"]["rosterDayId"] === "string") || isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "roster-row" && (isRecord(value["params"]) && hasExactKeys(value["params"], ["rosterDayId", "rowIndex"], ["rosterDayId", "rowIndex"]) && typeof value["params"]["rosterDayId"] === "string" && (typeof value["params"]["rowIndex"] === "number" && Number.isInteger(value["params"]["rowIndex"])));
   }
   function isRosterDayTimelineSurfaceFragmentKey(value) {
-    return isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "roster-day-timeline-content" && (isRecord(value["params"]) && hasExactKeys(value["params"], ["rosterDayId"]) && typeof value["params"]["rosterDayId"] === "string");
+    return isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "roster-day-timeline-content" && (isRecord(value["params"]) && hasExactKeys(value["params"], ["rosterDayId"], ["rosterDayId"]) && typeof value["params"]["rosterDayId"] === "string");
   }
   function isLeaveRequestsSurfaceFragmentKey(value) {
-    return isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "leave-section-count" && (isRecord(value["params"]) && hasExactKeys(value["params"], ["leaveSection"]) && typeof value["params"]["leaveSection"] === "string") || isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "leave-section-list" && (isRecord(value["params"]) && hasExactKeys(value["params"], ["leaveSection"]) && typeof value["params"]["leaveSection"] === "string");
+    return isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "leave-section-count" && (isRecord(value["params"]) && hasExactKeys(value["params"], ["leaveSection"], ["leaveSection"]) && typeof value["params"]["leaveSection"] === "string") || isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "leave-section-list" && (isRecord(value["params"]) && hasExactKeys(value["params"], ["leaveSection"], ["leaveSection"]) && typeof value["params"]["leaveSection"] === "string");
   }
   function isBillingSurfaceFragmentKey(value) {
-    return isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "billing-status" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], []));
+    return isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "billing-status" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], []));
   }
   function isSupportSurfaceFragmentKey(value) {
-    return isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "support-award-rates" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [])) || isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "support-public-holidays" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], []));
+    return isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "support-award-rates" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], [])) || isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "support-public-holidays" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], []));
   }
   function isProfileSurfaceFragmentKey(value) {
-    return isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "profile-details-section" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [])) || isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "profile-preferences-section" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [])) || isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "profile-security-section" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [])) || isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "profile-leave-section" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [])) || isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "profile-rsa-section" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], []));
+    return isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "profile-details-section" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], [])) || isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "profile-preferences-section" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], [])) || isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "profile-security-section" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], [])) || isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "profile-leave-section" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], [])) || isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "profile-rsa-section" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], []));
   }
   function isStaffSurfaceFragmentKey(value) {
-    return isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "staff-details-section" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [])) || isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "staff-preferences-section" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [])) || isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "staff-leave-section" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], []));
+    return isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "staff-details-section" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], [])) || isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "staff-preferences-section" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], [])) || isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "staff-leave-section" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], []));
   }
   function isAdminPageSurfaceFragmentKey(value) {
-    return isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "admin-page-content" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], []));
+    return isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "admin-page-content" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], []));
   }
   function isAdminXeroPageSurfaceFragmentKey(value) {
-    return isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "admin-xero-page-content" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], []));
+    return isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "admin-xero-page-content" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], []));
   }
   function isAdminVenueConfigSurfaceFragmentKey(value) {
-    return isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "admin-venue-settings" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], []));
+    return isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "admin-venue-settings" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], []));
   }
   function isAdminInvitesSurfaceFragmentKey(value) {
-    return isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "admin-invites" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], []));
+    return isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "admin-invites" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], []));
   }
   function isAdminExportsSurfaceFragmentKey(value) {
-    return isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "admin-exports" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], []));
+    return isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "admin-exports" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], []));
   }
   function isAdminShiftTypesSurfaceFragmentKey(value) {
-    return isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "admin-shift-types" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], []));
+    return isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "admin-shift-types" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], []));
   }
   function isAdminRosterGroupsSurfaceFragmentKey(value) {
-    return isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "admin-roster-groups" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], []));
+    return isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "admin-roster-groups" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], []));
   }
   function isAdminXeroSurfaceFragmentKey(value) {
-    return isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "admin-xero-shell" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], []));
+    return isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "admin-xero-shell" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], []));
   }
   function isSurfaceScope(value) {
     return isRecord(value) && hasExactKeys(value, ["surface", "scope"]) && value.surface === "timesheets" && isTimesheetsSurfaceScope(value.scope) || isRecord(value) && hasExactKeys(value, ["surface", "scope"]) && value.surface === "roster" && isRosterSurfaceScope(value.scope) || isRecord(value) && hasExactKeys(value, ["surface", "scope"]) && value.surface === "roster-day-timeline" && isRosterDayTimelineSurfaceScope(value.scope) || isRecord(value) && hasExactKeys(value, ["surface", "scope"]) && value.surface === "leave-requests" && isLeaveRequestsSurfaceScope(value.scope) || isRecord(value) && hasExactKeys(value, ["surface", "scope"]) && value.surface === "billing" && isBillingSurfaceScope(value.scope) || isRecord(value) && hasExactKeys(value, ["surface", "scope"]) && value.surface === "support" && isSupportSurfaceScope(value.scope) || isRecord(value) && hasExactKeys(value, ["surface", "scope"]) && value.surface === "profile" && isProfileSurfaceScope(value.scope) || isRecord(value) && hasExactKeys(value, ["surface", "scope"]) && value.surface === "staff" && isStaffSurfaceScope(value.scope) || isRecord(value) && hasExactKeys(value, ["surface", "scope"]) && value.surface === "admin-page" && isAdminPageSurfaceScope(value.scope) || isRecord(value) && hasExactKeys(value, ["surface", "scope"]) && value.surface === "admin-xero-page" && isAdminXeroPageSurfaceScope(value.scope) || isRecord(value) && hasExactKeys(value, ["surface", "scope"]) && value.surface === "admin-venue-config" && isAdminVenueConfigSurfaceScope(value.scope) || isRecord(value) && hasExactKeys(value, ["surface", "scope"]) && value.surface === "admin-invites" && isAdminInvitesSurfaceScope(value.scope) || isRecord(value) && hasExactKeys(value, ["surface", "scope"]) && value.surface === "admin-exports" && isAdminExportsSurfaceScope(value.scope) || isRecord(value) && hasExactKeys(value, ["surface", "scope"]) && value.surface === "admin-shift-types" && isAdminShiftTypesSurfaceScope(value.scope) || isRecord(value) && hasExactKeys(value, ["surface", "scope"]) && value.surface === "admin-roster-groups" && isAdminRosterGroupsSurfaceScope(value.scope) || isRecord(value) && hasExactKeys(value, ["surface", "scope"]) && value.surface === "admin-xero" && isAdminXeroSurfaceScope(value.scope);
@@ -119,7 +120,7 @@
   }
   var pageReadyEvent = "bepis:page-ready";
   function isLiveFragmentsRefreshEventDetail(value) {
-    return isRecord(value) && hasExactKeys(value, ["scope", "scopeKey", "fragments"]) && isSurfaceScope(value["scope"]) && typeof value["scopeKey"] === "string" && (Array.isArray(value["fragments"]) && value["fragments"].every((item) => isSurfaceFragmentKey(item)));
+    return isRecord(value) && hasExactKeys(value, ["scope", "scopeKey", "fragments"], ["scope", "scopeKey", "fragments"]) && isSurfaceScope(value["scope"]) && typeof value["scopeKey"] === "string" && (Array.isArray(value["fragments"]) && value["fragments"].every((item) => isSurfaceFragmentKey(item)));
   }
   function parseLiveFragmentsRefreshEventDetail(value) {
     if (isLiveFragmentsRefreshEventDetail(value)) return value;
@@ -189,66 +190,66 @@
     return value;
   }
   function isLiveUpdateMessage(value) {
-    return isRecord(value) && hasExactKeys(value, ["type", "scope", "scopeKey", "currentVersion", "resync"]) && value["type"] === "subscribed" && isSurfaceScope(value["scope"]) && typeof value["scopeKey"] === "string" && (typeof value["currentVersion"] === "number" && Number.isInteger(value["currentVersion"])) && typeof value["resync"] === "boolean" || isRecord(value) && hasExactKeys(value, ["type", "scope", "scopeKey", "version", "fragments", "sourceClientId"]) && value["type"] === "invalidate" && isSurfaceScope(value["scope"]) && typeof value["scopeKey"] === "string" && (typeof value["version"] === "number" && Number.isInteger(value["version"])) && (Array.isArray(value["fragments"]) && value["fragments"].every((item) => isSurfaceFragmentKey(item))) && (value["sourceClientId"] === null || typeof value["sourceClientId"] === "string") || isRecord(value) && hasExactKeys(value, ["type", "message"]) && value["type"] === "error" && typeof value["message"] === "string";
+    return isRecord(value) && hasExactKeys(value, ["type", "scope", "scopeKey", "currentVersion", "resync"], ["type", "scope", "scopeKey", "currentVersion", "resync"]) && value["type"] === "subscribed" && isSurfaceScope(value["scope"]) && typeof value["scopeKey"] === "string" && (typeof value["currentVersion"] === "number" && Number.isInteger(value["currentVersion"])) && typeof value["resync"] === "boolean" || isRecord(value) && hasExactKeys(value, ["type", "scope", "scopeKey", "version", "fragments", "sourceClientId"], ["type", "scope", "scopeKey", "version", "fragments", "sourceClientId"]) && value["type"] === "invalidate" && isSurfaceScope(value["scope"]) && typeof value["scopeKey"] === "string" && (typeof value["version"] === "number" && Number.isInteger(value["version"])) && (Array.isArray(value["fragments"]) && value["fragments"].every((item) => isSurfaceFragmentKey(item))) && (value["sourceClientId"] === null || typeof value["sourceClientId"] === "string") || isRecord(value) && hasExactKeys(value, ["type", "message"], ["type", "message"]) && value["type"] === "error" && typeof value["message"] === "string";
   }
   function parseLiveUpdateMessage(value) {
     if (isLiveUpdateMessage(value)) return value;
     throw new Error("Invalid LiveUpdateMessage");
   }
   function isTimesheetsTimesheetWeekScope(value) {
-    return isRecord(value) && hasExactKeys(value, ["venueId", "weekOffset"]) && typeof value["venueId"] === "string" && (typeof value["weekOffset"] === "number" && Number.isInteger(value["weekOffset"]));
+    return isRecord(value) && hasExactKeys(value, ["venueId", "weekOffset"], ["venueId", "weekOffset"]) && typeof value["venueId"] === "string" && (typeof value["weekOffset"] === "number" && Number.isInteger(value["weekOffset"]));
   }
   function isRosterRosterWeekScope(value) {
-    return isRecord(value) && hasExactKeys(value, ["venueId", "rosterGroupId", "weekOffset"]) && typeof value["venueId"] === "string" && typeof value["rosterGroupId"] === "string" && (typeof value["weekOffset"] === "number" && Number.isInteger(value["weekOffset"]));
+    return isRecord(value) && hasExactKeys(value, ["venueId", "rosterGroupId", "weekOffset"], ["venueId", "rosterGroupId", "weekOffset"]) && typeof value["venueId"] === "string" && typeof value["rosterGroupId"] === "string" && (typeof value["weekOffset"] === "number" && Number.isInteger(value["weekOffset"]));
   }
   function isRosterDayTimelineRosterDayTimelineScope(value) {
-    return isRecord(value) && hasExactKeys(value, ["venueId", "rosterGroupId", "weekOffset", "rosterDayId"]) && typeof value["venueId"] === "string" && typeof value["rosterGroupId"] === "string" && (typeof value["weekOffset"] === "number" && Number.isInteger(value["weekOffset"])) && typeof value["rosterDayId"] === "string";
+    return isRecord(value) && hasExactKeys(value, ["venueId", "rosterGroupId", "weekOffset", "rosterDayId"], ["venueId", "rosterGroupId", "weekOffset", "rosterDayId"]) && typeof value["venueId"] === "string" && typeof value["rosterGroupId"] === "string" && (typeof value["weekOffset"] === "number" && Number.isInteger(value["weekOffset"])) && typeof value["rosterDayId"] === "string";
   }
   function isLeaveRequestsLeaveRequestsScopeScope(value) {
-    return isRecord(value) && hasExactKeys(value, ["venueId"]) && typeof value["venueId"] === "string";
+    return isRecord(value) && hasExactKeys(value, ["venueId"], ["venueId"]) && typeof value["venueId"] === "string";
   }
   function isBillingBillingVenueScope(value) {
-    return isRecord(value) && hasExactKeys(value, ["venueId"]) && typeof value["venueId"] === "string";
+    return isRecord(value) && hasExactKeys(value, ["venueId"], ["venueId"]) && typeof value["venueId"] === "string";
   }
   function isSupportSupportPlatformScope(value) {
-    return isRecord(value) && hasExactKeys(value, []);
+    return isRecord(value) && hasExactKeys(value, [], []);
   }
   function isProfileProfileScopeScope(value) {
-    return isRecord(value) && hasExactKeys(value, ["venueId", "staffId"]) && typeof value["venueId"] === "string" && typeof value["staffId"] === "string";
+    return isRecord(value) && hasExactKeys(value, ["venueId", "staffId"], ["venueId", "staffId"]) && typeof value["venueId"] === "string" && typeof value["staffId"] === "string";
   }
   function isStaffStaffScopeScope(value) {
-    return isRecord(value) && hasExactKeys(value, ["venueId", "staffId"]) && typeof value["venueId"] === "string" && typeof value["staffId"] === "string";
+    return isRecord(value) && hasExactKeys(value, ["venueId", "staffId"], ["venueId", "staffId"]) && typeof value["venueId"] === "string" && typeof value["staffId"] === "string";
   }
   function isAdminPageAdminPageScopeScope(value) {
-    return isRecord(value) && hasExactKeys(value, ["venueId"]) && typeof value["venueId"] === "string";
+    return isRecord(value) && hasExactKeys(value, ["venueId"], ["venueId"]) && typeof value["venueId"] === "string";
   }
   function isAdminXeroPageAdminXeroPageScopeScope(value) {
-    return isRecord(value) && hasExactKeys(value, ["venueId"]) && typeof value["venueId"] === "string";
+    return isRecord(value) && hasExactKeys(value, ["venueId"], ["venueId"]) && typeof value["venueId"] === "string";
   }
   function isAdminVenueConfigAdminVenueConfigScopeScope(value) {
-    return isRecord(value) && hasExactKeys(value, ["venueId"]) && typeof value["venueId"] === "string";
+    return isRecord(value) && hasExactKeys(value, ["venueId"], ["venueId"]) && typeof value["venueId"] === "string";
   }
   function isAdminInvitesAdminInvitesScopeScope(value) {
-    return isRecord(value) && hasExactKeys(value, ["venueId"]) && typeof value["venueId"] === "string";
+    return isRecord(value) && hasExactKeys(value, ["venueId"], ["venueId"]) && typeof value["venueId"] === "string";
   }
   function isAdminExportsAdminExportsScopeScope(value) {
-    return isRecord(value) && hasExactKeys(value, ["venueId"]) && typeof value["venueId"] === "string";
+    return isRecord(value) && hasExactKeys(value, ["venueId"], ["venueId"]) && typeof value["venueId"] === "string";
   }
   function isAdminShiftTypesAdminShiftTypesScopeScope(value) {
-    return isRecord(value) && hasExactKeys(value, ["venueId"]) && typeof value["venueId"] === "string";
+    return isRecord(value) && hasExactKeys(value, ["venueId"], ["venueId"]) && typeof value["venueId"] === "string";
   }
   function isAdminRosterGroupsAdminRosterGroupsScopeScope(value) {
-    return isRecord(value) && hasExactKeys(value, ["venueId"]) && typeof value["venueId"] === "string";
+    return isRecord(value) && hasExactKeys(value, ["venueId"], ["venueId"]) && typeof value["venueId"] === "string";
   }
   function isAdminXeroAdminXeroScopeScope(value) {
-    return isRecord(value) && hasExactKeys(value, ["venueId"]) && typeof value["venueId"] === "string";
+    return isRecord(value) && hasExactKeys(value, ["venueId"], ["venueId"]) && typeof value["venueId"] === "string";
   }
   var FrontendSurfaceFragmentRegistry = { "timesheets": ["timesheet-toolbar", "timesheet-day-columns", "timesheet-day-section"], "roster": ["roster-content", "roster-grid-toolbar", "roster-grid-frame", "roster-day-columns", "roster-day-rail", "roster-wage-rail", "roster-slots-grid", "roster-staff-panel", "roster-staff-self-service-leave-form", "roster-day-section", "roster-row"], "roster-day-timeline": ["roster-day-timeline-content"], "leave-requests": ["leave-section-count", "leave-section-list"], "billing": ["billing-status"], "support": ["support-award-rates", "support-public-holidays"], "profile": ["profile-details-section", "profile-preferences-section", "profile-security-section", "profile-leave-section", "profile-rsa-section"], "staff": ["staff-details-section", "staff-preferences-section", "staff-leave-section"], "admin-page": [], "admin-xero-page": [], "admin-venue-config": ["admin-venue-settings"], "admin-invites": ["admin-invites"], "admin-exports": ["admin-exports"], "admin-shift-types": ["admin-shift-types"], "admin-roster-groups": ["admin-roster-groups"], "admin-xero": ["admin-xero-shell"] };
   function isFrontendSurfaceLiveFragmentName(surface, value) {
     return typeof value === "string" && FrontendSurfaceFragmentRegistry[surface].includes(value);
   }
   function isFrontendSurfaceFragmentProtection(value) {
-    return isRecord(value) && hasExactKeys(value, ["kind"]) && value["kind"] === "replace" || isRecord(value) && hasExactKeys(value, ["kind", "activeSelector", "fieldKeyAttr", "fieldNameFallback", "containerSelector"]) && value["kind"] === "focused-field" && typeof value["activeSelector"] === "string" && typeof value["fieldKeyAttr"] === "string" && typeof value["fieldNameFallback"] === "boolean" && (value["containerSelector"] === null || typeof value["containerSelector"] === "string");
+    return isRecord(value) && hasExactKeys(value, ["kind"], ["kind"]) && value["kind"] === "replace" || isRecord(value) && hasExactKeys(value, ["kind", "activeSelector", "fieldKeyAttr", "fieldNameFallback", "containerSelector"], ["kind", "activeSelector", "fieldKeyAttr", "fieldNameFallback", "containerSelector"]) && value["kind"] === "focused-field" && typeof value["activeSelector"] === "string" && typeof value["fieldKeyAttr"] === "string" && typeof value["fieldNameFallback"] === "boolean" && (value["containerSelector"] === null || typeof value["containerSelector"] === "string");
   }
   function isTimesheetsMountedFragmentConfig(value) {
     return isRecord(value) && hasExactKeys(value, ["fragmentKey", "targetId", "url", "protection"]) && isSurfaceFragmentKey(value["fragmentKey"]) && value["fragmentKey"].surface === "timesheets" && typeof value["targetId"] === "string" && value["targetId"].length > 0 && typeof value["url"] === "string" && value["url"].length > 0 && isFrontendSurfaceFragmentProtection(value["protection"]);

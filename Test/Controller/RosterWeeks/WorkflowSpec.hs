@@ -1414,8 +1414,8 @@ tests = aroundAll withDatabaseTestContext do
 
                 response `responseStatusShouldBe` status200
                 response `responseBodyShouldContain` cs rosterStaffPanelFragmentId
-                response `responseBodyShouldContain` "data-roster-staff-name=\"Alpha\""
-                response `responseBodyShouldContain` "1"
+                response `responseBodyShouldContain` "&quot;staffName&quot;:&quot;Alpha&quot;"
+                response `responseBodyShouldContain` "&quot;assignedShifts&quot;:1"
 
         it "manager roster staff panel fragment only shows staff applicable to the selected roster group" $ withContext do
             withCleanDb do
@@ -1439,16 +1439,16 @@ tests = aroundAll withDatabaseTestContext do
                     callActionWithParams (ShowRosterWeekStaffPanelFragmentAction 0) [("rosterGroupId", idToParam frontOfHouse.id)]
 
                 response `responseStatusShouldBe` status200
-                response `responseBodyShouldContain` "data-roster-staff-name=\"Alpha\""
-                response `responseBodyShouldContain` "data-roster-staff-name=\"Trial\""
-                response `responseBodyShouldContain` "data-roster-staff-role=\"TRIAL\""
+                response `responseBodyShouldContain` "&quot;staffName&quot;:&quot;Alpha&quot;"
+                response `responseBodyShouldContain` "&quot;staffName&quot;:&quot;Trial&quot;"
+                response `responseBodyShouldContain` "&quot;staffRole&quot;:&quot;TRIAL&quot;"
                 response `responseBodyShouldContain` "class=\"btn btn-sm btn-outline-secondary app-icon-button roster-staff-invite-button\""
                 response `responseBodyShouldContain` "class=\"bi bi-envelope\""
                 response `responseBodyShouldContain` "aria-label=\"Invite Trial\""
                 response `responseBodyShouldContain` "hx-trigger=\"click consume\""
                 response `responseBodyShouldContain` "hx-get=\"/NewTrialStaffInvitation?staffId="
                 response `responseBodyShouldNotContain` "aria-label=\"Invite Alpha\""
-                response `responseBodyShouldNotContain` "data-roster-staff-name=\"Bravo\""
+                response `responseBodyShouldNotContain` "&quot;staffName&quot;:&quot;Bravo&quot;"
                 response `responseBodyShouldContain` "Add trial staff"
                 response `responseBodyShouldContain` "hx-get=\"/NewStaff?weekOffset=0&amp;rosterGroupId="
                 response `responseBodyShouldContain` "Show all staff"
@@ -1466,7 +1466,7 @@ tests = aroundAll withDatabaseTestContext do
                     callAction (ShowRosterWeekStaffPanelFragmentAction 0)
 
                 response `responseStatusShouldBe` status200
-                response `responseBodyShouldContain` "data-roster-staff-name=\"Solo\""
+                response `responseBodyShouldContain` "&quot;staffName&quot;:&quot;Solo&quot;"
                 response `responseBodyShouldNotContain` "Show all staff"
                 response `responseBodyShouldNotContain` "name=\"staffScope\""
 
@@ -1499,10 +1499,10 @@ tests = aroundAll withDatabaseTestContext do
                         ]
 
                 response `responseStatusShouldBe` status200
-                response `responseBodyShouldContain` "data-roster-staff-name=\"Alpha\""
-                response `responseBodyShouldContain` "data-roster-staff-name=\"Bravo\""
-                response `responseBodyShouldContain` "data-roster-staff-name=\"Trial\""
-                response `responseBodyShouldNotContain` "data-roster-staff-name=\"Other\""
+                response `responseBodyShouldContain` "&quot;staffName&quot;:&quot;Alpha&quot;"
+                response `responseBodyShouldContain` "&quot;staffName&quot;:&quot;Bravo&quot;"
+                response `responseBodyShouldContain` "&quot;staffName&quot;:&quot;Trial&quot;"
+                response `responseBodyShouldNotContain` "&quot;staffName&quot;:&quot;Other&quot;"
                 response `responseBodyShouldNotContain` "active staff"
 
         it "staff row fragment fetch returns no roster row for a draft week" $ withContext do

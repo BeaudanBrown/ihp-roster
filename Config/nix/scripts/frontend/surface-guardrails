@@ -1268,6 +1268,41 @@ expect_match \
     '\benableFrontendSurfaceLinkedHighlight\b' \
     frontend/ts/app-roster.ts
 
+expect_no_match_including_generated \
+    "replaced handwritten roster staff sorting/tab contracts and aliases must stay deleted" \
+    'data-roster-staff-(sort-key|name|role|assigned|ideal|panel-tab)|dataset\.rosterStaff|RosterStaffSortKey|RosterValues|rosterStaffSortKey|roster/staff-panel-(sorting|tabs)|roster/staff-sort' \
+    Application Web Test frontend/ts e2e static
+
+expect_no_match \
+    "authored roster staff code must consume generated Surface role names" \
+    'data-bepis-roster-staff-panel-(sort-root|sort-row|sort-control|tab)' \
+    Application Web frontend/ts
+
+expect_no_match \
+    "roster staff browser code must discover sorting and tabs through generated roles, not presentation classes" \
+    '(querySelector(All)?|closest|matches)\([^)]*roster-staff-(table|panel-entry|table-body|sort-button|panel-tab)' \
+    frontend/ts
+
+for removed_roster_staff_runtime in \
+    frontend/ts/roster/staff-panel-sorting.ts \
+    frontend/ts/roster/staff-panel-tabs.ts \
+    frontend/ts/roster/staff-sort.ts \
+    Application/Helper/FrontendContract/RosterValues.hs; do
+    if [ -e "$removed_roster_staff_runtime" ]; then
+        report_failure "$removed_roster_staff_runtime must stay deleted in favor of generated Surface contracts"
+    fi
+done
+
+expect_match \
+    "the roster entrypoint must enable the generic complete-set sorting runtime" \
+    '\benableFrontendSurfaceCompleteSetSort\b' \
+    frontend/ts/app-roster.ts
+
+expect_match \
+    "the roster entrypoint must enable the generic generated tab-set runtime" \
+    '\benableFrontendSurfaceTabSets\b' \
+    frontend/ts/app-roster.ts
+
 if [ "$failures" -ne 0 ]; then
     exit 1
 fi

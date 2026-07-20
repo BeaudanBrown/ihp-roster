@@ -139,8 +139,11 @@ but browser output retains only production-consumed source refs, dropzone refs,
 activation refs, session definitions/effects, compatible refs, and modifier
 variants. Intent forms, field presence, layers, conflict policies, and dynamic
 keys remain concrete mount-local HTML rendered by `SurfaceImpl` and view helpers.
-The browser registry does not duplicate action catalogs, DTO aliases, complete
-static schemas, or server-only Surface metadata.
+The interaction registry does not duplicate action catalogs, complete static
+schemas, or server-only Surface metadata. Separately, explicitly
+browser-reachable Surface DTOs and focused capability registries may be emitted
+when a generic adapter consumes them; plain server-only `Dto` declarations stay
+absent from TypeScript.
 
 Generated role-specific DOM refs are intentionally small and readable. The exact
 attribute names are backend-owned constants in generated/shared contracts, not
@@ -176,9 +179,12 @@ participate in generated DOM ids, live-fragment target ids, server layer ids,
 disposable layer ids, intent form ids, HTMX targets, and any runtime lookup key
 that could otherwise collide.
 
-Generic TypeScript must resolve markers, forms, disposable layers, and fragment
-refs inside the same concrete mount. It must not use global hardcoded target ids
-or infer a singleton surface for a scope.
+Generic TypeScript must resolve markers, forms, disposable layers, fragment
+refs, generated sort roles, and generated tab roles inside the same concrete
+mount. It must not use global hardcoded target ids, presentation classes, or
+infer a singleton surface for a scope. A reconciliation callback may receive an
+inner HTMX replacement node; adapters must still recover its nearest owning
+mount without crossing into nested mounts.
 
 ## Golden Path
 

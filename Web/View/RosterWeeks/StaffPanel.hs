@@ -14,12 +14,16 @@ import Application.Helper.FrontendContract.AppShell.Runtime (AppShellActionRoute
                                                              appShellActionByMarker,
                                                              applyAppShellActionAttrs,
                                                              renderAppShellActionHtmxControl)
-import Application.Helper.FrontendContract.RosterValues (RosterStaffSortKey (..),
-                                                         rosterStaffSortKeyAttribute)
 import qualified Application.Helper.FrontendContract.Surface.Interaction as SurfaceInteraction
 import qualified Application.Helper.FrontendContract.Surface.LinkedHighlight as SurfaceLinkedHighlight
 import qualified Application.Helper.FrontendContract.Surface.Roster as Surface
 import qualified Application.Helper.FrontendContract.Surface.Roster.Action as RosterAction
+import Application.Helper.FrontendContract.Surface.Roster.StaffPanel (RosterStaffPanelSortKey (..),
+                                                                      RosterStaffPanelTab (..),
+                                                                      rosterStaffPanelSortControlAttrs,
+                                                                      rosterStaffPanelSortRootAttrs,
+                                                                      rosterStaffPanelSortRowAttrs,
+                                                                      rosterStaffPanelTabAttrs)
 import Application.Helper.FrontendContract.Surface.Runtime (FrontendSurfaceActionRoute (..),
                                                             renderFrontendSurfaceActionForm)
 import Application.Helper.FrontendContract.Surface.Values
@@ -108,7 +112,7 @@ renderRosterStaffPanelTabs staffContent settingsContent = [hsx|
                 data-bs-target={"#" <> rosterStaffPanelStaffPaneId}
                 aria-controls={rosterStaffPanelStaffPaneId}
                 aria-selected="true"
-                data-roster-staff-panel-tab="staff">
+                {...rosterStaffPanelTabAttrs RosterStaffTab}>
             <i class="bi bi-people" aria-hidden="true"></i>
             <span>Staff</span>
         </button>
@@ -120,7 +124,7 @@ renderRosterStaffPanelTabs staffContent settingsContent = [hsx|
                 data-bs-target={"#" <> rosterStaffPanelSettingsPaneId}
                 aria-controls={rosterStaffPanelSettingsPaneId}
                 aria-selected="false"
-                data-roster-staff-panel-tab="settings">
+                {...rosterStaffPanelTabAttrs RosterSettingsTab}>
             <i class="bi bi-sliders" aria-hidden="true"></i>
             <span>Settings</span>
         </button>
@@ -211,7 +215,7 @@ rosterStaffPanelColumns =
 renderRosterStaffPanelTable :: [Staff] -> Int -> Id RosterGroup -> [RosterStaffPanelEntry] -> Html
 renderRosterStaffPanelTable panelStaffMembers weekOffset currentRosterGroupId renderedPanelStaff = [hsx|
     <div class="roster-staff-panel-list">
-        <table class="roster-staff-table">
+        <table class="roster-staff-table" {...rosterStaffPanelSortRootAttrs}>
             <thead class="roster-staff-table-head">
                 <tr>{forEach rosterStaffPanelColumns renderRosterStaffPanelHeaderCell}</tr>
             </thead>
@@ -242,21 +246,21 @@ rosterStaffPanelSkeletonRows = [1, 2, 3, 4, 5, 6]
 renderRosterStaffPanelHeaderCell :: RosterStaffPanelColumn -> Html
 renderRosterStaffPanelHeaderCell RosterStaffNameColumn = [hsx|
     <th scope="col" aria-sort="none">
-        <button type="button" class="roster-staff-sort-button" data-roster-staff-sort-key={rosterStaffSortKeyAttribute RosterStaffSortByName}>
+        <button type="button" class="roster-staff-sort-button" {...rosterStaffPanelSortControlAttrs RosterStaffSortByName}>
             Name
         </button>
     </th>
 |]
 renderRosterStaffPanelHeaderCell RosterStaffRoleColumn = [hsx|
     <th scope="col" class="roster-staff-role-head" aria-sort="none">
-        <button type="button" class="roster-staff-sort-button" data-roster-staff-sort-key={rosterStaffSortKeyAttribute RosterStaffSortByRole}>
+        <button type="button" class="roster-staff-sort-button" {...rosterStaffPanelSortControlAttrs RosterStaffSortByRole}>
             Role
         </button>
     </th>
 |]
 renderRosterStaffPanelHeaderCell RosterStaffShiftsColumn = [hsx|
     <th scope="col" class="roster-staff-metric-head" aria-sort="none">
-        <button type="button" class="roster-staff-sort-button roster-staff-sort-button-metric" data-roster-staff-sort-key={rosterStaffSortKeyAttribute RosterStaffSortByShifts}>
+        <button type="button" class="roster-staff-sort-button roster-staff-sort-button-metric" {...rosterStaffPanelSortControlAttrs RosterStaffSortByShifts}>
             Shifts
         </button>
     </th>
@@ -377,10 +381,7 @@ renderRosterStaffPanelEntryRow weekOffset currentRosterGroupId staffDisplayLabel
                 (rosterStaffOverlayRoute (appendQueryParams (pathTo (EditStaffAction entry.staff.id)) [("weekOffset", tshow weekOffset), ("rosterGroupId", tshow currentRosterGroupId)]))
                 [hsx|
                     <tr class="roster-staff-panel-entry"
-                    data-roster-staff-name={staffDisplayLabel}
-                    data-roster-staff-role={staffRoleLabel}
-                    data-roster-staff-assigned={tshow entry.assignedShiftCount}
-                    data-roster-staff-ideal={tshow entry.staff.idealShiftsPerWeek}
+                    {...rosterStaffPanelSortRowAttrs staffKey staffDisplayLabel staffRoleLabel entry.assignedShiftCount entry.staff.idealShiftsPerWeek}
                     role="button"
                     tabindex="0">
                     {forEach rosterStaffPanelColumns (renderRosterStaffPanelEntryCell weekOffset currentRosterGroupId staffDisplayLabel staffRoleLabel entry)}

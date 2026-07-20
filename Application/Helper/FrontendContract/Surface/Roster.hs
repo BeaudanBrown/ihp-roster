@@ -39,6 +39,23 @@ module Application.Helper.FrontendContract.Surface.Roster
     , StaffHighlightMemberRole
     , StaffHighlightPinRole
     , StaffHighlightOrderState
+    , RosterStaffPanelSort
+    , StaffPanelSortRootRole
+    , StaffPanelSortRowRole
+    , StaffPanelSortControlRole
+    , RosterStaffPanelSortRow
+    , StaffRowKey
+    , StaffName
+    , StaffRole
+    , AssignedShifts
+    , IdealShifts
+    , NameSortKey
+    , RoleSortKey
+    , ShiftsSortKey
+    , RosterStaffPanelTabs
+    , StaffPanelTabRole
+    , StaffTabKey
+    , SettingsTabKey
     , ShiftGroupHighlight
     , ShiftGroupHighlightSourceRole
     , ShiftGroupHighlightMemberRole
@@ -120,6 +137,25 @@ data StaffHighlightSourceRole
 data StaffHighlightMemberRole
 data StaffHighlightPinRole
 data StaffHighlightOrderState
+
+data RosterStaffPanelSort
+data StaffPanelSortRootRole
+data StaffPanelSortRowRole
+data StaffPanelSortControlRole
+data RosterStaffPanelSortRow
+data StaffRowKey
+data StaffName
+data StaffRole
+data AssignedShifts
+data IdealShifts
+data NameSortKey
+data RoleSortKey
+data ShiftsSortKey
+
+data RosterStaffPanelTabs
+data StaffPanelTabRole
+data StaffTabKey
+data SettingsTabKey
 
 data ShiftGroupHighlight
 data ShiftGroupHighlightSourceRole
@@ -400,6 +436,40 @@ type RosterInteractionBundle =
          , DragDropIntent DropRosterStaff RosterContent
          ]
 
+type RosterStaffPanelBrowserBundle =
+    '[ BrowserInboundDto RosterStaffPanelSortRow
+        '[ Field StaffRowKey 'WireText
+         , Field StaffName 'WireText
+         , Field StaffRole 'WireText
+         , Field AssignedShifts 'WireInt
+         , Field IdealShifts 'WireInt
+         ]
+     , BrowserRole StaffPanelSortRootRole
+     , BrowserRole StaffPanelSortRowRole
+     , BrowserRole StaffPanelSortControlRole
+     , CompleteSetSort RosterStaffPanelSort StaffPanelSortRootRole StaffPanelSortRowRole StaffPanelSortControlRole RosterStaffPanelSortRow
+        '[ SortKey NameSortKey
+            '[ SortComparator StaffName 'SortText 'FollowSortDirection
+             , SortComparator StaffRowKey 'SortOpaque 'AlwaysAscending
+             ]
+         , SortKey RoleSortKey
+            '[ SortComparator StaffRole 'SortText 'FollowSortDirection
+             , SortComparator StaffName 'SortText 'AlwaysAscending
+             , SortComparator StaffRowKey 'SortOpaque 'AlwaysAscending
+             ]
+         , SortKey ShiftsSortKey
+            '[ SortComparator AssignedShifts 'SortInteger 'FollowSortDirection
+             , SortComparator IdealShifts 'SortInteger 'FollowSortDirection
+             , SortComparator StaffName 'SortText 'AlwaysAscending
+             , SortComparator StaffRowKey 'SortOpaque 'AlwaysAscending
+             ]
+         ]
+        NameSortKey
+        'SortAscending
+     , BrowserRole StaffPanelTabRole
+     , TabSet RosterStaffPanelTabs StaffPanelTabRole '[ StaffTabKey, SettingsTabKey ] StaffTabKey
+     ]
+
 type RosterLinkedHighlightBundle =
     '[ BrowserRole StaffHighlightSourceRole
      , BrowserRole StaffHighlightMemberRole
@@ -426,7 +496,7 @@ type RosterLinkedHighlightBundle =
      ]
 
 type RosterSurface =
-    Surface Roster (Concat '[ RosterScopeBundle, RosterFragmentBundle, RosterActionBundle, RosterInteractionBundle, RosterLinkedHighlightBundle ])
+    Surface Roster (Concat '[ RosterScopeBundle, RosterFragmentBundle, RosterActionBundle, RosterInteractionBundle, RosterStaffPanelBrowserBundle, RosterLinkedHighlightBundle ])
 
 type RosterDayTimelineScopeBundle =
     '[ Scope RosterDayTimeline

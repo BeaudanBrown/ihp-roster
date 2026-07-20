@@ -4,6 +4,7 @@ import {
     rosterStaffHighlightOrderDomAttr,
     rosterStaffHighlightPinDomAttr,
     rosterStaffHighlightSourceDomAttr,
+    rosterStaffPanelSortRowDomAttr,
 } from '../frontend/ts/generated/contracts';
 import { ensureRosterLayout, openRoster } from './test-helpers';
 
@@ -31,14 +32,14 @@ async function chooseRosterLayout(page: Page, layoutMode: 'day_rows' | 'day_colu
 }
 
 async function hoverStaffRow(page: Page, staffKey: string) {
-    const staffRow = page.locator(`.roster-staff-panel-entry[${rosterStaffHighlightSourceDomAttr}="${staffKey}"]`).first();
+    const staffRow = page.locator(`[${rosterStaffPanelSortRowDomAttr}][${rosterStaffHighlightSourceDomAttr}="${staffKey}"]`).first();
     await expect(staffRow).toBeVisible();
     await staffRow.hover();
     await expect(staffRow).toHaveClass(/is-linked-highlight-source/);
 }
 
 async function toggleLocateShifts(page: Page, staffKey: string) {
-    const staffRow = page.locator(`.roster-staff-panel-entry[${rosterStaffHighlightSourceDomAttr}="${staffKey}"]`).first();
+    const staffRow = page.locator(`[${rosterStaffPanelSortRowDomAttr}][${rosterStaffHighlightSourceDomAttr}="${staffKey}"]`).first();
     await expect(staffRow).toBeVisible();
 
     const locateButton = staffRow.locator(`[${rosterStaffHighlightPinDomAttr}="${staffKey}"]`);
@@ -139,7 +140,7 @@ test.describe('Roster staff shift highlight', () => {
         await page.locator('.roster-grid').hover();
         await expect(highlightedCells.first()).toBeVisible();
 
-        const staffRow = page.locator(`.roster-staff-panel-entry[${rosterStaffHighlightSourceDomAttr}="${staffKey}"]`).first();
+        const staffRow = page.locator(`[${rosterStaffPanelSortRowDomAttr}][${rosterStaffHighlightSourceDomAttr}="${staffKey}"]`).first();
         await staffRow.getByRole('button', { name: /Locate shifts for/ }).evaluate((button) => {
             if (!(button instanceof HTMLElement)) throw new Error('Expected locate button');
             button.click();

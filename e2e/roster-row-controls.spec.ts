@@ -29,7 +29,9 @@ test.describe('Roster row controls', () => {
         await expect(staffTab).toHaveAttribute('aria-selected', 'true');
         await expect(settingsTab).toHaveAttribute('aria-selected', 'false');
 
-        await openRosterSettings(page);
+        await staffTab.focus();
+        await page.keyboard.press('ArrowRight');
+        await expect(settingsTab).toHaveAttribute('aria-selected', 'true');
         const settingsPane = page.locator('#roster-staff-panel-settings-pane');
         await expect(settingsPane.getByRole('heading', { name: 'Roster layout' })).toBeVisible();
         await expect(settingsPane.getByRole('heading', { name: 'Display' })).toBeVisible();

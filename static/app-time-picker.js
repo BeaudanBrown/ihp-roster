@@ -4,19 +4,20 @@
   function isRecord(value) {
     return typeof value === "object" && value !== null && !Array.isArray(value);
   }
-  function hasExactKeys(value, keys) {
-    return Object.keys(value).every((key) => keys.includes(key));
+  function hasExactKeys(value, keys, requiredKeys = keys) {
+    const valueKeys = Object.keys(value);
+    return valueKeys.every((key) => keys.includes(key)) && requiredKeys.every((key) => Object.prototype.hasOwnProperty.call(value, key));
   }
   var pageReadyEvent = "bepis:page-ready";
   function isTimePickerConfig(value) {
-    return isRecord(value) && hasExactKeys(value, ["rangeStart", "rangeEnd", "stepMinutes", "emptyLabel"]) && typeof value["rangeStart"] === "string" && typeof value["rangeEnd"] === "string" && (typeof value["stepMinutes"] === "number" && Number.isInteger(value["stepMinutes"])) && typeof value["emptyLabel"] === "string";
+    return isRecord(value) && hasExactKeys(value, ["rangeStart", "rangeEnd", "stepMinutes", "emptyLabel"], ["rangeStart", "rangeEnd", "stepMinutes", "emptyLabel"]) && typeof value["rangeStart"] === "string" && typeof value["rangeEnd"] === "string" && (typeof value["stepMinutes"] === "number" && Number.isInteger(value["stepMinutes"])) && typeof value["emptyLabel"] === "string";
   }
   function parseTimePickerConfig(value) {
     if (isTimePickerConfig(value)) return value;
     throw new Error("Invalid TimePickerConfig");
   }
   function isTimePickerOption(value) {
-    return isRecord(value) && hasExactKeys(value, ["value", "label"]) && typeof value["value"] === "string" && typeof value["label"] === "string";
+    return isRecord(value) && hasExactKeys(value, ["value", "label"], ["value", "label"]) && typeof value["value"] === "string" && typeof value["label"] === "string";
   }
   function parseTimePickerOption(value) {
     if (isTimePickerOption(value)) return value;

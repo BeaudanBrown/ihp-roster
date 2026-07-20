@@ -3,6 +3,9 @@
 
 module Application.Helper.FrontendContract.Surface.SemanticIR
     ( BrowserAttributeIR (..)
+    , CompleteSetSortComparatorDirectionIR (..)
+    , CompleteSetSortDirectionIR (..)
+    , CompleteSetSortValueTypeIR (..)
     , LinkedHighlightActivationIR (..)
     , LinkedHighlightEffectIR (..)
     , InteractionEffectClassIR (..)
@@ -22,6 +25,9 @@ module Application.Helper.FrontendContract.Surface.SemanticIR
     , interactionEffectLayerName
     , interactionEffectSemanticName
     , interactionEffectSourceName
+    , completeSetSortComparatorDirectionName
+    , completeSetSortDirectionName
+    , completeSetSortValueTypeName
     , linkedHighlightActivationName
     , linkedHighlightEffectName
     , scopeAuthFieldNames
@@ -42,6 +48,14 @@ data Pin
 data MatchingSource
 data MatchingMember
 data OrderedMemberBounds
+
+data TextValueType
+data IntegerValueType
+data OpaqueValueType
+data SelectedComparatorDirection
+data AscendingComparatorDirection
+data AscendingDirection
+data DescendingDirection
 
 data CurrentVenuePolicy
 data CurrentVenueUserPolicy
@@ -168,6 +182,38 @@ linkedHighlightEffectName = \case
     LinkedHighlightMatchingSourceEffectIR -> deriveFrontendSurfaceTypeName @MatchingSource DomTokenName
     LinkedHighlightMatchingMemberEffectIR -> deriveFrontendSurfaceTypeName @MatchingMember DomTokenName
     LinkedHighlightOrderedMemberBoundsEffectIR {} -> deriveFrontendSurfaceTypeName @OrderedMemberBounds DomTokenName
+
+data CompleteSetSortValueTypeIR
+    = CompleteSetSortTextIR
+    | CompleteSetSortIntegerIR
+    | CompleteSetSortOpaqueIR
+    deriving (Eq, Show)
+
+data CompleteSetSortComparatorDirectionIR
+    = CompleteSetSortSelectedDirectionIR
+    | CompleteSetSortAscendingComparatorIR
+    deriving (Eq, Show)
+
+data CompleteSetSortDirectionIR
+    = CompleteSetSortAscendingIR
+    | CompleteSetSortDescendingIR
+    deriving (Eq, Show)
+
+completeSetSortValueTypeName :: CompleteSetSortValueTypeIR -> Text
+completeSetSortValueTypeName = \case
+    CompleteSetSortTextIR -> deriveFrontendSurfaceTypeName @TextValueType SortValueTypeName
+    CompleteSetSortIntegerIR -> deriveFrontendSurfaceTypeName @IntegerValueType SortValueTypeName
+    CompleteSetSortOpaqueIR -> deriveFrontendSurfaceTypeName @OpaqueValueType SortValueTypeName
+
+completeSetSortComparatorDirectionName :: CompleteSetSortComparatorDirectionIR -> Text
+completeSetSortComparatorDirectionName = \case
+    CompleteSetSortSelectedDirectionIR -> deriveFrontendSurfaceTypeName @SelectedComparatorDirection SortComparatorDirectionName
+    CompleteSetSortAscendingComparatorIR -> deriveFrontendSurfaceTypeName @AscendingComparatorDirection SortComparatorDirectionName
+
+completeSetSortDirectionName :: CompleteSetSortDirectionIR -> Text
+completeSetSortDirectionName = \case
+    CompleteSetSortAscendingIR -> deriveFrontendSurfaceTypeName @AscendingDirection SortDirectionName
+    CompleteSetSortDescendingIR -> deriveFrontendSurfaceTypeName @DescendingDirection SortDirectionName
 
 -- Effect behavior, lifecycle, classes, and source are explicit checked fields.
 -- Browser spellings are derived from typed markers only when rendered.

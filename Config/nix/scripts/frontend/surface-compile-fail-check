@@ -246,6 +246,18 @@ expect_compile_failure \
     "Actual: Text"
 
 expect_compile_failure \
+    "Test/CompileFail/FrontendSurfaceServerDtoBrowserRender.hs" \
+    "FrontendSurface DTO FixturePayload is server-only and cannot be rendered to the browser"
+
+expect_compile_failure \
+    "Test/CompileFail/FrontendSurfaceWrongSortKey.hs" \
+    "FrontendSurface complete-set sort Roster.RosterStaffPanelSort does not declare key Roster.StaffTabKey"
+
+expect_compile_failure \
+    "Test/CompileFail/FrontendSurfaceWrongTabKey.hs" \
+    "FrontendSurface tab set Roster.RosterStaffPanelTabs does not declare key Roster.NameSortKey"
+
+expect_compile_failure \
     "Test/CompileFail/FrontendSurfaceUnknownInteractionEffect.hs" \
     "Expected kind" \
     "InteractionEffect"

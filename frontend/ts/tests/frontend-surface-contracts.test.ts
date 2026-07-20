@@ -1,7 +1,9 @@
 import {
+    FrontendSurfaceCompleteSetSortRegistry,
     FrontendSurfaceFragmentRegistry,
     FrontendSurfaceInteractionRegistry,
     FrontendSurfaceLinkedHighlightRegistry,
+    FrontendSurfaceTabSetRegistry,
     isFrontendSurfaceLiveFragmentName,
     isFrontendSurfaceName,
     rosterContentDomToken,
@@ -11,11 +13,16 @@ import {
     rosterStaffHighlightOrderDomAttr,
     rosterStaffHighlightPinDomAttr,
     rosterStaffHighlightSourceDomAttr,
+    rosterStaffPanelSortControlDomAttr,
+    rosterStaffPanelSortRootDomAttr,
+    rosterStaffPanelSortRowDomAttr,
+    rosterStaffPanelTabDomAttr,
+    parseRosterStaffPanelSortRow,
     rosterWeekShellDomToken,
     timesheetWeekShellDomToken,
     type TimesheetsSurfaceFragmentKey,
 } from "../generated/contracts";
-import { assertDeepEqual, assertEqual, test } from "./harness";
+import { assertDeepEqual, assertEqual, assertThrows, test } from "./harness";
 
 test("generated live fragment registry contains only production semantic live fragment names", () => {
     assertEqual(isFrontendSurfaceName("surface-lab"), false);
@@ -64,6 +71,70 @@ test("generated linked-highlight registry owns roster roles and closed behavior"
         FrontendSurfaceLinkedHighlightRegistry["roster-day-timeline"][0]?.memberRoleAttribute,
         rosterDayTimelineShiftGroupHighlightMemberDomAttr,
     );
+});
+
+test("generated complete-set sort registry owns roster row parsing and comparator policy", () => {
+    const [definition] = FrontendSurfaceCompleteSetSortRegistry.roster;
+    assertEqual(definition?.rootRoleAttribute, rosterStaffPanelSortRootDomAttr);
+    assertEqual(definition?.rowRoleAttribute, rosterStaffPanelSortRowDomAttr);
+    assertEqual(definition?.controlRoleAttribute, rosterStaffPanelSortControlDomAttr);
+    assertEqual(definition?.defaultKey, "name");
+    assertEqual(definition?.defaultDirection, "ascending");
+    assertDeepEqual(definition?.keys.map((key) => ({
+        key: key.key,
+        comparators: key.comparators.map(({ field, valueType, direction }) => ({ field, valueType, direction })),
+    })), [
+        { key: "name", comparators: [
+            { field: "staffName", valueType: "text", direction: "selected" },
+            { field: "staffRowKey", valueType: "opaque", direction: "ascending" },
+        ] },
+        { key: "role", comparators: [
+            { field: "staffRole", valueType: "text", direction: "selected" },
+            { field: "staffName", valueType: "text", direction: "ascending" },
+            { field: "staffRowKey", valueType: "opaque", direction: "ascending" },
+        ] },
+        { key: "shifts", comparators: [
+            { field: "assignedShifts", valueType: "integer", direction: "selected" },
+            { field: "idealShifts", valueType: "integer", direction: "selected" },
+            { field: "staffName", valueType: "text", direction: "ascending" },
+            { field: "staffRowKey", valueType: "opaque", direction: "ascending" },
+        ] },
+    ]);
+    assertDeepEqual(parseRosterStaffPanelSortRow({
+        staffRowKey: "opaque:staff",
+        staffName: "Alpha",
+        staffRole: "Worker",
+        assignedShifts: 2,
+        idealShifts: 3,
+    }), {
+        staffRowKey: "opaque:staff",
+        staffName: "Alpha",
+        staffRole: "Worker",
+        assignedShifts: 2,
+        idealShifts: 3,
+    });
+    assertThrows(() => parseRosterStaffPanelSortRow({
+        staffRowKey: "opaque:staff",
+        staffName: "Alpha",
+        staffRole: "Worker",
+        assignedShifts: "2",
+        idealShifts: 3,
+    }), "Invalid RosterStaffPanelSortRow");
+    assertThrows(() => parseRosterStaffPanelSortRow({
+        staffRowKey: "opaque:staff",
+        staffName: "Alpha",
+        staffRole: "Worker",
+        assignedShifts: 2,
+        idealShifts: 3,
+        extra: true,
+    }), "Invalid RosterStaffPanelSortRow");
+});
+
+test("generated tab-set registry owns roster tab keys and default", () => {
+    const [definition] = FrontendSurfaceTabSetRegistry.roster;
+    assertEqual(definition?.tabRoleAttribute, rosterStaffPanelTabDomAttr);
+    assertDeepEqual(definition?.keys, ["staff", "settings"]);
+    assertEqual(definition?.defaultKey, "staff");
 });
 
 test("surface DOM tokens are generated as tree-shakeable feature constants", () => {

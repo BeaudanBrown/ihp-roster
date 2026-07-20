@@ -44,7 +44,20 @@ lands.
 - The manager roster side panel has separate Staff and Settings tabs. Staff owns
   the rosterable staff list and trial-staff actions; Settings owns roster group,
   layout, display, assignment-prevention, week-action, and export controls. These
-  controls remain typed RosterSurface actions inside the live panel mount.
+  controls remain typed RosterSurface actions inside the live panel mount. The
+  selected valid tab is remembered per concrete mount across HTMX replacement;
+  missing or invalid remembered tabs fall back to Staff.
+- The complete staff list can be sorted by name, role, or shift count. Name
+  ascending is the initial order; choosing the active key toggles direction and
+  choosing another key resets to ascending. Role ties sort by name. Shift-count
+  ordering compares assigned shifts, then ideal shifts, then name. Every chain
+  ends in an always-ascending opaque row key so equal visible values are stable.
+  Sort state is presentation-only and resets when the rendered sort root is
+  replaced.
+- Staff-panel sort rows, controls, and tabs use generated RosterSurface roles.
+  Each row exposes one exact generated JSON payload; raw per-field
+  `data-roster-staff-*` attributes and roster-specific browser comparators or
+  defaults are not part of the implemented contract.
 - The roster staff panel uses the existing role column for trial placeholders and
   renders their role as `TRIAL`; linked staff continue to show their venue
   membership role labels.

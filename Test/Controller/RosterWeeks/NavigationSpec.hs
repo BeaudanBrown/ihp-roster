@@ -275,8 +275,14 @@ tests = aroundAll withDatabaseTestContext do
                 response `responseBodyShouldContain` "This week</a>"
                 response `responseBodyShouldContain` "btn btn-outline-secondary app-week-nav-button"
                 response `responseBodyShouldNotContain` "data-roster-week-controls=\"manager-actions\""
-                response `responseBodyShouldContain` "data-roster-staff-panel-tab=\"staff\""
-                response `responseBodyShouldContain` "data-roster-staff-panel-tab=\"settings\""
+                response `responseBodyShouldContain` "data-bepis-roster-staff-panel-tab=\"staff\""
+                response `responseBodyShouldContain` "data-bepis-roster-staff-panel-tab=\"settings\""
+                response `responseBodyShouldContain` "data-bepis-roster-staff-panel-sort-root=\"true\""
+                response `responseBodyShouldContain` "data-bepis-roster-staff-panel-sort-control=\"name\""
+                response `responseBodyShouldContain` "data-bepis-roster-staff-panel-sort-control=\"role\""
+                response `responseBodyShouldContain` "data-bepis-roster-staff-panel-sort-control=\"shifts\""
+                response `responseBodyShouldContain` "data-bepis-roster-staff-panel-sort-row=\"{&quot;assignedShifts&quot;:0,&quot;idealShifts&quot;:0,&quot;staffName&quot;:&quot;Alpha&quot;,&quot;staffRole&quot;:&quot;TRIAL&quot;,&quot;staffRowKey&quot;:&quot;staff:"
+                response `responseBodyShouldNotContain` "data-roster-staff-"
                 response `responseBodyShouldContain` "id=\"roster-staff-panel-settings-pane\""
                 response `responseBodyShouldContain` ("data-bepis-roster-staff-highlight-source=\"staff:" <> cs (tshow panelStaff.id) <> "\"")
                 response `responseBodyShouldContain` ("data-bepis-roster-staff-highlight-pin=\"staff:" <> cs (tshow panelStaff.id) <> "\"")

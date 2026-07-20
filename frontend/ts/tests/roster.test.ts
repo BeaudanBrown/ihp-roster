@@ -1,7 +1,6 @@
 import { rosterFullscreenLabels } from "../roster/fullscreen";
 import { rosterOverviewSummaryFromDayDataset } from "../roster/overview";
-import { compareRosterStaffData, rosterParseNumber } from "../roster/staff-sort";
-import { assertDeepEqual, assertEqual, test } from "./harness";
+import { assertDeepEqual, test } from "./harness";
 
 test("roster overview summary preserves loaded and unloaded day values", () => {
     assertDeepEqual(rosterOverviewSummaryFromDayDataset({
@@ -37,18 +36,6 @@ test("roster overview summary preserves loaded and unloaded day values", () => {
         weekLabel: "In ",
         url: "",
     });
-});
-
-test("roster staff sorting helpers preserve numeric and text fallback ordering", () => {
-    assertEqual(rosterParseNumber("7"), 7);
-    assertEqual(rosterParseNumber("bad"), 0);
-
-    const alex = { name: "Alex", assigned: "4", ideal: "5", role: "manager" };
-    const blair = { name: "Blair", assigned: "2", ideal: "5", role: "worker" };
-    assertEqual(compareRosterStaffData(alex, blair, "shifts", "ascending") > 0, true);
-    assertEqual(compareRosterStaffData(alex, blair, "shifts", "descending") < 0, true);
-    assertEqual(compareRosterStaffData(alex, blair, "role", "ascending") < 0, true);
-    assertEqual(compareRosterStaffData(alex, blair, "name", "ascending") < 0, true);
 });
 
 test("roster fullscreen labels preserve aria and icon state", () => {

@@ -4,8 +4,9 @@
   function isRecord(value) {
     return typeof value === "object" && value !== null && !Array.isArray(value);
   }
-  function hasExactKeys(value, keys) {
-    return Object.keys(value).every((key) => keys.includes(key));
+  function hasExactKeys(value, keys, requiredKeys = keys) {
+    const valueKeys = Object.keys(value);
+    return valueKeys.every((key) => keys.includes(key)) && requiredKeys.every((key) => Object.prototype.hasOwnProperty.call(value, key));
   }
   var pageReadyEvent = "bepis:page-ready";
   function isTogglePresentationState(value) {
@@ -15,10 +16,10 @@
     return typeof value === "string" && ["deferred", "immediate"].includes(value);
   }
   function isToggleTarget(value) {
-    return isRecord(value) && hasExactKeys(value, ["tag", "value"]) && value["tag"] === "value" && typeof value["value"] === "string" || isRecord(value) && hasExactKeys(value, ["tag"]) && value["tag"] === "omitted";
+    return isRecord(value) && hasExactKeys(value, ["tag", "value"], ["tag", "value"]) && value["tag"] === "value" && typeof value["value"] === "string" || isRecord(value) && hasExactKeys(value, ["tag"], ["tag"]) && value["tag"] === "omitted";
   }
   function isToggleConfig(value) {
-    return isRecord(value) && hasExactKeys(value, ["presentationState", "checkedTarget", "uncheckedTarget", "transportKey", "submissionPolicy", "breakRegionKey"]) && isTogglePresentationState(value["presentationState"]) && isToggleTarget(value["checkedTarget"]) && isToggleTarget(value["uncheckedTarget"]) && typeof value["transportKey"] === "string" && isToggleSubmissionPolicy(value["submissionPolicy"]) && (value["breakRegionKey"] === null || typeof value["breakRegionKey"] === "string");
+    return isRecord(value) && hasExactKeys(value, ["presentationState", "checkedTarget", "uncheckedTarget", "transportKey", "submissionPolicy", "breakRegionKey"], ["presentationState", "checkedTarget", "uncheckedTarget", "transportKey", "submissionPolicy", "breakRegionKey"]) && isTogglePresentationState(value["presentationState"]) && isToggleTarget(value["checkedTarget"]) && isToggleTarget(value["uncheckedTarget"]) && typeof value["transportKey"] === "string" && isToggleSubmissionPolicy(value["submissionPolicy"]) && (value["breakRegionKey"] === null || typeof value["breakRegionKey"] === "string");
   }
   function parseToggleConfig(value) {
     if (isToggleConfig(value)) return value;

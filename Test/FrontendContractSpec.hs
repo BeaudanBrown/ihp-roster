@@ -158,8 +158,8 @@ tests = describe "FrontendContract foundation" do
         source `shouldContainText` "export const toastMountDomAttr = \"data-bepis-toast-mount\" as const;"
         source `shouldContainText` "export const toastCloseDomAttr = \"data-bepis-toast-close\" as const;"
         source `shouldContainText` "export const toastConfigDomAttr = \"data-bepis-toast-config\" as const;"
-        source `shouldContainText` "export type RosterStaffSortKey ="
-        source `shouldContainText` "  | \"shifts\";"
+        source `shouldContainText` "export type RosterStaffPanelSortKey = \"name\" | \"role\" | \"shifts\";"
+        source `shouldContainText` "export function parseRosterStaffPanelSortRow(value: unknown): RosterStaffPanelSortRow"
         source `shouldContainText` "export type RosterRosterWeekScope = { venueId: FrontendContractUuid; rosterGroupId: FrontendContractUuid; weekOffset: number };"
 
     it "derives primitive TypeScript aliases from the wire primitive registry" do

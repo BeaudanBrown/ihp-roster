@@ -68,7 +68,7 @@ contractSchemas contract =
            | global <- contract.contractGlobals
            , Contract.GlobalEventIR _ marker _ fields <- global.globalPrimitives
            ]
-        <> concatMap (.surfaceDtos) contract.contractSurfaces
+        <> concatMap (map (.surfaceDtoSchema) . (.surfaceDtos)) contract.contractSurfaces
 
 schemaLabel :: Contract.SchemaIR -> Text
 schemaLabel = schemaName

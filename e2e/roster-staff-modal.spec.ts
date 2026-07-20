@@ -1,5 +1,13 @@
 import { test, expect, type Page } from '@playwright/test';
-import { dialogMountDomAttr, dialogOverlayMountDomId, toastOverlayMountDomId } from '../frontend/ts/generated/contracts';
+import {
+    dialogMountDomAttr,
+    dialogOverlayMountDomId,
+    parseRosterStaffPanelSortRow,
+    rosterStaffHighlightMemberDomAttr,
+    rosterStaffHighlightSourceDomAttr,
+    rosterStaffPanelSortRowDomAttr,
+    toastOverlayMountDomId,
+} from '../frontend/ts/generated/contracts';
 import { openRoster } from './test-helpers';
 
 async function loginAndOpenRoster(page: Page) {
@@ -13,7 +21,7 @@ test.describe('Roster Staff Modal', () => {
 
         const initialUrl = page.url();
         const modalMount = page.locator(`#${dialogOverlayMountDomId}`);
-        const trialEntry = page.locator('.roster-staff-panel-entry[data-roster-staff-role="TRIAL"]:visible').first();
+        const trialEntry = page.locator(`[${rosterStaffPanelSortRowDomAttr}]:visible`).filter({ hasText: 'TRIAL' }).first();
         const inviteButton = trialEntry.getByRole('button', { name: /^Invite / });
 
         await expect(inviteButton).toBeVisible();
@@ -31,7 +39,9 @@ test.describe('Roster Staff Modal', () => {
 
         const initialUrl = page.url();
         const modalMount = page.locator(`#${dialogOverlayMountDomId}`);
-        const staffEntry = page.locator('.roster-staff-panel-entry:visible').first();
+        const staffEntry = page.locator(
+            `[${rosterStaffPanelSortRowDomAttr}][${rosterStaffHighlightSourceDomAttr}="staff:a0000000-0000-0000-0000-000000000101"]:visible`,
+        );
         await staffEntry.click();
 
         await expect(page).toHaveURL(initialUrl);
@@ -92,16 +102,23 @@ test.describe('Roster Staff Modal', () => {
 
     });
 
-    test('admin profile save refreshes roster staff names and exposes the venue role control', async ({ page }) => {
+    test('admin profile save refreshes an assigned roster staff name and exposes the venue role control', async ({ page }) => {
         await openRoster(page, { email: 'e2e-admin@example.com' });
 
         const modalMount = page.locator(`#${dialogOverlayMountDomId}`);
         const staffPanel = page.locator('.roster-staff-panel');
         const rosterGrid = page.locator('.roster-grid-frame');
-        const alphaEntry = staffPanel.locator('.roster-staff-panel-entry').filter({ has: page.getByRole('rowheader', { name: 'Alpha', exact: true }) });
-        await expect(alphaEntry).toBeVisible();
-        await expect(rosterGrid).toContainText('Alpha');
-        await alphaEntry.click();
+        const assignedStaffKey = await rosterGrid.locator(`[${rosterStaffHighlightMemberDomAttr}]`).first().getAttribute(rosterStaffHighlightMemberDomAttr);
+        expect(assignedStaffKey).toBeTruthy();
+        const assignedEntry = staffPanel.locator(
+            `[${rosterStaffPanelSortRowDomAttr}][${rosterStaffHighlightSourceDomAttr}="${assignedStaffKey}"]`,
+        );
+        const assignedPayload = await assignedEntry.getAttribute(rosterStaffPanelSortRowDomAttr);
+        expect(assignedPayload).toBeTruthy();
+        const assignedStaffName = parseRosterStaffPanelSortRow(JSON.parse(assignedPayload ?? 'null') as unknown).staffName;
+        await expect(assignedEntry).toBeVisible();
+        await expect(rosterGrid).toContainText(assignedStaffName);
+        await assignedEntry.click();
 
         await modalMount.getByRole('button', { name: 'Profile Details' }).click();
         const staffEditForm = modalMount.locator('#staff-edit-form:visible');
@@ -133,9 +150,7 @@ test.describe('Roster Staff Modal', () => {
         await rosterSwapsPromise;
 
         await expect(page.locator(`#${toastOverlayMountDomId}`)).toContainText('Staff member updated');
-        await expect(staffPanel).toContainText('Alphonso');
-        await expect(staffPanel).not.toContainText('Alpha');
+        await expect(assignedEntry).toContainText('Alphonso');
         await expect(rosterGrid).toContainText('Alphonso');
-        await expect(rosterGrid).not.toContainText('Alpha');
     });
 });

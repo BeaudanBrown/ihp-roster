@@ -66,6 +66,8 @@ data ReflectedPrimitive
     | ReflectedBrowserRole !BrowserAttributeIR
     | ReflectedBrowserState !BrowserAttributeIR
     | ReflectedLinkedHighlight !LinkedHighlightIR
+    | ReflectedCompleteSetSort !CompleteSetSortIR
+    | ReflectedTabSet !TabSetIR
     | ReflectedLayer !Text
     | ReflectedPolicy !ConflictPolicyIR
     | ReflectedLoadPolicy !Text
@@ -73,7 +75,7 @@ data ReflectedPrimitive
     | ReflectedClientEvent !Text ![FieldIR]
     | ReflectedDomToken !Text
     | ReflectedBrowserDomToken !Text
-    | ReflectedDto !Text ![FieldIR]
+    | ReflectedDto !BrowserReachabilityIR !Text ![FieldIR]
 
 class ReflectPrimitive (primitive :: SurfacePrimitive) where
     reflectPrimitive :: ReflectedPrimitive
@@ -173,6 +175,42 @@ instance
         , linkedHighlightEffects = reflectLinkedHighlightEffectList @effects
         }
 
+instance
+    ( Typeable marker
+    , Typeable rootRole
+    , Typeable rowRole
+    , Typeable controlRole
+    , Typeable rowDto
+    , ReflectCompleteSetSortKeyList keys
+    , Typeable defaultKey
+    , ReflectCompleteSetSortDirection defaultDirection
+    ) => ReflectPrimitive ('CompleteSetSort marker rootRole rowRole controlRole rowDto keys defaultKey defaultDirection) where
+    reflectPrimitive = ReflectedCompleteSetSort CompleteSetSortIR
+        { completeSetSortMarker = typeMarker @marker
+        , completeSetSortName = protocolName @marker DomTokenName
+        , completeSetSortRootRole = reflectedBrowserAttribute @rootRole BrowserRoleName
+        , completeSetSortRowRole = reflectedBrowserAttribute @rowRole BrowserRoleName
+        , completeSetSortControlRole = reflectedBrowserAttribute @controlRole BrowserRoleName
+        , completeSetSortRowDtoMarker = typeMarker @rowDto
+        , completeSetSortKeys = reflectCompleteSetSortKeyList @keys
+        , completeSetSortDefaultKey = protocolName @defaultKey SortKeyName
+        , completeSetSortDefaultDirection = reflectCompleteSetSortDirection @defaultDirection
+        }
+
+instance
+    ( Typeable marker
+    , Typeable tabRole
+    , ReflectMarkerList keys
+    , Typeable defaultKey
+    ) => ReflectPrimitive ('TabSet marker tabRole keys defaultKey) where
+    reflectPrimitive = ReflectedTabSet TabSetIR
+        { tabSetMarker = typeMarker @marker
+        , tabSetName = protocolName @marker DomTokenName
+        , tabSetRole = reflectedBrowserAttribute @tabRole BrowserRoleName
+        , tabSetKeys = reflectMarkerList @keys TabKeyName
+        , tabSetDefaultKey = protocolName @defaultKey TabKeyName
+        }
+
 instance (Typeable marker, ReflectInteractionSessionOptionList options) => ReflectPrimitive ('Session marker options) where
     reflectPrimitive =
         let reflectedOptions = reflectInteractionSessionOptionList @options
@@ -199,8 +237,18 @@ instance Typeable marker => ReflectPrimitive ('DomToken marker) where
 instance Typeable marker => ReflectPrimitive ('BrowserDomToken marker) where
     reflectPrimitive = ReflectedBrowserDomToken (protocolName @marker DomTokenName)
 
-instance (Typeable marker, ReflectFieldList fields) => ReflectPrimitive ('Dto marker fields) where
-    reflectPrimitive = ReflectedDto (typeMarker @marker) (reflectFieldList @fields)
+instance (ReflectBrowserReachability reachability, Typeable marker, ReflectFieldList fields) => ReflectPrimitive ('SurfaceDto reachability marker fields) where
+    reflectPrimitive = ReflectedDto (reflectBrowserReachability @reachability) (typeMarker @marker) (reflectFieldList @fields)
+
+class ReflectBrowserReachability (reachability :: BrowserReachability) where
+    reflectBrowserReachability :: BrowserReachabilityIR
+
+instance ReflectBrowserReachability 'BrowserUnreachable where reflectBrowserReachability = BrowserUnreachableIR
+instance ReflectBrowserReachability 'BrowserTypeOnly where reflectBrowserReachability = BrowserTypeOnlyIR
+instance ReflectBrowserReachability 'BrowserGuard where reflectBrowserReachability = BrowserGuardIR
+instance ReflectBrowserReachability 'BrowserInbound where reflectBrowserReachability = BrowserInboundIR
+instance ReflectBrowserReachability 'BrowserOutbound where reflectBrowserReachability = BrowserOutboundIR
+instance ReflectBrowserReachability 'BrowserBidirectional where reflectBrowserReachability = BrowserBidirectionalIR
 
 class ReflectFieldList (fields :: [FieldSpec]) where
     reflectFieldList :: [FieldIR]
@@ -407,6 +455,68 @@ instance (ReflectInteractionEffect effect, ReflectInteractionSessionOptionList r
     reflectInteractionSessionOptionList =
         let reflectedRest = reflectInteractionSessionOptionList @rest
          in reflectedRest { reflectedSessionEffects = reflectInteractionEffect @effect : reflectedRest.reflectedSessionEffects }
+
+class ReflectCompleteSetSortKeyList (keys :: [CompleteSetSortKeySpec]) where
+    reflectCompleteSetSortKeyList :: [CompleteSetSortKeyIR]
+
+instance ReflectCompleteSetSortKeyList '[] where
+    reflectCompleteSetSortKeyList = []
+
+instance (ReflectCompleteSetSortKey key, ReflectCompleteSetSortKeyList rest) => ReflectCompleteSetSortKeyList (key ': rest) where
+    reflectCompleteSetSortKeyList = reflectCompleteSetSortKey @key : reflectCompleteSetSortKeyList @rest
+
+class ReflectCompleteSetSortKey (key :: CompleteSetSortKeySpec) where
+    reflectCompleteSetSortKey :: CompleteSetSortKeyIR
+
+instance (Typeable marker, ReflectCompleteSetSortComparatorList comparators) => ReflectCompleteSetSortKey ('SortKey marker comparators) where
+    reflectCompleteSetSortKey = CompleteSetSortKeyIR
+        { completeSetSortKeyMarker = typeMarker @marker
+        , completeSetSortKeyName = protocolName @marker SortKeyName
+        , completeSetSortKeyComparators = reflectCompleteSetSortComparatorList @comparators
+        }
+
+class ReflectCompleteSetSortComparatorList (comparators :: [CompleteSetSortComparator]) where
+    reflectCompleteSetSortComparatorList :: [CompleteSetSortComparatorIR]
+
+instance ReflectCompleteSetSortComparatorList '[] where
+    reflectCompleteSetSortComparatorList = []
+
+instance (ReflectCompleteSetSortComparator comparator, ReflectCompleteSetSortComparatorList rest) => ReflectCompleteSetSortComparatorList (comparator ': rest) where
+    reflectCompleteSetSortComparatorList = reflectCompleteSetSortComparator @comparator : reflectCompleteSetSortComparatorList @rest
+
+class ReflectCompleteSetSortComparator (comparator :: CompleteSetSortComparator) where
+    reflectCompleteSetSortComparator :: CompleteSetSortComparatorIR
+
+instance
+    ( Typeable field
+    , ReflectCompleteSetSortValueType valueType
+    , ReflectCompleteSetSortComparatorDirection direction
+    ) => ReflectCompleteSetSortComparator ('SortComparator field valueType direction) where
+    reflectCompleteSetSortComparator = CompleteSetSortComparatorIR
+        { completeSetSortComparatorFieldMarker = typeMarker @field
+        , completeSetSortComparatorField = protocolName @field FieldName
+        , completeSetSortComparatorValueType = reflectCompleteSetSortValueType @valueType
+        , completeSetSortComparatorDirection = reflectCompleteSetSortComparatorDirection @direction
+        }
+
+class ReflectCompleteSetSortValueType (valueType :: CompleteSetSortValueType) where
+    reflectCompleteSetSortValueType :: CompleteSetSortValueTypeIR
+
+instance ReflectCompleteSetSortValueType 'SortText where reflectCompleteSetSortValueType = CompleteSetSortTextIR
+instance ReflectCompleteSetSortValueType 'SortInteger where reflectCompleteSetSortValueType = CompleteSetSortIntegerIR
+instance ReflectCompleteSetSortValueType 'SortOpaque where reflectCompleteSetSortValueType = CompleteSetSortOpaqueIR
+
+class ReflectCompleteSetSortComparatorDirection (direction :: CompleteSetSortComparatorDirection) where
+    reflectCompleteSetSortComparatorDirection :: CompleteSetSortComparatorDirectionIR
+
+instance ReflectCompleteSetSortComparatorDirection 'FollowSortDirection where reflectCompleteSetSortComparatorDirection = CompleteSetSortSelectedDirectionIR
+instance ReflectCompleteSetSortComparatorDirection 'AlwaysAscending where reflectCompleteSetSortComparatorDirection = CompleteSetSortAscendingComparatorIR
+
+class ReflectCompleteSetSortDirection (direction :: CompleteSetSortDirection) where
+    reflectCompleteSetSortDirection :: CompleteSetSortDirectionIR
+
+instance ReflectCompleteSetSortDirection 'SortAscending where reflectCompleteSetSortDirection = CompleteSetSortAscendingIR
+instance ReflectCompleteSetSortDirection 'SortDescending where reflectCompleteSetSortDirection = CompleteSetSortDescendingIR
 
 class ReflectInteractionEffectList (effects :: [InteractionEffect]) where
     reflectInteractionEffectList :: [InteractionEffectIR]
@@ -628,6 +738,12 @@ addPrimitives primitives surface =
             ReflectedLinkedHighlight highlight -> current
                 { surfaceLinkedHighlights = current.surfaceLinkedHighlights <> [qualifyLinkedHighlight current.surfaceName highlight]
                 }
+            ReflectedCompleteSetSort sortDefinition -> current
+                { surfaceCompleteSetSorts = current.surfaceCompleteSetSorts <> [qualifyCompleteSetSort current.surfaceName sortDefinition]
+                }
+            ReflectedTabSet tabSet -> current
+                { surfaceTabSets = current.surfaceTabSets <> [qualifyTabSet current.surfaceName tabSet]
+                }
             ReflectedLayer name -> current { surfaceLayers = current.surfaceLayers <> [name] }
             ReflectedPolicy policy -> current { surfacePolicies = current.surfacePolicies <> [policy] }
             ReflectedLoadPolicy name -> current { surfaceLoadPolicies = current.surfaceLoadPolicies <> [name] }
@@ -638,7 +754,9 @@ addPrimitives primitives surface =
                 { surfaceDomTokens = current.surfaceDomTokens <> [name]
                 , surfaceBrowserDomTokens = current.surfaceBrowserDomTokens <> [name]
                 }
-            ReflectedDto marker fields -> current { surfaceDtos = current.surfaceDtos <> [RecordIR marker marker fields] }
+            ReflectedDto reachability marker fields -> current
+                { surfaceDtos = current.surfaceDtos <> [SurfaceDtoIR reachability (RecordIR marker marker fields)]
+                }
 
 emptySurface :: SurfaceIR
 emptySurface = SurfaceIR
@@ -656,6 +774,8 @@ emptySurface = SurfaceIR
     , surfaceBrowserRoles = []
     , surfaceBrowserStates = []
     , surfaceLinkedHighlights = []
+    , surfaceCompleteSetSorts = []
+    , surfaceTabSets = []
     , surfaceLayers = []
     , surfacePolicies = []
     , surfaceLoadPolicies = []
@@ -665,6 +785,18 @@ emptySurface = SurfaceIR
     , surfaceBrowserDomTokens = []
     , surfaceDtos = []
     }
+
+qualifyTabSet :: Text -> TabSetIR -> TabSetIR
+qualifyTabSet surfaceName tabSet =
+    tabSet { tabSetRole = qualifyBrowserAttribute surfaceName tabSet.tabSetRole }
+
+qualifyCompleteSetSort :: Text -> CompleteSetSortIR -> CompleteSetSortIR
+qualifyCompleteSetSort surfaceName sortDefinition =
+    sortDefinition
+        { completeSetSortRootRole = qualifyBrowserAttribute surfaceName sortDefinition.completeSetSortRootRole
+        , completeSetSortRowRole = qualifyBrowserAttribute surfaceName sortDefinition.completeSetSortRowRole
+        , completeSetSortControlRole = qualifyBrowserAttribute surfaceName sortDefinition.completeSetSortControlRole
+        }
 
 qualifyLinkedHighlight :: Text -> LinkedHighlightIR -> LinkedHighlightIR
 qualifyLinkedHighlight surfaceName highlight =

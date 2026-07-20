@@ -11,7 +11,6 @@ module Application.Helper.FrontendContract.IR
     , GlobalIR (..)
     , GlobalPrimitiveIR (..)
     , GlobalProjectionIR (..)
-    , BrowserReachabilityIR (..)
     , checkedFrontendContractIR
     , validateFrontendContractIR
     ) where
@@ -41,15 +40,6 @@ data GlobalIR = GlobalIR
     , globalName       :: !Text
     , globalPrimitives :: ![GlobalPrimitiveIR]
     }
-    deriving (Eq, Show)
-
-data BrowserReachabilityIR
-    = BrowserUnreachableIR
-    | BrowserTypeOnlyIR
-    | BrowserGuardIR
-    | BrowserInboundIR
-    | BrowserOutboundIR
-    | BrowserBidirectionalIR
     deriving (Eq, Show)
 
 data GlobalProjectionIR
@@ -95,7 +85,7 @@ validateFrontendContractIR contract =
         <> unresolvedReferenceDiagnostics declaredRefs referencedRefs
   where
     uniqueSurfaceDtos = List.nub (concatMap (.surfaceDtos) contract.contractSurfaces)
-    schemaNames = concatMap globalSchemas contract.contractGlobals <> map schemaNameAndMarker uniqueSurfaceDtos
+    schemaNames = concatMap globalSchemas contract.contractGlobals <> map (schemaNameAndMarker . (.surfaceDtoSchema)) uniqueSurfaceDtos
     declaredRefs = Set.fromList (fmap fst schemaNames)
     referencedRefs = concatMap globalRefs contract.contractGlobals <> concatMap surfaceRefs contract.contractSurfaces
     globalPrimitiveNames = concatMap globalNamedPrimitives contract.contractGlobals
@@ -179,7 +169,7 @@ surfaceRefs surface =
             <> concatMap (.htmxActionFields) surface.surfaceHtmxActions
             <> concatMap (.intentFields) surface.surfaceIntents
             <> concatMap snd surface.surfaceClientEvents
-            <> concatMap schemaFields surface.surfaceDtos
+            <> concatMap (schemaFields . (.surfaceDtoSchema)) surface.surfaceDtos
             <> concatMap
                 (concatMap (resourceFields . dependencyResource) . optionResourceDependencies . (.fragmentOptions))
                 surface.surfaceFragments

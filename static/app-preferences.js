@@ -4,22 +4,23 @@
   function isRecord(value) {
     return typeof value === "object" && value !== null && !Array.isArray(value);
   }
-  function hasExactKeys(value, keys) {
-    return Object.keys(value).every((key) => keys.includes(key));
+  function hasExactKeys(value, keys, requiredKeys = keys) {
+    const valueKeys = Object.keys(value);
+    return valueKeys.every((key) => keys.includes(key)) && requiredKeys.every((key) => Object.prototype.hasOwnProperty.call(value, key));
   }
   var pageReadyEvent = "bepis:page-ready";
   function isOrderedRangeCrossingPolicy(value) {
     return typeof value === "string" && ["clamp-other-endpoint"].includes(value);
   }
   function isOrderedRangeConfig(value) {
-    return isRecord(value) && hasExactKeys(value, ["minimumValue", "maximumValue", "stepValue", "defaultStartValue", "defaultEndValue", "valueLabels", "crossingPolicy"]) && (typeof value["minimumValue"] === "number" && Number.isInteger(value["minimumValue"])) && (typeof value["maximumValue"] === "number" && Number.isInteger(value["maximumValue"])) && (typeof value["stepValue"] === "number" && Number.isInteger(value["stepValue"])) && (typeof value["defaultStartValue"] === "number" && Number.isInteger(value["defaultStartValue"])) && (typeof value["defaultEndValue"] === "number" && Number.isInteger(value["defaultEndValue"])) && (Array.isArray(value["valueLabels"]) && value["valueLabels"].every((item) => typeof item === "string")) && isOrderedRangeCrossingPolicy(value["crossingPolicy"]);
+    return isRecord(value) && hasExactKeys(value, ["minimumValue", "maximumValue", "stepValue", "defaultStartValue", "defaultEndValue", "valueLabels", "crossingPolicy"], ["minimumValue", "maximumValue", "stepValue", "defaultStartValue", "defaultEndValue", "valueLabels", "crossingPolicy"]) && (typeof value["minimumValue"] === "number" && Number.isInteger(value["minimumValue"])) && (typeof value["maximumValue"] === "number" && Number.isInteger(value["maximumValue"])) && (typeof value["stepValue"] === "number" && Number.isInteger(value["stepValue"])) && (typeof value["defaultStartValue"] === "number" && Number.isInteger(value["defaultStartValue"])) && (typeof value["defaultEndValue"] === "number" && Number.isInteger(value["defaultEndValue"])) && (Array.isArray(value["valueLabels"]) && value["valueLabels"].every((item) => typeof item === "string")) && isOrderedRangeCrossingPolicy(value["crossingPolicy"]);
   }
   function parseOrderedRangeConfig(value) {
     if (isOrderedRangeConfig(value)) return value;
     throw new Error("Invalid OrderedRangeConfig");
   }
   function isOrderedRangeState(value) {
-    return isRecord(value) && hasExactKeys(value, ["startValue", "endValue", "available"]) && (typeof value["startValue"] === "number" && Number.isInteger(value["startValue"])) && (typeof value["endValue"] === "number" && Number.isInteger(value["endValue"])) && typeof value["available"] === "boolean";
+    return isRecord(value) && hasExactKeys(value, ["startValue", "endValue", "available"], ["startValue", "endValue", "available"]) && (typeof value["startValue"] === "number" && Number.isInteger(value["startValue"])) && (typeof value["endValue"] === "number" && Number.isInteger(value["endValue"])) && typeof value["available"] === "boolean";
   }
   function parseOrderedRangeState(value) {
     if (isOrderedRangeState(value)) return value;

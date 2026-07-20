@@ -66,7 +66,14 @@ browserReachableWires contract =
         _ -> []
     surfaceWires surface =
         fmap (.fieldWire)
-            (concatMap (.scopeFields) surface.surfaceScopes <> concatMap (.fragmentParams) surface.surfaceFragments)
+            ( concatMap (.scopeFields) surface.surfaceScopes
+                <> concatMap (.fragmentParams) surface.surfaceFragments
+                <> concatMap reachableDtoFields surface.surfaceDtos
+            )
+    reachableDtoFields dto =
+        case dto.surfaceDtoReachability of
+            BrowserUnreachableIR -> []
+            _                    -> schemaFields dto.surfaceDtoSchema
 
 wireContains :: WireIR -> WireIR -> Bool
 wireContains expected wire
@@ -85,8 +92,9 @@ header contract =
            , "function isRecord(value: unknown): value is Record<string, unknown> {"
            , "    return typeof value === \"object\" && value !== null && !Array.isArray(value);"
            , "}"
-           , "function hasExactKeys(value: Record<string, unknown>, keys: readonly string[]): boolean {"
-           , "    return Object.keys(value).every((key) => keys.includes(key));"
+           , "function hasExactKeys(value: Record<string, unknown>, keys: readonly string[], requiredKeys: readonly string[] = keys): boolean {"
+           , "    const valueKeys = Object.keys(value);"
+           , "    return valueKeys.every((key) => keys.includes(key)) && requiredKeys.every((key) => Object.prototype.hasOwnProperty.call(value, key));"
            , "}"
            , ""
            ]
@@ -342,14 +350,23 @@ renderInteractionDomGroup primitives =
 
 renderSurface :: SurfaceIR -> [Text]
 renderSurface surface =
-    concatMap (renderScope surface) surface.surfaceScopes
+    concatMap renderSurfaceDto surface.surfaceDtos
+        <> concatMap (renderScope surface) surface.surfaceScopes
         <> concatMap (renderFragment surface) surface.surfaceFragments
+
+renderSurfaceDto :: SurfaceDtoIR -> [Text]
+renderSurfaceDto dto =
+    case dto.surfaceDtoReachability of
+        BrowserUnreachableIR -> []
+        reachability -> renderSchemaFor reachability dto.surfaceDtoSchema
 
 renderFrontendSurfaceRuntime :: [SurfaceIR] -> [Text]
 renderFrontendSurfaceRuntime surfaces =
     renderFrontendSurfaceBrandAliases surfaces
         <> concatMap renderFrontendSurfaceDomTokenConstants surfaces
         <> concatMap renderFrontendSurfaceBrowserAttributeConstants surfaces
+        <> concatMap renderFrontendSurfaceCompleteSetSortKeyTypes surfaces
+        <> concatMap renderFrontendSurfaceTabSetKeyTypes surfaces
         <> renderFrontendSurfaceRegistries surfaces
         <> renderFrontendSurfaceMountConfigTypes surfaces
 
@@ -373,7 +390,12 @@ surfaceFields surface =
         <> concatMap (.htmxActionFields) surface.surfaceHtmxActions
         <> concatMap (.intentFields) surface.surfaceIntents
         <> concatMap snd surface.surfaceClientEvents
-        <> concatMap schemaFields surface.surfaceDtos
+        <> concatMap reachableDtoFields surface.surfaceDtos
+  where
+    reachableDtoFields dto =
+        case dto.surfaceDtoReachability of
+            BrowserUnreachableIR -> []
+            _                    -> schemaFields dto.surfaceDtoSchema
 
 isUuidWire :: WireIR -> Bool
 isUuidWire = \case
@@ -403,6 +425,8 @@ renderFrontendSurfaceRegistries :: [SurfaceIR] -> [Text]
 renderFrontendSurfaceRegistries surfaces =
     ["export type FrontendSurfaceName = " <> renderStringUnion (fmap (.surfaceName) surfaces) <> ";"]
         <> renderFrontendSurfaceLinkedHighlightContracts surfaces
+        <> renderFrontendSurfaceCompleteSetSortContracts surfaces
+        <> renderFrontendSurfaceTabSetContracts surfaces
         <> [ "export const FrontendSurfaceFragmentRegistry = " <> objectLiteral fragmentEntries <> " as const;"
            , "export function isFrontendSurfaceName(value: unknown): value is FrontendSurfaceName {"
            , "    return typeof value === \"string\" && Object.prototype.hasOwnProperty.call(FrontendSurfaceFragmentRegistry, value);"
@@ -423,6 +447,100 @@ renderFrontendSurfaceRegistries surfaces =
         | surface <- surfaces
         , surfaceHasBrowserInteraction surface
         ]
+
+renderFrontendSurfaceTabSetKeyTypes :: SurfaceIR -> [Text]
+renderFrontendSurfaceTabSetKeyTypes surface =
+    concatMap renderKeyType surface.surfaceTabSets
+  where
+    renderKeyType tabSet = renderTopLevelStringUnion (tabSetKeyTypeName tabSet) tabSet.tabSetKeys
+
+tabSetKeyTypeName :: TabSetIR -> Text
+tabSetKeyTypeName tabSet = typeNameFromMarker tabSet.tabSetMarker <> "Key"
+
+renderFrontendSurfaceTabSetContracts :: [SurfaceIR] -> [Text]
+renderFrontendSurfaceTabSetContracts surfaces =
+    [ "export type FrontendSurfaceTabSetDefinition = { name: string; tabRoleAttribute: string; keys: ReadonlyArray<string>; defaultKey: string; isKey: (value: unknown) => boolean };"
+    , "export const FrontendSurfaceTabSetRegistry: Record<FrontendSurfaceName, ReadonlyArray<FrontendSurfaceTabSetDefinition>> = " <> objectLiteral entries <> ";"
+    , ""
+    ]
+  where
+    entries =
+        [ (surface.surfaceName, arrayLiteral (map (renderTabSet surface) surface.surfaceTabSets))
+        | surface <- surfaces
+        ]
+
+renderTabSet :: SurfaceIR -> TabSetIR -> Text
+renderTabSet surface tabSet = objectLiteral
+    [ ("name", quote tabSet.tabSetName)
+    , ("tabRoleAttribute", surfaceBrowserAttributeConstName surface tabSet.tabSetRole)
+    , ("keys", arrayLiteral (map quote tabSet.tabSetKeys))
+    , ("defaultKey", quote tabSet.tabSetDefaultKey)
+    , ("isKey", "is" <> tabSetKeyTypeName tabSet)
+    ]
+
+renderFrontendSurfaceCompleteSetSortKeyTypes :: SurfaceIR -> [Text]
+renderFrontendSurfaceCompleteSetSortKeyTypes surface =
+    concatMap renderKeyType surface.surfaceCompleteSetSorts
+  where
+    renderKeyType sortDefinition =
+        renderTopLevelStringUnion
+            (completeSetSortKeyTypeName sortDefinition)
+            (map (.completeSetSortKeyName) sortDefinition.completeSetSortKeys)
+
+completeSetSortKeyTypeName :: CompleteSetSortIR -> Text
+completeSetSortKeyTypeName sortDefinition = typeNameFromMarker sortDefinition.completeSetSortMarker <> "Key"
+
+renderFrontendSurfaceCompleteSetSortContracts :: [SurfaceIR] -> [Text]
+renderFrontendSurfaceCompleteSetSortContracts surfaces =
+    [ "export type FrontendSurfaceCompleteSetSortValueType = " <> renderStringUnion valueTypeNames <> ";"
+    , "export type FrontendSurfaceCompleteSetSortComparatorDirection = " <> renderStringUnion comparatorDirectionNames <> ";"
+    , "export type FrontendSurfaceCompleteSetSortDirection = " <> renderStringUnion directionNames <> ";"
+    , "export type FrontendSurfaceCompleteSetSortComparator = { field: string; valueType: FrontendSurfaceCompleteSetSortValueType; direction: FrontendSurfaceCompleteSetSortComparatorDirection; read: (row: unknown) => unknown };"
+    , "export type FrontendSurfaceCompleteSetSortKeyDefinition = { key: string; comparators: ReadonlyArray<FrontendSurfaceCompleteSetSortComparator> };"
+    , "export type FrontendSurfaceCompleteSetSortDefinition = { name: string; rootRoleAttribute: string; rowRoleAttribute: string; controlRoleAttribute: string; parseRow: (value: unknown) => unknown; isKey: (value: unknown) => boolean; keys: ReadonlyArray<FrontendSurfaceCompleteSetSortKeyDefinition>; defaultKey: string; defaultDirection: FrontendSurfaceCompleteSetSortDirection };"
+    , "export const FrontendSurfaceCompleteSetSortRegistry: Record<FrontendSurfaceName, ReadonlyArray<FrontendSurfaceCompleteSetSortDefinition>> = " <> objectLiteral entries <> ";"
+    , ""
+    ]
+  where
+    valueTypeNames = map completeSetSortValueTypeName [CompleteSetSortTextIR, CompleteSetSortIntegerIR, CompleteSetSortOpaqueIR]
+    comparatorDirectionNames = map completeSetSortComparatorDirectionName [CompleteSetSortSelectedDirectionIR, CompleteSetSortAscendingComparatorIR]
+    directionNames = map completeSetSortDirectionName [CompleteSetSortAscendingIR, CompleteSetSortDescendingIR]
+    entries =
+        [ (surface.surfaceName, arrayLiteral (map (renderCompleteSetSort surface) surface.surfaceCompleteSetSorts))
+        | surface <- surfaces
+        ]
+
+renderCompleteSetSort :: SurfaceIR -> CompleteSetSortIR -> Text
+renderCompleteSetSort surface sortDefinition = objectLiteral
+    [ ("name", quote sortDefinition.completeSetSortName)
+    , ("rootRoleAttribute", surfaceBrowserAttributeConstName surface sortDefinition.completeSetSortRootRole)
+    , ("rowRoleAttribute", surfaceBrowserAttributeConstName surface sortDefinition.completeSetSortRowRole)
+    , ("controlRoleAttribute", surfaceBrowserAttributeConstName surface sortDefinition.completeSetSortControlRole)
+    , ("parseRow", "parse" <> rowDtoName)
+    , ("isKey", "is" <> completeSetSortKeyTypeName sortDefinition)
+    , ("keys", arrayLiteral (map (renderCompleteSetSortKey rowDtoName) sortDefinition.completeSetSortKeys))
+    , ("defaultKey", quote sortDefinition.completeSetSortDefaultKey)
+    , ("defaultDirection", quote (completeSetSortDirectionName sortDefinition.completeSetSortDefaultDirection))
+    ]
+  where
+    rowDtoName =
+        case List.find ((== sortDefinition.completeSetSortRowDtoMarker) . snd . schemaNameAndMarker . (.surfaceDtoSchema)) surface.surfaceDtos of
+            Just dto -> fst (schemaNameAndMarker dto.surfaceDtoSchema)
+            Nothing -> error ("Missing checked complete-set sort row DTO " <> cs sortDefinition.completeSetSortRowDtoMarker)
+
+renderCompleteSetSortKey :: Text -> CompleteSetSortKeyIR -> Text
+renderCompleteSetSortKey rowDtoName key = objectLiteral
+    [ ("key", quote key.completeSetSortKeyName)
+    , ("comparators", arrayLiteral (map (renderCompleteSetSortComparator rowDtoName) key.completeSetSortKeyComparators))
+    ]
+
+renderCompleteSetSortComparator :: Text -> CompleteSetSortComparatorIR -> Text
+renderCompleteSetSortComparator rowDtoName comparator = objectLiteral
+    [ ("field", quote comparator.completeSetSortComparatorField)
+    , ("valueType", quote (completeSetSortValueTypeName comparator.completeSetSortComparatorValueType))
+    , ("direction", quote (completeSetSortComparatorDirectionName comparator.completeSetSortComparatorDirection))
+    , ("read", "(row: unknown) => parse" <> rowDtoName <> "(row)." <> propertyName comparator.completeSetSortComparatorField)
+    ]
 
 renderFrontendSurfaceLinkedHighlightContracts :: [SurfaceIR] -> [Text]
 renderFrontendSurfaceLinkedHighlightContracts surfaces =
@@ -818,7 +936,12 @@ nullableSuffix = \case
 
 recordGuardExpression :: [FieldIR] -> Text
 recordGuardExpression fields =
-    "isRecord(value) && hasExactKeys(value, [" <> Text.intercalate ", " (fmap (quote . (.fieldName)) fields) <> "])" <> mconcat (fmap fieldGuard fields)
+    "isRecord(value) && hasExactKeys(value, ["
+        <> Text.intercalate ", " (fmap (quote . (.fieldName)) fields)
+        <> "], ["
+        <> Text.intercalate ", " (fmap (quote . (.fieldName)) (filter ((/= OptionalFieldPresence) . (.fieldPresence)) fields))
+        <> "])"
+        <> mconcat (fmap fieldGuard fields)
     where
         fieldGuard field =
             let access = "value[" <> quote field.fieldName <> "]"

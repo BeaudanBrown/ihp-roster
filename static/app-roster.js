@@ -1,13 +1,28 @@
 "use strict";
 (() => {
   // frontend/ts/generated/contracts.ts
-  function isRosterStaffSortKey(value) {
-    return typeof value === "string" && ["name", "role", "shifts"].includes(value);
+  function isRecord(value) {
+    return typeof value === "object" && value !== null && !Array.isArray(value);
+  }
+  function hasExactKeys(value, keys, requiredKeys = keys) {
+    const valueKeys = Object.keys(value);
+    return valueKeys.every((key) => keys.includes(key)) && requiredKeys.every((key) => Object.prototype.hasOwnProperty.call(value, key));
   }
   var pageReadyEvent = "bepis:page-ready";
   var surfaceDomAttr = "data-bepis-surface";
+  function isRosterStaffPanelSortRow(value) {
+    return isRecord(value) && hasExactKeys(value, ["staffRowKey", "staffName", "staffRole", "assignedShifts", "idealShifts"], ["staffRowKey", "staffName", "staffRole", "assignedShifts", "idealShifts"]) && typeof value["staffRowKey"] === "string" && typeof value["staffName"] === "string" && typeof value["staffRole"] === "string" && (typeof value["assignedShifts"] === "number" && Number.isInteger(value["assignedShifts"])) && (typeof value["idealShifts"] === "number" && Number.isInteger(value["idealShifts"]));
+  }
+  function parseRosterStaffPanelSortRow(value) {
+    if (isRosterStaffPanelSortRow(value)) return value;
+    throw new Error("Invalid RosterStaffPanelSortRow");
+  }
   var rosterContentDomToken = "roster-content";
   var rosterWeekShellDomToken = "roster-week-shell";
+  var rosterStaffPanelSortRootDomAttr = "data-bepis-roster-staff-panel-sort-root";
+  var rosterStaffPanelSortRowDomAttr = "data-bepis-roster-staff-panel-sort-row";
+  var rosterStaffPanelSortControlDomAttr = "data-bepis-roster-staff-panel-sort-control";
+  var rosterStaffPanelTabDomAttr = "data-bepis-roster-staff-panel-tab";
   var rosterStaffHighlightSourceDomAttr = "data-bepis-roster-staff-highlight-source";
   var rosterStaffHighlightMemberDomAttr = "data-bepis-roster-staff-highlight-member";
   var rosterStaffHighlightPinDomAttr = "data-bepis-roster-staff-highlight-pin";
@@ -16,7 +31,15 @@
   var rosterStaffHighlightOrderDomAttr = "data-bepis-roster-staff-highlight-order";
   var rosterDayTimelineShiftGroupHighlightSourceDomAttr = "data-bepis-roster-day-timeline-shift-group-highlight-source";
   var rosterDayTimelineShiftGroupHighlightMemberDomAttr = "data-bepis-roster-day-timeline-shift-group-highlight-member";
+  function isRosterStaffPanelSortKey(value) {
+    return typeof value === "string" && ["name", "role", "shifts"].includes(value);
+  }
+  function isRosterStaffPanelTabsKey(value) {
+    return typeof value === "string" && ["staff", "settings"].includes(value);
+  }
   var FrontendSurfaceLinkedHighlightRegistry = { "timesheets": [], "roster": [{ "name": "staff-shifts-highlight", "sourceRoleAttribute": rosterStaffHighlightSourceDomAttr, "memberRoleAttribute": rosterStaffHighlightMemberDomAttr, "pinRoleAttribute": rosterStaffHighlightPinDomAttr, "orderStateAttribute": rosterStaffHighlightOrderDomAttr, "activations": ["hover", "focus", "keyboard", "pin"], "effects": ["matching-source", "matching-member", "ordered-member-bounds"] }, { "name": "shift-group-highlight", "sourceRoleAttribute": rosterShiftGroupHighlightSourceDomAttr, "memberRoleAttribute": rosterShiftGroupHighlightMemberDomAttr, "pinRoleAttribute": null, "orderStateAttribute": null, "activations": ["hover", "focus", "keyboard"], "effects": ["matching-member"] }], "roster-day-timeline": [{ "name": "shift-group-highlight", "sourceRoleAttribute": rosterDayTimelineShiftGroupHighlightSourceDomAttr, "memberRoleAttribute": rosterDayTimelineShiftGroupHighlightMemberDomAttr, "pinRoleAttribute": null, "orderStateAttribute": null, "activations": ["hover", "focus", "keyboard"], "effects": ["matching-member"] }], "leave-requests": [], "billing": [], "support": [], "profile": [], "staff": [], "admin-page": [], "admin-xero-page": [], "admin-venue-config": [], "admin-invites": [], "admin-exports": [], "admin-shift-types": [], "admin-roster-groups": [], "admin-xero": [] };
+  var FrontendSurfaceCompleteSetSortRegistry = { "timesheets": [], "roster": [{ "name": "roster-staff-panel-sort", "rootRoleAttribute": rosterStaffPanelSortRootDomAttr, "rowRoleAttribute": rosterStaffPanelSortRowDomAttr, "controlRoleAttribute": rosterStaffPanelSortControlDomAttr, "parseRow": parseRosterStaffPanelSortRow, "isKey": isRosterStaffPanelSortKey, "keys": [{ "key": "name", "comparators": [{ "field": "staffName", "valueType": "text", "direction": "selected", "read": (row) => parseRosterStaffPanelSortRow(row).staffName }, { "field": "staffRowKey", "valueType": "opaque", "direction": "ascending", "read": (row) => parseRosterStaffPanelSortRow(row).staffRowKey }] }, { "key": "role", "comparators": [{ "field": "staffRole", "valueType": "text", "direction": "selected", "read": (row) => parseRosterStaffPanelSortRow(row).staffRole }, { "field": "staffName", "valueType": "text", "direction": "ascending", "read": (row) => parseRosterStaffPanelSortRow(row).staffName }, { "field": "staffRowKey", "valueType": "opaque", "direction": "ascending", "read": (row) => parseRosterStaffPanelSortRow(row).staffRowKey }] }, { "key": "shifts", "comparators": [{ "field": "assignedShifts", "valueType": "integer", "direction": "selected", "read": (row) => parseRosterStaffPanelSortRow(row).assignedShifts }, { "field": "idealShifts", "valueType": "integer", "direction": "selected", "read": (row) => parseRosterStaffPanelSortRow(row).idealShifts }, { "field": "staffName", "valueType": "text", "direction": "ascending", "read": (row) => parseRosterStaffPanelSortRow(row).staffName }, { "field": "staffRowKey", "valueType": "opaque", "direction": "ascending", "read": (row) => parseRosterStaffPanelSortRow(row).staffRowKey }] }], "defaultKey": "name", "defaultDirection": "ascending" }], "roster-day-timeline": [], "leave-requests": [], "billing": [], "support": [], "profile": [], "staff": [], "admin-page": [], "admin-xero-page": [], "admin-venue-config": [], "admin-invites": [], "admin-exports": [], "admin-shift-types": [], "admin-roster-groups": [], "admin-xero": [] };
+  var FrontendSurfaceTabSetRegistry = { "timesheets": [], "roster": [{ "name": "roster-staff-panel-tabs", "tabRoleAttribute": rosterStaffPanelTabDomAttr, "keys": ["staff", "settings"], "defaultKey": "staff", "isKey": isRosterStaffPanelTabsKey }], "roster-day-timeline": [], "leave-requests": [], "billing": [], "support": [], "profile": [], "staff": [], "admin-page": [], "admin-xero-page": [], "admin-venue-config": [], "admin-invites": [], "admin-exports": [], "admin-shift-types": [], "admin-roster-groups": [], "admin-xero": [] };
   var FrontendSurfaceFragmentRegistry = { "timesheets": ["timesheet-toolbar", "timesheet-day-columns", "timesheet-day-section"], "roster": ["roster-content", "roster-grid-toolbar", "roster-grid-frame", "roster-day-columns", "roster-day-rail", "roster-wage-rail", "roster-slots-grid", "roster-staff-panel", "roster-staff-self-service-leave-form", "roster-day-section", "roster-row"], "roster-day-timeline": ["roster-day-timeline-content"], "leave-requests": ["leave-section-count", "leave-section-list"], "billing": ["billing-status"], "support": ["support-award-rates", "support-public-holidays"], "profile": ["profile-details-section", "profile-preferences-section", "profile-security-section", "profile-leave-section", "profile-rsa-section"], "staff": ["staff-details-section", "staff-preferences-section", "staff-leave-section"], "admin-page": [], "admin-xero-page": [], "admin-venue-config": ["admin-venue-settings"], "admin-invites": ["admin-invites"], "admin-exports": ["admin-exports"], "admin-shift-types": ["admin-shift-types"], "admin-roster-groups": ["admin-roster-groups"], "admin-xero": ["admin-xero-shell"] };
   function isFrontendSurfaceName(value) {
     return typeof value === "string" && Object.prototype.hasOwnProperty.call(FrontendSurfaceFragmentRegistry, value);
@@ -717,132 +740,330 @@
     };
   }
 
-  // frontend/ts/roster/staff-sort.ts
-  function rosterParseNumber(value) {
-    const parsed = Number.parseInt(value || "0", 10);
-    return Number.isFinite(parsed) ? parsed : 0;
-  }
-  function rosterStaffSortKeyFrom(value) {
-    return isRosterStaffSortKey(value) ? value : "name";
-  }
-  function compareRosterStaffData(left, right, key, direction) {
-    const directionMultiplier = direction === "descending" ? -1 : 1;
-    const compareText = (leftValue, rightValue) => leftValue.localeCompare(rightValue, void 0, { sensitivity: "base" });
-    const compareNumber = (leftValue, rightValue) => leftValue - rightValue;
-    if (key === "shifts") {
-      const assignedResult = compareNumber(rosterParseNumber(left.assigned), rosterParseNumber(right.assigned)) * directionMultiplier;
-      if (assignedResult !== 0) return assignedResult;
-      const idealResult = compareNumber(rosterParseNumber(left.ideal), rosterParseNumber(right.ideal)) * directionMultiplier;
-      if (idealResult !== 0) return idealResult;
-      return compareText(left.name || "", right.name || "");
+  // frontend/ts/shared/surface-mount.ts
+  function surfaceMountsWithin(root) {
+    const queryRoot = root;
+    const mounts = Array.from(queryRoot.querySelectorAll(`[${surfaceDomAttr}]`)).filter(isSurfaceElementLike);
+    if (isSurfaceElementLike(root)) {
+      const ownerMount = closestSurfaceMount2(root);
+      if (ownerMount && !mounts.includes(ownerMount)) mounts.unshift(ownerMount);
     }
-    if (key === "role") {
-      const roleResult = compareText(left.role || "", right.role || "") * directionMultiplier;
-      if (roleResult !== 0) return roleResult;
-      return compareText(left.name || "", right.name || "");
-    }
-    return compareText(left.name || "", right.name || "") * directionMultiplier;
+    return mounts;
   }
-
-  // frontend/ts/roster/staff-panel-sorting.ts
-  function rowSortData(row) {
-    return {
-      name: row.dataset.rosterStaffName,
-      assigned: row.dataset.rosterStaffAssigned,
-      ideal: row.dataset.rosterStaffIdeal,
-      role: row.dataset.rosterStaffRole
-    };
+  function surfaceDefinitionsForMount(mount, registry) {
+    const surface = mount.getAttribute(surfaceDomAttr);
+    return isFrontendSurfaceName(surface) ? registry[surface] : [];
   }
-  function compareRows(leftRow, rightRow, key, direction) {
-    return compareRosterStaffData(rowSortData(leftRow), rowSortData(rightRow), key, direction);
+  function ownedSurfaceRoleElements(owner, mount, attribute) {
+    return Array.from(owner.querySelectorAll(`[${attribute}]`)).filter(isSurfaceElementLike).filter((element) => closestSurfaceMount2(element) === mount);
   }
-  function normalizeSortDirection(value) {
-    return value === "descending" ? "descending" : "ascending";
+  function closestOwnedSurfaceRole(target, mount, attribute) {
+    const candidate = target.closest(`[${attribute}]`);
+    return isSurfaceElementLike(candidate) && closestSurfaceMount2(candidate) === mount ? candidate : null;
   }
-  function syncSortButtonStates(tableEl, activeKey, direction) {
-    tableEl.querySelectorAll("[data-roster-staff-sort-key]").forEach((buttonEl) => {
-      if (!(buttonEl instanceof HTMLButtonElement)) return;
-      const isActive = buttonEl.dataset.rosterStaffSortKey === activeKey;
-      buttonEl.setAttribute("aria-sort", isActive ? direction : "none");
-      const headerCell = buttonEl.closest("th");
-      if (headerCell instanceof HTMLTableCellElement) {
-        headerCell.setAttribute("aria-sort", isActive ? direction : "none");
-      }
-    });
+  function closestSurfaceRole(target, attribute) {
+    const candidate = target.closest(`[${attribute}]`);
+    return isSurfaceElementLike(candidate) ? candidate : null;
   }
-  function sortRosterStaffTable(tableEl, key, direction) {
-    const tbodyEl = tableEl.querySelector(".roster-staff-table-body");
-    if (!(tbodyEl instanceof HTMLTableSectionElement)) return;
-    const rows = Array.from(tbodyEl.querySelectorAll(".roster-staff-panel-entry")).filter((rowEl) => rowEl instanceof HTMLElement);
-    rows.sort((leftRow, rightRow) => compareRows(leftRow, rightRow, key, direction));
-    rows.forEach((rowEl) => {
-      tbodyEl.appendChild(rowEl);
-    });
-    tableEl.dataset.rosterStaffSortKey = key;
-    tableEl.dataset.rosterStaffSortDirection = direction;
-    syncSortButtonStates(tableEl, key, direction);
+  function closestSurfaceMount2(target) {
+    const mount = target.closest(`[${surfaceDomAttr}]`);
+    return isSurfaceElementLike(mount) ? mount : null;
   }
-  function nextDirection(tableEl, key) {
-    const currentKey = tableEl.dataset.rosterStaffSortKey || "";
-    const currentDirection = tableEl.dataset.rosterStaffSortDirection || "none";
-    if (currentKey === key && currentDirection === "ascending") {
-      return "descending";
-    }
-    return "ascending";
+  function isSurfaceElementLike(value) {
+    if (value === null || typeof value !== "object") return false;
+    const candidate = value;
+    return typeof candidate.appendChild === "function" && typeof candidate.getAttribute === "function" && typeof candidate.setAttribute === "function" && typeof candidate.closest === "function" && typeof candidate.querySelectorAll === "function";
   }
-  function initRosterStaffPanelSortingWithin(root) {
-    root.querySelectorAll(".roster-staff-table").forEach((tableEl) => {
-      if (!(tableEl instanceof HTMLTableElement)) return;
-      const defaultKey = rosterStaffSortKeyFrom(tableEl.dataset.rosterStaffSortKey);
-      const defaultDirection = normalizeSortDirection(tableEl.dataset.rosterStaffSortDirection);
-      sortRosterStaffTable(tableEl, defaultKey, defaultDirection);
-    });
-  }
-  function rootFromPageReadyEvent(event) {
+  function surfaceRootFromPageReadyEvent(event) {
     const target = event.detail?.target;
     return target instanceof Element || target instanceof Document ? target : document;
   }
-  function enableRosterStaffPanelSorting() {
-    if (typeof window === "undefined") return;
+
+  // frontend/ts/complete-set-sort/runtime.ts
+  function defaultDiagnosticReporter(diagnostic3) {
+    console.error?.("Invalid generated complete-set sort boundary", diagnostic3);
+  }
+  function diagnostic(element, code, message) {
+    return { code, elementId: element.id || null, message };
+  }
+  function createCompleteSetSortController(report = defaultDiagnosticReporter) {
+    const statesByRoot = /* @__PURE__ */ new WeakMap();
+    function stateFor(root, definition) {
+      let rootStates = statesByRoot.get(root);
+      if (!rootStates) {
+        rootStates = /* @__PURE__ */ new Map();
+        statesByRoot.set(root, rootStates);
+      }
+      let state = rootStates.get(definition.name);
+      if (!state) {
+        state = { key: definition.defaultKey, direction: definition.defaultDirection };
+        rootStates.set(definition.name, state);
+      }
+      return state;
+    }
+    function reconcile(root) {
+      for (const mount of surfaceMountsWithin(root)) {
+        for (const definition of definitionsForMount2(mount)) {
+          for (const sortRoot of ownedSurfaceRoleElements(mount, mount, definition.rootRoleAttribute)) {
+            if (sortRoot.getAttribute(definition.rootRoleAttribute) !== "true") {
+              report(diagnostic(sortRoot, "invalid-root-role", "Complete-set sort root role must equal true"));
+              continue;
+            }
+            const state = stateFor(sortRoot, definition);
+            applySort({ mount, root: sortRoot, definition }, state);
+          }
+        }
+      }
+    }
+    function activate(target) {
+      if (!isSurfaceElementLike(target)) return false;
+      const mount = closestSurfaceMount2(target);
+      if (!mount) return false;
+      for (const definition of definitionsForMount2(mount)) {
+        const control = closestOwnedSurfaceRole(target, mount, definition.controlRoleAttribute);
+        if (!control) continue;
+        const sortRoot = closestSurfaceRole(control, definition.rootRoleAttribute);
+        if (!sortRoot || closestSurfaceMount2(sortRoot) !== mount) continue;
+        const rawKey = control.getAttribute(definition.controlRoleAttribute);
+        const key = rawKey !== null && definition.isKey(rawKey) ? definition.keys.find((candidate) => candidate.key === rawKey) : void 0;
+        if (!key) {
+          report(diagnostic(control, "invalid-control-key", "Complete-set sort control has an undeclared key"));
+          return false;
+        }
+        const current = stateFor(sortRoot, definition);
+        const next = {
+          key: key.key,
+          direction: current.key === key.key ? oppositeDirection(current.direction) : definition.defaultDirection
+        };
+        if (!applySort({ mount, root: sortRoot, definition }, next)) return false;
+        const rootStates = statesByRoot.get(sortRoot);
+        rootStates?.set(definition.name, next);
+        return true;
+      }
+      return false;
+    }
+    function applySort(context, state) {
+      const key = context.definition.keys.find((candidate) => candidate.key === state.key);
+      if (!key) {
+        report(diagnostic(context.root, "missing-default-key", "Complete-set sort definition has no matching active key"));
+        return false;
+      }
+      const rows = [];
+      for (const row of ownedSurfaceRoleElements(context.root, context.mount, context.definition.rowRoleAttribute)) {
+        const raw = row.getAttribute(context.definition.rowRoleAttribute);
+        try {
+          if (raw === null) throw new Error(`Missing ${context.definition.rowRoleAttribute}`);
+          rows.push({ element: row, value: context.definition.parseRow(JSON.parse(raw)) });
+        } catch (error) {
+          report(diagnostic(
+            row,
+            "invalid-row-payload",
+            error instanceof Error ? error.message : String(error)
+          ));
+          return false;
+        }
+      }
+      const rowParent = rows[0]?.element.parentElement ?? null;
+      if (rows.some((row) => row.element.parentElement !== rowParent) || rows.length > 0 && rowParent === null) {
+        report(diagnostic(context.root, "invalid-row-parent", "Complete-set sort rows must share one local parent"));
+        return false;
+      }
+      try {
+        rows.sort((left, right) => compareRows(left.value, right.value, key.comparators, state.direction));
+      } catch (error) {
+        report(diagnostic(
+          context.root,
+          "invalid-comparator-value",
+          error instanceof Error ? error.message : String(error)
+        ));
+        return false;
+      }
+      if (rowParent) rows.forEach((row) => rowParent.appendChild(row.element));
+      syncControlStates(context, state);
+      return true;
+    }
+    return { activate, reconcile };
+  }
+  function compareRows(left, right, comparators, selectedDirection) {
+    for (const comparator of comparators) {
+      const result = compareValues(
+        comparator.read(left),
+        comparator.read(right),
+        comparator.valueType,
+        comparator.field
+      );
+      if (result === 0) continue;
+      return comparator.direction === "selected" ? result * directionMultiplier(selectedDirection) : result;
+    }
+    return 0;
+  }
+  function compareValues(left, right, valueType, field) {
+    switch (valueType) {
+      case "text":
+        if (typeof left !== "string" || typeof right !== "string") {
+          throw new Error(`Complete-set sort text comparator ${field} received a non-text value`);
+        }
+        return left.localeCompare(right, void 0, { sensitivity: "base" });
+      case "integer":
+        if (!Number.isInteger(left) || !Number.isInteger(right)) {
+          throw new Error(`Complete-set sort integer comparator ${field} received a non-integer value`);
+        }
+        return left - right;
+      case "opaque":
+        if (typeof left !== "string" || typeof right !== "string") {
+          throw new Error(`Complete-set sort opaque comparator ${field} received a non-text value`);
+        }
+        return left === right ? 0 : left < right ? -1 : 1;
+      default:
+        return assertNever(valueType);
+    }
+  }
+  function directionMultiplier(direction) {
+    switch (direction) {
+      case "ascending":
+        return 1;
+      case "descending":
+        return -1;
+      default:
+        return assertNever(direction);
+    }
+  }
+  function oppositeDirection(direction) {
+    switch (direction) {
+      case "ascending":
+        return "descending";
+      case "descending":
+        return "ascending";
+      default:
+        return assertNever(direction);
+    }
+  }
+  function syncControlStates(context, state) {
+    for (const control of ownedSurfaceRoleElements(context.root, context.mount, context.definition.controlRoleAttribute)) {
+      const rawKey = control.getAttribute(context.definition.controlRoleAttribute);
+      const isActive = context.definition.isKey(rawKey) && rawKey === state.key;
+      const ariaSort = isActive ? state.direction : "none";
+      control.setAttribute("aria-sort", ariaSort);
+      const header = control.closest("th");
+      if (isSurfaceElementLike(header) && closestSurfaceRole(header, context.definition.rootRoleAttribute) === context.root) {
+        header.setAttribute("aria-sort", ariaSort);
+      }
+    }
+  }
+  function definitionsForMount2(mount) {
+    return surfaceDefinitionsForMount(mount, FrontendSurfaceCompleteSetSortRegistry);
+  }
+  var browserRuntimeEnabled2 = false;
+  function enableFrontendSurfaceCompleteSetSort() {
+    if (browserRuntimeEnabled2 || typeof document === "undefined") return;
+    browserRuntimeEnabled2 = true;
+    const controller = createCompleteSetSortController();
     document.addEventListener("click", (event) => {
       if (!(event.target instanceof Element)) return;
-      const buttonEl = event.target.closest("[data-roster-staff-sort-key]");
-      if (!(buttonEl instanceof HTMLButtonElement)) return;
-      const tableEl = buttonEl.closest(".roster-staff-table");
-      if (!(tableEl instanceof HTMLTableElement)) return;
-      const key = rosterStaffSortKeyFrom(buttonEl.dataset.rosterStaffSortKey);
-      const direction = nextDirection(tableEl, key);
-      sortRosterStaffTable(tableEl, key, direction);
+      controller.activate(event.target);
     });
-    onAppPageReady((event) => {
-      initRosterStaffPanelSortingWithin(rootFromPageReadyEvent(event));
-    });
+    onAppPageReady((event) => controller.reconcile(surfaceRootFromPageReadyEvent(event)));
+    controller.reconcile(document);
   }
 
-  // frontend/ts/roster/staff-panel-tabs.ts
-  var tabSelector = "[data-roster-staff-panel-tab]";
-  var activeTab = "staff";
-  function tabValue(element) {
-    if (!(element instanceof HTMLElement)) return null;
-    const value = element.dataset.rosterStaffPanelTab;
-    return value === "staff" || value === "settings" ? value : null;
+  // frontend/ts/surface-tab-set/runtime.ts
+  function defaultShowTab(element) {
+    if (!(element instanceof HTMLElement)) return;
+    window.bootstrap?.Tab?.getOrCreateInstance(element).show();
   }
-  function restoreActiveTab() {
-    if (activeTab === "staff") return;
-    const tab = Array.from(document.querySelectorAll(tabSelector)).find((candidate) => tabValue(candidate) === activeTab);
-    if (!(tab instanceof HTMLElement)) return;
-    window.bootstrap?.Tab?.getOrCreateInstance(tab).show();
+  function defaultDiagnosticReporter2(diagnostic3) {
+    console.error?.("Invalid generated Surface tab-set boundary", diagnostic3);
   }
-  function enableRosterStaffPanelTabs() {
-    if (typeof window === "undefined") return;
-    document.addEventListener("click", (event) => {
+  function diagnostic2(element, code, message) {
+    return { code, elementId: element.id || null, message };
+  }
+  function createSurfaceTabSetController(showTab = defaultShowTab, report = defaultDiagnosticReporter2) {
+    const activeKeysByMount = /* @__PURE__ */ new WeakMap();
+    function rememberedKey(mount, definition) {
+      return activeKeysByMount.get(mount)?.get(definition.name) ?? definition.defaultKey;
+    }
+    function setRememberedKey(mount, definition, key) {
+      let activeKeys = activeKeysByMount.get(mount);
+      if (!activeKeys) {
+        activeKeys = /* @__PURE__ */ new Map();
+        activeKeysByMount.set(mount, activeKeys);
+      }
+      activeKeys.set(definition.name, key);
+    }
+    function remember(target) {
+      if (!isSurfaceElementLike(target)) return false;
+      const mount = closestSurfaceMount2(target);
+      if (!mount) return false;
+      for (const definition of definitionsForMount3(mount)) {
+        const tab = closestOwnedSurfaceRole(target, mount, definition.tabRoleAttribute);
+        if (!tab) continue;
+        const key = tab.getAttribute(definition.tabRoleAttribute);
+        if (key === null || !definition.isKey(key)) {
+          report(diagnostic2(tab, "invalid-tab-key", "Surface tab has an undeclared key"));
+          return false;
+        }
+        setRememberedKey(mount, definition, key);
+        return true;
+      }
+      return false;
+    }
+    function reconcile(root) {
+      for (const mount of surfaceMountsWithin(root)) {
+        for (const definition of definitionsForMount3(mount)) {
+          const tabs = ownedSurfaceRoleElements(mount, mount, definition.tabRoleAttribute);
+          const tabsByKey = /* @__PURE__ */ new Map();
+          let valid = true;
+          for (const tab of tabs) {
+            const key = tab.getAttribute(definition.tabRoleAttribute);
+            if (key === null || !definition.isKey(key)) {
+              report(diagnostic2(tab, "invalid-tab-key", "Surface tab has an undeclared key"));
+              valid = false;
+              continue;
+            }
+            const matchingTabs = tabsByKey.get(key) ?? [];
+            matchingTabs.push(tab);
+            tabsByKey.set(key, matchingTabs);
+          }
+          for (const [key, matchingTabs] of tabsByKey) {
+            if (matchingTabs.length <= 1) continue;
+            report(diagnostic2(mount, "duplicate-tab-key", `Surface tab set renders key ${key} more than once`));
+            valid = false;
+          }
+          if (!valid) continue;
+          const remembered = rememberedKey(mount, definition);
+          const desiredKey = tabsByKey.has(remembered) ? remembered : definition.defaultKey;
+          if (desiredKey !== remembered) {
+            report(diagnostic2(mount, "missing-tab-key", `Surface tab set is missing rendered key ${remembered}; restoring ${desiredKey}`));
+            setRememberedKey(mount, definition, desiredKey);
+          }
+          const desiredTabs = tabsByKey.get(desiredKey) ?? [];
+          if (desiredTabs.length === 0) {
+            report(diagnostic2(mount, "missing-tab-key", `Surface tab set is missing rendered default key ${definition.defaultKey}`));
+            continue;
+          }
+          const desiredTab = desiredTabs[0];
+          if (desiredTab?.getAttribute("aria-selected") === "true") continue;
+          showTab(desiredTab);
+        }
+      }
+    }
+    return { remember, reconcile };
+  }
+  function definitionsForMount3(mount) {
+    return surfaceDefinitionsForMount(mount, FrontendSurfaceTabSetRegistry);
+  }
+  var browserRuntimeEnabled3 = false;
+  function enableFrontendSurfaceTabSets() {
+    if (browserRuntimeEnabled3 || typeof document === "undefined") return;
+    browserRuntimeEnabled3 = true;
+    const controller = createSurfaceTabSetController();
+    document.addEventListener("shown.bs.tab", (event) => {
       if (!(event.target instanceof Element)) return;
-      const tab = event.target.closest(tabSelector);
-      const value = tabValue(tab ?? event.target);
-      if (value !== null) activeTab = value;
+      controller.remember(event.target);
     });
-    onAppPageReady(restoreActiveTab);
-    document.addEventListener("htmx:afterSettle", restoreActiveTab);
+    onAppPageReady((event) => controller.reconcile(surfaceRootFromPageReadyEvent(event)));
+    document.addEventListener("htmx:afterSettle", () => controller.reconcile(document));
+    controller.reconcile(document);
   }
 
   // frontend/ts/roster/week-overview.ts
@@ -919,7 +1140,7 @@
   enableRosterFullscreenToggle();
   enableRosterColumnEditMode();
   enableRosterImageExport();
-  enableRosterStaffPanelSorting();
-  enableRosterStaffPanelTabs();
+  enableFrontendSurfaceCompleteSetSort();
+  enableFrontendSurfaceTabSets();
   enableFrontendSurfaceLinkedHighlight();
 })();

@@ -7,8 +7,9 @@ export type FrontendContractUuid = string;
 function isRecord(value: unknown): value is Record<string, unknown> {
     return typeof value === "object" && value !== null && !Array.isArray(value);
 }
-function hasExactKeys(value: Record<string, unknown>, keys: readonly string[]): boolean {
-    return Object.keys(value).every((key) => keys.includes(key));
+function hasExactKeys(value: Record<string, unknown>, keys: readonly string[], requiredKeys: readonly string[] = keys): boolean {
+    const valueKeys = Object.keys(value);
+    return valueKeys.every((key) => keys.includes(key)) && requiredKeys.every((key) => Object.prototype.hasOwnProperty.call(value, key));
 }
 
 export type TimesheetsSurfaceScope =
@@ -112,7 +113,7 @@ export type TimesheetsSurfaceFragmentKey =
   | { kind: "timesheet-day-columns"; params: TimesheetsTimesheetDayColumnsFragmentParams | null }
   | { kind: "timesheet-day-section"; params: TimesheetsTimesheetDaySectionFragmentParams };
 export function isTimesheetsSurfaceFragmentKey(value: unknown): value is TimesheetsSurfaceFragmentKey {
-    return ((isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "timesheet-toolbar" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], []))) || (isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "timesheet-day-columns" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], []))) || (isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "timesheet-day-section" && (isRecord(value["params"]) && hasExactKeys(value["params"], ["dayOffset"]) && (typeof value["params"]["dayOffset"] === "number" && Number.isInteger(value["params"]["dayOffset"])))));
+    return ((isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "timesheet-toolbar" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], []))) || (isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "timesheet-day-columns" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], []))) || (isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "timesheet-day-section" && (isRecord(value["params"]) && hasExactKeys(value["params"], ["dayOffset"], ["dayOffset"]) && (typeof value["params"]["dayOffset"] === "number" && Number.isInteger(value["params"]["dayOffset"])))));
 }
 
 export type RosterSurfaceFragmentKey =
@@ -129,33 +130,33 @@ export type RosterSurfaceFragmentKey =
   | { kind: "roster-day-section"; params: RosterRosterDaySectionFragmentParams }
   | { kind: "roster-row"; params: RosterRosterRowFragmentParams };
 export function isRosterSurfaceFragmentKey(value: unknown): value is RosterSurfaceFragmentKey {
-    return ((isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "roster-content" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], []))) || (isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "roster-grid-toolbar" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], []))) || (isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "roster-grid-frame" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], []))) || (isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "roster-day-columns" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], []))) || (isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "roster-day-rail" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], []))) || (isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "roster-wage-rail" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], []))) || (isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "roster-slots-grid" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], []))) || (isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "roster-staff-panel" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], []))) || (isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "roster-staff-self-service-leave-form" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], []))) || (isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "roster-week-overview" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], []))) || (isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "roster-day-section" && (isRecord(value["params"]) && hasExactKeys(value["params"], ["rosterDayId"]) && (typeof value["params"]["rosterDayId"] === "string"))) || (isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "roster-row" && (isRecord(value["params"]) && hasExactKeys(value["params"], ["rosterDayId", "rowIndex"]) && (typeof value["params"]["rosterDayId"] === "string") && (typeof value["params"]["rowIndex"] === "number" && Number.isInteger(value["params"]["rowIndex"])))));
+    return ((isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "roster-content" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], []))) || (isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "roster-grid-toolbar" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], []))) || (isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "roster-grid-frame" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], []))) || (isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "roster-day-columns" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], []))) || (isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "roster-day-rail" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], []))) || (isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "roster-wage-rail" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], []))) || (isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "roster-slots-grid" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], []))) || (isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "roster-staff-panel" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], []))) || (isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "roster-staff-self-service-leave-form" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], []))) || (isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "roster-week-overview" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], []))) || (isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "roster-day-section" && (isRecord(value["params"]) && hasExactKeys(value["params"], ["rosterDayId"], ["rosterDayId"]) && (typeof value["params"]["rosterDayId"] === "string"))) || (isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "roster-row" && (isRecord(value["params"]) && hasExactKeys(value["params"], ["rosterDayId", "rowIndex"], ["rosterDayId", "rowIndex"]) && (typeof value["params"]["rosterDayId"] === "string") && (typeof value["params"]["rowIndex"] === "number" && Number.isInteger(value["params"]["rowIndex"])))));
 }
 
 export type RosterDayTimelineSurfaceFragmentKey =
     { kind: "roster-day-timeline-content"; params: RosterDayTimelineRosterDayTimelineContentFragmentParams };
 export function isRosterDayTimelineSurfaceFragmentKey(value: unknown): value is RosterDayTimelineSurfaceFragmentKey {
-    return ((isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "roster-day-timeline-content" && (isRecord(value["params"]) && hasExactKeys(value["params"], ["rosterDayId"]) && (typeof value["params"]["rosterDayId"] === "string"))));
+    return ((isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "roster-day-timeline-content" && (isRecord(value["params"]) && hasExactKeys(value["params"], ["rosterDayId"], ["rosterDayId"]) && (typeof value["params"]["rosterDayId"] === "string"))));
 }
 
 export type LeaveRequestsSurfaceFragmentKey =
     { kind: "leave-section-count"; params: LeaveRequestsLeaveSectionCountFragmentParams }
   | { kind: "leave-section-list"; params: LeaveRequestsLeaveSectionListFragmentParams };
 export function isLeaveRequestsSurfaceFragmentKey(value: unknown): value is LeaveRequestsSurfaceFragmentKey {
-    return ((isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "leave-section-count" && (isRecord(value["params"]) && hasExactKeys(value["params"], ["leaveSection"]) && (typeof value["params"]["leaveSection"] === "string"))) || (isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "leave-section-list" && (isRecord(value["params"]) && hasExactKeys(value["params"], ["leaveSection"]) && (typeof value["params"]["leaveSection"] === "string"))));
+    return ((isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "leave-section-count" && (isRecord(value["params"]) && hasExactKeys(value["params"], ["leaveSection"], ["leaveSection"]) && (typeof value["params"]["leaveSection"] === "string"))) || (isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "leave-section-list" && (isRecord(value["params"]) && hasExactKeys(value["params"], ["leaveSection"], ["leaveSection"]) && (typeof value["params"]["leaveSection"] === "string"))));
 }
 
 export type BillingSurfaceFragmentKey =
     { kind: "billing-status"; params: BillingBillingStatusFragmentParams | null };
 export function isBillingSurfaceFragmentKey(value: unknown): value is BillingSurfaceFragmentKey {
-    return ((isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "billing-status" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], []))));
+    return ((isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "billing-status" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], []))));
 }
 
 export type SupportSurfaceFragmentKey =
     { kind: "support-award-rates"; params: SupportSupportAwardRatesFragmentParams | null }
   | { kind: "support-public-holidays"; params: SupportSupportPublicHolidaysFragmentParams | null };
 export function isSupportSurfaceFragmentKey(value: unknown): value is SupportSurfaceFragmentKey {
-    return ((isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "support-award-rates" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], []))) || (isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "support-public-holidays" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], []))));
+    return ((isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "support-award-rates" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], []))) || (isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "support-public-holidays" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], []))));
 }
 
 export type ProfileSurfaceFragmentKey =
@@ -165,7 +166,7 @@ export type ProfileSurfaceFragmentKey =
   | { kind: "profile-leave-section"; params: ProfileProfileLeaveSectionFragmentParams | null }
   | { kind: "profile-rsa-section"; params: ProfileProfileRsaSectionFragmentParams | null };
 export function isProfileSurfaceFragmentKey(value: unknown): value is ProfileSurfaceFragmentKey {
-    return ((isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "profile-details-section" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], []))) || (isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "profile-preferences-section" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], []))) || (isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "profile-security-section" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], []))) || (isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "profile-leave-section" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], []))) || (isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "profile-rsa-section" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], []))));
+    return ((isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "profile-details-section" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], []))) || (isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "profile-preferences-section" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], []))) || (isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "profile-security-section" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], []))) || (isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "profile-leave-section" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], []))) || (isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "profile-rsa-section" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], []))));
 }
 
 export type StaffSurfaceFragmentKey =
@@ -173,55 +174,55 @@ export type StaffSurfaceFragmentKey =
   | { kind: "staff-preferences-section"; params: StaffStaffPreferencesSectionFragmentParams | null }
   | { kind: "staff-leave-section"; params: StaffStaffLeaveSectionFragmentParams | null };
 export function isStaffSurfaceFragmentKey(value: unknown): value is StaffSurfaceFragmentKey {
-    return ((isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "staff-details-section" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], []))) || (isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "staff-preferences-section" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], []))) || (isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "staff-leave-section" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], []))));
+    return ((isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "staff-details-section" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], []))) || (isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "staff-preferences-section" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], []))) || (isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "staff-leave-section" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], []))));
 }
 
 export type AdminPageSurfaceFragmentKey =
     { kind: "admin-page-content"; params: AdminPageAdminPageContentFragmentFragmentParams | null };
 export function isAdminPageSurfaceFragmentKey(value: unknown): value is AdminPageSurfaceFragmentKey {
-    return ((isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "admin-page-content" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], []))));
+    return ((isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "admin-page-content" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], []))));
 }
 
 export type AdminXeroPageSurfaceFragmentKey =
     { kind: "admin-xero-page-content"; params: AdminXeroPageAdminXeroPageContentFragmentFragmentParams | null };
 export function isAdminXeroPageSurfaceFragmentKey(value: unknown): value is AdminXeroPageSurfaceFragmentKey {
-    return ((isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "admin-xero-page-content" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], []))));
+    return ((isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "admin-xero-page-content" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], []))));
 }
 
 export type AdminVenueConfigSurfaceFragmentKey =
     { kind: "admin-venue-settings"; params: AdminVenueConfigAdminVenueSettingsFragmentFragmentParams | null };
 export function isAdminVenueConfigSurfaceFragmentKey(value: unknown): value is AdminVenueConfigSurfaceFragmentKey {
-    return ((isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "admin-venue-settings" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], []))));
+    return ((isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "admin-venue-settings" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], []))));
 }
 
 export type AdminInvitesSurfaceFragmentKey =
     { kind: "admin-invites"; params: AdminInvitesAdminInvitesFragmentFragmentParams | null };
 export function isAdminInvitesSurfaceFragmentKey(value: unknown): value is AdminInvitesSurfaceFragmentKey {
-    return ((isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "admin-invites" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], []))));
+    return ((isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "admin-invites" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], []))));
 }
 
 export type AdminExportsSurfaceFragmentKey =
     { kind: "admin-exports"; params: AdminExportsAdminExportsFragmentFragmentParams | null };
 export function isAdminExportsSurfaceFragmentKey(value: unknown): value is AdminExportsSurfaceFragmentKey {
-    return ((isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "admin-exports" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], []))));
+    return ((isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "admin-exports" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], []))));
 }
 
 export type AdminShiftTypesSurfaceFragmentKey =
     { kind: "admin-shift-types"; params: AdminShiftTypesAdminShiftTypesFragmentFragmentParams | null };
 export function isAdminShiftTypesSurfaceFragmentKey(value: unknown): value is AdminShiftTypesSurfaceFragmentKey {
-    return ((isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "admin-shift-types" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], []))));
+    return ((isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "admin-shift-types" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], []))));
 }
 
 export type AdminRosterGroupsSurfaceFragmentKey =
     { kind: "admin-roster-groups"; params: AdminRosterGroupsAdminRosterGroupsFragmentFragmentParams | null };
 export function isAdminRosterGroupsSurfaceFragmentKey(value: unknown): value is AdminRosterGroupsSurfaceFragmentKey {
-    return ((isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "admin-roster-groups" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], []))));
+    return ((isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "admin-roster-groups" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], []))));
 }
 
 export type AdminXeroSurfaceFragmentKey =
     { kind: "admin-xero-shell"; params: AdminXeroAdminXeroShellFragmentFragmentParams | null };
 export function isAdminXeroSurfaceFragmentKey(value: unknown): value is AdminXeroSurfaceFragmentKey {
-    return ((isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "admin-xero-shell" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], []))));
+    return ((isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "admin-xero-shell" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], []))));
 }
 
 export type SurfaceScope =
@@ -283,19 +284,11 @@ export function isFrontendSurfaceInteractionSurfaceName(value: unknown): value i
     return typeof value === "string" && ["roster", "roster-day-timeline"].includes(value);
 }
 
-export type RosterStaffSortKey =
-    "name"
-  | "role"
-  | "shifts";
-export function isRosterStaffSortKey(value: unknown): value is RosterStaffSortKey {
-    return typeof value === "string" && ["name", "role", "shifts"].includes(value);
-}
-
 export const pageReadyEvent = "bepis:page-ready" as const;
 
 export type LiveFragmentsRefreshEventDetail = { scope: SurfaceScope; scopeKey: string; fragments: ReadonlyArray<SurfaceFragmentKey> };
 export function isLiveFragmentsRefreshEventDetail(value: unknown): value is LiveFragmentsRefreshEventDetail {
-    return isRecord(value) && hasExactKeys(value, ["scope", "scopeKey", "fragments"]) && (isSurfaceScope(value["scope"])) && (typeof value["scopeKey"] === "string") && (Array.isArray(value["fragments"]) && value["fragments"].every((item) => isSurfaceFragmentKey(item)));
+    return isRecord(value) && hasExactKeys(value, ["scope", "scopeKey", "fragments"], ["scope", "scopeKey", "fragments"]) && (isSurfaceScope(value["scope"])) && (typeof value["scopeKey"] === "string") && (Array.isArray(value["fragments"]) && value["fragments"].every((item) => isSurfaceFragmentKey(item)));
 }
 
 export function parseLiveFragmentsRefreshEventDetail(value: unknown): LiveFragmentsRefreshEventDetail {
@@ -315,7 +308,7 @@ export const interactionSessionCancelRequestEvent = "bepis:interaction-session-c
 
 export type DialogSubmitConfig = { loadingLabel: string };
 export function isDialogSubmitConfig(value: unknown): value is DialogSubmitConfig {
-    return isRecord(value) && hasExactKeys(value, ["loadingLabel"]) && (typeof value["loadingLabel"] === "string");
+    return isRecord(value) && hasExactKeys(value, ["loadingLabel"], ["loadingLabel"]) && (typeof value["loadingLabel"] === "string");
 }
 
 export function parseDialogSubmitConfig(value: unknown): DialogSubmitConfig {
@@ -325,7 +318,7 @@ export function parseDialogSubmitConfig(value: unknown): DialogSubmitConfig {
 
 export type ToastConfig = { autoHideMs: number };
 export function isToastConfig(value: unknown): value is ToastConfig {
-    return isRecord(value) && hasExactKeys(value, ["autoHideMs"]) && (typeof value["autoHideMs"] === "number" && Number.isInteger(value["autoHideMs"]));
+    return isRecord(value) && hasExactKeys(value, ["autoHideMs"], ["autoHideMs"]) && (typeof value["autoHideMs"] === "number" && Number.isInteger(value["autoHideMs"]));
 }
 
 export function parseToastConfig(value: unknown): ToastConfig {
@@ -535,12 +528,12 @@ export type ToggleTarget =
     { tag: "value"; value: string }
   | { tag: "omitted" };
 export function isToggleTarget(value: unknown): value is ToggleTarget {
-    return ((isRecord(value) && hasExactKeys(value, ["tag", "value"]) && (value["tag"] === "value") && (typeof value["value"] === "string")) || (isRecord(value) && hasExactKeys(value, ["tag"]) && (value["tag"] === "omitted")));
+    return ((isRecord(value) && hasExactKeys(value, ["tag", "value"], ["tag", "value"]) && (value["tag"] === "value") && (typeof value["value"] === "string")) || (isRecord(value) && hasExactKeys(value, ["tag"], ["tag"]) && (value["tag"] === "omitted")));
 }
 
 export type ToggleConfig = { presentationState: TogglePresentationState; checkedTarget: ToggleTarget; uncheckedTarget: ToggleTarget; transportKey: string; submissionPolicy: ToggleSubmissionPolicy; breakRegionKey: string | null };
 export function isToggleConfig(value: unknown): value is ToggleConfig {
-    return isRecord(value) && hasExactKeys(value, ["presentationState", "checkedTarget", "uncheckedTarget", "transportKey", "submissionPolicy", "breakRegionKey"]) && (isTogglePresentationState(value["presentationState"])) && (isToggleTarget(value["checkedTarget"])) && (isToggleTarget(value["uncheckedTarget"])) && (typeof value["transportKey"] === "string") && (isToggleSubmissionPolicy(value["submissionPolicy"])) && (value["breakRegionKey"] === null || (typeof value["breakRegionKey"] === "string"));
+    return isRecord(value) && hasExactKeys(value, ["presentationState", "checkedTarget", "uncheckedTarget", "transportKey", "submissionPolicy", "breakRegionKey"], ["presentationState", "checkedTarget", "uncheckedTarget", "transportKey", "submissionPolicy", "breakRegionKey"]) && (isTogglePresentationState(value["presentationState"])) && (isToggleTarget(value["checkedTarget"])) && (isToggleTarget(value["uncheckedTarget"])) && (typeof value["transportKey"] === "string") && (isToggleSubmissionPolicy(value["submissionPolicy"])) && (value["breakRegionKey"] === null || (typeof value["breakRegionKey"] === "string"));
 }
 
 export function parseToggleConfig(value: unknown): ToggleConfig {
@@ -562,7 +555,7 @@ export const toggleConfigDomAttr = "data-bepis-toggle-config" as const;
 
 export type TimePickerConfig = { rangeStart: string; rangeEnd: string; stepMinutes: number; emptyLabel: string };
 export function isTimePickerConfig(value: unknown): value is TimePickerConfig {
-    return isRecord(value) && hasExactKeys(value, ["rangeStart", "rangeEnd", "stepMinutes", "emptyLabel"]) && (typeof value["rangeStart"] === "string") && (typeof value["rangeEnd"] === "string") && (typeof value["stepMinutes"] === "number" && Number.isInteger(value["stepMinutes"])) && (typeof value["emptyLabel"] === "string");
+    return isRecord(value) && hasExactKeys(value, ["rangeStart", "rangeEnd", "stepMinutes", "emptyLabel"], ["rangeStart", "rangeEnd", "stepMinutes", "emptyLabel"]) && (typeof value["rangeStart"] === "string") && (typeof value["rangeEnd"] === "string") && (typeof value["stepMinutes"] === "number" && Number.isInteger(value["stepMinutes"])) && (typeof value["emptyLabel"] === "string");
 }
 
 export function parseTimePickerConfig(value: unknown): TimePickerConfig {
@@ -572,7 +565,7 @@ export function parseTimePickerConfig(value: unknown): TimePickerConfig {
 
 export type TimePickerOption = { value: string; label: string };
 export function isTimePickerOption(value: unknown): value is TimePickerOption {
-    return isRecord(value) && hasExactKeys(value, ["value", "label"]) && (typeof value["value"] === "string") && (typeof value["label"] === "string");
+    return isRecord(value) && hasExactKeys(value, ["value", "label"], ["value", "label"]) && (typeof value["value"] === "string") && (typeof value["label"] === "string");
 }
 
 export function parseTimePickerOption(value: unknown): TimePickerOption {
@@ -610,7 +603,7 @@ export function isOrderedRangeCrossingPolicy(value: unknown): value is OrderedRa
 
 export type OrderedRangeConfig = { minimumValue: number; maximumValue: number; stepValue: number; defaultStartValue: number; defaultEndValue: number; valueLabels: ReadonlyArray<string>; crossingPolicy: OrderedRangeCrossingPolicy };
 export function isOrderedRangeConfig(value: unknown): value is OrderedRangeConfig {
-    return isRecord(value) && hasExactKeys(value, ["minimumValue", "maximumValue", "stepValue", "defaultStartValue", "defaultEndValue", "valueLabels", "crossingPolicy"]) && (typeof value["minimumValue"] === "number" && Number.isInteger(value["minimumValue"])) && (typeof value["maximumValue"] === "number" && Number.isInteger(value["maximumValue"])) && (typeof value["stepValue"] === "number" && Number.isInteger(value["stepValue"])) && (typeof value["defaultStartValue"] === "number" && Number.isInteger(value["defaultStartValue"])) && (typeof value["defaultEndValue"] === "number" && Number.isInteger(value["defaultEndValue"])) && (Array.isArray(value["valueLabels"]) && value["valueLabels"].every((item) => typeof item === "string")) && (isOrderedRangeCrossingPolicy(value["crossingPolicy"]));
+    return isRecord(value) && hasExactKeys(value, ["minimumValue", "maximumValue", "stepValue", "defaultStartValue", "defaultEndValue", "valueLabels", "crossingPolicy"], ["minimumValue", "maximumValue", "stepValue", "defaultStartValue", "defaultEndValue", "valueLabels", "crossingPolicy"]) && (typeof value["minimumValue"] === "number" && Number.isInteger(value["minimumValue"])) && (typeof value["maximumValue"] === "number" && Number.isInteger(value["maximumValue"])) && (typeof value["stepValue"] === "number" && Number.isInteger(value["stepValue"])) && (typeof value["defaultStartValue"] === "number" && Number.isInteger(value["defaultStartValue"])) && (typeof value["defaultEndValue"] === "number" && Number.isInteger(value["defaultEndValue"])) && (Array.isArray(value["valueLabels"]) && value["valueLabels"].every((item) => typeof item === "string")) && (isOrderedRangeCrossingPolicy(value["crossingPolicy"]));
 }
 
 export function parseOrderedRangeConfig(value: unknown): OrderedRangeConfig {
@@ -620,7 +613,7 @@ export function parseOrderedRangeConfig(value: unknown): OrderedRangeConfig {
 
 export type OrderedRangeState = { startValue: number; endValue: number; available: boolean };
 export function isOrderedRangeState(value: unknown): value is OrderedRangeState {
-    return isRecord(value) && hasExactKeys(value, ["startValue", "endValue", "available"]) && (typeof value["startValue"] === "number" && Number.isInteger(value["startValue"])) && (typeof value["endValue"] === "number" && Number.isInteger(value["endValue"])) && (typeof value["available"] === "boolean");
+    return isRecord(value) && hasExactKeys(value, ["startValue", "endValue", "available"], ["startValue", "endValue", "available"]) && (typeof value["startValue"] === "number" && Number.isInteger(value["startValue"])) && (typeof value["endValue"] === "number" && Number.isInteger(value["endValue"])) && (typeof value["available"] === "boolean");
 }
 
 export function parseOrderedRangeState(value: unknown): OrderedRangeState {
@@ -655,7 +648,7 @@ export function isHorizontalSnapMode(value: unknown): value is HorizontalSnapMod
 
 export type HorizontalSnapConfig = { snapMode: HorizontalSnapMode; itemSelector: string | null; groupCount: number | null; groupProperty: string | null; groupScopeSelector: string | null };
 export function isHorizontalSnapConfig(value: unknown): value is HorizontalSnapConfig {
-    return isRecord(value) && hasExactKeys(value, ["snapMode", "itemSelector", "groupCount", "groupProperty", "groupScopeSelector"]) && (isHorizontalSnapMode(value["snapMode"])) && (value["itemSelector"] === null || (typeof value["itemSelector"] === "string")) && (value["groupCount"] === null || (typeof value["groupCount"] === "number" && Number.isInteger(value["groupCount"]))) && (value["groupProperty"] === null || (typeof value["groupProperty"] === "string")) && (value["groupScopeSelector"] === null || (typeof value["groupScopeSelector"] === "string"));
+    return isRecord(value) && hasExactKeys(value, ["snapMode", "itemSelector", "groupCount", "groupProperty", "groupScopeSelector"], ["snapMode", "itemSelector", "groupCount", "groupProperty", "groupScopeSelector"]) && (isHorizontalSnapMode(value["snapMode"])) && (value["itemSelector"] === null || (typeof value["itemSelector"] === "string")) && (value["groupCount"] === null || (typeof value["groupCount"] === "number" && Number.isInteger(value["groupCount"]))) && (value["groupProperty"] === null || (typeof value["groupProperty"] === "string")) && (value["groupScopeSelector"] === null || (typeof value["groupScopeSelector"] === "string"));
 }
 
 export function parseHorizontalSnapConfig(value: unknown): HorizontalSnapConfig {
@@ -665,7 +658,7 @@ export function parseHorizontalSnapConfig(value: unknown): HorizontalSnapConfig 
 
 export type HorizontalDragConfig = { ignoreSelector: string | null };
 export function isHorizontalDragConfig(value: unknown): value is HorizontalDragConfig {
-    return isRecord(value) && hasExactKeys(value, ["ignoreSelector"]) && (value["ignoreSelector"] === null || (typeof value["ignoreSelector"] === "string"));
+    return isRecord(value) && hasExactKeys(value, ["ignoreSelector"], ["ignoreSelector"]) && (value["ignoreSelector"] === null || (typeof value["ignoreSelector"] === "string"));
 }
 
 export function parseHorizontalDragConfig(value: unknown): HorizontalDragConfig {
@@ -701,7 +694,7 @@ export const pwaInstalledStatusDomAttr = "data-bepis-pwa-installed-status" as co
 
 export type XeroCandidateFilterConfig = { searchProjection: string };
 export function isXeroCandidateFilterConfig(value: unknown): value is XeroCandidateFilterConfig {
-    return isRecord(value) && hasExactKeys(value, ["searchProjection"]) && (typeof value["searchProjection"] === "string");
+    return isRecord(value) && hasExactKeys(value, ["searchProjection"], ["searchProjection"]) && (typeof value["searchProjection"] === "string");
 }
 
 export function parseXeroCandidateFilterConfig(value: unknown): XeroCandidateFilterConfig {
@@ -738,7 +731,7 @@ export type LiveUpdateMessage =
   | { type: "invalidate"; scope: SurfaceScope; scopeKey: string; version: number; fragments: ReadonlyArray<SurfaceFragmentKey>; sourceClientId: string | null }
   | { type: "error"; message: string };
 export function isLiveUpdateMessage(value: unknown): value is LiveUpdateMessage {
-    return ((isRecord(value) && hasExactKeys(value, ["type", "scope", "scopeKey", "currentVersion", "resync"]) && (value["type"] === "subscribed") && (isSurfaceScope(value["scope"])) && (typeof value["scopeKey"] === "string") && (typeof value["currentVersion"] === "number" && Number.isInteger(value["currentVersion"])) && (typeof value["resync"] === "boolean")) || (isRecord(value) && hasExactKeys(value, ["type", "scope", "scopeKey", "version", "fragments", "sourceClientId"]) && (value["type"] === "invalidate") && (isSurfaceScope(value["scope"])) && (typeof value["scopeKey"] === "string") && (typeof value["version"] === "number" && Number.isInteger(value["version"])) && (Array.isArray(value["fragments"]) && value["fragments"].every((item) => isSurfaceFragmentKey(item))) && (value["sourceClientId"] === null || (typeof value["sourceClientId"] === "string"))) || (isRecord(value) && hasExactKeys(value, ["type", "message"]) && (value["type"] === "error") && (typeof value["message"] === "string")));
+    return ((isRecord(value) && hasExactKeys(value, ["type", "scope", "scopeKey", "currentVersion", "resync"], ["type", "scope", "scopeKey", "currentVersion", "resync"]) && (value["type"] === "subscribed") && (isSurfaceScope(value["scope"])) && (typeof value["scopeKey"] === "string") && (typeof value["currentVersion"] === "number" && Number.isInteger(value["currentVersion"])) && (typeof value["resync"] === "boolean")) || (isRecord(value) && hasExactKeys(value, ["type", "scope", "scopeKey", "version", "fragments", "sourceClientId"], ["type", "scope", "scopeKey", "version", "fragments", "sourceClientId"]) && (value["type"] === "invalidate") && (isSurfaceScope(value["scope"])) && (typeof value["scopeKey"] === "string") && (typeof value["version"] === "number" && Number.isInteger(value["version"])) && (Array.isArray(value["fragments"]) && value["fragments"].every((item) => isSurfaceFragmentKey(item))) && (value["sourceClientId"] === null || (typeof value["sourceClientId"] === "string"))) || (isRecord(value) && hasExactKeys(value, ["type", "message"], ["type", "message"]) && (value["type"] === "error") && (typeof value["message"] === "string")));
 }
 
 export function parseLiveUpdateMessage(value: unknown): LiveUpdateMessage {
@@ -748,267 +741,277 @@ export function parseLiveUpdateMessage(value: unknown): LiveUpdateMessage {
 
 export type TimesheetsTimesheetWeekScope = { venueId: FrontendContractUuid; weekOffset: number };
 export function isTimesheetsTimesheetWeekScope(value: unknown): value is TimesheetsTimesheetWeekScope {
-    return isRecord(value) && hasExactKeys(value, ["venueId", "weekOffset"]) && (typeof value["venueId"] === "string") && (typeof value["weekOffset"] === "number" && Number.isInteger(value["weekOffset"]));
+    return isRecord(value) && hasExactKeys(value, ["venueId", "weekOffset"], ["venueId", "weekOffset"]) && (typeof value["venueId"] === "string") && (typeof value["weekOffset"] === "number" && Number.isInteger(value["weekOffset"]));
 }
 
 export type TimesheetsTimesheetToolbarFragmentParams = {  };
 export function isTimesheetsTimesheetToolbarFragmentParams(value: unknown): value is TimesheetsTimesheetToolbarFragmentParams {
-    return isRecord(value) && hasExactKeys(value, []);
+    return isRecord(value) && hasExactKeys(value, [], []);
 }
 
 export type TimesheetsTimesheetDayColumnsFragmentParams = {  };
 export function isTimesheetsTimesheetDayColumnsFragmentParams(value: unknown): value is TimesheetsTimesheetDayColumnsFragmentParams {
-    return isRecord(value) && hasExactKeys(value, []);
+    return isRecord(value) && hasExactKeys(value, [], []);
 }
 
 export type TimesheetsTimesheetDaySectionFragmentParams = { dayOffset: number };
 export function isTimesheetsTimesheetDaySectionFragmentParams(value: unknown): value is TimesheetsTimesheetDaySectionFragmentParams {
-    return isRecord(value) && hasExactKeys(value, ["dayOffset"]) && (typeof value["dayOffset"] === "number" && Number.isInteger(value["dayOffset"]));
+    return isRecord(value) && hasExactKeys(value, ["dayOffset"], ["dayOffset"]) && (typeof value["dayOffset"] === "number" && Number.isInteger(value["dayOffset"]));
+}
+
+export type RosterStaffPanelSortRow = { staffRowKey: string; staffName: string; staffRole: string; assignedShifts: number; idealShifts: number };
+export function isRosterStaffPanelSortRow(value: unknown): value is RosterStaffPanelSortRow {
+    return isRecord(value) && hasExactKeys(value, ["staffRowKey", "staffName", "staffRole", "assignedShifts", "idealShifts"], ["staffRowKey", "staffName", "staffRole", "assignedShifts", "idealShifts"]) && (typeof value["staffRowKey"] === "string") && (typeof value["staffName"] === "string") && (typeof value["staffRole"] === "string") && (typeof value["assignedShifts"] === "number" && Number.isInteger(value["assignedShifts"])) && (typeof value["idealShifts"] === "number" && Number.isInteger(value["idealShifts"]));
+}
+
+export function parseRosterStaffPanelSortRow(value: unknown): RosterStaffPanelSortRow {
+    if (isRosterStaffPanelSortRow(value)) return value;
+    throw new Error("Invalid RosterStaffPanelSortRow");
 }
 
 export type RosterRosterWeekScope = { venueId: FrontendContractUuid; rosterGroupId: FrontendContractUuid; weekOffset: number };
 export function isRosterRosterWeekScope(value: unknown): value is RosterRosterWeekScope {
-    return isRecord(value) && hasExactKeys(value, ["venueId", "rosterGroupId", "weekOffset"]) && (typeof value["venueId"] === "string") && (typeof value["rosterGroupId"] === "string") && (typeof value["weekOffset"] === "number" && Number.isInteger(value["weekOffset"]));
+    return isRecord(value) && hasExactKeys(value, ["venueId", "rosterGroupId", "weekOffset"], ["venueId", "rosterGroupId", "weekOffset"]) && (typeof value["venueId"] === "string") && (typeof value["rosterGroupId"] === "string") && (typeof value["weekOffset"] === "number" && Number.isInteger(value["weekOffset"]));
 }
 
 export type RosterRosterContentFragmentParams = {  };
 export function isRosterRosterContentFragmentParams(value: unknown): value is RosterRosterContentFragmentParams {
-    return isRecord(value) && hasExactKeys(value, []);
+    return isRecord(value) && hasExactKeys(value, [], []);
 }
 
 export type RosterRosterGridToolbarFragmentParams = {  };
 export function isRosterRosterGridToolbarFragmentParams(value: unknown): value is RosterRosterGridToolbarFragmentParams {
-    return isRecord(value) && hasExactKeys(value, []);
+    return isRecord(value) && hasExactKeys(value, [], []);
 }
 
 export type RosterRosterGridFrameFragmentParams = {  };
 export function isRosterRosterGridFrameFragmentParams(value: unknown): value is RosterRosterGridFrameFragmentParams {
-    return isRecord(value) && hasExactKeys(value, []);
+    return isRecord(value) && hasExactKeys(value, [], []);
 }
 
 export type RosterRosterDayColumnsFragmentParams = {  };
 export function isRosterRosterDayColumnsFragmentParams(value: unknown): value is RosterRosterDayColumnsFragmentParams {
-    return isRecord(value) && hasExactKeys(value, []);
+    return isRecord(value) && hasExactKeys(value, [], []);
 }
 
 export type RosterRosterDayRailFragmentParams = {  };
 export function isRosterRosterDayRailFragmentParams(value: unknown): value is RosterRosterDayRailFragmentParams {
-    return isRecord(value) && hasExactKeys(value, []);
+    return isRecord(value) && hasExactKeys(value, [], []);
 }
 
 export type RosterRosterWageRailFragmentParams = {  };
 export function isRosterRosterWageRailFragmentParams(value: unknown): value is RosterRosterWageRailFragmentParams {
-    return isRecord(value) && hasExactKeys(value, []);
+    return isRecord(value) && hasExactKeys(value, [], []);
 }
 
 export type RosterRosterSlotsGridFragmentParams = {  };
 export function isRosterRosterSlotsGridFragmentParams(value: unknown): value is RosterRosterSlotsGridFragmentParams {
-    return isRecord(value) && hasExactKeys(value, []);
+    return isRecord(value) && hasExactKeys(value, [], []);
 }
 
 export type RosterRosterStaffPanelFragmentParams = {  };
 export function isRosterRosterStaffPanelFragmentParams(value: unknown): value is RosterRosterStaffPanelFragmentParams {
-    return isRecord(value) && hasExactKeys(value, []);
+    return isRecord(value) && hasExactKeys(value, [], []);
 }
 
 export type RosterRosterStaffSelfServiceLeaveFormFragmentFragmentParams = {  };
 export function isRosterRosterStaffSelfServiceLeaveFormFragmentFragmentParams(value: unknown): value is RosterRosterStaffSelfServiceLeaveFormFragmentFragmentParams {
-    return isRecord(value) && hasExactKeys(value, []);
+    return isRecord(value) && hasExactKeys(value, [], []);
 }
 
 export type RosterRosterWeekOverviewFragmentParams = {  };
 export function isRosterRosterWeekOverviewFragmentParams(value: unknown): value is RosterRosterWeekOverviewFragmentParams {
-    return isRecord(value) && hasExactKeys(value, []);
+    return isRecord(value) && hasExactKeys(value, [], []);
 }
 
 export type RosterRosterDaySectionFragmentParams = { rosterDayId: FrontendContractUuid };
 export function isRosterRosterDaySectionFragmentParams(value: unknown): value is RosterRosterDaySectionFragmentParams {
-    return isRecord(value) && hasExactKeys(value, ["rosterDayId"]) && (typeof value["rosterDayId"] === "string");
+    return isRecord(value) && hasExactKeys(value, ["rosterDayId"], ["rosterDayId"]) && (typeof value["rosterDayId"] === "string");
 }
 
 export type RosterRosterRowFragmentParams = { rosterDayId: FrontendContractUuid; rowIndex: number };
 export function isRosterRosterRowFragmentParams(value: unknown): value is RosterRosterRowFragmentParams {
-    return isRecord(value) && hasExactKeys(value, ["rosterDayId", "rowIndex"]) && (typeof value["rosterDayId"] === "string") && (typeof value["rowIndex"] === "number" && Number.isInteger(value["rowIndex"]));
+    return isRecord(value) && hasExactKeys(value, ["rosterDayId", "rowIndex"], ["rosterDayId", "rowIndex"]) && (typeof value["rosterDayId"] === "string") && (typeof value["rowIndex"] === "number" && Number.isInteger(value["rowIndex"]));
 }
 
 export type RosterDayTimelineRosterDayTimelineScope = { venueId: FrontendContractUuid; rosterGroupId: FrontendContractUuid; weekOffset: number; rosterDayId: FrontendContractUuid };
 export function isRosterDayTimelineRosterDayTimelineScope(value: unknown): value is RosterDayTimelineRosterDayTimelineScope {
-    return isRecord(value) && hasExactKeys(value, ["venueId", "rosterGroupId", "weekOffset", "rosterDayId"]) && (typeof value["venueId"] === "string") && (typeof value["rosterGroupId"] === "string") && (typeof value["weekOffset"] === "number" && Number.isInteger(value["weekOffset"])) && (typeof value["rosterDayId"] === "string");
+    return isRecord(value) && hasExactKeys(value, ["venueId", "rosterGroupId", "weekOffset", "rosterDayId"], ["venueId", "rosterGroupId", "weekOffset", "rosterDayId"]) && (typeof value["venueId"] === "string") && (typeof value["rosterGroupId"] === "string") && (typeof value["weekOffset"] === "number" && Number.isInteger(value["weekOffset"])) && (typeof value["rosterDayId"] === "string");
 }
 
 export type RosterDayTimelineRosterDayTimelineContentFragmentParams = { rosterDayId: FrontendContractUuid };
 export function isRosterDayTimelineRosterDayTimelineContentFragmentParams(value: unknown): value is RosterDayTimelineRosterDayTimelineContentFragmentParams {
-    return isRecord(value) && hasExactKeys(value, ["rosterDayId"]) && (typeof value["rosterDayId"] === "string");
+    return isRecord(value) && hasExactKeys(value, ["rosterDayId"], ["rosterDayId"]) && (typeof value["rosterDayId"] === "string");
 }
 
 export type LeaveRequestsLeaveRequestsScopeScope = { venueId: FrontendContractUuid };
 export function isLeaveRequestsLeaveRequestsScopeScope(value: unknown): value is LeaveRequestsLeaveRequestsScopeScope {
-    return isRecord(value) && hasExactKeys(value, ["venueId"]) && (typeof value["venueId"] === "string");
+    return isRecord(value) && hasExactKeys(value, ["venueId"], ["venueId"]) && (typeof value["venueId"] === "string");
 }
 
 export type LeaveRequestsLeaveSectionCountFragmentParams = { leaveSection: string };
 export function isLeaveRequestsLeaveSectionCountFragmentParams(value: unknown): value is LeaveRequestsLeaveSectionCountFragmentParams {
-    return isRecord(value) && hasExactKeys(value, ["leaveSection"]) && (typeof value["leaveSection"] === "string");
+    return isRecord(value) && hasExactKeys(value, ["leaveSection"], ["leaveSection"]) && (typeof value["leaveSection"] === "string");
 }
 
 export type LeaveRequestsLeaveSectionListFragmentParams = { leaveSection: string };
 export function isLeaveRequestsLeaveSectionListFragmentParams(value: unknown): value is LeaveRequestsLeaveSectionListFragmentParams {
-    return isRecord(value) && hasExactKeys(value, ["leaveSection"]) && (typeof value["leaveSection"] === "string");
+    return isRecord(value) && hasExactKeys(value, ["leaveSection"], ["leaveSection"]) && (typeof value["leaveSection"] === "string");
 }
 
 export type BillingBillingVenueScope = { venueId: FrontendContractUuid };
 export function isBillingBillingVenueScope(value: unknown): value is BillingBillingVenueScope {
-    return isRecord(value) && hasExactKeys(value, ["venueId"]) && (typeof value["venueId"] === "string");
+    return isRecord(value) && hasExactKeys(value, ["venueId"], ["venueId"]) && (typeof value["venueId"] === "string");
 }
 
 export type BillingBillingStatusFragmentParams = {  };
 export function isBillingBillingStatusFragmentParams(value: unknown): value is BillingBillingStatusFragmentParams {
-    return isRecord(value) && hasExactKeys(value, []);
+    return isRecord(value) && hasExactKeys(value, [], []);
 }
 
 export type SupportSupportPlatformScope = {  };
 export function isSupportSupportPlatformScope(value: unknown): value is SupportSupportPlatformScope {
-    return isRecord(value) && hasExactKeys(value, []);
+    return isRecord(value) && hasExactKeys(value, [], []);
 }
 
 export type SupportSupportAwardRatesFragmentParams = {  };
 export function isSupportSupportAwardRatesFragmentParams(value: unknown): value is SupportSupportAwardRatesFragmentParams {
-    return isRecord(value) && hasExactKeys(value, []);
+    return isRecord(value) && hasExactKeys(value, [], []);
 }
 
 export type SupportSupportPublicHolidaysFragmentParams = {  };
 export function isSupportSupportPublicHolidaysFragmentParams(value: unknown): value is SupportSupportPublicHolidaysFragmentParams {
-    return isRecord(value) && hasExactKeys(value, []);
+    return isRecord(value) && hasExactKeys(value, [], []);
 }
 
 export type ProfileProfileScopeScope = { venueId: FrontendContractUuid; staffId: FrontendContractUuid };
 export function isProfileProfileScopeScope(value: unknown): value is ProfileProfileScopeScope {
-    return isRecord(value) && hasExactKeys(value, ["venueId", "staffId"]) && (typeof value["venueId"] === "string") && (typeof value["staffId"] === "string");
+    return isRecord(value) && hasExactKeys(value, ["venueId", "staffId"], ["venueId", "staffId"]) && (typeof value["venueId"] === "string") && (typeof value["staffId"] === "string");
 }
 
 export type ProfileProfileDetailsSectionFragmentParams = {  };
 export function isProfileProfileDetailsSectionFragmentParams(value: unknown): value is ProfileProfileDetailsSectionFragmentParams {
-    return isRecord(value) && hasExactKeys(value, []);
+    return isRecord(value) && hasExactKeys(value, [], []);
 }
 
 export type ProfileProfilePreferencesSectionFragmentParams = {  };
 export function isProfileProfilePreferencesSectionFragmentParams(value: unknown): value is ProfileProfilePreferencesSectionFragmentParams {
-    return isRecord(value) && hasExactKeys(value, []);
+    return isRecord(value) && hasExactKeys(value, [], []);
 }
 
 export type ProfileProfileSecuritySectionFragmentParams = {  };
 export function isProfileProfileSecuritySectionFragmentParams(value: unknown): value is ProfileProfileSecuritySectionFragmentParams {
-    return isRecord(value) && hasExactKeys(value, []);
+    return isRecord(value) && hasExactKeys(value, [], []);
 }
 
 export type ProfileProfileLeaveSectionFragmentParams = {  };
 export function isProfileProfileLeaveSectionFragmentParams(value: unknown): value is ProfileProfileLeaveSectionFragmentParams {
-    return isRecord(value) && hasExactKeys(value, []);
+    return isRecord(value) && hasExactKeys(value, [], []);
 }
 
 export type ProfileProfileRsaSectionFragmentParams = {  };
 export function isProfileProfileRsaSectionFragmentParams(value: unknown): value is ProfileProfileRsaSectionFragmentParams {
-    return isRecord(value) && hasExactKeys(value, []);
+    return isRecord(value) && hasExactKeys(value, [], []);
 }
 
 export type StaffStaffScopeScope = { venueId: FrontendContractUuid; staffId: FrontendContractUuid };
 export function isStaffStaffScopeScope(value: unknown): value is StaffStaffScopeScope {
-    return isRecord(value) && hasExactKeys(value, ["venueId", "staffId"]) && (typeof value["venueId"] === "string") && (typeof value["staffId"] === "string");
+    return isRecord(value) && hasExactKeys(value, ["venueId", "staffId"], ["venueId", "staffId"]) && (typeof value["venueId"] === "string") && (typeof value["staffId"] === "string");
 }
 
 export type StaffStaffDetailsSectionFragmentParams = {  };
 export function isStaffStaffDetailsSectionFragmentParams(value: unknown): value is StaffStaffDetailsSectionFragmentParams {
-    return isRecord(value) && hasExactKeys(value, []);
+    return isRecord(value) && hasExactKeys(value, [], []);
 }
 
 export type StaffStaffPreferencesSectionFragmentParams = {  };
 export function isStaffStaffPreferencesSectionFragmentParams(value: unknown): value is StaffStaffPreferencesSectionFragmentParams {
-    return isRecord(value) && hasExactKeys(value, []);
+    return isRecord(value) && hasExactKeys(value, [], []);
 }
 
 export type StaffStaffLeaveSectionFragmentParams = {  };
 export function isStaffStaffLeaveSectionFragmentParams(value: unknown): value is StaffStaffLeaveSectionFragmentParams {
-    return isRecord(value) && hasExactKeys(value, []);
+    return isRecord(value) && hasExactKeys(value, [], []);
 }
 
 export type AdminPageAdminPageScopeScope = { venueId: FrontendContractUuid };
 export function isAdminPageAdminPageScopeScope(value: unknown): value is AdminPageAdminPageScopeScope {
-    return isRecord(value) && hasExactKeys(value, ["venueId"]) && (typeof value["venueId"] === "string");
+    return isRecord(value) && hasExactKeys(value, ["venueId"], ["venueId"]) && (typeof value["venueId"] === "string");
 }
 
 export type AdminPageAdminPageContentFragmentFragmentParams = {  };
 export function isAdminPageAdminPageContentFragmentFragmentParams(value: unknown): value is AdminPageAdminPageContentFragmentFragmentParams {
-    return isRecord(value) && hasExactKeys(value, []);
+    return isRecord(value) && hasExactKeys(value, [], []);
 }
 
 export type AdminXeroPageAdminXeroPageScopeScope = { venueId: FrontendContractUuid };
 export function isAdminXeroPageAdminXeroPageScopeScope(value: unknown): value is AdminXeroPageAdminXeroPageScopeScope {
-    return isRecord(value) && hasExactKeys(value, ["venueId"]) && (typeof value["venueId"] === "string");
+    return isRecord(value) && hasExactKeys(value, ["venueId"], ["venueId"]) && (typeof value["venueId"] === "string");
 }
 
 export type AdminXeroPageAdminXeroPageContentFragmentFragmentParams = {  };
 export function isAdminXeroPageAdminXeroPageContentFragmentFragmentParams(value: unknown): value is AdminXeroPageAdminXeroPageContentFragmentFragmentParams {
-    return isRecord(value) && hasExactKeys(value, []);
+    return isRecord(value) && hasExactKeys(value, [], []);
 }
 
 export type AdminVenueConfigAdminVenueConfigScopeScope = { venueId: FrontendContractUuid };
 export function isAdminVenueConfigAdminVenueConfigScopeScope(value: unknown): value is AdminVenueConfigAdminVenueConfigScopeScope {
-    return isRecord(value) && hasExactKeys(value, ["venueId"]) && (typeof value["venueId"] === "string");
+    return isRecord(value) && hasExactKeys(value, ["venueId"], ["venueId"]) && (typeof value["venueId"] === "string");
 }
 
 export type AdminVenueConfigAdminVenueSettingsFragmentFragmentParams = {  };
 export function isAdminVenueConfigAdminVenueSettingsFragmentFragmentParams(value: unknown): value is AdminVenueConfigAdminVenueSettingsFragmentFragmentParams {
-    return isRecord(value) && hasExactKeys(value, []);
+    return isRecord(value) && hasExactKeys(value, [], []);
 }
 
 export type AdminInvitesAdminInvitesScopeScope = { venueId: FrontendContractUuid };
 export function isAdminInvitesAdminInvitesScopeScope(value: unknown): value is AdminInvitesAdminInvitesScopeScope {
-    return isRecord(value) && hasExactKeys(value, ["venueId"]) && (typeof value["venueId"] === "string");
+    return isRecord(value) && hasExactKeys(value, ["venueId"], ["venueId"]) && (typeof value["venueId"] === "string");
 }
 
 export type AdminInvitesAdminInvitesFragmentFragmentParams = {  };
 export function isAdminInvitesAdminInvitesFragmentFragmentParams(value: unknown): value is AdminInvitesAdminInvitesFragmentFragmentParams {
-    return isRecord(value) && hasExactKeys(value, []);
+    return isRecord(value) && hasExactKeys(value, [], []);
 }
 
 export type AdminExportsAdminExportsScopeScope = { venueId: FrontendContractUuid };
 export function isAdminExportsAdminExportsScopeScope(value: unknown): value is AdminExportsAdminExportsScopeScope {
-    return isRecord(value) && hasExactKeys(value, ["venueId"]) && (typeof value["venueId"] === "string");
+    return isRecord(value) && hasExactKeys(value, ["venueId"], ["venueId"]) && (typeof value["venueId"] === "string");
 }
 
 export type AdminExportsAdminExportsFragmentFragmentParams = {  };
 export function isAdminExportsAdminExportsFragmentFragmentParams(value: unknown): value is AdminExportsAdminExportsFragmentFragmentParams {
-    return isRecord(value) && hasExactKeys(value, []);
+    return isRecord(value) && hasExactKeys(value, [], []);
 }
 
 export type AdminShiftTypesAdminShiftTypesScopeScope = { venueId: FrontendContractUuid };
 export function isAdminShiftTypesAdminShiftTypesScopeScope(value: unknown): value is AdminShiftTypesAdminShiftTypesScopeScope {
-    return isRecord(value) && hasExactKeys(value, ["venueId"]) && (typeof value["venueId"] === "string");
+    return isRecord(value) && hasExactKeys(value, ["venueId"], ["venueId"]) && (typeof value["venueId"] === "string");
 }
 
 export type AdminShiftTypesAdminShiftTypesFragmentFragmentParams = {  };
 export function isAdminShiftTypesAdminShiftTypesFragmentFragmentParams(value: unknown): value is AdminShiftTypesAdminShiftTypesFragmentFragmentParams {
-    return isRecord(value) && hasExactKeys(value, []);
+    return isRecord(value) && hasExactKeys(value, [], []);
 }
 
 export type AdminRosterGroupsAdminRosterGroupsScopeScope = { venueId: FrontendContractUuid };
 export function isAdminRosterGroupsAdminRosterGroupsScopeScope(value: unknown): value is AdminRosterGroupsAdminRosterGroupsScopeScope {
-    return isRecord(value) && hasExactKeys(value, ["venueId"]) && (typeof value["venueId"] === "string");
+    return isRecord(value) && hasExactKeys(value, ["venueId"], ["venueId"]) && (typeof value["venueId"] === "string");
 }
 
 export type AdminRosterGroupsAdminRosterGroupsFragmentFragmentParams = {  };
 export function isAdminRosterGroupsAdminRosterGroupsFragmentFragmentParams(value: unknown): value is AdminRosterGroupsAdminRosterGroupsFragmentFragmentParams {
-    return isRecord(value) && hasExactKeys(value, []);
+    return isRecord(value) && hasExactKeys(value, [], []);
 }
 
 export type AdminXeroAdminXeroScopeScope = { venueId: FrontendContractUuid };
 export function isAdminXeroAdminXeroScopeScope(value: unknown): value is AdminXeroAdminXeroScopeScope {
-    return isRecord(value) && hasExactKeys(value, ["venueId"]) && (typeof value["venueId"] === "string");
+    return isRecord(value) && hasExactKeys(value, ["venueId"], ["venueId"]) && (typeof value["venueId"] === "string");
 }
 
 export type AdminXeroAdminXeroShellFragmentFragmentParams = {  };
 export function isAdminXeroAdminXeroShellFragmentFragmentParams(value: unknown): value is AdminXeroAdminXeroShellFragmentFragmentParams {
-    return isRecord(value) && hasExactKeys(value, []);
+    return isRecord(value) && hasExactKeys(value, [], []);
 }
 
 export type VenueId = FrontendContractUuid;
@@ -1024,6 +1027,10 @@ export const timesheetWeekShellDomToken = "timesheet-week-shell" as const;
 export const rosterContentDomToken = "roster-content" as const;
 export const rosterWeekShellDomToken = "roster-week-shell" as const;
 
+export const rosterStaffPanelSortRootDomAttr = "data-bepis-roster-staff-panel-sort-root" as const;
+export const rosterStaffPanelSortRowDomAttr = "data-bepis-roster-staff-panel-sort-row" as const;
+export const rosterStaffPanelSortControlDomAttr = "data-bepis-roster-staff-panel-sort-control" as const;
+export const rosterStaffPanelTabDomAttr = "data-bepis-roster-staff-panel-tab" as const;
 export const rosterStaffHighlightSourceDomAttr = "data-bepis-roster-staff-highlight-source" as const;
 export const rosterStaffHighlightMemberDomAttr = "data-bepis-roster-staff-highlight-member" as const;
 export const rosterStaffHighlightPinDomAttr = "data-bepis-roster-staff-highlight-pin" as const;
@@ -1034,11 +1041,32 @@ export const rosterStaffHighlightOrderDomAttr = "data-bepis-roster-staff-highlig
 export const rosterDayTimelineShiftGroupHighlightSourceDomAttr = "data-bepis-roster-day-timeline-shift-group-highlight-source" as const;
 export const rosterDayTimelineShiftGroupHighlightMemberDomAttr = "data-bepis-roster-day-timeline-shift-group-highlight-member" as const;
 
+export type RosterStaffPanelSortKey = "name" | "role" | "shifts";
+export function isRosterStaffPanelSortKey(value: unknown): value is RosterStaffPanelSortKey {
+    return typeof value === "string" && ["name", "role", "shifts"].includes(value);
+}
+
+export type RosterStaffPanelTabsKey = "staff" | "settings";
+export function isRosterStaffPanelTabsKey(value: unknown): value is RosterStaffPanelTabsKey {
+    return typeof value === "string" && ["staff", "settings"].includes(value);
+}
+
 export type FrontendSurfaceName = "timesheets" | "roster" | "roster-day-timeline" | "leave-requests" | "billing" | "support" | "profile" | "staff" | "admin-page" | "admin-xero-page" | "admin-venue-config" | "admin-invites" | "admin-exports" | "admin-shift-types" | "admin-roster-groups" | "admin-xero";
 export type FrontendSurfaceLinkedHighlightActivation = "hover" | "focus" | "keyboard" | "pin";
 export type FrontendSurfaceLinkedHighlightEffect = "matching-source" | "matching-member" | "ordered-member-bounds";
 export type FrontendSurfaceLinkedHighlightDefinition = { name: string; sourceRoleAttribute: string; memberRoleAttribute: string; pinRoleAttribute: string | null; orderStateAttribute: string | null; activations: ReadonlyArray<FrontendSurfaceLinkedHighlightActivation>; effects: ReadonlyArray<FrontendSurfaceLinkedHighlightEffect> };
 export const FrontendSurfaceLinkedHighlightRegistry: Record<FrontendSurfaceName, ReadonlyArray<FrontendSurfaceLinkedHighlightDefinition>> = {"timesheets":[],"roster":[{"name":"staff-shifts-highlight","sourceRoleAttribute":rosterStaffHighlightSourceDomAttr,"memberRoleAttribute":rosterStaffHighlightMemberDomAttr,"pinRoleAttribute":rosterStaffHighlightPinDomAttr,"orderStateAttribute":rosterStaffHighlightOrderDomAttr,"activations":["hover","focus","keyboard","pin"],"effects":["matching-source","matching-member","ordered-member-bounds"]},{"name":"shift-group-highlight","sourceRoleAttribute":rosterShiftGroupHighlightSourceDomAttr,"memberRoleAttribute":rosterShiftGroupHighlightMemberDomAttr,"pinRoleAttribute":null,"orderStateAttribute":null,"activations":["hover","focus","keyboard"],"effects":["matching-member"]}],"roster-day-timeline":[{"name":"shift-group-highlight","sourceRoleAttribute":rosterDayTimelineShiftGroupHighlightSourceDomAttr,"memberRoleAttribute":rosterDayTimelineShiftGroupHighlightMemberDomAttr,"pinRoleAttribute":null,"orderStateAttribute":null,"activations":["hover","focus","keyboard"],"effects":["matching-member"]}],"leave-requests":[],"billing":[],"support":[],"profile":[],"staff":[],"admin-page":[],"admin-xero-page":[],"admin-venue-config":[],"admin-invites":[],"admin-exports":[],"admin-shift-types":[],"admin-roster-groups":[],"admin-xero":[]};
+
+export type FrontendSurfaceCompleteSetSortValueType = "text" | "integer" | "opaque";
+export type FrontendSurfaceCompleteSetSortComparatorDirection = "selected" | "ascending";
+export type FrontendSurfaceCompleteSetSortDirection = "ascending" | "descending";
+export type FrontendSurfaceCompleteSetSortComparator = { field: string; valueType: FrontendSurfaceCompleteSetSortValueType; direction: FrontendSurfaceCompleteSetSortComparatorDirection; read: (row: unknown) => unknown };
+export type FrontendSurfaceCompleteSetSortKeyDefinition = { key: string; comparators: ReadonlyArray<FrontendSurfaceCompleteSetSortComparator> };
+export type FrontendSurfaceCompleteSetSortDefinition = { name: string; rootRoleAttribute: string; rowRoleAttribute: string; controlRoleAttribute: string; parseRow: (value: unknown) => unknown; isKey: (value: unknown) => boolean; keys: ReadonlyArray<FrontendSurfaceCompleteSetSortKeyDefinition>; defaultKey: string; defaultDirection: FrontendSurfaceCompleteSetSortDirection };
+export const FrontendSurfaceCompleteSetSortRegistry: Record<FrontendSurfaceName, ReadonlyArray<FrontendSurfaceCompleteSetSortDefinition>> = {"timesheets":[],"roster":[{"name":"roster-staff-panel-sort","rootRoleAttribute":rosterStaffPanelSortRootDomAttr,"rowRoleAttribute":rosterStaffPanelSortRowDomAttr,"controlRoleAttribute":rosterStaffPanelSortControlDomAttr,"parseRow":parseRosterStaffPanelSortRow,"isKey":isRosterStaffPanelSortKey,"keys":[{"key":"name","comparators":[{"field":"staffName","valueType":"text","direction":"selected","read":(row: unknown) => parseRosterStaffPanelSortRow(row).staffName},{"field":"staffRowKey","valueType":"opaque","direction":"ascending","read":(row: unknown) => parseRosterStaffPanelSortRow(row).staffRowKey}]},{"key":"role","comparators":[{"field":"staffRole","valueType":"text","direction":"selected","read":(row: unknown) => parseRosterStaffPanelSortRow(row).staffRole},{"field":"staffName","valueType":"text","direction":"ascending","read":(row: unknown) => parseRosterStaffPanelSortRow(row).staffName},{"field":"staffRowKey","valueType":"opaque","direction":"ascending","read":(row: unknown) => parseRosterStaffPanelSortRow(row).staffRowKey}]},{"key":"shifts","comparators":[{"field":"assignedShifts","valueType":"integer","direction":"selected","read":(row: unknown) => parseRosterStaffPanelSortRow(row).assignedShifts},{"field":"idealShifts","valueType":"integer","direction":"selected","read":(row: unknown) => parseRosterStaffPanelSortRow(row).idealShifts},{"field":"staffName","valueType":"text","direction":"ascending","read":(row: unknown) => parseRosterStaffPanelSortRow(row).staffName},{"field":"staffRowKey","valueType":"opaque","direction":"ascending","read":(row: unknown) => parseRosterStaffPanelSortRow(row).staffRowKey}]}],"defaultKey":"name","defaultDirection":"ascending"}],"roster-day-timeline":[],"leave-requests":[],"billing":[],"support":[],"profile":[],"staff":[],"admin-page":[],"admin-xero-page":[],"admin-venue-config":[],"admin-invites":[],"admin-exports":[],"admin-shift-types":[],"admin-roster-groups":[],"admin-xero":[]};
+
+export type FrontendSurfaceTabSetDefinition = { name: string; tabRoleAttribute: string; keys: ReadonlyArray<string>; defaultKey: string; isKey: (value: unknown) => boolean };
+export const FrontendSurfaceTabSetRegistry: Record<FrontendSurfaceName, ReadonlyArray<FrontendSurfaceTabSetDefinition>> = {"timesheets":[],"roster":[{"name":"roster-staff-panel-tabs","tabRoleAttribute":rosterStaffPanelTabDomAttr,"keys":["staff","settings"],"defaultKey":"staff","isKey":isRosterStaffPanelTabsKey}],"roster-day-timeline":[],"leave-requests":[],"billing":[],"support":[],"profile":[],"staff":[],"admin-page":[],"admin-xero-page":[],"admin-venue-config":[],"admin-invites":[],"admin-exports":[],"admin-shift-types":[],"admin-roster-groups":[],"admin-xero":[]};
 
 export const FrontendSurfaceFragmentRegistry = {"timesheets":["timesheet-toolbar","timesheet-day-columns","timesheet-day-section"],"roster":["roster-content","roster-grid-toolbar","roster-grid-frame","roster-day-columns","roster-day-rail","roster-wage-rail","roster-slots-grid","roster-staff-panel","roster-staff-self-service-leave-form","roster-day-section","roster-row"],"roster-day-timeline":["roster-day-timeline-content"],"leave-requests":["leave-section-count","leave-section-list"],"billing":["billing-status"],"support":["support-award-rates","support-public-holidays"],"profile":["profile-details-section","profile-preferences-section","profile-security-section","profile-leave-section","profile-rsa-section"],"staff":["staff-details-section","staff-preferences-section","staff-leave-section"],"admin-page":[],"admin-xero-page":[],"admin-venue-config":["admin-venue-settings"],"admin-invites":["admin-invites"],"admin-exports":["admin-exports"],"admin-shift-types":["admin-shift-types"],"admin-roster-groups":["admin-roster-groups"],"admin-xero":["admin-xero-shell"]} as const;
 export function isFrontendSurfaceName(value: unknown): value is FrontendSurfaceName {
@@ -1053,7 +1081,7 @@ export type FrontendSurfaceFragmentProtection =
     { kind: "replace" }
   | { kind: "focused-field"; activeSelector: string; fieldKeyAttr: string; fieldNameFallback: boolean; containerSelector: string | null };
 export function isFrontendSurfaceFragmentProtection(value: unknown): value is FrontendSurfaceFragmentProtection {
-    return ((isRecord(value) && hasExactKeys(value, ["kind"]) && (value["kind"] === "replace")) || (isRecord(value) && hasExactKeys(value, ["kind", "activeSelector", "fieldKeyAttr", "fieldNameFallback", "containerSelector"]) && (value["kind"] === "focused-field") && (typeof value["activeSelector"] === "string") && (typeof value["fieldKeyAttr"] === "string") && (typeof value["fieldNameFallback"] === "boolean") && (value["containerSelector"] === null || (typeof value["containerSelector"] === "string"))));
+    return ((isRecord(value) && hasExactKeys(value, ["kind"], ["kind"]) && (value["kind"] === "replace")) || (isRecord(value) && hasExactKeys(value, ["kind", "activeSelector", "fieldKeyAttr", "fieldNameFallback", "containerSelector"], ["kind", "activeSelector", "fieldKeyAttr", "fieldNameFallback", "containerSelector"]) && (value["kind"] === "focused-field") && (typeof value["activeSelector"] === "string") && (typeof value["fieldKeyAttr"] === "string") && (typeof value["fieldNameFallback"] === "boolean") && (value["containerSelector"] === null || (typeof value["containerSelector"] === "string"))));
 }
 
 // FrontendSurface mount metadata is an exact surface-discriminated local envelope.

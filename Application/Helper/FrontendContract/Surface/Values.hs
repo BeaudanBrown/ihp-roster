@@ -14,20 +14,27 @@
 {-# LANGUAGE UndecidableInstances #-}
 
 module Application.Helper.FrontendContract.Surface.Values
-    ( FindMountTarget
+    ( AssertBrowserReachableSurfaceDto
+    , FindMountTarget
     , KnownMountTarget
     , KnownSurfaceFieldLookup
     , KnownSurfaceFieldValues
     , KnownSurfaceWireValue (..)
     , LookupSurfaceField
+    , RequireCompleteSetSortKey
     , RequireSurfaceField
+    , RequireSurfaceTabKey
     , SurfaceActionFieldSpecs
     , SurfaceActionFields
     , SurfaceActionPrimitive
     , SurfaceActivationRefPrimitive
     , SurfaceBrowserRolePrimitive
     , SurfaceBrowserStatePrimitive
+    , SurfaceCompleteSetSortPrimitive
+    , SurfaceCompleteSetSortRowDto
+    , SurfaceCompleteSetSortRowFieldSpecs
     , SurfaceLinkedHighlightPrimitive
+    , SurfaceTabSetPrimitive
     , SurfaceFieldBundle
     , SurfaceFieldBundleOf
     , SurfaceFieldBundleSpecs
@@ -40,6 +47,8 @@ module Application.Helper.FrontendContract.Surface.Values
     , SurfaceFragmentTargetFieldSpecs
     , SurfaceDomTokenPrimitive
     , SurfaceDropzoneRefPrimitive
+    , SurfaceDtoFieldSpecs
+    , SurfaceDtoPrimitive
     , SurfaceFragmentPrimitive
     , SurfaceIntentFieldSpecs
     , SurfaceIntentFields
@@ -70,7 +79,9 @@ module Application.Helper.FrontendContract.Surface.Values
     , surfaceActivationRefValue
     , surfaceBrowserRoleValue
     , surfaceBrowserStateValue
+    , surfaceCompleteSetSortValue
     , surfaceLinkedHighlightValue
+    , surfaceTabSetValue
     , surfaceDomTokenValue
     , surfaceDropzoneRefValue
     , surfaceFragmentFieldName
@@ -98,7 +109,7 @@ import qualified Data.Aeson.KeyMap as Aeson.KeyMap
 import qualified Data.Aeson.Types as Aeson.Types
 import qualified Data.ByteString.Lazy as LBS
 import Data.Foldable (toList)
-import Data.Kind (Type)
+import Data.Kind (Constraint, Type)
 import qualified Data.Text as Text
 import qualified Data.Text.Encoding as Text.Encoding
 import Data.Time (Day, defaultTimeLocale, formatTime, parseTimeM)
@@ -609,8 +620,11 @@ type SurfaceIntentPrimitive spec marker = FindSurfaceIntent spec marker (Surface
 type SurfaceActivationRefPrimitive spec marker = FindSurfaceActivationRef spec marker (SurfacePrimitives spec)
 type SurfaceBrowserRolePrimitive spec marker = FindSurfaceBrowserRole spec marker (SurfacePrimitives spec)
 type SurfaceBrowserStatePrimitive spec marker = FindSurfaceBrowserState spec marker (SurfacePrimitives spec)
+type SurfaceCompleteSetSortPrimitive spec marker = FindSurfaceCompleteSetSort spec marker (SurfacePrimitives spec)
 type SurfaceLinkedHighlightPrimitive spec marker = FindSurfaceLinkedHighlight spec marker (SurfacePrimitives spec)
 type SurfaceDomTokenPrimitive spec marker = FindSurfaceDomToken spec marker (SurfacePrimitives spec)
+type SurfaceDtoPrimitive spec marker = FindSurfaceDto spec marker (SurfacePrimitives spec)
+type SurfaceTabSetPrimitive spec marker = FindSurfaceTabSet spec marker (SurfacePrimitives spec)
 type SurfaceSourceRefPrimitive spec marker = FindSurfaceSourceRef spec marker (SurfacePrimitives spec)
 type SurfaceDropzoneRefPrimitive spec marker = FindSurfaceDropzoneRef spec marker (SurfacePrimitives spec)
 type SurfaceResourceSpec spec marker = RequireSurfaceResource spec marker (FindSurfaceResource marker (SurfacePrimitives spec))
@@ -622,6 +636,9 @@ type SurfaceFragmentTargetFieldSpecs spec marker = MountTargetFieldSpecs (FindMo
 type SurfaceActionFieldSpecs spec marker = PrimitiveFieldSpecs (SurfaceActionPrimitive spec marker)
 type SurfaceIntentFieldSpecs spec marker = PrimitiveFieldSpecs (SurfaceIntentPrimitive spec marker)
 type SurfaceResourceFieldSpecs spec marker = ResourceFieldSpecs (SurfaceResourceSpec spec marker)
+type SurfaceDtoFieldSpecs spec marker = PrimitiveFieldSpecs (SurfaceDtoPrimitive spec marker)
+type SurfaceCompleteSetSortRowDto spec marker = CompleteSetSortRowDto (SurfaceCompleteSetSortPrimitive spec marker)
+type SurfaceCompleteSetSortRowFieldSpecs spec marker = SurfaceDtoFieldSpecs spec (SurfaceCompleteSetSortRowDto spec marker)
 type SurfaceMountStateFieldSpecs spec = FindMountStateFields (SurfacePrimitives spec)
 
 type family PrimitiveFieldSpecs (primitive :: SurfacePrimitive) :: [FieldSpec] where
@@ -630,6 +647,7 @@ type family PrimitiveFieldSpecs (primitive :: SurfacePrimitive) :: [FieldSpec] w
     PrimitiveFieldSpecs ('Action marker fields options) = fields
     PrimitiveFieldSpecs ('Intent marker fields options) = fields
     PrimitiveFieldSpecs ('MountState marker fields) = fields
+    PrimitiveFieldSpecs ('SurfaceDto reachability marker fields) = fields
 
 type family FragmentOptionSpecs (primitive :: SurfacePrimitive) :: [PrimitiveOption] where
     FragmentOptionSpecs ('Fragment marker fields options) = options
@@ -709,6 +727,27 @@ type family FindSurfaceBrowserState (spec :: SurfaceSpec) (marker :: Type) (prim
     FindSurfaceBrowserState spec marker (primitive ': rest) = FindSurfaceBrowserState spec marker rest
     FindSurfaceBrowserState spec marker '[] = SurfaceOwnershipError spec "browser-state" marker
 
+type family FindSurfaceCompleteSetSort (spec :: SurfaceSpec) (marker :: Type) (primitives :: [SurfacePrimitive]) :: SurfacePrimitive where
+    FindSurfaceCompleteSetSort spec marker (('CompleteSetSort marker rootRole rowRole controlRole rowDto keys defaultKey defaultDirection) ': rest) = 'CompleteSetSort marker rootRole rowRole controlRole rowDto keys defaultKey defaultDirection
+    FindSurfaceCompleteSetSort spec marker (primitive ': rest) = FindSurfaceCompleteSetSort spec marker rest
+    FindSurfaceCompleteSetSort spec marker '[] = SurfaceOwnershipError spec "complete-set sort" marker
+
+type family CompleteSetSortRowDto (primitive :: SurfacePrimitive) :: Type where
+    CompleteSetSortRowDto ('CompleteSetSort marker rootRole rowRole controlRole rowDto keys defaultKey defaultDirection) = rowDto
+
+type family RequireCompleteSetSortKey (primitive :: SurfacePrimitive) (key :: Type) :: Constraint where
+    RequireCompleteSetSortKey ('CompleteSetSort marker rootRole rowRole controlRole rowDto keys defaultKey defaultDirection) key = RequireSortKey marker key keys
+
+type family RequireSortKey (sortMarker :: Type) (key :: Type) (keys :: [CompleteSetSortKeySpec]) :: Constraint where
+    RequireSortKey sortMarker key (('SortKey key comparators) ': rest) = ()
+    RequireSortKey sortMarker key (other ': rest) = RequireSortKey sortMarker key rest
+    RequireSortKey sortMarker key '[] = TypeError
+        ( 'Text "FrontendSurface complete-set sort "
+            ':<>: 'ShowType sortMarker
+            ':<>: 'Text " does not declare key "
+            ':<>: 'ShowType key
+        )
+
 type family FindSurfaceLinkedHighlight (spec :: SurfaceSpec) (marker :: Type) (primitives :: [SurfacePrimitive]) :: SurfacePrimitive where
     FindSurfaceLinkedHighlight spec marker (('LinkedHighlight marker sourceRole memberRole activations effects) ': rest) = 'LinkedHighlight marker sourceRole memberRole activations effects
     FindSurfaceLinkedHighlight spec marker (primitive ': rest) = FindSurfaceLinkedHighlight spec marker rest
@@ -719,6 +758,40 @@ type family FindSurfaceDomToken (spec :: SurfaceSpec) (marker :: Type) (primitiv
     FindSurfaceDomToken spec marker (('BrowserDomToken marker) ': rest) = 'BrowserDomToken marker
     FindSurfaceDomToken spec marker (primitive ': rest) = FindSurfaceDomToken spec marker rest
     FindSurfaceDomToken spec marker '[] = SurfaceOwnershipError spec "DOM token" marker
+
+type family FindSurfaceTabSet (spec :: SurfaceSpec) (marker :: Type) (primitives :: [SurfacePrimitive]) :: SurfacePrimitive where
+    FindSurfaceTabSet spec marker (('TabSet marker roleMarker keys defaultKey) ': rest) = 'TabSet marker roleMarker keys defaultKey
+    FindSurfaceTabSet spec marker (primitive ': rest) = FindSurfaceTabSet spec marker rest
+    FindSurfaceTabSet spec marker '[] = SurfaceOwnershipError spec "tab set" marker
+
+type family RequireSurfaceTabKey (primitive :: SurfacePrimitive) (key :: Type) :: Constraint where
+    RequireSurfaceTabKey ('TabSet marker roleMarker keys defaultKey) key = RequireTabKey marker key keys
+
+type family RequireTabKey (tabSetMarker :: Type) (key :: Type) (keys :: [Type]) :: Constraint where
+    RequireTabKey tabSetMarker key (key ': rest) = ()
+    RequireTabKey tabSetMarker key (other ': rest) = RequireTabKey tabSetMarker key rest
+    RequireTabKey tabSetMarker key '[] = TypeError
+        ( 'Text "FrontendSurface tab set "
+            ':<>: 'ShowType tabSetMarker
+            ':<>: 'Text " does not declare key "
+            ':<>: 'ShowType key
+        )
+
+type family FindSurfaceDto (spec :: SurfaceSpec) (marker :: Type) (primitives :: [SurfacePrimitive]) :: SurfacePrimitive where
+    FindSurfaceDto spec marker (('SurfaceDto reachability marker fields) ': rest) = 'SurfaceDto reachability marker fields
+    FindSurfaceDto spec marker (primitive ': rest) = FindSurfaceDto spec marker rest
+    FindSurfaceDto spec marker '[] = SurfaceOwnershipError spec "dto" marker
+
+-- | Rendering a Surface DTO into browser-visible markup requires an explicit
+-- non-server reachability on that exact declaration.
+type family AssertBrowserReachableSurfaceDto (primitive :: SurfacePrimitive) :: Constraint where
+    AssertBrowserReachableSurfaceDto ('SurfaceDto 'BrowserUnreachable marker fields) = TypeError
+        ( 'Text "FrontendSurface DTO "
+            ':<>: 'ShowType marker
+            ':<>: 'Text " is server-only and cannot be rendered to the browser"
+        )
+    AssertBrowserReachableSurfaceDto ('SurfaceDto reachability marker fields) = ()
+
 
 type family FindSurfaceSourceRef (spec :: SurfaceSpec) (marker :: Type) (primitives :: [SurfacePrimitive]) :: SurfacePrimitive where
     FindSurfaceSourceRef spec marker (('SourceRef marker options) ': rest) = 'SourceRef marker options
@@ -834,6 +907,24 @@ surfaceBrowserStateValue =
     case reflectPrimitive @(SurfaceBrowserStatePrimitive spec marker) of
         ReflectedBrowserState attribute -> qualifySurfaceBrowserAttribute @spec attribute
         _ -> error "impossible: browser-state lookup reflected a different primitive"
+
+surfaceCompleteSetSortValue :: forall spec marker. (ReflectSurfaceSpec spec, ReflectPrimitive (SurfaceCompleteSetSortPrimitive spec marker)) => CompleteSetSortIR
+surfaceCompleteSetSortValue =
+    case reflectPrimitive @(SurfaceCompleteSetSortPrimitive spec marker) of
+        ReflectedCompleteSetSort sortDefinition ->
+            sortDefinition
+                { completeSetSortRootRole = qualifySurfaceBrowserAttribute @spec sortDefinition.completeSetSortRootRole
+                , completeSetSortRowRole = qualifySurfaceBrowserAttribute @spec sortDefinition.completeSetSortRowRole
+                , completeSetSortControlRole = qualifySurfaceBrowserAttribute @spec sortDefinition.completeSetSortControlRole
+                }
+        _ -> error "impossible: complete-set-sort lookup reflected a different primitive"
+
+surfaceTabSetValue :: forall spec marker. (ReflectSurfaceSpec spec, ReflectPrimitive (SurfaceTabSetPrimitive spec marker)) => TabSetIR
+surfaceTabSetValue =
+    case reflectPrimitive @(SurfaceTabSetPrimitive spec marker) of
+        ReflectedTabSet tabSet ->
+            tabSet { tabSetRole = qualifySurfaceBrowserAttribute @spec tabSet.tabSetRole }
+        _ -> error "impossible: tab-set lookup reflected a different primitive"
 
 surfaceLinkedHighlightValue :: forall spec marker. (ReflectSurfaceSpec spec, ReflectPrimitive (SurfaceLinkedHighlightPrimitive spec marker)) => LinkedHighlightIR
 surfaceLinkedHighlightValue =

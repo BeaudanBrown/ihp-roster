@@ -4,11 +4,12 @@
   function isRecord(value) {
     return typeof value === "object" && value !== null && !Array.isArray(value);
   }
-  function hasExactKeys(value, keys) {
-    return Object.keys(value).every((key) => keys.includes(key));
+  function hasExactKeys(value, keys, requiredKeys = keys) {
+    const valueKeys = Object.keys(value);
+    return valueKeys.every((key) => keys.includes(key)) && requiredKeys.every((key) => Object.prototype.hasOwnProperty.call(value, key));
   }
   function isXeroCandidateFilterConfig(value) {
-    return isRecord(value) && hasExactKeys(value, ["searchProjection"]) && typeof value["searchProjection"] === "string";
+    return isRecord(value) && hasExactKeys(value, ["searchProjection"], ["searchProjection"]) && typeof value["searchProjection"] === "string";
   }
   function parseXeroCandidateFilterConfig(value) {
     if (isXeroCandidateFilterConfig(value)) return value;

@@ -4,12 +4,13 @@
   function isRecord(value) {
     return typeof value === "object" && value !== null && !Array.isArray(value);
   }
-  function hasExactKeys(value, keys) {
-    return Object.keys(value).every((key) => keys.includes(key));
+  function hasExactKeys(value, keys, requiredKeys = keys) {
+    const valueKeys = Object.keys(value);
+    return valueKeys.every((key) => keys.includes(key)) && requiredKeys.every((key) => Object.prototype.hasOwnProperty.call(value, key));
   }
   var pageReadyEvent = "bepis:page-ready";
   function isDialogSubmitConfig(value) {
-    return isRecord(value) && hasExactKeys(value, ["loadingLabel"]) && typeof value["loadingLabel"] === "string";
+    return isRecord(value) && hasExactKeys(value, ["loadingLabel"], ["loadingLabel"]) && typeof value["loadingLabel"] === "string";
   }
   function parseDialogSubmitConfig(value) {
     if (isDialogSubmitConfig(value)) return value;

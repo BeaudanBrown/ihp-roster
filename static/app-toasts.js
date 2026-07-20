@@ -4,12 +4,13 @@
   function isRecord(value) {
     return typeof value === "object" && value !== null && !Array.isArray(value);
   }
-  function hasExactKeys(value, keys) {
-    return Object.keys(value).every((key) => keys.includes(key));
+  function hasExactKeys(value, keys, requiredKeys = keys) {
+    const valueKeys = Object.keys(value);
+    return valueKeys.every((key) => keys.includes(key)) && requiredKeys.every((key) => Object.prototype.hasOwnProperty.call(value, key));
   }
   var pageReadyEvent = "bepis:page-ready";
   function isToastConfig(value) {
-    return isRecord(value) && hasExactKeys(value, ["autoHideMs"]) && (typeof value["autoHideMs"] === "number" && Number.isInteger(value["autoHideMs"]));
+    return isRecord(value) && hasExactKeys(value, ["autoHideMs"], ["autoHideMs"]) && (typeof value["autoHideMs"] === "number" && Number.isInteger(value["autoHideMs"]));
   }
   function parseToastConfig(value) {
     if (isToastConfig(value)) return value;

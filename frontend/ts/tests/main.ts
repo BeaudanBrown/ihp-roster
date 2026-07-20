@@ -1,5 +1,7 @@
 import "./frontend-surface-contracts.test";
 import "./linked-highlight.test";
+import "./complete-set-sort.test";
+import "./surface-tab-set.test";
 import "./interaction-contracts.test";
 import "./interaction-runtime.test";
 import "./shared.test";

@@ -209,7 +209,7 @@ slices, and all block final reconciliation.
 ### Roster browser capabilities
 
 20. `#174` - Surface-owned linked-highlight roles and stale interaction class cleanup. **Complete.**
-21. `#175` - Staff-panel sorting/tabs and browser-reachable Surface DTOs.
+21. `#175` - Staff-panel sorting/tabs and browser-reachable Surface DTOs. **Complete.**
 22. `#176` - Fullscreen and column-edit controls.
 23. `#177` - Image-export annotations and configuration.
 24. `#178` - Retained dormant week overview.
@@ -306,11 +306,22 @@ mount-local TypeScript runtime consumes the generated registry, owns transient
 server-rendered replacements. The old roster-specific runtime, raw staff/slot
 attributes, feature highlight selectors, and misleading create-dropzone class
 are deleted; focused Haskell/TypeScript/browser coverage, CSS migration, drift,
-and source guards pin the boundary.
-Roster linked highlighting depends on closed interaction IR. Staff-panel work
-establishes the browser-reachable Surface DTO path for image export and week
-overview. The Haskell adapter slices run in parallel with capability slices and
-final reconciliation depends on every preceding slice.
+and source guards pin the boundary. #175 added explicit browser reachability to
+Surface DTO declarations and generated only the selected type/guard/parser/
+encoder directions. It also added checked `CompleteSetSort` and `TabSet`
+capabilities with marker-indexed Haskell rendering helpers and generic,
+mount-local runtimes. The roster staff panel now emits one exact typed row
+payload plus generated sort/tab roles; name/role/shifts comparator chains,
+defaults, tie-breakers, tab keys, and tab default come only from the Roster
+Surface declaration. The old global sort enum, per-field data attributes, and
+roster-specific parser/comparator/tab modules are deleted; focused reflection,
+compile-failure, Haskell render, TypeScript lifecycle, E2E, drift, and source
+guards pin the boundary.
+Roster linked highlighting depends on closed interaction IR. The
+browser-reachable Surface DTO path established by staff-panel work is available
+to image export and week overview. The Haskell adapter slices run in parallel
+with capability slices and final reconciliation depends on every preceding
+slice.
 
 ## Behavior Constraints
 

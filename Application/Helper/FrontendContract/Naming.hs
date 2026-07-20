@@ -43,6 +43,11 @@ data FrontendSurfaceNameContext
     | BrowserRoleName
     | BrowserStateName
     | InteractionRefName
+    | SortKeyName
+    | TabKeyName
+    | SortValueTypeName
+    | SortComparatorDirectionName
+    | SortDirectionName
     | EventName
     deriving (Eq, Ord, Show)
 
@@ -240,6 +245,11 @@ contextSuffix = \case
     BrowserRoleName -> Just "Role"
     BrowserStateName -> Just "State"
     InteractionRefName -> Just "Ref"
+    SortKeyName -> Just "SortKey"
+    TabKeyName -> Just "TabKey"
+    SortValueTypeName -> Just "ValueType"
+    SortComparatorDirectionName -> Just "ComparatorDirection"
+    SortDirectionName -> Just "Direction"
     EventName    -> Nothing
 
 stripSuffixWords :: [Text] -> [Text] -> [Text]

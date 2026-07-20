@@ -4,22 +4,23 @@
   function isRecord(value) {
     return typeof value === "object" && value !== null && !Array.isArray(value);
   }
-  function hasExactKeys(value, keys) {
-    return Object.keys(value).every((key) => keys.includes(key));
+  function hasExactKeys(value, keys, requiredKeys = keys) {
+    const valueKeys = Object.keys(value);
+    return valueKeys.every((key) => keys.includes(key)) && requiredKeys.every((key) => Object.prototype.hasOwnProperty.call(value, key));
   }
   var pageReadyEvent = "bepis:page-ready";
   function isHorizontalSnapMode(value) {
     return typeof value === "string" && ["equal-groups", "nearest-item"].includes(value);
   }
   function isHorizontalSnapConfig(value) {
-    return isRecord(value) && hasExactKeys(value, ["snapMode", "itemSelector", "groupCount", "groupProperty", "groupScopeSelector"]) && isHorizontalSnapMode(value["snapMode"]) && (value["itemSelector"] === null || typeof value["itemSelector"] === "string") && (value["groupCount"] === null || typeof value["groupCount"] === "number" && Number.isInteger(value["groupCount"])) && (value["groupProperty"] === null || typeof value["groupProperty"] === "string") && (value["groupScopeSelector"] === null || typeof value["groupScopeSelector"] === "string");
+    return isRecord(value) && hasExactKeys(value, ["snapMode", "itemSelector", "groupCount", "groupProperty", "groupScopeSelector"], ["snapMode", "itemSelector", "groupCount", "groupProperty", "groupScopeSelector"]) && isHorizontalSnapMode(value["snapMode"]) && (value["itemSelector"] === null || typeof value["itemSelector"] === "string") && (value["groupCount"] === null || typeof value["groupCount"] === "number" && Number.isInteger(value["groupCount"])) && (value["groupProperty"] === null || typeof value["groupProperty"] === "string") && (value["groupScopeSelector"] === null || typeof value["groupScopeSelector"] === "string");
   }
   function parseHorizontalSnapConfig(value) {
     if (isHorizontalSnapConfig(value)) return value;
     throw new Error("Invalid HorizontalSnapConfig");
   }
   function isHorizontalDragConfig(value) {
-    return isRecord(value) && hasExactKeys(value, ["ignoreSelector"]) && (value["ignoreSelector"] === null || typeof value["ignoreSelector"] === "string");
+    return isRecord(value) && hasExactKeys(value, ["ignoreSelector"], ["ignoreSelector"]) && (value["ignoreSelector"] === null || typeof value["ignoreSelector"] === "string");
   }
   function parseHorizontalDragConfig(value) {
     if (isHorizontalDragConfig(value)) return value;

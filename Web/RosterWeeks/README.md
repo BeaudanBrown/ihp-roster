@@ -47,6 +47,22 @@ not reach through its mount boundary to reuse outer-roster elements. Views and
 tests consume generated role names rather than raw staff/slot ID attributes or
 feature-specific highlight selectors.
 
+## Staff-Panel Sort And Tab Contract
+
+`Surface.Roster` declares the staff panel's complete-set sort and tab-set
+capabilities. `Surface.Roster.StaffPanel` is the curated Haskell rendering API:
+it emits generated root/control/tab roles and one exact JSON row payload with an
+opaque staff-row key, name, role, assigned-shift count, and ideal-shift count.
+The view does not expose parallel per-field `data-roster-staff-*` attributes.
+
+The generic complete-set sort runtime owns mount-local name/role/shifts ordering,
+ascending/descending toggles, deterministic opaque tie-breaking, and
+`aria-sort`. The generic tab-set runtime remembers a valid Staff/Settings key
+across panel replacement while Bootstrap owns tab activation. Both discover only
+generated roles, validate generated registries/payload parsers, and leave
+server-rendered markup authoritative. Roster-specific browser parsers,
+comparators, defaults, and compatibility aliases are prohibited.
+
 ## Week Toolbar Contract
 
 `Application.Helper.View.WeekToolbar` renders each supplied control exactly

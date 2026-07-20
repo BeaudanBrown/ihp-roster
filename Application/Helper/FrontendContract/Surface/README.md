@@ -118,11 +118,19 @@ Available primitives include:
   interactions;
 - `BrowserRole`, `BrowserState`, and `LinkedHighlight` for mount-local,
   generated browser relationships and their closed activations/effects;
+- `CompleteSetSort` for complete, server-rendered collections whose row DTO,
+  allowed keys, comparator chains, direction policy, and defaults are closed in
+  Haskell;
+- `TabSet` for mount-local opaque tab keys and a declared default while the
+  browser UI library remains the mechanical adapter;
 - `ConflictPolicy` for session/fragment conflict behavior;
-- `Event`, `DomToken`, and `Dto` for checked Surface metadata. `DomToken` is
-  server-only; use `BrowserDomToken` only when production TypeScript also
-  imports the semantic token. Guardrails require every emitted browser token to
-  have a production consumer.
+- `Event`, `DomToken`, and Surface DTO declarations for checked metadata.
+  Plain `Dto` is server-only. `BrowserTypeDto`, `BrowserGuardDto`,
+  `BrowserInboundDto`, `BrowserOutboundDto`, and `BrowserBidirectionalDto`
+  explicitly select generated browser reachability and codec direction.
+  `DomToken` is server-only; use `BrowserDomToken` only when production
+  TypeScript also imports the semantic token. Guardrails require every emitted
+  browser token to have a production consumer.
 
 Wire fields use the closed browser wire universe: `WireText`, `WireInt`,
 `WireBool`, `WireUUID`, `WireDay`, `WireList`, `WireOptional`, `WireNullable`,
@@ -226,6 +234,45 @@ shift-group highlighting independently on the roster and contained day-timeline
 surfaces. Their views consume generated Haskell role helpers; raw staff/slot IDs,
 feature selector attributes, and feature-specific highlight runtimes are not a
 parallel contract.
+
+## Browser-Reachable DTOs, Complete-Set Sorts, And Tab Sets
+
+Surface DTOs are server-only unless their declaration explicitly selects a
+browser reachability. The TypeScript generator emits only reachable DTOs and the
+codec operations implied by their direction: type-only, guard, inbound parser,
+outbound encoder, or both parser and encoder. Inbound parsers are exact: missing,
+extra, or mistyped fields reject the whole payload. Haskell may serialize a
+reachable DTO only through `Surface.Dto` marker-indexed helpers and a complete
+`SurfaceFields` bundle; trying to render a plain `Dto` is a compile error.
+
+`CompleteSetSort` is for presentation-only ordering when the server has rendered
+the complete collection. It names generated root, row, and control roles; a
+browser-reachable exact row DTO; an ordered inventory of keys; each key's ordered
+comparator chain; text/integer/opaque value interpretation; selected-direction
+versus always-ascending comparator direction; and initial key/direction. The
+generic `frontend/ts/complete-set-sort/runtime.ts` adapter parses every row with
+the generated DTO parser before mutation, scopes ownership to the nearest
+Surface mount, applies stable deterministic ordering, and updates `aria-sort`.
+It reports malformed rows and leaves their server order unchanged instead of
+inventing defaults. Use marker-indexed helpers from `Surface.CompleteSetSort` to
+render roots, rows, and controls; views and TypeScript must not repeat role
+names, payload field names, sort keys, comparators, or defaults.
+
+`TabSet` declares one generated tab role, a closed opaque key inventory, and a
+default key. The generic `frontend/ts/surface-tab-set/runtime.ts` adapter listens
+to the UI library's shown-tab event, remembers only valid keys per concrete
+mount and declaration, restores that selection after HTMX replacement, and
+falls back to the declared default when the remembered key is absent. It does
+not own pane markup, Bootstrap activation mechanics, or business state. Render
+tab keys with `Surface.TabSet`; do not add feature-specific parsers or storage
+attributes.
+
+Roster staff-panel sorting and tabs are the first production consumers. Their
+curated Haskell view boundary is
+`Application.Helper.FrontendContract.Surface.Roster.StaffPanel`. The declared
+row payload contains an opaque row key, name, role, assigned-shift count, and
+ideal-shift count. The old per-field attributes, global sort enum, and
+roster-specific TypeScript runtimes are deleted and guarded against return.
 
 ## Generated HTMX Request Actions
 
