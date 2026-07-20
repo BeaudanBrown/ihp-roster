@@ -37,6 +37,7 @@ tests = do
             map suiteLabel selected `shouldBe` ["database-routine"]
             hspecArgumentsMayFilter ["--match", "FeedbackController"] `shouldBe` True
             hspecArgumentsMayFilter ["--match=FeedbackController"] `shouldBe` True
+            hspecArgumentsMayFilter ["--rerun-all-on-success"] `shouldBe` True
             hspecArgumentsMayFilter ["--format=progress", "--no-color"] `shouldBe` False
 
         it "reports omitted owners and known partial acceptance coverage" do

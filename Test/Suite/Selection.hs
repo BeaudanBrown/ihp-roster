@@ -19,3 +19,5 @@ hspecArgumentsMayFilter = any isFilteringArgument
             || argument == "--focused-only"
             || argument == "-r"
             || argument == "--rerun"
+            || argument == "--rerun-all-on-success"
+            || "--rerun-all-on-success=" `Text.isPrefixOf` argument

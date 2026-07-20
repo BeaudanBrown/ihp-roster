@@ -277,8 +277,20 @@ When adding a new controller (e.g., `PostsController`), create a corresponding s
    import qualified Test.Controller.PostsSpec
 
    allSuites =
-       [ TestSuite "StaticController" Test.Controller.StaticSpec.tests
-       , TestSuite "PostsController" Test.Controller.PostsSpec.tests
+       [ databaseSuite
+           BroadCleanStateRequired
+           CommittedVisibilityNotRequired
+           SuiteDefinition
+               { definitionLabel = "PostsController"
+               , definitionEstimatedRuntimeSeconds = 1.0
+               , definitionFeedbackLane = RoutineCorrectness
+               , definitionInvariantFamily = ProductSupport
+               , definitionFixtureCost = SmallFixture
+               , definitionExternalMocks = []
+               , definitionOwnedInvariants = []
+               , definitionPartialInvariants = []
+               }
+           Test.Controller.PostsSpec.tests
        ]
    ```
 
