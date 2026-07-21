@@ -12,6 +12,7 @@ module Web.Timesheets.Validation
 
 import Application.Helper.Staff (isLinkedActiveStaff)
 import Application.Helper.Url (appendQueryParams)
+import Data.Either (fromRight)
 import qualified Data.Text as Text
 import qualified Data.UUID as UUID
 import Web.Controller.Prelude
@@ -134,7 +135,7 @@ buildTimesheetEntry currentViewerStaffId entry =
                 Just "true"  -> Right True
                 Just "false" -> Right False
                 Just _       -> Left "Had break must be true or false"
-        hadBreak = either (const False) (\value -> value) parsedHadBreak
+        hadBreak = fromRight False parsedHadBreak
         validateHadBreakTransport record =
             case parsedHadBreak of
                 Left message -> record |> attachFailure #hadBreak message

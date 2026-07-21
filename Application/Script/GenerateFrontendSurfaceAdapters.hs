@@ -6,10 +6,10 @@ import Application.Helper.FrontendContract.Surface.Contracts (registeredFrontend
 import Application.Helper.FrontendContract.Surface.HaskellAdapter.Family (SurfaceAdapterRegistry)
 import Application.Helper.FrontendContract.Surface.HaskellAdapter.Generator
 import Application.Helper.FrontendContract.Surface.HaskellAdapter.Registry (registeredSurfaceAdapterRegistry)
-import Application.Script.Prelude (Script)
 import qualified Data.Text as Text
 import qualified Data.Text.IO as Text
 import IHP.Prelude
+import IHP.ScriptSupport (Script)
 import qualified System.Directory as Directory
 import qualified System.Environment as Environment
 import System.Exit (exitFailure)

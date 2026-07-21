@@ -1,0 +1,44 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+repo_root="${FRONTEND_REPO_ROOT:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}"
+cd "$repo_root"
+
+if [ -f "@scriptsRoot@/frontend/generated-state-lib" ]; then
+    # shellcheck source=Config/nix/scripts/frontend/generated-state-lib
+    . "@scriptsRoot@/frontend/generated-state-lib"
+else
+    # shellcheck source=Config/nix/scripts/frontend/generated-state-lib
+    . "Config/nix/scripts/frontend/generated-state-lib"
+fi
+
+state_dir="$(frontend_generated_state_dir)"
+contract_manifest="$state_dir/frontend-contracts.manifest"
+js_manifest="$state_dir/frontend-js.manifest"
+mkdir -p "$state_dir"
+frontend_generation_lock
+
+contract_input="$(frontend_contract_input_hash)"
+contract_output="$(frontend_contract_output_hash)"
+if frontend_manifest_matches "$contract_manifest" "$contract_input" "$contract_output"; then
+    echo "frontend-generated-ensure: Haskell adapters and TypeScript contracts are current"
+else
+    echo "frontend-generated-ensure: regenerating Haskell adapters and TypeScript contracts"
+    frontend-surface-adapters
+    frontend-contracts
+    contract_input="$(frontend_contract_input_hash)"
+    contract_output="$(frontend_contract_output_hash)"
+    frontend_write_manifest "$contract_manifest" "$contract_input" "$contract_output"
+fi
+
+js_input="$(frontend_js_input_hash)"
+js_output="$(frontend_js_output_hash)"
+if frontend_manifest_matches "$js_manifest" "$js_input" "$js_output"; then
+    echo "frontend-generated-ensure: JavaScript bundles are current"
+else
+    echo "frontend-generated-ensure: rebuilding JavaScript bundles"
+    frontend-build
+    js_input="$(frontend_js_input_hash)"
+    js_output="$(frontend_js_output_hash)"
+    frontend_write_manifest "$js_manifest" "$js_input" "$js_output"
+fi

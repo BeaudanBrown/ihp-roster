@@ -7,7 +7,7 @@ DB_SOCKET="${PGHOST:-$PWD/build/db}"
 APP_HEALTH_URL="${APP_BASE_URL:-http://127.0.0.1:8000}"
 APP_PID=""
 FRONTEND_WATCH_PID=""
-FRONTEND_CONTRACTS_WATCH_PID=""
+FRONTEND_GENERATED_WATCH_PID=""
 APP_WAS_ALREADY_RUNNING=0
 MAILHOG_STARTED=0
 OBSERVABILITY_STARTED=0
@@ -17,6 +17,8 @@ OTLP_HTTP_PORT="${IHP_ROSTER_DEV_OTLP_HTTP_PORT:-4318}"
 mkdir -p "$STATE_DIR"
 export XDG_CACHE_HOME="${XDG_CACHE_HOME:-/tmp/nix-cache}"
 mkdir -p "$XDG_CACHE_HOME"
+
+frontend-generated-ensure
 
 if curl --connect-timeout 1 --max-time 2 -fsS "${MAILHOG_BASE_URL:-http://127.0.0.1:8025}/api/v2/messages" >/dev/null 2>&1; then
     MAILHOG_STARTED=0
@@ -36,8 +38,8 @@ cleanup() {
     if [ -n "$FRONTEND_WATCH_PID" ]; then
         kill "$FRONTEND_WATCH_PID" 2>/dev/null || true
     fi
-    if [ -n "$FRONTEND_CONTRACTS_WATCH_PID" ]; then
-        kill "$FRONTEND_CONTRACTS_WATCH_PID" 2>/dev/null || true
+    if [ -n "$FRONTEND_GENERATED_WATCH_PID" ]; then
+        kill "$FRONTEND_GENERATED_WATCH_PID" 2>/dev/null || true
     fi
     if [ "${MAILHOG_STARTED:-0}" = "1" ] && [ -n "${MAILHOG_PID:-}" ]; then
         kill "$MAILHOG_PID" 2>/dev/null || true
@@ -63,8 +65,8 @@ export OTEL_TRACES_SAMPLER="${OTEL_TRACES_SAMPLER:-always_on}"
 export OTEL_BSP_SCHEDULE_DELAY="${OTEL_BSP_SCHEDULE_DELAY:-1000}"
 export OTEL_BSP_EXPORT_TIMEOUT="${OTEL_BSP_EXPORT_TIMEOUT:-5000}"
 
-frontend-contracts-watch &
-FRONTEND_CONTRACTS_WATCH_PID=$!
+frontend-generated-watch &
+FRONTEND_GENERATED_WATCH_PID=$!
 frontend-watch &
 FRONTEND_WATCH_PID=$!
 
@@ -74,7 +76,7 @@ fi
 
 if curl --connect-timeout 1 --max-time 2 -fsS "$APP_HEALTH_URL" >/dev/null 2>&1; then
     APP_WAS_ALREADY_RUNNING=1
-    echo "App server already running; frontend-watch and frontend-contracts-watch active; MailHog available at http://127.0.0.1:8025"
+    echo "App server already running; frontend-watch and frontend-generated-watch active; MailHog available at http://127.0.0.1:8025"
     echo "Dev observability available at http://127.0.0.1:${IHP_ROSTER_DEV_GRAFANA_PORT:-3300}/explore"
     echo "Existing app process was left unchanged; restart it if it was not started with IHP_ROSTER_OTEL=1."
 else
@@ -85,7 +87,7 @@ else
         exit 1
     fi
     echo "[dev-foreground] launching start with observability (XDG_CACHE_HOME=$XDG_CACHE_HOME)" >>"$LOG_FILE"
-    echo "Starting app server, frontend-watch, frontend-contracts-watch, postgres, MailHog, and observability..."
+    echo "Starting app server, frontend-watch, frontend-generated-watch, postgres, MailHog, and observability..."
     echo "Tracing env: OTEL_SERVICE_NAME=$OTEL_SERVICE_NAME OTEL_EXPORTER_OTLP_ENDPOINT=$OTEL_EXPORTER_OTLP_ENDPOINT OTEL_TRACES_SAMPLER=$OTEL_TRACES_SAMPLER"
     echo "Grafana Explore: http://127.0.0.1:${IHP_ROSTER_DEV_GRAFANA_PORT:-3300}/explore"
     start &

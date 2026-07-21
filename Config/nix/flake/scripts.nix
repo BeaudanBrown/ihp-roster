@@ -80,6 +80,9 @@ in
         frontend-contracts = script ../scripts/frontend/contracts;
         frontend-contracts-check = script ../scripts/frontend/contracts-check;
         frontend-contracts-watch = script ../scripts/frontend/contracts-watch;
+        frontend-generated-ensure = script ../scripts/frontend/generated-ensure;
+        frontend-generated-sync = script ../scripts/frontend/generated-sync;
+        frontend-generated-watch = script ../scripts/frontend/generated-watch;
         frontend-drift-check = script ../scripts/frontend/drift-check;
         frontend-no-ts-nocheck = script ../scripts/frontend/no-ts-nocheck;
         frontend-surface-guardrails = script ../scripts/frontend/surface-guardrails;
@@ -106,6 +109,7 @@ in
         frontend-contract-warnings = script ../scripts/haskell/frontend-contract-warnings;
         weeder-check = script ../scripts/haskell/weeder-check;
         regen-types = script ../scripts/haskell/regen-types;
+        generated-code-sync = script ../scripts/haskell/generated-code-sync;
         test-db-reset = script ../scripts/db/test-db-reset;
         test-postgres = script ../scripts/db/test-postgres;
         hspec-test = script ../scripts/haskell/hspec-test;

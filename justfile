@@ -121,5 +121,8 @@ format *args:
 regen:
     regen-types
 
+regen-all:
+    generated-code-sync
+
 ghci:
     ghci-app

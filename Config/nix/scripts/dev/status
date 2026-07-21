@@ -3,7 +3,7 @@ set -euo pipefail
 STATE_DIR="$(dev-agent-state-dir)"
 PID_FILE="$STATE_DIR/devenv.pid"
 FRONTEND_WATCH_PID_FILE="$STATE_DIR/frontend-watch.pid"
-FRONTEND_CONTRACTS_WATCH_PID_FILE="$STATE_DIR/frontend-contracts-watch.pid"
+FRONTEND_GENERATED_WATCH_PID_FILE="$STATE_DIR/frontend-generated-watch.pid"
 SOCKET_FILE="$STATE_DIR/pc.sock"
 DB_SOCKET="${PGHOST:-$PWD/build/db}"
 APP_HEALTH_URL="${APP_BASE_URL:-http://127.0.0.1:8000}"
@@ -69,10 +69,10 @@ tracked_process_status() {
 
 FRONTEND_WATCH_OK=false
 FRONTEND_WATCH_PID=""
-FRONTEND_CONTRACTS_WATCH_OK=false
-FRONTEND_CONTRACTS_WATCH_PID=""
+FRONTEND_GENERATED_WATCH_OK=false
+FRONTEND_GENERATED_WATCH_PID=""
 tracked_process_status "$FRONTEND_WATCH_PID_FILE" FRONTEND_WATCH_OK FRONTEND_WATCH_PID
-tracked_process_status "$FRONTEND_CONTRACTS_WATCH_PID_FILE" FRONTEND_CONTRACTS_WATCH_OK FRONTEND_CONTRACTS_WATCH_PID
+tracked_process_status "$FRONTEND_GENERATED_WATCH_PID_FILE" FRONTEND_GENERATED_WATCH_OK FRONTEND_GENERATED_WATCH_PID
 
 MAILHOG_OK=false
 MAILHOG_BLOCKED=false
@@ -101,7 +101,7 @@ if [ "$DB_OK" = true ] && [ "$HTTP_OK" = true ]; then
     RUNNING=true
 fi
 
-echo "running=$RUNNING managed=$MANAGED socket_ok=$SOCKET_OK pid=${PID:-none} frontend_watch_ok=$FRONTEND_WATCH_OK frontend_watch_pid=${FRONTEND_WATCH_PID:-none} frontend_contracts_watch_ok=$FRONTEND_CONTRACTS_WATCH_OK frontend_contracts_watch_pid=${FRONTEND_CONTRACTS_WATCH_PID:-none} db_ok=$DB_OK http_ok=$HTTP_OK mailhog_ok=$MAILHOG_OK db_blocked=$DB_BLOCKED http_blocked=$HTTP_BLOCKED mailhog_blocked=$MAILHOG_BLOCKED"
+echo "running=$RUNNING managed=$MANAGED socket_ok=$SOCKET_OK pid=${PID:-none} frontend_watch_ok=$FRONTEND_WATCH_OK frontend_watch_pid=${FRONTEND_WATCH_PID:-none} frontend_generated_watch_ok=$FRONTEND_GENERATED_WATCH_OK frontend_generated_watch_pid=${FRONTEND_GENERATED_WATCH_PID:-none} db_ok=$DB_OK http_ok=$HTTP_OK mailhog_ok=$MAILHOG_OK db_blocked=$DB_BLOCKED http_blocked=$HTTP_BLOCKED mailhog_blocked=$MAILHOG_BLOCKED"
 
 if [ "$DB_OK" = true ] && [ "$HTTP_OK" = true ] && [ "$MAILHOG_OK" = true ]; then
     exit 0

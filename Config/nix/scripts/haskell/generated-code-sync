@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+regen-types
+frontend-generated-sync
+
+echo "generated-code-sync: all generated code is current"
