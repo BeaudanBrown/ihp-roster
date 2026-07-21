@@ -192,7 +192,10 @@ advanced SQL are involved.
 
 Use the repo wrapper unless you are already inside the devenv shell. Run
 `bin/in-env` commands serially: concurrent wrapper entries can race on generated
-`.devenv` shell files and produce false setup failures.
+`.devenv` shell files and produce false setup failures. On memory-constrained
+hosts, also stop dev hot reload and avoid triggering HLS reloads while running
+compile-heavy typecheck, Hspec, generator, or `verify-full` gates; independent
+GHC heaps can otherwise exhaust RAM and swap even when each command passes alone.
 
 ```bash
 bash ./bin/in-env regen-types
