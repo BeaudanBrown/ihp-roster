@@ -391,6 +391,7 @@ tests = aroundAll withDatabaseTestContext do
 
                 response `responseStatusShouldBe` status403
                 response `responseBodyShouldContain` "Verify with your passkey before adding another passkey."
+                response `responseBodyShouldContain` "\"tag\":\"redirect\""
                 response `responseBodyShouldContain` "\"redirectTo\":\"/PasskeyStepUp\""
 
         it "accepts and consumes a one-time passkey recovery code" $ withContext do
@@ -531,12 +532,13 @@ tests = aroundAll withDatabaseTestContext do
                 response `responseBodyShouldNotContain` "data-begin-url"
                 response `responseBodyShouldNotContain` "data-finish-url"
 
-        it "keeps passkey begin requests bodyless so setup-link tokens stay in the query string" $ withContext do
+        it "keeps exact passkey begin requests bodyless so setup-link tokens stay in the query string" $ withContext do
             sourceBytes <- ByteString.readFile "frontend/ts/app-passkeys.ts"
             let source = cs sourceBytes :: String
-            source `shouldContain` "postJson<JsonObject>(control.config.beginUrl, control.config.failureMessage)"
-            source `shouldNotContain` "postJson<JsonObject>(control.config.beginUrl, control.config.failureMessage, {})"
+            source `shouldContain` "parsePasskeyRegistrationOptions"
             source `shouldContain` "body: hasPayload ? JSON.stringify(payload) : undefined"
+            source `shouldNotContain` "JsonObject"
+            source `shouldNotContain` "type PasskeyFinishResponse ="
 
         it "rejects consumed and expired passkey setup links" $ withContext do
             withCleanDb do

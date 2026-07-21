@@ -569,20 +569,26 @@ messages or persist an availability/installed state attribute.
 
 `Application.Helper.FrontendContract.Passkey` owns the reusable passkey login,
 registration, setup-prompt, action, device-name, status, recovery, and dismissal
-roles. Its browser boundary is one exact tagged configuration for login,
-registration, or setup-prompt. Login and registration carry Haskell-built
-begin/finish URLs, an optional success redirect, a local status relationship,
-and complete status/loading copy. Setup prompts carry an opaque user key and the
-closed first-passkey/additional-device mode. The focused Haskell runtime derives
-all names and values from marker-indexed declarations; views render complete
+roles. Its browser boundary includes one exact tagged configuration for login,
+registration, or setup-prompt plus exact begin-option records, serialized
+registration/authentication request records, tagged finish outcomes, and tagged
+structured errors. Login and registration carry Haskell-built begin/finish URLs,
+an optional success redirect, a local status relationship, and complete
+status/loading copy. Setup prompts carry an opaque user key and the closed
+first-passkey/additional-device mode. The focused Haskell runtime derives all
+names and values from marker-indexed declarations; views render complete
 controls and recovery copy through `Application.Helper.View.Passkey`.
 
-The generic adapter resolves every action, status, device-name, and recovery
-relationship inside the nearest generated flow root. It parses and validates the
-whole local boundary before mutation, keeps initialization in `WeakSet` storage,
-and reports malformed configuration without changing authoritative HTML.
-Browser capability checks, `navigator.credentials`, native credential/response
-objects, local-storage hints, and base64url conversion remain adapter-local.
+`Application.Helper.FrontendContract.Wire.Passkey` is the Haskell carrier and
+WebAuthn-library conversion seam. Controllers render and parse only those exact
+schema-indexed values. The TypeScript adapter resolves every action, status,
+device-name, and recovery relationship inside the nearest generated flow root,
+parses successful and error server envelopes before invoking native credential
+APIs or redirecting, and encodes serialized credentials through generated
+encoders. It keeps initialization in `WeakSet` storage and reports malformed
+configuration without changing authoritative HTML. Browser capability checks,
+`navigator.credentials`, native credential/response objects, extension-result
+semantics, local-storage hints, and base64url conversion remain adapter-local.
 Setup-prompt dismissals also use the generated overlay close role and consume
 its generated semantic dismissal event. The passkey adapter records the local
 UX hint for close-control, Escape, and backdrop dismissal while the overlay

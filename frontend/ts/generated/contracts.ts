@@ -696,6 +696,122 @@ export function parsePasskeyFlowConfig(value: unknown): PasskeyFlowConfig {
     throw new Error("Invalid PasskeyFlowConfig");
 }
 
+export type PasskeyCredentialType =
+    "public-key";
+export function isPasskeyCredentialType(value: unknown): value is PasskeyCredentialType {
+    return typeof value === "string" && ["public-key"].includes(value);
+}
+
+export type PasskeyAuthenticatorAttachment =
+    "platform"
+  | "cross-platform";
+export function isPasskeyAuthenticatorAttachment(value: unknown): value is PasskeyAuthenticatorAttachment {
+    return typeof value === "string" && ["platform", "cross-platform"].includes(value);
+}
+
+export type PasskeyResidentKeyRequirement =
+    "discouraged"
+  | "preferred"
+  | "required";
+export function isPasskeyResidentKeyRequirement(value: unknown): value is PasskeyResidentKeyRequirement {
+    return typeof value === "string" && ["discouraged", "preferred", "required"].includes(value);
+}
+
+export type PasskeyUserVerificationRequirement =
+    "discouraged"
+  | "preferred"
+  | "required";
+export function isPasskeyUserVerificationRequirement(value: unknown): value is PasskeyUserVerificationRequirement {
+    return typeof value === "string" && ["discouraged", "preferred", "required"].includes(value);
+}
+
+export type PasskeyAttestationConveyancePreference =
+    "none"
+  | "indirect"
+  | "direct"
+  | "enterprise";
+export function isPasskeyAttestationConveyancePreference(value: unknown): value is PasskeyAttestationConveyancePreference {
+    return typeof value === "string" && ["none", "indirect", "direct", "enterprise"].includes(value);
+}
+
+export type PasskeyRelyingParty = { id: string; name: string };
+export function isPasskeyRelyingParty(value: unknown): value is PasskeyRelyingParty {
+    return isRecord(value) && hasExactKeys(value, ["id", "name"], ["id", "name"]) && (typeof value["id"] === "string") && (typeof value["name"] === "string");
+}
+
+export type PasskeyUserEntity = { id: string; displayName: string; name: string };
+export function isPasskeyUserEntity(value: unknown): value is PasskeyUserEntity {
+    return isRecord(value) && hasExactKeys(value, ["id", "displayName", "name"], ["id", "displayName", "name"]) && (typeof value["id"] === "string") && (typeof value["displayName"] === "string") && (typeof value["name"] === "string");
+}
+
+export type PasskeyCredentialParameter = { type: PasskeyCredentialType; alg: number };
+export function isPasskeyCredentialParameter(value: unknown): value is PasskeyCredentialParameter {
+    return isRecord(value) && hasExactKeys(value, ["type", "alg"], ["type", "alg"]) && (isPasskeyCredentialType(value["type"])) && (typeof value["alg"] === "number" && Number.isInteger(value["alg"]));
+}
+
+export type PasskeyCredentialDescriptor = { type: PasskeyCredentialType; id: string };
+export function isPasskeyCredentialDescriptor(value: unknown): value is PasskeyCredentialDescriptor {
+    return isRecord(value) && hasExactKeys(value, ["type", "id"], ["type", "id"]) && (isPasskeyCredentialType(value["type"])) && (typeof value["id"] === "string");
+}
+
+export type PasskeyAuthenticatorSelection = { authenticatorAttachment?: PasskeyAuthenticatorAttachment; residentKey: PasskeyResidentKeyRequirement; requireResidentKey: boolean; userVerification: PasskeyUserVerificationRequirement };
+export function isPasskeyAuthenticatorSelection(value: unknown): value is PasskeyAuthenticatorSelection {
+    return isRecord(value) && hasExactKeys(value, ["authenticatorAttachment", "residentKey", "requireResidentKey", "userVerification"], ["residentKey", "requireResidentKey", "userVerification"]) && (!("authenticatorAttachment" in value) || (isPasskeyAuthenticatorAttachment(value["authenticatorAttachment"]))) && (isPasskeyResidentKeyRequirement(value["residentKey"])) && (typeof value["requireResidentKey"] === "boolean") && (isPasskeyUserVerificationRequirement(value["userVerification"]));
+}
+
+export type PasskeyRegistrationOptions = { rp: PasskeyRelyingParty; user: PasskeyUserEntity; challenge: string; pubKeyCredParams: ReadonlyArray<PasskeyCredentialParameter>; timeout: number; excludeCredentials: ReadonlyArray<PasskeyCredentialDescriptor>; authenticatorSelection: PasskeyAuthenticatorSelection; attestation: PasskeyAttestationConveyancePreference };
+export function isPasskeyRegistrationOptions(value: unknown): value is PasskeyRegistrationOptions {
+    return isRecord(value) && hasExactKeys(value, ["rp", "user", "challenge", "pubKeyCredParams", "timeout", "excludeCredentials", "authenticatorSelection", "attestation"], ["rp", "user", "challenge", "pubKeyCredParams", "timeout", "excludeCredentials", "authenticatorSelection", "attestation"]) && (isPasskeyRelyingParty(value["rp"])) && (isPasskeyUserEntity(value["user"])) && (typeof value["challenge"] === "string") && (Array.isArray(value["pubKeyCredParams"]) && value["pubKeyCredParams"].every((item) => isPasskeyCredentialParameter(item))) && (typeof value["timeout"] === "number" && Number.isInteger(value["timeout"])) && (Array.isArray(value["excludeCredentials"]) && value["excludeCredentials"].every((item) => isPasskeyCredentialDescriptor(item))) && (isPasskeyAuthenticatorSelection(value["authenticatorSelection"])) && (isPasskeyAttestationConveyancePreference(value["attestation"]));
+}
+
+export function parsePasskeyRegistrationOptions(value: unknown): PasskeyRegistrationOptions {
+    if (isPasskeyRegistrationOptions(value)) return value;
+    throw new Error("Invalid PasskeyRegistrationOptions");
+}
+
+export type PasskeyAuthenticationOptions = { challenge: string; timeout: number; rpId: string; allowCredentials: ReadonlyArray<PasskeyCredentialDescriptor>; userVerification: PasskeyUserVerificationRequirement };
+export function isPasskeyAuthenticationOptions(value: unknown): value is PasskeyAuthenticationOptions {
+    return isRecord(value) && hasExactKeys(value, ["challenge", "timeout", "rpId", "allowCredentials", "userVerification"], ["challenge", "timeout", "rpId", "allowCredentials", "userVerification"]) && (typeof value["challenge"] === "string") && (typeof value["timeout"] === "number" && Number.isInteger(value["timeout"])) && (typeof value["rpId"] === "string") && (Array.isArray(value["allowCredentials"]) && value["allowCredentials"].every((item) => isPasskeyCredentialDescriptor(item))) && (isPasskeyUserVerificationRequirement(value["userVerification"]));
+}
+
+export function parsePasskeyAuthenticationOptions(value: unknown): PasskeyAuthenticationOptions {
+    if (isPasskeyAuthenticationOptions(value)) return value;
+    throw new Error("Invalid PasskeyAuthenticationOptions");
+}
+
+export type PasskeyAttestationResponse = { clientDataJSON: string; attestationObject: string; transports: ReadonlyArray<string> };
+export type PasskeyRegistrationRequest = { rawId: string; response: PasskeyAttestationResponse; clientExtensionResults: unknown; name?: string };
+export function encodePasskeyRegistrationRequest(value: PasskeyRegistrationRequest): PasskeyRegistrationRequest { return value; }
+
+export type PasskeyAssertionResponse = { clientDataJSON: string; authenticatorData: string; signature: string; userHandle: string | null };
+export type PasskeyAuthenticationRequest = { rawId: string; response: PasskeyAssertionResponse; clientExtensionResults: unknown };
+export function encodePasskeyAuthenticationRequest(value: PasskeyAuthenticationRequest): PasskeyAuthenticationRequest { return value; }
+
+export type PasskeyFinishResponse =
+    { tag: "authenticated"; userId: FrontendContractUuid; redirectTo: string }
+  | { tag: "registered"; userId: FrontendContractUuid; recoveryCode: string | null }
+  | { tag: "setup-registered"; userId: FrontendContractUuid; redirectTo: string };
+export function isPasskeyFinishResponse(value: unknown): value is PasskeyFinishResponse {
+    return ((isRecord(value) && hasExactKeys(value, ["tag", "userId", "redirectTo"], ["tag", "userId", "redirectTo"]) && (value["tag"] === "authenticated") && (typeof value["userId"] === "string") && (typeof value["redirectTo"] === "string")) || (isRecord(value) && hasExactKeys(value, ["tag", "userId", "recoveryCode"], ["tag", "userId", "recoveryCode"]) && (value["tag"] === "registered") && (typeof value["userId"] === "string") && (value["recoveryCode"] === null || (typeof value["recoveryCode"] === "string"))) || (isRecord(value) && hasExactKeys(value, ["tag", "userId", "redirectTo"], ["tag", "userId", "redirectTo"]) && (value["tag"] === "setup-registered") && (typeof value["userId"] === "string") && (typeof value["redirectTo"] === "string")));
+}
+
+export function parsePasskeyFinishResponse(value: unknown): PasskeyFinishResponse {
+    if (isPasskeyFinishResponse(value)) return value;
+    throw new Error("Invalid PasskeyFinishResponse");
+}
+
+export type PasskeyErrorResponse =
+    { tag: "failure"; error: string }
+  | { tag: "redirect"; error: string; redirectTo: string };
+export function isPasskeyErrorResponse(value: unknown): value is PasskeyErrorResponse {
+    return ((isRecord(value) && hasExactKeys(value, ["tag", "error"], ["tag", "error"]) && (value["tag"] === "failure") && (typeof value["error"] === "string")) || (isRecord(value) && hasExactKeys(value, ["tag", "error", "redirectTo"], ["tag", "error", "redirectTo"]) && (value["tag"] === "redirect") && (typeof value["error"] === "string") && (typeof value["redirectTo"] === "string")));
+}
+
+export function parsePasskeyErrorResponse(value: unknown): PasskeyErrorResponse {
+    if (isPasskeyErrorResponse(value)) return value;
+    throw new Error("Invalid PasskeyErrorResponse");
+}
+
 export const passkeyFirstPasskeyMode = "first-passkey" as const;
 
 export const passkeyAdditionalDeviceMode = "additional-device" as const;

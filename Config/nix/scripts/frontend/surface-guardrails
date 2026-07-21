@@ -63,6 +63,7 @@ passkey_paths=(
     Web/Controller/Sessions.hs
     Web/Controller/RosterWeeks.hs
     frontend/ts/app-passkeys.ts
+    frontend/ts/passkeys/wire.ts
     e2e/passkeys.spec.ts
     e2e/test-helpers.ts
     e2e/otel-browser.mjs
@@ -731,7 +732,8 @@ expect_no_match \
     "Haskell carriers must not round-trip validated values through encoded JSON" \
     'Aeson\.(encode|decode|eitherDecode|eitherDecodeStrict)' \
     Application/Helper/FrontendContract/Wire/Carrier.hs \
-    Application/Helper/FrontendContract/Wire/LiveUpdate.hs
+    Application/Helper/FrontendContract/Wire/LiveUpdate.hs \
+    Application/Helper/FrontendContract/Wire/Passkey.hs
 
 expect_no_match \
     "feature-facing production modules must not import carrier parser internals" \
@@ -1235,6 +1237,53 @@ expect_no_match \
     frontend/ts/app-passkeys.ts
 
 expect_no_match \
+    "the passkey adapter must not display browser-authored status copy" \
+    'new PasskeyStatusError\((`|"Passkey)' \
+    frontend/ts/app-passkeys.ts
+
+expect_no_match \
+    "handwritten or open passkey wire DTOs must stay deleted" \
+    'Record<string,[[:space:]]*any>|\bJsonObject\b|type PasskeyFinishResponse[[:space:]]*=|type (Registration|Authentication)CredentialPayload[[:space:]]*=|as (PublicKeyCredentialCreationOptions|PublicKeyCredentialRequestOptions)' \
+    frontend/ts/app-passkeys.ts \
+    frontend/ts/passkeys/wire.ts
+
+expect_no_match \
+    "passkey server envelopes must not use compatibility probing or unchecked response casts" \
+    'typeof json\.redirectTo|catch\(\(\) => \(\{\}\)\)|return json as|\.(excludeCredentials|allowCredentials)[[:space:]]*\|\|' \
+    frontend/ts/app-passkeys.ts \
+    frontend/ts/passkeys/wire.ts
+
+expect_no_match \
+    "passkey Haskell carriers must not repeat declared wire field or case literals" \
+    '"(tag|authenticated|registered|setup-registered|failure|redirect|rawId|response|clientDataJSON|attestationObject|transports|authenticatorData|signature|userHandle|clientExtensionResults|userId|redirectTo|recoveryCode|error)"|Aeson\.(object|withObject)|Aeson\.\.[:=]' \
+    Application/Helper/FrontendContract/Wire/Passkey.hs
+
+expect_no_match \
+    "passkey controllers must use schema-indexed wire carriers instead of library JSON or local DTOs" \
+    'wjEncodeCredentialOptions|data PasskeyRegistrationRequest|Aeson\.object[[:space:]]*\[[[:space:]]*"(ok|error|message|userId|redirectTo|recoveryCode)"' \
+    Web/Controller/Auth.hs
+
+for passkey_inbound_parser in \
+    parsePasskeyAuthenticationOptions \
+    parsePasskeyRegistrationOptions \
+    parsePasskeyFinishResponse \
+    parsePasskeyErrorResponse; do
+    expect_match \
+        "the passkey adapter must consume generated ${passkey_inbound_parser}" \
+        "\\b${passkey_inbound_parser}\\b" \
+        frontend/ts/app-passkeys.ts
+done
+
+for passkey_outbound_encoder in \
+    encodePasskeyAuthenticationRequest \
+    encodePasskeyRegistrationRequest; do
+    expect_match \
+        "the passkey wire adapter must consume generated ${passkey_outbound_encoder}" \
+        "\\b${passkey_outbound_encoder}\\b" \
+        frontend/ts/passkeys/wire.ts
+done
+
+expect_no_match \
     "passkey prompt lifecycle must not duplicate overlay removal or body-lock behavior" \
     'modal-open|document\.body|\.remove\(\)' \
     frontend/ts/app-passkeys.ts
@@ -1258,7 +1307,8 @@ for native_passkey_object in \
     expect_match \
         "browser-native ${native_passkey_object} must remain in the handwritten passkey adapter" \
         "${native_passkey_object}" \
-        frontend/ts/app-passkeys.ts
+        frontend/ts/app-passkeys.ts \
+        frontend/ts/passkeys/wire.ts
 done
 
 expect_no_match \

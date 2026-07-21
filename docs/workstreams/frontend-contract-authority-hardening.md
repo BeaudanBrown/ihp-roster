@@ -212,7 +212,7 @@ slices, and all block final reconciliation.
 - `#210` - Passkey DOM roles and exact tagged flow configuration. **Complete.**
 - `#211` - Exact passkey server/browser begin, credential, finish, recovery, and
   error DTOs. This follows the DOM/configuration slice and retains native
-  WebAuthn conversion in the handwritten adapter.
+  WebAuthn conversion in the handwritten adapter. **Complete.**
 
 ### Roster browser capabilities
 
@@ -316,8 +316,16 @@ local-storage mechanics. The generated Overlay semantic dismissal event records
 close-control, Escape, and backdrop hints while Overlay alone owns prompt removal
 and body locking. The legacy `.js-passkey-*`, scalar URL/status/user/
 mode datasets, global status-id lookup, and raw prompt literals are deleted and
-guarded. #211 remains the owner of exact app-owned WebAuthn request/response wire
-DTOs. #174 added checked Surface `BrowserRole`, `BrowserState`, and
+guarded. #211 added exact registration/authentication begin records, serialized
+credential request records, tagged finish outcomes, and tagged structured
+errors to that same contract. Schema-indexed Haskell carriers now bridge the
+WebAuthn library without controller field literals, while generated TypeScript
+parsers reject malformed server envelopes before native credential calls or
+redirects and generated encoders own outbound requests. Native credentials,
+responses, navigator calls, extension-result semantics, and base64url conversion
+remain in the focused TypeScript adapter; handwritten/open DTOs, casts, fallback
+probing, and compatibility error parsing are deleted and guarded. #174 added
+checked Surface `BrowserRole`, `BrowserState`, and
 `LinkedHighlight` declarations with closed hover/focus/keyboard/pin activations
 and matching-source/member/ordered-bounds effects. Roster staff and shift-group
 markup now renders generated role attributes with opaque membership/order keys;

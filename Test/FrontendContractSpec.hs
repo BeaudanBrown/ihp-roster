@@ -134,6 +134,21 @@ tests = describe "FrontendContract foundation" do
         source `shouldContainText` "{ tag: \"registration\"; beginUrl: string; finishUrl: string; successRedirect?: string; statusKey: string;"
         source `shouldContainText` "{ tag: \"setup-prompt\"; promptUserKey: string; setupPromptMode: PasskeySetupPromptMode };"
         source `shouldContainText` "export function parsePasskeyFlowConfig(value: unknown): PasskeyFlowConfig"
+        source `shouldContainText` "export type PasskeyRegistrationOptions ="
+        source `shouldContainText` "export function parsePasskeyRegistrationOptions(value: unknown): PasskeyRegistrationOptions"
+        source `shouldContainText` "export type PasskeyAuthenticationOptions ="
+        source `shouldContainText` "export function parsePasskeyAuthenticationOptions(value: unknown): PasskeyAuthenticationOptions"
+        source `shouldContainText` "export type PasskeyRegistrationRequest ="
+        source `shouldContainText` "export function encodePasskeyRegistrationRequest(value: PasskeyRegistrationRequest): PasskeyRegistrationRequest"
+        source `shouldContainText` "export type PasskeyAuthenticationRequest ="
+        source `shouldContainText` "export function encodePasskeyAuthenticationRequest(value: PasskeyAuthenticationRequest): PasskeyAuthenticationRequest"
+        source `shouldContainText` "export type PasskeyFinishResponse ="
+        source `shouldContainText` "export function parsePasskeyFinishResponse(value: unknown): PasskeyFinishResponse"
+        source `shouldContainText` "export type PasskeyErrorResponse ="
+        source `shouldContainText` "export function parsePasskeyErrorResponse(value: unknown): PasskeyErrorResponse"
+        source `shouldContainText` "clientExtensionResults: unknown"
+        source `shouldContainText` "userHandle: string | null"
+        source `shouldContainText` "recoveryCode: string | null"
         source `shouldContainText` "export const passkeyLoginDomAttr = \"data-bepis-passkey-login\" as const;"
         source `shouldContainText` "export const passkeyRegistrationDomAttr = \"data-bepis-passkey-registration\" as const;"
         source `shouldContainText` "export const passkeySetupPromptDomAttr = \"data-bepis-passkey-setup-prompt\" as const;"
@@ -210,9 +225,13 @@ tests = describe "FrontendContract foundation" do
             `shouldBe` HaskellListSource HaskellUuidSource
         haskellWireSource (WireOptionalIR (WireListIR (WireNullableIR WireTextIR)))
             `shouldBe` HaskellOptionalSource (HaskellListSource (HaskellNullableSource HaskellTextSource))
+        haskellWireSource WireUnknownIR `shouldBe` HaskellJsonSource
         let values :: WireSourceType ('WireList 'WireUUID)
             values = [carrierUuid]
+        let platformValue :: WireSourceType 'WireUnknown
+            platformValue = Aeson.object ["native" Aeson..= True]
         values `shouldBe` [carrierUuid]
+        platformValue `shouldBe` Aeson.object ["native" Aeson..= True]
 
     it "keeps optional absence, present null, required null, and empty lists distinct" do
         let absentOptional = carrierRecordValue [] Nothing Nothing (Just [])

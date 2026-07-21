@@ -18,12 +18,15 @@ Read this before editing `frontend/ts/`.
   `WeakSet`/`WeakMap` storage instead of inventing browser-only overlay data
   attributes.
 - The passkey adapter imports every generated passkey role, prompt-mode value,
-  and the exact tagged flow parser. Validate the complete nearest flow root before
-  installing listeners or changing status HTML; malformed roots emit structured
-  diagnostics and remain untouched. Keep `navigator.credentials`, native
-  WebAuthn objects, capability detection, base64url conversion, and local-storage
-  UX hints adapter-local. Haskell owns routes and every displayed workflow/error
-  message; never surface native exception or untyped response copy. Prompt
+  exact flow/begin/finish/error parser, and credential request encoder. Validate
+  the complete nearest flow root and each server envelope before installing
+  listeners, invoking a credential API, redirecting, or changing status HTML;
+  malformed boundaries emit structured diagnostics or Haskell-owned failure copy
+  and remain safe. Keep `navigator.credentials`, native WebAuthn objects,
+  extension-result semantics, capability detection, base64url conversion, and
+  local-storage UX hints adapter-local. Haskell owns routes and every displayed
+  workflow/error message; never surface native exception or untyped response
+  copy. Prompt
   dismissal uses both the passkey dismissal and Overlay close roles and records
   close/Escape/backdrop hints from the generated dismissal event, while only the
   Overlay adapter may remove dialog DOM or manage body lock/focus behavior.

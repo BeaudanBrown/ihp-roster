@@ -105,18 +105,25 @@ Those browser-platform objects are not wire schemas.
 
 `PasskeyContract` is the focused global passkey workflow capability. It owns
 login, registration, setup-prompt, action-button, device-name, status, recovery,
-and dismissal roles plus one exact tagged flow configuration. Haskell supplies
+and dismissal roles plus one exact tagged flow configuration. It also declares
+the exact registration/authentication begin options, serialized credential
+requests, tagged finish outcomes, and tagged structured errors. Haskell supplies
 begin/finish routes, an optional success redirect, a mount-local status key, the
 opaque prompt user key, closed first-passkey/additional-device mode, and all
 workflow/status/recovery copy through `FrontendContract.Passkey.Runtime` and
-`Application.Helper.View.Passkey`. The TypeScript adapter parses only the
-generated exact union, validates the complete local subtree before installing
-listeners, reports structured diagnostics, and leaves malformed server HTML
-untouched. Native WebAuthn credential objects, capability detection, base64url
-conversion, and local-storage UX hints remain handwritten browser mechanics and
-are not generated schemas. Prompt dismissal bears both the semantic generated
-passkey dismissal role and the generated overlay close role; the overlay adapter
-alone owns removal and body locking.
+`Application.Helper.View.Passkey`. `Wire.Passkey` builds and parses those JSON
+boundaries through schema-indexed carriers; controllers do not call the
+WebAuthn library's JSON option encoder or construct response objects by field
+name. The TypeScript adapter parses each inbound server envelope before a
+credential API or redirect, uses generated request encoders, validates the
+complete local subtree before installing listeners, reports structured
+diagnostics, and leaves malformed server HTML untouched. Native WebAuthn
+credential/response objects, extension-result semantics, navigator calls,
+base64url conversion, and local-storage UX hints remain in the focused
+TypeScript adapter and are not recreated as generated platform schemas. Prompt
+dismissal bears both the semantic generated passkey dismissal role and the
+generated overlay close role; the overlay adapter alone owns removal and body
+locking.
 
 `XeroCandidateFilterContract` is the focused global pay-item candidate-filter
 capability. It owns generated root, search, candidate, and empty-state roles plus
@@ -165,6 +172,10 @@ Outer field presence remains separate from recursive wire nullability. An absent
 `OptionalField` is omitted, a present optional nullable value can be explicit
 `null`, every `NullableField` must be present, and list/optional/nullable source
 containers remain recursive (`WireList WireUUID` maps to `[UUID]`, not `UUID`).
+Global `WireUnknown` is reserved for a nested platform-owned value whose
+semantics are deliberately parsed by that platform adapter, currently WebAuthn
+client extension results. It is not an escape hatch for app-owned record fields;
+the containing app envelope remains exact.
 `haskellWireSource` is the canonical checked-IR projection for deterministic
 Haskell source generation. Exact marker-indexed IR validation lives in
 `Application.Helper.FrontendContract.Wire.Json`; its old name-indexed public

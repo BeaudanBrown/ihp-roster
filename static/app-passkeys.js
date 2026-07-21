@@ -21,6 +21,70 @@
     if (isPasskeyFlowConfig(value)) return value;
     throw new Error("Invalid PasskeyFlowConfig");
   }
+  function isPasskeyCredentialType(value) {
+    return typeof value === "string" && ["public-key"].includes(value);
+  }
+  function isPasskeyAuthenticatorAttachment(value) {
+    return typeof value === "string" && ["platform", "cross-platform"].includes(value);
+  }
+  function isPasskeyResidentKeyRequirement(value) {
+    return typeof value === "string" && ["discouraged", "preferred", "required"].includes(value);
+  }
+  function isPasskeyUserVerificationRequirement(value) {
+    return typeof value === "string" && ["discouraged", "preferred", "required"].includes(value);
+  }
+  function isPasskeyAttestationConveyancePreference(value) {
+    return typeof value === "string" && ["none", "indirect", "direct", "enterprise"].includes(value);
+  }
+  function isPasskeyRelyingParty(value) {
+    return isRecord(value) && hasExactKeys(value, ["id", "name"], ["id", "name"]) && typeof value["id"] === "string" && typeof value["name"] === "string";
+  }
+  function isPasskeyUserEntity(value) {
+    return isRecord(value) && hasExactKeys(value, ["id", "displayName", "name"], ["id", "displayName", "name"]) && typeof value["id"] === "string" && typeof value["displayName"] === "string" && typeof value["name"] === "string";
+  }
+  function isPasskeyCredentialParameter(value) {
+    return isRecord(value) && hasExactKeys(value, ["type", "alg"], ["type", "alg"]) && isPasskeyCredentialType(value["type"]) && (typeof value["alg"] === "number" && Number.isInteger(value["alg"]));
+  }
+  function isPasskeyCredentialDescriptor(value) {
+    return isRecord(value) && hasExactKeys(value, ["type", "id"], ["type", "id"]) && isPasskeyCredentialType(value["type"]) && typeof value["id"] === "string";
+  }
+  function isPasskeyAuthenticatorSelection(value) {
+    return isRecord(value) && hasExactKeys(value, ["authenticatorAttachment", "residentKey", "requireResidentKey", "userVerification"], ["residentKey", "requireResidentKey", "userVerification"]) && (!("authenticatorAttachment" in value) || isPasskeyAuthenticatorAttachment(value["authenticatorAttachment"])) && isPasskeyResidentKeyRequirement(value["residentKey"]) && typeof value["requireResidentKey"] === "boolean" && isPasskeyUserVerificationRequirement(value["userVerification"]);
+  }
+  function isPasskeyRegistrationOptions(value) {
+    return isRecord(value) && hasExactKeys(value, ["rp", "user", "challenge", "pubKeyCredParams", "timeout", "excludeCredentials", "authenticatorSelection", "attestation"], ["rp", "user", "challenge", "pubKeyCredParams", "timeout", "excludeCredentials", "authenticatorSelection", "attestation"]) && isPasskeyRelyingParty(value["rp"]) && isPasskeyUserEntity(value["user"]) && typeof value["challenge"] === "string" && (Array.isArray(value["pubKeyCredParams"]) && value["pubKeyCredParams"].every((item) => isPasskeyCredentialParameter(item))) && (typeof value["timeout"] === "number" && Number.isInteger(value["timeout"])) && (Array.isArray(value["excludeCredentials"]) && value["excludeCredentials"].every((item) => isPasskeyCredentialDescriptor(item))) && isPasskeyAuthenticatorSelection(value["authenticatorSelection"]) && isPasskeyAttestationConveyancePreference(value["attestation"]);
+  }
+  function parsePasskeyRegistrationOptions(value) {
+    if (isPasskeyRegistrationOptions(value)) return value;
+    throw new Error("Invalid PasskeyRegistrationOptions");
+  }
+  function isPasskeyAuthenticationOptions(value) {
+    return isRecord(value) && hasExactKeys(value, ["challenge", "timeout", "rpId", "allowCredentials", "userVerification"], ["challenge", "timeout", "rpId", "allowCredentials", "userVerification"]) && typeof value["challenge"] === "string" && (typeof value["timeout"] === "number" && Number.isInteger(value["timeout"])) && typeof value["rpId"] === "string" && (Array.isArray(value["allowCredentials"]) && value["allowCredentials"].every((item) => isPasskeyCredentialDescriptor(item))) && isPasskeyUserVerificationRequirement(value["userVerification"]);
+  }
+  function parsePasskeyAuthenticationOptions(value) {
+    if (isPasskeyAuthenticationOptions(value)) return value;
+    throw new Error("Invalid PasskeyAuthenticationOptions");
+  }
+  function encodePasskeyRegistrationRequest(value) {
+    return value;
+  }
+  function encodePasskeyAuthenticationRequest(value) {
+    return value;
+  }
+  function isPasskeyFinishResponse(value) {
+    return isRecord(value) && hasExactKeys(value, ["tag", "userId", "redirectTo"], ["tag", "userId", "redirectTo"]) && value["tag"] === "authenticated" && typeof value["userId"] === "string" && typeof value["redirectTo"] === "string" || isRecord(value) && hasExactKeys(value, ["tag", "userId", "recoveryCode"], ["tag", "userId", "recoveryCode"]) && value["tag"] === "registered" && typeof value["userId"] === "string" && (value["recoveryCode"] === null || typeof value["recoveryCode"] === "string") || isRecord(value) && hasExactKeys(value, ["tag", "userId", "redirectTo"], ["tag", "userId", "redirectTo"]) && value["tag"] === "setup-registered" && typeof value["userId"] === "string" && typeof value["redirectTo"] === "string";
+  }
+  function parsePasskeyFinishResponse(value) {
+    if (isPasskeyFinishResponse(value)) return value;
+    throw new Error("Invalid PasskeyFinishResponse");
+  }
+  function isPasskeyErrorResponse(value) {
+    return isRecord(value) && hasExactKeys(value, ["tag", "error"], ["tag", "error"]) && value["tag"] === "failure" && typeof value["error"] === "string" || isRecord(value) && hasExactKeys(value, ["tag", "error", "redirectTo"], ["tag", "error", "redirectTo"]) && value["tag"] === "redirect" && typeof value["error"] === "string" && typeof value["redirectTo"] === "string";
+  }
+  function parsePasskeyErrorResponse(value) {
+    if (isPasskeyErrorResponse(value)) return value;
+    throw new Error("Invalid PasskeyErrorResponse");
+  }
   var passkeyFirstPasskeyMode = "first-passkey";
   var passkeyAdditionalDeviceMode = "additional-device";
   var passkeyLoginDomAttr = "data-bepis-passkey-login";
@@ -56,6 +120,91 @@
   // frontend/ts/passkeys/storage.ts
   function localStorageKeyForPasskey(userId, key) {
     return `ihpRoster.${key}.${userId}`;
+  }
+
+  // frontend/ts/passkeys/wire.ts
+  function safePasskeyRedirectPath(value, origin) {
+    if (!value.startsWith("/") || value.startsWith("//")) return null;
+    try {
+      return new URL(value, origin).origin === origin ? value : null;
+    } catch (_error) {
+      return null;
+    }
+  }
+  function registrationOptionsToNative(options) {
+    const authenticatorAttachment = options.authenticatorSelection.authenticatorAttachment;
+    return {
+      rp: {
+        id: options.rp.id,
+        name: options.rp.name
+      },
+      user: {
+        id: base64UrlToArrayBuffer(options.user.id),
+        displayName: options.user.displayName,
+        name: options.user.name
+      },
+      challenge: base64UrlToArrayBuffer(options.challenge),
+      pubKeyCredParams: options.pubKeyCredParams.map((parameter) => ({
+        type: parameter.type,
+        alg: parameter.alg
+      })),
+      timeout: options.timeout,
+      excludeCredentials: options.excludeCredentials.map((descriptor) => ({
+        type: descriptor.type,
+        id: base64UrlToArrayBuffer(descriptor.id)
+      })),
+      authenticatorSelection: {
+        ...authenticatorAttachment === void 0 ? {} : { authenticatorAttachment },
+        residentKey: options.authenticatorSelection.residentKey,
+        requireResidentKey: options.authenticatorSelection.requireResidentKey,
+        userVerification: options.authenticatorSelection.userVerification
+      },
+      attestation: options.attestation
+    };
+  }
+  function authenticationOptionsToNative(options) {
+    return {
+      challenge: base64UrlToArrayBuffer(options.challenge),
+      timeout: options.timeout,
+      rpId: options.rpId,
+      allowCredentials: options.allowCredentials.map((descriptor) => ({
+        type: descriptor.type,
+        id: base64UrlToArrayBuffer(descriptor.id)
+      })),
+      userVerification: options.userVerification
+    };
+  }
+  function serializeRegistrationCredential(credential, name) {
+    const response = credential.response;
+    if (!(response instanceof AuthenticatorAttestationResponse)) {
+      throw new Error("Invalid registration credential response.");
+    }
+    return encodePasskeyRegistrationRequest({
+      rawId: arrayBufferToBase64Url(credential.rawId),
+      response: {
+        clientDataJSON: arrayBufferToBase64Url(response.clientDataJSON),
+        attestationObject: arrayBufferToBase64Url(response.attestationObject),
+        transports: typeof response.getTransports === "function" ? response.getTransports() : []
+      },
+      clientExtensionResults: credential.getClientExtensionResults(),
+      ...name === void 0 ? {} : { name }
+    });
+  }
+  function serializeAuthenticationCredential(credential) {
+    const response = credential.response;
+    if (!(response instanceof AuthenticatorAssertionResponse)) {
+      throw new Error("Invalid authentication credential response.");
+    }
+    return encodePasskeyAuthenticationRequest({
+      rawId: arrayBufferToBase64Url(credential.rawId),
+      response: {
+        clientDataJSON: arrayBufferToBase64Url(response.clientDataJSON),
+        authenticatorData: arrayBufferToBase64Url(response.authenticatorData),
+        signature: arrayBufferToBase64Url(response.signature),
+        userHandle: response.userHandle === null ? null : arrayBufferToBase64Url(response.userHandle)
+      },
+      clientExtensionResults: credential.getClientExtensionResults()
+    });
   }
 
   // frontend/ts/shared/dom.ts
@@ -333,7 +482,11 @@
   async function runPasskeyLogin(control) {
     await withPasskeyButton(control, async () => {
       setPasskeyStatus(control.status, "info", control.config.waitingMessage);
-      const beginResponse = await postJson(control.config.beginUrl, control.config.failureMessage);
+      const beginResponse = await postJson(
+        control.config.beginUrl,
+        control.config.failureMessage,
+        parsePasskeyAuthenticationOptions
+      );
       const credential = await window.navigator.credentials.get({
         publicKey: authenticationOptionsToNative(beginResponse)
       });
@@ -341,34 +494,66 @@
       const finishResponse = await postJson(
         control.config.finishUrl,
         control.config.failureMessage,
+        parsePasskeyFinishResponse,
         serializeAuthenticationCredential(credential)
       );
-      markPasskeySeen(finishResponse.userId);
+      if (finishResponse.tag !== "authenticated") {
+        throw new PasskeyStatusError(control.config.failureMessage);
+      }
+      markPasskeySeen(requirePasskeyResponseText("user id", finishResponse.userId));
       setPasskeyStatus(control.status, "success", control.config.successMessage);
-      redirectAfterPasskeySuccess(control.config, finishResponse);
+      redirectToPasskeyDestination(finishResponse.redirectTo);
     });
   }
   async function runPasskeyRegistration(control) {
     await withPasskeyButton(control, async () => {
       setPasskeyStatus(control.status, "info", control.config.waitingMessage);
-      const beginResponse = await postJson(control.config.beginUrl, control.config.failureMessage);
+      const beginResponse = await postJson(
+        control.config.beginUrl,
+        control.config.failureMessage,
+        parsePasskeyRegistrationOptions
+      );
       const credential = await window.navigator.credentials.create({
         publicKey: registrationOptionsToNative(beginResponse)
       });
       if (!(credential instanceof PublicKeyCredential)) throw new PasskeyStatusError(control.config.cancelledMessage);
+      const submittedName = control.deviceName.value.trim();
       const finishResponse = await postJson(
         control.config.finishUrl,
         control.config.failureMessage,
-        registrationPayload(control, credential)
+        parsePasskeyFinishResponse,
+        serializeRegistrationCredential(
+          credential,
+          submittedName === "" ? void 0 : submittedName
+        )
       );
-      markPasskeySeen(finishResponse.userId);
-      if (finishResponse.recoveryCode) {
-        setRecoveryCodeStatus(control.status, finishResponse.recoveryCode);
-      } else {
-        setPasskeyStatus(control.status, "success", control.config.successMessage);
-        redirectAfterPasskeySuccess(control.config, finishResponse);
-      }
+      handleRegistrationFinishResponse(control, finishResponse);
     });
+  }
+  function handleRegistrationFinishResponse(control, response) {
+    switch (response.tag) {
+      case "registered":
+        markPasskeySeen(requirePasskeyResponseText("user id", response.userId));
+        if (response.recoveryCode !== null) {
+          setRecoveryCodeStatus(
+            control.status,
+            requirePasskeyResponseText("recovery code", response.recoveryCode)
+          );
+          return;
+        }
+        setPasskeyStatus(control.status, "success", control.config.successMessage);
+        redirectToPasskeyDestination(control.config.successRedirect);
+        return;
+      case "setup-registered":
+        markPasskeySeen(requirePasskeyResponseText("user id", response.userId));
+        setPasskeyStatus(control.status, "success", control.config.successMessage);
+        redirectToPasskeyDestination(response.redirectTo);
+        return;
+      case "authenticated":
+        throw new PasskeyStatusError(control.config.failureMessage);
+      default:
+        return assertNever(response, "Unexpected generated passkey finish response");
+    }
   }
   async function withPasskeyButton(control, callback) {
     if (!passkeysAreAvailable()) {
@@ -402,7 +587,7 @@
   function isPasskeyCancellation(error) {
     return typeof DOMException !== "undefined" && error instanceof DOMException && (error.name === "AbortError" || error.name === "NotAllowedError");
   }
-  async function postJson(url, failureMessage, payload) {
+  async function postJson(url, failureMessage, parseResponse, payload) {
     const hasPayload = payload !== void 0;
     const response = await window.fetch(url, {
       method: "POST",
@@ -415,14 +600,35 @@
       },
       body: hasPayload ? JSON.stringify(payload) : void 0
     });
-    const json = await response.json().catch(() => ({}));
+    let json;
+    try {
+      json = await response.json();
+    } catch (_error) {
+      throw new PasskeyStatusError(failureMessage);
+    }
     if (!response.ok) {
-      if (typeof json.redirectTo === "string") {
-        window.location.assign(json.redirectTo);
+      let errorResponse;
+      try {
+        errorResponse = parsePasskeyErrorResponse(json);
+      } catch (_error) {
+        throw new PasskeyStatusError(failureMessage);
+      }
+      switch (errorResponse.tag) {
+        case "failure":
+          break;
+        case "redirect":
+          redirectToPasskeyDestination(errorResponse.redirectTo);
+          break;
+        default:
+          assertNever(errorResponse, "Unexpected generated passkey error response");
       }
       throw new PasskeyStatusError(failureMessage);
     }
-    return json;
+    try {
+      return parseResponse(json);
+    } catch (_error) {
+      throw new PasskeyStatusError(failureMessage);
+    }
   }
   function setPasskeyStatus(status, tone, message) {
     status.message.hidden = false;
@@ -441,16 +647,24 @@
     region.classList.remove("d-none", "alert-info", "alert-success", "alert-danger", "alert-warning");
     region.classList.add(`alert-${tone}`);
   }
-  function redirectAfterPasskeySuccess(config, response) {
-    const redirectTo = response.redirectTo || config.successRedirect;
-    if (redirectTo === void 0 || redirectTo === "") return;
-    window.location.assign(redirectTo);
+  function requirePasskeyResponseText(fieldName, value) {
+    if (value.trim() === "") {
+      throw new Error(`Invalid empty passkey ${fieldName}`);
+    }
+    return value;
+  }
+  function redirectToPasskeyDestination(redirectTo) {
+    if (redirectTo === void 0) return;
+    const safeRedirect = safePasskeyRedirectPath(redirectTo, window.location.origin);
+    if (safeRedirect === null) {
+      throw new Error("Invalid passkey redirect");
+    }
+    window.location.assign(safeRedirect);
   }
   function localStorageKey(userId, key) {
     return localStorageKeyForPasskey(userId, key);
   }
   function markPasskeySeen(userId) {
-    if (userId === void 0 || userId === "") return;
     try {
       window.localStorage.setItem(localStorageKey(userId, "passkeySeen"), "1");
     } catch (_error) {
@@ -480,74 +694,6 @@
     } catch (_error) {
       return false;
     }
-  }
-  function registrationPayload(control, credential) {
-    const payload = serializeRegistrationCredential(credential);
-    if (control.deviceName.value.trim()) {
-      payload.name = control.deviceName.value.trim();
-    }
-    return payload;
-  }
-  function serializeRegistrationCredential(credential) {
-    const response = credential.response;
-    if (!(response instanceof AuthenticatorAttestationResponse)) {
-      throw new Error("Invalid registration credential response.");
-    }
-    return {
-      rawId: arrayBufferToBase64Url(credential.rawId),
-      response: {
-        clientDataJSON: arrayBufferToBase64Url(response.clientDataJSON),
-        attestationObject: arrayBufferToBase64Url(response.attestationObject),
-        transports: typeof response.getTransports === "function" ? response.getTransports() : []
-      },
-      clientExtensionResults: credential.getClientExtensionResults()
-    };
-  }
-  function serializeAuthenticationCredential(credential) {
-    const response = credential.response;
-    if (!(response instanceof AuthenticatorAssertionResponse)) {
-      throw new Error("Invalid authentication credential response.");
-    }
-    return {
-      rawId: arrayBufferToBase64Url(credential.rawId),
-      response: {
-        clientDataJSON: arrayBufferToBase64Url(response.clientDataJSON),
-        authenticatorData: arrayBufferToBase64Url(response.authenticatorData),
-        signature: arrayBufferToBase64Url(response.signature),
-        userHandle: response.userHandle ? arrayBufferToBase64Url(response.userHandle) : null
-      },
-      clientExtensionResults: credential.getClientExtensionResults()
-    };
-  }
-  function registrationOptionsToNative(options) {
-    if (typeof options.challenge !== "string" || options.user === void 0 || typeof options.user.id !== "string") {
-      throw new Error("Invalid registration options.");
-    }
-    return {
-      ...options,
-      challenge: base64UrlToArrayBuffer(options.challenge),
-      user: {
-        ...options.user,
-        id: base64UrlToArrayBuffer(options.user.id)
-      },
-      excludeCredentials: (options.excludeCredentials || []).map((descriptor) => ({
-        ...descriptor,
-        id: base64UrlToArrayBuffer(descriptor.id)
-      }))
-    };
-  }
-  function authenticationOptionsToNative(options) {
-    if (typeof options.challenge !== "string") {
-      throw new Error("Invalid authentication options.");
-    }
-    return {
-      ...options,
-      challenge: base64UrlToArrayBuffer(options.challenge),
-      allowCredentials: (options.allowCredentials || []).map((descriptor) => ({
-        ...descriptor,
-        id: base64UrlToArrayBuffer(descriptor.id)
-      }))
-    };
   }
   function passkeysAreAvailable() {
     return typeof window.PublicKeyCredential === "function" && window.navigator.credentials !== void 0;

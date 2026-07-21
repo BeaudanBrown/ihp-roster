@@ -85,6 +85,7 @@ type family WireSourceType (wire :: WireType) :: Type where
     WireSourceType 'WireBool = Bool
     WireSourceType 'WireUUID = UUID.UUID
     WireSourceType 'WireDay = Day
+    WireSourceType 'WireUnknown = Aeson.Value
     WireSourceType ('WireList inner) = [WireSourceType inner]
     WireSourceType ('WireOptional inner) = Maybe (WireSourceType inner)
     WireSourceType ('WireNullable inner) = Maybe (WireSourceType inner)
@@ -429,6 +430,10 @@ instance KnownWireCodec 'WireDay where
             (fail "FrontendContract day field is malformed")
             pure
             (parseTimeM True defaultTimeLocale "%F" (cs value))
+
+instance KnownWireCodec 'WireUnknown where
+    carrierWireJson = id
+    parseCarrierWire = pure
 
 instance KnownWireCodec inner => KnownWireCodec ('WireList inner) where
     carrierWireJson = Aeson.Array . Vector.fromList . fmap (carrierWireJson @inner)

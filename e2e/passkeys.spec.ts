@@ -105,6 +105,64 @@ test.describe('Venue-admin passkeys', () => {
         ]);
     });
 
+    test('malformed begin envelopes are rejected before invoking the credential API', async ({ page }) => {
+        await page.route('**/BeginPasskeyAuthentication', async (route) => {
+            await route.fulfill({
+                status: 200,
+                contentType: 'application/json',
+                body: JSON.stringify({
+                    challenge: 'AQID',
+                    timeout: 60_000,
+                    rpId: 'localhost',
+                    allowCredentials: [],
+                    userVerification: 'preferred',
+                    extra: true,
+                }),
+            });
+        });
+        await gotoWhenReady(page, '/NewSession', '#email');
+        await page.evaluate(() => {
+            const state = globalThis as typeof globalThis & { __passkeyCredentialGetCalls?: number };
+            state.__passkeyCredentialGetCalls = 0;
+            Object.defineProperty(navigator.credentials, 'get', {
+                configurable: true,
+                value: async () => {
+                    state.__passkeyCredentialGetCalls = (state.__passkeyCredentialGetCalls ?? 0) + 1;
+                    return null;
+                },
+            });
+        });
+
+        await page.locator(`[${passkeyLoginDomAttr}] [${passkeyActionButtonDomAttr}]`).click();
+
+        await expect(page.locator(`[${passkeyLoginDomAttr}] [${passkeyStatusDomAttr}]`))
+            .toHaveText('Passkey request failed.', { timeout: E2E_TIMEOUT.assertion });
+        expect(await page.evaluate(() => (
+            globalThis as typeof globalThis & { __passkeyCredentialGetCalls?: number }
+        ).__passkeyCredentialGetCalls)).toBe(0);
+        await expect(page).toHaveURL(/NewSession/);
+    });
+
+    test('malformed redirect errors are rejected without navigating', async ({ page }) => {
+        await page.route('**/BeginPasskeyAuthentication', async (route) => {
+            await route.fulfill({
+                status: 403,
+                contentType: 'application/json',
+                body: JSON.stringify({
+                    error: 'legacy compatibility envelope',
+                    redirectTo: '/Admin',
+                }),
+            });
+        });
+        await gotoWhenReady(page, '/NewSession', '#email');
+
+        await page.locator(`[${passkeyLoginDomAttr}] [${passkeyActionButtonDomAttr}]`).click();
+
+        await expect(page.locator(`[${passkeyLoginDomAttr}] [${passkeyStatusDomAttr}]`))
+            .toHaveText('Passkey request failed.', { timeout: E2E_TIMEOUT.assertion });
+        await expect(page).toHaveURL(/NewSession/);
+    });
+
     test('setup prompt Escape dismissal delegates overlay lifecycle and persists the UX hint', async ({ page }) => {
         clearE2EUserPasskeys(adminEmail);
         await passwordLogin(page);

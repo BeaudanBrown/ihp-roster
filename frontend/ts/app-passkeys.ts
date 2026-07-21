@@ -1,7 +1,11 @@
 import {
     dialogCloseDomAttr,
     dialogDismissedEvent,
+    parsePasskeyAuthenticationOptions,
+    parsePasskeyErrorResponse,
+    parsePasskeyFinishResponse,
     parsePasskeyFlowConfig,
+    parsePasskeyRegistrationOptions,
     passkeyActionButtonDomAttr,
     passkeyAdditionalDeviceMode,
     passkeyDeviceNameDomAttr,
@@ -13,54 +17,39 @@ import {
     passkeyRegistrationDomAttr,
     passkeySetupPromptDomAttr,
     passkeyStatusDomAttr,
+    type PasskeyFinishResponse,
     type PasskeyFlowConfig,
 } from "./generated/contracts";
 import { arrayBufferToBase64Url, base64UrlToArrayBuffer } from "./passkeys/base64url";
 import { localStorageKeyForPasskey, type PasskeyStorageKey } from "./passkeys/storage";
+import {
+    authenticationOptionsToNative,
+    registrationOptionsToNative,
+    safePasskeyRedirectPath,
+    serializeAuthenticationCredential,
+    serializeRegistrationCredential,
+} from "./passkeys/wire";
 import { isDomRoot } from "./shared/dom";
 import { assertNever } from "./shared/exhaustive";
 import { detailTarget, onAppPageReady } from "./shared/lifecycle";
 
-export { arrayBufferToBase64Url, base64UrlToArrayBuffer, localStorageKeyForPasskey };
+export {
+    arrayBufferToBase64Url,
+    authenticationOptionsToNative,
+    base64UrlToArrayBuffer,
+    localStorageKeyForPasskey,
+    registrationOptionsToNative,
+};
 
-type JsonObject = Record<string, any>;
 type PasskeyTone = "info" | "success" | "danger" | "warning";
 type PasskeyStatusFlowConfig = Extract<PasskeyFlowConfig, { tag: "login" | "registration" }>;
 type PasskeyPromptFlowConfig = Extract<PasskeyFlowConfig, { tag: "setup-prompt" }>;
-
-type PasskeyFinishResponse = {
-    userId?: string;
-    redirectTo?: string;
-    recoveryCode?: string;
-};
 
 class PasskeyStatusError extends Error {
     constructor(readonly statusMessage: string) {
         super(statusMessage);
     }
 }
-
-type RegistrationCredentialPayload = {
-    rawId: string;
-    response: {
-        clientDataJSON: string;
-        attestationObject: string;
-        transports: string[];
-    };
-    clientExtensionResults: AuthenticationExtensionsClientOutputs;
-    name?: string;
-};
-
-type AuthenticationCredentialPayload = {
-    rawId: string;
-    response: {
-        clientDataJSON: string;
-        authenticatorData: string;
-        signature: string;
-        userHandle: string | null;
-    };
-    clientExtensionResults: AuthenticationExtensionsClientOutputs;
-};
 
 export type PasskeyDiagnosticCode =
     | "invalid-flow-config"
@@ -412,47 +401,87 @@ function promptModeAlreadyConfigured(config: PasskeyPromptFlowConfig): boolean {
 async function runPasskeyLogin(control: PasskeyLoginControl): Promise<void> {
     await withPasskeyButton(control, async () => {
         setPasskeyStatus(control.status, "info", control.config.waitingMessage);
-        const beginResponse = await postJson<JsonObject>(control.config.beginUrl, control.config.failureMessage);
+        const beginResponse = await postJson(
+            control.config.beginUrl,
+            control.config.failureMessage,
+            parsePasskeyAuthenticationOptions,
+        );
         const credential = await window.navigator.credentials.get({
             publicKey: authenticationOptionsToNative(beginResponse),
         });
         if (!(credential instanceof PublicKeyCredential)) throw new PasskeyStatusError(control.config.cancelledMessage);
 
-        const finishResponse = await postJson<PasskeyFinishResponse>(
+        const finishResponse = await postJson(
             control.config.finishUrl,
             control.config.failureMessage,
+            parsePasskeyFinishResponse,
             serializeAuthenticationCredential(credential),
         );
+        if (finishResponse.tag !== "authenticated") {
+            throw new PasskeyStatusError(control.config.failureMessage);
+        }
 
-        markPasskeySeen(finishResponse.userId);
+        markPasskeySeen(requirePasskeyResponseText("user id", finishResponse.userId));
         setPasskeyStatus(control.status, "success", control.config.successMessage);
-        redirectAfterPasskeySuccess(control.config, finishResponse);
+        redirectToPasskeyDestination(finishResponse.redirectTo);
     });
 }
 
 async function runPasskeyRegistration(control: PasskeyRegistrationControl): Promise<void> {
     await withPasskeyButton(control, async () => {
         setPasskeyStatus(control.status, "info", control.config.waitingMessage);
-        const beginResponse = await postJson<JsonObject>(control.config.beginUrl, control.config.failureMessage);
+        const beginResponse = await postJson(
+            control.config.beginUrl,
+            control.config.failureMessage,
+            parsePasskeyRegistrationOptions,
+        );
         const credential = await window.navigator.credentials.create({
             publicKey: registrationOptionsToNative(beginResponse),
         });
         if (!(credential instanceof PublicKeyCredential)) throw new PasskeyStatusError(control.config.cancelledMessage);
 
-        const finishResponse = await postJson<PasskeyFinishResponse>(
+        const submittedName = control.deviceName.value.trim();
+        const finishResponse = await postJson(
             control.config.finishUrl,
             control.config.failureMessage,
-            registrationPayload(control, credential),
+            parsePasskeyFinishResponse,
+            serializeRegistrationCredential(
+                credential,
+                submittedName === "" ? undefined : submittedName,
+            ),
         );
 
-        markPasskeySeen(finishResponse.userId);
-        if (finishResponse.recoveryCode) {
-            setRecoveryCodeStatus(control.status, finishResponse.recoveryCode);
-        } else {
-            setPasskeyStatus(control.status, "success", control.config.successMessage);
-            redirectAfterPasskeySuccess(control.config, finishResponse);
-        }
+        handleRegistrationFinishResponse(control, finishResponse);
     });
+}
+
+function handleRegistrationFinishResponse(
+    control: PasskeyRegistrationControl,
+    response: PasskeyFinishResponse,
+): void {
+    switch (response.tag) {
+        case "registered":
+            markPasskeySeen(requirePasskeyResponseText("user id", response.userId));
+            if (response.recoveryCode !== null) {
+                setRecoveryCodeStatus(
+                    control.status,
+                    requirePasskeyResponseText("recovery code", response.recoveryCode),
+                );
+                return;
+            }
+            setPasskeyStatus(control.status, "success", control.config.successMessage);
+            redirectToPasskeyDestination(control.config.successRedirect);
+            return;
+        case "setup-registered":
+            markPasskeySeen(requirePasskeyResponseText("user id", response.userId));
+            setPasskeyStatus(control.status, "success", control.config.successMessage);
+            redirectToPasskeyDestination(response.redirectTo);
+            return;
+        case "authenticated":
+            throw new PasskeyStatusError(control.config.failureMessage);
+        default:
+            return assertNever(response, "Unexpected generated passkey finish response");
+    }
 }
 
 async function withPasskeyButton(
@@ -500,9 +529,10 @@ function isPasskeyCancellation(error: unknown): boolean {
         && (error.name === "AbortError" || error.name === "NotAllowedError");
 }
 
-async function postJson<T extends JsonObject>(
+async function postJson<T>(
     url: string,
     failureMessage: string,
+    parseResponse: (value: unknown) => T,
     payload?: unknown,
 ): Promise<T> {
     const hasPayload = payload !== undefined;
@@ -520,14 +550,37 @@ async function postJson<T extends JsonObject>(
         body: hasPayload ? JSON.stringify(payload) : undefined,
     });
 
-    const json = await response.json().catch(() => ({})) as JsonObject;
+    let json: unknown;
+    try {
+        json = await response.json();
+    } catch (_error) {
+        throw new PasskeyStatusError(failureMessage);
+    }
+
     if (!response.ok) {
-        if (typeof json.redirectTo === "string") {
-            window.location.assign(json.redirectTo);
+        let errorResponse;
+        try {
+            errorResponse = parsePasskeyErrorResponse(json);
+        } catch (_error) {
+            throw new PasskeyStatusError(failureMessage);
+        }
+        switch (errorResponse.tag) {
+            case "failure":
+                break;
+            case "redirect":
+                redirectToPasskeyDestination(errorResponse.redirectTo);
+                break;
+            default:
+                assertNever(errorResponse, "Unexpected generated passkey error response");
         }
         throw new PasskeyStatusError(failureMessage);
     }
-    return json as T;
+
+    try {
+        return parseResponse(json);
+    } catch (_error) {
+        throw new PasskeyStatusError(failureMessage);
+    }
 }
 
 function setPasskeyStatus(status: PasskeyStatusControl, tone: PasskeyTone, message: string): void {
@@ -550,21 +603,27 @@ function setPasskeyStatusTone(region: HTMLElement, tone: PasskeyTone): void {
     region.classList.add(`alert-${tone}`);
 }
 
-function redirectAfterPasskeySuccess(
-    config: PasskeyStatusFlowConfig,
-    response: PasskeyFinishResponse,
-): void {
-    const redirectTo = response.redirectTo || config.successRedirect;
-    if (redirectTo === undefined || redirectTo === "") return;
-    window.location.assign(redirectTo);
+function requirePasskeyResponseText(fieldName: string, value: string): string {
+    if (value.trim() === "") {
+        throw new Error(`Invalid empty passkey ${fieldName}`);
+    }
+    return value;
+}
+
+function redirectToPasskeyDestination(redirectTo: string | undefined): void {
+    if (redirectTo === undefined) return;
+    const safeRedirect = safePasskeyRedirectPath(redirectTo, window.location.origin);
+    if (safeRedirect === null) {
+        throw new Error("Invalid passkey redirect");
+    }
+    window.location.assign(safeRedirect);
 }
 
 function localStorageKey(userId: string, key: PasskeyStorageKey): string {
     return localStorageKeyForPasskey(userId, key);
 }
 
-function markPasskeySeen(userId: string | undefined): void {
-    if (userId === undefined || userId === "") return;
+function markPasskeySeen(userId: string): void {
     try {
         window.localStorage.setItem(localStorageKey(userId, "passkeySeen"), "1");
     } catch (_error) {
@@ -599,87 +658,6 @@ function isPasskeyPromptDismissed(userId: string): boolean {
     } catch (_error) {
         return false;
     }
-}
-
-function registrationPayload(
-    control: PasskeyRegistrationControl,
-    credential: PublicKeyCredential,
-): RegistrationCredentialPayload {
-    const payload = serializeRegistrationCredential(credential);
-    if (control.deviceName.value.trim()) {
-        payload.name = control.deviceName.value.trim();
-    }
-    return payload;
-}
-
-function serializeRegistrationCredential(credential: PublicKeyCredential): RegistrationCredentialPayload {
-    const response = credential.response;
-    if (!(response instanceof AuthenticatorAttestationResponse)) {
-        throw new Error("Invalid registration credential response.");
-    }
-    return {
-        rawId: arrayBufferToBase64Url(credential.rawId),
-        response: {
-            clientDataJSON: arrayBufferToBase64Url(response.clientDataJSON),
-            attestationObject: arrayBufferToBase64Url(response.attestationObject),
-            transports: typeof response.getTransports === "function"
-                ? response.getTransports()
-                : [],
-        },
-        clientExtensionResults: credential.getClientExtensionResults(),
-    };
-}
-
-function serializeAuthenticationCredential(credential: PublicKeyCredential): AuthenticationCredentialPayload {
-    const response = credential.response;
-    if (!(response instanceof AuthenticatorAssertionResponse)) {
-        throw new Error("Invalid authentication credential response.");
-    }
-    return {
-        rawId: arrayBufferToBase64Url(credential.rawId),
-        response: {
-            clientDataJSON: arrayBufferToBase64Url(response.clientDataJSON),
-            authenticatorData: arrayBufferToBase64Url(response.authenticatorData),
-            signature: arrayBufferToBase64Url(response.signature),
-            userHandle: response.userHandle
-                ? arrayBufferToBase64Url(response.userHandle)
-                : null,
-        },
-        clientExtensionResults: credential.getClientExtensionResults(),
-    };
-}
-
-function registrationOptionsToNative(options: JsonObject): PublicKeyCredentialCreationOptions {
-    if (typeof options.challenge !== "string" || options.user === undefined || typeof options.user.id !== "string") {
-        throw new Error("Invalid registration options.");
-    }
-
-    return {
-        ...options,
-        challenge: base64UrlToArrayBuffer(options.challenge),
-        user: {
-            ...options.user,
-            id: base64UrlToArrayBuffer(options.user.id),
-        },
-        excludeCredentials: (options.excludeCredentials || []).map((descriptor: JsonObject) => ({
-            ...descriptor,
-            id: base64UrlToArrayBuffer(descriptor.id),
-        })),
-    } as PublicKeyCredentialCreationOptions;
-}
-
-function authenticationOptionsToNative(options: JsonObject): PublicKeyCredentialRequestOptions {
-    if (typeof options.challenge !== "string") {
-        throw new Error("Invalid authentication options.");
-    }
-    return {
-        ...options,
-        challenge: base64UrlToArrayBuffer(options.challenge),
-        allowCredentials: (options.allowCredentials || []).map((descriptor: JsonObject) => ({
-            ...descriptor,
-            id: base64UrlToArrayBuffer(descriptor.id),
-        })),
-    } as PublicKeyCredentialRequestOptions;
 }
 
 function passkeysAreAvailable(): boolean {

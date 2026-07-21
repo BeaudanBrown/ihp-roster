@@ -23,13 +23,15 @@ Read this before editing `static/` assets.
   before close-control, backdrop, or Escape removal. Bootstrap modal vocabulary
   and transient toast classes stay adapter-owned; do not restore legacy overlay
   data attributes or DOM-backed initialization/original-markup state.
-- `app-passkeys.js` consumes generated passkey roles, closed prompt modes, and
-  the exact tagged flow parser. Every control/status/recovery lookup is local to
-  one validated flow root; malformed configuration remains untouched and emits a
-  structured diagnostic. Haskell owns routes and all displayed workflow/error
-  copy; do not surface native exception or untyped response messages. Keep native
-  WebAuthn objects, capability detection, base64url conversion, and local-storage
-  hints in the handwritten adapter. Prompt dismissal also bears the generated
+- `app-passkeys.js` consumes generated passkey roles, closed prompt modes,
+  exact flow/begin/finish/error parsers, and credential request encoders. Every
+  control/status/recovery lookup is local to one validated flow root; malformed
+  configuration remains untouched and malformed server envelopes fail before a
+  credential API or redirect. Haskell owns routes and all displayed
+  workflow/error copy; do not surface native exception or untyped response
+  messages. Keep native WebAuthn objects, extension-result semantics, capability
+  detection, base64url conversion, and local-storage hints in the handwritten
+  adapter. Prompt dismissal also bears the generated
   Overlay close role and consumes its generated dismissal event, while passkey
   code must not duplicate dialog removal, focus, or body-lock behavior.
 - `app-time-picker.js` consumes generated picker ids/roles and exact config and

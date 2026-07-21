@@ -122,14 +122,18 @@ SurfaceFamily
   than duplicating availability or installed state in app attributes.
 - **Passkey workflows** are governed by the focused global `PasskeyContract` for
   login, registration, setup-prompt, action, device-name, status, recovery, and
-  dismissal roles plus one exact tagged local configuration. Haskell owns routes,
-  redirects, status relationships, closed prompt mode, and workflow/recovery
-  copy. The adapter validates each generated root before mutation and keeps
-  WebAuthn platform objects, capability detection, base64url conversion, and
-  local-storage hints private. Prompt dismissal composes with the generated
-  Overlay close role and semantic dismissal event, recording the UX hint for
-  close-control, backdrop, and Escape paths; passkey code must not remove dialog
-  DOM or manage focus or body locking itself.
+  dismissal roles plus exact tagged local configuration, begin-option,
+  serialized-credential, finish-outcome, and structured-error wire DTOs. Haskell
+  owns routes, redirects, status relationships, closed prompt mode,
+  workflow/recovery copy, and schema-indexed server carriers. The adapter
+  validates each generated root and every server envelope before mutation,
+  credential API invocation, or redirect; generated encoders own outbound
+  credential request shape. WebAuthn platform objects, extension-result
+  semantics, capability detection, base64url conversion, and local-storage
+  hints remain private to the TypeScript adapter. Prompt dismissal composes with
+  the generated Overlay close role and semantic dismissal event, recording the
+  UX hint for close-control, backdrop, and Escape paths; passkey code must not
+  remove dialog DOM or manage focus or body locking itself.
 - **Xero imported-pay-item candidate filters** are governed by the focused global
   `XeroCandidateFilterContract` for root, search, candidate, and empty-state
   roles plus exact configuration carrying one opaque normalized projection. The
