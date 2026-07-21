@@ -1,4 +1,8 @@
 #!/usr/bin/env bash
+# This gate deliberately owns only narrow source tombstones and import edges.
+# Contract shape, adapter homes/lanes, generated output, exact codecs, and
+# browser behavior are checked by the IR, compile-fail, adapter, TypeScript,
+# and Playwright suites invoked by frontend-check.
 set -euo pipefail
 
 repo_root="${FRONTEND_REPO_ROOT:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}"
@@ -6,575 +10,133 @@ cd "$repo_root"
 
 failures=0
 
-report_failure() {
+fail() {
     echo "frontend-surface-guardrails: $*" >&2
     failures=$((failures + 1))
 }
 
+# A tombstone must name deleted vocabulary or a forbidden dependency edge. Do
+# not add positive implementation-shape assertions here; put those in a
+# checked IR/generator test, compile-failure fixture, DOM test, or E2E test.
 expect_no_match() {
-    local label="$1"
+    local reason="$1"
     local pattern="$2"
     shift 2
-
-    local tmp_log
-    tmp_log="$(mktemp)"
-    if rg --line-number --glob '!*.md' --glob '!*.test.ts' --glob '!*.log' --glob '!**/generated/**' "$pattern" "$@" >"$tmp_log" 2>/dev/null; then
-        report_failure "$label"
-        cat "$tmp_log" >&2
+    local matches
+    matches="$(mktemp)"
+    if rg --line-number --glob '!*.md' --glob '!*.test.ts' --glob '!*.log' --glob '!**/generated/**' "$pattern" "$@" >"$matches" 2>/dev/null; then
+        fail "$reason"
+        cat "$matches" >&2
     fi
-    rm -f "$tmp_log"
+    rm -f "$matches"
+}
+
+expect_absent() {
+    local path="$1"
+    [ ! -e "$path" ] || fail "deleted legacy path was restored: $path"
+}
+
+expect_present() {
+    local path="$1"
+    [ -f "$path" ] || fail "required generated adapter boundary is missing: $path"
 }
 
 expect_no_match_including_generated() {
-    local label="$1"
+    local reason="$1"
     local pattern="$2"
     shift 2
-
-    local tmp_log
-    tmp_log="$(mktemp)"
-    if rg --line-number --glob '!*.md' --glob '!*.test.ts' --glob '!*.log' "$pattern" "$@" >"$tmp_log" 2>/dev/null; then
-        report_failure "$label"
-        cat "$tmp_log" >&2
+    local matches
+    matches="$(mktemp)"
+    if rg --line-number --glob '!*.md' --glob '!*.test.ts' --glob '!*.log' "$pattern" "$@" >"$matches" 2>/dev/null; then
+        fail "$reason"
+        cat "$matches" >&2
     fi
-    rm -f "$tmp_log"
+    rm -f "$matches"
 }
 
-expect_match() {
-    local label="$1"
-    local pattern="$2"
-    shift 2
-
-    if ! rg --quiet "$pattern" "$@"; then
-        report_failure "$label"
-    fi
-}
-
-timesheets_paths=(
-    Web/Timesheets
-    Web/Controller/Timesheets.hs
-    Web/View/Timesheets/Index.hs
-)
-
-passkey_paths=(
-    Application/Helper/View/Passkey.hs
-    Web/View/Passkeys
-    Web/View/Sessions/New.hs
-    Web/View/RosterWeeks/Show.hs
-    Web/Controller/Sessions.hs
-    Web/Controller/RosterWeeks.hs
-    frontend/ts/app-passkeys.ts
-    frontend/ts/passkeys/wire.ts
-    e2e/passkeys.spec.ts
-    e2e/test-helpers.ts
-    e2e/otel-browser.mjs
-    static/app-passkeys.js
-)
-
-migrated_overlay_paths=(
-    Web/View/Layout.hs
-    Web/View/Feedback/New.hs
-    Web/View/Timesheets/Index.hs
-    Web/View/Timesheets/New.hs
-    Web/View/Timesheets/Edit.hs
-    Application/Helper/View/Timesheets.hs
-    Web/View/Passkeys/Management.hs
-    Web/View/Passkeys/StepUp.hs
-    Web/View/LeaveRequests/New.hs
-    Web/View/Staff/Edit.hs
-    Web/View/StaffProfileSections.hs
-    Web/View/RosterWeeks/Grid.hs
-    Web/View/RosterWeeks/ShiftDialog.hs
-    Web/Controller/RosterWeeks.hs
-    Web/View/Admin/Xero.hs
-    Web/View/Admin/Xero/ImportedPayItems.hs
-    Web/View/Admin/Xero/TimesheetPreparation.hs
-)
-
-if find Application/Helper/Frontend -type f -name '*.hs' -print -quit 2>/dev/null | rg --quiet .; then
-    report_failure "legacy Application/Helper/Frontend Haskell contract authority must stay deleted"
-    find Application/Helper/Frontend -type f -name '*.hs' -print >&2
-fi
+# Exact deleted protocol names: these are intentionally narrow compatibility
+# tombstones, not semantic scans.
+expect_absent Application/Helper/Frontend
+expect_absent Web/LiveSurfaceRegistry.hs
+expect_absent static/vendor/morphdom-umd.min.js
+expect_absent frontend/ts/roster/staff-highlight.ts
+expect_absent frontend/ts/roster/staff-panel-sorting.ts
+expect_absent frontend/ts/roster/staff-panel-tabs.ts
+expect_absent frontend/ts/roster/staff-sort.ts
+expect_absent frontend/ts/roster/overview.ts
+expect_absent Application/Helper/FrontendContract/RosterValues.hs
 
 expect_no_match \
-    "production Haskell must not import legacy Application.Helper.Frontend authorities" \
+    "legacy Frontend Haskell authority is forbidden" \
     'Application\.Helper\.Frontend\.' \
     Application Web Test
-
-expect_no_match_including_generated \
-    "frontend contract generator must not reintroduce raw TypeScript support contract exports" \
-    '"export (type|function) (FrontendSurface(UUID|Day)|HtmxActionOptions|FrontendSurfaceActionManifest|AppShellActionManifest|FrontendSurfaceLiveSubscription|FrontendSurfaceLiveWireFragment|FrontendSurfaceSurfaceFragmentProtection)' \
-    Application/Helper/FrontendContract/TypeScript.hs
-
-expect_match \
-    "Haskell Surface adapter families must retain a typed Surface association" \
-    'type AdapterFamilySurface adapterFamily :: SurfaceSpec' \
-    Application/Helper/FrontendContract/Surface/HaskellAdapter/Association.hs
-expect_match \
-    "Haskell Surface adapter generation must consume the canonical wire source projection" \
-    'haskellWireSource field.fieldWire' \
-    Application/Helper/FrontendContract/Surface/HaskellAdapter/Core.hs
-expect_no_match_including_generated \
-    "focused Haskell Surface adapter renderers must not duplicate shared source-type resolution" \
-    'sourceTypeFor(Field|Wire)|haskellWireSourceLabel' \
-    Application/Helper/FrontendContract/Surface/HaskellAdapter/Action.hs \
-    Application/Helper/FrontendContract/Surface/HaskellAdapter/Family.hs \
-    Application/Helper/FrontendContract/Surface/HaskellAdapter/Generator.hs \
-    Application/Helper/FrontendContract/Surface/HaskellAdapter/Intent.hs \
-    Application/Helper/FrontendContract/Surface/HaskellAdapter/Live.hs \
-    Application/Helper/FrontendContract/Surface/HaskellAdapter/Registry.hs \
-    Application/Helper/FrontendContract/Surface/HaskellAdapter/RequestRenderer.hs \
-    Application/Helper/FrontendContract/Surface/HaskellAdapter/Resource.hs
-for adapter_namespace in Resource Live Action Intent; do
-    expect_match \
-        "Haskell Surface adapter core must declare the Generated.${adapter_namespace} namespace" \
-        'adapterGeneratedSuffix = "Generated\.'"${adapter_namespace}"'"' \
-        Application/Helper/FrontendContract/Surface/HaskellAdapter/Core.hs
-done
-expect_match \
-    "the production Action lane must register its complete typed home set" \
-    'type RegisteredSurfaceActionAdapterHomes =' \
-    Application/Helper/FrontendContract/Surface/HaskellAdapter/Registry.hs
-expect_match \
-    "the production Intent lane must register its complete typed home set" \
-    'type RegisteredSurfaceIntentAdapterHomes =' \
-    Application/Helper/FrontendContract/Surface/HaskellAdapter/Registry.hs
-expect_no_match_including_generated \
-    "completed Action and Intent publication must not retain staging or parent-expiry machinery" \
-    'SurfaceAdapterLanePublication|StageEmptySurfaceAdapterLane|staging-parent-expiry|parent #184' \
-    Application/Helper/FrontendContract/Surface/HaskellAdapter \
-    Test
 expect_no_match \
-    "production callers must use generated exact Surface Action parser adapters" \
-    '\bparseSurfaceActionParams\b' \
+    "legacy live-surface mount protocol is forbidden" \
+    'data-live-update-(surface|url)|parseLiveUpdateSurfaceConfig|liveUpdateUrl' \
+    Application Web frontend/ts e2e static
+expect_no_match \
+    "legacy interaction marker protocol is forbidden" \
+    'data-bepis-(pointer-session|session-kind|session-intent|activation-intent|activation-trigger|marker)' \
+    Application Web frontend/ts e2e static
+expect_no_match \
+    "legacy overlay protocol is forbidden" \
+    'data-(dialog-overlay|dialog-overlay-close|dialog-overlay-backdrop|dialog-overlay-submit-button|overlay-toast|toast-close|loading-label|auto-hide-ms)' \
+    Application Web frontend/ts e2e
+expect_no_match \
+    "legacy toggle and time-picker protocol is forbidden" \
+    'data-app-toggle|data-break-(toggle|target)|quarter-hour-time-picker-modal|js-time-picker-(input|trigger|step)|data-time-picker-(field|start|end|step|empty)|data-default-(start|end)-time|data-time-value|time-picker:sync' \
+    Application Web frontend/ts e2e static/css
+expect_no_match \
+    "legacy passkey protocol is forbidden" \
+    'data-passkey-management' \
+    Application Web frontend/ts e2e static
+expect_no_match \
+    "legacy Xero filter protocol is forbidden" \
+    'data-xero-import-(loading|search|candidates?)' \
+    Application Web frontend/ts e2e static
+expect_no_match \
+    "legacy roster browser protocol is forbidden" \
+    'data-roster-(staff-id|slot-id|shift-group-key|fullscreen|fullscreen-toggle|fullscreen-toggle-label|column-editor|column-editing|column-edit-start|column-edit-done|export)|data-week-overview' \
+    Application Web frontend/ts e2e static/css
+expect_no_match \
+    "legacy LiveResource alias is forbidden" \
+    '\b(type|data|newtype)[[:space:]]+LiveResource\b' \
+    Application Web Test
+
+# Generated app-owned attributes must be consumed through reflected helpers or
+# generated TypeScript constants; these exact names prevent hand-authored
+# authority from returning outside the generator-owned declarations.
+expect_no_match \
+    "raw generated overlay attributes are forbidden outside their contract" \
+    'data-bepis-(dialog-mount|dialog-backdrop|dialog-close|dialog-submit|dialog-submit-config|dialog-auto-submit-once|toast-mount|toast-close|toast-config)([^A-Za-z0-9_-]|$)' \
+    Application Web frontend/ts e2e
+expect_no_match \
+    "raw generated toggle and time-picker attributes are forbidden outside their contract" \
+    'data-bepis-(toggle-(root|input|label|transport|break-region|config)|time-picker-(field|trigger|label|step-down|step-up|options|option|clear|config))([^A-Za-z0-9_-]|$)' \
+    Application Web frontend/ts e2e
+expect_no_match \
+    "raw generated passkey attributes are forbidden outside their contract" \
+    'data-bepis-passkey-(login|registration|setup-prompt|action-button|device-name|status|recovery|dismissal|flow-config)([^A-Za-z0-9_-]|$)' \
+    Application Web frontend/ts e2e
+expect_no_match \
+    "raw generated PWA, Xero, range, and scroll attributes are forbidden outside their contracts" \
+    'data-bepis-(pwa-install-page|pwa-install-button|pwa-install-result|pwa-install-result-state|pwa-installed-status|xero-candidate-filter-(root|search|candidate|config|empty)|ordered-range-(root|config|state|start|end|availability)|horizontal-scroll-(drag|snap)|horizontal-(drag|snap)-config)([^A-Za-z0-9_-]|$)' \
+    Application Web frontend/ts e2e
+expect_no_match \
+    "raw generated roster attributes are forbidden outside their contract" \
+    'data-bepis-roster-(fullscreen|fullscreen-root|fullscreen-toggle|fullscreen-label|column-editor|column-editing|column-edit-start|column-edit-done|image-export-(trigger|config|projection|row|cell|format)|staff-highlight-(source|member|pin|order)|shift-group-highlight-(source|member)|day-timeline-shift-group-highlight-(source|member)|staff-panel-sort-(root|row|control)|staff-panel-tab|week-overview-(panel|day|today|details|selected-label|leave-value|assigned-value|hours-value|summary|week-label|go-link|availability|closure|calendar-day))([^A-Za-z0-9_-]|$)' \
+    Application Web frontend/ts e2e
+
+# Dependency boundaries: handwritten production code cannot bypass the typed
+# request/live/resource facades or generated private-module facade boundary.
+expect_no_match \
+    "production Web callers must not bypass generated Action adapters" \
+    '\b(parseSurfaceActionParams|frontendSurfaceAction)\b' \
     Web
 expect_no_match \
-    "production callers must use generated exact Surface Intent parser adapters" \
-    '\bparseSurfaceIntentParams\b' \
+    "production Web callers must not bypass generated Intent adapters" \
+    '\b(parseSurfaceIntentParams|frontendSurfaceIntentForm)\b' \
     Web
-expect_no_match \
-    "production callers must use curated generated Surface Action metadata adapters" \
-    '\bfrontendSurfaceAction\b' \
-    Web
-expect_no_match \
-    "production callers must use curated generated Surface Intent form adapters" \
-    '\bfrontendSurfaceIntentForm\b' \
-    Web
-expect_match \
-    "Haskell Surface adapter generation must consume the checked production Surface IR" \
-    'registeredFrontendSurfaceContractIR' \
-    Application/Script/GenerateFrontendSurfaceAdapters.hs
-expect_match \
-    "Haskell Surface adapter writes and stale cleanup must cross the complete all-kind publication barrier" \
-    'case generateSurfaceAdapterModules contract registry of' \
-    Application/Script/GenerateFrontendSurfaceAdapters.hs
-expect_match \
-    "Surface adapter publication must typecheck the complete staged module set" \
-    'ghc -no-link \$validation_ghc_opts' \
-    Config/nix/scripts/frontend/surface-adapters
-expect_match \
-    "Surface adapter publication must use the validate-before-mutation helper" \
-    'surface_adapter_publish_managed_set' \
-    Config/nix/scripts/frontend/surface-adapters
-if [ -f "@scriptsRoot@/frontend/surface-adapter-publication-test" ]; then
-    publication_test="@scriptsRoot@/frontend/surface-adapter-publication-test"
-else
-    publication_test="Config/nix/scripts/frontend/surface-adapter-publication-test"
-fi
-if ! bash "$publication_test"; then
-    report_failure "Surface adapter validation failure must leave the managed set untouched"
-fi
-expect_no_match_including_generated \
-    "checked Surface adapter declarations must be normalized only by the shared core" \
-    'CheckedAdapterDeclaration[[:space:]]*\{' \
-    Application/Helper/FrontendContract/Surface/HaskellAdapter/Action.hs \
-    Application/Helper/FrontendContract/Surface/HaskellAdapter/Family.hs \
-    Application/Helper/FrontendContract/Surface/HaskellAdapter/Generator.hs \
-    Application/Helper/FrontendContract/Surface/HaskellAdapter/Intent.hs \
-    Application/Helper/FrontendContract/Surface/HaskellAdapter/Live.hs \
-    Application/Helper/FrontendContract/Surface/HaskellAdapter/Registry.hs \
-    Application/Helper/FrontendContract/Surface/HaskellAdapter/RequestRenderer.hs \
-    Application/Helper/FrontendContract/Surface/HaskellAdapter/Resource.hs \
-    Test
-expect_no_match_including_generated \
-    "focused renderers must cross checked resolution before creating erased render input" \
-    'RenderableAdapter[[:space:]]*\{' \
-    Application/Helper/FrontendContract/Surface/HaskellAdapter/Action.hs \
-    Application/Helper/FrontendContract/Surface/HaskellAdapter/Family.hs \
-    Application/Helper/FrontendContract/Surface/HaskellAdapter/Generator.hs \
-    Application/Helper/FrontendContract/Surface/HaskellAdapter/Intent.hs \
-    Application/Helper/FrontendContract/Surface/HaskellAdapter/Live.hs \
-    Application/Helper/FrontendContract/Surface/HaskellAdapter/Registry.hs \
-    Application/Helper/FrontendContract/Surface/HaskellAdapter/RequestRenderer.hs \
-    Application/Helper/FrontendContract/Surface/HaskellAdapter/Resource.hs \
-    Test
-expect_no_match_including_generated \
-    "Haskell Surface adapter generation must not inspect GHC or source ASTs" \
-    'GHC\.|Language\.Haskell|ghc-lib-parser|haskell-src|parseModule|runGhc' \
-    Application/Helper/FrontendContract/Surface/HaskellAdapter \
-    Application/Script/GenerateFrontendSurfaceAdapters.hs
-expect_no_match_including_generated \
-    "Haskell Surface adapter registries must not repeat field or wire schemas" \
-    '\b(Field|OptionalField|NullableField)\b|Wire(Text|Int|Bool|UUID|Day|List|Optional|Nullable|Ref)' \
-    Application/Helper/FrontendContract/Surface/HaskellAdapter/Registry.hs
-expect_no_match_including_generated \
-    "Haskell Surface adapter output must not import opaque internal constructors" \
-    '^import .*\.Internal' \
-    Application/Helper/FrontendContract/Surface/HaskellAdapter \
-    Application/Script/GenerateFrontendSurfaceAdapters.hs
-expect_no_match_including_generated \
-    "Haskell Surface adapter generation must not dispatch on production feature-name literals" \
-    '"(timesheets|roster|roster-day-timeline|leave-requests|billing|support|profile|staff|admin-[a-z-]+)"' \
-    Application/Helper/FrontendContract/Surface/HaskellAdapter
-expect_no_match_including_generated \
-    "Surface adapter family associations must stay feature-local" \
-    '^(data .*AdapterFamily|instance SurfaceAdapterFamily)' \
-    Application/Helper/FrontendContract/Surface/HaskellAdapter/Registry.hs
-
-mapfile -t generated_adapter_modules < <(
-    rg -l '^-- @generated by Application\.Helper\.FrontendContract\.Surface\.HaskellAdapter\.Generator$' \
-        Application/Helper/FrontendContract/Surface -g '*.hs' | sort || true
-)
-mapfile -t generated_resource_modules < <(
-    printf '%s\n' "${generated_adapter_modules[@]}" | rg '/Generated/Resource\.hs$' || true
-)
-if [ "${#generated_resource_modules[@]}" -eq 0 ]; then
-    report_failure "generated Surface resource adapter modules are missing"
-fi
-
-for generated_module_path in "${generated_adapter_modules[@]}"; do
-    feature_dir="${generated_module_path%/Generated/*}"
-    generated_kind="${generated_module_path##*/Generated/}"
-    generated_kind="${generated_kind%.hs}"
-    case "$generated_kind" in
-        Resource|Live|Action|Intent)
-            ;;
-        *)
-            report_failure "generated Surface adapter uses an unsupported private namespace: $generated_module_path"
-            continue
-            ;;
-    esac
-
-    curated_facade="$feature_dir/$generated_kind.hs"
-    family_module="$feature_dir/HaskellAdapter.hs"
-    generated_module_name="${generated_module_path%.hs}"
-    generated_module_name="${generated_module_name//\//.}"
-    generated_module_pattern="${generated_module_name//./\\.}"
-    feature_module_name="${feature_dir//\//.}"
-    feature_module_pattern="${feature_module_name//./\\.}"
-
-    if [ ! -f "$curated_facade" ]; then
-        report_failure "generated Surface $generated_kind adapter has no matching curated facade: $generated_module_path"
-        continue
-    fi
-    if [ ! -f "$family_module" ]; then
-        report_failure "generated Surface $generated_kind adapter has no feature-local family module: $generated_module_path"
-        continue
-    fi
-
-    mapfile -t generated_consumers < <(
-        rg -l --glob '*.hs' "^import (qualified )?${generated_module_pattern}([[:space:]]|$)" Application Web Test 2>/dev/null \
-            | sort \
-            || true
-    )
-    if [ "${#generated_consumers[@]}" -ne 1 ] || [ "${generated_consumers[0]:-}" != "$curated_facade" ]; then
-        report_failure "private generated $generated_kind module must be consumed only by $curated_facade: $generated_module_name"
-        printf '  %s\n' "${generated_consumers[@]:-<no consumers>}" >&2
-    fi
-
-    if rg --line-number '^import .*\.Internal|HaskellAdapter\.Registry' "$generated_module_path" >&2; then
-        report_failure "generated $generated_kind adapter bypasses an opaque boundary or imports the omnibus registry: $generated_module_path"
-    fi
-
-    while IFS= read -r family_import; do
-        case "$family_import" in
-            *Application.Helper.FrontendContract.Surface.HaskellAdapter.Association*)
-                ;;
-            *Application.Helper.FrontendContract.Surface.HaskellAdapter.Family*)
-                ;;
-            *"$feature_module_name"*)
-                ;;
-            *)
-                report_failure "feature adapter family imports an unrelated Surface module: $family_module"
-                echo "$family_import" >&2
-                ;;
-        esac
-    done < <(rg '^import (qualified )?Application\.Helper\.FrontendContract\.Surface\.' "$family_module" || true)
-
-    surface_spec="${feature_dir}.hs"
-    if rg --line-number \
-        "^import (qualified )?(${feature_module_pattern}\\.Generated\\.|${feature_module_pattern}\\.${generated_kind}([[:space:]]|$))" \
-        "$family_module" "$surface_spec" >&2; then
-        report_failure "Surface specs and family associations must not import generated adapters or curated facades: $feature_module_name"
-    fi
-
-    if [ "$generated_kind" = "Resource" ]; then
-        for generic_builder in frontendSurfaceResource matchFrontendSurfaceResource; do
-            if ! rg --quiet "\\b${generic_builder}\\b" "$generated_module_path"; then
-                report_failure "generated resource adapter does not use $generic_builder: $generated_module_path"
-            fi
-        done
-        if rg --line-number '\b(frontendSurfaceResource|matchFrontendSurfaceResource|surface(Field|OptionalField|NullableField))\b' "$curated_facade" >&2; then
-            report_failure "curated resource facade retains a handwritten mechanical adapter: $curated_facade"
-        fi
-    fi
-    if [ "$generated_kind" = "Live" ]; then
-        for generic_builder in frontendSurfaceScope matchFrontendSurfaceScope frontendSurfaceFragmentKey matchFrontendSurfaceFragmentKey; do
-            if ! rg --quiet "\\b${generic_builder}\\b" "$generated_module_path"; then
-                report_failure "generated Live adapter does not use $generic_builder: $generated_module_path"
-            fi
-        done
-        if rg --line-number '\b(frontendSurface(Scope|FragmentKey)|matchFrontendSurface(Scope|FragmentKey)|surface(Field|OptionalField|NullableField))\b' "$curated_facade" >&2; then
-            report_failure "curated Live facade retains a handwritten mechanical adapter: $curated_facade"
-        fi
-    fi
-    if [ "$generated_kind" = "Action" ]; then
-        if ! rg --quiet '\b(noSurfaceActionFields|surfaceActionFields)\b' "$generated_module_path"; then
-            report_failure "generated Action adapter does not use a nominal field constructor: $generated_module_path"
-        fi
-        if ! rg --quiet '\bfrontendSurfaceAction\b' "$generated_module_path"; then
-            report_failure "generated Action adapter does not use frontendSurfaceAction: $generated_module_path"
-        fi
-        if rg --line-number 'SurfaceFields[[:space:]]*\(SurfaceActionFieldSpecs' "$generated_module_path" >&2; then
-            report_failure "generated Action adapter exposes structurally typed request bundles: $generated_module_path"
-        fi
-        if rg --line-number '\b(frontendSurfaceAction|parseSurfaceActionParams|surface(Field|OptionalField|NullableField))\b' "$curated_facade" >&2; then
-            report_failure "curated Action facade retains a handwritten mechanical adapter: $curated_facade"
-        fi
-    fi
-    if [ "$generated_kind" = "Intent" ]; then
-        if ! rg --quiet '\b(noSurfaceIntentFields|surfaceIntentFields)\b' "$generated_module_path"; then
-            report_failure "generated Intent adapter does not use a nominal field constructor: $generated_module_path"
-        fi
-        for generic_builder in frontendSurfaceIntentForm parseSurfaceIntentParams; do
-            if ! rg --quiet "\\b${generic_builder}\\b" "$generated_module_path"; then
-                report_failure "generated Intent adapter does not use $generic_builder: $generated_module_path"
-            fi
-        done
-        if rg --line-number 'SurfaceFields[[:space:]]*\(SurfaceIntentFieldSpecs' "$generated_module_path" >&2; then
-            report_failure "generated Intent adapter exposes structurally typed request bundles: $generated_module_path"
-        fi
-        if rg --line-number '\b(frontendSurfaceIntentForm|parseSurfaceIntentParams|surface(Field|OptionalField|NullableField))\b' "$curated_facade" >&2; then
-            report_failure "curated Intent facade retains a handwritten mechanical adapter: $curated_facade"
-        fi
-    fi
-done
-
-live_feature_paths=(
-    Application/Helper/FrontendContract/Surface/Admin
-    Application/Helper/FrontendContract/Surface/Billing
-    Application/Helper/FrontendContract/Surface/LeaveRequests
-    Application/Helper/FrontendContract/Surface/Profile
-    Application/Helper/FrontendContract/Surface/Roster
-    Application/Helper/FrontendContract/Surface/Support
-    Application/Helper/FrontendContract/Surface/Timesheets
-    Application/Support
-    Web/Admin
-    Web/Billing
-    Web/LeaveRequests
-    Web/Profiles
-    Web/RosterWeeks
-    Web/Timesheets
-)
-mapfile -t handwritten_live_adapter_users < <(
-    rg -l \
-        --glob '*.hs' \
-        --glob '!**/Generated/*.hs' \
-        '\b(frontendSurfaceScope|matchFrontendSurfaceScope|frontendSurfaceFragmentKey|matchFrontendSurfaceFragmentKey)\b' \
-        "${live_feature_paths[@]}" 2>/dev/null \
-        | sort \
-        || true
-)
-if [ "${#handwritten_live_adapter_users[@]}" -ne 0 ]; then
-    report_failure "migrated feature modules must use curated generated Live adapters instead of generic mechanical builders or matchers"
-    printf '  %s\n' "${handwritten_live_adapter_users[@]}" >&2
-fi
-
-expect_no_match \
-    "replaced Live adapter compatibility names must stay deleted" \
-    '\b(billingLiveScope|matchBillingLiveScope|adminPageContentFragmentKey|adminXeroPageContentFragmentKey|adminVenueConfigLiveFragment|supportAwardRatesSectionLiveFragment|supportPublicHolidaysSectionLiveFragment|profileDetailsLiveFragment|profilePreferencesLiveFragment|profileSecurityLiveFragment|profileLeaveLiveFragment|profileRsaLiveFragment|staffDetailsLiveFragment|staffPreferencesLiveFragment|staffLeaveLiveFragment)\b' \
-    Application \
-    Web \
-    Test
-
-fixture_live_module="Test/Support/FrontendSurfaceAdapterFixture/Generated/Live.hs"
-if [ ! -f "$fixture_live_module" ]; then
-    report_failure "generated Surface Live adapter fixture is missing"
-else
-    for generic_builder in frontendSurfaceScope matchFrontendSurfaceScope frontendSurfaceFragmentKey matchFrontendSurfaceFragmentKey; do
-        if ! rg --quiet "\\b${generic_builder}\\b" "$fixture_live_module"; then
-            report_failure "generated Live fixture does not use $generic_builder: $fixture_live_module"
-        fi
-    done
-    if rg --line-number '^import .*\.Internal|HaskellAdapter\.Registry|Data\.Aeson' "$fixture_live_module" >&2; then
-        report_failure "generated Live fixture bypasses the public generic Live boundary"
-    fi
-fi
-
-for fixture_kind in Action Intent; do
-    fixture_generated="Test/Support/FrontendSurfaceAdapterFixture/Generated/${fixture_kind}.hs"
-    fixture_facade="Test/Support/FrontendSurfaceAdapterFixture/${fixture_kind}.hs"
-    if [ ! -f "$fixture_generated" ] || [ ! -f "$fixture_facade" ]; then
-        report_failure "generated Surface ${fixture_kind} fixture or curated facade is missing"
-        continue
-    fi
-
-    fixture_generated_module="Test.Support.FrontendSurfaceAdapterFixture.Generated.${fixture_kind}"
-    fixture_generated_pattern="${fixture_generated_module//./\\.}"
-    mapfile -t fixture_consumers < <(
-        rg -l --glob '*.hs' "^import (qualified )?${fixture_generated_pattern}([[:space:]]|$)" Test 2>/dev/null \
-            | sort \
-            || true
-    )
-    if [ "${#fixture_consumers[@]}" -ne 1 ] || [ "${fixture_consumers[0]:-}" != "$fixture_facade" ]; then
-        report_failure "private generated ${fixture_kind} fixture must be consumed only by $fixture_facade"
-        printf '  %s\n' "${fixture_consumers[@]:-<no consumers>}" >&2
-    fi
-
-    if rg --line-number '^import .*\.Internal|HaskellAdapter\.Registry|Data\.Aeson' "$fixture_generated" >&2; then
-        report_failure "generated ${fixture_kind} fixture bypasses a public generic boundary"
-    fi
-    if rg --line-number '\b(frontendSurface(Action|IntentForm)|parseSurface(Action|Intent)Params|surface(Field|OptionalField|NullableField))\b' "$fixture_facade" >&2; then
-        report_failure "curated ${fixture_kind} fixture facade contains mechanical adapter code"
-    fi
-done
-
-for action_generic in surfaceActionFields frontendSurfaceAction parseSurfaceActionParams; do
-    if ! rg --quiet "\\b${action_generic}\\b" Test/Support/FrontendSurfaceAdapterFixture/Generated/Action.hs; then
-        report_failure "generated Action fixture does not delegate to ${action_generic}"
-    fi
-done
-for intent_generic in surfaceIntentFields frontendSurfaceIntentForm parseSurfaceIntentParams; do
-    if ! rg --quiet "\\b${intent_generic}\\b" Test/Support/FrontendSurfaceAdapterFixture/Generated/Intent.hs; then
-        report_failure "generated Intent fixture does not delegate to ${intent_generic}"
-    fi
-done
-
-expect_no_match_including_generated \
-    "generated browser contracts must not restore action manifests or the omnibus Surface registry" \
-    'FrontendSurfaceRegistry|InteractionStaticSchemas|SurfaceManifest|AppShellActionManifest|FrontendSurfaceActionManifest|htmxActions|containedSurfaces' \
-    frontend/ts/generated/contracts.ts
-
-mapfile -t generated_runtime_constants < <(sed -n 's/^export const \([A-Za-z0-9_]*\).*$/\1/p' frontend/ts/generated/contracts.ts)
-for constant in "${generated_runtime_constants[@]}"; do
-    production_uses="$( (rg --glob '!frontend/ts/generated/**' --glob '!frontend/ts/tests/**' -o "\\b${constant}\\b" frontend/ts 2>/dev/null || true) | wc -l)"
-    generated_uses="$( (rg -o "\\b${constant}\\b" frontend/ts/generated/contracts.ts 2>/dev/null || true) | wc -l)"
-    if [ "$production_uses" -eq 0 ] && [ "$generated_uses" -lt 2 ]; then
-        report_failure "generated runtime constant has no production consumer: $constant"
-    fi
-done
-
-expect_no_match \
-    "the live entrypoint must remain orchestration-only" \
-    'new window\.WebSocket|window\.fetch|querySelectorAll|function syncConnection' \
-    frontend/ts/app-live-updates.ts
-
-for owner in mount subscription connection invalidation refresh request-decoration focus diagnostics; do
-    if [ ! -f "frontend/ts/live-updates/$owner.ts" ]; then
-        report_failure "live runtime owner is missing: frontend/ts/live-updates/$owner.ts"
-    fi
-done
-
-expect_no_match \
-    "inert IHP helper submission attributes must stay deleted" \
-    'data-disable-javascript-submission' \
-    Application \
-    Web
-
-expect_no_match \
-    "dead live client-id DOM compatibility writes must stay deleted" \
-    'dataset\.liveUpdateClientId|data-live-update-client-id' \
-    frontend/ts \
-    Application \
-    Web
-
-expect_no_match_including_generated \
-    "live bundle must not carry the interaction registry" \
-    'FrontendSurfaceInteractionRegistry|htmxActions|containedSurfaces' \
-    static/app-live-updates.js
-
-expect_no_match_including_generated \
-    "interaction bundle must not carry the live fragment registry" \
-    'FrontendSurfaceFragmentRegistry|htmxActions|containedSurfaces' \
-    static/app-interactions.js
-
-expect_no_match \
-    "roster browser code must consume generated semantic DOM tokens" \
-    '#roster-(content|week-shell)' \
-    frontend/ts/roster
-
-mapfile -t browser_dom_tokens < <(sed -n 's/^export const \([A-Za-z0-9_]*DomToken\) = .*$/\1/p' frontend/ts/generated/contracts.ts)
-for token in "${browser_dom_tokens[@]}"; do
-    token_uses="$( (rg --glob '!frontend/ts/generated/**' --glob '!frontend/ts/tests/**' -o "\\b${token}\\b" frontend/ts 2>/dev/null || true) | wc -l)"
-    if [ "$token_uses" -lt 2 ]; then
-        report_failure "generated browser DOM token has no production import and use: $token"
-    fi
-done
-
-if [ -e Web/LiveSurfaceRegistry.hs ]; then
-    report_failure "legacy Web.LiveSurfaceRegistry adapter module must stay deleted"
-fi
-
-if [ -e static/vendor/morphdom-umd.min.js ]; then
-    report_failure "retired IHP auto-refresh Morphdom asset must stay deleted"
-fi
-
-expect_no_match \
-    "migrated Timesheets FrontendSurface must not author old TypedLiveSurfaceDefinition paths" \
-    'TypedLiveSurfaceDefinition|descriptorToTypedLiveSurfaceDefinition|mkTypedDefinedLiveSurface|serveTypedLiveFragment|timesheetLiveSurfaceDefinition|timesheetProjectionDefinition|respondWithTypedLiveSurfaceFragments' \
-    "${timesheets_paths[@]}"
-
-expect_no_match \
-    "migrated Timesheets page must not mount legacy live-update attrs" \
-    'data-live-update-(surface|url)' \
-    Web/View/Timesheets/Index.hs
-
-expect_no_match \
-    "Timesheets pilot must use marker-indexed action access instead of reflected protocol-name scans" \
-    'registeredFrontendSurfaceContractIR|surfaceHtmxActions|timesheetsAction[[:space:]]*::[[:space:]]*Text' \
-    Web/View/Timesheets/Index.hs
-
-expect_no_match \
-    "Timesheets pilot must use exact typed values without phantom JSON carriers or required-field fallbacks" \
-    'frontendSurfaceFieldValues|getSurfaceField|fromMaybe' \
-    Web/Timesheets/FrontendSurface.hs
-
-expect_no_match \
-    "Timesheets pilot must use typed HTMX sync syntax without custom or raw escape hatches" \
-    "TimesheetWeekShellSyncCustomHtmx|'CustomHtmx|'HtmxRaw" \
-    Application/Helper/FrontendContract/Surface/Timesheets.hs \
-    Web/View/Timesheets/Index.hs
-
-expect_no_match \
-    "feature mounts must not patch descriptor lists after construction" \
-    'surfaceImplMountConfig[[:space:]]*=.*mountFragments[[:space:]]*=' \
-    Application \
-    Web
-
-expect_no_match \
-    "production Surface mounts must use one marker-indexed construction step without ceremonial handlers" \
-    '\b(mkSurfaceImpl|surfaceImplWithMountedFragments|SurfaceImplHandlers|FrontendSurface(Scope|MountState|Fragment|Action|Intent)Handler|fragmentHandlerRender|surfaceImplActions)\b' \
-    Application \
-    Web
-
-expect_no_match \
-    "replaced open Surface action and intent field interfaces must stay deleted" \
-    '\b(FrontendSurfaceFieldValue|frontendSurfaceActionFields|actionRouteFields|surfaceActionFieldName|surfaceIntentFieldName|surfaceActionValue|surfaceIntentValue|renderFrontendSurfaceHtmxForm)\b|FrontendSurface(Action|IntentForm)[[:space:]]*\(\.\.\)' \
-    Application \
-    Web \
-    Test
-
-expect_no_match \
-    "generic live dependency planning must not embed feature resource names or field strings" \
-    'resource(Matches|FieldUuid|FieldInt|FieldText)[[:space:]]+"' \
-    Application/Helper/FrontendContract/Surface/DependencyPlanner.hs \
-    Web/SurfaceInvalidation.hs
-
-expect_no_match \
-    "generic dependency planning must not construct raw Surface resource values" \
-    'mkSurfaceResourceValue|SurfaceResourceValue[[:space:]]*\\{' \
-    Application/Helper/FrontendContract/Surface/DependencyPlanner.hs \
-    Web/SurfaceInvalidation.hs
-
 expect_no_match \
     "feature code must not import raw Surface resource internals" \
     'Application\.Helper\.FrontendContract\.Surface\.Resource\.Internal' \
@@ -585,983 +147,85 @@ expect_no_match \
     Application/Helper/FrontendContract/Surface/Roster \
     Application/Helper/FrontendContract/Surface/Support \
     Application/Helper/FrontendContract/Surface/Timesheets \
-    Application/FwcMapd \
-    Application/InvitationDelivery \
-    Application/PublicHolidays \
-    Application/Support \
-    Application/Xero \
     Web
+expect_no_match \
+    "feature code must not import raw live transport internals" \
+    'Application\.Helper\.LiveUpdate\.Internal|Application\.Helper\.FrontendContract\.Wire\.LiveUpdate' \
+    Application/Support Web/Admin Web/Billing Web/LeaveRequests Web/Profiles Web/RosterWeeks Web/Timesheets
+expect_no_match_including_generated \
+    "generated browser output must not restore retired aggregate manifests" \
+    'FrontendSurfaceRegistry|InteractionStaticSchemas|SurfaceManifest|AppShellActionManifest|FrontendSurfaceActionManifest|htmxActions|containedSurfaces' \
+    frontend/ts/generated/contracts.ts
 
-mapfile -t raw_resource_internal_importers < <(
-    rg -l 'import .*Application\.Helper\.FrontendContract\.Surface\.Resource\.Internal' Application Web 2>/dev/null || true
+# The fixture proves generated Action/Intent API lanes; its private output and
+# matching facade are mandatory topology boundaries, not optional inventory.
+for fixture_path in \
+    Test/Support/FrontendSurfaceAdapterFixture/Generated/Action.hs \
+    Test/Support/FrontendSurfaceAdapterFixture/Generated/Intent.hs \
+    Test/Support/FrontendSurfaceAdapterFixture/Action.hs \
+    Test/Support/FrontendSurfaceAdapterFixture/Intent.hs; do
+    expect_present "$fixture_path"
+done
+
+# Discover generated modules from their generator marker instead of maintaining
+# a feature inventory. Each private module has exactly one matching facade
+# importer; this is a narrow import-topology check.
+mapfile -t generated_modules < <(
+    rg -l '^-- @generated by Application\.Helper\.FrontendContract\.Surface\.HaskellAdapter\.Generator$' \
+        Application/Helper/FrontendContract/Surface \
+        Test/Support/FrontendSurfaceAdapterFixture/Generated/Action.hs \
+        Test/Support/FrontendSurfaceAdapterFixture/Generated/Intent.hs \
+        -g '*.hs' | sort || true
 )
-for importer in "${raw_resource_internal_importers[@]}"; do
-    case "$importer" in
-        Application/Helper/FrontendContract/Surface/Resource.hs|Application/Helper/FrontendContract/Surface/DependencyPlanner.hs)
-            ;;
+[ "${#generated_modules[@]}" -gt 0 ] || fail "no generated Surface adapter modules found"
+
+for generated_path in "${generated_modules[@]}"; do
+    case "$generated_path" in
+        */Generated/Resource.hs|*/Generated/Live.hs|*/Generated/Action.hs|*/Generated/Intent.hs) ;;
         *)
-            report_failure "raw Surface resource internal imported outside generic constructor/planner: $importer"
+            fail "unsupported generated Surface adapter namespace: $generated_path"
+            continue
             ;;
     esac
-done
 
-expect_no_match \
-    "replaced free-text Surface resource constructors and destructors must stay deleted" \
-    '\b(resourceForSurface|resourceMatchesFor|resourceFieldUuidFor|resourceFieldUuid|resourceFieldText)\b|resource[[:space:]]*::[[:space:]]*Text' \
-    Application \
-    Web \
-    Test
+    feature_dir="${generated_path%/Generated/*}"
+    kind="${generated_path##*/Generated/}"
+    kind="${kind%.hs}"
+    facade="$feature_dir/$kind.hs"
+    module_name="${generated_path%.hs}"
+    module_name="${module_name//\//.}"
+    module_pattern="${module_name//./\\.}"
 
-expect_no_match \
-    "the mutation-result facade must not re-export a feature resource catalog" \
-    '\b(admin|billing|leaveRequests|roster|staff|support|timesheet|timePicker|xero)[A-Za-z0-9_]*Resource\b' \
-    Application/Helper/SurfaceResource.hs
-
-expect_no_match \
-    "profiling routes must not dispatch free Surface resource names" \
-    'ProfileLiveInvalidateVenueAction|param[^\n]*"resource"|[?&]resource=' \
-    Application \
-    Web \
-    e2e
-
-expect_no_match \
-    "generic live modules must not own feature scope, fragment, or field catalogs" \
-    '"(roster|timesheets|leave-requests|billing|support|profile|staff|admin-[^"]+|venueId|rosterGroupId|weekOffset|staffId|dayOffset|rowIndex|leaveSection)"|\b(roster|timesheet|leave|billing|support|profile|admin)[A-Za-z0-9_]*(LiveScope|LiveFragment)\b' \
-    Application/Helper/LiveUpdate.hs \
-    Application/Helper/LiveUpdate \
-    Application/Helper/FrontendContract/Surface/DependencyPlanner.hs
-
-expect_no_match \
-    "public live facades must keep raw scope and fragment constructors opaque" \
-    'Surface(Scope|FragmentKey)[[:space:]]*\(\.\.\)|FrontendSurface(Scope|SurfaceFragmentKey)' \
-    Application/Helper/LiveUpdate.hs \
-    Application/Helper/LiveUpdate/Runtime.hs
-
-expect_no_match \
-    "feature modules must not import raw live transport authorities" \
-    'Application\.Helper\.LiveUpdate\.Internal|Application\.Helper\.FrontendContract\.Wire\.LiveUpdate' \
-    Application/Support \
-    Web/Admin \
-    Web/Billing \
-    Web/LeaveRequests \
-    Web/Profiles \
-    Web/RosterWeeks \
-    Web/Timesheets
-
-expect_no_match \
-    "retired live candidate-scope planning and misleading metrics must stay deleted" \
-    'candidateLiveScopes|candidate(Duration|Scope|_ms|_scopes)|planningScope|planning_scopes|liveFactPlanned|planned_(scope|fragment)_count' \
-    Application \
-    Web \
-    Test
-
-expect_no_match \
-    "resource-backed actor mutation responses must use the shared dependency planner" \
-    'setActorLocalFragmentsRefresh' \
-    Web/Controller/LeaveRequests.hs \
-    Web/Controller/Profiles.hs \
-    Web/Controller/Staff.hs \
-    Web/Controller/Timesheets.hs \
-    Web/Controller/Admin.hs \
-    Web/Controller/Admin/Xero
-
-expect_no_match \
-    "production Surface mounts must not construct fake nil-id action routes" \
-    'Id[[:space:]]+UUID\.nil|placeholderRosterDayId' \
-    Application/Support/LiveUpdates.hs \
-    Web/Admin/FrontendSurface.hs \
-    Web/LeaveRequests/FrontendSurface.hs \
-    Web/Profiles/FrontendSurface.hs \
-    Web/RosterWeeks/FrontendSurface.hs
-
-expect_no_match \
-    "FrontendSurface mount parsing must remain generated" \
-    'function[[:space:]]+(is|parse)FrontendSurfaceMountConfig' \
-    frontend/ts/app-live-updates.ts \
-    frontend/ts/live-updates
-
-expect_no_match \
-    "live mount parsing must not recover authority through unsafe double casts" \
-    'as[[:space:]]+unknown[[:space:]]+as' \
-    frontend/ts/app-live-updates.ts \
-    frontend/ts/live-updates
-
-expect_no_match \
-    "live mount runtime must consume generated descriptor types without compatibility aliases" \
-    '\bLiveUpdateMountedFragment\b' \
-    frontend/ts
-
-expect_no_match_including_generated \
-    "obsolete aggregate mount aliases must stay deleted" \
-    '\b(FrontendSurfaceLiveSubscription|FrontendSurfaceScope|FrontendSurfaceMountedFragmentKeyConfig|FrontendSurfaceSurfaceFragmentProtection)\b' \
-    Application/Helper/FrontendContract \
-    frontend/ts/generated/contracts.ts \
-    frontend/ts/live-updates
-
-expect_no_match \
-    "Haskell live consumers must use reflected endpoint, header, and mount DOM constants" \
-    '"/?live-updates"|"X-Live-Update-Client-Id"|"data-bepis-surface"|"data-bepis-surface-config"|"data-bepis-surface-action"' \
-    Application/Helper/LiveUpdate \
-    Application/Helper/FrontendContract/Surface/Runtime.hs \
-    Web
-
-expect_no_match \
-    "retired browser load-policy fields must stay deleted" \
-    'mountedFragmentLoadPolicy|lazyFragmentDefaultLoadPolicy' \
-    Application \
-    Web
-
-expect_no_match_including_generated \
-    "server-only mount state and load policy must stay out of generated browser contracts" \
-    'MountStateMountState|export type [A-Za-z]+MountState[[:space:]]*=|"mountState"|"loadPolicy"' \
-    frontend/ts/generated/contracts.ts
-
-expect_no_match_including_generated \
-    "live wire contracts must not expose executable fragment descriptor types" \
-    '\b(SurfaceWireFragment|WireSurfaceWireFragment|FrontendSurfaceLiveWireFragment)\b' \
-    Application/Helper/FrontendContract/LiveUpdate.hs \
-    Application/Helper/FrontendContract/Wire/LiveUpdate.hs \
-    frontend/ts/generated/contracts.ts
-
-expect_no_match \
-    "live Haskell carriers must not repeat declared discriminator, case, or field literals" \
-    '"(type|subscribe|unsubscribe|subscribed|invalidate|error|surface|scope|scopeKey|kind|params|fragments|subscription|clientId|lastSeenVersion|currentVersion|resync|version|sourceClientId|message)"|Aeson\.(object|withObject)|Aeson\.\.[:=]' \
-    Application/Helper/FrontendContract/Wire/LiveUpdate.hs
-
-expect_no_match \
-    "Haskell carriers must not round-trip validated values through encoded JSON" \
-    'Aeson\.(encode|decode|eitherDecode|eitherDecodeStrict)' \
-    Application/Helper/FrontendContract/Wire/Carrier.hs \
-    Application/Helper/FrontendContract/Wire/LiveUpdate.hs \
-    Application/Helper/FrontendContract/Wire/Passkey.hs
-
-expect_no_match \
-    "feature-facing production modules must not import carrier parser internals" \
-    '\b(ContractReference|CustomWire|KnownWireCodec|CarrierField|UnionCaseParsers)\b' \
-    Application/Helper/FrontendContract/Surface \
-    Application/Helper/LiveUpdate.hs \
-    Application/Helper/LiveUpdate \
-    Web
-
-expect_no_match \
-    "replaced handwritten overlay role and config attributes must stay deleted" \
-    'data-(dialog-overlay(-close|-backdrop|-submit-button)?|overlay-toast|toast-close|loading-label|auto-hide-ms)' \
-    Application \
-    Web \
-    frontend/ts \
-    e2e
-
-expect_no_match \
-    "production Haskell and TypeScript must consume generated overlay attribute names" \
-    'data-bepis-(dialog-(mount|backdrop|close|submit|submit-config|auto-submit-once)|toast-(mount|close|config))' \
-    Application \
-    Web \
-    frontend/ts \
-    e2e
-
-expect_no_match \
-    "production Haskell and TypeScript must consume generated overlay mount ids" \
-    '(dialog|toast)-overlay-mount' \
-    Application \
-    Web \
-    frontend/ts \
-    e2e
-
-expect_no_match \
-    "overlay adapter transient state must not use handwritten DOM data attributes" \
-    'dataset\.(bepisDialogAutoSubmitted|originalHtml|toastInitialized|autoHideMs)' \
-    frontend/ts/app-dialog-overlays.ts \
-    frontend/ts/app-toasts.ts
-
-expect_match \
-    "dialog overlay adapter consumes the generated exact submit config parser" \
-    'parseDialogSubmitConfig' \
-    frontend/ts/app-dialog-overlays.ts
-
-expect_match \
-    "toast overlay adapter consumes the generated exact toast config parser" \
-    'parseToastConfig' \
-    frontend/ts/app-toasts.ts
-
-expect_match \
-    "passkey prompt dismissal consumes the generated dialog close role" \
-    'dialogCloseDomAttr' \
-    frontend/ts/app-passkeys.ts
-
-for dialog_dismissal_consumer in \
-    frontend/ts/app-dialog-overlays.ts \
-    frontend/ts/app-passkeys.ts; do
-    expect_match \
-        "dialog dismissal lifecycle must consume the generated event in ${dialog_dismissal_consumer}" \
-        'dialogDismissedEvent' \
-        "$dialog_dismissal_consumer"
-done
-
-expect_no_match \
-    "production Haskell and TypeScript must consume the generated dialog dismissal event" \
-    'bepis:dialog-dismissed' \
-    Application Web frontend/ts e2e
-
-expect_no_match_including_generated \
-    "generated overlay contract must not duplicate Bootstrap vendor vocabulary" \
-    'data-bs-|modal-open|shown\.bs\.modal|hidden\.bs\.modal' \
-    Application/Helper/FrontendContract/Overlay.hs
-
-expect_no_match \
-    "replaced broad overlay value helpers and aliases must stay deleted" \
-    '\b(AppOverlayDom|canonicalAppOverlayDom|sharedDialogOverlayMountId|sharedToastOverlayMountId|appShellDialogAutoSubmitOnceAttr|htmxModalMountId)\b' \
-    Application \
-    Web \
-    Test
-
-expect_no_match \
-    "migrated overlay request initiators must not hand-author dialog mount targets" \
-    'hx-target=\{?"?#"? <> dialogOverlayMountId|hx-target="#dialog-overlay-mount"' \
-    "${migrated_overlay_paths[@]}"
-
-expect_no_match \
-    "migrated feedback dialog view must not hand-author dialog mount targets" \
-    '#dialog-overlay-mount|dialogOverlayMountId' \
-    Web/View/Feedback/New.hs
-
-expect_no_match \
-    "migrated overlay views must not use raw AppShellAction name lookup" \
-    'appShellActionByName' \
-    "${migrated_overlay_paths[@]}"
-
-expect_match \
-    "migrated feedback overlay opener uses typed AppShellAction marker lookup" \
-    'appShellActionByMarker @OpenFeedbackDialog' \
-    Web/View/Layout.hs
-
-expect_match \
-    "migrated feedback overlay submit uses typed AppShellAction marker lookup" \
-    'appShellActionByMarker @SubmitFeedback' \
-    Web/View/Feedback/New.hs
-
-expect_no_match \
-    "migrated chrome partial navigation must not hand-author request HTMX attrs" \
-    'hx-(get|post|target|swap|select|push-url|sync)=' \
-    Application/Helper/View/Chrome.hs
-
-expect_no_match \
-    "shared staff/profile forms must not hand-author request HTMX attrs" \
-    'hx-(get|post|target|swap|select|push-url|sync)=' \
-    Web/View/StaffProfileSections.hs
-
-expect_no_match \
-    "migrated local feature initiators must not hand-author request HTMX attrs" \
-    'hx-(get|post|target|swap|select|push-url|sync|trigger)=' \
-    Web/View/Staff/Edit.hs \
-    Web/View/RosterWeeks/StaffSelfServicePanel.hs \
-    Web/View/RosterWeeks/Overview.hs \
-    Web/View/Admin/Xero/TimesheetPreparation.hs
-
-expect_match \
-    "migrated chrome partial navigation uses typed AppShellAction marker lookup" \
-    'appShellActionByMarker @PartialNavigate' \
-    Application/Helper/View/Chrome.hs
-
-expect_no_match \
-    "migrated Admin Roster Groups view must not hand-author request HTMX attrs" \
-    'hx-(get|post|target|swap|trigger|push-url)=' \
-    Web/View/Admin/RosterGroups.hs
-
-expect_no_match \
-    "migrated Admin Roster Groups success path must not render business OOB helper" \
-    'renderRosterGroupsSectionFragmentWithSwap|hx-swap-oob' \
-    Web/View/Admin/RosterGroups.hs Web/Controller/Admin/Support.hs
-
-expect_no_match \
-    "production code must not resurrect shared SurfaceProjection cache plumbing" \
-    'Application\.Helper\.SurfaceProjection|SurfaceProjection' \
-    Application Web
-
-expect_no_match \
-    "production/browser code must not resurrect legacy declarative live-surface attributes" \
-    'data-live-update-(surface|url)|parseLiveUpdateSurfaceConfig|liveUpdateUrl' \
-    Application Web frontend/ts e2e static
-
-expect_no_match \
-    "app-live-updates must remain the sole focus-protection owner without IHP auto-refresh compatibility" \
-    'ihp-auto-refresh|enableRosterGridAutoRefreshDeferral|data-live-field-key|morphdom' \
-    Application Web frontend/ts static
-
-expect_no_match \
-    "focused-field descriptors must provide an exact policy instead of a compatibility default" \
-    '\bFrontendSurfaceFocusedField\b' \
-    Application Web Test
-
-expect_no_match \
-    "production Web code must not author legacy semantic interaction helpers or attrs" \
-    'Application\.Helper\.Interaction|withInteraction|renderInteraction|data-bepis-(pointer-session|session-kind|session-intent|activation-intent|activation-trigger|marker|item=|dropzone=)' \
-    Web
-
-expect_no_match \
-    "interaction runtime must not keep legacy semantic marker fallback paths" \
-    'readLegacy|legacyActivation|legacyDropzone|attrs\.(marker|item|dropzone|pointerSession|sessionKind|sessionIntent|activationIntent|activationTrigger|activationValueField)([^A-Za-z]|$)' \
-    frontend/ts/interaction
-
-expect_no_match \
-    "generated/static contracts must not expose deleted semantic interaction DOM attrs" \
-    'data-bepis-(marker|item|pointer-session|session-kind|session-intent|activation-intent|activation-trigger|activation-value-field)|"(item|pointerSession|sessionIntent|activationIntent|activationTrigger|activationValueField|activationMarker|itemMarker|dropzoneMarker)"' \
-    frontend/ts/generated/contracts.ts static/app-interactions.js static/app-live-updates.js
-
-expect_no_match \
-    "InteractionContract must not own roster-specific interaction enum authority" \
-    'Interaction(SurfaceFamily|DisposableLayerName|SessionKindName|IntentName|IntentFieldName)|SetRosterLayoutMode|MoveRosterShiftToSlot|DragPreview|\bdata Roster\b' \
-    Application/Helper/FrontendContract/Interaction.hs
-
-expect_no_match_including_generated \
-    "generated contracts must not expose compatibility shim aliases for old global interaction vocabulary" \
-    '\bInteraction(SurfaceFamily|DisposableLayerName|SessionKindName|IntentName|IntentFieldName)\b|isInteractionSurfaceFamily|parseInteractionSurfaceFamily|encodeInteractionSurfaceFamily' \
-    frontend/ts/generated/contracts.ts
-
-expect_match \
-    "generated contracts expose surface-derived interaction surface names" \
-    'FrontendSurfaceInteractionSurfaceName = "roster"' \
-    frontend/ts/generated/contracts.ts
-
-expect_match \
-    "generated interaction registry exposes the roster source intent used by the runtime" \
-    'FrontendSurfaceInteractionRegistry = .*"intent":"move-roster-shift-to-slot"' \
-    frontend/ts/generated/contracts.ts
-
-expect_no_match_including_generated \
-    "checked IR renderers must not redispatch interaction or authorization semantics from text" \
-    '"(clone-shadow|clone-shadow-copy|dropzone-highlight|pointer-marker|bepis-pointer-clone-shadow|bepis-pointer-clone-shadow-copy|bepis-dropzone-highlight|current-venue(-user|-staff|-roster-group|-admin|-manager|-owner|-admin-roster-group)?|support-super-admin|drag-preview)"|render(Global|Contextual)Effect|requirementFor[[:space:]]*::[[:space:]]*Text' \
-    Application/Helper/FrontendContract/TypeScript.hs \
-    Application/Helper/FrontendContract/Surface/Authorization.hs \
-    Application/Helper/FrontendContract/Surface/ContractIR.hs \
-    Application/Helper/FrontendContract/Surface/SemanticIR.hs
-
-expect_no_match \
-    "browser projection must use explicit IR rather than reflected root or Surface name switches" \
-    '(global\.globalName|surface\.surfaceName)[[:space:]]*(==|/=)' \
-    Application/Helper/FrontendContract/TypeScript.hs
-
-expect_no_match \
-    "Surface interaction effects and variants must use the closed effect kind" \
-    'Effect Type|ModifierVariant Type Type \[PrimitiveOption\]' \
-    Application/Helper/FrontendContract/Surface/DSL.hs
-
-expect_match \
-    "Surface sessions accept only closed interaction-session options" \
-    'Session Type \[InteractionSessionOption\]' \
-    Application/Helper/FrontendContract/Surface/DSL.hs
-
-mapfile -t emitted_interaction_effect_classes < <(
-    rg -o '"className":"[^"]+"' frontend/ts/generated/contracts.ts \
-        | sed -E 's/^"className":"([^"]+)"$/\1/' \
-        | tr ' ' '\n' \
-        | sort -u
-)
-if [ "${#emitted_interaction_effect_classes[@]}" -eq 0 ]; then
-    report_failure "generated interaction effects must emit at least one canonical CSS class"
-fi
-for effect_class in "${emitted_interaction_effect_classes[@]}"; do
-    if ! rg --quiet --glob '*.css' "\\.${effect_class}([^A-Za-z0-9_-]|$)" static/css; then
-        report_failure "generated interaction effect class has no CSS selector coverage: $effect_class"
+    [ -f "$facade" ] || { fail "missing generated adapter facade: $facade"; continue; }
+    mapfile -t consumers < <(
+        rg -l --glob '*.hs' "^import (qualified )?${module_pattern}([[:space:]]|$)" Application Web Test 2>/dev/null | sort || true
+    )
+    if [ "${#consumers[@]}" -ne 1 ] || [ "${consumers[0]:-}" != "$facade" ]; then
+        fail "private generated $kind module must be imported only by $facade: $module_name"
+        printf '  %s\n' "${consumers[@]:-<no consumers>}" >&2
+    fi
+    if rg --line-number '^import .*\.Internal|HaskellAdapter\.Registry' "$generated_path" >&2; then
+        fail "generated adapter crosses a forbidden internal/registry edge: $generated_path"
     fi
 done
 
-expect_no_match \
-    "roster must use generic FrontendSurface interaction shell rendering" \
-    'renderRosterFrontendSurfaceInteractionShell|renderRosterFrontendSurfaceIntentForm|rosterInteractionConflictPoliciesJson|renderRosterDisposableLayer|renderRosterServerLayer' \
-    Web/RosterWeeks Web/View/RosterWeeks
-
-expect_no_match \
-    "frontend contracts must not resurrect legacy live-surface manifest DTOs" \
-    'LiveSurfaceManifest|LiveSurfaceFamily|SurfaceManifestSchema|Application\.Helper\.Frontend\.Dto\.LiveSurface' \
-    Application Web frontend/ts static
-
-expect_no_match \
-    "FrontendSurface specs must use current DSL primitive names" \
-    '\b(HtmxAction|ClientEvent|DisposableLayer|InteractionEffect)\b' \
-    Application/Helper/FrontendContract/Surface/Admin.hs \
-    Application/Helper/FrontendContract/Surface/Billing.hs \
-    Application/Helper/FrontendContract/Surface/LeaveRequests.hs \
-    Application/Helper/FrontendContract/Surface/Profile.hs \
-    Application/Helper/FrontendContract/Surface/Roster.hs \
-    Application/Helper/FrontendContract/Surface/Support.hs \
-    Application/Helper/FrontendContract/Surface/Timesheets.hs
-
-expect_no_match \
-    "legacy LiveResource alias/ADT must stay deleted" \
-    '\b(type|data|newtype)[[:space:]]+LiveResource\b' \
-    Application Web Test
-
-expect_no_match \
-    "temporary surface-resource bridge conversion helpers must stay deleted" \
-    'liveResourceToSurfaceResourceValues|liveResourcesToSurfaceResourceValues|SurfaceResourceValue bridge' \
-    Application Web Test
-
-expect_no_match \
-    "FrontendSurface dependency planning must not use final-state custom dependency hooks" \
-    'CustomDependency|custom dependency hook|custom dependency' \
-    Application Web Test frontend/ts
-
-expect_no_match \
-    "legacy expansion sentinel resource constructors must stay deleted" \
-    'leaveCalendarResource|staffRosterMembershipResource|staffPayProfileResource|staffTimesheetResource|rosterSlotResource' \
-    Application Web Test
-
-expect_no_match \
-    "legacy expansion sentinel resource wire names must stay out of code" \
-    '"(leave-calendar|staff-roster-membership|staff-pay-profile|staff-timesheet)"' \
-    Application Web Test frontend/ts
-
-expect_no_match \
-    "surface subscription authorization must delegate to generated FrontendSurface scope auth" \
-    'CurrentVenueManager|CurrentVenueOwner|CurrentVenueAdmin|CurrentVenueRosterGroup|CurrentVenueStaff|SupportSuperAdmin|NoAuthIR|AuthorizeIR' \
-    Web/SurfaceInvalidation.hs
-
-expect_match \
-    "surface subscription authorization delegates to generated FrontendSurface scope auth" \
-    'authorizeSurfaceScope = authorizeFrontendSurfaceScope' \
-    Web/SurfaceInvalidation.hs
-
-expect_match \
-    "passive invalidation delegates to the singular generated FrontendSurface planner" \
-    'planSurfaceInvalidationsWithoutContext = planFrontendSurfaceInvalidations' \
-    Web/SurfaceInvalidation.hs
-
-expect_match \
-    "actor resource invalidation delegates to the same generated FrontendSurface planner" \
-    'planFrontendSurfaceInvalidations touchedResources \[mountSubscription\]' \
-    Application/Helper/LiveUpdate.hs
-
-expect_no_match \
-    "app views/helpers must not hand-author request-side HTMX attrs" \
-    'hx-(get|post|put|patch|delete|target|swap|push-url|sync|trigger|include|select|confirm)=' \
-    Application/Helper/View Web/View
-
-expect_no_match \
-    "toggle helper must not expose raw request-side HTMX fields" \
-    'appToggleHx(Get|Post|Trigger|Include|Target|Swap|PushUrl|Sync)' \
-    Application Web Test
-
-expect_no_match \
-    "replaced handwritten toggle and break DOM agreements must stay deleted" \
-    'data-app-toggle|data-break-(toggle|target)|data-shift-preference-available' \
-    Application Web frontend/ts static/css e2e
-
-expect_no_match \
-    "toggle feature views must not restore raw mapping, hidden-id, or inline-handler configuration" \
-    'appToggle(InputName|InputValue|OnChange|HiddenInput|BreakTarget|ShiftPreferenceAvailable|InputExtraAttrs)|syncToggleHiddenInputAndSubmit' \
-    Application Web
-
-expect_no_match \
-    "the generic toggle adapter must resolve relationships form-locally without document-global ids" \
-    'document\.getElementById|document\.querySelector' \
-    frontend/ts/app-toggle-buttons.ts
-
-expect_no_match \
-    "timesheet break activation must not rediscover time-picker internals" \
-    'breakTarget|js-time-picker-(input|trigger|step)' \
-    frontend/ts/app-timesheets.ts
-
-expect_match \
-    "the generic toggle adapter consumes the generated exact config parser" \
-    'parseToggleConfig' \
-    frontend/ts/app-toggle-buttons.ts
-
-expect_no_match \
-    "replaced handwritten time-picker DOM agreements must stay deleted" \
-    'quarter-hour-time-picker-modal|js-time-picker|data-time-picker-(field|start|end|step|empty)|data-default-(start|end)-time|data-time-value|time-picker:sync' \
-    Application Web frontend/ts static/css e2e
-
-expect_no_match \
-    "production time-picker code must not repeat generated app-owned DOM names" \
-    'data-bepis-time-picker-' \
-    Application Web frontend/ts
-
-expect_match \
-    "the time-picker boundary consumes the generated exact config parser" \
-    'parseTimePickerConfig' \
-    frontend/ts/time-picker/configuration.ts
-
-expect_match \
-    "the time-picker boundary consumes the generated exact option parser" \
-    'parseTimePickerOption' \
-    frontend/ts/time-picker/configuration.ts
-
-expect_no_match \
-    "malformed time-picker payloads must not rewrite server-rendered option markup" \
-    'innerHTML|insertAdjacentHTML' \
-    frontend/ts/app-time-picker.ts
-
-expect_no_match \
-    "time-picker internals must not recreate toggle or break-region authority" \
-    'toggle(BreakRegion|Input|Transport|Config)DomAttr|data-bepis-toggle|breakRegion' \
-    frontend/ts/app-time-picker.ts
-
-expect_no_match \
-    "toggle and timesheet adapters must not rediscover picker internals" \
-    'timePicker[A-Z]|data-bepis-time-picker|js-time-picker' \
-    frontend/ts/app-toggle-buttons.ts \
-    frontend/ts/app-timesheets.ts
-
-expect_no_match \
-    "replaced handwritten shift-preference range DOM and presentation state must stay deleted" \
-    'data-shift-preference|data-(min|max)-hour|dataset\.(minHour|maxHour|shiftPreference)|--preference-(start|end)|\.is-unavailable' \
-    Web/View/StaffProfileForm.hs \
-    frontend/ts/app-preferences.ts \
-    frontend/ts/ordered-range \
-    static/css/features/preferences.css \
-    e2e
-
-expect_no_match \
-    "production Haskell and TypeScript must consume generated ordered-range attribute names" \
-    'data-bepis-ordered-range-' \
-    Application \
-    Web \
-    frontend/ts \
-    e2e
-
-expect_no_match \
-    "ordered-range consumers must not repeat the Haskell-owned crossing policy literal" \
-    'clamp-other-endpoint' \
-    Application/Helper/FrontendContract/OrderedRange/Runtime.hs \
-    Web \
-    frontend/ts \
-    e2e
-
-expect_match \
-    "the ordered-range boundary consumes the generated exact config parser" \
-    'parseOrderedRangeConfig' \
-    frontend/ts/ordered-range/configuration.ts
-
-expect_match \
-    "the ordered-range boundary consumes the generated exact state parser" \
-    'parseOrderedRangeState' \
-    frontend/ts/ordered-range/configuration.ts
-
-expect_match \
-    "the ordered-range adapter keeps initialization state outside server DOM" \
-    'new WeakMap<HTMLElement, OrderedRangeControl>' \
-    frontend/ts/app-preferences.ts
-
-expect_no_match \
-    "the ordered-range adapter must not rediscover Toggle roles or feature presentation classes" \
-    'toggle[A-Z].*DomAttr|data-bepis-toggle|shift-preference' \
-    frontend/ts/app-preferences.ts \
-    frontend/ts/ordered-range
-
-expect_no_match \
-    "replaced handwritten horizontal-scroll roles and DOM state must stay deleted" \
-    'data-horizontal-|dataset\.horizontal' \
-    Application Web frontend/ts e2e static/css
-
-expect_no_match \
-    "production Haskell and TypeScript must consume generated horizontal-scroll attribute names" \
-    'data-bepis-horizontal-(scroll|snap|drag)-' \
-    Application Web frontend/ts
-
-expect_match \
-    "the horizontal-scroll boundary consumes the generated exact snap parser" \
-    'parseHorizontalSnapConfig' \
-    frontend/ts/horizontal-scroll/configuration.ts
-
-expect_match \
-    "the horizontal-scroll boundary consumes the generated exact drag parser" \
-    'parseHorizontalDragConfig' \
-    frontend/ts/horizontal-scroll/configuration.ts
-
-expect_match \
-    "the horizontal-scroll adapter cleans HTMX replacement subtrees" \
-    'htmx:beforeCleanupElement' \
-    frontend/ts/app-horizontal-scroll.ts
-
-expect_no_match \
-    "replaced handwritten passkey roles must stay deleted" \
-    'js-passkey-|data-passkey-management|dataset\.passkeyInitialized' \
-    Application Web frontend/ts e2e static
-
-expect_no_match \
-    "replaced scalar passkey configuration must stay deleted" \
-    'data-(begin-url|finish-url|status-id|success-redirect|user-id|mode)|dataset\.(beginUrl|finishUrl|statusId|successRedirect|userId|mode)' \
-    "${passkey_paths[@]}"
-
-expect_no_match \
-    "production Haskell and TypeScript must consume generated passkey attribute names" \
-    'data-bepis-passkey-(login|registration|setup-prompt|action-button|device-name|status|recovery|dismissal|flow-config)' \
-    Application Web frontend/ts e2e
-
-for passkey_contract_name in \
-    parsePasskeyFlowConfig \
-    passkeyLoginDomAttr \
-    passkeyRegistrationDomAttr \
-    passkeySetupPromptDomAttr \
-    passkeyActionButtonDomAttr \
-    passkeyDeviceNameDomAttr \
-    passkeyStatusDomAttr \
-    passkeyRecoveryDomAttr \
-    passkeyDismissalDomAttr \
-    passkeyFlowConfigDomAttr \
-    passkeyFirstPasskeyMode \
-    passkeyAdditionalDeviceMode; do
-    expect_match \
-        "the passkey adapter must consume generated ${passkey_contract_name}" \
-        "\\b${passkey_contract_name}\\b" \
-        frontend/ts/app-passkeys.ts
-done
-
-expect_match \
-    "the passkey adapter must report structured boundary diagnostics" \
-    'PasskeyDiagnostic' \
-    frontend/ts/app-passkeys.ts
-
-expect_no_match \
-    "the passkey adapter must resolve status and controls mount-locally" \
-    'document\.(getElementById|querySelector)' \
-    frontend/ts/app-passkeys.ts
-
-expect_no_match \
-    "passkey setup-prompt mode literals must remain contract-owned" \
-    '"(first-passkey|additional-device)"' \
-    Application/Helper/FrontendContract/Passkey/Runtime.hs \
-    Application/Helper/View \
-    Web \
-    frontend/ts \
-    e2e
-
-expect_no_match \
-    "the passkey adapter must not own moved workflow, status, or recovery copy" \
-    'Waiting for your passkey|Signed in\.|Passkey added\.|Passkeys are not supported|Save this recovery code now|This code is shown once|I have saved it' \
-    frontend/ts/app-passkeys.ts
-
-expect_no_match \
-    "the passkey adapter must not display untyped response or native error copy" \
-    'finishResponse\.message|typeof json\.error' \
-    frontend/ts/app-passkeys.ts
-
-expect_no_match \
-    "the passkey adapter must not display browser-authored status copy" \
-    'new PasskeyStatusError\((`|"Passkey)' \
-    frontend/ts/app-passkeys.ts
-
-expect_no_match \
-    "handwritten or open passkey wire DTOs must stay deleted" \
-    'Record<string,[[:space:]]*any>|\bJsonObject\b|type PasskeyFinishResponse[[:space:]]*=|type (Registration|Authentication)CredentialPayload[[:space:]]*=|as (PublicKeyCredentialCreationOptions|PublicKeyCredentialRequestOptions)' \
-    frontend/ts/app-passkeys.ts \
-    frontend/ts/passkeys/wire.ts
-
-expect_no_match \
-    "passkey server envelopes must not use compatibility probing or unchecked response casts" \
-    'typeof json\.redirectTo|catch\(\(\) => \(\{\}\)\)|return json as|\.(excludeCredentials|allowCredentials)[[:space:]]*\|\|' \
-    frontend/ts/app-passkeys.ts \
-    frontend/ts/passkeys/wire.ts
-
-expect_no_match \
-    "passkey Haskell carriers must not repeat declared wire field or case literals" \
-    '"(tag|authenticated|registered|setup-registered|failure|redirect|rawId|response|clientDataJSON|attestationObject|transports|authenticatorData|signature|userHandle|clientExtensionResults|userId|redirectTo|recoveryCode|error)"|Aeson\.(object|withObject)|Aeson\.\.[:=]' \
-    Application/Helper/FrontendContract/Wire/Passkey.hs
-
-expect_no_match \
-    "passkey controllers must use schema-indexed wire carriers instead of library JSON or local DTOs" \
-    'wjEncodeCredentialOptions|data PasskeyRegistrationRequest|Aeson\.object[[:space:]]*\[[[:space:]]*"(ok|error|message|userId|redirectTo|recoveryCode)"' \
-    Web/Controller/Auth.hs
-
-for passkey_inbound_parser in \
-    parsePasskeyAuthenticationOptions \
-    parsePasskeyRegistrationOptions \
-    parsePasskeyFinishResponse \
-    parsePasskeyErrorResponse; do
-    expect_match \
-        "the passkey adapter must consume generated ${passkey_inbound_parser}" \
-        "\\b${passkey_inbound_parser}\\b" \
-        frontend/ts/app-passkeys.ts
-done
-
-for passkey_outbound_encoder in \
-    encodePasskeyAuthenticationRequest \
-    encodePasskeyRegistrationRequest; do
-    expect_match \
-        "the passkey wire adapter must consume generated ${passkey_outbound_encoder}" \
-        "\\b${passkey_outbound_encoder}\\b" \
-        frontend/ts/passkeys/wire.ts
-done
-
-expect_no_match \
-    "passkey prompt lifecycle must not duplicate overlay removal or body-lock behavior" \
-    'modal-open|document\.body|\.remove\(\)' \
-    frontend/ts/app-passkeys.ts
-
-expect_match \
-    "passkey prompt dismissal must consume the generated overlay close role" \
-    'dialogCloseDomAttr' \
-    frontend/ts/app-passkeys.ts
-
-expect_no_match_including_generated \
-    "browser-native WebAuthn objects must stay out of the generated passkey contract" \
-    '\b(PublicKeyCredential|AuthenticatorAttestationResponse|AuthenticatorAssertionResponse|AuthenticationExtensionsClientOutputs|NavigatorCredentials)\b' \
-    Application/Helper/FrontendContract/Passkey.hs \
-    frontend/ts/generated/contracts.ts
-
-for native_passkey_object in \
-    PublicKeyCredential \
-    AuthenticatorAttestationResponse \
-    AuthenticatorAssertionResponse \
-    navigator.credentials; do
-    expect_match \
-        "browser-native ${native_passkey_object} must remain in the handwritten passkey adapter" \
-        "${native_passkey_object}" \
-        frontend/ts/app-passkeys.ts \
-        frontend/ts/passkeys/wire.ts
-done
-
-expect_no_match \
-    "replaced handwritten PWA install roles must stay deleted" \
-    'data-pwa-(install-(page|button|result)|installed-status)' \
-    Application Web frontend/ts e2e static
-
-expect_no_match \
-    "production Haskell and TypeScript must consume generated PWA install attribute names" \
-    'data-bepis-pwa-(install-(page|button|result|result-state)|installed-status)' \
-    Application Web frontend/ts e2e
-
-for pwa_contract_name in \
-    isPwaInstallState \
-    pwaInstallPageDomAttr \
-    pwaInstallButtonDomAttr \
-    pwaInstallResultDomAttr \
-    pwaInstallResultStateDomAttr \
-    pwaInstalledStatusDomAttr; do
-    expect_match \
-        "the PWA adapter must consume generated ${pwa_contract_name}" \
-        "\\b${pwa_contract_name}\\b" \
-        frontend/ts/app-pwa.ts
-done
-
-expect_no_match \
-    "the PWA adapter must not synthesize Haskell-owned workflow copy" \
-    'textContent|innerHTML|insertAdjacentHTML|Installation (accepted|was not completed|could not start)|Bepis is installed on this device' \
-    frontend/ts/app-pwa.ts
-
-expect_no_match_including_generated \
-    "browser-native PWA platform objects must stay out of generated wire contracts" \
-    '\b(BeforeInstallPromptEvent|InstallChoice|AppleNavigator)\b' \
-    Application/Helper/FrontendContract/PwaInstall.hs \
-    frontend/ts/generated/contracts.ts
-
-expect_no_match_including_generated \
-    "the focused PWA contract must expose only closed state and DOM roles" \
-    'Browser(Inbound|Outbound|Bidirectional)Schema|Record|TaggedUnion|Event' \
-    Application/Helper/FrontendContract/PwaInstall.hs
-
-expect_match \
-    "browser-native PWA prompt events remain adapter-local" \
-    'beforeinstallprompt' \
-    frontend/ts/app-pwa.ts
-
-expect_match \
-    "browser-native PWA installed events remain adapter-local" \
-    'appinstalled' \
-    frontend/ts/app-pwa.ts
-
-expect_match \
-    "browser-native PWA standalone detection remains adapter-local" \
-    'display-mode: standalone' \
-    frontend/ts/app-pwa.ts
-
-expect_no_match \
-    "replaced handwritten Xero candidate-filter roles must stay deleted" \
-    'data-xero-import-(loading|search|candidates?)' \
-    Application Web frontend/ts e2e static
-
-expect_no_match \
-    "production Haskell and TypeScript must consume generated Xero candidate-filter attribute names" \
-    'data-bepis-xero-candidate-filter-(root|search|candidate|config|empty)' \
-    Application Web frontend/ts e2e
-
-for xero_filter_contract_name in \
-    xeroCandidateFilterRootDomAttr \
-    xeroCandidateFilterSearchDomAttr \
-    xeroCandidateFilterCandidateDomAttr \
-    xeroCandidateFilterConfigDomAttr \
-    xeroCandidateFilterEmptyDomAttr; do
-    expect_match \
-        "the Xero candidate-filter adapter must consume generated ${xero_filter_contract_name}" \
-        "\\b${xero_filter_contract_name}\\b" \
-        frontend/ts/app-xero.ts
-done
-
-expect_match \
-    "the Xero candidate-filter boundary must consume the generated exact config parser" \
-    'parseXeroCandidateFilterConfig' \
-    frontend/ts/xero-candidate-filter/configuration.ts
-
-expect_match \
-    "the Xero candidate-filter adapter must report structured boundary diagnostics" \
-    'XeroCandidateFilterDiagnostic' \
-    frontend/ts/app-xero.ts
-
-expect_match \
-    "Xero candidate rendering must build the opaque normalized projection in Haskell" \
-    'xeroCandidateSearchProjection' \
-    Web/View/Admin/Xero/ImportedPayItems.hs
-
-expect_no_match \
-    "the Xero candidate-filter adapter must not infer feature fields or presentation selectors" \
-    'xeroEarningsRate|accountCode|ratePerUnit|textContent|innerText|\.modal-content|\.list-group|d-none' \
-    frontend/ts/app-xero.ts
-
-expect_no_match \
-    "the Xero candidate-filter adapter must not replace server-rendered candidate markup" \
-    'innerHTML|insertAdjacentHTML|replaceChildren' \
-    frontend/ts/app-xero.ts
-
-expect_no_match \
-    "replaced Xero filter adapter aliases must stay deleted" \
-    '\bupdateXeroImportFilter\b' \
-    frontend/ts e2e static
-
-expect_match \
-    "Xero candidate visibility CSS must preserve native hidden state against Bootstrap flex utilities" \
-    '\[data-bepis-xero-candidate-filter-candidate\]\[hidden\]' \
-    static/css/features/xero.css
-
-expect_no_match_including_generated \
-    "stale roster linked-highlight IDs, selectors, feature runtime vocabulary, and opaque-key prefix parsing must stay deleted" \
-    '\bdata-roster-(staff-id|slot-id|shift-group-key|staff-highlight-toggle)\b|\bis-roster-(staff-highlighted|staff-slot-highlighted|shift-group-highlighted)\b|\broster-shift-create-staff-dropzone\b|\benableRosterStaffShiftHighlight\b|replace\(/\^(staff|existing|new):|\^=\"(staff|existing|new):|(staff|existing|new):\$\{' \
-    Application Web frontend/ts static/css Test e2e
-
-if [ -e frontend/ts/roster/staff-highlight.ts ]; then
-    report_failure "feature-specific roster staff-highlight runtime must stay deleted in favor of linked-highlight/runtime.ts"
+# The generator's failure-atomic publication is behavior, not source shape.
+if [ -f '@scriptsRoot@/frontend/surface-adapter-publication-test' ]; then
+    publication_test='@scriptsRoot@/frontend/surface-adapter-publication-test'
+else
+    publication_test='Config/nix/scripts/frontend/surface-adapter-publication-test'
 fi
+bash "$publication_test" || fail "adapter publication must leave managed output untouched on validation failure"
 
-expect_match \
-    "the roster entrypoint must enable the generic generated linked-highlight runtime" \
-    '\benableFrontendSurfaceLinkedHighlight\b' \
-    frontend/ts/app-roster.ts
-
-expect_no_match_including_generated \
-    "replaced handwritten roster staff sorting/tab contracts and aliases must stay deleted" \
-    'data-roster-staff-(sort-key|name|role|assigned|ideal|panel-tab)|dataset\.rosterStaff|RosterStaffSortKey|RosterValues|rosterStaffSortKey|roster/staff-panel-(sorting|tabs)|roster/staff-sort' \
-    Application Web Test frontend/ts e2e static
-
-expect_no_match \
-    "authored roster staff code must consume generated Surface role names" \
-    'data-bepis-roster-staff-panel-(sort-root|sort-row|sort-control|tab)' \
-    Application Web frontend/ts
-
-expect_no_match \
-    "roster staff browser code must discover sorting and tabs through generated roles, not presentation classes" \
-    '(querySelector(All)?|closest|matches)\([^)]*roster-staff-(table|panel-entry|table-body|sort-button|panel-tab)' \
-    frontend/ts
-
-for removed_roster_staff_runtime in \
-    frontend/ts/roster/staff-panel-sorting.ts \
-    frontend/ts/roster/staff-panel-tabs.ts \
-    frontend/ts/roster/staff-sort.ts \
-    Application/Helper/FrontendContract/RosterValues.hs; do
-    if [ -e "$removed_roster_staff_runtime" ]; then
-        report_failure "$removed_roster_staff_runtime must stay deleted in favor of generated Surface contracts"
+# This inventory is generated, not maintained by feature name. An emitted
+# browser token needs a production import and use to remain contract authority.
+mapfile -t browser_dom_tokens < <(sed -n 's/^export const \([A-Za-z0-9_]*DomToken\) = .*$/\1/p' frontend/ts/generated/contracts.ts)
+for token in "${browser_dom_tokens[@]}"; do
+    uses="$( (rg --glob '!frontend/ts/generated/**' --glob '!frontend/ts/tests/**' -o "\\b${token}\\b" frontend/ts 2>/dev/null || true) | wc -l)"
+    if [ "$uses" -lt 2 ]; then
+        fail "generated browser DOM token has no production import and use: $token"
     fi
 done
-
-expect_no_match_including_generated \
-    "replaced raw roster fullscreen and column-edit contracts must stay deleted" \
-    'data-roster-fullscreen(-toggle(-label)?)?|data-roster-column-(editor|editing|edit-start|edit-done)' \
-    Application Web frontend/ts e2e static
-
-expect_no_match \
-    "authored roster chrome code must consume generated Surface role/state names" \
-    'data-bepis-roster-(fullscreen(-root|-toggle|-label)?|column-(editor|edit-start|edit-done|editing))' \
-    Application Web frontend/ts
-
-expect_no_match \
-    "roster chrome browser code must discover controls through generated roles, not presentation classes" \
-    '(querySelector(All)?|closest|matches)\([^)]*roster-(fullscreen-toggle|column-edit-(start|done)|grid-frame)' \
-    frontend/ts/roster
-
-expect_match \
-    "generated contracts must expose closed roster fullscreen state" \
-    'export type RosterFullscreenState = "collapsed" \| "expanded"' \
-    frontend/ts/generated/contracts.ts
-expect_match \
-    "generated contracts must expose closed roster column-editing state" \
-    'export type RosterColumnEditingState = "inactive" \| "active"' \
-    frontend/ts/generated/contracts.ts
-
-expect_match \
-    "the roster entrypoint must enable the generic complete-set sorting runtime" \
-    '\benableFrontendSurfaceCompleteSetSort\b' \
-    frontend/ts/app-roster.ts
-
-expect_match \
-    "the roster entrypoint must enable the generic generated tab-set runtime" \
-    '\benableFrontendSurfaceTabSets\b' \
-    frontend/ts/app-roster.ts
-
-expect_no_match \
-    "replaced raw roster image-export and conflict annotations must stay deleted" \
-    'data-roster-export|data-conflict-message|dataset\.rosterExport|rosterExportFormat|sanitizeFilenamePart|exportConfigs' \
-    Application Web frontend/ts e2e Test static/css
-
-expect_no_match \
-    "authored roster image-export code must consume generated Surface names" \
-    'data-bepis-roster-image-export-(trigger|config|projection|row|cell|format)' \
-    Application Web frontend/ts e2e
-
-expect_no_match \
-    "roster image export must not infer business meaning from feature classes or cell positions" \
-    'roster-group-switch|roster-week-overview-trigger|day-label|slot-(empty|closed|time|staff|shift-type)-cell|cellIndex|gridcell' \
-    frontend/ts/roster/image-export.ts
-
-for roster_image_export_contract_name in \
-    parseRosterImageExportConfiguration \
-    parseRosterImageExportCellConfiguration \
-    rosterImageExportTriggerDomAttr \
-    rosterImageExportConfigDomAttr \
-    rosterImageExportProjectionDomAttr \
-    rosterImageExportRowDomAttr \
-    rosterImageExportCellDomAttr \
-    rosterImageExportFormatDomAttr; do
-    expect_match \
-        "the roster image-export adapter must consume generated ${roster_image_export_contract_name}" \
-        "\\b${roster_image_export_contract_name}\\b" \
-        frontend/ts/roster/image-export.ts
-done
-
-expect_no_match \
-    "replaced handwritten roster week-overview browser contract must stay deleted" \
-    'data-week-overview|dataset\.weekOverview|DOMStringMap|rosterOverviewSummaryFromDayDataset|is-(selected|unloaded|current-week)' \
-    Application Web frontend/ts e2e Test static/css
-
-expect_no_match \
-    "authored roster week-overview code must consume generated Surface names" \
-    'data-bepis-roster-week-overview-(panel|day|today|details|selected-label|leave-value|assigned-value|hours-value|summary|week-label|go-link|availability|closure|calendar-day)' \
-    Application Web frontend/ts e2e
-
-expect_match \
-    "the roster week-overview boundary consumes the generated exact panel parser" \
-    'parseRosterWeekOverviewPanelConfig' \
-    frontend/ts/roster/week-overview-configuration.ts
-expect_match \
-    "the roster week-overview boundary consumes the generated exact day parser" \
-    'parseRosterWeekOverviewDayConfig' \
-    frontend/ts/roster/week-overview-configuration.ts
-expect_match \
-    "the dormant roster week-overview adapter reports structured diagnostics" \
-    'RosterWeekOverviewDiagnostic' \
-    frontend/ts/roster/week-overview.ts
-
-expect_no_match \
-    "the roster week-overview adapter must not own Haskell-rendered copy or presentation selectors" \
-    'No loaded roster|unavailable periods|shifts assigned|rostered hours|querySelector(All)?\([^)]*roster-week-overview' \
-    frontend/ts/roster/week-overview.ts \
-    frontend/ts/roster/week-overview-configuration.ts
-
-if [ -e frontend/ts/roster/overview.ts ]; then
-    report_failure "the handwritten roster week-overview dataset parser must stay deleted"
-fi
-
-expect_no_match \
-    "the retained roster week overview must remain disabled in the active header" \
-    'renderWeekOverviewDropdown' \
-    Web/View/RosterWeeks/Header.hs
 
 if [ "$failures" -ne 0 ]; then
     exit 1

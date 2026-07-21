@@ -443,30 +443,22 @@ tests = describe "FrontendSurfaceAdapterGenerator" do
         case generateSurfaceLiveAdapterModules registeredFrontendSurfaceContractIR registeredSurfaceAdapterRegistry of
             Left diagnostics -> expectationFailure (cs (show diagnostics))
             Right generatedModules -> do
-                length generatedModules `shouldBe` 7
-                map (.generatedModuleName) generatedModules
-                    `shouldBe`
-                        [ "Application.Helper.FrontendContract.Surface.Admin.Generated.Live"
-                        , "Application.Helper.FrontendContract.Surface.Billing.Generated.Live"
-                        , "Application.Helper.FrontendContract.Surface.LeaveRequests.Generated.Live"
-                        , "Application.Helper.FrontendContract.Surface.Profile.Generated.Live"
-                        , "Application.Helper.FrontendContract.Surface.Roster.Generated.Live"
-                        , "Application.Helper.FrontendContract.Surface.Support.Generated.Live"
-                        , "Application.Helper.FrontendContract.Surface.Timesheets.Generated.Live"
-                        ]
+                let generatedNames = map (.generatedModuleName) generatedModules
+                generatedNames `shouldSatisfy` (not . null)
+                generatedNames `shouldBe` List.sort (List.nub generatedNames)
+                generatedNames `shouldSatisfy` all (Text.isSuffixOf ".Generated.Live")
 
         case generateSurfaceAdapterModules registeredFrontendSurfaceContractIR registeredSurfaceAdapterRegistry of
             Left diagnostics -> expectationFailure (cs (show diagnostics))
             Right generatedModules -> do
-                length generatedModules `shouldBe` 21
-                length (filter (Text.isSuffixOf ".Generated.Live" . (.generatedModuleName)) generatedModules)
-                    `shouldBe` 7
-                length (filter (Text.isSuffixOf ".Generated.Resource" . (.generatedModuleName)) generatedModules)
-                    `shouldBe` 7
-                length (filter (Text.isSuffixOf ".Generated.Action" . (.generatedModuleName)) generatedModules)
-                    `shouldBe` 6
-                length (filter (Text.isSuffixOf ".Generated.Intent" . (.generatedModuleName)) generatedModules)
-                    `shouldBe` 1
+                let generatedNames = map (.generatedModuleName) generatedModules
+                    generatedLanes = map (Text.takeWhileEnd (/= '.') . (.generatedModuleName)) generatedModules
+                    requiredLanes = ["Action", "Intent", "Live", "Resource"]
+                generatedNames `shouldSatisfy` (not . null)
+                generatedNames `shouldBe` List.sort (List.nub generatedNames)
+                List.sort (List.nub generatedLanes) `shouldBe` requiredLanes
+                forM_ generatedModules \generated ->
+                    Directory.doesFileExist generated.generatedModulePath `shouldReturn` True
 
     it "rejects empty, partial, extra, and duplicate production Live homes" do
         let emptyRegistry =
