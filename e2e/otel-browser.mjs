@@ -171,14 +171,10 @@ async function gotoReady(page, options, target, selector, stepName) {
 }
 
 async function dismissOptionalPasskeyPrompt(page) {
-    const prompts = page.locator('.js-passkey-setup-prompt');
-    await prompts.first().waitFor({ state: 'attached', timeout: 1000 }).catch(() => null);
-    if ((await prompts.count()) === 0) return;
-    await prompts.evaluateAll((elements) => {
-        for (const element of elements) element.remove();
-        document.body.classList.remove('modal-open');
-        document.body.style.overflow = '';
-    });
+    const dismissal = page.getByRole('dialog').getByRole('button', { name: 'Close' }).first();
+    await dismissal.waitFor({ state: 'attached', timeout: 1000 }).catch(() => null);
+    if ((await dismissal.count()) === 0) return;
+    await dismissal.click();
 }
 
 async function login(page, options) {

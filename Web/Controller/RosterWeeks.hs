@@ -13,6 +13,8 @@ import Application.Helper.FrontendContract.AppShell.Runtime (AppShellActionRoute
                                                              appShellActionByMarker,
                                                              renderAppShellActionForm)
 import Application.Helper.FrontendContract.Overlay.Runtime (dialogAutoSubmitOnceAttr)
+import Application.Helper.FrontendContract.Passkey.Runtime (PasskeySetupPromptMode,
+                                                            passkeySetupPromptModeFromValue)
 import qualified Application.Helper.FrontendContract.Surface.Interaction as SurfaceInteraction
 import Application.Helper.FrontendContract.Surface.Request (SurfaceRequestFieldError,
                                                             surfaceActionParamsPresent,
@@ -1603,12 +1605,7 @@ respondWithRosterWeekView showView =
 
 passkeySetupPromptFromSession :: (?request :: Request) => IO (Maybe PasskeySetupPromptMode)
 passkeySetupPromptFromSession =
-    fmap promptModeFromText (getSessionAndClear @Text passkeySetupPromptSessionKey)
-  where
-    promptModeFromText = \case
-        Just "first-passkey"     -> Just FirstPasskeyPrompt
-        Just "additional-device" -> Just AdditionalDevicePasskeyPrompt
-        _                        -> Nothing
+    fmap (>>= passkeySetupPromptModeFromValue) (getSessionAndClear @Text passkeySetupPromptSessionKey)
 
 renderRosterWeekOverviewFragment :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Int -> Id RosterGroup -> IO Blaze.Html
 renderRosterWeekOverviewFragment weekOffset rosterGroupId = do

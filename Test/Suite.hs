@@ -68,6 +68,7 @@ import qualified Test.MutationBoundarySpec
 import qualified Test.OrderedRangeSpec
 import qualified Test.OverlaySpec
 import qualified Test.PageHelpSpec
+import qualified Test.PasskeySpec
 import qualified Test.PaySpec
 import qualified Test.ProfilingSpec
 import qualified Test.PublicHolidaySyncSpec
@@ -427,6 +428,7 @@ allSuites =
     , pureSuite SuiteDefinition{definitionLabel = "PwaInstall", definitionEstimatedRuntimeSeconds = 0.1, definitionFeedbackLane = RoutineCorrectness, definitionInvariantFamily = FrontendContractsAndLiveUpdate, definitionFixtureCost = FixtureFree, definitionExternalMocks = [], definitionOwnedInvariants = [], definitionPartialInvariants = []} Test.PwaInstallSpec.tests
     , databaseSuite CleanStateNotRequired CommittedVisibilityNotRequired SuiteDefinition{definitionLabel = "OrderedRange", definitionEstimatedRuntimeSeconds = 0.1, definitionFeedbackLane = RoutineCorrectness, definitionInvariantFamily = FrontendContractsAndLiveUpdate, definitionFixtureCost = FixtureFree, definitionExternalMocks = [], definitionOwnedInvariants = [], definitionPartialInvariants = []} Test.OrderedRangeSpec.tests
     , databaseSuite CleanStateNotRequired CommittedVisibilityNotRequired SuiteDefinition{definitionLabel = "Overlay", definitionEstimatedRuntimeSeconds = 0.1, definitionFeedbackLane = RoutineCorrectness, definitionInvariantFamily = FrontendContractsAndLiveUpdate, definitionFixtureCost = FixtureFree, definitionExternalMocks = [], definitionOwnedInvariants = [], definitionPartialInvariants = []} Test.OverlaySpec.tests
+    , pureSuite SuiteDefinition{definitionLabel = "Passkey", definitionEstimatedRuntimeSeconds = 0.1, definitionFeedbackLane = RoutineCorrectness, definitionInvariantFamily = FrontendContractsAndLiveUpdate, definitionFixtureCost = FixtureFree, definitionExternalMocks = [], definitionOwnedInvariants = [], definitionPartialInvariants = []} Test.PasskeySpec.tests
     , databaseSuite CleanStateNotRequired CommittedVisibilityNotRequired SuiteDefinition{definitionLabel = "TimePicker", definitionEstimatedRuntimeSeconds = 0.1, definitionFeedbackLane = RoutineCorrectness, definitionInvariantFamily = FrontendContractsAndLiveUpdate, definitionFixtureCost = FixtureFree, definitionExternalMocks = [], definitionOwnedInvariants = [], definitionPartialInvariants = []} Test.TimePickerSpec.tests
     , databaseSuite BroadCleanStateRequired CommittedVisibilityNotRequired SuiteDefinition{definitionLabel = "Mail", definitionEstimatedRuntimeSeconds = 0.6, definitionFeedbackLane = RoutineCorrectness, definitionInvariantFamily = Communications, definitionFixtureCost = SmallFixture, definitionExternalMocks = [], definitionOwnedInvariants = [B7], definitionPartialInvariants = []} Test.MailSpec.tests
     , pureSuite SuiteDefinition{definitionLabel = "MutationBoundary", definitionEstimatedRuntimeSeconds = 0.1, definitionFeedbackLane = RoutineCorrectness, definitionInvariantFamily = DataIntegrityAndAudit, definitionFixtureCost = FixtureFree, definitionExternalMocks = [], definitionOwnedInvariants = [], definitionPartialInvariants = []} Test.MutationBoundarySpec.tests

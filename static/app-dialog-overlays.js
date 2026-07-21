@@ -17,6 +17,7 @@
     throw new Error("Invalid DialogSubmitConfig");
   }
   var dialogOverlayMountDomId = "dialog-overlay-mount";
+  var dialogDismissedEvent = "bepis:dialog-dismissed";
   var dialogMountDomAttr = "data-bepis-dialog-mount";
   var dialogBackdropDomAttr = "data-bepis-dialog-backdrop";
   var dialogCloseDomAttr = "data-bepis-dialog-close";
@@ -84,25 +85,33 @@
       return isHTMLElement(mountEl) ? mountEl : null;
     }
     function getActiveDialog() {
-      const mountEl = getMount();
-      if (mountEl === null) return null;
-      const dialogEl = mountEl.querySelector(dialogMountSelector);
-      return isHTMLElement(dialogEl) ? dialogEl : null;
+      const dialogs = Array.from(document.querySelectorAll(dialogMountSelector)).filter(isHTMLElement);
+      return dialogs.length === 0 ? null : dialogs[dialogs.length - 1];
     }
     function hasVisibleBootstrapModal() {
       return Boolean(document.querySelector(`.modal.show:not(${dialogMountSelector})`));
     }
     function syncDialogState() {
-      const dialogEl = getActiveDialog();
-      const hasDialog = dialogEl instanceof HTMLElement;
+      const hasDialog = getActiveDialog() !== null;
       const shouldLockBody = hasDialog || hasVisibleBootstrapModal();
       document.body.classList.toggle("modal-open", shouldLockBody);
       document.body.style.overflow = shouldLockBody ? "hidden" : "";
     }
-    function clearMount() {
+    function clearDialog(dialogEl) {
+      dialogEl.dispatchEvent(new CustomEvent(dialogDismissedEvent, { bubbles: true }));
       const mountEl = getMount();
-      if (mountEl === null) return;
-      mountEl.innerHTML = "";
+      if (mountEl !== null && mountEl.contains(dialogEl)) {
+        mountEl.innerHTML = "";
+        syncDialogState();
+        return;
+      }
+      const localOwner = dialogEl.parentElement;
+      dialogEl.remove();
+      if (localOwner !== null) {
+        Array.from(localOwner.children).forEach((element) => {
+          if (element.matches(dialogBackdropSelector)) element.remove();
+        });
+      }
       syncDialogState();
     }
     function submitAutoFormsOnce(container) {
@@ -114,29 +123,32 @@
       });
     }
     document.addEventListener("click", function(event) {
-      const activeDialog = getActiveDialog();
       const closeEl = closestHTMLElement(event.target, dialogCloseSelector);
-      if (closeEl !== null && activeDialog !== null) {
+      const closeDialog = closeEl?.closest(dialogMountSelector);
+      if (closeEl !== null && isHTMLElement(closeDialog)) {
         event.preventDefault();
-        clearMount();
+        clearDialog(closeDialog);
         return;
       }
       const backdropEl = closestHTMLElement(event.target, dialogBackdropSelector);
-      if (backdropEl !== null && activeDialog !== null) {
+      const backdropDialog = backdropEl?.parentElement?.querySelector(dialogMountSelector);
+      if (backdropEl !== null && isHTMLElement(backdropDialog)) {
         event.preventDefault();
-        clearMount();
+        clearDialog(backdropDialog);
         return;
       }
+      const activeDialog = getActiveDialog();
       if (activeDialog !== null && event.target === activeDialog) {
         event.preventDefault();
-        clearMount();
+        clearDialog(activeDialog);
       }
     });
     document.addEventListener("keydown", function(event) {
       if (event.key !== "Escape") return;
       if (getActiveDialog() === null) return;
       event.preventDefault();
-      clearMount();
+      const activeDialog = getActiveDialog();
+      if (activeDialog !== null) clearDialog(activeDialog);
     });
     document.addEventListener("submit", function(event) {
       const activeDialog = getActiveDialog();

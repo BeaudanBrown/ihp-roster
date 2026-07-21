@@ -58,18 +58,13 @@ renderForm user = [hsx|
 |]
 
 renderPasskeyLogin :: Html
-renderPasskeyLogin = [hsx|
-    <div class="js-passkey-login"
-         data-begin-url={pathTo BeginPasskeyAuthenticationAction}
-         data-finish-url={pathTo FinishPasskeyAuthenticationAction}
-         data-status-id="passkey-status"
-         data-success-redirect={RosterWeeksAction}>
-        <div class="d-grid">
-            <button type="button" class="btn btn-outline-primary js-passkey-login-button">Sign in with a passkey</button>
-        </div>
-    </div>
-    <div id="passkey-status" class="alert d-none mt-3"></div>
-|]
+renderPasskeyLogin =
+    renderPasskeyLoginControl PasskeyLoginControl
+        { passkeyLoginControlKind = PasskeySignInControl
+        , passkeyLoginBeginUrl = pathTo BeginPasskeyAuthenticationAction
+        , passkeyLoginFinishUrl = pathTo FinishPasskeyAuthenticationAction
+        , passkeyLoginSuccessRedirect = Just (pathTo RosterWeeksAction)
+        }
 
 renderPendingVerification :: Maybe Text -> Html
 renderPendingVerification Nothing = mempty

@@ -36,6 +36,9 @@ import Application.Helper.FrontendContract.OrderedRange.Runtime (OrderedRangeDom
 import qualified Application.Helper.FrontendContract.Overlay as Overlay
 import Application.Helper.FrontendContract.Overlay.Runtime (OverlayDom (..),
                                                             canonicalOverlayDom)
+import qualified Application.Helper.FrontendContract.Passkey as Passkey
+import Application.Helper.FrontendContract.Passkey.Runtime (PasskeyDom (..),
+                                                            canonicalPasskeyDom)
 import qualified Application.Helper.FrontendContract.PwaInstall as PwaInstall
 import Application.Helper.FrontendContract.PwaInstall.Runtime (PwaInstallDom (..),
                                                                canonicalPwaInstallDom)
@@ -275,6 +278,7 @@ tests = describe "Frontend contract generator foundation" do
     it "resolves canonical Haskell value accessors from registered FrontendContract IR" do
         lookupDomIdValue @Overlay.DialogOverlayMount `shouldBe` Right canonicalOverlayDom.overlayDialogMountId
         lookupDomIdValue @Overlay.ToastOverlayMount `shouldBe` Right canonicalOverlayDom.overlayToastMountId
+        lookupEventNameValue @Overlay.DialogDismissed `shouldBe` Right canonicalOverlayDom.overlayDialogDismissedEventName
         lookupDomAttrValue @Overlay.DialogMount `shouldBe` Right canonicalOverlayDom.overlayDialogMountAttribute
         lookupDomIdValue @TimePicker.TimePickerModal `shouldBe` Right canonicalTimePickerDom.timePickerModalId
         lookupDomAttrValue @TimePicker.TimePickerField `shouldBe` Right canonicalTimePickerDom.timePickerFieldAttribute
@@ -283,6 +287,14 @@ tests = describe "Frontend contract generator foundation" do
         lookupDomAttrValue @OrderedRange.OrderedRangeAvailability `shouldBe` Right canonicalOrderedRangeDom.orderedRangeAvailabilityAttribute
         lookupDomAttrValue @HorizontalScroll.HorizontalScrollSnap `shouldBe` Right canonicalHorizontalScrollDom.horizontalScrollSnapAttribute
         lookupDomAttrValue @HorizontalScroll.HorizontalScrollDrag `shouldBe` Right canonicalHorizontalScrollDom.horizontalScrollDragAttribute
+        lookupDomAttrValue @Passkey.PasskeyLogin `shouldBe` Right canonicalPasskeyDom.passkeyLoginAttribute
+        lookupDomAttrValue @Passkey.PasskeyRegistration `shouldBe` Right canonicalPasskeyDom.passkeyRegistrationAttribute
+        lookupDomAttrValue @Passkey.PasskeySetupPrompt `shouldBe` Right canonicalPasskeyDom.passkeySetupPromptAttribute
+        lookupDomAttrValue @Passkey.PasskeyFlowConfig `shouldBe` Right canonicalPasskeyDom.passkeyFlowConfigAttribute
+        lookupEnumLiteralValue @Passkey.PasskeySetupPromptMode @Passkey.FirstPasskey `shouldBe` Right "first-passkey"
+        lookupEnumLiteralValue @Passkey.PasskeySetupPromptMode @Passkey.AdditionalDevice `shouldBe` Right "additional-device"
+        lookupConstantValue @Passkey.PasskeyFirstPasskeyMode `shouldBe` Right "first-passkey"
+        lookupConstantValue @Passkey.PasskeyAdditionalDeviceMode `shouldBe` Right "additional-device"
         lookupDomAttrValue @PwaInstall.PwaInstallPage `shouldBe` Right canonicalPwaInstallDom.pwaInstallPageAttribute
         lookupDomAttrValue @PwaInstall.PwaInstallResultState `shouldBe` Right canonicalPwaInstallDom.pwaInstallResultStateAttribute
         lookupEnumLiteralValue @PwaInstall.PwaInstallState @PwaInstall.Accepted `shouldBe` Right "accepted"

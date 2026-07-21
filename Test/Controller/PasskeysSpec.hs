@@ -10,6 +10,8 @@ import Application.Helper.Controller (PlatformRole (SuperAdminRole),
                                       unsafeEnumFromText)
 import Application.Helper.FrontendContract.Overlay.Runtime (OverlayDom (..),
                                                             canonicalOverlayDom)
+import Application.Helper.FrontendContract.Passkey.Runtime (PasskeyDom (..),
+                                                            canonicalPasskeyDom)
 import Application.Helper.PasskeyRecoveryCodes (hashRecoveryCode)
 import Application.Helper.Passkeys (allowedOrigins, rpIdTextFromRequest)
 import Application.Helper.PasskeySetupTokens (PasskeySetupTokenPurpose (SelfNewDevicePasskeySetup),
@@ -64,13 +66,24 @@ tests = aroundAll withDatabaseTestContext do
                 allowedOrigins `shouldBe` (Origin "https://bepis.lol" :| [])
                 rpIdTextFromRequest `shouldBe` "bepis.lol"
 
-        it "renders passkey login entry points on the login form" $ withContext do
+        it "renders the generated passkey login control with a local accessible status" $ withContext do
             response <- callAction NewSessionAction
 
             response `responseStatusShouldBe` status200
             response `responseBodyShouldContain` "Sign in with a passkey"
-            response `responseBodyShouldContain` "data-begin-url=\"/BeginPasskeyAuthentication\""
-            response `responseBodyShouldContain` "data-finish-url=\"/FinishPasskeyAuthentication\""
+            response `responseBodyShouldContain` cs canonicalPasskeyDom.passkeyLoginAttribute
+            response `responseBodyShouldContain` cs canonicalPasskeyDom.passkeyFlowConfigAttribute
+            response `responseBodyShouldContain` cs canonicalPasskeyDom.passkeyActionButtonAttribute
+            response `responseBodyShouldContain` cs canonicalPasskeyDom.passkeyStatusAttribute
+            response `responseBodyShouldContain` "&quot;beginUrl&quot;:&quot;/BeginPasskeyAuthentication&quot;"
+            response `responseBodyShouldContain` "&quot;finishUrl&quot;:&quot;/FinishPasskeyAuthentication&quot;"
+            response `responseBodyShouldContain` "role=\"status\""
+            response `responseBodyShouldContain` "aria-live=\"polite\""
+            response `responseBodyShouldNotContain` "js-passkey-"
+            response `responseBodyShouldNotContain` "data-begin-url"
+            response `responseBodyShouldNotContain` "data-finish-url"
+            response `responseBodyShouldNotContain` "data-status-id"
+            response `responseBodyShouldNotContain` "data-success-redirect"
 
         it "requires an authenticated user to begin passkey registration" $ withContext do
             response <- callAction BeginPasskeyRegistrationAction
@@ -145,7 +158,7 @@ tests = aroundAll withDatabaseTestContext do
                 response `responseBodyShouldNotContain` "restricted venue administration requires a passkey"
                 response `responseBodyShouldNotContain` "modal fade show d-block"
 
-        it "renders optional passkey setup through the unified dialog overlay" $ withContext do
+        it "renders optional passkey setup through generated registration and overlay contracts" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Passkey Dialog Venue"
                 user <- createUserRecord "passkey-dialog@example.com" "staff" True
@@ -157,10 +170,24 @@ tests = aroundAll withDatabaseTestContext do
                 response `responseStatusShouldBe` status200
                 response `responseBodyShouldContain` (cs canonicalOverlayDom.overlayDialogMountAttribute)
                 response `responseBodyShouldContain` "Set up faster sign-in"
-                response `responseBodyShouldContain` "data-begin-url=\"/BeginPasskeyRegistration\""
-                response `responseBodyShouldContain` "data-finish-url=\"/FinishPasskeyRegistration\""
-                response `responseBodyShouldContain` "data-success-redirect=\"/EditProfile?section=security\""
+                response `responseBodyShouldContain` cs canonicalPasskeyDom.passkeyRegistrationAttribute
+                response `responseBodyShouldContain` cs canonicalPasskeyDom.passkeyFlowConfigAttribute
+                response `responseBodyShouldContain` cs canonicalPasskeyDom.passkeyActionButtonAttribute
+                response `responseBodyShouldContain` cs canonicalPasskeyDom.passkeyDeviceNameAttribute
+                response `responseBodyShouldContain` cs canonicalPasskeyDom.passkeyStatusAttribute
+                response `responseBodyShouldContain` cs canonicalPasskeyDom.passkeyRecoveryAttribute
+                response `responseBodyShouldContain` "&quot;beginUrl&quot;:&quot;/BeginPasskeyRegistration&quot;"
+                response `responseBodyShouldContain` "&quot;finishUrl&quot;:&quot;/FinishPasskeyRegistration&quot;"
+                response `responseBodyShouldContain` "&quot;successRedirect&quot;:&quot;/EditProfile?section=security&quot;"
+                response `responseBodyShouldContain` "Save this recovery code now."
+                response `responseBodyShouldContain` "This code is shown once and can be used if you lose access to your passkey."
+                response `responseBodyShouldContain` "I have saved it"
                 response `responseBodyShouldNotContain` "Create a passkey for admin access"
+                response `responseBodyShouldNotContain` "js-passkey-"
+                response `responseBodyShouldNotContain` "data-begin-url"
+                response `responseBodyShouldNotContain` "data-finish-url"
+                response `responseBodyShouldNotContain` "data-status-id"
+                response `responseBodyShouldNotContain` "data-success-redirect"
 
         it "lets venue admins without passkeys reach roster before restricted access" $ withContext do
             withCleanDb do
@@ -216,9 +243,11 @@ tests = aroundAll withDatabaseTestContext do
                     stepUpResponse <- callAction PasskeyStepUpAction
                     stepUpResponse `responseStatusShouldBe` status200
                     stepUpResponse `responseBodyShouldContain` "Verify with a passkey"
-                    stepUpResponse `responseBodyShouldContain` "data-begin-url=\"/BeginPasskeyStepUpAuthentication\""
-                    stepUpResponse `responseBodyShouldContain` "data-finish-url=\"/FinishPasskeyStepUpAuthentication\""
-                    stepUpResponse `responseBodyShouldContain` "data-success-redirect=\"/RosterWeeks\""
+                    stepUpResponse `responseBodyShouldContain` cs canonicalPasskeyDom.passkeyLoginAttribute
+                    stepUpResponse `responseBodyShouldContain` cs canonicalPasskeyDom.passkeyFlowConfigAttribute
+                    stepUpResponse `responseBodyShouldContain` "&quot;beginUrl&quot;:&quot;/BeginPasskeyStepUpAuthentication&quot;"
+                    stepUpResponse `responseBodyShouldContain` "&quot;finishUrl&quot;:&quot;/FinishPasskeyStepUpAuthentication&quot;"
+                    stepUpResponse `responseBodyShouldContain` "&quot;successRedirect&quot;:&quot;/RosterWeeks&quot;"
                     stepUpResponse `responseBodyShouldContain` "Can't access your passkey?"
                     stepUpResponse `responseBodyShouldContain` "hx-target=\"#dialog-overlay-mount\""
                     stepUpResponse `responseBodyShouldNotContain` "Recovery code"
@@ -426,7 +455,9 @@ tests = aroundAll withDatabaseTestContext do
                         callActionWithParams ShowPasskeySetupDialogAction [("successRedirect", "/Support")]
 
                 dialogResponse `responseStatusShouldBe` status200
-                dialogResponse `responseBodyShouldContain` "data-success-redirect=\"/Support\""
+                dialogResponse `responseBodyShouldContain` cs canonicalPasskeyDom.passkeyRegistrationAttribute
+                dialogResponse `responseBodyShouldContain` "&quot;successRedirect&quot;:&quot;/Support&quot;"
+                dialogResponse `responseBodyShouldNotContain` "data-success-redirect"
 
         it "allows recovery-code verified admins to begin replacement passkey registration" $ withContext do
             withCleanDb do
@@ -492,15 +523,20 @@ tests = aroundAll withDatabaseTestContext do
                 response `responseStatusShouldBe` status200
                 response `responseBodyShouldContain` "Set Up New Passkey"
                 response `responseBodyShouldContain` "setup-link@example.com"
-                response `responseBodyShouldContain` "data-begin-url=\"/BeginPasskeySetupRegistration?token="
-                response `responseBodyShouldContain` "data-finish-url=\"/FinishPasskeySetupRegistration\""
+                response `responseBodyShouldContain` cs canonicalPasskeyDom.passkeyRegistrationAttribute
+                response `responseBodyShouldContain` cs canonicalPasskeyDom.passkeyDeviceNameAttribute
+                response `responseBodyShouldContain` cs canonicalPasskeyDom.passkeyRecoveryAttribute
+                response `responseBodyShouldContain` "&quot;beginUrl&quot;:&quot;/BeginPasskeySetupRegistration?token="
+                response `responseBodyShouldContain` "&quot;finishUrl&quot;:&quot;/FinishPasskeySetupRegistration&quot;"
+                response `responseBodyShouldNotContain` "data-begin-url"
+                response `responseBodyShouldNotContain` "data-finish-url"
 
         it "keeps passkey begin requests bodyless so setup-link tokens stay in the query string" $ withContext do
-            sourceBytes <- ByteString.readFile "static/app-passkeys.js"
+            sourceBytes <- ByteString.readFile "frontend/ts/app-passkeys.ts"
             let source = cs sourceBytes :: String
-            source `shouldContain` "const beginResponse = await postJson(container.dataset.beginUrl);"
-            source `shouldNotContain` "postJson(container.dataset.beginUrl, {})"
-            source `shouldContain` "body: hasPayload ? JSON.stringify(payload) : void 0"
+            source `shouldContain` "postJson<JsonObject>(control.config.beginUrl, control.config.failureMessage)"
+            source `shouldNotContain` "postJson<JsonObject>(control.config.beginUrl, control.config.failureMessage, {})"
+            source `shouldContain` "body: hasPayload ? JSON.stringify(payload) : undefined"
 
         it "rejects consumed and expired passkey setup links" $ withContext do
             withCleanDb do

@@ -63,6 +63,22 @@ HTML form attributes are not validation. Keep `required`, hidden inputs, and sel
 - The picker and toast lanes stay separate: picker overlays are globally mounted helpers such as `renderQuarterHourTimePickerModal`, and toasts use the toast overlay helpers.
 - When migrating a bespoke modal, remove obsolete modal-specific JS, CSS selectors, data attributes, exports, and tests in the same change.
 
+## Reusable Passkey Pattern
+- Render login and registration controls through `Application.Helper.View.Passkey`.
+  `FrontendContract.Passkey.Runtime` owns generated roles, exact tagged flow
+  configuration, mount-local status relationships, and closed prompt mode.
+- Haskell owns begin/finish routes, optional redirects, action/status/recovery
+  copy, and complete accessible status/recovery markup. Do not handwrite
+  `.js-passkey-*`, scalar URL/status datasets, status ids, or prompt-mode text.
+- Keep prompt dismissal semantic state on the generated passkey dismissal role
+  while also applying the generated Overlay close role through the typed helper.
+  Consume the generated Overlay dismissal event for close, Escape, and backdrop
+  UX hints; the generic Overlay adapter alone owns dialog removal, body locking,
+  and focus policy.
+- Native WebAuthn objects, browser capability checks, base64url conversion, and
+  local-storage hints stay inside the generic TypeScript adapter and never enter
+  generated schemas.
+
 ## Page Help Pattern
 - Scoped authenticated pages can opt into contextual help through `appPageHelpTopic` on `AppPageConfig`. Keep the trigger title-adjacent; do not add duplicate page-specific help buttons in toolbars.
 - Help content lives in `Application.Helper.View.PageHelp` and is loaded into `#dialog-overlay-mount` through the shared help dialog. When changing visible page controls, workflows, gestures, settings, or role-specific behavior, update the matching help topic in the same change.

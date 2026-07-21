@@ -15,6 +15,7 @@ import Application.Helper.FrontendContract.IR
 import Application.Helper.FrontendContract.LiveUpdate
 import Application.Helper.FrontendContract.OrderedRange
 import Application.Helper.FrontendContract.Overlay
+import Application.Helper.FrontendContract.Passkey
 import Application.Helper.FrontendContract.PwaInstall
 import Application.Helper.FrontendContract.Reflect
 import Application.Helper.FrontendContract.Surface.Contracts (registeredFrontendSurfaceContractIR)
@@ -35,6 +36,7 @@ type RegisteredFrontendContracts =
      , TimePickerContract
      , OrderedRangeContract
      , HorizontalScrollContract
+     , PasskeyContract
      , PwaInstallContract
      , XeroCandidateFilterContract
      , LiveUpdateContract

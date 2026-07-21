@@ -565,6 +565,29 @@ handling locally. Availability and installed/result visibility use native
 adapter selects existing server-rendered copy and must not synthesize fallback
 messages or persist an availability/installed state attribute.
 
+### Generated passkey capability
+
+`Application.Helper.FrontendContract.Passkey` owns the reusable passkey login,
+registration, setup-prompt, action, device-name, status, recovery, and dismissal
+roles. Its browser boundary is one exact tagged configuration for login,
+registration, or setup-prompt. Login and registration carry Haskell-built
+begin/finish URLs, an optional success redirect, a local status relationship,
+and complete status/loading copy. Setup prompts carry an opaque user key and the
+closed first-passkey/additional-device mode. The focused Haskell runtime derives
+all names and values from marker-indexed declarations; views render complete
+controls and recovery copy through `Application.Helper.View.Passkey`.
+
+The generic adapter resolves every action, status, device-name, and recovery
+relationship inside the nearest generated flow root. It parses and validates the
+whole local boundary before mutation, keeps initialization in `WeakSet` storage,
+and reports malformed configuration without changing authoritative HTML.
+Browser capability checks, `navigator.credentials`, native credential/response
+objects, local-storage hints, and base64url conversion remain adapter-local.
+Setup-prompt dismissals also use the generated overlay close role and consume
+its generated semantic dismissal event. The passkey adapter records the local
+UX hint for close-control, Escape, and backdrop dismissal while the overlay
+adapter alone owns dialog removal, body locking, and focus policy.
+
 ### Generated Xero candidate-filter capability
 
 `Application.Helper.FrontendContract.XeroCandidateFilter` owns the root, search,
@@ -587,12 +610,15 @@ status/live-region semantics remain server-rendered.
 ### Generated overlay capability
 
 `Application.Helper.FrontendContract.Overlay` owns the shared workflow-dialog
-and toast lane mount ids, role attributes, dialog auto-submit state, and exact
-submit/toast configuration schemas. Shared Haskell overlay helpers render those
-roles and serialize loading-label/auto-hide configuration through the focused
-runtime. Dialog and toast TypeScript parse the generated exact records and keep
-one-time/original-markup state in `WeakSet`/`WeakMap` storage rather than adding
-browser-only data attributes.
+and toast lane mount ids, role attributes, the semantic dialog-dismissed event,
+dialog auto-submit state, and exact submit/toast configuration schemas. Shared
+Haskell overlay helpers render those roles and serialize loading-label/auto-hide
+configuration through the focused runtime. Dialog and toast TypeScript parse the
+generated exact records and keep one-time/original-markup state in
+`WeakSet`/`WeakMap` storage rather than adding browser-only data attributes. The
+dialog adapter emits the generated event before close-control, backdrop, or
+Escape removal so composed capabilities can record semantic dismissal without
+owning DOM removal, focus, or body locking.
 
 This capability does not own mutation semantics. Dialog launchers and forms
 continue to use their generated AppShell or Surface Action metadata, and picker

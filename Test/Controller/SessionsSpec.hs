@@ -4,6 +4,8 @@ module Test.Controller.SessionsSpec where
 
 import Application.Helper.Controller (PlatformRole (SuperAdminRole),
                                       currentVenueSessionKey)
+import Application.Helper.FrontendContract.Passkey.Runtime (PasskeyDom (..),
+                                                            canonicalPasskeyDom)
 import Config
 import Data.Time.Clock (addUTCTime, getCurrentTime)
 import Generated.Types
@@ -185,9 +187,15 @@ tests = aroundAll withDatabaseTestContext do
 
                     rosterResponse <- callAction (ShowRosterWeekAction 0)
                     rosterResponse `responseStatusShouldBe` status200
-                    rosterResponse `responseBodyShouldContain` "js-passkey-setup-prompt"
-                    rosterResponse `responseBodyShouldContain` "data-mode=\"first-passkey\""
+                    rosterResponse `responseBodyShouldContain` cs canonicalPasskeyDom.passkeySetupPromptAttribute
+                    rosterResponse `responseBodyShouldContain` cs canonicalPasskeyDom.passkeyFlowConfigAttribute
+                    rosterResponse `responseBodyShouldContain` cs canonicalPasskeyDom.passkeyDismissalAttribute
+                    rosterResponse `responseBodyShouldContain` cs ("&quot;promptUserKey&quot;:&quot;" <> tshow user.id <> "&quot;")
+                    rosterResponse `responseBodyShouldContain` "&quot;setupPromptMode&quot;:&quot;first-passkey&quot;"
                     rosterResponse `responseBodyShouldContain` "Set up faster sign-in"
+                    rosterResponse `responseBodyShouldNotContain` "js-passkey-setup-prompt"
+                    rosterResponse `responseBodyShouldNotContain` "data-user-id"
+                    rosterResponse `responseBodyShouldNotContain` "data-mode"
 
         it "prompts password users with existing passkeys to add this device" $ withContext do
             withCleanDb do
@@ -205,9 +213,15 @@ tests = aroundAll withDatabaseTestContext do
 
                     rosterResponse <- callAction (ShowRosterWeekAction 0)
                     rosterResponse `responseStatusShouldBe` status200
-                    rosterResponse `responseBodyShouldContain` "js-passkey-setup-prompt"
-                    rosterResponse `responseBodyShouldContain` "data-mode=\"additional-device\""
+                    rosterResponse `responseBodyShouldContain` cs canonicalPasskeyDom.passkeySetupPromptAttribute
+                    rosterResponse `responseBodyShouldContain` cs canonicalPasskeyDom.passkeyFlowConfigAttribute
+                    rosterResponse `responseBodyShouldContain` cs canonicalPasskeyDom.passkeyDismissalAttribute
+                    rosterResponse `responseBodyShouldContain` cs ("&quot;promptUserKey&quot;:&quot;" <> tshow user.id <> "&quot;")
+                    rosterResponse `responseBodyShouldContain` "&quot;setupPromptMode&quot;:&quot;additional-device&quot;"
                     rosterResponse `responseBodyShouldContain` "Add this device as a passkey"
+                    rosterResponse `responseBodyShouldNotContain` "js-passkey-setup-prompt"
+                    rosterResponse `responseBodyShouldNotContain` "data-user-id"
+                    rosterResponse `responseBodyShouldNotContain` "data-mode"
 
         it "audits failed password logins for known invited accounts" $ withContext do
             withCleanDb do

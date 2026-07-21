@@ -18,11 +18,20 @@ Read this before editing `static/` assets.
   encoders, and type-only roots generate neither codec. Use generated contracts for backend-emitted JSON/data-* boundaries;
   do not restore server-only action/DTO/topology manifests or an omnibus Surface
   registry.
-- Dialog/toast bundles consume the generated Overlay ids, role attributes, and
-  exact configuration parsers. Bootstrap modal vocabulary and transient toast
-  classes stay adapter-owned; do not restore legacy overlay data attributes or
-  DOM-backed initialization/original-markup state. Passkey prompts reuse the
-  generated dialog-close role.
+- Dialog/toast bundles consume the generated Overlay ids, role/event attributes,
+  and exact configuration parsers. Emit the semantic generated dismissal event
+  before close-control, backdrop, or Escape removal. Bootstrap modal vocabulary
+  and transient toast classes stay adapter-owned; do not restore legacy overlay
+  data attributes or DOM-backed initialization/original-markup state.
+- `app-passkeys.js` consumes generated passkey roles, closed prompt modes, and
+  the exact tagged flow parser. Every control/status/recovery lookup is local to
+  one validated flow root; malformed configuration remains untouched and emits a
+  structured diagnostic. Haskell owns routes and all displayed workflow/error
+  copy; do not surface native exception or untyped response messages. Keep native
+  WebAuthn objects, capability detection, base64url conversion, and local-storage
+  hints in the handwritten adapter. Prompt dismissal also bears the generated
+  Overlay close role and consumes its generated dismissal event, while passkey
+  code must not duplicate dialog removal, focus, or body-lock behavior.
 - `app-time-picker.js` consumes generated picker ids/roles and exact config and
   option parsers. Its mechanical modal adapter rearranges validated
   server-rendered option nodes; it does not generate fallback values/labels,

@@ -8,6 +8,7 @@ GitHub issues:
 - Contract authority: `#161`-`#166`
 - Haskell adapter ergonomics: `#180`-`#192`
 - Shared browser capabilities: `#167`-`#173`
+- Passkey browser capabilities: `#210`-`#211`
 - Roster browser capabilities: `#174`-`#178`
 - Final reconciliation: `#179`
 - Post-reconciliation hardening: `#193`-`#196`
@@ -206,6 +207,13 @@ slices, and all block final reconciliation.
 18. `#172` - PWA installation adapter. **Complete.**
 19. `#173` - Xero candidate filtering adapter. **Complete.**
 
+### Passkey browser capabilities
+
+- `#210` - Passkey DOM roles and exact tagged flow configuration. **Complete.**
+- `#211` - Exact passkey server/browser begin, credential, finish, recovery, and
+  error DTOs. This follows the DOM/configuration slice and retains native
+  WebAuthn conversion in the handwritten adapter.
+
 ### Roster browser capabilities
 
 20. `#174` - Surface-owned linked-highlight roles and stale interaction class cleanup. **Complete.**
@@ -296,7 +304,20 @@ mutations on the server. The root-local adapter validates the complete boundary,
 reports structured diagnostics, then performs only generic query normalization,
 fuzzy matching, and native visibility updates; focused render, TypeScript,
 single-worker browser, CSS, drift, compile-failure, and source guards pin that
-boundary. #174 added checked Surface `BrowserRole`, `BrowserState`, and
+boundary. #210 added the global `PasskeyContract` with generated login,
+registration, setup-prompt, action, device-name, status, recovery, and dismissal
+roles plus one exact tagged local flow configuration. Session, step-up,
+setup-link, setup-dialog, management, and roster prompt views now render typed
+Haskell routes, status relationships, closed prompt mode, and workflow/status/
+recovery copy. The generic adapter validates each nearest flow root, reports
+structured diagnostics without changing malformed HTML, never displays native
+exception or untyped response copy, and retains native WebAuthn/base64url/
+local-storage mechanics. The generated Overlay semantic dismissal event records
+close-control, Escape, and backdrop hints while Overlay alone owns prompt removal
+and body locking. The legacy `.js-passkey-*`, scalar URL/status/user/
+mode datasets, global status-id lookup, and raw prompt literals are deleted and
+guarded. #211 remains the owner of exact app-owned WebAuthn request/response wire
+DTOs. #174 added checked Surface `BrowserRole`, `BrowserState`, and
 `LinkedHighlight` declarations with closed hover/focus/keyboard/pin activations
 and matching-source/member/ordered-bounds effects. Roster staff and shift-group
 markup now renders generated role attributes with opaque membership/order keys;

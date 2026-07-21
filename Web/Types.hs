@@ -7,11 +7,6 @@ import IHP.Prelude
 
 data WebApplication = WebApplication deriving (Eq, Show)
 
-data PasskeySetupPromptMode
-    = FirstPasskeyPrompt
-    | AdditionalDevicePasskeyPrompt
-    deriving (Eq, Show)
-
 data StaticController
     = WelcomeAction
     | InstallAppAction

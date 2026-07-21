@@ -4,7 +4,14 @@ import { readFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { APIRequestContext, Download, expect, Locator, Page } from '@playwright/test';
-import { dialogMountDomAttr, dialogOverlayMountDomId } from '../frontend/ts/generated/contracts';
+import {
+    dialogMountDomAttr,
+    dialogOverlayMountDomId,
+    passkeyActionButtonDomAttr,
+    passkeyDismissalDomAttr,
+    passkeyRegistrationDomAttr,
+    passkeySetupPromptDomAttr,
+} from '../frontend/ts/generated/contracts';
 import { E2E_TIMEOUT } from './timeouts';
 
 const dialogOverlaySelector = `#${dialogOverlayMountDomId}`;
@@ -215,19 +222,15 @@ export async function loginAs(page: Page, email: string, password: string) {
 }
 
 export async function dismissOptionalPasskeySetupPrompt(page: Page) {
-    const prompts = page.locator('.js-passkey-setup-prompt');
-    await prompts.first().waitFor({ state: 'attached', timeout: E2E_TIMEOUT.quick }).catch(() => {});
-    if (await prompts.count() === 0) return;
+    const prompt = page.locator(`[${passkeySetupPromptDomAttr}]`).first();
+    await prompt.waitFor({ state: 'attached', timeout: E2E_TIMEOUT.quick }).catch(() => {});
+    if (await prompt.count() === 0) return;
 
-    await prompts.evaluateAll((elements) => {
-        for (const element of elements) {
-            element.remove();
-        }
-        document.body.classList.remove('modal-open');
-        document.body.style.overflow = '';
-    });
-
-    await expect(prompts).toHaveCount(0, { timeout: E2E_TIMEOUT.action });
+    const dismissal = prompt.locator(`[${passkeyDismissalDomAttr}]`);
+    if (await dismissal.count() > 0) {
+        await dismissal.click();
+    }
+    await expect(prompt.locator(`[${dialogMountDomAttr}]`)).toHaveCount(0, { timeout: E2E_TIMEOUT.action });
 }
 
 function e2eDatabaseArgs() {
@@ -283,24 +286,24 @@ export async function removeVirtualPasskeyAuthenticator(authenticator: Awaited<R
 
 export async function registerFirstPasskeyForCurrentUser(page: Page) {
     await openProfileSecuritySection(page);
-    if (!(await page.locator('.js-passkey-register-button').first().isVisible().catch(() => false))) {
-        await currentPasskeyManagement(page).getByRole('link', { name: 'Create passkey' }).click();
-        await expect(page.locator('.js-passkey-register')).toBeVisible({ timeout: E2E_TIMEOUT.action });
+    if (!(await passkeyRegistrationButton(page).isVisible().catch(() => false))) {
+        await page.getByRole('link', { name: 'Create passkey' }).click();
+        await expect(page.locator(`[${passkeyRegistrationDomAttr}]`)).toBeVisible({ timeout: E2E_TIMEOUT.action });
     }
     await registerFirstPasskeyFromVisibleControl(page);
     await openProfileSecuritySection(page);
-    await expect(currentPasskeyManagement(page).locator('table tbody tr')).toHaveCount(1, { timeout: E2E_TIMEOUT.passkey });
+    await expect(currentPasskeyTable(page).locator('tbody tr')).toHaveCount(1, { timeout: E2E_TIMEOUT.passkey });
 }
 
 export async function registerFirstSupportPasskeyForCurrentUser(page: Page) {
-    await gotoWhenReady(page, '/Support', '.js-passkey-register');
+    await gotoWhenReady(page, '/Support', `[${passkeyRegistrationDomAttr}]`);
     await registerFirstPasskeyFromVisibleControl(page);
-    await gotoWhenReady(page, '/Support', '.js-passkey-register');
-    await expect(currentPasskeyManagement(page).locator('table tbody tr')).toHaveCount(1, { timeout: E2E_TIMEOUT.passkey });
+    await gotoWhenReady(page, '/Support', `[${passkeyRegistrationDomAttr}]`);
+    await expect(currentPasskeyTable(page).locator('tbody tr')).toHaveCount(1, { timeout: E2E_TIMEOUT.passkey });
 }
 
 export async function registerFirstPasskeyFromVisibleControl(page: Page) {
-    const registerButton = page.locator('.js-passkey-register-button').first();
+    const registerButton = passkeyRegistrationButton(page);
     await expect(registerButton).toBeVisible({ timeout: E2E_TIMEOUT.action });
     await Promise.all([
         page.waitForResponse(
@@ -311,8 +314,12 @@ export async function registerFirstPasskeyFromVisibleControl(page: Page) {
     ]);
 }
 
-function currentPasskeyManagement(page: Page) {
-    return page.locator('[data-passkey-management="true"]').first();
+function passkeyRegistrationButton(page: Page) {
+    return page.locator(`[${passkeyRegistrationDomAttr}] [${passkeyActionButtonDomAttr}]`).first();
+}
+
+function currentPasskeyTable(page: Page) {
+    return page.locator('table').filter({ has: page.getByRole('columnheader', { name: 'Last used' }) }).first();
 }
 
 export async function openProfileSecuritySection(page: Page) {

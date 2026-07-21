@@ -55,6 +55,20 @@ timesheets_paths=(
     Web/View/Timesheets/Index.hs
 )
 
+passkey_paths=(
+    Application/Helper/View/Passkey.hs
+    Web/View/Passkeys
+    Web/View/Sessions/New.hs
+    Web/View/RosterWeeks/Show.hs
+    Web/Controller/Sessions.hs
+    Web/Controller/RosterWeeks.hs
+    frontend/ts/app-passkeys.ts
+    e2e/passkeys.spec.ts
+    e2e/test-helpers.ts
+    e2e/otel-browser.mjs
+    static/app-passkeys.js
+)
+
 migrated_overlay_paths=(
     Web/View/Layout.hs
     Web/View/Feedback/New.hs
@@ -772,6 +786,20 @@ expect_match \
     'dialogCloseDomAttr' \
     frontend/ts/app-passkeys.ts
 
+for dialog_dismissal_consumer in \
+    frontend/ts/app-dialog-overlays.ts \
+    frontend/ts/app-passkeys.ts; do
+    expect_match \
+        "dialog dismissal lifecycle must consume the generated event in ${dialog_dismissal_consumer}" \
+        'dialogDismissedEvent' \
+        "$dialog_dismissal_consumer"
+done
+
+expect_no_match \
+    "production Haskell and TypeScript must consume the generated dialog dismissal event" \
+    'bepis:dialog-dismissed' \
+    Application Web frontend/ts e2e
+
 expect_no_match_including_generated \
     "generated overlay contract must not duplicate Bootstrap vendor vocabulary" \
     'data-bs-|modal-open|shown\.bs\.modal|hidden\.bs\.modal' \
@@ -1142,6 +1170,96 @@ expect_match \
     "the horizontal-scroll adapter cleans HTMX replacement subtrees" \
     'htmx:beforeCleanupElement' \
     frontend/ts/app-horizontal-scroll.ts
+
+expect_no_match \
+    "replaced handwritten passkey roles must stay deleted" \
+    'js-passkey-|data-passkey-management|dataset\.passkeyInitialized' \
+    Application Web frontend/ts e2e static
+
+expect_no_match \
+    "replaced scalar passkey configuration must stay deleted" \
+    'data-(begin-url|finish-url|status-id|success-redirect|user-id|mode)|dataset\.(beginUrl|finishUrl|statusId|successRedirect|userId|mode)' \
+    "${passkey_paths[@]}"
+
+expect_no_match \
+    "production Haskell and TypeScript must consume generated passkey attribute names" \
+    'data-bepis-passkey-(login|registration|setup-prompt|action-button|device-name|status|recovery|dismissal|flow-config)' \
+    Application Web frontend/ts e2e
+
+for passkey_contract_name in \
+    parsePasskeyFlowConfig \
+    passkeyLoginDomAttr \
+    passkeyRegistrationDomAttr \
+    passkeySetupPromptDomAttr \
+    passkeyActionButtonDomAttr \
+    passkeyDeviceNameDomAttr \
+    passkeyStatusDomAttr \
+    passkeyRecoveryDomAttr \
+    passkeyDismissalDomAttr \
+    passkeyFlowConfigDomAttr \
+    passkeyFirstPasskeyMode \
+    passkeyAdditionalDeviceMode; do
+    expect_match \
+        "the passkey adapter must consume generated ${passkey_contract_name}" \
+        "\\b${passkey_contract_name}\\b" \
+        frontend/ts/app-passkeys.ts
+done
+
+expect_match \
+    "the passkey adapter must report structured boundary diagnostics" \
+    'PasskeyDiagnostic' \
+    frontend/ts/app-passkeys.ts
+
+expect_no_match \
+    "the passkey adapter must resolve status and controls mount-locally" \
+    'document\.(getElementById|querySelector)' \
+    frontend/ts/app-passkeys.ts
+
+expect_no_match \
+    "passkey setup-prompt mode literals must remain contract-owned" \
+    '"(first-passkey|additional-device)"' \
+    Application/Helper/FrontendContract/Passkey/Runtime.hs \
+    Application/Helper/View \
+    Web \
+    frontend/ts \
+    e2e
+
+expect_no_match \
+    "the passkey adapter must not own moved workflow, status, or recovery copy" \
+    'Waiting for your passkey|Signed in\.|Passkey added\.|Passkeys are not supported|Save this recovery code now|This code is shown once|I have saved it' \
+    frontend/ts/app-passkeys.ts
+
+expect_no_match \
+    "the passkey adapter must not display untyped response or native error copy" \
+    'finishResponse\.message|typeof json\.error' \
+    frontend/ts/app-passkeys.ts
+
+expect_no_match \
+    "passkey prompt lifecycle must not duplicate overlay removal or body-lock behavior" \
+    'modal-open|document\.body|\.remove\(\)' \
+    frontend/ts/app-passkeys.ts
+
+expect_match \
+    "passkey prompt dismissal must consume the generated overlay close role" \
+    'dialogCloseDomAttr' \
+    frontend/ts/app-passkeys.ts
+
+expect_no_match_including_generated \
+    "browser-native WebAuthn objects must stay out of the generated passkey contract" \
+    '\b(PublicKeyCredential|AuthenticatorAttestationResponse|AuthenticatorAssertionResponse|AuthenticationExtensionsClientOutputs|NavigatorCredentials)\b' \
+    Application/Helper/FrontendContract/Passkey.hs \
+    frontend/ts/generated/contracts.ts
+
+for native_passkey_object in \
+    PublicKeyCredential \
+    AuthenticatorAttestationResponse \
+    AuthenticatorAssertionResponse \
+    navigator.credentials; do
+    expect_match \
+        "browser-native ${native_passkey_object} must remain in the handwritten passkey adapter" \
+        "${native_passkey_object}" \
+        frontend/ts/app-passkeys.ts
+done
 
 expect_no_match \
     "replaced handwritten PWA install roles must stay deleted" \

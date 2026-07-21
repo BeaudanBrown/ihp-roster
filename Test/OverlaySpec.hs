@@ -1,5 +1,8 @@
+{-# LANGUAGE TypeApplications #-}
+
 module Test.OverlaySpec where
 
+import qualified Application.Helper.FrontendContract.Passkey as Passkey
 import Application.Helper.View.Overlay
 import Application.Helper.View.Toast
 import Config
@@ -29,6 +32,13 @@ tests = aroundAll withDatabaseTestContext do
                 html `shouldSatisfy` Text.isInfixOf "aria-labelledby=\"dialog-overlay-title\""
                 html `shouldSatisfy` not . Text.isInfixOf "data-dialog-overlay"
                 html `shouldSatisfy` not . Text.isInfixOf "data-loading-label"
+
+        it "composes a supplemental generated close role without exposing raw attributes" $ withContext do
+            withCurrentControllerContext do
+                let html = renderText (renderDialogOverlayWithCloseRole @Passkey.PasskeyDismissal dialogConfig)
+
+                html `shouldSatisfy` Text.isInfixOf "data-bepis-dialog-close=\"true\""
+                html `shouldSatisfy` Text.isInfixOf "data-bepis-passkey-dismissal=\"true\""
 
         it "renders generated toast roles and exact auto-hide config with an accessible close control" $ withContext do
             withCurrentControllerContext do

@@ -25,6 +25,14 @@ Read this before editing shared view helpers under `Application/Helper/View/`.
   policy. Keep ranges, steps, defaults, labels, initial values, native endpoint
   labels, and availability in Haskell; compose with Toggle without exposing raw
   extra attrs or duplicating its form transport.
+- Passkey controls consume `FrontendContract.Passkey.Runtime` through
+  `Application.Helper.View.Passkey`. Keep begin/finish routes, redirects,
+  status relationships, prompt mode, and all workflow/status/recovery copy in
+  Haskell. Render complete local control/status/recovery subtrees; do not expose
+  raw passkey attrs or ids. Prompt dismissal composes the generated passkey and
+  Overlay close roles through the typed supplemental-close-role helper and
+  consumes the generated dismissal event, leaving dialog removal, focus, and
+  body locking to the Overlay adapter. Do not expose a raw extra-attribute seam.
 - For typed interaction-surface helpers, read
   `Application/Helper/Interaction.SPEC.md` and
   `Application/Helper/FrontendContract/Surface/README.md` first. Helpers should
@@ -34,9 +42,10 @@ Read this before editing shared view helpers under `Application/Helper/View/`.
 ## Module Ownership
 
 - `Chrome.hs` - page, panel, and navigation wrappers.
-- `Overlay.hs` - workflow dialog mount ids, config records, and footer buttons.
+- `Overlay.hs` - workflow dialog mount ids, config records, typed supplemental close roles, and footer buttons.
 - `Toast.hs` - toast config and rendering.
 - `TimePicker.hs` - quarter-hour picker helpers.
+- `Passkey.hs` - generated passkey controls, local status/recovery markup, and copy.
 - `Staff*.hs` - reusable staff display/dialog helpers.
 - `Format.hs`, `Status.hs`, `Audience.hs` - focused formatting/audience helpers.
 

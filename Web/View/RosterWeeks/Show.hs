@@ -1,5 +1,6 @@
 module Web.View.RosterWeeks.Show where
 
+import qualified Application.Helper.FrontendContract.Passkey.Runtime as Passkey
 import Application.Helper.FrontendContract.Surface.Roster.Chrome (RosterFullscreenState (..),
                                                                   rosterFullscreenRootAttrs)
 import Application.Helper.FrontendContract.Surface.Runtime (renderFrontendSurfaceMount)
@@ -78,23 +79,17 @@ renderRosterWeekShell ShowView { .. } =
         |]
      in profileHtmlComponent "render.roster.full_shell" shell
 
-renderPasskeySetupPrompt :: (?context :: ControllerContext) => Maybe PasskeySetupPromptMode -> Html
+renderPasskeySetupPrompt :: (?context :: ControllerContext) => Maybe Passkey.PasskeySetupPromptMode -> Html
 renderPasskeySetupPrompt Nothing = mempty
 renderPasskeySetupPrompt (Just promptMode) = [hsx|
-    <div class="js-passkey-setup-prompt"
-         data-user-id={tshow currentUser.id}
-         data-mode={passkeyPromptModeValue promptMode}>
-        {renderPasskeySetupDialog (passkeySetupModeFromPrompt promptMode) (pathTo RosterWeeksAction)}
+    <div {...Passkey.passkeySetupPromptAttrs (tshow currentUser.id) promptMode}>
+        {renderPasskeySetupPromptDialog (passkeySetupModeFromPrompt promptMode) (pathTo RosterWeeksAction)}
     </div>
 |]
 
-passkeyPromptModeValue :: PasskeySetupPromptMode -> Text
-passkeyPromptModeValue FirstPasskeyPrompt            = "first-passkey"
-passkeyPromptModeValue AdditionalDevicePasskeyPrompt = "additional-device"
-
-passkeySetupModeFromPrompt :: (?context :: ControllerContext) => PasskeySetupPromptMode -> PasskeySetupMode
-passkeySetupModeFromPrompt FirstPasskeyPrompt =
+passkeySetupModeFromPrompt :: (?context :: ControllerContext) => Passkey.PasskeySetupPromptMode -> PasskeySetupMode
+passkeySetupModeFromPrompt Passkey.PasskeyFirstPasskey =
     if currentUserIsAdmin
         then MandatoryFirstPasskey
         else OptionalFirstPasskey
-passkeySetupModeFromPrompt AdditionalDevicePasskeyPrompt = OptionalAdditionalDevice
+passkeySetupModeFromPrompt Passkey.PasskeyAdditionalDevice = OptionalAdditionalDevice

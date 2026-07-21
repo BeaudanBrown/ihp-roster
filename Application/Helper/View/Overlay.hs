@@ -1,11 +1,28 @@
-module Application.Helper.View.Overlay where
+{-# LANGUAGE AllowAmbiguousTypes #-}
+{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE TypeApplications    #-}
+
+module Application.Helper.View.Overlay
+    ( DialogOverlayConfig (..)
+    , OverlayButton (..)
+    , OverlayButtonAction (..)
+    , OverlayFormMode (..)
+    , defaultOverlayButtons
+    , dialogOverlayMountId
+    , renderDialogOverlay
+    , renderDialogOverlayBodyOnly
+    , renderDialogOverlayWithCloseRole
+    , renderPageDialogModal
+    ) where
 
 import Application.Helper.FrontendContract.AppShell.Runtime (AppShellActionRoute (..),
                                                              AppShellFieldValue (..),
                                                              renderAppShellActionForm)
 import Application.Helper.FrontendContract.IR (AppShellActionIR)
 import Application.Helper.FrontendContract.Overlay.Runtime
+import Application.Helper.FrontendContract.Values (domAttrValue)
 import qualified Data.Text as Text
+import Data.Typeable (Typeable)
 import Generated.Types
 import IHP.ViewPrelude
 import Web.Routes ()
@@ -54,7 +71,14 @@ defaultOverlayButtons formId =
     ]
 
 renderDialogOverlay :: DialogOverlayConfig -> Html
-renderDialogOverlay DialogOverlayConfig { dialogOverlayTitle, dialogOverlayBody, dialogOverlayStartButtons, dialogOverlayButtons, dialogOverlayDialogClass } = [hsx|
+renderDialogOverlay = renderDialogOverlayWithCloseAttrs []
+
+renderDialogOverlayWithCloseRole :: forall marker. Typeable marker => DialogOverlayConfig -> Html
+renderDialogOverlayWithCloseRole =
+    renderDialogOverlayWithCloseAttrs [(domAttrValue @marker, "true")]
+
+renderDialogOverlayWithCloseAttrs :: [(Text, Text)] -> DialogOverlayConfig -> Html
+renderDialogOverlayWithCloseAttrs closeAttrs DialogOverlayConfig { dialogOverlayTitle, dialogOverlayBody, dialogOverlayStartButtons, dialogOverlayButtons, dialogOverlayDialogClass } = [hsx|
     <div class="modal fade show d-block"
          {...dialogMountAttrs}
          tabindex="-1"
@@ -66,7 +90,7 @@ renderDialogOverlay DialogOverlayConfig { dialogOverlayTitle, dialogOverlayBody,
             <div class="modal-content shadow">
                 <div class="modal-header">
                     <h5 class="modal-title" id="dialog-overlay-title">{dialogOverlayTitle}</h5>
-                    <button type="button" class="btn-close" aria-label="Close" {...dialogCloseAttrs}></button>
+                    <button type="button" class="btn-close" aria-label="Close" {...dialogCloseAttrs <> closeAttrs}></button>
                 </div>
                 <div class="modal-body">{dialogOverlayBody}</div>
                 {renderDialogOverlayFooter dialogOverlayStartButtons dialogOverlayButtons}

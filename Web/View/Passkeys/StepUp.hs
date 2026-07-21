@@ -30,21 +30,19 @@ instance View StepUpView where
             }
 
 renderStepUpControl :: Maybe Text -> Html
-renderStepUpControl redirectTo = [hsx|
-    <div class="js-passkey-login"
-         data-begin-url={pathTo BeginPasskeyStepUpAuthenticationAction}
-         data-finish-url={pathTo FinishPasskeyStepUpAuthenticationAction}
-         data-status-id="passkey-step-up-status"
-         data-success-redirect={fromMaybe (pathTo RosterWeeksAction) redirectTo}>
-        <div class="d-grid">
-            <button type="button" class="btn btn-primary js-passkey-login-button">Verify with passkey</button>
+renderStepUpControl redirectTo =
+    let loginControl = PasskeyLoginControl
+            { passkeyLoginControlKind = PasskeyStepUpControl
+            , passkeyLoginBeginUrl = pathTo BeginPasskeyStepUpAuthenticationAction
+            , passkeyLoginFinishUrl = pathTo FinishPasskeyStepUpAuthenticationAction
+            , passkeyLoginSuccessRedirect = Just (fromMaybe (pathTo RosterWeeksAction) redirectTo)
+            }
+     in [hsx|
+        {renderPasskeyLoginControl loginControl}
+        <div class="text-center mt-3">
+            {renderRecoveryCodeDialogLink}
         </div>
-    </div>
-    <div id="passkey-step-up-status" class="alert d-none mt-3"></div>
-    <div class="text-center mt-3">
-        {renderRecoveryCodeDialogLink}
-    </div>
-|]
+    |]
 
 renderRecoveryCodeDialogLink :: (?context :: ControllerContext) => Html
 renderRecoveryCodeDialogLink =

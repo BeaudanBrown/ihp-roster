@@ -91,7 +91,9 @@ SurfaceFamily
   configuration. Overlay rendering does not replace AppShell/Surface Action
   authority for HTMX forms, and the picker lane remains independent. Bootstrap
   vocabulary stays adapter-local while disabled and accessibility state use
-  native/ARIA semantics.
+  native/ARIA semantics. The generated semantic dismissal event is emitted
+  before every close-control, backdrop, or Escape removal so composed
+  capabilities can react without taking over dialog lifecycle.
 - **Quarter-hour picker fields** are governed by the focused global TimePicker
   contract for modal/internal roles plus exact range/step/empty-label and
   value/label option records. Haskell owns semantic options and copy; the generic
@@ -118,6 +120,16 @@ SurfaceFamily
   prompt objects, and platform detection local. Visibility uses native `hidden`,
   and status announcements keep ordinary status/live-region semantics rather
   than duplicating availability or installed state in app attributes.
+- **Passkey workflows** are governed by the focused global `PasskeyContract` for
+  login, registration, setup-prompt, action, device-name, status, recovery, and
+  dismissal roles plus one exact tagged local configuration. Haskell owns routes,
+  redirects, status relationships, closed prompt mode, and workflow/recovery
+  copy. The adapter validates each generated root before mutation and keeps
+  WebAuthn platform objects, capability detection, base64url conversion, and
+  local-storage hints private. Prompt dismissal composes with the generated
+  Overlay close role and semantic dismissal event, recording the UX hint for
+  close-control, backdrop, and Escape paths; passkey code must not remove dialog
+  DOM or manage focus or body locking itself.
 - **Xero imported-pay-item candidate filters** are governed by the focused global
   `XeroCandidateFilterContract` for root, search, candidate, and empty-state
   roles plus exact configuration carrying one opaque normalized projection. The

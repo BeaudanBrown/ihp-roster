@@ -18,13 +18,13 @@ module Web.RosterWeeks.Types
     ) where
 
 import Application.Helper.Conflict (RosterConflict)
+import Application.Helper.FrontendContract.Passkey.Runtime (PasskeySetupPromptMode)
 import Application.Helper.RosterWagePrediction (RosterWagePrediction)
 import Data.Map.Strict (Map)
 import Data.Time.Calendar (Day)
 import Data.UUID (UUID)
 import Generated.Types
 import IHP.Prelude
-import Web.Types (PasskeySetupPromptMode)
 
 data ShowView = ShowView
     { rosterWeek             :: Maybe RosterWeek

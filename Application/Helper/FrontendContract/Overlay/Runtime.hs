@@ -13,7 +13,8 @@ module Application.Helper.FrontendContract.Overlay.Runtime
     ) where
 
 import qualified Application.Helper.FrontendContract.Overlay as Contract
-import Application.Helper.FrontendContract.Values (domAttrValue, domIdValue)
+import Application.Helper.FrontendContract.Values (domAttrValue, domIdValue,
+                                                   eventNameValue)
 import Application.Helper.FrontendContract.Wire.Carrier
 import qualified Data.Aeson as Aeson
 import qualified Data.ByteString.Lazy as LBS
@@ -24,6 +25,7 @@ import IHP.Prelude
 data OverlayDom = OverlayDom
     { overlayDialogMountId               :: !Text
     , overlayToastMountId                :: !Text
+    , overlayDialogDismissedEventName    :: !Text
     , overlayDialogMountAttribute        :: !Text
     , overlayDialogBackdropAttribute     :: !Text
     , overlayDialogCloseAttribute        :: !Text
@@ -40,6 +42,7 @@ canonicalOverlayDom :: OverlayDom
 canonicalOverlayDom = OverlayDom
     { overlayDialogMountId = domIdValue @Contract.DialogOverlayMount
     , overlayToastMountId = domIdValue @Contract.ToastOverlayMount
+    , overlayDialogDismissedEventName = eventNameValue @Contract.DialogDismissed
     , overlayDialogMountAttribute = domAttrValue @Contract.DialogMount
     , overlayDialogBackdropAttribute = domAttrValue @Contract.DialogBackdrop
     , overlayDialogCloseAttribute = domAttrValue @Contract.DialogClose

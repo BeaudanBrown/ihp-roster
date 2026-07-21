@@ -13,6 +13,7 @@ module Application.Helper.FrontendContract.Overlay
     , DialogMount
     , DialogBackdrop
     , DialogClose
+    , DialogDismissed
     , DialogSubmit
     , DialogAutoSubmitOnce
     , ToastMount
@@ -38,6 +39,7 @@ data ToastOverlayMount
 data DialogMount
 data DialogBackdrop
 data DialogClose
+data DialogDismissed
 data DialogSubmit
 data DialogAutoSubmitOnce
 data ToastMount
@@ -53,6 +55,7 @@ type OverlayContract =
              ])
          , DomId DialogOverlayMount
          , DomId ToastOverlayMount
+         , Event DialogDismissed '[]
          , DomAttr DialogMount
          , DomAttr DialogBackdrop
          , DomAttr DialogClose

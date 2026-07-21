@@ -20,7 +20,7 @@ renderPasskeyManagement now passkeys =
 
 renderPasskeyManagementWithAddButton :: UTCTime -> Bool -> [Passkey] -> Text -> Html
 renderPasskeyManagementWithAddButton now canAddPasskey passkeys successRedirect = [hsx|
-    <div class="app-form-width" data-passkey-management="true">
+    <div class="app-form-width">
         {renderPasskeyRegistrationAction canAddPasskey successRedirect}
         {renderNewDevicePasskeyAction passkeys}
         <div class="mt-4">
@@ -34,9 +34,9 @@ renderPasskeyRegistrationAction False _ = mempty
 renderPasskeyRegistrationAction True successRedirect =
     let dialogUrl = appendQueryParams (pathTo ShowPasskeySetupDialogAction) [("successRedirect", successRedirect)]
      in [hsx|
-    <div class="mb-3 js-passkey-management-add">
-        <h3 class="h6 mb-2">Add a passkey</h3>
-        <p class="app-muted mb-3">Use a passkey to sign in with Face ID, Touch ID, Windows Hello, or your device screen lock.</p>
+    <div class="mb-3">
+        <h3 class="h6 mb-2">{canonicalPasskeyManagementCopy.passkeyManagementAddTitle}</h3>
+        <p class="app-muted mb-3">{canonicalPasskeyManagementCopy.passkeyManagementAddBody}</p>
         {renderPasskeySetupDialogLink dialogUrl}
     </div>
 |]
@@ -52,20 +52,20 @@ renderPasskeySetupDialogLink dialogUrl =
             , appShellActionRouteStandardUrl = Nothing
             , appShellActionRouteExtraAttrs = [("class", "btn btn-primary")]
             }
-        "Create passkey"
+        [hsx|{canonicalPasskeyManagementCopy.passkeyManagementCreateLabel}|]
 
 renderNewDevicePasskeyAction :: [Passkey] -> Html
 renderNewDevicePasskeyAction [] = mempty
 renderNewDevicePasskeyAction _ = [hsx|
     <form method="POST" action={SendNewDevicePasskeySetupEmailAction} class="mt-3">
-        <button type="submit" class="btn btn-outline-secondary btn-sm">Email setup link for another device</button>
-        <div class="form-text app-muted">Use this when you are passkey-verified here and want to add a passkey on another device.</div>
+        <button type="submit" class="btn btn-outline-secondary btn-sm">{canonicalPasskeyManagementCopy.passkeyManagementNewDeviceLabel}</button>
+        <div class="form-text app-muted">{canonicalPasskeyManagementCopy.passkeyManagementNewDeviceHelp}</div>
     </form>
 |]
 
 renderPasskeyTable :: UTCTime -> [Passkey] -> Html
 renderPasskeyTable _ [] = [hsx|
-    <p class="app-muted mb-0">No passkeys registered yet.</p>
+    <p class="app-muted mb-0">{canonicalPasskeyManagementCopy.passkeyManagementEmptyLabel}</p>
 |]
 renderPasskeyTable now passkeys = [hsx|
     <div class="table-responsive">
@@ -93,13 +93,17 @@ renderPasskeyRow now passkey = [hsx|
             <form method="POST"
                   action={pathTo (DeletePasskeyAction passkey.id)}
                   class="d-inline"
-                  onsubmit="return confirm('Delete this passkey? You may need to verify with a passkey before it is removed.')">
+                  onsubmit={passkeyDeleteConfirmationAttribute}>
                 <input type="hidden" name="_method" value="DELETE"/>
-                <button type="submit" class="btn btn-sm btn-outline-danger">Delete</button>
+                <button type="submit" class="btn btn-sm btn-outline-danger">{canonicalPasskeyManagementCopy.passkeyManagementDeleteLabel}</button>
             </form>
         </td>
     </tr>
 |]
+
+passkeyDeleteConfirmationAttribute :: Text
+passkeyDeleteConfirmationAttribute =
+    "return window.confirm(" <> show canonicalPasskeyManagementCopy.passkeyManagementDeleteConfirmation <> ");"
 
 formatRelativeLastUsed :: UTCTime -> Maybe UTCTime -> Text
 formatRelativeLastUsed _ Nothing = "Never"

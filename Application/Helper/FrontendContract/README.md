@@ -49,18 +49,20 @@ Roots are split by meaning:
 
 - **Global**: app-wide browser/runtime vocabulary such as DOM ids, event names,
   closed enums, UI-region data, generic interaction runtime shapes, focused
-  toggle/overlay capabilities, live-update wire schemas, and app-shell request
+  toggle/overlay/passkey capabilities, live-update wire schemas, and app-shell request
   contracts.
 - **Surface**: mounted feature UI semantics: scopes, fragments, actions,
   intents, server-side mount state, resources, and interaction metadata.
 
 `OverlayContract` is the focused global workflow-dialog/toast capability. It
 owns the two lane mount ids, generated dialog/backdrop/close/submit and
-toast/close roles, dialog auto-submit state, and exact dialog-submit/toast
-configuration schemas. `Application.Helper.FrontendContract.Overlay.Runtime`
+toast/close roles, the semantic dialog-dismissed event, dialog auto-submit
+state, and exact dialog-submit/toast configuration schemas.
+`Application.Helper.FrontendContract.Overlay.Runtime`
 serializes those configs from declaration-indexed fields for the shared view
-helpers. The TypeScript adapters parse only the generated exact configs and keep
-transient initialization/original-markup state outside the DOM. Bootstrap
+helpers. The TypeScript adapters parse only the generated exact configs, emit
+the generated dismissal event before every close-control, backdrop, or Escape
+removal, and keep transient initialization/original-markup state outside the DOM. Bootstrap
 classes/events and ARIA/native state remain inside the focused adapters rather
 than becoming app DOM primitives. Overlay request routes, HTMX methods, targets,
 and fields remain owned by generated AppShell or Surface Action helpers.
@@ -100,6 +102,21 @@ workflow message and associates it with that state. The TypeScript adapter keeps
 `beforeinstallprompt`, `appinstalled`, prompt objects, and platform detection
 local, and changes only native `hidden` state to expose server-rendered copy.
 Those browser-platform objects are not wire schemas.
+
+`PasskeyContract` is the focused global passkey workflow capability. It owns
+login, registration, setup-prompt, action-button, device-name, status, recovery,
+and dismissal roles plus one exact tagged flow configuration. Haskell supplies
+begin/finish routes, an optional success redirect, a mount-local status key, the
+opaque prompt user key, closed first-passkey/additional-device mode, and all
+workflow/status/recovery copy through `FrontendContract.Passkey.Runtime` and
+`Application.Helper.View.Passkey`. The TypeScript adapter parses only the
+generated exact union, validates the complete local subtree before installing
+listeners, reports structured diagnostics, and leaves malformed server HTML
+untouched. Native WebAuthn credential objects, capability detection, base64url
+conversion, and local-storage UX hints remain handwritten browser mechanics and
+are not generated schemas. Prompt dismissal bears both the semantic generated
+passkey dismissal role and the generated overlay close role; the overlay adapter
+alone owns removal and body locking.
 
 `XeroCandidateFilterContract` is the focused global pay-item candidate-filter
 capability. It owns generated root, search, candidate, and empty-state roles plus

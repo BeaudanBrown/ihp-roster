@@ -11,11 +11,22 @@ Read this before editing `frontend/ts/`.
   drift check, and its watcher all render the same checked typeclass-reflected
   Haskell registry used by server runtime metadata.
 - Contracts are for browser boundary data only: JSON/data-* payloads, live-update config/messages, exact FrontendSurface mounts, minimal fragment/interaction registries, shared DOM vocabulary, roster UI config, and overlay lanes. Do not generate broad database models, server-only Surface action/DTO/topology data, or omnibus registries for frontend use.
-- Dialog/toast adapters import generated Overlay role/id constants and exact
-  config parsers. Keep Bootstrap selectors/events and ephemeral CSS classes
-  adapter-local; keep one-time/original-markup state in `WeakSet`/`WeakMap`
-  storage instead of inventing browser-only overlay data attributes. Passkey
-  prompt dismissal consumes the same generated dialog-close role.
+- Dialog/toast adapters import generated Overlay role/id/event constants and
+  exact config parsers. Emit the generated semantic dismissal event before every
+  close-control, backdrop, or Escape removal. Keep Bootstrap selectors/events
+  and ephemeral CSS classes adapter-local; keep one-time/original-markup state in
+  `WeakSet`/`WeakMap` storage instead of inventing browser-only overlay data
+  attributes.
+- The passkey adapter imports every generated passkey role, prompt-mode value,
+  and the exact tagged flow parser. Validate the complete nearest flow root before
+  installing listeners or changing status HTML; malformed roots emit structured
+  diagnostics and remain untouched. Keep `navigator.credentials`, native
+  WebAuthn objects, capability detection, base64url conversion, and local-storage
+  UX hints adapter-local. Haskell owns routes and every displayed workflow/error
+  message; never surface native exception or untyped response copy. Prompt
+  dismissal uses both the passkey dismissal and Overlay close roles and records
+  close/Escape/backdrop hints from the generated dismissal event, while only the
+  Overlay adapter may remove dialog DOM or manage body lock/focus behavior.
 - The time-picker adapter imports every picker id/role plus the generated exact
   config/option parsers. Haskell-rendered option values/labels and field
   range/step/copy are authoritative; TypeScript may rearrange validated server

@@ -330,6 +330,8 @@ export const dialogOverlayMountDomId = "dialog-overlay-mount" as const;
 
 export const toastOverlayMountDomId = "toast-overlay-mount" as const;
 
+export const dialogDismissedEvent = "bepis:dialog-dismissed" as const;
+
 export const dialogMountDomAttr = "data-bepis-dialog-mount" as const;
 
 export const dialogBackdropDomAttr = "data-bepis-dialog-backdrop" as const;
@@ -673,6 +675,48 @@ export const horizontalSnapConfigDomAttr = "data-bepis-horizontal-snap-config" a
 export const horizontalScrollDragDomAttr = "data-bepis-horizontal-scroll-drag" as const;
 
 export const horizontalDragConfigDomAttr = "data-bepis-horizontal-drag-config" as const;
+
+export type PasskeySetupPromptMode =
+    "first-passkey"
+  | "additional-device";
+export function isPasskeySetupPromptMode(value: unknown): value is PasskeySetupPromptMode {
+    return typeof value === "string" && ["first-passkey", "additional-device"].includes(value);
+}
+
+export type PasskeyFlowConfig =
+    { tag: "login"; beginUrl: string; finishUrl: string; successRedirect?: string; statusKey: string; waitingMessage: string; successMessage: string; unsupportedMessage: string; failureMessage: string; pendingLabel: string; cancelledMessage: string }
+  | { tag: "registration"; beginUrl: string; finishUrl: string; successRedirect?: string; statusKey: string; waitingMessage: string; successMessage: string; unsupportedMessage: string; failureMessage: string; pendingLabel: string; cancelledMessage: string }
+  | { tag: "setup-prompt"; promptUserKey: string; setupPromptMode: PasskeySetupPromptMode };
+export function isPasskeyFlowConfig(value: unknown): value is PasskeyFlowConfig {
+    return ((isRecord(value) && hasExactKeys(value, ["tag", "beginUrl", "finishUrl", "successRedirect", "statusKey", "waitingMessage", "successMessage", "unsupportedMessage", "failureMessage", "pendingLabel", "cancelledMessage"], ["tag", "beginUrl", "finishUrl", "statusKey", "waitingMessage", "successMessage", "unsupportedMessage", "failureMessage", "pendingLabel", "cancelledMessage"]) && (value["tag"] === "login") && (typeof value["beginUrl"] === "string") && (typeof value["finishUrl"] === "string") && (!("successRedirect" in value) || (typeof value["successRedirect"] === "string")) && (typeof value["statusKey"] === "string") && (typeof value["waitingMessage"] === "string") && (typeof value["successMessage"] === "string") && (typeof value["unsupportedMessage"] === "string") && (typeof value["failureMessage"] === "string") && (typeof value["pendingLabel"] === "string") && (typeof value["cancelledMessage"] === "string")) || (isRecord(value) && hasExactKeys(value, ["tag", "beginUrl", "finishUrl", "successRedirect", "statusKey", "waitingMessage", "successMessage", "unsupportedMessage", "failureMessage", "pendingLabel", "cancelledMessage"], ["tag", "beginUrl", "finishUrl", "statusKey", "waitingMessage", "successMessage", "unsupportedMessage", "failureMessage", "pendingLabel", "cancelledMessage"]) && (value["tag"] === "registration") && (typeof value["beginUrl"] === "string") && (typeof value["finishUrl"] === "string") && (!("successRedirect" in value) || (typeof value["successRedirect"] === "string")) && (typeof value["statusKey"] === "string") && (typeof value["waitingMessage"] === "string") && (typeof value["successMessage"] === "string") && (typeof value["unsupportedMessage"] === "string") && (typeof value["failureMessage"] === "string") && (typeof value["pendingLabel"] === "string") && (typeof value["cancelledMessage"] === "string")) || (isRecord(value) && hasExactKeys(value, ["tag", "promptUserKey", "setupPromptMode"], ["tag", "promptUserKey", "setupPromptMode"]) && (value["tag"] === "setup-prompt") && (typeof value["promptUserKey"] === "string") && (isPasskeySetupPromptMode(value["setupPromptMode"]))));
+}
+
+export function parsePasskeyFlowConfig(value: unknown): PasskeyFlowConfig {
+    if (isPasskeyFlowConfig(value)) return value;
+    throw new Error("Invalid PasskeyFlowConfig");
+}
+
+export const passkeyFirstPasskeyMode = "first-passkey" as const;
+
+export const passkeyAdditionalDeviceMode = "additional-device" as const;
+
+export const passkeyLoginDomAttr = "data-bepis-passkey-login" as const;
+
+export const passkeyRegistrationDomAttr = "data-bepis-passkey-registration" as const;
+
+export const passkeySetupPromptDomAttr = "data-bepis-passkey-setup-prompt" as const;
+
+export const passkeyActionButtonDomAttr = "data-bepis-passkey-action-button" as const;
+
+export const passkeyDeviceNameDomAttr = "data-bepis-passkey-device-name" as const;
+
+export const passkeyStatusDomAttr = "data-bepis-passkey-status" as const;
+
+export const passkeyRecoveryDomAttr = "data-bepis-passkey-recovery" as const;
+
+export const passkeyDismissalDomAttr = "data-bepis-passkey-dismissal" as const;
+
+export const passkeyFlowConfigDomAttr = "data-bepis-passkey-flow-config" as const;
 
 export type PwaInstallState =
     "accepted"
