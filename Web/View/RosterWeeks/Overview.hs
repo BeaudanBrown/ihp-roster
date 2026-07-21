@@ -7,6 +7,7 @@ module Web.View.RosterWeeks.Overview
     ) where
 
 import qualified Application.Helper.FrontendContract.Surface.Roster as Surface
+import Application.Helper.FrontendContract.Surface.Roster.WeekOverview
 import Application.Helper.FrontendContract.Surface.Runtime (FrontendSurfaceLazyFragmentConfig (..),
                                                             FrontendSurfaceProtection (..),
                                                             defaultFrontendSurfaceLazyFragmentConfig,
@@ -31,7 +32,7 @@ renderWeekOverviewDropdown weekOffset rosterGroupId weekStartDate =
         fragmentUrl = rosterOverviewFragmentUrl weekOffset rosterGroupId
      in
         [hsx|
-            <div class="dropdown roster-week-overview" data-week-overview="true">
+            <div class="dropdown roster-week-overview">
                 <button class="btn btn-outline-secondary app-week-nav-button roster-week-nav-button roster-week-overview-trigger"
                         type="button"
                         id={triggerId}
@@ -97,9 +98,7 @@ renderWeekOverviewPanelFragment weekOffset rosterGroupId currentWeekStartDate to
      in
         [hsx|
             <div class="roster-week-overview-panel"
-                 data-week-overview-panel="true"
-                 data-week-overview-current-date={formatDayParam todayDate}
-                 data-week-overview-loaded="true">
+                 {...rosterWeekOverviewPanelAttrs todayDate}>
                 <div class="roster-week-overview-header">
                     <div>
                         <div class="roster-week-overview-eyebrow">Month overview</div>
@@ -107,7 +106,7 @@ renderWeekOverviewPanelFragment weekOffset rosterGroupId currentWeekStartDate to
                     </div>
                     <button type="button"
                             class="btn btn-sm btn-outline-secondary"
-                            data-week-overview-today="true">
+                            {...rosterWeekOverviewTodayAttrs}>
                         Today
                     </button>
                 </div>
@@ -156,25 +155,34 @@ renderOverviewDayCell _ _ _ _ _ _ _ Nothing = [hsx|<div class="roster-week-overv
 renderOverviewDayCell weekOffset rosterGroupId referenceWeekStart weekOverviewDays initialDate todayDate viewCapabilities (Just date) =
     let
         maybeOverviewDay = find (\daySummary -> overviewDate daySummary == date) weekOverviewDays
-        isInVisibleWeek = isJust maybeOverviewDay
+        detailsAvailable = isJust maybeOverviewDay
         isSelected = date == initialDate
-        navigateUrl = rosterWeekWithDateUrl weekOffset rosterGroupId date
-        weekStartLabel = "Week of " <> Text.pack (formatTime defaultTimeLocale "%-d %b" (startOfWeek date referenceWeekStart))
-        leaveCountText
-            | viewCapabilities.canViewLeaveMetrics = maybe "" (tshow . leaveRequestCount) maybeOverviewDay
-            | otherwise = ""
-        assignedText = maybe "" (tshow . overviewAssignedShiftCount) maybeOverviewDay
-        hoursText = maybe "" (formatMinutesAsHours . scheduledMinutes) maybeOverviewDay
-        detailsAvailable = isInVisibleWeek
+        isClosed = maybe False overviewIsClosed maybeOverviewDay
+        availability = if detailsAvailable then RosterWeekOverviewLoaded else RosterWeekOverviewUnloaded
+        closure = if isClosed then RosterWeekOverviewClosed else RosterWeekOverviewOpen
+        calendarDay = if date == todayDate then RosterWeekOverviewToday else RosterWeekOverviewOtherDay
+        leaveDisplay
+            | not viewCapabilities.canViewLeaveMetrics = ""
+            | detailsAvailable = maybe "0" (tshow . leaveRequestCount) maybeOverviewDay
+            | otherwise = "—"
+        assignedDisplay = if detailsAvailable then maybe "0" (tshow . overviewAssignedShiftCount) maybeOverviewDay else "—"
+        hoursDisplay = if detailsAvailable then maybe "0h" (formatMinutesAsHours . scheduledMinutes) maybeOverviewDay else "—"
         detailSummary =
-            if isInVisibleWeek
+            if detailsAvailable
                 then weekOverviewMetricSummaryMaybe maybeOverviewDay viewCapabilities.canViewLeaveMetrics
                 else "No loaded roster summary for this date yet."
-        closedState = maybe False overviewIsClosed maybeOverviewDay
-        closedStateText :: Text
-        closedStateText = if closedState then "true" else "false"
-        detailsAvailableText :: Text
-        detailsAvailableText = if detailsAvailable then "true" else "false"
+        payload = RosterWeekOverviewDayPayload
+            { weekOverviewDate = date
+            , weekOverviewSelectedLabel = renderSelectedDateLabel date
+            , weekOverviewLeaveDisplay = leaveDisplay
+            , weekOverviewAssignedDisplay = assignedDisplay
+            , weekOverviewHoursDisplay = hoursDisplay
+            , weekOverviewSummaryText = detailSummary
+            , weekOverviewWeekLabel = "In Week of " <> Text.pack (formatTime defaultTimeLocale "%-d %b" (startOfWeek date referenceWeekStart))
+            , weekOverviewNavigationUrl = rosterWeekWithDateUrl weekOffset rosterGroupId date
+            , weekOverviewAvailability = availability
+            , weekOverviewClosure = closure
+            }
         leaveDot =
             if viewCapabilities.canViewLeaveMetrics && maybe False ((> 0) . leaveRequestCount) maybeOverviewDay
                 then [hsx|<span class="roster-week-overview-day-dot" aria-hidden="true"></span>|]
@@ -182,18 +190,8 @@ renderOverviewDayCell weekOffset rosterGroupId referenceWeekStart weekOverviewDa
      in
         [hsx|
             <button type="button"
-                    class={classes [("roster-week-overview-day", True), ("is-selected", isSelected), ("is-current-week", isInVisibleWeek), ("is-closed", closedState), ("is-today", date == todayDate)]}
-                    data-week-overview-day="true"
-                    data-week-overview-date={formatDayParam date}
-                    data-week-overview-label={renderSelectedDateLabel date}
-                    data-week-overview-week-label={weekStartLabel}
-                    data-week-overview-url={navigateUrl}
-                    data-week-overview-leave={leaveCountText}
-                    data-week-overview-assigned={assignedText}
-                    data-week-overview-hours={hoursText}
-                    data-week-overview-closed={closedStateText}
-                    data-week-overview-details={detailsAvailableText}
-                    data-week-overview-summary={detailSummary}
+                    class="roster-week-overview-day"
+                    {...rosterWeekOverviewDayAttrs calendarDay payload}
                     aria-pressed={isSelected}>
                 <span class="roster-week-overview-day-number">{Text.pack (formatTime defaultTimeLocale "%-d" date)}</span>
                 {leaveDot}
@@ -205,6 +203,8 @@ renderWeekOverviewDetailsCard weekOffset rosterGroupId weekStartDate initialDate
     let
         navigateUrl = rosterWeekWithDateUrl weekOffset rosterGroupId initialDate
         closedState = maybe False overviewIsClosed initialOverviewDay
+        availability = maybe RosterWeekOverviewUnloaded (const RosterWeekOverviewLoaded) initialOverviewDay
+        closure = if closedState then RosterWeekOverviewClosed else RosterWeekOverviewOpen
         closedBadge =
             if closedState
                 then renderAppStatusBadge AppStatusNeutral "Closed"
@@ -213,37 +213,37 @@ renderWeekOverviewDetailsCard weekOffset rosterGroupId weekStartDate initialDate
             if viewCapabilities.canViewLeaveMetrics
                 then [hsx|
                     <div class="roster-week-overview-metric">
-                        <span class="roster-week-overview-metric-value" data-week-overview-leave-value="true">{maybe "0" (tshow . leaveRequestCount) initialOverviewDay}</span>
+                        <span class="roster-week-overview-metric-value" {...rosterWeekOverviewLeaveValueAttrs}>{maybe "0" (tshow . leaveRequestCount) initialOverviewDay}</span>
                         <span class="roster-week-overview-metric-label">unavailable periods</span>
                     </div>
                 |]
                 else mempty
      in
         [hsx|
-            <div class="roster-week-overview-details" data-week-overview-details-panel="true">
+            <div class="roster-week-overview-details" {...rosterWeekOverviewDetailsAttrs availability closure}>
                 <div class="roster-week-overview-details-label">Selected date</div>
-                <div class="roster-week-overview-details-date" data-week-overview-selected-label="true">{renderSelectedDateLabel initialDate}</div>
+                <div class="roster-week-overview-details-date" {...rosterWeekOverviewSelectedLabelAttrs}>{renderSelectedDateLabel initialDate}</div>
                 <div class="roster-week-overview-metrics">
                     {leaveMetric}
                     <div class="roster-week-overview-metric">
-                        <span class="roster-week-overview-metric-value" data-week-overview-assigned-value="true">{maybe "0" (tshow . overviewAssignedShiftCount) initialOverviewDay}</span>
+                        <span class="roster-week-overview-metric-value" {...rosterWeekOverviewAssignedValueAttrs}>{maybe "0" (tshow . overviewAssignedShiftCount) initialOverviewDay}</span>
                         <span class="roster-week-overview-metric-label">shifts assigned</span>
                     </div>
                     <div class="roster-week-overview-metric">
-                        <span class="roster-week-overview-metric-value" data-week-overview-hours-value="true">{maybe "0h" (formatMinutesAsHours . scheduledMinutes) initialOverviewDay}</span>
+                        <span class="roster-week-overview-metric-value" {...rosterWeekOverviewHoursValueAttrs}>{maybe "0h" (formatMinutesAsHours . scheduledMinutes) initialOverviewDay}</span>
                         <span class="roster-week-overview-metric-label">rostered hours</span>
                     </div>
                 </div>
-                <div class="roster-week-overview-summary" data-week-overview-summary-text="true">
+                <div class="roster-week-overview-summary" {...rosterWeekOverviewSummaryAttrs}>
                     {maybe "No loaded roster summary for this date yet." (\daySummary -> weekOverviewMetricSummary daySummary viewCapabilities.canViewLeaveMetrics) initialOverviewDay}
                 </div>
                 <div class="roster-week-overview-week-target">
-                    <span data-week-overview-week-label="true">In {renderWeekLabelWithPrefix initialDate weekStartDate}</span>
+                    <span {...rosterWeekOverviewWeekLabelAttrs}>In {renderWeekLabelWithPrefix initialDate weekStartDate}</span>
                     {closedBadge}
                 </div>
                 <a href={navigateUrl}
                    class="btn btn-primary roster-week-overview-go"
-                   data-week-overview-go-link="true">
+                   {...rosterWeekOverviewGoLinkAttrs}>
                     Go to this week
                 </a>
             </div>

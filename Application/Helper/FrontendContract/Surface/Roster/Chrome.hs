@@ -15,6 +15,7 @@ module Application.Helper.FrontendContract.Surface.Roster.Chrome
     , rosterColumnEditDoneAttrs
     ) where
 
+import Application.Helper.FrontendContract.Surface.Attributes (roleAttrs)
 import Application.Helper.FrontendContract.Surface.ContractIR (BrowserClosedStateIR (..))
 import qualified Application.Helper.FrontendContract.Surface.Roster as Roster
 import Application.Helper.FrontendContract.Surface.SemanticIR (BrowserAttributeIR (..))
@@ -74,9 +75,6 @@ columnEditingStateValue = \case
         surfaceBrowserClosedStateLiteral @Roster.RosterSurface @Roster.ColumnEditingState @Roster.Inactive
     RosterColumnEditingActive ->
         surfaceBrowserClosedStateLiteral @Roster.RosterSurface @Roster.ColumnEditingState @Roster.Active
-
-roleAttrs :: BrowserAttributeIR -> [(Text, Text)]
-roleAttrs role = [(role.browserAttributeDomAttribute, "true")]
 
 closedStateAttrs :: BrowserClosedStateIR -> Text -> [(Text, Text)]
 closedStateAttrs state value =

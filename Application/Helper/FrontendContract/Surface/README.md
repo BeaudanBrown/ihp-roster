@@ -293,6 +293,39 @@ keeps its delayed blur mechanical, stores timers per generated editor, and
 cancels them when HTMX removes that editor. Neither runtime discovers behavior
 through roster presentation classes or carries state from a replaced root.
 
+## Generated Roster Image Export
+
+The roster Surface declares image-export trigger/config/projection/row/cell
+roles, a closed JPG format, an exact export-policy/copy record, and an exact cell
+text record. `Surface.Roster.ImageExport` resolves the filename and serializes
+all format dimensions, quality, labels, failure copy, and optional
+export-specific cell values. The roster row-grid view attaches those helpers to
+its current projection and emits the trigger; layouts without that projection
+omit the trigger instead of exposing an unusable adapter action. No view exposes
+cell kinds or conflict metadata to the browser.
+
+The focused TypeScript adapter resolves one projection inside the trigger's
+nearest Surface mount and parses every exact payload before cloning. It retains
+only layout measurement, computed presentation styles, SVG/Canvas rendering,
+JPG encoding, and browser download mechanics. It must not recover roster meaning
+from feature classes, cell positions, group selectors, week labels, or raw
+conflict annotations.
+
+## Retained Roster Week Overview
+
+The disabled roster week overview is retained behind generated panel/day/today/
+detail-slot roles, exact panel/day payloads, and closed availability, closure,
+and calendar-day states. `Surface.Roster.WeekOverview` builds date labels,
+metric displays, summary copy, navigation URLs, and state values in Haskell.
+Selection uses native `aria-pressed`; CSS and the adapter consume generated
+state attributes rather than shared `is-*` classes.
+
+The adapter validates one clicked day and its local slots before mutation. A
+malformed day emits a structured diagnostic, leaves that element and
+server-rendered details intact, and does not prevent valid siblings from being
+used. The normal roster header still renders a static week label and does not
+mount or fetch this retained capability.
+
 ## Generated HTMX Request Actions
 
 `Action name fields options` describes surface-owned request initiators, not

@@ -7,6 +7,8 @@ module Web.View.RosterWeeks.SettingsPanel
 import qualified Application.Helper.FrontendContract.Surface.Interaction as SurfaceInteraction
 import qualified Application.Helper.FrontendContract.Surface.Roster as Surface
 import qualified Application.Helper.FrontendContract.Surface.Roster.Action as RosterAction
+import Application.Helper.FrontendContract.Surface.Roster.ImageExport (rosterImageExportFilename,
+                                                                       rosterJpgImageExportTriggerAttrs)
 import qualified Application.Helper.FrontendContract.Surface.Roster.Intent as RosterIntent
 import Application.Helper.FrontendContract.Surface.Runtime (FrontendSurfaceActionRoute (..),
                                                             FrontendSurfaceCustomHtmxAttrs (..),
@@ -36,7 +38,7 @@ rosterWeekShellSyncRoute actionUrl =
         }
 
 renderRosterSettingsPanel :: (?context :: ControllerContext) => RosterStaffPanelRenderModel -> Html
-renderRosterSettingsPanel RosterStaffPanelRenderModel { staffPanelRosterWeek, staffPanelWeekOffset, staffPanelRosterGroups, staffPanelCurrentRosterGroup, staffPanelAssignmentFilters, staffPanelViewCapabilities, staffPanelRosterLayoutMode, staffPanelShowWageEstimates, staffPanelShowRosterWarnings, staffPanelViewMode } = [hsx|
+renderRosterSettingsPanel RosterStaffPanelRenderModel { staffPanelRosterWeek, staffPanelWeekOffset, staffPanelWeekStartDate, staffPanelRosterGroups, staffPanelCurrentRosterGroup, staffPanelAssignmentFilters, staffPanelViewCapabilities, staffPanelRosterLayoutMode, staffPanelShowWageEstimates, staffPanelShowRosterWarnings, staffPanelViewMode } = [hsx|
     <div class="roster-settings-panel">
         {when (length staffPanelRosterGroups > 1) $ renderRosterSettingsSection "bi-people" "Roster group" (renderRosterGroupSwitcher staffPanelWeekOffset staffPanelRosterGroups staffPanelCurrentRosterGroup)}
         {renderRosterSettingsSection "bi-layout-split" "Roster layout" (renderRosterLayoutSection staffPanelWeekOffset staffPanelCurrentRosterGroup.id staffPanelRosterLayoutMode staffPanelViewMode)}
@@ -46,8 +48,8 @@ renderRosterSettingsPanel RosterStaffPanelRenderModel { staffPanelRosterWeek, st
             renderRosterSettingsSection "bi-shield-check" "Prevent assignment" (renderRosterAssignmentFiltersSection staffPanelWeekOffset staffPanelCurrentRosterGroup.id staffPanelAssignmentFilters)}
         {when (staffPanelViewCapabilities.canCopyRosterWeek || shouldShowRosterSortForm staffPanelRosterWeek staffPanelViewCapabilities) $
             renderRosterSettingsSection "bi-lightning-charge" "Week actions" (renderRosterWeekActions staffPanelRosterWeek staffPanelWeekOffset staffPanelCurrentRosterGroup.id staffPanelViewCapabilities)}
-        {when (shouldShowRosterExport staffPanelRosterWeek staffPanelViewCapabilities) $
-            renderRosterSettingsSection "bi-share" "Share roster" renderRosterExportSection}
+        {when (shouldShowRosterExport staffPanelRosterWeek staffPanelViewCapabilities staffPanelRosterLayoutMode staffPanelViewMode) $
+            renderRosterSettingsSection "bi-share" "Share roster" (renderRosterExportSection staffPanelCurrentRosterGroup.name staffPanelWeekStartDate)}
     </div>
 |]
 
@@ -269,15 +271,18 @@ renderCopyPreviousWeekForm weekOffset rosterGroupId =
             </button>
         |]
 
-shouldShowRosterExport :: Maybe RosterWeek -> RosterViewCapabilities -> Bool
-shouldShowRosterExport maybeRosterWeek viewCapabilities =
-    viewCapabilities.canExportRosterImage && maybe False (.isLive) maybeRosterWeek
+shouldShowRosterExport :: Maybe RosterWeek -> RosterViewCapabilities -> RosterLayoutModeEnum -> RosterGridViewMode -> Bool
+shouldShowRosterExport maybeRosterWeek viewCapabilities rosterLayoutMode viewMode =
+    viewCapabilities.canExportRosterImage
+        && maybe False (.isLive) maybeRosterWeek
+        && viewMode == RosterWeekGridView
+        && rosterLayoutModeValue rosterLayoutMode == "day_rows"
 
-renderRosterExportSection :: Html
-renderRosterExportSection = [hsx|
+renderRosterExportSection :: Text -> Day -> Html
+renderRosterExportSection rosterGroupName weekStartDate = [hsx|
     <button type="button"
             class="btn btn-outline-secondary btn-sm w-100 roster-export-button"
-            data-roster-export-format="jpg">
+            {...rosterJpgImageExportTriggerAttrs (rosterImageExportFilename rosterGroupName weekStartDate)}>
         <i class="bi bi-download me-1" aria-hidden="true"></i>
         Export JPG
     </button>

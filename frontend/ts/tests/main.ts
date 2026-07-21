@@ -3,6 +3,8 @@ import "./linked-highlight.test";
 import "./complete-set-sort.test";
 import "./surface-tab-set.test";
 import "./roster-chrome.test";
+import "./roster-image-export.test";
+import "./roster-week-overview.test";
 import "./interaction-contracts.test";
 import "./interaction-runtime.test";
 import "./shared.test";

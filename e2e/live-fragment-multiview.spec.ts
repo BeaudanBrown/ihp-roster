@@ -200,7 +200,6 @@ test.describe('Live fragment multi-view coverage', () => {
         await viewerPage.reload();
         await expect(viewerPage.locator('#roster-content')).toBeVisible({ timeout: E2E_TIMEOUT.navigation });
         await expect(viewerTargetStaffCell).toHaveAttribute('title', /approved unavailable period/i, { timeout: E2E_TIMEOUT.liveUpdate });
-        await expect(viewerTargetStaffCell).toHaveAttribute('data-conflict-message', /approved unavailable period/i);
 
         await actorContext.close();
         await requesterContext.close();

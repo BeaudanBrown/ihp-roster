@@ -53,6 +53,14 @@ Read this before editing `static/` assets.
   closed-state attributes, values, and guards. CSS uses those generated
   selectors; raw `data-roster-fullscreen*`/`data-roster-column-*` contracts and
   behavior discovery through presentation classes must stay absent.
+- Roster image export consumes generated trigger/config/projection/row/cell
+  roles, the closed JPG format, and exact payload parsers. Haskell owns filename,
+  copy, dimensions, quality, errors, and cell text; the bundle owns only browser
+  measurement, computed styles, SVG/Canvas encoding, and download mechanics.
+- The dormant roster week overview consumes generated panel/day/detail-slot
+  roles, exact payloads, native `aria-pressed`, and generated status attrs. Keep
+  raw week-overview datasets, browser fallback copy, semantic `is-*` classes,
+  and active-header mounting absent.
 - `app-xero.js` consumes generated candidate-filter root/search/candidate/
   config/empty roles and the exact config parser. Haskell owns the opaque
   normalized projection and all import identity/copy; the adapter validates and

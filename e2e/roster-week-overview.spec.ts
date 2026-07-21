@@ -1,4 +1,12 @@
+import { readFileSync } from 'node:fs';
 import { test, expect } from '@playwright/test';
+import {
+    parseRosterImageExportConfig,
+    rosterImageExportConfigDomAttr,
+    rosterImageExportTriggerDomAttr,
+    rosterWeekOverviewDayDomAttr,
+    rosterWeekOverviewPanelDomAttr,
+} from '../frontend/ts/generated/contracts';
 import { gotoWhenReady, loginAs, openRoster, openRosterSettings, runSql } from './test-helpers';
 
 const e2eRosterPath = '/ShowRosterWeek?weekOffset=0&rosterGroupId=a1000000-0000-0000-0000-000000000211';
@@ -8,7 +16,8 @@ test.describe('Roster week overview', () => {
         await openRoster(page);
 
         await expect(page.getByRole('button', { name: 'Open roster week overview' })).toHaveCount(0);
-        await expect(page.locator('[data-week-overview-fragment-mount="true"]')).toHaveCount(0);
+        await expect(page.locator(`[${rosterWeekOverviewPanelDomAttr}]`)).toHaveCount(0);
+        await expect(page.locator(`[${rosterWeekOverviewDayDomAttr}]`)).toHaveCount(0);
         await expect(page.locator('.roster-week-nav-label')).toContainText('Week of');
     });
 
@@ -17,12 +26,24 @@ test.describe('Roster week overview', () => {
         await openRoster(page, { weekOffset: 1, ensureDraft: false, ensureEditable: false });
 
         await openRosterSettings(page);
-        const exportButton = page.getByRole('button', { name: 'Export JPG' });
+        const exportButton = page.locator(`[${rosterImageExportTriggerDomAttr}="true"]`);
         await expect(exportButton).toBeVisible();
+        await expect(exportButton).toHaveText('Export JPG');
+        const rawConfig = await exportButton.getAttribute(rosterImageExportConfigDomAttr);
+        expect(rawConfig).not.toBeNull();
+        const config = parseRosterImageExportConfig(JSON.parse(rawConfig ?? '{}'));
 
+        const downloadPromise = page.waitForEvent('download');
         await exportButton.click();
+        const download = await downloadPromise;
 
-        await expect(page.locator('body')).toHaveAttribute('data-roster-export-last-status', 'success');
+        expect(download.suggestedFilename()).toBe(config.imageExportFilename);
+        await expect(exportButton).toHaveText(config.imageExportDownloadedLabel);
+        const downloadPath = await download.path();
+        expect(downloadPath).not.toBeNull();
+        const bytes = readFileSync(downloadPath ?? '');
+        expect(Array.from(bytes.subarray(0, 3))).toEqual([0xff, 0xd8, 0xff]);
+        expect(bytes.length).toBeGreaterThan(1000);
     });
 
     test('does not show roster JPG export on draft weeks', async ({ page }) => {
@@ -121,6 +142,7 @@ test.describe('Roster week overview', () => {
         await expect(page.getByRole('button', { name: 'Sync Slots' })).toHaveCount(0);
 
         await expect(page.getByRole('button', { name: 'Open roster week overview' })).toHaveCount(0);
-        await expect(page.locator('[data-week-overview-fragment-mount="true"]')).toHaveCount(0);
+        await expect(page.locator(`[${rosterWeekOverviewPanelDomAttr}]`)).toHaveCount(0);
+        await expect(page.locator(`[${rosterWeekOverviewDayDomAttr}]`)).toHaveCount(0);
     });
 });

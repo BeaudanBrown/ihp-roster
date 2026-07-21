@@ -70,6 +70,19 @@ lands.
 - Raw `data-roster-fullscreen*` and `data-roster-column-*` names are not part of
   the implemented contract. CSS and browser behavior consume generated
   role/state names rather than presentation classes.
+- Live manager row-grid image export uses generated
+  trigger/config/projection/row/cell roles, a closed JPG format, and exact
+  Haskell-built policy and cell payloads. Day-column and timeline layouts omit
+  the trigger because they have no row-grid projection. Haskell resolves the
+  filename, dimensions, quality, copy, errors, and rendered values; TypeScript
+  retains measurement, computed styles, SVG/Canvas encoding, and download
+  mechanics without class/cell-position or conflict inference.
+- The retained month overview endpoint uses generated panel/day/detail-slot
+  roles, exact Haskell-built date/metric/summary/URL payloads, native
+  `aria-pressed`, and generated availability/closure/calendar state. Malformed
+  days are diagnosed and skipped locally. The active roster header still renders
+  only a static week label, so the overview remains disabled and is not loaded
+  during normal navigation.
 - The roster staff panel uses the existing role column for trial placeholders and
   renders their role as `TRIAL`; linked staff continue to show their venue
   membership role labels.

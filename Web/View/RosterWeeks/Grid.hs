@@ -40,6 +40,9 @@ import Application.Helper.FrontendContract.Surface.Roster.Chrome (RosterColumnEd
                                                                   rosterColumnEditDoneAttrs,
                                                                   rosterColumnEditStartAttrs,
                                                                   rosterColumnEditorAttrs)
+import Application.Helper.FrontendContract.Surface.Roster.ImageExport (rosterImageExportCellAttrs,
+                                                                       rosterImageExportProjectionAttrs,
+                                                                       rosterImageExportRowAttrs)
 import Application.Helper.FrontendContract.Surface.Runtime (FrontendSurfaceActionRoute (..),
                                                             FrontendSurfaceInteractionShellConfig (..),
                                                             FrontendSurfaceMountConfig (..),
@@ -121,6 +124,7 @@ renderRosterLayout gridModel@RosterGridRenderModel { gridRosterWeek, gridRosterD
                 then renderrosterStaffPanelLiveFragment RosterStaffPanelRenderModel
                     { staffPanelRosterWeek = gridRosterWeek
                     , staffPanelWeekOffset = gridWeekOffset
+                    , staffPanelWeekStartDate = gridModel.gridWeekStartDate
                     , staffPanelRosterGroups = gridRosterGroups
                     , staffPanelCurrentRosterGroup = gridCurrentRosterGroup
                     , staffPanelAssignmentFilters = gridModel.gridAssignmentFilters
@@ -354,10 +358,10 @@ renderrosterSlotsGridLiveFragmentWithSwap :: (?context :: ControllerContext) => 
 renderrosterSlotsGridLiveFragmentWithSwap maybeSwapOob endTimesEnabled slotColumnsAreEditable maybeRosterWeek slotNames dayModel rosterDays =
     let gridHeaders = profileHtmlComponent "render.roster.slots_grid_headers" [hsx|
             <div class="roster-grid-head" role="rowgroup">
-                <div class="roster-grid-header-row roster-grid-header-row-blocks" role="row">
+                <div class="roster-grid-header-row roster-grid-header-row-blocks" role="row" {...rosterImageExportRowAttrs}>
                     {forEach (zip [0 :: Int ..] slotNames) (renderSlotHeaderGroup endTimesEnabled maybeRosterWeek slotColumnsAreEditable (length slotNames))}
                 </div>
-                <div class="roster-grid-header-row roster-grid-header-row-subheads" role="row">
+                <div class="roster-grid-header-row roster-grid-header-row-subheads" role="row" {...rosterImageExportRowAttrs}>
                     {forEach slotNames (renderSlotSubHeaders endTimesEnabled)}
                 </div>
             </div>
@@ -372,7 +376,7 @@ renderrosterSlotsGridLiveFragmentWithSwap maybeSwapOob endTimesEnabled slotColum
              style={"--roster-slot-count:" <> tshow (max 1 (length slotNames)) <> ";"}
              {...horizontalSnapAttrs rosterSlotsHorizontalSnapConfig}
              hx-swap-oob={maybeSwapOob}>
-            <div class="roster-grid roster-slots-grid" role="grid" aria-label="Roster slots">
+            <div class="roster-grid roster-slots-grid" role="grid" aria-label="Roster slots" {...rosterImageExportProjectionAttrs}>
                 {gridHeaders}
                 {gridBody}
             </div>
@@ -413,13 +417,15 @@ renderSlotHeaderGroup endTimesEnabled _ False _ (slotIndex, _) = [hsx|
     <div role="columnheader"
          class="roster-block-header"
          aria-label={"Roster column " <> tshow (slotIndex + 1)}
-         style={slotHeaderGridColumnStyle endTimesEnabled}></div>
+         style={slotHeaderGridColumnStyle endTimesEnabled}
+         {...rosterImageExportCellAttrs ""}></div>
 |]
 renderSlotHeaderGroup endTimesEnabled (Just rosterWeek) True slotCount (slotIndex, slotName) = [hsx|
     <div role="columnheader"
          class="roster-block-header"
          aria-label={"Roster column " <> tshow (slotIndex + 1)}
-         style={slotHeaderGridColumnStyle endTimesEnabled}>
+         style={slotHeaderGridColumnStyle endTimesEnabled}
+         {...rosterImageExportCellAttrs ""}>
         <div class="d-flex align-items-center justify-content-center gap-2 roster-slot-column-header">
             {renderSlotDeleteForm slotCount slotName}
             {renderSlotAddButton rosterWeek (slotIndex == slotCount - 1)}
@@ -430,7 +436,8 @@ renderSlotHeaderGroup endTimesEnabled _ _ _ (slotIndex, _) = [hsx|
     <div role="columnheader"
          class="roster-block-header"
          aria-label={"Roster column " <> tshow (slotIndex + 1)}
-         style={slotHeaderGridColumnStyle endTimesEnabled}></div>
+         style={slotHeaderGridColumnStyle endTimesEnabled}
+         {...rosterImageExportCellAttrs ""}></div>
 |]
 
 renderSlotDeleteForm :: Int -> RosterWeekSlotDefinition -> Html
@@ -475,16 +482,16 @@ renderSlotAddButton _ False = mempty
 renderSlotSubHeaders :: Bool -> RosterWeekSlotDefinition -> Html
 renderSlotSubHeaders True _ =
     mconcat
-        [ [hsx|<div role="columnheader" class="roster-subhead roster-col-time">Start</div>|]
-        , [hsx|<div role="columnheader" class="roster-subhead roster-col-time">End</div>|]
-        , [hsx|<div role="columnheader" class="roster-subhead roster-col-staff">Staff</div>|]
-        , [hsx|<div role="columnheader" class="roster-subhead roster-col-shift-type roster-block-end">Role</div>|]
+        [ [hsx|<div role="columnheader" class="roster-subhead roster-col-time" {...rosterImageExportCellAttrs "Start"}>Start</div>|]
+        , [hsx|<div role="columnheader" class="roster-subhead roster-col-time" {...rosterImageExportCellAttrs "End"}>End</div>|]
+        , [hsx|<div role="columnheader" class="roster-subhead roster-col-staff" {...rosterImageExportCellAttrs "Staff"}>Staff</div>|]
+        , [hsx|<div role="columnheader" class="roster-subhead roster-col-shift-type roster-block-end" {...rosterImageExportCellAttrs "Role"}>Role</div>|]
         ]
 renderSlotSubHeaders False _ =
     mconcat
-        [ [hsx|<div role="columnheader" class="roster-subhead roster-col-time">Start</div>|]
-        , [hsx|<div role="columnheader" class="roster-subhead roster-col-staff">Staff</div>|]
-        , [hsx|<div role="columnheader" class="roster-subhead roster-col-code roster-block-end">Role</div>|]
+        [ [hsx|<div role="columnheader" class="roster-subhead roster-col-time" {...rosterImageExportCellAttrs "Start"}>Start</div>|]
+        , [hsx|<div role="columnheader" class="roster-subhead roster-col-staff" {...rosterImageExportCellAttrs "Staff"}>Staff</div>|]
+        , [hsx|<div role="columnheader" class="roster-subhead roster-col-code roster-block-end" {...rosterImageExportCellAttrs "Role"}>Role</div>|]
         ]
 
 renderRosterDay :: (?context :: ControllerContext) => RosterDayRenderModel -> RosterDay -> Html
@@ -761,7 +768,8 @@ renderRowWithAttrs RosterRowRenderModel { rowIsEditable, rowSlotNames, rowAssign
          role="row"
          data-roster-row="true"
          hx-swap-oob={maybeSwapOob}
-         class={classes [("day-row", True), ("day-row-" <> tshow (get #dayOffset rowRosterDay), True), ("day-alt-dark", odd (get #dayOffset rowRosterDay)), ("day-alt-light", even (get #dayOffset rowRosterDay))]}>
+         class={classes [("day-row", True), ("day-row-" <> tshow (get #dayOffset rowRosterDay), True), ("day-alt-dark", odd (get #dayOffset rowRosterDay)), ("day-alt-light", even (get #dayOffset rowRosterDay))]}
+         {...rosterImageExportRowAttrs}>
         {forEach (zip [0 :: Int ..] rowSlotNames) (renderBlockCells rowIsEditable rowAssignmentFilters rowStaffMembers rowShiftTypes rowRosterEndTimesEnabled rowPublishAttempted rowRosterDay rowIndex rowSlots rowRenderIndexes)}
     </div>
 |]

@@ -23,6 +23,7 @@ import Application.Helper.FrontendContract.AppShell.Runtime (AppShellActionRoute
                                                              applyAppShellActionAttrs)
 import qualified Application.Helper.FrontendContract.Surface.Interaction as SurfaceInteraction
 import qualified Application.Helper.FrontendContract.Surface.LinkedHighlight as SurfaceLinkedHighlight
+import Application.Helper.FrontendContract.Surface.Roster.ImageExport (rosterImageExportCellAttrs)
 import Application.Helper.Profiling (profileRenderCounter)
 import Application.Helper.ShiftTypeColours (shiftTypeColourPaletteKeys)
 import Application.Helper.TimeRules (rosterOperationalFinalSelectableTimeText,
@@ -69,6 +70,7 @@ data ReadOnlyExistingSlotCell = ReadOnlyExistingSlotCell
     , readOnlyCellColourKey     :: Text
     , readOnlyCellContent       :: Html
     , readOnlyCellConflictAttrs :: Maybe Text
+    , readOnlyCellExportText    :: Text
     }
 renderBlockCells :: (?context :: ControllerContext) => Bool -> RosterAssignmentFilters -> [Staff] -> [ShiftType] -> Bool -> Bool -> RosterDay -> Int -> [RosterSlot] -> RosterRenderIndexes -> (Int, RosterWeekSlotDefinition) -> Html
 renderBlockCells isEditable assignmentFilters staffMembers shiftTypes endTimesEnabled publishAttempted rosterDay rowIndex _rowSlots renderIndexes (blockIndex, slotName) =
@@ -127,18 +129,18 @@ renderEditableExistingSlotBlockCells _assignmentFilters _staffMembers shiftTypes
 renderEditableEndTimeSlotCells :: (?context :: ControllerContext) => ExistingSlotDisplay -> RosterSlotCellTarget -> Text -> Int -> RosterSlot -> Html
 renderEditableEndTimeSlotCells display target groupKey blockIndex slot =
     renderEditableShiftUnit target groupKey slot 4
-        [ ReadOnlyExistingSlotCell (classes [("slot-time-cell slot-start-time-cell", True), ("roster-block-start", blockIndex > 0), ("is-roster-shift-publish-required", display.displayMissingStartTime)]) display.displayShiftTypeColourKey (renderReadOnlyCell display.displayStartLabel) Nothing
-        , ReadOnlyExistingSlotCell (classes [("slot-time-cell slot-end-time-cell", True), ("is-roster-shift-publish-required", display.displayMissingEndTime)]) display.displayShiftTypeColourKey (renderReadOnlyCell display.displayEndLabel) Nothing
-        , ReadOnlyExistingSlotCell (classes [("slot-staff-cell position-relative", True), (renderConflictClass display.displayPrimaryConflict, True)]) display.displayShiftTypeColourKey (renderReadOnlyStaffCell display.displayStaffLabel display.displayPrimaryConflict) (Just (renderConflictMessage display.displayPrimaryConflict))
-        , ReadOnlyExistingSlotCell (classes [("slot-shift-type-cell roster-block-end", True), ("is-shift-type-empty", not display.displayHasShiftType), ("is-shift-type-required", display.displayMissingShiftType)]) display.displayShiftTypeColourKey (renderReadOnlyCell display.displayShiftTypeLabel) Nothing
+        [ readOnlyTimeCell (classes [("slot-time-cell slot-start-time-cell", True), ("roster-block-start", blockIndex > 0), ("is-roster-shift-publish-required", display.displayMissingStartTime)]) display.displayShiftTypeColourKey display.displayStartLabel
+        , readOnlyTimeCell (classes [("slot-time-cell slot-end-time-cell", True), ("is-roster-shift-publish-required", display.displayMissingEndTime)]) display.displayShiftTypeColourKey display.displayEndLabel
+        , readOnlyStaffCell display
+        , readOnlyShiftTypeCell display
         ]
 
 renderEditableNoEndTimeSlotCells :: (?context :: ControllerContext) => ExistingSlotDisplay -> RosterSlotCellTarget -> Text -> Int -> RosterSlot -> Html
 renderEditableNoEndTimeSlotCells display target groupKey blockIndex slot =
     renderEditableShiftUnit target groupKey slot 3
-        [ ReadOnlyExistingSlotCell (classes [("slot-time-cell", True), ("roster-block-start", blockIndex > 0), ("is-roster-shift-publish-required", display.displayMissingStartTime)]) display.displayShiftTypeColourKey (renderReadOnlyCell display.displayTimeLabel) Nothing
-        , ReadOnlyExistingSlotCell (classes [("slot-staff-cell position-relative", True), (renderConflictClass display.displayPrimaryConflict, True)]) display.displayShiftTypeColourKey (renderReadOnlyStaffCell display.displayStaffLabel display.displayPrimaryConflict) (Just (renderConflictMessage display.displayPrimaryConflict))
-        , ReadOnlyExistingSlotCell (classes [("slot-shift-type-cell roster-block-end", True), ("is-shift-type-empty", not display.displayHasShiftType), ("is-shift-type-required", display.displayMissingShiftType)]) display.displayShiftTypeColourKey (renderReadOnlyCell display.displayShiftTypeLabel) Nothing
+        [ readOnlyTimeCell (classes [("slot-time-cell", True), ("roster-block-start", blockIndex > 0), ("is-roster-shift-publish-required", display.displayMissingStartTime)]) display.displayShiftTypeColourKey display.displayTimeLabel
+        , readOnlyStaffCell display
+        , readOnlyShiftTypeCell display
         ]
 
 -- Editable row-grid shifts are one modal launcher per shift, not one launcher per
@@ -167,21 +169,19 @@ shiftUnitColour []       = ""
 shiftUnitColour (cell:_) = cell.readOnlyCellColourKey
 
 renderEditableShiftUnitCell :: ReadOnlyExistingSlotCell -> Html
-renderEditableShiftUnitCell ReadOnlyExistingSlotCell { readOnlyCellClasses, readOnlyCellColourKey, readOnlyCellContent, readOnlyCellConflictAttrs = Just conflictMessage } = [hsx|
-    <div class={"roster-shift-unit-cell " <> readOnlyCellClasses}
-         title={conflictMessage}
-         data-conflict-message={conflictMessage}
-         data-roster-shift-colour={readOnlyCellColourKey}>
-        {readOnlyCellContent}
-    </div>
-|]
-renderEditableShiftUnitCell ReadOnlyExistingSlotCell { readOnlyCellClasses, readOnlyCellColourKey, readOnlyCellContent, readOnlyCellConflictAttrs = Nothing } = [hsx|
-    <div class={"roster-shift-unit-cell " <> readOnlyCellClasses}
-         data-roster-shift-colour={readOnlyCellColourKey}>
-        {readOnlyCellContent}
-    </div>
-|]
+renderEditableShiftUnitCell cell =
+    renderExistingSlotCell Nothing ("roster-shift-unit-cell " <> cell.readOnlyCellClasses) cell
 
+renderExistingSlotCell :: Maybe Text -> Text -> ReadOnlyExistingSlotCell -> Html
+renderExistingSlotCell maybeRole cellClasses ReadOnlyExistingSlotCell { readOnlyCellColourKey, readOnlyCellContent, readOnlyCellConflictAttrs, readOnlyCellExportText } = [hsx|
+    <div role={maybeRole}
+         class={cellClasses}
+         title={readOnlyCellConflictAttrs}
+         data-roster-shift-colour={readOnlyCellColourKey}
+         {...rosterImageExportCellAttrs readOnlyCellExportText}>
+        {readOnlyCellContent}
+    </div>
+|]
 renderReadOnlyExistingSlotBlockCells :: (?context :: ControllerContext) => [ShiftType] -> Bool -> Bool -> RosterRenderIndexes -> Int -> RosterSlot -> Html
 renderReadOnlyExistingSlotBlockCells shiftTypes endTimesEnabled publishAttempted renderIndexes blockIndex slot =
     let display = buildExistingSlotDisplay shiftTypes publishAttempted renderIndexes slot
@@ -222,7 +222,7 @@ profileExistingSlotCounters display endTimesEnabled cellCount = mconcat
     , profileRenderCounter "render.roster.staff_label" 1
     , profileRenderCounter "render.roster.shift_type_label" 1
     , profileRenderCounter "render.roster.conflict_cell" (if isJust display.displayPrimaryConflict then 1 else 0)
-    , profileRenderCounter "render.roster.conflict_attr" (if isJust display.displayPrimaryConflict then 2 else 0)
+    , profileRenderCounter "render.roster.conflict_attr" (if isJust display.displayPrimaryConflict then 1 else 0)
     , profileRenderCounter "render.roster.publish_required_marker" (sum (map fromEnum [display.displayMissingStartTime, display.displayMissingEndTime, display.displayMissingShiftType]))
     ]
 
@@ -255,6 +255,7 @@ readOnlyTimeCell cellClasses colourKey label = ReadOnlyExistingSlotCell
     , readOnlyCellColourKey = colourKey
     , readOnlyCellContent = renderReadOnlyCell label
     , readOnlyCellConflictAttrs = Nothing
+    , readOnlyCellExportText = label
     }
 
 readOnlyStaffCell :: ExistingSlotDisplay -> ReadOnlyExistingSlotCell
@@ -263,6 +264,7 @@ readOnlyStaffCell display = ReadOnlyExistingSlotCell
     , readOnlyCellColourKey = display.displayShiftTypeColourKey
     , readOnlyCellContent = renderReadOnlyStaffCell display.displayStaffLabel display.displayPrimaryConflict
     , readOnlyCellConflictAttrs = Just (renderConflictMessage display.displayPrimaryConflict)
+    , readOnlyCellExportText = display.displayStaffLabel
     }
 
 readOnlyShiftTypeCell :: ExistingSlotDisplay -> ReadOnlyExistingSlotCell
@@ -271,26 +273,12 @@ readOnlyShiftTypeCell display = ReadOnlyExistingSlotCell
     , readOnlyCellColourKey = display.displayShiftTypeColourKey
     , readOnlyCellContent = renderReadOnlyCell display.displayShiftTypeLabel
     , readOnlyCellConflictAttrs = Nothing
+    , readOnlyCellExportText = display.displayShiftTypeLabel
     }
 
 renderReadOnlyExistingSlotCell :: ReadOnlyExistingSlotCell -> Html
-renderReadOnlyExistingSlotCell ReadOnlyExistingSlotCell { readOnlyCellClasses, readOnlyCellColourKey, readOnlyCellContent, readOnlyCellConflictAttrs = Just conflictMessage } = [hsx|
-    <div role="gridcell"
-         class={readOnlyCellClasses}
-         title={conflictMessage}
-         data-conflict-message={conflictMessage}
-         data-roster-shift-colour={readOnlyCellColourKey}>
-        {readOnlyCellContent}
-    </div>
-|]
-renderReadOnlyExistingSlotCell ReadOnlyExistingSlotCell { readOnlyCellClasses, readOnlyCellColourKey, readOnlyCellContent, readOnlyCellConflictAttrs = Nothing } = [hsx|
-    <div role="gridcell"
-         class={readOnlyCellClasses}
-         data-roster-shift-colour={readOnlyCellColourKey}>
-        {readOnlyCellContent}
-    </div>
-|]
-
+renderReadOnlyExistingSlotCell cell =
+    renderExistingSlotCell (Just "gridcell") cell.readOnlyCellClasses cell
 renderDayColumnRosterSlotCard :: (?context :: ControllerContext) => RosterDayRenderModel -> RosterSlot -> Html
 renderDayColumnRosterSlotCard RosterDayRenderModel { dayIsEditable, dayAssignmentFilters, dayStaffMembers, dayShiftTypes, dayRenderIndexes, dayRosterEndTimesEnabled, dayPublishAttempted } slot =
     renderDayColumnSlotCardContent dayIsEditable dayAssignmentFilters dayStaffMembers dayShiftTypes dayRosterEndTimesEnabled dayPublishAttempted dayRenderIndexes (ExistingRosterSlotTarget slot.id) slot.staffId slot.startTime slot.endTime slot.shiftTypeId (primaryConflict (lookupConflicts (get #id slot) dayRenderIndexes))
@@ -348,8 +336,7 @@ renderDayColumnSlotCardContent isEditable _assignmentFilters _staffMembers shift
                      data-roster-shift-colour={currentShiftTypeColourKey}
                      data-roster-shift-launcher={if isEditable then ("true" :: Text) else ""}
                      tabindex={if isEditable then ("0" :: Text) else ""}
-                     title={renderConflictMessage currentPrimaryConflict}
-                     data-conflict-message={renderConflictMessage currentPrimaryConflict}>
+                     title={renderConflictMessage currentPrimaryConflict}>
                 <div class={classes [("roster-shift-card-fields", True), ("has-end-times", endTimesEnabled)]}>
                     <div class={classes [("roster-shift-card-field roster-shift-card-time", True), ("is-roster-shift-publish-required", missingStartTime)]}>
                         {renderReadOnlyCell (renderTimePickerDisplayLabel "Start" currentStartTime)}
@@ -457,7 +444,7 @@ renderCreateShiftUnit target groupKey visualCellClasses gridSpan =
             |]
 
 renderCreateShiftUnitVisualCell :: Text -> Html
-renderCreateShiftUnitVisualCell cellClasses = [hsx|<div class={cellClasses}></div>|]
+renderCreateShiftUnitVisualCell cellClasses = [hsx|<div class={cellClasses} {...rosterImageExportCellAttrs ""}></div>|]
 
 withRosterShiftGroupHighlight :: Text -> Blaze.Html -> Blaze.Html
 withRosterShiftGroupHighlight membershipKey =
@@ -493,7 +480,7 @@ renderBlankBlockCells counterName baseClass endTimesEnabled blockIndex =
             ] <> replicate (cellCount - 2) baseClass <> [baseClass <> " roster-block-end"]
 
 renderBlankGridCell :: Text -> Html
-renderBlankGridCell cellClasses = [hsx|<div role="gridcell" class={cellClasses}></div>|]
+renderBlankGridCell cellClasses = [hsx|<div role="gridcell" class={cellClasses} {...rosterImageExportCellAttrs ""}></div>|]
 
 renderShiftTypeOptionLabel :: ShiftType -> Text
 renderShiftTypeOptionLabel shiftType =

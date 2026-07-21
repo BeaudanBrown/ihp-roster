@@ -26,6 +26,8 @@ import Application.Helper.FrontendContract.Surface.Request.Runtime
 import Application.Helper.FrontendContract.Surface.Resource
 import qualified Application.Helper.FrontendContract.Surface.Roster as RosterSurface
 import Application.Helper.FrontendContract.Surface.Roster.Chrome
+import Application.Helper.FrontendContract.Surface.Roster.ImageExport
+import Application.Helper.FrontendContract.Surface.Roster.WeekOverview
 import Application.Helper.FrontendContract.Surface.Runtime
 import Application.Helper.FrontendContract.Surface.TabSet (surfaceTabSetAttrs)
 import qualified Application.Helper.FrontendContract.Surface.Timesheets as TimesheetsSurface
@@ -35,6 +37,8 @@ import Application.Helper.FrontendContract.TypeScript (renderFrontendContractTyp
 import qualified Data.Aeson as Aeson
 import Data.Proxy (Proxy (..))
 import qualified Data.Text as Text
+import qualified Data.Text.Encoding as TextEncoding
+import qualified Data.Time.Calendar as Calendar
 import qualified Data.UUID as UUID
 import IHP.Prelude
 import Test.Hspec
@@ -861,11 +865,99 @@ tests = describe "FrontendSurface DSL foundation" do
         rosterColumnEditStartAttrs `shouldBe` [("data-bepis-roster-column-edit-start", "true")]
         rosterColumnEditDoneAttrs `shouldBe` [("data-bepis-roster-column-edit-done", "true")]
 
+    it "renders the exact roster JPG export boundary from Haskell" do
+        let filename = rosterImageExportFilename "Front Bar" (Calendar.fromGregorian 2025 1 6)
+        filename `shouldBe` "roster-front-bar-week-of-6-jan.jpg"
+        rosterImageExportProjectionAttrs `shouldBe` [("data-bepis-roster-image-export-projection", "true")]
+        rosterImageExportRowAttrs `shouldBe` [("data-bepis-roster-image-export-row", "true")]
+        rosterImageExportCellAttrs "09:00"
+            `shouldBe`
+                [ ("data-bepis-roster-image-export-cell", "{\"imageExportText\":\"09:00\"}")
+                ]
+        let triggerAttrs = rosterJpgImageExportTriggerAttrs filename
+        triggerAttrs `shouldContain` [("data-bepis-roster-image-export-trigger", "true")]
+        triggerAttrs `shouldContain` [("data-bepis-roster-image-export-format", "jpg")]
+        let rawConfig = fromMaybe (error "missing roster image export config") (lookup "data-bepis-roster-image-export-config" triggerAttrs)
+        Aeson.decodeStrict (TextEncoding.encodeUtf8 rawConfig)
+            `shouldBe` Just
+                ( Aeson.object
+                    [ "imageExportFilename" Aeson..= filename
+                    , "imageExportMimeType" Aeson..= ("image/jpeg" :: Text)
+                    , "imageExportQualityPercent" Aeson..= (92 :: Int)
+                    , "imageExportPixelRatio" Aeson..= (2 :: Int)
+                    , "imageExportMinimumWidth" Aeson..= (920 :: Int)
+                    , "imageExportMaximumWidth" Aeson..= (1240 :: Int)
+                    , "imageExportIdleLabel" Aeson..= ("Export JPG" :: Text)
+                    , "imageExportPreparingLabel" Aeson..= ("Preparing..." :: Text)
+                    , "imageExportDownloadedLabel" Aeson..= ("Downloaded" :: Text)
+                    , "imageExportFailedLabel" Aeson..= ("Export failed" :: Text)
+                    , "imageExportFailureMessage" Aeson..= ("Roster export failed. Please try again." :: Text)
+                    , "imageExportMissingProjectionMessage" Aeson..= ("Could not find the current roster grid." :: Text)
+                    , "imageExportCloneFailureMessage" Aeson..= ("Could not clone the current roster grid." :: Text)
+                    , "imageExportRenderFailureMessage" Aeson..= ("Failed to render roster export image." :: Text)
+                    , "imageExportCanvasFailureMessage" Aeson..= ("Failed to initialize roster export canvas." :: Text)
+                    , "imageExportEncodingFailureMessage" Aeson..= ("Failed to encode roster export image." :: Text)
+                    ]
+                )
+
+    it "renders exact roster week-overview panel, day, slot, and state boundaries" do
+        let currentDate = Calendar.fromGregorian 2025 1 6
+        rosterWeekOverviewPanelAttrs currentDate
+            `shouldBe`
+                [ ("data-bepis-roster-week-overview-panel", "{\"weekOverviewCurrentDate\":\"2025-01-06\"}")
+                ]
+        let payload = RosterWeekOverviewDayPayload
+                { weekOverviewDate = currentDate
+                , weekOverviewSelectedLabel = "Mon 6 Jan"
+                , weekOverviewLeaveDisplay = "2"
+                , weekOverviewAssignedDisplay = "5"
+                , weekOverviewHoursDisplay = "30h"
+                , weekOverviewSummaryText = "2 unavailable periods, 5 shifts assigned, 30h rostered."
+                , weekOverviewWeekLabel = "In Week of 6 Jan"
+                , weekOverviewNavigationUrl = "/ShowRosterWeek?weekOffset=0&weekDate=2025-01-06"
+                , weekOverviewAvailability = RosterWeekOverviewLoaded
+                , weekOverviewClosure = RosterWeekOverviewClosed
+                }
+        let dayAttrs = rosterWeekOverviewDayAttrs RosterWeekOverviewToday payload
+        dayAttrs `shouldContain` [("data-bepis-roster-week-overview-availability", "loaded")]
+        dayAttrs `shouldContain` [("data-bepis-roster-week-overview-closure", "closed")]
+        dayAttrs `shouldContain` [("data-bepis-roster-week-overview-calendar-day", "today")]
+        let rawDay = fromMaybe (error "missing roster week-overview day payload") (lookup "data-bepis-roster-week-overview-day" dayAttrs)
+        Aeson.decodeStrict (TextEncoding.encodeUtf8 rawDay)
+            `shouldBe` Just
+                ( Aeson.object
+                    [ "weekOverviewDate" Aeson..= currentDate
+                    , "weekOverviewSelectedLabel" Aeson..= ("Mon 6 Jan" :: Text)
+                    , "weekOverviewLeaveDisplay" Aeson..= ("2" :: Text)
+                    , "weekOverviewAssignedDisplay" Aeson..= ("5" :: Text)
+                    , "weekOverviewHoursDisplay" Aeson..= ("30h" :: Text)
+                    , "weekOverviewSummaryText" Aeson..= ("2 unavailable periods, 5 shifts assigned, 30h rostered." :: Text)
+                    , "weekOverviewWeekLabel" Aeson..= ("In Week of 6 Jan" :: Text)
+                    , "weekOverviewNavigationUrl" Aeson..= ("/ShowRosterWeek?weekOffset=0&weekDate=2025-01-06" :: Text)
+                    , "weekOverviewAvailability" Aeson..= ("loaded" :: Text)
+                    , "weekOverviewClosure" Aeson..= ("closed" :: Text)
+                    ]
+                )
+        rosterWeekOverviewTodayAttrs `shouldBe` [("data-bepis-roster-week-overview-today", "true")]
+        rosterWeekOverviewDetailsAttrs RosterWeekOverviewLoaded RosterWeekOverviewClosed
+            `shouldBe`
+                [ ("data-bepis-roster-week-overview-details", "true")
+                , ("data-bepis-roster-week-overview-availability", "loaded")
+                , ("data-bepis-roster-week-overview-closure", "closed")
+                ]
+        rosterWeekOverviewSelectedLabelAttrs `shouldBe` [("data-bepis-roster-week-overview-selected-label", "true")]
+        rosterWeekOverviewLeaveValueAttrs `shouldBe` [("data-bepis-roster-week-overview-leave-value", "true")]
+        rosterWeekOverviewAssignedValueAttrs `shouldBe` [("data-bepis-roster-week-overview-assigned-value", "true")]
+        rosterWeekOverviewHoursValueAttrs `shouldBe` [("data-bepis-roster-week-overview-hours-value", "true")]
+        rosterWeekOverviewSummaryAttrs `shouldBe` [("data-bepis-roster-week-overview-summary", "true")]
+        rosterWeekOverviewWeekLabelAttrs `shouldBe` [("data-bepis-roster-week-overview-week-label", "true")]
+        rosterWeekOverviewGoLinkAttrs `shouldBe` [("data-bepis-roster-week-overview-go-link", "true")]
+
     it "reflects the registered roster surface into checked contract IR" do
         let surface = expectSurface "roster" registeredFrontendSurfaceContractIR
 
         map (.scopeName) surface.surfaceScopes `shouldBe` ["roster-week"]
-        surface.surfaceBrowserDomTokens `shouldBe` ["roster-content"]
+        surface.surfaceBrowserDomTokens `shouldBe` []
         map (.fragmentName) surface.surfaceFragments
             `shouldBe` [ "roster-content"
                        , "roster-grid-toolbar"
@@ -931,6 +1023,22 @@ tests = describe "FrontendSurface DSL foundation" do
                        , "data-bepis-roster-column-editor"
                        , "data-bepis-roster-column-edit-start"
                        , "data-bepis-roster-column-edit-done"
+                       , "data-bepis-roster-image-export-trigger"
+                       , "data-bepis-roster-image-export-config"
+                       , "data-bepis-roster-image-export-projection"
+                       , "data-bepis-roster-image-export-row"
+                       , "data-bepis-roster-image-export-cell"
+                       , "data-bepis-roster-week-overview-panel"
+                       , "data-bepis-roster-week-overview-day"
+                       , "data-bepis-roster-week-overview-today"
+                       , "data-bepis-roster-week-overview-details"
+                       , "data-bepis-roster-week-overview-selected-label"
+                       , "data-bepis-roster-week-overview-leave-value"
+                       , "data-bepis-roster-week-overview-assigned-value"
+                       , "data-bepis-roster-week-overview-hours-value"
+                       , "data-bepis-roster-week-overview-summary"
+                       , "data-bepis-roster-week-overview-week-label"
+                       , "data-bepis-roster-week-overview-go-link"
                        , "data-bepis-roster-staff-highlight-source"
                        , "data-bepis-roster-staff-highlight-member"
                        , "data-bepis-roster-staff-highlight-pin"
@@ -941,10 +1049,21 @@ tests = describe "FrontendSurface DSL foundation" do
             `shouldBe`
                 [ "data-bepis-roster-fullscreen"
                 , "data-bepis-roster-column-editing"
+                , "data-bepis-roster-image-export-format"
+                , "data-bepis-roster-week-overview-availability"
+                , "data-bepis-roster-week-overview-closure"
+                , "data-bepis-roster-week-overview-calendar-day"
                 , "data-bepis-roster-staff-highlight-order"
                 ]
         map (\state -> (state.browserClosedStateAttribute.browserAttributeName, state.browserClosedStateValues)) surface.surfaceBrowserClosedStates
-            `shouldBe` [("fullscreen", ["collapsed", "expanded"]), ("column-editing", ["inactive", "active"])]
+            `shouldBe`
+                [ ("fullscreen", ["collapsed", "expanded"])
+                , ("column-editing", ["inactive", "active"])
+                , ("image-export-format", ["jpg"])
+                , ("week-overview-availability", ["loaded", "unloaded"])
+                , ("week-overview-closure", ["open", "closed"])
+                , ("week-overview-calendar-day", ["today", "other-day"])
+                ]
         map (.linkedHighlightName) surface.surfaceLinkedHighlights
             `shouldBe` ["staff-shifts-highlight", "shift-group-highlight"]
         let staffSort = fromMaybe (error "missing roster staff sort") (listToMaybe surface.surfaceCompleteSetSorts)
@@ -984,11 +1103,17 @@ tests = describe "FrontendSurface DSL foundation" do
         frontendSurfaceContractsTypeScript `shouldContainText` "export type RosterSurfaceFragmentKey ="
         frontendSurfaceContractsTypeScript `shouldContainText` "export type RosterRosterWeekScope = { venueId: FrontendContractUuid; rosterGroupId: FrontendContractUuid; weekOffset: number };"
         frontendSurfaceContractsTypeScript `shouldContainText` "{ kind: \"roster-row\"; params: RosterRosterRowFragmentParams }"
-        frontendSurfaceContractsTypeScript `shouldContainText` "export const rosterContentDomToken = \"roster-content\" as const;"
+        frontendSurfaceContractsTypeScript `shouldNotContainText` "export const rosterContentDomToken"
         frontendSurfaceContractsTypeScript `shouldNotContainText` "export const rosterWeekShellDomToken"
         frontendSurfaceContractsTypeScript `shouldContainText` "export const rosterStaffHighlightSourceDomAttr = \"data-bepis-roster-staff-highlight-source\" as const;"
         frontendSurfaceContractsTypeScript `shouldContainText` "export const rosterDayTimelineShiftGroupHighlightMemberDomAttr = \"data-bepis-roster-day-timeline-shift-group-highlight-member\" as const;"
         frontendSurfaceContractsTypeScript `shouldContainText` "export type RosterStaffPanelSortRow = { staffRowKey: string; staffName: string; staffRole: string; assignedShifts: number; idealShifts: number };"
+        frontendSurfaceContractsTypeScript `shouldContainText` "export type RosterImageExportConfig = { imageExportFilename: string; imageExportMimeType: string; imageExportQualityPercent: number; imageExportPixelRatio: number; imageExportMinimumWidth: number; imageExportMaximumWidth: number; imageExportIdleLabel: string; imageExportPreparingLabel: string;"
+        frontendSurfaceContractsTypeScript `shouldContainText` "export function parseRosterImageExportConfig(value: unknown): RosterImageExportConfig"
+        frontendSurfaceContractsTypeScript `shouldContainText` "export type RosterImageExportCell = { imageExportText: string };"
+        frontendSurfaceContractsTypeScript `shouldContainText` "export type RosterWeekOverviewPanelConfig = { weekOverviewCurrentDate: FrontendContractDay };"
+        frontendSurfaceContractsTypeScript `shouldContainText` "export type RosterWeekOverviewDayConfig = { weekOverviewDate: FrontendContractDay; weekOverviewSelectedLabel: string; weekOverviewLeaveDisplay: string; weekOverviewAssignedDisplay: string; weekOverviewHoursDisplay: string; weekOverviewSummaryText: string; weekOverviewWeekLabel: string; weekOverviewNavigationUrl: string; weekOverviewAvailability: string; weekOverviewClosure: string };"
+        frontendSurfaceContractsTypeScript `shouldContainText` "export function parseRosterWeekOverviewDayConfig(value: unknown): RosterWeekOverviewDayConfig"
         frontendSurfaceContractsTypeScript `shouldContainText` "export function parseRosterStaffPanelSortRow(value: unknown): RosterStaffPanelSortRow"
         frontendSurfaceContractsTypeScript `shouldContainText` "export type RosterStaffPanelSortKey = \"name\" | \"role\" | \"shifts\";"
         frontendSurfaceContractsTypeScript `shouldContainText` "export type RosterStaffPanelTabsKey = \"staff\" | \"settings\";"

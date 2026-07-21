@@ -759,20 +759,24 @@ tests = aroundAll withDatabaseTestContext do
                 workerResponse `responseBodyShouldNotContain` "Warnings disabled"
                 workerResponse `responseBodyShouldContain` "data-roster-warnings=\"hidden\""
 
-        it "shows roster JPG export only to managers on live weeks" $ withContext do
+        it "shows roster JPG export only to managers on live row-grid weeks" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Venue A"
                 manager <- createUserRecord "roster-manager-export-live-only@example.com" "staff" True
                 worker <- createUserRecord "roster-worker-export-hidden@example.com" "staff" True
                 _ <- createVenueMembershipRecord venue manager "manager"
                 _ <- createVenueMembershipRecord venue worker "worker"
-                _ <- fetchSlotNameRecord venue "Early"
+                slotName <- fetchSlotNameRecord venue "Early"
                 draftWeek <- createRosterWeekRecord venue 0 False
+                rosterDay <- createRosterDayRecord draftWeek 0
+                _ <- createRosterSlotRecord rosterDay slotName Nothing 0
 
                 draftManagerResponse <- withUserAndCurrentVenue manager venue.id do
                     callAction (ShowRosterWeekAction 0)
                 draftManagerResponse `responseStatusShouldBe` status200
                 draftManagerResponse `responseBodyShouldNotContain` "Export JPG"
+                draftManagerResponse `responseBodyShouldContain` "roster-shift-create-grid"
+                draftManagerResponse `responseBodyShouldContain` "class=\"roster-shift-unit-cell slot-empty-cell\" data-bepis-roster-image-export-cell=\"{&quot;imageExportText&quot;:&quot;&quot;}\""
 
                 _ <- updateRecord (draftWeek |> set #isLive True)
 
@@ -780,6 +784,35 @@ tests = aroundAll withDatabaseTestContext do
                     callAction (ShowRosterWeekAction 0)
                 liveManagerResponse `responseStatusShouldBe` status200
                 liveManagerResponse `responseBodyShouldContain` "Export JPG"
+                liveManagerResponse `responseBodyShouldContain` "data-bepis-roster-image-export-trigger=\"true\""
+                liveManagerResponse `responseBodyShouldContain` "data-bepis-roster-image-export-format=\"jpg\""
+                liveManagerResponse `responseBodyShouldContain` "data-bepis-roster-image-export-config="
+                liveManagerResponse `responseBodyShouldContain` "&quot;imageExportFilename&quot;:&quot;roster-"
+                liveManagerResponse `responseBodyShouldContain` "data-bepis-roster-image-export-projection=\"true\""
+                liveManagerResponse `responseBodyShouldContain` "data-bepis-roster-image-export-cell="
+                liveManagerResponse `responseBodyShouldContain` "class=\"roster-subhead roster-col-time\" data-bepis-roster-image-export-cell=\"{&quot;imageExportText&quot;:&quot;Start&quot;}\">Start</div>"
+
+                _ <- withPasskeyVerifiedUserAndCurrentVenue manager venue.id do
+                    withRequestHeaders [("HX-Request", "true")] do
+                        callActionWithParams
+                            (UpdateRosterLayoutPreferenceAction 0)
+                            [("rosterLayoutMode", "day_columns")]
+
+                dayColumnsManagerResponse <- withUserAndCurrentVenue manager venue.id do
+                    callAction (ShowRosterWeekAction 0)
+                dayColumnsManagerResponse `responseStatusShouldBe` status200
+                dayColumnsManagerResponse `responseBodyShouldContain` "data-roster-layout=\"day_columns\""
+                dayColumnsManagerResponse `responseBodyShouldNotContain` "data-bepis-roster-image-export-trigger"
+
+                timelineManagerResponse <- withUserAndCurrentVenue manager venue.id do
+                    callActionWithParams
+                        (ShowRosterWeekAction 0)
+                        [ ("rosterView", "timeline")
+                        , ("dayOffset", "0")
+                        ]
+                timelineManagerResponse `responseStatusShouldBe` status200
+                timelineManagerResponse `responseBodyShouldContain` "data-roster-layout=\"timeline\""
+                timelineManagerResponse `responseBodyShouldNotContain` "data-bepis-roster-image-export-trigger"
 
                 workerResponse <- withUserAndCurrentVenue worker venue.id do
                     callAction (ShowRosterWeekAction 0)

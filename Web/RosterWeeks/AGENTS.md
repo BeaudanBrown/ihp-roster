@@ -13,6 +13,12 @@ or roster views.
 - Keep roster-owned DOM ids/selectors centralized in `Dom.hs`. Reusable shift
   time fields use `Application.Helper.View.TimePicker`; do not add roster-local
   picker attributes, selector classes, option data, or browser fallback copy.
+- Roster image export must use `Surface.Roster.ImageExport` for trigger policy,
+  filename, projection roles, and exact cell text; do not restore class/position
+  inference or raw conflict/export annotations.
+- The retained week overview must use `Surface.Roster.WeekOverview` exact
+  payloads/roles/states and remain absent from the active header unless a future
+  product ticket explicitly re-enables it.
 - Keep roster `FrontendSurface` fragment metadata, resource dependencies, and live fanout semantics in `FrontendSurface.hs`; passive fanout must go through touched resources and the FrontendSurface registry/runtime path.
 - Construct and match roster live identity through `Application.Helper.FrontendContract.Surface.Roster.Live`; do not import raw live transport modules or recover fragment identity from target IDs.
 - Construct roster dependency resources through `Application.Helper.FrontendContract.Surface.Roster.Resource`; roster domain expansion must use typed feature matchers rather than raw resource names or fields.

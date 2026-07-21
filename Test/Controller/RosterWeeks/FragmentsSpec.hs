@@ -891,8 +891,8 @@ tests = aroundAll withDatabaseTestContext do
                 let secondRowText = cs secondRowBody :: String
                 firstRowText `shouldContain` "conflict-critical"
                 secondRowText `shouldContain` "conflict-critical"
-                firstRowText `shouldContain` "data-conflict-message="
-                secondRowText `shouldContain` "data-conflict-message="
+                firstRowText `shouldContain` "title="
+                secondRowText `shouldContain` "title="
 
         it "renders a static roster week label without the month overview trigger" $ withContext do
             withCleanDb do
@@ -907,9 +907,9 @@ tests = aroundAll withDatabaseTestContext do
                 response `responseBodyShouldContain` "roster-week-nav-label"
                 response `responseBodyShouldContain` "Week of"
                 response `responseBodyShouldNotContain` "Open roster week overview"
-                response `responseBodyShouldNotContain` "data-week-overview-fragment-mount=\"true\""
+                response `responseBodyShouldNotContain` "data-bepis-roster-week-overview-panel="
                 response `responseBodyShouldNotContain` "hx-get=\"/ShowRosterWeekOverviewFragment?weekOffset=0&amp;rosterGroupId="
-                response `responseBodyShouldNotContain` "data-week-overview-day=\"true\""
+                response `responseBodyShouldNotContain` "data-bepis-roster-week-overview-day="
 
         it "promotes roster layout selection through typed interaction intent markup" $ withContext do
             withCleanDb do
@@ -1215,13 +1215,13 @@ tests = aroundAll withDatabaseTestContext do
                     callAction (ShowRosterWeekOverviewFragmentAction 0)
 
                 response `responseStatusShouldBe` status200
-                response `responseBodyShouldContain` "data-week-overview-loaded=\"true\""
-                response `responseBodyShouldContain` "data-week-overview-date=\"2025-01-13\""
-                response `responseBodyShouldContain` "data-week-overview-assigned=\"2\""
-                response `responseBodyShouldContain` "data-week-overview-hours=\"8h\""
-                response `responseBodyShouldContain` "data-week-overview-leave=\"1\""
-                response `responseBodyShouldNotContain` "data-week-overview-leave=\"2\""
-                response `responseBodyShouldContain` "data-week-overview-date=\"2025-01-01\""
+                response `responseBodyShouldContain` "data-bepis-roster-week-overview-panel="
+                response `responseBodyShouldContain` "&quot;weekOverviewDate&quot;:&quot;2025-01-13&quot;"
+                response `responseBodyShouldContain` "&quot;weekOverviewAssignedDisplay&quot;:&quot;2&quot;"
+                response `responseBodyShouldContain` "&quot;weekOverviewHoursDisplay&quot;:&quot;8h&quot;"
+                response `responseBodyShouldContain` "&quot;weekOverviewLeaveDisplay&quot;:&quot;1&quot;"
+                response `responseBodyShouldNotContain` "&quot;weekOverviewLeaveDisplay&quot;:&quot;2&quot;"
+                response `responseBodyShouldContain` "&quot;weekOverviewDate&quot;:&quot;2025-01-01&quot;"
                 response `responseBodyShouldContain` "weekDate=2025-01-13"
 
 targetFragmentKeys :: [SurfaceInvalidationTarget] -> [[SurfaceFragmentKey]]

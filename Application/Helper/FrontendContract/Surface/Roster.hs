@@ -71,6 +71,65 @@ module Application.Helper.FrontendContract.Surface.Roster
     , ColumnEditingState
     , Inactive
     , Active
+    , ImageExportTriggerRole
+    , ImageExportConfigRole
+    , ImageExportProjectionRole
+    , ImageExportRowRole
+    , ImageExportCellRole
+    , ImageExportFormat
+    , Jpg
+    , RosterImageExportConfig
+    , RosterImageExportCell
+    , ImageExportFilename
+    , ImageExportMimeType
+    , ImageExportQualityPercent
+    , ImageExportPixelRatio
+    , ImageExportMinimumWidth
+    , ImageExportMaximumWidth
+    , ImageExportIdleLabel
+    , ImageExportPreparingLabel
+    , ImageExportDownloadedLabel
+    , ImageExportFailedLabel
+    , ImageExportFailureMessage
+    , ImageExportMissingProjectionMessage
+    , ImageExportCloneFailureMessage
+    , ImageExportRenderFailureMessage
+    , ImageExportCanvasFailureMessage
+    , ImageExportEncodingFailureMessage
+    , ImageExportText
+    , WeekOverviewPanelRole
+    , WeekOverviewDayRole
+    , WeekOverviewTodayRole
+    , WeekOverviewDetailsRole
+    , WeekOverviewSelectedLabelRole
+    , WeekOverviewLeaveValueRole
+    , WeekOverviewAssignedValueRole
+    , WeekOverviewHoursValueRole
+    , WeekOverviewSummaryRole
+    , WeekOverviewWeekLabelRole
+    , WeekOverviewGoLinkRole
+    , WeekOverviewAvailability
+    , Loaded
+    , Unloaded
+    , WeekOverviewClosure
+    , Open
+    , Closed
+    , WeekOverviewCalendarDay
+    , Today
+    , OtherDay
+    , RosterWeekOverviewPanelConfig
+    , RosterWeekOverviewDayConfig
+    , WeekOverviewCurrentDate
+    , WeekOverviewDate
+    , WeekOverviewSelectedLabel
+    , WeekOverviewLeaveDisplay
+    , WeekOverviewAssignedDisplay
+    , WeekOverviewHoursDisplay
+    , WeekOverviewSummaryText
+    , WeekOverviewWeekLabel
+    , WeekOverviewNavigationUrl
+    , WeekOverviewAvailabilityField
+    , WeekOverviewClosureField
     , ShiftGroupHighlight
     , ShiftGroupHighlightSourceRole
     , ShiftGroupHighlightMemberRole
@@ -188,6 +247,67 @@ data ColumnEditDoneRole
 data ColumnEditingState
 data Inactive
 data Active
+
+data ImageExportTriggerRole
+data ImageExportConfigRole
+data ImageExportProjectionRole
+data ImageExportRowRole
+data ImageExportCellRole
+data ImageExportFormat
+data Jpg
+data RosterImageExportConfig
+data RosterImageExportCell
+data ImageExportFilename
+data ImageExportMimeType
+data ImageExportQualityPercent
+data ImageExportPixelRatio
+data ImageExportMinimumWidth
+data ImageExportMaximumWidth
+data ImageExportIdleLabel
+data ImageExportPreparingLabel
+data ImageExportDownloadedLabel
+data ImageExportFailedLabel
+data ImageExportFailureMessage
+data ImageExportMissingProjectionMessage
+data ImageExportCloneFailureMessage
+data ImageExportRenderFailureMessage
+data ImageExportCanvasFailureMessage
+data ImageExportEncodingFailureMessage
+data ImageExportText
+
+data WeekOverviewPanelRole
+data WeekOverviewDayRole
+data WeekOverviewTodayRole
+data WeekOverviewDetailsRole
+data WeekOverviewSelectedLabelRole
+data WeekOverviewLeaveValueRole
+data WeekOverviewAssignedValueRole
+data WeekOverviewHoursValueRole
+data WeekOverviewSummaryRole
+data WeekOverviewWeekLabelRole
+data WeekOverviewGoLinkRole
+data WeekOverviewAvailability
+data Loaded
+data Unloaded
+data WeekOverviewClosure
+data Open
+data Closed
+data WeekOverviewCalendarDay
+data Today
+data OtherDay
+data RosterWeekOverviewPanelConfig
+data RosterWeekOverviewDayConfig
+data WeekOverviewCurrentDate
+data WeekOverviewDate
+data WeekOverviewSelectedLabel
+data WeekOverviewLeaveDisplay
+data WeekOverviewAssignedDisplay
+data WeekOverviewHoursDisplay
+data WeekOverviewSummaryText
+data WeekOverviewWeekLabel
+data WeekOverviewNavigationUrl
+data WeekOverviewAvailabilityField
+data WeekOverviewClosureField
 
 data ShiftGroupHighlight
 data ShiftGroupHighlightSourceRole
@@ -430,7 +550,7 @@ type RosterActionBundle =
          , 'HtmxSwap 'HtmxOuterHTML
          , 'HtmxPushUrl 'HtmxPushUrlFalse
          ]
-     , BrowserDomToken RosterContent
+     , DomToken RosterContent
      , DomToken RosterWeekShell
      , DomToken RosterDaySection
      , DomToken RosterStaffSelfServiceLeaveFormFragment
@@ -514,6 +634,66 @@ type RosterChromeBrowserBundle =
      , BrowserClosedState ColumnEditingState '[ Inactive, Active ]
      ]
 
+type RosterImageExportBrowserBundle =
+    '[ BrowserRole ImageExportTriggerRole
+     , BrowserRole ImageExportConfigRole
+     , BrowserRole ImageExportProjectionRole
+     , BrowserRole ImageExportRowRole
+     , BrowserRole ImageExportCellRole
+     , BrowserClosedState ImageExportFormat '[ Jpg ]
+     , BrowserInboundDto RosterImageExportConfig
+        '[ Field ImageExportFilename 'WireText
+         , Field ImageExportMimeType 'WireText
+         , Field ImageExportQualityPercent 'WireInt
+         , Field ImageExportPixelRatio 'WireInt
+         , Field ImageExportMinimumWidth 'WireInt
+         , Field ImageExportMaximumWidth 'WireInt
+         , Field ImageExportIdleLabel 'WireText
+         , Field ImageExportPreparingLabel 'WireText
+         , Field ImageExportDownloadedLabel 'WireText
+         , Field ImageExportFailedLabel 'WireText
+         , Field ImageExportFailureMessage 'WireText
+         , Field ImageExportMissingProjectionMessage 'WireText
+         , Field ImageExportCloneFailureMessage 'WireText
+         , Field ImageExportRenderFailureMessage 'WireText
+         , Field ImageExportCanvasFailureMessage 'WireText
+         , Field ImageExportEncodingFailureMessage 'WireText
+         ]
+     , BrowserInboundDto RosterImageExportCell
+        '[ Field ImageExportText 'WireText ]
+     ]
+
+type RosterWeekOverviewBrowserBundle =
+    '[ BrowserRole WeekOverviewPanelRole
+     , BrowserRole WeekOverviewDayRole
+     , BrowserRole WeekOverviewTodayRole
+     , BrowserRole WeekOverviewDetailsRole
+     , BrowserRole WeekOverviewSelectedLabelRole
+     , BrowserRole WeekOverviewLeaveValueRole
+     , BrowserRole WeekOverviewAssignedValueRole
+     , BrowserRole WeekOverviewHoursValueRole
+     , BrowserRole WeekOverviewSummaryRole
+     , BrowserRole WeekOverviewWeekLabelRole
+     , BrowserRole WeekOverviewGoLinkRole
+     , BrowserClosedState WeekOverviewAvailability '[ Loaded, Unloaded ]
+     , BrowserClosedState WeekOverviewClosure '[ Open, Closed ]
+     , BrowserClosedState WeekOverviewCalendarDay '[ Today, OtherDay ]
+     , BrowserInboundDto RosterWeekOverviewPanelConfig
+        '[ Field WeekOverviewCurrentDate 'WireDay ]
+     , BrowserInboundDto RosterWeekOverviewDayConfig
+        '[ Field WeekOverviewDate 'WireDay
+         , Field WeekOverviewSelectedLabel 'WireText
+         , Field WeekOverviewLeaveDisplay 'WireText
+         , Field WeekOverviewAssignedDisplay 'WireText
+         , Field WeekOverviewHoursDisplay 'WireText
+         , Field WeekOverviewSummaryText 'WireText
+         , Field WeekOverviewWeekLabel 'WireText
+         , Field WeekOverviewNavigationUrl 'WireText
+         , Field WeekOverviewAvailabilityField 'WireText
+         , Field WeekOverviewClosureField 'WireText
+         ]
+     ]
+
 type RosterLinkedHighlightBundle =
     '[ BrowserRole StaffHighlightSourceRole
      , BrowserRole StaffHighlightMemberRole
@@ -540,7 +720,7 @@ type RosterLinkedHighlightBundle =
      ]
 
 type RosterSurface =
-    Surface Roster (Concat '[ RosterScopeBundle, RosterFragmentBundle, RosterActionBundle, RosterInteractionBundle, RosterStaffPanelBrowserBundle, RosterChromeBrowserBundle, RosterLinkedHighlightBundle ])
+    Surface Roster (Concat '[ RosterScopeBundle, RosterFragmentBundle, RosterActionBundle, RosterInteractionBundle, RosterStaffPanelBrowserBundle, RosterChromeBrowserBundle, RosterImageExportBrowserBundle, RosterWeekOverviewBrowserBundle, RosterLinkedHighlightBundle ])
 
 type RosterDayTimelineScopeBundle =
     '[ Scope RosterDayTimeline

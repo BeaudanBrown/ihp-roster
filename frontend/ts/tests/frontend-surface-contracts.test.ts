@@ -6,7 +6,6 @@ import {
     FrontendSurfaceTabSetRegistry,
     isFrontendSurfaceLiveFragmentName,
     isFrontendSurfaceName,
-    rosterContentDomToken,
     rosterDayTimelineShiftGroupHighlightMemberDomAttr,
     rosterShiftGroupHighlightMemberDomAttr,
     rosterStaffHighlightMemberDomAttr,
@@ -136,8 +135,7 @@ test("generated tab-set registry owns roster tab keys and default", () => {
     assertEqual(definition?.defaultKey, "staff");
 });
 
-test("surface DOM tokens are generated as tree-shakeable feature constants", () => {
-    assertEqual(rosterContentDomToken, "roster-content");
+test("browser-reachable surface DOM tokens are generated as tree-shakeable feature constants", () => {
     assertEqual(timesheetWeekShellDomToken, "timesheet-week-shell");
 });
 

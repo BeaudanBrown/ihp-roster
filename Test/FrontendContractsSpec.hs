@@ -106,7 +106,7 @@ tests = describe "Frontend contract generator foundation" do
         frontendContractsTypeScript `shouldSatisfy` Text.isInfixOf "export const surfaceConfigDomAttr = \"data-bepis-surface-config\" as const;"
         frontendContractsTypeScript `shouldSatisfy` Text.isInfixOf "export const surfaceActionDomAttr = \"data-bepis-surface-action\" as const;"
         frontendContractsTypeScript `shouldSatisfy` Text.isInfixOf "sourceRef: sourceRefDomAttr"
-        frontendContractsTypeScript `shouldSatisfy` Text.isInfixOf "export const rosterContentDomToken = \"roster-content\" as const;"
+        frontendContractsTypeScript `shouldNotSatisfy` Text.isInfixOf "export const rosterContentDomToken"
         frontendContractsTypeScript `shouldNotSatisfy` Text.isInfixOf "export const rosterWeekShellDomToken"
 
     it "generates roster chrome roles and closed state guards" do
@@ -123,6 +123,41 @@ tests = describe "Frontend contract generator foundation" do
             , "export function isRosterFullscreenState(value: unknown): value is RosterFullscreenState"
             , "export type RosterColumnEditingState = \"inactive\" | \"active\";"
             , "export function isRosterColumnEditingState(value: unknown): value is RosterColumnEditingState"
+            ]
+            (\expected -> frontendContractsTypeScript `shouldSatisfy` Text.isInfixOf expected)
+
+    it "generates roster image-export roles, format, and exact payload parsers" do
+        forM_
+            [ "export const rosterImageExportTriggerDomAttr = \"data-bepis-roster-image-export-trigger\" as const;"
+            , "export const rosterImageExportConfigDomAttr = \"data-bepis-roster-image-export-config\" as const;"
+            , "export const rosterImageExportProjectionDomAttr = \"data-bepis-roster-image-export-projection\" as const;"
+            , "export const rosterImageExportRowDomAttr = \"data-bepis-roster-image-export-row\" as const;"
+            , "export const rosterImageExportCellDomAttr = \"data-bepis-roster-image-export-cell\" as const;"
+            , "export const rosterImageExportFormatDomAttr = \"data-bepis-roster-image-export-format\" as const;"
+            , "export type RosterImageExportFormatState = \"jpg\";"
+            , "export function isRosterImageExportFormatState(value: unknown): value is RosterImageExportFormatState"
+            , "export type RosterImageExportConfig = { imageExportFilename: string"
+            , "export function parseRosterImageExportConfig(value: unknown): RosterImageExportConfig"
+            , "export type RosterImageExportCell = { imageExportText: string };"
+            , "export function parseRosterImageExportCell(value: unknown): RosterImageExportCell"
+            ]
+            (\expected -> frontendContractsTypeScript `shouldSatisfy` Text.isInfixOf expected)
+
+    it "generates roster week-overview roles, states, and exact payload parsers" do
+        forM_
+            [ "export const rosterWeekOverviewPanelDomAttr = \"data-bepis-roster-week-overview-panel\" as const;"
+            , "export const rosterWeekOverviewDayDomAttr = \"data-bepis-roster-week-overview-day\" as const;"
+            , "export const rosterWeekOverviewTodayDomAttr = \"data-bepis-roster-week-overview-today\" as const;"
+            , "export const rosterWeekOverviewDetailsDomAttr = \"data-bepis-roster-week-overview-details\" as const;"
+            , "export const rosterWeekOverviewAvailabilityDomAttr = \"data-bepis-roster-week-overview-availability\" as const;"
+            , "export const rosterWeekOverviewClosureDomAttr = \"data-bepis-roster-week-overview-closure\" as const;"
+            , "export type RosterWeekOverviewAvailabilityState = \"loaded\" | \"unloaded\";"
+            , "export type RosterWeekOverviewClosureState = \"open\" | \"closed\";"
+            , "export type RosterWeekOverviewCalendarDayState = \"today\" | \"other-day\";"
+            , "export type RosterWeekOverviewPanelConfig = { weekOverviewCurrentDate: FrontendContractDay };"
+            , "export function parseRosterWeekOverviewPanelConfig(value: unknown): RosterWeekOverviewPanelConfig"
+            , "export type RosterWeekOverviewDayConfig = { weekOverviewDate: FrontendContractDay"
+            , "export function parseRosterWeekOverviewDayConfig(value: unknown): RosterWeekOverviewDayConfig"
             ]
             (\expected -> frontendContractsTypeScript `shouldSatisfy` Text.isInfixOf expected)
 

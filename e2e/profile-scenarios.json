@@ -4,7 +4,7 @@
       { "kind": "visit", "name": "roster.current.full", "routeKey": "rosterCurrent", "readySelector": "#roster-week-shell" },
       { "kind": "visit", "name": "roster.current.content_fragment", "routeKey": "rosterContentFragment", "readySelector": "#roster-content" },
       { "kind": "visit", "name": "roster.current.staff_panel_fragment", "routeKey": "rosterStaffPanelFragment", "readySelector": "#roster-staff-panel-fragment" },
-      { "kind": "visit", "name": "roster.current.overview_fragment", "routeKey": "rosterOverviewFragment", "readySelector": "[data-week-overview-panel=\"true\"]" },
+      { "kind": "visit", "name": "roster.current.overview_fragment", "routeKey": "rosterOverviewFragment", "readySelector": ".roster-week-overview-panel" },
       { "kind": "visit", "name": "roster.historical.full", "routeKey": "rosterHistorical", "readySelector": "#roster-week-shell" },
       { "kind": "visit", "name": "roster.future.full", "routeKey": "rosterFuture", "readySelector": "#roster-week-shell" }
     ],

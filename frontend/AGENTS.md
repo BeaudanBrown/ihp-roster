@@ -56,6 +56,16 @@ Read this before editing `frontend/ts/`.
   Keep fullscreen icon/focus/Escape mechanics local; keep column-edit state and
   delayed-blur timers per editor and dispose timers with HTMX cleanup. Do not
   discover either capability through roster presentation classes.
+- Roster image export imports generated trigger/config/projection/row/cell roles,
+  the closed JPG format, and exact policy/cell parsers. Haskell owns the resolved
+  filename, dimensions, quality, labels, errors, and export text. Keep only
+  measurement, computed styles, SVG/Canvas, encoding, and download mechanics in
+  TypeScript; never infer cells from roster classes, positions, or conflict data.
+- The retained roster week overview imports generated panel/day/slot roles,
+  exact panel/day parsers, and closed availability/closure/calendar states.
+  Selection uses `aria-pressed`; malformed days emit structured diagnostics and
+  remain untouched. Do not restore datasets, fallback display copy, semantic
+  `is-*` classes, or an active header mount.
 - The Xero candidate-filter adapter imports generated root/search/candidate/
   config/empty roles and the exact candidate-config parser. Treat each
   Haskell-normalized projection as opaque: validate the complete local boundary,

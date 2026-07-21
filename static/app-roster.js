@@ -17,7 +17,34 @@
     if (isRosterStaffPanelSortRow(value)) return value;
     throw new Error("Invalid RosterStaffPanelSortRow");
   }
-  var rosterContentDomToken = "roster-content";
+  function isRosterImageExportConfig(value) {
+    return isRecord(value) && hasExactKeys(value, ["imageExportFilename", "imageExportMimeType", "imageExportQualityPercent", "imageExportPixelRatio", "imageExportMinimumWidth", "imageExportMaximumWidth", "imageExportIdleLabel", "imageExportPreparingLabel", "imageExportDownloadedLabel", "imageExportFailedLabel", "imageExportFailureMessage", "imageExportMissingProjectionMessage", "imageExportCloneFailureMessage", "imageExportRenderFailureMessage", "imageExportCanvasFailureMessage", "imageExportEncodingFailureMessage"], ["imageExportFilename", "imageExportMimeType", "imageExportQualityPercent", "imageExportPixelRatio", "imageExportMinimumWidth", "imageExportMaximumWidth", "imageExportIdleLabel", "imageExportPreparingLabel", "imageExportDownloadedLabel", "imageExportFailedLabel", "imageExportFailureMessage", "imageExportMissingProjectionMessage", "imageExportCloneFailureMessage", "imageExportRenderFailureMessage", "imageExportCanvasFailureMessage", "imageExportEncodingFailureMessage"]) && typeof value["imageExportFilename"] === "string" && typeof value["imageExportMimeType"] === "string" && (typeof value["imageExportQualityPercent"] === "number" && Number.isInteger(value["imageExportQualityPercent"])) && (typeof value["imageExportPixelRatio"] === "number" && Number.isInteger(value["imageExportPixelRatio"])) && (typeof value["imageExportMinimumWidth"] === "number" && Number.isInteger(value["imageExportMinimumWidth"])) && (typeof value["imageExportMaximumWidth"] === "number" && Number.isInteger(value["imageExportMaximumWidth"])) && typeof value["imageExportIdleLabel"] === "string" && typeof value["imageExportPreparingLabel"] === "string" && typeof value["imageExportDownloadedLabel"] === "string" && typeof value["imageExportFailedLabel"] === "string" && typeof value["imageExportFailureMessage"] === "string" && typeof value["imageExportMissingProjectionMessage"] === "string" && typeof value["imageExportCloneFailureMessage"] === "string" && typeof value["imageExportRenderFailureMessage"] === "string" && typeof value["imageExportCanvasFailureMessage"] === "string" && typeof value["imageExportEncodingFailureMessage"] === "string";
+  }
+  function parseRosterImageExportConfig(value) {
+    if (isRosterImageExportConfig(value)) return value;
+    throw new Error("Invalid RosterImageExportConfig");
+  }
+  function isRosterImageExportCell(value) {
+    return isRecord(value) && hasExactKeys(value, ["imageExportText"], ["imageExportText"]) && typeof value["imageExportText"] === "string";
+  }
+  function parseRosterImageExportCell(value) {
+    if (isRosterImageExportCell(value)) return value;
+    throw new Error("Invalid RosterImageExportCell");
+  }
+  function isRosterWeekOverviewPanelConfig(value) {
+    return isRecord(value) && hasExactKeys(value, ["weekOverviewCurrentDate"], ["weekOverviewCurrentDate"]) && typeof value["weekOverviewCurrentDate"] === "string";
+  }
+  function parseRosterWeekOverviewPanelConfig(value) {
+    if (isRosterWeekOverviewPanelConfig(value)) return value;
+    throw new Error("Invalid RosterWeekOverviewPanelConfig");
+  }
+  function isRosterWeekOverviewDayConfig(value) {
+    return isRecord(value) && hasExactKeys(value, ["weekOverviewDate", "weekOverviewSelectedLabel", "weekOverviewLeaveDisplay", "weekOverviewAssignedDisplay", "weekOverviewHoursDisplay", "weekOverviewSummaryText", "weekOverviewWeekLabel", "weekOverviewNavigationUrl", "weekOverviewAvailability", "weekOverviewClosure"], ["weekOverviewDate", "weekOverviewSelectedLabel", "weekOverviewLeaveDisplay", "weekOverviewAssignedDisplay", "weekOverviewHoursDisplay", "weekOverviewSummaryText", "weekOverviewWeekLabel", "weekOverviewNavigationUrl", "weekOverviewAvailability", "weekOverviewClosure"]) && typeof value["weekOverviewDate"] === "string" && typeof value["weekOverviewSelectedLabel"] === "string" && typeof value["weekOverviewLeaveDisplay"] === "string" && typeof value["weekOverviewAssignedDisplay"] === "string" && typeof value["weekOverviewHoursDisplay"] === "string" && typeof value["weekOverviewSummaryText"] === "string" && typeof value["weekOverviewWeekLabel"] === "string" && typeof value["weekOverviewNavigationUrl"] === "string" && typeof value["weekOverviewAvailability"] === "string" && typeof value["weekOverviewClosure"] === "string";
+  }
+  function parseRosterWeekOverviewDayConfig(value) {
+    if (isRosterWeekOverviewDayConfig(value)) return value;
+    throw new Error("Invalid RosterWeekOverviewDayConfig");
+  }
   var rosterStaffPanelSortRootDomAttr = "data-bepis-roster-staff-panel-sort-root";
   var rosterStaffPanelSortRowDomAttr = "data-bepis-roster-staff-panel-sort-row";
   var rosterStaffPanelSortControlDomAttr = "data-bepis-roster-staff-panel-sort-control";
@@ -28,6 +55,22 @@
   var rosterColumnEditorDomAttr = "data-bepis-roster-column-editor";
   var rosterColumnEditStartDomAttr = "data-bepis-roster-column-edit-start";
   var rosterColumnEditDoneDomAttr = "data-bepis-roster-column-edit-done";
+  var rosterImageExportTriggerDomAttr = "data-bepis-roster-image-export-trigger";
+  var rosterImageExportConfigDomAttr = "data-bepis-roster-image-export-config";
+  var rosterImageExportProjectionDomAttr = "data-bepis-roster-image-export-projection";
+  var rosterImageExportRowDomAttr = "data-bepis-roster-image-export-row";
+  var rosterImageExportCellDomAttr = "data-bepis-roster-image-export-cell";
+  var rosterWeekOverviewPanelDomAttr = "data-bepis-roster-week-overview-panel";
+  var rosterWeekOverviewDayDomAttr = "data-bepis-roster-week-overview-day";
+  var rosterWeekOverviewTodayDomAttr = "data-bepis-roster-week-overview-today";
+  var rosterWeekOverviewDetailsDomAttr = "data-bepis-roster-week-overview-details";
+  var rosterWeekOverviewSelectedLabelDomAttr = "data-bepis-roster-week-overview-selected-label";
+  var rosterWeekOverviewLeaveValueDomAttr = "data-bepis-roster-week-overview-leave-value";
+  var rosterWeekOverviewAssignedValueDomAttr = "data-bepis-roster-week-overview-assigned-value";
+  var rosterWeekOverviewHoursValueDomAttr = "data-bepis-roster-week-overview-hours-value";
+  var rosterWeekOverviewSummaryDomAttr = "data-bepis-roster-week-overview-summary";
+  var rosterWeekOverviewWeekLabelDomAttr = "data-bepis-roster-week-overview-week-label";
+  var rosterWeekOverviewGoLinkDomAttr = "data-bepis-roster-week-overview-go-link";
   var rosterStaffHighlightSourceDomAttr = "data-bepis-roster-staff-highlight-source";
   var rosterStaffHighlightMemberDomAttr = "data-bepis-roster-staff-highlight-member";
   var rosterStaffHighlightPinDomAttr = "data-bepis-roster-staff-highlight-pin";
@@ -35,6 +78,10 @@
   var rosterShiftGroupHighlightMemberDomAttr = "data-bepis-roster-shift-group-highlight-member";
   var rosterFullscreenDomAttr = "data-bepis-roster-fullscreen";
   var rosterColumnEditingDomAttr = "data-bepis-roster-column-editing";
+  var rosterImageExportFormatDomAttr = "data-bepis-roster-image-export-format";
+  var rosterWeekOverviewAvailabilityDomAttr = "data-bepis-roster-week-overview-availability";
+  var rosterWeekOverviewClosureDomAttr = "data-bepis-roster-week-overview-closure";
+  var rosterWeekOverviewCalendarDayDomAttr = "data-bepis-roster-week-overview-calendar-day";
   var rosterStaffHighlightOrderDomAttr = "data-bepis-roster-staff-highlight-order";
   var rosterDayTimelineShiftGroupHighlightSourceDomAttr = "data-bepis-roster-day-timeline-shift-group-highlight-source";
   var rosterDayTimelineShiftGroupHighlightMemberDomAttr = "data-bepis-roster-day-timeline-shift-group-highlight-member";
@@ -45,6 +92,22 @@
   var rosterColumnEditingStates = { "inactive": "inactive", "active": "active" };
   function isRosterColumnEditingState(value) {
     return typeof value === "string" && ["inactive", "active"].includes(value);
+  }
+  var rosterImageExportFormatStates = { "jpg": "jpg" };
+  function isRosterImageExportFormatState(value) {
+    return typeof value === "string" && ["jpg"].includes(value);
+  }
+  var rosterWeekOverviewAvailabilityStates = { "loaded": "loaded", "unloaded": "unloaded" };
+  function isRosterWeekOverviewAvailabilityState(value) {
+    return typeof value === "string" && ["loaded", "unloaded"].includes(value);
+  }
+  var rosterWeekOverviewClosureStates = { "open": "open", "closed": "closed" };
+  function isRosterWeekOverviewClosureState(value) {
+    return typeof value === "string" && ["open", "closed"].includes(value);
+  }
+  var rosterWeekOverviewCalendarDayStates = { "today": "today", "other-day": "other-day" };
+  function isRosterWeekOverviewCalendarDayState(value) {
+    return typeof value === "string" && ["today", "other-day"].includes(value);
   }
   function isRosterStaffPanelSortKey(value) {
     return typeof value === "string" && ["name", "role", "shifts"].includes(value);
@@ -99,8 +162,8 @@
   var startSelector = `[${rosterColumnEditStartDomAttr}]`;
   var doneSelector = `[${rosterColumnEditDoneDomAttr}]`;
   var finishDelayMs = 350;
-  function defaultDiagnosticReporter(diagnostic5) {
-    console.error?.("Invalid generated roster column-edit boundary", diagnostic5);
+  function defaultDiagnosticReporter(diagnostic7) {
+    console.error?.("Invalid generated roster column-edit boundary", diagnostic7);
   }
   function defaultScheduler() {
     return {
@@ -238,8 +301,8 @@
   var rootSelector = `[${rosterFullscreenRootDomAttr}]`;
   var toggleSelector = `[${rosterFullscreenToggleDomAttr}]`;
   var labelSelector = `[${rosterFullscreenLabelDomAttr}]`;
-  function defaultDiagnosticReporter2(diagnostic5) {
-    console.error?.("Invalid generated roster fullscreen boundary", diagnostic5);
+  function defaultDiagnosticReporter2(diagnostic7) {
+    console.error?.("Invalid generated roster fullscreen boundary", diagnostic7);
   }
   function diagnostic2(element, code, message) {
     return { code, elementId: element.id || null, message };
@@ -609,13 +672,102 @@
     return isElementLike(event.relatedTarget) ? event.relatedTarget : null;
   }
 
+  // frontend/ts/roster/image-export-configuration.ts
+  function requireNonEmpty(value, field) {
+    if (value.trim().length === 0) {
+      throw new Error(`RosterImageExportConfig ${field} must not be empty`);
+    }
+  }
+  function parseRosterImageExportConfiguration(raw) {
+    const config = parseRosterImageExportConfig(JSON.parse(raw));
+    [
+      [config.imageExportFilename, "filename"],
+      [config.imageExportMimeType, "MIME type"],
+      [config.imageExportIdleLabel, "idle label"],
+      [config.imageExportPreparingLabel, "preparing label"],
+      [config.imageExportDownloadedLabel, "downloaded label"],
+      [config.imageExportFailedLabel, "failed label"],
+      [config.imageExportFailureMessage, "failure message"],
+      [config.imageExportMissingProjectionMessage, "missing projection message"],
+      [config.imageExportCloneFailureMessage, "clone failure message"],
+      [config.imageExportRenderFailureMessage, "render failure message"],
+      [config.imageExportCanvasFailureMessage, "canvas failure message"],
+      [config.imageExportEncodingFailureMessage, "encoding failure message"]
+    ].forEach(([value, field]) => requireNonEmpty(value ?? "", field ?? "field"));
+    if (config.imageExportQualityPercent < 0 || config.imageExportQualityPercent > 100) {
+      throw new Error("RosterImageExportConfig quality percent must be between 0 and 100");
+    }
+    if (config.imageExportPixelRatio <= 0) {
+      throw new Error("RosterImageExportConfig pixel ratio must be positive");
+    }
+    if (config.imageExportMinimumWidth <= 0 || config.imageExportMaximumWidth < config.imageExportMinimumWidth) {
+      throw new Error("RosterImageExportConfig width range is invalid");
+    }
+    return config;
+  }
+  function parseRosterImageExportCellConfiguration(raw) {
+    return parseRosterImageExportCell(JSON.parse(raw));
+  }
+
   // frontend/ts/roster/image-export.ts
-  var exportConfigs = {
-    jpg: { mimeType: "image/jpeg", extension: "jpg", quality: 0.92 }
-  };
-  var exportPixelRatio = 2;
-  var exportMinWidth = 920;
-  var exportMaxWidth = 1240;
+  var triggerSelector = `[${rosterImageExportTriggerDomAttr}]`;
+  var projectionSelector = `[${rosterImageExportProjectionDomAttr}]`;
+  var rowSelector = `[${rosterImageExportRowDomAttr}]`;
+  var cellSelector = `[${rosterImageExportCellDomAttr}]`;
+  var surfaceSelector = `[${surfaceDomAttr}]`;
+  function defaultDiagnosticReporter3(diagnostic7) {
+    console.error?.("Invalid generated roster image-export boundary", diagnostic7);
+  }
+  function diagnostic3(element, code, message) {
+    return { code, elementId: element.id || null, message };
+  }
+  function ownedElements(surface, selector) {
+    return Array.from(surface.querySelectorAll(selector)).filter((element) => element.closest(surfaceSelector) === surface);
+  }
+  function readImageExport(button, report) {
+    if (button.getAttribute(rosterImageExportTriggerDomAttr) !== "true") {
+      report(diagnostic3(button, "invalid-trigger-role", "Roster image-export trigger role must equal true"));
+      return null;
+    }
+    const format = button.getAttribute(rosterImageExportFormatDomAttr);
+    if (!isRosterImageExportFormatState(format) || format !== rosterImageExportFormatStates.jpg) {
+      report(diagnostic3(button, "invalid-format", "Roster image-export format is not declared by the Surface contract"));
+      return null;
+    }
+    let config;
+    try {
+      const rawConfig = button.getAttribute(rosterImageExportConfigDomAttr);
+      if (rawConfig === null) throw new Error(`Missing ${rosterImageExportConfigDomAttr}`);
+      config = parseRosterImageExportConfiguration(rawConfig);
+    } catch (error) {
+      report(diagnostic3(
+        button,
+        "invalid-config",
+        error instanceof Error ? error.message : String(error)
+      ));
+      return null;
+    }
+    const surface = button.closest(surfaceSelector);
+    if (surface === null) {
+      report(diagnostic3(button, "missing-surface", "Roster image-export trigger has no generated Surface owner"));
+      return null;
+    }
+    const projections = ownedElements(surface, projectionSelector);
+    if (projections.length !== 1) {
+      report(diagnostic3(
+        surface,
+        "invalid-projection-count",
+        "Roster image-export Surface must contain exactly one generated projection"
+      ));
+      return null;
+    }
+    const projection = projections[0];
+    if (projection.getAttribute(rosterImageExportProjectionDomAttr) !== "true") {
+      report(diagnostic3(projection, "invalid-projection-role", "Roster image-export projection role must equal true"));
+      return null;
+    }
+    return { config, projection };
+  }
   function waitForNextPaint() {
     return new Promise((resolve) => {
       window.requestAnimationFrame(() => {
@@ -623,78 +775,47 @@
       });
     });
   }
-  function sanitizeFilenamePart(value) {
-    return (value || "").trim().toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").replace(/-{2,}/g, "-");
-  }
-  function textOrEmpty(value) {
-    return (value || "").trim();
-  }
-  function replaceCellContents(cellEl, value) {
-    const displayValue = textOrEmpty(value);
-    cellEl.replaceChildren();
-    cellEl.dataset.rosterExportText = displayValue;
-    const valueEl = document.createElement("div");
-    valueEl.className = "slot-cell-export-value";
-    if (!displayValue) {
-      valueEl.classList.add("app-muted");
-      valueEl.innerHTML = "&nbsp;";
+  function replaceCellContents(cell, displayValue) {
+    const value = displayValue.trim();
+    const valueElement = document.createElement("div");
+    valueElement.className = "slot-cell-export-value";
+    if (value.length === 0) {
+      valueElement.classList.add("app-muted");
+      valueElement.textContent = "\xA0";
     } else {
-      valueEl.textContent = displayValue;
+      valueElement.textContent = value;
     }
-    cellEl.appendChild(valueEl);
-    cellEl.removeAttribute("title");
-    cellEl.removeAttribute("data-conflict-message");
+    cell.replaceChildren(valueElement);
+    cell.removeAttribute("title");
   }
-  function normalizeDayLabelCell(cellEl) {
-    cellEl.querySelectorAll("form, button, input, select, textarea").forEach((element) => {
-      element.remove();
-    });
-    cellEl.querySelectorAll(".roster-day-actions, .roster-day-actions-placeholder").forEach((element) => {
-      element.remove();
-    });
-    const lines = Array.from(cellEl.querySelectorAll(".roster-day-date, .roster-day-closed-label")).map((element) => textOrEmpty(element.textContent)).filter(Boolean);
-    cellEl.dataset.rosterExportText = lines.join("\n");
-  }
-  function normalizeExportTable(tableEl) {
-    if (!(tableEl instanceof HTMLElement)) {
-      throw new Error("Could not clone the current roster grid.");
+  function normalizeExportProjection(source, config, report) {
+    const cloned = source.cloneNode(true);
+    if (!(cloned instanceof HTMLElement)) {
+      throw new Error(config.imageExportCloneFailureMessage);
     }
-    tableEl.classList.add("roster-export-grid");
-    const theadEl = tableEl.querySelector("thead");
-    if (theadEl) {
-      theadEl.remove();
+    cloned.classList.add("roster-export-grid");
+    for (const row of cloned.querySelectorAll(rowSelector)) {
+      if (row.getAttribute(rosterImageExportRowDomAttr) !== "true") {
+        report(diagnostic3(row, "invalid-row-role", "Roster image-export row role must equal true"));
+        throw new Error(config.imageExportCloneFailureMessage);
+      }
     }
-    tableEl.querySelectorAll(".day-row").forEach((rowEl) => {
-      if (!(rowEl instanceof HTMLElement)) return;
-      Array.from(rowEl.querySelectorAll('[role="gridcell"], td')).forEach((cellEl, cellIndex) => {
-        if (!(cellEl instanceof HTMLElement)) return;
-        if (cellIndex === 0 && cellEl.classList.contains("day-label")) {
-          normalizeDayLabelCell(cellEl);
-          return;
-        }
-        if (cellEl.classList.contains("slot-empty-cell") || cellEl.classList.contains("slot-closed-cell")) {
-          replaceCellContents(cellEl, "");
-          return;
-        }
-        if (cellEl.classList.contains("slot-time-cell")) {
-          const staticValue = cellEl.querySelector(".slot-cell-static");
-          replaceCellContents(cellEl, textOrEmpty(staticValue && staticValue.textContent));
-          return;
-        }
-        if (cellEl.classList.contains("slot-staff-cell")) {
-          const staticValue = cellEl.querySelector(".slot-cell-static");
-          replaceCellContents(cellEl, textOrEmpty(staticValue && staticValue.textContent));
-          return;
-        }
-        if (cellEl.classList.contains("slot-shift-type-cell")) {
-          const staticValue = cellEl.querySelector(".slot-cell-static");
-          replaceCellContents(cellEl, textOrEmpty(staticValue && staticValue.textContent));
-          return;
-        }
-        replaceCellContents(cellEl, cellEl.textContent || "");
-      });
-    });
-    return tableEl;
+    for (const cell of cloned.querySelectorAll(cellSelector)) {
+      try {
+        const rawCell = cell.getAttribute(rosterImageExportCellDomAttr);
+        if (rawCell === null) throw new Error(`Missing ${rosterImageExportCellDomAttr}`);
+        const cellConfig = parseRosterImageExportCellConfiguration(rawCell);
+        replaceCellContents(cell, cellConfig.imageExportText);
+      } catch (error) {
+        report(diagnostic3(
+          cell,
+          "invalid-cell-config",
+          error instanceof Error ? error.message : String(error)
+        ));
+        throw new Error(config.imageExportCloneFailureMessage);
+      }
+    }
+    return cloned;
   }
   function escapeXml(value) {
     return String(value).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
@@ -708,10 +829,10 @@
     const normalizedValue = colorValue.trim().toLowerCase();
     return normalizedValue === "transparent" || normalizedValue === "rgba(0, 0, 0, 0)";
   }
-  function buildCellTextSvg(cellEl, x, y, width, height) {
-    const lines = (cellEl.dataset.rosterExportText || cellEl.textContent || "").split("\n").map((line) => line.trim()).filter(Boolean);
+  function buildCellTextSvg(cell, x, y, width, height) {
+    const lines = (cell.textContent || "").split("\n").map((line) => line.trim()).filter(Boolean);
     if (lines.length === 0) return "";
-    const computedStyle = window.getComputedStyle(cellEl);
+    const computedStyle = window.getComputedStyle(cell);
     const fontSize = parsePixelValue(computedStyle.fontSize, 12);
     const fontWeight = computedStyle.fontWeight || "400";
     const fontFamily = escapeXml(computedStyle.fontFamily || "sans-serif");
@@ -732,12 +853,12 @@
     const tspans = lines.map((line, index) => `<tspan x="${textX}" y="${startY + index * lineHeight}">${escapeXml(line)}</tspan>`).join("");
     return `<text font-family="${fontFamily}" font-size="${fontSize}" font-weight="${fontWeight}" fill="${escapeXml(textColor)}" text-anchor="${textAnchor}">${tspans}</text>`;
   }
-  function buildTableSvgMarkup(surfaceEl, tableEl) {
-    const surfaceRect = surfaceEl.getBoundingClientRect();
-    const tableRect = tableEl.getBoundingClientRect();
+  function buildProjectionSvgMarkup(surface, projection) {
+    const surfaceRect = surface.getBoundingClientRect();
+    const projectionRect = projection.getBoundingClientRect();
     const width = Math.ceil(surfaceRect.width);
     const height = Math.ceil(surfaceRect.height);
-    const tableLeft = tableRect.left - surfaceRect.left;
+    const projectionLeft = projectionRect.left - surfaceRect.left;
     const parts = [
       `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">`,
       "<defs>",
@@ -748,22 +869,20 @@
       "</defs>",
       `<rect x="0" y="0" width="${width}" height="${height}" fill="url(#rosterExportBg)" />`
     ];
-    tableEl.querySelectorAll(".day-row, tbody tr").forEach((rowEl) => {
-      if (!(rowEl instanceof HTMLElement)) return;
-      const rowRect = rowEl.getBoundingClientRect();
-      const rowStyle = window.getComputedStyle(rowEl);
+    projection.querySelectorAll(rowSelector).forEach((row) => {
+      const rowRect = row.getBoundingClientRect();
+      const rowStyle = window.getComputedStyle(row);
       const rowFill = rowStyle.backgroundColor;
       if (!isTransparentColor(rowFill)) {
         const rowY = rowRect.top - surfaceRect.top;
         parts.push(
-          `<rect x="${tableLeft}" y="${rowY}" width="${tableRect.width}" height="${rowRect.height}" fill="${escapeXml(rowFill)}" />`
+          `<rect x="${projectionLeft}" y="${rowY}" width="${projectionRect.width}" height="${rowRect.height}" fill="${escapeXml(rowFill)}" />`
         );
       }
     });
-    tableEl.querySelectorAll('[role="gridcell"], tbody td').forEach((cellEl) => {
-      if (!(cellEl instanceof HTMLElement)) return;
-      const cellRect = cellEl.getBoundingClientRect();
-      const cellStyle = window.getComputedStyle(cellEl);
+    projection.querySelectorAll(cellSelector).forEach((cell) => {
+      const cellRect = cell.getBoundingClientRect();
+      const cellStyle = window.getComputedStyle(cell);
       const x = cellRect.left - surfaceRect.left;
       const y = cellRect.top - surfaceRect.top;
       const fill = isTransparentColor(cellStyle.backgroundColor) ? "none" : escapeXml(cellStyle.backgroundColor);
@@ -772,154 +891,114 @@
       parts.push(
         `<rect x="${x}" y="${y}" width="${cellRect.width}" height="${cellRect.height}" fill="${fill}" stroke="${stroke}" stroke-width="${strokeWidth}" shape-rendering="crispEdges" />`
       );
-      parts.push(buildCellTextSvg(cellEl, x, y, cellRect.width, cellRect.height));
+      parts.push(buildCellTextSvg(cell, x, y, cellRect.width, cellRect.height));
     });
     parts.push("</svg>");
     return { width, height, svgMarkup: parts.join("") };
   }
-  async function exportSurfaceToBlob(surfaceEl, tableEl, formatConfig) {
-    const renderSpec = buildTableSvgMarkup(surfaceEl, tableEl);
+  async function exportSurfaceToBlob(surface, projection, config) {
+    const renderSpec = buildProjectionSvgMarkup(surface, projection);
     const svgBlob = new Blob([renderSpec.svgMarkup], { type: "image/svg+xml;charset=utf-8" });
     const svgUrl = URL.createObjectURL(svgBlob);
     try {
-      const imageEl = await new Promise((resolve, reject) => {
-        const image = new window.Image();
-        image.decoding = "async";
-        image.onload = () => {
-          resolve(image);
-        };
-        image.onerror = () => {
-          reject(new Error("Failed to render roster export image."));
-        };
-        image.src = svgUrl;
+      const image = await new Promise((resolve, reject) => {
+        const imageElement = new window.Image();
+        imageElement.decoding = "async";
+        imageElement.onload = () => resolve(imageElement);
+        imageElement.onerror = () => reject(new Error(config.imageExportRenderFailureMessage));
+        imageElement.src = svgUrl;
       });
-      const canvasEl = document.createElement("canvas");
-      canvasEl.width = renderSpec.width * exportPixelRatio;
-      canvasEl.height = renderSpec.height * exportPixelRatio;
-      const context = canvasEl.getContext("2d");
-      if (!context) {
-        throw new Error("Failed to initialize roster export canvas.");
-      }
-      context.scale(exportPixelRatio, exportPixelRatio);
-      context.drawImage(imageEl, 0, 0, renderSpec.width, renderSpec.height);
+      const canvas = document.createElement("canvas");
+      canvas.width = renderSpec.width * config.imageExportPixelRatio;
+      canvas.height = renderSpec.height * config.imageExportPixelRatio;
+      const context = canvas.getContext("2d");
+      if (!context) throw new Error(config.imageExportCanvasFailureMessage);
+      context.scale(config.imageExportPixelRatio, config.imageExportPixelRatio);
+      context.drawImage(image, 0, 0, renderSpec.width, renderSpec.height);
       return await new Promise((resolve, reject) => {
-        canvasEl.toBlob((blob) => {
-          if (blob) {
-            resolve(blob);
-            return;
-          }
-          reject(new Error("Failed to encode roster export image."));
-        }, formatConfig.mimeType, formatConfig.quality);
+        canvas.toBlob((blob) => {
+          if (blob) resolve(blob);
+          else reject(new Error(config.imageExportEncodingFailureMessage));
+        }, config.imageExportMimeType, config.imageExportQualityPercent / 100);
       });
     } finally {
       URL.revokeObjectURL(svgUrl);
     }
   }
-  async function buildRosterExportBlob(formatConfig) {
-    const rosterTable = document.querySelector(`#${rosterContentDomToken} .roster-grid`);
-    if (!(rosterTable instanceof HTMLElement)) {
-      throw new Error("Could not find the current roster grid.");
-    }
-    const exportTable = normalizeExportTable(rosterTable.cloneNode(true));
-    const stageEl = document.createElement("div");
-    stageEl.className = "roster-export-stage";
-    const surfaceEl = document.createElement("div");
-    surfaceEl.className = "roster-export-surface";
-    const measuredWidth = Math.ceil(rosterTable.getBoundingClientRect().width);
-    const exportWidth = Math.max(exportMinWidth, Math.min(exportMaxWidth, measuredWidth));
-    surfaceEl.style.width = `${exportWidth}px`;
-    surfaceEl.appendChild(exportTable);
-    stageEl.appendChild(surfaceEl);
-    document.body.appendChild(stageEl);
+  async function buildRosterExportBlob(source, config, report) {
+    if (!source.isConnected) throw new Error(config.imageExportMissingProjectionMessage);
+    const projection = normalizeExportProjection(source, config, report);
+    const stage = document.createElement("div");
+    stage.className = "roster-export-stage";
+    const surface = document.createElement("div");
+    surface.className = "roster-export-surface";
+    const measuredWidth = Math.ceil(source.getBoundingClientRect().width);
+    const exportWidth = Math.max(
+      config.imageExportMinimumWidth,
+      Math.min(config.imageExportMaximumWidth, measuredWidth)
+    );
+    surface.style.width = `${exportWidth}px`;
+    surface.appendChild(projection);
+    stage.appendChild(surface);
+    document.body.appendChild(stage);
     try {
       if (document.fonts && typeof document.fonts.ready === "object") {
         await document.fonts.ready;
       }
       await waitForNextPaint();
-      return await exportSurfaceToBlob(surfaceEl, exportTable, formatConfig);
+      return await exportSurfaceToBlob(surface, projection, config);
     } finally {
-      stageEl.remove();
+      stage.remove();
     }
-  }
-  function exportFilename(formatConfig) {
-    const groupSelect = document.getElementById("roster-group-switch");
-    const groupLabel = groupSelect instanceof HTMLSelectElement && groupSelect.selectedOptions[0] ? groupSelect.selectedOptions[0].textContent : "group";
-    const weekLabelEl = document.querySelector(".roster-week-overview-trigger span:last-child");
-    const weekLabel = weekLabelEl ? weekLabelEl.textContent : "week";
-    const parts = ["roster", sanitizeFilenamePart(groupLabel || ""), sanitizeFilenamePart(weekLabel || "")].filter(Boolean);
-    return `${parts.join("-")}.${formatConfig.extension}`;
   }
   function triggerBlobDownload(blob, filename) {
     const downloadUrl = URL.createObjectURL(blob);
-    const linkEl = document.createElement("a");
-    linkEl.href = downloadUrl;
-    linkEl.download = filename;
-    document.body.appendChild(linkEl);
-    linkEl.click();
-    linkEl.remove();
-    window.setTimeout(() => {
-      URL.revokeObjectURL(downloadUrl);
-    }, 1e3);
+    const link = document.createElement("a");
+    link.href = downloadUrl;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    window.setTimeout(() => URL.revokeObjectURL(downloadUrl), 1e3);
   }
-  async function handleRosterExport(buttonEl) {
-    const formatKey = buttonEl.dataset.rosterExportFormat || "jpg";
-    const formatConfig = exportConfigs[formatKey];
-    if (!formatConfig) return;
-    const originalLabel = buttonEl.textContent;
-    buttonEl.dataset.rosterExportStatus = "working";
-    document.body.dataset.rosterExportLastStatus = "working";
-    buttonEl.disabled = true;
-    buttonEl.textContent = "Preparing...";
+  async function handleRosterExport(button, validated, report) {
+    const { config, projection } = validated;
+    button.disabled = true;
+    button.textContent = config.imageExportPreparingLabel;
     try {
-      const blob = await buildRosterExportBlob(formatConfig);
-      triggerBlobDownload(blob, exportFilename(formatConfig));
-      buttonEl.dataset.rosterExportStatus = "success";
-      document.body.dataset.rosterExportLastStatus = "success";
-      buttonEl.textContent = "Downloaded";
+      const blob = await buildRosterExportBlob(projection, config, report);
+      triggerBlobDownload(blob, config.imageExportFilename);
+      button.textContent = config.imageExportDownloadedLabel;
       window.setTimeout(() => {
-        buttonEl.textContent = originalLabel;
+        button.textContent = config.imageExportIdleLabel;
       }, 1200);
     } catch (error) {
-      console.error(error);
-      buttonEl.dataset.rosterExportStatus = "error";
-      document.body.dataset.rosterExportLastStatus = "error";
-      buttonEl.textContent = "Export failed";
+      report(diagnostic3(
+        button,
+        "export-failed",
+        error instanceof Error ? error.message : String(error)
+      ));
+      button.textContent = config.imageExportFailedLabel;
       window.setTimeout(() => {
-        buttonEl.textContent = originalLabel;
+        button.textContent = config.imageExportIdleLabel;
       }, 1600);
-      window.alert("Roster export failed. Please try again.");
+      window.alert(config.imageExportFailureMessage);
     } finally {
       window.setTimeout(() => {
-        buttonEl.disabled = false;
+        button.disabled = false;
       }, 200);
     }
   }
-  function enableRosterImageExport() {
+  function enableRosterImageExport(report = defaultDiagnosticReporter3) {
     if (typeof window === "undefined") return;
     document.addEventListener("click", (event) => {
       if (!(event.target instanceof Element)) return;
-      const buttonEl = event.target.closest("[data-roster-export-format]");
-      if (!(buttonEl instanceof HTMLButtonElement)) return;
+      const button = event.target.closest(triggerSelector);
+      if (!(button instanceof HTMLButtonElement)) return;
       event.preventDefault();
-      void handleRosterExport(buttonEl);
+      const validated = readImageExport(button, report);
+      if (validated !== null) void handleRosterExport(button, validated, report);
     });
-  }
-
-  // frontend/ts/roster/overview.ts
-  function rosterOverviewSummaryFromDayDataset(dataset) {
-    const hasDetails = dataset.weekOverviewDetails === "true";
-    const isClosed = dataset.weekOverviewClosed === "true";
-    return {
-      hasDetails,
-      isClosed,
-      label: dataset.weekOverviewLabel || "",
-      leave: hasDetails ? dataset.weekOverviewLeave || "0" : "\u2014",
-      assigned: hasDetails ? dataset.weekOverviewAssigned || "0" : "\u2014",
-      hours: hasDetails ? dataset.weekOverviewHours || "0h" : "\u2014",
-      summary: dataset.weekOverviewSummary || "",
-      weekLabel: `In ${dataset.weekOverviewWeekLabel || ""}`,
-      url: dataset.weekOverviewUrl || ""
-    };
   }
 
   // frontend/ts/shared/surface-mount.ts
@@ -962,13 +1041,13 @@
   }
 
   // frontend/ts/complete-set-sort/runtime.ts
-  function defaultDiagnosticReporter3(diagnostic5) {
-    console.error?.("Invalid generated complete-set sort boundary", diagnostic5);
+  function defaultDiagnosticReporter4(diagnostic7) {
+    console.error?.("Invalid generated complete-set sort boundary", diagnostic7);
   }
-  function diagnostic3(element, code, message) {
+  function diagnostic4(element, code, message) {
     return { code, elementId: element.id || null, message };
   }
-  function createCompleteSetSortController(report = defaultDiagnosticReporter3) {
+  function createCompleteSetSortController(report = defaultDiagnosticReporter4) {
     const statesByRoot = /* @__PURE__ */ new WeakMap();
     function stateFor3(root, definition) {
       let rootStates = statesByRoot.get(root);
@@ -988,7 +1067,7 @@
         for (const definition of definitionsForMount2(mount)) {
           for (const sortRoot of ownedSurfaceRoleElements(mount, mount, definition.rootRoleAttribute)) {
             if (sortRoot.getAttribute(definition.rootRoleAttribute) !== "true") {
-              report(diagnostic3(sortRoot, "invalid-root-role", "Complete-set sort root role must equal true"));
+              report(diagnostic4(sortRoot, "invalid-root-role", "Complete-set sort root role must equal true"));
               continue;
             }
             const state = stateFor3(sortRoot, definition);
@@ -1009,7 +1088,7 @@
         const rawKey = control.getAttribute(definition.controlRoleAttribute);
         const key = rawKey !== null && definition.isKey(rawKey) ? definition.keys.find((candidate) => candidate.key === rawKey) : void 0;
         if (!key) {
-          report(diagnostic3(control, "invalid-control-key", "Complete-set sort control has an undeclared key"));
+          report(diagnostic4(control, "invalid-control-key", "Complete-set sort control has an undeclared key"));
           return false;
         }
         const current = stateFor3(sortRoot, definition);
@@ -1027,7 +1106,7 @@
     function applySort(context, state) {
       const key = context.definition.keys.find((candidate) => candidate.key === state.key);
       if (!key) {
-        report(diagnostic3(context.root, "missing-default-key", "Complete-set sort definition has no matching active key"));
+        report(diagnostic4(context.root, "missing-default-key", "Complete-set sort definition has no matching active key"));
         return false;
       }
       const rows = [];
@@ -1037,7 +1116,7 @@
           if (raw === null) throw new Error(`Missing ${context.definition.rowRoleAttribute}`);
           rows.push({ element: row, value: context.definition.parseRow(JSON.parse(raw)) });
         } catch (error) {
-          report(diagnostic3(
+          report(diagnostic4(
             row,
             "invalid-row-payload",
             error instanceof Error ? error.message : String(error)
@@ -1047,13 +1126,13 @@
       }
       const rowParent = rows[0]?.element.parentElement ?? null;
       if (rows.some((row) => row.element.parentElement !== rowParent) || rows.length > 0 && rowParent === null) {
-        report(diagnostic3(context.root, "invalid-row-parent", "Complete-set sort rows must share one local parent"));
+        report(diagnostic4(context.root, "invalid-row-parent", "Complete-set sort rows must share one local parent"));
         return false;
       }
       try {
         rows.sort((left, right) => compareRows(left.value, right.value, key.comparators, state.direction));
       } catch (error) {
-        report(diagnostic3(
+        report(diagnostic4(
           context.root,
           "invalid-comparator-value",
           error instanceof Error ? error.message : String(error)
@@ -1153,13 +1232,13 @@
     if (!(element instanceof HTMLElement)) return;
     window.bootstrap?.Tab?.getOrCreateInstance(element).show();
   }
-  function defaultDiagnosticReporter4(diagnostic5) {
-    console.error?.("Invalid generated Surface tab-set boundary", diagnostic5);
+  function defaultDiagnosticReporter5(diagnostic7) {
+    console.error?.("Invalid generated Surface tab-set boundary", diagnostic7);
   }
-  function diagnostic4(element, code, message) {
+  function diagnostic5(element, code, message) {
     return { code, elementId: element.id || null, message };
   }
-  function createSurfaceTabSetController(showTab = defaultShowTab, report = defaultDiagnosticReporter4) {
+  function createSurfaceTabSetController(showTab = defaultShowTab, report = defaultDiagnosticReporter5) {
     const activeKeysByMount = /* @__PURE__ */ new WeakMap();
     function rememberedKey(mount, definition) {
       return activeKeysByMount.get(mount)?.get(definition.name) ?? definition.defaultKey;
@@ -1181,7 +1260,7 @@
         if (!tab) continue;
         const key = tab.getAttribute(definition.tabRoleAttribute);
         if (key === null || !definition.isKey(key)) {
-          report(diagnostic4(tab, "invalid-tab-key", "Surface tab has an undeclared key"));
+          report(diagnostic5(tab, "invalid-tab-key", "Surface tab has an undeclared key"));
           return false;
         }
         setRememberedKey(mount, definition, key);
@@ -1198,7 +1277,7 @@
           for (const tab of tabs) {
             const key = tab.getAttribute(definition.tabRoleAttribute);
             if (key === null || !definition.isKey(key)) {
-              report(diagnostic4(tab, "invalid-tab-key", "Surface tab has an undeclared key"));
+              report(diagnostic5(tab, "invalid-tab-key", "Surface tab has an undeclared key"));
               valid = false;
               continue;
             }
@@ -1208,19 +1287,19 @@
           }
           for (const [key, matchingTabs] of tabsByKey) {
             if (matchingTabs.length <= 1) continue;
-            report(diagnostic4(mount, "duplicate-tab-key", `Surface tab set renders key ${key} more than once`));
+            report(diagnostic5(mount, "duplicate-tab-key", `Surface tab set renders key ${key} more than once`));
             valid = false;
           }
           if (!valid) continue;
           const remembered = rememberedKey(mount, definition);
           const desiredKey = tabsByKey.has(remembered) ? remembered : definition.defaultKey;
           if (desiredKey !== remembered) {
-            report(diagnostic4(mount, "missing-tab-key", `Surface tab set is missing rendered key ${remembered}; restoring ${desiredKey}`));
+            report(diagnostic5(mount, "missing-tab-key", `Surface tab set is missing rendered key ${remembered}; restoring ${desiredKey}`));
             setRememberedKey(mount, definition, desiredKey);
           }
           const desiredTabs = tabsByKey.get(desiredKey) ?? [];
           if (desiredTabs.length === 0) {
-            report(diagnostic4(mount, "missing-tab-key", `Surface tab set is missing rendered default key ${definition.defaultKey}`));
+            report(diagnostic5(mount, "missing-tab-key", `Surface tab set is missing rendered default key ${definition.defaultKey}`));
             continue;
           }
           const desiredTab = desiredTabs[0];
@@ -1248,72 +1327,200 @@
     controller.reconcile(document);
   }
 
+  // frontend/ts/roster/week-overview-configuration.ts
+  function parseRosterWeekOverviewPanelConfiguration(raw) {
+    return parseRosterWeekOverviewPanelConfig(JSON.parse(raw));
+  }
+  function parseRosterWeekOverviewDayConfiguration(raw) {
+    const config = parseRosterWeekOverviewDayConfig(JSON.parse(raw));
+    if (!isRosterWeekOverviewAvailabilityState(config.weekOverviewAvailability) || config.weekOverviewAvailability !== rosterWeekOverviewAvailabilityStates.loaded && config.weekOverviewAvailability !== rosterWeekOverviewAvailabilityStates.unloaded) {
+      throw new Error("RosterWeekOverviewDayConfig availability state is not declared");
+    }
+    if (!isRosterWeekOverviewClosureState(config.weekOverviewClosure) || config.weekOverviewClosure !== rosterWeekOverviewClosureStates.open && config.weekOverviewClosure !== rosterWeekOverviewClosureStates.closed) {
+      throw new Error("RosterWeekOverviewDayConfig closure state is not declared");
+    }
+    return config;
+  }
+
   // frontend/ts/roster/week-overview.ts
-  function updateOverviewSelection(panelEl, dayButton) {
-    if (!(panelEl instanceof HTMLElement) || !(dayButton instanceof HTMLElement)) return;
-    panelEl.querySelectorAll('[data-week-overview-day="true"]').forEach((button) => {
-      if (button instanceof HTMLElement) {
-        button.classList.toggle("is-selected", button === dayButton);
-        button.setAttribute("aria-pressed", button === dayButton ? "true" : "false");
+  var panelSelector = `[${rosterWeekOverviewPanelDomAttr}]`;
+  var daySelector = `[${rosterWeekOverviewDayDomAttr}]`;
+  var todaySelector = `[${rosterWeekOverviewTodayDomAttr}]`;
+  function roleSelector(attribute) {
+    return `[${attribute}]`;
+  }
+  function defaultDiagnosticReporter6(diagnostic7) {
+    console.error?.("Invalid generated roster week-overview boundary", diagnostic7);
+  }
+  function diagnostic6(element, code, message) {
+    return { code, elementId: element.id || null, message };
+  }
+  function ownedElements2(panel, attribute) {
+    return Array.from(panel.querySelectorAll(roleSelector(attribute))).filter((element) => element.closest(panelSelector) === panel);
+  }
+  function readPanel(panel, report) {
+    try {
+      const raw = panel.getAttribute(rosterWeekOverviewPanelDomAttr);
+      if (raw === null) throw new Error(`Missing ${rosterWeekOverviewPanelDomAttr}`);
+      return parseRosterWeekOverviewPanelConfiguration(raw);
+    } catch (error) {
+      report(diagnostic6(
+        panel,
+        "invalid-panel-config",
+        error instanceof Error ? error.message : String(error)
+      ));
+      return null;
+    }
+  }
+  function readDay(day, report) {
+    try {
+      const raw = day.getAttribute(rosterWeekOverviewDayDomAttr);
+      if (raw === null) throw new Error(`Missing ${rosterWeekOverviewDayDomAttr}`);
+      const config = parseRosterWeekOverviewDayConfiguration(raw);
+      const calendarDay = day.getAttribute(rosterWeekOverviewCalendarDayDomAttr);
+      const calendarDayIsDeclared = isRosterWeekOverviewCalendarDayState(calendarDay) && (calendarDay === rosterWeekOverviewCalendarDayStates.today || calendarDay === rosterWeekOverviewCalendarDayStates["other-day"]);
+      if (day.getAttribute(rosterWeekOverviewAvailabilityDomAttr) !== config.weekOverviewAvailability || day.getAttribute(rosterWeekOverviewClosureDomAttr) !== config.weekOverviewClosure || !calendarDayIsDeclared) {
+        report(diagnostic6(day, "invalid-day-state", "Week-overview day states must agree with its exact payload"));
+        return null;
       }
+      return config;
+    } catch (error) {
+      report(diagnostic6(
+        day,
+        "invalid-day-config",
+        error instanceof Error ? error.message : String(error)
+      ));
+      return null;
+    }
+  }
+  function readSingleSlot(panel, attribute, report) {
+    const slots = ownedElements2(panel, attribute);
+    if (slots.length !== 1) {
+      report(diagnostic6(panel, "invalid-slot-count", `Week-overview panel requires exactly one ${attribute} slot`));
+      return null;
+    }
+    const slot = slots[0];
+    if (slot.getAttribute(attribute) !== "true") {
+      report(diagnostic6(slot, "invalid-slot-role", `Week-overview slot ${attribute} must equal true`));
+      return null;
+    }
+    return slot;
+  }
+  function readOptionalSlot(panel, attribute, report) {
+    const slots = ownedElements2(panel, attribute);
+    if (slots.length > 1) {
+      report(diagnostic6(panel, "invalid-slot-count", `Week-overview panel permits at most one ${attribute} slot`));
+      return false;
+    }
+    const slot = slots[0] ?? null;
+    if (slot !== null && slot.getAttribute(attribute) !== "true") {
+      report(diagnostic6(slot, "invalid-slot-role", `Week-overview slot ${attribute} must equal true`));
+      return false;
+    }
+    return slot;
+  }
+  function readSlots(panel, report) {
+    const selectedLabel = readSingleSlot(panel, rosterWeekOverviewSelectedLabelDomAttr, report);
+    const leaveValue = readOptionalSlot(panel, rosterWeekOverviewLeaveValueDomAttr, report);
+    const assignedValue = readSingleSlot(panel, rosterWeekOverviewAssignedValueDomAttr, report);
+    const hoursValue = readSingleSlot(panel, rosterWeekOverviewHoursValueDomAttr, report);
+    const summary = readSingleSlot(panel, rosterWeekOverviewSummaryDomAttr, report);
+    const weekLabel = readSingleSlot(panel, rosterWeekOverviewWeekLabelDomAttr, report);
+    const goLinkElement = readSingleSlot(panel, rosterWeekOverviewGoLinkDomAttr, report);
+    const details = readSingleSlot(panel, rosterWeekOverviewDetailsDomAttr, report);
+    if (selectedLabel === null || leaveValue === false || assignedValue === null || hoursValue === null || summary === null || weekLabel === null || goLinkElement === null || details === null) return null;
+    if (goLinkElement.tagName !== "A") {
+      report(diagnostic6(goLinkElement, "invalid-go-link", "Week-overview go-link slot must be an anchor"));
+      return null;
+    }
+    if (!isRosterWeekOverviewAvailabilityState(details.getAttribute(rosterWeekOverviewAvailabilityDomAttr)) || !isRosterWeekOverviewClosureState(details.getAttribute(rosterWeekOverviewClosureDomAttr))) {
+      report(diagnostic6(details, "invalid-details-state", "Week-overview details states must be generated values"));
+      return null;
+    }
+    return {
+      selectedLabel,
+      leaveValue,
+      assignedValue,
+      hoursValue,
+      summary,
+      weekLabel,
+      goLink: goLinkElement,
+      details
+    };
+  }
+  function updateRosterWeekOverviewSelection(panel, selectedDay, report = defaultDiagnosticReporter6) {
+    if (selectedDay.closest(panelSelector) !== panel) {
+      report(diagnostic6(selectedDay, "day-outside-panel", "Week-overview day is not owned by this panel"));
+      return false;
+    }
+    if (readPanel(panel, report) === null) return false;
+    const selectedConfig = readDay(selectedDay, report);
+    if (selectedConfig === null) return false;
+    const slots = readSlots(panel, report);
+    if (slots === null) return false;
+    const validDays = /* @__PURE__ */ new Map();
+    for (const day of ownedElements2(panel, rosterWeekOverviewDayDomAttr)) {
+      const config = day === selectedDay ? selectedConfig : readDay(day, report);
+      if (config !== null) validDays.set(day, config);
+    }
+    validDays.forEach((_config, day) => {
+      day.setAttribute("aria-pressed", day === selectedDay ? "true" : "false");
     });
-    const selectedLabel = panelEl.querySelector('[data-week-overview-selected-label="true"]');
-    const leaveValue = panelEl.querySelector('[data-week-overview-leave-value="true"]');
-    const assignedValue = panelEl.querySelector('[data-week-overview-assigned-value="true"]');
-    const hoursValue = panelEl.querySelector('[data-week-overview-hours-value="true"]');
-    const summaryText = panelEl.querySelector('[data-week-overview-summary-text="true"]');
-    const weekLabel = panelEl.querySelector('[data-week-overview-week-label="true"]');
-    const goLink = panelEl.querySelector('[data-week-overview-go-link="true"]');
-    const detailsPanel = panelEl.querySelector('[data-week-overview-details-panel="true"]');
-    const summary = rosterOverviewSummaryFromDayDataset(dayButton.dataset);
-    if (selectedLabel) selectedLabel.textContent = summary.label;
-    if (leaveValue) leaveValue.textContent = summary.leave;
-    if (assignedValue) assignedValue.textContent = summary.assigned;
-    if (hoursValue) hoursValue.textContent = summary.hours;
-    if (summaryText) summaryText.textContent = summary.summary;
-    if (weekLabel) weekLabel.textContent = summary.weekLabel;
-    if (goLink instanceof HTMLAnchorElement && summary.url) {
-      goLink.href = summary.url;
-    }
-    if (detailsPanel instanceof HTMLElement) {
-      detailsPanel.classList.toggle("is-unloaded", !summary.hasDetails);
-      detailsPanel.classList.toggle("is-closed", summary.isClosed);
-    }
+    slots.selectedLabel.textContent = selectedConfig.weekOverviewSelectedLabel;
+    if (slots.leaveValue !== null) slots.leaveValue.textContent = selectedConfig.weekOverviewLeaveDisplay;
+    slots.assignedValue.textContent = selectedConfig.weekOverviewAssignedDisplay;
+    slots.hoursValue.textContent = selectedConfig.weekOverviewHoursDisplay;
+    slots.summary.textContent = selectedConfig.weekOverviewSummaryText;
+    slots.weekLabel.textContent = selectedConfig.weekOverviewWeekLabel;
+    slots.goLink.href = selectedConfig.weekOverviewNavigationUrl;
+    slots.details.setAttribute(rosterWeekOverviewAvailabilityDomAttr, selectedConfig.weekOverviewAvailability);
+    slots.details.setAttribute(rosterWeekOverviewClosureDomAttr, selectedConfig.weekOverviewClosure);
+    return true;
   }
-  function selectToday(panelEl) {
-    if (!(panelEl instanceof HTMLElement)) return;
-    const today = panelEl.dataset.weekOverviewCurrentDate;
-    if (!today) return;
-    const button = panelEl.querySelector(`[data-week-overview-day="true"][data-week-overview-date="${CSS.escape(today)}"]`);
-    if (button instanceof HTMLElement) {
-      updateOverviewSelection(panelEl, button);
+  function selectToday(panel, report) {
+    const panelConfig = readPanel(panel, report);
+    if (panelConfig === null) return false;
+    for (const day of ownedElements2(panel, rosterWeekOverviewDayDomAttr)) {
+      const config = readDay(day, report);
+      if (config?.weekOverviewDate === panelConfig.weekOverviewCurrentDate) {
+        return updateRosterWeekOverviewSelection(panel, day, report);
+      }
     }
+    report(diagnostic6(panel, "missing-today-day", "Week-overview panel has no valid day for its Haskell-provided current date"));
+    return false;
   }
-  function enableRosterWeekOverview() {
+  function panelForControl(control) {
+    const panel = control.closest(panelSelector);
+    return panel instanceof HTMLElement ? panel : null;
+  }
+  function enableRosterWeekOverview(report = defaultDiagnosticReporter6) {
     if (typeof window === "undefined") return;
     document.addEventListener("click", (event) => {
       if (!(event.target instanceof Element)) return;
-      const dayButton = event.target.closest('[data-week-overview-day="true"]');
-      if (dayButton instanceof HTMLElement) {
-        const panelEl = dayButton.closest('[data-week-overview-panel="true"]');
-        updateOverviewSelection(panelEl, dayButton);
+      const day = event.target.closest(daySelector);
+      if (day instanceof HTMLElement) {
+        const panel = panelForControl(day);
+        if (panel !== null) updateRosterWeekOverviewSelection(panel, day, report);
         return;
       }
-      const todayButton = event.target.closest('[data-week-overview-today="true"]');
-      if (todayButton instanceof HTMLElement) {
-        const panelEl = todayButton.closest('[data-week-overview-panel="true"]');
-        selectToday(panelEl);
+      const today = event.target.closest(todaySelector);
+      if (today instanceof HTMLElement) {
+        if (today.getAttribute(rosterWeekOverviewTodayDomAttr) !== "true") {
+          report(diagnostic6(today, "invalid-today-role", "Week-overview today role must equal true"));
+          return;
+        }
+        const panel = panelForControl(today);
+        if (panel !== null) selectToday(panel, report);
       }
     });
     document.addEventListener("shown.bs.dropdown", (event) => {
       const trigger = event.target;
-      if (!(trigger instanceof HTMLElement)) return;
-      const panelEl = trigger.parentElement?.querySelector('[data-week-overview-panel="true"]');
-      if (!(panelEl instanceof HTMLElement)) return;
-      const selectedButton = panelEl.querySelector('[data-week-overview-day="true"].is-selected');
-      if (selectedButton instanceof HTMLElement) {
-        updateOverviewSelection(panelEl, selectedButton);
-      }
+      if (!(trigger instanceof HTMLElement) || trigger.parentElement === null) return;
+      const panels = Array.from(trigger.parentElement.querySelectorAll(panelSelector));
+      const panel = panels.find((candidate) => candidate.closest(panelSelector) === candidate);
+      if (panel === void 0) return;
+      const selectedDay = ownedElements2(panel, rosterWeekOverviewDayDomAttr).find((day) => day.getAttribute("aria-pressed") === "true");
+      if (selectedDay !== void 0) updateRosterWeekOverviewSelection(panel, selectedDay, report);
     });
   }
 

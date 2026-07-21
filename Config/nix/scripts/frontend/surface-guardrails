@@ -1495,6 +1495,74 @@ expect_match \
     '\benableFrontendSurfaceTabSets\b' \
     frontend/ts/app-roster.ts
 
+expect_no_match \
+    "replaced raw roster image-export and conflict annotations must stay deleted" \
+    'data-roster-export|data-conflict-message|dataset\.rosterExport|rosterExportFormat|sanitizeFilenamePart|exportConfigs' \
+    Application Web frontend/ts e2e Test static/css
+
+expect_no_match \
+    "authored roster image-export code must consume generated Surface names" \
+    'data-bepis-roster-image-export-(trigger|config|projection|row|cell|format)' \
+    Application Web frontend/ts e2e
+
+expect_no_match \
+    "roster image export must not infer business meaning from feature classes or cell positions" \
+    'roster-group-switch|roster-week-overview-trigger|day-label|slot-(empty|closed|time|staff|shift-type)-cell|cellIndex|gridcell' \
+    frontend/ts/roster/image-export.ts
+
+for roster_image_export_contract_name in \
+    parseRosterImageExportConfiguration \
+    parseRosterImageExportCellConfiguration \
+    rosterImageExportTriggerDomAttr \
+    rosterImageExportConfigDomAttr \
+    rosterImageExportProjectionDomAttr \
+    rosterImageExportRowDomAttr \
+    rosterImageExportCellDomAttr \
+    rosterImageExportFormatDomAttr; do
+    expect_match \
+        "the roster image-export adapter must consume generated ${roster_image_export_contract_name}" \
+        "\\b${roster_image_export_contract_name}\\b" \
+        frontend/ts/roster/image-export.ts
+done
+
+expect_no_match \
+    "replaced handwritten roster week-overview browser contract must stay deleted" \
+    'data-week-overview|dataset\.weekOverview|DOMStringMap|rosterOverviewSummaryFromDayDataset|is-(selected|unloaded|current-week)' \
+    Application Web frontend/ts e2e Test static/css
+
+expect_no_match \
+    "authored roster week-overview code must consume generated Surface names" \
+    'data-bepis-roster-week-overview-(panel|day|today|details|selected-label|leave-value|assigned-value|hours-value|summary|week-label|go-link|availability|closure|calendar-day)' \
+    Application Web frontend/ts e2e
+
+expect_match \
+    "the roster week-overview boundary consumes the generated exact panel parser" \
+    'parseRosterWeekOverviewPanelConfig' \
+    frontend/ts/roster/week-overview-configuration.ts
+expect_match \
+    "the roster week-overview boundary consumes the generated exact day parser" \
+    'parseRosterWeekOverviewDayConfig' \
+    frontend/ts/roster/week-overview-configuration.ts
+expect_match \
+    "the dormant roster week-overview adapter reports structured diagnostics" \
+    'RosterWeekOverviewDiagnostic' \
+    frontend/ts/roster/week-overview.ts
+
+expect_no_match \
+    "the roster week-overview adapter must not own Haskell-rendered copy or presentation selectors" \
+    'No loaded roster|unavailable periods|shifts assigned|rostered hours|querySelector(All)?\([^)]*roster-week-overview' \
+    frontend/ts/roster/week-overview.ts \
+    frontend/ts/roster/week-overview-configuration.ts
+
+if [ -e frontend/ts/roster/overview.ts ]; then
+    report_failure "the handwritten roster week-overview dataset parser must stay deleted"
+fi
+
+expect_no_match \
+    "the retained roster week overview must remain disabled in the active header" \
+    'renderWeekOverviewDropdown' \
+    Web/View/RosterWeeks/Header.hs
+
 if [ "$failures" -ne 0 ]; then
     exit 1
 fi

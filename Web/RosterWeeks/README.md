@@ -76,6 +76,26 @@ when HTMX removes an editor. Raw `data-roster-fullscreen*` and
 `data-roster-column-*` contracts and presentation-class discovery are
 prohibited.
 
+## Image Export Contract
+
+Live manager row-grid rosters expose a generated JPG trigger with a
+Haskell-resolved filename and exact format/copy policy. Day-column and timeline
+layouts omit the trigger because they do not render the row-grid export
+projection. The projection, rows, and every visual cell carry generated Surface
+roles; each cell carries exact Haskell-rendered export text. The browser adapter
+may measure that projection, read computed styles, render SVG/Canvas, encode JPG,
+and download it, but it must not infer cell meaning from classes/positions or
+read conflict metadata.
+
+## Dormant Week Overview Contract
+
+The retained month/week overview endpoint renders generated panel/day/detail-slot
+roles and exact Haskell-built day payloads. Availability, closure, and calendar
+status use generated closed state, while selection uses `aria-pressed`.
+Malformed day payloads are diagnosed and skipped without replacing server HTML.
+The active roster header intentionally renders only the static week label, so
+this capability remains disabled and is not fetched during normal navigation.
+
 ## Week Toolbar Contract
 
 `Application.Helper.View.WeekToolbar` renders each supplied control exactly

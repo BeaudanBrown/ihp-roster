@@ -103,6 +103,7 @@ data RosterStaffPanelEntry = RosterStaffPanelEntry
 data RosterStaffPanelRenderModel = RosterStaffPanelRenderModel
     { staffPanelRosterWeek         :: Maybe RosterWeek
     , staffPanelWeekOffset         :: Int
+    , staffPanelWeekStartDate      :: Day
     , staffPanelRosterGroups       :: [RosterGroup]
     , staffPanelCurrentRosterGroup :: RosterGroup
     , staffPanelAssignmentFilters  :: RosterAssignmentFilters

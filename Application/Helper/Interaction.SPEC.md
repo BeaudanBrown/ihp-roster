@@ -147,6 +147,17 @@ SurfaceFamily
   focus, and delayed autosave blur are browser mechanics. Each adapter resolves
   the nearest generated root, reconciles replaced controls locally, and clears
   pending editor timers when HTMX removes the owning root.
+- **Roster image export** uses Surface-owned trigger, exact configuration,
+  closed JPG format, and projection/row/cell annotations. Haskell resolves the
+  filename, format policy, user copy, and export text. The trigger is rendered
+  only with the supported row-grid projection. TypeScript keeps only measurement,
+  computed-style projection, SVG/Canvas encoding, and download mechanics; it
+  does not infer roster semantics from classes or cell order.
+- **The retained roster week overview** uses generated panel/day/detail-slot
+  roles, exact Haskell-built payloads, native `aria-pressed` selection, and
+  generated availability/closure/calendar state. Malformed day payloads are
+  diagnosed and skipped locally. The capability remains absent from the active
+  roster header and therefore performs no normal-page fetch or navigation.
 
 Views should not handwrite raw interaction `data-bepis-*` attributes, ref names,
 disposable layer mounts, intent forms, HTMX intent attributes, or target ids once

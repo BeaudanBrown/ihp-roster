@@ -219,8 +219,8 @@ slices, and all block final reconciliation.
 20. `#174` - Surface-owned linked-highlight roles and stale interaction class cleanup. **Complete.**
 21. `#175` - Staff-panel sorting/tabs and browser-reachable Surface DTOs. **Complete.**
 22. `#176` - Fullscreen and column-edit controls. **Complete.**
-23. `#177` - Image-export annotations and configuration.
-24. `#178` - Retained dormant week overview.
+23. `#177` - Image-export annotations and configuration. **Complete.**
+24. `#178` - Retained dormant week overview. **Complete.**
 
 ### Reconciliation
 
@@ -352,10 +352,25 @@ two mount-local adapters consume generated attributes, value objects, unions,
 and guards while retaining icon/focus/Escape and delayed-blur mechanics. HTMX
 replacement reconciliation and timer cleanup are covered, and the raw roster
 fullscreen/column contracts are deleted across views, CSS, tests, and source
-guards.
+guards. #177 added generated image-export trigger/config/projection/row/cell
+roles, a closed JPG format, and exact Haskell policy/cell payloads. The curated
+renderer now resolves filename, dimensions, quality, copy, errors, and export
+text, while the mount-local adapter retains only measurement, computed styles,
+SVG/Canvas encoding, and download mechanics. The trigger is emitted only beside
+the supported row-grid projection; day-column and timeline layouts no longer
+expose an unusable export action. Raw export/conflict annotations, filename
+discovery, and feature-class/cell-position inference are deleted and guarded;
+focused render, parser, browser-download, CSS, and drift coverage pin the
+boundary. #178 migrated the retained disabled week overview to generated
+panel/day/detail-slot roles, exact panel/day payloads, native `aria-pressed`, and
+closed availability/closure/calendar state. The adapter rejects malformed days
+locally with structured diagnostics and owns no fallback display copy or route.
+The active header still renders the static week label, so no normal-page mount,
+fetch, or navigation behavior was re-enabled; raw datasets, the handwritten
+parser, and shared semantic classes are deleted and guarded.
 Roster linked highlighting depends on closed interaction IR. The
-browser-reachable Surface DTO path established by staff-panel work is available
-to image export and week overview. The Haskell adapter slices run in parallel
+browser-reachable Surface DTO path established by staff-panel work now carries
+image-export and week-overview payloads. The Haskell adapter slices run in parallel
 with capability slices and final reconciliation depends on every preceding
 slice.
 
