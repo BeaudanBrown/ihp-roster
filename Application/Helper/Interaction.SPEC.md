@@ -125,6 +125,12 @@ SurfaceFamily
   adapter parses and diagnoses the exact boundary before generic matching and
   native visibility changes inside one generated root. Import validation and
   mutation authority remain server-owned.
+- **Roster fullscreen and column-edit controls** use Surface-owned generated
+  root/control roles and closed collapsed/expanded or inactive/active state.
+  Toggle pressed state remains native `aria-pressed`; icon classes, Escape,
+  focus, and delayed autosave blur are browser mechanics. Each adapter resolves
+  the nearest generated root, reconciles replaced controls locally, and clears
+  pending editor timers when HTMX removes the owning root.
 
 Views should not handwrite raw interaction `data-bepis-*` attributes, ref names,
 disposable layer mounts, intent forms, HTMX intent attributes, or target ids once

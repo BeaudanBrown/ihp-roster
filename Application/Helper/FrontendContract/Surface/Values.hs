@@ -21,6 +21,7 @@ module Application.Helper.FrontendContract.Surface.Values
     , KnownSurfaceFieldValues
     , KnownSurfaceWireValue (..)
     , LookupSurfaceField
+    , RequireBrowserClosedStateValue
     , RequireCompleteSetSortKey
     , RequireSurfaceField
     , RequireSurfaceTabKey
@@ -30,6 +31,7 @@ module Application.Helper.FrontendContract.Surface.Values
     , SurfaceActivationRefPrimitive
     , SurfaceBrowserRolePrimitive
     , SurfaceBrowserStatePrimitive
+    , SurfaceBrowserClosedStatePrimitive
     , SurfaceCompleteSetSortPrimitive
     , SurfaceCompleteSetSortRowDto
     , SurfaceCompleteSetSortRowFieldSpecs
@@ -79,6 +81,8 @@ module Application.Helper.FrontendContract.Surface.Values
     , surfaceActivationRefValue
     , surfaceBrowserRoleValue
     , surfaceBrowserStateValue
+    , surfaceBrowserClosedStateValue
+    , surfaceBrowserClosedStateLiteral
     , surfaceCompleteSetSortValue
     , surfaceLinkedHighlightValue
     , surfaceTabSetValue
@@ -620,6 +624,7 @@ type SurfaceIntentPrimitive spec marker = FindSurfaceIntent spec marker (Surface
 type SurfaceActivationRefPrimitive spec marker = FindSurfaceActivationRef spec marker (SurfacePrimitives spec)
 type SurfaceBrowserRolePrimitive spec marker = FindSurfaceBrowserRole spec marker (SurfacePrimitives spec)
 type SurfaceBrowserStatePrimitive spec marker = FindSurfaceBrowserState spec marker (SurfacePrimitives spec)
+type SurfaceBrowserClosedStatePrimitive spec marker = FindSurfaceBrowserClosedState spec marker (SurfacePrimitives spec)
 type SurfaceCompleteSetSortPrimitive spec marker = FindSurfaceCompleteSetSort spec marker (SurfacePrimitives spec)
 type SurfaceLinkedHighlightPrimitive spec marker = FindSurfaceLinkedHighlight spec marker (SurfacePrimitives spec)
 type SurfaceDomTokenPrimitive spec marker = FindSurfaceDomToken spec marker (SurfacePrimitives spec)
@@ -726,6 +731,24 @@ type family FindSurfaceBrowserState (spec :: SurfaceSpec) (marker :: Type) (prim
     FindSurfaceBrowserState spec marker (('BrowserState marker) ': rest) = 'BrowserState marker
     FindSurfaceBrowserState spec marker (primitive ': rest) = FindSurfaceBrowserState spec marker rest
     FindSurfaceBrowserState spec marker '[] = SurfaceOwnershipError spec "browser-state" marker
+
+type family FindSurfaceBrowserClosedState (spec :: SurfaceSpec) (marker :: Type) (primitives :: [SurfacePrimitive]) :: SurfacePrimitive where
+    FindSurfaceBrowserClosedState spec marker (('BrowserClosedState marker values) ': rest) = 'BrowserClosedState marker values
+    FindSurfaceBrowserClosedState spec marker (primitive ': rest) = FindSurfaceBrowserClosedState spec marker rest
+    FindSurfaceBrowserClosedState spec marker '[] = SurfaceOwnershipError spec "browser-closed-state" marker
+
+type family RequireBrowserClosedStateValue (primitive :: SurfacePrimitive) (value :: Type) :: Constraint where
+    RequireBrowserClosedStateValue ('BrowserClosedState marker values) value = RequireClosedStateValue marker value values
+
+type family RequireClosedStateValue (stateMarker :: Type) (value :: Type) (values :: [Type]) :: Constraint where
+    RequireClosedStateValue stateMarker value (value ': rest) = ()
+    RequireClosedStateValue stateMarker value (other ': rest) = RequireClosedStateValue stateMarker value rest
+    RequireClosedStateValue stateMarker value '[] = TypeError
+        ( 'Text "FrontendSurface browser state "
+            ':<>: 'ShowType stateMarker
+            ':<>: 'Text " does not declare value "
+            ':<>: 'ShowType value
+        )
 
 type family FindSurfaceCompleteSetSort (spec :: SurfaceSpec) (marker :: Type) (primitives :: [SurfacePrimitive]) :: SurfacePrimitive where
     FindSurfaceCompleteSetSort spec marker (('CompleteSetSort marker rootRole rowRole controlRole rowDto keys defaultKey defaultDirection) ': rest) = 'CompleteSetSort marker rootRole rowRole controlRole rowDto keys defaultKey defaultDirection
@@ -907,6 +930,25 @@ surfaceBrowserStateValue =
     case reflectPrimitive @(SurfaceBrowserStatePrimitive spec marker) of
         ReflectedBrowserState attribute -> qualifySurfaceBrowserAttribute @spec attribute
         _ -> error "impossible: browser-state lookup reflected a different primitive"
+
+surfaceBrowserClosedStateValue :: forall spec marker. (ReflectSurfaceSpec spec, ReflectPrimitive (SurfaceBrowserClosedStatePrimitive spec marker)) => BrowserClosedStateIR
+surfaceBrowserClosedStateValue =
+    case reflectPrimitive @(SurfaceBrowserClosedStatePrimitive spec marker) of
+        ReflectedBrowserClosedState state ->
+            state
+                { browserClosedStateAttribute =
+                    qualifySurfaceBrowserAttribute @spec state.browserClosedStateAttribute
+                }
+        _ -> error "impossible: browser-closed-state lookup reflected a different primitive"
+
+surfaceBrowserClosedStateLiteral ::
+    forall spec marker value.
+    ( Typeable value
+    , RequireBrowserClosedStateValue (SurfaceBrowserClosedStatePrimitive spec marker) value
+    ) =>
+    Text
+surfaceBrowserClosedStateLiteral =
+    Naming.deriveFrontendSurfaceTypeName @value Naming.BrowserStateValueName
 
 surfaceCompleteSetSortValue :: forall spec marker. (ReflectSurfaceSpec spec, ReflectPrimitive (SurfaceCompleteSetSortPrimitive spec marker)) => CompleteSetSortIR
 surfaceCompleteSetSortValue =

@@ -37,6 +37,11 @@ Read this before editing `frontend/ts/`.
   copy. Keep `beforeinstallprompt`, `appinstalled`, prompt objects, display-mode,
   and Apple standalone detection adapter-local; use native `hidden` and ARIA
   semantics rather than serializing availability or installed platform state.
+- Roster fullscreen and column-edit adapters import Surface-generated root and
+  control roles plus generated closed-state attributes, values, and guards.
+  Keep fullscreen icon/focus/Escape mechanics local; keep column-edit state and
+  delayed-blur timers per editor and dispose timers with HTMX cleanup. Do not
+  discover either capability through roster presentation classes.
 - The Xero candidate-filter adapter imports generated root/search/candidate/
   config/empty roles and the exact candidate-config parser. Treat each
   Haskell-normalized projection as opaque: validate the complete local boundary,

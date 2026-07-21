@@ -77,14 +77,13 @@ test.describe('Roster week overview', () => {
                 throw new Error('Expected roster grid frame to be an HTMLElement');
             }
 
-            frame.style.setProperty('--roster-slot-count', '4');
-
             const scroller = frame.querySelector('.roster-slots-scroller');
             const grid = frame.querySelector('.roster-grid');
 
             if (!(scroller instanceof HTMLElement) || !(grid instanceof HTMLElement)) {
                 return null;
             }
+            scroller.style.setProperty('--roster-slot-count', '4');
 
             const maxScrollLeft = Math.max(0, scroller.scrollWidth - scroller.clientWidth);
             scroller.scrollLeft = Math.floor(maxScrollLeft / 2);

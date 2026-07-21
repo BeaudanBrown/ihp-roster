@@ -76,10 +76,14 @@ activeRosterWeekResourcesForStaff activeRosterScopes staffId = do
             let rosterGroupIdSet = Set.fromList (map unpackId rosterGroupIds)
             pure $
                 Set.fromList
-                    [ RosterResource.rosterWeekResource rosterGroupId weekOffset
+                    [ resource
                     | (venueId, rosterGroupId, weekOffset) <- activeRosterScopes
                     , venueId == unpackId currentVenueId
                     , rosterGroupId `Set.member` rosterGroupIdSet
+                    , resource <-
+                        [ RosterResource.rosterWeekResource rosterGroupId weekOffset
+                        , RosterResource.rosterSlotsContentResource rosterGroupId weekOffset
+                        ]
                     ]
 
 currentVenueStaff ::

@@ -22,6 +22,9 @@ module Application.Helper.FrontendContract.Surface.Roster
     , RosterWeekShell
     , RosterWageRail
     , RosterWeek
+    , RosterWeekStructure
+    , RosterSlotsStructure
+    , RosterSlotsContent
     , RosterWeekBoundaryConfig
     , TimePickerConfig
     , RosterWeekOverview
@@ -56,6 +59,18 @@ module Application.Helper.FrontendContract.Surface.Roster
     , StaffPanelTabRole
     , StaffTabKey
     , SettingsTabKey
+    , FullscreenRootRole
+    , FullscreenToggleRole
+    , FullscreenLabelRole
+    , FullscreenState
+    , Collapsed
+    , Expanded
+    , ColumnEditorRole
+    , ColumnEditStartRole
+    , ColumnEditDoneRole
+    , ColumnEditingState
+    , Inactive
+    , Active
     , ShiftGroupHighlight
     , ShiftGroupHighlightSourceRole
     , ShiftGroupHighlightMemberRole
@@ -101,6 +116,9 @@ data Roster
 data RosterDayTimeline
 
 data RosterWeek
+data RosterWeekStructure
+data RosterSlotsStructure
+data RosterSlotsContent
 data VenueId
 data RosterGroupId
 data WeekOffset
@@ -157,6 +175,20 @@ data StaffPanelTabRole
 data StaffTabKey
 data SettingsTabKey
 
+data FullscreenRootRole
+data FullscreenToggleRole
+data FullscreenLabelRole
+data FullscreenState
+data Collapsed
+data Expanded
+
+data ColumnEditorRole
+data ColumnEditStartRole
+data ColumnEditDoneRole
+data ColumnEditingState
+data Inactive
+data Active
+
 data ShiftGroupHighlight
 data ShiftGroupHighlightSourceRole
 data ShiftGroupHighlightMemberRole
@@ -204,6 +236,9 @@ data EndDate
 data Notes
 
 type RosterWeekResource = Resource RosterWeek '[ Field RosterGroupId 'WireUUID, Field WeekOffset 'WireInt ]
+type RosterWeekStructureResource = Resource RosterWeekStructure '[ Field RosterGroupId 'WireUUID, Field WeekOffset 'WireInt ]
+type RosterSlotsStructureResource = Resource RosterSlotsStructure '[ Field RosterGroupId 'WireUUID, Field WeekOffset 'WireInt ]
+type RosterSlotsContentResource = Resource RosterSlotsContent '[ Field RosterGroupId 'WireUUID, Field WeekOffset 'WireInt ]
 type RosterDayResource = Resource RosterDay '[ Field RosterDayId 'WireUUID ]
 type RosterEndTimesConfigResource = Resource RosterEndTimesConfig '[ Field VenueId 'WireUUID ]
 type RosterWeekBoundaryConfigResource = Resource RosterWeekBoundaryConfig '[ Field VenueId 'WireUUID ]
@@ -224,7 +259,7 @@ type RosterFragmentBundle =
         '[ 'MountTarget RosterContent '[]
          , 'Eager
          , 'Live
-         , 'ResyncOnly
+         , 'DependsOn RosterWeekStructureResource '[ 'FromScope RosterGroupId, 'FromScope WeekOffset ]
          , 'Contains RosterGridToolbar
          , 'Contains RosterGridFrame
          ]
@@ -242,7 +277,9 @@ type RosterFragmentBundle =
         '[ 'MountTarget RosterGridFrame '[]
          , 'Eager
          , 'Live
-         , 'ResyncOnly
+         , 'DependsOn RosterWeekStructureResource '[ 'FromScope RosterGroupId, 'FromScope WeekOffset ]
+         , 'DependsOn RosterEndTimesConfigResource '[ 'FromScope VenueId ]
+         , 'DependsOn RosterWeekBoundaryConfigResource '[ 'FromScope VenueId ]
          , 'Contains RosterDayColumns
          , 'Contains RosterDayRail
          , 'Contains RosterWageRail
@@ -252,7 +289,7 @@ type RosterFragmentBundle =
      , Fragment RosterDayColumns '[] '[ 'MountTarget RosterDayColumns '[], 'Eager, 'Live, 'DependsOn RosterWeekResource '[ 'FromScope RosterGroupId, 'FromScope WeekOffset ], 'DependsOn RosterEndTimesConfigResource '[ 'FromScope VenueId ], 'DependsOn RosterWeekBoundaryConfigResource '[ 'FromScope VenueId ] ]
      , Fragment RosterDayRail '[] '[ 'MountTarget RosterDayRail '[], 'Eager, 'Live, 'DependsOn RosterWeekResource '[ 'FromScope RosterGroupId, 'FromScope WeekOffset ], 'DependsOn RosterEndTimesConfigResource '[ 'FromScope VenueId ], 'DependsOn RosterWeekBoundaryConfigResource '[ 'FromScope VenueId ] ]
      , Fragment RosterWageRail '[] '[ 'MountTarget RosterWageRail '[], 'Eager, 'Live, 'DependsOn RosterWeekResource '[ 'FromScope RosterGroupId, 'FromScope WeekOffset ], 'DependsOn RosterEndTimesConfigResource '[ 'FromScope VenueId ], 'DependsOn RosterWeekBoundaryConfigResource '[ 'FromScope VenueId ] ]
-     , Fragment RosterSlotsGrid '[] '[ 'MountTarget RosterSlotsGrid '[], 'Eager, 'Live, 'DependsOn RosterWeekResource '[ 'FromScope RosterGroupId, 'FromScope WeekOffset ], 'DependsOn RosterEndTimesConfigResource '[ 'FromScope VenueId ], 'DependsOn RosterWeekBoundaryConfigResource '[ 'FromScope VenueId ] ]
+     , Fragment RosterSlotsGrid '[] '[ 'MountTarget RosterSlotsGrid '[], 'Eager, 'Live, 'DependsOn RosterSlotsStructureResource '[ 'FromScope RosterGroupId, 'FromScope WeekOffset ], 'DependsOn RosterSlotsContentResource '[ 'FromScope RosterGroupId, 'FromScope WeekOffset ], 'DependsOn RosterEndTimesConfigResource '[ 'FromScope VenueId ], 'DependsOn RosterWeekBoundaryConfigResource '[ 'FromScope VenueId ] ]
      , Fragment RosterStaffPanel '[] '[ 'MountTarget RosterStaffPanelFragment '[], 'Lazy '[ 'DependsOnFragment RosterContent ], 'Live, 'DependsOn RosterWeekResource '[ 'FromScope RosterGroupId, 'FromScope WeekOffset ] ]
      , Fragment RosterStaffSelfServiceLeaveFormFragment '[] '[ 'MountTarget RosterStaffSelfServiceLeaveFormFragment '[], 'Eager, 'Live, 'ResyncOnly ]
      , Fragment RosterWeekOverview '[] '[ 'MountTarget RosterWeekOverviewMount '[ Field RosterGroupId 'WireUUID, Field WeekOffset 'WireInt ], 'Lazy '[ 'DependsOnFragment RosterContent ], 'DependsOn RosterWeekResource '[ 'FromScope RosterGroupId, 'FromScope WeekOffset ] ]
@@ -394,7 +431,7 @@ type RosterActionBundle =
          , 'HtmxPushUrl 'HtmxPushUrlFalse
          ]
      , BrowserDomToken RosterContent
-     , BrowserDomToken RosterWeekShell
+     , DomToken RosterWeekShell
      , DomToken RosterDaySection
      , DomToken RosterStaffSelfServiceLeaveFormFragment
      ]
@@ -466,6 +503,17 @@ type RosterStaffPanelBrowserBundle =
      , TabSet RosterStaffPanelTabs StaffPanelTabRole '[ StaffTabKey, SettingsTabKey ] StaffTabKey
      ]
 
+type RosterChromeBrowserBundle =
+    '[ BrowserRole FullscreenRootRole
+     , BrowserRole FullscreenToggleRole
+     , BrowserRole FullscreenLabelRole
+     , BrowserClosedState FullscreenState '[ Collapsed, Expanded ]
+     , BrowserRole ColumnEditorRole
+     , BrowserRole ColumnEditStartRole
+     , BrowserRole ColumnEditDoneRole
+     , BrowserClosedState ColumnEditingState '[ Inactive, Active ]
+     ]
+
 type RosterLinkedHighlightBundle =
     '[ BrowserRole StaffHighlightSourceRole
      , BrowserRole StaffHighlightMemberRole
@@ -492,7 +540,7 @@ type RosterLinkedHighlightBundle =
      ]
 
 type RosterSurface =
-    Surface Roster (Concat '[ RosterScopeBundle, RosterFragmentBundle, RosterActionBundle, RosterInteractionBundle, RosterStaffPanelBrowserBundle, RosterLinkedHighlightBundle ])
+    Surface Roster (Concat '[ RosterScopeBundle, RosterFragmentBundle, RosterActionBundle, RosterInteractionBundle, RosterStaffPanelBrowserBundle, RosterChromeBrowserBundle, RosterLinkedHighlightBundle ])
 
 type RosterDayTimelineScopeBundle =
     '[ Scope RosterDayTimeline

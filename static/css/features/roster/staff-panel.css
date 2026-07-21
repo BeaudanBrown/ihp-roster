@@ -9,13 +9,13 @@
     border-radius: 999px;
 }
 
-#roster-week-shell[data-roster-fullscreen="true"] .roster-layout-main {
+[data-bepis-roster-fullscreen-root][data-bepis-roster-fullscreen="expanded"] .roster-layout-main {
     flex: 0 0 100%;
     width: 100%;
     max-width: 100%;
 }
 
-#roster-week-shell[data-roster-fullscreen="true"] .roster-layout-side {
+[data-bepis-roster-fullscreen-root][data-bepis-roster-fullscreen="expanded"] .roster-layout-side {
     display: none !important;
 }
 

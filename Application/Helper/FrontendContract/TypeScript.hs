@@ -365,6 +365,7 @@ renderFrontendSurfaceRuntime surfaces =
     renderFrontendSurfaceBrandAliases surfaces
         <> concatMap renderFrontendSurfaceDomTokenConstants surfaces
         <> concatMap renderFrontendSurfaceBrowserAttributeConstants surfaces
+        <> concatMap renderFrontendSurfaceBrowserClosedStateTypes surfaces
         <> concatMap renderFrontendSurfaceCompleteSetSortKeyTypes surfaces
         <> concatMap renderFrontendSurfaceTabSetKeyTypes surfaces
         <> renderFrontendSurfaceRegistries surfaces
@@ -416,6 +417,30 @@ renderFrontendSurfaceBrowserAttributeConstants surface =
     [ "export const " <> surfaceBrowserAttributeConstName surface attribute <> " = " <> quote attribute.browserAttributeDomAttribute <> " as const;"
     | attribute <- surface.surfaceBrowserRoles <> surface.surfaceBrowserStates
     ] <> ["" | not (null surface.surfaceBrowserRoles && null surface.surfaceBrowserStates)]
+
+renderFrontendSurfaceBrowserClosedStateTypes :: SurfaceIR -> [Text]
+renderFrontendSurfaceBrowserClosedStateTypes surface =
+    concatMap renderState surface.surfaceBrowserClosedStates
+  where
+    renderState state =
+        let stateType = surfaceBrowserClosedStateTypeName surface state
+         in [ "export const " <> surfaceBrowserClosedStateValuesConstName surface state <> " = "
+                <> objectLiteral [(value, quote value) | value <- state.browserClosedStateValues]
+                <> " as const;"
+            , "export type " <> stateType <> " = " <> renderStringUnion state.browserClosedStateValues <> ";"
+            , "export function is" <> stateType <> "(value: unknown): value is " <> stateType <> " {"
+            , "    return typeof value === \"string\" && " <> arrayLiteral (map quote state.browserClosedStateValues) <> ".includes(value);"
+            , "}"
+            , ""
+            ]
+
+surfaceBrowserClosedStateTypeName :: SurfaceIR -> BrowserClosedStateIR -> Text
+surfaceBrowserClosedStateTypeName surface state =
+    typeNameFromMarker (surface.surfaceName <> "-" <> state.browserClosedStateAttribute.browserAttributeName <> "-state")
+
+surfaceBrowserClosedStateValuesConstName :: SurfaceIR -> BrowserClosedStateIR -> Text
+surfaceBrowserClosedStateValuesConstName surface state =
+    constName (surface.surfaceName <> "-" <> state.browserClosedStateAttribute.browserAttributeName <> "-states")
 
 surfaceBrowserAttributeConstName :: SurfaceIR -> BrowserAttributeIR -> Text
 surfaceBrowserAttributeConstName surface attribute =

@@ -2,7 +2,8 @@ module Test.Controller.StaffSpec where
 
 import qualified Application.Helper.FrontendContract.Surface.Admin.Live as AdminLive
 import Application.Helper.FrontendContract.Surface.Profile.Resource
-import Application.Helper.FrontendContract.Surface.Roster.Resource (rosterWeekResource)
+import Application.Helper.FrontendContract.Surface.Roster.Resource (rosterSlotsContentResource,
+                                                                    rosterWeekResource)
 import qualified Application.Helper.LiveUpdate as LiveUpdate
 import Application.Helper.RosterGroups (createVenueRosterGroupWithDefaults)
 import Application.Helper.StaffShiftPreferences (encodeShiftPreferenceKey,
@@ -201,10 +202,12 @@ tests = aroundAll withDatabaseTestContext do
                 Set.fromList resources
                     `shouldBe` Set.fromList
                         [ rosterWeekResource (unpackId previousGroup.id) 0
+                        , rosterSlotsContentResource (unpackId previousGroup.id) 0
                         , rosterWeekResource (unpackId selectedGroup.id) 1
+                        , rosterSlotsContentResource (unpackId selectedGroup.id) 1
                         ]
 
-        it "invalidates roster content and staff list resources for HTMX roster-launched staff edits" $ withContext do
+        it "invalidates roster child and staff list resources for HTMX roster-launched staff edits" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Venue A"
                 manager <- createUserRecord "staff-modal-manager@example.com" "staff" True
@@ -239,7 +242,8 @@ tests = aroundAll withDatabaseTestContext do
                 response `responseBodyShouldNotContain` "id=\"roster-content\""
                 let triggerHeader = cs <$> lookup "HX-Trigger" (responseHeaders response)
                 triggerHeader `shouldSatisfy` maybe False (Text.isInfixOf "bepis:live-fragments-refresh")
-                triggerHeader `shouldSatisfy` maybe False (Text.isInfixOf "\"kind\":\"roster-content\"")
+                triggerHeader `shouldSatisfy` maybe False (not . Text.isInfixOf "\"kind\":\"roster-content\"")
+                triggerHeader `shouldSatisfy` maybe False (Text.isInfixOf "\"kind\":\"roster-slots-grid\"")
                 triggerHeader `shouldSatisfy` maybe False (Text.isInfixOf "\"kind\":\"roster-staff-panel\"")
 
         it "hides trial staff invitation email from the staff details form" $ withContext do

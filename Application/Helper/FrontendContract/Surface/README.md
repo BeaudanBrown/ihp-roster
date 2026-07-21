@@ -274,6 +274,25 @@ row payload contains an opaque row key, name, role, assigned-shift count, and
 ideal-shift count. The old per-field attributes, global sort enum, and
 roster-specific TypeScript runtimes are deleted and guarded against return.
 
+## Surface-Owned Closed Browser States And Roster Chrome
+
+`BrowserClosedState` pairs a generated Surface state attribute with a non-empty,
+checked value inventory. TypeScript receives the attribute constant, named value
+object, exact union, and guard. Haskell rendering uses
+`surfaceBrowserClosedStateLiteral`, which rejects values not declared by that
+state at compile time. Use native properties or ARIA state when they already
+express the semantic relationship; use a closed Surface state only when CSS and
+the adapter need a shared app-specific state on a generated root.
+
+Roster fullscreen and column editing are the first production consumers. The
+curated `Surface.Roster.Chrome` boundary renders fullscreen root/toggle/label and
+column editor/start/done roles plus initial collapsed/inactive states. The
+browser adapters import every role, state attribute, value, and guard. Fullscreen
+keeps icon classes, focus, and Escape handling browser-local. Column editing
+keeps its delayed blur mechanical, stores timers per generated editor, and
+cancels them when HTMX removes that editor. Neither runtime discovers behavior
+through roster presentation classes or carries state from a replaced root.
+
 ## Generated HTMX Request Actions
 
 `Action name fields options` describes surface-owned request initiators, not
@@ -1188,10 +1207,14 @@ The singular actor/passive planner is generated-data driven:
 Containment matching is transitive and parameter-aware. For repeated fragments,
 an ancestor's declared parameter fields must have equal values on the descendant,
 so one roster day section does not suppress a row mounted under another day.
-Siblings remain independent. Structural wrapper fragments whose children own all
-ordinary resource-backed updates should be `ResyncOnly`; otherwise ancestor-wins
-normalization would correctly avoid overlapping swaps but unnecessarily replace
-the wrapper's focus or scroll ownership.
+Siblings remain independent. Structural wrappers should depend only on dedicated
+resources that actually change wrapper-owned structure or state; child-owned
+ordinary updates must use narrower resources. Use `ResyncOnly` when no passive
+resource changes the wrapper at all. Reusing one broad child resource on the
+wrapper would make ancestor-wins normalization correctly avoid overlapping swaps
+but unnecessarily replace focus or scroll ownership. Roster uses separate week-
+structure, slots-structure, and broad slots-content resources so precise
+slot/day changes preserve both the grid frame and day-row slot scroller.
 
 Runtime/domain expansion is separate from static fragment dependency planning.
 When a mutation has broad semantic effects, expand it in the producer or a small

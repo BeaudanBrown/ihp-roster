@@ -18,7 +18,6 @@ import {
     rosterStaffPanelSortRowDomAttr,
     rosterStaffPanelTabDomAttr,
     parseRosterStaffPanelSortRow,
-    rosterWeekShellDomToken,
     timesheetWeekShellDomToken,
     type TimesheetsSurfaceFragmentKey,
 } from "../generated/contracts";
@@ -139,7 +138,6 @@ test("generated tab-set registry owns roster tab keys and default", () => {
 
 test("surface DOM tokens are generated as tree-shakeable feature constants", () => {
     assertEqual(rosterContentDomToken, "roster-content");
-    assertEqual(rosterWeekShellDomToken, "roster-week-shell");
     assertEqual(timesheetWeekShellDomToken, "timesheet-week-shell");
 });
 

@@ -210,7 +210,7 @@ slices, and all block final reconciliation.
 
 20. `#174` - Surface-owned linked-highlight roles and stale interaction class cleanup. **Complete.**
 21. `#175` - Staff-panel sorting/tabs and browser-reachable Surface DTOs. **Complete.**
-22. `#176` - Fullscreen and column-edit controls.
+22. `#176` - Fullscreen and column-edit controls. **Complete.**
 23. `#177` - Image-export annotations and configuration.
 24. `#178` - Retained dormant week overview.
 
@@ -316,7 +316,14 @@ defaults, tie-breakers, tab keys, and tab default come only from the Roster
 Surface declaration. The old global sort enum, per-field data attributes, and
 roster-specific parser/comparator/tab modules are deleted; focused reflection,
 compile-failure, Haskell render, TypeScript lifecycle, E2E, drift, and source
-guards pin the boundary.
+guards pin the boundary. #176 added Surface-owned closed browser states and the
+roster fullscreen root/toggle/label plus column editor/start/done roles. The
+curated Haskell chrome renderer supplies initial collapsed/inactive state; the
+two mount-local adapters consume generated attributes, value objects, unions,
+and guards while retaining icon/focus/Escape and delayed-blur mechanics. HTMX
+replacement reconciliation and timer cleanup are covered, and the raw roster
+fullscreen/column contracts are deleted across views, CSS, tests, and source
+guards.
 Roster linked highlighting depends on closed interaction IR. The
 browser-reachable Surface DTO path established by staff-panel work is available
 to image export and week overview. The Haskell adapter slices run in parallel

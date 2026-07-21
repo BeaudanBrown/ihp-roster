@@ -35,8 +35,14 @@ or roster views.
   controller checks or validation branches.
 - User-controlled ids must be parsed with total helpers and re-queried in the
   current venue before mutation.
-- Full-content actor refreshes are acceptable when a slot mutation can change
-  conflict state across multiple rows.
+- Ordinary roster-week mutations must offer authoritative grid-child fragments
+  to dependency planning. `roster-content` responds only to the dedicated
+  roster-structure resource; passing it with only a regular week resource emits
+  no actor refresh. Create/copy/publication transitions must emit the structural
+  resource, while frame-owning venue configuration may select `roster-grid-frame`.
+  Slot-definition and full repack mutations emit the dedicated slots-structure
+  resource. Broad staff/leave projection changes emit slots-content; precise
+  slot/day resources must preserve the slot scroller owner.
 - Roster publication/draft and source-slot mutations can change Timesheet
   suggestions; include the corresponding Timesheet week touched resource.
 - Do not return `hx-swap-oob` wrappers from viewer-side fragment GET actions;

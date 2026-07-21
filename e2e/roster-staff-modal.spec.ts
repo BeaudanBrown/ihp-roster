@@ -128,7 +128,7 @@ test.describe('Roster Staff Modal', () => {
 
         await staffEditForm.locator('#firstName').fill('Alphonso');
         const rosterSwapsPromise = page.evaluate(() => new Promise<void>((resolve) => {
-            const pendingTargets = new Set(['roster-content', 'roster-staff-panel-fragment']);
+            const pendingTargets = new Set(['roster-slots-grid', 'roster-staff-panel-fragment']);
             document.addEventListener('app:live-update-performance', (event) => {
                 const detail = (event as CustomEvent<Record<string, unknown>>).detail;
                 if (detail?.name !== 'live_updates.swap_fragment' || detail?.outcome !== 'swapped' || typeof detail?.targetId !== 'string') return;
@@ -137,11 +137,12 @@ test.describe('Roster Staff Modal', () => {
             });
         }));
         const updateResponsePromise = page.waitForResponse((response) => response.request().method() === 'POST' && response.url().includes('/UpdateStaff'));
-        const rosterRefreshPromise = page.waitForResponse((response) => response.request().method() === 'GET' && response.url().includes('/ShowRosterWeekContentFragment'));
+        const rosterRefreshPromise = page.waitForResponse((response) => response.request().method() === 'GET' && response.url().includes('/ShowRosterWeekSlotsGridFragment'));
         const staffListRefreshPromise = page.waitForResponse((response) => response.request().method() === 'GET' && response.url().includes('/ShowRosterWeekStaffPanelFragment'));
         await staffEditForm.getByRole('button', { name: 'Save profile details' }).click();
         const updateResponse = await updateResponsePromise;
-        expect(updateResponse.headers()['hx-trigger']).toContain('roster-content');
+        expect(updateResponse.headers()['hx-trigger']).not.toContain('roster-content');
+        expect(updateResponse.headers()['hx-trigger']).toContain('roster-slots-grid');
         const rosterRefreshResponse = await rosterRefreshPromise;
         const staffListRefreshResponse = await staffListRefreshPromise;
         await Promise.all([rosterRefreshResponse.finished(), staffListRefreshResponse.finished()]);

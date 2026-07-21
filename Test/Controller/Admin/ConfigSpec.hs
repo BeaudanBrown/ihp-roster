@@ -104,7 +104,7 @@ tests = aroundAll withDatabaseTestContext do
                         , timesheetWeekBoundaryConfigResource venueId
                         ]
 
-        it "plans non-overlapping roster child refreshes for roster-affecting venue config resources" $ withContext do
+        it "plans non-overlapping roster refreshes for roster-affecting venue config resources" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Admin Roster Config Planning Venue"
                 admin <- createUserRecord "admin-roster-config-planning@example.com" "staff" True
@@ -123,10 +123,7 @@ tests = aroundAll withDatabaseTestContext do
                         ]
                 let expectedFragments =
                         [ RosterLive.rosterGridToolbarLiveFragment
-                        , RosterLive.rosterDayColumnsLiveFragment
-                        , RosterLive.rosterDayRailLiveFragment
-                        , RosterLive.rosterWageRailLiveFragment
-                        , RosterLive.rosterSlotsGridLiveFragment
+                        , RosterLive.rosterGridFrameLiveFragment
                         ]
                 let subscription =
                         SurfaceSubscription

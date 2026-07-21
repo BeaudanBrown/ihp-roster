@@ -104,7 +104,24 @@ tests = describe "Frontend contract generator foundation" do
         frontendContractsTypeScript `shouldSatisfy` Text.isInfixOf "export const surfaceActionDomAttr = \"data-bepis-surface-action\" as const;"
         frontendContractsTypeScript `shouldSatisfy` Text.isInfixOf "sourceRef: sourceRefDomAttr"
         frontendContractsTypeScript `shouldSatisfy` Text.isInfixOf "export const rosterContentDomToken = \"roster-content\" as const;"
-        frontendContractsTypeScript `shouldSatisfy` Text.isInfixOf "export const rosterWeekShellDomToken = \"roster-week-shell\" as const;"
+        frontendContractsTypeScript `shouldNotSatisfy` Text.isInfixOf "export const rosterWeekShellDomToken"
+
+    it "generates roster chrome roles and closed state guards" do
+        forM_
+            [ "export const rosterFullscreenRootDomAttr = \"data-bepis-roster-fullscreen-root\" as const;"
+            , "export const rosterFullscreenToggleDomAttr = \"data-bepis-roster-fullscreen-toggle\" as const;"
+            , "export const rosterFullscreenLabelDomAttr = \"data-bepis-roster-fullscreen-label\" as const;"
+            , "export const rosterColumnEditorDomAttr = \"data-bepis-roster-column-editor\" as const;"
+            , "export const rosterColumnEditStartDomAttr = \"data-bepis-roster-column-edit-start\" as const;"
+            , "export const rosterColumnEditDoneDomAttr = \"data-bepis-roster-column-edit-done\" as const;"
+            , "export const rosterFullscreenDomAttr = \"data-bepis-roster-fullscreen\" as const;"
+            , "export const rosterColumnEditingDomAttr = \"data-bepis-roster-column-editing\" as const;"
+            , "export type RosterFullscreenState = \"collapsed\" | \"expanded\";"
+            , "export function isRosterFullscreenState(value: unknown): value is RosterFullscreenState"
+            , "export type RosterColumnEditingState = \"inactive\" | \"active\";"
+            , "export function isRosterColumnEditingState(value: unknown): value is RosterColumnEditingState"
+            ]
+            (\expected -> frontendContractsTypeScript `shouldSatisfy` Text.isInfixOf expected)
 
     it "registers one generated FrontendContract declaration block" do
         [(declaration.name, declaration.origin) | declaration <- frontendContractDeclarations]

@@ -29,10 +29,6 @@ async function measureRosterLayout(page: Page, options: { slotCount?: number } =
             throw new Error('Expected roster grid frame to be an HTMLElement');
         }
 
-        if (measureOptions.slotCount !== undefined) {
-            frame.style.setProperty('--roster-slot-count', String(measureOptions.slotCount));
-        }
-
         const dayRail = frame.querySelector('.roster-day-rail');
         const wageRail = frame.querySelector('.roster-wage-rail');
         const scroller = frame.querySelector('.roster-slots-scroller');
@@ -43,6 +39,10 @@ async function measureRosterLayout(page: Page, options: { slotCount?: number } =
             || !(scroller instanceof HTMLElement)
             || !(grid instanceof HTMLElement)) {
             throw new Error('Roster layout metric selectors were not present');
+        }
+
+        if (measureOptions.slotCount !== undefined) {
+            scroller.style.setProperty('--roster-slot-count', String(measureOptions.slotCount));
         }
 
         const gridStyles = getComputedStyle(grid);

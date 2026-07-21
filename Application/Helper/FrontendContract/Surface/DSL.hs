@@ -51,6 +51,7 @@ module Application.Helper.FrontendContract.Surface.DSL
     , ActivationRef
     , BrowserRole
     , BrowserState
+    , BrowserClosedState
     , LinkedHighlight
     , CompleteSetSort
     , TabSet
@@ -276,6 +277,7 @@ data SurfacePrimitive
     | ActivationRef Type [PrimitiveOption]
     | BrowserRole Type
     | BrowserState Type
+    | BrowserClosedState Type [Type]
     | LinkedHighlight Type Type Type [LinkedHighlightActivation] [LinkedHighlightEffect]
     | CompleteSetSort Type Type Type Type Type [CompleteSetSortKeySpec] Type CompleteSetSortDirection
     | TabSet Type Type [Type] Type
@@ -304,6 +306,7 @@ type DropzoneRef name options = 'DropzoneRef name options
 type ActivationRef name options = 'ActivationRef name options
 type BrowserRole name = 'BrowserRole name
 type BrowserState name = 'BrowserState name
+type BrowserClosedState name values = 'BrowserClosedState name values
 type LinkedHighlight name sourceRole memberRole activations effects = 'LinkedHighlight name sourceRole memberRole activations effects
 type CompleteSetSort name rootRole rowRole controlRole rowDto keys defaultKey defaultDirection =
     'CompleteSetSort name rootRole rowRole controlRole rowDto keys defaultKey defaultDirection

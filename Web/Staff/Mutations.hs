@@ -13,7 +13,8 @@ import Application.Helper.Audit (updateVenueMembershipRoleWithAudit)
 import Application.Helper.FrontendContract.Surface.Admin.Resource (adminInvitesResource)
 import Application.Helper.FrontendContract.Surface.Profile.Resource
 import Application.Helper.FrontendContract.Surface.Roster.Live (activeRosterWeekScopes)
-import Application.Helper.FrontendContract.Surface.Roster.Resource (rosterWeekResource)
+import Application.Helper.FrontendContract.Surface.Roster.Resource (rosterSlotsContentResource,
+                                                                    rosterWeekResource)
 import Application.Helper.Pay (ensureStaffPayVersionForStaff)
 import Application.Helper.RosterGroups (fetchStaffRosterGroupIds,
                                         syncStaffRosterGroupAssignments)
@@ -135,10 +136,14 @@ staffUpdateTouchedResources staff =
 staffRosterGroupResources :: UUID -> [(UUID, UUID, Int)] -> [Id RosterGroup] -> [SurfaceResourceValue]
 staffRosterGroupResources venueId activeScopes rosterGroupIds =
     Set.toList $ Set.fromList
-        [ rosterWeekResource rosterGroupId weekOffset
+        [ resource
         | (activeVenueId, rosterGroupId, weekOffset) <- activeScopes
         , activeVenueId == venueId
         , rosterGroupId `Set.member` rosterGroupIdSet
+        , resource <-
+            [ rosterWeekResource rosterGroupId weekOffset
+            , rosterSlotsContentResource rosterGroupId weekOffset
+            ]
         ]
     where
         rosterGroupIdSet = Set.fromList (map unpackId rosterGroupIds)

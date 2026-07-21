@@ -36,6 +36,10 @@ import qualified Application.Helper.FrontendContract.Surface.Interaction as Surf
 import Application.Helper.FrontendContract.Surface.Request.Runtime (FrontendSurfaceAction)
 import qualified Application.Helper.FrontendContract.Surface.Roster as Surface
 import qualified Application.Helper.FrontendContract.Surface.Roster.Action as RosterAction
+import Application.Helper.FrontendContract.Surface.Roster.Chrome (RosterColumnEditingState (..),
+                                                                  rosterColumnEditDoneAttrs,
+                                                                  rosterColumnEditStartAttrs,
+                                                                  rosterColumnEditorAttrs)
 import Application.Helper.FrontendContract.Surface.Runtime (FrontendSurfaceActionRoute (..),
                                                             FrontendSurfaceInteractionShellConfig (..),
                                                             FrontendSurfaceMountConfig (..),
@@ -206,10 +210,9 @@ renderrosterGridFrameLiveFragmentWithSwap maybeSwapOob gridModel@RosterGridRende
                         <> horizontalDragAttrs (HorizontalDragConfig (Just "[data-roster-shift-launcher]"))
                     else []}
              data-roster-end-times={if gridRosterEndTimesEnabled then ("true" :: Text) else "false"}
-             data-roster-column-editor={if slotColumnsAreEditable && not rosterIsHiddenDraft then ("available" :: Text) else "unavailable"}
+             {...rosterColumnEditorAttrs RosterColumnEditingInactive}
              data-roster-wages={if gridShowWageEstimates && not rosterIsHiddenDraft then ("visible" :: Text) else "hidden"}
-             data-roster-warnings={if gridShowRosterWarnings && not rosterIsHiddenDraft then ("visible" :: Text) else "hidden"}
-             style={"--roster-slot-count:" <> tshow (max 1 (length gridSlotNames)) <> ";"}>
+             data-roster-warnings={if gridShowRosterWarnings && not rosterIsHiddenDraft then ("visible" :: Text) else "hidden"}>
             {gridBody}
         </div>
 |]
@@ -272,17 +275,14 @@ renderDayColumnWageEstimate (Just prediction) date =
 rosterSlotsHorizontalSnapConfig :: HorizontalSnapConfig
 rosterSlotsHorizontalSnapConfig = HorizontalSnapEqualGroups (HorizontalSnapGroupProperty
     { horizontalSnapGroupProperty = "--roster-slot-count"
-    , horizontalSnapGroupScopeSelector = ".roster-grid-frame"
+    , horizontalSnapGroupScopeSelector = ".roster-slots-scroller"
     })
 
 renderRosterDayRowsGrid :: (?context :: ControllerContext) => Bool -> Bool -> Maybe RosterWeek -> [RosterWeekSlotDefinition] -> RosterDayRenderModel -> [RosterDay] -> Html
 renderRosterDayRowsGrid endTimesEnabled slotColumnsAreEditable maybeRosterWeek slotNames dayModel rosterDays = [hsx|
     {renderrosterDayRailLiveFragment slotColumnsAreEditable dayModel rosterDays}
     {when dayModel.dayShowWageEstimates (renderrosterWageRailLiveFragment dayModel rosterDays)}
-    <div class="roster-slots-scroller"
-         {...horizontalSnapAttrs rosterSlotsHorizontalSnapConfig}>
-        {renderrosterSlotsGridLiveFragment endTimesEnabled slotColumnsAreEditable maybeRosterWeek slotNames dayModel rosterDays}
-    </div>
+    {renderrosterSlotsGridLiveFragment endTimesEnabled slotColumnsAreEditable maybeRosterWeek slotNames dayModel rosterDays}
 |]
 
 renderrosterDayRailLiveFragment :: (?context :: ControllerContext) => Bool -> RosterDayRenderModel -> [RosterDay] -> Html
@@ -306,9 +306,7 @@ renderrosterDayRailLiveFragmentWithSwap maybeSwapOob slotColumnsAreEditable dayM
 renderHiddenDraftRosterGrid :: (?context :: ControllerContext) => RosterDayRenderModel -> [RosterDay] -> Html
 renderHiddenDraftRosterGrid dayModel rosterDays = [hsx|
     {renderHiddenDraftDayRailFragment dayModel rosterDays}
-    <div class="roster-slots-scroller">
-        {renderHiddenDraftSlotsGridFragment rosterDays}
-    </div>
+    {renderHiddenDraftSlotsGridFragment rosterDays}
 |]
 
 renderHiddenDraftDayRailFragment :: (?context :: ControllerContext) => RosterDayRenderModel -> [RosterDay] -> Html
@@ -334,13 +332,16 @@ renderHiddenDraftSlotsGridFragment =
 renderHiddenDraftSlotsGridFragmentWithSwap :: Maybe Text -> [RosterDay] -> Html
 renderHiddenDraftSlotsGridFragmentWithSwap maybeSwapOob _rosterDays = [hsx|
     <div id={rosterSlotsGridFragmentId}
-         class="roster-grid roster-slots-grid roster-hidden-draft-grid"
-         role="region"
-         aria-label="Roster visibility"
+         class="roster-slots-scroller"
+         style="--roster-slot-count:1;"
          hx-swap-oob={maybeSwapOob}>
-        <div class="roster-hidden-draft-grid-head" aria-hidden="true"></div>
-        <div class="roster-hidden-draft-grid-body" role="status" aria-live="polite">
-            <div class="roster-hidden-draft-message">This roster isn't live yet.</div>
+        <div class="roster-grid roster-slots-grid roster-hidden-draft-grid"
+             role="region"
+             aria-label="Roster visibility">
+            <div class="roster-hidden-draft-grid-head" aria-hidden="true"></div>
+            <div class="roster-hidden-draft-grid-body" role="status" aria-live="polite">
+                <div class="roster-hidden-draft-message">This roster isn't live yet.</div>
+            </div>
         </div>
     </div>
 |]
@@ -366,9 +367,15 @@ renderrosterSlotsGridLiveFragmentWithSwap maybeSwapOob endTimesEnabled slotColum
         {profileRenderCounter "render.roster.slots_grid" 1}
         {profileRenderCounter "render.roster.day" (length rosterDays)}
         {profileRenderCounter "render.roster.slot_definition" (length slotNames)}
-        <div id={rosterSlotsGridFragmentId} class="roster-grid roster-slots-grid" role="grid" aria-label="Roster slots" hx-swap-oob={maybeSwapOob}>
-            {gridHeaders}
-            {gridBody}
+        <div id={rosterSlotsGridFragmentId}
+             class="roster-slots-scroller"
+             style={"--roster-slot-count:" <> tshow (max 1 (length slotNames)) <> ";"}
+             {...horizontalSnapAttrs rosterSlotsHorizontalSnapConfig}
+             hx-swap-oob={maybeSwapOob}>
+            <div class="roster-grid roster-slots-grid" role="grid" aria-label="Roster slots">
+                {gridHeaders}
+                {gridBody}
+            </div>
         </div>
     |]
 
@@ -379,8 +386,8 @@ rosterWeekIsEditable maybeRosterWeek =
 renderRosterColumnEditStartButton :: Bool -> Html
 renderRosterColumnEditStartButton True = [hsx|
     <button type="button"
-            class="btn btn-sm btn-outline-secondary roster-column-edit-start"
-            data-roster-column-edit-start="true"
+            class="btn btn-sm btn-outline-secondary"
+            {...rosterColumnEditStartAttrs}
             aria-label="Edit roster columns"
             aria-pressed="false"
             title="Edit roster columns">
@@ -392,8 +399,8 @@ renderRosterColumnEditStartButton False = mempty
 renderRosterColumnEditDoneButton :: Bool -> Html
 renderRosterColumnEditDoneButton True = [hsx|
     <button type="button"
-            class="btn btn-sm btn-outline-success roster-column-edit-done"
-            data-roster-column-edit-done="true"
+            class="btn btn-sm btn-outline-success"
+            {...rosterColumnEditDoneAttrs}
             aria-label="Finish editing roster columns"
             title="Finish editing roster columns">
         <i class="bi bi-check-lg" aria-hidden="true"></i>

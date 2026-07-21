@@ -25,6 +25,7 @@ import Application.Helper.FrontendContract.Surface.Request
 import Application.Helper.FrontendContract.Surface.Request.Runtime
 import Application.Helper.FrontendContract.Surface.Resource
 import qualified Application.Helper.FrontendContract.Surface.Roster as RosterSurface
+import Application.Helper.FrontendContract.Surface.Roster.Chrome
 import Application.Helper.FrontendContract.Surface.Runtime
 import Application.Helper.FrontendContract.Surface.TabSet (surfaceTabSetAttrs)
 import qualified Application.Helper.FrontendContract.Surface.Timesheets as TimesheetsSurface
@@ -99,10 +100,20 @@ data StaffHighlightSourceRole
 data StaffHighlightMemberRole
 data StaffHighlightPinRole
 data StaffHighlightOrderState
+data BrowserFixtureModeState
+data Calm
+data Busy
 data BrowserAttributeCollision
 data BrowserAttributeCollisionScope
 data SharedHighlightAttributeRole
 data SharedHighlightAttributeState
+data EmptyBrowserClosedState
+data EmptyBrowserClosedStateScope
+data EmptyModeState
+data DuplicateBrowserClosedState
+data DuplicateBrowserClosedStateScope
+data DuplicateModeState
+data DuplicateModeValue
 
 type BrowserFixtureSurface =
     Surface BrowserFixture
@@ -144,6 +155,7 @@ type BrowserFixtureSurface =
          , BrowserRole StaffHighlightMemberRole
          , BrowserRole StaffHighlightPinRole
          , BrowserState StaffHighlightOrderState
+         , BrowserClosedState BrowserFixtureModeState '[ Calm, Busy ]
          , LinkedHighlight StaffShiftsHighlight StaffHighlightSourceRole StaffHighlightMemberRole
             '[ 'ActivateOnHover
              , 'ActivateOnFocus
@@ -161,6 +173,18 @@ type BrowserAttributeCollisionSurface =
         '[ Scope BrowserAttributeCollisionScope '[] '[ 'NoAuth ]
          , BrowserRole SharedHighlightAttributeRole
          , BrowserState SharedHighlightAttributeState
+         ]
+
+type EmptyBrowserClosedStateSurface =
+    Surface EmptyBrowserClosedState
+        '[ Scope EmptyBrowserClosedStateScope '[] '[ 'NoAuth ]
+         , BrowserClosedState EmptyModeState '[]
+         ]
+
+type DuplicateBrowserClosedStateSurface =
+    Surface DuplicateBrowserClosedState
+        '[ Scope DuplicateBrowserClosedStateScope '[] '[ 'NoAuth ]
+         , BrowserClosedState DuplicateModeState '[ DuplicateModeValue, DuplicateModeValue ]
          ]
 
 type RequestContractSurface =
@@ -294,7 +318,12 @@ tests = describe "FrontendSurface DSL foundation" do
                        , ("staff-highlight-pin", "data-bepis-browser-fixture-staff-highlight-pin")
                        ]
         map (\state -> (state.browserAttributeName, state.browserAttributeDomAttribute)) surface.surfaceBrowserStates
-            `shouldBe` [("staff-highlight-order", "data-bepis-browser-fixture-staff-highlight-order")]
+            `shouldBe`
+                [ ("staff-highlight-order", "data-bepis-browser-fixture-staff-highlight-order")
+                , ("browser-fixture-mode", "data-bepis-browser-fixture-browser-fixture-mode")
+                ]
+        map (\state -> (state.browserClosedStateAttribute.browserAttributeName, state.browserClosedStateValues)) surface.surfaceBrowserClosedStates
+            `shouldBe` [("browser-fixture-mode", ["calm", "busy"])]
         let highlight = surfaceLinkedHighlightValue @BrowserFixtureSurface @StaffShiftsHighlight
         highlight.linkedHighlightName `shouldBe` "staff-shifts-highlight"
         highlight.linkedHighlightSourceRole.browserAttributeDomAttribute
@@ -323,9 +352,20 @@ tests = describe "FrontendSurface DSL foundation" do
         diagnosticMessages result
             `shouldContain` ["surface browser-attribute-collision has duplicate browser attribute data-bepis-browser-attribute-collision-shared-highlight-attribute"]
 
+    it "rejects empty and duplicate closed browser state values" do
+        let emptyResult = checkedSurfaceContractIR (SurfaceContractIR (reflectSurfaceRegistry @'[EmptyBrowserClosedStateSurface]))
+        diagnosticMessages emptyResult
+            `shouldContain` ["surface empty-browser-closed-state browser state empty-mode must declare at least one value"]
+        let duplicateResult = checkedSurfaceContractIR (SurfaceContractIR (reflectSurfaceRegistry @'[DuplicateBrowserClosedStateSurface]))
+        diagnosticMessages duplicateResult
+            `shouldContain` ["surface duplicate-browser-closed-state has duplicate browser state duplicate-mode value duplicate-mode-value"]
+
     it "renders Surface-owned browser attributes and linked-highlight registry data" do
         browserFixtureTypeScript `shouldContainText` "export const browserFixtureStaffHighlightSourceDomAttr = \"data-bepis-browser-fixture-staff-highlight-source\" as const;"
         browserFixtureTypeScript `shouldContainText` "export const browserFixtureStaffHighlightOrderDomAttr = \"data-bepis-browser-fixture-staff-highlight-order\" as const;"
+        browserFixtureTypeScript `shouldContainText` "export const browserFixtureBrowserFixtureModeStates = {\"calm\":\"calm\",\"busy\":\"busy\"} as const;"
+        browserFixtureTypeScript `shouldContainText` "export type BrowserFixtureBrowserFixtureModeState = \"calm\" | \"busy\";"
+        browserFixtureTypeScript `shouldContainText` "export function isBrowserFixtureBrowserFixtureModeState(value: unknown): value is BrowserFixtureBrowserFixtureModeState"
         browserFixtureTypeScript `shouldContainText` "export type FrontendSurfaceLinkedHighlightActivation = \"hover\" | \"focus\" | \"keyboard\" | \"pin\";"
         browserFixtureTypeScript `shouldContainText` "export type FrontendSurfaceLinkedHighlightEffect = \"matching-source\" | \"matching-member\" | \"ordered-member-bounds\";"
         browserFixtureTypeScript `shouldContainText` "export const FrontendSurfaceLinkedHighlightRegistry: Record<FrontendSurfaceName, ReadonlyArray<FrontendSurfaceLinkedHighlightDefinition>> = {\"browser-fixture\":[{\"name\":\"staff-shifts-highlight\",\"sourceRoleAttribute\":browserFixtureStaffHighlightSourceDomAttr,\"memberRoleAttribute\":browserFixtureStaffHighlightMemberDomAttr,\"pinRoleAttribute\":browserFixtureStaffHighlightPinDomAttr,\"orderStateAttribute\":browserFixtureStaffHighlightOrderDomAttr,\"activations\":[\"hover\",\"focus\",\"keyboard\",\"pin\"],\"effects\":[\"matching-source\",\"matching-member\",\"ordered-member-bounds\"]}]};"
@@ -795,11 +835,37 @@ tests = describe "FrontendSurface DSL foundation" do
         frontendSurfaceContractsTypeScript `shouldContainText` "\"timesheets\":[\"timesheet-toolbar\",\"timesheet-day-columns\",\"timesheet-day-section\"]"
         frontendSurfaceContractsTypeScript `shouldNotContainText` "timesheetsSurfaceManifest"
 
+    it "renders marker-indexed roster chrome roles and closed states" do
+        rosterFullscreenRootAttrs RosterFullscreenCollapsed
+            `shouldBe`
+                [ ("data-bepis-roster-fullscreen-root", "true")
+                , ("data-bepis-roster-fullscreen", "collapsed")
+                ]
+        rosterFullscreenRootAttrs RosterFullscreenExpanded
+            `shouldBe`
+                [ ("data-bepis-roster-fullscreen-root", "true")
+                , ("data-bepis-roster-fullscreen", "expanded")
+                ]
+        rosterFullscreenToggleAttrs `shouldBe` [("data-bepis-roster-fullscreen-toggle", "true")]
+        rosterFullscreenLabelAttrs `shouldBe` [("data-bepis-roster-fullscreen-label", "true")]
+        rosterColumnEditorAttrs RosterColumnEditingInactive
+            `shouldBe`
+                [ ("data-bepis-roster-column-editor", "true")
+                , ("data-bepis-roster-column-editing", "inactive")
+                ]
+        rosterColumnEditorAttrs RosterColumnEditingActive
+            `shouldBe`
+                [ ("data-bepis-roster-column-editor", "true")
+                , ("data-bepis-roster-column-editing", "active")
+                ]
+        rosterColumnEditStartAttrs `shouldBe` [("data-bepis-roster-column-edit-start", "true")]
+        rosterColumnEditDoneAttrs `shouldBe` [("data-bepis-roster-column-edit-done", "true")]
+
     it "reflects the registered roster surface into checked contract IR" do
         let surface = expectSurface "roster" registeredFrontendSurfaceContractIR
 
         map (.scopeName) surface.surfaceScopes `shouldBe` ["roster-week"]
-        surface.surfaceBrowserDomTokens `shouldBe` ["roster-content", "roster-week-shell"]
+        surface.surfaceBrowserDomTokens `shouldBe` ["roster-content"]
         map (.fragmentName) surface.surfaceFragments
             `shouldBe` [ "roster-content"
                        , "roster-grid-toolbar"
@@ -859,6 +925,12 @@ tests = describe "FrontendSurface DSL foundation" do
                        , "data-bepis-roster-staff-panel-sort-row"
                        , "data-bepis-roster-staff-panel-sort-control"
                        , "data-bepis-roster-staff-panel-tab"
+                       , "data-bepis-roster-fullscreen-root"
+                       , "data-bepis-roster-fullscreen-toggle"
+                       , "data-bepis-roster-fullscreen-label"
+                       , "data-bepis-roster-column-editor"
+                       , "data-bepis-roster-column-edit-start"
+                       , "data-bepis-roster-column-edit-done"
                        , "data-bepis-roster-staff-highlight-source"
                        , "data-bepis-roster-staff-highlight-member"
                        , "data-bepis-roster-staff-highlight-pin"
@@ -866,7 +938,13 @@ tests = describe "FrontendSurface DSL foundation" do
                        , "data-bepis-roster-shift-group-highlight-member"
                        ]
         map (.browserAttributeDomAttribute) surface.surfaceBrowserStates
-            `shouldBe` ["data-bepis-roster-staff-highlight-order"]
+            `shouldBe`
+                [ "data-bepis-roster-fullscreen"
+                , "data-bepis-roster-column-editing"
+                , "data-bepis-roster-staff-highlight-order"
+                ]
+        map (\state -> (state.browserClosedStateAttribute.browserAttributeName, state.browserClosedStateValues)) surface.surfaceBrowserClosedStates
+            `shouldBe` [("fullscreen", ["collapsed", "expanded"]), ("column-editing", ["inactive", "active"])]
         map (.linkedHighlightName) surface.surfaceLinkedHighlights
             `shouldBe` ["staff-shifts-highlight", "shift-group-highlight"]
         let staffSort = fromMaybe (error "missing roster staff sort") (listToMaybe surface.surfaceCompleteSetSorts)
@@ -907,7 +985,7 @@ tests = describe "FrontendSurface DSL foundation" do
         frontendSurfaceContractsTypeScript `shouldContainText` "export type RosterRosterWeekScope = { venueId: FrontendContractUuid; rosterGroupId: FrontendContractUuid; weekOffset: number };"
         frontendSurfaceContractsTypeScript `shouldContainText` "{ kind: \"roster-row\"; params: RosterRosterRowFragmentParams }"
         frontendSurfaceContractsTypeScript `shouldContainText` "export const rosterContentDomToken = \"roster-content\" as const;"
-        frontendSurfaceContractsTypeScript `shouldContainText` "export const rosterWeekShellDomToken = \"roster-week-shell\" as const;"
+        frontendSurfaceContractsTypeScript `shouldNotContainText` "export const rosterWeekShellDomToken"
         frontendSurfaceContractsTypeScript `shouldContainText` "export const rosterStaffHighlightSourceDomAttr = \"data-bepis-roster-staff-highlight-source\" as const;"
         frontendSurfaceContractsTypeScript `shouldContainText` "export const rosterDayTimelineShiftGroupHighlightMemberDomAttr = \"data-bepis-roster-day-timeline-shift-group-highlight-member\" as const;"
         frontendSurfaceContractsTypeScript `shouldContainText` "export type RosterStaffPanelSortRow = { staffRowKey: string; staffName: string; staffRole: string; assignedShifts: number; idealShifts: number };"

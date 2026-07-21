@@ -276,8 +276,8 @@
     border-left: 2px solid var(--app-border-strong);
 }
 
-.roster-column-edit-start,
-.roster-column-edit-done,
+[data-bepis-roster-column-edit-start],
+[data-bepis-roster-column-edit-done],
 .roster-slot-column-delete,
 .roster-slot-column-add-form {
     display: none;

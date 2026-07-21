@@ -5,13 +5,19 @@
 module Application.Helper.FrontendContract.Surface.Roster.Generated.Resource
     ( matchRosterDayResource
     , matchRosterEndTimesConfigResource
+    , matchRosterSlotsContentResource
+    , matchRosterSlotsStructureResource
     , matchRosterWeekBoundaryConfigResource
     , matchRosterWeekResource
+    , matchRosterWeekStructureResource
     , matchTimePickerConfigResource
     , rosterDayResource
     , rosterEndTimesConfigResource
+    , rosterSlotsContentResource
+    , rosterSlotsStructureResource
     , rosterWeekBoundaryConfigResource
     , rosterWeekResource
+    , rosterWeekStructureResource
     , timePickerConfigResource
     ) where
 
@@ -60,6 +66,44 @@ matchRosterEndTimesConfigResource =
         @(AdapterFamilySurface Types2.RosterAdapterFamily)
         @Types1.RosterEndTimesConfig
 
+rosterSlotsContentResource ::
+    UUID.UUID ->
+    Int ->
+    SurfaceResourceValue
+rosterSlotsContentResource rosterGroupId weekOffset =
+    frontendSurfaceResource
+        @(AdapterFamilySurface Types2.RosterAdapterFamily)
+        @Types1.RosterSlotsContent
+        ( surfaceField @Types1.RosterGroupId rosterGroupId
+            &: surfaceField @Types1.WeekOffset weekOffset
+            &: noSurfaceFields
+        )
+
+matchRosterSlotsContentResource :: SurfaceResourceValue -> Maybe (UUID.UUID, (Int, ()))
+matchRosterSlotsContentResource =
+    matchFrontendSurfaceResource
+        @(AdapterFamilySurface Types2.RosterAdapterFamily)
+        @Types1.RosterSlotsContent
+
+rosterSlotsStructureResource ::
+    UUID.UUID ->
+    Int ->
+    SurfaceResourceValue
+rosterSlotsStructureResource rosterGroupId weekOffset =
+    frontendSurfaceResource
+        @(AdapterFamilySurface Types2.RosterAdapterFamily)
+        @Types1.RosterSlotsStructure
+        ( surfaceField @Types1.RosterGroupId rosterGroupId
+            &: surfaceField @Types1.WeekOffset weekOffset
+            &: noSurfaceFields
+        )
+
+matchRosterSlotsStructureResource :: SurfaceResourceValue -> Maybe (UUID.UUID, (Int, ()))
+matchRosterSlotsStructureResource =
+    matchFrontendSurfaceResource
+        @(AdapterFamilySurface Types2.RosterAdapterFamily)
+        @Types1.RosterSlotsStructure
+
 rosterWeekBoundaryConfigResource ::
     UUID.UUID ->
     SurfaceResourceValue
@@ -95,6 +139,25 @@ matchRosterWeekResource =
     matchFrontendSurfaceResource
         @(AdapterFamilySurface Types2.RosterAdapterFamily)
         @Types1.RosterWeek
+
+rosterWeekStructureResource ::
+    UUID.UUID ->
+    Int ->
+    SurfaceResourceValue
+rosterWeekStructureResource rosterGroupId weekOffset =
+    frontendSurfaceResource
+        @(AdapterFamilySurface Types2.RosterAdapterFamily)
+        @Types1.RosterWeekStructure
+        ( surfaceField @Types1.RosterGroupId rosterGroupId
+            &: surfaceField @Types1.WeekOffset weekOffset
+            &: noSurfaceFields
+        )
+
+matchRosterWeekStructureResource :: SurfaceResourceValue -> Maybe (UUID.UUID, (Int, ()))
+matchRosterWeekStructureResource =
+    matchFrontendSurfaceResource
+        @(AdapterFamilySurface Types2.RosterAdapterFamily)
+        @Types1.RosterWeekStructure
 
 timePickerConfigResource ::
     UUID.UUID ->

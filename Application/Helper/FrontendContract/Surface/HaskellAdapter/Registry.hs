@@ -132,6 +132,9 @@ type RegisteredSurfaceResourceAdapterHomes =
      , SurfaceResourceAdapterHome TimesheetsAdapterFamily Timesheets.TimesheetWeekBoundaryConfig
      , SurfaceResourceAdapterHome TimesheetsAdapterFamily Timesheets.TimesheetWeek
      , SurfaceResourceAdapterHome RosterAdapterFamily Roster.RosterWeek
+     , SurfaceResourceAdapterHome RosterAdapterFamily Roster.RosterWeekStructure
+     , SurfaceResourceAdapterHome RosterAdapterFamily Roster.RosterSlotsStructure
+     , SurfaceResourceAdapterHome RosterAdapterFamily Roster.RosterSlotsContent
      , SurfaceResourceAdapterHome RosterAdapterFamily Roster.RosterDay
      , SurfaceResourceAdapterHome RosterAdapterFamily Roster.RosterEndTimesConfig
      , SurfaceResourceAdapterHome RosterAdapterFamily Roster.RosterWeekBoundaryConfig

@@ -36,7 +36,9 @@ import Web.RosterWeeks.Dom (rosterContentFragmentId, rosterDayColumnsFragmentId,
 import Web.RosterWeeks.Mutations (rosterDayTouchedResources,
                                   rosterSlotMutationTouchedResources,
                                   rosterSlotTouchedResources,
+                                  rosterSlotsStructureTouchedResources,
                                   rosterWeekLiveStatusTouchedResources,
+                                  rosterWeekStructuralTouchedResources,
                                   rosterWeekTouchedResources)
 import Web.Routes
 import Web.Types
@@ -61,9 +63,20 @@ tests = aroundAll withDatabaseTestContext do
                         ]
                 rosterWeekTouchedResources rosterGroupId rosterWeek.weekOffset
                     `shouldBe` [rosterWeekResource (unpackId rosterGroupId) rosterWeek.weekOffset]
+                Set.fromList (rosterWeekStructuralTouchedResources rosterGroupId rosterWeek.weekOffset)
+                    `shouldBe` Set.fromList
+                        [ rosterWeekResource (unpackId rosterGroupId) rosterWeek.weekOffset
+                        , rosterWeekStructureResource (unpackId rosterGroupId) rosterWeek.weekOffset
+                        ]
+                Set.fromList (rosterSlotsStructureTouchedResources rosterGroupId rosterWeek.weekOffset)
+                    `shouldBe` Set.fromList
+                        [ rosterWeekResource (unpackId rosterGroupId) rosterWeek.weekOffset
+                        , rosterSlotsStructureResource (unpackId rosterGroupId) rosterWeek.weekOffset
+                        ]
                 Set.fromList (rosterWeekLiveStatusTouchedResources rosterGroupId rosterWeek)
                     `shouldBe` Set.fromList
                         [ rosterWeekResource (unpackId rosterGroupId) rosterWeek.weekOffset
+                        , rosterWeekStructureResource (unpackId rosterGroupId) rosterWeek.weekOffset
                         , timesheetWeekResource rosterWeek.venueId rosterWeek.weekOffset
                         ]
                 Set.fromList (rosterSlotMutationTouchedResources rosterGroupId rosterWeek rosterDay (Just rosterSlot))
@@ -380,6 +393,10 @@ tests = aroundAll withDatabaseTestContext do
                         callActionWithParams (CreateRosterWeekSlotDefinitionAction rosterWeek.id)
                             []
                 createResponse `responseStatusShouldBe` status200
+                let createTriggerHeader = cs <$> lookup "HX-Trigger" (responseHeaders createResponse)
+                createTriggerHeader `shouldSatisfy` maybe False (Text.isInfixOf "\"kind\":\"roster-slots-grid\"")
+                createTriggerHeader `shouldSatisfy` maybe False (Text.isInfixOf "\"kind\":\"roster-day-rail\"")
+                createTriggerHeader `shouldSatisfy` maybe False (not . Text.isInfixOf "\"kind\":\"roster-grid-frame\"")
 
                 newColumn <- query @RosterWeekSlotDefinition
                     |> filterWhere (#rosterWeekId, unpackId rosterWeek.id)
@@ -398,6 +415,9 @@ tests = aroundAll withDatabaseTestContext do
                     withRequestHeaders [("HX-Request", "true")] do
                         callAction (DeleteRosterWeekSlotDefinitionAction newColumn.id)
                 deleteResponse `responseStatusShouldBe` status200
+                let deleteTriggerHeader = cs <$> lookup "HX-Trigger" (responseHeaders deleteResponse)
+                deleteTriggerHeader `shouldSatisfy` maybe False (Text.isInfixOf "\"kind\":\"roster-slots-grid\"")
+                deleteTriggerHeader `shouldSatisfy` maybe False (not . Text.isInfixOf "\"kind\":\"roster-grid-frame\"")
                 deleted <- fetch newColumn.id
                 deleted.deletedAt `shouldSatisfy` isJust
                 deletedSlots <-

@@ -42,6 +42,7 @@ data FrontendSurfaceNameContext
     | DomTokenName
     | BrowserRoleName
     | BrowserStateName
+    | BrowserStateValueName
     | InteractionRefName
     | SortKeyName
     | TabKeyName
@@ -244,6 +245,7 @@ contextSuffix = \case
     DomTokenName -> Nothing
     BrowserRoleName -> Just "Role"
     BrowserStateName -> Just "State"
+    BrowserStateValueName -> Nothing
     InteractionRefName -> Just "Ref"
     SortKeyName -> Just "SortKey"
     TabKeyName -> Just "TabKey"

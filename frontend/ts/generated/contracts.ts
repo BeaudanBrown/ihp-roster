@@ -1025,21 +1025,40 @@ export type EditStaffId = FrontendContractUuid;
 export const timesheetWeekShellDomToken = "timesheet-week-shell" as const;
 
 export const rosterContentDomToken = "roster-content" as const;
-export const rosterWeekShellDomToken = "roster-week-shell" as const;
 
 export const rosterStaffPanelSortRootDomAttr = "data-bepis-roster-staff-panel-sort-root" as const;
 export const rosterStaffPanelSortRowDomAttr = "data-bepis-roster-staff-panel-sort-row" as const;
 export const rosterStaffPanelSortControlDomAttr = "data-bepis-roster-staff-panel-sort-control" as const;
 export const rosterStaffPanelTabDomAttr = "data-bepis-roster-staff-panel-tab" as const;
+export const rosterFullscreenRootDomAttr = "data-bepis-roster-fullscreen-root" as const;
+export const rosterFullscreenToggleDomAttr = "data-bepis-roster-fullscreen-toggle" as const;
+export const rosterFullscreenLabelDomAttr = "data-bepis-roster-fullscreen-label" as const;
+export const rosterColumnEditorDomAttr = "data-bepis-roster-column-editor" as const;
+export const rosterColumnEditStartDomAttr = "data-bepis-roster-column-edit-start" as const;
+export const rosterColumnEditDoneDomAttr = "data-bepis-roster-column-edit-done" as const;
 export const rosterStaffHighlightSourceDomAttr = "data-bepis-roster-staff-highlight-source" as const;
 export const rosterStaffHighlightMemberDomAttr = "data-bepis-roster-staff-highlight-member" as const;
 export const rosterStaffHighlightPinDomAttr = "data-bepis-roster-staff-highlight-pin" as const;
 export const rosterShiftGroupHighlightSourceDomAttr = "data-bepis-roster-shift-group-highlight-source" as const;
 export const rosterShiftGroupHighlightMemberDomAttr = "data-bepis-roster-shift-group-highlight-member" as const;
+export const rosterFullscreenDomAttr = "data-bepis-roster-fullscreen" as const;
+export const rosterColumnEditingDomAttr = "data-bepis-roster-column-editing" as const;
 export const rosterStaffHighlightOrderDomAttr = "data-bepis-roster-staff-highlight-order" as const;
 
 export const rosterDayTimelineShiftGroupHighlightSourceDomAttr = "data-bepis-roster-day-timeline-shift-group-highlight-source" as const;
 export const rosterDayTimelineShiftGroupHighlightMemberDomAttr = "data-bepis-roster-day-timeline-shift-group-highlight-member" as const;
+
+export const rosterFullscreenStates = {"collapsed":"collapsed","expanded":"expanded"} as const;
+export type RosterFullscreenState = "collapsed" | "expanded";
+export function isRosterFullscreenState(value: unknown): value is RosterFullscreenState {
+    return typeof value === "string" && ["collapsed","expanded"].includes(value);
+}
+
+export const rosterColumnEditingStates = {"inactive":"inactive","active":"active"} as const;
+export type RosterColumnEditingState = "inactive" | "active";
+export function isRosterColumnEditingState(value: unknown): value is RosterColumnEditingState {
+    return typeof value === "string" && ["inactive","active"].includes(value);
+}
 
 export type RosterStaffPanelSortKey = "name" | "role" | "shifts";
 export function isRosterStaffPanelSortKey(value: unknown): value is RosterStaffPanelSortKey {

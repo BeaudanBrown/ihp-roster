@@ -7,6 +7,7 @@
 module Application.Helper.FrontendContract.Surface.ContractIR
     ( module SemanticIR
     , BrowserReachabilityIR (..)
+    , BrowserClosedStateIR (..)
     , ContractDiagnostic (..)
     , ConflictPolicyIR (..)
     , ConflictResolutionIR (..)
@@ -64,30 +65,31 @@ data SurfaceContractIR = SurfaceContractIR
     deriving (Eq, Show)
 
 data SurfaceIR = SurfaceIR
-    { surfaceMarker           :: !Text
-    , surfaceName             :: !Text
-    , surfaceScopes           :: ![ScopeIR]
-    , surfaceMountStates      :: ![MountStateIR]
-    , surfaceFragments        :: ![FragmentIR]
-    , surfaceHtmxActions      :: ![HtmxActionIR]
-    , surfaceIntents          :: ![IntentIR]
-    , surfaceSessions         :: ![InteractionSessionIR]
-    , surfaceSourceRefs       :: ![InteractionSourceRefIR]
-    , surfaceDropzoneRefs     :: ![InteractionDropzoneRefIR]
-    , surfaceActivationRefs   :: ![InteractionActivationRefIR]
-    , surfaceBrowserRoles     :: ![BrowserAttributeIR]
-    , surfaceBrowserStates    :: ![BrowserAttributeIR]
-    , surfaceLinkedHighlights :: ![LinkedHighlightIR]
-    , surfaceCompleteSetSorts :: ![CompleteSetSortIR]
-    , surfaceTabSets          :: ![TabSetIR]
-    , surfaceLayers           :: ![Text]
-    , surfacePolicies         :: ![ConflictPolicyIR]
-    , surfaceLoadPolicies     :: ![Text]
-    , surfaceOverlayLanes     :: ![Text]
-    , surfaceClientEvents     :: ![(Text, [FieldIR])]
-    , surfaceDomTokens        :: ![Text]
-    , surfaceBrowserDomTokens :: ![Text]
-    , surfaceDtos             :: ![SurfaceDtoIR]
+    { surfaceMarker              :: !Text
+    , surfaceName                :: !Text
+    , surfaceScopes              :: ![ScopeIR]
+    , surfaceMountStates         :: ![MountStateIR]
+    , surfaceFragments           :: ![FragmentIR]
+    , surfaceHtmxActions         :: ![HtmxActionIR]
+    , surfaceIntents             :: ![IntentIR]
+    , surfaceSessions            :: ![InteractionSessionIR]
+    , surfaceSourceRefs          :: ![InteractionSourceRefIR]
+    , surfaceDropzoneRefs        :: ![InteractionDropzoneRefIR]
+    , surfaceActivationRefs      :: ![InteractionActivationRefIR]
+    , surfaceBrowserRoles        :: ![BrowserAttributeIR]
+    , surfaceBrowserStates       :: ![BrowserAttributeIR]
+    , surfaceBrowserClosedStates :: ![BrowserClosedStateIR]
+    , surfaceLinkedHighlights    :: ![LinkedHighlightIR]
+    , surfaceCompleteSetSorts    :: ![CompleteSetSortIR]
+    , surfaceTabSets             :: ![TabSetIR]
+    , surfaceLayers              :: ![Text]
+    , surfacePolicies            :: ![ConflictPolicyIR]
+    , surfaceLoadPolicies        :: ![Text]
+    , surfaceOverlayLanes        :: ![Text]
+    , surfaceClientEvents        :: ![(Text, [FieldIR])]
+    , surfaceDomTokens           :: ![Text]
+    , surfaceBrowserDomTokens    :: ![Text]
+    , surfaceDtos                :: ![SurfaceDtoIR]
     }
     deriving (Eq, Show)
 
@@ -170,6 +172,15 @@ data InteractionActivationRefIR = InteractionActivationRefIR
     , activationRefIntent     :: !Text
     , activationRefValueField :: !(Maybe Text)
     , activationRefTrigger    :: !Text
+    }
+    deriving (Eq, Show)
+
+-- | A Surface-owned state attribute whose allowed values are closed in the
+-- Haskell declaration and emitted as an exact browser union/guard.
+data BrowserClosedStateIR = BrowserClosedStateIR
+    { browserClosedStateMarker    :: !Text
+    , browserClosedStateAttribute :: !BrowserAttributeIR
+    , browserClosedStateValues    :: ![Text]
     }
     deriving (Eq, Show)
 
@@ -360,6 +371,7 @@ validateSurface surface =
         <> validateUnique surface.surfaceName "browser role" (map (.browserAttributeName) surface.surfaceBrowserRoles)
         <> validateUnique surface.surfaceName "browser state" (map (.browserAttributeName) surface.surfaceBrowserStates)
         <> validateUnique surface.surfaceName "browser attribute" (map (.browserAttributeDomAttribute) (surface.surfaceBrowserRoles <> surface.surfaceBrowserStates))
+        <> concatMap (validateBrowserClosedState surface.surfaceName) surface.surfaceBrowserClosedStates
         <> validateUnique surface.surfaceName "linked highlight" (map (.linkedHighlightName) surface.surfaceLinkedHighlights)
         <> validateUnique surface.surfaceName "complete-set sort" (map (.completeSetSortName) surface.surfaceCompleteSetSorts)
         <> validateUnique surface.surfaceName "tab set" (map (.tabSetName) surface.surfaceTabSets)
@@ -375,6 +387,13 @@ validateSurface surface =
         <> validateResourceDependencies surface
         <> validateCrossReferences surface
         <> validateActionRequestOptions surface
+
+validateBrowserClosedState :: Text -> BrowserClosedStateIR -> [ContractDiagnostic]
+validateBrowserClosedState surfaceName state =
+    (if null state.browserClosedStateValues
+        then [diagnostic "empty-browser-closed-state" ("surface " <> surfaceName <> " browser state " <> state.browserClosedStateAttribute.browserAttributeName <> " must declare at least one value")]
+        else [])
+        <> validateUnique surfaceName ("browser state " <> state.browserClosedStateAttribute.browserAttributeName <> " value") state.browserClosedStateValues
 
 validateFragmentMountTarget :: FragmentIR -> [ContractDiagnostic]
 validateFragmentMountTarget fragment =

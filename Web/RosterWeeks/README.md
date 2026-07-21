@@ -63,6 +63,19 @@ generated roles, validate generated registries/payload parsers, and leave
 server-rendered markup authoritative. Roster-specific browser parsers,
 comparators, defaults, and compatibility aliases are prohibited.
 
+## Fullscreen And Column-Edit Contract
+
+`Surface.Roster` declares generated fullscreen root/toggle/label roles, column
+editor/start/done roles, and closed fullscreen/column-editing states.
+`Surface.Roster.Chrome` is the marker-indexed Haskell rendering boundary. The
+fullscreen adapter changes only the nearest root, synchronizes replacement
+toggles, retains native `aria-pressed`, and owns icon/focus/Escape mechanics.
+The column-edit adapter changes only the nearest editor, preserves delayed blur
+for autosave, reconciles replaced day-rail controls, and cancels pending timers
+when HTMX removes an editor. Raw `data-roster-fullscreen*` and
+`data-roster-column-*` contracts and presentation-class discovery are
+prohibited.
+
 ## Week Toolbar Contract
 
 `Application.Helper.View.WeekToolbar` renders each supplied control exactly

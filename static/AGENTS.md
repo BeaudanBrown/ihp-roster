@@ -38,6 +38,10 @@ Read this before editing `static/` assets.
   the closed result-state guard. Haskell owns all workflow messages. Browser
   install events, prompt objects, and standalone/platform detection stay in the
   adapter, while visibility and accessibility use native `hidden`/ARIA state.
+- `app-roster.js` consumes Surface-generated fullscreen/column-edit roles and
+  closed-state attributes, values, and guards. CSS uses those generated
+  selectors; raw `data-roster-fullscreen*`/`data-roster-column-*` contracts and
+  behavior discovery through presentation classes must stay absent.
 - `app-xero.js` consumes generated candidate-filter root/search/candidate/
   config/empty roles and the exact config parser. Haskell owns the opaque
   normalized projection and all import identity/copy; the adapter validates and

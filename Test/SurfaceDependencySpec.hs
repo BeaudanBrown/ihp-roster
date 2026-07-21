@@ -202,9 +202,73 @@ tests = do
                     , RosterLive.rosterDayColumnsLiveFragment
                     , RosterLive.rosterDayRailLiveFragment
                     , RosterLive.rosterWageRailLiveFragment
-                    , RosterLive.rosterSlotsGridLiveFragment
                     , RosterLive.rosterStaffPanelLiveFragment
                     , RosterLive.rosterDaySectionLiveFragment rosterDayUuid
+                    ]
+
+        it "selects the slots scroll owner only for slots-structure changes" do
+            let venueId = fromWords 10 0 0 0
+            let rosterGroupUuid = fromWords 11 0 0 0
+            let rosterDayUuid = fromWords 12 0 0 0
+            let rosterGroupId = Id rosterGroupUuid :: Id RosterGroup
+            let rosterDayId = Id rosterDayUuid :: Id RosterDay
+            let scopeValue = RosterWeekScopeValue venueId rosterGroupId 4 Nothing
+            let plan = RosterMountedFragmentPlan { rosterMountedDayIds = [rosterDayId], rosterMountedRows = [(rosterDayId, 0)] }
+            let resources = Set.fromList
+                    [ rosterWeekResource rosterGroupUuid 4
+                    , rosterSlotsStructureResource rosterGroupUuid 4
+                    ]
+
+            passiveFragmentKeys resources (rosterSurfaceScope scopeValue) (rosterCandidateMountedFragments scopeValue plan)
+                `shouldBe`
+                    [ RosterLive.rosterGridToolbarLiveFragment
+                    , RosterLive.rosterDayColumnsLiveFragment
+                    , RosterLive.rosterDayRailLiveFragment
+                    , RosterLive.rosterWageRailLiveFragment
+                    , RosterLive.rosterSlotsGridLiveFragment
+                    , RosterLive.rosterStaffPanelLiveFragment
+                    ]
+
+        it "selects the slots scroll owner for broad slots-content changes" do
+            let venueId = fromWords 13 0 0 0
+            let rosterGroupUuid = fromWords 14 0 0 0
+            let rosterDayUuid = fromWords 15 0 0 0
+            let rosterGroupId = Id rosterGroupUuid :: Id RosterGroup
+            let rosterDayId = Id rosterDayUuid :: Id RosterDay
+            let scopeValue = RosterWeekScopeValue venueId rosterGroupId 4 Nothing
+            let plan = RosterMountedFragmentPlan { rosterMountedDayIds = [rosterDayId], rosterMountedRows = [(rosterDayId, 0)] }
+            let resources = Set.fromList
+                    [ rosterWeekResource rosterGroupUuid 4
+                    , rosterSlotsContentResource rosterGroupUuid 4
+                    ]
+
+            passiveFragmentKeys resources (rosterSurfaceScope scopeValue) (rosterCandidateMountedFragments scopeValue plan)
+                `shouldBe`
+                    [ RosterLive.rosterGridToolbarLiveFragment
+                    , RosterLive.rosterDayColumnsLiveFragment
+                    , RosterLive.rosterDayRailLiveFragment
+                    , RosterLive.rosterWageRailLiveFragment
+                    , RosterLive.rosterSlotsGridLiveFragment
+                    , RosterLive.rosterStaffPanelLiveFragment
+                    ]
+
+        it "selects structural roster wrappers only for structural week changes" do
+            let venueId = fromWords 11 0 0 0
+            let rosterGroupUuid = fromWords 12 0 0 0
+            let rosterDayUuid = fromWords 13 0 0 0
+            let rosterGroupId = Id rosterGroupUuid :: Id RosterGroup
+            let rosterDayId = Id rosterDayUuid :: Id RosterDay
+            let scopeValue = RosterWeekScopeValue venueId rosterGroupId 4 Nothing
+            let plan = RosterMountedFragmentPlan { rosterMountedDayIds = [rosterDayId], rosterMountedRows = [(rosterDayId, 0)] }
+            let resources = Set.fromList
+                    [ rosterWeekResource rosterGroupUuid 4
+                    , rosterWeekStructureResource rosterGroupUuid 4
+                    ]
+
+            passiveFragmentKeys resources (rosterSurfaceScope scopeValue) (rosterCandidateMountedFragments scopeValue plan)
+                `shouldBe`
+                    [ RosterLive.rosterContentLiveFragment
+                    , RosterLive.rosterStaffPanelLiveFragment
                     ]
 
         it "keeps a parameterized child when the selected ancestor is a different instance" do
@@ -218,16 +282,11 @@ tests = do
             let plan = RosterMountedFragmentPlan { rosterMountedDayIds = [ancestorDayId], rosterMountedRows = [(childDayId, 2)] }
 
             passiveFragmentKeys
-                (Set.singleton (rosterEndTimesConfigResource venueId))
+                (Set.fromList [rosterDayResource ancestorDayUuid, rosterDayResource childDayUuid])
                 (rosterSurfaceScope scopeValue)
                 (rosterCandidateMountedFragments scopeValue plan)
                 `shouldBe`
-                    [ RosterLive.rosterGridToolbarLiveFragment
-                    , RosterLive.rosterDayColumnsLiveFragment
-                    , RosterLive.rosterDayRailLiveFragment
-                    , RosterLive.rosterWageRailLiveFragment
-                    , RosterLive.rosterSlotsGridLiveFragment
-                    , RosterLive.rosterDaySectionLiveFragment ancestorDayUuid
+                    [ RosterLive.rosterDaySectionLiveFragment ancestorDayUuid
                     , RosterLive.rosterRowLiveFragment childDayUuid 2
                     ]
 

@@ -65,6 +65,7 @@ data ReflectedPrimitive
     | ReflectedActivationRef !InteractionActivationRefIR
     | ReflectedBrowserRole !BrowserAttributeIR
     | ReflectedBrowserState !BrowserAttributeIR
+    | ReflectedBrowserClosedState !BrowserClosedStateIR
     | ReflectedLinkedHighlight !LinkedHighlightIR
     | ReflectedCompleteSetSort !CompleteSetSortIR
     | ReflectedTabSet !TabSetIR
@@ -158,6 +159,13 @@ instance Typeable marker => ReflectPrimitive ('BrowserRole marker) where
 
 instance Typeable marker => ReflectPrimitive ('BrowserState marker) where
     reflectPrimitive = ReflectedBrowserState (reflectedBrowserAttribute @marker BrowserStateName)
+
+instance (Typeable marker, ReflectMarkerList values) => ReflectPrimitive ('BrowserClosedState marker values) where
+    reflectPrimitive = ReflectedBrowserClosedState BrowserClosedStateIR
+        { browserClosedStateMarker = typeMarker @marker
+        , browserClosedStateAttribute = reflectedBrowserAttribute @marker BrowserStateName
+        , browserClosedStateValues = reflectMarkerList @values BrowserStateValueName
+        }
 
 instance
     ( Typeable marker
@@ -735,6 +743,12 @@ addPrimitives primitives surface =
             ReflectedBrowserState stateAttribute -> current
                 { surfaceBrowserStates = current.surfaceBrowserStates <> [qualifyBrowserAttribute current.surfaceName stateAttribute]
                 }
+            ReflectedBrowserClosedState state ->
+                let qualifiedState = qualifyBrowserClosedState current.surfaceName state
+                 in current
+                    { surfaceBrowserStates = current.surfaceBrowserStates <> [qualifiedState.browserClosedStateAttribute]
+                    , surfaceBrowserClosedStates = current.surfaceBrowserClosedStates <> [qualifiedState]
+                    }
             ReflectedLinkedHighlight highlight -> current
                 { surfaceLinkedHighlights = current.surfaceLinkedHighlights <> [qualifyLinkedHighlight current.surfaceName highlight]
                 }
@@ -773,6 +787,7 @@ emptySurface = SurfaceIR
     , surfaceActivationRefs = []
     , surfaceBrowserRoles = []
     , surfaceBrowserStates = []
+    , surfaceBrowserClosedStates = []
     , surfaceLinkedHighlights = []
     , surfaceCompleteSetSorts = []
     , surfaceTabSets = []
@@ -785,6 +800,10 @@ emptySurface = SurfaceIR
     , surfaceBrowserDomTokens = []
     , surfaceDtos = []
     }
+
+qualifyBrowserClosedState :: Text -> BrowserClosedStateIR -> BrowserClosedStateIR
+qualifyBrowserClosedState surfaceName state =
+    state { browserClosedStateAttribute = qualifyBrowserAttribute surfaceName state.browserClosedStateAttribute }
 
 qualifyTabSet :: Text -> TabSetIR -> TabSetIR
 qualifyTabSet surfaceName tabSet =

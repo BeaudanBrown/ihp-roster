@@ -18,19 +18,34 @@
     throw new Error("Invalid RosterStaffPanelSortRow");
   }
   var rosterContentDomToken = "roster-content";
-  var rosterWeekShellDomToken = "roster-week-shell";
   var rosterStaffPanelSortRootDomAttr = "data-bepis-roster-staff-panel-sort-root";
   var rosterStaffPanelSortRowDomAttr = "data-bepis-roster-staff-panel-sort-row";
   var rosterStaffPanelSortControlDomAttr = "data-bepis-roster-staff-panel-sort-control";
   var rosterStaffPanelTabDomAttr = "data-bepis-roster-staff-panel-tab";
+  var rosterFullscreenRootDomAttr = "data-bepis-roster-fullscreen-root";
+  var rosterFullscreenToggleDomAttr = "data-bepis-roster-fullscreen-toggle";
+  var rosterFullscreenLabelDomAttr = "data-bepis-roster-fullscreen-label";
+  var rosterColumnEditorDomAttr = "data-bepis-roster-column-editor";
+  var rosterColumnEditStartDomAttr = "data-bepis-roster-column-edit-start";
+  var rosterColumnEditDoneDomAttr = "data-bepis-roster-column-edit-done";
   var rosterStaffHighlightSourceDomAttr = "data-bepis-roster-staff-highlight-source";
   var rosterStaffHighlightMemberDomAttr = "data-bepis-roster-staff-highlight-member";
   var rosterStaffHighlightPinDomAttr = "data-bepis-roster-staff-highlight-pin";
   var rosterShiftGroupHighlightSourceDomAttr = "data-bepis-roster-shift-group-highlight-source";
   var rosterShiftGroupHighlightMemberDomAttr = "data-bepis-roster-shift-group-highlight-member";
+  var rosterFullscreenDomAttr = "data-bepis-roster-fullscreen";
+  var rosterColumnEditingDomAttr = "data-bepis-roster-column-editing";
   var rosterStaffHighlightOrderDomAttr = "data-bepis-roster-staff-highlight-order";
   var rosterDayTimelineShiftGroupHighlightSourceDomAttr = "data-bepis-roster-day-timeline-shift-group-highlight-source";
   var rosterDayTimelineShiftGroupHighlightMemberDomAttr = "data-bepis-roster-day-timeline-shift-group-highlight-member";
+  var rosterFullscreenStates = { "collapsed": "collapsed", "expanded": "expanded" };
+  function isRosterFullscreenState(value) {
+    return typeof value === "string" && ["collapsed", "expanded"].includes(value);
+  }
+  var rosterColumnEditingStates = { "inactive": "inactive", "active": "active" };
+  function isRosterColumnEditingState(value) {
+    return typeof value === "string" && ["inactive", "active"].includes(value);
+  }
   function isRosterStaffPanelSortKey(value) {
     return typeof value === "string" && ["name", "role", "shifts"].includes(value);
   }
@@ -45,60 +60,168 @@
     return typeof value === "string" && Object.prototype.hasOwnProperty.call(FrontendSurfaceFragmentRegistry, value);
   }
 
+  // frontend/ts/shared/dom.ts
+  function isElement(value) {
+    return typeof Element !== "undefined" && value instanceof Element;
+  }
+  function isDocument(value) {
+    return typeof Document !== "undefined" && value instanceof Document;
+  }
+  function isDocumentFragment(value) {
+    return typeof DocumentFragment !== "undefined" && value instanceof DocumentFragment;
+  }
+  function isDomRoot(value) {
+    return isElement(value) || isDocument(value) || isDocumentFragment(value);
+  }
+  function rootFromTarget(target, fallback = document) {
+    return isDomRoot(target) ? target : fallback;
+  }
+
   // frontend/ts/shared/lifecycle.ts
+  function eventDetailRecord(event) {
+    if (typeof CustomEvent === "undefined" || !(event instanceof CustomEvent)) return null;
+    if (event.detail === null || typeof event.detail !== "object") return null;
+    return event.detail;
+  }
+  function detailTarget(event, key) {
+    return eventDetailRecord(event)?.[key];
+  }
+  function detailRoot(event, key, fallback = document) {
+    return rootFromTarget(detailTarget(event, key), fallback);
+  }
   function onAppPageReady(handler) {
     if (typeof document === "undefined") return;
     document.addEventListener(pageReadyEvent, handler);
   }
 
   // frontend/ts/roster/column-edit.ts
-  function editorFrames() {
-    return Array.from(document.querySelectorAll('[data-roster-column-editor="available"]')).filter((frameEl) => frameEl instanceof HTMLElement);
+  var editorSelector = `[${rosterColumnEditorDomAttr}]`;
+  var startSelector = `[${rosterColumnEditStartDomAttr}]`;
+  var doneSelector = `[${rosterColumnEditDoneDomAttr}]`;
+  var finishDelayMs = 350;
+  function defaultDiagnosticReporter(diagnostic5) {
+    console.error?.("Invalid generated roster column-edit boundary", diagnostic5);
+  }
+  function defaultScheduler() {
+    return {
+      setTimeout: (handler, delayMs) => window.setTimeout(handler, delayMs),
+      clearTimeout: (timerId) => window.clearTimeout(timerId)
+    };
+  }
+  function diagnostic(element, code, message) {
+    return { code, elementId: element.id || null, message };
+  }
+  function closestEditor(target) {
+    return target.closest(editorSelector);
+  }
+  function ownedControls(editor, selector) {
+    return Array.from(editor.querySelectorAll(selector)).filter((control) => closestEditor(control) === editor);
+  }
+  function stateFor(editor, report) {
+    if (editor.getAttribute(rosterColumnEditorDomAttr) !== "true") {
+      report(diagnostic(editor, "invalid-editor-role", "Roster column editor role must equal true"));
+      return null;
+    }
+    const state = editor.getAttribute(rosterColumnEditingDomAttr);
+    if (!isRosterColumnEditingState(state)) {
+      report(diagnostic(editor, "invalid-state", "Roster column-editing state is not declared by the Surface contract"));
+      return null;
+    }
+    return state;
+  }
+  function createRosterColumnEditController(report = defaultDiagnosticReporter, scheduler = defaultScheduler()) {
+    const pendingFinishTimers = /* @__PURE__ */ new Map();
+    function clearPendingFinish(editor) {
+      const timerId = pendingFinishTimers.get(editor);
+      if (timerId === void 0) return;
+      scheduler.clearTimeout(timerId);
+      pendingFinishTimers.delete(editor);
+    }
+    function reconcile(editor) {
+      const state = stateFor(editor, report);
+      if (!state) return false;
+      const active = state === rosterColumnEditingStates.active;
+      const starts = ownedControls(editor, startSelector);
+      const doneControls = ownedControls(editor, doneSelector);
+      const invalidStarts = starts.filter((start2) => start2.getAttribute(rosterColumnEditStartDomAttr) !== "true");
+      const invalidDoneControls = doneControls.filter((done) => done.getAttribute(rosterColumnEditDoneDomAttr) !== "true");
+      invalidStarts.forEach((start2) => {
+        report(diagnostic(start2, "invalid-control-role", "Roster column-edit start role must equal true"));
+      });
+      invalidDoneControls.forEach((done) => {
+        report(diagnostic(done, "invalid-control-role", "Roster column-edit done role must equal true"));
+      });
+      if (invalidStarts.length > 0 || invalidDoneControls.length > 0) return false;
+      starts.forEach((start2) => start2.setAttribute("aria-pressed", active ? "true" : "false"));
+      return true;
+    }
+    function setState(editor, state) {
+      if (!stateFor(editor, report)) return false;
+      clearPendingFinish(editor);
+      editor.setAttribute(rosterColumnEditingDomAttr, state);
+      return reconcile(editor);
+    }
+    function start(target) {
+      const startControl = target.closest(startSelector);
+      if (!startControl || startControl.getAttribute(rosterColumnEditStartDomAttr) !== "true") return false;
+      const editor = closestEditor(startControl);
+      if (!editor) return false;
+      return setState(editor, rosterColumnEditingStates.active);
+    }
+    function finish(target, activeElement) {
+      const doneControl = target.closest(doneSelector);
+      if (!doneControl || doneControl.getAttribute(rosterColumnEditDoneDomAttr) !== "true") return false;
+      const editor = closestEditor(doneControl);
+      if (!editor || !stateFor(editor, report)) return false;
+      clearPendingFinish(editor);
+      if (activeElement && editor.contains(activeElement)) {
+        const blur = activeElement.blur;
+        if (typeof blur === "function") blur.call(activeElement);
+        const timerId = scheduler.setTimeout(() => {
+          pendingFinishTimers.delete(editor);
+          editor.setAttribute(rosterColumnEditingDomAttr, rosterColumnEditingStates.inactive);
+          reconcile(editor);
+        }, finishDelayMs);
+        pendingFinishTimers.set(editor, timerId);
+        return true;
+      }
+      return setState(editor, rosterColumnEditingStates.inactive);
+    }
+    function dispose(root) {
+      for (const [editor, timerId] of pendingFinishTimers) {
+        if (editor === root || root.contains(editor)) {
+          scheduler.clearTimeout(timerId);
+          pendingFinishTimers.delete(editor);
+        }
+      }
+    }
+    return { reconcile, start, finish, dispose };
+  }
+  function editorRootsWithin(root) {
+    const editors = Array.from(root.querySelectorAll(editorSelector));
+    if (root instanceof Element) {
+      if (root.matches(editorSelector)) editors.unshift(root);
+      const owner = closestEditor(root);
+      if (owner && !editors.includes(owner)) editors.unshift(owner);
+    }
+    return editors;
   }
   function enableRosterColumnEditMode() {
     if (typeof window === "undefined") return;
-    let columnEditEnabled = false;
-    function syncColumnEditMode() {
-      const enabled = Boolean(columnEditEnabled);
-      editorFrames().forEach((frameEl) => {
-        frameEl.dataset.rosterColumnEditing = enabled ? "true" : "false";
-      });
-      document.querySelectorAll("[data-roster-column-edit-start]").forEach((buttonEl) => {
-        if (buttonEl instanceof HTMLElement) {
-          buttonEl.setAttribute("aria-pressed", enabled ? "true" : "false");
-        }
-      });
-    }
-    function setColumnEditMode(enabled) {
-      columnEditEnabled = Boolean(enabled);
-      syncColumnEditMode();
-    }
-    function finishColumnEditing() {
-      const activeEl = document.activeElement;
-      if (activeEl instanceof HTMLElement && activeEl.closest('[data-roster-column-editor="available"]')) {
-        activeEl.blur();
-        window.setTimeout(() => {
-          setColumnEditMode(false);
-        }, 350);
-        return;
-      }
-      setColumnEditMode(false);
-    }
+    const controller = createRosterColumnEditController();
+    const reconcileWithin = (root) => editorRootsWithin(root).forEach(controller.reconcile);
     document.addEventListener("click", (event) => {
       if (!(event.target instanceof Element)) return;
-      const startButton = event.target.closest("[data-roster-column-edit-start]");
-      if (!(startButton instanceof HTMLElement)) return;
-      event.preventDefault();
-      setColumnEditMode(true);
+      const handled = controller.start(event.target) || controller.finish(event.target, document.activeElement instanceof Element ? document.activeElement : null);
+      if (handled) event.preventDefault();
     });
-    document.addEventListener("click", (event) => {
-      if (!(event.target instanceof Element)) return;
-      const doneButton = event.target.closest("[data-roster-column-edit-done]");
-      if (!(doneButton instanceof HTMLElement)) return;
-      event.preventDefault();
-      finishColumnEditing();
+    onAppPageReady((event) => reconcileWithin(detailRoot(event, "target")));
+    document.addEventListener("htmx:afterSwap", (event) => reconcileWithin(detailRoot(event, "target")));
+    document.addEventListener("htmx:beforeCleanupElement", (event) => {
+      const cleanupRoot = detailTarget(event, "elt");
+      if (cleanupRoot instanceof Element) controller.dispose(cleanupRoot);
     });
-    onAppPageReady(syncColumnEditMode);
+    if (document.readyState !== "loading") reconcileWithin(document);
   }
 
   // frontend/ts/roster/fullscreen.ts
@@ -112,65 +235,124 @@
   }
 
   // frontend/ts/roster/fullscreen-runtime.ts
-  var shellSelector = `#${rosterWeekShellDomToken}`;
-  var toggleSelector = '[data-roster-fullscreen-toggle="true"]';
-  var labelSelector = '[data-roster-fullscreen-toggle-label="true"]';
-  function rosterShellFromToggle(toggle) {
-    return toggle.closest(shellSelector);
+  var rootSelector = `[${rosterFullscreenRootDomAttr}]`;
+  var toggleSelector = `[${rosterFullscreenToggleDomAttr}]`;
+  var labelSelector = `[${rosterFullscreenLabelDomAttr}]`;
+  function defaultDiagnosticReporter2(diagnostic5) {
+    console.error?.("Invalid generated roster fullscreen boundary", diagnostic5);
   }
-  function isExpanded(shell) {
-    return shell instanceof HTMLElement && shell.dataset.rosterFullscreen === "true";
+  function diagnostic2(element, code, message) {
+    return { code, elementId: element.id || null, message };
   }
-  function updateToggle(toggle, expanded) {
+  function closestRoot(target) {
+    return target.closest(rootSelector);
+  }
+  function ownedToggles(root) {
+    return Array.from(root.querySelectorAll(toggleSelector)).filter((toggle) => closestRoot(toggle) === root);
+  }
+  function stateFor2(root, report) {
+    if (root.getAttribute(rosterFullscreenRootDomAttr) !== "true") {
+      report(diagnostic2(root, "invalid-root-role", "Roster fullscreen root role must equal true"));
+      return null;
+    }
+    const state = root.getAttribute(rosterFullscreenDomAttr);
+    if (!isRosterFullscreenState(state)) {
+      report(diagnostic2(root, "invalid-state", "Roster fullscreen state is not declared by the Surface contract"));
+      return null;
+    }
+    return state;
+  }
+  function validateToggle(toggle, report) {
+    if (toggle.getAttribute(rosterFullscreenToggleDomAttr) !== "true") {
+      report(diagnostic2(toggle, "invalid-toggle-role", "Roster fullscreen toggle role must equal true"));
+      return null;
+    }
+    const labels = Array.from(toggle.querySelectorAll(labelSelector)).filter((label) => label.closest(toggleSelector) === toggle);
+    if (labels.length !== 1 || labels[0]?.getAttribute(rosterFullscreenLabelDomAttr) !== "true") {
+      report(diagnostic2(toggle, "invalid-label-role", "Roster fullscreen toggle must own one label role equal to true"));
+      return null;
+    }
+    return { toggle, label: labels[0] };
+  }
+  function updateToggle(validated, state) {
+    const expanded = state === rosterFullscreenStates.expanded;
     const labels = rosterFullscreenLabels(expanded);
-    toggle.setAttribute("aria-pressed", labels.pressed);
-    toggle.setAttribute("aria-label", labels.label);
-    toggle.setAttribute("title", labels.label);
-    const label = toggle.querySelector(labelSelector);
-    if (label) label.textContent = labels.label;
-    const icon = toggle.querySelector(".bi");
+    validated.toggle.setAttribute("aria-pressed", labels.pressed);
+    validated.toggle.setAttribute("aria-label", labels.label);
+    validated.toggle.setAttribute("title", labels.label);
+    validated.label.textContent = labels.label;
+    const icon = validated.toggle.querySelector(".bi");
     if (icon) {
       icon.classList.toggle(labels.iconRemove, false);
       icon.classList.toggle(labels.iconAdd, true);
     }
   }
-  function syncShell(shell) {
-    if (!(shell instanceof HTMLElement)) return;
-    const expanded = isExpanded(shell);
-    shell.querySelectorAll(toggleSelector).forEach((toggle) => {
-      if (toggle instanceof HTMLElement) updateToggle(toggle, expanded);
-    });
-  }
-  function syncAllShells() {
-    document.querySelectorAll(shellSelector).forEach(syncShell);
-  }
-  function setRosterFullscreen(shell, expanded, toggle) {
-    if (!(shell instanceof HTMLElement)) return;
-    shell.dataset.rosterFullscreen = expanded ? "true" : "false";
-    syncShell(shell);
-    if (expanded && toggle instanceof HTMLElement) {
-      toggle.focus({ preventScroll: true });
+  function createRosterFullscreenController(report = defaultDiagnosticReporter2) {
+    function validatedToggles(root) {
+      const toggles = ownedToggles(root);
+      const validated = toggles.map((toggle2) => validateToggle(toggle2, report));
+      return validated.some((toggle2) => toggle2 === null) ? null : validated;
     }
+    function reconcile(root) {
+      const state = stateFor2(root, report);
+      const toggles = validatedToggles(root);
+      if (!state || !toggles) return false;
+      toggles.forEach((toggle2) => updateToggle(toggle2, state));
+      return true;
+    }
+    function setState(root, state, focusToggle) {
+      if (!stateFor2(root, report)) return false;
+      const toggles = validatedToggles(root);
+      if (!toggles) return false;
+      root.setAttribute(rosterFullscreenDomAttr, state);
+      toggles.forEach((toggle2) => updateToggle(toggle2, state));
+      if (state === rosterFullscreenStates.expanded && focusToggle) {
+        const focus = focusToggle.focus;
+        if (typeof focus === "function") focus.call(focusToggle, { preventScroll: true });
+      }
+      return true;
+    }
+    function toggle(target) {
+      const toggleElement = target.closest(toggleSelector);
+      if (!toggleElement || !validateToggle(toggleElement, report)) return false;
+      const root = closestRoot(toggleElement);
+      if (!root) return false;
+      const state = stateFor2(root, report);
+      if (!state) return false;
+      const nextState = state === rosterFullscreenStates.expanded ? rosterFullscreenStates.collapsed : rosterFullscreenStates.expanded;
+      return setState(root, nextState, toggleElement);
+    }
+    function collapse(root) {
+      return setState(root, rosterFullscreenStates.collapsed, null);
+    }
+    return { reconcile, toggle, collapse };
+  }
+  function fullscreenRootsWithin(root) {
+    const roots = Array.from(root.querySelectorAll(rootSelector));
+    if (root instanceof Element) {
+      if (root.matches(rootSelector)) roots.unshift(root);
+      const owner = closestRoot(root);
+      if (owner && !roots.includes(owner)) roots.unshift(owner);
+    }
+    return roots;
   }
   function enableRosterFullscreenToggle() {
     if (typeof window === "undefined") return;
+    const controller = createRosterFullscreenController();
+    const reconcileWithin = (root) => fullscreenRootsWithin(root).forEach(controller.reconcile);
     document.addEventListener("click", (event) => {
       if (!(event.target instanceof Element)) return;
-      const toggle = event.target.closest(toggleSelector);
-      if (!(toggle instanceof HTMLElement)) return;
-      const shell = rosterShellFromToggle(toggle);
-      if (!(shell instanceof HTMLElement)) return;
-      setRosterFullscreen(shell, !isExpanded(shell), toggle);
+      controller.toggle(event.target);
     });
     document.addEventListener("keydown", (event) => {
       if (event.key !== "Escape") return;
-      const shell = document.querySelector(`${shellSelector}[data-roster-fullscreen="true"]`);
-      if (shell instanceof HTMLElement) {
-        setRosterFullscreen(shell, false, shell.querySelector(toggleSelector));
-      }
+      const focusedRoot = document.activeElement instanceof Element ? closestRoot(document.activeElement) : null;
+      const expandedRoot = focusedRoot?.getAttribute(rosterFullscreenDomAttr) === rosterFullscreenStates.expanded ? focusedRoot : document.querySelector(`${rootSelector}[${rosterFullscreenDomAttr}="${rosterFullscreenStates.expanded}"]`);
+      if (expandedRoot) controller.collapse(expandedRoot);
     });
-    document.addEventListener("htmx:afterSwap", syncAllShells);
-    document.addEventListener("DOMContentLoaded", syncAllShells);
+    onAppPageReady((event) => reconcileWithin(detailRoot(event, "target")));
+    document.addEventListener("htmx:afterSwap", (event) => reconcileWithin(detailRoot(event, "target")));
+    if (document.readyState !== "loading") reconcileWithin(document);
   }
 
   // frontend/ts/shared/exhaustive.ts
@@ -191,7 +373,7 @@
   ];
   function createLinkedHighlightController() {
     const statesByMount = /* @__PURE__ */ new WeakMap();
-    function stateFor(mount, definition) {
+    function stateFor3(mount, definition) {
       let mountStates = statesByMount.get(mount);
       if (!mountStates) {
         mountStates = /* @__PURE__ */ new Map();
@@ -208,35 +390,35 @@
       const context = sourceContext(target);
       if (!context || !context.definition.activations.includes("hover")) return;
       if (relatedSourceMatches(context, relatedTarget)) return;
-      stateFor(context.mount, context.definition).hoverKey = context.membershipKey;
+      stateFor3(context.mount, context.definition).hoverKey = context.membershipKey;
       refreshMount(context.mount);
     }
     function pointerLeft(target, relatedTarget) {
       const context = sourceContext(target);
       if (!context || !context.definition.activations.includes("hover")) return;
       if (relatedSourceMatches(context, relatedTarget)) return;
-      const state = stateFor(context.mount, context.definition);
+      const state = stateFor3(context.mount, context.definition);
       if (state.hoverKey === context.membershipKey) state.hoverKey = null;
       refreshMount(context.mount);
     }
     function focusEntered(target) {
       const context = sourceContext(target);
       if (!context || !context.definition.activations.includes("focus")) return;
-      stateFor(context.mount, context.definition).focusKey = context.membershipKey;
+      stateFor3(context.mount, context.definition).focusKey = context.membershipKey;
       refreshMount(context.mount);
     }
     function focusLeft(target, relatedTarget) {
       const context = sourceContext(target);
       if (!context || !context.definition.activations.includes("focus")) return;
       if (relatedSourceMatches(context, relatedTarget)) return;
-      const state = stateFor(context.mount, context.definition);
+      const state = stateFor3(context.mount, context.definition);
       if (state.focusKey === context.membershipKey) state.focusKey = null;
       refreshMount(context.mount);
     }
     function togglePin(target) {
       const context = pinContext(target);
       if (!context || !context.definition.activations.includes("pin")) return false;
-      const state = stateFor(context.mount, context.definition);
+      const state = stateFor3(context.mount, context.definition);
       if (state.pinnedKey === context.membershipKey) {
         state.pinnedKey = null;
         state.hoverKey = null;
@@ -261,7 +443,7 @@
       if (isElementLike(root) && root.getAttribute(surfaceDomAttr) !== null) mounts.unshift(root);
       for (const mount of mounts) {
         for (const definition of definitionsForMount(mount)) {
-          const state = stateFor(mount, definition);
+          const state = stateFor3(mount, definition);
           if (state.pinnedKey && !sourceExists(mount, definition, state.pinnedKey)) state.pinnedKey = null;
           if (state.hoverKey && !sourceExists(mount, definition, state.hoverKey)) state.hoverKey = null;
           if (state.focusKey && !sourceExists(mount, definition, state.focusKey)) state.focusKey = null;
@@ -273,7 +455,7 @@
       const definitions = definitionsForMount(mount);
       clearEffectClasses(mount);
       for (const definition of definitions) {
-        const state = stateFor(mount, definition);
+        const state = stateFor3(mount, definition);
         const activeKey = state.pinnedKey ?? state.focusKey ?? state.hoverKey;
         if (activeKey) applyEffects(mount, definition, activeKey);
         syncPinControls(mount, definition, state.pinnedKey);
@@ -780,15 +962,15 @@
   }
 
   // frontend/ts/complete-set-sort/runtime.ts
-  function defaultDiagnosticReporter(diagnostic3) {
-    console.error?.("Invalid generated complete-set sort boundary", diagnostic3);
+  function defaultDiagnosticReporter3(diagnostic5) {
+    console.error?.("Invalid generated complete-set sort boundary", diagnostic5);
   }
-  function diagnostic(element, code, message) {
+  function diagnostic3(element, code, message) {
     return { code, elementId: element.id || null, message };
   }
-  function createCompleteSetSortController(report = defaultDiagnosticReporter) {
+  function createCompleteSetSortController(report = defaultDiagnosticReporter3) {
     const statesByRoot = /* @__PURE__ */ new WeakMap();
-    function stateFor(root, definition) {
+    function stateFor3(root, definition) {
       let rootStates = statesByRoot.get(root);
       if (!rootStates) {
         rootStates = /* @__PURE__ */ new Map();
@@ -806,10 +988,10 @@
         for (const definition of definitionsForMount2(mount)) {
           for (const sortRoot of ownedSurfaceRoleElements(mount, mount, definition.rootRoleAttribute)) {
             if (sortRoot.getAttribute(definition.rootRoleAttribute) !== "true") {
-              report(diagnostic(sortRoot, "invalid-root-role", "Complete-set sort root role must equal true"));
+              report(diagnostic3(sortRoot, "invalid-root-role", "Complete-set sort root role must equal true"));
               continue;
             }
-            const state = stateFor(sortRoot, definition);
+            const state = stateFor3(sortRoot, definition);
             applySort({ mount, root: sortRoot, definition }, state);
           }
         }
@@ -827,10 +1009,10 @@
         const rawKey = control.getAttribute(definition.controlRoleAttribute);
         const key = rawKey !== null && definition.isKey(rawKey) ? definition.keys.find((candidate) => candidate.key === rawKey) : void 0;
         if (!key) {
-          report(diagnostic(control, "invalid-control-key", "Complete-set sort control has an undeclared key"));
+          report(diagnostic3(control, "invalid-control-key", "Complete-set sort control has an undeclared key"));
           return false;
         }
-        const current = stateFor(sortRoot, definition);
+        const current = stateFor3(sortRoot, definition);
         const next = {
           key: key.key,
           direction: current.key === key.key ? oppositeDirection(current.direction) : definition.defaultDirection
@@ -845,7 +1027,7 @@
     function applySort(context, state) {
       const key = context.definition.keys.find((candidate) => candidate.key === state.key);
       if (!key) {
-        report(diagnostic(context.root, "missing-default-key", "Complete-set sort definition has no matching active key"));
+        report(diagnostic3(context.root, "missing-default-key", "Complete-set sort definition has no matching active key"));
         return false;
       }
       const rows = [];
@@ -855,7 +1037,7 @@
           if (raw === null) throw new Error(`Missing ${context.definition.rowRoleAttribute}`);
           rows.push({ element: row, value: context.definition.parseRow(JSON.parse(raw)) });
         } catch (error) {
-          report(diagnostic(
+          report(diagnostic3(
             row,
             "invalid-row-payload",
             error instanceof Error ? error.message : String(error)
@@ -865,13 +1047,13 @@
       }
       const rowParent = rows[0]?.element.parentElement ?? null;
       if (rows.some((row) => row.element.parentElement !== rowParent) || rows.length > 0 && rowParent === null) {
-        report(diagnostic(context.root, "invalid-row-parent", "Complete-set sort rows must share one local parent"));
+        report(diagnostic3(context.root, "invalid-row-parent", "Complete-set sort rows must share one local parent"));
         return false;
       }
       try {
         rows.sort((left, right) => compareRows(left.value, right.value, key.comparators, state.direction));
       } catch (error) {
-        report(diagnostic(
+        report(diagnostic3(
           context.root,
           "invalid-comparator-value",
           error instanceof Error ? error.message : String(error)
@@ -971,13 +1153,13 @@
     if (!(element instanceof HTMLElement)) return;
     window.bootstrap?.Tab?.getOrCreateInstance(element).show();
   }
-  function defaultDiagnosticReporter2(diagnostic3) {
-    console.error?.("Invalid generated Surface tab-set boundary", diagnostic3);
+  function defaultDiagnosticReporter4(diagnostic5) {
+    console.error?.("Invalid generated Surface tab-set boundary", diagnostic5);
   }
-  function diagnostic2(element, code, message) {
+  function diagnostic4(element, code, message) {
     return { code, elementId: element.id || null, message };
   }
-  function createSurfaceTabSetController(showTab = defaultShowTab, report = defaultDiagnosticReporter2) {
+  function createSurfaceTabSetController(showTab = defaultShowTab, report = defaultDiagnosticReporter4) {
     const activeKeysByMount = /* @__PURE__ */ new WeakMap();
     function rememberedKey(mount, definition) {
       return activeKeysByMount.get(mount)?.get(definition.name) ?? definition.defaultKey;
@@ -999,7 +1181,7 @@
         if (!tab) continue;
         const key = tab.getAttribute(definition.tabRoleAttribute);
         if (key === null || !definition.isKey(key)) {
-          report(diagnostic2(tab, "invalid-tab-key", "Surface tab has an undeclared key"));
+          report(diagnostic4(tab, "invalid-tab-key", "Surface tab has an undeclared key"));
           return false;
         }
         setRememberedKey(mount, definition, key);
@@ -1016,7 +1198,7 @@
           for (const tab of tabs) {
             const key = tab.getAttribute(definition.tabRoleAttribute);
             if (key === null || !definition.isKey(key)) {
-              report(diagnostic2(tab, "invalid-tab-key", "Surface tab has an undeclared key"));
+              report(diagnostic4(tab, "invalid-tab-key", "Surface tab has an undeclared key"));
               valid = false;
               continue;
             }
@@ -1026,19 +1208,19 @@
           }
           for (const [key, matchingTabs] of tabsByKey) {
             if (matchingTabs.length <= 1) continue;
-            report(diagnostic2(mount, "duplicate-tab-key", `Surface tab set renders key ${key} more than once`));
+            report(diagnostic4(mount, "duplicate-tab-key", `Surface tab set renders key ${key} more than once`));
             valid = false;
           }
           if (!valid) continue;
           const remembered = rememberedKey(mount, definition);
           const desiredKey = tabsByKey.has(remembered) ? remembered : definition.defaultKey;
           if (desiredKey !== remembered) {
-            report(diagnostic2(mount, "missing-tab-key", `Surface tab set is missing rendered key ${remembered}; restoring ${desiredKey}`));
+            report(diagnostic4(mount, "missing-tab-key", `Surface tab set is missing rendered key ${remembered}; restoring ${desiredKey}`));
             setRememberedKey(mount, definition, desiredKey);
           }
           const desiredTabs = tabsByKey.get(desiredKey) ?? [];
           if (desiredTabs.length === 0) {
-            report(diagnostic2(mount, "missing-tab-key", `Surface tab set is missing rendered default key ${definition.defaultKey}`));
+            report(diagnostic4(mount, "missing-tab-key", `Surface tab set is missing rendered default key ${definition.defaultKey}`));
             continue;
           }
           const desiredTab = desiredTabs[0];

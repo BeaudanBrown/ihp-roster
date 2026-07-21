@@ -1,5 +1,9 @@
 import { test, expect, type Page } from '@playwright/test';
 import {
+    rosterColumnEditorDomAttr,
+    rosterColumnEditStartDomAttr,
+} from '../frontend/ts/generated/contracts';
+import {
     ensureRosterLayout,
     expectContainerToManageHorizontalOverflow,
     expectNoHorizontalViewportOverflow,
@@ -10,17 +14,18 @@ import {
 } from './test-helpers';
 
 async function ensureAtLeastTwoRosterColumns(page: Page) {
-    const frame = page.locator('.roster-grid-frame').first();
-    const slotCount = await frame.evaluate((element) => {
+    const frame = page.locator(`[${rosterColumnEditorDomAttr}="true"]`).first();
+    const slotScroller = frame.locator('.roster-slots-scroller').first();
+    const slotCount = await slotScroller.evaluate((element) => {
         if (!(element instanceof HTMLElement)) {
-            throw new Error('Expected roster frame to be an HTMLElement');
+            throw new Error('Expected roster slot scroller to be an HTMLElement');
         }
         return Number.parseInt(getComputedStyle(element).getPropertyValue('--roster-slot-count'), 10) || 1;
     });
 
     if (slotCount > 1) return;
 
-    await page.getByRole('button', { name: 'Edit roster columns' }).click();
+    await frame.locator(`[${rosterColumnEditStartDomAttr}="true"]`).click();
     await expect(page.getByRole('button', { name: 'Add roster column' })).toBeVisible();
 
     const createResponsePromise = page.waitForResponse((response) => {
@@ -31,7 +36,7 @@ async function ensureAtLeastTwoRosterColumns(page: Page) {
     expect(createResponse.status(), await createResponse.text()).toBe(200);
 
     await expect.poll(async () => {
-        return frame.evaluate((element) => {
+        return slotScroller.evaluate((element) => {
             if (!(element instanceof HTMLElement)) return 1;
             return Number.parseInt(getComputedStyle(element).getPropertyValue('--roster-slot-count'), 10) || 1;
         });
@@ -82,7 +87,7 @@ test.describe('Roster mobile baseline', () => {
                 scrollerScrollWidth: scroller.scrollWidth,
                 overflowX: getComputedStyle(scroller).overflowX,
                 gridMinWidth: getComputedStyle(grid).minWidth,
-                slotCount: Number.parseInt(getComputedStyle(frame).getPropertyValue('--roster-slot-count'), 10) || 0,
+                slotCount: Number.parseInt(getComputedStyle(scroller).getPropertyValue('--roster-slot-count'), 10) || 0,
                 dayRailPosition: getComputedStyle(dayRail).position,
                 daySectionPosition: getComputedStyle(daySection).position,
                 firstDayRailHeight: Math.round(daySection.getBoundingClientRect().height),
@@ -158,7 +163,7 @@ test.describe('Roster mobile baseline', () => {
                 endTimes: frame.dataset.rosterEndTimes,
                 railWidth: Math.round(rail.getBoundingClientRect().width),
                 scrollerWidth: Math.round(scroller.getBoundingClientRect().width),
-                slotCount: Number.parseInt(getComputedStyle(frame).getPropertyValue('--roster-slot-count'), 10) || 1,
+                slotCount: Number.parseInt(getComputedStyle(scroller).getPropertyValue('--roster-slot-count'), 10) || 1,
                 scrollerScrollWidth: scroller.scrollWidth,
             };
         });
@@ -197,7 +202,7 @@ test.describe('Roster mobile baseline', () => {
                 throw new Error('Expected roster slot scroller to live in a roster frame');
             }
 
-            const slotCount = Number.parseInt(getComputedStyle(frame).getPropertyValue('--roster-slot-count'), 10) || 1;
+            const slotCount = Number.parseInt(getComputedStyle(scroller).getPropertyValue('--roster-slot-count'), 10) || 1;
             const maxScrollLeft = Math.max(0, scroller.scrollWidth - scroller.clientWidth);
             const groupWidth = scroller.scrollWidth / slotCount;
             const rawScrollLeft = groupWidth * 1.45;
@@ -243,7 +248,7 @@ test.describe('Roster mobile baseline', () => {
                 throw new Error('Expected roster slot scroller to live in a roster frame');
             }
 
-            const slotCount = Number.parseInt(getComputedStyle(frame).getPropertyValue('--roster-slot-count'), 10) || 1;
+            const slotCount = Number.parseInt(getComputedStyle(scroller).getPropertyValue('--roster-slot-count'), 10) || 1;
             const groupWidth = scroller.scrollWidth / slotCount;
             const rawScrollLeft = groupWidth * 0.42;
             const expectedScrollLeft = Math.round(rawScrollLeft / groupWidth) * groupWidth;

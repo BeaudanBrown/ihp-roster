@@ -258,6 +258,10 @@ expect_compile_failure \
     "FrontendSurface tab set Roster.RosterStaffPanelTabs does not declare key Roster.NameSortKey"
 
 expect_compile_failure \
+    "Test/CompileFail/FrontendSurfaceWrongClosedStateValue.hs" \
+    "FrontendSurface browser state Roster.FullscreenState does not declare value Roster.Active"
+
+expect_compile_failure \
     "Test/CompileFail/FrontendSurfaceUnknownInteractionEffect.hs" \
     "Expected kind" \
     "InteractionEffect"

@@ -1,5 +1,7 @@
 module Web.View.RosterWeeks.Show where
 
+import Application.Helper.FrontendContract.Surface.Roster.Chrome (RosterFullscreenState (..),
+                                                                  rosterFullscreenRootAttrs)
 import Application.Helper.FrontendContract.Surface.Runtime (renderFrontendSurfaceMount)
 import Application.Helper.Profiling (profileHtmlComponent)
 import Web.RosterWeeks.Capabilities (buildRosterViewCapabilities)
@@ -70,7 +72,7 @@ renderRosterWeekShell ShowView { .. } =
         shell = [hsx|
             <section id={rosterWeekShellId}
                      hx-history-elt="true"
-                     data-roster-fullscreen="false">
+                     {...rosterFullscreenRootAttrs RosterFullscreenCollapsed}>
                 {renderFrontendSurfaceMount rosterSurface page}
             </section>
         |]

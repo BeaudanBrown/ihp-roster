@@ -158,7 +158,6 @@ tests = aroundAll withDatabaseTestContext do
                          , RosterLive.rosterDayColumnsLiveFragment
                          , RosterLive.rosterDayRailLiveFragment
                          , RosterLive.rosterWageRailLiveFragment
-                         , RosterLive.rosterSlotsGridLiveFragment
                          , RosterLive.rosterStaffPanelLiveFragment
                          ]]
 

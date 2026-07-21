@@ -7,6 +7,8 @@ module Web.View.RosterWeeks.Header
 import qualified Application.Helper.FrontendContract.Surface.Interaction as SurfaceInteraction
 import qualified Application.Helper.FrontendContract.Surface.Roster as Surface
 import qualified Application.Helper.FrontendContract.Surface.Roster.Action as RosterAction
+import Application.Helper.FrontendContract.Surface.Roster.Chrome (rosterFullscreenLabelAttrs,
+                                                                  rosterFullscreenToggleAttrs)
 import Application.Helper.FrontendContract.Surface.Runtime (FrontendSurfaceActionRoute (..),
                                                             renderFrontendSurfaceActionForm,
                                                             renderFrontendSurfaceActionLink)
@@ -55,12 +57,12 @@ renderRosterFullscreenToggle :: Html
 renderRosterFullscreenToggle = [hsx|
     <button type="button"
             class="btn btn-outline-secondary btn-sm roster-fullscreen-toggle"
-            data-roster-fullscreen-toggle="true"
+            {...rosterFullscreenToggleAttrs}
             aria-pressed="false"
             aria-label="Expand roster"
             title="Expand roster">
         <i class="bi bi-fullscreen" aria-hidden="true"></i>
-        <span class="visually-hidden" data-roster-fullscreen-toggle-label="true">Expand roster</span>
+        <span class="visually-hidden" {...rosterFullscreenLabelAttrs}>Expand roster</span>
     </button>
 |]
 

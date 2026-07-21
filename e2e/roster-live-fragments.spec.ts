@@ -20,9 +20,9 @@ async function openDayColumnsRoster(page: Page) {
     await expect(page.locator('#roster-day-columns')).toBeVisible();
 }
 
-async function markRosterScrollOwner(page: Page, marker: string): Promise<number> {
-    return page.locator('#roster-grid-frame').evaluate((element, markerValue) => {
-        if (!(element instanceof HTMLElement)) throw new Error('Expected roster grid frame');
+async function markRosterScrollOwner(page: Page, marker: string, selector = '#roster-grid-frame'): Promise<number> {
+    return page.locator(selector).evaluate((element, markerValue) => {
+        if (!(element instanceof HTMLElement)) throw new Error('Expected roster scroll owner');
         const maxScrollLeft = Math.max(0, element.scrollWidth - element.clientWidth);
         element.scrollLeft = maxScrollLeft > 0 ? Math.min(Math.max(90, element.clientWidth * 0.8), maxScrollLeft) : 0;
         element.dataset.e2eScrollOwnerMarker = markerValue;
@@ -30,11 +30,11 @@ async function markRosterScrollOwner(page: Page, marker: string): Promise<number
     }, marker);
 }
 
-async function expectRosterScrollOwnerPreserved(page: Page, marker: string, expectedScrollLeft: number) {
-    await expect(page.locator('#roster-grid-frame')).toHaveAttribute('data-e2e-scroll-owner-marker', marker);
+async function expectRosterScrollOwnerPreserved(page: Page, marker: string, expectedScrollLeft: number, selector = '#roster-grid-frame') {
+    await expect(page.locator(selector)).toHaveAttribute('data-e2e-scroll-owner-marker', marker);
     if (expectedScrollLeft > 0) {
-        await expect.poll(() => page.locator('#roster-grid-frame').evaluate((element, expected) => {
-            if (!(element instanceof HTMLElement)) throw new Error('Expected roster grid frame');
+        await expect.poll(() => page.locator(selector).evaluate((element, expected) => {
+            if (!(element instanceof HTMLElement)) throw new Error('Expected roster scroll owner');
             return Math.abs(element.scrollLeft - expected);
         }, expectedScrollLeft)).toBeLessThanOrEqual(2);
     }
@@ -159,7 +159,7 @@ test.describe('Roster live fragments', () => {
         await viewerContext.close();
     });
 
-    test('preserves day-column scroll owners for actor and passive shift live refreshes', async ({ browser }) => {
+    test('preserves day-column and day-row scroll owners for actor and passive shift live refreshes', async ({ browser }) => {
         const actorContext = await browser.newContext();
         const viewerContext = await browser.newContext();
         const actorPage = await actorContext.newPage();
@@ -176,6 +176,19 @@ test.describe('Roster live fragments', () => {
 
         await expectRosterScrollOwnerPreserved(actorPage, 'actor-scroll-owner', actorScroll);
         await expectRosterScrollOwnerPreserved(viewerPage, 'viewer-scroll-owner', viewerScroll);
+
+        await ensureRosterLayout(actorPage, 'day_rows');
+        await ensureRosterLayout(viewerPage, 'day_rows');
+        await expect(actorPage.locator('.roster-slots-scroller')).toBeVisible();
+        await expect(viewerPage.locator('.roster-slots-scroller')).toBeVisible();
+        const actorDayRowsScroll = await markRosterScrollOwner(actorPage, 'actor-day-rows-scroll-owner', '.roster-slots-scroller');
+        const viewerDayRowsScroll = await markRosterScrollOwner(viewerPage, 'viewer-day-rows-scroll-owner', '.roster-slots-scroller');
+        const dayRowsGroupKey = await firstExistingShiftGroupKey(viewerPage);
+
+        await changeShiftToAlternateStaffKey(actorPage, dayRowsGroupKey);
+
+        await expectRosterScrollOwnerPreserved(actorPage, 'actor-day-rows-scroll-owner', actorDayRowsScroll, '.roster-slots-scroller');
+        await expectRosterScrollOwnerPreserved(viewerPage, 'viewer-day-rows-scroll-owner', viewerDayRowsScroll, '.roster-slots-scroller');
 
         await actorContext.close();
         await viewerContext.close();

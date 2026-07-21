@@ -1293,6 +1293,30 @@ for removed_roster_staff_runtime in \
     fi
 done
 
+expect_no_match_including_generated \
+    "replaced raw roster fullscreen and column-edit contracts must stay deleted" \
+    'data-roster-fullscreen(-toggle(-label)?)?|data-roster-column-(editor|editing|edit-start|edit-done)' \
+    Application Web frontend/ts e2e static
+
+expect_no_match \
+    "authored roster chrome code must consume generated Surface role/state names" \
+    'data-bepis-roster-(fullscreen(-root|-toggle|-label)?|column-(editor|edit-start|edit-done|editing))' \
+    Application Web frontend/ts
+
+expect_no_match \
+    "roster chrome browser code must discover controls through generated roles, not presentation classes" \
+    '(querySelector(All)?|closest|matches)\([^)]*roster-(fullscreen-toggle|column-edit-(start|done)|grid-frame)' \
+    frontend/ts/roster
+
+expect_match \
+    "generated contracts must expose closed roster fullscreen state" \
+    'export type RosterFullscreenState = "collapsed" \| "expanded"' \
+    frontend/ts/generated/contracts.ts
+expect_match \
+    "generated contracts must expose closed roster column-editing state" \
+    'export type RosterColumnEditingState = "inactive" \| "active"' \
+    frontend/ts/generated/contracts.ts
+
 expect_match \
     "the roster entrypoint must enable the generic complete-set sorting runtime" \
     '\benableFrontendSurfaceCompleteSetSort\b' \

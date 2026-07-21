@@ -58,6 +58,18 @@ lands.
   Each row exposes one exact generated JSON payload; raw per-field
   `data-roster-staff-*` attributes and roster-specific browser comparators or
   defaults are not part of the implemented contract.
+- Fullscreen controls use generated root/toggle/label roles and the closed
+  collapsed/expanded Surface state. The button keeps native `aria-pressed`,
+  labels and icon state stay synchronized, Escape collapses the focused/active
+  root, and duplicate roster roots remain independent.
+- Column editing uses generated editor/start/done roles and the closed
+  inactive/active Surface state. State is owned by each concrete grid frame;
+  replacing controls reconciles their ARIA state, replacing the frame restores
+  server-rendered inactive state, and pending delayed-blur timers are disposed
+  with removed HTMX roots.
+- Raw `data-roster-fullscreen*` and `data-roster-column-*` names are not part of
+  the implemented contract. CSS and browser behavior consume generated
+  role/state names rather than presentation classes.
 - The roster staff panel uses the existing role column for trial placeholders and
   renders their role as `TRIAL`; linked staff continue to show their venue
   membership role labels.
@@ -209,10 +221,13 @@ lands.
 - Roster live fragments refresh immediately; discrete autosaved controls should
   commit on change instead of relying on blur-deferred protection.
 - `#roster-content` owns only the main roster column, header, and grid. It does
-  not render `#roster-staff-panel-fragment`. `#roster-content` and
-  `#roster-grid-frame` are resync-only structural wrappers; ordinary
-  resource-backed updates target their authoritative child fragments so the
-  mounted grid frame retains horizontal scroll ownership.
+  not render `#roster-staff-panel-fragment`. Ordinary roster-week updates target
+  authoritative child fragments so the mounted grid frame retains horizontal
+  scroll ownership. A separate roster-structure resource selects
+  `#roster-content` for create/copy/publication transitions; slots-structure and
+  slots-content resources select the slot scroller for column count/order changes
+  or broad staff/leave projection changes; venue configuration that changes
+  frame-owned state selects `#roster-grid-frame`.
 - `#roster-staff-panel-fragment` is a sibling side-panel fragment. Ordinary broad
   roster-week updates may request the contained grid children and staff panel
   together because those targets are siblings.

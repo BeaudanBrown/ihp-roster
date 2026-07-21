@@ -96,6 +96,15 @@ parseRosterStaffPanelScope
                     "group" -> Right RosterStaffPanelCurrentGroup
                     _       -> Left "Choose a valid roster staff scope."
 
+rosterDayMutationMountedProjections :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => RosterDay -> IO [RosterProjectionFragment]
+rosterDayMutationMountedProjections rosterDay = do
+    layoutMode <- fetchCurrentRosterLayoutMode
+    pure $
+        rosterGridInnerAndStaffPanelFragments
+            <> case rosterLayoutModeValue layoutMode of
+                "day_columns" -> []
+                _ -> [rosterDaySectionFragment (unpackId rosterDay.id)]
+
 instance Controller RosterWeeksController where
     beforeAction = bepisBeforeAction BepisAuthenticatedVenueController do
         annotateTelemetryAction
@@ -436,12 +445,13 @@ instance Controller RosterWeeksController where
         let targetPath = rosterWeekUrl rosterWeek.weekOffset rosterGroupId
         if isHtmxRequest
             then do
+                mountedProjections <- rosterDayMutationMountedProjections rosterDay
                 setHtmxPushUrl targetPath
                 respondWithRosterResourceInvalidation
                     rosterGroupId
                     rosterWeek.weekOffset
                     mutationResult.liveMutationTouchedResources
-                    rosterGridInnerAndStaffPanelFragments
+                    mountedProjections
                     clearDialogOverlayOob
             else do
                 setSuccessMessage successMessage
@@ -481,12 +491,13 @@ instance Controller RosterWeeksController where
                 mutationResult <- addRosterDayRowMutation rosterGroupId rosterWeek rosterDay
 
                 if isHtmxRequest
-                    then
+                    then do
+                        mountedProjections <- rosterDayMutationMountedProjections rosterDay
                         respondWithRosterResourceInvalidation
                             rosterGroupId
                             rosterWeek.weekOffset
                             mutationResult.liveMutationTouchedResources
-                            rosterGridInnerAndStaffPanelFragments
+                            mountedProjections
                             clearDialogOverlayOob
                     else do
                         setSuccessMessage "Roster row added."
@@ -532,12 +543,13 @@ instance Controller RosterWeeksController where
                 mutationResult <- removeRosterDayRowMutation rosterGroupId rosterWeek rosterDay activeDefinitions
 
                 if isHtmxRequest
-                    then
+                    then do
+                        mountedProjections <- rosterDayMutationMountedProjections rosterDay
                         respondWithRosterResourceInvalidation
                             rosterGroupId
                             rosterWeek.weekOffset
                             mutationResult.liveMutationTouchedResources
-                            rosterGridInnerAndStaffPanelFragments
+                            mountedProjections
                             clearDialogOverlayOob
                     else do
                         setSuccessMessage "Roster row removed."
@@ -1639,7 +1651,7 @@ respondToRosterSlotDefinitionSuccess rosterWeek mutationResult successMessage =
                 rosterGroupId
                 rosterWeek.weekOffset
                 mutationResult.liveMutationTouchedResources
-                rosterGridFrameAndStaffPanelFragments
+                rosterGridInnerAndStaffPanelFragments
                 mempty
         else do
             setSuccessMessage successMessage
