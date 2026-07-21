@@ -65,7 +65,7 @@ retaining a compatibility path.
 ## Links
 
 - Tickets: GitHub #136, #143–#152
-- Workstream: `docs/workstreams/frontend-contract-authority-hardening.md`
+- Historical workstream: `docs/archive/frontend-contract-authority-hardening.md`
 - Living docs: `Application/Helper/FrontendContract/README.md`,
   `Application/Helper/FrontendContract/Surface/README.md`,
   `Application/Helper/LiveUpdate.SPEC.md`, `Application/Helper/Interaction.SPEC.md`

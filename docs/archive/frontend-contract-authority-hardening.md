@@ -1,6 +1,14 @@
 # FrontendContract Authority Hardening
 
-Status: active
+Status: implemented
+
+> Historical closeout record. The rules and exit criteria below record this
+> completed migration's intent and evidence; they are not current implementation
+> guidance. Current FrontendContract rules live in
+> `Application/Helper/FrontendContract/README.md`,
+> `Application/Helper/FrontendContract/Surface/README.md`,
+> `Application/Helper/Interaction.SPEC.md`, and
+> `Application/Helper/LiveUpdate.SPEC.md`.
 
 GitHub issues:
 
@@ -11,7 +19,7 @@ GitHub issues:
 - Passkey browser capabilities: `#210`-`#211`
 - Roster browser capabilities: `#174`-`#178`
 - Final reconciliation: `#179`
-- Post-reconciliation hardening: `#193`-`#196`
+- Post-reconciliation hardening: `#193`-`#196`, `#214`
 
 GitHub owns live status, native sub-issue relationships, and blocker state.
 
@@ -203,7 +211,7 @@ slices, and all block final reconciliation.
 14. `#167` - Time picker roles and exact configuration payload, consuming but not duplicating the toggle/break boundary. **Complete.**
 15. `#168` - Dialog/toast overlay DOM vocabulary. **Complete.**
 16. `#170` - Ordered-range shift preferences. **Complete.**
-17. `#171` - Horizontal drag/snap scrolling.
+17. `#171` - Horizontal drag/snap scrolling. **Complete.**
 18. `#172` - PWA installation adapter. **Complete.**
 19. `#173` - Xero candidate filtering adapter. **Complete.**
 
@@ -425,6 +433,23 @@ Every capability slice runs:
 
 Final reconciliation also runs full Hspec, lint, formatting, E2E, and
 documentation-drift gates. No database schema or migration work is expected.
+
+## Final Reconciliation
+
+All authority-hardening and post-reconciliation issues are closed. The final
+structural source guard replaces brittle vocabulary regexes with ownership-aware
+checks, while generated-adapter drift/publication checks retain the all-kind
+atomicity boundary. On 2026-07-21, `bash ./bin/in-env verify-full` passed:
+954 Haskell modules compiled; FrontendContract Weeder was clean; all 21 generated
+adapter modules, publication, guardrail, compile-failure, frontend (119 tests),
+CSS/stale-selector, architecture, and documentation checks passed; and all 199
+Playwright tests passed. The separate `bash ./bin/in-env lint` and
+`bash ./bin/in-env format` gates also passed.
+
+At final reconciliation, the native-graph inspection found #179's five direct
+children (#193, #194, #195, #196, and #214) closed with no open blockers. #151's
+separately approved live-data schema-retirement work was recorded as outside
+this completed FrontendContract authority workstream.
 
 ## Exit Criteria
 

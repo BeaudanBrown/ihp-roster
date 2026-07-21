@@ -320,3 +320,13 @@ Surface declarations, rather than copied string literals. Every fragment owns
 one typed `MountTarget`; descriptor and view IDs are rendered through
 `surfaceFragmentTargetId` from declaration-ordered typed fields. Server-only
 `MountState` declarations are deliberately absent from browser output.
+
+## Authority Reconciliation
+
+The zero-legacy authority audit uses structural source checks for
+contract-bound vocabulary rather than broad word-based regexes; generated
+adapter drift, publication, compile-failure, and CSS ownership checks protect
+the same authority boundary. Verify it with `verify-full`, `lint`, and `format`.
+#151 is separately approved live-data schema-retirement work, not a
+FrontendContract compatibility exception. The historical audit and closeout
+evidence are archived at `docs/archive/frontend-contract-authority-hardening.md`.

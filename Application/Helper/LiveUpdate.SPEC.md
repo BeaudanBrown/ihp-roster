@@ -415,7 +415,7 @@ When adding or migrating a mutation flow:
   make the mounted DOM stale.
 - New production fragment GET actions should render through the relevant
   `SurfaceImpl`/FrontendSurface fragment handler and return the authoritative
-  target node. Legacy typed helpers remain compatibility-only.
+  target node. Do not retain a legacy fragment-helper compatibility path.
 - Websocket subscription authorization must go through registered generated
   surface metadata and `Web.SurfaceInvalidation`. Checked `ScopeAuthIR` owns the
   closed policy constructor and exact required UUID fields; runtime code must not

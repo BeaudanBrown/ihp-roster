@@ -39,8 +39,6 @@ for forward-looking design.
   contracts, mutations, scope/audit/realtime evidence, and generated facts.
 - `bepis-effect-evidence-finalization.md` - final no-legacy Bepis runtime fact
   model where actual effect helpers emit typed facts and telemetry.
-- `frontend-contract-authority-hardening.md` - zero-legacy generated authority
-  for Surface identities, wire carriers, browser DOM boundaries, and checked IR.
 - `opentelemetry-observability.md` - OpenTelemetry traces, agent profile
   artifacts, production trace/log capture, and tailnet Grafana viewing.
 - `backlog.md` - smaller open streams that do not yet need dedicated files.

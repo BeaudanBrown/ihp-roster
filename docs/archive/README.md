@@ -9,6 +9,7 @@ rules belong in local `AGENTS.md` files. Live work status belongs in GitHub Issu
 
 Archived cross-cutting workstream evidence:
 
+- `frontend-contract-authority-hardening.md` - issue #179's completed zero-legacy FrontendContract authority audit
 - `test-verification-efficiency.md` - 2026 Hspec, E2E, compilation reuse, tiering, concurrency, and measured closeout
 - `hspec-critical-path-baseline-2026-07-19.md` - issue #198 pre-refactor Hspec environment, phase, PostgreSQL, shard, and intervention evidence
 - `hspec-postgresql-runtime-2026-07-20.md` and `.json` - issue #200 native-storage, disposable-durability, recovery-safety, and machine-readable complete-suite selection evidence
