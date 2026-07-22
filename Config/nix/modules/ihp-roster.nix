@@ -113,6 +113,22 @@ let
         STRIPE_PAYMENT_METHOD_TYPES = lib.concatStringsSep "," stripeCfg.paymentMethodTypes;
       }
     );
+  stripeAuthoritativeEnvFor = serviceName:
+    stripeEnv
+    // {
+      APP_BASE_URL = cfg.baseUrl;
+      STRIPE_MODE = stripeCfg.mode;
+      STRIPE_PRICE_LOOKUP_KEY = if stripeCfg.priceLookupKey == null then "" else stripeCfg.priceLookupKey;
+      STRIPE_PRICE_ID = if stripeCfg.priceId == null then "" else stripeCfg.priceId;
+      STRIPE_PAYMENT_METHOD_TYPES = lib.concatStringsSep "," stripeCfg.paymentMethodTypes;
+      STRIPE_SECRET_KEY_FILE = "/run/credentials/${serviceName}.service/stripe-secret-key";
+      STRIPE_WEBHOOK_SECRET_FILE = "/run/credentials/${serviceName}.service/stripe-webhook-secret";
+    };
+  stripeAuthoritativeEnvironmentFile = serviceName:
+    pkgs.writeText "ihp-roster-stripe-${serviceName}-environment" (
+      (lib.concatStringsSep "\n" (lib.mapAttrsToList (name: value: "${name}=${value}") (stripeAuthoritativeEnvFor serviceName)))
+      + "\n"
+    );
   runtimeEnvironmentFiles = optional (cfg.environmentFile != null) cfg.environmentFile;
   xeroEnvironmentFiles = runtimeEnvironmentFiles ++ optional (cfg.xero.environmentFile != null) cfg.xero.environmentFile;
   appWorkerEnvironmentFiles = xeroEnvironmentFiles;
@@ -906,9 +922,9 @@ in
         }
         // mailEnv
         // legalEnv
-        // stripeEnv
         // observabilityEnv
-        // cfg.additionalEnvVars;
+        // cfg.additionalEnvVars
+        // stripeEnv;
         appPort = cfg.appPort;
         package = if cfg.package != null then cfg.package else defaultPackage;
         optimized = cfg.production;
@@ -917,10 +933,10 @@ in
       };
 
       systemd.services.app.serviceConfig = serviceUserConfig // stripeCredentialConfig // {
-        EnvironmentFile = appWorkerEnvironmentFiles;
+        EnvironmentFile = appWorkerEnvironmentFiles ++ [ (stripeAuthoritativeEnvironmentFile "app") ];
       };
       systemd.services.worker.serviceConfig = serviceUserConfig // stripeCredentialConfig // {
-        EnvironmentFile = appWorkerEnvironmentFiles;
+        EnvironmentFile = appWorkerEnvironmentFiles ++ [ (stripeAuthoritativeEnvironmentFile "worker") ];
       };
       systemd.services.worker.enable = mkForce hasJobRunner;
       systemd.services.app-keygen.postStart = mkIf hasServiceUser ''

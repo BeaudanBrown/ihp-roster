@@ -158,8 +158,10 @@ Production:
 
 Production uses file-backed Stripe secrets through systemd credentials. The app
 receives file paths, not secret values. The Stripe module deliberately has no
-`environmentFile` escape hatch: mode and rollout controls come only from Nix
-options, so a dotenv file cannot override an incident rollback.
+Stripe-specific `environmentFile` escape hatch. It loads a generated non-secret
+Stripe environment file last for each service, so general/Xero environment
+files and `additionalEnvVars` cannot override mode, rollout controls, Price
+selection, credential paths, or `APP_BASE_URL` during an incident rollback.
 
 Expected placeholders:
 
