@@ -1,18 +1,14 @@
 /* Roster day alternation, conflict, palette, required, empty, and closed states. */
 
-/* One disposable affordance for every shift-modifying roster drop target. */
+/* Theme the shared disposable affordance for shift-modifying roster targets. */
 .roster-grid-frame [data-bepis-dropzone-ref].bepis-dropzone-highlight:not([data-bepis-dropzone-ref="delete-shift-dropzone"]) {
-    z-index: 5;
-    border-color: var(--app-success-border) !important;
-    background: linear-gradient(
+    --bepis-dropzone-highlight-color: var(--app-success-border);
+    --bepis-dropzone-highlight-background: linear-gradient(
         180deg,
         color-mix(in srgb, var(--app-success-soft) 58%, var(--app-surface-2)),
         color-mix(in srgb, var(--app-success-soft) 44%, var(--app-surface))
-    ) !important;
-    box-shadow:
-        0 0 0 3px color-mix(in srgb, var(--app-success-border) 62%, transparent),
-        0 0.75rem 1.4rem var(--app-shadow-md-raw),
-        inset 0 0 0 2px var(--app-success-border) !important;
+    );
+    --bepis-dropzone-highlight-elevation: 0 0.75rem 1.4rem var(--app-shadow-md-raw);
 }
 
 .roster-grid .day-row.day-alt-dark {

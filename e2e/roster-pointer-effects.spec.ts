@@ -4,7 +4,14 @@ import { E2E_TIMEOUT, ensureRosterLayout, openRoster } from './test-helpers';
 async function expectShiftModificationHighlight(target: Locator) {
     await expect(target).toHaveClass(/bepis-dropzone-highlight/, { timeout: E2E_TIMEOUT.assertion });
     await expect(target).toHaveCSS('background-image', /linear-gradient/);
-    await expect(target).toHaveCSS('box-shadow', /3px/);
+    await target.evaluate(async (element) => {
+        await Promise.all(element.getAnimations().map((animation) => animation.finished));
+    });
+
+    const boxShadow = await target.evaluate((element) => getComputedStyle(element).boxShadow);
+    const borderRings = boxShadow.match(/0px 0px 0px (?!0px)(?:\d*\.)?\d+px(?: inset)?/g) ?? [];
+    expect(borderRings, boxShadow).toHaveLength(1);
+    expect(borderRings[0]).toContain('inset');
 }
 
 test.describe('roster pointer session effects', () => {

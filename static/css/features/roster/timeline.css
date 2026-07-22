@@ -101,8 +101,12 @@
     border-radius: 0.25rem;
 }
 
-.roster-day-timeline-dropzone.bepis-dropzone-highlight,
-.roster-day-timeline-dropzone:hover {
+.roster-day-timeline-dropzone.bepis-dropzone-highlight {
+    --bepis-dropzone-highlight-color: color-mix(in srgb, var(--bs-primary) 45%, transparent);
+    --bepis-dropzone-highlight-background: color-mix(in srgb, var(--bs-primary) 14%, transparent);
+}
+
+.roster-day-timeline-dropzone:hover:not(.bepis-dropzone-highlight) {
     background: color-mix(in srgb, var(--bs-primary) 14%, transparent);
     outline: 1px solid color-mix(in srgb, var(--bs-primary) 45%, transparent);
 }
