@@ -1,0 +1,14 @@
+{
+  "id": "cs_123",
+  "object": "checkout.session",
+  "client_reference_id": "venue-123",
+  "customer": "cus_123",
+  "livemode": false,
+  "metadata": {
+    "venue_id": "venue-123"
+  },
+  "mode": "subscription",
+  "status": "open",
+  "subscription": null,
+  "url": "https://checkout.stripe.com/c/pay/cs_test_sanitized"
+}

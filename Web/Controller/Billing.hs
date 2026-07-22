@@ -138,22 +138,25 @@ createEnabledBillingCheckoutSession stripeConfig = do
                     case checkoutResult of
                         Left err -> billingRedirectWithError ("Stripe Checkout failed: " <> stripeClientErrorText err)
                         Right checkoutSession ->
-                            case checkoutSession.stripeCheckoutSessionUrl of
-                                Nothing -> billingRedirectWithError "Stripe Checkout did not return a hosted session URL."
-                                Just checkoutUrl ->
-                                    validateStripeCheckoutRedirectUrl checkoutUrl >>= \case
-                                        Left message -> billingRedirectWithError message
-                                        Right validatedCheckoutUrl -> do
-                                            void $ recordCurrentUserAuditEvent
-                                                "billing_checkout_started"
-                                                "venue_billing_customers"
-                                                (unpackId billingCustomer.id)
-                                                (Aeson.object
-                                                    [ "stripeCustomerId" Aeson..= billingCustomer.stripeCustomerId
-                                                    , "stripeCheckoutSessionId" Aeson..= checkoutSession.stripeCheckoutSessionId
-                                                    , "stripePriceId" Aeson..= price.stripePriceId
-                                                    ])
-                                            redirectToBillingUrl validatedCheckoutUrl
+                            case validateCreatedCheckoutSession billingCustomer.stripeCustomerId checkoutSession of
+                                Left message -> billingRedirectWithError message
+                                Right validatedCheckoutSession ->
+                                    case validatedCheckoutSession.stripeCheckoutSessionUrl of
+                                        Nothing -> billingRedirectWithError "Stripe Checkout did not return a hosted session URL."
+                                        Just checkoutUrl ->
+                                            validateStripeCheckoutRedirectUrl checkoutUrl >>= \case
+                                                Left message -> billingRedirectWithError message
+                                                Right validatedCheckoutUrl -> do
+                                                    void $ recordCurrentUserAuditEvent
+                                                        "billing_checkout_started"
+                                                        "venue_billing_customers"
+                                                        (unpackId billingCustomer.id)
+                                                        (Aeson.object
+                                                            [ "stripeCustomerId" Aeson..= billingCustomer.stripeCustomerId
+                                                            , "stripeCheckoutSessionId" Aeson..= validatedCheckoutSession.stripeCheckoutSessionId
+                                                            , "stripePriceId" Aeson..= price.stripePriceId
+                                                            ])
+                                                    redirectToBillingUrl validatedCheckoutUrl
 
 createBillingPortalSessionAction :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => IO ()
 createBillingPortalSessionAction =
@@ -175,18 +178,21 @@ createBillingPortalSessionAction =
                     case portalResult of
                         Left err -> billingRedirectWithError ("Stripe Customer Portal failed: " <> stripeClientErrorText err)
                         Right portalSession ->
-                            validateStripePortalRedirectUrl portalSession.stripePortalSessionUrl >>= \case
+                            case validateCreatedPortalSession billingCustomer.stripeCustomerId returnUrl portalSession of
                                 Left message -> billingRedirectWithError message
-                                Right validatedPortalUrl -> do
-                                    void $ recordCurrentUserAuditEvent
-                                        "billing_portal_started"
-                                        "venue_billing_customers"
-                                        (unpackId billingCustomer.id)
-                                        (Aeson.object
-                                            [ "stripeCustomerId" Aeson..= billingCustomer.stripeCustomerId
-                                            , "stripePortalSessionId" Aeson..= portalSession.stripePortalSessionId
-                                            ])
-                                    redirectToBillingUrl validatedPortalUrl
+                                Right validatedPortalSession ->
+                                    validateStripePortalRedirectUrl validatedPortalSession.stripePortalSessionUrl >>= \case
+                                        Left message -> billingRedirectWithError message
+                                        Right validatedPortalUrl -> do
+                                            void $ recordCurrentUserAuditEvent
+                                                "billing_portal_started"
+                                                "venue_billing_customers"
+                                                (unpackId billingCustomer.id)
+                                                (Aeson.object
+                                                    [ "stripeCustomerId" Aeson..= billingCustomer.stripeCustomerId
+                                                    , "stripePortalSessionId" Aeson..= validatedPortalSession.stripePortalSessionId
+                                                    ])
+                                            redirectToBillingUrl validatedPortalUrl
 
 resolveBillingPrice :: StripeClient -> StripeConfig -> IO (Either Text StripePrice)
 resolveBillingPrice stripeClient stripeConfig =

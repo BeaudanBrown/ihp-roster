@@ -158,7 +158,7 @@ validateStripeWebhookContract expectedMode event = do
         Left "Stripe webhook mode does not match the configured billing mode"
     unless (event.stripeObjectSnapshot.stripeObjectLivemode == event.stripeLivemode) do
         Left "Stripe webhook object mode does not match the event mode"
-    forM_ (expectedSnapshotObjectType event.stripeEventType) \expectedObjectType ->
+    forM_ (stripeWebhookEventContract event.stripeEventType).expectedSnapshotObjectType \expectedObjectType ->
         unless (event.stripeObjectSnapshot.stripeObjectType == expectedObjectType) do
             Left "Stripe webhook snapshot object discriminator does not match the event type"
     forM_ event.stripeObjectSnapshot.stripeObjectPriceLivemode \priceLivemode ->
@@ -166,12 +166,27 @@ validateStripeWebhookContract expectedMode event = do
             Left "Stripe webhook Subscription Item Price mode does not match the event mode"
     pure event
 
-expectedSnapshotObjectType :: Text -> Maybe Text
-expectedSnapshotObjectType eventType
-    | eventType `elem` ["checkout.session.completed", "checkout.session.async_payment_succeeded", "checkout.session.async_payment_failed"] = Just "checkout.session"
-    | eventType `elem` ["customer.subscription.created", "customer.subscription.updated", "customer.subscription.deleted"] = Just "subscription"
-    | eventType == "invoice.payment_failed" = Just "invoice"
-    | otherwise = Nothing
+data StripeWebhookApplication
+    = ApplyCheckoutCustomer
+    | ApplySubscriptionSnapshot
+    | ApplyInvoicePaymentFailure
+    | IgnoreWebhookEvent
+
+data StripeWebhookEventContract = StripeWebhookEventContract
+    { expectedSnapshotObjectType :: !(Maybe Text)
+    , webhookApplication         :: !StripeWebhookApplication
+    }
+
+stripeWebhookEventContract :: Text -> StripeWebhookEventContract
+stripeWebhookEventContract eventType
+    | eventType `elem` ["checkout.session.completed", "checkout.session.async_payment_succeeded", "checkout.session.async_payment_failed"] =
+        StripeWebhookEventContract (Just "checkout.session") ApplyCheckoutCustomer
+    | eventType `elem` ["customer.subscription.created", "customer.subscription.updated", "customer.subscription.deleted"] =
+        StripeWebhookEventContract (Just "subscription") ApplySubscriptionSnapshot
+    | eventType == "invoice.payment_failed" =
+        StripeWebhookEventContract (Just "invoice") ApplyInvoicePaymentFailure
+    | otherwise =
+        StripeWebhookEventContract Nothing IgnoreWebhookEvent
 
 processStripeWebhookEvent :: (?modelContext :: ModelContext) => StripeWebhookEvent -> IO BillingWebhookResult
 processStripeWebhookEvent event = do
@@ -226,15 +241,11 @@ data ApplyResult = ApplyProcessed | ApplyIgnored
 
 applyStripeEvent :: (?modelContext :: ModelContext) => UTCTime -> StripeWebhookEvent -> Maybe Venue -> BillingEvent -> IO ApplyResult
 applyStripeEvent now event maybeVenue _billingEvent =
-    case event.stripeEventType of
-        "checkout.session.completed" -> ensureCheckoutCustomer maybeVenue event
-        "checkout.session.async_payment_succeeded" -> ensureCheckoutCustomer maybeVenue event
-        "checkout.session.async_payment_failed" -> ensureCheckoutCustomer maybeVenue event
-        "customer.subscription.created" -> upsertSubscription now maybeVenue event
-        "customer.subscription.updated" -> upsertSubscription now maybeVenue event
-        "customer.subscription.deleted" -> upsertSubscription now maybeVenue event
-        "invoice.payment_failed" -> pure ApplyProcessed
-        _ -> pure ApplyIgnored
+    case (stripeWebhookEventContract event.stripeEventType).webhookApplication of
+        ApplyCheckoutCustomer      -> ensureCheckoutCustomer maybeVenue event
+        ApplySubscriptionSnapshot  -> upsertSubscription now maybeVenue event
+        ApplyInvoicePaymentFailure -> pure ApplyProcessed
+        IgnoreWebhookEvent         -> pure ApplyIgnored
 
 ensureCheckoutCustomer :: (?modelContext :: ModelContext) => Maybe Venue -> StripeWebhookEvent -> IO ApplyResult
 ensureCheckoutCustomer Nothing _ = pure ApplyProcessed

@@ -393,6 +393,8 @@ portalStripeClient =
                     { stripePortalSessionId = "bps_portal_123"
                     , stripePortalSessionUrl = "https://billing.stripe.com/p/session/bps_test_123"
                     , stripePortalSessionLivemode = False
+                    , stripePortalCustomerId = customerId
+                    , stripePortalReturnUrl = returnUrl
                     })
                 else pure (Left (StripeHttpError "unexpected portal request"))
         }
@@ -400,11 +402,13 @@ portalStripeClient =
 unsafePortalRedirectClient :: StripeClient
 unsafePortalRedirectClient =
     failingStripeClient
-        { createPortalSession = \_ _ customerId _ ->
+        { createPortalSession = \_ _ customerId returnUrl ->
             pure (Right StripePortalSession
                 { stripePortalSessionId = "bps_unsafe_redirect_123"
                 , stripePortalSessionUrl = "https://billing.stripe.com.evil.example/session"
                 , stripePortalSessionLivemode = False
+                , stripePortalCustomerId = customerId
+                , stripePortalReturnUrl = returnUrl
                 })
         }
 

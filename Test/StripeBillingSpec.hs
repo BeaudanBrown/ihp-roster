@@ -244,6 +244,43 @@ tests =
                 validateVenueMonthlyPrice validPrice { recurring = Just validRecurring { usageType = Just "metered" } }
                     `shouldBe` Left "Stripe Price usage type must be licensed"
 
+        describe "created Checkout response validation" do
+            it "requires the requested Customer, subscription mode, and open status" do
+                let validSession =
+                        StripeCheckoutSession
+                            { stripeCheckoutSessionId = "cs_created_123"
+                            , stripeCheckoutSessionUrl = Just "https://checkout.stripe.com/c/pay/cs_test_sanitized"
+                            , stripeCheckoutCustomerId = Just "cus_expected"
+                            , stripeCheckoutSubscriptionId = Nothing
+                            , stripeCheckoutLivemode = False
+                            , stripeCheckoutMode = "subscription"
+                            , stripeCheckoutStatus = "open"
+                            }
+
+                validateCreatedCheckoutSession "cus_expected" validSession `shouldBe` Right validSession
+                validateCreatedCheckoutSession "cus_expected" validSession { stripeCheckoutCustomerId = Just "cus_other" }
+                    `shouldBe` Left "Stripe Checkout returned an unexpected Customer."
+                validateCreatedCheckoutSession "cus_expected" validSession { stripeCheckoutMode = "payment" }
+                    `shouldBe` Left "Stripe Checkout returned an unexpected mode."
+                validateCreatedCheckoutSession "cus_expected" validSession { stripeCheckoutStatus = "complete" }
+                    `shouldBe` Left "Stripe Checkout returned an unexpected status."
+
+            it "requires the requested Customer and return URL for Customer Portal" do
+                let validSession =
+                        StripePortalSession
+                            { stripePortalSessionId = "bps_created_123"
+                            , stripePortalSessionUrl = "https://billing.stripe.com/p/session/bps_test_sanitized"
+                            , stripePortalSessionLivemode = False
+                            , stripePortalCustomerId = "cus_expected"
+                            , stripePortalReturnUrl = "https://app.example.test/Billing"
+                            }
+
+                validateCreatedPortalSession "cus_expected" "https://app.example.test/Billing" validSession `shouldBe` Right validSession
+                validateCreatedPortalSession "cus_other" "https://app.example.test/Billing" validSession
+                    `shouldBe` Left "Stripe Customer Portal returned an unexpected Customer."
+                validateCreatedPortalSession "cus_expected" "https://app.example.test/Other" validSession
+                    `shouldBe` Left "Stripe Customer Portal returned an unexpected return URL."
+
         describe "provider error sanitization" do
             it "never exposes provider payloads or credential-like values to callers" do
                 stripeClientErrorText (StripeHttpError "card details and sk_live_secret")

@@ -39,27 +39,28 @@ tests =
                     "price_valid"
                     "https://app.example.test/BillingSuccess?session_id={CHECKOUT_SESSION_ID}"
                     "https://app.example.test/BillingCancel"
-            checkout
-                `shouldBe` Right
+            let createdCheckoutUrl = "https://checkout.stripe.com/c/pay/cs_test_sanitized"
+            let createdCheckoutSession =
                     StripeCheckoutSession
                         { stripeCheckoutSessionId = "cs_123"
-                        , stripeCheckoutSessionUrl = Just "https://checkout.stripe.com/c/pay/cs_test_sanitized"
+                        , stripeCheckoutSessionUrl = Just createdCheckoutUrl
                         , stripeCheckoutCustomerId = Just "cus_123"
-                        , stripeCheckoutSubscriptionId = Just "sub_123"
+                        , stripeCheckoutSubscriptionId = Nothing
                         , stripeCheckoutLivemode = False
                         , stripeCheckoutMode = "subscription"
-                        , stripeCheckoutStatus = "complete"
+                        , stripeCheckoutStatus = "open"
                         }
-
-            case checkout of
-                Right checkoutSession ->
-                    case checkoutSession.stripeCheckoutSessionUrl of
-                        Just checkoutUrl -> validateStripeCheckoutRedirectUrl checkoutUrl `shouldReturn` Right checkoutUrl
-                        Nothing -> expectationFailure "expected the Checkout fixture to contain its hosted URL"
-                Left _ -> expectationFailure "expected the Checkout fixture to decode"
+            checkout `shouldBe` Right createdCheckoutSession
+            validateCreatedCheckoutSession "cus_123" createdCheckoutSession `shouldBe` Right createdCheckoutSession
+            validateStripeCheckoutRedirectUrl createdCheckoutUrl `shouldReturn` Right createdCheckoutUrl
 
             fetchedCheckout <- retrieveCheckoutSession client testConfig "cs_123"
-            fetchedCheckout `shouldBe` checkout
+            fetchedCheckout
+                `shouldBe` Right
+                    createdCheckoutSession
+                        { stripeCheckoutSubscriptionId = Just "sub_123"
+                        , stripeCheckoutStatus = "complete"
+                        }
 
             portal <- createPortalSession client testConfig "venue-123" "cus_123" "https://app.example.test/Billing"
             portal
@@ -68,6 +69,8 @@ tests =
                         { stripePortalSessionId = "bps_123"
                         , stripePortalSessionUrl = "https://billing.stripe.com/p/session/bps_test_sanitized"
                         , stripePortalSessionLivemode = False
+                        , stripePortalCustomerId = "cus_123"
+                        , stripePortalReturnUrl = "https://app.example.test/Billing"
                         }
             case portal of
                 Right portalSession ->
@@ -124,7 +127,7 @@ tests =
             let liveConfig = testConfig { stripeMode = StripeLiveMode }
 
             customer <- createCustomer (fixtureClient fixtures.customerFixture) liveConfig "venue-123" "Venue Name"
-            checkout <- createCheckoutSession (fixtureClient fixtures.checkoutFixture) liveConfig "venue-123" "cus_123" "price_valid" "https://app.example.test/success" "https://app.example.test/cancel"
+            checkout <- createCheckoutSession (fixtureClient fixtures.checkoutCreatedFixture) liveConfig "venue-123" "cus_123" "price_valid" "https://app.example.test/success" "https://app.example.test/cancel"
             portal <- createPortalSession (fixtureClient fixtures.portalFixture) liveConfig "venue-123" "cus_123" "https://app.example.test/Billing"
             subscription <- retrieveSubscription (fixtureClient fixtures.subscriptionFixture) liveConfig "sub_123"
 
@@ -210,12 +213,13 @@ responseShouldFailMode result expectedMessage =
         _ -> expectationFailure "expected Stripe response mode validation to fail"
 
 data LaunchFixtures = LaunchFixtures
-    { pricesFixture       :: !LByteString.ByteString
-    , priceFixture        :: !LByteString.ByteString
-    , customerFixture     :: !LByteString.ByteString
-    , checkoutFixture     :: !LByteString.ByteString
-    , portalFixture       :: !LByteString.ByteString
-    , subscriptionFixture :: !LByteString.ByteString
+    { pricesFixture          :: !LByteString.ByteString
+    , priceFixture           :: !LByteString.ByteString
+    , customerFixture        :: !LByteString.ByteString
+    , checkoutCreatedFixture :: !LByteString.ByteString
+    , checkoutFixture        :: !LByteString.ByteString
+    , portalFixture          :: !LByteString.ByteString
+    , subscriptionFixture    :: !LByteString.ByteString
     }
 
 readLaunchFixtures :: IO LaunchFixtures
@@ -224,6 +228,7 @@ readLaunchFixtures =
         <$> readFixture "prices.json"
         <*> readFixture "price.json"
         <*> readFixture "customer.json"
+        <*> readFixture "checkout-session-created.json"
         <*> readFixture "checkout-session.json"
         <*> readFixture "portal-session.json"
         <*> readFixture "subscription.json"
@@ -271,7 +276,7 @@ launchExpectations fixtures =
             , ("tax_id_collection[enabled]", "false")
             ]
         , expectedIdempotencyKey = Just "bepis-billing-checkout-venue-123-price-valid"
-        , responseBody = fixtures.checkoutFixture
+        , responseBody = fixtures.checkoutCreatedFixture
         }
     , ExpectedStripeRequest
         { expectedMethod = "GET"

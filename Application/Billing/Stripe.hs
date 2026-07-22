@@ -32,6 +32,8 @@ module Application.Billing.Stripe
     , stripeClientWithTransport
     , stripeModeIsLive
     , stripeWebhookSignedPayload
+    , validateCreatedCheckoutSession
+    , validateCreatedPortalSession
     , validateStripeCheckoutRedirectUrl
     , validateStripePortalRedirectUrl
     , validateVenueMonthlyPrice
@@ -210,6 +212,8 @@ data StripePortalSession = StripePortalSession
     { stripePortalSessionId       :: !Text
     , stripePortalSessionUrl      :: !Text
     , stripePortalSessionLivemode :: !Bool
+    , stripePortalCustomerId      :: !Text
+    , stripePortalReturnUrl       :: !Text
     }
     deriving (Eq, Show)
 
@@ -220,6 +224,8 @@ instance Aeson.FromJSON StripePortalSession where
             <$> object Aeson..: "id"
             <*> object Aeson..: "url"
             <*> object Aeson..: "livemode"
+            <*> object Aeson..: "customer"
+            <*> object Aeson..: "return_url"
 
 data StripeSubscription = StripeSubscription
     { stripeSubscriptionId                 :: !Text
@@ -620,6 +626,24 @@ normalizeKeyPart :: Text -> Text
 normalizeKeyPart =
     Text.dropAround (== '-')
         . Text.map (\char -> if Char.isAlphaNum char then Char.toLower char else '-')
+
+validateCreatedCheckoutSession :: Text -> StripeCheckoutSession -> Either Text StripeCheckoutSession
+validateCreatedCheckoutSession expectedCustomerId checkoutSession = do
+    unless (checkoutSession.stripeCheckoutCustomerId == Just expectedCustomerId) do
+        Left "Stripe Checkout returned an unexpected Customer."
+    unless (checkoutSession.stripeCheckoutMode == "subscription") do
+        Left "Stripe Checkout returned an unexpected mode."
+    unless (checkoutSession.stripeCheckoutStatus == "open") do
+        Left "Stripe Checkout returned an unexpected status."
+    pure checkoutSession
+
+validateCreatedPortalSession :: Text -> Text -> StripePortalSession -> Either Text StripePortalSession
+validateCreatedPortalSession expectedCustomerId expectedReturnUrl portalSession = do
+    unless (portalSession.stripePortalCustomerId == expectedCustomerId) do
+        Left "Stripe Customer Portal returned an unexpected Customer."
+    unless (portalSession.stripePortalReturnUrl == expectedReturnUrl) do
+        Left "Stripe Customer Portal returned an unexpected return URL."
+    pure portalSession
 
 validateStripeCheckoutRedirectUrl :: Text -> IO (Either Text Text)
 validateStripeCheckoutRedirectUrl =

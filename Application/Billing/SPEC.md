@@ -152,7 +152,9 @@ The app omits `payment_method_types` by default so Stripe Dashboard controls
 eligible hosted payment methods.
 
 Stripe create requests use deterministic idempotency keys scoped to the venue
-and operation. The server enforces the new-Checkout deployment control before
+and operation. Before redirecting, the created Session must be `open`, use
+`mode = subscription`, and reference the requested Customer. The server
+enforces the new-Checkout deployment control before
 Price lookup, Customer creation, or Checkout creation; hiding a button is not a
 security boundary.
 
@@ -162,7 +164,9 @@ Venue owners and founder super admins may open Stripe Customer Portal for the
 current venue after a Stripe Customer exists.
 
 The app creates Portal Sessions on demand using the stored Customer ID and a
-return URL. Portal URLs are short-lived and must not be stored. Disabling new
+return URL. The response must reference that same Customer and exact return URL
+before its hosted URL is accepted. Portal URLs are short-lived and must not be
+stored. Disabling new
 Checkout does not disable Portal access for an existing Customer.
 
 Stripe Customer Portal must be configured in Stripe sandbox and live mode before
