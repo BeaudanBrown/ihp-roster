@@ -299,6 +299,9 @@ Suggested shape:
 ```nix
 {
   enable = true;
+  mode = "live";
+  checkoutEnabled = false;
+  ownerNavigationVisible = false;
   priceLookupKey = "bepis_venue_monthly_aud_100";
   priceId = null;
   currency = "aud";
@@ -417,6 +420,7 @@ Layer the test suite as follows:
 
     ```bash
     stripe listen \
+      --latest \
       --events checkout.session.completed,checkout.session.async_payment_succeeded,checkout.session.async_payment_failed,customer.subscription.created,customer.subscription.updated,customer.subscription.deleted,invoice.payment_failed \
       --forward-to localhost:8000/StripeWebhook
     ```

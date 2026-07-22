@@ -128,6 +128,32 @@ Webhook endpoint:
 - Copy the endpoint signing secret into the production webhook secret file.
 - Never commit the signing secret.
 
+## Credential Policy And Mode Isolation
+
+Development and CI:
+
+- Set `STRIPE_MODE=test` and use only `sk_test_` or `rk_test_` credentials.
+- `dev-start-stripe` and `stripe-listen` reject `sk_live_` and `rk_live_`
+  credentials before launching Stripe CLI or the app.
+- Keep test Products, Prices, Customers, Subscriptions, Portal configuration,
+  and webhook endpoints separate from live objects.
+
+Production:
+
+- Set `mode = "live"` through NixOS and use an HTTPS app base URL.
+- Prefer a file-backed `rk_live_` restricted key granting only the permissions
+  this integration needs: Price read, Customer read/write, Checkout Session
+  read/write, Billing Portal Session write, and Subscription read.
+- Use a file-backed `sk_live_` secret key only when Stripe cannot express a
+  required permission on a restricted key. Record the specific missing
+  permission and operator approval in private deployment notes, set a review
+  date, and return to a restricted key when possible.
+- Never place either key class in Nix strings, `.env`, shell history, issue
+  text, application logs, or generated documentation.
+- The app rejects API objects and signed events whose `livemode` does not match
+  configured mode. Do not work around a mismatch by copying test IDs into live
+  configuration or vice versa.
+
 ## NixOS Secret Injection
 
 Production uses file-backed Stripe secrets through systemd credentials. The app
@@ -138,6 +164,9 @@ Expected placeholders:
 ```nix
 services.ihpRoster.billing.stripe = {
   enable = true;
+  mode = "live";
+  checkoutEnabled = false;
+  ownerNavigationVisible = false;
   priceLookupKey = "bepis_venue_monthly_aud_100";
   priceId = null;
   secretKeyFile = "/run/secrets/ihp-roster-stripe-secret-key";
@@ -150,6 +179,10 @@ services.ihpRoster.billing.stripe = {
 
 The module exposes these environment variables to `app` and `worker`:
 
+- `STRIPE_MODE`
+- `STRIPE_BILLING_ENABLED`
+- `STRIPE_CHECKOUT_ENABLED`
+- `STRIPE_OWNER_NAVIGATION_VISIBLE`
 - `STRIPE_SECRET_KEY_FILE`
 - `STRIPE_WEBHOOK_SECRET_FILE`
 - `STRIPE_PRICE_LOOKUP_KEY`, or `STRIPE_PRICE_ID` if using the fallback
@@ -163,6 +196,48 @@ The module exposes these environment variables to `app` and `worker`:
 
 Do not put live keys in Nix strings, generated docs, shell history, or
 application logs.
+
+The NixOS module rejects Checkout/navigation controls when overall billing is
+disabled and rejects live mode with a non-HTTPS `baseUrl`.
+
+## Rollout And Incident Controls
+
+The three controls require a service restart and have separate purposes:
+
+1. `enable` controls the overall Stripe integration, including credentials,
+   webhook processing, Portal access, and later reconciliation.
+2. `checkoutEnabled` controls only creation of new Checkout Sessions and is
+   enforced by the POST action before any Stripe or local Customer creation.
+3. `ownerNavigationVisible` controls discovery of the owner Billing link; it
+   does not change direct-route authorization.
+
+Hidden-navigation canary:
+
+```nix
+services.ihpRoster.billing.stripe = {
+  enable = true;
+  mode = "live";
+  checkoutEnabled = true;
+  ownerNavigationVisible = false;
+};
+```
+
+Incident rollback for new sales:
+
+```nix
+services.ihpRoster.billing.stripe = {
+  enable = true;
+  mode = "live";
+  checkoutEnabled = false;
+  ownerNavigationVisible = false;
+};
+```
+
+Keep overall billing enabled during this rollback so existing-customer Portal
+recovery, signed webhooks, and reconciliation remain available. Disable overall
+billing only when continued Stripe ingress/API use is itself unsafe; expect the
+webhook endpoint to return non-success while it is disabled, and re-enable it
+promptly so Stripe retries can succeed.
 
 ## Local Deterministic Verification
 
@@ -183,6 +258,9 @@ Verify NixOS module assertions after module changes:
 
 ```bash
 nix eval .#nixosConfigurations.production.config.services.ihpRoster.billing.stripe.enable
+nix eval .#nixosConfigurations.production.config.services.ihpRoster.billing.stripe.mode
+nix eval .#nixosConfigurations.production.config.services.ihpRoster.billing.stripe.checkoutEnabled
+nix eval .#nixosConfigurations.production.config.services.ihpRoster.billing.stripe.ownerNavigationVisible
 nix eval .#nixosConfigurations.production.config.services.ihpRoster.billing.stripe.priceLookupKey
 ```
 
@@ -192,7 +270,9 @@ Use Stripe test mode and the local dev app. The CLI webhook signing secret is
 for local testing only; it is different from the Dashboard endpoint signing
 secret.
 
-1. Start the app and worker against the dev database.
+1. Start the app and worker against the dev database with
+   `bash ./bin/in-env dev-start-stripe`; this launcher sets explicit test mode
+   and rejects live credentials.
 2. Export a test secret key through a local-only env var or secret file.
 3. Start webhook forwarding:
 

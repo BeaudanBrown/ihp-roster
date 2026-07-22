@@ -12,6 +12,7 @@ if [ -z "${STRIPE_SECRET_KEY:-}" ]; then
     echo "stripe-listen requires STRIPE_SECRET_KEY in the environment or .env." >&2
     exit 64
 fi
+require_stripe_test_secret_key "$STRIPE_SECRET_KEY" "stripe-listen"
 echo "stripe-listen: requesting Stripe's latest snapshot format; Bepis accepts pinned contract $IHP_ROSTER_STRIPE_API_VERSION" >&2
 exec stripe listen \
     --api-key "$STRIPE_SECRET_KEY" \
