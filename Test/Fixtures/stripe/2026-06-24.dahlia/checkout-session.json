@@ -10,5 +10,5 @@
   "mode": "subscription",
   "status": "complete",
   "subscription": "sub_123",
-  "url": "https://checkout.stripe.test/session"
+  "url": "https://checkout.stripe.com/c/pay/cs_test_sanitized"
 }

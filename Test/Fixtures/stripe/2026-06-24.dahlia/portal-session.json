@@ -4,5 +4,5 @@
   "customer": "cus_123",
   "livemode": false,
   "return_url": "https://app.example.test/Billing",
-  "url": "https://billing.stripe.test/session"
+  "url": "https://billing.stripe.com/p/session/bps_test_sanitized"
 }

@@ -39,13 +39,20 @@ tests =
                 `shouldBe` Right
                     StripeCheckoutSession
                         { stripeCheckoutSessionId = "cs_123"
-                        , stripeCheckoutSessionUrl = Just "https://checkout.stripe.test/session"
+                        , stripeCheckoutSessionUrl = Just "https://checkout.stripe.com/c/pay/cs_test_sanitized"
                         , stripeCheckoutCustomerId = Just "cus_123"
                         , stripeCheckoutSubscriptionId = Just "sub_123"
                         , stripeCheckoutLivemode = False
                         , stripeCheckoutMode = "subscription"
                         , stripeCheckoutStatus = "complete"
                         }
+
+            case checkout of
+                Right checkoutSession ->
+                    case checkoutSession.stripeCheckoutSessionUrl of
+                        Just checkoutUrl -> validateStripeCheckoutRedirectUrl checkoutUrl `shouldReturn` Right checkoutUrl
+                        Nothing -> expectationFailure "expected the Checkout fixture to contain its hosted URL"
+                Left _ -> expectationFailure "expected the Checkout fixture to decode"
 
             fetchedCheckout <- retrieveCheckoutSession client testConfig "cs_123"
             fetchedCheckout `shouldBe` checkout
@@ -55,9 +62,14 @@ tests =
                 `shouldBe` Right
                     StripePortalSession
                         { stripePortalSessionId = "bps_123"
-                        , stripePortalSessionUrl = "https://billing.stripe.test/session"
+                        , stripePortalSessionUrl = "https://billing.stripe.com/p/session/bps_test_sanitized"
                         , stripePortalSessionLivemode = False
                         }
+            case portal of
+                Right portalSession ->
+                    validateStripePortalRedirectUrl portalSession.stripePortalSessionUrl
+                        `shouldReturn` Right portalSession.stripePortalSessionUrl
+                Left _ -> expectationFailure "expected the Portal fixture to decode"
 
             subscription <- retrieveSubscription client testConfig "sub_123"
             subscription
