@@ -1,12 +1,21 @@
 # Subscription Billing
 
-Status: implemented
+Status: active
 
 Tickets:
 
 - #215 production-hardening epic
 - #216 pinned Stripe API contract
+- #217 production persistence and migration foundations
 - #218 transport, credentials, and deployment controls
+- #219 resumable duplicate-safe Checkout and Portal flows
+- #220 synchronous, atomic, ordered webhook lifecycle updates
+- #221 transition-based customer and support notifications
+- #222 subscription reconciliation and daily sweep
+- #223 owner page, founder diagnostics, and rollout navigation
+- #224 automated production-readiness verification
+- #225 sandbox, test-clock, legal, and launch readiness
+- #226 hidden-navigation live canary and owner-navigation release
 
 Living docs to update:
 

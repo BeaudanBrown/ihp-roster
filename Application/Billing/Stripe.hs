@@ -30,6 +30,7 @@ module Application.Billing.Stripe
     , readStripeDeploymentControls
     , stripeClientErrorText
     , stripeClientWithTransport
+    , stripeModeIsLive
     , stripeWebhookSignedPayload
     , validateStripeCheckoutRedirectUrl
     , validateStripePortalRedirectUrl
@@ -221,6 +222,7 @@ data StripeSubscription = StripeSubscription
     , stripeSubscriptionLivemode           :: !Bool
     , stripeSubscriptionStatus             :: !Text
     , stripeSubscriptionPriceId            :: !Text
+    , stripeSubscriptionPriceLivemode      :: !Bool
     , stripeSubscriptionCurrentPeriodStart :: !Integer
     , stripeSubscriptionCurrentPeriodEnd   :: !Integer
     , stripeSubscriptionCancelAtPeriodEnd  :: !Bool
@@ -240,6 +242,7 @@ instance Aeson.FromJSON StripeSubscription where
             <*> object Aeson..: "livemode"
             <*> object Aeson..: "status"
             <*> pure item.subscriptionItemPrice.stripePriceId
+            <*> pure item.subscriptionItemPrice.stripePriceLivemode
             <*> pure item.subscriptionItemCurrentPeriodStart
             <*> pure item.subscriptionItemCurrentPeriodEnd
             <*> object Aeson..: "cancel_at_period_end"
@@ -331,8 +334,9 @@ stripeClientWithTransport transport =
             sendModeCheckedStripeJsonRequest transport "checkout session retrieve" config (.stripeCheckoutLivemode) (buildRetrieveCheckoutSessionRequest config sessionId)
         , createPortalSession = \config venueId customerId returnUrl ->
             sendModeCheckedStripeJsonRequest transport "portal session create" config (.stripePortalSessionLivemode) (buildCreatePortalSessionRequest config venueId customerId returnUrl)
-        , retrieveSubscription = \config subscriptionId ->
-            sendModeCheckedStripeJsonRequest transport "subscription retrieve" config (.stripeSubscriptionLivemode) (buildRetrieveSubscriptionRequest config subscriptionId)
+        , retrieveSubscription = \config subscriptionId -> do
+            result <- sendModeCheckedStripeJsonRequest transport "subscription retrieve" config (.stripeSubscriptionLivemode) (buildRetrieveSubscriptionRequest config subscriptionId)
+            pure (result >>= validateStripeResponseMode "subscription item price" config (.stripeSubscriptionPriceLivemode))
         }
 
 sendModeCheckedStripeJsonRequest

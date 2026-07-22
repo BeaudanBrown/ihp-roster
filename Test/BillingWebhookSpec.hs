@@ -157,6 +157,21 @@ tests = aroundAll withDatabaseTestContext do
                 eventCount <- query @BillingEvent |> fetchCount
                 eventCount `shouldBe` 0
 
+        it "rejects a webhook Subscription Item Price from the opposite Stripe mode" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Webhook Nested Price Mode Venue"
+                let eventBody = subscriptionEventWithPriceLivemode True "evt_nested_price_mode" venue "cus_nested_price_mode" "sub_nested_price_mode" "active"
+                signatureHeader <- signedStripeHeader testStripeConfig.webhookSecret eventBody
+
+                response <- withStripeConfigForTest (Right testStripeConfig) do
+                    callStripeWebhookWithJsonBody eventBody signatureHeader
+
+                response `responseStatusShouldBe` status400
+                eventCount <- query @BillingEvent |> fetchCount
+                eventCount `shouldBe` 0
+                subscriptionCount <- query @VenueSubscription |> fetchCount
+                subscriptionCount `shouldBe` 0
+
         it "rejects signed webhook events with no explicit Stripe mode" $ withContext do
             withCleanDb do
                 let eventBody = checkoutSessionEventWithoutLivemode "evt_missing_provider_mode" "cus_missing_mode_123" "sub_missing_mode_123"
@@ -272,7 +287,10 @@ createBillingCustomer venue customerId =
         |> createRecord
 
 subscriptionEvent :: Text -> Venue -> Text -> Text -> Text -> LByteString.ByteString
-subscriptionEvent eventId venue customerId subscriptionId status =
+subscriptionEvent = subscriptionEventWithPriceLivemode False
+
+subscriptionEventWithPriceLivemode :: Bool -> Text -> Venue -> Text -> Text -> Text -> LByteString.ByteString
+subscriptionEventWithPriceLivemode priceLivemode eventId venue customerId subscriptionId status =
     Aeson.encode $
         Aeson.object
             [ "id" Aeson..= eventId
@@ -310,7 +328,7 @@ subscriptionEvent eventId venue customerId subscriptionId status =
             [ "id" Aeson..= ("price_monthly_123" :: Text)
             , "active" Aeson..= True
             , "currency" Aeson..= ("aud" :: Text)
-            , "livemode" Aeson..= False
+            , "livemode" Aeson..= priceLivemode
             , "unit_amount" Aeson..= (10000 :: Int)
             , "type" Aeson..= ("recurring" :: Text)
             , "recurring" Aeson..=

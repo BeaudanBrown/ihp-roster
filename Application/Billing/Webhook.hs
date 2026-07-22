@@ -8,8 +8,8 @@ module Application.Billing.Webhook
 where
 
 import Application.Billing.Notifications (enqueueBillingNotifications)
-import Application.Billing.Stripe (StripeMode (..), StripeSubscription (..),
-                                   pinnedStripeApiVersion)
+import Application.Billing.Stripe (StripeMode, StripeSubscription (..),
+                                   pinnedStripeApiVersion, stripeModeIsLive)
 import Control.Exception (try)
 import Control.Monad (void)
 import qualified Data.Aeson as Aeson
@@ -42,6 +42,8 @@ data StripeWebhookEvent = StripeWebhookEvent
 data StripeObjectSnapshot = StripeObjectSnapshot
     { stripeObjectType               :: !(Maybe Text)
     , stripeObjectId                 :: !(Maybe Text)
+    , stripeObjectLivemode           :: !(Maybe Bool)
+    , stripeObjectPriceLivemode      :: !(Maybe Bool)
     , stripeObjectCustomerId         :: !(Maybe Text)
     , stripeObjectSubscriptionId     :: !(Maybe Text)
     , stripeObjectClientReferenceId  :: !(Maybe Text)
@@ -78,6 +80,7 @@ parseStripeObjectSnapshot stripeObject =
                 Just "subscription" -> Just <$> (Aeson.parseJSON originalValue :: AesonTypes.Parser StripeSubscription)
                 _ -> pure Nothing
         objectId <- object Aeson..:? "id"
+        objectLivemode <- object Aeson..:? "livemode"
         customerId <- object Aeson..:? "customer"
         subscriptionId <- object Aeson..:? "subscription"
         clientReferenceId <- object Aeson..:? "client_reference_id"
@@ -91,6 +94,8 @@ parseStripeObjectSnapshot stripeObject =
             StripeObjectSnapshot
                 { stripeObjectType = objectType
                 , stripeObjectId = objectId
+                , stripeObjectLivemode = maybe objectLivemode (Just . (.stripeSubscriptionLivemode)) subscriptionContract
+                , stripeObjectPriceLivemode = (.stripeSubscriptionPriceLivemode) <$> subscriptionContract
                 , stripeObjectCustomerId = maybe customerId (Just . (.stripeSubscriptionCustomerId)) subscriptionContract
                 , stripeObjectSubscriptionId = maybe subscriptionId (Just . (.stripeSubscriptionId)) subscriptionContract
                 , stripeObjectClientReferenceId = clientReferenceId
@@ -149,10 +154,13 @@ validateStripeWebhookContract expectedMode event = do
         Left "Stripe webhook API version does not match the pinned billing contract"
     unless (event.stripeLivemode == stripeModeIsLive expectedMode) do
         Left "Stripe webhook mode does not match the configured billing mode"
+    forM_ event.stripeObjectSnapshot.stripeObjectLivemode \objectLivemode ->
+        unless (objectLivemode == event.stripeLivemode) do
+            Left "Stripe webhook object mode does not match the event mode"
+    forM_ event.stripeObjectSnapshot.stripeObjectPriceLivemode \priceLivemode ->
+        unless (priceLivemode == event.stripeLivemode) do
+            Left "Stripe webhook Subscription Item Price mode does not match the event mode"
     pure event
-  where
-    stripeModeIsLive StripeTestMode = False
-    stripeModeIsLive StripeLiveMode = True
 
 processStripeWebhookEvent :: (?modelContext :: ModelContext) => StripeWebhookEvent -> IO BillingWebhookResult
 processStripeWebhookEvent event = do

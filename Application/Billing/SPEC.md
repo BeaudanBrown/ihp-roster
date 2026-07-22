@@ -71,9 +71,10 @@ permissions cannot be represented by a restricted key. Webhook signing secrets
 must use the `whsec_` form. Credential values are never included in validation
 errors.
 
-Every decoded Price, Customer, Checkout Session, Portal Session, and
-Subscription response must have `livemode` matching the configured mode. Signed
-webhook events must declare `livemode` and match the same mode. A mismatch is
+Every decoded Price, Customer, Checkout Session, Portal Session, Subscription,
+and nested Subscription Item Price must have `livemode` matching the configured
+mode. Signed webhook events and their Subscription/Price snapshots must declare
+or carry the same mode. A mismatch is
 rejected before provider data is used or persisted. Provider-mode metadata on
 local records is added by the persistence-foundation work; until then, Stripe
 also rejects a stored Customer ID presented to credentials from the other mode,

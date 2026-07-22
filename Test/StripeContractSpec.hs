@@ -68,6 +68,7 @@ tests =
                         , stripeSubscriptionLivemode = False
                         , stripeSubscriptionStatus = "active"
                         , stripeSubscriptionPriceId = "price_valid"
+                        , stripeSubscriptionPriceLivemode = False
                         , stripeSubscriptionCurrentPeriodStart = 1784678400
                         , stripeSubscriptionCurrentPeriodEnd = 1787356800
                         , stripeSubscriptionCancelAtPeriodEnd = True
@@ -99,6 +100,15 @@ tests =
             checkout `responseShouldFailMode` "Stripe checkout session create returned test-mode data to a live-mode integration"
             portal `responseShouldFailMode` "Stripe portal session create returned test-mode data to a live-mode integration"
             subscription `responseShouldFailMode` "Stripe subscription retrieve returned test-mode data to a live-mode integration"
+
+        it "rejects a Subscription Item Price from the opposite Stripe mode" do
+            response <- LByteString.readFile "Test/Fixtures/stripe/2026-06-24.dahlia/subscription-price-mode-mismatch.json"
+
+            result <- retrieveSubscription (fixtureClient response) testConfig "sub_price_mode_mismatch"
+
+            result
+                `shouldBe` Left
+                    (StripeJsonError "Stripe subscription item price returned live-mode data to a test-mode integration")
 
         it "rejects Subscription retrieval when Stripe returns multiple plan items" do
             response <- LByteString.readFile "Test/Fixtures/stripe/2026-06-24.dahlia/subscription-multiple-items.json"
