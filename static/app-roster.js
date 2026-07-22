@@ -136,9 +136,6 @@
   function isDomRoot(value) {
     return isElement(value) || isDocument(value) || isDocumentFragment(value);
   }
-  function rootFromTarget(target, fallback = document) {
-    return isDomRoot(target) ? target : fallback;
-  }
 
   // frontend/ts/shared/lifecycle.ts
   function eventDetailRecord(event) {
@@ -149,8 +146,14 @@
   function detailTarget(event, key) {
     return eventDetailRecord(event)?.[key];
   }
+  function isConnectedRoot(root) {
+    return root instanceof Document || root.isConnected;
+  }
   function detailRoot(event, key, fallback = document) {
-    return rootFromTarget(detailTarget(event, key), fallback);
+    const detailCandidate = detailTarget(event, key);
+    if (isDomRoot(detailCandidate) && isConnectedRoot(detailCandidate)) return detailCandidate;
+    if (isDomRoot(event.target) && isConnectedRoot(event.target)) return event.target;
+    return fallback;
   }
   function onAppPageReady(handler) {
     if (typeof document === "undefined") return;

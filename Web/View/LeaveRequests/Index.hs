@@ -445,8 +445,8 @@ renderManagerActionsCell currentViewerStaffId True leaveRequest = [hsx|
 renderLeaveRequestRow :: (?context :: ControllerContext) => [Staff] -> Maybe UUID -> LeaveRequest -> Html
 renderLeaveRequestRow staffMembers currentViewerStaffId leaveRequest = [hsx|
     <tr>
-        <td>{leaveRequest.startDate}</td>
-        <td>{leaveRequest.endDate}</td>
+        <td>{formatDateDisplay leaveRequest.startDate}</td>
+        <td>{formatDateDisplay leaveRequest.endDate}</td>
         <td>{resolveStaffName leaveRequest.staffId staffMembers}</td>
         <td>{renderStatusBadge leaveRequest.status}</td>
         <td>{fromMaybe "-" leaveRequest.notes}</td>

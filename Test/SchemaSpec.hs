@@ -13,6 +13,7 @@ import Application.Helper.View (formatDateDisplay,
                                 quarterHourTimeOptions,
                                 quarterHourTimeOptionsInRange,
                                 storageTimeToDisplayLabel)
+import Application.Helper.View.Leave (renderDateRangeText)
 import qualified Data.Text as Text
 import qualified Data.Text.IO as TextIO
 import Data.Time.Calendar (fromGregorian)
@@ -735,6 +736,13 @@ tests = describe "Schema" do
     describe "Date formatting helpers" do
         it "renders display dates as dd/mm/yyyy" do
             formatDateDisplay (fromGregorian 2026 3 2) `shouldBe` "02/03/2026"
+
+        it "renders unavailable periods with four-digit display years" do
+            let leaveRequest =
+                    newRecord @LeaveRequest
+                        |> set #startDate (fromGregorian 2026 3 2)
+                        |> set #endDate (fromGregorian 2026 3 4)
+            renderDateRangeText leaveRequest `shouldBe` "02/03/2026 to 04/03/2026"
 
     describe "Query param helpers" do
         it "appends params to paths without an existing query string" do

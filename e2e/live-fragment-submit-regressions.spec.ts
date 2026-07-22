@@ -1,10 +1,20 @@
-import { test, expect } from '@playwright/test';
+import { test, expect, type Locator, type Page } from '@playwright/test';
 import { E2E_TIMEOUT } from './timeouts';
-import { writeFile } from 'node:fs/promises';
 import { dialogOverlayMountDomId, pageReadyEvent, surfaceConfigDomAttr, surfaceDomAttr, toastOverlayMountDomId } from '../frontend/ts/generated/contracts';
 import { defaultE2ERosterGroupId, gotoWhenReady, loginAs, openNewLeaveRequestDialog, openProfileLeaveSection, setFlatpickrDate } from './test-helpers';
 
-async function login(page) {
+function displayDate(isoDate: string): string {
+    const [year, month, day] = isoDate.split('-');
+    return `${day}/${month}/${year}`;
+}
+
+async function pickerDisplayValue(locator: Locator): Promise<string | null> {
+    return locator.evaluate((input: HTMLInputElement & { _flatpickr?: { altInput?: HTMLInputElement } }) =>
+        input._flatpickr?.altInput?.value ?? null
+    );
+}
+
+async function login(page: Page) {
     await gotoWhenReady(page, '/NewSession', '#email');
     await page.fill('#email', 'e2e-test@example.com');
     await page.fill('#password', 'test-password-123');
@@ -21,6 +31,9 @@ test.describe('HTMX submit regressions', () => {
 
         const startDateBefore = await page.locator('#roster-staff-self-service-leave-form input[name="startDate"]').inputValue();
         const endDateBefore = await page.locator('#roster-staff-self-service-leave-form input[name="endDate"]').inputValue();
+        await expect.poll(() => pickerDisplayValue(page.locator('#roster-staff-self-service-leave-form input[name="startDate"]'))).toBe(displayDate(startDateBefore));
+        await expect.poll(() => pickerDisplayValue(page.locator('#roster-staff-self-service-leave-form input[name="endDate"]'))).toBe(displayDate(endDateBefore));
+
         const note = `e2e roster quick unavailable ${Date.now()}`;
         await page.locator('#roster-staff-self-service-leave-form textarea[name="notes"]').fill(note);
         await page.locator('#roster-staff-self-service-leave-form button[type="submit"]').click();
@@ -29,6 +42,8 @@ test.describe('HTMX submit regressions', () => {
         await expect(page.locator('#roster-staff-self-service-leave-form textarea[name="notes"]')).toHaveValue('', { timeout: E2E_TIMEOUT.assertion });
         await expect(page.locator('#roster-staff-self-service-leave-form input[name="startDate"]')).toHaveValue(startDateBefore, { timeout: E2E_TIMEOUT.assertion });
         await expect(page.locator('#roster-staff-self-service-leave-form input[name="endDate"]')).toHaveValue(endDateBefore, { timeout: E2E_TIMEOUT.assertion });
+        await expect.poll(() => pickerDisplayValue(page.locator('#roster-staff-self-service-leave-form input[name="startDate"]'))).toBe(displayDate(startDateBefore));
+        await expect.poll(() => pickerDisplayValue(page.locator('#roster-staff-self-service-leave-form input[name="endDate"]'))).toBe(displayDate(endDateBefore));
     });
 
     test('profile leave submit appends a leave request without nesting the whole profile page', async ({ page }) => {
@@ -44,18 +59,20 @@ test.describe('HTMX submit regressions', () => {
 
         await setFlatpickrDate(page, '#startDate', '2026-03-23');
         await setFlatpickrDate(page, '#endDate', '2026-03-24');
+        await expect.poll(() => pickerDisplayValue(page.locator('#profile-leave-request-form input[name="startDate"]'))).toBe('23/03/2026');
+        await expect.poll(() => pickerDisplayValue(page.locator('#profile-leave-request-form input[name="endDate"]'))).toBe('24/03/2026');
         await page.fill('#notes', note);
         await page.getByRole('button', { name: 'Add unavailable time' }).click();
 
         const submitResponse = await submitResponsePromise;
         const submitResponseText = await submitResponse.text();
-        await writeFile(test.info().outputPath('profile-leave-submit-response.html'), submitResponseText);
-
         await expect(page.locator('#profile-leave-request-form-fragment')).toBeVisible();
         await expect(page.locator('#profile-leave-requests-list-fragment')).toContainText(note);
         await expect(page.locator('#profile-leave-requests-list-fragment .leave-request-row')).toHaveCount(initialCount + 1);
         await expect(page.locator('#profile-leave-request-form-fragment #profile-content-fragment')).toHaveCount(0);
         await expect(page.locator('#profile-leave-request-form-fragment #profile-leave')).toHaveCount(0);
+        await expect.poll(() => pickerDisplayValue(page.locator('#profile-leave-request-form input[name="startDate"]'))).toMatch(/^\d{2}\/\d{2}\/\d{4}$/);
+        await expect.poll(() => pickerDisplayValue(page.locator('#profile-leave-request-form input[name="endDate"]'))).toMatch(/^\d{2}\/\d{2}\/\d{4}$/);
         expect(submitResponseText).not.toContain('id="profile-content-fragment"');
         expect(submitResponseText).not.toContain('id="profile-leave"');
     });

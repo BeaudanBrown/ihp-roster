@@ -10,7 +10,8 @@ This file describes implemented leave/availability behavior.
 - `end_date` is exclusive. A one-day period has `start_date = day` and
   `end_date = day + 1`.
 - Staff can create self-service unavailable periods according to controller
-  checks.
+  checks. Date controls submit ISO `yyyy-mm-dd` values and display
+  `dd/mm/yyyy`, including after validation and live fragment replacement.
 - Managers/admins can approve, deny, or manage requests according to role
   checks.
 - Approved-state leave changes invalidate affected roster scopes. Pending

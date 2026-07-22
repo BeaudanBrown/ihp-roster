@@ -1,5 +1,5 @@
 import { pageReadyEvent } from "../generated/contracts";
-import { type DomRoot, rootFromTarget } from "./dom";
+import { type DomRoot, isDomRoot } from "./dom";
 
 export type HtmxDetailKey = "target" | "elt";
 
@@ -13,8 +13,15 @@ export function detailTarget(event: Event, key: HtmxDetailKey): unknown {
     return eventDetailRecord(event)?.[key];
 }
 
+function isConnectedRoot(root: DomRoot): boolean {
+    return root instanceof Document || root.isConnected;
+}
+
 export function detailRoot(event: Event, key: HtmxDetailKey, fallback: DomRoot = document): DomRoot {
-    return rootFromTarget(detailTarget(event, key), fallback);
+    const detailCandidate = detailTarget(event, key);
+    if (isDomRoot(detailCandidate) && isConnectedRoot(detailCandidate)) return detailCandidate;
+    if (isDomRoot(event.target) && isConnectedRoot(event.target)) return event.target;
+    return fallback;
 }
 
 export function onAppPageReady(handler: (event: Event) => void): void {
