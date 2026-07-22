@@ -8,15 +8,12 @@ module Application.Helper.FrontendContract.Surface.Roster.Generated.Action
     , addRosterRowActionFields
     , copyRosterWeekAction
     , copyRosterWeekActionFields
-    , createRosterSelfServiceLeaveRequestAction
-    , createRosterSelfServiceLeaveRequestActionFields
     , createRosterWeekSlotDefinitionAction
     , createRosterWeekSlotDefinitionActionFields
     , deleteRosterWeekSlotDefinitionAction
     , deleteRosterWeekSlotDefinitionActionFields
     , navigateRosterWeekAction
     , navigateRosterWeekActionFields
-    , parseCreateRosterSelfServiceLeaveRequestActionParams
     , parseNavigateRosterWeekActionParams
     , parseToggleRosterAssignmentFiltersActionParams
     , parseToggleRosterStaffScopeActionParams
@@ -53,7 +50,6 @@ import Application.Helper.FrontendContract.Surface.Values (SurfaceActionFields,
                                                            noSurfaceFields,
                                                            surfaceActionFields,
                                                            surfaceField, (&:))
-import Data.Time (Day)
 import qualified Data.UUID as UUID
 import IHP.Prelude
 import Network.Wai (Request)
@@ -77,33 +73,6 @@ copyRosterWeekAction =
     frontendSurfaceAction
         @(AdapterFamilySurface Types2.RosterAdapterFamily)
         @Types1.CopyRosterWeek
-
-createRosterSelfServiceLeaveRequestActionFields ::
-    Day ->
-    Day ->
-    Text ->
-    SurfaceActionFields (AdapterFamilySurface Types2.RosterAdapterFamily) Types1.CreateRosterSelfServiceLeaveRequest
-createRosterSelfServiceLeaveRequestActionFields startDate endDate notes =
-    surfaceActionFields
-        (surfaceField @Types1.StartDate startDate)
-        ( surfaceField @Types1.EndDate endDate
-            &: surfaceField @Types1.Notes notes
-            &: noSurfaceFields
-        )
-
-createRosterSelfServiceLeaveRequestAction :: SurfaceActionFields (AdapterFamilySurface Types2.RosterAdapterFamily) Types1.CreateRosterSelfServiceLeaveRequest -> FrontendSurfaceAction
-createRosterSelfServiceLeaveRequestAction =
-    frontendSurfaceAction
-        @(AdapterFamilySurface Types2.RosterAdapterFamily)
-        @Types1.CreateRosterSelfServiceLeaveRequest
-
-parseCreateRosterSelfServiceLeaveRequestActionParams ::
-    (?request :: Request) =>
-    Either [SurfaceRequestFieldError] (SurfaceActionFields (AdapterFamilySurface Types2.RosterAdapterFamily) Types1.CreateRosterSelfServiceLeaveRequest)
-parseCreateRosterSelfServiceLeaveRequestActionParams =
-    parseSurfaceActionParams
-        @(AdapterFamilySurface Types2.RosterAdapterFamily)
-        @Types1.CreateRosterSelfServiceLeaveRequest
 
 createRosterWeekSlotDefinitionActionFields :: SurfaceActionFields (AdapterFamilySurface Types2.RosterAdapterFamily) Types1.CreateRosterWeekSlotDefinition
 createRosterWeekSlotDefinitionActionFields =

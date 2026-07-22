@@ -719,6 +719,7 @@ tests = describe "FrontendSurface DSL foundation" do
                        , "roster"
                        , "roster-day-timeline"
                        , "leave-requests"
+                       , "self-service-leave"
                        , "billing"
                        , "support"
                        , "profile"
@@ -959,7 +960,8 @@ tests = describe "FrontendSurface DSL foundation" do
         map (.scopeName) surface.surfaceScopes `shouldBe` ["roster-week"]
         surface.surfaceBrowserDomTokens `shouldBe` []
         map (.fragmentName) surface.surfaceFragments
-            `shouldBe` [ "roster-content"
+            `shouldBe` [ "roster-layout"
+                       , "roster-content"
                        , "roster-grid-toolbar"
                        , "roster-grid-frame"
                        , "roster-day-columns"
@@ -967,7 +969,6 @@ tests = describe "FrontendSurface DSL foundation" do
                        , "roster-wage-rail"
                        , "roster-slots-grid"
                        , "roster-staff-panel"
-                       , "roster-staff-self-service-leave-form"
                        , "roster-week-overview"
                        , "roster-day-section"
                        , "roster-row"
@@ -985,7 +986,6 @@ tests = describe "FrontendSurface DSL foundation" do
                        , "toggle-roster-week-live-status"
                        , "toggle-roster-assignment-filters"
                        , "copy-roster-week"
-                       , "create-roster-self-service-leave-request"
                        , "create-roster-week-slot-definition"
                        , "delete-roster-week-slot-definition"
                        , "toggle-roster-day-closed"

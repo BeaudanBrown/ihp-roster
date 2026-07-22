@@ -408,7 +408,10 @@ the generated intent, intent-field, and field-presence DOM vocabulary.
 Use standard HTMX first: generated forms, custom event `hx-trigger`, lifecycle
 events for cleanup, `hx-sync`/`hx-disabled-elt` for request concurrency where
 useful, and OOB swaps for authoritative actor responses, toasts, and dialog
-cleanup. Generic UI region lifecycle events (`bepis:region-*`) belong only on
+cleanup. Generic lifecycle adapters must initialize a connected replacement
+root; when HTMX leaves `detail.target` pointing at detached OOB content, use the
+connected event target rather than scanning stale DOM. Generic UI region
+lifecycle events (`bepis:region-*`) belong only on
 server-declared fragment roots and complement, but do not replace, typed
 interaction session events. Do not start with HTMX extensions or custom
 elements; revisit them only after repeated stable lifecycle behavior justifies

@@ -14,7 +14,6 @@ module Application.Helper.FrontendContract.Surface.Roster.Generated.Live
     , matchRosterRowLiveFragment
     , matchRosterSlotsGridLiveFragment
     , matchRosterStaffPanelLiveFragment
-    , matchRosterStaffSelfServiceLeaveFormLiveFragment
     , matchRosterWageRailLiveFragment
     , matchRosterWeekLiveScope
     , rosterContentLiveFragment
@@ -28,7 +27,6 @@ module Application.Helper.FrontendContract.Surface.Roster.Generated.Live
     , rosterRowLiveFragment
     , rosterSlotsGridLiveFragment
     , rosterStaffPanelLiveFragment
-    , rosterStaffSelfServiceLeaveFormLiveFragment
     , rosterWageRailLiveFragment
     , rosterWeekLiveScope
     ) where
@@ -213,19 +211,6 @@ matchRosterStaffPanelLiveFragment =
     matchFrontendSurfaceFragmentKey
         @(AdapterFamilySurface Types2.RosterAdapterFamily)
         @Types1.RosterStaffPanel
-
-rosterStaffSelfServiceLeaveFormLiveFragment :: SurfaceFragmentKey
-rosterStaffSelfServiceLeaveFormLiveFragment =
-    frontendSurfaceFragmentKey
-        @(AdapterFamilySurface Types2.RosterAdapterFamily)
-        @Types1.RosterStaffSelfServiceLeaveFormFragment
-        noSurfaceFields
-
-matchRosterStaffSelfServiceLeaveFormLiveFragment :: SurfaceFragmentKey -> Maybe ()
-matchRosterStaffSelfServiceLeaveFormLiveFragment =
-    matchFrontendSurfaceFragmentKey
-        @(AdapterFamilySurface Types2.RosterAdapterFamily)
-        @Types1.RosterStaffSelfServiceLeaveFormFragment
 
 rosterWageRailLiveFragment :: SurfaceFragmentKey
 rosterWageRailLiveFragment =

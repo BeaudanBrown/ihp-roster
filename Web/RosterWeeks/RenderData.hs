@@ -16,6 +16,7 @@ where
 import Application.Helper.Conflict
 import Application.Helper.Controller
 import Application.Helper.FrontendContract.Surface.FragmentRender (FragmentRenderMode (..))
+import Application.Helper.ProfileLeave (defaultLeaveRequestForOperationalDay)
 import Application.Helper.Profiling
 import Application.Helper.RosterGroups
 import Application.Helper.RosterWagePrediction
@@ -38,7 +39,6 @@ import Web.RosterWeeks.StaffOptions
 import Web.RosterWeeks.Types
 import Web.View.RosterWeeks.Grid
 import Web.View.RosterWeeks.StaffPanel
-import Web.View.RosterWeeks.StaffSelfServicePanel (renderRosterStaffSelfServiceLeaveFormFragmentForRoster)
 
 shouldShowRosterWageEstimates :: (?context :: ControllerContext) => Bool -> Bool
 shouldShowRosterWageEstimates userShowWageEstimates =
@@ -96,10 +96,6 @@ renderRosterProjectionFragmentWithMode renderMode rosterData fragment =
             renderSlotsGridFragment rosterData
         RosterProjectionStaffPanel ->
             Just (renderRosterStaffPanelFromProjectionWithMode renderMode rosterData)
-        RosterProjectionStaffSelfServiceLeaveForm -> do
-            projection <- rosterData
-            panel <- projection.staffSelfServicePanel
-            pure (renderRosterStaffSelfServiceLeaveFormFragmentForRoster panel.quickToolsRosterGroupId panel.quickToolsRosterWeekOffset panel.quickToolsLeaveRequest)
         RosterProjectionDaySection rosterDayId ->
             rosterData >>= \projection ->
                 if isHiddenDraftForCurrentUser projection.rosterWeek
@@ -377,10 +373,7 @@ fetchRosterStaffSelfServicePanel venueConfig rosterGroupId weekOffset
                         |> orderByAsc #startTime
                         |> fetch
                 quickToolsShiftTypes <- fetchCurrentVenueRosterShiftTypes
-                let quickToolsLeaveRequest =
-                        newRecord @LeaveRequest
-                            |> set #startDate operationalDay
-                            |> set #endDate (Calendar.addDays 1 operationalDay)
+                let quickToolsLeaveRequest = defaultLeaveRequestForOperationalDay operationalDay
                 pure $
                     Just
                         RosterStaffSelfServicePanel
@@ -469,9 +462,6 @@ renderVisibleRosterFragment rosterGroupId weekOffset fragment = do
                     rosterData <- fetchVisibleRosterReadModel rosterGroupId weekOffset
                     pure (renderRosterProjectionFragment rosterData fragment)
                 RosterProjectionSlotsGrid -> do
-                    rosterData <- fetchVisibleRosterReadModel rosterGroupId weekOffset
-                    pure (renderRosterProjectionFragment rosterData fragment)
-                RosterProjectionStaffSelfServiceLeaveForm -> do
                     rosterData <- fetchVisibleRosterReadModel rosterGroupId weekOffset
                     pure (renderRosterProjectionFragment rosterData fragment)
                 RosterProjectionRow rosterDayUuid rowIndex -> do

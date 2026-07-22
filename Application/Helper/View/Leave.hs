@@ -3,8 +3,8 @@ module Application.Helper.View.Leave
     , renderDateRangeText
     ) where
 
-import qualified Data.Text as Text
 import Application.Helper.View.Format (formatDateDisplay)
+import qualified Data.Text as Text
 import Data.Time.Calendar (Day)
 import Generated.Types
 import IHP.ViewPrelude

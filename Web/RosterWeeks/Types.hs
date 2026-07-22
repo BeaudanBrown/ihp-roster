@@ -246,7 +246,6 @@ data RosterProjectionFragment
     | RosterProjectionWageRail
     | RosterProjectionSlotsGrid
     | RosterProjectionStaffPanel
-    | RosterProjectionStaffSelfServiceLeaveForm
     | RosterProjectionDaySection !UUID
     | RosterProjectionRow !UUID !Int
     deriving (Eq, Show)

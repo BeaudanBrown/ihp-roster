@@ -339,8 +339,8 @@ export async function openProfileLeaveSection(page: Page) {
         await leaveSectionToggle.click();
     }
 
-    await expect(page.locator('#profile-leave-request-form-fragment')).toBeVisible();
-    await expect(page.locator('#profile-leave-requests-list-fragment')).toBeVisible();
+    await expect(page.locator('#self-service-leave-form-fragment')).toBeVisible();
+    await expect(page.locator('#self-service-leave-history-fragment')).toBeVisible();
 }
 
 export async function setFlatpickrDate(page: Page, selector: string, value: string) {

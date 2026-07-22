@@ -3,6 +3,7 @@ module Test.SchemaSpec where
 import Application.Helper.Controller
 import Application.Helper.Export
 import Application.Helper.Export.Render (csvCell)
+import Application.Helper.ProfileLeave (defaultLeaveRequestForOperationalDay)
 import Application.Helper.Staff (adoptableTrialStaff, isAdoptableTrialStaff,
                                  isLinkedActiveStaff, isRosterableStaff,
                                  isTrialStaff, linkedActiveStaff,
@@ -736,6 +737,12 @@ tests = describe "Schema" do
     describe "Date formatting helpers" do
         it "renders display dates as dd/mm/yyyy" do
             formatDateDisplay (fromGregorian 2026 3 2) `shouldBe` "02/03/2026"
+
+        it "builds shared self-service defaults from the venue operational day" do
+            let operationalDay = fromGregorian 2026 3 2
+            let leaveRequest = defaultLeaveRequestForOperationalDay operationalDay
+            leaveRequest.startDate `shouldBe` operationalDay
+            leaveRequest.endDate `shouldBe` fromGregorian 2026 3 3
 
         it "renders unavailable periods with four-digit display years" do
             let leaveRequest =

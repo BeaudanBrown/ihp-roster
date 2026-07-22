@@ -19,6 +19,7 @@ import Application.Helper.FrontendContract.Surface.Profile (ProfileSurface,
                                                             StaffSurface)
 import Application.Helper.FrontendContract.Surface.Roster (RosterDayTimelineSurface,
                                                            RosterSurface)
+import Application.Helper.FrontendContract.Surface.SelfServiceLeave (SelfServiceLeaveSurface)
 import Application.Helper.FrontendContract.Surface.Support (SupportSurface)
 import Application.Helper.FrontendContract.Surface.Timesheets (TimesheetsSurface)
 
@@ -27,6 +28,7 @@ type RegisteredFrontendSurfaces =
      , RosterSurface
      , RosterDayTimelineSurface
      , LeaveRequestsSurface
+     , SelfServiceLeaveSurface
      , BillingSurface
      , SupportSurface
      , ProfileSurface

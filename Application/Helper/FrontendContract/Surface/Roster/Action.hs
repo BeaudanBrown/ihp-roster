@@ -3,15 +3,12 @@ module Application.Helper.FrontendContract.Surface.Roster.Action
     , addRosterRowActionFields
     , copyRosterWeekAction
     , copyRosterWeekActionFields
-    , createRosterSelfServiceLeaveRequestAction
-    , createRosterSelfServiceLeaveRequestActionFields
     , createRosterWeekSlotDefinitionAction
     , createRosterWeekSlotDefinitionActionFields
     , deleteRosterWeekSlotDefinitionAction
     , deleteRosterWeekSlotDefinitionActionFields
     , navigateRosterWeekAction
     , navigateRosterWeekActionFields
-    , parseCreateRosterSelfServiceLeaveRequestActionParams
     , parseNavigateRosterWeekActionParams
     , parseToggleRosterAssignmentFiltersActionParams
     , parseToggleRosterStaffScopeActionParams
@@ -40,15 +37,12 @@ import Application.Helper.FrontendContract.Surface.Roster.Generated.Action (addR
                                                                             addRosterRowActionFields,
                                                                             copyRosterWeekAction,
                                                                             copyRosterWeekActionFields,
-                                                                            createRosterSelfServiceLeaveRequestAction,
-                                                                            createRosterSelfServiceLeaveRequestActionFields,
                                                                             createRosterWeekSlotDefinitionAction,
                                                                             createRosterWeekSlotDefinitionActionFields,
                                                                             deleteRosterWeekSlotDefinitionAction,
                                                                             deleteRosterWeekSlotDefinitionActionFields,
                                                                             navigateRosterWeekAction,
                                                                             navigateRosterWeekActionFields,
-                                                                            parseCreateRosterSelfServiceLeaveRequestActionParams,
                                                                             parseNavigateRosterWeekActionParams,
                                                                             parseToggleRosterAssignmentFiltersActionParams,
                                                                             parseToggleRosterStaffScopeActionParams,

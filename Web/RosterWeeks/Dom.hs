@@ -4,6 +4,7 @@ module Web.RosterWeeks.Dom
     ( closedRosterDayRows
     , minimumOpenRosterRows
     , rosterContentFragmentId
+    , rosterLayoutFragmentId
     , rosterDayTimelineContentFragmentId
     , rosterGridFrameFragmentId
     , rosterGridToolbarFragmentId
@@ -36,6 +37,9 @@ closedRosterDayRows = 2
 
 rosterWeekShellId :: Text
 rosterWeekShellId = surfaceDomTokenValue @Surface.RosterSurface @Surface.RosterWeekShell
+
+rosterLayoutFragmentId :: Text
+rosterLayoutFragmentId = surfaceFragmentTargetId @Surface.RosterSurface @Surface.RosterLayout noSurfaceFields
 
 rosterContentFragmentId :: Text
 rosterContentFragmentId = surfaceFragmentTargetId @Surface.RosterSurface @Surface.RosterContent noSurfaceFields

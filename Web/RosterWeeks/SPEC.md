@@ -31,6 +31,9 @@ lands.
 - Staff-facing draft roster pages keep the week shell and day column mounted for
   live updates, but hide slot rows, closed-day state, and other draft roster
   details behind a non-live placeholder.
+- The staff quick-tool unavailability form is the form-only mount of the shared
+  `SelfServiceLeaveSurface`; the RosterSurface does not own a separate leave
+  fragment, action schema, response context, or date-default implementation.
 - Full pages, standard rows, day columns, month overview, timeline URLs, and
   roster fragment endpoints all use the canonical direct SQL read model. There
   is no fallback projection query or alternate conflict evaluator.

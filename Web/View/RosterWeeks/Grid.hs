@@ -142,7 +142,7 @@ renderRosterLayout gridModel@RosterGridRenderModel { gridRosterWeek, gridRosterD
             { interactionShellHtmxSync = Just ("#" <> rosterWeekShellId <> ":replace")
             , interactionShellIntentForms = rosterIntentForms rosterSurfaceScope
             } [hsx|
-            <div class="row g-4 align-items-start roster-layout">
+            <div id={rosterLayoutFragmentId} class="row g-4 align-items-start roster-layout">
                 {renderrosterContentLiveFragment gridModel}
                 {forEach gridRosterWeek renderStaffPanelMount}
                 {renderRosterStaffSelfServicePanelFragment gridStaffSelfServicePanel}

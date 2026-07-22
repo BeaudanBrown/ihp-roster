@@ -152,8 +152,8 @@ test.describe('Mobile experience smoke', () => {
             await leaveSectionToggle.click();
         }
 
-        await expect(page.locator('#profile-leave-request-form-fragment')).toBeVisible();
-        await expect(page.locator('#profile-leave-requests-list-fragment')).toBeVisible();
+        await expect(page.locator('#self-service-leave-form-fragment')).toBeVisible();
+        await expect(page.locator('#self-service-leave-history-fragment')).toBeVisible();
         await expectNoHorizontalViewportOverflow(page);
     });
 

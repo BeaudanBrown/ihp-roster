@@ -1,6 +1,6 @@
 import { pageReadyEvent } from "./generated/contracts";
 import { isDocument, isHTMLElement } from "./shared/dom";
-import { detailTarget } from "./shared/lifecycle";
+import { detailRoot, detailTarget } from "./shared/lifecycle";
 
 export const appPageReadyEventName = pageReadyEvent;
 
@@ -67,7 +67,7 @@ export function pageReadyDetailFrom(detail: PageReadyDetailInput): PageReadyDeta
     document.addEventListener("htmx:afterSwap", function (event) {
         dispatchPageReady({
             source: "htmx-after-swap",
-            target: detailTarget(event, "target"),
+            target: detailRoot(event, "target"),
             isFullPage: false,
         });
     });
@@ -75,7 +75,7 @@ export function pageReadyDetailFrom(detail: PageReadyDetailInput): PageReadyDeta
     document.addEventListener("htmx:oobAfterSwap", function (event) {
         dispatchPageReady({
             source: "htmx-oob-after-swap",
-            target: detailTarget(event, "target"),
+            target: detailRoot(event, "target"),
             isFullPage: false,
         });
     });

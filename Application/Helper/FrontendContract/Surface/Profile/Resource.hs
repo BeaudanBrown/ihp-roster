@@ -7,12 +7,12 @@ module Application.Helper.FrontendContract.Surface.Profile.Resource
     , staffRsaDocumentsResource
     ) where
 
-import Application.Helper.FrontendContract.Surface.Profile.Generated.Resource (staffLeaveRequestsResource,
-                                                                               staffPreferencesResource,
+import Application.Helper.FrontendContract.Surface.Profile.Generated.Resource (staffPreferencesResource,
                                                                                staffProfileResource,
                                                                                staffRsaDocumentsResource)
 import qualified Application.Helper.FrontendContract.Surface.Profile.Generated.Resource as Generated
 import Application.Helper.FrontendContract.Surface.Resource (SurfaceResourceValue)
+import Application.Helper.FrontendContract.Surface.SelfServiceLeave.Resource (staffLeaveRequestsResource)
 import qualified Data.UUID as UUID
 import IHP.Prelude
 

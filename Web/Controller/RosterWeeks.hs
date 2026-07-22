@@ -73,13 +73,11 @@ import Web.RosterWeeks.Responses (respondWithRosterContent,
 import Web.RosterWeeks.Rows
 import Web.RosterWeeks.Service
 import Web.RosterWeeks.StaffOptions (buildRosterStaffOptionStates)
-import Web.RosterWeeks.StaffSelfServiceLeaveFragments (buildDefaultRosterStaffSelfServiceLeaveRequest)
 import Web.RosterWeeks.Types
 import Web.View.RosterWeeks.Overview (renderWeekOverviewPanelFragment)
 import Web.View.RosterWeeks.ShiftDialog
 import Web.View.RosterWeeks.Show (renderRosterWeekShell)
 import Web.View.RosterWeeks.StaffPanel (renderrosterStaffPanelLiveFragment)
-import Web.View.RosterWeeks.StaffSelfServicePanel (renderRosterStaffSelfServiceLeaveFormFragmentForRoster)
 import Web.View.RosterWeeks.Timeline (renderRosterDayTimelineContent)
 
 rosterSurfaceRequestErrorMessage :: [SurfaceRequestFieldError] -> Text
@@ -232,11 +230,6 @@ instance Controller RosterWeeksController where
             Right scope -> pure scope
         panelModel <- fetchVisibleRosterStaffPanelRenderModel panelScope rosterGroup.id weekOffset
         respondHtmlProfiled (renderrosterStaffPanelLiveFragment panelModel)
-
-    action currentAction@ShowRosterStaffSelfServiceLeaveFormFragmentAction { weekOffset } = runBepis currentAction BepisFragmentAction do
-        rosterGroup <- resolveRequestedRosterGroup
-        leaveRequest <- buildDefaultRosterStaffSelfServiceLeaveRequest
-        respondHtmlProfiled (renderRosterStaffSelfServiceLeaveFormFragmentForRoster rosterGroup.id weekOffset leaveRequest)
 
     action currentAction@ShowRosterWeekDaySectionFragmentAction { weekOffset, rosterDayId } = runBepis currentAction BepisFragmentAction do
         rosterGroupId <- resolveRosterGroupIdForFragmentRosterDay weekOffset rosterDayId

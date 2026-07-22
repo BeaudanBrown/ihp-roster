@@ -29,6 +29,15 @@
   function isElement(value) {
     return typeof Element !== "undefined" && value instanceof Element;
   }
+  function isDocument(value) {
+    return typeof Document !== "undefined" && value instanceof Document;
+  }
+  function isDocumentFragment(value) {
+    return typeof DocumentFragment !== "undefined" && value instanceof DocumentFragment;
+  }
+  function isDomRoot(value) {
+    return isElement(value) || isDocument(value) || isDocumentFragment(value);
+  }
   function isHTMLElement(value) {
     return typeof HTMLElement !== "undefined" && value instanceof HTMLElement;
   }
@@ -46,6 +55,15 @@
   }
   function detailTarget(event, key) {
     return eventDetailRecord(event)?.[key];
+  }
+  function isConnectedRoot(root) {
+    return root instanceof Document || root.isConnected;
+  }
+  function detailRoot(event, key, fallback = document) {
+    const detailCandidate = detailTarget(event, key);
+    if (isDomRoot(detailCandidate) && isConnectedRoot(detailCandidate)) return detailCandidate;
+    if (isDomRoot(event.target) && isConnectedRoot(event.target)) return event.target;
+    return fallback;
   }
 
   // frontend/ts/app-dialog-overlays.ts
@@ -198,7 +216,7 @@
       });
     });
     document.addEventListener("htmx:afterSwap", function(event) {
-      const target = detailTarget(event, "target");
+      const target = detailRoot(event, "target");
       if (!isHTMLElement(target)) return;
       if (target.id !== mountId) return;
       window.htmx?.process?.(target);
@@ -206,7 +224,7 @@
       syncDialogState();
     });
     document.addEventListener("htmx:oobAfterSwap", function(event) {
-      const target = detailTarget(event, "target");
+      const target = detailRoot(event, "target");
       if (!isHTMLElement(target)) return;
       if (target.id !== mountId) return;
       submitAutoFormsOnce(target);

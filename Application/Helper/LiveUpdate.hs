@@ -7,6 +7,7 @@ module Application.Helper.LiveUpdate
     , surfaceScopeKey
     , setActorLocalFragmentsRefresh
     , setActorLiveResourcesRefresh
+    , setActorLiveResourcesRefreshIncluding
     ) where
 
 import Application.Helper.FrontendContract.AppValues (AppEvents (..),
@@ -34,8 +35,15 @@ setActorLocalFragmentsRefresh scope fragments =
         )
 
 setActorLiveResourcesRefresh :: (?context :: ControllerContext, ?request :: Request) => SurfaceScope -> Set.Set SurfaceResourceValue -> [FrontendSurfaceMountedFragment] -> IO ()
-setActorLiveResourcesRefresh scope touchedResources mountedFragments = do
-    let fragmentKeys = actorLiveFragmentsRefreshKeys scope touchedResources mountedFragments
+setActorLiveResourcesRefresh scope touchedResources mountedFragments =
+    setActorLiveResourcesRefreshIncluding [] scope touchedResources mountedFragments
+
+-- | Refresh resource-dependent actor fragments plus explicit actor-only workflow
+-- fragments, such as resetting a resync-only form after a successful mutation.
+setActorLiveResourcesRefreshIncluding :: (?context :: ControllerContext, ?request :: Request) => [SurfaceFragmentKey] -> SurfaceScope -> Set.Set SurfaceResourceValue -> [FrontendSurfaceMountedFragment] -> IO ()
+setActorLiveResourcesRefreshIncluding actorOnlyFragments scope touchedResources mountedFragments = do
+    let resourceFragmentKeys = actorLiveFragmentsRefreshKeys scope touchedResources mountedFragments
+    let fragmentKeys = coalesceSurfaceFragmentKeys (actorOnlyFragments <> resourceFragmentKeys)
     unless (null fragmentKeys) do
         setActorLocalFragmentsRefresh scope fragmentKeys
 

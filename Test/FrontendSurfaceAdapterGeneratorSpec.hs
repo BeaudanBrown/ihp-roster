@@ -378,6 +378,7 @@ tests = describe "FrontendSurfaceAdapterGenerator" do
                         , "roster"
                         , "roster-day-timeline"
                         , "leave-requests"
+                        , "self-service-leave"
                         , "billing"
                         , "support"
                         , "profile"
@@ -404,12 +405,13 @@ tests = describe "FrontendSurfaceAdapterGenerator" do
                         , ("roster", "roster-wage-rail")
                         , ("roster", "roster-slots-grid")
                         , ("roster", "roster-staff-panel")
-                        , ("roster", "roster-staff-self-service-leave-form")
                         , ("roster", "roster-day-section")
                         , ("roster", "roster-row")
                         , ("roster-day-timeline", "roster-day-timeline-content")
                         , ("leave-requests", "leave-section-count")
                         , ("leave-requests", "leave-section-list")
+                        , ("self-service-leave", "self-service-leave-form")
+                        , ("self-service-leave", "self-service-leave-history")
                         , ("billing", "billing-status")
                         , ("support", "support-award-rates")
                         , ("support", "support-public-holidays")
@@ -513,7 +515,7 @@ tests = describe "FrontendSurfaceAdapterGenerator" do
         extraDiagnosticCodes `shouldContain` ["missing-adapter-scope-home"]
 
     it "publishes exactly one production home for every eligible Action declaration" do
-        length registeredSurfaceAdapterRegistry.surfaceActionAdapterHomes `shouldBe` 48
+        length registeredSurfaceAdapterRegistry.surfaceActionAdapterHomes `shouldBe` 47
         case generateSurfaceActionAdapterModules registeredFrontendSurfaceContractIR registeredSurfaceAdapterRegistry of
             Left diagnostics -> expectationFailure (cs (show diagnostics))
             Right generatedModules ->
@@ -523,6 +525,7 @@ tests = describe "FrontendSurfaceAdapterGenerator" do
                         , "Application.Helper.FrontendContract.Surface.LeaveRequests.Generated.Action"
                         , "Application.Helper.FrontendContract.Surface.Profile.Generated.Action"
                         , "Application.Helper.FrontendContract.Surface.Roster.Generated.Action"
+                        , "Application.Helper.FrontendContract.Surface.SelfServiceLeave.Generated.Action"
                         , "Application.Helper.FrontendContract.Surface.Support.Generated.Action"
                         , "Application.Helper.FrontendContract.Surface.Timesheets.Generated.Action"
                         ]
@@ -850,7 +853,7 @@ tests = describe "FrontendSurfaceAdapterGenerator" do
             `shouldBe` length productionResourceNames
         case generateSurfaceResourceAdapterModules registeredFrontendSurfaceContractIR registeredSurfaceAdapterRegistry of
             Left diagnostics       -> expectationFailure (cs (show diagnostics))
-            Right generatedModules -> length generatedModules `shouldBe` 7
+            Right generatedModules -> length generatedModules `shouldBe` 8
 
     it "renders zero-field constants without unused field-builder imports" do
         let heartbeatOnly =

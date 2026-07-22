@@ -11,6 +11,7 @@ import Application.Helper.FrontendContract.Surface.Runtime (FrontendSurfaceMount
                                                             FrontendSurfaceMountedFragment (..),
                                                             SurfaceImpl (..),
                                                             frontendSurfaceMountConfigJson)
+import qualified Application.Helper.FrontendContract.Surface.SelfServiceLeave.Live as SelfServiceLeaveLive
 import qualified Application.Helper.FrontendContract.Surface.Support.Live as SupportLive
 import Application.Helper.FrontendContract.Surface.Support.Resource
 import qualified Application.Helper.FrontendContract.Surface.Timesheets.Live as TimesheetsLive
@@ -34,9 +35,12 @@ import Web.Billing.FrontendSurface (BillingCheckoutReturnState (..),
                                     billingCandidateMountedFragments,
                                     billingSurfaceScope)
 import Web.LeaveRequests.FrontendSurface (LeaveRequestsScopeValue (..),
+                                          SelfServiceLeaveScopeValue (..),
                                           leaveRequestsCandidateMountedFragments,
                                           leaveRequestsSurfaceImpl,
-                                          leaveRequestsSurfaceScope)
+                                          leaveRequestsSurfaceScope,
+                                          selfServiceLeaveSurfaceImpl,
+                                          selfServiceLeaveSurfaceScope)
 import Web.Profiles.FrontendSurface (ProfileScopeValue (..),
                                      profileCandidateMountedFragments,
                                      profileSurfaceScope)
@@ -58,6 +62,26 @@ import Web.Types
 
 tests :: Spec
 tests = do
+    describe "shared self-service leave Surface" do
+        it "mounts the same form fragment contract in Profile and roster contexts" do
+            let venueId = fromWords 1 0 0 0
+            let staffId = fromWords 2 0 0 0
+            let scope = SelfServiceLeaveScopeValue venueId staffId
+            let profileMount = (selfServiceLeaveSurfaceImpl "profile" True scope).surfaceImplMountConfig
+            let rosterMount = (selfServiceLeaveSurfaceImpl "roster" False scope).surfaceImplMountConfig
+
+            profileMount.mountKey `shouldBe` "profile"
+            rosterMount.mountKey `shouldBe` "roster"
+            map (.mountedFragmentKey) profileMount.mountFragments
+                `shouldBe`
+                    [ SelfServiceLeaveLive.selfServiceLeaveFormLiveFragment
+                    , SelfServiceLeaveLive.selfServiceLeaveHistoryLiveFragment
+                    ]
+            map (.mountedFragmentKey) rosterMount.mountFragments
+                `shouldBe` [SelfServiceLeaveLive.selfServiceLeaveFormLiveFragment]
+            map (.mountedFragmentTargetId) (take 1 profileMount.mountFragments)
+                `shouldBe` map (.mountedFragmentTargetId) rosterMount.mountFragments
+
     describe "generated FrontendSurface resource dependencies" do
         it "selects affected timesheet fragments from generated dependencies" do
             let venueId = fromWords 1 0 0 0
@@ -170,7 +194,6 @@ tests = do
                     , "roster-wage-rail"
                     , "roster-slots-grid"
                     , "roster-staff-panel-fragment"
-                    , "roster-staff-self-service-leave-form-fragment"
                     , "roster-day-section-" <> tshow rosterDayId
                     , "roster-row-" <> tshow rosterDayId <> "-2"
                     ]
@@ -312,11 +335,17 @@ tests = do
             let candidates = profileCandidateMountedFragments scopeValue
             let affectedByProfile = planMountedFragments (Set.fromList [staffProfileResource staffId]) (profileSurfaceScope scopeValue) candidates
             let affectedByRsa = planMountedFragments (Set.fromList [staffRsaDocumentsResource staffId]) (profileSurfaceScope scopeValue) candidates
-            let affectedByLeave = planMountedFragments (Set.fromList [staffLeaveRequestsResource staffId]) (profileSurfaceScope scopeValue) candidates
+            let leaveResources = Set.fromList [staffLeaveRequestsResource staffId]
+            let affectedProfileFragments = planMountedFragments leaveResources (profileSurfaceScope scopeValue) candidates
+            let selfServiceScope = SelfServiceLeaveScopeValue venueId staffId
+            let selfServiceMount = (selfServiceLeaveSurfaceImpl "profile" True selfServiceScope).surfaceImplMountConfig
+            let affectedSelfServiceFragments = planMountedFragments leaveResources (selfServiceLeaveSurfaceScope selfServiceScope) selfServiceMount.mountFragments
 
             map (.mountedFragmentTargetId) affectedByProfile `shouldBe` ["profile-details"]
             map (.mountedFragmentTargetId) affectedByRsa `shouldBe` ["profile-rsa"]
-            map (.mountedFragmentTargetId) affectedByLeave `shouldBe` ["profile-leave"]
+            affectedProfileFragments `shouldBe` []
+            map (.mountedFragmentTargetId) affectedSelfServiceFragments
+                `shouldBe` ["self-service-leave-history-fragment"]
 
 planMountedFragments :: Set.Set SurfaceResourceValue -> SurfaceScope -> [FrontendSurfaceMountedFragment] -> [FrontendSurfaceMountedFragment]
 planMountedFragments resources scope mountedFragments =

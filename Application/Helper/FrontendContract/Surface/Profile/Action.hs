@@ -1,9 +1,6 @@
 module Application.Helper.FrontendContract.Surface.Profile.Action
-    ( createProfileLeaveRequestAction
-    , createProfileLeaveRequestActionFields
-    , createStaffLeaveRequestAction
+    ( createStaffLeaveRequestAction
     , createStaffLeaveRequestActionFields
-    , parseCreateProfileLeaveRequestActionParams
     , parseCreateStaffLeaveRequestActionParams
     , parseUpdateProfileDetailsActionParams
     , parseUpdateProfileShiftPreferencesActionParams
@@ -19,11 +16,8 @@ module Application.Helper.FrontendContract.Surface.Profile.Action
     , updateStaffShiftPreferencesActionFields
     ) where
 
-import Application.Helper.FrontendContract.Surface.Profile.Generated.Action (createProfileLeaveRequestAction,
-                                                                             createProfileLeaveRequestActionFields,
-                                                                             createStaffLeaveRequestAction,
+import Application.Helper.FrontendContract.Surface.Profile.Generated.Action (createStaffLeaveRequestAction,
                                                                              createStaffLeaveRequestActionFields,
-                                                                             parseCreateProfileLeaveRequestActionParams,
                                                                              parseCreateStaffLeaveRequestActionParams,
                                                                              parseUpdateProfileDetailsActionParams,
                                                                              parseUpdateProfileShiftPreferencesActionParams,

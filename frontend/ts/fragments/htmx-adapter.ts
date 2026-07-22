@@ -1,6 +1,6 @@
 import { isUiRegionLifecycleEvent, type UiRegionLifecycleEvent } from "../generated/contracts";
 import { isHTMLElement } from "../shared/dom";
-import { detailTarget } from "../shared/lifecycle";
+import { detailRoot, detailTarget } from "../shared/lifecycle";
 import { closestUiRegionFragment } from "./dom";
 import { emitUiRegionLifecycleEvent, type UiRegionErrorKind } from "./events";
 
@@ -31,14 +31,14 @@ export function htmxRegionEventSource(event: Event): HTMLElement | null {
 }
 
 export function htmxRegionEventTarget(event: Event): HTMLElement | null {
-    const target = detailTarget(event, "target");
+    const target = detailRoot(event, "target");
     return isHTMLElement(target) ? target : null;
 }
 
 export function regionFromHtmxEvent(event: Event): HTMLElement | null {
+    const source = htmxRegionEventSource(event);
     return closestUiRegionFragment(htmxRegionEventTarget(event))
-        || closestUiRegionFragment(htmxRegionEventSource(event))
-        || closestUiRegionFragment(event.target);
+        || closestUiRegionFragment(source?.isConnected ? source : null);
 }
 
 export function dispatchRegionLifecycleFromHtmx(event: Event, spec: HtmxRegionEventSpec): void {

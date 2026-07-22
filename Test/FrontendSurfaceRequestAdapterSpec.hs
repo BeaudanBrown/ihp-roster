@@ -31,6 +31,8 @@ import Application.Helper.FrontendContract.Surface.Runtime (FrontendSurfaceActio
                                                             FrontendSurfaceCustomHtmxAttrs (..),
                                                             frontendSurfaceActionHtmxAttrPairs,
                                                             renderFrontendSurfaceIntentForm)
+import qualified Application.Helper.FrontendContract.Surface.SelfServiceLeave as SelfServiceLeave
+import qualified Application.Helper.FrontendContract.Surface.SelfServiceLeave.Action as SelfServiceLeaveAction
 import Application.Helper.FrontendContract.Surface.Values (SurfaceActionFields,
                                                            SurfaceFieldBundleOf,
                                                            surfaceFieldValue)
@@ -341,16 +343,16 @@ tests = describe "FrontendSurfaceRequestAdapter" do
                 registeredSurfaceAdapterRegistry.surfaceActionAdapterRegistrations of
                 Left diagnostics -> expectationFailure (cs (show diagnostics)) >> pure []
                 Right inventory -> pure inventory
-        length actionDeclarations `shouldBe` 53
+        length actionDeclarations `shouldBe` 52
         length actionInventory `shouldBe` length actionDeclarations
         let generatedActionOperations = mapMaybe (.checkedSurfaceRequestAdapterOperations) actionInventory
-        length generatedActionOperations `shouldBe` 48
+        length generatedActionOperations `shouldBe` 47
         length (filter (surfaceAdapterOperationIsGenerated . (.surfaceAdapterFieldsBuilderOperation)) generatedActionOperations)
-            `shouldBe` 48
+            `shouldBe` 47
         length (filter (surfaceAdapterOperationIsGenerated . (.surfaceAdapterRenderMetadataOperation)) generatedActionOperations)
-            `shouldBe` 48
+            `shouldBe` 47
         length (filter (surfaceAdapterOperationIsGenerated . (.surfaceAdapterRequestParserOperation)) generatedActionOperations)
-            `shouldBe` 33
+            `shouldBe` 32
         let actionIdentity registration =
                 let declaration = registration.checkedSurfaceRequestAdapterDeclaration
                  in (declaration.checkedAdapterSurfaceName, declaration.checkedAdapterDeclarationName)
@@ -427,6 +429,7 @@ tests = describe "FrontendSurfaceRequestAdapter" do
                         , "Application.Helper.FrontendContract.Surface.LeaveRequests.Generated.Action"
                         , "Application.Helper.FrontendContract.Surface.Profile.Generated.Action"
                         , "Application.Helper.FrontendContract.Surface.Roster.Generated.Action"
+                        , "Application.Helper.FrontendContract.Surface.SelfServiceLeave.Generated.Action"
                         , "Application.Helper.FrontendContract.Surface.Support.Generated.Action"
                         , "Application.Helper.FrontendContract.Surface.Timesheets.Generated.Action"
                         ]
@@ -574,12 +577,12 @@ tests = describe "FrontendSurfaceRequestAdapter" do
                 , ("hx-swap", "outerHTML show:none")
                 ]
         frontendSurfaceActionHtmxAttrPairs
-            (ProfileAction.createProfileLeaveRequestAction profileLeaveRequestFields)
+            (SelfServiceLeaveAction.createSelfServiceLeaveRequestAction selfServiceLeaveRequestFields)
             (emptyActionRoute "/profile/leave")
             `shouldBe`
                 [ ("hx-post", "/profile/leave")
-                , ("data-bepis-surface-action", "create-profile-leave-request")
-                , ("hx-target", "#profile-leave-request-form-fragment")
+                , ("data-bepis-surface-action", "create-self-service-leave-request")
+                , ("hx-target", "#self-service-leave-form-fragment")
                 , ("hx-swap", "outerHTML")
                 , ("hx-push-url", "false")
                 ]
@@ -629,15 +632,15 @@ tests = describe "FrontendSurfaceRequestAdapter" do
                 ["idealShiftsPerWeek", "isActive", "rosterGroupIds"]
                 MalformedSurfaceRequestField
 
-    it "parses Profile and Staff leave bundles and accumulates Day diagnostics" do
+    it "parses shared self-service and Staff leave bundles and accumulates Day diagnostics" do
         let expectedStart = fromGregorian 2026 7 20
         let expectedEnd = fromGregorian 2026 7 22
-        case parseSurfaceActionParamPairs @Profile.ProfileSurface @Profile.CreateProfileLeaveRequest validLeaveParams of
+        case parseSurfaceActionParamPairs @SelfServiceLeave.SelfServiceLeaveSurface @SelfServiceLeave.CreateSelfServiceLeaveRequest validLeaveParams of
             Left errors -> expectationFailure (cs (show errors))
             Right fields -> do
-                surfaceFieldValue @Profile.StartDate fields `shouldBe` expectedStart
-                surfaceFieldValue @Profile.EndDate fields `shouldBe` expectedEnd
-                surfaceFieldValue @Profile.Notes fields `shouldBe` "Family event"
+                surfaceFieldValue @SelfServiceLeave.StartDate fields `shouldBe` expectedStart
+                surfaceFieldValue @SelfServiceLeave.EndDate fields `shouldBe` expectedEnd
+                surfaceFieldValue @SelfServiceLeave.Notes fields `shouldBe` "Family event"
         case parseSurfaceActionParamPairs @Profile.StaffSurface @Profile.CreateStaffLeaveRequest validLeaveParams of
             Left errors -> expectationFailure (cs (show errors))
             Right fields -> do
@@ -648,7 +651,7 @@ tests = describe "FrontendSurfaceRequestAdapter" do
         assertRequestErrors
             ["startDate", "endDate", "notes"]
             MissingSurfaceRequestField
-            (parseSurfaceActionParamPairs @Profile.ProfileSurface @Profile.CreateProfileLeaveRequest [])
+            (parseSurfaceActionParamPairs @SelfServiceLeave.SelfServiceLeaveSurface @SelfServiceLeave.CreateSelfServiceLeaveRequest [])
         assertRequestErrors
             ["startDate", "endDate", "notes"]
             MissingSurfaceRequestField
@@ -661,7 +664,7 @@ tests = describe "FrontendSurfaceRequestAdapter" do
         assertRequestErrors
             ["startDate", "endDate"]
             MalformedSurfaceRequestField
-            (parseSurfaceActionParamPairs @Profile.ProfileSurface @Profile.CreateProfileLeaveRequest malformedLeaveParams)
+            (parseSurfaceActionParamPairs @SelfServiceLeave.SelfServiceLeaveSurface @SelfServiceLeave.CreateSelfServiceLeaveRequest malformedLeaveParams)
         assertRequestErrors
             ["startDate", "endDate"]
             MalformedSurfaceRequestField
@@ -864,9 +867,9 @@ staffPreferenceFields =
         "preferences"
         (Just ["monday:9:17", "friday:10:18"])
 
-profileLeaveRequestFields :: SurfaceActionFields Profile.ProfileSurface Profile.CreateProfileLeaveRequest
-profileLeaveRequestFields =
-    ProfileAction.createProfileLeaveRequestActionFields
+selfServiceLeaveRequestFields :: SurfaceActionFields SelfServiceLeave.SelfServiceLeaveSurface SelfServiceLeave.CreateSelfServiceLeaveRequest
+selfServiceLeaveRequestFields =
+    SelfServiceLeaveAction.createSelfServiceLeaveRequestActionFields
         (fromGregorian 2026 7 20)
         (fromGregorian 2026 7 22)
         "Family event"

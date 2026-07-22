@@ -11,12 +11,8 @@ import Application.Helper.FrontendContract.Surface.Runtime (FrontendSurfaceActio
                                                             renderFrontendSurfaceMount)
 import Application.Helper.FrontendContract.Surface.Values
 import Application.Helper.StaffShiftPreferences
-import Data.List (sortOn)
-import Data.Ord (Down (..))
+import Web.LeaveRequests.SelfService (renderSelfServiceLeaveFormMount)
 import Web.Profiles.FrontendSurface
-import Web.View.LeaveRequests.Index (renderStatusBadge)
-import Web.View.LeaveRequests.New (LeaveRequestFieldNames (..),
-                                   renderLeaveRequestFormFieldsWithNames)
 import Web.View.Passkeys.Management (renderPasskeyManagement)
 import Web.View.Prelude
 import Web.View.StaffDocuments.Rsa
@@ -52,12 +48,6 @@ profileShiftPreferencesFormId = "profile-shift-preferences-form"
 
 profileSectionsAccordionId :: Text
 profileSectionsAccordionId = "profile-sections"
-
-profileLeaveRequestFormFragmentId :: Text
-profileLeaveRequestFormFragmentId = "profile-leave-request-form-fragment"
-
-profileLeaveRequestsListFragmentId :: Text
-profileLeaveRequestsListFragmentId = "profile-leave-requests-list-fragment"
 
 profileLeaveQueryParams :: [(Text, Text)]
 profileLeaveQueryParams =
@@ -168,7 +158,7 @@ profileAccordionSections staff currentUserEmail preferenceWeekdays selectedShift
     [ profileDetailsAccordionSection staff currentUserEmail staffManagementFields
     , profilePreferencesAccordionSection preferenceWeekdays selectedShiftPreferences
     , profileSecurityAccordionSection now passkeys
-    , profileLeaveAccordionSection leaveRequestForm leaveRequests
+    , profileLeaveAccordionSection staff leaveRequestForm leaveRequests
     ]
 
 profileDetailsAccordionSection :: Staff -> Text -> Maybe StaffManagementFieldData -> StaffProfileAccordionSection
@@ -198,22 +188,13 @@ profileSecurityAccordionSection now passkeys =
         , staffProfileSectionBody = renderPasskeyManagement now passkeys (appendQueryParams (pathTo EditProfileAction) [("section", "security")])
         }
 
-profileLeaveAccordionSection :: LeaveRequest -> [LeaveRequest] -> StaffProfileAccordionSection
-profileLeaveAccordionSection leaveRequestForm leaveRequests =
+profileLeaveAccordionSection :: Staff -> LeaveRequest -> [LeaveRequest] -> StaffProfileAccordionSection
+profileLeaveAccordionSection staff leaveRequestForm leaveRequests =
     StaffProfileAccordionSection
         { staffProfileSectionKey = "leave"
         , staffProfileSectionId = profileLeaveSectionId
         , staffProfileSectionTitle = "Unavailability"
-        , staffProfileSectionBody = [hsx|
-            <div class="row g-4 align-items-start">
-                <div class="col-12 col-xl-5">
-                    {renderProfileLeaveRequestFormFragment leaveRequestForm}
-                </div>
-                <div class="col-12 col-xl-7">
-                    {renderProfileLeaveRequestsListFragment leaveRequests}
-                </div>
-            </div>
-        |]
+        , staffProfileSectionBody = renderSelfServiceLeaveFormMount "profile" True staff leaveRequestForm leaveRequests
         }
 
 profileRsaAccordionSection :: Staff -> Maybe StaffDocument -> Day -> StaffProfileAccordionSection
@@ -230,7 +211,7 @@ renderProfileSectionFragmentWithManagement staff currentUserEmail preferenceWeek
     let section = case normalizeProfileSectionForRender openSection of
             "preferences" -> profilePreferencesAccordionSection preferenceWeekdays selectedShiftPreferences
             "security"    -> profileSecurityAccordionSection now passkeys
-            "leave"       -> profileLeaveAccordionSection leaveRequestForm leaveRequests
+            "leave"       -> profileLeaveAccordionSection staff leaveRequestForm leaveRequests
             _             -> profileDetailsAccordionSection staff currentUserEmail staffManagementFields
      in renderStaffProfileAccordionSection profileSectionsAccordionId openSection section
 
@@ -355,81 +336,4 @@ renderProfileRsaSection staff staffRsaDocument today =
                 , rsaPanelCanReview = currentUserIsManager
                 , rsaPanelShowHeader = False
                 }
-
-renderProfileLeaveRequestFormFragment :: LeaveRequest -> Html
-renderProfileLeaveRequestFormFragment leaveRequest = [hsx|
-    <div id={profileLeaveRequestFormFragmentId}>
-        {renderProfileLeaveRequestActionForm leaveRequest}
-    </div>
-|]
-
-renderProfileLeaveRequestActionForm :: LeaveRequest -> Html
-renderProfileLeaveRequestActionForm leaveRequest =
-    renderFrontendSurfaceActionForm
-        (ProfileAction.createProfileLeaveRequestAction fields)
-        (profileActionRoute profileCreateLeaveRequestPath)
-            { actionRouteExtraAttrs = [("id", "profile-leave-request-form")]
-            }
-        [hsx|
-            <input type="hidden" name="responseContext" value="profile"/>
-            <input type="hidden" name="section" value="leave"/>
-            {renderLeaveRequestFormFieldsWithNames fieldNames leaveRequest}
-            <div class="d-grid mt-4 app-form-width">
-                <button type="submit" class="btn btn-primary">Add unavailable time</button>
-            </div>
-        |]
-  where
-    fields = ProfileAction.createProfileLeaveRequestActionFields leaveRequest.startDate leaveRequest.endDate (fromMaybe "" leaveRequest.notes)
-    fieldNames =
-        LeaveRequestFieldNames
-            { leaveRequestStartDateFieldName = surfaceFieldNameFrom @Surface.StartDate fields
-            , leaveRequestEndDateFieldName = surfaceFieldNameFrom @Surface.EndDate fields
-            , leaveRequestNotesFieldName = surfaceFieldNameFrom @Surface.Notes fields
-            }
-
-renderProfileLeaveRequestsListFragment :: [LeaveRequest] -> Html
-renderProfileLeaveRequestsListFragment leaveRequests = [hsx|
-    <div id={profileLeaveRequestsListFragmentId}>
-        <h5 class="mb-3">Unavailable periods</h5>
-        {renderProfileLeaveRequestsList leaveRequests}
-    </div>
-|]
-
-renderProfileLeaveRequestsList :: [LeaveRequest] -> Html
-renderProfileLeaveRequestsList leaveRequests
-    | null leaveRequests =
-        renderAppPanel AppPanelConfig
-            { appPanelTitle = Nothing
-            , appPanelDescription = Nothing
-            , appPanelHasActions = False
-            , appPanelActions = mempty
-            , appPanelHasCustomHeader = False
-            , appPanelCustomHeader = mempty
-            , appPanelClass = "app-form-width"
-            , appPanelBodyClass = ""
-            , appPanelBody = [hsx|<p class="app-muted mb-0">No unavailable periods submitted yet.</p>|]
-            }
-    | otherwise = [hsx|
-        <div class="leave-request-list">
-            <div class="leave-request-list-head">
-                <div>Dates</div>
-                <div>Status</div>
-                <div>Notes</div>
-            </div>
-            <div class="leave-request-list-body">
-                {forEach sortedLeaveRequests renderProfileLeaveRequestRow}
-            </div>
-        </div>
-    |]
-    where
-        sortedLeaveRequests = sortOn (Down . (.startDate)) leaveRequests
-
-renderProfileLeaveRequestRow :: LeaveRequest -> Html
-renderProfileLeaveRequestRow leaveRequest = [hsx|
-    <article class="leave-request-row">
-        <div class="leave-request-row-dates">{renderDateRangeText leaveRequest}</div>
-        <div class="leave-request-row-status">{renderStatusBadge leaveRequest.status}</div>
-        <div class="leave-request-row-notes">{fromMaybe "No notes" (leaveRequest.notes >>= nonEmptyText)}</div>
-    </article>
-|]
 

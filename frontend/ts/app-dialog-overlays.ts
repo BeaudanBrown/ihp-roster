@@ -12,7 +12,7 @@ import {
     type DialogSubmitConfig,
 } from "./generated/contracts";
 import { closestHTMLElement, isHTMLElement } from "./shared/dom";
-import { detailTarget } from "./shared/lifecycle";
+import { detailRoot, detailTarget } from "./shared/lifecycle";
 
 const dialogMountSelector = `[${dialogMountDomAttr}]`;
 const dialogBackdropSelector = `[${dialogBackdropDomAttr}]`;
@@ -194,7 +194,7 @@ function dialogSubmitConfiguration(submitter: HTMLButtonElement): DialogSubmitCo
     });
 
     document.addEventListener("htmx:afterSwap", function (event) {
-        const target = detailTarget(event, "target");
+        const target = detailRoot(event, "target");
         if (!isHTMLElement(target)) return;
         if (target.id !== mountId) return;
 
@@ -205,7 +205,7 @@ function dialogSubmitConfiguration(submitter: HTMLButtonElement): DialogSubmitCo
     });
 
     document.addEventListener("htmx:oobAfterSwap", function (event) {
-        const target = detailTarget(event, "target");
+        const target = detailRoot(event, "target");
         if (!isHTMLElement(target)) return;
         if (target.id !== mountId) return;
 

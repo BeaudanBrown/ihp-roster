@@ -208,8 +208,9 @@ pageHelpTopics =
         ]
     , topic "leave" "Unavailability"
         [ section HelpEveryone "Request tasks"
-            [ iconItem HelpEveryone "bi-table" "Request list" "Review unavailable periods" "Use this page to check each unavailable period's dates, staff member, status, and notes."
-            , iconItem HelpEveryone "bi-calendar2-range" "Date range" "Read the date range" "Unavailable From is the first day away. Available Again is the day the staff member returns."
+            [ iconItem HelpEveryone "bi-plus-circle" "Add unavailable time" "Submit from Profile or roster" "Use the Unavailability form in Profile or the roster quick tool. Choose the first day away and the day you return, add optional notes, then submit."
+            , iconItem HelpEveryone "bi-table" "Request list" "Review unavailable periods" "Use this page to check each unavailable period's dates, staff member, status, and notes."
+            , iconItem HelpEveryone "bi-calendar2-range" "Date range" "Read the date range" "Unavailable From is the first day away. Available Again is the day the staff member returns. Dates display as day/month/year."
             , iconItem HelpEveryone "bi-hourglass-split" "Status" "Track approval status" "Check the Status column to see whether each request is pending, approved, or denied."
             ]
         , section HelpManagerPlus "Manager tasks"

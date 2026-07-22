@@ -51,8 +51,8 @@ async function createProfileLeaveRequest(page: Page, note: string, startDate: st
     await setFlatpickrDate(page, '#endDate', endDate);
     await page.fill('#notes', note);
     await page.getByRole('button', { name: 'Add unavailable time' }).click();
-    await expect(page.locator('#profile-leave-request-form-fragment')).toBeVisible();
-    await expect(page.locator('#profile-leave-requests-list-fragment')).toContainText(note);
+    await expect(page.locator('#self-service-leave-form-fragment')).toBeVisible();
+    await expect(page.locator('#self-service-leave-history-fragment')).toContainText(note);
 }
 
 async function createTimesheet(page: Page, startTime: string, endTime: string) {
@@ -129,7 +129,7 @@ test.describe('Live fragment multi-view coverage', () => {
         await gotoWhenReady(actorPage, '/EditProfile', '#profile-live-surface');
         await gotoWhenReady(viewerPage, '/EditProfile', '#profile-live-surface');
 
-        await expect(actorPage.locator('#profile-live-surface [data-bepis-surface-config]')).toHaveAttribute('data-bepis-surface-config', /profile-details-section/);
+        await expect(actorPage.locator('#profile-live-surface [data-bepis-surface="profile"][data-bepis-surface-config]')).toHaveAttribute('data-bepis-surface-config', /profile-details-section/);
         await openProfileDetailsSection(actorPage);
         await openProfileDetailsSection(viewerPage);
         await expect(viewerPage.locator('#preferredName')).not.toHaveValue(preferredName);

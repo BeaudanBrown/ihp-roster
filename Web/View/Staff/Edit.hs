@@ -21,11 +21,11 @@ import Application.Helper.FrontendContract.Surface.Runtime (FrontendSurfaceActio
                                                             renderFrontendSurfaceMount)
 import Application.Helper.FrontendContract.Surface.Values
 import Application.Helper.StaffShiftPreferences
+import Web.LeaveRequests.SelfService (renderSelfServiceLeaveHistory)
 import Web.Profiles.FrontendSurface (ProfileScopeValue (..), staffSurfaceImpl)
 import Web.View.LeaveRequests.New (LeaveRequestFieldNames (..),
                                    renderLeaveRequestFormFieldsWithNames)
 import Web.View.Prelude
-import Web.View.Profiles.Edit (renderProfileLeaveRequestsList)
 import Web.View.StaffDocuments.Rsa
 import Web.View.StaffProfileForm
 import Web.View.StaffProfileSections
@@ -305,7 +305,7 @@ renderStaffLeaveRequestsListFragment :: [LeaveRequest] -> Html
 renderStaffLeaveRequestsListFragment leaveRequests = [hsx|
     <div id={staffLeaveRequestsListFragmentId}>
         <h5 class="mb-3">Unavailable periods</h5>
-        {renderProfileLeaveRequestsList leaveRequests}
+        {renderSelfServiceLeaveHistory leaveRequests}
     </div>
 |]
 
@@ -313,7 +313,7 @@ renderStaffLeaveRequestsListFragmentOob :: [LeaveRequest] -> Html
 renderStaffLeaveRequestsListFragmentOob leaveRequests = [hsx|
     <div id={staffLeaveRequestsListFragmentId} hx-swap-oob="outerHTML">
         <h5 class="mb-3">Unavailable periods</h5>
-        {renderProfileLeaveRequestsList leaveRequests}
+        {renderSelfServiceLeaveHistory leaveRequests}
     </div>
 |]
 

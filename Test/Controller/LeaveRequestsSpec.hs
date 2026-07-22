@@ -466,7 +466,7 @@ tests = aroundAll withDatabaseTestContext do
                 triggerHeader `shouldSatisfy` maybe False (Text.isInfixOf "\"leaveSection\":\"archive\"")
                 triggerHeader `shouldSatisfy` maybe True (not . Text.isInfixOf "\"leaveSection\":\"pending\"")
 
-        it "creating leave via HTMX updates the actor fragment and bumps the leave scope version" $ withContext do
+        it "creating self-service leave updates actor fragments without manager-scope fanout" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Leave Venue"
                 user <- createUserRecord "leave-htmx-create@example.com" "staff" True
@@ -484,8 +484,7 @@ tests = aroundAll withDatabaseTestContext do
                                 [ ("startDate", "2025-01-13")
                                 , ("endDate", "2025-01-14")
                                 , ("notes", "Family event")
-                                , ("responseContext", "profile")
-                                , ("section", "leave")
+                                , ("responseContext", "self-service")
                                 ]
 
                 response `responseStatusShouldBe` status200
@@ -493,24 +492,21 @@ tests = aroundAll withDatabaseTestContext do
                 let bodyText = cs (LByteString.unpack body)
                 lookup "HX-Reswap" (responseHeaders response) `shouldBe` Just "none"
                 bodyText `shouldNotContain` "id=\"profile-leave\""
-                bodyText `shouldNotContain` "id=\"profile-leave-request-form-fragment\""
-                bodyText `shouldNotContain` "id=\"profile-leave-requests-list-fragment\""
+                bodyText `shouldNotContain` "id=\"self-service-leave-form-fragment\""
+                bodyText `shouldNotContain` "id=\"self-service-leave-history-fragment\""
                 bodyText `shouldContain` "Unavailable period submitted"
-                bodyText `shouldNotContain` "Unavailable periods"
                 bodyText `shouldNotContain` "id=\"profile-content-fragment\""
-                let profileLeaveTriggerHeader = cs <$> lookup "HX-Trigger" (responseHeaders response)
-                profileLeaveTriggerHeader `shouldSatisfy` maybe False (Text.isInfixOf "bepis:live-fragments-refresh")
-                profileLeaveTriggerHeader `shouldSatisfy` maybe False (Text.isInfixOf "profile-leave-section")
-                profileLeaveTriggerHeader `shouldSatisfy` maybe False (Text.isInfixOf "profile-leave")
+                let actorRefreshHeader = cs <$> lookup "HX-Trigger" (responseHeaders response)
+                actorRefreshHeader `shouldSatisfy` maybe False (Text.isInfixOf "self-service-leave-form")
+                actorRefreshHeader `shouldSatisfy` maybe False (Text.isInfixOf "self-service-leave-history")
 
                 versionAfter <- currentLiveUpdateVersion (LeaveLive.leaveRequestsLiveScope (unpackId venue.id))
                 versionAfter `shouldBe` versionBefore
 
-        it "resets the roster self-service form OOB without inventing a roster dependency target" $ withContext do
+        it "resets the shared self-service form and refreshes profile history when mounted" $ withContext do
             withCleanDb do
-                venue <- createVenueWithConfig "Roster Leave Venue"
-                rosterGroup <- ensureVenueDefaultRosterGroup venue
-                user <- createUserRecord "leave-roster-create@example.com" "staff" True
+                venue <- createVenueWithConfig "Shared Leave Venue"
+                user <- createUserRecord "leave-shared-create@example.com" "staff" True
                 _ <- createVenueMembershipRecord venue user "worker"
                 _ <- createStaffRecord venue (Just user) "Rae" "Roster"
 
@@ -519,10 +515,8 @@ tests = aroundAll withDatabaseTestContext do
                         callActionWithParams CreateLeaveRequestAction
                             [ ("startDate", "2025-01-13")
                             , ("endDate", "2025-01-14")
-                            , ("notes", "Roster quick tool")
-                            , ("responseContext", "roster")
-                            , ("rosterGroupId", cs (tshow rosterGroup.id))
-                            , ("weekOffset", "2")
+                            , ("notes", "Shared quick tool")
+                            , ("responseContext", "self-service")
                             ]
 
                 response `responseStatusShouldBe` status200
@@ -530,17 +524,21 @@ tests = aroundAll withDatabaseTestContext do
                 body <- responseBody response
                 let bodyText = cs (LByteString.unpack body)
                 bodyText `shouldContain` "Unavailable period submitted"
-                bodyText `shouldContain` "id=\"roster-staff-self-service-leave-form-fragment\" hx-swap-oob=\"outerHTML\""
+                bodyText `shouldNotContain` "id=\"self-service-leave-form-fragment\""
+                bodyText `shouldNotContain` "id=\"self-service-leave-history-fragment\""
                 bodyText `shouldNotContain` "id=\"roster-content\""
                 bodyText `shouldNotContain` "id=\"profile-leave\""
                 bodyText `shouldNotContain` "id=\"leave-requests-content\""
-                lookup "HX-Trigger" (responseHeaders response) `shouldBe` Nothing
+                let actorRefreshHeader = cs <$> lookup "HX-Trigger" (responseHeaders response)
+                actorRefreshHeader `shouldSatisfy` maybe False (Text.isInfixOf "self-service-leave-form")
+                actorRefreshHeader `shouldSatisfy` maybe False (Text.isInfixOf "self-service-leave-history")
 
-        it "returns the profile leave fragment instead of redirecting when no staff record exists on profile leave submit" $ withContext do
+        it "redirects self-service submission when no operational staff record exists" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Leave Venue"
-                user <- createUserRecord "leave-profile-no-staff@example.com" "staff" False
-                _ <- createVenueMembershipRecord venue user "worker"
+                incompleteUser <- createUserRecord "leave-profile-no-staff@example.com" "staff" False
+                _ <- createVenueMembershipRecord venue incompleteUser "worker"
+                user <- incompleteUser |> set #isProfileCompleted True |> updateRecord
 
                 response <- withUserAndCurrentVenue user venue.id do
                     withRequestHeaders [("HX-Request", "true")] do
@@ -552,15 +550,9 @@ tests = aroundAll withDatabaseTestContext do
                             , ("section", "leave")
                             ]
 
-                response `responseStatusShouldBe` status200
-                body <- responseBody response
-                let bodyText = cs (LByteString.unpack body)
-                bodyText `shouldContain` "id=\"profile-leave-request-form-fragment\""
-                bodyText `shouldContain` "No staff record found. Contact an administrator."
-                bodyText `shouldNotContain` "id=\"profile-content-fragment\""
-                bodyText `shouldNotContain` "id=\"profile-leave\""
+                response `responseStatusShouldBe` status302
 
-        it "infers profile leave context from the HTMX target when responseContext is missing" $ withContext do
+        it "infers shared self-service context from the HTMX target when responseContext is missing" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Leave Venue"
                 user <- createUserRecord "leave-profile-target-inference@example.com" "staff" True
@@ -570,7 +562,7 @@ tests = aroundAll withDatabaseTestContext do
                 response <- withUserAndCurrentVenue user venue.id do
                     withRequestHeaders
                         [ ("HX-Request", "true")
-                        , ("HX-Target", "profile-leave-request-form-fragment")
+                        , ("HX-Target", "self-service-leave-form-fragment")
                         ] do
                             callActionWithParams CreateLeaveRequestAction
                                 [ ("startDate", "2025-01-13")
@@ -583,13 +575,13 @@ tests = aroundAll withDatabaseTestContext do
                 let bodyText = cs (LByteString.unpack body)
                 lookup "HX-Reswap" (responseHeaders response) `shouldBe` Just "none"
                 bodyText `shouldNotContain` "id=\"profile-leave\""
-                bodyText `shouldNotContain` "id=\"profile-leave-request-form-fragment\""
-                bodyText `shouldNotContain` "id=\"profile-leave-requests-list-fragment\""
+                bodyText `shouldNotContain` "id=\"self-service-leave-form-fragment\""
+                bodyText `shouldNotContain` "id=\"self-service-leave-history-fragment\""
                 bodyText `shouldContain` "Unavailable period submitted"
                 bodyText `shouldNotContain` "id=\"leave-requests-content\""
-                bodyText `shouldNotContain` "Pending ("
-                let inferredProfileLeaveTriggerHeader = cs <$> lookup "HX-Trigger" (responseHeaders response)
-                inferredProfileLeaveTriggerHeader `shouldSatisfy` maybe False (Text.isInfixOf "profile-leave-section")
+                let actorRefreshHeader = cs <$> lookup "HX-Trigger" (responseHeaders response)
+                actorRefreshHeader `shouldSatisfy` maybe False (Text.isInfixOf "self-service-leave-form")
+                actorRefreshHeader `shouldSatisfy` maybe False (Text.isInfixOf "self-service-leave-history")
 
         it "manager review actions bump the leave scope version" $ withContext do
             withCleanDb do

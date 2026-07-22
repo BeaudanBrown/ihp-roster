@@ -725,9 +725,9 @@ tests = aroundAll withDatabaseTestContext do
 
                 response `responseStatusShouldBe` status200
                 response `responseBodyShouldContain` ">Alpha<"
-                response `responseBodyShouldContain` "name=\"responseContext\" value=\"roster\""
-                response `responseBodyShouldContain` "name=\"rosterGroupId\""
-                response `responseBodyShouldContain` "name=\"weekOffset\" value=\"0\""
+                response `responseBodyShouldContain` "name=\"responseContext\" value=\"self-service\""
+                response `responseBodyShouldContain` "data-bepis-surface=\"self-service-leave\""
+                response `responseBodyShouldContain` "data-bepis-surface-action=\"create-self-service-leave-request\""
                 response `responseBodyShouldNotContain` "No roster exists for this week yet."
 
         it "hides roster warning controls and highlights from staff" $ withContext do

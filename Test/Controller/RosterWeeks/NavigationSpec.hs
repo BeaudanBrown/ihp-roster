@@ -206,12 +206,13 @@ tests = aroundAll withDatabaseTestContext do
                 response `responseBodyShouldContain` "data-bepis-surface-config=\""
                 response `responseBodyShouldContain` "timesheets:"
                 response `responseBodyShouldContain` "timesheet-day-section"
-                response `responseBodyShouldContain` "data-bepis-surface-action=\"create-roster-self-service-leave-request\""
+                response `responseBodyShouldContain` "data-bepis-surface=\"self-service-leave\""
+                response `responseBodyShouldContain` "data-bepis-surface-action=\"create-self-service-leave-request\""
                 response `responseBodyShouldNotContain` "data-live-update-surface"
 
                 body <- responseBody response
                 let bodyText = cs (LByteString.unpack body)
-                Text.count "data-bepis-surface-config" bodyText `shouldBe` 2
+                Text.count "data-bepis-surface-config" bodyText `shouldBe` 3
 
         it "manager can see draft weeks" $ withContext do
             withCleanDb do

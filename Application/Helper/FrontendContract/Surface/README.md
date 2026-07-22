@@ -395,8 +395,11 @@ actor-local live-fragment refresh metadata through
 shared resource changed. Mutations reporting touched resources use
 `setActorLiveResourcesRefresh`, so actor mount keys and passive subscription keys
 are evaluated by the same planner over the same
-`SurfaceResourceValue`s. Passive invalidation handles other tabs/viewers. OOB
-remains valid for extras such as dialog clears, toasts, disposable-layer cleanup,
+`SurfaceResourceValue`s. A successful workflow that must also reset a
+`ResyncOnly` actor fragment uses `setActorLiveResourcesRefreshIncluding` to
+combine that explicit actor-only key with the resource-planned keys in one
+refresh payload. Passive invalidation handles other tabs/viewers. OOB remains
+valid for extras such as dialog clears, toasts, disposable-layer cleanup,
 focus/scroll hints, and validation-local responses. Plain fragment GET/refetch
 endpoints should return the target node itself, not OOB wrappers.
 
@@ -735,16 +738,16 @@ request parser delegating to `parseSurfaceActionParams` or
 `parseSurfaceIntentParams`. Each operation has an explicit generated/excluded
 decision, and every exclusion requires a non-empty reason.
 
-The production inventory contains all 53 checked actions and all five checked
-intents. Forty-eight actions have Haskell adapter consumers; the five action
+The production inventory contains all 52 checked actions and all five checked
+intents. Forty-seven actions have Haskell adapter consumers; the five action
 declarations backing the same-named interaction intents remain typed,
 reason-bearing declaration exclusions. Exactly one checked home is registered
 for each eligible action across the Admin, LeaveRequests, Profile, Roster,
-Support, and Timesheets families. All 48 provide generated field-builder and
-render-metadata operations; 33 provide exact parsers and the other 15 retain
-typed, operation-specific no-parser reasons. Production callers use the six
-curated `Action` facades: the former 33 generic parser calls and 50 generic
-metadata calls under `Web/` are both zero, enforced by source guardrails.
+SelfServiceLeave, Support, and Timesheets families. All 47 provide generated
+field-builder and render-metadata operations; 32 provide exact parsers and the
+other 15 retain typed, operation-specific no-parser reasons. Production callers
+use the seven curated `Action` facades: generic parser and metadata calls under
+`Web/` are both zero, enforced by source guardrails.
 
 All five intents have exactly one checked production home across the Roster and
 Roster day-timeline families. Each emits its inventoried builder, form metadata,

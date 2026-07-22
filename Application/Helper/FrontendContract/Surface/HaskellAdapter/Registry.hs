@@ -32,6 +32,8 @@ import qualified Application.Helper.FrontendContract.Surface.Profile as Profile
 import Application.Helper.FrontendContract.Surface.Profile.HaskellAdapter
 import qualified Application.Helper.FrontendContract.Surface.Roster as Roster
 import Application.Helper.FrontendContract.Surface.Roster.HaskellAdapter
+import qualified Application.Helper.FrontendContract.Surface.SelfServiceLeave as SelfServiceLeave
+import Application.Helper.FrontendContract.Surface.SelfServiceLeave.HaskellAdapter
 import qualified Application.Helper.FrontendContract.Surface.Support as Support
 import Application.Helper.FrontendContract.Surface.Support.HaskellAdapter
 import qualified Application.Helper.FrontendContract.Surface.Timesheets as Timesheets
@@ -43,6 +45,7 @@ type RegisteredSurfaceAdapterFamilies =
      , RosterAdapterFamily
      , RosterDayTimelineAdapterFamily
      , LeaveRequestsAdapterFamily
+     , SelfServiceLeaveAdapterFamily
      , BillingAdapterFamily
      , SupportAdapterFamily
      , ProfileAdapterFamily
@@ -74,6 +77,7 @@ type RegisteredSurfaceScopeAdapterHomes =
      , SurfaceScopeAdapterHome RosterAdapterFamily Roster.RosterWeek
      , SurfaceScopeAdapterHome RosterDayTimelineAdapterFamily Roster.RosterDayTimeline
      , SurfaceScopeAdapterHome LeaveRequestsAdapterFamily LeaveRequests.LeaveRequestsScope
+     , SurfaceScopeAdapterHome SelfServiceLeaveAdapterFamily SelfServiceLeave.SelfServiceLeaveScope
      , SurfaceScopeAdapterHome BillingAdapterFamily Billing.BillingVenue
      , SurfaceScopeAdapterHome SupportAdapterFamily Support.SupportPlatform
      , SurfaceScopeAdapterHome ProfileAdapterFamily Profile.ProfileScope
@@ -100,12 +104,13 @@ type RegisteredSurfaceFragmentAdapterHomes =
      , SurfaceFragmentAdapterHome RosterAdapterFamily Roster.RosterWageRail
      , SurfaceFragmentAdapterHome RosterAdapterFamily Roster.RosterSlotsGrid
      , SurfaceFragmentAdapterHome RosterAdapterFamily Roster.RosterStaffPanel
-     , SurfaceFragmentAdapterHome RosterAdapterFamily Roster.RosterStaffSelfServiceLeaveFormFragment
      , SurfaceFragmentAdapterHome RosterAdapterFamily Roster.RosterDaySection
      , SurfaceFragmentAdapterHome RosterAdapterFamily Roster.RosterRow
      , SurfaceFragmentAdapterHome RosterDayTimelineAdapterFamily Roster.RosterDayTimelineContent
      , SurfaceFragmentAdapterHome LeaveRequestsAdapterFamily LeaveRequests.LeaveSectionCount
      , SurfaceFragmentAdapterHome LeaveRequestsAdapterFamily LeaveRequests.LeaveSectionList
+     , SurfaceFragmentAdapterHome SelfServiceLeaveAdapterFamily SelfServiceLeave.SelfServiceLeaveFormFragment
+     , SurfaceFragmentAdapterHome SelfServiceLeaveAdapterFamily SelfServiceLeave.SelfServiceLeaveHistoryFragment
      , SurfaceFragmentAdapterHome BillingAdapterFamily Billing.BillingStatus
      , SurfaceFragmentAdapterHome SupportAdapterFamily Support.SupportAwardRates
      , SurfaceFragmentAdapterHome SupportAdapterFamily Support.SupportPublicHolidays
@@ -145,7 +150,7 @@ type RegisteredSurfaceResourceAdapterHomes =
      , SurfaceResourceAdapterHome SupportAdapterFamily Support.SupportPublicHolidays
      , SurfaceResourceAdapterHome ProfileAdapterFamily Profile.StaffProfile
      , SurfaceResourceAdapterHome ProfileAdapterFamily Profile.StaffPreferences
-     , SurfaceResourceAdapterHome ProfileAdapterFamily Profile.StaffLeaveRequests
+     , SurfaceResourceAdapterHome SelfServiceLeaveAdapterFamily SelfServiceLeave.StaffLeaveRequests
      , SurfaceResourceAdapterHome ProfileAdapterFamily Profile.StaffRsaDocuments
      , SurfaceResourceAdapterHome AdminVenueSettingsAdapterFamily Admin.AdminVenueSettings
      , SurfaceResourceAdapterHome AdminInvitesAdapterFamily Admin.AdminInvites
@@ -168,7 +173,6 @@ type RegisteredSurfaceActionAdapterHomes =
      , SurfaceActionAdapterHome RosterAdapterFamily Roster.ToggleRosterWeekLiveStatus
      , SurfaceActionAdapterHome RosterAdapterFamily Roster.ToggleRosterAssignmentFilters
      , SurfaceActionAdapterHome RosterAdapterFamily Roster.CopyRosterWeek
-     , SurfaceActionAdapterHome RosterAdapterFamily Roster.CreateRosterSelfServiceLeaveRequest
      , SurfaceActionAdapterHome RosterAdapterFamily Roster.CreateRosterWeekSlotDefinition
      , SurfaceActionAdapterHome RosterAdapterFamily Roster.DeleteRosterWeekSlotDefinition
      , SurfaceActionAdapterHome RosterAdapterFamily Roster.ToggleRosterDayClosed
@@ -178,11 +182,11 @@ type RegisteredSurfaceActionAdapterHomes =
      , SurfaceActionAdapterHome LeaveRequestsAdapterFamily LeaveRequests.ArchiveLeaveRequestsPage
      , SurfaceActionAdapterHome LeaveRequestsAdapterFamily LeaveRequests.ApproveLeaveRequest
      , SurfaceActionAdapterHome LeaveRequestsAdapterFamily LeaveRequests.DenyLeaveRequest
+     , SurfaceActionAdapterHome SelfServiceLeaveAdapterFamily SelfServiceLeave.CreateSelfServiceLeaveRequest
      , SurfaceActionAdapterHome SupportAdapterFamily Support.CreatePublicHolidayRefreshJob
      , SurfaceActionAdapterHome SupportAdapterFamily Support.CreateFwcMapdRefreshJob
      , SurfaceActionAdapterHome ProfileAdapterFamily Profile.UpdateProfileDetails
      , SurfaceActionAdapterHome ProfileAdapterFamily Profile.UpdateProfileShiftPreferences
-     , SurfaceActionAdapterHome ProfileAdapterFamily Profile.CreateProfileLeaveRequest
      , SurfaceActionAdapterHome StaffAdapterFamily Profile.UpdateStaffProfile
      , SurfaceActionAdapterHome StaffAdapterFamily Profile.UpdateStaffShiftPreferences
      , SurfaceActionAdapterHome StaffAdapterFamily Profile.CreateStaffLeaveRequest
@@ -207,7 +211,7 @@ type RegisteredSurfaceActionAdapterHomes =
      ]
 
 -- Every eligible Action emits builders and render metadata. The exact parser
--- inventory contains 33 generated operations and 15 typed exclusions for
+-- inventory contains 32 generated operations and 15 typed exclusions for
 -- declarations whose current endpoint consumes no complete Surface envelope.
 registeredSurfaceActionAdapterRegistrations :: [SurfaceRequestAdapterRegistration 'ActionAdapterKind]
 registeredSurfaceActionAdapterRegistrations =
@@ -225,7 +229,6 @@ registeredSurfaceActionAdapterRegistrations =
     , surfaceActionAdapter @RosterAdapterFamily @Roster.ToggleRosterAssignmentFilters allRequestAdapterOperations
     , surfaceActionAdapter @RosterAdapterFamily @Roster.CopyRosterWeek
         (requestAdapterOperationsWithoutParser "The zero-field copy endpoint consumes route context and has no Surface request parser")
-    , surfaceActionAdapter @RosterAdapterFamily @Roster.CreateRosterSelfServiceLeaveRequest allRequestAdapterOperations
     , surfaceActionAdapter @RosterAdapterFamily @Roster.CreateRosterWeekSlotDefinition
         (requestAdapterOperationsWithoutParser "The zero-field slot creation endpoint consumes route context and has no Surface request parser")
     , surfaceActionAdapter @RosterAdapterFamily @Roster.DeleteRosterWeekSlotDefinition
@@ -247,13 +250,13 @@ registeredSurfaceActionAdapterRegistrations =
         (requestAdapterOperationsWithoutParser "The zero-field approval endpoint consumes its route id and has no Surface request parser")
     , surfaceActionAdapter @LeaveRequestsAdapterFamily @LeaveRequests.DenyLeaveRequest
         (requestAdapterOperationsWithoutParser "The zero-field denial endpoint consumes its route id and has no Surface request parser")
+    , surfaceActionAdapter @SelfServiceLeaveAdapterFamily @SelfServiceLeave.CreateSelfServiceLeaveRequest allRequestAdapterOperations
     , surfaceActionAdapter @SupportAdapterFamily @Support.CreatePublicHolidayRefreshJob
         (requestAdapterOperationsWithoutParser "The zero-field refresh endpoint has no Surface request parser")
     , surfaceActionAdapter @SupportAdapterFamily @Support.CreateFwcMapdRefreshJob
         (requestAdapterOperationsWithoutParser "The zero-field refresh endpoint has no Surface request parser")
     , surfaceActionAdapter @ProfileAdapterFamily @Profile.UpdateProfileDetails allRequestAdapterOperations
     , surfaceActionAdapter @ProfileAdapterFamily @Profile.UpdateProfileShiftPreferences allRequestAdapterOperations
-    , surfaceActionAdapter @ProfileAdapterFamily @Profile.CreateProfileLeaveRequest allRequestAdapterOperations
     , surfaceActionAdapter @StaffAdapterFamily @Profile.UpdateStaffProfile allRequestAdapterOperations
     , surfaceActionAdapter @StaffAdapterFamily @Profile.UpdateStaffShiftPreferences allRequestAdapterOperations
     , surfaceActionAdapter @StaffAdapterFamily @Profile.CreateStaffLeaveRequest allRequestAdapterOperations
