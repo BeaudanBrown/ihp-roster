@@ -40,9 +40,9 @@ data StripeWebhookEvent = StripeWebhookEvent
     deriving (Eq, Show)
 
 data StripeObjectSnapshot = StripeObjectSnapshot
-    { stripeObjectType               :: !(Maybe Text)
+    { stripeObjectType               :: !Text
     , stripeObjectId                 :: !(Maybe Text)
-    , stripeObjectLivemode           :: !(Maybe Bool)
+    , stripeObjectLivemode           :: !Bool
     , stripeObjectPriceLivemode      :: !(Maybe Bool)
     , stripeObjectCustomerId         :: !(Maybe Text)
     , stripeObjectSubscriptionId     :: !(Maybe Text)
@@ -59,6 +59,8 @@ data StripeObjectSnapshot = StripeObjectSnapshot
 instance Aeson.FromJSON StripeWebhookEvent where
     parseJSON =
         Aeson.withObject "StripeWebhookEvent" \object -> do
+            eventObjectType <- object Aeson..: "object"
+            unless (eventObjectType == ("event" :: Text)) (fail "Stripe webhook root object discriminator must be event")
             dataObject <- object Aeson..: "data"
             stripeObject <- dataObject Aeson..: "object"
             StripeWebhookEvent
@@ -74,13 +76,13 @@ parseStripeObjectSnapshot stripeObject =
   where
     parseObject originalValue object = do
         metadata <- object Aeson..:? "metadata" Aeson..!= Aeson.Object mempty
-        objectType <- object Aeson..:? "object"
+        objectType <- object Aeson..: "object"
         subscriptionContract <-
             case objectType of
-                Just "subscription" -> Just <$> (Aeson.parseJSON originalValue :: AesonTypes.Parser StripeSubscription)
+                "subscription" -> Just <$> (Aeson.parseJSON originalValue :: AesonTypes.Parser StripeSubscription)
                 _ -> pure Nothing
         objectId <- object Aeson..:? "id"
-        objectLivemode <- object Aeson..:? "livemode"
+        objectLivemode <- object Aeson..: "livemode"
         customerId <- object Aeson..:? "customer"
         subscriptionId <- object Aeson..:? "subscription"
         clientReferenceId <- object Aeson..:? "client_reference_id"
@@ -94,7 +96,7 @@ parseStripeObjectSnapshot stripeObject =
             StripeObjectSnapshot
                 { stripeObjectType = objectType
                 , stripeObjectId = objectId
-                , stripeObjectLivemode = maybe objectLivemode (Just . (.stripeSubscriptionLivemode)) subscriptionContract
+                , stripeObjectLivemode = maybe objectLivemode (.stripeSubscriptionLivemode) subscriptionContract
                 , stripeObjectPriceLivemode = (.stripeSubscriptionPriceLivemode) <$> subscriptionContract
                 , stripeObjectCustomerId = maybe customerId (Just . (.stripeSubscriptionCustomerId)) subscriptionContract
                 , stripeObjectSubscriptionId = maybe subscriptionId (Just . (.stripeSubscriptionId)) subscriptionContract
@@ -154,13 +156,22 @@ validateStripeWebhookContract expectedMode event = do
         Left "Stripe webhook API version does not match the pinned billing contract"
     unless (event.stripeLivemode == stripeModeIsLive expectedMode) do
         Left "Stripe webhook mode does not match the configured billing mode"
-    forM_ event.stripeObjectSnapshot.stripeObjectLivemode \objectLivemode ->
-        unless (objectLivemode == event.stripeLivemode) do
-            Left "Stripe webhook object mode does not match the event mode"
+    unless (event.stripeObjectSnapshot.stripeObjectLivemode == event.stripeLivemode) do
+        Left "Stripe webhook object mode does not match the event mode"
+    forM_ (expectedSnapshotObjectType event.stripeEventType) \expectedObjectType ->
+        unless (event.stripeObjectSnapshot.stripeObjectType == expectedObjectType) do
+            Left "Stripe webhook snapshot object discriminator does not match the event type"
     forM_ event.stripeObjectSnapshot.stripeObjectPriceLivemode \priceLivemode ->
         unless (priceLivemode == event.stripeLivemode) do
             Left "Stripe webhook Subscription Item Price mode does not match the event mode"
     pure event
+
+expectedSnapshotObjectType :: Text -> Maybe Text
+expectedSnapshotObjectType eventType
+    | eventType `elem` ["checkout.session.completed", "checkout.session.async_payment_succeeded", "checkout.session.async_payment_failed"] = Just "checkout.session"
+    | eventType `elem` ["customer.subscription.created", "customer.subscription.updated", "customer.subscription.deleted"] = Just "subscription"
+    | eventType == "invoice.payment_failed" = Just "invoice"
+    | otherwise = Nothing
 
 processStripeWebhookEvent :: (?modelContext :: ModelContext) => StripeWebhookEvent -> IO BillingWebhookResult
 processStripeWebhookEvent event = do
@@ -203,7 +214,7 @@ createBillingEventRecord event maybeVenue =
         |> set #eventType event.stripeEventType
         |> set #livemode event.stripeLivemode
         |> set #apiVersion event.stripeApiVersion
-        |> set #providerObjectType event.stripeObjectSnapshot.stripeObjectType
+        |> set #providerObjectType (Just event.stripeObjectSnapshot.stripeObjectType)
         |> set #providerObjectId event.stripeObjectSnapshot.stripeObjectId
         |> set #venueId (unpackId . (.id) <$> maybeVenue)
         |> set #stripeCustomerId event.stripeObjectSnapshot.stripeObjectCustomerId

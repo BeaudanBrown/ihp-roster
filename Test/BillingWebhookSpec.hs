@@ -172,6 +172,35 @@ tests = aroundAll withDatabaseTestContext do
                 subscriptionCount <- query @VenueSubscription |> fetchCount
                 subscriptionCount `shouldBe` 0
 
+        it "rejects signed webhook snapshots with no explicit Stripe mode" $ withContext do
+            withCleanDb do
+                let eventBody = checkoutSessionEventWithoutSnapshotLivemode "evt_missing_snapshot_mode" "cus_missing_snapshot_mode" "sub_missing_snapshot_mode"
+                signatureHeader <- signedStripeHeader testStripeConfig.webhookSecret eventBody
+
+                response <- withStripeConfigForTest (Right testStripeConfig) do
+                    callStripeWebhookWithJsonBody eventBody signatureHeader
+
+                response `responseStatusShouldBe` status400
+                eventCount <- query @BillingEvent |> fetchCount
+                eventCount `shouldBe` 0
+
+        it "rejects wrong Stripe Event and supported snapshot object discriminators" $ withContext do
+            withCleanDb do
+                let wrongEventObject = checkoutSessionEventWithObjectTypes "customer" "checkout.session" "evt_wrong_event_object"
+                eventSignature <- signedStripeHeader testStripeConfig.webhookSecret wrongEventObject
+                eventResponse <- withStripeConfigForTest (Right testStripeConfig) do
+                    callStripeWebhookWithJsonBody wrongEventObject eventSignature
+
+                let wrongSnapshotObject = checkoutSessionEventWithObjectTypes "event" "customer" "evt_wrong_snapshot_object"
+                snapshotSignature <- signedStripeHeader testStripeConfig.webhookSecret wrongSnapshotObject
+                snapshotResponse <- withStripeConfigForTest (Right testStripeConfig) do
+                    callStripeWebhookWithJsonBody wrongSnapshotObject snapshotSignature
+
+                eventResponse `responseStatusShouldBe` status400
+                snapshotResponse `responseStatusShouldBe` status400
+                eventCount <- query @BillingEvent |> fetchCount
+                eventCount `shouldBe` 0
+
         it "rejects signed webhook events with no explicit Stripe mode" $ withContext do
             withCleanDb do
                 let eventBody = checkoutSessionEventWithoutLivemode "evt_missing_provider_mode" "cus_missing_mode_123" "sub_missing_mode_123"
@@ -294,6 +323,7 @@ subscriptionEventWithPriceLivemode priceLivemode eventId venue customerId subscr
     Aeson.encode $
         Aeson.object
             [ "id" Aeson..= eventId
+            , "object" Aeson..= ("event" :: Text)
             , "type" Aeson..= ("customer.subscription.updated" :: Text)
             , "livemode" Aeson..= False
             , "api_version" Aeson..= pinnedStripeApiVersion
@@ -350,6 +380,7 @@ checkoutSessionEventWithApiVersion apiVersion eventId customerId subscriptionId 
     Aeson.encode $
         Aeson.object
             [ "id" Aeson..= eventId
+            , "object" Aeson..= ("event" :: Text)
             , "type" Aeson..= ("checkout.session.completed" :: Text)
             , "livemode" Aeson..= False
             , "api_version" Aeson..= apiVersion
@@ -359,8 +390,54 @@ checkoutSessionEventWithApiVersion apiVersion eventId customerId subscriptionId 
                         Aeson.object
                             [ "object" Aeson..= ("checkout.session" :: Text)
                             , "id" Aeson..= ("cs_controller_123" :: Text)
+                            , "livemode" Aeson..= False
                             , "customer" Aeson..= customerId
                             , "subscription" Aeson..= subscriptionId
+                            , "status" Aeson..= ("complete" :: Text)
+                            ]
+                    ]
+            ]
+
+checkoutSessionEventWithoutSnapshotLivemode :: Text -> Text -> Text -> LByteString.ByteString
+checkoutSessionEventWithoutSnapshotLivemode eventId customerId subscriptionId =
+    Aeson.encode $
+        Aeson.object
+            [ "id" Aeson..= eventId
+            , "object" Aeson..= ("event" :: Text)
+            , "type" Aeson..= ("checkout.session.completed" :: Text)
+            , "livemode" Aeson..= False
+            , "api_version" Aeson..= pinnedStripeApiVersion
+            , "data" Aeson..=
+                Aeson.object
+                    [ "object" Aeson..=
+                        Aeson.object
+                            [ "object" Aeson..= ("checkout.session" :: Text)
+                            , "id" Aeson..= ("cs_missing_snapshot_mode" :: Text)
+                            , "customer" Aeson..= customerId
+                            , "subscription" Aeson..= subscriptionId
+                            , "status" Aeson..= ("complete" :: Text)
+                            ]
+                    ]
+            ]
+
+checkoutSessionEventWithObjectTypes :: Text -> Text -> Text -> LByteString.ByteString
+checkoutSessionEventWithObjectTypes eventObjectType snapshotObjectType eventId =
+    Aeson.encode $
+        Aeson.object
+            [ "id" Aeson..= eventId
+            , "object" Aeson..= eventObjectType
+            , "type" Aeson..= ("checkout.session.completed" :: Text)
+            , "livemode" Aeson..= False
+            , "api_version" Aeson..= pinnedStripeApiVersion
+            , "data" Aeson..=
+                Aeson.object
+                    [ "object" Aeson..=
+                        Aeson.object
+                            [ "object" Aeson..= snapshotObjectType
+                            , "id" Aeson..= ("cs_wrong_object" :: Text)
+                            , "livemode" Aeson..= False
+                            , "customer" Aeson..= ("cus_wrong_object" :: Text)
+                            , "subscription" Aeson..= ("sub_wrong_object" :: Text)
                             , "status" Aeson..= ("complete" :: Text)
                             ]
                     ]
@@ -371,6 +448,7 @@ checkoutSessionEventWithoutLivemode eventId customerId subscriptionId =
     Aeson.encode $
         Aeson.object
             [ "id" Aeson..= eventId
+            , "object" Aeson..= ("event" :: Text)
             , "type" Aeson..= ("checkout.session.completed" :: Text)
             , "api_version" Aeson..= pinnedStripeApiVersion
             , "data" Aeson..=
@@ -379,6 +457,7 @@ checkoutSessionEventWithoutLivemode eventId customerId subscriptionId =
                         Aeson.object
                             [ "object" Aeson..= ("checkout.session" :: Text)
                             , "id" Aeson..= ("cs_missing_mode_123" :: Text)
+                            , "livemode" Aeson..= False
                             , "customer" Aeson..= customerId
                             , "subscription" Aeson..= subscriptionId
                             , "status" Aeson..= ("complete" :: Text)
@@ -391,6 +470,7 @@ invoicePaymentFailedEvent eventId customerId =
     Aeson.encode $
         Aeson.object
             [ "id" Aeson..= eventId
+            , "object" Aeson..= ("event" :: Text)
             , "type" Aeson..= ("invoice.payment_failed" :: Text)
             , "livemode" Aeson..= False
             , "api_version" Aeson..= pinnedStripeApiVersion
@@ -400,6 +480,7 @@ invoicePaymentFailedEvent eventId customerId =
                         Aeson.object
                             [ "object" Aeson..= ("invoice" :: Text)
                             , "id" Aeson..= ("in_failed_123" :: Text)
+                            , "livemode" Aeson..= False
                             , "customer" Aeson..= customerId
                             , "subscription" Aeson..= ("sub_failed_123" :: Text)
                             ]
@@ -411,6 +492,7 @@ unknownEvent eventId venue =
     Aeson.encode $
         Aeson.object
             [ "id" Aeson..= eventId
+            , "object" Aeson..= ("event" :: Text)
             , "type" Aeson..= ("customer.created" :: Text)
             , "livemode" Aeson..= False
             , "api_version" Aeson..= pinnedStripeApiVersion
@@ -420,6 +502,7 @@ unknownEvent eventId venue =
                         Aeson.object
                             [ "object" Aeson..= ("customer" :: Text)
                             , "id" Aeson..= ("cus_ignored_123" :: Text)
+                            , "livemode" Aeson..= False
                             , "metadata" Aeson..= Aeson.object ["venue_id" Aeson..= inputValue venue.id]
                             ]
                     ]

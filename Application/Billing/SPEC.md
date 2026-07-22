@@ -49,10 +49,13 @@ pinned Price, Customer v1, hosted Checkout Session, Customer Portal Session,
 and Subscription fields used by Bepis remain represented in offline contract
 fixtures under `Test/Fixtures/stripe/2026-06-24.dahlia/`.
 
-Snapshot webhook events must declare `api_version = 2026-06-24.dahlia`.
-Missing or different versions are rejected before any billing event or
-subscription state is persisted. The Stripe Dashboard webhook endpoint must be
-configured to emit this same version.
+Snapshot webhook events must declare `object = event`,
+`api_version = 2026-06-24.dahlia`, and explicit event/snapshot `livemode`.
+Supported event types must carry the expected snapshot object discriminator
+(`checkout.session`, `subscription`, or `invoice`). Missing or different
+contract fields are rejected before any billing event or subscription state is
+persisted. The Stripe Dashboard webhook endpoint must be configured to emit
+this same version.
 
 Primary references:
 
