@@ -69,6 +69,27 @@ tests =
                         fmap (.priceLookupKey) result `shouldBe` Right Nothing
                         fmap (.priceId) result `shouldBe` Right (Just "price_direct")
 
+            it "rejects simultaneous Price lookup key and direct Price ID" do
+                withStripeEnv
+                    [ ("STRIPE_SECRET_KEY_FILE", Nothing)
+                    , ("STRIPE_WEBHOOK_SECRET_FILE", Nothing)
+                    , ("STRIPE_SECRET_KEY", Just "sk_test_not_a_real_key")
+                    , ("STRIPE_WEBHOOK_SECRET", Just "whsec_not_a_real_secret")
+                    , ("STRIPE_PRICE_LOOKUP_KEY", Just "bepis_venue_monthly_aud_100")
+                    , ("STRIPE_PRICE_ID", Just "price_direct")
+                    , ("STRIPE_MODE", Just "test")
+                    , ("STRIPE_BILLING_ENABLED", Just "true")
+                    , ("STRIPE_CHECKOUT_ENABLED", Just "true")
+                    , ("STRIPE_OWNER_NAVIGATION_VISIBLE", Just "false")
+                    , ("APP_BASE_URL", Just "http://localhost:8000")
+                    ]
+                    do
+                        result <- readStripeConfig
+
+                        case result of
+                            Left message -> message `shouldBe` "Configure exactly one of STRIPE_PRICE_LOOKUP_KEY or STRIPE_PRICE_ID"
+                            Right _ -> expectationFailure "expected ambiguous Stripe Price configuration to be rejected"
+
             it "rejects live credentials when Stripe is configured for test mode" do
                 withStripeEnv
                     [ ("STRIPE_SECRET_KEY_FILE", Nothing)

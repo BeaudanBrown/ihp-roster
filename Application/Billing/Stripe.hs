@@ -44,7 +44,6 @@ module Application.Billing.Stripe
     )
 where
 
-import Control.Applicative ((<|>))
 import qualified Control.Exception as Exception
 import qualified "crypton" Crypto.Hash as Hash
 import "crypton" Crypto.MAC.HMAC (HMAC, hmac)
@@ -422,12 +421,13 @@ readEnabledStripeConfig stripeDeploymentControls stripeMode = do
             validateStripeSecretKey stripeMode secretKey
             validateStripeWebhookSecret webhookSecret
             validateStripeAppBaseUrl stripeMode appBaseUrl
+            (priceLookupKey, priceId) <- validateStripePriceConfiguration maybeLookupKey maybePriceId
             Right
                 StripeConfig
                     { secretKey
                     , webhookSecret
-                    , priceLookupKey = maybeLookupKey <|> if isJust maybePriceId then Nothing else Just defaultPriceLookupKey
-                    , priceId = maybePriceId
+                    , priceLookupKey
+                    , priceId
                     , appBaseUrl
                     , stripeMode
                     , stripeDeploymentControls
@@ -435,6 +435,13 @@ readEnabledStripeConfig stripeDeploymentControls stripeMode = do
         (Left err, _) -> Left err
         (_, Left err) -> Left err
         _ -> Left "Stripe is not configured. Set STRIPE_SECRET_KEY_FILE and STRIPE_WEBHOOK_SECRET_FILE, or dev/test STRIPE_SECRET_KEY and STRIPE_WEBHOOK_SECRET."
+
+validateStripePriceConfiguration :: Maybe Text -> Maybe Text -> Either Text (Maybe Text, Maybe Text)
+validateStripePriceConfiguration maybeLookupKey maybePriceId =
+    case (maybeLookupKey, maybePriceId) of
+        (Just _, Just _) -> Left "Configure exactly one of STRIPE_PRICE_LOOKUP_KEY or STRIPE_PRICE_ID"
+        (Nothing, Nothing) -> Right (Just defaultPriceLookupKey, Nothing)
+        configured -> Right configured
 
 validateStripeSecretKey :: StripeMode -> Text -> Either Text ()
 validateStripeSecretKey StripeTestMode key
