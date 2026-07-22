@@ -310,9 +310,11 @@ subscriptionEventWithPriceLivemode priceLivemode eventId venue customerId subscr
                             , "metadata" Aeson..= Aeson.object ["venue_id" Aeson..= inputValue venue.id]
                             , "items" Aeson..=
                                 Aeson.object
-                                    [ "data" Aeson..=
+                                    [ "object" Aeson..= ("list" :: Text)
+                                    , "data" Aeson..=
                                         [ Aeson.object
-                                            [ "current_period_start" Aeson..= (1760000000 :: Integer)
+                                            [ "object" Aeson..= ("subscription_item" :: Text)
+                                            , "current_period_start" Aeson..= (1760000000 :: Integer)
                                             , "current_period_end" Aeson..= (1762592000 :: Integer)
                                             , "price" Aeson..= monthlyPriceObject
                                             , "quantity" Aeson..= (1 :: Int)
@@ -326,6 +328,7 @@ subscriptionEventWithPriceLivemode priceLivemode eventId venue customerId subscr
     monthlyPriceObject =
         Aeson.object
             [ "id" Aeson..= ("price_monthly_123" :: Text)
+            , "object" Aeson..= ("price" :: Text)
             , "active" Aeson..= True
             , "currency" Aeson..= ("aud" :: Text)
             , "livemode" Aeson..= priceLivemode

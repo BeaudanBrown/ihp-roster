@@ -151,7 +151,8 @@ data StripePrice = StripePrice
     deriving (Eq, Show)
 
 instance Aeson.FromJSON StripePrice where
-    parseJSON = Aeson.withObject "StripePrice" \object ->
+    parseJSON = Aeson.withObject "StripePrice" \object -> do
+        expectStripeObjectType object "price"
         StripePrice
             <$> object Aeson..: "id"
             <*> object Aeson..: "livemode"
@@ -165,7 +166,8 @@ newtype StripePriceList = StripePriceList { prices :: [StripePrice] }
     deriving (Eq, Show)
 
 instance Aeson.FromJSON StripePriceList where
-    parseJSON = Aeson.withObject "StripePriceList" \object ->
+    parseJSON = Aeson.withObject "StripePriceList" \object -> do
+        expectStripeObjectType object "list"
         StripePriceList <$> object Aeson..: "data"
 
 data StripeCustomer = StripeCustomer
@@ -175,7 +177,8 @@ data StripeCustomer = StripeCustomer
     deriving (Eq, Show)
 
 instance Aeson.FromJSON StripeCustomer where
-    parseJSON = Aeson.withObject "StripeCustomer" \object ->
+    parseJSON = Aeson.withObject "StripeCustomer" \object -> do
+        expectStripeObjectType object "customer"
         StripeCustomer
             <$> object Aeson..: "id"
             <*> object Aeson..: "livemode"
@@ -192,7 +195,8 @@ data StripeCheckoutSession = StripeCheckoutSession
     deriving (Eq, Show)
 
 instance Aeson.FromJSON StripeCheckoutSession where
-    parseJSON = Aeson.withObject "StripeCheckoutSession" \object ->
+    parseJSON = Aeson.withObject "StripeCheckoutSession" \object -> do
+        expectStripeObjectType object "checkout.session"
         StripeCheckoutSession
             <$> object Aeson..: "id"
             <*> object Aeson..:? "url"
@@ -210,7 +214,8 @@ data StripePortalSession = StripePortalSession
     deriving (Eq, Show)
 
 instance Aeson.FromJSON StripePortalSession where
-    parseJSON = Aeson.withObject "StripePortalSession" \object ->
+    parseJSON = Aeson.withObject "StripePortalSession" \object -> do
+        expectStripeObjectType object "billing_portal.session"
         StripePortalSession
             <$> object Aeson..: "id"
             <*> object Aeson..: "url"
@@ -231,6 +236,7 @@ data StripeSubscription = StripeSubscription
 
 instance Aeson.FromJSON StripeSubscription where
     parseJSON = Aeson.withObject "StripeSubscription" \object -> do
+        expectStripeObjectType object "subscription"
         item <- object Aeson..: "items" >>= parseSingleSubscriptionItem
         unless (item.subscriptionItemQuantity == 1) (fail "Stripe Subscription item quantity must be one")
         case validateVenueMonthlyPrice item.subscriptionItemPrice of
@@ -255,7 +261,8 @@ data StripeSubscriptionItem = StripeSubscriptionItem
     }
 
 instance Aeson.FromJSON StripeSubscriptionItem where
-    parseJSON = Aeson.withObject "StripeSubscriptionItem" \object ->
+    parseJSON = Aeson.withObject "StripeSubscriptionItem" \object -> do
+        expectStripeObjectType object "subscription_item"
         StripeSubscriptionItem
             <$> object Aeson..: "price"
             <*> object Aeson..: "quantity"
@@ -264,11 +271,17 @@ instance Aeson.FromJSON StripeSubscriptionItem where
 
 parseSingleSubscriptionItem :: Aeson.Value -> AesonTypes.Parser StripeSubscriptionItem
 parseSingleSubscriptionItem = Aeson.withObject "StripeSubscriptionItems" \object -> do
+    expectStripeObjectType object "list"
     items <- object Aeson..: "data"
     case items of
         [item] -> Aeson.parseJSON item
         []     -> fail "Stripe Subscription must contain one fixed-price item"
         _      -> fail "Stripe Subscription must not contain multiple items"
+
+expectStripeObjectType :: Aeson.Object -> Text -> AesonTypes.Parser ()
+expectStripeObjectType object expectedType = do
+    actualType <- object Aeson..: "object"
+    unless (actualType == expectedType) (fail "Stripe response object discriminator did not match the expected contract")
 
 data StripeClientError
     = StripeHttpError !Text

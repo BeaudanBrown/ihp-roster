@@ -19,6 +19,10 @@ tests =
             prices `shouldBe` Right [validPrice]
             fmap (map validateVenueMonthlyPrice) prices `shouldBe` Right [Right validPrice]
 
+            retrievedPrice <- retrievePrice client testConfig "price_valid"
+            retrievedPrice `shouldBe` Right validPrice
+            fmap validateVenueMonthlyPrice retrievedPrice `shouldBe` Right (Right validPrice)
+
             customer <- createCustomer client testConfig "venue-123" "Venue Name"
             customer
                 `shouldBe` Right StripeCustomer
@@ -88,9 +92,25 @@ tests =
 
             assertStripeMockConsumed mock
 
+        it "rejects responses whose Stripe object discriminator is wrong" do
+            let wrongPrice = "{\"id\":\"price_wrong_object\",\"object\":\"customer\",\"active\":true,\"currency\":\"aud\",\"livemode\":false,\"unit_amount\":10000,\"type\":\"recurring\",\"recurring\":{\"interval\":\"month\",\"interval_count\":1,\"usage_type\":\"licensed\"}}"
+            let wrongCustomer = "{\"id\":\"cus_wrong_object\",\"object\":\"price\",\"livemode\":false}"
+            let wrongCheckout = "{\"id\":\"cs_wrong_object\",\"object\":\"customer\",\"url\":null,\"customer\":null,\"subscription\":null,\"livemode\":false,\"mode\":\"subscription\",\"status\":\"open\"}"
+            let wrongPortal = "{\"id\":\"bps_wrong_object\",\"object\":\"customer\",\"url\":\"https://billing.stripe.com/p/session/sanitized\",\"livemode\":false}"
+
+            price <- retrievePrice (fixtureClient wrongPrice) testConfig "price_wrong_object"
+            customer <- createCustomer (fixtureClient wrongCustomer) testConfig "venue-123" "Venue Name"
+            checkout <- createCheckoutSession (fixtureClient wrongCheckout) testConfig "venue-123" "cus_123" "price_valid" "https://app.example.test/success" "https://app.example.test/cancel"
+            portal <- createPortalSession (fixtureClient wrongPortal) testConfig "venue-123" "cus_123" "https://app.example.test/Billing"
+
+            price `shouldBe` Left (StripeJsonError "Unable to decode Stripe response")
+            customer `shouldBe` Left (StripeJsonError "Unable to decode Stripe response")
+            checkout `shouldBe` Left (StripeJsonError "Unable to decode Stripe response")
+            portal `shouldBe` Left (StripeJsonError "Unable to decode Stripe response")
+
         it "rejects live Stripe objects returned to test mode" do
             let livePriceResponse =
-                    "{\"object\":\"list\",\"data\":[{\"id\":\"price_live\",\"active\":true,\"currency\":\"aud\",\"livemode\":true,\"unit_amount\":10000,\"type\":\"recurring\",\"recurring\":{\"interval\":\"month\",\"interval_count\":1,\"usage_type\":\"licensed\"}}]}"
+                    "{\"object\":\"list\",\"data\":[{\"id\":\"price_live\",\"object\":\"price\",\"active\":true,\"currency\":\"aud\",\"livemode\":true,\"unit_amount\":10000,\"type\":\"recurring\",\"recurring\":{\"interval\":\"month\",\"interval_count\":1,\"usage_type\":\"licensed\"}}]}"
             let client = stripeClientWithTransport (const (pure (Right livePriceResponse)))
 
             result <- listPrices client testConfig
@@ -191,6 +211,7 @@ responseShouldFailMode result expectedMessage =
 
 data LaunchFixtures = LaunchFixtures
     { pricesFixture       :: !LByteString.ByteString
+    , priceFixture        :: !LByteString.ByteString
     , customerFixture     :: !LByteString.ByteString
     , checkoutFixture     :: !LByteString.ByteString
     , portalFixture       :: !LByteString.ByteString
@@ -201,6 +222,7 @@ readLaunchFixtures :: IO LaunchFixtures
 readLaunchFixtures =
     LaunchFixtures
         <$> readFixture "prices.json"
+        <*> readFixture "price.json"
         <*> readFixture "customer.json"
         <*> readFixture "checkout-session.json"
         <*> readFixture "portal-session.json"
@@ -211,6 +233,14 @@ readLaunchFixtures =
 launchExpectations :: LaunchFixtures -> [ExpectedStripeRequest]
 launchExpectations fixtures =
     [ listPricesExpectation fixtures.pricesFixture defaultPriceLookupKey
+    , ExpectedStripeRequest
+        { expectedMethod = "GET"
+        , expectedPath = "/v1/prices/price_valid"
+        , expectedQuery = []
+        , expectedFormBody = []
+        , expectedIdempotencyKey = Nothing
+        , responseBody = fixtures.priceFixture
+        }
     , ExpectedStripeRequest
         { expectedMethod = "POST"
         , expectedPath = "/v1/customers"
