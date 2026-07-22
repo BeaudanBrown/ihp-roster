@@ -154,6 +154,22 @@ Production:
   configured mode. Do not work around a mismatch by copying test IDs into live
   configuration or vice versa.
 
+## Persistence Migration
+
+Migration `Application/Migration/1784761930.sql` is additive: it creates durable
+Checkout attempts and adds provider-mode/event-order metadata without deleting
+or rewriting billing identifiers. Before applying it, inventory
+`venue_billing_customers`, `venue_subscriptions`, and `billing_events` read-only.
+The approved backfill marks existing Customer and Subscription rows as test mode
+because Bepis had no live production billing activity before this migration. If
+that inventory finds a genuine live row, stop and reconcile its mode before
+running the migration.
+
+Legacy Customer creator references and provider event-order timestamps remain
+null because the migration must not invent audit provenance. The first ordered
+validated event establishes a Subscription cursor in the later webhook
+lifecycle rollout.
+
 ## NixOS Secret Injection
 
 Production uses file-backed Stripe secrets through systemd credentials. The app

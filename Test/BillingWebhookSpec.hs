@@ -44,12 +44,43 @@ tests = aroundAll withDatabaseTestContext do
                 result `shouldSatisfy` isProcessed
                 event <- query @BillingEvent |> filterWhere (#stripeEventId, "evt_sub_updated" :: Text) |> fetchOne
                 event.status `shouldBe` "processed"
+                event.stripeCreatedAt `shouldBe` Just (posixSecondsToUTCTime 1784678460)
                 subscription <- query @VenueSubscription |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
                 subscription.stripeSubscriptionId `shouldBe` "sub_123"
                 subscription.stripePriceId `shouldBe` "price_monthly_123"
                 subscription.status `shouldBe` "active"
                 subscription.currentPeriodStart `shouldSatisfy` isJust
                 subscription.currentPeriodEnd `shouldSatisfy` isJust
+
+        it "persists live provider mode on subscription snapshots" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Live Subscription Mode Venue"
+                _ <-
+                    newRecord @VenueBillingCustomer
+                        |> set #venueId (unpackId venue.id)
+                        |> set #stripeCustomerId "cus_live_subscription_mode"
+                        |> set #livemode True
+                        |> createRecord
+
+                Right result <- handleStripeWebhookPayload StripeLiveMode (subscriptionEventWithLivemode True "evt_live_subscription_mode" venue "cus_live_subscription_mode" "sub_live_subscription_mode" "active")
+
+                result `shouldSatisfy` isProcessed
+                event <- query @BillingEvent |> filterWhere (#stripeEventId, "evt_live_subscription_mode" :: Text) |> fetchOne
+                event.livemode `shouldBe` True
+                subscription <- query @VenueSubscription |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
+                subscription.livemode `shouldBe` True
+
+        it "persists live provider mode on webhook-created Customer associations" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Live Customer Mode Venue"
+
+                Right result <- handleStripeWebhookPayload StripeLiveMode (checkoutSessionEventForVenue True "evt_live_customer_mode" venue "cus_live_customer_mode" "sub_live_customer_mode")
+
+                result `shouldSatisfy` isProcessed
+                customer <- query @VenueBillingCustomer |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
+                customer.stripeCustomerId `shouldBe` "cus_live_customer_mode"
+                customer.livemode `shouldBe` True
+                customer.createdByUserId `shouldBe` Nothing
 
         it "stores Dahlia billing periods from the single Subscription Item" $ withContext do
             withCleanDb do
@@ -313,19 +344,27 @@ createBillingCustomer venue customerId =
     newRecord @VenueBillingCustomer
         |> set #venueId (unpackId venue.id)
         |> set #stripeCustomerId customerId
+        |> set #livemode False
         |> createRecord
 
 subscriptionEvent :: Text -> Venue -> Text -> Text -> Text -> LByteString.ByteString
-subscriptionEvent = subscriptionEventWithPriceLivemode False
+subscriptionEvent = subscriptionEventWithModes False False
+
+subscriptionEventWithLivemode :: Bool -> Text -> Venue -> Text -> Text -> Text -> LByteString.ByteString
+subscriptionEventWithLivemode livemode = subscriptionEventWithModes livemode livemode
 
 subscriptionEventWithPriceLivemode :: Bool -> Text -> Venue -> Text -> Text -> Text -> LByteString.ByteString
-subscriptionEventWithPriceLivemode priceLivemode eventId venue customerId subscriptionId status =
+subscriptionEventWithPriceLivemode = subscriptionEventWithModes False
+
+subscriptionEventWithModes :: Bool -> Bool -> Text -> Venue -> Text -> Text -> Text -> LByteString.ByteString
+subscriptionEventWithModes livemode priceLivemode eventId venue customerId subscriptionId status =
     Aeson.encode $
         Aeson.object
             [ "id" Aeson..= eventId
             , "object" Aeson..= ("event" :: Text)
+            , "created" Aeson..= testStripeEventCreatedSeconds
             , "type" Aeson..= ("customer.subscription.updated" :: Text)
-            , "livemode" Aeson..= False
+            , "livemode" Aeson..= livemode
             , "api_version" Aeson..= pinnedStripeApiVersion
             , "data" Aeson..=
                 Aeson.object
@@ -334,7 +373,7 @@ subscriptionEventWithPriceLivemode priceLivemode eventId venue customerId subscr
                             [ "object" Aeson..= ("subscription" :: Text)
                             , "id" Aeson..= subscriptionId
                             , "customer" Aeson..= customerId
-                            , "livemode" Aeson..= False
+                            , "livemode" Aeson..= livemode
                             , "status" Aeson..= status
                             , "cancel_at_period_end" Aeson..= False
                             , "metadata" Aeson..= Aeson.object ["venue_id" Aeson..= inputValue venue.id]
@@ -372,6 +411,32 @@ subscriptionEventWithPriceLivemode priceLivemode eventId venue customerId subscr
                     ]
             ]
 
+checkoutSessionEventForVenue :: Bool -> Text -> Venue -> Text -> Text -> LByteString.ByteString
+checkoutSessionEventForVenue livemode eventId venue customerId subscriptionId =
+    Aeson.encode $
+        Aeson.object
+            [ "id" Aeson..= eventId
+            , "object" Aeson..= ("event" :: Text)
+            , "created" Aeson..= testStripeEventCreatedSeconds
+            , "type" Aeson..= ("checkout.session.completed" :: Text)
+            , "livemode" Aeson..= livemode
+            , "api_version" Aeson..= pinnedStripeApiVersion
+            , "data" Aeson..=
+                Aeson.object
+                    [ "object" Aeson..=
+                        Aeson.object
+                            [ "object" Aeson..= ("checkout.session" :: Text)
+                            , "id" Aeson..= ("cs_live_customer_mode" :: Text)
+                            , "livemode" Aeson..= livemode
+                            , "customer" Aeson..= customerId
+                            , "subscription" Aeson..= subscriptionId
+                            , "client_reference_id" Aeson..= inputValue venue.id
+                            , "metadata" Aeson..= Aeson.object ["venue_id" Aeson..= inputValue venue.id]
+                            , "status" Aeson..= ("complete" :: Text)
+                            ]
+                    ]
+            ]
+
 checkoutSessionEventWithoutVenue :: Text -> Text -> Text -> LByteString.ByteString
 checkoutSessionEventWithoutVenue = checkoutSessionEventWithApiVersion pinnedStripeApiVersion
 
@@ -381,6 +446,7 @@ checkoutSessionEventWithApiVersion apiVersion eventId customerId subscriptionId 
         Aeson.object
             [ "id" Aeson..= eventId
             , "object" Aeson..= ("event" :: Text)
+            , "created" Aeson..= testStripeEventCreatedSeconds
             , "type" Aeson..= ("checkout.session.completed" :: Text)
             , "livemode" Aeson..= False
             , "api_version" Aeson..= apiVersion
@@ -404,6 +470,7 @@ checkoutSessionEventWithoutSnapshotLivemode eventId customerId subscriptionId =
         Aeson.object
             [ "id" Aeson..= eventId
             , "object" Aeson..= ("event" :: Text)
+            , "created" Aeson..= testStripeEventCreatedSeconds
             , "type" Aeson..= ("checkout.session.completed" :: Text)
             , "livemode" Aeson..= False
             , "api_version" Aeson..= pinnedStripeApiVersion
@@ -426,6 +493,7 @@ checkoutSessionEventWithObjectTypes eventObjectType snapshotObjectType eventId =
         Aeson.object
             [ "id" Aeson..= eventId
             , "object" Aeson..= eventObjectType
+            , "created" Aeson..= testStripeEventCreatedSeconds
             , "type" Aeson..= ("checkout.session.completed" :: Text)
             , "livemode" Aeson..= False
             , "api_version" Aeson..= pinnedStripeApiVersion
@@ -449,6 +517,7 @@ checkoutSessionEventWithoutLivemode eventId customerId subscriptionId =
         Aeson.object
             [ "id" Aeson..= eventId
             , "object" Aeson..= ("event" :: Text)
+            , "created" Aeson..= testStripeEventCreatedSeconds
             , "type" Aeson..= ("checkout.session.completed" :: Text)
             , "api_version" Aeson..= pinnedStripeApiVersion
             , "data" Aeson..=
@@ -471,6 +540,7 @@ invoicePaymentFailedEvent eventId customerId =
         Aeson.object
             [ "id" Aeson..= eventId
             , "object" Aeson..= ("event" :: Text)
+            , "created" Aeson..= testStripeEventCreatedSeconds
             , "type" Aeson..= ("invoice.payment_failed" :: Text)
             , "livemode" Aeson..= False
             , "api_version" Aeson..= pinnedStripeApiVersion
@@ -493,6 +563,7 @@ unknownEvent eventId venue =
         Aeson.object
             [ "id" Aeson..= eventId
             , "object" Aeson..= ("event" :: Text)
+            , "created" Aeson..= testStripeEventCreatedSeconds
             , "type" Aeson..= ("customer.created" :: Text)
             , "livemode" Aeson..= False
             , "api_version" Aeson..= pinnedStripeApiVersion
@@ -507,6 +578,9 @@ unknownEvent eventId venue =
                             ]
                     ]
             ]
+
+testStripeEventCreatedSeconds :: Integer
+testStripeEventCreatedSeconds = 1784678460
 
 testStripeConfig :: StripeConfig
 testStripeConfig =

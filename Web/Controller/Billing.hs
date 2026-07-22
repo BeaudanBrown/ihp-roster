@@ -222,7 +222,7 @@ ensureVenueStripeCustomer stripeClient stripeConfig = do
             case customerResult of
                 Left err -> pure (Left ("Stripe Customer create failed: " <> stripeClientErrorText err))
                 Right stripeCustomer -> do
-                    mutationResult <- createVenueBillingCustomerMutation stripeCustomer.stripeCustomerId
+                    mutationResult <- createVenueBillingCustomerMutation stripeCustomer.stripeCustomerId stripeCustomer.stripeCustomerLivemode
                     pure (Right mutationResult.liveMutationValue)
 
 updateVenueBillingControlAction :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => IO ()

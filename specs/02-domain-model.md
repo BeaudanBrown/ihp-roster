@@ -35,15 +35,25 @@
 - `venue_billing_customers`
   - Venue-scoped Stripe Customer reference.
   - One Stripe Customer per venue for launch.
-  - Stores Stripe IDs and timestamps only, not payer payment details.
+  - Stores the validated Stripe mode and optional initiating-user audit
+    reference, but no payer payment details.
+- `billing_checkout_attempts`
+  - Venue-scoped durable Checkout correlation and recovery record.
+  - Stores initiating user, validated Stripe mode, bounded provider IDs,
+    lifecycle timestamps/status, and bounded sanitized failure metadata.
+  - PostgreSQL permits at most one open attempt per venue and requires unique
+    non-null Stripe Checkout Session IDs.
+  - Does not store hosted URLs, raw provider payloads, payment methods, billing
+    addresses, or tax details.
 - `venue_subscriptions`
   - Venue-scoped Stripe subscription state mirror.
-  - Stores Stripe subscription/price IDs, status, current period timestamps,
-    cancellation flag and sync timestamps.
+  - Stores Stripe subscription/price IDs, validated mode, status, current period
+    timestamps, cancellation flag, last-applied event cursor and sync timestamps.
   - Stripe webhooks are authoritative for state changes.
 - `billing_events`
   - Durable Stripe webhook/API event processing ledger.
-  - Deduplicates by Stripe event ID.
+  - Deduplicates by Stripe event ID and retains Stripe event creation time for
+    ordered Subscription updates.
   - Stores event type, provider object IDs, processing status, timestamps and
     concise summaries, not full raw sensitive Stripe payloads by default.
 - `venue_billing_controls`

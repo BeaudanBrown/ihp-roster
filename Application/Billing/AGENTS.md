@@ -20,9 +20,13 @@ Read this before editing `Application/Billing/` or billing controllers.
 - Deduplicate webhook processing by Stripe event ID.
 - Use idempotency keys for Stripe create requests.
 - Never log Stripe secret keys, webhook secrets, payment method details, or full
-  raw webhook/API payloads.
+  raw webhook/API payloads. Checkout-attempt failures use only bounded sanitized
+  error code/summary fields; never persist provider bodies in those fields.
 - Keep Stripe mode explicit. API objects and signed events must match configured
-  test/live mode; never infer mode from a Customer or Subscription ID.
+  test/live mode; never infer mode from a Customer or Subscription ID. Persist
+  validated `livemode` on every Customer, Checkout-attempt, Subscription, and
+  Billing Event record; the migration's temporary false default exists only to backfill
+  pre-launch rows and is dropped before new writes.
 - Validate hosted redirects against the exact HTTPS Stripe Checkout or Customer
   Portal domain before returning them to a browser.
 - Keep new-Checkout control server-side and independent from overall Stripe

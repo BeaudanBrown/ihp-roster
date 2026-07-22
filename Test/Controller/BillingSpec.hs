@@ -111,6 +111,8 @@ tests = aroundAll withDatabaseTestContext do
                 lookup "Location" (responseHeaders response) `shouldBe` Just "https://checkout.stripe.com/c/pay/cs_test_123"
                 customer <- query @VenueBillingCustomer |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
                 customer.stripeCustomerId `shouldBe` "cus_checkout_123"
+                customer.livemode `shouldBe` False
+                customer.createdByUserId `shouldBe` Just (unpackId owner.id)
 
         it "refuses Checkout redirects outside Stripe's hosted domain" $ withContext do
             withCleanDb do
@@ -164,6 +166,7 @@ tests = aroundAll withDatabaseTestContext do
                     newRecord @VenueBillingCustomer
                         |> set #venueId (unpackId venue.id)
                         |> set #stripeCustomerId "cus_portal_123"
+                        |> set #livemode False
                         |> createRecord
 
                 let checkoutDisabledConfig =
@@ -190,6 +193,7 @@ tests = aroundAll withDatabaseTestContext do
                     newRecord @VenueBillingCustomer
                         |> set #venueId (unpackId venue.id)
                         |> set #stripeCustomerId "cus_unsafe_portal_123"
+                        |> set #livemode False
                         |> createRecord
 
                 response <- withStripeConfigForTest (Right testStripeConfig) do
@@ -263,6 +267,7 @@ tests = aroundAll withDatabaseTestContext do
                         |> set #venueId (unpackId venue.id)
                         |> set #stripeSubscriptionId "sub_confirmed_123"
                         |> set #stripePriceId "price_monthly_123"
+                        |> set #livemode False
                         |> set #status "active"
                         |> set #cancelAtPeriodEnd False
                         |> createRecord

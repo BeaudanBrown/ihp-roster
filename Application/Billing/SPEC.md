@@ -77,11 +77,12 @@ errors.
 Every decoded Price, Customer, Checkout Session, Portal Session, Subscription,
 and nested Subscription Item Price must have `livemode` matching the configured
 mode. Signed webhook events and their Subscription/Price snapshots must declare
-or carry the same mode. A mismatch is
-rejected before provider data is used or persisted. Provider-mode metadata on
-local records is added by the persistence-foundation work; until then, Stripe
-also rejects a stored Customer ID presented to credentials from the other mode,
-and Bepis treats that as a sanitized failure rather than silently reusing it.
+or carry the same mode. A mismatch is rejected before provider data is used or
+persisted. Customer, Checkout-attempt, Subscription, and event records persist
+validated `livemode`; webhook-created Customer associations and Subscription
+snapshots copy it from the validated event. Pre-launch Customer and Subscription
+rows are safely backfilled as test mode because production had no live Bepis
+billing activity before this migration.
 
 Live mode requires an HTTPS `APP_BASE_URL`. Outbound Stripe HTTP requests have
 an explicit 15-second response timeout. Customer-facing errors never include
@@ -112,10 +113,10 @@ The app may store:
 
 - Stripe Customer, Price, Subscription, Checkout Session, Portal Session, and
   Event IDs where needed
-- subscription status and period timestamps
-- cancellation flags and last sync timestamps
+- subscription and Checkout-attempt status and lifecycle timestamps
+- cancellation flags, provider ordering cursors, and last sync timestamps
 - event type, provider object IDs, processing status, timestamps, and concise
-  audit/error summaries
+  bounded audit/error summaries
 
 Application logs must not include secrets, webhook signing secrets, payment
 method details, or unrestricted raw Stripe payload dumps.
@@ -131,6 +132,30 @@ Launch behavior:
 - do not collect customer tax IDs by default
 - do not describe Stripe invoices as tax invoices
 - keep the configuration shape compatible with a later GST-enabled mode
+
+## Production Persistence Foundation
+
+`billing_checkout_attempts` is the venue-scoped durable correlation record for
+resumable hosted Checkout. It stores the initiating user, validated Stripe mode,
+Customer/Price identifiers, optional Checkout Session and Subscription
+identifiers, `open | completed | expired | failed` status, expiry/completion
+timestamps, and optional sanitized error code/summary fields bounded to 120 and
+1000 characters. It never stores a hosted URL, raw provider payload, payment
+method, billing address, or tax detail.
+
+PostgreSQL enforces one `open` attempt per venue and global uniqueness for a
+non-null Stripe Checkout Session ID. A completed attempt must have both a stored
+Session ID and completion timestamp; non-completed attempts cannot carry a
+completion timestamp. Runtime attempt creation/resumption and return correlation
+land separately in the Checkout lifecycle work.
+
+`venue_billing_customers.created_by_user_id` retains the initiating Bepis user
+when the app creates a Stripe Customer. It remains null for safely migrated
+legacy rows and webhook-recovered associations because audit provenance is not
+invented. `billing_events.stripe_created_at` retains provider event creation
+time when available. A Subscription's last-applied Stripe event timestamp and
+ID form an all-null or all-present ordering cursor; legacy rows start with no
+cursor so the ordered webhook path can establish it from a validated event.
 
 ## Hosted Checkout Flow
 
@@ -215,6 +240,8 @@ obsolete top-level Subscription fields:
 - status
 - current period start and end
 - cancellation at period end
+- validated Stripe test/live mode
+- last-applied Stripe event creation time and event ID
 - last synced timestamp
 
 Stripe webhook updates are the normal state transition path. A Checkout success

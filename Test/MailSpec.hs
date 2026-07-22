@@ -134,6 +134,7 @@ tests = aroundAll withDatabaseTestContext do
                     newRecord @BillingEvent
                         |> set #stripeEventId "evt_billing_mail"
                         |> set #eventType "invoice.payment_failed"
+                        |> set #livemode False
                         |> set #venueId (Just (unpackId venue.id))
                         |> set #status "processed"
                         |> set #processedAt (Just now)

@@ -33,6 +33,7 @@ data BillingWebhookResult
 data StripeWebhookEvent = StripeWebhookEvent
     { stripeEventId        :: !Text
     , stripeEventType      :: !Text
+    , stripeEventCreatedAt :: !UTCTime
     , stripeLivemode       :: !Bool
     , stripeApiVersion     :: !(Maybe Text)
     , stripeObjectSnapshot :: !StripeObjectSnapshot
@@ -66,6 +67,7 @@ instance Aeson.FromJSON StripeWebhookEvent where
             StripeWebhookEvent
                 <$> object Aeson..: "id"
                 <*> object Aeson..: "type"
+                <*> (posixSecondsToUTCTime . fromInteger <$> object Aeson..: "created")
                 <*> object Aeson..: "livemode"
                 <*> object Aeson..:? "api_version"
                 <*> parseStripeObjectSnapshot stripeObject
@@ -227,6 +229,7 @@ createBillingEventRecord event maybeVenue =
     newRecord @BillingEvent
         |> set #stripeEventId event.stripeEventId
         |> set #eventType event.stripeEventType
+        |> set #stripeCreatedAt (Just event.stripeEventCreatedAt)
         |> set #livemode event.stripeLivemode
         |> set #apiVersion event.stripeApiVersion
         |> set #providerObjectType (Just event.stripeObjectSnapshot.stripeObjectType)
@@ -262,6 +265,7 @@ ensureCheckoutCustomer (Just venue) event = do
                     newRecord @VenueBillingCustomer
                         |> set #venueId (unpackId venue.id)
                         |> set #stripeCustomerId customerId
+                        |> set #livemode event.stripeLivemode
                         |> createRecord
     pure ApplyProcessed
 
@@ -283,6 +287,7 @@ upsertSubscription now (Just venue) event = do
                             |> set #venueId (unpackId venue.id)
                             |> set #stripeSubscriptionId subscriptionId
                             |> set #stripePriceId priceId
+                            |> set #livemode event.stripeLivemode
                             |> set #status status
                             |> set #currentPeriodStart (posixMaybe snapshot.stripeObjectCurrentPeriodStart)
                             |> set #currentPeriodEnd (posixMaybe snapshot.stripeObjectCurrentPeriodEnd)
@@ -294,6 +299,7 @@ upsertSubscription now (Just venue) event = do
                         subscription
                             |> set #stripeSubscriptionId subscriptionId
                             |> set #stripePriceId priceId
+                            |> set #livemode event.stripeLivemode
                             |> set #status status
                             |> set #currentPeriodStart (posixMaybe snapshot.stripeObjectCurrentPeriodStart)
                             |> set #currentPeriodEnd (posixMaybe snapshot.stripeObjectCurrentPeriodEnd)

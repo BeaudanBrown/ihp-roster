@@ -108,6 +108,7 @@ tests = describe "Schema" do
         let _ = (Nothing :: Maybe XeroTimesheetSubmission)
         let _ = (Nothing :: Maybe XeroTimesheetSubmissionEntry)
         let _ = (Nothing :: Maybe VenueBillingCustomer)
+        let _ = (Nothing :: Maybe BillingCheckoutAttempt)
         let _ = (Nothing :: Maybe VenueSubscription)
         let _ = (Nothing :: Maybe BillingEvent)
         let _ = (Nothing :: Maybe VenueBillingControl)
@@ -162,10 +163,28 @@ tests = describe "Schema" do
         let _dayNameVenueId = get #venueId (newRecord @DayName)
         let _configVenueId = get #venueId (newRecord @VenueConfig)
         let _billingCustomerVenueId = get #venueId (newRecord @VenueBillingCustomer)
+        let _billingCheckoutAttemptVenueId = get #venueId (newRecord @BillingCheckoutAttempt)
         let _billingSubscriptionVenueId = get #venueId (newRecord @VenueSubscription)
         let _billingEventVenueId = get #venueId (newRecord @BillingEvent)
         let _billingControlVenueId = get #venueId (newRecord @VenueBillingControl)
         True `shouldBe` True
+
+    it "exposes billing mode, Checkout-attempt, and event-ordering fields" do
+        let customer = newRecord @VenueBillingCustomer
+        let attempt = newRecord @BillingCheckoutAttempt
+        let subscription = newRecord @VenueSubscription
+        let billingEvent = newRecord @BillingEvent
+
+        get #livemode customer `shouldBe` False
+        get #createdByUserId customer `shouldBe` Nothing
+        get #livemode attempt `shouldBe` False
+        get #status attempt `shouldBe` "open"
+        get #stripeCheckoutSessionId attempt `shouldBe` Nothing
+        get #completedAt attempt `shouldBe` Nothing
+        get #livemode subscription `shouldBe` False
+        get #lastAppliedStripeEventCreatedAt subscription `shouldBe` Nothing
+        get #lastAppliedStripeEventId subscription `shouldBe` Nothing
+        get #stripeCreatedAt billingEvent `shouldBe` Nothing
 
     it "venue membership exposes role and active fields" do
         let membership = newRecord @VenueMembership
@@ -365,6 +384,22 @@ tests = describe "Schema" do
         automationMigrationSqlText `shouldSatisfy` Text.isInfixOf "ADD COLUMN IF NOT EXISTS auto_timesheet_creation_enabled BOOLEAN DEFAULT FALSE NOT NULL"
         automationMigrationSqlText `shouldSatisfy` Text.isInfixOf "ADD COLUMN IF NOT EXISTS source_roster_slot_id UUID DEFAULT NULL"
         automationMigrationSqlText `shouldSatisfy` Text.isInfixOf "CREATE UNIQUE INDEX IF NOT EXISTS idx_timesheet_entries_source_roster_slot"
+
+    it "adds production billing persistence without destructive data changes" do
+        migrationSqlText <- TextIO.readFile "Application/Migration/1784761930.sql"
+        migrationSqlText `shouldSatisfy` Text.isInfixOf "CREATE TABLE billing_checkout_attempts"
+        migrationSqlText `shouldSatisfy` Text.isInfixOf "ADD COLUMN livemode BOOLEAN DEFAULT FALSE NOT NULL"
+        migrationSqlText `shouldSatisfy` Text.isInfixOf "ADD COLUMN created_by_user_id UUID DEFAULT NULL"
+        migrationSqlText `shouldSatisfy` Text.isInfixOf "ALTER COLUMN livemode DROP DEFAULT"
+        migrationSqlText `shouldSatisfy` Text.isInfixOf "ADD COLUMN stripe_created_at TIMESTAMP WITH TIME ZONE DEFAULT NULL"
+        migrationSqlText `shouldSatisfy` Text.isInfixOf "ALTER TABLE billing_events\n    ALTER COLUMN livemode DROP DEFAULT"
+        migrationSqlText `shouldSatisfy` Text.isInfixOf "ADD COLUMN last_applied_stripe_event_created_at TIMESTAMP WITH TIME ZONE DEFAULT NULL"
+        migrationSqlText `shouldSatisfy` Text.isInfixOf "ADD COLUMN last_applied_stripe_event_id TEXT DEFAULT NULL"
+        migrationSqlText `shouldSatisfy` Text.isInfixOf "CREATE UNIQUE INDEX idx_billing_checkout_attempts_one_open_per_venue"
+        migrationSqlText `shouldSatisfy` (not . Text.isInfixOf "DROP TABLE")
+        migrationSqlText `shouldSatisfy` (not . Text.isInfixOf "DROP COLUMN")
+        migrationSqlText `shouldSatisfy` (not . Text.isInfixOf "DELETE FROM")
+        migrationSqlText `shouldSatisfy` (not . Text.isInfixOf "TRUNCATE")
 
     it "migrates roster-derived timesheet suggestions without deleting historical data" do
         migrationSqlText <- TextIO.readFile "Application/Migration/1784005193.sql"

@@ -22,6 +22,14 @@ Web request/response behavior lives in `Web/Controller/Billing.hs` and
 `Web/Controller/StripeWebhooks.hs`. Super-admin billing controls live on the
 billing surface and use the existing founder support-mode venue context.
 
+## Persistence
+
+Billing persistence is venue-scoped across `venue_billing_customers`,
+`billing_checkout_attempts`, `venue_subscriptions`, and `billing_events`.
+Provider mode is explicit on each provider-backed record. Checkout attempts keep
+only bounded provider identifiers, lifecycle timestamps, and sanitized failure
+summaries; Stripe-hosted URLs and payment/tax details remain outside Bepis.
+
 ## Launch Operations
 
 Use `RUNBOOK.md` for Stripe Dashboard setup, NixOS secret-file placeholders,

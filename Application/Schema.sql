@@ -20,7 +20,8 @@
 -- - schema-nav: leave-timesheets-audit - leave requests, audit trail, and
 --   export jobs.
 -- - schema-nav: billing - venue-scoped Stripe customer/subscription mirrors,
---   webhook event idempotency, and manual billing controls.
+--   durable Checkout attempts, provider ordering, event idempotency, and
+--   manual billing controls.
 -- - schema-nav: xero - OAuth connections, retained reference rows, mappings,
 --   preparation choices, and pay item setup.
 -- - schema-nav: timesheets - timesheet entries and version history.
@@ -897,23 +898,57 @@ CREATE TABLE venue_billing_customers (
     id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
     venue_id UUID NOT NULL,
     stripe_customer_id TEXT NOT NULL,
+    livemode BOOLEAN NOT NULL,
+    created_by_user_id UUID DEFAULT NULL,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
     UNIQUE(venue_id),
     UNIQUE(stripe_customer_id),
     FOREIGN KEY (venue_id) REFERENCES venues (id) ON DELETE RESTRICT,
+    FOREIGN KEY (created_by_user_id) REFERENCES users (id) ON DELETE RESTRICT,
     CHECK ((char_length(btrim(stripe_customer_id)) > 0) AND (char_length(stripe_customer_id) <= 255))
+);
+CREATE TABLE billing_checkout_attempts (
+    id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
+    venue_id UUID NOT NULL,
+    initiated_by_user_id UUID NOT NULL,
+    livemode BOOLEAN NOT NULL,
+    stripe_customer_id TEXT NOT NULL,
+    stripe_price_id TEXT NOT NULL,
+    stripe_checkout_session_id TEXT DEFAULT NULL,
+    stripe_subscription_id TEXT DEFAULT NULL,
+    status TEXT DEFAULT 'open' NOT NULL,
+    expires_at TIMESTAMP WITH TIME ZONE DEFAULT NULL,
+    completed_at TIMESTAMP WITH TIME ZONE DEFAULT NULL,
+    error_code TEXT DEFAULT NULL,
+    error_summary TEXT DEFAULT NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
+    UNIQUE(stripe_checkout_session_id),
+    FOREIGN KEY (venue_id) REFERENCES venues (id) ON DELETE RESTRICT,
+    FOREIGN KEY (initiated_by_user_id) REFERENCES users (id) ON DELETE RESTRICT,
+    CHECK ((status = 'open') OR (status = 'completed') OR (status = 'expired') OR (status = 'failed')),
+    CHECK (((status = 'completed') AND completed_at IS NOT NULL AND stripe_checkout_session_id IS NOT NULL) OR ((status <> 'completed') AND completed_at IS NULL)),
+    CHECK ((char_length(btrim(stripe_customer_id)) > 0) AND (char_length(stripe_customer_id) <= 255)),
+    CHECK ((char_length(btrim(stripe_price_id)) > 0) AND (char_length(stripe_price_id) <= 255)),
+    CHECK (stripe_checkout_session_id IS NULL OR ((char_length(btrim(stripe_checkout_session_id)) > 0) AND (char_length(stripe_checkout_session_id) <= 255))),
+    CHECK (stripe_subscription_id IS NULL OR ((char_length(btrim(stripe_subscription_id)) > 0) AND (char_length(stripe_subscription_id) <= 255))),
+    CHECK (error_code IS NULL OR ((char_length(btrim(error_code)) > 0) AND (char_length(error_code) <= 120))),
+    CHECK (error_summary IS NULL OR ((char_length(btrim(error_summary)) > 0) AND (char_length(error_summary) <= 1000)))
 );
 CREATE TABLE venue_subscriptions (
     id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
     venue_id UUID NOT NULL,
     stripe_subscription_id TEXT NOT NULL,
     stripe_price_id TEXT NOT NULL,
+    livemode BOOLEAN NOT NULL,
     status TEXT NOT NULL,
     current_period_start TIMESTAMP WITH TIME ZONE DEFAULT NULL,
     current_period_end TIMESTAMP WITH TIME ZONE DEFAULT NULL,
     cancel_at_period_end BOOLEAN DEFAULT FALSE NOT NULL,
     last_synced_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
+    last_applied_stripe_event_created_at TIMESTAMP WITH TIME ZONE DEFAULT NULL,
+    last_applied_stripe_event_id TEXT DEFAULT NULL,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
     UNIQUE(venue_id),
@@ -922,13 +957,16 @@ CREATE TABLE venue_subscriptions (
     CHECK ((char_length(btrim(stripe_subscription_id)) > 0) AND (char_length(stripe_subscription_id) <= 255)),
     CHECK ((char_length(btrim(stripe_price_id)) > 0) AND (char_length(stripe_price_id) <= 255)),
     CHECK ((status = 'incomplete') OR (status = 'incomplete_expired') OR (status = 'trialing') OR (status = 'active') OR (status = 'past_due') OR (status = 'canceled') OR (status = 'unpaid') OR (status = 'paused')),
-    CHECK (current_period_start IS NULL OR current_period_end IS NULL OR current_period_start <= current_period_end)
+    CHECK (current_period_start IS NULL OR current_period_end IS NULL OR current_period_start <= current_period_end),
+    CHECK ((last_applied_stripe_event_created_at IS NULL AND last_applied_stripe_event_id IS NULL) OR (last_applied_stripe_event_created_at IS NOT NULL AND last_applied_stripe_event_id IS NOT NULL)),
+    CHECK (last_applied_stripe_event_id IS NULL OR ((char_length(btrim(last_applied_stripe_event_id)) > 0) AND (char_length(last_applied_stripe_event_id) <= 255)))
 );
 CREATE TABLE billing_events (
     id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
     stripe_event_id TEXT NOT NULL,
     event_type TEXT NOT NULL,
-    livemode BOOLEAN DEFAULT FALSE NOT NULL,
+    stripe_created_at TIMESTAMP WITH TIME ZONE DEFAULT NULL,
+    livemode BOOLEAN NOT NULL,
     api_version TEXT DEFAULT NULL,
     provider_object_type TEXT DEFAULT NULL,
     provider_object_id TEXT DEFAULT NULL,
@@ -1530,8 +1568,12 @@ CREATE INDEX idx_venue_membership_role_events_membership_created_at ON venue_mem
 CREATE UNIQUE INDEX idx_export_jobs_generated_file_id ON export_jobs (generated_file_id);
 CREATE UNIQUE INDEX idx_export_jobs_download_token ON export_jobs (download_token);
 CREATE INDEX idx_venue_billing_customers_venue ON venue_billing_customers (venue_id);
+CREATE UNIQUE INDEX idx_billing_checkout_attempts_one_open_per_venue ON billing_checkout_attempts (venue_id) WHERE status = 'open';
+CREATE INDEX idx_billing_checkout_attempts_venue_created_at ON billing_checkout_attempts (venue_id, created_at DESC);
+CREATE INDEX idx_billing_checkout_attempts_subscription ON billing_checkout_attempts (stripe_subscription_id) WHERE stripe_subscription_id IS NOT NULL;
 CREATE INDEX idx_venue_subscriptions_venue_status ON venue_subscriptions (venue_id, status);
 CREATE INDEX idx_billing_events_received_at ON billing_events (received_at DESC);
+CREATE INDEX idx_billing_events_stripe_created_at ON billing_events (stripe_created_at, stripe_event_id) WHERE stripe_created_at IS NOT NULL;
 CREATE INDEX idx_billing_events_status_received_at ON billing_events (status, received_at);
 CREATE INDEX idx_billing_events_venue_received_at ON billing_events (venue_id, received_at DESC) WHERE venue_id IS NOT NULL;
 CREATE INDEX idx_billing_events_provider_object ON billing_events (provider_object_type, provider_object_id) WHERE provider_object_id IS NOT NULL;

@@ -214,20 +214,31 @@ Suggested schema:
 - `venue_billing_customers`
   - `venue_id`
   - `stripe_customer_id`
+  - `livemode`
+  - optional `created_by_user_id` audit reference
   - timestamps
+- `billing_checkout_attempts`
+  - venue and initiating user
+  - `livemode`
+  - bounded Stripe Customer, Price, Checkout Session, and Subscription IDs
+  - status, expiry, completion, and bounded sanitized error metadata
+  - no hosted URL or generic provider-payload field
 - `venue_subscriptions`
   - `venue_id`
   - `stripe_subscription_id`
   - `stripe_price_id`
+  - `livemode`
   - `status`
   - `current_period_start`
   - `current_period_end`
   - `cancel_at_period_end`
+  - last-applied Stripe event timestamp/ID cursor
   - `last_synced_at`
   - timestamps
 - `billing_events`
   - `stripe_event_id`
   - `event_type`
+  - Stripe event creation time
   - `received_at`
   - `processed_at`
   - `status`

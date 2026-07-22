@@ -19,12 +19,14 @@ billingTouchedResources :: Id Venue -> [SurfaceResourceValue]
 billingTouchedResources venueId =
     [billingResource (unpackId venueId)]
 
-createVenueBillingCustomerMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Text -> IO (LiveMutationResult VenueBillingCustomer)
-createVenueBillingCustomerMutation stripeCustomerId = do
+createVenueBillingCustomerMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Text -> Bool -> IO (LiveMutationResult VenueBillingCustomer)
+createVenueBillingCustomerMutation stripeCustomerId livemode = do
     customer <-
         newRecord @VenueBillingCustomer
             |> set #venueId (unpackId currentVenueId)
             |> set #stripeCustomerId stripeCustomerId
+            |> set #livemode livemode
+            |> set #createdByUserId (Just (unpackId currentUser.id))
             |> createRecord
     void $ recordCurrentUserAuditEvent
         "billing_customer_created"
