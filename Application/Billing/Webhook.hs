@@ -104,8 +104,7 @@ parseStripeObjectSnapshot stripeObject =
 
 parseMetadataVenueId :: Aeson.Value -> AesonTypes.Parser (Maybe Text)
 parseMetadataVenueId =
-    Aeson.withObject "StripeMetadata" \metadata ->
-        metadata Aeson..:? "venue_id"
+    Aeson.withObject "StripeMetadata" (Aeson..:? "venue_id")
 
 parseObjectPriceId :: Aeson.Object -> AesonTypes.Parser (Maybe Text)
 parseObjectPriceId object =
