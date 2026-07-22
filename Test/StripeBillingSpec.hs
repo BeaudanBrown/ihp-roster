@@ -286,6 +286,28 @@ tests =
                 validateCreatedCheckoutSession "cus_expected" validSession { stripeCheckoutStatus = "complete" }
                     `shouldBe` Left "Stripe Checkout returned an unexpected status."
 
+            it "validates retrieved Checkout identity, Customer, mode, and status" do
+                let retrievedSession =
+                        StripeCheckoutSession
+                            { stripeCheckoutSessionId = "cs_expected"
+                            , stripeCheckoutSessionUrl = Nothing
+                            , stripeCheckoutCustomerId = Just "cus_expected"
+                            , stripeCheckoutSubscriptionId = Just "sub_expected"
+                            , stripeCheckoutLivemode = False
+                            , stripeCheckoutMode = "subscription"
+                            , stripeCheckoutStatus = "complete"
+                            }
+
+                validateRetrievedCheckoutSession "cs_expected" "cus_expected" retrievedSession `shouldBe` Right retrievedSession
+                validateRetrievedCheckoutSession "cs_other" "cus_expected" retrievedSession
+                    `shouldBe` Left "Stripe Checkout retrieval returned an unexpected Session."
+                validateRetrievedCheckoutSession "cs_expected" "cus_other" retrievedSession
+                    `shouldBe` Left "Stripe Checkout retrieval returned an unexpected Customer."
+                validateRetrievedCheckoutSession "cs_expected" "cus_expected" retrievedSession { stripeCheckoutMode = "payment" }
+                    `shouldBe` Left "Stripe Checkout retrieval returned an unexpected mode."
+                validateRetrievedCheckoutSession "cs_expected" "cus_expected" retrievedSession { stripeCheckoutStatus = "invalid" }
+                    `shouldBe` Left "Stripe Checkout retrieval returned an unexpected status."
+
             it "requires the requested Customer and return URL for Customer Portal" do
                 let validSession =
                         StripePortalSession

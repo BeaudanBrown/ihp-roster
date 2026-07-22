@@ -34,6 +34,7 @@ module Application.Billing.Stripe
     , stripeWebhookSignedPayload
     , validateCreatedCheckoutSession
     , validateCreatedPortalSession
+    , validateRetrievedCheckoutSession
     , validateStripeCheckoutRedirectUrl
     , validateStripePortalRedirectUrl
     , validateVenueMonthlyPrice
@@ -303,7 +304,7 @@ data StripeClient = StripeClient
     , retrievePrice :: StripeConfig -> Text -> IO (Either StripeClientError StripePrice)
     , createCustomer :: StripeConfig -> Text -> Text -> IO (Either StripeClientError StripeCustomer)
     , createCheckoutSession :: StripeConfig -> Text -> Text -> Text -> Text -> Text -> IO (Either StripeClientError StripeCheckoutSession)
-    , retrieveCheckoutSession :: StripeConfig -> Text -> IO (Either StripeClientError StripeCheckoutSession)
+    , retrieveCheckoutSession :: StripeConfig -> Text -> Text -> IO (Either StripeClientError StripeCheckoutSession)
     , createPortalSession :: StripeConfig -> Text -> Text -> Text -> IO (Either StripeClientError StripePortalSession)
     , retrieveSubscription :: StripeConfig -> Text -> IO (Either StripeClientError StripeSubscription)
     }
@@ -348,8 +349,9 @@ stripeClientWithTransport transport =
             sendModeCheckedStripeJsonRequest transport "customer create" config (.stripeCustomerLivemode) (buildCreateCustomerRequest config venueId venueName)
         , createCheckoutSession = \config venueId customerId price successUrl cancelUrl ->
             sendModeCheckedStripeJsonRequest transport "checkout session create" config (.stripeCheckoutLivemode) (buildCreateCheckoutSessionRequest config venueId customerId price successUrl cancelUrl)
-        , retrieveCheckoutSession = \config sessionId ->
-            sendModeCheckedStripeJsonRequest transport "checkout session retrieve" config (.stripeCheckoutLivemode) (buildRetrieveCheckoutSessionRequest config sessionId)
+        , retrieveCheckoutSession = \config sessionId expectedCustomerId -> do
+            result <- sendModeCheckedStripeJsonRequest transport "checkout session retrieve" config (.stripeCheckoutLivemode) (buildRetrieveCheckoutSessionRequest config sessionId)
+            pure (result >>= either (Left . StripeJsonError) Right . validateRetrievedCheckoutSession sessionId expectedCustomerId)
         , createPortalSession = \config venueId customerId returnUrl ->
             sendModeCheckedStripeJsonRequest transport "portal session create" config (.stripePortalSessionLivemode) (buildCreatePortalSessionRequest config venueId customerId returnUrl)
         , retrieveSubscription = \config subscriptionId -> do
@@ -642,6 +644,18 @@ validateCreatedCheckoutSession expectedCustomerId checkoutSession = do
         Left "Stripe Checkout returned an unexpected mode."
     unless (checkoutSession.stripeCheckoutStatus == "open") do
         Left "Stripe Checkout returned an unexpected status."
+    pure checkoutSession
+
+validateRetrievedCheckoutSession :: Text -> Text -> StripeCheckoutSession -> Either Text StripeCheckoutSession
+validateRetrievedCheckoutSession expectedSessionId expectedCustomerId checkoutSession = do
+    unless (checkoutSession.stripeCheckoutSessionId == expectedSessionId) do
+        Left "Stripe Checkout retrieval returned an unexpected Session."
+    unless (checkoutSession.stripeCheckoutCustomerId == Just expectedCustomerId) do
+        Left "Stripe Checkout retrieval returned an unexpected Customer."
+    unless (checkoutSession.stripeCheckoutMode == "subscription") do
+        Left "Stripe Checkout retrieval returned an unexpected mode."
+    unless (checkoutSession.stripeCheckoutStatus `elem` ["open", "complete", "expired"]) do
+        Left "Stripe Checkout retrieval returned an unexpected status."
     pure checkoutSession
 
 validateCreatedPortalSession :: Text -> Text -> StripePortalSession -> Either Text StripePortalSession

@@ -115,8 +115,7 @@ let
     );
   runtimeEnvironmentFiles = optional (cfg.environmentFile != null) cfg.environmentFile;
   xeroEnvironmentFiles = runtimeEnvironmentFiles ++ optional (cfg.xero.environmentFile != null) cfg.xero.environmentFile;
-  stripeEnvironmentFiles = optional (stripeCfg.environmentFile != null) stripeCfg.environmentFile;
-  appWorkerEnvironmentFiles = xeroEnvironmentFiles ++ stripeEnvironmentFiles;
+  appWorkerEnvironmentFiles = xeroEnvironmentFiles;
   stripeCredentialConfig = optionalAttrs stripeCfg.enable {
     LoadCredential = [
       "stripe-secret-key:${toString stripeCfg.secretKeyFile}"
@@ -622,16 +621,6 @@ in
         type = types.bool;
         default = false;
         description = "Whether the owner Billing link is visible. Direct-route authorization remains unchanged.";
-      };
-
-      environmentFile = mkOption {
-        type = types.nullOr types.path;
-        default = null;
-        description = ''
-          Optional dotenv-style Stripe environment file layered onto app and worker services.
-          Use only for non-production overrides; production credentials must use
-          secretKeyFile/webhookSecretFile and rollout controls must use module options.
-        '';
       };
 
       priceLookupKey = mkOption {

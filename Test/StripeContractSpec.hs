@@ -54,7 +54,7 @@ tests =
             validateCreatedCheckoutSession "cus_123" createdCheckoutSession `shouldBe` Right createdCheckoutSession
             validateStripeCheckoutRedirectUrl createdCheckoutUrl `shouldReturn` Right createdCheckoutUrl
 
-            fetchedCheckout <- retrieveCheckoutSession client testConfig "cs_123"
+            fetchedCheckout <- retrieveCheckoutSession client testConfig "cs_123" "cus_123"
             fetchedCheckout
                 `shouldBe` Right
                     createdCheckoutSession

@@ -419,7 +419,7 @@ failingStripeClient =
         , retrievePrice = \_ _ -> pure (Left (StripeHttpError "unexpected retrievePrice"))
         , createCustomer = \_ _ _ -> pure (Left (StripeHttpError "unexpected createCustomer"))
         , createCheckoutSession = \_ _ _ _ _ _ -> pure (Left (StripeHttpError "unexpected createCheckoutSession"))
-        , retrieveCheckoutSession = \_ _ -> pure (Left (StripeHttpError "unexpected retrieveCheckoutSession"))
+        , retrieveCheckoutSession = \_ _ _ -> pure (Left (StripeHttpError "unexpected retrieveCheckoutSession"))
         , createPortalSession = \_ _ _ _ -> pure (Left (StripeHttpError "unexpected createPortalSession"))
         , retrieveSubscription = \_ _ -> pure (Left (StripeHttpError "unexpected retrieveSubscription"))
         }

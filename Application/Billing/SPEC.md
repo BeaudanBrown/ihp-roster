@@ -153,7 +153,9 @@ eligible hosted payment methods.
 
 Stripe create requests use deterministic idempotency keys scoped to the venue
 and operation. Before redirecting, the created Session must be `open`, use
-`mode = subscription`, and reference the requested Customer. The server
+`mode = subscription`, and reference the requested Customer. Retrieved Sessions
+must return the requested Session ID and Customer, remain in subscription mode,
+and have `open`, `complete`, or `expired` status. The server
 enforces the new-Checkout deployment control before
 Price lookup, Customer creation, or Checkout creation; hiding a button is not a
 security boundary.

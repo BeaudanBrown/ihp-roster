@@ -157,7 +157,9 @@ Production:
 ## NixOS Secret Injection
 
 Production uses file-backed Stripe secrets through systemd credentials. The app
-receives file paths, not secret values.
+receives file paths, not secret values. The Stripe module deliberately has no
+`environmentFile` escape hatch: mode and rollout controls come only from Nix
+options, so a dotenv file cannot override an incident rollback.
 
 Expected placeholders:
 
