@@ -60,6 +60,8 @@ fetchBillingViewModel = do
             |> orderByDesc #receivedAt
             |> limit 5
             |> fetch
+    stripeControls <- readStripeDeploymentControls
+    let stripeCheckoutAvailable = either (const False) (.stripeCheckoutEnabled) stripeControls
     let checkoutReturn = billingCheckoutReturnFromRequest maybeSubscription recentEvents
     pure BillingViewModel { .. }
 
@@ -108,31 +110,40 @@ createBillingCheckoutSessionAction :: (?context :: ControllerContext, ?modelCont
 createBillingCheckoutSessionAction =
     readStripeConfig >>= \case
         Left message -> billingRedirectWithError message
-        Right stripeConfig -> do
-            stripeClient <- currentStripeClient
-            resolveBillingPrice stripeClient stripeConfig >>= \case
+        Right stripeConfig ->
+            if stripeConfig.stripeDeploymentControls.stripeCheckoutEnabled
+                then createEnabledBillingCheckoutSession stripeConfig
+                else billingRedirectWithError "Starting a new subscription is temporarily unavailable. Existing billing management remains available."
+
+createEnabledBillingCheckoutSession :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => StripeConfig -> IO ()
+createEnabledBillingCheckoutSession stripeConfig = do
+    stripeClient <- currentStripeClient
+    resolveBillingPrice stripeClient stripeConfig >>= \case
+        Left message -> billingRedirectWithError message
+        Right price ->
+            ensureVenueStripeCustomer stripeClient stripeConfig >>= \case
                 Left message -> billingRedirectWithError message
-                Right price ->
-                    ensureVenueStripeCustomer stripeClient stripeConfig >>= \case
-                        Left message -> billingRedirectWithError message
-                        Right billingCustomer -> do
-                            let venueIdText = inputValue currentVenueId
-                            let successUrl = stripeConfig.appBaseUrl <> pathTo BillingSuccessAction <> "?session_id={CHECKOUT_SESSION_ID}"
-                            let cancelUrl = stripeConfig.appBaseUrl <> pathTo BillingCancelAction
-                            checkoutResult <-
-                                stripeClient.createCheckoutSession
-                                    stripeConfig
-                                    venueIdText
-                                    billingCustomer.stripeCustomerId
-                                    price.stripePriceId
-                                    successUrl
-                                    cancelUrl
-                            case checkoutResult of
-                                Left err -> billingRedirectWithError ("Stripe Checkout failed: " <> stripeClientErrorText err)
-                                Right checkoutSession ->
-                                    case checkoutSession.stripeCheckoutSessionUrl of
-                                        Nothing -> billingRedirectWithError "Stripe Checkout did not return a hosted session URL."
-                                        Just checkoutUrl -> do
+                Right billingCustomer -> do
+                    let venueIdText = inputValue currentVenueId
+                    let successUrl = stripeConfig.appBaseUrl <> pathTo BillingSuccessAction <> "?session_id={CHECKOUT_SESSION_ID}"
+                    let cancelUrl = stripeConfig.appBaseUrl <> pathTo BillingCancelAction
+                    checkoutResult <-
+                        stripeClient.createCheckoutSession
+                            stripeConfig
+                            venueIdText
+                            billingCustomer.stripeCustomerId
+                            price.stripePriceId
+                            successUrl
+                            cancelUrl
+                    case checkoutResult of
+                        Left err -> billingRedirectWithError ("Stripe Checkout failed: " <> stripeClientErrorText err)
+                        Right checkoutSession ->
+                            case checkoutSession.stripeCheckoutSessionUrl of
+                                Nothing -> billingRedirectWithError "Stripe Checkout did not return a hosted session URL."
+                                Just checkoutUrl ->
+                                    validateStripeCheckoutRedirectUrl checkoutUrl >>= \case
+                                        Left message -> billingRedirectWithError message
+                                        Right validatedCheckoutUrl -> do
                                             void $ recordCurrentUserAuditEvent
                                                 "billing_checkout_started"
                                                 "venue_billing_customers"
@@ -142,7 +153,7 @@ createBillingCheckoutSessionAction =
                                                     , "stripeCheckoutSessionId" Aeson..= checkoutSession.stripeCheckoutSessionId
                                                     , "stripePriceId" Aeson..= price.stripePriceId
                                                     ])
-                                            redirectToBillingUrl checkoutUrl
+                                            redirectToBillingUrl validatedCheckoutUrl
 
 createBillingPortalSessionAction :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => IO ()
 createBillingPortalSessionAction =
@@ -163,16 +174,19 @@ createBillingPortalSessionAction =
                             returnUrl
                     case portalResult of
                         Left err -> billingRedirectWithError ("Stripe Customer Portal failed: " <> stripeClientErrorText err)
-                        Right portalSession -> do
-                            void $ recordCurrentUserAuditEvent
-                                "billing_portal_started"
-                                "venue_billing_customers"
-                                (unpackId billingCustomer.id)
-                                (Aeson.object
-                                    [ "stripeCustomerId" Aeson..= billingCustomer.stripeCustomerId
-                                    , "stripePortalSessionId" Aeson..= portalSession.stripePortalSessionId
-                                    ])
-                            redirectToBillingUrl portalSession.stripePortalSessionUrl
+                        Right portalSession ->
+                            validateStripePortalRedirectUrl portalSession.stripePortalSessionUrl >>= \case
+                                Left message -> billingRedirectWithError message
+                                Right validatedPortalUrl -> do
+                                    void $ recordCurrentUserAuditEvent
+                                        "billing_portal_started"
+                                        "venue_billing_customers"
+                                        (unpackId billingCustomer.id)
+                                        (Aeson.object
+                                            [ "stripeCustomerId" Aeson..= billingCustomer.stripeCustomerId
+                                            , "stripePortalSessionId" Aeson..= portalSession.stripePortalSessionId
+                                            ])
+                                    redirectToBillingUrl validatedPortalUrl
 
 resolveBillingPrice :: StripeClient -> StripeConfig -> IO (Either Text StripePrice)
 resolveBillingPrice stripeClient stripeConfig =

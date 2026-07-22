@@ -22,7 +22,7 @@ instance Controller StripeWebhooksController where
                     Left message ->
                         renderPlainWithStatus status400 message
                     Right _ ->
-                        handleStripeWebhookPayload rawBody >>= \case
+                        handleStripeWebhookPayload stripeConfig.stripeMode rawBody >>= \case
                             Left message ->
                                 renderPlainWithStatus status400 message
                             Right result -> do

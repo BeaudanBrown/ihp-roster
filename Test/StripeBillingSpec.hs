@@ -27,6 +27,10 @@ tests =
                             , ("STRIPE_WEBHOOK_SECRET", Nothing)
                             , ("STRIPE_PRICE_LOOKUP_KEY", Nothing)
                             , ("STRIPE_PRICE_ID", Nothing)
+                            , ("STRIPE_MODE", Just "test")
+                            , ("STRIPE_BILLING_ENABLED", Just "true")
+                            , ("STRIPE_CHECKOUT_ENABLED", Just "false")
+                            , ("STRIPE_OWNER_NAVIGATION_VISIBLE", Just "false")
                             , ("APP_BASE_URL", Just "https://app.example.test")
                             ]
                             do
@@ -37,6 +41,14 @@ tests =
                                 fmap (.priceLookupKey) result `shouldBe` Right (Just defaultPriceLookupKey)
                                 fmap (.priceId) result `shouldBe` Right Nothing
                                 fmap (.appBaseUrl) result `shouldBe` Right "https://app.example.test"
+                                fmap (.stripeMode) result `shouldBe` Right StripeTestMode
+                                fmap (.stripeDeploymentControls) result
+                                    `shouldBe` Right
+                                        StripeDeploymentControls
+                                            { stripeBillingEnabled = True
+                                            , stripeCheckoutEnabled = False
+                                            , stripeOwnerNavigationVisible = False
+                                            }
 
             it "allows direct price id fallback without inventing a lookup key" do
                 withStripeEnv
@@ -46,12 +58,117 @@ tests =
                     , ("STRIPE_WEBHOOK_SECRET", Just "whsec_env")
                     , ("STRIPE_PRICE_LOOKUP_KEY", Nothing)
                     , ("STRIPE_PRICE_ID", Just "price_direct")
+                    , ("STRIPE_MODE", Just "test")
+                    , ("STRIPE_BILLING_ENABLED", Just "true")
+                    , ("STRIPE_CHECKOUT_ENABLED", Just "true")
+                    , ("STRIPE_OWNER_NAVIGATION_VISIBLE", Just "false")
                     ]
                     do
                         result <- readStripeConfig
 
                         fmap (.priceLookupKey) result `shouldBe` Right Nothing
                         fmap (.priceId) result `shouldBe` Right (Just "price_direct")
+
+            it "rejects live credentials when Stripe is configured for test mode" do
+                withStripeEnv
+                    [ ("STRIPE_SECRET_KEY_FILE", Nothing)
+                    , ("STRIPE_WEBHOOK_SECRET_FILE", Nothing)
+                    , ("STRIPE_SECRET_KEY", Just "rk_live_not_a_real_key")
+                    , ("STRIPE_WEBHOOK_SECRET", Just "whsec_not_a_real_secret")
+                    , ("STRIPE_MODE", Just "test")
+                    , ("STRIPE_BILLING_ENABLED", Just "true")
+                    , ("STRIPE_CHECKOUT_ENABLED", Just "true")
+                    , ("STRIPE_OWNER_NAVIGATION_VISIBLE", Just "false")
+                    , ("APP_BASE_URL", Just "http://localhost:8000")
+                    ]
+                    do
+                        result <- readStripeConfig
+
+                        case result of
+                            Left message -> message `shouldBe` "Stripe test mode requires a test secret key"
+                            Right _ -> expectationFailure "expected live credentials to be rejected in test mode"
+
+            it "requires an HTTPS application base URL in live mode" do
+                withStripeEnv
+                    [ ("STRIPE_SECRET_KEY_FILE", Nothing)
+                    , ("STRIPE_WEBHOOK_SECRET_FILE", Nothing)
+                    , ("STRIPE_SECRET_KEY", Just "rk_live_not_a_real_key")
+                    , ("STRIPE_WEBHOOK_SECRET", Just "whsec_not_a_real_secret")
+                    , ("STRIPE_MODE", Just "live")
+                    , ("STRIPE_BILLING_ENABLED", Just "true")
+                    , ("STRIPE_CHECKOUT_ENABLED", Just "true")
+                    , ("STRIPE_OWNER_NAVIGATION_VISIBLE", Just "false")
+                    , ("APP_BASE_URL", Just "http://billing.example.test")
+                    ]
+                    do
+                        result <- readStripeConfig
+
+                        case result of
+                            Left message -> message `shouldBe` "Stripe live mode requires an HTTPS APP_BASE_URL"
+                            Right _ -> expectationFailure "expected an HTTP live base URL to be rejected"
+
+            it "accepts restricted live credentials and the documented secret-key fallback" do
+                forM_ ["rk_live_not_a_real_key", "sk_live_not_a_real_key"] \liveKey ->
+                    withStripeEnv
+                        [ ("STRIPE_SECRET_KEY_FILE", Nothing)
+                        , ("STRIPE_WEBHOOK_SECRET_FILE", Nothing)
+                        , ("STRIPE_SECRET_KEY", Just liveKey)
+                        , ("STRIPE_WEBHOOK_SECRET", Just "whsec_not_a_real_secret")
+                        , ("STRIPE_MODE", Just "live")
+                        , ("STRIPE_BILLING_ENABLED", Just "true")
+                        , ("STRIPE_CHECKOUT_ENABLED", Just "true")
+                        , ("STRIPE_OWNER_NAVIGATION_VISIBLE", Just "false")
+                        , ("APP_BASE_URL", Just "https://billing.example.test")
+                        ]
+                        do
+                            result <- readStripeConfig
+
+                            fmap (.stripeMode) result `shouldBe` Right StripeLiveMode
+
+            it "defaults missing deployment controls to disabled" do
+                withStripeEnv
+                    [ ("STRIPE_BILLING_ENABLED", Nothing)
+                    , ("STRIPE_CHECKOUT_ENABLED", Nothing)
+                    , ("STRIPE_OWNER_NAVIGATION_VISIBLE", Nothing)
+                    ]
+                    do
+                        readStripeDeploymentControls
+                            `shouldReturn` Right
+                                StripeDeploymentControls
+                                    { stripeBillingEnabled = False
+                                    , stripeCheckoutEnabled = False
+                                    , stripeOwnerNavigationVisible = False
+                                    }
+
+            it "rejects malformed deployment controls" do
+                withStripeEnv
+                    [ ("STRIPE_BILLING_ENABLED", Just "yes")
+                    , ("STRIPE_CHECKOUT_ENABLED", Just "false")
+                    , ("STRIPE_OWNER_NAVIGATION_VISIBLE", Just "false")
+                    ]
+                    do
+                        result <- readStripeDeploymentControls
+
+                        result `shouldBe` Left "STRIPE_BILLING_ENABLED must be true or false"
+
+            it "rejects malformed webhook signing credentials" do
+                withStripeEnv
+                    [ ("STRIPE_SECRET_KEY_FILE", Nothing)
+                    , ("STRIPE_WEBHOOK_SECRET_FILE", Nothing)
+                    , ("STRIPE_SECRET_KEY", Just "sk_test_not_a_real_key")
+                    , ("STRIPE_WEBHOOK_SECRET", Just "not_a_webhook_secret")
+                    , ("STRIPE_MODE", Just "test")
+                    , ("STRIPE_BILLING_ENABLED", Just "true")
+                    , ("STRIPE_CHECKOUT_ENABLED", Just "true")
+                    , ("STRIPE_OWNER_NAVIGATION_VISIBLE", Just "false")
+                    , ("APP_BASE_URL", Just "http://localhost:8000")
+                    ]
+                    do
+                        result <- readStripeConfig
+
+                        case result of
+                            Left message -> message `shouldBe` "Stripe webhook signing secret must start with whsec_"
+                            Right _ -> expectationFailure "expected malformed webhook credentials to be rejected"
 
         describe "request construction" do
             it "builds active lookup-key price requests" do
@@ -64,6 +181,7 @@ tests =
                 request.stripeRequestUrl `shouldSatisfy` Text.isInfixOf "expand%5B%5D=data.product"
                 lookup "Authorization" request.stripeRequestHeaders `shouldBe` Just "Bearer sk_test_123"
                 lookup "Stripe-Version" request.stripeRequestHeaders `shouldBe` Just "2026-06-24.dahlia"
+                request.stripeRequestTimeoutMicroseconds `shouldBe` 15000000
 
             it "builds Customer v1 create requests without billing detail fields" do
                 let request = buildCreateCustomerRequest testConfig "venue-123" "Venue Name"
@@ -126,6 +244,13 @@ tests =
                 validateVenueMonthlyPrice validPrice { recurring = Just validRecurring { usageType = Just "metered" } }
                     `shouldBe` Left "Stripe Price usage type must be licensed"
 
+        describe "provider error sanitization" do
+            it "never exposes provider payloads or credential-like values to callers" do
+                stripeClientErrorText (StripeHttpError "card details and sk_live_secret")
+                    `shouldBe` "Stripe is temporarily unavailable. Try again."
+                stripeClientErrorText (StripeJsonError "customer@example.test at $.billing_details")
+                    `shouldBe` "Stripe returned an unexpected response. Try again."
+
         describe "webhook signatures" do
             it "verifies Stripe signatures against the raw body" do
                 let rawBody = "{\"id\":\"evt_test\",\"object\":\"event\"}"
@@ -155,6 +280,16 @@ testConfig =
         , priceLookupKey = Just defaultPriceLookupKey
         , priceId = Nothing
         , appBaseUrl = "https://app.example.test"
+        , stripeMode = StripeTestMode
+        , stripeDeploymentControls = testDeploymentControls
+        }
+
+testDeploymentControls :: StripeDeploymentControls
+testDeploymentControls =
+    StripeDeploymentControls
+        { stripeBillingEnabled = True
+        , stripeCheckoutEnabled = True
+        , stripeOwnerNavigationVisible = False
         }
 
 validRecurring :: StripeRecurring

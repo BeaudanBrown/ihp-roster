@@ -75,15 +75,38 @@ tests =
 
             assertStripeMockConsumed mock
 
+        it "rejects live Stripe objects returned to test mode" do
+            let livePriceResponse =
+                    "{\"object\":\"list\",\"data\":[{\"id\":\"price_live\",\"active\":true,\"currency\":\"aud\",\"livemode\":true,\"unit_amount\":10000,\"type\":\"recurring\",\"recurring\":{\"interval\":\"month\",\"interval_count\":1,\"usage_type\":\"licensed\"}}]}"
+            let client = stripeClientWithTransport (const (pure (Right livePriceResponse)))
+
+            result <- listPrices client testConfig
+
+            result
+                `shouldBe` Left
+                    (StripeJsonError "Stripe price lookup returned live-mode data to a test-mode integration")
+
+        it "rejects test-mode Customer, Checkout, Portal, and Subscription data in live mode" do
+            fixtures <- readLaunchFixtures
+            let liveConfig = testConfig { stripeMode = StripeLiveMode }
+
+            customer <- createCustomer (fixtureClient fixtures.customerFixture) liveConfig "venue-123" "Venue Name"
+            checkout <- createCheckoutSession (fixtureClient fixtures.checkoutFixture) liveConfig "venue-123" "cus_123" "price_valid" "https://app.example.test/success" "https://app.example.test/cancel"
+            portal <- createPortalSession (fixtureClient fixtures.portalFixture) liveConfig "venue-123" "cus_123" "https://app.example.test/Billing"
+            subscription <- retrieveSubscription (fixtureClient fixtures.subscriptionFixture) liveConfig "sub_123"
+
+            customer `responseShouldFailMode` "Stripe customer create returned test-mode data to a live-mode integration"
+            checkout `responseShouldFailMode` "Stripe checkout session create returned test-mode data to a live-mode integration"
+            portal `responseShouldFailMode` "Stripe portal session create returned test-mode data to a live-mode integration"
+            subscription `responseShouldFailMode` "Stripe subscription retrieve returned test-mode data to a live-mode integration"
+
         it "rejects Subscription retrieval when Stripe returns multiple plan items" do
             response <- LByteString.readFile "Test/Fixtures/stripe/2026-06-24.dahlia/subscription-multiple-items.json"
             let client = stripeClientWithTransport (const (pure (Right response)))
 
             result <- retrieveSubscription client testConfig "sub_multiple"
 
-            result `shouldSatisfy` \case
-                Left (StripeJsonError message) -> "must not contain multiple items" `isInfixOf` message
-                _ -> False
+            result `shouldBe` Left (StripeJsonError "Unable to decode Stripe response")
 
         it "fails closed on unexpected request shape" do
             fixtures <- readLaunchFixtures
@@ -105,6 +128,13 @@ testConfig =
         , priceLookupKey = Just defaultPriceLookupKey
         , priceId = Nothing
         , appBaseUrl = "https://app.example.test"
+        , stripeMode = StripeTestMode
+        , stripeDeploymentControls =
+            StripeDeploymentControls
+                { stripeBillingEnabled = True
+                , stripeCheckoutEnabled = True
+                , stripeOwnerNavigationVisible = False
+                }
         }
 
 validRecurring :: StripeRecurring
@@ -126,6 +156,16 @@ validPrice =
         , priceType = "recurring"
         , recurring = Just validRecurring
         }
+
+fixtureClient :: LByteString.ByteString -> StripeClient
+fixtureClient fixture =
+    stripeClientWithTransport (const (pure (Right fixture)))
+
+responseShouldFailMode :: Either StripeClientError value -> Text -> Expectation
+responseShouldFailMode result expectedMessage =
+    case result of
+        Left (StripeJsonError message) -> message `shouldBe` expectedMessage
+        _ -> expectationFailure "expected Stripe response mode validation to fail"
 
 data LaunchFixtures = LaunchFixtures
     { pricesFixture       :: !LByteString.ByteString

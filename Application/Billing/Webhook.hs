@@ -8,7 +8,7 @@ module Application.Billing.Webhook
 where
 
 import Application.Billing.Notifications (enqueueBillingNotifications)
-import Application.Billing.Stripe (StripeSubscription (..),
+import Application.Billing.Stripe (StripeMode (..), StripeSubscription (..),
                                    pinnedStripeApiVersion)
 import Control.Exception (try)
 import Control.Monad (void)
@@ -62,7 +62,7 @@ instance Aeson.FromJSON StripeWebhookEvent where
             StripeWebhookEvent
                 <$> object Aeson..: "id"
                 <*> object Aeson..: "type"
-                <*> object Aeson..:? "livemode" Aeson..!= False
+                <*> object Aeson..: "livemode"
                 <*> object Aeson..:? "api_version"
                 <*> parseStripeObjectSnapshot stripeObject
 
@@ -138,17 +138,22 @@ parseStripeWebhookEvent rawBody =
         Left err    -> Left ("Unable to decode Stripe webhook event: " <> cs err)
         Right event -> Right event
 
-handleStripeWebhookPayload :: (?modelContext :: ModelContext) => LByteString.ByteString -> IO (Either Text BillingWebhookResult)
-handleStripeWebhookPayload rawBody =
-    case parseStripeWebhookEvent rawBody >>= validateStripeWebhookContract of
+handleStripeWebhookPayload :: (?modelContext :: ModelContext) => StripeMode -> LByteString.ByteString -> IO (Either Text BillingWebhookResult)
+handleStripeWebhookPayload expectedMode rawBody =
+    case parseStripeWebhookEvent rawBody >>= validateStripeWebhookContract expectedMode of
         Left err    -> pure (Left err)
         Right event -> Right <$> processStripeWebhookEvent event
 
-validateStripeWebhookContract :: StripeWebhookEvent -> Either Text StripeWebhookEvent
-validateStripeWebhookContract event = do
+validateStripeWebhookContract :: StripeMode -> StripeWebhookEvent -> Either Text StripeWebhookEvent
+validateStripeWebhookContract expectedMode event = do
     unless (event.stripeApiVersion == Just pinnedStripeApiVersion) do
         Left "Stripe webhook API version does not match the pinned billing contract"
+    unless (event.stripeLivemode == stripeModeIsLive expectedMode) do
+        Left "Stripe webhook mode does not match the configured billing mode"
     pure event
+  where
+    stripeModeIsLive StripeTestMode = False
+    stripeModeIsLive StripeLiveMode = True
 
 processStripeWebhookEvent :: (?modelContext :: ModelContext) => StripeWebhookEvent -> IO BillingWebhookResult
 processStripeWebhookEvent event = do

@@ -39,7 +39,7 @@ tests = aroundAll withDatabaseTestContext do
                 venue <- createVenueWithConfig "Webhook Subscription Venue"
                 _ <- createBillingCustomer venue "cus_subscription_123"
 
-                Right result <- handleStripeWebhookPayload (subscriptionEvent "evt_sub_updated" venue "cus_subscription_123" "sub_123" "active")
+                Right result <- handleStripeWebhookPayload StripeTestMode (subscriptionEvent "evt_sub_updated" venue "cus_subscription_123" "sub_123" "active")
 
                 result `shouldSatisfy` isProcessed
                 event <- query @BillingEvent |> filterWhere (#stripeEventId, "evt_sub_updated" :: Text) |> fetchOne
@@ -75,8 +75,8 @@ tests = aroundAll withDatabaseTestContext do
                 _ <- createBillingCustomer venue "cus_duplicate_123"
                 let eventBody = subscriptionEvent "evt_duplicate_subscription" venue "cus_duplicate_123" "sub_duplicate" "active"
 
-                Right firstResult <- handleStripeWebhookPayload eventBody
-                Right secondResult <- handleStripeWebhookPayload eventBody
+                Right firstResult <- handleStripeWebhookPayload StripeTestMode eventBody
+                Right secondResult <- handleStripeWebhookPayload StripeTestMode eventBody
 
                 firstResult `shouldSatisfy` isProcessed
                 secondResult `shouldSatisfy` isDuplicate
@@ -87,7 +87,7 @@ tests = aroundAll withDatabaseTestContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Webhook Ignored Venue"
 
-                Right result <- handleStripeWebhookPayload (unknownEvent "evt_unknown_123" venue)
+                Right result <- handleStripeWebhookPayload StripeTestMode (unknownEvent "evt_unknown_123" venue)
 
                 result `shouldSatisfy` isIgnored
                 event <- query @BillingEvent |> filterWhere (#stripeEventId, "evt_unknown_123" :: Text) |> fetchOne
@@ -103,7 +103,7 @@ tests = aroundAll withDatabaseTestContext do
                 _ <- createUserRecordWithPlatformRole "billing-problem-support@example.com" "staff" (Just SuperAdminRole) True
                 _ <- createBillingCustomer venue "cus_payment_failed_123"
 
-                Right result <- handleStripeWebhookPayload (invoicePaymentFailedEvent "evt_invoice_failed_123" "cus_payment_failed_123")
+                Right result <- handleStripeWebhookPayload StripeTestMode (invoicePaymentFailedEvent "evt_invoice_failed_123" "cus_payment_failed_123")
 
                 result `shouldSatisfy` isProcessed
                 jobs <- query @AppJob |> filterWhere (#jobKind, billingNotificationJobKind) |> fetch
@@ -111,11 +111,18 @@ tests = aroundAll withDatabaseTestContext do
                 map (.venueId) jobs `shouldBe` [Just (unpackId venue.id), Just (unpackId venue.id)]
                 map (.relatedTable) jobs `shouldBe` [Just "billing_events", Just "billing_events"]
 
-        it "accepts a valid signed JSON webhook request through the controller body middleware" $ withContext do
+        it "accepts a valid signed webhook while new Checkout is disabled" $ withContext do
             withCleanDb do
                 let eventBody = checkoutSessionEventWithoutVenue "evt_controller_checkout_123" "cus_controller_123" "sub_controller_123"
                 signatureHeader <- signedStripeHeader testStripeConfig.webhookSecret eventBody
-                response <- withStripeConfigForTest (Right testStripeConfig) do
+                let checkoutDisabledConfig =
+                        testStripeConfig
+                            { stripeDeploymentControls =
+                                testStripeConfig.stripeDeploymentControls
+                                    { stripeCheckoutEnabled = False
+                                    }
+                            }
+                response <- withStripeConfigForTest (Right checkoutDisabledConfig) do
                     callStripeWebhookWithJsonBody eventBody signatureHeader
 
                 response `responseStatusShouldBe` status200
@@ -128,6 +135,31 @@ tests = aroundAll withDatabaseTestContext do
         it "rejects signed webhook events from an unexpected Stripe API version" $ withContext do
             withCleanDb do
                 let eventBody = checkoutSessionEventWithApiVersion "2026-04-22.dahlia" "evt_outdated_api_version" "cus_outdated_123" "sub_outdated_123"
+                signatureHeader <- signedStripeHeader testStripeConfig.webhookSecret eventBody
+
+                response <- withStripeConfigForTest (Right testStripeConfig) do
+                    callStripeWebhookWithJsonBody eventBody signatureHeader
+
+                response `responseStatusShouldBe` status400
+                eventCount <- query @BillingEvent |> fetchCount
+                eventCount `shouldBe` 0
+
+        it "rejects test-mode webhook events in a live-mode integration" $ withContext do
+            withCleanDb do
+                let eventBody = checkoutSessionEventWithoutVenue "evt_wrong_provider_mode" "cus_wrong_mode_123" "sub_wrong_mode_123"
+                signatureHeader <- signedStripeHeader testStripeConfig.webhookSecret eventBody
+                let liveConfig = testStripeConfig { stripeMode = StripeLiveMode, appBaseUrl = "https://billing.example.test" }
+
+                response <- withStripeConfigForTest (Right liveConfig) do
+                    callStripeWebhookWithJsonBody eventBody signatureHeader
+
+                response `responseStatusShouldBe` status400
+                eventCount <- query @BillingEvent |> fetchCount
+                eventCount `shouldBe` 0
+
+        it "rejects signed webhook events with no explicit Stripe mode" $ withContext do
+            withCleanDb do
+                let eventBody = checkoutSessionEventWithoutLivemode "evt_missing_provider_mode" "cus_missing_mode_123" "sub_missing_mode_123"
                 signatureHeader <- signedStripeHeader testStripeConfig.webhookSecret eventBody
 
                 response <- withStripeConfigForTest (Right testStripeConfig) do
@@ -313,6 +345,26 @@ checkoutSessionEventWithApiVersion apiVersion eventId customerId subscriptionId 
                     ]
             ]
 
+checkoutSessionEventWithoutLivemode :: Text -> Text -> Text -> LByteString.ByteString
+checkoutSessionEventWithoutLivemode eventId customerId subscriptionId =
+    Aeson.encode $
+        Aeson.object
+            [ "id" Aeson..= eventId
+            , "type" Aeson..= ("checkout.session.completed" :: Text)
+            , "api_version" Aeson..= pinnedStripeApiVersion
+            , "data" Aeson..=
+                Aeson.object
+                    [ "object" Aeson..=
+                        Aeson.object
+                            [ "object" Aeson..= ("checkout.session" :: Text)
+                            , "id" Aeson..= ("cs_missing_mode_123" :: Text)
+                            , "customer" Aeson..= customerId
+                            , "subscription" Aeson..= subscriptionId
+                            , "status" Aeson..= ("complete" :: Text)
+                            ]
+                    ]
+            ]
+
 invoicePaymentFailedEvent :: Text -> Text -> LByteString.ByteString
 invoicePaymentFailedEvent eventId customerId =
     Aeson.encode $
@@ -360,6 +412,13 @@ testStripeConfig =
         , priceLookupKey = Just defaultPriceLookupKey
         , priceId = Nothing
         , appBaseUrl = "http://localhost"
+        , stripeMode = StripeTestMode
+        , stripeDeploymentControls =
+            StripeDeploymentControls
+                { stripeBillingEnabled = True
+                , stripeCheckoutEnabled = True
+                , stripeOwnerNavigationVisible = False
+                }
         }
 
 isProcessed :: BillingWebhookResult -> Bool

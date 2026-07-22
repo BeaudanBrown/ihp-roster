@@ -4,7 +4,9 @@ module Application.Billing.Stripe
     , StripeClientError (..)
     , StripeConfig (..)
     , StripeCustomer (..)
+    , StripeDeploymentControls (..)
     , StripeHttpRequest (..)
+    , StripeMode (..)
     , StripePortalSession (..)
     , StripePrice (..)
     , StripeRecurring (..)
@@ -25,9 +27,12 @@ module Application.Billing.Stripe
     , defaultStripeRequestBaseUrls
     , pinnedStripeApiVersion
     , readStripeConfig
+    , readStripeDeploymentControls
     , stripeClientErrorText
     , stripeClientWithTransport
     , stripeWebhookSignedPayload
+    , validateStripeCheckoutRedirectUrl
+    , validateStripePortalRedirectUrl
     , validateVenueMonthlyPrice
     , verifyStripeWebhookSignature
     , verifyStripeWebhookSignatureAt
@@ -50,16 +55,17 @@ import qualified Data.IORef as IORef
 import qualified Data.List as List
 import qualified Data.Text as Text hiding (show)
 import qualified Data.Text.Encoding as TextEncoding
-import Data.Text.Encoding.Error (lenientDecode)
 import qualified Data.Text.IO as TextIO
 import Data.Time.Clock.POSIX (POSIXTime, getPOSIXTime)
 import IHP.Prelude
+import qualified Network.HTTP.Client as Http
 import Network.HTTP.Simple
 import Network.HTTP.Types.Header (HeaderName)
 import qualified Network.HTTP.Types.URI as URI
 import System.Environment (lookupEnv)
 import qualified System.IO.Error as IOError
 import System.IO.Unsafe (unsafePerformIO)
+import qualified System.Timeout as Timeout
 import Text.Read (readMaybe)
 
 defaultPriceLookupKey :: Text
@@ -68,12 +74,29 @@ defaultPriceLookupKey = "bepis_venue_monthly_aud_100"
 pinnedStripeApiVersion :: Text
 pinnedStripeApiVersion = "2026-06-24.dahlia"
 
+stripeHttpTimeoutMicroseconds :: Int
+stripeHttpTimeoutMicroseconds = 15000000
+
+data StripeMode
+    = StripeTestMode
+    | StripeLiveMode
+    deriving (Eq, Show)
+
+data StripeDeploymentControls = StripeDeploymentControls
+    { stripeBillingEnabled         :: !Bool
+    , stripeCheckoutEnabled        :: !Bool
+    , stripeOwnerNavigationVisible :: !Bool
+    }
+    deriving (Eq, Show)
+
 data StripeConfig = StripeConfig
-    { secretKey      :: !Text
-    , webhookSecret  :: !Text
-    , priceLookupKey :: !(Maybe Text)
-    , priceId        :: !(Maybe Text)
-    , appBaseUrl     :: !Text
+    { secretKey                :: !Text
+    , webhookSecret            :: !Text
+    , priceLookupKey           :: !(Maybe Text)
+    , priceId                  :: !(Maybe Text)
+    , appBaseUrl               :: !Text
+    , stripeMode               :: !StripeMode
+    , stripeDeploymentControls :: !StripeDeploymentControls
     }
     deriving (Eq)
 
@@ -93,10 +116,11 @@ data StripeRequestBody
     deriving (Eq, Show)
 
 data StripeHttpRequest = StripeHttpRequest
-    { stripeRequestMethod  :: !ByteString
-    , stripeRequestUrl     :: !Text
-    , stripeRequestHeaders :: ![(HeaderName, ByteString)]
-    , stripeRequestBody    :: !(Maybe StripeRequestBody)
+    { stripeRequestMethod              :: !ByteString
+    , stripeRequestUrl                 :: !Text
+    , stripeRequestHeaders             :: ![(HeaderName, ByteString)]
+    , stripeRequestBody                :: !(Maybe StripeRequestBody)
+    , stripeRequestTimeoutMicroseconds :: !Int
     }
     deriving (Eq)
 
@@ -250,8 +274,8 @@ data StripeClientError
 
 stripeClientErrorText :: StripeClientError -> Text
 stripeClientErrorText = \case
-    StripeHttpError message -> message
-    StripeJsonError message -> message
+    StripeHttpError _ -> "Stripe is temporarily unavailable. Try again."
+    StripeJsonError _ -> "Stripe returned an unexpected response. Try again."
 
 data StripeClient = StripeClient
     { listPrices :: StripeConfig -> IO (Either StripeClientError [StripePrice])
@@ -294,45 +318,153 @@ withStripeConfigForTest configResult action =
 stripeClientWithTransport :: (StripeHttpRequest -> IO (Either StripeClientError LByteString.ByteString)) -> StripeClient
 stripeClientWithTransport transport =
     StripeClient
-        { listPrices = \config ->
-            fmap prices <$> sendStripeJsonRequestWith transport "Stripe price lookup" (buildListPricesRequest config)
+        { listPrices = \config -> do
+            result <- fmap prices <$> sendStripeJsonRequestWith transport "Stripe price lookup" (buildListPricesRequest config)
+            pure (result >>= mapM (validateStripeResponseMode "price lookup" config (.stripePriceLivemode)))
         , retrievePrice = \config price ->
-            sendStripeJsonRequestWith transport "Stripe price retrieve" (buildRetrievePriceRequest config price)
+            sendModeCheckedStripeJsonRequest transport "price retrieve" config (.stripePriceLivemode) (buildRetrievePriceRequest config price)
         , createCustomer = \config venueId venueName ->
-            sendStripeJsonRequestWith transport "Stripe customer create" (buildCreateCustomerRequest config venueId venueName)
+            sendModeCheckedStripeJsonRequest transport "customer create" config (.stripeCustomerLivemode) (buildCreateCustomerRequest config venueId venueName)
         , createCheckoutSession = \config venueId customerId price successUrl cancelUrl ->
-            sendStripeJsonRequestWith transport "Stripe checkout session create" (buildCreateCheckoutSessionRequest config venueId customerId price successUrl cancelUrl)
+            sendModeCheckedStripeJsonRequest transport "checkout session create" config (.stripeCheckoutLivemode) (buildCreateCheckoutSessionRequest config venueId customerId price successUrl cancelUrl)
         , retrieveCheckoutSession = \config sessionId ->
-            sendStripeJsonRequestWith transport "Stripe checkout session retrieve" (buildRetrieveCheckoutSessionRequest config sessionId)
+            sendModeCheckedStripeJsonRequest transport "checkout session retrieve" config (.stripeCheckoutLivemode) (buildRetrieveCheckoutSessionRequest config sessionId)
         , createPortalSession = \config venueId customerId returnUrl ->
-            sendStripeJsonRequestWith transport "Stripe portal session create" (buildCreatePortalSessionRequest config venueId customerId returnUrl)
+            sendModeCheckedStripeJsonRequest transport "portal session create" config (.stripePortalSessionLivemode) (buildCreatePortalSessionRequest config venueId customerId returnUrl)
         , retrieveSubscription = \config subscriptionId ->
-            sendStripeJsonRequestWith transport "Stripe subscription retrieve" (buildRetrieveSubscriptionRequest config subscriptionId)
+            sendModeCheckedStripeJsonRequest transport "subscription retrieve" config (.stripeSubscriptionLivemode) (buildRetrieveSubscriptionRequest config subscriptionId)
         }
+
+sendModeCheckedStripeJsonRequest
+    :: Aeson.FromJSON value
+    => (StripeHttpRequest -> IO (Either StripeClientError LByteString.ByteString))
+    -> Text
+    -> StripeConfig
+    -> (value -> Bool)
+    -> StripeHttpRequest
+    -> IO (Either StripeClientError value)
+sendModeCheckedStripeJsonRequest transport label config responseLivemode request = do
+    result <- sendStripeJsonRequestWith transport ("Stripe " <> label) request
+    pure (result >>= validateStripeResponseMode label config responseLivemode)
+
+validateStripeResponseMode :: Text -> StripeConfig -> (value -> Bool) -> value -> Either StripeClientError value
+validateStripeResponseMode label config responseLivemode value =
+    if responseLivemode value == stripeModeIsLive config.stripeMode
+        then Right value
+        else
+            Left
+                ( StripeJsonError
+                    ( "Stripe "
+                        <> label
+                        <> " returned "
+                        <> stripeModeName (if responseLivemode value then StripeLiveMode else StripeTestMode)
+                        <> "-mode data to a "
+                        <> stripeModeName config.stripeMode
+                        <> "-mode integration"
+                    )
+                )
+
+stripeModeIsLive :: StripeMode -> Bool
+stripeModeIsLive StripeTestMode = False
+stripeModeIsLive StripeLiveMode = True
+
+stripeModeName :: StripeMode -> Text
+stripeModeName StripeTestMode = "test"
+stripeModeName StripeLiveMode = "live"
 
 readStripeConfig :: IO (Either Text StripeConfig)
 readStripeConfig = do
     IORef.readIORef stripeConfigOverrideRef >>= \case
         Just configResult -> pure configResult
-        Nothing -> do
-            maybeSecretKey <- readSecret "STRIPE_SECRET_KEY_FILE" "STRIPE_SECRET_KEY"
-            maybeWebhookSecret <- readSecret "STRIPE_WEBHOOK_SECRET_FILE" "STRIPE_WEBHOOK_SECRET"
-            maybeLookupKey <- cleanMaybe <$> lookupEnvText "STRIPE_PRICE_LOOKUP_KEY"
-            maybePriceId <- cleanMaybe <$> lookupEnvText "STRIPE_PRICE_ID"
-            appBaseUrl <- fromMaybe "http://localhost:8000" . cleanMaybe <$> lookupEnvText "APP_BASE_URL"
-            pure case (maybeSecretKey, maybeWebhookSecret) of
-                (Right (Just secretKey), Right (Just webhookSecret)) ->
-                    Right
-                        StripeConfig
-                            { secretKey
-                            , webhookSecret
-                            , priceLookupKey = maybeLookupKey <|> if isJust maybePriceId then Nothing else Just defaultPriceLookupKey
-                            , priceId = maybePriceId
-                            , appBaseUrl
-                            }
-                (Left err, _) -> Left err
-                (_, Left err) -> Left err
-                _ -> Left "Stripe is not configured. Set STRIPE_SECRET_KEY_FILE and STRIPE_WEBHOOK_SECRET_FILE, or dev/test STRIPE_SECRET_KEY and STRIPE_WEBHOOK_SECRET."
+        Nothing ->
+            readStripeDeploymentControls >>= \case
+                Left err -> pure (Left err)
+                Right stripeDeploymentControls
+                    | not stripeDeploymentControls.stripeBillingEnabled ->
+                        pure (Left "Stripe billing is disabled")
+                    | otherwise ->
+                        readStripeMode >>= \case
+                            Left err -> pure (Left err)
+                            Right stripeMode -> readEnabledStripeConfig stripeDeploymentControls stripeMode
+
+readEnabledStripeConfig :: StripeDeploymentControls -> StripeMode -> IO (Either Text StripeConfig)
+readEnabledStripeConfig stripeDeploymentControls stripeMode = do
+    maybeSecretKey <- readSecret "STRIPE_SECRET_KEY_FILE" "STRIPE_SECRET_KEY"
+    maybeWebhookSecret <- readSecret "STRIPE_WEBHOOK_SECRET_FILE" "STRIPE_WEBHOOK_SECRET"
+    maybeLookupKey <- cleanMaybe <$> lookupEnvText "STRIPE_PRICE_LOOKUP_KEY"
+    maybePriceId <- cleanMaybe <$> lookupEnvText "STRIPE_PRICE_ID"
+    appBaseUrl <- fromMaybe "http://localhost:8000" . cleanMaybe <$> lookupEnvText "APP_BASE_URL"
+    pure case (maybeSecretKey, maybeWebhookSecret) of
+        (Right (Just secretKey), Right (Just webhookSecret)) -> do
+            validateStripeSecretKey stripeMode secretKey
+            validateStripeWebhookSecret webhookSecret
+            validateStripeAppBaseUrl stripeMode appBaseUrl
+            Right
+                StripeConfig
+                    { secretKey
+                    , webhookSecret
+                    , priceLookupKey = maybeLookupKey <|> if isJust maybePriceId then Nothing else Just defaultPriceLookupKey
+                    , priceId = maybePriceId
+                    , appBaseUrl
+                    , stripeMode
+                    , stripeDeploymentControls
+                    }
+        (Left err, _) -> Left err
+        (_, Left err) -> Left err
+        _ -> Left "Stripe is not configured. Set STRIPE_SECRET_KEY_FILE and STRIPE_WEBHOOK_SECRET_FILE, or dev/test STRIPE_SECRET_KEY and STRIPE_WEBHOOK_SECRET."
+
+validateStripeSecretKey :: StripeMode -> Text -> Either Text ()
+validateStripeSecretKey StripeTestMode key
+    | any (`Text.isPrefixOf` key) ["sk_test_", "rk_test_"] = Right ()
+    | otherwise = Left "Stripe test mode requires a test secret key"
+validateStripeSecretKey StripeLiveMode key
+    | any (`Text.isPrefixOf` key) ["rk_live_", "sk_live_"] = Right ()
+    | otherwise = Left "Stripe live mode requires a live secret key"
+
+validateStripeWebhookSecret :: Text -> Either Text ()
+validateStripeWebhookSecret secret
+    | "whsec_" `Text.isPrefixOf` secret = Right ()
+    | otherwise = Left "Stripe webhook signing secret must start with whsec_"
+
+validateStripeAppBaseUrl :: StripeMode -> Text -> Either Text ()
+validateStripeAppBaseUrl StripeTestMode _ = Right ()
+validateStripeAppBaseUrl StripeLiveMode baseUrl
+    | "https://" `Text.isPrefixOf` Text.toLower baseUrl = Right ()
+    | otherwise = Left "Stripe live mode requires an HTTPS APP_BASE_URL"
+
+readStripeDeploymentControls :: IO (Either Text StripeDeploymentControls)
+readStripeDeploymentControls =
+    IORef.readIORef stripeConfigOverrideRef >>= \case
+        Just configResult -> pure (fmap (.stripeDeploymentControls) configResult)
+        Nothing -> readStripeDeploymentControlsFromEnv
+
+readStripeDeploymentControlsFromEnv :: IO (Either Text StripeDeploymentControls)
+readStripeDeploymentControlsFromEnv = do
+    billingEnabled <- readStripeBoolean "STRIPE_BILLING_ENABLED"
+    checkoutEnabled <- readStripeBoolean "STRIPE_CHECKOUT_ENABLED"
+    ownerNavigationVisible <- readStripeBoolean "STRIPE_OWNER_NAVIGATION_VISIBLE"
+    pure $
+        StripeDeploymentControls
+            <$> billingEnabled
+            <*> checkoutEnabled
+            <*> ownerNavigationVisible
+
+readStripeBoolean :: String -> IO (Either Text Bool)
+readStripeBoolean name = do
+    value <- fmap Text.toLower . cleanMaybe <$> lookupEnvText name
+    pure case value of
+        Nothing      -> Right False
+        Just "true"  -> Right True
+        Just "false" -> Right False
+        Just _       -> Left (cs name <> " must be true or false")
+
+readStripeMode :: IO (Either Text StripeMode)
+readStripeMode = do
+    value <- fmap Text.toLower . cleanMaybe <$> lookupEnvText "STRIPE_MODE"
+    pure case value of
+        Just "test" -> Right StripeTestMode
+        Just "live" -> Right StripeLiveMode
+        _           -> Left "STRIPE_MODE must be explicitly set to test or live"
 
 readSecret :: String -> String -> IO (Either Text (Maybe Text))
 readSecret fileEnv valueEnv = do
@@ -374,6 +506,7 @@ buildListPricesRequest config =
             , stripeRequestUrl = defaultStripeRequestBaseUrls.stripeApiBaseUrl <> "/v1/prices" <> TextEncoding.decodeUtf8 query
             , stripeRequestHeaders = stripeAuthHeaders config
             , stripeRequestBody = Nothing
+            , stripeRequestTimeoutMicroseconds = stripeHttpTimeoutMicroseconds
             }
 
 buildRetrievePriceRequest :: StripeConfig -> Text -> StripeHttpRequest
@@ -435,6 +568,7 @@ stripeGetRequest config path =
         , stripeRequestUrl = defaultStripeRequestBaseUrls.stripeApiBaseUrl <> path
         , stripeRequestHeaders = stripeAuthHeaders config
         , stripeRequestBody = Nothing
+        , stripeRequestTimeoutMicroseconds = stripeHttpTimeoutMicroseconds
         }
 
 stripePostFormRequest :: StripeConfig -> Text -> Text -> [(ByteString, ByteString)] -> StripeHttpRequest
@@ -447,6 +581,7 @@ stripePostFormRequest config idempotencyKey path formBody =
                 <> [ ("Idempotency-Key", TextEncoding.encodeUtf8 idempotencyKey)
                    ]
         , stripeRequestBody = Just (StripeFormBody formBody)
+        , stripeRequestTimeoutMicroseconds = stripeHttpTimeoutMicroseconds
         }
 
 stripeAuthHeaders :: StripeConfig -> [(HeaderName, ByteString)]
@@ -468,6 +603,24 @@ normalizeKeyPart :: Text -> Text
 normalizeKeyPart =
     Text.dropAround (== '-')
         . Text.map (\char -> if Char.isAlphaNum char then Char.toLower char else '-')
+
+validateStripeCheckoutRedirectUrl :: Text -> IO (Either Text Text)
+validateStripeCheckoutRedirectUrl =
+    validateStripeHostedRedirectUrl "Checkout" "checkout.stripe.com"
+
+validateStripePortalRedirectUrl :: Text -> IO (Either Text Text)
+validateStripePortalRedirectUrl =
+    validateStripeHostedRedirectUrl "Customer Portal" "billing.stripe.com"
+
+validateStripeHostedRedirectUrl :: Text -> ByteString -> Text -> IO (Either Text Text)
+validateStripeHostedRedirectUrl surfaceName expectedHost url = do
+    Exception.try (parseRequest (cs url)) >>= \case
+        Left (_ :: Exception.SomeException) -> pure (Left invalidUrlMessage)
+        Right request
+            | Http.secure request && Http.port request == 443 && Http.host request == expectedHost -> pure (Right url)
+            | otherwise -> pure (Left invalidUrlMessage)
+  where
+    invalidUrlMessage = "Stripe " <> surfaceName <> " returned an unexpected hosted redirect URL."
 
 validateVenueMonthlyPrice :: StripePrice -> Either Text StripePrice
 validateVenueMonthlyPrice price = do
@@ -492,8 +645,9 @@ sendStripeRawRequest :: StripeHttpRequest -> IO (Either StripeClientError LByteS
 sendStripeRawRequest stripeRequest =
     handleStripeHttpExceptions do
         requestWithHeaders <- toHttpRequest stripeRequest
-        response <- httpLBS requestWithHeaders
-        decodeStripeRawResponse "Stripe request" response
+        Timeout.timeout stripeRequest.stripeRequestTimeoutMicroseconds (httpLBS requestWithHeaders) >>= \case
+            Nothing -> pure (Left (StripeHttpError "Stripe request timed out"))
+            Just response -> decodeStripeRawResponse "Stripe request" response
 
 toHttpRequest :: StripeHttpRequest -> IO Request
 toHttpRequest stripeRequest = do
@@ -501,6 +655,7 @@ toHttpRequest stripeRequest = do
     let requestWithHeaders =
             request
                 |> setRequestMethod stripeRequest.stripeRequestMethod
+                |> setRequestResponseTimeout (Http.responseTimeoutMicro stripeRequest.stripeRequestTimeoutMicroseconds)
                 |> applyRequestHeaders stripeRequest.stripeRequestHeaders
     pure case stripeRequest.stripeRequestBody of
         Nothing -> requestWithHeaders
@@ -512,29 +667,22 @@ applyRequestHeaders headers request =
 
 handleStripeHttpExceptions :: IO (Either StripeClientError value) -> IO (Either StripeClientError value)
 handleStripeHttpExceptions action =
-    action `Exception.catch` \(err :: Exception.SomeException) ->
-        pure (Left (StripeHttpError ("Stripe request failed before receiving a response: " <> cs (displayException err))))
+    action `Exception.catch` \(_ :: Exception.SomeException) ->
+        pure (Left (StripeHttpError "Stripe request failed before receiving a response"))
 
 decodeStripeRawResponse :: Text -> Response LByteString.ByteString -> IO (Either StripeClientError LByteString.ByteString)
 decodeStripeRawResponse label response = do
     let statusCode = getResponseStatusCode response
     let responseBody = getResponseBody response
-    let bodyExcerpt = Text.take 500 (TextEncoding.decodeUtf8With lenientDecode (LByteString.toStrict responseBody))
     if statusCode < 200 || statusCode >= 300
-        then pure (Left (StripeHttpError (label <> " failed with status " <> tshow statusCode <> responseBodySuffix bodyExcerpt)))
+        then pure (Left (StripeHttpError (label <> " failed with status " <> tshow statusCode)))
         else pure (Right responseBody)
 
 decodeBodyPure :: Aeson.FromJSON value => LByteString.ByteString -> Either StripeClientError value
 decodeBodyPure body =
     case Aeson.eitherDecode body of
-        Left err    -> Left (StripeJsonError ("Unable to decode Stripe response: " <> cs err))
+        Left _      -> Left (StripeJsonError "Unable to decode Stripe response")
         Right value -> Right value
-
-responseBodySuffix :: Text -> Text
-responseBodySuffix bodyExcerpt =
-    if Text.null (Text.strip bodyExcerpt)
-        then ""
-        else ": " <> bodyExcerpt
 
 data StripeWebhookSignature = StripeWebhookSignature
     { signatureTimestamp :: !Integer

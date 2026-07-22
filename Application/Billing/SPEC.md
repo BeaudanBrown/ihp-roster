@@ -61,6 +61,37 @@ Primary references:
 - `https://docs.stripe.com/changelog/basil/2025-03-31/deprecate-subscription-current-period-start-and-end`
 - `https://docs.stripe.com/changelog/dahlia/2026-03-25/updates-available-checkout-session-ui-modes`
 
+## Mode And Transport Safety
+
+Stripe mode is explicit: development and CI use `test`; production uses
+`live`. Test mode accepts only `sk_test_` or `rk_test_` API credentials. Live
+mode prefers a least-privilege `rk_live_` restricted key and accepts an
+`sk_live_` secret key only as the documented fallback when required Stripe
+permissions cannot be represented by a restricted key. Webhook signing secrets
+must use the `whsec_` form. Credential values are never included in validation
+errors.
+
+Every decoded Price, Customer, Checkout Session, Portal Session, and
+Subscription response must have `livemode` matching the configured mode. Signed
+webhook events must declare `livemode` and match the same mode. A mismatch is
+rejected before provider data is used or persisted. Provider-mode metadata on
+local records is added by the persistence-foundation work; until then, Stripe
+also rejects a stored Customer ID presented to credentials from the other mode,
+and Bepis treats that as a sanitized failure rather than silently reusing it.
+
+Live mode requires an HTTPS `APP_BASE_URL`. Outbound Stripe HTTP requests have
+an explicit 15-second response timeout. Customer-facing errors never include
+provider response bodies, exception details, payment-like values, emails, or
+credential-like text.
+
+Bepis redirects only to HTTPS on Stripe's exact hosted domains:
+
+- Checkout: `checkout.stripe.com`
+- Customer Portal: `billing.stripe.com`
+
+Malformed URLs, HTTP URLs, and lookalike hosts fail closed and return the user
+to Billing without redirecting off-site.
+
 ## Stripe Data Boundary
 
 Stripe-hosted surfaces collect and retain payment details.
@@ -117,7 +148,9 @@ The app omits `payment_method_types` by default so Stripe Dashboard controls
 eligible hosted payment methods.
 
 Stripe create requests use deterministic idempotency keys scoped to the venue
-and operation.
+and operation. The server enforces the new-Checkout deployment control before
+Price lookup, Customer creation, or Checkout creation; hiding a button is not a
+security boundary.
 
 ## Customer Portal Flow
 
@@ -125,7 +158,8 @@ Venue owners and founder super admins may open Stripe Customer Portal for the
 current venue after a Stripe Customer exists.
 
 The app creates Portal Sessions on demand using the stored Customer ID and a
-return URL. Portal URLs are short-lived and must not be stored.
+return URL. Portal URLs are short-lived and must not be stored. Disabling new
+Checkout does not disable Portal access for an existing Customer.
 
 Stripe Customer Portal must be configured in Stripe sandbox and live mode before
 launch. Portal policy controls, including cancellation behavior, are Stripe
@@ -140,6 +174,7 @@ The public Stripe webhook endpoint:
 - verifies `Stripe-Signature` with the configured webhook signing secret before
   parsing JSON
 - rejects invalid signatures
+- requires explicit `livemode` matching configured test/live mode
 - records and deduplicates by Stripe event ID
 - processes subscription state transactionally
 - returns success for already processed duplicate events
@@ -225,7 +260,21 @@ Deployed environments use file-backed secrets:
 - `STRIPE_WEBHOOK_SECRET_FILE`
 
 Dev/test may use direct environment variable fallback for deterministic local
-tests.
+tests. Runtime mode and rollout controls are explicit:
+
+- `STRIPE_MODE=test|live`
+- `STRIPE_BILLING_ENABLED=true|false`
+- `STRIPE_CHECKOUT_ENABLED=true|false`
+- `STRIPE_OWNER_NAVIGATION_VISIBLE=true|false`
+
+Missing controls default to false. Invalid values fail configuration loading
+without preventing unrelated Bepis pages from serving. Overall billing controls
+whether Stripe credentials, API calls, webhooks, and later reconciliation are
+active. New Checkout is independently server-gated. Owner navigation visibility
+is independently available to the owner-navigation work and does not authorize
+the direct Billing route. During an incident, keep overall billing enabled while
+disabling Checkout and navigation so signed webhooks and existing-customer
+Portal recovery continue.
 
 Price configuration:
 
@@ -243,6 +292,9 @@ Do not commit real Stripe keys or webhook secrets.
 Production NixOS config injects Stripe secrets through systemd credentials and
 exposes non-secret file paths to the app. The operational placeholders are:
 
+- `mode = "live"`
+- `checkoutEnabled = false`
+- `ownerNavigationVisible = false`
 - `secretKeyFile = "/run/secrets/ihp-roster-stripe-secret-key"`
 - `webhookSecretFile = "/run/secrets/ihp-roster-stripe-webhook-secret"`
 - `priceLookupKey = "bepis_venue_monthly_aud_100"`
@@ -264,6 +316,10 @@ Local deterministic tests cover:
 - duplicate event handling
 - subscription lifecycle fixture processing
 - sensitive-data filtering for stored event summaries and logs
+- explicit mode, credential-prefix, live HTTPS, and fail-closed control parsing
+- API/webhook mode mismatch rejection
+- bounded HTTP timeout and sanitized caller-facing provider errors
+- exact hosted Checkout and Portal redirect-domain validation
 
 Strict local Stripe mock coverage should include:
 

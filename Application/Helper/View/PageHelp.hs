@@ -242,8 +242,8 @@ pageHelpTopics =
     , topic "billing" "Billing"
         [ section HelpOwnerPlus "Billing tasks"
             [ iconItem HelpOwnerPlus "bi-receipt" "Status" "Check subscription status" "Review the Subscription table for the current venue billing state."
-            , buttonItem HelpOwnerPlus "bi-credit-card" "Payment" "Start a subscription" "Click Start Subscription when the venue needs a new Stripe subscription." "btn btn-primary" Nothing "Start Subscription"
-            , buttonItem HelpOwnerPlus "bi-credit-card" "Payment" "Manage payment details" "Click Manage Billing to open Stripe's billing portal for payment details and plan changes." "btn btn-outline-primary" Nothing "Manage Billing"
+            , buttonItem HelpOwnerPlus "bi-credit-card" "Payment" "Start a subscription" "Click Start Subscription when the venue needs a new Stripe subscription. If new subscriptions are temporarily unavailable, existing billing and venue features remain available." "btn btn-primary" Nothing "Start Subscription"
+            , buttonItem HelpOwnerPlus "bi-credit-card" "Payment" "Manage payment details" "Click Manage Billing to open Stripe's billing portal. Existing customers can still use the portal when new subscriptions are paused." "btn btn-outline-primary" Nothing "Manage Billing"
             , iconItem HelpOwnerPlus "bi-arrow-clockwise" "Refresh" "Check a pending change" "If a payment or plan change is pending, wait briefly and refresh before trying again."
             ]
         , section HelpSupportOnly "Founder support"

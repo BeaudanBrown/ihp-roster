@@ -67,6 +67,8 @@ validateRequest expected request = do
         Left "Stripe-Version header was missing or incorrect"
     unless (lookup "Idempotency-Key" request.stripeRequestHeaders == expected.expectedIdempotencyKey) do
         Left "Stripe Idempotency-Key header did not match"
+    unless (request.stripeRequestTimeoutMicroseconds == 15000000) do
+        Left "Stripe request timeout was missing or incorrect"
 
 requestPath :: StripeHttpRequest -> Text
 requestPath request =

@@ -15,11 +15,12 @@ import Web.Billing.FrontendSurface (BillingCheckoutReturnState (..),
 import Web.View.Prelude
 
 data BillingViewModel = BillingViewModel
-    { maybeCustomer     :: !(Maybe VenueBillingCustomer)
-    , maybeSubscription :: !(Maybe VenueSubscription)
-    , maybeControl      :: !(Maybe VenueBillingControl)
-    , recentEvents      :: ![BillingEvent]
-    , checkoutReturn    :: !(Maybe BillingCheckoutReturn)
+    { maybeCustomer           :: !(Maybe VenueBillingCustomer)
+    , maybeSubscription       :: !(Maybe VenueSubscription)
+    , maybeControl            :: !(Maybe VenueBillingControl)
+    , recentEvents            :: ![BillingEvent]
+    , checkoutReturn          :: !(Maybe BillingCheckoutReturn)
+    , stripeCheckoutAvailable :: !Bool
     }
 
 data BillingCheckoutReturn = BillingCheckoutReturn
@@ -175,7 +176,7 @@ renderCheckoutSessionHint (Just sessionId) = [hsx|
 |]
 
 renderBillingStatusPanel :: BillingViewModel -> Html
-renderBillingStatusPanel BillingViewModel { maybeCustomer, maybeSubscription } =
+renderBillingStatusPanel BillingViewModel { maybeCustomer, maybeSubscription, stripeCheckoutAvailable } =
     simpleAppPanel
         "Subscription"
         (Just "Stripe-hosted Checkout and Customer Portal manage payment details outside this app.")
@@ -205,14 +206,21 @@ renderBillingStatusPanel BillingViewModel { maybeCustomer, maybeSubscription } =
                 </div>
                 <div class="d-flex flex-wrap gap-2">
                     <form method="POST" action={CreateBillingCheckoutSessionAction}>
-                        <button type="submit" class="btn btn-primary">Start Subscription</button>
+                        <button type="submit" class="btn btn-primary" disabled={not stripeCheckoutAvailable}>Start Subscription</button>
                     </form>
                     <form method="POST" action={CreateBillingPortalSessionAction}>
                         <button type="submit" class="btn btn-outline-primary" disabled={isNothing maybeCustomer}>Manage Billing</button>
                     </form>
                 </div>
+                {renderCheckoutAvailability stripeCheckoutAvailable}
             </div>
         |]
+
+renderCheckoutAvailability :: Bool -> Html
+renderCheckoutAvailability True = mempty
+renderCheckoutAvailability False = [hsx|
+    <p class="mb-0 app-muted small">New subscriptions are temporarily unavailable. Existing customers can still manage billing.</p>
+|]
 
 renderSubscriptionSummary :: Maybe VenueSubscription -> Html
 renderSubscriptionSummary Nothing = [hsx|No webhook-confirmed subscription|]

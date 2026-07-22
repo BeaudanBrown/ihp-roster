@@ -21,6 +21,12 @@ Read this before editing `Application/Billing/` or billing controllers.
 - Use idempotency keys for Stripe create requests.
 - Never log Stripe secret keys, webhook secrets, payment method details, or full
   raw webhook/API payloads.
+- Keep Stripe mode explicit. API objects and signed events must match configured
+  test/live mode; never infer mode from a Customer or Subscription ID.
+- Validate hosted redirects against the exact HTTPS Stripe Checkout or Customer
+  Portal domain before returning them to a browser.
+- Keep new-Checkout control server-side and independent from overall Stripe
+  integration so Portal, webhooks, and reconciliation can remain available.
 - When changing visible billing status, Checkout/Portal flows, pending/webhook language, manual read-only controls, or owner/support access behavior, update the `billing` topic in `Application.Helper.View.PageHelp`.
 
 ## Configuration
@@ -32,6 +38,10 @@ Read this before editing `Application/Billing/` or billing controllers.
 - Prefer `STRIPE_PRICE_LOOKUP_KEY`, defaulting operationally to
   `bepis_venue_monthly_aud_100`.
 - Allow `STRIPE_PRICE_ID` only as a fallback override.
+- Production prefers a file-backed least-privilege `rk_live_` key. A file-backed
+  `sk_live_` key is fallback-only when required permissions cannot be granted to
+  a restricted key. Development launchers must reject both live key classes.
+- Live mode requires HTTPS `APP_BASE_URL`; missing rollout controls fail closed.
 
 ## Verification
 

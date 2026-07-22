@@ -44,6 +44,20 @@ tests = aroundAll withDatabaseTestContext do
                 response `responseBodyShouldContain` "Manage Billing"
                 response `responseBodyShouldNotContain` "Manual Controls"
 
+        it "keeps the Billing status page available when Stripe configuration is unhealthy" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Billing Unhealthy Config Venue"
+                owner <- createUserRecord "billing-unhealthy-config@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue owner "venue_owner"
+
+                response <- withStripeConfigForTest (Left "Stripe configuration is unavailable") do
+                    withPasskeyVerifiedUserAndCurrentVenue owner venue.id do
+                        callAction BillingAction
+
+                response `responseStatusShouldBe` status200
+                response `responseBodyShouldContain` "Billing"
+                response `responseBodyShouldContain` "AUD 100/month"
+
         it "serves the billing status fragment through the typed surface rule" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Billing Fragment Venue"
@@ -94,11 +108,54 @@ tests = aroundAll withDatabaseTestContext do
                             callAction CreateBillingCheckoutSessionAction
 
                 response `responseStatusShouldBe` status302
-                lookup "Location" (responseHeaders response) `shouldBe` Just "https://checkout.stripe.test/session"
+                lookup "Location" (responseHeaders response) `shouldBe` Just "https://checkout.stripe.com/c/pay/cs_test_123"
                 customer <- query @VenueBillingCustomer |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
                 customer.stripeCustomerId `shouldBe` "cus_checkout_123"
 
-        it "redirects existing customers to Stripe Customer Portal" $ withContext do
+        it "refuses Checkout redirects outside Stripe's hosted domain" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Billing Unsafe Checkout Redirect Venue"
+                owner <- createUserRecord "billing-unsafe-checkout-redirect@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue owner "venue_owner"
+
+                response <- withStripeConfigForTest (Right testStripeConfig) do
+                    withStripeClientForTest unsafeCheckoutRedirectClient do
+                        withPasskeyVerifiedUserAndCurrentVenue owner venue.id do
+                            callAction CreateBillingCheckoutSessionAction
+
+                response `responseStatusShouldBe` status302
+                lookup "Location" (responseHeaders response) `shouldBe` Just "http://localhost/Billing"
+
+        it "blocks crafted Checkout requests when new Checkout is disabled" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Billing Checkout Disabled Venue"
+                owner <- createUserRecord "billing-checkout-disabled@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue owner "venue_owner"
+                let disabledConfig =
+                        testStripeConfig
+                            { stripeDeploymentControls =
+                                testStripeConfig.stripeDeploymentControls
+                                    { stripeCheckoutEnabled = False
+                                    }
+                            }
+
+                pageResponse <- withStripeConfigForTest (Right disabledConfig) do
+                    withPasskeyVerifiedUserAndCurrentVenue owner venue.id do
+                        callAction BillingAction
+                pageResponse `responseStatusShouldBe` status200
+                pageResponse `responseBodyShouldContain` "New subscriptions are temporarily unavailable"
+
+                response <- withStripeConfigForTest (Right disabledConfig) do
+                    withStripeClientForTest checkoutStripeClient do
+                        withPasskeyVerifiedUserAndCurrentVenue owner venue.id do
+                            callAction CreateBillingCheckoutSessionAction
+
+                response `responseStatusShouldBe` status302
+                lookup "Location" (responseHeaders response) `shouldBe` Just "http://localhost/Billing"
+                customerCount <- query @VenueBillingCustomer |> filterWhere (#venueId, unpackId venue.id) |> fetchCount
+                customerCount `shouldBe` 0
+
+        it "keeps existing-customer Portal access when new Checkout is disabled" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Billing Portal Venue"
                 owner <- createUserRecord "billing-portal-owner@example.com" "staff" True
@@ -109,13 +166,39 @@ tests = aroundAll withDatabaseTestContext do
                         |> set #stripeCustomerId "cus_portal_123"
                         |> createRecord
 
-                response <- withStripeConfigForTest (Right testStripeConfig) do
+                let checkoutDisabledConfig =
+                        testStripeConfig
+                            { stripeDeploymentControls =
+                                testStripeConfig.stripeDeploymentControls
+                                    { stripeCheckoutEnabled = False
+                                    }
+                            }
+                response <- withStripeConfigForTest (Right checkoutDisabledConfig) do
                     withStripeClientForTest portalStripeClient do
                         withPasskeyVerifiedUserAndCurrentVenue owner venue.id do
                             callAction CreateBillingPortalSessionAction
 
                 response `responseStatusShouldBe` status302
-                lookup "Location" (responseHeaders response) `shouldBe` Just "https://billing.stripe.test/session"
+                lookup "Location" (responseHeaders response) `shouldBe` Just "https://billing.stripe.com/p/session/bps_test_123"
+
+        it "refuses Customer Portal redirects outside Stripe's hosted domain" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Billing Unsafe Portal Redirect Venue"
+                owner <- createUserRecord "billing-unsafe-portal-redirect@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue owner "venue_owner"
+                _ <-
+                    newRecord @VenueBillingCustomer
+                        |> set #venueId (unpackId venue.id)
+                        |> set #stripeCustomerId "cus_unsafe_portal_123"
+                        |> createRecord
+
+                response <- withStripeConfigForTest (Right testStripeConfig) do
+                    withStripeClientForTest unsafePortalRedirectClient do
+                        withPasskeyVerifiedUserAndCurrentVenue owner venue.id do
+                            callAction CreateBillingPortalSessionAction
+
+                response `responseStatusShouldBe` status302
+                lookup "Location" (responseHeaders response) `shouldBe` Just "http://localhost/Billing"
 
         it "lets support-mode super admins update manual read-only state" $ withContext do
             withCleanDb do
@@ -239,6 +322,13 @@ testStripeConfig =
         , priceLookupKey = Just defaultPriceLookupKey
         , priceId = Nothing
         , appBaseUrl = "http://localhost"
+        , stripeMode = StripeTestMode
+        , stripeDeploymentControls =
+            StripeDeploymentControls
+                { stripeBillingEnabled = True
+                , stripeCheckoutEnabled = True
+                , stripeOwnerNavigationVisible = False
+                }
         }
 
 validMonthlyPrice :: StripePrice
@@ -269,7 +359,7 @@ checkoutStripeClient =
                     && cancelUrl == "http://localhost/BillingCancel"
                 then pure (Right StripeCheckoutSession
                     { stripeCheckoutSessionId = "cs_checkout_123"
-                    , stripeCheckoutSessionUrl = Just "https://checkout.stripe.test/session"
+                    , stripeCheckoutSessionUrl = Just "https://checkout.stripe.com/c/pay/cs_test_123"
                     , stripeCheckoutCustomerId = Just customerId
                     , stripeCheckoutSubscriptionId = Nothing
                     , stripeCheckoutLivemode = False
@@ -279,6 +369,21 @@ checkoutStripeClient =
                 else pure (Left (StripeHttpError "unexpected checkout request"))
         }
 
+unsafeCheckoutRedirectClient :: StripeClient
+unsafeCheckoutRedirectClient =
+    checkoutStripeClient
+        { createCheckoutSession = \_ _ customerId _ _ _ ->
+            pure (Right StripeCheckoutSession
+                { stripeCheckoutSessionId = "cs_unsafe_redirect_123"
+                , stripeCheckoutSessionUrl = Just "https://checkout.stripe.com.evil.example/session"
+                , stripeCheckoutCustomerId = Just customerId
+                , stripeCheckoutSubscriptionId = Nothing
+                , stripeCheckoutLivemode = False
+                , stripeCheckoutMode = "subscription"
+                , stripeCheckoutStatus = "open"
+                })
+        }
+
 portalStripeClient :: StripeClient
 portalStripeClient =
     failingStripeClient
@@ -286,10 +391,21 @@ portalStripeClient =
             if customerId == "cus_portal_123" && returnUrl == "http://localhost/Billing"
                 then pure (Right StripePortalSession
                     { stripePortalSessionId = "bps_portal_123"
-                    , stripePortalSessionUrl = "https://billing.stripe.test/session"
+                    , stripePortalSessionUrl = "https://billing.stripe.com/p/session/bps_test_123"
                     , stripePortalSessionLivemode = False
                     })
                 else pure (Left (StripeHttpError "unexpected portal request"))
+        }
+
+unsafePortalRedirectClient :: StripeClient
+unsafePortalRedirectClient =
+    failingStripeClient
+        { createPortalSession = \_ _ customerId _ ->
+            pure (Right StripePortalSession
+                { stripePortalSessionId = "bps_unsafe_redirect_123"
+                , stripePortalSessionUrl = "https://billing.stripe.com.evil.example/session"
+                , stripePortalSessionLivemode = False
+                })
         }
 
 failingStripeClient :: StripeClient
