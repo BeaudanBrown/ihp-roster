@@ -11,7 +11,8 @@ async function expectShiftModificationHighlight(target: Locator) {
     const boxShadow = await target.evaluate((element) => getComputedStyle(element).boxShadow);
     const borderRings = boxShadow.match(/0px 0px 0px (?!0px)(?:\d*\.)?\d+px(?: inset)?/g) ?? [];
     expect(borderRings, boxShadow).toHaveLength(1);
-    expect(borderRings[0]).toContain('inset');
+    expect(borderRings[0]).toContain('3px');
+    expect(borderRings[0]).not.toContain('inset');
 }
 
 test.describe('roster pointer session effects', () => {

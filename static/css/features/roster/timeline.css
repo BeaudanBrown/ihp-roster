@@ -103,6 +103,7 @@
 
 .roster-day-timeline-dropzone.bepis-dropzone-highlight {
     --bepis-dropzone-highlight-color: color-mix(in srgb, var(--bs-primary) 45%, transparent);
+    --bepis-dropzone-highlight-ring-width: 1px;
     --bepis-dropzone-highlight-background: color-mix(in srgb, var(--bs-primary) 14%, transparent);
 }
 

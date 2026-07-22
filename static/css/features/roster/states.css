@@ -2,7 +2,7 @@
 
 /* Theme the shared disposable affordance for shift-modifying roster targets. */
 .roster-grid-frame [data-bepis-dropzone-ref].bepis-dropzone-highlight:not([data-bepis-dropzone-ref="delete-shift-dropzone"]) {
-    --bepis-dropzone-highlight-color: var(--app-success-border);
+    --bepis-dropzone-highlight-color: color-mix(in srgb, var(--app-success-border) 62%, transparent);
     --bepis-dropzone-highlight-background: linear-gradient(
         180deg,
         color-mix(in srgb, var(--app-success-soft) 58%, var(--app-surface-2)),

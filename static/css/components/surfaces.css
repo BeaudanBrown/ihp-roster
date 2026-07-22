@@ -68,11 +68,12 @@
 
 .bepis-dropzone-highlight {
     --bepis-dropzone-highlight-color: var(--app-accent);
+    --bepis-dropzone-highlight-ring-width: 3px;
     --bepis-dropzone-highlight-background: color-mix(in srgb, var(--app-surface-2) 76%, var(--app-accent) 24%);
     --bepis-dropzone-highlight-elevation: 0 0.45rem 0.9rem var(--app-shadow-md-raw);
     z-index: 5;
     background: var(--bepis-dropzone-highlight-background) !important;
     box-shadow:
-        inset 0 0 0 2px var(--bepis-dropzone-highlight-color),
+        0 0 0 var(--bepis-dropzone-highlight-ring-width) var(--bepis-dropzone-highlight-color),
         var(--bepis-dropzone-highlight-elevation) !important;
 }
