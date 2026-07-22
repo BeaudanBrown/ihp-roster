@@ -13,8 +13,6 @@ import Application.Helper.Audit (updateVenueMembershipRoleWithAudit)
 import Application.Helper.FrontendContract.Surface.Admin.Resource (adminInvitesResource)
 import Application.Helper.FrontendContract.Surface.Profile.Resource
 import Application.Helper.FrontendContract.Surface.Roster.Live (activeRosterWeekScopes)
-import Application.Helper.FrontendContract.Surface.Roster.Resource (rosterSlotsContentResource,
-                                                                    rosterWeekResource)
 import Application.Helper.Pay (ensureStaffPayVersionForStaff)
 import Application.Helper.RosterGroups (fetchStaffRosterGroupIds,
                                         syncStaffRosterGroupAssignments)
@@ -26,10 +24,10 @@ import Application.Helper.VenueInvitation (venueInvitationLifetime)
 import Application.InvitationDelivery.Job (enqueueVenueInvitationDeliveryJob)
 import Control.Monad (void)
 import qualified Data.Aeson as Aeson
-import qualified Data.Set as Set
 import Data.Time.Clock (addUTCTime, getCurrentTime, utctDay)
 import Data.UUID (UUID)
 import Web.Controller.Prelude
+import Web.RosterWeeks.SurfaceInvalidation (activeRosterResourcesForStaffGroups)
 import Web.SurfaceInvalidation (invalidateTouchedResources)
 
 staffXeroPayItemScopeChanged :: Staff -> Staff -> Bool
@@ -134,16 +132,4 @@ staffUpdateTouchedResources staff =
     ]
 
 staffRosterGroupResources :: UUID -> [(UUID, UUID, Int)] -> [Id RosterGroup] -> [SurfaceResourceValue]
-staffRosterGroupResources venueId activeScopes rosterGroupIds =
-    Set.toList $ Set.fromList
-        [ resource
-        | (activeVenueId, rosterGroupId, weekOffset) <- activeScopes
-        , activeVenueId == venueId
-        , rosterGroupId `Set.member` rosterGroupIdSet
-        , resource <-
-            [ rosterWeekResource rosterGroupId weekOffset
-            , rosterSlotsContentResource rosterGroupId weekOffset
-            ]
-        ]
-    where
-        rosterGroupIdSet = Set.fromList (map unpackId rosterGroupIds)
+staffRosterGroupResources = activeRosterResourcesForStaffGroups

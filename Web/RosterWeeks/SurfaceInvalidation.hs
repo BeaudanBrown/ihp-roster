@@ -1,5 +1,6 @@
 module Web.RosterWeeks.SurfaceInvalidation
-    ( expandRosterSurfaceResources
+    ( activeRosterResourcesForStaffGroups
+    , expandRosterSurfaceResources
     , expandRosterSurfaceResourcesWithoutContext
     ) where
 
@@ -85,6 +86,25 @@ activeRosterWeekResourcesForStaff activeRosterScopes staffId = do
                         , RosterResource.rosterSlotsContentResource rosterGroupId weekOffset
                         ]
                     ]
+
+activeRosterResourcesForStaffGroups ::
+    UUID ->
+    [(UUID, UUID, Int)] ->
+    [Id RosterGroup] ->
+    [SurfaceResourceValue]
+activeRosterResourcesForStaffGroups venueId activeRosterScopes rosterGroupIds =
+    Set.toList $ Set.fromList
+        [ resource
+        | (activeVenueId, rosterGroupId, weekOffset) <- activeRosterScopes
+        , activeVenueId == venueId
+        , rosterGroupId `Set.member` rosterGroupIdSet
+        , resource <-
+            [ RosterResource.rosterWeekResource rosterGroupId weekOffset
+            , RosterResource.rosterSlotsContentResource rosterGroupId weekOffset
+            ]
+        ]
+  where
+    rosterGroupIdSet = Set.fromList (map unpackId rosterGroupIds)
 
 currentVenueStaff ::
     (?context :: ControllerContext, ?modelContext :: ModelContext) =>

@@ -403,6 +403,21 @@ tests = describe "LiveUpdate runtime types" do
         result.broadcastCoalescedFragmentCount `shouldBe` 1
         result.broadcastDroppedSubscriptions `shouldBe` 0
 
+    it "recovers active Timesheet week scopes for context-free resource fanout" do
+        let venueId = expectUuid "11111111-1111-1111-1111-111111111111"
+        let scope = TimesheetsLive.timesheetWeekLiveScope venueId 3
+        let subscription =
+                SurfaceSubscription
+                    { subscriptionScope = scope
+                    , subscriptionScopeKey = surfaceScopeKey scope
+                    , subscriptionFragmentKeys = [TimesheetsLive.timesheetToolbarLiveFragment]
+                    }
+        bus <- newInMemoryLiveBus
+
+        TimesheetsLive.activeTimesheetWeekScopesWithBus bus `shouldReturn` []
+        registerSurfaceSubscriptionWithBus bus venueId subscription (error "unused websocket connection")
+        TimesheetsLive.activeTimesheetWeekScopesWithBus bus `shouldReturn` [(venueId, 3)]
+
     it "reports broadcast fanout counts for profiling hooks" do
         let venueId = expectUuid "11111111-1111-1111-1111-111111111111"
         let scope = LeaveLive.leaveRequestsLiveScope venueId

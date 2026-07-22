@@ -6,11 +6,15 @@ import Application.Helper.Controller (unsafeEnumFromText,
 import Application.Helper.FrontendContract.Surface.Admin.Resource (adminInvitesResource)
 import Application.Helper.FrontendContract.Surface.Profile.Resource (staffPreferencesResource,
                                                                      staffProfileResource)
+import Application.Helper.FrontendContract.Surface.Roster.Resource (rosterSlotsContentResource,
+                                                                    rosterWeekResource)
+import Application.Helper.FrontendContract.Surface.Timesheets.Resource (timesheetWeekResource)
 import Application.Helper.SurfaceResource
 import Application.Helper.VenueBootstrap (defaultVenueBootstrapTimezone)
 import Config
 import Data.Aeson (Value (Null))
 import qualified Data.ByteString.Char8 as ByteString
+import qualified Data.Set as Set
 import Data.Time.Clock (addUTCTime, getCurrentTime)
 import Generated.Types
 import IHP.ControllerPrelude
@@ -28,7 +32,8 @@ import Web.Controller.Users ()
 import Web.FrontController ()
 import Web.Routes
 import Web.Types
-import Web.Users.Mutations (acceptedVenueInvitationTouchedResources)
+import Web.Users.Mutations (acceptedVenueInvitationTouchedResources,
+                            acceptedVenueInvitationTouchedResourcesForScopes)
 
 signupStaffParams :: [(ByteString, ByteString)]
 signupStaffParams =
@@ -258,8 +263,21 @@ tests = aroundAll withDatabaseTestContext do
                         [ adminInvitesResource (unpackId venue.id)
                         , staffProfileResource (unpackId staff.id)
                         , staffPreferencesResource (unpackId staff.id)
-
                         ]
+
+                let rosterGroupId = Id (unpackId venue.id) :: Id RosterGroup
+                let activeRosterScopes = [(unpackId venue.id, unpackId rosterGroupId, 3)]
+                let activeTimesheetScopes = [(unpackId venue.id, 3)]
+                Set.fromList (acceptedVenueInvitationTouchedResourcesForScopes adoptionInvitation activeRosterScopes activeTimesheetScopes [rosterGroupId])
+                    `shouldBe`
+                        Set.fromList
+                            [ adminInvitesResource (unpackId venue.id)
+                            , staffProfileResource (unpackId staff.id)
+                            , staffPreferencesResource (unpackId staff.id)
+                            , rosterWeekResource (unpackId rosterGroupId) 3
+                            , rosterSlotsContentResource (unpackId rosterGroupId) 3
+                            , timesheetWeekResource (unpackId venue.id) 3
+                            ]
 
         it "creates a verified user and venue membership from a pending invitation" $ withContext do
             withCleanDb do

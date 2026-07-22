@@ -1,22 +1,30 @@
 module Web.Users.Mutations
     ( acceptVenueInvitation
     , acceptedVenueInvitationTouchedResources
+    , acceptedVenueInvitationTouchedResourcesForScopes
     ) where
 
 import Application.Helper.FrontendContract.Surface.Admin.Resource (adminInvitesResource)
 import Application.Helper.FrontendContract.Surface.Profile.Resource (staffPreferencesResource,
                                                                      staffProfileResource)
+import Application.Helper.FrontendContract.Surface.Roster.Live (activeRosterWeekScopes)
+import Application.Helper.FrontendContract.Surface.Timesheets.Live (activeTimesheetWeekScopes)
+import Application.Helper.FrontendContract.Surface.Timesheets.Resource (timesheetWeekResource)
+import Application.Helper.RosterGroups (fetchStaffRosterGroupIds)
 import Application.Helper.SurfaceResource
 import Application.Helper.VenueBootstrap (ensureLinkedStaffRecord,
                                           provisionVenueMembership)
 import Control.Monad (void)
 import qualified Data.Aeson as Aeson
+import qualified Data.Set as Set
+import Data.UUID (UUID)
 import Web.Controller.Prelude
+import Web.RosterWeeks.SurfaceInvalidation (activeRosterResourcesForStaffGroups)
 import Web.SurfaceInvalidation (invalidateTouchedResourcesWithoutContext)
 
 acceptVenueInvitation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => UTCTime -> VenueInvitation -> User -> Text -> Staff -> IO (LiveMutationResult User)
 acceptVenueInvitation acceptedAt invitation user hashedPassword staffInput = do
-    acceptedUser <- withTransaction do
+    (acceptedUser, adoptedStaff) <- withTransaction do
         verifiedAt <- getCurrentTime
         acceptedUser <-
             user
@@ -61,9 +69,16 @@ acceptVenueInvitation acceptedAt invitation user hashedPassword staffInput = do
                     , "invitationId" Aeson..= unpackId (get #id invitation)
                     ]
                 )
-        pure acceptedUser
+        pure (acceptedUser, adoptedStaff)
+    touchedResources <- case adoptedStaff of
+        Nothing -> pure (acceptedVenueInvitationTouchedResources invitation)
+        Just staff -> do
+            activeRosterScopes <- activeRosterWeekScopes
+            activeTimesheetScopes <- activeTimesheetWeekScopes
+            rosterGroupIds <- fetchStaffRosterGroupIds staff
+            pure (acceptedVenueInvitationTouchedResourcesForScopes invitation activeRosterScopes activeTimesheetScopes rosterGroupIds)
     invalidateTouchedResourcesWithoutContext "user.invitation.accept" $
-        liveMutationResult acceptedUser (acceptedVenueInvitationTouchedResources invitation)
+        liveMutationResult acceptedUser touchedResources
 
 acceptInvitationStaffLink :: (?modelContext :: ModelContext) => VenueInvitation -> Venue -> User -> Staff -> IO (Maybe Staff)
 acceptInvitationStaffLink invitation venue acceptedUser staffInput =
@@ -98,6 +113,15 @@ applyAcceptedStaffInput staff staffInput =
 
 acceptedVenueInvitationTouchedResources :: VenueInvitation -> [SurfaceResourceValue]
 acceptedVenueInvitationTouchedResources invitation =
+    acceptedVenueInvitationTouchedResourcesForScopes invitation [] [] []
+
+acceptedVenueInvitationTouchedResourcesForScopes ::
+    VenueInvitation ->
+    [(UUID, UUID, Int)] ->
+    [(UUID, Int)] ->
+    [Id RosterGroup] ->
+    [SurfaceResourceValue]
+acceptedVenueInvitationTouchedResourcesForScopes invitation activeRosterScopes activeTimesheetScopes rosterGroupIds =
     [adminInvitesResource invitation.venueId]
         <> case invitation.staffId of
             Nothing -> []
@@ -105,3 +129,11 @@ acceptedVenueInvitationTouchedResources invitation =
                 [ staffProfileResource (unpackId staffId)
                 , staffPreferencesResource (unpackId staffId)
                 ]
+                    <> activeRosterResourcesForStaffGroups invitation.venueId activeRosterScopes rosterGroupIds
+                    <> Set.toList
+                        ( Set.fromList
+                            [ timesheetWeekResource venueId weekOffset
+                            | (venueId, weekOffset) <- activeTimesheetScopes
+                            , venueId == invitation.venueId
+                            ]
+                        )

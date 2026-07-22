@@ -109,7 +109,10 @@ submission work belongs in `docs/workstreams/` until it lands.
   publish touched-resource invalidations for passive viewers.
 - Publishing or returning a roster week to draft touches the corresponding
   Timesheet week resource. Roster-slot mutations also touch that resource, so
-  mounted Timesheets viewers refetch authorized suggestion fragments.
+  mounted Timesheets viewers refetch authorized suggestion fragments. Accepting
+  a trial-staff adoption invitation touches each active Timesheet week for the
+  venue because linking the existing staff row can make its complete live-roster
+  shifts newly eligible as suggestions.
 - Week navigation and filters serialize through the closest
   `#timesheet-week-shell` with typed HTMX `replace` sync behavior.
 - Date moves refresh both old and new entry fragments when both can be mounted.

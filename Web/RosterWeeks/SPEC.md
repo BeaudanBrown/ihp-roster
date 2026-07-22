@@ -40,7 +40,10 @@ lands.
   options and the manager staff panel. Managers can send a worker-only adoption
   invitation for a trial staff row; accepting the invitation links the existing
   `staff` row to the new `user` rather than creating a replacement staff row, so
-  existing roster slots remain attached to the same staff identity.
+  existing roster slots remain attached to the same staff identity. Acceptance
+  refreshes active roster staff panels and slot content for the staff member's
+  roster groups, so other viewers immediately see the linked role and any
+  signup-time name changes.
 - The manager roster side panel has separate Staff and Settings tabs. Staff owns
   the rosterable staff list and trial-staff actions; Settings owns roster group,
   layout, display, assignment-prevention, week-action, and export controls. These
