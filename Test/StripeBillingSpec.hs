@@ -63,6 +63,7 @@ tests =
                 request.stripeRequestUrl `shouldSatisfy` Text.isInfixOf "lookup_keys%5B%5D=bepis_venue_monthly_aud_100"
                 request.stripeRequestUrl `shouldSatisfy` Text.isInfixOf "expand%5B%5D=data.product"
                 lookup "Authorization" request.stripeRequestHeaders `shouldBe` Just "Bearer sk_test_123"
+                lookup "Stripe-Version" request.stripeRequestHeaders `shouldBe` Just "2026-06-24.dahlia"
 
             it "builds Customer v1 create requests without billing detail fields" do
                 let request = buildCreateCustomerRequest testConfig "venue-123" "Venue Name"
@@ -168,6 +169,7 @@ validPrice :: StripePrice
 validPrice =
     StripePrice
         { stripePriceId = "price_valid"
+        , stripePriceLivemode = False
         , active = True
         , currency = "aud"
         , unitAmount = Just 10000

@@ -13,7 +13,7 @@ import qualified Data.ByteString.Lazy as LByteString
 import qualified Data.IORef as IORef
 import qualified Data.Text as Text
 import qualified Data.Text.Encoding as TextEncoding
-import Data.Time.Clock.POSIX (getPOSIXTime)
+import Data.Time.Clock.POSIX (getPOSIXTime, posixSecondsToUTCTime)
 import qualified Data.Vault.Lazy as Vault
 import Generated.Types
 import IHP.Controller.Session (sessionVaultKey)
@@ -50,6 +50,24 @@ tests = aroundAll withDatabaseTestContext do
                 subscription.status `shouldBe` "active"
                 subscription.currentPeriodStart `shouldSatisfy` isJust
                 subscription.currentPeriodEnd `shouldSatisfy` isJust
+
+        it "stores Dahlia billing periods from the single Subscription Item" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Dahlia Subscription Item Venue"
+                _ <- createBillingCustomer venue "cus_dahlia_123"
+                eventBody <- LByteString.readFile "Test/Fixtures/stripe/2026-06-24.dahlia/webhook-subscription-updated.json"
+                signatureHeader <- signedStripeHeader testStripeConfig.webhookSecret eventBody
+
+                response <- withStripeConfigForTest (Right testStripeConfig) do
+                    callStripeWebhookWithJsonBody eventBody signatureHeader
+
+                response `responseStatusShouldBe` status200
+                subscription <- query @VenueSubscription |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
+                subscription.stripeSubscriptionId `shouldBe` "sub_dahlia_123"
+                subscription.stripePriceId `shouldBe` "price_monthly_123"
+                subscription.currentPeriodStart `shouldBe` Just (posixSecondsToUTCTime 1784678400)
+                subscription.currentPeriodEnd `shouldBe` Just (posixSecondsToUTCTime 1787356800)
+                subscription.cancelAtPeriodEnd `shouldBe` True
 
         it "deduplicates already processed Stripe event ids" $ withContext do
             withCleanDb do
@@ -106,6 +124,18 @@ tests = aroundAll withDatabaseTestContext do
                 event.providerObjectType `shouldBe` Just "checkout.session"
                 event.stripeCustomerId `shouldBe` Just "cus_controller_123"
                 event.stripeSubscriptionId `shouldBe` Just "sub_controller_123"
+
+        it "rejects signed webhook events from an unexpected Stripe API version" $ withContext do
+            withCleanDb do
+                let eventBody = checkoutSessionEventWithApiVersion "2026-04-22.dahlia" "evt_outdated_api_version" "cus_outdated_123" "sub_outdated_123"
+                signatureHeader <- signedStripeHeader testStripeConfig.webhookSecret eventBody
+
+                response <- withStripeConfigForTest (Right testStripeConfig) do
+                    callStripeWebhookWithJsonBody eventBody signatureHeader
+
+                response `responseStatusShouldBe` status400
+                eventCount <- query @BillingEvent |> fetchCount
+                eventCount `shouldBe` 0
 
         it "upserts subscription state from a signed controller webhook request" $ withContext do
             withCleanDb do
@@ -216,7 +246,7 @@ subscriptionEvent eventId venue customerId subscriptionId status =
             [ "id" Aeson..= eventId
             , "type" Aeson..= ("customer.subscription.updated" :: Text)
             , "livemode" Aeson..= False
-            , "api_version" Aeson..= ("2025-03-31.basil" :: Text)
+            , "api_version" Aeson..= pinnedStripeApiVersion
             , "data" Aeson..=
                 Aeson.object
                     [ "object" Aeson..=
@@ -224,31 +254,52 @@ subscriptionEvent eventId venue customerId subscriptionId status =
                             [ "object" Aeson..= ("subscription" :: Text)
                             , "id" Aeson..= subscriptionId
                             , "customer" Aeson..= customerId
+                            , "livemode" Aeson..= False
                             , "status" Aeson..= status
-                            , "current_period_start" Aeson..= (1760000000 :: Integer)
-                            , "current_period_end" Aeson..= (1762592000 :: Integer)
                             , "cancel_at_period_end" Aeson..= False
                             , "metadata" Aeson..= Aeson.object ["venue_id" Aeson..= inputValue venue.id]
                             , "items" Aeson..=
                                 Aeson.object
                                     [ "data" Aeson..=
                                         [ Aeson.object
-                                            [ "price" Aeson..= Aeson.object ["id" Aeson..= ("price_monthly_123" :: Text)]
+                                            [ "current_period_start" Aeson..= (1760000000 :: Integer)
+                                            , "current_period_end" Aeson..= (1762592000 :: Integer)
+                                            , "price" Aeson..= monthlyPriceObject
+                                            , "quantity" Aeson..= (1 :: Int)
                                             ]
                                         ]
                                     ]
                             ]
                     ]
             ]
+  where
+    monthlyPriceObject =
+        Aeson.object
+            [ "id" Aeson..= ("price_monthly_123" :: Text)
+            , "active" Aeson..= True
+            , "currency" Aeson..= ("aud" :: Text)
+            , "livemode" Aeson..= False
+            , "unit_amount" Aeson..= (10000 :: Int)
+            , "type" Aeson..= ("recurring" :: Text)
+            , "recurring" Aeson..=
+                Aeson.object
+                    [ "interval" Aeson..= ("month" :: Text)
+                    , "interval_count" Aeson..= (1 :: Int)
+                    , "usage_type" Aeson..= ("licensed" :: Text)
+                    ]
+            ]
 
 checkoutSessionEventWithoutVenue :: Text -> Text -> Text -> LByteString.ByteString
-checkoutSessionEventWithoutVenue eventId customerId subscriptionId =
+checkoutSessionEventWithoutVenue = checkoutSessionEventWithApiVersion pinnedStripeApiVersion
+
+checkoutSessionEventWithApiVersion :: Text -> Text -> Text -> Text -> LByteString.ByteString
+checkoutSessionEventWithApiVersion apiVersion eventId customerId subscriptionId =
     Aeson.encode $
         Aeson.object
             [ "id" Aeson..= eventId
             , "type" Aeson..= ("checkout.session.completed" :: Text)
             , "livemode" Aeson..= False
-            , "api_version" Aeson..= ("2025-03-31.basil" :: Text)
+            , "api_version" Aeson..= apiVersion
             , "data" Aeson..=
                 Aeson.object
                     [ "object" Aeson..=
@@ -269,6 +320,7 @@ invoicePaymentFailedEvent eventId customerId =
             [ "id" Aeson..= eventId
             , "type" Aeson..= ("invoice.payment_failed" :: Text)
             , "livemode" Aeson..= False
+            , "api_version" Aeson..= pinnedStripeApiVersion
             , "data" Aeson..=
                 Aeson.object
                     [ "object" Aeson..=
@@ -288,6 +340,7 @@ unknownEvent eventId venue =
             [ "id" Aeson..= eventId
             , "type" Aeson..= ("customer.created" :: Text)
             , "livemode" Aeson..= False
+            , "api_version" Aeson..= pinnedStripeApiVersion
             , "data" Aeson..=
                 Aeson.object
                     [ "object" Aeson..=

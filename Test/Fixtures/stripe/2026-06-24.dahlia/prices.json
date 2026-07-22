@@ -1,0 +1,22 @@
+{
+  "object": "list",
+  "data": [
+    {
+      "id": "price_valid",
+      "object": "price",
+      "active": true,
+      "currency": "aud",
+      "livemode": false,
+      "lookup_key": "bepis_venue_monthly_aud_100",
+      "recurring": {
+        "interval": "month",
+        "interval_count": 1,
+        "usage_type": "licensed"
+      },
+      "type": "recurring",
+      "unit_amount": 10000
+    }
+  ],
+  "has_more": false,
+  "url": "/v1/prices"
+}

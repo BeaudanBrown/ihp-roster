@@ -23,6 +23,7 @@ module Application.Billing.Stripe
     , currentStripeClient
     , defaultPriceLookupKey
     , defaultStripeRequestBaseUrls
+    , pinnedStripeApiVersion
     , readStripeConfig
     , stripeClientErrorText
     , stripeClientWithTransport
@@ -40,6 +41,7 @@ import qualified Control.Exception as Exception
 import qualified "crypton" Crypto.Hash as Hash
 import "crypton" Crypto.MAC.HMAC (HMAC, hmac)
 import qualified Data.Aeson as Aeson
+import qualified Data.Aeson.Types as AesonTypes
 import qualified Data.ByteArray as ByteArray
 import qualified Data.ByteString as ByteString
 import qualified Data.ByteString.Lazy as LByteString
@@ -62,6 +64,9 @@ import Text.Read (readMaybe)
 
 defaultPriceLookupKey :: Text
 defaultPriceLookupKey = "bepis_venue_monthly_aud_100"
+
+pinnedStripeApiVersion :: Text
+pinnedStripeApiVersion = "2026-06-24.dahlia"
 
 data StripeConfig = StripeConfig
     { secretKey      :: !Text
@@ -110,12 +115,13 @@ instance Aeson.FromJSON StripeRecurring where
             <*> object Aeson..:? "usage_type"
 
 data StripePrice = StripePrice
-    { stripePriceId :: !Text
-    , active        :: !Bool
-    , currency      :: !Text
-    , unitAmount    :: !(Maybe Int)
-    , priceType     :: !Text
-    , recurring     :: !(Maybe StripeRecurring)
+    { stripePriceId       :: !Text
+    , stripePriceLivemode :: !Bool
+    , active              :: !Bool
+    , currency            :: !Text
+    , unitAmount          :: !(Maybe Int)
+    , priceType           :: !Text
+    , recurring           :: !(Maybe StripeRecurring)
     }
     deriving (Eq, Show)
 
@@ -123,6 +129,7 @@ instance Aeson.FromJSON StripePrice where
     parseJSON = Aeson.withObject "StripePrice" \object ->
         StripePrice
             <$> object Aeson..: "id"
+            <*> object Aeson..: "livemode"
             <*> object Aeson..: "active"
             <*> object Aeson..: "currency"
             <*> object Aeson..:? "unit_amount"
@@ -137,19 +144,25 @@ instance Aeson.FromJSON StripePriceList where
         StripePriceList <$> object Aeson..: "data"
 
 data StripeCustomer = StripeCustomer
-    { stripeCustomerId :: !Text
+    { stripeCustomerId       :: !Text
+    , stripeCustomerLivemode :: !Bool
     }
     deriving (Eq, Show)
 
 instance Aeson.FromJSON StripeCustomer where
     parseJSON = Aeson.withObject "StripeCustomer" \object ->
-        StripeCustomer <$> object Aeson..: "id"
+        StripeCustomer
+            <$> object Aeson..: "id"
+            <*> object Aeson..: "livemode"
 
 data StripeCheckoutSession = StripeCheckoutSession
     { stripeCheckoutSessionId      :: !Text
     , stripeCheckoutSessionUrl     :: !(Maybe Text)
     , stripeCheckoutCustomerId     :: !(Maybe Text)
     , stripeCheckoutSubscriptionId :: !(Maybe Text)
+    , stripeCheckoutLivemode       :: !Bool
+    , stripeCheckoutMode           :: !Text
+    , stripeCheckoutStatus         :: !Text
     }
     deriving (Eq, Show)
 
@@ -160,10 +173,14 @@ instance Aeson.FromJSON StripeCheckoutSession where
             <*> object Aeson..:? "url"
             <*> object Aeson..:? "customer"
             <*> object Aeson..:? "subscription"
+            <*> object Aeson..: "livemode"
+            <*> object Aeson..: "mode"
+            <*> object Aeson..: "status"
 
 data StripePortalSession = StripePortalSession
-    { stripePortalSessionId  :: !Text
-    , stripePortalSessionUrl :: !Text
+    { stripePortalSessionId       :: !Text
+    , stripePortalSessionUrl      :: !Text
+    , stripePortalSessionLivemode :: !Bool
     }
     deriving (Eq, Show)
 
@@ -172,18 +189,59 @@ instance Aeson.FromJSON StripePortalSession where
         StripePortalSession
             <$> object Aeson..: "id"
             <*> object Aeson..: "url"
+            <*> object Aeson..: "livemode"
 
 data StripeSubscription = StripeSubscription
-    { stripeSubscriptionId     :: !Text
-    , stripeSubscriptionStatus :: !Text
+    { stripeSubscriptionId                 :: !Text
+    , stripeSubscriptionCustomerId         :: !Text
+    , stripeSubscriptionLivemode           :: !Bool
+    , stripeSubscriptionStatus             :: !Text
+    , stripeSubscriptionPriceId            :: !Text
+    , stripeSubscriptionCurrentPeriodStart :: !Integer
+    , stripeSubscriptionCurrentPeriodEnd   :: !Integer
+    , stripeSubscriptionCancelAtPeriodEnd  :: !Bool
     }
     deriving (Eq, Show)
 
 instance Aeson.FromJSON StripeSubscription where
-    parseJSON = Aeson.withObject "StripeSubscription" \object ->
+    parseJSON = Aeson.withObject "StripeSubscription" \object -> do
+        item <- object Aeson..: "items" >>= parseSingleSubscriptionItem
+        unless (item.subscriptionItemQuantity == 1) (fail "Stripe Subscription item quantity must be one")
+        case validateVenueMonthlyPrice item.subscriptionItemPrice of
+            Left message -> fail (cs message)
+            Right _      -> pure ()
         StripeSubscription
             <$> object Aeson..: "id"
+            <*> object Aeson..: "customer"
+            <*> object Aeson..: "livemode"
             <*> object Aeson..: "status"
+            <*> pure item.subscriptionItemPrice.stripePriceId
+            <*> pure item.subscriptionItemCurrentPeriodStart
+            <*> pure item.subscriptionItemCurrentPeriodEnd
+            <*> object Aeson..: "cancel_at_period_end"
+
+data StripeSubscriptionItem = StripeSubscriptionItem
+    { subscriptionItemPrice              :: !StripePrice
+    , subscriptionItemQuantity           :: !Int
+    , subscriptionItemCurrentPeriodStart :: !Integer
+    , subscriptionItemCurrentPeriodEnd   :: !Integer
+    }
+
+instance Aeson.FromJSON StripeSubscriptionItem where
+    parseJSON = Aeson.withObject "StripeSubscriptionItem" \object ->
+        StripeSubscriptionItem
+            <$> object Aeson..: "price"
+            <*> object Aeson..: "quantity"
+            <*> object Aeson..: "current_period_start"
+            <*> object Aeson..: "current_period_end"
+
+parseSingleSubscriptionItem :: Aeson.Value -> AesonTypes.Parser StripeSubscriptionItem
+parseSingleSubscriptionItem = Aeson.withObject "StripeSubscriptionItems" \object -> do
+    items <- object Aeson..: "data"
+    case items of
+        [item] -> Aeson.parseJSON item
+        []     -> fail "Stripe Subscription must contain one fixed-price item"
+        _      -> fail "Stripe Subscription must not contain multiple items"
 
 data StripeClientError
     = StripeHttpError !Text
@@ -394,6 +452,7 @@ stripePostFormRequest config idempotencyKey path formBody =
 stripeAuthHeaders :: StripeConfig -> [(HeaderName, ByteString)]
 stripeAuthHeaders config =
     [ ("Authorization", "Bearer " <> TextEncoding.encodeUtf8 config.secretKey)
+    , ("Stripe-Version", TextEncoding.encodeUtf8 pinnedStripeApiVersion)
     ]
 
 billingIdempotencyKey :: Text -> Text -> Maybe Text -> Text

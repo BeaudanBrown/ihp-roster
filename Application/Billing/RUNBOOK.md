@@ -8,6 +8,18 @@ sandbox checks require Dashboard configuration and sandbox credentials.
 
 Create separate test-mode and live-mode Stripe objects.
 
+API contract version:
+
+- The launch request and snapshot-webhook contract is
+  `2026-06-24.dahlia`, verified as Stripe's current GA version on 22 July
+  2026 from `https://docs.stripe.com/api/versioning` and the API changelog.
+- Configure the test and live Dashboard webhook endpoints to emit snapshot
+  events at exactly `2026-06-24.dahlia`. Do not use the account default.
+- Bepis sends this version on every API request and rejects signed events with
+  a missing or different `api_version` before persistence.
+- Coordinate any future request-version change, both Dashboard endpoint
+  versions, offline fixtures, and the local listener in one reviewed rollout.
+
 Public business website:
 
 - Before live account activation, publish a public Bepis page that loads
@@ -111,6 +123,8 @@ Webhook endpoint:
   - `customer.subscription.updated`
   - `customer.subscription.deleted`
   - `invoice.payment_failed`
+- Set the endpoint API version to `2026-06-24.dahlia` in both test and live
+  mode.
 - Copy the endpoint signing secret into the production webhook secret file.
 - Never commit the signing secret.
 
@@ -184,6 +198,7 @@ secret.
 
    ```bash
    stripe listen \
+     --latest \
      --events checkout.session.completed,checkout.session.async_payment_succeeded,checkout.session.async_payment_failed,customer.subscription.created,customer.subscription.updated,customer.subscription.deleted,invoice.payment_failed \
      --forward-to localhost:8000/StripeWebhook
    ```
@@ -203,6 +218,27 @@ secret.
    local events or notifications.
 10. Exercise a failed payment path and confirm venue owners and founder super
     admins receive sanitized payment problem notifications.
+
+Stripe CLI `listen` can request the latest event shape but cannot select an
+arbitrary named snapshot version. `--latest` is aligned because
+`2026-06-24.dahlia` is the current GA version at launch. If Stripe releases a
+new GA version, the app's pinned-version check deliberately rejects that local
+event shape until the coordinated contract review is complete; do not weaken
+the check or silently follow the new version.
+
+## API Version Review Policy
+
+- Review Stripe's API changelog quarterly for security, deprecation, support,
+  and required-feature notices.
+- Plan a deliberate pinned-version review approximately annually. Upgrade
+  earlier only when Stripe requires it or a security/deprecation/required
+  feature justifies it.
+- For an upgrade, audit every Price, Customer, Checkout create/retrieve, Portal,
+  Subscription retrieve, and snapshot-webhook field used by Bepis; refresh the
+  offline fixtures; run focused and full verification; update the
+  `Stripe-Version` constant; then coordinate both Dashboard webhook endpoint
+  versions and local listener behavior.
+- Never change only the Dashboard endpoint or only the request header.
 
 ## Billing Test-Clock Checklist
 

@@ -4,6 +4,9 @@ Status: implemented
 
 Tickets:
 
+- #215 production-hardening epic
+- #216 pinned Stripe API contract
+- #218 transport, credentials, and deployment controls
 
 Living docs to update:
 
@@ -351,8 +354,8 @@ Layer the test suite as follows:
     quantity `1`, success/cancel URLs, metadata, and idempotency key
   - Customer Portal Session create request with stored Customer ID and return
     URL
-  - Stripe API headers, including bearer auth, content type, idempotency, and a
-    pinned Stripe API version if the implementation chooses to set one
+  - Stripe API headers, including bearer auth, content type, idempotency, and
+    pinned `Stripe-Version: 2026-06-24.dahlia`
   - secret loading from files with dev/test env fallback
   - redacted errors/log output
 - Price validation tests:

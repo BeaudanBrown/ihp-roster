@@ -63,6 +63,8 @@ validateRequest expected request = do
         Left ("Unexpected Stripe form body for " <> expected.expectedPath)
     unless (lookup "Authorization" request.stripeRequestHeaders == Just "Bearer sk_test_123") do
         Left "Stripe Authorization header was missing or incorrect"
+    unless (lookup "Stripe-Version" request.stripeRequestHeaders == Just (TextEncoding.encodeUtf8 pinnedStripeApiVersion)) do
+        Left "Stripe-Version header was missing or incorrect"
     unless (lookup "Idempotency-Key" request.stripeRequestHeaders == expected.expectedIdempotencyKey) do
         Left "Stripe Idempotency-Key header did not match"
 

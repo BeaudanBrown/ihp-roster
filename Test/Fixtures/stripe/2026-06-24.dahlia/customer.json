@@ -1,0 +1,11 @@
+{
+  "id": "cus_123",
+  "object": "customer",
+  "email": "owner@example.test",
+  "livemode": false,
+  "metadata": {
+    "environment": "bepis",
+    "venue_id": "venue-123"
+  },
+  "name": "Venue Name"
+}

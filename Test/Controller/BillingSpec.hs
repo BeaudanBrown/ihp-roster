@@ -245,6 +245,7 @@ validMonthlyPrice :: StripePrice
 validMonthlyPrice =
     StripePrice
         { stripePriceId = "price_monthly_123"
+        , stripePriceLivemode = False
         , active = True
         , currency = "aud"
         , unitAmount = Just 10000
@@ -260,7 +261,7 @@ checkoutStripeClient :: StripeClient
 checkoutStripeClient =
     failingStripeClient
         { listPrices = \_ -> pure (Right [validMonthlyPrice])
-        , createCustomer = \_ _ _ -> pure (Right StripeCustomer { stripeCustomerId = "cus_checkout_123" })
+        , createCustomer = \_ _ _ -> pure (Right StripeCustomer { stripeCustomerId = "cus_checkout_123", stripeCustomerLivemode = False })
         , createCheckoutSession = \_ _ customerId priceId successUrl cancelUrl ->
             if customerId == "cus_checkout_123"
                     && priceId == "price_monthly_123"
@@ -271,6 +272,9 @@ checkoutStripeClient =
                     , stripeCheckoutSessionUrl = Just "https://checkout.stripe.test/session"
                     , stripeCheckoutCustomerId = Just customerId
                     , stripeCheckoutSubscriptionId = Nothing
+                    , stripeCheckoutLivemode = False
+                    , stripeCheckoutMode = "subscription"
+                    , stripeCheckoutStatus = "open"
                     })
                 else pure (Left (StripeHttpError "unexpected checkout request"))
         }
@@ -283,6 +287,7 @@ portalStripeClient =
                 then pure (Right StripePortalSession
                     { stripePortalSessionId = "bps_portal_123"
                     , stripePortalSessionUrl = "https://billing.stripe.test/session"
+                    , stripePortalSessionLivemode = False
                     })
                 else pure (Left (StripeHttpError "unexpected portal request"))
         }

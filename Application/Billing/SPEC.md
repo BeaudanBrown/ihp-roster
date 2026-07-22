@@ -28,6 +28,39 @@ billing. Future billing behavior belongs in
   operational reasons. This manual control stays separate from subscription
   status.
 
+## Stripe API Contract
+
+The launch API and snapshot-webhook version is pinned to
+`2026-06-24.dahlia`. Stripe's primary versioning page identified this as the
+current GA version when rechecked on 22 July 2026. Every API request sends this
+exact value in `Stripe-Version`; the integration never depends on the Stripe
+account default.
+
+The audit from the previous Basil assumptions found one launch-relevant shape
+change: Subscription billing periods are no longer top-level Subscription
+fields. The app reads `current_period_start` and `current_period_end` from the
+single Subscription Item. That item must have quantity one and the expected
+active AUD 100 monthly licensed Price shape. Zero items, multiple items, or an
+unexpected fixed-price shape fail contract decoding.
+
+The Dahlia Checkout `ui_mode` enum change does not alter this integration
+because Bepis uses Stripe-hosted Checkout and does not send `ui_mode`. The
+pinned Price, Customer v1, hosted Checkout Session, Customer Portal Session,
+and Subscription fields used by Bepis remain represented in offline contract
+fixtures under `Test/Fixtures/stripe/2026-06-24.dahlia/`.
+
+Snapshot webhook events must declare `api_version = 2026-06-24.dahlia`.
+Missing or different versions are rejected before any billing event or
+subscription state is persisted. The Stripe Dashboard webhook endpoint must be
+configured to emit this same version.
+
+Primary references:
+
+- `https://docs.stripe.com/api/versioning`
+- `https://docs.stripe.com/changelog`
+- `https://docs.stripe.com/changelog/basil/2025-03-31/deprecate-subscription-current-period-start-and-end`
+- `https://docs.stripe.com/changelog/dahlia/2026-03-25/updates-available-checkout-session-ui-modes`
+
 ## Stripe Data Boundary
 
 Stripe-hosted surfaces collect and retain payment details.
@@ -127,7 +160,9 @@ payloads by default.
 
 ## Subscription State
 
-Local subscription records mirror Stripe subscription state needed by the app:
+Local subscription records mirror Stripe subscription state needed by the app.
+The period timestamps come from the one validated Subscription Item, not from
+obsolete top-level Subscription fields:
 
 - venue ID
 - Stripe subscription ID

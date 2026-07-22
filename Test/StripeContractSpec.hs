@@ -11,7 +11,8 @@ tests :: Spec
 tests =
     describe "StripeContract" do
         it "runs the launch Checkout and Portal API sequence against a strict local mock" do
-            mock <- newStrictStripeMock launchExpectations
+            fixtures <- readLaunchFixtures
+            mock <- newStrictStripeMock (launchExpectations fixtures)
             let client = stripeClientWithTransport (strictStripeTransport mock)
 
             prices <- listPrices client testConfig
@@ -19,7 +20,11 @@ tests =
             fmap (map validateVenueMonthlyPrice) prices `shouldBe` Right [Right validPrice]
 
             customer <- createCustomer client testConfig "venue-123" "Venue Name"
-            customer `shouldBe` Right StripeCustomer { stripeCustomerId = "cus_123" }
+            customer
+                `shouldBe` Right StripeCustomer
+                    { stripeCustomerId = "cus_123"
+                    , stripeCustomerLivemode = False
+                    }
 
             checkout <-
                 createCheckoutSession
@@ -37,6 +42,9 @@ tests =
                         , stripeCheckoutSessionUrl = Just "https://checkout.stripe.test/session"
                         , stripeCheckoutCustomerId = Just "cus_123"
                         , stripeCheckoutSubscriptionId = Just "sub_123"
+                        , stripeCheckoutLivemode = False
+                        , stripeCheckoutMode = "subscription"
+                        , stripeCheckoutStatus = "complete"
                         }
 
             fetchedCheckout <- retrieveCheckoutSession client testConfig "cs_123"
@@ -48,6 +56,7 @@ tests =
                     StripePortalSession
                         { stripePortalSessionId = "bps_123"
                         , stripePortalSessionUrl = "https://billing.stripe.test/session"
+                        , stripePortalSessionLivemode = False
                         }
 
             subscription <- retrieveSubscription client testConfig "sub_123"
@@ -55,17 +64,32 @@ tests =
                 `shouldBe` Right
                     StripeSubscription
                         { stripeSubscriptionId = "sub_123"
+                        , stripeSubscriptionCustomerId = "cus_123"
+                        , stripeSubscriptionLivemode = False
                         , stripeSubscriptionStatus = "active"
+                        , stripeSubscriptionPriceId = "price_valid"
+                        , stripeSubscriptionCurrentPeriodStart = 1784678400
+                        , stripeSubscriptionCurrentPeriodEnd = 1787356800
+                        , stripeSubscriptionCancelAtPeriodEnd = True
                         }
 
             assertStripeMockConsumed mock
 
+        it "rejects Subscription retrieval when Stripe returns multiple plan items" do
+            response <- LByteString.readFile "Test/Fixtures/stripe/2026-06-24.dahlia/subscription-multiple-items.json"
+            let client = stripeClientWithTransport (const (pure (Right response)))
+
+            result <- retrieveSubscription client testConfig "sub_multiple"
+
+            result `shouldSatisfy` \case
+                Left (StripeJsonError message) -> "must not contain multiple items" `isInfixOf` message
+                _ -> False
+
         it "fails closed on unexpected request shape" do
+            fixtures <- readLaunchFixtures
             mock <-
                 newStrictStripeMock
-                    [ (listPricesExpectation "wrong_lookup")
-                        { responseBody = priceListResponse
-                        }
+                    [ listPricesExpectation fixtures.pricesFixture "wrong_lookup"
                     ]
             let client = stripeClientWithTransport (strictStripeTransport mock)
 
@@ -95,6 +119,7 @@ validPrice :: StripePrice
 validPrice =
     StripePrice
         { stripePriceId = "price_valid"
+        , stripePriceLivemode = False
         , active = True
         , currency = "aud"
         , unitAmount = Just 10000
@@ -102,9 +127,28 @@ validPrice =
         , recurring = Just validRecurring
         }
 
-launchExpectations :: [ExpectedStripeRequest]
-launchExpectations =
-    [ listPricesExpectation defaultPriceLookupKey
+data LaunchFixtures = LaunchFixtures
+    { pricesFixture       :: !LByteString.ByteString
+    , customerFixture     :: !LByteString.ByteString
+    , checkoutFixture     :: !LByteString.ByteString
+    , portalFixture       :: !LByteString.ByteString
+    , subscriptionFixture :: !LByteString.ByteString
+    }
+
+readLaunchFixtures :: IO LaunchFixtures
+readLaunchFixtures =
+    LaunchFixtures
+        <$> readFixture "prices.json"
+        <*> readFixture "customer.json"
+        <*> readFixture "checkout-session.json"
+        <*> readFixture "portal-session.json"
+        <*> readFixture "subscription.json"
+  where
+    readFixture name = LByteString.readFile ("Test/Fixtures/stripe/2026-06-24.dahlia/" <> name)
+
+launchExpectations :: LaunchFixtures -> [ExpectedStripeRequest]
+launchExpectations fixtures =
+    [ listPricesExpectation fixtures.pricesFixture defaultPriceLookupKey
     , ExpectedStripeRequest
         { expectedMethod = "POST"
         , expectedPath = "/v1/customers"
@@ -115,7 +159,7 @@ launchExpectations =
             , ("metadata[environment]", "bepis")
             ]
         , expectedIdempotencyKey = Just "bepis-billing-customer-venue-123"
-        , responseBody = "{\"id\":\"cus_123\",\"object\":\"customer\"}"
+        , responseBody = fixtures.customerFixture
         }
     , ExpectedStripeRequest
         { expectedMethod = "POST"
@@ -135,7 +179,7 @@ launchExpectations =
             , ("tax_id_collection[enabled]", "false")
             ]
         , expectedIdempotencyKey = Just "bepis-billing-checkout-venue-123-price-valid"
-        , responseBody = "{\"id\":\"cs_123\",\"object\":\"checkout.session\",\"url\":\"https://checkout.stripe.test/session\",\"customer\":\"cus_123\",\"subscription\":\"sub_123\"}"
+        , responseBody = fixtures.checkoutFixture
         }
     , ExpectedStripeRequest
         { expectedMethod = "GET"
@@ -143,7 +187,7 @@ launchExpectations =
         , expectedQuery = []
         , expectedFormBody = []
         , expectedIdempotencyKey = Nothing
-        , responseBody = "{\"id\":\"cs_123\",\"object\":\"checkout.session\",\"url\":\"https://checkout.stripe.test/session\",\"customer\":\"cus_123\",\"subscription\":\"sub_123\"}"
+        , responseBody = fixtures.checkoutFixture
         }
     , ExpectedStripeRequest
         { expectedMethod = "POST"
@@ -154,7 +198,7 @@ launchExpectations =
             , ("return_url", "https://app.example.test/Billing")
             ]
         , expectedIdempotencyKey = Just "bepis-billing-portal-venue-123"
-        , responseBody = "{\"id\":\"bps_123\",\"object\":\"billing_portal.session\",\"url\":\"https://billing.stripe.test/session\"}"
+        , responseBody = fixtures.portalFixture
         }
     , ExpectedStripeRequest
         { expectedMethod = "GET"
@@ -162,12 +206,12 @@ launchExpectations =
         , expectedQuery = []
         , expectedFormBody = []
         , expectedIdempotencyKey = Nothing
-        , responseBody = "{\"id\":\"sub_123\",\"object\":\"subscription\",\"status\":\"active\"}"
+        , responseBody = fixtures.subscriptionFixture
         }
     ]
 
-listPricesExpectation :: Text -> ExpectedStripeRequest
-listPricesExpectation lookupKey =
+listPricesExpectation :: LByteString.ByteString -> Text -> ExpectedStripeRequest
+listPricesExpectation response lookupKey =
     ExpectedStripeRequest
         { expectedMethod = "GET"
         , expectedPath = "/v1/prices"
@@ -178,9 +222,5 @@ listPricesExpectation lookupKey =
             ]
         , expectedFormBody = []
         , expectedIdempotencyKey = Nothing
-        , responseBody = priceListResponse
+        , responseBody = response
         }
-
-priceListResponse :: LByteString.ByteString
-priceListResponse =
-    "{\"object\":\"list\",\"data\":[{\"id\":\"price_valid\",\"object\":\"price\",\"active\":true,\"currency\":\"aud\",\"unit_amount\":10000,\"type\":\"recurring\",\"recurring\":{\"interval\":\"month\",\"interval_count\":1,\"usage_type\":\"licensed\"}}]}"

@@ -1,0 +1,8 @@
+{
+  "id": "bps_123",
+  "object": "billing_portal.session",
+  "customer": "cus_123",
+  "livemode": false,
+  "return_url": "https://app.example.test/Billing",
+  "url": "https://billing.stripe.test/session"
+}

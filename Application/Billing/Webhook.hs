@@ -8,6 +8,8 @@ module Application.Billing.Webhook
 where
 
 import Application.Billing.Notifications (enqueueBillingNotifications)
+import Application.Billing.Stripe (StripeSubscription (..),
+                                   pinnedStripeApiVersion)
 import Control.Exception (try)
 import Control.Monad (void)
 import qualified Data.Aeson as Aeson
@@ -65,21 +67,40 @@ instance Aeson.FromJSON StripeWebhookEvent where
                 <*> parseStripeObjectSnapshot stripeObject
 
 parseStripeObjectSnapshot :: Aeson.Value -> AesonTypes.Parser StripeObjectSnapshot
-parseStripeObjectSnapshot =
-    Aeson.withObject "StripeObjectSnapshot" \object -> do
+parseStripeObjectSnapshot stripeObject =
+    Aeson.withObject "StripeObjectSnapshot" (parseObject stripeObject) stripeObject
+  where
+    parseObject originalValue object = do
         metadata <- object Aeson..:? "metadata" Aeson..!= Aeson.Object mempty
-        StripeObjectSnapshot
-            <$> object Aeson..:? "object"
-            <*> object Aeson..:? "id"
-            <*> object Aeson..:? "customer"
-            <*> object Aeson..:? "subscription"
-            <*> object Aeson..:? "client_reference_id"
-            <*> parseMetadataVenueId metadata
-            <*> object Aeson..:? "status"
-            <*> parseObjectPriceId object
-            <*> object Aeson..:? "current_period_start"
-            <*> object Aeson..:? "current_period_end"
-            <*> object Aeson..:? "cancel_at_period_end" Aeson..!= False
+        objectType <- object Aeson..:? "object"
+        subscriptionContract <-
+            case objectType of
+                Just "subscription" -> Just <$> (Aeson.parseJSON originalValue :: AesonTypes.Parser StripeSubscription)
+                _ -> pure Nothing
+        objectId <- object Aeson..:? "id"
+        customerId <- object Aeson..:? "customer"
+        subscriptionId <- object Aeson..:? "subscription"
+        clientReferenceId <- object Aeson..:? "client_reference_id"
+        metadataVenueId <- parseMetadataVenueId metadata
+        status <- object Aeson..:? "status"
+        priceId <- parseObjectPriceId object
+        currentPeriodStart <- object Aeson..:? "current_period_start"
+        currentPeriodEnd <- object Aeson..:? "current_period_end"
+        cancelAtPeriodEnd <- object Aeson..:? "cancel_at_period_end" Aeson..!= False
+        pure
+            StripeObjectSnapshot
+                { stripeObjectType = objectType
+                , stripeObjectId = objectId
+                , stripeObjectCustomerId = maybe customerId (Just . (.stripeSubscriptionCustomerId)) subscriptionContract
+                , stripeObjectSubscriptionId = maybe subscriptionId (Just . (.stripeSubscriptionId)) subscriptionContract
+                , stripeObjectClientReferenceId = clientReferenceId
+                , stripeObjectMetadataVenueId = metadataVenueId
+                , stripeObjectStatus = maybe status (Just . (.stripeSubscriptionStatus)) subscriptionContract
+                , stripeObjectPriceId = maybe priceId (Just . (.stripeSubscriptionPriceId)) subscriptionContract
+                , stripeObjectCurrentPeriodStart = maybe currentPeriodStart (Just . (.stripeSubscriptionCurrentPeriodStart)) subscriptionContract
+                , stripeObjectCurrentPeriodEnd = maybe currentPeriodEnd (Just . (.stripeSubscriptionCurrentPeriodEnd)) subscriptionContract
+                , stripeObjectCancelAtPeriodEnd = maybe cancelAtPeriodEnd (.stripeSubscriptionCancelAtPeriodEnd) subscriptionContract
+                }
 
 parseMetadataVenueId :: Aeson.Value -> AesonTypes.Parser (Maybe Text)
 parseMetadataVenueId =
@@ -119,9 +140,15 @@ parseStripeWebhookEvent rawBody =
 
 handleStripeWebhookPayload :: (?modelContext :: ModelContext) => LByteString.ByteString -> IO (Either Text BillingWebhookResult)
 handleStripeWebhookPayload rawBody =
-    case parseStripeWebhookEvent rawBody of
+    case parseStripeWebhookEvent rawBody >>= validateStripeWebhookContract of
         Left err    -> pure (Left err)
         Right event -> Right <$> processStripeWebhookEvent event
+
+validateStripeWebhookContract :: StripeWebhookEvent -> Either Text StripeWebhookEvent
+validateStripeWebhookContract event = do
+    unless (event.stripeApiVersion == Just pinnedStripeApiVersion) do
+        Left "Stripe webhook API version does not match the pinned billing contract"
+    pure event
 
 processStripeWebhookEvent :: (?modelContext :: ModelContext) => StripeWebhookEvent -> IO BillingWebhookResult
 processStripeWebhookEvent event = do
