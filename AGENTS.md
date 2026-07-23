@@ -188,6 +188,12 @@ regenerate generated types, run focused schema/code checks, and verify parser
 compatibility with the dev DB/startup flow when enums, constraints, triggers, or
 advanced SQL are involved.
 
+## Agent Browser Workflow
+
+For Playwright work, use the stateful Playwright Agent CLI as the default browser interaction tool. Start with `pi-playwright doctor`; the committed `.pi/playwright-cli.json` selects the repository-pinned `bash ./bin/in-env pwcli` adapter ahead of the harness fallback. Use it for live navigation, accessibility snapshots, selector discovery, console/network inspection, screenshots, and generating action/locator skeletons. Use the harness fallback only for disposable browsing when no project adapter exists.
+
+Exploration does not replace deterministic tests. Convert useful flows into normal specs under `e2e/`, add explicit assertions, and run them through the repository's `e2e` wrapper. Follow `e2e/AGENTS.md` for seeded authentication and session commands. Never browse production/customer data or commit browser profiles, auth state, traces, or exploratory artifacts.
+
 ## Verification
 
 Use the repo wrapper unless you are already inside the devenv shell. Run

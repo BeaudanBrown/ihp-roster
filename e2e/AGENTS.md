@@ -253,10 +253,10 @@ tail -n 80 .devenv/e2e/server.log
 
 ## Playwright CLI
 
-- Use `bash ./bin/in-env pwcli ...` for exploratory browser work: reproductions, selector discovery, ad hoc flows, and targeted screenshots before writing a durable spec
+- Treat the stateful Playwright Agent CLI as the best default for agent-driven Playwright work. Start with `pi-playwright doctor`; the project manifest routes it to `bash ./bin/in-env pwcli ...`. Calling the project wrapper directly remains valid for reproductions, selector discovery, ad hoc flows, and targeted screenshots before writing a durable spec
 - Keep `bash ./bin/in-env e2e ...` as the canonical regression path for automated tests
 - Keep `bash ./bin/in-env screenshot-page ...` for deterministic one-shot authenticated screenshots when you already know the target path and selector
-- The wrapper currently pins `@playwright/cli` `0.1.4` via `npx` instead of adding it to `package.json`; this avoids mixing the repo's stable `@playwright/test` dependency with the CLI package's current alpha `playwright` runtime dependency
+- `package.json` and `package-lock.json` pin `@playwright/cli` `0.1.4`; the wrapper uses `npx --no-install`, so browser exploration never installs tooling from the network at runtime. Keep CLI upgrades separate from the stable `@playwright/test` and Nix browser pins, and rerun the authenticated/session compatibility checks before upgrading
 - `pwcli` sessions are repo-scoped through a local `.playwright/` workspace marker, so named sessions such as `ihp-manager` can be reused across separate `bash ./bin/in-env pwcli ...` calls
 - Common first steps:
 
