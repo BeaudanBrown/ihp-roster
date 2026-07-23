@@ -242,12 +242,12 @@ pageHelpTopics =
     , topic "billing" "Billing"
         [ section HelpOwnerPlus "Billing tasks"
             [ iconItem HelpOwnerPlus "bi-receipt" "Status" "Check subscription status" "Review the Subscription table for the current venue billing state."
-            , buttonItem HelpOwnerPlus "bi-credit-card" "Payment" "Start a subscription" "Click Start Subscription when the venue needs a new Stripe subscription. If new subscriptions are temporarily unavailable, existing billing and venue features remain available." "btn btn-primary" Nothing "Start Subscription"
-            , buttonItem HelpOwnerPlus "bi-credit-card" "Payment" "Manage payment details" "Click Manage Billing to open Stripe's billing portal. Existing customers can still use the portal when new subscriptions are paused." "btn btn-outline-primary" Nothing "Manage Billing"
-            , iconItem HelpOwnerPlus "bi-arrow-clockwise" "Refresh" "Check a pending change" "If a payment or plan change is pending, wait briefly and refresh before trying again."
+            , buttonItem HelpOwnerPlus "bi-credit-card" "Payment" "Start or resume a subscription" "Verify with your passkey, then click Start Subscription. Repeated requests resume the same available Stripe Checkout instead of opening parallel subscriptions." "btn btn-primary" Nothing "Start Subscription"
+            , buttonItem HelpOwnerPlus "bi-credit-card" "Payment" "Manage payment details" "Verify with your passkey, then click Manage Billing to open a fresh Stripe billing portal session. Existing customers can still use the portal when new subscriptions are paused." "btn btn-outline-primary" Nothing "Manage Billing"
+            , iconItem HelpOwnerPlus "bi-arrow-clockwise" "Refresh" "Check a pending change" "A Checkout return is only progress feedback. Wait for Bepis to show the matching signed-webhook confirmation before treating the subscription as confirmed."
             ]
         , section HelpSupportOnly "Founder support"
-            [ iconItem HelpSupportOnly "bi-eye" "Inspect" "Inspect billing state" "Support users can view billing state and manual read-only controls without acting as the venue owner."
+            [ iconItem HelpSupportOnly "bi-eye" "Inspect" "Inspect billing state" "Support users can view billing state and manual read-only controls, but cannot start Checkout or open the venue payer's Customer Portal."
             ]
         ]
     ]

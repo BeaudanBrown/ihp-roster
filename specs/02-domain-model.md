@@ -43,6 +43,12 @@
     lifecycle timestamps/status, and bounded sanitized failure metadata.
   - PostgreSQL permits at most one open attempt per venue and requires unique
     non-null Stripe Checkout Session IDs.
+  - The attempt is committed before provider Session creation. Venue-row locking
+    serializes concurrent create/resume decisions, and Stripe creation reuses an
+    idempotency key derived from the durable attempt ID.
+  - Success and cancellation returns are accepted only when authenticated venue,
+    local attempt, and stored Session identity correlate; returns do not grant
+    subscription state.
   - Does not store hosted URLs, raw provider payloads, payment methods, billing
     addresses, or tax details.
 - `venue_subscriptions`

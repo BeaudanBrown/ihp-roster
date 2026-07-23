@@ -1,10 +1,13 @@
 module Web.Billing.Mutations
     ( billingTouchedResources
-    , createVenueBillingCustomerMutation
     , recordBillingWebhookMutation
+    , startOrResumeBillingCheckoutMutation
     , updateVenueBillingControlMutation
     ) where
 
+import Application.Billing.Checkout (CheckoutStartResult (..),
+                                     startOrResumeCheckout)
+import Application.Billing.Stripe (StripeClient, StripeConfig)
 import Application.Billing.Webhook (BillingWebhookResult (..))
 import Application.Helper.FrontendContract.Surface.Billing.Resource (billingResource)
 import Application.Helper.SurfaceResource
@@ -19,22 +22,25 @@ billingTouchedResources :: Id Venue -> [SurfaceResourceValue]
 billingTouchedResources venueId =
     [billingResource (unpackId venueId)]
 
-createVenueBillingCustomerMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Text -> Bool -> IO (LiveMutationResult VenueBillingCustomer)
-createVenueBillingCustomerMutation stripeCustomerId livemode = do
-    customer <-
-        newRecord @VenueBillingCustomer
-            |> set #venueId (unpackId currentVenueId)
-            |> set #stripeCustomerId stripeCustomerId
-            |> set #livemode livemode
-            |> set #createdByUserId (Just (unpackId currentUser.id))
-            |> createRecord
-    void $ recordCurrentUserAuditEvent
-        "billing_customer_created"
-        "venue_billing_customers"
-        (unpackId customer.id)
-        (Aeson.object ["stripeCustomerId" Aeson..= customer.stripeCustomerId])
-    invalidateTouchedResources "billing.customer.create" $
-        liveMutationResult customer (billingTouchedResources currentVenueId)
+startOrResumeBillingCheckoutMutation
+    :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request)
+    => StripeClient
+    -> StripeConfig
+    -> Venue
+    -> User
+    -> (Id BillingCheckoutAttempt -> Text)
+    -> (Id BillingCheckoutAttempt -> Text)
+    -> IO (LiveMutationResult CheckoutStartResult)
+startOrResumeBillingCheckoutMutation stripeClient stripeConfig venue owner successUrlFor cancelUrlFor = do
+    result <- startOrResumeCheckout stripeClient stripeConfig venue owner successUrlFor cancelUrlFor
+    forM_ result.checkoutCreatedCustomer \customer ->
+        void $ recordCurrentUserAuditEvent
+            "billing_customer_created"
+            "venue_billing_customers"
+            (unpackId customer.id)
+            (Aeson.object ["stripeCustomerId" Aeson..= customer.stripeCustomerId])
+    invalidateTouchedResources "billing.checkout.start-or-resume" $
+        liveMutationResult result (billingTouchedResources currentVenueId)
 
 updateVenueBillingControlMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Bool -> Text -> UTCTime -> IO (LiveMutationResult VenueBillingControl)
 updateVenueBillingControlMutation manualReadOnly reason now = do

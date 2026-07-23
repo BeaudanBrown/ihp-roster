@@ -34,6 +34,7 @@ data BillingScopeValue = BillingScopeValue
 
 data BillingCheckoutReturnState = BillingCheckoutReturnState
     { billingCheckoutReturned  :: !Bool
+    , billingCheckoutAttemptId :: !(Maybe Text)
     , billingCheckoutSessionId :: !(Maybe Text)
     }
     deriving (Eq, Show)
@@ -42,6 +43,7 @@ currentBillingCheckoutReturnState :: BillingCheckoutReturnState
 currentBillingCheckoutReturnState =
     BillingCheckoutReturnState
         { billingCheckoutReturned = False
+        , billingCheckoutAttemptId = Nothing
         , billingCheckoutSessionId = Nothing
         }
 
@@ -88,9 +90,11 @@ billingMountStateFields checkoutReturnState =
 billingStatusFragmentUrl :: BillingCheckoutReturnState -> Text
 billingStatusFragmentUrl BillingCheckoutReturnState { billingCheckoutReturned = False } =
     pathTo ShowbillingStatusLiveFragmentAction
-billingStatusFragmentUrl BillingCheckoutReturnState { billingCheckoutReturned = True, billingCheckoutSessionId } =
+billingStatusFragmentUrl BillingCheckoutReturnState { billingCheckoutReturned = True, billingCheckoutAttemptId, billingCheckoutSessionId } =
     appendQueryParams (pathTo ShowbillingStatusLiveFragmentAction) $
-        ("checkout", "success") : maybe [] (\sessionId -> [("session_id", sessionId)]) billingCheckoutSessionId
+        [("checkout", "success")]
+            <> maybe [] (\attemptId -> [("attempt_id", attemptId)]) billingCheckoutAttemptId
+            <> maybe [] (\sessionId -> [("session_id", sessionId)]) billingCheckoutSessionId
 
 billingStatusMountedFragment :: Text -> FrontendSurfaceMountedFragment
 billingStatusMountedFragment statusUrl =

@@ -3,6 +3,7 @@
   "object": "checkout.session",
   "client_reference_id": "venue-123",
   "customer": "cus_123",
+  "expires_at": 1784764800,
   "livemode": false,
   "metadata": {
     "venue_id": "venue-123"

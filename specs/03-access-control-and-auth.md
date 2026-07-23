@@ -109,9 +109,10 @@ These actions require explicit server-side permission checks and audit logging:
 
 - Billing management is venue-scoped.
 - Venue owners can start Stripe-hosted Checkout and open Stripe Customer Portal
-  for their current venue.
-- Founder super admins can view and manage billing for a support-mode current
-  venue.
+  for their current venue after fresh passkey verification.
+- Founder super admins can inspect billing and use explicit support controls for
+  a support-mode current venue, but cannot start Checkout or open the venue
+  payer's Customer Portal.
 - Venue admins, managers, workers and future export-only roles do not manage
   billing unless a future product decision changes the role model.
 - Support-mode billing access must use `currentVenue` with no synthetic venue

@@ -23,7 +23,7 @@ tests =
             retrievedPrice `shouldBe` Right validPrice
             fmap validateVenueMonthlyPrice retrievedPrice `shouldBe` Right (Right validPrice)
 
-            customer <- createCustomer client testConfig "venue-123" "Venue Name"
+            customer <- createCustomer client testConfig "venue-123" "Venue Name" "owner@example.test"
             customer
                 `shouldBe` Right StripeCustomer
                     { stripeCustomerId = "cus_123"
@@ -34,11 +34,12 @@ tests =
                 createCheckoutSession
                     client
                     testConfig
+                    "attempt-456"
                     "venue-123"
                     "cus_123"
                     "price_valid"
-                    "https://app.example.test/BillingSuccess?session_id={CHECKOUT_SESSION_ID}"
-                    "https://app.example.test/BillingCancel"
+                    "https://app.example.test/BillingSuccess?attempt_id=attempt-456&session_id={CHECKOUT_SESSION_ID}"
+                    "https://app.example.test/BillingCancel?attempt_id=attempt-456"
             let createdCheckoutUrl = "https://checkout.stripe.com/c/pay/cs_test_sanitized"
             let createdCheckoutSession =
                     StripeCheckoutSession
@@ -49,6 +50,7 @@ tests =
                         , stripeCheckoutLivemode = False
                         , stripeCheckoutMode = "subscription"
                         , stripeCheckoutStatus = "open"
+                        , stripeCheckoutExpiresAt = 1784764800
                         }
             checkout `shouldBe` Right createdCheckoutSession
             validateCreatedCheckoutSession "cus_123" createdCheckoutSession `shouldBe` Right createdCheckoutSession
@@ -62,7 +64,7 @@ tests =
                         , stripeCheckoutStatus = "complete"
                         }
 
-            portal <- createPortalSession client testConfig "venue-123" "cus_123" "https://app.example.test/Billing"
+            portal <- createPortalSession client testConfig "request-789" "venue-123" "cus_123" "https://app.example.test/Billing"
             portal
                 `shouldBe` Right
                     StripePortalSession
@@ -102,9 +104,9 @@ tests =
             let wrongPortal = "{\"id\":\"bps_wrong_object\",\"object\":\"customer\",\"url\":\"https://billing.stripe.com/p/session/sanitized\",\"livemode\":false}"
 
             price <- retrievePrice (fixtureClient wrongPrice) testConfig "price_wrong_object"
-            customer <- createCustomer (fixtureClient wrongCustomer) testConfig "venue-123" "Venue Name"
-            checkout <- createCheckoutSession (fixtureClient wrongCheckout) testConfig "venue-123" "cus_123" "price_valid" "https://app.example.test/success" "https://app.example.test/cancel"
-            portal <- createPortalSession (fixtureClient wrongPortal) testConfig "venue-123" "cus_123" "https://app.example.test/Billing"
+            customer <- createCustomer (fixtureClient wrongCustomer) testConfig "venue-123" "Venue Name" "owner@example.test"
+            checkout <- createCheckoutSession (fixtureClient wrongCheckout) testConfig "attempt-456" "venue-123" "cus_123" "price_valid" "https://app.example.test/success" "https://app.example.test/cancel"
+            portal <- createPortalSession (fixtureClient wrongPortal) testConfig "request-789" "venue-123" "cus_123" "https://app.example.test/Billing"
 
             price `shouldBe` Left (StripeJsonError "Unable to decode Stripe response")
             customer `shouldBe` Left (StripeJsonError "Unable to decode Stripe response")
@@ -126,9 +128,9 @@ tests =
             fixtures <- readLaunchFixtures
             let liveConfig = testConfig { stripeMode = StripeLiveMode }
 
-            customer <- createCustomer (fixtureClient fixtures.customerFixture) liveConfig "venue-123" "Venue Name"
-            checkout <- createCheckoutSession (fixtureClient fixtures.checkoutCreatedFixture) liveConfig "venue-123" "cus_123" "price_valid" "https://app.example.test/success" "https://app.example.test/cancel"
-            portal <- createPortalSession (fixtureClient fixtures.portalFixture) liveConfig "venue-123" "cus_123" "https://app.example.test/Billing"
+            customer <- createCustomer (fixtureClient fixtures.customerFixture) liveConfig "venue-123" "Venue Name" "owner@example.test"
+            checkout <- createCheckoutSession (fixtureClient fixtures.checkoutCreatedFixture) liveConfig "attempt-456" "venue-123" "cus_123" "price_valid" "https://app.example.test/success" "https://app.example.test/cancel"
+            portal <- createPortalSession (fixtureClient fixtures.portalFixture) liveConfig "request-789" "venue-123" "cus_123" "https://app.example.test/Billing"
             subscription <- retrieveSubscription (fixtureClient fixtures.subscriptionFixture) liveConfig "sub_123"
 
             customer `responseShouldFailMode` "Stripe customer create returned test-mode data to a live-mode integration"
@@ -252,6 +254,7 @@ launchExpectations fixtures =
         , expectedQuery = []
         , expectedFormBody =
             [ ("name", "Venue Name")
+            , ("email", "owner@example.test")
             , ("metadata[venue_id]", "venue-123")
             , ("metadata[environment]", "bepis")
             ]
@@ -270,12 +273,12 @@ launchExpectations fixtures =
             , ("client_reference_id", "venue-123")
             , ("metadata[venue_id]", "venue-123")
             , ("subscription_data[metadata][venue_id]", "venue-123")
-            , ("success_url", "https://app.example.test/BillingSuccess?session_id={CHECKOUT_SESSION_ID}")
-            , ("cancel_url", "https://app.example.test/BillingCancel")
+            , ("success_url", "https://app.example.test/BillingSuccess?attempt_id=attempt-456&session_id={CHECKOUT_SESSION_ID}")
+            , ("cancel_url", "https://app.example.test/BillingCancel?attempt_id=attempt-456")
             , ("automatic_tax[enabled]", "false")
             , ("tax_id_collection[enabled]", "false")
             ]
-        , expectedIdempotencyKey = Just "bepis-billing-checkout-venue-123-price-valid"
+        , expectedIdempotencyKey = Just "bepis-billing-checkout-attempt-456"
         , responseBody = fixtures.checkoutCreatedFixture
         }
     , ExpectedStripeRequest
@@ -294,7 +297,7 @@ launchExpectations fixtures =
             [ ("customer", "cus_123")
             , ("return_url", "https://app.example.test/Billing")
             ]
-        , expectedIdempotencyKey = Just "bepis-billing-portal-venue-123"
+        , expectedIdempotencyKey = Just "bepis-billing-portal-venue-123-request-789"
         , responseBody = fixtures.portalFixture
         }
     , ExpectedStripeRequest

@@ -8,17 +8,23 @@ Read this before editing `Application/Billing/` or billing controllers.
 - Keep Stripe API, webhook verification, idempotency, and response parsing in
   application modules. Keep redirects, toasts, params, and permission response
   choices in controllers.
-- Billing management is restricted to venue owners and founder super admins in
-  support mode. Venue authority comes from `venue_memberships`, not `users`.
+- Venue owners may use payment actions. Founder super admins in support mode may
+  inspect billing and use explicit support controls, but must never start
+  Checkout or open a venue payer's Customer Portal. Venue authority comes from
+  `venue_memberships`, not `users`.
 - Support-mode requests have a real `currentVenue`, no
-  `currentVenueMembership`, and `currentUserIsSuperAdmin = True`; keep this
-  path working.
+  `currentVenueMembership`, and `currentUserIsSuperAdmin = True`; keep the
+  diagnostic path working while denying payer actions explicitly.
 - Use Stripe-hosted Checkout and Customer Portal redirects only for v1. Do not
   add Stripe.js, embedded pricing tables, in-app card forms, bank forms, ABN
   forms, or billing-address collection.
 - Verify webhook signatures from the raw request body before parsing JSON.
 - Deduplicate webhook processing by Stripe event ID.
-- Use idempotency keys for Stripe create requests.
+- Keep Customer idempotency venue-scoped, Checkout idempotency tied to the
+  committed local attempt ID, and Portal idempotency fresh per request.
+- Prepare and commit a Checkout attempt before its provider create call. Hold a
+  venue-row lock while deciding, creating, or resuming so concurrent requests
+  share the one open attempt.
 - Never log Stripe secret keys, webhook secrets, payment method details, or full
   raw webhook/API payloads. Checkout-attempt failures use only bounded sanitized
   error code/summary fields; never persist provider bodies in those fields.

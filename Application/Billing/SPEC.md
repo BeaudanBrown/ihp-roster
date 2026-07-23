@@ -146,8 +146,17 @@ method, billing address, or tax detail.
 PostgreSQL enforces one `open` attempt per venue and global uniqueness for a
 non-null Stripe Checkout Session ID. A completed attempt must have both a stored
 Session ID and completion timestamp; non-completed attempts cannot carry a
-completion timestamp. Runtime attempt creation/resumption and return correlation
-land separately in the Checkout lifecycle work.
+completion timestamp.
+
+Checkout preparation locks the venue row and commits a new attempt before the
+Stripe Checkout create call. Provider creation then runs while holding the same
+venue serialization boundary in a second transaction, so a process interruption
+cannot roll back the durable attempt and a retry reuses its attempt-scoped Stripe
+idempotency key. Concurrent requests either create that one attempt or resume it.
+An open attempt with a stored Session is retrieved: a still-open, unexpired
+Session is resumed; an expired Session terminalizes the old attempt before a new
+attempt is prepared; a complete Session remains pending until webhook processing
+confirms local lifecycle state.
 
 `venue_billing_customers.created_by_user_id` retains the initiating Bepis user
 when the app creates a Stripe Customer. It remains null for safely migrated
@@ -159,7 +168,12 @@ cursor so the ordered webhook path can establish it from a validated event.
 
 ## Hosted Checkout Flow
 
-Venue owners and founder super admins may start billing for the current venue.
+Only an ordinary current-venue owner may start billing. Founder support mode,
+venue admins, managers, and workers cannot start Checkout. Every Checkout action
+checks the existing fresh-passkey window server-side. The initiating owner's
+current email must be verified; it is supplied only when the venue's Stripe
+Customer is first created. Stripe remains authoritative for later billing-email
+changes.
 
 The server creates or reuses the venue's Stripe Customer, validates the Stripe
 Price, and creates a hosted Checkout Session with:
@@ -176,25 +190,38 @@ Price, and creates a hosted Checkout Session with:
 The app omits `payment_method_types` by default so Stripe Dashboard controls
 eligible hosted payment methods.
 
-Stripe create requests use deterministic idempotency keys scoped to the venue
-and operation. Before redirecting, the created Session must be `open`, use
-`mode = subscription`, and reference the requested Customer. Retrieved Sessions
-must return the requested Session ID and Customer, remain in subscription mode,
-and have `open`, `complete`, or `expired` status. The server
-enforces the new-Checkout deployment control before
-Price lookup, Customer creation, or Checkout creation; hiding a button is not a
-security boundary.
+Customer creation uses a stable venue-scoped idempotency key. Checkout creation
+uses the committed local attempt ID, never a permanent venue/Price key. Before
+redirecting, the created Session must be `open`, use `mode = subscription`,
+reference the requested Customer, and provide its provider expiry. Retrieved
+Sessions must return the requested Session ID and Customer, remain in
+subscription mode, and have `open`, `complete`, or `expired` status.
+
+New Checkout is allowed only when no local subscription exists or its status is
+`canceled` or `incomplete_expired`. `incomplete`, `trialing`, `active`,
+`past_due`, `unpaid`, and `paused` all block a second Checkout. The server
+enforces this rule and the new-Checkout deployment control before Customer or
+Checkout creation; hiding or disabling a button is not a security boundary.
+
+Success and cancellation URLs carry the opaque local attempt ID. Success also
+carries Stripe's documented Session placeholder. Return handling parses the
+attempt ID totally and requires the authenticated current venue, local attempt,
+and stored Session ID to agree. Direct Billing/live-fragment queries repeat the
+same correlation. A return never creates or confirms a Subscription; only a
+completed correlated attempt and its matching webhook-confirmed local
+Subscription render as confirmed.
 
 ## Customer Portal Flow
 
-Venue owners and founder super admins may open Stripe Customer Portal for the
-current venue after a Stripe Customer exists.
+Only an ordinary current-venue owner may open Stripe Customer Portal after a
+Stripe Customer exists. Founder support mode cannot open the payer's Portal.
+Every Portal action checks the existing fresh-passkey window server-side.
 
-The app creates Portal Sessions on demand using the stored Customer ID and a
-return URL. The response must reference that same Customer and exact return URL
-before its hosted URL is accepted. Portal URLs are short-lived and must not be
-stored. Disabling new
-Checkout does not disable Portal access for an existing Customer.
+The app creates Portal Sessions on demand using the stored Customer ID, a return
+URL, and a freshly generated request-scoped idempotency key. The response must
+reference that same Customer and exact return URL before its hosted URL is
+accepted. Portal URLs and request keys are short-lived and are not stored.
+Disabling new Checkout does not disable Portal access for an existing Customer.
 
 Stripe Customer Portal must be configured in Stripe sandbox and live mode before
 launch. Portal policy controls, including cancellation behavior, are Stripe
@@ -281,13 +308,15 @@ changes are not treated as venue writes.
 ## Access Rules
 
 - Venue owners can start Checkout and open Customer Portal for their current
-  venue.
-- Founder super admins can view and manage billing for a support-mode current
-  venue.
+  venue after fresh passkey verification.
+- Founder super admins can inspect billing and use explicit support controls for
+  a support-mode current venue, but cannot start Checkout or open Customer
+  Portal.
 - Venue admins, managers, workers, and future export-only roles do not manage
   billing unless a future product decision changes the role model.
-- Server-side authorization must resolve current venue membership for ordinary
-  users. Founder support access must stay distinct from venue membership.
+- Server-side authorization resolves current venue membership for ordinary
+  users. Founder support access stays distinct from venue membership and never
+  becomes synthetic owner authority.
 
 ## Configuration
 
@@ -347,8 +376,8 @@ Normal CI must not require live Stripe credentials.
 Local deterministic tests cover:
 
 - Price lookup and validation, including failure cases
-- request construction and idempotency keys for Customer, Checkout, and Portal
-  creation
+- venue-scoped Customer, durable attempt-scoped Checkout, and fresh
+  request-scoped Portal idempotency keys, including the initiating owner email
 - webhook signature verification from raw request bodies
 - duplicate event handling
 - subscription lifecycle fixture processing
@@ -357,6 +386,10 @@ Local deterministic tests cover:
 - API/webhook mode mismatch rejection
 - bounded HTTP timeout and sanitized caller-facing provider errors
 - exact hosted Checkout and Portal redirect-domain validation
+- repeated, interrupted, expired, and concurrent Checkout attempt behavior
+- non-terminal Subscription rejection and terminal resubscription eligibility
+- exact venue/attempt/Session return correlation without browser-authoritative
+  Subscription updates
 
 Strict local Stripe mock coverage should include:
 

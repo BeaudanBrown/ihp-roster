@@ -323,7 +323,7 @@ tests = do
         it "selects billing fragments through generated dependencies" do
             let venueId = fromWords 6 0 0 0
             let scopeValue = BillingScopeValue venueId
-            let checkoutState = BillingCheckoutReturnState False Nothing
+            let checkoutState = BillingCheckoutReturnState False Nothing Nothing
             let fragments = planMountedFragments (Set.fromList [billingResource venueId]) (billingSurfaceScope scopeValue) (billingCandidateMountedFragments checkoutState)
 
             map (.mountedFragmentTargetId) fragments `shouldBe` ["billing-status-fragment"]

@@ -13,6 +13,8 @@ customer and subscription records must not be deduplicated by user or email.
 - `Stripe.hs` - Stripe configuration, request construction, response parsing,
   idempotency keys, hosted Checkout and Portal session calls, and webhook
   signature verification.
+- `Checkout.hs` - locked, durable Checkout-attempt preparation, subscription
+  eligibility checks, interrupted-create recovery, and open Session resumption.
 - `Webhook.hs` - Stripe webhook event parsing and idempotent local subscription
   state updates.
 - `Notifications.hs` - sanitized billing problem notifications for venue
@@ -28,7 +30,9 @@ Billing persistence is venue-scoped across `venue_billing_customers`,
 `billing_checkout_attempts`, `venue_subscriptions`, and `billing_events`.
 Provider mode is explicit on each provider-backed record. Checkout attempts keep
 only bounded provider identifiers, lifecycle timestamps, and sanitized failure
-summaries; Stripe-hosted URLs and payment/tax details remain outside Bepis.
+summaries; Stripe-hosted URLs and payment/tax details remain outside Bepis. The
+attempt is committed before Checkout Session creation, and a venue-row lock plus
+the one-open-attempt constraint serializes concurrent creation and resumption.
 
 ## Launch Operations
 

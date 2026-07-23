@@ -193,6 +193,7 @@ data StripeCheckoutSession = StripeCheckoutSession
     , stripeCheckoutLivemode       :: !Bool
     , stripeCheckoutMode           :: !Text
     , stripeCheckoutStatus         :: !Text
+    , stripeCheckoutExpiresAt      :: !Integer
     }
     deriving (Eq, Show)
 
@@ -207,6 +208,7 @@ instance Aeson.FromJSON StripeCheckoutSession where
             <*> object Aeson..: "livemode"
             <*> object Aeson..: "mode"
             <*> object Aeson..: "status"
+            <*> object Aeson..: "expires_at"
 
 data StripePortalSession = StripePortalSession
     { stripePortalSessionId       :: !Text
@@ -302,10 +304,10 @@ stripeClientErrorText = \case
 data StripeClient = StripeClient
     { listPrices :: StripeConfig -> IO (Either StripeClientError [StripePrice])
     , retrievePrice :: StripeConfig -> Text -> IO (Either StripeClientError StripePrice)
-    , createCustomer :: StripeConfig -> Text -> Text -> IO (Either StripeClientError StripeCustomer)
-    , createCheckoutSession :: StripeConfig -> Text -> Text -> Text -> Text -> Text -> IO (Either StripeClientError StripeCheckoutSession)
+    , createCustomer :: StripeConfig -> Text -> Text -> Text -> IO (Either StripeClientError StripeCustomer)
+    , createCheckoutSession :: StripeConfig -> Text -> Text -> Text -> Text -> Text -> Text -> IO (Either StripeClientError StripeCheckoutSession)
     , retrieveCheckoutSession :: StripeConfig -> Text -> Text -> IO (Either StripeClientError StripeCheckoutSession)
-    , createPortalSession :: StripeConfig -> Text -> Text -> Text -> IO (Either StripeClientError StripePortalSession)
+    , createPortalSession :: StripeConfig -> Text -> Text -> Text -> Text -> IO (Either StripeClientError StripePortalSession)
     , retrieveSubscription :: StripeConfig -> Text -> IO (Either StripeClientError StripeSubscription)
     }
 
@@ -345,15 +347,15 @@ stripeClientWithTransport transport =
             pure (result >>= mapM (validateStripeResponseMode "price lookup" config (.stripePriceLivemode)))
         , retrievePrice = \config price ->
             sendModeCheckedStripeJsonRequest transport "price retrieve" config (.stripePriceLivemode) (buildRetrievePriceRequest config price)
-        , createCustomer = \config venueId venueName ->
-            sendModeCheckedStripeJsonRequest transport "customer create" config (.stripeCustomerLivemode) (buildCreateCustomerRequest config venueId venueName)
-        , createCheckoutSession = \config venueId customerId price successUrl cancelUrl ->
-            sendModeCheckedStripeJsonRequest transport "checkout session create" config (.stripeCheckoutLivemode) (buildCreateCheckoutSessionRequest config venueId customerId price successUrl cancelUrl)
+        , createCustomer = \config venueId venueName ownerEmail ->
+            sendModeCheckedStripeJsonRequest transport "customer create" config (.stripeCustomerLivemode) (buildCreateCustomerRequest config venueId venueName ownerEmail)
+        , createCheckoutSession = \config attemptId venueId customerId price successUrl cancelUrl ->
+            sendModeCheckedStripeJsonRequest transport "checkout session create" config (.stripeCheckoutLivemode) (buildCreateCheckoutSessionRequest config attemptId venueId customerId price successUrl cancelUrl)
         , retrieveCheckoutSession = \config sessionId expectedCustomerId -> do
             result <- sendModeCheckedStripeJsonRequest transport "checkout session retrieve" config (.stripeCheckoutLivemode) (buildRetrieveCheckoutSessionRequest config sessionId)
             pure (result >>= either (Left . StripeJsonError) Right . validateRetrievedCheckoutSession sessionId expectedCustomerId)
-        , createPortalSession = \config venueId customerId returnUrl ->
-            sendModeCheckedStripeJsonRequest transport "portal session create" config (.stripePortalSessionLivemode) (buildCreatePortalSessionRequest config venueId customerId returnUrl)
+        , createPortalSession = \config requestId venueId customerId returnUrl ->
+            sendModeCheckedStripeJsonRequest transport "portal session create" config (.stripePortalSessionLivemode) (buildCreatePortalSessionRequest config requestId venueId customerId returnUrl)
         , retrieveSubscription = \config subscriptionId -> do
             result <- sendModeCheckedStripeJsonRequest transport "subscription retrieve" config (.stripeSubscriptionLivemode) (buildRetrieveSubscriptionRequest config subscriptionId)
             pure (result >>= validateStripeResponseMode "subscription item price" config (.stripeSubscriptionPriceLivemode))
@@ -545,22 +547,23 @@ buildRetrievePriceRequest :: StripeConfig -> Text -> StripeHttpRequest
 buildRetrievePriceRequest config price =
     stripeGetRequest config ("/v1/prices/" <> price)
 
-buildCreateCustomerRequest :: StripeConfig -> Text -> Text -> StripeHttpRequest
-buildCreateCustomerRequest config venueId venueName =
+buildCreateCustomerRequest :: StripeConfig -> Text -> Text -> Text -> StripeHttpRequest
+buildCreateCustomerRequest config venueId venueName ownerEmail =
     stripePostFormRequest
         config
         (billingIdempotencyKey "customer" venueId Nothing)
         "/v1/customers"
         [ ("name", TextEncoding.encodeUtf8 venueName)
+        , ("email", TextEncoding.encodeUtf8 ownerEmail)
         , ("metadata[venue_id]", TextEncoding.encodeUtf8 venueId)
         , ("metadata[environment]", "bepis")
         ]
 
-buildCreateCheckoutSessionRequest :: StripeConfig -> Text -> Text -> Text -> Text -> Text -> StripeHttpRequest
-buildCreateCheckoutSessionRequest config venueId customerId selectedPriceId successUrl cancelUrl =
+buildCreateCheckoutSessionRequest :: StripeConfig -> Text -> Text -> Text -> Text -> Text -> Text -> StripeHttpRequest
+buildCreateCheckoutSessionRequest config attemptId venueId customerId selectedPriceId successUrl cancelUrl =
     stripePostFormRequest
         config
-        (billingIdempotencyKey "checkout" venueId (Just selectedPriceId))
+        (billingIdempotencyKey "checkout" attemptId Nothing)
         "/v1/checkout/sessions"
         [ ("mode", "subscription")
         , ("customer", TextEncoding.encodeUtf8 customerId)
@@ -579,11 +582,11 @@ buildRetrieveCheckoutSessionRequest :: StripeConfig -> Text -> StripeHttpRequest
 buildRetrieveCheckoutSessionRequest config sessionId =
     stripeGetRequest config ("/v1/checkout/sessions/" <> sessionId)
 
-buildCreatePortalSessionRequest :: StripeConfig -> Text -> Text -> Text -> StripeHttpRequest
-buildCreatePortalSessionRequest config venueId customerId returnUrl =
+buildCreatePortalSessionRequest :: StripeConfig -> Text -> Text -> Text -> Text -> StripeHttpRequest
+buildCreatePortalSessionRequest config requestId venueId customerId returnUrl =
     stripePostFormRequest
         config
-        (billingIdempotencyKey "portal" venueId Nothing)
+        (billingIdempotencyKey "portal" venueId (Just requestId))
         "/v1/billing_portal/sessions"
         [ ("customer", TextEncoding.encodeUtf8 customerId)
         , ("return_url", TextEncoding.encodeUtf8 returnUrl)

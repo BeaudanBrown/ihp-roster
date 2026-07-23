@@ -24,14 +24,15 @@ data BillingViewModel = BillingViewModel
     }
 
 data BillingCheckoutReturn = BillingCheckoutReturn
-    { checkoutSessionId :: !(Maybe Text)
+    { checkoutAttemptId :: !Text
+    , checkoutSessionId :: !(Maybe Text)
     , checkoutOutcome   :: !BillingCheckoutOutcome
     }
 
 data BillingCheckoutOutcome
     = BillingCheckoutPending
     | BillingCheckoutConfirmed !VenueSubscription
-    | BillingCheckoutFailed !BillingEvent
+    | BillingCheckoutFailed !BillingCheckoutAttempt
 
 newtype BillingView = BillingView
     { viewModel :: BillingViewModel
@@ -66,7 +67,7 @@ instance View BillingCancelView where
     html BillingCancelView =
         renderBillingResultPage
             "Billing Cancelled"
-            "No subscription change was recorded. You can start Checkout again from the billing page."
+            "No subscription change was confirmed by this browser return. You can go back to Billing and resume this Checkout while it remains available."
 
 renderBillingResultPage :: Text -> Text -> Html
 renderBillingResultPage title message =
@@ -96,11 +97,13 @@ billingCheckoutReturnState :: Maybe BillingCheckoutReturn -> BillingCheckoutRetu
 billingCheckoutReturnState Nothing =
     BillingCheckoutReturnState
         { billingCheckoutReturned = False
+        , billingCheckoutAttemptId = Nothing
         , billingCheckoutSessionId = Nothing
         }
-billingCheckoutReturnState (Just BillingCheckoutReturn { checkoutSessionId }) =
+billingCheckoutReturnState (Just BillingCheckoutReturn { checkoutAttemptId, checkoutSessionId }) =
     BillingCheckoutReturnState
         { billingCheckoutReturned = True
+        , billingCheckoutAttemptId = Just checkoutAttemptId
         , billingCheckoutSessionId = checkoutSessionId
         }
 
@@ -157,10 +160,10 @@ renderBillingCheckoutDialogBody BillingCheckoutReturn { checkoutOutcome = Billin
     <p class="mb-2">Stripe confirmed the subscription and Bepis has updated this venue's billing status.</p>
     <div class="small app-muted">Subscription: {subscription.stripeSubscriptionId}</div>
 |]
-renderBillingCheckoutDialogBody BillingCheckoutReturn { checkoutOutcome = BillingCheckoutFailed event } = [hsx|
-    <p class="mb-2">Stripe sent a webhook for this checkout, but Bepis could not confirm the subscription automatically.</p>
-    <div class="small app-muted">Last event: {event.eventType} · {event.status}</div>
-    {renderBillingCheckoutErrorSummary event.errorSummary}
+renderBillingCheckoutDialogBody BillingCheckoutReturn { checkoutOutcome = BillingCheckoutFailed attempt } = [hsx|
+    <p class="mb-2">Stripe sent an update for this checkout, but Bepis could not confirm the subscription automatically.</p>
+    <div class="small app-muted">Checkout attempt: {inputValue attempt.id} · {attempt.status}</div>
+    {renderBillingCheckoutErrorSummary attempt.errorSummary}
 |]
 
 renderBillingCheckoutErrorSummary :: Maybe Text -> Html

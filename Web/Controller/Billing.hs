@@ -1,11 +1,14 @@
 module Web.Controller.Billing where
 
+import Application.Billing.Checkout
 import Application.Billing.Stripe
 import Application.Helper.SurfaceResource (LiveMutationResult (..))
 import Application.Helper.Url (appendQueryParams)
-import Control.Monad (guard, void)
+import Control.Monad (void)
 import qualified Data.Aeson as Aeson
 import qualified Data.Text as Text
+import qualified Data.UUID as UUID
+import qualified Data.UUID.V4 as UUIDv4
 import Web.Billing.Mutations
 import Web.Controller.Prelude
 import Web.View.Billing.Index
@@ -26,18 +29,32 @@ instance Controller BillingController where
         viewModel <- fetchBillingViewModel
         respondHtml (renderbillingStatusLiveFragment viewModel)
 
-    action currentAction@CreateBillingCheckoutSessionAction = runBepis currentAction BepisMutationAction $
+    action currentAction@CreateBillingCheckoutSessionAction = runBepis currentAction BepisMutationAction do
+        ensureOwnerBillingPaymentAction
+        when (isNothing currentUser.emailVerifiedAt) do
+            billingRedirectWithError "Verify your account email before starting Checkout."
         createBillingCheckoutSessionAction
 
-    action currentAction@CreateBillingPortalSessionAction = runBepis currentAction BepisMutationAction $
+    action currentAction@CreateBillingPortalSessionAction = runBepis currentAction BepisMutationAction do
+        ensureOwnerBillingPaymentAction
         createBillingPortalSessionAction
 
     action currentAction@BillingSuccessAction = runBepis currentAction BepisPageAction do
-        let checkoutParams = ("checkout", "success") : maybe [] (\sessionId -> [("session_id", sessionId)]) (paramOrNothing @Text "session_id")
-        redirectToPath (appendQueryParams (pathTo BillingAction) checkoutParams)
+        fetchCorrelatedCheckoutReturnAttempt >>= \case
+            Nothing -> billingRedirectWithError "That Checkout return does not match this venue."
+            Just attempt ->
+                redirectToPath $
+                    appendQueryParams
+                        (pathTo BillingAction)
+                        [ ("checkout", "success")
+                        , ("attempt_id", inputValue attempt.id)
+                        , ("session_id", fromMaybe "" attempt.stripeCheckoutSessionId)
+                        ]
 
-    action currentAction@BillingCancelAction = runBepis currentAction BepisPageAction $
-        render BillingCancelView
+    action currentAction@BillingCancelAction = runBepis currentAction BepisPageAction do
+        fetchCorrelatedCheckoutCancelAttempt >>= \case
+            Nothing -> billingRedirectWithError "That Checkout cancellation does not match this venue."
+            Just _ -> render BillingCancelView
 
     action currentAction@UpdateVenueBillingControlAction = runBepis currentAction BepisMutationAction $
         updateVenueBillingControlAction
@@ -47,6 +64,13 @@ ensureBillingAccess = do
     redirectPermissionDeniedUnless
         (currentUserIsSuperAdmin || hasRole VenueOwnerRole)
         "Only the venue owner or a super admin can manage billing for this venue."
+    ensurePrivilegedPasskeyReady
+
+ensureOwnerBillingPaymentAction :: (?context :: ControllerContext, ?request :: Request, ?modelContext :: ModelContext) => IO ()
+ensureOwnerBillingPaymentAction = do
+    redirectPermissionDeniedUnless
+        (not currentUserIsSuperAdmin && hasRole VenueOwnerRole)
+        "Only the venue owner can start Checkout or open Customer Portal."
     ensurePrivilegedPasskeyReady
 
 fetchBillingViewModel :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => IO BillingViewModel
@@ -61,32 +85,35 @@ fetchBillingViewModel = do
             |> limit 5
             |> fetch
     stripeControls <- readStripeDeploymentControls
-    let stripeCheckoutAvailable = either (const False) (.stripeCheckoutEnabled) stripeControls
-    let checkoutReturn = billingCheckoutReturnFromRequest maybeSubscription recentEvents
+    let stripeCheckoutAvailable =
+            either (const False) (.stripeCheckoutEnabled) stripeControls
+                && checkoutAllowedForSubscription maybeSubscription
+    checkoutReturn <- fetchBillingCheckoutReturn maybeSubscription
     pure BillingViewModel { .. }
 
-billingCheckoutReturnFromRequest :: (?request :: Request) => Maybe VenueSubscription -> [BillingEvent] -> Maybe BillingCheckoutReturn
-billingCheckoutReturnFromRequest maybeSubscription recentEvents = do
-    guard (paramOrNothing @Text "checkout" == Just "success" || isJust checkoutSessionId)
-    pure BillingCheckoutReturn
-        { checkoutSessionId
-        , checkoutOutcome = classifyCheckoutOutcome checkoutSessionId maybeSubscription recentEvents
-        }
-    where
-        checkoutSessionId = paramOrNothing @Text "session_id"
+fetchBillingCheckoutReturn
+    :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request)
+    => Maybe VenueSubscription
+    -> IO (Maybe BillingCheckoutReturn)
+fetchBillingCheckoutReturn maybeSubscription
+    | paramOrNothing @Text "checkout" /= Just "success" = pure Nothing
+    | otherwise =
+        fmap (fmap \attempt ->
+            BillingCheckoutReturn
+                { checkoutAttemptId = inputValue attempt.id
+                , checkoutSessionId = attempt.stripeCheckoutSessionId
+                , checkoutOutcome = classifyCheckoutOutcome attempt maybeSubscription
+                }) fetchCorrelatedCheckoutReturnAttempt
 
-classifyCheckoutOutcome :: Maybe Text -> Maybe VenueSubscription -> [BillingEvent] -> BillingCheckoutOutcome
-classifyCheckoutOutcome _ (Just subscription) _ = BillingCheckoutConfirmed subscription
-classifyCheckoutOutcome checkoutSessionId Nothing recentEvents =
-    maybe
-        BillingCheckoutPending
-        BillingCheckoutFailed
-        (find (isCheckoutFailure checkoutSessionId) recentEvents)
-
-isCheckoutFailure :: Maybe Text -> BillingEvent -> Bool
-isCheckoutFailure checkoutSessionId event =
-    event.status == "failed"
-        || (event.eventType == "checkout.session.async_payment_failed" && maybe True (\sessionId -> event.providerObjectId == Just sessionId) checkoutSessionId)
+classifyCheckoutOutcome :: BillingCheckoutAttempt -> Maybe VenueSubscription -> BillingCheckoutOutcome
+classifyCheckoutOutcome attempt maybeSubscription
+    | attempt.status == "completed"
+    , Just attemptSubscriptionId <- attempt.stripeSubscriptionId
+    , Just subscription <- maybeSubscription
+    , subscription.stripeSubscriptionId == attemptSubscriptionId =
+        BillingCheckoutConfirmed subscription
+    | attempt.status == "failed" = BillingCheckoutFailed attempt
+    | otherwise = BillingCheckoutPending
 
 fetchCurrentVenueBillingCustomer :: (?context :: ControllerContext, ?modelContext :: ModelContext) => IO (Maybe VenueBillingCustomer)
 fetchCurrentVenueBillingCustomer =
@@ -106,6 +133,34 @@ fetchCurrentVenueBillingControl =
         |> filterWhere (#venueId, unpackId currentVenueId)
         |> fetchOneOrNothing
 
+fetchCorrelatedCheckoutReturnAttempt :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => IO (Maybe BillingCheckoutAttempt)
+fetchCorrelatedCheckoutReturnAttempt =
+    case (paramOrNothing @Text "attempt_id" >>= parseUUIDText, paramOrNothing @Text "session_id") of
+        (Just attemptId, Just sessionId) ->
+            query @BillingCheckoutAttempt
+                |> filterWhere (#id, Id attemptId)
+                |> filterWhere (#venueId, unpackId currentVenueId)
+                |> filterWhere (#stripeCheckoutSessionId, Just sessionId)
+                |> fetchOneOrNothing
+        _ -> pure Nothing
+
+fetchCorrelatedCheckoutCancelAttempt :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => IO (Maybe BillingCheckoutAttempt)
+fetchCorrelatedCheckoutCancelAttempt =
+    case paramOrNothing @Text "attempt_id" >>= parseUUIDText of
+        Nothing -> pure Nothing
+        Just attemptId -> do
+            maybeAttempt <-
+                query @BillingCheckoutAttempt
+                    |> filterWhere (#id, Id attemptId)
+                    |> filterWhere (#venueId, unpackId currentVenueId)
+                    |> fetchOneOrNothing
+            pure do
+                attempt <- maybeAttempt
+                storedSessionId <- attempt.stripeCheckoutSessionId
+                case paramOrNothing @Text "session_id" of
+                    Just suppliedSessionId | suppliedSessionId /= storedSessionId -> Nothing
+                    _ -> Just attempt
+
 createBillingCheckoutSessionAction :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => IO ()
 createBillingCheckoutSessionAction =
     readStripeConfig >>= \case
@@ -118,45 +173,57 @@ createBillingCheckoutSessionAction =
 createEnabledBillingCheckoutSession :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => StripeConfig -> IO ()
 createEnabledBillingCheckoutSession stripeConfig = do
     stripeClient <- currentStripeClient
-    resolveBillingPrice stripeClient stripeConfig >>= \case
-        Left message -> billingRedirectWithError message
-        Right price ->
-            ensureVenueStripeCustomer stripeClient stripeConfig >>= \case
-                Left message -> billingRedirectWithError message
-                Right billingCustomer -> do
-                    let venueIdText = inputValue currentVenueId
-                    let successUrl = stripeConfig.appBaseUrl <> pathTo BillingSuccessAction <> "?session_id={CHECKOUT_SESSION_ID}"
-                    let cancelUrl = stripeConfig.appBaseUrl <> pathTo BillingCancelAction
-                    checkoutResult <-
-                        stripeClient.createCheckoutSession
-                            stripeConfig
-                            venueIdText
-                            billingCustomer.stripeCustomerId
-                            price.stripePriceId
-                            successUrl
-                            cancelUrl
-                    case checkoutResult of
-                        Left err -> billingRedirectWithError ("Stripe Checkout failed: " <> stripeClientErrorText err)
-                        Right checkoutSession ->
-                            case validateCreatedCheckoutSession billingCustomer.stripeCustomerId checkoutSession of
-                                Left message -> billingRedirectWithError message
-                                Right validatedCheckoutSession ->
-                                    case validatedCheckoutSession.stripeCheckoutSessionUrl of
-                                        Nothing -> billingRedirectWithError "Stripe Checkout did not return a hosted session URL."
-                                        Just checkoutUrl ->
-                                            validateStripeCheckoutRedirectUrl checkoutUrl >>= \case
-                                                Left message -> billingRedirectWithError message
-                                                Right validatedCheckoutUrl -> do
-                                                    void $ recordCurrentUserAuditEvent
-                                                        "billing_checkout_started"
-                                                        "venue_billing_customers"
-                                                        (unpackId billingCustomer.id)
-                                                        (Aeson.object
-                                                            [ "stripeCustomerId" Aeson..= billingCustomer.stripeCustomerId
-                                                            , "stripeCheckoutSessionId" Aeson..= validatedCheckoutSession.stripeCheckoutSessionId
-                                                            , "stripePriceId" Aeson..= price.stripePriceId
-                                                            ])
-                                                    redirectToBillingUrl validatedCheckoutUrl
+    let successUrlFor attemptId =
+            appendQueryParams
+                (stripeConfig.appBaseUrl <> pathTo BillingSuccessAction)
+                [("attempt_id", inputValue attemptId)]
+                <> "&session_id={CHECKOUT_SESSION_ID}"
+    let cancelUrlFor attemptId =
+            appendQueryParams
+                (stripeConfig.appBaseUrl <> pathTo BillingCancelAction)
+                [("attempt_id", inputValue attemptId)]
+    checkoutResult <-
+        startOrResumeBillingCheckoutMutation
+            stripeClient
+            stripeConfig
+            currentVenue
+            currentUser
+            successUrlFor
+            cancelUrlFor
+    case checkoutResult.liveMutationValue.checkoutStartOutcome of
+        CheckoutStartRejected message -> billingRedirectWithError message
+        CheckoutAwaitingWebhook attempt -> redirectToCorrelatedCheckoutReturn attempt
+        CheckoutSessionReady attempt checkoutSession ->
+            case checkoutSession.stripeCheckoutSessionUrl of
+                Nothing -> billingRedirectWithError "Stripe Checkout did not return a hosted session URL."
+                Just checkoutUrl ->
+                    validateStripeCheckoutRedirectUrl checkoutUrl >>= \case
+                        Left message -> billingRedirectWithError message
+                        Right validatedCheckoutUrl -> do
+                            void $ recordCurrentUserAuditEvent
+                                "billing_checkout_started"
+                                "billing_checkout_attempts"
+                                (unpackId attempt.id)
+                                (Aeson.object
+                                    [ "stripeCustomerId" Aeson..= attempt.stripeCustomerId
+                                    , "stripeCheckoutSessionId" Aeson..= checkoutSession.stripeCheckoutSessionId
+                                    , "stripePriceId" Aeson..= attempt.stripePriceId
+                                    , "resumed" Aeson..= not checkoutResult.liveMutationValue.checkoutAttemptWasCreated
+                                    ])
+                            redirectToBillingUrl validatedCheckoutUrl
+
+redirectToCorrelatedCheckoutReturn :: (?context :: ControllerContext, ?request :: Request) => BillingCheckoutAttempt -> IO ()
+redirectToCorrelatedCheckoutReturn attempt =
+    case attempt.stripeCheckoutSessionId of
+        Nothing -> billingRedirectWithError "The open Checkout attempt has no Stripe Session to resume."
+        Just sessionId ->
+            redirectToPath $
+                appendQueryParams
+                    (pathTo BillingAction)
+                    [ ("checkout", "success")
+                    , ("attempt_id", inputValue attempt.id)
+                    , ("session_id", sessionId)
+                    ]
 
 createBillingPortalSessionAction :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => IO ()
 createBillingPortalSessionAction =
@@ -169,9 +236,11 @@ createBillingPortalSessionAction =
                 Just billingCustomer -> do
                     stripeClient <- currentStripeClient
                     let returnUrl = stripeConfig.appBaseUrl <> pathTo BillingAction
+                    portalRequestId <- UUID.toText <$> UUIDv4.nextRandom
                     portalResult <-
                         stripeClient.createPortalSession
                             stripeConfig
+                            portalRequestId
                             (inputValue currentVenueId)
                             billingCustomer.stripeCustomerId
                             returnUrl
@@ -193,37 +262,6 @@ createBillingPortalSessionAction =
                                                     , "stripePortalSessionId" Aeson..= validatedPortalSession.stripePortalSessionId
                                                     ])
                                             redirectToBillingUrl validatedPortalUrl
-
-resolveBillingPrice :: StripeClient -> StripeConfig -> IO (Either Text StripePrice)
-resolveBillingPrice stripeClient stripeConfig =
-    case stripeConfig.priceId of
-        Just configuredPriceId -> do
-            priceResult <- stripeClient.retrievePrice stripeConfig configuredPriceId
-            pure (firstStripeError priceResult >>= validateVenueMonthlyPrice)
-        Nothing -> do
-            pricesResult <- stripeClient.listPrices stripeConfig
-            pure case pricesResult of
-                Left err -> Left ("Stripe Price lookup failed: " <> stripeClientErrorText err)
-                Right [price] -> validateVenueMonthlyPrice price
-                Right [] -> Left "Stripe Price lookup did not return an active monthly AUD 100 price."
-                Right _ -> Left "Stripe Price lookup returned multiple prices for the configured lookup key."
-
-firstStripeError :: Either StripeClientError value -> Either Text value
-firstStripeError = \case
-    Left err -> Left (stripeClientErrorText err)
-    Right value -> Right value
-
-ensureVenueStripeCustomer :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => StripeClient -> StripeConfig -> IO (Either Text VenueBillingCustomer)
-ensureVenueStripeCustomer stripeClient stripeConfig = do
-    fetchCurrentVenueBillingCustomer >>= \case
-        Just customer -> pure (Right customer)
-        Nothing -> do
-            customerResult <- stripeClient.createCustomer stripeConfig (inputValue currentVenueId) currentVenue.name
-            case customerResult of
-                Left err -> pure (Left ("Stripe Customer create failed: " <> stripeClientErrorText err))
-                Right stripeCustomer -> do
-                    mutationResult <- createVenueBillingCustomerMutation stripeCustomer.stripeCustomerId stripeCustomer.stripeCustomerLivemode
-                    pure (Right mutationResult.liveMutationValue)
 
 updateVenueBillingControlAction :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => IO ()
 updateVenueBillingControlAction = do

@@ -204,30 +204,32 @@ tests =
                 lookup "Stripe-Version" request.stripeRequestHeaders `shouldBe` Just "2026-06-24.dahlia"
                 request.stripeRequestTimeoutMicroseconds `shouldBe` 15000000
 
-            it "builds Customer v1 create requests without billing detail fields" do
-                let request = buildCreateCustomerRequest testConfig "venue-123" "Venue Name"
+            it "builds Customer v1 create requests with the initiating owner's verified email" do
+                let request = buildCreateCustomerRequest testConfig "venue-123" "Venue Name" "owner@example.test"
                 let body = formBody request
 
                 request.stripeRequestMethod `shouldBe` "POST"
                 request.stripeRequestUrl `shouldBe` "https://api.stripe.com/v1/customers"
                 lookup "Idempotency-Key" request.stripeRequestHeaders `shouldBe` Just "bepis-billing-customer-venue-123"
                 lookup "name" body `shouldBe` Just "Venue Name"
+                lookup "email" body `shouldBe` Just "owner@example.test"
                 lookup "metadata[venue_id]" body `shouldBe` Just "venue-123"
                 bodyKeys body `shouldNotSatisfy` any (`List.elem` ["address[line1]", "tax_id_data[0][value]", "payment_method"])
 
-            it "builds hosted subscription Checkout requests with tax collection disabled" do
+            it "builds hosted subscription Checkout requests with attempt-scoped idempotency" do
                 let request =
                         buildCreateCheckoutSessionRequest
                             testConfig
+                            "attempt-456"
                             "venue-123"
                             "cus_123"
                             "price_123"
-                            "https://app.example.test/BillingSuccess?session_id={CHECKOUT_SESSION_ID}"
-                            "https://app.example.test/BillingCancel"
+                            "https://app.example.test/BillingSuccess?attempt_id=attempt-456&session_id={CHECKOUT_SESSION_ID}"
+                            "https://app.example.test/BillingCancel?attempt_id=attempt-456"
                 let body = formBody request
 
                 request.stripeRequestUrl `shouldBe` "https://api.stripe.com/v1/checkout/sessions"
-                lookup "Idempotency-Key" request.stripeRequestHeaders `shouldBe` Just "bepis-billing-checkout-venue-123-price-123"
+                lookup "Idempotency-Key" request.stripeRequestHeaders `shouldBe` Just "bepis-billing-checkout-attempt-456"
                 lookup "mode" body `shouldBe` Just "subscription"
                 lookup "customer" body `shouldBe` Just "cus_123"
                 lookup "line_items[0][price]" body `shouldBe` Just "price_123"
@@ -239,12 +241,14 @@ tests =
                 lookup "tax_id_collection[enabled]" body `shouldBe` Just "false"
                 bodyKeys body `shouldNotSatisfy` List.elem "payment_method_types[0]"
 
-            it "builds Customer Portal and retrieval requests" do
-                let portalRequest = buildCreatePortalSessionRequest testConfig "venue-123" "cus_123" "https://app.example.test/Billing"
+            it "builds Customer Portal requests with a fresh request-scoped idempotency key" do
+                let portalRequest = buildCreatePortalSessionRequest testConfig "request-789" "venue-123" "cus_123" "https://app.example.test/Billing"
+                let secondPortalRequest = buildCreatePortalSessionRequest testConfig "request-790" "venue-123" "cus_123" "https://app.example.test/Billing"
                 let portalBody = formBody portalRequest
 
                 portalRequest.stripeRequestUrl `shouldBe` "https://api.stripe.com/v1/billing_portal/sessions"
-                lookup "Idempotency-Key" portalRequest.stripeRequestHeaders `shouldBe` Just "bepis-billing-portal-venue-123"
+                lookup "Idempotency-Key" portalRequest.stripeRequestHeaders `shouldBe` Just "bepis-billing-portal-venue-123-request-789"
+                lookup "Idempotency-Key" secondPortalRequest.stripeRequestHeaders `shouldBe` Just "bepis-billing-portal-venue-123-request-790"
                 lookup "customer" portalBody `shouldBe` Just "cus_123"
                 lookup "return_url" portalBody `shouldBe` Just "https://app.example.test/Billing"
 
@@ -276,6 +280,7 @@ tests =
                             , stripeCheckoutLivemode = False
                             , stripeCheckoutMode = "subscription"
                             , stripeCheckoutStatus = "open"
+                            , stripeCheckoutExpiresAt = 1784764800
                             }
 
                 validateCreatedCheckoutSession "cus_expected" validSession `shouldBe` Right validSession
@@ -296,6 +301,7 @@ tests =
                             , stripeCheckoutLivemode = False
                             , stripeCheckoutMode = "subscription"
                             , stripeCheckoutStatus = "complete"
+                            , stripeCheckoutExpiresAt = 1784764800
                             }
 
                 validateRetrievedCheckoutSession "cs_expected" "cus_expected" retrievedSession `shouldBe` Right retrievedSession
