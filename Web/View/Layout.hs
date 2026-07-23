@@ -160,7 +160,8 @@ renderOwnerBillingMobileNavLink =
 
 ownerBillingNavigationIsVisible :: (?context :: ControllerContext) => Bool
 ownerBillingNavigationIsVisible =
-    currentUserIsVenueOwner
+    not currentUserIsSupportAdmin
+        && currentUserIsVenueOwner
         && (fromFrozenContext @StripeOwnerNavigationVisibility).ownerBillingNavigationVisible
 
 renderDesktopNavLink :: (?context :: ControllerContext, ?request :: Request) => Text -> Text -> Text -> [Text] -> Html

@@ -323,13 +323,12 @@ redirectToCorrelatedCheckoutReturn :: (?context :: ControllerContext, ?request :
 redirectToCorrelatedCheckoutReturn attempt =
     case attempt.stripeCheckoutSessionId of
         Nothing -> billingRedirectWithError "The open Checkout attempt has no Stripe Session to resume."
-        Just sessionId ->
+        Just _ ->
             redirectToPath $
                 appendQueryParams
                     (pathTo BillingAction)
                     [ ("checkout", "success")
                     , ("attempt_id", inputValue attempt.id)
-                    , ("session_id", sessionId)
                     ]
 
 createBillingPortalSessionAction :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => IO ()

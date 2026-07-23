@@ -262,6 +262,7 @@ tests = aroundAll withDatabaseTestContext do
                 _ <- createVenueMembershipRecord venue owner "venue_owner"
                 _ <- createTestPasskeyRecord owner "Billing navigation owner passkey"
                 superAdmin <- createUserRecordWithPlatformRole "billing-navigation-support@example.com" "staff" (Just SuperAdminRole) True
+                _ <- createVenueMembershipRecord venue superAdmin "venue_owner"
                 let hiddenConfig = testStripeConfig
                 let visibleConfig =
                         testStripeConfig
@@ -412,6 +413,24 @@ tests = aroundAll withDatabaseTestContext do
                 IORef.readIORef retrieveCalls `shouldReturn` 1
                 query @VenueBillingCustomer |> filterWhere (#venueId, unpackId venue.id) |> fetchCount `shouldReturn` 1
                 query @BillingCheckoutAttempt |> filterWhere (#venueId, unpackId venue.id) |> fetchCount `shouldReturn` 1
+
+        it "keeps a resumed completed Checkout Session ID out of the owner progress URL" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Billing Completed Checkout Resume Venue"
+                owner <- createUserRecord "billing-completed-checkout-resume@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue owner "venue_owner"
+                attempt <- createOpenBillingCheckoutAttempt venue owner "cs_completed_resume_123"
+
+                response <- withStripeConfigForTest (Right testStripeConfig) do
+                    withStripeClientForTest completedCheckoutStripeClient do
+                        withPasskeyVerifiedUserAndCurrentVenue owner venue.id do
+                            callAction CreateBillingCheckoutSessionAction
+
+                response `responseStatusShouldBe` status302
+                lookup "Location" (responseHeaders response)
+                    `shouldBe` Just (cs ("http://localhost/Billing?checkout=success&attempt_id=" <> inputValue attempt.id))
+                lookup "Location" (responseHeaders response)
+                    `shouldSatisfy` maybe False (not . ByteString.isInfixOf "cs_completed_resume_123")
 
         it "retries an interrupted Checkout create with the same durable attempt key" $ withContext do
             withCleanDb do
@@ -1132,6 +1151,24 @@ checkoutStripeClientExpectingCustomer expectedVenueName expectedOwnerEmail =
             if venueName == expectedVenueName && ownerEmail == expectedOwnerEmail && not (Text.null venueId)
                 then pure (Right StripeCustomer { stripeCustomerId = "cus_checkout_123", stripeCustomerLivemode = False })
                 else pure (Left (StripeHttpError "unexpected customer request"))
+        }
+
+completedCheckoutStripeClient :: StripeClient
+completedCheckoutStripeClient =
+    failingStripeClient
+        { retrieveCheckoutSession = \_ sessionId customerId ->
+            pure (Right StripeCheckoutSession
+                { stripeCheckoutSessionId = sessionId
+                , stripeCheckoutSessionUrl = Nothing
+                , stripeCheckoutCustomerId = Just customerId
+                , stripeCheckoutSubscriptionId = Just "sub_completed_resume_123"
+                , stripeCheckoutClientReferenceId = Nothing
+                , stripeCheckoutVenueId = Nothing
+                , stripeCheckoutLivemode = False
+                , stripeCheckoutMode = "subscription"
+                , stripeCheckoutStatus = "complete"
+                , stripeCheckoutExpiresAt = 2000000000
+                })
         }
 
 resumableCheckoutStripeClient :: IORef.IORef Int -> IORef.IORef Int -> StripeClient

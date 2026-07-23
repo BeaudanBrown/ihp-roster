@@ -319,20 +319,26 @@ renderOwnerPeriodEnd =
     maybe "the current billing period" (formatDateDisplay . utctDay)
 
 renderOwnerBillingAction :: BillingViewModel -> OwnerBillingAction -> Html
-renderOwnerBillingAction BillingViewModel { stripeCheckoutAvailable } (OwnerStartSubscription label) = [hsx|
+renderOwnerBillingAction BillingViewModel { stripeCheckoutAvailable } (OwnerStartSubscription label) =
+    renderOwnerBillingActionForm
+        (pathTo CreateBillingCheckoutSessionAction)
+        label
+        stripeCheckoutAvailable
+        renderCheckoutUnavailableNotice
+renderOwnerBillingAction BillingViewModel { stripePortalAvailable } (OwnerOpenBillingPortal label) =
+    renderOwnerBillingActionForm
+        (pathTo CreateBillingPortalSessionAction)
+        label
+        stripePortalAvailable
+        renderPortalUnavailableNotice
+
+renderOwnerBillingActionForm :: Text -> Text -> Bool -> Html -> Html
+renderOwnerBillingActionForm actionUrl label available unavailableNotice = [hsx|
     <div class="d-flex flex-column align-items-start gap-2">
-        <form method="POST" action={CreateBillingCheckoutSessionAction}>
-            <button type="submit" class="btn btn-primary" disabled={not stripeCheckoutAvailable}>{label}</button>
+        <form method="POST" action={actionUrl}>
+            <button type="submit" class="btn btn-primary" disabled={not available}>{label}</button>
         </form>
-        {if stripeCheckoutAvailable then renderPaymentStepUpNotice else renderCheckoutUnavailableNotice}
-    </div>
-|]
-renderOwnerBillingAction BillingViewModel { stripePortalAvailable } (OwnerOpenBillingPortal label) = [hsx|
-    <div class="d-flex flex-column align-items-start gap-2">
-        <form method="POST" action={CreateBillingPortalSessionAction}>
-            <button type="submit" class="btn btn-primary" disabled={not stripePortalAvailable}>{label}</button>
-        </form>
-        {if stripePortalAvailable then renderPaymentStepUpNotice else renderPortalUnavailableNotice}
+        {if available then renderPaymentStepUpNotice else unavailableNotice}
     </div>
 |]
 
