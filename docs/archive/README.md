@@ -16,3 +16,4 @@ Archived cross-cutting workstream evidence:
 - `hspec-shard-retuning-2026-07-20.md` - issue #201 focused suite timings, 1/2/4/6/8 throughput matrix, weight calibration, and six-shard selection evidence
 - `hspec-suite-inventory-2026-07-19.json` - issue #198 machine-readable suite and mandatory-invariant inventory
 - `e2e-coverage-audit.md` - source-behavior classification and faster-layer replacement map for that workstream
+- `xero-payroll-au-v2-openapi-research-2026-07-23.md` - official-source investigation of the unavailable Payroll AU v2 Earnings Rates OpenAPI contract
