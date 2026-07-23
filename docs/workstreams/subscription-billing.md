@@ -41,8 +41,10 @@ Automated production-readiness now pins a reviewed Stripe OpenAPI commit,
 completes Dahlia lifecycle fixtures, upgrades a customer-populated predecessor
 schema, evaluates production NixOS safety, composes sensitive-data checks, and
 runs owner/founder browser behavior through a strict process-local Stripe
-boundary with live webhook refresh. Sandbox/test-clock/legal approval and the
-live canary remain in #225-#226.
+boundary with live webhook refresh. #225 now also provides an explicit,
+sanitized `STRIPE_SANDBOX_PARITY=1 stripe-sandbox-contract-parity` probe for
+the real test API, but Sandbox/test-clock evidence and named legal approval
+remain operator gates; the live canary remains #226.
 
 Living docs to update:
 

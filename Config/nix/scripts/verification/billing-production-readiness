@@ -4,6 +4,11 @@ set -euo pipefail
 echo "billing-production-readiness: Stripe OpenAPI and sanitized fixtures"
 python3 scripts/check-stripe-openapi-contract
 
+# This is deliberately offline: the real Sandbox probe requires an explicit
+# STRIPE_SANDBOX_PARITY=1 operator invocation and refuses CI.
+echo "billing-production-readiness: Stripe Sandbox probe sanitizer"
+stripe-sandbox-contract-parity --self-test
+
 echo "billing-production-readiness: predecessor migration upgrade"
 billing-migration-check
 

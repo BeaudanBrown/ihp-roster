@@ -72,6 +72,10 @@ Read this before editing `Application/Billing/` or billing controllers.
 - Production prefers a file-backed least-privilege `rk_live_` key. A file-backed
   `sk_live_` key is fallback-only when required permissions cannot be granted to
   a restricted key. Development launchers must reject both live key classes.
+- Real Sandbox probes must require `STRIPE_SANDBOX_PARITY=1`, reject CI, live
+  credentials, and the local E2E mock boundary, and retain only sanitized
+  fields. Never write a raw provider response, hosted-session URL, or key into
+  a fixture, issue, or ordinary verification log.
 - Live mode requires HTTPS `APP_BASE_URL`; missing rollout controls fail closed.
 
 ## Verification

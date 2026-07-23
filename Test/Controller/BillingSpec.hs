@@ -512,6 +512,40 @@ tests = aroundAll withDatabaseTestContext do
                 attempt.status `shouldBe` "open"
                 attempt.expiresAt `shouldSatisfy` isJust
 
+        it "uses the configured direct Price without a lookup before hosted Checkout" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Billing Direct Price Checkout Venue"
+                owner <- createUserRecord "billing-direct-price-owner@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue owner "venue_owner"
+                lookupCalls <- IORef.newIORef (0 :: Int)
+                retrievedPriceIds <- IORef.newIORef ([] :: [Text])
+                let directPriceConfig =
+                        testStripeConfig
+                            { priceLookupKey = Nothing
+                            , priceId = Just "price_monthly_123"
+                            }
+                let directPriceClient =
+                        (checkoutStripeClientExpectingCustomer "Billing Direct Price Checkout Venue" "billing-direct-price-owner@example.com")
+                            { listPrices = \_ -> do
+                                IORef.modifyIORef' lookupCalls (+ 1)
+                                pure (Left (StripeHttpError "direct Price configuration must not list Prices"))
+                            , retrievePrice = \_ priceId -> do
+                                IORef.modifyIORef' retrievedPriceIds (priceId :)
+                                pure (Right validMonthlyPrice)
+                            }
+
+                response <- withStripeConfigForTest (Right directPriceConfig) do
+                    withStripeClientForTest directPriceClient do
+                        withPasskeyVerifiedUserAndCurrentVenue owner venue.id do
+                            callAction CreateBillingCheckoutSessionAction
+
+                response `responseStatusShouldBe` status302
+                lookup "Location" (responseHeaders response) `shouldBe` Just "https://checkout.stripe.com/c/pay/cs_test_123"
+                IORef.readIORef lookupCalls `shouldReturn` 0
+                IORef.readIORef retrievedPriceIds `shouldReturn` ["price_monthly_123"]
+                attempt <- query @BillingCheckoutAttempt |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
+                attempt.stripePriceId `shouldBe` "price_monthly_123"
+
         it "resumes the same open Checkout Session after a repeated request" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Billing Resumable Checkout Venue"

@@ -149,6 +149,7 @@ in
         e2e-report = script ../scripts/e2e/report;
         dev-start = script ../scripts/dev/start;
         stripe-listen = script ../scripts/dev/stripe-listen;
+        stripe-sandbox-contract-parity = script ../scripts/stripe/sandbox-contract-parity;
         dev-start-stripe = script ../scripts/dev/start-stripe;
         dev-stop = script ../scripts/dev/stop;
         dev-status = script ../scripts/dev/status;

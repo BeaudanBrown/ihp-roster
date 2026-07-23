@@ -23,81 +23,19 @@ tests =
             retrievedPrice `shouldBe` Right validPrice
             fmap validateVenueMonthlyPrice retrievedPrice `shouldBe` Right (Right validPrice)
 
-            customer <- createCustomer client testConfig "venue-123" "Venue Name" "owner@example.test"
-            customer
-                `shouldBe` Right StripeCustomer
-                    { stripeCustomerId = "cus_123"
-                    , stripeCustomerLivemode = False
-                    }
+            runLaunchCheckoutAndPortalSequence client testConfig
+            assertStripeMockConsumed mock
 
-            checkout <-
-                createCheckoutSession
-                    client
-                    testConfig
-                    "attempt-456"
-                    "venue-123"
-                    "cus_123"
-                    "price_valid"
-                    "https://app.example.test/BillingSuccess?attempt_id=attempt-456&session_id={CHECKOUT_SESSION_ID}"
-                    "https://app.example.test/BillingCancel?attempt_id=attempt-456"
-            let createdCheckoutUrl = "https://checkout.stripe.com/c/pay/cs_test_sanitized"
-            let createdCheckoutSession =
-                    StripeCheckoutSession
-                        { stripeCheckoutSessionId = "cs_123"
-                        , stripeCheckoutSessionUrl = Just createdCheckoutUrl
-                        , stripeCheckoutCustomerId = Just "cus_123"
-                        , stripeCheckoutSubscriptionId = Nothing
-                        , stripeCheckoutClientReferenceId = Just "venue-123"
-                        , stripeCheckoutVenueId = Just "venue-123"
-                        , stripeCheckoutLivemode = False
-                        , stripeCheckoutMode = "subscription"
-                        , stripeCheckoutStatus = "open"
-                        , stripeCheckoutExpiresAt = 1784764800
-                        }
-            checkout `shouldBe` Right createdCheckoutSession
-            validateCreatedCheckoutSession "cus_123" createdCheckoutSession `shouldBe` Right createdCheckoutSession
-            validateStripeCheckoutRedirectUrl createdCheckoutUrl `shouldReturn` Right createdCheckoutUrl
+        it "runs the direct Price fallback Checkout and Portal API sequence against a strict local mock" do
+            fixtures <- readLaunchFixtures
+            mock <- newStrictStripeMock (directPriceLaunchExpectations fixtures)
+            let client = stripeClientWithTransport (strictStripeTransport mock)
 
-            fetchedCheckout <- retrieveCheckoutSession client testConfig "cs_123" "cus_123"
-            fetchedCheckout
-                `shouldBe` Right
-                    createdCheckoutSession
-                        { stripeCheckoutSubscriptionId = Just "sub_123"
-                        , stripeCheckoutStatus = "complete"
-                        }
+            retrievedPrice <- retrievePrice client directPriceConfig "price_valid"
+            retrievedPrice `shouldBe` Right validPrice
+            fmap validateVenueMonthlyPrice retrievedPrice `shouldBe` Right (Right validPrice)
 
-            portal <- createPortalSession client testConfig "request-789" "venue-123" "cus_123" "https://app.example.test/Billing"
-            portal
-                `shouldBe` Right
-                    StripePortalSession
-                        { stripePortalSessionId = "bps_123"
-                        , stripePortalSessionUrl = "https://billing.stripe.com/p/session/bps_test_sanitized"
-                        , stripePortalSessionLivemode = False
-                        , stripePortalCustomerId = "cus_123"
-                        , stripePortalReturnUrl = "https://app.example.test/Billing"
-                        }
-            case portal of
-                Right portalSession ->
-                    validateStripePortalRedirectUrl portalSession.stripePortalSessionUrl
-                        `shouldReturn` Right portalSession.stripePortalSessionUrl
-                Left _ -> expectationFailure "expected the Portal fixture to decode"
-
-            subscription <- retrieveSubscription client testConfig "sub_123"
-            subscription
-                `shouldBe` Right
-                    StripeSubscription
-                        { stripeSubscriptionId = "sub_123"
-                        , stripeSubscriptionCustomerId = "cus_123"
-                        , stripeSubscriptionVenueId = Just "venue-123"
-                        , stripeSubscriptionLivemode = False
-                        , stripeSubscriptionStatus = "active"
-                        , stripeSubscriptionPriceId = "price_valid"
-                        , stripeSubscriptionPriceLivemode = False
-                        , stripeSubscriptionCurrentPeriodStart = 1784678400
-                        , stripeSubscriptionCurrentPeriodEnd = 1787356800
-                        , stripeSubscriptionCancelAtPeriodEnd = True
-                        }
-
+            runLaunchCheckoutAndPortalSequence client directPriceConfig
             assertStripeMockConsumed mock
 
         it "rejects responses whose Stripe object discriminator is wrong" do
@@ -187,6 +125,13 @@ testConfig =
                 }
         }
 
+directPriceConfig :: StripeConfig
+directPriceConfig =
+    testConfig
+        { priceLookupKey = Nothing
+        , priceId = Just "price_valid"
+        }
+
 validRecurring :: StripeRecurring
 validRecurring =
     StripeRecurring
@@ -206,6 +151,83 @@ validPrice =
         , priceType = "recurring"
         , recurring = Just validRecurring
         }
+
+runLaunchCheckoutAndPortalSequence :: StripeClient -> StripeConfig -> IO ()
+runLaunchCheckoutAndPortalSequence client config = do
+    customer <- createCustomer client config "venue-123" "Venue Name" "owner@example.test"
+    customer
+        `shouldBe` Right StripeCustomer
+            { stripeCustomerId = "cus_123"
+            , stripeCustomerLivemode = False
+            }
+
+    checkout <-
+        createCheckoutSession
+            client
+            config
+            "attempt-456"
+            "venue-123"
+            "cus_123"
+            "price_valid"
+            "https://app.example.test/BillingSuccess?attempt_id=attempt-456&session_id={CHECKOUT_SESSION_ID}"
+            "https://app.example.test/BillingCancel?attempt_id=attempt-456"
+    let createdCheckoutUrl = "https://checkout.stripe.com/c/pay/cs_test_sanitized"
+    let createdCheckoutSession =
+            StripeCheckoutSession
+                { stripeCheckoutSessionId = "cs_123"
+                , stripeCheckoutSessionUrl = Just createdCheckoutUrl
+                , stripeCheckoutCustomerId = Just "cus_123"
+                , stripeCheckoutSubscriptionId = Nothing
+                , stripeCheckoutClientReferenceId = Just "venue-123"
+                , stripeCheckoutVenueId = Just "venue-123"
+                , stripeCheckoutLivemode = False
+                , stripeCheckoutMode = "subscription"
+                , stripeCheckoutStatus = "open"
+                , stripeCheckoutExpiresAt = 1784764800
+                }
+    checkout `shouldBe` Right createdCheckoutSession
+    validateCreatedCheckoutSession "cus_123" createdCheckoutSession `shouldBe` Right createdCheckoutSession
+    validateStripeCheckoutRedirectUrl createdCheckoutUrl `shouldReturn` Right createdCheckoutUrl
+
+    fetchedCheckout <- retrieveCheckoutSession client config "cs_123" "cus_123"
+    fetchedCheckout
+        `shouldBe` Right
+            createdCheckoutSession
+                { stripeCheckoutSubscriptionId = Just "sub_123"
+                , stripeCheckoutStatus = "complete"
+                }
+
+    portal <- createPortalSession client config "request-789" "venue-123" "cus_123" "https://app.example.test/Billing"
+    portal
+        `shouldBe` Right
+            StripePortalSession
+                { stripePortalSessionId = "bps_123"
+                , stripePortalSessionUrl = "https://billing.stripe.com/p/session/bps_test_sanitized"
+                , stripePortalSessionLivemode = False
+                , stripePortalCustomerId = "cus_123"
+                , stripePortalReturnUrl = "https://app.example.test/Billing"
+                }
+    case portal of
+        Right portalSession ->
+            validateStripePortalRedirectUrl portalSession.stripePortalSessionUrl
+                `shouldReturn` Right portalSession.stripePortalSessionUrl
+        Left _ -> expectationFailure "expected the Portal fixture to decode"
+
+    subscription <- retrieveSubscription client config "sub_123"
+    subscription
+        `shouldBe` Right
+            StripeSubscription
+                { stripeSubscriptionId = "sub_123"
+                , stripeSubscriptionCustomerId = "cus_123"
+                , stripeSubscriptionVenueId = Just "venue-123"
+                , stripeSubscriptionLivemode = False
+                , stripeSubscriptionStatus = "active"
+                , stripeSubscriptionPriceId = "price_valid"
+                , stripeSubscriptionPriceLivemode = False
+                , stripeSubscriptionCurrentPeriodStart = 1784678400
+                , stripeSubscriptionCurrentPeriodEnd = 1787356800
+                , stripeSubscriptionCancelAtPeriodEnd = True
+                }
 
 fixtureClient :: LByteString.ByteString -> StripeClient
 fixtureClient fixture =
@@ -312,6 +334,9 @@ launchExpectations fixtures =
         , responseBody = fixtures.subscriptionFixture
         }
     ]
+
+directPriceLaunchExpectations :: LaunchFixtures -> [ExpectedStripeRequest]
+directPriceLaunchExpectations = drop 1 . launchExpectations
 
 listPricesExpectation :: LByteString.ByteString -> Text -> ExpectedStripeRequest
 listPricesExpectation response lookupKey =

@@ -1,0 +1,715 @@
+#!/usr/bin/env python3
+"""Run an explicitly opt-in, sanitized Stripe Sandbox contract-parity probe.
+
+The probe intentionally uses the repository-pinned Stripe CLI against Stripe's
+real test API. It never runs in CI, rejects non-test credentials, and retains
+only a reviewed summary of the fields Bepis consumes. Raw API responses,
+hosted-session URLs, payment data, customer email, and credentials never reach
+an evidence file or stdout.
+
+The default ``prepare`` phase performs the real launch request sequence through
+an open Checkout Session and a Customer Portal Session. Complete that Checkout
+in the test-only hosted flow, then run ``--verify`` with the same evidence file
+to retrieve and validate the resulting Subscription.
+"""
+from __future__ import annotations
+
+import argparse
+import datetime as datetime_module
+import json
+import os
+import re
+import shutil
+import subprocess
+import sys
+import tempfile
+import uuid
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Any
+from urllib.parse import urlparse
+
+ROOT = Path(__file__).resolve().parents[1]
+STRIPE_SOURCE = ROOT / "Application/Billing/Stripe.hs"
+OPENAPI_CONTRACT = ROOT / "vendor/stripe-openapi/bepis-contract.json"
+STRIPE_CLI_EVENTS = ROOT / "Config/nix/scripts/lib/stripe.sh"
+EVIDENCE_SCHEMA = "bepis-stripe-sandbox-contract-parity-v1"
+ISSUE_225_SANDBOX_PRICE_ID = "price_1TUbsYFKD8mCPCJt7bXP0amT"
+PINNED_STRIPE_CLI_VERSION = "1.42.10"
+
+
+class ProbeFailure(RuntimeError):
+    """An operator-facing failure that must never expose a raw Stripe response."""
+
+
+@dataclass(frozen=True)
+class ProbeConfig:
+    stripe_cli: str
+    cli_version: str
+    secret_key: str
+    api_version: str
+    openapi_commit: str
+    webhook_events: tuple[str, ...]
+    expected_account_id: str
+    price_id: str
+    app_base_url: str
+
+
+def require(condition: bool, message: str) -> None:
+    if not condition:
+        raise ProbeFailure(message)
+
+
+def require_string(value: Any, label: str) -> str:
+    require(isinstance(value, str) and value != "", f"Stripe {label} was missing or malformed")
+    return value
+
+
+def require_bool(value: Any, label: str) -> bool:
+    require(isinstance(value, bool), f"Stripe {label} was missing or malformed")
+    return value
+
+
+def require_int(value: Any, label: str) -> int:
+    require(isinstance(value, int) and not isinstance(value, bool), f"Stripe {label} was missing or malformed")
+    return value
+
+
+def require_object(value: Any, expected: str, label: str) -> dict[str, Any]:
+    require(isinstance(value, dict), f"Stripe {label} response was malformed")
+    require(value.get("object") == expected, f"Stripe {label} discriminator did not match {expected!r}")
+    return value
+
+
+def pinned_contract() -> tuple[str, str, tuple[str, ...]]:
+    stripe_source = STRIPE_SOURCE.read_text(encoding="utf-8")
+    version_match = re.search(r'pinnedStripeApiVersion\s*=\s*"([^"]+)"', stripe_source)
+    require(version_match is not None, "Could not read Bepis's pinned Stripe API version")
+    api_version = version_match.group(1)
+
+    contract = json.loads(OPENAPI_CONTRACT.read_text(encoding="utf-8"))
+    require(contract.get("apiVersion") == api_version, "Reviewed Stripe OpenAPI contract does not match Bepis's pinned API version")
+    openapi_commit = require_string(contract.get("commit"), "OpenAPI contract commit")
+
+    cli_source = STRIPE_CLI_EVENTS.read_text(encoding="utf-8")
+    events_match = re.search(r'^export IHP_ROSTER_STRIPE_WEBHOOK_EVENTS="([^"]+)"$', cli_source, re.MULTILINE)
+    require(events_match is not None, "Could not read the configured Stripe webhook event set")
+    webhook_events = tuple(event for event in events_match.group(1).split(",") if event)
+    require(webhook_events, "Configured Stripe webhook event set was empty")
+    return api_version, openapi_commit, webhook_events
+
+
+def require_opt_in() -> None:
+    require(os.environ.get("STRIPE_SANDBOX_PARITY") == "1", "Set STRIPE_SANDBOX_PARITY=1 to opt in to real Stripe Sandbox traffic")
+    require(not os.environ.get("CI"), "Stripe Sandbox contract parity is intentionally unavailable in CI")
+    require(os.environ.get("STRIPE_MODE") == "test", "Stripe Sandbox contract parity requires STRIPE_MODE=test")
+    require(not os.environ.get("IHP_ROSTER_E2E"), "Stripe Sandbox contract parity must not use the local E2E Stripe boundary")
+    require(not os.environ.get("STRIPE_TEST_API_BASE_URL"), "Stripe Sandbox contract parity must not use STRIPE_TEST_API_BASE_URL")
+
+
+def read_config(app_base_url: str | None) -> ProbeConfig:
+    require_opt_in()
+    secret_key = os.environ.get("STRIPE_SECRET_KEY", "")
+    require(secret_key.startswith(("sk_test_", "rk_test_")), "Stripe Sandbox contract parity requires an sk_test_ or rk_test_ credential")
+
+    price_id = clean_env("STRIPE_PRICE_ID")
+    price_lookup_key = clean_env("STRIPE_PRICE_LOOKUP_KEY")
+    require(price_lookup_key is None, "#225 Sandbox parity requires direct STRIPE_PRICE_ID selection; leave STRIPE_PRICE_LOOKUP_KEY unset")
+    require(price_id == ISSUE_225_SANDBOX_PRICE_ID, "#225 Sandbox parity requires its approved direct test Price ID")
+    expected_account_id = clean_env("STRIPE_SANDBOX_ACCOUNT_ID")
+    require(expected_account_id is not None and expected_account_id.startswith("acct_"), "Set STRIPE_SANDBOX_ACCOUNT_ID to the selected non-production Stripe Account ID")
+
+    selected_base_url = app_base_url or clean_env("STRIPE_SANDBOX_APP_BASE_URL") or "https://app.example.test"
+    parsed_base_url = urlparse(selected_base_url)
+    require(parsed_base_url.scheme in {"http", "https"} and bool(parsed_base_url.netloc), "Sandbox app base URL must be an absolute HTTP(S) URL")
+
+    stripe_cli = shutil.which("stripe")
+    require(stripe_cli is not None, "The repository-pinned Stripe CLI is unavailable in this shell")
+    resolved_stripe_cli = Path(stripe_cli).resolve()
+    require(resolved_stripe_cli.is_relative_to(Path("/nix/store")), "Stripe Sandbox parity must use the Nix-pinned repository Stripe CLI")
+    cli_version = read_pinned_stripe_cli_version(stripe_cli)
+    api_version, openapi_commit, webhook_events = pinned_contract()
+    return ProbeConfig(
+        stripe_cli=stripe_cli,
+        cli_version=cli_version,
+        secret_key=secret_key,
+        api_version=api_version,
+        openapi_commit=openapi_commit,
+        webhook_events=webhook_events,
+        expected_account_id=expected_account_id,
+        price_id=price_id,
+        app_base_url=selected_base_url.rstrip("/"),
+    )
+
+
+def clean_env(name: str) -> str | None:
+    value = os.environ.get(name)
+    if value is None:
+        return None
+    value = value.strip()
+    return value or None
+
+
+def stripe_json(config: ProbeConfig, label: str, *arguments: str) -> dict[str, Any]:
+    command = [
+        config.stripe_cli,
+        *arguments,
+        "--api-key",
+        config.secret_key,
+        "--stripe-version",
+        config.api_version,
+        "--color",
+        "off",
+        "--log-level",
+        "error",
+    ]
+    try:
+        result = subprocess.run(command, check=False, capture_output=True, text=True)
+    except OSError as error:
+        raise ProbeFailure(f"Stripe CLI could not start for {label}") from error
+    if result.returncode != 0:
+        raise ProbeFailure(f"Stripe {label} request failed (CLI exit {result.returncode}); its raw provider response was not emitted")
+    try:
+        value = json.loads(result.stdout)
+    except json.JSONDecodeError as error:
+        raise ProbeFailure(f"Stripe {label} did not return JSON; its raw provider response was not emitted") from error
+    require(isinstance(value, dict), f"Stripe {label} response was malformed")
+    return value
+
+
+def read_pinned_stripe_cli_version(stripe_cli: str) -> str:
+    try:
+        result = subprocess.run([stripe_cli, "version"], check=False, capture_output=True, text=True)
+    except OSError as error:
+        raise ProbeFailure("Stripe CLI version could not be read") from error
+    require(result.returncode == 0, "Stripe CLI version could not be read")
+    version_match = re.search(r"stripe version ([^\s]+)", result.stdout)
+    require(version_match is not None, "Stripe CLI version output was malformed")
+    cli_version = version_match.group(1)
+    require(cli_version == PINNED_STRIPE_CLI_VERSION, "Stripe Sandbox parity requires the repository-pinned Stripe CLI version")
+    return cli_version
+
+
+def validate_price(value: dict[str, Any], expected_price_id: str) -> dict[str, Any]:
+    value = require_object(value, "price", "Price")
+    price_id = require_string(value.get("id"), "Price id")
+    require(price_id == expected_price_id, "Stripe Price retrieval returned an unexpected Price")
+    require(require_bool(value.get("livemode"), "Price livemode") is False, "Stripe Price was not test mode")
+    require(require_bool(value.get("active"), "Price active") is True, "Stripe Price was not active")
+    require(require_string(value.get("currency"), "Price currency").lower() == "aud", "Stripe Price currency was not AUD")
+    require(require_int(value.get("unit_amount"), "Price unit_amount") == 10000, "Stripe Price amount was not AUD 100.00")
+    require(require_string(value.get("type"), "Price type") == "recurring", "Stripe Price was not recurring")
+    recurring = value.get("recurring")
+    require(isinstance(recurring, dict), "Stripe Price recurring settings were missing")
+    require(require_string(recurring.get("interval"), "Price recurring interval") == "month", "Stripe Price interval was not monthly")
+    require(require_int(recurring.get("interval_count"), "Price recurring interval_count") == 1, "Stripe Price interval count was not one")
+    require(require_string(recurring.get("usage_type"), "Price recurring usage_type") == "licensed", "Stripe Price was not fixed-quantity licensed usage")
+    return {
+        "id": price_id,
+        "object": "price",
+        "livemode": False,
+        "active": True,
+        "currency": "aud",
+        "unit_amount": 10000,
+        "type": "recurring",
+        "recurring": {"interval": "month", "interval_count": 1, "usage_type": "licensed"},
+    }
+
+
+def validate_account(value: dict[str, Any]) -> dict[str, Any]:
+    value = require_object(value, "account", "Account")
+    # Stripe's account endpoint is account-scoped rather than test-object
+    # scoped, so current API responses do not expose `livemode`. The explicit
+    # test-key guard before this request supplies the mode assertion instead.
+    if "livemode" in value:
+        require(require_bool(value.get("livemode"), "Account livemode") is False, "Stripe account was not test mode")
+    return {"id": require_string(value.get("id"), "Account id"), "object": "account", "request_mode": "test"}
+
+
+def retrieve_current_account(config: ProbeConfig) -> dict[str, Any]:
+    # Use the exact current-account API path instead of the generated
+    # connected-account resource command, which requires an account argument.
+    return validate_account(stripe_json(config, "Account retrieve", "get", "/v1/account"))
+
+
+def validate_customer(value: dict[str, Any], venue_id: str) -> dict[str, Any]:
+    value = require_object(value, "customer", "Customer")
+    require(require_bool(value.get("livemode"), "Customer livemode") is False, "Stripe Customer was not test mode")
+    metadata = value.get("metadata")
+    require(isinstance(metadata, dict), "Stripe Customer metadata was missing")
+    require(metadata.get("venue_id") == venue_id, "Stripe Customer venue metadata did not correlate to the probe venue")
+    require(metadata.get("environment") == "bepis", "Stripe Customer environment metadata did not match Bepis")
+    return {
+        "id": require_string(value.get("id"), "Customer id"),
+        "object": "customer",
+        "livemode": False,
+        "metadata": {"venue_id": venue_id, "environment": "bepis"},
+    }
+
+
+def validate_hosted_url(value: Any, expected_host: str, label: str) -> str:
+    url = require_string(value, f"{label} URL")
+    parsed = urlparse(url)
+    require(parsed.scheme == "https" and parsed.hostname == expected_host, f"Stripe {label} URL was not hosted on {expected_host}")
+    return expected_host
+
+
+def validate_checkout(value: dict[str, Any], customer_id: str, venue_id: str, allow_completed: bool) -> dict[str, Any]:
+    value = require_object(value, "checkout.session", "Checkout Session")
+    require(require_bool(value.get("livemode"), "Checkout Session livemode") is False, "Stripe Checkout Session was not test mode")
+    require(require_string(value.get("mode"), "Checkout Session mode") == "subscription", "Stripe Checkout Session mode was not subscription")
+    status = require_string(value.get("status"), "Checkout Session status")
+    allowed_statuses = {"open", "complete"} if allow_completed else {"open"}
+    require(status in allowed_statuses, "Stripe Checkout Session had an unexpected status")
+    require(value.get("customer") == customer_id, "Stripe Checkout Session Customer did not match the probe Customer")
+    require(value.get("client_reference_id") == venue_id, "Stripe Checkout Session client reference did not match the probe venue")
+    metadata = value.get("metadata")
+    require(isinstance(metadata, dict) and metadata.get("venue_id") == venue_id, "Stripe Checkout Session venue metadata did not correlate to the probe venue")
+    result = {
+        "id": require_string(value.get("id"), "Checkout Session id"),
+        "object": "checkout.session",
+        "livemode": False,
+        "mode": "subscription",
+        "status": status,
+        "customer_id": customer_id,
+        "client_reference_id": venue_id,
+        "metadata": {"venue_id": venue_id},
+        "expires_at": require_int(value.get("expires_at"), "Checkout Session expires_at"),
+        "hosted_url_domain": validate_hosted_url(value.get("url"), "checkout.stripe.com", "Checkout"),
+    }
+    subscription_id = value.get("subscription")
+    if subscription_id is not None:
+        result["subscription_id"] = require_string(subscription_id, "Checkout Session subscription")
+    return result
+
+
+def validate_portal(value: dict[str, Any], customer_id: str, return_url: str) -> dict[str, Any]:
+    value = require_object(value, "billing_portal.session", "Customer Portal Session")
+    require(require_bool(value.get("livemode"), "Customer Portal Session livemode") is False, "Stripe Customer Portal Session was not test mode")
+    require(value.get("customer") == customer_id, "Stripe Customer Portal Session Customer did not match the probe Customer")
+    require(value.get("return_url") == return_url, "Stripe Customer Portal Session return URL did not match the request")
+    return {
+        "id": require_string(value.get("id"), "Customer Portal Session id"),
+        "object": "billing_portal.session",
+        "livemode": False,
+        "customer_id": customer_id,
+        "return_url": return_url,
+        "hosted_url_domain": validate_hosted_url(value.get("url"), "billing.stripe.com", "Customer Portal"),
+    }
+
+
+def validate_subscription(value: dict[str, Any], customer_id: str, venue_id: str, price_id: str) -> dict[str, Any]:
+    value = require_object(value, "subscription", "Subscription")
+    require(require_bool(value.get("livemode"), "Subscription livemode") is False, "Stripe Subscription was not test mode")
+    require(value.get("customer") == customer_id, "Stripe Subscription Customer did not match the probe Customer")
+    metadata = value.get("metadata")
+    require(isinstance(metadata, dict) and metadata.get("venue_id") == venue_id, "Stripe Subscription venue metadata did not correlate to the probe venue")
+    items = value.get("items")
+    require(isinstance(items, dict) and items.get("object") == "list", "Stripe Subscription Items were missing")
+    item_values = items.get("data")
+    require(isinstance(item_values, list) and len(item_values) == 1 and isinstance(item_values[0], dict), "Stripe Subscription did not contain exactly one item")
+    item = item_values[0]
+    require(item.get("object") == "subscription_item", "Stripe Subscription Item discriminator was unexpected")
+    require(require_int(item.get("quantity"), "Subscription Item quantity") == 1, "Stripe Subscription Item quantity was not one")
+    price = validate_price(require_object(item.get("price"), "price", "Subscription Item Price"), price_id)
+    require(price["livemode"] is False, "Stripe Subscription Item Price was not test mode")
+    return {
+        "id": require_string(value.get("id"), "Subscription id"),
+        "object": "subscription",
+        "livemode": False,
+        "customer_id": customer_id,
+        "metadata": {"venue_id": venue_id},
+        "status": require_string(value.get("status"), "Subscription status"),
+        "price": price,
+        "quantity": 1,
+        "current_period_start": require_int(item.get("current_period_start"), "Subscription Item current_period_start"),
+        "current_period_end": require_int(item.get("current_period_end"), "Subscription Item current_period_end"),
+        "cancel_at_period_end": require_bool(value.get("cancel_at_period_end"), "Subscription cancel_at_period_end"),
+    }
+
+
+def sanitize_prepared_portal(value: Any, customer_id: str, return_url: str) -> dict[str, Any]:
+    require(isinstance(value, dict), "Evidence file was missing sanitized Customer Portal correlation fields")
+    require(value.get("object") == "billing_portal.session", "Evidence Customer Portal discriminator was unexpected")
+    require(require_bool(value.get("livemode"), "evidence Customer Portal livemode") is False, "Evidence Customer Portal was not test mode")
+    require(value.get("customer_id") == customer_id, "Evidence Customer Portal Customer did not match the probe Customer")
+    require(value.get("return_url") == return_url, "Evidence Customer Portal return URL did not match the probe request")
+    require(value.get("hosted_url_domain") == "billing.stripe.com", "Evidence Customer Portal domain was unexpected")
+    return {
+        "id": require_string(value.get("id"), "evidence Customer Portal id"),
+        "object": "billing_portal.session",
+        "livemode": False,
+        "customer_id": customer_id,
+        "return_url": return_url,
+        "hosted_url_domain": "billing.stripe.com",
+    }
+
+
+def validate_webhook_endpoint(config: ProbeConfig) -> dict[str, Any]:
+    endpoint_id = clean_env("STRIPE_SANDBOX_WEBHOOK_ENDPOINT_ID")
+    require(endpoint_id is not None and endpoint_id.startswith("we_"), "Set STRIPE_SANDBOX_WEBHOOK_ENDPOINT_ID to the selected non-production Stripe webhook endpoint")
+
+    value = stripe_json(config, "webhook endpoint retrieve", "webhook_endpoints", "retrieve", endpoint_id)
+    value = require_object(value, "webhook_endpoint", "webhook endpoint")
+    require(value.get("api_version") == config.api_version, "Stripe webhook endpoint API version did not match Bepis's pinned version")
+    received_events = value.get("enabled_events")
+    require(isinstance(received_events, list) and all(isinstance(event, str) for event in received_events), "Stripe webhook endpoint event list was malformed")
+    require(tuple(sorted(received_events)) == tuple(sorted(config.webhook_events)), "Stripe webhook endpoint events did not match Bepis's selected billing event set")
+    endpoint_url = require_string(value.get("url"), "webhook endpoint URL")
+    parsed_url = urlparse(endpoint_url)
+    require(parsed_url.scheme == "https" and bool(parsed_url.hostname), "Stripe webhook endpoint URL was not HTTPS")
+    require(parsed_url.path == "/StripeWebhook" and not parsed_url.query, "Stripe webhook endpoint did not target Bepis's exact webhook route")
+    return {
+        "checked": True,
+        "id": require_string(value.get("id"), "webhook endpoint id"),
+        "api_version": config.api_version,
+        "events": list(config.webhook_events),
+        "url_host": parsed_url.hostname,
+        "url_path": parsed_url.path,
+    }
+
+
+def request_price(config: ProbeConfig) -> tuple[dict[str, Any], dict[str, Any]]:
+    value = stripe_json(config, "Price retrieve", "prices", "retrieve", config.price_id)
+    return validate_price(value, config.price_id), {"strategy": "direct_price_id", "reference": config.price_id}
+
+
+def prepare_probe(config: ProbeConfig) -> dict[str, Any]:
+    account = retrieve_current_account(config)
+    require(account["id"] == config.expected_account_id, "Stripe test credential did not resolve to STRIPE_SANDBOX_ACCOUNT_ID")
+    price, price_selection = request_price(config)
+    # Verify the selected non-production endpoint before any provider create
+    # call; this probe never treats an unconfigured endpoint as evidence.
+    webhook = validate_webhook_endpoint(config)
+
+    venue_id = str(uuid.uuid4())
+    attempt_id = str(uuid.uuid4())
+    portal_request_id = str(uuid.uuid4())
+    customer = validate_customer(
+        stripe_json(
+            config,
+            "Customer create",
+            "customers",
+            "create",
+            "--name",
+            "Bepis Sandbox Contract Parity",
+            "--email",
+            f"stripe-sandbox-probe-{uuid.uuid4().hex}@example.test",
+            "-d",
+            f"metadata[venue_id]={venue_id}",
+            "-d",
+            "metadata[environment]=bepis",
+            "--idempotency",
+            f"bepis-billing-customer-{venue_id}",
+        ),
+        venue_id,
+    )
+
+    success_url = f"{config.app_base_url}/BillingSuccess?attempt_id={attempt_id}&session_id={{CHECKOUT_SESSION_ID}}"
+    cancel_url = f"{config.app_base_url}/BillingCancel?attempt_id={attempt_id}"
+    checkout = validate_checkout(
+        stripe_json(
+            config,
+            "Checkout Session create",
+            "checkout",
+            "sessions",
+            "create",
+            "-d",
+            "mode=subscription",
+            "-d",
+            f"customer={customer['id']}",
+            "-d",
+            f"line_items[0][price]={price['id']}",
+            "-d",
+            "line_items[0][quantity]=1",
+            "-d",
+            f"client_reference_id={venue_id}",
+            "-d",
+            f"metadata[venue_id]={venue_id}",
+            "-d",
+            f"subscription_data[metadata][venue_id]={venue_id}",
+            "-d",
+            f"success_url={success_url}",
+            "-d",
+            f"cancel_url={cancel_url}",
+            "-d",
+            "automatic_tax[enabled]=false",
+            "-d",
+            "tax_id_collection[enabled]=false",
+            "--idempotency",
+            f"bepis-billing-checkout-{attempt_id}",
+        ),
+        customer["id"],
+        venue_id,
+        allow_completed=False,
+    )
+
+    retrieved_checkout = validate_checkout(
+        stripe_json(config, "Checkout Session retrieve", "checkout", "sessions", "retrieve", checkout["id"]),
+        customer["id"],
+        venue_id,
+        allow_completed=False,
+    )
+    require(retrieved_checkout["id"] == checkout["id"], "Stripe Checkout retrieval did not return the created Session")
+
+    portal_return_url = f"{config.app_base_url}/Billing"
+    portal = validate_portal(
+        stripe_json(
+            config,
+            "Customer Portal Session create",
+            "billing_portal",
+            "sessions",
+            "create",
+            "-d",
+            f"customer={customer['id']}",
+            "-d",
+            f"return_url={portal_return_url}",
+            "--idempotency",
+            f"bepis-billing-portal-{venue_id}-{portal_request_id}",
+        ),
+        customer["id"],
+        portal_return_url,
+    )
+
+    return {
+        "schema": EVIDENCE_SCHEMA,
+        "phase": "prepared",
+        "recorded_at": datetime_module.datetime.now(datetime_module.timezone.utc).isoformat(),
+        "stripe": {
+            "account": account,
+            "cli_version": config.cli_version,
+            "api_version": config.api_version,
+            "openapi_commit": config.openapi_commit,
+            "webhook": webhook,
+        },
+        "price_selection": price_selection,
+        "price": price,
+        "customer": customer,
+        "checkout": checkout,
+        "portal": portal,
+        "next_step": "Complete this test-only Checkout by its recorded Session ID in Stripe Dashboard, then rerun with --verify. The hosted URL is deliberately not retained in this evidence.",
+    }
+
+
+def verify_probe(config: ProbeConfig, evidence: dict[str, Any]) -> dict[str, Any]:
+    require(evidence.get("schema") == EVIDENCE_SCHEMA, "Evidence file did not have the expected Sandbox parity schema")
+    require(evidence.get("phase") == "prepared", "Evidence file must describe a prepared Sandbox parity probe")
+    evidence_customer = evidence.get("customer")
+    evidence_checkout = evidence.get("checkout")
+    evidence_price = evidence.get("price")
+    evidence_portal = evidence.get("portal")
+    require(
+        isinstance(evidence_customer, dict)
+            and isinstance(evidence_checkout, dict)
+            and isinstance(evidence_price, dict),
+        "Evidence file was missing sanitized probe correlation fields",
+    )
+    customer_id = require_string(evidence_customer.get("id"), "evidence Customer id")
+    venue_id = require_string(
+        evidence_customer.get("metadata", {}).get("venue_id")
+        if isinstance(evidence_customer.get("metadata"), dict)
+        else None,
+        "evidence venue id",
+    )
+    customer = validate_customer(evidence_customer, venue_id)
+    checkout_id = require_string(evidence_checkout.get("id"), "evidence Checkout Session id")
+    price_id = require_string(evidence_price.get("id"), "evidence Price id")
+    require(price_id == config.price_id, "Sandbox parity evidence Price ID did not match STRIPE_PRICE_ID")
+    price_selection = evidence.get("price_selection")
+    require(isinstance(price_selection, dict), "Evidence file was missing its Price selection")
+    stripe_evidence = evidence.get("stripe")
+    require(isinstance(stripe_evidence, dict), "Evidence file was missing its Stripe contract record")
+    evidence_account = stripe_evidence.get("account")
+    require(isinstance(evidence_account, dict), "Evidence file was missing its Sandbox Account reference")
+    require(evidence_account.get("id") == config.expected_account_id, "Sandbox parity evidence Account did not match STRIPE_SANDBOX_ACCOUNT_ID")
+    expected_selection = {"strategy": "direct_price_id", "reference": config.price_id}
+    require(price_selection == expected_selection, "Sandbox parity evidence Price selection no longer matches the configured test Price")
+    portal_return_url = f"{config.app_base_url}/Billing"
+    portal = sanitize_prepared_portal(evidence_portal, customer_id, portal_return_url)
+
+    # Re-fetch every provider field that verification relies on and rebuild the
+    # evidence from explicit safe fields. Never copy arbitrary evidence input.
+    webhook = validate_webhook_endpoint(config)
+    account = retrieve_current_account(config)
+    require(account["id"] == config.expected_account_id, "Stripe test credential did not resolve to STRIPE_SANDBOX_ACCOUNT_ID")
+    price, verified_selection = request_price(config)
+    require(verified_selection == expected_selection, "Verified Stripe Price selection did not match STRIPE_PRICE_ID")
+    retrieved_checkout = validate_checkout(
+        stripe_json(config, "Checkout Session retrieve", "checkout", "sessions", "retrieve", checkout_id),
+        customer_id,
+        venue_id,
+        allow_completed=True,
+    )
+    require(retrieved_checkout["status"] == "complete", "Stripe Checkout Session is not complete; complete the test-only hosted Checkout before verification")
+    subscription_id = require_string(retrieved_checkout.get("subscription_id"), "completed Checkout Session subscription")
+    subscription = validate_subscription(
+        stripe_json(config, "Subscription retrieve", "subscriptions", "retrieve", subscription_id),
+        customer_id,
+        venue_id,
+        config.price_id,
+    )
+    require(subscription["id"] == subscription_id, "Stripe Subscription retrieval did not return the Checkout Subscription")
+
+    return {
+        "schema": EVIDENCE_SCHEMA,
+        "phase": "verified",
+        "recorded_at": datetime_module.datetime.now(datetime_module.timezone.utc).isoformat(),
+        "stripe": {
+            "account": account,
+            "cli_version": config.cli_version,
+            "api_version": config.api_version,
+            "openapi_commit": config.openapi_commit,
+            "webhook": webhook,
+        },
+        "price_selection": verified_selection,
+        "price": price,
+        "customer": customer,
+        "checkout": retrieved_checkout,
+        "portal": portal,
+        "subscription": subscription,
+    }
+
+
+def load_evidence(path: Path) -> dict[str, Any]:
+    try:
+        value = json.loads(path.read_text(encoding="utf-8"))
+    except OSError as error:
+        raise ProbeFailure("Could not read sanitized Sandbox parity evidence") from error
+    except json.JSONDecodeError as error:
+        raise ProbeFailure("Sanitized Sandbox parity evidence was malformed") from error
+    require(isinstance(value, dict), "Sanitized Sandbox parity evidence was malformed")
+    return value
+
+
+def emit_evidence(evidence: dict[str, Any], path: Path | None) -> None:
+    rendered = json.dumps(evidence, indent=2, sort_keys=True) + "\n"
+    if path is not None:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        with tempfile.NamedTemporaryFile("w", encoding="utf-8", dir=path.parent, delete=False) as temporary:
+            temporary.write(rendered)
+            temporary_path = Path(temporary.name)
+        temporary_path.chmod(0o600)
+        temporary_path.replace(path)
+        path.chmod(0o600)
+    print(rendered, end="")
+
+
+def run_self_test() -> None:
+    price = validate_price(
+        {
+            "object": "price",
+            "id": "price_sandbox_self_test",
+            "livemode": False,
+            "active": True,
+            "currency": "aud",
+            "unit_amount": 10000,
+            "type": "recurring",
+            "recurring": {"interval": "month", "interval_count": 1, "usage_type": "licensed"},
+            "product": {"name": "must not appear in evidence"},
+        },
+        "price_sandbox_self_test",
+    )
+    customer = validate_customer(
+        {
+            "object": "customer",
+            "id": "cus_sandbox_self_test",
+            "livemode": False,
+            "email": "must-not-appear@example.test",
+            "name": "must not appear in evidence",
+            "metadata": {"venue_id": "venue-self-test", "environment": "bepis"},
+        },
+        "venue-self-test",
+    )
+    checkout = validate_checkout(
+        {
+            "object": "checkout.session",
+            "id": "cs_sandbox_self_test",
+            "livemode": False,
+            "mode": "subscription",
+            "status": "open",
+            "customer": "cus_sandbox_self_test",
+            "client_reference_id": "venue-self-test",
+            "metadata": {"venue_id": "venue-self-test"},
+            "expires_at": 1,
+            "url": "https://checkout.stripe.com/c/pay/redacted",
+        },
+        "cus_sandbox_self_test",
+        "venue-self-test",
+        allow_completed=False,
+    )
+    portal = validate_portal(
+        {
+            "object": "billing_portal.session",
+            "id": "bps_sandbox_self_test",
+            "livemode": False,
+            "customer": "cus_sandbox_self_test",
+            "return_url": "https://app.example.test/Billing",
+            "url": "https://billing.stripe.com/p/session/redacted",
+        },
+        "cus_sandbox_self_test",
+        "https://app.example.test/Billing",
+    )
+    prepared_portal = sanitize_prepared_portal(
+        {
+            "object": "billing_portal.session",
+            "id": "bps_sandbox_self_test",
+            "livemode": False,
+            "customer_id": "cus_sandbox_self_test",
+            "return_url": "https://app.example.test/Billing",
+            "hosted_url_domain": "billing.stripe.com",
+            "url": "https://billing.stripe.com/p/session/must-not-appear",
+            "raw_provider_response": "must-not-appear-provider-body",
+        },
+        "cus_sandbox_self_test",
+        "https://app.example.test/Billing",
+    )
+    rendered = json.dumps(
+        {"price": price, "customer": customer, "checkout": checkout, "portal": portal, "prepared_portal": prepared_portal}
+    )
+    for forbidden in (
+        "must-not-appear@example.test",
+        "must not appear in evidence",
+        "checkout.stripe.com/c/pay/redacted",
+        "billing.stripe.com/p/session/redacted",
+        "billing.stripe.com/p/session/must-not-appear",
+        "must-not-appear-provider-body",
+    ):
+        require(forbidden not in rendered, "Sandbox parity sanitizer self-test retained an excluded field")
+    print("Stripe Sandbox contract-parity sanitizer self-test OK")
+
+
+def parse_arguments() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--verify", action="store_true", help="retrieve and validate the Subscription after the prepared Checkout is complete")
+    parser.add_argument("--evidence-file", type=Path, help="optional path for sanitized evidence only; raw provider responses are never written")
+    parser.add_argument("--app-base-url", help="test-only base URL used in Checkout success/cancel and Portal return URLs")
+    parser.add_argument("--self-test", action="store_true", help="run the offline sanitizer contract check without credentials or network access")
+    args = parser.parse_args()
+    if args.self_test:
+        require(not args.verify and args.evidence_file is None and args.app_base_url is None, "--self-test cannot be combined with probe options")
+    elif args.verify:
+        require(args.evidence_file is not None, "--verify requires --evidence-file from the prepared probe")
+    return args
+
+
+def main() -> int:
+    try:
+        args = parse_arguments()
+        if args.self_test:
+            run_self_test()
+            return 0
+        config = read_config(args.app_base_url)
+        if args.verify:
+            assert args.evidence_file is not None
+            evidence = verify_probe(config, load_evidence(args.evidence_file))
+        else:
+            evidence = prepare_probe(config)
+        emit_evidence(evidence, args.evidence_file)
+        return 0
+    except ProbeFailure as error:
+        print(f"Stripe Sandbox contract-parity probe failed: {error}", file=sys.stderr)
+        return 1
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

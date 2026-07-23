@@ -74,7 +74,10 @@ checks are included in `verify-full`.
 ## Launch Operations
 
 Use `RUNBOOK.md` for Stripe Dashboard setup, NixOS secret-file placeholders,
-webhook endpoint configuration, and operator-run sandbox/test-clock checks.
+webhook endpoint configuration, and operator-run sandbox/test-clock checks. The
+explicit `STRIPE_SANDBOX_PARITY=1 stripe-sandbox-contract-parity` command uses
+the pinned Stripe CLI and emits sanitized test-API contract evidence only; it
+refuses ordinary CI, live credentials, and the local E2E mock boundary.
 
 ## Related Docs
 

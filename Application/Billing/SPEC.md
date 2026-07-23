@@ -589,9 +589,15 @@ audit summary, rendered owner HTML, and captured process output together; the
 strict contract, reconciliation, and webhook suites retain focused failure-path
 coverage.
 
-Before live launch, an operator must run and document sandbox checks with Stripe
-CLI and Billing test clocks for Checkout completion, subscription update,
-failed payment, cancellation, duplicate webhook delivery, and Customer Portal
-return behavior.
+Before live launch, an operator must run and document sandbox checks with the
+pinned Stripe CLI and Billing test clocks for Checkout completion, subscription
+update, failed payment, cancellation, duplicate webhook delivery, and Customer
+Portal return behavior. `STRIPE_SANDBOX_PARITY=1
+stripe-sandbox-contract-parity` is the explicit real-test-API contract probe:
+it accepts test credentials only, refuses CI/local mock transport, requires the
+selected non-production Stripe Account ID before any create call, and retains
+only sanitized contract evidence. For #225 it accepts only the approved direct
+`STRIPE_PRICE_ID` and rejects a lookup-key configuration, matching the selected
+production Price-resolution branch.
 
 The operator checklist lives in `RUNBOOK.md`.
