@@ -68,6 +68,11 @@
       gstRegistered = false;
       automaticTax = false;
       taxIdCollection = false;
+      reconciliationSweep = {
+        enable = true;
+        onCalendar = "daily";
+        randomizedDelaySec = "30m";
+      };
       # Rotate keys in Stripe Dashboard, update the secret files out-of-band,
       # then restart app.service and worker.service. Do not commit real keys.
     };

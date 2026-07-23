@@ -47,6 +47,8 @@ tests =
                         , stripeCheckoutSessionUrl = Just createdCheckoutUrl
                         , stripeCheckoutCustomerId = Just "cus_123"
                         , stripeCheckoutSubscriptionId = Nothing
+                        , stripeCheckoutClientReferenceId = Just "venue-123"
+                        , stripeCheckoutVenueId = Just "venue-123"
                         , stripeCheckoutLivemode = False
                         , stripeCheckoutMode = "subscription"
                         , stripeCheckoutStatus = "open"
@@ -86,6 +88,7 @@ tests =
                     StripeSubscription
                         { stripeSubscriptionId = "sub_123"
                         , stripeSubscriptionCustomerId = "cus_123"
+                        , stripeSubscriptionVenueId = Just "venue-123"
                         , stripeSubscriptionLivemode = False
                         , stripeSubscriptionStatus = "active"
                         , stripeSubscriptionPriceId = "price_valid"

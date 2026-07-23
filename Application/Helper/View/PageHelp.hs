@@ -244,10 +244,11 @@ pageHelpTopics =
             [ iconItem HelpOwnerPlus "bi-receipt" "Status" "Check subscription status" "Review the Subscription table for the current venue billing state."
             , buttonItem HelpOwnerPlus "bi-credit-card" "Payment" "Start or resume a subscription" "Verify with your passkey, then click Start Subscription. Repeated requests resume the same available Stripe Checkout instead of opening parallel subscriptions." "btn btn-primary" Nothing "Start Subscription"
             , buttonItem HelpOwnerPlus "bi-credit-card" "Payment" "Manage payment details" "Verify with your passkey, then click Manage Billing to open a fresh Stripe billing portal session. Existing customers can still use the portal when new subscriptions are paused." "btn btn-outline-primary" Nothing "Manage Billing"
-            , iconItem HelpOwnerPlus "bi-arrow-clockwise" "Refresh" "Check a pending change" "A Checkout return is only progress feedback. Wait for Bepis to show the matching signed-webhook confirmation before treating the subscription as confirmed."
+            , iconItem HelpOwnerPlus "bi-arrow-clockwise" "Refresh" "Check a pending change" "A Checkout return queues a server-side refresh of the exact known Stripe Session. Bepis confirms only provider-verified state; signed webhooks remain the normal update path."
             ]
         , section HelpSupportOnly "Founder support"
-            [ iconItem HelpSupportOnly "bi-eye" "Inspect" "Inspect billing state" "Support users can view billing state and manual read-only controls, but cannot start Checkout or open the venue payer's Customer Portal."
+            [ iconItem HelpSupportOnly "bi-eye" "Inspect" "Inspect billing state" "Support users can view billing state, synchronization diagnostics, and manual read-only controls, but cannot start Checkout or open the venue payer's Customer Portal."
+            , buttonItem HelpSupportOnly "bi-arrow-repeat" "Synchronize" "Refresh known Stripe state" "After fresh passkey verification, use Synchronize with Stripe to queue the same reconciliation behavior used by Checkout recovery and the daily sweep." "btn btn-outline-primary" Nothing "Synchronize with Stripe"
             ]
         ]
     ]

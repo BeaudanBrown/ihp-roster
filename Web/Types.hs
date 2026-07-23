@@ -108,6 +108,7 @@ data BillingController
     | CreateBillingPortalSessionAction
     | BillingSuccessAction
     | BillingCancelAction
+    | ReconcileVenueBillingAction
     | UpdateVenueBillingControlAction
     deriving (Eq, Show, Data)
 

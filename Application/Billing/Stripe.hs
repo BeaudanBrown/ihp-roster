@@ -186,14 +186,16 @@ instance Aeson.FromJSON StripeCustomer where
             <*> object Aeson..: "livemode"
 
 data StripeCheckoutSession = StripeCheckoutSession
-    { stripeCheckoutSessionId      :: !Text
-    , stripeCheckoutSessionUrl     :: !(Maybe Text)
-    , stripeCheckoutCustomerId     :: !(Maybe Text)
-    , stripeCheckoutSubscriptionId :: !(Maybe Text)
-    , stripeCheckoutLivemode       :: !Bool
-    , stripeCheckoutMode           :: !Text
-    , stripeCheckoutStatus         :: !Text
-    , stripeCheckoutExpiresAt      :: !Integer
+    { stripeCheckoutSessionId         :: !Text
+    , stripeCheckoutSessionUrl        :: !(Maybe Text)
+    , stripeCheckoutCustomerId        :: !(Maybe Text)
+    , stripeCheckoutSubscriptionId    :: !(Maybe Text)
+    , stripeCheckoutClientReferenceId :: !(Maybe Text)
+    , stripeCheckoutVenueId           :: !(Maybe Text)
+    , stripeCheckoutLivemode          :: !Bool
+    , stripeCheckoutMode              :: !Text
+    , stripeCheckoutStatus            :: !Text
+    , stripeCheckoutExpiresAt         :: !Integer
     }
     deriving (Eq, Show)
 
@@ -205,6 +207,8 @@ instance Aeson.FromJSON StripeCheckoutSession where
             <*> object Aeson..:? "url"
             <*> object Aeson..:? "customer"
             <*> object Aeson..:? "subscription"
+            <*> object Aeson..:? "client_reference_id"
+            <*> parseStripeMetadataVenueId object
             <*> object Aeson..: "livemode"
             <*> object Aeson..: "mode"
             <*> object Aeson..: "status"
@@ -232,6 +236,7 @@ instance Aeson.FromJSON StripePortalSession where
 data StripeSubscription = StripeSubscription
     { stripeSubscriptionId                 :: !Text
     , stripeSubscriptionCustomerId         :: !Text
+    , stripeSubscriptionVenueId            :: !(Maybe Text)
     , stripeSubscriptionLivemode           :: !Bool
     , stripeSubscriptionStatus             :: !Text
     , stripeSubscriptionPriceId            :: !Text
@@ -253,6 +258,7 @@ instance Aeson.FromJSON StripeSubscription where
         StripeSubscription
             <$> object Aeson..: "id"
             <*> object Aeson..: "customer"
+            <*> parseStripeMetadataVenueId object
             <*> object Aeson..: "livemode"
             <*> object Aeson..: "status"
             <*> pure item.subscriptionItemPrice.stripePriceId
@@ -276,6 +282,11 @@ instance Aeson.FromJSON StripeSubscriptionItem where
             <*> object Aeson..: "quantity"
             <*> object Aeson..: "current_period_start"
             <*> object Aeson..: "current_period_end"
+
+parseStripeMetadataVenueId :: Aeson.Object -> AesonTypes.Parser (Maybe Text)
+parseStripeMetadataVenueId object = do
+    metadata <- object Aeson..:? "metadata" Aeson..!= Aeson.Object mempty
+    Aeson.withObject "StripeMetadata" (Aeson..:? "venue_id") metadata
 
 parseSingleSubscriptionItem :: Aeson.Value -> AesonTypes.Parser StripeSubscriptionItem
 parseSingleSubscriptionItem = Aeson.withObject "StripeSubscriptionItems" \object -> do

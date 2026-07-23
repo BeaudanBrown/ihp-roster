@@ -194,8 +194,17 @@ services.ihpRoster.billing.stripe = {
   gstRegistered = false;
   automaticTax = false;
   taxIdCollection = false;
+  reconciliationSweep = {
+    enable = true;
+    onCalendar = "daily";
+    randomizedDelaySec = "30m";
+  };
 };
 ```
+
+The sweep service only reads Bepis subscription rows and enqueues AppJobs. The
+worker owns Stripe credentials and performs provider retrieval. The module does
+not pass Stripe credentials to the sweep process.
 
 The module exposes these environment variables to `app` and `worker`:
 
@@ -225,7 +234,7 @@ disabled and rejects live mode with a non-HTTPS `baseUrl`.
 The three controls require a service restart and have separate purposes:
 
 1. `enable` controls the overall Stripe integration, including credentials,
-   webhook processing, Portal access, and later reconciliation.
+   webhook processing, Portal access, and reconciliation.
 2. `checkoutEnabled` controls only creation of new Checkout Sessions and is
    enforced by the POST action before any Stripe or local Customer creation.
 3. `ownerNavigationVisible` controls discovery of the owner Billing link; it
@@ -259,6 +268,51 @@ billing only when continued Stripe ingress/API use is itself unsafe; expect the
 webhook endpoint to return non-success while it is disabled, and re-enable it
 promptly so Stripe retries can succeed.
 
+## Reconciliation Operations
+
+Normal recovery does not require database edits or raw webhook replay.
+
+- An exactly correlated Checkout success return queues reconciliation for that
+  persisted attempt. It retrieves the current Session and, only when the
+  Customer, mode, venue metadata, and Subscription all match, repairs the local
+  mirror.
+- Founder support can select the venue in support mode, complete fresh passkey
+  step-up, open Billing, and choose **Synchronize with Stripe**. This queues the
+  venue's known local Subscription, or its latest known Checkout Session when no
+  local Subscription exists.
+- `billing-reconciliation-sweep.timer` runs daily with randomized delay and
+  queues all known non-terminal Subscriptions. Active per-target jobs deduplicate.
+
+Useful operator checks:
+
+```bash
+systemctl status billing-reconciliation-sweep.timer
+systemctl list-timers billing-reconciliation-sweep.timer
+systemctl start billing-reconciliation-sweep.service
+journalctl -u billing-reconciliation-sweep.service
+```
+
+The Billing support panel shows the bounded local AppJob reference, state, and a
+fixed sanitized diagnostic for recent terminal failures. Do not paste Stripe
+response bodies into job errors or attempt to repair a mismatch by changing
+venue IDs manually. A missing/mismatched provider object retries through the
+worker; after the final attempt, the shared support-only billing alert is sent.
+Reconciliation never changes manual read-only state.
+
+Withheld-webhook recovery check in Stripe test mode:
+
+1. Start from a known Checkout attempt or local non-terminal Subscription.
+2. Deliberately withhold the matching lifecycle webhook in the controlled test
+   environment.
+3. Change or complete the object in Stripe.
+4. Use the exact Checkout return, founder action, or run the sweep service.
+5. Wait for the `billing_reconciliation` AppJob to succeed.
+6. Confirm status, Price, Customer association, venue metadata correlation,
+   Subscription Item period, cancellation flag, ordering cursor, and last-sync
+   time reflect the current Stripe object.
+7. Confirm venue writability did not change and no provider create request was
+   made.
+
 ## Local Deterministic Verification
 
 Normal CI and local test runs do not need live Stripe credentials.
@@ -282,6 +336,8 @@ nix eval .#nixosConfigurations.production.config.services.ihpRoster.billing.stri
 nix eval .#nixosConfigurations.production.config.services.ihpRoster.billing.stripe.checkoutEnabled
 nix eval .#nixosConfigurations.production.config.services.ihpRoster.billing.stripe.ownerNavigationVisible
 nix eval .#nixosConfigurations.production.config.services.ihpRoster.billing.stripe.priceLookupKey
+nix eval .#nixosConfigurations.production.config.services.ihpRoster.billing.stripe.reconciliationSweep.enable
+nix eval .#nixosConfigurations.production.config.services.ihpRoster.billing.stripe.reconciliationSweep.onCalendar
 ```
 
 ## Stripe CLI Sandbox Checklist

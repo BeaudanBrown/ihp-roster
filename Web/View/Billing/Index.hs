@@ -15,12 +15,13 @@ import Web.Billing.FrontendSurface (BillingCheckoutReturnState (..),
 import Web.View.Prelude
 
 data BillingViewModel = BillingViewModel
-    { maybeCustomer           :: !(Maybe VenueBillingCustomer)
-    , maybeSubscription       :: !(Maybe VenueSubscription)
-    , maybeControl            :: !(Maybe VenueBillingControl)
-    , recentEvents            :: ![BillingEvent]
-    , checkoutReturn          :: !(Maybe BillingCheckoutReturn)
-    , stripeCheckoutAvailable :: !Bool
+    { maybeCustomer            :: !(Maybe VenueBillingCustomer)
+    , maybeSubscription        :: !(Maybe VenueSubscription)
+    , maybeControl             :: !(Maybe VenueBillingControl)
+    , recentEvents             :: ![BillingEvent]
+    , recentReconciliationJobs :: ![AppJob]
+    , checkoutReturn           :: !(Maybe BillingCheckoutReturn)
+    , stripeCheckoutAvailable  :: !Bool
     }
 
 data BillingCheckoutReturn = BillingCheckoutReturn
@@ -84,9 +85,10 @@ renderBillingResultPage title message =
         }
 
 renderbillingStatusLiveFragment :: BillingViewModel -> Html
-renderbillingStatusLiveFragment viewModel@BillingViewModel { recentEvents, maybeControl, checkoutReturn } = [hsx|
+renderbillingStatusLiveFragment viewModel@BillingViewModel { recentEvents, recentReconciliationJobs, maybeControl, checkoutReturn } = [hsx|
     <div id={surfaceFragmentTargetId @Surface.BillingSurface @Surface.BillingStatus noSurfaceFields}>
         {renderBillingStatusPanel viewModel}
+        {if currentUserIsSupportAdmin then renderBillingReconciliationPanel recentReconciliationJobs else mempty}
         {if currentUserIsSupportAdmin then renderBillingControlPanel maybeControl else mempty}
         {renderBillingEventsPanel recentEvents}
         {renderBillingCheckoutReturnDialog checkoutReturn}
@@ -234,6 +236,80 @@ renderSubscriptionSummary (Just subscription) = [hsx|
         <div class="small app-muted">Current period: {formatMaybeTime subscription.currentPeriodStart} to {formatMaybeTime subscription.currentPeriodEnd}</div>
     </div>
 |]
+
+renderBillingReconciliationPanel :: [AppJob] -> Html
+renderBillingReconciliationPanel jobs =
+    simpleAppPanel
+        "Stripe Synchronization"
+        (Just "Founder support can queue a read-only refresh of this venue's known Stripe state. Reconciliation never changes venue writability.")
+        [hsx|
+            <div class="d-flex flex-column gap-3">
+                <form method="POST" action={ReconcileVenueBillingAction}>
+                    <button type="submit" class="btn btn-outline-primary">Synchronize with Stripe</button>
+                </form>
+                {renderBillingReconciliationJobs jobs}
+            </div>
+        |]
+
+renderBillingReconciliationJobs :: [AppJob] -> Html
+renderBillingReconciliationJobs [] = [hsx|
+    <p class="mb-0 app-muted small">No billing synchronization has been queued for this venue.</p>
+|]
+renderBillingReconciliationJobs jobs = [hsx|
+    <div class="table-responsive">
+        <table class="table table-sm align-middle mb-0">
+            <thead>
+                <tr>
+                    <th>Queued</th>
+                    <th>Status</th>
+                    <th>Job</th>
+                    <th>Diagnostic</th>
+                </tr>
+            </thead>
+            <tbody>{forEach jobs renderBillingReconciliationJobRow}</tbody>
+        </table>
+    </div>
+|]
+
+renderBillingReconciliationJobRow :: AppJob -> Html
+renderBillingReconciliationJobRow appJob =
+    let presentation = reconciliationJobStatusPresentation appJob.status
+     in [hsx|
+        <tr>
+            <td class="small">{tshow appJob.createdAt}</td>
+            <td><span class={presentation.statusBadgeClass}>{presentation.statusLabel}</span></td>
+            <td class="small app-muted">{inputValue appJob.id}</td>
+            <td class="small text-danger">{reconciliationTerminalDiagnostic appJob}</td>
+        </tr>
+    |]
+
+data ReconciliationJobStatusPresentation = ReconciliationJobStatusPresentation
+    { statusLabel      :: !Text
+    , statusBadgeClass :: !Text
+    }
+
+reconciliationJobStatusPresentation :: JobStatus -> ReconciliationJobStatusPresentation
+reconciliationJobStatusPresentation status =
+    case inputValue status of
+        "job_status_not_started" -> presentation "queued" "text-bg-secondary"
+        "job_status_running"     -> presentation "running" "text-bg-secondary"
+        "job_status_retry"       -> presentation "retrying" "text-bg-warning"
+        "job_status_succeeded"   -> presentation "succeeded" "text-bg-success"
+        "job_status_failed"      -> presentation "failed" "text-bg-danger"
+        "job_status_timed_out"   -> presentation "timed out" "text-bg-danger"
+        other                    -> presentation other "text-bg-secondary"
+  where
+    presentation statusLabel badgeClass =
+        ReconciliationJobStatusPresentation
+            { statusLabel
+            , statusBadgeClass = "badge " <> badgeClass
+            }
+
+reconciliationTerminalDiagnostic :: AppJob -> Text
+reconciliationTerminalDiagnostic appJob
+    | inputValue appJob.status `elem` ["job_status_failed", "job_status_timed_out"] =
+        maybe "No diagnostic recorded." (Text.take 1000) appJob.lastError
+    | otherwise = ""
 
 renderBillingControlPanel :: Maybe VenueBillingControl -> Html
 renderBillingControlPanel maybeControl =

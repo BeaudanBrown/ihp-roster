@@ -99,6 +99,7 @@ These actions require explicit server-side permission checks and audit logging:
 - venue role changes
 - billing Checkout and Customer Portal session creation
 - founder support changes to manual venue billing controls
+- founder support requests for per-venue Stripe reconciliation
 - export generation and download
 - configuration changes affecting payroll or record visibility
 - timesheet approval and unapproval
@@ -111,8 +112,9 @@ These actions require explicit server-side permission checks and audit logging:
 - Venue owners can start Stripe-hosted Checkout and open Stripe Customer Portal
   for their current venue after fresh passkey verification.
 - Founder super admins can inspect billing and use explicit support controls for
-  a support-mode current venue, but cannot start Checkout or open the venue
-  payer's Customer Portal.
+  a support-mode current venue, including queued reconciliation after fresh
+  passkey verification, but cannot start Checkout or open the venue payer's
+  Customer Portal.
 - Venue admins, managers, workers and future export-only roles do not manage
   billing unless a future product decision changes the role model.
 - Support-mode billing access must use `currentVenue` with no synthetic venue

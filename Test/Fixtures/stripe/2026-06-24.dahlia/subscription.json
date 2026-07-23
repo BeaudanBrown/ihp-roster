@@ -3,6 +3,9 @@
   "object": "subscription",
   "cancel_at_period_end": true,
   "customer": "cus_123",
+  "metadata": {
+    "venue_id": "venue-123"
+  },
   "livemode": false,
   "status": "active",
   "items": {

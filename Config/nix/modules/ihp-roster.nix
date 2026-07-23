@@ -710,6 +710,26 @@ in
         default = false;
         description = "Whether Checkout collects tax IDs. Must remain false while GST is disabled.";
       };
+
+      reconciliationSweep = {
+        enable = mkOption {
+          type = types.bool;
+          default = true;
+          description = "Whether to enqueue reconciliation jobs for known non-terminal Stripe subscriptions on a systemd timer when Stripe Billing is enabled.";
+        };
+
+        onCalendar = mkOption {
+          type = types.str;
+          default = "daily";
+          description = "systemd OnCalendar expression for the Stripe subscription reconciliation sweep.";
+        };
+
+        randomizedDelaySec = mkOption {
+          type = types.str;
+          default = "30m";
+          description = "Randomized delay applied to the Stripe subscription reconciliation timer.";
+        };
+      };
     };
 
     xero = {
@@ -1012,6 +1032,35 @@ in
               cfg.databaseUrl
             else
               "postgresql://${cfg.databaseUser}@/${cfg.databaseName}";
+        };
+      };
+      systemd.services.billing-reconciliation-sweep = mkIf (stripeCfg.enable && stripeCfg.reconciliationSweep.enable) {
+        description = "Enqueue Stripe subscription reconciliation jobs for ihp-roster";
+        after = [ schemaReadyService ];
+        requires = [ schemaReadyService ];
+        serviceConfig = {
+          Type = "oneshot";
+          ExecStart = "${if cfg.package != null then cfg.package else defaultPackage}/bin/BillingReconciliationSweep";
+          NoNewPrivileges = true;
+          PrivateTmp = true;
+        }
+        // serviceUserConfig;
+        environment = {
+          DATABASE_URL =
+            if cfg.databaseUrl != null then
+              cfg.databaseUrl
+            else
+              "postgresql://${cfg.databaseUser}@/${cfg.databaseName}";
+          IHP_TELEMETRY_DISABLED = "1";
+          APP_BASE_URL = cfg.baseUrl;
+        };
+      };
+      systemd.timers.billing-reconciliation-sweep = mkIf (stripeCfg.enable && stripeCfg.reconciliationSweep.enable) {
+        wantedBy = [ "timers.target" ];
+        timerConfig = {
+          OnCalendar = stripeCfg.reconciliationSweep.onCalendar;
+          Persistent = true;
+          RandomizedDelaySec = stripeCfg.reconciliationSweep.randomizedDelaySec;
         };
       };
       systemd.services.xero-keepalive-sweep = mkIf cfg.xero.keepalive.enable {

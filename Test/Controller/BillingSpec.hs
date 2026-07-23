@@ -1,6 +1,7 @@
 module Test.Controller.BillingSpec where
 
 import Application.Billing.Checkout
+import Application.Billing.Reconciliation (billingReconciliationJobKind)
 import Application.Billing.Stripe
 import Application.Helper.Controller (PlatformRole (SuperAdminRole))
 import Config
@@ -11,6 +12,7 @@ import qualified Data.IORef as IORef
 import qualified Data.Text as Text
 import Generated.Types
 import IHP.ControllerPrelude
+import IHP.Job.Types (JobStatus (JobStatusFailed))
 import IHP.Test.Mocking
 import Network.HTTP.Types.Status
 import qualified Network.HTTP.Types.URI as URI
@@ -100,6 +102,35 @@ tests = aroundAll withDatabaseTestContext do
                 response `responseStatusShouldBe` status200
                 response `responseBodyShouldContain` "Manual Controls"
                 response `responseBodyShouldContain` "Manual read-only"
+
+        it "exposes sanitized terminal reconciliation diagnostics to founders only" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Billing Reconciliation Diagnostics Venue"
+                superAdmin <- createUserRecordWithPlatformRole "billing-reconciliation-diagnostics@example.com" "staff" (Just SuperAdminRole) True
+                owner <- createUserRecord "billing-reconciliation-diagnostics-owner@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue owner "venue_owner"
+                failedJob <-
+                    newRecord @AppJob
+                        |> set #jobKind billingReconciliationJobKind
+                        |> set #venueId (Just (unpackId venue.id))
+                        |> set #relatedTable (Just "venue_subscriptions")
+                        |> set #status JobStatusFailed
+                        |> set #attemptsCount 10
+                        |> set #lastError (Just "subscription_metadata_mismatch: Stripe Subscription venue metadata does not match this venue.")
+                        |> createRecord
+
+                founderResponse <- withPasskeyVerifiedUserAndCurrentVenue superAdmin venue.id do
+                    callAction BillingAction
+                ownerResponse <- withPasskeyVerifiedUserAndCurrentVenue owner venue.id do
+                    callAction BillingAction
+
+                founderResponse `responseStatusShouldBe` status200
+                founderResponse `responseBodyShouldContain` "Synchronize with Stripe"
+                founderResponse `responseBodyShouldContain` "subscription_metadata_mismatch"
+                founderResponse `responseBodyShouldContain` (inputValue failedJob.id)
+                ownerResponse `responseStatusShouldBe` status200
+                ownerResponse `responseBodyShouldNotContain` "Synchronize with Stripe"
+                ownerResponse `responseBodyShouldNotContain` "subscription_metadata_mismatch"
 
         it "prevents founder support mode from starting Checkout or opening Customer Portal" $ withContext do
             withCleanDb do
@@ -494,6 +525,53 @@ tests = aroundAll withDatabaseTestContext do
                 response `responseStatusShouldBe` status302
                 lookup "Location" (responseHeaders response) `shouldBe` Just "http://localhost/Billing"
 
+        it "lets a passkey-verified founder queue per-venue reconciliation" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Billing Manual Reconciliation Venue"
+                superAdmin <- createUserRecordWithPlatformRole "billing-manual-reconciliation@example.com" "staff" (Just SuperAdminRole) True
+                subscription <- createVenueSubscriptionWithStatus venue "past_due"
+
+                response <- withPasskeyVerifiedUserAndCurrentVenue superAdmin venue.id do
+                    callAction ReconcileVenueBillingAction
+
+                response `responseStatusShouldBe` status302
+                lookup "Location" (responseHeaders response) `shouldBe` Just "http://localhost/Billing"
+                [appJob] <- query @AppJob |> filterWhere (#jobKind, billingReconciliationJobKind) |> fetch
+                appJob.venueId `shouldBe` Just (unpackId venue.id)
+                appJob.relatedTable `shouldBe` Just "venue_subscriptions"
+                appJob.relatedId `shouldBe` Just (unpackId subscription.id)
+                appJob.requestedByUserId `shouldBe` Just (unpackId superAdmin.id)
+                auditEvent <- query @AuditEvent |> filterWhere (#eventType, "billing_reconciliation_requested") |> fetchOne
+                auditEvent.targetTable `shouldBe` "app_jobs"
+                auditEvent.targetId `shouldBe` unpackId appJob.id
+
+        it "requires fresh passkey step-up for founder reconciliation" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Billing Reconciliation Step-Up Venue"
+                superAdmin <- createUserRecordWithPlatformRole "billing-reconciliation-step-up@example.com" "staff" (Just SuperAdminRole) True
+                _ <- createTestPasskeyRecord superAdmin "Billing reconciliation passkey"
+                _ <- createVenueSubscriptionWithStatus venue "active"
+
+                response <- withUserAndCurrentVenue superAdmin venue.id do
+                    callAction ReconcileVenueBillingAction
+
+                response `responseStatusShouldBe` status302
+                lookup "Location" (responseHeaders response) `shouldBe` Just "http://localhost/PasskeyStepUp"
+                query @AppJob |> filterWhere (#jobKind, billingReconciliationJobKind) |> fetchCount `shouldReturn` 0
+
+        it "denies manual reconciliation to venue owners" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Billing Owner Reconciliation Boundary Venue"
+                owner <- createUserRecord "billing-owner-reconciliation-boundary@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue owner "venue_owner"
+                _ <- createVenueSubscriptionWithStatus venue "active"
+
+                response <- withPasskeyVerifiedUserAndCurrentVenue owner venue.id do
+                    callAction ReconcileVenueBillingAction
+
+                response `responseStatusShouldBe` status302
+                query @AppJob |> filterWhere (#jobKind, billingReconciliationJobKind) |> fetchCount `shouldReturn` 0
+
         it "lets support-mode super admins update manual read-only state" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Billing Toggle Venue"
@@ -530,6 +608,53 @@ tests = aroundAll withDatabaseTestContext do
                     `shouldBe` Just (cs ("http://localhost/Billing?checkout=success&attempt_id=" <> inputValue attempt.id <> "&session_id=cs_test_123"))
                 subscriptionCount <- query @VenueSubscription |> filterWhere (#venueId, unpackId venue.id) |> fetchCount
                 subscriptionCount `shouldBe` 0
+
+        it "queues fallback reconciliation for an exact Checkout return" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Billing Return Reconciliation Venue"
+                owner <- createUserRecord "billing-return-reconciliation@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue owner "venue_owner"
+                attempt <- createOpenBillingCheckoutAttempt venue owner "cs_reconcile_return_123"
+
+                response <- withPasskeyVerifiedUserAndCurrentVenue owner venue.id do
+                    callActionWithParams BillingSuccessAction
+                        [ ("attempt_id", cs (inputValue attempt.id))
+                        , ("session_id", "cs_reconcile_return_123")
+                        ]
+
+                response `responseStatusShouldBe` status302
+                [appJob] <- query @AppJob |> filterWhere (#jobKind, billingReconciliationJobKind) |> fetch
+                appJob.venueId `shouldBe` Just (unpackId venue.id)
+                appJob.relatedTable `shouldBe` Just "billing_checkout_attempts"
+                appJob.relatedId `shouldBe` Just (unpackId attempt.id)
+                appJob.requestedByUserId `shouldBe` Just (unpackId owner.id)
+                unchangedAttempt <- fetch attempt.id
+                unchangedAttempt.status `shouldBe` "open"
+                query @VenueSubscription |> filterWhere (#venueId, unpackId venue.id) |> fetchCount `shouldReturn` 0
+
+        it "queues fallback reconciliation when Checkout completed before its Subscription mirror arrived" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Billing Completed Return Reconciliation Venue"
+                owner <- createUserRecord "billing-completed-return-reconciliation@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue owner "venue_owner"
+                now <- getCurrentTime
+                attempt <-
+                    createOpenBillingCheckoutAttempt venue owner "cs_completed_reconcile_return_123"
+                        >>= updateRecord
+                            . set #completedAt (Just now)
+                            . set #stripeSubscriptionId (Just "sub_completed_reconcile_return_123")
+                            . set #status "completed"
+
+                response <- withPasskeyVerifiedUserAndCurrentVenue owner venue.id do
+                    callActionWithParams BillingSuccessAction
+                        [ ("attempt_id", cs (inputValue attempt.id))
+                        , ("session_id", "cs_completed_reconcile_return_123")
+                        ]
+
+                response `responseStatusShouldBe` status302
+                [appJob] <- query @AppJob |> filterWhere (#jobKind, billingReconciliationJobKind) |> fetch
+                appJob.relatedId `shouldBe` Just (unpackId attempt.id)
+                query @VenueSubscription |> filterWhere (#venueId, unpackId venue.id) |> fetchCount `shouldReturn` 0
 
         it "rejects Checkout success parameters for another venue or Session" $ withContext do
             withCleanDb do
@@ -824,6 +949,8 @@ checkoutStripeClient =
                     , stripeCheckoutSessionUrl = Just "https://checkout.stripe.com/c/pay/cs_test_123"
                     , stripeCheckoutCustomerId = Just customerId
                     , stripeCheckoutSubscriptionId = Nothing
+                    , stripeCheckoutClientReferenceId = Nothing
+                    , stripeCheckoutVenueId = Nothing
                     , stripeCheckoutLivemode = False
                     , stripeCheckoutMode = "subscription"
                     , stripeCheckoutStatus = "open"
@@ -854,6 +981,8 @@ resumableCheckoutStripeClient createCalls retrieveCalls =
                 , stripeCheckoutSessionUrl = Just "https://checkout.stripe.com/c/pay/cs_test_123"
                 , stripeCheckoutCustomerId = Just customerId
                 , stripeCheckoutSubscriptionId = Nothing
+                , stripeCheckoutClientReferenceId = Nothing
+                , stripeCheckoutVenueId = Nothing
                 , stripeCheckoutLivemode = False
                 , stripeCheckoutMode = "subscription"
                 , stripeCheckoutStatus = "open"
@@ -898,6 +1027,8 @@ expiringCheckoutStripeClient createAttemptIds =
                 , stripeCheckoutSessionUrl = Just ("https://checkout.stripe.com/c/pay/cs_expiring_" <> tshow sequenceNumber)
                 , stripeCheckoutCustomerId = Just customerId
                 , stripeCheckoutSubscriptionId = Nothing
+                , stripeCheckoutClientReferenceId = Nothing
+                , stripeCheckoutVenueId = Nothing
                 , stripeCheckoutLivemode = False
                 , stripeCheckoutMode = "subscription"
                 , stripeCheckoutStatus = "open"
@@ -909,6 +1040,8 @@ expiringCheckoutStripeClient createAttemptIds =
                 , stripeCheckoutSessionUrl = Nothing
                 , stripeCheckoutCustomerId = Just customerId
                 , stripeCheckoutSubscriptionId = Nothing
+                , stripeCheckoutClientReferenceId = Nothing
+                , stripeCheckoutVenueId = Nothing
                 , stripeCheckoutLivemode = False
                 , stripeCheckoutMode = "subscription"
                 , stripeCheckoutStatus = "expired"
@@ -941,6 +1074,8 @@ concurrentCheckoutStripeClient createEntered releaseCreate createCalls customerC
                 , stripeCheckoutSessionUrl = Just "https://checkout.stripe.com/c/pay/cs_test_123"
                 , stripeCheckoutCustomerId = Just customerId
                 , stripeCheckoutSubscriptionId = Nothing
+                , stripeCheckoutClientReferenceId = Nothing
+                , stripeCheckoutVenueId = Nothing
                 , stripeCheckoutLivemode = False
                 , stripeCheckoutMode = "subscription"
                 , stripeCheckoutStatus = "open"
@@ -957,6 +1092,8 @@ unsafeCheckoutRedirectClient =
                 , stripeCheckoutSessionUrl = Just "https://checkout.stripe.com.evil.example/session"
                 , stripeCheckoutCustomerId = Just customerId
                 , stripeCheckoutSubscriptionId = Nothing
+                , stripeCheckoutClientReferenceId = Nothing
+                , stripeCheckoutVenueId = Nothing
                 , stripeCheckoutLivemode = False
                 , stripeCheckoutMode = "subscription"
                 , stripeCheckoutStatus = "open"

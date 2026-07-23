@@ -1,6 +1,8 @@
 module Web.Controller.Billing where
 
+import Application.Async.Queue (EnqueueAppJobResult (..))
 import Application.Billing.Checkout
+import Application.Billing.Reconciliation
 import Application.Billing.Stripe
 import Application.Helper.SurfaceResource (LiveMutationResult (..))
 import Application.Helper.Url (appendQueryParams)
@@ -42,7 +44,8 @@ instance Controller BillingController where
     action currentAction@BillingSuccessAction = runBepis currentAction BepisPageAction do
         fetchCorrelatedCheckoutReturnAttempt >>= \case
             Nothing -> billingRedirectWithError "That Checkout return does not match this venue."
-            Just attempt ->
+            Just attempt -> do
+                void (enqueueBillingCheckoutReconciliation (Just (unpackId currentUser.id)) attempt)
                 redirectToPath $
                     appendQueryParams
                         (pathTo BillingAction)
@@ -55,6 +58,30 @@ instance Controller BillingController where
         fetchCorrelatedCheckoutCancelAttempt >>= \case
             Nothing -> billingRedirectWithError "That Checkout cancellation does not match this venue."
             Just _ -> render BillingCancelView
+
+    action currentAction@ReconcileVenueBillingAction = runBepis currentAction BepisMutationAction do
+        ensureFounderBillingReconciliationAction
+        enqueueVenueBillingReconciliation (Just (unpackId currentUser.id)) currentVenue >>= \case
+            Left failure -> billingRedirectWithError failure.reconciliationFailureSummary
+            Right enqueueResult -> do
+                let (appJob, alreadyActive) = case enqueueResult of
+                        EnqueuedAppJob job       -> (job, False)
+                        ExistingActiveAppJob job -> (job, True)
+                void $ recordCurrentUserAuditEvent
+                    "billing_reconciliation_requested"
+                    "app_jobs"
+                    (unpackId appJob.id)
+                    ( Aeson.object
+                        [ "alreadyActive" Aeson..= alreadyActive
+                        , "relatedTable" Aeson..= appJob.relatedTable
+                        , "relatedId" Aeson..= appJob.relatedId
+                        ]
+                    )
+                setSuccessMessage $
+                    if alreadyActive
+                        then "Billing synchronization is already queued."
+                        else "Billing synchronization queued."
+                redirectTo BillingAction
 
     action currentAction@UpdateVenueBillingControlAction = runBepis currentAction BepisMutationAction $
         updateVenueBillingControlAction
@@ -73,6 +100,13 @@ ensureOwnerBillingPaymentAction = do
         "Only the venue owner can start Checkout or open Customer Portal."
     ensurePrivilegedPasskeyReady
 
+ensureFounderBillingReconciliationAction :: (?context :: ControllerContext, ?request :: Request, ?modelContext :: ModelContext) => IO ()
+ensureFounderBillingReconciliationAction = do
+    redirectPermissionDeniedUnless
+        currentUserIsSuperAdmin
+        "Only super admins can synchronize venue billing."
+    ensurePrivilegedPasskeyReady
+
 fetchBillingViewModel :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => IO BillingViewModel
 fetchBillingViewModel = do
     maybeCustomer <- fetchCurrentVenueBillingCustomer
@@ -84,6 +118,16 @@ fetchBillingViewModel = do
             |> orderByDesc #receivedAt
             |> limit 5
             |> fetch
+    recentReconciliationJobs <-
+        if currentUserIsSuperAdmin
+            then
+                query @AppJob
+                    |> filterWhere (#venueId, Just (unpackId currentVenueId))
+                    |> filterWhere (#jobKind, billingReconciliationJobKind)
+                    |> orderByDesc #createdAt
+                    |> limit 5
+                    |> fetch
+            else pure []
     stripeControls <- readStripeDeploymentControls
     let stripeCheckoutAvailable =
             either (const False) (.stripeCheckoutEnabled) stripeControls

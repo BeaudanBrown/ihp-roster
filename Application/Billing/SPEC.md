@@ -291,9 +291,57 @@ obsolete top-level Subscription fields:
 
 Stripe webhook updates are the normal state transition path. A matching signed
 Checkout completion marks its durable local attempt completed and records the
-provider Subscription ID atomically with the event. A Checkout success return
-may retrieve the Checkout Session for reconciliation or user feedback, but it
-must not replace webhook processing.
+provider Subscription ID atomically with the event.
+
+## Subscription Reconciliation
+
+Reconciliation is the recovery path for provider objects Bepis already knows;
+signed webhooks remain the normal update path. Every provider call goes through
+the existing read-only Checkout Session or Subscription retrieval methods on
+`StripeClient`. Reconciliation never invokes a provider create/update endpoint
+and never changes `venue_billing_controls` or venue writability.
+
+A known Checkout target must be a persisted venue-scoped attempt with a stored
+Session ID and Customer ID. The retrieved Session must match that Session,
+Customer, Stripe mode, subscription mode, `client_reference_id`, and
+`metadata.venue_id`. A complete Session must identify a retrievable Subscription
+whose ID, Customer, mode, Item Price mode, and `metadata.venue_id` all match.
+Only this exact correlation may create the missing *local mirror* Customer or
+Subscription rows after a withheld initial webhook; no Stripe Subscription is
+created. Open and expired Sessions update only that known attempt.
+
+A known Subscription target must already be a local `venue_subscriptions` row.
+Its provider retrieval can refresh that same row and recover a missing local
+Customer association after exact venue metadata validation, but cannot replace
+it with a different provider Subscription. Existing Customer or Subscription
+associations for another venue fail closed.
+
+A successful Subscription reconciliation updates status, validated Price and
+mode, Customer association, Subscription Item period timestamps,
+`cancel_at_period_end`, and `last_synced_at`. It also advances the ordered event
+cursor to a bounded synthetic reconciliation cursor taken just before provider
+retrieval. The cursor is one second before the observation start, so delayed
+provider events represented in the retrieved snapshot cannot regress it while
+an event created during or after retrieval remains eligible to apply. An
+existing later event cursor is never moved backwards.
+
+All asynchronous entry points use `billing_reconciliation` AppJobs and the same
+reconciliation functions:
+
+- an exact Checkout success return queues its known attempt while keeping the
+  browser return non-authoritative;
+- a fresh-passkey, founder-only per-venue action selects the known local
+  Subscription or latest known Checkout Session;
+- the daily sweep queues each known `incomplete`, `trialing`, `active`,
+  `past_due`, `unpaid`, or `paused` Subscription and skips terminal `canceled`
+  and `incomplete_expired` rows.
+
+Active jobs deduplicate by local target. Retry failures expose only fixed bounded
+codes/summaries; provider bodies, credentials, payment-like values, and customer
+email are discarded. The normal AppJob terminal state persists the sanitized
+failure. Founder support sees bounded recent per-venue job diagnostics, and the
+shared final-attempt billing alert notifies eligible founder super admins only
+after retries are exhausted.
 
 ## Billing Notifications
 
@@ -437,6 +485,9 @@ Local deterministic tests cover:
 - non-terminal Subscription rejection and terminal resubscription eligibility
 - exact venue/attempt/Session return correlation without browser-authoritative
   Subscription updates
+- known Checkout and Subscription reconciliation, metadata/association mismatch
+  rejection, ordering-cursor advancement, non-terminal sweep selection, active
+  job deduplication, founder-only manual enqueueing, and sanitized failures
 
 Strict local Stripe mock coverage should include:
 

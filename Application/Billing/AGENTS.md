@@ -43,6 +43,11 @@ Read this before editing `Application/Billing/` or billing controllers.
   Portal domain before returning them to a browser.
 - Keep new-Checkout control server-side and independent from overall Stripe
   integration so Portal, webhooks, and reconciliation can remain available.
+- Reconciliation may retrieve only a locally known Checkout Session or
+  Subscription. Require exact mode, Customer, venue metadata, and local target
+  correlation before updating mirrors; never call a provider create/update
+  endpoint or alter venue writability. Manual, return, and sweep entry points
+  must enqueue the shared `billing_reconciliation` job behavior.
 - When changing visible billing status, Checkout/Portal flows, pending/webhook language, manual read-only controls, or owner/support access behavior, update the `billing` topic in `Application.Helper.View.PageHelp`.
 
 ## Configuration

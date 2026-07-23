@@ -19,6 +19,9 @@ customer and subscription records must not be deduplicated by user or email.
   QueryBuilder does not expose `SELECT ... FOR UPDATE`.
 - `Webhook.hs` - raw-verified Stripe webhook event parsing and one-transaction,
   idempotent, ordered local Customer, Checkout-attempt, and Subscription updates.
+- `Reconciliation.hs` - read-only provider recovery for known Checkout Sessions
+  and Subscriptions, shared queued job behavior, active-job deduplication, and
+  the non-terminal daily sweep.
 - `NotificationKind.hs` - typed notification taxonomy and backward-compatible
   job payload names.
 - `Notifications.hs` - transition-based, permanently deduplicated billing
@@ -38,6 +41,12 @@ only bounded provider identifiers, lifecycle timestamps, and sanitized failure
 summaries; Stripe-hosted URLs and payment/tax details remain outside Bepis. The
 attempt is committed before Checkout Session creation, and a venue-row lock plus
 the one-open-attempt constraint serializes concurrent creation and resumption.
+
+Reconciliation jobs are persisted in `app_jobs`. Their target is a known local
+Checkout attempt or Subscription, their active dedupe key is target-specific,
+and terminal `last_error` values are fixed bounded diagnostics rather than
+provider response text. The worker's existing final-attempt support alert path
+applies to these `billing_reconciliation` jobs.
 
 ## Launch Operations
 

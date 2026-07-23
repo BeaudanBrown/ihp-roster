@@ -54,14 +54,22 @@
 - `venue_subscriptions`
   - Venue-scoped Stripe subscription state mirror.
   - Stores Stripe subscription/price IDs, validated mode, status, current period
-    timestamps, cancellation flag, last-applied event cursor and sync timestamps.
-  - Stripe webhooks are authoritative for state changes.
+    timestamps, cancellation flag, last-applied provider ordering cursor and sync
+    timestamps.
+  - Signed Stripe webhooks are the normal state-transition path. Read-only
+    reconciliation may refresh only a known Session/Subscription after exact
+    Customer, mode and venue-metadata validation.
 - `billing_events`
   - Durable Stripe webhook/API event processing ledger.
   - Deduplicates by Stripe event ID and retains Stripe event creation time for
     ordered Subscription updates.
   - Stores event type, provider object IDs, processing status, timestamps and
     concise summaries, not full raw sensitive Stripe payloads by default.
+- Billing reconciliation `app_jobs`
+  - Target a known local Checkout attempt or Subscription and deduplicate while
+    active.
+  - Persist only bounded target metadata, result summaries, and sanitized
+    terminal errors; provider payloads and payer details remain outside Bepis.
 - `venue_billing_controls`
   - Venue-scoped billing control record.
   - Holds `billing_required`, manual read-only state, manual reason, setter and
