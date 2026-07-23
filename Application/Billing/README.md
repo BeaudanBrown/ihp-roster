@@ -17,8 +17,8 @@ customer and subscription records must not be deduplicated by user or email.
   eligibility checks, interrupted-create recovery, and open Session resumption.
 - `Persistence.hs` - the narrow PostgreSQL row-lock boundary needed because IHP
   QueryBuilder does not expose `SELECT ... FOR UPDATE`.
-- `Webhook.hs` - Stripe webhook event parsing and idempotent local subscription
-  state updates.
+- `Webhook.hs` - raw-verified Stripe webhook event parsing and one-transaction,
+  idempotent, ordered local Customer, Checkout-attempt, and Subscription updates.
 - `Notifications.hs` - sanitized billing problem notifications for venue
   owners and founder super admins.
 

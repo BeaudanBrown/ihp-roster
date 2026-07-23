@@ -246,9 +246,19 @@ The public Stripe webhook endpoint:
 - rejects invalid signatures
 - requires explicit `livemode` matching configured test/live mode
 - records and deduplicates by Stripe event ID
-- processes subscription state transactionally
-- returns success for already processed duplicate events
-- avoids expensive follow-up work before returning a Stripe response
+- applies the event record, local Customer association, matching Checkout-attempt
+  transition, Subscription transition, and notification-job enqueueing in one
+  transaction after taking an event-ID transaction lock and, where resolvable, a
+  per-venue row lock
+- returns success only after that transaction commits; a supported-event failure
+  rolls back all of those effects and returns non-success so Stripe retries
+- treats an already persisted event ID as a successful duplicate
+- orders Subscription and matching Checkout-attempt snapshots by `(Stripe event
+  created timestamp, event ID)`; an older or equal cursor records as processed
+  but cannot regress local state or enqueue a stale state notification
+- records signed unknown event types as `ignored` summaries without raw payloads
+- avoids Stripe API calls and other expensive follow-up work before returning a
+  Stripe response
 
 Minimum launch events:
 
@@ -279,9 +289,11 @@ obsolete top-level Subscription fields:
 - last-applied Stripe event creation time and event ID
 - last synced timestamp
 
-Stripe webhook updates are the normal state transition path. A Checkout success
-return may retrieve the Checkout Session for reconciliation or user feedback,
-but it must not replace webhook processing.
+Stripe webhook updates are the normal state transition path. A matching signed
+Checkout completion marks its durable local attempt completed and records the
+provider Subscription ID atomically with the event. A Checkout success return
+may retrieve the Checkout Session for reconciliation or user feedback, but it
+must not replace webhook processing.
 
 Troubled states such as failed async payment, past due, unpaid, canceled, or
 deleted subscriptions notify venue owners and founder super admins. They do not

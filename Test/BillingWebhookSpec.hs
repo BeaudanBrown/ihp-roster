@@ -4,6 +4,9 @@ import Application.Billing.Notifications (billingNotificationJobKind)
 import Application.Billing.Stripe
 import Application.Billing.Webhook
 import Application.Helper.Controller (PlatformRole (SuperAdminRole))
+import Control.Concurrent (forkIO)
+import Control.Concurrent.MVar (MVar, newEmptyMVar, putMVar, takeMVar)
+import Control.Exception (SomeException, try)
 import qualified "crypton" Crypto.Hash as Hash
 import "crypton" Crypto.MAC.HMAC (HMAC, hmac)
 import qualified Data.Aeson as Aeson
@@ -51,6 +54,98 @@ tests = aroundAll withDatabaseTestContext do
                 subscription.status `shouldBe` "active"
                 subscription.currentPeriodStart `shouldSatisfy` isJust
                 subscription.currentPeriodEnd `shouldSatisfy` isJust
+                subscription.lastAppliedStripeEventCreatedAt `shouldBe` Just (posixSecondsToUTCTime (fromInteger testStripeEventCreatedSeconds))
+                subscription.lastAppliedStripeEventId `shouldBe` Just "evt_sub_updated"
+
+        it "does not let an older subscription snapshot regress newer local state" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Webhook Ordered Subscription Venue"
+                _ <- createBillingCustomer venue "cus_ordered_subscription_123"
+                let newerEvent = subscriptionEventAt (testStripeEventCreatedSeconds + 1) "evt_ordered_newer" venue "cus_ordered_subscription_123" "sub_ordered_123" "active"
+                let olderEvent = subscriptionEventAt testStripeEventCreatedSeconds "evt_ordered_older" venue "cus_ordered_subscription_123" "sub_ordered_123" "canceled"
+
+                Right _ <- handleStripeWebhookPayload StripeTestMode newerEvent
+                Right _ <- handleStripeWebhookPayload StripeTestMode olderEvent
+
+                subscription <- query @VenueSubscription |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
+                subscription.status `shouldBe` "active"
+                subscription.lastAppliedStripeEventCreatedAt `shouldBe` Just (posixSecondsToUTCTime (fromInteger (testStripeEventCreatedSeconds + 1)))
+                subscription.lastAppliedStripeEventId `shouldBe` Just "evt_ordered_newer"
+                eventCount <- query @BillingEvent |> fetchCount
+                eventCount `shouldBe` 2
+
+        it "completes the matching Checkout attempt from a completed Checkout event" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Webhook Checkout Attempt Venue"
+                owner <- createUserRecord "webhook-checkout-owner@example.com" "staff" True
+                let sessionId = "cs_webhook_attempt_123"
+                _ <-
+                    newRecord @BillingCheckoutAttempt
+                        |> set #venueId (unpackId venue.id)
+                        |> set #initiatedByUserId (unpackId owner.id)
+                        |> set #livemode False
+                        |> set #stripeCustomerId "cus_webhook_attempt_123"
+                        |> set #stripePriceId "price_monthly_123"
+                        |> set #stripeCheckoutSessionId (Just sessionId)
+                        |> createRecord
+
+                Right _ <- handleStripeWebhookPayload StripeTestMode (checkoutSessionEventForAttempt "evt_checkout_attempt_completed" venue sessionId "cus_webhook_attempt_123" "sub_webhook_attempt_123")
+
+                attempt <- query @BillingCheckoutAttempt |> filterWhere (#stripeCheckoutSessionId, Just sessionId) |> fetchOne
+                attempt.status `shouldBe` "completed"
+                attempt.stripeSubscriptionId `shouldBe` Just "sub_webhook_attempt_123"
+                attempt.completedAt `shouldSatisfy` isJust
+
+        it "does not let an older Checkout event regress a newer attempt state" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Webhook Ordered Checkout Venue"
+                owner <- createUserRecord "webhook-ordered-checkout-owner@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue owner "venue_owner"
+                let sessionId = "cs_ordered_checkout_123"
+                _ <-
+                    newRecord @BillingCheckoutAttempt
+                        |> set #venueId (unpackId venue.id)
+                        |> set #initiatedByUserId (unpackId owner.id)
+                        |> set #livemode False
+                        |> set #stripeCustomerId "cus_ordered_checkout_123"
+                        |> set #stripePriceId "price_monthly_123"
+                        |> set #stripeCheckoutSessionId (Just sessionId)
+                        |> createRecord
+                let newerEvent = checkoutSessionEventForAttemptAt (testStripeEventCreatedSeconds + 1) "checkout.session.async_payment_succeeded" "evt_ordered_checkout_newer" venue sessionId "cus_ordered_checkout_123" "sub_ordered_checkout_123"
+                let olderEvent = checkoutSessionEventForAttemptAt testStripeEventCreatedSeconds "checkout.session.async_payment_failed" "evt_ordered_checkout_older" venue sessionId "cus_ordered_checkout_123" "sub_ordered_checkout_123"
+
+                Right _ <- handleStripeWebhookPayload StripeTestMode newerEvent
+                Right _ <- handleStripeWebhookPayload StripeTestMode olderEvent
+
+                attempt <- query @BillingCheckoutAttempt |> filterWhere (#stripeCheckoutSessionId, Just sessionId) |> fetchOne
+                attempt.status `shouldBe` "completed"
+                attempt.errorCode `shouldBe` Nothing
+                notificationCount <- query @AppJob |> filterWhere (#jobKind, billingNotificationJobKind) |> fetchCount
+                notificationCount `shouldBe` 0
+
+        it "rolls back a failed supported event and applies its later retry once" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Webhook Atomic Retry Venue"
+                customer <- createBillingCustomer venue "cus_atomic_before_retry"
+                let eventBody = checkoutSessionEventForAttempt "evt_atomic_retry_123" venue "cs_atomic_retry_123" "cus_atomic_after_retry" "sub_atomic_retry_123"
+                signatureHeader <- signedStripeHeader testStripeConfig.webhookSecret eventBody
+
+                failedResponse <- withStripeConfigForTest (Right testStripeConfig) do
+                    callStripeWebhookWithJsonBody eventBody signatureHeader
+
+                failedResponse `responseStatusShouldBe` status500
+                failedEventCount <- query @BillingEvent |> fetchCount
+                failedEventCount `shouldBe` 0
+                failedSubscriptionCount <- query @VenueSubscription |> fetchCount
+                failedSubscriptionCount `shouldBe` 0
+
+                _ <- customer |> set #stripeCustomerId "cus_atomic_after_retry" |> updateRecord
+                retryResponse <- withStripeConfigForTest (Right testStripeConfig) do
+                    callStripeWebhookWithJsonBody eventBody signatureHeader
+
+                retryResponse `responseStatusShouldBe` status200
+                eventCount <- query @BillingEvent |> filterWhere (#stripeEventId, "evt_atomic_retry_123" :: Text) |> fetchCount
+                eventCount `shouldBe` 1
 
         it "persists live provider mode on subscription snapshots" $ withContext do
             withCleanDb do
@@ -113,6 +208,28 @@ tests = aroundAll withDatabaseTestContext do
                 secondResult `shouldSatisfy` isDuplicate
                 eventCount <- query @BillingEvent |> filterWhere (#stripeEventId, "evt_duplicate_subscription" :: Text) |> fetchCount
                 eventCount `shouldBe` 1
+
+        it "serializes concurrent duplicate deliveries into one processed event" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Webhook Concurrent Duplicate Venue"
+                _ <- createBillingCustomer venue "cus_concurrent_duplicate_123"
+                let eventBody = subscriptionEvent "evt_concurrent_duplicate" venue "cus_concurrent_duplicate_123" "sub_concurrent_duplicate" "active"
+                firstResult <- newEmptyMVar
+                secondResult <- newEmptyMVar
+
+                runWebhookInThread eventBody firstResult
+                runWebhookInThread eventBody secondResult
+                firstDelivery <- takeMVar firstResult
+                secondDelivery <- takeMVar secondResult
+                let deliveries = [firstDelivery, secondDelivery]
+                deliveries `shouldSatisfy` all isSuccessfulWebhookDelivery
+                let webhookResults = [result | Right (Right result) <- deliveries]
+                length (filter isProcessed webhookResults) `shouldBe` 1
+                length (filter isDuplicate webhookResults) `shouldBe` 1
+                eventCount <- query @BillingEvent |> filterWhere (#stripeEventId, "evt_concurrent_duplicate" :: Text) |> fetchCount
+                eventCount `shouldBe` 1
+                subscriptionCount <- query @VenueSubscription |> fetchCount
+                subscriptionCount `shouldBe` 1
 
         it "records unknown events as ignored without storing raw payloads" $ withContext do
             withCleanDb do
@@ -350,6 +467,9 @@ createBillingCustomer venue customerId =
 subscriptionEvent :: Text -> Venue -> Text -> Text -> Text -> LByteString.ByteString
 subscriptionEvent = subscriptionEventWithModes False False
 
+subscriptionEventAt :: Integer -> Text -> Venue -> Text -> Text -> Text -> LByteString.ByteString
+subscriptionEventAt = subscriptionEventWithModesAt False False
+
 subscriptionEventWithLivemode :: Bool -> Text -> Venue -> Text -> Text -> Text -> LByteString.ByteString
 subscriptionEventWithLivemode livemode = subscriptionEventWithModes livemode livemode
 
@@ -357,12 +477,15 @@ subscriptionEventWithPriceLivemode :: Bool -> Text -> Venue -> Text -> Text -> T
 subscriptionEventWithPriceLivemode = subscriptionEventWithModes False
 
 subscriptionEventWithModes :: Bool -> Bool -> Text -> Venue -> Text -> Text -> Text -> LByteString.ByteString
-subscriptionEventWithModes livemode priceLivemode eventId venue customerId subscriptionId status =
+subscriptionEventWithModes livemode priceLivemode = subscriptionEventWithModesAt livemode priceLivemode testStripeEventCreatedSeconds
+
+subscriptionEventWithModesAt :: Bool -> Bool -> Integer -> Text -> Venue -> Text -> Text -> Text -> LByteString.ByteString
+subscriptionEventWithModesAt livemode priceLivemode eventCreatedAt eventId venue customerId subscriptionId status =
     Aeson.encode $
         Aeson.object
             [ "id" Aeson..= eventId
             , "object" Aeson..= ("event" :: Text)
-            , "created" Aeson..= testStripeEventCreatedSeconds
+            , "created" Aeson..= eventCreatedAt
             , "type" Aeson..= ("customer.subscription.updated" :: Text)
             , "livemode" Aeson..= livemode
             , "api_version" Aeson..= pinnedStripeApiVersion
@@ -413,12 +536,23 @@ subscriptionEventWithModes livemode priceLivemode eventId venue customerId subsc
 
 checkoutSessionEventForVenue :: Bool -> Text -> Venue -> Text -> Text -> LByteString.ByteString
 checkoutSessionEventForVenue livemode eventId venue customerId subscriptionId =
+    checkoutSessionEventWithId testStripeEventCreatedSeconds "checkout.session.completed" livemode eventId venue "cs_live_customer_mode" customerId subscriptionId
+
+checkoutSessionEventForAttempt :: Text -> Venue -> Text -> Text -> Text -> LByteString.ByteString
+checkoutSessionEventForAttempt = checkoutSessionEventForAttemptAt testStripeEventCreatedSeconds "checkout.session.completed"
+
+checkoutSessionEventForAttemptAt :: Integer -> Text -> Text -> Venue -> Text -> Text -> Text -> LByteString.ByteString
+checkoutSessionEventForAttemptAt eventCreatedAt eventType eventId venue sessionId customerId subscriptionId =
+    checkoutSessionEventWithId eventCreatedAt eventType False eventId venue sessionId customerId subscriptionId
+
+checkoutSessionEventWithId :: Integer -> Text -> Bool -> Text -> Venue -> Text -> Text -> Text -> LByteString.ByteString
+checkoutSessionEventWithId eventCreatedAt eventType livemode eventId venue sessionId customerId subscriptionId =
     Aeson.encode $
         Aeson.object
             [ "id" Aeson..= eventId
             , "object" Aeson..= ("event" :: Text)
-            , "created" Aeson..= testStripeEventCreatedSeconds
-            , "type" Aeson..= ("checkout.session.completed" :: Text)
+            , "created" Aeson..= eventCreatedAt
+            , "type" Aeson..= eventType
             , "livemode" Aeson..= livemode
             , "api_version" Aeson..= pinnedStripeApiVersion
             , "data" Aeson..=
@@ -426,7 +560,7 @@ checkoutSessionEventForVenue livemode eventId venue customerId subscriptionId =
                     [ "object" Aeson..=
                         Aeson.object
                             [ "object" Aeson..= ("checkout.session" :: Text)
-                            , "id" Aeson..= ("cs_live_customer_mode" :: Text)
+                            , "id" Aeson..= sessionId
                             , "livemode" Aeson..= livemode
                             , "customer" Aeson..= customerId
                             , "subscription" Aeson..= subscriptionId
@@ -598,6 +732,16 @@ testStripeConfig =
                 , stripeOwnerNavigationVisible = False
                 }
         }
+
+runWebhookInThread :: (?modelContext :: ModelContext) => LByteString.ByteString -> MVar (Either SomeException (Either Text BillingWebhookResult)) -> IO ()
+runWebhookInThread eventBody result = do
+    _ <- forkIO (try (handleStripeWebhookPayload StripeTestMode eventBody) >>= putMVar result)
+    pure ()
+
+isSuccessfulWebhookDelivery :: Either SomeException (Either Text BillingWebhookResult) -> Bool
+isSuccessfulWebhookDelivery = \case
+    Right (Right _) -> True
+    _               -> False
 
 isProcessed :: BillingWebhookResult -> Bool
 isProcessed (BillingWebhookProcessed _) = True

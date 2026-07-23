@@ -17,11 +17,13 @@ Tickets:
 - #225 sandbox, test-clock, legal, and launch readiness
 - #226 hidden-navigation live canary and owner-navigation release
 
-Implemented through #219: the Stripe contract and deployment controls are
+Implemented through #220: the Stripe contract and deployment controls are
 pinned, production persistence exists, and Checkout now uses a committed,
 venue-locked, resumable attempt with owner-only payment actions and correlated
 browser returns. Portal creation is owner-only and uses fresh request-scoped
-idempotency. Webhook attempt transitions, reconciliation, customer-ready owner
+idempotency. Signed webhooks now atomically record, deduplicate, order
+Subscription snapshots, transition matching Checkout attempts, and enqueue
+notifications before acknowledging Stripe. Reconciliation, customer-ready owner
 copy, founder diagnostics, and launch evidence remain in the later tickets.
 
 Living docs to update:

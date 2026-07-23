@@ -1,6 +1,5 @@
 module Web.Billing.Mutations
     ( billingTouchedResources
-    , recordBillingWebhookMutation
     , startOrResumeBillingCheckoutMutation
     , updateVenueBillingControlMutation
     ) where
@@ -8,15 +7,13 @@ module Web.Billing.Mutations
 import Application.Billing.Checkout (CheckoutStartResult (..),
                                      startOrResumeCheckout)
 import Application.Billing.Stripe (StripeClient, StripeConfig)
-import Application.Billing.Webhook (BillingWebhookResult (..))
 import Application.Helper.FrontendContract.Surface.Billing.Resource (billingResource)
 import Application.Helper.SurfaceResource
 import Control.Monad (void)
 import qualified Data.Aeson as Aeson
 import qualified Data.Text as Text
 import Web.Controller.Prelude
-import Web.SurfaceInvalidation (invalidateTouchedResources,
-                                invalidateTouchedResourcesWithoutContext)
+import Web.SurfaceInvalidation (invalidateTouchedResources)
 
 billingTouchedResources :: Id Venue -> [SurfaceResourceValue]
 billingTouchedResources venueId =
@@ -77,16 +74,3 @@ updateVenueBillingControlMutation manualReadOnly reason now = do
         liveMutationResult control (billingTouchedResources currentVenueId)
     where
         normalizedReason = if Text.null reason then Nothing else Just reason
-
-recordBillingWebhookMutation :: BillingWebhookResult -> IO (LiveMutationResult BillingWebhookResult)
-recordBillingWebhookMutation result =
-    case billingWebhookResultVenueId result of
-        Nothing -> pure (liveMutationResult result [])
-        Just venueId ->
-            invalidateTouchedResourcesWithoutContext "billing.webhook" $
-                liveMutationResult result [billingResource venueId]
-
-billingWebhookResultVenueId :: BillingWebhookResult -> Maybe UUID
-billingWebhookResultVenueId (BillingWebhookProcessed event) = event.venueId
-billingWebhookResultVenueId (BillingWebhookDuplicate event) = event.venueId
-billingWebhookResultVenueId (BillingWebhookIgnored event)   = event.venueId

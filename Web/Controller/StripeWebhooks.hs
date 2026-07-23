@@ -2,10 +2,10 @@ module Web.Controller.StripeWebhooks where
 
 import Application.Billing.Stripe
 import Application.Billing.Webhook
+import Control.Exception (SomeException, try)
 import qualified Data.Text.Encoding as TextEncoding
 import Network.HTTP.Types.Status (Status, status400, status500)
 import qualified Network.Wai as Wai
-import Web.Billing.Mutations (recordBillingWebhookMutation)
 import Web.Controller.Prelude
 
 instance Controller StripeWebhooksController where
@@ -21,12 +21,14 @@ instance Controller StripeWebhooksController where
                 verifyStripeWebhookSignature stripeConfig.webhookSecret signatureHeader rawBody >>= \case
                     Left message ->
                         renderPlainWithStatus status400 message
-                    Right _ ->
-                        handleStripeWebhookPayload stripeConfig.stripeMode rawBody >>= \case
-                            Left message ->
+                    Right _ -> do
+                        processing <- try (handleStripeWebhookPayload stripeConfig.stripeMode rawBody)
+                        case processing of
+                            Left (_ :: SomeException) ->
+                                renderPlainWithStatus status500 "Stripe webhook processing failed"
+                            Right (Left message) ->
                                 renderPlainWithStatus status400 message
-                            Right result -> do
-                                _ <- recordBillingWebhookMutation result
+                            Right (Right _) ->
                                 renderPlain "ok"
 
 requireStripeSignatureHeader :: (?context :: ControllerContext, ?request :: Request) => IO Text
