@@ -24,7 +24,8 @@ Read this before editing `Application/Billing/` or billing controllers.
   committed local attempt ID, and Portal idempotency fresh per request.
 - Prepare and commit a Checkout attempt before its provider create call. Hold a
   venue-row lock while deciding, creating, or resuming so concurrent requests
-  share the one open attempt.
+  share the one open attempt. IHP QueryBuilder has no row-lock operation; keep
+  the narrowly required `SELECT ... FOR UPDATE` isolated in `Persistence.hs`.
 - Never log Stripe secret keys, webhook secrets, payment method details, or full
   raw webhook/API payloads. Checkout-attempt failures use only bounded sanitized
   error code/summary fields; never persist provider bodies in those fields.

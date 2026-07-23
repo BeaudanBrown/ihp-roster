@@ -623,6 +623,34 @@ tests = aroundAll withDatabaseTestContext do
                 response `responseBodyShouldNotContain` "Subscription confirmed"
                 response `responseBodyShouldNotContain` "Checkout session: cs_forged_123"
 
+        it "handles malformed Checkout attempt ids at every return boundary" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Billing Malformed Return Venue"
+                owner <- createUserRecord "billing-malformed-return@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue owner "venue_owner"
+
+                successResponse <- withPasskeyVerifiedUserAndCurrentVenue owner venue.id do
+                    callActionWithParams BillingSuccessAction
+                        [ ("attempt_id", "not-a-uuid")
+                        , ("session_id", "cs_forged_123")
+                        ]
+                cancelResponse <- withPasskeyVerifiedUserAndCurrentVenue owner venue.id do
+                    callActionWithParams BillingCancelAction
+                        [("attempt_id", "not-a-uuid")]
+                pageResponse <- withPasskeyVerifiedUserAndCurrentVenue owner venue.id do
+                    withRequestQuery "checkout=success&attempt_id=not-a-uuid&session_id=cs_forged_123" do
+                        callAction BillingAction
+                fragmentResponse <- withPasskeyVerifiedUserAndCurrentVenue owner venue.id do
+                    withRequestQuery "checkout=success&attempt_id=not-a-uuid&session_id=cs_forged_123" do
+                        callAction ShowbillingStatusLiveFragmentAction
+
+                lookup "Location" (responseHeaders successResponse) `shouldBe` Just "http://localhost/Billing"
+                lookup "Location" (responseHeaders cancelResponse) `shouldBe` Just "http://localhost/Billing"
+                pageResponse `responseStatusShouldBe` status200
+                fragmentResponse `responseStatusShouldBe` status200
+                pageResponse `responseBodyShouldNotContain` "Finalising subscription"
+                fragmentResponse `responseBodyShouldNotContain` "Finalising subscription"
+
         it "does not confirm an open attempt from an unrelated existing subscription" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Billing Unrelated Subscription Return Venue"
@@ -639,7 +667,7 @@ tests = aroundAll withDatabaseTestContext do
                 response `responseBodyShouldContain` "Finalising subscription"
                 response `responseBodyShouldNotContain` "Subscription confirmed"
 
-        it "updates the Checkout modal to confirmed once the subscription webhook is processed" $ withContext do
+        it "confirms only a completed attempt with its matching local subscription" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Billing Confirmed Modal Venue"
                 owner <- createUserRecord "billing-confirmed-modal-owner@example.com" "staff" True

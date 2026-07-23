@@ -178,6 +178,9 @@ createEnabledBillingCheckoutSession stripeConfig = do
                 (stripeConfig.appBaseUrl <> pathTo BillingSuccessAction)
                 [("attempt_id", inputValue attemptId)]
                 <> "&session_id={CHECKOUT_SESSION_ID}"
+    -- Stripe documents Session substitution for success_url, not cancel_url.
+    -- Cancellation therefore carries the opaque attempt ID and is accepted only
+    -- when that current-venue attempt already has a stored Session ID.
     let cancelUrlFor attemptId =
             appendQueryParams
                 (stripeConfig.appBaseUrl <> pathTo BillingCancelAction)

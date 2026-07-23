@@ -204,12 +204,18 @@ enforces this rule and the new-Checkout deployment control before Customer or
 Checkout creation; hiding or disabling a button is not a security boundary.
 
 Success and cancellation URLs carry the opaque local attempt ID. Success also
-carries Stripe's documented Session placeholder. Return handling parses the
-attempt ID totally and requires the authenticated current venue, local attempt,
-and stored Session ID to agree. Direct Billing/live-fragment queries repeat the
-same correlation. A return never creates or confirms a Subscription; only a
-completed correlated attempt and its matching webhook-confirmed local
-Subscription render as confirmed.
+carries Stripe's documented Session placeholder. Stripe does not document that
+placeholder for cancellation, so the cancellation handler accepts an attempt
+only when it belongs to the authenticated current venue and already has a stored
+Session ID; an optionally supplied Session ID must match. Success and direct
+Billing/live-fragment queries require the venue, attempt, and supplied/stored
+Session IDs all to agree.
+
+A return never creates or confirms a Subscription. The return view can render
+confirmed only from an already completed correlated attempt and its matching
+local Subscription. The atomic signed-webhook transition that produces that
+state is owned by #220; this Checkout lifecycle never infers it from browser
+parameters.
 
 ## Customer Portal Flow
 

@@ -6,12 +6,12 @@ module Application.Billing.Checkout
     )
 where
 
+import Application.Billing.Persistence (lockVenueForCheckout)
 import Application.Billing.Stripe
 import Data.Time.Clock.POSIX (posixSecondsToUTCTime)
-import Data.Tuple.Only (Only (..))
 import Generated.Types
 import IHP.ControllerPrelude
-import IHP.ModelSupport (sqlQuery, withTransaction)
+import IHP.ModelSupport (withTransaction)
 
 data CheckoutStartOutcome
     = CheckoutSessionReady !BillingCheckoutAttempt !StripeCheckoutSession
@@ -56,7 +56,7 @@ startOrResumeCheckout
     -> IO CheckoutStartResult
 startOrResumeCheckout stripeClient stripeConfig venue owner successUrlFor cancelUrlFor = do
     preparation <- withTransaction do
-        lockVenueForCheckout venue.id
+        lockVenueForCheckout (unpackId venue.id)
         maybeSubscription <- fetchVenueSubscription venue.id
         if not (checkoutAllowedForSubscription maybeSubscription)
             then pure (CheckoutPreparationRejected existingSubscriptionMessage)
@@ -72,15 +72,6 @@ startOrResumeCheckout stripeClient stripeConfig venue owner successUrlFor cancel
         CheckoutPreparationRejected message -> pure (checkoutRejected message)
         CheckoutPrepared prepared ->
             executePreparedCheckout stripeClient stripeConfig venue owner successUrlFor cancelUrlFor prepared
-
-lockVenueForCheckout :: (?modelContext :: ModelContext) => Id Venue -> IO ()
-lockVenueForCheckout venueId = do
-    lockedVenues :: [Venue] <-
-        sqlQuery
-            "SELECT venues.* FROM venues WHERE id = ? FOR UPDATE"
-            (Only (unpackId venueId))
-    unless (length lockedVenues == 1) do
-        error "Unable to lock the venue for Checkout"
 
 fetchVenueSubscription :: (?modelContext :: ModelContext) => Id Venue -> IO (Maybe VenueSubscription)
 fetchVenueSubscription venueId =
@@ -107,7 +98,7 @@ executePreparedCheckout
     -> IO CheckoutStartResult
 executePreparedCheckout stripeClient stripeConfig venue owner successUrlFor cancelUrlFor prepared = do
     lockedResult <- withTransaction do
-        lockVenueForCheckout venue.id
+        lockVenueForCheckout (unpackId venue.id)
         maybeSubscription <- fetchVenueSubscription venue.id
         if not (checkoutAllowedForSubscription maybeSubscription)
             then pure (CheckoutFinished (checkoutRejected existingSubscriptionMessage))

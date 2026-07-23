@@ -15,6 +15,8 @@ customer and subscription records must not be deduplicated by user or email.
   signature verification.
 - `Checkout.hs` - locked, durable Checkout-attempt preparation, subscription
   eligibility checks, interrupted-create recovery, and open Session resumption.
+- `Persistence.hs` - the narrow PostgreSQL row-lock boundary needed because IHP
+  QueryBuilder does not expose `SELECT ... FOR UPDATE`.
 - `Webhook.hs` - Stripe webhook event parsing and idempotent local subscription
   state updates.
 - `Notifications.hs` - sanitized billing problem notifications for venue
