@@ -91,7 +91,7 @@ ensureBillingAccess = do
         (currentUserIsSuperAdmin || hasRole VenueOwnerRole)
         "Only the venue owner or a super admin can manage billing for this venue."
     if currentUserIsSuperAdmin
-        then ensurePrivilegedPasskeyReady
+        then ensureFreshPasskeyReady
         else ensurePrivilegedPasskeySetupComplete
 
 ensureOwnerBillingPaymentAction :: (?context :: ControllerContext, ?request :: Request, ?modelContext :: ModelContext) => IO ()
@@ -99,14 +99,14 @@ ensureOwnerBillingPaymentAction = do
     redirectPermissionDeniedUnless
         (not currentUserIsSuperAdmin && hasRole VenueOwnerRole)
         "Only the venue owner can start Checkout or open Customer Portal."
-    ensurePrivilegedPasskeyReady
+    ensureFreshPasskeyReady
 
 ensureFounderBillingReconciliationAction :: (?context :: ControllerContext, ?request :: Request, ?modelContext :: ModelContext) => IO ()
 ensureFounderBillingReconciliationAction = do
     redirectPermissionDeniedUnless
         currentUserIsSuperAdmin
         "Only super admins can synchronize venue billing."
-    ensurePrivilegedPasskeyReady
+    ensureFreshPasskeyReady
 
 fetchBillingViewModel :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => IO BillingViewModel
 fetchBillingViewModel = do

@@ -57,6 +57,16 @@ contract fields are rejected before any billing event or subscription state is
 persisted. The Stripe Dashboard webhook endpoint must be configured to emit
 this same version.
 
+The reviewed offline OpenAPI slice is pinned to `stripe/openapi` commit
+`86b6ae4db114ff06968dcc191ff4a898e9b5db7c` (`openapi/spec3.json`). The
+repository caches that immutable upstream source in compressed form and records
+only paths, parameters, form fields, headers, and response fields consumed by
+Bepis in `vendor/stripe-openapi/bepis-contract.json`; the offline check compares
+the reviewed slice to the cached upstream source without turning volatile unused
+provider fields into application requirements. Fixture
+provenance and the mandatory sanitize/diff-review refresh procedure live beside
+the fixtures in `Test/Fixtures/stripe/2026-06-24.dahlia/README.md`.
+
 Primary references:
 
 - `https://docs.stripe.com/api/versioning`
@@ -269,6 +279,10 @@ Minimum launch events:
 - `customer.subscription.updated`
 - `customer.subscription.deleted`
 - `invoice.payment_failed`
+
+For the pinned Dahlia contract, an invoice's Subscription association comes from
+`parent.subscription_details.subscription`; the parser also accepts the legacy
+top-level `subscription` field for older replayed events.
 
 Webhook processing stores summaries and provider object IDs rather than full raw
 payloads by default.
@@ -544,6 +558,16 @@ Local deterministic tests cover:
   rejection, ordering-cursor advancement, non-terminal sweep selection, active
   job deduplication, founder-only manual enqueueing, and sanitized failures
 
+The process-level Playwright boundary is enabled only by the conjunction of
+`IHP_ROSTER_E2E=1`, `STRIPE_MODE=test`, and a numeric HTTP loopback
+`STRIPE_TEST_API_BASE_URL`. The production transport rejects the override in
+all other modes and rejects non-loopback targets before opening a connection.
+The E2E wrapper starts the Haskell mock from `Test/StripeProcessMockMain.hs`,
+which reuses `Test.StripeMock` header/version/idempotency validation and the
+same reviewed fixtures as Hspec. Its status endpoint makes unexpected,
+reordered, missing, and unconsumed calls fail the browser spec; browser tests
+inspect hosted redirects without loading third-party Stripe DOM.
+
 Strict local Stripe mock coverage should include:
 
 - `GET /v1/prices`
@@ -553,8 +577,17 @@ Strict local Stripe mock coverage should include:
 - `POST /v1/billing_portal/sessions`
 - `GET /v1/subscriptions/{id}`, if reconciliation uses it
 
-Where practical, request contracts should be checked against Stripe OpenAPI
-metadata without requiring live network calls.
+`scripts/check-stripe-openapi-contract` checks the reviewed request/response
+contract and sanitized fixtures offline. `billing-production-readiness` also
+upgrades a customer-populated predecessor schema through the production billing
+migration and evaluates the production NixOS Stripe options, credentials, and
+safety assertions. It is part of `verify-full`.
+
+Sensitive-data evidence is intentionally composed at the highest deterministic
+seams: one Billing controller example checks persistence, AppJob payload/error,
+audit summary, rendered owner HTML, and captured process output together; the
+strict contract, reconciliation, and webhook suites retain focused failure-path
+coverage.
 
 Before live launch, an operator must run and document sandbox checks with Stripe
 CLI and Billing test clocks for Checkout completion, subscription update,

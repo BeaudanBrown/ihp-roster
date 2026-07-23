@@ -1,0 +1,76 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Prove the production billing migration upgrades a representative predecessor
+# while preserving its venue, Customer, Subscription, and Event rows.
+test-postgres ensure >/dev/null
+socket="${TEST_DB_SOCKET:-${PGHOST:-$PWD/build/db}}"
+database="billing_migration_check_${$}_${RANDOM}"
+
+cleanup() {
+    dropdb -h "$socket" --if-exists "$database" >/dev/null 2>&1 || true
+}
+trap cleanup EXIT INT TERM
+
+createdb -h "$socket" "$database"
+psql -h "$socket" -d "$database" -v ON_ERROR_STOP=1 -f Test/Fixtures/billing/pre-production-schema.sql >/dev/null
+psql -h "$socket" -d "$database" -v ON_ERROR_STOP=1 -f Application/Migration/1784761930.sql >/dev/null
+
+psql -h "$socket" -d "$database" -v ON_ERROR_STOP=1 <<'SQL' >/dev/null
+DO $$
+BEGIN
+    IF (SELECT count(*) FROM venues WHERE name = 'Preserved Venue') <> 1 THEN
+        RAISE EXCEPTION 'predecessor venue was not preserved';
+    END IF;
+    IF (SELECT count(*) FROM venue_billing_customers WHERE stripe_customer_id = 'cus_preserved' AND livemode = FALSE AND created_by_user_id IS NULL) <> 1 THEN
+        RAISE EXCEPTION 'predecessor Customer was not safely backfilled';
+    END IF;
+    IF (SELECT count(*) FROM venue_subscriptions WHERE stripe_subscription_id = 'sub_preserved' AND livemode = FALSE AND last_applied_stripe_event_id IS NULL) <> 1 THEN
+        RAISE EXCEPTION 'predecessor Subscription was not safely backfilled';
+    END IF;
+    IF (SELECT count(*) FROM billing_events WHERE stripe_event_id = 'evt_preserved' AND livemode = FALSE AND stripe_created_at IS NULL) <> 1 THEN
+        RAISE EXCEPTION 'predecessor Event was not preserved';
+    END IF;
+    IF EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_schema = 'public'
+          AND table_name IN ('venue_billing_customers', 'venue_subscriptions', 'billing_events')
+          AND column_name = 'livemode'
+          AND column_default IS NOT NULL
+    ) THEN
+        RAISE EXCEPTION 'temporary livemode backfill default was not dropped';
+    END IF;
+END
+$$;
+
+INSERT INTO billing_checkout_attempts (
+    venue_id, initiated_by_user_id, livemode, stripe_customer_id, stripe_price_id
+) VALUES (
+    'a1000000-0000-0000-0000-000000000001',
+    'a0000000-0000-0000-0000-000000000001',
+    FALSE,
+    'cus_preserved',
+    'price_preserved'
+);
+
+DO $$
+BEGIN
+    BEGIN
+        INSERT INTO billing_checkout_attempts (
+            venue_id, initiated_by_user_id, livemode, stripe_customer_id, stripe_price_id
+        ) VALUES (
+            'a1000000-0000-0000-0000-000000000001',
+            'a0000000-0000-0000-0000-000000000001',
+            FALSE,
+            'cus_second_open',
+            'price_preserved'
+        );
+        RAISE EXCEPTION 'one-open-attempt invariant was not enforced';
+    EXCEPTION WHEN unique_violation THEN
+        NULL;
+    END;
+END
+$$;
+SQL
+
+echo "Billing migration upgrade check passed"

@@ -725,11 +725,53 @@ sendStripeJsonRequestWith transport _label stripeRequest = do
 
 sendStripeRawRequest :: StripeHttpRequest -> IO (Either StripeClientError LByteString.ByteString)
 sendStripeRawRequest stripeRequest =
-    handleStripeHttpExceptions do
-        requestWithHeaders <- toHttpRequest stripeRequest
-        Timeout.timeout stripeRequest.stripeRequestTimeoutMicroseconds (httpLBS requestWithHeaders) >>= \case
-            Nothing -> pure (Left (StripeHttpError "Stripe request timed out"))
-            Just response -> decodeStripeRawResponse "Stripe request" response
+    resolveStripeTransportRequest stripeRequest >>= \case
+        Left err -> pure (Left err)
+        Right transportRequest -> handleStripeHttpExceptions do
+            requestWithHeaders <- toHttpRequest transportRequest
+            Timeout.timeout transportRequest.stripeRequestTimeoutMicroseconds (httpLBS requestWithHeaders) >>= \case
+                Nothing -> pure (Left (StripeHttpError "Stripe request timed out"))
+                Just response -> decodeStripeRawResponse "Stripe request" response
+
+resolveStripeTransportRequest :: StripeHttpRequest -> IO (Either StripeClientError StripeHttpRequest)
+resolveStripeTransportRequest stripeRequest = do
+    maybeTestBaseUrl <- cleanMaybe <$> lookupEnvText "STRIPE_TEST_API_BASE_URL"
+    e2eEnabled <- (== Just "1") <$> lookupEnv "IHP_ROSTER_E2E"
+    stripeMode <- fmap Text.toLower . cleanMaybe <$> lookupEnvText "STRIPE_MODE"
+    case maybeTestBaseUrl of
+        Nothing
+            | e2eEnabled ->
+                pure (Left (StripeHttpError "Explicit E2E mode requires the local Stripe test boundary"))
+            | otherwise -> pure (Right stripeRequest)
+        Just testBaseUrl
+            | not e2eEnabled || stripeMode /= Just "test" ->
+                pure (Left (StripeHttpError "The local Stripe test boundary is unavailable outside explicit E2E test mode"))
+            | otherwise -> do
+                loopbackTarget <- isLoopbackHttpBaseUrl testBaseUrl
+                pure $
+                    if not loopbackTarget
+                        then Left (StripeHttpError "The local Stripe test boundary requires an HTTP loopback URL")
+                        else
+                            Right
+                                stripeRequest
+                                    { stripeRequestUrl =
+                                        testBaseUrl
+                                            <> Text.drop (Text.length defaultStripeRequestBaseUrls.stripeApiBaseUrl) stripeRequest.stripeRequestUrl
+                                    }
+
+isLoopbackHttpBaseUrl :: Text -> IO Bool
+isLoopbackHttpBaseUrl baseUrl =
+    Exception.try (parseRequest (cs baseUrl)) >>= \case
+        Left (_ :: Exception.SomeException) -> pure False
+        Right request ->
+            pure $
+                not (Http.secure request)
+                    && Http.host request `elem` ["127.0.0.1", "::1"]
+                    && Http.path request == "/"
+                    && ByteString.null (Http.queryString request)
+
+-- The rewrite is deliberately transport-only: production request builders,
+-- strict expectations, and response parsers remain the one Stripe contract.
 
 toHttpRequest :: StripeHttpRequest -> IO Request
 toHttpRequest stripeRequest = do
@@ -738,6 +780,7 @@ toHttpRequest stripeRequest = do
             request
                 |> setRequestMethod stripeRequest.stripeRequestMethod
                 |> setRequestResponseTimeout (Http.responseTimeoutMicro stripeRequest.stripeRequestTimeoutMicroseconds)
+                |> (\request -> request { Http.redirectCount = 0 })
                 |> applyRequestHeaders stripeRequest.stripeRequestHeaders
     pure case stripeRequest.stripeRequestBody of
         Nothing -> requestWithHeaders

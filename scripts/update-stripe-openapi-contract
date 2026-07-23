@@ -1,0 +1,149 @@
+#!/usr/bin/env python3
+"""Refresh the reviewed Bepis slice of Stripe's OpenAPI contract.
+
+Usage: scripts/update-stripe-openapi-contract /path/to/stripe-openapi/openapi/spec3.json
+The source checkout must be at STRIPE_OPENAPI_COMMIT below. The generated file
+is intentionally small: only provider facts consumed by Bepis are retained.
+"""
+from __future__ import annotations
+
+import gzip
+import hashlib
+import json
+import subprocess
+import sys
+from pathlib import Path
+
+STRIPE_OPENAPI_COMMIT = "86b6ae4db114ff06968dcc191ff4a898e9b5db7c"
+OUTPUT = Path("vendor/stripe-openapi/bepis-contract.json")
+SOURCE_CACHE = Path("vendor/stripe-openapi/spec3-2026-06-24.dahlia.json.gz")
+
+OPERATIONS = [
+    ("GET", "/v1/prices", ["active", "lookup_keys", "expand"], []),
+    ("GET", "/v1/prices/{price}", ["price"], []),
+    ("POST", "/v1/customers", [], ["name", "email", "metadata"]),
+    ("POST", "/v1/checkout/sessions", [], ["mode", "customer", "line_items", "client_reference_id", "metadata", "subscription_data", "success_url", "cancel_url", "automatic_tax", "tax_id_collection"]),
+    ("GET", "/v1/checkout/sessions/{session}", ["session"], []),
+    ("POST", "/v1/billing_portal/sessions", [], ["customer", "return_url"]),
+    ("GET", "/v1/subscriptions/{subscription_exposed_id}", ["subscription_exposed_id"], []),
+]
+
+RESPONSE_FIELDS = {
+    "price": ["id", "object", "active", "currency", "livemode", "unit_amount", "type", "recurring"],
+    "customer": ["id", "object", "livemode"],
+    "checkout.session": ["id", "object", "url", "customer", "subscription", "client_reference_id", "metadata", "livemode", "mode", "status", "expires_at"],
+    "billing_portal.session": ["id", "object", "url", "livemode", "customer", "return_url"],
+    "subscription": ["id", "object", "customer", "metadata", "livemode", "status", "items", "cancel_at_period_end"],
+    "subscription_item": ["object", "current_period_start", "current_period_end", "price", "quantity"],
+}
+
+WEBHOOK_EVENTS = {
+    "checkout.session.completed": (
+        "checkout.session",
+        ["id", "object", "client_reference_id", "customer", "livemode", "metadata", "status", "subscription"],
+    ),
+    "checkout.session.async_payment_succeeded": (
+        "checkout.session",
+        ["id", "object", "client_reference_id", "customer", "livemode", "metadata", "status", "subscription"],
+    ),
+    "checkout.session.async_payment_failed": (
+        "checkout.session",
+        ["id", "object", "client_reference_id", "customer", "livemode", "metadata", "status", "subscription"],
+    ),
+    "customer.subscription.created": ("subscription", RESPONSE_FIELDS["subscription"]),
+    "customer.subscription.updated": ("subscription", RESPONSE_FIELDS["subscription"]),
+    "customer.subscription.deleted": ("subscription", RESPONSE_FIELDS["subscription"]),
+    "invoice.payment_failed": (
+        "invoice",
+        ["id", "object", "customer", "livemode", "parent", "period_end", "period_start"],
+    ),
+}
+
+
+def git_commit_for(path: Path) -> str:
+    checkout = path.resolve().parents[1]
+    return subprocess.check_output(["git", "-C", str(checkout), "rev-parse", "HEAD"], text=True).strip()
+
+
+def main() -> None:
+    if len(sys.argv) != 2:
+        raise SystemExit(__doc__)
+    source = Path(sys.argv[1])
+    commit = git_commit_for(source)
+    if commit != STRIPE_OPENAPI_COMMIT:
+        raise SystemExit(f"Expected stripe/openapi {STRIPE_OPENAPI_COMMIT}, got {commit}")
+    source_bytes = source.read_bytes()
+    source_sha256 = hashlib.sha256(source_bytes).hexdigest()
+    spec = json.loads(source_bytes)
+    if spec["info"]["version"] != "2026-06-24.dahlia":
+        raise SystemExit(f"Unexpected Stripe API version: {spec['info']['version']}")
+
+    operations = []
+    for method, path, selected_params, selected_body_fields in OPERATIONS:
+        operation = spec["paths"][path][method.lower()]
+        documented_params = {parameter["name"] for parameter in operation.get("parameters", [])}
+        missing_params = set(selected_params) - documented_params
+        if missing_params:
+            raise SystemExit(f"{method} {path} no longer documents parameters {sorted(missing_params)}")
+        body_schema = operation.get("requestBody", {}).get("content", {}).get("application/x-www-form-urlencoded", {}).get("schema", {})
+        documented_body = set(body_schema.get("properties", {}))
+        missing_body = set(selected_body_fields) - documented_body
+        if missing_body:
+            raise SystemExit(f"{method} {path} no longer documents form fields {sorted(missing_body)}")
+        operations.append({
+            "method": method,
+            "path": path,
+            "parameters": selected_params,
+            "formFields": selected_body_fields,
+            "contentType": "application/x-www-form-urlencoded",
+        })
+
+    schemas = {}
+    for name, fields in RESPONSE_FIELDS.items():
+        properties = spec["components"]["schemas"][name]["properties"]
+        missing = set(fields) - set(properties)
+        if missing:
+            raise SystemExit(f"Schema {name} no longer documents fields {sorted(missing)}")
+        schemas[name] = {"fields": fields, "required": sorted(set(fields) & set(spec["components"]["schemas"][name].get("required", [])))}
+
+    webhook_root_fields = ["id", "object", "api_version", "created", "livemode", "type", "data"]
+    event_properties = spec["components"]["schemas"]["event"]["properties"]
+    missing_event_fields = set(webhook_root_fields) - set(event_properties)
+    if missing_event_fields:
+        raise SystemExit(f"Event schema no longer documents fields {sorted(missing_event_fields)}")
+
+    for event_type, (schema_name, fields) in WEBHOOK_EVENTS.items():
+        properties = spec["components"]["schemas"][schema_name]["properties"]
+        missing = set(fields) - set(properties)
+        if missing:
+            raise SystemExit(f"Webhook {event_type} schema no longer documents fields {sorted(missing)}")
+
+    output = {
+        "source": "https://github.com/stripe/openapi",
+        "commit": STRIPE_OPENAPI_COMMIT,
+        "sourcePath": "openapi/spec3.json",
+        "sourceSha256": source_sha256,
+        "apiVersion": spec["info"]["version"],
+        "requiredHeaders": [
+            {"name": "Authorization", "requirement": "OpenAPI bearerAuth"},
+            {"name": "Content-Type", "requirement": "OpenAPI form encoding for POST"},
+            {"name": "Stripe-Version", "requirement": "Bepis pinned API version"},
+            {"name": "Idempotency-Key", "requirement": "Bepis create-request contract"},
+        ],
+        "operations": operations,
+        "responseSchemas": schemas,
+        "webhookRootFields": webhook_root_fields,
+        "webhookEvents": {
+            event_type: {"objectSchema": schema_name, "fields": fields}
+            for event_type, (schema_name, fields) in WEBHOOK_EVENTS.items()
+        },
+    }
+    OUTPUT.parent.mkdir(parents=True, exist_ok=True)
+    OUTPUT.write_text(json.dumps(output, indent=2, sort_keys=True) + "\n")
+    SOURCE_CACHE.write_bytes(gzip.compress(source_bytes, compresslevel=9, mtime=0))
+    print(f"Wrote {OUTPUT}")
+    print(f"Wrote {SOURCE_CACHE} ({source_sha256})")
+
+
+if __name__ == "__main__":
+    main()

@@ -153,6 +153,17 @@ elif [ "$E2E_SERVER_MODE" != "dev" ]; then
     exit 1
 fi
 
+E2E_STRIPE_MOCK_BUILD_DIR="$STATE_DIR/stripe-mock-build"
+E2E_STRIPE_MOCK_BIN="$E2E_STRIPE_MOCK_BUILD_DIR/StripeProcessMock"
+mkdir -p "$E2E_STRIPE_MOCK_BUILD_DIR/obj" "$E2E_STRIPE_MOCK_BUILD_DIR/hi"
+STRIPE_MOCK_GHC_OPTS="$(ihp_roster_ghc_opts) -iTest"
+ghc $STRIPE_MOCK_GHC_OPTS \
+    -main-is Test.StripeProcessMockMain \
+    Test/StripeProcessMockMain.hs \
+    -o "$E2E_STRIPE_MOCK_BIN" \
+    -odir "$E2E_STRIPE_MOCK_BUILD_DIR/obj" \
+    -hidir "$E2E_STRIPE_MOCK_BUILD_DIR/hi"
+
 find_e2e_port() {
     local start_port="$1"
     local port
@@ -186,6 +197,9 @@ run_e2e_shard() {
         export PLAYWRIGHT_FULLY_PARALLEL=0
 
         cleanup() {
+            if [ -n "${stripe_mock_pid:-}" ]; then
+                kill -TERM -"$stripe_mock_pid" 2>/dev/null || kill -TERM "$stripe_mock_pid" 2>/dev/null || true
+            fi
             if [ -f "$shard_pid_file" ]; then
                 local pid
                 pid=$(cat "$shard_pid_file")
@@ -202,6 +216,22 @@ SQL
         trap cleanup EXIT INT TERM
 
         test-db-reset
+
+        local stripe_mock_port
+        stripe_mock_port="$(find_e2e_port "$((7100 + (shard_index - 1) * 20))")"
+        export STRIPE_MOCK_BASE_URL="http://127.0.0.1:$stripe_mock_port"
+        export STRIPE_TEST_API_BASE_URL="$STRIPE_MOCK_BASE_URL"
+        export STRIPE_MODE=test
+        export STRIPE_BILLING_ENABLED=true
+        export STRIPE_CHECKOUT_ENABLED=true
+        export STRIPE_OWNER_NAVIGATION_VISIBLE=true
+        unset IHP_ROSTER_PROFILING
+        unset STRIPE_SECRET_KEY_FILE STRIPE_WEBHOOK_SECRET_FILE STRIPE_PRICE_ID
+        export STRIPE_SECRET_KEY=sk_test_123
+        export STRIPE_WEBHOOK_SECRET=whsec_e2e_strict_boundary
+        export STRIPE_PRICE_LOOKUP_KEY=bepis_venue_monthly_aud_100
+        setsid "$E2E_STRIPE_MOCK_BIN" "$stripe_mock_port" </dev/null >>"$shard_dir/stripe-mock.log" 2>&1 &
+        local stripe_mock_pid="$!"
 
         if [ "$E2E_SERVER_MODE" = "compiled" ]; then
             local shard_port

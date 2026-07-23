@@ -235,24 +235,30 @@ clearCurrentUserPasskeyVerification = do
     clearCurrentUserPasskeyRecoveryVerification
 
 ensurePrivilegedPasskeyReady :: (?context :: ControllerContext, ?modelContext :: ModelContext) => IO ()
-ensurePrivilegedPasskeyReady = do
-    when currentUserRequiresMandatoryPasskey do
-        hasPasskey <- currentUserHasPasskey
-        if not hasPasskey
-            then withRequestContext do
-                setSession passkeyStepUpRedirectSessionKey currentRequestPath
-                redirectTo PasskeySetupAction
-            else ensurePrivilegedPasskeyVerified
+ensurePrivilegedPasskeyReady =
+    when currentUserRequiresMandatoryPasskey ensureFreshPasskeyReady
+
+ensureFreshPasskeyReady :: (?context :: ControllerContext, ?modelContext :: ModelContext) => IO ()
+ensureFreshPasskeyReady = do
+    hasPasskey <- currentUserHasPasskey
+    if not hasPasskey
+        then withRequestContext do
+            setSession passkeyStepUpRedirectSessionKey currentRequestPath
+            redirectTo PasskeySetupAction
+        else ensureFreshPasskeyVerified
+
+ensureFreshPasskeyVerified :: (?context :: ControllerContext) => IO ()
+ensureFreshPasskeyVerified = do
+    verified <- isCurrentUserPasskeyVerified
+    unless verified do
+        withRequestContext do
+            setSession passkeyStepUpRedirectSessionKey currentRequestPath
+            setErrorMessage "Verify with your passkey to continue."
+            redirectTo PasskeyStepUpAction
 
 ensurePrivilegedPasskeyVerified :: (?context :: ControllerContext) => IO ()
-ensurePrivilegedPasskeyVerified = do
-    when currentUserRequiresMandatoryPasskey do
-        verified <- isCurrentUserPasskeyVerified
-        unless verified do
-            withRequestContext do
-                setSession passkeyStepUpRedirectSessionKey currentRequestPath
-                setErrorMessage "Verify with your passkey to continue."
-                redirectTo PasskeyStepUpAction
+ensurePrivilegedPasskeyVerified =
+    when currentUserRequiresMandatoryPasskey ensureFreshPasskeyVerified
 
 currentRequestPath :: (?request :: Request) => Text
 currentRequestPath =

@@ -364,23 +364,38 @@ export async function verifyCurrentUserPasskeyStepUp(page: Page) {
     await expect(page).not.toHaveURL(/PasskeyStepUp/, { timeout: E2E_TIMEOUT.passkey });
 }
 
-export async function markCurrentSessionPasskeyVerified(page: Page) {
+async function setCurrentSessionPasskeyVerification(page: Page, verified: boolean) {
     const token = process.env.E2E_TEST_TOKEN;
     if (!token) {
-        throw new Error('E2E_TEST_TOKEN is required to mark a seeded passkey session verified.');
+        throw new Error('E2E_TEST_TOKEN is required to update seeded passkey session verification.');
     }
 
     const responseStatus = await page.evaluate(
-        async ({ endpoint, submittedToken }) => {
+        async ({ endpoint, submittedToken, shouldBeVerified }) => {
             const response = await fetch(endpoint, {
                 method: 'POST',
-                headers: { 'X-E2E-Test-Token': submittedToken },
+                headers: {
+                    'X-E2E-Test-Token': submittedToken,
+                    ...(shouldBeVerified ? {} : { 'X-E2E-Passkey-Verified': 'false' }),
+                },
             });
             return response.status;
         },
-        { endpoint: new URL('/__e2e/mark-passkey-verified', page.url()).toString(), submittedToken: token },
+        {
+            endpoint: new URL('/__e2e/mark-passkey-verified', page.url()).toString(),
+            submittedToken: token,
+            shouldBeVerified: verified,
+        },
     );
     expect(responseStatus).toBe(200);
+}
+
+export async function clearCurrentSessionPasskeyVerification(page: Page) {
+    await setCurrentSessionPasskeyVerification(page, false);
+}
+
+export async function markCurrentSessionPasskeyVerified(page: Page) {
+    await setCurrentSessionPasskeyVerification(page, true);
 }
 
 export async function loginAsPrivilegedUserWithSeededPasskeySession(
@@ -459,10 +474,17 @@ type OpenRosterOptions = {
 
 export async function openRosterSettings(page: Page) {
     const settingsTab = page.getByRole('tab', { name: 'Settings', exact: true }).first();
+    const settingsPane = page.locator('#roster-staff-panel-settings-pane');
     await expect(settingsTab).toBeVisible({ timeout: E2E_TIMEOUT.action });
-    await settingsTab.click();
-    await expect(settingsTab).toHaveAttribute('aria-selected', 'true', { timeout: E2E_TIMEOUT.action });
-    await expect(page.locator('#roster-staff-panel-settings-pane')).toBeVisible({ timeout: E2E_TIMEOUT.action });
+    await expect.poll(async () => {
+        const selected = (await settingsTab.getAttribute('aria-selected')) === 'true';
+        const paneVisible = await settingsPane.isVisible();
+        if (!selected || !paneVisible) {
+            await settingsTab.click().catch(() => {});
+            return false;
+        }
+        return true;
+    }, { timeout: E2E_TIMEOUT.assertion }).toBe(true);
 }
 
 export async function ensureRosterLayout(page: Page, layoutMode: RosterLayoutMode = 'day_rows') {

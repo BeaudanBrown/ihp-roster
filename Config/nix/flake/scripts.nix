@@ -112,12 +112,14 @@ in
         generated-code-sync = script ../scripts/haskell/generated-code-sync;
         test-db-reset = script ../scripts/db/test-db-reset;
         test-postgres = script ../scripts/db/test-postgres;
+        billing-migration-check = script ../scripts/db/billing-migration-check;
         hspec-test = script ../scripts/haskell/hspec-test;
         hspec-pure = script ../scripts/haskell/hspec-pure;
         hspec-db = script ../scripts/haskell/hspec-db;
         hspec-coverage = script ../scripts/haskell/hspec-coverage;
         verify-fast = script ../scripts/verification/fast;
         verify-full = script ../scripts/verification/full;
+        billing-production-readiness = script ../scripts/verification/billing-production-readiness;
         lint = script ../scripts/haskell/lint;
         format = script ../scripts/haskell/format;
         ghci-app = script ../scripts/haskell/ghci-app;

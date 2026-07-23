@@ -17,7 +17,7 @@ Tickets:
 - #225 sandbox, test-clock, legal, and launch readiness
 - #226 hidden-navigation live canary and owner-navigation release
 
-Implemented through #223: the Stripe contract and deployment controls are
+Implemented through #224: the Stripe contract and deployment controls are
 pinned, production persistence exists, and Checkout now uses a committed,
 venue-locked, resumable attempt with owner-only payment actions and correlated
 browser returns. Portal creation is owner-only and uses fresh request-scoped
@@ -37,8 +37,12 @@ requires no fresh step-up, while payment actions still do. Founder support gets 
 separate step-up-protected bounded diagnostic/reconciliation view with no payer
 or visible manual read-only controls. Deployment-controlled owner navigation is
 positioned after Xero and does not change direct-route canary authorization.
-Automated production-readiness, sandbox/test-clock/legal approval, and the live
-canary remain in #224-#226.
+Automated production-readiness now pins a reviewed Stripe OpenAPI commit,
+completes Dahlia lifecycle fixtures, upgrades a customer-populated predecessor
+schema, evaluates production NixOS safety, composes sensitive-data checks, and
+runs owner/founder browser behavior through a strict process-local Stripe
+boundary with live webhook refresh. Sandbox/test-clock/legal approval and the
+live canary remain in #225-#226.
 
 Living docs to update:
 

@@ -1,18 +1,26 @@
 module Test.Controller.BillingSpec where
 
 import Application.Billing.Checkout
-import Application.Billing.Reconciliation (billingReconciliationJobKind)
+import Application.Billing.Reconciliation (billingReconciliationJobKind,
+                                           performBillingReconciliationJob)
 import Application.Billing.Stripe
 import Application.Helper.Controller (PlatformRole (SuperAdminRole))
+import Application.Job.App ()
 import Config
 import qualified Control.Concurrent as Concurrent
 import qualified Control.Exception as Exception
+import qualified Data.Aeson as Aeson
 import qualified Data.ByteString as ByteString
+import qualified Data.ByteString.Lazy as LByteString
 import qualified Data.IORef as IORef
 import qualified Data.Text as Text
+import qualified Data.Text.Encoding as TextEncoding
 import Generated.Types
 import IHP.ControllerPrelude
+import IHP.FrameworkConfig (FrameworkConfig, option, withFrameworkConfig)
+import IHP.Job.Queue.Result (jobDidFail)
 import IHP.Job.Types (JobStatus (JobStatusFailed))
+import qualified IHP.Log as Log
 import IHP.Test.Mocking
 import Network.HTTP.Types.Status
 import qualified Network.HTTP.Types.URI as URI
@@ -24,6 +32,21 @@ import Web.Controller.Billing ()
 import Web.FrontController ()
 import Web.Routes
 import Web.Types
+
+withCapturedLogger :: (FrameworkConfig -> IO value) -> IO (value, Text)
+withCapturedLogger action = do
+    capturedRef <- IORef.newIORef []
+    logger <-
+        Log.newLogger
+            def
+                { Log.destination =
+                    Log.Callback
+                        (\line -> IORef.modifyIORef' capturedRef (TextEncoding.decodeUtf8 (Log.fromLogStr line) :))
+                        (pure ())
+                }
+    result <- withFrameworkConfig (option logger >> config) action
+    captured <- Text.concat . reverse <$> IORef.readIORef capturedRef
+    pure (result, captured)
 
 tests :: Spec
 tests = aroundAll withDatabaseTestContext do
@@ -67,6 +90,107 @@ tests = aroundAll withDatabaseTestContext do
                 response `responseBodyShouldNotContain` "evt_owner_hidden_123"
                 response `responseBodyShouldNotContain` "sub_owner_hidden_123"
                 response `responseBodyShouldNotContain` "internal owner-hidden diagnostic"
+
+        it "excludes sensitive provider data across persistence, jobs, audit summaries, owner HTML, and captured logs" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Billing Sensitive Boundary Venue"
+                owner <- createUserRecord "billing-sensitive-boundary@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue owner "venue_owner"
+                _ <- createTestPasskeyRecord owner "Billing sensitive boundary passkey"
+                let sensitiveValues =
+                        [ "sk_live_sensitive_123"
+                        , "pm_secret_sensitive_123"
+                        , "4111111111111111"
+                        , "payer-sensitive@example.test"
+                        , "1 Sensitive Billing Street"
+                        , "AU-TAX-SENSITIVE-123"
+                        ]
+                let rawProviderError = Text.intercalate " " sensitiveValues
+                let sensitiveFailureClient =
+                        checkoutStripeClient
+                            { createCheckoutSession = \_ _ _ _ _ _ _ -> pure (Left (StripeHttpError rawProviderError))
+                            }
+
+                checkoutResponse <- withStripeConfigForTest (Right testStripeConfig) do
+                    withStripeClientForTest sensitiveFailureClient do
+                        withPasskeyVerifiedUserAndCurrentVenue owner venue.id do
+                            callAction CreateBillingCheckoutSessionAction
+
+                checkoutResponse `responseStatusShouldBe` status302
+                attempt <- query @BillingCheckoutAttempt |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
+                attempt.errorCode `shouldBe` Just "stripe_checkout_create_failed"
+                let sanitizedSummary = fromMaybe "" attempt.errorSummary
+                sanitizedSummary `shouldBe` stripeClientErrorText (StripeHttpError rawProviderError)
+                jobAttempt <-
+                    attempt
+                        |> set #stripeCheckoutSessionId (Just "cs_sensitive_boundary")
+                        |> updateRecord
+                event <-
+                    newRecord @BillingEvent
+                        |> set #stripeEventId "evt_sensitive_boundary"
+                        |> set #eventType "customer.subscription.updated"
+                        |> set #livemode False
+                        |> set #venueId (Just (unpackId venue.id))
+                        |> set #status "failed"
+                        |> set #errorSummary (Just sanitizedSummary)
+                        |> createRecord
+                appJob <-
+                    newRecord @AppJob
+                        |> set #jobKind billingReconciliationJobKind
+                        |> set #venueId (Just (unpackId venue.id))
+                        |> set #relatedTable (Just "billing_checkout_attempts")
+                        |> set #relatedId (Just (unpackId jobAttempt.id))
+                        |> set #attemptsCount 10
+                        |> set #payload (Aeson.object ["target" Aeson..= ("checkout_attempt" :: Text), "localRecordId" Aeson..= inputValue jobAttempt.id, "summary" Aeson..= sanitizedSummary])
+                        |> createRecord
+                let jobFailureClient =
+                        failingStripeClient
+                            { retrieveCheckoutSession = \_ _ _ -> pure (Left (StripeHttpError rawProviderError))
+                            }
+                jobResult <- withStripeConfigForTest (Right testStripeConfig) do
+                    withStripeClientForTest jobFailureClient do
+                        Exception.try (performBillingReconciliationJob appJob)
+                            :: IO (Either Exception.SomeException ())
+                jobException <- case jobResult of
+                    Left exception -> pure exception
+                    Right () -> expectationFailure "expected the raw provider failure to fail the reconciliation job" >> error "unreachable"
+                let jobExceptionText = cs (Exception.displayException jobException)
+                jobExceptionText `shouldSatisfy` Text.isInfixOf "checkout_session_retrieve_failed"
+                forM_ sensitiveValues \sensitiveValue ->
+                    jobExceptionText `shouldSatisfy` not . Text.isInfixOf sensitiveValue
+
+                ownerResponse <- withStripeConfigForTest (Right testStripeConfig) do
+                    withUserAndCurrentVenue owner venue.id do
+                        callAction BillingAction
+                (_, capturedLogs) <- withCapturedLogger \frameworkConfig -> do
+                    let ?context = frameworkConfig
+                    jobDidFail (hasqlPool ?modelContext) appJob jobException
+
+                ownerResponse `responseStatusShouldBe` status200
+                capturedLogs `shouldSatisfy` Text.isInfixOf "Failed job with exception"
+                persistedJob <- fetch appJob.id
+                auditEvents <- query @AuditEvent |> filterWhere (#venueId, unpackId venue.id) |> fetch
+                auditEvents `shouldSatisfy` not . null
+                auditEvents `shouldSatisfy` any ((== "billing_customer_created") . (.eventType))
+                ownerBody <- responseBody ownerResponse
+                let auditPayloads =
+                        auditEvents
+                            |> map (TextEncoding.decodeUtf8 . LByteString.toStrict . Aeson.encode . (.payload))
+                let persistedAndRendered =
+                        [ sanitizedSummary
+                        , fromMaybe "" attempt.errorSummary
+                        , fromMaybe "" event.errorSummary
+                        , fromMaybe "" persistedJob.lastError
+                        , TextEncoding.decodeUtf8 (LByteString.toStrict (Aeson.encode persistedJob.payload))
+                        , TextEncoding.decodeUtf8 (LByteString.toStrict ownerBody)
+                        , capturedLogs
+                        ]
+                            <> auditPayloads
+                forM_ sensitiveValues \sensitiveValue ->
+                    persistedAndRendered `shouldSatisfy` all (not . Text.isInfixOf sensitiveValue)
+                ownerResponse `responseBodyShouldNotContain` "evt_sensitive_boundary"
+                ownerResponse `responseBodyShouldNotContain` "cus_checkout_123"
+                ownerResponse `responseBodyShouldNotContain` "stripe_checkout_create_failed"
 
         it "keeps the Billing status page available when Stripe configuration is unhealthy" $ withContext do
             withCleanDb do

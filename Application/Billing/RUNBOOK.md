@@ -17,8 +17,16 @@ API contract version:
   events at exactly `2026-06-24.dahlia`. Do not use the account default.
 - Bepis sends this version on every API request and rejects signed events with
   a missing or different `api_version` before persistence.
+- The offline wire-shape review is pinned to `stripe/openapi` commit
+  `86b6ae4db114ff06968dcc191ff4a898e9b5db7c`. Run
+  `scripts/check-stripe-openapi-contract` without network access during normal
+  verification.
 - Coordinate any future request-version change, both Dashboard endpoint
-  versions, offline fixtures, and the local listener in one reviewed rollout.
+  versions, the reviewed OpenAPI commit, offline fixtures, and the local
+  listener in one reviewed rollout. Follow the sanitize-and-diff-review fixture
+  refresh procedure in
+  `Test/Fixtures/stripe/2026-06-24.dahlia/README.md`; never copy unrestricted
+  provider responses into the repository.
 
 Public business website:
 

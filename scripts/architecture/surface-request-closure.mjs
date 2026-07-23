@@ -38,6 +38,7 @@ const closureContracts = [
       "Application.Helper.FrontendContract.Surface.Profile.Action",
       "Application.Helper.FrontendContract.Surface.Profile.Generated.Action",
       "Application.Helper.FrontendContract.Surface.Profile.HaskellAdapter",
+      "Application.Helper.FrontendContract.Surface.SelfServiceLeave",
     ],
   },
   {
@@ -50,6 +51,7 @@ const closureContracts = [
       "Application.Helper.FrontendContract.Surface.Roster.Generated.Intent",
       "Application.Helper.FrontendContract.Surface.Roster.HaskellAdapter",
       "Application.Helper.FrontendContract.Surface.Roster.Intent",
+      "Application.Helper.FrontendContract.Surface.SelfServiceLeave",
     ],
   },
 ];

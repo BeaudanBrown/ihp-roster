@@ -115,6 +115,28 @@ export default function globalTeardown() {
         WHERE requested_by_user_id IN (SELECT id FROM users WHERE email LIKE 'e2e-%')
            OR downloaded_by_user_id IN (SELECT id FROM users WHERE email LIKE 'e2e-%');
 
+        DELETE FROM billing_events
+        WHERE venue_id IN (
+            SELECT vm.venue_id
+            FROM venue_memberships vm
+            JOIN users u ON u.id = vm.user_id
+            WHERE u.email LIKE 'e2e-%'
+        );
+
+        DELETE FROM billing_checkout_attempts
+        WHERE initiated_by_user_id IN (SELECT id FROM users WHERE email LIKE 'e2e-%');
+
+        DELETE FROM venue_subscriptions
+        WHERE venue_id IN (
+            SELECT vm.venue_id
+            FROM venue_memberships vm
+            JOIN users u ON u.id = vm.user_id
+            WHERE u.email LIKE 'e2e-%'
+        );
+
+        DELETE FROM venue_billing_customers
+        WHERE created_by_user_id IN (SELECT id FROM users WHERE email LIKE 'e2e-%');
+
         DELETE FROM passkeys
         WHERE user_id IN (SELECT id FROM users WHERE email LIKE 'e2e-%');
 

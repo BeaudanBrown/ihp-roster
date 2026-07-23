@@ -245,6 +245,46 @@ tests = aroundAll withDatabaseTestContext do
                 subscription.currentPeriodEnd `shouldBe` Just (posixSecondsToUTCTime 1787356800)
                 subscription.cancelAtPeriodEnd `shouldBe` True
 
+        it "processes reviewed Dahlia created, updated, deleted, failed-payment, and duplicate fixtures" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Dahlia Lifecycle Venue"
+                _ <- createBillingCustomer venue "cus_dahlia_123"
+
+                forM_
+                    [ ("webhook-subscription-created.json", "active")
+                    , ("webhook-subscription-updated.json", "active")
+                    , ("webhook-subscription-deleted.json", "canceled")
+                    ]
+                    \(fixtureName, expectedStatus) -> do
+                        eventBody <- LByteString.readFile ("Test/Fixtures/stripe/2026-06-24.dahlia/" <> fixtureName)
+                        signatureHeader <- signedStripeHeader testStripeConfig.webhookSecret eventBody
+
+                        response <- withStripeConfigForTest (Right testStripeConfig) do
+                            callStripeWebhookWithJsonBody eventBody signatureHeader
+
+                        response `responseStatusShouldBe` status200
+                        subscription <- query @VenueSubscription |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
+                        subscription.status `shouldBe` expectedStatus
+
+                query @BillingEvent |> filterWhere (#providerObjectId, Just ("sub_dahlia_123" :: Text)) |> fetchCount `shouldReturn` 3
+
+                failedPaymentBody <- LByteString.readFile "Test/Fixtures/stripe/2026-06-24.dahlia/webhook-invoice-payment-failed.json"
+                failedPaymentSignature <- signedStripeHeader testStripeConfig.webhookSecret failedPaymentBody
+                failedPaymentResponse <- withStripeConfigForTest (Right testStripeConfig) do
+                    callStripeWebhookWithJsonBody failedPaymentBody failedPaymentSignature
+
+                failedPaymentResponse `responseStatusShouldBe` status200
+                failedPaymentEvent <- query @BillingEvent |> filterWhere (#stripeEventId, "evt_invoice_payment_failed_dahlia" :: Text) |> fetchOne
+                failedPaymentEvent.eventType `shouldBe` "invoice.payment_failed"
+                failedPaymentEvent.providerObjectType `shouldBe` Just "invoice"
+                failedPaymentEvent.stripeSubscriptionId `shouldBe` Just "sub_dahlia_123"
+                failedPaymentEvent.status `shouldBe` "processed"
+
+                duplicateFailedPaymentResponse <- withStripeConfigForTest (Right testStripeConfig) do
+                    callStripeWebhookWithJsonBody failedPaymentBody failedPaymentSignature
+                duplicateFailedPaymentResponse `responseStatusShouldBe` status200
+                query @BillingEvent |> filterWhere (#stripeEventId, "evt_invoice_payment_failed_dahlia" :: Text) |> fetchCount `shouldReturn` 1
+
         it "deduplicates already processed Stripe event ids" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Webhook Duplicate Venue"

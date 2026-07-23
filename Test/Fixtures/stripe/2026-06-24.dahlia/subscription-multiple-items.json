@@ -4,6 +4,7 @@
   "cancel_at_period_end": false,
   "customer": "cus_123",
   "livemode": false,
+  "metadata": {},
   "status": "active",
   "items": {
     "object": "list",

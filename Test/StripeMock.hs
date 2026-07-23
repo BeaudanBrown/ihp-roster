@@ -4,6 +4,7 @@ module Test.StripeMock
     , assertStripeMockConsumed
     , newStrictStripeMock
     , strictStripeTransport
+    , validateStripeRequestHeaders
     )
 where
 
@@ -61,11 +62,15 @@ validateRequest expected request = do
         Left ("Unexpected Stripe query for " <> expected.expectedPath)
     unless (normalizeForm (requestFormBody request) == normalizeForm expected.expectedFormBody) do
         Left ("Unexpected Stripe form body for " <> expected.expectedPath)
+    validateStripeRequestHeaders expected.expectedIdempotencyKey request
+
+validateStripeRequestHeaders :: Maybe ByteString -> StripeHttpRequest -> Either Text ()
+validateStripeRequestHeaders expectedIdempotencyKey request = do
     unless (lookup "Authorization" request.stripeRequestHeaders == Just "Bearer sk_test_123") do
         Left "Stripe Authorization header was missing or incorrect"
     unless (lookup "Stripe-Version" request.stripeRequestHeaders == Just (TextEncoding.encodeUtf8 pinnedStripeApiVersion)) do
         Left "Stripe-Version header was missing or incorrect"
-    unless (lookup "Idempotency-Key" request.stripeRequestHeaders == expected.expectedIdempotencyKey) do
+    unless (lookup "Idempotency-Key" request.stripeRequestHeaders == expectedIdempotencyKey) do
         Left "Stripe Idempotency-Key header did not match"
     unless (request.stripeRequestTimeoutMicroseconds == 15000000) do
         Left "Stripe request timeout was missing or incorrect"

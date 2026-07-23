@@ -194,7 +194,6 @@ allAcceptanceInvariants = [minBound .. maxBound]
 acceptanceEvidenceShape :: AcceptanceInvariant -> AcceptanceEvidenceShape
 acceptanceEvidenceShape = \case
     T4 -> ComposedEvidence
-    B6 -> PartialEvidence
     _ -> CompleteEvidence
 
 composedAcceptanceInvariants :: [AcceptanceInvariant]

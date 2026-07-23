@@ -88,7 +88,10 @@ parseStripeObjectSnapshot stripeObject =
         objectId <- object Aeson..:? "id"
         objectLivemode <- object Aeson..: "livemode"
         customerId <- object Aeson..:? "customer"
-        subscriptionId <- object Aeson..:? "subscription"
+        legacySubscriptionId <- object Aeson..:? "subscription"
+        invoiceParent <- object Aeson..:? "parent"
+        parentSubscriptionId <- maybe (pure Nothing) parseInvoiceParentSubscriptionId invoiceParent
+        let subscriptionId = legacySubscriptionId <|> parentSubscriptionId
         clientReferenceId <- object Aeson..:? "client_reference_id"
         metadataVenueId <- parseMetadataVenueId metadata
         status <- object Aeson..:? "status"
@@ -114,6 +117,25 @@ parseStripeObjectSnapshot stripeObject =
                 , stripeObjectCurrentPeriodEnd = maybe (currentPeriodEnd <|> invoicePeriodEnd) (Just . (.stripeSubscriptionCurrentPeriodEnd)) subscriptionContract
                 , stripeObjectCancelAtPeriodEnd = maybe cancelAtPeriodEnd (.stripeSubscriptionCancelAtPeriodEnd) subscriptionContract
                 }
+
+parseInvoiceParentSubscriptionId :: Aeson.Value -> AesonTypes.Parser (Maybe Text)
+parseInvoiceParentSubscriptionId =
+    Aeson.withObject "StripeInvoiceParent" \parent ->
+        parent Aeson..:? "subscription_details" >>= \case
+            Nothing -> pure Nothing
+            Just subscriptionDetails ->
+                Aeson.withObject "StripeInvoiceSubscriptionParent" parseSubscriptionDetails subscriptionDetails
+  where
+    parseSubscriptionDetails details =
+        details Aeson..:? "subscription" >>= \case
+            Nothing -> pure Nothing
+            Just subscription -> parseExpandableId subscription
+
+    parseExpandableId = \case
+        Aeson.String subscriptionId -> pure (Just subscriptionId)
+        Aeson.Object subscription -> subscription Aeson..:? "id"
+        Aeson.Null -> pure Nothing
+        _ -> fail "Stripe invoice parent subscription must be an id or expanded object"
 
 parseMetadataVenueId :: Aeson.Value -> AesonTypes.Parser (Maybe Text)
 parseMetadataVenueId =

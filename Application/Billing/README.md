@@ -62,6 +62,15 @@ The legacy manual read-only schema, write guards, mutation action, and audit pat
 remain dormant infrastructure. They are intentionally absent from the visible
 Billing product and are not advanced by the current billing rollout.
 
+## Automated Verification
+
+`billing-production-readiness` runs the offline reviewed Stripe OpenAPI/fixture
+check, a data-preserving predecessor-schema migration, and production NixOS
+billing option/assertion evaluation. Focused Hspec remains
+`hspec-test --match Billing`; `e2e e2e/billing.spec.ts` starts the strict local
+process boundary and never needs Stripe credentials or network access. These
+checks are included in `verify-full`.
+
 ## Launch Operations
 
 Use `RUNBOOK.md` for Stripe Dashboard setup, NixOS secret-file placeholders,

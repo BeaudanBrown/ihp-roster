@@ -40,20 +40,18 @@ tests = do
             hspecArgumentsMayFilter ["--rerun-all-on-success"] `shouldBe` True
             hspecArgumentsMayFilter ["--format=progress", "--no-color"] `shouldBe` False
 
-        it "reports omitted owners and known partial acceptance coverage" do
+        it "reports omitted owners while treating the completed billing lifecycle as complete evidence" do
             let routineOwner = pureMetadata "routine-owner" RoutineCorrectness [A1, A2]
-                acceptanceOwner = databaseMetadata "acceptance-owner" BroadAcceptance [A2]
-                partialOwner =
-                    databaseMetadata "partial-owner" BroadAcceptance []
-                        |> withPartialAcceptanceCoverage [B6]
-                registry = [routineOwner, acceptanceOwner, partialOwner]
+                acceptanceOwner = databaseMetadata "acceptance-owner" BroadAcceptance [A2, B6]
+                registry = [routineOwner, acceptanceOwner]
                 selected = selectSuiteMetadata AllTests RoutineFeedbackOnly registry
                 excluded = excludedAcceptanceInvariants registry selected
 
             excluded `shouldNotContain` [A1]
             excluded `shouldContain` [A2]
             excluded `shouldContain` [B6]
-            incompleteAcceptanceInvariants registry `shouldContain` [B6]
+            incompleteAcceptanceInvariants registry `shouldNotContain` [B6]
+            acceptanceEvidenceShape B6 `shouldBe` CompleteEvidence
             acceptanceEvidenceShape T4 `shouldBe` ComposedEvidence
 
 pureMetadata :: String -> FeedbackLane -> [AcceptanceInvariant] -> SuiteMetadata

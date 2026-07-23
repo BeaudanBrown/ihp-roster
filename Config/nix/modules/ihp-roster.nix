@@ -890,6 +890,10 @@ in
           message = "services.ihpRoster.billing.stripe.ownerNavigationVisible requires billing.stripe.enable.";
         }
         {
+          assertion = !cfg.production || !stripeCfg.enable || stripeCfg.mode == "live";
+          message = "services.ihpRoster production billing requires billing.stripe.mode = live.";
+        }
+        {
           assertion = !stripeCfg.enable || stripeCfg.mode != "live" || lib.hasPrefix "https://" cfg.baseUrl;
           message = "services.ihpRoster.billing.stripe live mode requires an HTTPS services.ihpRoster.baseUrl.";
         }

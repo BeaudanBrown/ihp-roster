@@ -1,0 +1,25 @@
+{
+  "id": "evt_invoice_payment_failed_dahlia",
+  "object": "event",
+  "api_version": "2026-06-24.dahlia",
+  "created": 1784678470,
+  "livemode": false,
+  "type": "invoice.payment_failed",
+  "data": {
+    "object": {
+      "id": "in_failed_dahlia_123",
+      "object": "invoice",
+      "customer": "cus_dahlia_123",
+      "livemode": false,
+      "parent": {
+        "type": "subscription_details",
+        "subscription_details": {
+          "subscription": "sub_dahlia_123",
+          "metadata": {}
+        }
+      },
+      "period_start": 1784678400,
+      "period_end": 1787356800
+    }
+  }
+}

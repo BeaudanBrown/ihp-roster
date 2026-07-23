@@ -84,14 +84,23 @@ test.describe('HTMX submit regressions', () => {
 
         await openNewLeaveRequestDialog(page);
 
-        await expect(page.locator('#startDate.flatpickr-input')).toBeVisible();
-        await expect(page.locator('#endDate.flatpickr-input')).toBeVisible();
-        await expect.poll(async () => {
-            return page.locator('#startDate').evaluate((input) => Boolean((input as HTMLInputElement & { _flatpickr?: unknown })._flatpickr));
-        }).toBe(true);
-        await expect.poll(async () => {
-            return page.locator('#endDate').evaluate((input) => Boolean((input as HTMLInputElement & { _flatpickr?: unknown })._flatpickr));
-        }).toBe(true);
+        for (const selector of ['#startDate', '#endDate']) {
+            await expect.poll(async () => {
+                return page.locator(selector).evaluate((input) => {
+                    const flatpickr = (input as HTMLInputElement & {
+                        _flatpickr?: { altInput?: HTMLInputElement };
+                    })._flatpickr;
+                    const visibleInput = flatpickr?.altInput ?? (input as HTMLInputElement);
+                    return Boolean(
+                        flatpickr
+                        && visibleInput.isConnected
+                        && visibleInput.type !== 'hidden'
+                        && getComputedStyle(visibleInput).display !== 'none'
+                        && getComputedStyle(visibleInput).visibility !== 'hidden',
+                    );
+                });
+            }).toBe(true);
+        }
     });
 
     test('generic lifecycle events follow the connected OOB replacement', async ({ page }) => {

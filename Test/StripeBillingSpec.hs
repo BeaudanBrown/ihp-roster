@@ -8,6 +8,9 @@ import qualified Data.List as List
 import qualified Data.Text as Text
 import qualified Data.Text.IO as TextIO
 import IHP.Prelude
+import Network.HTTP.Types.Status (status302)
+import qualified Network.Wai as Wai
+import qualified Network.Wai.Handler.Warp as Warp
 import qualified System.Directory as Directory
 import qualified System.Environment as Environment
 import System.IO (hClose, openTempFile)
@@ -190,6 +193,72 @@ tests =
                         case result of
                             Left message -> message `shouldBe` "Stripe webhook signing secret must start with whsec_"
                             Right _ -> expectationFailure "expected malformed webhook credentials to be rejected"
+
+        describe "process-level test boundary" do
+            it "is unavailable unless explicit E2E and test mode are both enabled" do
+                let boundaryUrl = "http://127.0.0.1:7199"
+                client <- currentStripeClient
+
+                withStripeEnv
+                    [ ("STRIPE_TEST_API_BASE_URL", Just boundaryUrl)
+                    , ("IHP_ROSTER_E2E", Nothing)
+                    , ("STRIPE_MODE", Just "test")
+                    ]
+                    do
+                        client.listPrices testConfig
+                            `shouldReturn` Left (StripeHttpError "The local Stripe test boundary is unavailable outside explicit E2E test mode")
+
+                withStripeEnv
+                    [ ("STRIPE_TEST_API_BASE_URL", Just boundaryUrl)
+                    , ("IHP_ROSTER_E2E", Just "1")
+                    , ("STRIPE_MODE", Just "live")
+                    ]
+                    do
+                        client.listPrices testConfig
+                            `shouldReturn` Left (StripeHttpError "The local Stripe test boundary is unavailable outside explicit E2E test mode")
+
+            it "fails closed instead of reaching Stripe when explicit E2E mode has no local boundary" do
+                client <- currentStripeClient
+                withStripeEnv
+                    [ ("STRIPE_TEST_API_BASE_URL", Nothing)
+                    , ("IHP_ROSTER_E2E", Just "1")
+                    , ("STRIPE_MODE", Just "test")
+                    ]
+                    do
+                        client.listPrices testConfig
+                            `shouldReturn` Left (StripeHttpError "Explicit E2E mode requires the local Stripe test boundary")
+
+            it "does not follow redirects from the loopback boundary to an external target" do
+                client <- currentStripeClient
+                let redirectingMock _request respond =
+                        respond (Wai.responseLBS status302 [("Location", "https://api.stripe.com/v1/prices")] "")
+                Warp.testWithApplication (pure redirectingMock) \port ->
+                    withStripeEnv
+                        [ ("STRIPE_TEST_API_BASE_URL", Just ("http://127.0.0.1:" <> Text.unpack (tshow port)))
+                        , ("IHP_ROSTER_E2E", Just "1")
+                        , ("STRIPE_MODE", Just "test")
+                        ]
+                        do
+                            client.listPrices testConfig
+                                `shouldReturn` Left (StripeHttpError "Stripe request failed with status 302")
+
+            it "rejects non-loopback and deceptive test-boundary targets before opening a connection" do
+                client <- currentStripeClient
+                forM_
+                    [ "http://stripe.invalid:7199"
+                    , "http://127.0.0.1:7199@stripe.invalid"
+                    , "http://localhost:7199"
+                    , "http://localhost:7199/proxy"
+                    ]
+                    \testBoundaryUrl ->
+                        withStripeEnv
+                            [ ("STRIPE_TEST_API_BASE_URL", Just testBoundaryUrl)
+                            , ("IHP_ROSTER_E2E", Just "1")
+                            , ("STRIPE_MODE", Just "test")
+                            ]
+                            do
+                                client.listPrices testConfig
+                                    `shouldReturn` Left (StripeHttpError "The local Stripe test boundary requires an HTTP loopback URL")
 
         describe "request construction" do
             it "builds active lookup-key price requests" do

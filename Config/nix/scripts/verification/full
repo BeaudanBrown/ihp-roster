@@ -26,5 +26,8 @@ echo "verify-full: architecture and documentation drift"
 architecture-check-fresh
 bash ./bin/doc-drift-check
 
+echo "verify-full: billing production-readiness"
+billing-production-readiness
+
 echo "verify-full: complete Playwright"
 e2e

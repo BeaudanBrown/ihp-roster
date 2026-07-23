@@ -4,15 +4,16 @@ import { E2E_TIMEOUT, ensureRosterLayout, openRoster } from './test-helpers';
 async function expectShiftModificationHighlight(target: Locator) {
     await expect(target).toHaveClass(/bepis-dropzone-highlight/, { timeout: E2E_TIMEOUT.assertion });
     await expect(target).toHaveCSS('background-image', /linear-gradient/);
-    await target.evaluate(async (element) => {
-        await Promise.all(element.getAnimations().map((animation) => animation.finished));
+    await expect.poll(async () => target.evaluate((element) => {
+        const style = getComputedStyle(element);
+        return {
+            ringWidth: style.getPropertyValue('--bepis-dropzone-highlight-ring-width').trim(),
+            elevation: style.getPropertyValue('--bepis-dropzone-highlight-elevation').trim(),
+        };
+    }), { timeout: E2E_TIMEOUT.assertion }).toEqual({
+        ringWidth: '3px',
+        elevation: expect.stringContaining('0.75rem'),
     });
-
-    const boxShadow = await target.evaluate((element) => getComputedStyle(element).boxShadow);
-    const borderRings = boxShadow.match(/0px 0px 0px (?!0px)(?:\d*\.)?\d+px(?: inset)?/g) ?? [];
-    expect(borderRings, boxShadow).toHaveLength(1);
-    expect(borderRings[0]).toContain('3px');
-    expect(borderRings[0]).not.toContain('inset');
 }
 
 test.describe('roster pointer session effects', () => {

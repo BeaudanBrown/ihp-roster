@@ -36,6 +36,15 @@ tests = aroundAll withDatabaseTestContext do
                             verifiedUserId <- getSession @Text passkeyVerifiedUserSessionKey
                             verifiedUserId `shouldBe` Just (inputValue user.id)
 
+                        withRequestHeaders
+                            [ ("X-E2E-Test-Token", "test-token")
+                            , ("X-E2E-Passkey-Verified", "false")
+                            ]
+                            do
+                                response <- callAction MarkE2EPasskeyVerifiedAction
+                                response `responseStatusShouldBe` status200
+                                getSession @Text passkeyVerifiedUserSessionKey `shouldReturn` Nothing
+
         it "rejects requests when E2E mode is disabled" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "E2E Venue"

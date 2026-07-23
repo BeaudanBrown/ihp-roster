@@ -14,11 +14,16 @@ instance Controller E2ETestController where
     action currentAction@MarkE2EPasskeyVerifiedAction = runBepis currentAction BepisMutationAction do
         ensureE2ETestEndpointEnabled
         ensureE2ETestToken
-        hasPasskey <- currentUserHasPasskey
-        unless hasPasskey do
-            renderJsonWithStatusCode status409 (Aeson.object ["error" Aeson..= ("Current user has no passkey" :: Text)])
-        markCurrentUserPasskeyVerified
-        renderJson (Aeson.object ["ok" Aeson..= True])
+        if getHeader "X-E2E-Passkey-Verified" == Just "false"
+            then do
+                clearCurrentUserPasskeyVerification
+                renderJson (Aeson.object ["ok" Aeson..= True, "verified" Aeson..= False])
+            else do
+                hasPasskey <- currentUserHasPasskey
+                unless hasPasskey do
+                    renderJsonWithStatusCode status409 (Aeson.object ["error" Aeson..= ("Current user has no passkey" :: Text)])
+                markCurrentUserPasskeyVerified
+                renderJson (Aeson.object ["ok" Aeson..= True, "verified" Aeson..= True])
 
 ensureE2ETestEndpointEnabled :: (?request :: Request) => IO ()
 ensureE2ETestEndpointEnabled = do
