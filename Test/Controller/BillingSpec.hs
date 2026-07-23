@@ -658,6 +658,20 @@ tests = aroundAll withDatabaseTestContext do
                 _ <- createVenueMembershipRecord venue owner "venue_owner"
                 _ <- createVenueSubscriptionWithStatus venue "active"
                 attempt <- createOpenBillingCheckoutAttempt venue owner "cs_pending_123"
+                processedAt <- getCurrentTime
+                _ <-
+                    newRecord @BillingEvent
+                        |> set #stripeEventId "evt_unrelated_checkout_123"
+                        |> set #eventType "checkout.session.completed"
+                        |> set #livemode False
+                        |> set #providerObjectType (Just "checkout.session")
+                        |> set #providerObjectId (Just "cs_other_attempt_123")
+                        |> set #venueId (Just (unpackId venue.id))
+                        |> set #stripeCustomerId (Just attempt.stripeCustomerId)
+                        |> set #stripeSubscriptionId (Just "sub_active")
+                        |> set #status "processed"
+                        |> set #processedAt (Just processedAt)
+                        |> createRecord
 
                 response <- withPasskeyVerifiedUserAndCurrentVenue owner venue.id do
                     withRequestQuery (cs ("checkout=success&attempt_id=" <> inputValue attempt.id <> "&session_id=cs_pending_123")) do
@@ -667,7 +681,7 @@ tests = aroundAll withDatabaseTestContext do
                 response `responseBodyShouldContain` "Finalising subscription"
                 response `responseBodyShouldNotContain` "Subscription confirmed"
 
-        it "confirms only a completed attempt with its matching local subscription" $ withContext do
+        it "confirms an exact processed Checkout webhook with its matching local subscription" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Billing Confirmed Modal Venue"
                 owner <- createUserRecord "billing-confirmed-modal-owner@example.com" "staff" True
@@ -681,7 +695,21 @@ tests = aroundAll withDatabaseTestContext do
                         |> set #status "active"
                         |> set #cancelAtPeriodEnd False
                         |> createRecord
-                attempt <- createCompletedBillingCheckoutAttempt venue owner "cs_test_123" "sub_confirmed_123"
+                attempt <- createOpenBillingCheckoutAttempt venue owner "cs_test_123"
+                processedAt <- getCurrentTime
+                _ <-
+                    newRecord @BillingEvent
+                        |> set #stripeEventId "evt_checkout_confirmed_123"
+                        |> set #eventType "checkout.session.completed"
+                        |> set #livemode False
+                        |> set #providerObjectType (Just "checkout.session")
+                        |> set #providerObjectId (Just "cs_test_123")
+                        |> set #venueId (Just (unpackId venue.id))
+                        |> set #stripeCustomerId (Just attempt.stripeCustomerId)
+                        |> set #stripeSubscriptionId (Just "sub_confirmed_123")
+                        |> set #status "processed"
+                        |> set #processedAt (Just processedAt)
+                        |> createRecord
 
                 response <- withPasskeyVerifiedUserAndCurrentVenue owner venue.id do
                     withRequestQuery (cs ("checkout=success&attempt_id=" <> inputValue attempt.id <> "&session_id=cs_test_123")) do
@@ -694,7 +722,7 @@ tests = aroundAll withDatabaseTestContext do
                 response `responseBodyShouldContain` "app-page-dialog-modal"
                 response `responseBodyShouldNotContain` "data-billing-checkout-modal"
 
-        it "updates the Checkout modal to failed when a relevant webhook fails" $ withContext do
+        it "renders the correlated attempt failure without trusting return parameters" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Billing Failed Modal Venue"
                 owner <- createUserRecord "billing-failed-modal-owner@example.com" "staff" True
@@ -734,27 +762,6 @@ createOpenBillingCheckoutAttempt venue owner sessionId =
         |> set #stripePriceId "price_monthly_123"
         |> set #stripeCheckoutSessionId (Just sessionId)
         |> set #status "open"
-        |> createRecord
-
-createCompletedBillingCheckoutAttempt
-    :: (?modelContext :: ModelContext)
-    => Venue
-    -> User
-    -> Text
-    -> Text
-    -> IO BillingCheckoutAttempt
-createCompletedBillingCheckoutAttempt venue owner sessionId subscriptionId = do
-    completedAt <- getCurrentTime
-    newRecord @BillingCheckoutAttempt
-        |> set #venueId (unpackId venue.id)
-        |> set #initiatedByUserId (unpackId owner.id)
-        |> set #livemode False
-        |> set #stripeCustomerId "cus_checkout_attempt"
-        |> set #stripePriceId "price_monthly_123"
-        |> set #stripeCheckoutSessionId (Just sessionId)
-        |> set #stripeSubscriptionId (Just subscriptionId)
-        |> set #status "completed"
-        |> set #completedAt (Just completedAt)
         |> createRecord
 
 createVenueSubscriptionWithStatus :: (?modelContext :: ModelContext) => Venue -> Text -> IO VenueSubscription

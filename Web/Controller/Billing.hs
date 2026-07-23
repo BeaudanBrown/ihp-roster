@@ -4,7 +4,7 @@ import Application.Billing.Checkout
 import Application.Billing.Stripe
 import Application.Helper.SurfaceResource (LiveMutationResult (..))
 import Application.Helper.Url (appendQueryParams)
-import Control.Monad (void)
+import Control.Monad (guard, void)
 import qualified Data.Aeson as Aeson
 import qualified Data.Text as Text
 import qualified Data.UUID as UUID
@@ -98,22 +98,55 @@ fetchBillingCheckoutReturn
 fetchBillingCheckoutReturn maybeSubscription
     | paramOrNothing @Text "checkout" /= Just "success" = pure Nothing
     | otherwise =
-        fmap (fmap \attempt ->
-            BillingCheckoutReturn
-                { checkoutAttemptId = inputValue attempt.id
-                , checkoutSessionId = attempt.stripeCheckoutSessionId
-                , checkoutOutcome = classifyCheckoutOutcome attempt maybeSubscription
-                }) fetchCorrelatedCheckoutReturnAttempt
+        fetchCorrelatedCheckoutReturnAttempt >>= \case
+            Nothing -> pure Nothing
+            Just attempt -> do
+                maybeCompletionEvent <- fetchExactCheckoutCompletionEvent attempt
+                pure $ Just BillingCheckoutReturn
+                    { checkoutAttemptId = inputValue attempt.id
+                    , checkoutSessionId = attempt.stripeCheckoutSessionId
+                    , checkoutOutcome = classifyCheckoutOutcome attempt maybeCompletionEvent maybeSubscription
+                    }
 
-classifyCheckoutOutcome :: BillingCheckoutAttempt -> Maybe VenueSubscription -> BillingCheckoutOutcome
-classifyCheckoutOutcome attempt maybeSubscription
-    | attempt.status == "completed"
-    , Just attemptSubscriptionId <- attempt.stripeSubscriptionId
-    , Just subscription <- maybeSubscription
-    , subscription.stripeSubscriptionId == attemptSubscriptionId =
+fetchExactCheckoutCompletionEvent
+    :: (?context :: ControllerContext, ?modelContext :: ModelContext)
+    => BillingCheckoutAttempt
+    -> IO (Maybe BillingEvent)
+fetchExactCheckoutCompletionEvent attempt =
+    query @BillingEvent
+        |> filterWhere (#venueId, Just (unpackId currentVenueId))
+        |> filterWhere (#livemode, attempt.livemode)
+        |> filterWhere (#providerObjectType, Just "checkout.session")
+        |> filterWhere (#providerObjectId, attempt.stripeCheckoutSessionId)
+        |> filterWhere (#stripeCustomerId, Just attempt.stripeCustomerId)
+        |> filterWhere (#status, "processed")
+        |> filterWhereIn (#eventType, ["checkout.session.completed", "checkout.session.async_payment_succeeded"])
+        |> orderByDesc #stripeCreatedAt
+        |> fetchOneOrNothing
+
+classifyCheckoutOutcome :: BillingCheckoutAttempt -> Maybe BillingEvent -> Maybe VenueSubscription -> BillingCheckoutOutcome
+classifyCheckoutOutcome attempt maybeCompletionEvent maybeSubscription
+    | Just subscription <- matchingConfirmedSubscription attempt maybeCompletionEvent maybeSubscription =
         BillingCheckoutConfirmed subscription
     | attempt.status == "failed" = BillingCheckoutFailed attempt
     | otherwise = BillingCheckoutPending
+
+matchingConfirmedSubscription
+    :: BillingCheckoutAttempt
+    -> Maybe BillingEvent
+    -> Maybe VenueSubscription
+    -> Maybe VenueSubscription
+matchingConfirmedSubscription attempt maybeCompletionEvent maybeSubscription = do
+    subscription <- maybeSubscription
+    let attemptMatches =
+            attempt.status == "completed"
+                && attempt.stripeSubscriptionId == Just subscription.stripeSubscriptionId
+    let eventMatches =
+            maybe False
+                (\event -> event.stripeSubscriptionId == Just subscription.stripeSubscriptionId)
+                maybeCompletionEvent
+    guard (attemptMatches || eventMatches)
+    pure subscription
 
 fetchCurrentVenueBillingCustomer :: (?context :: ControllerContext, ?modelContext :: ModelContext) => IO (Maybe VenueBillingCustomer)
 fetchCurrentVenueBillingCustomer =

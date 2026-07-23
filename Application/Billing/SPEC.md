@@ -211,10 +211,12 @@ Session ID; an optionally supplied Session ID must match. Success and direct
 Billing/live-fragment queries require the venue, attempt, and supplied/stored
 Session IDs all to agree.
 
-A return never creates or confirms a Subscription. The return view can render
-confirmed only from an already completed correlated attempt and its matching
-local Subscription. The atomic signed-webhook transition that produces that
-state is owned by #220; this Checkout lifecycle never infers it from browser
+A return never creates or confirms a Subscription. The return view renders
+confirmed only when the correlated attempt and local Subscription are joined by
+an exact processed signed Checkout completion event (same venue, mode, Session,
+Customer, and Subscription), or when a later authoritative path has already
+completed that same attempt with the matching Subscription. Atomic webhook
+attempt transitions remain owned by #220; no state is inferred from browser
 parameters.
 
 ## Customer Portal Flow
