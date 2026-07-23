@@ -26,6 +26,15 @@ data CheckoutStartResult = CheckoutStartResult
     }
     deriving (Eq, Show)
 
+-- | Immutable dependencies for one serialized Checkout operation. The public
+-- boundary constructs this explicitly; internal lifecycle phases share it.
+data CheckoutOperationContext = CheckoutOperationContext
+    { operationStripeClient :: !StripeClient
+    , operationStripeConfig :: !StripeConfig
+    , operationVenue        :: !Venue
+    , operationOwner        :: !User
+    }
+
 data PreparedCheckout = PreparedCheckout
     { preparedAttempt         :: !BillingCheckoutAttempt
     , preparedCreatedCustomer :: !(Maybe VenueBillingCustomer)
@@ -54,30 +63,51 @@ startOrResumeCheckout
     -> (Id BillingCheckoutAttempt -> Text)
     -> (Id BillingCheckoutAttempt -> Text)
     -> IO CheckoutStartResult
-startOrResumeCheckout stripeClient stripeConfig venue owner successUrlFor cancelUrlFor = do
+startOrResumeCheckout stripeClient stripeConfig venue owner successUrlFor cancelUrlFor =
+    startCheckout CheckoutOperationContext
+        { operationStripeClient = stripeClient
+        , operationStripeConfig = stripeConfig
+        , operationVenue = venue
+        , operationOwner = owner
+        }
+        successUrlFor
+        cancelUrlFor
+
+startCheckout
+    :: (?modelContext :: ModelContext)
+    => CheckoutOperationContext
+    -> (Id BillingCheckoutAttempt -> Text)
+    -> (Id BillingCheckoutAttempt -> Text)
+    -> IO CheckoutStartResult
+startCheckout operation successUrlFor cancelUrlFor = do
     preparation <- withTransaction do
-        lockVenueForCheckout (unpackId venue.id)
-        maybeSubscription <- fetchVenueSubscription venue.id
-        if not (checkoutAllowedForSubscription maybeSubscription)
-            then pure (CheckoutPreparationRejected existingSubscriptionMessage)
-            else do
-                maybeOpenAttempt <- fetchOpenCheckoutAttempt venue.id
+        lockVenueForCheckout (unpackId operation.operationVenue.id)
+        checkoutAllowedWhileVenueLocked operation.operationVenue.id >>= \case
+            False -> pure (CheckoutPreparationRejected existingSubscriptionMessage)
+            True -> do
+                maybeOpenAttempt <- fetchOpenCheckoutAttempt operation.operationVenue.id
                 case maybeOpenAttempt of
                     Just attempt -> pure (CheckoutPrepared (existingPreparedCheckout attempt))
                     Nothing ->
-                        prepareNewCheckoutAttempt stripeClient stripeConfig venue owner >>= \case
+                        prepareNewCheckoutAttempt operation >>= \case
                             Left message -> pure (CheckoutPreparationRejected message)
                             Right prepared -> pure (CheckoutPrepared prepared)
     case preparation of
         CheckoutPreparationRejected message -> pure (checkoutRejected message)
-        CheckoutPrepared prepared ->
-            executePreparedCheckout stripeClient stripeConfig venue owner successUrlFor cancelUrlFor prepared
+        CheckoutPrepared prepared -> executePreparedCheckout operation successUrlFor cancelUrlFor prepared
 
 fetchVenueSubscription :: (?modelContext :: ModelContext) => Id Venue -> IO (Maybe VenueSubscription)
 fetchVenueSubscription venueId =
     query @VenueSubscription
         |> filterWhere (#venueId, unpackId venueId)
         |> fetchOneOrNothing
+
+-- | The caller owns the surrounding transaction and must already hold the
+-- venue row lock. Keeping that ownership at each call site prevents provider
+-- calls from accidentally moving outside the Checkout serialization boundary.
+checkoutAllowedWhileVenueLocked :: (?modelContext :: ModelContext) => Id Venue -> IO Bool
+checkoutAllowedWhileVenueLocked venueId =
+    checkoutAllowedForSubscription <$> fetchVenueSubscription venueId
 
 fetchOpenCheckoutAttempt :: (?modelContext :: ModelContext) => Id Venue -> IO (Maybe BillingCheckoutAttempt)
 fetchOpenCheckoutAttempt venueId =
@@ -88,85 +118,49 @@ fetchOpenCheckoutAttempt venueId =
 
 executePreparedCheckout
     :: (?modelContext :: ModelContext)
-    => StripeClient
-    -> StripeConfig
-    -> Venue
-    -> User
+    => CheckoutOperationContext
     -> (Id BillingCheckoutAttempt -> Text)
     -> (Id BillingCheckoutAttempt -> Text)
     -> PreparedCheckout
     -> IO CheckoutStartResult
-executePreparedCheckout stripeClient stripeConfig venue owner successUrlFor cancelUrlFor prepared = do
+executePreparedCheckout operation successUrlFor cancelUrlFor prepared = do
     lockedResult <- withTransaction do
-        lockVenueForCheckout (unpackId venue.id)
-        maybeSubscription <- fetchVenueSubscription venue.id
-        if not (checkoutAllowedForSubscription maybeSubscription)
-            then pure (CheckoutFinished (checkoutRejected existingSubscriptionMessage))
-            else
-                fetchOpenCheckoutAttempt venue.id >>= \case
+        lockVenueForCheckout (unpackId operation.operationVenue.id)
+        checkoutAllowedWhileVenueLocked operation.operationVenue.id >>= \case
+            False -> pure (CheckoutFinished (checkoutRejected existingSubscriptionMessage))
+            True ->
+                fetchOpenCheckoutAttempt operation.operationVenue.id >>= \case
                     Nothing -> pure (CheckoutFinished (checkoutRejected "The open Checkout attempt is no longer available."))
                     Just currentAttempt -> do
                         let currentPrepared =
                                 if currentAttempt.id == prepared.preparedAttempt.id
                                     then prepared { preparedAttempt = currentAttempt }
                                     else existingPreparedCheckout currentAttempt
-                        processLockedCheckoutAttempt
-                            stripeClient
-                            stripeConfig
-                            venue
-                            owner
-                            successUrlFor
-                            cancelUrlFor
-                            currentPrepared
+                        let attempt = currentPrepared.preparedAttempt
+                        if attempt.livemode /= stripeModeIsLive operation.operationStripeConfig.stripeMode
+                            then pure (CheckoutFinished (checkoutRejected "The open Checkout attempt belongs to a different Stripe mode."))
+                            else
+                                case attempt.stripeCheckoutSessionId of
+                                    Nothing ->
+                                        CheckoutFinished <$> createCheckoutSessionForAttempt operation successUrlFor cancelUrlFor currentPrepared
+                                    Just sessionId ->
+                                        operation.operationStripeClient.retrieveCheckoutSession operation.operationStripeConfig sessionId attempt.stripeCustomerId >>= \case
+                                            Left err -> do
+                                                _ <- recordAttemptError "stripe_checkout_retrieve_failed" (stripeClientErrorText err) attempt
+                                                pure (CheckoutFinished (checkoutRejected ("Stripe Checkout could not be resumed: " <> stripeClientErrorText err)))
+                                            Right checkoutSession ->
+                                                applyRetrievedCheckoutSession operation currentPrepared checkoutSession
     case lockedResult of
-        CheckoutFinished result -> pure result
-        CheckoutRestart restarted ->
-            executePreparedCheckout stripeClient stripeConfig venue owner successUrlFor cancelUrlFor restarted
-
-processLockedCheckoutAttempt
-    :: (?modelContext :: ModelContext)
-    => StripeClient
-    -> StripeConfig
-    -> Venue
-    -> User
-    -> (Id BillingCheckoutAttempt -> Text)
-    -> (Id BillingCheckoutAttempt -> Text)
-    -> PreparedCheckout
-    -> IO LockedCheckoutResult
-processLockedCheckoutAttempt stripeClient stripeConfig venue owner successUrlFor cancelUrlFor prepared
-    | attempt.livemode /= stripeModeIsLive stripeConfig.stripeMode =
-        pure (CheckoutFinished (checkoutRejected "The open Checkout attempt belongs to a different Stripe mode."))
-    | otherwise =
-        case attempt.stripeCheckoutSessionId of
-            Nothing ->
-                CheckoutFinished
-                    <$> createCheckoutSessionForAttempt
-                        stripeClient
-                        stripeConfig
-                        venue
-                        successUrlFor
-                        cancelUrlFor
-                        prepared
-            Just sessionId ->
-                stripeClient.retrieveCheckoutSession stripeConfig sessionId attempt.stripeCustomerId >>= \case
-                    Left err -> do
-                        _ <- recordAttemptError "stripe_checkout_retrieve_failed" (stripeClientErrorText err) attempt
-                        pure (CheckoutFinished (checkoutRejected ("Stripe Checkout could not be resumed: " <> stripeClientErrorText err)))
-                    Right checkoutSession ->
-                        applyRetrievedCheckoutSession stripeClient stripeConfig venue owner prepared checkoutSession
-  where
-    attempt = prepared.preparedAttempt
+        CheckoutFinished result   -> pure result
+        CheckoutRestart restarted -> executePreparedCheckout operation successUrlFor cancelUrlFor restarted
 
 applyRetrievedCheckoutSession
     :: (?modelContext :: ModelContext)
-    => StripeClient
-    -> StripeConfig
-    -> Venue
-    -> User
+    => CheckoutOperationContext
     -> PreparedCheckout
     -> StripeCheckoutSession
     -> IO LockedCheckoutResult
-applyRetrievedCheckoutSession stripeClient stripeConfig venue owner prepared checkoutSession = do
+applyRetrievedCheckoutSession operation prepared checkoutSession = do
     now <- getCurrentTime
     let attempt = prepared.preparedAttempt
     let providerExpiresAt = checkoutExpiresAt checkoutSession
@@ -205,29 +199,26 @@ applyRetrievedCheckoutSession stripeClient stripeConfig venue owner prepared che
                 |> set #errorCode Nothing
                 |> set #errorSummary Nothing
                 |> updateRecord
-        prepareNewCheckoutAttempt stripeClient stripeConfig venue owner >>= \case
+        prepareNewCheckoutAttempt operation >>= \case
             Left message -> pure (CheckoutFinished (checkoutRejected message))
             Right restarted -> pure (CheckoutRestart restarted)
 
 prepareNewCheckoutAttempt
     :: (?modelContext :: ModelContext)
-    => StripeClient
-    -> StripeConfig
-    -> Venue
-    -> User
+    => CheckoutOperationContext
     -> IO (Either Text PreparedCheckout)
-prepareNewCheckoutAttempt stripeClient stripeConfig venue owner =
-    resolveBillingPrice stripeClient stripeConfig >>= \case
+prepareNewCheckoutAttempt operation =
+    resolveBillingPrice operation.operationStripeClient operation.operationStripeConfig >>= \case
         Left message -> pure (Left message)
         Right price ->
-            ensureVenueStripeCustomer stripeClient stripeConfig venue owner >>= \case
+            ensureVenueStripeCustomer operation >>= \case
                 Left message -> pure (Left message)
                 Right (billingCustomer, customerWasCreated) -> do
                     attempt <-
                         newRecord @BillingCheckoutAttempt
-                            |> set #venueId (unpackId venue.id)
-                            |> set #initiatedByUserId (unpackId owner.id)
-                            |> set #livemode (stripeModeIsLive stripeConfig.stripeMode)
+                            |> set #venueId (unpackId operation.operationVenue.id)
+                            |> set #initiatedByUserId (unpackId operation.operationOwner.id)
+                            |> set #livemode (stripeModeIsLive operation.operationStripeConfig.stripeMode)
                             |> set #stripeCustomerId billingCustomer.stripeCustomerId
                             |> set #stripePriceId price.stripePriceId
                             |> createRecord
@@ -239,20 +230,18 @@ prepareNewCheckoutAttempt stripeClient stripeConfig venue owner =
 
 createCheckoutSessionForAttempt
     :: (?modelContext :: ModelContext)
-    => StripeClient
-    -> StripeConfig
-    -> Venue
+    => CheckoutOperationContext
     -> (Id BillingCheckoutAttempt -> Text)
     -> (Id BillingCheckoutAttempt -> Text)
     -> PreparedCheckout
     -> IO CheckoutStartResult
-createCheckoutSessionForAttempt stripeClient stripeConfig venue successUrlFor cancelUrlFor prepared = do
+createCheckoutSessionForAttempt operation successUrlFor cancelUrlFor prepared = do
     let attempt = prepared.preparedAttempt
     checkoutResult <-
-        stripeClient.createCheckoutSession
-            stripeConfig
+        operation.operationStripeClient.createCheckoutSession
+            operation.operationStripeConfig
             (inputValue attempt.id)
-            (inputValue venue.id)
+            (inputValue operation.operationVenue.id)
             attempt.stripeCustomerId
             attempt.stripePriceId
             (successUrlFor attempt.id)
@@ -286,34 +275,31 @@ createCheckoutSessionForAttempt stripeClient stripeConfig venue successUrlFor ca
 
 ensureVenueStripeCustomer
     :: (?modelContext :: ModelContext)
-    => StripeClient
-    -> StripeConfig
-    -> Venue
-    -> User
+    => CheckoutOperationContext
     -> IO (Either Text (VenueBillingCustomer, Bool))
-ensureVenueStripeCustomer stripeClient stripeConfig venue owner =
+ensureVenueStripeCustomer operation =
     query @VenueBillingCustomer
-        |> filterWhere (#venueId, unpackId venue.id)
+        |> filterWhere (#venueId, unpackId operation.operationVenue.id)
         |> fetchOneOrNothing
         >>= \case
             Just customer
-                | customer.livemode == stripeModeIsLive stripeConfig.stripeMode -> pure (Right (customer, False))
+                | customer.livemode == stripeModeIsLive operation.operationStripeConfig.stripeMode -> pure (Right (customer, False))
                 | otherwise -> pure (Left "The venue Customer belongs to a different Stripe mode.")
             Nothing
-                | isNothing owner.emailVerifiedAt -> pure (Left "Verify your account email before starting Checkout.")
+                | isNothing operation.operationOwner.emailVerifiedAt -> pure (Left "Verify your account email before starting Checkout.")
                 | otherwise ->
-                    stripeClient.createCustomer stripeConfig (inputValue venue.id) venue.name owner.email >>= \case
+                    operation.operationStripeClient.createCustomer operation.operationStripeConfig (inputValue operation.operationVenue.id) operation.operationVenue.name operation.operationOwner.email >>= \case
                         Left err -> pure (Left ("Stripe Customer create failed: " <> stripeClientErrorText err))
                         Right stripeCustomer
-                            | stripeCustomer.stripeCustomerLivemode /= stripeModeIsLive stripeConfig.stripeMode ->
+                            | stripeCustomer.stripeCustomerLivemode /= stripeModeIsLive operation.operationStripeConfig.stripeMode ->
                                 pure (Left "Stripe Customer creation returned data from a different mode.")
                             | otherwise -> do
                                 customer <-
                                     newRecord @VenueBillingCustomer
-                                        |> set #venueId (unpackId venue.id)
+                                        |> set #venueId (unpackId operation.operationVenue.id)
                                         |> set #stripeCustomerId stripeCustomer.stripeCustomerId
                                         |> set #livemode stripeCustomer.stripeCustomerLivemode
-                                        |> set #createdByUserId (Just (unpackId owner.id))
+                                        |> set #createdByUserId (Just (unpackId operation.operationOwner.id))
                                         |> createRecord
                                 pure (Right (customer, True))
 
