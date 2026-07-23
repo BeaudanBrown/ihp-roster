@@ -7,12 +7,14 @@ module Application.Billing.Webhook
     )
 where
 
-import Application.Billing.Notifications (enqueueBillingNotifications)
+import Application.Billing.Notifications (BillingNotification (..),
+                                          BillingNotificationKind (..),
+                                          enqueueBillingNotifications)
 import Application.Billing.Persistence (lockStripeEventForWebhook,
                                         lockVenueForBilling)
 import Application.Billing.Stripe (StripeMode, StripeSubscription (..),
                                    pinnedStripeApiVersion, stripeModeIsLive)
-import Control.Monad (void)
+import Control.Monad (guard, void)
 import qualified Data.Aeson as Aeson
 import qualified Data.Aeson.Key as AesonKey
 import qualified Data.Aeson.KeyMap as AesonKeyMap
@@ -93,6 +95,8 @@ parseStripeObjectSnapshot stripeObject =
         priceId <- parseObjectPriceId object
         currentPeriodStart <- object Aeson..:? "current_period_start"
         currentPeriodEnd <- object Aeson..:? "current_period_end"
+        invoicePeriodStart <- object Aeson..:? "period_start"
+        invoicePeriodEnd <- object Aeson..:? "period_end"
         cancelAtPeriodEnd <- object Aeson..:? "cancel_at_period_end" Aeson..!= False
         pure
             StripeObjectSnapshot
@@ -106,8 +110,8 @@ parseStripeObjectSnapshot stripeObject =
                 , stripeObjectMetadataVenueId = metadataVenueId
                 , stripeObjectStatus = maybe status (Just . (.stripeSubscriptionStatus)) subscriptionContract
                 , stripeObjectPriceId = maybe priceId (Just . (.stripeSubscriptionPriceId)) subscriptionContract
-                , stripeObjectCurrentPeriodStart = maybe currentPeriodStart (Just . (.stripeSubscriptionCurrentPeriodStart)) subscriptionContract
-                , stripeObjectCurrentPeriodEnd = maybe currentPeriodEnd (Just . (.stripeSubscriptionCurrentPeriodEnd)) subscriptionContract
+                , stripeObjectCurrentPeriodStart = maybe (currentPeriodStart <|> invoicePeriodStart) (Just . (.stripeSubscriptionCurrentPeriodStart)) subscriptionContract
+                , stripeObjectCurrentPeriodEnd = maybe (currentPeriodEnd <|> invoicePeriodEnd) (Just . (.stripeSubscriptionCurrentPeriodEnd)) subscriptionContract
                 , stripeObjectCancelAtPeriodEnd = maybe cancelAtPeriodEnd (.stripeSubscriptionCancelAtPeriodEnd) subscriptionContract
                 }
 
@@ -118,7 +122,7 @@ parseMetadataVenueId =
 parseObjectPriceId :: Aeson.Object -> AesonTypes.Parser (Maybe Text)
 parseObjectPriceId object =
     case AesonKeyMap.lookup (AesonKey.fromString "items") object of
-        Nothing -> pure Nothing
+        Nothing         -> pure Nothing
         Just itemsValue -> parseItemsPriceId itemsValue
 
 parseItemsPriceId :: Aeson.Value -> AesonTypes.Parser (Maybe Text)
@@ -136,7 +140,7 @@ parseItemPriceId =
     Aeson.withObject "StripeSubscriptionItem" \itemObject ->
         case AesonKeyMap.lookup (AesonKey.fromString "price") itemObject of
             Just (Aeson.Object priceObject) -> priceObject Aeson..:? "id"
-            _ -> pure Nothing
+            _                               -> pure Nothing
 
 parseStripeWebhookEvent :: LByteString.ByteString -> Either Text StripeWebhookEvent
 parseStripeWebhookEvent rawBody =
@@ -206,13 +210,15 @@ processStripeWebhookEvent event =
                     ApplyIgnored -> do
                         ignoredEvent <- billingEvent |> set #status "ignored" |> updateRecord
                         pure (BillingWebhookIgnored ignoredEvent)
-                    ApplyProcessed shouldNotify -> do
+                    ApplyProcessed notifications -> do
                         processedEvent <-
                             billingEvent
                                 |> set #status "processed"
                                 |> set #processedAt (Just now)
                                 |> updateRecord
-                        when shouldNotify (maybeNotifyBillingProblem event maybeVenue processedEvent)
+                        forM_ notifications \notification ->
+                            forM_ maybeVenue \venue ->
+                                void (enqueueBillingNotifications venue processedEvent notification)
                         pure (BillingWebhookProcessed processedEvent)
 
 createBillingEventRecord :: (?modelContext :: ModelContext) => StripeWebhookEvent -> Maybe Venue -> IO BillingEvent
@@ -231,7 +237,7 @@ createBillingEventRecord event maybeVenue =
         |> createRecord
 
 data ApplyResult
-    = ApplyProcessed !Bool
+    = ApplyProcessed ![BillingNotification]
     | ApplyIgnored
     deriving (Eq, Show)
 
@@ -240,14 +246,18 @@ applyStripeEvent now event maybeVenue =
     case (stripeWebhookEventContract event.stripeEventType).webhookApplication of
         ApplyCheckoutCustomer      -> applyCheckoutEvent now maybeVenue event
         ApplySubscriptionSnapshot  -> upsertSubscription now maybeVenue event
-        ApplyInvoicePaymentFailure -> pure (ApplyProcessed True)
+        ApplyInvoicePaymentFailure -> applyInvoicePaymentFailure maybeVenue event
         IgnoreWebhookEvent         -> pure ApplyIgnored
 
 applyCheckoutEvent :: (?modelContext :: ModelContext) => UTCTime -> Maybe Venue -> StripeWebhookEvent -> IO ApplyResult
 applyCheckoutEvent now maybeVenue event = do
     ensureCheckoutCustomer maybeVenue event
     checkoutSnapshotWasApplied <- updateCheckoutAttempt now maybeVenue event
-    pure (ApplyProcessed (checkoutSnapshotWasApplied && isCheckoutPaymentFailure event))
+    notifications <-
+        if checkoutSnapshotWasApplied && isCheckoutPaymentFailure event
+            then checkoutPaymentFailureNotifications maybeVenue event
+            else pure []
+    pure (ApplyProcessed notifications)
 
 ensureCheckoutCustomer :: (?modelContext :: ModelContext) => Maybe Venue -> StripeWebhookEvent -> IO ()
 ensureCheckoutCustomer Nothing _ = pure ()
@@ -308,54 +318,135 @@ updateCheckoutAttempt now (Just venue) event =
     snapshot = event.stripeObjectSnapshot
 
 upsertSubscription :: (?modelContext :: ModelContext) => UTCTime -> Maybe Venue -> StripeWebhookEvent -> IO ApplyResult
-upsertSubscription _ Nothing _ = pure (ApplyProcessed False)
+upsertSubscription _ Nothing _ = pure (ApplyProcessed [])
 upsertSubscription now (Just venue) event = do
     let snapshot = event.stripeObjectSnapshot
     (subscriptionId, status, priceId) <-
         case (snapshot.stripeObjectSubscriptionId <|> snapshot.stripeObjectId, snapshot.stripeObjectStatus, snapshot.stripeObjectPriceId) of
             (Just subscriptionId, Just status, Just priceId) -> pure (subscriptionId, status, priceId)
             _ -> error "Supported Stripe subscription webhook is missing required snapshot fields"
-    ensureSubscriptionCustomerMatches venue event
-    existing <-
+    ensureStripeEventCustomerMatchesVenue venue event
+    existing <- fetchVenueSubscriptionForStripeEvent venue event
+    case existing of
+        Just subscription | not (isNewerStripeEvent event subscription) -> pure (ApplyProcessed [])
+        _ -> do
+            let previousSubscription = matchingSubscriptionForId (Just subscriptionId) existing
+            let notifications = subscriptionTransitionNotifications previousSubscription subscriptionId status snapshot
+            case existing of
+                Nothing ->
+                    void $
+                        newRecord @VenueSubscription
+                            |> set #venueId (unpackId venue.id)
+                            |> set #stripeSubscriptionId subscriptionId
+                            |> set #stripePriceId priceId
+                            |> set #livemode event.stripeLivemode
+                            |> set #status status
+                            |> set #currentPeriodStart (posixMaybe snapshot.stripeObjectCurrentPeriodStart)
+                            |> set #currentPeriodEnd (posixMaybe snapshot.stripeObjectCurrentPeriodEnd)
+                            |> set #cancelAtPeriodEnd snapshot.stripeObjectCancelAtPeriodEnd
+                            |> set #lastSyncedAt now
+                            |> set #lastAppliedStripeEventCreatedAt (Just event.stripeEventCreatedAt)
+                            |> set #lastAppliedStripeEventId (Just event.stripeEventId)
+                            |> createRecord
+                Just subscription ->
+                    void $
+                        subscription
+                            |> set #stripeSubscriptionId subscriptionId
+                            |> set #stripePriceId priceId
+                            |> set #livemode event.stripeLivemode
+                            |> set #status status
+                            |> set #currentPeriodStart (posixMaybe snapshot.stripeObjectCurrentPeriodStart)
+                            |> set #currentPeriodEnd (posixMaybe snapshot.stripeObjectCurrentPeriodEnd)
+                            |> set #cancelAtPeriodEnd snapshot.stripeObjectCancelAtPeriodEnd
+                            |> set #lastSyncedAt now
+                            |> set #lastAppliedStripeEventCreatedAt (Just event.stripeEventCreatedAt)
+                            |> set #lastAppliedStripeEventId (Just event.stripeEventId)
+                            |> updateRecord
+            pure (ApplyProcessed notifications)
+
+subscriptionTransitionNotifications :: Maybe VenueSubscription -> Text -> Text -> StripeObjectSnapshot -> [BillingNotification]
+subscriptionTransitionNotifications previousSubscription subscriptionId currentStatus snapshot =
+    troubleNotification <> recoveryNotification <> scheduledCancellationNotification <> completedCancellationNotification
+  where
+    wasTroubled = maybe False (isTroubledSubscriptionStatus . (.status)) previousSubscription
+    isTroubled = isTroubledSubscriptionStatus currentStatus
+    notification kind =
+        BillingNotification
+            { notificationKind = kind
+            , notificationSubscriptionId = Just subscriptionId
+            , notificationBillingPeriodStart = posixMaybe snapshot.stripeObjectCurrentPeriodStart
+            , notificationBillingPeriodEnd = posixMaybe snapshot.stripeObjectCurrentPeriodEnd
+            }
+    troubleNotification =
+        [notification BillingPaymentTrouble | isTroubled && not wasTroubled]
+    recoveryNotification =
+        [notification BillingPaymentRecovered | currentStatus == "active" && wasTroubled]
+    scheduledCancellationNotification =
+        [ notification BillingCancellationScheduled
+        | currentStatus /= "canceled"
+        , snapshot.stripeObjectCancelAtPeriodEnd
+        , maybe False (not . (.cancelAtPeriodEnd)) previousSubscription
+        ]
+    completedCancellationNotification =
+        [ notification BillingCancellationCompleted
+        | currentStatus == "canceled"
+        , maybe True ((/= "canceled") . (.status)) previousSubscription
+        ]
+
+isTroubledSubscriptionStatus :: Text -> Bool
+isTroubledSubscriptionStatus status =
+    status `elem` ["past_due", "unpaid", "incomplete_expired"]
+
+applyInvoicePaymentFailure :: (?modelContext :: ModelContext) => Maybe Venue -> StripeWebhookEvent -> IO ApplyResult
+applyInvoicePaymentFailure Nothing _ = pure (ApplyProcessed [])
+applyInvoicePaymentFailure (Just venue) event = do
+    ensureStripeEventCustomerMatchesVenue venue event
+    case event.stripeObjectSnapshot.stripeObjectSubscriptionId of
+        Nothing -> pure (ApplyProcessed [])
+        Just subscriptionId -> do
+            maybeSubscription <- fetchVenueSubscriptionForStripeEvent venue event
+            let matchingSubscription = matchingSubscriptionForId (Just subscriptionId) maybeSubscription
+            pure $
+                ApplyProcessed
+                    [billingNotificationFromSnapshot BillingPaymentTrouble (Just subscriptionId) event.stripeObjectSnapshot matchingSubscription]
+
+checkoutPaymentFailureNotifications :: (?modelContext :: ModelContext) => Maybe Venue -> StripeWebhookEvent -> IO [BillingNotification]
+checkoutPaymentFailureNotifications Nothing event =
+    pure [billingNotificationFromSnapshot BillingCheckoutPaymentFailed event.stripeObjectSnapshot.stripeObjectSubscriptionId event.stripeObjectSnapshot Nothing]
+checkoutPaymentFailureNotifications (Just venue) event = do
+    maybeSubscription <- fetchVenueSubscriptionForStripeEvent venue event
+    let matchingSubscription = matchingSubscriptionForId event.stripeObjectSnapshot.stripeObjectSubscriptionId maybeSubscription
+    pure [billingNotificationFromSnapshot BillingCheckoutPaymentFailed event.stripeObjectSnapshot.stripeObjectSubscriptionId event.stripeObjectSnapshot matchingSubscription]
+
+matchingSubscriptionForId :: Maybe Text -> Maybe VenueSubscription -> Maybe VenueSubscription
+matchingSubscriptionForId maybeSubscriptionId maybeSubscription = do
+    subscriptionId <- maybeSubscriptionId
+    subscription <- maybeSubscription
+    guard (subscription.stripeSubscriptionId == subscriptionId)
+    pure subscription
+
+fetchVenueSubscriptionForStripeEvent :: (?modelContext :: ModelContext) => Venue -> StripeWebhookEvent -> IO (Maybe VenueSubscription)
+fetchVenueSubscriptionForStripeEvent venue event = do
+    maybeSubscription <-
         query @VenueSubscription
             |> filterWhere (#venueId, unpackId venue.id)
             |> fetchOneOrNothing
-    case existing of
-        Just subscription | not (isNewerStripeEvent event subscription) -> pure (ApplyProcessed False)
-        Nothing -> do
-            void $
-                newRecord @VenueSubscription
-                    |> set #venueId (unpackId venue.id)
-                    |> set #stripeSubscriptionId subscriptionId
-                    |> set #stripePriceId priceId
-                    |> set #livemode event.stripeLivemode
-                    |> set #status status
-                    |> set #currentPeriodStart (posixMaybe snapshot.stripeObjectCurrentPeriodStart)
-                    |> set #currentPeriodEnd (posixMaybe snapshot.stripeObjectCurrentPeriodEnd)
-                    |> set #cancelAtPeriodEnd snapshot.stripeObjectCancelAtPeriodEnd
-                    |> set #lastSyncedAt now
-                    |> set #lastAppliedStripeEventCreatedAt (Just event.stripeEventCreatedAt)
-                    |> set #lastAppliedStripeEventId (Just event.stripeEventId)
-                    |> createRecord
-            pure (ApplyProcessed (isBillingProblem event))
-        Just subscription -> do
-            void $
-                subscription
-                    |> set #stripeSubscriptionId subscriptionId
-                    |> set #stripePriceId priceId
-                    |> set #livemode event.stripeLivemode
-                    |> set #status status
-                    |> set #currentPeriodStart (posixMaybe snapshot.stripeObjectCurrentPeriodStart)
-                    |> set #currentPeriodEnd (posixMaybe snapshot.stripeObjectCurrentPeriodEnd)
-                    |> set #cancelAtPeriodEnd snapshot.stripeObjectCancelAtPeriodEnd
-                    |> set #lastSyncedAt now
-                    |> set #lastAppliedStripeEventCreatedAt (Just event.stripeEventCreatedAt)
-                    |> set #lastAppliedStripeEventId (Just event.stripeEventId)
-                    |> updateRecord
-            pure (ApplyProcessed (isBillingProblem event))
+    forM_ maybeSubscription \subscription ->
+        unless (subscription.livemode == event.stripeLivemode) do
+            error "Stripe webhook mode does not match the venue Subscription mode"
+    pure maybeSubscription
 
-ensureSubscriptionCustomerMatches :: (?modelContext :: ModelContext) => Venue -> StripeWebhookEvent -> IO ()
-ensureSubscriptionCustomerMatches venue event =
+billingNotificationFromSnapshot :: BillingNotificationKind -> Maybe Text -> StripeObjectSnapshot -> Maybe VenueSubscription -> BillingNotification
+billingNotificationFromSnapshot kind maybeSubscriptionId snapshot maybeSubscription =
+    BillingNotification
+        { notificationKind = kind
+        , notificationSubscriptionId = maybeSubscriptionId
+        , notificationBillingPeriodStart = posixMaybe snapshot.stripeObjectCurrentPeriodStart <|> (maybeSubscription >>= (.currentPeriodStart))
+        , notificationBillingPeriodEnd = posixMaybe snapshot.stripeObjectCurrentPeriodEnd <|> (maybeSubscription >>= (.currentPeriodEnd))
+        }
+
+ensureStripeEventCustomerMatchesVenue :: (?modelContext :: ModelContext) => Venue -> StripeWebhookEvent -> IO ()
+ensureStripeEventCustomerMatchesVenue venue event =
     forM_ event.stripeObjectSnapshot.stripeObjectCustomerId \customerId -> do
         maybeCustomer <-
             query @VenueBillingCustomer
@@ -395,9 +486,6 @@ isCheckoutPaymentFailure :: StripeWebhookEvent -> Bool
 isCheckoutPaymentFailure event =
     event.stripeEventType == "checkout.session.async_payment_failed"
 
-isBillingProblem :: StripeWebhookEvent -> Bool
-isBillingProblem = isJust . billingProblemKind
-
 resolveAndLockStripeEventVenue :: (?modelContext :: ModelContext) => StripeWebhookEvent -> IO (Maybe Venue)
 resolveAndLockStripeEventVenue event = do
     maybeVenue <- resolveStripeEventVenue event
@@ -429,19 +517,3 @@ resolveVenueFromText (Just rawVenueId) =
 
 posixMaybe :: Maybe Integer -> Maybe UTCTime
 posixMaybe = fmap (posixSecondsToUTCTime . fromInteger)
-
-maybeNotifyBillingProblem :: (?modelContext :: ModelContext) => StripeWebhookEvent -> Maybe Venue -> BillingEvent -> IO ()
-maybeNotifyBillingProblem event maybeVenue billingEvent =
-    case (maybeVenue, billingProblemKind event) of
-        (Just venue, Just notificationKind) -> void (enqueueBillingNotifications venue billingEvent notificationKind)
-        _                                   -> pure ()
-
-billingProblemKind :: StripeWebhookEvent -> Maybe Text
-billingProblemKind event
-    | event.stripeEventType == "invoice.payment_failed" = Just "payment_failed"
-    | event.stripeEventType == "checkout.session.async_payment_failed" = Just "async_payment_failed"
-    | event.stripeEventType `elem` ["customer.subscription.created", "customer.subscription.updated", "customer.subscription.deleted"] =
-        case event.stripeObjectSnapshot.stripeObjectStatus of
-            Just status | status `elem` ["past_due", "canceled", "unpaid", "incomplete_expired"] -> Just status
-            _ -> Nothing
-    | otherwise = Nothing

@@ -19,8 +19,11 @@ customer and subscription records must not be deduplicated by user or email.
   QueryBuilder does not expose `SELECT ... FOR UPDATE`.
 - `Webhook.hs` - raw-verified Stripe webhook event parsing and one-transaction,
   idempotent, ordered local Customer, Checkout-attempt, and Subscription updates.
-- `Notifications.hs` - sanitized billing problem notifications for venue
-  owners and founder super admins.
+- `NotificationKind.hs` - typed notification taxonomy and backward-compatible
+  job payload names.
+- `Notifications.hs` - transition-based, permanently deduplicated billing
+  notifications for active venue owners and founder super admins, plus
+  sanitized terminal operational alerts for support.
 
 Web request/response behavior lives in `Web/Controller/Billing.hs` and
 `Web/Controller/StripeWebhooks.hs`. Super-admin billing controls live on the

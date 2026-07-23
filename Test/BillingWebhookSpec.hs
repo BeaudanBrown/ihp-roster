@@ -1,9 +1,13 @@
 module Test.BillingWebhookSpec where
 
-import Application.Billing.Notifications (billingNotificationJobKind)
+import Application.Async.Queue (appJobMaxAttempts)
+import Application.Async.Registry (dispatchAppJob)
+import Application.Billing.Notifications (billingNotificationJobKind,
+                                          performBillingNotificationJob)
 import Application.Billing.Stripe
 import Application.Billing.Webhook
 import Application.Helper.Controller (PlatformRole (SuperAdminRole))
+import Config (config)
 import Control.Concurrent (forkIO)
 import Control.Concurrent.MVar (MVar, newEmptyMVar, putMVar, takeMVar)
 import Control.Exception (SomeException, try)
@@ -22,6 +26,8 @@ import Generated.Types
 import IHP.Controller.Session (sessionVaultKey)
 import IHP.ControllerPrelude
 import IHP.ControllerSupport (runActionWithNewContext)
+import IHP.FrameworkConfig (withFrameworkConfig)
+import IHP.Job.Types (JobStatus (JobStatusFailed, JobStatusRunning, JobStatusSucceeded, JobStatusTimedOut))
 import IHP.Server (initMiddlewareStack)
 import IHP.Test.Mocking
 import Network.HTTP.Types.Header (hContentType)
@@ -165,6 +171,50 @@ tests = aroundAll withDatabaseTestContext do
                 subscription <- query @VenueSubscription |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
                 subscription.livemode `shouldBe` True
 
+        it "fails closed when persisted Subscription mode differs from the validated event" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Webhook Persisted Mode Mismatch Venue"
+                _ <- createBillingCustomer venue "cus_persisted_mode_mismatch"
+                subscription <-
+                    newRecord @VenueSubscription
+                        |> set #venueId (unpackId venue.id)
+                        |> set #stripeSubscriptionId "sub_persisted_mode_mismatch"
+                        |> set #stripePriceId "price_monthly_123"
+                        |> set #livemode True
+                        |> set #status "active"
+                        |> createRecord
+
+                result <- try (handleStripeWebhookPayload StripeTestMode (subscriptionEvent "evt_persisted_mode_mismatch" venue "cus_persisted_mode_mismatch" "sub_persisted_mode_mismatch" "past_due"))
+                    :: IO (Either SomeException (Either Text BillingWebhookResult))
+
+                result `shouldSatisfy` \case
+                    Left _  -> True
+                    Right _ -> False
+                retainedSubscription <- fetch subscription.id
+                retainedSubscription.livemode `shouldBe` True
+                retainedSubscription.status `shouldBe` "active"
+                query @BillingEvent |> fetchCount `shouldReturn` 0
+                query @AppJob |> filterWhere (#jobKind, billingNotificationJobKind) |> fetchCount `shouldReturn` 0
+
+        it "fails closed when an invoice resolves through a Customer from the opposite mode" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Webhook Invoice Customer Mode Mismatch Venue"
+                _ <-
+                    newRecord @VenueBillingCustomer
+                        |> set #venueId (unpackId venue.id)
+                        |> set #stripeCustomerId "cus_invoice_mode_mismatch"
+                        |> set #livemode True
+                        |> createRecord
+
+                result <- try (handleStripeWebhookPayload StripeTestMode (invoicePaymentFailedEvent "evt_invoice_mode_mismatch" "cus_invoice_mode_mismatch" "sub_invoice_mode_mismatch"))
+                    :: IO (Either SomeException (Either Text BillingWebhookResult))
+
+                result `shouldSatisfy` \case
+                    Left _  -> True
+                    Right _ -> False
+                query @BillingEvent |> fetchCount `shouldReturn` 0
+                query @AppJob |> filterWhere (#jobKind, billingNotificationJobKind) |> fetchCount `shouldReturn` 0
+
         it "persists live provider mode on webhook-created Customer associations" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Live Customer Mode Venue"
@@ -248,16 +298,174 @@ tests = aroundAll withDatabaseTestContext do
                 venue <- createVenueWithConfig "Webhook Notification Venue"
                 owner <- createUserRecord "billing-problem-owner@example.com" "staff" True
                 _ <- createVenueMembershipRecord venue owner "venue_owner"
+                inactiveOwner <- createUserRecord "billing-inactive-owner@example.com" "staff" True
+                inactiveMembership <- createVenueMembershipRecord venue inactiveOwner "venue_owner"
+                _ <- inactiveMembership |> set #isActive False |> updateRecord
+                deactivatedOwner <- createUserRecord "billing-deactivated-at-enqueue-owner@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue deactivatedOwner "venue_owner"
+                now <- getCurrentTime
+                _ <- deactivatedOwner |> set #deactivatedAt (Just now) |> updateRecord
                 _ <- createUserRecordWithPlatformRole "billing-problem-support@example.com" "staff" (Just SuperAdminRole) True
                 _ <- createBillingCustomer venue "cus_payment_failed_123"
+                let eventBody = invoicePaymentFailedEvent "evt_invoice_failed_123" "cus_payment_failed_123" "sub_failed_123"
 
-                Right result <- handleStripeWebhookPayload StripeTestMode (invoicePaymentFailedEvent "evt_invoice_failed_123" "cus_payment_failed_123")
+                Right result <- handleStripeWebhookPayload StripeTestMode eventBody
+                Right duplicateResult <- handleStripeWebhookPayload StripeTestMode eventBody
 
                 result `shouldSatisfy` isProcessed
+                duplicateResult `shouldSatisfy` isDuplicate
                 jobs <- query @AppJob |> filterWhere (#jobKind, billingNotificationJobKind) |> fetch
                 length jobs `shouldBe` 2
                 map (.venueId) jobs `shouldBe` [Just (unpackId venue.id), Just (unpackId venue.id)]
                 map (.relatedTable) jobs `shouldBe` [Just "billing_events", Just "billing_events"]
+
+        it "deduplicates same-period trouble after every terminal notification job state" $ withContext do
+            forM_ [JobStatusSucceeded, JobStatusFailed, JobStatusTimedOut] \terminalStatus ->
+                withCleanDb do
+                    venue <- createVenueWithConfig "Webhook Trouble Dedupe Venue"
+                    owner <- createUserRecord "billing-trouble-dedupe-owner@example.com" "staff" True
+                    _ <- createVenueMembershipRecord venue owner "venue_owner"
+                    _ <- createBillingCustomer venue "cus_trouble_dedupe_123"
+
+                    Right _ <- handleStripeWebhookPayload StripeTestMode (invoicePaymentFailedEventAt (testStripeEventCreatedSeconds + 1) "evt_trouble_invoice" "cus_trouble_dedupe_123" "sub_trouble_dedupe_123")
+                    firstJob <- query @AppJob |> filterWhere (#jobKind, billingNotificationJobKind) |> fetchOne
+                    case terminalStatus of
+                        JobStatusSucceeded ->
+                            withFrameworkConfig config \frameworkConfig -> do
+                                let ?context = frameworkConfig
+                                performBillingNotificationJob firstJob
+                        _ -> do
+                            _ <- firstJob |> set #status terminalStatus |> updateRecord
+                            pure ()
+                    terminalFirstJob <- fetch firstJob.id
+                    terminalFirstJob.status `shouldBe` terminalStatus
+
+                    Right _ <- handleStripeWebhookPayload StripeTestMode (subscriptionEventAt (testStripeEventCreatedSeconds + 2) "evt_trouble_past_due" venue "cus_trouble_dedupe_123" "sub_trouble_dedupe_123" "past_due")
+
+                    jobs <- query @AppJob |> filterWhere (#jobKind, billingNotificationJobKind) |> fetch
+                    length jobs `shouldBe` 1
+                    map (.relatedTable) jobs `shouldBe` [Just "billing_events"]
+                    map (.dedupeKey) jobs `shouldSatisfy` all (maybe False (Text.isInfixOf ":payment_trouble:"))
+
+        it "notifies again when a later billing period fails while the subscription remains troubled" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Webhook Later Trouble Period Venue"
+                owner <- createUserRecord "billing-later-period-owner@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue owner "venue_owner"
+                _ <- createBillingCustomer venue "cus_later_trouble_period_123"
+                Right _ <- handleStripeWebhookPayload StripeTestMode (subscriptionEventAt testStripeEventCreatedSeconds "evt_later_period_active" venue "cus_later_trouble_period_123" "sub_later_trouble_period_123" "active")
+                Right _ <- handleStripeWebhookPayload StripeTestMode (subscriptionEventAt (testStripeEventCreatedSeconds + 1) "evt_later_period_trouble" venue "cus_later_trouble_period_123" "sub_later_trouble_period_123" "past_due")
+
+                Right _ <- handleStripeWebhookPayload StripeTestMode (invoicePaymentFailedEventForPeriodAt testStripeEventCreatedSeconds 1762592000 1765184000 "evt_later_period_invoice" "cus_later_trouble_period_123" "sub_later_trouble_period_123")
+
+                jobs <- query @AppJob |> filterWhere (#jobKind, billingNotificationJobKind) |> fetch
+                length jobs `shouldBe` 2
+                let dedupeKeys = mapMaybe (.dedupeKey) jobs
+                length (nub dedupeKeys) `shouldBe` 2
+                dedupeKeys `shouldSatisfy` all (Text.isInfixOf ":payment_trouble:")
+
+        it "skips queued owner mail when membership or account eligibility changes before delivery" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Webhook Notification Reauthorization Venue"
+                deactivatedOwner <- createUserRecord "billing-deactivated-owner@example.com" "staff" True
+                deactivatedMembership <- createVenueMembershipRecord venue deactivatedOwner "venue_owner"
+                archivedOwner <- createUserRecord "billing-archived-owner@example.com" "staff" True
+                archivedMembership <- createVenueMembershipRecord venue archivedOwner "venue_owner"
+                accountDeactivatedOwner <- createUserRecord "billing-account-deactivated-owner@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue accountDeactivatedOwner "venue_owner"
+                _ <- createBillingCustomer venue "cus_notification_reauthorization_123"
+
+                Right _ <- handleStripeWebhookPayload StripeTestMode (invoicePaymentFailedEvent "evt_notification_reauthorization" "cus_notification_reauthorization_123" "sub_notification_reauthorization_123")
+                jobs <- query @AppJob |> filterWhere (#jobKind, billingNotificationJobKind) |> fetch
+                length jobs `shouldBe` 3
+
+                now <- getCurrentTime
+                _ <- deactivatedMembership |> set #isActive False |> updateRecord
+                _ <- archivedMembership |> set #archivedAt (Just now) |> updateRecord
+                _ <- accountDeactivatedOwner |> set #deactivatedAt (Just now) |> updateRecord
+                withFrameworkConfig config \frameworkConfig -> do
+                    let ?context = frameworkConfig
+                    forM_ jobs performBillingNotificationJob
+
+                completedJobs <- query @AppJob |> filterWhere (#jobKind, billingNotificationJobKind) |> fetch
+                map (.status) completedJobs `shouldBe` [JobStatusSucceeded, JobStatusSucceeded, JobStatusSucceeded]
+                map (.result) completedJobs `shouldSatisfy` all (Text.isInfixOf "skipped_ineligible_recipient" . cs . Aeson.encode)
+
+        it "does not notify from an initial active snapshot already marked for cancellation" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Webhook Initial Cancellation Snapshot Venue"
+                owner <- createUserRecord "billing-initial-cancellation-owner@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue owner "venue_owner"
+                _ <- createBillingCustomer venue "cus_initial_cancellation_snapshot_123"
+
+                Right _ <- handleStripeWebhookPayload StripeTestMode (subscriptionEventOfTypeWithCancellationAt "customer.subscription.created" testStripeEventCreatedSeconds True "evt_initial_cancellation_snapshot" venue "cus_initial_cancellation_snapshot_123" "sub_initial_cancellation_snapshot_123" "active")
+
+                query @AppJob |> filterWhere (#jobKind, billingNotificationJobKind) |> fetchCount `shouldReturn` 0
+
+        it "keeps trouble, recovery, scheduled cancellation, and completed cancellation independently visible" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Webhook Notification Transitions Venue"
+                owner <- createUserRecord "billing-transitions-owner@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue owner "venue_owner"
+                _ <- createBillingCustomer venue "cus_notification_transitions_123"
+
+                Right _ <- handleStripeWebhookPayload StripeTestMode (subscriptionEventOfTypeWithCancellationAt "customer.subscription.created" testStripeEventCreatedSeconds False "evt_transition_initial_active" venue "cus_notification_transitions_123" "sub_notification_transitions_123" "active")
+                Right _ <- handleStripeWebhookPayload StripeTestMode (subscriptionEventAt (testStripeEventCreatedSeconds + 1) "evt_transition_trouble" venue "cus_notification_transitions_123" "sub_notification_transitions_123" "past_due")
+                Right _ <- handleStripeWebhookPayload StripeTestMode (subscriptionEventAt (testStripeEventCreatedSeconds + 2) "evt_transition_recovered" venue "cus_notification_transitions_123" "sub_notification_transitions_123" "active")
+                Right _ <- handleStripeWebhookPayload StripeTestMode (subscriptionEventWithCancellationAt (testStripeEventCreatedSeconds + 3) True "evt_transition_cancel_scheduled" venue "cus_notification_transitions_123" "sub_notification_transitions_123" "active")
+                Right _ <- handleStripeWebhookPayload StripeTestMode (subscriptionEventOfTypeWithCancellationAt "customer.subscription.deleted" (testStripeEventCreatedSeconds + 4) False "evt_transition_canceled" venue "cus_notification_transitions_123" "sub_notification_transitions_123" "canceled")
+
+                jobs <- query @AppJob |> filterWhere (#jobKind, billingNotificationJobKind) |> orderByAsc #createdAt |> fetch
+                length jobs `shouldBe` 4
+                let dedupeKeys = mapMaybe (.dedupeKey) jobs
+                dedupeKeys `shouldSatisfy` any (Text.isInfixOf ":payment_trouble:")
+                dedupeKeys `shouldSatisfy` any (Text.isInfixOf ":payment_recovered:")
+                dedupeKeys `shouldSatisfy` any (Text.isInfixOf ":cancellation_scheduled:")
+                dedupeKeys `shouldSatisfy` any (Text.isInfixOf ":cancellation_completed:")
+
+        it "notifies support once only after a billing operation exhausts retries" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Billing Terminal Failure Venue"
+                owner <- createUserRecord "billing-terminal-owner@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue owner "venue_owner"
+                supportUser <- createUserRecordWithPlatformRole "billing-terminal-support@example.com" "staff" (Just SuperAdminRole) True
+                deactivatedSupportUser <- createUserRecordWithPlatformRole "billing-terminal-deactivated-support@example.com" "staff" (Just SuperAdminRole) True
+                now <- getCurrentTime
+                _ <- deactivatedSupportUser |> set #deactivatedAt (Just now) |> updateRecord
+                sourceJob <-
+                    newRecord @AppJob
+                        |> set #jobKind "billing_reconciliation"
+                        |> set #venueId (Just (unpackId venue.id))
+                        |> set #status JobStatusRunning
+                        |> set #attemptsCount (appJobMaxAttempts - 1)
+                        |> set #lastError (Just "pm_secret billing@example.test 4111111111111111")
+                        |> createRecord
+
+                withFrameworkConfig config \frameworkConfig -> do
+                    let ?context = frameworkConfig
+                    _ <- try (dispatchAppJob sourceJob) :: IO (Either SomeException ())
+                    query @AppJob |> filterWhere (#jobKind, billingNotificationJobKind) |> fetchCount `shouldReturn` 0
+
+                    finalAttempt <- sourceJob |> set #attemptsCount appJobMaxAttempts |> updateRecord
+                    _ <- try (dispatchAppJob finalAttempt) :: IO (Either SomeException ())
+                    _ <- try (dispatchAppJob finalAttempt) :: IO (Either SomeException ())
+                    pure ()
+
+                jobs <- query @AppJob |> filterWhere (#jobKind, billingNotificationJobKind) |> fetch
+                length jobs `shouldBe` 1
+                map (.relatedTable) jobs `shouldBe` [Just "app_jobs"]
+                map (.relatedId) jobs `shouldBe` [Just (unpackId sourceJob.id)]
+                map (.payload) jobs `shouldSatisfy` all (not . Text.isInfixOf "pm_secret" . cs . Aeson.encode)
+                map (.payload) jobs `shouldSatisfy` all (Text.isInfixOf (inputValue supportUser.id) . cs . Aeson.encode)
+                map (.payload) jobs `shouldSatisfy` all (not . Text.isInfixOf (inputValue deactivatedSupportUser.id) . cs . Aeson.encode)
+
+                _ <- supportUser |> set #deactivatedAt (Just now) |> updateRecord
+                withFrameworkConfig config \frameworkConfig -> do
+                    let ?context = frameworkConfig
+                    forM_ jobs performBillingNotificationJob
+                completedSupportJob <- query @AppJob |> filterWhere (#jobKind, billingNotificationJobKind) |> fetchOne
+                completedSupportJob.status `shouldBe` JobStatusSucceeded
+                cs (Aeson.encode completedSupportJob.result) `shouldSatisfy` Text.isInfixOf "skipped_ineligible_recipient"
 
         it "accepts a valid signed webhook while new Checkout is disabled" $ withContext do
             withCleanDb do
@@ -480,13 +688,25 @@ subscriptionEventWithModes :: Bool -> Bool -> Text -> Venue -> Text -> Text -> T
 subscriptionEventWithModes livemode priceLivemode = subscriptionEventWithModesAt livemode priceLivemode testStripeEventCreatedSeconds
 
 subscriptionEventWithModesAt :: Bool -> Bool -> Integer -> Text -> Venue -> Text -> Text -> Text -> LByteString.ByteString
-subscriptionEventWithModesAt livemode priceLivemode eventCreatedAt eventId venue customerId subscriptionId status =
+subscriptionEventWithModesAt livemode priceLivemode eventCreatedAt =
+    subscriptionEventWithModesAndCancellationAt livemode priceLivemode "customer.subscription.updated" eventCreatedAt False
+
+subscriptionEventWithCancellationAt :: Integer -> Bool -> Text -> Venue -> Text -> Text -> Text -> LByteString.ByteString
+subscriptionEventWithCancellationAt =
+    subscriptionEventOfTypeWithCancellationAt "customer.subscription.updated"
+
+subscriptionEventOfTypeWithCancellationAt :: Text -> Integer -> Bool -> Text -> Venue -> Text -> Text -> Text -> LByteString.ByteString
+subscriptionEventOfTypeWithCancellationAt =
+    subscriptionEventWithModesAndCancellationAt False False
+
+subscriptionEventWithModesAndCancellationAt :: Bool -> Bool -> Text -> Integer -> Bool -> Text -> Venue -> Text -> Text -> Text -> LByteString.ByteString
+subscriptionEventWithModesAndCancellationAt livemode priceLivemode eventType eventCreatedAt cancelAtPeriodEnd eventId venue customerId subscriptionId status =
     Aeson.encode $
         Aeson.object
             [ "id" Aeson..= eventId
             , "object" Aeson..= ("event" :: Text)
             , "created" Aeson..= eventCreatedAt
-            , "type" Aeson..= ("customer.subscription.updated" :: Text)
+            , "type" Aeson..= eventType
             , "livemode" Aeson..= livemode
             , "api_version" Aeson..= pinnedStripeApiVersion
             , "data" Aeson..=
@@ -498,7 +718,7 @@ subscriptionEventWithModesAt livemode priceLivemode eventCreatedAt eventId venue
                             , "customer" Aeson..= customerId
                             , "livemode" Aeson..= livemode
                             , "status" Aeson..= status
-                            , "cancel_at_period_end" Aeson..= False
+                            , "cancel_at_period_end" Aeson..= cancelAtPeriodEnd
                             , "metadata" Aeson..= Aeson.object ["venue_id" Aeson..= inputValue venue.id]
                             , "items" Aeson..=
                                 Aeson.object
@@ -668,13 +888,20 @@ checkoutSessionEventWithoutLivemode eventId customerId subscriptionId =
                     ]
             ]
 
-invoicePaymentFailedEvent :: Text -> Text -> LByteString.ByteString
-invoicePaymentFailedEvent eventId customerId =
+invoicePaymentFailedEvent :: Text -> Text -> Text -> LByteString.ByteString
+invoicePaymentFailedEvent = invoicePaymentFailedEventAt testStripeEventCreatedSeconds
+
+invoicePaymentFailedEventAt :: Integer -> Text -> Text -> Text -> LByteString.ByteString
+invoicePaymentFailedEventAt eventCreatedAt =
+    invoicePaymentFailedEventForPeriodAt eventCreatedAt 1760000000 1762592000
+
+invoicePaymentFailedEventForPeriodAt :: Integer -> Integer -> Integer -> Text -> Text -> Text -> LByteString.ByteString
+invoicePaymentFailedEventForPeriodAt eventCreatedAt periodStart periodEnd eventId customerId subscriptionId =
     Aeson.encode $
         Aeson.object
             [ "id" Aeson..= eventId
             , "object" Aeson..= ("event" :: Text)
-            , "created" Aeson..= testStripeEventCreatedSeconds
+            , "created" Aeson..= eventCreatedAt
             , "type" Aeson..= ("invoice.payment_failed" :: Text)
             , "livemode" Aeson..= False
             , "api_version" Aeson..= pinnedStripeApiVersion
@@ -686,7 +913,9 @@ invoicePaymentFailedEvent eventId customerId =
                             , "id" Aeson..= ("in_failed_123" :: Text)
                             , "livemode" Aeson..= False
                             , "customer" Aeson..= customerId
-                            , "subscription" Aeson..= ("sub_failed_123" :: Text)
+                            , "subscription" Aeson..= subscriptionId
+                            , "period_start" Aeson..= periodStart
+                            , "period_end" Aeson..= periodEnd
                             ]
                     ]
             ]

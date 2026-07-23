@@ -29,6 +29,11 @@ Read this before editing `Application/Billing/` or billing controllers.
 - Never log Stripe secret keys, webhook secrets, payment method details, or full
   raw webhook/API payloads. Checkout-attempt failures use only bounded sanitized
   error code/summary fields; never persist provider bodies in those fields.
+- Classify billing notifications from prior/current subscription state while the
+  venue lock is held. Deduplicate lifecycle mail across all job states by mode,
+  venue, subscription, category, billing period, and recipient; recheck active
+  membership/account or super-admin eligibility at delivery; never key mail only
+  to a Stripe event ID or copy provider error text into notification payloads.
 - Keep Stripe mode explicit. API objects and signed events must match configured
   test/live mode; never infer mode from a Customer or Subscription ID. Persist
   validated `livemode` on every Customer, Checkout-attempt, Subscription, and

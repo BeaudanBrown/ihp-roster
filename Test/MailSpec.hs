@@ -1,5 +1,6 @@
 module Test.MailSpec where
 
+import Application.Billing.NotificationKind (BillingNotificationKind (BillingPaymentTrouble))
 import Application.Helper.Mail
 import Control.Exception (bracket)
 import Data.Text (isInfixOf)
@@ -125,26 +126,16 @@ tests = aroundAll withDatabaseTestContext do
                 text mail `shouldSatisfy` isInfixOf "https://app.example/VerifyEmail?token=test"
                 text mail `shouldSatisfy` isInfixOf "contact support@example.com."
 
-        it "renders billing notifications without Stripe raw payloads" $ withContext do
+        it "renders billing notifications without provider or payment details" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Billing Mail Venue"
                 user <- createUserRecord "billing-mail@example.com" "staff" True
-                now <- getCurrentTime
-                billingEvent <-
-                    newRecord @BillingEvent
-                        |> set #stripeEventId "evt_billing_mail"
-                        |> set #eventType "invoice.payment_failed"
-                        |> set #livemode False
-                        |> set #venueId (Just (unpackId venue.id))
-                        |> set #status "processed"
-                        |> set #processedAt (Just now)
-                        |> createRecord
                 let mail =
                         BillingNotificationMail
                             { recipient = user
                             , venue = venue
-                            , billingEvent = billingEvent
-                            , notificationKind = "payment_failed"
+                            , notificationKind = BillingPaymentTrouble
+                            , sourceReference = Nothing
                             , billingUrl = "https://app.example/Billing"
                             , fromAddress = "billing@example.com"
                             , replyToAddress = "support@example.com"
@@ -158,9 +149,11 @@ tests = aroundAll withDatabaseTestContext do
                 addressEmail from `shouldBe` "billing@example.com"
                 fmap addressEmail (replyTo mail) `shouldBe` Just "support@example.com"
                 text mail `shouldSatisfy` isInfixOf "Billing needs attention for Billing Mail Venue."
-                text mail `shouldSatisfy` isInfixOf "Event: invoice.payment_failed"
+                text mail `shouldSatisfy` isInfixOf "manage payment details securely through Stripe"
                 text mail `shouldSatisfy` isInfixOf "https://app.example/Billing"
                 text mail `shouldSatisfy` isInfixOf "contact support@example.com."
+                text mail `shouldSatisfy` (not . isInfixOf "invoice.payment_failed")
+                text mail `shouldSatisfy` (not . isInfixOf "pm_secret")
 
         it "renders passkey setup mail with the setup URL, reply-to, and support footer" $ withContext do
             withCleanDb do

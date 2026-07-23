@@ -295,9 +295,36 @@ provider Subscription ID atomically with the event. A Checkout success return
 may retrieve the Checkout Session for reconciliation or user feedback, but it
 must not replace webhook processing.
 
-Troubled states such as failed async payment, past due, unpaid, canceled, or
-deleted subscriptions notify venue owners and founder super admins. They do not
-set manual read-only automatically in v1.
+## Billing Notifications
+
+Signed webhook application classifies meaningful transitions while the prior
+Subscription snapshot is still available. Active venue owners and founder super
+admins are notified when a subscription first enters `past_due`, `unpaid`, or
+`incomplete_expired`, when one of those states recovers to `active`, when
+cancellation at period end is first scheduled, and when cancellation completes.
+A failed asynchronous Checkout payment remains a separate notification category.
+Initial active snapshots and repeated snapshots within the same state do not
+send customer messages.
+
+An `invoice.payment_failed` event and the corresponding Subscription trouble
+snapshot share the `payment_trouble` category. Notification jobs are permanently
+deduplicated by Stripe mode, venue, Subscription, category, billing period, and
+recipient, rather than by webhook event ID. This keeps invoice and Subscription
+signals for one period from producing duplicate email while allowing recovery,
+scheduled cancellation, completed cancellation, and a later billing period to
+remain independently visible. The notification job is enqueued in the same
+venue-locked webhook transaction as the processed event and Subscription update.
+
+Only non-deactivated users with active, non-archived owner memberships receive
+venue-owner mail. Founder support recipients must likewise remain non-deactivated
+super admins when a job is enqueued and delivered. A billing operation that fails
+before its shared AppJob retry limit remains silent; its final failed attempt
+enqueues one support-only notification per eligible founder super admin, keyed
+by source job and recipient. That alert contains only the venue,
+internal job reference, and fixed operational category. Provider errors,
+payment methods, billing addresses, tax details, and raw payloads are never
+copied into notification payloads or mail. Billing notifications do not change
+venue writability automatically in v1.
 
 ## Manual Read-Only Policy
 
