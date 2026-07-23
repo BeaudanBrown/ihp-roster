@@ -9,9 +9,17 @@ Read this before editing `Application/Billing/` or billing controllers.
   application modules. Keep redirects, toasts, params, and permission response
   choices in controllers.
 - Venue owners may use payment actions. Founder super admins in support mode may
-  inspect billing and use explicit support controls, but must never start
-  Checkout or open a venue payer's Customer Portal. Venue authority comes from
+  inspect billing and request reconciliation, but must never start Checkout or
+  open a venue payer's Customer Portal. Venue authority comes from
   `venue_memberships`, not `users`.
+- Keep owner status inspection free of fresh passkey step-up while retaining the
+  normal privileged passkey setup policy. Checkout and Customer Portal actions
+  still require fresh step-up. Founder diagnostics and reconciliation remain
+  step-up protected.
+- Owner rendering must not expose provider identifiers, event/job diagnostics,
+  Checkout failure internals, or dormant manual read-only controls. Founder
+  diagnostics may show only bounded persisted identifiers and sanitized
+  summaries; do not reuse the owner action panel for support mode.
 - Support-mode requests have a real `currentVenue`, no
   `currentVenueMembership`, and `currentUserIsSuperAdmin = True`; keep the
   diagnostic path working while denying payer actions explicitly.
@@ -48,7 +56,9 @@ Read this before editing `Application/Billing/` or billing controllers.
   correlation before updating mirrors; never call a provider create/update
   endpoint or alter venue writability. Manual, return, and sweep entry points
   must enqueue the shared `billing_reconciliation` job behavior.
-- When changing visible billing status, Checkout/Portal flows, pending/webhook language, manual read-only controls, or owner/support access behavior, update the `billing` topic in `Application.Helper.View.PageHelp`.
+- When changing visible billing status, Checkout/Portal flows, pending/webhook
+  language, dormant manual read-only behavior, or owner/support access behavior,
+  update the `billing` topic in `Application.Helper.View.PageHelp`.
 
 ## Configuration
 

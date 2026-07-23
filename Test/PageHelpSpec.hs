@@ -42,6 +42,17 @@ tests = do
             rendered `shouldSatisfy` all (not . Text.isInfixOf "drag")
             rendered `shouldSatisfy` all (not . Text.isInfixOf "Turn Live on")
             rendered `shouldSatisfy` any (Text.isInfixOf "future roster")
+
+    describe "billing help role filtering" do
+        it "keeps payer actions owner-only while showing diagnostics to founder support" do
+            billing <- maybe (expectationFailure "missing billing topic" >> error "missing billing topic") pure (lookupPageHelpTopic (PageHelpTopicId "billing"))
+            let ownerHelp = flattenHelpText (filterPageHelpTopic ownerContext billing)
+            let supportHelp = flattenHelpText (filterPageHelpTopic supportContext billing)
+            ownerHelp `shouldSatisfy` any (Text.isInfixOf "Start Subscription")
+            ownerHelp `shouldSatisfy` all (not . Text.isInfixOf "Synchronize with Stripe")
+            supportHelp `shouldSatisfy` any (Text.isInfixOf "Synchronize with Stripe")
+            supportHelp `shouldSatisfy` all (not . Text.isInfixOf "Start Subscription")
+            supportHelp `shouldSatisfy` all (not . Text.isInfixOf "manual read-only")
   where
     topicContexts =
         [ (PageHelpTopicId "roster", managerContext)

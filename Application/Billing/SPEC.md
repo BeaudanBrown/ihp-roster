@@ -24,9 +24,9 @@ billing. Future billing behavior belongs in
   success redirects are user feedback only and must not grant entitlement by
   themselves.
 - Payment state only notifies in v1. It does not automatically disable a venue.
-- Founder super admins may manually mark a venue read-only for billing or
-  operational reasons. This manual control stays separate from subscription
-  status.
+- Dormant founder-only infrastructure can manually mark a venue read-only for
+  billing or operational reasons. This control stays separate from subscription
+  status and is not rendered in the visible Billing product.
 
 ## Stripe API Contract
 
@@ -374,9 +374,59 @@ payment methods, billing addresses, tax details, and raw payloads are never
 copied into notification payloads or mail. Billing notifications do not change
 venue writability automatically in v1.
 
+## Billing Product Experience
+
+The authenticated Billing route has two audience-specific renderings over the
+same venue-scoped live fragment:
+
+- an ordinary venue owner sees the venue name, the Bepis AUD 100/month plan,
+  plain-language subscription state, current period timing, cancellation-at-
+  period-end notice, and exactly one state-appropriate action;
+- founder support mode sees a diagnostic page with bounded persisted Customer,
+  Subscription, Price, Checkout Session, event, and local job identifiers,
+  provider/event status summaries, last synchronization time, sanitized Checkout
+  and reconciliation failures, and manually requested read-only reconciliation;
+- the owner rendering never includes provider identifiers, webhook/event tables,
+  reconciliation jobs or internals, stored failure summaries, or manual
+  read-only controls;
+- the founder rendering never includes Checkout or Customer Portal actions.
+
+Owner states are grouped for customer copy rather than exposing Stripe status
+codes:
+
+- no local Subscription: `No subscription` with `Start Subscription`;
+- `active` (and any valid non-troubled non-terminal snapshot): `Active` with
+  `Manage Billing`;
+- any non-terminal snapshot with `cancel_at_period_end`: `Cancellation
+  scheduled` with `Manage Cancellation` and the period-end notice;
+- `incomplete`, `past_due`, `unpaid`, or `paused`: `Payment needs attention`
+  with `Resolve Payment`;
+- `canceled`: `Canceled` with `Restart Subscription`;
+- `incomplete_expired`: `Setup expired` with `Restart Subscription`.
+
+The correlated Checkout return remains part of the same live surface. It shows
+pending, confirmed, or failed customer-safe progress for the exact persisted
+attempt. Provider Session/Subscription IDs, local attempt IDs, persisted error
+codes, and persisted error summaries are not rendered in the dialog. The full
+Billing page and live-fragment URL retain only the opaque local attempt ID after
+the initial Stripe success callback validates the supplied Stripe Session ID.
+
+Owner status inspection enforces ordinary owner authority and mandatory passkey
+setup but does not require a fresh passkey verification. Checkout and Customer
+Portal actions still require the fresh 30-minute step-up window. Founder
+billing diagnostics and manual reconciliation remain fresh-passkey protected.
+
+Owner Billing navigation is rendered after Xero and before Admin only when
+`STRIPE_OWNER_NAVIGATION_VISIBLE=true` and the current ordinary venue member is
+an owner. Founder support does not receive that owner link. This visibility
+control is discoverability only: it does not change direct-route authorization,
+which preserves the accepted hidden-navigation canary.
+
 ## Manual Read-Only Policy
 
-Billing controls are separate from venue lifecycle status.
+Billing controls are separate from venue lifecycle status. Their persistence,
+write guards, mutation route, and audit behavior remain available as dormant
+infrastructure, but the Billing owner and founder pages render no manual control.
 
 Launch controls include:
 
@@ -402,11 +452,12 @@ changes are not treated as venue writes.
 
 ## Access Rules
 
-- Venue owners can start Checkout and open Customer Portal for their current
-  venue after fresh passkey verification.
-- Founder super admins can inspect billing and use explicit support controls for
-  a support-mode current venue, but cannot start Checkout or open Customer
-  Portal.
+- Venue owners can inspect customer-ready status without fresh passkey step-up,
+  then start Checkout or open Customer Portal for their current venue only after
+  fresh passkey verification.
+- Founder super admins can inspect step-up-protected bounded diagnostics and use
+  manual reconciliation for a support-mode current venue, but cannot start
+  Checkout or open Customer Portal.
 - Venue admins, managers, workers, and future export-only roles do not manage
   billing unless a future product decision changes the role model.
 - Server-side authorization resolves current venue membership for ordinary
@@ -432,8 +483,9 @@ Missing controls default to false. Invalid values fail configuration loading
 without preventing unrelated Bepis pages from serving. Overall billing controls
 whether Stripe credentials, API calls, webhooks, and later reconciliation are
 active. New Checkout is independently server-gated. Owner navigation visibility
-is independently available to the owner-navigation work and does not authorize
-the direct Billing route. During an incident, keep overall billing enabled while
+is consumed by the global authenticated header and
+does not authorize the direct Billing route. During an incident, keep overall
+billing enabled while
 disabling Checkout and navigation so signed webhooks and existing-customer
 Portal recovery continue.
 
@@ -485,6 +537,9 @@ Local deterministic tests cover:
 - non-terminal Subscription rejection and terminal resubscription eligibility
 - exact venue/attempt/Session return correlation without browser-authoritative
   Subscription updates
+- customer-ready state/action rendering, hidden owner diagnostics, separated
+  founder diagnostics, passkey boundaries, and navigation visibility without
+  direct-route authorization drift
 - known Checkout and Subscription reconciliation, metadata/association mismatch
   rejection, ordering-cursor advancement, non-terminal sweep selection, active
   job deduplication, founder-only manual enqueueing, and sanitized failures

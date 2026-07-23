@@ -90,11 +90,10 @@ billingMountStateFields checkoutReturnState =
 billingStatusFragmentUrl :: BillingCheckoutReturnState -> Text
 billingStatusFragmentUrl BillingCheckoutReturnState { billingCheckoutReturned = False } =
     pathTo ShowbillingStatusLiveFragmentAction
-billingStatusFragmentUrl BillingCheckoutReturnState { billingCheckoutReturned = True, billingCheckoutAttemptId, billingCheckoutSessionId } =
+billingStatusFragmentUrl BillingCheckoutReturnState { billingCheckoutReturned = True, billingCheckoutAttemptId } =
     appendQueryParams (pathTo ShowbillingStatusLiveFragmentAction) $
         [("checkout", "success")]
             <> maybe [] (\attemptId -> [("attempt_id", attemptId)]) billingCheckoutAttemptId
-            <> maybe [] (\sessionId -> [("session_id", sessionId)]) billingCheckoutSessionId
 
 billingStatusMountedFragment :: Text -> FrontendSurfaceMountedFragment
 billingStatusMountedFragment statusUrl =

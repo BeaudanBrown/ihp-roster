@@ -32,14 +32,26 @@ tests = aroundAll withDatabaseTestContext do
             response <- callAction BillingAction
             response `responseStatusShouldBe` status302
 
-        it "shows billing to venue owners" $ withContext do
+        it "shows customer-ready billing status to owners without fresh passkey step-up" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Billing Owner Venue"
                 owner <- createUserRecord "billing-owner-page@example.com" "staff" True
                 _ <- createVenueMembershipRecord venue owner "venue_owner"
+                _ <- createTestPasskeyRecord owner "Billing owner passkey"
+                _ <-
+                    newRecord @BillingEvent
+                        |> set #stripeEventId "evt_owner_hidden_123"
+                        |> set #eventType "customer.subscription.updated"
+                        |> set #livemode False
+                        |> set #venueId (Just (unpackId venue.id))
+                        |> set #providerObjectId (Just "sub_owner_hidden_123")
+                        |> set #status "failed"
+                        |> set #errorSummary (Just "internal owner-hidden diagnostic")
+                        |> createRecord
 
-                response <- withPasskeyVerifiedUserAndCurrentVenue owner venue.id do
-                    callAction BillingAction
+                response <- withStripeConfigForTest (Right testStripeConfig) do
+                    withUserAndCurrentVenue owner venue.id do
+                        callAction BillingAction
 
                 response `responseStatusShouldBe` status200
                 response `responseBodyShouldContain` "Billing"
@@ -47,9 +59,14 @@ tests = aroundAll withDatabaseTestContext do
                 response `responseBodyShouldContain` "billing-status-fragment"
                 response `responseBodyShouldContain` "billing:"
                 response `responseBodyShouldContain` "AUD 100/month"
+                response `responseBodyShouldContain` "No subscription"
                 response `responseBodyShouldContain` "Start Subscription"
-                response `responseBodyShouldContain` "Manage Billing"
                 response `responseBodyShouldNotContain` "Manual Controls"
+                response `responseBodyShouldNotContain` "Recent Stripe events"
+                response `responseBodyShouldNotContain` "data-billing-founder-diagnostics"
+                response `responseBodyShouldNotContain` "evt_owner_hidden_123"
+                response `responseBodyShouldNotContain` "sub_owner_hidden_123"
+                response `responseBodyShouldNotContain` "internal owner-hidden diagnostic"
 
         it "keeps the Billing status page available when Stripe configuration is unhealthy" $ withContext do
             withCleanDb do
@@ -91,17 +108,76 @@ tests = aroundAll withDatabaseTestContext do
                 response `responseStatusShouldBe` status302
                 lookup "Location" (responseHeaders response) `shouldBe` Just "http://localhost/RosterWeeks"
 
-        it "shows support-mode super admins the manual controls" $ withContext do
+        it "shows support-mode founders a separate diagnostic view without payer or manual controls" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Billing Support Venue"
                 superAdmin <- createUserRecordWithPlatformRole "billing-support@example.com" "staff" (Just SuperAdminRole) True
+                _ <-
+                    newRecord @VenueBillingCustomer
+                        |> set #venueId (unpackId venue.id)
+                        |> set #stripeCustomerId "cus_support_diagnostic_123"
+                        |> set #livemode False
+                        |> createRecord
+                subscription <- createVenueSubscriptionWithStatus venue "past_due"
+                _ <-
+                    subscription
+                        |> set #stripeSubscriptionId "sub_support_diagnostic_123"
+                        |> updateRecord
+                _ <-
+                    newRecord @BillingCheckoutAttempt
+                        |> set #venueId (unpackId venue.id)
+                        |> set #initiatedByUserId (unpackId superAdmin.id)
+                        |> set #livemode False
+                        |> set #stripeCustomerId "cus_support_diagnostic_123"
+                        |> set #stripePriceId "price_support_diagnostic_123"
+                        |> set #stripeCheckoutSessionId (Just "cs_support_diagnostic_123")
+                        |> set #status "failed"
+                        |> set #errorCode (Just "checkout_support_failure")
+                        |> set #errorSummary (Just "bounded support checkout failure")
+                        |> createRecord
+                _ <-
+                    newRecord @BillingEvent
+                        |> set #stripeEventId "evt_support_diagnostic_123"
+                        |> set #eventType "customer.subscription.updated"
+                        |> set #livemode False
+                        |> set #venueId (Just (unpackId venue.id))
+                        |> set #providerObjectType (Just "subscription")
+                        |> set #providerObjectId (Just "sub_support_diagnostic_123")
+                        |> set #status "failed"
+                        |> set #errorSummary (Just "bounded support event failure")
+                        |> createRecord
 
                 response <- withPasskeyVerifiedUserAndCurrentVenue superAdmin venue.id do
                     callAction BillingAction
 
                 response `responseStatusShouldBe` status200
-                response `responseBodyShouldContain` "Manual Controls"
-                response `responseBodyShouldContain` "Manual read-only"
+                response `responseBodyShouldContain` "Billing diagnostics"
+                response `responseBodyShouldContain` "data-billing-founder-diagnostics=\"true\""
+                response `responseBodyShouldNotContain` "data-billing-owner-view"
+                response `responseBodyShouldContain` "cus_support_diagnostic_123"
+                response `responseBodyShouldContain` "sub_support_diagnostic_123"
+                response `responseBodyShouldContain` "cs_support_diagnostic_123"
+                response `responseBodyShouldContain` "bounded support checkout failure"
+                response `responseBodyShouldContain` "evt_support_diagnostic_123"
+                response `responseBodyShouldContain` "bounded support event failure"
+                response `responseBodyShouldContain` "Last synchronized"
+                response `responseBodyShouldContain` "Synchronize with Stripe"
+                response `responseBodyShouldNotContain` "Start Subscription"
+                response `responseBodyShouldNotContain` "Manage Billing"
+                response `responseBodyShouldNotContain` "Manual Controls"
+                response `responseBodyShouldNotContain` "Manual read-only"
+
+        it "requires fresh passkey verification before founder diagnostics" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Billing Founder Diagnostic Step-Up Venue"
+                superAdmin <- createUserRecordWithPlatformRole "billing-founder-diagnostic-step-up@example.com" "staff" (Just SuperAdminRole) True
+                _ <- createTestPasskeyRecord superAdmin "Billing founder diagnostic passkey"
+
+                response <- withUserAndCurrentVenue superAdmin venue.id do
+                    callAction BillingAction
+
+                response `responseStatusShouldBe` status302
+                lookup "Location" (responseHeaders response) `shouldBe` Just "http://localhost/PasskeyStepUp"
 
         it "exposes sanitized terminal reconciliation diagnostics to founders only" $ withContext do
             withCleanDb do
@@ -128,9 +204,94 @@ tests = aroundAll withDatabaseTestContext do
                 founderResponse `responseBodyShouldContain` "Synchronize with Stripe"
                 founderResponse `responseBodyShouldContain` "subscription_metadata_mismatch"
                 founderResponse `responseBodyShouldContain` (inputValue failedJob.id)
+                founderResponse `responseBodyShouldNotContain` "Manual Controls"
                 ownerResponse `responseStatusShouldBe` status200
                 ownerResponse `responseBodyShouldNotContain` "Synchronize with Stripe"
                 ownerResponse `responseBodyShouldNotContain` "subscription_metadata_mismatch"
+
+        it "renders state-specific owner guidance and actions" $ withContext do
+            forM_
+                [ (Nothing, False, "No subscription", "Start Subscription", "Start a subscription for this venue")
+                , (Just "active", False, "Active", "Manage Billing", "renews automatically")
+                , (Just "active", True, "Cancellation scheduled", "Manage Cancellation", "will not renew")
+                , (Just "past_due", False, "Payment needs attention", "Resolve Payment", "update your payment method")
+                , (Just "canceled", False, "Canceled", "Restart Subscription", "subscription has ended")
+                , (Just "incomplete_expired", False, "Setup expired", "Restart Subscription", "payment setup expired")
+                ]
+                \(maybeStatus, cancelAtPeriodEnd, stateLabel, actionLabel, guidance) -> withCleanDb do
+                    venue <- createVenueWithConfig ("Billing State " <> stateLabel <> " Venue")
+                    owner <- createUserRecord ("billing-state-" <> Text.replace " " "-" (Text.toLower stateLabel) <> "@example.com") "staff" True
+                    _ <- createVenueMembershipRecord venue owner "venue_owner"
+                    _ <- createTestPasskeyRecord owner "Billing state owner passkey"
+                    now <- getCurrentTime
+                    forM_ maybeStatus \status -> do
+                        _ <-
+                            newRecord @VenueBillingCustomer
+                                |> set #venueId (unpackId venue.id)
+                                |> set #stripeCustomerId ("cus_owner_hidden_" <> status)
+                                |> set #livemode False
+                                |> createRecord
+                        subscription <- createVenueSubscriptionWithStatus venue status
+                        _ <-
+                            subscription
+                                |> set #currentPeriodStart (Just now)
+                                |> set #currentPeriodEnd (Just (addUTCTime (30 * 86400) now))
+                                |> set #cancelAtPeriodEnd cancelAtPeriodEnd
+                                |> updateRecord
+                        pure ()
+
+                    response <- withStripeConfigForTest (Right testStripeConfig) do
+                        withUserAndCurrentVenue owner venue.id do
+                            callAction BillingAction
+
+                    response `responseStatusShouldBe` status200
+                    response `responseBodyShouldContain` stateLabel
+                    response `responseBodyShouldContain` actionLabel
+                    response `responseBodyShouldContain` guidance
+                    response `responseBodyShouldContain` "Current period"
+                    forM_ maybeStatus \status -> do
+                        response `responseBodyShouldNotContain` ("sub_" <> status)
+                        response `responseBodyShouldNotContain` ("cus_owner_hidden_" <> status)
+                        when ("_" `Text.isInfixOf` status) do
+                            response `responseBodyShouldNotContain` status
+
+        it "gates owner Billing navigation without changing direct-route authorization" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Billing Navigation Venue"
+                owner <- createUserRecord "billing-navigation-owner@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue owner "venue_owner"
+                _ <- createTestPasskeyRecord owner "Billing navigation owner passkey"
+                superAdmin <- createUserRecordWithPlatformRole "billing-navigation-support@example.com" "staff" (Just SuperAdminRole) True
+                let hiddenConfig = testStripeConfig
+                let visibleConfig =
+                        testStripeConfig
+                            { stripeDeploymentControls =
+                                testStripeConfig.stripeDeploymentControls
+                                    { stripeOwnerNavigationVisible = True
+                                    }
+                            }
+
+                hiddenResponse <- withStripeConfigForTest (Right hiddenConfig) do
+                    withUserAndCurrentVenue owner venue.id do
+                        callAction BillingAction
+                visibleResponse <- withStripeConfigForTest (Right visibleConfig) do
+                    withUserAndCurrentVenue owner venue.id do
+                        callAction BillingAction
+                supportResponse <- withStripeConfigForTest (Right visibleConfig) do
+                    withPasskeyVerifiedUserAndCurrentVenue superAdmin venue.id do
+                        callAction BillingAction
+
+                hiddenResponse `responseStatusShouldBe` status200
+                hiddenResponse `responseBodyShouldNotContain` "href=\"/Billing\""
+                visibleResponse `responseStatusShouldBe` status200
+                visibleResponse `responseBodyShouldContain` "href=\"/Billing\""
+                supportResponse `responseStatusShouldBe` status200
+                supportResponse `responseBodyShouldNotContain` "href=\"/Billing\""
+                visibleBody <- (cs <$> responseBody visibleResponse) :: IO Text
+                let (_, afterXero) = Text.breakOn "href=\"/Xero\"" visibleBody
+                let (_, afterBilling) = Text.breakOn "href=\"/Billing\"" afterXero
+                afterXero `shouldSatisfy` Text.isInfixOf "href=\"/Billing\""
+                afterBilling `shouldSatisfy` Text.isInfixOf "href=\"/Admin\""
 
         it "prevents founder support mode from starting Checkout or opening Customer Portal" $ withContext do
             withCleanDb do
@@ -605,7 +766,7 @@ tests = aroundAll withDatabaseTestContext do
 
                 response `responseStatusShouldBe` status302
                 lookup "Location" (responseHeaders response)
-                    `shouldBe` Just (cs ("http://localhost/Billing?checkout=success&attempt_id=" <> inputValue attempt.id <> "&session_id=cs_test_123"))
+                    `shouldBe` Just (cs ("http://localhost/Billing?checkout=success&attempt_id=" <> inputValue attempt.id))
                 subscriptionCount <- query @VenueSubscription |> filterWhere (#venueId, unpackId venue.id) |> fetchCount
                 subscriptionCount `shouldBe` 0
 
@@ -725,12 +886,13 @@ tests = aroundAll withDatabaseTestContext do
                 response `responseStatusShouldBe` status200
                 response `responseBodyShouldContain` "Finalising subscription"
                 response `responseBodyShouldContain` "spinner-border"
-                response `responseBodyShouldContain` "Checkout session: cs_test_123"
+                response `responseBodyShouldNotContain` "Checkout session:"
+                response `responseBodyShouldNotContain` "cs_test_123"
                 response `responseBodyShouldContain` "app-page-dialog-modal"
                 response `responseBodyShouldNotContain` "data-billing-checkout-modal"
                 response `responseBodyShouldNotContain` "data-billing-checkout-modal-backdrop"
                 response `responseBodyShouldNotContain` "data-live-update-url="
-                response `responseBodyShouldContain` (cs ("&quot;url&quot;:&quot;/ShowbillingStatusLiveFragment?checkout=success&amp;attempt_id=" <> inputValue attempt.id <> "&amp;session_id=cs_test_123&quot;"))
+                response `responseBodyShouldContain` (cs ("&quot;url&quot;:&quot;/ShowbillingStatusLiveFragment?checkout=success&amp;attempt_id=" <> inputValue attempt.id <> "&quot;"))
                 response `responseBodyShouldNotContain` "&quot;mountState&quot;"
 
         it "does not render Checkout progress for uncorrelated direct query parameters" $ withContext do
@@ -842,7 +1004,7 @@ tests = aroundAll withDatabaseTestContext do
 
                 response `responseStatusShouldBe` status200
                 response `responseBodyShouldContain` "Subscription confirmed"
-                response `responseBodyShouldContain` "sub_confirmed_123"
+                response `responseBodyShouldNotContain` "sub_confirmed_123"
                 response `responseBodyShouldContain` "Continue"
                 response `responseBodyShouldContain` "app-page-dialog-modal"
                 response `responseBodyShouldNotContain` "data-billing-checkout-modal"
@@ -864,7 +1026,11 @@ tests = aroundAll withDatabaseTestContext do
 
                 response `responseStatusShouldBe` status200
                 response `responseBodyShouldContain` "Subscription needs attention"
-                response `responseBodyShouldContain` "processing failed"
+                response `responseBodyShouldContain` "We could not confirm this Checkout"
+                response `responseBodyShouldNotContain` "processing failed"
+                response `responseBodyShouldNotContain` "webhook_processing_failed"
+                response `responseBodyShouldNotContain` (inputValue attempt.id)
+                response `responseBodyShouldNotContain` "cs_test_123"
                 response `responseBodyShouldContain` "Try Checkout Again"
 
 withRequestQuery :: (?request :: Wai.Request) => ByteString -> ((?request :: Wai.Request) => IO result) -> IO result

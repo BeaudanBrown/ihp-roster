@@ -237,10 +237,13 @@ The three controls require a service restart and have separate purposes:
    webhook processing, Portal access, and reconciliation.
 2. `checkoutEnabled` controls only creation of new Checkout Sessions and is
    enforced by the POST action before any Stripe or local Customer creation.
-3. `ownerNavigationVisible` controls discovery of the owner Billing link; it
-   does not change direct-route authorization.
+3. `ownerNavigationVisible` controls discovery of the ordinary-owner Billing
+   link after Xero and before Admin; it does not expose a founder link or change
+   direct-route authorization.
 
-Hidden-navigation canary:
+Hidden-navigation canary: an authorized selected venue owner opens `/Billing`
+directly while the global link remains absent. Status inspection itself does not
+require fresh passkey step-up; Checkout and Customer Portal actions still do.
 
 ```nix
 services.ihpRoster.billing.stripe = {
@@ -292,12 +295,14 @@ systemctl start billing-reconciliation-sweep.service
 journalctl -u billing-reconciliation-sweep.service
 ```
 
-The Billing support panel shows the bounded local AppJob reference, state, and a
-fixed sanitized diagnostic for recent terminal failures. Do not paste Stripe
-response bodies into job errors or attempt to repair a mismatch by changing
-venue IDs manually. A missing/mismatched provider object retries through the
-worker; after the final attempt, the shared support-only billing alert is sent.
-Reconciliation never changes manual read-only state.
+The step-up-protected Billing diagnostics show bounded provider, Checkout,
+event, and local AppJob identifiers; last synchronization; and sanitized failure
+summaries. The founder view has no Checkout, Customer Portal, or manual read-only
+controls. Do not paste Stripe response bodies into job errors or attempt to
+repair a mismatch by changing venue IDs manually. A missing/mismatched provider
+object retries through the worker; after the final attempt, the shared
+support-only billing alert is sent. Reconciliation never changes manual read-only
+state.
 
 Withheld-webhook recovery check in Stripe test mode:
 

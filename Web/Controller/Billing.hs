@@ -51,7 +51,6 @@ instance Controller BillingController where
                         (pathTo BillingAction)
                         [ ("checkout", "success")
                         , ("attempt_id", inputValue attempt.id)
-                        , ("session_id", fromMaybe "" attempt.stripeCheckoutSessionId)
                         ]
 
     action currentAction@BillingCancelAction = runBepis currentAction BepisPageAction do
@@ -91,7 +90,9 @@ ensureBillingAccess = do
     redirectPermissionDeniedUnless
         (currentUserIsSuperAdmin || hasRole VenueOwnerRole)
         "Only the venue owner or a super admin can manage billing for this venue."
-    ensurePrivilegedPasskeyReady
+    if currentUserIsSuperAdmin
+        then ensurePrivilegedPasskeyReady
+        else ensurePrivilegedPasskeySetupComplete
 
 ensureOwnerBillingPaymentAction :: (?context :: ControllerContext, ?request :: Request, ?modelContext :: ModelContext) => IO ()
 ensureOwnerBillingPaymentAction = do
@@ -111,13 +112,28 @@ fetchBillingViewModel :: (?context :: ControllerContext, ?modelContext :: ModelC
 fetchBillingViewModel = do
     maybeCustomer <- fetchCurrentVenueBillingCustomer
     maybeSubscription <- fetchCurrentVenueSubscription
-    maybeControl <- fetchCurrentVenueBillingControl
+    let billingViewer =
+            if currentUserIsSuperAdmin
+                then BillingFounderViewer
+                else BillingOwnerViewer
+    recentCheckoutAttempts <-
+        if currentUserIsSuperAdmin
+            then
+                query @BillingCheckoutAttempt
+                    |> filterWhere (#venueId, unpackId currentVenueId)
+                    |> orderByDesc #createdAt
+                    |> limit 5
+                    |> fetch
+            else pure []
     recentEvents <-
-        query @BillingEvent
-            |> filterWhere (#venueId, Just (unpackId currentVenueId))
-            |> orderByDesc #receivedAt
-            |> limit 5
-            |> fetch
+        if currentUserIsSuperAdmin
+            then
+                query @BillingEvent
+                    |> filterWhere (#venueId, Just (unpackId currentVenueId))
+                    |> orderByDesc #receivedAt
+                    |> limit 5
+                    |> fetch
+            else pure []
     recentReconciliationJobs <-
         if currentUserIsSuperAdmin
             then
@@ -128,11 +144,18 @@ fetchBillingViewModel = do
                     |> limit 5
                     |> fetch
             else pure []
-    stripeControls <- readStripeDeploymentControls
+    stripeConfig <- readStripeConfig
     let stripeCheckoutAvailable =
-            either (const False) (.stripeCheckoutEnabled) stripeControls
+            either (const False) (.stripeDeploymentControls.stripeCheckoutEnabled) stripeConfig
                 && checkoutAllowedForSubscription maybeSubscription
-    checkoutReturn <- fetchBillingCheckoutReturn maybeSubscription
+    let stripePortalAvailable =
+            case stripeConfig of
+                Right _ -> isJust maybeCustomer
+                Left _  -> False
+    checkoutReturn <-
+        if currentUserIsSuperAdmin
+            then pure Nothing
+            else fetchBillingCheckoutReturn maybeSubscription
     pure BillingViewModel { .. }
 
 fetchBillingCheckoutReturn
@@ -142,13 +165,12 @@ fetchBillingCheckoutReturn
 fetchBillingCheckoutReturn maybeSubscription
     | paramOrNothing @Text "checkout" /= Just "success" = pure Nothing
     | otherwise =
-        fetchCorrelatedCheckoutReturnAttempt >>= \case
+        fetchBillingCheckoutProgressAttempt >>= \case
             Nothing -> pure Nothing
             Just attempt -> do
                 maybeCompletionEvent <- fetchExactCheckoutCompletionEvent attempt
                 pure $ Just BillingCheckoutReturn
                     { checkoutAttemptId = inputValue attempt.id
-                    , checkoutSessionId = attempt.stripeCheckoutSessionId
                     , checkoutOutcome = classifyCheckoutOutcome attempt maybeCompletionEvent maybeSubscription
                     }
 
@@ -204,12 +226,6 @@ fetchCurrentVenueSubscription =
         |> filterWhere (#venueId, unpackId currentVenueId)
         |> fetchOneOrNothing
 
-fetchCurrentVenueBillingControl :: (?context :: ControllerContext, ?modelContext :: ModelContext) => IO (Maybe VenueBillingControl)
-fetchCurrentVenueBillingControl =
-    query @VenueBillingControl
-        |> filterWhere (#venueId, unpackId currentVenueId)
-        |> fetchOneOrNothing
-
 fetchCorrelatedCheckoutReturnAttempt :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => IO (Maybe BillingCheckoutAttempt)
 fetchCorrelatedCheckoutReturnAttempt =
     case (paramOrNothing @Text "attempt_id" >>= parseUUIDText, paramOrNothing @Text "session_id") of
@@ -220,6 +236,17 @@ fetchCorrelatedCheckoutReturnAttempt =
                 |> filterWhere (#stripeCheckoutSessionId, Just sessionId)
                 |> fetchOneOrNothing
         _ -> pure Nothing
+
+fetchBillingCheckoutProgressAttempt :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => IO (Maybe BillingCheckoutAttempt)
+fetchBillingCheckoutProgressAttempt =
+    case paramOrNothing @Text "attempt_id" >>= parseUUIDText of
+        Nothing -> pure Nothing
+        Just attemptId ->
+            query @BillingCheckoutAttempt
+                |> filterWhere (#id, Id attemptId)
+                |> filterWhere (#venueId, unpackId currentVenueId)
+                |> filterWhereNot (#stripeCheckoutSessionId, Nothing)
+                |> fetchOneOrNothing
 
 fetchCorrelatedCheckoutCancelAttempt :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => IO (Maybe BillingCheckoutAttempt)
 fetchCorrelatedCheckoutCancelAttempt =

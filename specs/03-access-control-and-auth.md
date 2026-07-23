@@ -109,15 +109,20 @@ These actions require explicit server-side permission checks and audit logging:
 ## Billing access
 
 - Billing management is venue-scoped.
-- Venue owners can start Stripe-hosted Checkout and open Stripe Customer Portal
-  for their current venue after fresh passkey verification.
-- Founder super admins can inspect billing and use explicit support controls for
-  a support-mode current venue, including queued reconciliation after fresh
-  passkey verification, but cannot start Checkout or open the venue payer's
-  Customer Portal.
+- Venue owners can inspect their current venue's customer-ready billing status
+  without a fresh passkey challenge, while the normal mandatory passkey setup
+  policy still applies. Starting Stripe-hosted Checkout and opening Stripe
+  Customer Portal require fresh passkey verification.
+- Founder super admins can inspect step-up-protected bounded billing diagnostics
+  and queue read-only reconciliation for a support-mode current venue, but cannot
+  start Checkout or open the venue payer's Customer Portal. Dormant manual
+  read-only infrastructure is not rendered in the visible Billing product.
 - Venue admins, managers, workers and future export-only roles do not manage
   billing unless a future product decision changes the role model.
 - Support-mode billing access must use `currentVenue` with no synthetic venue
   membership. Ordinary access must resolve authority from `venue_memberships`.
-- Payment state does not automatically grant or remove access in v1. Manual
-  read-only enforcement is a separate founder super-admin control.
+- Billing navigation is an owner-only deployment-controlled discovery aid.
+  Hiding it does not change direct-route authorization during the accepted
+  canary.
+- Payment state does not automatically grant or remove access in v1. Dormant
+  manual read-only enforcement remains separate from subscription state.

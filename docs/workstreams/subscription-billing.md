@@ -17,7 +17,7 @@ Tickets:
 - #225 sandbox, test-clock, legal, and launch readiness
 - #226 hidden-navigation live canary and owner-navigation release
 
-Implemented through #222: the Stripe contract and deployment controls are
+Implemented through #223: the Stripe contract and deployment controls are
 pinned, production persistence exists, and Checkout now uses a committed,
 venue-locked, resumable attempt with owner-only payment actions and correlated
 browser returns. Portal creation is owner-only and uses fresh request-scoped
@@ -26,11 +26,19 @@ snapshots, transition matching Checkout attempts, and enqueue transition-based
 owner/support notification jobs before acknowledging Stripe. Equivalent invoice
 and Subscription trouble signals share a period-scoped notification key, while
 recovery and cancellation remain independently visible. Known Checkout Sessions
-and Subscriptions now share a read-only provider reconciliation path used by
-Checkout returns, fresh-passkey founder requests, and a daily queued sweep;
-terminal failures stay sanitized and feed the existing final-retry support alert.
-Customer-ready owner copy, the separate founder diagnostic experience, and
-launch evidence remain in the later tickets.
+and Subscriptions share a read-only provider reconciliation path used by Checkout
+returns, fresh-passkey founder requests, and a daily queued sweep; terminal
+failures stay sanitized and feed the existing final-retry support alert.
+
+Owners now receive plain-language state, AUD 100/month plan and period timing,
+cancellation notices, state-specific Stripe-hosted actions, and customer-safe
+live Checkout progress without provider or diagnostic identifiers. Status viewing
+requires no fresh step-up, while payment actions still do. Founder support gets a
+separate step-up-protected bounded diagnostic/reconciliation view with no payer
+or visible manual read-only controls. Deployment-controlled owner navigation is
+positioned after Xero and does not change direct-route canary authorization.
+Automated production-readiness, sandbox/test-clock/legal approval, and the live
+canary remain in #224-#226.
 
 Living docs to update:
 

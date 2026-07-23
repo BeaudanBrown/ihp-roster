@@ -166,6 +166,9 @@ HTML form attributes are not validation. Keep `required`, hidden inputs, and sel
 - Authenticated navigation is centralized in `Web/View/Layout.hs` (`renderAppHeader`) so every signed-in page gets the same header.
 - Keep nav button labels/order consistent: `roster`, `profile`, `timesheets`, `unavailability`, `xero`, `admin`, `support`, `logout`.
 - Keep `xero` link visibility owner/super-admin only via the shared Xero audience logic.
+- Keep `billing` after Xero and before Admin, visible only to an ordinary venue
+  owner when the Stripe owner-navigation deployment control is enabled. Hiding
+  navigation must never disable the authorized direct Billing route.
 - Keep `admin` link visibility role-gated (admin only) via `currentUserIsAdmin`.
 - Keep `support` link visibility founder-only via `currentUserIsSupportAdmin`; do not expose it to ordinary venue admins.
 - Do not duplicate primary nav in page-level views unless there is a specific workflow reason.

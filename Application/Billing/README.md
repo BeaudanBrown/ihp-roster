@@ -29,8 +29,18 @@ customer and subscription records must not be deduplicated by user or email.
   sanitized terminal operational alerts for support.
 
 Web request/response behavior lives in `Web/Controller/Billing.hs` and
-`Web/Controller/StripeWebhooks.hs`. Super-admin billing controls live on the
-billing surface and use the existing founder support-mode venue context.
+`Web/Controller/StripeWebhooks.hs`. The Billing route renders two deliberately
+separate experiences: owners receive plain subscription state and one
+state-appropriate Stripe-hosted action, while founder support receives bounded
+provider diagnostics and read-only reconciliation. The owner view never renders
+provider IDs, event/job tables, failure internals, or manual read-only controls.
+Founder support never receives Checkout or Customer Portal actions.
+
+Owner status inspection requires normal owner authority and passkey setup but no
+fresh step-up. Checkout and Customer Portal still require fresh passkey
+verification. Founder diagnostics and manual reconciliation remain step-up
+protected. Deployment visibility controls only the owner navigation link; the
+authorized direct route remains available for hidden-navigation canaries.
 
 ## Persistence
 
@@ -47,6 +57,10 @@ Checkout attempt or Subscription, their active dedupe key is target-specific,
 and terminal `last_error` values are fixed bounded diagnostics rather than
 provider response text. The worker's existing final-attempt support alert path
 applies to these `billing_reconciliation` jobs.
+
+The legacy manual read-only schema, write guards, mutation action, and audit path
+remain dormant infrastructure. They are intentionally absent from the visible
+Billing product and are not advanced by the current billing rollout.
 
 ## Launch Operations
 

@@ -26,6 +26,7 @@ data PageHelpAudience
     | HelpManagerPlus
     | HelpAdminPlus
     | HelpOwnerPlus
+    | HelpOwnerOnly
     | HelpSupportOnly
     deriving (Eq, Show)
 
@@ -100,6 +101,7 @@ audienceVisible context = \case
     HelpManagerPlus -> context.pageHelpCanManage || context.pageHelpCanAdmin || context.pageHelpCanOwn || context.pageHelpIsSupport
     HelpAdminPlus   -> context.pageHelpCanAdmin || context.pageHelpCanOwn || context.pageHelpIsSupport
     HelpOwnerPlus   -> context.pageHelpCanOwn || context.pageHelpIsSupport
+    HelpOwnerOnly   -> context.pageHelpCanOwn && not context.pageHelpIsSupport
     HelpSupportOnly -> context.pageHelpIsSupport
 
 renderPageHelpBody :: PageHelpTopic -> Html
@@ -240,15 +242,15 @@ pageHelpTopics =
             ]
         ]
     , topic "billing" "Billing"
-        [ section HelpOwnerPlus "Billing tasks"
-            [ iconItem HelpOwnerPlus "bi-receipt" "Status" "Check subscription status" "Review the Subscription table for the current venue billing state."
-            , buttonItem HelpOwnerPlus "bi-credit-card" "Payment" "Start or resume a subscription" "Verify with your passkey, then click Start Subscription. Repeated requests resume the same available Stripe Checkout instead of opening parallel subscriptions." "btn btn-primary" Nothing "Start Subscription"
-            , buttonItem HelpOwnerPlus "bi-credit-card" "Payment" "Manage payment details" "Verify with your passkey, then click Manage Billing to open a fresh Stripe billing portal session. Existing customers can still use the portal when new subscriptions are paused." "btn btn-outline-primary" Nothing "Manage Billing"
-            , iconItem HelpOwnerPlus "bi-arrow-clockwise" "Refresh" "Check a pending change" "A Checkout return queues a server-side refresh of the exact known Stripe Session. Bepis confirms only provider-verified state; signed webhooks remain the normal update path."
+        [ section HelpOwnerOnly "Billing tasks"
+            [ iconItem HelpOwnerOnly "bi-receipt" "Status" "Understand your subscription" "Review the plain-language status, AUD 100 monthly plan, current billing period, and any cancellation notice for this venue. Status viewing does not require a fresh passkey check."
+            , buttonItem HelpOwnerOnly "bi-credit-card" "Payment" "Start or restart a subscription" "Click Start Subscription or Restart Subscription when shown. Repeated requests safely resume the same available Stripe Checkout. Payment actions require fresh passkey verification." "btn btn-primary" Nothing "Start Subscription"
+            , buttonItem HelpOwnerOnly "bi-credit-card" "Payment" "Manage or resolve billing" "Use the state-specific button to open Stripe for payment details, receipts, payment recovery, or cancellation. Payment actions require fresh passkey verification." "btn btn-outline-primary" Nothing "Manage Billing"
+            , iconItem HelpOwnerOnly "bi-arrow-clockwise" "Refresh" "Wait for secure confirmation" "After Checkout returns, Bepis shows pending, confirmed, or failed progress for that exact attempt and updates the live status automatically."
             ]
         , section HelpSupportOnly "Founder support"
-            [ iconItem HelpSupportOnly "bi-eye" "Inspect" "Inspect billing state" "Support users can view billing state, synchronization diagnostics, and manual read-only controls, but cannot start Checkout or open the venue payer's Customer Portal."
-            , buttonItem HelpSupportOnly "bi-arrow-repeat" "Synchronize" "Refresh known Stripe state" "After fresh passkey verification, use Synchronize with Stripe to queue the same reconciliation behavior used by Checkout recovery and the daily sweep." "btn btn-outline-primary" Nothing "Synchronize with Stripe"
+            [ iconItem HelpSupportOnly "bi-eye" "Inspect" "Inspect billing diagnostics" "Founder support can view bounded provider identifiers, recent Checkout and event summaries, last synchronization, and sanitized failures. Payer Checkout and Customer Portal actions are not available."
+            , buttonItem HelpSupportOnly "bi-arrow-repeat" "Synchronize" "Refresh known Stripe state" "After fresh passkey verification, use Synchronize with Stripe to queue a read-only refresh of the venue's known provider state." "btn btn-outline-primary" Nothing "Synchronize with Stripe"
             ]
         ]
     ]

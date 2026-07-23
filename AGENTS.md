@@ -124,9 +124,9 @@ and use the ready, unassigned, unblocked frontier when selecting agent work.
 
 - Global authenticated navigation lives in `Web/View/Layout.hs`.
 - Header order is `roster`, `profile`, `timesheets`, `unavailability`, `xero`,
-  `admin`, `support`, `logout`.
-- `xero` is owner/super-admin only. `admin` is admin-gated. `support` is
-  founder-only.
+  `billing`, `admin`, `support`, `logout`.
+- `xero` is owner/super-admin only. `billing` is owner-only and deployment-visible.
+  `admin` is admin-gated. `support` is founder-only.
 - Auth pages must not render the authenticated header.
 - Use Bootstrap 5.3.8 vendor assets and `assetPath` for static references.
 - App CSS is split under `static/css/` and linked from `Web/View/Layout.hs` via

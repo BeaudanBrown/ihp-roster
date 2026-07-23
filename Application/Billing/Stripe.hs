@@ -7,6 +7,7 @@ module Application.Billing.Stripe
     , StripeDeploymentControls (..)
     , StripeHttpRequest (..)
     , StripeMode (..)
+    , StripeOwnerNavigationVisibility (..)
     , StripePortalSession (..)
     , StripePrice (..)
     , StripeRecurring (..)
@@ -89,6 +90,11 @@ data StripeDeploymentControls = StripeDeploymentControls
     { stripeBillingEnabled         :: !Bool
     , stripeCheckoutEnabled        :: !Bool
     , stripeOwnerNavigationVisible :: !Bool
+    }
+    deriving (Eq, Show)
+
+newtype StripeOwnerNavigationVisibility = StripeOwnerNavigationVisibility
+    { ownerBillingNavigationVisible :: Bool
     }
     deriving (Eq, Show)
 
