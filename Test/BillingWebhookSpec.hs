@@ -245,6 +245,22 @@ tests = aroundAll withDatabaseTestContext do
                 subscription.currentPeriodEnd `shouldBe` Just (posixSecondsToUTCTime 1787356800)
                 subscription.cancelAtPeriodEnd `shouldBe` True
 
+        it "normalizes a Stripe Portal cancel_at at the current period end as scheduled cancellation" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Dahlia Portal Cancellation Venue"
+                _ <- createBillingCustomer venue "cus_dahlia_cancel_at_123"
+                eventBody <- LByteString.readFile "Test/Fixtures/stripe/2026-06-24.dahlia/webhook-subscription-cancel-at-updated.json"
+                signatureHeader <- signedStripeHeader testStripeConfig.webhookSecret eventBody
+
+                response <- withStripeConfigForTest (Right testStripeConfig) do
+                    callStripeWebhookWithJsonBody eventBody signatureHeader
+
+                response `responseStatusShouldBe` status200
+                subscription <- query @VenueSubscription |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
+                subscription.status `shouldBe` "active"
+                subscription.currentPeriodEnd `shouldBe` Just (posixSecondsToUTCTime 1787356800)
+                subscription.cancelAtPeriodEnd `shouldBe` True
+
         it "processes reviewed Dahlia created, updated, deleted, failed-payment, and duplicate fixtures" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Dahlia Lifecycle Venue"

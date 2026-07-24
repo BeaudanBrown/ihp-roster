@@ -1,6 +1,7 @@
 {
   "id": "sub_123",
   "object": "subscription",
+  "cancel_at": null,
   "cancel_at_period_end": true,
   "customer": "cus_123",
   "metadata": {

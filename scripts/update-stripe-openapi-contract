@@ -33,7 +33,7 @@ RESPONSE_FIELDS = {
     "customer": ["id", "object", "livemode"],
     "checkout.session": ["id", "object", "url", "customer", "subscription", "client_reference_id", "metadata", "livemode", "mode", "status", "expires_at"],
     "billing_portal.session": ["id", "object", "url", "livemode", "customer", "return_url"],
-    "subscription": ["id", "object", "customer", "metadata", "livemode", "status", "items", "cancel_at_period_end"],
+    "subscription": ["id", "object", "customer", "metadata", "livemode", "status", "items", "cancel_at", "cancel_at_period_end"],
     "subscription_item": ["object", "current_period_start", "current_period_end", "price", "quantity"],
 }
 

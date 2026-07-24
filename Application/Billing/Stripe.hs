@@ -271,7 +271,13 @@ instance Aeson.FromJSON StripeSubscription where
             <*> pure item.subscriptionItemPrice.stripePriceLivemode
             <*> pure item.subscriptionItemCurrentPeriodStart
             <*> pure item.subscriptionItemCurrentPeriodEnd
-            <*> object Aeson..: "cancel_at_period_end"
+            <*> parseSubscriptionCancellationScheduled object item.subscriptionItemCurrentPeriodEnd
+
+parseSubscriptionCancellationScheduled :: Aeson.Object -> Integer -> AesonTypes.Parser Bool
+parseSubscriptionCancellationScheduled object currentPeriodEnd = do
+    cancelAtPeriodEnd <- object Aeson..: "cancel_at_period_end"
+    cancelAt <- object Aeson..:? "cancel_at"
+    pure (cancelAtPeriodEnd || cancelAt == Just currentPeriodEnd)
 
 data StripeSubscriptionItem = StripeSubscriptionItem
     { subscriptionItemPrice              :: !StripePrice

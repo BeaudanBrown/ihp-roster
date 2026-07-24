@@ -112,7 +112,9 @@ Customer Portal:
 - Configure Customer Portal separately in Stripe test and live mode.
 - Allow payment method updates and invoice history.
 - Configure cancellation behavior according to the customer terms before live
-  launch.
+  launch. Stripe may represent period-end Portal cancellation with
+  `cancel_at_period_end = true` or with `cancel_at` equal to the Subscription
+  Item period end; Bepis normalizes both representations.
 - Do not store Portal Session URLs; the app creates them on demand.
 
 Webhook endpoint:

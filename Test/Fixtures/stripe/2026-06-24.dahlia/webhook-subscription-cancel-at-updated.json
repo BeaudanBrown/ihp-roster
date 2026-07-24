@@ -1,24 +1,23 @@
 {
-  "id": "evt_subscription_updated_dahlia",
+  "id": "evt_subscription_cancel_at_updated_dahlia",
   "object": "event",
   "api_version": "2026-06-24.dahlia",
-  "created": 1784678460,
+  "created": 1784678520,
   "livemode": false,
   "type": "customer.subscription.updated",
   "data": {
     "object": {
-      "id": "sub_dahlia_123",
+      "id": "sub_dahlia_cancel_at_123",
       "object": "subscription",
-      "cancel_at": null,
-      "cancel_at_period_end": true,
-      "customer": "cus_dahlia_123",
+      "cancel_at": 1787356800,
+      "cancel_at_period_end": false,
+      "customer": "cus_dahlia_cancel_at_123",
       "livemode": false,
       "status": "active",
       "items": {
         "object": "list",
         "data": [
           {
-            "id": "si_dahlia_123",
             "object": "subscription_item",
             "current_period_start": 1784678400,
             "current_period_end": 1787356800,
@@ -37,8 +36,7 @@
               "type": "recurring",
               "unit_amount": 10000
             },
-            "quantity": 1,
-            "subscription": "sub_dahlia_123"
+            "quantity": 1
           }
         ]
       },

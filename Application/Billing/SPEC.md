@@ -335,8 +335,11 @@ it with a different provider Subscription. Existing Customer or Subscription
 associations for another venue fail closed.
 
 A successful Subscription reconciliation updates status, validated Price and
-mode, Customer association, Subscription Item period timestamps,
-`cancel_at_period_end`, and `last_synced_at`. It also advances the ordered event
+mode, Customer association, Subscription Item period timestamps, normalized
+period-end cancellation state, and `last_synced_at`. Stripe can represent that
+state either with `cancel_at_period_end = true` or with `cancel_at` equal to the
+single Subscription Item's `current_period_end`; both map to the local
+`cancel_at_period_end` flag. It also advances the ordered event
 cursor to a bounded synthetic reconciliation cursor taken just before provider
 retrieval. The cursor is one second before the observation start, so delayed
 provider events represented in the retrieved snapshot cannot regress it while
@@ -415,8 +418,8 @@ codes:
 - no local Subscription: `No subscription` with `Start Subscription`;
 - `active` (and any valid non-troubled non-terminal snapshot): `Active` with
   `Manage Billing`;
-- any non-terminal snapshot with `cancel_at_period_end`: `Cancellation
-  scheduled` with `Manage Cancellation` and the period-end notice;
+- any non-terminal snapshot with normalized period-end cancellation scheduled:
+  `Cancellation scheduled` with `Manage Cancellation` and the period-end notice;
 - `incomplete`, `past_due`, `unpaid`, or `paused`: `Payment needs attention`
   with `Resolve Payment`;
 - `canceled`: `Canceled` with `Restart Subscription`;

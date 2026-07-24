@@ -9,6 +9,7 @@
     "object": {
       "id": "sub_dahlia_123",
       "object": "subscription",
+      "cancel_at": null,
       "cancel_at_period_end": false,
       "customer": "cus_dahlia_123",
       "livemode": false,

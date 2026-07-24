@@ -1,6 +1,7 @@
 {
   "id": "sub_price_mode_mismatch",
   "object": "subscription",
+  "cancel_at": null,
   "cancel_at_period_end": false,
   "customer": "cus_123",
   "livemode": false,

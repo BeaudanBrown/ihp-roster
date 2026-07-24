@@ -18,8 +18,11 @@ they are not raw provider payload archives.
 
 The fixture identifiers and values are synthetic or sanitized. Hosted URLs keep
 Stripe's real HTTPS hosts and path shapes so the fixtures exercise Bepis's exact
-redirect allowlist. Customer details, session tokens, payment methods, addresses,
-tax data, credentials, and unrestricted provider fields are excluded.
+redirect allowlist. The synthetic `webhook-subscription-cancel-at-updated.json`
+fixture preserves the reviewed Portal shape where `cancel_at` equals the current
+period end while `cancel_at_period_end` is false. Customer details, session
+tokens, payment methods, addresses, tax data, credentials, and unrestricted
+provider fields are excluded.
 
 ## Reviewed refresh procedure
 
