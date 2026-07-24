@@ -3,8 +3,10 @@ module Application.FwcMapd.Sync
     , module Application.FwcMapd.Payload
     , module Application.FwcMapd.Projection
     , module Application.FwcMapd.RawStore
+    , module Application.FwcMapd.Validation
     , runConfiguredMapdSync
     , runMapdSync
+    , runMapdSyncWith
     ) where
 
 import Application.FwcMapd.Config
@@ -12,6 +14,7 @@ import Application.FwcMapd.Curation
 import Application.FwcMapd.Payload
 import Application.FwcMapd.Projection
 import Application.FwcMapd.RawStore
+import Application.FwcMapd.Validation
 import qualified Control.Exception as Exception
 import Control.Monad (void)
 import Generated.Types
@@ -26,16 +29,20 @@ runConfiguredMapdSync = do
         Just config -> Right <$> runMapdSync config
 
 runMapdSync :: (?modelContext :: ModelContext) => MapdConfig -> IO MapdSyncSummary
-runMapdSync config = do
+runMapdSync config =
+    runMapdSyncWith config.awardFixedIds (fetchAndStore config)
+
+runMapdSyncWith :: (?modelContext :: ModelContext) => [Int] -> IO MapdSyncSummary -> IO MapdSyncSummary
+runMapdSyncWith requestedAwardFixedIds syncAction = do
     startedAt <- getCurrentTime
     syncRun <-
         newRecord @FwcMapdSyncRun
             |> set #status ("running" :: Text)
-            |> set #requestedAwardFixedIds config.awardFixedIds
+            |> set #requestedAwardFixedIds requestedAwardFixedIds
             |> set #syncedAwardFixedIds ([] :: [Int])
             |> set #startedAt startedAt
             |> createRecord
-    syncResult <- Exception.try (fetchAndStore config) :: (?modelContext :: ModelContext) => IO (Either Exception.SomeException MapdSyncSummary)
+    syncResult <- Exception.try syncAction :: (?modelContext :: ModelContext) => IO (Either Exception.SomeException MapdSyncSummary)
     finishedAt <- getCurrentTime
     case syncResult of
         Left syncError -> do

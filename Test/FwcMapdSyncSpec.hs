@@ -1,11 +1,17 @@
 module Test.FwcMapdSyncSpec where
 
-import Application.FwcMapd.Client (MapdResultsPage (..))
+import Application.FwcMapd.Client (MapdPageMeta (..), MapdResultsPage (..),
+                                   assembleCanonicalClassificationValues,
+                                   assemblePagedResults)
+import qualified Application.FwcMapd.Payload as MapdPayload
 import Application.FwcMapd.Sync
 import qualified Application.FwcMapd.Sync as FwcMapd
 import Application.Helper.FwcMapd
+import qualified Control.Exception as Exception
 import qualified Data.Aeson as Aeson
+import qualified Data.Aeson.Types as AesonTypes
 import qualified Data.ByteString.Lazy.Char8 as LByteString
+import Data.Either (isLeft)
 import Data.Scientific (Scientific)
 import qualified Data.Text as Text
 import Data.Time.Calendar (fromGregorian)
@@ -115,6 +121,65 @@ tests = do
             map (specPayRatePayloadClassificationFixedId . fst) payRates `shouldBe` [Just 101]
             map (specPenaltyRatePayloadClassificationFixedId . fst) penalties `shouldBe` [Just 101]
 
+        it "assembles canonical classification responses deterministically when paging omits Level 3" do
+            fixture <- loadFwcMapdFixture
+            let allClassifications = map snd fixture.curatedClassifications
+                withoutLevel3 = filter ((/= Just 257) . classificationFixedIdFromValue) allClassifications
+                directLevel3 = filter ((== Just 257) . classificationFixedIdFromValue) allClassifications
+
+            assembleCanonicalClassificationValues expectedCoreClassificationFixedIds (reverse withoutLevel3) directLevel3
+                `shouldBe` Right allClassifications
+
+        it "rejects inconsistent paging metadata instead of accepting repeated pages" do
+            let firstPage = MapdResultsPage [Aeson.String "first"] (MapdPageMeta 2 1)
+                repeatedFirstPage = MapdResultsPage [Aeson.String "first again"] (MapdPageMeta 2 1)
+
+            assemblePagedResults [firstPage, repeatedFirstPage]
+                `shouldBe` Left "FWC MAPD paging inconsistent: requested page 2 reported current_page 1"
+
+        it "normalizes identical source duplicates and rejects conflicting duplicates independent of response order" do
+            fixture <- loadFwcMapdFixture
+            let Just duplicate = head fixture.curatedPenaltyRates
+                conflictingPayload = (fst duplicate) { MapdPayload.penaltyCalculatedValue = Just 999.99 }
+                conflicting = (conflictingPayload, snd duplicate)
+                withIdenticalDuplicate = fixture { curatedPenaltyRates = duplicate : fixture.curatedPenaltyRates }
+                withConflict = fixture { curatedPenaltyRates = conflicting : fixture.curatedPenaltyRates }
+
+            fmap (length . (.validatedPenaltyRates)) (validateMapdSnapshot withIdenticalDuplicate) `shouldBe` Right 49
+            validateMapdSnapshot withConflict `shouldSatisfy` isLeft
+            validateMapdSnapshot (withConflict { curatedPenaltyRates = reverse withConflict.curatedPenaltyRates })
+                `shouldBe` validateMapdSnapshot withConflict
+
+        it "requires award provenance and a permanent ordinary source rate" do
+            fixture <- loadFwcMapdFixture
+            let Just firstPayRate = head fixture.curatedPayRates
+                casualOnlyPayRate = ((fst firstPayRate) { MapdPayload.calculatedRateType = Just "Casual Hourly" }, snd firstPayRate)
+                casualOnlyCandidate = fixture { curatedPayRates = casualOnlyPayRate : drop 1 fixture.curatedPayRates }
+
+            validateMapdSnapshot (fixture { curatedAwards = [] })
+                `shouldBe` Left "FWC MAPD snapshot incomplete: missing award provenance for award_fixed_id 9"
+            validateMapdSnapshot casualOnlyCandidate
+                `shouldBe` Left "FWC MAPD snapshot incomplete: missing permanent ordinary/base rate for classification 242"
+
+        it "requires clause 29.2 commenced-hour allowance provenance" do
+            fixture <- loadFwcMapdFixture
+            let Just firstAllowance = head fixture.curatedWageAllowances
+                wrongClauseAllowance = ((fst firstAllowance) { MapdPayload.wageAllowanceClauses = Just "28" }, snd firstAllowance)
+                wrongClauseCandidate = fixture { curatedWageAllowances = wrongClauseAllowance : drop 1 fixture.curatedWageAllowances }
+
+            validateMapdSnapshot wrongClauseCandidate
+                `shouldBe` Left "FWC MAPD snapshot inconsistent: EveningAfter7Pm addition is not owned by clause 29.2"
+
+        it "rejects an incomplete candidate with a deterministic actionable diagnostic" do
+            fixture <- loadFwcMapdFixture
+            let withoutLevel3 =
+                    fixture
+                        { curatedClassifications = filter ((/= 257) . specClassificationPayloadFixedId . fst) fixture.curatedClassifications
+                        }
+
+            validateMapdSnapshot withoutLevel3
+                `shouldBe` Left "FWC MAPD snapshot incomplete: missing classification_fixed_id 257"
+
         it "keeps hospitality weekday time penalties from wage allowances" do
             let asOfDate = fromGregorian 2026 4 24
                 eveningAllowance = wageAllowancePayload 2025 "Penalty-Monday to Friday-7.00 pm to midnight" 10 2.81
@@ -171,6 +236,19 @@ tests = do
 
             map (payloadPenaltyDescription . fst) penalties `shouldBe` [Just "Casual employees - ordinary hours"]
             map (normalisePenaltyKind . fst) penalties `shouldBe` [Nothing]
+
+        it "excludes public-holiday overtime rows at the curation boundary" do
+            let asOfDate = fromGregorian 2026 4 24
+                classification = classificationPayload 101 2025 "Level 1" (Just "Food and beverage attendant grade 1")
+                payRate = payRatePayloadWithBasePayRateId "BR1" (payRatePayload 101 2025 "AD" "Level 1" (Just "Food and beverage attendant grade 1") Nothing (Just "Weekly") (Just 24.95) (Just "Hourly"))
+                publicHolidayOvertime =
+                    (penaltyRatePayload 101 2025 "Level 1" (Just "Food and beverage attendant grade 1") "Public holiday overtime" (Just 56.14))
+                        { penaltyBasePayRateId = Just "BR1" }
+                (_, _, _, _, penalties) =
+                    curateAwardData barVenueCurationProfile asOfDate
+                        (9, [(awardPayload 2025, Aeson.Null)], [(classification, Aeson.Null)], [(payRate, Aeson.Null)], [(publicHolidayOvertime, Aeson.Null)])
+
+            penalties `shouldBe` []
 
         it "decodes text-ish MAPD fields from numbers and booleans" do
             let decoded =
@@ -234,6 +312,31 @@ tests = do
                     timeAllowances <- query @AwardTimePenaltyAllowance |> fetch
                     map (.penaltyKind) timeAllowances
                         `shouldMatchList` [EveningAfter7Pm, LateNightAfterMidnight]
+
+            it "records an actionable failed sync and leaves the complete active projection unchanged" $ withContext do
+                withCleanDb do
+                    fixture <- loadFwcMapdFixture
+                    _ <- storeCuratedMapdAwardData [fixture]
+                    originalLevels <- query @AwardLevel |> orderByAsc #classificationFixedId |> fetch
+                    originalBaseRates <- query @AwardLevelBaseRate |> orderByAsc #awardLevelId |> fetch
+                    let incompleteCandidate =
+                            fixture
+                                { curatedClassifications = filter ((/= 257) . specClassificationPayloadFixedId . fst) fixture.curatedClassifications
+                                }
+
+                    syncResult <- Exception.try (runMapdSyncWith [9] (storeCuratedMapdAwardData [incompleteCandidate])) :: IO (Either Exception.SomeException MapdSyncSummary)
+
+                    syncResult `shouldSatisfy` isLeft
+                    refreshedLevels <- query @AwardLevel |> orderByAsc #classificationFixedId |> fetch
+                    refreshedBaseRates <- query @AwardLevelBaseRate |> orderByAsc #awardLevelId |> fetch
+                    failedRun <- query @FwcMapdSyncRun |> orderByDesc #startedAt |> fetchOne
+                    map (\level -> (level.id, level.classificationFixedId, level.isActive, level.syncedAt)) refreshedLevels
+                        `shouldBe` map (\level -> (level.id, level.classificationFixedId, level.isActive, level.syncedAt)) originalLevels
+                    map (\rate -> (rate.id, rate.hourlyRate, rate.fwcMapdPayRateId)) refreshedBaseRates
+                        `shouldBe` map (\rate -> (rate.id, rate.hourlyRate, rate.fwcMapdPayRateId)) originalBaseRates
+                    failedRun.status `shouldBe` "failed"
+                    failedRun.errorMessage
+                        `shouldSatisfy` maybe False (Text.isInfixOf "FWC MAPD snapshot incomplete: missing classification_fixed_id 257")
 
             it "keeps award level ids stable while adding new effective-dated rates" $ withContext do
                 withCleanDb do
@@ -434,9 +537,6 @@ tests = do
 fwcMapdFixtureRoot :: FilePath
 fwcMapdFixtureRoot = "Test/Fixtures/wage-sources/2026-07-24/fwc-mapd/"
 
-expectedCoreClassificationFixedIds :: [Int]
-expectedCoreClassificationFixedIds = [242, 243, 246, 257, 268, 276, 282]
-
 expectedCoreBasePayRateIds :: [Text]
 expectedCoreBasePayRateIds = ["BR89890", "BR89891", "BR89892", "BR89894", "BR89895", "BR89896", "BR89897"]
 
@@ -472,6 +572,9 @@ loadFwcMapdFixture = do
         curatedWageAllowances =
             curateWageAllowances barVenueCurationProfile asOfDate wageAllowances
     pure CuratedMapdAwardData { .. }
+
+classificationFixedIdFromValue :: Aeson.Value -> Maybe Int
+classificationFixedIdFromValue = AesonTypes.parseMaybe (Aeson.withObject "classification" (Aeson..: "classification_fixed_id"))
 
 readMapdFixtureValues :: FilePath -> IO [Aeson.Value]
 readMapdFixtureValues fixtureName = do

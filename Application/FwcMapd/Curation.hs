@@ -211,6 +211,7 @@ isRelevantPenaltyRate :: MapdCurationProfile -> PenaltyRatePayload -> Bool
 isRelevantPenaltyRate profile penaltyRate =
     isIncludedRateType
         && hasPayablePenaltyAmount penaltyRate
+        && not (containsAny ["overtime"] searchableText)
         && not (hasAnyKeyword profile.excludedKeywords searchableText)
         && isJust (normalisePenaltyKind penaltyRate)
     where

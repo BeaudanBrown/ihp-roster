@@ -5,6 +5,8 @@ import Application.FwcMapd.Config
 import Application.FwcMapd.Curation
 import Application.FwcMapd.Payload
 import Application.FwcMapd.Projection
+import Application.FwcMapd.Validation
+import qualified Control.Exception as Exception
 import Control.Monad (void)
 import qualified Data.Aeson as Aeson
 import qualified Data.Set as Set
@@ -12,16 +14,6 @@ import Generated.Types
 import IHP.ControllerPrelude
 import IHP.ModelSupport (withTransaction)
 import IHP.Prelude
-
-data CuratedMapdAwardData = CuratedMapdAwardData
-    { curatedAwardFixedId    :: !Int
-    , curatedAwards          :: ![(AwardPayload, Aeson.Value)]
-    , curatedClassifications :: ![(ClassificationPayload, Aeson.Value)]
-    , curatedPayRates        :: ![(PayRatePayload, Aeson.Value)]
-    , curatedPenaltyRates    :: ![(PenaltyRatePayload, Aeson.Value)]
-    , curatedWageAllowances  :: ![(WageAllowancePayload, Aeson.Value)]
-    }
-    deriving (Eq, Show)
 
 fetchAndStore :: (?modelContext :: ModelContext) => MapdConfig -> IO MapdSyncSummary
 fetchAndStore config = do
@@ -55,18 +47,28 @@ storeCuratedMapdAwardData ::
     (?modelContext :: ModelContext) =>
     [CuratedMapdAwardData] ->
     IO MapdSyncSummary
-storeCuratedMapdAwardData fetchedAwards =
+storeCuratedMapdAwardData fetchedAwards = do
+    validatedAwards <-
+        forM fetchedAwards \candidate ->
+            either (Exception.throwIO . userError . cs) pure (validateMapdSnapshot candidate)
+    storeValidatedMapdSnapshots validatedAwards
+
+storeValidatedMapdSnapshots ::
+    (?modelContext :: ModelContext) =>
+    [ValidatedMapdSnapshot] ->
+    IO MapdSyncSummary
+storeValidatedMapdSnapshots validatedSnapshots =
     withTransaction do
-        let requestedAwardIds = map (.curatedAwardFixedId) fetchedAwards
+        let requestedAwardIds = map (.validatedAwardFixedId) validatedSnapshots
         clearExistingCache requestedAwardIds
         syncedAt <- getCurrentTime
-        forM_ fetchedAwards \awardData -> do
-            let awardFixedId = awardData.curatedAwardFixedId
-                awards = awardData.curatedAwards
-                classifications = awardData.curatedClassifications
-                payRates = awardData.curatedPayRates
-                penaltyRates = awardData.curatedPenaltyRates
-                wageAllowances = awardData.curatedWageAllowances
+        forM_ validatedSnapshots \awardData -> do
+            let awardFixedId = awardData.validatedAwardFixedId
+                awards = awardData.validatedAwards
+                classifications = awardData.validatedClassifications
+                payRates = awardData.validatedPayRates
+                penaltyRates = awardData.validatedPenaltyRates
+                wageAllowances = awardData.validatedWageAllowances
             forM_ awards \(payload, rawValue) ->
                 void
                     ( newRecord @FwcMapdAward
@@ -182,11 +184,11 @@ storeCuratedMapdAwardData fetchedAwards =
                     )
             populateAwardLevelProjection awardFixedId syncedAt
 
-        let fetchedAwardCount = sum (map (length . (.curatedAwards)) fetchedAwards)
-        let fetchedClassificationCount = sum (map (length . (.curatedClassifications)) fetchedAwards)
-        let fetchedPayRateCount = sum (map (length . (.curatedPayRates)) fetchedAwards)
-        let fetchedPenaltyRateCount = sum (map (length . (.curatedPenaltyRates)) fetchedAwards)
-        let fetchedWageAllowanceCount = sum (map (length . (.curatedWageAllowances)) fetchedAwards)
+        let fetchedAwardCount = sum (map (length . (.validatedAwards)) validatedSnapshots)
+        let fetchedClassificationCount = sum (map (length . (.validatedClassifications)) validatedSnapshots)
+        let fetchedPayRateCount = sum (map (length . (.validatedPayRates)) validatedSnapshots)
+        let fetchedPenaltyRateCount = sum (map (length . (.validatedPenaltyRates)) validatedSnapshots)
+        let fetchedWageAllowanceCount = sum (map (length . (.validatedWageAllowances)) validatedSnapshots)
         pure
             MapdSyncSummary
                 { syncedAwardFixedIds = requestedAwardIds

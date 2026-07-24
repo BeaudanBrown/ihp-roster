@@ -22,6 +22,7 @@ Contract matrix:
 - [#238](https://github.com/BeaudanBrown/ihp-roster/issues/238) — property, performance, migration and workflow verification
 - [#239](https://github.com/BeaudanBrown/ihp-roster/issues/239) — Haskell cutover and SQL retirement
 - [#241](https://github.com/BeaudanBrown/ihp-roster/issues/241) — Staff Hours CSV contract
+- [#264](https://github.com/BeaudanBrown/ihp-roster/issues/264) — complete, deterministic and atomic MAPD refresh snapshots
 - [#240](https://github.com/BeaudanBrown/ihp-roster/issues/240) — overtime stretch; explicitly on hold
 
 GitHub native blockers and sub-issue state are the implementation tracker; this
@@ -61,6 +62,7 @@ file does not duplicate ticket status.
 
 ## Living docs to update as tickets land
 
+- `Application/FwcMapd/SPEC.md`
 - `specs/06-pay-engine.md`
 - `specs/hospitality-award-pay-calculation-verification.md`
 - `Web/Timesheets/SPEC.md`

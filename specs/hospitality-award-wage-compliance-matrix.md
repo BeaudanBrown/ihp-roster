@@ -123,12 +123,19 @@ The dated offline fixture set is under
 `Test/Fixtures/wage-sources/2026-07-24/`. Its README records exact URLs,
 retrieval date, hashes, curation, and refresh procedure.
 
-The fixture contract is structural:
+The fixture contract is structural. MAPD refresh builds a candidate, normalizes
+only value-equivalent duplicate source identities, validates the complete
+candidate, then publishes raw rows and projections in one transaction. A
+conflicting duplicate or incomplete candidate records a failed sync while the
+last complete projection remains active. Provider paging is supplemented by
+direct canonical-classification reads, and response order never selects a
+conflicting row.
 
 - all seven adult hourly core classifications must remain present;
 - each must project permanent and casual ordinary/base rates plus permanent and
   casual Saturday, Sunday, and public-holiday categories;
 - both clause 29.2 commenced-hour categories must project;
+- every MAPD overtime row is rejected at curation and validated-snapshot boundaries;
 - DataVic parsing/import tests use the committed response and never the network.
 
 A **rate-only** source update flows through ingestion and changes effective rate
