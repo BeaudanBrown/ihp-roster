@@ -30,9 +30,6 @@ module Application.WageEngine
     , StatewideHolidayJurisdiction (..)
     , VenueAwardContext (..)
     , resolveVenueAwardContext
-    , LocalDayKind (..)
-    , LocalTimeWindow (..)
-    , ResolvedPaidInterval (..)
     , ImportedPayItem (..)
     , ImportedOverrideContext (..)
     , selectedImportedPayItem
@@ -58,6 +55,11 @@ module Application.WageEngine
     )
 where
 
+import Application.VenueTime (AwardSegment, LocalDayKind (..),
+                              LocalTimeWindow (..), awardSegmentEnd,
+                              awardSegmentLocalDate, awardSegmentLocalDayKind,
+                              awardSegmentLocalWindow, awardSegmentStart,
+                              resolvedInstantUTC)
 import qualified Data.List as List
 import qualified Data.Map.Strict as Map
 import Data.Scientific (Scientific)
@@ -329,27 +331,6 @@ resolveVenueAwardContext rawTimeZone rawJurisdiction = do
             else Left (UnsupportedPublicHolidayJurisdiction rawJurisdiction)
     pure (VenueAwardContext timeZone jurisdiction)
 
-data LocalDayKind
-    = LocalWeekday
-    | LocalSaturday
-    | LocalSunday
-    deriving (Eq, Ord, Show)
-
-data LocalTimeWindow
-    = OrdinaryWindow
-    | EveningWindow
-    | EarlyMorningWindow
-    deriving (Eq, Ord, Show)
-
-data ResolvedPaidInterval = ResolvedPaidInterval
-    { paidIntervalStart        :: !UTCTime
-    , paidIntervalEnd          :: !UTCTime
-    , paidIntervalLocalDate    :: !Day
-    , paidIntervalLocalDayKind :: !LocalDayKind
-    , paidIntervalLocalWindow  :: !LocalTimeWindow
-    }
-    deriving (Eq, Show)
-
 data ImportedPayItem = ImportedPayItem
     { importedPayItemId   :: !Text
     , importedPayItemName :: !Text
@@ -399,7 +380,7 @@ data WageCalculationInput = WageCalculationInput
     , calculationStatewidePublicHolidayDates :: !(Set.Set Day)
     , calculationImportedOverrides           :: !ImportedOverrideContext
     , calculationUnsupportedFeatures         :: !(Set.Set UnsupportedFeature)
-    , calculationPaidIntervals               :: ![ResolvedPaidInterval]
+    , calculationPaidIntervals               :: ![AwardSegment]
     }
     deriving (Eq, Show)
 
@@ -486,7 +467,6 @@ data WageCalculation = WageCalculation
 
 data PaidIntervalError
     = NoPaidIntervals
-    | NonPositivePaidInterval !UTCTime !UTCTime
     | OverlappingPaidIntervals
     deriving (Eq, Show)
 
@@ -516,8 +496,8 @@ calculateTimesheetPay calculationInput = do
                 AwardHourlyEmployment employmentBasis -> Right employmentBasis
                 UnsupportedEmployment unsupportedEmployment ->
                     Left (UnsupportedCalculationInput (UnsupportedEmploymentArrangement unsupportedEmployment))
-            case List.find ((/= OrdinaryWindow) . (.paidIntervalLocalWindow)) intervals of
-                Just interval -> Left (UnsupportedCalculationInput (PendingCommencedHourRule interval.paidIntervalLocalWindow))
+            case List.find ((/= OrdinaryWindow) . awardSegmentLocalWindow) intervals of
+                Just interval -> Left (UnsupportedCalculationInput (PendingCommencedHourRule (awardSegmentLocalWindow interval)))
                 Nothing       -> Right ()
             awardRateContext <- maybe (Left (UnsupportedCalculationInput MissingAwardRateContext)) Right calculationInput.calculationAwardRateContext
             let segmentComponents = map (calculateAwardInterval awardRateContext basis) intervals
@@ -578,15 +558,19 @@ validateCalculationContext calculationInput = do
         Nothing -> Right ()
         Just unsupportedFeature -> Left (UnsupportedCalculationInput (UnsupportedFeatureRequested unsupportedFeature))
 
-validatePaidIntervals :: [ResolvedPaidInterval] -> Either WageCalculationError [ResolvedPaidInterval]
+validatePaidIntervals :: [AwardSegment] -> Either WageCalculationError [AwardSegment]
 validatePaidIntervals [] = Left (InvalidPaidInterval NoPaidIntervals)
 validatePaidIntervals rawIntervals = do
-    forM_ rawIntervals \interval ->
-        unless (interval.paidIntervalEnd > interval.paidIntervalStart)
-            (Left (InvalidPaidInterval (NonPositivePaidInterval interval.paidIntervalStart interval.paidIntervalEnd)))
-    let intervals = List.sortOn (.paidIntervalStart) rawIntervals
+    let intervals = List.sortOn (resolvedInstantUTC . awardSegmentStart) rawIntervals
         adjacent = zip intervals (drop 1 intervals)
-    when (any (\(left, right) -> left.paidIntervalEnd > right.paidIntervalStart) adjacent)
+    when
+        ( any
+            ( \(left, right) ->
+                resolvedInstantUTC (awardSegmentEnd left)
+                    > resolvedInstantUTC (awardSegmentStart right)
+            )
+            adjacent
+        )
         (Left (InvalidPaidInterval OverlappingPaidIntervals))
     pure intervals
 
@@ -594,25 +578,25 @@ selectedImportedPayItem :: ImportedOverrideContext -> Maybe ImportedPayItem
 selectedImportedPayItem importedOverrides =
     importedOverrides.shiftImportedPayItem <|> importedOverrides.staffImportedPayItem
 
-awardCondition :: Set.Set Day -> ResolvedPaidInterval -> (BaseRateKind, SourceCondition)
+awardCondition :: Set.Set Day -> AwardSegment -> (BaseRateKind, SourceCondition)
 awardCondition statewidePublicHolidayDates interval
-    | Set.member interval.paidIntervalLocalDate statewidePublicHolidayDates = (PublicHolidayRate, PublicHolidayCondition)
-    | otherwise = case interval.paidIntervalLocalDayKind of
+    | Set.member (awardSegmentLocalDate interval) statewidePublicHolidayDates = (PublicHolidayRate, PublicHolidayCondition)
+    | otherwise = case awardSegmentLocalDayKind interval of
         LocalWeekday  -> (OrdinaryRate, OrdinaryCondition)
         LocalSaturday -> (SaturdayRate, SaturdayCondition)
         LocalSunday   -> (SundayRate, SundayCondition)
 
-paidSegment :: SourceCondition -> ResolvedPaidInterval -> PaidTimeSegment
+paidSegment :: SourceCondition -> AwardSegment -> PaidTimeSegment
 paidSegment condition interval =
     PaidTimeSegment
         { paidTimeKind = Worked
-        , paidTimeStart = interval.paidIntervalStart
-        , paidTimeEnd = interval.paidIntervalEnd
-        , paidTimeLocalDate = interval.paidIntervalLocalDate
+        , paidTimeStart = resolvedInstantUTC (awardSegmentStart interval)
+        , paidTimeEnd = resolvedInstantUTC (awardSegmentEnd interval)
+        , paidTimeLocalDate = awardSegmentLocalDate interval
         , paidTimeSourceCondition = condition
         }
 
-importedComponent :: ImportedPayItem -> SourceCondition -> ResolvedPaidInterval -> EarningsComponent
+importedComponent :: ImportedPayItem -> SourceCondition -> AwardSegment -> EarningsComponent
 importedComponent importedPayItem condition interval =
     let hours = intervalDurationHours interval
      in EarningsComponent
@@ -625,6 +609,11 @@ importedComponent importedPayItem condition interval =
             , sourceRateIdentity = Nothing
             }
 
-intervalDurationHours :: ResolvedPaidInterval -> Rational
+intervalDurationHours :: AwardSegment -> Rational
 intervalDurationHours interval =
-    toRational (diffUTCTime interval.paidIntervalEnd interval.paidIntervalStart) / 3600
+    toRational
+        ( diffUTCTime
+            (resolvedInstantUTC (awardSegmentEnd interval))
+            (resolvedInstantUTC (awardSegmentStart interval))
+        )
+        / 3600

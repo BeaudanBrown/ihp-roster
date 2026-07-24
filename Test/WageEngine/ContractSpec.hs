@@ -1,9 +1,11 @@
 module Test.WageEngine.ContractSpec where
 
+import Application.VenueTime
 import Application.WageEngine
 import qualified Data.Set as Set
 import qualified Data.Text as Text
 import Data.Time.Calendar (fromGregorian)
+import Data.Time.LocalTime (TimeOfDay (..))
 import IHP.Prelude
 import Test.Hspec
 import Test.WageEngine.Fixture
@@ -112,14 +114,12 @@ tests = do
                 `shouldBe` Left (InvalidRateBookEffectivePeriod invalidPeriod)
 
     describe "pure calculation input contract" do
-        it "rejects missing, non-positive and overlapping authoritative intervals" do
-            let reversedInterval = twoHourOrdinaryInterval { paidIntervalEnd = paidIntervalStart twoHourOrdinaryInterval }
-                overlap = twoHourOrdinaryInterval { paidIntervalStart = utcAt 60, paidIntervalEnd = utcAt 120 }
+        it "rejects missing and overlapping authoritative Award segments" do
+            let day = fromGregorian 2026 1 5
+                overlap = awardSegmentBetween day (TimeOfDay 9 1 0) day (TimeOfDay 9 2 0)
 
             calculateTimesheetPay (testCalculationInput { calculationPaidIntervals = [] })
                 `shouldBe` Left (InvalidPaidInterval NoPaidIntervals)
-            calculateTimesheetPay (testCalculationInput { calculationPaidIntervals = [reversedInterval] })
-                `shouldBe` Left (InvalidPaidInterval (NonPositivePaidInterval (utcAt 0) (utcAt 0)))
             calculateTimesheetPay (testCalculationInput { calculationPaidIntervals = [twoHourOrdinaryInterval, overlap] })
                 `shouldBe` Left (InvalidPaidInterval OverlappingPaidIntervals)
 
@@ -168,7 +168,8 @@ tests = do
                 `shouldBe` Left (UnsupportedCalculationInput (InvalidImportedPayItem "invalid"))
 
         it "does not reproduce legacy hourly/stacked commenced-hour additions" do
-            let eveningInterval = twoHourOrdinaryInterval { paidIntervalLocalWindow = EveningWindow }
+            let day = fromGregorian 2026 1 5
+                eveningInterval = awardSegmentBetween day (TimeOfDay 19 0 0) day (TimeOfDay 21 0 0)
 
             calculateTimesheetPay (testCalculationInput { calculationPaidIntervals = [eveningInterval] })
                 `shouldBe` Left (UnsupportedCalculationInput (PendingCommencedHourRule EveningWindow))

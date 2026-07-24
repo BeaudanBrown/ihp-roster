@@ -1,10 +1,12 @@
 module Test.WageEngine.Fixture where
 
+import Application.VenueTime
 import Application.WageEngine
 import Data.Scientific (Scientific)
 import qualified Data.Set as Set
 import Data.Time.Calendar (fromGregorian)
-import Data.Time.Clock (UTCTime (..), secondsToDiffTime)
+import Data.Time.Clock (UTCTime (..), addUTCTime, secondsToDiffTime)
+import Data.Time.LocalTime (TimeOfDay (..))
 import IHP.Prelude
 
 testEffectivePeriod :: EffectivePeriod
@@ -91,18 +93,29 @@ testCalculationInput =
         , calculationPaidIntervals = [twoHourOrdinaryInterval]
         }
 
-twoHourOrdinaryInterval :: ResolvedPaidInterval
+twoHourOrdinaryInterval :: AwardSegment
 twoHourOrdinaryInterval =
-    ResolvedPaidInterval
-        { paidIntervalStart = utcAt 0
-        , paidIntervalEnd = utcAt (2 * 60 * 60)
-        , paidIntervalLocalDate = fromGregorian 2026 1 5
-        , paidIntervalLocalDayKind = LocalWeekday
-        , paidIntervalLocalWindow = OrdinaryWindow
-        }
+    awardSegmentBetween
+        (fromGregorian 2026 1 5)
+        (TimeOfDay 9 0 0)
+        (fromGregorian 2026 1 5)
+        (TimeOfDay 11 0 0)
+
+awardSegmentBetween :: Day -> TimeOfDay -> Day -> TimeOfDay -> AwardSegment
+awardSegmentBetween startDay startTime endDay endTime =
+    case resolveInterval startCivil endCivil >>= awardSegments of
+        Right [segment] -> segment
+        Right segments  -> error ("Expected one Award segment, got " <> tshow segments)
+        Left failure    -> error (tshow failure)
+  where
+    startCivil = MelbourneCivilTime startDay startTime Nothing
+    endCivil = MelbourneCivilTime endDay endTime Nothing
 
 utcAt :: Integer -> UTCTime
-utcAt seconds = UTCTime (fromGregorian 2026 1 5) (secondsToDiffTime seconds)
+utcAt seconds =
+    addUTCTime
+        (fromInteger seconds)
+        (UTCTime (fromGregorian 2026 1 4) (secondsToDiffTime (22 * 60 * 60)))
 
 calculateOrFail :: WageCalculationInput -> WageCalculation
 calculateOrFail calculationInput =

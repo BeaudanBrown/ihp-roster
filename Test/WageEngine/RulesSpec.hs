@@ -1,8 +1,10 @@
 module Test.WageEngine.RulesSpec where
 
+import Application.VenueTime
 import Application.WageEngine
 import qualified Data.Set as Set
 import Data.Time.Calendar (fromGregorian)
+import Data.Time.LocalTime (TimeOfDay (..))
 import IHP.Prelude
 import Test.Hspec
 import Test.WageEngine.Fixture
@@ -50,8 +52,8 @@ tests = do
             amountFor calculation `shouldBe` 250
 
         it "HIGA-29.2-SATURDAY and SUNDAY select one basis-specific day rate" do
-            let saturday = twoHourOrdinaryInterval { paidIntervalLocalDayKind = LocalSaturday }
-                sunday = twoHourOrdinaryInterval { paidIntervalLocalDayKind = LocalSunday }
+            let saturday = awardSegmentBetween (fromGregorian 2026 1 10) (TimeOfDay 9 0 0) (fromGregorian 2026 1 10) (TimeOfDay 11 0 0)
+                sunday = awardSegmentBetween (fromGregorian 2026 1 11) (TimeOfDay 9 0 0) (fromGregorian 2026 1 11) (TimeOfDay 11 0 0)
                 permanentSaturday = calculateOrFail (testCalculationInput { calculationPaidIntervals = [saturday] })
                 casualSunday =
                     calculateOrFail
@@ -68,11 +70,7 @@ tests = do
 
         it "HIGA-29.2-PUBLIC-HOLIDAY uses statewide dates and takes priority over Saturday" do
             let holidayDate = fromGregorian 2026 1 10
-                holidayInterval =
-                    twoHourOrdinaryInterval
-                        { paidIntervalLocalDate = holidayDate
-                        , paidIntervalLocalDayKind = LocalSaturday
-                        }
+                holidayInterval = awardSegmentBetween holidayDate (TimeOfDay 9 0 0) holidayDate (TimeOfDay 11 0 0)
                 calculation =
                     calculateOrFail
                         ( testCalculationInput
@@ -89,10 +87,11 @@ tests = do
             let staffItem = ImportedPayItem "staff-item" "Staff imported" 55
                 shiftItem = ImportedPayItem "shift-item" "Shift imported" 70
                 saturdayEvening =
-                    twoHourOrdinaryInterval
-                        { paidIntervalLocalDayKind = LocalSaturday
-                        , paidIntervalLocalWindow = EveningWindow
-                        }
+                    awardSegmentBetween
+                        (fromGregorian 2026 1 10)
+                        (TimeOfDay 19 0 0)
+                        (fromGregorian 2026 1 10)
+                        (TimeOfDay 21 0 0)
                 calculation =
                     calculateOrFail
                         ( testCalculationInput
@@ -136,15 +135,17 @@ tests = do
             newCalculation.calculationRateBookVersion `shouldBe` Just (RateBookVersion "fixture-2026")
 
         it "orders resolved intervals deterministically" do
-            let firstHour = twoHourOrdinaryInterval { paidIntervalEnd = utcAt 3600 }
-                secondHour = twoHourOrdinaryInterval { paidIntervalStart = utcAt 3600 }
+            let day = fromGregorian 2026 1 5
+                firstHour = awardSegmentBetween day (TimeOfDay 9 0 0) day (TimeOfDay 10 0 0)
+                secondHour = awardSegmentBetween day (TimeOfDay 10 0 0) day (TimeOfDay 11 0 0)
                 forward = calculateTimesheetPay (testCalculationInput { calculationPaidIntervals = [firstHour, secondHour] })
                 backward = calculateTimesheetPay (testCalculationInput { calculationPaidIntervals = [secondHour, firstHour] })
 
             backward `shouldBe` forward
 
         it "HIGA-POLICY-GENERIC-TIME preserves non-quarter-hour elapsed quantities" do
-            let thirtySevenMinutes = twoHourOrdinaryInterval { paidIntervalEnd = utcAt (37 * 60) }
+            let day = fromGregorian 2026 1 5
+                thirtySevenMinutes = awardSegmentBetween day (TimeOfDay 9 0 0) day (TimeOfDay 9 37 0)
                 calculation = calculateOrFail (testCalculationInput { calculationPaidIntervals = [thirtySevenMinutes] })
 
             fmap (.quantity) calculation.earningsComponents `shouldBe` [37 / 60]

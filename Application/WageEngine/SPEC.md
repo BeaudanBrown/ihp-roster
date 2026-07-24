@@ -6,6 +6,7 @@
 independent timesheet. It owns the typed calculation interface, complete effective
 rate-book validation, paid-time/component separation, stable calculation version,
 and the currently unchanged Award rule subset. It performs no database or HTTP work.
+`Application.VenueTime` is its sole Melbourne civil-time authority.
 
 `Application.WageEngine.Adapter` bulk-loads projected database facts into that
 interface. The existing `Application.Helper.Pay.fetchTimesheetPay` and
@@ -37,8 +38,8 @@ retrieval and curation remain in `Application/FwcMapd/`.
 
 `WageCalculationInput` contains:
 
-- pre-resolved authoritative paid intervals and explicit Melbourne local date/day/
-  window context;
+- opaque `AwardSegment` values from `Application.VenueTime`, carrying authoritative
+  instants and derived Melbourne local date/day/window context;
 - a validated Melbourne timezone and VIC statewide public-holiday jurisdiction;
 - supported employment arrangement; the stored `permanent` enum is retained for
   database compatibility but means MA000009 part-time exclusively and is displayed
@@ -48,9 +49,10 @@ retrieval and curation remain in `Application/FwcMapd/`.
 - statewide holiday dates and shift/staff imported-pay-item override context;
 - explicit unsupported-feature facts.
 
-The engine never converts civil time to an instant. Issue #230 owns that authority.
-Intervals must be non-empty, positive, and non-overlapping. The input remains generic;
-there is no quarter-hour invariant.
+The engine never converts civil time to an instant and callers cannot forge UTC/local
+segment metadata. `Application.VenueTime` resolves and positively bounds each segment;
+the engine additionally requires a non-empty, non-overlapping segment list. The input
+remains generic; there is no quarter-hour invariant.
 
 Each result carries `hospitality-award-v1`, separate `PaidTimeSegment` and
 `EarningsComponent` lists, exact rational quantities/amounts, source condition, and
@@ -77,12 +79,14 @@ holidays are restricted to the requested date span plus the next local date. It
 performs no per-entry database query. Partial projected books return
 `InvalidProjectedRateBook` for Award calculation, while explicit imported overrides
 need no Award book; an unvalidated book can never reach `calculateTimesheetPay`.
-Callers attach intervals resolved by the future #230 time
-authority through `calculationInputFromLoadedContext`.
+Callers attach `Application.VenueTime` Award segments through
+`calculationInputFromLoadedContext`. Issue #274 owns persistence and controller/UI
+integration of this implemented pure authority.
 
 ## Verification
 
 ```bash
+bash ./bin/in-env hspec-pure --match "Melbourne civil-time authority"
 bash ./bin/in-env hspec-pure
 bash ./bin/in-env hspec-test --match "database wage-engine adapter"
 bash ./bin/in-env hspec-test --match "FWC MAPD"

@@ -16,8 +16,10 @@ application-layer orchestration/reporting still consumes the SQL seam.
 
 The Haskell module now validates the complete effective MA000009 rate book and
 calculates the unchanged ordinary, casual, weekend, public-holiday, and imported
-flat-rate subset from pre-resolved intervals. Later compliance tickets add time,
-component, meal-break, minimum-payment, and ledger rules before cutover.
+flat-rate subset from opaque `Application.VenueTime` Award segments. That pure time
+authority resolves Melbourne DST and exact local boundaries; issue #274 integrates
+it with persistence and UI. Later compliance tickets add component, meal-break,
+minimum-payment, and ledger rules before cutover.
 
 ## Why mixed
 
@@ -28,8 +30,9 @@ component, meal-break, minimum-payment, and ledger rules before cutover.
 
 ## Input constraints
 
-- Current UI/form time values use exact 15-minute increments; the target engine
-  remains generic and adds no quarter-hour database invariant.
+- Current UI/form time values use exact 15-minute increments; `Application.VenueTime`
+  and the target engine preserve exact elapsed seconds and add no quarter-hour
+  calculator or database invariant.
 - The stored `permanent` employment-basis value is retained for database
   compatibility but exclusively means MA000009 part-time. Customer-facing copy
   says “Part-time”; full-time employment is not represented by that value.

@@ -22,6 +22,7 @@ where
 
 import Application.Helper.WeekBoundaries (venueEffectiveRateDate,
                                           venueEffectiveRateEndDate)
+import Application.VenueTime (AwardSegment)
 import Application.WageEngine
 import qualified Data.Bifunctor as Bifunctor
 import qualified Data.List as List
@@ -425,7 +426,7 @@ projectedRateEffectiveOn weekStartsOn workedOn operativeFrom operativeTo =
     maybe True ((<= workedOn) . venueEffectiveRateDate weekStartsOn) operativeFrom
         && maybe True (>= workedOn) (venueEffectiveRateEndDate weekStartsOn operativeTo)
 
-calculationInputFromLoadedContext :: LoadedCalculationContext -> [ResolvedPaidInterval] -> WageCalculationInput
+calculationInputFromLoadedContext :: LoadedCalculationContext -> [AwardSegment] -> WageCalculationInput
 calculationInputFromLoadedContext loadedContext intervals =
     WageCalculationInput
         { calculationEntryId = CalculationEntryId (tshow loadedContext.loadedEntryId)

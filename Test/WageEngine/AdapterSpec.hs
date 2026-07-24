@@ -3,6 +3,7 @@ module Test.WageEngine.AdapterSpec where
 import Application.FwcMapd.Sync (storeCuratedMapdAwardData)
 import Application.Helper.Pay (PayTotals (..), TimesheetPayResult (..),
                                fetchTimesheetPay)
+import Application.VenueTime (AwardSegment)
 import Application.WageEngine
 import Application.WageEngine.Adapter
 import Data.IORef
@@ -11,7 +12,6 @@ import Data.Scientific (Scientific)
 import qualified Data.Text as Text
 import qualified Data.Text.Encoding as TextEncoding
 import Data.Time.Calendar (Day, fromGregorian)
-import Data.Time.Clock (UTCTime (..), secondsToDiffTime)
 import Data.Time.LocalTime (TimeOfDay (..))
 import qualified Data.UUID as UUID
 import Generated.Types
@@ -25,7 +25,7 @@ import qualified Prelude
 import Test.Hspec
 import Test.Support
 import Test.Support.FwcMapdFixture (loadFwcMapdFixture)
-import Test.WageEngine.Fixture (completeRateBookCandidate)
+import Test.WageEngine.Fixture (awardSegmentBetween, completeRateBookCandidate)
 
 pureTests :: Spec
 pureTests =
@@ -428,19 +428,9 @@ createAdapterEntry venue staff shiftType workedOn =
             . set #startTime (TimeOfDay 9 0 0)
             . set #endTime (TimeOfDay 13 0 0)
 
-fourHourInterval :: Day -> ResolvedPaidInterval
+fourHourInterval :: Day -> AwardSegment
 fourHourInterval localDate =
-    ResolvedPaidInterval
-        { paidIntervalStart = UTCTime localDate (secondsToDiffTime 0)
-        , paidIntervalEnd = UTCTime localDate (secondsToDiffTime (4 * 60 * 60))
-        , paidIntervalLocalDate = localDate
-        , paidIntervalLocalDayKind = dayKind localDate
-        , paidIntervalLocalWindow = OrdinaryWindow
-        }
-  where
-    dayKind day
-        | day == fromGregorian 2026 7 11 = LocalSaturday
-        | otherwise = LocalWeekday
+    awardSegmentBetween localDate (TimeOfDay 9 0 0) localDate (TimeOfDay 13 0 0)
 
 countBulkSourceCalls :: IORef [Text] -> WageEngineBulkSource IO -> WageEngineBulkSource IO
 countBulkSourceCalls calls source =

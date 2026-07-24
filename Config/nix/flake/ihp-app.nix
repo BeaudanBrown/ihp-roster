@@ -44,6 +44,8 @@
                         ip
                         postgresql-simple
                         process
+                        QuickCheck
+                        tz
                         validation
                         wai
                         webauthn
