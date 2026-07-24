@@ -28,7 +28,7 @@ renderRosterWeekShell ShowView { .. } =
             , appPageWidthClass = ""
             , appPageBody =
                 mconcat
-                    [ renderPasskeySetupPrompt passkeySetupPrompt
+                    [ renderPasskeySetupPrompt passkeyStrongAuthenticationRequired passkeySetupPrompt
                     , renderRosterLayout RosterGridRenderModel
                         { gridRosterWeek = rosterWeek
                         , gridRosterDays = rosterDays
@@ -79,17 +79,17 @@ renderRosterWeekShell ShowView { .. } =
         |]
      in profileHtmlComponent "render.roster.full_shell" shell
 
-renderPasskeySetupPrompt :: (?context :: ControllerContext) => Maybe Passkey.PasskeySetupPromptMode -> Html
-renderPasskeySetupPrompt Nothing = mempty
-renderPasskeySetupPrompt (Just promptMode) = [hsx|
+renderPasskeySetupPrompt :: (?context :: ControllerContext) => Bool -> Maybe Passkey.PasskeySetupPromptMode -> Html
+renderPasskeySetupPrompt _ Nothing = mempty
+renderPasskeySetupPrompt strongAuthenticationRequired (Just promptMode) = [hsx|
     <div {...Passkey.passkeySetupPromptAttrs (tshow currentUser.id) promptMode}>
-        {renderPasskeySetupPromptDialog (passkeySetupModeFromPrompt promptMode) (pathTo RosterWeeksAction)}
+        {renderPasskeySetupPromptDialog (passkeySetupModeFromPrompt strongAuthenticationRequired promptMode) (pathTo RosterWeeksAction)}
     </div>
 |]
 
-passkeySetupModeFromPrompt :: (?context :: ControllerContext) => Passkey.PasskeySetupPromptMode -> PasskeySetupMode
-passkeySetupModeFromPrompt Passkey.PasskeyFirstPasskey =
-    if currentUserIsAdmin
+passkeySetupModeFromPrompt :: Bool -> Passkey.PasskeySetupPromptMode -> PasskeySetupMode
+passkeySetupModeFromPrompt strongAuthenticationRequired Passkey.PasskeyFirstPasskey =
+    if strongAuthenticationRequired
         then MandatoryFirstPasskey
         else OptionalFirstPasskey
-passkeySetupModeFromPrompt Passkey.PasskeyAdditionalDevice = OptionalAdditionalDevice
+passkeySetupModeFromPrompt _ Passkey.PasskeyAdditionalDevice = OptionalAdditionalDevice

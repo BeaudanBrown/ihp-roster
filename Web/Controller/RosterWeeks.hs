@@ -1546,6 +1546,7 @@ renderRosterWeekPage weekOffset requestedRosterGroupId =
         _ <- profileActionSpan "roster.page.ensure_week_exists" (ensureRosterWeekExists currentRosterGroup.id weekOffset)
         rosterDataOrNothing <- profileActionSpan "roster.page.fetch_read_model" (fetchVisibleRosterReadModel currentRosterGroup.id weekOffset)
         passkeySetupPrompt <- profileActionSpan "roster.page.passkey_prompt" passkeySetupPromptFromSession
+        passkeyStrongAuthenticationRequired <- profileActionSpan "roster.page.passkey_policy" currentUserRequiresMandatoryPasskey
         timelineTodayUrl <- profileActionSpan "roster.page.timeline_today_url" (buildRosterTimelineTodayUrl currentRosterGroup.id)
 
         case rosterDataOrNothing of
@@ -1583,6 +1584,7 @@ renderRosterWeekPage weekOffset requestedRosterGroupId =
                                 , showRosterWarnings
                                 , publicHolidays = rosterPublicHolidays
                                 , passkeySetupPrompt
+                                , passkeyStrongAuthenticationRequired
                                 , rosterGridViewMode = currentRosterGridViewMode
                                 , rosterTimelineTodayUrl = Just timelineTodayUrl
                                 }

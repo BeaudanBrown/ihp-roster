@@ -53,6 +53,7 @@ data ShowView = ShowView
     , publicHolidays         :: Map Day Text
     , shiftTypes             :: [ShiftType]
     , passkeySetupPrompt     :: Maybe PasskeySetupPromptMode
+    , passkeyStrongAuthenticationRequired :: Bool
     , rosterGridViewMode     :: RosterGridViewMode
     , rosterTimelineTodayUrl :: Maybe Text
     }

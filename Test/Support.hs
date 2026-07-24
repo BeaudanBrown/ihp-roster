@@ -11,6 +11,7 @@ import Application.Helper.Pay (ensurePayVersionsForTimesheetApproval,
 import Application.Helper.RosterGroups (ensureVenueDefaultRosterGroup,
                                         ensureVenueRosterDefaults)
 import Config
+import Control.Exception (bracket)
 import Control.Monad (void)
 import qualified Data.Aeson as Aeson
 import qualified Data.ByteString as ByteString
@@ -41,7 +42,7 @@ import IHP.Test.Mocking
 import Network.HTTP.Types.Header (RequestHeaders)
 import qualified Network.Wai as Wai
 import qualified Network.Wai.Session.Maybe as WaiSession
-import System.Environment (lookupEnv, setEnv)
+import System.Environment (lookupEnv, setEnv, unsetEnv)
 import qualified System.IO as IO
 import System.IO.Unsafe (unsafePerformIO)
 import Web.FrontController ()
@@ -51,6 +52,16 @@ withDatabaseTestContext :: (MockContext WebApplication -> IO a) -> IO a
 withDatabaseTestContext action = do
     setEnv "IHP_ROSTER_REQUIRE_PRIVILEGED_STRONG_AUTH" "true"
     withMockContext WebApplication config action
+
+withPrivilegedStrongAuthentication :: Bool -> IO value -> IO value
+withPrivilegedStrongAuthentication enabled action =
+    bracket
+        (lookupEnv variableName)
+        restore
+        (\_ -> setEnv variableName (if enabled then "true" else "false") >> action)
+  where
+    variableName = "IHP_ROSTER_REQUIRE_PRIVILEGED_STRONG_AUTH"
+    restore = maybe (unsetEnv variableName) (setEnv variableName)
 
 withCleanDb :: (?modelContext :: ModelContext) => IO a -> IO a
 withCleanDb action = do

@@ -26,23 +26,12 @@ import Network.HTTP.Types.Status
 import qualified Network.HTTP.Types.URI as URI
 import Network.Wai (responseHeaders)
 import qualified Network.Wai as Wai
-import qualified System.Environment as Environment
 import Test.Hspec
 import Test.Support
 import Web.Controller.Billing ()
 import Web.FrontController ()
 import Web.Routes
 import Web.Types
-
-withPrivilegedStrongAuthentication :: Bool -> IO value -> IO value
-withPrivilegedStrongAuthentication enabled action =
-    Exception.bracket
-        (Environment.lookupEnv variableName)
-        restore
-        (\_ -> Environment.setEnv variableName (if enabled then "true" else "false") >> action)
-  where
-    variableName = "IHP_ROSTER_REQUIRE_PRIVILEGED_STRONG_AUTH"
-    restore = maybe (Environment.unsetEnv variableName) (Environment.setEnv variableName)
 
 withCapturedLogger :: (FrameworkConfig -> IO value) -> IO (value, Text)
 withCapturedLogger action = do
