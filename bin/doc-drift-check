@@ -137,4 +137,40 @@ if [[ -n "$raw_modal_matches" ]]; then
     fail $'raw dialog modal markup outside approved overlay/picker helpers:\n'"$raw_modal_matches"
 fi
 
+wage_matrix="specs/hospitality-award-wage-compliance-matrix.md"
+wage_fixture_root="Test/Fixtures/wage-sources/2026-07-24"
+require_text "$wage_matrix" '`HIGA-16.2-BREAK-6H`'
+require_text "$wage_matrix" '`HIGA-29.2-EVENING-PART-HOUR`'
+require_text "$wage_matrix" '`HIGA-29.4-PH-MIN-PERMANENT`'
+require_text "$wage_matrix" '`HIGA-EXCL-OVERTIME`'
+require_text "$wage_matrix" 'issue [#240]'
+require_text "$wage_matrix" 'A **rate-only** source update flows through ingestion'
+require_text "$wage_matrix" 'a mandatory review gate and does not block payroll'
+require_text "$wage_fixture_root/README.md" 'Retrieval date: **2026-07-24 UTC**.'
+require_text "$wage_fixture_root/README.md" 'CI and Hspec read these files directly and must not call the live services.'
+
+for fixture_path in \
+    "$wage_fixture_root/fwc-mapd/award.json" \
+    "$wage_fixture_root/fwc-mapd/classifications.json" \
+    "$wage_fixture_root/fwc-mapd/pay-rates.json" \
+    "$wage_fixture_root/fwc-mapd/penalties.json" \
+    "$wage_fixture_root/fwc-mapd/wage-allowances.json" \
+    "$wage_fixture_root/datavic/public-holidays.json"
+do
+    [[ -f "$fixture_path" ]] || fail "missing deterministic wage-source fixture: $fixture_path"
+done
+(
+    cd "$wage_fixture_root"
+    sha256sum --check --status SHA256SUMS || fail "deterministic wage-source fixture hash mismatch"
+)
+
+while IFS= read -r pay_example; do
+    require_text "$wage_matrix" "$pay_example"
+done < <(sed -n 's/.*it "\([^"]*\)".*/\1/p' Test/PaySpec.hs)
+
+scenario_duplicates="$(sed -n 's/^| `\(HIGA-[^`]*\)`.*/\1/p' "$wage_matrix" | sort | uniq -d)"
+if [[ -n "$scenario_duplicates" ]]; then
+    fail $'duplicate primary wage matrix scenario ids:\n'"$scenario_duplicates"
+fi
+
 echo "doc-drift-check: ok"

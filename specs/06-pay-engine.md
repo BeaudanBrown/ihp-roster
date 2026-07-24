@@ -1,5 +1,12 @@
 # Pay Engine Specification (Mixed Architecture)
 
+> This file describes the implemented SQL/Haskell baseline. The active target
+> contract is the
+> [MA000009 compliance matrix](hospitality-award-wage-compliance-matrix.md) and
+> [wage-compliance workstream](../docs/workstreams/hospitality-award-wage-compliance.md).
+> The baseline remains authoritative until cutover issue #239 retires the SQL
+> calculation functions.
+
 ## Architecture decision
 
 Canonical pay math is implemented in PostgreSQL functions; application-layer orchestration/reporting is implemented in Haskell.
@@ -9,11 +16,12 @@ Canonical pay math is implemented in PostgreSQL functions; application-layer orc
 - SQL functions provide deterministic, centralized calculations near data.
 - Haskell layer provides composable workflow orchestration, presentation shaping, and easier UI/report integration.
 
-## Canonical calculation rules
+## Implemented SQL calculation rules
 
 ## Input constraints
 
-- Time values use exact 15-minute increments.
+- Current UI/form time values use exact 15-minute increments; the target engine
+  remains generic and adds no quarter-hour database invariant.
 - Break is deducted from shift duration before applying rate rules.
 
 ## Day/window model
@@ -22,9 +30,11 @@ Canonical pay math is implemented in PostgreSQL functions; application-layer orc
   - Ordinary: 07:00-19:00
   - Evening: 19:00-00:00
   - After-midnight: 00:00-07:00
-- Weekend behavior:
-  - Weekend multiplier applies,
-  - and **stacks** with configured penalties/additions.
+- Legacy weekend behavior:
+  - the SQL payload applies a weekend multiplier,
+  - and can **stack** it with configured penalties/additions.
+  - This is characterization, not the MA000009 target; clause 29.3 highest-rate
+    precedence is defined in the compliance matrix.
 
 ## Pay level resolution
 

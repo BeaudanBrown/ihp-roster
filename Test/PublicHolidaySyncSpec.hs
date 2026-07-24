@@ -4,6 +4,7 @@ import Application.PublicHolidays.Coverage
 import Application.PublicHolidays.Sync
 import Config
 import qualified Control.Exception as Exception
+import qualified Data.ByteString.Lazy as LByteString
 import Data.Either (isLeft)
 import Data.Time.Calendar (fromGregorian)
 import Generated.Types
@@ -45,8 +46,40 @@ tests = do
             publicHolidayImportFromDataVic melbourneCupRecord { dateType = "SCHOOL_TERM" }
                 `shouldSatisfy` isLeft
 
+        it "decodes the dated DataVic response fixture without a live request" do
+            records <- loadDataVicFixture
+
+            length records `shouldBe` 13
+            map (.dateType) records `shouldSatisfy` all (== "PUBLIC_HOLIDAY")
+            map (.importantDate) records
+                `shouldSatisfy` \dates -> all (`elem` dates) ["3/11/2026", "25/12/2026", "28/12/2026"]
+            map (.publisher) records `shouldSatisfy` all (== Just "Business Victoria")
+
     aroundAll withDatabaseTestContext do
         describe "DataVic public holiday import" do
+            it "projects the dated statewide fixture, including its additional public holiday, into the 2026 cache" $ withContext do
+                withCleanDb do
+                    records <- loadDataVicFixture
+
+                    summary <- importDataVicPublicHolidayRecordsForYears [2026] records
+                    holidays <- query @PublicHoliday |> orderByAsc #holidayDate |> fetch
+
+                    summary.fetchedCount `shouldBe` 13
+                    summary.importedCount `shouldBe` 13
+                    summary.skippedCount `shouldBe` 0
+                    length holidays `shouldBe` 13
+                    map (.jurisdiction) holidays `shouldSatisfy` all (== "VIC")
+                    map (.isRegional) holidays `shouldSatisfy` all not
+                    map (.source) holidays `shouldSatisfy` all (== Just "Business Victoria")
+                    map (.holidayDate) holidays
+                        `shouldSatisfy` \dates ->
+                            all
+                                (`elem` dates)
+                                [ fromGregorian 2026 11 3
+                                , fromGregorian 2026 12 25
+                                , fromGregorian 2026 12 28
+                                ]
+
             it "replaces matching statewide holiday rows from the latest API read" $ withContext do
                 withCleanDb do
                     firstSummary <- importDataVicPublicHolidayRecordsForYears [2026] [melbourneCupRecord]
@@ -144,6 +177,16 @@ tests = do
                     coverage <- fetchPublicHolidayCoverage
                     length coverage `shouldBe` 3
                     map (.status) coverage `shouldSatisfy` all (== PublicHolidayCoverageMissing)
+
+dataVicFixturePath :: FilePath
+dataVicFixturePath = "Test/Fixtures/wage-sources/2026-07-24/datavic/public-holidays.json"
+
+loadDataVicFixture :: IO [DataVicHolidayRecord]
+loadDataVicFixture = do
+    payload <- LByteString.readFile dataVicFixturePath
+    case decodeDataVicPublicHolidayResponse payload of
+        Left errorMessage -> fail ("Could not decode DataVic fixture: " <> errorMessage)
+        Right records -> pure records
 
 melbourneCupRecord :: DataVicHolidayRecord
 melbourneCupRecord =

@@ -1,0 +1,44 @@
+{
+  "_meta": {
+    "current_page": 1,
+    "page_count": 1
+  },
+  "results": [
+    {
+      "allowance": "Penalty—Monday to Friday—7.00 pm to midnight",
+      "allowance_amount": 2.9500,
+      "base_pay_rate_id": "BR89895",
+      "clause_fixed_id": 738,
+      "clauses": "29.2",
+      "is_all_purpose": false,
+      "last_modified_datetime": "2026-06-23T02:40:53+00:00",
+      "operative_from": "2026-07-01",
+      "operative_to": null,
+      "parent_allowance": null,
+      "payment_frequency": "per hour or part thereof",
+      "published_year": 2026,
+      "rate": 10.0000000000,
+      "rate_unit": "Percent",
+      "version_number": 6,
+      "wage_allowance_fixed_id": 87
+    },
+    {
+      "allowance": "Penalty—Monday to Friday—midnight to 7.00 am",
+      "allowance_amount": 4.4200,
+      "base_pay_rate_id": "BR89895",
+      "clause_fixed_id": 738,
+      "clauses": "29.2",
+      "is_all_purpose": false,
+      "last_modified_datetime": "2026-06-23T02:40:53+00:00",
+      "operative_from": "2026-07-01",
+      "operative_to": null,
+      "parent_allowance": null,
+      "payment_frequency": "per hour or part thereof",
+      "published_year": 2026,
+      "rate": 15.0000000000,
+      "rate_unit": "Percent",
+      "version_number": 6,
+      "wage_allowance_fixed_id": 11954
+    }
+  ]
+}

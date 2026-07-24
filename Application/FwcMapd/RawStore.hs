@@ -13,6 +13,16 @@ import IHP.ControllerPrelude
 import IHP.ModelSupport (withTransaction)
 import IHP.Prelude
 
+data CuratedMapdAwardData = CuratedMapdAwardData
+    { curatedAwardFixedId    :: !Int
+    , curatedAwards          :: ![(AwardPayload, Aeson.Value)]
+    , curatedClassifications :: ![(ClassificationPayload, Aeson.Value)]
+    , curatedPayRates        :: ![(PayRatePayload, Aeson.Value)]
+    , curatedPenaltyRates    :: ![(PenaltyRatePayload, Aeson.Value)]
+    , curatedWageAllowances  :: ![(WageAllowancePayload, Aeson.Value)]
+    }
+    deriving (Eq, Show)
+
 fetchAndStore :: (?modelContext :: ModelContext) => MapdConfig -> IO MapdSyncSummary
 fetchAndStore config = do
     asOfDate <- utctDay <$> getCurrentTime
@@ -34,15 +44,29 @@ fetchAndStore config = do
                     |> Set.toList
         penaltyRateValues <- liftIO (concat <$> forM retainedBasePayRateIds (fetchPenaltyRateValuesForBasePayRateId config awardFixedId))
         penaltyRates <- decodePayloads "penalty rates" penaltyRateValues :: IO [(PenaltyRatePayload, Aeson.Value)]
-        let curatedAwardData = curateAwardData barVenueCurationProfile asOfDate (awardFixedId, awards, classifications, payRates, penaltyRates)
-            retainedWageAllowances = curateWageAllowances barVenueCurationProfile asOfDate wageAllowances
-        pure (curatedAwardData, retainedWageAllowances)
+        let (curatedAwardFixedId, curatedAwards, curatedClassifications, curatedPayRates, curatedPenaltyRates) =
+                curateAwardData barVenueCurationProfile asOfDate (awardFixedId, awards, classifications, payRates, penaltyRates)
+            curatedWageAllowances = curateWageAllowances barVenueCurationProfile asOfDate wageAllowances
+        pure CuratedMapdAwardData { .. }
 
+    storeCuratedMapdAwardData fetchedAwards
+
+storeCuratedMapdAwardData ::
+    (?modelContext :: ModelContext) =>
+    [CuratedMapdAwardData] ->
+    IO MapdSyncSummary
+storeCuratedMapdAwardData fetchedAwards =
     withTransaction do
-        let requestedAwardIds = map (\((awardFixedId, _, _, _, _), _) -> awardFixedId) fetchedAwards
+        let requestedAwardIds = map (.curatedAwardFixedId) fetchedAwards
         clearExistingCache requestedAwardIds
         syncedAt <- getCurrentTime
-        forM_ fetchedAwards \((awardFixedId, awards, classifications, payRates, penaltyRates), wageAllowances) -> do
+        forM_ fetchedAwards \awardData -> do
+            let awardFixedId = awardData.curatedAwardFixedId
+                awards = awardData.curatedAwards
+                classifications = awardData.curatedClassifications
+                payRates = awardData.curatedPayRates
+                penaltyRates = awardData.curatedPenaltyRates
+                wageAllowances = awardData.curatedWageAllowances
             forM_ awards \(payload, rawValue) ->
                 void
                     ( newRecord @FwcMapdAward
@@ -158,11 +182,11 @@ fetchAndStore config = do
                     )
             populateAwardLevelProjection awardFixedId syncedAt
 
-        let fetchedAwardCount = sum (map (\((_, awards, _, _, _), _) -> length awards) fetchedAwards)
-        let fetchedClassificationCount = sum (map (\((_, _, classifications, _, _), _) -> length classifications) fetchedAwards)
-        let fetchedPayRateCount = sum (map (\((_, _, _, payRates, _), _) -> length payRates) fetchedAwards)
-        let fetchedPenaltyRateCount = sum (map (\((_, _, _, _, penaltyRates), _) -> length penaltyRates) fetchedAwards)
-        let fetchedWageAllowanceCount = sum (map (\(_, wageAllowances) -> length wageAllowances) fetchedAwards)
+        let fetchedAwardCount = sum (map (length . (.curatedAwards)) fetchedAwards)
+        let fetchedClassificationCount = sum (map (length . (.curatedClassifications)) fetchedAwards)
+        let fetchedPayRateCount = sum (map (length . (.curatedPayRates)) fetchedAwards)
+        let fetchedPenaltyRateCount = sum (map (length . (.curatedPenaltyRates)) fetchedAwards)
+        let fetchedWageAllowanceCount = sum (map (length . (.curatedWageAllowances)) fetchedAwards)
         pure
             MapdSyncSummary
                 { syncedAwardFixedIds = requestedAwardIds

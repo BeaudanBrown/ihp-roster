@@ -17,15 +17,18 @@ Technical baseline:
 ## Canonical decisions
 
 1. UI requirements target **Bootstrap 5**.
-2. Pay engine uses a **Mixed architecture**:
-   - PostgreSQL functions for canonical pay calculations.
-   - Haskell for orchestration/report shaping.
+2. The implemented pay engine uses a **Mixed architecture** until issue #239:
+   - PostgreSQL functions currently provide canonical pay calculations.
+   - The active MA000009 target moves canonical arithmetic to a pure Haskell
+     engine and immutable approved-pay ledger.
 3. Late-to-Early conflict is based on **start-to-start gap**.
 4. Late-to-Early threshold is a **global venue config** value.
 5. `week_offset_epoch` is a **global fixed epoch**.
-6. Weekend multipliers **stack** with penalties.
+6. Legacy weekend multiplier stacking is characterization only; the MA000009
+   target pays the **highest applicable penalty** under clause 29.3.
 7. Kitchen flag is out of scope.
-8. Timesheet time input requires **exact 15-minute increments**.
+8. UI time choices remain quarter-hour aligned, while the target calculator is
+   generic and quarter-hour alignment is not a database invariant.
 9. Trial staff are placeholders only; no conversion flow.
 10. **Managers, Venue Admins and Venue Owners can publish** rosters.
 11. Initial commercial model is **local managed SaaS with venue as the current customer boundary**, not public self-serve SaaS.
@@ -49,6 +52,8 @@ Technical baseline:
 - `10-au-saas-security-privacy-compliance/`
 - `11-first-client-document-pack/`
 - `12-performance-profiling.md`
+- `hospitality-award-pay-calculation-verification.md`
+- `hospitality-award-wage-compliance-matrix.md`
 
 ## Local Living Specs
 

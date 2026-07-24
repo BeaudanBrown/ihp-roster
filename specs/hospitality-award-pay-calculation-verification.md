@@ -2,6 +2,12 @@
 
 Checked on 22 July 2026 against the current Hospitality Industry (General) Award 2020 (MA000009) and Fair Work Ombudsman guidance.
 
+The executable target envelope, exclusions, stable scenario IDs and output
+owners are defined in
+[`hospitality-award-wage-compliance-matrix.md`](hospitality-award-wage-compliance-matrix.md).
+This document continues to characterize the currently implemented SQL behavior
+until cutover issue #239 lands.
+
 ## Official award rules
 
 ### Public holidays

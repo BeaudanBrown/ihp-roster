@@ -1,0 +1,137 @@
+{
+  "result": {
+    "records": [
+      {
+        "_id": 2853,
+        "arun": null,
+        "dateType": "PUBLIC_HOLIDAY",
+        "description": null,
+        "important_date": "1/01/2026",
+        "name": "New Year's Day",
+        "publisher": "Business Victoria",
+        "source": "https://business.vic.gov.au/business-information/public-holidays/victorian-public-holidays-2026"
+      },
+      {
+        "_id": 2854,
+        "arun": null,
+        "dateType": "PUBLIC_HOLIDAY",
+        "description": null,
+        "important_date": "26/01/2026",
+        "name": "Australia Day",
+        "publisher": "Business Victoria",
+        "source": "https://business.vic.gov.au/business-information/public-holidays/victorian-public-holidays-2026"
+      },
+      {
+        "_id": 2855,
+        "arun": null,
+        "dateType": "PUBLIC_HOLIDAY",
+        "description": null,
+        "important_date": "9/03/2026",
+        "name": "Labour Day",
+        "publisher": "Business Victoria",
+        "source": "https://business.vic.gov.au/business-information/public-holidays/victorian-public-holidays-2026"
+      },
+      {
+        "_id": 2856,
+        "arun": null,
+        "dateType": "PUBLIC_HOLIDAY",
+        "description": null,
+        "important_date": "3/04/2026",
+        "name": "Good Friday",
+        "publisher": "Business Victoria",
+        "source": "https://business.vic.gov.au/business-information/public-holidays/victorian-public-holidays-2026"
+      },
+      {
+        "_id": 2857,
+        "arun": null,
+        "dateType": "PUBLIC_HOLIDAY",
+        "description": null,
+        "important_date": "4/04/2026",
+        "name": "Saturday before Easter Sunday",
+        "publisher": "Business Victoria",
+        "source": "https://business.vic.gov.au/business-information/public-holidays/victorian-public-holidays-2026"
+      },
+      {
+        "_id": 2858,
+        "arun": null,
+        "dateType": "PUBLIC_HOLIDAY",
+        "description": null,
+        "important_date": "5/04/2026",
+        "name": "Easter Sunday",
+        "publisher": "Business Victoria",
+        "source": "https://business.vic.gov.au/business-information/public-holidays/victorian-public-holidays-2026"
+      },
+      {
+        "_id": 2859,
+        "arun": null,
+        "dateType": "PUBLIC_HOLIDAY",
+        "description": null,
+        "important_date": "6/04/2026",
+        "name": "Easter Monday",
+        "publisher": "Business Victoria",
+        "source": "https://business.vic.gov.au/business-information/public-holidays/victorian-public-holidays-2026"
+      },
+      {
+        "_id": 2860,
+        "arun": null,
+        "dateType": "PUBLIC_HOLIDAY",
+        "description": "ANZAC Day is commemorated on the day it falls. There is no replacement holiday when ANZAC Day falls on a weekend.",
+        "important_date": "25/04/2026",
+        "name": "ANZAC Day",
+        "publisher": "Business Victoria",
+        "source": "https://business.vic.gov.au/business-information/public-holidays/victorian-public-holidays-2026"
+      },
+      {
+        "_id": 2861,
+        "arun": null,
+        "dateType": "PUBLIC_HOLIDAY",
+        "description": null,
+        "important_date": "8/06/2026",
+        "name": "King's Birthday",
+        "publisher": "Business Victoria",
+        "source": "https://business.vic.gov.au/business-information/public-holidays/victorian-public-holidays-2026"
+      },
+      {
+        "_id": 2862,
+        "arun": null,
+        "dateType": "PUBLIC_HOLIDAY",
+        "description": "Melbourne Cup Day is a public holiday across all of Victoria unless alternate local holiday has been arranged by a non-metro council.",
+        "important_date": "3/11/2026",
+        "name": "Melbourne Cup",
+        "publisher": "Business Victoria",
+        "source": "https://business.vic.gov.au/business-information/public-holidays/victorian-public-holidays-2026"
+      },
+      {
+        "_id": 2863,
+        "arun": null,
+        "dateType": "PUBLIC_HOLIDAY",
+        "description": null,
+        "important_date": "25/12/2026",
+        "name": "Christmas Day",
+        "publisher": "Business Victoria",
+        "source": "https://business.vic.gov.au/business-information/public-holidays/victorian-public-holidays-2026"
+      },
+      {
+        "_id": 2864,
+        "arun": null,
+        "dateType": "PUBLIC_HOLIDAY",
+        "description": null,
+        "important_date": "26/12/2026",
+        "name": "Boxing Day",
+        "publisher": "Business Victoria",
+        "source": "https://business.vic.gov.au/business-information/public-holidays/victorian-public-holidays-2026"
+      },
+      {
+        "_id": 2865,
+        "arun": null,
+        "dateType": "PUBLIC_HOLIDAY",
+        "description": "As Boxing Day falls on a Saturday, an additional public holiday is given on the following Monday.",
+        "important_date": "28/12/2026",
+        "name": "Boxing Day",
+        "publisher": "Business Victoria",
+        "source": "https://business.vic.gov.au/business-information/public-holidays/victorian-public-holidays-2026"
+      }
+    ]
+  },
+  "success": true
+}

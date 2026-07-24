@@ -3,6 +3,7 @@ module Application.PublicHolidays.Sync
     , PublicHolidayImport (..)
     , PublicHolidaySyncSummary (..)
     , dataVicImportantDatesResourceId
+    , decodeDataVicPublicHolidayResponse
     , fetchDataVicPublicHolidayRecords
     , importDataVicPublicHolidayRecords
     , importDataVicPublicHolidayRecordsForYears
@@ -20,6 +21,7 @@ import qualified Data.Aeson as Aeson
 import Data.Aeson.Key (Key)
 import Data.Aeson.Types (Parser)
 import qualified Data.ByteString.Char8 as ByteString
+import qualified Data.ByteString.Lazy as LByteString
 import qualified Data.Text as Text
 import qualified Data.Text.IO as TextIO
 import Data.Time.Calendar (Day, fromGregorianValid, toGregorian)
@@ -132,12 +134,17 @@ fetchDataVicPublicHolidayRecords = do
     let statusCode = getResponseStatusCode response
     when (statusCode < 200 || statusCode >= 300) do
         Exception.throwIO (userError ("DataVic public holiday request failed with status " <> cs (tshow statusCode)))
-    case Aeson.eitherDecode (getResponseBody response) :: Either String DataVicSearchResponse of
+    case decodeDataVicPublicHolidayResponse (getResponseBody response) of
         Left err ->
             Exception.throwIO (userError ("DataVic public holiday response decode failed: " <> err))
-        Right decoded
-            | decoded.success -> pure decoded.result.records
-            | otherwise -> Exception.throwIO (userError "DataVic public holiday response was not successful")
+        Right records -> pure records
+
+decodeDataVicPublicHolidayResponse :: LByteString.ByteString -> Either String [DataVicHolidayRecord]
+decodeDataVicPublicHolidayResponse responseBody = do
+    decoded <- Aeson.eitherDecode responseBody :: Either String DataVicSearchResponse
+    if decoded.success
+        then Right decoded.result.records
+        else Left "DataVic public holiday response was not successful"
 
 importDataVicPublicHolidayRecords ::
     (?modelContext :: ModelContext) =>

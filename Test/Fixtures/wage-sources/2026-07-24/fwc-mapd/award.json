@@ -1,0 +1,19 @@
+{
+  "_meta": {
+    "current_page": 1,
+    "page_count": 1
+  },
+  "results": [
+    {
+      "award_fixed_id": 9,
+      "award_id": 2005,
+      "award_operative_from": "2010-01-01",
+      "award_operative_to": null,
+      "code": "MA000009",
+      "last_modified_datetime": "2026-06-30T17:00:44+00:00",
+      "name": "Hospitality Industry (General) Award 2020",
+      "published_year": 2026,
+      "version_number": 2
+    }
+  ]
+}

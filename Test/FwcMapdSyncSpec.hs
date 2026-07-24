@@ -1,11 +1,13 @@
 module Test.FwcMapdSyncSpec where
 
+import Application.FwcMapd.Client (MapdResultsPage (..))
 import Application.FwcMapd.Sync
 import qualified Application.FwcMapd.Sync as FwcMapd
 import Application.Helper.FwcMapd
 import qualified Data.Aeson as Aeson
 import qualified Data.ByteString.Lazy.Char8 as LByteString
 import Data.Scientific (Scientific)
+import qualified Data.Text as Text
 import Data.Time.Calendar (fromGregorian)
 import Generated.Enums (AwardPenaltyKindEnum (..))
 import Generated.Types
@@ -178,8 +180,61 @@ tests = do
 
             fmap payloadClassificationLevel decoded `shouldBe` Right (Just "1.0")
 
+        it "curates every supported adult hourly classification and rate category from the dated MAPD fixtures" do
+            fixture <- loadFwcMapdFixture
+
+            fixture.curatedAwardFixedId `shouldBe` 9
+            map (awardPayloadCode . fst) fixture.curatedAwards `shouldBe` ["MA000009"]
+            map (specClassificationPayloadFixedId . fst) fixture.curatedClassifications `shouldBe` expectedCoreClassificationFixedIds
+            mapMaybe (specPayRatePayloadBasePayRateId . fst) fixture.curatedPayRates `shouldBe` expectedCoreBasePayRateIds
+            length fixture.curatedPenaltyRates `shouldBe` 49
+            forM_ expectedCoreBasePayRateIds \basePayRateId ->
+                mapMaybe (fixturePenaltyCategory . fst) (filter ((== Just basePayRateId) . penaltyPayloadBasePayRateId . fst) fixture.curatedPenaltyRates)
+                    `shouldMatchList` expectedFixturePenaltyCategories
+            map (normaliseTimePenaltyKind . fst) fixture.curatedWageAllowances
+                `shouldMatchList` [Just EveningAfter7Pm, Just LateNightAfterMidnight]
+
     aroundAll withDatabaseTestContext do
         describe "FWC MAPD admin data" do
+            it "projects every fixture classification and expected rate category without asserting current dollar amounts" $ withContext do
+                withCleanDb do
+                    fixture <- loadFwcMapdFixture
+
+                    summary <- storeCuratedMapdAwardData [fixture]
+
+                    summary.fetchedAwardCount `shouldBe` 1
+                    summary.fetchedClassificationCount `shouldBe` 7
+                    summary.fetchedPayRateCount `shouldBe` 7
+                    summary.fetchedPenaltyRateCount `shouldBe` 49
+                    summary.fetchedWageAllowanceCount `shouldBe` 2
+
+                    awardLevels <- query @AwardLevel |> orderByAsc #classificationFixedId |> fetch
+                    map (.classificationFixedId) awardLevels `shouldBe` expectedCoreClassificationFixedIds
+                    forM_ awardLevels \awardLevel -> do
+                        baseRates <-
+                            query @AwardLevelBaseRate
+                                |> filterWhere (#awardLevelId, unpackId awardLevel.id)
+                                |> fetch
+                        penaltyRates <-
+                            query @AwardLevelPenaltyRate
+                                |> filterWhere (#awardLevelId, unpackId awardLevel.id)
+                                |> fetch
+
+                        map (.employmentBasis) baseRates `shouldMatchList` [Permanent, Casual]
+                        map (\penaltyRate -> (penaltyRate.employmentBasis, penaltyRate.penaltyKind)) penaltyRates
+                            `shouldMatchList`
+                                [ (Permanent, SaturdayPenalty)
+                                , (Permanent, SundayPenalty)
+                                , (Permanent, PublicHolidayPenalty)
+                                , (Casual, SaturdayPenalty)
+                                , (Casual, SundayPenalty)
+                                , (Casual, PublicHolidayPenalty)
+                                ]
+
+                    timeAllowances <- query @AwardTimePenaltyAllowance |> fetch
+                    map (.penaltyKind) timeAllowances
+                        `shouldMatchList` [EveningAfter7Pm, LateNightAfterMidnight]
+
             it "keeps award level ids stable while adding new effective-dated rates" $ withContext do
                 withCleanDb do
                     venue <- createVenueWithConfig "Award Rates"
@@ -375,6 +430,75 @@ tests = do
                     map (.classificationFixedId) adminData.currentCoreClassifications `shouldBe` [101]
                     map (.classification) adminData.currentCoreAdultPayRates `shouldBe` ["Level 1"]
                     map (.calculatedRate) adminData.currentCoreAdultPayRates `shouldBe` [Just 24.95]
+
+fwcMapdFixtureRoot :: FilePath
+fwcMapdFixtureRoot = "Test/Fixtures/wage-sources/2026-07-24/fwc-mapd/"
+
+expectedCoreClassificationFixedIds :: [Int]
+expectedCoreClassificationFixedIds = [242, 243, 246, 257, 268, 276, 282]
+
+expectedCoreBasePayRateIds :: [Text]
+expectedCoreBasePayRateIds = ["BR89890", "BR89891", "BR89892", "BR89894", "BR89895", "BR89896", "BR89897"]
+
+expectedFixturePenaltyCategories :: [Text]
+expectedFixturePenaltyCategories =
+    [ "casual:ordinary"
+    , "casual:public_holiday_penalty"
+    , "casual:saturday_penalty"
+    , "casual:sunday_penalty"
+    , "permanent:public_holiday_penalty"
+    , "permanent:saturday_penalty"
+    , "permanent:sunday_penalty"
+    ]
+
+loadFwcMapdFixture :: IO CuratedMapdAwardData
+loadFwcMapdFixture = do
+    awardValues <- readMapdFixtureValues "award.json"
+    classificationValues <- readMapdFixtureValues "classifications.json"
+    payRateValues <- readMapdFixtureValues "pay-rates.json"
+    penaltyRateValues <- readMapdFixtureValues "penalties.json"
+    wageAllowanceValues <- readMapdFixtureValues "wage-allowances.json"
+    awards <- decodePayloads "fixture awards" awardValues
+    classifications <- decodePayloads "fixture classifications" classificationValues
+    payRates <- decodePayloads "fixture pay rates" payRateValues
+    penaltyRates <- decodePayloads "fixture penalty rates" penaltyRateValues
+    wageAllowances <- decodePayloads "fixture wage allowances" wageAllowanceValues
+    let asOfDate = fromGregorian 2026 7 24
+        (curatedAwardFixedId, curatedAwards, curatedClassifications, curatedPayRates, curatedPenaltyRates) =
+            curateAwardData
+                barVenueCurationProfile
+                asOfDate
+                (9, awards, classifications, payRates, penaltyRates)
+        curatedWageAllowances =
+            curateWageAllowances barVenueCurationProfile asOfDate wageAllowances
+    pure CuratedMapdAwardData { .. }
+
+readMapdFixtureValues :: FilePath -> IO [Aeson.Value]
+readMapdFixtureValues fixtureName = do
+    payload <- LByteString.readFile (fwcMapdFixtureRoot <> fixtureName)
+    case Aeson.eitherDecode payload of
+        Left errorMessage -> fail ("Could not decode FWC MAPD fixture " <> fixtureName <> ": " <> errorMessage)
+        Right page -> pure (page :: MapdResultsPage).results
+
+fixturePenaltyCategory :: PenaltyRatePayload -> Maybe Text
+fixturePenaltyCategory payload
+    | isCasualPenalty && payload.penaltyDescription == Just "Ordinary hours" = Just "casual:ordinary"
+    | otherwise = do
+        penaltyKind <- normalisePenaltyKind payload
+        pure (employmentBasisLabel <> ":" <> inputValue penaltyKind)
+    where
+        clauseDescription = Text.toLower (fromMaybe "" payload.penaltyClauseDescription)
+        isCasualPenalty = "casual" `Text.isInfixOf` clauseDescription
+        employmentBasisLabel = if isCasualPenalty then "casual" else "permanent"
+
+awardPayloadCode :: AwardPayload -> Text
+awardPayloadCode payload = payload.code
+
+penaltyPayloadBasePayRateId :: PenaltyRatePayload -> Maybe Text
+penaltyPayloadBasePayRateId payload = payload.penaltyBasePayRateId
+
+specPayRatePayloadBasePayRateId :: PayRatePayload -> Maybe Text
+specPayRatePayloadBasePayRateId payload = payload.basePayRateId
 
 awardPayloadPublishedYear :: AwardPayload -> Maybe Int
 awardPayloadPublishedYear payload = payload.publishedYear
