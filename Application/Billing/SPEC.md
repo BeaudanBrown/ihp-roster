@@ -370,8 +370,9 @@ Signed webhook application classifies meaningful transitions while the prior
 Subscription snapshot is still available. Active venue owners and founder super
 admins are notified when a subscription first enters `past_due`, `unpaid`, or
 `incomplete_expired`, when one of those states recovers to `active`, when
-cancellation at period end is first scheduled, and when cancellation completes.
-A failed asynchronous Checkout payment remains a separate notification category.
+cancellation at period end is first scheduled, when that scheduled cancellation
+is reversed and automatic renewal resumes, and when cancellation completes. A
+failed asynchronous Checkout payment remains a separate notification category.
 Initial active snapshots and repeated snapshots within the same state do not
 send customer messages.
 
@@ -380,7 +381,7 @@ snapshot share the `payment_trouble` category. Notification jobs are permanently
 deduplicated by Stripe mode, venue, Subscription, category, billing period, and
 recipient, rather than by webhook event ID. This keeps invoice and Subscription
 signals for one period from producing duplicate email while allowing recovery,
-scheduled cancellation, completed cancellation, and a later billing period to
+scheduled cancellation, resumed renewal, completed cancellation, and a later billing period to
 remain independently visible. The notification job is enqueued in the same
 venue-locked webhook transaction as the processed event and Subscription update.
 
@@ -424,6 +425,12 @@ codes:
   with `Resolve Payment`;
 - `canceled`: `Canceled` with `Restart Subscription`;
 - `incomplete_expired`: `Setup expired` with `Restart Subscription`.
+
+Submitting any available owner Stripe action immediately opens the shared,
+blocking `Opening Stripe` loading dialog before the full-page request waits for
+Checkout or Customer Portal creation. The dialog uses the generated Overlay
+navigation-loading contract, contains no dismissal control, and disappears with
+the resulting navigation or error response.
 
 The correlated Checkout return remains part of the same live surface. It shows
 pending, confirmed, or failed customer-safe progress for the exact persisted

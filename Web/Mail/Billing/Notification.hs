@@ -80,6 +80,12 @@ billingNotificationCopy notificationKind venueName =
                 , copyHeading = "Subscription cancellation is scheduled for " <> venueName <> "."
                 , copyMessage = "Stripe reported that the subscription is scheduled to cancel at the end of its current billing period."
                 }
+        BillingRenewalResumed ->
+            BillingNotificationCopy
+                { copySubject = "Subscription will renew"
+                , copyHeading = "The subscription will continue for " <> venueName <> "."
+                , copyMessage = "Stripe reported that the scheduled cancellation was reversed. The subscription will continue and renew automatically."
+                }
         BillingCancellationCompleted ->
             BillingNotificationCopy
                 { copySubject = "Subscription cancellation completed"

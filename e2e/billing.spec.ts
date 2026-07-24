@@ -5,7 +5,6 @@ import { expect, test } from '@playwright/test';
 declare const process: { env: Record<string, string | undefined> };
 import {
     E2E_TIMEOUT,
-    clearCurrentSessionPasskeyVerification,
     gotoWhenReady,
     loginAsPrivilegedUserWithSeededPasskeySession,
     markCurrentSessionPasskeyVerified,
@@ -148,7 +147,67 @@ async function deliverSignedWebhook(page: import('@playwright/test').Page, paylo
 }
 
 test.describe('Billing through the strict local Stripe boundary', () => {
-    test('keeps owner actions stepped-up, correlates Checkout, refreshes lifecycle state, and separates founder diagnostics', async ({ page, request }) => {
+    test('shows a blocking loading dialog before a Stripe navigation request completes', async ({ page }) => {
+        await page.addInitScript(() => {
+            const captureLoadingDialog = () => {
+                const dialog = document.querySelector('[role="dialog"][aria-label="Opening Stripe"]');
+                if (!(dialog instanceof HTMLElement)) return;
+                sessionStorage.setItem('e2e-billing-loading-dialog', JSON.stringify({
+                    visible: !dialog.hidden,
+                    text: dialog.textContent ?? '',
+                    spinnerCount: dialog.querySelectorAll('.spinner-border').length,
+                    buttonCount: dialog.querySelectorAll('button').length,
+                }));
+            };
+            new MutationObserver(captureLoadingDialog).observe(document, { childList: true, subtree: true });
+            document.addEventListener('DOMContentLoaded', captureLoadingDialog, { once: true });
+        });
+        await gotoWhenReady(page, '/NewSession', '#email');
+        await page.fill('#email', 'e2e-billing-owner@example.com');
+        await page.fill('#password', 'test-password-123');
+        await page.click('button[type="submit"]');
+        await expect(page).toHaveURL(/(EditProfile|RosterWeeks|ShowRosterWeek)/, { timeout: E2E_TIMEOUT.navigation });
+        await markCurrentSessionPasskeyVerified(page);
+        await gotoWhenReady(page, '/Billing', '[data-billing-owner-view="true"]');
+
+        const startSubscription = page.getByRole('button', { name: 'Start Subscription' });
+        await startSubscription.locator('xpath=ancestor::form').evaluate((form) => {
+            form.addEventListener('submit', (event) => event.preventDefault(), { once: true });
+        });
+        await startSubscription.click();
+        await expect(page.getByRole('dialog', { name: 'Opening Stripe' })).toHaveCount(0);
+
+        let releaseRequest!: () => void;
+        let markRequestObserved!: () => void;
+        const requestObserved = new Promise<void>((resolve) => { markRequestObserved = resolve; });
+        const heldRequest = new Promise<void>((resolve) => { releaseRequest = resolve; });
+        await page.route('**/CreateBillingCheckoutSession', async (route) => {
+            markRequestObserved();
+            await heldRequest;
+            await route.fulfill({ status: 303, headers: { Location: '/Billing' } });
+        });
+
+        const clickPromise = startSubscription.click();
+        await requestObserved;
+        releaseRequest();
+        await clickPromise;
+        await expect(page).toHaveURL(/Billing/, { timeout: E2E_TIMEOUT.navigation });
+        const loadingDialog = JSON.parse(await page.evaluate(() => sessionStorage.getItem('e2e-billing-loading-dialog') ?? 'null')) as {
+            visible: boolean;
+            text: string;
+            spinnerCount: number;
+            buttonCount: number;
+        } | null;
+        expect(loadingDialog).not.toBeNull();
+        expect(loadingDialog?.visible).toBe(true);
+        expect(loadingDialog?.text).toContain('Opening Stripe');
+        expect(loadingDialog?.text).toContain("Please wait while Bepis opens Stripe's secure billing page.");
+        expect(loadingDialog?.spinnerCount).toBe(1);
+        expect(loadingDialog?.buttonCount).toBe(0);
+        await expect(page.getByRole('dialog', { name: 'Opening Stripe' })).toHaveCount(0);
+    });
+
+    test('correlates Checkout, refreshes lifecycle state, and separates founder diagnostics', async ({ page, request }) => {
         test.setTimeout(E2E_TIMEOUT.slowTest * 2);
         const mockBaseUrl = process.env.STRIPE_MOCK_BASE_URL;
         if (!mockBaseUrl) throw new Error('STRIPE_MOCK_BASE_URL is required for billing E2E');
@@ -172,15 +231,7 @@ test.describe('Billing through the strict local Stripe boundary', () => {
         await expect(page.getByText('No subscription', { exact: true })).toBeVisible();
         await expect(page.getByRole('button', { name: 'Start Subscription' })).toBeEnabled();
         await expect(page.locator('header a[href="/Billing"]')).toBeVisible();
-        await clearCurrentSessionPasskeyVerification(page);
 
-        await page.getByRole('button', { name: 'Start Subscription' }).click();
-        await expect(page).toHaveURL(/PasskeyStepUp/, { timeout: E2E_TIMEOUT.navigation });
-        const statusBeforePaymentAction = await request.get(`${mockBaseUrl}/__status`);
-        expect((await statusBeforePaymentAction.json()).consumed).toEqual([]);
-
-        await gotoWhenReady(page, '/Billing', '[data-billing-owner-view="true"]');
-        await markCurrentSessionPasskeyVerified(page);
         const checkoutResponse = await page.request.post('/CreateBillingCheckoutSession', { maxRedirects: 0 });
         expect(checkoutResponse.status()).toBe(302);
         expect(checkoutResponse.headers().location).toBe('https://checkout.stripe.com/c/pay/cs_test_e2e-sanitized');

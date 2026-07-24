@@ -373,6 +373,9 @@ tests = aroundAll withDatabaseTestContext do
                     response `responseBodyShouldContain` actionLabel
                     response `responseBodyShouldContain` guidance
                     response `responseBodyShouldContain` "Current period"
+                    response `responseBodyShouldContain` "data-bepis-navigation-loading=\"true\""
+                    response `responseBodyShouldContain` "data-bepis-navigation-loading-config="
+                    response `responseBodyShouldContain` "Opening Stripe"
                     forM_ maybeStatus \status -> do
                         response `responseBodyShouldNotContain` ("sub_" <> status)
                         response `responseBodyShouldNotContain` ("cus_owner_hidden_" <> status)
@@ -1240,6 +1243,8 @@ tests = aroundAll withDatabaseTestContext do
                 response `responseBodyShouldNotContain` (inputValue attempt.id)
                 response `responseBodyShouldNotContain` "cs_test_123"
                 response `responseBodyShouldContain` "Try Checkout Again"
+                response `responseBodyShouldContain` "data-bepis-navigation-loading=\"true\""
+                response `responseBodyShouldContain` "Opening Stripe"
 
 withRequestQuery :: (?request :: Wai.Request) => ByteString -> ((?request :: Wai.Request) => IO result) -> IO result
 withRequestQuery query callback = do

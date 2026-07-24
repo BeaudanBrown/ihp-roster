@@ -1,6 +1,6 @@
 module Test.MailSpec where
 
-import Application.Billing.NotificationKind (BillingNotificationKind (BillingPaymentTrouble))
+import Application.Billing.NotificationKind (BillingNotificationKind (BillingPaymentTrouble, BillingRenewalResumed))
 import Application.Helper.Mail
 import Control.Exception (bracket)
 import Data.Text (isInfixOf)
@@ -154,6 +154,12 @@ tests = aroundAll withDatabaseTestContext do
                 text mail `shouldSatisfy` isInfixOf "contact support@example.com."
                 text mail `shouldSatisfy` (not . isInfixOf "invoice.payment_failed")
                 text mail `shouldSatisfy` (not . isInfixOf "pm_secret")
+
+        it "renders renewal-resumed billing confirmation copy" $ withContext do
+            let copy = billingNotificationCopy BillingRenewalResumed "Billing Mail Venue"
+            copy.copySubject `shouldBe` "Subscription will renew"
+            copy.copyHeading `shouldBe` "The subscription will continue for Billing Mail Venue."
+            copy.copyMessage `shouldSatisfy` isInfixOf "scheduled cancellation was reversed"
 
         it "renders passkey setup mail with the setup URL, reply-to, and support footer" $ withContext do
             withCleanDb do

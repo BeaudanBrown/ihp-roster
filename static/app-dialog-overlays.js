@@ -16,6 +16,13 @@
     if (isDialogSubmitConfig(value)) return value;
     throw new Error("Invalid DialogSubmitConfig");
   }
+  function isNavigationLoadingConfig(value) {
+    return isRecord(value) && hasExactKeys(value, ["loadingTitle", "loadingMessage"], ["loadingTitle", "loadingMessage"]) && typeof value["loadingTitle"] === "string" && typeof value["loadingMessage"] === "string";
+  }
+  function parseNavigationLoadingConfig(value) {
+    if (isNavigationLoadingConfig(value)) return value;
+    throw new Error("Invalid NavigationLoadingConfig");
+  }
   var dialogOverlayMountDomId = "dialog-overlay-mount";
   var dialogDismissedEvent = "bepis:dialog-dismissed";
   var dialogMountDomAttr = "data-bepis-dialog-mount";
@@ -24,6 +31,9 @@
   var dialogSubmitDomAttr = "data-bepis-dialog-submit";
   var dialogSubmitConfigDomAttr = "data-bepis-dialog-submit-config";
   var dialogAutoSubmitOnceDomAttr = "data-bepis-dialog-auto-submit-once";
+  var dialogBlockingDomAttr = "data-bepis-dialog-blocking";
+  var navigationLoadingDomAttr = "data-bepis-navigation-loading";
+  var navigationLoadingConfigDomAttr = "data-bepis-navigation-loading-config";
 
   // frontend/ts/shared/dom.ts
   function isElement(value) {
@@ -70,6 +80,7 @@
   var dialogMountSelector = `[${dialogMountDomAttr}]`;
   var dialogBackdropSelector = `[${dialogBackdropDomAttr}]`;
   var dialogCloseSelector = `[${dialogCloseDomAttr}]`;
+  var navigationLoadingSelector = `form[${navigationLoadingDomAttr}]`;
   var autoSubmittedForms = /* @__PURE__ */ new WeakSet();
   var originalSubmitHtml = /* @__PURE__ */ new WeakMap();
   function dialogSubmitLoadingHtml(label) {
@@ -81,6 +92,29 @@
       throw new Error("DialogSubmitConfig loadingLabel must not be empty");
     }
     return config;
+  }
+  function parseNavigationLoadingConfiguration(raw) {
+    const config = parseNavigationLoadingConfig(JSON.parse(raw));
+    if (config.loadingTitle.trim().length === 0) {
+      throw new Error("NavigationLoadingConfig loadingTitle must not be empty");
+    }
+    if (config.loadingMessage.trim().length === 0) {
+      throw new Error("NavigationLoadingConfig loadingMessage must not be empty");
+    }
+    return config;
+  }
+  function navigationLoadingConfiguration(form) {
+    const rawConfig = form.getAttribute(navigationLoadingConfigDomAttr);
+    try {
+      if (rawConfig === null) throw new Error(`Missing ${navigationLoadingConfigDomAttr}`);
+      return parseNavigationLoadingConfiguration(rawConfig);
+    } catch (error) {
+      console.error?.("Invalid generated navigation loading configuration", {
+        code: "invalid-navigation-loading-config",
+        message: error instanceof Error ? error.message : String(error)
+      });
+      return null;
+    }
   }
   function dialogSubmitConfiguration(submitter) {
     const rawConfig = submitter.getAttribute(dialogSubmitConfigDomAttr);
@@ -98,6 +132,8 @@
   (function enableDialogOverlayMount() {
     if (typeof window === "undefined") return;
     const mountId = dialogOverlayMountDomId;
+    const blockingBackgroundInertStates = /* @__PURE__ */ new Map();
+    let blockingDialogReturnFocus = null;
     function getMount() {
       const mountEl = document.getElementById(mountId);
       return isHTMLElement(mountEl) ? mountEl : null;
@@ -115,12 +151,76 @@
       document.body.classList.toggle("modal-open", shouldLockBody);
       document.body.style.overflow = shouldLockBody ? "hidden" : "";
     }
+    function showNavigationLoadingDialog(config) {
+      const mountEl = getMount();
+      if (mountEl === null) return;
+      const dialogEl = document.createElement("div");
+      dialogEl.className = "modal fade show d-block";
+      dialogEl.setAttribute(dialogMountDomAttr, "true");
+      dialogEl.setAttribute(dialogBlockingDomAttr, "true");
+      dialogEl.setAttribute("tabindex", "-1");
+      dialogEl.setAttribute("role", "dialog");
+      dialogEl.setAttribute("aria-modal", "true");
+      dialogEl.setAttribute("aria-label", config.loadingTitle);
+      const modalDialog = document.createElement("div");
+      modalDialog.className = "modal-dialog modal-dialog-centered";
+      modalDialog.setAttribute("role", "document");
+      const content = document.createElement("div");
+      content.className = "modal-content shadow";
+      const body = document.createElement("div");
+      body.className = "modal-body d-flex align-items-center gap-3 py-4";
+      body.setAttribute("role", "status");
+      body.setAttribute("aria-live", "polite");
+      const spinner = document.createElement("span");
+      spinner.className = "spinner-border text-primary";
+      spinner.setAttribute("aria-hidden", "true");
+      const copy = document.createElement("div");
+      const title = document.createElement("h2");
+      title.className = "h5 mb-1";
+      title.textContent = config.loadingTitle;
+      const message = document.createElement("p");
+      message.className = "mb-0 app-muted";
+      message.textContent = config.loadingMessage;
+      copy.append(title, message);
+      body.append(spinner, copy);
+      content.append(body);
+      modalDialog.append(content);
+      dialogEl.append(modalDialog);
+      const backdrop = document.createElement("div");
+      backdrop.className = "modal-backdrop fade show";
+      backdrop.setAttribute(dialogBackdropDomAttr, "true");
+      blockingDialogReturnFocus = isHTMLElement(document.activeElement) ? document.activeElement : null;
+      mountEl.replaceChildren(dialogEl, backdrop);
+      setBlockingBackgroundInert(mountEl, true);
+      syncDialogState();
+      dialogEl.focus();
+    }
+    function setBlockingBackgroundInert(mountEl, inert) {
+      Array.from(document.body.children).forEach((element) => {
+        if (!(element instanceof HTMLElement) || element === mountEl) return;
+        if (inert) {
+          if (!blockingBackgroundInertStates.has(element)) {
+            blockingBackgroundInertStates.set(element, element.inert);
+          }
+          element.inert = true;
+          return;
+        }
+        const previous = blockingBackgroundInertStates.get(element);
+        if (previous !== void 0) element.inert = previous;
+        blockingBackgroundInertStates.delete(element);
+      });
+    }
     function clearDialog(dialogEl) {
       dialogEl.dispatchEvent(new CustomEvent(dialogDismissedEvent, { bubbles: true }));
       const mountEl = getMount();
+      const wasBlocking = dialogEl.hasAttribute(dialogBlockingDomAttr);
+      if (wasBlocking && mountEl !== null) setBlockingBackgroundInert(mountEl, false);
+      const returnFocus = wasBlocking ? blockingDialogReturnFocus : null;
+      if (wasBlocking) blockingDialogReturnFocus = null;
       if (mountEl !== null && mountEl.contains(dialogEl)) {
         mountEl.innerHTML = "";
         syncDialogState();
+        if (returnFocus?.isConnected) returnFocus.focus();
         return;
       }
       const localOwner = dialogEl.parentElement;
@@ -131,6 +231,7 @@
         });
       }
       syncDialogState();
+      if (returnFocus?.isConnected) returnFocus.focus();
     }
     function submitAutoFormsOnce(container) {
       container.querySelectorAll(`form[${dialogAutoSubmitOnceDomAttr}]`).forEach(function(form) {
@@ -152,23 +253,36 @@
       const backdropDialog = backdropEl?.parentElement?.querySelector(dialogMountSelector);
       if (backdropEl !== null && isHTMLElement(backdropDialog)) {
         event.preventDefault();
+        if (backdropDialog.hasAttribute(dialogBlockingDomAttr)) return;
         clearDialog(backdropDialog);
         return;
       }
       const activeDialog = getActiveDialog();
       if (activeDialog !== null && event.target === activeDialog) {
         event.preventDefault();
+        if (activeDialog.hasAttribute(dialogBlockingDomAttr)) return;
         clearDialog(activeDialog);
       }
     });
     document.addEventListener("keydown", function(event) {
-      if (event.key !== "Escape") return;
-      if (getActiveDialog() === null) return;
-      event.preventDefault();
       const activeDialog = getActiveDialog();
-      if (activeDialog !== null) clearDialog(activeDialog);
+      if (activeDialog === null) return;
+      if (event.key === "Tab" && activeDialog.hasAttribute(dialogBlockingDomAttr)) {
+        event.preventDefault();
+        activeDialog.focus();
+        return;
+      }
+      if (event.key !== "Escape") return;
+      event.preventDefault();
+      if (!activeDialog.hasAttribute(dialogBlockingDomAttr)) clearDialog(activeDialog);
     });
     document.addEventListener("submit", function(event) {
+      if (event.defaultPrevented) return;
+      const submittedForm = event.target;
+      if (submittedForm instanceof HTMLFormElement && submittedForm.matches(navigationLoadingSelector)) {
+        const navigationConfig = navigationLoadingConfiguration(submittedForm);
+        if (navigationConfig !== null) showNavigationLoadingDialog(navigationConfig);
+      }
       const activeDialog = getActiveDialog();
       if (activeDialog === null) return;
       const form = event.target;
@@ -191,7 +305,7 @@
       }
       submitter.innerHTML = dialogSubmitLoadingHtml(config.loadingLabel);
       submitter.classList.add("d-inline-flex", "align-items-center", "gap-2");
-    }, true);
+    });
     document.addEventListener("htmx:afterRequest", function(event) {
       const activeDialog = getActiveDialog();
       if (activeDialog === null) return;
@@ -229,6 +343,13 @@
       if (target.id !== mountId) return;
       submitAutoFormsOnce(target);
       syncDialogState();
+    });
+    window.addEventListener("pageshow", function(event) {
+      if (!event.persisted) return;
+      const activeDialog = getActiveDialog();
+      if (activeDialog !== null && activeDialog.hasAttribute(dialogBlockingDomAttr)) {
+        clearDialog(activeDialog);
+      }
     });
     document.addEventListener("shown.bs.modal", syncDialogState);
     document.addEventListener("hidden.bs.modal", syncDialogState);

@@ -6,6 +6,9 @@ module Application.Helper.FrontendContract.Overlay
     , Overlay
     , DialogSubmitConfig
     , LoadingLabel
+    , NavigationLoadingConfig
+    , LoadingTitle
+    , LoadingMessage
     , ToastConfig
     , AutoHideMs
     , DialogOverlayMount
@@ -16,6 +19,8 @@ module Application.Helper.FrontendContract.Overlay
     , DialogDismissed
     , DialogSubmit
     , DialogAutoSubmitOnce
+    , DialogBlocking
+    , NavigationLoading
     , ToastMount
     , ToastClose
     ) where
@@ -30,6 +35,10 @@ data Overlay
 data DialogSubmitConfig
 data LoadingLabel
 
+data NavigationLoadingConfig
+data LoadingTitle
+data LoadingMessage
+
 data ToastConfig
 data AutoHideMs
 
@@ -42,6 +51,8 @@ data DialogClose
 data DialogDismissed
 data DialogSubmit
 data DialogAutoSubmitOnce
+data DialogBlocking
+data NavigationLoading
 data ToastMount
 data ToastClose
 
@@ -49,6 +60,10 @@ type OverlayContract =
     Global Overlay
         '[ BrowserInboundSchema (Record DialogSubmitConfig
             '[ Field LoadingLabel 'WireText
+             ])
+         , BrowserInboundSchema (Record NavigationLoadingConfig
+            '[ Field LoadingTitle 'WireText
+             , Field LoadingMessage 'WireText
              ])
          , BrowserInboundSchema (Record ToastConfig
             '[ Field AutoHideMs 'WireInt
@@ -62,6 +77,9 @@ type OverlayContract =
          , DomAttr DialogSubmit
          , DomAttr DialogSubmitConfig
          , DomAttr DialogAutoSubmitOnce
+         , DomAttr DialogBlocking
+         , DomAttr NavigationLoading
+         , DomAttr NavigationLoadingConfig
          , DomAttr ToastMount
          , DomAttr ToastClose
          , DomAttr ToastConfig

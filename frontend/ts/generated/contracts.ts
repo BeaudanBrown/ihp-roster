@@ -332,6 +332,16 @@ export function parseDialogSubmitConfig(value: unknown): DialogSubmitConfig {
     throw new Error("Invalid DialogSubmitConfig");
 }
 
+export type NavigationLoadingConfig = { loadingTitle: string; loadingMessage: string };
+export function isNavigationLoadingConfig(value: unknown): value is NavigationLoadingConfig {
+    return isRecord(value) && hasExactKeys(value, ["loadingTitle", "loadingMessage"], ["loadingTitle", "loadingMessage"]) && (typeof value["loadingTitle"] === "string") && (typeof value["loadingMessage"] === "string");
+}
+
+export function parseNavigationLoadingConfig(value: unknown): NavigationLoadingConfig {
+    if (isNavigationLoadingConfig(value)) return value;
+    throw new Error("Invalid NavigationLoadingConfig");
+}
+
 export type ToastConfig = { autoHideMs: number };
 export function isToastConfig(value: unknown): value is ToastConfig {
     return isRecord(value) && hasExactKeys(value, ["autoHideMs"], ["autoHideMs"]) && (typeof value["autoHideMs"] === "number" && Number.isInteger(value["autoHideMs"]));
@@ -359,6 +369,12 @@ export const dialogSubmitDomAttr = "data-bepis-dialog-submit" as const;
 export const dialogSubmitConfigDomAttr = "data-bepis-dialog-submit-config" as const;
 
 export const dialogAutoSubmitOnceDomAttr = "data-bepis-dialog-auto-submit-once" as const;
+
+export const dialogBlockingDomAttr = "data-bepis-dialog-blocking" as const;
+
+export const navigationLoadingDomAttr = "data-bepis-navigation-loading" as const;
+
+export const navigationLoadingConfigDomAttr = "data-bepis-navigation-loading-config" as const;
 
 export const toastMountDomAttr = "data-bepis-toast-mount" as const;
 

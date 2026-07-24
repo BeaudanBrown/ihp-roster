@@ -10,6 +10,7 @@ data BillingNotificationKind
     = BillingPaymentTrouble
     | BillingPaymentRecovered
     | BillingCancellationScheduled
+    | BillingRenewalResumed
     | BillingCancellationCompleted
     | BillingCheckoutPaymentFailed
     | BillingOperationalRetriesExhausted
@@ -20,6 +21,7 @@ billingNotificationKindText = \case
     BillingPaymentTrouble              -> "payment_trouble"
     BillingPaymentRecovered            -> "payment_recovered"
     BillingCancellationScheduled       -> "cancellation_scheduled"
+    BillingRenewalResumed               -> "renewal_resumed"
     BillingCancellationCompleted       -> "cancellation_completed"
     BillingCheckoutPaymentFailed       -> "checkout_payment_failed"
     BillingOperationalRetriesExhausted -> "operational_retries_exhausted"
@@ -29,6 +31,7 @@ parseBillingNotificationKind = \case
     "payment_trouble"               -> Just BillingPaymentTrouble
     "payment_recovered"             -> Just BillingPaymentRecovered
     "cancellation_scheduled"        -> Just BillingCancellationScheduled
+    "renewal_resumed"               -> Just BillingRenewalResumed
     "cancellation_completed"        -> Just BillingCancellationCompleted
     "checkout_payment_failed"       -> Just BillingCheckoutPaymentFailed
     "operational_retries_exhausted" -> Just BillingOperationalRetriesExhausted

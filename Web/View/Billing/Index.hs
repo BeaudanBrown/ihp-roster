@@ -3,6 +3,7 @@
 module Web.View.Billing.Index where
 
 import Application.Helper.Controller (currentVenueOrNothing)
+import Application.Helper.FrontendContract.Overlay.Runtime (navigationLoadingAttrs)
 import qualified Application.Helper.FrontendContract.Surface.Billing as Surface
 import Application.Helper.FrontendContract.Surface.Runtime (renderFrontendSurfaceMount)
 import Application.Helper.FrontendContract.Surface.Values (noSurfaceFields,
@@ -176,7 +177,7 @@ billingCheckoutDialogButtons (BillingCheckoutFailed _) =
     , OverlayButton
         { overlayButtonLabel = "Try Checkout Again"
         , overlayButtonClass = "btn btn-primary"
-        , overlayButtonAction = DialogFormAction "POST" (pathTo CreateBillingCheckoutSessionAction) [] Nothing
+        , overlayButtonAction = DialogNavigationLoadingFormAction "POST" (pathTo CreateBillingCheckoutSessionAction) [] Nothing "Opening Stripe" "Please wait while Bepis opens Stripe's secure billing page."
         }
     ]
 
@@ -335,7 +336,9 @@ renderOwnerBillingAction BillingViewModel { stripePortalAvailable } (OwnerOpenBi
 renderOwnerBillingActionForm :: Text -> Text -> Bool -> Html -> Html
 renderOwnerBillingActionForm actionUrl label available unavailableNotice = [hsx|
     <div class="d-flex flex-column align-items-start gap-2">
-        <form method="POST" action={actionUrl}>
+        <form method="POST"
+              action={actionUrl}
+              {...navigationLoadingAttrs "Opening Stripe" "Please wait while Bepis opens Stripe's secure billing page."}>
             <button type="submit" class="btn btn-primary" disabled={not available}>{label}</button>
         </form>
         {if available then renderPaymentStepUpNotice else unavailableNotice}

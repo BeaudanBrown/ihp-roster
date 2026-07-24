@@ -388,7 +388,7 @@ upsertSubscription now (Just venue) event = do
 
 subscriptionTransitionNotifications :: Maybe VenueSubscription -> Text -> Text -> StripeObjectSnapshot -> [BillingNotification]
 subscriptionTransitionNotifications previousSubscription subscriptionId currentStatus snapshot =
-    troubleNotification <> recoveryNotification <> scheduledCancellationNotification <> completedCancellationNotification
+    troubleNotification <> recoveryNotification <> scheduledCancellationNotification <> resumedRenewalNotification <> completedCancellationNotification
   where
     wasTroubled = maybe False (isTroubledSubscriptionStatus . (.status)) previousSubscription
     isTroubled = isTroubledSubscriptionStatus currentStatus
@@ -408,6 +408,12 @@ subscriptionTransitionNotifications previousSubscription subscriptionId currentS
         | currentStatus /= "canceled"
         , snapshot.stripeObjectCancelAtPeriodEnd
         , maybe False (not . (.cancelAtPeriodEnd)) previousSubscription
+        ]
+    resumedRenewalNotification =
+        [ notification BillingRenewalResumed
+        | currentStatus `notElem` ["canceled", "incomplete_expired"]
+        , not snapshot.stripeObjectCancelAtPeriodEnd
+        , maybe False (.cancelAtPeriodEnd) previousSubscription
         ]
     completedCancellationNotification =
         [ notification BillingCancellationCompleted

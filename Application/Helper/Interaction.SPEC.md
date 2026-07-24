@@ -93,7 +93,11 @@ SurfaceFamily
   vocabulary stays adapter-local while disabled and accessibility state use
   native/ARIA semantics. The generated semantic dismissal event is emitted
   before every close-control, backdrop, or Escape removal so composed
-  capabilities can react without taking over dialog lifecycle.
+  capabilities can react without taking over dialog lifecycle. Full-page
+  provider-navigation forms may use the generated navigation-loading role and
+  exact Haskell-owned title/message config; the adapter synchronously mounts a
+  blocking dialog on valid submit without taking ownership of provider URLs or
+  request authority.
 - **Quarter-hour picker fields** are governed by the focused global TimePicker
   contract for modal/internal roles plus exact range/step/empty-label and
   value/label option records. Haskell owns semantic options and copy; the generic

@@ -2,6 +2,7 @@
 
 module Test.OverlaySpec where
 
+import Application.Helper.FrontendContract.Overlay.Runtime (navigationLoadingAttrs)
 import qualified Application.Helper.FrontendContract.Passkey as Passkey
 import Application.Helper.View.Overlay
 import Application.Helper.View.Toast
@@ -32,6 +33,13 @@ tests = aroundAll withDatabaseTestContext do
                 html `shouldSatisfy` Text.isInfixOf "aria-labelledby=\"dialog-overlay-title\""
                 html `shouldSatisfy` not . Text.isInfixOf "data-dialog-overlay"
                 html `shouldSatisfy` not . Text.isInfixOf "data-loading-label"
+
+        it "renders exact generated navigation-loading configuration" $ withContext do
+            navigationLoadingAttrs "Opening Stripe" "Please wait while Bepis opens Stripe's secure billing page."
+                `shouldBe`
+                    [ ("data-bepis-navigation-loading", "true")
+                    , ("data-bepis-navigation-loading-config", "{\"loadingMessage\":\"Please wait while Bepis opens Stripe's secure billing page.\",\"loadingTitle\":\"Opening Stripe\"}")
+                    ]
 
         it "composes a supplemental generated close role without exposing raw attributes" $ withContext do
             withCurrentControllerContext do

@@ -5,9 +5,11 @@ module Application.Helper.FrontendContract.Overlay.Runtime
     , canonicalOverlayDom
     , dialogAutoSubmitOnceAttr
     , dialogBackdropAttrs
+    , dialogBlockingAttrs
     , dialogCloseAttrs
     , dialogMountAttrs
     , dialogSubmitAttrs
+    , navigationLoadingAttrs
     , toastCloseAttrs
     , toastMountAttrs
     ) where
@@ -32,6 +34,9 @@ data OverlayDom = OverlayDom
     , overlayDialogSubmitAttribute       :: !Text
     , overlayDialogSubmitConfigAttribute :: !Text
     , overlayDialogAutoSubmitAttribute   :: !Text
+    , overlayDialogBlockingAttribute     :: !Text
+    , overlayNavigationLoadingAttribute  :: !Text
+    , overlayNavigationConfigAttribute   :: !Text
     , overlayToastMountAttribute         :: !Text
     , overlayToastCloseAttribute         :: !Text
     , overlayToastConfigAttribute        :: !Text
@@ -49,6 +54,9 @@ canonicalOverlayDom = OverlayDom
     , overlayDialogSubmitAttribute = domAttrValue @Contract.DialogSubmit
     , overlayDialogSubmitConfigAttribute = domAttrValue @Contract.DialogSubmitConfig
     , overlayDialogAutoSubmitAttribute = domAttrValue @Contract.DialogAutoSubmitOnce
+    , overlayDialogBlockingAttribute = domAttrValue @Contract.DialogBlocking
+    , overlayNavigationLoadingAttribute = domAttrValue @Contract.NavigationLoading
+    , overlayNavigationConfigAttribute = domAttrValue @Contract.NavigationLoadingConfig
     , overlayToastMountAttribute = domAttrValue @Contract.ToastMount
     , overlayToastCloseAttribute = domAttrValue @Contract.ToastClose
     , overlayToastConfigAttribute = domAttrValue @Contract.ToastConfig
@@ -60,6 +68,9 @@ dialogMountAttrs = roleAttrs canonicalOverlayDom.overlayDialogMountAttribute
 dialogBackdropAttrs :: [(Text, Text)]
 dialogBackdropAttrs = roleAttrs canonicalOverlayDom.overlayDialogBackdropAttribute
 
+dialogBlockingAttrs :: [(Text, Text)]
+dialogBlockingAttrs = roleAttrs canonicalOverlayDom.overlayDialogBlockingAttribute
+
 dialogCloseAttrs :: [(Text, Text)]
 dialogCloseAttrs = roleAttrs canonicalOverlayDom.overlayDialogCloseAttribute
 
@@ -67,6 +78,11 @@ dialogSubmitAttrs :: Text -> [(Text, Text)]
 dialogSubmitAttrs loadingLabel =
     roleAttrs canonicalOverlayDom.overlayDialogSubmitAttribute
         <> [(canonicalOverlayDom.overlayDialogSubmitConfigAttribute, dialogSubmitConfigJson loadingLabel)]
+
+navigationLoadingAttrs :: Text -> Text -> [(Text, Text)]
+navigationLoadingAttrs loadingTitle loadingMessage =
+    roleAttrs canonicalOverlayDom.overlayNavigationLoadingAttribute
+        <> [(canonicalOverlayDom.overlayNavigationConfigAttribute, navigationLoadingConfigJson loadingTitle loadingMessage)]
 
 toastMountAttrs :: Int -> [(Text, Text)]
 toastMountAttrs autoHideMs =
@@ -84,6 +100,16 @@ dialogSubmitConfigJson loadingLabel
     | Text.null (Text.strip loadingLabel) = error "Dialog submit loading label must not be empty"
     | otherwise = encodeContractValue $ recordValue @Contract.DialogSubmitConfig
         (requiredField @Contract.LoadingLabel loadingLabel &: noFields)
+
+navigationLoadingConfigJson :: Text -> Text -> Text
+navigationLoadingConfigJson loadingTitle loadingMessage
+    | Text.null (Text.strip loadingTitle) = error "Navigation loading title must not be empty"
+    | Text.null (Text.strip loadingMessage) = error "Navigation loading message must not be empty"
+    | otherwise = encodeContractValue $ recordValue @Contract.NavigationLoadingConfig
+        ( requiredField @Contract.LoadingTitle loadingTitle
+            &: requiredField @Contract.LoadingMessage loadingMessage
+            &: noFields
+        )
 
 toastConfigJson :: Int -> Text
 toastConfigJson autoHideMs

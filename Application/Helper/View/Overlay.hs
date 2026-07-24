@@ -40,6 +40,7 @@ data OverlayButtonAction
     | OverlaySubmitFormAction !Text
     | OverlayNavigateAction !Text
     | DialogFormAction !Text !Text ![(Text, Text)] !(Maybe Text)
+    | DialogNavigationLoadingFormAction !Text !Text ![(Text, Text)] !(Maybe Text) !Text !Text
     | GeneratedDialogFormAction !AppShellActionIR !AppShellActionRoute ![(Text, Text)] !(Maybe Text)
 
 data OverlayButton = OverlayButton
@@ -166,6 +167,19 @@ renderDialogOverlayButton button =
                 </button>
             </form>
         |]
+        DialogNavigationLoadingFormAction method targetUrl fields maybeConfirm loadingTitle loadingMessage -> [hsx|
+            <form method="POST"
+                  action={targetUrl}
+                  class="app-modal-footer-form"
+                  onsubmit={confirmSubmitAttribute maybeConfirm}
+                  {...navigationLoadingAttrs loadingTitle loadingMessage}>
+                <input type="hidden" name="_method" value={method} />
+                {forEach fields renderOverlayFormHiddenField}
+                <button type="submit" class={button.overlayButtonClass}>
+                    {button.overlayButtonLabel}
+                </button>
+            </form>
+        |]
         GeneratedDialogFormAction appShellAction route hiddenFields _maybeConfirm ->
             renderAppShellActionForm
                 appShellAction
@@ -262,6 +276,19 @@ renderPageDialogButton closeUrl button =
                   action={targetUrl}
                   class="app-modal-footer-form"
                   onsubmit={confirmSubmitAttribute maybeConfirm}>
+                <input type="hidden" name="_method" value={method} />
+                {forEach fields renderOverlayFormHiddenField}
+                <button type="submit" class={button.overlayButtonClass}>
+                    {button.overlayButtonLabel}
+                </button>
+            </form>
+        |]
+        DialogNavigationLoadingFormAction method targetUrl fields maybeConfirm loadingTitle loadingMessage -> [hsx|
+            <form method="POST"
+                  action={targetUrl}
+                  class="app-modal-footer-form"
+                  onsubmit={confirmSubmitAttribute maybeConfirm}
+                  {...navigationLoadingAttrs loadingTitle loadingMessage}>
                 <input type="hidden" name="_method" value={method} />
                 {forEach fields renderOverlayFormHiddenField}
                 <button type="submit" class={button.overlayButtonClass}>

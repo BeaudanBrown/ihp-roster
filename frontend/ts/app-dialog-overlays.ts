@@ -1,15 +1,20 @@
 import {
     dialogAutoSubmitOnceDomAttr,
     dialogBackdropDomAttr,
+    dialogBlockingDomAttr,
     dialogCloseDomAttr,
     dialogDismissedEvent,
     dialogMountDomAttr,
     dialogOverlayMountDomId,
     dialogSubmitConfigDomAttr,
     dialogSubmitDomAttr,
+    navigationLoadingConfigDomAttr,
+    navigationLoadingDomAttr,
     pageReadyEvent,
     parseDialogSubmitConfig,
+    parseNavigationLoadingConfig,
     type DialogSubmitConfig,
+    type NavigationLoadingConfig,
 } from "./generated/contracts";
 import { closestHTMLElement, isHTMLElement } from "./shared/dom";
 import { detailRoot, detailTarget } from "./shared/lifecycle";
@@ -17,6 +22,7 @@ import { detailRoot, detailTarget } from "./shared/lifecycle";
 const dialogMountSelector = `[${dialogMountDomAttr}]`;
 const dialogBackdropSelector = `[${dialogBackdropDomAttr}]`;
 const dialogCloseSelector = `[${dialogCloseDomAttr}]`;
+const navigationLoadingSelector = `form[${navigationLoadingDomAttr}]`;
 const autoSubmittedForms = new WeakSet<HTMLFormElement>();
 const originalSubmitHtml = new WeakMap<HTMLButtonElement, string>();
 
@@ -30,6 +36,31 @@ export function parseDialogSubmitConfiguration(raw: string): DialogSubmitConfig 
         throw new Error("DialogSubmitConfig loadingLabel must not be empty");
     }
     return config;
+}
+
+export function parseNavigationLoadingConfiguration(raw: string): NavigationLoadingConfig {
+    const config = parseNavigationLoadingConfig(JSON.parse(raw));
+    if (config.loadingTitle.trim().length === 0) {
+        throw new Error("NavigationLoadingConfig loadingTitle must not be empty");
+    }
+    if (config.loadingMessage.trim().length === 0) {
+        throw new Error("NavigationLoadingConfig loadingMessage must not be empty");
+    }
+    return config;
+}
+
+function navigationLoadingConfiguration(form: HTMLFormElement): NavigationLoadingConfig | null {
+    const rawConfig = form.getAttribute(navigationLoadingConfigDomAttr);
+    try {
+        if (rawConfig === null) throw new Error(`Missing ${navigationLoadingConfigDomAttr}`);
+        return parseNavigationLoadingConfiguration(rawConfig);
+    } catch (error) {
+        console.error?.("Invalid generated navigation loading configuration", {
+            code: "invalid-navigation-loading-config",
+            message: error instanceof Error ? error.message : String(error),
+        });
+        return null;
+    }
 }
 
 function dialogSubmitConfiguration(submitter: HTMLButtonElement): DialogSubmitConfig | null {
@@ -51,6 +82,9 @@ function dialogSubmitConfiguration(submitter: HTMLButtonElement): DialogSubmitCo
     if (typeof window === "undefined") return;
 
     const mountId = dialogOverlayMountDomId;
+    const blockingBackgroundInertStates = new Map<HTMLElement, boolean>();
+    let blockingDialogReturnFocus: HTMLElement | null = null;
+
     function getMount(): HTMLElement | null {
         const mountEl = document.getElementById(mountId);
         return isHTMLElement(mountEl) ? mountEl : null;
@@ -73,13 +107,82 @@ function dialogSubmitConfiguration(submitter: HTMLButtonElement): DialogSubmitCo
         document.body.style.overflow = shouldLockBody ? "hidden" : "";
     }
 
+    function showNavigationLoadingDialog(config: NavigationLoadingConfig): void {
+        const mountEl = getMount();
+        if (mountEl === null) return;
+
+        const dialogEl = document.createElement("div");
+        dialogEl.className = "modal fade show d-block";
+        dialogEl.setAttribute(dialogMountDomAttr, "true");
+        dialogEl.setAttribute(dialogBlockingDomAttr, "true");
+        dialogEl.setAttribute("tabindex", "-1");
+        dialogEl.setAttribute("role", "dialog");
+        dialogEl.setAttribute("aria-modal", "true");
+        dialogEl.setAttribute("aria-label", config.loadingTitle);
+
+        const modalDialog = document.createElement("div");
+        modalDialog.className = "modal-dialog modal-dialog-centered";
+        modalDialog.setAttribute("role", "document");
+        const content = document.createElement("div");
+        content.className = "modal-content shadow";
+        const body = document.createElement("div");
+        body.className = "modal-body d-flex align-items-center gap-3 py-4";
+        body.setAttribute("role", "status");
+        body.setAttribute("aria-live", "polite");
+        const spinner = document.createElement("span");
+        spinner.className = "spinner-border text-primary";
+        spinner.setAttribute("aria-hidden", "true");
+        const copy = document.createElement("div");
+        const title = document.createElement("h2");
+        title.className = "h5 mb-1";
+        title.textContent = config.loadingTitle;
+        const message = document.createElement("p");
+        message.className = "mb-0 app-muted";
+        message.textContent = config.loadingMessage;
+        copy.append(title, message);
+        body.append(spinner, copy);
+        content.append(body);
+        modalDialog.append(content);
+        dialogEl.append(modalDialog);
+
+        const backdrop = document.createElement("div");
+        backdrop.className = "modal-backdrop fade show";
+        backdrop.setAttribute(dialogBackdropDomAttr, "true");
+        blockingDialogReturnFocus = isHTMLElement(document.activeElement) ? document.activeElement : null;
+        mountEl.replaceChildren(dialogEl, backdrop);
+        setBlockingBackgroundInert(mountEl, true);
+        syncDialogState();
+        dialogEl.focus();
+    }
+
+    function setBlockingBackgroundInert(mountEl: HTMLElement, inert: boolean): void {
+        Array.from(document.body.children).forEach((element) => {
+            if (!(element instanceof HTMLElement) || element === mountEl) return;
+            if (inert) {
+                if (!blockingBackgroundInertStates.has(element)) {
+                    blockingBackgroundInertStates.set(element, element.inert);
+                }
+                element.inert = true;
+                return;
+            }
+            const previous = blockingBackgroundInertStates.get(element);
+            if (previous !== undefined) element.inert = previous;
+            blockingBackgroundInertStates.delete(element);
+        });
+    }
+
     function clearDialog(dialogEl: HTMLElement): void {
         dialogEl.dispatchEvent(new CustomEvent(dialogDismissedEvent, { bubbles: true }));
 
         const mountEl = getMount();
+        const wasBlocking = dialogEl.hasAttribute(dialogBlockingDomAttr);
+        if (wasBlocking && mountEl !== null) setBlockingBackgroundInert(mountEl, false);
+        const returnFocus = wasBlocking ? blockingDialogReturnFocus : null;
+        if (wasBlocking) blockingDialogReturnFocus = null;
         if (mountEl !== null && mountEl.contains(dialogEl)) {
             mountEl.innerHTML = "";
             syncDialogState();
+            if (returnFocus?.isConnected) returnFocus.focus();
             return;
         }
 
@@ -91,6 +194,7 @@ function dialogSubmitConfiguration(submitter: HTMLButtonElement): DialogSubmitCo
             });
         }
         syncDialogState();
+        if (returnFocus?.isConnected) returnFocus.focus();
     }
 
     function submitAutoFormsOnce(container: HTMLElement): void {
@@ -116,6 +220,7 @@ function dialogSubmitConfiguration(submitter: HTMLButtonElement): DialogSubmitCo
         const backdropDialog = backdropEl?.parentElement?.querySelector(dialogMountSelector);
         if (backdropEl !== null && isHTMLElement(backdropDialog)) {
             event.preventDefault();
+            if (backdropDialog.hasAttribute(dialogBlockingDomAttr)) return;
             clearDialog(backdropDialog);
             return;
         }
@@ -125,20 +230,33 @@ function dialogSubmitConfiguration(submitter: HTMLButtonElement): DialogSubmitCo
         const activeDialog = getActiveDialog();
         if (activeDialog !== null && event.target === activeDialog) {
             event.preventDefault();
+            if (activeDialog.hasAttribute(dialogBlockingDomAttr)) return;
             clearDialog(activeDialog);
         }
     });
 
     document.addEventListener("keydown", function (event) {
+        const activeDialog = getActiveDialog();
+        if (activeDialog === null) return;
+        if (event.key === "Tab" && activeDialog.hasAttribute(dialogBlockingDomAttr)) {
+            event.preventDefault();
+            activeDialog.focus();
+            return;
+        }
         if (event.key !== "Escape") return;
-        if (getActiveDialog() === null) return;
 
         event.preventDefault();
-        const activeDialog = getActiveDialog();
-        if (activeDialog !== null) clearDialog(activeDialog);
+        if (!activeDialog.hasAttribute(dialogBlockingDomAttr)) clearDialog(activeDialog);
     });
 
     document.addEventListener("submit", function (event) {
+        if (event.defaultPrevented) return;
+        const submittedForm = event.target;
+        if (submittedForm instanceof HTMLFormElement && submittedForm.matches(navigationLoadingSelector)) {
+            const navigationConfig = navigationLoadingConfiguration(submittedForm);
+            if (navigationConfig !== null) showNavigationLoadingDialog(navigationConfig);
+        }
+
         const activeDialog = getActiveDialog();
         if (activeDialog === null) return;
 
@@ -165,7 +283,7 @@ function dialogSubmitConfiguration(submitter: HTMLButtonElement): DialogSubmitCo
         }
         submitter.innerHTML = dialogSubmitLoadingHtml(config.loadingLabel);
         submitter.classList.add("d-inline-flex", "align-items-center", "gap-2");
-    }, true);
+    });
 
     document.addEventListener("htmx:afterRequest", function (event) {
         const activeDialog = getActiveDialog();
@@ -213,6 +331,13 @@ function dialogSubmitConfiguration(submitter: HTMLButtonElement): DialogSubmitCo
         syncDialogState();
     });
 
+    window.addEventListener("pageshow", function (event) {
+        if (!event.persisted) return;
+        const activeDialog = getActiveDialog();
+        if (activeDialog !== null && activeDialog.hasAttribute(dialogBlockingDomAttr)) {
+            clearDialog(activeDialog);
+        }
+    });
     document.addEventListener("shown.bs.modal", syncDialogState);
     document.addEventListener("hidden.bs.modal", syncDialogState);
     document.addEventListener(pageReadyEvent, syncDialogState);

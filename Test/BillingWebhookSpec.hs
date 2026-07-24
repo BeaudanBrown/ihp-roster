@@ -248,7 +248,10 @@ tests = aroundAll withDatabaseTestContext do
         it "normalizes a Stripe Portal cancel_at at the current period end as scheduled cancellation" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Dahlia Portal Cancellation Venue"
+                owner <- createUserRecord "dahlia-portal-cancellation-owner@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue owner "venue_owner"
                 _ <- createBillingCustomer venue "cus_dahlia_cancel_at_123"
+                Right _ <- handleStripeWebhookPayload StripeTestMode (subscriptionEventOfTypeWithCancellationAt "customer.subscription.created" testStripeEventCreatedSeconds False "evt_subscription_cancel_at_initial_dahlia" venue "cus_dahlia_cancel_at_123" "sub_dahlia_cancel_at_123" "active")
                 eventBody <- LByteString.readFile "Test/Fixtures/stripe/2026-06-24.dahlia/webhook-subscription-cancel-at-updated.json"
                 signatureHeader <- signedStripeHeader testStripeConfig.webhookSecret eventBody
 
@@ -260,6 +263,8 @@ tests = aroundAll withDatabaseTestContext do
                 subscription.status `shouldBe` "active"
                 subscription.currentPeriodEnd `shouldBe` Just (posixSecondsToUTCTime 1787356800)
                 subscription.cancelAtPeriodEnd `shouldBe` True
+                [notificationJob] <- query @AppJob |> filterWhere (#jobKind, billingNotificationJobKind) |> fetch
+                notificationJob.dedupeKey `shouldSatisfy` maybe False (Text.isInfixOf ":cancellation_scheduled:")
 
         it "processes reviewed Dahlia created, updated, deleted, failed-payment, and duplicate fixtures" $ withContext do
             withCleanDb do
@@ -458,7 +463,22 @@ tests = aroundAll withDatabaseTestContext do
 
                 query @AppJob |> filterWhere (#jobKind, billingNotificationJobKind) |> fetchCount `shouldReturn` 0
 
-        it "keeps trouble, recovery, scheduled cancellation, and completed cancellation independently visible" $ withContext do
+        it "notifies when a non-terminal subscription resumes renewal" $ withContext do
+            forM_ ["trialing", "past_due"] \status ->
+                withCleanDb do
+                    venue <- createVenueWithConfig ("Webhook Renewal Resumed " <> status <> " Venue")
+                    owner <- createUserRecord ("billing-renewal-resumed-" <> status <> "-owner@example.com") "staff" True
+                    _ <- createVenueMembershipRecord venue owner "venue_owner"
+                    _ <- createBillingCustomer venue "cus_renewal_resumed_123"
+
+                    Right _ <- handleStripeWebhookPayload StripeTestMode (subscriptionEventOfTypeWithCancellationAt "customer.subscription.created" testStripeEventCreatedSeconds True "evt_cancel_scheduled" venue "cus_renewal_resumed_123" "sub_renewal_resumed_123" status)
+                    Right _ <- handleStripeWebhookPayload StripeTestMode (subscriptionEventWithCancellationAt (testStripeEventCreatedSeconds + 1) False "evt_renewal_resumed" venue "cus_renewal_resumed_123" "sub_renewal_resumed_123" status)
+
+                    notificationJobs <- query @AppJob |> filterWhere (#jobKind, billingNotificationJobKind) |> fetch
+                    let renewalJobs = filter (maybe False (Text.isInfixOf ":renewal_resumed:") . (.dedupeKey)) notificationJobs
+                    length renewalJobs `shouldBe` 1
+
+        it "keeps trouble, recovery, scheduled cancellation, resumed renewal, and completed cancellation independently visible" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Webhook Notification Transitions Venue"
                 owner <- createUserRecord "billing-transitions-owner@example.com" "staff" True
@@ -469,14 +489,16 @@ tests = aroundAll withDatabaseTestContext do
                 Right _ <- handleStripeWebhookPayload StripeTestMode (subscriptionEventAt (testStripeEventCreatedSeconds + 1) "evt_transition_trouble" venue "cus_notification_transitions_123" "sub_notification_transitions_123" "past_due")
                 Right _ <- handleStripeWebhookPayload StripeTestMode (subscriptionEventAt (testStripeEventCreatedSeconds + 2) "evt_transition_recovered" venue "cus_notification_transitions_123" "sub_notification_transitions_123" "active")
                 Right _ <- handleStripeWebhookPayload StripeTestMode (subscriptionEventWithCancellationAt (testStripeEventCreatedSeconds + 3) True "evt_transition_cancel_scheduled" venue "cus_notification_transitions_123" "sub_notification_transitions_123" "active")
-                Right _ <- handleStripeWebhookPayload StripeTestMode (subscriptionEventOfTypeWithCancellationAt "customer.subscription.deleted" (testStripeEventCreatedSeconds + 4) False "evt_transition_canceled" venue "cus_notification_transitions_123" "sub_notification_transitions_123" "canceled")
+                Right _ <- handleStripeWebhookPayload StripeTestMode (subscriptionEventWithCancellationAt (testStripeEventCreatedSeconds + 4) False "evt_transition_renewal_resumed" venue "cus_notification_transitions_123" "sub_notification_transitions_123" "active")
+                Right _ <- handleStripeWebhookPayload StripeTestMode (subscriptionEventOfTypeWithCancellationAt "customer.subscription.deleted" (testStripeEventCreatedSeconds + 5) False "evt_transition_canceled" venue "cus_notification_transitions_123" "sub_notification_transitions_123" "canceled")
 
                 jobs <- query @AppJob |> filterWhere (#jobKind, billingNotificationJobKind) |> orderByAsc #createdAt |> fetch
-                length jobs `shouldBe` 4
+                length jobs `shouldBe` 5
                 let dedupeKeys = mapMaybe (.dedupeKey) jobs
                 dedupeKeys `shouldSatisfy` any (Text.isInfixOf ":payment_trouble:")
                 dedupeKeys `shouldSatisfy` any (Text.isInfixOf ":payment_recovered:")
                 dedupeKeys `shouldSatisfy` any (Text.isInfixOf ":cancellation_scheduled:")
+                dedupeKeys `shouldSatisfy` any (Text.isInfixOf ":renewal_resumed:")
                 dedupeKeys `shouldSatisfy` any (Text.isInfixOf ":cancellation_completed:")
 
         it "notifies support once only after a billing operation exhausts retries" $ withContext do
