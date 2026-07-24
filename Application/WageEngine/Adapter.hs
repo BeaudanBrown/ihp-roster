@@ -1,0 +1,696 @@
+module Application.WageEngine.Adapter
+    ( WageEngineEntryRequest (..)
+    , EntryContextRow (..)
+    , ImportedPayItemRow (..)
+    , ProjectedAwardLevelRow (..)
+    , ProjectedBaseRateRow (..)
+    , ProjectedPenaltyRateRow (..)
+    , ProjectedTimeAdditionRow (..)
+    , StatewideHolidayRow (..)
+    , RateProjectionScope (..)
+    , WageEngineBulkSource (..)
+    , WageEngineDatabaseRead (..)
+    , WageEngineAdapterError (..)
+    , LoadedCalculationContext (..)
+    , loadWageEngineContextsWith
+    , databaseWageEngineBulkSource
+    , databaseWageEngineBulkSourceWith
+    , loadWageEngineContextsForEntries
+    , calculationInputFromLoadedContext
+    )
+where
+
+import Application.Helper.WeekBoundaries (venueEffectiveRateDate,
+                                          venueEffectiveRateEndDate)
+import Application.WageEngine
+import qualified Data.Bifunctor as Bifunctor
+import qualified Data.List as List
+import qualified Data.Map.Strict as Map
+import Data.Scientific (Scientific)
+import qualified Data.Set as Set
+import qualified Data.Text as Text
+import Data.Time.Calendar (Day, addDays)
+import qualified Generated.Types as G
+import IHP.ControllerPrelude
+import IHP.ModelSupport (ModelContext, unpackId)
+import IHP.Prelude
+
+newtype WageEngineEntryRequest = WageEngineEntryRequest
+    { requestedEntryId :: UUID
+    }
+    deriving (Eq, Ord, Show)
+
+data EntryContextRow = EntryContextRow
+    { contextEntryId                :: !UUID
+    , contextWorkedOn               :: !Day
+    , contextVenueTimeZone          :: !Text
+    , contextRosterWeekStartsOn     :: !Int
+    , contextHolidayJurisdiction    :: !Text
+    , contextEmploymentBasis        :: !EmploymentBasis
+    , contextShiftAwardLevelId      :: !(Maybe UUID)
+    , contextStaffAwardLevelId      :: !(Maybe UUID)
+    , contextShiftImportedPayItemId :: !(Maybe UUID)
+    , contextStaffImportedPayItemId :: !(Maybe UUID)
+    }
+    deriving (Eq, Show)
+
+data ImportedPayItemRow = ImportedPayItemRow
+    { importedRowId         :: !UUID
+    , importedRowName       :: !Text
+    , importedRowHourlyRate :: !Scientific
+    }
+    deriving (Eq, Show)
+
+data ProjectedAwardLevelRow = ProjectedAwardLevelRow
+    { projectedAwardLevelId          :: !UUID
+    , projectedAwardFixedId          :: !Int
+    , projectedClassificationFixedId :: !Int
+    , projectedClassificationName    :: !Text
+    , projectedAwardLevelIsActive    :: !Bool
+    }
+    deriving (Eq, Show)
+
+data ProjectedBaseRateRow = ProjectedBaseRateRow
+    { projectedBaseAwardLevelId :: !UUID
+    , projectedBaseBasis        :: !EmploymentBasis
+    , projectedBaseSourceId     :: !Text
+    , projectedBaseHourlyRate   :: !Scientific
+    , projectedBaseFrom         :: !(Maybe Day)
+    , projectedBaseTo           :: !(Maybe Day)
+    }
+    deriving (Eq, Show)
+
+data ProjectedPenaltyRateRow = ProjectedPenaltyRateRow
+    { projectedPenaltyAwardLevelId :: !UUID
+    , projectedPenaltyBasis        :: !EmploymentBasis
+    , projectedPenaltyKind         :: !BaseRateKind
+    , projectedPenaltySourceId     :: !Text
+    , projectedPenaltyHourlyRate   :: !Scientific
+    , projectedPenaltyFrom         :: !(Maybe Day)
+    , projectedPenaltyTo           :: !(Maybe Day)
+    }
+    deriving (Eq, Show)
+
+data ProjectedTimeAdditionRow = ProjectedTimeAdditionRow
+    { projectedAdditionAwardFixedId :: !Int
+    , projectedAdditionKind         :: !TimeAdditionKind
+    , projectedAdditionSourceId     :: !Text
+    , projectedAdditionAmount       :: !Scientific
+    , projectedAdditionFrom         :: !(Maybe Day)
+    , projectedAdditionTo           :: !(Maybe Day)
+    }
+    deriving (Eq, Show)
+
+data StatewideHolidayRow = StatewideHolidayRow
+    { holidayRowJurisdiction :: !Text
+    , holidayRowDate         :: !Day
+    }
+    deriving (Eq, Show)
+
+data RateProjectionScope = RateProjectionScope
+    { scopedAwardLevelIds :: ![UUID]
+    , scopedWorkedFrom    :: !(Maybe Day)
+    , scopedWorkedTo      :: !(Maybe Day)
+    }
+    deriving (Eq, Show)
+
+data WageEngineBulkSource m = WageEngineBulkSource
+    { fetchEntryContextRows          :: [UUID] -> m [EntryContextRow]
+    , fetchImportedPayItemRows       :: [UUID] -> m [ImportedPayItemRow]
+    , fetchProjectedAwardLevelRows   :: m [ProjectedAwardLevelRow]
+    , fetchProjectedBaseRateRows     :: RateProjectionScope -> m [ProjectedBaseRateRow]
+    , fetchProjectedPenaltyRateRows  :: RateProjectionScope -> m [ProjectedPenaltyRateRow]
+    , fetchProjectedTimeAdditionRows :: RateProjectionScope -> m [ProjectedTimeAdditionRow]
+    , fetchStatewideHolidayRows      :: [EntryContextRow] -> m [StatewideHolidayRow]
+    }
+
+data WageEngineDatabaseRead
+    = TimesheetEntriesRead !Int
+    | VenueConfigsRead !Int
+    | StaffRowsRead !Int
+    | ShiftTypeRowsRead !Int
+    | StaffPayVersionsRead !Int
+    | ShiftTypePayVersionsRead !Int
+    | ImportedPayItemsRead !Int
+    | AwardLevelsRead
+    | BaseRatesRead !RateProjectionScope
+    | PenaltyRatesRead !RateProjectionScope
+    | TimeAdditionsRead !RateProjectionScope
+    | StatewideHolidaysRead !Day !Day
+    deriving (Eq, Show)
+
+data WageEngineAdapterError
+    = MissingCalculationContext !UUID
+    | UnsupportedCalculationContext !UUID !UnsupportedInput
+    | InvalidProjectedRateBook !UUID !RateBookError
+    deriving (Eq, Show)
+
+data LoadedCalculationContext = LoadedCalculationContext
+    { loadedEntryId               :: !UUID
+    , loadedVenueContext          :: !VenueAwardContext
+    , loadedArrangement           :: !EmploymentArrangement
+    , loadedAwardRateContext      :: !(Maybe AwardRateContext)
+    , loadedStatewideHolidayDates :: !(Set.Set Day)
+    , loadedImportedOverrides     :: !ImportedOverrideContext
+    }
+    deriving (Eq, Show)
+
+loadWageEngineContextsWith :: Monad m => WageEngineBulkSource m -> [WageEngineEntryRequest] -> m (Either [WageEngineAdapterError] (Map.Map UUID LoadedCalculationContext))
+loadWageEngineContextsWith source requests = do
+    entryContextRows <- source.fetchEntryContextRows (map (.requestedEntryId) requests)
+    let importedPayItemIds =
+            entryContextRows
+                |> concatMap (\row -> catMaybes [row.contextShiftImportedPayItemId, row.contextStaffImportedPayItemId])
+                |> List.nub
+    importedPayItemRows <- source.fetchImportedPayItemRows importedPayItemIds
+    awardLevelRows <- source.fetchProjectedAwardLevelRows
+    let workedDates = map (.contextWorkedOn) entryContextRows
+        projectionScope =
+            RateProjectionScope
+                { scopedAwardLevelIds =
+                    awardLevelRows
+                        |> filter (\row -> row.projectedAwardFixedId == 9 && row.projectedAwardLevelIsActive)
+                        |> map (.projectedAwardLevelId)
+                , scopedWorkedFrom = listToMaybe (List.sort workedDates)
+                , scopedWorkedTo = listToMaybe (reverse (List.sort workedDates))
+                }
+    baseRateRows <- source.fetchProjectedBaseRateRows projectionScope
+    penaltyRateRows <- source.fetchProjectedPenaltyRateRows projectionScope
+    timeAdditionRows <- source.fetchProjectedTimeAdditionRows projectionScope
+    holidayRows <- source.fetchStatewideHolidayRows entryContextRows
+
+    let entryContextById = Map.fromList (map (\row -> (row.contextEntryId, row)) entryContextRows)
+        importedPayItemById = Map.fromList (map (\row -> (row.importedRowId, row)) importedPayItemRows)
+        awardLevelById =
+            awardLevelRows
+                |> filter (\row -> row.projectedAwardFixedId == 9 && row.projectedAwardLevelIsActive)
+                |> map (\row -> (row.projectedAwardLevelId, row))
+                |> Map.fromList
+        holidayDatesByJurisdiction =
+            Map.fromListWith Set.union
+                [ (row.holidayRowJurisdiction, Set.singleton row.holidayRowDate)
+                | row <- holidayRows
+                ]
+        rateBookRequests =
+            requests
+                |> mapMaybe
+                    ( \request -> do
+                        contextRow <- Map.lookup request.requestedEntryId entryContextById
+                        pure ((contextRow.contextRosterWeekStartsOn, contextRow.contextWorkedOn), request.requestedEntryId)
+                    )
+                |> Map.fromListWith (<> )
+                . map (\(key, entryId) -> (key, [entryId]))
+        rateProjectionIndex = indexProjectedRates baseRateRows penaltyRateRows timeAdditionRows
+        rateBooksByRequest =
+            Map.mapWithKey
+                (\(weekStartsOn, workedOn) _ -> buildProjectedRateBook weekStartsOn workedOn awardLevelRows rateProjectionIndex)
+                rateBookRequests
+        built =
+            map
+                ( buildLoadedContext
+                    entryContextById
+                    importedPayItemById
+                    awardLevelById
+                    holidayDatesByJurisdiction
+                    rateBooksByRequest
+                )
+                requests
+        errors = [validationError | Left validationError <- built]
+        contexts = [context | Right context <- built]
+    pure
+        if null errors
+            then Right (Map.fromList (map (\context -> (context.loadedEntryId, context)) contexts))
+            else Left errors
+
+buildLoadedContext ::
+    Map.Map UUID EntryContextRow ->
+    Map.Map UUID ImportedPayItemRow ->
+    Map.Map UUID ProjectedAwardLevelRow ->
+    Map.Map Text (Set.Set Day) ->
+    Map.Map (Int, Day) (Either RateBookError ValidatedRateBook) ->
+    WageEngineEntryRequest ->
+    Either WageEngineAdapterError LoadedCalculationContext
+buildLoadedContext entryContextById importedPayItemById awardLevelById holidayDatesByJurisdiction rateBooksByRequest request = do
+    contextRow <- maybe (Left (MissingCalculationContext request.requestedEntryId)) Right (Map.lookup request.requestedEntryId entryContextById)
+    venueContext <-
+        Bifunctor.first
+            (UnsupportedCalculationContext request.requestedEntryId)
+            (resolveVenueAwardContext contextRow.contextVenueTimeZone contextRow.contextHolidayJurisdiction)
+    importedOverrides <-
+        ImportedOverrideContext
+            <$> mapM (resolveImportedPayItemRow request.requestedEntryId importedPayItemById) contextRow.contextShiftImportedPayItemId
+            <*> mapM (resolveImportedPayItemRow request.requestedEntryId importedPayItemById) contextRow.contextStaffImportedPayItemId
+    loadedAwardRateContext <-
+        case selectedImportedPayItem importedOverrides of
+            Just _ -> Right Nothing
+            Nothing -> do
+                rateBookResult <- maybe (Left (MissingCalculationContext request.requestedEntryId)) Right (Map.lookup (contextRow.contextRosterWeekStartsOn, contextRow.contextWorkedOn) rateBooksByRequest)
+                rateBook <- Bifunctor.first (InvalidProjectedRateBook request.requestedEntryId) rateBookResult
+                selectedAwardLevelId <- maybe (Left (MissingCalculationContext request.requestedEntryId)) Right (contextRow.contextShiftAwardLevelId <|> contextRow.contextStaffAwardLevelId)
+                awardLevel <- maybe (Left (MissingCalculationContext request.requestedEntryId)) Right (Map.lookup selectedAwardLevelId awardLevelById)
+                classification <- maybe (Left (MissingCalculationContext request.requestedEntryId)) Right (awardClassificationFromFixedId awardLevel.projectedClassificationFixedId)
+                pure
+                    ( Just
+                        ( AwardRateContext
+                            ( ResolvedAwardLevel
+                                classification
+                                (tshow awardLevel.projectedAwardLevelId)
+                                awardLevel.projectedClassificationName
+                            )
+                            rateBook
+                        )
+                    )
+    pure
+        LoadedCalculationContext
+            { loadedEntryId = request.requestedEntryId
+            , loadedVenueContext = venueContext
+            , loadedArrangement = AwardHourlyEmployment contextRow.contextEmploymentBasis
+            , loadedAwardRateContext
+            , loadedStatewideHolidayDates = Map.findWithDefault Set.empty contextRow.contextHolidayJurisdiction holidayDatesByJurisdiction
+            , loadedImportedOverrides = importedOverrides
+            }
+
+resolveImportedPayItemRow :: UUID -> Map.Map UUID ImportedPayItemRow -> UUID -> Either WageEngineAdapterError ImportedPayItem
+resolveImportedPayItemRow entryId importedPayItemById importedPayItemId = do
+    importedRow <- maybe (Left (MissingCalculationContext entryId)) Right (Map.lookup importedPayItemId importedPayItemById)
+    pure (ImportedPayItem (tshow importedRow.importedRowId) importedRow.importedRowName importedRow.importedRowHourlyRate)
+
+data ProjectedRateIndex = ProjectedRateIndex
+    { baseRatesByAwardLevel    :: !(Map.Map UUID [ProjectedBaseRateRow])
+    , penaltyRatesByAwardLevel :: !(Map.Map UUID [ProjectedPenaltyRateRow])
+    , additionsByAward         :: !(Map.Map Int [ProjectedTimeAdditionRow])
+    }
+
+indexProjectedRates :: [ProjectedBaseRateRow] -> [ProjectedPenaltyRateRow] -> [ProjectedTimeAdditionRow] -> ProjectedRateIndex
+indexProjectedRates baseRates penaltyRates additions =
+    ProjectedRateIndex
+        { baseRatesByAwardLevel = Map.fromListWith (<>) [(rate.projectedBaseAwardLevelId, [rate]) | rate <- baseRates]
+        , penaltyRatesByAwardLevel = Map.fromListWith (<>) [(rate.projectedPenaltyAwardLevelId, [rate]) | rate <- penaltyRates]
+        , additionsByAward = Map.fromListWith (<>) [(addition.projectedAdditionAwardFixedId, [addition]) | addition <- additions]
+        }
+
+buildProjectedRateBook ::
+    Int ->
+    Day ->
+    [ProjectedAwardLevelRow] ->
+    ProjectedRateIndex ->
+    Either RateBookError ValidatedRateBook
+buildProjectedRateBook weekStartsOn workedOn awardLevels rateIndex = do
+    let activeAwardLevels = filter (\row -> row.projectedAwardFixedId == 9 && row.projectedAwardLevelIsActive) awardLevels
+        unsupportedFixedIds =
+            activeAwardLevels
+                |> map (.projectedClassificationFixedId)
+                |> filter (isNothing . awardClassificationFromFixedId)
+                |> List.sort
+    case unsupportedFixedIds of
+        fixedId : _ -> Left (UnsupportedClassificationFixedId fixedId)
+        [] -> do
+            let awardLevelById = Map.fromList (map (\row -> (row.projectedAwardLevelId, row)) activeAwardLevels)
+                activeAwardLevelIds = Map.keys awardLevelById
+                effectiveBaseRates =
+                    activeAwardLevelIds
+                        |> concatMap (\awardLevelId -> Map.findWithDefault [] awardLevelId rateIndex.baseRatesByAwardLevel)
+                        |> filter (baseRateEffectiveOn weekStartsOn workedOn)
+                effectivePenaltyRates =
+                    activeAwardLevelIds
+                        |> concatMap (\awardLevelId -> Map.findWithDefault [] awardLevelId rateIndex.penaltyRatesByAwardLevel)
+                        |> filter (penaltyRateEffectiveOn weekStartsOn workedOn)
+                effectiveAdditions =
+                    Map.findWithDefault [] 9 rateIndex.additionsByAward
+                        |> filter (additionEffectiveOn weekStartsOn workedOn)
+            candidateRates <-
+                mapM (baseCandidateRate awardLevelById) effectiveBaseRates
+                    >>= \baseCandidates ->
+                        mapM (penaltyCandidateRate awardLevelById) effectivePenaltyRates
+                            >>= \penaltyCandidates ->
+                                mapM additionCandidateRate effectiveAdditions
+                                    >>= \additionCandidates -> pure (baseCandidates <> penaltyCandidates <> additionCandidates)
+            let sortedCandidates = List.sortOn (.candidateRateKey) candidateRates
+                effectivePeriod = maybe fallbackPeriod (.candidateRateEffectivePeriod) (listToMaybe sortedCandidates)
+                version = renderRateBookVersion effectivePeriod sortedCandidates
+            mkValidatedRateBook
+                RateBookCandidate
+                    { candidateAwardFixedId = 9
+                    , candidateVersion = version
+                    , candidateEffectivePeriod = effectivePeriod
+                    , candidateRates = sortedCandidates
+                    }
+  where
+    fallbackPeriod = EffectivePeriod (Just workedOn) (Just workedOn)
+
+baseCandidateRate :: Map.Map UUID ProjectedAwardLevelRow -> ProjectedBaseRateRow -> Either RateBookError CandidateRate
+baseCandidateRate awardLevelById row = do
+    awardLevel <- maybe (Left (UnsupportedClassificationFixedId (-1))) Right (Map.lookup row.projectedBaseAwardLevelId awardLevelById)
+    period <- projectedEffectivePeriod row.projectedBaseFrom row.projectedBaseTo
+    let rateKey = CandidateClassificationRate awardLevel.projectedClassificationFixedId row.projectedBaseBasis OrdinaryRate
+    pure
+        CandidateRate
+            { candidateRateKey = rateKey
+            , candidateRatePerUnit = row.projectedBaseHourlyRate
+            , candidateRateSourceIdentity = RateSourceIdentity row.projectedBaseSourceId
+            , candidateRateSourceOwner = ClassificationOwner awardLevel.projectedClassificationFixedId
+            , candidateRateEffectivePeriod = period
+            }
+
+penaltyCandidateRate :: Map.Map UUID ProjectedAwardLevelRow -> ProjectedPenaltyRateRow -> Either RateBookError CandidateRate
+penaltyCandidateRate awardLevelById row = do
+    awardLevel <- maybe (Left (UnsupportedClassificationFixedId (-1))) Right (Map.lookup row.projectedPenaltyAwardLevelId awardLevelById)
+    period <- projectedEffectivePeriod row.projectedPenaltyFrom row.projectedPenaltyTo
+    let rateKey = CandidateClassificationRate awardLevel.projectedClassificationFixedId row.projectedPenaltyBasis row.projectedPenaltyKind
+    pure
+        CandidateRate
+            { candidateRateKey = rateKey
+            , candidateRatePerUnit = row.projectedPenaltyHourlyRate
+            , candidateRateSourceIdentity = RateSourceIdentity row.projectedPenaltySourceId
+            , candidateRateSourceOwner = ClassificationOwner awardLevel.projectedClassificationFixedId
+            , candidateRateEffectivePeriod = period
+            }
+
+additionCandidateRate :: ProjectedTimeAdditionRow -> Either RateBookError CandidateRate
+additionCandidateRate row = do
+    period <- projectedEffectivePeriod row.projectedAdditionFrom row.projectedAdditionTo
+    let rateKey = CandidateAwardAddition row.projectedAdditionKind
+    pure
+        CandidateRate
+            { candidateRateKey = rateKey
+            , candidateRatePerUnit = row.projectedAdditionAmount
+            , candidateRateSourceIdentity = RateSourceIdentity row.projectedAdditionSourceId
+            , candidateRateSourceOwner = AwardOwner row.projectedAdditionAwardFixedId
+            , candidateRateEffectivePeriod = period
+            }
+
+projectedEffectivePeriod :: Maybe Day -> Maybe Day -> Either RateBookError EffectivePeriod
+projectedEffectivePeriod maybeFrom maybeTo =
+    Right (EffectivePeriod maybeFrom maybeTo)
+
+renderRateBookVersion :: EffectivePeriod -> [CandidateRate] -> Text
+renderRateBookVersion period rates =
+    "MA000009:"
+        <> maybe "missing" tshow period.effectiveFrom
+        <> ":"
+        <> maybe "open" tshow period.effectiveTo
+        <> ":"
+        <> Text.intercalate "," (List.sort (List.nub (map rateFingerprint rates)))
+  where
+    rateFingerprint rate =
+        let RateSourceIdentity sourceId = rate.candidateRateSourceIdentity
+         in candidateRateKeyValue rate.candidateRateKey <> "=" <> tshow rate.candidateRatePerUnit <> "@" <> sourceId
+
+candidateRateKeyValue :: CandidateRateKey -> Text
+candidateRateKeyValue = \case
+    CandidateClassificationRate fixedId basis rateKind ->
+        tshow fixedId <> ":" <> basisValue basis <> ":" <> baseRateKindValue rateKind
+    CandidateAwardAddition additionKind -> "award:" <> timeAdditionKindValue additionKind
+  where
+    basisValue PermanentPartTime = "permanent_part_time"
+    basisValue CasualEmployment  = "casual"
+    baseRateKindValue OrdinaryRate      = "ordinary"
+    baseRateKindValue SaturdayRate      = "saturday"
+    baseRateKindValue SundayRate        = "sunday"
+    baseRateKindValue PublicHolidayRate = "public_holiday"
+    timeAdditionKindValue EveningAddition      = "evening_after_7pm"
+    timeAdditionKindValue EarlyMorningAddition = "late_night_after_midnight"
+
+baseRateEffectiveOn :: Int -> Day -> ProjectedBaseRateRow -> Bool
+baseRateEffectiveOn weekStartsOn workedOn row = projectedRateEffectiveOn weekStartsOn workedOn row.projectedBaseFrom row.projectedBaseTo
+
+penaltyRateEffectiveOn :: Int -> Day -> ProjectedPenaltyRateRow -> Bool
+penaltyRateEffectiveOn weekStartsOn workedOn row = projectedRateEffectiveOn weekStartsOn workedOn row.projectedPenaltyFrom row.projectedPenaltyTo
+
+additionEffectiveOn :: Int -> Day -> ProjectedTimeAdditionRow -> Bool
+additionEffectiveOn weekStartsOn workedOn row = projectedRateEffectiveOn weekStartsOn workedOn row.projectedAdditionFrom row.projectedAdditionTo
+
+projectedRateEffectiveOn :: Int -> Day -> Maybe Day -> Maybe Day -> Bool
+projectedRateEffectiveOn weekStartsOn workedOn operativeFrom operativeTo =
+    maybe True ((<= workedOn) . venueEffectiveRateDate weekStartsOn) operativeFrom
+        && maybe True (>= workedOn) (venueEffectiveRateEndDate weekStartsOn operativeTo)
+
+calculationInputFromLoadedContext :: LoadedCalculationContext -> [ResolvedPaidInterval] -> WageCalculationInput
+calculationInputFromLoadedContext loadedContext intervals =
+    WageCalculationInput
+        { calculationEntryId = CalculationEntryId (tshow loadedContext.loadedEntryId)
+        , calculationVenueContext = loadedContext.loadedVenueContext
+        , calculationArrangement = loadedContext.loadedArrangement
+        , calculationAwardRateContext = loadedContext.loadedAwardRateContext
+        , calculationStatewidePublicHolidayDates = loadedContext.loadedStatewideHolidayDates
+        , calculationImportedOverrides = loadedContext.loadedImportedOverrides
+        , calculationUnsupportedFeatures = Set.empty
+        , calculationPaidIntervals = intervals
+        }
+
+loadWageEngineContextsForEntries :: (?modelContext :: ModelContext) => [G.TimesheetEntry] -> IO (Either [WageEngineAdapterError] (Map.Map UUID LoadedCalculationContext))
+loadWageEngineContextsForEntries entries =
+    loadWageEngineContextsWith
+        databaseWageEngineBulkSource
+        [ WageEngineEntryRequest (unpackId entry.id)
+        | entry <- entries
+        ]
+
+databaseWageEngineBulkSource :: (?modelContext :: ModelContext) => WageEngineBulkSource IO
+databaseWageEngineBulkSource = databaseWageEngineBulkSourceWith (const (pure ()))
+
+databaseWageEngineBulkSourceWith :: (?modelContext :: ModelContext) => (WageEngineDatabaseRead -> IO ()) -> WageEngineBulkSource IO
+databaseWageEngineBulkSourceWith observeRead =
+    WageEngineBulkSource
+        { fetchEntryContextRows = fetchDatabaseEntryContextRows observeRead
+        , fetchImportedPayItemRows = fetchDatabaseImportedPayItemRows observeRead
+        , fetchProjectedAwardLevelRows = fetchDatabaseAwardLevels observeRead
+        , fetchProjectedBaseRateRows = fetchDatabaseProjectedBaseRates observeRead
+        , fetchProjectedPenaltyRateRows = fetchDatabaseProjectedPenaltyRates observeRead
+        , fetchProjectedTimeAdditionRows = fetchDatabaseProjectedTimeAdditions observeRead
+        , fetchStatewideHolidayRows = fetchDatabaseStatewideHolidayRows observeRead
+        }
+
+fetchDatabaseAwardLevels :: (?modelContext :: ModelContext) => (WageEngineDatabaseRead -> IO ()) -> IO [ProjectedAwardLevelRow]
+fetchDatabaseAwardLevels observeRead = do
+    observeRead AwardLevelsRead
+    query @G.AwardLevel
+        |> filterWhere (#awardFixedId, 9)
+        |> filterWhere (#isActive, True)
+        |> fetch
+        |> fmap (map projectAwardLevel)
+
+fetchDatabaseEntryContextRows :: (?modelContext :: ModelContext) => (WageEngineDatabaseRead -> IO ()) -> [UUID] -> IO [EntryContextRow]
+fetchDatabaseEntryContextRows _ [] = pure []
+fetchDatabaseEntryContextRows observeRead entryIds = do
+    observeRead (TimesheetEntriesRead (length entryIds))
+    entries <- query @G.TimesheetEntry
+        |> filterWhereIn (#id, map (\entryId -> Id entryId :: Id G.TimesheetEntry) entryIds)
+        |> fetch
+    let venueIds = List.nub (map (.venueId) entries)
+        staffIds = List.nub (map (.staffId) entries)
+        shiftTypeIds = List.nub (map (.shiftTypeId) entries)
+        staffPayVersionIds = List.nub (mapMaybe (.staffPayVersionId) entries)
+        shiftTypePayVersionIds = List.nub (mapMaybe (.shiftTypePayVersionId) entries)
+    observeRead (VenueConfigsRead (length venueIds))
+    venueConfigs <- query @G.VenueConfig
+        |> filterWhereIn (#venueId, venueIds)
+        |> fetch
+    observeRead (StaffRowsRead (length staffIds))
+    staffRows <- query @G.Staff
+        |> filterWhereIn (#id, map (\staffId -> Id staffId :: Id G.Staff) staffIds)
+        |> fetch
+    observeRead (ShiftTypeRowsRead (length shiftTypeIds))
+    shiftTypes <- query @G.ShiftType
+        |> filterWhereIn (#id, map (\shiftTypeId -> Id shiftTypeId :: Id G.ShiftType) shiftTypeIds)
+        |> fetch
+    staffPayVersions <-
+        if null staffPayVersionIds
+            then pure []
+            else do
+                observeRead (StaffPayVersionsRead (length staffPayVersionIds))
+                query @G.StaffPayVersion
+                    |> filterWhereIn (#id, map (\versionId -> Id versionId :: Id G.StaffPayVersion) staffPayVersionIds)
+                    |> fetch
+    shiftTypePayVersions <-
+        if null shiftTypePayVersionIds
+            then pure []
+            else do
+                observeRead (ShiftTypePayVersionsRead (length shiftTypePayVersionIds))
+                query @G.ShiftTypePayVersion
+                    |> filterWhereIn (#id, map (\versionId -> Id versionId :: Id G.ShiftTypePayVersion) shiftTypePayVersionIds)
+                    |> fetch
+    let venueConfigByVenueId = Map.fromList [(row.venueId, row) | row <- venueConfigs]
+        staffById = Map.fromList [(unpackId row.id, row) | row <- staffRows]
+        shiftTypeById = Map.fromList [(unpackId row.id, row) | row <- shiftTypes]
+        staffPayVersionById = Map.fromList [(unpackId row.id, row) | row <- staffPayVersions]
+        shiftTypePayVersionById = Map.fromList [(unpackId row.id, row) | row <- shiftTypePayVersions]
+    pure
+        ( mapMaybe
+            (projectEntryContext venueConfigByVenueId staffById shiftTypeById staffPayVersionById shiftTypePayVersionById)
+            entries
+        )
+
+projectEntryContext ::
+    Map.Map UUID G.VenueConfig ->
+    Map.Map UUID G.Staff ->
+    Map.Map UUID G.ShiftType ->
+    Map.Map UUID G.StaffPayVersion ->
+    Map.Map UUID G.ShiftTypePayVersion ->
+    G.TimesheetEntry ->
+    Maybe EntryContextRow
+projectEntryContext venueConfigByVenueId staffById shiftTypeById staffPayVersionById shiftTypePayVersionById entry = do
+    venueConfig <- Map.lookup entry.venueId venueConfigByVenueId
+    staff <- Map.lookup entry.staffId staffById
+    shiftType <- Map.lookup entry.shiftTypeId shiftTypeById
+    staffPayVersion <- case entry.staffPayVersionId of
+        Nothing        -> pure Nothing
+        Just versionId -> Just <$> Map.lookup versionId staffPayVersionById
+    shiftTypePayVersion <- case entry.shiftTypePayVersionId of
+        Nothing        -> pure Nothing
+        Just versionId -> Just <$> Map.lookup versionId shiftTypePayVersionById
+    pure
+        EntryContextRow
+            { contextEntryId = unpackId entry.id
+            , contextWorkedOn = entry.workedOn
+            , contextVenueTimeZone = venueConfig.timezone
+            , contextRosterWeekStartsOn = venueConfig.rosterWeekStartsOn
+            , contextHolidayJurisdiction = venueConfig.publicHolidayJurisdiction
+            , contextEmploymentBasis = projectEmploymentBasis (maybe staff.employmentBasis (.employmentBasis) staffPayVersion)
+            , contextShiftAwardLevelId = maybe (fmap unpackId shiftType.overrideAwardLevelId) (.overrideAwardLevelId) shiftTypePayVersion
+            , contextStaffAwardLevelId = maybe (fmap unpackId staff.defaultAwardLevelId) (.defaultAwardLevelId) staffPayVersion
+            , contextShiftImportedPayItemId = fmap unpackId (maybe shiftType.importedXeroPayItemId (.importedXeroPayItemId) shiftTypePayVersion)
+            , contextStaffImportedPayItemId = fmap unpackId (maybe staff.importedXeroPayItemId (.importedXeroPayItemId) staffPayVersion)
+            }
+
+fetchDatabaseImportedPayItemRows :: (?modelContext :: ModelContext) => (WageEngineDatabaseRead -> IO ()) -> [UUID] -> IO [ImportedPayItemRow]
+fetchDatabaseImportedPayItemRows _ [] = pure []
+fetchDatabaseImportedPayItemRows observeRead importedPayItemIds = do
+    observeRead (ImportedPayItemsRead (length importedPayItemIds))
+    records <- query @G.XeroImportedPayItem
+        |> filterWhereIn (#id, map (\recordId -> Id recordId :: Id G.XeroImportedPayItem) importedPayItemIds)
+        |> fetch
+    pure
+        [ ImportedPayItemRow (unpackId record.id) record.name record.ratePerUnit
+        | record <- records
+        ]
+
+fetchDatabaseStatewideHolidayRows :: (?modelContext :: ModelContext) => (WageEngineDatabaseRead -> IO ()) -> [EntryContextRow] -> IO [StatewideHolidayRow]
+fetchDatabaseStatewideHolidayRows _ [] = pure []
+fetchDatabaseStatewideHolidayRows observeRead contextRows = do
+    let workedDates = List.sort (map (.contextWorkedOn) contextRows)
+        fromDate = fromMaybe (error "WageEngine holiday scope unexpectedly empty") (listToMaybe workedDates)
+        toDate = addDays 1 (fromMaybe (error "WageEngine holiday scope unexpectedly empty") (listToMaybe (reverse workedDates)))
+    observeRead (StatewideHolidaysRead fromDate toDate)
+    holidays <- query @G.PublicHoliday
+        |> filterWhere (#jurisdiction, "VIC" :: Text)
+        |> filterWhere (#isRegional, False)
+        |> filterWhereGreaterThanOrEqualTo (#holidayDate, fromDate)
+        |> filterWhereLessThanOrEqualTo (#holidayDate, toDate)
+        |> fetch
+    pure [StatewideHolidayRow holiday.jurisdiction holiday.holidayDate | holiday <- holidays]
+
+projectAwardLevel :: G.AwardLevel -> ProjectedAwardLevelRow
+projectAwardLevel awardLevel =
+    ProjectedAwardLevelRow
+        { projectedAwardLevelId = unpackId awardLevel.id
+        , projectedAwardFixedId = awardLevel.awardFixedId
+        , projectedClassificationFixedId = awardLevel.classificationFixedId
+        , projectedClassificationName = awardLevel.classification
+        , projectedAwardLevelIsActive = awardLevel.isActive
+        }
+
+fetchDatabaseProjectedBaseRates :: (?modelContext :: ModelContext) => (WageEngineDatabaseRead -> IO ()) -> RateProjectionScope -> IO [ProjectedBaseRateRow]
+fetchDatabaseProjectedBaseRates observeRead scope =
+    case projectionScopeBounds scope of
+        Nothing -> pure []
+        Just (awardLevelIds, fromDate, toDate) -> do
+            observeRead (BaseRatesRead scope)
+            rates <- query @G.AwardLevelBaseRate
+                |> filterWhereIn (#awardLevelId, awardLevelIds)
+                |> filterWhereLessThanOrEqualTo (#operativeFrom, Just toDate)
+                |> queryOr
+                    (filterWhere (#operativeTo, Nothing :: Maybe Day))
+                    (filterWhereGreaterThanOrEqualTo (#operativeTo, Just (addDays (-7) fromDate)))
+                |> fetch
+            pure
+                [ ProjectedBaseRateRow
+                    rate.awardLevelId
+                    (projectEmploymentBasis rate.employmentBasis)
+                    (projectionSourceIdentity "award_level_base_rates" (unpackId rate.id) "fwc_mapd_pay_rates" rate.fwcMapdPayRateId)
+                    rate.hourlyRate
+                    rate.operativeFrom
+                    rate.operativeTo
+                | rate <- rates
+                ]
+
+fetchDatabaseProjectedPenaltyRates :: (?modelContext :: ModelContext) => (WageEngineDatabaseRead -> IO ()) -> RateProjectionScope -> IO [ProjectedPenaltyRateRow]
+fetchDatabaseProjectedPenaltyRates observeRead scope =
+    case projectionScopeBounds scope of
+        Nothing -> pure []
+        Just (awardLevelIds, fromDate, toDate) -> do
+            observeRead (PenaltyRatesRead scope)
+            rates <- query @G.AwardLevelPenaltyRate
+                |> filterWhereIn (#awardLevelId, awardLevelIds)
+                |> filterWhereIn (#penaltyKind, [G.SaturdayPenalty, G.SundayPenalty, G.PublicHolidayPenalty])
+                |> filterWhereLessThanOrEqualTo (#operativeFrom, Just toDate)
+                |> queryOr
+                    (filterWhere (#operativeTo, Nothing :: Maybe Day))
+                    (filterWhereGreaterThanOrEqualTo (#operativeTo, Just (addDays (-7) fromDate)))
+                |> fetch
+            pure (mapMaybe projectPenaltyRow rates)
+  where
+    projectPenaltyRow rate = do
+        rateKind <- case rate.penaltyKind of
+            G.SaturdayPenalty      -> Just SaturdayRate
+            G.SundayPenalty        -> Just SundayRate
+            G.PublicHolidayPenalty -> Just PublicHolidayRate
+            _                      -> Nothing
+        pure
+            ( ProjectedPenaltyRateRow
+                rate.awardLevelId
+                (projectEmploymentBasis rate.employmentBasis)
+                rateKind
+                (projectionSourceIdentity "award_level_penalty_rates" (unpackId rate.id) "fwc_mapd_penalty_rates" rate.fwcMapdPenaltyRateId)
+                rate.hourlyRate
+                rate.operativeFrom
+                rate.operativeTo
+            )
+
+fetchDatabaseProjectedTimeAdditions :: (?modelContext :: ModelContext) => (WageEngineDatabaseRead -> IO ()) -> RateProjectionScope -> IO [ProjectedTimeAdditionRow]
+fetchDatabaseProjectedTimeAdditions observeRead scope =
+    case projectionScopeBounds scope of
+        Nothing -> pure []
+        Just (_, fromDate, toDate) -> do
+            observeRead (TimeAdditionsRead scope)
+            allowances <- query @G.AwardTimePenaltyAllowance
+                |> filterWhere (#awardFixedId, 9)
+                |> filterWhereIn (#penaltyKind, [G.EveningAfter7Pm, G.LateNightAfterMidnight])
+                |> filterWhereLessThanOrEqualTo (#operativeFrom, Just toDate)
+                |> queryOr
+                    (filterWhere (#operativeTo, Nothing :: Maybe Day))
+                    (filterWhereGreaterThanOrEqualTo (#operativeTo, Just (addDays (-7) fromDate)))
+                |> fetch
+            pure (mapMaybe projectAdditionRow allowances)
+  where
+    projectAdditionRow allowance = do
+        additionKind <- case allowance.penaltyKind of
+            G.EveningAfter7Pm        -> Just EveningAddition
+            G.LateNightAfterMidnight -> Just EarlyMorningAddition
+            _                        -> Nothing
+        pure
+            ( ProjectedTimeAdditionRow
+                allowance.awardFixedId
+                additionKind
+                (projectionSourceIdentity "award_time_penalty_allowances" (unpackId allowance.id) "fwc_mapd_wage_allowances" allowance.fwcMapdWageAllowanceId)
+                allowance.hourlyAmount
+                allowance.operativeFrom
+                allowance.operativeTo
+            )
+
+projectionScopeBounds :: RateProjectionScope -> Maybe ([UUID], Day, Day)
+projectionScopeBounds scope
+    | null scope.scopedAwardLevelIds = Nothing
+    | otherwise = do
+        fromDate <- scope.scopedWorkedFrom
+        toDate <- scope.scopedWorkedTo
+        pure (scope.scopedAwardLevelIds, fromDate, toDate)
+
+projectionSourceIdentity :: Text -> UUID -> Text -> UUID -> Text
+projectionSourceIdentity projectionTable projectionId sourceTable sourceId =
+    "bepis-projection:" <> projectionTable <> ":" <> tshow projectionId <> "/source:" <> sourceTable <> ":" <> tshow sourceId
+
+projectEmploymentBasis :: G.StaffEmploymentBasisEnum -> EmploymentBasis
+projectEmploymentBasis = \case
+    G.Permanent -> PermanentPartTime
+    G.Casual    -> CasualEmployment

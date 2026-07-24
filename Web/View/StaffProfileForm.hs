@@ -394,7 +394,7 @@ renderStaffPayFields fields staff awardLevels awardLevelBaseRates importedPayIte
         <div class="col-12 col-md-6">
             <label for="employmentBasis" class="form-label">Employment Basis</label>
             <select name={surfaceFieldNameFrom @Surface.EmploymentBasisField fields} id="employmentBasis" class={selectClass staff (surfaceFieldNameFrom @Surface.EmploymentBasisField fields)}>
-                <option value="permanent" selected={staff.employmentBasis == Permanent}>Permanent</option>
+                <option value="permanent" selected={staff.employmentBasis == Permanent}>Part-time</option>
                 <option value="casual" selected={staff.employmentBasis == Casual}>Casual</option>
             </select>
             {renderStaffFieldError staff (surfaceFieldNameFrom @Surface.EmploymentBasisField fields)}

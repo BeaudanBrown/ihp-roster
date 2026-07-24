@@ -22,6 +22,7 @@ import IHP.Prelude
 import IHP.Test.Mocking
 import Test.Hspec
 import Test.Support
+import Test.Support.FwcMapdFixture (loadFwcMapdFixture)
 
 tests :: Spec
 tests = do
@@ -534,9 +535,6 @@ tests = do
                     map (.classification) adminData.currentCoreAdultPayRates `shouldBe` ["Level 1"]
                     map (.calculatedRate) adminData.currentCoreAdultPayRates `shouldBe` [Just 24.95]
 
-fwcMapdFixtureRoot :: FilePath
-fwcMapdFixtureRoot = "Test/Fixtures/wage-sources/2026-07-24/fwc-mapd/"
-
 expectedCoreBasePayRateIds :: [Text]
 expectedCoreBasePayRateIds = ["BR89890", "BR89891", "BR89892", "BR89894", "BR89895", "BR89896", "BR89897"]
 
@@ -551,37 +549,8 @@ expectedFixturePenaltyCategories =
     , "permanent:sunday_penalty"
     ]
 
-loadFwcMapdFixture :: IO CuratedMapdAwardData
-loadFwcMapdFixture = do
-    awardValues <- readMapdFixtureValues "award.json"
-    classificationValues <- readMapdFixtureValues "classifications.json"
-    payRateValues <- readMapdFixtureValues "pay-rates.json"
-    penaltyRateValues <- readMapdFixtureValues "penalties.json"
-    wageAllowanceValues <- readMapdFixtureValues "wage-allowances.json"
-    awards <- decodePayloads "fixture awards" awardValues
-    classifications <- decodePayloads "fixture classifications" classificationValues
-    payRates <- decodePayloads "fixture pay rates" payRateValues
-    penaltyRates <- decodePayloads "fixture penalty rates" penaltyRateValues
-    wageAllowances <- decodePayloads "fixture wage allowances" wageAllowanceValues
-    let asOfDate = fromGregorian 2026 7 24
-        (curatedAwardFixedId, curatedAwards, curatedClassifications, curatedPayRates, curatedPenaltyRates) =
-            curateAwardData
-                barVenueCurationProfile
-                asOfDate
-                (9, awards, classifications, payRates, penaltyRates)
-        curatedWageAllowances =
-            curateWageAllowances barVenueCurationProfile asOfDate wageAllowances
-    pure CuratedMapdAwardData { .. }
-
 classificationFixedIdFromValue :: Aeson.Value -> Maybe Int
 classificationFixedIdFromValue = AesonTypes.parseMaybe (Aeson.withObject "classification" (Aeson..: "classification_fixed_id"))
-
-readMapdFixtureValues :: FilePath -> IO [Aeson.Value]
-readMapdFixtureValues fixtureName = do
-    payload <- LByteString.readFile (fwcMapdFixtureRoot <> fixtureName)
-    case Aeson.eitherDecode payload of
-        Left errorMessage -> fail ("Could not decode FWC MAPD fixture " <> fixtureName <> ": " <> errorMessage)
-        Right page -> pure (page :: MapdResultsPage).results
 
 fixturePenaltyCategory :: PenaltyRatePayload -> Maybe Text
 fixturePenaltyCategory payload

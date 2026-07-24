@@ -5,6 +5,8 @@ module Application.Helper.WeekBoundaries
     , validRosterWeekStartDays
     , orderedWeekdayIndexes
     , startOfWeekFor
+    , venueEffectiveRateDate
+    , venueEffectiveRateEndDate
     , sortDayNamesForVenueWeek
     , affectedVenueWeekOffsetsForDateRange
     , weekdayIndexForDay
@@ -69,6 +71,18 @@ startOfWeekFor startsOn day =
     where
         orderedIndexes = orderedWeekdayIndexes startsOn
         dayOffset = weekdayOrderOffsetFor orderedIndexes (weekdayIndexForDay day)
+
+venueEffectiveRateDate :: WeekdayIndex -> Day -> Day
+venueEffectiveRateDate weekStartsOn rawOperativeFrom
+    | rawOperativeFrom == weekStart = rawOperativeFrom
+    | otherwise = addDays 7 weekStart
+    where
+        weekStart = startOfWeekFor weekStartsOn rawOperativeFrom
+
+venueEffectiveRateEndDate :: WeekdayIndex -> Maybe Day -> Maybe Day
+venueEffectiveRateEndDate weekStartsOn rawOperativeTo = do
+    operativeTo <- rawOperativeTo
+    pure (addDays (-1) (venueEffectiveRateDate weekStartsOn (addDays 1 operativeTo)))
 
 weekdayOrderOffsetFor :: [WeekdayIndex] -> WeekdayIndex -> Int
 weekdayOrderOffsetFor orderedIndexes weekdayIndex =

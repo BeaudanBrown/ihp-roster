@@ -9,7 +9,15 @@
 
 ## Architecture decision
 
-Canonical pay math is implemented in PostgreSQL functions; application-layer orchestration/reporting is implemented in Haskell.
+Canonical production pay math remains in PostgreSQL functions until cutover issue
+#239. The parallel provider-neutral Haskell foundation is implemented in
+`Application.WageEngine` and documented in `Application/WageEngine/SPEC.md`;
+application-layer orchestration/reporting still consumes the SQL seam.
+
+The Haskell module now validates the complete effective MA000009 rate book and
+calculates the unchanged ordinary, casual, weekend, public-holiday, and imported
+flat-rate subset from pre-resolved intervals. Later compliance tickets add time,
+component, meal-break, minimum-payment, and ledger rules before cutover.
 
 ## Why mixed
 
@@ -22,6 +30,9 @@ Canonical pay math is implemented in PostgreSQL functions; application-layer orc
 
 - Current UI/form time values use exact 15-minute increments; the target engine
   remains generic and adds no quarter-hour database invariant.
+- The stored `permanent` employment-basis value is retained for database
+  compatibility but exclusively means MA000009 part-time. Customer-facing copy
+  says “Part-time”; full-time employment is not represented by that value.
 - Break is deducted from shift duration before applying rate rules.
 
 ## Day/window model
@@ -90,6 +101,11 @@ They should also resolve pay logic against an explicit historical rule context r
 
 ## Haskell orchestration responsibilities
 
+- Construct only complete `ValidatedRateBook` values through the smart constructor;
+  partial projected books fail before Award calculation, while explicit imported
+  overrides bypass Award-rate availability.
+- Bulk-load future calculation contexts with bounded database queries and in-memory
+  indexes; never query rates or holidays per entry.
 - Validate user intent and permissions.
 - Call SQL functions for canonical numbers.
 - Compose API/view models for roster/timesheet/report screens.

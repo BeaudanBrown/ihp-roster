@@ -1,7 +1,9 @@
 module Application.Helper.Pay where
 
-import Application.Helper.Controller
-import Application.Helper.WeekBoundaries (WeekdayIndex, startOfWeekFor)
+import Application.Helper.Controller hiding (venueEffectiveRateDate,
+                                      venueEffectiveRateEndDate)
+import Application.Helper.WeekBoundaries (WeekdayIndex)
+import qualified Application.Helper.WeekBoundaries as WeekBoundaries
 import Control.Monad (void)
 import Data.Aeson ((.:), (.:?))
 import qualified Data.Aeson as Aeson
@@ -12,7 +14,7 @@ import qualified Data.Scientific as Scientific
 import qualified Data.Set as Set
 import qualified Data.Text as Text
 import Data.Text.Encoding (encodeUtf8)
-import Data.Time.Calendar (Day, addDays)
+import Data.Time.Calendar (Day)
 import Data.Time.Clock (UTCTime)
 import qualified Database.PostgreSQL.Simple as PG
 import Generated.Types
@@ -22,16 +24,10 @@ import IHP.ModelSupport (ModelContext, sqlQueryScalar, unpackId)
 import IHP.Prelude
 
 venueEffectiveRateDate :: WeekdayIndex -> Day -> Day
-venueEffectiveRateDate weekStartsOn rawOperativeFrom
-    | rawOperativeFrom == weekStart = rawOperativeFrom
-    | otherwise = addDays 7 weekStart
-    where
-        weekStart = startOfWeekFor weekStartsOn rawOperativeFrom
+venueEffectiveRateDate = WeekBoundaries.venueEffectiveRateDate
 
 venueEffectiveRateEndDate :: WeekdayIndex -> Maybe Day -> Maybe Day
-venueEffectiveRateEndDate weekStartsOn rawOperativeTo = do
-    operativeTo <- rawOperativeTo
-    pure (addDays (-1) (venueEffectiveRateDate weekStartsOn (addDays 1 operativeTo)))
+venueEffectiveRateEndDate = WeekBoundaries.venueEffectiveRateEndDate
 
 rateEffectiveOn :: (HasField "operativeFrom" record (Maybe Day), HasField "operativeTo" record (Maybe Day)) => WeekdayIndex -> Day -> record -> Bool
 rateEffectiveOn weekStartsOn referenceDate record =

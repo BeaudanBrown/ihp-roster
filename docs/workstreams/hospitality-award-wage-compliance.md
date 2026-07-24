@@ -63,6 +63,7 @@ file does not duplicate ticket status.
 ## Living docs to update as tickets land
 
 - `Application/FwcMapd/SPEC.md`
+- `Application/WageEngine/SPEC.md`
 - `specs/06-pay-engine.md`
 - `specs/hospitality-award-pay-calculation-verification.md`
 - `Web/Timesheets/SPEC.md`
