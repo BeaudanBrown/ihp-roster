@@ -248,3 +248,5 @@ bash ./bin/in-env psql -d app -c "\dt"
 When you discover a reusable pattern or gotcha, update the nearest local
 `AGENTS.md` or subsystem `SPEC.md`. Keep root `AGENTS.md` project-wide and
 under control; do not let it become a second implementation plan.
+
+When reporting information to me, be extremely concise and sacrifice grammar for the sake of concision.
