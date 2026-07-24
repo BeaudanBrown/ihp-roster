@@ -1,5 +1,12 @@
 import { test, expect } from '@playwright/test';
 import {
+    pwaInstallButtonDomAttr,
+    pwaInstalledStatusDomAttr,
+    pwaInstallPageDomAttr,
+    pwaInstallResultDomAttr,
+    pwaInstallResultStateDomAttr,
+} from '../frontend/ts/generated/contracts';
+import {
     expectNoHorizontalViewportOverflow,
     gotoWhenReady,
     loginAs,
@@ -25,9 +32,16 @@ type WebAppManifest = {
     }>;
 };
 
+const installPageSelector = `[${pwaInstallPageDomAttr}]`;
+const installButtonSelector = `[${pwaInstallButtonDomAttr}]`;
+const installResultSelector = `[${pwaInstallResultDomAttr}]`;
+const installedStatusSelector = `[${pwaInstalledStatusDomAttr}]`;
+const resultStateSelector = `[${pwaInstallResultStateDomAttr}]`;
+const visibleResultStateSelector = `${installResultSelector} ${resultStateSelector}:not([hidden])`;
+
 test.describe('Install Bepis', () => {
     test('publishes install metadata and a public cross-platform guide @canonical-mobile', async ({ page }) => {
-        await gotoWhenReady(page, '/InstallApp', '[data-pwa-install-page]');
+        await gotoWhenReady(page, '/InstallApp', installPageSelector);
         const installPageResponse = await page.request.get('/InstallApp');
         expect(installPageResponse.status()).toBe(200);
 
@@ -36,7 +50,21 @@ test.describe('Install Bepis', () => {
         await expect(page.getByRole('heading', { name: 'iPhone and iPad', exact: true })).toBeVisible();
         await expect(page.getByText('Add to Home Screen', { exact: true })).toBeVisible();
         await expect(page.getByText('Open as Web App', { exact: true })).toBeVisible();
-        await expect(page.locator('[data-pwa-install-button]')).toBeHidden();
+
+        const installButton = page.locator(installButtonSelector);
+        const installResult = page.locator(installResultSelector);
+        const installedStatus = page.locator(installedStatusSelector);
+        await expect(installButton).toBeHidden();
+        await expect(installButton).toHaveAttribute('type', 'button');
+        await expect(installResult).toHaveAttribute('role', 'status');
+        await expect(installResult).toHaveAttribute('aria-live', 'polite');
+        await expect(installedStatus).toHaveAttribute('role', 'status');
+        await expect(installedStatus).toBeHidden();
+        await expect(installResult.locator(resultStateSelector)).toHaveCount(3);
+        await expect(page.locator(visibleResultStateSelector)).toHaveCount(0);
+        await expect(installResult).toContainText('Installation accepted. Bepis will appear on your device when installation completes.');
+        await expect(installResult).toContainText('Installation was not completed. You can use the browser menu to try again.');
+        await expect(installResult).toContainText('Installation could not start. Use the browser menu to install Bepis.');
 
         const manifestLink = page.locator('link[rel="manifest"]');
         await expect(manifestLink).toHaveCount(1);
@@ -84,6 +112,7 @@ test.describe('Install Bepis', () => {
         }
 
         await expect(page.locator('meta[name="theme-color"]')).toHaveAttribute('content', '#0d1119');
+        await expect(page.locator('meta[name="mobile-web-app-capable"]')).toHaveAttribute('content', 'yes');
         await expect(page.locator('meta[name="apple-mobile-web-app-capable"]')).toHaveAttribute('content', 'yes');
         await expect(page.locator('meta[name="apple-mobile-web-app-title"]')).toHaveAttribute('content', 'Bepis');
         const appleTouchIcon = page.locator('link[rel="apple-touch-icon"][sizes="180x180"]');
@@ -130,17 +159,52 @@ test.describe('Install Bepis', () => {
             }, { once: true });
         });
 
-        await gotoWhenReady(page, '/InstallApp', '[data-pwa-install-page]');
+        await gotoWhenReady(page, '/InstallApp', installPageSelector);
 
-        const installButton = page.locator('[data-pwa-install-button]');
+        const installButton = page.locator(installButtonSelector);
         await expect(installButton).toBeVisible();
         expect(await page.evaluate(() => (window as Window & { __pwaPromptCallCount?: number }).__pwaPromptCallCount)).toBe(0);
 
         await installButton.click();
 
-        await expect(page.locator('[data-pwa-install-result]')).toContainText('Installation accepted');
+        await expect(page.locator(visibleResultStateSelector)).toHaveText('Installation accepted. Bepis will appear on your device when installation completes.');
         await expect(installButton).toBeHidden();
         expect(await page.evaluate(() => (window as Window & { __pwaPromptCallCount?: number }).__pwaPromptCallCount)).toBe(1);
+    });
+
+    test('shows server-rendered dismissed and failed prompt results @canonical-mobile', async ({ page }) => {
+        await page.addInitScript(() => {
+            document.addEventListener('DOMContentLoaded', () => {
+                const mode = new URL(window.location.href).searchParams.get('pwa-test-result');
+                const installEvent = new Event('beforeinstallprompt', { cancelable: true });
+                Object.defineProperties(installEvent, {
+                    prompt: {
+                        value: async () => {
+                            if (mode === 'failed') throw new Error('Synthetic install prompt failure');
+                        },
+                    },
+                    userChoice: {
+                        value: Promise.resolve({
+                            outcome: mode === 'dismissed' ? 'dismissed' : 'accepted',
+                            platform: 'web',
+                        }),
+                    },
+                });
+                window.dispatchEvent(installEvent);
+            }, { once: true });
+        });
+
+        await gotoWhenReady(page, '/InstallApp?pwa-test-result=dismissed', installPageSelector);
+        await page.locator(installButtonSelector).click();
+        await expect(page.locator(visibleResultStateSelector)).toHaveText(
+            'Installation was not completed. You can use the browser menu to try again.',
+        );
+
+        await gotoWhenReady(page, '/InstallApp?pwa-test-result=failed', installPageSelector);
+        await page.locator(installButtonSelector).click();
+        await expect(page.locator(visibleResultStateSelector)).toHaveText(
+            'Installation could not start. Use the browser menu to install Bepis.',
+        );
     });
 
     test('recognizes an installed standalone launch and suppresses the install action @canonical-mobile', async ({ page }) => {
@@ -171,11 +235,11 @@ test.describe('Install Bepis', () => {
             }, { once: true });
         });
 
-        await gotoWhenReady(page, '/InstallApp', '[data-pwa-install-page]');
+        await gotoWhenReady(page, '/InstallApp', installPageSelector);
 
-        await expect(page.locator('[data-pwa-installed-status]')).toContainText('Bepis is installed on this device.');
-        await expect(page.locator('[data-pwa-installed-status]')).toBeVisible();
-        await expect(page.locator('[data-pwa-install-button]')).toBeHidden();
+        await expect(page.locator(installedStatusSelector)).toContainText('Bepis is installed on this device.');
+        await expect(page.locator(installedStatusSelector)).toBeVisible();
+        await expect(page.locator(installButtonSelector)).toBeHidden();
     });
 
     test('updates the page when browser installation completes @canonical-mobile', async ({ page }) => {
@@ -190,13 +254,13 @@ test.describe('Install Bepis', () => {
             }, { once: true });
         });
 
-        await gotoWhenReady(page, '/InstallApp', '[data-pwa-install-page]');
-        await expect(page.locator('[data-pwa-install-button]')).toBeVisible();
+        await gotoWhenReady(page, '/InstallApp', installPageSelector);
+        await expect(page.locator(installButtonSelector)).toBeVisible();
 
         await page.evaluate(() => window.dispatchEvent(new Event('appinstalled')));
 
-        await expect(page.locator('[data-pwa-installed-status]')).toBeVisible();
-        await expect(page.locator('[data-pwa-install-button]')).toBeHidden();
+        await expect(page.locator(installedStatusSelector)).toBeVisible();
+        await expect(page.locator(installButtonSelector)).toBeHidden();
     });
 
     test('is discoverable before and after sign-in while root launch keeps existing routing @canonical-mobile', async ({ page }) => {

@@ -36,13 +36,15 @@ import Web.RosterWeeks.Dom (rosterContentFragmentId, rosterDayColumnsFragmentId,
 import Web.RosterWeeks.Mutations (rosterDayTouchedResources,
                                   rosterSlotMutationTouchedResources,
                                   rosterSlotTouchedResources,
+                                  rosterSlotsStructureTouchedResources,
                                   rosterWeekLiveStatusTouchedResources,
+                                  rosterWeekStructuralTouchedResources,
                                   rosterWeekTouchedResources)
 import Web.Routes
 import Web.Types
 
 tests :: Spec
-tests = beforeAll testContext do
+tests = aroundAll withDatabaseTestContext do
     describe "RosterWeeksController" do
         it "records touched resources for roster mutations" $ withContext do
             withCleanDb do
@@ -61,9 +63,20 @@ tests = beforeAll testContext do
                         ]
                 rosterWeekTouchedResources rosterGroupId rosterWeek.weekOffset
                     `shouldBe` [rosterWeekResource (unpackId rosterGroupId) rosterWeek.weekOffset]
+                Set.fromList (rosterWeekStructuralTouchedResources rosterGroupId rosterWeek.weekOffset)
+                    `shouldBe` Set.fromList
+                        [ rosterWeekResource (unpackId rosterGroupId) rosterWeek.weekOffset
+                        , rosterWeekStructureResource (unpackId rosterGroupId) rosterWeek.weekOffset
+                        ]
+                Set.fromList (rosterSlotsStructureTouchedResources rosterGroupId rosterWeek.weekOffset)
+                    `shouldBe` Set.fromList
+                        [ rosterWeekResource (unpackId rosterGroupId) rosterWeek.weekOffset
+                        , rosterSlotsStructureResource (unpackId rosterGroupId) rosterWeek.weekOffset
+                        ]
                 Set.fromList (rosterWeekLiveStatusTouchedResources rosterGroupId rosterWeek)
                     `shouldBe` Set.fromList
                         [ rosterWeekResource (unpackId rosterGroupId) rosterWeek.weekOffset
+                        , rosterWeekStructureResource (unpackId rosterGroupId) rosterWeek.weekOffset
                         , timesheetWeekResource rosterWeek.venueId rosterWeek.weekOffset
                         ]
                 Set.fromList (rosterSlotMutationTouchedResources rosterGroupId rosterWeek rosterDay (Just rosterSlot))
@@ -380,6 +393,10 @@ tests = beforeAll testContext do
                         callActionWithParams (CreateRosterWeekSlotDefinitionAction rosterWeek.id)
                             []
                 createResponse `responseStatusShouldBe` status200
+                let createTriggerHeader = cs <$> lookup "HX-Trigger" (responseHeaders createResponse)
+                createTriggerHeader `shouldSatisfy` maybe False (Text.isInfixOf "\"kind\":\"roster-slots-grid\"")
+                createTriggerHeader `shouldSatisfy` maybe False (Text.isInfixOf "\"kind\":\"roster-day-rail\"")
+                createTriggerHeader `shouldSatisfy` maybe False (not . Text.isInfixOf "\"kind\":\"roster-grid-frame\"")
 
                 newColumn <- query @RosterWeekSlotDefinition
                     |> filterWhere (#rosterWeekId, unpackId rosterWeek.id)
@@ -398,6 +415,9 @@ tests = beforeAll testContext do
                     withRequestHeaders [("HX-Request", "true")] do
                         callAction (DeleteRosterWeekSlotDefinitionAction newColumn.id)
                 deleteResponse `responseStatusShouldBe` status200
+                let deleteTriggerHeader = cs <$> lookup "HX-Trigger" (responseHeaders deleteResponse)
+                deleteTriggerHeader `shouldSatisfy` maybe False (Text.isInfixOf "\"kind\":\"roster-slots-grid\"")
+                deleteTriggerHeader `shouldSatisfy` maybe False (not . Text.isInfixOf "\"kind\":\"roster-grid-frame\"")
                 deleted <- fetch newColumn.id
                 deleted.deletedAt `shouldSatisfy` isJust
                 deletedSlots <-
@@ -539,7 +559,7 @@ tests = beforeAll testContext do
                 contentResponse `responseBodyShouldNotContain` "data-roster-day-add=\"true\""
                 contentResponse `responseBodyShouldNotContain` "data-roster-day-remove=\"true\""
                 contentResponse `responseBodyShouldNotContain` "name=\"staffId\""
-                contentResponse `responseBodyShouldNotContain` "js-time-picker-trigger"
+                contentResponse `responseBodyShouldNotContain` "data-bepis-time-picker-trigger"
 
         it "rejects invalid roster slot timing on create and update" $ withContext do
             withCleanDb do
@@ -705,9 +725,9 @@ tests = beforeAll testContext do
 
                 response `responseStatusShouldBe` status200
                 response `responseBodyShouldContain` ">Alpha<"
-                response `responseBodyShouldContain` "name=\"responseContext\" value=\"roster\""
-                response `responseBodyShouldContain` "name=\"rosterGroupId\""
-                response `responseBodyShouldContain` "name=\"weekOffset\" value=\"0\""
+                response `responseBodyShouldContain` "name=\"responseContext\" value=\"self-service\""
+                response `responseBodyShouldContain` "data-bepis-surface=\"self-service-leave\""
+                response `responseBodyShouldContain` "data-bepis-surface-action=\"create-self-service-leave-request\""
                 response `responseBodyShouldNotContain` "No roster exists for this week yet."
 
         it "hides roster warning controls and highlights from staff" $ withContext do
@@ -739,20 +759,24 @@ tests = beforeAll testContext do
                 workerResponse `responseBodyShouldNotContain` "Warnings disabled"
                 workerResponse `responseBodyShouldContain` "data-roster-warnings=\"hidden\""
 
-        it "shows roster JPG export only to managers on live weeks" $ withContext do
+        it "shows roster JPG export only to managers on live row-grid weeks" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Venue A"
                 manager <- createUserRecord "roster-manager-export-live-only@example.com" "staff" True
                 worker <- createUserRecord "roster-worker-export-hidden@example.com" "staff" True
                 _ <- createVenueMembershipRecord venue manager "manager"
                 _ <- createVenueMembershipRecord venue worker "worker"
-                _ <- fetchSlotNameRecord venue "Early"
+                slotName <- fetchSlotNameRecord venue "Early"
                 draftWeek <- createRosterWeekRecord venue 0 False
+                rosterDay <- createRosterDayRecord draftWeek 0
+                _ <- createRosterSlotRecord rosterDay slotName Nothing 0
 
                 draftManagerResponse <- withUserAndCurrentVenue manager venue.id do
                     callAction (ShowRosterWeekAction 0)
                 draftManagerResponse `responseStatusShouldBe` status200
                 draftManagerResponse `responseBodyShouldNotContain` "Export JPG"
+                draftManagerResponse `responseBodyShouldContain` "roster-shift-create-grid"
+                draftManagerResponse `responseBodyShouldContain` "class=\"roster-shift-unit-cell slot-empty-cell\" data-bepis-roster-image-export-cell=\"{&quot;imageExportText&quot;:&quot;&quot;}\""
 
                 _ <- updateRecord (draftWeek |> set #isLive True)
 
@@ -760,6 +784,35 @@ tests = beforeAll testContext do
                     callAction (ShowRosterWeekAction 0)
                 liveManagerResponse `responseStatusShouldBe` status200
                 liveManagerResponse `responseBodyShouldContain` "Export JPG"
+                liveManagerResponse `responseBodyShouldContain` "data-bepis-roster-image-export-trigger=\"true\""
+                liveManagerResponse `responseBodyShouldContain` "data-bepis-roster-image-export-format=\"jpg\""
+                liveManagerResponse `responseBodyShouldContain` "data-bepis-roster-image-export-config="
+                liveManagerResponse `responseBodyShouldContain` "&quot;imageExportFilename&quot;:&quot;roster-"
+                liveManagerResponse `responseBodyShouldContain` "data-bepis-roster-image-export-projection=\"true\""
+                liveManagerResponse `responseBodyShouldContain` "data-bepis-roster-image-export-cell="
+                liveManagerResponse `responseBodyShouldContain` "class=\"roster-subhead roster-col-time\" data-bepis-roster-image-export-cell=\"{&quot;imageExportText&quot;:&quot;Start&quot;}\">Start</div>"
+
+                _ <- withPasskeyVerifiedUserAndCurrentVenue manager venue.id do
+                    withRequestHeaders [("HX-Request", "true")] do
+                        callActionWithParams
+                            (UpdateRosterLayoutPreferenceAction 0)
+                            [("rosterLayoutMode", "day_columns")]
+
+                dayColumnsManagerResponse <- withUserAndCurrentVenue manager venue.id do
+                    callAction (ShowRosterWeekAction 0)
+                dayColumnsManagerResponse `responseStatusShouldBe` status200
+                dayColumnsManagerResponse `responseBodyShouldContain` "data-roster-layout=\"day_columns\""
+                dayColumnsManagerResponse `responseBodyShouldNotContain` "data-bepis-roster-image-export-trigger"
+
+                timelineManagerResponse <- withUserAndCurrentVenue manager venue.id do
+                    callActionWithParams
+                        (ShowRosterWeekAction 0)
+                        [ ("rosterView", "timeline")
+                        , ("dayOffset", "0")
+                        ]
+                timelineManagerResponse `responseStatusShouldBe` status200
+                timelineManagerResponse `responseBodyShouldContain` "data-roster-layout=\"timeline\""
+                timelineManagerResponse `responseBodyShouldNotContain` "data-bepis-roster-image-export-trigger"
 
                 workerResponse <- withUserAndCurrentVenue worker venue.id do
                     callAction (ShowRosterWeekAction 0)
@@ -1414,8 +1467,8 @@ tests = beforeAll testContext do
 
                 response `responseStatusShouldBe` status200
                 response `responseBodyShouldContain` cs rosterStaffPanelFragmentId
-                response `responseBodyShouldContain` "data-roster-staff-name=\"Alpha\""
-                response `responseBodyShouldContain` "1"
+                response `responseBodyShouldContain` "&quot;staffName&quot;:&quot;Alpha&quot;"
+                response `responseBodyShouldContain` "&quot;assignedShifts&quot;:1"
 
         it "manager roster staff panel fragment only shows staff applicable to the selected roster group" $ withContext do
             withCleanDb do
@@ -1439,16 +1492,16 @@ tests = beforeAll testContext do
                     callActionWithParams (ShowRosterWeekStaffPanelFragmentAction 0) [("rosterGroupId", idToParam frontOfHouse.id)]
 
                 response `responseStatusShouldBe` status200
-                response `responseBodyShouldContain` "data-roster-staff-name=\"Alpha\""
-                response `responseBodyShouldContain` "data-roster-staff-name=\"Trial\""
-                response `responseBodyShouldContain` "data-roster-staff-role=\"TRIAL\""
+                response `responseBodyShouldContain` "&quot;staffName&quot;:&quot;Alpha&quot;"
+                response `responseBodyShouldContain` "&quot;staffName&quot;:&quot;Trial&quot;"
+                response `responseBodyShouldContain` "&quot;staffRole&quot;:&quot;TRIAL&quot;"
                 response `responseBodyShouldContain` "class=\"btn btn-sm btn-outline-secondary app-icon-button roster-staff-invite-button\""
                 response `responseBodyShouldContain` "class=\"bi bi-envelope\""
                 response `responseBodyShouldContain` "aria-label=\"Invite Trial\""
                 response `responseBodyShouldContain` "hx-trigger=\"click consume\""
                 response `responseBodyShouldContain` "hx-get=\"/NewTrialStaffInvitation?staffId="
                 response `responseBodyShouldNotContain` "aria-label=\"Invite Alpha\""
-                response `responseBodyShouldNotContain` "data-roster-staff-name=\"Bravo\""
+                response `responseBodyShouldNotContain` "&quot;staffName&quot;:&quot;Bravo&quot;"
                 response `responseBodyShouldContain` "Add trial staff"
                 response `responseBodyShouldContain` "hx-get=\"/NewStaff?weekOffset=0&amp;rosterGroupId="
                 response `responseBodyShouldContain` "Show all staff"
@@ -1466,7 +1519,7 @@ tests = beforeAll testContext do
                     callAction (ShowRosterWeekStaffPanelFragmentAction 0)
 
                 response `responseStatusShouldBe` status200
-                response `responseBodyShouldContain` "data-roster-staff-name=\"Solo\""
+                response `responseBodyShouldContain` "&quot;staffName&quot;:&quot;Solo&quot;"
                 response `responseBodyShouldNotContain` "Show all staff"
                 response `responseBodyShouldNotContain` "name=\"staffScope\""
 
@@ -1499,10 +1552,10 @@ tests = beforeAll testContext do
                         ]
 
                 response `responseStatusShouldBe` status200
-                response `responseBodyShouldContain` "data-roster-staff-name=\"Alpha\""
-                response `responseBodyShouldContain` "data-roster-staff-name=\"Bravo\""
-                response `responseBodyShouldContain` "data-roster-staff-name=\"Trial\""
-                response `responseBodyShouldNotContain` "data-roster-staff-name=\"Other\""
+                response `responseBodyShouldContain` "&quot;staffName&quot;:&quot;Alpha&quot;"
+                response `responseBodyShouldContain` "&quot;staffName&quot;:&quot;Bravo&quot;"
+                response `responseBodyShouldContain` "&quot;staffName&quot;:&quot;Trial&quot;"
+                response `responseBodyShouldNotContain` "&quot;staffName&quot;:&quot;Other&quot;"
                 response `responseBodyShouldNotContain` "active staff"
 
         it "staff row fragment fetch returns no roster row for a draft week" $ withContext do

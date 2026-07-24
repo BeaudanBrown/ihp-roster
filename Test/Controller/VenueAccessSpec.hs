@@ -50,7 +50,7 @@ import Web.SurfaceInvalidation (authorizeSurfaceScope)
 import Web.Types
 
 tests :: Spec
-tests = beforeAll testContext do
+tests = aroundAll withDatabaseTestContext do
     describe "Venue-scoped access control" do
         it "denies editing a staff record from another venue" $ withContext do
             withCleanDb do
@@ -212,7 +212,7 @@ tests = beforeAll testContext do
                 adminXeroAuthorized <- withAuthenticatedControllerContext admin venueA.id do
                     authorizeSurfaceScope (AdminLive.adminXeroLiveScope (unpackId venueB.id))
                 billingAuthorized <- withAuthenticatedControllerContext admin venueA.id do
-                    authorizeSurfaceScope (BillingLive.billingLiveScope (unpackId venueB.id))
+                    authorizeSurfaceScope (BillingLive.billingVenueLiveScope (unpackId venueB.id))
                 leaveAuthorized <- withAuthenticatedControllerContext admin venueA.id do
                     authorizeSurfaceScope (LeaveLive.leaveRequestsLiveScope (unpackId venueB.id))
                 timesheetAuthorized <- withAuthenticatedControllerContext admin venueA.id do

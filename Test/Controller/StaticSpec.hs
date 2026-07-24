@@ -25,7 +25,7 @@ import Web.Routes
 import Web.Types
 
 tests :: Spec
-tests = beforeAll testContext do
+tests = aroundAll withDatabaseTestContext do
     describe "StaticController" do
         it "renders the welcome page for unauthenticated users" $ withContext do
             response <- callAction WelcomeAction
@@ -38,6 +38,26 @@ tests = beforeAll testContext do
             response `responseBodyShouldNotContain` "/BeginPasskeyAuthentication"
             response `responseBodyShouldNotContain` "/FinishPasskeyAuthentication"
             response `responseBodyShouldContain` "Billing and support information"
+
+        it "renders generated PWA install roles with server-owned result copy and native accessibility state" $ withContext do
+            response <- callAction InstallAppAction
+            response `responseStatusShouldBe` status200
+            response `responseBodyShouldContain` "data-bepis-pwa-install-page=\"true\""
+            response `responseBodyShouldContain` "data-bepis-pwa-install-button=\"true\""
+            response `responseBodyShouldContain` "data-bepis-pwa-install-result=\"true\""
+            response `responseBodyShouldContain` "data-bepis-pwa-installed-status=\"true\""
+            response `responseBodyShouldContain` "data-bepis-pwa-install-result-state=\"accepted\""
+            response `responseBodyShouldContain` "data-bepis-pwa-install-result-state=\"dismissed\""
+            response `responseBodyShouldContain` "data-bepis-pwa-install-result-state=\"failed\""
+            response `responseBodyShouldContain` "Installation accepted. Bepis will appear on your device when installation completes."
+            response `responseBodyShouldContain` "Installation was not completed. You can use the browser menu to try again."
+            response `responseBodyShouldContain` "Installation could not start. Use the browser menu to install Bepis."
+            response `responseBodyShouldContain` "Bepis is installed on this device."
+            response `responseBodyShouldContain` "role=\"status\""
+            response `responseBodyShouldContain` "aria-live=\"polite\""
+            response `responseBodyShouldContain` "hidden=\"hidden\""
+            response `responseBodyShouldNotContain` "data-pwa-install"
+            response `responseBodyShouldNotContain` "data-pwa-installed-status"
 
         it "renders the public billing support page without authentication" $ withContext do
             response <- callAction PublicBillingSupportAction

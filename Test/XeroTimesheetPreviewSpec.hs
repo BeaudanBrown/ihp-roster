@@ -21,7 +21,7 @@ import Test.Support
 
 tests :: Spec
 tests =
-    beforeAll testContext do
+    aroundAll withDatabaseTestContext do
         describe "Xero timesheet preview payloads" do
             it "builds weekly daily units in period order and zero-fills missing days" $ withContext do
                 withCleanDb do

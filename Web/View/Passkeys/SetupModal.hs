@@ -3,6 +3,7 @@ module Web.View.Passkeys.SetupModal
     , PasskeySetupMode (..)
     , renderPasskeySetupDialog
     , renderPasskeySetupPageDialog
+    , renderPasskeySetupPromptDialog
     ) where
 
 import Web.View.Prelude
@@ -30,13 +31,20 @@ data PasskeySetupMode
 
 renderPasskeySetupDialog :: (?context :: ControllerContext) => PasskeySetupMode -> Text -> Html
 renderPasskeySetupDialog mode successRedirect =
-    renderDialogOverlay DialogOverlayConfig
-        { dialogOverlayTitle = passkeySetupTitle mode
-        , dialogOverlayBody = renderPasskeySetupBody mode successRedirect
-        , dialogOverlayStartButtons = []
-        , dialogOverlayButtons = []
-        , dialogOverlayDialogClass = ""
-        }
+    renderDialogOverlay (passkeySetupDialogConfig mode successRedirect)
+
+renderPasskeySetupPromptDialog :: (?context :: ControllerContext) => PasskeySetupMode -> Text -> Html
+renderPasskeySetupPromptDialog mode successRedirect =
+    renderPasskeyPromptDialogOverlay (passkeySetupDialogConfig mode successRedirect)
+
+passkeySetupDialogConfig :: (?context :: ControllerContext) => PasskeySetupMode -> Text -> DialogOverlayConfig
+passkeySetupDialogConfig mode successRedirect = DialogOverlayConfig
+    { dialogOverlayTitle = passkeySetupTitle mode
+    , dialogOverlayBody = renderPasskeySetupBody mode successRedirect
+    , dialogOverlayStartButtons = []
+    , dialogOverlayButtons = []
+    , dialogOverlayDialogClass = ""
+    }
 
 renderPasskeySetupPageDialog :: (?context :: ControllerContext) => Text -> PasskeySetupMode -> Text -> Html
 renderPasskeySetupPageDialog closeUrl mode successRedirect =
@@ -49,22 +57,17 @@ renderPasskeySetupPageDialog closeUrl mode successRedirect =
         }
 
 renderPasskeySetupBody :: (?context :: ControllerContext) => PasskeySetupMode -> Text -> Html
-renderPasskeySetupBody mode successRedirect = [hsx|
-    <p class="app-muted">{passkeySetupBodyText mode}</p>
-    <div class="js-passkey-register"
-         data-begin-url={pathTo BeginPasskeyRegistrationAction}
-         data-finish-url={pathTo FinishPasskeyRegistrationAction}
-         data-status-id="passkey-setup-modal-status"
-         data-success-redirect={successRedirect}>
-        <div class="mb-3">
-            <label class="form-label" for="passkey-setup-modal-name">Passkey name</label>
-            <input id="passkey-setup-modal-name" type="text" class="form-control js-passkey-name" maxlength="120" placeholder="This device" autocomplete="off"/>
-            <div class="form-text app-muted">Use a name you will recognize later, such as this device or security key.</div>
-        </div>
-        <button type="button" class="btn btn-primary js-passkey-register-button">Create passkey</button>
-    </div>
-    <div id="passkey-setup-modal-status" class="alert d-none mt-3 mb-0"></div>
-|]
+renderPasskeySetupBody mode successRedirect =
+    let registrationControl = PasskeyRegistrationControl
+            { passkeyRegistrationControlKind = PasskeyDialogRegistrationControl
+            , passkeyRegistrationBeginUrl = pathTo BeginPasskeyRegistrationAction
+            , passkeyRegistrationFinishUrl = pathTo FinishPasskeyRegistrationAction
+            , passkeyRegistrationSuccessRedirect = Just successRedirect
+            }
+     in [hsx|
+        <p class="app-muted">{passkeySetupBodyText mode}</p>
+        {renderPasskeyRegistrationControl registrationControl}
+    |]
 
 passkeySetupTitle :: PasskeySetupMode -> Text
 passkeySetupTitle OptionalFirstPasskey     = "Set up faster sign-in"

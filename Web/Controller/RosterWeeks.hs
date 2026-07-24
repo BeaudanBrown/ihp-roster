@@ -11,15 +11,17 @@ import Application.Helper.FrontendContract.AppShell (ConfirmRemoveRosterRowOverl
                                                      DeleteRosterSlotOverlay)
 import Application.Helper.FrontendContract.AppShell.Runtime (AppShellActionRoute (..),
                                                              appShellActionByMarker,
-                                                             appShellDialogAutoSubmitOnceAttr,
                                                              renderAppShellActionForm)
+import Application.Helper.FrontendContract.Overlay.Runtime (dialogAutoSubmitOnceAttr)
+import Application.Helper.FrontendContract.Passkey.Runtime (PasskeySetupPromptMode,
+                                                            passkeySetupPromptModeFromValue)
 import qualified Application.Helper.FrontendContract.Surface.Interaction as SurfaceInteraction
 import Application.Helper.FrontendContract.Surface.Request (SurfaceRequestFieldError,
-                                                            parseSurfaceActionParams,
-                                                            parseSurfaceIntentParams,
                                                             surfaceActionParamsPresent,
                                                             surfaceRequestFieldErrorsMessage)
 import qualified Application.Helper.FrontendContract.Surface.Roster as Surface
+import qualified Application.Helper.FrontendContract.Surface.Roster.Action as RosterAction
+import qualified Application.Helper.FrontendContract.Surface.Roster.Intent as RosterIntent
 import Application.Helper.FrontendContract.Surface.Values
 import Application.Helper.Profiling
 import Application.Helper.RosterGroups
@@ -71,13 +73,11 @@ import Web.RosterWeeks.Responses (respondWithRosterContent,
 import Web.RosterWeeks.Rows
 import Web.RosterWeeks.Service
 import Web.RosterWeeks.StaffOptions (buildRosterStaffOptionStates)
-import Web.RosterWeeks.StaffSelfServiceLeaveFragments (buildDefaultRosterStaffSelfServiceLeaveRequest)
 import Web.RosterWeeks.Types
 import Web.View.RosterWeeks.Overview (renderWeekOverviewPanelFragment)
 import Web.View.RosterWeeks.ShiftDialog
 import Web.View.RosterWeeks.Show (renderRosterWeekShell)
 import Web.View.RosterWeeks.StaffPanel (renderrosterStaffPanelLiveFragment)
-import Web.View.RosterWeeks.StaffSelfServicePanel (renderRosterStaffSelfServiceLeaveFormFragmentForRoster)
 import Web.View.RosterWeeks.Timeline (renderRosterDayTimelineContent)
 
 rosterSurfaceRequestErrorMessage :: [SurfaceRequestFieldError] -> Text
@@ -88,13 +88,22 @@ parseRosterStaffPanelScope :: (?request :: Request) => Either Text RosterStaffPa
 parseRosterStaffPanelScope
     | not (surfaceActionParamsPresent @Surface.RosterSurface @Surface.ToggleRosterStaffScope) = Right RosterStaffPanelCurrentGroup
     | otherwise =
-        case parseSurfaceActionParams @Surface.RosterSurface @Surface.ToggleRosterStaffScope of
+        case RosterAction.parseToggleRosterStaffScopeActionParams of
             Left errors -> Left (rosterSurfaceRequestErrorMessage errors)
             Right fields ->
                 case Text.toLower (surfaceFieldValue @Surface.StaffScope fields) of
                     "all"   -> Right RosterStaffPanelAllVenue
                     "group" -> Right RosterStaffPanelCurrentGroup
                     _       -> Left "Choose a valid roster staff scope."
+
+rosterDayMutationMountedProjections :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => RosterDay -> IO [RosterProjectionFragment]
+rosterDayMutationMountedProjections rosterDay = do
+    layoutMode <- fetchCurrentRosterLayoutMode
+    pure $
+        rosterGridInnerAndStaffPanelFragments
+            <> case rosterLayoutModeValue layoutMode of
+                "day_columns" -> []
+                _ -> [rosterDaySectionFragment (unpackId rosterDay.id)]
 
 instance Controller RosterWeeksController where
     beforeAction = bepisBeforeAction BepisAuthenticatedVenueController do
@@ -128,7 +137,7 @@ instance Controller RosterWeeksController where
     action currentAction@ShowRosterWeekAction { weekOffset } = runBepis currentAction BepisPageAction do
         rosterGroup <- resolveRequestedRosterGroup
         when (surfaceActionParamsPresent @Surface.RosterSurface @Surface.NavigateRosterWeek) do
-            case parseSurfaceActionParams @Surface.RosterSurface @Surface.NavigateRosterWeek of
+            case RosterAction.parseNavigateRosterWeekActionParams of
                 Left errors -> do
                     setErrorMessage (rosterSurfaceRequestErrorMessage errors)
                     redirectTo RosterWeeksAction
@@ -222,11 +231,6 @@ instance Controller RosterWeeksController where
         panelModel <- fetchVisibleRosterStaffPanelRenderModel panelScope rosterGroup.id weekOffset
         respondHtmlProfiled (renderrosterStaffPanelLiveFragment panelModel)
 
-    action currentAction@ShowRosterStaffSelfServiceLeaveFormFragmentAction { weekOffset } = runBepis currentAction BepisFragmentAction do
-        rosterGroup <- resolveRequestedRosterGroup
-        leaveRequest <- buildDefaultRosterStaffSelfServiceLeaveRequest
-        respondHtmlProfiled (renderRosterStaffSelfServiceLeaveFormFragmentForRoster rosterGroup.id weekOffset leaveRequest)
-
     action currentAction@ShowRosterWeekDaySectionFragmentAction { weekOffset, rosterDayId } = runBepis currentAction BepisFragmentAction do
         rosterGroupId <- resolveRosterGroupIdForFragmentRosterDay weekOffset rosterDayId
         daySectionHtml <- renderVisibleRosterReadModelFragment rosterGroupId weekOffset (RosterProjectionDaySection (unpackId rosterDayId))
@@ -240,7 +244,7 @@ instance Controller RosterWeeksController where
     action currentAction@UpdateRosterAssignmentFiltersAction { weekOffset } = runBepis currentAction BepisPreferenceAction do
         ensureManagerRole
         rosterGroup <- resolveRequestedRosterGroup
-        case parseSurfaceActionParams @Surface.RosterSurface @Surface.ToggleRosterAssignmentFilters of
+        case RosterAction.parseToggleRosterAssignmentFiltersActionParams of
             Left errors -> do
                 let errorMessage = rosterSurfaceRequestErrorMessage errors
                 if isHtmxRequest
@@ -321,7 +325,7 @@ instance Controller RosterWeeksController where
         rosterWeek <- fetch rosterWeekId
         ensureRecordInCurrentVenue rosterWeek.venueId
         let rosterGroupId = coerce rosterWeek.rosterGroupId
-        case parseSurfaceActionParams @Surface.RosterSurface @Surface.ToggleRosterWeekLiveStatus of
+        case RosterAction.parseToggleRosterWeekLiveStatusActionParams of
             Left errors -> do
                 let errorMessage = rosterSurfaceRequestErrorMessage errors
                 if isHtmxRequest
@@ -436,12 +440,13 @@ instance Controller RosterWeeksController where
         let targetPath = rosterWeekUrl rosterWeek.weekOffset rosterGroupId
         if isHtmxRequest
             then do
+                mountedProjections <- rosterDayMutationMountedProjections rosterDay
                 setHtmxPushUrl targetPath
                 respondWithRosterResourceInvalidation
                     rosterGroupId
                     rosterWeek.weekOffset
                     mutationResult.liveMutationTouchedResources
-                    rosterGridInnerAndStaffPanelFragments
+                    mountedProjections
                     clearDialogOverlayOob
             else do
                 setSuccessMessage successMessage
@@ -481,12 +486,13 @@ instance Controller RosterWeeksController where
                 mutationResult <- addRosterDayRowMutation rosterGroupId rosterWeek rosterDay
 
                 if isHtmxRequest
-                    then
+                    then do
+                        mountedProjections <- rosterDayMutationMountedProjections rosterDay
                         respondWithRosterResourceInvalidation
                             rosterGroupId
                             rosterWeek.weekOffset
                             mutationResult.liveMutationTouchedResources
-                            rosterGridInnerAndStaffPanelFragments
+                            mountedProjections
                             clearDialogOverlayOob
                     else do
                         setSuccessMessage "Roster row added."
@@ -532,12 +538,13 @@ instance Controller RosterWeeksController where
                 mutationResult <- removeRosterDayRowMutation rosterGroupId rosterWeek rosterDay activeDefinitions
 
                 if isHtmxRequest
-                    then
+                    then do
+                        mountedProjections <- rosterDayMutationMountedProjections rosterDay
                         respondWithRosterResourceInvalidation
                             rosterGroupId
                             rosterWeek.weekOffset
                             mutationResult.liveMutationTouchedResources
-                            rosterGridInnerAndStaffPanelFragments
+                            mountedProjections
                             clearDialogOverlayOob
                     else do
                         setSuccessMessage "Roster row removed."
@@ -546,7 +553,7 @@ instance Controller RosterWeeksController where
     action currentAction@UpdateRosterLayoutPreferenceAction { weekOffset } = runBepis currentAction BepisPreferenceAction do
         rosterGroup <- resolveRequestedRosterGroup
         let requestedLayoutMode =
-                case parseSurfaceIntentParams @Surface.RosterSurface @Surface.SetRosterLayoutMode of
+                case RosterIntent.parseSetRosterLayoutModeIntentParams of
                     Left errors -> Left (rosterSurfaceRequestErrorMessage errors)
                     Right fields ->
                         maybe
@@ -573,7 +580,7 @@ instance Controller RosterWeeksController where
         ensureManagerRole
         ensureVenueWritable
         rosterGroup <- resolveRequestedRosterGroup
-        case parseSurfaceIntentParams @Surface.RosterSurface @Surface.MoveRosterShiftToSlot of
+        case RosterIntent.parseMoveRosterShiftToSlotIntentParams of
             Left errors -> respondWithMoveRosterShiftFailure rosterGroup.id weekOffset (rosterSurfaceRequestErrorMessage errors)
             Right fields -> do
                 let sourceToken = surfaceFieldValue @SurfaceInteraction.SourceItemKey fields
@@ -605,7 +612,7 @@ instance Controller RosterWeeksController where
         ensureManagerRole
         ensureVenueWritable
         rosterGroup <- resolveRequestedRosterGroup
-        case parseSurfaceIntentParams @Surface.RosterDayTimelineSurface @Surface.MoveRosterTimelineShift of
+        case RosterIntent.parseMoveRosterTimelineShiftIntentParams of
             Left errors -> respondWithMoveRosterShiftFailure rosterGroup.id weekOffset (rosterSurfaceRequestErrorMessage errors)
             Right fields -> do
                 let sourceToken = surfaceFieldValue @SurfaceInteraction.SourceItemKey fields
@@ -632,7 +639,7 @@ instance Controller RosterWeeksController where
         ensureManagerRole
         ensureVenueWritable
         rosterGroup <- resolveRequestedRosterGroup
-        case parseSurfaceIntentParams @Surface.RosterSurface @Surface.DuplicateRosterShiftToDay of
+        case RosterIntent.parseDuplicateRosterShiftToDayIntentParams of
             Left errors -> respondWithMoveRosterShiftFailure rosterGroup.id weekOffset (rosterSurfaceRequestErrorMessage errors)
             Right fields -> do
                 let sourceToken = surfaceFieldValue @SurfaceInteraction.SourceItemKey fields
@@ -666,7 +673,7 @@ instance Controller RosterWeeksController where
         ensureManagerRole
         ensureVenueWritable
         rosterGroup <- resolveRequestedRosterGroup
-        case parseSurfaceIntentParams @Surface.RosterSurface @Surface.DropRosterStaff of
+        case RosterIntent.parseDropRosterStaffIntentParams of
             Left errors -> respondWithMoveRosterShiftFailure rosterGroup.id weekOffset (rosterSurfaceRequestErrorMessage errors)
             Right fields -> do
                 let sourceToken = surfaceFieldValue @SurfaceInteraction.SourceItemKey fields
@@ -687,7 +694,7 @@ instance Controller RosterWeeksController where
         runBepis currentAction BepisMutationAction do
             ensureManagerRole
             rosterGroup <- resolveRequestedRosterGroup
-            case parseSurfaceActionParams @Surface.RosterSurface @Surface.ToggleRosterWarnings of
+            case RosterAction.parseToggleRosterWarningsActionParams of
                 Left errors -> do
                     let errorMessage = rosterSurfaceRequestErrorMessage errors
                     if isHtmxRequest
@@ -704,7 +711,7 @@ instance Controller RosterWeeksController where
     action currentAction@UpdateRosterWageEstimatePreferenceAction { weekOffset } = runBepis currentAction BepisPreferenceAction do
         accessDeniedUnless (hasRole VenueAdminRole)
         rosterGroup <- resolveRequestedRosterGroup
-        case parseSurfaceActionParams @Surface.RosterSurface @Surface.ToggleRosterWageEstimates of
+        case RosterAction.parseToggleRosterWageEstimatesActionParams of
             Left errors -> do
                 let errorMessage = rosterSurfaceRequestErrorMessage errors
                 if isHtmxRequest
@@ -1428,7 +1435,7 @@ respondWithDeleteRosterSlotDropConfirmation rosterSlot =
                 (rosterDeleteSlotActionRoute (pathTo (DeleteRosterSlotAction rosterSlot.id)))
                     { appShellActionRouteExtraAttrs =
                         [ ("class", "d-none")
-                        , appShellDialogAutoSubmitOnceAttr
+                        , dialogAutoSubmitOnceAttr
                         ]
                     }
                 mempty}
@@ -1539,6 +1546,7 @@ renderRosterWeekPage weekOffset requestedRosterGroupId =
         _ <- profileActionSpan "roster.page.ensure_week_exists" (ensureRosterWeekExists currentRosterGroup.id weekOffset)
         rosterDataOrNothing <- profileActionSpan "roster.page.fetch_read_model" (fetchVisibleRosterReadModel currentRosterGroup.id weekOffset)
         passkeySetupPrompt <- profileActionSpan "roster.page.passkey_prompt" passkeySetupPromptFromSession
+        passkeyStrongAuthenticationRequired <- profileActionSpan "roster.page.passkey_policy" currentUserRequiresMandatoryPasskey
         timelineTodayUrl <- profileActionSpan "roster.page.timeline_today_url" (buildRosterTimelineTodayUrl currentRosterGroup.id)
 
         case rosterDataOrNothing of
@@ -1576,6 +1584,7 @@ renderRosterWeekPage weekOffset requestedRosterGroupId =
                                 , showRosterWarnings
                                 , publicHolidays = rosterPublicHolidays
                                 , passkeySetupPrompt
+                                , passkeyStrongAuthenticationRequired
                                 , rosterGridViewMode = currentRosterGridViewMode
                                 , rosterTimelineTodayUrl = Just timelineTodayUrl
                                 }
@@ -1591,12 +1600,7 @@ respondWithRosterWeekView showView =
 
 passkeySetupPromptFromSession :: (?request :: Request) => IO (Maybe PasskeySetupPromptMode)
 passkeySetupPromptFromSession =
-    fmap promptModeFromText (getSessionAndClear @Text passkeySetupPromptSessionKey)
-  where
-    promptModeFromText = \case
-        Just "first-passkey"     -> Just FirstPasskeyPrompt
-        Just "additional-device" -> Just AdditionalDevicePasskeyPrompt
-        _                        -> Nothing
+    fmap (>>= passkeySetupPromptModeFromValue) (getSessionAndClear @Text passkeySetupPromptSessionKey)
 
 renderRosterWeekOverviewFragment :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Int -> Id RosterGroup -> IO Blaze.Html
 renderRosterWeekOverviewFragment weekOffset rosterGroupId = do
@@ -1639,7 +1643,7 @@ respondToRosterSlotDefinitionSuccess rosterWeek mutationResult successMessage =
                 rosterGroupId
                 rosterWeek.weekOffset
                 mutationResult.liveMutationTouchedResources
-                rosterGridFrameAndStaffPanelFragments
+                rosterGridInnerAndStaffPanelFragments
                 mempty
         else do
             setSuccessMessage successMessage

@@ -4,8 +4,17 @@
   var pageReadyEvent = "bepis:page-ready";
 
   // frontend/ts/shared/dom.ts
+  function isElement(value) {
+    return typeof Element !== "undefined" && value instanceof Element;
+  }
   function isDocument(value) {
     return typeof Document !== "undefined" && value instanceof Document;
+  }
+  function isDocumentFragment(value) {
+    return typeof DocumentFragment !== "undefined" && value instanceof DocumentFragment;
+  }
+  function isDomRoot(value) {
+    return isElement(value) || isDocument(value) || isDocumentFragment(value);
   }
   function isHTMLElement(value) {
     return typeof HTMLElement !== "undefined" && value instanceof HTMLElement;
@@ -19,6 +28,15 @@
   }
   function detailTarget(event, key) {
     return eventDetailRecord(event)?.[key];
+  }
+  function isConnectedRoot(root) {
+    return root instanceof Document || root.isConnected;
+  }
+  function detailRoot(event, key, fallback = document) {
+    const detailCandidate = detailTarget(event, key);
+    if (isDomRoot(detailCandidate) && isConnectedRoot(detailCandidate)) return detailCandidate;
+    if (isDomRoot(event.target) && isConnectedRoot(event.target)) return event.target;
+    return fallback;
   }
 
   // frontend/ts/app-bootstrap.ts
@@ -70,14 +88,14 @@
     document.addEventListener("htmx:afterSwap", function(event) {
       dispatchPageReady({
         source: "htmx-after-swap",
-        target: detailTarget(event, "target"),
+        target: detailRoot(event, "target"),
         isFullPage: false
       });
     });
     document.addEventListener("htmx:oobAfterSwap", function(event) {
       dispatchPageReady({
         source: "htmx-oob-after-swap",
-        target: detailTarget(event, "target"),
+        target: detailRoot(event, "target"),
         isFullPage: false
       });
     });

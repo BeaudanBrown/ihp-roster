@@ -1,4 +1,11 @@
 import { test, expect } from '@playwright/test';
+import {
+    rosterColumnEditDoneDomAttr,
+    rosterColumnEditingDomAttr,
+    rosterColumnEditingStates,
+    rosterColumnEditorDomAttr,
+    rosterColumnEditStartDomAttr,
+} from '../frontend/ts/generated/contracts';
 import { E2E_TIMEOUT } from './timeouts';
 import { openRoster, webauthnBaseURL } from './test-helpers';
 
@@ -16,8 +23,11 @@ test.describe('Roster week columns', () => {
         await expect(editorPage.locator('#roster-content')).toBeVisible({ timeout: E2E_TIMEOUT.navigation });
         await expect(viewerPage.locator('#roster-content')).toBeVisible({ timeout: E2E_TIMEOUT.navigation });
 
+        const editorFrame = editorPage.locator(`[${rosterColumnEditorDomAttr}="true"]`);
         const editorGrid = editorPage.locator('.roster-grid');
         const viewerGrid = viewerPage.locator('.roster-grid');
+        const editStart = editorFrame.locator(`[${rosterColumnEditStartDomAttr}="true"]`);
+        const editDone = editorFrame.locator(`[${rosterColumnEditDoneDomAttr}="true"]`);
         const initialEditorLaunchers = await editorGrid.locator('[data-roster-shift-launcher="true"]').count();
         const initialViewerLaunchers = await viewerGrid.locator('[data-roster-shift-launcher="true"]').count();
         const initialEditorColumnHeaders = await editorGrid.locator('.roster-block-header').count();
@@ -27,8 +37,13 @@ test.describe('Roster week columns', () => {
         await expect(editorPage.getByRole('button', { name: 'Add roster column' })).not.toBeVisible();
         await expect(editorGrid.locator('.roster-grid-header-row-subheads')).toBeVisible();
         await expect(editorGrid.locator('.roster-grid-header-row-blocks')).toBeHidden();
-        await editorPage.getByRole('button', { name: 'Edit roster columns' }).click();
-        await expect(editorPage.getByRole('button', { name: 'Finish editing roster columns' })).toBeVisible();
+        await expect(editorFrame).toHaveAttribute(rosterColumnEditingDomAttr, rosterColumnEditingStates.inactive);
+        await expect(editStart).toHaveAttribute('aria-label', 'Edit roster columns');
+        await editStart.click();
+        await expect(editorFrame).toHaveAttribute(rosterColumnEditingDomAttr, rosterColumnEditingStates.active);
+        await expect(editStart).toHaveAttribute('aria-pressed', 'true');
+        await expect(editDone).toBeVisible();
+        await expect(editDone).toHaveAttribute('aria-label', 'Finish editing roster columns');
         await expect(editorGrid.locator('.roster-grid-header-row-subheads')).toBeHidden();
         await expect(editorGrid.locator('.roster-grid-header-row-blocks')).toBeVisible();
 
@@ -46,6 +61,8 @@ test.describe('Roster week columns', () => {
         await expect.poll(() => viewerGrid.locator('.roster-block-header').count(), { timeout: E2E_TIMEOUT.liveUpdate }).toBeGreaterThan(initialViewerColumnHeaders);
         await expect.poll(() => editorGrid.locator('[data-roster-shift-launcher="true"]').count()).toBeGreaterThan(initialEditorLaunchers);
         await expect.poll(() => viewerGrid.locator('[data-roster-shift-launcher="true"]').count(), { timeout: E2E_TIMEOUT.liveUpdate }).toBeGreaterThan(initialViewerLaunchers);
+        await expect(editorFrame).toHaveAttribute(rosterColumnEditingDomAttr, rosterColumnEditingStates.active);
+        await expect(editDone).toBeVisible();
 
         const deleteResponsePromise = editorPage.waitForResponse((response) => {
             return response.request().method() === 'DELETE' && response.url().includes('/DeleteRosterWeekSlotDefinition');
@@ -62,7 +79,10 @@ test.describe('Roster week columns', () => {
         await viewerPage.reload();
         await expect(viewerPage.locator('#roster-content')).toBeVisible({ timeout: E2E_TIMEOUT.navigation });
         await expect.poll(() => viewerGrid.locator('.roster-block-header').count(), { timeout: E2E_TIMEOUT.liveUpdate }).toBe(initialViewerColumnHeaders);
-        await editorPage.getByRole('button', { name: 'Finish editing roster columns' }).click();
+        await expect(editorFrame).toHaveAttribute(rosterColumnEditingDomAttr, rosterColumnEditingStates.active);
+        await editDone.click();
+        await expect(editorFrame).toHaveAttribute(rosterColumnEditingDomAttr, rosterColumnEditingStates.inactive);
+        await expect(editStart).toHaveAttribute('aria-pressed', 'false');
         await expect(editorPage.getByRole('button', { name: 'Add roster column' })).not.toBeVisible();
 
         await editorContext.close();

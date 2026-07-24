@@ -31,6 +31,11 @@ bash ./bin/in-env regen-types
 bash ./bin/in-env typecheck
 ```
 
+During development, IHP's `RunDevServer` is the sole live owner of schema-derived
+`build/Generated/` regeneration. Do not add a competing project schema watcher;
+the cache-aware frontend generation watcher owns only Haskell Surface adapters
+and TypeScript contracts.
+
 Bepis is live and production data must be preserved. Pair every schema-affecting
 change with a migration path in `Application/Migration/`; see
 `Application/Migration/README.md`. `Application/Schema.sql` is the canonical full

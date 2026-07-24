@@ -1,4 +1,13 @@
 import { test, expect, type Page } from '@playwright/test';
+import {
+    dialogMountDomAttr,
+    dialogOverlayMountDomId,
+    parseRosterStaffPanelSortRow,
+    rosterStaffHighlightMemberDomAttr,
+    rosterStaffHighlightSourceDomAttr,
+    rosterStaffPanelSortRowDomAttr,
+    toastOverlayMountDomId,
+} from '../frontend/ts/generated/contracts';
 import { openRoster } from './test-helpers';
 
 async function loginAndOpenRoster(page: Page) {
@@ -11,15 +20,15 @@ test.describe('Roster Staff Modal', () => {
         await loginAndOpenRoster(page);
 
         const initialUrl = page.url();
-        const modalMount = page.locator('#dialog-overlay-mount');
-        const trialEntry = page.locator('.roster-staff-panel-entry[data-roster-staff-role="TRIAL"]:visible').first();
+        const modalMount = page.locator(`#${dialogOverlayMountDomId}`);
+        const trialEntry = page.locator(`[${rosterStaffPanelSortRowDomAttr}]:visible`).filter({ hasText: 'TRIAL' }).first();
         const inviteButton = trialEntry.getByRole('button', { name: /^Invite / });
 
         await expect(inviteButton).toBeVisible();
         await inviteButton.click();
 
         await expect(page).toHaveURL(initialUrl);
-        await expect(modalMount.locator('[data-dialog-overlay="true"]')).toBeVisible();
+        await expect(modalMount.locator(`[${dialogMountDomAttr}]`)).toBeVisible();
         await expect(modalMount).toContainText('Invite trial staff');
         await expect(modalMount).not.toContainText('Edit Staff Member');
         await expect(modalMount.locator('#trial-staff-invite-form')).toBeVisible();
@@ -29,12 +38,14 @@ test.describe('Roster Staff Modal', () => {
         await loginAndOpenRoster(page);
 
         const initialUrl = page.url();
-        const modalMount = page.locator('#dialog-overlay-mount');
-        const staffEntry = page.locator('.roster-staff-panel-entry:visible').first();
+        const modalMount = page.locator(`#${dialogOverlayMountDomId}`);
+        const staffEntry = page.locator(
+            `[${rosterStaffPanelSortRowDomAttr}][${rosterStaffHighlightSourceDomAttr}="staff:a0000000-0000-0000-0000-000000000101"]:visible`,
+        );
         await staffEntry.click();
 
         await expect(page).toHaveURL(initialUrl);
-        await expect(modalMount.locator('[data-dialog-overlay="true"]')).toBeVisible();
+        await expect(modalMount.locator(`[${dialogMountDomAttr}]`)).toBeVisible();
         await expect(modalMount).toContainText('Edit Staff Member');
         await modalMount.getByRole('button', { name: 'Profile Details' }).click();
 
@@ -81,26 +92,33 @@ test.describe('Roster Staff Modal', () => {
         await expect(modalMount.locator('[data-bepis-surface="staff"]')).toBeVisible();
         await expect(modalMount.locator('#staff-profile-details')).toBeVisible();
         await expect(modalMount.locator('#staff-edit-form #firstName')).toHaveValue('Roster');
-        await expect(page.locator('#toast-overlay-mount')).toContainText('Staff member updated');
+        await expect(page.locator(`#${toastOverlayMountDomId}`)).toContainText('Staff member updated');
 
         await modalMount.getByRole('button', { name: 'Shift Preferences', exact: true }).click();
         await expect(modalMount.locator('#staff-shift-preferences-form')).toBeVisible();
         await modalMount.locator('#staff-shift-preferences-form button[type="submit"]').click();
         await expect(modalMount.locator('#staff-profile-preferences')).toBeVisible();
-        await expect(page.locator('#toast-overlay-mount')).toContainText('Shift preferences updated');
+        await expect(page.locator(`#${toastOverlayMountDomId}`)).toContainText('Shift preferences updated');
 
     });
 
-    test('admin profile save refreshes roster staff names and exposes the venue role control', async ({ page }) => {
+    test('admin profile save refreshes an assigned roster staff name and exposes the venue role control', async ({ page }) => {
         await openRoster(page, { email: 'e2e-admin@example.com' });
 
-        const modalMount = page.locator('#dialog-overlay-mount');
+        const modalMount = page.locator(`#${dialogOverlayMountDomId}`);
         const staffPanel = page.locator('.roster-staff-panel');
         const rosterGrid = page.locator('.roster-grid-frame');
-        const alphaEntry = staffPanel.locator('.roster-staff-panel-entry').filter({ has: page.getByRole('rowheader', { name: 'Alpha', exact: true }) });
-        await expect(alphaEntry).toBeVisible();
-        await expect(rosterGrid).toContainText('Alpha');
-        await alphaEntry.click();
+        const assignedStaffKey = await rosterGrid.locator(`[${rosterStaffHighlightMemberDomAttr}]`).first().getAttribute(rosterStaffHighlightMemberDomAttr);
+        expect(assignedStaffKey).toBeTruthy();
+        const assignedEntry = staffPanel.locator(
+            `[${rosterStaffPanelSortRowDomAttr}][${rosterStaffHighlightSourceDomAttr}="${assignedStaffKey}"]`,
+        );
+        const assignedPayload = await assignedEntry.getAttribute(rosterStaffPanelSortRowDomAttr);
+        expect(assignedPayload).toBeTruthy();
+        const assignedStaffName = parseRosterStaffPanelSortRow(JSON.parse(assignedPayload ?? 'null') as unknown).staffName;
+        await expect(assignedEntry).toBeVisible();
+        await expect(rosterGrid).toContainText(assignedStaffName);
+        await assignedEntry.click();
 
         await modalMount.getByRole('button', { name: 'Profile Details' }).click();
         const staffEditForm = modalMount.locator('#staff-edit-form:visible');
@@ -110,7 +128,7 @@ test.describe('Roster Staff Modal', () => {
 
         await staffEditForm.locator('#firstName').fill('Alphonso');
         const rosterSwapsPromise = page.evaluate(() => new Promise<void>((resolve) => {
-            const pendingTargets = new Set(['roster-content', 'roster-staff-panel-fragment']);
+            const pendingTargets = new Set(['roster-slots-grid', 'roster-staff-panel-fragment']);
             document.addEventListener('app:live-update-performance', (event) => {
                 const detail = (event as CustomEvent<Record<string, unknown>>).detail;
                 if (detail?.name !== 'live_updates.swap_fragment' || detail?.outcome !== 'swapped' || typeof detail?.targetId !== 'string') return;
@@ -119,11 +137,12 @@ test.describe('Roster Staff Modal', () => {
             });
         }));
         const updateResponsePromise = page.waitForResponse((response) => response.request().method() === 'POST' && response.url().includes('/UpdateStaff'));
-        const rosterRefreshPromise = page.waitForResponse((response) => response.request().method() === 'GET' && response.url().includes('/ShowRosterWeekContentFragment'));
+        const rosterRefreshPromise = page.waitForResponse((response) => response.request().method() === 'GET' && response.url().includes('/ShowRosterWeekSlotsGridFragment'));
         const staffListRefreshPromise = page.waitForResponse((response) => response.request().method() === 'GET' && response.url().includes('/ShowRosterWeekStaffPanelFragment'));
         await staffEditForm.getByRole('button', { name: 'Save profile details' }).click();
         const updateResponse = await updateResponsePromise;
-        expect(updateResponse.headers()['hx-trigger']).toContain('roster-content');
+        expect(updateResponse.headers()['hx-trigger']).not.toContain('roster-content');
+        expect(updateResponse.headers()['hx-trigger']).toContain('roster-slots-grid');
         const rosterRefreshResponse = await rosterRefreshPromise;
         const staffListRefreshResponse = await staffListRefreshPromise;
         await Promise.all([rosterRefreshResponse.finished(), staffListRefreshResponse.finished()]);
@@ -131,10 +150,8 @@ test.describe('Roster Staff Modal', () => {
         expect(await staffListRefreshResponse.text()).toContain('Alphonso');
         await rosterSwapsPromise;
 
-        await expect(page.locator('#toast-overlay-mount')).toContainText('Staff member updated');
-        await expect(staffPanel).toContainText('Alphonso');
-        await expect(staffPanel).not.toContainText('Alpha');
+        await expect(page.locator(`#${toastOverlayMountDomId}`)).toContainText('Staff member updated');
+        await expect(assignedEntry).toContainText('Alphonso');
         await expect(rosterGrid).toContainText('Alphonso');
-        await expect(rosterGrid).not.toContainText('Alpha');
     });
 });

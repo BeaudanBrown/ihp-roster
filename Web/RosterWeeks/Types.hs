@@ -18,13 +18,13 @@ module Web.RosterWeeks.Types
     ) where
 
 import Application.Helper.Conflict (RosterConflict)
+import Application.Helper.FrontendContract.Passkey.Runtime (PasskeySetupPromptMode)
 import Application.Helper.RosterWagePrediction (RosterWagePrediction)
 import Data.Map.Strict (Map)
 import Data.Time.Calendar (Day)
 import Data.UUID (UUID)
 import Generated.Types
 import IHP.Prelude
-import Web.Types (PasskeySetupPromptMode)
 
 data ShowView = ShowView
     { rosterWeek             :: Maybe RosterWeek
@@ -53,6 +53,7 @@ data ShowView = ShowView
     , publicHolidays         :: Map Day Text
     , shiftTypes             :: [ShiftType]
     , passkeySetupPrompt     :: Maybe PasskeySetupPromptMode
+    , passkeyStrongAuthenticationRequired :: Bool
     , rosterGridViewMode     :: RosterGridViewMode
     , rosterTimelineTodayUrl :: Maybe Text
     }
@@ -103,6 +104,7 @@ data RosterStaffPanelEntry = RosterStaffPanelEntry
 data RosterStaffPanelRenderModel = RosterStaffPanelRenderModel
     { staffPanelRosterWeek         :: Maybe RosterWeek
     , staffPanelWeekOffset         :: Int
+    , staffPanelWeekStartDate      :: Day
     , staffPanelRosterGroups       :: [RosterGroup]
     , staffPanelCurrentRosterGroup :: RosterGroup
     , staffPanelAssignmentFilters  :: RosterAssignmentFilters
@@ -245,7 +247,6 @@ data RosterProjectionFragment
     | RosterProjectionWageRail
     | RosterProjectionSlotsGrid
     | RosterProjectionStaffPanel
-    | RosterProjectionStaffSelfServiceLeaveForm
     | RosterProjectionDaySection !UUID
     | RosterProjectionRow !UUID !Int
     deriving (Eq, Show)

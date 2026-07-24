@@ -10,4 +10,4 @@ import Application.Helper.FrontendContract.Surface.Values
 -- A resource marker is owned by the Surface declaration that references it.
 -- Timesheets cannot construct Roster's RosterWeek resource marker.
 wrongResourceMarker =
-    frontendSurfaceResource @Timesheets.TimesheetsSurface @Roster.RosterWeek NoSurfaceFields
+    frontendSurfaceResource @Timesheets.TimesheetsSurface @Roster.RosterWeek noSurfaceFields

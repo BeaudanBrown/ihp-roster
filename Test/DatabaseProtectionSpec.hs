@@ -11,7 +11,7 @@ import Test.Hspec
 import Test.Support
 
 tests :: Spec
-tests = beforeAll testContext do
+tests = aroundAll withDatabaseTestContext do
     describe "database schema retirement" do
         it "removes only the approved legacy tables and retains current export and Xero records" $ withContext do
             retiredTables :: [PG.Only (Maybe Text)] <-

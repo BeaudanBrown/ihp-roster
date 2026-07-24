@@ -1,10 +1,19 @@
-import { rosterContentDomToken } from "../generated/contracts";
-
-type RosterExportFormatConfig = {
-    mimeType: string;
-    extension: string;
-    quality: number;
-};
+import {
+    isRosterImageExportFormatState,
+    rosterImageExportCellDomAttr,
+    rosterImageExportConfigDomAttr,
+    rosterImageExportFormatDomAttr,
+    rosterImageExportFormatStates,
+    rosterImageExportProjectionDomAttr,
+    rosterImageExportRowDomAttr,
+    rosterImageExportTriggerDomAttr,
+    surfaceDomAttr,
+    type RosterImageExportConfig,
+} from "../generated/contracts";
+import {
+    parseRosterImageExportCellConfiguration,
+    parseRosterImageExportConfiguration,
+} from "./image-export-configuration";
 
 type RosterExportRenderSpec = {
     width: number;
@@ -12,12 +21,107 @@ type RosterExportRenderSpec = {
     svgMarkup: string;
 };
 
-const exportConfigs: Record<string, RosterExportFormatConfig | undefined> = {
-    jpg: { mimeType: "image/jpeg", extension: "jpg", quality: 0.92 },
+export type RosterImageExportDiagnosticCode =
+    | "invalid-trigger-role"
+    | "invalid-format"
+    | "invalid-config"
+    | "missing-surface"
+    | "invalid-projection-count"
+    | "invalid-projection-role"
+    | "invalid-row-role"
+    | "invalid-cell-config"
+    | "export-failed";
+
+export type RosterImageExportDiagnostic = {
+    code: RosterImageExportDiagnosticCode;
+    elementId: string | null;
+    message: string;
 };
-const exportPixelRatio = 2;
-const exportMinWidth = 920;
-const exportMaxWidth = 1240;
+
+export type RosterImageExportDiagnosticReporter = (
+    diagnostic: RosterImageExportDiagnostic,
+) => void;
+
+type ValidatedRosterImageExport = {
+    config: RosterImageExportConfig;
+    projection: HTMLElement;
+};
+
+const triggerSelector = `[${rosterImageExportTriggerDomAttr}]`;
+const projectionSelector = `[${rosterImageExportProjectionDomAttr}]`;
+const rowSelector = `[${rosterImageExportRowDomAttr}]`;
+const cellSelector = `[${rosterImageExportCellDomAttr}]`;
+const surfaceSelector = `[${surfaceDomAttr}]`;
+
+function defaultDiagnosticReporter(diagnostic: RosterImageExportDiagnostic): void {
+    console.error?.("Invalid generated roster image-export boundary", diagnostic);
+}
+
+function diagnostic(
+    element: Element,
+    code: RosterImageExportDiagnosticCode,
+    message: string,
+): RosterImageExportDiagnostic {
+    return { code, elementId: element.id || null, message };
+}
+
+function ownedElements<T extends Element>(surface: Element, selector: string): T[] {
+    return Array.from(surface.querySelectorAll<T>(selector))
+        .filter((element) => element.closest(surfaceSelector) === surface);
+}
+
+function readImageExport(
+    button: HTMLButtonElement,
+    report: RosterImageExportDiagnosticReporter,
+): ValidatedRosterImageExport | null {
+    if (button.getAttribute(rosterImageExportTriggerDomAttr) !== "true") {
+        report(diagnostic(button, "invalid-trigger-role", "Roster image-export trigger role must equal true"));
+        return null;
+    }
+
+    const format = button.getAttribute(rosterImageExportFormatDomAttr);
+    if (!isRosterImageExportFormatState(format) || format !== rosterImageExportFormatStates.jpg) {
+        report(diagnostic(button, "invalid-format", "Roster image-export format is not declared by the Surface contract"));
+        return null;
+    }
+
+    let config: RosterImageExportConfig;
+    try {
+        const rawConfig = button.getAttribute(rosterImageExportConfigDomAttr);
+        if (rawConfig === null) throw new Error(`Missing ${rosterImageExportConfigDomAttr}`);
+        config = parseRosterImageExportConfiguration(rawConfig);
+    } catch (error) {
+        report(diagnostic(
+            button,
+            "invalid-config",
+            error instanceof Error ? error.message : String(error),
+        ));
+        return null;
+    }
+
+    const surface = button.closest(surfaceSelector);
+    if (surface === null) {
+        report(diagnostic(button, "missing-surface", "Roster image-export trigger has no generated Surface owner"));
+        return null;
+    }
+
+    const projections = ownedElements<HTMLElement>(surface, projectionSelector);
+    if (projections.length !== 1) {
+        report(diagnostic(
+            surface,
+            "invalid-projection-count",
+            "Roster image-export Surface must contain exactly one generated projection",
+        ));
+        return null;
+    }
+    const projection = projections[0];
+    if (projection.getAttribute(rosterImageExportProjectionDomAttr) !== "true") {
+        report(diagnostic(projection, "invalid-projection-role", "Roster image-export projection role must equal true"));
+        return null;
+    }
+
+    return { config, projection };
+}
 
 function waitForNextPaint(): Promise<void> {
     return new Promise((resolve) => {
@@ -27,103 +131,56 @@ function waitForNextPaint(): Promise<void> {
     });
 }
 
-function sanitizeFilenamePart(value: string | null | undefined): string {
-    return (value || "")
-        .trim()
-        .toLowerCase()
-        .replace(/[^a-z0-9]+/g, "-")
-        .replace(/^-+|-+$/g, "")
-        .replace(/-{2,}/g, "-");
-}
-
-function textOrEmpty(value: string | null | undefined): string {
-    return (value || "").trim();
-}
-
-function replaceCellContents(cellEl: HTMLElement, value: string | null | undefined): void {
-    const displayValue = textOrEmpty(value);
-    cellEl.replaceChildren();
-    cellEl.dataset.rosterExportText = displayValue;
-
-    const valueEl = document.createElement("div");
-    valueEl.className = "slot-cell-export-value";
-    if (!displayValue) {
-        valueEl.classList.add("app-muted");
-        valueEl.innerHTML = "&nbsp;";
+function replaceCellContents(cell: HTMLElement, displayValue: string): void {
+    const value = displayValue.trim();
+    const valueElement = document.createElement("div");
+    valueElement.className = "slot-cell-export-value";
+    if (value.length === 0) {
+        valueElement.classList.add("app-muted");
+        valueElement.textContent = "\u00a0";
     } else {
-        valueEl.textContent = displayValue;
+        valueElement.textContent = value;
     }
 
-    cellEl.appendChild(valueEl);
-    cellEl.removeAttribute("title");
-    cellEl.removeAttribute("data-conflict-message");
+    cell.replaceChildren(valueElement);
+    cell.removeAttribute("title");
 }
 
-function normalizeDayLabelCell(cellEl: HTMLElement): void {
-    cellEl.querySelectorAll("form, button, input, select, textarea").forEach((element) => {
-        element.remove();
-    });
-    cellEl.querySelectorAll(".roster-day-actions, .roster-day-actions-placeholder").forEach((element) => {
-        element.remove();
-    });
+function normalizeExportProjection(
+    source: HTMLElement,
+    config: RosterImageExportConfig,
+    report: RosterImageExportDiagnosticReporter,
+): HTMLElement {
+    const cloned = source.cloneNode(true);
+    if (!(cloned instanceof HTMLElement)) {
+        throw new Error(config.imageExportCloneFailureMessage);
+    }
+    cloned.classList.add("roster-export-grid");
 
-    const lines = Array.from(cellEl.querySelectorAll(".roster-day-date, .roster-day-closed-label"))
-        .map((element) => textOrEmpty(element.textContent))
-        .filter(Boolean);
-    cellEl.dataset.rosterExportText = lines.join("\n");
-}
-
-function normalizeExportTable(tableEl: Node): HTMLElement {
-    if (!(tableEl instanceof HTMLElement)) {
-        throw new Error("Could not clone the current roster grid.");
+    for (const row of cloned.querySelectorAll<HTMLElement>(rowSelector)) {
+        if (row.getAttribute(rosterImageExportRowDomAttr) !== "true") {
+            report(diagnostic(row, "invalid-row-role", "Roster image-export row role must equal true"));
+            throw new Error(config.imageExportCloneFailureMessage);
+        }
     }
 
-    tableEl.classList.add("roster-export-grid");
-
-    const theadEl = tableEl.querySelector("thead");
-    if (theadEl) {
-        theadEl.remove();
+    for (const cell of cloned.querySelectorAll<HTMLElement>(cellSelector)) {
+        try {
+            const rawCell = cell.getAttribute(rosterImageExportCellDomAttr);
+            if (rawCell === null) throw new Error(`Missing ${rosterImageExportCellDomAttr}`);
+            const cellConfig = parseRosterImageExportCellConfiguration(rawCell);
+            replaceCellContents(cell, cellConfig.imageExportText);
+        } catch (error) {
+            report(diagnostic(
+                cell,
+                "invalid-cell-config",
+                error instanceof Error ? error.message : String(error),
+            ));
+            throw new Error(config.imageExportCloneFailureMessage);
+        }
     }
 
-    tableEl.querySelectorAll(".day-row").forEach((rowEl) => {
-        if (!(rowEl instanceof HTMLElement)) return;
-
-        Array.from(rowEl.querySelectorAll('[role="gridcell"], td')).forEach((cellEl, cellIndex) => {
-            if (!(cellEl instanceof HTMLElement)) return;
-
-            if (cellIndex === 0 && cellEl.classList.contains("day-label")) {
-                normalizeDayLabelCell(cellEl);
-                return;
-            }
-
-            if (cellEl.classList.contains("slot-empty-cell") || cellEl.classList.contains("slot-closed-cell")) {
-                replaceCellContents(cellEl, "");
-                return;
-            }
-
-            if (cellEl.classList.contains("slot-time-cell")) {
-                const staticValue = cellEl.querySelector(".slot-cell-static");
-                replaceCellContents(cellEl, textOrEmpty(staticValue && staticValue.textContent));
-                return;
-            }
-
-            if (cellEl.classList.contains("slot-staff-cell")) {
-                const staticValue = cellEl.querySelector(".slot-cell-static");
-                replaceCellContents(cellEl, textOrEmpty(staticValue && staticValue.textContent));
-                return;
-            }
-
-            if (cellEl.classList.contains("slot-shift-type-cell")) {
-                const staticValue = cellEl.querySelector(".slot-cell-static");
-                replaceCellContents(cellEl, textOrEmpty(staticValue && staticValue.textContent));
-                return;
-            }
-
-            replaceCellContents(cellEl, cellEl.textContent || "");
-        });
-    });
-
-    return tableEl;
+    return cloned;
 }
 
 function escapeXml(value: unknown): string {
@@ -146,15 +203,15 @@ function isTransparentColor(colorValue: string | null | undefined): boolean {
     return normalizedValue === "transparent" || normalizedValue === "rgba(0, 0, 0, 0)";
 }
 
-function buildCellTextSvg(cellEl: HTMLElement, x: number, y: number, width: number, height: number): string {
-    const lines = (cellEl.dataset.rosterExportText || cellEl.textContent || "")
+function buildCellTextSvg(cell: HTMLElement, x: number, y: number, width: number, height: number): string {
+    const lines = (cell.textContent || "")
         .split("\n")
         .map((line) => line.trim())
         .filter(Boolean);
 
     if (lines.length === 0) return "";
 
-    const computedStyle = window.getComputedStyle(cellEl);
+    const computedStyle = window.getComputedStyle(cell);
     const fontSize = parsePixelValue(computedStyle.fontSize, 12);
     const fontWeight = computedStyle.fontWeight || "400";
     const fontFamily = escapeXml(computedStyle.fontFamily || "sans-serif");
@@ -181,12 +238,12 @@ function buildCellTextSvg(cellEl: HTMLElement, x: number, y: number, width: numb
     return `<text font-family="${fontFamily}" font-size="${fontSize}" font-weight="${fontWeight}" fill="${escapeXml(textColor)}" text-anchor="${textAnchor}">${tspans}</text>`;
 }
 
-function buildTableSvgMarkup(surfaceEl: HTMLElement, tableEl: HTMLElement): RosterExportRenderSpec {
-    const surfaceRect = surfaceEl.getBoundingClientRect();
-    const tableRect = tableEl.getBoundingClientRect();
+function buildProjectionSvgMarkup(surface: HTMLElement, projection: HTMLElement): RosterExportRenderSpec {
+    const surfaceRect = surface.getBoundingClientRect();
+    const projectionRect = projection.getBoundingClientRect();
     const width = Math.ceil(surfaceRect.width);
     const height = Math.ceil(surfaceRect.height);
-    const tableLeft = tableRect.left - surfaceRect.left;
+    const projectionLeft = projectionRect.left - surfaceRect.left;
 
     const parts = [
         `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">`,
@@ -199,25 +256,21 @@ function buildTableSvgMarkup(surfaceEl: HTMLElement, tableEl: HTMLElement): Rost
         `<rect x="0" y="0" width="${width}" height="${height}" fill="url(#rosterExportBg)" />`,
     ];
 
-    tableEl.querySelectorAll(".day-row, tbody tr").forEach((rowEl) => {
-        if (!(rowEl instanceof HTMLElement)) return;
-
-        const rowRect = rowEl.getBoundingClientRect();
-        const rowStyle = window.getComputedStyle(rowEl);
+    projection.querySelectorAll<HTMLElement>(rowSelector).forEach((row) => {
+        const rowRect = row.getBoundingClientRect();
+        const rowStyle = window.getComputedStyle(row);
         const rowFill = rowStyle.backgroundColor;
         if (!isTransparentColor(rowFill)) {
             const rowY = rowRect.top - surfaceRect.top;
             parts.push(
-                `<rect x="${tableLeft}" y="${rowY}" width="${tableRect.width}" height="${rowRect.height}" fill="${escapeXml(rowFill)}" />`,
+                `<rect x="${projectionLeft}" y="${rowY}" width="${projectionRect.width}" height="${rowRect.height}" fill="${escapeXml(rowFill)}" />`,
             );
         }
     });
 
-    tableEl.querySelectorAll('[role="gridcell"], tbody td').forEach((cellEl) => {
-        if (!(cellEl instanceof HTMLElement)) return;
-
-        const cellRect = cellEl.getBoundingClientRect();
-        const cellStyle = window.getComputedStyle(cellEl);
+    projection.querySelectorAll<HTMLElement>(cellSelector).forEach((cell) => {
+        const cellRect = cell.getBoundingClientRect();
+        const cellStyle = window.getComputedStyle(cell);
         const x = cellRect.left - surfaceRect.left;
         const y = cellRect.top - surfaceRect.top;
         const fill = isTransparentColor(cellStyle.backgroundColor) ? "none" : escapeXml(cellStyle.backgroundColor);
@@ -227,159 +280,144 @@ function buildTableSvgMarkup(surfaceEl: HTMLElement, tableEl: HTMLElement): Rost
         parts.push(
             `<rect x="${x}" y="${y}" width="${cellRect.width}" height="${cellRect.height}" fill="${fill}" stroke="${stroke}" stroke-width="${strokeWidth}" shape-rendering="crispEdges" />`,
         );
-        parts.push(buildCellTextSvg(cellEl, x, y, cellRect.width, cellRect.height));
+        parts.push(buildCellTextSvg(cell, x, y, cellRect.width, cellRect.height));
     });
 
     parts.push("</svg>");
     return { width, height, svgMarkup: parts.join("") };
 }
 
-async function exportSurfaceToBlob(surfaceEl: HTMLElement, tableEl: HTMLElement, formatConfig: RosterExportFormatConfig): Promise<Blob> {
-    const renderSpec = buildTableSvgMarkup(surfaceEl, tableEl);
+async function exportSurfaceToBlob(
+    surface: HTMLElement,
+    projection: HTMLElement,
+    config: RosterImageExportConfig,
+): Promise<Blob> {
+    const renderSpec = buildProjectionSvgMarkup(surface, projection);
     const svgBlob = new Blob([renderSpec.svgMarkup], { type: "image/svg+xml;charset=utf-8" });
     const svgUrl = URL.createObjectURL(svgBlob);
 
     try {
-        const imageEl = await new Promise<HTMLImageElement>((resolve, reject) => {
-            const image = new window.Image();
-            image.decoding = "async";
-            image.onload = () => {
-                resolve(image);
-            };
-            image.onerror = () => {
-                reject(new Error("Failed to render roster export image."));
-            };
-            image.src = svgUrl;
+        const image = await new Promise<HTMLImageElement>((resolve, reject) => {
+            const imageElement = new window.Image();
+            imageElement.decoding = "async";
+            imageElement.onload = () => resolve(imageElement);
+            imageElement.onerror = () => reject(new Error(config.imageExportRenderFailureMessage));
+            imageElement.src = svgUrl;
         });
 
-        const canvasEl = document.createElement("canvas");
-        canvasEl.width = renderSpec.width * exportPixelRatio;
-        canvasEl.height = renderSpec.height * exportPixelRatio;
+        const canvas = document.createElement("canvas");
+        canvas.width = renderSpec.width * config.imageExportPixelRatio;
+        canvas.height = renderSpec.height * config.imageExportPixelRatio;
 
-        const context = canvasEl.getContext("2d");
-        if (!context) {
-            throw new Error("Failed to initialize roster export canvas.");
-        }
+        const context = canvas.getContext("2d");
+        if (!context) throw new Error(config.imageExportCanvasFailureMessage);
 
-        context.scale(exportPixelRatio, exportPixelRatio);
-        context.drawImage(imageEl, 0, 0, renderSpec.width, renderSpec.height);
+        context.scale(config.imageExportPixelRatio, config.imageExportPixelRatio);
+        context.drawImage(image, 0, 0, renderSpec.width, renderSpec.height);
 
         return await new Promise<Blob>((resolve, reject) => {
-            canvasEl.toBlob((blob) => {
-                if (blob) {
-                    resolve(blob);
-                    return;
-                }
-                reject(new Error("Failed to encode roster export image."));
-            }, formatConfig.mimeType, formatConfig.quality);
+            canvas.toBlob((blob) => {
+                if (blob) resolve(blob);
+                else reject(new Error(config.imageExportEncodingFailureMessage));
+            }, config.imageExportMimeType, config.imageExportQualityPercent / 100);
         });
     } finally {
         URL.revokeObjectURL(svgUrl);
     }
 }
 
-async function buildRosterExportBlob(formatConfig: RosterExportFormatConfig): Promise<Blob> {
-    const rosterTable = document.querySelector(`#${rosterContentDomToken} .roster-grid`);
-    if (!(rosterTable instanceof HTMLElement)) {
-        throw new Error("Could not find the current roster grid.");
-    }
+async function buildRosterExportBlob(
+    source: HTMLElement,
+    config: RosterImageExportConfig,
+    report: RosterImageExportDiagnosticReporter,
+): Promise<Blob> {
+    if (!source.isConnected) throw new Error(config.imageExportMissingProjectionMessage);
 
-    const exportTable = normalizeExportTable(rosterTable.cloneNode(true));
-    const stageEl = document.createElement("div");
-    stageEl.className = "roster-export-stage";
+    const projection = normalizeExportProjection(source, config, report);
+    const stage = document.createElement("div");
+    stage.className = "roster-export-stage";
 
-    const surfaceEl = document.createElement("div");
-    surfaceEl.className = "roster-export-surface";
-    const measuredWidth = Math.ceil(rosterTable.getBoundingClientRect().width);
-    const exportWidth = Math.max(exportMinWidth, Math.min(exportMaxWidth, measuredWidth));
-    surfaceEl.style.width = `${exportWidth}px`;
-    surfaceEl.appendChild(exportTable);
-    stageEl.appendChild(surfaceEl);
-    document.body.appendChild(stageEl);
+    const surface = document.createElement("div");
+    surface.className = "roster-export-surface";
+    const measuredWidth = Math.ceil(source.getBoundingClientRect().width);
+    const exportWidth = Math.max(
+        config.imageExportMinimumWidth,
+        Math.min(config.imageExportMaximumWidth, measuredWidth),
+    );
+    surface.style.width = `${exportWidth}px`;
+    surface.appendChild(projection);
+    stage.appendChild(surface);
+    document.body.appendChild(stage);
 
     try {
         if (document.fonts && typeof document.fonts.ready === "object") {
             await document.fonts.ready;
         }
         await waitForNextPaint();
-        return await exportSurfaceToBlob(surfaceEl, exportTable, formatConfig);
+        return await exportSurfaceToBlob(surface, projection, config);
     } finally {
-        stageEl.remove();
+        stage.remove();
     }
-}
-
-function exportFilename(formatConfig: RosterExportFormatConfig): string {
-    const groupSelect = document.getElementById("roster-group-switch");
-    const groupLabel = groupSelect instanceof HTMLSelectElement && groupSelect.selectedOptions[0]
-        ? groupSelect.selectedOptions[0].textContent
-        : "group";
-    const weekLabelEl = document.querySelector(".roster-week-overview-trigger span:last-child");
-    const weekLabel = weekLabelEl ? weekLabelEl.textContent : "week";
-
-    const parts = ["roster", sanitizeFilenamePart(groupLabel || ""), sanitizeFilenamePart(weekLabel || "")]
-        .filter(Boolean);
-    return `${parts.join("-")}.${formatConfig.extension}`;
 }
 
 function triggerBlobDownload(blob: Blob, filename: string): void {
     const downloadUrl = URL.createObjectURL(blob);
-    const linkEl = document.createElement("a");
-    linkEl.href = downloadUrl;
-    linkEl.download = filename;
-    document.body.appendChild(linkEl);
-    linkEl.click();
-    linkEl.remove();
-    window.setTimeout(() => {
-        URL.revokeObjectURL(downloadUrl);
-    }, 1000);
+    const link = document.createElement("a");
+    link.href = downloadUrl;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    window.setTimeout(() => URL.revokeObjectURL(downloadUrl), 1000);
 }
 
-async function handleRosterExport(buttonEl: HTMLButtonElement): Promise<void> {
-    const formatKey = buttonEl.dataset.rosterExportFormat || "jpg";
-    const formatConfig = exportConfigs[formatKey];
-    if (!formatConfig) return;
-
-    const originalLabel = buttonEl.textContent;
-    buttonEl.dataset.rosterExportStatus = "working";
-    document.body.dataset.rosterExportLastStatus = "working";
-    buttonEl.disabled = true;
-    buttonEl.textContent = "Preparing...";
+async function handleRosterExport(
+    button: HTMLButtonElement,
+    validated: ValidatedRosterImageExport,
+    report: RosterImageExportDiagnosticReporter,
+): Promise<void> {
+    const { config, projection } = validated;
+    button.disabled = true;
+    button.textContent = config.imageExportPreparingLabel;
 
     try {
-        const blob = await buildRosterExportBlob(formatConfig);
-        triggerBlobDownload(blob, exportFilename(formatConfig));
-        buttonEl.dataset.rosterExportStatus = "success";
-        document.body.dataset.rosterExportLastStatus = "success";
-        buttonEl.textContent = "Downloaded";
+        const blob = await buildRosterExportBlob(projection, config, report);
+        triggerBlobDownload(blob, config.imageExportFilename);
+        button.textContent = config.imageExportDownloadedLabel;
         window.setTimeout(() => {
-            buttonEl.textContent = originalLabel;
+            button.textContent = config.imageExportIdleLabel;
         }, 1200);
     } catch (error) {
-        console.error(error);
-        buttonEl.dataset.rosterExportStatus = "error";
-        document.body.dataset.rosterExportLastStatus = "error";
-        buttonEl.textContent = "Export failed";
+        report(diagnostic(
+            button,
+            "export-failed",
+            error instanceof Error ? error.message : String(error),
+        ));
+        button.textContent = config.imageExportFailedLabel;
         window.setTimeout(() => {
-            buttonEl.textContent = originalLabel;
+            button.textContent = config.imageExportIdleLabel;
         }, 1600);
-        window.alert("Roster export failed. Please try again.");
+        window.alert(config.imageExportFailureMessage);
     } finally {
         window.setTimeout(() => {
-            buttonEl.disabled = false;
+            button.disabled = false;
         }, 200);
     }
 }
 
-export function enableRosterImageExport(): void {
+export function enableRosterImageExport(
+    report: RosterImageExportDiagnosticReporter = defaultDiagnosticReporter,
+): void {
     if (typeof window === "undefined") return;
 
     document.addEventListener("click", (event) => {
         if (!(event.target instanceof Element)) return;
 
-        const buttonEl = event.target.closest('[data-roster-export-format]');
-        if (!(buttonEl instanceof HTMLButtonElement)) return;
+        const button = event.target.closest(triggerSelector);
+        if (!(button instanceof HTMLButtonElement)) return;
 
         event.preventDefault();
-        void handleRosterExport(buttonEl);
+        const validated = readImageExport(button, report);
+        if (validated !== null) void handleRosterExport(button, validated, report);
     });
 }

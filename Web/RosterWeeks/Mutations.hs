@@ -10,7 +10,9 @@ module Web.RosterWeeks.Mutations
     , rosterDayTouchedResources
     , rosterSlotMutationTouchedResources
     , rosterSlotTouchedResources
+    , rosterSlotsStructureTouchedResources
     , rosterWeekLiveStatusTouchedResources
+    , rosterWeekStructuralTouchedResources
     , rosterWeekTouchedResources
     , saveRosterSlotMutation
     , toggleRosterDayClosedMutation
@@ -40,7 +42,7 @@ data RosterSlotMutationResult = RosterSlotMutationResult
 ensureRosterWeekExistsMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id RosterGroup -> Int -> IO (LiveMutationResult (RosterWeek, Bool))
 ensureRosterWeekExistsMutation rosterGroupId weekOffset = do
     result@(_, wasCreated) <- ensureRosterWeekExists rosterGroupId weekOffset
-    let mutationResult = liveMutationResult result (rosterWeekTouchedResources rosterGroupId weekOffset)
+    let mutationResult = liveMutationResult result (rosterWeekStructuralTouchedResources rosterGroupId weekOffset)
     if wasCreated
         then invalidateTouchedResources "roster.week.ensure" mutationResult
         else pure mutationResult
@@ -55,7 +57,7 @@ copyRosterWeekFromSourceMutation rosterGroupId sourceWeek targetWeekOffset = do
         case existingTarget of
             Just targetWeek -> replaceRosterWeekFromSource sourceWeek targetWeek
             Nothing         -> copyRosterWeek sourceWeek targetWeekOffset
-    invalidateTouchedResources "roster.week.copy" (liveMutationResult targetWeek (rosterWeekTouchedResources rosterGroupId targetWeekOffset))
+    invalidateTouchedResources "roster.week.copy" (liveMutationResult targetWeek (rosterWeekStructuralTouchedResources rosterGroupId targetWeekOffset))
 
 toggleRosterWeekLiveStatusMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id RosterGroup -> RosterWeek -> Bool -> IO (LiveMutationResult RosterWeek)
 toggleRosterWeekLiveStatusMutation rosterGroupId rosterWeek nextLiveStatus = do
@@ -73,18 +75,18 @@ toggleRosterWeekLiveStatusMutation rosterGroupId rosterWeek nextLiveStatus = do
 appendRosterWeekSlotDefinitionMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id RosterGroup -> RosterWeek -> Text -> IO (LiveMutationResult RosterWeekSlotDefinition)
 appendRosterWeekSlotDefinitionMutation rosterGroupId rosterWeek slotName = do
     slotDefinition <- withTransaction (appendRosterWeekSlotDefinition rosterWeek slotName)
-    invalidateTouchedResources "roster.slot_definition.append" (liveMutationResult slotDefinition (rosterWeekTouchedResources rosterGroupId rosterWeek.weekOffset))
+    invalidateTouchedResources "roster.slot_definition.append" (liveMutationResult slotDefinition (rosterSlotsStructureTouchedResources rosterGroupId rosterWeek.weekOffset))
 
 removeRosterWeekSlotDefinitionMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id RosterGroup -> RosterWeek -> RosterWeekSlotDefinition -> IO (LiveMutationResult ())
 removeRosterWeekSlotDefinitionMutation rosterGroupId rosterWeek slotDefinition = do
     withTransaction (deleteRosterWeekSlotDefinition slotDefinition)
-    invalidateTouchedResources "roster.slot_definition.remove" (liveMutationResult () (rosterWeekTouchedResources rosterGroupId rosterWeek.weekOffset))
+    invalidateTouchedResources "roster.slot_definition.remove" (liveMutationResult () (rosterSlotsStructureTouchedResources rosterGroupId rosterWeek.weekOffset))
 
 repackRosterWeekMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => RosterWeek -> IO (LiveMutationResult ())
 repackRosterWeekMutation rosterWeek = do
     let rosterGroupId = coerce rosterWeek.rosterGroupId
     withTransaction (repackRosterWeekDays rosterWeek)
-    invalidateTouchedResources "roster.week.repack" (liveMutationResult () (rosterWeekTouchedResources rosterGroupId rosterWeek.weekOffset))
+    invalidateTouchedResources "roster.week.repack" (liveMutationResult () (rosterSlotsStructureTouchedResources rosterGroupId rosterWeek.weekOffset))
 
 toggleRosterDayClosedMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id RosterGroup -> RosterWeek -> RosterDay -> Bool -> Int -> IO (LiveMutationResult RosterDay)
 toggleRosterDayClosedMutation rosterGroupId rosterWeek rosterDay nextClosedState minimumRows = do
@@ -174,6 +176,16 @@ rosterWeekTouchedResources :: Id RosterGroup -> Int -> [SurfaceResourceValue]
 rosterWeekTouchedResources rosterGroupId weekOffset =
     [ rosterWeekResource (unpackId rosterGroupId) weekOffset ]
 
+rosterWeekStructuralTouchedResources :: Id RosterGroup -> Int -> [SurfaceResourceValue]
+rosterWeekStructuralTouchedResources rosterGroupId weekOffset =
+    rosterWeekTouchedResources rosterGroupId weekOffset
+        <> [rosterWeekStructureResource (unpackId rosterGroupId) weekOffset]
+
+rosterSlotsStructureTouchedResources :: Id RosterGroup -> Int -> [SurfaceResourceValue]
+rosterSlotsStructureTouchedResources rosterGroupId weekOffset =
+    rosterWeekTouchedResources rosterGroupId weekOffset
+        <> [rosterSlotsStructureResource (unpackId rosterGroupId) weekOffset]
+
 rosterDayTouchedResources :: Id RosterGroup -> Int -> RosterDay -> [SurfaceResourceValue]
 rosterDayTouchedResources rosterGroupId weekOffset rosterDay =
     rosterWeekTouchedResources rosterGroupId weekOffset
@@ -185,7 +197,7 @@ rosterSlotTouchedResources rosterGroupId weekOffset rosterDay maybeSlot =
 
 rosterWeekLiveStatusTouchedResources :: Id RosterGroup -> RosterWeek -> [SurfaceResourceValue]
 rosterWeekLiveStatusTouchedResources rosterGroupId rosterWeek =
-    rosterWeekTouchedResources rosterGroupId rosterWeek.weekOffset
+    rosterWeekStructuralTouchedResources rosterGroupId rosterWeek.weekOffset
         <> timesheetWeekTouchedResources rosterWeek
 
 rosterSlotMutationTouchedResources :: Id RosterGroup -> RosterWeek -> RosterDay -> Maybe RosterSlot -> [SurfaceResourceValue]

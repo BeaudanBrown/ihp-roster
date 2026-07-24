@@ -3,6 +3,7 @@
 
 module Application.Helper.FrontendContract.Surface.Roster
     ( RosterContent
+    , RosterLayout
     , RosterDayColumns
     , RosterDay
     , RosterDayId
@@ -22,10 +23,12 @@ module Application.Helper.FrontendContract.Surface.Roster
     , RosterWeekShell
     , RosterWageRail
     , RosterWeek
+    , RosterWeekStructure
+    , RosterSlotsStructure
+    , RosterSlotsContent
     , RosterWeekBoundaryConfig
     , TimePickerConfig
     , RosterWeekOverview
-    , RosterStaffSelfServiceLeaveFormFragment
     , MoveRosterShiftToSlot
     , ShiftDragSource
     , StaffDragSource
@@ -34,6 +37,102 @@ module Application.Helper.FrontendContract.Surface.Roster
     , DayColumnDropzone
     , ExistingShiftDropzone
     , DeleteShiftDropzone
+    , StaffShiftsHighlight
+    , StaffHighlightSourceRole
+    , StaffHighlightMemberRole
+    , StaffHighlightPinRole
+    , StaffHighlightOrderState
+    , RosterStaffPanelSort
+    , StaffPanelSortRootRole
+    , StaffPanelSortRowRole
+    , StaffPanelSortControlRole
+    , RosterStaffPanelSortRow
+    , StaffRowKey
+    , StaffName
+    , StaffRole
+    , AssignedShifts
+    , IdealShifts
+    , NameSortKey
+    , RoleSortKey
+    , ShiftsSortKey
+    , RosterStaffPanelTabs
+    , StaffPanelTabRole
+    , StaffTabKey
+    , SettingsTabKey
+    , FullscreenRootRole
+    , FullscreenToggleRole
+    , FullscreenLabelRole
+    , FullscreenState
+    , Collapsed
+    , Expanded
+    , ColumnEditorRole
+    , ColumnEditStartRole
+    , ColumnEditDoneRole
+    , ColumnEditingState
+    , Inactive
+    , Active
+    , ImageExportTriggerRole
+    , ImageExportConfigRole
+    , ImageExportProjectionRole
+    , ImageExportRowRole
+    , ImageExportCellRole
+    , ImageExportFormat
+    , Jpg
+    , RosterImageExportConfig
+    , RosterImageExportCell
+    , ImageExportFilename
+    , ImageExportMimeType
+    , ImageExportQualityPercent
+    , ImageExportPixelRatio
+    , ImageExportMinimumWidth
+    , ImageExportMaximumWidth
+    , ImageExportIdleLabel
+    , ImageExportPreparingLabel
+    , ImageExportDownloadedLabel
+    , ImageExportFailedLabel
+    , ImageExportFailureMessage
+    , ImageExportMissingProjectionMessage
+    , ImageExportCloneFailureMessage
+    , ImageExportRenderFailureMessage
+    , ImageExportCanvasFailureMessage
+    , ImageExportEncodingFailureMessage
+    , ImageExportText
+    , WeekOverviewPanelRole
+    , WeekOverviewDayRole
+    , WeekOverviewTodayRole
+    , WeekOverviewDetailsRole
+    , WeekOverviewSelectedLabelRole
+    , WeekOverviewLeaveValueRole
+    , WeekOverviewAssignedValueRole
+    , WeekOverviewHoursValueRole
+    , WeekOverviewSummaryRole
+    , WeekOverviewWeekLabelRole
+    , WeekOverviewGoLinkRole
+    , WeekOverviewAvailability
+    , Loaded
+    , Unloaded
+    , WeekOverviewClosure
+    , Open
+    , Closed
+    , WeekOverviewCalendarDay
+    , Today
+    , OtherDay
+    , RosterWeekOverviewPanelConfig
+    , RosterWeekOverviewDayConfig
+    , WeekOverviewCurrentDate
+    , WeekOverviewDate
+    , WeekOverviewSelectedLabel
+    , WeekOverviewLeaveDisplay
+    , WeekOverviewAssignedDisplay
+    , WeekOverviewHoursDisplay
+    , WeekOverviewSummaryText
+    , WeekOverviewWeekLabel
+    , WeekOverviewNavigationUrl
+    , WeekOverviewAvailabilityField
+    , WeekOverviewClosureField
+    , ShiftGroupHighlight
+    , ShiftGroupHighlightSourceRole
+    , ShiftGroupHighlightMemberRole
     , MoveRosterTimelineShift
     , DuplicateRosterShiftToDay
     , DropRosterStaff
@@ -44,7 +143,6 @@ module Application.Helper.FrontendContract.Surface.Roster
     , ToggleRosterWeekLiveStatus
     , ToggleRosterAssignmentFilters
     , CopyRosterWeek
-    , CreateRosterSelfServiceLeaveRequest
     , CreateRosterWeekSlotDefinition
     , DeleteRosterWeekSlotDefinition
     , ToggleRosterDayClosed
@@ -64,22 +162,24 @@ module Application.Helper.FrontendContract.Surface.Roster
     , HideStaffOnApprovedLeave
     , HideStaffAlreadyAssignedToday
     , StaffScope
-    , StartDate
-    , EndDate
-    , Notes
     ) where
 
 import Application.Helper.FrontendContract.Surface.DSL
 import Application.Helper.FrontendContract.Surface.Interaction
+import qualified Application.Helper.FrontendContract.Surface.SelfServiceLeave as SelfServiceLeave
 
 data Roster
 data RosterDayTimeline
 
 data RosterWeek
+data RosterWeekStructure
+data RosterSlotsStructure
+data RosterSlotsContent
 data VenueId
 data RosterGroupId
 data WeekOffset
 
+data RosterLayout
 data RosterContent
 data RosterWeekShell
 data RosterGridToolbar
@@ -106,6 +206,111 @@ data StaffCreateDropzone
 data DayColumnDropzone
 data ExistingShiftDropzone
 data DeleteShiftDropzone
+
+data StaffShiftsHighlight
+data StaffHighlightSourceRole
+data StaffHighlightMemberRole
+data StaffHighlightPinRole
+data StaffHighlightOrderState
+
+data RosterStaffPanelSort
+data StaffPanelSortRootRole
+data StaffPanelSortRowRole
+data StaffPanelSortControlRole
+data RosterStaffPanelSortRow
+data StaffRowKey
+data StaffName
+data StaffRole
+data AssignedShifts
+data IdealShifts
+data NameSortKey
+data RoleSortKey
+data ShiftsSortKey
+
+data RosterStaffPanelTabs
+data StaffPanelTabRole
+data StaffTabKey
+data SettingsTabKey
+
+data FullscreenRootRole
+data FullscreenToggleRole
+data FullscreenLabelRole
+data FullscreenState
+data Collapsed
+data Expanded
+
+data ColumnEditorRole
+data ColumnEditStartRole
+data ColumnEditDoneRole
+data ColumnEditingState
+data Inactive
+data Active
+
+data ImageExportTriggerRole
+data ImageExportConfigRole
+data ImageExportProjectionRole
+data ImageExportRowRole
+data ImageExportCellRole
+data ImageExportFormat
+data Jpg
+data RosterImageExportConfig
+data RosterImageExportCell
+data ImageExportFilename
+data ImageExportMimeType
+data ImageExportQualityPercent
+data ImageExportPixelRatio
+data ImageExportMinimumWidth
+data ImageExportMaximumWidth
+data ImageExportIdleLabel
+data ImageExportPreparingLabel
+data ImageExportDownloadedLabel
+data ImageExportFailedLabel
+data ImageExportFailureMessage
+data ImageExportMissingProjectionMessage
+data ImageExportCloneFailureMessage
+data ImageExportRenderFailureMessage
+data ImageExportCanvasFailureMessage
+data ImageExportEncodingFailureMessage
+data ImageExportText
+
+data WeekOverviewPanelRole
+data WeekOverviewDayRole
+data WeekOverviewTodayRole
+data WeekOverviewDetailsRole
+data WeekOverviewSelectedLabelRole
+data WeekOverviewLeaveValueRole
+data WeekOverviewAssignedValueRole
+data WeekOverviewHoursValueRole
+data WeekOverviewSummaryRole
+data WeekOverviewWeekLabelRole
+data WeekOverviewGoLinkRole
+data WeekOverviewAvailability
+data Loaded
+data Unloaded
+data WeekOverviewClosure
+data Open
+data Closed
+data WeekOverviewCalendarDay
+data Today
+data OtherDay
+data RosterWeekOverviewPanelConfig
+data RosterWeekOverviewDayConfig
+data WeekOverviewCurrentDate
+data WeekOverviewDate
+data WeekOverviewSelectedLabel
+data WeekOverviewLeaveDisplay
+data WeekOverviewAssignedDisplay
+data WeekOverviewHoursDisplay
+data WeekOverviewSummaryText
+data WeekOverviewWeekLabel
+data WeekOverviewNavigationUrl
+data WeekOverviewAvailabilityField
+data WeekOverviewClosureField
+
+data ShiftGroupHighlight
+data ShiftGroupHighlightSourceRole
+data ShiftGroupHighlightMemberRole
+
 data NavigateRosterWeek
 data ToggleRosterWarnings
 data ToggleRosterWageEstimates
@@ -113,7 +318,6 @@ data SortRosterWeek
 data ToggleRosterWeekLiveStatus
 data ToggleRosterAssignmentFilters
 data CopyRosterWeek
-data CreateRosterSelfServiceLeaveRequest
 data CreateRosterWeekSlotDefinition
 data DeleteRosterWeekSlotDefinition
 data ToggleRosterDayClosed
@@ -141,14 +345,13 @@ data RosterWeekOverview
 data RosterEndTimesConfig
 data RosterWeekBoundaryConfig
 data TimePickerConfig
-data RosterStaffSelfServiceLeaveFormFragment
 data RosterStaffPanelFragment
 data RosterWeekOverviewMount
-data StartDate
-data EndDate
-data Notes
 
 type RosterWeekResource = Resource RosterWeek '[ Field RosterGroupId 'WireUUID, Field WeekOffset 'WireInt ]
+type RosterWeekStructureResource = Resource RosterWeekStructure '[ Field RosterGroupId 'WireUUID, Field WeekOffset 'WireInt ]
+type RosterSlotsStructureResource = Resource RosterSlotsStructure '[ Field RosterGroupId 'WireUUID, Field WeekOffset 'WireInt ]
+type RosterSlotsContentResource = Resource RosterSlotsContent '[ Field RosterGroupId 'WireUUID, Field WeekOffset 'WireInt ]
 type RosterDayResource = Resource RosterDay '[ Field RosterDayId 'WireUUID ]
 type RosterEndTimesConfigResource = Resource RosterEndTimesConfig '[ Field VenueId 'WireUUID ]
 type RosterWeekBoundaryConfigResource = Resource RosterWeekBoundaryConfig '[ Field VenueId 'WireUUID ]
@@ -164,14 +367,20 @@ type RosterScopeBundle =
      ]
 
 type RosterFragmentBundle =
-    '[ Fragment RosterContent
+    '[ Fragment RosterLayout
+        '[]
+        '[ 'MountTarget RosterLayout '[]
+         , 'Eager
+         , 'Contains RosterContent
+         , 'Contains RosterStaffPanel
+         , ContainsSurface SelfServiceLeave.SelfServiceLeave
+         ]
+     , Fragment RosterContent
         '[]
         '[ 'MountTarget RosterContent '[]
          , 'Eager
          , 'Live
-         , 'DependsOn RosterWeekResource '[ 'FromScope RosterGroupId, 'FromScope WeekOffset ]
-         , 'DependsOn RosterEndTimesConfigResource '[ 'FromScope VenueId ]
-         , 'DependsOn RosterWeekBoundaryConfigResource '[ 'FromScope VenueId ]
+         , 'DependsOn RosterWeekStructureResource '[ 'FromScope RosterGroupId, 'FromScope WeekOffset ]
          , 'Contains RosterGridToolbar
          , 'Contains RosterGridFrame
          ]
@@ -189,7 +398,7 @@ type RosterFragmentBundle =
         '[ 'MountTarget RosterGridFrame '[]
          , 'Eager
          , 'Live
-         , 'DependsOn RosterWeekResource '[ 'FromScope RosterGroupId, 'FromScope WeekOffset ]
+         , 'DependsOn RosterWeekStructureResource '[ 'FromScope RosterGroupId, 'FromScope WeekOffset ]
          , 'DependsOn RosterEndTimesConfigResource '[ 'FromScope VenueId ]
          , 'DependsOn RosterWeekBoundaryConfigResource '[ 'FromScope VenueId ]
          , 'Contains RosterDayColumns
@@ -201,9 +410,8 @@ type RosterFragmentBundle =
      , Fragment RosterDayColumns '[] '[ 'MountTarget RosterDayColumns '[], 'Eager, 'Live, 'DependsOn RosterWeekResource '[ 'FromScope RosterGroupId, 'FromScope WeekOffset ], 'DependsOn RosterEndTimesConfigResource '[ 'FromScope VenueId ], 'DependsOn RosterWeekBoundaryConfigResource '[ 'FromScope VenueId ] ]
      , Fragment RosterDayRail '[] '[ 'MountTarget RosterDayRail '[], 'Eager, 'Live, 'DependsOn RosterWeekResource '[ 'FromScope RosterGroupId, 'FromScope WeekOffset ], 'DependsOn RosterEndTimesConfigResource '[ 'FromScope VenueId ], 'DependsOn RosterWeekBoundaryConfigResource '[ 'FromScope VenueId ] ]
      , Fragment RosterWageRail '[] '[ 'MountTarget RosterWageRail '[], 'Eager, 'Live, 'DependsOn RosterWeekResource '[ 'FromScope RosterGroupId, 'FromScope WeekOffset ], 'DependsOn RosterEndTimesConfigResource '[ 'FromScope VenueId ], 'DependsOn RosterWeekBoundaryConfigResource '[ 'FromScope VenueId ] ]
-     , Fragment RosterSlotsGrid '[] '[ 'MountTarget RosterSlotsGrid '[], 'Eager, 'Live, 'DependsOn RosterWeekResource '[ 'FromScope RosterGroupId, 'FromScope WeekOffset ], 'DependsOn RosterEndTimesConfigResource '[ 'FromScope VenueId ], 'DependsOn RosterWeekBoundaryConfigResource '[ 'FromScope VenueId ] ]
+     , Fragment RosterSlotsGrid '[] '[ 'MountTarget RosterSlotsGrid '[], 'Eager, 'Live, 'DependsOn RosterSlotsStructureResource '[ 'FromScope RosterGroupId, 'FromScope WeekOffset ], 'DependsOn RosterSlotsContentResource '[ 'FromScope RosterGroupId, 'FromScope WeekOffset ], 'DependsOn RosterEndTimesConfigResource '[ 'FromScope VenueId ], 'DependsOn RosterWeekBoundaryConfigResource '[ 'FromScope VenueId ] ]
      , Fragment RosterStaffPanel '[] '[ 'MountTarget RosterStaffPanelFragment '[], 'Lazy '[ 'DependsOnFragment RosterContent ], 'Live, 'DependsOn RosterWeekResource '[ 'FromScope RosterGroupId, 'FromScope WeekOffset ] ]
-     , Fragment RosterStaffSelfServiceLeaveFormFragment '[] '[ 'MountTarget RosterStaffSelfServiceLeaveFormFragment '[], 'Eager, 'Live, 'ResyncOnly ]
      , Fragment RosterWeekOverview '[] '[ 'MountTarget RosterWeekOverviewMount '[ Field RosterGroupId 'WireUUID, Field WeekOffset 'WireInt ], 'Lazy '[ 'DependsOnFragment RosterContent ], 'DependsOn RosterWeekResource '[ 'FromScope RosterGroupId, 'FromScope WeekOffset ] ]
      , Fragment RosterDaySection
         '[ Field RosterDayId 'WireUUID ]
@@ -288,16 +496,6 @@ type RosterActionBundle =
          , 'HtmxSync ('HtmxSyncOn ('HtmxId RosterWeekShell) 'HtmxSyncReplace)
          , 'CustomHtmx CopyRosterWeekCustomHtmx "copy previous week requires a destructive overwrite confirmation"
          ]
-     , Action CreateRosterSelfServiceLeaveRequest
-        '[ Field StartDate 'WireDay
-         , Field EndDate 'WireDay
-         , Field Notes 'WireText
-         ]
-        '[ 'HtmxMethod 'HtmxPost
-         , 'HtmxTarget ('HtmxId RosterStaffSelfServiceLeaveFormFragment)
-         , 'HtmxSwap 'HtmxOuterHTML
-         , 'HtmxPushUrl 'HtmxPushUrlFalse
-         ]
      , Action CreateRosterWeekSlotDefinition
         '[]
         '[ 'HtmxMethod 'HtmxPost
@@ -338,15 +536,13 @@ type RosterActionBundle =
      , Action ToggleRosterStaffScope
         '[ Field StaffScope 'WireText ]
         '[ 'HtmxMethod 'HtmxGet
-         , 'HtmxTarget ('HtmxId RosterStaffPanel)
+         , 'HtmxTarget ('HtmxId RosterStaffPanelFragment)
          , 'HtmxSwap 'HtmxOuterHTML
          , 'HtmxPushUrl 'HtmxPushUrlFalse
          ]
-     , BrowserDomToken RosterContent
-     , BrowserDomToken RosterWeekShell
+     , DomToken RosterContent
+     , DomToken RosterWeekShell
      , DomToken RosterDaySection
-     , DomToken RosterStaffPanel
-     , DomToken RosterStaffSelfServiceLeaveFormFragment
      ]
 
 type RosterInteractionBundle =
@@ -382,8 +578,138 @@ type RosterInteractionBundle =
          , DragDropIntent DropRosterStaff RosterContent
          ]
 
+type RosterStaffPanelBrowserBundle =
+    '[ BrowserInboundDto RosterStaffPanelSortRow
+        '[ Field StaffRowKey 'WireText
+         , Field StaffName 'WireText
+         , Field StaffRole 'WireText
+         , Field AssignedShifts 'WireInt
+         , Field IdealShifts 'WireInt
+         ]
+     , BrowserRole StaffPanelSortRootRole
+     , BrowserRole StaffPanelSortRowRole
+     , BrowserRole StaffPanelSortControlRole
+     , CompleteSetSort RosterStaffPanelSort StaffPanelSortRootRole StaffPanelSortRowRole StaffPanelSortControlRole RosterStaffPanelSortRow
+        '[ SortKey NameSortKey
+            '[ SortComparator StaffName 'SortText 'FollowSortDirection
+             , SortComparator StaffRowKey 'SortOpaque 'AlwaysAscending
+             ]
+         , SortKey RoleSortKey
+            '[ SortComparator StaffRole 'SortText 'FollowSortDirection
+             , SortComparator StaffName 'SortText 'AlwaysAscending
+             , SortComparator StaffRowKey 'SortOpaque 'AlwaysAscending
+             ]
+         , SortKey ShiftsSortKey
+            '[ SortComparator AssignedShifts 'SortInteger 'FollowSortDirection
+             , SortComparator IdealShifts 'SortInteger 'FollowSortDirection
+             , SortComparator StaffName 'SortText 'AlwaysAscending
+             , SortComparator StaffRowKey 'SortOpaque 'AlwaysAscending
+             ]
+         ]
+        NameSortKey
+        'SortAscending
+     , BrowserRole StaffPanelTabRole
+     , TabSet RosterStaffPanelTabs StaffPanelTabRole '[ StaffTabKey, SettingsTabKey ] StaffTabKey
+     ]
+
+type RosterChromeBrowserBundle =
+    '[ BrowserRole FullscreenRootRole
+     , BrowserRole FullscreenToggleRole
+     , BrowserRole FullscreenLabelRole
+     , BrowserClosedState FullscreenState '[ Collapsed, Expanded ]
+     , BrowserRole ColumnEditorRole
+     , BrowserRole ColumnEditStartRole
+     , BrowserRole ColumnEditDoneRole
+     , BrowserClosedState ColumnEditingState '[ Inactive, Active ]
+     ]
+
+type RosterImageExportBrowserBundle =
+    '[ BrowserRole ImageExportTriggerRole
+     , BrowserRole ImageExportConfigRole
+     , BrowserRole ImageExportProjectionRole
+     , BrowserRole ImageExportRowRole
+     , BrowserRole ImageExportCellRole
+     , BrowserClosedState ImageExportFormat '[ Jpg ]
+     , BrowserInboundDto RosterImageExportConfig
+        '[ Field ImageExportFilename 'WireText
+         , Field ImageExportMimeType 'WireText
+         , Field ImageExportQualityPercent 'WireInt
+         , Field ImageExportPixelRatio 'WireInt
+         , Field ImageExportMinimumWidth 'WireInt
+         , Field ImageExportMaximumWidth 'WireInt
+         , Field ImageExportIdleLabel 'WireText
+         , Field ImageExportPreparingLabel 'WireText
+         , Field ImageExportDownloadedLabel 'WireText
+         , Field ImageExportFailedLabel 'WireText
+         , Field ImageExportFailureMessage 'WireText
+         , Field ImageExportMissingProjectionMessage 'WireText
+         , Field ImageExportCloneFailureMessage 'WireText
+         , Field ImageExportRenderFailureMessage 'WireText
+         , Field ImageExportCanvasFailureMessage 'WireText
+         , Field ImageExportEncodingFailureMessage 'WireText
+         ]
+     , BrowserInboundDto RosterImageExportCell
+        '[ Field ImageExportText 'WireText ]
+     ]
+
+type RosterWeekOverviewBrowserBundle =
+    '[ BrowserRole WeekOverviewPanelRole
+     , BrowserRole WeekOverviewDayRole
+     , BrowserRole WeekOverviewTodayRole
+     , BrowserRole WeekOverviewDetailsRole
+     , BrowserRole WeekOverviewSelectedLabelRole
+     , BrowserRole WeekOverviewLeaveValueRole
+     , BrowserRole WeekOverviewAssignedValueRole
+     , BrowserRole WeekOverviewHoursValueRole
+     , BrowserRole WeekOverviewSummaryRole
+     , BrowserRole WeekOverviewWeekLabelRole
+     , BrowserRole WeekOverviewGoLinkRole
+     , BrowserClosedState WeekOverviewAvailability '[ Loaded, Unloaded ]
+     , BrowserClosedState WeekOverviewClosure '[ Open, Closed ]
+     , BrowserClosedState WeekOverviewCalendarDay '[ Today, OtherDay ]
+     , BrowserInboundDto RosterWeekOverviewPanelConfig
+        '[ Field WeekOverviewCurrentDate 'WireDay ]
+     , BrowserInboundDto RosterWeekOverviewDayConfig
+        '[ Field WeekOverviewDate 'WireDay
+         , Field WeekOverviewSelectedLabel 'WireText
+         , Field WeekOverviewLeaveDisplay 'WireText
+         , Field WeekOverviewAssignedDisplay 'WireText
+         , Field WeekOverviewHoursDisplay 'WireText
+         , Field WeekOverviewSummaryText 'WireText
+         , Field WeekOverviewWeekLabel 'WireText
+         , Field WeekOverviewNavigationUrl 'WireText
+         , Field WeekOverviewAvailabilityField 'WireText
+         , Field WeekOverviewClosureField 'WireText
+         ]
+     ]
+
+type RosterLinkedHighlightBundle =
+    '[ BrowserRole StaffHighlightSourceRole
+     , BrowserRole StaffHighlightMemberRole
+     , BrowserRole StaffHighlightPinRole
+     , BrowserState StaffHighlightOrderState
+     , LinkedHighlight StaffShiftsHighlight StaffHighlightSourceRole StaffHighlightMemberRole
+        '[ 'ActivateOnHover
+         , 'ActivateOnFocus
+         , 'ActivateOnKeyboard
+         , 'ActivateWithPin StaffHighlightPinRole
+         ]
+        '[ 'HighlightMatchingSource
+         , 'HighlightMatchingMember
+         , 'HighlightOrderedMemberBounds StaffHighlightOrderState
+         ]
+     , BrowserRole ShiftGroupHighlightSourceRole
+     , BrowserRole ShiftGroupHighlightMemberRole
+     , LinkedHighlight ShiftGroupHighlight ShiftGroupHighlightSourceRole ShiftGroupHighlightMemberRole
+        '[ 'ActivateOnHover
+         , 'ActivateOnFocus
+         , 'ActivateOnKeyboard
+         ]
+        '[ 'HighlightMatchingMember ]
+     ]
+
 type RosterSurface =
-    Surface Roster (Concat '[ RosterScopeBundle, RosterFragmentBundle, RosterActionBundle, RosterInteractionBundle ])
+    Surface Roster (Concat '[ RosterScopeBundle, RosterFragmentBundle, RosterActionBundle, RosterInteractionBundle, RosterStaffPanelBrowserBundle, RosterChromeBrowserBundle, RosterImageExportBrowserBundle, RosterWeekOverviewBrowserBundle, RosterLinkedHighlightBundle ])
 
 type RosterDayTimelineScopeBundle =
     '[ Scope RosterDayTimeline
@@ -415,5 +741,16 @@ type RosterDayTimelineActionBundle =
 type RosterDayTimelineInteractionBundle =
     DragDropInteraction MoveRosterTimelineShift RosterDayTimelineContent
 
+type RosterDayTimelineLinkedHighlightBundle =
+    '[ BrowserRole ShiftGroupHighlightSourceRole
+     , BrowserRole ShiftGroupHighlightMemberRole
+     , LinkedHighlight ShiftGroupHighlight ShiftGroupHighlightSourceRole ShiftGroupHighlightMemberRole
+        '[ 'ActivateOnHover
+         , 'ActivateOnFocus
+         , 'ActivateOnKeyboard
+         ]
+        '[ 'HighlightMatchingMember ]
+     ]
+
 type RosterDayTimelineSurface =
-    Surface RosterDayTimeline (Concat '[ RosterDayTimelineScopeBundle, RosterDayTimelineFragmentBundle, RosterDayTimelineActionBundle, RosterDayTimelineInteractionBundle ])
+    Surface RosterDayTimeline (Concat '[ RosterDayTimelineScopeBundle, RosterDayTimelineFragmentBundle, RosterDayTimelineActionBundle, RosterDayTimelineInteractionBundle, RosterDayTimelineLinkedHighlightBundle ])

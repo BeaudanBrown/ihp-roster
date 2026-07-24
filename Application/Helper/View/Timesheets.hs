@@ -23,6 +23,7 @@ import Application.Helper.FrontendContract.AppShell.Runtime (AppShellActionRoute
                                                              renderAppShellActionForm)
 import Application.Helper.FrontendContract.IR (AppShellActionIR)
 import qualified Application.Helper.FrontendContract.Surface.Timesheets as Surface
+import qualified Application.Helper.FrontendContract.Surface.Timesheets.Action as TimesheetsAction
 import Application.Helper.FrontendContract.Surface.Values
 import Application.Helper.View.Audience
 import Application.Helper.View.Format
@@ -109,18 +110,7 @@ renderTimesheetFormFields formOrigin entry staffMembers shiftTypes weekOffset sh
         {renderFieldError entry "hadBreak"}
     </div>
 
-    <div id="timesheet-break-time-fields" class="row mb-3">
-        <div class="col">
-            <label class="form-label">Break Start</label>
-            {renderTimePickerField (defaultTimePickerConfig "breakStartTime" breakStartTimeValue pickerStart pickerEnd (not entry.hadBreak))}
-            {renderFieldError entry "breakStartTime"}
-        </div>
-        <div class="col">
-            <label class="form-label">Break End</label>
-            {renderTimePickerField (defaultTimePickerConfig "breakEndTime" breakEndTimeValue pickerStart pickerEnd (not entry.hadBreak))}
-            {renderFieldError entry "breakEndTime"}
-        </div>
-    </div>
+    {renderTimesheetBreakFields entry breakStartTimeValue breakEndTimeValue pickerStart pickerEnd}
     {renderFieldError entry "breakMinutes"}
     {renderTimesheetStaffCommentField entry currentViewerStaffId}
     {renderTimesheetManagerNoteField entry}
@@ -132,13 +122,27 @@ renderTimesheetFormFields formOrigin entry staffMembers shiftTypes weekOffset sh
         breakEndTimeValue = optionalTimeOfDayToStorageValue entry.breakEndTime
         dateValueIso = tshow entry.workedOn :: Text
         stateFields =
-            surfaceField @Surface.WeekOffset weekOffset
-                :& surfaceField @Surface.ShowApproved showApproved
-                :& surfaceField @Surface.ShowAllStaff showAllStaff
-                :& surfaceField @Surface.ShowSuggestions showSuggestions
-                :& surfaceOptionalField @Surface.StaffFilterId selectedStaffFilterId
-                :& NoSurfaceFields
-                :: SurfaceFields (SurfaceActionFieldSpecs Surface.TimesheetsSurface Surface.CreateTimesheetEntryFromSuggestion)
+            TimesheetsAction.createTimesheetEntryFromSuggestionActionFields
+                weekOffset
+                showApproved
+                showAllStaff
+                showSuggestions
+                selectedStaffFilterId
+
+renderTimesheetBreakFields :: TimesheetEntry -> Text -> Text -> Text -> Text -> Html
+renderTimesheetBreakFields entry breakStartTimeValue breakEndTimeValue pickerStart pickerEnd =
+    renderAppToggleBreakRegion timesheetBreakRegion entry.hadBreak "row mb-3" [hsx|
+        <div class="col">
+            <label class="form-label">Break Start</label>
+            {renderTimePickerField (defaultTimePickerConfig "breakStartTime" breakStartTimeValue pickerStart pickerEnd False)}
+            {renderFieldError entry "breakStartTime"}
+        </div>
+        <div class="col">
+            <label class="form-label">Break End</label>
+            {renderTimePickerField (defaultTimePickerConfig "breakEndTime" breakEndTimeValue pickerStart pickerEnd False)}
+            {renderFieldError entry "breakEndTime"}
+        </div>
+    |]
 
 renderTimesheetFormOriginNotice :: TimesheetFormOrigin -> Html
 renderTimesheetFormOriginNotice AdHocTimesheetForm = mempty
@@ -184,14 +188,16 @@ renderRosteredStaffField entry staffMembers = [hsx|
                 Just staff -> staff.firstName <> " " <> staff.lastName
                 Nothing    -> "Rostered staff" :: Text
 
+timesheetBreakRegion :: ToggleBreakRegion
+timesheetBreakRegion = toggleBreakRegion "timesheet-break-time-fields"
+
 renderTimesheetBreakToggle :: TimesheetEntry -> Html
 renderTimesheetBreakToggle entry =
-    renderAppToggleButton $ (defaultAppToggleButtonConfig "hadBreak" entry.hadBreak [hsx|<span>Had break</span>|])
-        { appToggleInputName = Just "hadBreak"
-        , appToggleInputValue = "on"
-        , appToggleButtonClass = classes [("btn-sm", True), ("is-invalid", hasErrorFor entry "hadBreak")]
-        , appToggleBreakTarget = Just "#timesheet-break-time-fields"
-        }
+    renderAppToggleButton $
+        (defaultAppToggleButtonConfig "hadBreak" (namedBooleanToggleField "hadBreak") entry.hadBreak [hsx|<span>Had break</span>|])
+            { appToggleButtonClass = classes [("btn-sm", True), ("is-invalid", hasErrorFor entry "hadBreak")]
+            , appToggleBreakRegion = Just timesheetBreakRegion
+            }
 
 renderTimesheetStaffCommentField :: (?context :: ControllerContext) => TimesheetEntry -> Maybe UUID -> Html
 renderTimesheetStaffCommentField entry currentViewerStaffId

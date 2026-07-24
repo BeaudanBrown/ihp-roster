@@ -35,6 +35,7 @@ renderPost post = [hsx|
 - Action values work directly as `href` values: `href={ShowPostAction postId}`
 - Conditional rendering: `{when condition [hsx|...|]}`
 - HSX is strict about valid HTML — close all tags
+- Blaze attribute decorators (`element ! attr`, including typed contract helpers) cannot decorate an HSX fragment that the quasi-quoter reduced to static pre-rendered text. Keep at least one genuine dynamic expression on the root element or construct that root with Blaze when attrs are applied outside the quote; pin the decorated output in a render test.
 
 ## Forms
 Read `/home/beau/documents/projects/ihp/Guide/form.markdown` for full details. Basic pattern:
@@ -61,6 +62,22 @@ HTML form attributes are not validation. Keep `required`, hidden inputs, and sel
 - Do not render hidden modal templates or raw `.modal`/`.modal-backdrop` markup inside accordions, panels, tables, or live fragments. Put only the trigger in page content, then load the dialog into the shared mount.
 - The picker and toast lanes stay separate: picker overlays are globally mounted helpers such as `renderQuarterHourTimePickerModal`, and toasts use the toast overlay helpers.
 - When migrating a bespoke modal, remove obsolete modal-specific JS, CSS selectors, data attributes, exports, and tests in the same change.
+
+## Reusable Passkey Pattern
+- Render login and registration controls through `Application.Helper.View.Passkey`.
+  `FrontendContract.Passkey.Runtime` owns generated roles, exact tagged flow
+  configuration, mount-local status relationships, and closed prompt mode.
+- Haskell owns begin/finish routes, optional redirects, action/status/recovery
+  copy, and complete accessible status/recovery markup. Do not handwrite
+  `.js-passkey-*`, scalar URL/status datasets, status ids, or prompt-mode text.
+- Keep prompt dismissal semantic state on the generated passkey dismissal role
+  while also applying the generated Overlay close role through the typed helper.
+  Consume the generated Overlay dismissal event for close, Escape, and backdrop
+  UX hints; the generic Overlay adapter alone owns dialog removal, body locking,
+  and focus policy.
+- Native WebAuthn objects, browser capability checks, base64url conversion, and
+  local-storage hints stay inside the generic TypeScript adapter and never enter
+  generated schemas.
 
 ## Page Help Pattern
 - Scoped authenticated pages can opt into contextual help through `appPageHelpTopic` on `AppPageConfig`. Keep the trigger title-adjacent; do not add duplicate page-specific help buttons in toolbars.
@@ -103,17 +120,31 @@ HTML form attributes are not validation. Keep `required`, hidden inputs, and sel
 - Mutating interaction intents submit through Haskell-rendered HTMX forms. TypeScript fills generated hidden fields and dispatches generated triggers; views/controllers keep routes, methods, targets, swaps, and validation server-owned.
 
 ## Reusable Time Picker Pattern
-- Use a shared picker overlay + JS behavior for quarter-hour time selection instead of native `<input type="time">` in dense grids.
-- Markup contract:
-  - wrap field with `data-time-picker-field`
-  - store canonical value in hidden `.js-time-picker-input` (`HH:MM` 24-hour)
-  - open picker via `.js-time-picker-trigger`
-  - render text in `.js-time-picker-label` (12-hour with AM/PM)
-  - optional range override per field: `data-time-picker-start="HH:MM"` + `data-time-picker-end="HH:MM"` (end may wrap past midnight)
-  - optional empty-label override per field: `data-time-picker-empty-label="Time"`
-  - step buttons are optional; when omitted, the shared picker should still use the same wrapper/input/trigger contract
+- Use `renderTimePickerField` plus the shared picker overlay for quarter-hour time selection instead of native `<input type="time">` in dense grids.
+- `Application.Helper.FrontendContract.TimePicker` owns the focused global field, value, trigger, label, step, option-grid, option, clear, and modal identities. Views and feature scripts must not handwrite picker role attributes or use presentation classes as browser selectors.
+- `TimePickerConfig` is the complete Haskell construction boundary. Haskell owns the range (including overnight wrapping), step, empty-state copy, option values/labels, initial display label, disabled state, and accessibility copy. The view helper serializes exact generated field and option records; TypeScript parses them with the generated parsers and supplies no fallback range, value, label, or copy.
+- Step buttons may be omitted through `timePickerShowStepButtons`; the shared renderer still owns the complete generated field/value/trigger/label boundary.
+- Malformed field or option payloads are reported locally and skipped without rewriting the server-rendered field or modal options.
 - Render `renderQuarterHourTimePickerModal` once in the global layout so it stays in the picker lane and can open above a workflow dialog without competing for the shared dialog mount.
-- Keep HTMX autosave on the hidden input (`hx-trigger="change"`), and let JS dispatch `change` after selecting/clearing a modal option.
+- The generated Toggle capability separately owns timesheet break-field activation. The picker consumes native disabled state and must not query toggle/break roles, synchronize toggle transport, or add a duplicate break handler.
+- Keep HTMX autosave on the generated hidden picker value when a workflow needs it, and let the generic adapter dispatch `change` after selecting or clearing an option.
+
+## Reusable Ordered Range Pattern
+- `Application.Helper.FrontendContract.OrderedRange` owns generated
+  root/config/state/start/end/availability roles, exact configuration/state
+  schemas, position properties, and the closed crossing policy. Views must use
+  its runtime attr helpers rather than handwrite range datasets.
+- Haskell owns the complete allowed range, step, workflow defaults, ordered
+  display-label inventory, current values, native accessibility labels/output
+  relationships, and initial availability. Keep these values shared with server
+  validation rather than reconstructing them in TypeScript.
+- Compose availability with the generated Toggle control, but keep the
+  OrderedRange availability role on a local wrapper. OrderedRange may read the
+  one native checkbox inside that wrapper; it must not import Toggle roles or
+  take over Toggle's repeated-field transport.
+- Malformed config/state or local DOM disagreement must be reported and skipped
+  before mutation. Use native disabled state for unavailable styling and keep
+  initialized browser state outside server DOM.
 
 ## Theming Pattern (Dark Mode)
 - The app uses a centralized token system in `static/css/tokens.css` (`:root` CSS variables) with dark mode as the default. Read `static/css/README.md` before adding or moving app-owned CSS.
@@ -135,6 +166,9 @@ HTML form attributes are not validation. Keep `required`, hidden inputs, and sel
 - Authenticated navigation is centralized in `Web/View/Layout.hs` (`renderAppHeader`) so every signed-in page gets the same header.
 - Keep nav button labels/order consistent: `roster`, `profile`, `timesheets`, `unavailability`, `xero`, `admin`, `support`, `logout`.
 - Keep `xero` link visibility owner/super-admin only via the shared Xero audience logic.
+- Keep `billing` after Xero and before Admin, visible only to an ordinary venue
+  owner when the Stripe owner-navigation deployment control is enabled. Hiding
+  navigation must never disable the authorized direct Billing route.
 - Keep `admin` link visibility role-gated (admin only) via `currentUserIsAdmin`.
 - Keep `support` link visibility founder-only via `currentUserIsSupportAdmin`; do not expose it to ordinary venue admins.
 - Do not duplicate primary nav in page-level views unless there is a specific workflow reason.

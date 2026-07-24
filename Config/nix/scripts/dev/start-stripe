@@ -29,6 +29,15 @@ if [ -z "${STRIPE_SECRET_KEY:-}" ]; then
     echo "dev-start-stripe requires STRIPE_SECRET_KEY in .env." >&2
     exit 64
 fi
+require_stripe_test_secret_key "$STRIPE_SECRET_KEY" "dev-start-stripe"
+if [ "${STRIPE_MODE:-test}" != "test" ]; then
+    echo "dev-start-stripe requires STRIPE_MODE=test." >&2
+    exit 64
+fi
+export STRIPE_MODE="test"
+export STRIPE_BILLING_ENABLED="true"
+export STRIPE_CHECKOUT_ENABLED="${STRIPE_CHECKOUT_ENABLED:-true}"
+export STRIPE_OWNER_NAVIGATION_VISIBLE="${STRIPE_OWNER_NAVIGATION_VISIBLE:-false}"
 if [ -z "${STRIPE_PRICE_ID:-}" ] && [ -z "${STRIPE_PRICE_LOOKUP_KEY:-}" ]; then
     echo "dev-start-stripe requires STRIPE_PRICE_ID or STRIPE_PRICE_LOOKUP_KEY in .env." >&2
     exit 64
@@ -80,10 +89,11 @@ if command -v lsof >/dev/null 2>&1 \
 fi
 
 if [ ! -f "$STRIPE_PID_FILE" ]; then
-    echo "[dev-start-stripe] launching stripe listen" >>"$LOG_FILE"
+    echo "[dev-start-stripe] launching stripe listen for pinned contract $IHP_ROSTER_STRIPE_API_VERSION" >>"$LOG_FILE"
     setsid nohup stripe listen \
         --api-key "$STRIPE_SECRET_KEY" \
         --skip-update \
+        --latest \
         --events "$IHP_ROSTER_STRIPE_WEBHOOK_EVENTS" \
         --forward-to localhost:8000/StripeWebhook \
         </dev/null >>"$STRIPE_LOG_FILE" 2>&1 &

@@ -18,6 +18,55 @@ Read this before editing `static/` assets.
   encoders, and type-only roots generate neither codec. Use generated contracts for backend-emitted JSON/data-* boundaries;
   do not restore server-only action/DTO/topology manifests or an omnibus Surface
   registry.
+- Dialog/toast bundles consume the generated Overlay ids, role/event attributes,
+  and exact configuration parsers. Emit the semantic generated dismissal event
+  before close-control, backdrop, or Escape removal. Bootstrap modal vocabulary
+  and transient toast classes stay adapter-owned; do not restore legacy overlay
+  data attributes or DOM-backed initialization/original-markup state.
+- `app-passkeys.js` consumes generated passkey roles, closed prompt modes,
+  exact flow/begin/finish/error parsers, and credential request encoders. Every
+  control/status/recovery lookup is local to one validated flow root; malformed
+  configuration remains untouched and malformed server envelopes fail before a
+  credential API or redirect. Haskell owns routes and all displayed
+  workflow/error copy; do not surface native exception or untyped response
+  messages. Keep native WebAuthn objects, extension-result semantics, capability
+  detection, base64url conversion, and local-storage hints in the handwritten
+  adapter. Prompt dismissal also bears the generated
+  Overlay close role and consumes its generated dismissal event, while passkey
+  code must not duplicate dialog removal, focus, or body-lock behavior.
+- `app-time-picker.js` consumes generated picker ids/roles and exact config and
+  option parsers. Its mechanical modal adapter rearranges validated
+  server-rendered option nodes; it does not generate fallback values/labels,
+  discover controls through CSS classes, or duplicate Toggle break-region
+  behavior.
+- `app-preferences.js` is the generic ordered-range adapter. It consumes
+  generated exact config/state parsers, roles, policy values, and position
+  properties; it discovers only native controls/outputs inside the generated
+  root and supplies no feature fallback bounds, labels, defaults, or policy.
+  Availability styling follows native disabled state, while Toggle separately
+  owns the submitted availability field.
+- `app-pwa.js` consumes generated install page/button/result/installed roles and
+  the closed result-state guard. Haskell owns all workflow messages. Browser
+  install events, prompt objects, and standalone/platform detection stay in the
+  adapter, while visibility and accessibility use native `hidden`/ARIA state.
+- `app-roster.js` consumes Surface-generated fullscreen/column-edit roles and
+  closed-state attributes, values, and guards. CSS uses those generated
+  selectors; raw `data-roster-fullscreen*`/`data-roster-column-*` contracts and
+  behavior discovery through presentation classes must stay absent.
+- Roster image export consumes generated trigger/config/projection/row/cell
+  roles, the closed JPG format, and exact payload parsers. Haskell owns filename,
+  copy, dimensions, quality, errors, and cell text; the bundle owns only browser
+  measurement, computed styles, SVG/Canvas encoding, and download mechanics.
+- The dormant roster week overview consumes generated panel/day/detail-slot
+  roles, exact payloads, native `aria-pressed`, and generated status attrs. Keep
+  raw week-overview datasets, browser fallback copy, semantic `is-*` classes,
+  and active-header mounting absent.
+- `app-xero.js` consumes generated candidate-filter root/search/candidate/
+  config/empty roles and the exact config parser. Haskell owns the opaque
+  normalized projection and all import identity/copy; the adapter validates and
+  diagnoses the complete local boundary before fuzzy matching and native
+  `hidden` changes. Xero feature CSS must keep `[hidden]` authoritative over
+  Bootstrap flex utilities without introducing a second browser state class.
 - Keep app JavaScript split by concern:
   - `app-bootstrap.js`
   - `app-date-pickers.js`
@@ -33,6 +82,7 @@ Read this before editing `static/` assets.
   - `app-time-picker.js`
   - `app-timesheets.js`
   - `app-toasts.js`
+  - `app-xero.js`
 - Keep CSS split by concern under `static/css/`; read `static/css/README.md`
   before adding or moving app-owned CSS.
 - Choose the narrowest owner: semantic tokens in `static/css/tokens.css`,
@@ -124,16 +174,17 @@ Read this before editing `static/` assets.
 ## Horizontal Scroll Components
 
 - Use `app-horizontal-frame`, `app-horizontal-grid`, and
-  `app-horizontal-panel` for reusable horizontal strip layout, with
-  `data-horizontal-snap` for reusable horizontal snapping and
-  `data-horizontal-drag-scroll` for reusable mouse drag-scroll.
-- Use generic runtime attrs only: `data-horizontal-snap-dragging` and
-  `data-horizontal-dragging`. Do not add feature-specific aliases.
-- Interactive descendants are ignored by drag-scroll by default; add a narrow
-  `data-horizontal-drag-scroll-ignore-selector` only for extra feature-specific
-  controls.
-- The newest user scroll or drag must cancel stale snap intent. Do not add
-  feature scripts that fight `app-horizontal-scroll.js` for the same scroller.
+  `app-horizontal-panel` for reusable horizontal strip layout.
+- Render drag/snap roles and exact configuration through
+  `Application.Helper.FrontendContract.HorizontalScroll.Runtime`; browser code
+  consumes only the generated attributes and parsers.
+- Pointer thresholds, scheduling, click suppression, and the transient
+  `is-horizontal-dragging`/`is-horizontal-snap-dragging` classes remain private
+  to the generic adapter. Do not add feature-specific aliases or DOM state.
+- Interactive descendants are ignored by default; Haskell may add one narrow
+  ignore selector through `HorizontalDragConfig` for extra feature controls.
+- The newest user scroll or drag must cancel stale snap intent. Initialization
+  and cleanup are local to each mounted scroller and HTMX replacement subtree.
 
 ## UI Rules
 

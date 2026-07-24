@@ -55,8 +55,12 @@
     };
     billing.stripe = {
       # Enable after provisioning the Dashboard Product/Price, webhook endpoint,
-      # Customer Portal settings, and the two secret files below.
+      # Customer Portal settings, and the two secret files below. For the hidden
+      # canary, set enable and checkoutEnabled true while navigation stays false.
       enable = false;
+      mode = "live";
+      checkoutEnabled = false;
+      ownerNavigationVisible = false;
       priceLookupKey = "bepis_venue_monthly_aud_100";
       priceId = null;
       secretKeyFile = "/run/secrets/ihp-roster-stripe-secret-key";
@@ -64,6 +68,11 @@
       gstRegistered = false;
       automaticTax = false;
       taxIdCollection = false;
+      reconciliationSweep = {
+        enable = true;
+        onCalendar = "daily";
+        randomizedDelaySec = "30m";
+      };
       # Rotate keys in Stripe Dashboard, update the secret files out-of-band,
       # then restart app.service and worker.service. Do not commit real keys.
     };

@@ -22,8 +22,8 @@ import Application.Helper.FrontendContract.AppShell.Runtime (AppShellActionRoute
                                                              renderAppShellActionForm)
 import Application.Helper.FrontendContract.IR (AppShellActionIR)
 import qualified Application.Helper.FrontendContract.Surface.Admin as Surface
+import qualified Application.Helper.FrontendContract.Surface.Admin.Action as AdminAction
 import Application.Helper.FrontendContract.Surface.Runtime (FrontendSurfaceActionRoute (..),
-                                                            frontendSurfaceAction,
                                                             renderFrontendSurfaceActionForm)
 import Application.Helper.FrontendContract.Surface.Values
 import Application.Helper.View.Overlay
@@ -558,7 +558,7 @@ renderStaffEmployeeReadOnly view row = [hsx|
 renderStaffEmployeeEditForm :: XeroTimesheetPreparationView -> XeroPreparationStaffRow -> Html
 renderStaffEmployeeEditForm view row =
     renderFrontendSurfaceActionForm
-        (frontendSurfaceAction @Surface.AdminXeroSurface @Surface.ShowXeroTimesheetPreparationStaffMappings fields)
+        (AdminAction.showXeroTimesheetPreparationStaffMappingsAction fields)
         FrontendSurfaceActionRoute
             { actionRouteUrl = pathTo (ShowXeroTimesheetPreparationStaffMappingsFragmentAction view.preparationRun.id)
             , actionRouteCustomHtmx = []
@@ -571,10 +571,7 @@ renderStaffEmployeeEditForm view row =
             <button type="submit" class="btn btn-sm btn-outline-secondary">Edit</button>
         |]
   where
-    fields =
-        surfaceField @Surface.ShowMatched True
-            :& surfaceOptionalField @Surface.EditStaffId (Just (unpackId row.preparationStaffMappingRow.mappingRowStaff.id))
-            :& NoSurfaceFields
+    fields = AdminAction.showXeroTimesheetPreparationStaffMappingsActionFields True (Just (unpackId row.preparationStaffMappingRow.mappingRowStaff.id))
 
 staffEmployeeDisplay :: XeroPreparationStaffRow -> Text
 staffEmployeeDisplay row

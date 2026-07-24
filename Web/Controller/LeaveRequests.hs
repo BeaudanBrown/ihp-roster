@@ -1,17 +1,19 @@
 module Web.Controller.LeaveRequests where
 
 import qualified Application.Helper.FrontendContract.Surface.Profile as ProfileSurface
+import qualified Application.Helper.FrontendContract.Surface.Profile.Action as ProfileAction
 import Application.Helper.FrontendContract.Surface.Request (SurfaceRequestFieldError,
                                                             attachSurfaceRequestFieldErrors,
-                                                            parseSurfaceActionParams,
                                                             surfaceRequestFieldErrorsMessage)
-import qualified Application.Helper.FrontendContract.Surface.Roster as RosterSurface
+import qualified Application.Helper.FrontendContract.Surface.SelfServiceLeave as SelfServiceLeaveSurface
+import qualified Application.Helper.FrontendContract.Surface.SelfServiceLeave.Action as SelfServiceLeaveAction
+import qualified Application.Helper.FrontendContract.Surface.SelfServiceLeave.Live as SelfServiceLeaveLive
 import Application.Helper.FrontendContract.Surface.Values (surfaceFieldValue)
-import Application.Helper.LiveUpdate (setActorLiveResourcesRefresh)
+import Application.Helper.LiveUpdate (setActorLiveResourcesRefresh,
+                                      setActorLiveResourcesRefreshIncluding)
 import Application.Helper.ProfileLeave (buildDefaultLeaveRequest,
                                         fetchStaffLeaveRequests)
 import Application.Helper.Profiling
-import Application.Helper.RosterGroups (fetchCurrentVenueRosterGroupOrDefault)
 import Application.Helper.SurfaceResource (LiveMutationResult (..),
                                            SurfaceResourceValue)
 import Application.Helper.View (ToastOverlayPosition (..), dialogOverlayMountId,
@@ -21,24 +23,20 @@ import qualified Data.Set as Set
 import qualified Data.Text.IO as TextIO
 import Web.Controller.Prelude
 import Web.LeaveRequests.FrontendSurface (LeaveRequestsScopeValue (..),
+                                          SelfServiceLeaveScopeValue (..),
                                           leaveRequestsCandidateMountedFragments,
-                                          leaveRequestsSurfaceScope)
+                                          leaveRequestsSurfaceScope,
+                                          selfServiceLeaveFormMountedFragment,
+                                          selfServiceLeaveHistoryMountedFragment,
+                                          selfServiceLeaveSurfaceScope)
 import Web.LeaveRequests.Mutations
-import Web.LeaveRequests.ProfileSelfService
 import Web.LeaveRequests.ReadModel
+import Web.LeaveRequests.SelfService
 import Web.Profiles.FrontendSurface (ProfileScopeValue (..),
-                                     profileCandidateMountedFragments,
-                                     profileSurfaceScope,
                                      staffCandidateMountedFragments,
                                      staffSurfaceScope)
-import Web.RosterWeeks.Responses (respondWithRosterResourceInvalidation)
-import Web.RosterWeeks.StaffSelfServiceLeaveFragments (buildDefaultRosterStaffSelfServiceLeaveRequest)
-import Web.RosterWeeks.Types (RosterProjectionFragment (..))
 import Web.View.LeaveRequests.Index
 import Web.View.LeaveRequests.New
-import Web.View.RosterWeeks.StaffSelfServicePanel (renderRosterStaffSelfServiceLeaveFormFragment,
-                                                   renderRosterStaffSelfServiceLeaveFormFragmentForRoster,
-                                                   renderRosterStaffSelfServiceLeaveFormFragmentWithSwap)
 import Web.View.Staff.Edit (renderStaffLeaveRequestFormFragment)
 
 instance Controller LeaveRequestsController where
@@ -76,6 +74,20 @@ instance Controller LeaveRequestsController where
                     when (isNothing maybeHtml) do
                         TextIO.putStrLn ("leave_fragment_miss: fragment=" <> tshow requestedFragment)
                     respondHtmlProfiled (fromMaybe mempty maybeHtml)
+
+    action currentAction@ShowSelfServiceLeaveFragmentAction = runBepis currentAction BepisFragmentAction do
+        ensureStaffSelfServiceAccess
+        maybeStaff <- fetchCurrentUserStaff
+        case maybeStaff of
+            Nothing -> respondWithLeaveContextError LeaveSelfServiceResponseContext "No staff record found. Contact an administrator."
+            Just staff ->
+                if paramOrDefault @Text "form" "fragment" == "history"
+                    then do
+                        leaveRequests <- fetchStaffLeaveRequests staff
+                        respondHtmlProfiled (renderSelfServiceLeaveHistoryFragment Nothing leaveRequests)
+                    else do
+                        leaveRequest <- buildDefaultLeaveRequest
+                        respondHtmlProfiled (renderSelfServiceLeaveFormFragment Nothing leaveRequest)
 
     action currentAction@NewLeaveRequestAction = runBepis currentAction BepisFormAction do
         ensureStaffSelfServiceAccess
@@ -185,13 +197,6 @@ respondWithLeaveRequestsContent touchedResources successMessage = do
 respondWithLeaveRequestsContentForReview :: (?context :: ControllerContext, ?request :: Request) => Set.Set SurfaceResourceValue -> Text -> IO ()
 respondWithLeaveRequestsContentForReview = respondWithLeaveRequestsContent
 
-respondWithProfileLeaveActorInvalidation :: (?context :: ControllerContext, ?request :: Request) => Staff -> Set.Set SurfaceResourceValue -> Text -> IO ()
-respondWithProfileLeaveActorInvalidation staff touchedResources successMessage = do
-    let scope = ProfileScopeValue (unpackId currentVenueId) (unpackId staff.id)
-    setHeader ("HX-Reswap", "none")
-    setActorLiveResourcesRefresh (profileSurfaceScope scope) touchedResources (profileCandidateMountedFragments scope)
-    respondHtmlProfiled (renderToastOob ToastBottomCenter (successToast successMessage))
-
 respondWithStaffLeaveActorInvalidation :: (?context :: ControllerContext, ?request :: Request) => Staff -> Set.Set SurfaceResourceValue -> Text -> IO ()
 respondWithStaffLeaveActorInvalidation staff touchedResources successMessage = do
     let scope = ProfileScopeValue (unpackId currentVenueId) (unpackId staff.id)
@@ -199,16 +204,9 @@ respondWithStaffLeaveActorInvalidation staff touchedResources successMessage = d
     setActorLiveResourcesRefresh (staffSurfaceScope scope) touchedResources (staffCandidateMountedFragments scope)
     respondHtmlProfiled (renderToastOob ToastBottomCenter (successToast successMessage))
 
-resolveRosterLeaveScope :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => IO (Id RosterGroup, Int)
-resolveRosterLeaveScope = do
-    currentRosterGroup <- fetchCurrentVenueRosterGroupOrDefault (paramOrNothing @(Id RosterGroup) "rosterGroupId")
-    let weekOffset = paramOrDefault @Int 0 "weekOffset"
-    pure (currentRosterGroup.id, weekOffset)
-
 data LeaveResponseContext
     = LeavePageResponseContext
-    | LeaveProfileResponseContext
-    | LeaveRosterResponseContext
+    | LeaveSelfServiceResponseContext
     | LeaveStaffResponseContext
     deriving (Eq, Show)
 
@@ -223,21 +221,21 @@ parseSurfaceLeaveRequest ::
     LeaveResponseContext ->
     Maybe (Either [SurfaceRequestFieldError] SurfaceLeaveRequest)
 parseSurfaceLeaveRequest LeavePageResponseContext = Nothing
-parseSurfaceLeaveRequest LeaveProfileResponseContext =
+parseSurfaceLeaveRequest LeaveSelfServiceResponseContext =
     Just $
-        toProfileLeaveRequest
-            <$> parseSurfaceActionParams @ProfileSurface.ProfileSurface @ProfileSurface.CreateProfileLeaveRequest
+        toSelfServiceLeaveRequest
+            <$> SelfServiceLeaveAction.parseCreateSelfServiceLeaveRequestActionParams
   where
-    toProfileLeaveRequest fields =
+    toSelfServiceLeaveRequest fields =
         SurfaceLeaveRequest
-            { surfaceLeaveStartDate = surfaceFieldValue @ProfileSurface.StartDate fields
-            , surfaceLeaveEndDate = surfaceFieldValue @ProfileSurface.EndDate fields
-            , surfaceLeaveNotes = surfaceFieldValue @ProfileSurface.Notes fields
+            { surfaceLeaveStartDate = surfaceFieldValue @SelfServiceLeaveSurface.StartDate fields
+            , surfaceLeaveEndDate = surfaceFieldValue @SelfServiceLeaveSurface.EndDate fields
+            , surfaceLeaveNotes = surfaceFieldValue @SelfServiceLeaveSurface.Notes fields
             }
 parseSurfaceLeaveRequest LeaveStaffResponseContext =
     Just $
         toStaffLeaveRequest
-            <$> parseSurfaceActionParams @ProfileSurface.StaffSurface @ProfileSurface.CreateStaffLeaveRequest
+            <$> ProfileAction.parseCreateStaffLeaveRequestActionParams
   where
     toStaffLeaveRequest fields =
         SurfaceLeaveRequest
@@ -245,30 +243,17 @@ parseSurfaceLeaveRequest LeaveStaffResponseContext =
             , surfaceLeaveEndDate = surfaceFieldValue @ProfileSurface.EndDate fields
             , surfaceLeaveNotes = surfaceFieldValue @ProfileSurface.Notes fields
             }
-parseSurfaceLeaveRequest LeaveRosterResponseContext =
-    Just $
-        toRosterLeaveRequest
-            <$> parseSurfaceActionParams @RosterSurface.RosterSurface @RosterSurface.CreateRosterSelfServiceLeaveRequest
-  where
-    toRosterLeaveRequest fields =
-        SurfaceLeaveRequest
-            { surfaceLeaveStartDate = surfaceFieldValue @RosterSurface.StartDate fields
-            , surfaceLeaveEndDate = surfaceFieldValue @RosterSurface.EndDate fields
-            , surfaceLeaveNotes = surfaceFieldValue @RosterSurface.Notes fields
-            }
-
 parseLeaveResponseContext :: Text -> LeaveResponseContext
 parseLeaveResponseContext responseContext
-    | responseContext == "profile" = LeaveProfileResponseContext
-    | responseContext == "roster" = LeaveRosterResponseContext
+    | responseContext `elem` ["profile", "roster", "self-service"] = LeaveSelfServiceResponseContext
     | responseContext == "staff" = LeaveStaffResponseContext
     | otherwise = LeavePageResponseContext
 
 effectiveLeaveResponseContext :: (?context :: ControllerContext) => LeaveResponseContext -> LeaveResponseContext
 effectiveLeaveResponseContext requestedContext
-    | requestedContext == LeaveRosterResponseContext = LeaveRosterResponseContext
+    | requestedContext == LeaveSelfServiceResponseContext = LeaveSelfServiceResponseContext
     | requestedContext == LeaveStaffResponseContext = LeaveStaffResponseContext
-    | not (hasRole ManagerRole') = LeaveProfileResponseContext
+    | not (hasRole ManagerRole') = LeaveSelfServiceResponseContext
     | otherwise = requestedContext
 
 requestedLeaveResponseContext :: (?context :: ControllerContext, ?request :: Request) => LeaveResponseContext
@@ -278,14 +263,12 @@ requestedLeaveResponseContext =
     where
         inferredFromHtmxTarget =
             case cs <$> getHeader "HX-Target" of
-                Just targetId | targetId `elem` profileLeaveTargetFragmentIds -> LeaveProfileResponseContext
+                Just targetId | targetId == selfServiceLeaveFormFragmentId -> LeaveSelfServiceResponseContext
                 _ -> LeavePageResponseContext
 
 leaveFallbackPath :: LeaveResponseContext -> Text
 leaveFallbackPath LeavePageResponseContext = pathTo EditProfileAction
-leaveFallbackPath LeaveProfileResponseContext =
-    pathTo EditProfileAction <> "?section=leave"
-leaveFallbackPath LeaveRosterResponseContext = pathTo RosterWeeksAction
+leaveFallbackPath LeaveSelfServiceResponseContext = pathTo EditProfileAction <> "?section=leave"
 leaveFallbackPath LeaveStaffResponseContext = pathTo RosterWeeksAction
 
 respondWithLeaveRequestValidationFailure :: (?modelContext :: ModelContext, ?context :: ControllerContext, ?request :: Request) => LeaveResponseContext -> LeaveRequest -> IO ()
@@ -293,11 +276,8 @@ respondWithLeaveRequestValidationFailure responseContext leaveRequest =
     case responseContext of
         LeavePageResponseContext ->
             respondHtml (renderNewLeaveRequestDialog leaveRequest)
-        LeaveProfileResponseContext ->
-            respondHtml (renderProfileLeaveRequestFormFragment leaveRequest)
-        LeaveRosterResponseContext -> do
-            (rosterGroupId, weekOffset) <- resolveRosterLeaveScope
-            respondHtml (renderRosterStaffSelfServiceLeaveFormFragmentForRoster rosterGroupId weekOffset leaveRequest)
+        LeaveSelfServiceResponseContext ->
+            respondHtml (renderSelfServiceLeaveFormFragment Nothing leaveRequest)
         LeaveStaffResponseContext ->
             respondHtml (renderStaffLeaveRequestFormFragment (Id leaveRequest.staffId) leaveRequest)
 
@@ -306,23 +286,19 @@ respondWithLeaveMutationSuccess responseContext touchedResources successMessage 
     case responseContext of
         LeavePageResponseContext ->
             respondWithLeaveRequestsContent touchedResources successMessage
-        LeaveProfileResponseContext -> do
+        LeaveSelfServiceResponseContext -> do
             maybeStaff <- fetchCurrentUserStaff
             case maybeStaff of
-                Nothing -> respondWithLeaveContextError LeaveProfileResponseContext "No staff record found. Contact an administrator."
-                Just staff ->
-                    respondWithProfileLeaveActorInvalidation staff touchedResources successMessage
-        LeaveRosterResponseContext -> do
-            (rosterGroupId, weekOffset) <- resolveRosterLeaveScope
-            leaveRequest <- buildDefaultRosterStaffSelfServiceLeaveRequest
-            respondWithRosterResourceInvalidation
-                rosterGroupId
-                weekOffset
-                touchedResources
-                [RosterProjectionContent]
-                ( renderRosterStaffSelfServiceLeaveFormFragmentWithSwap (Just "outerHTML") (Just (rosterGroupId, weekOffset)) leaveRequest
-                    <> renderToastOob ToastBottomCenter (successToast successMessage)
-                )
+                Nothing -> respondWithLeaveContextError LeaveSelfServiceResponseContext "No staff record found. Contact an administrator."
+                Just staff -> do
+                    let scope = SelfServiceLeaveScopeValue (unpackId currentVenueId) (unpackId staff.id)
+                    setHeader ("HX-Reswap", "none")
+                    setActorLiveResourcesRefreshIncluding
+                        [SelfServiceLeaveLive.selfServiceLeaveFormLiveFragment]
+                        (selfServiceLeaveSurfaceScope scope)
+                        touchedResources
+                        [selfServiceLeaveFormMountedFragment, selfServiceLeaveHistoryMountedFragment]
+                    respondHtmlProfiled (renderToastOob ToastBottomCenter (successToast successMessage))
         LeaveStaffResponseContext -> do
             maybeStaff <- fetchLeaveRequestTargetStaff LeaveStaffResponseContext
             case maybeStaff of
@@ -333,10 +309,9 @@ respondWithLeaveMutationSuccess responseContext touchedResources successMessage 
 ensureLeaveProfileAccess :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => LeaveResponseContext -> IO ()
 ensureLeaveProfileAccess responseContext =
     case responseContext of
-        LeavePageResponseContext    -> ensureProfileCompleted
-        LeaveProfileResponseContext -> pure ()
-        LeaveRosterResponseContext  -> ensureProfileCompleted
-        LeaveStaffResponseContext   -> ensureManagerRole
+        LeavePageResponseContext        -> ensureProfileCompleted
+        LeaveSelfServiceResponseContext -> ensureProfileCompleted
+        LeaveStaffResponseContext       -> ensureManagerRole
 
 fetchLeaveRequestTargetStaff :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => LeaveResponseContext -> IO (Maybe Staff)
 fetchLeaveRequestTargetStaff LeaveStaffResponseContext = do
@@ -354,21 +329,11 @@ respondWithLeaveContextError responseContext errorMessage =
         LeavePageResponseContext -> do
             setErrorMessage errorMessage
             redirectToPath (leaveFallbackPath responseContext)
-        LeaveProfileResponseContext -> do
+        LeaveSelfServiceResponseContext -> do
             leaveRequest <- buildDefaultLeaveRequest
             respondHtmlProfiled $
-                mconcat
-                    [ renderProfileLeaveRequestFormFragment leaveRequest
-                    , renderToastOob ToastBottomCenter (errorToast errorMessage)
-                    ]
-        LeaveRosterResponseContext -> do
-            leaveRequest <- buildDefaultRosterStaffSelfServiceLeaveRequest
-            (rosterGroupId, weekOffset) <- resolveRosterLeaveScope
-            respondHtmlProfiled $
-                mconcat
-                    [ renderRosterStaffSelfServiceLeaveFormFragmentForRoster rosterGroupId weekOffset leaveRequest
-                    , renderToastOob ToastBottomCenter (errorToast errorMessage)
-                    ]
+                renderSelfServiceLeaveFormFragment Nothing leaveRequest
+                    <> renderToastOob ToastBottomCenter (errorToast errorMessage)
         LeaveStaffResponseContext -> do
             leaveRequest <- buildDefaultLeaveRequest
             let formHtml = maybe mempty (`renderStaffLeaveRequestFormFragment` leaveRequest) (paramOrNothing @(Id Staff) "staffId")

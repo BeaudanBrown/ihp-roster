@@ -3,12 +3,12 @@ set -euo pipefail
 STATE_DIR="$(dev-agent-state-dir)"
 PID_FILE="$STATE_DIR/devenv.pid"
 FRONTEND_WATCH_PID_FILE="$STATE_DIR/frontend-watch.pid"
-FRONTEND_CONTRACTS_WATCH_PID_FILE="$STATE_DIR/frontend-contracts-watch.pid"
+FRONTEND_GENERATED_WATCH_PID_FILE="$STATE_DIR/frontend-generated-watch.pid"
 POSTGRES_PID_FILE="$STATE_DIR/postgres.pid"
 MAILHOG_PID_FILE="$STATE_DIR/mailhog.pid"
 LOG_FILE="$STATE_DIR/devenv.log"
 FRONTEND_WATCH_LOG_FILE="$STATE_DIR/frontend-watch.log"
-FRONTEND_CONTRACTS_WATCH_LOG_FILE="$STATE_DIR/frontend-contracts-watch.log"
+FRONTEND_GENERATED_WATCH_LOG_FILE="$STATE_DIR/frontend-generated-watch.log"
 DB_SOCKET="${PGHOST:-$PWD/build/db}"
 APP_HEALTH_URL="${APP_BASE_URL:-http://127.0.0.1:8000}"
 
@@ -38,24 +38,29 @@ start_tracked_watch() {
 }
 
 start_frontend_watchers() {
-    start_tracked_watch "$FRONTEND_CONTRACTS_WATCH_PID_FILE" "$FRONTEND_CONTRACTS_WATCH_LOG_FILE" "frontend-contracts-watch" frontend-contracts-watch
+    start_tracked_watch "$FRONTEND_GENERATED_WATCH_PID_FILE" "$FRONTEND_GENERATED_WATCH_LOG_FILE" "frontend-generated-watch" frontend-generated-watch
     start_tracked_watch "$FRONTEND_WATCH_PID_FILE" "$FRONTEND_WATCH_LOG_FILE" "frontend-watch" frontend-watch
 }
 
 if dev-status >/dev/null 2>&1; then
+    frontend-generated-ensure
     start_frontend_watchers
-    echo "devenv already healthy (frontend-watch log=$FRONTEND_WATCH_LOG_FILE, frontend-contracts-watch log=$FRONTEND_CONTRACTS_WATCH_LOG_FILE)"
+    echo "devenv already healthy (frontend-watch log=$FRONTEND_WATCH_LOG_FILE, frontend-generated-watch log=$FRONTEND_GENERATED_WATCH_LOG_FILE)"
     exit 0
 fi
 
 if [ -f "$PID_FILE" ]; then
     PID=$(cat "$PID_FILE")
     if kill -0 "$PID" 2>/dev/null; then
-        echo "devenv already running (pid=$PID)"
+        frontend-generated-ensure
+        start_frontend_watchers
+        echo "devenv already running (pid=$PID); frontend watchers ensured"
         exit 0
     fi
     rm -f "$PID_FILE"
 fi
+
+frontend-generated-ensure
 
 : > "$LOG_FILE"
 # In restricted sandboxes ~/.cache can be read-only, which makes

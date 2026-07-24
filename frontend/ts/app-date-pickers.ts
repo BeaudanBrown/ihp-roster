@@ -1,4 +1,5 @@
-import { onAppPageReady } from "./shared/lifecycle";
+import { type DomRoot } from "./shared/dom";
+import { detailRoot, onAppPageReady } from "./shared/lifecycle";
 
 // Keep the date/datetime picker enhancement app-local so it survives after helpers.js is removed.
 type FlatpickrConfig = {
@@ -18,10 +19,12 @@ export function datePickerConfigFor(inputType: string): FlatpickrConfig {
             time_24hr: true,
             dateFormat: "Z",
             altInput: true,
-            altFormat: "d.m.y, H:i",
+            altFormat: "d/m/Y, H:i",
         }
         : {
-            altFormat: "d.m.y",
+            dateFormat: "Y-m-d",
+            altInput: true,
+            altFormat: "d/m/Y",
         };
 }
 
@@ -37,7 +40,7 @@ function initInput(inputEl: HTMLInputElement): void {
     inputEl.dataset[initializedKey] = "true";
 }
 
-function initWithin(root: Element | Document): void {
+function initWithin(root: DomRoot): void {
     if (root instanceof HTMLInputElement && (root.type === "date" || root.type === "datetime-local")) {
         initInput(root);
     }
@@ -45,23 +48,15 @@ function initWithin(root: Element | Document): void {
     root.querySelectorAll<HTMLInputElement>("input[type='date'], input[type='datetime-local']").forEach(initInput);
 }
 
-function rootFromPageEvent(event: Event): Element | Document {
-    const detail = event instanceof CustomEvent ? event.detail as { target?: unknown } : undefined;
-    return detail?.target instanceof Element || detail?.target instanceof Document ? detail.target : document;
-}
-
 function handleSwap(event: Event): void {
-    const detail = event instanceof CustomEvent ? event.detail as { target?: unknown } : undefined;
-    if (detail?.target instanceof HTMLElement) {
-        initWithin(detail.target);
-    }
+    initWithin(detailRoot(event, "target"));
 }
 
 function enableDatePickers(): void {
     if (typeof window === "undefined") return;
 
     onAppPageReady((event) => {
-        initWithin(rootFromPageEvent(event));
+        initWithin(detailRoot(event, "target"));
     });
     document.addEventListener("htmx:afterSwap", handleSwap);
     document.addEventListener("htmx:oobAfterSwap", handleSwap);

@@ -12,6 +12,7 @@ module Web.Timesheets.Validation
 
 import Application.Helper.Staff (isLinkedActiveStaff)
 import Application.Helper.Url (appendQueryParams)
+import Data.Either (fromRight)
 import qualified Data.Text as Text
 import qualified Data.UUID as UUID
 import Web.Controller.Prelude
@@ -122,12 +123,23 @@ buildTimesheetEntry currentViewerStaffId entry =
                 |> parseAndSetStartTime
                 |> parseAndSetEndTime
                 |> set #hadBreak hadBreak
+                |> validateHadBreakTransport
                 |> applyBreakFields
                 |> validateTimingConstraints
      in builtEntry
             |> applyCommentFields entry
     where
-        hadBreak = isJust (paramOrNothing @Text "hadBreak")
+        parsedHadBreak =
+            case paramOrNothing @Text "hadBreak" of
+                Nothing      -> Right False
+                Just "true"  -> Right True
+                Just "false" -> Right False
+                Just _       -> Left "Had break must be true or false"
+        hadBreak = fromRight False parsedHadBreak
+        validateHadBreakTransport record =
+            case parsedHadBreak of
+                Left message -> record |> attachFailure #hadBreak message
+                Right _      -> record
         normalizedTextParam paramName =
             let value = Text.strip (paramOrDefault "" paramName)
              in if Text.null value then Nothing else Just value

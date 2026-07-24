@@ -1,7 +1,7 @@
 # Test Guidelines
 
 ## Reference
-Read `/home/beau/documents/projects/ihp/Guide/testing.markdown` for full IHP testing documentation.
+Read `../ihp/Guide/testing.markdown` for full IHP testing documentation.
 
 ## Running Tests
 
@@ -13,6 +13,8 @@ bash ./bin/in-env hspec-test --match "PostsController"  # run tests matching a p
 bash ./bin/in-env hspec-test --match "PasskeysController" --match "LiveUpdate"  # OR multiple patterns in one run
 bash ./bin/in-env hspec-pure                        # pure/contract suites, no PostgreSQL reset or connection
 bash ./bin/in-env hspec-db                          # DB-backed suites only, with isolated shard databases
+bash ./bin/in-env hspec-pure --suite-metadata       # validate/report the authoritative suite inventory without PostgreSQL
+TEST_FEEDBACK_LANE=routine bash ./bin/in-env hspec-test  # metadata-selected routine feedback; output names omitted acceptance invariants
 TEST_SHARDS=1 bash ./bin/in-env hspec-test          # force serial execution
 TEST_SHARDS=4 bash ./bin/in-env hspec-test          # override shard count explicitly
 TEST_SHARDS=2 bash ./bin/in-env hspec-test --match "PasskeysController" --match "LiveUpdate"  # shard a focused multi-suite run
@@ -22,21 +24,72 @@ bash ./bin/in-env verify-fast                       # typecheck + pure Hspec + f
 bash ./bin/in-env verify-full                       # complete Haskell/reachability/frontend/CSS/docs/architecture/browser gate
 ```
 
-`bash ./bin/in-env hspec-test` auto-shards the full Hspec suite when no Hspec filter args are passed. DB-backed full runs cap automatic fan-out at eight shards because same-host measurements found eight shards faster than six while higher raw host core counts would add PostgreSQL reset and connection pressure without splitting the remaining indivisible suites. `TEST_SHARDS` remains an explicit override and `TEST_DB_SHARDS_MAX` can tune the automatic cap for a measured host. Each DB-backed shard gets its own ephemeral database, compiled test binary invocation, and shard log directory under `.devenv/test/`.
+`bash ./bin/in-env hspec-test` auto-shards the full Hspec suite when no Hspec filter args are passed. DB-backed full runs cap automatic fan-out at six shards. The issue #201 same-host matrix found six and eight tied at a 37.02-second median plateau, while six used 23% less aggregate worker time, 25% fewer reset-seconds, fewer connections, and a lower shard tail ratio. `TEST_SHARDS` remains an explicit override and `TEST_DB_SHARDS_MAX` can tune the automatic cap for a measured host. Each DB-backed shard gets its own ephemeral database, compiled test binary invocation, and shard log directory under `.devenv/test/`. The point-in-time evidence is archived in `docs/archive/hspec-shard-retuning-2026-07-20.md`.
 
-Use `hspec-pure` for the fastest broad feedback when changing pure helpers, renderers, contracts, or validation logic. Pure suites are selected by registry metadata and do not run `test-db-reset` or connect to PostgreSQL. Use `hspec-db` to exercise only DB-backed suites. Both are additive lanes: `hspec-test` remains the complete canonical gate.
+DB-backed Hspec and Hspec coverage use a private managed PostgreSQL cluster under
+`/tmp/bepis-hspec-postgres-<uid>-<project-id>` by default. The predictable
+project-scoped root is native temporary storage, not the checkout's virtiofs
+mount. Every DB command reports its mode, data directory, socket, filesystem,
+and effective durability settings before compilation. The managed cluster uses
+`fsync=on`, `synchronous_commit=off`, and `full_page_writes=on`; only commit
+acknowledgement is relaxed, and only for discardable test databases. Normal
+development and deployed PostgreSQL instances are never reconfigured.
+
+Use `hspec-pure` for the fastest broad feedback when changing pure helpers, renderers, contracts, or validation logic. Pure suites are selected by registry metadata and do not start managed PostgreSQL, run `test-db-reset`, or connect to a database. Use `hspec-db` to exercise only DB-backed suites. Both are additive lanes: `hspec-test` remains the complete canonical gate.
+
+Database selection (`all`/`pure`/`db`) and feedback selection (`all`/`routine`/`acceptance`) are orthogonal metadata dimensions. `TEST_FEEDBACK_LANE` is the low-level selection interface; issue #207 owns final user-facing lane commands and CI semantics. A non-complete selection prints `mandatory-acceptance-excluded=[...]`, conservatively listing an automated invariant whenever any registered owner is outside the selection. Billing invariant `B6` is complete only because the reviewed Dahlia `subscription.created`, `subscription.updated`, and `subscription.deleted` fixtures all run through the signed webhook/database path. `mandatory-acceptance-composed=[T4]` records that leave approval/invalidation/rendering evidence is intentionally composed across `Conflict`, `LeaveRequestsController`, and roster fragments rather than one end-to-end example. `B8` remains operator/runbook evidence outside Hspec metadata. Hspec `--match`, `--skip`, focused-only, and rerun filters set `coverage-scope=focused-conservative` and conservatively report every automated invariant as omitted because suite-level metadata cannot prove which individual examples ran. Never describe a focused/routine/pure/DB-only result as the complete Hspec gate.
 
 Normal typecheck, Hspec, and compiled E2E commands share compatible GHC object and interface files under fingerprinted `build/Verification` directories. `Test/HspecMain.hs` deliberately uses a distinct module name from the application `Main`, and coverage remains isolated under `build/TestCoverage` because HPC artifacts are incompatible. Do not point concurrent compiler invocations at the shared directory; run normal verification commands sequentially. Override `VERIFICATION_BUILD_DIR` only when a task needs its own isolated cache.
 
 Hspec accepts repeated `--match` flags and treats them as OR filters. When checking several focused areas, prefer one command with multiple `--match` flags instead of running multiple `hspec-test --match ...` processes at the same time. Separate focused invocations compile into the shared `build/Test` directory and can race on GHC object files; they also default to the same `app_test` database unless explicitly isolated.
 
-Focused runs default to serial execution because they are usually small. Use `TEST_SHARDS=N` with focused matches only when the matches span multiple suites and the extra database setup/log fan-out is worth it. Sharding is by `TestSuite` entry, not by individual example, so forcing shards for a single-suite match usually adds overhead without parallel speedup.
+Focused runs default to serial execution because they are usually small. The complete pure lane also defaults to serial execution because its sub-second Hspec work does not justify process fan-out. Explicit `TEST_SHARDS=N` still overrides both defaults. Use it with focused matches only when the matches span multiple suites and the extra database setup/log fan-out is worth it. Sharding is by `TestSuite` entry, not by individual example, so forcing shards for a single-suite match usually adds overhead without parallel speedup.
 
 For debugging:
 
-- `TEST_SHARDS=1` forces a single serial shard
-- `TEST_KEEP_DATABASES=1` preserves shard databases after the run instead of dropping them
-- `.devenv/test/latest/` points at the most recent shard log directory
+- `TEST_SHARDS=1` forces a single serial shard.
+- `TEST_KEEP_DATABASES=1` preserves shard databases after the run instead of dropping them.
+- `.devenv/test/latest/` points at the most recent shard log directory.
+- `test-postgres status` reports the managed instance; `test-postgres stop`
+  cleanly stops it and deletes its disposable data; `test-postgres recreate`
+  deliberately replaces it.
+- Set `TEST_POSTGRES_MODE=external` together with an explicit
+  `TEST_DB_SOCKET` only when comparing against another PostgreSQL instance.
+  Neither an inherited `PGHOST` nor `TEST_DB_SOCKET` alone opts out of managed
+  mode; both the external mode and socket must be explicit. This prevents the
+  normal devenv server from being selected accidentally. External mode never
+  changes that server's settings.
+- `TEST_POSTGRES_ROOT` may select another managed location, but known virtual
+  or shared filesystems are refused unless
+  `TEST_POSTGRES_ALLOW_NON_NATIVE=1` is explicitly set for diagnostics.
+
+## Reproducible Baselines
+
+Use `bin/hspec-baseline` for performance evidence rather than ad-hoc timing. It
+holds the host-global `/tmp/bepis-exclusive-performance.lock`, refuses to
+measure alongside another known full test/profile process, separates compile,
+shard database, Hspec, reset, and cleanup phases, and samples PostgreSQL
+connections/waits at a bounded rate. Raw artifacts belong under the ignored
+`output/hspec-baseline/` tree.
+
+```bash
+bash ./bin/in-env ./bin/hspec-baseline run \
+  --name local-full-6 --output output/hspec-baseline/local-full-6 -- \
+  env TEST_SHARDS=6 hspec-test --format=progress --no-color --times
+
+bash ./bin/in-env hspec-pure --suite-metadata
+bash ./bin/in-env ./bin/hspec-baseline inventory \
+  --output output/hspec-baseline/current-inventory.json
+```
+
+Use one warm-up plus three measured runs for short comparisons. Report failed
+runs separately, do not include them in medians, and label single expensive
+full runs as such. `HSPEC_METRICS_DIR`, the phase metric variables, and
+`HSPEC_BASELINE_PROBE` are internal instrumentation controls; leave them unset
+during normal Hspec use. The opt-in fixture/application probe is deliberately
+absent from `Test/Suite.hs` and must never change canonical example counts.
+The issue #198 protocol and baseline are archived in
+`docs/archive/hspec-critical-path-baseline-2026-07-19.md`.
 
 ## Coverage
 
@@ -55,11 +108,16 @@ The coverage command is intentionally separate from `hspec-test`: use `hspec-tes
 
 When adding a new spec module:
 
-1. Import it in `Test/Suite.hs`
-2. Add a `pureSuite "Label" weight Module.tests` or `databaseSuite "Label" weight Module.tests` entry to `allSuites`. A pure suite must pass with PostgreSQL unavailable; classify any suite that opens a DB connection as database-backed.
-3. Choose an initial `weight` that roughly matches the suite's expected runtime in seconds, rounded to the nearest 5 or 10 seconds. Use a small value such as `5` or `10` for tiny pure/contract specs.
+1. Import it in `Test/Suite.hs`.
+2. Add one `pureSuite` or `databaseSuite` entry to `allSuites` with a named `SuiteDefinition` record. Keep every record field explicit; the helpers set only pure/database isolation. A pure suite must pass with PostgreSQL unavailable; any suite that constructs an IHP database context remains database-backed until it is actually moved to a no-database context.
+3. For a database suite, choose `BroadCleanStateRequired` when its source uses `withCleanDb`; otherwise choose `CleanStateNotRequired`. The inventory command checks this classification against source use. Choose `CommittedVisibilityRequired` only for an explicit second context/thread that must see committed rows; ordinary database access is not enough.
+4. Classify the responsibility as `RoutineCorrectness` for focused helper/wiring feedback or `BroadAcceptance` for broad deterministic scenarios, cross-component acceptance, or suites that own irreplaceable `specs/09-testing-and-acceptance.md` evidence.
+5. Assign one broad `InvariantFamily` and list the exact `A*`/`R*`/`T*`/`P*`/`B*` invariants the suite owns. An empty list is valid for infrastructure or focused correctness, but registry validation rejects any mandatory automated invariant with no complete or explicitly partial declaration. A suite that is the irreplaceable owner of an invariant belongs in `BroadAcceptance`, even when it is pure. Set `definitionPartialInvariants` only for a proven, explicitly catalogued temporary gap; partial evidence remains visible and never counts as complete ownership. Composed evidence such as `T4` must retain at least two registered owners and is reported separately.
+6. Estimate fixture cost by setup shape, not example count: `FixtureFree`, `SmallFixture`, `MediumFixture`, or `LargeFixture`. Record `StripeTransportMock` or `XeroHttpMock` only when the suite actually depends on that controlled external-service boundary.
+7. Start the runtime estimate from a focused measurement. Round suites at or above one second to about 0.5 seconds and sub-second suites to about 0.1 seconds; do not encode transient millisecond differences or use example count as a runtime proxy.
+8. Run `hspec-pure --suite-metadata` and a focused test. The report validates combinations and shows the mandatory acceptance evidence omitted by routine feedback.
 
-`Test/Suite.hs` uses weighted greedy sharding independently within the selected all/pure/DB lane. The suite order is no longer a balancing mechanism; do not manually cluster or reorder suites to tune shards unless the weighted algorithm itself is changing. Keep large controller families registered at their independently runnable child-spec boundary while retaining a common label prefix such as `AdminController.*` or `RosterWeeksController.*` for broad matching.
+`Test/Suite.hs` uses weighted greedy sharding independently within the selected database and feedback dimensions. The suite order is no longer a balancing mechanism; do not manually cluster or reorder suites to tune shards unless the weighted algorithm itself is changing. Keep large controller families registered at their independently runnable child-spec boundary while retaining a common label prefix such as `AdminController.*` or `RosterWeeksController.*` for broad matching.
 
 To rebalance weights when full-suite shard times drift:
 
@@ -71,15 +129,15 @@ To rebalance weights when full-suite shard times drift:
    ```bash
    for f in .devenv/test/latest/shard-*.log; do
        echo "--- $(basename "$f")"
-       grep -E 'Hspec shard|Finished in|examples' "$f"
+       grep -E 'Hspec .* shard|Finished in|examples' "$f"
    done
    ```
-3. Identify slow shards from `Finished in ... seconds` and the suite list in the `Hspec shard N/M weight=... [...]` header.
+3. Identify slow shards from `Finished in ... seconds` and the suite list in the `Hspec <lane> shard N/M weight=... [...]` header.
 4. If one suite appears to dominate a slow shard, estimate it with a focused run:
    ```bash
    bash ./bin/in-env hspec-test --match "PasskeysController"
    ```
-5. Update only the relevant `suiteWeight` values in `Test/Suite.hs`. Prefer approximate relative runtime; round to the nearest 5 or 10 seconds and avoid overfitting tiny differences.
+5. Update only the relevant estimated-runtime arguments in `Test/Suite.hs`. Prefer approximate relative runtime and the rounding rule above; avoid overfitting tiny differences.
 6. Re-run the full suite when practical, or at least run `TEST_SHARDS=N bash ./bin/in-env hspec-test --match "some small suite"` to verify shard selection still works and prints weighted headers.
 
 Do not reintroduce a hard-coded linear `hspec do ...` list in `Test/HspecMain.hs`; that bypasses shard selection.
@@ -98,8 +156,13 @@ For URL helpers, include existing-query URLs, spaces, ampersands, equals signs, 
 
 Useful patterns:
 
-- `tests = beforeAll testContext do ...`
-- `withContext do withCleanDb do ...` to reset the DB between examples
+- `tests = aroundAll withDatabaseTestContext do ...` creates one DB-backed
+  context per suite and releases its model pool/listener after success, failure,
+  exception, or asynchronous interruption.
+- `withContext do withCleanDb do ...` resets the DB between examples.
+- Do not use `beforeAll testContext`, `mockContextNoDatabase`, or another
+  unbracketed context constructor. The deprecated path retains Hasql pools until
+  process exit. `Test.ContextLifecycleSpec` is the regression contract.
 - `createVenueWithConfig`, `createUserRecord`, `createUserRecordWithPlatformRole`, `createVenueMembershipRecord`, `createStaffRecord`, and related helpers to seed only the rows the example needs. Shared test-user builders use the fixed valid `testPasswordHash`; do not reintroduce per-user `hashPassword` calls. Sessions and user-creation specs retain real verifier and runtime hashing coverage.
 - `withUserAndCurrentVenue user venueId do ...` when the request needs both authenticated user session and `currentVenueId`
 - `withControllerTestContext do ...` when the test needs a real `ControllerContext`, e.g. to call `beforeLogin` and then `getSession`
@@ -111,6 +174,17 @@ For approved timesheet fixtures, use `createApprovedTimesheetEntryRecord` or `cr
 Leave request `end_date` is exclusive: a one-day leave request is `start_date = day`, `end_date = day + 1`. Do not seed `start_date == end_date`; the schema rejects empty ranges.
 
 Shard databases are cloned from an immutable content-addressed schema template keyed by IHP schema, app schema, and app fixtures. Missing-template creation is serialized across shards. Set `TEST_DB_RESET_MODE=direct` to replay schema files when diagnosing template/reset behavior. E2E fixture resets always use the direct path because their data is run/date-sensitive. Per-example `withCleanDb` remains an explicit full-table truncate; do not replace it with an outer transaction because normal helpers use legitimate nested transactions and some tests require committed visibility.
+
+The managed cluster is persistent across healthy test commands so templates can
+be reused, but its contents have no recovery contract. If the postmaster is not
+running—whether after a crash, interruption, reboot, or explicit stop—the next
+`ensure` deletes the complete owned data directory and runs `initdb`; it never
+attempts data repair or WAL recovery. A marker tied to the current uid and
+checkout protects deletion, non-empty unowned roots are refused, and the
+postmaster must not inherit the manager lock. `TEST_POSTGRES_DURABILITY=durable`
+is available for same-instance comparisons. `custom` plus explicit values for
+all three durability settings is benchmark-only; these settings still apply
+solely to a newly initialized managed test cluster.
 
 The shard architecture assumes:
 
@@ -144,7 +218,7 @@ Example shape:
 
 ```haskell
 tests :: Spec
-tests = beforeAll testContext do
+tests = aroundAll withDatabaseTestContext do
     describe "LeaveRequestsController" do
         it "scopes manager queries to the current venue" $ withContext do
             withCleanDb do
@@ -169,10 +243,9 @@ When adding a new controller (e.g., `PostsController`), create a corresponding s
    import Network.HTTP.Types.Status
    import IHP.Prelude
    import IHP.Test.Mocking
-   import IHP.FrameworkConfig
    import IHP.HaskellSupport
    import Test.Hspec
-   import Config
+   import Test.Support
    import Generated.Types
    import Web.Routes
    import Web.Types
@@ -182,7 +255,7 @@ When adding a new controller (e.g., `PostsController`), create a corresponding s
    import IHP.ControllerPrelude
 
    tests :: Spec
-   tests = beforeAll (mockContextNoDatabase WebApplication config) do
+   tests = aroundAll withDatabaseTestContext do
        describe "PostsController" do
            it "renders the index page" $ withContext do
                response <- callAction PostsAction
@@ -204,15 +277,43 @@ When adding a new controller (e.g., `PostsController`), create a corresponding s
    import qualified Test.Controller.PostsSpec
 
    allSuites =
-       [ TestSuite "StaticController" Test.Controller.StaticSpec.tests
-       , TestSuite "PostsController" Test.Controller.PostsSpec.tests
+       [ databaseSuite
+           BroadCleanStateRequired
+           CommittedVisibilityNotRequired
+           SuiteDefinition
+               { definitionLabel = "PostsController"
+               , definitionEstimatedRuntimeSeconds = 1.0
+               , definitionFeedbackLane = RoutineCorrectness
+               , definitionInvariantFamily = ProductSupport
+               , definitionFixtureCost = SmallFixture
+               , definitionExternalMocks = []
+               , definitionOwnedInvariants = []
+               , definitionPartialInvariants = []
+               }
+           Test.Controller.PostsSpec.tests
        ]
    ```
 
-## Available Test Helpers (from `IHP.Test.Mocking`)
+## Test Context Ownership
 
-- `mockContextNoDatabase` — Create a mock context without a real DB connection (for static/form-render tests)
-- `callAction SomeAction` — Call a controller action, returns `Response`
+- `withDatabaseTestContext` from `Test.Support` is the only supported shared
+  application-context constructor. It applies test environment configuration
+  centrally and delegates ownership to IHP's bracketed `withMockContext`.
+- Use it with Hspec's `aroundAll`, not `beforeAll`; `aroundAll` gives the
+  bracket a continuation whose completion releases the pool and PG listener.
+- A genuinely no-database suite belongs in the registry's pure lane and must
+  not construct a `MockContext`, call `withCleanDb`, or open PostgreSQL. A
+  controller spec using `withContext`, authentication/current-venue setup, or
+  database-backed middleware is a database suite even if one example only
+  renders or redirects.
+- Never use the deprecated name `mockContextNoDatabase`: in current IHP it
+  still creates a real `ModelContext` pool, despite its historical name, and
+  it has no release continuation.
+
+## Available Test Helpers
+
+- `withDatabaseTestContext` — Bracket a DB-backed IHP mock context with proper resource cleanup.
+- `callAction SomeAction` — Call a controller action, returns `Response`.
 - `callActionWithParams SomeAction [("key", "value")]` — Call with form params
 - `responseStatusShouldBe response status200` — Assert HTTP status
 - `responseBodyShouldContain response "text"` — Assert body contains text
@@ -220,17 +321,9 @@ When adding a new controller (e.g., `PostsController`), create a corresponding s
 - `responseBody response` — Extract response body as `LBS.ByteString`
 - `withUser user do ...` — Set current user for auth-protected actions
 
-## `mockContextNoDatabase` Limitations
-
-`mockContextNoDatabase` sets up a connection pool but leaves the underlying DB connection `undefined`. Any action that touches the database at runtime will return a **500**.
-
-This means:
-
-- **Safe to test** with `mockContextNoDatabase`: rendering forms, unauthenticated redirects (`ensureIsUser` with no session), any action that never queries the DB
-- **Cannot test** with `mockContextNoDatabase` by itself: `CreateSessionAction`/`DeleteSessionAction`, `withUser` + an auth-gated page, or any controller path that resolves current venue/membership from the DB
-- **Can test** these flows now by combining `testContext` with the helpers in `Test/Support.hs`
-
-Do not add new `pendingWith "requires real DB"` placeholders for normal controller work without checking `Test/Support.hs` first. Most auth-gated and venue-scoped controller tests should now be implemented directly.
+Do not add new `pendingWith "requires real DB"` placeholders for normal
+controller work without checking `Test/Support.hs` first. Most auth-gated and
+venue-scoped controller tests should use the bracketed DB context directly.
 
 ## What to Test
 

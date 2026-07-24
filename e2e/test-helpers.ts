@@ -4,7 +4,18 @@ import { readFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { APIRequestContext, Download, expect, Locator, Page } from '@playwright/test';
+import {
+    dialogMountDomAttr,
+    dialogOverlayMountDomId,
+    passkeyActionButtonDomAttr,
+    passkeyDismissalDomAttr,
+    passkeyRegistrationDomAttr,
+    passkeySetupPromptDomAttr,
+} from '../frontend/ts/generated/contracts';
 import { E2E_TIMEOUT } from './timeouts';
+
+const dialogOverlaySelector = `#${dialogOverlayMountDomId}`;
+const mountedDialogSelector = `${dialogOverlaySelector} [${dialogMountDomAttr}]`;
 
 export const defaultE2ERosterGroupId = 'a1000000-0000-0000-0000-000000000211';
 export const webauthnBaseURL = (process.env.E2E_BASE_URL ?? 'http://127.0.0.1:8000').replace('127.0.0.1', 'localhost');
@@ -211,19 +222,15 @@ export async function loginAs(page: Page, email: string, password: string) {
 }
 
 export async function dismissOptionalPasskeySetupPrompt(page: Page) {
-    const prompts = page.locator('.js-passkey-setup-prompt');
-    await prompts.first().waitFor({ state: 'attached', timeout: E2E_TIMEOUT.quick }).catch(() => {});
-    if (await prompts.count() === 0) return;
+    const prompt = page.locator(`[${passkeySetupPromptDomAttr}]`).first();
+    await prompt.waitFor({ state: 'attached', timeout: E2E_TIMEOUT.quick }).catch(() => {});
+    if (await prompt.count() === 0) return;
 
-    await prompts.evaluateAll((elements) => {
-        for (const element of elements) {
-            element.remove();
-        }
-        document.body.classList.remove('modal-open');
-        document.body.style.overflow = '';
-    });
-
-    await expect(prompts).toHaveCount(0, { timeout: E2E_TIMEOUT.action });
+    const dismissal = prompt.locator(`[${passkeyDismissalDomAttr}]`);
+    if (await dismissal.count() > 0) {
+        await dismissal.click();
+    }
+    await expect(prompt.locator(`[${dialogMountDomAttr}]`)).toHaveCount(0, { timeout: E2E_TIMEOUT.action });
 }
 
 function e2eDatabaseArgs() {
@@ -279,24 +286,24 @@ export async function removeVirtualPasskeyAuthenticator(authenticator: Awaited<R
 
 export async function registerFirstPasskeyForCurrentUser(page: Page) {
     await openProfileSecuritySection(page);
-    if (!(await page.locator('.js-passkey-register-button').first().isVisible().catch(() => false))) {
-        await currentPasskeyManagement(page).getByRole('link', { name: 'Create passkey' }).click();
-        await expect(page.locator('.js-passkey-register')).toBeVisible({ timeout: E2E_TIMEOUT.action });
+    if (!(await passkeyRegistrationButton(page).isVisible().catch(() => false))) {
+        await page.getByRole('link', { name: 'Create passkey' }).click();
+        await expect(page.locator(`[${passkeyRegistrationDomAttr}]`)).toBeVisible({ timeout: E2E_TIMEOUT.action });
     }
     await registerFirstPasskeyFromVisibleControl(page);
     await openProfileSecuritySection(page);
-    await expect(currentPasskeyManagement(page).locator('table tbody tr')).toHaveCount(1, { timeout: E2E_TIMEOUT.passkey });
+    await expect(currentPasskeyTable(page).locator('tbody tr')).toHaveCount(1, { timeout: E2E_TIMEOUT.passkey });
 }
 
 export async function registerFirstSupportPasskeyForCurrentUser(page: Page) {
-    await gotoWhenReady(page, '/Support', '.js-passkey-register');
+    await gotoWhenReady(page, '/Support', `[${passkeyRegistrationDomAttr}]`);
     await registerFirstPasskeyFromVisibleControl(page);
-    await gotoWhenReady(page, '/Support', '.js-passkey-register');
-    await expect(currentPasskeyManagement(page).locator('table tbody tr')).toHaveCount(1, { timeout: E2E_TIMEOUT.passkey });
+    await gotoWhenReady(page, '/Support', `[${passkeyRegistrationDomAttr}]`);
+    await expect(currentPasskeyTable(page).locator('tbody tr')).toHaveCount(1, { timeout: E2E_TIMEOUT.passkey });
 }
 
 export async function registerFirstPasskeyFromVisibleControl(page: Page) {
-    const registerButton = page.locator('.js-passkey-register-button').first();
+    const registerButton = passkeyRegistrationButton(page);
     await expect(registerButton).toBeVisible({ timeout: E2E_TIMEOUT.action });
     await Promise.all([
         page.waitForResponse(
@@ -307,8 +314,12 @@ export async function registerFirstPasskeyFromVisibleControl(page: Page) {
     ]);
 }
 
-function currentPasskeyManagement(page: Page) {
-    return page.locator('[data-passkey-management="true"]').first();
+function passkeyRegistrationButton(page: Page) {
+    return page.locator(`[${passkeyRegistrationDomAttr}] [${passkeyActionButtonDomAttr}]`).first();
+}
+
+function currentPasskeyTable(page: Page) {
+    return page.locator('table').filter({ has: page.getByRole('columnheader', { name: 'Last used' }) }).first();
 }
 
 export async function openProfileSecuritySection(page: Page) {
@@ -328,8 +339,8 @@ export async function openProfileLeaveSection(page: Page) {
         await leaveSectionToggle.click();
     }
 
-    await expect(page.locator('#profile-leave-request-form-fragment')).toBeVisible();
-    await expect(page.locator('#profile-leave-requests-list-fragment')).toBeVisible();
+    await expect(page.locator('#self-service-leave-form-fragment')).toBeVisible();
+    await expect(page.locator('#self-service-leave-history-fragment')).toBeVisible();
 }
 
 export async function setFlatpickrDate(page: Page, selector: string, value: string) {
@@ -353,23 +364,38 @@ export async function verifyCurrentUserPasskeyStepUp(page: Page) {
     await expect(page).not.toHaveURL(/PasskeyStepUp/, { timeout: E2E_TIMEOUT.passkey });
 }
 
-export async function markCurrentSessionPasskeyVerified(page: Page) {
+async function setCurrentSessionPasskeyVerification(page: Page, verified: boolean) {
     const token = process.env.E2E_TEST_TOKEN;
     if (!token) {
-        throw new Error('E2E_TEST_TOKEN is required to mark a seeded passkey session verified.');
+        throw new Error('E2E_TEST_TOKEN is required to update seeded passkey session verification.');
     }
 
     const responseStatus = await page.evaluate(
-        async ({ endpoint, submittedToken }) => {
+        async ({ endpoint, submittedToken, shouldBeVerified }) => {
             const response = await fetch(endpoint, {
                 method: 'POST',
-                headers: { 'X-E2E-Test-Token': submittedToken },
+                headers: {
+                    'X-E2E-Test-Token': submittedToken,
+                    ...(shouldBeVerified ? {} : { 'X-E2E-Passkey-Verified': 'false' }),
+                },
             });
             return response.status;
         },
-        { endpoint: new URL('/__e2e/mark-passkey-verified', page.url()).toString(), submittedToken: token },
+        {
+            endpoint: new URL('/__e2e/mark-passkey-verified', page.url()).toString(),
+            submittedToken: token,
+            shouldBeVerified: verified,
+        },
     );
     expect(responseStatus).toBe(200);
+}
+
+export async function clearCurrentSessionPasskeyVerification(page: Page) {
+    await setCurrentSessionPasskeyVerification(page, false);
+}
+
+export async function markCurrentSessionPasskeyVerified(page: Page) {
+    await setCurrentSessionPasskeyVerification(page, true);
 }
 
 export async function loginAsPrivilegedUserWithSeededPasskeySession(
@@ -423,11 +449,11 @@ export async function openNewLeaveRequestDialog(page: Page) {
     if (await trigger.first().isVisible().catch(() => false)) {
         await trigger.first().click();
     } else {
-        await page.evaluate(() => {
+        await page.evaluate((dialogTarget) => {
             const htmx = (window as Window & { htmx?: { ajax: (method: string, url: string, options: { target: string; swap: string }) => unknown } }).htmx;
             if (!htmx) throw new Error('Expected htmx runtime');
-            htmx.ajax('GET', '/NewLeaveRequest', { target: '#dialog-overlay-mount', swap: 'innerHTML' });
-        });
+            htmx.ajax('GET', '/NewLeaveRequest', { target: dialogTarget, swap: 'innerHTML' });
+        }, dialogOverlaySelector);
     }
 
     await expect(page.locator('#leave-request-form')).toBeVisible();
@@ -448,10 +474,17 @@ type OpenRosterOptions = {
 
 export async function openRosterSettings(page: Page) {
     const settingsTab = page.getByRole('tab', { name: 'Settings', exact: true }).first();
+    const settingsPane = page.locator('#roster-staff-panel-settings-pane');
     await expect(settingsTab).toBeVisible({ timeout: E2E_TIMEOUT.action });
-    await settingsTab.click();
-    await expect(settingsTab).toHaveAttribute('aria-selected', 'true', { timeout: E2E_TIMEOUT.action });
-    await expect(page.locator('#roster-staff-panel-settings-pane')).toBeVisible({ timeout: E2E_TIMEOUT.action });
+    await expect.poll(async () => {
+        const selected = (await settingsTab.getAttribute('aria-selected')) === 'true';
+        const paneVisible = await settingsPane.isVisible();
+        if (!selected || !paneVisible) {
+            await settingsTab.click().catch(() => {});
+            return false;
+        }
+        return true;
+    }, { timeout: E2E_TIMEOUT.assertion }).toBe(true);
 }
 
 export async function ensureRosterLayout(page: Page, layoutMode: RosterLayoutMode = 'day_rows') {
@@ -584,7 +617,7 @@ export function rosterShiftLaunchers(scope: Page | Locator) {
 }
 
 export function existingRosterShiftLaunchers(scope: Page | Locator) {
-    return scope.locator('[data-roster-shift-launcher="true"][data-roster-slot-id]:not([data-roster-slot-id=""])');
+    return scope.locator('[data-roster-shift-launcher="true"][hx-get*="EditRosterSlotDialog"]');
 }
 
 export function rosterShiftLaunchersForDaySection(daySection: Locator) {
@@ -609,15 +642,15 @@ export async function openRosterShiftDialog(page: Page, launcher: Locator) {
         response.request().method() === 'GET'
         && response.url().includes(dialogUrl),
     );
-    await launcher.evaluate((element) => {
+    await launcher.evaluate((element, dialogTarget) => {
         const htmx = (window as Window & { htmx?: { ajax: (method: string, url: string, options: { target: string; swap: string }) => unknown } }).htmx;
         const hxGet = element.getAttribute('hx-get');
         if (!htmx || !hxGet) throw new Error('Expected HTMX roster shift dialog launcher');
-        htmx.ajax('GET', hxGet, { target: '#dialog-overlay-mount', swap: 'innerHTML' });
-    });
+        htmx.ajax('GET', hxGet, { target: dialogTarget, swap: 'innerHTML' });
+    }, dialogOverlaySelector);
     const response = await responsePromise;
     expect(response.status(), await response.text()).toBe(200);
-    await expect(page.locator('#dialog-overlay-mount [data-dialog-overlay="true"]')).toBeVisible({ timeout: E2E_TIMEOUT.action });
+    await expect(page.locator(mountedDialogSelector)).toBeVisible({ timeout: E2E_TIMEOUT.action });
 }
 
 export async function rosterShiftDialogStaffOptionValues(page: Page) {
@@ -658,7 +691,7 @@ export async function saveRosterShiftDialog(page: Page) {
     await page.getByRole('button', { name: 'Save' }).click();
     const response = await responsePromise;
     expect(response.status(), await response.text()).toBe(200);
-    await expect(page.locator('#dialog-overlay-mount')).toBeEmpty({ timeout: E2E_TIMEOUT.liveUpdate });
+    await expect(page.locator(dialogOverlaySelector)).toBeEmpty({ timeout: E2E_TIMEOUT.liveUpdate });
 }
 
 export async function assignRosterShiftStaff(page: Page, launcher: Locator, staffId: string) {

@@ -1,15 +1,13 @@
 import { enableRosterColumnEditMode } from "./roster/column-edit";
 import { rosterFullscreenLabels } from "./roster/fullscreen";
 import { enableRosterFullscreenToggle } from "./roster/fullscreen-runtime";
+import { enableFrontendSurfaceLinkedHighlight } from "./linked-highlight/runtime";
 import { enableRosterImageExport } from "./roster/image-export";
-import { rosterOverviewSummaryFromDayDataset } from "./roster/overview";
-import { enableRosterStaffShiftHighlight } from "./roster/staff-highlight";
-import { enableRosterStaffPanelSorting } from "./roster/staff-panel-sorting";
-import { enableRosterStaffPanelTabs } from "./roster/staff-panel-tabs";
-import { compareRosterStaffData, rosterParseNumber } from "./roster/staff-sort";
+import { enableFrontendSurfaceCompleteSetSort } from "./complete-set-sort/runtime";
+import { enableFrontendSurfaceTabSets } from "./surface-tab-set/runtime";
 import { enableRosterWeekOverview } from "./roster/week-overview";
 
-export { rosterFullscreenLabels, rosterOverviewSummaryFromDayDataset, compareRosterStaffData, rosterParseNumber };
+export { rosterFullscreenLabels };
 
 enableRosterWeekOverview();
 
@@ -19,8 +17,8 @@ enableRosterColumnEditMode();
 
 enableRosterImageExport();
 
-enableRosterStaffPanelSorting();
+enableFrontendSurfaceCompleteSetSort();
 
-enableRosterStaffPanelTabs();
+enableFrontendSurfaceTabSets();
 
-enableRosterStaffShiftHighlight();
+enableFrontendSurfaceLinkedHighlight();

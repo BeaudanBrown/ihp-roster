@@ -2,7 +2,13 @@
 {-# LANGUAGE TypeApplications #-}
 
 module Application.Helper.FrontendContract.Surface.SemanticIR
-    ( InteractionEffectClassIR (..)
+    ( BrowserAttributeIR (..)
+    , CompleteSetSortComparatorDirectionIR (..)
+    , CompleteSetSortDirectionIR (..)
+    , CompleteSetSortValueTypeIR (..)
+    , LinkedHighlightActivationIR (..)
+    , LinkedHighlightEffectIR (..)
+    , InteractionEffectClassIR (..)
     , InteractionEffectIR (..)
     , InteractionEffectKindIR (..)
     , InteractionEffectLifecycleIR (..)
@@ -19,6 +25,11 @@ module Application.Helper.FrontendContract.Surface.SemanticIR
     , interactionEffectLayerName
     , interactionEffectSemanticName
     , interactionEffectSourceName
+    , completeSetSortComparatorDirectionName
+    , completeSetSortDirectionName
+    , completeSetSortValueTypeName
+    , linkedHighlightActivationName
+    , linkedHighlightEffectName
     , scopeAuthFieldNames
     , scopeAuthPolicy
     , scopeAuthPolicyFieldCount
@@ -29,6 +40,22 @@ import qualified Application.Helper.FrontendContract.Interaction as Interaction
 import Application.Helper.FrontendContract.Naming (FrontendSurfaceNameContext (..),
                                                    deriveFrontendSurfaceTypeName)
 import IHP.Prelude
+
+data Hover
+data Focus
+data Keyboard
+data Pin
+data MatchingSource
+data MatchingMember
+data OrderedMemberBounds
+
+data TextValueType
+data IntegerValueType
+data OpaqueValueType
+data SelectedComparatorDirection
+data AscendingComparatorDirection
+data AscendingDirection
+data DescendingDirection
 
 data CurrentVenuePolicy
 data CurrentVenueUserPolicy
@@ -119,6 +146,74 @@ scopeAuthPolicyName = \case
     CurrentVenueOwnerPolicyIR            -> deriveFrontendSurfaceTypeName @CurrentVenueOwnerPolicy AuthorizationPolicyName
     CurrentVenueAdminRosterGroupPolicyIR -> deriveFrontendSurfaceTypeName @CurrentVenueAdminRosterGroupPolicy AuthorizationPolicyName
     SupportSuperAdminPolicyIR            -> deriveFrontendSurfaceTypeName @SupportSuperAdminPolicy AuthorizationPolicyName
+
+-- | One generated Surface-owned browser attribute. Roles identify adapter
+-- participants; states carry adapter-owned values. Both use the same checked,
+-- collision-validated attribute representation after reflection.
+data BrowserAttributeIR = BrowserAttributeIR
+    { browserAttributeMarker       :: !Text
+    , browserAttributeName         :: !Text
+    , browserAttributeDomAttribute :: !Text
+    }
+    deriving (Eq, Show)
+
+data LinkedHighlightActivationIR
+    = LinkedHighlightHoverActivationIR
+    | LinkedHighlightFocusActivationIR
+    | LinkedHighlightKeyboardActivationIR
+    | LinkedHighlightPinActivationIR !BrowserAttributeIR
+    deriving (Eq, Show)
+
+data LinkedHighlightEffectIR
+    = LinkedHighlightMatchingSourceEffectIR
+    | LinkedHighlightMatchingMemberEffectIR
+    | LinkedHighlightOrderedMemberBoundsEffectIR !BrowserAttributeIR
+    deriving (Eq, Show)
+
+linkedHighlightActivationName :: LinkedHighlightActivationIR -> Text
+linkedHighlightActivationName = \case
+    LinkedHighlightHoverActivationIR -> deriveFrontendSurfaceTypeName @Hover DomTokenName
+    LinkedHighlightFocusActivationIR -> deriveFrontendSurfaceTypeName @Focus DomTokenName
+    LinkedHighlightKeyboardActivationIR -> deriveFrontendSurfaceTypeName @Keyboard DomTokenName
+    LinkedHighlightPinActivationIR {} -> deriveFrontendSurfaceTypeName @Pin DomTokenName
+
+linkedHighlightEffectName :: LinkedHighlightEffectIR -> Text
+linkedHighlightEffectName = \case
+    LinkedHighlightMatchingSourceEffectIR -> deriveFrontendSurfaceTypeName @MatchingSource DomTokenName
+    LinkedHighlightMatchingMemberEffectIR -> deriveFrontendSurfaceTypeName @MatchingMember DomTokenName
+    LinkedHighlightOrderedMemberBoundsEffectIR {} -> deriveFrontendSurfaceTypeName @OrderedMemberBounds DomTokenName
+
+data CompleteSetSortValueTypeIR
+    = CompleteSetSortTextIR
+    | CompleteSetSortIntegerIR
+    | CompleteSetSortOpaqueIR
+    deriving (Eq, Show)
+
+data CompleteSetSortComparatorDirectionIR
+    = CompleteSetSortSelectedDirectionIR
+    | CompleteSetSortAscendingComparatorIR
+    deriving (Eq, Show)
+
+data CompleteSetSortDirectionIR
+    = CompleteSetSortAscendingIR
+    | CompleteSetSortDescendingIR
+    deriving (Eq, Show)
+
+completeSetSortValueTypeName :: CompleteSetSortValueTypeIR -> Text
+completeSetSortValueTypeName = \case
+    CompleteSetSortTextIR -> deriveFrontendSurfaceTypeName @TextValueType SortValueTypeName
+    CompleteSetSortIntegerIR -> deriveFrontendSurfaceTypeName @IntegerValueType SortValueTypeName
+    CompleteSetSortOpaqueIR -> deriveFrontendSurfaceTypeName @OpaqueValueType SortValueTypeName
+
+completeSetSortComparatorDirectionName :: CompleteSetSortComparatorDirectionIR -> Text
+completeSetSortComparatorDirectionName = \case
+    CompleteSetSortSelectedDirectionIR -> deriveFrontendSurfaceTypeName @SelectedComparatorDirection SortComparatorDirectionName
+    CompleteSetSortAscendingComparatorIR -> deriveFrontendSurfaceTypeName @AscendingComparatorDirection SortComparatorDirectionName
+
+completeSetSortDirectionName :: CompleteSetSortDirectionIR -> Text
+completeSetSortDirectionName = \case
+    CompleteSetSortAscendingIR -> deriveFrontendSurfaceTypeName @AscendingDirection SortDirectionName
+    CompleteSetSortDescendingIR -> deriveFrontendSurfaceTypeName @DescendingDirection SortDirectionName
 
 -- Effect behavior, lifecycle, classes, and source are explicit checked fields.
 -- Browser spellings are derived from typed markers only when rendered.

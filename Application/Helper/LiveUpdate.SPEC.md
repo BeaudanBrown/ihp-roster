@@ -36,10 +36,12 @@ websocket controllers, and `static/app-live-updates.js`.
   Live TypeScript imports the generated fragment registry only; interaction
   TypeScript imports a separate interaction registry. Server-only action,
   intent/DTO, and containment metadata does not enter either bundle.
-- Scope keys are server-owned and carried through surface config/messages. The
-  websocket boundary derives the canonical key from the registered typed Surface
-  scope fields and rejects browser-supplied scope or fragment keys whose Surface
-  identity disagrees; browser keys are assertions, not authority.
+- Scope keys are server-owned and carried through surface config/messages. Typed
+  construction canonicalizes from the exact reflected scope field list; this
+  also lets unregistered compiled contract fixtures exercise the same algorithm.
+  The websocket boundary still validates against registered production Surfaces
+  and rejects browser-supplied scope or fragment keys whose Surface identity
+  disagrees; browser keys are assertions, not authority.
 - Bepis live facts are emitted by `invalidateTouchedResources*` after actual
   touched-resource expansion/planning/broadcast. Their target and target-fragment
   counts describe coalesced executable targets, not hypothetical candidate or
@@ -125,13 +127,15 @@ The semantic-key transport boundary is isolated behind
 `Application.Helper.FrontendContract.Surface.Live`, and
 `Application.Helper.FrontendContract.Surface.Runtime`. `SurfaceScope` and
 `SurfaceFragmentKey` constructors are visible only to the transport internals.
-The public live facades expose opaque carriers; feature modules construct and
-match them with the marker-indexed, declaration-complete functions in
-`Surface.Live`. Feature-owned values and typed matchers live beside their
-contracts (`Surface.Roster.Live`, `Surface.Timesheets.Live`, and peers), not in
-generic live modules. Generic transport, authorization, dependency planning,
-coalescing, and bus code may inspect internal transport identity mechanically,
-but it contains no feature Surface, fragment, or field catalog.
+The public live facades expose opaque carriers. Private feature-adjacent
+`.Generated.Live` modules construct and match them with the marker-indexed,
+declaration-complete functions in `Surface.Live`; each private module is imported
+only by its matching curated `Surface.<Feature>.Live` facade. Feature code uses
+those canonical facade exports, while handwritten facade logic is limited to
+domain-shaped matching and active-scope orchestration. Generic transport,
+authorization, dependency planning, coalescing, and bus code may inspect internal
+transport identity mechanically, but it contains no feature Surface, fragment,
+or field catalog.
 
 Browser-visible live-update
 contracts are owned by `Application.Helper.FrontendContract.LiveUpdate` and the
@@ -411,7 +415,7 @@ When adding or migrating a mutation flow:
   make the mounted DOM stale.
 - New production fragment GET actions should render through the relevant
   `SurfaceImpl`/FrontendSurface fragment handler and return the authoritative
-  target node. Legacy typed helpers remain compatibility-only.
+  target node. Do not retain a legacy fragment-helper compatibility path.
 - Websocket subscription authorization must go through registered generated
   surface metadata and `Web.SurfaceInvalidation`. Checked `ScopeAuthIR` owns the
   closed policy constructor and exact required UUID fields; runtime code must not

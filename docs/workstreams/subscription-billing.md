@@ -1,9 +1,51 @@
 # Subscription Billing
 
-Status: implemented
+Status: active
 
 Tickets:
 
+- #215 production-hardening epic
+- #216 pinned Stripe API contract
+- #217 production persistence and migration foundations
+- #218 transport, credentials, and deployment controls
+- #219 resumable duplicate-safe Checkout and Portal flows
+- #220 synchronous, atomic, ordered webhook lifecycle updates
+- #221 transition-based customer and support notifications
+- #222 subscription reconciliation and daily sweep
+- #223 owner page, founder diagnostics, and rollout navigation
+- #224 automated production-readiness verification
+- #225 sandbox, test-clock, legal, and launch readiness
+- #226 hidden-navigation live canary and owner-navigation release
+
+Implemented through #224: the Stripe contract and deployment controls are
+pinned, production persistence exists, and Checkout now uses a committed,
+venue-locked, resumable attempt with owner-only payment actions and correlated
+browser returns. Portal creation is owner-only and uses fresh request-scoped
+idempotency. Signed webhooks atomically record, deduplicate, order Subscription
+snapshots, transition matching Checkout attempts, and enqueue transition-based
+owner/support notification jobs before acknowledging Stripe. Equivalent invoice
+and Subscription trouble signals share a period-scoped notification key, while
+recovery and cancellation remain independently visible. Known Checkout Sessions
+and Subscriptions share a read-only provider reconciliation path used by Checkout
+returns, fresh-passkey founder requests, and a daily queued sweep; terminal
+failures stay sanitized and feed the existing final-retry support alert.
+
+Owners now receive plain-language state, AUD 100/month plan and period timing,
+cancellation notices, state-specific Stripe-hosted actions, and customer-safe
+live Checkout progress without provider or diagnostic identifiers. Status viewing
+requires no fresh step-up, while payment actions do when the shared deployment
+privileged strong-auth policy is enabled. Founder support gets a separate,
+policy-gated step-up-protected bounded diagnostic/reconciliation view with no payer
+or visible manual read-only controls. Deployment-controlled owner navigation is
+positioned after Xero and does not change direct-route canary authorization.
+Automated production-readiness now pins a reviewed Stripe OpenAPI commit,
+completes Dahlia lifecycle fixtures, upgrades a customer-populated predecessor
+schema, evaluates production NixOS safety, composes sensitive-data checks, and
+runs owner/founder browser behavior through a strict process-local Stripe
+boundary with live webhook refresh. #225 now also provides an explicit,
+sanitized `STRIPE_SANDBOX_PARITY=1 stripe-sandbox-contract-parity` probe for
+the real test API, but Sandbox/test-clock evidence and named legal approval
+remain operator gates; the live canary remains #226.
 
 Living docs to update:
 
@@ -202,20 +244,31 @@ Suggested schema:
 - `venue_billing_customers`
   - `venue_id`
   - `stripe_customer_id`
+  - `livemode`
+  - optional `created_by_user_id` audit reference
   - timestamps
+- `billing_checkout_attempts`
+  - venue and initiating user
+  - `livemode`
+  - bounded Stripe Customer, Price, Checkout Session, and Subscription IDs
+  - status, expiry, completion, and bounded sanitized error metadata
+  - no hosted URL or generic provider-payload field
 - `venue_subscriptions`
   - `venue_id`
   - `stripe_subscription_id`
   - `stripe_price_id`
+  - `livemode`
   - `status`
   - `current_period_start`
   - `current_period_end`
   - `cancel_at_period_end`
+  - last-applied Stripe event timestamp/ID cursor
   - `last_synced_at`
   - timestamps
 - `billing_events`
   - `stripe_event_id`
   - `event_type`
+  - Stripe event creation time
   - `received_at`
   - `processed_at`
   - `status`
@@ -296,6 +349,9 @@ Suggested shape:
 ```nix
 {
   enable = true;
+  mode = "live";
+  checkoutEnabled = false;
+  ownerNavigationVisible = false;
   priceLookupKey = "bepis_venue_monthly_aud_100";
   priceId = null;
   currency = "aud";
@@ -351,8 +407,8 @@ Layer the test suite as follows:
     quantity `1`, success/cancel URLs, metadata, and idempotency key
   - Customer Portal Session create request with stored Customer ID and return
     URL
-  - Stripe API headers, including bearer auth, content type, idempotency, and a
-    pinned Stripe API version if the implementation chooses to set one
+  - Stripe API headers, including bearer auth, content type, idempotency, and
+    pinned `Stripe-Version: 2026-06-24.dahlia`
   - secret loading from files with dev/test env fallback
   - redacted errors/log output
 - Price validation tests:
@@ -414,6 +470,7 @@ Layer the test suite as follows:
 
     ```bash
     stripe listen \
+      --latest \
       --events checkout.session.completed,checkout.session.async_payment_succeeded,checkout.session.async_payment_failed,customer.subscription.created,customer.subscription.updated,customer.subscription.deleted,invoice.payment_failed \
       --forward-to localhost:8000/StripeWebhook
     ```

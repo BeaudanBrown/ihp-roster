@@ -34,6 +34,19 @@ action metadata come from marker-indexed accessors; views do not hand-author the
 sync attribute or a custom-HTMX substitute. Fragment URL, target, and protection
 values remain local server-rendered mount data.
 
+## Toggle And Break Boundary
+
+Timesheet filters use Surface Action field bundles with the global generated
+toggle capability; this includes the inverted checked-to-`showApproved=false`
+**Hide approved** mapping. Entry forms use the same capability with a native
+boolean field and `renderAppToggleBreakRegion`. The generic toggle adapter owns
+transport synchronization, checked presentation, and fieldset activation;
+`frontend/ts/app-timesheets.ts` owns timesheet preferences only and must not
+query time-picker internals to manage break state. Start/end and break controls
+all use the separate generated TimePicker capability: Haskell supplies the venue
+range, quarter-hour step, empty copy, and exact options, while the generic picker
+adapter consumes native fieldset disabled state without importing Toggle roles.
+
 ## Related Docs
 
 - `SPEC.md`

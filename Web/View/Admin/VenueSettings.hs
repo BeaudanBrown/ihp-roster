@@ -9,9 +9,9 @@ module Web.View.Admin.VenueSettings
 
 import Application.Helper.Controller (currentVenueOrNothing)
 import qualified Application.Helper.FrontendContract.Surface.Admin as Surface
+import qualified Application.Helper.FrontendContract.Surface.Admin.Action as AdminAction
 import Application.Helper.FrontendContract.Surface.Runtime (FrontendSurfaceActionRoute (..),
                                                             FrontendSurfaceCustomHtmxAttrs (..),
-                                                            frontendSurfaceAction,
                                                             renderFrontendSurfaceActionForm,
                                                             renderFrontendSurfaceMount)
 import Application.Helper.FrontendContract.Surface.Values
@@ -23,7 +23,7 @@ import Web.View.Admin.Common
 import Web.View.Prelude
 
 adminVenueSettingsFragmentId :: Text
-adminVenueSettingsFragmentId = surfaceFragmentTargetId @Surface.AdminVenueSettingsSurface @Surface.AdminVenueSettingsFragment NoSurfaceFields
+adminVenueSettingsFragmentId = surfaceFragmentTargetId @Surface.AdminVenueSettingsSurface @Surface.AdminVenueSettingsFragment noSurfaceFields
 
 currentVenueScopeId :: (?context :: ControllerContext) => UUID
 currentVenueScopeId =
@@ -60,8 +60,8 @@ renderVenueSettingsSection venueConfig =
 renderRosterTimePickerWindowForm :: VenueConfig -> Html
 renderRosterTimePickerWindowForm venueConfig =
     renderFrontendSurfaceActionForm
-        (frontendSurfaceAction @Surface.AdminVenueSettingsSurface @Surface.UpdateVenueConfig fields)
-        venueSettingRoute
+        (AdminAction.updateVenueConfigAction fields)
+        venueTimePickerSettingRoute
         [hsx|
         <input type="hidden" name={surfaceFieldNameFrom @Surface.ConfigFieldField fields} value="timePickerWindow" />
         <div class="admin-setting-row-copy">
@@ -89,19 +89,19 @@ renderRosterTimePickerWindowForm venueConfig =
     |]
   where
     fields =
-        surfaceField @Surface.ConfigFieldField "timePickerWindow"
-            :& surfaceOptionalField @Surface.RosterEndTimesEnabled Nothing
-            :& surfaceOptionalField @Surface.AutoTimesheetCreationEnabled Nothing
-            :& surfaceOptionalField @Surface.TimePickerStart (Just (venueTimePickerStartTimeText venueConfig))
-            :& surfaceOptionalField @Surface.TimePickerEnd (Just (venueTimePickerFinalSelectableTimeText venueConfig))
-            :& surfaceOptionalField @Surface.RosterWeekStartsOn Nothing
-            :& NoSurfaceFields
+        AdminAction.updateVenueConfigActionFields
+            "timePickerWindow"
+            Nothing
+            Nothing
+            (Just (venueTimePickerStartTimeText venueConfig))
+            (Just (venueTimePickerFinalSelectableTimeText venueConfig))
+            Nothing
 
 renderRosterEndTimesForm :: VenueConfig -> Html
 renderRosterEndTimesForm venueConfig =
     renderFrontendSurfaceActionForm
-        (frontendSurfaceAction @Surface.AdminVenueSettingsSurface @Surface.UpdateVenueConfig fields)
-        venueSettingRoute
+        (AdminAction.updateVenueConfigAction fields)
+        venueToggleSettingRoute
         [hsx|
         <input type="hidden" name={surfaceFieldNameFrom @Surface.ConfigFieldField fields} value="rosterEndTimesEnabled" />
         <div class="admin-setting-row-copy">
@@ -109,33 +109,46 @@ renderRosterEndTimesForm venueConfig =
             <p class="small app-muted mb-0">Shift end times are always collected; this controls whether they appear in the roster.</p>
         </div>
         <div class="admin-setting-row-control">
-            {renderVenueSettingToggle "venue-roster-end-times-enabled" (surfaceFieldNameFrom @Surface.RosterEndTimesEnabled fields) venueConfig.rosterEndTimesEnabled}
+            {renderVenueSettingToggle fields "venue-roster-end-times-enabled" venueConfig.rosterEndTimesEnabled}
         </div>
     |]
   where
     fields =
-        surfaceField @Surface.ConfigFieldField "rosterEndTimesEnabled"
-            :& surfaceOptionalField @Surface.RosterEndTimesEnabled (Just venueConfig.rosterEndTimesEnabled)
-            :& surfaceOptionalField @Surface.AutoTimesheetCreationEnabled Nothing
-            :& surfaceOptionalField @Surface.TimePickerStart Nothing
-            :& surfaceOptionalField @Surface.TimePickerEnd Nothing
-            :& surfaceOptionalField @Surface.RosterWeekStartsOn Nothing
-            :& NoSurfaceFields
+        AdminAction.updateVenueConfigActionFields
+            "rosterEndTimesEnabled"
+            (Just venueConfig.rosterEndTimesEnabled)
+            Nothing
+            Nothing
+            Nothing
+            Nothing
 
-renderVenueSettingToggle :: Text -> Text -> Bool -> Html
-renderVenueSettingToggle inputId fieldName isEnabled =
-    renderAppToggleButton $ (defaultAppToggleStateButtonConfig inputId isEnabled [hsx|<span class="small">Enabled</span>|] [hsx|<span class="small">Disabled</span>|])
-        { appToggleInputName = Just fieldName
-        , appToggleInputValue = "true"
-        , appToggleButtonClass = "btn-sm"
-        , appToggleRoleSwitch = True
-        , appToggleOnChange = Just "if (!window.htmx) this.form.requestSubmit()"
-        }
+renderVenueSettingToggle :: SurfaceActionFields Surface.AdminVenueSettingsSurface Surface.UpdateVenueConfig -> Text -> Bool -> Html
+renderVenueSettingToggle fields inputId isEnabled =
+    renderAppToggleButton $
+        ( defaultAppToggleStateButtonConfig
+            inputId
+            (surfaceToggleScalarField @Surface.RosterEndTimesEnabled fields True False)
+            isEnabled
+            [hsx|<span class="small">Enabled</span>|]
+            [hsx|<span class="small">Disabled</span>|]
+        )
+            { appToggleButtonClass = "btn-sm"
+            , appToggleRoleSwitch = True
+            , appToggleSubmitPolicy = ToggleSubmitImmediate
+            }
 
-venueSettingRoute :: FrontendSurfaceActionRoute
-venueSettingRoute = FrontendSurfaceActionRoute
+venueTimePickerSettingRoute :: FrontendSurfaceActionRoute
+venueTimePickerSettingRoute = FrontendSurfaceActionRoute
     { actionRouteUrl = pathTo UpdateVenueConfigAction
     , actionRouteCustomHtmx = [FrontendSurfaceCustomHtmxAttrs "change-autosave-custom-htmx" [("hx-trigger", "change")]]
+    , actionRouteStandardUrl = Just (pathTo UpdateVenueConfigAction)
+    , actionRouteExtraAttrs = [("class", "admin-setting-row")]
+    }
+
+venueToggleSettingRoute :: FrontendSurfaceActionRoute
+venueToggleSettingRoute = FrontendSurfaceActionRoute
+    { actionRouteUrl = pathTo UpdateVenueConfigAction
+    , actionRouteCustomHtmx = []
     , actionRouteStandardUrl = Just (pathTo UpdateVenueConfigAction)
     , actionRouteExtraAttrs = [("class", "admin-setting-row")]
     }

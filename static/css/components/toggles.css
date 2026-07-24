@@ -1,0 +1,26 @@
+/* Shared generated toggle presentation and focus mechanics. */
+
+.app-toggle-button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.35rem;
+    cursor: pointer;
+    user-select: none;
+}
+
+.app-toggle-button.is-toggle-checked,
+.app-toggle-button:has(.app-toggle-button-input:checked) {
+    color: var(--bs-btn-hover-color);
+    background-color: var(--bs-btn-hover-bg);
+    border-color: var(--bs-btn-hover-border-color);
+}
+
+.app-toggle-button:focus-within {
+    outline: 0.2rem solid var(--bs-focus-ring-color);
+    outline-offset: 0.15rem;
+}
+
+.app-toggle-button-input:disabled + * {
+    pointer-events: none;
+}

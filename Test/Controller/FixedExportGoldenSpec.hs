@@ -25,7 +25,7 @@ import Web.FrontController ()
 import Web.Types
 
 tests :: Spec
-tests = beforeAll testContext do
+tests = aroundAll withDatabaseTestContext do
     describe "Fixed export goldens" do
         it "renders the canonical staff-hours CSV exactly" $ withContext do
             withCleanDb do

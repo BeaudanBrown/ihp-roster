@@ -3,11 +3,13 @@ module Application.Async.Registry
     ) where
 
 import Application.Billing.Notifications
+import Application.Billing.Reconciliation
 import Application.FwcMapd.Job
 import Application.InvitationDelivery.Job
 import Application.PublicHolidays.Job
 import Application.StaffDocuments.Rsa
 import Application.Xero.Keepalive
+import qualified Control.Exception as Exception
 import Control.Monad (void)
 import qualified Data.Aeson as Aeson
 import qualified Data.Text as Text
@@ -21,6 +23,14 @@ dispatchAppJob ::
     AppJob ->
     IO ()
 dispatchAppJob appJob =
+    dispatchAppJobByKind appJob
+        `Exception.onException` when (isBillingOperationalJob appJob) (void (enqueueBillingSupportNotificationAfterFinalAttempt appJob))
+
+dispatchAppJobByKind ::
+    (?modelContext :: ModelContext, ?context :: FrameworkConfig) =>
+    AppJob ->
+    IO ()
+dispatchAppJobByKind appJob =
     case appJob.jobKind of
         kind | kind == fwcMapdRefreshJobKind -> performFwcMapdRefreshJob appJob
         kind | kind == publicHolidayRefreshJobKind -> performPublicHolidayRefreshJob appJob
@@ -28,9 +38,15 @@ dispatchAppJob appJob =
         kind | kind == rsaReminderJobKind -> performRsaReminderJob appJob
         kind | kind == xeroConnectionKeepaliveJobKind -> performXeroConnectionKeepaliveJob appJob
         kind | kind == billingNotificationJobKind -> performBillingNotificationJob appJob
+        kind | kind == billingReconciliationJobKind -> performBillingReconciliationJob appJob
         kind | kind == venueInvitationDeliveryJobKind -> performVenueInvitationDeliveryJob appJob
         kind | kind == venueOnboardingInvitationDeliveryJobKind -> performVenueOnboardingInvitationDeliveryJob appJob
         _ -> fail ("Unknown app job kind: " <> Text.unpack appJob.jobKind)
+
+isBillingOperationalJob :: AppJob -> Bool
+isBillingOperationalJob appJob =
+    "billing_" `Text.isPrefixOf` appJob.jobKind
+        && appJob.jobKind /= billingNotificationJobKind
 
 retiredRosterTimesheetCreationJobKind :: Text
 retiredRosterTimesheetCreationJobKind = "roster_timesheet_creation"

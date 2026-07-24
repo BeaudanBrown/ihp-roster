@@ -7,10 +7,10 @@ module Web.View.Admin.RosterGroups
 
 import Application.Helper.Controller (currentVenueOrNothing)
 import qualified Application.Helper.FrontendContract.Surface.Admin as Surface
-import Application.Helper.FrontendContract.Surface.Runtime (FrontendSurfaceAction,
-                                                            FrontendSurfaceActionRoute (..),
+import qualified Application.Helper.FrontendContract.Surface.Admin.Action as AdminAction
+import Application.Helper.FrontendContract.Surface.Request.Runtime (FrontendSurfaceAction)
+import Application.Helper.FrontendContract.Surface.Runtime (FrontendSurfaceActionRoute (..),
                                                             FrontendSurfaceCustomHtmxAttrs (..),
-                                                            frontendSurfaceAction,
                                                             renderFrontendSurfaceActionForm,
                                                             renderFrontendSurfaceActionLink,
                                                             renderFrontendSurfaceActionSubmitButton,
@@ -34,7 +34,7 @@ renderRosterGroupsSection rosterGroups showInactive =
 renderRosterGroupsSectionFragment :: [RosterGroup] -> Bool -> Html
 renderRosterGroupsSectionFragment rosterGroups showInactive =
     renderFrontendSurfaceMount (adminRosterGroupsSurfaceImpl AdminVenueScopeValue { adminVenueId = currentVenueScopeId, adminRosterGroupId = Nothing }) [hsx|
-        <div id={surfaceFragmentTargetId @Surface.AdminRosterGroupsSurface @Surface.AdminRosterGroupsFragment NoSurfaceFields}>
+        <div id={surfaceFragmentTargetId @Surface.AdminRosterGroupsSurface @Surface.AdminRosterGroupsFragment noSurfaceFields}>
             {renderRosterGroupsSection rosterGroups showInactive}
         </div>
     |]
@@ -61,8 +61,8 @@ renderRosterGroupsInactiveSummary rosterGroups showInactive = [hsx|
         inactiveCount = length rosterGroups - activeCount
         toggleLabel = [hsx|<span class="small">Show disabled</span>|]
         toggleHref = appendQueryParams (pathTo ShowadminRosterGroupsLiveFragmentAction) [(surfaceFieldNameFrom @Surface.ShowInactiveRosterGroups toggleFields, if showInactive then "false" else "true")]
-        toggleFields = surfaceField @Surface.ShowInactiveRosterGroups (not showInactive) :& NoSurfaceFields
-        toggleAction = frontendSurfaceAction @Surface.AdminRosterGroupsSurface @Surface.ToggleInactiveRosterGroups toggleFields
+        toggleFields = AdminAction.toggleInactiveRosterGroupsActionFields (not showInactive)
+        toggleAction = AdminAction.toggleInactiveRosterGroupsAction toggleFields
         toggleRoute = FrontendSurfaceActionRoute
             { actionRouteUrl = toggleHref
             , actionRouteCustomHtmx = []
@@ -77,7 +77,7 @@ renderRosterGroupsInactiveSummary rosterGroups showInactive = [hsx|
 
 renderRosterGroupCreateForm :: Bool -> Html
 renderRosterGroupCreateForm showInactive =
-    renderFrontendSurfaceActionForm (frontendSurfaceAction @Surface.AdminRosterGroupsSurface @Surface.CreateRosterGroup fields) route [hsx|
+    renderFrontendSurfaceActionForm (AdminAction.createRosterGroupAction fields) route [hsx|
         <input type="hidden" name={surfaceFieldNameFrom @Surface.ShowInactiveRosterGroups fields} value={boolParam showInactive} />
         <div class="row g-2 align-items-end">
             <div class="col-12 col-md-8">
@@ -86,7 +86,7 @@ renderRosterGroupCreateForm showInactive =
             </div>
             <div class="col-12 col-md-2">
                 <label class="form-label" for="new-roster-group-active">Status</label>
-                {renderAdminActiveToggle "new-roster-group-active" (surfaceFieldNameFrom @Surface.IsActive fields) Nothing "admin-roster-groups-fragment" True}
+                {renderAdminActiveToggle "new-roster-group-active" (surfaceToggleScalarField @Surface.IsActive fields True False) True}
             </div>
             <div class="col-12 col-md-2">
                 <button class="btn btn-outline-primary w-100" type="submit">Add Group</button>
@@ -94,11 +94,7 @@ renderRosterGroupCreateForm showInactive =
         </div>
     |]
     where
-        fields =
-            surfaceField @Surface.ShowInactiveRosterGroups showInactive
-                :& surfaceField @Surface.Name ""
-                :& surfaceField @Surface.IsActive True
-                :& NoSurfaceFields
+        fields = AdminAction.createRosterGroupActionFields showInactive "" True
         route = FrontendSurfaceActionRoute
             { actionRouteUrl = pathTo CreateRosterGroupAction
             , actionRouteCustomHtmx = []
@@ -122,16 +118,12 @@ renderRosterGroupRows rosterGroups showInactive
 renderRosterGroupRow :: Bool -> Int -> (Int, RosterGroup) -> Html
 renderRosterGroupRow showInactive activeCount (rosterGroupIndex, rosterGroup) = [hsx|
     <div class={appSurfaceClasses "p-3 mb-2"}>
-        {renderFrontendSurfaceActionForm (frontendSurfaceAction @Surface.AdminRosterGroupsSurface @Surface.UpdateRosterGroup fields) updateRoute rowFormBody}
+        {renderFrontendSurfaceActionForm (AdminAction.updateRosterGroupAction fields) updateRoute rowFormBody}
     </div>
 |]
     where
         updateUrl = appendQueryParams (pathTo (UpdateRosterGroupAction (get #id rosterGroup))) [("rosterGroupId", tshow rosterGroup.id)]
-        fields =
-            surfaceField @Surface.ShowInactiveRosterGroups showInactive
-                :& surfaceField @Surface.Name rosterGroup.name
-                :& surfaceField @Surface.IsActive rosterGroup.isActive
-                :& NoSurfaceFields
+        fields = AdminAction.updateRosterGroupActionFields showInactive rosterGroup.name rosterGroup.isActive
         updateRoute = FrontendSurfaceActionRoute
             { actionRouteUrl = updateUrl
             , actionRouteCustomHtmx = []
@@ -146,8 +138,8 @@ renderRosterGroupRow showInactive activeCount (rosterGroupIndex, rosterGroup) = 
                     {renderActiveBadge rosterGroup.isActive}
                 </div>
                 <div class="btn-group btn-group-sm" role="group" aria-label="Reorder roster group">
-                    {renderRosterGroupMoveButton (not rosterGroup.isActive || rosterGroupIndex == 0) (frontendSurfaceAction @Surface.AdminRosterGroupsSurface @Surface.MoveRosterGroupUp moveFields) (pathTo (MoveRosterGroupUpAction rosterGroup.id)) "Up"}
-                    {renderRosterGroupMoveButton (not rosterGroup.isActive || rosterGroupIndex == activeCount - 1) (frontendSurfaceAction @Surface.AdminRosterGroupsSurface @Surface.MoveRosterGroupDown moveFields) (pathTo (MoveRosterGroupDownAction rosterGroup.id)) "Down"}
+                    {renderRosterGroupMoveButton (not rosterGroup.isActive || rosterGroupIndex == 0) (AdminAction.moveRosterGroupUpAction moveUpFields) (pathTo (MoveRosterGroupUpAction rosterGroup.id)) "Up"}
+                    {renderRosterGroupMoveButton (not rosterGroup.isActive || rosterGroupIndex == activeCount - 1) (AdminAction.moveRosterGroupDownAction moveDownFields) (pathTo (MoveRosterGroupDownAction rosterGroup.id)) "Down"}
                 </div>
             </div>
             <div class="row g-2 align-items-end">
@@ -157,14 +149,15 @@ renderRosterGroupRow showInactive activeCount (rosterGroupIndex, rosterGroup) = 
                 </div>
                 <div class="col-12 col-md-2">
                     <label class="form-label" for={"roster-group-active-" <> tshow rosterGroup.id}>Status</label>
-                    {renderAdminActiveToggle ("roster-group-active-" <> tshow rosterGroup.id) (surfaceFieldNameFrom @Surface.IsActive fields) Nothing "admin-roster-groups-fragment" rosterGroup.isActive}
+                    {renderAdminActiveToggle ("roster-group-active-" <> tshow rosterGroup.id) (surfaceToggleScalarField @Surface.IsActive fields True False) rosterGroup.isActive}
                 </div>
                 <div class="col-12 col-md-2">
                     <button class="btn btn-outline-secondary w-100" type="submit">Update</button>
                 </div>
             </div>
         |]
-        moveFields = surfaceField @Surface.ShowInactiveRosterGroups showInactive :& NoSurfaceFields
+        moveUpFields = AdminAction.moveRosterGroupUpActionFields showInactive
+        moveDownFields = AdminAction.moveRosterGroupDownActionFields showInactive
 
 renderRosterGroupMoveButton :: Bool -> FrontendSurfaceAction -> Text -> Text -> Html
 renderRosterGroupMoveButton isDisabled action actionUrl label =

@@ -1,0 +1,2659 @@
+{
+  "classificationCaveats": [
+    "Mapping is at suite-family level. It does not assert that every example in a mapped suite protects every listed invariant.",
+    "Names and counts are inventory evidence only; they are not redundancy evidence.",
+    "broad-acceptance-candidate and routine-correctness are conservative suite-level decisions, not implemented lane metadata.",
+    "committedVisibility is a source-inspection assessment. required is reserved for an explicit concurrency or separate-context path; possible requires follow-up proof."
+  ],
+  "invariantCatalog": [
+    {
+      "id": "A1",
+      "requirement": "Venue bootstrap and owner/admin assignment flow."
+    },
+    {
+      "id": "A2",
+      "requirement": "Public signup does not grant privileged venue access."
+    },
+    {
+      "id": "A3",
+      "requirement": "Profile-completion gate behavior."
+    },
+    {
+      "id": "A4",
+      "requirement": "Venue-membership role restrictions."
+    },
+    {
+      "id": "A5",
+      "requirement": "Global users fields do not bypass venue membership checks."
+    },
+    {
+      "id": "A6",
+      "requirement": "Venue isolation on reads and writes."
+    },
+    {
+      "id": "A7",
+      "requirement": "Export permission restrictions."
+    },
+    {
+      "id": "R1",
+      "requirement": "Draft versus live visibility behavior."
+    },
+    {
+      "id": "R2",
+      "requirement": "Manager/Admin publish permissions."
+    },
+    {
+      "id": "R3",
+      "requirement": "Week-copy creates a draft target."
+    },
+    {
+      "id": "R4",
+      "requirement": "Conflict detection ordering and rendering."
+    },
+    {
+      "id": "R5",
+      "requirement": "Late-to-Early start-to-start threshold logic."
+    },
+    {
+      "id": "T1",
+      "requirement": "15-minute exact increment validation."
+    },
+    {
+      "id": "T2",
+      "requirement": "Approval reset on staff edit of approved entry."
+    },
+    {
+      "id": "T3",
+      "requirement": "Leave date validation and status transitions."
+    },
+    {
+      "id": "T4",
+      "requirement": "Conflict recalculation after leave approval."
+    },
+    {
+      "id": "T5",
+      "requirement": "Correction history or audit event creation for approval and record changes."
+    },
+    {
+      "id": "T6",
+      "requirement": "Prohibition of silent destructive edits once records are in business use."
+    },
+    {
+      "id": "T7",
+      "requirement": "Role changes create durable history or audit coverage."
+    },
+    {
+      "id": "P1",
+      "requirement": "Pay level override precedence."
+    },
+    {
+      "id": "P2",
+      "requirement": "Weekday window segmentation correctness."
+    },
+    {
+      "id": "P3",
+      "requirement": "Weekend multiplier and penalty stacking correctness."
+    },
+    {
+      "id": "P4",
+      "requirement": "Break deduction behavior."
+    },
+    {
+      "id": "P5",
+      "requirement": "Historical calculations remain reproducible after later pay/config changes."
+    },
+    {
+      "id": "P6",
+      "requirement": "Exported pay outputs include enough versioning/metadata to explain later."
+    },
+    {
+      "id": "P7",
+      "requirement": "Venue admin bulk-save creates a new pay/config snapshot without erasing prior versions."
+    },
+    {
+      "id": "B1",
+      "requirement": "Configured recurring Stripe Price is active, AUD 100/month, fixed quantity."
+    },
+    {
+      "id": "B2",
+      "requirement": "Stripe create requests use idempotency keys."
+    },
+    {
+      "id": "B3",
+      "requirement": "Checkout/Portal construction uses strict local mocks without live CI credentials."
+    },
+    {
+      "id": "B4",
+      "requirement": "Webhook signatures are verified from the raw body before JSON parsing."
+    },
+    {
+      "id": "B5",
+      "requirement": "Webhook events are deduplicated by event ID."
+    },
+    {
+      "id": "B6",
+      "requirement": "Subscription lifecycle fixtures cover created, updated, deleted, failed payment, duplicate."
+    },
+    {
+      "id": "B7",
+      "requirement": "Billing storage/logs omit sensitive payment and full raw payload data by default."
+    },
+    {
+      "id": "B8",
+      "requirement": "Operator sandbox validation with Stripe CLI/test clocks is documented before launch."
+    }
+  ],
+  "invariantCoverage": [
+    {
+      "invariantId": "A1",
+      "note": "Mapped at suite-family level; inspect example-level evidence before changing coverage.",
+      "requirement": "Venue bootstrap and owner/admin assignment flow.",
+      "status": "mapped",
+      "suites": [
+        "UsersController",
+        "VenueInvitation",
+        "VenueOnboardingInvitation"
+      ]
+    },
+    {
+      "invariantId": "A2",
+      "note": "Mapped at suite-family level; inspect example-level evidence before changing coverage.",
+      "requirement": "Public signup does not grant privileged venue access.",
+      "status": "mapped",
+      "suites": [
+        "UsersController",
+        "VenueOnboardingInvitation"
+      ]
+    },
+    {
+      "invariantId": "A3",
+      "note": "Mapped at suite-family level; inspect example-level evidence before changing coverage.",
+      "requirement": "Profile-completion gate behavior.",
+      "status": "mapped",
+      "suites": [
+        "ProfilesController",
+        "SessionsController",
+        "RosterWeeksController.Navigation",
+        "UsersController"
+      ]
+    },
+    {
+      "invariantId": "A4",
+      "note": "Mapped at suite-family level; inspect example-level evidence before changing coverage.",
+      "requirement": "Venue-membership role restrictions.",
+      "status": "mapped",
+      "suites": [
+        "BillingController",
+        "AdminController.Access",
+        "AdminController.Xero",
+        "AdminController.Config",
+        "ProfilesController",
+        "PasskeysController",
+        "Schema",
+        "SupportController",
+        "UsersController",
+        "VenueAccess",
+        "StaffController",
+        "VenueInvitation"
+      ]
+    },
+    {
+      "invariantId": "A5",
+      "note": "Mapped at suite-family level; inspect example-level evidence before changing coverage.",
+      "requirement": "Global users fields do not bypass venue membership checks.",
+      "status": "mapped",
+      "suites": [
+        "Schema",
+        "VenueAccess"
+      ]
+    },
+    {
+      "invariantId": "A6",
+      "note": "Mapped at suite-family level; inspect example-level evidence before changing coverage.",
+      "requirement": "Venue isolation on reads and writes.",
+      "status": "mapped",
+      "suites": [
+        "Schema",
+        "DatabaseProtection",
+        "TimesheetsController",
+        "VenueAccess",
+        "StaffDocumentsController"
+      ]
+    },
+    {
+      "invariantId": "A7",
+      "note": "Mapped at suite-family level; inspect example-level evidence before changing coverage.",
+      "requirement": "Export permission restrictions.",
+      "status": "mapped",
+      "suites": [
+        "ExportsController"
+      ]
+    },
+    {
+      "invariantId": "R1",
+      "note": "Mapped at suite-family level; inspect example-level evidence before changing coverage.",
+      "requirement": "Draft versus live visibility behavior.",
+      "status": "mapped",
+      "suites": [
+        "RosterWeeksController.Navigation",
+        "RosterWeeksController.Workflow",
+        "RosterWeeksController.Fragments",
+        "RosterWeeksController.Baseline"
+      ]
+    },
+    {
+      "invariantId": "R2",
+      "note": "Mapped at suite-family level; inspect example-level evidence before changing coverage.",
+      "requirement": "Manager/Admin publish permissions.",
+      "status": "mapped",
+      "suites": [
+        "RosterWeeksController.Workflow"
+      ]
+    },
+    {
+      "invariantId": "R3",
+      "note": "Mapped at suite-family level; inspect example-level evidence before changing coverage.",
+      "requirement": "Week-copy creates a draft target.",
+      "status": "mapped",
+      "suites": [
+        "RosterWeeksController.Workflow"
+      ]
+    },
+    {
+      "invariantId": "R4",
+      "note": "Mapped at suite-family level; inspect example-level evidence before changing coverage.",
+      "requirement": "Conflict detection ordering and rendering.",
+      "status": "mapped",
+      "suites": [
+        "RosterWeeksController.Workflow",
+        "RosterWeeksController.Fragments",
+        "RosterWeeksController.DirectReadModel",
+        "Conflict"
+      ]
+    },
+    {
+      "invariantId": "R5",
+      "note": "Mapped at suite-family level; inspect example-level evidence before changing coverage.",
+      "requirement": "Late-to-Early start-to-start threshold logic.",
+      "status": "mapped",
+      "suites": [
+        "RosterWeeksController.DirectReadModel",
+        "Conflict"
+      ]
+    },
+    {
+      "invariantId": "T1",
+      "note": "Mapped at suite-family level; inspect example-level evidence before changing coverage.",
+      "requirement": "15-minute exact increment validation.",
+      "status": "mapped",
+      "suites": [
+        "Schema",
+        "TimesheetsController"
+      ]
+    },
+    {
+      "invariantId": "T2",
+      "note": "Mapped at suite-family level; inspect example-level evidence before changing coverage.",
+      "requirement": "Approval reset on staff edit of approved entry.",
+      "status": "mapped",
+      "suites": [
+        "TimesheetsController"
+      ]
+    },
+    {
+      "invariantId": "T3",
+      "note": "Mapped at suite-family level; inspect example-level evidence before changing coverage.",
+      "requirement": "Leave date validation and status transitions.",
+      "status": "mapped",
+      "suites": [
+        "Schema",
+        "LeaveRequestsController"
+      ]
+    },
+    {
+      "invariantId": "T4",
+      "note": "ConflictSpec proves approved-leave conflict evaluation; LeaveRequestsController and roster fragment suites prove approval invalidation/render seams. No claim is made that this is one end-to-end example.",
+      "requirement": "Conflict recalculation after leave approval.",
+      "status": "composed",
+      "suites": [
+        "RosterWeeksController.Fragments",
+        "LeaveRequestsController",
+        "Conflict"
+      ]
+    },
+    {
+      "invariantId": "T5",
+      "note": "Mapped at suite-family level; inspect example-level evidence before changing coverage.",
+      "requirement": "Correction history or audit event creation for approval and record changes.",
+      "status": "mapped",
+      "suites": [
+        "LeaveRequestsController",
+        "TimesheetsController"
+      ]
+    },
+    {
+      "invariantId": "T6",
+      "note": "Mapped at suite-family level; inspect example-level evidence before changing coverage.",
+      "requirement": "Prohibition of silent destructive edits once records are in business use.",
+      "status": "mapped",
+      "suites": [
+        "DatabaseProtection",
+        "TimesheetsController",
+        "StaffDocumentsRSA"
+      ]
+    },
+    {
+      "invariantId": "T7",
+      "note": "Mapped at suite-family level; inspect example-level evidence before changing coverage.",
+      "requirement": "Role changes create durable history or audit coverage.",
+      "status": "mapped",
+      "suites": [
+        "UsersController",
+        "StaffController"
+      ]
+    },
+    {
+      "invariantId": "P1",
+      "note": "Mapped at suite-family level; inspect example-level evidence before changing coverage.",
+      "requirement": "Pay level override precedence.",
+      "status": "mapped",
+      "suites": [
+        "Pay",
+        "StaffController"
+      ]
+    },
+    {
+      "invariantId": "P2",
+      "note": "Mapped at suite-family level; inspect example-level evidence before changing coverage.",
+      "requirement": "Weekday window segmentation correctness.",
+      "status": "mapped",
+      "suites": [
+        "Schema",
+        "Pay",
+        "PublicHolidaySync"
+      ]
+    },
+    {
+      "invariantId": "P3",
+      "note": "Mapped at suite-family level; inspect example-level evidence before changing coverage.",
+      "requirement": "Weekend multiplier and penalty stacking correctness.",
+      "status": "mapped",
+      "suites": [
+        "Pay",
+        "PublicHolidaySync",
+        "FwcMapdSync"
+      ]
+    },
+    {
+      "invariantId": "P4",
+      "note": "Mapped at suite-family level; inspect example-level evidence before changing coverage.",
+      "requirement": "Break deduction behavior.",
+      "status": "mapped",
+      "suites": [
+        "Pay",
+        "FixedExportGolden"
+      ]
+    },
+    {
+      "invariantId": "P5",
+      "note": "Mapped at suite-family level; inspect example-level evidence before changing coverage.",
+      "requirement": "Historical calculations remain reproducible after later pay/config changes.",
+      "status": "mapped",
+      "suites": [
+        "DatabaseProtection",
+        "Pay",
+        "FwcMapdSync",
+        "FixedExportGolden",
+        "XeroTimesheetPreview",
+        "XeroTimesheetReadiness"
+      ]
+    },
+    {
+      "invariantId": "P6",
+      "note": "Mapped at suite-family level; inspect example-level evidence before changing coverage.",
+      "requirement": "Exported pay outputs include enough versioning/metadata to explain later.",
+      "status": "mapped",
+      "suites": [
+        "AdminController.Xero",
+        "ExportsController",
+        "FixedExportGolden",
+        "XeroTimesheetPreview",
+        "XeroTimesheetReadiness",
+        "XeroTimesheetSubmission"
+      ]
+    },
+    {
+      "invariantId": "P7",
+      "note": "Mapped at suite-family level; inspect example-level evidence before changing coverage.",
+      "requirement": "Venue admin bulk-save creates a new pay/config snapshot without erasing prior versions.",
+      "status": "mapped",
+      "suites": [
+        "AdminController.Config"
+      ]
+    },
+    {
+      "invariantId": "B1",
+      "note": "Mapped at suite-family level; inspect example-level evidence before changing coverage.",
+      "requirement": "Configured recurring Stripe Price is active, AUD 100/month, fixed quantity.",
+      "status": "mapped",
+      "suites": [
+        "BillingController",
+        "StripeBilling",
+        "StripeContract"
+      ]
+    },
+    {
+      "invariantId": "B2",
+      "note": "Mapped at suite-family level; inspect example-level evidence before changing coverage.",
+      "requirement": "Stripe create requests use idempotency keys.",
+      "status": "mapped",
+      "suites": [
+        "BillingController",
+        "StripeBilling",
+        "StripeContract"
+      ]
+    },
+    {
+      "invariantId": "B3",
+      "note": "Mapped at suite-family level; inspect example-level evidence before changing coverage.",
+      "requirement": "Checkout/Portal construction uses strict local mocks without live CI credentials.",
+      "status": "mapped",
+      "suites": [
+        "StripeContract"
+      ]
+    },
+    {
+      "invariantId": "B4",
+      "note": "Mapped at suite-family level; inspect example-level evidence before changing coverage.",
+      "requirement": "Webhook signatures are verified from the raw body before JSON parsing.",
+      "status": "mapped",
+      "suites": [
+        "BillingWebhook",
+        "StripeBilling"
+      ]
+    },
+    {
+      "invariantId": "B5",
+      "note": "Mapped at suite-family level; inspect example-level evidence before changing coverage.",
+      "requirement": "Webhook events are deduplicated by event ID.",
+      "status": "mapped",
+      "suites": [
+        "Billing",
+        "BillingWebhook"
+      ]
+    },
+    {
+      "invariantId": "B6",
+      "note": "BillingWebhook explicitly exercises subscription.updated, invoice.payment_failed, and duplicate paths. Named subscription.created and subscription.deleted fixtures were not found and remain a coverage-audit input.",
+      "requirement": "Subscription lifecycle fixtures cover created, updated, deleted, failed payment, duplicate.",
+      "status": "partial",
+      "suites": [
+        "BillingWebhook"
+      ]
+    },
+    {
+      "invariantId": "B7",
+      "note": "Mapped at suite-family level; inspect example-level evidence before changing coverage.",
+      "requirement": "Billing storage/logs omit sensitive payment and full raw payload data by default.",
+      "status": "mapped",
+      "suites": [
+        "Billing",
+        "BillingWebhook",
+        "StripeBilling",
+        "Mail"
+      ]
+    },
+    {
+      "invariantId": "B8",
+      "note": "Operator evidence is documentation/runbook owned rather than an automated Hspec invariant.",
+      "requirement": "Operator sandbox validation with Stripe CLI/test clocks is documented before launch.",
+      "status": "documented-outside-hspec",
+      "suites": []
+    }
+  ],
+  "nonHspecEvidence": [
+    {
+      "invariantId": "B8",
+      "note": "Not an Hspec suite invariant; operator evidence lives in Application/Billing/RUNBOOK.md.",
+      "path": "Application/Billing/RUNBOOK.md"
+    }
+  ],
+  "schemaVersion": 2,
+  "snapshot": {
+    "durationRule": "Every suite has either a measured duration or an explicitly labelled estimate.",
+    "exampleCounts": "Hspec --dry-run against each registry suite.",
+    "resetCounts": "Static withCleanDb do call sites, not dynamic loop-expanded reset executions.",
+    "scope": "Pre-optimization issue #198 inventory; no retain/consolidate/move/replace/delete decision is encoded.",
+    "sourceCommit": "aa3de92caf43eec412d72b31d142775931916f91"
+  },
+  "suites": [
+    {
+      "candidateRole": "routine-correctness",
+      "committedVisibility": {
+        "assessment": "not-apparent",
+        "reason": "No explicit cross-thread or separately constructed ModelContext was identified; database use alone is not evidence of committed-visibility dependence."
+      },
+      "declaredWeight": 10,
+      "dryRunShardIndex": 32,
+      "duration": {
+        "basis": "registry-declared-weight-estimate",
+        "limitations": "The weight is a scheduling estimate, not a current isolated timing; measured entries supersede it where present.",
+        "seconds": 10
+      },
+      "exampleCount": 7,
+      "fixtureBuilderCallSites": {
+        "createUserRecord": 2,
+        "createVenueMembershipRecord": 2,
+        "createVenueWithConfig": 2
+      },
+      "kind": "database",
+      "label": "StaticController",
+      "majorInvariantFamily": "access-and-onboarding",
+      "module": "Test.Controller.StaticSpec",
+      "roleRationale": "Focused helper, contract, adapter, or wiring correctness. Any mapped mandatory invariant must still remain in the complete gate.",
+      "source": "Test/Controller/StaticSpec.hs",
+      "specInvariantIds": [],
+      "withCleanDbCallSites": 2
+    },
+    {
+      "candidateRole": "broad-acceptance-candidate",
+      "committedVisibility": {
+        "assessment": "required",
+        "reason": "The suite forks concurrent queue inserts; child threads must observe committed state and compete on the database uniqueness boundary."
+      },
+      "declaredWeight": 10,
+      "dryRunShardIndex": 33,
+      "duration": {
+        "basis": "registry-declared-weight-estimate",
+        "limitations": "The weight is a scheduling estimate, not a current isolated timing; measured entries supersede it where present.",
+        "seconds": 10
+      },
+      "exampleCount": 5,
+      "fixtureBuilderCallSites": {},
+      "kind": "database",
+      "label": "AsyncQueue",
+      "majorInvariantFamily": "operations-and-test-infrastructure",
+      "module": "Test.AsyncQueueSpec",
+      "roleRationale": "Conservative suite-level classification: this suite contains cross-component, mandatory-invariant, or committed-visibility evidence. Keep it in broad acceptance unless #202 safely splits that evidence.",
+      "source": "Test/AsyncQueueSpec.hs",
+      "specInvariantIds": [],
+      "withCleanDbCallSites": 5
+    },
+    {
+      "candidateRole": "broad-acceptance-candidate",
+      "committedVisibility": {
+        "assessment": "not-apparent",
+        "reason": "No explicit cross-thread or separately constructed ModelContext was identified; database use alone is not evidence of committed-visibility dependence."
+      },
+      "declaredWeight": 10,
+      "dryRunShardIndex": 34,
+      "duration": {
+        "basis": "registry-declared-weight-estimate",
+        "limitations": "The weight is a scheduling estimate, not a current isolated timing; measured entries supersede it where present.",
+        "seconds": 10
+      },
+      "exampleCount": 4,
+      "fixtureBuilderCallSites": {
+        "createUserRecord": 1,
+        "createVenueWithConfig": 3
+      },
+      "kind": "database",
+      "label": "Billing",
+      "majorInvariantFamily": "billing",
+      "module": "Test.BillingPersistenceSpec",
+      "roleRationale": "Conservative suite-level classification: this suite contains cross-component, mandatory-invariant, or committed-visibility evidence. Keep it in broad acceptance unless #202 safely splits that evidence.",
+      "source": "Test/BillingPersistenceSpec.hs",
+      "specInvariantIds": [
+        "B5",
+        "B7"
+      ],
+      "withCleanDbCallSites": 4
+    },
+    {
+      "candidateRole": "broad-acceptance-candidate",
+      "committedVisibility": {
+        "assessment": "not-apparent",
+        "reason": "No explicit cross-thread or separately constructed ModelContext was identified; database use alone is not evidence of committed-visibility dependence."
+      },
+      "declaredWeight": 20,
+      "dryRunShardIndex": 17,
+      "duration": {
+        "basis": "registry-declared-weight-estimate",
+        "limitations": "The weight is a scheduling estimate, not a current isolated timing; measured entries supersede it where present.",
+        "seconds": 20
+      },
+      "exampleCount": 7,
+      "fixtureBuilderCallSites": {
+        "createUserRecord": 6,
+        "createUserRecordWithPlatformRole": 7,
+        "createVenueMembershipRecord": 6,
+        "createVenueWithConfig": 7
+      },
+      "inventoryNote": "Cross-workflow destructive-write protection under manual billing read-only mode; broader than a single controller contract.",
+      "kind": "database",
+      "label": "BillingReadOnly",
+      "majorInvariantFamily": "billing",
+      "module": "Test.BillingReadOnlySpec",
+      "roleRationale": "Conservative suite-level classification: this suite contains cross-component, mandatory-invariant, or committed-visibility evidence. Keep it in broad acceptance unless #202 safely splits that evidence.",
+      "source": "Test/BillingReadOnlySpec.hs",
+      "specInvariantIds": [],
+      "withCleanDbCallSites": 7
+    },
+    {
+      "candidateRole": "broad-acceptance-candidate",
+      "committedVisibility": {
+        "assessment": "not-apparent",
+        "reason": "No explicit cross-thread or separately constructed ModelContext was identified; database use alone is not evidence of committed-visibility dependence."
+      },
+      "declaredWeight": 15,
+      "dryRunShardIndex": 27,
+      "duration": {
+        "basis": "registry-declared-weight-estimate",
+        "limitations": "The weight is a scheduling estimate, not a current isolated timing; measured entries supersede it where present.",
+        "seconds": 15
+      },
+      "exampleCount": 12,
+      "fixtureBuilderCallSites": {
+        "createUserRecord": 9,
+        "createUserRecordWithPlatformRole": 2,
+        "createVenueMembershipRecord": 9,
+        "createVenueWithConfig": 11
+      },
+      "kind": "database",
+      "label": "BillingController",
+      "majorInvariantFamily": "billing",
+      "module": "Test.Controller.BillingSpec",
+      "roleRationale": "Conservative suite-level classification: this suite contains cross-component, mandatory-invariant, or committed-visibility evidence. Keep it in broad acceptance unless #202 safely splits that evidence.",
+      "source": "Test/Controller/BillingSpec.hs",
+      "specInvariantIds": [
+        "A4",
+        "B1",
+        "B2"
+      ],
+      "withCleanDbCallSites": 11
+    },
+    {
+      "candidateRole": "broad-acceptance-candidate",
+      "committedVisibility": {
+        "assessment": "required",
+        "reason": "Controller middleware calls runActionWithNewContext, so setup rows must be visible to a separately constructed request context."
+      },
+      "declaredWeight": 35,
+      "dryRunShardIndex": 8,
+      "duration": {
+        "artifact": "output/hspec-baseline/issue-198/focused-billing-webhook/summary.json",
+        "basis": "single-focused-hspec-finished",
+        "limitations": "Focused serial timing avoids shard contention; single-run entries are representative measurements, not medians.",
+        "seconds": 3.7143
+      },
+      "exampleCount": 8,
+      "fixtureBuilderCallSites": {
+        "createUserRecord": 1,
+        "createUserRecordWithPlatformRole": 1,
+        "createVenueMembershipRecord": 1,
+        "createVenueWithConfig": 5
+      },
+      "kind": "database",
+      "label": "BillingWebhook",
+      "majorInvariantFamily": "billing",
+      "module": "Test.BillingWebhookSpec",
+      "roleRationale": "Conservative suite-level classification: this suite contains cross-component, mandatory-invariant, or committed-visibility evidence. Keep it in broad acceptance unless #202 safely splits that evidence.",
+      "source": "Test/BillingWebhookSpec.hs",
+      "specInvariantIds": [
+        "B4",
+        "B5",
+        "B6",
+        "B7"
+      ],
+      "withCleanDbCallSites": 8
+    },
+    {
+      "candidateRole": "routine-correctness",
+      "committedVisibility": {
+        "assessment": "not-apparent",
+        "reason": "No explicit cross-thread or separately constructed ModelContext was identified; database use alone is not evidence of committed-visibility dependence."
+      },
+      "declaredWeight": 5,
+      "dryRunShardIndex": 50,
+      "duration": {
+        "basis": "registry-declared-weight-estimate",
+        "limitations": "The weight is a scheduling estimate, not a current isolated timing; measured entries supersede it where present.",
+        "seconds": 5
+      },
+      "exampleCount": 4,
+      "fixtureBuilderCallSites": {
+        "createUserRecord": 4,
+        "createVenueMembershipRecord": 4,
+        "createVenueWithConfig": 4
+      },
+      "kind": "database",
+      "label": "E2ETestController",
+      "majorInvariantFamily": "access-and-onboarding",
+      "module": "Test.Controller.E2ETestSpec",
+      "roleRationale": "Focused helper, contract, adapter, or wiring correctness. Any mapped mandatory invariant must still remain in the complete gate.",
+      "source": "Test/Controller/E2ETestSpec.hs",
+      "specInvariantIds": [],
+      "withCleanDbCallSites": 4
+    },
+    {
+      "candidateRole": "routine-correctness",
+      "committedVisibility": {
+        "assessment": "not-applicable",
+        "reason": "Registry classifies this suite as pure; it does not open PostgreSQL connections."
+      },
+      "declaredWeight": 10,
+      "dryRunShardIndex": 35,
+      "duration": {
+        "artifact": "output/hspec-baseline/issue-198/pure-measured-{1,2,3}/summary.json",
+        "basis": "estimated-from-pure-lane-median-by-example-share",
+        "limitations": "Example-share allocation is only an estimate; pure example costs are not uniform.",
+        "seconds": 0.014516717325227963
+      },
+      "exampleCount": 10,
+      "fixtureBuilderCallSites": {},
+      "kind": "pure",
+      "label": "StripeBilling",
+      "majorInvariantFamily": "billing",
+      "module": "Test.StripeBillingSpec",
+      "roleRationale": "Focused helper, contract, adapter, or wiring correctness. Any mapped mandatory invariant must still remain in the complete gate.",
+      "source": "Test/StripeBillingSpec.hs",
+      "specInvariantIds": [
+        "B1",
+        "B2",
+        "B4",
+        "B7"
+      ],
+      "withCleanDbCallSites": 0
+    },
+    {
+      "candidateRole": "routine-correctness",
+      "committedVisibility": {
+        "assessment": "not-applicable",
+        "reason": "Pure strict-transport contract; no PostgreSQL access."
+      },
+      "declaredWeight": 10,
+      "dryRunShardIndex": 36,
+      "duration": {
+        "artifact": "output/hspec-baseline/issue-198/pure-measured-{1,2,3}/summary.json",
+        "basis": "estimated-from-pure-lane-median-by-example-share",
+        "limitations": "Example-share allocation is only an estimate; pure example costs are not uniform.",
+        "seconds": 0.002903343465045593
+      },
+      "exampleCount": 2,
+      "fixtureBuilderCallSites": {},
+      "kind": "pure",
+      "label": "StripeContract",
+      "majorInvariantFamily": "billing",
+      "module": "Test.StripeContractSpec",
+      "roleRationale": "Focused helper, contract, adapter, or wiring correctness. Any mapped mandatory invariant must still remain in the complete gate.",
+      "source": "Test/StripeContractSpec.hs",
+      "specInvariantIds": [
+        "B1",
+        "B2",
+        "B3"
+      ],
+      "withCleanDbCallSites": 0
+    },
+    {
+      "candidateRole": "routine-correctness",
+      "committedVisibility": {
+        "assessment": "not-apparent",
+        "reason": "No explicit cross-thread or separately constructed ModelContext was identified; database use alone is not evidence of committed-visibility dependence."
+      },
+      "declaredWeight": 20,
+      "dryRunShardIndex": 18,
+      "duration": {
+        "basis": "registry-declared-weight-estimate",
+        "limitations": "The weight is a scheduling estimate, not a current isolated timing; measured entries supersede it where present.",
+        "seconds": 20
+      },
+      "exampleCount": 5,
+      "fixtureBuilderCallSites": {
+        "createPayLevelRecord": 1,
+        "createShiftTypeRecord": 2,
+        "createUserRecord": 3,
+        "createUserRecordWithPlatformRole": 1,
+        "createVenueMembershipRecord": 4,
+        "createVenueWithConfig": 4
+      },
+      "kind": "database",
+      "label": "AdminController.Access",
+      "majorInvariantFamily": "access-and-onboarding",
+      "module": "Test.Controller.Admin.AccessSpec",
+      "roleRationale": "Focused helper, contract, adapter, or wiring correctness. Any mapped mandatory invariant must still remain in the complete gate.",
+      "source": "Test/Controller/Admin/AccessSpec.hs",
+      "specInvariantIds": [
+        "A4"
+      ],
+      "withCleanDbCallSites": 4
+    },
+    {
+      "candidateRole": "broad-acceptance-candidate",
+      "committedVisibility": {
+        "assessment": "possible",
+        "reason": "Several examples cross strict localhost HTTP mocks and controller callbacks; no explicit second database context was identified."
+      },
+      "declaredWeight": 180,
+      "dryRunShardIndex": 1,
+      "duration": {
+        "artifact": "output/hspec-baseline/issue-198/focused-admin-xero/summary.json",
+        "basis": "single-focused-hspec-finished",
+        "limitations": "Focused serial timing avoids shard contention; single-run entries are representative measurements, not medians.",
+        "seconds": 72.8564
+      },
+      "exampleCount": 46,
+      "fixtureBuilderCallSites": {
+        "createStaffRecord": 1,
+        "createUserRecord": 23,
+        "createVenueMembershipRecord": 23,
+        "createVenueWithConfig": 25
+      },
+      "inventoryNote": "Mixed UI/controller/external-service suite; no redundancy judgment is made by this inventory.",
+      "kind": "database",
+      "label": "AdminController.Xero",
+      "majorInvariantFamily": "xero-payroll",
+      "module": "Test.Controller.Admin.XeroSpec",
+      "roleRationale": "Conservative suite-level classification: this suite contains cross-component, mandatory-invariant, or committed-visibility evidence. Keep it in broad acceptance unless #202 safely splits that evidence.",
+      "source": "Test/Controller/Admin/XeroSpec.hs",
+      "specInvariantIds": [
+        "A4",
+        "P6"
+      ],
+      "withCleanDbCallSites": 44
+    },
+    {
+      "candidateRole": "broad-acceptance-candidate",
+      "committedVisibility": {
+        "assessment": "not-apparent",
+        "reason": "No explicit cross-thread or separately constructed ModelContext was identified; database use alone is not evidence of committed-visibility dependence."
+      },
+      "declaredWeight": 90,
+      "dryRunShardIndex": 3,
+      "duration": {
+        "basis": "registry-declared-weight-estimate",
+        "limitations": "The weight is a scheduling estimate, not a current isolated timing; measured entries supersede it where present.",
+        "seconds": 90
+      },
+      "exampleCount": 27,
+      "fixtureBuilderCallSites": {
+        "createPayLevelRecord": 9,
+        "createShiftTypeRecord": 11,
+        "createUserRecord": 25,
+        "createUserRecordWithPlatformRole": 1,
+        "createVenueMembershipRecord": 26,
+        "createVenueWithConfig": 28
+      },
+      "kind": "database",
+      "label": "AdminController.Config",
+      "majorInvariantFamily": "pay-and-exports",
+      "module": "Test.Controller.Admin.ConfigSpec",
+      "roleRationale": "Conservative suite-level classification: this suite contains cross-component, mandatory-invariant, or committed-visibility evidence. Keep it in broad acceptance unless #202 safely splits that evidence.",
+      "source": "Test/Controller/Admin/ConfigSpec.hs",
+      "specInvariantIds": [
+        "A4",
+        "P7"
+      ],
+      "withCleanDbCallSites": 27
+    },
+    {
+      "candidateRole": "broad-acceptance-candidate",
+      "committedVisibility": {
+        "assessment": "not-apparent",
+        "reason": "No explicit cross-thread or separately constructed ModelContext was identified; database use alone is not evidence of committed-visibility dependence."
+      },
+      "declaredWeight": 35,
+      "dryRunShardIndex": 9,
+      "duration": {
+        "basis": "registry-declared-weight-estimate",
+        "limitations": "The weight is a scheduling estimate, not a current isolated timing; measured entries supersede it where present.",
+        "seconds": 35
+      },
+      "exampleCount": 21,
+      "fixtureBuilderCallSites": {
+        "createRosterDayRecord": 2,
+        "createRosterSlotRecord": 1,
+        "createStaffRecord": 11,
+        "createUserRecord": 16,
+        "createUserRecordWithPlatformRole": 2,
+        "createVenueMembershipRecord": 16,
+        "createVenueWithConfig": 17
+      },
+      "kind": "database",
+      "label": "ProfilesController",
+      "majorInvariantFamily": "access-and-onboarding",
+      "module": "Test.Controller.ProfilesSpec",
+      "roleRationale": "Conservative suite-level classification: this suite contains cross-component, mandatory-invariant, or committed-visibility evidence. Keep it in broad acceptance unless #202 safely splits that evidence.",
+      "source": "Test/Controller/ProfilesSpec.hs",
+      "specInvariantIds": [
+        "A3",
+        "A4"
+      ],
+      "withCleanDbCallSites": 17
+    },
+    {
+      "candidateRole": "broad-acceptance-candidate",
+      "committedVisibility": {
+        "assessment": "not-apparent",
+        "reason": "No explicit cross-thread or separately constructed ModelContext was identified; database use alone is not evidence of committed-visibility dependence."
+      },
+      "declaredWeight": 25,
+      "dryRunShardIndex": 15,
+      "duration": {
+        "basis": "registry-declared-weight-estimate",
+        "limitations": "The weight is a scheduling estimate, not a current isolated timing; measured entries supersede it where present.",
+        "seconds": 25
+      },
+      "exampleCount": 37,
+      "fixtureBuilderCallSites": {
+        "createUserRecord": 30,
+        "createUserRecordWithPlatformRole": 1,
+        "createVenueMembershipRecord": 28,
+        "createVenueWithConfig": 26
+      },
+      "kind": "database",
+      "label": "PasskeysController",
+      "majorInvariantFamily": "access-and-onboarding",
+      "module": "Test.Controller.PasskeysSpec",
+      "roleRationale": "Conservative suite-level classification: this suite contains cross-component, mandatory-invariant, or committed-visibility evidence. Keep it in broad acceptance unless #202 safely splits that evidence.",
+      "source": "Test/Controller/PasskeysSpec.hs",
+      "specInvariantIds": [
+        "A4"
+      ],
+      "withCleanDbCallSites": 29
+    },
+    {
+      "candidateRole": "broad-acceptance-candidate",
+      "committedVisibility": {
+        "assessment": "not-applicable",
+        "reason": "Registry classifies this suite as pure; it does not open PostgreSQL connections."
+      },
+      "declaredWeight": 10,
+      "dryRunShardIndex": 37,
+      "duration": {
+        "artifact": "output/hspec-baseline/issue-198/pure-measured-{1,2,3}/summary.json",
+        "basis": "estimated-from-pure-lane-median-by-example-share",
+        "limitations": "Example-share allocation is only an estimate; pure example costs are not uniform.",
+        "seconds": 0.11323039513677811
+      },
+      "exampleCount": 78,
+      "fixtureBuilderCallSites": {},
+      "inventoryNote": "Combines generated/schema guards with pure helper behavior; later audits must assess assertions individually, not from this label.",
+      "kind": "pure",
+      "label": "Schema",
+      "majorInvariantFamily": "data-integrity-and-audit",
+      "module": "Test.SchemaSpec",
+      "roleRationale": "Conservative suite-level classification: this suite contains cross-component, mandatory-invariant, or committed-visibility evidence. Keep it in broad acceptance unless #202 safely splits that evidence.",
+      "source": "Test/SchemaSpec.hs",
+      "specInvariantIds": [
+        "A4",
+        "A5",
+        "A6",
+        "T1",
+        "T3",
+        "P2"
+      ],
+      "withCleanDbCallSites": 0
+    },
+    {
+      "candidateRole": "broad-acceptance-candidate",
+      "committedVisibility": {
+        "assessment": "not-apparent",
+        "reason": "No explicit cross-thread or separately constructed ModelContext was identified; database use alone is not evidence of committed-visibility dependence."
+      },
+      "declaredWeight": 10,
+      "dryRunShardIndex": 38,
+      "duration": {
+        "basis": "registry-declared-weight-estimate",
+        "limitations": "The weight is a scheduling estimate, not a current isolated timing; measured entries supersede it where present.",
+        "seconds": 10
+      },
+      "exampleCount": 9,
+      "fixtureBuilderCallSites": {
+        "createRosterDayRecord": 1,
+        "createRosterSlotRecord": 2,
+        "createRosterWeekRecord": 1,
+        "createStaffRecord": 7,
+        "createTimesheetEntryRecord": 1,
+        "createUserRecord": 1,
+        "createVenueWithConfig": 12
+      },
+      "inventoryNote": "Database-enforced tenant/provenance/destructive-data protection, distinct from controller authorization.",
+      "kind": "database",
+      "label": "DatabaseProtection",
+      "majorInvariantFamily": "data-integrity-and-audit",
+      "module": "Test.DatabaseProtectionSpec",
+      "roleRationale": "Conservative suite-level classification: this suite contains cross-component, mandatory-invariant, or committed-visibility evidence. Keep it in broad acceptance unless #202 safely splits that evidence.",
+      "source": "Test/DatabaseProtectionSpec.hs",
+      "specInvariantIds": [
+        "A6",
+        "T6",
+        "P5"
+      ],
+      "withCleanDbCallSites": 8
+    },
+    {
+      "candidateRole": "broad-acceptance-candidate",
+      "committedVisibility": {
+        "assessment": "not-apparent",
+        "reason": "No explicit cross-thread or separately constructed ModelContext was identified; database use alone is not evidence of committed-visibility dependence."
+      },
+      "declaredWeight": 25,
+      "dryRunShardIndex": 16,
+      "duration": {
+        "basis": "registry-declared-weight-estimate",
+        "limitations": "The weight is a scheduling estimate, not a current isolated timing; measured entries supersede it where present.",
+        "seconds": 25
+      },
+      "exampleCount": 16,
+      "fixtureBuilderCallSites": {
+        "createUserRecord": 11,
+        "createUserRecordWithPlatformRole": 1,
+        "createVenueMembershipRecord": 7,
+        "createVenueWithConfig": 7
+      },
+      "kind": "database",
+      "label": "SessionsController",
+      "majorInvariantFamily": "access-and-onboarding",
+      "module": "Test.Controller.SessionsSpec",
+      "roleRationale": "Conservative suite-level classification: this suite contains cross-component, mandatory-invariant, or committed-visibility evidence. Keep it in broad acceptance unless #202 safely splits that evidence.",
+      "source": "Test/Controller/SessionsSpec.hs",
+      "specInvariantIds": [
+        "A3"
+      ],
+      "withCleanDbCallSites": 14
+    },
+    {
+      "candidateRole": "broad-acceptance-candidate",
+      "committedVisibility": {
+        "assessment": "not-apparent",
+        "reason": "No explicit cross-thread or separately constructed ModelContext was identified; database use alone is not evidence of committed-visibility dependence."
+      },
+      "declaredWeight": 15,
+      "dryRunShardIndex": 28,
+      "duration": {
+        "basis": "registry-declared-weight-estimate",
+        "limitations": "The weight is a scheduling estimate, not a current isolated timing; measured entries supersede it where present.",
+        "seconds": 15
+      },
+      "exampleCount": 24,
+      "fixtureBuilderCallSites": {
+        "createLeaveRequestRecord": 1,
+        "createPayLevelRecord": 1,
+        "createRosterDayRecord": 3,
+        "createRosterSlotRecord": 3,
+        "createRosterWeekRecord": 4,
+        "createShiftTypeRecord": 1,
+        "createStaffRecord": 4,
+        "createUserRecord": 11,
+        "createUserRecordWithPlatformRole": 1,
+        "createVenueMembershipRecord": 11,
+        "createVenueWithConfig": 11
+      },
+      "kind": "database",
+      "label": "RosterWeeksController.Navigation",
+      "majorInvariantFamily": "rostering",
+      "module": "Test.Controller.RosterWeeks.NavigationSpec",
+      "roleRationale": "Conservative suite-level classification: this suite contains cross-component, mandatory-invariant, or committed-visibility evidence. Keep it in broad acceptance unless #202 safely splits that evidence.",
+      "source": "Test/Controller/RosterWeeks/NavigationSpec.hs",
+      "specInvariantIds": [
+        "A3",
+        "R1"
+      ],
+      "withCleanDbCallSites": 12
+    },
+    {
+      "candidateRole": "broad-acceptance-candidate",
+      "committedVisibility": {
+        "assessment": "not-apparent",
+        "reason": "No explicit cross-thread or separately constructed ModelContext was identified; database use alone is not evidence of committed-visibility dependence."
+      },
+      "declaredWeight": 50,
+      "dryRunShardIndex": 4,
+      "duration": {
+        "artifact": "output/hspec-baseline/issue-198/focused-roster-workflow/summary.json",
+        "basis": "single-focused-hspec-finished",
+        "limitations": "Focused serial timing avoids shard contention; single-run entries are representative measurements, not medians.",
+        "seconds": 31.1512
+      },
+      "exampleCount": 47,
+      "fixtureBuilderCallSites": {
+        "createPayLevelRecord": 12,
+        "createRosterDayRecord": 42,
+        "createRosterSlotRecord": 52,
+        "createRosterWeekRecord": 42,
+        "createShiftTypeRecord": 14,
+        "createStaffRecord": 43,
+        "createUserRecord": 57,
+        "createVenueMembershipRecord": 57,
+        "createVenueWithConfig": 48
+      },
+      "inventoryNote": "Mixed controller workflow matrix and mandatory draft/live/publish/copy acceptance behavior.",
+      "kind": "database",
+      "label": "RosterWeeksController.Workflow",
+      "majorInvariantFamily": "rostering",
+      "module": "Test.Controller.RosterWeeks.WorkflowSpec",
+      "roleRationale": "Conservative suite-level classification: this suite contains cross-component, mandatory-invariant, or committed-visibility evidence. Keep it in broad acceptance unless #202 safely splits that evidence.",
+      "source": "Test/Controller/RosterWeeks/WorkflowSpec.hs",
+      "specInvariantIds": [
+        "R1",
+        "R2",
+        "R3",
+        "R4"
+      ],
+      "withCleanDbCallSites": 47
+    },
+    {
+      "candidateRole": "broad-acceptance-candidate",
+      "committedVisibility": {
+        "assessment": "not-apparent",
+        "reason": "No explicit cross-thread or separately constructed ModelContext was identified; database use alone is not evidence of committed-visibility dependence."
+      },
+      "declaredWeight": 40,
+      "dryRunShardIndex": 6,
+      "duration": {
+        "basis": "registry-declared-weight-estimate",
+        "limitations": "The weight is a scheduling estimate, not a current isolated timing; measured entries supersede it where present.",
+        "seconds": 40
+      },
+      "exampleCount": 40,
+      "fixtureBuilderCallSites": {
+        "createLeaveRequestRecord": 8,
+        "createPayLevelRecord": 3,
+        "createRosterDayRecord": 38,
+        "createRosterSlotRecord": 31,
+        "createRosterWeekRecord": 34,
+        "createShiftTypeRecord": 3,
+        "createStaffRecord": 41,
+        "createUserRecord": 63,
+        "createVenueMembershipRecord": 63,
+        "createVenueWithConfig": 39
+      },
+      "kind": "database",
+      "label": "RosterWeeksController.Fragments",
+      "majorInvariantFamily": "rostering",
+      "module": "Test.Controller.RosterWeeks.FragmentsSpec",
+      "roleRationale": "Conservative suite-level classification: this suite contains cross-component, mandatory-invariant, or committed-visibility evidence. Keep it in broad acceptance unless #202 safely splits that evidence.",
+      "source": "Test/Controller/RosterWeeks/FragmentsSpec.hs",
+      "specInvariantIds": [
+        "R1",
+        "R4",
+        "T4"
+      ],
+      "withCleanDbCallSites": 39
+    },
+    {
+      "candidateRole": "broad-acceptance-candidate",
+      "committedVisibility": {
+        "assessment": "not-apparent",
+        "reason": "No explicit cross-thread or separately constructed ModelContext was identified; database use alone is not evidence of committed-visibility dependence."
+      },
+      "declaredWeight": 5,
+      "dryRunShardIndex": 51,
+      "duration": {
+        "basis": "registry-declared-weight-estimate",
+        "limitations": "The weight is a scheduling estimate, not a current isolated timing; measured entries supersede it where present.",
+        "seconds": 5
+      },
+      "exampleCount": 2,
+      "fixtureBuilderCallSites": {
+        "createPayLevelRecord": 1,
+        "createRosterDayRecord": 1,
+        "createRosterSlotRecord": 2,
+        "createShiftTypeRecord": 1,
+        "createStaffRecord": 1,
+        "createUserRecord": 2,
+        "createVenueMembershipRecord": 2,
+        "createVenueWithConfig": 1
+      },
+      "kind": "database",
+      "label": "RosterWeeksController.Baseline",
+      "majorInvariantFamily": "rostering",
+      "module": "Test.Controller.RosterWeeks.BaselineSpec",
+      "roleRationale": "Conservative suite-level classification: this suite contains cross-component, mandatory-invariant, or committed-visibility evidence. Keep it in broad acceptance unless #202 safely splits that evidence.",
+      "source": "Test/Controller/RosterWeeks/BaselineSpec.hs",
+      "specInvariantIds": [
+        "R1"
+      ],
+      "withCleanDbCallSites": 2
+    },
+    {
+      "candidateRole": "broad-acceptance-candidate",
+      "committedVisibility": {
+        "assessment": "not-apparent",
+        "reason": "No explicit cross-thread or separately constructed ModelContext was identified; database use alone is not evidence of committed-visibility dependence."
+      },
+      "declaredWeight": 10,
+      "dryRunShardIndex": 39,
+      "duration": {
+        "basis": "registry-declared-weight-estimate",
+        "limitations": "The weight is a scheduling estimate, not a current isolated timing; measured entries supersede it where present.",
+        "seconds": 10
+      },
+      "exampleCount": 5,
+      "fixtureBuilderCallSites": {
+        "createLeaveRequestRecord": 2,
+        "createPayLevelRecord": 1,
+        "createRosterDayRecord": 2,
+        "createRosterSlotRecord": 8,
+        "createShiftTypeRecord": 2,
+        "createStaffRecord": 3,
+        "createUserRecord": 3,
+        "createVenueMembershipRecord": 3,
+        "createVenueWithConfig": 1
+      },
+      "kind": "database",
+      "label": "RosterWeeksController.DirectReadModel",
+      "majorInvariantFamily": "rostering",
+      "module": "Test.Controller.RosterWeeks.DirectReadModelSpec",
+      "roleRationale": "Conservative suite-level classification: this suite contains cross-component, mandatory-invariant, or committed-visibility evidence. Keep it in broad acceptance unless #202 safely splits that evidence.",
+      "source": "Test/Controller/RosterWeeks/DirectReadModelSpec.hs",
+      "specInvariantIds": [
+        "R4",
+        "R5"
+      ],
+      "withCleanDbCallSites": 5
+    },
+    {
+      "candidateRole": "broad-acceptance-candidate",
+      "committedVisibility": {
+        "assessment": "not-apparent",
+        "reason": "No explicit cross-thread or separately constructed ModelContext was identified; database use alone is not evidence of committed-visibility dependence."
+      },
+      "declaredWeight": 20,
+      "dryRunShardIndex": 19,
+      "duration": {
+        "basis": "registry-declared-weight-estimate",
+        "limitations": "The weight is a scheduling estimate, not a current isolated timing; measured entries supersede it where present.",
+        "seconds": 20
+      },
+      "exampleCount": 31,
+      "fixtureBuilderCallSites": {
+        "createLeaveRequestRecord": 21,
+        "createRosterWeekRecord": 4,
+        "createStaffRecord": 22,
+        "createUserRecord": 28,
+        "createUserRecordWithPlatformRole": 3,
+        "createVenueMembershipRecord": 28,
+        "createVenueWithConfig": 25
+      },
+      "kind": "database",
+      "label": "LeaveRequestsController",
+      "majorInvariantFamily": "timesheets-and-leave",
+      "module": "Test.Controller.LeaveRequestsSpec",
+      "roleRationale": "Conservative suite-level classification: this suite contains cross-component, mandatory-invariant, or committed-visibility evidence. Keep it in broad acceptance unless #202 safely splits that evidence.",
+      "source": "Test/Controller/LeaveRequestsSpec.hs",
+      "specInvariantIds": [
+        "T3",
+        "T4",
+        "T5"
+      ],
+      "withCleanDbCallSites": 25
+    },
+    {
+      "candidateRole": "routine-correctness",
+      "committedVisibility": {
+        "assessment": "not-apparent",
+        "reason": "No explicit cross-thread or separately constructed ModelContext was identified; database use alone is not evidence of committed-visibility dependence."
+      },
+      "declaredWeight": 10,
+      "dryRunShardIndex": 40,
+      "duration": {
+        "artifact": "output/hspec-baseline/issue-198/focused-feedback-measured-{1,2,3}/summary.json",
+        "basis": "median-of-three-focused-hspec-finished",
+        "limitations": "Focused serial timing avoids shard contention; single-run entries are representative measurements, not medians.",
+        "seconds": 2.2125
+      },
+      "exampleCount": 4,
+      "fixtureBuilderCallSites": {
+        "createUserRecord": 4,
+        "createVenueMembershipRecord": 4,
+        "createVenueWithConfig": 4
+      },
+      "kind": "database",
+      "label": "FeedbackController",
+      "majorInvariantFamily": "product-support",
+      "module": "Test.Controller.FeedbackSpec",
+      "roleRationale": "Focused helper, contract, adapter, or wiring correctness. Any mapped mandatory invariant must still remain in the complete gate.",
+      "source": "Test/Controller/FeedbackSpec.hs",
+      "specInvariantIds": [],
+      "withCleanDbCallSites": 4
+    },
+    {
+      "candidateRole": "routine-correctness",
+      "committedVisibility": {
+        "assessment": "not-apparent",
+        "reason": "No explicit cross-thread or separately constructed ModelContext was identified; database use alone is not evidence of committed-visibility dependence."
+      },
+      "declaredWeight": 10,
+      "dryRunShardIndex": 41,
+      "duration": {
+        "basis": "registry-declared-weight-estimate",
+        "limitations": "The weight is a scheduling estimate, not a current isolated timing; measured entries supersede it where present.",
+        "seconds": 10
+      },
+      "exampleCount": 2,
+      "fixtureBuilderCallSites": {
+        "createUserRecord": 2,
+        "createVenueMembershipRecord": 2,
+        "createVenueWithConfig": 2
+      },
+      "kind": "database",
+      "label": "HelpController",
+      "majorInvariantFamily": "product-support",
+      "module": "Test.Controller.HelpSpec",
+      "roleRationale": "Focused helper, contract, adapter, or wiring correctness. Any mapped mandatory invariant must still remain in the complete gate.",
+      "source": "Test/Controller/HelpSpec.hs",
+      "specInvariantIds": [],
+      "withCleanDbCallSites": 2
+    },
+    {
+      "candidateRole": "broad-acceptance-candidate",
+      "committedVisibility": {
+        "assessment": "required",
+        "reason": "The suite forks concurrent controller actions to exercise durable queue deduplication."
+      },
+      "declaredWeight": 20,
+      "dryRunShardIndex": 20,
+      "duration": {
+        "basis": "registry-declared-weight-estimate",
+        "limitations": "The weight is a scheduling estimate, not a current isolated timing; measured entries supersede it where present.",
+        "seconds": 20
+      },
+      "exampleCount": 8,
+      "fixtureBuilderCallSites": {
+        "createUserRecord": 3,
+        "createUserRecordWithPlatformRole": 6,
+        "createVenueWithConfig": 2
+      },
+      "kind": "database",
+      "label": "SupportController",
+      "majorInvariantFamily": "operations-and-test-infrastructure",
+      "module": "Test.Controller.SupportSpec",
+      "roleRationale": "Conservative suite-level classification: this suite contains cross-component, mandatory-invariant, or committed-visibility evidence. Keep it in broad acceptance unless #202 safely splits that evidence.",
+      "source": "Test/Controller/SupportSpec.hs",
+      "specInvariantIds": [
+        "A4"
+      ],
+      "withCleanDbCallSites": 7
+    },
+    {
+      "candidateRole": "routine-correctness",
+      "committedVisibility": {
+        "assessment": "not-applicable",
+        "reason": "Registry classifies this suite as pure; it does not open PostgreSQL connections."
+      },
+      "declaredWeight": 10,
+      "dryRunShardIndex": 42,
+      "duration": {
+        "artifact": "output/hspec-baseline/issue-198/pure-measured-{1,2,3}/summary.json",
+        "basis": "estimated-from-pure-lane-median-by-example-share",
+        "limitations": "Example-share allocation is only an estimate; pure example costs are not uniform.",
+        "seconds": 0.010161702127659576
+      },
+      "exampleCount": 7,
+      "fixtureBuilderCallSites": {},
+      "kind": "pure",
+      "label": "RosterGrid",
+      "majorInvariantFamily": "rostering",
+      "module": "Test.RosterGridSpec",
+      "roleRationale": "Focused helper, contract, adapter, or wiring correctness. Any mapped mandatory invariant must still remain in the complete gate.",
+      "source": "Test/RosterGridSpec.hs",
+      "specInvariantIds": [],
+      "withCleanDbCallSites": 0
+    },
+    {
+      "candidateRole": "broad-acceptance-candidate",
+      "committedVisibility": {
+        "assessment": "not-apparent",
+        "reason": "No explicit cross-thread or separately constructed ModelContext was identified; database use alone is not evidence of committed-visibility dependence."
+      },
+      "declaredWeight": 10,
+      "dryRunShardIndex": 43,
+      "duration": {
+        "basis": "registry-declared-weight-estimate",
+        "limitations": "The weight is a scheduling estimate, not a current isolated timing; measured entries supersede it where present.",
+        "seconds": 10
+      },
+      "exampleCount": 16,
+      "fixtureBuilderCallSites": {
+        "createRosterDayRecord": 1,
+        "createRosterSlotRecord": 1,
+        "createRosterWeekRecord": 1,
+        "createStaffRecord": 5,
+        "createUserRecord": 4,
+        "createVenueMembershipRecord": 2,
+        "createVenueWithConfig": 12
+      },
+      "kind": "database",
+      "label": "UsersController",
+      "majorInvariantFamily": "access-and-onboarding",
+      "module": "Test.Controller.UsersSpec",
+      "roleRationale": "Conservative suite-level classification: this suite contains cross-component, mandatory-invariant, or committed-visibility evidence. Keep it in broad acceptance unless #202 safely splits that evidence.",
+      "source": "Test/Controller/UsersSpec.hs",
+      "specInvariantIds": [
+        "A1",
+        "A2",
+        "A3",
+        "A4",
+        "T7"
+      ],
+      "withCleanDbCallSites": 15
+    },
+    {
+      "candidateRole": "broad-acceptance-candidate",
+      "committedVisibility": {
+        "assessment": "not-apparent",
+        "reason": "No explicit cross-thread or separately constructed ModelContext was identified; database use alone is not evidence of committed-visibility dependence."
+      },
+      "declaredWeight": 10,
+      "dryRunShardIndex": 44,
+      "duration": {
+        "basis": "registry-declared-weight-estimate",
+        "limitations": "The weight is a scheduling estimate, not a current isolated timing; measured entries supersede it where present.",
+        "seconds": 10
+      },
+      "exampleCount": 16,
+      "fixtureBuilderCallSites": {
+        "createApprovedTimesheetEntryRecordAt": 2,
+        "createPayLevelRecord": 5,
+        "createShiftTypeRecord": 8,
+        "createStaffRecord": 10,
+        "createTimesheetEntryRecord": 1,
+        "createUserRecord": 17,
+        "createVenueMembershipRecord": 14,
+        "createVenueWithConfig": 15
+      },
+      "kind": "database",
+      "label": "ExportsController",
+      "majorInvariantFamily": "pay-and-exports",
+      "module": "Test.Controller.ExportsSpec",
+      "roleRationale": "Conservative suite-level classification: this suite contains cross-component, mandatory-invariant, or committed-visibility evidence. Keep it in broad acceptance unless #202 safely splits that evidence.",
+      "source": "Test/Controller/ExportsSpec.hs",
+      "specInvariantIds": [
+        "A7",
+        "P6"
+      ],
+      "withCleanDbCallSites": 13
+    },
+    {
+      "candidateRole": "broad-acceptance-candidate",
+      "committedVisibility": {
+        "assessment": "required",
+        "reason": "The roster-suggestion idempotency example forks concurrent controller actions against shared committed rows."
+      },
+      "declaredWeight": 40,
+      "dryRunShardIndex": 7,
+      "duration": {
+        "artifact": "output/hspec-baseline/issue-198/focused-timesheets/summary.json",
+        "basis": "single-focused-hspec-finished",
+        "limitations": "Focused serial timing avoids shard contention; single-run entries are representative measurements, not medians.",
+        "seconds": 35.8949
+      },
+      "exampleCount": 57,
+      "fixtureBuilderCallSites": {
+        "createApprovedTimesheetEntryRecord": 7,
+        "createPayLevelRecord": 24,
+        "createRosterDayRecord": 11,
+        "createRosterSlotRecord": 12,
+        "createRosterWeekRecord": 11,
+        "createShiftTypeRecord": 24,
+        "createStaffRecord": 53,
+        "createTimesheetEntryRecord": 14,
+        "createUserRecord": 62,
+        "createUserRecordWithPlatformRole": 2,
+        "createVenueMembershipRecord": 62,
+        "createVenueWithConfig": 47
+      },
+      "inventoryNote": "Mixed controller matrix and mandatory approval/audit/destructive-data acceptance behavior.",
+      "kind": "database",
+      "label": "TimesheetsController",
+      "majorInvariantFamily": "timesheets-and-leave",
+      "module": "Test.Controller.TimesheetsSpec",
+      "roleRationale": "Conservative suite-level classification: this suite contains cross-component, mandatory-invariant, or committed-visibility evidence. Keep it in broad acceptance unless #202 safely splits that evidence.",
+      "source": "Test/Controller/TimesheetsSpec.hs",
+      "specInvariantIds": [
+        "A6",
+        "T1",
+        "T2",
+        "T5",
+        "T6"
+      ],
+      "withCleanDbCallSites": 48
+    },
+    {
+      "candidateRole": "broad-acceptance-candidate",
+      "committedVisibility": {
+        "assessment": "not-apparent",
+        "reason": "No explicit cross-thread or separately constructed ModelContext was identified; database use alone is not evidence of committed-visibility dependence."
+      },
+      "declaredWeight": 20,
+      "dryRunShardIndex": 21,
+      "duration": {
+        "artifact": "output/hspec-baseline/issue-198/focused-pay/summary.json",
+        "basis": "single-focused-hspec-finished",
+        "limitations": "Focused serial timing avoids shard contention; single-run entries are representative measurements, not medians.",
+        "seconds": 15.4547
+      },
+      "exampleCount": 25,
+      "fixtureBuilderCallSites": {
+        "createRosterDayRecord": 1,
+        "createRosterSlotRecord": 1,
+        "createRosterWeekRecord": 1,
+        "createShiftTypeRecord": 2,
+        "createStaffRecord": 3,
+        "createTimesheetEntryRecord": 1,
+        "createUserRecord": 2,
+        "createVenueMembershipRecord": 1,
+        "createVenueWithConfig": 3
+      },
+      "kind": "database",
+      "label": "Pay",
+      "majorInvariantFamily": "pay-and-exports",
+      "module": "Test.PaySpec",
+      "roleRationale": "Conservative suite-level classification: this suite contains cross-component, mandatory-invariant, or committed-visibility evidence. Keep it in broad acceptance unless #202 safely splits that evidence.",
+      "source": "Test/PaySpec.hs",
+      "specInvariantIds": [
+        "P1",
+        "P2",
+        "P3",
+        "P4",
+        "P5"
+      ],
+      "withCleanDbCallSites": 21
+    },
+    {
+      "candidateRole": "routine-correctness",
+      "committedVisibility": {
+        "assessment": "not-applicable",
+        "reason": "Registry classifies this suite as pure; it does not open PostgreSQL connections."
+      },
+      "declaredWeight": 5,
+      "dryRunShardIndex": 52,
+      "duration": {
+        "artifact": "output/hspec-baseline/issue-198/pure-measured-{1,2,3}/summary.json",
+        "basis": "estimated-from-pure-lane-median-by-example-share",
+        "limitations": "Example-share allocation is only an estimate; pure example costs are not uniform.",
+        "seconds": 0.005806686930091186
+      },
+      "exampleCount": 4,
+      "fixtureBuilderCallSites": {},
+      "kind": "pure",
+      "label": "PageHelp",
+      "majorInvariantFamily": "product-support",
+      "module": "Test.PageHelpSpec",
+      "roleRationale": "Focused helper, contract, adapter, or wiring correctness. Any mapped mandatory invariant must still remain in the complete gate.",
+      "source": "Test/PageHelpSpec.hs",
+      "specInvariantIds": [],
+      "withCleanDbCallSites": 0
+    },
+    {
+      "candidateRole": "routine-correctness",
+      "committedVisibility": {
+        "assessment": "not-applicable",
+        "reason": "Registry classifies this suite as pure; it does not open PostgreSQL connections."
+      },
+      "declaredWeight": 5,
+      "dryRunShardIndex": 53,
+      "duration": {
+        "artifact": "output/hspec-baseline/issue-198/pure-measured-{1,2,3}/summary.json",
+        "basis": "estimated-from-pure-lane-median-by-example-share",
+        "limitations": "Example-share allocation is only an estimate; pure example costs are not uniform.",
+        "seconds": 0.004355015197568389
+      },
+      "exampleCount": 3,
+      "fixtureBuilderCallSites": {},
+      "kind": "pure",
+      "label": "Profiling",
+      "majorInvariantFamily": "observability",
+      "module": "Test.ProfilingSpec",
+      "roleRationale": "Focused helper, contract, adapter, or wiring correctness. Any mapped mandatory invariant must still remain in the complete gate.",
+      "source": "Test/ProfilingSpec.hs",
+      "specInvariantIds": [],
+      "withCleanDbCallSites": 0
+    },
+    {
+      "candidateRole": "routine-correctness",
+      "committedVisibility": {
+        "assessment": "not-apparent",
+        "reason": "No explicit cross-thread or separately constructed ModelContext was identified; database use alone is not evidence of committed-visibility dependence."
+      },
+      "declaredWeight": 15,
+      "dryRunShardIndex": 29,
+      "duration": {
+        "basis": "registry-declared-weight-estimate",
+        "limitations": "The weight is a scheduling estimate, not a current isolated timing; measured entries supersede it where present.",
+        "seconds": 15
+      },
+      "exampleCount": 7,
+      "fixtureBuilderCallSites": {},
+      "kind": "database",
+      "label": "PublicHolidaySync",
+      "majorInvariantFamily": "pay-and-exports",
+      "module": "Test.PublicHolidaySyncSpec",
+      "roleRationale": "Focused helper, contract, adapter, or wiring correctness. Any mapped mandatory invariant must still remain in the complete gate.",
+      "source": "Test/PublicHolidaySyncSpec.hs",
+      "specInvariantIds": [
+        "P2",
+        "P3"
+      ],
+      "withCleanDbCallSites": 4
+    },
+    {
+      "candidateRole": "routine-correctness",
+      "committedVisibility": {
+        "assessment": "not-apparent",
+        "reason": "No explicit cross-thread or separately constructed ModelContext was identified; database use alone is not evidence of committed-visibility dependence."
+      },
+      "declaredWeight": 20,
+      "dryRunShardIndex": 22,
+      "duration": {
+        "basis": "registry-declared-weight-estimate",
+        "limitations": "The weight is a scheduling estimate, not a current isolated timing; measured entries supersede it where present.",
+        "seconds": 20
+      },
+      "exampleCount": 6,
+      "fixtureBuilderCallSites": {
+        "createStaffRecord": 1,
+        "createVenueWithConfig": 1
+      },
+      "kind": "database",
+      "label": "FwcMapdSync",
+      "majorInvariantFamily": "pay-and-exports",
+      "module": "Test.FwcMapdSyncSpec",
+      "roleRationale": "Focused helper, contract, adapter, or wiring correctness. Any mapped mandatory invariant must still remain in the complete gate.",
+      "source": "Test/FwcMapdSyncSpec.hs",
+      "specInvariantIds": [
+        "P3",
+        "P5"
+      ],
+      "withCleanDbCallSites": 2
+    },
+    {
+      "candidateRole": "broad-acceptance-candidate",
+      "committedVisibility": {
+        "assessment": "not-apparent",
+        "reason": "No explicit cross-thread or separately constructed ModelContext was identified; database use alone is not evidence of committed-visibility dependence."
+      },
+      "declaredWeight": 35,
+      "dryRunShardIndex": 10,
+      "duration": {
+        "artifact": "output/hspec-baseline/issue-198/focused-venue-access/summary.json",
+        "basis": "single-focused-hspec-finished",
+        "limitations": "Focused serial timing avoids shard contention; single-run entries are representative measurements, not medians.",
+        "seconds": 23.743
+      },
+      "exampleCount": 43,
+      "fixtureBuilderCallSites": {
+        "createLeaveRequestRecord": 9,
+        "createRosterDayRecord": 1,
+        "createRosterSlotRecord": 1,
+        "createRosterWeekRecord": 5,
+        "createStaffRecord": 20,
+        "createTimesheetEntryRecord": 3,
+        "createUserRecord": 29,
+        "createUserRecordWithPlatformRole": 18,
+        "createVenueMembershipRecord": 47,
+        "createVenueWithConfig": 60
+      },
+      "inventoryNote": "Dedicated cross-venue and authority acceptance suite.",
+      "kind": "database",
+      "label": "VenueAccess",
+      "majorInvariantFamily": "access-and-onboarding",
+      "module": "Test.Controller.VenueAccessSpec",
+      "roleRationale": "Conservative suite-level classification: this suite contains cross-component, mandatory-invariant, or committed-visibility evidence. Keep it in broad acceptance unless #202 safely splits that evidence.",
+      "source": "Test/Controller/VenueAccessSpec.hs",
+      "specInvariantIds": [
+        "A4",
+        "A5",
+        "A6"
+      ],
+      "withCleanDbCallSites": 43
+    },
+    {
+      "candidateRole": "broad-acceptance-candidate",
+      "committedVisibility": {
+        "assessment": "not-apparent",
+        "reason": "No explicit cross-thread or separately constructed ModelContext was identified; database use alone is not evidence of committed-visibility dependence."
+      },
+      "declaredWeight": 30,
+      "dryRunShardIndex": 14,
+      "duration": {
+        "artifact": "output/hspec-baseline/issue-198/focused-fixed-export-golden/summary.json",
+        "basis": "single-focused-hspec-finished",
+        "limitations": "Focused serial timing avoids shard contention; single-run entries are representative measurements, not medians.",
+        "seconds": 14.0145
+      },
+      "exampleCount": 7,
+      "fixtureBuilderCallSites": {
+        "createShiftTypeRecord": 3,
+        "createStaffRecord": 4,
+        "createUserRecord": 5,
+        "createVenueMembershipRecord": 1,
+        "createVenueWithConfig": 1
+      },
+      "inventoryNote": "Primary exact payroll export oracle, including historical version pinning and deterministic CSV/ZIP output.",
+      "kind": "database",
+      "label": "FixedExportGolden",
+      "majorInvariantFamily": "pay-and-exports",
+      "module": "Test.Controller.FixedExportGoldenSpec",
+      "roleRationale": "Conservative suite-level classification: this suite contains cross-component, mandatory-invariant, or committed-visibility evidence. Keep it in broad acceptance unless #202 safely splits that evidence.",
+      "source": "Test/Controller/FixedExportGoldenSpec.hs",
+      "specInvariantIds": [
+        "P4",
+        "P5",
+        "P6"
+      ],
+      "withCleanDbCallSites": 7
+    },
+    {
+      "candidateRole": "broad-acceptance-candidate",
+      "committedVisibility": {
+        "assessment": "not-apparent",
+        "reason": "No explicit cross-thread or separately constructed ModelContext was identified; database use alone is not evidence of committed-visibility dependence."
+      },
+      "declaredWeight": 35,
+      "dryRunShardIndex": 11,
+      "duration": {
+        "basis": "registry-declared-weight-estimate",
+        "limitations": "The weight is a scheduling estimate, not a current isolated timing; measured entries supersede it where present.",
+        "seconds": 35
+      },
+      "exampleCount": 35,
+      "fixtureBuilderCallSites": {
+        "createPayLevelRecord": 2,
+        "createRosterWeekRecord": 1,
+        "createStaffRecord": 27,
+        "createUserRecord": 34,
+        "createVenueMembershipRecord": 32,
+        "createVenueWithConfig": 34
+      },
+      "kind": "database",
+      "label": "StaffController",
+      "majorInvariantFamily": "staff-and-compliance",
+      "module": "Test.Controller.StaffSpec",
+      "roleRationale": "Conservative suite-level classification: this suite contains cross-component, mandatory-invariant, or committed-visibility evidence. Keep it in broad acceptance unless #202 safely splits that evidence.",
+      "source": "Test/Controller/StaffSpec.hs",
+      "specInvariantIds": [
+        "A4",
+        "P1",
+        "T7"
+      ],
+      "withCleanDbCallSites": 32
+    },
+    {
+      "candidateRole": "broad-acceptance-candidate",
+      "committedVisibility": {
+        "assessment": "not-apparent",
+        "reason": "No explicit cross-thread or separately constructed ModelContext was identified; database use alone is not evidence of committed-visibility dependence."
+      },
+      "declaredWeight": 20,
+      "dryRunShardIndex": 23,
+      "duration": {
+        "basis": "registry-declared-weight-estimate",
+        "limitations": "The weight is a scheduling estimate, not a current isolated timing; measured entries supersede it where present.",
+        "seconds": 20
+      },
+      "exampleCount": 9,
+      "fixtureBuilderCallSites": {
+        "createStaffRecord": 9,
+        "createUserRecord": 12,
+        "createVenueMembershipRecord": 12,
+        "createVenueWithConfig": 9
+      },
+      "kind": "database",
+      "label": "StaffDocumentsController",
+      "majorInvariantFamily": "staff-and-compliance",
+      "module": "Test.Controller.StaffDocumentsSpec",
+      "roleRationale": "Conservative suite-level classification: this suite contains cross-component, mandatory-invariant, or committed-visibility evidence. Keep it in broad acceptance unless #202 safely splits that evidence.",
+      "source": "Test/Controller/StaffDocumentsSpec.hs",
+      "specInvariantIds": [
+        "A6"
+      ],
+      "withCleanDbCallSites": 8
+    },
+    {
+      "candidateRole": "broad-acceptance-candidate",
+      "committedVisibility": {
+        "assessment": "not-apparent",
+        "reason": "No explicit cross-thread or separately constructed ModelContext was identified; database use alone is not evidence of committed-visibility dependence."
+      },
+      "declaredWeight": 20,
+      "dryRunShardIndex": 24,
+      "duration": {
+        "basis": "registry-declared-weight-estimate",
+        "limitations": "The weight is a scheduling estimate, not a current isolated timing; measured entries supersede it where present.",
+        "seconds": 20
+      },
+      "exampleCount": 12,
+      "fixtureBuilderCallSites": {
+        "createStaffRecord": 4,
+        "createUserRecord": 4,
+        "createVenueMembershipRecord": 4,
+        "createVenueWithConfig": 4
+      },
+      "kind": "database",
+      "label": "StaffDocumentsRSA",
+      "majorInvariantFamily": "staff-and-compliance",
+      "module": "Test.StaffDocumentsRsaSpec",
+      "roleRationale": "Conservative suite-level classification: this suite contains cross-component, mandatory-invariant, or committed-visibility evidence. Keep it in broad acceptance unless #202 safely splits that evidence.",
+      "source": "Test/StaffDocumentsRsaSpec.hs",
+      "specInvariantIds": [
+        "T6"
+      ],
+      "withCleanDbCallSites": 4
+    },
+    {
+      "candidateRole": "broad-acceptance-candidate",
+      "committedVisibility": {
+        "assessment": "possible",
+        "reason": "Examples enqueue and dispatch durable app jobs; source inspection did not prove that every handler query stays on one context."
+      },
+      "declaredWeight": 10,
+      "dryRunShardIndex": 45,
+      "duration": {
+        "basis": "registry-declared-weight-estimate",
+        "limitations": "The weight is a scheduling estimate, not a current isolated timing; measured entries supersede it where present.",
+        "seconds": 10
+      },
+      "exampleCount": 4,
+      "fixtureBuilderCallSites": {
+        "createUserRecord": 1,
+        "createVenueWithConfig": 4
+      },
+      "kind": "database",
+      "label": "VenueInvitation",
+      "majorInvariantFamily": "access-and-onboarding",
+      "module": "Test.VenueInvitationSpec",
+      "roleRationale": "Conservative suite-level classification: this suite contains cross-component, mandatory-invariant, or committed-visibility evidence. Keep it in broad acceptance unless #202 safely splits that evidence.",
+      "source": "Test/VenueInvitationSpec.hs",
+      "specInvariantIds": [
+        "A1",
+        "A4"
+      ],
+      "withCleanDbCallSites": 4
+    },
+    {
+      "candidateRole": "broad-acceptance-candidate",
+      "committedVisibility": {
+        "assessment": "possible",
+        "reason": "Examples enqueue and dispatch durable app jobs; source inspection did not prove that every handler query stays on one context."
+      },
+      "declaredWeight": 5,
+      "dryRunShardIndex": 54,
+      "duration": {
+        "basis": "registry-declared-weight-estimate",
+        "limitations": "The weight is a scheduling estimate, not a current isolated timing; measured entries supersede it where present.",
+        "seconds": 5
+      },
+      "exampleCount": 6,
+      "fixtureBuilderCallSites": {
+        "createUserRecord": 1
+      },
+      "kind": "database",
+      "label": "VenueOnboardingInvitation",
+      "majorInvariantFamily": "access-and-onboarding",
+      "module": "Test.VenueOnboardingInvitationSpec",
+      "roleRationale": "Conservative suite-level classification: this suite contains cross-component, mandatory-invariant, or committed-visibility evidence. Keep it in broad acceptance unless #202 safely splits that evidence.",
+      "source": "Test/VenueOnboardingInvitationSpec.hs",
+      "specInvariantIds": [
+        "A1",
+        "A2"
+      ],
+      "withCleanDbCallSites": 6
+    },
+    {
+      "candidateRole": "broad-acceptance-candidate",
+      "committedVisibility": {
+        "assessment": "not-apparent",
+        "reason": "No explicit cross-thread or separately constructed ModelContext was identified; database use alone is not evidence of committed-visibility dependence."
+      },
+      "declaredWeight": 180,
+      "dryRunShardIndex": 2,
+      "duration": {
+        "artifact": "output/hspec-baseline/issue-198/focused-dev-seed/summary.json",
+        "basis": "single-focused-hspec-finished",
+        "limitations": "Focused serial timing avoids shard contention; single-run entries are representative measurements, not medians.",
+        "seconds": 23.4736
+      },
+      "exampleCount": 2,
+      "fixtureBuilderCallSites": {},
+      "inventoryNote": "Fixture-contract suite. It is evidence about deterministic construction, not a substitute for the behavior-specific acceptance suites.",
+      "kind": "database",
+      "label": "DevSeed",
+      "majorInvariantFamily": "operations-and-test-infrastructure",
+      "module": "Test.DevSeedSpec",
+      "roleRationale": "Conservative suite-level classification: this suite contains cross-component, mandatory-invariant, or committed-visibility evidence. Keep it in broad acceptance unless #202 safely splits that evidence.",
+      "source": "Test/DevSeedSpec.hs",
+      "specInvariantIds": [],
+      "withCleanDbCallSites": 2
+    },
+    {
+      "candidateRole": "routine-correctness",
+      "committedVisibility": {
+        "assessment": "not-applicable",
+        "reason": "Registry classifies this suite as pure; it does not open PostgreSQL connections."
+      },
+      "declaredWeight": 5,
+      "dryRunShardIndex": 55,
+      "duration": {
+        "artifact": "output/hspec-baseline/issue-198/pure-measured-{1,2,3}/summary.json",
+        "basis": "estimated-from-pure-lane-median-by-example-share",
+        "limitations": "Example-share allocation is only an estimate; pure example costs are not uniform.",
+        "seconds": 0.017420060790273556
+      },
+      "exampleCount": 12,
+      "fixtureBuilderCallSites": {},
+      "kind": "pure",
+      "label": "Conflict",
+      "majorInvariantFamily": "rostering",
+      "module": "Test.ConflictSpec",
+      "roleRationale": "Focused helper, contract, adapter, or wiring correctness. Any mapped mandatory invariant must still remain in the complete gate.",
+      "source": "Test/ConflictSpec.hs",
+      "specInvariantIds": [
+        "R4",
+        "R5",
+        "T4"
+      ],
+      "withCleanDbCallSites": 0
+    },
+    {
+      "candidateRole": "routine-correctness",
+      "committedVisibility": {
+        "assessment": "not-applicable",
+        "reason": "Registry classifies this suite as pure; it does not open PostgreSQL connections."
+      },
+      "declaredWeight": 5,
+      "dryRunShardIndex": 56,
+      "duration": {
+        "artifact": "output/hspec-baseline/issue-198/pure-measured-{1,2,3}/summary.json",
+        "basis": "estimated-from-pure-lane-median-by-example-share",
+        "limitations": "Example-share allocation is only an estimate; pure example costs are not uniform.",
+        "seconds": 0.014516717325227963
+      },
+      "exampleCount": 10,
+      "fixtureBuilderCallSites": {},
+      "kind": "pure",
+      "label": "FrontendContract",
+      "majorInvariantFamily": "frontend-contracts-and-live-update",
+      "module": "Test.FrontendContractSpec",
+      "roleRationale": "Focused helper, contract, adapter, or wiring correctness. Any mapped mandatory invariant must still remain in the complete gate.",
+      "source": "Test/FrontendContractSpec.hs",
+      "specInvariantIds": [],
+      "withCleanDbCallSites": 0
+    },
+    {
+      "candidateRole": "routine-correctness",
+      "committedVisibility": {
+        "assessment": "not-applicable",
+        "reason": "Registry classifies this suite as pure; it does not open PostgreSQL connections."
+      },
+      "declaredWeight": 15,
+      "dryRunShardIndex": 30,
+      "duration": {
+        "artifact": "output/hspec-baseline/issue-198/pure-measured-{1,2,3}/summary.json",
+        "basis": "estimated-from-pure-lane-median-by-example-share",
+        "limitations": "Example-share allocation is only an estimate; pure example costs are not uniform.",
+        "seconds": 0.029033434650455926
+      },
+      "exampleCount": 20,
+      "fixtureBuilderCallSites": {},
+      "kind": "pure",
+      "label": "FrontendContracts",
+      "majorInvariantFamily": "frontend-contracts-and-live-update",
+      "module": "Test.FrontendContractsSpec",
+      "roleRationale": "Focused helper, contract, adapter, or wiring correctness. Any mapped mandatory invariant must still remain in the complete gate.",
+      "source": "Test/FrontendContractsSpec.hs",
+      "specInvariantIds": [],
+      "withCleanDbCallSites": 0
+    },
+    {
+      "candidateRole": "routine-correctness",
+      "committedVisibility": {
+        "assessment": "not-applicable",
+        "reason": "Registry classifies this suite as pure; it does not open PostgreSQL connections."
+      },
+      "declaredWeight": 5,
+      "dryRunShardIndex": 57,
+      "duration": {
+        "artifact": "output/hspec-baseline/issue-198/pure-measured-{1,2,3}/summary.json",
+        "basis": "estimated-from-pure-lane-median-by-example-share",
+        "limitations": "Example-share allocation is only an estimate; pure example costs are not uniform.",
+        "seconds": 0.05806686930091185
+      },
+      "exampleCount": 40,
+      "fixtureBuilderCallSites": {},
+      "inventoryNote": "Contains compile/generator contract matrices; issue #205/#212 owns contract-guard audit decisions.",
+      "kind": "pure",
+      "label": "FrontendSurfaceAdapterGenerator",
+      "majorInvariantFamily": "frontend-contracts-and-live-update",
+      "module": "Test.FrontendSurfaceAdapterGeneratorSpec",
+      "roleRationale": "Focused helper, contract, adapter, or wiring correctness. Any mapped mandatory invariant must still remain in the complete gate.",
+      "source": "Test/FrontendSurfaceAdapterGeneratorSpec.hs",
+      "specInvariantIds": [],
+      "withCleanDbCallSites": 0
+    },
+    {
+      "candidateRole": "routine-correctness",
+      "committedVisibility": {
+        "assessment": "not-applicable",
+        "reason": "Registry classifies this suite as pure; it does not open PostgreSQL connections."
+      },
+      "declaredWeight": 5,
+      "dryRunShardIndex": 58,
+      "duration": {
+        "artifact": "output/hspec-baseline/issue-198/pure-measured-{1,2,3}/summary.json",
+        "basis": "estimated-from-pure-lane-median-by-example-share",
+        "limitations": "Example-share allocation is only an estimate; pure example costs are not uniform.",
+        "seconds": 0.02177507598784195
+      },
+      "exampleCount": 15,
+      "fixtureBuilderCallSites": {},
+      "kind": "pure",
+      "label": "FrontendSurfaceRequestAdapter",
+      "majorInvariantFamily": "frontend-contracts-and-live-update",
+      "module": "Test.FrontendSurfaceRequestAdapterSpec",
+      "roleRationale": "Focused helper, contract, adapter, or wiring correctness. Any mapped mandatory invariant must still remain in the complete gate.",
+      "source": "Test/FrontendSurfaceRequestAdapterSpec.hs",
+      "specInvariantIds": [],
+      "withCleanDbCallSites": 0
+    },
+    {
+      "candidateRole": "routine-correctness",
+      "committedVisibility": {
+        "assessment": "not-applicable",
+        "reason": "Registry classifies this suite as pure; it does not open PostgreSQL connections."
+      },
+      "declaredWeight": 5,
+      "dryRunShardIndex": 59,
+      "duration": {
+        "artifact": "output/hspec-baseline/issue-198/pure-measured-{1,2,3}/summary.json",
+        "basis": "estimated-from-pure-lane-median-by-example-share",
+        "limitations": "Example-share allocation is only an estimate; pure example costs are not uniform.",
+        "seconds": 0.007258358662613981
+      },
+      "exampleCount": 5,
+      "fixtureBuilderCallSites": {},
+      "kind": "pure",
+      "label": "FrontendSurfaceNaming",
+      "majorInvariantFamily": "frontend-contracts-and-live-update",
+      "module": "Test.FrontendSurfaceNamingSpec",
+      "roleRationale": "Focused helper, contract, adapter, or wiring correctness. Any mapped mandatory invariant must still remain in the complete gate.",
+      "source": "Test/FrontendSurfaceNamingSpec.hs",
+      "specInvariantIds": [],
+      "withCleanDbCallSites": 0
+    },
+    {
+      "candidateRole": "routine-correctness",
+      "committedVisibility": {
+        "assessment": "not-applicable",
+        "reason": "Registry classifies this suite as pure; it does not open PostgreSQL connections."
+      },
+      "declaredWeight": 15,
+      "dryRunShardIndex": 31,
+      "duration": {
+        "artifact": "output/hspec-baseline/issue-198/pure-measured-{1,2,3}/summary.json",
+        "basis": "estimated-from-pure-lane-median-by-example-share",
+        "limitations": "Example-share allocation is only an estimate; pure example costs are not uniform.",
+        "seconds": 0.0391951367781155
+      },
+      "exampleCount": 27,
+      "fixtureBuilderCallSites": {},
+      "kind": "pure",
+      "label": "FrontendSurfaceDSL",
+      "majorInvariantFamily": "frontend-contracts-and-live-update",
+      "module": "Test.FrontendSurfaceDslSpec",
+      "roleRationale": "Focused helper, contract, adapter, or wiring correctness. Any mapped mandatory invariant must still remain in the complete gate.",
+      "source": "Test/FrontendSurfaceDslSpec.hs",
+      "specInvariantIds": [],
+      "withCleanDbCallSites": 0
+    },
+    {
+      "candidateRole": "routine-correctness",
+      "committedVisibility": {
+        "assessment": "not-applicable",
+        "reason": "Registry classifies this suite as pure; it does not open PostgreSQL connections."
+      },
+      "declaredWeight": 20,
+      "dryRunShardIndex": 25,
+      "duration": {
+        "artifact": "output/hspec-baseline/issue-198/pure-measured-{1,2,3}/summary.json",
+        "basis": "estimated-from-pure-lane-median-by-example-share",
+        "limitations": "Example-share allocation is only an estimate; pure example costs are not uniform.",
+        "seconds": 0.03338844984802432
+      },
+      "exampleCount": 23,
+      "fixtureBuilderCallSites": {},
+      "kind": "pure",
+      "label": "LiveUpdate",
+      "majorInvariantFamily": "frontend-contracts-and-live-update",
+      "module": "Test.LiveUpdateSpec",
+      "roleRationale": "Focused helper, contract, adapter, or wiring correctness. Any mapped mandatory invariant must still remain in the complete gate.",
+      "source": "Test/LiveUpdateSpec.hs",
+      "specInvariantIds": [],
+      "withCleanDbCallSites": 0
+    },
+    {
+      "candidateRole": "routine-correctness",
+      "committedVisibility": {
+        "assessment": "not-applicable",
+        "reason": "Registry classifies this suite as pure; it does not open PostgreSQL connections."
+      },
+      "declaredWeight": 5,
+      "dryRunShardIndex": 60,
+      "duration": {
+        "artifact": "output/hspec-baseline/issue-198/pure-measured-{1,2,3}/summary.json",
+        "basis": "estimated-from-pure-lane-median-by-example-share",
+        "limitations": "Example-share allocation is only an estimate; pure example costs are not uniform.",
+        "seconds": 0.004355015197568389
+      },
+      "exampleCount": 3,
+      "fixtureBuilderCallSites": {},
+      "kind": "pure",
+      "label": "SurfaceResource",
+      "majorInvariantFamily": "frontend-contracts-and-live-update",
+      "module": "Test.SurfaceResourceSpec",
+      "roleRationale": "Focused helper, contract, adapter, or wiring correctness. Any mapped mandatory invariant must still remain in the complete gate.",
+      "source": "Test/SurfaceResourceSpec.hs",
+      "specInvariantIds": [],
+      "withCleanDbCallSites": 0
+    },
+    {
+      "candidateRole": "routine-correctness",
+      "committedVisibility": {
+        "assessment": "not-applicable",
+        "reason": "Registry classifies this suite as pure; it does not open PostgreSQL connections."
+      },
+      "declaredWeight": 5,
+      "dryRunShardIndex": 61,
+      "duration": {
+        "artifact": "output/hspec-baseline/issue-198/pure-measured-{1,2,3}/summary.json",
+        "basis": "estimated-from-pure-lane-median-by-example-share",
+        "limitations": "Example-share allocation is only an estimate; pure example costs are not uniform.",
+        "seconds": 0.004355015197568389
+      },
+      "exampleCount": 3,
+      "fixtureBuilderCallSites": {},
+      "kind": "pure",
+      "label": "SurfaceInvalidation",
+      "majorInvariantFamily": "frontend-contracts-and-live-update",
+      "module": "Test.SurfaceInvalidationSpec",
+      "roleRationale": "Focused helper, contract, adapter, or wiring correctness. Any mapped mandatory invariant must still remain in the complete gate.",
+      "source": "Test/SurfaceInvalidationSpec.hs",
+      "specInvariantIds": [],
+      "withCleanDbCallSites": 0
+    },
+    {
+      "candidateRole": "routine-correctness",
+      "committedVisibility": {
+        "assessment": "not-applicable",
+        "reason": "Registry classifies this suite as pure; it does not open PostgreSQL connections."
+      },
+      "declaredWeight": 10,
+      "dryRunShardIndex": 46,
+      "duration": {
+        "artifact": "output/hspec-baseline/issue-198/pure-measured-{1,2,3}/summary.json",
+        "basis": "estimated-from-pure-lane-median-by-example-share",
+        "limitations": "Example-share allocation is only an estimate; pure example costs are not uniform.",
+        "seconds": 0.017420060790273556
+      },
+      "exampleCount": 12,
+      "fixtureBuilderCallSites": {},
+      "kind": "pure",
+      "label": "SurfaceDependency",
+      "majorInvariantFamily": "frontend-contracts-and-live-update",
+      "module": "Test.SurfaceDependencySpec",
+      "roleRationale": "Focused helper, contract, adapter, or wiring correctness. Any mapped mandatory invariant must still remain in the complete gate.",
+      "source": "Test/SurfaceDependencySpec.hs",
+      "specInvariantIds": [],
+      "withCleanDbCallSites": 0
+    },
+    {
+      "candidateRole": "routine-correctness",
+      "committedVisibility": {
+        "assessment": "not-applicable",
+        "reason": "Registry classifies this suite as pure; it does not open PostgreSQL connections."
+      },
+      "declaredWeight": 5,
+      "dryRunShardIndex": 62,
+      "duration": {
+        "artifact": "output/hspec-baseline/issue-198/pure-measured-{1,2,3}/summary.json",
+        "basis": "estimated-from-pure-lane-median-by-example-share",
+        "limitations": "Example-share allocation is only an estimate; pure example costs are not uniform.",
+        "seconds": 0.004355015197568389
+      },
+      "exampleCount": 3,
+      "fixtureBuilderCallSites": {},
+      "kind": "pure",
+      "label": "SurfaceGuard",
+      "majorInvariantFamily": "frontend-contracts-and-live-update",
+      "module": "Test.SurfaceGuardSpec",
+      "roleRationale": "Focused helper, contract, adapter, or wiring correctness. Any mapped mandatory invariant must still remain in the complete gate.",
+      "source": "Test/SurfaceGuardSpec.hs",
+      "specInvariantIds": [],
+      "withCleanDbCallSites": 0
+    },
+    {
+      "candidateRole": "routine-correctness",
+      "committedVisibility": {
+        "assessment": "not-apparent",
+        "reason": "No explicit cross-thread or separately constructed ModelContext was identified; database use alone is not evidence of committed-visibility dependence."
+      },
+      "declaredWeight": 5,
+      "dryRunShardIndex": 63,
+      "duration": {
+        "basis": "registry-declared-weight-estimate",
+        "limitations": "The weight is a scheduling estimate, not a current isolated timing; measured entries supersede it where present.",
+        "seconds": 5
+      },
+      "exampleCount": 5,
+      "fixtureBuilderCallSites": {},
+      "kind": "database",
+      "label": "ToggleButton",
+      "majorInvariantFamily": "frontend-contracts-and-live-update",
+      "module": "Test.ToggleButtonSpec",
+      "roleRationale": "Focused helper, contract, adapter, or wiring correctness. Any mapped mandatory invariant must still remain in the complete gate.",
+      "source": "Test/ToggleButtonSpec.hs",
+      "specInvariantIds": [],
+      "withCleanDbCallSites": 0
+    },
+    {
+      "candidateRole": "routine-correctness",
+      "committedVisibility": {
+        "assessment": "not-applicable",
+        "reason": "Registry classifies this suite as pure; it does not open PostgreSQL connections."
+      },
+      "declaredWeight": 5,
+      "dryRunShardIndex": 64,
+      "duration": {
+        "artifact": "output/hspec-baseline/issue-198/pure-measured-{1,2,3}/summary.json",
+        "basis": "estimated-from-pure-lane-median-by-example-share",
+        "limitations": "Example-share allocation is only an estimate; pure example costs are not uniform.",
+        "seconds": 0.004355015197568389
+      },
+      "exampleCount": 3,
+      "fixtureBuilderCallSites": {},
+      "kind": "pure",
+      "label": "HorizontalScroll",
+      "majorInvariantFamily": "frontend-contracts-and-live-update",
+      "module": "Test.HorizontalScrollSpec",
+      "roleRationale": "Focused helper, contract, adapter, or wiring correctness. Any mapped mandatory invariant must still remain in the complete gate.",
+      "source": "Test/HorizontalScrollSpec.hs",
+      "specInvariantIds": [],
+      "withCleanDbCallSites": 0
+    },
+    {
+      "candidateRole": "routine-correctness",
+      "committedVisibility": {
+        "assessment": "not-applicable",
+        "reason": "Registry classifies this suite as pure; it does not open PostgreSQL connections."
+      },
+      "declaredWeight": 5,
+      "dryRunShardIndex": 65,
+      "duration": {
+        "artifact": "output/hspec-baseline/issue-198/pure-measured-{1,2,3}/summary.json",
+        "basis": "estimated-from-pure-lane-median-by-example-share",
+        "limitations": "Example-share allocation is only an estimate; pure example costs are not uniform.",
+        "seconds": 0.0014516717325227964
+      },
+      "exampleCount": 1,
+      "fixtureBuilderCallSites": {},
+      "kind": "pure",
+      "label": "PwaInstall",
+      "majorInvariantFamily": "frontend-contracts-and-live-update",
+      "module": "Test.PwaInstallSpec",
+      "roleRationale": "Focused helper, contract, adapter, or wiring correctness. Any mapped mandatory invariant must still remain in the complete gate.",
+      "source": "Test/PwaInstallSpec.hs",
+      "specInvariantIds": [],
+      "withCleanDbCallSites": 0
+    },
+    {
+      "candidateRole": "routine-correctness",
+      "committedVisibility": {
+        "assessment": "not-apparent",
+        "reason": "No explicit cross-thread or separately constructed ModelContext was identified; database use alone is not evidence of committed-visibility dependence."
+      },
+      "declaredWeight": 5,
+      "dryRunShardIndex": 66,
+      "duration": {
+        "basis": "registry-declared-weight-estimate",
+        "limitations": "The weight is a scheduling estimate, not a current isolated timing; measured entries supersede it where present.",
+        "seconds": 5
+      },
+      "exampleCount": 3,
+      "fixtureBuilderCallSites": {},
+      "kind": "database",
+      "label": "OrderedRange",
+      "majorInvariantFamily": "frontend-contracts-and-live-update",
+      "module": "Test.OrderedRangeSpec",
+      "roleRationale": "Focused helper, contract, adapter, or wiring correctness. Any mapped mandatory invariant must still remain in the complete gate.",
+      "source": "Test/OrderedRangeSpec.hs",
+      "specInvariantIds": [],
+      "withCleanDbCallSites": 0
+    },
+    {
+      "candidateRole": "routine-correctness",
+      "committedVisibility": {
+        "assessment": "not-apparent",
+        "reason": "No explicit cross-thread or separately constructed ModelContext was identified; database use alone is not evidence of committed-visibility dependence."
+      },
+      "declaredWeight": 5,
+      "dryRunShardIndex": 67,
+      "duration": {
+        "basis": "registry-declared-weight-estimate",
+        "limitations": "The weight is a scheduling estimate, not a current isolated timing; measured entries supersede it where present.",
+        "seconds": 5
+      },
+      "exampleCount": 2,
+      "fixtureBuilderCallSites": {},
+      "kind": "database",
+      "label": "Overlay",
+      "majorInvariantFamily": "frontend-contracts-and-live-update",
+      "module": "Test.OverlaySpec",
+      "roleRationale": "Focused helper, contract, adapter, or wiring correctness. Any mapped mandatory invariant must still remain in the complete gate.",
+      "source": "Test/OverlaySpec.hs",
+      "specInvariantIds": [],
+      "withCleanDbCallSites": 0
+    },
+    {
+      "candidateRole": "routine-correctness",
+      "committedVisibility": {
+        "assessment": "not-apparent",
+        "reason": "No explicit cross-thread or separately constructed ModelContext was identified; database use alone is not evidence of committed-visibility dependence."
+      },
+      "declaredWeight": 5,
+      "dryRunShardIndex": 68,
+      "duration": {
+        "basis": "registry-declared-weight-estimate",
+        "limitations": "The weight is a scheduling estimate, not a current isolated timing; measured entries supersede it where present.",
+        "seconds": 5
+      },
+      "exampleCount": 4,
+      "fixtureBuilderCallSites": {},
+      "kind": "database",
+      "label": "TimePicker",
+      "majorInvariantFamily": "frontend-contracts-and-live-update",
+      "module": "Test.TimePickerSpec",
+      "roleRationale": "Focused helper, contract, adapter, or wiring correctness. Any mapped mandatory invariant must still remain in the complete gate.",
+      "source": "Test/TimePickerSpec.hs",
+      "specInvariantIds": [],
+      "withCleanDbCallSites": 0
+    },
+    {
+      "candidateRole": "routine-correctness",
+      "committedVisibility": {
+        "assessment": "not-apparent",
+        "reason": "No explicit cross-thread or separately constructed ModelContext was identified; database use alone is not evidence of committed-visibility dependence."
+      },
+      "declaredWeight": 10,
+      "dryRunShardIndex": 47,
+      "duration": {
+        "basis": "registry-declared-weight-estimate",
+        "limitations": "The weight is a scheduling estimate, not a current isolated timing; measured entries supersede it where present.",
+        "seconds": 10
+      },
+      "exampleCount": 10,
+      "fixtureBuilderCallSites": {
+        "createStaffRecord": 2,
+        "createUserRecord": 4,
+        "createVenueWithConfig": 4
+      },
+      "kind": "database",
+      "label": "Mail",
+      "majorInvariantFamily": "communications",
+      "module": "Test.MailSpec",
+      "roleRationale": "Focused helper, contract, adapter, or wiring correctness. Any mapped mandatory invariant must still remain in the complete gate.",
+      "source": "Test/MailSpec.hs",
+      "specInvariantIds": [
+        "B7"
+      ],
+      "withCleanDbCallSites": 7
+    },
+    {
+      "candidateRole": "routine-correctness",
+      "committedVisibility": {
+        "assessment": "not-applicable",
+        "reason": "Registry classifies this suite as pure; it does not open PostgreSQL connections."
+      },
+      "declaredWeight": 5,
+      "dryRunShardIndex": 69,
+      "duration": {
+        "artifact": "output/hspec-baseline/issue-198/pure-measured-{1,2,3}/summary.json",
+        "basis": "estimated-from-pure-lane-median-by-example-share",
+        "limitations": "Example-share allocation is only an estimate; pure example costs are not uniform.",
+        "seconds": 0.047905167173252286
+      },
+      "exampleCount": 33,
+      "fixtureBuilderCallSites": {},
+      "inventoryNote": "Mostly source/architecture guard assertions; issue #205/#212 owns any retain/delete decision.",
+      "kind": "pure",
+      "label": "MutationBoundary",
+      "majorInvariantFamily": "data-integrity-and-audit",
+      "module": "Test.MutationBoundarySpec",
+      "roleRationale": "Focused helper, contract, adapter, or wiring correctness. Any mapped mandatory invariant must still remain in the complete gate.",
+      "source": "Test/MutationBoundarySpec.hs",
+      "specInvariantIds": [],
+      "withCleanDbCallSites": 0
+    },
+    {
+      "candidateRole": "routine-correctness",
+      "committedVisibility": {
+        "assessment": "not-apparent",
+        "reason": "No explicit cross-thread or separately constructed ModelContext was identified; database use alone is not evidence of committed-visibility dependence."
+      },
+      "declaredWeight": 5,
+      "dryRunShardIndex": 70,
+      "duration": {
+        "basis": "registry-declared-weight-estimate",
+        "limitations": "The weight is a scheduling estimate, not a current isolated timing; measured entries supersede it where present.",
+        "seconds": 5
+      },
+      "exampleCount": 4,
+      "fixtureBuilderCallSites": {},
+      "kind": "database",
+      "label": "XeroCandidateFilter",
+      "majorInvariantFamily": "xero-payroll",
+      "module": "Test.XeroCandidateFilterSpec",
+      "roleRationale": "Focused helper, contract, adapter, or wiring correctness. Any mapped mandatory invariant must still remain in the complete gate.",
+      "source": "Test/XeroCandidateFilterSpec.hs",
+      "specInvariantIds": [],
+      "withCleanDbCallSites": 0
+    },
+    {
+      "candidateRole": "routine-correctness",
+      "committedVisibility": {
+        "assessment": "not-applicable",
+        "reason": "Pure strict-transport contract; no PostgreSQL access."
+      },
+      "declaredWeight": 20,
+      "dryRunShardIndex": 26,
+      "duration": {
+        "artifact": "output/hspec-baseline/issue-198/pure-measured-{1,2,3}/summary.json",
+        "basis": "estimated-from-pure-lane-median-by-example-share",
+        "limitations": "Example-share allocation is only an estimate; pure example costs are not uniform.",
+        "seconds": 0.018871732522796354
+      },
+      "exampleCount": 13,
+      "fixtureBuilderCallSites": {},
+      "kind": "pure",
+      "label": "XeroContract",
+      "majorInvariantFamily": "xero-payroll",
+      "module": "Test.XeroContractSpec",
+      "roleRationale": "Focused helper, contract, adapter, or wiring correctness. Any mapped mandatory invariant must still remain in the complete gate.",
+      "source": "Test/XeroContractSpec.hs",
+      "specInvariantIds": [],
+      "withCleanDbCallSites": 0
+    },
+    {
+      "candidateRole": "routine-correctness",
+      "committedVisibility": {
+        "assessment": "not-applicable",
+        "reason": "Registry classifies this suite as pure; it does not open PostgreSQL connections."
+      },
+      "declaredWeight": 10,
+      "dryRunShardIndex": 48,
+      "duration": {
+        "artifact": "output/hspec-baseline/issue-198/pure-measured-{1,2,3}/summary.json",
+        "basis": "estimated-from-pure-lane-median-by-example-share",
+        "limitations": "Example-share allocation is only an estimate; pure example costs are not uniform.",
+        "seconds": 0.002903343465045593
+      },
+      "exampleCount": 2,
+      "fixtureBuilderCallSites": {},
+      "kind": "pure",
+      "label": "XeroImportedPayItems",
+      "majorInvariantFamily": "xero-payroll",
+      "module": "Test.XeroImportedPayItemsSpec",
+      "roleRationale": "Focused helper, contract, adapter, or wiring correctness. Any mapped mandatory invariant must still remain in the complete gate.",
+      "source": "Test/XeroImportedPayItemsSpec.hs",
+      "specInvariantIds": [],
+      "withCleanDbCallSites": 0
+    },
+    {
+      "candidateRole": "routine-correctness",
+      "committedVisibility": {
+        "assessment": "possible",
+        "reason": "Examples execute persisted jobs and transport callbacks; no explicit second ModelContext was identified."
+      },
+      "declaredWeight": 10,
+      "dryRunShardIndex": 49,
+      "duration": {
+        "basis": "registry-declared-weight-estimate",
+        "limitations": "The weight is a scheduling estimate, not a current isolated timing; measured entries supersede it where present.",
+        "seconds": 10
+      },
+      "exampleCount": 3,
+      "fixtureBuilderCallSites": {
+        "createUserRecord": 3,
+        "createVenueWithConfig": 5
+      },
+      "kind": "database",
+      "label": "XeroKeepalive",
+      "majorInvariantFamily": "xero-payroll",
+      "module": "Test.XeroKeepaliveSpec",
+      "roleRationale": "Focused helper, contract, adapter, or wiring correctness. Any mapped mandatory invariant must still remain in the complete gate.",
+      "source": "Test/XeroKeepaliveSpec.hs",
+      "specInvariantIds": [],
+      "withCleanDbCallSites": 3
+    },
+    {
+      "candidateRole": "broad-acceptance-candidate",
+      "committedVisibility": {
+        "assessment": "not-apparent",
+        "reason": "No explicit cross-thread or separately constructed ModelContext was identified; database use alone is not evidence of committed-visibility dependence."
+      },
+      "declaredWeight": 50,
+      "dryRunShardIndex": 5,
+      "duration": {
+        "artifact": "output/hspec-baseline/issue-198/focused-xero-preview/summary.json",
+        "basis": "single-focused-hspec-finished",
+        "limitations": "Focused serial timing avoids shard contention; single-run entries are representative measurements, not medians.",
+        "seconds": 27.4206
+      },
+      "exampleCount": 13,
+      "fixtureBuilderCallSites": {
+        "createApprovedTimesheetEntryRecord": 1,
+        "createStaffRecord": 1,
+        "createUserRecord": 2,
+        "createVenueMembershipRecord": 2,
+        "createVenueWithConfig": 1
+      },
+      "kind": "database",
+      "label": "XeroTimesheetPreview",
+      "majorInvariantFamily": "xero-payroll",
+      "module": "Test.XeroTimesheetPreviewSpec",
+      "roleRationale": "Conservative suite-level classification: this suite contains cross-component, mandatory-invariant, or committed-visibility evidence. Keep it in broad acceptance unless #202 safely splits that evidence.",
+      "source": "Test/XeroTimesheetPreviewSpec.hs",
+      "specInvariantIds": [
+        "P5",
+        "P6"
+      ],
+      "withCleanDbCallSites": 13
+    },
+    {
+      "candidateRole": "broad-acceptance-candidate",
+      "committedVisibility": {
+        "assessment": "not-apparent",
+        "reason": "No explicit cross-thread or separately constructed ModelContext was identified; database use alone is not evidence of committed-visibility dependence."
+      },
+      "declaredWeight": 35,
+      "dryRunShardIndex": 12,
+      "duration": {
+        "basis": "registry-declared-weight-estimate",
+        "limitations": "The weight is a scheduling estimate, not a current isolated timing; measured entries supersede it where present.",
+        "seconds": 35
+      },
+      "exampleCount": 24,
+      "fixtureBuilderCallSites": {
+        "createApprovedTimesheetEntryRecord": 2,
+        "createStaffRecord": 1,
+        "createTimesheetEntryRecord": 2,
+        "createUserRecord": 1,
+        "createVenueMembershipRecord": 1,
+        "createVenueWithConfig": 1
+      },
+      "kind": "database",
+      "label": "XeroTimesheetReadiness",
+      "majorInvariantFamily": "xero-payroll",
+      "module": "Test.XeroTimesheetReadinessSpec",
+      "roleRationale": "Conservative suite-level classification: this suite contains cross-component, mandatory-invariant, or committed-visibility evidence. Keep it in broad acceptance unless #202 safely splits that evidence.",
+      "source": "Test/XeroTimesheetReadinessSpec.hs",
+      "specInvariantIds": [
+        "P5",
+        "P6"
+      ],
+      "withCleanDbCallSites": 19
+    },
+    {
+      "candidateRole": "broad-acceptance-candidate",
+      "committedVisibility": {
+        "assessment": "not-apparent",
+        "reason": "No explicit cross-thread or separately constructed ModelContext was identified; database use alone is not evidence of committed-visibility dependence."
+      },
+      "declaredWeight": 35,
+      "dryRunShardIndex": 13,
+      "duration": {
+        "basis": "registry-declared-weight-estimate",
+        "limitations": "The weight is a scheduling estimate, not a current isolated timing; measured entries supersede it where present.",
+        "seconds": 35
+      },
+      "exampleCount": 8,
+      "fixtureBuilderCallSites": {},
+      "kind": "database",
+      "label": "XeroTimesheetSubmission",
+      "majorInvariantFamily": "xero-payroll",
+      "module": "Test.XeroTimesheetSubmissionSpec",
+      "roleRationale": "Conservative suite-level classification: this suite contains cross-component, mandatory-invariant, or committed-visibility evidence. Keep it in broad acceptance unless #202 safely splits that evidence.",
+      "source": "Test/XeroTimesheetSubmissionSpec.hs",
+      "specInvariantIds": [
+        "P6"
+      ],
+      "withCleanDbCallSites": 8
+    }
+  ],
+  "totals": {
+    "databaseExamples": 692,
+    "databaseSuites": 47,
+    "declaredWeight": 1480,
+    "examples": 1021,
+    "fixtureBuilderCallSites": {
+      "createApprovedTimesheetEntryRecord": 10,
+      "createApprovedTimesheetEntryRecordAt": 2,
+      "createLeaveRequestRecord": 41,
+      "createPayLevelRecord": 59,
+      "createRosterDayRecord": 103,
+      "createRosterSlotRecord": 114,
+      "createRosterWeekRecord": 104,
+      "createShiftTypeRecord": 71,
+      "createStaffRecord": 273,
+      "createTimesheetEntryRecord": 22,
+      "createUserRecord": 486,
+      "createUserRecordWithPlatformRole": 46,
+      "createVenueMembershipRecord": 474,
+      "createVenueWithConfig": 485
+    },
+    "pureExamples": 329,
+    "pureSuites": 23,
+    "suites": 70,
+    "withCleanDbCallSites": 586
+  }
+}

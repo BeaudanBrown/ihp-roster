@@ -23,13 +23,12 @@ module Web.RosterWeeks.Paths
     , rosterWeekDaySectionFragmentUrl
     , rosterWeekRowFragmentUrl
     , rosterWeekStaffPanelFragmentUrl
-    , rosterStaffSelfServiceLeaveFormFragmentUrl
     , rosterWeekUrl
     , rosterWeekWithDateUrl
     ) where
 
-import qualified Application.Helper.FrontendContract.Surface.Roster as Surface
-import Application.Helper.FrontendContract.Surface.Values
+import qualified Application.Helper.FrontendContract.Surface.Roster.Action as RosterAction
+import Application.Helper.FrontendContract.Surface.Values (surfaceFieldsText)
 import Application.Helper.Url (appendQueryParams, replaceQueryParams)
 import Data.Coerce (coerce)
 import Data.Time.Calendar (Day)
@@ -109,10 +108,6 @@ rosterWeekStaffPanelFragmentUrl :: Int -> Id RosterGroup -> Text
 rosterWeekStaffPanelFragmentUrl weekOffset rosterGroupId =
     appendQueryParams (pathTo ShowRosterWeekStaffPanelFragmentAction { weekOffset }) [("rosterGroupId", tshow rosterGroupId)]
 
-rosterStaffSelfServiceLeaveFormFragmentUrl :: Int -> Id RosterGroup -> Text
-rosterStaffSelfServiceLeaveFormFragmentUrl weekOffset rosterGroupId =
-    appendQueryParams (pathTo ShowRosterStaffSelfServiceLeaveFormFragmentAction { weekOffset }) [("rosterGroupId", tshow rosterGroupId)]
-
 rosterWeekDaySectionFragmentUrl :: Int -> Id RosterGroup -> Id RosterDay -> Text
 rosterWeekDaySectionFragmentUrl weekOffset rosterGroupId rosterDayId =
     appendQueryParams
@@ -171,10 +166,9 @@ rosterCopyWeekUrl sourceWeekOffset targetWeekOffset rosterGroupId =
 rosterNavigateQueryParams :: Int -> Id RosterGroup -> [(Text, Text)]
 rosterNavigateQueryParams weekOffset rosterGroupId =
     surfaceFieldsText
-        ( surfaceField @Surface.WeekOffset weekOffset
-            :& surfaceField @Surface.RosterGroupId (coerce rosterGroupId)
-            :& NoSurfaceFields
-            :: SurfaceFields (SurfaceActionFieldSpecs Surface.RosterSurface Surface.NavigateRosterWeek)
+        ( RosterAction.navigateRosterWeekActionFields
+            weekOffset
+            (coerce rosterGroupId)
         )
 
 formatDayParam :: Day -> Text

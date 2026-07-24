@@ -270,7 +270,7 @@
     min-width: 0;
 }
 
-.time-picker-trigger-button .js-time-picker-label {
+.time-picker-trigger-button .time-picker-label {
     display: inline-block;
     max-width: 100%;
     overflow: hidden;

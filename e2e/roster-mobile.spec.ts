@@ -1,5 +1,9 @@
 import { test, expect, type Page } from '@playwright/test';
 import {
+    rosterColumnEditorDomAttr,
+    rosterColumnEditStartDomAttr,
+} from '../frontend/ts/generated/contracts';
+import {
     ensureRosterLayout,
     expectContainerToManageHorizontalOverflow,
     expectNoHorizontalViewportOverflow,
@@ -10,17 +14,18 @@ import {
 } from './test-helpers';
 
 async function ensureAtLeastTwoRosterColumns(page: Page) {
-    const frame = page.locator('.roster-grid-frame').first();
-    const slotCount = await frame.evaluate((element) => {
+    const frame = page.locator(`[${rosterColumnEditorDomAttr}="true"]`).first();
+    const slotScroller = frame.locator('.roster-slots-scroller').first();
+    const slotCount = await slotScroller.evaluate((element) => {
         if (!(element instanceof HTMLElement)) {
-            throw new Error('Expected roster frame to be an HTMLElement');
+            throw new Error('Expected roster slot scroller to be an HTMLElement');
         }
         return Number.parseInt(getComputedStyle(element).getPropertyValue('--roster-slot-count'), 10) || 1;
     });
 
     if (slotCount > 1) return;
 
-    await page.getByRole('button', { name: 'Edit roster columns' }).click();
+    await frame.locator(`[${rosterColumnEditStartDomAttr}="true"]`).click();
     await expect(page.getByRole('button', { name: 'Add roster column' })).toBeVisible();
 
     const createResponsePromise = page.waitForResponse((response) => {
@@ -31,7 +36,7 @@ async function ensureAtLeastTwoRosterColumns(page: Page) {
     expect(createResponse.status(), await createResponse.text()).toBe(200);
 
     await expect.poll(async () => {
-        return frame.evaluate((element) => {
+        return slotScroller.evaluate((element) => {
             if (!(element instanceof HTMLElement)) return 1;
             return Number.parseInt(getComputedStyle(element).getPropertyValue('--roster-slot-count'), 10) || 1;
         });
@@ -82,7 +87,7 @@ test.describe('Roster mobile baseline', () => {
                 scrollerScrollWidth: scroller.scrollWidth,
                 overflowX: getComputedStyle(scroller).overflowX,
                 gridMinWidth: getComputedStyle(grid).minWidth,
-                slotCount: Number.parseInt(getComputedStyle(frame).getPropertyValue('--roster-slot-count'), 10) || 0,
+                slotCount: Number.parseInt(getComputedStyle(scroller).getPropertyValue('--roster-slot-count'), 10) || 0,
                 dayRailPosition: getComputedStyle(dayRail).position,
                 daySectionPosition: getComputedStyle(daySection).position,
                 firstDayRailHeight: Math.round(daySection.getBoundingClientRect().height),
@@ -158,7 +163,7 @@ test.describe('Roster mobile baseline', () => {
                 endTimes: frame.dataset.rosterEndTimes,
                 railWidth: Math.round(rail.getBoundingClientRect().width),
                 scrollerWidth: Math.round(scroller.getBoundingClientRect().width),
-                slotCount: Number.parseInt(getComputedStyle(frame).getPropertyValue('--roster-slot-count'), 10) || 1,
+                slotCount: Number.parseInt(getComputedStyle(scroller).getPropertyValue('--roster-slot-count'), 10) || 1,
                 scrollerScrollWidth: scroller.scrollWidth,
             };
         });
@@ -197,7 +202,7 @@ test.describe('Roster mobile baseline', () => {
                 throw new Error('Expected roster slot scroller to live in a roster frame');
             }
 
-            const slotCount = Number.parseInt(getComputedStyle(frame).getPropertyValue('--roster-slot-count'), 10) || 1;
+            const slotCount = Number.parseInt(getComputedStyle(scroller).getPropertyValue('--roster-slot-count'), 10) || 1;
             const maxScrollLeft = Math.max(0, scroller.scrollWidth - scroller.clientWidth);
             const groupWidth = scroller.scrollWidth / slotCount;
             const rawScrollLeft = groupWidth * 1.45;
@@ -228,7 +233,7 @@ test.describe('Roster mobile baseline', () => {
         expect(snapMetrics.scrollerLeft).toBeGreaterThanOrEqual(snapMetrics.dayRailRight - 1);
     });
 
-    test('waits until pointer release before applying phone horizontal snap', async ({ page }) => {
+    test('waits until all pointer input ends before applying phone horizontal snap', async ({ page }) => {
         await page.setViewportSize({ width: 390, height: 844 });
         await page.emulateMedia({ reducedMotion: 'reduce' });
         await ensureAtLeastTwoRosterColumns(page);
@@ -243,7 +248,7 @@ test.describe('Roster mobile baseline', () => {
                 throw new Error('Expected roster slot scroller to live in a roster frame');
             }
 
-            const slotCount = Number.parseInt(getComputedStyle(frame).getPropertyValue('--roster-slot-count'), 10) || 1;
+            const slotCount = Number.parseInt(getComputedStyle(scroller).getPropertyValue('--roster-slot-count'), 10) || 1;
             const groupWidth = scroller.scrollWidth / slotCount;
             const rawScrollLeft = groupWidth * 0.42;
             const expectedScrollLeft = Math.round(rawScrollLeft / groupWidth) * groupWidth;
@@ -253,17 +258,31 @@ test.describe('Roster mobile baseline', () => {
                 pointerId: 101,
                 pointerType: 'touch',
             }));
+            scroller.dispatchEvent(new PointerEvent('pointerdown', {
+                bubbles: true,
+                pointerId: 102,
+                pointerType: 'touch',
+            }));
             scroller.scrollLeft = rawScrollLeft;
             scroller.dispatchEvent(new Event('scroll', { bubbles: false }));
 
             await new Promise((resolve) => window.setTimeout(resolve, 260));
             const duringPointerScrollLeft = scroller.scrollLeft;
             const snapTypeDuringPointer = getComputedStyle(scroller).scrollSnapType;
-            const draggingDuringPointer = scroller.dataset.horizontalSnapDragging;
+            const draggingDuringPointer = scroller.classList.contains('is-horizontal-snap-dragging');
 
             scroller.dispatchEvent(new PointerEvent('pointerup', {
                 bubbles: true,
                 pointerId: 101,
+                pointerType: 'touch',
+            }));
+            await new Promise((resolve) => window.setTimeout(resolve, 260));
+            const afterFirstPointerScrollLeft = scroller.scrollLeft;
+            const draggingAfterFirstPointer = scroller.classList.contains('is-horizontal-snap-dragging');
+
+            scroller.dispatchEvent(new PointerEvent('pointercancel', {
+                bubbles: true,
+                pointerId: 102,
                 pointerType: 'touch',
             }));
             await new Promise((resolve) => window.setTimeout(resolve, 260));
@@ -272,17 +291,21 @@ test.describe('Roster mobile baseline', () => {
                 rawScrollLeft,
                 expectedScrollLeft,
                 duringPointerScrollLeft,
+                afterFirstPointerScrollLeft,
                 finalScrollLeft: scroller.scrollLeft,
                 snapTypeDuringPointer,
                 draggingDuringPointer,
-                draggingAfterPointer: scroller.dataset.horizontalSnapDragging ?? '',
+                draggingAfterFirstPointer,
+                draggingAfterPointer: scroller.classList.contains('is-horizontal-snap-dragging'),
             };
         });
 
         expect(Math.abs(snapMetrics.duringPointerScrollLeft - snapMetrics.rawScrollLeft)).toBeLessThanOrEqual(2);
+        expect(Math.abs(snapMetrics.afterFirstPointerScrollLeft - snapMetrics.rawScrollLeft)).toBeLessThanOrEqual(2);
         expect(snapMetrics.snapTypeDuringPointer).toBe('none');
-        expect(snapMetrics.draggingDuringPointer).toBe('true');
-        expect(snapMetrics.draggingAfterPointer).toBe('');
+        expect(snapMetrics.draggingDuringPointer).toBe(true);
+        expect(snapMetrics.draggingAfterFirstPointer).toBe(true);
+        expect(snapMetrics.draggingAfterPointer).toBe(false);
         expect(Math.abs(snapMetrics.finalScrollLeft - snapMetrics.expectedScrollLeft)).toBeLessThanOrEqual(2);
     });
 

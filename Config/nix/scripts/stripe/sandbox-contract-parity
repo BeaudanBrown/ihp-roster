@@ -1,0 +1,44 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+repo_root="$(git rev-parse --show-toplevel 2>/dev/null || true)"
+if [ -z "$repo_root" ]; then
+    echo "stripe-sandbox-contract-parity requires an ihp-roster checkout." >&2
+    exit 64
+fi
+
+probe="$repo_root/scripts/stripe-sandbox-contract-parity"
+if [ ! -f "$probe" ]; then
+    echo "stripe-sandbox-contract-parity is missing its checked-in probe script." >&2
+    exit 66
+fi
+
+if [ "${1:-}" = "--self-test" ]; then
+    exec python3 "$probe" "$@"
+fi
+
+if [ "${STRIPE_SANDBOX_PARITY:-}" != "1" ]; then
+    echo "stripe-sandbox-contract-parity requires STRIPE_SANDBOX_PARITY=1 and never runs in ordinary CI." >&2
+    exit 64
+fi
+
+# Reject the inherited CI marker before .env can alter its value. The repeated
+# check below also rejects a local .env that accidentally defines CI.
+if [ -n "${CI:-}" ]; then
+    echo "stripe-sandbox-contract-parity is intentionally unavailable in CI." >&2
+    exit 64
+fi
+
+if [ -f "$repo_root/.env" ]; then
+    set -a
+    # shellcheck disable=SC1090
+    . "$repo_root/.env"
+    set +a
+fi
+
+if [ -n "${CI:-}" ]; then
+    echo "stripe-sandbox-contract-parity is intentionally unavailable in CI." >&2
+    exit 64
+fi
+
+exec python3 "$probe" "$@"

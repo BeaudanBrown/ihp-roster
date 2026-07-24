@@ -7,6 +7,7 @@ module Application.Helper.View
     , module Application.Helper.View.Oob
     , module Application.Helper.View.Overlay
     , module Application.Helper.View.PageHelp
+    , module Application.Helper.View.Passkey
     , module Application.Helper.View.Staff
     , module Application.Helper.View.StaffDialogs
     , module Application.Helper.View.Status
@@ -26,6 +27,7 @@ import Application.Helper.View.Leave
 import Application.Helper.View.Oob
 import Application.Helper.View.Overlay
 import Application.Helper.View.PageHelp
+import Application.Helper.View.Passkey
 import Application.Helper.View.Staff
 import Application.Helper.View.StaffDialogs
 import Application.Helper.View.Status

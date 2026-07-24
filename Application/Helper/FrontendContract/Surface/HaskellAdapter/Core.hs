@@ -18,19 +18,47 @@
 module Application.Helper.FrontendContract.Surface.HaskellAdapter.Core
     ( AdapterIdentity
     , AdapterModuleLayout
+    , adapterKindLabel
+    , adapterKindSlug
     , AdapterModuleRenderer (..)
-    , CheckedAdapterDeclaration (..)
+    , CheckedAdapterDeclaration
+    , checkedAdapterDeclarationMarker
+    , checkedAdapterDeclarationName
+    , checkedAdapterFields
+    , checkedAdapterIdentity
+    , checkedAdapterPayload
+    , checkedAdapterSurfaceMarker
+    , checkedAdapterSurfaceName
     , GeneratedHaskellModule (..)
     , HaskellSourceType
     , HaskellTypeMetadata (..)
-    , RenderableAdapter (..)
-    , ResolvedAdapter (..)
-    , ResolvedAdapterField (..)
+    , RenderableAdapter
+    , renderableAdapterFields
+    , renderableAdapterGeneratedNames
+    , renderableAdapterHomeDeclaration
+    , renderableAdapterHomeFamily
+    , renderableAdapterOutputModule
+    , renderableAdapterPayload
+    , ResolvedAdapter
+    , resolvedAdapterDeclaration
+    , resolvedAdapterFields
+    , resolvedAdapterGeneratedNames
+    , resolvedAdapterHome
+    , resolvedAdapterOutputModule
+    , ResolvedAdapterField
+    , resolvedAdapterFieldIR
+    , resolvedAdapterFieldMarker
+    , resolvedAdapterFieldType
     , SurfaceAdapterFamilyMetadata (..)
     , SurfaceAdapterHomeMetadata (..)
     , SurfaceAdapterKind (..)
     , actionAdapterIdentity
     , actionAdapterLayout
+    , checkedActionAdapterDeclaration
+    , checkedFragmentAdapterDeclaration
+    , checkedIntentAdapterDeclaration
+    , checkedResourceAdapterDeclaration
+    , checkedScopeAdapterDeclaration
     , adapterFacadeModuleName
     , adapterGeneratedModuleName
     , adapterIdentityCollisionKey
@@ -41,21 +69,30 @@ module Application.Helper.FrontendContract.Surface.HaskellAdapter.Core
     , intentAdapterIdentity
     , intentAdapterLayout
     , lowerCamel
+    , mapCheckedAdapterPayload
     , qualifyHaskellType
+    , renderAdapterArguments
+    , renderAdapterFieldBuilder
+    , renderAdapterFieldValueTuple
+    , renderAdapterFieldsExpression
     , renderGeneratedAdapterModules
     , renderHaskellSourceType
     , renderImportList
     , resolveAdapterGeneration
+    , resolvedAdapterConstructorName
+    , resolvedAdapterMatcherName
     , resourceAdapterIdentity
     , resourceAdapterLayout
     , scopeAdapterIdentity
     , scopeAdapterLayout
     , sourceTypeContainsDay
     , sourceTypeContainsUuid
+    , stableDiagnostics
     , toRenderableAdapter
     , upperFirst
     ) where
 
+import Application.Helper.FrontendContract.Naming (wordsFromTypeName)
 import Application.Helper.FrontendContract.Surface.ContractIR
 import Application.Helper.FrontendContract.Wire.Carrier (HaskellWireSource (..),
                                                          haskellWireSource)
@@ -203,6 +240,97 @@ data CheckedAdapterDeclaration (kind :: SurfaceAdapterKind) payload = CheckedAda
     , checkedAdapterPayload           :: !payload
     }
     deriving (Eq, Show)
+
+-- | Normalize one checked resource occurrence directly from its owning
+-- Surface. Shared resource identity intentionally omits that occurrence's
+-- Surface while all declaration metadata remains IR-derived.
+checkedResourceAdapterDeclaration ::
+    SurfaceIR ->
+    ResourceIR ->
+    CheckedAdapterDeclaration 'ResourceAdapterKind ResourceIR
+checkedResourceAdapterDeclaration surface resource =
+    CheckedAdapterDeclaration
+        { checkedAdapterIdentity = resourceAdapterIdentity resource.resourceName
+        , checkedAdapterSurfaceMarker = surface.surfaceMarker
+        , checkedAdapterSurfaceName = surface.surfaceName
+        , checkedAdapterDeclarationMarker = resource.resourceMarker
+        , checkedAdapterDeclarationName = resource.resourceName
+        , checkedAdapterFields = resource.resourceFields
+        , checkedAdapterPayload = resource
+        }
+
+-- | Normalize one checked scope directly from its owning Surface. Callers
+-- cannot choose identity, names, or fields independently of the checked IR.
+checkedScopeAdapterDeclaration ::
+    SurfaceIR ->
+    ScopeIR ->
+    CheckedAdapterDeclaration 'ScopeAdapterKind ScopeIR
+checkedScopeAdapterDeclaration surface scope =
+    CheckedAdapterDeclaration
+        { checkedAdapterIdentity = scopeAdapterIdentity surface.surfaceName
+        , checkedAdapterSurfaceMarker = surface.surfaceMarker
+        , checkedAdapterSurfaceName = surface.surfaceName
+        , checkedAdapterDeclarationMarker = scope.scopeMarker
+        , checkedAdapterDeclarationName = scope.scopeName
+        , checkedAdapterFields = scope.scopeFields
+        , checkedAdapterPayload = scope
+        }
+
+-- | Normalize one checked fragment directly from its owning Surface. Fragment
+-- identity always includes that Surface and the checked fragment declaration.
+checkedFragmentAdapterDeclaration ::
+    SurfaceIR ->
+    FragmentIR ->
+    CheckedAdapterDeclaration 'FragmentAdapterKind FragmentIR
+checkedFragmentAdapterDeclaration surface fragment =
+    CheckedAdapterDeclaration
+        { checkedAdapterIdentity = fragmentAdapterIdentity surface.surfaceName fragment.fragmentName
+        , checkedAdapterSurfaceMarker = surface.surfaceMarker
+        , checkedAdapterSurfaceName = surface.surfaceName
+        , checkedAdapterDeclarationMarker = fragment.fragmentMarker
+        , checkedAdapterDeclarationName = fragment.fragmentName
+        , checkedAdapterFields = fragment.fragmentParams
+        , checkedAdapterPayload = fragment
+        }
+
+checkedActionAdapterDeclaration ::
+    SurfaceIR ->
+    HtmxActionIR ->
+    CheckedAdapterDeclaration 'ActionAdapterKind HtmxActionIR
+checkedActionAdapterDeclaration surface action =
+    CheckedAdapterDeclaration
+        { checkedAdapterIdentity = actionAdapterIdentity surface.surfaceName action.htmxActionName
+        , checkedAdapterSurfaceMarker = surface.surfaceMarker
+        , checkedAdapterSurfaceName = surface.surfaceName
+        , checkedAdapterDeclarationMarker = action.htmxActionMarker
+        , checkedAdapterDeclarationName = action.htmxActionName
+        , checkedAdapterFields = action.htmxActionFields
+        , checkedAdapterPayload = action
+        }
+
+checkedIntentAdapterDeclaration ::
+    SurfaceIR ->
+    IntentIR ->
+    CheckedAdapterDeclaration 'IntentAdapterKind IntentIR
+checkedIntentAdapterDeclaration surface intent =
+    CheckedAdapterDeclaration
+        { checkedAdapterIdentity = intentAdapterIdentity surface.surfaceName intent.intentName
+        , checkedAdapterSurfaceMarker = surface.surfaceMarker
+        , checkedAdapterSurfaceName = surface.surfaceName
+        , checkedAdapterDeclarationMarker = intent.intentMarker
+        , checkedAdapterDeclarationName = intent.intentName
+        , checkedAdapterFields = intent.intentFields
+        , checkedAdapterPayload = intent
+        }
+
+-- | Attach focused-renderer data without reopening checked identity, names, or
+-- fields. This is the only payload conversion before kind-indexed resolution.
+mapCheckedAdapterPayload ::
+    (sourcePayload -> renderedPayload) ->
+    CheckedAdapterDeclaration kind sourcePayload ->
+    CheckedAdapterDeclaration kind renderedPayload
+mapCheckedAdapterPayload transform declaration =
+    declaration { checkedAdapterPayload = transform declaration.checkedAdapterPayload }
 
 data HaskellSourceType
     = HaskellNamedType !HaskellNamedType
@@ -500,10 +628,15 @@ resolveAdapterSourceTypes layout adapter =
             Left unsupported ->
                 Left $ diagnostic
                     "unsupported-generated-source-type"
-                    ( layout.adapterKindLabel <> " " <> declaration.checkedAdapterDeclarationName
-                        <> " field " <> field.resolvedAdapterFieldIR.fieldName
+                    ( layout.adapterKindLabel <> " " <> declaration.checkedAdapterSurfaceName
+                        <> "/" <> declaration.checkedAdapterDeclarationName
+                        <> " field " <> diagnosticFieldName field
                         <> " has unsupported generated Haskell source type " <> unsupported
                     )
+
+diagnosticFieldName :: ResolvedAdapterField -> Text
+diagnosticFieldName field =
+    Text.intercalate "-" (wordsFromTypeName field.resolvedAdapterFieldMarker.haskellTypeName)
 
 sourceTypeForField :: FieldIR -> Either Text HaskellSourceType
 sourceTypeForField field = do
@@ -731,6 +864,62 @@ renderImportList moduleName (first : second : rest) =
             name : names -> (padding <> name <> ",") : renderFollowing names
      in (prefix <> first <> ",") : renderFollowing (second : rest)
 
+-- | Shared declaration-level source mechanics used by focused renderers. The
+-- renderer still chooses the public builder, result type, and generated name;
+-- this core fixes field argument ordering and exact SurfaceFields syntax.
+renderAdapterArguments :: [ResolvedAdapterField] -> Text
+renderAdapterArguments fields =
+    case map (haskellValueIdentifier . (.fieldName) . (.resolvedAdapterFieldIR)) fields of
+        []    -> ""
+        names -> " " <> Text.unwords names
+
+renderAdapterFieldsExpression :: Map.Map Text Text -> [ResolvedAdapterField] -> [Text]
+renderAdapterFieldsExpression = renderAdapterFieldsExpressionWithIndent "        "
+
+renderAdapterFieldsExpressionWithIndent :: Text -> Map.Map Text Text -> [ResolvedAdapterField] -> [Text]
+renderAdapterFieldsExpressionWithIndent indentation _ [] = [indentation <> "noSurfaceFields"]
+renderAdapterFieldsExpressionWithIndent indentation aliases (first : rest) =
+    [indentation <> "( " <> renderAdapterFieldBuilder aliases first]
+        <> [continuationIndentation <> "&: " <> renderAdapterFieldBuilder aliases field | field <- rest]
+        <> [ continuationIndentation <> "&: noSurfaceFields"
+           , indentation <> ")"
+           ]
+  where
+    continuationIndentation = indentation <> "    "
+
+renderAdapterFieldBuilder :: Map.Map Text Text -> ResolvedAdapterField -> Text
+renderAdapterFieldBuilder aliases field =
+    helper <> " @" <> qualifyHaskellType aliases field.resolvedAdapterFieldMarker <> " " <> argument
+  where
+    helper = case field.resolvedAdapterFieldIR.fieldPresence of
+        RequiredField         -> "surfaceField"
+        OptionalFieldPresence -> "surfaceOptionalField"
+        NullableFieldPresence -> "surfaceNullableField"
+    argument = haskellValueIdentifier field.resolvedAdapterFieldIR.fieldName
+
+renderAdapterFieldValueTuple :: [HaskellSourceType] -> Text
+renderAdapterFieldValueTuple = \case
+    [] -> "()"
+    field : rest -> "(" <> renderHaskellSourceType field <> ", " <> renderAdapterFieldValueTuple rest <> ")"
+
+resolvedAdapterConstructorName ::
+    (RenderableAdapter payload -> Text) ->
+    RenderableAdapter payload ->
+    Text
+resolvedAdapterConstructorName fallback adapter =
+    case adapter.renderableAdapterGeneratedNames of
+        constructorName : _ -> constructorName
+        []                  -> fallback adapter
+
+resolvedAdapterMatcherName ::
+    (RenderableAdapter payload -> Text) ->
+    RenderableAdapter payload ->
+    Text
+resolvedAdapterMatcherName constructorName adapter =
+    case adapter.renderableAdapterGeneratedNames of
+        _ : matcherName : _ -> matcherName
+        _                   -> "match" <> upperFirst (constructorName adapter)
+
 renderHaskellSourceType :: HaskellSourceType -> Text
 renderHaskellSourceType = \case
     HaskellNamedType named -> case named of
@@ -836,6 +1025,14 @@ featureModuleOwns :: Text -> Text -> Bool
 featureModuleOwns featureModule candidateModule =
     candidateModule == featureModule
         || (featureModule <> ".") `Text.isPrefixOf` candidateModule
+        || candidateModule `elem` sharedSurfaceAdapterSourceModules
+
+-- Shared Surface aliases may own field markers used by more than one feature,
+-- but they must remain focused contract modules rather than another feature's
+-- source tree. Action and Intent drag/drop adapters both exercise this module.
+sharedSurfaceAdapterSourceModules :: [Text]
+sharedSurfaceAdapterSourceModules =
+    ["Application.Helper.FrontendContract.Surface.Interaction"]
 
 diagnostic :: Text -> Text -> ContractDiagnostic
 diagnostic diagnosticCode diagnosticMessage =

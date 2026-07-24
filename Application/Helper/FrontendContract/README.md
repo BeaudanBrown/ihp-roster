@@ -6,8 +6,10 @@ typeclass reflection, checked as contract IR, and rendered to
 `frontend/ts/generated/contracts.ts`. Global roots come from
 `RegisteredFrontendContracts`; Surface roots come from
 `RegisteredFrontendSurfaces` through the single checked reflected
-`SurfaceContractIR`. The unified `FrontendContractIR` embeds those checked
-`SurfaceIR` values directly. `Application.Helper.FrontendContract.Core` owns the
+`SurfaceContractIR`. The generic `Surface.Reflect` evaluator stays independent
+of the production registry; `Surface.Contracts` binds the two for aggregate
+runtime/generation consumers. The unified `FrontendContractIR` embeds those
+checked `SurfaceIR` values directly. `Application.Helper.FrontendContract.Core` owns the
 shared field, wire, schema, diagnostic, and HTMX model, while
 `Application.Helper.FrontendContract.Naming` owns naming for both roots.
 Generation, server runtime metadata, validation, and semantic Surface
@@ -46,16 +48,99 @@ emitted only when a reachable browser shape uses them.
 Roots are split by meaning:
 
 - **Global**: app-wide browser/runtime vocabulary such as DOM ids, event names,
-  closed enums, UI-region data, generic interaction runtime shapes,
-  live-update wire schemas, and app-shell/dialog request contracts.
+  closed enums, UI-region data, generic interaction runtime shapes, focused
+  toggle/overlay/passkey capabilities, live-update wire schemas, and app-shell request
+  contracts.
 - **Surface**: mounted feature UI semantics: scopes, fragments, actions,
   intents, server-side mount state, resources, and interaction metadata.
 
+`OverlayContract` is the focused global workflow-dialog/toast capability. It
+owns the two lane mount ids, generated dialog/backdrop/close/submit and
+toast/close roles, the semantic dialog-dismissed event, dialog auto-submit
+state, and exact dialog-submit/toast configuration schemas.
+`Application.Helper.FrontendContract.Overlay.Runtime`
+serializes those configs from declaration-indexed fields for the shared view
+helpers. The TypeScript adapters parse only the generated exact configs, emit
+the generated dismissal event before every close-control, backdrop, or Escape
+removal, and keep transient initialization/original-markup state outside the DOM. Bootstrap
+classes/events and ARIA/native state remain inside the focused adapters rather
+than becoming app DOM primitives. Overlay request routes, HTMX methods, targets,
+and fields remain owned by generated AppShell or Surface Action helpers.
+
+`ToggleContract` is the focused global checkbox-style capability. It owns closed
+presentation and submission states, explicit value-or-omitted targets, the exact
+browser configuration parser, and shared DOM role attributes. Its Haskell
+runtime accepts complete marker-indexed Surface Action bundles for scalar and
+list fields, preserving a compile-time link from feature declarations to the
+form-local browser transport. The full authoring/runtime rules live in
+`Surface/README.md`.
+
+`TimePickerContract` is the focused global quarter-hour picker capability. It
+owns the modal id, picker-internal field/value/trigger/label/step/options/option/
+clear roles, and exact field configuration and option schemas. The Haskell
+runtime serializes declaration-indexed range, step, empty-state copy, value, and
+label fields; the generic TypeScript adapter parses those exact records and only
+rearranges validated server-rendered option nodes. Malformed elements are
+reported and skipped without replacing their server HTML. Toggle transport and
+break-field activation remain exclusively owned by `ToggleContract`.
+
+`OrderedRangeContract` is the focused global two-endpoint range capability. It
+owns root/config/state/start/end/availability roles, exact allowed range, step,
+default, label inventory and initial-state records, generated CSS position
+properties, and the closed `clamp-other-endpoint` crossing policy. Its Haskell
+runtime serializes declaration-indexed records and rejects inconsistent semantic
+inventories. The generic TypeScript adapter validates the complete local native
+checkbox/range/output subtree before mutation, keeps initialized state in a
+`WeakMap`, and supplies no fallback values or labels. Toggle remains the owner of
+availability submission transport, while controller validation remains the
+business authority for submitted endpoints.
+
+`PwaInstallContract` is the focused global installation-page capability. It owns
+generated page, button, result, result-state, and installed-status roles plus the
+closed accepted/dismissed/failed result state. The Haskell runtime renders every
+workflow message and associates it with that state. The TypeScript adapter keeps
+`beforeinstallprompt`, `appinstalled`, prompt objects, and platform detection
+local, and changes only native `hidden` state to expose server-rendered copy.
+Those browser-platform objects are not wire schemas.
+
+`PasskeyContract` is the focused global passkey workflow capability. It owns
+login, registration, setup-prompt, action-button, device-name, status, recovery,
+and dismissal roles plus one exact tagged flow configuration. It also declares
+the exact registration/authentication begin options, serialized credential
+requests, tagged finish outcomes, and tagged structured errors. Haskell supplies
+begin/finish routes, an optional success redirect, a mount-local status key, the
+opaque prompt user key, closed first-passkey/additional-device mode, and all
+workflow/status/recovery copy through `FrontendContract.Passkey.Runtime` and
+`Application.Helper.View.Passkey`. `Wire.Passkey` builds and parses those JSON
+boundaries through schema-indexed carriers; controllers do not call the
+WebAuthn library's JSON option encoder or construct response objects by field
+name. The TypeScript adapter parses each inbound server envelope before a
+credential API or redirect, uses generated request encoders, validates the
+complete local subtree before installing listeners, reports structured
+diagnostics, and leaves malformed server HTML untouched. Native WebAuthn
+credential/response objects, extension-result semantics, navigator calls,
+base64url conversion, and local-storage UX hints remain in the focused
+TypeScript adapter and are not recreated as generated platform schemas. Prompt
+dismissal bears both the semantic generated passkey dismissal role and the
+generated overlay close role; the overlay adapter alone owns removal and body
+locking.
+
+`XeroCandidateFilterContract` is the focused global pay-item candidate-filter
+capability. It owns generated root, search, candidate, and empty-state roles plus
+an exact candidate config carrying one search projection. The Haskell runtime
+keeps normalized search projections opaque and the
+Xero view explicitly selects the earnings-rate name and account code that
+contribute. The TypeScript adapter scopes itself to one generated root, performs
+only exact config parsing, structured boundary diagnostics, generic query
+normalization/fuzzy matching, and native `hidden` changes. Server-rendered
+checkbox identity, copy, validation, and import mutations
+remain Xero-owned.
+
 `AppShellAction` is the server-rendered lane for app-owned shell request initiators
 that are not owned by a mounted `FrontendSurface`, including dialog/overlay
-workflows targeting the shared dialog overlay mount (initially
-`#dialog-overlay-mount`). The DSL owns browser-visible HTMX metadata and
-submitted fields; Haskell still owns IHP route/path construction through
+workflows targeting the generated shared dialog mount. The DSL owns
+browser-visible HTMX metadata and submitted fields; Haskell still owns IHP
+route/path construction through
 `Application.Helper.FrontendContract.AppShell.Runtime`. Successful final dialog
 workflow mutations should close/clear overlays and refresh business surfaces
 through actor-local/passive invalidation rather than returning authoritative
@@ -87,6 +172,10 @@ Outer field presence remains separate from recursive wire nullability. An absent
 `OptionalField` is omitted, a present optional nullable value can be explicit
 `null`, every `NullableField` must be present, and list/optional/nullable source
 containers remain recursive (`WireList WireUUID` maps to `[UUID]`, not `UUID`).
+Global `WireUnknown` is reserved for a nested platform-owned value whose
+semantics are deliberately parsed by that platform adapter, currently WebAuthn
+client extension results. It is not an escape hatch for app-owned record fields;
+the containing app envelope remains exact.
 `haskellWireSource` is the canonical checked-IR projection for deterministic
 Haskell source generation. Exact marker-indexed IR validation lives in
 `Application.Helper.FrontendContract.Wire.Json`; its old name-indexed public
@@ -108,23 +197,104 @@ action, and intent identities are owning-Surface plus declaration identity, so
 cross-kind marker/name reuse is valid.
 
 Focused renderers select checked declarations and own only their function-level
-source shapes. The current resource renderer emits the byte-stable private
-feature-adjacent `.Generated.Resource` modules through the core; live, action,
-and intent extensions have reserved `.Generated.Live`, `.Generated.Action`, and
-`.Generated.Intent` layouts with matching `Live`, `Action`, and `Intent` curated
-facades. Generated resource code calls only the public marker-indexed builders
-and matchers. Unsupported source carriers fail with adapter kind, declaration,
-and field in the diagnostic. Production family associations remain feature-local,
-and the checked aggregate resource registry assigns exactly one canonical home
-to every unique production resource identity. Curated
-`Surface.<Feature>.Resource` facades are the generated resource modules' only
-consumers and retain only domain aliases, domain matchers, and meaningful public
-exports.
+source shapes. The resource renderer continues to emit byte-stable private
+feature-adjacent `.Generated.Resource` modules. The Live renderer normalizes
+scopes and fragments directly from checked `SurfaceIR`, preserves their kind
+through home resolution, and combines only `LiveScope` and `LiveFragment` in
+`.Generated.Live`; resources, actions, and intents cannot enter that lane.
+Passive fragments are eligible from their closed `Live` option. The two
+non-passive Admin parent-page keys remain typed, reason-bearing actor-only
+exceptions. Separate Action and Intent renderers normalize checked declarations
+through kind-specific constructors, cross the private checked-resolution seam,
+and can emit only inventoried field builders, render metadata, and exact request
+parsers. The compiled cross-kind fixture proves same-marker Action/Intent output
+in separate private modules behind separate facades.
 
-Use `frontend-surface-adapters` to write generated Haskell modules and
-`frontend-surface-adapters-check` to reject missing, extra, unformatted, or stale
-output. Generation does not inspect compiler syntax trees, parse source modules,
-or choose behavior from feature-name text.
+The production registry assigns exactly one typed home to every checked Live
+scope and eligible fragment. Empty, partial, extra, or duplicate production
+homes fail generation. Seven private feature-adjacent `.Generated.Live` modules
+now sit behind the seven curated `Surface.<Feature>.Live` facades. All mechanical
+scope/fragment construction and matching is generated; handwritten facade code
+is limited to domain-shaped matchers and active-scope orchestration. Curated
+facades import and expose only operations with a production or test semantic
+consumer.
+
+Reachability deliberately distinguishes declaration-complete generated API from
+curated runtime API. `weeder.toml` roots only private production
+`.Generated.Resource` and `.Generated.Live` modules: registry, typed-home,
+all-kind generation, drift, and guardrail checks require every declared
+constructor/matcher even when the executable graph consumes only one side.
+Generated Action/Intent modules, curated facades, and all handwritten modules
+remain subject to ordinary Weeder reachability; there is no symbol allowlist or
+blanket FrontendContract suppression. The unregistered fixture continues to
+prove zero-field and parameterized adapters, shared-module collision checks,
+and public generic builder use.
+
+Generated Resource and Live code calls only public marker-indexed builders and
+matchers. Raw `SurfaceFields` data constructors stay hidden behind the
+construction-only `noSurfaceFields` and `(&:)` functions. Generated production
+Action/Intent builders construct nominal `SurfaceActionFields surface action`
+or `SurfaceIntentFields surface intent` directly from the declared first field
+and exact tail (or the explicit zero-field constructor). The request parser
+keeps its recursive parsed-field view private and calls that same public nominal
+construction seam; no parser-only rebind operation is exported. Generated
+metadata and structured parser interfaces carry the exact wrapper, so
+operations with equal normalized field lists remain distinct. Read-only marker
+lookup and serialization stay shared through `SurfaceFieldBundle`, which
+exposes no unwrap operation. Unsupported source carriers fail with adapter kind,
+owning Surface, declaration, and field in the diagnostic.
+Production family associations remain feature-local, and the checked aggregate
+resource registry assigns exactly one canonical home to every unique production
+resource identity. Every private generated module has only its matching curated
+facade consumer. The lightweight `HaskellAdapter.Association` seam carries
+`AdapterFamilySurface` into generated modules without pulling
+registry/reflection mechanics from `HaskellAdapter.Family` and
+`HaskellAdapter.Core` into focused feature compiles. Generated Action/Intent
+modules also import the focused `Surface.Request.Runtime` metadata seam rather
+than the mount/live `Surface.Runtime`. The focused seam owns opaque request
+metadata values and marker-indexed constructors; field construction remains in
+`Surface.Values`, exact parsing remains in `Surface.Request`, and HTML rendering
+remains in `Surface.Runtime`. The broad runtime consumes read-only metadata
+selectors without re-exporting the focused interface.
+
+The exact source-derived closure contract is checked by
+`architecture-surface-request-closure`: Profile Action retains 17
+`Application.*` modules and Roster Intent retains 18, with no unrelated Surface
+catalog, mount/live/wire runtime, or Haskell adapter generator implementation.
+The compiler-observed baseline, candidate sets, deltas, and retained-dependency
+classification are recorded in `Surface/README.md`.
+
+The production operation inventory covers all 52 actions and five intents. It
+marks 47 actions as adapter-eligible, with builders/render metadata for all 47
+and exact parsers for 32; five same-named intent-backed actions and 15 absent
+parser operations remain typed, reason-bearing exclusions. Exactly one checked
+home is registered for every eligible Action and Intent. Seven private
+feature-adjacent `.Generated.Action` modules sit behind seven curated
+`Surface.<Feature>.Action` facades, while the five Roster intents share one
+private `Surface.Roster.Generated.Intent` module behind `Surface.Roster.Intent`.
+Production callers contain no generic Action or Intent parser/metadata calls.
+Raw `SurfaceFields` constructors are hidden behind construction-only builders.
+Nominal construction accepts only the declared first field plus its exact typed
+tail (or an explicit zero-field constructor), so the compiler exposes no raw
+bundle split/re-indexing path. Compile-failure coverage rejects
+cross-operation Action and Intent reuse for identical field shapes. The #191 and #187 independent request-adapter checkpoints pin production
+bundles, literal DOM-owned metadata, structured parsing, and diagnostics across
+the migrated Profile/Staff Actions and Roster Intents. Nullable and nested-list
+request shapes remain owned by the compiled #185 fixture rather than invented
+production declarations.
+
+`generateSurfaceAdapterModules` is the mandatory all-kind composer used by the
+write/drift workflow. It accumulates Resource, Live, Action, and Intent focused
+lane diagnostics and validates duplicate physical paths before exposing the
+complete managed set. Output for all four lanes is mandatory and complete; no
+empty or partial publication state exists. The writer stages nothing when any
+lane fails; the shell workflow formats and typechecks the entire temporary tree
+before any managed stale deletion or write, so one failed or omitted lane cannot
+discard another. Use `frontend-surface-adapters` to write
+generated Haskell modules and `frontend-surface-adapters-check` to reject
+missing, extra, unformatted, or stale output. Generation does not inspect
+compiler syntax trees, parse source modules, or choose behavior from feature-name
+text.
 
 Generated TypeScript comes through
 `Application.Helper.FrontendContract.Contracts`. Exported TypeScript contract
@@ -150,3 +320,13 @@ Surface declarations, rather than copied string literals. Every fragment owns
 one typed `MountTarget`; descriptor and view IDs are rendered through
 `surfaceFragmentTargetId` from declaration-ordered typed fields. Server-only
 `MountState` declarations are deliberately absent from browser output.
+
+## Authority Reconciliation
+
+The zero-legacy authority audit uses structural source checks for
+contract-bound vocabulary rather than broad word-based regexes; generated
+adapter drift, publication, compile-failure, and CSS ownership checks protect
+the same authority boundary. Verify it with `verify-full`, `lint`, and `format`.
+#151 is separately approved live-data schema-retirement work, not a
+FrontendContract compatibility exception. The historical audit and closeout
+evidence are archived at `docs/archive/frontend-contract-authority-hardening.md`.

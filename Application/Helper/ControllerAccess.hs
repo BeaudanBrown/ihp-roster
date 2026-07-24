@@ -11,7 +11,6 @@ import IHP.ControllerPrelude
 import qualified IHP.LoginSupport.Helper.Controller as LoginSupport
 import qualified Network.Wai as Wai
 import qualified System.Environment as Environment
-import System.IO.Unsafe (unsafePerformIO)
 import Text.Read (readMaybe)
 import Web.Routes ()
 import Web.Types (PasskeysController (PasskeySetupAction, PasskeyStepUpAction),
@@ -153,17 +152,17 @@ ensureSupportAccess = do
     redirectPermissionDeniedUnless currentUserIsSuperAdmin "You need super admin access to view that page."
     emitScopeFact BepisSupportScopeFact "support-access"
 
-currentUserRequiresMandatoryPasskey :: (?context :: ControllerContext) => Bool
-currentUserRequiresMandatoryPasskey =
-    privilegedStrongAuthenticationRequired
-        && (currentUserIsSuperAdmin || maybe False (`hasVenueRole` VenueAdminRole) currentVenueRoleOrNothing)
+currentUserRequiresMandatoryPasskey :: (?context :: ControllerContext) => IO Bool
+currentUserRequiresMandatoryPasskey = do
+    strongAuthenticationRequired <- privilegedStrongAuthenticationRequired
+    pure $
+        strongAuthenticationRequired
+            && (currentUserIsSuperAdmin || maybe False (`hasVenueRole` VenueAdminRole) currentVenueRoleOrNothing)
 
-privilegedStrongAuthenticationRequired :: Bool
-privilegedStrongAuthenticationRequired =
-    unsafePerformIO do
-        maybeValue <- Environment.lookupEnv "IHP_ROSTER_REQUIRE_PRIVILEGED_STRONG_AUTH"
-        pure (maybe True strongAuthenticationEnabledValue maybeValue)
-{-# NOINLINE privilegedStrongAuthenticationRequired #-}
+privilegedStrongAuthenticationRequired :: IO Bool
+privilegedStrongAuthenticationRequired = do
+    maybeValue <- Environment.lookupEnv "IHP_ROSTER_REQUIRE_PRIVILEGED_STRONG_AUTH"
+    pure (maybe True strongAuthenticationEnabledValue maybeValue)
 
 strongAuthenticationEnabledValue :: String -> Bool
 strongAuthenticationEnabledValue value =
@@ -177,7 +176,8 @@ currentUserHasPasskey =
 
 ensurePrivilegedPasskeySetupComplete :: (?context :: ControllerContext, ?modelContext :: ModelContext) => IO ()
 ensurePrivilegedPasskeySetupComplete = do
-    when currentUserRequiresMandatoryPasskey do
+    strongAuthenticationRequired <- currentUserRequiresMandatoryPasskey
+    when strongAuthenticationRequired do
         hasPasskey <- currentUserHasPasskey
         unless hasPasskey do
             withRequestContext do
@@ -236,23 +236,31 @@ clearCurrentUserPasskeyVerification = do
 
 ensurePrivilegedPasskeyReady :: (?context :: ControllerContext, ?modelContext :: ModelContext) => IO ()
 ensurePrivilegedPasskeyReady = do
-    when currentUserRequiresMandatoryPasskey do
-        hasPasskey <- currentUserHasPasskey
-        if not hasPasskey
-            then withRequestContext do
-                setSession passkeyStepUpRedirectSessionKey currentRequestPath
-                redirectTo PasskeySetupAction
-            else ensurePrivilegedPasskeyVerified
+    strongAuthenticationRequired <- currentUserRequiresMandatoryPasskey
+    when strongAuthenticationRequired ensureFreshPasskeyReady
+
+ensureFreshPasskeyReady :: (?context :: ControllerContext, ?modelContext :: ModelContext) => IO ()
+ensureFreshPasskeyReady = do
+    hasPasskey <- currentUserHasPasskey
+    if not hasPasskey
+        then withRequestContext do
+            setSession passkeyStepUpRedirectSessionKey currentRequestPath
+            redirectTo PasskeySetupAction
+        else ensureFreshPasskeyVerified
+
+ensureFreshPasskeyVerified :: (?context :: ControllerContext) => IO ()
+ensureFreshPasskeyVerified = do
+    verified <- isCurrentUserPasskeyVerified
+    unless verified do
+        withRequestContext do
+            setSession passkeyStepUpRedirectSessionKey currentRequestPath
+            setErrorMessage "Verify with your passkey to continue."
+            redirectTo PasskeyStepUpAction
 
 ensurePrivilegedPasskeyVerified :: (?context :: ControllerContext) => IO ()
 ensurePrivilegedPasskeyVerified = do
-    when currentUserRequiresMandatoryPasskey do
-        verified <- isCurrentUserPasskeyVerified
-        unless verified do
-            withRequestContext do
-                setSession passkeyStepUpRedirectSessionKey currentRequestPath
-                setErrorMessage "Verify with your passkey to continue."
-                redirectTo PasskeyStepUpAction
+    strongAuthenticationRequired <- currentUserRequiresMandatoryPasskey
+    when strongAuthenticationRequired ensureFreshPasskeyVerified
 
 currentRequestPath :: (?request :: Request) => Text
 currentRequestPath =

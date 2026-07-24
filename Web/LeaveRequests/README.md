@@ -2,8 +2,8 @@
 
 ## Purpose
 
-`Web/LeaveRequests/` owns leave/availability projections and profile
-self-service integration. User-facing language is moving toward
+`Web/LeaveRequests/` owns leave/availability projections and self-service
+integration across Profile and roster contexts. User-facing language is moving toward
 unavailability/unavailable periods for the pilot, while the backing model remains
 leave/unavailability history until renamed by a future migration.
 
@@ -11,7 +11,8 @@ leave/unavailability history until renamed by a future migration.
 
 - `Web/Controller/LeaveRequests.hs` - controller actions.
 - `Web/LeaveRequests/ReadModel.hs` - list/read models.
-- `Web/LeaveRequests/ProfileSelfService.hs` - profile page fragments.
+- `Web/LeaveRequests/SelfService.hs` - shared self-service form/history fragments and mounts.
+- `Web/LeaveRequests/FrontendSurface.hs` - manager and self-service Surface mounts.
 - `Web/View/LeaveRequests/` - HSX rendering.
 
 ## Related Docs

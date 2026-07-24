@@ -1,5 +1,7 @@
 module Test.Controller.HelpSpec where
 
+import Application.Helper.FrontendContract.Overlay.Runtime (OverlayDom (..),
+                                                            canonicalOverlayDom)
 import Generated.Types
 import IHP.ControllerPrelude
 import IHP.FrameworkConfig
@@ -13,7 +15,7 @@ import Web.FrontController ()
 import Web.Types
 
 tests :: Spec
-tests = beforeAll testContext do
+tests = aroundAll withDatabaseTestContext do
     describe "HelpController" do
         it "renders HTMX page help dialog through the shared overlay" $ withContext do
             withCleanDb do
@@ -26,7 +28,7 @@ tests = beforeAll testContext do
                         callAction ShowPageHelpAction { topic = "roster" }
 
                 response `responseStatusShouldBe` status200
-                response `responseBodyShouldContain` "data-dialog-overlay=\"true\""
+                response `responseBodyShouldContain` (cs canonicalOverlayDom.overlayDialogMountAttribute)
                 response `responseBodyShouldContain` "Roster"
                 response `responseBodyShouldContain` "Staff"
                 response `responseBodyShouldContain` "future roster"

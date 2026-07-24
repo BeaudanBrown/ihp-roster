@@ -8,7 +8,9 @@ unavailability views.
 - Read `SPEC.md` first.
 - Preserve exclusive `end_date` semantics.
 - Keep projection/read-model work out of the controller when practical.
-- Keep profile-specific integration in `ProfileSelfService.hs`.
+- Keep Profile and roster self-service integration in the shared
+  `SelfService.hs` Surface renderer; context-owned views provide only mount
+  placement and optional history selection.
 - Use unavailability language in user-facing copy unless working directly on
   backend schema names.
 - When changing visible request creation, date semantics, status lifecycle, manager review, or roster-invalidation behavior, update the `leave` topic in `Application.Helper.View.PageHelp`.
@@ -17,7 +19,11 @@ unavailability views.
 
 - Do not seed `start_date == end_date`; the schema rejects empty ranges.
 - Approved-state changes are the roster-invalidation boundary.
-- Construct leave live scopes/keys through `Application.Helper.FrontendContract.Surface.LeaveRequests.Live`; do not import or pattern-match raw live transport identity.
+- Construct manager leave scopes/keys through
+  `Application.Helper.FrontendContract.Surface.LeaveRequests.Live` and
+  self-service scopes/keys through
+  `Application.Helper.FrontendContract.Surface.SelfServiceLeave.Live`; do not
+  import or pattern-match raw live transport identity.
 - Sensitive future data such as medical details needs a separate spec before
   storage.
 

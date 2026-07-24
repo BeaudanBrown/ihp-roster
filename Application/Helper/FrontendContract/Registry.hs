@@ -9,20 +9,36 @@ module Application.Helper.FrontendContract.Registry
 import Application.Helper.FrontendContract.App
 import Application.Helper.FrontendContract.AppShell
 import Application.Helper.FrontendContract.DSL
+import Application.Helper.FrontendContract.HorizontalScroll
 import Application.Helper.FrontendContract.Interaction
 import Application.Helper.FrontendContract.IR
 import Application.Helper.FrontendContract.LiveUpdate
+import Application.Helper.FrontendContract.OrderedRange
+import Application.Helper.FrontendContract.Overlay
+import Application.Helper.FrontendContract.Passkey
+import Application.Helper.FrontendContract.PwaInstall
 import Application.Helper.FrontendContract.Reflect
 import Application.Helper.FrontendContract.Surface.Contracts (registeredFrontendSurfaceContractIR)
+import Application.Helper.FrontendContract.TimePicker
+import Application.Helper.FrontendContract.Toggle
 import Application.Helper.FrontendContract.UiRegion
+import Application.Helper.FrontendContract.XeroCandidateFilter
 
 -- | Root frontend browser contract registry. Global roots live here; Surface
 -- roots are appended from the registered surface contract registry.
 type RegisteredFrontendContracts =
     '[ AppContract
+     , OverlayContract
      , AppShellContract
      , UiRegionContract
      , InteractionContract
+     , ToggleContract
+     , TimePickerContract
+     , OrderedRangeContract
+     , HorizontalScrollContract
+     , PasskeyContract
+     , PwaInstallContract
+     , XeroCandidateFilterContract
      , LiveUpdateContract
      ] :: [FrontendContractSpec]
 

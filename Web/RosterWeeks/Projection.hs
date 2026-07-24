@@ -5,7 +5,6 @@ module Web.RosterWeeks.Projection
     , rosterGridFrameFragment
     , rosterGridToolbarFragment
     , rosterGridInnerAndStaffPanelFragments
-    , rosterGridFrameAndStaffPanelFragments
     , rosterGridStructuralAndStaffPanelFragments
     , rosterGridStructuralFragments
     , rosterDaySectionFragment
@@ -51,12 +50,6 @@ rosterGridInnerAndStaffPanelFragments =
     , RosterProjectionDayRail
     , RosterProjectionWageRail
     , RosterProjectionSlotsGrid
-    , rosterStaffPanelFragment
-    ]
-
-rosterGridFrameAndStaffPanelFragments :: [RosterProjectionFragment]
-rosterGridFrameAndStaffPanelFragments =
-    [ rosterGridFrameFragment
     , rosterStaffPanelFragment
     ]
 

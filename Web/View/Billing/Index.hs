@@ -3,33 +3,44 @@
 module Web.View.Billing.Index where
 
 import Application.Helper.Controller (currentVenueOrNothing)
+import Application.Helper.FrontendContract.Overlay.Runtime (navigationLoadingAttrs)
 import qualified Application.Helper.FrontendContract.Surface.Billing as Surface
 import Application.Helper.FrontendContract.Surface.Runtime (renderFrontendSurfaceMount)
-import Application.Helper.FrontendContract.Surface.Values (SurfaceFields (NoSurfaceFields),
+import Application.Helper.FrontendContract.Surface.Values (noSurfaceFields,
                                                            surfaceFragmentTargetId)
 import qualified Data.Text as Text
+import Data.Time.Clock (utctDay)
 import Web.Billing.FrontendSurface (BillingCheckoutReturnState (..),
                                     billingSurfaceImpl,
                                     currentBillingScopeValue)
 import Web.View.Prelude
 
+data BillingViewer
+    = BillingOwnerViewer
+    | BillingFounderViewer
+    deriving (Eq, Show)
+
 data BillingViewModel = BillingViewModel
-    { maybeCustomer     :: !(Maybe VenueBillingCustomer)
-    , maybeSubscription :: !(Maybe VenueSubscription)
-    , maybeControl      :: !(Maybe VenueBillingControl)
-    , recentEvents      :: ![BillingEvent]
-    , checkoutReturn    :: !(Maybe BillingCheckoutReturn)
+    { billingViewer            :: !BillingViewer
+    , maybeCustomer            :: !(Maybe VenueBillingCustomer)
+    , maybeSubscription        :: !(Maybe VenueSubscription)
+    , recentCheckoutAttempts   :: ![BillingCheckoutAttempt]
+    , recentEvents             :: ![BillingEvent]
+    , recentReconciliationJobs :: ![AppJob]
+    , checkoutReturn           :: !(Maybe BillingCheckoutReturn)
+    , stripeCheckoutAvailable  :: !Bool
+    , stripePortalAvailable    :: !Bool
     }
 
 data BillingCheckoutReturn = BillingCheckoutReturn
-    { checkoutSessionId :: !(Maybe Text)
+    { checkoutAttemptId :: !Text
     , checkoutOutcome   :: !BillingCheckoutOutcome
     }
 
 data BillingCheckoutOutcome
     = BillingCheckoutPending
     | BillingCheckoutConfirmed !VenueSubscription
-    | BillingCheckoutFailed !BillingEvent
+    | BillingCheckoutFailed !BillingCheckoutAttempt
 
 newtype BillingView = BillingView
     { viewModel :: BillingViewModel
@@ -42,8 +53,8 @@ data BillingCancelView = BillingCancelView
 instance View BillingView where
     html BillingView { viewModel } =
         renderAppPage AppPageConfig
-            { appPageTitle = "Billing"
-            , appPageDescription = Nothing
+            { appPageTitle = billingPageTitle viewModel.billingViewer
+            , appPageDescription = billingPageDescription viewModel.billingViewer
             , appPageActions = mempty
             , appPageHelpTopic = Just (PageHelpTopicId "billing")
             , appPageWidthClass = ""
@@ -64,7 +75,15 @@ instance View BillingCancelView where
     html BillingCancelView =
         renderBillingResultPage
             "Billing Cancelled"
-            "No subscription change was recorded. You can start Checkout again from the billing page."
+            "No subscription change was confirmed by this browser return. You can go back to Billing and resume this Checkout while it remains available."
+
+billingPageTitle :: BillingViewer -> Text
+billingPageTitle BillingOwnerViewer   = "Billing"
+billingPageTitle BillingFounderViewer = "Billing diagnostics"
+
+billingPageDescription :: BillingViewer -> Maybe Text
+billingPageDescription BillingOwnerViewer = Just "Manage this venue's Bepis subscription through Stripe-hosted payment pages."
+billingPageDescription BillingFounderViewer = Just "Founder support diagnostics for the current venue. Payment administration remains in Stripe."
 
 renderBillingResultPage :: Text -> Text -> Html
 renderBillingResultPage title message =
@@ -81,12 +100,32 @@ renderBillingResultPage title message =
         }
 
 renderbillingStatusLiveFragment :: BillingViewModel -> Html
-renderbillingStatusLiveFragment viewModel@BillingViewModel { recentEvents, maybeControl, checkoutReturn } = [hsx|
-    <div id={surfaceFragmentTargetId @Surface.BillingSurface @Surface.BillingStatus NoSurfaceFields}>
-        {renderBillingStatusPanel viewModel}
-        {if currentUserIsSupportAdmin then renderBillingControlPanel maybeControl else mempty}
-        {renderBillingEventsPanel recentEvents}
+renderbillingStatusLiveFragment viewModel = [hsx|
+    <div id={surfaceFragmentTargetId @Surface.BillingSurface @Surface.BillingStatus noSurfaceFields}>
+        {renderBillingAudienceView viewModel}
+    </div>
+|]
+
+renderBillingAudienceView :: BillingViewModel -> Html
+renderBillingAudienceView viewModel@BillingViewModel { billingViewer = BillingOwnerViewer, checkoutReturn } = [hsx|
+    <div class="app-page-stack" data-billing-owner-view="true">
+        {renderOwnerSubscriptionPanel viewModel}
         {renderBillingCheckoutReturnDialog checkoutReturn}
+    </div>
+|]
+renderBillingAudienceView BillingViewModel
+    { billingViewer = BillingFounderViewer
+    , maybeCustomer
+    , maybeSubscription
+    , recentCheckoutAttempts
+    , recentEvents
+    , recentReconciliationJobs
+    } = [hsx|
+    <div class="app-page-stack" data-billing-founder-diagnostics="true">
+        {renderFounderSubscriptionPanel maybeCustomer maybeSubscription}
+        {renderBillingCheckoutAttemptsPanel recentCheckoutAttempts}
+        {renderBillingEventsPanel recentEvents}
+        {renderBillingReconciliationPanel recentReconciliationJobs}
     </div>
 |]
 
@@ -94,12 +133,14 @@ billingCheckoutReturnState :: Maybe BillingCheckoutReturn -> BillingCheckoutRetu
 billingCheckoutReturnState Nothing =
     BillingCheckoutReturnState
         { billingCheckoutReturned = False
+        , billingCheckoutAttemptId = Nothing
         , billingCheckoutSessionId = Nothing
         }
-billingCheckoutReturnState (Just BillingCheckoutReturn { checkoutSessionId }) =
+billingCheckoutReturnState (Just BillingCheckoutReturn { checkoutAttemptId }) =
     BillingCheckoutReturnState
         { billingCheckoutReturned = True
-        , billingCheckoutSessionId = checkoutSessionId
+        , billingCheckoutAttemptId = Just checkoutAttemptId
+        , billingCheckoutSessionId = Nothing
         }
 
 renderBillingCheckoutReturnDialog :: Maybe BillingCheckoutReturn -> Html
@@ -107,7 +148,7 @@ renderBillingCheckoutReturnDialog Nothing = mempty
 renderBillingCheckoutReturnDialog (Just checkoutReturn) =
     renderPageDialogModal (pathTo BillingAction) DialogOverlayConfig
         { dialogOverlayTitle = billingCheckoutDialogTitle checkoutReturn.checkoutOutcome
-        , dialogOverlayBody = renderBillingCheckoutDialogBody checkoutReturn
+        , dialogOverlayBody = renderBillingCheckoutDialogBody checkoutReturn.checkoutOutcome
         , dialogOverlayStartButtons = []
         , dialogOverlayButtons = billingCheckoutDialogButtons checkoutReturn.checkoutOutcome
         , dialogOverlayDialogClass = "modal-dialog-centered"
@@ -136,50 +177,52 @@ billingCheckoutDialogButtons (BillingCheckoutFailed _) =
     , OverlayButton
         { overlayButtonLabel = "Try Checkout Again"
         , overlayButtonClass = "btn btn-primary"
-        , overlayButtonAction = DialogFormAction "POST" (pathTo CreateBillingCheckoutSessionAction) [] Nothing
+        , overlayButtonAction = DialogNavigationLoadingFormAction "POST" (pathTo CreateBillingCheckoutSessionAction) [] Nothing "Opening Stripe" "Please wait while Bepis opens Stripe's secure billing page."
         }
     ]
 
-renderBillingCheckoutDialogBody :: BillingCheckoutReturn -> Html
-renderBillingCheckoutDialogBody BillingCheckoutReturn { checkoutSessionId, checkoutOutcome = BillingCheckoutPending } = [hsx|
+renderBillingCheckoutDialogBody :: BillingCheckoutOutcome -> Html
+renderBillingCheckoutDialogBody BillingCheckoutPending = [hsx|
     <div class="d-flex gap-3 align-items-start">
         <div class="spinner-border text-primary flex-shrink-0" role="status" aria-label="Loading"></div>
         <div>
-            <p class="mb-2">Stripe has returned you to Bepis. We are waiting for the signed webhook to confirm the subscription.</p>
+            <p class="mb-2">Stripe has returned you to Bepis. We are waiting for secure confirmation of this Checkout.</p>
             <p class="mb-0 app-muted small">This usually takes a few seconds. You can leave this page open; it will update automatically.</p>
-            {renderCheckoutSessionHint checkoutSessionId}
         </div>
     </div>
 |]
-renderBillingCheckoutDialogBody BillingCheckoutReturn { checkoutOutcome = BillingCheckoutConfirmed subscription } = [hsx|
-    <p class="mb-2">Stripe confirmed the subscription and Bepis has updated this venue's billing status.</p>
-    <div class="small app-muted">Subscription: {subscription.stripeSubscriptionId}</div>
+renderBillingCheckoutDialogBody (BillingCheckoutConfirmed _) = [hsx|
+    <p class="mb-0">Your subscription is confirmed and this venue's billing status is up to date.</p>
 |]
-renderBillingCheckoutDialogBody BillingCheckoutReturn { checkoutOutcome = BillingCheckoutFailed event } = [hsx|
-    <p class="mb-2">Stripe sent a webhook for this checkout, but Bepis could not confirm the subscription automatically.</p>
-    <div class="small app-muted">Last event: {event.eventType} · {event.status}</div>
-    {renderBillingCheckoutErrorSummary event.errorSummary}
+renderBillingCheckoutDialogBody (BillingCheckoutFailed _) = [hsx|
+    <p class="mb-2">We could not confirm this Checkout. No subscription has been assumed from the browser return.</p>
+    <p class="mb-0 app-muted small">Try again, or contact Bepis support if the problem continues.</p>
 |]
 
-renderBillingCheckoutErrorSummary :: Maybe Text -> Html
-renderBillingCheckoutErrorSummary Nothing = mempty
-renderBillingCheckoutErrorSummary (Just summary) = [hsx|
-    <div class="small text-danger mt-2">{summary}</div>
-|]
+data OwnerBillingAction
+    = OwnerStartSubscription !Text
+    | OwnerOpenBillingPortal !Text
+    deriving (Eq, Show)
 
-renderCheckoutSessionHint :: Maybe Text -> Html
-renderCheckoutSessionHint Nothing = mempty
-renderCheckoutSessionHint (Just sessionId) = [hsx|
-    <div class="small app-muted mt-2">Checkout session: {sessionId}</div>
-|]
+data OwnerBillingPresentation = OwnerBillingPresentation
+    { ownerStateLabel      :: !Text
+    , ownerStateBadgeClass :: !Text
+    , ownerStateGuidance   :: !Text
+    , ownerStateAction     :: !OwnerBillingAction
+    }
 
-renderBillingStatusPanel :: BillingViewModel -> Html
-renderBillingStatusPanel BillingViewModel { maybeCustomer, maybeSubscription } =
-    simpleAppPanel
-        "Subscription"
-        (Just "Stripe-hosted Checkout and Customer Portal manage payment details outside this app.")
+renderOwnerSubscriptionPanel :: BillingViewModel -> Html
+renderOwnerSubscriptionPanel viewModel@BillingViewModel { maybeSubscription } =
+    let presentation = ownerBillingPresentation maybeSubscription
+     in simpleAppPanel
+        "Venue subscription"
+        (Just "Bepis costs AUD 100 per venue each month. Payment details stay on Stripe-hosted pages.")
         [hsx|
-            <div class="d-flex flex-column gap-3">
+            <div class="d-flex flex-column gap-4">
+                <section aria-label="Subscription status">
+                    <span class={"badge " <> presentation.ownerStateBadgeClass}>{presentation.ownerStateLabel}</span>
+                    <p class="mb-0 mt-2">{presentation.ownerStateGuidance}</p>
+                </section>
                 <div class="table-responsive">
                     <table class="table table-sm align-middle mb-0">
                         <tbody>
@@ -188,103 +231,364 @@ renderBillingStatusPanel BillingViewModel { maybeCustomer, maybeSubscription } =
                                 <td>{currentVenueName}</td>
                             </tr>
                             <tr>
-                                <th scope="row">Customer</th>
-                                <td>{maybe "Not created" (.stripeCustomerId) maybeCustomer}</td>
-                            </tr>
-                            <tr>
-                                <th scope="row">Subscription</th>
-                                <td>{renderSubscriptionSummary maybeSubscription}</td>
+                                <th scope="row">Plan</th>
+                                <td>Bepis venue subscription</td>
                             </tr>
                             <tr>
                                 <th scope="row">Price</th>
                                 <td>AUD 100/month</td>
                             </tr>
+                            <tr>
+                                <th scope="row">Current period</th>
+                                <td>{renderOwnerBillingPeriod maybeSubscription}</td>
+                            </tr>
                         </tbody>
                     </table>
                 </div>
-                <div class="d-flex flex-wrap gap-2">
-                    <form method="POST" action={CreateBillingCheckoutSessionAction}>
-                        <button type="submit" class="btn btn-primary">Start Subscription</button>
-                    </form>
-                    <form method="POST" action={CreateBillingPortalSessionAction}>
-                        <button type="submit" class="btn btn-outline-primary" disabled={isNothing maybeCustomer}>Manage Billing</button>
-                    </form>
+                {renderOwnerCancellationNotice maybeSubscription}
+                <div>
+                    {renderOwnerBillingAction viewModel presentation.ownerStateAction}
                 </div>
             </div>
         |]
 
-renderSubscriptionSummary :: Maybe VenueSubscription -> Html
-renderSubscriptionSummary Nothing = [hsx|No webhook-confirmed subscription|]
-renderSubscriptionSummary (Just subscription) = [hsx|
-    <div class="d-flex flex-column gap-1">
-        <div><span class="badge text-bg-secondary">{subscription.status}</span></div>
-        <div class="small app-muted">{subscription.stripeSubscriptionId}</div>
-        <div class="small app-muted">Current period: {formatMaybeTime subscription.currentPeriodStart} to {formatMaybeTime subscription.currentPeriodEnd}</div>
+ownerBillingPresentation :: Maybe VenueSubscription -> OwnerBillingPresentation
+ownerBillingPresentation Nothing =
+    ownerPresentation
+        "No subscription"
+        "text-bg-secondary"
+        "Start a subscription for this venue at AUD 100 per month. Checkout is hosted securely by Stripe."
+        (OwnerStartSubscription "Start Subscription")
+ownerBillingPresentation (Just subscription)
+    | subscription.status == "canceled" =
+        ownerPresentation
+            "Canceled"
+            "text-bg-secondary"
+            "This venue's subscription has ended. Restart it whenever you are ready."
+            (OwnerStartSubscription "Restart Subscription")
+    | subscription.status == "incomplete_expired" =
+        ownerPresentation
+            "Setup expired"
+            "text-bg-secondary"
+            "The previous payment setup expired before it was completed. You can start again safely."
+            (OwnerStartSubscription "Restart Subscription")
+    | subscription.cancelAtPeriodEnd =
+        ownerPresentation
+            "Cancellation scheduled"
+            "text-bg-warning"
+            "The subscription remains active for the current period but will not renew."
+            (OwnerOpenBillingPortal "Manage Cancellation")
+    | subscription.status `elem` ["past_due", "unpaid", "paused", "incomplete"] =
+        ownerPresentation
+            "Payment needs attention"
+            "text-bg-warning"
+            "Open Stripe to update your payment method and review the payment that needs attention."
+            (OwnerOpenBillingPortal "Resolve Payment")
+    | otherwise =
+        ownerPresentation
+            "Active"
+            "text-bg-success"
+            "Your subscription is active and renews automatically each month."
+            (OwnerOpenBillingPortal "Manage Billing")
+
+ownerPresentation :: Text -> Text -> Text -> OwnerBillingAction -> OwnerBillingPresentation
+ownerPresentation ownerStateLabel ownerStateBadgeClass ownerStateGuidance ownerStateAction =
+    OwnerBillingPresentation { .. }
+
+renderOwnerBillingPeriod :: Maybe VenueSubscription -> Text
+renderOwnerBillingPeriod Nothing = "Starts after subscription confirmation"
+renderOwnerBillingPeriod (Just subscription) =
+    case (subscription.currentPeriodStart, subscription.currentPeriodEnd) of
+        (Just periodStart, Just periodEnd) ->
+            formatDateDisplay (utctDay periodStart) <> " – " <> formatDateDisplay (utctDay periodEnd)
+        (Nothing, Just periodEnd) -> "Ends " <> formatDateDisplay (utctDay periodEnd)
+        (Just periodStart, Nothing) -> "Started " <> formatDateDisplay (utctDay periodStart)
+        (Nothing, Nothing) -> "Timing not yet available"
+
+renderOwnerCancellationNotice :: Maybe VenueSubscription -> Html
+renderOwnerCancellationNotice (Just subscription)
+    | subscription.cancelAtPeriodEnd = [hsx|
+        <div class="alert alert-warning mb-0" role="status">
+            <strong>Cancellation scheduled.</strong>
+            This subscription will not renew after {renderOwnerPeriodEnd subscription.currentPeriodEnd}.
+        </div>
+    |]
+renderOwnerCancellationNotice _ = mempty
+
+renderOwnerPeriodEnd :: Maybe UTCTime -> Text
+renderOwnerPeriodEnd =
+    maybe "the current billing period" (formatDateDisplay . utctDay)
+
+renderOwnerBillingAction :: BillingViewModel -> OwnerBillingAction -> Html
+renderOwnerBillingAction BillingViewModel { stripeCheckoutAvailable } (OwnerStartSubscription label) =
+    renderOwnerBillingActionForm
+        (pathTo CreateBillingCheckoutSessionAction)
+        label
+        stripeCheckoutAvailable
+        renderCheckoutUnavailableNotice
+renderOwnerBillingAction BillingViewModel { stripePortalAvailable } (OwnerOpenBillingPortal label) =
+    renderOwnerBillingActionForm
+        (pathTo CreateBillingPortalSessionAction)
+        label
+        stripePortalAvailable
+        renderPortalUnavailableNotice
+
+renderOwnerBillingActionForm :: Text -> Text -> Bool -> Html -> Html
+renderOwnerBillingActionForm actionUrl label available unavailableNotice = [hsx|
+    <div class="d-flex flex-column align-items-start gap-2">
+        <form method="POST"
+              action={actionUrl}
+              {...navigationLoadingAttrs "Opening Stripe" "Please wait while Bepis opens Stripe's secure billing page."}>
+            <button type="submit" class="btn btn-primary" disabled={not available}>{label}</button>
+        </form>
+        {if available then renderPaymentStepUpNotice else unavailableNotice}
     </div>
 |]
 
-renderBillingControlPanel :: Maybe VenueBillingControl -> Html
-renderBillingControlPanel maybeControl =
+renderPaymentStepUpNotice :: Html
+renderPaymentStepUpNotice = [hsx|
+    <p class="mb-0 app-muted small">You will verify with your passkey before Stripe opens.</p>
+|]
+
+renderCheckoutUnavailableNotice :: Html
+renderCheckoutUnavailableNotice = [hsx|
+    <p class="mb-0 app-muted small">New subscriptions are temporarily unavailable. Please try again later.</p>
+|]
+
+renderPortalUnavailableNotice :: Html
+renderPortalUnavailableNotice = [hsx|
+    <p class="mb-0 app-muted small">Billing management is temporarily unavailable. Please contact Bepis support if you need help.</p>
+|]
+
+renderFounderSubscriptionPanel :: Maybe VenueBillingCustomer -> Maybe VenueSubscription -> Html
+renderFounderSubscriptionPanel maybeCustomer maybeSubscription =
     simpleAppPanel
-        "Manual Controls"
-        (Just "Founder support can mark a venue read-only manually. Stripe status does not change this flag in v1.")
+        "Provider snapshot"
+        (Just "Bounded Stripe identifiers and local mirror state for founder support. Payment details are never stored here.")
         [hsx|
-            <form method="POST" action={UpdateVenueBillingControlAction} class="d-flex flex-column gap-3">
-                <div>
-                    {renderBillingManualReadOnlyToggle (maybe False (.manualReadOnly) maybeControl)}
-                </div>
-                <div>
-                    <label class="form-label" for="billing-manual-read-only-reason">Reason</label>
-                    <textarea
-                        id="billing-manual-read-only-reason"
-                        class="form-control"
-                        name="manualReadOnlyReason"
-                        rows="3"
-                        maxlength="500"
-                    >{fromMaybe "" (maybeControl >>= (.manualReadOnlyReason))}</textarea>
-                </div>
-                <div class="small app-muted">
-                    Last changed: {maybe "Never" renderControlAudit maybeControl}
-                </div>
-                <div>
-                    <button type="submit" class="btn btn-outline-primary">Update Controls</button>
-                </div>
-            </form>
+            <div class="table-responsive">
+                <table class="table table-sm align-middle mb-0">
+                    <tbody>
+                        <tr>
+                            <th scope="row" class="w-25">Venue</th>
+                            <td>{currentVenueName}</td>
+                        </tr>
+                        <tr>
+                            <th scope="row">Mode</th>
+                            <td>{founderProviderMode maybeCustomer maybeSubscription}</td>
+                        </tr>
+                        <tr>
+                            <th scope="row">Customer ID</th>
+                            <td class="small app-muted">{maybe "Not recorded" (boundedIdentifier . (.stripeCustomerId)) maybeCustomer}</td>
+                        </tr>
+                        <tr>
+                            <th scope="row">Subscription ID</th>
+                            <td class="small app-muted">{maybe "Not recorded" (boundedIdentifier . (.stripeSubscriptionId)) maybeSubscription}</td>
+                        </tr>
+                        <tr>
+                            <th scope="row">Price ID</th>
+                            <td class="small app-muted">{maybe "Not recorded" (boundedIdentifier . (.stripePriceId)) maybeSubscription}</td>
+                        </tr>
+                        <tr>
+                            <th scope="row">Provider status</th>
+                            <td>{maybe "No local subscription" (.status) maybeSubscription}</td>
+                        </tr>
+                        <tr>
+                            <th scope="row">Current period</th>
+                            <td>{renderOwnerBillingPeriod maybeSubscription}</td>
+                        </tr>
+                        <tr>
+                            <th scope="row">Cancellation at period end</th>
+                            <td>{maybe "Not recorded" (yesNo . (.cancelAtPeriodEnd)) maybeSubscription}</td>
+                        </tr>
+                        <tr>
+                            <th scope="row">Last synchronized</th>
+                            <td>{maybe "Not recorded" (formatUtcTimestamp . (.lastSyncedAt)) maybeSubscription}</td>
+                        </tr>
+                        <tr>
+                            <th scope="row">Last provider event</th>
+                            <td class="small app-muted">{maybe "Not recorded" (maybe "Not recorded" boundedIdentifier . (.lastAppliedStripeEventId)) maybeSubscription}</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
         |]
+
+founderProviderMode :: Maybe VenueBillingCustomer -> Maybe VenueSubscription -> Text
+founderProviderMode maybeCustomer maybeSubscription =
+    case maybeSubscription of
+        Just subscription -> providerModeText subscription.livemode
+        Nothing -> maybe "Not recorded" (providerModeText . (.livemode)) maybeCustomer
+
+providerModeText :: Bool -> Text
+providerModeText True  = "live"
+providerModeText False = "test"
+
+yesNo :: Bool -> Text
+yesNo True  = "Yes"
+yesNo False = "No"
+
+renderBillingCheckoutAttemptsPanel :: [BillingCheckoutAttempt] -> Html
+renderBillingCheckoutAttemptsPanel attempts =
+    simpleAppPanel
+        "Recent Checkout attempts"
+        (Just "Known local attempts only. Identifiers and failure summaries are bounded before display.")
+        ( if null attempts
+            then [hsx|<p class="mb-0 app-muted">No Checkout attempts recorded for this venue.</p>|]
+            else [hsx|
+                <div class="table-responsive">
+                    <table class="table table-sm align-middle mb-0">
+                        <thead>
+                            <tr>
+                                <th>Created</th>
+                                <th>Status</th>
+                                <th>Attempt</th>
+                                <th>Checkout Session</th>
+                                <th>Subscription</th>
+                                <th>Failure</th>
+                            </tr>
+                        </thead>
+                        <tbody>{forEach attempts renderBillingCheckoutAttemptRow}</tbody>
+                    </table>
+                </div>
+            |]
+        )
+
+renderBillingCheckoutAttemptRow :: BillingCheckoutAttempt -> Html
+renderBillingCheckoutAttemptRow attempt = [hsx|
+    <tr>
+        <td class="small">{formatUtcTimestamp attempt.createdAt}</td>
+        <td><span class={billingAttemptStatusBadgeClass attempt.status}>{boundedIdentifier attempt.status}</span></td>
+        <td class="small app-muted">{boundedIdentifier (inputValue attempt.id)}</td>
+        <td class="small app-muted">{maybe "Not recorded" boundedIdentifier attempt.stripeCheckoutSessionId}</td>
+        <td class="small app-muted">{maybe "Not recorded" boundedIdentifier attempt.stripeSubscriptionId}</td>
+        <td class="small text-danger">{billingCheckoutAttemptFailure attempt}</td>
+    </tr>
+|]
+
+billingAttemptStatusBadgeClass :: Text -> Text
+billingAttemptStatusBadgeClass status =
+    "badge " <> case status of
+        "completed" -> "text-bg-success"
+        "failed"    -> "text-bg-danger"
+        "expired"   -> "text-bg-secondary"
+        _           -> "text-bg-warning"
+
+billingCheckoutAttemptFailure :: BillingCheckoutAttempt -> Text
+billingCheckoutAttemptFailure attempt =
+    case catMaybes [attempt.errorCode, attempt.errorSummary] of
+        []           -> ""
+        failureParts -> boundedDiagnostic (Text.intercalate ": " failureParts)
+
+renderBillingReconciliationPanel :: [AppJob] -> Html
+renderBillingReconciliationPanel jobs =
+    simpleAppPanel
+        "Stripe synchronization"
+        (Just "Queue a read-only refresh of this venue's known Stripe state. Synchronization never creates a subscription or changes venue writability.")
+        [hsx|
+            <div class="d-flex flex-column gap-3">
+                <form method="POST" action={ReconcileVenueBillingAction}>
+                    <button type="submit" class="btn btn-outline-primary">Synchronize with Stripe</button>
+                </form>
+                {renderBillingReconciliationJobs jobs}
+            </div>
+        |]
+
+renderBillingReconciliationJobs :: [AppJob] -> Html
+renderBillingReconciliationJobs [] = [hsx|
+    <p class="mb-0 app-muted small">No billing synchronization has been queued for this venue.</p>
+|]
+renderBillingReconciliationJobs jobs = [hsx|
+    <div class="table-responsive">
+        <table class="table table-sm align-middle mb-0">
+            <thead>
+                <tr>
+                    <th>Queued</th>
+                    <th>Status</th>
+                    <th>Job</th>
+                    <th>Diagnostic</th>
+                </tr>
+            </thead>
+            <tbody>{forEach jobs renderBillingReconciliationJobRow}</tbody>
+        </table>
+    </div>
+|]
+
+renderBillingReconciliationJobRow :: AppJob -> Html
+renderBillingReconciliationJobRow appJob =
+    let presentation = reconciliationJobStatusPresentation appJob.status
+     in [hsx|
+        <tr>
+            <td class="small">{formatUtcTimestamp appJob.createdAt}</td>
+            <td><span class={presentation.statusBadgeClass}>{presentation.statusLabel}</span></td>
+            <td class="small app-muted">{boundedIdentifier (inputValue appJob.id)}</td>
+            <td class="small text-danger">{reconciliationDiagnostic appJob}</td>
+        </tr>
+    |]
+
+data ReconciliationJobStatusPresentation = ReconciliationJobStatusPresentation
+    { statusLabel      :: !Text
+    , statusBadgeClass :: !Text
+    }
+
+reconciliationJobStatusPresentation :: JobStatus -> ReconciliationJobStatusPresentation
+reconciliationJobStatusPresentation status =
+    case inputValue status of
+        "job_status_not_started" -> presentation "queued" "text-bg-secondary"
+        "job_status_running"     -> presentation "running" "text-bg-secondary"
+        "job_status_retry"       -> presentation "retrying" "text-bg-warning"
+        "job_status_succeeded"   -> presentation "succeeded" "text-bg-success"
+        "job_status_failed"      -> presentation "failed" "text-bg-danger"
+        "job_status_timed_out"   -> presentation "timed out" "text-bg-danger"
+        other                    -> presentation other "text-bg-secondary"
+  where
+    presentation statusLabel badgeClass =
+        ReconciliationJobStatusPresentation
+            { statusLabel
+            , statusBadgeClass = "badge " <> badgeClass
+            }
+
+reconciliationDiagnostic :: AppJob -> Text
+reconciliationDiagnostic appJob
+    | inputValue appJob.status `elem` ["job_status_retry", "job_status_failed", "job_status_timed_out"] =
+        maybe "No diagnostic recorded." boundedDiagnostic appJob.lastError
+    | otherwise = ""
 
 renderBillingEventsPanel :: [BillingEvent] -> Html
 renderBillingEventsPanel events =
     simpleAppPanel
-        "Recent Stripe Events"
-        (Just "Webhook summaries only. Full Stripe payloads are not stored.")
+        "Recent Stripe events"
+        (Just "Bounded webhook summaries only. Full Stripe payloads are not stored.")
         ( if null events
             then [hsx|<p class="mb-0 app-muted">No billing events received.</p>|]
             else [hsx|
-                    <div class="table-responsive">
-                        <table class="table table-sm align-middle mb-0">
-                            <thead>
-                                <tr>
-                                    <th>Received</th>
-                                    <th>Type</th>
-                                    <th>Status</th>
-                                    <th>Object</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {forEach events renderBillingEventRow}
-                            </tbody>
-                        </table>
-                    </div>
-                |]
+                <div class="table-responsive">
+                    <table class="table table-sm align-middle mb-0">
+                        <thead>
+                            <tr>
+                                <th>Received</th>
+                                <th>Event</th>
+                                <th>Type</th>
+                                <th>Status</th>
+                                <th>Object</th>
+                                <th>Summary</th>
+                            </tr>
+                        </thead>
+                        <tbody>{forEach events renderBillingEventRow}</tbody>
+                    </table>
+                </div>
+            |]
         )
 
 renderBillingEventRow :: BillingEvent -> Html
 renderBillingEventRow event = [hsx|
     <tr>
-        <td class="small">{tshow event.receivedAt}</td>
-        <td>{event.eventType}</td>
-        <td><span class={eventStatusBadgeClass event.status}>{event.status}</span></td>
+        <td class="small">{formatUtcTimestamp event.receivedAt}</td>
+        <td class="small app-muted">{boundedIdentifier event.stripeEventId}</td>
+        <td>{boundedIdentifier event.eventType}</td>
+        <td><span class={eventStatusBadgeClass event.status}>{boundedIdentifier event.status}</span></td>
         <td class="small app-muted">{renderProviderObject event}</td>
+        <td class="small text-danger">{maybe "" boundedDiagnostic event.errorSummary}</td>
     </tr>
 |]
 
@@ -298,23 +602,18 @@ eventStatusBadgeClass status =
 
 renderProviderObject :: BillingEvent -> Text
 renderProviderObject event =
-    Text.intercalate " " (filter (not . Text.null) [fromMaybe "" event.providerObjectType, fromMaybe "" event.providerObjectId])
+    boundedIdentifier $
+        Text.intercalate " " $
+            filter (not . Text.null)
+                [ fromMaybe "" event.providerObjectType
+                , fromMaybe "" event.providerObjectId
+                ]
 
-renderBillingManualReadOnlyToggle :: Bool -> Html
-renderBillingManualReadOnlyToggle isReadOnly =
-    renderAppToggleButton $ (defaultAppToggleButtonConfig "billing-manual-read-only" isReadOnly [hsx|<span>Manual read-only</span>|])
-        { appToggleInputName = Just "manualReadOnly"
-        , appToggleInputValue = "true"
-        , appToggleRoleSwitch = True
-        }
+boundedIdentifier :: Text -> Text
+boundedIdentifier = Text.take 255
 
-renderControlAudit :: VenueBillingControl -> Text
-renderControlAudit control =
-    formatMaybeTime control.setAt
-
-formatMaybeTime :: Show value => Maybe value -> Text
-formatMaybeTime =
-    maybe "Not recorded" tshow
+boundedDiagnostic :: Text -> Text
+boundedDiagnostic = Text.take 1000
 
 currentVenueName :: (?context :: ControllerContext) => Text
 currentVenueName =

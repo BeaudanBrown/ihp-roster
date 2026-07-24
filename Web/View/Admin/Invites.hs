@@ -8,8 +8,8 @@ module Web.View.Admin.Invites
 
 import Application.Helper.Controller (currentVenueOrNothing)
 import qualified Application.Helper.FrontendContract.Surface.Admin as Surface
+import qualified Application.Helper.FrontendContract.Surface.Admin.Action as AdminAction
 import Application.Helper.FrontendContract.Surface.Runtime (FrontendSurfaceActionRoute (..),
-                                                            frontendSurfaceAction,
                                                             renderFrontendSurfaceActionForm,
                                                             renderFrontendSurfaceMount)
 import Application.Helper.FrontendContract.Surface.Values
@@ -35,7 +35,7 @@ renderInvitesSection invitations rosterGroupId =
 renderInviteCreateForm :: Id RosterGroup -> Html
 renderInviteCreateForm rosterGroupId =
     renderFrontendSurfaceActionForm
-        (frontendSurfaceAction @Surface.AdminInvitesSurface @Surface.CreateVenueInvitation fields)
+        (AdminAction.createVenueInvitationAction fields)
         (inviteCreateRoute rosterGroupId)
         [hsx|
             <div class="row g-2 align-items-end">
@@ -49,7 +49,7 @@ renderInviteCreateForm rosterGroupId =
             </div>
         |]
   where
-    fields = surfaceField @Surface.Email "" :& NoSurfaceFields
+    fields = AdminAction.createVenueInvitationActionFields ""
 
 inviteCreateRoute :: Id RosterGroup -> FrontendSurfaceActionRoute
 inviteCreateRoute rosterGroupId = FrontendSurfaceActionRoute
@@ -67,7 +67,7 @@ renderInvitesSectionFragmentWithSwap :: Maybe Text -> [VenueInvitation] -> Id Ro
 renderInvitesSectionFragmentWithSwap maybeSwapOob invitations rosterGroupId =
     renderFrontendSurfaceMount (adminInvitesSurfaceImpl AdminVenueScopeValue { adminVenueId = currentVenueScopeId, adminRosterGroupId = Just (unpackId rosterGroupId) }) $
         Html5.div
-            ! attr "id" (surfaceFragmentTargetId @Surface.AdminInvitesSurface @Surface.AdminInvitesFragment NoSurfaceFields)
+            ! attr "id" (surfaceFragmentTargetId @Surface.AdminInvitesSurface @Surface.AdminInvitesFragment noSurfaceFields)
             ! maybeAttr "hx-swap-oob" maybeSwapOob
             ! uiRegionTransitionAttrs UiRegionTransitionFade
             $ renderInvitesSection invitations rosterGroupId
@@ -126,7 +126,7 @@ renderInviteRowActions :: Id RosterGroup -> VenueInvitation -> Html
 renderInviteRowActions rosterGroupId invitation
     | inputValue invitation.status /= "pending" = mempty
     | otherwise =
-        renderFrontendSurfaceActionForm (frontendSurfaceAction @Surface.AdminInvitesSurface @Surface.RevokeVenueInvitation NoSurfaceFields) revokeRoute [hsx|
+        renderFrontendSurfaceActionForm (AdminAction.revokeVenueInvitationAction AdminAction.revokeVenueInvitationActionFields) revokeRoute [hsx|
             <button class="btn btn-sm btn-outline-danger" type="submit">Revoke</button>
         |]
     where

@@ -22,6 +22,9 @@ module Web.RosterWeeks.FrontendSurface
     , rosterInteractionMountKey
     , rosterLayoutModeActivationRef
     , rosterLayoutModeIntentName
+    , rosterStaffLinkedHighlight
+    , rosterShiftGroupLinkedHighlight
+    , rosterDayTimelineShiftGroupLinkedHighlight
     , rosterSurfaceScope
     , rosterMountedFragmentPlanFromRenderData
     , rosterMoveShiftIntentName
@@ -46,7 +49,9 @@ import Application.Helper.FrontendContract.Surface.Live (SurfaceFragmentKey,
                                                          SurfaceScope,
                                                          surfaceScopeKey)
 import Application.Helper.FrontendContract.Surface.Reflect (reflectSurfaceSpec)
+import Application.Helper.FrontendContract.Surface.Request.Runtime
 import qualified Application.Helper.FrontendContract.Surface.Roster as Surface
+import qualified Application.Helper.FrontendContract.Surface.Roster.Intent as SurfaceIntent
 import qualified Application.Helper.FrontendContract.Surface.Roster.Live as SurfaceLive
 import Application.Helper.FrontendContract.Surface.Runtime
 import Application.Helper.FrontendContract.Surface.Values
@@ -59,7 +64,6 @@ import Web.RosterWeeks.Paths (rosterDayTimelineContentFragmentUrl,
                               rosterDropStaffUrl, rosterDuplicateShiftUrl,
                               rosterLayoutPreferenceUrl, rosterMoveShiftUrl,
                               rosterOverviewFragmentUrl,
-                              rosterStaffSelfServiceLeaveFormFragmentUrl,
                               rosterTimelineMoveShiftUrl,
                               rosterWeekContentFragmentUrl,
                               rosterWeekDayColumnsFragmentUrl,
@@ -115,7 +119,7 @@ rosterSurfaceImpl scope plan =
     mkSurfaceImplFromValues @Surface.RosterSurface @Surface.RosterWeek
         rosterInteractionMountKey
         (rosterWeekScopeFields scope)
-        NoSurfaceFields
+        noSurfaceFields
         (rosterCandidateMountedFragments scope plan)
 
 rosterDayTimelineSurfaceImpl :: RosterDayTimelineScopeValue -> SurfaceImpl Surface.RosterDayTimelineSurface
@@ -123,7 +127,7 @@ rosterDayTimelineSurfaceImpl scope =
     mkSurfaceImplFromValues @Surface.RosterDayTimelineSurface @Surface.RosterDayTimeline
         (tshow scope.rosterDayTimelineDayId)
         (rosterDayTimelineScopeFields scope)
-        NoSurfaceFields
+        noSurfaceFields
         (rosterDayTimelineCandidateMountedFragments scope)
 
 rosterSurfaceMountConfig :: RosterWeekScopeValue -> RosterMountedFragmentPlan -> FrontendSurfaceMountConfig
@@ -197,6 +201,15 @@ rosterDayTimelineDropzoneRef = surfaceDropzoneRefValue @Surface.RosterDayTimelin
 rosterLayoutModeActivationRef :: SurfaceIR.InteractionActivationRefIR
 rosterLayoutModeActivationRef = surfaceActivationRefValue @Surface.RosterSurface @SurfaceInteraction.RosterLayoutModeActivationRef
 
+rosterStaffLinkedHighlight :: SurfaceIR.LinkedHighlightIR
+rosterStaffLinkedHighlight = surfaceLinkedHighlightValue @Surface.RosterSurface @Surface.StaffShiftsHighlight
+
+rosterShiftGroupLinkedHighlight :: SurfaceIR.LinkedHighlightIR
+rosterShiftGroupLinkedHighlight = surfaceLinkedHighlightValue @Surface.RosterSurface @Surface.ShiftGroupHighlight
+
+rosterDayTimelineShiftGroupLinkedHighlight :: SurfaceIR.LinkedHighlightIR
+rosterDayTimelineShiftGroupLinkedHighlight = surfaceLinkedHighlightValue @Surface.RosterDayTimelineSurface @Surface.ShiftGroupHighlight
+
 rosterFrontendSurfaceIR :: SurfaceIR.SurfaceIR
 rosterFrontendSurfaceIR = reflectSurfaceSpec @Surface.RosterSurface
 
@@ -233,7 +246,6 @@ rosterWeekGridMountedFragments scope plan =
     , rosterWageRailMountedFragment scope
     , rosterSlotsGridMountedFragment scope
     , rosterStaffPanelMountedFragment scope
-    , rosterStaffSelfServiceLeaveFormMountedFragment scope
     ]
         <> map (rosterDaySectionMountedFragment scope) plan.rosterMountedDayIds
         <> map (uncurry (rosterRowMountedFragment scope)) plan.rosterMountedRows
@@ -252,66 +264,46 @@ rosterMountedFragmentForProjection scope = \case
     RosterProjectionWageRail -> rosterWageRailMountedFragment scope
     RosterProjectionSlotsGrid -> rosterSlotsGridMountedFragment scope
     RosterProjectionStaffPanel -> rosterStaffPanelMountedFragment scope
-    RosterProjectionStaffSelfServiceLeaveForm -> rosterStaffSelfServiceLeaveFormMountedFragment scope
     RosterProjectionDaySection rosterDayId -> rosterDaySectionMountedFragment scope (Id rosterDayId)
     RosterProjectionRow rosterDayId rowIndex -> rosterRowMountedFragment scope (Id rosterDayId) rowIndex
 
 rosterWeekScopeFields :: RosterWeekScopeValue -> SurfaceFields (SurfaceScopeFieldSpecs Surface.RosterSurface Surface.RosterWeek)
 rosterWeekScopeFields scope =
     surfaceField @Surface.VenueId scope.rosterWeekVenueId
-        :& surfaceField @Surface.RosterGroupId (unpackId scope.rosterWeekGroupId)
-        :& surfaceField @Surface.WeekOffset scope.rosterWeekWeekOffset
-        :& NoSurfaceFields
+        &: surfaceField @Surface.RosterGroupId (unpackId scope.rosterWeekGroupId)
+        &: surfaceField @Surface.WeekOffset scope.rosterWeekWeekOffset
+        &: noSurfaceFields
 
 rosterDayTimelineScopeFields :: RosterDayTimelineScopeValue -> SurfaceFields (SurfaceScopeFieldSpecs Surface.RosterDayTimelineSurface Surface.RosterDayTimeline)
 rosterDayTimelineScopeFields scope =
     surfaceField @Surface.VenueId scope.rosterDayTimelineVenueId
-        :& surfaceField @Surface.RosterGroupId (unpackId scope.rosterDayTimelineGroupId)
-        :& surfaceField @Surface.WeekOffset scope.rosterDayTimelineWeekOffset
-        :& surfaceField @Surface.RosterDayId (unpackId scope.rosterDayTimelineDayId)
-        :& NoSurfaceFields
+        &: surfaceField @Surface.RosterGroupId (unpackId scope.rosterDayTimelineGroupId)
+        &: surfaceField @Surface.WeekOffset scope.rosterDayTimelineWeekOffset
+        &: surfaceField @Surface.RosterDayId (unpackId scope.rosterDayTimelineDayId)
+        &: noSurfaceFields
 
 rosterIntentForms :: RosterWeekScopeValue -> [FrontendSurfaceIntentForm]
 rosterIntentForms scope =
-    [ frontendSurfaceIntentForm @Surface.RosterSurface @Surface.SetRosterLayoutMode
-        rosterLayoutModeFields
+    [ SurfaceIntent.setRosterLayoutModeIntentForm
+        (SurfaceIntent.setRosterLayoutModeIntentFields "day_rows")
         (rosterLayoutModeRequest scope)
-    , frontendSurfaceIntentForm @Surface.RosterSurface @Surface.MoveRosterShiftToSlot
-        emptyRosterDragDropFields
+    , SurfaceIntent.moveRosterShiftToSlotIntentForm
+        (SurfaceIntent.moveRosterShiftToSlotIntentFields "" "" (Just "") (Just "") (Just "") (Just "") (Just "") (Just "") (Just "") (Just "") (Just ""))
         (rosterMoveShiftRequest scope)
-    , frontendSurfaceIntentForm @Surface.RosterSurface @Surface.DuplicateRosterShiftToDay
-        emptyRosterDragDropFields
+    , SurfaceIntent.duplicateRosterShiftToDayIntentForm
+        (SurfaceIntent.duplicateRosterShiftToDayIntentFields "" "" (Just "") (Just "") (Just "") (Just "") (Just "") (Just "") (Just "") (Just "") (Just ""))
         (rosterDuplicateShiftRequest scope)
-    , frontendSurfaceIntentForm @Surface.RosterSurface @Surface.DropRosterStaff
-        emptyRosterDragDropFields
+    , SurfaceIntent.dropRosterStaffIntentForm
+        (SurfaceIntent.dropRosterStaffIntentFields "" "" (Just "") (Just "") (Just "") (Just "") (Just "") (Just "") (Just "") (Just "") (Just ""))
         (rosterDropStaffRequest scope)
     ]
 
 rosterDayTimelineIntentForms :: RosterDayTimelineScopeValue -> [FrontendSurfaceIntentForm]
 rosterDayTimelineIntentForms scope =
-    [ frontendSurfaceIntentForm @Surface.RosterDayTimelineSurface @Surface.MoveRosterTimelineShift
-        emptyRosterDragDropFields
+    [ SurfaceIntent.moveRosterTimelineShiftIntentForm
+        (SurfaceIntent.moveRosterTimelineShiftIntentFields "" "" (Just "") (Just "") (Just "") (Just "") (Just "") (Just "") (Just "") (Just "") (Just ""))
         (rosterDayTimelineMoveShiftRequest scope)
     ]
-
-rosterLayoutModeFields :: SurfaceFields '[ 'Field Surface.RosterLayoutMode 'WireText]
-rosterLayoutModeFields =
-    surfaceField @Surface.RosterLayoutMode "day_rows" :& NoSurfaceFields
-
-emptyRosterDragDropFields :: SurfaceFields SurfaceInteraction.DragDropFields
-emptyRosterDragDropFields =
-    surfaceField @SurfaceInteraction.SourceItemKey ""
-        :& surfaceField @SurfaceInteraction.TargetDropzoneKey ""
-        :& surfaceOptionalField @SurfaceInteraction.SessionKind (Just "")
-        :& surfaceOptionalField @SurfaceInteraction.PointerId (Just "")
-        :& surfaceOptionalField @SurfaceInteraction.PointerType (Just "")
-        :& surfaceOptionalField @SurfaceInteraction.StartClientX (Just "")
-        :& surfaceOptionalField @SurfaceInteraction.StartClientY (Just "")
-        :& surfaceOptionalField @SurfaceInteraction.CurrentClientX (Just "")
-        :& surfaceOptionalField @SurfaceInteraction.CurrentClientY (Just "")
-        :& surfaceOptionalField @SurfaceInteraction.DeltaX (Just "")
-        :& surfaceOptionalField @SurfaceInteraction.DeltaY (Just "")
-        :& NoSurfaceFields
 
 rosterLayoutModeRequest :: RosterWeekScopeValue -> FrontendSurfaceHtmxRequest
 rosterLayoutModeRequest scope =
@@ -351,82 +343,74 @@ rosterDragDropRequest requestUrl =
 rosterContentMountedFragment :: RosterWeekScopeValue -> FrontendSurfaceMountedFragment
 rosterContentMountedFragment scope =
     frontendSurfaceMountedFragmentFor @Surface.RosterSurface @Surface.RosterContent
-        NoSurfaceFields
-        NoSurfaceFields
+        noSurfaceFields
+        noSurfaceFields
         (rosterWeekContentFragmentUrl scope.rosterWeekWeekOffset scope.rosterWeekGroupId)
         FrontendSurfaceReplace
 
 rosterGridToolbarMountedFragment :: RosterWeekScopeValue -> FrontendSurfaceMountedFragment
 rosterGridToolbarMountedFragment scope =
     frontendSurfaceMountedFragmentFor @Surface.RosterSurface @Surface.RosterGridToolbar
-        NoSurfaceFields
-        NoSurfaceFields
+        noSurfaceFields
+        noSurfaceFields
         (rosterWeekGridToolbarFragmentUrl scope.rosterWeekWeekOffset scope.rosterWeekGroupId scope.rosterWeekTimelineDayOffset)
         FrontendSurfaceReplace
 
 rosterGridFrameMountedFragment :: RosterWeekScopeValue -> FrontendSurfaceMountedFragment
 rosterGridFrameMountedFragment scope =
     frontendSurfaceMountedFragmentFor @Surface.RosterSurface @Surface.RosterGridFrame
-        NoSurfaceFields
-        NoSurfaceFields
+        noSurfaceFields
+        noSurfaceFields
         (rosterWeekGridFrameFragmentUrl scope.rosterWeekWeekOffset scope.rosterWeekGroupId scope.rosterWeekTimelineDayOffset)
         FrontendSurfaceReplace
 
 rosterDayColumnsMountedFragment :: RosterWeekScopeValue -> FrontendSurfaceMountedFragment
 rosterDayColumnsMountedFragment scope =
     frontendSurfaceMountedFragmentFor @Surface.RosterSurface @Surface.RosterDayColumns
-        NoSurfaceFields
-        NoSurfaceFields
+        noSurfaceFields
+        noSurfaceFields
         (rosterWeekDayColumnsFragmentUrl scope.rosterWeekWeekOffset scope.rosterWeekGroupId)
         FrontendSurfaceReplace
 
 rosterDayRailMountedFragment :: RosterWeekScopeValue -> FrontendSurfaceMountedFragment
 rosterDayRailMountedFragment scope =
     frontendSurfaceMountedFragmentFor @Surface.RosterSurface @Surface.RosterDayRail
-        NoSurfaceFields
-        NoSurfaceFields
+        noSurfaceFields
+        noSurfaceFields
         (rosterWeekDayRailFragmentUrl scope.rosterWeekWeekOffset scope.rosterWeekGroupId)
         FrontendSurfaceReplace
 
 rosterWageRailMountedFragment :: RosterWeekScopeValue -> FrontendSurfaceMountedFragment
 rosterWageRailMountedFragment scope =
     frontendSurfaceMountedFragmentFor @Surface.RosterSurface @Surface.RosterWageRail
-        NoSurfaceFields
-        NoSurfaceFields
+        noSurfaceFields
+        noSurfaceFields
         (rosterWeekWageRailFragmentUrl scope.rosterWeekWeekOffset scope.rosterWeekGroupId)
         FrontendSurfaceReplace
 
 rosterSlotsGridMountedFragment :: RosterWeekScopeValue -> FrontendSurfaceMountedFragment
 rosterSlotsGridMountedFragment scope =
     frontendSurfaceMountedFragmentFor @Surface.RosterSurface @Surface.RosterSlotsGrid
-        NoSurfaceFields
-        NoSurfaceFields
+        noSurfaceFields
+        noSurfaceFields
         (rosterWeekSlotsGridFragmentUrl scope.rosterWeekWeekOffset scope.rosterWeekGroupId)
         FrontendSurfaceReplace
 
 rosterStaffPanelMountedFragment :: RosterWeekScopeValue -> FrontendSurfaceMountedFragment
 rosterStaffPanelMountedFragment scope =
     frontendSurfaceMountedFragmentFor @Surface.RosterSurface @Surface.RosterStaffPanel
-        NoSurfaceFields
-        NoSurfaceFields
+        noSurfaceFields
+        noSurfaceFields
         (rosterWeekStaffPanelFragmentUrl scope.rosterWeekWeekOffset scope.rosterWeekGroupId)
-        FrontendSurfaceReplace
-
-rosterStaffSelfServiceLeaveFormMountedFragment :: RosterWeekScopeValue -> FrontendSurfaceMountedFragment
-rosterStaffSelfServiceLeaveFormMountedFragment scope =
-    frontendSurfaceMountedFragmentFor @Surface.RosterSurface @Surface.RosterStaffSelfServiceLeaveFormFragment
-        NoSurfaceFields
-        NoSurfaceFields
-        (rosterStaffSelfServiceLeaveFormFragmentUrl scope.rosterWeekWeekOffset scope.rosterWeekGroupId)
         FrontendSurfaceReplace
 
 rosterWeekOverviewMountedFragment :: RosterWeekScopeValue -> FrontendSurfaceMountedFragment
 rosterWeekOverviewMountedFragment scope =
     frontendSurfaceMountedFragmentFor @Surface.RosterSurface @Surface.RosterWeekOverview
-        NoSurfaceFields
+        noSurfaceFields
         ( surfaceField @Surface.RosterGroupId (unpackId scope.rosterWeekGroupId)
-            :& surfaceField @Surface.WeekOffset scope.rosterWeekWeekOffset
-            :& NoSurfaceFields
+            &: surfaceField @Surface.WeekOffset scope.rosterWeekWeekOffset
+            &: noSurfaceFields
         )
         (rosterOverviewFragmentUrl scope.rosterWeekWeekOffset scope.rosterWeekGroupId)
         FrontendSurfaceReplace
@@ -434,8 +418,8 @@ rosterWeekOverviewMountedFragment scope =
 rosterDaySectionMountedFragment :: RosterWeekScopeValue -> Id RosterDay -> FrontendSurfaceMountedFragment
 rosterDaySectionMountedFragment scope rosterDayId =
     frontendSurfaceMountedFragmentFor @Surface.RosterSurface @Surface.RosterDaySection
-        (surfaceField @Surface.RosterDayId (unpackId rosterDayId) :& NoSurfaceFields)
-        (surfaceField @Surface.RosterDayId (unpackId rosterDayId) :& NoSurfaceFields)
+        (surfaceField @Surface.RosterDayId (unpackId rosterDayId) &: noSurfaceFields)
+        (surfaceField @Surface.RosterDayId (unpackId rosterDayId) &: noSurfaceFields)
         (rosterWeekDaySectionFragmentUrl scope.rosterWeekWeekOffset scope.rosterWeekGroupId rosterDayId)
         FrontendSurfaceReplace
 
@@ -443,12 +427,12 @@ rosterRowMountedFragment :: RosterWeekScopeValue -> Id RosterDay -> Int -> Front
 rosterRowMountedFragment scope rosterDayId rowIndex =
     frontendSurfaceMountedFragmentFor @Surface.RosterSurface @Surface.RosterRow
         ( surfaceField @Surface.RosterDayId (unpackId rosterDayId)
-            :& surfaceField @Surface.RowIndex rowIndex
-            :& NoSurfaceFields
+            &: surfaceField @Surface.RowIndex rowIndex
+            &: noSurfaceFields
         )
         ( surfaceField @Surface.RosterDayId (unpackId rosterDayId)
-            :& surfaceField @Surface.RowIndex rowIndex
-            :& NoSurfaceFields
+            &: surfaceField @Surface.RowIndex rowIndex
+            &: noSurfaceFields
         )
         (rosterWeekRowFragmentUrl scope.rosterWeekWeekOffset scope.rosterWeekGroupId rosterDayId rowIndex)
         FrontendSurfaceReplace
@@ -456,7 +440,7 @@ rosterRowMountedFragment scope rosterDayId rowIndex =
 rosterDayTimelineContentMountedFragment :: RosterDayTimelineScopeValue -> FrontendSurfaceMountedFragment
 rosterDayTimelineContentMountedFragment scope =
     frontendSurfaceMountedFragmentFor @Surface.RosterDayTimelineSurface @Surface.RosterDayTimelineContent
-        (surfaceField @Surface.RosterDayId (unpackId scope.rosterDayTimelineDayId) :& NoSurfaceFields)
-        (surfaceField @Surface.RosterDayId (unpackId scope.rosterDayTimelineDayId) :& NoSurfaceFields)
+        (surfaceField @Surface.RosterDayId (unpackId scope.rosterDayTimelineDayId) &: noSurfaceFields)
+        (surfaceField @Surface.RosterDayId (unpackId scope.rosterDayTimelineDayId) &: noSurfaceFields)
         (rosterDayTimelineContentFragmentUrl scope.rosterDayTimelineWeekOffset scope.rosterDayTimelineGroupId scope.rosterDayTimelineDayId)
         FrontendSurfaceReplace

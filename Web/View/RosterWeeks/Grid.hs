@@ -31,16 +31,23 @@ import Application.Helper.FrontendContract.AppShell (OpenRosterShiftDialog)
 import Application.Helper.FrontendContract.AppShell.Runtime (AppShellActionRoute (..),
                                                              appShellActionByMarker,
                                                              applyAppShellActionAttrs)
+import Application.Helper.FrontendContract.HorizontalScroll.Runtime
 import qualified Application.Helper.FrontendContract.Surface.Interaction as SurfaceInteraction
+import Application.Helper.FrontendContract.Surface.Request.Runtime (FrontendSurfaceAction)
 import qualified Application.Helper.FrontendContract.Surface.Roster as Surface
-import Application.Helper.FrontendContract.Surface.Runtime (FrontendSurfaceAction,
-                                                            FrontendSurfaceActionRoute (..),
+import qualified Application.Helper.FrontendContract.Surface.Roster.Action as RosterAction
+import Application.Helper.FrontendContract.Surface.Roster.Chrome (RosterColumnEditingState (..),
+                                                                  rosterColumnEditDoneAttrs,
+                                                                  rosterColumnEditStartAttrs,
+                                                                  rosterColumnEditorAttrs)
+import Application.Helper.FrontendContract.Surface.Roster.ImageExport (rosterImageExportCellAttrs,
+                                                                       rosterImageExportProjectionAttrs,
+                                                                       rosterImageExportRowAttrs)
+import Application.Helper.FrontendContract.Surface.Runtime (FrontendSurfaceActionRoute (..),
                                                             FrontendSurfaceInteractionShellConfig (..),
                                                             FrontendSurfaceMountConfig (..),
-                                                            frontendSurfaceAction,
                                                             renderFrontendSurfaceActionForm,
                                                             renderFrontendSurfaceInteractionShell)
-import Application.Helper.FrontendContract.Surface.Values (SurfaceFields (NoSurfaceFields))
 import Application.Helper.Profiling (profileHtmlComponent, profileRenderCounter)
 import Application.Helper.RosterWagePrediction
 import Application.Helper.ShiftTypeColours (shiftTypeColourPaletteKeys)
@@ -117,6 +124,7 @@ renderRosterLayout gridModel@RosterGridRenderModel { gridRosterWeek, gridRosterD
                 then renderrosterStaffPanelLiveFragment RosterStaffPanelRenderModel
                     { staffPanelRosterWeek = gridRosterWeek
                     , staffPanelWeekOffset = gridWeekOffset
+                    , staffPanelWeekStartDate = gridModel.gridWeekStartDate
                     , staffPanelRosterGroups = gridRosterGroups
                     , staffPanelCurrentRosterGroup = gridCurrentRosterGroup
                     , staffPanelAssignmentFilters = gridModel.gridAssignmentFilters
@@ -134,7 +142,7 @@ renderRosterLayout gridModel@RosterGridRenderModel { gridRosterWeek, gridRosterD
             { interactionShellHtmxSync = Just ("#" <> rosterWeekShellId <> ":replace")
             , interactionShellIntentForms = rosterIntentForms rosterSurfaceScope
             } [hsx|
-            <div class="row g-4 align-items-start roster-layout">
+            <div id={rosterLayoutFragmentId} class="row g-4 align-items-start roster-layout">
                 {renderrosterContentLiveFragment gridModel}
                 {forEach gridRosterWeek renderStaffPanelMount}
                 {renderRosterStaffSelfServicePanelFragment gridStaffSelfServicePanel}
@@ -201,15 +209,14 @@ renderrosterGridFrameLiveFragmentWithSwap maybeSwapOob gridModel@RosterGridRende
              hx-swap-oob={maybeSwapOob}
              data-roster-layout={frameLayoutValue}
              data-roster-visibility={if rosterIsHiddenDraft then ("hidden-draft" :: Text) else "visible"}
-             data-horizontal-snap={if isDayColumnsLayout then ("nearest-item" :: Text) else ""}
-             data-horizontal-snap-item-selector={if isDayColumnsLayout then (".roster-day-column" :: Text) else ""}
-             data-horizontal-drag-scroll={if isDayColumnsLayout then ("mouse" :: Text) else ""}
-             data-horizontal-drag-scroll-ignore-selector={if isDayColumnsLayout then ("[data-roster-shift-launcher]" :: Text) else ""}
+             {...if isDayColumnsLayout
+                    then horizontalSnapAttrs (HorizontalSnapNearestItem ".roster-day-column")
+                        <> horizontalDragAttrs (HorizontalDragConfig (Just "[data-roster-shift-launcher]"))
+                    else []}
              data-roster-end-times={if gridRosterEndTimesEnabled then ("true" :: Text) else "false"}
-             data-roster-column-editor={if slotColumnsAreEditable && not rosterIsHiddenDraft then ("available" :: Text) else "unavailable"}
+             {...rosterColumnEditorAttrs RosterColumnEditingInactive}
              data-roster-wages={if gridShowWageEstimates && not rosterIsHiddenDraft then ("visible" :: Text) else "hidden"}
-             data-roster-warnings={if gridShowRosterWarnings && not rosterIsHiddenDraft then ("visible" :: Text) else "hidden"}
-             style={"--roster-slot-count:" <> tshow (max 1 (length gridSlotNames)) <> ";"}>
+             data-roster-warnings={if gridShowRosterWarnings && not rosterIsHiddenDraft then ("visible" :: Text) else "hidden"}>
             {gridBody}
         </div>
 |]
@@ -269,16 +276,17 @@ renderDayColumnWageEstimate (Just prediction) date =
             </div>
         |]
 
+rosterSlotsHorizontalSnapConfig :: HorizontalSnapConfig
+rosterSlotsHorizontalSnapConfig = HorizontalSnapEqualGroups (HorizontalSnapGroupProperty
+    { horizontalSnapGroupProperty = "--roster-slot-count"
+    , horizontalSnapGroupScopeSelector = ".roster-slots-scroller"
+    })
+
 renderRosterDayRowsGrid :: (?context :: ControllerContext) => Bool -> Bool -> Maybe RosterWeek -> [RosterWeekSlotDefinition] -> RosterDayRenderModel -> [RosterDay] -> Html
 renderRosterDayRowsGrid endTimesEnabled slotColumnsAreEditable maybeRosterWeek slotNames dayModel rosterDays = [hsx|
     {renderrosterDayRailLiveFragment slotColumnsAreEditable dayModel rosterDays}
     {when dayModel.dayShowWageEstimates (renderrosterWageRailLiveFragment dayModel rosterDays)}
-    <div class="roster-slots-scroller"
-         data-horizontal-snap="equal-groups"
-         data-horizontal-snap-group-var="--roster-slot-count"
-         data-horizontal-snap-group-var-scope=".roster-grid-frame">
-        {renderrosterSlotsGridLiveFragment endTimesEnabled slotColumnsAreEditable maybeRosterWeek slotNames dayModel rosterDays}
-    </div>
+    {renderrosterSlotsGridLiveFragment endTimesEnabled slotColumnsAreEditable maybeRosterWeek slotNames dayModel rosterDays}
 |]
 
 renderrosterDayRailLiveFragment :: (?context :: ControllerContext) => Bool -> RosterDayRenderModel -> [RosterDay] -> Html
@@ -302,9 +310,7 @@ renderrosterDayRailLiveFragmentWithSwap maybeSwapOob slotColumnsAreEditable dayM
 renderHiddenDraftRosterGrid :: (?context :: ControllerContext) => RosterDayRenderModel -> [RosterDay] -> Html
 renderHiddenDraftRosterGrid dayModel rosterDays = [hsx|
     {renderHiddenDraftDayRailFragment dayModel rosterDays}
-    <div class="roster-slots-scroller">
-        {renderHiddenDraftSlotsGridFragment rosterDays}
-    </div>
+    {renderHiddenDraftSlotsGridFragment rosterDays}
 |]
 
 renderHiddenDraftDayRailFragment :: (?context :: ControllerContext) => RosterDayRenderModel -> [RosterDay] -> Html
@@ -330,13 +336,16 @@ renderHiddenDraftSlotsGridFragment =
 renderHiddenDraftSlotsGridFragmentWithSwap :: Maybe Text -> [RosterDay] -> Html
 renderHiddenDraftSlotsGridFragmentWithSwap maybeSwapOob _rosterDays = [hsx|
     <div id={rosterSlotsGridFragmentId}
-         class="roster-grid roster-slots-grid roster-hidden-draft-grid"
-         role="region"
-         aria-label="Roster visibility"
+         class="roster-slots-scroller"
+         style="--roster-slot-count:1;"
          hx-swap-oob={maybeSwapOob}>
-        <div class="roster-hidden-draft-grid-head" aria-hidden="true"></div>
-        <div class="roster-hidden-draft-grid-body" role="status" aria-live="polite">
-            <div class="roster-hidden-draft-message">This roster isn't live yet.</div>
+        <div class="roster-grid roster-slots-grid roster-hidden-draft-grid"
+             role="region"
+             aria-label="Roster visibility">
+            <div class="roster-hidden-draft-grid-head" aria-hidden="true"></div>
+            <div class="roster-hidden-draft-grid-body" role="status" aria-live="polite">
+                <div class="roster-hidden-draft-message">This roster isn't live yet.</div>
+            </div>
         </div>
     </div>
 |]
@@ -349,10 +358,10 @@ renderrosterSlotsGridLiveFragmentWithSwap :: (?context :: ControllerContext) => 
 renderrosterSlotsGridLiveFragmentWithSwap maybeSwapOob endTimesEnabled slotColumnsAreEditable maybeRosterWeek slotNames dayModel rosterDays =
     let gridHeaders = profileHtmlComponent "render.roster.slots_grid_headers" [hsx|
             <div class="roster-grid-head" role="rowgroup">
-                <div class="roster-grid-header-row roster-grid-header-row-blocks" role="row">
+                <div class="roster-grid-header-row roster-grid-header-row-blocks" role="row" {...rosterImageExportRowAttrs}>
                     {forEach (zip [0 :: Int ..] slotNames) (renderSlotHeaderGroup endTimesEnabled maybeRosterWeek slotColumnsAreEditable (length slotNames))}
                 </div>
-                <div class="roster-grid-header-row roster-grid-header-row-subheads" role="row">
+                <div class="roster-grid-header-row roster-grid-header-row-subheads" role="row" {...rosterImageExportRowAttrs}>
                     {forEach slotNames (renderSlotSubHeaders endTimesEnabled)}
                 </div>
             </div>
@@ -362,9 +371,15 @@ renderrosterSlotsGridLiveFragmentWithSwap maybeSwapOob endTimesEnabled slotColum
         {profileRenderCounter "render.roster.slots_grid" 1}
         {profileRenderCounter "render.roster.day" (length rosterDays)}
         {profileRenderCounter "render.roster.slot_definition" (length slotNames)}
-        <div id={rosterSlotsGridFragmentId} class="roster-grid roster-slots-grid" role="grid" aria-label="Roster slots" hx-swap-oob={maybeSwapOob}>
-            {gridHeaders}
-            {gridBody}
+        <div id={rosterSlotsGridFragmentId}
+             class="roster-slots-scroller"
+             style={"--roster-slot-count:" <> tshow (max 1 (length slotNames)) <> ";"}
+             {...horizontalSnapAttrs rosterSlotsHorizontalSnapConfig}
+             hx-swap-oob={maybeSwapOob}>
+            <div class="roster-grid roster-slots-grid" role="grid" aria-label="Roster slots" {...rosterImageExportProjectionAttrs}>
+                {gridHeaders}
+                {gridBody}
+            </div>
         </div>
     |]
 
@@ -375,8 +390,8 @@ rosterWeekIsEditable maybeRosterWeek =
 renderRosterColumnEditStartButton :: Bool -> Html
 renderRosterColumnEditStartButton True = [hsx|
     <button type="button"
-            class="btn btn-sm btn-outline-secondary roster-column-edit-start"
-            data-roster-column-edit-start="true"
+            class="btn btn-sm btn-outline-secondary"
+            {...rosterColumnEditStartAttrs}
             aria-label="Edit roster columns"
             aria-pressed="false"
             title="Edit roster columns">
@@ -388,8 +403,8 @@ renderRosterColumnEditStartButton False = mempty
 renderRosterColumnEditDoneButton :: Bool -> Html
 renderRosterColumnEditDoneButton True = [hsx|
     <button type="button"
-            class="btn btn-sm btn-outline-success roster-column-edit-done"
-            data-roster-column-edit-done="true"
+            class="btn btn-sm btn-outline-success"
+            {...rosterColumnEditDoneAttrs}
             aria-label="Finish editing roster columns"
             title="Finish editing roster columns">
         <i class="bi bi-check-lg" aria-hidden="true"></i>
@@ -402,13 +417,15 @@ renderSlotHeaderGroup endTimesEnabled _ False _ (slotIndex, _) = [hsx|
     <div role="columnheader"
          class="roster-block-header"
          aria-label={"Roster column " <> tshow (slotIndex + 1)}
-         style={slotHeaderGridColumnStyle endTimesEnabled}></div>
+         style={slotHeaderGridColumnStyle endTimesEnabled}
+         {...rosterImageExportCellAttrs ""}></div>
 |]
 renderSlotHeaderGroup endTimesEnabled (Just rosterWeek) True slotCount (slotIndex, slotName) = [hsx|
     <div role="columnheader"
          class="roster-block-header"
          aria-label={"Roster column " <> tshow (slotIndex + 1)}
-         style={slotHeaderGridColumnStyle endTimesEnabled}>
+         style={slotHeaderGridColumnStyle endTimesEnabled}
+         {...rosterImageExportCellAttrs ""}>
         <div class="d-flex align-items-center justify-content-center gap-2 roster-slot-column-header">
             {renderSlotDeleteForm slotCount slotName}
             {renderSlotAddButton rosterWeek (slotIndex == slotCount - 1)}
@@ -419,13 +436,14 @@ renderSlotHeaderGroup endTimesEnabled _ _ _ (slotIndex, _) = [hsx|
     <div role="columnheader"
          class="roster-block-header"
          aria-label={"Roster column " <> tshow (slotIndex + 1)}
-         style={slotHeaderGridColumnStyle endTimesEnabled}></div>
+         style={slotHeaderGridColumnStyle endTimesEnabled}
+         {...rosterImageExportCellAttrs ""}></div>
 |]
 
 renderSlotDeleteForm :: Int -> RosterWeekSlotDefinition -> Html
 renderSlotDeleteForm slotCount slotName =
     renderFrontendSurfaceActionForm
-        (frontendSurfaceAction @Surface.RosterSurface @Surface.DeleteRosterWeekSlotDefinition NoSurfaceFields)
+        (RosterAction.deleteRosterWeekSlotDefinitionAction RosterAction.deleteRosterWeekSlotDefinitionActionFields)
         (rosterGridActionRoute (pathTo (DeleteRosterWeekSlotDefinitionAction slotName.id)))
             { actionRouteExtraAttrs = [("class", "mb-0")]
             }
@@ -447,7 +465,7 @@ slotHeaderGridColumnStyle endTimesEnabled =
 renderSlotAddButton :: (?context :: ControllerContext) => RosterWeek -> Bool -> Html
 renderSlotAddButton rosterWeek True =
     renderFrontendSurfaceActionForm
-        (frontendSurfaceAction @Surface.RosterSurface @Surface.CreateRosterWeekSlotDefinition NoSurfaceFields)
+        (RosterAction.createRosterWeekSlotDefinitionAction RosterAction.createRosterWeekSlotDefinitionActionFields)
         (rosterGridActionRoute (pathTo (CreateRosterWeekSlotDefinitionAction rosterWeek.id)))
             { actionRouteExtraAttrs = [("class", "mb-0 roster-slot-column-add-form")]
             }
@@ -464,16 +482,16 @@ renderSlotAddButton _ False = mempty
 renderSlotSubHeaders :: Bool -> RosterWeekSlotDefinition -> Html
 renderSlotSubHeaders True _ =
     mconcat
-        [ [hsx|<div role="columnheader" class="roster-subhead roster-col-time">Start</div>|]
-        , [hsx|<div role="columnheader" class="roster-subhead roster-col-time">End</div>|]
-        , [hsx|<div role="columnheader" class="roster-subhead roster-col-staff">Staff</div>|]
-        , [hsx|<div role="columnheader" class="roster-subhead roster-col-shift-type roster-block-end">Role</div>|]
+        [ [hsx|<div role="columnheader" class="roster-subhead roster-col-time" {...rosterImageExportCellAttrs "Start"}>Start</div>|]
+        , [hsx|<div role="columnheader" class="roster-subhead roster-col-time" {...rosterImageExportCellAttrs "End"}>End</div>|]
+        , [hsx|<div role="columnheader" class="roster-subhead roster-col-staff" {...rosterImageExportCellAttrs "Staff"}>Staff</div>|]
+        , [hsx|<div role="columnheader" class="roster-subhead roster-col-shift-type roster-block-end" {...rosterImageExportCellAttrs "Role"}>Role</div>|]
         ]
 renderSlotSubHeaders False _ =
     mconcat
-        [ [hsx|<div role="columnheader" class="roster-subhead roster-col-time">Start</div>|]
-        , [hsx|<div role="columnheader" class="roster-subhead roster-col-staff">Staff</div>|]
-        , [hsx|<div role="columnheader" class="roster-subhead roster-col-code roster-block-end">Role</div>|]
+        [ [hsx|<div role="columnheader" class="roster-subhead roster-col-time" {...rosterImageExportCellAttrs "Start"}>Start</div>|]
+        , [hsx|<div role="columnheader" class="roster-subhead roster-col-staff" {...rosterImageExportCellAttrs "Staff"}>Staff</div>|]
+        , [hsx|<div role="columnheader" class="roster-subhead roster-col-code roster-block-end" {...rosterImageExportCellAttrs "Role"}>Role</div>|]
         ]
 
 renderRosterDay :: (?context :: ControllerContext) => RosterDayRenderModel -> RosterDay -> Html
@@ -750,7 +768,8 @@ renderRowWithAttrs RosterRowRenderModel { rowIsEditable, rowSlotNames, rowAssign
          role="row"
          data-roster-row="true"
          hx-swap-oob={maybeSwapOob}
-         class={classes [("day-row", True), ("day-row-" <> tshow (get #dayOffset rowRosterDay), True), ("day-alt-dark", odd (get #dayOffset rowRosterDay)), ("day-alt-light", even (get #dayOffset rowRosterDay))]}>
+         class={classes [("day-row", True), ("day-row-" <> tshow (get #dayOffset rowRosterDay), True), ("day-alt-dark", odd (get #dayOffset rowRosterDay)), ("day-alt-light", even (get #dayOffset rowRosterDay))]}
+         {...rosterImageExportRowAttrs}>
         {forEach (zip [0 :: Int ..] rowSlotNames) (renderBlockCells rowIsEditable rowAssignmentFilters rowStaffMembers rowShiftTypes rowRosterEndTimesEnabled rowPublishAttempted rowRosterDay rowIndex rowSlots rowRenderIndexes)}
     </div>
 |]
@@ -814,7 +833,7 @@ renderToggleClosedButton rosterDay =
             let buttonLabel = if rosterDay.isClosed then ("Reopen day" :: Text) else ("Mark day closed" :: Text)
                 iconClass = if rosterDay.isClosed then ("bi bi-lock-fill" :: Text) else ("bi bi-unlock" :: Text)
                 closedLabel = if rosterDay.isClosed then [hsx|<span class="roster-day-action-label">CLOSED</span>|] else mempty
-             in renderRosterDayActionForm (frontendSurfaceAction @Surface.RosterSurface @Surface.ToggleRosterDayClosed NoSurfaceFields) (pathTo (ToggleRosterDayClosedAction rosterDay.id)) [hsx|
+             in renderRosterDayActionForm (RosterAction.toggleRosterDayClosedAction RosterAction.toggleRosterDayClosedActionFields) (pathTo (ToggleRosterDayClosedAction rosterDay.id)) [hsx|
                 <button type="submit"
                         class={classes [("btn btn-sm app-compact-action-button roster-day-action roster-day-action-toggle", True), ("is-active", rosterDay.isClosed)]}
                         aria-label={buttonLabel}
@@ -829,7 +848,7 @@ renderToggleClosedButton rosterDay =
 renderAddRowButton :: (?context :: ControllerContext) => RosterDay -> Html
 renderAddRowButton rosterDay =
     if currentUserIsManager
-        then renderRosterDayActionForm (frontendSurfaceAction @Surface.RosterSurface @Surface.AddRosterRow NoSurfaceFields) (pathTo (AddRosterRowAction rosterDay.id)) [hsx|
+        then renderRosterDayActionForm (RosterAction.addRosterRowAction RosterAction.addRosterRowActionFields) (pathTo (AddRosterRowAction rosterDay.id)) [hsx|
             <button type="submit"
                     class="btn btn-sm app-compact-action-button roster-day-action roster-day-action-add"
                     aria-label="Add shift row"
@@ -845,7 +864,7 @@ renderDeleteLastRowButton rosterDay rowIndex =
     if currentUserIsManager
         then
             let canDelete = rowIndex >= minimumOpenRosterRows
-             in renderRosterDayActionForm (frontendSurfaceAction @Surface.RosterSurface @Surface.RemoveRosterRow NoSurfaceFields) (pathTo (RemoveRosterRowAction rosterDay.id)) [hsx|
+             in renderRosterDayActionForm (RosterAction.removeRosterRowAction RosterAction.removeRosterRowActionFields) (pathTo (RemoveRosterRowAction rosterDay.id)) [hsx|
                 <button type="submit"
                         class="btn btn-sm app-compact-action-button roster-day-action roster-day-action-remove"
                         aria-label={if canDelete then ("Delete last shift row" :: Text) else ("Minimum day size reached" :: Text)}

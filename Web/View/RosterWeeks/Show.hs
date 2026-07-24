@@ -1,5 +1,8 @@
 module Web.View.RosterWeeks.Show where
 
+import qualified Application.Helper.FrontendContract.Passkey.Runtime as Passkey
+import Application.Helper.FrontendContract.Surface.Roster.Chrome (RosterFullscreenState (..),
+                                                                  rosterFullscreenRootAttrs)
 import Application.Helper.FrontendContract.Surface.Runtime (renderFrontendSurfaceMount)
 import Application.Helper.Profiling (profileHtmlComponent)
 import Web.RosterWeeks.Capabilities (buildRosterViewCapabilities)
@@ -25,7 +28,7 @@ renderRosterWeekShell ShowView { .. } =
             , appPageWidthClass = ""
             , appPageBody =
                 mconcat
-                    [ renderPasskeySetupPrompt passkeySetupPrompt
+                    [ renderPasskeySetupPrompt passkeyStrongAuthenticationRequired passkeySetupPrompt
                     , renderRosterLayout RosterGridRenderModel
                         { gridRosterWeek = rosterWeek
                         , gridRosterDays = rosterDays
@@ -70,29 +73,23 @@ renderRosterWeekShell ShowView { .. } =
         shell = [hsx|
             <section id={rosterWeekShellId}
                      hx-history-elt="true"
-                     data-roster-fullscreen="false">
+                     {...rosterFullscreenRootAttrs RosterFullscreenCollapsed}>
                 {renderFrontendSurfaceMount rosterSurface page}
             </section>
         |]
      in profileHtmlComponent "render.roster.full_shell" shell
 
-renderPasskeySetupPrompt :: (?context :: ControllerContext) => Maybe PasskeySetupPromptMode -> Html
-renderPasskeySetupPrompt Nothing = mempty
-renderPasskeySetupPrompt (Just promptMode) = [hsx|
-    <div class="js-passkey-setup-prompt"
-         data-user-id={tshow currentUser.id}
-         data-mode={passkeyPromptModeValue promptMode}>
-        {renderPasskeySetupDialog (passkeySetupModeFromPrompt promptMode) (pathTo RosterWeeksAction)}
+renderPasskeySetupPrompt :: (?context :: ControllerContext) => Bool -> Maybe Passkey.PasskeySetupPromptMode -> Html
+renderPasskeySetupPrompt _ Nothing = mempty
+renderPasskeySetupPrompt strongAuthenticationRequired (Just promptMode) = [hsx|
+    <div {...Passkey.passkeySetupPromptAttrs (tshow currentUser.id) promptMode}>
+        {renderPasskeySetupPromptDialog (passkeySetupModeFromPrompt strongAuthenticationRequired promptMode) (pathTo RosterWeeksAction)}
     </div>
 |]
 
-passkeyPromptModeValue :: PasskeySetupPromptMode -> Text
-passkeyPromptModeValue FirstPasskeyPrompt            = "first-passkey"
-passkeyPromptModeValue AdditionalDevicePasskeyPrompt = "additional-device"
-
-passkeySetupModeFromPrompt :: (?context :: ControllerContext) => PasskeySetupPromptMode -> PasskeySetupMode
-passkeySetupModeFromPrompt FirstPasskeyPrompt =
-    if currentUserIsAdmin
+passkeySetupModeFromPrompt :: Bool -> Passkey.PasskeySetupPromptMode -> PasskeySetupMode
+passkeySetupModeFromPrompt strongAuthenticationRequired Passkey.PasskeyFirstPasskey =
+    if strongAuthenticationRequired
         then MandatoryFirstPasskey
         else OptionalFirstPasskey
-passkeySetupModeFromPrompt AdditionalDevicePasskeyPrompt = OptionalAdditionalDevice
+passkeySetupModeFromPrompt _ Passkey.PasskeyAdditionalDevice = OptionalAdditionalDevice

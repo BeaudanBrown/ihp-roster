@@ -3,6 +3,8 @@ module Web.Controller.Sessions where
 import Application.Helper.Audit (recordUserAuthenticationAuditEvent)
 import Application.Helper.EmailVerification (findActiveVerificationTokenByToken,
                                              sendEmailVerification)
+import Application.Helper.FrontendContract.Passkey.Runtime (PasskeySetupPromptMode (..),
+                                                            passkeySetupPromptModeValue)
 import Application.Helper.Profiling (isRequestProfilingEnabled,
                                      profileActionSpan)
 import Control.Exception (evaluate)
@@ -86,10 +88,11 @@ instance Controller SessionsController where
                                         |> filterWhere (#userId, unpackId (get #id user))
                                         |> fetchCount
                                 markProfilingSessionPasskeyVerifiedIfSeeded user passkeyCount
-                                setSession passkeySetupPromptSessionKey
-                                    if passkeyCount == 0
-                                        then ("first-passkey" :: Text)
-                                        else ("additional-device" :: Text)
+                                let passkeySetupPromptMode =
+                                        if passkeyCount == 0
+                                            then PasskeyFirstPasskey
+                                            else PasskeyAdditionalDevice
+                                setSession passkeySetupPromptSessionKey (passkeySetupPromptModeValue passkeySetupPromptMode)
                                 redirectUrl <- getSessionAndClear "IHP.LoginSupport.redirectAfterLogin"
                                 defaultRedirectPath <- profileActionSpan "auth.password_login.default_redirect" (defaultLoginRedirectPath user)
                                 redirectToPath (fromMaybe defaultRedirectPath redirectUrl)

@@ -1,4 +1,5 @@
 import { test, expect, type Page } from '@playwright/test';
+import { rosterStaffPanelSortRowDomAttr } from '../frontend/ts/generated/contracts';
 import { assignRosterShiftStaff, existingRosterShiftLaunchers, openRoster } from './test-helpers';
 
 async function loginAndOpenRoster(page: Page) {
@@ -11,7 +12,8 @@ test.describe('Roster assignment sidebar refresh', () => {
         await loginAndOpenRoster(page);
 
         const managerEntry = page
-            .locator('#roster-staff-panel-fragment .roster-staff-panel-entry[data-roster-staff-role="Manager"]')
+            .locator(`#roster-staff-panel-fragment [${rosterStaffPanelSortRowDomAttr}]`)
+            .filter({ hasText: 'Manager' })
             .first();
 
         await expect(managerEntry).toContainText('0');

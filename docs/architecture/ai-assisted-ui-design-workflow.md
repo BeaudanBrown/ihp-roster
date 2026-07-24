@@ -462,9 +462,10 @@ design-token drift (if adopted)
 - Pin Node CLIs as exact dev dependencies in `package.json`/`package-lock.json`
   or as explicit Nix inputs; invoke them through repository scripts, not global
   installs.
-- Reuse the existing `pwcli` wrapper first. Its current alpha-version isolation
-  is deliberate; do not force it to share a mismatched Playwright runtime merely
-  for tidiness.
+- Reuse the existing `pwcli` wrapper first. The Agent CLI is pinned as an exact
+  development dependency and invoked with `npx --no-install`; its nested alpha
+  Playwright runtime remains distinct from the stable test runner. Do not force
+  those runtimes to share a version merely for tidiness.
 - Keep Figma publish/sync, Tokens Studio sync, Chromatic, and Applitools commands
   opt-in and credentialed. They must not run during a hermetic Nix build.
 - Preserve direct `assetPath` CSS loading. A token compiler is a deterministic

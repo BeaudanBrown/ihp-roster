@@ -1,0 +1,1151 @@
+#!/usr/bin/env python3
+"""Bounded, behavior-neutral Hspec performance and registry capture."""
+
+from __future__ import annotations
+
+import argparse
+import atexit
+import contextlib
+import datetime as dt
+import fcntl
+import json
+import math
+import os
+from pathlib import Path
+import re
+import shutil
+import signal
+import statistics
+import subprocess
+import sys
+import tempfile
+import time
+from typing import Any, Iterable
+
+ROOT = Path(__file__).resolve().parent.parent
+DEFAULT_LOCK = Path("/tmp/bepis-exclusive-performance.lock")
+RELEVANT_PROCESS_MARKERS = (
+    "build/Test/Main",
+    "build/TestCoverage/Main",
+    "hspec-test",
+    "hspec-pure",
+    "hspec-db",
+    "hspec-coverage",
+    "verify-fast",
+    "verify-full",
+    "playwright",
+    "/e2e ",
+    "profile-load",
+    "test-db-reset",
+    "/db/test-postgres ",
+    "-test-postgres/bin/test-postgres",
+    "/k6 ",
+)
+SUITE_PATTERN = re.compile(
+    r'^\s*(?:\[|,)\s*(pureSuite|databaseSuite)\s+[\s\S]*?SuiteDefinition\s*\{([\s\S]*?)\}\s+([A-Za-z][A-Za-z0-9_.]+)\.tests\s*$',
+    re.MULTILINE,
+)
+SUITE_LABEL_PATTERN = re.compile(r'definitionLabel\s*=\s*"([^"]+)"')
+SUITE_WEIGHT_PATTERN = re.compile(r"definitionEstimatedRuntimeSeconds\s*=\s*(\d+(?:\.\d+)?)")
+FIXTURE_BUILDERS = (
+    "createVenueWithConfig",
+    "createUserRecord",
+    "createUserRecordWithPlatformRole",
+    "createVenueMembershipRecord",
+    "createStaffRecord",
+    "createRosterWeekRecord",
+    "createRosterDayRecord",
+    "createRosterSlotRecord",
+    "createTimesheetEntryRecord",
+    "createApprovedTimesheetEntryRecord",
+    "createApprovedTimesheetEntryRecordAt",
+    "createLeaveRequestRecord",
+    "createPayLevelRecord",
+    "createShiftTypeRecord",
+)
+
+
+def json_write(path: Path, value: Any) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(value, indent=2, sort_keys=True) + "\n")
+
+
+def command_text(command: Iterable[str]) -> str:
+    return " ".join(command)
+
+
+def command_environment_overrides(command: list[str]) -> dict[str, str]:
+    """Read leading KEY=VALUE operands passed through an `env` command."""
+    overrides: dict[str, str] = {}
+    for index, token in enumerate(command):
+        if Path(token).name != "env":
+            continue
+        for operand in command[index + 1 :]:
+            if operand == "--":
+                continue
+            if "=" not in operand or operand.startswith("-"):
+                break
+            name, value = operand.split("=", 1)
+            if re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", name):
+                overrides[name] = value
+        break
+    return overrides
+
+
+def command_uses_managed_test_postgres(command: list[str], env: dict[str, str]) -> bool:
+    command_names = {Path(token).name for token in command if "=" not in token}
+    database_commands = {"hspec-test", "hspec-db", "hspec-coverage", "verify-full"}
+    if not command_names.intersection(database_commands):
+        return False
+    if env.get("TEST_LANE") == "pure":
+        return False
+    mode = env.get("TEST_POSTGRES_MODE", "")
+    if mode == "external":
+        return False
+    return True
+
+
+def run_capture(
+    command: list[str],
+    *,
+    env: dict[str, str] | None = None,
+    timeout: float = 30,
+) -> dict[str, Any]:
+    try:
+        completed = subprocess.run(
+            command,
+            cwd=ROOT,
+            env=env,
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            timeout=timeout,
+            check=False,
+        )
+        return {
+            "command": command,
+            "exitCode": completed.returncode,
+            "output": completed.stdout.rstrip(),
+        }
+    except (OSError, subprocess.TimeoutExpired) as exception:
+        return {
+            "command": command,
+            "error": str(exception),
+        }
+
+
+def prepare_managed_test_postgres(env: dict[str, str]) -> None:
+    result = run_capture(
+        ["bash", str(ROOT / "Config/nix/scripts/db/test-postgres"), "ensure"],
+        env=env,
+        timeout=60,
+    )
+    if result.get("exitCode") != 0:
+        raise RuntimeError(
+            "could not prepare managed disposable PostgreSQL: "
+            + (result.get("output") or result.get("error") or "unknown error")
+        )
+    lines = result.get("output", "").splitlines()
+    if not lines:
+        raise RuntimeError("managed disposable PostgreSQL did not report its socket")
+    socket = lines[-1]
+    env["TEST_POSTGRES_MODE"] = "managed"
+    env["TEST_DB_SOCKET"] = socket
+    env["PGHOST"] = socket
+
+
+def psql_environment(env: dict[str, str]) -> dict[str, str]:
+    result = env.copy()
+    result.setdefault("PGCONNECT_TIMEOUT", "2")
+    existing_options = result.get("PGOPTIONS", "")
+    timeout_option = "-c statement_timeout=2000"
+    result["PGOPTIONS"] = f"{existing_options} {timeout_option}".strip()
+    return result
+
+
+def psql_query(sql: str, env: dict[str, str], *, timeout: float = 5) -> dict[str, Any]:
+    socket = env.get("TEST_DB_SOCKET") or env.get("PGHOST") or str(ROOT / "build/db")
+    return run_capture(
+        [
+            "psql",
+            "-X",
+            "-q",
+            "-h",
+            socket,
+            "-d",
+            "postgres",
+            "-At",
+            "-F",
+            "\t",
+            "-v",
+            "ON_ERROR_STOP=1",
+            "-c",
+            sql,
+        ],
+        env=psql_environment(env),
+        timeout=timeout,
+    )
+
+
+def postgres_snapshot(env: dict[str, str]) -> dict[str, Any]:
+    queries = {
+        "activity": """
+            SELECT COALESCE(datname, ''), state, COALESCE(wait_event_type, ''),
+                   COALESCE(wait_event, ''), count(*)
+            FROM pg_stat_activity
+            WHERE backend_type = 'client backend'
+            GROUP BY datname, state, wait_event_type, wait_event
+            ORDER BY datname, state, wait_event_type, wait_event
+        """,
+        "database": """
+            SELECT COALESCE(json_agg(row_to_json(s)), '[]'::json)::text
+            FROM (
+                SELECT datname, numbackends, xact_commit, xact_rollback,
+                       blks_read, blks_hit, temp_files, temp_bytes,
+                       deadlocks, checksum_failures, session_time, active_time,
+                       idle_in_transaction_time, sessions, sessions_abandoned,
+                       sessions_fatal, sessions_killed
+                FROM pg_stat_database
+                WHERE datname = 'postgres' OR datname LIKE 'app_test%'
+                ORDER BY datname
+            ) AS s
+        """,
+        "wal": "SELECT row_to_json(s)::text FROM (SELECT * FROM pg_stat_wal) AS s",
+        "checkpointer": "SELECT row_to_json(s)::text FROM (SELECT * FROM pg_stat_checkpointer) AS s",
+        "bgwriter": "SELECT row_to_json(s)::text FROM (SELECT * FROM pg_stat_bgwriter) AS s",
+        "io": """
+            SELECT COALESCE(json_agg(row_to_json(s)), '[]'::json)::text
+            FROM (
+                SELECT backend_type, object, context, reads, read_time, writes,
+                       write_time, writebacks, writeback_time, extends,
+                       extend_time, fsyncs, fsync_time, evictions, reuses
+                FROM pg_stat_io
+                ORDER BY backend_type, object, context
+            ) AS s
+        """,
+    }
+    return {name: psql_query(sql, env) for name, sql in queries.items()}
+
+
+def environment_snapshot(env: dict[str, str]) -> dict[str, Any]:
+    settings_sql = """
+        SELECT name, setting, COALESCE(unit, ''), source
+        FROM pg_settings
+        WHERE name IN (
+            'max_connections', 'shared_buffers', 'work_mem',
+            'maintenance_work_mem', 'effective_cache_size', 'fsync',
+            'synchronous_commit', 'full_page_writes', 'wal_level',
+            'wal_compression', 'checkpoint_timeout', 'max_wal_size',
+            'min_wal_size', 'random_page_cost', 'effective_io_concurrency',
+            'max_worker_processes', 'max_parallel_workers',
+            'max_parallel_workers_per_gather', 'autovacuum',
+            'track_io_timing', 'shared_preload_libraries'
+        )
+        ORDER BY name
+    """
+    data_directory_result = psql_query("SHOW data_directory", env)
+    data_directory = ""
+    if data_directory_result.get("exitCode") == 0:
+        data_directory = data_directory_result.get("output", "").splitlines()[0]
+
+    snapshot: dict[str, Any] = {
+        "capturedAt": dt.datetime.now(dt.timezone.utc).isoformat(),
+        "workingDirectory": str(ROOT),
+        "branch": run_capture(["git", "branch", "--show-current"]),
+        "commit": run_capture(["git", "rev-parse", "HEAD"]),
+        "gitStatus": run_capture(["git", "status", "--short", "--branch"]),
+        "uname": run_capture(["uname", "-a"]),
+        "hostname": run_capture(["hostname"]),
+        "cpu": run_capture(["lscpu", "--json"]),
+        "memory": run_capture(["free", "-b"]),
+        "projectFilesystem": run_capture(
+            ["findmnt", "--json", "-T", str(ROOT), "-o", "TARGET,SOURCE,FSTYPE,OPTIONS"]
+        ),
+        "postgresSocket": env.get("TEST_DB_SOCKET") or env.get("PGHOST") or str(ROOT / "build/db"),
+        "testPostgresMode": env.get("TEST_POSTGRES_MODE", "external"),
+        "testPostgresDurability": env.get("TEST_POSTGRES_DURABILITY")
+        or ("disposable" if env.get("TEST_POSTGRES_MODE") == "managed" else "external"),
+        "postgresVersion": psql_query("SELECT version()", env),
+        "postgresDataDirectory": data_directory_result,
+        "postgresSettings": psql_query(settings_sql, env),
+    }
+    if data_directory:
+        snapshot["postgresDataFilesystem"] = run_capture(
+            ["findmnt", "--json", "-T", data_directory, "-o", "TARGET,SOURCE,FSTYPE,OPTIONS"]
+        )
+    return snapshot
+
+
+def ancestor_pids() -> set[int]:
+    result: set[int] = set()
+    pid = os.getpid()
+    while pid > 1 and pid not in result:
+        result.add(pid)
+        try:
+            status = Path(f"/proc/{pid}/status").read_text()
+        except OSError:
+            break
+        match = re.search(r"^PPid:\s+(\d+)$", status, re.MULTILINE)
+        if not match:
+            break
+        pid = int(match.group(1))
+    result.add(1)
+    return result
+
+
+def relevant_process_conflicts() -> list[dict[str, Any]]:
+    excluded = ancestor_pids()
+    conflicts: list[dict[str, Any]] = []
+    for entry in Path("/proc").iterdir():
+        if not entry.name.isdigit():
+            continue
+        pid = int(entry.name)
+        if pid in excluded:
+            continue
+        try:
+            raw = (entry / "cmdline").read_bytes().replace(b"\0", b" ").decode(errors="replace").strip()
+        except OSError:
+            continue
+        if raw and any(marker in raw for marker in RELEVANT_PROCESS_MARKERS):
+            conflicts.append({"pid": pid, "command": raw})
+    return sorted(conflicts, key=lambda item: item["pid"])
+
+
+@contextlib.contextmanager
+def exclusive_host_lock(lock_path: Path, wait_seconds: float):
+    lock_path.parent.mkdir(parents=True, exist_ok=True)
+    with lock_path.open("a+") as lock_file:
+        deadline = time.monotonic() + wait_seconds
+        while True:
+            try:
+                fcntl.flock(lock_file.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+                break
+            except BlockingIOError:
+                if time.monotonic() >= deadline:
+                    lock_file.seek(0)
+                    owner = lock_file.read().strip() or "unknown owner"
+                    raise RuntimeError(f"exclusive host lock is busy ({owner})")
+                time.sleep(min(1.0, max(0.0, deadline - time.monotonic())))
+        lock_file.seek(0)
+        lock_file.truncate()
+        lock_file.write(
+            json.dumps(
+                {
+                    "pid": os.getpid(),
+                    "branch": run_capture(["git", "branch", "--show-current"]).get("output", ""),
+                    "acquiredAt": dt.datetime.now(dt.timezone.utc).isoformat(),
+                }
+            )
+            + "\n"
+        )
+        lock_file.flush()
+        try:
+            yield
+        finally:
+            lock_file.seek(0)
+            lock_file.truncate()
+            lock_file.flush()
+            fcntl.flock(lock_file.fileno(), fcntl.LOCK_UN)
+
+
+def process_tree_pids(root_pid: int) -> set[int]:
+    found: set[int] = set()
+    pending = [root_pid]
+    while pending:
+        pid = pending.pop()
+        if pid in found:
+            continue
+        found.add(pid)
+        try:
+            children_text = Path(f"/proc/{pid}/task/{pid}/children").read_text()
+        except OSError:
+            continue
+        pending.extend(int(child) for child in children_text.split() if child.isdigit())
+    return found
+
+
+def process_tree_rss_bytes(root_pid: int) -> int:
+    page_size = os.sysconf("SC_PAGE_SIZE")
+    total_pages = 0
+    for pid in process_tree_pids(root_pid):
+        try:
+            fields = Path(f"/proc/{pid}/statm").read_text().split()
+            total_pages += int(fields[1])
+        except (OSError, IndexError, ValueError):
+            continue
+    return total_pages * page_size
+
+
+def postgres_activity_sample(env: dict[str, str]) -> dict[str, Any]:
+    result = psql_query(
+        """
+            SELECT COALESCE(datname, ''), state, COALESCE(wait_event_type, ''),
+                   COALESCE(wait_event, ''), count(*)
+            FROM pg_stat_activity
+            WHERE backend_type = 'client backend'
+            GROUP BY datname, state, wait_event_type, wait_event
+            ORDER BY datname, state, wait_event_type, wait_event
+        """,
+        env,
+    )
+    sample: dict[str, Any] = {
+        "capturedAt": dt.datetime.now(dt.timezone.utc).isoformat(),
+        "monotonicSeconds": time.monotonic(),
+        "groups": [],
+    }
+    if result.get("exitCode") != 0:
+        sample["error"] = result.get("output") or result.get("error") or "psql failed"
+        return sample
+
+    for line in result.get("output", "").splitlines():
+        fields = line.split("\t")
+        if len(fields) != 5:
+            continue
+        database, state, wait_type, wait_event, count = fields
+        sample["groups"].append(
+            {
+                "database": database,
+                "state": state,
+                "waitType": wait_type,
+                "waitEvent": wait_event,
+                "count": int(count),
+            }
+        )
+    return sample
+
+
+def host_sample(command_pid: int) -> dict[str, Any]:
+    load_fields = Path("/proc/loadavg").read_text().split()
+    meminfo: dict[str, int] = {}
+    for line in Path("/proc/meminfo").read_text().splitlines():
+        key, raw_value = line.split(":", 1)
+        value_fields = raw_value.strip().split()
+        if value_fields and value_fields[0].isdigit():
+            meminfo[key] = int(value_fields[0]) * 1024
+    return {
+        "capturedAt": dt.datetime.now(dt.timezone.utc).isoformat(),
+        "monotonicSeconds": time.monotonic(),
+        "load1": float(load_fields[0]),
+        "load5": float(load_fields[1]),
+        "load15": float(load_fields[2]),
+        "memoryAvailableBytes": meminfo.get("MemAvailable"),
+        "swapFreeBytes": meminfo.get("SwapFree"),
+        "commandTreeRssBytes": process_tree_rss_bytes(command_pid),
+    }
+
+
+def append_json_line(path: Path, value: Any) -> None:
+    with path.open("a") as handle:
+        handle.write(json.dumps(value, sort_keys=True) + "\n")
+
+
+def percentile(values: list[float], fraction: float) -> float | None:
+    if not values:
+        return None
+    ordered = sorted(values)
+    index = max(0, math.ceil(len(ordered) * fraction) - 1)
+    return ordered[index]
+
+
+def parse_json_lines(path: Path) -> list[dict[str, Any]]:
+    if not path.exists():
+        return []
+    values: list[dict[str, Any]] = []
+    for line_number, line in enumerate(path.read_text().splitlines(), start=1):
+        if not line.strip():
+            continue
+        try:
+            value = json.loads(line)
+        except json.JSONDecodeError as exception:
+            raise RuntimeError(f"invalid JSON at {path}:{line_number}: {exception}") from exception
+        values.append(value)
+    return values
+
+
+def parse_shard_log(path: Path) -> dict[str, Any] | None:
+    text = path.read_text(errors="replace")
+    header = re.search(
+        r"^Hspec\s+(\w+)\s+shard\s+(\d+)/(\d+)(?:\s+weight=([0-9.]+)\s+\[([^]]*)\])?",
+        text,
+        re.MULTILINE,
+    )
+    if not header:
+        return None
+    finished = re.search(r"^Finished in ([0-9.]+) seconds", text, re.MULTILINE)
+    examples = re.search(r"^(\d+) examples?, (\d+) failures?", text, re.MULTILINE)
+    declared_weight = float(header.group(4)) if header.group(4) else 0.0
+    duration = float(finished.group(1)) if finished else None
+    result: dict[str, Any] = {
+        "log": str(path),
+        "lane": header.group(1),
+        "shard": int(header.group(2)),
+        "totalShards": int(header.group(3)),
+        "declaredWeight": declared_weight,
+        "suites": [label.strip() for label in (header.group(5) or "").split(",") if label.strip()],
+        "finishedSeconds": duration,
+        "examples": int(examples.group(1)) if examples else None,
+        "failures": int(examples.group(2)) if examples else None,
+    }
+    if duration is not None and declared_weight:
+        result["actualToDeclaredWeightRatio"] = duration / declared_weight
+    return result
+
+
+def duration_metrics(metrics_dir: Path, prefix: str) -> dict[str, Any]:
+    all_seconds: list[float] = []
+    by_shard: dict[str, Any] = {}
+    for path in sorted(metrics_dir.glob(f"{prefix}-shard-*-ns.txt")):
+        values = [int(line) / 1_000_000_000 for line in path.read_text().splitlines() if line.strip()]
+        shard_match = re.search(rf"{re.escape(prefix)}-shard-(\d+)-ns", path.name)
+        shard = shard_match.group(1) if shard_match else path.stem
+        all_seconds.extend(values)
+        by_shard[shard] = {
+            "count": len(values),
+            "sumSeconds": sum(values),
+            "medianMilliseconds": statistics.median(values) * 1000 if values else None,
+            "p95Milliseconds": percentile(values, 0.95) * 1000 if values else None,
+        }
+    return {
+        "count": len(all_seconds),
+        "sumSeconds": sum(all_seconds),
+        "medianMilliseconds": statistics.median(all_seconds) * 1000 if all_seconds else None,
+        "p95Milliseconds": percentile(all_seconds, 0.95) * 1000 if all_seconds else None,
+        "byShard": by_shard,
+    }
+
+
+def summarize_run(run_dir: Path) -> dict[str, Any]:
+    metadata = json.loads((run_dir / "run.json").read_text())
+    phases = parse_json_lines(run_dir / "metrics/phases.jsonl")
+    phase_groups: dict[str, list[dict[str, Any]]] = {}
+    for phase in phases:
+        phase_groups.setdefault(phase["phase"], []).append(phase)
+
+    shard_logs = sorted((run_dir / "shards").glob("shard-*.log"))
+    shards = [parsed for path in shard_logs if (parsed := parse_shard_log(path)) is not None]
+    if not shards and (run_dir / "command.log").exists():
+        parsed = parse_shard_log(run_dir / "command.log")
+        if parsed:
+            shards = [parsed]
+
+    postgres_samples = parse_json_lines(run_dir / "postgres-samples.jsonl")
+    max_connections = 0
+    max_test_connections = 0
+    wait_counts: dict[str, int] = {}
+    state_counts: dict[str, int] = {}
+    for sample in postgres_samples:
+        total_connections = 0
+        test_connections = 0
+        for group in sample.get("groups", []):
+            count = group["count"]
+            total_connections += count
+            is_test = group["database"].startswith("app_test")
+            if is_test:
+                test_connections += count
+                state_counts[group["state"]] = state_counts.get(group["state"], 0) + count
+                if group["waitType"] or group["waitEvent"]:
+                    key = f"{group['waitType']}:{group['waitEvent']}"
+                    wait_counts[key] = wait_counts.get(key, 0) + count
+        max_connections = max(max_connections, total_connections)
+        max_test_connections = max(max_test_connections, test_connections)
+
+    host_samples = parse_json_lines(run_dir / "host-samples.jsonl")
+    reset = duration_metrics(run_dir / "metrics", "reset")
+    fixture = duration_metrics(run_dir / "metrics", "fixture")
+    application = duration_metrics(run_dir / "metrics", "application")
+    execution_by_shard = {
+        str(item["shard"]): item["durationSeconds"]
+        for item in phase_groups.get("hspec_execution", [])
+    }
+    non_reset_by_shard: dict[str, float] = {}
+    for shard, execution_seconds in execution_by_shard.items():
+        shard_reset = reset["byShard"].get(shard, {}).get("sumSeconds", 0)
+        non_reset_by_shard[shard] = max(0.0, execution_seconds - shard_reset)
+
+    phase_summary: dict[str, Any] = {}
+    for name, items in phase_groups.items():
+        durations = [float(item["durationSeconds"]) for item in items]
+        phase_summary[name] = {
+            "count": len(durations),
+            "durationsSeconds": durations,
+            "maxSeconds": max(durations),
+            "sumSeconds": sum(durations),
+        }
+
+    command_total = phase_summary.get("command_total", {}).get("maxSeconds")
+    compile_seconds = phase_summary.get("compile", {}).get("sumSeconds", 0.0)
+    parallel_seconds = phase_summary.get("parallel_run", {}).get("sumSeconds")
+    internal_launcher_seconds = None
+    if command_total is not None:
+        if parallel_seconds is not None:
+            internal_launcher_seconds = max(0.0, command_total - compile_seconds - parallel_seconds)
+        else:
+            serial_accounted = compile_seconds
+            serial_accounted += phase_summary.get("shard_database_create", {}).get("sumSeconds", 0.0)
+            serial_accounted += phase_summary.get("hspec_execution", {}).get("sumSeconds", 0.0)
+            internal_launcher_seconds = max(0.0, command_total - serial_accounted)
+
+    summary: dict[str, Any] = {
+        "schemaVersion": 1,
+        "name": metadata["name"],
+        "command": metadata["command"],
+        "exitCode": metadata["exitCode"],
+        "startedAt": metadata["startedAt"],
+        "finishedAt": metadata["finishedAt"],
+        "wallSeconds": metadata["wallSeconds"],
+        "phaseMetrics": phase_summary,
+        "wrapperAndSamplerOverheadSeconds": (
+            max(0.0, metadata["wallSeconds"] - command_total) if command_total is not None else None
+        ),
+        "internalLauncherAndReportingSeconds": internal_launcher_seconds,
+        "resets": reset,
+        "fixtureConstruction": fixture,
+        "applicationExecution": application,
+        "aggregateNonResetHspecSecondsByShard": non_reset_by_shard,
+        "shards": sorted(shards, key=lambda item: item["shard"]),
+        "postgresSampling": {
+            "intervalSeconds": metadata["sampleIntervalSeconds"],
+            "sampleCount": len(postgres_samples),
+            "maxClientConnections": max_connections,
+            "maxTestDatabaseConnections": max_test_connections,
+            "testDatabaseStateSampleCounts": dict(sorted(state_counts.items())),
+            "testDatabaseWaitSampleCounts": dict(
+                sorted(wait_counts.items(), key=lambda item: (-item[1], item[0]))
+            ),
+        },
+        "hostSampling": {
+            "sampleCount": len(host_samples),
+            "maxLoad1": max((sample["load1"] for sample in host_samples), default=None),
+            "maxCommandTreeRssBytes": max(
+                (sample["commandTreeRssBytes"] for sample in host_samples), default=None
+            ),
+            "minMemoryAvailableBytes": min(
+                (
+                    sample["memoryAvailableBytes"]
+                    for sample in host_samples
+                    if sample.get("memoryAvailableBytes") is not None
+                ),
+                default=None,
+            ),
+        },
+        "rawArtifacts": {
+            "commandLog": str(run_dir / "command.log"),
+            "environment": str(run_dir / "environment.json"),
+            "postgresBefore": str(run_dir / "postgres-before.json"),
+            "postgresAfter": str(run_dir / "postgres-after.json"),
+            "postgresSamples": str(run_dir / "postgres-samples.jsonl"),
+            "hostSamples": str(run_dir / "host-samples.jsonl"),
+            "phaseMetrics": str(run_dir / "metrics/phases.jsonl"),
+            "shardLogs": str(run_dir / "shards"),
+        },
+    }
+    json_write(run_dir / "summary.json", summary)
+    return summary
+
+
+def sanitized_run_id(name: str) -> str:
+    safe_name = re.sub(r"[^A-Za-z0-9_]", "_", name).strip("_") or "run"
+    # hspec-test embeds this value in PostgreSQL database identifiers. Keep the
+    # complete app_test_<run>_shard_<n> name below PostgreSQL's 63-byte limit.
+    run_id = f"b{int(time.time())}_{os.getpid()}_{safe_name[:12]}"
+    if len(f"app_test_{run_id}_shard_999") > 63:
+        raise RuntimeError("generated TEST_RUN_ID exceeds PostgreSQL's identifier limit")
+    return run_id
+
+
+def capture_run(args: argparse.Namespace) -> int:
+    command = list(args.command)
+    if command and command[0] == "--":
+        command = command[1:]
+    if not command:
+        raise RuntimeError("capture requires a command after --")
+
+    run_dir = Path(args.output)
+    if not run_dir.is_absolute():
+        run_dir = ROOT / run_dir
+    if run_dir.exists() and any(run_dir.iterdir()):
+        raise RuntimeError(f"output directory is not empty: {run_dir}")
+    run_dir.mkdir(parents=True, exist_ok=True)
+    metrics_dir = run_dir / "metrics"
+    metrics_dir.mkdir(parents=True, exist_ok=True)
+    metrics_staging_dir = Path(tempfile.mkdtemp(prefix="bepis-hspec-metrics-", dir="/tmp"))
+    atexit.register(shutil.rmtree, metrics_staging_dir, ignore_errors=True)
+
+    env = os.environ.copy()
+    env.update(command_environment_overrides(command))
+    env["HSPEC_METRICS_DIR"] = str(metrics_staging_dir)
+    env.setdefault("TEST_RUN_ID", sanitized_run_id(args.name))
+
+    lock_path = Path(args.lock)
+    with exclusive_host_lock(lock_path, args.wait_seconds):
+        conflicts = relevant_process_conflicts()
+        if conflicts:
+            json_write(run_dir / "conflicts.json", conflicts)
+            raise RuntimeError(
+                "another benchmark/full test process is active; see "
+                + str(run_dir / "conflicts.json")
+            )
+
+        if command_uses_managed_test_postgres(command, env):
+            prepare_managed_test_postgres(env)
+
+        json_write(run_dir / "environment.json", environment_snapshot(env))
+        json_write(run_dir / "postgres-before.json", postgres_snapshot(env))
+        started_at = dt.datetime.now(dt.timezone.utc)
+        started_monotonic = time.monotonic()
+        command_log = (run_dir / "command.log").open("w")
+        process: subprocess.Popen[str] | None = None
+        interrupted = False
+        termination_signal: int | None = None
+        handling_termination = False
+        handled_signals = (signal.SIGINT, signal.SIGTERM, signal.SIGHUP)
+        previous_signal_handlers: dict[int, Any] = {}
+        previous_signal_mask: set[signal.Signals] | None = None
+        signal_mask_restored = False
+
+        def request_termination(signum: int, _frame: Any) -> None:
+            nonlocal termination_signal
+            termination_signal = signum
+            if not handling_termination:
+                raise KeyboardInterrupt
+
+        try:
+            for handled_signal in handled_signals:
+                previous_signal_handlers[handled_signal] = signal.getsignal(handled_signal)
+                signal.signal(handled_signal, request_termination)
+
+            # Block termination while Popen creates the new process group. A
+            # pending signal is delivered only after `process` is assigned, so
+            # the handler can never release the lock with an orphaned child.
+            previous_signal_mask = signal.pthread_sigmask(signal.SIG_BLOCK, handled_signals)
+            process = subprocess.Popen(
+                command,
+                cwd=ROOT,
+                env=env,
+                stdout=command_log,
+                stderr=subprocess.STDOUT,
+                start_new_session=True,
+                text=True,
+            )
+            signal.pthread_sigmask(signal.SIG_SETMASK, previous_signal_mask)
+            signal_mask_restored = True
+
+            while process.poll() is None:
+                sample_started = time.monotonic()
+                append_json_line(run_dir / "postgres-samples.jsonl", postgres_activity_sample(env))
+                append_json_line(run_dir / "host-samples.jsonl", host_sample(process.pid))
+                remaining = args.sample_interval - (time.monotonic() - sample_started)
+                if remaining > 0:
+                    time.sleep(remaining)
+        except KeyboardInterrupt:
+            interrupted = True
+        finally:
+            handling_termination = True
+            if previous_signal_mask is not None and not signal_mask_restored:
+                signal.pthread_sigmask(signal.SIG_SETMASK, previous_signal_mask)
+            if process is not None:
+                if (interrupted or sys.exc_info()[0] is not None) and process.poll() is None:
+                    os.killpg(process.pid, signal.SIGTERM)
+                    try:
+                        process.wait(timeout=10)
+                    except subprocess.TimeoutExpired:
+                        os.killpg(process.pid, signal.SIGKILL)
+                exit_code = process.wait()
+            else:
+                exit_code = 1
+            command_log.close()
+            for handled_signal, previous_handler in previous_signal_handlers.items():
+                signal.signal(handled_signal, previous_handler)
+
+        finished_monotonic = time.monotonic()
+        finished_at = dt.datetime.now(dt.timezone.utc)
+        json_write(run_dir / "postgres-after.json", postgres_snapshot(env))
+        shutil.copytree(metrics_staging_dir, metrics_dir, dirs_exist_ok=True)
+        shutil.rmtree(metrics_staging_dir)
+
+        state_dir = ROOT / ".devenv/test" / env["TEST_RUN_ID"]
+        if state_dir.is_dir():
+            shutil.copytree(state_dir, run_dir / "shards", dirs_exist_ok=True)
+
+        metadata = {
+            "schemaVersion": 1,
+            "name": args.name,
+            "command": command,
+            "commandText": command_text(command),
+            "testRunId": env["TEST_RUN_ID"],
+            "lock": str(lock_path),
+            "startedAt": started_at.isoformat(),
+            "finishedAt": finished_at.isoformat(),
+            "wallSeconds": finished_monotonic - started_monotonic,
+            "sampleIntervalSeconds": args.sample_interval,
+            "exitCode": (
+                128 + termination_signal
+                if interrupted and termination_signal is not None
+                else 130 if interrupted else exit_code
+            ),
+        }
+        json_write(run_dir / "run.json", metadata)
+        summary = summarize_run(run_dir)
+
+    print(json.dumps(
+        {
+            "summary": str(run_dir / "summary.json"),
+            "exitCode": summary["exitCode"],
+            "wallSeconds": summary["wallSeconds"],
+            "resets": summary["resets"]["count"],
+            "maxTestConnections": summary["postgresSampling"]["maxTestDatabaseConnections"],
+        },
+        indent=2,
+    ))
+    return int(summary["exitCode"])
+
+
+def parse_metadata_report(runner: Path) -> dict[str, dict[str, Any]]:
+    completed = subprocess.run(
+        [str(runner), "--suite-metadata"],
+        cwd=ROOT,
+        env=os.environ.copy(),
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        check=False,
+    )
+    if completed.returncode != 0:
+        raise RuntimeError(f"suite metadata report failed:\n{completed.stdout}")
+
+    header = (
+        "label\tdatabase\tclean-state\tcommitted-visibility\tfeedback\t"
+        "invariant-family\testimated-seconds\tfixture-cost\texternal-mocks\towned-invariants\tpartial-invariants"
+    )
+    lines = completed.stdout.splitlines()
+    try:
+        first_row = lines.index(header) + 1
+    except ValueError as exception:
+        raise RuntimeError(f"suite metadata report has no tabular header:\n{completed.stdout}") from exception
+
+    metadata: dict[str, dict[str, Any]] = {}
+    for line in lines[first_row:]:
+        if not line.strip():
+            continue
+        fields = line.split("\t")
+        if len(fields) != 11:
+            raise RuntimeError(f"invalid suite metadata row: {line}")
+        (
+            label,
+            kind,
+            clean_state,
+            committed_visibility,
+            feedback_lane,
+            invariant_family,
+            estimated_seconds,
+            fixture_cost,
+            external_mocks,
+            owned_invariants,
+            partial_invariants,
+        ) = fields
+        metadata[label] = {
+            "kind": kind,
+            "cleanState": clean_state,
+            "committedVisibility": committed_visibility,
+            "feedbackLane": feedback_lane,
+            "invariantFamily": invariant_family,
+            "estimatedRuntimeSeconds": float(estimated_seconds),
+            "fixtureCost": fixture_cost,
+            "externalMocks": [] if external_mocks == "none" else external_mocks.split(","),
+            "ownedInvariants": [] if owned_invariants == "none" else owned_invariants.split(","),
+            "partialInvariants": [] if partial_invariants == "none" else partial_invariants.split(","),
+        }
+    return metadata
+
+
+def parse_registry(runner: Path) -> list[dict[str, Any]]:
+    suite_source = (ROOT / "Test/Suite.hs").read_text()
+    reported_metadata = parse_metadata_report(runner)
+    suites: list[dict[str, Any]] = []
+    for constructor, definition_source, module in SUITE_PATTERN.findall(suite_source):
+        label_match = SUITE_LABEL_PATTERN.search(definition_source)
+        weight_match = SUITE_WEIGHT_PATTERN.search(definition_source)
+        if label_match is None or weight_match is None:
+            raise RuntimeError(f"could not parse suite identity from definition for {module}")
+        label = label_match.group(1)
+        weight = weight_match.group(1)
+        source_path = module.replace(".", "/") + ".hs"
+        source_text = (ROOT / source_path).read_text()
+        metadata = reported_metadata.get(label)
+        if metadata is None:
+            raise RuntimeError(f"suite source entry is missing from metadata report: {label}")
+        expected_kind = "pure" if constructor == "pureSuite" else "database"
+        if metadata["kind"] != expected_kind:
+            raise RuntimeError(
+                f"suite kind differs between source constructor and metadata report: "
+                f"{label} ({expected_kind} != {metadata['kind']})"
+            )
+        if metadata["estimatedRuntimeSeconds"] != float(weight):
+            raise RuntimeError(
+                f"suite weight differs between source and metadata report: "
+                f"{label} ({weight} != {metadata['estimatedRuntimeSeconds']})"
+            )
+        clean_db_call_sites = len(re.findall(r"\bwithCleanDb\s+do\b", source_text))
+        expected_clean_state = (
+            "not-applicable"
+            if expected_kind == "pure"
+            else "broad-reset-required" if clean_db_call_sites else "not-required"
+        )
+        if metadata["cleanState"] != expected_clean_state:
+            raise RuntimeError(
+                f"suite clean-state metadata differs from source use: "
+                f"{label} ({metadata['cleanState']} != {expected_clean_state})"
+            )
+        suites.append(
+            {
+                "label": label,
+                "module": module,
+                "source": source_path,
+                "kind": expected_kind,
+                "declaredWeight": float(weight),
+                "cleanState": metadata["cleanState"],
+                "committedVisibility": metadata["committedVisibility"],
+                "feedbackLane": metadata["feedbackLane"],
+                "invariantFamily": metadata["invariantFamily"],
+                "estimatedRuntimeSeconds": metadata["estimatedRuntimeSeconds"],
+                "fixtureCost": metadata["fixtureCost"],
+                "externalMocks": metadata["externalMocks"],
+                "ownedInvariants": metadata["ownedInvariants"],
+                "partialInvariants": metadata["partialInvariants"],
+                "withCleanDbCallSites": clean_db_call_sites,
+                "fixtureBuilderCallSites": {
+                    builder: len(re.findall(rf"\b{builder}\b", source_text))
+                    for builder in FIXTURE_BUILDERS
+                    if re.search(rf"\b{builder}\b", source_text)
+                },
+            }
+        )
+
+    parsed_labels = {suite["label"] for suite in suites}
+    if parsed_labels != set(reported_metadata):
+        missing_from_source = sorted(set(reported_metadata) - parsed_labels)
+        raise RuntimeError(f"metadata report entries are missing from parsed registry source: {missing_from_source}")
+    return suites
+
+
+def generate_inventory(args: argparse.Namespace) -> int:
+    output_path = Path(args.output) if args.output else None
+    if output_path and not output_path.is_absolute():
+        output_path = ROOT / output_path
+
+    if not args.skip_compile:
+        compile_result = run_capture(
+            ["hspec-pure", "--dry-run", "--format=silent", "--no-color"],
+            env=os.environ.copy(),
+            timeout=args.compile_timeout,
+        )
+        compile_log = (
+            output_path.with_suffix(output_path.suffix + ".compile.log")
+            if output_path
+            else ROOT / "output/hspec-baseline/inventory.compile.log"
+        )
+        compile_log.parent.mkdir(parents=True, exist_ok=True)
+        compile_log.write_text(compile_result.get("output", "") + "\n")
+        if compile_result.get("exitCode") != 0:
+            raise RuntimeError(f"Hspec runner compilation failed; see {compile_log}")
+
+    runner = ROOT / args.runner
+    if not runner.exists():
+        raise RuntimeError(f"Hspec runner does not exist: {runner}")
+
+    suites = parse_registry(runner)
+    by_label = {suite["label"]: suite for suite in suites}
+    total = len(suites)
+    for shard_index in range(1, total + 1):
+        env = os.environ.copy()
+        env.update(
+            {
+                "TEST_LANE": "all",
+                "TEST_SHARD_TOTAL": str(total),
+                "TEST_SHARD_INDEX": str(shard_index),
+            }
+        )
+        completed = subprocess.run(
+            [str(runner), "--dry-run", "--format=progress", "--no-color", "--no-unicode"],
+            cwd=ROOT,
+            env=env,
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            check=False,
+        )
+        if completed.returncode != 0:
+            raise RuntimeError(f"dry-run shard {shard_index}/{total} failed:\n{completed.stdout}")
+        header = re.search(r"^Hspec .*\[([^]]+)\]", completed.stdout, re.MULTILINE)
+        examples = re.search(r"^(\d+) examples?, (\d+) failures?", completed.stdout, re.MULTILINE)
+        if not header or not examples:
+            raise RuntimeError(f"could not parse dry-run shard {shard_index}:\n{completed.stdout}")
+        label = header.group(1)
+        if label not in by_label:
+            raise RuntimeError(f"dry-run selected unknown suite: {label}")
+        by_label[label]["exampleCount"] = int(examples.group(1))
+        by_label[label]["dryRunShardIndex"] = shard_index
+
+    missing = [suite["label"] for suite in suites if "exampleCount" not in suite]
+    if missing:
+        raise RuntimeError(f"inventory did not execute these suites: {missing}")
+
+    inventory = {
+        "schemaVersion": 1,
+        "sourceCommit": run_capture(["git", "rev-parse", "HEAD"]).get("output", ""),
+        "totals": {
+            "suites": total,
+            "pureSuites": sum(suite["kind"] == "pure" for suite in suites),
+            "databaseSuites": sum(suite["kind"] == "database" for suite in suites),
+            "examples": sum(suite["exampleCount"] for suite in suites),
+            "pureExamples": sum(
+                suite["exampleCount"] for suite in suites if suite["kind"] == "pure"
+            ),
+            "databaseExamples": sum(
+                suite["exampleCount"] for suite in suites if suite["kind"] == "database"
+            ),
+            "withCleanDbCallSites": sum(suite["withCleanDbCallSites"] for suite in suites),
+            "declaredWeight": sum(suite["declaredWeight"] for suite in suites),
+            "routineSuites": sum(suite["feedbackLane"] == "routine-correctness" for suite in suites),
+            "broadAcceptanceSuites": sum(suite["feedbackLane"] == "broad-acceptance" for suite in suites),
+            "committedVisibilityRequiredSuites": sum(
+                suite["committedVisibility"] == "required" for suite in suites
+            ),
+            "partialInvariantDeclarations": sum(len(suite["partialInvariants"]) for suite in suites),
+            "fixtureBuilderCallSites": {
+                builder: sum(
+                    suite["fixtureBuilderCallSites"].get(builder, 0) for suite in suites
+                )
+                for builder in FIXTURE_BUILDERS
+            },
+        },
+        "suites": suites,
+    }
+    if output_path:
+        json_write(output_path, inventory)
+    else:
+        print(json.dumps(inventory, indent=2, sort_keys=True))
+
+    if args.check:
+        check_path = Path(args.check)
+        if not check_path.is_absolute():
+            check_path = ROOT / check_path
+        committed = json.loads(check_path.read_text())
+        committed_suites = {suite["label"]: suite for suite in committed["suites"]}
+        structural_fields = (
+            "label",
+            "module",
+            "source",
+            "kind",
+            "declaredWeight",
+            "cleanState",
+            "committedVisibility",
+            "feedbackLane",
+            "invariantFamily",
+            "estimatedRuntimeSeconds",
+            "fixtureCost",
+            "externalMocks",
+            "ownedInvariants",
+            "partialInvariants",
+            "exampleCount",
+            "withCleanDbCallSites",
+            "fixtureBuilderCallSites",
+        )
+        errors: list[str] = []
+        if set(committed_suites) != set(by_label):
+            errors.append(
+                f"suite labels differ: generated={sorted(by_label)} committed={sorted(committed_suites)}"
+            )
+        for label in sorted(set(committed_suites) & set(by_label)):
+            for field in structural_fields:
+                if committed_suites[label].get(field) != by_label[label].get(field):
+                    errors.append(
+                        f"{label}.{field}: generated={by_label[label].get(field)!r} "
+                        f"committed={committed_suites[label].get(field)!r}"
+                    )
+        if errors:
+            print("\n".join(errors), file=sys.stderr)
+            return 1
+        print(f"Inventory matches {check_path.relative_to(ROOT)}")
+    return 0
+
+
+def inspect_environment(args: argparse.Namespace) -> int:
+    output_path = Path(args.output)
+    if not output_path.is_absolute():
+        output_path = ROOT / output_path
+    env = os.environ.copy()
+    json_write(output_path, environment_snapshot(env))
+    print(output_path)
+    return 0
+
+
+def resummarize(args: argparse.Namespace) -> int:
+    run_dir = Path(args.run_dir)
+    if not run_dir.is_absolute():
+        run_dir = ROOT / run_dir
+    summary = summarize_run(run_dir)
+    print(json.dumps(summary, indent=2, sort_keys=True))
+    return 0
+
+
+def parser() -> argparse.ArgumentParser:
+    result = argparse.ArgumentParser(
+        description=(
+            "Capture reproducible Hspec baseline evidence. Run inside the repo environment: "
+            "bash ./bin/in-env ./bin/hspec-baseline ..."
+        )
+    )
+    subparsers = result.add_subparsers(dest="subcommand", required=True)
+
+    capture = subparsers.add_parser("run", help="run one command under the exclusive host lock")
+    capture.add_argument("--name", required=True, help="short stable run label")
+    capture.add_argument("--output", required=True, help="new raw artifact directory")
+    capture.add_argument("--lock", default=str(DEFAULT_LOCK), help="host-global flock path")
+    capture.add_argument(
+        "--wait-seconds",
+        type=float,
+        default=0,
+        help="seconds to wait for the host lock before reporting a conflict",
+    )
+    capture.add_argument(
+        "--sample-interval",
+        type=float,
+        default=1.0,
+        help="PostgreSQL/host sampling interval in seconds",
+    )
+    capture.add_argument("command", nargs=argparse.REMAINDER)
+    capture.set_defaults(function=capture_run)
+
+    inventory = subparsers.add_parser(
+        "inventory", help="derive suite structure and exact dry-run example counts"
+    )
+    inventory.add_argument("--output", help="write generated structural JSON here")
+    inventory.add_argument("--check", help="validate structural fields in a committed inventory")
+    inventory.add_argument("--runner", default="build/Test/Main")
+    inventory.add_argument("--skip-compile", action="store_true")
+    inventory.add_argument("--compile-timeout", type=float, default=600)
+    inventory.set_defaults(function=generate_inventory)
+
+    inspect = subparsers.add_parser("environment", help="capture host and PostgreSQL environment")
+    inspect.add_argument("--output", required=True)
+    inspect.set_defaults(function=inspect_environment)
+
+    summarize = subparsers.add_parser("summarize", help="rebuild summary.json from raw artifacts")
+    summarize.add_argument("run_dir")
+    summarize.set_defaults(function=resummarize)
+    return result
+
+
+def main() -> int:
+    os.chdir(ROOT)
+    args = parser().parse_args()
+    try:
+        return args.function(args)
+    except RuntimeError as exception:
+        print(f"hspec-baseline: {exception}", file=sys.stderr)
+        return 75
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

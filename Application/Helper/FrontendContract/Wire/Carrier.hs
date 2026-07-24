@@ -34,7 +34,6 @@ module Application.Helper.FrontendContract.Wire.Carrier
     , nullableField
     , optionalField
     , parseEvent
-    , parseEventIn
     , parseRecord
     , parseRecordIn
     , parseTaggedUnion
@@ -86,6 +85,7 @@ type family WireSourceType (wire :: WireType) :: Type where
     WireSourceType 'WireBool = Bool
     WireSourceType 'WireUUID = UUID.UUID
     WireSourceType 'WireDay = Day
+    WireSourceType 'WireUnknown = Aeson.Value
     WireSourceType ('WireList inner) = [WireSourceType inner]
     WireSourceType ('WireOptional inner) = Maybe (WireSourceType inner)
     WireSourceType ('WireNullable inner) = Maybe (WireSourceType inner)
@@ -431,6 +431,10 @@ instance KnownWireCodec 'WireDay where
             pure
             (parseTimeM True defaultTimeLocale "%F" (cs value))
 
+instance KnownWireCodec 'WireUnknown where
+    carrierWireJson = id
+    parseCarrierWire = pure
+
 instance KnownWireCodec inner => KnownWireCodec ('WireList inner) where
     carrierWireJson = Aeson.Array . Vector.fromList . fmap (carrierWireJson @inner)
     parseCarrierWire = Aeson.withArray "FrontendContract WireList" (mapM (parseCarrierWire @inner) . toList)
@@ -524,19 +528,6 @@ eventValue ::
     CarrierFields (EventFieldSpecs RegisteredFrontendContracts marker) ->
     Aeson.Value
 eventValue = eventValueIn @RegisteredFrontendContracts @marker
-
-parseEventIn ::
-    forall contracts marker result.
-    ( ReflectFrontendContractRegistry contracts
-    , Typeable marker
-    , KnownCarrierFields (EventFieldSpecs contracts marker)
-    ) =>
-    (CarrierFieldValues (EventFieldSpecs contracts marker) -> AesonTypes.Parser result) ->
-    Aeson.Value ->
-    AesonTypes.Parser result
-parseEventIn =
-    parseRecordWith @marker @(EventFieldSpecs contracts marker)
-        (reflectFrontendContracts @contracts)
 
 parseEvent ::
     forall marker result.

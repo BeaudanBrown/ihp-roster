@@ -21,7 +21,7 @@ import Web.StaffDocuments.Mutations (rsaStaffDocumentTouchedResources)
 import Web.Types
 
 tests :: Spec
-tests = beforeAll testContext do
+tests = aroundAll withDatabaseTestContext do
     describe "StaffDocumentsController" do
         it "redirects unauthenticated users from RSA document actions" $ withContext do
             let staffDocumentId = Id "00000000-0000-0000-0000-000000000000"

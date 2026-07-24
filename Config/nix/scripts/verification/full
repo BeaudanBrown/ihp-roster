@@ -1,6 +1,9 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+echo "verify-full: working-tree devenv script freshness"
+devenv-script-freshness-check
+
 echo "verify-full: typecheck"
 typecheck
 
@@ -22,6 +25,9 @@ bash ./bin/style-audit
 echo "verify-full: architecture and documentation drift"
 architecture-check-fresh
 bash ./bin/doc-drift-check
+
+echo "verify-full: billing production-readiness"
+billing-production-readiness
 
 echo "verify-full: complete Playwright"
 e2e

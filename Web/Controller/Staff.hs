@@ -4,7 +4,8 @@ import Application.Helper.Controller (VenueRole (..), parseVenueRole,
                                       venueRoleToEnum)
 import Application.Helper.FrontendContract.Surface.Request (attachSurfaceRequestFieldErrors,
                                                             surfaceRequestFieldErrorsMessage)
-import Application.Helper.FrontendContract.Surface.Roster.Resource (rosterWeekResource)
+import Application.Helper.FrontendContract.Surface.Roster.Resource (rosterSlotsContentResource,
+                                                                    rosterWeekResource)
 import Application.Helper.Pay (rateEffectiveOn)
 import Application.Helper.ProfileLeave (buildDefaultLeaveRequest,
                                         fetchStaffLeaveRequests)
@@ -31,9 +32,9 @@ import Web.Controller.Admin.Support (SubmittedPayRateSelection (..),
                                      parseSubmittedPayRateSelection,
                                      parseSubmittedPayRateSelectionValue)
 import Web.Controller.Prelude
+import Web.RosterWeeks.Projection (rosterGridInnerAndStaffPanelFragments)
 import Web.RosterWeeks.Responses (respondWithRosterContentOob,
                                   respondWithRosterResourceInvalidation)
-import Web.RosterWeeks.Types (RosterProjectionFragment (RosterProjectionContent, RosterProjectionStaffPanel))
 import Web.Staff.Mutations
 import Web.Staff.ProfileSurfaceRequest (StaffProfileDetailsSubmission (..),
                                         StaffProfileSurfaceSubmission (..),
@@ -193,12 +194,17 @@ instance Controller StaffController where
                 if isHtmxRequest
                     then do
                         rosterGroup <- fetchCurrentVenueRosterGroupOrDefault maybeRosterGroupId
-                        let actorTouchedResources = Set.insert (rosterWeekResource (unpackId rosterGroup.id) weekOffset) mutationResult.liveMutationTouchedResources
+                        let actorTouchedResources =
+                                mutationResult.liveMutationTouchedResources
+                                    <> Set.fromList
+                                        [ rosterWeekResource (unpackId rosterGroup.id) weekOffset
+                                        , rosterSlotsContentResource (unpackId rosterGroup.id) weekOffset
+                                        ]
                         respondWithRosterResourceInvalidation
                             rosterGroup.id
                             weekOffset
                             actorTouchedResources
-                            [RosterProjectionContent, RosterProjectionStaffPanel]
+                            rosterGridInnerAndStaffPanelFragments
                             (renderToastOob ToastBottomCenter (successToast successMessage))
                     else do
                         setSuccessMessage successMessage

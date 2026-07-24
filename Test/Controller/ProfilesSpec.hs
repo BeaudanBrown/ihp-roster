@@ -33,7 +33,7 @@ import Web.Routes
 import Web.Types
 
 tests :: Spec
-tests = beforeAll testContext do
+tests = aroundAll withDatabaseTestContext do
     describe "ProfilesController" do
         it "redirects unauthenticated users away from edit profile" $ withContext do
             response <- callAction EditProfileAction
@@ -121,6 +121,9 @@ tests = beforeAll testContext do
                 response `responseBodyShouldContain` "hx-target=\"#profile-details\""
                 response `responseBodyShouldContain` "hx-target=\"#profile-preferences\""
                 response `responseBodyShouldContain` "hx-swap=\"outerHTML show:none\""
+                response `responseBodyShouldContain` "data-bepis-surface-action=\"update-profile-details\""
+                response `responseBodyShouldContain` "data-bepis-surface-action=\"update-profile-shift-preferences\""
+                response `responseBodyShouldContain` "data-bepis-surface-action=\"create-self-service-leave-request\""
                 response `responseBodyShouldContain` "Profile Details"
                 response `responseBodyShouldContain` "Unavailability"
                 response `responseBodyShouldContain` "id=\"profile-live-surface\""
@@ -133,12 +136,13 @@ tests = beforeAll testContext do
                 response `responseBodyShouldContain` "id=\"profile-leave\""
                 response `responseBodyShouldNotContain` "data-live-update-surface=\""
                 response `responseBodyShouldContain` "profile-leave-section"
-                response `responseBodyShouldContain` "id=\"profile-leave-request-form-fragment\""
-                response `responseBodyShouldContain` "id=\"profile-leave-requests-list-fragment\""
-                response `responseBodyShouldContain` "responseContext\" value=\"profile\""
-                response `responseBodyShouldContain` "action=\"/CreateLeaveRequest?responseContext=profile&amp;section=leave\""
-                response `responseBodyShouldContain` "hx-post=\"/CreateLeaveRequest?responseContext=profile&amp;section=leave\""
-                response `responseBodyShouldContain` "hx-target=\"#profile-leave-request-form-fragment\""
+                response `responseBodyShouldContain` "data-bepis-surface=\"self-service-leave\""
+                response `responseBodyShouldContain` "id=\"self-service-leave-form-fragment\""
+                response `responseBodyShouldContain` "id=\"self-service-leave-history-fragment\""
+                response `responseBodyShouldContain` "responseContext\" value=\"self-service\""
+                response `responseBodyShouldContain` "action=\"/CreateLeaveRequest?responseContext=self-service\""
+                response `responseBodyShouldContain` "hx-post=\"/CreateLeaveRequest?responseContext=self-service\""
+                response `responseBodyShouldContain` "hx-target=\"#self-service-leave-form-fragment\""
                 response `responseBodyShouldContain` "name=\"preferredName\""
                 response `responseBodyShouldContain` "Emergency Contact Name"
                 response `responseBodyShouldContain` "Ideal # Shifts"
@@ -148,8 +152,9 @@ tests = beforeAll testContext do
                 response `responseBodyShouldContain` "Available"
                 response `responseBodyShouldContain` "<th scope=\"col\" class=\"shift-preference-table__available\">Available</th>"
                 response `responseBodyShouldNotContain` "<th scope=\"col\" class=\"shift-preference-table__start-time\">Start time</th>"
-                response `responseBodyShouldContain` "style=\"--preference-start: 5.556%; --preference-end: 66.667%;\""
-                response `responseBodyShouldContain` "class=\"shift-preference-window is-unavailable\""
+                response `responseBodyShouldContain` "style=\"--ordered-range-start-position: 5.556%; --ordered-range-end-position: 66.667%;\""
+                response `responseBodyShouldContain` "class=\"shift-preference-window\""
+                response `responseBodyShouldNotContain` "is-unavailable"
                 response `responseBodyShouldContain` ">Mon<"
                 response `responseBodyShouldContain` "shift-preference-availability-button"
                 response `responseBodyShouldContain` "timesheet-approval-toggle"
@@ -169,8 +174,8 @@ tests = beforeAll testContext do
                     callActionWithParams ShowprofileContentLiveFragmentAction [("section", "leave")]
                 leaveSectionResponse `responseStatusShouldBe` status200
                 leaveSectionResponse `responseBodyShouldContain` "id=\"profile-leave\""
-                leaveSectionResponse `responseBodyShouldContain` "id=\"profile-leave-request-form-fragment\""
-                leaveSectionResponse `responseBodyShouldContain` "id=\"profile-leave-requests-list-fragment\""
+                leaveSectionResponse `responseBodyShouldContain` "id=\"self-service-leave-form-fragment\""
+                leaveSectionResponse `responseBodyShouldContain` "id=\"self-service-leave-history-fragment\""
                 leaveSectionResponse `responseBodyShouldNotContain` "data-live-update-surface=\""
                 leaveSectionResponse `responseBodyShouldNotContain` "id=\"app\""
 
@@ -293,6 +298,33 @@ tests = beforeAll testContext do
                 map (.weekdayIndex) preferences `shouldBe` [1]
                 map (.preferredStartHour) preferences `shouldBe` [12]
                 map (.preferredEndHour) preferences `shouldBe` [20]
+
+        it "keeps server validation authoritative for crossed and out-of-range preference endpoints" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Profile Preference Validation Venue"
+                user <- createUserRecord "profile-preference-validation@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue user "worker"
+                staff <- createStaffRecord venue (Just user) "Taylor" "Validation"
+                let preferenceKey = encodeShiftPreferenceKey 1
+                let submitRange startHour endHour =
+                        withUserAndCurrentVenue user venue.id do
+                            withRequestHeaders [("HX-Request", "true")] do
+                                callActionWithParams UpdateProfileAction
+                                    [ ("section", "preferences")
+                                    , ("shiftPreferenceKeys", cs preferenceKey)
+                                    , (cs (shiftPreferenceStartHourParamName preferenceKey), startHour)
+                                    , (cs (shiftPreferenceEndHourParamName preferenceKey), endHour)
+                                    ]
+
+                crossedResponse <- submitRange "18" "9"
+                crossedResponse `responseStatusShouldBe` status200
+                crossedExists <- query @StaffShiftPreference |> filterWhere (#staffId, unpackId staff.id) |> fetchExists
+                crossedExists `shouldBe` False
+
+                outOfRangeResponse <- submitRange "4" "17"
+                outOfRangeResponse `responseStatusShouldBe` status200
+                outOfRangeExists <- query @StaffShiftPreference |> filterWhere (#staffId, unpackId staff.id) |> fetchExists
+                outOfRangeExists `shouldBe` False
 
         it "records touched resources for profile updates" $ withContext do
             withCleanDb do

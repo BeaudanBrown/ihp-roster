@@ -34,6 +34,7 @@ data BillingScopeValue = BillingScopeValue
 
 data BillingCheckoutReturnState = BillingCheckoutReturnState
     { billingCheckoutReturned  :: !Bool
+    , billingCheckoutAttemptId :: !(Maybe Text)
     , billingCheckoutSessionId :: !(Maybe Text)
     }
     deriving (Eq, Show)
@@ -42,6 +43,7 @@ currentBillingCheckoutReturnState :: BillingCheckoutReturnState
 currentBillingCheckoutReturnState =
     BillingCheckoutReturnState
         { billingCheckoutReturned = False
+        , billingCheckoutAttemptId = Nothing
         , billingCheckoutSessionId = Nothing
         }
 
@@ -66,7 +68,7 @@ billingSurfaceScopeKey = surfaceScopeKey . billingSurfaceScope
 
 billingSurfaceScope :: BillingScopeValue -> SurfaceScope
 billingSurfaceScope scope =
-    SurfaceLive.billingLiveScope scope.billingVenueId
+    SurfaceLive.billingVenueLiveScope scope.billingVenueId
 
 billingCandidateMountedFragments :: BillingCheckoutReturnState -> [FrontendSurfaceMountedFragment]
 billingCandidateMountedFragments checkoutReturnState =
@@ -77,26 +79,27 @@ billingSurfaceFragmentKeys = map (.mountedFragmentKey)
 
 billingScopeFields :: BillingScopeValue -> SurfaceFields (SurfaceScopeFieldSpecs Surface.BillingSurface Surface.BillingVenue)
 billingScopeFields scope =
-    surfaceField @Surface.VenueId scope.billingVenueId :& NoSurfaceFields
+    surfaceField @Surface.VenueId scope.billingVenueId &: noSurfaceFields
 
 billingMountStateFields :: BillingCheckoutReturnState -> SurfaceFields (SurfaceMountStateFieldSpecs Surface.BillingSurface)
 billingMountStateFields checkoutReturnState =
     surfaceField @Surface.CheckoutReturned checkoutReturnState.billingCheckoutReturned
-        :& surfaceField @Surface.CheckoutSessionId checkoutReturnState.billingCheckoutSessionId
-        :& NoSurfaceFields
+        &: surfaceField @Surface.CheckoutSessionId checkoutReturnState.billingCheckoutSessionId
+        &: noSurfaceFields
 
 billingStatusFragmentUrl :: BillingCheckoutReturnState -> Text
 billingStatusFragmentUrl BillingCheckoutReturnState { billingCheckoutReturned = False } =
     pathTo ShowbillingStatusLiveFragmentAction
-billingStatusFragmentUrl BillingCheckoutReturnState { billingCheckoutReturned = True, billingCheckoutSessionId } =
+billingStatusFragmentUrl BillingCheckoutReturnState { billingCheckoutReturned = True, billingCheckoutAttemptId } =
     appendQueryParams (pathTo ShowbillingStatusLiveFragmentAction) $
-        ("checkout", "success") : maybe [] (\sessionId -> [("session_id", sessionId)]) billingCheckoutSessionId
+        [("checkout", "success")]
+            <> maybe [] (\attemptId -> [("attempt_id", attemptId)]) billingCheckoutAttemptId
 
 billingStatusMountedFragment :: Text -> FrontendSurfaceMountedFragment
 billingStatusMountedFragment statusUrl =
     frontendSurfaceMountedFragmentFor @Surface.BillingSurface @Surface.BillingStatus
-        NoSurfaceFields
-        NoSurfaceFields
+        noSurfaceFields
+        noSurfaceFields
         statusUrl
         FrontendSurfaceReplace
 

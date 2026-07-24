@@ -2,13 +2,13 @@ module Web.Controller.Admin where
 
 import Application.Helper.Export
 import qualified Application.Helper.FrontendContract.Surface.Admin as Surface
+import qualified Application.Helper.FrontendContract.Surface.Admin.Action as AdminAction
 import Application.Helper.FrontendContract.Surface.Admin.Live (adminShiftTypesLiveScope)
 import Application.Helper.FrontendContract.Surface.Admin.Resource (adminInvitesResource,
                                                                    xeroConnectionResource)
 import Application.Helper.FrontendContract.Surface.Billing.Resource (billingResource)
 import Application.Helper.FrontendContract.Surface.LeaveRequests.Resource (pendingLeaveRequestsResource)
 import Application.Helper.FrontendContract.Surface.Request (SurfaceRequestFieldError,
-                                                            parseSurfaceActionParams,
                                                             surfaceActionParamsPresent,
                                                             surfaceRequestFieldErrorsMessage)
 import Application.Helper.FrontendContract.Surface.Roster.Resource (rosterWeekResource)
@@ -131,12 +131,12 @@ fetchCurrentVenueStaffUser staffId = do
 parseAdminShiftTypesVisibility :: (?request :: Request) => Either [SurfaceRequestFieldError] Bool
 parseAdminShiftTypesVisibility
     | not (surfaceActionParamsPresent @Surface.AdminShiftTypesSurface @Surface.ToggleInactiveShiftTypes) = Right False
-    | otherwise = surfaceFieldValue @Surface.ShowInactiveShiftTypes <$> parseSurfaceActionParams @Surface.AdminShiftTypesSurface @Surface.ToggleInactiveShiftTypes
+    | otherwise = surfaceFieldValue @Surface.ShowInactiveShiftTypes <$> AdminAction.parseToggleInactiveShiftTypesActionParams
 
 parseAdminRosterGroupsVisibility :: (?request :: Request) => Either [SurfaceRequestFieldError] Bool
 parseAdminRosterGroupsVisibility
     | not (surfaceActionParamsPresent @Surface.AdminRosterGroupsSurface @Surface.ToggleInactiveRosterGroups) = Right False
-    | otherwise = surfaceFieldValue @Surface.ShowInactiveRosterGroups <$> parseSurfaceActionParams @Surface.AdminRosterGroupsSurface @Surface.ToggleInactiveRosterGroups
+    | otherwise = surfaceFieldValue @Surface.ShowInactiveRosterGroups <$> AdminAction.parseToggleInactiveRosterGroupsActionParams
 
 instance Controller AdminController where
     beforeAction = bepisBeforeAction BepisAdminVenueController do
@@ -271,7 +271,7 @@ instance Controller AdminController where
     action currentAction@UpdateVenueConfigAction = runBepis currentAction BepisMutationAction do
         ensureVenueWritable
         venueConfig <- fetchVenueConfig
-        case parseSurfaceActionParams @Surface.AdminVenueSettingsSurface @Surface.UpdateVenueConfig of
+        case AdminAction.parseUpdateVenueConfigActionParams of
             Left errors -> do
                 reportSurfaceRequestErrors errors
                 respondToVenueSettingsMutation
@@ -358,7 +358,7 @@ instance Controller AdminController where
     action currentAction@CreateVenueInvitationAction = runBepis currentAction BepisMutationAction do
         ensureVenueWritable
         currentRosterGroup <- fetchCurrentVenueRosterGroupOrDefault (paramOrNothing "rosterGroupId")
-        case parseSurfaceActionParams @Surface.AdminInvitesSurface @Surface.CreateVenueInvitation of
+        case AdminAction.parseCreateVenueInvitationActionParams of
             Left errors -> do
                 reportSurfaceRequestErrors errors
                 respondToInvitesSectionMutation "" currentRosterGroup.id
@@ -384,7 +384,7 @@ instance Controller AdminController where
     action currentAction@CreateRosterGroupAction = runBepis currentAction BepisMutationAction do
         ensureVenueWritable
         venue <- fetch currentVenueId
-        case parseSurfaceActionParams @Surface.AdminRosterGroupsSurface @Surface.CreateRosterGroup of
+        case AdminAction.parseCreateRosterGroupActionParams of
             Left errors -> do
                 reportSurfaceRequestErrors errors
                 respondToRosterGroupsSectionMutation Nothing
@@ -403,7 +403,7 @@ instance Controller AdminController where
         venue <- fetch currentVenueId
         rosterGroup <- fetch rosterGroupId
         ensureRecordInCurrentVenue rosterGroup.venueId
-        case parseSurfaceActionParams @Surface.AdminRosterGroupsSurface @Surface.UpdateRosterGroup of
+        case AdminAction.parseUpdateRosterGroupActionParams of
             Left errors -> do
                 reportSurfaceRequestErrors errors
                 respondToRosterGroupsSectionMutation (Just rosterGroup.id)
@@ -429,7 +429,7 @@ instance Controller AdminController where
         ensureVenueWritable
         rosterGroup <- fetch rosterGroupId
         ensureRecordInCurrentVenue rosterGroup.venueId
-        case parseSurfaceActionParams @Surface.AdminRosterGroupsSurface @Surface.MoveRosterGroupUp of
+        case AdminAction.parseMoveRosterGroupUpActionParams of
             Left errors -> reportSurfaceRequestErrors errors >> respondToRosterGroupsSectionMutation (Just rosterGroup.id)
             Right _ -> do
                 mutationResult <- moveRosterGroupMutation rosterGroup (-1)
@@ -440,7 +440,7 @@ instance Controller AdminController where
         ensureVenueWritable
         rosterGroup <- fetch rosterGroupId
         ensureRecordInCurrentVenue rosterGroup.venueId
-        case parseSurfaceActionParams @Surface.AdminRosterGroupsSurface @Surface.MoveRosterGroupDown of
+        case AdminAction.parseMoveRosterGroupDownActionParams of
             Left errors -> reportSurfaceRequestErrors errors >> respondToRosterGroupsSectionMutation (Just rosterGroup.id)
             Right _ -> do
                 mutationResult <- moveRosterGroupMutation rosterGroup 1
@@ -449,7 +449,7 @@ instance Controller AdminController where
 
     action currentAction@CreateShiftTypeAction = runBepis currentAction BepisMutationAction do
         ensureVenueWritable
-        case parseSurfaceActionParams @Surface.AdminShiftTypesSurface @Surface.CreateShiftType of
+        case AdminAction.parseCreateShiftTypeActionParams of
             Left errors -> reportSurfaceRequestErrors errors >> respondToShiftTypesSectionMutation False
             Right fields -> do
                 maybeName <- validateRequiredName (surfaceFieldValue @Surface.Name fields) "Shift type name is required."
@@ -468,7 +468,7 @@ instance Controller AdminController where
         ensureVenueWritable
         shiftType <- fetch shiftTypeId
         ensureRecordInCurrentVenue shiftType.venueId
-        case parseSurfaceActionParams @Surface.AdminShiftTypesSurface @Surface.UpdateShiftType of
+        case AdminAction.parseUpdateShiftTypeActionParams of
             Left errors -> reportSurfaceRequestErrors errors >> respondToShiftTypesSectionMutation False
             Right fields -> do
                 maybeName <- validateRequiredName (surfaceFieldValue @Surface.Name fields) "Shift type name is required."
@@ -488,7 +488,7 @@ instance Controller AdminController where
         ensureVenueWritable
         shiftType <- fetch shiftTypeId
         ensureRecordInCurrentVenue shiftType.venueId
-        case parseSurfaceActionParams @Surface.AdminShiftTypesSurface @Surface.MoveShiftTypeUp of
+        case AdminAction.parseMoveShiftTypeUpActionParams of
             Left errors -> reportSurfaceRequestErrors errors >> respondToShiftTypesSectionMutation False
             Right _ -> do
                 mutationResult <- moveShiftTypeMutation shiftType (-1)
@@ -499,7 +499,7 @@ instance Controller AdminController where
         ensureVenueWritable
         shiftType <- fetch shiftTypeId
         ensureRecordInCurrentVenue shiftType.venueId
-        case parseSurfaceActionParams @Surface.AdminShiftTypesSurface @Surface.MoveShiftTypeDown of
+        case AdminAction.parseMoveShiftTypeDownActionParams of
             Left errors -> reportSurfaceRequestErrors errors >> respondToShiftTypesSectionMutation False
             Right _ -> do
                 mutationResult <- moveShiftTypeMutation shiftType 1

@@ -5,10 +5,13 @@ import Application.Helper.FrontendContract.Surface.Admin.Resource
 import Application.Helper.FrontendContract.Surface.Billing.Resource
 import Application.Helper.FrontendContract.Surface.LeaveRequests.Resource
 import Application.Helper.FrontendContract.Surface.Profile.Resource
+import qualified Application.Helper.FrontendContract.Surface.Roster.Live as RosterLive
+import Application.Helper.FrontendContract.Surface.Roster.Resource
 import Application.Helper.FrontendContract.Surface.Runtime (FrontendSurfaceMountConfig (..),
                                                             FrontendSurfaceMountedFragment (..),
                                                             SurfaceImpl (..),
                                                             frontendSurfaceMountConfigJson)
+import qualified Application.Helper.FrontendContract.Surface.SelfServiceLeave.Live as SelfServiceLeaveLive
 import qualified Application.Helper.FrontendContract.Surface.Support.Live as SupportLive
 import Application.Helper.FrontendContract.Surface.Support.Resource
 import qualified Application.Helper.FrontendContract.Surface.Timesheets.Live as TimesheetsLive
@@ -32,16 +35,20 @@ import Web.Billing.FrontendSurface (BillingCheckoutReturnState (..),
                                     billingCandidateMountedFragments,
                                     billingSurfaceScope)
 import Web.LeaveRequests.FrontendSurface (LeaveRequestsScopeValue (..),
+                                          SelfServiceLeaveScopeValue (..),
                                           leaveRequestsCandidateMountedFragments,
                                           leaveRequestsSurfaceImpl,
-                                          leaveRequestsSurfaceScope)
+                                          leaveRequestsSurfaceScope,
+                                          selfServiceLeaveSurfaceImpl,
+                                          selfServiceLeaveSurfaceScope)
 import Web.Profiles.FrontendSurface (ProfileScopeValue (..),
                                      profileCandidateMountedFragments,
                                      profileSurfaceScope)
 import Web.RosterWeeks.FrontendSurface (RosterMountedFragmentPlan (..),
                                         RosterWeekScopeValue (..),
                                         rosterCandidateMountedFragments,
-                                        rosterMountedFragmentForProjection)
+                                        rosterMountedFragmentForProjection,
+                                        rosterSurfaceScope)
 import Web.RosterWeeks.Types (RosterProjectionFragment (..))
 import Web.Routes ()
 import Web.SurfaceInvalidation (SurfaceInvalidationTarget (..),
@@ -55,6 +62,26 @@ import Web.Types
 
 tests :: Spec
 tests = do
+    describe "shared self-service leave Surface" do
+        it "mounts the same form fragment contract in Profile and roster contexts" do
+            let venueId = fromWords 1 0 0 0
+            let staffId = fromWords 2 0 0 0
+            let scope = SelfServiceLeaveScopeValue venueId staffId
+            let profileMount = (selfServiceLeaveSurfaceImpl "profile" True scope).surfaceImplMountConfig
+            let rosterMount = (selfServiceLeaveSurfaceImpl "roster" False scope).surfaceImplMountConfig
+
+            profileMount.mountKey `shouldBe` "profile"
+            rosterMount.mountKey `shouldBe` "roster"
+            map (.mountedFragmentKey) profileMount.mountFragments
+                `shouldBe`
+                    [ SelfServiceLeaveLive.selfServiceLeaveFormLiveFragment
+                    , SelfServiceLeaveLive.selfServiceLeaveHistoryLiveFragment
+                    ]
+            map (.mountedFragmentKey) rosterMount.mountFragments
+                `shouldBe` [SelfServiceLeaveLive.selfServiceLeaveFormLiveFragment]
+            map (.mountedFragmentTargetId) (take 1 profileMount.mountFragments)
+                `shouldBe` map (.mountedFragmentTargetId) rosterMount.mountFragments
+
     describe "generated FrontendSurface resource dependencies" do
         it "selects affected timesheet fragments from generated dependencies" do
             let venueId = fromWords 1 0 0 0
@@ -125,7 +152,7 @@ tests = do
             let supportScope = SupportLive.supportPlatformLiveScope
             let subscriptions =
                     [ liveTestSubscription adminScope [AdminLive.adminXeroShellLiveFragment]
-                    , liveTestSubscription supportScope [SupportLive.supportAwardRatesSectionLiveFragment]
+                    , liveTestSubscription supportScope [SupportLive.supportAwardRatesLiveFragment]
                     ]
             let targets = planSurfaceInvalidationsWithoutContext (Set.fromList [xeroConnectionResource venueId]) subscriptions
 
@@ -167,7 +194,6 @@ tests = do
                     , "roster-wage-rail"
                     , "roster-slots-grid"
                     , "roster-staff-panel-fragment"
-                    , "roster-staff-self-service-leave-form-fragment"
                     , "roster-day-section-" <> tshow rosterDayId
                     , "roster-row-" <> tshow rosterDayId <> "-2"
                     ]
@@ -177,6 +203,114 @@ tests = do
                     [ "roster-grid-toolbar"
                     , "roster-day-section-" <> tshow rosterDayId
                     , "roster-row-" <> tshow rosterDayId <> "-2"
+                    ]
+
+        it "normalizes roster wrapper containment without replacing the grid scroll owner" do
+            let venueId = fromWords 7 0 0 0
+            let rosterGroupUuid = fromWords 8 0 0 0
+            let rosterDayUuid = fromWords 9 0 0 0
+            let rosterGroupId = Id rosterGroupUuid :: Id RosterGroup
+            let rosterDayId = Id rosterDayUuid :: Id RosterDay
+            let scopeValue = RosterWeekScopeValue venueId rosterGroupId 3 Nothing
+            let scope = rosterSurfaceScope scopeValue
+            let plan = RosterMountedFragmentPlan { rosterMountedDayIds = [rosterDayId], rosterMountedRows = [(rosterDayId, 2)] }
+            let resources = Set.fromList
+                    [ rosterWeekResource rosterGroupUuid 3
+                    , rosterDayResource rosterDayUuid
+                    ]
+
+            passiveFragmentKeys resources scope (rosterCandidateMountedFragments scopeValue plan)
+                `shouldBe`
+                    [ RosterLive.rosterGridToolbarLiveFragment
+                    , RosterLive.rosterDayColumnsLiveFragment
+                    , RosterLive.rosterDayRailLiveFragment
+                    , RosterLive.rosterWageRailLiveFragment
+                    , RosterLive.rosterStaffPanelLiveFragment
+                    , RosterLive.rosterDaySectionLiveFragment rosterDayUuid
+                    ]
+
+        it "selects the slots scroll owner only for slots-structure changes" do
+            let venueId = fromWords 10 0 0 0
+            let rosterGroupUuid = fromWords 11 0 0 0
+            let rosterDayUuid = fromWords 12 0 0 0
+            let rosterGroupId = Id rosterGroupUuid :: Id RosterGroup
+            let rosterDayId = Id rosterDayUuid :: Id RosterDay
+            let scopeValue = RosterWeekScopeValue venueId rosterGroupId 4 Nothing
+            let plan = RosterMountedFragmentPlan { rosterMountedDayIds = [rosterDayId], rosterMountedRows = [(rosterDayId, 0)] }
+            let resources = Set.fromList
+                    [ rosterWeekResource rosterGroupUuid 4
+                    , rosterSlotsStructureResource rosterGroupUuid 4
+                    ]
+
+            passiveFragmentKeys resources (rosterSurfaceScope scopeValue) (rosterCandidateMountedFragments scopeValue plan)
+                `shouldBe`
+                    [ RosterLive.rosterGridToolbarLiveFragment
+                    , RosterLive.rosterDayColumnsLiveFragment
+                    , RosterLive.rosterDayRailLiveFragment
+                    , RosterLive.rosterWageRailLiveFragment
+                    , RosterLive.rosterSlotsGridLiveFragment
+                    , RosterLive.rosterStaffPanelLiveFragment
+                    ]
+
+        it "selects the slots scroll owner for broad slots-content changes" do
+            let venueId = fromWords 13 0 0 0
+            let rosterGroupUuid = fromWords 14 0 0 0
+            let rosterDayUuid = fromWords 15 0 0 0
+            let rosterGroupId = Id rosterGroupUuid :: Id RosterGroup
+            let rosterDayId = Id rosterDayUuid :: Id RosterDay
+            let scopeValue = RosterWeekScopeValue venueId rosterGroupId 4 Nothing
+            let plan = RosterMountedFragmentPlan { rosterMountedDayIds = [rosterDayId], rosterMountedRows = [(rosterDayId, 0)] }
+            let resources = Set.fromList
+                    [ rosterWeekResource rosterGroupUuid 4
+                    , rosterSlotsContentResource rosterGroupUuid 4
+                    ]
+
+            passiveFragmentKeys resources (rosterSurfaceScope scopeValue) (rosterCandidateMountedFragments scopeValue plan)
+                `shouldBe`
+                    [ RosterLive.rosterGridToolbarLiveFragment
+                    , RosterLive.rosterDayColumnsLiveFragment
+                    , RosterLive.rosterDayRailLiveFragment
+                    , RosterLive.rosterWageRailLiveFragment
+                    , RosterLive.rosterSlotsGridLiveFragment
+                    , RosterLive.rosterStaffPanelLiveFragment
+                    ]
+
+        it "selects structural roster wrappers only for structural week changes" do
+            let venueId = fromWords 11 0 0 0
+            let rosterGroupUuid = fromWords 12 0 0 0
+            let rosterDayUuid = fromWords 13 0 0 0
+            let rosterGroupId = Id rosterGroupUuid :: Id RosterGroup
+            let rosterDayId = Id rosterDayUuid :: Id RosterDay
+            let scopeValue = RosterWeekScopeValue venueId rosterGroupId 4 Nothing
+            let plan = RosterMountedFragmentPlan { rosterMountedDayIds = [rosterDayId], rosterMountedRows = [(rosterDayId, 0)] }
+            let resources = Set.fromList
+                    [ rosterWeekResource rosterGroupUuid 4
+                    , rosterWeekStructureResource rosterGroupUuid 4
+                    ]
+
+            passiveFragmentKeys resources (rosterSurfaceScope scopeValue) (rosterCandidateMountedFragments scopeValue plan)
+                `shouldBe`
+                    [ RosterLive.rosterContentLiveFragment
+                    , RosterLive.rosterStaffPanelLiveFragment
+                    ]
+
+        it "keeps a parameterized child when the selected ancestor is a different instance" do
+            let venueId = fromWords 17 0 0 0
+            let rosterGroupId = Id (fromWords 18 0 0 0) :: Id RosterGroup
+            let ancestorDayUuid = fromWords 19 0 0 0
+            let childDayUuid = fromWords 20 0 0 0
+            let ancestorDayId = Id ancestorDayUuid :: Id RosterDay
+            let childDayId = Id childDayUuid :: Id RosterDay
+            let scopeValue = RosterWeekScopeValue venueId rosterGroupId 3 Nothing
+            let plan = RosterMountedFragmentPlan { rosterMountedDayIds = [ancestorDayId], rosterMountedRows = [(childDayId, 2)] }
+
+            passiveFragmentKeys
+                (Set.fromList [rosterDayResource ancestorDayUuid, rosterDayResource childDayUuid])
+                (rosterSurfaceScope scopeValue)
+                (rosterCandidateMountedFragments scopeValue plan)
+                `shouldBe`
+                    [ RosterLive.rosterDaySectionLiveFragment ancestorDayUuid
+                    , RosterLive.rosterRowLiveFragment childDayUuid 2
                     ]
 
         it "selects support fragments through generated dependencies" do
@@ -189,7 +323,7 @@ tests = do
         it "selects billing fragments through generated dependencies" do
             let venueId = fromWords 6 0 0 0
             let scopeValue = BillingScopeValue venueId
-            let checkoutState = BillingCheckoutReturnState False Nothing
+            let checkoutState = BillingCheckoutReturnState False Nothing Nothing
             let fragments = planMountedFragments (Set.fromList [billingResource venueId]) (billingSurfaceScope scopeValue) (billingCandidateMountedFragments checkoutState)
 
             map (.mountedFragmentTargetId) fragments `shouldBe` ["billing-status-fragment"]
@@ -201,11 +335,17 @@ tests = do
             let candidates = profileCandidateMountedFragments scopeValue
             let affectedByProfile = planMountedFragments (Set.fromList [staffProfileResource staffId]) (profileSurfaceScope scopeValue) candidates
             let affectedByRsa = planMountedFragments (Set.fromList [staffRsaDocumentsResource staffId]) (profileSurfaceScope scopeValue) candidates
-            let affectedByLeave = planMountedFragments (Set.fromList [staffLeaveRequestsResource staffId]) (profileSurfaceScope scopeValue) candidates
+            let leaveResources = Set.fromList [staffLeaveRequestsResource staffId]
+            let affectedProfileFragments = planMountedFragments leaveResources (profileSurfaceScope scopeValue) candidates
+            let selfServiceScope = SelfServiceLeaveScopeValue venueId staffId
+            let selfServiceMount = (selfServiceLeaveSurfaceImpl "profile" True selfServiceScope).surfaceImplMountConfig
+            let affectedSelfServiceFragments = planMountedFragments leaveResources (selfServiceLeaveSurfaceScope selfServiceScope) selfServiceMount.mountFragments
 
             map (.mountedFragmentTargetId) affectedByProfile `shouldBe` ["profile-details"]
             map (.mountedFragmentTargetId) affectedByRsa `shouldBe` ["profile-rsa"]
-            map (.mountedFragmentTargetId) affectedByLeave `shouldBe` ["profile-leave"]
+            affectedProfileFragments `shouldBe` []
+            map (.mountedFragmentTargetId) affectedSelfServiceFragments
+                `shouldBe` ["self-service-leave-history-fragment"]
 
 planMountedFragments :: Set.Set SurfaceResourceValue -> SurfaceScope -> [FrontendSurfaceMountedFragment] -> [FrontendSurfaceMountedFragment]
 planMountedFragments resources scope mountedFragments =

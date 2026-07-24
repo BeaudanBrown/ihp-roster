@@ -13,8 +13,8 @@ import qualified Application.Helper.FrontendContract.Surface.LeaveRequests.Haske
 import Application.Helper.FrontendContract.Surface.Resource (SurfaceResourceValue,
                                                              frontendSurfaceResource,
                                                              matchFrontendSurfaceResource)
-import Application.Helper.FrontendContract.Surface.Values (SurfaceFields (NoSurfaceFields, (:&)),
-                                                           surfaceField)
+import Application.Helper.FrontendContract.Surface.Values (noSurfaceFields,
+                                                           surfaceField, (&:))
 import qualified Data.UUID as UUID
 import IHP.Prelude
 
@@ -27,8 +27,8 @@ leaveRequestsSectionResource venueId leaveSection =
         @(AdapterFamilySurface Types2.LeaveRequestsAdapterFamily)
         @Types1.LeaveRequestsSection
         ( surfaceField @Types1.VenueId venueId
-            :& surfaceField @Types1.LeaveSection leaveSection
-            :& NoSurfaceFields
+            &: surfaceField @Types1.LeaveSection leaveSection
+            &: noSurfaceFields
         )
 
 matchLeaveRequestsSectionResource :: SurfaceResourceValue -> Maybe (UUID.UUID, (Text, ()))

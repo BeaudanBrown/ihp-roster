@@ -1,4 +1,5 @@
 import { test, expect, type Page } from '@playwright/test';
+import { dialogCloseDomAttr, dialogOverlayMountDomId } from '../frontend/ts/generated/contracts';
 import {
     addRowToRosterDay,
     assignRosterShiftStaff,
@@ -42,29 +43,28 @@ test.describe('Roster assignment filters', () => {
         const firstRowLauncher = rows.nth(0).locator('[data-roster-shift-launcher="true"]').first();
         await openRosterShiftDialog(page, firstRowLauncher);
         const staffValues = await rosterShiftDialogStaffOptionValues(page);
-        await page.locator('[data-dialog-overlay-close="true"]').first().click();
-        await expect(page.locator('#dialog-overlay-mount')).toBeEmpty();
+        const currentStaffId = await page.locator('#roster-shift-staff-id').inputValue();
+        await page.locator(`[${dialogCloseDomAttr}]`).first().click();
+        await expect(page.locator(`#${dialogOverlayMountDomId}`)).toBeEmpty();
 
-        const assignedStaffId = await firstRowLauncher.getAttribute('data-roster-staff-id') || staffValues[0];
+        const assignedStaffId = currentStaffId || staffValues[0];
         const alternateStaffId = staffValues.find((value) => value !== assignedStaffId);
         expect(assignedStaffId).toBeTruthy();
         expect(alternateStaffId).toBeTruthy();
 
-        if ((await firstRowLauncher.getAttribute('data-roster-staff-id')) !== assignedStaffId) {
+        if (!currentStaffId) {
             await assignRosterShiftStaff(page, firstRowLauncher, assignedStaffId);
         }
 
         const secondRowLauncher = rows.nth(1).locator('[data-roster-shift-launcher="true"]').first();
-        if ((await secondRowLauncher.getAttribute('data-roster-staff-id')) !== alternateStaffId) {
-            await assignRosterShiftStaff(page, secondRowLauncher, alternateStaffId!);
-        }
+        await assignRosterShiftStaff(page, secondRowLauncher, alternateStaffId!);
 
         await setHideAlreadyAssignedToday(page);
         await openRosterShiftDialog(page, secondRowLauncher);
         await expect
             .poll(async () => (await rosterShiftDialogStaffOptionValues(page)).includes(assignedStaffId))
             .toBe(false);
-        await page.locator('[data-dialog-overlay-close="true"]').first().click();
+        await page.locator(`[${dialogCloseDomAttr}]`).first().click();
     });
 
 });

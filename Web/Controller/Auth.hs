@@ -1,6 +1,7 @@
 module Web.Controller.Auth where
 
 import Application.Helper.Audit (recordUserAuthenticationAuditEvent)
+import qualified Application.Helper.FrontendContract.Wire.Passkey as PasskeyWire
 import Application.Helper.PasskeyRecoveryCodes (issueInitialRecoveryCodeIfMissing)
 import Application.Helper.Passkeys
 import Application.Helper.PasskeySetupTokens
@@ -36,7 +37,8 @@ instance Controller AuthController where
             query @Passkey
                 |> filterWhere (#userId, unpackId (get #id currentUser))
                 |> fetch
-        when (currentUserRequiresMandatoryPasskey && not (null existingPasskeys)) do
+        strongAuthenticationRequired <- currentUserRequiresMandatoryPasskey
+        when (strongAuthenticationRequired && not (null existingPasskeys)) do
             verified <- isCurrentUserPasskeyVerified
             recoveryVerified <- isCurrentUserPasskeyRecoveryVerified
             unless (verified || recoveryVerified) do
@@ -47,7 +49,7 @@ instance Controller AuthController where
         setSession registrationUserIdSessionKey (inputValue (get #id currentUser))
 
         renderJson $
-            WebAuthnJson.wjEncodeCredentialOptionsRegistration $
+            PasskeyWire.registrationOptionsWire $
                 registrationCredentialOptions
                     challenge
                     (get #id currentUser)
@@ -62,9 +64,9 @@ instance Controller AuthController where
             clearRegistrationSession
             jsonError status422 "The pending passkey registration is invalid."
 
-        registrationRequest <- parseWebAuthnJsonBody @PasskeyRegistrationRequest
-        passkeyName <- normalizeSubmittedPasskeyName registrationRequest.passkeyRegistrationName
-        credential <- case WebAuthnJson.wjDecodeCredentialRegistration registrationRequest.passkeyRegistrationCredential of
+        registrationRequest <- parseWebAuthnJsonBody @PasskeyWire.PasskeyRegistrationRequest
+        passkeyName <- normalizeSubmittedPasskeyName (PasskeyWire.passkeyRegistrationName registrationRequest)
+        credential <- case WebAuthnJson.wjDecodeCredentialRegistration (PasskeyWire.passkeyRegistrationCredential registrationRequest) of
             Left errorMessage -> do
                 clearRegistrationSession
                 jsonError status422 errorMessage
@@ -74,7 +76,8 @@ instance Controller AuthController where
             query @Passkey
                 |> filterWhere (#userId, unpackId (get #id currentUser))
                 |> fetch
-        when (currentUserRequiresMandatoryPasskey && not (null existingPasskeys)) do
+        strongAuthenticationRequired <- currentUserRequiresMandatoryPasskey
+        when (strongAuthenticationRequired && not (null existingPasskeys)) do
             verified <- isCurrentUserPasskeyVerified
             recoveryVerified <- isCurrentUserPasskeyRecoveryVerified
             unless (verified || recoveryVerified) do
@@ -108,31 +111,28 @@ instance Controller AuthController where
 
         _ <- createPasskeyRecord (get #id currentUser) passkeyName entry
         recoveryCode <-
-            if currentUserRequiresMandatoryPasskey && null existingPasskeys
+            if strongAuthenticationRequired && null existingPasskeys
                 then issueInitialRecoveryCodeIfMissing (get #id currentUser)
                 else pure Nothing
         clearCurrentUserPasskeyRecoveryVerification
         markCurrentUserPasskeyVerified
         renderJson
-            ( Aeson.object
-                [ "ok" Aeson..= True
-                , "message" Aeson..= ("Passkey added." :: Text)
-                , "userId" Aeson..= inputValue (get #id currentUser)
-                , "recoveryCode" Aeson..= recoveryCode
-                ]
+            ( PasskeyWire.PasskeyRegistered
+                (unpackId (get #id currentUser))
+                recoveryCode
             )
 
     action currentAction@BeginPasskeyAuthenticationAction = runBepis currentAction BepisMutationAction do
         challenge <- liftIO generateChallenge
         setSession authenticationChallengeSessionKey (unChallenge challenge)
         renderJson $
-            WebAuthnJson.wjEncodeCredentialOptionsAuthentication $
+            PasskeyWire.authenticationOptionsWire $
                 authenticationCredentialOptions challenge
 
     action currentAction@FinishPasskeyAuthenticationAction = runBepis currentAction BepisMutationAction do
         challenge <- sessionChallenge authenticationChallengeSessionKey
-        credentialPayload <- parseWebAuthnJsonBody @WebAuthnJson.WJCredentialAuthentication
-        credential <- case WebAuthnJson.wjDecodeCredentialAuthentication credentialPayload of
+        credentialPayload <- parseWebAuthnJsonBody @PasskeyWire.PasskeyAuthenticationRequest
+        credential <- case WebAuthnJson.wjDecodeCredentialAuthentication (PasskeyWire.passkeyAuthenticationCredential credentialPayload) of
             Left errorMessage -> do
                 clearAuthenticationSession
                 jsonError status422 errorMessage
@@ -188,11 +188,9 @@ instance Controller AuthController where
                 )
         redirectUrl <- getSessionAndClear "IHP.LoginSupport.redirectAfterLogin"
         renderJson
-            ( Aeson.object
-                [ "ok" Aeson..= True
-                , "redirectTo" Aeson..= fromMaybe (Sessions.afterLoginRedirectPath @User) redirectUrl
-                , "userId" Aeson..= inputValue (get #id user)
-                ]
+            ( PasskeyWire.PasskeyAuthenticated
+                (unpackId (get #id user))
+                (fromMaybe (Sessions.afterLoginRedirectPath @User) redirectUrl)
             )
 
     action currentAction@BeginPasskeyStepUpAuthenticationAction = runBepis currentAction BepisMutationAction do
@@ -204,14 +202,14 @@ instance Controller AuthController where
         challenge <- liftIO generateChallenge
         setSession stepUpAuthenticationChallengeSessionKey (unChallenge challenge)
         renderJson $
-            WebAuthnJson.wjEncodeCredentialOptionsAuthentication $
+            PasskeyWire.authenticationOptionsWire $
                 authenticationCredentialOptionsForPasskeys challenge passkeys
 
     action currentAction@FinishPasskeyStepUpAuthenticationAction = runBepis currentAction BepisMutationAction do
         ensureIsUser
         challenge <- sessionChallenge stepUpAuthenticationChallengeSessionKey
-        credentialPayload <- parseWebAuthnJsonBody @WebAuthnJson.WJCredentialAuthentication
-        credential <- case WebAuthnJson.wjDecodeCredentialAuthentication credentialPayload of
+        credentialPayload <- parseWebAuthnJsonBody @PasskeyWire.PasskeyAuthenticationRequest
+        credential <- case WebAuthnJson.wjDecodeCredentialAuthentication (PasskeyWire.passkeyAuthenticationCredential credentialPayload) of
             Left errorMessage -> do
                 clearStepUpAuthenticationSession
                 auditPasskeyStepUpFailure "decode_failed"
@@ -273,11 +271,9 @@ instance Controller AuthController where
                 )
         redirectUrl <- getSessionAndClear passkeyStepUpRedirectSessionKey
         renderJson
-            ( Aeson.object
-                [ "ok" Aeson..= True
-                , "redirectTo" Aeson..= fromMaybe (Sessions.afterLoginRedirectPath @User) redirectUrl
-                , "userId" Aeson..= inputValue currentUser.id
-                ]
+            ( PasskeyWire.PasskeyAuthenticated
+                (unpackId currentUser.id)
+                (fromMaybe (Sessions.afterLoginRedirectPath @User) redirectUrl)
             )
 
     action currentAction@NewPasskeySetupAction = runBepis currentAction BepisFormAction do
@@ -299,7 +295,7 @@ instance Controller AuthController where
         setSession setupRegistrationUserIdSessionKey (inputValue targetUser.id)
 
         renderJson $
-            WebAuthnJson.wjEncodeCredentialOptionsRegistration $
+            PasskeyWire.registrationOptionsWire $
                 registrationCredentialOptions
                     challenge
                     targetUser.id
@@ -316,9 +312,9 @@ instance Controller AuthController where
             jsonError status422 "The pending passkey setup is invalid."
 
         targetUser <- fetch (Id setupToken.userId :: Id User)
-        registrationRequest <- parseWebAuthnJsonBody @PasskeyRegistrationRequest
-        passkeyName <- normalizeSubmittedPasskeyName registrationRequest.passkeyRegistrationName
-        credential <- case WebAuthnJson.wjDecodeCredentialRegistration registrationRequest.passkeyRegistrationCredential of
+        registrationRequest <- parseWebAuthnJsonBody @PasskeyWire.PasskeyRegistrationRequest
+        passkeyName <- normalizeSubmittedPasskeyName (PasskeyWire.passkeyRegistrationName registrationRequest)
+        credential <- case WebAuthnJson.wjDecodeCredentialRegistration (PasskeyWire.passkeyRegistrationCredential registrationRequest) of
             Left errorMessage -> do
                 clearSetupRegistrationSession
                 jsonError status422 errorMessage
@@ -354,12 +350,9 @@ instance Controller AuthController where
             |> set #consumedAt (Just now)
             |> updateRecordDiscardResult
         renderJson
-            ( Aeson.object
-                [ "ok" Aeson..= True
-                , "message" Aeson..= ("Passkey added. Sign in with it on this device." :: Text)
-                , "redirectTo" Aeson..= pathTo NewSessionAction
-                , "userId" Aeson..= inputValue targetUser.id
-                ]
+            ( PasskeyWire.PasskeySetupRegistered
+                (unpackId targetUser.id)
+                (pathTo NewSessionAction)
             )
 
 registrationChallengeSessionKey :: ByteString
@@ -444,17 +437,6 @@ activeSetupTokenById setupTokenId =
         |> filterWhereFuture #expiresAt
         |> fetchOneOrNothing
 
-data PasskeyRegistrationRequest = PasskeyRegistrationRequest
-    { passkeyRegistrationCredential :: WebAuthnJson.WJCredentialRegistration
-    , passkeyRegistrationName       :: Maybe Text
-    }
-
-instance Aeson.FromJSON PasskeyRegistrationRequest where
-    parseJSON value =
-        PasskeyRegistrationRequest
-            <$> Aeson.parseJSON value
-            <*> Aeson.withObject "PasskeyRegistrationRequest" (Aeson..:? "name") value
-
 normalizeSubmittedPasskeyName :: (?request :: Request) => Maybe Text -> IO Text
 normalizeSubmittedPasskeyName maybeName = do
     let submittedName = maybe "Passkey" Text.strip maybeName
@@ -499,13 +481,13 @@ clearSetupRegistrationSession = do
 
 jsonError :: (?request :: Request) => Status -> Text -> IO a
 jsonError statusCode errorMessage =
-    renderJsonWithStatusCode statusCode (Aeson.object ["error" Aeson..= errorMessage])
+    renderJsonWithStatusCode statusCode (PasskeyWire.PasskeyFailure errorMessage)
         >> error "unreachable"
 
 jsonRedirectError :: (?request :: Request) => Status -> Text -> Text -> IO a
 jsonRedirectError statusCode errorMessage redirectTo =
     renderJsonWithStatusCode statusCode
-        (Aeson.object ["error" Aeson..= errorMessage, "redirectTo" Aeson..= redirectTo])
+        (PasskeyWire.PasskeyRedirectFailure errorMessage redirectTo)
         >> error "unreachable"
 
 auditPasskeyStepUpFailure :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Text -> IO ()

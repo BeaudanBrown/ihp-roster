@@ -14,14 +14,17 @@ export XDG_CACHE_HOME="${XDG_CACHE_HOME:-/tmp/nix-cache}"
 export IHP_TELEMETRY_DISABLED="${IHP_TELEMETRY_DISABLED:-1}"
 mkdir -p "$XDG_CACHE_HOME"
 
+# Ask direnv to validate its watched inputs even when the caller inherited an
+# active shell. Executing the inherited command directly can select stale
+# materialized project-script wrappers after Config/nix changes.
+if command -v direnv >/dev/null 2>&1 && [ -f "$REPO_ROOT/.envrc" ]; then
+    exec direnv exec "$REPO_ROOT" "$@"
+fi
+
 if [ "${DEVENV_IN_DIRENV_SHELL:-}" = "true" ]; then
     if command -v "$1" >/dev/null 2>&1 && command -v ghc-pkg >/dev/null 2>&1 && ghc-pkg list ihp 2>/dev/null | grep -q 'ihp-'; then
         exec "$@"
     fi
-fi
-
-if command -v direnv >/dev/null 2>&1 && [ -f "$REPO_ROOT/.envrc" ]; then
-    exec direnv exec "$REPO_ROOT" "$@"
 fi
 
 if command -v nix >/dev/null 2>&1 && [ -f "$REPO_ROOT/flake.nix" ]; then

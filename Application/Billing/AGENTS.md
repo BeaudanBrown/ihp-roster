@@ -8,20 +8,58 @@ Read this before editing `Application/Billing/` or billing controllers.
 - Keep Stripe API, webhook verification, idempotency, and response parsing in
   application modules. Keep redirects, toasts, params, and permission response
   choices in controllers.
-- Billing management is restricted to venue owners and founder super admins in
-  support mode. Venue authority comes from `venue_memberships`, not `users`.
+- Venue owners may use payment actions. Founder super admins in support mode may
+  inspect billing and request reconciliation, but must never start Checkout or
+  open a venue payer's Customer Portal. Venue authority comes from
+  `venue_memberships`, not `users`.
+- Route all billing strong-auth decisions through the shared privileged
+  strong-auth policy. When that deployment policy is enabled, keep owner status
+  inspection free of fresh passkey step-up while Checkout, Customer Portal,
+  founder diagnostics, and reconciliation require fresh step-up. When disabled,
+  billing must not maintain a parallel unconditional passkey requirement.
+- Owner rendering must not expose provider identifiers, event/job diagnostics,
+  Checkout failure internals, or dormant manual read-only controls. Founder
+  diagnostics may show only bounded persisted identifiers and sanitized
+  summaries; do not reuse the owner action panel for support mode.
 - Support-mode requests have a real `currentVenue`, no
-  `currentVenueMembership`, and `currentUserIsSuperAdmin = True`; keep this
-  path working.
+  `currentVenueMembership`, and `currentUserIsSuperAdmin = True`; keep the
+  diagnostic path working while denying payer actions explicitly.
 - Use Stripe-hosted Checkout and Customer Portal redirects only for v1. Do not
   add Stripe.js, embedded pricing tables, in-app card forms, bank forms, ABN
   forms, or billing-address collection.
 - Verify webhook signatures from the raw request body before parsing JSON.
 - Deduplicate webhook processing by Stripe event ID.
-- Use idempotency keys for Stripe create requests.
+- Keep Customer idempotency venue-scoped, Checkout idempotency tied to the
+  committed local attempt ID, and Portal idempotency fresh per request.
+- Prepare and commit a Checkout attempt before its provider create call. Hold a
+  venue-row lock while deciding, creating, or resuming so concurrent requests
+  share the one open attempt. IHP QueryBuilder has no row-lock operation; keep
+  the narrowly required `SELECT ... FOR UPDATE` isolated in `Persistence.hs`.
 - Never log Stripe secret keys, webhook secrets, payment method details, or full
-  raw webhook/API payloads.
-- When changing visible billing status, Checkout/Portal flows, pending/webhook language, manual read-only controls, or owner/support access behavior, update the `billing` topic in `Application.Helper.View.PageHelp`.
+  raw webhook/API payloads. Checkout-attempt failures use only bounded sanitized
+  error code/summary fields; never persist provider bodies in those fields.
+- Classify billing notifications from prior/current subscription state while the
+  venue lock is held. Deduplicate lifecycle mail across all job states by mode,
+  venue, subscription, category, billing period, and recipient; recheck active
+  membership/account or super-admin eligibility at delivery; never key mail only
+  to a Stripe event ID or copy provider error text into notification payloads.
+- Keep Stripe mode explicit. API objects and signed events must match configured
+  test/live mode; never infer mode from a Customer or Subscription ID. Persist
+  validated `livemode` on every Customer, Checkout-attempt, Subscription, and
+  Billing Event record; the migration's temporary false default exists only to backfill
+  pre-launch rows and is dropped before new writes.
+- Validate hosted redirects against the exact HTTPS Stripe Checkout or Customer
+  Portal domain before returning them to a browser.
+- Keep new-Checkout control server-side and independent from overall Stripe
+  integration so Portal, webhooks, and reconciliation can remain available.
+- Reconciliation may retrieve only a locally known Checkout Session or
+  Subscription. Require exact mode, Customer, venue metadata, and local target
+  correlation before updating mirrors; never call a provider create/update
+  endpoint or alter venue writability. Manual, return, and sweep entry points
+  must enqueue the shared `billing_reconciliation` job behavior.
+- When changing visible billing status, Checkout/Portal flows, pending/webhook
+  language, dormant manual read-only behavior, or owner/support access behavior,
+  update the `billing` topic in `Application.Helper.View.PageHelp`.
 
 ## Configuration
 
@@ -32,6 +70,14 @@ Read this before editing `Application/Billing/` or billing controllers.
 - Prefer `STRIPE_PRICE_LOOKUP_KEY`, defaulting operationally to
   `bepis_venue_monthly_aud_100`.
 - Allow `STRIPE_PRICE_ID` only as a fallback override.
+- Production prefers a file-backed least-privilege `rk_live_` key. A file-backed
+  `sk_live_` key is fallback-only when required permissions cannot be granted to
+  a restricted key. Development launchers must reject both live key classes.
+- Real Sandbox probes must require `STRIPE_SANDBOX_PARITY=1`, reject CI, live
+  credentials, and the local E2E mock boundary, and retain only sanitized
+  fields. Never write a raw provider response, hosted-session URL, or key into
+  a fixture, issue, or ordinary verification log.
+- Live mode requires HTTPS `APP_BASE_URL`; missing rollout controls fail closed.
 
 ## Verification
 

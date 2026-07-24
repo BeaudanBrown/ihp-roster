@@ -44,6 +44,37 @@ test("HTMX region adapter emits normalized Bepis events only for marked fragment
     assertEqual(seen[0]?.target, null);
 });
 
+test("HTMX region adapter uses the connected replacement when detail.target is detached", () => {
+    if (typeof document === "undefined") return;
+
+    const oldRegion = document.createElement("section");
+    oldRegion.setAttribute(fragmentDomAttr, "true");
+    const oldTarget = document.createElement("div");
+    oldRegion.appendChild(oldTarget);
+
+    const replacementRegion = document.createElement("section");
+    replacementRegion.setAttribute(fragmentDomAttr, "true");
+    const replacementTarget = document.createElement("div");
+    replacementRegion.appendChild(replacementTarget);
+    document.body.appendChild(replacementRegion);
+
+    const seen: UiRegionLifecycleDetail[] = [];
+    const disable = enableHtmxUiRegionEventAdapter(document);
+    const record = (event: Event) => {
+        seen.push((event as CustomEvent<UiRegionLifecycleDetail>).detail);
+    };
+    try {
+        document.addEventListener(regionAfterSwapEvent, record, { once: true });
+        replacementTarget.dispatchEvent(htmxEvent("htmx:afterSwap", { target: oldTarget }));
+    } finally {
+        disable();
+        replacementRegion.remove();
+    }
+
+    assertEqual(seen[0]?.region, replacementRegion);
+    assertEqual(seen[0]?.target, replacementTarget);
+});
+
 test("HTMX region adapter normalizes swap and error lifecycle details", () => {
     if (typeof document === "undefined") return;
 

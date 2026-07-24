@@ -1,14 +1,14 @@
 module Test.Controller.RosterWeeks.FragmentsSpec where
 
 import Application.Helper.Controller (PlatformRole (SuperAdminRole))
+import Application.Helper.FrontendContract.Surface.Request.Runtime (FrontendSurfaceHtmxRequest (..),
+                                                                    FrontendSurfaceIntentForm,
+                                                                    intentFormName)
 import qualified Application.Helper.FrontendContract.Surface.Roster.Live as RosterLive
 import Application.Helper.FrontendContract.Surface.Roster.Resource (rosterWeekResource)
-import Application.Helper.FrontendContract.Surface.Runtime (FrontendSurfaceHtmxRequest (..),
-                                                            FrontendSurfaceIntentForm,
-                                                            FrontendSurfaceMountConfig (..),
+import Application.Helper.FrontendContract.Surface.Runtime (FrontendSurfaceMountConfig (..),
                                                             FrontendSurfaceMountedFragment (..),
-                                                            SurfaceImpl (..),
-                                                            intentFormName)
+                                                            SurfaceImpl (..))
 import Application.Helper.LiveUpdate
 import Application.Helper.LiveUpdate.Runtime
 import Application.Helper.RosterGroups (createVenueRosterGroupWithDefaults,
@@ -54,7 +54,7 @@ countText needle haystack
                 (_, afterMatch) -> go (Text.drop (Text.length needle) afterMatch) (count + 1)
 
 tests :: Spec
-tests = beforeAll testContext do
+tests = aroundAll withDatabaseTestContext do
     describe "RosterWeeksController" do
         it "returns fragment refresh instructions when a slot assignment changes" $ withContext do
             withCleanDb do
@@ -153,7 +153,13 @@ tests = beforeAll testContext do
                             [subscription]
 
                 targetFragmentKeys targets
-                    `shouldBe` [[RosterLive.rosterContentLiveFragment, RosterLive.rosterGridToolbarLiveFragment, RosterLive.rosterGridFrameLiveFragment, RosterLive.rosterDayColumnsLiveFragment, RosterLive.rosterDayRailLiveFragment, RosterLive.rosterWageRailLiveFragment, RosterLive.rosterSlotsGridLiveFragment, RosterLive.rosterStaffPanelLiveFragment]]
+                    `shouldBe`
+                        [[ RosterLive.rosterGridToolbarLiveFragment
+                         , RosterLive.rosterDayColumnsLiveFragment
+                         , RosterLive.rosterDayRailLiveFragment
+                         , RosterLive.rosterWageRailLiveFragment
+                         , RosterLive.rosterStaffPanelLiveFragment
+                         ]]
 
         it "builds typed FrontendSurface mount metadata for roster fragments" $ withContext do
             withCurrentControllerContext do
@@ -182,7 +188,6 @@ tests = beforeAll testContext do
                                , RosterLive.rosterWageRailLiveFragment
                                , RosterLive.rosterSlotsGridLiveFragment
                                , RosterLive.rosterStaffPanelLiveFragment
-                               , RosterLive.rosterStaffSelfServiceLeaveFormLiveFragment
                                , RosterLive.rosterDaySectionLiveFragment (unpackId rosterDayId)
                                , RosterLive.rosterRowLiveFragment (unpackId rosterDayId) 0
                                , RosterLive.rosterRowLiveFragment (unpackId rosterDayId) 1
@@ -360,9 +365,12 @@ tests = beforeAll testContext do
                 venueConfig <- query @VenueConfig |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
                 _ <- updateRecord (venueConfig |> set #timePickerStartMinuteOfDay 540 |> set #timePickerFinalSelectableMinuteOfDay 780)
                 slotName <- fetchSlotNameRecord venue "Early"
+                staffMember <- createStaffRecord venue Nothing "Alpha" "Crew"
                 rosterWeek <- createRosterWeekRecord venue 0 False
                 rosterDay <- createRosterDayRecord rosterWeek 0
                 _ <- ensureRosterWeekSlotDefinitionForSlotName rosterDay slotName
+                timelineSlot <- createRosterSlotRecord rosterDay slotName (Just staffMember) 0
+                _ <- updateRecord (timelineSlot |> set #startTime (Just (TimeOfDay 9 0 0)) |> set #endTime (Just (TimeOfDay 13 0 0)))
 
                 response <- withUserAndCurrentVenue manager venue.id do
                     callActionWithParams (ShowRosterWeekAction 0)
@@ -373,6 +381,8 @@ tests = beforeAll testContext do
                 response `responseStatusShouldBe` status200
                 response `responseBodyShouldContain` "data-roster-timeline-minute=\"540\""
                 response `responseBodyShouldContain` "data-roster-timeline-minute=\"780\""
+                response `responseBodyShouldContain` ("data-bepis-roster-day-timeline-shift-group-highlight-source=\"existing:" <> cs (tshow timelineSlot.id) <> "\"")
+                response `responseBodyShouldContain` ("data-bepis-roster-day-timeline-shift-group-highlight-member=\"existing:" <> cs (tshow timelineSlot.id) <> "\"")
                 response `responseBodyShouldNotContain` "data-roster-timeline-minute=\"360\""
 
         it "defaults new shift dialog times from the venue time picker window" $ withContext do
@@ -395,8 +405,9 @@ tests = beforeAll testContext do
                 response `responseStatusShouldBe` status200
                 response `responseBodyShouldContain` "name=\"startTime\" value=\"09:00\""
                 response `responseBodyShouldContain` "name=\"endTime\" value=\"13:00\""
-                response `responseBodyShouldContain` "data-time-picker-start=\"09:00\""
-                response `responseBodyShouldContain` "data-time-picker-end=\"13:00\""
+                response `responseBodyShouldContain` "data-bepis-time-picker-config="
+                response `responseBodyShouldContain` "&quot;rangeStart&quot;:&quot;09:00&quot;"
+                response `responseBodyShouldContain` "&quot;rangeEnd&quot;:&quot;13:00&quot;"
 
         it "only hides staff for approved leave overlapping the roster week" $ withContext do
             withCleanDb do
@@ -467,12 +478,16 @@ tests = beforeAll testContext do
                 let createGroupKey = "new:" <> tshow rosterDay.id <> ":" <> tshow lateDefinition.id <> ":0"
                 bodyText `shouldContain` ("class=\"roster-shift-unit roster-shift-launcher\"")
                 bodyText `shouldContain` ("class=\"roster-shift-unit roster-shift-launcher roster-shift-create-unit\"")
-                bodyText `shouldContain` ("data-roster-shift-group-key=\"" <> cs existingGroupKey <> "\"")
+                bodyText `shouldContain` ("data-bepis-roster-shift-group-highlight-source=\"" <> cs existingGroupKey <> "\"")
+                bodyText `shouldContain` ("data-bepis-roster-shift-group-highlight-member=\"" <> cs existingGroupKey <> "\"")
                 bodyText `shouldContain` ("hx-get=\"/EditRosterSlotDialog?rosterSlotId=" <> cs (tshow firstSlot.id) <> "\"")
-                bodyText `shouldContain` ("data-roster-shift-group-key=\"" <> cs createGroupKey <> "\"")
+                bodyText `shouldContain` ("data-bepis-roster-shift-group-highlight-source=\"" <> cs createGroupKey <> "\"")
+                bodyText `shouldContain` ("data-bepis-roster-shift-group-highlight-member=\"" <> cs createGroupKey <> "\"")
                 bodyText `shouldContain` ("hx-get=\"/NewRosterSlotDialog?rosterDayId=" <> cs (tshow rosterDay.id) <> "&amp;rosterWeekSlotDefinitionId=" <> cs (tshow lateDefinition.id) <> "&amp;rowIndex=0\"")
-                countText ("data-roster-shift-group-key=\"" <> existingGroupKey <> "\"") bodyTextValue `shouldBe` 1
-                countText ("data-roster-shift-group-key=\"" <> createGroupKey <> "\"") bodyTextValue `shouldBe` 1
+                countText ("data-bepis-roster-shift-group-highlight-source=\"" <> existingGroupKey <> "\"") bodyTextValue `shouldBe` 1
+                countText ("data-bepis-roster-shift-group-highlight-member=\"" <> existingGroupKey <> "\"") bodyTextValue `shouldBe` 1
+                countText ("data-bepis-roster-shift-group-highlight-source=\"" <> createGroupKey <> "\"") bodyTextValue `shouldBe` 1
+                countText ("data-bepis-roster-shift-group-highlight-member=\"" <> createGroupKey <> "\"") bodyTextValue `shouldBe` 1
                 bodyText `shouldNotContain` "data-roster-field-key="
 
         it "renders draft empty day-row shifts as unmerged visual cells with a hover-only merged create marker" $ withContext do
@@ -493,11 +508,12 @@ tests = beforeAll testContext do
                 let bodyText = cs body :: String
                 bodyText `shouldContain` "roster-shift-unit roster-shift-launcher roster-shift-create-unit"
                 bodyText `shouldContain` "data-bepis-dropzone-ref=\"shift-slot-dropzone\""
-                bodyText `shouldContain` "roster-shift-create-staff-dropzone"
+                bodyText `shouldContain` "roster-shift-create-grid"
                 bodyText `shouldNotContain` "data-bepis-dropzone-ref=\"staff-create-dropzone\""
                 bodyText `shouldContain` "roster-shift-unit-cell slot-empty-cell"
                 bodyText `shouldContain` "roster-shift-create-plus-overlay"
-                bodyText `shouldContain` ("data-roster-shift-group-key=\"new:" <> cs (tshow rosterDay.id) <> ":" <> cs (tshow slotDefinition.id) <> ":0\"")
+                bodyText `shouldContain` ("data-bepis-roster-shift-group-highlight-source=\"new:" <> cs (tshow rosterDay.id) <> ":" <> cs (tshow slotDefinition.id) <> ":0\"")
+                bodyText `shouldContain` ("data-bepis-roster-shift-group-highlight-member=\"new:" <> cs (tshow rosterDay.id) <> ":" <> cs (tshow slotDefinition.id) <> ":0\"")
                 bodyText `shouldContain` ">+</div>"
                 bodyText `shouldNotContain` ">Add</div>"
 
@@ -526,7 +542,8 @@ tests = beforeAll testContext do
                 bodyText `shouldContain` "roster-shift-card-empty roster-shift-card-create roster-shift-launcher roster-shift-create-plus-card"
                 bodyText `shouldContain` "<span class=\"roster-shift-create-plus\" aria-hidden=\"true\">+</span>"
                 bodyText `shouldContain` "<span class=\"visually-hidden\">Add shift</span>"
-                bodyText `shouldContain` ("data-roster-shift-group-key=\"new:" <> cs (tshow rosterDay.id) <> ":" <> cs (tshow slotDefinition.id) <> ":0\"")
+                bodyText `shouldContain` ("data-bepis-roster-shift-group-highlight-source=\"new:" <> cs (tshow rosterDay.id) <> ":" <> cs (tshow slotDefinition.id) <> ":0\"")
+                bodyText `shouldContain` ("data-bepis-roster-shift-group-highlight-member=\"new:" <> cs (tshow rosterDay.id) <> ":" <> cs (tshow slotDefinition.id) <> ":0\"")
                 bodyText `shouldContain` "data-bepis-dropzone-ref=\"staff-create-dropzone\""
                 bodyText `shouldContain` ("data-bepis-dropzone-key=\"new:" <> cs (tshow rosterDay.id) <> ":" <> cs (tshow slotDefinition.id) <> ":0\"")
                 bodyText `shouldNotContain` ">Add shift</div>"
@@ -605,7 +622,7 @@ tests = beforeAll testContext do
                 let bodyText = cs body :: String
                 bodyText `shouldContain` "slot-staff-cell position-relative"
                 bodyText `shouldContain` "Alpha"
-                bodyText `shouldNotContain` ("data-roster-shift-group-key=\"existing:" <> cs (tshow slot.id) <> "\"")
+                bodyText `shouldNotContain` ("data-bepis-roster-shift-group-highlight-source=\"existing:" <> cs (tshow slot.id) <> "\"")
                 bodyText `shouldNotContain` ("hx-get=\"/EditRosterSlotDialog?rosterSlotId=" <> cs (tshow slot.id) <> "\"")
                 bodyText `shouldNotContain` "data-roster-shift-launcher=\"true\""
 
@@ -873,8 +890,8 @@ tests = beforeAll testContext do
                 let secondRowText = cs secondRowBody :: String
                 firstRowText `shouldContain` "conflict-critical"
                 secondRowText `shouldContain` "conflict-critical"
-                firstRowText `shouldContain` "data-conflict-message="
-                secondRowText `shouldContain` "data-conflict-message="
+                firstRowText `shouldContain` "title="
+                secondRowText `shouldContain` "title="
 
         it "renders a static roster week label without the month overview trigger" $ withContext do
             withCleanDb do
@@ -889,9 +906,9 @@ tests = beforeAll testContext do
                 response `responseBodyShouldContain` "roster-week-nav-label"
                 response `responseBodyShouldContain` "Week of"
                 response `responseBodyShouldNotContain` "Open roster week overview"
-                response `responseBodyShouldNotContain` "data-week-overview-fragment-mount=\"true\""
+                response `responseBodyShouldNotContain` "data-bepis-roster-week-overview-panel="
                 response `responseBodyShouldNotContain` "hx-get=\"/ShowRosterWeekOverviewFragment?weekOffset=0&amp;rosterGroupId="
-                response `responseBodyShouldNotContain` "data-week-overview-day=\"true\""
+                response `responseBodyShouldNotContain` "data-bepis-roster-week-overview-day="
 
         it "promotes roster layout selection through typed interaction intent markup" $ withContext do
             withCleanDb do
@@ -1197,13 +1214,13 @@ tests = beforeAll testContext do
                     callAction (ShowRosterWeekOverviewFragmentAction 0)
 
                 response `responseStatusShouldBe` status200
-                response `responseBodyShouldContain` "data-week-overview-loaded=\"true\""
-                response `responseBodyShouldContain` "data-week-overview-date=\"2025-01-13\""
-                response `responseBodyShouldContain` "data-week-overview-assigned=\"2\""
-                response `responseBodyShouldContain` "data-week-overview-hours=\"8h\""
-                response `responseBodyShouldContain` "data-week-overview-leave=\"1\""
-                response `responseBodyShouldNotContain` "data-week-overview-leave=\"2\""
-                response `responseBodyShouldContain` "data-week-overview-date=\"2025-01-01\""
+                response `responseBodyShouldContain` "data-bepis-roster-week-overview-panel="
+                response `responseBodyShouldContain` "&quot;weekOverviewDate&quot;:&quot;2025-01-13&quot;"
+                response `responseBodyShouldContain` "&quot;weekOverviewAssignedDisplay&quot;:&quot;2&quot;"
+                response `responseBodyShouldContain` "&quot;weekOverviewHoursDisplay&quot;:&quot;8h&quot;"
+                response `responseBodyShouldContain` "&quot;weekOverviewLeaveDisplay&quot;:&quot;1&quot;"
+                response `responseBodyShouldNotContain` "&quot;weekOverviewLeaveDisplay&quot;:&quot;2&quot;"
+                response `responseBodyShouldContain` "&quot;weekOverviewDate&quot;:&quot;2025-01-01&quot;"
                 response `responseBodyShouldContain` "weekDate=2025-01-13"
 
 targetFragmentKeys :: [SurfaceInvalidationTarget] -> [[SurfaceFragmentKey]]

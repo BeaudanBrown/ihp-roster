@@ -5,10 +5,10 @@
     padding: 0 !important;
 }
 
-.roster-shift-card.is-roster-staff-slot-highlighted,
-.roster-shift-card.is-roster-staff-slot-highlighted-start,
-.roster-shift-card.is-roster-staff-slot-highlighted-end,
-.roster-grid [role="gridcell"].is-roster-staff-slot-highlighted {
+.roster-shift-card[data-bepis-roster-staff-highlight-member].is-linked-highlight-member,
+.roster-shift-card[data-bepis-roster-staff-highlight-member].is-linked-highlight-member-first,
+.roster-shift-card[data-bepis-roster-staff-highlight-member].is-linked-highlight-member-last,
+.roster-grid [role="gridcell"][data-bepis-roster-staff-highlight-member].is-linked-highlight-member {
     --roster-staff-highlight-depth-fill: var(--roster-staff-highlight-cell-fill);
     --roster-staff-highlight-depth-start: color-mix(in srgb, var(--roster-staff-highlight-depth-fill) 78%, var(--app-white-alpha-08));
     --roster-staff-highlight-depth-end: color-mix(in srgb, var(--roster-staff-highlight-depth-fill) 94%, var(--app-bg));
@@ -21,16 +21,16 @@
     text-shadow: 0 1px 0 color-mix(in srgb, var(--app-bg) 38%, transparent) !important;
 }
 
-.roster-shift-card.is-roster-staff-slot-highlighted,
-.roster-shift-card.is-roster-staff-slot-highlighted-start,
-.roster-shift-card.is-roster-staff-slot-highlighted-end {
+.roster-shift-card[data-bepis-roster-staff-highlight-member].is-linked-highlight-member,
+.roster-shift-card[data-bepis-roster-staff-highlight-member].is-linked-highlight-member-first,
+.roster-shift-card[data-bepis-roster-staff-highlight-member].is-linked-highlight-member-last {
     --roster-staff-highlight-depth-fill: var(--roster-staff-highlight-fill);
     border-color: color-mix(in srgb, var(--app-accent) 52%, var(--app-border-strong)) !important;
 }
 
-.roster-shift-card.is-roster-staff-slot-highlighted .roster-shift-card-field,
-.roster-shift-card.is-roster-staff-slot-highlighted-start .roster-shift-card-field,
-.roster-shift-card.is-roster-staff-slot-highlighted-end .roster-shift-card-field {
+.roster-shift-card[data-bepis-roster-staff-highlight-member].is-linked-highlight-member .roster-shift-card-field,
+.roster-shift-card[data-bepis-roster-staff-highlight-member].is-linked-highlight-member-first .roster-shift-card-field,
+.roster-shift-card[data-bepis-roster-staff-highlight-member].is-linked-highlight-member-last .roster-shift-card-field {
     --roster-staff-highlight-depth-fill: var(--roster-staff-highlight-cell-fill);
     background-color: var(--roster-staff-highlight-depth-fill) !important;
     background-image: linear-gradient(180deg, var(--roster-staff-highlight-depth-start), var(--roster-staff-highlight-depth-end)) !important;
@@ -41,10 +41,10 @@
     text-shadow: 0 1px 0 color-mix(in srgb, var(--app-bg) 38%, transparent) !important;
 }
 
-.roster-grid-frame[data-roster-warnings="hidden"] .roster-grid [role="gridcell"].is-roster-staff-slot-highlighted,
-.roster-grid-frame[data-roster-warnings="hidden"] .roster-shift-card.is-roster-staff-slot-highlighted .roster-shift-card-field,
-.roster-grid-frame[data-roster-warnings="hidden"] .roster-shift-card.is-roster-staff-slot-highlighted-start .roster-shift-card-field,
-.roster-grid-frame[data-roster-warnings="hidden"] .roster-shift-card.is-roster-staff-slot-highlighted-end .roster-shift-card-field {
+.roster-grid-frame[data-roster-warnings="hidden"] .roster-grid [role="gridcell"][data-bepis-roster-staff-highlight-member].is-linked-highlight-member,
+.roster-grid-frame[data-roster-warnings="hidden"] .roster-shift-card[data-bepis-roster-staff-highlight-member].is-linked-highlight-member .roster-shift-card-field,
+.roster-grid-frame[data-roster-warnings="hidden"] .roster-shift-card[data-bepis-roster-staff-highlight-member].is-linked-highlight-member-first .roster-shift-card-field,
+.roster-grid-frame[data-roster-warnings="hidden"] .roster-shift-card[data-bepis-roster-staff-highlight-member].is-linked-highlight-member-last .roster-shift-card-field {
     background-color: var(--roster-staff-highlight-depth-fill) !important;
     background-image: linear-gradient(180deg, var(--roster-staff-highlight-depth-start), var(--roster-staff-highlight-depth-end)) !important;
     color: var(--app-text) !important;

@@ -27,8 +27,8 @@ data SupportLiveFragment
 
 supportLiveFragmentKey :: SupportLiveFragment -> SurfaceFragmentKey
 supportLiveFragmentKey = \case
-    SupportAwardRatesLiveFragment -> SurfaceLive.supportAwardRatesSectionLiveFragment
-    SupportPublicHolidaysLiveFragment -> SurfaceLive.supportPublicHolidaysSectionLiveFragment
+    SupportAwardRatesLiveFragment -> SurfaceLive.supportAwardRatesLiveFragment
+    SupportPublicHolidaysLiveFragment -> SurfaceLive.supportPublicHolidaysLiveFragment
 
 supportSurfaceScope :: SurfaceScope
 supportSurfaceScope = SurfaceLive.supportPlatformLiveScope
@@ -37,8 +37,8 @@ supportSurface :: SurfaceImpl Surface.SupportSurface
 supportSurface =
     mkSurfaceImplFromValues @Surface.SupportSurface @Surface.SupportPlatform
         "primary"
-        NoSurfaceFields
-        NoSurfaceFields
+        noSurfaceFields
+        noSurfaceFields
         supportCandidateMountedFragments
 
 supportCandidateMountedFragments :: [FrontendSurfaceMountedFragment]
@@ -53,15 +53,15 @@ supportSurfaceFragmentKeys = map (.mountedFragmentKey)
 supportAwardRatesMountedFragment :: FrontendSurfaceMountedFragment
 supportAwardRatesMountedFragment =
     frontendSurfaceMountedFragmentFor @Surface.SupportSurface @Surface.SupportAwardRates
-        NoSurfaceFields
-        NoSurfaceFields
+        noSurfaceFields
+        noSurfaceFields
         "/ShowFwcMapdAwardRatesSection"
         FrontendSurfaceReplace
 
 supportPublicHolidaysMountedFragment :: FrontendSurfaceMountedFragment
 supportPublicHolidaysMountedFragment =
     frontendSurfaceMountedFragmentFor @Surface.SupportSurface @Surface.SupportPublicHolidays
-        NoSurfaceFields
-        NoSurfaceFields
+        noSurfaceFields
+        noSurfaceFields
         "/ShowPublicHolidaysSection"
         FrontendSurfaceReplace

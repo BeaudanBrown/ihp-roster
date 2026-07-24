@@ -1,16 +1,18 @@
 module Application.Helper.ProfileLeave
     ( buildDefaultLeaveRequest
+    , defaultLeaveRequestForOperationalDay
     , fetchCurrentUserLeaveRequests
     , fetchStaffLeaveRequests
     ) where
 
-import Application.Helper.Controller (currentVenueId, fetchCurrentUserStaff)
+import Application.Helper.Controller (currentOperationalDayForVenue,
+                                      currentVenueId, fetchCurrentUserStaff,
+                                      fetchVenueConfig)
 import Generated.Types
 import IHP.ControllerPrelude
 import IHP.Prelude
 
 import Data.Time.Calendar (addDays)
-import Data.Time.Clock (utctDay)
 
 fetchCurrentUserLeaveRequests :: (?context :: ControllerContext, ?modelContext :: ModelContext) => IO [LeaveRequest]
 fetchCurrentUserLeaveRequests = do
@@ -28,10 +30,14 @@ fetchStaffLeaveRequests staff =
         |> orderByDesc #startDate
         |> fetch
 
-buildDefaultLeaveRequest :: (?context :: ControllerContext) => IO LeaveRequest
+buildDefaultLeaveRequest :: (?context :: ControllerContext, ?modelContext :: ModelContext) => IO LeaveRequest
 buildDefaultLeaveRequest = do
-    today <- utctDay <$> getCurrentTime
-    pure $
-        newRecord @LeaveRequest
-            |> set #startDate today
-            |> set #endDate (addDays 1 today)
+    venueConfig <- fetchVenueConfig
+    operationalDay <- currentOperationalDayForVenue venueConfig
+    pure (defaultLeaveRequestForOperationalDay operationalDay)
+
+defaultLeaveRequestForOperationalDay :: Day -> LeaveRequest
+defaultLeaveRequestForOperationalDay operationalDay =
+    newRecord @LeaveRequest
+        |> set #startDate operationalDay
+        |> set #endDate (addDays 1 operationalDay)

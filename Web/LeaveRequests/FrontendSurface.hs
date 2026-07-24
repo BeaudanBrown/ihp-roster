@@ -5,12 +5,17 @@
 
 module Web.LeaveRequests.FrontendSurface
     ( LeaveRequestsScopeValue (..)
+    , SelfServiceLeaveScopeValue (..)
     , leaveRequestsCandidateMountedFragments
     , leaveRequestsSurfaceScope
     , leaveRequestsSurfaceImpl
     , leaveRequestsSurfaceMountConfig
     , leaveRequestsSurfaceScopeKey
     , leaveRequestsSurfaceFragmentKeys
+    , selfServiceLeaveFormMountedFragment
+    , selfServiceLeaveHistoryMountedFragment
+    , selfServiceLeaveSurfaceImpl
+    , selfServiceLeaveSurfaceScope
     ) where
 
 import Application.Helper.FrontendContract.Surface.DSL (FieldSpec (..),
@@ -22,6 +27,8 @@ import Application.Helper.FrontendContract.Surface.Live (SurfaceFragmentKey,
                                                          surfaceScopeKey)
 import Application.Helper.FrontendContract.Surface.Reflect (ReflectPrimitive)
 import Application.Helper.FrontendContract.Surface.Runtime
+import qualified Application.Helper.FrontendContract.Surface.SelfServiceLeave as SelfServiceLeave
+import qualified Application.Helper.FrontendContract.Surface.SelfServiceLeave.Live as SelfServiceLeaveLive
 import Application.Helper.FrontendContract.Surface.Values
 import Application.Helper.Url (appendQueryParams)
 import qualified Data.UUID as UUID
@@ -29,17 +36,54 @@ import Web.Controller.Prelude
 import Web.View.LeaveRequests.Index (leaveApprovedSection, leaveArchiveSection,
                                      leaveDeniedSection, leavePendingSection)
 
+data SelfServiceLeaveScopeValue = SelfServiceLeaveScopeValue
+    { selfServiceLeaveVenueId :: !UUID.UUID
+    , selfServiceLeaveStaffId :: !UUID.UUID
+    }
+    deriving (Eq, Show)
+
 data LeaveRequestsScopeValue = LeaveRequestsScopeValue
     { leaveRequestsVenueId :: !UUID.UUID
     }
     deriving (Eq, Show)
+
+selfServiceLeaveSurfaceImpl :: Text -> Bool -> SelfServiceLeaveScopeValue -> SurfaceImpl SelfServiceLeave.SelfServiceLeaveSurface
+selfServiceLeaveSurfaceImpl mountKey includeHistory scope =
+    mkSurfaceImplFromValues @SelfServiceLeave.SelfServiceLeaveSurface @SelfServiceLeave.SelfServiceLeaveScope
+        mountKey
+        ( surfaceField @SelfServiceLeave.VenueId scope.selfServiceLeaveVenueId
+            &: surfaceField @SelfServiceLeave.StaffId scope.selfServiceLeaveStaffId
+            &: noSurfaceFields
+        )
+        noSurfaceFields
+        (selfServiceLeaveFormMountedFragment : [selfServiceLeaveHistoryMountedFragment | includeHistory])
+
+selfServiceLeaveSurfaceScope :: SelfServiceLeaveScopeValue -> SurfaceScope
+selfServiceLeaveSurfaceScope scope =
+    SelfServiceLeaveLive.selfServiceLeaveLiveScope scope.selfServiceLeaveVenueId scope.selfServiceLeaveStaffId
+
+selfServiceLeaveFormMountedFragment :: FrontendSurfaceMountedFragment
+selfServiceLeaveFormMountedFragment =
+    frontendSurfaceMountedFragmentFor @SelfServiceLeave.SelfServiceLeaveSurface @SelfServiceLeave.SelfServiceLeaveFormFragment
+        noSurfaceFields
+        noSurfaceFields
+        (appendQueryParams (pathTo ShowSelfServiceLeaveFragmentAction) [("fragment", "form")])
+        FrontendSurfaceReplace
+
+selfServiceLeaveHistoryMountedFragment :: FrontendSurfaceMountedFragment
+selfServiceLeaveHistoryMountedFragment =
+    frontendSurfaceMountedFragmentFor @SelfServiceLeave.SelfServiceLeaveSurface @SelfServiceLeave.SelfServiceLeaveHistoryFragment
+        noSurfaceFields
+        noSurfaceFields
+        (appendQueryParams (pathTo ShowSelfServiceLeaveFragmentAction) [("fragment", "history")])
+        FrontendSurfaceReplace
 
 leaveRequestsSurfaceImpl :: LeaveRequestsScopeValue -> SurfaceImpl Surface.LeaveRequestsSurface
 leaveRequestsSurfaceImpl scope =
     mkSurfaceImplFromValues @Surface.LeaveRequestsSurface @Surface.LeaveRequestsScope
         "primary"
         (leaveRequestsScopeFields scope)
-        NoSurfaceFields
+        noSurfaceFields
         (leaveRequestsCandidateMountedFragments scope)
 
 leaveRequestsSurfaceMountConfig :: LeaveRequestsScopeValue -> FrontendSurfaceMountConfig
@@ -62,17 +106,17 @@ leaveRequestsSurfaceFragmentKeys = map (.mountedFragmentKey)
 
 leaveRequestsScopeFields :: LeaveRequestsScopeValue -> SurfaceFields (SurfaceScopeFieldSpecs Surface.LeaveRequestsSurface Surface.LeaveRequestsScope)
 leaveRequestsScopeFields scope =
-    surfaceField @Surface.VenueId scope.leaveRequestsVenueId :& NoSurfaceFields
+    surfaceField @Surface.VenueId scope.leaveRequestsVenueId &: noSurfaceFields
 
 leaveRequestsSectionFields :: Text -> SurfaceFields '[ 'Field Surface.LeaveSection 'WireText]
 leaveRequestsSectionFields section =
-    surfaceField @Surface.LeaveSection section :& NoSurfaceFields
+    surfaceField @Surface.LeaveSection section &: noSurfaceFields
 
 leaveRequestsTargetFields :: Text -> Text -> SurfaceFields '[ 'Field Surface.LeaveSection 'WireText, 'Field Surface.LeaveTargetSuffix 'WireText]
 leaveRequestsTargetFields section suffix =
     surfaceField @Surface.LeaveSection section
-        :& surfaceField @Surface.LeaveTargetSuffix suffix
-        :& NoSurfaceFields
+        &: surfaceField @Surface.LeaveTargetSuffix suffix
+        &: noSurfaceFields
 
 leaveRequestsSectionMountedFragments :: [FrontendSurfaceMountedFragment]
 leaveRequestsSectionMountedFragments =

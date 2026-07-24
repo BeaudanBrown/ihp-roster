@@ -11,6 +11,67 @@ Read this before editing `frontend/ts/`.
   drift check, and its watcher all render the same checked typeclass-reflected
   Haskell registry used by server runtime metadata.
 - Contracts are for browser boundary data only: JSON/data-* payloads, live-update config/messages, exact FrontendSurface mounts, minimal fragment/interaction registries, shared DOM vocabulary, roster UI config, and overlay lanes. Do not generate broad database models, server-only Surface action/DTO/topology data, or omnibus registries for frontend use.
+- Dialog/toast adapters import generated Overlay role/id/event constants and
+  exact config parsers. Emit the generated semantic dismissal event before every
+  close-control, backdrop, or Escape removal. Keep Bootstrap selectors/events
+  and ephemeral CSS classes adapter-local; keep one-time/original-markup state in
+  `WeakSet`/`WeakMap` storage instead of inventing browser-only overlay data
+  attributes.
+- The passkey adapter imports every generated passkey role, prompt-mode value,
+  exact flow/begin/finish/error parser, and credential request encoder. Validate
+  the complete nearest flow root and each server envelope before installing
+  listeners, invoking a credential API, redirecting, or changing status HTML;
+  malformed boundaries emit structured diagnostics or Haskell-owned failure copy
+  and remain safe. Keep `navigator.credentials`, native WebAuthn objects,
+  extension-result semantics, capability detection, base64url conversion, and
+  local-storage UX hints adapter-local. Haskell owns routes and every displayed
+  workflow/error message; never surface native exception or untyped response
+  copy. Prompt
+  dismissal uses both the passkey dismissal and Overlay close roles and records
+  close/Escape/backdrop hints from the generated dismissal event, while only the
+  Overlay adapter may remove dialog DOM or manage body lock/focus behavior.
+- The time-picker adapter imports every picker id/role plus the generated exact
+  config/option parsers. Haskell-rendered option values/labels and field
+  range/step/copy are authoritative; TypeScript may rearrange validated server
+  option nodes but must not synthesize fallback options/copy or use presentation
+  classes as discovery selectors. Picker code must not import Toggle roles or
+  own break-field activation.
+- The ordered-range adapter imports generated root/config/state/endpoint/
+  availability roles, exact parsers, policy values, and position properties.
+  It validates one local native checkbox/range/output subtree before mutation,
+  stores initialization state in `WeakMap`, and must not infer fallback bounds,
+  labels, defaults, policy, Toggle roles, or feature presentation classes.
+  Toggle owns availability transport and server parsing owns submitted validity.
+- The horizontal-scroll adapter imports generated snap/drag roles and exact
+  configuration parsers. It initializes each scroller locally, disposes replaced
+  subtrees on HTMX cleanup, and keeps thresholds, timers, click suppression, and
+  transient dragging classes module-owned rather than serializing browser state.
+- The PWA install adapter imports generated page/button/result/installed roles
+  and validates the generated closed result state. Haskell renders all workflow
+  copy. Keep `beforeinstallprompt`, `appinstalled`, prompt objects, display-mode,
+  and Apple standalone detection adapter-local; use native `hidden` and ARIA
+  semantics rather than serializing availability or installed platform state.
+- Roster fullscreen and column-edit adapters import Surface-generated root and
+  control roles plus generated closed-state attributes, values, and guards.
+  Keep fullscreen icon/focus/Escape mechanics local; keep column-edit state and
+  delayed-blur timers per editor and dispose timers with HTMX cleanup. Do not
+  discover either capability through roster presentation classes.
+- Roster image export imports generated trigger/config/projection/row/cell roles,
+  the closed JPG format, and exact policy/cell parsers. Haskell owns the resolved
+  filename, dimensions, quality, labels, errors, and export text. Keep only
+  measurement, computed styles, SVG/Canvas, encoding, and download mechanics in
+  TypeScript; never infer cells from roster classes, positions, or conflict data.
+- The retained roster week overview imports generated panel/day/slot roles,
+  exact panel/day parsers, and closed availability/closure/calendar states.
+  Selection uses `aria-pressed`; malformed days emit structured diagnostics and
+  remain untouched. Do not restore datasets, fallback display copy, semantic
+  `is-*` classes, or an active header mount.
+- The Xero candidate-filter adapter imports generated root/search/candidate/
+  config/empty roles and the exact candidate-config parser. Treat each
+  Haskell-normalized projection as opaque: validate the complete local boundary,
+  emit structured diagnostics, then perform only generic query normalization,
+  fuzzy matching, and native `hidden` updates. Do not inspect candidate text,
+  infer Xero fields, or reconstruct import identity in TypeScript.
 - Each reflected root declares browser reachability. Server-only roots emit nothing; type-only roots emit only a type/constant; inbound roots add guards/parsers; outbound roots add encoders; bidirectional roots add both. Unknown JSON boundaries should use generated `parseX`; outbound JSON-shaped DTOs should use generated `encodeX`; runtime code must not recreate generated validators/parsers/encoders by hand.
 - Use Nix/devenv entrypoints, not developer-facing `npm`/`npx` commands.
 - Supported commands:
@@ -19,9 +80,20 @@ Read this before editing `frontend/ts/`.
   - `bash ./bin/in-env frontend-test` runs fast TypeScript unit/DOM tests.
   - `bash ./bin/in-env frontend-contracts` regenerates generated contracts.
   - `bash ./bin/in-env frontend-contracts-check` checks generated contract drift.
-  - `bash ./bin/in-env frontend-contracts-watch` watches Haskell contract sources and atomically regenerates generated contracts.
-  - `bash ./bin/in-env frontend-watch` watches TS entrypoints and rebuilds generated JS.
-- `dev-start` and `just dev` start `frontend-contracts-watch` plus `frontend-watch`; `dev-stop` cleans up both managed watchers.
+  - `bash ./bin/in-env frontend-generated-ensure` content-checks and
+    regenerates only stale Haskell adapters, TypeScript contracts, and JS
+    bundles.
+  - `bash ./bin/in-env frontend-generated-sync` unconditionally regenerates
+    those frontend artifacts.
+  - `bash ./bin/in-env frontend-generated-watch` watches semantic Haskell
+    contract sources and serially regenerates Haskell adapters plus TypeScript
+    contracts.
+  - `bash ./bin/in-env frontend-watch` watches TS entrypoints and rebuilds
+    generated JS.
+- `dev-start` and `just dev` run the cache-aware ensure step, then start
+  `frontend-generated-watch` plus `frontend-watch`; `dev-stop` cleans up both
+  managed watchers. IHP's `RunDevServer`, not a project watcher, owns live
+  schema-derived `build/Generated/` types.
 - There is no Vite dev server or true HMR requirement. Existing browser reload/live-update behavior sees checked-in generated JS changes; contract-source edits regenerate `frontend/ts/generated/contracts.ts`, then `frontend-watch` rebundles dependent JS.
 - Production/live NixOS runtime serves generated static assets and must not require Node/esbuild/TypeScript/frontend test tooling.
 

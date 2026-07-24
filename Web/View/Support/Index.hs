@@ -5,11 +5,12 @@ module Web.View.Support.Index where
 import Application.Helper.Feedback (allowedFeedbackPriorities,
                                     allowedFeedbackStatuses)
 import Application.Helper.FrontendContract.Surface.Runtime (FrontendSurfaceActionRoute (..),
-                                                            frontendSurfaceAction,
                                                             renderFrontendSurfaceActionForm,
                                                             renderFrontendSurfaceMount)
 import qualified Application.Helper.FrontendContract.Surface.Support as Surface
-import Application.Helper.FrontendContract.Surface.Values (SurfaceFields (NoSurfaceFields),
+import qualified Application.Helper.FrontendContract.Surface.Support.Action as SupportAction
+import Application.Helper.FrontendContract.Surface.Values (SurfaceFields,
+                                                           noSurfaceFields,
                                                            surfaceFragmentTargetId)
 import Application.Helper.FwcMapd (FwcMapdAdminData (..),
                                    FwcMapdDisplayPayRate (..))
@@ -274,7 +275,7 @@ feedbackControlId prefix feedbackItemId = prefix <> "-" <> inputValue feedbackIt
 
 renderAwardRatesSection :: FwcMapdAdminData -> Maybe AppJob -> Maybe AppJob -> Html
 renderAwardRatesSection FwcMapdAdminData { latestSyncRun, currentAwards, currentCoreClassifications, currentCoreAdultPayRates, rateTypeBreakdown } latestRefreshJob activeRefreshJob = [hsx|
-    <div id={surfaceFragmentTargetId @Surface.SupportSurface @Surface.SupportAwardRates NoSurfaceFields}
+    <div id={surfaceFragmentTargetId @Surface.SupportSurface @Surface.SupportAwardRates noSurfaceFields}
          class="d-flex flex-column gap-3">
         <div class="d-flex flex-column flex-lg-row justify-content-between gap-3">
             <div>
@@ -290,7 +291,7 @@ renderAwardRatesSection FwcMapdAdminData { latestSyncRun, currentAwards, current
 
 renderPublicHolidaysSection :: [PublicHolidayCoverageYear] -> Maybe AppJob -> Maybe AppJob -> Html
 renderPublicHolidaysSection publicHolidayCoverage latestRefreshJob activeRefreshJob = [hsx|
-    <div id={surfaceFragmentTargetId @Surface.SupportSurface @Surface.SupportPublicHolidays NoSurfaceFields}
+    <div id={surfaceFragmentTargetId @Surface.SupportSurface @Surface.SupportPublicHolidays noSurfaceFields}
          class="d-flex flex-column gap-3">
         <div class="d-flex flex-column flex-lg-row justify-content-between gap-3">
             <div class="small app-muted">
@@ -354,7 +355,7 @@ renderPublicHolidayCoverageStatus status =
 renderPublicHolidayRefreshForm :: Maybe AppJob -> Html
 renderPublicHolidayRefreshForm activeRefreshJob =
     renderFrontendSurfaceActionForm
-        (frontendSurfaceAction @Surface.SupportSurface @Surface.CreatePublicHolidayRefreshJob NoSurfaceFields)
+        (SupportAction.createPublicHolidayRefreshJobAction SupportAction.createPublicHolidayRefreshJobActionFields)
         (supportActionRoute (pathTo CreatePublicHolidayRefreshJobAction))
             { actionRouteExtraAttrs = [("class", "d-grid")]
             }
@@ -386,7 +387,7 @@ renderPublicHolidayRefreshJobStatus maybeJob =
 renderAwardRefreshForm :: Maybe AppJob -> Html
 renderAwardRefreshForm activeRefreshJob =
     renderFrontendSurfaceActionForm
-        (frontendSurfaceAction @Surface.SupportSurface @Surface.CreateFwcMapdRefreshJob NoSurfaceFields)
+        (SupportAction.createFwcMapdRefreshJobAction SupportAction.createFwcMapdRefreshJobActionFields)
         (supportActionRoute (pathTo CreateFwcMapdRefreshJobAction))
             { actionRouteExtraAttrs = [("class", "d-grid")]
             }

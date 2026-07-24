@@ -6,9 +6,14 @@
 
 module Application.Helper.FrontendContract.Surface.ContractIR
     ( module SemanticIR
+    , BrowserReachabilityIR (..)
+    , BrowserClosedStateIR (..)
     , ContractDiagnostic (..)
     , ConflictPolicyIR (..)
     , ConflictResolutionIR (..)
+    , CompleteSetSortComparatorIR (..)
+    , CompleteSetSortIR (..)
+    , CompleteSetSortKeyIR (..)
     , FieldIR (..)
     , FieldPresence (..)
     , FragmentIR (..)
@@ -23,6 +28,7 @@ module Application.Helper.FrontendContract.Surface.ContractIR
     , InteractionModifierVariantIR (..)
     , InteractionSessionIR (..)
     , InteractionSourceRefIR (..)
+    , LinkedHighlightIR (..)
     , IntentIR (..)
     , MountStateIR (..)
     , OptionIR (..)
@@ -34,7 +40,9 @@ module Application.Helper.FrontendContract.Surface.ContractIR
     , SchemaIR (..)
     , SessionSelectorIR (..)
     , SurfaceContractIR (..)
+    , SurfaceDtoIR (..)
     , SurfaceIR (..)
+    , TabSetIR (..)
     , WireIR (..)
     , checkedSurfaceContractIR
     , htmxSyntaxRawReason
@@ -57,25 +65,31 @@ data SurfaceContractIR = SurfaceContractIR
     deriving (Eq, Show)
 
 data SurfaceIR = SurfaceIR
-    { surfaceMarker           :: !Text
-    , surfaceName             :: !Text
-    , surfaceScopes           :: ![ScopeIR]
-    , surfaceMountStates      :: ![MountStateIR]
-    , surfaceFragments        :: ![FragmentIR]
-    , surfaceHtmxActions      :: ![HtmxActionIR]
-    , surfaceIntents          :: ![IntentIR]
-    , surfaceSessions         :: ![InteractionSessionIR]
-    , surfaceSourceRefs       :: ![InteractionSourceRefIR]
-    , surfaceDropzoneRefs     :: ![InteractionDropzoneRefIR]
-    , surfaceActivationRefs   :: ![InteractionActivationRefIR]
-    , surfaceLayers           :: ![Text]
-    , surfacePolicies         :: ![ConflictPolicyIR]
-    , surfaceLoadPolicies     :: ![Text]
-    , surfaceOverlayLanes     :: ![Text]
-    , surfaceClientEvents     :: ![(Text, [FieldIR])]
-    , surfaceDomTokens        :: ![Text]
-    , surfaceBrowserDomTokens :: ![Text]
-    , surfaceDtos             :: ![SchemaIR]
+    { surfaceMarker              :: !Text
+    , surfaceName                :: !Text
+    , surfaceScopes              :: ![ScopeIR]
+    , surfaceMountStates         :: ![MountStateIR]
+    , surfaceFragments           :: ![FragmentIR]
+    , surfaceHtmxActions         :: ![HtmxActionIR]
+    , surfaceIntents             :: ![IntentIR]
+    , surfaceSessions            :: ![InteractionSessionIR]
+    , surfaceSourceRefs          :: ![InteractionSourceRefIR]
+    , surfaceDropzoneRefs        :: ![InteractionDropzoneRefIR]
+    , surfaceActivationRefs      :: ![InteractionActivationRefIR]
+    , surfaceBrowserRoles        :: ![BrowserAttributeIR]
+    , surfaceBrowserStates       :: ![BrowserAttributeIR]
+    , surfaceBrowserClosedStates :: ![BrowserClosedStateIR]
+    , surfaceLinkedHighlights    :: ![LinkedHighlightIR]
+    , surfaceCompleteSetSorts    :: ![CompleteSetSortIR]
+    , surfaceTabSets             :: ![TabSetIR]
+    , surfaceLayers              :: ![Text]
+    , surfacePolicies            :: ![ConflictPolicyIR]
+    , surfaceLoadPolicies        :: ![Text]
+    , surfaceOverlayLanes        :: ![Text]
+    , surfaceClientEvents        :: ![(Text, [FieldIR])]
+    , surfaceDomTokens           :: ![Text]
+    , surfaceBrowserDomTokens    :: ![Text]
+    , surfaceDtos                :: ![SurfaceDtoIR]
     }
     deriving (Eq, Show)
 
@@ -158,6 +172,77 @@ data InteractionActivationRefIR = InteractionActivationRefIR
     , activationRefIntent     :: !Text
     , activationRefValueField :: !(Maybe Text)
     , activationRefTrigger    :: !Text
+    }
+    deriving (Eq, Show)
+
+-- | A Surface-owned state attribute whose allowed values are closed in the
+-- Haskell declaration and emitted as an exact browser union/guard.
+data BrowserClosedStateIR = BrowserClosedStateIR
+    { browserClosedStateMarker    :: !Text
+    , browserClosedStateAttribute :: !BrowserAttributeIR
+    , browserClosedStateValues    :: ![Text]
+    }
+    deriving (Eq, Show)
+
+-- | One closed linked-highlight channel. Role/state references already carry
+-- their exact generated attributes; validation proves they are declared by the
+-- owning Surface before TypeScript projection or view rendering.
+data LinkedHighlightIR = LinkedHighlightIR
+    { linkedHighlightMarker      :: !Text
+    , linkedHighlightName        :: !Text
+    , linkedHighlightSourceRole  :: !BrowserAttributeIR
+    , linkedHighlightMemberRole  :: !BrowserAttributeIR
+    , linkedHighlightActivations :: ![LinkedHighlightActivationIR]
+    , linkedHighlightEffects     :: ![LinkedHighlightEffectIR]
+    }
+    deriving (Eq, Show)
+
+-- | One complete client-side presentation sort. Comparator field references
+-- are checked against the exact browser row DTO, and generated role attrs keep
+-- discovery local to the owning Surface mount.
+data CompleteSetSortIR = CompleteSetSortIR
+    { completeSetSortMarker           :: !Text
+    , completeSetSortName             :: !Text
+    , completeSetSortRootRole         :: !BrowserAttributeIR
+    , completeSetSortRowRole          :: !BrowserAttributeIR
+    , completeSetSortControlRole      :: !BrowserAttributeIR
+    , completeSetSortRowDtoMarker     :: !Text
+    , completeSetSortKeys             :: ![CompleteSetSortKeyIR]
+    , completeSetSortDefaultKey       :: !Text
+    , completeSetSortDefaultDirection :: !CompleteSetSortDirectionIR
+    }
+    deriving (Eq, Show)
+
+data CompleteSetSortKeyIR = CompleteSetSortKeyIR
+    { completeSetSortKeyMarker      :: !Text
+    , completeSetSortKeyName        :: !Text
+    , completeSetSortKeyComparators :: ![CompleteSetSortComparatorIR]
+    }
+    deriving (Eq, Show)
+
+data CompleteSetSortComparatorIR = CompleteSetSortComparatorIR
+    { completeSetSortComparatorFieldMarker :: !Text
+    , completeSetSortComparatorField       :: !Text
+    , completeSetSortComparatorValueType   :: !CompleteSetSortValueTypeIR
+    , completeSetSortComparatorDirection   :: !CompleteSetSortComparatorDirectionIR
+    }
+    deriving (Eq, Show)
+
+data TabSetIR = TabSetIR
+    { tabSetMarker     :: !Text
+    , tabSetName       :: !Text
+    , tabSetRole       :: !BrowserAttributeIR
+    , tabSetKeys       :: ![Text]
+    , tabSetDefaultKey :: !Text
+    }
+    deriving (Eq, Show)
+
+-- | A Surface-owned record schema plus its explicit browser projection.
+-- Unreachable DTOs remain available to Haskell validation and references but
+-- are never emitted by the TypeScript renderer.
+data SurfaceDtoIR = SurfaceDtoIR
+    { surfaceDtoReachability :: !BrowserReachabilityIR
+    , surfaceDtoSchema       :: !SchemaIR
     }
     deriving (Eq, Show)
 
@@ -273,8 +358,9 @@ validateSurface surface =
         <> concatMap (validateDuplicateFields surface.surfaceName "htmx action" . htmxActionFields) surface.surfaceHtmxActions
         <> concatMap (validateDuplicateFields surface.surfaceName "intent" . intentFields) surface.surfaceIntents
         <> concatMap (validateDuplicateFields surface.surfaceName "event" . snd) surface.surfaceClientEvents
-        <> concatMap (validateDuplicateFields surface.surfaceName "dto" . schemaFields) surface.surfaceDtos
+        <> concatMap (validateDuplicateFields surface.surfaceName "dto" . schemaFields . (.surfaceDtoSchema)) surface.surfaceDtos
         <> validateWireReferences surface
+        <> validateBrowserDtoReferences surface
         <> validateUnique surface.surfaceName "fragment" (map (.fragmentName) surface.surfaceFragments)
         <> validateUnique surface.surfaceName "htmx action" (map (.htmxActionName) surface.surfaceHtmxActions)
         <> validateUnique surface.surfaceName "intent" (map (.intentName) surface.surfaceIntents)
@@ -282,15 +368,32 @@ validateSurface surface =
         <> validateUnique surface.surfaceName "source ref" (map (.sourceRefName) surface.surfaceSourceRefs)
         <> validateUnique surface.surfaceName "dropzone ref" (map (.dropzoneRefName) surface.surfaceDropzoneRefs)
         <> validateUnique surface.surfaceName "activation ref" (map (.activationRefName) surface.surfaceActivationRefs)
+        <> validateUnique surface.surfaceName "browser role" (map (.browserAttributeName) surface.surfaceBrowserRoles)
+        <> validateUnique surface.surfaceName "browser state" (map (.browserAttributeName) surface.surfaceBrowserStates)
+        <> validateUnique surface.surfaceName "browser attribute" (map (.browserAttributeDomAttribute) (surface.surfaceBrowserRoles <> surface.surfaceBrowserStates))
+        <> concatMap (validateBrowserClosedState surface.surfaceName) surface.surfaceBrowserClosedStates
+        <> validateUnique surface.surfaceName "linked highlight" (map (.linkedHighlightName) surface.surfaceLinkedHighlights)
+        <> validateUnique surface.surfaceName "complete-set sort" (map (.completeSetSortName) surface.surfaceCompleteSetSorts)
+        <> validateUnique surface.surfaceName "tab set" (map (.tabSetName) surface.surfaceTabSets)
         <> validateUnique surface.surfaceName "layer" surface.surfaceLayers
         <> validateUnique surface.surfaceName "dom token" surface.surfaceDomTokens
-        <> validateUnique surface.surfaceName "dto" (map (fst . schemaNameAndMarker) surface.surfaceDtos)
+        <> validateUnique surface.surfaceName "dto" (map (fst . schemaNameAndMarker . (.surfaceDtoSchema)) surface.surfaceDtos)
         <> validateScopeAuthorization surface
+        <> validateLinkedHighlights surface
+        <> validateCompleteSetSorts surface
+        <> validateTabSets surface
         <> validateInteractionEffects surface
         <> validateLiveFragmentInvalidation surface
         <> validateResourceDependencies surface
         <> validateCrossReferences surface
         <> validateActionRequestOptions surface
+
+validateBrowserClosedState :: Text -> BrowserClosedStateIR -> [ContractDiagnostic]
+validateBrowserClosedState surfaceName state =
+    (if null state.browserClosedStateValues
+        then [diagnostic "empty-browser-closed-state" ("surface " <> surfaceName <> " browser state " <> state.browserClosedStateAttribute.browserAttributeName <> " must declare at least one value")]
+        else [])
+        <> validateUnique surfaceName ("browser state " <> state.browserClosedStateAttribute.browserAttributeName <> " value") state.browserClosedStateValues
 
 validateFragmentMountTarget :: FragmentIR -> [ContractDiagnostic]
 validateFragmentMountTarget fragment =
@@ -354,6 +457,215 @@ validateScopeAuthorization surface =
             case scopeAuthPolicy auth of
                 Just policy -> scopeAuthPolicyName policy
                 Nothing     -> error "NoAuth cannot own authorization fields"
+
+validateLinkedHighlights :: SurfaceIR -> [ContractDiagnostic]
+validateLinkedHighlights surface =
+    concatMap validateHighlight surface.surfaceLinkedHighlights
+  where
+    roleMarkers = map (.browserAttributeMarker) surface.surfaceBrowserRoles
+    stateMarkers = map (.browserAttributeMarker) surface.surfaceBrowserStates
+
+    validateHighlight highlight =
+        requireAttribute "source role" roleMarkers highlight.linkedHighlightSourceRole
+            <> requireAttribute "member role" roleMarkers highlight.linkedHighlightMemberRole
+            <> concatMap requirePinRole highlight.linkedHighlightActivations
+            <> concatMap requireOrderState highlight.linkedHighlightEffects
+            <> validateUnique surface.surfaceName ("linked highlight " <> highlight.linkedHighlightName <> " activation") (map linkedHighlightActivationName highlight.linkedHighlightActivations)
+            <> validateUnique surface.surfaceName ("linked highlight " <> highlight.linkedHighlightName <> " effect") (map linkedHighlightEffectName highlight.linkedHighlightEffects)
+            <> requireNonEmpty "activation" (null highlight.linkedHighlightActivations)
+            <> requireNonEmpty "effect" (null highlight.linkedHighlightEffects)
+            <> distinctSourceAndMember highlight
+            <> requireMatchingMemberForOrder highlight
+      where
+        requireNonEmpty label isEmpty
+            | isEmpty = [diagnostic ("missing-linked-highlight-" <> label) (highlightLabel highlight <> " must declare at least one " <> label)]
+            | otherwise = []
+
+    requirePinRole = \case
+        LinkedHighlightPinActivationIR role -> requireAttribute "pin role" roleMarkers role
+        _ -> []
+
+    requireOrderState = \case
+        LinkedHighlightOrderedMemberBoundsEffectIR state -> requireAttribute "ordered-member state" stateMarkers state
+        _ -> []
+
+    requireAttribute label available attribute
+        | attribute.browserAttributeMarker `elem` available = []
+        | otherwise =
+            [ diagnostic "invalid-linked-highlight-reference"
+                ( "surface " <> surface.surfaceName
+                    <> " linked highlight references missing " <> label
+                    <> " " <> attribute.browserAttributeName
+                )
+            ]
+
+    distinctSourceAndMember highlight
+        | highlight.linkedHighlightSourceRole.browserAttributeDomAttribute /= highlight.linkedHighlightMemberRole.browserAttributeDomAttribute = []
+        | otherwise = [diagnostic "invalid-linked-highlight-roles" (highlightLabel highlight <> " must use distinct source and member roles")]
+
+    requireMatchingMemberForOrder highlight
+        | any isOrderedEffect highlight.linkedHighlightEffects
+            && LinkedHighlightMatchingMemberEffectIR `notElem` highlight.linkedHighlightEffects =
+                [diagnostic "invalid-linked-highlight-effects" (highlightLabel highlight <> " ordered member bounds require the matching-member effect")]
+        | otherwise = []
+
+    isOrderedEffect = \case
+        LinkedHighlightOrderedMemberBoundsEffectIR {} -> True
+        _ -> False
+
+    highlightLabel highlight = "surface " <> surface.surfaceName <> " linked highlight " <> highlight.linkedHighlightName
+
+validateBrowserDtoReferences :: SurfaceIR -> [ContractDiagnostic]
+validateBrowserDtoReferences surface =
+    concatMap validateDto surface.surfaceDtos
+  where
+    dtoByName name =
+        List.find ((== name) . fst . schemaNameAndMarker . (.surfaceDtoSchema)) surface.surfaceDtos
+
+    validateDto dto =
+        case dto.surfaceDtoReachability of
+            BrowserUnreachableIR -> []
+            reachability ->
+                concatMap (validateReference dto reachability) (concatMap (wireReferences . (.fieldWire)) (schemaFields dto.surfaceDtoSchema))
+
+    validateReference source sourceReachability referenceName =
+        case dtoByName referenceName of
+            Nothing -> []
+            Just target
+                | targetSupports sourceReachability target.surfaceDtoReachability -> []
+                | otherwise ->
+                    [ diagnostic "invalid-browser-dto-reference"
+                        ( "surface " <> surface.surfaceName
+                            <> " browser dto " <> fst (schemaNameAndMarker source.surfaceDtoSchema)
+                            <> " references dto " <> referenceName
+                            <> " without the browser reachability required by its generated codec"
+                        )
+                    ]
+
+    targetSupports sourceReachability targetReachability
+        | sourceReachability `elem` [BrowserGuardIR, BrowserInboundIR, BrowserBidirectionalIR] =
+            targetReachability `elem` [BrowserGuardIR, BrowserInboundIR, BrowserBidirectionalIR]
+        | otherwise = targetReachability /= BrowserUnreachableIR
+
+    wireReferences = \case
+        WireListIR inner -> wireReferences inner
+        WireMapIR key value -> wireReferences key <> wireReferences value
+        WireOptionalIR inner -> wireReferences inner
+        WireNullableIR inner -> wireReferences inner
+        WireRefIR name
+            | not (Text.isPrefixOf "\"" name) -> [name]
+        _ -> []
+
+validateCompleteSetSorts :: SurfaceIR -> [ContractDiagnostic]
+validateCompleteSetSorts surface =
+    concatMap validateSort surface.surfaceCompleteSetSorts
+  where
+    declaredRoles = surface.surfaceBrowserRoles
+
+    validateSort sortDefinition =
+        requireRole "root" sortDefinition.completeSetSortRootRole
+            <> requireRole "row" sortDefinition.completeSetSortRowRole
+            <> requireRole "control" sortDefinition.completeSetSortControlRole
+            <> requireDistinctRoles sortDefinition
+            <> validateUnique surface.surfaceName (sortLabel sortDefinition <> " key") (map (.completeSetSortKeyName) sortDefinition.completeSetSortKeys)
+            <> requireKeys sortDefinition
+            <> requireDefaultKey sortDefinition
+            <> validateRowDto sortDefinition
+            <> concatMap (validateKey sortDefinition) sortDefinition.completeSetSortKeys
+
+    requireRole label roleAttribute
+        | roleAttribute `elem` declaredRoles = []
+        | otherwise =
+            [ diagnostic "invalid-complete-set-sort-role"
+                ("surface " <> surface.surfaceName <> " complete-set sort references missing " <> label <> " role " <> roleAttribute.browserAttributeName)
+            ]
+
+    requireDistinctRoles sortDefinition
+        | length (List.nub roleAttributes) == length roleAttributes = []
+        | otherwise = [diagnostic "invalid-complete-set-sort-roles" (sortLabel sortDefinition <> " must use distinct root, row, and control roles")]
+      where
+        roleAttributes =
+            map (.browserAttributeDomAttribute)
+                [ sortDefinition.completeSetSortRootRole
+                , sortDefinition.completeSetSortRowRole
+                , sortDefinition.completeSetSortControlRole
+                ]
+
+    requireKeys sortDefinition
+        | null sortDefinition.completeSetSortKeys = [diagnostic "missing-complete-set-sort-key" (sortLabel sortDefinition <> " must declare at least one sort key")]
+        | otherwise = []
+
+    requireDefaultKey sortDefinition
+        | sortDefinition.completeSetSortDefaultKey `elem` map (.completeSetSortKeyName) sortDefinition.completeSetSortKeys = []
+        | otherwise = [diagnostic "invalid-complete-set-sort-default" (sortLabel sortDefinition <> " references missing default key " <> sortDefinition.completeSetSortDefaultKey)]
+
+    validateRowDto sortDefinition =
+        case findDto sortDefinition of
+            Nothing -> [diagnostic "invalid-complete-set-sort-dto" (sortLabel sortDefinition <> " references missing row dto " <> sortDefinition.completeSetSortRowDtoMarker)]
+            Just dto
+                | dto.surfaceDtoReachability `elem` [BrowserInboundIR, BrowserBidirectionalIR] -> []
+                | otherwise -> [diagnostic "invalid-complete-set-sort-dto-reachability" (sortLabel sortDefinition <> " row dto " <> sortDefinition.completeSetSortRowDtoMarker <> " must generate an exact browser parser")]
+
+    validateKey sortDefinition key =
+        validateUnique surface.surfaceName (sortLabel sortDefinition <> " key " <> key.completeSetSortKeyName <> " comparator field") (map (.completeSetSortComparatorField) key.completeSetSortKeyComparators)
+            <> if null key.completeSetSortKeyComparators
+                then [diagnostic "missing-complete-set-sort-comparator" (sortLabel sortDefinition <> " key " <> key.completeSetSortKeyName <> " must declare at least one comparator")]
+                else concatMap (validateComparator sortDefinition key) key.completeSetSortKeyComparators
+
+    validateComparator sortDefinition key comparator =
+        case findDto sortDefinition >>= findComparatorField comparator of
+            Nothing ->
+                [ diagnostic "invalid-complete-set-sort-field"
+                    (sortLabel sortDefinition <> " key " <> key.completeSetSortKeyName <> " references missing row field " <> comparator.completeSetSortComparatorField)
+                ]
+            Just field
+                | field.fieldPresence /= RequiredField ->
+                    [diagnostic "invalid-complete-set-sort-field-presence" (comparatorLabel sortDefinition key comparator <> " must reference a required field")]
+                | field.fieldWire /= comparatorWire comparator.completeSetSortComparatorValueType ->
+                    [diagnostic "invalid-complete-set-sort-field-type" (comparatorLabel sortDefinition key comparator <> " has a wire type that disagrees with its declared sort value type")]
+                | otherwise -> []
+
+    findDto sortDefinition =
+        List.find
+            ((== sortDefinition.completeSetSortRowDtoMarker) . snd . schemaNameAndMarker . (.surfaceDtoSchema))
+            surface.surfaceDtos
+    findComparatorField comparator dto =
+        List.find
+            ((== comparator.completeSetSortComparatorFieldMarker) . (.fieldMarker))
+            (schemaFields dto.surfaceDtoSchema)
+    comparatorWire = \case
+        CompleteSetSortTextIR -> WireTextIR
+        CompleteSetSortIntegerIR -> WireIntIR
+        CompleteSetSortOpaqueIR -> WireTextIR
+    sortLabel sortDefinition = "surface " <> surface.surfaceName <> " complete-set sort " <> sortDefinition.completeSetSortName
+    comparatorLabel sortDefinition key comparator =
+        sortLabel sortDefinition <> " key " <> key.completeSetSortKeyName <> " comparator " <> comparator.completeSetSortComparatorField
+
+validateTabSets :: SurfaceIR -> [ContractDiagnostic]
+validateTabSets surface =
+    concatMap validateTabSet surface.surfaceTabSets
+  where
+    declaredRoles = surface.surfaceBrowserRoles
+
+    validateTabSet tabSet =
+        requireRole tabSet
+            <> validateUnique surface.surfaceName ("tab set " <> tabSet.tabSetName <> " key") tabSet.tabSetKeys
+            <> requireKeys tabSet
+            <> requireDefaultKey tabSet
+
+    requireRole tabSet
+        | tabSet.tabSetRole `elem` declaredRoles = []
+        | otherwise =
+            [ diagnostic "invalid-tab-set-role"
+                ("surface " <> surface.surfaceName <> " tab set " <> tabSet.tabSetName <> " references missing tab role " <> tabSet.tabSetRole.browserAttributeName)
+            ]
+    requireKeys tabSet
+        | null tabSet.tabSetKeys = [diagnostic "missing-tab-set-key" (tabSetLabel tabSet <> " must declare at least one tab key")]
+        | otherwise = []
+    requireDefaultKey tabSet
+        | tabSet.tabSetDefaultKey `elem` tabSet.tabSetKeys = []
+        | otherwise = [diagnostic "invalid-tab-set-default" (tabSetLabel tabSet <> " references missing default key " <> tabSet.tabSetDefaultKey)]
+    tabSetLabel tabSet = "surface " <> surface.surfaceName <> " tab set " <> tabSet.tabSetName
 
 validateInteractionEffects :: SurfaceIR -> [ContractDiagnostic]
 validateInteractionEffects surface =
@@ -533,7 +845,7 @@ validateWireReferences :: SurfaceIR -> [ContractDiagnostic]
 validateWireReferences surface =
     concatMap validateFieldWire allFields
     where
-        dtoNames = map (fst . schemaNameAndMarker) surface.surfaceDtos
+        dtoNames = map (fst . schemaNameAndMarker . (.surfaceDtoSchema)) surface.surfaceDtos
         allFields =
             concatMap scopeFields surface.surfaceScopes
                 <> concatMap mountStateFields surface.surfaceMountStates
@@ -543,7 +855,7 @@ validateWireReferences surface =
                 <> concatMap htmxActionFields surface.surfaceHtmxActions
                 <> concatMap intentFields surface.surfaceIntents
                 <> concatMap snd surface.surfaceClientEvents
-                <> concatMap schemaFields surface.surfaceDtos
+                <> concatMap (schemaFields . (.surfaceDtoSchema)) surface.surfaceDtos
 
         validateFieldWire field =
             validateWire field.fieldName field.fieldWire
@@ -602,7 +914,7 @@ validateCrossReferences surface =
         sessionNames = map (.sessionName) surface.surfaceSessions
         dropzoneNames = map (.dropzoneRefName) surface.surfaceDropzoneRefs
         eventNames = map fst surface.surfaceClientEvents
-        dtoNames = map (fst . schemaNameAndMarker) surface.surfaceDtos
+        dtoNames = map (fst . schemaNameAndMarker . (.surfaceDtoSchema)) surface.surfaceDtos
         domTokenNames = surface.surfaceDomTokens <> [name | fragment <- surface.surfaceFragments, MountTargetOption name _ <- fragment.fragmentOptions]
         intentFields = [(intent.intentName, map (.fieldName) intent.intentFields) | intent <- surface.surfaceIntents]
 
@@ -736,10 +1048,24 @@ containedSurfaceNames = concatMap \case
 validateSharedDeclarations :: SurfaceContractIR -> [ContractDiagnostic]
 validateSharedDeclarations contract =
     validateShared "scope" scopeName scopeFields allScopes
-        <> validateShared "dto" (fst . schemaNameAndMarker) schemaFields allDtos
+        <> validateShared "dto" (fst . schemaNameAndMarker . (.surfaceDtoSchema)) (schemaFields . (.surfaceDtoSchema)) allDtos
+        <> validateSharedDtoReachability allDtos
     where
         allScopes = concatMap (.surfaceScopes) contract.contractSurfaces
         allDtos = concatMap (.surfaceDtos) contract.contractSurfaces
+
+        validateSharedDtoReachability dtos =
+            dtos
+                |> List.sortOn (fst . schemaNameAndMarker . (.surfaceDtoSchema))
+                |> List.groupBy (\left right -> schemaNameAndMarker left.surfaceDtoSchema == schemaNameAndMarker right.surfaceDtoSchema)
+                |> concatMap conflictingReachability
+        conflictingReachability [] = []
+        conflictingReachability group@(first : _)
+            | length (List.nub (map (.surfaceDtoReachability) group)) <= 1 = []
+            | otherwise =
+                [ diagnostic "conflicting-shared-dto-reachability"
+                    ("conflicting shared declaration: dto " <> fst (schemaNameAndMarker first.surfaceDtoSchema) <> " has different browser reachability")
+                ]
 
 validateSharedResources :: SurfaceContractIR -> [ContractDiagnostic]
 validateSharedResources contract =

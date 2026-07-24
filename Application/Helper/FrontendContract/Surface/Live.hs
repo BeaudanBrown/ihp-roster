@@ -15,7 +15,8 @@ module Application.Helper.FrontendContract.Surface.Live
     , surfaceScopeKey
     ) where
 
-import Application.Helper.FrontendContract.Surface.Identity (canonicalFrontendSurfaceScopeKey)
+import Application.Helper.FrontendContract.Surface.ContractIR (ScopeIR (..))
+import Application.Helper.FrontendContract.Surface.Identity (canonicalFrontendSurfaceScopeKeyFromFields)
 import Application.Helper.FrontendContract.Surface.Reflect (ReflectPrimitive,
                                                             ReflectSurfaceSpec)
 import Application.Helper.FrontendContract.Surface.Values
@@ -45,7 +46,13 @@ frontendSurfaceScope fields =
         either
             (error . ("Typed Surface scope invariant failed: " <>) . cs)
             id
-            (Aeson.parseEither (canonicalFrontendSurfaceScopeKey surfaceName) payload)
+            ( Aeson.parseEither
+                (canonicalFrontendSurfaceScopeKeyFromFields surfaceName scopeIdentityFields)
+                payload
+            )
+    scopeIdentityFields =
+        case surfaceScopeValue @spec @marker of
+            ScopeIR _ _ fields _ -> fields
 
 -- | Build one opaque semantic fragment key from the exact fields declared by
 -- its owning Surface and fragment marker.

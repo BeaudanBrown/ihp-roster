@@ -114,7 +114,7 @@ article.roster-shift-card:not(.roster-shift-card-create) {
 
 .roster-shift-card.roster-shift-launcher:hover,
 .roster-shift-card.roster-shift-launcher:focus-visible,
-.roster-shift-card.roster-shift-launcher.is-roster-shift-group-highlighted {
+.roster-shift-card.roster-shift-launcher[data-bepis-roster-shift-group-highlight-member].is-linked-highlight-member {
     border-color: var(--app-accent-border-strong);
     background: linear-gradient(
         180deg,

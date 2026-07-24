@@ -6,9 +6,12 @@ module Web.View.RosterWeeks.SettingsPanel
 
 import qualified Application.Helper.FrontendContract.Surface.Interaction as SurfaceInteraction
 import qualified Application.Helper.FrontendContract.Surface.Roster as Surface
+import qualified Application.Helper.FrontendContract.Surface.Roster.Action as RosterAction
+import Application.Helper.FrontendContract.Surface.Roster.ImageExport (rosterImageExportFilename,
+                                                                       rosterJpgImageExportTriggerAttrs)
+import qualified Application.Helper.FrontendContract.Surface.Roster.Intent as RosterIntent
 import Application.Helper.FrontendContract.Surface.Runtime (FrontendSurfaceActionRoute (..),
                                                             FrontendSurfaceCustomHtmxAttrs (..),
-                                                            frontendSurfaceAction,
                                                             renderFrontendSurfaceActionForm)
 import Application.Helper.FrontendContract.Surface.Values
 import Application.Helper.UserPreferences (rosterLayoutModeLabel,
@@ -35,7 +38,7 @@ rosterWeekShellSyncRoute actionUrl =
         }
 
 renderRosterSettingsPanel :: (?context :: ControllerContext) => RosterStaffPanelRenderModel -> Html
-renderRosterSettingsPanel RosterStaffPanelRenderModel { staffPanelRosterWeek, staffPanelWeekOffset, staffPanelRosterGroups, staffPanelCurrentRosterGroup, staffPanelAssignmentFilters, staffPanelViewCapabilities, staffPanelRosterLayoutMode, staffPanelShowWageEstimates, staffPanelShowRosterWarnings, staffPanelViewMode } = [hsx|
+renderRosterSettingsPanel RosterStaffPanelRenderModel { staffPanelRosterWeek, staffPanelWeekOffset, staffPanelWeekStartDate, staffPanelRosterGroups, staffPanelCurrentRosterGroup, staffPanelAssignmentFilters, staffPanelViewCapabilities, staffPanelRosterLayoutMode, staffPanelShowWageEstimates, staffPanelShowRosterWarnings, staffPanelViewMode } = [hsx|
     <div class="roster-settings-panel">
         {when (length staffPanelRosterGroups > 1) $ renderRosterSettingsSection "bi-people" "Roster group" (renderRosterGroupSwitcher staffPanelWeekOffset staffPanelRosterGroups staffPanelCurrentRosterGroup)}
         {renderRosterSettingsSection "bi-layout-split" "Roster layout" (renderRosterLayoutSection staffPanelWeekOffset staffPanelCurrentRosterGroup.id staffPanelRosterLayoutMode staffPanelViewMode)}
@@ -45,8 +48,8 @@ renderRosterSettingsPanel RosterStaffPanelRenderModel { staffPanelRosterWeek, st
             renderRosterSettingsSection "bi-shield-check" "Prevent assignment" (renderRosterAssignmentFiltersSection staffPanelWeekOffset staffPanelCurrentRosterGroup.id staffPanelAssignmentFilters)}
         {when (staffPanelViewCapabilities.canCopyRosterWeek || shouldShowRosterSortForm staffPanelRosterWeek staffPanelViewCapabilities) $
             renderRosterSettingsSection "bi-lightning-charge" "Week actions" (renderRosterWeekActions staffPanelRosterWeek staffPanelWeekOffset staffPanelCurrentRosterGroup.id staffPanelViewCapabilities)}
-        {when (shouldShowRosterExport staffPanelRosterWeek staffPanelViewCapabilities) $
-            renderRosterSettingsSection "bi-share" "Share roster" renderRosterExportSection}
+        {when (shouldShowRosterExport staffPanelRosterWeek staffPanelViewCapabilities staffPanelRosterLayoutMode staffPanelViewMode) $
+            renderRosterSettingsSection "bi-share" "Share roster" (renderRosterExportSection staffPanelCurrentRosterGroup.name staffPanelWeekStartDate)}
     </div>
 |]
 
@@ -75,11 +78,11 @@ renderRosterGroupSwitcher weekOffset rosterGroups currentRosterGroup = [hsx|
     </form>
 |]
   where
-    fields :: SurfaceFields (SurfaceActionFieldSpecs Surface.RosterSurface Surface.NavigateRosterWeek)
+    fields :: SurfaceActionFields Surface.RosterSurface Surface.NavigateRosterWeek
     fields =
-        surfaceField @Surface.WeekOffset weekOffset
-            :& surfaceField @Surface.RosterGroupId (unpackId currentRosterGroup.id)
-            :& NoSurfaceFields
+        RosterAction.navigateRosterWeekActionFields
+            weekOffset
+            (unpackId currentRosterGroup.id)
 
 renderRosterGroupSwitchOption :: Id RosterGroup -> RosterGroup -> Html
 renderRosterGroupSwitchOption selectedRosterGroupId rosterGroup = [hsx|
@@ -102,8 +105,8 @@ renderRosterLayoutModeOption :: RosterLayoutModeEnum -> RosterLayoutModeEnum -> 
 renderRosterLayoutModeOption selectedLayoutMode layoutMode =
     let inputId = "roster-layout-mode-" <> rosterLayoutModeValue layoutMode
         layoutValue = rosterLayoutModeValue layoutMode
-        fields :: SurfaceFields (SurfaceIntentFieldSpecs Surface.RosterSurface Surface.SetRosterLayoutMode)
-        fields = surfaceField @Surface.RosterLayoutMode layoutValue :& NoSurfaceFields
+        fields :: SurfaceIntentFields Surface.RosterSurface Surface.SetRosterLayoutMode
+        fields = RosterIntent.setRosterLayoutModeIntentFields layoutValue
         inputHtml = [hsx|
             <input type="radio"
                    class="btn-check"
@@ -128,67 +131,61 @@ renderRosterDisplayPreferencesSection weekOffset rosterGroupId viewCapabilities 
 renderRosterWarningPreferenceForm :: (?context :: ControllerContext) => Int -> Id RosterGroup -> Bool -> Html
 renderRosterWarningPreferenceForm weekOffset rosterGroupId showRosterWarnings =
     renderFrontendSurfaceActionForm
-        (frontendSurfaceAction @Surface.RosterSurface @Surface.ToggleRosterWarnings fields)
+        (RosterAction.toggleRosterWarningsAction fields)
         (rosterWeekShellSyncRoute (rosterWarningPreferenceUrl weekOffset rosterGroupId))
             { actionRouteStandardUrl = Just (rosterWarningPreferenceUrl weekOffset rosterGroupId)
             , actionRouteExtraAttrs = [("class", "mb-0")]
             }
         [hsx|<div class="roster-display-toggle">{renderRosterWarningToggle fields showRosterWarnings}</div>|]
   where
-    fields = surfaceField @Surface.ShowRosterWarnings showRosterWarnings :& NoSurfaceFields
+    fields = RosterAction.toggleRosterWarningsActionFields showRosterWarnings
 
 renderRosterWageEstimatePreferenceForm :: (?context :: ControllerContext) => Int -> Id RosterGroup -> RosterViewCapabilities -> Bool -> Html
 renderRosterWageEstimatePreferenceForm weekOffset rosterGroupId viewCapabilities showWageEstimates
     | not viewCapabilities.canViewWageEstimates = mempty
     | otherwise =
         renderFrontendSurfaceActionForm
-            (frontendSurfaceAction @Surface.RosterSurface @Surface.ToggleRosterWageEstimates fields)
+            (RosterAction.toggleRosterWageEstimatesAction fields)
             (rosterWeekShellSyncRoute (rosterWageEstimatePreferenceUrl weekOffset rosterGroupId))
                 { actionRouteStandardUrl = Just (rosterWageEstimatePreferenceUrl weekOffset rosterGroupId)
                 , actionRouteExtraAttrs = [("class", "mb-0")]
                 }
             [hsx|<div class="roster-display-toggle">{renderRosterWageEstimateToggle fields showWageEstimates}</div>|]
   where
-    fields = surfaceField @Surface.ShowWageEstimates showWageEstimates :& NoSurfaceFields
+    fields = RosterAction.toggleRosterWageEstimatesActionFields showWageEstimates
 
-renderRosterWarningToggle :: SurfaceFields (SurfaceActionFieldSpecs Surface.RosterSurface Surface.ToggleRosterWarnings) -> Bool -> Html
-renderRosterWarningToggle fields showRosterWarnings = [hsx|
-    <input type="hidden" id="show-roster-warnings-value" name={surfaceFieldNameFrom @Surface.ShowRosterWarnings fields} value={boolParam showRosterWarnings}/>
-    {toggleButton}
-|]
-  where
-    toggleButton =
-        renderAppToggleButton $ (defaultAppToggleStateButtonConfig "show-roster-warnings" showRosterWarnings [hsx|<span class="small">Warnings enabled</span>|] [hsx|<span class="small">Warnings disabled</span>|])
-            { appToggleInputName = Nothing
-            , appToggleInputValue = "true"
-            , appToggleButtonClass = "btn-sm w-100 justify-content-start"
-            , appToggleOnChange = Just (syncToggleHiddenInputAndSubmit "show-roster-warnings-value")
-            , appToggleHiddenInputId = Just "show-roster-warnings-value"
-            , appToggleHiddenInputCheckedValue = Just "true"
-            , appToggleHiddenInputUncheckedValue = Just "false"
+renderRosterWarningToggle :: SurfaceActionFields Surface.RosterSurface Surface.ToggleRosterWarnings -> Bool -> Html
+renderRosterWarningToggle fields showRosterWarnings =
+    renderAppToggleButton $
+        ( defaultAppToggleStateButtonConfig
+            "show-roster-warnings"
+            (surfaceToggleScalarField @Surface.ShowRosterWarnings fields True False)
+            showRosterWarnings
+            [hsx|<span class="small">Warnings enabled</span>|]
+            [hsx|<span class="small">Warnings disabled</span>|]
+        )
+            { appToggleButtonClass = "btn-sm w-100 justify-content-start"
+            , appToggleSubmitPolicy = ToggleSubmitImmediate
             }
 
-renderRosterWageEstimateToggle :: SurfaceFields (SurfaceActionFieldSpecs Surface.RosterSurface Surface.ToggleRosterWageEstimates) -> Bool -> Html
-renderRosterWageEstimateToggle fields showWageEstimates = [hsx|
-    <input type="hidden" id="show-wage-estimates-value" name={surfaceFieldNameFrom @Surface.ShowWageEstimates fields} value={boolParam showWageEstimates}/>
-    {toggleButton}
-|]
-  where
-    toggleButton =
-        renderAppToggleButton $ (defaultAppToggleStateButtonConfig "show-wage-estimates" showWageEstimates [hsx|<span class="small">Wages enabled</span>|] [hsx|<span class="small">Wages disabled</span>|])
-            { appToggleInputName = Nothing
-            , appToggleInputValue = "true"
-            , appToggleButtonClass = "btn-sm w-100 justify-content-start"
-            , appToggleOnChange = Just (syncToggleHiddenInputAndSubmit "show-wage-estimates-value")
-            , appToggleHiddenInputId = Just "show-wage-estimates-value"
-            , appToggleHiddenInputCheckedValue = Just "true"
-            , appToggleHiddenInputUncheckedValue = Just "false"
+renderRosterWageEstimateToggle :: SurfaceActionFields Surface.RosterSurface Surface.ToggleRosterWageEstimates -> Bool -> Html
+renderRosterWageEstimateToggle fields showWageEstimates =
+    renderAppToggleButton $
+        ( defaultAppToggleStateButtonConfig
+            "show-wage-estimates"
+            (surfaceToggleScalarField @Surface.ShowWageEstimates fields True False)
+            showWageEstimates
+            [hsx|<span class="small">Wages enabled</span>|]
+            [hsx|<span class="small">Wages disabled</span>|]
+        )
+            { appToggleButtonClass = "btn-sm w-100 justify-content-start"
+            , appToggleSubmitPolicy = ToggleSubmitImmediate
             }
 
 renderRosterAssignmentFiltersSection :: (?context :: ControllerContext) => Int -> Id RosterGroup -> RosterAssignmentFilters -> Html
 renderRosterAssignmentFiltersSection weekOffset rosterGroupId filters =
     renderFrontendSurfaceActionForm
-        (frontendSurfaceAction @Surface.RosterSurface @Surface.ToggleRosterAssignmentFilters fields)
+        (RosterAction.toggleRosterAssignmentFiltersAction fields)
         (rosterWeekShellSyncRoute (rosterAssignmentFiltersUrl weekOffset rosterGroupId))
             { actionRouteStandardUrl = Just (rosterAssignmentFiltersUrl weekOffset rosterGroupId)
             , actionRouteExtraAttrs =
@@ -198,43 +195,34 @@ renderRosterAssignmentFiltersSection weekOffset rosterGroupId filters =
             }
         [hsx|
             <div class="roster-assignment-filter-grid">
-                {renderRosterAssignmentFilterToggle "hide-staff-at-ideal" (surfaceFieldNameFrom @Surface.HideStaffAtIdealShifts fields) filters.hideStaffAtIdealShifts "Too many shifts"}
-                {renderRosterAssignmentFilterToggle "hide-staff-unavailable" (surfaceFieldNameFrom @Surface.HideStaffUnavailable fields) filters.hideStaffUnavailable "Regular day off"}
-                {renderRosterAssignmentFilterToggle "hide-staff-on-leave" (surfaceFieldNameFrom @Surface.HideStaffOnApprovedLeave fields) filters.hideStaffOnApprovedLeave "Unavailable"}
-                {renderRosterAssignmentFilterToggle "hide-staff-assigned-today" (surfaceFieldNameFrom @Surface.HideStaffAlreadyAssignedToday fields) filters.hideStaffAlreadyAssignedToday "Double shifts"}
+                {renderRosterAssignmentFilterToggle "hide-staff-at-ideal" (surfaceToggleScalarField @Surface.HideStaffAtIdealShifts fields True False) filters.hideStaffAtIdealShifts "Too many shifts"}
+                {renderRosterAssignmentFilterToggle "hide-staff-unavailable" (surfaceToggleScalarField @Surface.HideStaffUnavailable fields True False) filters.hideStaffUnavailable "Regular day off"}
+                {renderRosterAssignmentFilterToggle "hide-staff-on-leave" (surfaceToggleScalarField @Surface.HideStaffOnApprovedLeave fields True False) filters.hideStaffOnApprovedLeave "Unavailable"}
+                {renderRosterAssignmentFilterToggle "hide-staff-assigned-today" (surfaceToggleScalarField @Surface.HideStaffAlreadyAssignedToday fields True False) filters.hideStaffAlreadyAssignedToday "Double shifts"}
             </div>
         |]
   where
     fields =
-        surfaceField @Surface.HideStaffAtIdealShifts filters.hideStaffAtIdealShifts
-            :& surfaceField @Surface.HideStaffUnavailable filters.hideStaffUnavailable
-            :& surfaceField @Surface.HideStaffOnApprovedLeave filters.hideStaffOnApprovedLeave
-            :& surfaceField @Surface.HideStaffAlreadyAssignedToday filters.hideStaffAlreadyAssignedToday
-            :& NoSurfaceFields
+        RosterAction.toggleRosterAssignmentFiltersActionFields
+            filters.hideStaffAtIdealShifts
+            filters.hideStaffUnavailable
+            filters.hideStaffOnApprovedLeave
+            filters.hideStaffAlreadyAssignedToday
 
-renderRosterAssignmentFilterToggle :: Text -> Text -> Bool -> Text -> Html
-renderRosterAssignmentFilterToggle inputId fieldName isChecked label = [hsx|
+renderRosterAssignmentFilterToggle :: Text -> ToggleFieldBinding -> Bool -> Text -> Html
+renderRosterAssignmentFilterToggle inputId binding isChecked label = [hsx|
     <div>
-        <input type="hidden" id={inputId <> "-value"} name={fieldName} value={boolParam isChecked}/>
-        {renderRosterAssignmentFilterToggleButton inputId (inputId <> "-value") isChecked label}
+        {renderRosterAssignmentFilterToggleButton inputId binding isChecked label}
     </div>
 |]
 
-renderRosterAssignmentFilterToggleButton :: Text -> Text -> Bool -> Text -> Html
-renderRosterAssignmentFilterToggleButton inputId hiddenInputId isChecked label =
-    renderAppToggleButton $ (defaultAppToggleButtonConfig inputId isChecked [hsx|<span class="small">{label}</span>|])
-        { appToggleInputName = Nothing
-        , appToggleInputValue = "true"
-        , appToggleButtonClass = "btn-sm w-100 justify-content-start text-start"
-        , appToggleOnChange = Just (syncToggleHiddenInputAndSubmit hiddenInputId)
-        , appToggleHiddenInputId = Just hiddenInputId
-        , appToggleHiddenInputCheckedValue = Just "true"
-        , appToggleHiddenInputUncheckedValue = Just "false"
-        }
-
-syncToggleHiddenInputAndSubmit :: Text -> Text
-syncToggleHiddenInputAndSubmit hiddenInputId =
-    "document.getElementById('" <> hiddenInputId <> "').value = this.checked ? 'true' : 'false'; this.form.requestSubmit()"
+renderRosterAssignmentFilterToggleButton :: Text -> ToggleFieldBinding -> Bool -> Text -> Html
+renderRosterAssignmentFilterToggleButton inputId binding isChecked label =
+    renderAppToggleButton $
+        (defaultAppToggleButtonConfig inputId binding isChecked [hsx|<span class="small">{label}</span>|])
+            { appToggleButtonClass = "btn-sm w-100 justify-content-start text-start"
+            , appToggleSubmitPolicy = ToggleSubmitImmediate
+            }
 
 renderRosterWeekActions :: (?context :: ControllerContext) => Maybe RosterWeek -> Int -> Id RosterGroup -> RosterViewCapabilities -> Html
 renderRosterWeekActions maybeRosterWeek weekOffset rosterGroupId viewCapabilities = [hsx|
@@ -252,7 +240,7 @@ renderRosterSortForm :: (?context :: ControllerContext) => Maybe RosterWeek -> R
 renderRosterSortForm (Just rosterWeek) viewCapabilities
     | shouldShowRosterSortForm (Just rosterWeek) viewCapabilities =
         renderFrontendSurfaceActionForm
-            (frontendSurfaceAction @Surface.RosterSurface @Surface.SortRosterWeek NoSurfaceFields)
+            (RosterAction.sortRosterWeekAction RosterAction.sortRosterWeekActionFields)
             (rosterWeekShellSyncRoute (pathTo (SortRosterWeekAction rosterWeek.id)))
                 { actionRouteStandardUrl = Just (pathTo (SortRosterWeekAction rosterWeek.id))
                 , actionRouteExtraAttrs = [("class", "mb-0 roster-week-action-form")]
@@ -268,7 +256,7 @@ renderRosterSortForm _ _ = mempty
 renderCopyPreviousWeekForm :: (?context :: ControllerContext) => Int -> Id RosterGroup -> Html
 renderCopyPreviousWeekForm weekOffset rosterGroupId =
     renderFrontendSurfaceActionForm
-        (frontendSurfaceAction @Surface.RosterSurface @Surface.CopyRosterWeek NoSurfaceFields)
+        (RosterAction.copyRosterWeekAction RosterAction.copyRosterWeekActionFields)
         (rosterWeekShellSyncRoute (rosterCopyWeekUrl (weekOffset - 1) weekOffset rosterGroupId))
             { actionRouteCustomHtmx =
                 [ FrontendSurfaceCustomHtmxAttrs "copy-roster-week-custom-htmx" [("hx-confirm", "This will overwrite the current week with the previous week's roster. Continue?")]
@@ -283,15 +271,18 @@ renderCopyPreviousWeekForm weekOffset rosterGroupId =
             </button>
         |]
 
-shouldShowRosterExport :: Maybe RosterWeek -> RosterViewCapabilities -> Bool
-shouldShowRosterExport maybeRosterWeek viewCapabilities =
-    viewCapabilities.canExportRosterImage && maybe False (.isLive) maybeRosterWeek
+shouldShowRosterExport :: Maybe RosterWeek -> RosterViewCapabilities -> RosterLayoutModeEnum -> RosterGridViewMode -> Bool
+shouldShowRosterExport maybeRosterWeek viewCapabilities rosterLayoutMode viewMode =
+    viewCapabilities.canExportRosterImage
+        && maybe False (.isLive) maybeRosterWeek
+        && viewMode == RosterWeekGridView
+        && rosterLayoutModeValue rosterLayoutMode == "day_rows"
 
-renderRosterExportSection :: Html
-renderRosterExportSection = [hsx|
+renderRosterExportSection :: Text -> Day -> Html
+renderRosterExportSection rosterGroupName weekStartDate = [hsx|
     <button type="button"
             class="btn btn-outline-secondary btn-sm w-100 roster-export-button"
-            data-roster-export-format="jpg">
+            {...rosterJpgImageExportTriggerAttrs (rosterImageExportFilename rosterGroupName weekStartDate)}>
         <i class="bi bi-download me-1" aria-hidden="true"></i>
         Export JPG
     </button>

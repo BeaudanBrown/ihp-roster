@@ -12,6 +12,6 @@ import IHP.Prelude
 incompleteResource =
     frontendSurfaceResource @Timesheets.TimesheetsSurface @Timesheets.TimesheetDay
         ( surfaceField @Timesheets.VenueId (error "fixture UUID")
-            :& surfaceField @Timesheets.WeekOffset 0
-            :& NoSurfaceFields
+            &: surfaceField @Timesheets.WeekOffset 0
+            &: noSurfaceFields
         )

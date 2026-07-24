@@ -2,6 +2,7 @@ module Application.Async.Queue
     ( AppJobRequest (..)
     , EnqueueAppJobResult (..)
     , activeAppJobStatuses
+    , appJobMaxAttempts
     , enqueueAppJob
     , fetchActiveAppJobByDedupeKey
     , fetchLatestAppJobByKind
@@ -30,6 +31,9 @@ data EnqueueAppJobResult
     = EnqueuedAppJob !AppJob
     | ExistingActiveAppJob !AppJob
     deriving (Eq, Show)
+
+appJobMaxAttempts :: Int
+appJobMaxAttempts = 10
 
 activeAppJobStatuses :: [JobStatus]
 activeAppJobStatuses =

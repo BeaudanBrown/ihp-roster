@@ -14,13 +14,18 @@ import Application.Helper.FrontendContract.AppShell.Runtime (AppShellActionRoute
                                                              appShellActionByMarker,
                                                              applyAppShellActionAttrs,
                                                              renderAppShellActionHtmxControl)
-import Application.Helper.FrontendContract.RosterValues (RosterStaffSortKey (..),
-                                                         rosterStaffSortKeyAttribute)
 import qualified Application.Helper.FrontendContract.Surface.Interaction as SurfaceInteraction
+import qualified Application.Helper.FrontendContract.Surface.LinkedHighlight as SurfaceLinkedHighlight
 import qualified Application.Helper.FrontendContract.Surface.Roster as Surface
+import qualified Application.Helper.FrontendContract.Surface.Roster.Action as RosterAction
+import Application.Helper.FrontendContract.Surface.Roster.StaffPanel (RosterStaffPanelSortKey (..),
+                                                                      RosterStaffPanelTab (..),
+                                                                      rosterStaffPanelSortControlAttrs,
+                                                                      rosterStaffPanelSortRootAttrs,
+                                                                      rosterStaffPanelSortRowAttrs,
+                                                                      rosterStaffPanelTabAttrs)
 import Application.Helper.FrontendContract.Surface.Runtime (FrontendSurfaceActionRoute (..),
-                                                            frontendSurfaceAction,
-                                                            frontendSurfaceActionHtmxAttrPairs)
+                                                            renderFrontendSurfaceActionForm)
 import Application.Helper.FrontendContract.Surface.Values
 import Application.Helper.Profiling (profileHtmlComponent, profileRenderCounter)
 import Application.Helper.Staff (isAdoptableTrialStaff)
@@ -33,7 +38,8 @@ import Web.RosterWeeks.Dom (rosterStaffPanelFragmentClasses,
                             rosterStaffPanelSettingsTabId,
                             rosterStaffPanelStaffPaneId,
                             rosterStaffPanelStaffTabId)
-import Web.RosterWeeks.FrontendSurface (rosterStaffDragSourceRef)
+import Web.RosterWeeks.FrontendSurface (rosterStaffDragSourceRef,
+                                        rosterStaffLinkedHighlight)
 import Web.RosterWeeks.Types (RosterStaffPanelEntry (..),
                               RosterStaffPanelRenderModel (..),
                               RosterStaffPanelScope (..))
@@ -106,7 +112,7 @@ renderRosterStaffPanelTabs staffContent settingsContent = [hsx|
                 data-bs-target={"#" <> rosterStaffPanelStaffPaneId}
                 aria-controls={rosterStaffPanelStaffPaneId}
                 aria-selected="true"
-                data-roster-staff-panel-tab="staff">
+                {...rosterStaffPanelTabAttrs RosterStaffTab}>
             <i class="bi bi-people" aria-hidden="true"></i>
             <span>Staff</span>
         </button>
@@ -118,7 +124,7 @@ renderRosterStaffPanelTabs staffContent settingsContent = [hsx|
                 data-bs-target={"#" <> rosterStaffPanelSettingsPaneId}
                 aria-controls={rosterStaffPanelSettingsPaneId}
                 aria-selected="false"
-                data-roster-staff-panel-tab="settings">
+                {...rosterStaffPanelTabAttrs RosterSettingsTab}>
             <i class="bi bi-sliders" aria-hidden="true"></i>
             <span>Settings</span>
         </button>
@@ -209,7 +215,7 @@ rosterStaffPanelColumns =
 renderRosterStaffPanelTable :: [Staff] -> Int -> Id RosterGroup -> [RosterStaffPanelEntry] -> Html
 renderRosterStaffPanelTable panelStaffMembers weekOffset currentRosterGroupId renderedPanelStaff = [hsx|
     <div class="roster-staff-panel-list">
-        <table class="roster-staff-table">
+        <table class="roster-staff-table" {...rosterStaffPanelSortRootAttrs}>
             <thead class="roster-staff-table-head">
                 <tr>{forEach rosterStaffPanelColumns renderRosterStaffPanelHeaderCell}</tr>
             </thead>
@@ -240,21 +246,21 @@ rosterStaffPanelSkeletonRows = [1, 2, 3, 4, 5, 6]
 renderRosterStaffPanelHeaderCell :: RosterStaffPanelColumn -> Html
 renderRosterStaffPanelHeaderCell RosterStaffNameColumn = [hsx|
     <th scope="col" aria-sort="none">
-        <button type="button" class="roster-staff-sort-button" data-roster-staff-sort-key={rosterStaffSortKeyAttribute RosterStaffSortByName}>
+        <button type="button" class="roster-staff-sort-button" {...rosterStaffPanelSortControlAttrs RosterStaffSortByName}>
             Name
         </button>
     </th>
 |]
 renderRosterStaffPanelHeaderCell RosterStaffRoleColumn = [hsx|
     <th scope="col" class="roster-staff-role-head" aria-sort="none">
-        <button type="button" class="roster-staff-sort-button" data-roster-staff-sort-key={rosterStaffSortKeyAttribute RosterStaffSortByRole}>
+        <button type="button" class="roster-staff-sort-button" {...rosterStaffPanelSortControlAttrs RosterStaffSortByRole}>
             Role
         </button>
     </th>
 |]
 renderRosterStaffPanelHeaderCell RosterStaffShiftsColumn = [hsx|
     <th scope="col" class="roster-staff-metric-head" aria-sort="none">
-        <button type="button" class="roster-staff-sort-button roster-staff-sort-button-metric" data-roster-staff-sort-key={rosterStaffSortKeyAttribute RosterStaffSortByShifts}>
+        <button type="button" class="roster-staff-sort-button roster-staff-sort-button-metric" {...rosterStaffPanelSortControlAttrs RosterStaffSortByShifts}>
             Shifts
         </button>
     </th>
@@ -318,48 +324,42 @@ sortRosterStaffPanelEntries panelStaffMembers =
         sortName entry = Text.toCaseFold (staffDisplayName panelStaffMembers entry.staff)
 
 renderStaffScopeToggle :: (?context :: ControllerContext) => Int -> Id RosterGroup -> RosterStaffPanelScope -> Html
-renderStaffScopeToggle weekOffset currentRosterGroupId panelScope = [hsx|
-    <form method="GET"
-          action={ShowRosterWeekStaffPanelFragmentAction weekOffset}
-          class="mb-0 roster-staff-scope-toggle">
-        <input type="hidden" name="rosterGroupId" value={tshow currentRosterGroupId} />
-        <input type="hidden" id={staffScopeHiddenInputId currentRosterGroupId} name={surfaceFieldNameFrom @Surface.StaffScope fields} value={surfaceFieldValue @Surface.StaffScope fields} />
-        {renderStaffScopeToggleButton fields weekOffset currentRosterGroupId panelScope}
-    </form>
-|]
+renderStaffScopeToggle weekOffset currentRosterGroupId panelScope =
+    renderFrontendSurfaceActionForm
+        (RosterAction.toggleRosterStaffScopeAction fields)
+        FrontendSurfaceActionRoute
+            { actionRouteUrl = actionUrl
+            , actionRouteCustomHtmx = []
+            , actionRouteStandardUrl = Just actionUrl
+            , actionRouteExtraAttrs = [("class", "mb-0 roster-staff-scope-toggle")]
+            }
+        [hsx|
+            <input type="hidden" name="rosterGroupId" value={tshow currentRosterGroupId} />
+            {renderStaffScopeToggleButton fields currentRosterGroupId panelScope}
+        |]
   where
-    fields = surfaceField @Surface.StaffScope (if panelScope == RosterStaffPanelAllVenue then "all" else "group") :& NoSurfaceFields
+    actionUrl = pathTo (ShowRosterWeekStaffPanelFragmentAction weekOffset)
+    fields = RosterAction.toggleRosterStaffScopeActionFields (if panelScope == RosterStaffPanelAllVenue then "all" else "group")
 
-renderStaffScopeToggleButton :: (?context :: ControllerContext) => SurfaceFields (SurfaceActionFieldSpecs Surface.RosterSurface Surface.ToggleRosterStaffScope) -> Int -> Id RosterGroup -> RosterStaffPanelScope -> Html
-renderStaffScopeToggleButton fields weekOffset currentRosterGroupId panelScope =
-    renderAppToggleButton $ (defaultAppToggleButtonConfig (staffScopeToggleInputId currentRosterGroupId) (panelScope == RosterStaffPanelAllVenue) [hsx|<span class="small fw-semibold">Show all staff</span>|])
-        { appToggleInputName = Nothing
-        , appToggleInputValue = "all"
-        , appToggleButtonClass = "btn-sm"
-        , appToggleRoleSwitch = True
-        , appToggleHiddenInputId = Just (staffScopeHiddenInputId currentRosterGroupId)
-        , appToggleHiddenInputCheckedValue = Just "all"
-        , appToggleHiddenInputUncheckedValue = Just "group"
-        , appToggleInputExtraAttrs =
-            frontendSurfaceActionHtmxAttrPairs
-                (frontendSurfaceAction @Surface.RosterSurface @Surface.ToggleRosterStaffScope fields)
-                FrontendSurfaceActionRoute
-                    { actionRouteUrl = pathTo (ShowRosterWeekStaffPanelFragmentAction weekOffset)
-                    , actionRouteCustomHtmx = []
-                    , actionRouteStandardUrl = Just (pathTo (ShowRosterWeekStaffPanelFragmentAction weekOffset))
-                    , actionRouteExtraAttrs = []
-                    }
-                <> [("hx-trigger", "change"), ("hx-include", "closest form")]
-        }
+renderStaffScopeToggleButton :: SurfaceActionFields Surface.RosterSurface Surface.ToggleRosterStaffScope -> Id RosterGroup -> RosterStaffPanelScope -> Html
+renderStaffScopeToggleButton fields currentRosterGroupId panelScope =
+    renderAppToggleButton $
+        ( defaultAppToggleButtonConfig
+            (staffScopeToggleInputId currentRosterGroupId)
+            (surfaceToggleScalarField @Surface.StaffScope fields "all" "group")
+            (panelScope == RosterStaffPanelAllVenue)
+            [hsx|<span class="small fw-semibold">Show all staff</span>|]
+        )
+            { appToggleButtonClass = "btn-sm"
+            , appToggleRoleSwitch = True
+            , appToggleSubmitPolicy = ToggleSubmitImmediate
+            }
 
 staffPanelTargetSelector :: Text
 staffPanelTargetSelector = "#" <> rosterStaffPanelFragmentId
 
 staffScopeToggleInputId :: Id RosterGroup -> Text
 staffScopeToggleInputId rosterGroupId = "roster-staff-scope-toggle-" <> tshow rosterGroupId
-
-staffScopeHiddenInputId :: Id RosterGroup -> Text
-staffScopeHiddenInputId rosterGroupId = "roster-staff-scope-value-" <> tshow rosterGroupId
 
 renderRosterStaffPanelEntry :: [Staff] -> Int -> Id RosterGroup -> RosterStaffPanelEntry -> Html
 renderRosterStaffPanelEntry panelStaffMembers weekOffset currentRosterGroupId entry =
@@ -373,17 +373,15 @@ renderRosterStaffPanelEntry panelStaffMembers weekOffset currentRosterGroupId en
 
 renderRosterStaffPanelEntryRow :: Int -> Id RosterGroup -> Text -> Text -> RosterStaffPanelEntry -> Html
 renderRosterStaffPanelEntryRow weekOffset currentRosterGroupId staffDisplayLabel staffRoleLabel entry =
-    SurfaceInteraction.withFrontendSurfaceSourceRef rosterStaffDragSourceRef ("staff:" <> tshow entry.staff.id) $
-        applyAppShellActionAttrs
-            (appShellActionByMarker @OpenRosterStaffEditDialog)
-            (rosterStaffOverlayRoute (appendQueryParams (pathTo (EditStaffAction entry.staff.id)) [("weekOffset", tshow weekOffset), ("rosterGroupId", tshow currentRosterGroupId)]))
-            [hsx|
-                <tr class="roster-staff-panel-entry"
-                    data-roster-staff-id={tshow entry.staff.id}
-                    data-roster-staff-name={staffDisplayLabel}
-                    data-roster-staff-role={staffRoleLabel}
-                    data-roster-staff-assigned={tshow entry.assignedShiftCount}
-                    data-roster-staff-ideal={tshow entry.staff.idealShiftsPerWeek}
+    let staffKey = "staff:" <> tshow entry.staff.id
+     in SurfaceInteraction.withFrontendSurfaceSourceRef rosterStaffDragSourceRef staffKey $
+        SurfaceLinkedHighlight.withFrontendSurfaceLinkedHighlightSource rosterStaffLinkedHighlight staffKey $
+            applyAppShellActionAttrs
+                (appShellActionByMarker @OpenRosterStaffEditDialog)
+                (rosterStaffOverlayRoute (appendQueryParams (pathTo (EditStaffAction entry.staff.id)) [("weekOffset", tshow weekOffset), ("rosterGroupId", tshow currentRosterGroupId)]))
+                [hsx|
+                    <tr class="roster-staff-panel-entry"
+                    {...rosterStaffPanelSortRowAttrs staffKey staffDisplayLabel staffRoleLabel entry.assignedShiftCount entry.staff.idealShiftsPerWeek}
                     role="button"
                     tabindex="0">
                     {forEach rosterStaffPanelColumns (renderRosterStaffPanelEntryCell weekOffset currentRosterGroupId staffDisplayLabel staffRoleLabel entry)}
@@ -405,19 +403,21 @@ renderRosterStaffPanelEntryCell _ _ _ staffRoleLabel _ RosterStaffRoleColumn = [
 renderRosterStaffPanelEntryCell _ _ _ _ entry RosterStaffShiftsColumn = [hsx|
     <td class="roster-staff-cell roster-staff-shifts">{renderShiftSummary entry}</td>
 |]
-renderRosterStaffPanelEntryCell _ _ staffDisplayLabel _ _ RosterStaffActionColumn = [hsx|
-    <td class="roster-staff-cell roster-staff-action">
-        <button type="button"
-                class="btn btn-sm btn-outline-secondary app-icon-button roster-staff-locate-button"
-                data-roster-staff-highlight-toggle="true"
-                aria-label={"Locate shifts for " <> staffDisplayLabel}
-                aria-pressed="false">
-            <svg aria-hidden="true" viewBox="0 0 24 24" width="16" height="16">
-                <path d="M12 5.25c-4.55 0-8.2 3.95-9.55 6.15a1.15 1.15 0 0 0 0 1.2c1.35 2.2 5 6.15 9.55 6.15s8.2-3.95 9.55-6.15a1.15 1.15 0 0 0 0-1.2c-1.35-2.2-5-6.15-9.55-6.15Zm0 11a4.25 4.25 0 1 1 0-8.5 4.25 4.25 0 0 1 0 8.5Zm0-1.75a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5Z" fill="currentColor"></path>
-            </svg>
-        </button>
-    </td>
-|]
+renderRosterStaffPanelEntryCell _ _ staffDisplayLabel _ entry RosterStaffActionColumn =
+    let locateButton =
+            SurfaceLinkedHighlight.withFrontendSurfaceLinkedHighlightPin rosterStaffLinkedHighlight ("staff:" <> tshow entry.staff.id) [hsx|
+                <button type="button"
+                        class="btn btn-sm btn-outline-secondary app-icon-button roster-staff-locate-button"
+                        aria-label={"Locate shifts for " <> staffDisplayLabel}
+                        aria-pressed="false">
+                    <svg aria-hidden="true" viewBox="0 0 24 24" width="16" height="16">
+                        <path d="M12 5.25c-4.55 0-8.2 3.95-9.55 6.15a1.15 1.15 0 0 0 0 1.2c1.35 2.2 5 6.15 9.55 6.15s8.2-3.95 9.55-6.15a1.15 1.15 0 0 0 0-1.2c-1.35-2.2-5-6.15-9.55-6.15Zm0 11a4.25 4.25 0 1 1 0-8.5 4.25 4.25 0 0 1 0 8.5Zm0-1.75a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5Z" fill="currentColor"></path>
+                    </svg>
+                </button>
+            |]
+     in [hsx|
+        <td class="roster-staff-cell roster-staff-action">{locateButton}</td>
+    |]
 
 renderTrialStaffInviteButton :: Int -> Id RosterGroup -> Text -> RosterStaffPanelEntry -> Html
 renderTrialStaffInviteButton weekOffset currentRosterGroupId staffDisplayLabel entry

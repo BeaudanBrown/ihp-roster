@@ -4,6 +4,7 @@
 {-# LANGUAGE FlexibleContexts      #-}
 {-# LANGUAGE FlexibleInstances     #-}
 {-# LANGUAGE KindSignatures        #-}
+{-# LANGUAGE LambdaCase            #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE PolyKinds             #-}
 {-# LANGUAGE ScopedTypeVariables   #-}
@@ -19,28 +20,44 @@
 -- field order, presence, and wires continue to come from the associated
 -- Surface declaration.
 module Application.Helper.FrontendContract.Surface.HaskellAdapter.Family
-    ( AdapterFamilySurface
+    ( ActorOnlyFragmentAdapterMetadata (..)
+    , AdapterFamilySurface
+    , CheckedSurfaceRequestAdapterRegistration
+    , checkedSurfaceRequestAdapterDeclaration
+    , checkedSurfaceRequestAdapterOperations
     , HaskellTypeMetadata (..)
     , ReflectSurfaceAdapterFamilies
     , ReflectSurfaceAdapterHomes
     , ReflectSurfaceResourceAdapterHomes
     , SurfaceActionAdapterHome
     , SurfaceAdapterFamily
+    , SurfaceAdapterOperationEligibility (..)
     , SurfaceAdapterFamilyMetadata (..)
     , SurfaceAdapterHome
     , SurfaceAdapterHomeMetadata (..)
     , SurfaceAdapterRegistry (..)
     , SurfaceFragmentAdapterHome
     , SurfaceIntentAdapterHome
+    , SurfaceRequestAdapterOperations (..)
+    , SurfaceRequestAdapterRegistration
     , SurfaceResourceAdapterHome
     , SurfaceResourceAdapterHomeMetadata
     , SurfaceScopeAdapterHome
     , reflectSurfaceAdapterHomes
     , reflectSurfaceAdapterRegistry
     , reflectSurfaceResourceAdapterHomes
+    , resolveSurfaceRequestAdapterRegistrations
+    , surfaceActionAdapter
+    , surfaceActionAdapterExcluded
+    , surfaceActorOnlyFragmentAdapter
+    , surfaceAdapterOperationIsGenerated
+    , surfaceIntentAdapter
     ) where
 
+import Application.Helper.FrontendContract.Surface.ContractIR (ContractDiagnostic (..),
+                                                               SurfaceContractIR)
 import Application.Helper.FrontendContract.Surface.DSL
+import Application.Helper.FrontendContract.Surface.HaskellAdapter.Association
 import Application.Helper.FrontendContract.Surface.HaskellAdapter.Core
 import Application.Helper.FrontendContract.Surface.Values (SurfaceActionFieldSpecs,
                                                            SurfaceFragmentFieldSpecs,
@@ -48,11 +65,9 @@ import Application.Helper.FrontendContract.Surface.Values (SurfaceActionFieldSpe
                                                            SurfaceResourceFieldSpecs,
                                                            SurfaceScopeFieldSpecs)
 import Data.Kind (Type)
+import qualified Data.Text as Text
 import Data.Typeable (Typeable)
 import IHP.Prelude
-
-class SurfaceAdapterFamily adapterFamily where
-    type AdapterFamilySurface adapterFamily :: SurfaceSpec
 
 -- | One typed declaration home. The promoted kind selects the declaration
 -- lookup and prevents homes from crossing resource/live/action/intent seams.
@@ -76,12 +91,63 @@ type SurfaceActionAdapterHome adapterFamily action =
 type SurfaceIntentAdapterHome adapterFamily intent =
     SurfaceAdapterHome 'IntentAdapterKind adapterFamily intent
 
+-- | Explicit eligibility for a semantic fragment key used only by actor-local
+-- workflows. The owning family and fragment remain type checked, while the
+-- required reason remains reviewable term-level documentation.
+data ActorOnlyFragmentAdapterMetadata = ActorOnlyFragmentAdapterMetadata
+    { actorOnlyFragmentHome   :: !(SurfaceAdapterHomeMetadata 'FragmentAdapterKind)
+    , actorOnlyFragmentReason :: !Text
+    }
+    deriving (Eq, Show)
+
 type SurfaceResourceAdapterHomeMetadata =
     SurfaceAdapterHomeMetadata 'ResourceAdapterKind
 
+-- | Whether one operation has an inventoried current consumer. Exclusions are
+-- explicit and carry the reviewable reason that prevents speculative output.
+data SurfaceAdapterOperationEligibility
+    = GenerateSurfaceAdapterOperation
+    | ExcludeSurfaceAdapterOperation !Text
+    deriving (Eq, Show)
+
+data SurfaceRequestAdapterOperations = SurfaceRequestAdapterOperations
+    { surfaceAdapterFieldsBuilderOperation :: !SurfaceAdapterOperationEligibility
+    , surfaceAdapterRenderMetadataOperation :: !SurfaceAdapterOperationEligibility
+    , surfaceAdapterRequestParserOperation :: !SurfaceAdapterOperationEligibility
+    }
+    deriving (Eq, Show)
+
+-- | One complete typed inventory decision. A generated declaration records an
+-- explicit decision for every supported operation; an excluded declaration
+-- records why no Haskell action/intent adapter currently has a consumer.
+data SurfaceRequestAdapterRegistration (kind :: SurfaceAdapterKind)
+    = GenerateSurfaceRequestAdapter
+        !(SurfaceAdapterHomeMetadata kind)
+        !SurfaceRequestAdapterOperations
+    | ExcludeSurfaceRequestAdapter
+        !(SurfaceAdapterHomeMetadata kind)
+        !Text
+    deriving (Eq, Show)
+
+-- | Validated inventory row. Its declaration was normalized from checked IR
+-- and resolved through the same family/home/source-type seam as emitted code.
+data CheckedSurfaceRequestAdapterRegistration kind payload =
+    CheckedSurfaceRequestAdapterRegistration
+        { checkedSurfaceRequestAdapterDeclaration :: !(CheckedAdapterDeclaration kind payload)
+        , checkedSurfaceRequestAdapterOperations :: !(Maybe SurfaceRequestAdapterOperations)
+        }
+    deriving (Eq, Show)
+
 data SurfaceAdapterRegistry = SurfaceAdapterRegistry
-    { surfaceAdapterFamilies      :: ![SurfaceAdapterFamilyMetadata]
-    , surfaceResourceAdapterHomes :: ![SurfaceResourceAdapterHomeMetadata]
+    { surfaceAdapterFamilies              :: ![SurfaceAdapterFamilyMetadata]
+    , surfaceResourceAdapterHomes         :: ![SurfaceResourceAdapterHomeMetadata]
+    , surfaceScopeAdapterHomes            :: ![SurfaceAdapterHomeMetadata 'ScopeAdapterKind]
+    , surfaceFragmentAdapterHomes         :: ![SurfaceAdapterHomeMetadata 'FragmentAdapterKind]
+    , surfaceActorOnlyFragmentAdapters    :: ![ActorOnlyFragmentAdapterMetadata]
+    , surfaceActionAdapterHomes           :: ![SurfaceAdapterHomeMetadata 'ActionAdapterKind]
+    , surfaceActionAdapterRegistrations   :: ![SurfaceRequestAdapterRegistration 'ActionAdapterKind]
+    , surfaceIntentAdapterHomes           :: ![SurfaceAdapterHomeMetadata 'IntentAdapterKind]
+    , surfaceIntentAdapterRegistrations   :: ![SurfaceRequestAdapterRegistration 'IntentAdapterKind]
     }
     deriving (Eq, Show)
 
@@ -164,6 +230,174 @@ reflectSurfaceResourceAdapterHomes ::
 reflectSurfaceResourceAdapterHomes =
     reflectSurfaceAdapterHomes @'ResourceAdapterKind @homes
 
+surfaceActorOnlyFragmentAdapter ::
+    forall adapterFamily fragment.
+    ReflectSurfaceAdapterHomes
+        'FragmentAdapterKind
+        '[SurfaceFragmentAdapterHome adapterFamily fragment] =>
+    Text ->
+    ActorOnlyFragmentAdapterMetadata
+surfaceActorOnlyFragmentAdapter actorOnlyFragmentReason =
+    ActorOnlyFragmentAdapterMetadata
+        { actorOnlyFragmentHome =
+            singleSurfaceAdapterHome
+                @'FragmentAdapterKind
+                @adapterFamily
+                @fragment
+        , actorOnlyFragmentReason
+        }
+
+surfaceActionAdapter ::
+    forall adapterFamily action.
+    ReflectSurfaceAdapterHomes
+        'ActionAdapterKind
+        '[SurfaceActionAdapterHome adapterFamily action] =>
+    SurfaceRequestAdapterOperations ->
+    SurfaceRequestAdapterRegistration 'ActionAdapterKind
+surfaceActionAdapter operations =
+    GenerateSurfaceRequestAdapter
+        (singleSurfaceAdapterHome @'ActionAdapterKind @adapterFamily @action)
+        operations
+
+surfaceActionAdapterExcluded ::
+    forall adapterFamily action.
+    ReflectSurfaceAdapterHomes
+        'ActionAdapterKind
+        '[SurfaceActionAdapterHome adapterFamily action] =>
+    Text ->
+    SurfaceRequestAdapterRegistration 'ActionAdapterKind
+surfaceActionAdapterExcluded reason =
+    ExcludeSurfaceRequestAdapter
+        (singleSurfaceAdapterHome @'ActionAdapterKind @adapterFamily @action)
+        reason
+
+surfaceIntentAdapter ::
+    forall adapterFamily intent.
+    ReflectSurfaceAdapterHomes
+        'IntentAdapterKind
+        '[SurfaceIntentAdapterHome adapterFamily intent] =>
+    SurfaceRequestAdapterOperations ->
+    SurfaceRequestAdapterRegistration 'IntentAdapterKind
+surfaceIntentAdapter operations =
+    GenerateSurfaceRequestAdapter
+        (singleSurfaceAdapterHome @'IntentAdapterKind @adapterFamily @intent)
+        operations
+
+singleSurfaceAdapterHome ::
+    forall kind adapterFamily declaration.
+    ReflectSurfaceAdapterHomes
+        kind
+        '[SurfaceAdapterHome kind adapterFamily declaration] =>
+    SurfaceAdapterHomeMetadata kind
+singleSurfaceAdapterHome =
+    case reflectSurfaceAdapterHomes
+        @kind
+        @'[SurfaceAdapterHome kind adapterFamily declaration] of
+        [home] -> home
+        _      -> error "single Surface adapter reflection did not produce exactly one typed home"
+
+surfaceAdapterOperationIsGenerated :: SurfaceAdapterOperationEligibility -> Bool
+surfaceAdapterOperationIsGenerated GenerateSurfaceAdapterOperation    = True
+surfaceAdapterOperationIsGenerated (ExcludeSurfaceAdapterOperation _) = False
+
+resolveSurfaceRequestAdapterRegistrations ::
+    AdapterModuleLayout kind ->
+    SurfaceContractIR ->
+    [SurfaceAdapterFamilyMetadata] ->
+    [CheckedAdapterDeclaration kind payload] ->
+    [SurfaceRequestAdapterRegistration kind] ->
+    Either [ContractDiagnostic] [CheckedSurfaceRequestAdapterRegistration kind payload]
+resolveSurfaceRequestAdapterRegistrations layout contract families declarations registrations =
+    case stableDiagnostics (registrationDiagnostics <> resolutionDiagnostics) of
+        []          -> Right (map checkedRegistration resolvedAdapters)
+        diagnostics -> Left diagnostics
+  where
+    resolution =
+        resolveAdapterGeneration
+            layout
+            contract
+            families
+            (map requestAdapterRegistrationHome registrations)
+            declarations
+            (const [])
+    (resolutionDiagnostics, resolvedAdapters) =
+        case resolution of
+            Left diagnostics -> (diagnostics, [])
+            Right adapters   -> ([], adapters)
+    registrationDiagnostics = concatMap validateRegistration registrations
+
+    checkedRegistration adapter =
+        let registration =
+                fromMaybe
+                    (error "resolved Surface request adapter has no inventory registration")
+                    (find ((== adapter.resolvedAdapterHome) . requestAdapterRegistrationHome) registrations)
+         in CheckedSurfaceRequestAdapterRegistration
+                { checkedSurfaceRequestAdapterDeclaration = adapter.resolvedAdapterDeclaration
+                , checkedSurfaceRequestAdapterOperations = requestAdapterGeneratedOperations registration
+                }
+
+    validateRegistration registration =
+        case registration of
+            ExcludeSurfaceRequestAdapter home reason ->
+                [ ContractDiagnostic
+                    { diagnosticCode = "adapter-" <> layout.adapterKindSlug <> "-declaration-exclusion-reason"
+                    , diagnosticMessage =
+                        layout.adapterKindLabel <> " adapter " <> requestAdapterHomeLabel home
+                            <> " must record a non-empty declaration exclusion reason"
+                    }
+                | Text.null (Text.strip reason)
+                ]
+            GenerateSurfaceRequestAdapter home operations ->
+                operationReasonDiagnostics home operations
+                    <> [ ContractDiagnostic
+                            { diagnosticCode = "adapter-" <> layout.adapterKindSlug <> "-empty-operation-set"
+                            , diagnosticMessage =
+                                layout.adapterKindLabel <> " adapter " <> requestAdapterHomeLabel home
+                                    <> " emits no inventoried operations; exclude the declaration instead"
+                            }
+                       | not (any surfaceAdapterOperationIsGenerated (requestAdapterOperationValues operations))
+                       ]
+
+    operationReasonDiagnostics home operations =
+        [ ContractDiagnostic
+            { diagnosticCode = "adapter-" <> layout.adapterKindSlug <> "-operation-exclusion-reason"
+            , diagnosticMessage =
+                layout.adapterKindLabel <> " adapter " <> requestAdapterHomeLabel home
+                    <> " operation " <> operationLabel
+                    <> " must record a non-empty exclusion reason"
+            }
+        | (operationLabel, ExcludeSurfaceAdapterOperation reason) <- requestAdapterOperationRows operations
+        , Text.null (Text.strip reason)
+        ]
+
+requestAdapterRegistrationHome ::
+    SurfaceRequestAdapterRegistration kind ->
+    SurfaceAdapterHomeMetadata kind
+requestAdapterRegistrationHome = \case
+    GenerateSurfaceRequestAdapter home _ -> home
+    ExcludeSurfaceRequestAdapter home _  -> home
+
+requestAdapterGeneratedOperations ::
+    SurfaceRequestAdapterRegistration kind ->
+    Maybe SurfaceRequestAdapterOperations
+requestAdapterGeneratedOperations = \case
+    GenerateSurfaceRequestAdapter _ operations -> Just operations
+    ExcludeSurfaceRequestAdapter _ _            -> Nothing
+
+requestAdapterOperationRows :: SurfaceRequestAdapterOperations -> [(Text, SurfaceAdapterOperationEligibility)]
+requestAdapterOperationRows operations =
+    [ ("fields-builder", operations.surfaceAdapterFieldsBuilderOperation)
+    , ("render-metadata", operations.surfaceAdapterRenderMetadataOperation)
+    , ("request-parser", operations.surfaceAdapterRequestParserOperation)
+    ]
+
+requestAdapterOperationValues :: SurfaceRequestAdapterOperations -> [SurfaceAdapterOperationEligibility]
+requestAdapterOperationValues = map snd . requestAdapterOperationRows
+
+requestAdapterHomeLabel :: SurfaceAdapterHomeMetadata kind -> Text
+requestAdapterHomeLabel home =
+    home.adapterHomeSurface.haskellTypeName <> "/" <> home.adapterHomeDeclaration.haskellTypeName
+
 class ReflectSurfaceFieldMarkerTypes (fields :: [FieldSpec]) where
     reflectSurfaceFieldMarkerTypes :: [HaskellTypeMetadata]
 
@@ -189,13 +423,30 @@ instance
         haskellTypeMetadata @marker : reflectSurfaceFieldMarkerTypes @rest
 
 reflectSurfaceAdapterRegistry ::
-    forall families homes.
+    forall families resourceHomes scopeHomes fragmentHomes actionHomes intentHomes.
     ( ReflectSurfaceAdapterFamilies families
-    , ReflectSurfaceResourceAdapterHomes homes
+    , ReflectSurfaceResourceAdapterHomes resourceHomes
+    , ReflectSurfaceAdapterHomes 'ScopeAdapterKind scopeHomes
+    , ReflectSurfaceAdapterHomes 'FragmentAdapterKind fragmentHomes
+    , ReflectSurfaceAdapterHomes 'ActionAdapterKind actionHomes
+    , ReflectSurfaceAdapterHomes 'IntentAdapterKind intentHomes
     ) =>
+    [ActorOnlyFragmentAdapterMetadata] ->
+    [SurfaceRequestAdapterRegistration 'ActionAdapterKind] ->
+    [SurfaceRequestAdapterRegistration 'IntentAdapterKind] ->
     SurfaceAdapterRegistry
-reflectSurfaceAdapterRegistry =
-    SurfaceAdapterRegistry
-        { surfaceAdapterFamilies = reflectSurfaceAdapterFamilies @families
-        , surfaceResourceAdapterHomes = reflectSurfaceResourceAdapterHomes @homes
-        }
+reflectSurfaceAdapterRegistry
+    surfaceActorOnlyFragmentAdapters
+    surfaceActionAdapterRegistrations
+    surfaceIntentAdapterRegistrations =
+        SurfaceAdapterRegistry
+            { surfaceAdapterFamilies = reflectSurfaceAdapterFamilies @families
+            , surfaceResourceAdapterHomes = reflectSurfaceResourceAdapterHomes @resourceHomes
+            , surfaceScopeAdapterHomes = reflectSurfaceAdapterHomes @'ScopeAdapterKind @scopeHomes
+            , surfaceFragmentAdapterHomes = reflectSurfaceAdapterHomes @'FragmentAdapterKind @fragmentHomes
+            , surfaceActorOnlyFragmentAdapters = surfaceActorOnlyFragmentAdapters
+            , surfaceActionAdapterHomes = reflectSurfaceAdapterHomes @'ActionAdapterKind @actionHomes
+            , surfaceActionAdapterRegistrations = surfaceActionAdapterRegistrations
+            , surfaceIntentAdapterHomes = reflectSurfaceAdapterHomes @'IntentAdapterKind @intentHomes
+            , surfaceIntentAdapterRegistrations = surfaceIntentAdapterRegistrations
+            }

@@ -2,7 +2,8 @@ module Test.Controller.StaffSpec where
 
 import qualified Application.Helper.FrontendContract.Surface.Admin.Live as AdminLive
 import Application.Helper.FrontendContract.Surface.Profile.Resource
-import Application.Helper.FrontendContract.Surface.Roster.Resource (rosterWeekResource)
+import Application.Helper.FrontendContract.Surface.Roster.Resource (rosterSlotsContentResource,
+                                                                    rosterWeekResource)
 import qualified Application.Helper.LiveUpdate as LiveUpdate
 import Application.Helper.RosterGroups (createVenueRosterGroupWithDefaults)
 import Application.Helper.StaffShiftPreferences (encodeShiftPreferenceKey,
@@ -33,7 +34,7 @@ import Web.Staff.Mutations (staffCreateTouchedResources,
 import Web.Types
 
 tests :: Spec
-tests = beforeAll testContext do
+tests = aroundAll withDatabaseTestContext do
     describe "StaffController" do
         let sampleStaffId = Id "6f9638dc-f13c-4ed3-b4f1-a2f860532cab"
         it "redirects unauthenticated users from edit staff form" $ withContext do
@@ -201,10 +202,12 @@ tests = beforeAll testContext do
                 Set.fromList resources
                     `shouldBe` Set.fromList
                         [ rosterWeekResource (unpackId previousGroup.id) 0
+                        , rosterSlotsContentResource (unpackId previousGroup.id) 0
                         , rosterWeekResource (unpackId selectedGroup.id) 1
+                        , rosterSlotsContentResource (unpackId selectedGroup.id) 1
                         ]
 
-        it "invalidates roster content and staff list resources for HTMX roster-launched staff edits" $ withContext do
+        it "invalidates roster child and staff list resources for HTMX roster-launched staff edits" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Venue A"
                 manager <- createUserRecord "staff-modal-manager@example.com" "staff" True
@@ -239,7 +242,8 @@ tests = beforeAll testContext do
                 response `responseBodyShouldNotContain` "id=\"roster-content\""
                 let triggerHeader = cs <$> lookup "HX-Trigger" (responseHeaders response)
                 triggerHeader `shouldSatisfy` maybe False (Text.isInfixOf "bepis:live-fragments-refresh")
-                triggerHeader `shouldSatisfy` maybe False (Text.isInfixOf "\"kind\":\"roster-content\"")
+                triggerHeader `shouldSatisfy` maybe False (not . Text.isInfixOf "\"kind\":\"roster-content\"")
+                triggerHeader `shouldSatisfy` maybe False (Text.isInfixOf "\"kind\":\"roster-slots-grid\"")
                 triggerHeader `shouldSatisfy` maybe False (Text.isInfixOf "\"kind\":\"roster-staff-panel\"")
 
         it "hides trial staff invitation email from the staff details form" $ withContext do
@@ -469,11 +473,15 @@ tests = beforeAll testContext do
                 staff <- createStaffRecord venue Nothing "Alpha" "Crew"
 
                 response <- withUserAndCurrentVenue manager venue.id do
-                    callActionWithParams (EditStaffAction staff.id) [("weekOffset", "0")]
+                    withRequestHeaders [("HX-Request", "true")] do
+                        callActionWithParams (EditStaffAction staff.id) [("weekOffset", "0")]
 
                 response `responseStatusShouldBe` status200
                 response `responseBodyShouldContain` "data-bepis-surface=\"staff\""
                 response `responseBodyShouldContain` "data-bepis-surface-config="
+                response `responseBodyShouldContain` "data-bepis-surface-action=\"update-staff-profile\""
+                response `responseBodyShouldContain` "data-bepis-surface-action=\"update-staff-shift-preferences\""
+                response `responseBodyShouldContain` "data-bepis-surface-action=\"create-staff-leave-request\""
                 response `responseBodyShouldContain` "id=\"staff-profile-details-collapse\" class=\"accordion-collapse collapse\""
                 response `responseBodyShouldContain` "id=\"staff-profile-preferences-collapse\" class=\"accordion-collapse collapse\""
                 response `responseBodyShouldContain` "id=\"staff-shift-preferences-form\""

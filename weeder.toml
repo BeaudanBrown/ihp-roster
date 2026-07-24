@@ -6,4 +6,11 @@ root-instances = [{ class = "\\.IsString$" }, { class = "\\.IsList$" }]
 # Marker/type aliases are reflected or exercised by compile-fail fixtures; the
 # actionable gate is unreachable app-owned value declarations.
 unused-types = false
-root-modules = []
+# Resource and Live generators deliberately emit every registry-owned constructor
+# and matcher. Root only those private declaration-complete categories; curated
+# facades, handwritten modules, and generated Action/Intent APIs remain subject
+# to normal executable/test reachability.
+root-modules = [
+    "^Application\\.Helper\\.FrontendContract\\.Surface\\.[^.]+\\.Generated\\.Resource$",
+    "^Application\\.Helper\\.FrontendContract\\.Surface\\.[^.]+\\.Generated\\.Live$",
+]

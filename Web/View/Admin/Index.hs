@@ -5,7 +5,8 @@ module Web.View.Admin.Index where
 import Application.Helper.Controller (currentVenueOrNothing)
 import qualified Application.Helper.FrontendContract.Surface.Admin as Surface
 import Application.Helper.FrontendContract.Surface.Runtime (renderFrontendSurfaceMount)
-import Application.Helper.FrontendContract.Surface.Values (SurfaceFields (NoSurfaceFields),
+import Application.Helper.FrontendContract.Surface.Values (SurfaceFields,
+                                                           noSurfaceFields,
                                                            surfaceFragmentTargetId)
 import Web.Admin.FrontendSurface (AdminVenueScopeValue (..),
                                   adminPageSurfaceImpl)
@@ -43,7 +44,7 @@ instance View IndexView where
                     , appPanelClass = "overflow-hidden"
                     , appPanelBodyClass = ""
                     , appPanelBody = renderAdminPageContentSurface [hsx|
-                        <div id={surfaceFragmentTargetId @Surface.AdminPageSurface @Surface.AdminPageContentFragment NoSurfaceFields}>
+                        <div id={surfaceFragmentTargetId @Surface.AdminPageSurface @Surface.AdminPageContentFragment noSurfaceFields}>
                             {renderConfigSectionsAccordion rosterGroups currentRosterGroup showInactiveRosterGroups shiftTypes showInactiveShiftTypes venueConfig awardLevels awardLevelBaseRates importedPayItems invitations}
                         </div>
                     |]

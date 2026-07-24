@@ -1,465 +1,445 @@
-import { closestHTMLElement } from "./shared/dom";
+import {
+    horizontalDragConfigDomAttr,
+    horizontalScrollDragDomAttr,
+    horizontalScrollSnapDomAttr,
+    horizontalSnapConfigDomAttr,
+    type HorizontalDragConfig,
+    type HorizontalSnapConfig,
+} from "./generated/contracts";
+import {
+    parseHorizontalDragConfiguration,
+    parseHorizontalSnapConfiguration,
+} from "./horizontal-scroll/configuration";
 import {
     clampHorizontalScrollLeft,
-    parseNonNegativeIntegerForHorizontalScroll,
     parsePositiveIntegerForHorizontalScroll,
 } from "./horizontal-scroll/math";
+import { rootFromTarget } from "./shared/dom";
+import { detailTarget, onAppPageReady, onHtmxLoad } from "./shared/lifecycle";
 
 export { clampHorizontalScrollLeft, parsePositiveIntegerForHorizontalScroll };
 
-type SnapState = {
-    generation: number;
-    timerId: ReturnType<typeof window.setTimeout> | null;
-    pointerIds: Set<number>;
-    touchIds: Set<number>;
-    pendingSnap: boolean;
-    programmaticSnapGeneration: number | null;
-};
+const snapSelector = `[${horizontalScrollSnapDomAttr}]`;
+const dragSelector = `[${horizontalScrollDragDomAttr}]`;
+const capabilitySelector = `${snapSelector}, ${dragSelector}`;
+const phoneMediaQuery = "(max-width: 575.98px)";
+const interactiveIgnoreSelector = [
+    "a",
+    "button",
+    "input",
+    "select",
+    "textarea",
+    "label",
+    '[role="button"]',
+    '[role="link"]',
+].join(", ");
+const snapDraggingClass = "is-horizontal-snap-dragging";
+const dragDraggingClass = "is-horizontal-dragging";
+const snapDebounceMs = 120;
+const snapTolerancePx = 1;
+const dragThresholdPx = 6;
+const clickSuppressionMs = 250;
 
 type ActiveDrag = {
-    containerEl: HTMLElement;
     pointerId: number;
     startX: number;
     startScrollLeft: number;
-    threshold: number;
     isDragging: boolean;
     didDrag: boolean;
 };
 
-type NearestItem = {
-    itemEl: HTMLElement;
-    distance: number;
+export type HorizontalScrollDiagnostic = {
+    code: "invalid-snap-config" | "invalid-drag-config";
+    elementId: string;
+    message: string;
 };
 
-// Data-attribute driven horizontal scrolling for dense day rails.
-(function enableHorizontalScroll() {
-    if (typeof window === "undefined") return;
+export type HorizontalScrollDiagnosticReporter = (diagnostic: HorizontalScrollDiagnostic) => void;
 
-    const snapContainerSelector = "[data-horizontal-snap]";
-    const dragContainerSelector = "[data-horizontal-drag-scroll]";
-    const defaultPhoneMediaQuery = "(max-width: 575.98px)";
-    const defaultInteractiveIgnoreSelector = [
-        "a",
-        "button",
-        "input",
-        "select",
-        "textarea",
-        "label",
-        '[role="button"]',
-        '[role="link"]',
-    ].join(", ");
-    const reducedMotionQuery = window.matchMedia("(prefers-reduced-motion: reduce)");
-    const snapDebounceMs = 120;
-    const snapTolerancePx = 1;
-    const defaultDragThresholdPx = 6;
-    const defaultClickSuppressionMs = 250;
-    const snapStates = new WeakMap<HTMLElement, SnapState>();
-    const mediaQueries = new Map<string, MediaQueryList>();
-    const pointerSnapContainers = new Map<number, HTMLElement>();
-    const touchSnapContainers = new Map<number, HTMLElement>();
-    let activeDrag: ActiveDrag | null = null;
+function defaultDiagnosticReporter(diagnostic: HorizontalScrollDiagnostic): void {
+    console.error?.("Invalid generated horizontal-scroll configuration", diagnostic);
+}
 
-    function mediaQueryFor(containerEl: HTMLElement): MediaQueryList | undefined {
-        const media = containerEl.dataset.horizontalSnapMedia || "phone";
-        const query = media === "phone" ? defaultPhoneMediaQuery : media;
-        if (!mediaQueries.has(query)) {
-            mediaQueries.set(query, window.matchMedia(query));
-        }
-        return mediaQueries.get(query);
+function readConfig<T>(
+    element: HTMLElement,
+    attribute: string,
+    parse: (raw: string) => T,
+): T {
+    const raw = element.getAttribute(attribute);
+    if (raw === null) throw new Error(`Missing ${attribute}`);
+    return parse(raw);
+}
+
+function validateLocalSelectors(
+    element: HTMLElement,
+    snapConfig: HorizontalSnapConfig | null,
+    dragConfig: HorizontalDragConfig | null,
+): void {
+    if (snapConfig?.itemSelector !== null && snapConfig?.itemSelector !== undefined) {
+        element.querySelector(snapConfig.itemSelector);
+    }
+    if (snapConfig?.groupScopeSelector !== null && snapConfig?.groupScopeSelector !== undefined) {
+        element.closest(snapConfig.groupScopeSelector);
+    }
+    if (dragConfig?.ignoreSelector !== null && dragConfig?.ignoreSelector !== undefined) {
+        element.matches(dragConfig.ignoreSelector);
+    }
+}
+
+class HorizontalScrollControl {
+    readonly element: HTMLElement;
+    private readonly snapConfig: HorizontalSnapConfig | null;
+    private readonly dragConfig: HorizontalDragConfig | null;
+    private readonly reducedMotion: MediaQueryList;
+    private readonly abortController = new AbortController();
+    private pointerAbortController: AbortController | null = null;
+    private timerId: ReturnType<typeof window.setTimeout> | null = null;
+    private generation = 0;
+    private pointerIds = new Set<number>();
+    private touchIds = new Set<number>();
+    private activeDrag: ActiveDrag | null = null;
+    private suppressClickUntil = 0;
+
+    constructor(
+        element: HTMLElement,
+        snapConfig: HorizontalSnapConfig | null,
+        dragConfig: HorizontalDragConfig | null,
+    ) {
+        this.element = element;
+        this.snapConfig = snapConfig;
+        this.dragConfig = dragConfig;
+        this.reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
+        const options = { capture: true, signal: this.abortController.signal };
+        element.addEventListener("pointerdown", this.onPointerDown, options);
+        element.addEventListener("touchstart", this.onTouchStart, options);
+        element.addEventListener("touchend", this.onTouchEnd, options);
+        element.addEventListener("touchcancel", this.onTouchEnd, options);
+        element.addEventListener("wheel", this.onWheel, options);
+        element.addEventListener("scroll", this.onScroll, options);
+        element.addEventListener("click", this.onClick, options);
     }
 
-    function snappingIsEnabled(containerEl: HTMLElement): boolean {
-        const mediaQuery = mediaQueryFor(containerEl);
-        return mediaQuery === undefined || mediaQuery.matches;
+    dispose(): void {
+        this.abortController.abort();
+        this.stopPointerTracking();
+        this.clearTimer();
+        this.pointerIds.clear();
+        this.touchIds.clear();
+        this.activeDrag = null;
+        this.element.classList.remove(snapDraggingClass, dragDraggingClass);
     }
 
-    function isSupportedSnapMode(containerEl: HTMLElement): boolean {
-        return containerEl.dataset.horizontalSnap === "equal-groups"
-            || containerEl.dataset.horizontalSnap === "nearest-item";
+    private snappingIsEnabled(): boolean {
+        return this.snapConfig !== null && window.matchMedia(phoneMediaQuery).matches;
     }
 
-    function isSupportedDragMode(containerEl: HTMLElement): boolean {
-        return containerEl.dataset.horizontalDragScroll === "mouse";
-    }
-
-    function findSnapContainer(target: EventTarget | null): HTMLElement | null {
-        const containerEl = closestHTMLElement(target, snapContainerSelector);
-        return containerEl !== null && isSupportedSnapMode(containerEl) ? containerEl : null;
-    }
-
-    function findDragContainer(target: EventTarget | null): HTMLElement | null {
-        const containerEl = closestHTMLElement(target, dragContainerSelector);
-        return containerEl !== null && isSupportedDragMode(containerEl) ? containerEl : null;
-    }
-
-    function snapStateFor(containerEl: HTMLElement): SnapState {
-        let state = snapStates.get(containerEl);
-        if (state === undefined) {
-            state = {
-                generation: 0,
-                timerId: null,
-                pointerIds: new Set<number>(),
-                touchIds: new Set<number>(),
-                pendingSnap: false,
-                programmaticSnapGeneration: null,
-            };
-            snapStates.set(containerEl, state);
-        }
-        return state;
-    }
-
-    function clearSnapTimer(containerEl: HTMLElement): void {
-        const state = snapStateFor(containerEl);
-        if (state.timerId !== null) {
-            window.clearTimeout(state.timerId);
-            state.timerId = null;
-        }
-    }
-
-    function bumpSnapGeneration(containerEl: HTMLElement): number {
-        const state = snapStateFor(containerEl);
-        state.generation += 1;
-        state.programmaticSnapGeneration = null;
-        state.pendingSnap = false;
-        clearSnapTimer(containerEl);
-        return state.generation;
-    }
-
-    function snapInputIsActive(containerEl: HTMLElement): boolean {
-        const state = snapStateFor(containerEl);
-        return state.pointerIds.size > 0 || state.touchIds.size > 0 || Boolean(activeDrag?.containerEl === containerEl && activeDrag.isDragging);
-    }
-
-    function setSnapDragging(containerEl: HTMLElement): void {
-        containerEl.setAttribute("data-horizontal-snap-dragging", "true");
-    }
-
-    function clearSnapDragging(containerEl: HTMLElement): void {
-        containerEl.removeAttribute("data-horizontal-snap-dragging");
-    }
-
-    function smoothScrollTo(containerEl: HTMLElement, scrollLeft: number): void {
-        const targetLeft = clampHorizontalScrollLeft(scrollLeft, containerEl.scrollWidth, containerEl.clientWidth);
-        if (Math.abs(containerEl.scrollLeft - targetLeft) <= snapTolerancePx) return;
-
-        const state = snapStateFor(containerEl);
-        state.programmaticSnapGeneration = state.generation;
-        containerEl.scrollTo({
-            left: targetLeft,
-            behavior: reducedMotionQuery.matches ? "auto" : "smooth",
-        });
-    }
-
-    function readGroupCount(containerEl: HTMLElement): number {
-        const explicitCount = parsePositiveIntegerForHorizontalScroll(containerEl.dataset.horizontalSnapGroupCount);
-        if (explicitCount !== null) return explicitCount;
-
-        const groupVar = containerEl.dataset.horizontalSnapGroupVar;
-        if (groupVar !== undefined && groupVar !== "") {
-            const styleSource = containerEl.closest(containerEl.dataset.horizontalSnapGroupVarScope || "[style]") || containerEl;
-            const varCount = parsePositiveIntegerForHorizontalScroll(window.getComputedStyle(styleSource).getPropertyValue(groupVar));
-            if (varCount !== null) return varCount;
-        }
-
-        return 1;
-    }
-
-    function snapEqualGroups(containerEl: HTMLElement): void {
-        const groupCount = readGroupCount(containerEl);
-        const groupWidth = containerEl.scrollWidth / groupCount;
-        if (!Number.isFinite(groupWidth) || groupWidth <= 0) return;
-
-        smoothScrollTo(containerEl, Math.round(containerEl.scrollLeft / groupWidth) * groupWidth);
-    }
-
-    function snapNearestItem(containerEl: HTMLElement): void {
-        const itemSelector = containerEl.dataset.horizontalSnapItemSelector;
-        if (itemSelector === undefined || itemSelector === "") return;
-
-        const items = Array.from(containerEl.querySelectorAll(itemSelector))
-            .filter((itemEl): itemEl is HTMLElement => itemEl instanceof HTMLElement);
-        if (items.length === 0) return;
-
-        const containerRect = containerEl.getBoundingClientRect();
-        const containerCenter = containerRect.left + (containerRect.width / 2);
-        const nearestItem = items.reduce<NearestItem | null>(function (nearest, itemEl) {
-            const itemRect = itemEl.getBoundingClientRect();
-            const itemCenter = itemRect.left + (itemRect.width / 2);
-            const distance = Math.abs(itemCenter - containerCenter);
-            if (nearest === null || distance < nearest.distance) {
-                return { itemEl, distance };
-            }
-            return nearest;
-        }, null);
-
-        if (nearestItem === null) return;
-
-        const itemRect = nearestItem.itemEl.getBoundingClientRect();
-        const targetLeft = containerEl.scrollLeft + (itemRect.left + (itemRect.width / 2)) - containerCenter;
-        smoothScrollTo(containerEl, targetLeft);
-    }
-
-    function snapContainer(containerEl: HTMLElement): void {
-        if (!snappingIsEnabled(containerEl)) return;
-
-        if (containerEl.dataset.horizontalSnap === "equal-groups") {
-            snapEqualGroups(containerEl);
-        } else if (containerEl.dataset.horizontalSnap === "nearest-item") {
-            snapNearestItem(containerEl);
+    private clearTimer(): void {
+        if (this.timerId !== null) {
+            window.clearTimeout(this.timerId);
+            this.timerId = null;
         }
     }
 
-    function scheduleSnap(containerEl: HTMLElement): void {
-        if (!snappingIsEnabled(containerEl)) return;
-        const state = snapStateFor(containerEl);
+    private bumpGeneration(): void {
+        this.generation += 1;
+        this.clearTimer();
+    }
 
-        if (snapInputIsActive(containerEl)) {
-            state.pendingSnap = true;
-            return;
-        }
+    private inputIsActive(): boolean {
+        return this.pointerIds.size > 0 || this.touchIds.size > 0 || this.activeDrag?.isDragging === true;
+    }
 
-        clearSnapTimer(containerEl);
-        const scheduledGeneration = state.generation;
-        state.timerId = window.setTimeout(function () {
-            state.timerId = null;
-            if (state.generation !== scheduledGeneration || snapInputIsActive(containerEl)) {
-                state.pendingSnap = true;
-                return;
-            }
-            snapContainer(containerEl);
+    private scheduleSnap(): void {
+        if (!this.snappingIsEnabled() || this.inputIsActive()) return;
+        this.clearTimer();
+        const scheduledGeneration = this.generation;
+        this.timerId = window.setTimeout(() => {
+            this.timerId = null;
+            if (this.generation !== scheduledGeneration || this.inputIsActive()) return;
+            this.snap();
         }, snapDebounceMs);
     }
 
-    function releaseSnapContainer(containerEl: HTMLElement): void {
-        const state = snapStateFor(containerEl);
-        if (snapInputIsActive(containerEl)) return;
-        clearSnapDragging(containerEl);
-        state.pendingSnap = false;
-        scheduleSnap(containerEl);
+    private releaseSnapInput(): void {
+        if (this.inputIsActive()) return;
+        this.element.classList.remove(snapDraggingClass);
+        this.scheduleSnap();
     }
 
-    function pointerStartForSnap(event: PointerEvent): void {
-        const containerEl = findSnapContainer(event.target);
-        if (containerEl === null || !snappingIsEnabled(containerEl)) return;
-
-        const state = snapStateFor(containerEl);
-        bumpSnapGeneration(containerEl);
-        state.pointerIds.add(event.pointerId);
-        pointerSnapContainers.set(event.pointerId, containerEl);
-        setSnapDragging(containerEl);
-    }
-
-    function pointerEndForSnap(event: PointerEvent): void {
-        const containerEl = pointerSnapContainers.get(event.pointerId);
-        if (containerEl === undefined) return;
-
-        pointerSnapContainers.delete(event.pointerId);
-        const state = snapStateFor(containerEl);
-        state.pointerIds.delete(event.pointerId);
-        releaseSnapContainer(containerEl);
-    }
-
-    function touchStartForSnap(event: TouchEvent): void {
-        const containerEl = findSnapContainer(event.target);
-        if (containerEl === null || !snappingIsEnabled(containerEl)) return;
-
-        const state = snapStateFor(containerEl);
-        bumpSnapGeneration(containerEl);
-        Array.from(event.changedTouches).forEach(function (touch) {
-            state.touchIds.add(touch.identifier);
-            touchSnapContainers.set(touch.identifier, containerEl);
+    private smoothScrollTo(scrollLeft: number): void {
+        const targetLeft = clampHorizontalScrollLeft(
+            scrollLeft,
+            this.element.scrollWidth,
+            this.element.clientWidth,
+        );
+        if (Math.abs(this.element.scrollLeft - targetLeft) <= snapTolerancePx) return;
+        this.element.scrollTo({
+            left: targetLeft,
+            behavior: this.reducedMotion.matches ? "auto" : "smooth",
         });
-        setSnapDragging(containerEl);
     }
 
-    function touchEndForSnap(event: TouchEvent): void {
-        const affectedContainers = new Set<HTMLElement>();
-        Array.from(event.changedTouches).forEach(function (touch) {
-            const containerEl = touchSnapContainers.get(touch.identifier);
-            if (containerEl === undefined) return;
-            touchSnapContainers.delete(touch.identifier);
-            snapStateFor(containerEl).touchIds.delete(touch.identifier);
-            affectedContainers.add(containerEl);
-        });
-        affectedContainers.forEach(releaseSnapContainer);
+    private groupCount(): number {
+        if (this.snapConfig === null || this.snapConfig.snapMode !== "equal-groups") return 1;
+        if (this.snapConfig.groupCount !== null) return this.snapConfig.groupCount;
+        if (this.snapConfig.groupProperty === null || this.snapConfig.groupScopeSelector === null) return 1;
+        const styleSource = this.element.closest(this.snapConfig.groupScopeSelector);
+        if (!(styleSource instanceof Element)) return 1;
+        return parsePositiveIntegerForHorizontalScroll(
+            window.getComputedStyle(styleSource).getPropertyValue(this.snapConfig.groupProperty),
+        ) ?? 1;
     }
 
-    function dragThresholdFor(containerEl: HTMLElement): number {
-        return parseNonNegativeIntegerForHorizontalScroll(containerEl.dataset.horizontalDragScrollThreshold, defaultDragThresholdPx);
-    }
-
-    function clickSuppressionMsFor(containerEl: HTMLElement): number {
-        return parseNonNegativeIntegerForHorizontalScroll(containerEl.dataset.horizontalDragScrollClickSuppressionMs, defaultClickSuppressionMs);
-    }
-
-    function dragIgnoreSelectorFor(containerEl: HTMLElement): string {
-        const customSelector = containerEl.dataset.horizontalDragScrollIgnoreSelector;
-        return customSelector ? defaultInteractiveIgnoreSelector + ", " + customSelector : defaultInteractiveIgnoreSelector;
-    }
-
-    function targetIsIgnoredForDrag(containerEl: HTMLElement, target: EventTarget | null): boolean {
-        if (!(target instanceof Element)) return false;
-        const selector = dragIgnoreSelectorFor(containerEl);
-        return Boolean(target.closest(selector));
-    }
-
-    function setDragDragging(containerEl: HTMLElement): void {
-        containerEl.setAttribute("data-horizontal-dragging", "true");
-    }
-
-    function clearDragDragging(containerEl: HTMLElement): void {
-        containerEl.removeAttribute("data-horizontal-dragging");
-    }
-
-    function suppressNextClick(containerEl: HTMLElement): void {
-        const until = Date.now() + clickSuppressionMsFor(containerEl);
-        containerEl.dataset.horizontalSuppressClickUntil = String(until);
-        window.setTimeout(function () {
-            if (containerEl.dataset.horizontalSuppressClickUntil === String(until)) {
-                delete containerEl.dataset.horizontalSuppressClickUntil;
+    private snap(): void {
+        if (this.snapConfig === null) return;
+        if (this.snapConfig.snapMode === "equal-groups") {
+            const groupWidth = this.element.scrollWidth / this.groupCount();
+            if (Number.isFinite(groupWidth) && groupWidth > 0) {
+                this.smoothScrollTo(Math.round(this.element.scrollLeft / groupWidth) * groupWidth);
             }
-        }, clickSuppressionMsFor(containerEl));
-    }
-
-    function pointerStartForDrag(event: PointerEvent): void {
-        if (event.pointerType !== "mouse" || event.button !== 0) return;
-
-        const containerEl = findDragContainer(event.target);
-        if (containerEl === null) return;
-        if (targetIsIgnoredForDrag(containerEl, event.target)) return;
-        if (containerEl.scrollWidth <= containerEl.clientWidth) return;
-
-        if (activeDrag !== null) {
-            finishDrag(false);
+            return;
         }
 
-        activeDrag = {
-            containerEl,
+        if (this.snapConfig.itemSelector === null) return;
+        const items = Array.from(this.element.querySelectorAll(this.snapConfig.itemSelector))
+            .filter((item): item is HTMLElement => item instanceof HTMLElement);
+        const containerRect = this.element.getBoundingClientRect();
+        const center = containerRect.left + (containerRect.width / 2);
+        let nearest: { element: HTMLElement; distance: number } | null = null;
+        for (const item of items) {
+            const rect = item.getBoundingClientRect();
+            const distance = Math.abs(rect.left + (rect.width / 2) - center);
+            if (nearest === null || distance < nearest.distance) nearest = { element: item, distance };
+        }
+        if (nearest === null) return;
+        const rect = nearest.element.getBoundingClientRect();
+        this.smoothScrollTo(this.element.scrollLeft + rect.left + (rect.width / 2) - center);
+    }
+
+    private targetIsIgnored(target: EventTarget | null): boolean {
+        if (!(target instanceof Element)) return false;
+        const custom = this.dragConfig?.ignoreSelector;
+        const selector = custom === null || custom === undefined
+            ? interactiveIgnoreSelector
+            : `${interactiveIgnoreSelector}, ${custom}`;
+        return target.closest(selector) !== null;
+    }
+
+    private startPointerTracking(): void {
+        if (this.pointerAbortController !== null) return;
+        this.pointerAbortController = new AbortController();
+        const options = { capture: true, signal: this.pointerAbortController.signal };
+        document.addEventListener("pointermove", this.onPointerMove, options);
+        document.addEventListener("pointerup", this.onPointerUp, options);
+        document.addEventListener("pointercancel", this.onPointerCancel, options);
+    }
+
+    private stopPointerTracking(): void {
+        this.pointerAbortController?.abort();
+        this.pointerAbortController = null;
+    }
+
+    private onPointerDown = (event: PointerEvent): void => {
+        if (this.snappingIsEnabled()) {
+            this.bumpGeneration();
+            this.pointerIds.add(event.pointerId);
+            this.element.classList.add(snapDraggingClass);
+            this.startPointerTracking();
+        }
+
+        if (
+            this.dragConfig === null
+            || event.pointerType !== "mouse"
+            || event.button !== 0
+            || this.targetIsIgnored(event.target)
+            || this.element.scrollWidth <= this.element.clientWidth
+        ) return;
+
+        this.activeDrag = {
             pointerId: event.pointerId,
             startX: event.clientX,
-            startScrollLeft: containerEl.scrollLeft,
-            threshold: dragThresholdFor(containerEl),
+            startScrollLeft: this.element.scrollLeft,
             isDragging: false,
             didDrag: false,
         };
-
-        if (isSupportedSnapMode(containerEl) && snappingIsEnabled(containerEl)) {
-            const state = snapStateFor(containerEl);
-            bumpSnapGeneration(containerEl);
-            state.pointerIds.add(event.pointerId);
-            pointerSnapContainers.set(event.pointerId, containerEl);
-            setSnapDragging(containerEl);
-        }
-
+        this.startPointerTracking();
         try {
-            containerEl.setPointerCapture(event.pointerId);
+            this.element.setPointerCapture(event.pointerId);
         } catch (_error) {
-            // Pointer capture is best-effort; normal document-level listeners still finish the drag.
+            // Document listeners preserve completion when capture is unavailable.
         }
-    }
+    };
 
-    function startActualDrag(): void {
-        if (activeDrag === null || activeDrag.isDragging) return;
-        activeDrag.isDragging = true;
-        activeDrag.didDrag = true;
-        setDragDragging(activeDrag.containerEl);
-        if (isSupportedSnapMode(activeDrag.containerEl) && snappingIsEnabled(activeDrag.containerEl)) {
-            setSnapDragging(activeDrag.containerEl);
+    private onPointerMove = (event: PointerEvent): void => {
+        const drag = this.activeDrag;
+        if (drag === null || event.pointerId !== drag.pointerId) return;
+        const deltaX = event.clientX - drag.startX;
+        if (!drag.isDragging && Math.abs(deltaX) < dragThresholdPx) return;
+        if (!drag.isDragging) {
+            drag.isDragging = true;
+            drag.didDrag = true;
+            this.element.classList.add(dragDraggingClass);
+            if (this.snappingIsEnabled()) this.element.classList.add(snapDraggingClass);
+            window.getSelection?.()?.removeAllRanges();
         }
-        const selection = window.getSelection?.();
-        if (selection !== null && selection !== undefined) selection.removeAllRanges();
-    }
-
-    function pointerMoveForDrag(event: PointerEvent): void {
-        if (activeDrag === null || event.pointerId !== activeDrag.pointerId) return;
-
-        const deltaX = event.clientX - activeDrag.startX;
-        if (!activeDrag.isDragging && Math.abs(deltaX) < activeDrag.threshold) return;
-
-        startActualDrag();
-        if (activeDrag === null) return;
-        activeDrag.containerEl.scrollLeft = activeDrag.startScrollLeft - deltaX;
+        this.element.scrollLeft = drag.startScrollLeft - deltaX;
         event.preventDefault();
-    }
+    };
 
-    function finishDrag(scheduleAfterRelease: boolean): void {
-        if (activeDrag === null) return;
+    private finishPointer(event: PointerEvent, scheduleAfterRelease: boolean): void {
+        const drag = this.activeDrag;
+        const ownsDrag = drag !== null && event.pointerId === drag.pointerId;
+        if (!ownsDrag && !this.pointerIds.has(event.pointerId)) return;
 
-        const drag = activeDrag;
-        activeDrag = null;
-        clearDragDragging(drag.containerEl);
-
-        try {
-            drag.containerEl.releasePointerCapture(drag.pointerId);
-        } catch (_error) {
-            // Pointer capture may not have been acquired or may already be released.
-        }
-
-        if (drag.didDrag) {
-            suppressNextClick(drag.containerEl);
-        }
-
-        if (isSupportedSnapMode(drag.containerEl) && snappingIsEnabled(drag.containerEl)) {
-            const state = snapStateFor(drag.containerEl);
-            state.pointerIds.delete(drag.pointerId);
-            pointerSnapContainers.delete(drag.pointerId);
-            if (!snapInputIsActive(drag.containerEl)) {
-                clearSnapDragging(drag.containerEl);
-                if (scheduleAfterRelease) scheduleSnap(drag.containerEl);
+        if (drag !== null && ownsDrag) {
+            this.activeDrag = null;
+            this.element.classList.remove(dragDraggingClass);
+            try {
+                this.element.releasePointerCapture(drag.pointerId);
+            } catch (_error) {
+                // Capture may already have been released.
+            }
+            if (drag.didDrag) {
+                this.suppressClickUntil = Date.now() + clickSuppressionMs;
+                window.setTimeout(() => {
+                    if (Date.now() >= this.suppressClickUntil) this.suppressClickUntil = 0;
+                }, clickSuppressionMs);
             }
         }
+        this.pointerIds.delete(event.pointerId);
+        if (this.pointerIds.size === 0 && this.activeDrag === null) {
+            this.stopPointerTracking();
+        }
+        if (scheduleAfterRelease || !ownsDrag) this.releaseSnapInput();
+        else if (!this.inputIsActive()) this.element.classList.remove(snapDraggingClass);
     }
 
-    function clickForDrag(event: MouseEvent): void {
-        const containerEl = findDragContainer(event.target);
-        if (containerEl === null) return;
+    private onPointerUp = (event: PointerEvent): void => this.finishPointer(event, true);
+    private onPointerCancel = (event: PointerEvent): void => this.finishPointer(event, false);
 
-        const suppressUntil = Number.parseInt(containerEl.dataset.horizontalSuppressClickUntil || "", 10);
-        if (Number.isFinite(suppressUntil) && Date.now() <= suppressUntil) {
+    private onTouchStart = (event: TouchEvent): void => {
+        if (!this.snappingIsEnabled()) return;
+        this.bumpGeneration();
+        for (const touch of Array.from(event.changedTouches)) this.touchIds.add(touch.identifier);
+        this.element.classList.add(snapDraggingClass);
+    };
+
+    private onTouchEnd = (event: TouchEvent): void => {
+        for (const touch of Array.from(event.changedTouches)) this.touchIds.delete(touch.identifier);
+        this.releaseSnapInput();
+    };
+
+    private onWheel = (): void => {
+        if (this.snappingIsEnabled()) this.bumpGeneration();
+    };
+
+    private onScroll = (): void => this.scheduleSnap();
+
+    private onClick = (event: MouseEvent): void => {
+        if (Date.now() <= this.suppressClickUntil) {
             event.preventDefault();
             event.stopPropagation();
         }
+    };
+}
+
+const controls = new Map<HTMLElement, HorizontalScrollControl>();
+
+function controlFor(
+    element: HTMLElement,
+    report: HorizontalScrollDiagnosticReporter,
+): HorizontalScrollControl | null {
+    const existing = controls.get(element);
+    if (existing !== undefined) return existing;
+
+    let snapConfig: HorizontalSnapConfig | null = null;
+    if (element.hasAttribute(horizontalScrollSnapDomAttr)) {
+        try {
+            snapConfig = readConfig(element, horizontalSnapConfigDomAttr, parseHorizontalSnapConfiguration);
+        } catch (error) {
+            report({
+                code: "invalid-snap-config",
+                elementId: element.id,
+                message: error instanceof Error ? error.message : String(error),
+            });
+            return null;
+        }
     }
 
-    document.addEventListener("pointerdown", function (event) {
-        pointerStartForSnap(event);
-        pointerStartForDrag(event);
-    }, true);
-
-    document.addEventListener("pointermove", pointerMoveForDrag, true);
-
-    document.addEventListener("pointerup", function (event) {
-        if (activeDrag !== null && event.pointerId === activeDrag.pointerId) {
-            finishDrag(true);
-            return;
+    let dragConfig: HorizontalDragConfig | null = null;
+    if (element.hasAttribute(horizontalScrollDragDomAttr)) {
+        try {
+            dragConfig = readConfig(element, horizontalDragConfigDomAttr, parseHorizontalDragConfiguration);
+        } catch (error) {
+            report({
+                code: "invalid-drag-config",
+                elementId: element.id,
+                message: error instanceof Error ? error.message : String(error),
+            });
+            return null;
         }
-        pointerEndForSnap(event);
-    }, true);
+    }
 
-    document.addEventListener("pointercancel", function (event) {
-        if (activeDrag !== null && event.pointerId === activeDrag.pointerId) {
-            finishDrag(false);
-            return;
+    try {
+        validateLocalSelectors(element, snapConfig, null);
+    } catch (error) {
+        report({
+            code: "invalid-snap-config",
+            elementId: element.id,
+            message: error instanceof Error ? error.message : String(error),
+        });
+        return null;
+    }
+    try {
+        validateLocalSelectors(element, null, dragConfig);
+    } catch (error) {
+        report({
+            code: "invalid-drag-config",
+            elementId: element.id,
+            message: error instanceof Error ? error.message : String(error),
+        });
+        return null;
+    }
+
+    const control = new HorizontalScrollControl(element, snapConfig, dragConfig);
+    controls.set(element, control);
+    return control;
+}
+
+function capabilityElementsWithin(target: unknown): HTMLElement[] {
+    const root = rootFromTarget(target);
+    const elements = Array.from(root.querySelectorAll(capabilitySelector))
+        .filter((element): element is HTMLElement => element instanceof HTMLElement);
+    if (root instanceof HTMLElement && root.matches(capabilitySelector)) elements.unshift(root);
+    return elements;
+}
+
+export function initializeHorizontalScroll(
+    target: unknown,
+    report: HorizontalScrollDiagnosticReporter = defaultDiagnosticReporter,
+): void {
+    for (const element of capabilityElementsWithin(target)) controlFor(element, report);
+}
+
+export function disposeHorizontalScroll(target: unknown): void {
+    const root = rootFromTarget(target);
+    for (const [element, control] of controls) {
+        if (element === root || (root instanceof Node && root.contains(element))) {
+            control.dispose();
+            controls.delete(element);
         }
-        pointerEndForSnap(event);
-    }, true);
+    }
+}
 
-    document.addEventListener("touchstart", touchStartForSnap, true);
-    document.addEventListener("touchend", touchEndForSnap, true);
-    document.addEventListener("touchcancel", touchEndForSnap, true);
+function enableHorizontalScroll(): void {
+    if (typeof window === "undefined") return;
+    onAppPageReady((event) => initializeHorizontalScroll(detailTarget(event, "target")));
+    onHtmxLoad((event) => initializeHorizontalScroll(detailTarget(event, "elt")));
+    document.addEventListener("htmx:beforeCleanupElement", (event) => {
+        const cleanupRoot = detailTarget(event, "elt");
+        if (cleanupRoot instanceof Element) disposeHorizontalScroll(cleanupRoot);
+    });
+    if (document.readyState !== "loading") initializeHorizontalScroll(document.body);
+}
 
-    document.addEventListener("wheel", function (event) {
-        const containerEl = findSnapContainer(event.target);
-        if (containerEl === null || !snappingIsEnabled(containerEl)) return;
-        bumpSnapGeneration(containerEl);
-    }, true);
-
-    document.addEventListener("scroll", function (event) {
-        if (!(event.target instanceof HTMLElement)) return;
-        if (!event.target.matches(snapContainerSelector) || !isSupportedSnapMode(event.target)) return;
-
-        scheduleSnap(event.target);
-    }, true);
-
-    document.addEventListener("click", clickForDrag, true);
-})();
+enableHorizontalScroll();

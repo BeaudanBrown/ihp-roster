@@ -6,9 +6,9 @@ import Application.Helper.Controller (LeaveRequestStatus (..),
                                       leaveRequestIsArchivedOn,
                                       parseLeaveRequestStatus)
 import qualified Application.Helper.FrontendContract.Surface.LeaveRequests as Surface
+import qualified Application.Helper.FrontendContract.Surface.LeaveRequests.Action as LeaveRequestsAction
 import Application.Helper.FrontendContract.Surface.Runtime (FrontendSurfaceActionRoute (..),
                                                             SurfaceImpl,
-                                                            frontendSurfaceAction,
                                                             renderFrontendSurfaceActionForm,
                                                             renderFrontendSurfaceActionLink,
                                                             renderFrontendSurfaceMount)
@@ -57,14 +57,14 @@ leaveSectionCountFragmentId, leaveSectionListFragmentId :: Text -> Text
 leaveSectionCountFragmentId section =
     surfaceFragmentTargetId @Surface.LeaveRequestsSurface @Surface.LeaveSectionCount
         ( surfaceField @Surface.LeaveSection section
-            :& surfaceField @Surface.LeaveTargetSuffix "count"
-            :& NoSurfaceFields
+            &: surfaceField @Surface.LeaveTargetSuffix "count"
+            &: noSurfaceFields
         )
 leaveSectionListFragmentId section =
     surfaceFragmentTargetId @Surface.LeaveRequestsSurface @Surface.LeaveSectionList
         ( surfaceField @Surface.LeaveSection section
-            :& surfaceField @Surface.LeaveTargetSuffix (if section == leaveArchiveSection then "page-content" else "list")
-            :& NoSurfaceFields
+            &: surfaceField @Surface.LeaveTargetSuffix (if section == leaveArchiveSection then "page-content" else "list")
+            &: noSurfaceFields
         )
 
 leavePendingCountFragmentId, leavePendingListFragmentId, leaveApprovedCountFragmentId, leaveApprovedListFragmentId, leaveDeniedCountFragmentId, leaveDeniedListFragmentId, leaveArchiveCountFragmentId, leaveArchiveListFragmentId :: Text
@@ -355,7 +355,7 @@ renderArchivePageNumber pagination@ArchivePagination { archivePaginationCurrentP
 renderArchivePageLink :: (?context :: ControllerContext) => ArchivePagination -> Int -> Text -> Bool -> Text -> Html
 renderArchivePageLink ArchivePagination { archivePaginationCurrentPage, archivePaginationTotalPages } requestedPage label isDisabled ariaLabel =
     renderFrontendSurfaceActionLink
-        (frontendSurfaceAction @Surface.LeaveRequestsSurface @Surface.ArchiveLeaveRequestsPage fields)
+        (LeaveRequestsAction.archiveLeaveRequestsPageAction fields)
         (leaveRequestsActionRoute fragmentHref)
             { actionRouteStandardUrl = Just href
             , actionRouteExtraAttrs =
@@ -369,9 +369,7 @@ renderArchivePageLink ArchivePagination { archivePaginationCurrentPage, archiveP
     where
         targetPage = min archivePaginationTotalPages (max 1 requestedPage)
         effectivePage = if isDisabled then archivePaginationCurrentPage else targetPage
-        fields =
-            surfaceField @Surface.ArchivePage effectivePage :& NoSurfaceFields
-                :: SurfaceFields (SurfaceActionFieldSpecs Surface.LeaveRequestsSurface Surface.ArchiveLeaveRequestsPage)
+        fields = LeaveRequestsAction.archiveLeaveRequestsPageActionFields effectivePage
         pageParam = [(surfaceFieldNameFrom @Surface.ArchivePage fields, tshow effectivePage), ("openSection", "archive")]
         href = appendQueryParams (pathTo LeaveRequestsAction) pageParam
         fragmentHref = appendQueryParams (pathTo ShowleaveRequestsContentLiveFragmentAction) (pageParam <> [("swapOob", "true")])
@@ -447,8 +445,8 @@ renderManagerActionsCell currentViewerStaffId True leaveRequest = [hsx|
 renderLeaveRequestRow :: (?context :: ControllerContext) => [Staff] -> Maybe UUID -> LeaveRequest -> Html
 renderLeaveRequestRow staffMembers currentViewerStaffId leaveRequest = [hsx|
     <tr>
-        <td>{leaveRequest.startDate}</td>
-        <td>{leaveRequest.endDate}</td>
+        <td>{formatDateDisplay leaveRequest.startDate}</td>
+        <td>{formatDateDisplay leaveRequest.endDate}</td>
         <td>{resolveStaffName leaveRequest.staffId staffMembers}</td>
         <td>{renderStatusBadge leaveRequest.status}</td>
         <td>{fromMaybe "-" leaveRequest.notes}</td>
@@ -487,8 +485,8 @@ renderReviewActions leaveRequest
 renderReviewActionForm :: (?context :: ControllerContext) => LeaveRequestsController -> Text -> Text -> Html
 renderReviewActionForm action buttonClass label =
     case action of
-        ApproveLeaveRequestAction {} -> render (frontendSurfaceAction @Surface.LeaveRequestsSurface @Surface.ApproveLeaveRequest NoSurfaceFields)
-        DenyLeaveRequestAction {} -> render (frontendSurfaceAction @Surface.LeaveRequestsSurface @Surface.DenyLeaveRequest NoSurfaceFields)
+        ApproveLeaveRequestAction {} -> render (LeaveRequestsAction.approveLeaveRequestAction LeaveRequestsAction.approveLeaveRequestActionFields)
+        DenyLeaveRequestAction {} -> render (LeaveRequestsAction.denyLeaveRequestAction LeaveRequestsAction.denyLeaveRequestActionFields)
         _ -> error "unsupported leave request review action"
     where
         render actionContract =

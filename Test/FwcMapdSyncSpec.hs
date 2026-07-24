@@ -178,7 +178,7 @@ tests = do
 
             fmap payloadClassificationLevel decoded `shouldBe` Right (Just "1.0")
 
-    beforeAll testContext do
+    aroundAll withDatabaseTestContext do
         describe "FWC MAPD admin data" do
             it "keeps award level ids stable while adding new effective-dated rates" $ withContext do
                 withCleanDb do

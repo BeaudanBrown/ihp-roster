@@ -11,7 +11,6 @@ module Application.Helper.FrontendContract.Surface.Profile
     , StaffPreferences
     , StaffProfile
     , StaffRsaDocuments
-    , CreateProfileLeaveRequest
     , ProfileScope
     , ProfileSurface
     , StaffDetailsSection
@@ -50,6 +49,7 @@ module Application.Helper.FrontendContract.Surface.Profile
     ) where
 
 import Application.Helper.FrontendContract.Surface.DSL
+import qualified Application.Helper.FrontendContract.Surface.SelfServiceLeave as SelfServiceLeave
 
 data Profile
 data Staff
@@ -78,10 +78,9 @@ data ProfileRsaSection
 
 data StaffProfile
 data StaffPreferences
-data StaffLeaveRequests
+type StaffLeaveRequests = SelfServiceLeave.StaffLeaveRequests
 data StaffRsaDocuments
 
-data CreateProfileLeaveRequest
 data UpdateProfileDetails
 data UpdateProfileShiftPreferences
 data UpdateStaffProfile
@@ -110,12 +109,11 @@ data StaffLeaveRequestFormFragment
 data StartDate
 data EndDate
 data Notes
-data ProfileLeaveRequestFormFragment
 data OuterHTML
 
 type StaffProfileResource = Resource StaffProfile '[ Field StaffId 'WireUUID ]
 type StaffPreferencesResource = Resource StaffPreferences '[ Field StaffId 'WireUUID ]
-type StaffLeaveRequestsResource = Resource StaffLeaveRequests '[ Field StaffId 'WireUUID ]
+type StaffLeaveRequestsResource = SelfServiceLeave.StaffLeaveRequestsResource
 type StaffRsaDocumentsResource = Resource StaffRsaDocuments '[ Field StaffId 'WireUUID ]
 
 type StaffProfileFields =
@@ -164,19 +162,15 @@ type ProfileSurface =
          , Action UpdateProfileDetails StaffProfileFields StaffProfileSubmitOptions
          , Action UpdateProfileShiftPreferences StaffShiftPreferenceFields StaffProfileSubmitOptions
          , Fragment ProfileSecuritySection '[] '[ 'MountTarget ProfileSecurity '[], 'Eager, 'Live, 'ResyncOnly ]
-         , Fragment ProfileLeaveSection '[] '[ 'MountTarget ProfileLeave '[], 'Eager, 'Live, 'DependsOn StaffLeaveRequestsResource '[ 'FromScope StaffId ] ]
+         , Fragment ProfileLeaveSection
+            '[]
+            '[ 'MountTarget ProfileLeave '[]
+             , 'Eager
+             , 'Live
+             , 'ResyncOnly
+             , ContainsSurface SelfServiceLeave.SelfServiceLeave
+             ]
          , Fragment ProfileRsaSection '[] '[ 'MountTarget ProfileRsa '[], 'Eager, 'Live, 'DependsOn StaffRsaDocumentsResource '[ 'FromScope StaffId ] ]
-         , Action CreateProfileLeaveRequest
-            '[ Field StartDate 'WireDay
-             , Field EndDate 'WireDay
-             , Field Notes 'WireText
-             ]
-            '[ 'HtmxMethod 'HtmxPost
-             , 'HtmxTarget ('HtmxId ProfileLeaveRequestFormFragment)
-             , 'HtmxSwap 'HtmxOuterHTML
-             , 'HtmxPushUrl 'HtmxPushUrlFalse
-             ]
-         , DomToken ProfileLeaveRequestFormFragment
          ]
 
 type StaffSurface =

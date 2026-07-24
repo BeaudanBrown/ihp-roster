@@ -15,7 +15,8 @@ instance Controller PasskeysController where
     action currentAction@PasskeyStepUpAction = runBepis currentAction BepisPageAction do
         rawStepUpRedirectTo <- getSession @Text passkeyStepUpRedirectSessionKey
         let stepUpRedirectTo = rawStepUpRedirectTo >>= nonEmptyText
-        unless (currentUserRequiresMandatoryPasskey || isJust stepUpRedirectTo) do
+        strongAuthenticationRequired <- currentUserRequiresMandatoryPasskey
+        unless (strongAuthenticationRequired || isJust stepUpRedirectTo) do
             redirectTo RosterWeeksAction
         passkeys <- fetchCurrentUserPasskeys
         when (null passkeys) do
@@ -37,7 +38,8 @@ instance Controller PasskeysController where
         respondHtml (renderPasskeySetupDialog OptionalFirstPasskey successRedirect)
 
     action currentAction@ShowPasskeyRecoveryCodeDialogAction = runBepis currentAction BepisDialogAction do
-        unless currentUserRequiresMandatoryPasskey do
+        strongAuthenticationRequired <- currentUserRequiresMandatoryPasskey
+        unless strongAuthenticationRequired do
             redirectTo RosterWeeksAction
         passkeys <- fetchCurrentUserPasskeys
         when (null passkeys) do
@@ -46,7 +48,8 @@ instance Controller PasskeysController where
         respondHtml renderPasskeyRecoveryCodeDialog
 
     action currentAction@UsePasskeyRecoveryCodeAction = runBepis currentAction BepisMutationAction do
-        unless currentUserRequiresMandatoryPasskey do
+        strongAuthenticationRequired <- currentUserRequiresMandatoryPasskey
+        unless strongAuthenticationRequired do
             redirectTo RosterWeeksAction
         passkeys <- fetchCurrentUserPasskeys
         when (null passkeys) do
@@ -72,7 +75,8 @@ instance Controller PasskeysController where
         unless verified do
             setSession passkeyStepUpRedirectSessionKey profileSecurityPath
             setErrorMessage "Verify with your passkey before sending a new-device setup link."
-            if currentUserRequiresMandatoryPasskey
+            strongAuthenticationRequired <- currentUserRequiresMandatoryPasskey
+            if strongAuthenticationRequired
                 then redirectTo PasskeyStepUpAction
                 else redirectToPath profileSecurityPath
         let venueId = (.id) <$> currentVenueOrNothing
@@ -88,7 +92,8 @@ instance Controller PasskeysController where
             query @Passkey
                 |> filterWhere (#userId, unpackId currentUser.id)
                 |> fetchCount
-        when (currentUserRequiresMandatoryPasskey && passkeyCount <= 1) do
+        strongAuthenticationRequired <- currentUserRequiresMandatoryPasskey
+        when (strongAuthenticationRequired && passkeyCount <= 1) do
             setErrorMessage "Venue admins and owners must keep at least one passkey on their account."
             redirectToPath profileSecurityPath
         ensureFreshPasskeyForProfileSecurity

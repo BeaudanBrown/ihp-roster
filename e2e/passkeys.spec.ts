@@ -1,4 +1,16 @@
 import { expect, test } from '@playwright/test';
+import {
+    dialogMountDomAttr,
+    pageReadyEvent,
+    passkeyActionButtonDomAttr,
+    passkeyDismissalDomAttr,
+    passkeyFlowConfigDomAttr,
+    passkeyLoginDomAttr,
+    parsePasskeyFlowConfig,
+    passkeySetupPromptDomAttr,
+    passkeyStatusDomAttr,
+} from '../frontend/ts/generated/contracts';
+import { localStorageKeyForPasskey } from '../frontend/ts/passkeys/storage';
 import { E2E_TIMEOUT } from './timeouts';
 import {
     clearE2EUserPasskeys,
@@ -34,6 +46,149 @@ async function logout(page: import('@playwright/test').Page) {
 test.describe('Venue-admin passkeys', () => {
     test.setTimeout(E2E_TIMEOUT.slowTest);
 
+    test('malformed generated flow config is diagnosed without mutating server HTML', async ({ page }) => {
+        await gotoWhenReady(page, '/NewSession', '#email');
+
+        const result = await page.evaluate((contract) => {
+            const original = document.querySelector<HTMLElement>(`[${contract.passkeyLoginDomAttr}]`);
+            if (original === null) throw new Error('Missing rendered passkey login control');
+
+            const fixture = document.createElement('div');
+            fixture.innerHTML = original.outerHTML;
+            document.body.append(fixture);
+
+            const root = fixture.querySelector<HTMLElement>(`[${contract.passkeyLoginDomAttr}]`);
+            if (root === null) throw new Error('Missing cloned passkey login control');
+            const rawConfig = root.getAttribute(contract.passkeyFlowConfigDomAttr);
+            if (rawConfig === null) throw new Error('Missing rendered passkey flow config');
+            root.setAttribute(
+                contract.passkeyFlowConfigDomAttr,
+                JSON.stringify({ ...JSON.parse(rawConfig), extra: true }),
+            );
+
+            const diagnostics: Array<{ code?: string; message?: string }> = [];
+            const originalConsoleError = console.error;
+            console.error = (message?: unknown, diagnostic?: unknown) => {
+                if (message === 'Invalid generated passkey configuration' && typeof diagnostic === 'object' && diagnostic !== null) {
+                    diagnostics.push(diagnostic as { code?: string; message?: string });
+                }
+                originalConsoleError(message, diagnostic);
+            };
+
+            const before = root.outerHTML;
+            document.dispatchEvent(new CustomEvent(contract.pageReadyEvent, { detail: { target: fixture } }));
+            const after = root.outerHTML;
+            console.error = originalConsoleError;
+
+            const action = root.querySelector<HTMLButtonElement>(`[${contract.passkeyActionButtonDomAttr}]`);
+            const status = root.querySelector<HTMLElement>(`[${contract.passkeyStatusDomAttr}]`);
+            return {
+                before,
+                after,
+                diagnostics,
+                actionDisabled: action?.disabled ?? null,
+                statusText: status?.textContent ?? null,
+            };
+        }, {
+            pageReadyEvent,
+            passkeyActionButtonDomAttr,
+            passkeyFlowConfigDomAttr,
+            passkeyLoginDomAttr,
+            passkeyStatusDomAttr,
+        });
+
+        expect(result.after).toBe(result.before);
+        expect(result.actionDisabled).toBe(false);
+        expect(result.statusText).toBe('');
+        expect(result.diagnostics).toEqual([
+            expect.objectContaining({ code: 'invalid-flow-config' }),
+        ]);
+    });
+
+    test('malformed begin envelopes are rejected before invoking the credential API', async ({ page }) => {
+        await page.route('**/BeginPasskeyAuthentication', async (route) => {
+            await route.fulfill({
+                status: 200,
+                contentType: 'application/json',
+                body: JSON.stringify({
+                    challenge: 'AQID',
+                    timeout: 60_000,
+                    rpId: 'localhost',
+                    allowCredentials: [],
+                    userVerification: 'preferred',
+                    extra: true,
+                }),
+            });
+        });
+        await gotoWhenReady(page, '/NewSession', '#email');
+        await page.evaluate(() => {
+            const state = globalThis as typeof globalThis & { __passkeyCredentialGetCalls?: number };
+            state.__passkeyCredentialGetCalls = 0;
+            Object.defineProperty(navigator.credentials, 'get', {
+                configurable: true,
+                value: async () => {
+                    state.__passkeyCredentialGetCalls = (state.__passkeyCredentialGetCalls ?? 0) + 1;
+                    return null;
+                },
+            });
+        });
+
+        await page.locator(`[${passkeyLoginDomAttr}] [${passkeyActionButtonDomAttr}]`).click();
+
+        await expect(page.locator(`[${passkeyLoginDomAttr}] [${passkeyStatusDomAttr}]`))
+            .toHaveText('Passkey request failed.', { timeout: E2E_TIMEOUT.assertion });
+        expect(await page.evaluate(() => (
+            globalThis as typeof globalThis & { __passkeyCredentialGetCalls?: number }
+        ).__passkeyCredentialGetCalls)).toBe(0);
+        await expect(page).toHaveURL(/NewSession/);
+    });
+
+    test('malformed redirect errors are rejected without navigating', async ({ page }) => {
+        await page.route('**/BeginPasskeyAuthentication', async (route) => {
+            await route.fulfill({
+                status: 403,
+                contentType: 'application/json',
+                body: JSON.stringify({
+                    error: 'legacy compatibility envelope',
+                    redirectTo: '/Admin',
+                }),
+            });
+        });
+        await gotoWhenReady(page, '/NewSession', '#email');
+
+        await page.locator(`[${passkeyLoginDomAttr}] [${passkeyActionButtonDomAttr}]`).click();
+
+        await expect(page.locator(`[${passkeyLoginDomAttr}] [${passkeyStatusDomAttr}]`))
+            .toHaveText('Passkey request failed.', { timeout: E2E_TIMEOUT.assertion });
+        await expect(page).toHaveURL(/NewSession/);
+    });
+
+    test('setup prompt Escape dismissal delegates overlay lifecycle and persists the UX hint', async ({ page }) => {
+        clearE2EUserPasskeys(adminEmail);
+        await passwordLogin(page);
+
+        const prompt = page.locator(`[${passkeySetupPromptDomAttr}]`).first();
+        const dialog = prompt.locator(`[${dialogMountDomAttr}]`);
+        await expect(dialog).toBeVisible({ timeout: E2E_TIMEOUT.assertion });
+        await expect(prompt.locator(`[${passkeyDismissalDomAttr}]`)).toBeVisible();
+        await expect(page.locator('body')).toHaveClass(/modal-open/);
+        await expect(page.locator('body')).toHaveCSS('overflow', 'hidden');
+
+        const rawConfig = await prompt.getAttribute(passkeyFlowConfigDomAttr);
+        if (rawConfig === null) throw new Error('Missing setup-prompt configuration');
+        const config = parsePasskeyFlowConfig(JSON.parse(rawConfig));
+        if (config.tag !== 'setup-prompt') throw new Error('Expected setup-prompt configuration');
+        const dismissalKey = localStorageKeyForPasskey(config.promptUserKey, 'passkeyPromptDismissedUntil');
+
+        await page.keyboard.press('Escape');
+
+        await expect(dialog).toHaveCount(0, { timeout: E2E_TIMEOUT.action });
+        await expect(page.locator('body')).not.toHaveClass(/modal-open/);
+        await expect(page.locator('body')).not.toHaveCSS('overflow', 'hidden');
+        const dismissedUntil = await page.evaluate((key) => Number(localStorage.getItem(key) || '0'), dismissalKey);
+        expect(dismissedUntil).toBeGreaterThan(Date.now());
+    });
+
     test('password login lets venue admins use roster and admin pages when strong auth is optional', async ({ page }) => {
         clearE2EUserPasskeys(adminEmail);
 
@@ -65,7 +220,7 @@ test.describe('Venue-admin passkeys', () => {
 
         await expect(page).toHaveURL(/EditProfile.*section=security/, { timeout: E2E_TIMEOUT.navigation });
         await expect(page.locator('body')).toContainText('Verify with your passkey before sending a new-device setup link.');
-        await gotoWhenReady(page, '/PasskeyStepUp', '.js-passkey-login-button');
+        await gotoWhenReady(page, '/PasskeyStepUp', `[${passkeyLoginDomAttr}] [${passkeyActionButtonDomAttr}]`);
         await verifyCurrentUserPasskeyStepUp(page);
         await openProfileSecuritySection(page);
         await page.getByRole('button', { name: 'Email setup link for another device' }).click();
@@ -119,7 +274,7 @@ test.describe('Venue-admin passkeys', () => {
 
         await expect(page).toHaveURL(/EditProfile.*section=security/, { timeout: E2E_TIMEOUT.navigation });
         await expect(page.locator('body')).toContainText('Verify with your passkey before sending a new-device setup link.');
-        await gotoWhenReady(page, '/PasskeyStepUp', '.js-passkey-login-button');
+        await gotoWhenReady(page, '/PasskeyStepUp', `[${passkeyLoginDomAttr}] [${passkeyActionButtonDomAttr}]`);
         await verifyCurrentUserPasskeyStepUp(page);
         await openProfileSecuritySection(page);
         await page.getByRole('button', { name: 'Email setup link for another device' }).click();

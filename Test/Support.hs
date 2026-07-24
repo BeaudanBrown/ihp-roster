@@ -11,6 +11,7 @@ import Application.Helper.Pay (ensurePayVersionsForTimesheetApproval,
 import Application.Helper.RosterGroups (ensureVenueDefaultRosterGroup,
                                         ensureVenueRosterDefaults)
 import Config
+import Control.Exception (bracket)
 import Control.Monad (void)
 import qualified Data.Aeson as Aeson
 import qualified Data.ByteString as ByteString
@@ -26,6 +27,7 @@ import Data.Time.LocalTime (TimeOfDay (..))
 import qualified Data.Vault.Lazy as Vault
 import Database.PostgreSQL.Simple.Types (Binary (Binary))
 import Generated.Types
+import GHC.Clock (getMonotonicTimeNSec)
 import IHP.Controller.Context (ControllerContext, newControllerContext)
 import IHP.Controller.Session (sessionVaultKey)
 import IHP.ControllerPrelude
@@ -40,19 +42,43 @@ import IHP.Test.Mocking
 import Network.HTTP.Types.Header (RequestHeaders)
 import qualified Network.Wai as Wai
 import qualified Network.Wai.Session.Maybe as WaiSession
-import System.Environment (setEnv)
+import System.Environment (lookupEnv, setEnv, unsetEnv)
+import qualified System.IO as IO
+import System.IO.Unsafe (unsafePerformIO)
 import Web.FrontController ()
 import Web.Types
 
-testContext :: IO (MockContext WebApplication)
-testContext = do
+withDatabaseTestContext :: (MockContext WebApplication -> IO a) -> IO a
+withDatabaseTestContext action = do
     setEnv "IHP_ROSTER_REQUIRE_PRIVILEGED_STRONG_AUTH" "true"
-    mockContextNoDatabase WebApplication config
+    withMockContext WebApplication config action
+
+withPrivilegedStrongAuthentication :: Bool -> IO value -> IO value
+withPrivilegedStrongAuthentication enabled action =
+    bracket
+        (lookupEnv variableName)
+        restore
+        (\_ -> setEnv variableName (if enabled then "true" else "false") >> action)
+  where
+    variableName = "IHP_ROSTER_REQUIRE_PRIVILEGED_STRONG_AUTH"
+    restore = maybe (unsetEnv variableName) (setEnv variableName)
 
 withCleanDb :: (?modelContext :: ModelContext) => IO a -> IO a
 withCleanDb action = do
-    resetDatabase
+    case hspecResetMetricsFile of
+        Nothing -> resetDatabase
+        Just metricsFile -> do
+            startedAt <- getMonotonicTimeNSec
+            resetDatabase
+            finishedAt <- getMonotonicTimeNSec
+            IO.appendFile metricsFile (Text.unpack (tshow (finishedAt - startedAt)) <> "\n")
     action
+
+-- Optional, process-local measurement only. The canonical test path performs
+-- the same reset without filesystem writes when the variable is unset.
+{-# NOINLINE hspecResetMetricsFile #-}
+hspecResetMetricsFile :: Maybe FilePath
+hspecResetMetricsFile = unsafePerformIO (lookupEnv "HSPEC_RESET_METRICS_FILE")
 
 withControllerTestContext ::
     (?mocking :: MockContext WebApplication, ?request :: Wai.Request, ?respond :: Respond) =>
@@ -79,7 +105,7 @@ withCurrentControllerContext action = do
 resetDatabase :: (?modelContext :: ModelContext) => IO ()
 resetDatabase = do
     sqlExecDiscardResult
-        "TRUNCATE TABLE app_jobs, award_time_penalty_allowances, award_level_penalty_rates, award_level_base_rates, award_levels, fwc_mapd_wage_allowances, fwc_mapd_penalty_rates, fwc_mapd_pay_rates, fwc_mapd_classifications, fwc_mapd_awards, fwc_mapd_sync_runs, public_holidays, xero_timesheet_submission_entries, xero_timesheet_submissions, xero_timesheet_preparation_decisions, xero_timesheet_preparation_runs, xero_submission_runs, xero_earnings_rate_mappings, xero_staff_mappings, xero_pay_runs, xero_payroll_calendars, xero_earnings_rates, xero_employees, xero_sync_runs, xero_oauth_states, xero_connections, venue_billing_controls, billing_events, venue_subscriptions, venue_billing_customers, export_jobs, user_feedback_items, audit_events, venue_membership_role_events, timesheet_entry_versions, timesheet_entries, leave_request_events, leave_requests, staff_shift_preferences, roster_slots, roster_week_slot_definitions, roster_days, roster_weeks, export_job_entries, shift_type_pay_versions, staff_pay_versions, venue_config, day_names, slot_names, staff_roster_groups, roster_groups, shift_types, staff_documents, staff, user_preferences, passkey_setup_tokens, passkey_recovery_codes, passkeys, email_verification_tokens, venue_invitations, venue_onboarding_invitations, venue_memberships, users, venues RESTART IDENTITY CASCADE"
+        "TRUNCATE TABLE app_jobs, award_time_penalty_allowances, award_level_penalty_rates, award_level_base_rates, award_levels, fwc_mapd_wage_allowances, fwc_mapd_penalty_rates, fwc_mapd_pay_rates, fwc_mapd_classifications, fwc_mapd_awards, fwc_mapd_sync_runs, public_holidays, xero_timesheet_submission_entries, xero_timesheet_submissions, xero_timesheet_preparation_decisions, xero_timesheet_preparation_runs, xero_submission_runs, xero_earnings_rate_mappings, xero_staff_mappings, xero_pay_runs, xero_payroll_calendars, xero_earnings_rates, xero_employees, xero_sync_runs, xero_oauth_states, xero_connections, venue_billing_controls, billing_events, billing_checkout_attempts, venue_subscriptions, venue_billing_customers, export_jobs, user_feedback_items, audit_events, venue_membership_role_events, timesheet_entry_versions, timesheet_entries, leave_request_events, leave_requests, staff_shift_preferences, roster_slots, roster_week_slot_definitions, roster_days, roster_weeks, export_job_entries, shift_type_pay_versions, staff_pay_versions, venue_config, day_names, slot_names, staff_roster_groups, roster_groups, shift_types, staff_documents, staff, user_preferences, passkey_setup_tokens, passkey_recovery_codes, passkeys, email_verification_tokens, venue_invitations, venue_onboarding_invitations, venue_memberships, users, venues RESTART IDENTITY CASCADE"
         ()
     pure ()
 

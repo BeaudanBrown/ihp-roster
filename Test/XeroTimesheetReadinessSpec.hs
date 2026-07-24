@@ -77,7 +77,7 @@ tests = do
                     }
                 `shouldBe` "https://api.xero.com/payroll.xro/1.0/Timesheets?where=EmployeeID%3D%3DGuid%28%22employee-1%22%29&order=StartDate%20DESC&page=2"
 
-    beforeAll testContext do
+    aroundAll withDatabaseTestContext do
       describe "Xero draft-timesheet readiness" do
         it "warns on missing staff mapping and blocks proposed managed pay item readiness without duplicate bucket noise" $ withContext do
             withCleanDb do

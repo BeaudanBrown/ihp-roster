@@ -10,4 +10,4 @@ import Application.Helper.FrontendContract.Surface.Values
 -- A scope marker is owned by exactly one Surface. Asking Timesheets to build a
 -- Roster scope must fail before transport identity can be constructed.
 wrongLiveScopeMarker =
-    frontendSurfaceScope @Timesheets.TimesheetsSurface @Roster.RosterWeek NoSurfaceFields
+    frontendSurfaceScope @Timesheets.TimesheetsSurface @Roster.RosterWeek noSurfaceFields

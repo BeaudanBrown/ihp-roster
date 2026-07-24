@@ -45,7 +45,7 @@ import Web.Timesheets.Suggestion (newTimesheetEntryFromSuggestion)
 import Web.Types
 
 tests :: Spec
-tests = beforeAll testContext do
+tests = aroundAll withDatabaseTestContext do
     describe "TimesheetsController" do
         it "redirects unauthenticated users from timesheets page" $ withContext do
             response <- callAction TimesheetsAction
@@ -113,6 +113,8 @@ tests = beforeAll testContext do
                 response `responseBodyShouldContain` "timesheets:"
                 response `responseBodyShouldContain` "data-timesheet-day-offset=\"0\""
                 response `responseBodyShouldContain` "hx-sync=\"closest #timesheet-week-shell:replace\""
+                response `responseBodyShouldContain` "data-bepis-surface-action=\"navigate-timesheet-week\""
+                response `responseBodyShouldContain` "data-bepis-surface-action=\"update-timesheet-filters\""
                 response `responseBodyShouldNotContain` "timesheet-week-shell-sync-custom-htmx"
 
         it "preserves partial direct-route filters outside complete Surface action submissions" $ withContext do
@@ -265,12 +267,129 @@ tests = beforeAll testContext do
                         ]
 
                 response `responseStatusShouldBe` status302
-                entryExists <-
+                entry <-
                     query @TimesheetEntry
                         |> filterWhere (#venueId, unpackId venue.id)
                         |> filterWhere (#staffId, unpackId staff.id)
-                        |> fetchExists
-                entryExists `shouldBe` True
+                        |> fetchOne
+                entry.hadBreak `shouldBe` False
+
+        it "parses the generated explicit false had-break transport as no break" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Timesheet Explicit No Break Venue"
+                workerUser <- createUserRecord "timesheet-explicit-no-break@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue workerUser "worker"
+                worker <- createStaffRecord venue (Just workerUser) "Nora" "NoBreak"
+                payLevel <- createPayLevelRecord venue "Level 1"
+                shiftType <- createShiftTypeRecord venue payLevel "Ordinary"
+
+                response <- withUserAndCurrentVenue workerUser venue.id do
+                    callActionWithParams CreateTimesheetEntryAction
+                        [ ("weekOffset", "0")
+                        , ("staffId", idToParam worker.id)
+                        , ("shiftTypeId", idToParam shiftType.id)
+                        , ("workedOn", "2025-01-07")
+                        , ("startTime", "09:00")
+                        , ("endTime", "17:00")
+                        , ("hadBreak", "false")
+                        ]
+
+                response `responseStatusShouldBe` status302
+                entry <- query @TimesheetEntry |> fetchOne
+                entry.hadBreak `shouldBe` False
+                entry.breakStartTime `shouldBe` Nothing
+                entry.breakEndTime `shouldBe` Nothing
+                entry.breakMinutes `shouldBe` 0
+
+        it "parses the generated explicit true had-break transport with break times" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Timesheet Explicit Break Venue"
+                workerUser <- createUserRecord "timesheet-explicit-break@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue workerUser "worker"
+                worker <- createStaffRecord venue (Just workerUser) "Tara" "TakesBreak"
+                payLevel <- createPayLevelRecord venue "Level 1"
+                shiftType <- createShiftTypeRecord venue payLevel "Ordinary"
+
+                response <- withUserAndCurrentVenue workerUser venue.id do
+                    callActionWithParams CreateTimesheetEntryAction
+                        [ ("weekOffset", "0")
+                        , ("staffId", idToParam worker.id)
+                        , ("shiftTypeId", idToParam shiftType.id)
+                        , ("workedOn", "2025-01-07")
+                        , ("startTime", "09:00")
+                        , ("endTime", "17:00")
+                        , ("hadBreak", "true")
+                        , ("breakStartTime", "12:00")
+                        , ("breakEndTime", "12:30")
+                        ]
+
+                response `responseStatusShouldBe` status302
+                entry <- query @TimesheetEntry |> fetchOne
+                entry.hadBreak `shouldBe` True
+                entry.breakStartTime `shouldBe` Just (TimeOfDay 12 0 0)
+                entry.breakEndTime `shouldBe` Just (TimeOfDay 12 30 0)
+                entry.breakMinutes `shouldBe` 30
+
+        it "rejects a malformed generated had-break transport without creating an entry" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Timesheet Invalid Break Transport Venue"
+                workerUser <- createUserRecord "timesheet-invalid-break-transport@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue workerUser "worker"
+                worker <- createStaffRecord venue (Just workerUser) "Ivy" "InvalidBreak"
+                payLevel <- createPayLevelRecord venue "Level 1"
+                shiftType <- createShiftTypeRecord venue payLevel "Ordinary"
+
+                response <- withUserAndCurrentVenue workerUser venue.id do
+                    withRequestHeaders [("HX-Request", "true")] do
+                        callActionWithParams CreateTimesheetEntryAction
+                            [ ("weekOffset", "0")
+                            , ("staffId", idToParam worker.id)
+                            , ("shiftTypeId", idToParam shiftType.id)
+                            , ("workedOn", "2025-01-07")
+                            , ("startTime", "09:00")
+                            , ("endTime", "17:00")
+                            , ("hadBreak", "not-a-boolean")
+                            ]
+
+                response `responseStatusShouldBe` status200
+                response `responseBodyShouldContain` "Had break must be true or false"
+                query @TimesheetEntry |> fetchCount >>= (`shouldBe` 0)
+
+        it "rejects malformed had-break edits without mutating persisted break fields" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Timesheet Invalid Break Edit Venue"
+                manager <- createUserRecord "timesheet-invalid-break-edit@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue manager "manager"
+                staff <- createStaffRecord venue (Just manager) "Mara" "Manager"
+                entry <- createTimesheetEntryRecord venue staff (fromGregorian 2025 1 7)
+                entry <-
+                    updateRecord
+                        ( entry
+                            |> set #hadBreak True
+                            |> set #breakStartTime (Just (TimeOfDay 12 0 0))
+                            |> set #breakEndTime (Just (TimeOfDay 12 30 0))
+                            |> set #breakMinutes 30
+                        )
+
+                response <- withUserAndCurrentVenue manager venue.id do
+                    withRequestHeaders [("HX-Request", "true")] do
+                        callActionWithParams (UpdateTimesheetEntryAction entry.id)
+                            [ ("weekOffset", "0")
+                            , ("staffId", idToParam staff.id)
+                            , ("shiftTypeId", cs (tshow entry.shiftTypeId))
+                            , ("workedOn", "2025-01-07")
+                            , ("startTime", "09:00")
+                            , ("endTime", "17:00")
+                            , ("hadBreak", "not-a-boolean")
+                            ]
+
+                response `responseStatusShouldBe` status200
+                response `responseBodyShouldContain` "Had break must be true or false"
+                persistedEntry <- fetch entry.id
+                persistedEntry.hadBreak `shouldBe` True
+                persistedEntry.breakStartTime `shouldBe` Just (TimeOfDay 12 0 0)
+                persistedEntry.breakEndTime `shouldBe` Just (TimeOfDay 12 30 0)
+                persistedEntry.breakMinutes `shouldBe` 30
 
         it "renders HTMX timesheet forms with javascript submission disabled" $ withContext do
             withCleanDb do
@@ -293,8 +412,9 @@ tests = beforeAll testContext do
                 response `responseBodyShouldContain` "Timesheet Tuesday 07/01"
                 response `responseBodyShouldContain` "name=\"startTime\" value=\"06:00\""
                 response `responseBodyShouldContain` "name=\"endTime\" value=\"14:00\""
-                response `responseBodyShouldContain` "data-time-picker-start=\"06:00\""
-                response `responseBodyShouldContain` "data-time-picker-end=\"05:45\""
+                response `responseBodyShouldContain` "data-bepis-time-picker-config="
+                response `responseBodyShouldContain` "&quot;rangeStart&quot;:&quot;06:00&quot;"
+                response `responseBodyShouldContain` "&quot;rangeEnd&quot;:&quot;05:45&quot;"
                 response `responseBodyShouldNotContain` ">Day<"
                 response `responseBodyShouldNotContain` "07/01/2025</div>"
 
@@ -319,8 +439,9 @@ tests = beforeAll testContext do
                 response `responseStatusShouldBe` status200
                 response `responseBodyShouldContain` "name=\"startTime\" value=\"09:00\""
                 response `responseBodyShouldContain` "name=\"endTime\" value=\"13:00\""
-                response `responseBodyShouldContain` "data-time-picker-start=\"09:00\""
-                response `responseBodyShouldContain` "data-time-picker-end=\"13:00\""
+                response `responseBodyShouldContain` "data-bepis-time-picker-config="
+                response `responseBodyShouldContain` "&quot;rangeStart&quot;:&quot;09:00&quot;"
+                response `responseBodyShouldContain` "&quot;rangeEnd&quot;:&quot;13:00&quot;"
 
         it "excludes trial staff from manager timesheet forms and staff filters" $ withContext do
             withCleanDb do
@@ -510,6 +631,7 @@ tests = beforeAll testContext do
                 response `responseBodyShouldContain` "timesheet-shape-segment-shift"
                 response `responseBodyShouldContain` "timesheet-shape-segment-break"
                 response `responseBodyShouldContain` ">Create</button>"
+                response `responseBodyShouldContain` "data-bepis-surface-action=\"create-timesheet-entry-from-suggestion\""
                 response `responseBodyShouldNotContain` ">Edit first</a>"
                 query @TimesheetEntry |> fetchCount >>= (`shouldBe` 0)
 
@@ -592,6 +714,20 @@ tests = beforeAll testContext do
                         |> set #durationMinutes (Just 375)
                         |> set #shiftTypeId (Just (unpackId shiftType.id))
                     )
+
+                malformedResponse <- withUserAndCurrentVenue workerUser venue.id do
+                    withRequestHeaders [("HX-Request", "true")] do
+                        callActionWithParams CreateTimesheetEntryFromSuggestionAction { rosterSlotId = rosterSlot.id }
+                            [ ("weekOffset", "0")
+                            , ("showApproved", "false")
+                            , ("showAllStaff", "true")
+                            , ("showSuggestions", "true")
+                            , ("hadBreak", "not-a-boolean")
+                            ]
+
+                malformedResponse `responseStatusShouldBe` status200
+                malformedResponse `responseBodyShouldContain` "Had break must be true or false"
+                query @TimesheetEntry |> fetchCount >>= (`shouldBe` 0)
 
                 response <- withUserAndCurrentVenue workerUser venue.id do
                     callActionWithParams CreateTimesheetEntryFromSuggestionAction { rosterSlotId = rosterSlot.id }
@@ -789,6 +925,7 @@ tests = beforeAll testContext do
                         , ("workedOn", "2025-01-07")
                         , ("startTime", "10:00")
                         , ("endTime", "16:00")
+                        , ("hadBreak", "false")
                         ]
 
                 createResponse `responseStatusShouldBe` status302
@@ -1028,6 +1165,27 @@ tests = beforeAll testContext do
                 response `responseBodyShouldContain` "disabled"
                 response `responseBodyShouldNotContain` "UnapproveTimesheetEntry"
 
+        it "preserves the required all-staff filter transport for workers" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Timesheet Worker Filter Venue"
+                workerUser <- createUserRecord "timesheet-filter-worker@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue workerUser "worker"
+                _ <- createStaffRecord venue (Just workerUser) "Willa" "Worker"
+
+                response <- withUserAndCurrentVenue workerUser venue.id do
+                    callActionWithParams ShowTimesheetWeekAction { weekOffset = 0 }
+                        [ ("weekOffset", "0")
+                        , ("showApproved", "true")
+                        , ("showAllStaff", "false")
+                        , ("showSuggestions", "true")
+                        ]
+
+                response `responseStatusShouldBe` status200
+                response `responseBodyShouldContain` "name=\"showAllStaff\" value=\"false\""
+                response `responseBodyShouldContain` "Hide approved"
+                response `responseBodyShouldContain` "Show suggestions"
+                response `responseBodyShouldNotContain` ">Show all staff</span>"
+
         it "applies manager timesheet filters from the week query params" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Timesheet Filter Venue"
@@ -1051,9 +1209,11 @@ tests = beforeAll testContext do
                 response `responseStatusShouldBe` status200
                 response `responseBodyShouldContain` "Hide approved"
                 response `responseBodyShouldContain` "Show all staff"
-                response `responseBodyShouldContain` "app-toggle-button btn-success"
-                response `responseBodyShouldContain` "app-toggle-button btn-outline-success"
+                response `responseBodyShouldContain` "btn btn-outline-success app-toggle-button"
+                response `responseBodyShouldContain` "data-bepis-toggle-transport=\"toggle-transport:timesheet-hide-approved-toggle\""
+                response `responseBodyShouldContain` "data-bepis-toggle-config=\""
                 response `responseBodyShouldContain` "aria-pressed=\"true\""
+                response `responseBodyShouldContain` "aria-pressed=\"false\""
                 response `responseBodyShouldContain` "No entries for this day."
                 response `responseBodyShouldNotContain` "timesheet-entry-staff-name\">Ava Hours"
                 response `responseBodyShouldNotContain` "timesheet-entry-card\" data-timesheet-entry-approved=\"true\""

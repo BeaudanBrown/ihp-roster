@@ -4,7 +4,6 @@
 module Application.Helper.FrontendContract.AppShell
     ( AppShellContract
     , AppShell
-    , DialogAutoSubmitOnce
     , PartialNavigate
     , PartialNavigationHtmxAttrs
     , OpenFeedbackDialog
@@ -86,11 +85,10 @@ module Application.Helper.FrontendContract.AppShell
     , InvitationEmailField
     ) where
 
-import Application.Helper.FrontendContract.App (DialogOverlayMount)
 import Application.Helper.FrontendContract.DSL
+import Application.Helper.FrontendContract.Overlay (DialogOverlayMount)
 
 data AppShell
-data DialogAutoSubmitOnce
 data PartialNavigate
 data PartialNavigationHtmxAttrs
 
@@ -176,8 +174,7 @@ data InvitationEmailField
 
 type AppShellContract =
     Global AppShell
-        '[ DomAttr DialogAutoSubmitOnce
-         , AppShellAction PartialNavigate
+        '[ AppShellAction PartialNavigate
             '[]
             '[ AppShellHtmxMethod 'AppShellGet
              , AppShellCustomHtmx PartialNavigationHtmxAttrs "partial navigation supplies route-specific target, swap, select, push-url, and sync attrs"

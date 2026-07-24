@@ -12,7 +12,7 @@ import IHP.Prelude
 wrongResourceFieldOrder =
     frontendSurfaceResource @Timesheets.TimesheetsSurface @Timesheets.TimesheetDay
         ( surfaceField @Timesheets.VenueId (error "fixture UUID")
-            :& surfaceField @Timesheets.DayOffset 1
-            :& surfaceField @Timesheets.WeekOffset 0
-            :& NoSurfaceFields
+            &: surfaceField @Timesheets.DayOffset 1
+            &: surfaceField @Timesheets.WeekOffset 0
+            &: noSurfaceFields
         )

@@ -88,7 +88,7 @@ tests = do
                     fmap (.weekendApplied) (Map.lookup "a" summaries) `shouldBe` Just False
                     fmap (.weekendApplied) (Map.lookup "b" summaries) `shouldBe` Just True
 
-    beforeAll testContext do
+    aroundAll withDatabaseTestContext do
         describe "Award-backed pay calculations" do
             it "uses the staff default award level for ordinary weekday hours" $ withContext do
                 withCleanDb do
@@ -252,6 +252,76 @@ tests = do
                     fmap (.amount) publicHolidayResult.segments `shouldBe` [300]
                     publicHolidayResult.totals.totalAmount `shouldBe` 300
 
+            it "tops up a permanent employee to four paid hours on a public holiday" $ withContext do
+                withCleanDb do
+                    (venue, staff, shiftType, level) <- createPayFixture "Permanent Public Holiday Minimum"
+                    sourceRate <- query @FwcMapdPayRate |> filterWhere (#classificationFixedId, Just level.classificationFixedId) |> fetchOne
+                    createSyntheticPenalty level PublicHolidayPenalty sourceRate 67.5
+                    _ <- createPublicHolidayRecord (fromGregorian 2025 1 10) "Permanent Minimum Holiday"
+                    entry <- createEntry venue staff shiftType (fromGregorian 2025 1 10) (TimeOfDay 9 0 0) (TimeOfDay 10 0 0)
+
+                    result <- expectPayResult entry
+
+                    fmap (.segment) result.segments `shouldBe` ["ordinary", "public_holiday_minimum_top_up"]
+                    fmap (.penaltyKind) result.segments `shouldBe` [Just "public_holiday_penalty", Just "public_holiday_penalty"]
+                    fmap (.minutes) result.segments `shouldBe` [60, 180]
+                    fmap (.amount) result.segments `shouldBe` [67.5, 202.5]
+                    result.totals.paidMinutes `shouldBe` 240
+                    result.totals.totalAmount `shouldBe` 270
+
+            it "tops up a casual employee to two paid hours on a public holiday" $ withContext do
+                withCleanDb do
+                    (venue, staff, shiftType, level) <- createPayFixture "Casual Public Holiday Minimum"
+                    sourceRate <- query @FwcMapdPayRate |> filterWhere (#classificationFixedId, Just level.classificationFixedId) |> fetchOne
+                    _ <- createCasualBaseRate level 37.5
+                    createSyntheticEmploymentPenalty level Casual PublicHolidayPenalty sourceRate 75
+                    _ <- staff |> set #employmentBasis Casual |> updateRecord
+                    _ <- createPublicHolidayRecord (fromGregorian 2025 1 10) "Casual Minimum Holiday"
+                    entry <- createEntry venue staff shiftType (fromGregorian 2025 1 10) (TimeOfDay 9 0 0) (TimeOfDay 10 0 0)
+
+                    result <- expectPayResult entry
+
+                    fmap (.segment) result.segments `shouldBe` ["ordinary", "public_holiday_minimum_top_up"]
+                    fmap (.penaltyKind) result.segments `shouldBe` [Just "public_holiday_penalty", Just "public_holiday_penalty"]
+                    fmap (.minutes) result.segments `shouldBe` [60, 60]
+                    fmap (.amount) result.segments `shouldBe` [75, 75]
+                    result.totals.paidMinutes `shouldBe` 120
+                    result.totals.totalAmount `shouldBe` 150
+
+            it "counts adjacent hours in a continuous shift toward the public holiday minimum" $ withContext do
+                withCleanDb do
+                    (venue, staff, shiftType, level) <- createPayFixture "Public Holiday Boundary Minimum"
+                    sourceRate <- query @FwcMapdPayRate |> filterWhere (#classificationFixedId, Just level.classificationFixedId) |> fetchOne
+                    createSyntheticPenalty level PublicHolidayPenalty sourceRate 67.5
+                    _ <- createPublicHolidayRecord (fromGregorian 2025 1 13) "Boundary Holiday"
+                    entry <- createEntry venue staff shiftType (fromGregorian 2025 1 12) (TimeOfDay 22 0 0) (TimeOfDay 2 0 0)
+
+                    result <- expectPayResult entry
+
+                    fmap (.penaltyKind) result.segments `shouldBe` [Just "sunday_penalty", Just "public_holiday_penalty"]
+                    fmap (.minutes) result.segments `shouldBe` [120, 120]
+                    fmap (.amount) result.segments `shouldBe` [90, 135]
+                    result.segments `shouldSatisfy` all ((/= "public_holiday_minimum_top_up") . (.segment))
+                    result.totals.paidMinutes `shouldBe` 240
+                    result.totals.totalAmount `shouldBe` 225
+
+            it "tops up only the shortfall when a short continuous shift crosses into a public holiday" $ withContext do
+                withCleanDb do
+                    (venue, staff, shiftType, level) <- createPayFixture "Short Public Holiday Boundary Minimum"
+                    sourceRate <- query @FwcMapdPayRate |> filterWhere (#classificationFixedId, Just level.classificationFixedId) |> fetchOne
+                    createSyntheticPenalty level PublicHolidayPenalty sourceRate 67.5
+                    _ <- createPublicHolidayRecord (fromGregorian 2025 1 13) "Short Boundary Holiday"
+                    entry <- createEntry venue staff shiftType (fromGregorian 2025 1 12) (TimeOfDay 23 0 0) (TimeOfDay 2 0 0)
+
+                    result <- expectPayResult entry
+
+                    fmap (.penaltyKind) result.segments `shouldBe` [Just "sunday_penalty", Just "public_holiday_penalty", Just "public_holiday_penalty"]
+                    fmap (.minutes) result.segments `shouldBe` [60, 120, 60]
+                    fmap (.amount) result.segments `shouldBe` [45, 135, 67.5]
+                    fmap (.segment) result.segments `shouldBe` ["evening_after_7pm", "late_night_after_midnight", "public_holiday_minimum_top_up"]
+                    result.totals.paidMinutes `shouldBe` 240
+                    result.totals.totalAmount `shouldBe` 247.5
+
             it "uses casual base rates for casual staff" $ withContext do
                 withCleanDb do
                     (venue, staff, shiftType, level) <- createPayFixture "Casual Bar"
@@ -310,14 +380,14 @@ tests = do
                     fmap (.amount) result.segments `shouldBe` [220]
                     result.totals.totalAmount `shouldBe` 220
 
-            it "lets shift type imported Xero pay items override staff imported Xero pay items" $ withContext do
+            it "lets shift type imported Xero pay items override staff imported Xero pay items during penalty periods" $ withContext do
                 withCleanDb do
                     (venue, staff, shiftType, _) <- createPayFixture "Imported Shift Bar"
                     staffImportedPayItem <- createImportedPayItem venue "Imported Staff Rate" "xero-staff-rate" 55
                     shiftImportedPayItem <- createImportedPayItem venue "Imported Shift Rate" "xero-shift-rate" 70
                     _ <- staff |> set #importedXeroPayItemId (Just staffImportedPayItem.id) |> updateRecord
                     _ <- shiftType |> set #importedXeroPayItemId (Just shiftImportedPayItem.id) |> updateRecord
-                    entry <- createEntry venue staff shiftType (fromGregorian 2025 1 10) (TimeOfDay 9 0 0) (TimeOfDay 13 0 0)
+                    entry <- createEntry venue staff shiftType (fromGregorian 2025 1 11) (TimeOfDay 20 0 0) (TimeOfDay 0 0 0)
 
                     result <- expectPayResult entry
 
@@ -325,6 +395,50 @@ tests = do
                     fmap (.baseRate) result.segments `shouldBe` [70]
                     fmap (.amount) result.segments `shouldBe` [280]
                     result.totals.totalAmount `shouldBe` 280
+
+            it "keeps an imported Xero rate flat across weekends and public holidays without minimum top ups" $ withContext do
+                withCleanDb do
+                    (venue, staff, shiftType, _) <- createPayFixture "Imported Weekend and Holiday Bar"
+                    importedPayItem <- createImportedPayItem venue "Imported Flat Rate" "xero-flat-weekend-holiday" 55
+                    _ <- staff |> set #importedXeroPayItemId (Just importedPayItem.id) |> updateRecord
+                    _ <- createPublicHolidayRecord (fromGregorian 2025 1 13) "Imported Override Holiday"
+                    saturdayEntry <- createEntry venue staff shiftType (fromGregorian 2025 1 11) (TimeOfDay 10 0 0) (TimeOfDay 14 0 0)
+                    sundayEntry <- createEntry venue staff shiftType (fromGregorian 2025 1 12) (TimeOfDay 10 0 0) (TimeOfDay 14 0 0)
+                    publicHolidayEntry <- createEntry venue staff shiftType (fromGregorian 2025 1 13) (TimeOfDay 10 0 0) (TimeOfDay 11 0 0)
+
+                    saturday <- expectPayResult saturdayEntry
+                    sunday <- expectPayResult sundayEntry
+                    publicHoliday <- expectPayResult publicHolidayEntry
+
+                    saturday.totals.paidMinutes `shouldBe` 240
+                    saturday.totals.totalAmount `shouldBe` 220
+                    sunday.totals.paidMinutes `shouldBe` 240
+                    sunday.totals.totalAmount `shouldBe` 220
+                    publicHoliday.totals.paidMinutes `shouldBe` 60
+                    publicHoliday.totals.totalAmount `shouldBe` 55
+                    publicHoliday.segments `shouldSatisfy` all ((/= "public_holiday_minimum_top_up") . (.segment))
+
+            it "keeps an imported Xero rate flat across time windows and missed break periods" $ withContext do
+                withCleanDb do
+                    (venue, staff, shiftType, _) <- createPayFixture "Imported Time Window Bar"
+                    importedPayItem <- createImportedPayItem venue "Imported Time Flat Rate" "xero-flat-time" 55
+                    _ <- staff |> set #importedXeroPayItemId (Just importedPayItem.id) |> updateRecord
+                    noBreakEntry <- createEntry venue staff shiftType (fromGregorian 2025 1 9) (TimeOfDay 20 0 0) (TimeOfDay 4 0 0)
+                    breakEntry <- createEntry venue staff shiftType (fromGregorian 2025 1 10) (TimeOfDay 9 0 0) (TimeOfDay 17 0 0)
+                        >>= updateRecord
+                            . set #hadBreak True
+                            . set #breakMinutes 30
+                            . set #breakStartTime (Just (TimeOfDay 14 0 0))
+                            . set #breakEndTime (Just (TimeOfDay 14 30 0))
+
+                    noBreak <- expectPayResult noBreakEntry
+                    withBreak <- expectPayResult breakEntry
+
+                    noBreak.totals.paidMinutes `shouldBe` 480
+                    noBreak.totals.totalAmount `shouldBe` 440
+                    sum (map (.amount) noBreak.segments) `shouldBe` 440
+                    withBreak.totals.paidMinutes `shouldBe` 450
+                    withBreak.totals.totalAmount `shouldBe` 412.5
 
             it "allocates breaks to the actual penalty segment instead of trimming the end of an overnight shift" $ withContext do
                 withCleanDb do
@@ -549,7 +663,7 @@ tests = do
                     fmap (.amount) publicHoliday.segments `shouldBe` [450, 180]
                     publicHoliday.totals.totalAmount `shouldBe` 630
 
-            it "uses delayed meal break instead of evening loading for the delayed weekday window" $ withContext do
+            it "adds the evening allowance to the delayed meal break rate" $ withContext do
                 withCleanDb do
                     (venue, staff, shiftType, _) <- createPayFixture "Delayed Evening Meal Break Bar"
                     entry <- createEntry venue staff shiftType (fromGregorian 2025 1 10) (TimeOfDay 15 0 0) (TimeOfDay 23 0 0)
@@ -558,8 +672,74 @@ tests = do
 
                     fmap (.segment) result.segments `shouldBe` ["ordinary", "evening_after_7pm", "delayed_meal_break_weekday"]
                     fmap (.minutes) result.segments `shouldBe` [240, 120, 120]
-                    fmap (.amount) result.segments `shouldBe` [120, 66, 90]
-                    result.totals.totalAmount `shouldBe` 276
+                    fmap (.amount) result.segments `shouldBe` [120, 66, 96]
+                    result.totals.totalAmount `shouldBe` 282
+
+            it "adds the early morning allowance to the delayed meal break rate" $ withContext do
+                withCleanDb do
+                    (venue, staff, shiftType, _) <- createPayFixture "Delayed Early Morning Meal Break Bar"
+                    entry <- createEntry venue staff shiftType (fromGregorian 2025 1 9) (TimeOfDay 20 0 0) (TimeOfDay 4 0 0)
+
+                    result <- expectPayResult entry
+
+                    fmap (.segment) result.segments `shouldBe` ["evening_after_7pm", "late_night_after_midnight", "delayed_meal_break_weekday"]
+                    fmap (.minutes) result.segments `shouldBe` [240, 120, 120]
+                    fmap (.amount) result.segments `shouldBe` [132, 72, 102]
+                    result.totals.totalAmount `shouldBe` 306
+
+            it "does not treat a meal break before the first two hours as qualifying" $ withContext do
+                withCleanDb do
+                    (venue, staff, shiftType, _) <- createPayFixture "Early Meal Break Bar"
+                    entry <- createEntry venue staff shiftType (fromGregorian 2025 1 10) (TimeOfDay 9 0 0) (TimeOfDay 17 0 0)
+                        >>= updateRecord
+                            . set #hadBreak True
+                            . set #breakMinutes 30
+                            . set #breakStartTime (Just (TimeOfDay 10 0 0))
+                            . set #breakEndTime (Just (TimeOfDay 10 30 0))
+
+                    result <- expectPayResult entry
+
+                    fmap (.segment) result.segments `shouldBe` ["ordinary", "delayed_meal_break_weekday"]
+                    fmap (.minutes) result.segments `shouldBe` [330, 120]
+                    fmap (.amount) result.segments `shouldBe` [165, 90]
+                    result.totals.paidMinutes `shouldBe` 450
+                    result.totals.totalAmount `shouldBe` 255
+
+            it "treats a meal break at the two hour boundary as qualifying" $ withContext do
+                withCleanDb do
+                    (venue, staff, shiftType, _) <- createPayFixture "Two Hour Meal Break Boundary Bar"
+                    entry <- createEntry venue staff shiftType (fromGregorian 2025 1 10) (TimeOfDay 9 0 0) (TimeOfDay 17 0 0)
+                        >>= updateRecord
+                            . set #hadBreak True
+                            . set #breakMinutes 30
+                            . set #breakStartTime (Just (TimeOfDay 11 0 0))
+                            . set #breakEndTime (Just (TimeOfDay 11 30 0))
+
+                    result <- expectPayResult entry
+
+                    fmap (.segment) result.segments `shouldBe` ["ordinary"]
+                    fmap (.minutes) result.segments `shouldBe` [450]
+                    fmap (.amount) result.segments `shouldBe` [225]
+                    result.totals.paidMinutes `shouldBe` 450
+                    result.totals.totalAmount `shouldBe` 225
+
+            it "treats a meal break at the six hour boundary as qualifying" $ withContext do
+                withCleanDb do
+                    (venue, staff, shiftType, _) <- createPayFixture "Six Hour Meal Break Boundary Bar"
+                    entry <- createEntry venue staff shiftType (fromGregorian 2025 1 10) (TimeOfDay 9 0 0) (TimeOfDay 17 0 0)
+                        >>= updateRecord
+                            . set #hadBreak True
+                            . set #breakMinutes 30
+                            . set #breakStartTime (Just (TimeOfDay 15 0 0))
+                            . set #breakEndTime (Just (TimeOfDay 15 30 0))
+
+                    result <- expectPayResult entry
+
+                    fmap (.segment) result.segments `shouldBe` ["ordinary"]
+                    fmap (.minutes) result.segments `shouldBe` [450]
+                    fmap (.amount) result.segments `shouldBe` [225]
+                    result.totals.paidMinutes `shouldBe` 450
+                    result.totals.totalAmount `shouldBe` 225
 
             it "emits zero paid minutes for breaks that consume the whole shift" $ withContext do
                 withCleanDb do
@@ -594,6 +774,15 @@ createPayFixture shiftTypeName = do
             |> set #isActive True
             |> createRecord
     pure (venue, staff, shiftType, level)
+
+createPublicHolidayRecord :: (?modelContext :: ModelContext) => Day -> Text -> IO PublicHoliday
+createPublicHolidayRecord holidayDate holidayName =
+    newRecord @PublicHoliday
+        |> set #jurisdiction "VIC"
+        |> set #holidayDate holidayDate
+        |> set #name holidayName
+        |> set #isRegional False
+        |> createRecord
 
 createImportedPayItem :: (?modelContext :: ModelContext) => Venue -> Text -> Text -> Scientific -> IO XeroImportedPayItem
 createImportedPayItem venue name earningsRateId rate = do

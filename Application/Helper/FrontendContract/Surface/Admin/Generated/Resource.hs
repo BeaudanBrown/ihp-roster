@@ -23,8 +23,8 @@ import Application.Helper.FrontendContract.Surface.HaskellAdapter.Family (Adapte
 import Application.Helper.FrontendContract.Surface.Resource (SurfaceResourceValue,
                                                              frontendSurfaceResource,
                                                              matchFrontendSurfaceResource)
-import Application.Helper.FrontendContract.Surface.Values (SurfaceFields (NoSurfaceFields, (:&)),
-                                                           surfaceField)
+import Application.Helper.FrontendContract.Surface.Values (noSurfaceFields,
+                                                           surfaceField, (&:))
 import qualified Data.UUID as UUID
 import IHP.Prelude
 
@@ -36,7 +36,7 @@ adminExportsResource venueId =
         @(AdapterFamilySurface Types2.AdminExportsAdapterFamily)
         @Types1.AdminExports
         ( surfaceField @Types1.VenueId venueId
-            :& NoSurfaceFields
+            &: noSurfaceFields
         )
 
 matchAdminExportsResource :: SurfaceResourceValue -> Maybe (UUID.UUID, ())
@@ -53,7 +53,7 @@ adminInvitesResource venueId =
         @(AdapterFamilySurface Types2.AdminInvitesAdapterFamily)
         @Types1.AdminInvites
         ( surfaceField @Types1.VenueId venueId
-            :& NoSurfaceFields
+            &: noSurfaceFields
         )
 
 matchAdminInvitesResource :: SurfaceResourceValue -> Maybe (UUID.UUID, ())
@@ -70,7 +70,7 @@ adminRosterGroupsResource venueId =
         @(AdapterFamilySurface Types2.AdminRosterGroupsAdapterFamily)
         @Types1.AdminRosterGroups
         ( surfaceField @Types1.VenueId venueId
-            :& NoSurfaceFields
+            &: noSurfaceFields
         )
 
 matchAdminRosterGroupsResource :: SurfaceResourceValue -> Maybe (UUID.UUID, ())
@@ -87,7 +87,7 @@ adminShiftTypesResource venueId =
         @(AdapterFamilySurface Types2.AdminShiftTypesAdapterFamily)
         @Types1.AdminShiftTypes
         ( surfaceField @Types1.VenueId venueId
-            :& NoSurfaceFields
+            &: noSurfaceFields
         )
 
 matchAdminShiftTypesResource :: SurfaceResourceValue -> Maybe (UUID.UUID, ())
@@ -104,7 +104,7 @@ adminVenueSettingsResource venueId =
         @(AdapterFamilySurface Types2.AdminVenueSettingsAdapterFamily)
         @Types1.AdminVenueSettings
         ( surfaceField @Types1.VenueId venueId
-            :& NoSurfaceFields
+            &: noSurfaceFields
         )
 
 matchAdminVenueSettingsResource :: SurfaceResourceValue -> Maybe (UUID.UUID, ())
@@ -121,7 +121,7 @@ xeroConnectionResource venueId =
         @(AdapterFamilySurface Types2.AdminXeroAdapterFamily)
         @Types1.XeroConnection
         ( surfaceField @Types1.VenueId venueId
-            :& NoSurfaceFields
+            &: noSurfaceFields
         )
 
 matchXeroConnectionResource :: SurfaceResourceValue -> Maybe (UUID.UUID, ())

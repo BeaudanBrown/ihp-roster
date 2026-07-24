@@ -2,24 +2,14 @@
 
 module Application.Helper.FrontendContract.AppValues
     ( AppEvents (..)
-    , AppOverlayDom (..)
     , canonicalAppEvents
-    , canonicalAppOverlayDom
     , interactionIntentSubmitHtmxTrigger
-    , sharedDialogOverlayMountId
-    , sharedToastOverlayMountId
     ) where
 
 import Application.Helper.FrontendContract.App
 import Application.Helper.FrontendContract.Values
 import GHC.Generics (Generic)
 import IHP.Prelude
-
-data AppOverlayDom = AppOverlayDom
-    { appDialogOverlayMountId :: !Text
-    , appToastOverlayMountId  :: !Text
-    }
-    deriving (Eq, Show, Generic)
 
 data AppEvents = AppEvents
     { appPageReadyEventName                       :: !Text
@@ -32,13 +22,6 @@ data AppEvents = AppEvents
     }
     deriving (Eq, Show, Generic)
 
-canonicalAppOverlayDom :: AppOverlayDom
-canonicalAppOverlayDom =
-    AppOverlayDom
-        { appDialogOverlayMountId = domIdValue @DialogOverlayMount
-        , appToastOverlayMountId = domIdValue @ToastOverlayMount
-        }
-
 canonicalAppEvents :: AppEvents
 canonicalAppEvents =
     AppEvents
@@ -50,12 +33,6 @@ canonicalAppEvents =
         , appInteractionSessionEndEventName = eventNameValue @InteractionSessionEnd
         , appInteractionSessionCancelRequestEventName = eventNameValue @InteractionSessionCancelRequest
         }
-
-sharedDialogOverlayMountId :: Text
-sharedDialogOverlayMountId = canonicalAppOverlayDom.appDialogOverlayMountId
-
-sharedToastOverlayMountId :: Text
-sharedToastOverlayMountId = canonicalAppOverlayDom.appToastOverlayMountId
 
 interactionIntentSubmitHtmxTrigger :: Text
 interactionIntentSubmitHtmxTrigger = canonicalAppEvents.appInteractionIntentSubmitEventName

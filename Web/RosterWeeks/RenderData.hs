@@ -16,6 +16,7 @@ where
 import Application.Helper.Conflict
 import Application.Helper.Controller
 import Application.Helper.FrontendContract.Surface.FragmentRender (FragmentRenderMode (..))
+import Application.Helper.ProfileLeave (defaultLeaveRequestForOperationalDay)
 import Application.Helper.Profiling
 import Application.Helper.RosterGroups
 import Application.Helper.RosterWagePrediction
@@ -38,7 +39,6 @@ import Web.RosterWeeks.StaffOptions
 import Web.RosterWeeks.Types
 import Web.View.RosterWeeks.Grid
 import Web.View.RosterWeeks.StaffPanel
-import Web.View.RosterWeeks.StaffSelfServicePanel (renderRosterStaffSelfServiceLeaveFormFragmentForRoster)
 
 shouldShowRosterWageEstimates :: (?context :: ControllerContext) => Bool -> Bool
 shouldShowRosterWageEstimates userShowWageEstimates =
@@ -96,10 +96,6 @@ renderRosterProjectionFragmentWithMode renderMode rosterData fragment =
             renderSlotsGridFragment rosterData
         RosterProjectionStaffPanel ->
             Just (renderRosterStaffPanelFromProjectionWithMode renderMode rosterData)
-        RosterProjectionStaffSelfServiceLeaveForm -> do
-            projection <- rosterData
-            panel <- projection.staffSelfServicePanel
-            pure (renderRosterStaffSelfServiceLeaveFormFragmentForRoster panel.quickToolsRosterGroupId panel.quickToolsRosterWeekOffset panel.quickToolsLeaveRequest)
         RosterProjectionDaySection rosterDayId ->
             rosterData >>= \projection ->
                 if isHiddenDraftForCurrentUser projection.rosterWeek
@@ -253,10 +249,11 @@ renderRosterStaffPanelFromProjectionWithMode renderMode rosterData =
                     FragmentOob swapAttr -> renderrosterStaffPanelLiveFragmentWithSwap swapAttr panelModel
 
 rosterStaffPanelRenderModelFromProjection :: (?context :: ControllerContext, ?request :: Request) => RosterStaffPanelScope -> RosterRenderData -> RosterStaffPanelRenderModel
-rosterStaffPanelRenderModelFromProjection panelScope RosterRenderData { rosterWeek, rosterGroups, currentRosterGroup, assignmentFilters, panelStaff, rosterLayoutMode, showWageEstimates, showRosterWarnings } =
+rosterStaffPanelRenderModelFromProjection panelScope RosterRenderData { rosterWeek, rosterGroups, currentRosterGroup, weekStartDate, assignmentFilters, panelStaff, rosterLayoutMode, showWageEstimates, showRosterWarnings } =
     RosterStaffPanelRenderModel
         { staffPanelRosterWeek = visibleRosterWeekForCurrentUser rosterWeek
         , staffPanelWeekOffset = rosterWeek.weekOffset
+        , staffPanelWeekStartDate = weekStartDate
         , staffPanelRosterGroups = rosterGroups
         , staffPanelCurrentRosterGroup = currentRosterGroup
         , staffPanelAssignmentFilters = assignmentFilters
@@ -376,10 +373,7 @@ fetchRosterStaffSelfServicePanel venueConfig rosterGroupId weekOffset
                         |> orderByAsc #startTime
                         |> fetch
                 quickToolsShiftTypes <- fetchCurrentVenueRosterShiftTypes
-                let quickToolsLeaveRequest =
-                        newRecord @LeaveRequest
-                            |> set #startDate operationalDay
-                            |> set #endDate (Calendar.addDays 1 operationalDay)
+                let quickToolsLeaveRequest = defaultLeaveRequestForOperationalDay operationalDay
                 pure $
                     Just
                         RosterStaffSelfServicePanel
@@ -470,9 +464,6 @@ renderVisibleRosterFragment rosterGroupId weekOffset fragment = do
                 RosterProjectionSlotsGrid -> do
                     rosterData <- fetchVisibleRosterReadModel rosterGroupId weekOffset
                     pure (renderRosterProjectionFragment rosterData fragment)
-                RosterProjectionStaffSelfServiceLeaveForm -> do
-                    rosterData <- fetchVisibleRosterReadModel rosterGroupId weekOffset
-                    pure (renderRosterProjectionFragment rosterData fragment)
                 RosterProjectionRow rosterDayUuid rowIndex -> do
                     facts@RosterBaseFacts { baseRosterDays = rosterDays, baseVisibleSlots = visibleSlots, baseStaffMembers = staffMembers } <- fetchRosterBaseFactsForWeekDirect rosterGroupId rosterWeek
                     venueConfig <- fetchVenueConfig
@@ -524,12 +515,15 @@ fetchVisibleRosterStaffPanelRenderModel panelScope rosterGroupId weekOffset = do
     rosterLayoutMode <- profileActionSpan "roster.fragment.fetch_layout_preference" fetchCurrentRosterLayoutMode
     userShowWageEstimates <- profileActionSpan "roster.fragment.fetch_wage_preference" fetchCurrentUserShowWageEstimates
     showRosterWarnings <- profileActionSpan "roster.fragment.fetch_warning_preference" fetchCurrentUserShowRosterWarnings
+    venueConfig <- profileActionSpan "roster.fragment.fetch_venue_config" fetchVenueConfig
+    let weekStartDate = venueWeekStartDate venueConfig weekOffset
     panelStaff <- case visibleRosterWeek of
         Nothing -> pure []
         Just rosterWeek -> profileActionSpan "roster.build_staff_panel" (fetchRosterStaffPanelEntriesDirect panelScope rosterGroupId rosterWeek)
     pure RosterStaffPanelRenderModel
         { staffPanelRosterWeek = visibleRosterWeek
         , staffPanelWeekOffset = weekOffset
+        , staffPanelWeekStartDate = weekStartDate
         , staffPanelRosterGroups = rosterGroups
         , staffPanelCurrentRosterGroup = currentRosterGroup
         , staffPanelAssignmentFilters = assignmentFilters

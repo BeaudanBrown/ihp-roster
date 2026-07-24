@@ -1,5 +1,8 @@
 module Web.FrontController where
 
+import Application.Billing.Stripe (StripeDeploymentControls (..),
+                                   StripeOwnerNavigationVisibility (..),
+                                   readStripeDeploymentControls)
 import Application.Helper.Controller (currentUserIsSuperAdmin,
                                       currentVenueSessionKey)
 import Application.Helper.Feedback (SupportUnreadFeedbackCount (..),
@@ -77,7 +80,17 @@ instance InitControllerContext WebApplication where
                 deleteSession currentVenueSessionKey
                 putContext (Nothing :: Maybe User)
         initCurrentVenueContext
+        initBillingNavigationContext
         initFeedbackContext
+
+initBillingNavigationContext :: (?context :: ControllerContext) => IO ()
+initBillingNavigationContext =
+    profileActionSpan "context.billing-navigation.init" do
+        deploymentControls <- readStripeDeploymentControls
+        putContext StripeOwnerNavigationVisibility
+            { ownerBillingNavigationVisible =
+                either (const False) (.stripeOwnerNavigationVisible) deploymentControls
+            }
 
 initFeedbackContext :: (?context :: ControllerContext, ?modelContext :: ModelContext) => IO ()
 initFeedbackContext =

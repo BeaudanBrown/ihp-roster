@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { dialogMountDomAttr } from '../frontend/ts/generated/contracts';
 import { E2E_TIMEOUT } from './timeouts';
 import { gotoWhenReady, loginAsPrivilegedUserWithSeededPasskeySession, runSql, webauthnBaseURL } from './test-helpers';
 
@@ -182,7 +183,7 @@ test.describe('Xero timesheet preparation', () => {
             const runResponseText = await runResponse!.text();
             expect(runResponse!.status(), runResponseText).toBe(200);
 
-            const dialog = page.locator('[data-dialog-overlay="true"]');
+            const dialog = page.locator(`[${dialogMountDomAttr}]`);
             const preparationDialog = page.locator('[data-xero-timesheet-preparation-dialog="true"]');
 
             await expect(dialog).toBeVisible({ timeout: E2E_TIMEOUT.assertion });

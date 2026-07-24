@@ -80,6 +80,88 @@ SurfaceFamily
   committed intents. They are server-owned contracts; TypeScript only fills
   validated generated inputs and dispatches the generated trigger. Mount JSON is
   not a mutation transport contract and must not replace DOM-owned HTMX forms.
+- **Form toggle widgets** are server-rendered controls governed by the global
+  generated Toggle contract. The checkbox owns presentation only; a form-local
+  hidden transport owns the explicit submitted value or omission. The generic
+  adapter synchronizes that transport before submission and may control one
+  related native fieldset. Feature JavaScript must not translate toggle meaning,
+  resolve transport by global id, or duplicate break-control behavior.
+- **Workflow dialog and toast lanes** are governed by the focused global Overlay
+  contract for mount ids, browser roles, auto-submit state, and exact mechanical
+  configuration. Overlay rendering does not replace AppShell/Surface Action
+  authority for HTMX forms, and the picker lane remains independent. Bootstrap
+  vocabulary stays adapter-local while disabled and accessibility state use
+  native/ARIA semantics. The generated semantic dismissal event is emitted
+  before every close-control, backdrop, or Escape removal so composed
+  capabilities can react without taking over dialog lifecycle. Full-page
+  provider-navigation forms may use the generated navigation-loading role and
+  exact Haskell-owned title/message config; the adapter synchronously mounts a
+  blocking dialog on valid submit without taking ownership of provider URLs or
+  request authority.
+- **Quarter-hour picker fields** are governed by the focused global TimePicker
+  contract for modal/internal roles plus exact range/step/empty-label and
+  value/label option records. Haskell owns semantic options and copy; the generic
+  adapter rearranges validated server-rendered option nodes and leaves malformed
+  elements intact. It does not own Toggle form transport or break-fieldset
+  activation.
+- **Two-endpoint ordered ranges** are governed by the focused global
+  OrderedRange contract for root/endpoint/availability roles, exact
+  range/step/default/label and initial-state records, generated presentation
+  properties, and a closed crossing policy. The adapter validates one local
+  native checkbox/range/output subtree before mutation, applies
+  `clamp-other-endpoint` mechanically, and leaves request fields plus endpoint
+  validation server-owned. Toggle remains the availability transport owner.
+- **Horizontal drag/snap scrollers** are governed by the focused global
+  HorizontalScroll contract for snap/drag roles and exact mode, item, group,
+  scope, and ignore relationships. Each adapter instance owns one mounted
+  scroller and is disposed with its HTMX replacement subtree. Pointer
+  thresholds, debounce scheduling, click suppression, and transient classes are
+  browser-module state rather than server configuration or DOM authority.
+- **PWA installation pages** are governed by the focused global
+  `PwaInstallContract` for page/button/result/installed roles and the closed
+  result state.
+  Haskell renders all workflow copy; the adapter keeps native install events,
+  prompt objects, and platform detection local. Visibility uses native `hidden`,
+  and status announcements keep ordinary status/live-region semantics rather
+  than duplicating availability or installed state in app attributes.
+- **Passkey workflows** are governed by the focused global `PasskeyContract` for
+  login, registration, setup-prompt, action, device-name, status, recovery, and
+  dismissal roles plus exact tagged local configuration, begin-option,
+  serialized-credential, finish-outcome, and structured-error wire DTOs. Haskell
+  owns routes, redirects, status relationships, closed prompt mode,
+  workflow/recovery copy, and schema-indexed server carriers. The adapter
+  validates each generated root and every server envelope before mutation,
+  credential API invocation, or redirect; generated encoders own outbound
+  credential request shape. WebAuthn platform objects, extension-result
+  semantics, capability detection, base64url conversion, and local-storage
+  hints remain private to the TypeScript adapter. Prompt dismissal composes with
+  the generated Overlay close role and semantic dismissal event, recording the
+  UX hint for close-control, backdrop, and Escape paths; passkey code must not
+  remove dialog DOM or manage focus or body locking itself.
+- **Xero imported-pay-item candidate filters** are governed by the focused global
+  `XeroCandidateFilterContract` for root, search, candidate, and empty-state
+  roles plus exact configuration carrying one opaque normalized projection. The
+  Xero view selects projection fields and renders workflow identity/copy; the
+  adapter parses and diagnoses the exact boundary before generic matching and
+  native visibility changes inside one generated root. Import validation and
+  mutation authority remain server-owned.
+- **Roster fullscreen and column-edit controls** use Surface-owned generated
+  root/control roles and closed collapsed/expanded or inactive/active state.
+  Toggle pressed state remains native `aria-pressed`; icon classes, Escape,
+  focus, and delayed autosave blur are browser mechanics. Each adapter resolves
+  the nearest generated root, reconciles replaced controls locally, and clears
+  pending editor timers when HTMX removes the owning root.
+- **Roster image export** uses Surface-owned trigger, exact configuration,
+  closed JPG format, and projection/row/cell annotations. Haskell resolves the
+  filename, format policy, user copy, and export text. The trigger is rendered
+  only with the supported row-grid projection. TypeScript keeps only measurement,
+  computed-style projection, SVG/Canvas encoding, and download mechanics; it
+  does not infer roster semantics from classes or cell order.
+- **The retained roster week overview** uses generated panel/day/detail-slot
+  roles, exact Haskell-built payloads, native `aria-pressed` selection, and
+  generated availability/closure/calendar state. Malformed day payloads are
+  diagnosed and skipped locally. The capability remains absent from the active
+  roster header and therefore performs no normal-page fetch or navigation.
 
 Views should not handwrite raw interaction `data-bepis-*` attributes, ref names,
 disposable layer mounts, intent forms, HTMX intent attributes, or target ids once
@@ -94,8 +176,11 @@ but browser output retains only production-consumed source refs, dropzone refs,
 activation refs, session definitions/effects, compatible refs, and modifier
 variants. Intent forms, field presence, layers, conflict policies, and dynamic
 keys remain concrete mount-local HTML rendered by `SurfaceImpl` and view helpers.
-The browser registry does not duplicate action catalogs, DTO aliases, complete
-static schemas, or server-only Surface metadata.
+The interaction registry does not duplicate action catalogs, complete static
+schemas, or server-only Surface metadata. Separately, explicitly
+browser-reachable Surface DTOs and focused capability registries may be emitted
+when a generic adapter consumes them; plain server-only `Dto` declarations stay
+absent from TypeScript.
 
 Generated role-specific DOM refs are intentionally small and readable. The exact
 attribute names are backend-owned constants in generated/shared contracts, not
@@ -131,9 +216,12 @@ participate in generated DOM ids, live-fragment target ids, server layer ids,
 disposable layer ids, intent form ids, HTMX targets, and any runtime lookup key
 that could otherwise collide.
 
-Generic TypeScript must resolve markers, forms, disposable layers, and fragment
-refs inside the same concrete mount. It must not use global hardcoded target ids
-or infer a singleton surface for a scope.
+Generic TypeScript must resolve markers, forms, disposable layers, fragment
+refs, generated sort roles, and generated tab roles inside the same concrete
+mount. It must not use global hardcoded target ids, presentation classes, or
+infer a singleton surface for a scope. A reconciliation callback may receive an
+inner HTMX replacement node; adapters must still recover its nearest owning
+mount without crossing into nested mounts.
 
 ## Golden Path
 
@@ -324,7 +412,10 @@ the generated intent, intent-field, and field-presence DOM vocabulary.
 Use standard HTMX first: generated forms, custom event `hx-trigger`, lifecycle
 events for cleanup, `hx-sync`/`hx-disabled-elt` for request concurrency where
 useful, and OOB swaps for authoritative actor responses, toasts, and dialog
-cleanup. Generic UI region lifecycle events (`bepis:region-*`) belong only on
+cleanup. Generic lifecycle adapters must initialize a connected replacement
+root; when HTMX leaves `detail.target` pointing at detached OOB content, use the
+connected event target rather than scanning stale DOM. Generic UI region
+lifecycle events (`bepis:region-*`) belong only on
 server-declared fragment roots and complement, but do not replace, typed
 interaction session events. Do not start with HTMX extensions or custom
 elements; revisit them only after repeated stable lifecycle behavior justifies

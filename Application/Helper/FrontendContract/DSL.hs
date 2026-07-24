@@ -74,6 +74,7 @@ data WireType
     | WireBool
     | WireUUID
     | WireDay
+    | WireUnknown
     | WireList WireType
     | WireOptional WireType
     | WireNullable WireType

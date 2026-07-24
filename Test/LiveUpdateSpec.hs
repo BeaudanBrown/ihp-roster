@@ -25,8 +25,9 @@ import Application.Helper.FrontendContract.Surface.Runtime (FrontendSurfaceMount
 import qualified Application.Helper.FrontendContract.Surface.Support.Live as SupportLive
 import qualified Application.Helper.FrontendContract.Surface.Timesheets as Timesheets
 import qualified Application.Helper.FrontendContract.Surface.Timesheets.Live as TimesheetsLive
-import Application.Helper.FrontendContract.Surface.Values (SurfaceFields (..),
-                                                           surfaceField)
+import Application.Helper.FrontendContract.Surface.Values (SurfaceFields,
+                                                           noSurfaceFields,
+                                                           surfaceField, (&:))
 import Application.Helper.FrontendContract.Wire.Json (validateContractMarkerValue,
                                                       validateSurfaceFragmentKeyValue,
                                                       validateSurfaceScopeValue)
@@ -53,18 +54,30 @@ tests = describe "LiveUpdate runtime types" do
         let scope =
                 frontendSurfaceScope @Timesheets.TimesheetsSurface @Timesheets.TimesheetWeek
                     ( surfaceField @Timesheets.VenueId venueId
-                        :& surfaceField @Timesheets.WeekOffset 4
-                        :& NoSurfaceFields
+                        &: surfaceField @Timesheets.WeekOffset 4
+                        &: noSurfaceFields
                     )
         let fragmentKey =
                 frontendSurfaceFragmentKey @Timesheets.TimesheetsSurface @Timesheets.TimesheetDaySection
-                    (surfaceField @Timesheets.DayOffset 2 :& NoSurfaceFields)
+                    (surfaceField @Timesheets.DayOffset 2 &: noSurfaceFields)
 
         matchFrontendSurfaceScope @Timesheets.TimesheetsSurface @Timesheets.TimesheetWeek scope
             `shouldBe` Just (venueId, (4, ()))
         matchFrontendSurfaceFragmentKey @Timesheets.TimesheetsSurface @Timesheets.TimesheetDaySection fragmentKey
             `shouldBe` Just (2, ())
         matchFrontendSurfaceFragmentKey @Timesheets.TimesheetsSurface @Timesheets.TimesheetToolbar fragmentKey
+            `shouldBe` Nothing
+
+    it "matches generated zero-field and parameterized Live fragments through the curated facade" do
+        let parameterized = TimesheetsLive.timesheetDaySectionLiveFragment 2
+
+        TimesheetsLive.matchTimesheetDaySectionLiveFragment parameterized
+            `shouldBe` Just (2, ())
+        TimesheetsLive.matchTimesheetToolbarLiveFragment TimesheetsLive.timesheetToolbarLiveFragment
+            `shouldBe` Just ()
+        TimesheetsLive.matchTimesheetDayColumnsLiveFragment TimesheetsLive.timesheetDayColumnsLiveFragment
+            `shouldBe` Just ()
+        TimesheetsLive.matchTimesheetToolbarLiveFragment parameterized
             `shouldBe` Nothing
 
     it "encodes websocket invalidations with semantic fragment keys only" do
@@ -116,7 +129,7 @@ tests = describe "LiveUpdate runtime types" do
                 , AdminLive.adminInvitesLiveScope venueId
                 , AdminLive.adminExportsLiveScope venueId
                 , AdminLive.adminXeroLiveScope venueId
-                , BillingLive.billingLiveScope venueId
+                , BillingLive.billingVenueLiveScope venueId
                 , LeaveLive.leaveRequestsLiveScope venueId
                 , TimesheetsLive.timesheetWeekLiveScope venueId 2
                 , ProfileLive.profileLiveScope venueId staffId
@@ -134,22 +147,38 @@ tests = describe "LiveUpdate runtime types" do
                 , RosterLive.rosterRowLiveFragment rosterDayId 1
                 , leavePendingCountLiveFragment
                 , TimesheetsLive.timesheetDaySectionLiveFragment 4
-                , AdminLive.adminVenueConfigLiveFragment
+                , AdminLive.adminVenueSettingsLiveFragment
                 , AdminLive.adminInvitesLiveFragment
                 , AdminLive.adminExportsLiveFragment
                 , AdminLive.adminShiftTypesLiveFragment
                 , AdminLive.adminRosterGroupsLiveFragment
                 , AdminLive.adminXeroShellLiveFragment
                 , BillingLive.billingStatusLiveFragment
-                , ProfileLive.profileDetailsLiveFragment
-                , SupportLive.supportAwardRatesSectionLiveFragment
-                , SupportLive.supportPublicHolidaysSectionLiveFragment
+                , ProfileLive.profileDetailsSectionLiveFragment
+                , SupportLive.supportAwardRatesLiveFragment
+                , SupportLive.supportPublicHolidaysLiveFragment
                 ]
 
         forM_ fragmentKeys \fragmentKey ->
             Aeson.decode (Aeson.encode fragmentKey) `shouldBe` Just fragmentKey
 
-    it "keeps wire fragment payloads semantic and non-executable" do
+    it "pins the canonical scope JSON boundary across generated adapter migration" do
+        let venueId = expectUuid "11111111-1111-1111-1111-111111111111"
+        let rosterGroupId = expectUuid "33333333-3333-3333-3333-333333333333"
+        let scope = RosterLive.rosterWeekLiveScope venueId rosterGroupId (-1)
+
+        Aeson.toJSON scope
+            `shouldBe`
+                Aeson.object
+                    [ "surface" Aeson..= ("roster" :: Text)
+                    , "scope" Aeson..= Aeson.object
+                        [ "venueId" Aeson..= UUID.toText venueId
+                        , "rosterGroupId" Aeson..= UUID.toText rosterGroupId
+                        , "weekOffset" Aeson..= (-1 :: Int)
+                        ]
+                    ]
+
+    it "pins the canonical fragment-key JSON boundary across generated adapter migration" do
         let rosterDayId = expectUuid "22222222-2222-2222-2222-222222222222"
         let fragmentKey = RosterLive.rosterRowLiveFragment rosterDayId 2
 
@@ -164,7 +193,7 @@ tests = describe "LiveUpdate runtime types" do
                         ]
                     ]
 
-    it "uses stable live scope keys for client/server subscription matching" do
+    it "pins stable scope keys across generated adapter migration" do
         let venueId = expectUuid "11111111-1111-1111-1111-111111111111"
         let rosterGroupId = expectUuid "33333333-3333-3333-3333-333333333333"
         let staffId = expectUuid "44444444-4444-4444-4444-444444444444"
@@ -183,7 +212,7 @@ tests = describe "LiveUpdate runtime types" do
             `shouldBe` "admin-exports:11111111-1111-1111-1111-111111111111"
         surfaceScopeKey (AdminLive.adminXeroLiveScope venueId)
             `shouldBe` "admin-xero:11111111-1111-1111-1111-111111111111"
-        surfaceScopeKey (BillingLive.billingLiveScope venueId)
+        surfaceScopeKey (BillingLive.billingVenueLiveScope venueId)
             `shouldBe` "billing:11111111-1111-1111-1111-111111111111"
         surfaceScopeKey (LeaveLive.leaveRequestsLiveScope venueId)
             `shouldBe` "leave-requests:11111111-1111-1111-1111-111111111111"
@@ -374,6 +403,21 @@ tests = describe "LiveUpdate runtime types" do
         result.broadcastCoalescedFragmentCount `shouldBe` 1
         result.broadcastDroppedSubscriptions `shouldBe` 0
 
+    it "recovers active Timesheet week scopes for context-free resource fanout" do
+        let venueId = expectUuid "11111111-1111-1111-1111-111111111111"
+        let scope = TimesheetsLive.timesheetWeekLiveScope venueId 3
+        let subscription =
+                SurfaceSubscription
+                    { subscriptionScope = scope
+                    , subscriptionScopeKey = surfaceScopeKey scope
+                    , subscriptionFragmentKeys = [TimesheetsLive.timesheetToolbarLiveFragment]
+                    }
+        bus <- newInMemoryLiveBus
+
+        TimesheetsLive.activeTimesheetWeekScopesWithBus bus `shouldReturn` []
+        registerSurfaceSubscriptionWithBus bus venueId subscription (error "unused websocket connection")
+        TimesheetsLive.activeTimesheetWeekScopesWithBus bus `shouldReturn` [(venueId, 3)]
+
     it "reports broadcast fanout counts for profiling hooks" do
         let venueId = expectUuid "11111111-1111-1111-1111-111111111111"
         let scope = LeaveLive.leaveRequestsLiveScope venueId
@@ -413,8 +457,8 @@ tests = describe "LiveUpdate runtime types" do
     it "projects FrontendSurface support mounts to semantic fragment keys" do
         supportSurfaceFragmentKeys supportCandidateMountedFragments
             `shouldBe`
-                [ SupportLive.supportAwardRatesSectionLiveFragment
-                , SupportLive.supportPublicHolidaysSectionLiveFragment
+                [ SupportLive.supportAwardRatesLiveFragment
+                , SupportLive.supportPublicHolidaysLiveFragment
                 ]
 
     it "validates live subscriptions from generated FrontendSurface metadata" do

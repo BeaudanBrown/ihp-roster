@@ -5,7 +5,8 @@
 -- Domain-specific Surface topology remains in @Surface.ContractIR@; consumers
 -- should use these types directly instead of defining a renderer-facing copy.
 module Application.Helper.FrontendContract.Core
-    ( ContractDiagnostic (..)
+    ( BrowserReachabilityIR (..)
+    , ContractDiagnostic (..)
     , FieldIR (..)
     , FieldPresence (..)
     , HtmxActionOptionIR (..)
@@ -34,6 +35,18 @@ module Application.Helper.FrontendContract.Core
 import qualified Data.List as List
 import qualified Data.Text as Text
 import IHP.Prelude
+
+-- | Browser operations emitted for one checked schema/event declaration.
+-- Global and Surface roots share this representation so projection stays a
+-- decision-free renderer over checked IR.
+data BrowserReachabilityIR
+    = BrowserUnreachableIR
+    | BrowserTypeOnlyIR
+    | BrowserGuardIR
+    | BrowserInboundIR
+    | BrowserOutboundIR
+    | BrowserBidirectionalIR
+    deriving (Eq, Show)
 
 -- | Shared checked representation used by both global contract declarations and
 -- domain-specific Surface topology. Feature semantics remain in their own IR

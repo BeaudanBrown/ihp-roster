@@ -22,6 +22,7 @@ CSS_FILES += static/css/components/forms.css
 CSS_FILES += static/css/components/buttons.css
 CSS_FILES += static/css/components/bootstrap-overrides.css
 CSS_FILES += static/css/components/accordions.css
+CSS_FILES += static/css/components/toggles.css
 CSS_FILES += static/css/components/admin.css
 CSS_FILES += static/css/components/week-toolbar.css
 CSS_FILES += static/css/components/admin-responsive.css

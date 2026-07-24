@@ -1,4 +1,19 @@
 import { test, expect, Page } from '@playwright/test';
+import {
+    dialogMountDomAttr,
+    dialogOverlayMountDomId,
+    orderedRangeAvailabilityDomAttr,
+    orderedRangeConfigDomAttr,
+    orderedRangeEndDomAttr,
+    orderedRangeEndPositionProperty,
+    orderedRangeRootDomAttr,
+    orderedRangeStartDomAttr,
+    orderedRangeStartPositionProperty,
+    orderedRangeStateDomAttr,
+    pageReadyEvent,
+    parseOrderedRangeConfig,
+    parseOrderedRangeState,
+} from '../frontend/ts/generated/contracts';
 import { gotoWhenReady, loginAs, openRoster } from './test-helpers';
 import { E2E_TIMEOUT } from './timeouts';
 
@@ -286,7 +301,7 @@ test.describe('Styling regression contracts', () => {
         expect(metrics?.bodyBorderRadius).toBe('0px 0px 13.4px 13.4px');
     });
 
-    test('keeps profile shift preference sliders aligned after HTMX save', async ({ page }) => {
+    test('preserves profile ordered-range crossing, availability, labels, and HTMX values', async ({ page }) => {
         await loginAs(page, 'e2e-worker@example.com', 'test-password-123');
         await gotoWhenReady(page, '/EditProfile?section=profile', '#profile-content-fragment');
         const profileDetailsToggle = page.getByRole('button', { name: 'Profile Details', exact: true });
@@ -299,62 +314,136 @@ test.describe('Styling regression contracts', () => {
             await shiftPreferencesToggle.click();
         }
 
-        const firstPreferenceRow = page.locator('[data-shift-preference-window]').first();
-        await expect(firstPreferenceRow).toBeVisible();
+        const rangeRoots = page.locator(`[${orderedRangeRootDomAttr}]`);
+        const firstRange = rangeRoots.first();
+        await expect(firstRange).toBeVisible();
+
+        const rawConfig = await firstRange.getAttribute(orderedRangeConfigDomAttr);
+        const rawState = await firstRange.getAttribute(orderedRangeStateDomAttr);
+        if (rawConfig === null || rawState === null) throw new Error('Expected generated ordered-range payloads');
+        const config = parseOrderedRangeConfig(JSON.parse(rawConfig));
+        parseOrderedRangeState(JSON.parse(rawState));
+
+        const diagnostics: string[] = [];
+        page.on('console', (message) => {
+            if (message.type() === 'error') diagnostics.push(message.text());
+        });
+        const malformedResult = await firstRange.evaluate((root, contract) => {
+            if (!(root instanceof HTMLElement) || root.parentElement === null) {
+                throw new Error('Expected mounted ordered-range root');
+            }
+            const clone = root.cloneNode(true);
+            if (!(clone instanceof HTMLElement)) throw new Error('Expected cloned ordered-range root');
+            const cloneConfig = clone.getAttribute(contract.configAttr);
+            if (cloneConfig === null) throw new Error('Expected cloned ordered-range config');
+            clone.setAttribute(contract.configAttr, JSON.stringify({ ...JSON.parse(cloneConfig), extra: true }));
+            root.parentElement.append(clone);
+            const beforeInitialization = clone.outerHTML;
+            document.dispatchEvent(new CustomEvent(contract.readyEvent, { detail: { target: clone } }));
+            const afterInitialization = clone.outerHTML;
+            clone.remove();
+            return { beforeInitialization, afterInitialization };
+        }, { configAttr: orderedRangeConfigDomAttr, readyEvent: pageReadyEvent });
+        expect(malformedResult.afterInitialization).toBe(malformedResult.beforeInitialization);
+        await expect.poll(
+            () => diagnostics.some((message) => message.includes('Invalid generated ordered-range configuration')),
+            { timeout: E2E_TIMEOUT.assertion },
+        ).toBe(true);
+
+        const startInput = firstRange.locator(`[${orderedRangeStartDomAttr}]`);
+        const endInput = firstRange.locator(`[${orderedRangeEndDomAttr}]`);
+        const availabilityInput = firstRange.locator(`[${orderedRangeAvailabilityDomAttr}] input[type="checkbox"]`);
+        await expect(startInput).toHaveAccessibleName('Earliest preferred start');
+        await expect(endInput).toHaveAccessibleName('Latest preferred start');
+
+        if (!(await availabilityInput.isChecked())) {
+            await firstRange.locator(`[${orderedRangeAvailabilityDomAttr}] label`).click();
+        }
+        await expect(startInput).toBeEnabled();
+        await expect(endInput).toBeEnabled();
+
+        const dispatchRangeInput = async (input: ReturnType<typeof firstRange.locator>, value: number) => {
+            await input.evaluate((element, nextValue) => {
+                if (!(element instanceof HTMLInputElement)) throw new Error('Expected native range input');
+                element.value = String(nextValue);
+                element.dispatchEvent(new Event('input', { bubbles: true }));
+            }, value);
+        };
+
+        await dispatchRangeInput(endInput, config.minimumValue);
+        await dispatchRangeInput(startInput, config.maximumValue);
+        await expect(startInput).toHaveValue(String(config.maximumValue));
+        await expect(endInput).toHaveValue(String(config.maximumValue));
+
+        await dispatchRangeInput(endInput, config.minimumValue);
+        await expect(startInput).toHaveValue(String(config.minimumValue));
+        await expect(endInput).toHaveValue(String(config.minimumValue));
+
+        await dispatchRangeInput(endInput, config.defaultEndValue);
+        await dispatchRangeInput(startInput, config.defaultStartValue);
+        await expect(startInput).toHaveValue(String(config.defaultStartValue));
+        await expect(endInput).toHaveValue(String(config.defaultEndValue));
+
+        const startId = await startInput.getAttribute('id');
+        const endId = await endInput.getAttribute('id');
+        const startName = await startInput.getAttribute('name');
+        const endName = await endInput.getAttribute('name');
+        if (startId === null || endId === null || startName === null || endName === null) {
+            throw new Error('Expected named and labelled ordered-range endpoints');
+        }
+        const startLabelIndex = (config.defaultStartValue - config.minimumValue) / config.stepValue;
+        const endLabelIndex = (config.defaultEndValue - config.minimumValue) / config.stepValue;
+        await expect(firstRange.locator(`output[for="${startId}"]`)).toHaveText(config.valueLabels[startLabelIndex]);
+        await expect(firstRange.locator(`output[for="${endId}"]`)).toHaveText(config.valueLabels[endLabelIndex]);
+
+        await firstRange.locator(`[${orderedRangeAvailabilityDomAttr}] label`).click();
+        await expect(startInput).toBeDisabled();
+        await expect(endInput).toBeDisabled();
+        await firstRange.locator(`[${orderedRangeAvailabilityDomAttr}] label`).click();
+        await expect(startInput).toBeEnabled();
+        await expect(endInput).toBeEnabled();
 
         await page.evaluate(() => window.scrollTo(0, 240));
         const beforeScrollY = await page.evaluate(() => window.scrollY);
-
         const saveButton = page.locator('#profile-shift-preferences-form button[type="submit"]');
-        await Promise.all([
+        const [request] = await Promise.all([
+            page.waitForRequest((candidate) => candidate.url().includes('/UpdateProfile') && candidate.method() === 'POST'),
             page.waitForResponse((response) => response.url().includes('/UpdateProfile') && response.request().method() === 'POST'),
             saveButton.click(),
         ]);
+        const submitted = new URLSearchParams(request.postData() ?? '');
+        expect(submitted.get(startName)).toBe(String(config.defaultStartValue));
+        expect(submitted.get(endName)).toBe(String(config.defaultEndValue));
         await expect(page.locator('#profile-content-fragment')).toBeVisible({ timeout: E2E_TIMEOUT.assertion });
 
-        const metrics = await page.locator('[data-shift-preference-window]').evaluateAll((rows) => {
-            const formatHour = (hour: number) => {
-                if (hour === 0) return '12 AM';
-                if (hour < 12) return `${hour} AM`;
-                if (hour === 12) return '12 PM';
-                return `${hour - 12} PM`;
-            };
+        const refreshedStart = page.locator(`[${orderedRangeStartDomAttr}][name="${startName}"]`);
+        const refreshedEnd = page.locator(`[${orderedRangeEndDomAttr}][name="${endName}"]`);
+        await expect(refreshedStart).toHaveValue(String(config.defaultStartValue));
+        await expect(refreshedEnd).toHaveValue(String(config.defaultEndValue));
 
-            return rows.map((row) => {
-                if (!(row instanceof HTMLElement)) throw new Error('Expected shift preference row');
-
-                const startInput = row.querySelector('[data-shift-preference-start]');
-                const startLabel = row.querySelector('[data-shift-preference-start-label]');
-                const fill = row.querySelector('[data-shift-preference-fill]');
-
-                if (!(startInput instanceof HTMLInputElement) || !(startLabel instanceof HTMLElement) || !(fill instanceof HTMLElement)) {
-                    return null;
-                }
-
-                const minHour = Number.parseInt(row.dataset.minHour || startInput.min || '5', 10);
-                const maxHour = Number.parseInt(row.dataset.maxHour || startInput.max || '23', 10);
-                const startHour = Number.parseInt(startInput.value, 10);
-                const expectedStartPercent = ((startHour - minHour) / Math.max(1, maxHour - minHour)) * 100;
-
-                return {
-                    startValue: startInput.value,
-                    expectedStartLabel: formatHour(startHour),
-                    startLabel: startLabel.textContent?.trim(),
-                    startCss: row.style.getPropertyValue('--preference-start'),
-                    fillLeft: getComputedStyle(fill).left,
-                    expectedStartPercent,
-                };
-            });
-        });
-        const scrollY = await page.evaluate(() => window.scrollY);
-
-        expect(metrics.every(Boolean)).toBe(true);
-        for (const rowMetrics of metrics) {
-            expect(rowMetrics?.startLabel).toBe(rowMetrics?.expectedStartLabel);
-            expect(rowMetrics?.startCss).not.toBe('');
-            expect(Number.parseFloat(rowMetrics?.startCss ?? '')).toBeCloseTo(rowMetrics?.expectedStartPercent ?? 0, 1);
-            expect(rowMetrics?.fillLeft).not.toBe('0px');
+        for (let index = 0; index < await rangeRoots.count(); index += 1) {
+            const root = rangeRoots.nth(index);
+            const endpoint = root.locator(`[${orderedRangeStartDomAttr}]`);
+            const endpointId = await endpoint.getAttribute('id');
+            const endpointValue = Number(await endpoint.inputValue());
+            const configJson = await root.getAttribute(orderedRangeConfigDomAttr);
+            if (endpointId === null || configJson === null) throw new Error('Expected complete ordered-range row');
+            const rowConfig = parseOrderedRangeConfig(JSON.parse(configJson));
+            const labelIndex = (endpointValue - rowConfig.minimumValue) / rowConfig.stepValue;
+            await expect(root.locator(`output[for="${endpointId}"]`)).toHaveText(rowConfig.valueLabels[labelIndex]);
+            const startCss = await root.evaluate((element, property) => {
+                if (!(element instanceof HTMLElement)) throw new Error('Expected ordered-range root');
+                return element.style.getPropertyValue(property);
+            }, orderedRangeStartPositionProperty);
+            const endCss = await root.evaluate((element, property) => {
+                if (!(element instanceof HTMLElement)) throw new Error('Expected ordered-range root');
+                return element.style.getPropertyValue(property);
+            }, orderedRangeEndPositionProperty);
+            expect(startCss).not.toBe('');
+            expect(endCss).not.toBe('');
         }
+
+        const scrollY = await page.evaluate(() => window.scrollY);
         expect(scrollY).toBeGreaterThan(Math.max(0, beforeScrollY - 120));
     });
 
@@ -449,9 +538,9 @@ test.describe('Styling regression contracts', () => {
         await expectStylesheetServed(page, '/css/overlays.css');
 
         await page.getByRole('button', { name: 'feedback', exact: true }).click();
-        await expect(page.locator('#dialog-overlay-mount [data-dialog-overlay="true"]')).toBeVisible();
+        await expect(page.locator(`#${dialogOverlayMountDomId} [${dialogMountDomAttr}]`)).toBeVisible();
 
-        const modalMetrics = await page.locator('#dialog-overlay-mount [data-dialog-overlay="true"]').evaluate((dialog) => {
+        const modalMetrics = await page.locator(`#${dialogOverlayMountDomId} [${dialogMountDomAttr}]`).evaluate((dialog) => {
             if (!(dialog instanceof HTMLElement)) {
                 throw new Error('Expected workflow dialog overlay to be an HTMLElement');
             }

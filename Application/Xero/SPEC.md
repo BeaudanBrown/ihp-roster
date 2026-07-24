@@ -13,6 +13,11 @@ lands.
   flows and should remain native full-page/session flows unless a specific
   ticket requires in-place behavior.
 - Xero reference-data and pay-item operations are venue-scoped.
+- Imported-pay-item candidate filtering receives one opaque normalized
+  name/account-code search projection in an exact Haskell-rendered config.
+  Browser code validates that boundary, then performs only root-local generic
+  matching and visibility; earnings-rate ids, checkbox
+  fields, validation, and import mutations remain server-owned.
 - The Xero page is a minimal connection shell. It may start reference sync,
   open the imported-pay-item dialog, or launch guided timesheet preparation,
   but it must not load or render standalone staff-mapping, earnings-mapping,

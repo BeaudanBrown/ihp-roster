@@ -9,7 +9,8 @@ module Web.LeaveRequests.Mutations
 import Application.Helper.FrontendContract.Surface.LeaveRequests.Resource
 import Application.Helper.FrontendContract.Surface.Profile.Resource (staffLeaveRequestsResource)
 import Application.Helper.FrontendContract.Surface.Roster.Live (activeRosterWeekScopes)
-import Application.Helper.FrontendContract.Surface.Roster.Resource (rosterWeekResource)
+import Application.Helper.FrontendContract.Surface.Roster.Resource (rosterSlotsContentResource,
+                                                                    rosterWeekResource)
 import Application.Helper.SurfaceResource
 import Application.Helper.WeekBoundaries (affectedVenueWeekOffsetsForDateRange)
 import Control.Monad (void)
@@ -115,11 +116,15 @@ leaveReviewRosterWeekResources activeScopes venueConfig decision wasApproved lea
     | not (reviewDecisionChangesRoster decision wasApproved) = []
     | otherwise =
         Set.toList $ Set.fromList
-            [ rosterWeekResource rosterGroupId weekOffset
+            [ resource
             | weekOffset <- affectedVenueWeekOffsetsForDateRange venueConfig leaveRequest.startDate leaveRequest.endDate
             , (activeVenueId, rosterGroupId, activeWeekOffset) <- activeScopes
             , activeVenueId == leaveRequest.venueId
             , activeWeekOffset == weekOffset
+            , resource <-
+                [ rosterWeekResource rosterGroupId weekOffset
+                , rosterSlotsContentResource rosterGroupId weekOffset
+                ]
             ]
 
 reviewDecisionStatus :: LeaveReviewDecision -> LeaveRequestStatus

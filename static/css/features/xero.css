@@ -1,3 +1,7 @@
+[data-bepis-xero-candidate-filter-candidate][hidden] {
+    display: none !important;
+}
+
 .xero-staff-mappings-table {
     table-layout: fixed;
 }

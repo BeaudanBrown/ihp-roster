@@ -1,38 +1,43 @@
 module Web.Billing.Mutations
     ( billingTouchedResources
-    , createVenueBillingCustomerMutation
-    , recordBillingWebhookMutation
+    , startOrResumeBillingCheckoutMutation
     , updateVenueBillingControlMutation
     ) where
 
-import Application.Billing.Webhook (BillingWebhookResult (..))
+import Application.Billing.Checkout (CheckoutStartResult (..),
+                                     startOrResumeCheckout)
+import Application.Billing.Stripe (StripeClient, StripeConfig)
 import Application.Helper.FrontendContract.Surface.Billing.Resource (billingResource)
 import Application.Helper.SurfaceResource
 import Control.Monad (void)
 import qualified Data.Aeson as Aeson
 import qualified Data.Text as Text
 import Web.Controller.Prelude
-import Web.SurfaceInvalidation (invalidateTouchedResources,
-                                invalidateTouchedResourcesWithoutContext)
+import Web.SurfaceInvalidation (invalidateTouchedResources)
 
 billingTouchedResources :: Id Venue -> [SurfaceResourceValue]
 billingTouchedResources venueId =
     [billingResource (unpackId venueId)]
 
-createVenueBillingCustomerMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Text -> IO (LiveMutationResult VenueBillingCustomer)
-createVenueBillingCustomerMutation stripeCustomerId = do
-    customer <-
-        newRecord @VenueBillingCustomer
-            |> set #venueId (unpackId currentVenueId)
-            |> set #stripeCustomerId stripeCustomerId
-            |> createRecord
-    void $ recordCurrentUserAuditEvent
-        "billing_customer_created"
-        "venue_billing_customers"
-        (unpackId customer.id)
-        (Aeson.object ["stripeCustomerId" Aeson..= customer.stripeCustomerId])
-    invalidateTouchedResources "billing.customer.create" $
-        liveMutationResult customer (billingTouchedResources currentVenueId)
+startOrResumeBillingCheckoutMutation
+    :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request)
+    => StripeClient
+    -> StripeConfig
+    -> Venue
+    -> User
+    -> (Id BillingCheckoutAttempt -> Text)
+    -> (Id BillingCheckoutAttempt -> Text)
+    -> IO (LiveMutationResult CheckoutStartResult)
+startOrResumeBillingCheckoutMutation stripeClient stripeConfig venue owner successUrlFor cancelUrlFor = do
+    result <- startOrResumeCheckout stripeClient stripeConfig venue owner successUrlFor cancelUrlFor
+    forM_ result.checkoutCreatedCustomer \customer ->
+        void $ recordCurrentUserAuditEvent
+            "billing_customer_created"
+            "venue_billing_customers"
+            (unpackId customer.id)
+            (Aeson.object ["stripeCustomerId" Aeson..= customer.stripeCustomerId])
+    invalidateTouchedResources "billing.checkout.start-or-resume" $
+        liveMutationResult result (billingTouchedResources currentVenueId)
 
 updateVenueBillingControlMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Bool -> Text -> UTCTime -> IO (LiveMutationResult VenueBillingControl)
 updateVenueBillingControlMutation manualReadOnly reason now = do
@@ -69,16 +74,3 @@ updateVenueBillingControlMutation manualReadOnly reason now = do
         liveMutationResult control (billingTouchedResources currentVenueId)
     where
         normalizedReason = if Text.null reason then Nothing else Just reason
-
-recordBillingWebhookMutation :: BillingWebhookResult -> IO (LiveMutationResult BillingWebhookResult)
-recordBillingWebhookMutation result =
-    case billingWebhookResultVenueId result of
-        Nothing -> pure (liveMutationResult result [])
-        Just venueId ->
-            invalidateTouchedResourcesWithoutContext "billing.webhook" $
-                liveMutationResult result [billingResource venueId]
-
-billingWebhookResultVenueId :: BillingWebhookResult -> Maybe UUID
-billingWebhookResultVenueId (BillingWebhookProcessed event) = event.venueId
-billingWebhookResultVenueId (BillingWebhookDuplicate event) = event.venueId
-billingWebhookResultVenueId (BillingWebhookIgnored event)   = event.venueId

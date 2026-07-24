@@ -1,38 +1,39 @@
-{-# LANGUAGE TypeApplications #-}
-
 module Application.Helper.FrontendContract.Surface.Timesheets.Live
-    ( matchTimesheetWeekLiveScope
+    ( activeTimesheetWeekScopes
+    , activeTimesheetWeekScopesWithBus
+    , matchTimesheetDayColumnsLiveFragment
+    , matchTimesheetDaySectionLiveFragment
+    , matchTimesheetToolbarLiveFragment
+    , matchTimesheetWeekLiveScope
     , timesheetDayColumnsLiveFragment
     , timesheetDaySectionLiveFragment
     , timesheetToolbarLiveFragment
     , timesheetWeekLiveScope
     ) where
 
-import Application.Helper.FrontendContract.Surface.Live
-import qualified Application.Helper.FrontendContract.Surface.Timesheets as Surface
-import Application.Helper.FrontendContract.Surface.Values
+import Application.Helper.FrontendContract.Surface.Live (SurfaceScope)
+import Application.Helper.FrontendContract.Surface.Timesheets.Generated.Live (matchTimesheetDayColumnsLiveFragment,
+                                                                              matchTimesheetDaySectionLiveFragment,
+                                                                              matchTimesheetToolbarLiveFragment,
+                                                                              timesheetDayColumnsLiveFragment,
+                                                                              timesheetDaySectionLiveFragment,
+                                                                              timesheetToolbarLiveFragment,
+                                                                              timesheetWeekLiveScope)
+import qualified Application.Helper.FrontendContract.Surface.Timesheets.Generated.Live as Generated
+import Application.Helper.LiveUpdate.Runtime (LiveBus,
+                                              activeSurfaceScopeMatches,
+                                              activeSurfaceScopeMatchesWithBus)
 import qualified Data.UUID as UUID
 import IHP.Prelude
 
-timesheetWeekLiveScope :: UUID.UUID -> Int -> SurfaceScope
-timesheetWeekLiveScope venueId weekOffset =
-    frontendSurfaceScope @Surface.TimesheetsSurface @Surface.TimesheetWeek
-        ( surfaceField @Surface.VenueId venueId
-            :& surfaceField @Surface.WeekOffset weekOffset
-            :& NoSurfaceFields
-        )
-
 matchTimesheetWeekLiveScope :: SurfaceScope -> Maybe (UUID.UUID, Int)
 matchTimesheetWeekLiveScope scope = do
-    (venueId, (weekOffset, ())) <-
-        matchFrontendSurfaceScope @Surface.TimesheetsSurface @Surface.TimesheetWeek scope
+    (venueId, (weekOffset, ())) <- Generated.matchTimesheetWeekLiveScope scope
     pure (venueId, weekOffset)
 
-timesheetToolbarLiveFragment, timesheetDayColumnsLiveFragment :: SurfaceFragmentKey
-timesheetToolbarLiveFragment = frontendSurfaceFragmentKey @Surface.TimesheetsSurface @Surface.TimesheetToolbar NoSurfaceFields
-timesheetDayColumnsLiveFragment = frontendSurfaceFragmentKey @Surface.TimesheetsSurface @Surface.TimesheetDayColumns NoSurfaceFields
+activeTimesheetWeekScopes :: IO [(UUID.UUID, Int)]
+activeTimesheetWeekScopes = activeSurfaceScopeMatches matchTimesheetWeekLiveScope
 
-timesheetDaySectionLiveFragment :: Int -> SurfaceFragmentKey
-timesheetDaySectionLiveFragment dayOffset =
-    frontendSurfaceFragmentKey @Surface.TimesheetsSurface @Surface.TimesheetDaySection
-        (surfaceField @Surface.DayOffset dayOffset :& NoSurfaceFields)
+activeTimesheetWeekScopesWithBus :: LiveBus -> IO [(UUID.UUID, Int)]
+activeTimesheetWeekScopesWithBus bus =
+    activeSurfaceScopeMatchesWithBus bus matchTimesheetWeekLiveScope

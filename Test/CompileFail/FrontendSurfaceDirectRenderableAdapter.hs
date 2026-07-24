@@ -1,0 +1,5 @@
+module Test.CompileFail.FrontendSurfaceDirectRenderableAdapter where
+
+import Application.Helper.FrontendContract.Surface.HaskellAdapter.Core
+
+bypassedCheckedResolution = RenderableAdapter

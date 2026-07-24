@@ -12,57 +12,57 @@ Use project scripts via the repo environment wrapper:
 
 ## Access and onboarding
 
-- Venue bootstrap and owner/admin assignment flow.
-- Public signup does not grant privileged venue access.
-- Profile-completion gate behavior.
-- Venue-membership role restrictions.
-- Global `users` fields do not bypass venue membership checks.
-- Venue isolation on reads and writes.
-- Export permission restrictions.
+- **A1** — Venue bootstrap and owner/admin assignment flow.
+- **A2** — Public signup does not grant privileged venue access.
+- **A3** — Profile-completion gate behavior.
+- **A4** — Venue-membership role restrictions.
+- **A5** — Global `users` fields do not bypass venue membership checks.
+- **A6** — Venue isolation on reads and writes.
+- **A7** — Export permission restrictions.
 
 ## Rostering
 
-- Draft vs live visibility behavior.
-- Manager/Admin publish permissions.
-- Week-copy creates draft target.
-- Conflict detection ordering and rendering.
-- Late-to-Early start-to-start threshold logic.
+- **R1** — Draft vs live visibility behavior.
+- **R2** — Manager/Admin publish permissions.
+- **R3** — Week-copy creates draft target.
+- **R4** — Conflict detection ordering and rendering.
+- **R5** — Late-to-Early start-to-start threshold logic.
 
 ## Timesheets and leave
 
-- 15-minute exact increment validation.
-- Approval reset on staff edit of approved entry.
-- Leave date validation and status transitions.
-- Conflict recalculation after leave approval.
-- Correction history or audit event creation for approval and record changes.
-- Prohibition of silent destructive edits once records are in business use.
-- Role changes create durable history or audit coverage.
+- **T1** — 15-minute exact increment validation.
+- **T2** — Approval reset on staff edit of approved entry.
+- **T3** — Leave date validation and status transitions.
+- **T4** — Conflict recalculation after leave approval.
+- **T5** — Correction history or audit event creation for approval and record changes.
+- **T6** — Prohibition of silent destructive edits once records are in business use.
+- **T7** — Role changes create durable history or audit coverage.
 
 ## Pay engine
 
-- Pay level override precedence.
-- Weekday window segmentation correctness.
-- Weekend multiplier + penalty stacking correctness.
-- Break deduction behavior.
-- Historical calculations remain reproducible after later pay/config changes.
-- Exported pay outputs include sufficient versioning or metadata to explain the calculation later.
-- Venue admin bulk-save creates a new pay/config snapshot version without erasing prior versions.
+- **P1** — Pay level override precedence.
+- **P2** — Weekday window segmentation correctness.
+- **P3** — Weekend multiplier + penalty stacking correctness.
+- **P4** — Break deduction behavior.
+- **P5** — Historical calculations remain reproducible after later pay/config changes.
+- **P6** — Exported pay outputs include sufficient versioning or metadata to explain the calculation later.
+- **P7** — Venue admin bulk-save creates a new pay/config snapshot version without erasing prior versions.
 
 ## Billing
 
-- Stripe Price lookup validates the configured recurring Price is active,
+- **B1** — Stripe Price lookup validates the configured recurring Price is active,
   AUD 100/month and fixed quantity before Checkout creation.
-- Stripe create requests use idempotency keys.
-- Stripe-hosted Checkout and Customer Portal request construction is covered by
+- **B2** — Stripe create requests use idempotency keys.
+- **B3** — Stripe-hosted Checkout and Customer Portal request construction is covered by
   strict local mocks and does not require live credentials in CI.
-- Stripe webhook signatures are verified from the raw request body before JSON
+- **B4** — Stripe webhook signatures are verified from the raw request body before JSON
   parsing.
-- Stripe webhook events are deduplicated by event ID.
-- Subscription lifecycle fixture tests cover created, updated, deleted, failed
+- **B5** — Stripe webhook events are deduplicated by event ID.
+- **B6** — Subscription lifecycle fixture tests cover created, updated, deleted, failed
   payment and duplicate event paths.
-- Billing event storage and logs do not retain card details, bank details, tax
+- **B7** — Billing event storage and logs do not retain card details, bank details, tax
   IDs, billing addresses or full raw Stripe payloads by default.
-- Operator-run sandbox validation with Stripe CLI and Billing test clocks is
+- **B8** — Operator-run sandbox validation with Stripe CLI and Billing test clocks is
   documented before live launch.
 
 ## Acceptance checklist

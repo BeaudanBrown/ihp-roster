@@ -1,3 +1,18 @@
+import {
+    isPwaInstallState,
+    pwaInstallButtonDomAttr,
+    pwaInstalledStatusDomAttr,
+    pwaInstallPageDomAttr,
+    pwaInstallResultDomAttr,
+    pwaInstallResultStateDomAttr,
+    type PwaInstallState,
+} from "./generated/contracts";
+
+export function parsePwaInstallState(value: unknown): PwaInstallState {
+    if (isPwaInstallState(value)) return value;
+    throw new Error("Invalid PwaInstallState");
+}
+
 type InstallChoice = {
     outcome: "accepted" | "dismissed";
     platform?: string;
@@ -15,6 +30,10 @@ type AppleNavigator = Navigator & {
 let deferredInstallPrompt: BeforeInstallPromptEvent | null = null;
 let installationCompleted = false;
 
+function roleSelector(attribute: string): string {
+    return `[${attribute}]`;
+}
+
 function isBeforeInstallPromptEvent(event: Event): event is BeforeInstallPromptEvent {
     const candidate = event as Partial<BeforeInstallPromptEvent>;
     return typeof candidate.prompt === "function"
@@ -28,7 +47,7 @@ function isStandalone(): boolean {
 }
 
 function installPage(): HTMLElement | null {
-    return document.querySelector<HTMLElement>("[data-pwa-install-page]");
+    return document.querySelector<HTMLElement>(roleSelector(pwaInstallPageDomAttr));
 }
 
 function renderInstallState(): void {
@@ -36,11 +55,51 @@ function renderInstallState(): void {
     if (!page) return;
 
     const installed = isStandalone();
-    const installedStatus = page.querySelector<HTMLElement>("[data-pwa-installed-status]");
-    const installButton = page.querySelector<HTMLButtonElement>("[data-pwa-install-button]");
+    const installedStatus = page.querySelector<HTMLElement>(roleSelector(pwaInstalledStatusDomAttr));
+    const installButton = page.querySelector<HTMLButtonElement>(roleSelector(pwaInstallButtonDomAttr));
 
     if (installedStatus) installedStatus.hidden = !installed;
     if (installButton) installButton.hidden = installed || deferredInstallPrompt === null;
+}
+
+function installResultElements(result: HTMLElement): Map<PwaInstallState, HTMLElement> | null {
+    const elements = Array.from(
+        result.querySelectorAll<HTMLElement>(roleSelector(pwaInstallResultStateDomAttr)),
+    );
+    const byState = new Map<PwaInstallState, HTMLElement>();
+
+    for (const element of elements) {
+        let state: PwaInstallState;
+        try {
+            state = parsePwaInstallState(element.getAttribute(pwaInstallResultStateDomAttr));
+        } catch (error) {
+            console.error?.("Invalid generated PWA install result state", error);
+            return null;
+        }
+        if (byState.has(state)) {
+            console.error?.("Invalid generated PWA install result state", `Duplicate state: ${state}`);
+            return null;
+        }
+        byState.set(state, element);
+    }
+
+    return byState;
+}
+
+function renderInstallResult(page: HTMLElement, state: PwaInstallState): void {
+    const result = page.querySelector<HTMLElement>(roleSelector(pwaInstallResultDomAttr));
+    if (!result) return;
+
+    const elements = installResultElements(result);
+    const selected = elements?.get(state);
+    if (!elements || !selected) {
+        console.error?.("Invalid generated PWA install result state", `Missing state: ${state}`);
+        return;
+    }
+
+    for (const element of elements.values()) {
+        element.hidden = element !== selected;
+    }
 }
 
 async function promptForInstallation(page: HTMLElement): Promise<void> {
@@ -50,20 +109,12 @@ async function promptForInstallation(page: HTMLElement): Promise<void> {
     deferredInstallPrompt = null;
     renderInstallState();
 
-    const result = page.querySelector<HTMLElement>("[data-pwa-install-result]");
-
     try {
         await installPrompt.prompt();
         const choice = await installPrompt.userChoice;
-        if (result) {
-            result.textContent = choice.outcome === "accepted"
-                ? "Installation accepted. Bepis will appear on your device when installation completes."
-                : "Installation was not completed. You can use the browser menu to try again.";
-        }
+        renderInstallResult(page, parsePwaInstallState(choice.outcome));
     } catch {
-        if (result) {
-            result.textContent = "Installation could not start. Use the browser menu to install Bepis.";
-        }
+        renderInstallResult(page, parsePwaInstallState("failed"));
     }
 }
 
@@ -88,8 +139,8 @@ async function promptForInstallation(page: HTMLElement): Promise<void> {
         const target = event.target;
         if (!(target instanceof Element)) return;
 
-        const button = target.closest<HTMLElement>("[data-pwa-install-button]");
-        const page = button?.closest<HTMLElement>("[data-pwa-install-page]");
+        const button = target.closest<HTMLElement>(roleSelector(pwaInstallButtonDomAttr));
+        const page = button?.closest<HTMLElement>(roleSelector(pwaInstallPageDomAttr));
         if (!button || !page) return;
 
         void promptForInstallation(page);

@@ -177,7 +177,7 @@
         scroll-snap-type: x mandatory;
     }
 
-    .roster-slots-scroller[data-horizontal-snap-dragging="true"] {
+    .roster-slots-scroller.is-horizontal-snap-dragging {
         scroll-snap-type: none;
     }
 

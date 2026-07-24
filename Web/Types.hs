@@ -7,11 +7,6 @@ import IHP.Prelude
 
 data WebApplication = WebApplication deriving (Eq, Show)
 
-data PasskeySetupPromptMode
-    = FirstPasskeyPrompt
-    | AdditionalDevicePasskeyPrompt
-    deriving (Eq, Show)
-
 data StaticController
     = WelcomeAction
     | InstallAppAction
@@ -86,6 +81,7 @@ data TimesheetsController
 data LeaveRequestsController
     = LeaveRequestsAction
     | ShowleaveRequestsContentLiveFragmentAction
+    | ShowSelfServiceLeaveFragmentAction
     | NewLeaveRequestAction
     | CreateLeaveRequestAction
     | ApproveLeaveRequestAction { leaveRequestId :: !(Id LeaveRequest) }
@@ -112,6 +108,7 @@ data BillingController
     | CreateBillingPortalSessionAction
     | BillingSuccessAction
     | BillingCancelAction
+    | ReconcileVenueBillingAction
     | UpdateVenueBillingControlAction
     deriving (Eq, Show, Data)
 
@@ -226,7 +223,6 @@ data RosterWeeksController
     | ShowRosterWeekWageRailFragmentAction { weekOffset :: !Int }
     | ShowRosterWeekSlotsGridFragmentAction { weekOffset :: !Int }
     | ShowRosterWeekStaffPanelFragmentAction { weekOffset :: !Int }
-    | ShowRosterStaffSelfServiceLeaveFormFragmentAction { weekOffset :: !Int }
     | ShowRosterWeekDaySectionFragmentAction { weekOffset :: !Int, rosterDayId :: !(Id RosterDay) }
     | ShowRosterWeekRowFragmentAction { weekOffset :: !Int, rosterDayId :: !(Id RosterDay), rowIndex :: !Int }
     | UpdateRosterAssignmentFiltersAction { weekOffset :: !Int }

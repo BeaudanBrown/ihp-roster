@@ -15,7 +15,7 @@ import Application.Helper.FrontendContract.Surface.Resource (SurfaceResourceValu
                                                              matchFrontendSurfaceResource)
 import qualified Application.Helper.FrontendContract.Surface.Support as Types1
 import qualified Application.Helper.FrontendContract.Surface.Support.HaskellAdapter as Types2
-import Application.Helper.FrontendContract.Surface.Values (SurfaceFields (NoSurfaceFields))
+import Application.Helper.FrontendContract.Surface.Values (noSurfaceFields)
 import IHP.Prelude
 
 supportAwardRatesResource :: SurfaceResourceValue
@@ -23,7 +23,7 @@ supportAwardRatesResource =
     frontendSurfaceResource
         @(AdapterFamilySurface Types2.SupportAdapterFamily)
         @Types1.SupportAwardRates
-        NoSurfaceFields
+        noSurfaceFields
 
 matchSupportAwardRatesResource :: SurfaceResourceValue -> Maybe ()
 matchSupportAwardRatesResource =
@@ -36,7 +36,7 @@ supportPublicHolidaysResource =
     frontendSurfaceResource
         @(AdapterFamilySurface Types2.SupportAdapterFamily)
         @Types1.SupportPublicHolidays
-        NoSurfaceFields
+        noSurfaceFields
 
 matchSupportPublicHolidaysResource :: SurfaceResourceValue -> Maybe ()
 matchSupportPublicHolidaysResource =

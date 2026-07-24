@@ -1,0 +1,317 @@
+#!/usr/bin/env python3
+"""Offline check of Bepis against the pinned upstream Stripe OpenAPI source."""
+from __future__ import annotations
+
+import gzip
+import hashlib
+import json
+import re
+import sys
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[1]
+CONTRACT = ROOT / "vendor/stripe-openapi/bepis-contract.json"
+OPENAPI_SOURCE = ROOT / "vendor/stripe-openapi/spec3-2026-06-24.dahlia.json.gz"
+FIXTURES = ROOT / "Test/Fixtures/stripe/2026-06-24.dahlia"
+EXPECTED_COMMIT = "86b6ae4db114ff06968dcc191ff4a898e9b5db7c"
+EXPECTED_VERSION = "2026-06-24.dahlia"
+EXPECTED_SOURCE_SHA256 = "e24a26de4188fd64dec4c043d5d3726277fdcb07556a493ea481c305b0a223d8"
+
+EXPECTED_OPERATIONS = {
+    ("GET", "/v1/prices"),
+    ("GET", "/v1/prices/{price}"),
+    ("POST", "/v1/customers"),
+    ("POST", "/v1/checkout/sessions"),
+    ("GET", "/v1/checkout/sessions/{session}"),
+    ("POST", "/v1/billing_portal/sessions"),
+    ("GET", "/v1/subscriptions/{subscription_exposed_id}"),
+}
+EXPECTED_HEADERS = {"Authorization", "Content-Type", "Stripe-Version", "Idempotency-Key"}
+FIXTURE_SCHEMAS = {
+    "price.json": "price",
+    "customer.json": "customer",
+    "checkout-session-created.json": "checkout.session",
+    "checkout-session.json": "checkout.session",
+    "portal-session.json": "billing_portal.session",
+    "subscription.json": "subscription",
+    "subscription-multiple-items.json": "subscription",
+    "subscription-price-mode-mismatch.json": "subscription",
+}
+FORBIDDEN_KEYS = {
+    "address",
+    "bank_account",
+    "billing_details",
+    "card",
+    "email",
+    "name",
+    "payment_method",
+    "payment_method_details",
+    "source",
+    "tax_id",
+    "tax_ids",
+}
+
+
+def require_fields(value: dict, fields: list[str], label: str) -> None:
+    missing = set(fields) - set(value)
+    if missing:
+        raise AssertionError(f"{label} is missing reviewed consumed fields: {sorted(missing)}")
+
+
+def walk_sensitive(value, path="$") -> None:
+    if isinstance(value, dict):
+        forbidden = FORBIDDEN_KEYS & set(value)
+        if forbidden:
+            raise AssertionError(f"{path} contains forbidden sensitive fields: {sorted(forbidden)}")
+        for key, child in value.items():
+            walk_sensitive(child, f"{path}.{key}")
+    elif isinstance(value, list):
+        for index, child in enumerate(value):
+            walk_sensitive(child, f"{path}[{index}]")
+
+
+def resolve_schema(schema: dict, openapi: dict) -> dict:
+    while "$ref" in schema:
+        schema = openapi["components"]["schemas"][schema["$ref"].rsplit("/", 1)[-1]]
+    return schema
+
+
+def value_matches_type(value, schema_type: str) -> bool:
+    return {
+        "array": lambda: isinstance(value, list),
+        "boolean": lambda: isinstance(value, bool),
+        "integer": lambda: isinstance(value, int) and not isinstance(value, bool),
+        "number": lambda: isinstance(value, (int, float)) and not isinstance(value, bool),
+        "object": lambda: isinstance(value, dict),
+        "string": lambda: isinstance(value, str),
+    }.get(schema_type, lambda: True)()
+
+
+def validate_value_shape(value, schema: dict, openapi: dict, label: str) -> dict:
+    schema = resolve_schema(schema, openapi)
+    if value is None and schema.get("nullable"):
+        return schema
+    if "anyOf" in schema:
+        errors = []
+        for candidate in schema["anyOf"]:
+            try:
+                return validate_value_shape(value, candidate, openapi, label)
+            except AssertionError as error:
+                errors.append(str(error))
+        raise AssertionError(f"{label} does not match any documented shape: {errors}")
+    schema_type = schema.get("type")
+    if schema_type and not value_matches_type(value, schema_type):
+        raise AssertionError(f"{label} must be {schema_type}, got {type(value).__name__}")
+    if "enum" in schema and value not in schema["enum"]:
+        raise AssertionError(f"{label} has undocumented discriminator {value!r}")
+    return schema
+
+
+def validate_selected_fields(value: dict, schema: dict, fields: list[str], openapi: dict, label: str) -> dict:
+    schema = validate_value_shape(value, schema, openapi, label)
+    require_fields(value, fields, label)
+    for field in fields:
+        validate_value_shape(value[field], schema["properties"][field], openapi, f"{label}.{field}")
+    return schema
+
+
+def validate_price_recurring(price: dict, price_schema: dict, openapi: dict, label: str) -> None:
+    recurring = price.get("recurring")
+    if recurring is None:
+        return
+    validate_selected_fields(
+        recurring,
+        price_schema["properties"]["recurring"],
+        ["interval", "interval_count", "usage_type"],
+        openapi,
+        f"{label}.recurring",
+    )
+
+
+def validate_subscription_items(subscription: dict, contract: dict, openapi: dict, label: str) -> None:
+    schemas = openapi["components"]["schemas"]
+    subscription_schema = validate_selected_fields(
+        subscription, schemas["subscription"], contract["subscription"]["fields"], openapi, label
+    )
+    items_schema = validate_selected_fields(
+        subscription["items"], subscription_schema["properties"]["items"], ["object", "data"], openapi, f"{label}.items"
+    )
+    item_schema = items_schema["properties"]["data"]["items"]
+    if not subscription["items"]["data"]:
+        raise AssertionError(f"{label} must retain at least one Subscription Item")
+    for index, item in enumerate(subscription["items"]["data"]):
+        item_label = f"{label}.items.data[{index}]"
+        reviewed_item_schema = validate_selected_fields(
+            item, item_schema, contract["subscription_item"]["fields"], openapi, item_label
+        )
+        price_schema = validate_selected_fields(
+            item["price"], reviewed_item_schema["properties"]["price"], contract["price"]["fields"], openapi,
+            f"{item_label}.price",
+        )
+        validate_price_recurring(item["price"], price_schema, openapi, f"{item_label}.price")
+
+
+def validate_webhook_fixture_shape(event: dict, reviewed: dict, openapi: dict, label: str) -> None:
+    schemas = openapi["components"]["schemas"]
+    event_schema = validate_selected_fields(event, schemas["event"], reviewed["rootFields"], openapi, label)
+    data_schema = validate_selected_fields(event["data"], event_schema["properties"]["data"], ["object"], openapi, f"{label}.data")
+    validate_value_shape(event["data"]["object"], data_schema["properties"]["object"], openapi, f"{label}.data.object")
+
+    object_contract = reviewed["eventTypes"][event["type"]]
+    object_schema = validate_selected_fields(
+        event["data"]["object"],
+        schemas[object_contract["objectSchema"]],
+        object_contract["fields"],
+        openapi,
+        f"{label}.data.object",
+    )
+    data_object = event["data"]["object"]
+    if object_contract["objectSchema"] == "subscription":
+        items_schema = validate_selected_fields(
+            data_object["items"], object_schema["properties"]["items"], ["object", "data"], openapi, f"{label}.data.object.items"
+        )
+        item_schema = items_schema["properties"]["data"]["items"]
+        if len(data_object["items"]["data"]) != 1:
+            raise AssertionError(f"{label} must contain one reviewed Subscription Item")
+        item = data_object["items"]["data"][0]
+        item_schema = validate_selected_fields(
+            item, item_schema, reviewed["subscriptionItemFields"], openapi, f"{label}.data.object.items.data[0]"
+        )
+        price = item["price"]
+        price_schema = validate_selected_fields(
+            price, item_schema["properties"]["price"], reviewed["priceFields"], openapi, f"{label}.data.object.items.data[0].price"
+        )
+        validate_price_recurring(price, price_schema, openapi, f"{label}.data.object.items.data[0].price")
+    elif object_contract["objectSchema"] == "invoice":
+        parent_schema = validate_selected_fields(
+            data_object["parent"], object_schema["properties"]["parent"], ["type", "subscription_details"], openapi,
+            f"{label}.data.object.parent",
+        )
+        if data_object["parent"]["type"] != "subscription_details":
+            raise AssertionError(f"{label} invoice parent must be subscription_details")
+        validate_selected_fields(
+            data_object["parent"]["subscription_details"], parent_schema["properties"]["subscription_details"],
+            ["subscription"], openapi, f"{label}.data.object.parent.subscription_details",
+        )
+
+
+def validate_reviewed_slice_against_upstream(contract: dict, openapi: dict) -> None:
+    assert openapi["info"]["version"] == EXPECTED_VERSION
+    assert openapi["servers"] == [{"url": "https://api.stripe.com/"}]
+    assert {"bearerAuth": []} in openapi["security"]
+    bearer = openapi["components"]["securitySchemes"]["bearerAuth"]
+    assert bearer["type"] == "http" and bearer["scheme"] == "bearer"
+
+    for reviewed in contract["operations"]:
+        operation = openapi["paths"][reviewed["path"]][reviewed["method"].lower()]
+        upstream_parameters = {parameter["name"] for parameter in operation.get("parameters", [])}
+        assert set(reviewed["parameters"]) <= upstream_parameters
+        if reviewed["formFields"]:
+            form_schema = operation["requestBody"]["content"][reviewed["contentType"]]["schema"]
+            assert set(reviewed["formFields"]) <= set(form_schema.get("properties", {}))
+
+    for schema_name, reviewed in contract["responseSchemas"].items():
+        upstream_schema = openapi["components"]["schemas"][schema_name]
+        assert set(reviewed["fields"]) <= set(upstream_schema["properties"])
+        assert set(reviewed["required"]) <= set(upstream_schema.get("required", []))
+
+    event_schema = openapi["components"]["schemas"]["event"]
+    assert set(contract["webhookRootFields"]) <= set(event_schema["properties"])
+    for reviewed in contract["webhookEvents"].values():
+        object_schema = openapi["components"]["schemas"][reviewed["objectSchema"]]
+        assert set(reviewed["fields"]) <= set(object_schema["properties"])
+    invoice_parent = openapi["components"]["schemas"]["billing_bill_resource_invoicing_parents_invoice_parent"]
+    assert "subscription_details" in invoice_parent["properties"]
+    subscription_parent = openapi["components"]["schemas"]["billing_bill_resource_invoicing_parents_invoice_subscription_parent"]
+    assert "subscription" in subscription_parent["properties"]
+
+
+def validate_bepis_headers(contract: dict) -> None:
+    assert {item["name"] for item in contract["requiredHeaders"]} == EXPECTED_HEADERS
+    stripe_source = (ROOT / "Application/Billing/Stripe.hs").read_text()
+    strict_mock_source = (ROOT / "Test/StripeMock.hs").read_text()
+    process_mock_source = (ROOT / "Test/StripeProcessMockMain.hs").read_text()
+    pinned = re.search(r'pinnedStripeApiVersion\s*=\s*"([^"]+)"', stripe_source)
+    assert pinned and pinned.group(1) == EXPECTED_VERSION
+    for header in ["Authorization", "Stripe-Version", "Idempotency-Key"]:
+        assert f'"{header}"' in strict_mock_source
+    assert '"Content-Type"' in process_mock_source
+    assert "stripeRequestTimeoutMicroseconds == 15000000" in strict_mock_source
+
+
+def main() -> None:
+    contract = json.loads(CONTRACT.read_text())
+    compressed_source = OPENAPI_SOURCE.read_bytes()
+    source_bytes = gzip.decompress(compressed_source)
+    source_sha256 = hashlib.sha256(source_bytes).hexdigest()
+    assert source_sha256 == EXPECTED_SOURCE_SHA256
+    assert contract["sourceSha256"] == source_sha256
+    assert contract["commit"] == EXPECTED_COMMIT
+    assert contract["apiVersion"] == EXPECTED_VERSION
+    assert {(item["method"], item["path"]) for item in contract["operations"]} == EXPECTED_OPERATIONS
+
+    openapi = json.loads(source_bytes)
+    validate_reviewed_slice_against_upstream(contract, openapi)
+    validate_bepis_headers(contract)
+
+    schemas = contract["responseSchemas"]
+    webhook_review = {
+        "rootFields": contract["webhookRootFields"],
+        "eventTypes": contract["webhookEvents"],
+        "subscriptionItemFields": schemas["subscription_item"]["fields"],
+        "priceFields": schemas["price"]["fields"],
+    }
+    if sys.argv[1:] == ["--validate-webhook-stdin"]:
+        event = json.load(sys.stdin)
+        assert event["api_version"] == EXPECTED_VERSION
+        validate_webhook_fixture_shape(event, webhook_review, openapi, "stdin webhook")
+        walk_sensitive(event, "stdin webhook")
+        print("Stripe webhook payload OK")
+        return
+    if sys.argv[1:]:
+        raise SystemExit("Usage: scripts/check-stripe-openapi-contract [--validate-webhook-stdin]")
+
+    upstream_schemas = openapi["components"]["schemas"]
+    for filename, schema_name in FIXTURE_SCHEMAS.items():
+        value = json.loads((FIXTURES / filename).read_text())
+        fixture_schema = validate_selected_fields(value, upstream_schemas[schema_name], schemas[schema_name]["fields"], openapi, filename)
+        if schema_name == "price":
+            validate_price_recurring(value, fixture_schema, openapi, filename)
+        walk_sensitive(value, filename)
+
+    prices = json.loads((FIXTURES / "prices.json").read_text())
+    assert prices["object"] == "list" and len(prices["data"]) == 1
+    list_price_schema = validate_selected_fields(
+        prices["data"][0], upstream_schemas["price"], schemas["price"]["fields"], openapi, "prices.json.data[0]"
+    )
+    validate_price_recurring(prices["data"][0], list_price_schema, openapi, "prices.json.data[0]")
+
+    for filename in ["subscription.json", "subscription-price-mode-mismatch.json"]:
+        subscription = json.loads((FIXTURES / filename).read_text())
+        validate_subscription_items(subscription, schemas, openapi, filename)
+
+    multiple_items = json.loads((FIXTURES / "subscription-multiple-items.json").read_text())
+    subscription_schema = upstream_schemas["subscription"]
+    items_schema = validate_selected_fields(
+        multiple_items["items"], subscription_schema["properties"]["items"], ["object", "data"], openapi,
+        "subscription-multiple-items.json.items",
+    )
+    if len(multiple_items["items"]["data"]) < 2:
+        raise AssertionError("subscription-multiple-items.json must retain its invalid multiple-item cardinality")
+    for index, item in enumerate(multiple_items["items"]["data"]):
+        validate_selected_fields(
+            item, items_schema["properties"]["data"]["items"], ["id"], openapi,
+            f"subscription-multiple-items.json.items.data[{index}]",
+        )
+
+    for event_path in sorted(FIXTURES.glob("webhook-*.json")):
+        event = json.loads(event_path.read_text())
+        assert event["api_version"] == EXPECTED_VERSION
+        validate_webhook_fixture_shape(event, webhook_review, openapi, event_path.name)
+        walk_sensitive(event, event_path.name)
+
+    print(f"Stripe OpenAPI contract OK: {EXPECTED_VERSION} @ {EXPECTED_COMMIT} ({source_sha256})")
+
+
+if __name__ == "__main__":
+    main()

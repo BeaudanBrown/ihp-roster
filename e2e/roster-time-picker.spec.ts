@@ -1,15 +1,40 @@
 import { test, expect, type Locator, type Page } from '@playwright/test';
+import {
+    dialogOverlayMountDomId,
+    pageReadyEvent,
+    parseTimePickerOption,
+    timePickerClearDomAttr,
+    timePickerConfigDomAttr,
+    timePickerFieldDomAttr,
+    timePickerLabelDomAttr,
+    timePickerModalDomId,
+    timePickerOptionDomAttr,
+    timePickerTriggerDomAttr,
+    timePickerValueDomAttr,
+} from '../frontend/ts/generated/contracts';
 import { E2E_TIMEOUT } from './timeouts';
 import { addRowToRosterDay, editableRosterRows, firstEditableRosterDaySection, openRoster, openRosterShiftDialog } from './test-helpers';
 
-const modalSelector = '#quarter-hour-time-picker-modal';
+const modalSelector = `#${timePickerModalDomId}`;
 
 async function loginAndOpenRoster(page: Page) {
     await openRoster(page);
 }
 
+async function optionForValue(page: Page, value: string): Promise<Locator> {
+    const options = page.locator(`${modalSelector} [${timePickerOptionDomAttr}]`);
+    const optionCount = await options.count();
+    for (let index = 0; index < optionCount; index += 1) {
+        const rawConfig = await options.nth(index).getAttribute(timePickerOptionDomAttr);
+        if (rawConfig !== null && parseTimePickerOption(JSON.parse(rawConfig)).value === value) {
+            return options.nth(index);
+        }
+    }
+    throw new Error(`Expected rendered time-picker option ${value}`);
+}
+
 async function chooseTime(page: Page, value: string) {
-    await page.locator(`${modalSelector} .js-time-picker-option[data-time-value="${value}"]`).click();
+    await (await optionForValue(page, value)).click();
 }
 
 async function addFreshRowAndGetFirstTimeField(page: Page): Promise<Locator> {
@@ -20,9 +45,9 @@ async function addFreshRowAndGetFirstTimeField(page: Page): Promise<Locator> {
     await expect(editableRows).toHaveCount(initialRowCount + 1);
     const launcher = editableRows.last().locator('[data-roster-shift-launcher="true"]').first();
     await openRosterShiftDialog(page, launcher);
-    const firstField = page.locator('#dialog-overlay-mount [data-time-picker-field]').first();
-    await expect(firstField.locator('.js-time-picker-label')).toHaveText('6:00 AM');
-    await expect(firstField.locator('.js-time-picker-input')).toHaveValue('06:00');
+    const firstField = page.locator(`#${dialogOverlayMountDomId} [${timePickerFieldDomAttr}]`).first();
+    await expect(firstField.locator(`[${timePickerLabelDomAttr}]`)).toHaveText('6:00 AM');
+    await expect(firstField.locator(`[${timePickerValueDomAttr}]`)).toHaveValue('06:00');
     return firstField;
 }
 
@@ -38,20 +63,19 @@ test.describe('Roster Time Picker', () => {
         await loginAndOpenRoster(page);
 
         const firstField = await addFreshRowAndGetFirstTimeField(page);
-        const trigger = firstField.locator('.js-time-picker-trigger');
-        const label = firstField.locator('.js-time-picker-label');
-        const hiddenInput = firstField.locator('.js-time-picker-input');
+        const trigger = firstField.locator(`[${timePickerTriggerDomAttr}]`);
+        const hiddenInput = firstField.locator(`[${timePickerValueDomAttr}]`);
 
         await trigger.click();
         await expect(page.locator(modalSelector)).toBeVisible();
-        await expect(page.locator(`${modalSelector} .js-time-picker-option`)).toHaveCount(96);
-        await expect(page.locator(`${modalSelector} .js-time-picker-option[data-time-value="05:45"]`)).toBeVisible();
+        await expect(page.locator(`${modalSelector} [${timePickerOptionDomAttr}]`)).toHaveCount(96);
+        await expect(await optionForValue(page, '05:45')).toBeVisible();
 
         await chooseTime(page, '13:15');
 
         await expect(page.locator(modalSelector)).toBeHidden();
-        await expect(firstField.locator('.js-time-picker-label')).toHaveText('1:15 PM');
-        await expect(firstField.locator('.js-time-picker-input')).toHaveValue('13:15');
+        await expect(firstField.locator(`[${timePickerLabelDomAttr}]`)).toHaveText('1:15 PM');
+        await expect(hiddenInput).toHaveValue('13:15');
 
         const initErrors = pageErrors.filter((message) =>
             message.includes("Cannot read properties of null (reading 'addEventListener')")
@@ -63,15 +87,15 @@ test.describe('Roster Time Picker', () => {
         await loginAndOpenRoster(page);
 
         const firstField = await addFreshRowAndGetFirstTimeField(page);
-        const trigger = firstField.locator('.js-time-picker-trigger');
+        const trigger = firstField.locator(`[${timePickerTriggerDomAttr}]`);
         const modal = page.locator(modalSelector);
-        const clearButton = page.locator(`${modalSelector} .js-time-picker-clear`);
+        const clearButton = page.locator(`${modalSelector} [${timePickerClearDomAttr}]`);
 
         await trigger.click();
         await chooseTime(page, '06:30');
         await expect(modal).toBeHidden();
-        await expect(firstField.locator('.js-time-picker-label')).toHaveText('6:30 AM');
-        await expect(firstField.locator('.js-time-picker-input')).toHaveValue('06:30');
+        await expect(firstField.locator(`[${timePickerLabelDomAttr}]`)).toHaveText('6:30 AM');
+        await expect(firstField.locator(`[${timePickerValueDomAttr}]`)).toHaveValue('06:30');
 
         await trigger.click();
         await expect(modal).toBeVisible();
@@ -79,7 +103,38 @@ test.describe('Roster Time Picker', () => {
         await clearButton.click();
 
         await expect(modal).toBeHidden();
-        await expect(firstField.locator('.js-time-picker-label')).toHaveText('Start');
-        await expect(firstField.locator('.js-time-picker-input')).toHaveValue('');
+        await expect(firstField.locator(`[${timePickerLabelDomAttr}]`)).toHaveText('Start');
+        await expect(firstField.locator(`[${timePickerValueDomAttr}]`)).toHaveValue('');
+    });
+
+    test('rejects malformed field config locally without rewriting server HTML', async ({ page }) => {
+        await loginAndOpenRoster(page);
+        const firstField = await addFreshRowAndGetFirstTimeField(page);
+        const diagnostics: string[] = [];
+        page.on('console', (message) => {
+            if (message.type() === 'error') diagnostics.push(message.text());
+        });
+
+        const result = await firstField.evaluate((field, contract) => {
+            const clone = field.cloneNode(true);
+            if (!(clone instanceof HTMLElement)) throw new Error('Expected a cloned time-picker field');
+            clone.id = 'malformed-time-picker-field';
+            const rawConfig = clone.getAttribute(contract.configAttr);
+            if (rawConfig === null) throw new Error('Expected generated time-picker config');
+            clone.setAttribute(contract.configAttr, JSON.stringify({ ...JSON.parse(rawConfig), extra: true }));
+            field.parentElement?.append(clone);
+            const beforeInitialization = clone.outerHTML;
+            document.dispatchEvent(new CustomEvent(contract.readyEvent, { detail: { target: clone } }));
+            return { beforeInitialization, afterInitialization: clone.outerHTML };
+        }, { configAttr: timePickerConfigDomAttr, readyEvent: pageReadyEvent });
+
+        expect(result.afterInitialization).toBe(result.beforeInitialization);
+        await expect.poll(
+            () => diagnostics.some((message) => message.includes('invalid-field-config')),
+            { timeout: E2E_TIMEOUT.assertion },
+        ).toBe(true);
+
+        await page.locator(`#malformed-time-picker-field [${timePickerTriggerDomAttr}]`).click();
+        await expect(page.locator(modalSelector)).toBeHidden();
     });
 });

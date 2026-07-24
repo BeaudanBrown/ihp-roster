@@ -73,6 +73,16 @@ expect_compile_failure \
     "FrontendSurface field bundle does not declare marker Fixture.PanelId"
 
 expect_compile_failure \
+    "Test/CompileFail/FrontendSurfaceWrongIntentOperation.hs" \
+    "SurfaceIntentFields" \
+    "MoveRosterShiftToSlot" \
+    "DuplicateRosterShiftToDay"
+
+expect_compile_failure \
+    "Test/CompileFail/FrontendSurfaceRawIntentRebinding.hs" \
+    "Not in scope: data constructor ‘:&’"
+
+expect_compile_failure \
     "Test/CompileFail/FrontendSurfaceWrongScopeField.hs" \
     "FrontendSurface declaration Fixture.FixtureScope does not declare field marker Fixture.PanelId" \
     "Declared fields: [Fixture.VenueId :: required WireUUID, Fixture.WeekOffset :: required WireInt]"
@@ -93,6 +103,41 @@ expect_compile_failure \
     "Test/CompileFail/FrontendSurfaceRawLiveIdentity.hs" \
     "Data constructor not in scope" \
     "FrontendSurfaceScope"
+
+expect_compile_failure \
+    "Test/CompileFail/FrontendSurfaceResourceInLiveAdapterLane.hs" \
+    "ResourceAdapterKind" \
+    "ScopeAdapterKind" \
+    "renderSurfaceLiveAdapterModules"
+
+expect_compile_failure \
+    "Test/CompileFail/FrontendSurfaceActionInLiveAdapterLane.hs" \
+    "ActionAdapterKind" \
+    "ScopeAdapterKind" \
+    "renderSurfaceLiveAdapterModules"
+
+expect_compile_failure \
+    "Test/CompileFail/FrontendSurfaceIntentInLiveAdapterLane.hs" \
+    "IntentAdapterKind" \
+    "FragmentAdapterKind" \
+    "renderSurfaceLiveAdapterModules"
+
+expect_compile_failure \
+    "Test/CompileFail/FrontendSurfaceIntentInActionAdapterLane.hs" \
+    "IntentAdapterKind" \
+    "ActionAdapterKind" \
+    "renderSurfaceActionAdapterModules"
+
+expect_compile_failure \
+    "Test/CompileFail/FrontendSurfaceActionInIntentAdapterLane.hs" \
+    "ActionAdapterKind" \
+    "IntentAdapterKind" \
+    "renderSurfaceIntentAdapterModules"
+
+expect_compile_failure \
+    "Test/CompileFail/FrontendSurfaceDirectRenderableAdapter.hs" \
+    "Illegal term-level use of the type constructor" \
+    "RenderableAdapter"
 
 expect_compile_failure \
     "Test/CompileFail/FrontendSurfaceRawResource.hs" \
@@ -146,6 +191,16 @@ expect_compile_failure \
     "FrontendSurface field bundle does not declare marker Roster.RosterGroupId"
 
 expect_compile_failure \
+    "Test/CompileFail/FrontendSurfaceWrongActionOperation.hs" \
+    "SurfaceActionFields" \
+    "NavigateTimesheetWeek" \
+    "ApproveTimesheetEntry"
+
+expect_compile_failure \
+    "Test/CompileFail/FrontendSurfaceRawActionRebinding.hs" \
+    "Not in scope: data constructor ‘:&’"
+
+expect_compile_failure \
     "Test/CompileFail/FrontendSurfaceIncompleteAction.hs" \
     "FrontendSurface field list is incomplete" \
     "Missing next field: Timesheets.StaffFilterId :: optional WireUUID"
@@ -191,6 +246,54 @@ expect_compile_failure \
     "Actual: Text"
 
 expect_compile_failure \
+    "Test/CompileFail/FrontendSurfaceServerDtoBrowserRender.hs" \
+    "FrontendSurface DTO FixturePayload is server-only and cannot be rendered to the browser"
+
+expect_compile_failure \
+    "Test/CompileFail/FrontendSurfaceWrongSortKey.hs" \
+    "FrontendSurface complete-set sort Roster.RosterStaffPanelSort does not declare key Roster.StaffTabKey"
+
+expect_compile_failure \
+    "Test/CompileFail/FrontendSurfaceWrongTabKey.hs" \
+    "FrontendSurface tab set Roster.RosterStaffPanelTabs does not declare key Roster.NameSortKey"
+
+expect_compile_failure \
+    "Test/CompileFail/FrontendSurfaceWrongClosedStateValue.hs" \
+    "FrontendSurface browser state Roster.FullscreenState does not declare value Roster.Active"
+
+expect_compile_failure \
     "Test/CompileFail/FrontendSurfaceUnknownInteractionEffect.hs" \
     "Expected kind" \
     "InteractionEffect"
+
+expect_compile_failure \
+    "Test/CompileFail/FrontendToggleScalarListField.hs" \
+    "KnownToggleScalarWire" \
+    "WireList" \
+    "WireText"
+
+expect_compile_failure \
+    "Test/CompileFail/FrontendToggleWrongListItemWire.hs" \
+    "Couldn't match type" \
+    "Text" \
+    "UUID"
+
+expect_compile_failure \
+    "Test/CompileFail/FrontendTimePickerIncompleteConfig.hs" \
+    "Couldn't match type: '[]" \
+    "TimePicker.EmptyLabel"
+
+expect_compile_failure \
+    "Test/CompileFail/FrontendOrderedRangeIncompleteConfig.hs" \
+    "Couldn't match type: '[]" \
+    "OrderedRange.CrossingPolicy"
+
+expect_compile_failure \
+    "Test/CompileFail/FrontendHorizontalScrollIncompleteConfig.hs" \
+    "Couldn't match type: '[]" \
+    "HorizontalScroll.GroupScopeSelector"
+
+expect_compile_failure \
+    "Test/CompileFail/FrontendXeroCandidateRawProjection.hs" \
+    "Illegal term-level use of the type constructor" \
+    "XeroCandidateSearchProjection"

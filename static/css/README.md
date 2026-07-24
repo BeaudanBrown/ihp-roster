@@ -83,8 +83,8 @@ becoming an isolated zoom system.
   owns day columns. If it needs a new colour, add a semantic token first.
 - A timesheet week strip and roster day-column strip should use the shared
   `app-horizontal-frame`, `app-horizontal-grid`, and `app-horizontal-panel`
-  primitives when their layout rules match; feature classes and
-  `data-horizontal-*` attributes remain for JS and tests.
+  primitives when their layout rules match; generated horizontal-scroll roles
+  remain the browser discovery boundary and transient classes stay adapter-local.
 - A dialog footer or toast visual change belongs in `overlays.css` and the
   shared overlay helpers, not in a feature stylesheet.
 - Leave request list/accordion rules belong in `features/leave.css`; shared

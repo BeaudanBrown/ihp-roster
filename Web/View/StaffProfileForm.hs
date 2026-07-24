@@ -1,14 +1,16 @@
+{-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE TypeApplications #-}
 
 module Web.View.StaffProfileForm where
 
 import Application.Helper.Controller (VenueRole (..), currentUserIsSuperAdmin,
                                       hasRole, parseVenueRole, venueRoleToText)
+import Application.Helper.FrontendContract.OrderedRange.Runtime
 import qualified Application.Helper.FrontendContract.Surface.Profile as Surface
 import Application.Helper.FrontendContract.Surface.Values
 import Application.Helper.StaffShiftPreferences
 import qualified Data.Text as Text
-import Numeric (showFFloat)
+import qualified Data.UUID as UUID
 import Web.View.Prelude
 
 data StaffManagementFieldData = StaffManagementFieldData
@@ -23,34 +25,51 @@ data StaffManagementFieldData = StaffManagementFieldData
     , managementRosterGroupId          :: Maybe (Id RosterGroup)
     }
 
-buildStaffProfileDetailsSurfaceFields :: Text -> Staff -> Maybe StaffManagementFieldData -> SurfaceFields Surface.StaffProfileFields
-buildStaffProfileDetailsSurfaceFields section staff maybeManagement =
-    surfaceField @Surface.FirstNameField staff.firstName
-        :& surfaceField @Surface.LastNameField staff.lastName
-        :& surfaceField @Surface.PreferredNameField (fromMaybe "" staff.preferredName)
-        :& surfaceField @Surface.PhoneField staff.phone
-        :& surfaceField @Surface.IdealShiftsPerWeekField staff.idealShiftsPerWeek
-        :& surfaceField @Surface.EmergencyContactNameField staff.emergencyContactName
-        :& surfaceField @Surface.EmergencyContactPhoneField staff.emergencyContactPhone
-        :& surfaceField @Surface.SectionField section
-        :& surfaceOptionalField @Surface.VenueRoleField submittedVenueRole
-        :& surfaceOptionalField @Surface.EmploymentBasisField submittedEmploymentBasis
-        :& surfaceOptionalField @Surface.PayRateSelectionField submittedPayRateSelection
-        :& surfaceOptionalField @Surface.IsActiveField submittedIsActive
-        :& surfaceOptionalField @Surface.RosterGroupIdsField submittedRosterGroupIds
-        :& NoSurfaceFields
-  where
-    submittedVenueRole = maybeManagement >>= (.managementVenueMembership) >>= parseVenueRole >>= (Just . venueRoleToText)
-    submittedEmploymentBasis = inputValue . (.employmentBasis) . (.managementStaff) <$> maybeManagement
-    submittedPayRateSelection = staffPayRateSelectionValue . (.managementStaff) <$> maybeManagement
-    submittedIsActive = (.isActive) . (.managementStaff) <$> maybeManagement
-    submittedRosterGroupIds = fmap (map unpackId . (.managementSelectedRosterGroupIds)) maybeManagement
+data StaffProfileDetailsSurfaceValues = StaffProfileDetailsSurfaceValues
+    { profileDetailsFirstName             :: !Text
+    , profileDetailsLastName              :: !Text
+    , profileDetailsPreferredName         :: !Text
+    , profileDetailsPhone                 :: !Text
+    , profileDetailsIdealShiftsPerWeek    :: !Int
+    , profileDetailsEmergencyContactName  :: !Text
+    , profileDetailsEmergencyContactPhone :: !Text
+    , profileDetailsSection               :: !Text
+    , profileDetailsVenueRole             :: !(Maybe Text)
+    , profileDetailsEmploymentBasis       :: !(Maybe Text)
+    , profileDetailsPayRateSelection      :: !(Maybe Text)
+    , profileDetailsIsActive              :: !(Maybe Bool)
+    , profileDetailsRosterGroupIds        :: !(Maybe [UUID.UUID])
+    }
 
-buildStaffShiftPreferencesSurfaceFields :: Text -> [ShiftPreferenceSelection] -> SurfaceFields Surface.StaffShiftPreferenceFields
-buildStaffShiftPreferencesSurfaceFields section selectedShiftPreferences =
-    surfaceField @Surface.SectionField section
-        :& surfaceOptionalField @Surface.ShiftPreferenceKeysField (Just (map (encodeShiftPreferenceKey . (.weekdayIndex)) selectedShiftPreferences))
-        :& NoSurfaceFields
+staffProfileDetailsSurfaceValues :: Text -> Staff -> Maybe StaffManagementFieldData -> StaffProfileDetailsSurfaceValues
+staffProfileDetailsSurfaceValues section staff maybeManagement =
+    StaffProfileDetailsSurfaceValues
+        { profileDetailsFirstName = staff.firstName
+        , profileDetailsLastName = staff.lastName
+        , profileDetailsPreferredName = fromMaybe "" staff.preferredName
+        , profileDetailsPhone = staff.phone
+        , profileDetailsIdealShiftsPerWeek = staff.idealShiftsPerWeek
+        , profileDetailsEmergencyContactName = staff.emergencyContactName
+        , profileDetailsEmergencyContactPhone = staff.emergencyContactPhone
+        , profileDetailsSection = section
+        , profileDetailsVenueRole = maybeManagement >>= (.managementVenueMembership) >>= parseVenueRole >>= (Just . venueRoleToText)
+        , profileDetailsEmploymentBasis = inputValue . (.employmentBasis) . (.managementStaff) <$> maybeManagement
+        , profileDetailsPayRateSelection = staffPayRateSelectionValue . (.managementStaff) <$> maybeManagement
+        , profileDetailsIsActive = (.isActive) . (.managementStaff) <$> maybeManagement
+        , profileDetailsRosterGroupIds = fmap (map unpackId . (.managementSelectedRosterGroupIds)) maybeManagement
+        }
+
+data StaffShiftPreferencesSurfaceValues = StaffShiftPreferencesSurfaceValues
+    { shiftPreferencesSection :: !Text
+    , shiftPreferenceKeys     :: !(Maybe [Text])
+    }
+
+staffShiftPreferencesSurfaceValues :: Text -> [ShiftPreferenceSelection] -> StaffShiftPreferencesSurfaceValues
+staffShiftPreferencesSurfaceValues section selectedShiftPreferences =
+    StaffShiftPreferencesSurfaceValues
+        { shiftPreferencesSection = section
+        , shiftPreferenceKeys = Just (map (encodeShiftPreferenceKey . (.weekdayIndex)) selectedShiftPreferences)
+        }
 
 staffPayRateSelectionValue :: Staff -> Text
 staffPayRateSelectionValue staff =
@@ -59,10 +78,10 @@ staffPayRateSelectionValue staff =
         (Nothing, Just awardLevelId) -> "award:" <> inputValue awardLevelId
         (Nothing, Nothing)           -> ""
 
-renderPersonalProfileFields :: SurfaceFields Surface.StaffProfileFields -> Staff -> Maybe Text -> Html
+renderPersonalProfileFields :: SurfaceFieldBundleOf Surface.StaffProfileFields fields => fields -> Staff -> Maybe Text -> Html
 renderPersonalProfileFields fields = renderPersonalProfileFieldsWithEmailId fields "email"
 
-renderPersonalProfileFieldsWithEmailId :: SurfaceFields Surface.StaffProfileFields -> Text -> Staff -> Maybe Text -> Html
+renderPersonalProfileFieldsWithEmailId :: SurfaceFieldBundleOf Surface.StaffProfileFields fields => fields -> Text -> Staff -> Maybe Text -> Html
 renderPersonalProfileFieldsWithEmailId fields emailFieldId staff maybeEmail =
     renderPersonalProfileFieldsWithEmailSlot fields (renderReadonlyEmailField emailFieldId maybeEmail) staff
 
@@ -81,7 +100,7 @@ renderReadonlyEmailField emailFieldId maybeEmail = [hsx|
     </div>
 |]
 
-renderPersonalProfileFieldsWithEmailSlot :: SurfaceFields Surface.StaffProfileFields -> Html -> Staff -> Html
+renderPersonalProfileFieldsWithEmailSlot :: SurfaceFieldBundleOf Surface.StaffProfileFields fields => fields -> Html -> Staff -> Html
 renderPersonalProfileFieldsWithEmailSlot fields emailField staff = [hsx|
     <div class="row g-3 profile-field-grid">
         <div class="col-12 col-lg-6">
@@ -177,7 +196,7 @@ renderIdealShiftsOption selectedValue optionValue = [hsx|
     <option value={tshow optionValue} selected={optionValue == selectedValue}>{optionValue}</option>
 |]
 
-renderShiftPreferenceSections :: SurfaceFields Surface.StaffShiftPreferenceFields -> [PreferenceWeekday] -> [ShiftPreferenceSelection] -> Html
+renderShiftPreferenceSections :: SurfaceFieldBundleOf Surface.StaffShiftPreferenceFields fields => fields -> [PreferenceWeekday] -> [ShiftPreferenceSelection] -> Html
 renderShiftPreferenceSections fields weekdays selectedShiftPreferences =
     if null weekdays
         then [hsx|<p class="app-muted mb-0">Shift preferences will appear once the venue calendar is configured.</p>|]
@@ -187,7 +206,7 @@ renderShiftPreferenceSections fields weekdays selectedShiftPreferences =
     </section>
 |]
 
-renderShiftPreferenceRows :: SurfaceFields Surface.StaffShiftPreferenceFields -> [PreferenceWeekday] -> [ShiftPreferenceSelection] -> Html
+renderShiftPreferenceRows :: SurfaceFieldBundleOf Surface.StaffShiftPreferenceFields fields => fields -> [PreferenceWeekday] -> [ShiftPreferenceSelection] -> Html
 renderShiftPreferenceRows fields weekdays selectedShiftPreferences = [hsx|
     <table class="table table-sm align-middle shift-preference-table mb-0">
         <thead>
@@ -201,7 +220,7 @@ renderShiftPreferenceRows fields weekdays selectedShiftPreferences = [hsx|
     </table>
 |]
 
-renderShiftPreferenceDayRow :: SurfaceFields Surface.StaffShiftPreferenceFields -> [ShiftPreferenceSelection] -> PreferenceWeekday -> Html
+renderShiftPreferenceDayRow :: SurfaceFieldBundleOf Surface.StaffShiftPreferenceFields fields => fields -> [ShiftPreferenceSelection] -> PreferenceWeekday -> Html
 renderShiftPreferenceDayRow fields selectedShiftPreferences weekday =
     let key = encodeShiftPreferenceKey weekday.weekdayIndex
         selectedPreference = findSelectedShiftPreference weekday.weekdayIndex selectedShiftPreferences
@@ -209,50 +228,48 @@ renderShiftPreferenceDayRow fields selectedShiftPreferences weekday =
         startHour = maybe defaultPreferenceStartHour (.startHour) selectedPreference
         endHour = maybe defaultPreferenceEndHour (.endHour) selectedPreference
         weekdayLabel = abbreviateWeekdayLabel weekday.label
+        rangeConfig = shiftPreferenceOrderedRangeConfig
+        rangeState = OrderedRangeBrowserState
+            { orderedRangeStartValue = startHour
+            , orderedRangeEndValue = endHour
+            , orderedRangeAvailable = isSelected
+            }
      in [hsx|
-        <tr class={shiftPreferenceWindowClass isSelected}
-             style={shiftPreferenceWindowStyle startHour endHour}
-             data-shift-preference-window="true"
-             data-min-hour={tshow preferenceMinimumHour}
-             data-max-hour={tshow preferenceMaximumHour}>
-            <th scope="row" class="shift-preference-table__available">
+        <tr class="shift-preference-window"
+             style={orderedRangePositionStyle rangeConfig rangeState}
+             {...orderedRangeRootAttrs rangeConfig rangeState}>
+            <th scope="row" class="shift-preference-table__available" {...orderedRangeAvailabilityAttrs}>
                 {renderShiftPreferenceAvailabilityToggle fields key weekdayLabel weekday.label isSelected}
             </th>
             <td class="shift-preference-table__start-time">
                 <div class="shift-preference-window__controls">
                     <div class="shift-preference-range">
                         <div class="shift-preference-range__labels" aria-hidden="true">
-                            <span class="shift-preference-range__bubble" data-shift-preference-start-label="true">{formatPreferenceHour startHour}</span>
-                            <span class="shift-preference-range__bubble" data-shift-preference-end-label="true">{formatPreferenceHour endHour}</span>
+                            <output class="shift-preference-range__bubble shift-preference-range__bubble--start" for={"shiftPreferenceStart-" <> key} aria-hidden="true">{formatPreferenceHour startHour}</output>
+                            <output class="shift-preference-range__bubble shift-preference-range__bubble--end" for={"shiftPreferenceEnd-" <> key} aria-hidden="true">{formatPreferenceHour endHour}</output>
                         </div>
                         <div class="shift-preference-range__track" aria-hidden="true">
-                            <div class="shift-preference-range__fill" data-shift-preference-fill="true"></div>
+                            <div class="shift-preference-range__fill"></div>
                         </div>
                         <label class="visually-hidden" for={"shiftPreferenceStart-" <> key}>Earliest preferred start</label>
                         <input
                             id={"shiftPreferenceStart-" <> key}
                             class="shift-preference-range__input"
                             type="range"
-                            min={tshow preferenceMinimumHour}
-                            max={tshow preferenceMaximumHour}
-                            step="1"
                             name={shiftPreferenceStartHourParamName key}
                             value={tshow startHour}
                             disabled={not isSelected}
-                            data-shift-preference-start="true"
+                            {...orderedRangeStartAttrs rangeConfig}
                         />
                         <label class="visually-hidden" for={"shiftPreferenceEnd-" <> key}>Latest preferred start</label>
                         <input
                             id={"shiftPreferenceEnd-" <> key}
                             class="shift-preference-range__input"
                             type="range"
-                            min={tshow preferenceMinimumHour}
-                            max={tshow preferenceMaximumHour}
-                            step="1"
                             name={shiftPreferenceEndHourParamName key}
                             value={tshow endHour}
                             disabled={not isSelected}
-                            data-shift-preference-end="true"
+                            {...orderedRangeEndAttrs rangeConfig}
                         />
                     </div>
                 </div>
@@ -260,43 +277,33 @@ renderShiftPreferenceDayRow fields selectedShiftPreferences weekday =
         </tr>
     |]
 
-renderShiftPreferenceAvailabilityToggle :: SurfaceFields Surface.StaffShiftPreferenceFields -> Text -> Text -> Text -> Bool -> Html
+renderShiftPreferenceAvailabilityToggle :: SurfaceFieldBundleOf Surface.StaffShiftPreferenceFields fields => fields -> Text -> Text -> Text -> Bool -> Html
 renderShiftPreferenceAvailabilityToggle fields key weekdayLabel fullWeekdayLabel isSelected =
-    renderAppToggleButton $ (defaultAppToggleButtonConfig ("shiftPreferenceAvailable-" <> key) isSelected [hsx|
-        <span>{weekdayLabel}</span>
-        <span class="visually-hidden">{fullWeekdayLabel} available</span>
-    |])
-        { appToggleInputName = Just (surfaceFieldNameFrom @Surface.ShiftPreferenceKeysField fields)
-        , appToggleInputValue = key
-        , appToggleButtonClass = "btn-sm timesheet-approval-toggle shift-preference-availability-button"
-        , appToggleShiftPreferenceAvailable = True
-        }
+    renderAppToggleButton $
+        ( defaultAppToggleButtonConfig
+            ("shiftPreferenceAvailable-" <> key)
+            (surfaceToggleListItemField @Surface.ShiftPreferenceKeysField fields key)
+            isSelected
+            [hsx|
+                <span>{weekdayLabel}</span>
+                <span class="visually-hidden">{fullWeekdayLabel} available</span>
+            |]
+        )
+            { appToggleButtonClass = "btn-sm timesheet-approval-toggle shift-preference-availability-button" }
 
 abbreviateWeekdayLabel :: Text -> Text
 abbreviateWeekdayLabel = Text.take 3
 
-shiftPreferenceWindowClass :: Bool -> Text
-shiftPreferenceWindowClass isSelected =
-    classes
-        [ ("shift-preference-window", True)
-        , ("is-unavailable", not isSelected)
-        ]
-
-shiftPreferenceWindowStyle :: Int -> Int -> Text
-shiftPreferenceWindowStyle startHour endHour =
-    "--preference-start: "
-        <> preferenceHourPercent startHour
-        <> "; --preference-end: "
-        <> preferenceHourPercent endHour
-        <> ";"
-
-preferenceHourPercent :: Int -> Text
-preferenceHourPercent hour =
-    cs (showFFloat (Just 3) percent "%")
-    where
-        spanHours = max 1 (preferenceMaximumHour - preferenceMinimumHour)
-        boundedHour = max preferenceMinimumHour (min preferenceMaximumHour hour)
-        percent = (fromIntegral (boundedHour - preferenceMinimumHour) / fromIntegral spanHours) * (100 :: Double)
+shiftPreferenceOrderedRangeConfig :: OrderedRangeBrowserConfig
+shiftPreferenceOrderedRangeConfig = OrderedRangeBrowserConfig
+    { orderedRangeMinimumValue = preferenceMinimumHour
+    , orderedRangeMaximumValue = preferenceMaximumHour
+    , orderedRangeStepValue = 1
+    , orderedRangeDefaultStartValue = defaultPreferenceStartHour
+    , orderedRangeDefaultEndValue = defaultPreferenceEndHour
+    , orderedRangeValueLabels = map formatPreferenceHour preferenceHourOptions
+    , orderedRangeCrossingPolicy = ClampOtherEndpoint
+    }
 
 findSelectedShiftPreference :: Int -> [ShiftPreferenceSelection] -> Maybe ShiftPreferenceSelection
 findSelectedShiftPreference weekdayIndex =
@@ -320,7 +327,7 @@ renderStaffFieldError staff fieldName =
 hasStaffErrorFor :: Staff -> Text -> Bool
 hasStaffErrorFor staff fieldName = isJust (lookup fieldName staff.meta.annotations)
 
-renderStaffManagementFields :: SurfaceFields Surface.StaffProfileFields -> StaffManagementFieldData -> Html
+renderStaffManagementFields :: SurfaceFieldBundleOf Surface.StaffProfileFields fields => fields -> StaffManagementFieldData -> Html
 renderStaffManagementFields fields StaffManagementFieldData { managementStaff = staff, managementRosterGroups = rosterGroups, managementAwardLevels = awardLevels, managementAwardLevelBaseRates = awardLevelBaseRates, managementImportedPayItems = importedPayItems, managementSelectedRosterGroupIds = selectedRosterGroupIds, managementVenueMembership = maybeMembership, managementWeekOffset = maybeWeekOffset, managementRosterGroupId = maybeRosterGroupId } = [hsx|
     {maybe mempty renderWeekOffsetHiddenInput maybeWeekOffset}
     {renderRosterGroupHiddenInput maybeRosterGroupId}
@@ -345,7 +352,7 @@ renderStaffManagementFields fields StaffManagementFieldData { managementStaff = 
 renderWeekOffsetHiddenInput :: Int -> Html
 renderWeekOffsetHiddenInput weekOffset = [hsx|<input type="hidden" name="weekOffset" value={tshow weekOffset} />|]
 
-renderStaffRoleField :: SurfaceFields Surface.StaffProfileFields -> Maybe VenueMembership -> Html
+renderStaffRoleField :: SurfaceFieldBundleOf Surface.StaffProfileFields fields => fields -> Maybe VenueMembership -> Html
 renderStaffRoleField _ Nothing = [hsx|
     <div class="mt-3">
         <div class="form-label">Staff Role</div>
@@ -381,7 +388,7 @@ venueRoleLabel ManagerRole'   = "Manager"
 venueRoleLabel VenueAdminRole = "Venue Admin"
 venueRoleLabel VenueOwnerRole = "Venue Owner"
 
-renderStaffPayFields :: SurfaceFields Surface.StaffProfileFields -> Staff -> [AwardLevel] -> [AwardLevelBaseRate] -> [XeroImportedPayItem] -> Html
+renderStaffPayFields :: SurfaceFieldBundleOf Surface.StaffProfileFields fields => fields -> Staff -> [AwardLevel] -> [AwardLevelBaseRate] -> [XeroImportedPayItem] -> Html
 renderStaffPayFields fields staff awardLevels awardLevelBaseRates importedPayItems = [hsx|
     <div class="row g-3 mt-3 staff-pay-field-grid">
         <div class="col-12 col-md-6">
@@ -441,7 +448,7 @@ renderRosterGroupHiddenInput maybeRosterGroupId =
         Just rosterGroupId -> [hsx|<input type="hidden" name="rosterGroupId" value={tshow rosterGroupId} />|]
         Nothing -> mempty
 
-renderRosterGroupCheckbox :: SurfaceFields Surface.StaffProfileFields -> [Id RosterGroup] -> RosterGroup -> Html
+renderRosterGroupCheckbox :: SurfaceFieldBundleOf Surface.StaffProfileFields fields => fields -> [Id RosterGroup] -> RosterGroup -> Html
 renderRosterGroupCheckbox fields selectedRosterGroupIds rosterGroup =
     let isSelected = rosterGroup.id `elem` selectedRosterGroupIds
      in [hsx|
@@ -450,11 +457,14 @@ renderRosterGroupCheckbox fields selectedRosterGroupIds rosterGroup =
         </div>
     |]
 
-renderRosterGroupToggle :: SurfaceFields Surface.StaffProfileFields -> RosterGroup -> Bool -> Html
+renderRosterGroupToggle :: SurfaceFieldBundleOf Surface.StaffProfileFields fields => fields -> RosterGroup -> Bool -> Html
 renderRosterGroupToggle fields rosterGroup isSelected =
-    renderAppToggleButton $ (defaultAppToggleButtonConfig ("staff-roster-group-" <> tshow rosterGroup.id) isSelected [hsx|<span>{rosterGroup.name}</span>|])
-        { appToggleInputName = Just (surfaceFieldNameFrom @Surface.RosterGroupIdsField fields)
-        , appToggleInputValue = tshow rosterGroup.id
-        , appToggleButtonClass = "btn-sm timesheet-approval-toggle shift-preference-availability-button w-100 d-flex align-items-center justify-content-center gap-1"
-        }
+    renderAppToggleButton $
+        ( defaultAppToggleButtonConfig
+            ("staff-roster-group-" <> tshow rosterGroup.id)
+            (surfaceToggleListItemField @Surface.RosterGroupIdsField fields (unpackId rosterGroup.id))
+            isSelected
+            [hsx|<span>{rosterGroup.name}</span>|]
+        )
+            { appToggleButtonClass = "btn-sm timesheet-approval-toggle shift-preference-availability-button w-100 d-flex align-items-center justify-content-center gap-1" }
 

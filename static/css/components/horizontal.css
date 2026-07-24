@@ -7,16 +7,16 @@
     cursor: grab;
 }
 
-.app-horizontal-frame[data-horizontal-dragging="true"] {
+.app-horizontal-frame.is-horizontal-dragging {
     cursor: grabbing;
     user-select: none;
 }
 
-.app-horizontal-frame[data-horizontal-dragging="true"] * {
+.app-horizontal-frame.is-horizontal-dragging * {
     cursor: grabbing !important;
 }
 
-.app-horizontal-frame[data-horizontal-snap-dragging="true"] {
+.app-horizontal-frame.is-horizontal-snap-dragging {
     scroll-snap-type: none;
 }
 
@@ -34,7 +34,7 @@
 }
 
 @media (max-width: 575.98px) {
-    .app-horizontal-frame[data-horizontal-snap] {
+    .app-horizontal-frame[data-bepis-horizontal-scroll-snap] {
         scroll-snap-type: x mandatory;
     }
 

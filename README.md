@@ -59,11 +59,22 @@ bash ./bin/in-env lint
 bash ./bin/in-env format
 ```
 
+Within a checkout, named devenv commands execute their current source under
+`Config/nix/scripts/` rather than a materialized Nix-store snapshot. Editing a
+script body therefore does not require reloading the shell; changing command
+registration or package dependencies under `Config/nix/flake/` still invalidates
+direnv normally. Outside a checkout, packaged commands emit a warning before
+using their embedded snapshot fallback. `verify-fast` and `verify-full` include
+the deterministic `devenv-script-freshness-check` regression gate.
+
 `e2e-fast` runs every browser source behavior once across desktop Chromium and
 the canonical Pixel 7 profile. `e2e` remains the complete gate and repeats
 profile-sensitive mobile behaviors on Galaxy S9+ and iPad Mini. Normal
 typecheck, Hspec, and compiled E2E commands reuse a compatible fingerprinted
-GHC cache; HPC remains isolated.
+GHC cache; HPC remains isolated. DB-backed Hspec uses a private disposable
+PostgreSQL instance on native temporary storage and prints its effective path
+and durability settings at startup; use `bash ./bin/in-env test-postgres status`
+or `stop` to inspect or remove it. The normal development database is separate.
 
 For browser or integration work, use the managed dev server helpers:
 
@@ -174,23 +185,31 @@ bash ./bin/in-env frontend-check
 bash ./bin/in-env frontend-test
 bash ./bin/in-env frontend-contracts
 bash ./bin/in-env frontend-contracts-check
-bash ./bin/in-env frontend-contracts-watch
+bash ./bin/in-env frontend-generated-ensure
+bash ./bin/in-env frontend-generated-sync
+bash ./bin/in-env frontend-generated-watch
 bash ./bin/in-env frontend-surface-adapters
 bash ./bin/in-env frontend-surface-adapters-check
 bash ./bin/in-env frontend-watch
+bash ./bin/in-env generated-code-sync
 ```
 
 `frontend-check` runs contract drift, strict TypeScript validation including
 unused-code checks, frontend unit/DOM tests, and generated JS drift. The full
 verification gate additionally runs curated FrontendContract GHC warnings and
-Weeder reachability, CSS
-stale-selector ownership, architecture freshness, and documentation drift. `dev-start` and `just dev` run the frontend
-contract watcher plus frontend asset watcher; `just dev` also runs the local
+Weeder reachability, CSS stale-selector ownership, architecture freshness, and
+documentation drift. `dev-start` and `just dev` first use content fingerprints
+to generate only stale frontend contracts, Haskell Surface adapters, and
+JavaScript, then run the coordinated frontend-generated watcher plus the
+frontend asset watcher. IHP's `RunDevServer` remains the sole live owner of
+schema-derived `build/Generated/` Haskell types. `just dev` also runs the local
 observability stack in foreground dev; `dev-stop` cleans up detached dev
 processes. There is no Vite dev server or true HMR requirement. Contract-source
-edits regenerate `frontend/ts/generated/contracts.ts` atomically and the asset
-watcher rebundles dependent JS. Frontend unit tests and Playwright E2E are not pre-commit hooks;
-the tracked pre-commit hook only guards generated JS drift. Production/live
+edits regenerate both Haskell adapters and `frontend/ts/generated/contracts.ts`;
+the asset watcher then rebundles dependent JS. `generated-code-sync` (or
+`just regen-all`) unconditionally regenerates all code. Frontend unit tests and
+Playwright E2E are not pre-commit hooks; the tracked pre-commit hook only guards
+generated JS drift. Production/live
 NixOS runtime serves checked-in generated static JS and does not require
 Node/esbuild/TypeScript/frontend test tooling.
 

@@ -113,33 +113,27 @@ renderActiveBadge isActive =
         then renderAppStatusBadge AppStatusSuccess "active"
         else renderAppStatusBadge AppStatusNeutral "inactive"
 
-renderAdminActiveToggle :: Text -> Text -> Maybe Text -> Text -> Bool -> Html
-renderAdminActiveToggle inputId fieldName maybePostPath targetId isActive =
-    renderAdminActiveToggleWithInputAttrs inputId fieldName isActive generatedAttrs
-    where
-        generatedAttrs =
-            case maybePostPath of
-                Nothing -> []
-                Just postPath ->
-                    [ ("hx-post", postPath)
-                    , ("hx-trigger", "change")
-                    , ("hx-include", "closest form")
-                    , ("hx-target", "#" <> targetId)
-                    , ("hx-swap", "outerHTML")
-                    ]
+renderAdminActiveToggle :: Text -> ToggleFieldBinding -> Bool -> Html
+renderAdminActiveToggle inputId binding isActive =
+    renderAdminActiveToggleWithPolicy inputId binding isActive ToggleSubmitDeferred
 
-renderAdminActiveToggleWithInputAttrs :: Text -> Text -> Bool -> [(Text, Text)] -> Html
-renderAdminActiveToggleWithInputAttrs inputId fieldName isActive inputAttrs = [hsx|
-    {renderAppToggleButton toggleConfig}
-    <input type="hidden" name={fieldName} value="false" />
-|]
-    where
-        toggleConfig = (defaultAppToggleStateButtonConfig inputId isActive [hsx|<span class="small">Enabled</span>|] [hsx|<span class="small">Disabled</span>|])
-            { appToggleInputName = Just fieldName
-            , appToggleInputValue = "true"
-            , appToggleButtonClass = "btn-sm w-100"
+renderAdminActiveToggleImmediate :: Text -> ToggleFieldBinding -> Bool -> Html
+renderAdminActiveToggleImmediate inputId binding isActive =
+    renderAdminActiveToggleWithPolicy inputId binding isActive ToggleSubmitImmediate
+
+renderAdminActiveToggleWithPolicy :: Text -> ToggleFieldBinding -> Bool -> ToggleSubmissionPolicy -> Html
+renderAdminActiveToggleWithPolicy inputId binding isActive submitPolicy =
+    renderAppToggleButton $
+        ( defaultAppToggleStateButtonConfig
+            inputId
+            binding
+            isActive
+            [hsx|<span class="small">Enabled</span>|]
+            [hsx|<span class="small">Disabled</span>|]
+        )
+            { appToggleButtonClass = "btn-sm w-100"
             , appToggleRoleSwitch = True
-            , appToggleInputExtraAttrs = inputAttrs
+            , appToggleSubmitPolicy = submitPolicy
             }
 
 renderEmptyState :: Text -> Html

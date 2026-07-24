@@ -2,6 +2,7 @@
 {-# LANGUAGE DataKinds            #-}
 {-# LANGUAGE FlexibleContexts     #-}
 {-# LANGUAGE FlexibleInstances    #-}
+{-# LANGUAGE GADTs                #-}
 {-# LANGUAGE ScopedTypeVariables  #-}
 {-# LANGUAGE TypeApplications     #-}
 {-# LANGUAGE TypeFamilies         #-}
@@ -12,7 +13,7 @@
 --
 -- Route parameters, CSRF details, and unrelated request context are deliberately
 -- ignored. Every field declared by the selected action or intent is parsed in
--- declaration order before a typed 'SurfaceFields' bundle is returned.
+-- declaration order before a nominal operation-indexed bundle is returned.
 module Application.Helper.FrontendContract.Surface.Request
     ( KnownSurfaceRequestFields
     , SurfaceRequestFieldError (..)
@@ -28,6 +29,8 @@ module Application.Helper.FrontendContract.Surface.Request
     ) where
 
 import qualified Application.Helper.FrontendContract.Naming as Naming
+import Application.Helper.FrontendContract.Surface.Diagnostics (AssertSurfaceFieldValue,
+                                                                SurfaceFieldPresence (..))
 import Application.Helper.FrontendContract.Surface.DSL
 import Application.Helper.FrontendContract.Surface.Values
 import qualified Data.Aeson as Aeson
@@ -92,7 +95,7 @@ parseSurfaceActionParams ::
     ( ?request :: Request
     , KnownSurfaceRequestFields (SurfaceActionFieldSpecs spec action)
     ) =>
-    Either [SurfaceRequestFieldError] (SurfaceFields (SurfaceActionFieldSpecs spec action))
+    Either [SurfaceRequestFieldError] (SurfaceActionFields spec action)
 parseSurfaceActionParams =
     parseSurfaceActionParamPairs @spec @action allParams
 
@@ -125,9 +128,10 @@ parseSurfaceActionParamPairs ::
     forall spec action.
     KnownSurfaceRequestFields (SurfaceActionFieldSpecs spec action) =>
     [(ByteString, Maybe ByteString)] ->
-    Either [SurfaceRequestFieldError] (SurfaceFields (SurfaceActionFieldSpecs spec action))
-parseSurfaceActionParamPairs =
-    parseSurfaceRequestFields @(SurfaceActionFieldSpecs spec action)
+    Either [SurfaceRequestFieldError] (SurfaceActionFields spec action)
+parseSurfaceActionParamPairs params =
+    parsedSurfaceActionFields @spec @action
+        <$> parseSurfaceRequestFields @(SurfaceActionFieldSpecs spec action) params
 
 -- | Parse one intent's complete declared field contract from the active IHP
 -- request.
@@ -136,7 +140,7 @@ parseSurfaceIntentParams ::
     ( ?request :: Request
     , KnownSurfaceRequestFields (SurfaceIntentFieldSpecs spec intent)
     ) =>
-    Either [SurfaceRequestFieldError] (SurfaceFields (SurfaceIntentFieldSpecs spec intent))
+    Either [SurfaceRequestFieldError] (SurfaceIntentFields spec intent)
 parseSurfaceIntentParams =
     parseSurfaceIntentParamPairs @spec @intent allParams
 
@@ -145,33 +149,112 @@ parseSurfaceIntentParamPairs ::
     forall spec intent.
     KnownSurfaceRequestFields (SurfaceIntentFieldSpecs spec intent) =>
     [(ByteString, Maybe ByteString)] ->
-    Either [SurfaceRequestFieldError] (SurfaceFields (SurfaceIntentFieldSpecs spec intent))
-parseSurfaceIntentParamPairs =
-    parseSurfaceRequestFields @(SurfaceIntentFieldSpecs spec intent)
+    Either [SurfaceRequestFieldError] (SurfaceIntentFields spec intent)
+parseSurfaceIntentParamPairs params =
+    parsedSurfaceIntentFields @spec @intent
+        <$> parseSurfaceRequestFields @(SurfaceIntentFieldSpecs spec intent) params
+
+data ParsedSurfaceFields (fields :: [FieldSpec]) where
+    ParsedNoSurfaceFields ::
+        ParsedSurfaceFields '[]
+    ParsedRequiredSurfaceField ::
+        forall marker wire rest.
+        ( Typeable marker
+        , KnownSurfaceWireValue wire
+        , AssertSurfaceFieldValue 'SurfaceRequired marker wire (SurfaceWireValue wire)
+        ) =>
+        SurfaceWireValue wire ->
+        ParsedSurfaceFields rest ->
+        ParsedSurfaceFields (('Field marker wire) ': rest)
+    ParsedOptionalSurfaceField ::
+        forall marker wire rest.
+        ( Typeable marker
+        , KnownSurfaceWireValue wire
+        , AssertSurfaceFieldValue 'SurfaceOptional marker wire (Maybe (SurfaceWireValue wire))
+        ) =>
+        Maybe (SurfaceWireValue wire) ->
+        ParsedSurfaceFields rest ->
+        ParsedSurfaceFields (('OptionalField marker wire) ': rest)
+    ParsedNullableSurfaceField ::
+        forall marker wire rest.
+        ( Typeable marker
+        , KnownSurfaceWireValue wire
+        , AssertSurfaceFieldValue 'SurfaceNullable marker wire (Maybe (SurfaceWireValue wire))
+        ) =>
+        Maybe (SurfaceWireValue wire) ->
+        ParsedSurfaceFields rest ->
+        ParsedSurfaceFields (('NullableField marker wire) ': rest)
+
+parsedSurfaceActionFields ::
+    forall spec action.
+    ParsedSurfaceFields (SurfaceActionFieldSpecs spec action) ->
+    SurfaceActionFields spec action
+parsedSurfaceActionFields ParsedNoSurfaceFields = noSurfaceActionFields
+parsedSurfaceActionFields (ParsedRequiredSurfaceField @marker @wire value rest) =
+    surfaceActionFields @spec @action @'SurfaceRequired @marker @wire
+        (surfaceField @marker @wire value)
+        (parsedSurfaceFieldsValue rest)
+parsedSurfaceActionFields (ParsedOptionalSurfaceField @marker @wire value rest) =
+    surfaceActionFields @spec @action @'SurfaceOptional @marker @wire
+        (surfaceOptionalField @marker @wire value)
+        (parsedSurfaceFieldsValue rest)
+parsedSurfaceActionFields (ParsedNullableSurfaceField @marker @wire value rest) =
+    surfaceActionFields @spec @action @'SurfaceNullable @marker @wire
+        (surfaceNullableField @marker @wire value)
+        (parsedSurfaceFieldsValue rest)
+
+parsedSurfaceIntentFields ::
+    forall spec intent.
+    ParsedSurfaceFields (SurfaceIntentFieldSpecs spec intent) ->
+    SurfaceIntentFields spec intent
+parsedSurfaceIntentFields ParsedNoSurfaceFields = noSurfaceIntentFields
+parsedSurfaceIntentFields (ParsedRequiredSurfaceField @marker @wire value rest) =
+    surfaceIntentFields @spec @intent @'SurfaceRequired @marker @wire
+        (surfaceField @marker @wire value)
+        (parsedSurfaceFieldsValue rest)
+parsedSurfaceIntentFields (ParsedOptionalSurfaceField @marker @wire value rest) =
+    surfaceIntentFields @spec @intent @'SurfaceOptional @marker @wire
+        (surfaceOptionalField @marker @wire value)
+        (parsedSurfaceFieldsValue rest)
+parsedSurfaceIntentFields (ParsedNullableSurfaceField @marker @wire value rest) =
+    surfaceIntentFields @spec @intent @'SurfaceNullable @marker @wire
+        (surfaceNullableField @marker @wire value)
+        (parsedSurfaceFieldsValue rest)
+
+parsedSurfaceFieldsValue :: ParsedSurfaceFields fields -> SurfaceFields fields
+parsedSurfaceFieldsValue = \case
+    ParsedNoSurfaceFields -> noSurfaceFields
+    ParsedRequiredSurfaceField @marker @wire value rest ->
+        prependRequiredSurfaceField @marker @wire value (parsedSurfaceFieldsValue rest)
+    ParsedOptionalSurfaceField @marker @wire value rest ->
+        prependOptionalSurfaceField @marker @wire value (parsedSurfaceFieldsValue rest)
+    ParsedNullableSurfaceField @marker @wire value rest ->
+        prependNullableSurfaceField @marker @wire value (parsedSurfaceFieldsValue rest)
 
 class KnownSurfaceRequestFields (fields :: [FieldSpec]) where
     surfaceRequestFieldNames :: [ByteString]
     surfaceRequestRequiredFieldNames :: [ByteString]
     parseSurfaceRequestFields ::
         [(ByteString, Maybe ByteString)] ->
-        Either [SurfaceRequestFieldError] (SurfaceFields fields)
+        Either [SurfaceRequestFieldError] (ParsedSurfaceFields fields)
 
 instance KnownSurfaceRequestFields '[] where
     surfaceRequestFieldNames = []
     surfaceRequestRequiredFieldNames = []
-    parseSurfaceRequestFields _ = Right NoSurfaceFields
+    parseSurfaceRequestFields _ = Right ParsedNoSurfaceFields
 
 instance
     ( Typeable marker
     , KnownSurfaceWireValue wire
     , KnownSurfaceRequestWire wire
     , KnownSurfaceRequestFields rest
+    , AssertSurfaceFieldValue 'SurfaceRequired marker wire (SurfaceWireValue wire)
     ) => KnownSurfaceRequestFields (('Field marker wire) ': rest) where
     surfaceRequestFieldNames = cs (surfaceMarkerFieldName @marker) : surfaceRequestFieldNames @rest
     surfaceRequestRequiredFieldNames = cs (surfaceMarkerFieldName @marker) : surfaceRequestRequiredFieldNames @rest
     parseSurfaceRequestFields params =
         combineFieldResult requiredValue (parseSurfaceRequestFields @rest params) $ \value rest ->
-            prependRequiredSurfaceField @marker @wire value rest
+            ParsedRequiredSurfaceField @marker @wire value rest
       where
         requiredValue =
             case requestParamValues @marker params of
@@ -184,12 +267,13 @@ instance
     , KnownSurfaceWireValue wire
     , KnownSurfaceRequestWire wire
     , KnownSurfaceRequestFields rest
+    , AssertSurfaceFieldValue 'SurfaceOptional marker wire (Maybe (SurfaceWireValue wire))
     ) => KnownSurfaceRequestFields (('OptionalField marker wire) ': rest) where
     surfaceRequestFieldNames = cs (surfaceMarkerFieldName @marker) : surfaceRequestFieldNames @rest
     surfaceRequestRequiredFieldNames = surfaceRequestRequiredFieldNames @rest
     parseSurfaceRequestFields params =
         combineFieldResult optionalValue (parseSurfaceRequestFields @rest params) $ \value rest ->
-            prependOptionalSurfaceField @marker @wire value rest
+            ParsedOptionalSurfaceField @marker @wire value rest
       where
         optionalValue =
             case requestParamValues @marker params of
@@ -204,12 +288,13 @@ instance
     , KnownSurfaceWireValue wire
     , KnownSurfaceRequestWire wire
     , KnownSurfaceRequestFields rest
+    , AssertSurfaceFieldValue 'SurfaceNullable marker wire (Maybe (SurfaceWireValue wire))
     ) => KnownSurfaceRequestFields (('NullableField marker wire) ': rest) where
     surfaceRequestFieldNames = cs (surfaceMarkerFieldName @marker) : surfaceRequestFieldNames @rest
     surfaceRequestRequiredFieldNames = cs (surfaceMarkerFieldName @marker) : surfaceRequestRequiredFieldNames @rest
     parseSurfaceRequestFields params =
         combineFieldResult nullableValue (parseSurfaceRequestFields @rest params) $ \value rest ->
-            prependNullableSurfaceField @marker @wire value rest
+            ParsedNullableSurfaceField @marker @wire value rest
       where
         nullableValue =
             case requestParamValues @marker params of

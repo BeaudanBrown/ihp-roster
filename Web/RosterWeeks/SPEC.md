@@ -21,9 +21,19 @@ lands.
   markup. The wage toggle is independent of the venue-wide roster end-time
   display setting because shift end times are always collected.
 - Publishing a roster is the visibility gate for staff-facing roster content.
+  The live switch submits an explicit `true` or `false` transport synchronized
+  before HTMX serialization; actor responses and reloads must converge to the
+  persisted roster-week state in both directions.
+- Responsive roster week chrome renders the live switch, reset link, navigation,
+  settings, and auxiliary action once each. CSS repositions those canonical
+  nodes on narrow viewports; desktop/mobile copies and duplicate interactive ids
+  are not permitted.
 - Staff-facing draft roster pages keep the week shell and day column mounted for
   live updates, but hide slot rows, closed-day state, and other draft roster
   details behind a non-live placeholder.
+- The staff quick-tool unavailability form is the form-only mount of the shared
+  `SelfServiceLeaveSurface`; the RosterSurface does not own a separate leave
+  fragment, action schema, response context, or date-default implementation.
 - Full pages, standard rows, day columns, month overview, timeline URLs, and
   roster fragment endpoints all use the canonical direct SQL read model. There
   is no fallback projection query or alternate conflict evaluator.
@@ -33,11 +43,52 @@ lands.
   options and the manager staff panel. Managers can send a worker-only adoption
   invitation for a trial staff row; accepting the invitation links the existing
   `staff` row to the new `user` rather than creating a replacement staff row, so
-  existing roster slots remain attached to the same staff identity.
+  existing roster slots remain attached to the same staff identity. Acceptance
+  refreshes active roster staff panels and slot content for the staff member's
+  roster groups, so other viewers immediately see the linked role and any
+  signup-time name changes.
 - The manager roster side panel has separate Staff and Settings tabs. Staff owns
   the rosterable staff list and trial-staff actions; Settings owns roster group,
   layout, display, assignment-prevention, week-action, and export controls. These
-  controls remain typed RosterSurface actions inside the live panel mount.
+  controls remain typed RosterSurface actions inside the live panel mount. The
+  selected valid tab is remembered per concrete mount across HTMX replacement;
+  missing or invalid remembered tabs fall back to Staff.
+- The complete staff list can be sorted by name, role, or shift count. Name
+  ascending is the initial order; choosing the active key toggles direction and
+  choosing another key resets to ascending. Role ties sort by name. Shift-count
+  ordering compares assigned shifts, then ideal shifts, then name. Every chain
+  ends in an always-ascending opaque row key so equal visible values are stable.
+  Sort state is presentation-only and resets when the rendered sort root is
+  replaced.
+- Staff-panel sort rows, controls, and tabs use generated RosterSurface roles.
+  Each row exposes one exact generated JSON payload; raw per-field
+  `data-roster-staff-*` attributes and roster-specific browser comparators or
+  defaults are not part of the implemented contract.
+- Fullscreen controls use generated root/toggle/label roles and the closed
+  collapsed/expanded Surface state. The button keeps native `aria-pressed`,
+  labels and icon state stay synchronized, Escape collapses the focused/active
+  root, and duplicate roster roots remain independent.
+- Column editing uses generated editor/start/done roles and the closed
+  inactive/active Surface state. State is owned by each concrete grid frame;
+  replacing controls reconciles their ARIA state, replacing the frame restores
+  server-rendered inactive state, and pending delayed-blur timers are disposed
+  with removed HTMX roots.
+- Raw `data-roster-fullscreen*` and `data-roster-column-*` names are not part of
+  the implemented contract. CSS and browser behavior consume generated
+  role/state names rather than presentation classes.
+- Live manager row-grid image export uses generated
+  trigger/config/projection/row/cell roles, a closed JPG format, and exact
+  Haskell-built policy and cell payloads. Day-column and timeline layouts omit
+  the trigger because they have no row-grid projection. Haskell resolves the
+  filename, dimensions, quality, copy, errors, and rendered values; TypeScript
+  retains measurement, computed styles, SVG/Canvas encoding, and download
+  mechanics without class/cell-position or conflict inference.
+- The retained month overview endpoint uses generated panel/day/detail-slot
+  roles, exact Haskell-built date/metric/summary/URL payloads, native
+  `aria-pressed`, and generated availability/closure/calendar state. Malformed
+  days are diagnosed and skipped locally. The active roster header still renders
+  only a static week label, so the overview remains disabled and is not loaded
+  during normal navigation.
 - The roster staff panel uses the existing role column for trial placeholders and
   renders their role as `TRIAL`; linked staff continue to show their venue
   membership role labels.
@@ -140,7 +191,9 @@ lands.
   8-hour end time clamped to the configured picker end when the window is
   shorter than 8 hours. Existing saved shift times outside the picker window
   remain valid/displayed; picker +/- buttons stay unavailable until the field is
-  changed to an in-window option.
+  changed to an in-window option. Haskell renders exact generated range/step and
+  option value/label payloads; the generic browser adapter supplies no fallback
+  time data or copy.
 - Timeline resize handles, creating shifts, deleting shifts, configurable
   slot-definition titles, staff reassignment, and live-roster editing are not
   part of the implemented timeline contract.
@@ -187,17 +240,25 @@ lands.
 - Roster live fragments refresh immediately; discrete autosaved controls should
   commit on change instead of relying on blur-deferred protection.
 - `#roster-content` owns only the main roster column, header, and grid. It does
-  not render `#roster-staff-panel-fragment`.
-- `#roster-staff-panel-fragment` is a sibling side-panel fragment. Broad roster
-  week refreshes may request content and staff panel together because their
-  containment paths are siblings.
+  not render `#roster-staff-panel-fragment`. Ordinary roster-week updates target
+  authoritative child fragments so the mounted grid frame retains horizontal
+  scroll ownership. A separate roster-structure resource selects
+  `#roster-content` for create/copy/publication transitions; slots-structure and
+  slots-content resources select the slot scroller for column count/order changes
+  or broad staff/leave projection changes; venue configuration that changes
+  frame-owned state selects `#roster-grid-frame`.
+- `#roster-staff-panel-fragment` is a sibling side-panel fragment. Ordinary broad
+  roster-week updates may request the contained grid children and staff panel
+  together because those targets are siblings.
 - The manager staff panel is eagerly rendered in the full roster shell for the
   release candidate. Its fragment endpoint remains the same permission-checked
   source of truth for live/actor refreshes and must keep returning the root node
   with id `roster-staff-panel-fragment`.
-- Day and row fragments remain descendants of `#roster-content`; when a parent
-  content refresh is selected, actor/passive planning drops overlapping day or
-  row refs.
+- Day and row fragments remain descendants of `#roster-content`; when a resync
+  or explicit parent refresh is selected, actor/passive planning drops
+  overlapping descendants. Parameterized containment applies only when ancestor
+  parameter values match the descendant, so one day section never suppresses a
+  row belonging to another day.
 
 ## Extension Rules
 

@@ -10,7 +10,12 @@ This file describes implemented leave/availability behavior.
 - `end_date` is exclusive. A one-day period has `start_date = day` and
   `end_date = day + 1`.
 - Staff can create self-service unavailable periods according to controller
-  checks.
+  checks. Profile and the roster quick tool mount the same
+  `SelfServiceLeaveSurface` form fragment, action schema, validation response,
+  venue-operational-day defaults, and success reset. Profile additionally mounts
+  the Surface's history fragment; roster mounts only the form.
+- Date controls submit ISO `yyyy-mm-dd` values and display `dd/mm/yyyy`,
+  including after validation and live fragment replacement.
 - Managers/admins can approve, deny, or manage requests according to role
   checks.
 - Approved-state leave changes invalidate affected roster scopes. Pending
@@ -26,9 +31,13 @@ This file describes implemented leave/availability behavior.
 ## Live Updates
 
 - Leave pages can use declarative live surfaces for manager/worker visibility.
-- Actor responses should update the current fragment locally.
-- Passive viewers receive semantic fragment-key invalidations and refetch
-  authorized fragments through their own local mount descriptors.
+- Successful actor responses request a local shared-form refetch plus the
+  resource-planned history refetch and return only toast OOB HTML. Roster mounts
+  ignore the absent history key; validation failures still replace the form
+  directly with its annotated model.
+- The self-service form is `ResyncOnly`, so passive leave changes cannot erase
+  focused input. The history fragment alone depends on the staff leave-request
+  resource and refetches for passive viewers through its local mount descriptor.
 
 ## Extension Rules
 

@@ -124,9 +124,9 @@ and use the ready, unassigned, unblocked frontier when selecting agent work.
 
 - Global authenticated navigation lives in `Web/View/Layout.hs`.
 - Header order is `roster`, `profile`, `timesheets`, `unavailability`, `xero`,
-  `admin`, `support`, `logout`.
-- `xero` is owner/super-admin only. `admin` is admin-gated. `support` is
-  founder-only.
+  `billing`, `admin`, `support`, `logout`.
+- `xero` is owner/super-admin only. `billing` is owner-only and deployment-visible.
+  `admin` is admin-gated. `support` is founder-only.
 - Auth pages must not render the authenticated header.
 - Use Bootstrap 5.3.8 vendor assets and `assetPath` for static references.
 - App CSS is split under `static/css/` and linked from `Web/View/Layout.hs` via
@@ -188,9 +188,20 @@ regenerate generated types, run focused schema/code checks, and verify parser
 compatibility with the dev DB/startup flow when enums, constraints, triggers, or
 advanced SQL are involved.
 
+## Agent Browser Workflow
+
+For Playwright work, use the stateful Playwright Agent CLI as the default browser interaction tool. Start with `pi-playwright doctor`; the committed `.pi/playwright-cli.json` selects the repository-pinned `bash ./bin/in-env pwcli` adapter ahead of the harness fallback. Use it for live navigation, accessibility snapshots, selector discovery, console/network inspection, screenshots, and generating action/locator skeletons. Use the harness fallback only for disposable browsing when no project adapter exists.
+
+Exploration does not replace deterministic tests. Convert useful flows into normal specs under `e2e/`, add explicit assertions, and run them through the repository's `e2e` wrapper. Follow `e2e/AGENTS.md` for seeded authentication and session commands. Never browse production/customer data or commit browser profiles, auth state, traces, or exploratory artifacts.
+
 ## Verification
 
-Use the repo wrapper unless you are already inside the devenv shell:
+Use the repo wrapper unless you are already inside the devenv shell. Run
+`bin/in-env` commands serially: concurrent wrapper entries can race on generated
+`.devenv` shell files and produce false setup failures. On memory-constrained
+hosts, also stop dev hot reload and avoid triggering HLS reloads while running
+compile-heavy typecheck, Hspec, generator, or `verify-full` gates; independent
+GHC heaps can otherwise exhaust RAM and swap even when each command passes alone.
 
 ```bash
 bash ./bin/in-env regen-types

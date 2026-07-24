@@ -10,8 +10,8 @@ module Web.View.Admin.Exports
 import Application.Helper.Controller (currentVenueOrNothing)
 import Application.Helper.Export
 import qualified Application.Helper.FrontendContract.Surface.Admin as Surface
+import qualified Application.Helper.FrontendContract.Surface.Admin.Action as AdminAction
 import Application.Helper.FrontendContract.Surface.Runtime (FrontendSurfaceActionRoute (..),
-                                                            frontendSurfaceAction,
                                                             renderFrontendSurfaceActionForm,
                                                             renderFrontendSurfaceMount)
 import Application.Helper.FrontendContract.Surface.Values
@@ -21,7 +21,7 @@ import Web.View.Admin.Common
 import Web.View.Prelude
 
 adminExportsFragmentId :: Text
-adminExportsFragmentId = surfaceFragmentTargetId @Surface.AdminExportsSurface @Surface.AdminExportsFragment NoSurfaceFields
+adminExportsFragmentId = surfaceFragmentTargetId @Surface.AdminExportsSurface @Surface.AdminExportsFragment noSurfaceFields
 
 currentVenueScopeId :: (?context :: ControllerContext) => UUID
 currentVenueScopeId =
@@ -59,7 +59,7 @@ renderExportsSection defaultRangeStart defaultRangeEnd exportJobs =
 renderExportGenerationForm :: Day -> Day -> Html
 renderExportGenerationForm defaultRangeStart defaultRangeEnd =
     renderFrontendSurfaceActionForm
-        (frontendSurfaceAction @Surface.AdminExportsSurface @Surface.CreateExportJob fields)
+        (AdminAction.createExportJobAction fields)
         createExportRoute
         [hsx|
             <div class="row g-3 align-items-end">
@@ -79,11 +79,7 @@ renderExportGenerationForm defaultRangeStart defaultRangeEnd =
             </div>
         |]
   where
-    fields =
-        surfaceField @Surface.RangeStart defaultRangeStart
-            :& surfaceField @Surface.RangeEnd defaultRangeEnd
-            :& surfaceField @Surface.ExportType ""
-            :& NoSurfaceFields
+    fields = AdminAction.createExportJobActionFields defaultRangeStart defaultRangeEnd ""
 
 createExportRoute :: FrontendSurfaceActionRoute
 createExportRoute = FrontendSurfaceActionRoute
@@ -100,7 +96,7 @@ renderExportSummary exportJobs = [hsx|
     </p>
 |]
 
-renderFixedExportAction :: SurfaceFields (SurfaceActionFieldSpecs Surface.AdminExportsSurface Surface.CreateExportJob) -> FixedExportDefinition -> Html
+renderFixedExportAction :: SurfaceActionFields Surface.AdminExportsSurface Surface.CreateExportJob -> FixedExportDefinition -> Html
 renderFixedExportAction fields exportDefinition = [hsx|
     <div class="col-12 col-lg-6">
         <div class={appSurfaceClasses "p-3 h-100"} data-fixed-export-card="true" data-export-type={exportJobTypeToText exportDefinition.fixedExportType}>

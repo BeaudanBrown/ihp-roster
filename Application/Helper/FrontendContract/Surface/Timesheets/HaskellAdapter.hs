@@ -5,7 +5,7 @@ module Application.Helper.FrontendContract.Surface.Timesheets.HaskellAdapter
     ( TimesheetsAdapterFamily
     ) where
 
-import Application.Helper.FrontendContract.Surface.HaskellAdapter.Family
+import Application.Helper.FrontendContract.Surface.HaskellAdapter.Association
 import qualified Application.Helper.FrontendContract.Surface.Timesheets as Timesheets
 
 data TimesheetsAdapterFamily

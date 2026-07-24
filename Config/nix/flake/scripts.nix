@@ -14,9 +14,51 @@ let
             ]
             (builtins.readFile path);
 
-    script = path: {
-        exec = scriptBody path;
-    };
+    script = path:
+        let
+            relativePath = pkgs.lib.removePrefix "${toString ../scripts}/" (toString path);
+        in
+        {
+            exec = ''
+                #!/usr/bin/env bash
+                set -euo pipefail
+
+                repo_root="''${FRONTEND_REPO_ROOT:-}"
+                repo_root_is_explicit=false
+                if [ -n "$repo_root" ]; then
+                    repo_root_is_explicit=true
+                else
+                    repo_root="$(git rev-parse --show-toplevel 2>/dev/null || true)"
+                fi
+
+                project_marker="$repo_root/Config/nix/flake/scripts.nix"
+                if [ -n "$repo_root" ] && { [ "$repo_root_is_explicit" = true ] || [ -f "$project_marker" ]; }; then
+                    if [[ "$repo_root" == *$'\n'* || "$repo_root" == *$'\r'* ]]; then
+                        echo "devenv project command: checkout paths containing newlines are unsupported" >&2
+                        exit 64
+                    fi
+                    working_tree_script="$repo_root/Config/nix/scripts/${relativePath}"
+                    if [ ! -f "$working_tree_script" ]; then
+                        echo "devenv project command: missing working-tree script $working_tree_script" >&2
+                        exit 66
+                    fi
+                    scripts_root_replacement="$(
+                        printf '%s' "$repo_root/Config/nix/scripts" \
+                            | sed 's/[\\&|]/\\&/g'
+                    )"
+                    exec bash -s -- "$@" < <(
+                        sed \
+                            -e "s|@scriptsRoot@|$scripts_root_replacement|g" \
+                            -e 's|@mailhog@|${pkgs.mailhog}|g' \
+                            -e 's|@ripgrep@|${pkgs.ripgrep}|g' \
+                            "$working_tree_script"
+                    )
+                fi
+
+                echo "devenv project command: no project checkout found; using packaged snapshot for ${relativePath}" >&2
+                ${scriptBody path}
+            '';
+        };
 in
 {
     processes = {
@@ -25,6 +67,7 @@ in
 
     scripts = {
         dev-agent-state-dir = script ../scripts/dev/agent-state-dir;
+        devenv-script-freshness-check = script ../scripts/dev/script-freshness-check;
         dev-ensure-postgres = script ../scripts/dev/ensure-postgres;
         dev-ensure-mailhog = script ../scripts/dev/ensure-mailhog;
         dev-foreground = script ../scripts/dev/foreground;
@@ -37,6 +80,9 @@ in
         frontend-contracts = script ../scripts/frontend/contracts;
         frontend-contracts-check = script ../scripts/frontend/contracts-check;
         frontend-contracts-watch = script ../scripts/frontend/contracts-watch;
+        frontend-generated-ensure = script ../scripts/frontend/generated-ensure;
+        frontend-generated-sync = script ../scripts/frontend/generated-sync;
+        frontend-generated-watch = script ../scripts/frontend/generated-watch;
         frontend-drift-check = script ../scripts/frontend/drift-check;
         frontend-no-ts-nocheck = script ../scripts/frontend/no-ts-nocheck;
         frontend-surface-guardrails = script ../scripts/frontend/surface-guardrails;
@@ -52,6 +98,7 @@ in
         architecture-schema = script ../scripts/architecture/schema;
         architecture-web-map = script ../scripts/architecture/web-map;
         architecture-module-graph = script ../scripts/architecture/module-graph;
+        architecture-surface-request-closure = script ../scripts/architecture/surface-request-closure;
         architecture-runtime-overlay = script ../scripts/architecture/runtime-overlay;
         architecture-query = script ../scripts/architecture/query;
         architecture-trace-diagram = script ../scripts/architecture/trace-diagram;
@@ -62,13 +109,17 @@ in
         frontend-contract-warnings = script ../scripts/haskell/frontend-contract-warnings;
         weeder-check = script ../scripts/haskell/weeder-check;
         regen-types = script ../scripts/haskell/regen-types;
+        generated-code-sync = script ../scripts/haskell/generated-code-sync;
         test-db-reset = script ../scripts/db/test-db-reset;
+        test-postgres = script ../scripts/db/test-postgres;
+        billing-migration-check = script ../scripts/db/billing-migration-check;
         hspec-test = script ../scripts/haskell/hspec-test;
         hspec-pure = script ../scripts/haskell/hspec-pure;
         hspec-db = script ../scripts/haskell/hspec-db;
         hspec-coverage = script ../scripts/haskell/hspec-coverage;
         verify-fast = script ../scripts/verification/fast;
         verify-full = script ../scripts/verification/full;
+        billing-production-readiness = script ../scripts/verification/billing-production-readiness;
         lint = script ../scripts/haskell/lint;
         format = script ../scripts/haskell/format;
         ghci-app = script ../scripts/haskell/ghci-app;
@@ -98,6 +149,7 @@ in
         e2e-report = script ../scripts/e2e/report;
         dev-start = script ../scripts/dev/start;
         stripe-listen = script ../scripts/dev/stripe-listen;
+        stripe-sandbox-contract-parity = script ../scripts/stripe/sandbox-contract-parity;
         dev-start-stripe = script ../scripts/dev/start-stripe;
         dev-stop = script ../scripts/dev/stop;
         dev-status = script ../scripts/dev/status;

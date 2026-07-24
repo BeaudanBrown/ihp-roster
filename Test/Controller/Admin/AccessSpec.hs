@@ -36,7 +36,7 @@ import Web.Routes
 import Web.Types
 
 tests :: Spec
-tests = beforeAll testContext do
+tests = aroundAll withDatabaseTestContext do
     describe "AdminController" do
         it "redirects unauthenticated users from admin page" $ withContext do
             response <- callAction AdminAction
@@ -88,6 +88,7 @@ tests = beforeAll testContext do
                 response `responseBodyShouldNotContain` "Payroll Earnings CSV"
                 response `responseBodyShouldNotContain` "admin-slot-names-fragment"
                 response `responseBodyShouldContain` "admin-invites-fragment"
+                response `responseBodyShouldContain` "data-bepis-surface-action=\"create-venue-invitation\""
                 body <- responseBody response
                 (cs body :: String) `shouldContainInOrder` ["Invites", "Shift Types", "Roster Groups"]
                 response `responseBodyShouldNotContain` "Compliance"

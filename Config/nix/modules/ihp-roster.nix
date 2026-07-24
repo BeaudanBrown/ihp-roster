@@ -84,32 +84,54 @@ let
     // optionalAttrs profilingCfg.enable {
       IHP_ROSTER_PROFILING = "1";
     };
-  stripeEnv = optionalAttrs stripeCfg.enable (
+  stripeEnv =
     {
-      STRIPE_SECRET_KEY_FILE = "%d/stripe-secret-key";
-      STRIPE_WEBHOOK_SECRET_FILE = "%d/stripe-webhook-secret";
-      STRIPE_EXPECTED_CURRENCY = stripeCfg.currency;
-      STRIPE_EXPECTED_AMOUNT_CENTS = toString stripeCfg.amountCents;
-      STRIPE_EXPECTED_INTERVAL = stripeCfg.interval;
-      STRIPE_EXPECTED_INTERVAL_COUNT = toString stripeCfg.intervalCount;
-      STRIPE_GST_REGISTERED = boolEnv stripeCfg.gstRegistered;
-      STRIPE_AUTOMATIC_TAX = boolEnv stripeCfg.automaticTax;
-      STRIPE_TAX_ID_COLLECTION = boolEnv stripeCfg.taxIdCollection;
+      STRIPE_BILLING_ENABLED = boolEnv stripeCfg.enable;
+      STRIPE_CHECKOUT_ENABLED = boolEnv stripeCfg.checkoutEnabled;
+      STRIPE_OWNER_NAVIGATION_VISIBLE = boolEnv stripeCfg.ownerNavigationVisible;
     }
-    // optionalAttrs (stripeCfg.priceLookupKey != null) {
-      STRIPE_PRICE_LOOKUP_KEY = stripeCfg.priceLookupKey;
-    }
-    // optionalAttrs (stripeCfg.priceId != null) {
-      STRIPE_PRICE_ID = stripeCfg.priceId;
-    }
-    // optionalAttrs (stripeCfg.paymentMethodTypes != [ ]) {
+    // optionalAttrs stripeCfg.enable (
+      {
+        STRIPE_MODE = stripeCfg.mode;
+        STRIPE_SECRET_KEY_FILE = "%d/stripe-secret-key";
+        STRIPE_WEBHOOK_SECRET_FILE = "%d/stripe-webhook-secret";
+        STRIPE_EXPECTED_CURRENCY = stripeCfg.currency;
+        STRIPE_EXPECTED_AMOUNT_CENTS = toString stripeCfg.amountCents;
+        STRIPE_EXPECTED_INTERVAL = stripeCfg.interval;
+        STRIPE_EXPECTED_INTERVAL_COUNT = toString stripeCfg.intervalCount;
+        STRIPE_GST_REGISTERED = boolEnv stripeCfg.gstRegistered;
+        STRIPE_AUTOMATIC_TAX = boolEnv stripeCfg.automaticTax;
+        STRIPE_TAX_ID_COLLECTION = boolEnv stripeCfg.taxIdCollection;
+      }
+      // optionalAttrs (stripeCfg.priceLookupKey != null) {
+        STRIPE_PRICE_LOOKUP_KEY = stripeCfg.priceLookupKey;
+      }
+      // optionalAttrs (stripeCfg.priceId != null) {
+        STRIPE_PRICE_ID = stripeCfg.priceId;
+      }
+      // optionalAttrs (stripeCfg.paymentMethodTypes != [ ]) {
+        STRIPE_PAYMENT_METHOD_TYPES = lib.concatStringsSep "," stripeCfg.paymentMethodTypes;
+      }
+    );
+  stripeAuthoritativeEnvFor = serviceName:
+    stripeEnv
+    // {
+      APP_BASE_URL = cfg.baseUrl;
+      STRIPE_MODE = stripeCfg.mode;
+      STRIPE_PRICE_LOOKUP_KEY = if stripeCfg.priceLookupKey == null then "" else stripeCfg.priceLookupKey;
+      STRIPE_PRICE_ID = if stripeCfg.priceId == null then "" else stripeCfg.priceId;
       STRIPE_PAYMENT_METHOD_TYPES = lib.concatStringsSep "," stripeCfg.paymentMethodTypes;
-    }
-  );
+      STRIPE_SECRET_KEY_FILE = "/run/credentials/${serviceName}.service/stripe-secret-key";
+      STRIPE_WEBHOOK_SECRET_FILE = "/run/credentials/${serviceName}.service/stripe-webhook-secret";
+    };
+  stripeAuthoritativeEnvironmentFile = serviceName:
+    pkgs.writeText "ihp-roster-stripe-${serviceName}-environment" (
+      (lib.concatStringsSep "\n" (lib.mapAttrsToList (name: value: "${name}=${value}") (stripeAuthoritativeEnvFor serviceName)))
+      + "\n"
+    );
   runtimeEnvironmentFiles = optional (cfg.environmentFile != null) cfg.environmentFile;
   xeroEnvironmentFiles = runtimeEnvironmentFiles ++ optional (cfg.xero.environmentFile != null) cfg.xero.environmentFile;
-  stripeEnvironmentFiles = optional (stripeCfg.environmentFile != null) stripeCfg.environmentFile;
-  appWorkerEnvironmentFiles = xeroEnvironmentFiles ++ stripeEnvironmentFiles;
+  appWorkerEnvironmentFiles = xeroEnvironmentFiles;
   stripeCredentialConfig = optionalAttrs stripeCfg.enable {
     LoadCredential = [
       "stripe-secret-key:${toString stripeCfg.secretKeyFile}"
@@ -599,14 +621,22 @@ in
     billing.stripe = {
       enable = mkEnableOption "Stripe Billing integration";
 
-      environmentFile = mkOption {
-        type = types.nullOr types.path;
-        default = null;
-        description = ''
-          Optional dotenv-style Stripe environment file layered onto app and worker services.
-          Use this when deployment secrets are managed as an environment namespace.
-          Prefer secretKeyFile/webhookSecretFile with enable = true for file-backed production credentials.
-        '';
+      mode = mkOption {
+        type = types.enum [ "test" "live" ];
+        default = "test";
+        description = "Stripe provider mode. Production billing must set live; development uses test.";
+      };
+
+      checkoutEnabled = mkOption {
+        type = types.bool;
+        default = false;
+        description = "Whether authenticated owners may create new Stripe Checkout Sessions.";
+      };
+
+      ownerNavigationVisible = mkOption {
+        type = types.bool;
+        default = false;
+        description = "Whether the owner Billing link is visible. Direct-route authorization remains unchanged.";
       };
 
       priceLookupKey = mkOption {
@@ -679,6 +709,26 @@ in
         type = types.bool;
         default = false;
         description = "Whether Checkout collects tax IDs. Must remain false while GST is disabled.";
+      };
+
+      reconciliationSweep = {
+        enable = mkOption {
+          type = types.bool;
+          default = true;
+          description = "Whether to enqueue reconciliation jobs for known non-terminal Stripe subscriptions on a systemd timer when Stripe Billing is enabled.";
+        };
+
+        onCalendar = mkOption {
+          type = types.str;
+          default = "daily";
+          description = "systemd OnCalendar expression for the Stripe subscription reconciliation sweep.";
+        };
+
+        randomizedDelaySec = mkOption {
+          type = types.str;
+          default = "30m";
+          description = "Randomized delay applied to the Stripe subscription reconciliation timer.";
+        };
       };
     };
 
@@ -832,6 +882,22 @@ in
           message = "services.ihpRoster.observability.loki.queryAddress requires loki.enable.";
         }
         {
+          assertion = !stripeCfg.checkoutEnabled || stripeCfg.enable;
+          message = "services.ihpRoster.billing.stripe.checkoutEnabled requires billing.stripe.enable.";
+        }
+        {
+          assertion = !stripeCfg.ownerNavigationVisible || stripeCfg.enable;
+          message = "services.ihpRoster.billing.stripe.ownerNavigationVisible requires billing.stripe.enable.";
+        }
+        {
+          assertion = !cfg.production || !stripeCfg.enable || stripeCfg.mode == "live";
+          message = "services.ihpRoster production billing requires billing.stripe.mode = live.";
+        }
+        {
+          assertion = !stripeCfg.enable || stripeCfg.mode != "live" || lib.hasPrefix "https://" cfg.baseUrl;
+          message = "services.ihpRoster.billing.stripe live mode requires an HTTPS services.ihpRoster.baseUrl.";
+        }
+        {
           assertion =
             !stripeCfg.enable || ((stripeCfg.priceLookupKey != null) != (stripeCfg.priceId != null));
           message = "services.ihpRoster.billing.stripe requires exactly one of priceLookupKey or priceId when enabled.";
@@ -880,9 +946,9 @@ in
         }
         // mailEnv
         // legalEnv
-        // stripeEnv
         // observabilityEnv
-        // cfg.additionalEnvVars;
+        // cfg.additionalEnvVars
+        // stripeEnv;
         appPort = cfg.appPort;
         package = if cfg.package != null then cfg.package else defaultPackage;
         optimized = cfg.production;
@@ -891,10 +957,10 @@ in
       };
 
       systemd.services.app.serviceConfig = serviceUserConfig // stripeCredentialConfig // {
-        EnvironmentFile = appWorkerEnvironmentFiles;
+        EnvironmentFile = appWorkerEnvironmentFiles ++ [ (stripeAuthoritativeEnvironmentFile "app") ];
       };
       systemd.services.worker.serviceConfig = serviceUserConfig // stripeCredentialConfig // {
-        EnvironmentFile = appWorkerEnvironmentFiles;
+        EnvironmentFile = appWorkerEnvironmentFiles ++ [ (stripeAuthoritativeEnvironmentFile "worker") ];
       };
       systemd.services.worker.enable = mkForce hasJobRunner;
       systemd.services.app-keygen.postStart = mkIf hasServiceUser ''
@@ -970,6 +1036,35 @@ in
               cfg.databaseUrl
             else
               "postgresql://${cfg.databaseUser}@/${cfg.databaseName}";
+        };
+      };
+      systemd.services.billing-reconciliation-sweep = mkIf (stripeCfg.enable && stripeCfg.reconciliationSweep.enable) {
+        description = "Enqueue Stripe subscription reconciliation jobs for ihp-roster";
+        after = [ schemaReadyService ];
+        requires = [ schemaReadyService ];
+        serviceConfig = {
+          Type = "oneshot";
+          ExecStart = "${if cfg.package != null then cfg.package else defaultPackage}/bin/BillingReconciliationSweep";
+          NoNewPrivileges = true;
+          PrivateTmp = true;
+        }
+        // serviceUserConfig;
+        environment = {
+          DATABASE_URL =
+            if cfg.databaseUrl != null then
+              cfg.databaseUrl
+            else
+              "postgresql://${cfg.databaseUser}@/${cfg.databaseName}";
+          IHP_TELEMETRY_DISABLED = "1";
+          APP_BASE_URL = cfg.baseUrl;
+        };
+      };
+      systemd.timers.billing-reconciliation-sweep = mkIf (stripeCfg.enable && stripeCfg.reconciliationSweep.enable) {
+        wantedBy = [ "timers.target" ];
+        timerConfig = {
+          OnCalendar = stripeCfg.reconciliationSweep.onCalendar;
+          Persistent = true;
+          RandomizedDelaySec = stripeCfg.reconciliationSweep.randomizedDelaySec;
         };
       };
       systemd.services.xero-keepalive-sweep = mkIf cfg.xero.keepalive.enable {

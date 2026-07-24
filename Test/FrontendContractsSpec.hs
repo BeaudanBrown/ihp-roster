@@ -12,16 +12,15 @@ import Application.Helper.FrontendContract.AppShell.Runtime (AppShellActionRoute
                                                              appShellActionByMarker,
                                                              appShellActionHtmxAttrPairs)
 import Application.Helper.FrontendContract.AppValues (AppEvents (..),
-                                                      AppOverlayDom (..),
                                                       canonicalAppEvents,
-                                                      canonicalAppOverlayDom,
-                                                      interactionIntentSubmitHtmxTrigger,
-                                                      sharedDialogOverlayMountId,
-                                                      sharedToastOverlayMountId)
+                                                      interactionIntentSubmitHtmxTrigger)
 import Application.Helper.FrontendContract.Contracts (TypeScriptDeclaration (..),
                                                       TypeScriptDeclarationOrigin (..),
                                                       frontendContractDeclarations,
                                                       frontendContractsTypeScript)
+import qualified Application.Helper.FrontendContract.HorizontalScroll as HorizontalScroll
+import Application.Helper.FrontendContract.HorizontalScroll.Runtime (HorizontalScrollDom (..),
+                                                                     canonicalHorizontalScrollDom)
 import qualified Application.Helper.FrontendContract.Htmx as Htmx
 import qualified Application.Helper.FrontendContract.IR as Contract
 import qualified Application.Helper.FrontendContract.LiveUpdate as LiveContract
@@ -31,15 +30,30 @@ import Application.Helper.FrontendContract.LiveUpdateValues (liveUpdateClientIdH
                                                              surfaceConfigDomAttribute,
                                                              surfaceDomAttribute)
 import qualified Application.Helper.FrontendContract.Naming as Naming
+import qualified Application.Helper.FrontendContract.OrderedRange as OrderedRange
+import Application.Helper.FrontendContract.OrderedRange.Runtime (OrderedRangeDom (..),
+                                                                 canonicalOrderedRangeDom)
+import qualified Application.Helper.FrontendContract.Overlay as Overlay
+import Application.Helper.FrontendContract.Overlay.Runtime (OverlayDom (..),
+                                                            canonicalOverlayDom)
+import qualified Application.Helper.FrontendContract.Passkey as Passkey
+import Application.Helper.FrontendContract.Passkey.Runtime (PasskeyDom (..),
+                                                            canonicalPasskeyDom)
+import qualified Application.Helper.FrontendContract.PwaInstall as PwaInstall
+import Application.Helper.FrontendContract.PwaInstall.Runtime (PwaInstallDom (..),
+                                                               canonicalPwaInstallDom)
 import Application.Helper.FrontendContract.Registry (registeredFrontendContractIR)
-import Application.Helper.FrontendContract.RosterValues (RosterStaffSortKey (..),
-                                                         rosterStaffSortKeyAttribute,
-                                                         rosterStaffSortKeyValues)
 import qualified Application.Helper.FrontendContract.Surface.ContractIR as SurfaceIR
 import Application.Helper.FrontendContract.Surface.Contracts (registeredFrontendSurfaceContractIR)
 import Application.Helper.FrontendContract.Surface.Reflect (reflectSurfaceSpec)
-import Application.Helper.FrontendContract.Values (domIdValue, enumLiteralValue,
+import qualified Application.Helper.FrontendContract.TimePicker as TimePicker
+import Application.Helper.FrontendContract.TimePicker.Runtime (TimePickerDom (..),
+                                                               canonicalTimePickerDom)
+import Application.Helper.FrontendContract.Values (constantValue, domAttrValue,
+                                                   domIdValue, enumLiteralValue,
                                                    eventNameValue,
+                                                   lookupConstantValue,
+                                                   lookupDomAttrValue,
                                                    lookupDomIdValue,
                                                    lookupEnumLiteralValue,
                                                    lookupEventNameValue)
@@ -49,6 +63,9 @@ import Application.Helper.FrontendContract.Wire.Json (validateContractMarkerValu
                                                       validateSurfaceScopeValue,
                                                       validateWireValue)
 import qualified Application.Helper.FrontendContract.Wire.LiveUpdate as Live
+import qualified Application.Helper.FrontendContract.XeroCandidateFilter as XeroCandidateFilter
+import Application.Helper.FrontendContract.XeroCandidateFilter.Runtime (XeroCandidateFilterDom (..),
+                                                                        canonicalXeroCandidateFilterDom)
 import qualified Data.Aeson as Aeson
 import qualified Data.Aeson.Key as AesonKey
 import qualified Data.Aeson.KeyMap as KeyMap
@@ -71,7 +88,7 @@ tests :: Spec
 tests = describe "Frontend contract generator foundation" do
     it "keeps the public generated file entrypoint FrontendContract-owned" do
         frontendContractsTypeScript `shouldSatisfy` Text.isPrefixOf "// @generated by Application.Helper.FrontendContract.Contracts"
-        frontendContractsTypeScript `shouldSatisfy` Text.isInfixOf "export type RosterStaffSortKey"
+        frontendContractsTypeScript `shouldSatisfy` Text.isInfixOf "export type RosterStaffPanelSortRow"
         frontendContractsTypeScript `shouldSatisfy` Text.isInfixOf "export type SurfaceScope"
         frontendContractsTypeScript `shouldSatisfy` Text.isInfixOf "export type LiveUpdateCommand"
         frontendContractsTypeScript `shouldSatisfy` Text.isInfixOf "export type UiRegionTransitionProfile"
@@ -89,8 +106,60 @@ tests = describe "Frontend contract generator foundation" do
         frontendContractsTypeScript `shouldSatisfy` Text.isInfixOf "export const surfaceConfigDomAttr = \"data-bepis-surface-config\" as const;"
         frontendContractsTypeScript `shouldSatisfy` Text.isInfixOf "export const surfaceActionDomAttr = \"data-bepis-surface-action\" as const;"
         frontendContractsTypeScript `shouldSatisfy` Text.isInfixOf "sourceRef: sourceRefDomAttr"
-        frontendContractsTypeScript `shouldSatisfy` Text.isInfixOf "export const rosterContentDomToken = \"roster-content\" as const;"
-        frontendContractsTypeScript `shouldSatisfy` Text.isInfixOf "export const rosterWeekShellDomToken = \"roster-week-shell\" as const;"
+        frontendContractsTypeScript `shouldNotSatisfy` Text.isInfixOf "export const rosterContentDomToken"
+        frontendContractsTypeScript `shouldNotSatisfy` Text.isInfixOf "export const rosterWeekShellDomToken"
+
+    it "generates roster chrome roles and closed state guards" do
+        forM_
+            [ "export const rosterFullscreenRootDomAttr = \"data-bepis-roster-fullscreen-root\" as const;"
+            , "export const rosterFullscreenToggleDomAttr = \"data-bepis-roster-fullscreen-toggle\" as const;"
+            , "export const rosterFullscreenLabelDomAttr = \"data-bepis-roster-fullscreen-label\" as const;"
+            , "export const rosterColumnEditorDomAttr = \"data-bepis-roster-column-editor\" as const;"
+            , "export const rosterColumnEditStartDomAttr = \"data-bepis-roster-column-edit-start\" as const;"
+            , "export const rosterColumnEditDoneDomAttr = \"data-bepis-roster-column-edit-done\" as const;"
+            , "export const rosterFullscreenDomAttr = \"data-bepis-roster-fullscreen\" as const;"
+            , "export const rosterColumnEditingDomAttr = \"data-bepis-roster-column-editing\" as const;"
+            , "export type RosterFullscreenState = \"collapsed\" | \"expanded\";"
+            , "export function isRosterFullscreenState(value: unknown): value is RosterFullscreenState"
+            , "export type RosterColumnEditingState = \"inactive\" | \"active\";"
+            , "export function isRosterColumnEditingState(value: unknown): value is RosterColumnEditingState"
+            ]
+            (\expected -> frontendContractsTypeScript `shouldSatisfy` Text.isInfixOf expected)
+
+    it "generates roster image-export roles, format, and exact payload parsers" do
+        forM_
+            [ "export const rosterImageExportTriggerDomAttr = \"data-bepis-roster-image-export-trigger\" as const;"
+            , "export const rosterImageExportConfigDomAttr = \"data-bepis-roster-image-export-config\" as const;"
+            , "export const rosterImageExportProjectionDomAttr = \"data-bepis-roster-image-export-projection\" as const;"
+            , "export const rosterImageExportRowDomAttr = \"data-bepis-roster-image-export-row\" as const;"
+            , "export const rosterImageExportCellDomAttr = \"data-bepis-roster-image-export-cell\" as const;"
+            , "export const rosterImageExportFormatDomAttr = \"data-bepis-roster-image-export-format\" as const;"
+            , "export type RosterImageExportFormatState = \"jpg\";"
+            , "export function isRosterImageExportFormatState(value: unknown): value is RosterImageExportFormatState"
+            , "export type RosterImageExportConfig = { imageExportFilename: string"
+            , "export function parseRosterImageExportConfig(value: unknown): RosterImageExportConfig"
+            , "export type RosterImageExportCell = { imageExportText: string };"
+            , "export function parseRosterImageExportCell(value: unknown): RosterImageExportCell"
+            ]
+            (\expected -> frontendContractsTypeScript `shouldSatisfy` Text.isInfixOf expected)
+
+    it "generates roster week-overview roles, states, and exact payload parsers" do
+        forM_
+            [ "export const rosterWeekOverviewPanelDomAttr = \"data-bepis-roster-week-overview-panel\" as const;"
+            , "export const rosterWeekOverviewDayDomAttr = \"data-bepis-roster-week-overview-day\" as const;"
+            , "export const rosterWeekOverviewTodayDomAttr = \"data-bepis-roster-week-overview-today\" as const;"
+            , "export const rosterWeekOverviewDetailsDomAttr = \"data-bepis-roster-week-overview-details\" as const;"
+            , "export const rosterWeekOverviewAvailabilityDomAttr = \"data-bepis-roster-week-overview-availability\" as const;"
+            , "export const rosterWeekOverviewClosureDomAttr = \"data-bepis-roster-week-overview-closure\" as const;"
+            , "export type RosterWeekOverviewAvailabilityState = \"loaded\" | \"unloaded\";"
+            , "export type RosterWeekOverviewClosureState = \"open\" | \"closed\";"
+            , "export type RosterWeekOverviewCalendarDayState = \"today\" | \"other-day\";"
+            , "export type RosterWeekOverviewPanelConfig = { weekOverviewCurrentDate: FrontendContractDay };"
+            , "export function parseRosterWeekOverviewPanelConfig(value: unknown): RosterWeekOverviewPanelConfig"
+            , "export type RosterWeekOverviewDayConfig = { weekOverviewDate: FrontendContractDay"
+            , "export function parseRosterWeekOverviewDayConfig(value: unknown): RosterWeekOverviewDayConfig"
+            ]
+            (\expected -> frontendContractsTypeScript `shouldSatisfy` Text.isInfixOf expected)
 
     it "registers one generated FrontendContract declaration block" do
         [(declaration.name, declaration.origin) | declaration <- frontendContractDeclarations]
@@ -116,7 +185,7 @@ tests = describe "Frontend contract generator foundation" do
     it "uses the canonical field, wire, schema, and HTMX core inside an unregistered Surface fixture" do
         let fixture = reflectSurfaceSpec @SurfaceFixture.FrontendSurfaceFixture
         let scopeFields :: [Contract.FieldIR] = concatMap (.scopeFields) fixture.surfaceScopes
-        let dtoSchemas :: [Contract.SchemaIR] = fixture.surfaceDtos
+        let dtoSchemas :: [Contract.SchemaIR] = map (.surfaceDtoSchema) fixture.surfaceDtos
         let actionOptions :: [Contract.HtmxActionOptionIR] = concatMap (Contract.optionHtmxActionOptions . (.htmxActionOptions)) fixture.surfaceHtmxActions
 
         map (\field -> (field.fieldName, field.fieldWire)) scopeFields
@@ -242,18 +311,39 @@ tests = describe "Frontend contract generator foundation" do
         frontendContractsTypeScript `shouldNotSatisfy` Text.isInfixOf "staffSurfaceManifest"
 
     it "resolves canonical Haskell value accessors from registered FrontendContract IR" do
-        lookupDomIdValue @App.DialogOverlayMount `shouldBe` Right sharedDialogOverlayMountId
-        lookupDomIdValue @App.ToastOverlayMount `shouldBe` Right sharedToastOverlayMountId
+        lookupDomIdValue @Overlay.DialogOverlayMount `shouldBe` Right canonicalOverlayDom.overlayDialogMountId
+        lookupDomIdValue @Overlay.ToastOverlayMount `shouldBe` Right canonicalOverlayDom.overlayToastMountId
+        lookupEventNameValue @Overlay.DialogDismissed `shouldBe` Right canonicalOverlayDom.overlayDialogDismissedEventName
+        lookupDomAttrValue @Overlay.DialogMount `shouldBe` Right canonicalOverlayDom.overlayDialogMountAttribute
+        lookupDomIdValue @TimePicker.TimePickerModal `shouldBe` Right canonicalTimePickerDom.timePickerModalId
+        lookupDomAttrValue @TimePicker.TimePickerField `shouldBe` Right canonicalTimePickerDom.timePickerFieldAttribute
+        lookupDomAttrValue @TimePicker.TimePickerOption `shouldBe` Right canonicalTimePickerDom.timePickerOptionAttribute
+        lookupDomAttrValue @OrderedRange.OrderedRangeRoot `shouldBe` Right canonicalOrderedRangeDom.orderedRangeRootAttribute
+        lookupDomAttrValue @OrderedRange.OrderedRangeAvailability `shouldBe` Right canonicalOrderedRangeDom.orderedRangeAvailabilityAttribute
+        lookupDomAttrValue @HorizontalScroll.HorizontalScrollSnap `shouldBe` Right canonicalHorizontalScrollDom.horizontalScrollSnapAttribute
+        lookupDomAttrValue @HorizontalScroll.HorizontalScrollDrag `shouldBe` Right canonicalHorizontalScrollDom.horizontalScrollDragAttribute
+        lookupDomAttrValue @Passkey.PasskeyLogin `shouldBe` Right canonicalPasskeyDom.passkeyLoginAttribute
+        lookupDomAttrValue @Passkey.PasskeyRegistration `shouldBe` Right canonicalPasskeyDom.passkeyRegistrationAttribute
+        lookupDomAttrValue @Passkey.PasskeySetupPrompt `shouldBe` Right canonicalPasskeyDom.passkeySetupPromptAttribute
+        lookupDomAttrValue @Passkey.PasskeyFlowConfig `shouldBe` Right canonicalPasskeyDom.passkeyFlowConfigAttribute
+        lookupEnumLiteralValue @Passkey.PasskeySetupPromptMode @Passkey.FirstPasskey `shouldBe` Right "first-passkey"
+        lookupEnumLiteralValue @Passkey.PasskeySetupPromptMode @Passkey.AdditionalDevice `shouldBe` Right "additional-device"
+        lookupConstantValue @Passkey.PasskeyFirstPasskeyMode `shouldBe` Right "first-passkey"
+        lookupConstantValue @Passkey.PasskeyAdditionalDeviceMode `shouldBe` Right "additional-device"
+        lookupDomAttrValue @PwaInstall.PwaInstallPage `shouldBe` Right canonicalPwaInstallDom.pwaInstallPageAttribute
+        lookupDomAttrValue @PwaInstall.PwaInstallResultState `shouldBe` Right canonicalPwaInstallDom.pwaInstallResultStateAttribute
+        lookupEnumLiteralValue @PwaInstall.PwaInstallState @PwaInstall.Accepted `shouldBe` Right "accepted"
+        lookupDomAttrValue @XeroCandidateFilter.XeroCandidateFilterRoot `shouldBe` Right canonicalXeroCandidateFilterDom.xeroCandidateFilterRootAttribute
+        lookupDomAttrValue @XeroCandidateFilter.XeroCandidateFilterConfig `shouldBe` Right canonicalXeroCandidateFilterDom.xeroCandidateFilterConfigAttribute
+        lookupConstantValue @OrderedRange.OrderedRangeClampOtherEndpoint `shouldBe` Right "clamp-other-endpoint"
         lookupEventNameValue @App.IntentSubmit `shouldBe` Right interactionIntentSubmitHtmxTrigger
-        lookupEnumLiteralValue @App.RosterStaffSortKey @App.Name `shouldBe` Right "name"
-        domIdValue @App.DialogOverlayMount `shouldBe` canonicalAppOverlayDom.appDialogOverlayMountId
+        domIdValue @Overlay.DialogOverlayMount `shouldBe` canonicalOverlayDom.overlayDialogMountId
+        domAttrValue @Overlay.ToastMount `shouldBe` canonicalOverlayDom.overlayToastMountAttribute
+        domIdValue @TimePicker.TimePickerModal `shouldBe` canonicalTimePickerDom.timePickerModalId
+        domAttrValue @TimePicker.TimePickerValue `shouldBe` canonicalTimePickerDom.timePickerValueAttribute
+        domAttrValue @OrderedRange.OrderedRangeStart `shouldBe` canonicalOrderedRangeDom.orderedRangeStartAttribute
+        constantValue @OrderedRange.OrderedRangeStartPositionProperty `shouldBe` canonicalOrderedRangeDom.orderedRangeStartPositionCssProperty
         eventNameValue @App.IntentSubmit `shouldBe` canonicalAppEvents.appInteractionIntentSubmitEventName
-        enumLiteralValue @App.RosterStaffSortKey @App.Name `shouldBe` rosterStaffSortKeyAttribute RosterStaffSortByName
-        rosterStaffSortKeyValues
-            `shouldBe` [ (RosterStaffSortByName, "name")
-                       , (RosterStaffSortByRole, "role")
-                       , (RosterStaffSortByShifts, "shifts")
-                       ]
 
     it "returns deterministic diagnostics for missing Haskell value accessors" do
         lookupDomIdValue @Text `shouldBe` Left "No FrontendContract DomId declaration for marker Text"
@@ -334,9 +424,9 @@ tests = describe "Frontend contract generator foundation" do
         frontendContractsTypeScript `shouldNotSatisfy` Text.isInfixOf "export function encodeLiveUpdateMessage"
         frontendContractsTypeScript `shouldSatisfy` Text.isInfixOf "export function encodeLiveUpdateCommand"
         frontendContractsTypeScript `shouldNotSatisfy` Text.isInfixOf "export function parseLiveUpdateCommand"
-        frontendContractsTypeScript `shouldSatisfy` Text.isInfixOf "export function isRosterStaffSortKey"
-        frontendContractsTypeScript `shouldNotSatisfy` Text.isInfixOf "export function parseRosterStaffSortKey"
-        frontendContractsTypeScript `shouldNotSatisfy` Text.isInfixOf "export function encodeRosterStaffSortKey"
+        frontendContractsTypeScript `shouldSatisfy` Text.isInfixOf "export function isRosterStaffPanelSortRow"
+        frontendContractsTypeScript `shouldSatisfy` Text.isInfixOf "export function parseRosterStaffPanelSortRow"
+        frontendContractsTypeScript `shouldNotSatisfy` Text.isInfixOf "export function encodeRosterStaffPanelSortRow"
         frontendContractsTypeScript `shouldSatisfy` Text.isInfixOf "export function parseFrontendSurfaceMountConfig"
         frontendContractsTypeScript `shouldNotSatisfy` Text.isInfixOf "export function encodeFrontendSurfaceMountConfig"
 

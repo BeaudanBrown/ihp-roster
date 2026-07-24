@@ -52,7 +52,7 @@ import Web.SurfaceInvalidation (SurfaceInvalidationTarget (..),
 import Web.Types
 
 tests :: Spec
-tests = beforeAll testContext do
+tests = aroundAll withDatabaseTestContext do
     describe "AdminController" do
         it "allows venue owners to access admin config screens" $ withContext do
             withCleanDb do
@@ -104,7 +104,7 @@ tests = beforeAll testContext do
                         , timesheetWeekBoundaryConfigResource venueId
                         ]
 
-        it "plans roster content refreshes for roster-affecting venue config resources" $ withContext do
+        it "plans non-overlapping roster refreshes for roster-affecting venue config resources" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Admin Roster Config Planning Venue"
                 admin <- createUserRecord "admin-roster-config-planning@example.com" "staff" True
@@ -112,7 +112,7 @@ tests = beforeAll testContext do
                 rosterGroup <- query @RosterGroup |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
                 let venueId = unpackId venue.id
                 let scope = RosterLive.rosterWeekLiveScope venueId (unpackId rosterGroup.id) 0
-                let rosterContentFragments =
+                let mountedFragments =
                         [ RosterLive.rosterContentLiveFragment
                         , RosterLive.rosterGridToolbarLiveFragment
                         , RosterLive.rosterGridFrameLiveFragment
@@ -121,11 +121,15 @@ tests = beforeAll testContext do
                         , RosterLive.rosterWageRailLiveFragment
                         , RosterLive.rosterSlotsGridLiveFragment
                         ]
+                let expectedFragments =
+                        [ RosterLive.rosterGridToolbarLiveFragment
+                        , RosterLive.rosterGridFrameLiveFragment
+                        ]
                 let subscription =
                         SurfaceSubscription
                             { subscriptionScope = scope
                             , subscriptionScopeKey = surfaceScopeKey scope
-                            , subscriptionFragmentKeys = rosterContentFragments
+                            , subscriptionFragmentKeys = mountedFragments
                             }
                 let planFragments resource = withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
                         withCurrentControllerContext do
@@ -135,9 +139,9 @@ tests = beforeAll testContext do
                                 ]
 
                 planFragments (rosterEndTimesConfigResource venueId)
-                    `shouldReturn` [(scope, rosterContentFragments)]
+                    `shouldReturn` [(scope, expectedFragments)]
                 planFragments (rosterWeekBoundaryConfigResource venueId)
-                    `shouldReturn` [(scope, rosterContentFragments)]
+                    `shouldReturn` [(scope, expectedFragments)]
 
         it "shows the Xero header button and page to super admins" $ withContext do
             withCleanDb do
@@ -308,6 +312,7 @@ tests = beforeAll testContext do
                 venueSettingsResponse `responseBodyShouldContain` "hx-target=\"#admin-venue-settings-fragment\""
                 venueSettingsResponse `responseBodyShouldContain` "hx-swap=\"none\""
                 venueSettingsResponse `responseBodyShouldContain` "hx-push-url=\"false\""
+                venueSettingsResponse `responseBodyShouldContain` "data-bepis-surface-action=\"update-venue-config\""
                 venueSettingsResponse `responseBodyShouldNotContain` "Roster week starts on"
                 venueSettingsResponse `responseBodyShouldNotContain` "admin-roster-week-starts-on"
                 venueSettingsResponse `responseBodyShouldNotContain` "name=\"rosterWeekStartsOn\""
@@ -325,6 +330,7 @@ tests = beforeAll testContext do
                 exportsResponse `responseBodyShouldContain` "hx-post=\"/CreateExportJob\""
                 exportsResponse `responseBodyShouldContain` "hx-target=\"#admin-exports-fragment\""
                 exportsResponse `responseBodyShouldContain` "hx-swap=\"none\""
+                exportsResponse `responseBodyShouldContain` "data-bepis-surface-action=\"create-export-job\""
                 exportsResponse `responseBodyShouldNotContain` "id=\"app\""
 
         it "creates export jobs through targeted admin fragments" $ withContext do
@@ -370,7 +376,9 @@ tests = beforeAll testContext do
                 pageResponse `responseBodyShouldContain` "name=\"isActive\" value=\"true\""
                 pageResponse `responseBodyShouldContain` "type=\"hidden\" name=\"isActive\" value=\"false\""
                 pageResponse `responseBodyShouldContain` ("id=\"shift-type-active-" <> tshow shiftType.id <> "\"")
-                pageResponse `responseBodyShouldContain` "app-toggle-button btn-success"
+                pageResponse `responseBodyShouldContain` "btn btn-outline-success app-toggle-button"
+                pageResponse `responseBodyShouldContain` "data-bepis-toggle-transport=\""
+                pageResponse `responseBodyShouldContain` "data-bepis-toggle-config=\""
                 pageResponse `responseBodyShouldContain` "aria-pressed=\"true\""
                 pageResponse `responseBodyShouldContain` "role=\"switch\" aria-checked=\"true\""
                 pageResponse `responseBodyShouldContain` ("hx-post=\"/UpdateShiftType?shiftTypeId=" <> tshow shiftType.id <> "\"")
@@ -378,6 +386,11 @@ tests = beforeAll testContext do
                 pageResponse `responseBodyShouldContain` "hx-trigger=\"change\""
                 pageResponse `responseBodyShouldContain` "hx-include=\"closest form\""
                 pageResponse `responseBodyShouldContain` "data-admin-shift-type-field-key=\""
+                pageResponse `responseBodyShouldContain` "data-bepis-surface-action=\"create-shift-type\""
+                pageResponse `responseBodyShouldContain` "data-bepis-surface-action=\"update-shift-type\""
+                pageResponse `responseBodyShouldContain` "data-bepis-surface-action=\"autosave-shift-type-name\""
+                pageResponse `responseBodyShouldContain` "data-bepis-surface-action=\"autosave-shift-type-selection\""
+                pageResponse `responseBodyShouldContain` "data-bepis-surface-action=\"toggle-inactive-shift-types\""
                 pageResponse `responseBodyShouldContain` "name=\"colourKey\""
                 pageResponse `responseBodyShouldContain` "Optional Colour"
                 pageBody <- responseBody pageResponse
@@ -395,6 +408,9 @@ tests = beforeAll testContext do
                 pageResponse `responseBodyShouldNotContain` "app-status-info\">Default</span>"
                 pageResponse `responseBodyShouldContain` ("hx-post=\"/UpdateRosterGroup?rosterGroupId=" <> tshow rosterGroup.id)
                 pageResponse `responseBodyShouldContain` "hx-push-url=\"false\""
+                pageResponse `responseBodyShouldContain` "data-bepis-surface-action=\"create-roster-group\""
+                pageResponse `responseBodyShouldContain` "data-bepis-surface-action=\"update-roster-group\""
+                pageResponse `responseBodyShouldContain` "data-bepis-surface-action=\"toggle-inactive-roster-groups\""
 
                 shiftTypesVersionBefore <- currentLiveUpdateVersion (AdminLive.adminShiftTypesLiveScope (unpackId venue.id))
                 xeroVersionBefore <- currentLiveUpdateVersion (AdminLive.adminXeroLiveScope (unpackId venue.id))

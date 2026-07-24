@@ -2,11 +2,15 @@ module Web.Controller.StripeWebhooks where
 
 import Application.Billing.Stripe
 import Application.Billing.Webhook
+import Application.Helper.SurfaceResource (liveMutationResult)
+import Control.Exception (SomeException, try)
+import Control.Monad (void)
 import qualified Data.Text.Encoding as TextEncoding
 import Network.HTTP.Types.Status (Status, status400, status500)
 import qualified Network.Wai as Wai
-import Web.Billing.Mutations (recordBillingWebhookMutation)
+import Web.Billing.Mutations (billingTouchedResources)
 import Web.Controller.Prelude
+import Web.SurfaceInvalidation (invalidateTouchedResourcesWithoutContext)
 
 instance Controller StripeWebhooksController where
     beforeAction = bepisBeforeAction BepisPublicController annotateTelemetryAction
@@ -21,13 +25,29 @@ instance Controller StripeWebhooksController where
                 verifyStripeWebhookSignature stripeConfig.webhookSecret signatureHeader rawBody >>= \case
                     Left message ->
                         renderPlainWithStatus status400 message
-                    Right _ ->
-                        handleStripeWebhookPayload rawBody >>= \case
-                            Left message ->
+                    Right _ -> do
+                        processing <- try (handleStripeWebhookPayload stripeConfig.stripeMode rawBody)
+                        case processing of
+                            Left (_ :: SomeException) ->
+                                renderPlainWithStatus status500 "Stripe webhook processing failed"
+                            Right (Left message) ->
                                 renderPlainWithStatus status400 message
-                            Right result -> do
-                                _ <- recordBillingWebhookMutation result
+                            Right (Right result) -> do
+                                _ <- try (invalidateBillingWebhookResult result) :: IO (Either SomeException ())
                                 renderPlain "ok"
+
+invalidateBillingWebhookResult :: BillingWebhookResult -> IO ()
+invalidateBillingWebhookResult result =
+    forM_ (billingWebhookVenueId result) \venueId ->
+        void $
+            invalidateTouchedResourcesWithoutContext "billing.webhook" $
+                liveMutationResult result (billingTouchedResources (Id venueId))
+
+billingWebhookVenueId :: BillingWebhookResult -> Maybe UUID
+billingWebhookVenueId = \case
+    BillingWebhookProcessed event -> event.venueId
+    BillingWebhookDuplicate event -> event.venueId
+    BillingWebhookIgnored event -> event.venueId
 
 requireStripeSignatureHeader :: (?context :: ControllerContext, ?request :: Request) => IO Text
 requireStripeSignatureHeader =

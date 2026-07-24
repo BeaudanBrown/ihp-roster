@@ -13,8 +13,8 @@ import Application.Helper.FrontendContract.Surface.HaskellAdapter.Family (Adapte
 import Application.Helper.FrontendContract.Surface.Resource (SurfaceResourceValue,
                                                              frontendSurfaceResource,
                                                              matchFrontendSurfaceResource)
-import Application.Helper.FrontendContract.Surface.Values (SurfaceFields (NoSurfaceFields, (:&)),
-                                                           surfaceField)
+import Application.Helper.FrontendContract.Surface.Values (noSurfaceFields,
+                                                           surfaceField, (&:))
 import qualified Data.UUID as UUID
 import IHP.Prelude
 
@@ -26,7 +26,7 @@ billingResource venueId =
         @(AdapterFamilySurface Types2.BillingAdapterFamily)
         @Types1.Billing
         ( surfaceField @Types1.VenueId venueId
-            :& NoSurfaceFields
+            &: noSurfaceFields
         )
 
 matchBillingResource :: SurfaceResourceValue -> Maybe (UUID.UUID, ())

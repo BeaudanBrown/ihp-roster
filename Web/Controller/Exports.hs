@@ -2,8 +2,8 @@ module Web.Controller.Exports where
 
 import Application.Helper.Export
 import qualified Application.Helper.FrontendContract.Surface.Admin as Surface
-import Application.Helper.FrontendContract.Surface.Request (parseSurfaceActionParams,
-                                                            surfaceRequestFieldErrorsMessage)
+import qualified Application.Helper.FrontendContract.Surface.Admin.Action as AdminAction
+import Application.Helper.FrontendContract.Surface.Request (surfaceRequestFieldErrorsMessage)
 import Application.Helper.FrontendContract.Surface.Values (surfaceFieldValue)
 import Application.Helper.SurfaceResource (LiveMutationResult (..))
 import qualified Data.ByteString.Base64 as Base64
@@ -43,7 +43,7 @@ instance Controller ExportsController where
 
     action currentAction@CreateExportJobAction = runBepis currentAction BepisExportAction do
         ensureVenueWritable
-        case parseSurfaceActionParams @Surface.AdminExportsSurface @Surface.CreateExportJob of
+        case AdminAction.parseCreateExportJobActionParams of
             Left errors -> do
                 setErrorMessage ("Choose an export type and a valid start and end date. " <> surfaceRequestFieldErrorsMessage errors)
                 respondToAdminExportsSectionMutation

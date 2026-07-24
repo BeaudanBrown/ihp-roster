@@ -1,0 +1,38 @@
+{
+  "id": "sub_price_mode_mismatch",
+  "object": "subscription",
+  "cancel_at": null,
+  "cancel_at_period_end": false,
+  "customer": "cus_123",
+  "livemode": false,
+  "metadata": {},
+  "status": "active",
+  "items": {
+    "object": "list",
+    "data": [
+      {
+        "id": "si_price_mode_mismatch",
+        "object": "subscription_item",
+        "current_period_start": 1784678400,
+        "current_period_end": 1787356800,
+        "price": {
+          "id": "price_live_mismatch",
+          "object": "price",
+          "active": true,
+          "currency": "aud",
+          "livemode": true,
+          "lookup_key": "bepis_venue_monthly_aud_100",
+          "recurring": {
+            "interval": "month",
+            "interval_count": 1,
+            "usage_type": "licensed"
+          },
+          "type": "recurring",
+          "unit_amount": 10000
+        },
+        "quantity": 1,
+        "subscription": "sub_price_mode_mismatch"
+      }
+    ]
+  }
+}

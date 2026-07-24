@@ -2,6 +2,7 @@
 
 module Web.View.Layout (defaultLayout, Html) where
 
+import Application.Billing.Stripe (StripeOwnerNavigationVisibility (..))
 import Application.Helper.Controller (currentSupportVenueOptions,
                                       currentVenueOrNothing)
 import Application.Helper.FrontendContract.AppShell (OpenFeedbackDialog)
@@ -129,6 +130,7 @@ renderDesktopNavLinks = [hsx|
     {renderDesktopNavLink "timesheets" "bi-clock-history" (pathTo TimesheetsAction) ["/Timesheets", "/ShowTimesheetWeek"]}
     {renderWhenAudience ManagerAudience (renderDesktopNavLink "unavailability" "bi-calendar-check" (pathTo LeaveRequestsAction) ["/LeaveRequests"])}
     {renderWhenAudience XeroAudience (renderDesktopNavLink "xero" "bi-receipt" (pathTo XeroAction) ["/Xero"])}
+    {renderOwnerBillingDesktopNavLink}
     {renderWhenAudience AdminAudience (renderDesktopNavLink "admin" "bi-sliders" (pathTo AdminAction) ["/Admin"])}
     {renderWhenAudience SupportAudience (renderDesktopNavLink "support" "bi-life-preserver" (pathTo SupportAction) ["/Support"])}
     {renderDesktopLogoutForm}
@@ -141,9 +143,26 @@ renderMobileNavLinks = [hsx|
     {renderMobileNavLink "Timesheets" "bi-clock-history" (pathTo TimesheetsAction) ["/Timesheets", "/ShowTimesheetWeek"]}
     {renderWhenAudience ManagerAudience (renderMobileNavLink "Unavailability" "bi-calendar-check" (pathTo LeaveRequestsAction) ["/LeaveRequests"])}
     {renderWhenAudience XeroAudience (renderMobileNavLink "Xero" "bi-receipt" (pathTo XeroAction) ["/Xero"])}
+    {renderOwnerBillingMobileNavLink}
     {renderWhenAudience AdminAudience (renderMobileNavLink "Admin" "bi-sliders" (pathTo AdminAction) ["/Admin"])}
     {renderWhenAudience SupportAudience (renderMobileNavLink "Support" "bi-life-preserver" (pathTo SupportAction) ["/Support"])}
 |]
+
+renderOwnerBillingDesktopNavLink :: (?context :: ControllerContext, ?request :: Request) => Html
+renderOwnerBillingDesktopNavLink =
+    when ownerBillingNavigationIsVisible $
+        renderDesktopNavLink "billing" "bi-credit-card" (pathTo BillingAction) ["/Billing"]
+
+renderOwnerBillingMobileNavLink :: (?context :: ControllerContext, ?request :: Request) => Html
+renderOwnerBillingMobileNavLink =
+    when ownerBillingNavigationIsVisible $
+        renderMobileNavLink "Billing" "bi-credit-card" (pathTo BillingAction) ["/Billing"]
+
+ownerBillingNavigationIsVisible :: (?context :: ControllerContext) => Bool
+ownerBillingNavigationIsVisible =
+    not currentUserIsSupportAdmin
+        && currentUserIsVenueOwner
+        && (fromFrozenContext @StripeOwnerNavigationVisibility).ownerBillingNavigationVisible
 
 renderDesktopNavLink :: (?context :: ControllerContext, ?request :: Request) => Text -> Text -> Text -> [Text] -> Html
 renderDesktopNavLink label iconClass url activePrefixes = [hsx|
@@ -253,6 +272,7 @@ stylesheets = [hsx|
         <link rel="stylesheet" href={assetPath "/css/components/buttons.css"}/>
         <link rel="stylesheet" href={assetPath "/css/components/bootstrap-overrides.css"}/>
         <link rel="stylesheet" href={assetPath "/css/components/accordions.css"}/>
+        <link rel="stylesheet" href={assetPath "/css/components/toggles.css"}/>
         <link rel="stylesheet" href={assetPath "/css/components/admin.css"}/>
         <link rel="stylesheet" href={assetPath "/css/components/week-toolbar.css"}/>
         <link rel="stylesheet" href={assetPath "/css/components/admin-responsive.css"}/>
@@ -321,6 +341,7 @@ isPublicLegalPage =
 appInstallMetadata :: Html
 appInstallMetadata = [hsx|
     <meta name="theme-color" content="#0d1119"/>
+    <meta name="mobile-web-app-capable" content="yes"/>
     <meta name="apple-mobile-web-app-capable" content="yes"/>
     <meta name="apple-mobile-web-app-title" content="Bepis"/>
     <link rel="manifest" href={assetPath "/manifest.json"}/>

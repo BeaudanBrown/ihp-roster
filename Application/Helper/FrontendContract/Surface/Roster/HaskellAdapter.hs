@@ -6,7 +6,7 @@ module Application.Helper.FrontendContract.Surface.Roster.HaskellAdapter
     , RosterDayTimelineAdapterFamily
     ) where
 
-import Application.Helper.FrontendContract.Surface.HaskellAdapter.Family
+import Application.Helper.FrontendContract.Surface.HaskellAdapter.Association
 import qualified Application.Helper.FrontendContract.Surface.Roster as Roster
 
 data RosterAdapterFamily

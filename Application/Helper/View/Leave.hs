@@ -3,9 +3,9 @@ module Application.Helper.View.Leave
     , renderDateRangeText
     ) where
 
+import Application.Helper.View.Format (formatDateDisplay)
 import qualified Data.Text as Text
 import Data.Time.Calendar (Day)
-import Data.Time.Format (defaultTimeLocale, formatTime)
 import Generated.Types
 import IHP.ViewPrelude
 
@@ -21,5 +21,4 @@ renderDateRangeText leaveRequest =
     renderShortDate leaveRequest.startDate <> " to " <> renderShortDate leaveRequest.endDate
 
 renderShortDate :: Day -> Text
-renderShortDate day =
-    cs (formatTime defaultTimeLocale "%d/%m/%y" day)
+renderShortDate = formatDateDisplay

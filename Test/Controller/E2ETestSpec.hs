@@ -18,7 +18,7 @@ import Web.Routes
 import Web.Types
 
 tests :: Spec
-tests = beforeAll testContext do
+tests = aroundAll withDatabaseTestContext do
     describe "E2ETestController" do
         it "marks the authenticated E2E session as passkey verified" $ withContext do
             withCleanDb do
@@ -35,6 +35,15 @@ tests = beforeAll testContext do
 
                             verifiedUserId <- getSession @Text passkeyVerifiedUserSessionKey
                             verifiedUserId `shouldBe` Just (inputValue user.id)
+
+                        withRequestHeaders
+                            [ ("X-E2E-Test-Token", "test-token")
+                            , ("X-E2E-Passkey-Verified", "false")
+                            ]
+                            do
+                                response <- callAction MarkE2EPasskeyVerifiedAction
+                                response `responseStatusShouldBe` status200
+                                getSession @Text passkeyVerifiedUserSessionKey `shouldReturn` Nothing
 
         it "rejects requests when E2E mode is disabled" $ withContext do
             withCleanDb do

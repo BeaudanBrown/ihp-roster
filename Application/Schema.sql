@@ -20,7 +20,8 @@
 -- - schema-nav: leave-timesheets-audit - leave requests, audit trail, and
 --   export jobs.
 -- - schema-nav: billing - venue-scoped Stripe customer/subscription mirrors,
---   webhook event idempotency, and manual billing controls.
+--   durable Checkout attempts, provider ordering, event idempotency, and
+--   manual billing controls.
 -- - schema-nav: xero - OAuth connections, retained reference rows, mappings,
 --   preparation choices, and pay item setup.
 -- - schema-nav: timesheets - timesheet entries and version history.
@@ -897,23 +898,57 @@ CREATE TABLE venue_billing_customers (
     id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
     venue_id UUID NOT NULL,
     stripe_customer_id TEXT NOT NULL,
+    livemode BOOLEAN NOT NULL,
+    created_by_user_id UUID DEFAULT NULL,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
     UNIQUE(venue_id),
     UNIQUE(stripe_customer_id),
     FOREIGN KEY (venue_id) REFERENCES venues (id) ON DELETE RESTRICT,
+    FOREIGN KEY (created_by_user_id) REFERENCES users (id) ON DELETE RESTRICT,
     CHECK ((char_length(btrim(stripe_customer_id)) > 0) AND (char_length(stripe_customer_id) <= 255))
+);
+CREATE TABLE billing_checkout_attempts (
+    id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
+    venue_id UUID NOT NULL,
+    initiated_by_user_id UUID NOT NULL,
+    livemode BOOLEAN NOT NULL,
+    stripe_customer_id TEXT NOT NULL,
+    stripe_price_id TEXT NOT NULL,
+    stripe_checkout_session_id TEXT DEFAULT NULL,
+    stripe_subscription_id TEXT DEFAULT NULL,
+    status TEXT DEFAULT 'open' NOT NULL,
+    expires_at TIMESTAMP WITH TIME ZONE DEFAULT NULL,
+    completed_at TIMESTAMP WITH TIME ZONE DEFAULT NULL,
+    error_code TEXT DEFAULT NULL,
+    error_summary TEXT DEFAULT NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
+    UNIQUE(stripe_checkout_session_id),
+    FOREIGN KEY (venue_id) REFERENCES venues (id) ON DELETE RESTRICT,
+    FOREIGN KEY (initiated_by_user_id) REFERENCES users (id) ON DELETE RESTRICT,
+    CHECK ((status = 'open') OR (status = 'completed') OR (status = 'expired') OR (status = 'failed')),
+    CHECK (((status = 'completed') AND completed_at IS NOT NULL AND stripe_checkout_session_id IS NOT NULL) OR ((status <> 'completed') AND completed_at IS NULL)),
+    CHECK ((char_length(btrim(stripe_customer_id)) > 0) AND (char_length(stripe_customer_id) <= 255)),
+    CHECK ((char_length(btrim(stripe_price_id)) > 0) AND (char_length(stripe_price_id) <= 255)),
+    CHECK (stripe_checkout_session_id IS NULL OR ((char_length(btrim(stripe_checkout_session_id)) > 0) AND (char_length(stripe_checkout_session_id) <= 255))),
+    CHECK (stripe_subscription_id IS NULL OR ((char_length(btrim(stripe_subscription_id)) > 0) AND (char_length(stripe_subscription_id) <= 255))),
+    CHECK (error_code IS NULL OR ((char_length(btrim(error_code)) > 0) AND (char_length(error_code) <= 120))),
+    CHECK (error_summary IS NULL OR ((char_length(btrim(error_summary)) > 0) AND (char_length(error_summary) <= 1000)))
 );
 CREATE TABLE venue_subscriptions (
     id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
     venue_id UUID NOT NULL,
     stripe_subscription_id TEXT NOT NULL,
     stripe_price_id TEXT NOT NULL,
+    livemode BOOLEAN NOT NULL,
     status TEXT NOT NULL,
     current_period_start TIMESTAMP WITH TIME ZONE DEFAULT NULL,
     current_period_end TIMESTAMP WITH TIME ZONE DEFAULT NULL,
     cancel_at_period_end BOOLEAN DEFAULT FALSE NOT NULL,
     last_synced_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
+    last_applied_stripe_event_created_at TIMESTAMP WITH TIME ZONE DEFAULT NULL,
+    last_applied_stripe_event_id TEXT DEFAULT NULL,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
     UNIQUE(venue_id),
@@ -922,13 +957,16 @@ CREATE TABLE venue_subscriptions (
     CHECK ((char_length(btrim(stripe_subscription_id)) > 0) AND (char_length(stripe_subscription_id) <= 255)),
     CHECK ((char_length(btrim(stripe_price_id)) > 0) AND (char_length(stripe_price_id) <= 255)),
     CHECK ((status = 'incomplete') OR (status = 'incomplete_expired') OR (status = 'trialing') OR (status = 'active') OR (status = 'past_due') OR (status = 'canceled') OR (status = 'unpaid') OR (status = 'paused')),
-    CHECK (current_period_start IS NULL OR current_period_end IS NULL OR current_period_start <= current_period_end)
+    CHECK (current_period_start IS NULL OR current_period_end IS NULL OR current_period_start <= current_period_end),
+    CHECK ((last_applied_stripe_event_created_at IS NULL AND last_applied_stripe_event_id IS NULL) OR (last_applied_stripe_event_created_at IS NOT NULL AND last_applied_stripe_event_id IS NOT NULL)),
+    CHECK (last_applied_stripe_event_id IS NULL OR ((char_length(btrim(last_applied_stripe_event_id)) > 0) AND (char_length(last_applied_stripe_event_id) <= 255)))
 );
 CREATE TABLE billing_events (
     id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
     stripe_event_id TEXT NOT NULL,
     event_type TEXT NOT NULL,
-    livemode BOOLEAN DEFAULT FALSE NOT NULL,
+    stripe_created_at TIMESTAMP WITH TIME ZONE DEFAULT NULL,
+    livemode BOOLEAN NOT NULL,
     api_version TEXT DEFAULT NULL,
     provider_object_type TEXT DEFAULT NULL,
     provider_object_id TEXT DEFAULT NULL,
@@ -1530,8 +1568,12 @@ CREATE INDEX idx_venue_membership_role_events_membership_created_at ON venue_mem
 CREATE UNIQUE INDEX idx_export_jobs_generated_file_id ON export_jobs (generated_file_id);
 CREATE UNIQUE INDEX idx_export_jobs_download_token ON export_jobs (download_token);
 CREATE INDEX idx_venue_billing_customers_venue ON venue_billing_customers (venue_id);
+CREATE UNIQUE INDEX idx_billing_checkout_attempts_one_open_per_venue ON billing_checkout_attempts (venue_id) WHERE status = 'open';
+CREATE INDEX idx_billing_checkout_attempts_venue_created_at ON billing_checkout_attempts (venue_id, created_at DESC);
+CREATE INDEX idx_billing_checkout_attempts_subscription ON billing_checkout_attempts (stripe_subscription_id) WHERE stripe_subscription_id IS NOT NULL;
 CREATE INDEX idx_venue_subscriptions_venue_status ON venue_subscriptions (venue_id, status);
 CREATE INDEX idx_billing_events_received_at ON billing_events (received_at DESC);
+CREATE INDEX idx_billing_events_stripe_created_at ON billing_events (stripe_created_at, stripe_event_id) WHERE stripe_created_at IS NOT NULL;
 CREATE INDEX idx_billing_events_status_received_at ON billing_events (status, received_at);
 CREATE INDEX idx_billing_events_venue_received_at ON billing_events (venue_id, received_at DESC) WHERE venue_id IS NOT NULL;
 CREATE INDEX idx_billing_events_provider_object ON billing_events (provider_object_type, provider_object_id) WHERE provider_object_id IS NOT NULL;
@@ -2277,6 +2319,7 @@ AS $$
                         pw.break_start_minute_of_day IS NOT NULL
                         AND pw.break_end_minute_of_day IS NOT NULL
                         AND pw.break_end_minute_of_day - pw.break_start_minute_of_day >= 30
+                        AND pw.break_start_minute_of_day >= pw.start_minute_of_day + 120
                         AND pw.break_start_minute_of_day <= pw.start_minute_of_day + 360
                     )
                 THEN pw.start_minute_of_day + 360
@@ -2288,6 +2331,7 @@ AS $$
                         pw.break_start_minute_of_day IS NOT NULL
                         AND pw.break_end_minute_of_day IS NOT NULL
                         AND pw.break_end_minute_of_day - pw.break_start_minute_of_day >= 30
+                        AND pw.break_start_minute_of_day >= pw.start_minute_of_day + 120
                         AND pw.break_start_minute_of_day <= pw.start_minute_of_day + 360
                     )
                 THEN
@@ -2345,6 +2389,47 @@ AS $$
                             ELSE scoped.base_rate
                         END
                     ) + (scoped.permanent_base_rate * 0.5)
+                    + CASE
+                        WHEN scoped.penalty_kind = 'delayed_meal_break_weekday'
+                            AND scoped.source_segment_name IN ('evening_after_7pm', 'late_night_after_midnight')
+                        THEN COALESCE(
+                            (
+                                SELECT atpa.hourly_amount
+                                FROM award_time_penalty_allowances atpa
+                                WHERE atpa.award_fixed_id = scoped.award_fixed_id
+                                    AND atpa.penalty_kind =
+                                        CASE scoped.source_segment_name
+                                            WHEN 'evening_after_7pm' THEN 'evening_after_7pm'::award_penalty_kind_enum
+                                            WHEN 'late_night_after_midnight' THEN 'late_night_after_midnight'::award_penalty_kind_enum
+                                            ELSE NULL::award_penalty_kind_enum
+                                        END
+                                    AND (venue_effective_award_rate_from(scoped.venue_week_starts_on, atpa.operative_from) IS NULL OR venue_effective_award_rate_from(scoped.venue_week_starts_on, atpa.operative_from) <= scoped.segment_date)
+                                    AND (scoped.approved_at IS NOT NULL OR venue_effective_award_rate_to(scoped.venue_week_starts_on, atpa.operative_to) IS NULL OR venue_effective_award_rate_to(scoped.venue_week_starts_on, atpa.operative_to) >= scoped.segment_date)
+                                    AND (scoped.approved_at IS NULL OR atpa.created_at <= scoped.approved_at)
+                                ORDER BY venue_effective_award_rate_from(scoped.venue_week_starts_on, atpa.operative_from) DESC NULLS LAST, atpa.created_at DESC
+                                LIMIT 1
+                            ),
+                            (
+                                SELECT GREATEST(alpr.hourly_rate - scoped.base_rate, 0)
+                                FROM award_level_penalty_rates alpr
+                                WHERE alpr.award_level_id = scoped.pay_level_id
+                                    AND alpr.employment_basis = scoped.employment_basis
+                                    AND alpr.penalty_kind =
+                                        CASE scoped.source_segment_name
+                                            WHEN 'evening_after_7pm' THEN 'evening_after_7pm'::award_penalty_kind_enum
+                                            WHEN 'late_night_after_midnight' THEN 'late_night_after_midnight'::award_penalty_kind_enum
+                                            ELSE NULL::award_penalty_kind_enum
+                                        END
+                                    AND (venue_effective_award_rate_from(scoped.venue_week_starts_on, alpr.operative_from) IS NULL OR venue_effective_award_rate_from(scoped.venue_week_starts_on, alpr.operative_from) <= scoped.segment_date)
+                                    AND (scoped.approved_at IS NOT NULL OR venue_effective_award_rate_to(scoped.venue_week_starts_on, alpr.operative_to) IS NULL OR venue_effective_award_rate_to(scoped.venue_week_starts_on, alpr.operative_to) >= scoped.segment_date)
+                                    AND (scoped.approved_at IS NULL OR alpr.created_at <= scoped.approved_at)
+                                ORDER BY venue_effective_award_rate_from(scoped.venue_week_starts_on, alpr.operative_from) DESC NULLS LAST, alpr.created_at DESC
+                                LIMIT 1
+                            ),
+                            0::NUMERIC(12,4)
+                        )
+                        ELSE 0::NUMERIC(12,4)
+                    END
                 WHEN scoped.penalty_kind IN ('saturday_penalty', 'sunday_penalty', 'public_holiday_penalty') THEN
                     COALESCE(
                         (
@@ -2412,6 +2497,7 @@ AS $$
                 pw.shift_type_pay_version_id,
                 pw.approved_at,
                 scoped_segments.segment_name,
+                scoped_segments.source_segment_name,
                 scoped_segments.segment_date,
                 scoped_segments.penalty_kind,
                 scoped_segments.segment_minutes,
@@ -2421,6 +2507,7 @@ AS $$
             CROSS JOIN LATERAL (
                 SELECT
                     sw.segment_name,
+                    sw.segment_name AS source_segment_name,
                     (pw.worked_on + CASE WHEN sw.window_start_minute >= 1440 THEN 1 ELSE 0 END) AS segment_date,
                     CASE
                         WHEN EXISTS (
@@ -2498,6 +2585,7 @@ AS $$
                         WHEN EXTRACT(DOW FROM (pw.worked_on + CASE WHEN sw.window_start_minute >= 1440 THEN 1 ELSE 0 END))::INT = 0 THEN 'delayed_meal_break_sunday'
                         ELSE 'delayed_meal_break_weekday'
                     END AS segment_name,
+                    sw.segment_name AS source_segment_name,
                     (pw.worked_on + CASE WHEN sw.window_start_minute >= 1440 THEN 1 ELSE 0 END) AS segment_date,
                     CASE
                         WHEN EXISTS (
@@ -2540,6 +2628,70 @@ AS $$
             ) scoped_segments
         ) scoped
     ),
+    public_holiday_minimum_rows AS (
+        SELECT
+            ph.id,
+            'public_holiday_minimum_top_up'::TEXT AS segment_name,
+            ph.segment_date,
+            CASE ph.employment_basis
+                WHEN 'casual' THEN 120
+                ELSE 240
+            END - ph.paid_minutes AS segment_minutes,
+            ph.shift_type_id,
+            ph.shift_type_name,
+            ph.pay_level_id,
+            ph.pay_level_name,
+            'public_holiday_penalty'::award_penalty_kind_enum AS penalty_kind,
+            ph.base_rate,
+            ph.segment_hourly_rate,
+            1000 AS sort_index
+        FROM (
+            SELECT DISTINCT ON (sr.id) sr.*
+            FROM segment_rows sr
+            WHERE sr.imported_xero_pay_item_id IS NULL
+                AND sr.penalty_kind = 'public_holiday_penalty'
+                AND sr.segment_minutes > 0
+            ORDER BY sr.id, sr.segment_date ASC, sr.sort_index ASC
+        ) ph
+        WHERE ph.paid_minutes <
+            CASE ph.employment_basis
+                WHEN 'casual' THEN 120
+                ELSE 240
+            END
+    ),
+    payable_segments AS (
+        SELECT
+            sr.id,
+            sr.segment_name,
+            sr.segment_date,
+            sr.segment_minutes,
+            sr.shift_type_id,
+            sr.shift_type_name,
+            sr.pay_level_id,
+            sr.pay_level_name,
+            sr.penalty_kind,
+            sr.base_rate,
+            sr.segment_hourly_rate,
+            sr.sort_index
+        FROM segment_rows sr
+
+        UNION ALL
+
+        SELECT
+            phmr.id,
+            phmr.segment_name,
+            phmr.segment_date,
+            phmr.segment_minutes,
+            phmr.shift_type_id,
+            phmr.shift_type_name,
+            phmr.pay_level_id,
+            phmr.pay_level_name,
+            phmr.penalty_kind,
+            phmr.base_rate,
+            phmr.segment_hourly_rate,
+            phmr.sort_index
+        FROM public_holiday_minimum_rows phmr
+    ),
     segment_json AS (
         SELECT
             sr.id,
@@ -2564,18 +2716,22 @@ AS $$
                 ) FILTER (WHERE sr.segment_minutes > 0),
                 jsonb_build_array()
             ) AS segments
-        FROM segment_rows sr
+        FROM payable_segments sr
         GROUP BY sr.id
     ),
     segment_totals AS (
         SELECT
             sr.id,
             COALESCE(
+                SUM(sr.segment_minutes) FILTER (WHERE sr.segment_minutes > 0),
+                0
+            )::INT AS paid_minutes,
+            COALESCE(
                 SUM(ROUND(((sr.segment_minutes::NUMERIC / 60.0) * sr.segment_hourly_rate), 2))
                     FILTER (WHERE sr.segment_minutes > 0),
                 0::NUMERIC(12,2)
             ) AS total_amount
-        FROM segment_rows sr
+        FROM payable_segments sr
         GROUP BY sr.id
     ),
     payload AS (
@@ -2593,7 +2749,7 @@ AS $$
             'paidMinutes', pw.paid_minutes,
             'segments', sj.segments,
             'totals', jsonb_build_object(
-                'paidMinutes', pw.paid_minutes,
+                'paidMinutes', st.paid_minutes,
                 'totalAmount', st.total_amount
             )
         ) AS pay_json

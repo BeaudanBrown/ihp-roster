@@ -102,22 +102,22 @@
     border-color: var(--app-slate-alpha-45);
 }
 
-.roster-week-overview-day.is-current-week {
+.roster-week-overview-day[data-bepis-roster-week-overview-availability="loaded"] {
     background: var(--app-accent-softer);
     border-color: var(--app-accent-border-soft);
 }
 
-.roster-week-overview-day.is-selected {
+.roster-week-overview-day[aria-pressed="true"] {
     background: var(--app-accent-selected);
     border-color: var(--app-accent-border-strong);
     box-shadow: inset 0 0 0 1px var(--app-focus-ring);
 }
 
-.roster-week-overview-day.is-today {
+.roster-week-overview-day[data-bepis-roster-week-overview-calendar-day="today"] {
     box-shadow: inset 0 0 0 1px var(--app-warning);
 }
 
-.roster-week-overview-day.is-closed::after {
+.roster-week-overview-day[data-bepis-roster-week-overview-closure="closed"]::after {
     content: "";
     position: absolute;
     inset: 0.35rem;

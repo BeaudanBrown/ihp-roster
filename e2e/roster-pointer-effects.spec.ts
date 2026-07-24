@@ -4,7 +4,16 @@ import { E2E_TIMEOUT, ensureRosterLayout, openRoster } from './test-helpers';
 async function expectShiftModificationHighlight(target: Locator) {
     await expect(target).toHaveClass(/bepis-dropzone-highlight/, { timeout: E2E_TIMEOUT.assertion });
     await expect(target).toHaveCSS('background-image', /linear-gradient/);
-    await expect(target).toHaveCSS('box-shadow', /3px/);
+    await expect.poll(async () => target.evaluate((element) => {
+        const style = getComputedStyle(element);
+        return {
+            ringWidth: style.getPropertyValue('--bepis-dropzone-highlight-ring-width').trim(),
+            elevation: style.getPropertyValue('--bepis-dropzone-highlight-elevation').trim(),
+        };
+    }), { timeout: E2E_TIMEOUT.assertion }).toEqual({
+        ringWidth: '3px',
+        elevation: expect.stringContaining('0.75rem'),
+    });
 }
 
 test.describe('roster pointer session effects', () => {

@@ -34,9 +34,10 @@ type RegisteredFrontendSurfaces =
 
 A surface is added by defining a type-level spec with the primitives from
 `Application.Helper.FrontendContract.Surface.DSL`, then adding it to this list.
-`Application.Helper.FrontendContract.Surface.Reflect` recursively evaluates the
-closed type-level DSL with typeclass instances, and
-`Application.Helper.FrontendContract.Surface.Contracts` validates that reflected
+`Application.Helper.FrontendContract.Surface.Reflect` recursively evaluates any
+provided closed type-level DSL with typeclass instances without importing the
+production registry. `Application.Helper.FrontendContract.Surface.Contracts`
+binds that evaluator to `RegisteredFrontendSurfaces` and validates the reflected
 value into the single checked `SurfaceContractIR`. Its `SurfaceIR` values are
 embedded directly in the unified `FrontendContractIR`; no compact Surface copy
 or conversion layer exists. Field, wire, schema, diagnostic, and HTMX values come
@@ -115,11 +116,21 @@ Available primitives include:
   interaction runtime coordination;
 - generated source, dropzone, and activation refs for generic browser
   interactions;
+- `BrowserRole`, `BrowserState`, and `LinkedHighlight` for mount-local,
+  generated browser relationships and their closed activations/effects;
+- `CompleteSetSort` for complete, server-rendered collections whose row DTO,
+  allowed keys, comparator chains, direction policy, and defaults are closed in
+  Haskell;
+- `TabSet` for mount-local opaque tab keys and a declared default while the
+  browser UI library remains the mechanical adapter;
 - `ConflictPolicy` for session/fragment conflict behavior;
-- `Event`, `DomToken`, and `Dto` for checked Surface metadata. `DomToken` is
-  server-only; use `BrowserDomToken` only when production TypeScript also
-  imports the semantic token. Guardrails require every emitted browser token to
-  have a production consumer.
+- `Event`, `DomToken`, and Surface DTO declarations for checked metadata.
+  Plain `Dto` is server-only. `BrowserTypeDto`, `BrowserGuardDto`,
+  `BrowserInboundDto`, `BrowserOutboundDto`, and `BrowserBidirectionalDto`
+  explicitly select generated browser reachability and codec direction.
+  `DomToken` is server-only; use `BrowserDomToken` only when production
+  TypeScript also imports the semantic token. Guardrails require every emitted
+  browser token to have a production consumer.
 
 Wire fields use the closed browser wire universe: `WireText`, `WireInt`,
 `WireBool`, `WireUUID`, `WireDay`, `WireList`, `WireOptional`, `WireNullable`,
@@ -196,6 +207,125 @@ trigger events. Mount JSON must not become a custom mutation transport contract.
 The generic browser runtime only validates generated semantics and matching DOM
 forms, fills declared intent fields, and dispatches the generated HTMX trigger.
 
+## Generated Linked Highlights
+
+`LinkedHighlight` declares a Surface-owned relationship without exposing feature
+selectors or browser business logic. Its source/member roles, optional pin role,
+and ordered-member state are `BrowserRole`/`BrowserState` markers reflected to
+`data-bepis-<surface>-<role-or-state>` names. Activations are closed to hover,
+focus, keyboard, and optional pin; effects are closed to matching source,
+matching member, and ordered member bounds. Checked-IR validation rejects
+undeclared role/state references and generated-name collisions.
+
+Views attach opaque membership and ordering keys with
+`Application.Helper.FrontendContract.Surface.LinkedHighlight`. The generic
+`frontend/ts/linked-highlight/runtime.ts` adapter imports only the generated
+`FrontendSurfaceLinkedHighlightRegistry`, scopes every lookup to the nearest
+surface mount, and applies browser-local transient classes:
+`is-linked-highlight-source`, `is-linked-highlight-member`,
+`is-linked-highlight-member-first`, and `is-linked-highlight-member-last`.
+It may compare opaque keys for equality but must not parse them into domain
+fields. Server-rendered HTML remains authoritative across HTMX reconciliation;
+the runtime removes stale effects and resets pin accessibility state when a
+source disappears.
+
+Roster currently declares staff-to-shift highlighting on the roster surface and
+shift-group highlighting independently on the roster and contained day-timeline
+surfaces. Their views consume generated Haskell role helpers; raw staff/slot IDs,
+feature selector attributes, and feature-specific highlight runtimes are not a
+parallel contract.
+
+## Browser-Reachable DTOs, Complete-Set Sorts, And Tab Sets
+
+Surface DTOs are server-only unless their declaration explicitly selects a
+browser reachability. The TypeScript generator emits only reachable DTOs and the
+codec operations implied by their direction: type-only, guard, inbound parser,
+outbound encoder, or both parser and encoder. Inbound parsers are exact: missing,
+extra, or mistyped fields reject the whole payload. Haskell may serialize a
+reachable DTO only through `Surface.Dto` marker-indexed helpers and a complete
+`SurfaceFields` bundle; trying to render a plain `Dto` is a compile error.
+
+`CompleteSetSort` is for presentation-only ordering when the server has rendered
+the complete collection. It names generated root, row, and control roles; a
+browser-reachable exact row DTO; an ordered inventory of keys; each key's ordered
+comparator chain; text/integer/opaque value interpretation; selected-direction
+versus always-ascending comparator direction; and initial key/direction. The
+generic `frontend/ts/complete-set-sort/runtime.ts` adapter parses every row with
+the generated DTO parser before mutation, scopes ownership to the nearest
+Surface mount, applies stable deterministic ordering, and updates `aria-sort`.
+It reports malformed rows and leaves their server order unchanged instead of
+inventing defaults. Use marker-indexed helpers from `Surface.CompleteSetSort` to
+render roots, rows, and controls; views and TypeScript must not repeat role
+names, payload field names, sort keys, comparators, or defaults.
+
+`TabSet` declares one generated tab role, a closed opaque key inventory, and a
+default key. The generic `frontend/ts/surface-tab-set/runtime.ts` adapter listens
+to the UI library's shown-tab event, remembers only valid keys per concrete
+mount and declaration, restores that selection after HTMX replacement, and
+falls back to the declared default when the remembered key is absent. It does
+not own pane markup, Bootstrap activation mechanics, or business state. Render
+tab keys with `Surface.TabSet`; do not add feature-specific parsers or storage
+attributes.
+
+Roster staff-panel sorting and tabs are the first production consumers. Their
+curated Haskell view boundary is
+`Application.Helper.FrontendContract.Surface.Roster.StaffPanel`. The declared
+row payload contains an opaque row key, name, role, assigned-shift count, and
+ideal-shift count. The old per-field attributes, global sort enum, and
+roster-specific TypeScript runtimes are deleted and guarded against return.
+
+## Surface-Owned Closed Browser States And Roster Chrome
+
+`BrowserClosedState` pairs a generated Surface state attribute with a non-empty,
+checked value inventory. TypeScript receives the attribute constant, named value
+object, exact union, and guard. Haskell rendering uses
+`surfaceBrowserClosedStateLiteral`, which rejects values not declared by that
+state at compile time. Use native properties or ARIA state when they already
+express the semantic relationship; use a closed Surface state only when CSS and
+the adapter need a shared app-specific state on a generated root.
+
+Roster fullscreen and column editing are the first production consumers. The
+curated `Surface.Roster.Chrome` boundary renders fullscreen root/toggle/label and
+column editor/start/done roles plus initial collapsed/inactive states. The
+browser adapters import every role, state attribute, value, and guard. Fullscreen
+keeps icon classes, focus, and Escape handling browser-local. Column editing
+keeps its delayed blur mechanical, stores timers per generated editor, and
+cancels them when HTMX removes that editor. Neither runtime discovers behavior
+through roster presentation classes or carries state from a replaced root.
+
+## Generated Roster Image Export
+
+The roster Surface declares image-export trigger/config/projection/row/cell
+roles, a closed JPG format, an exact export-policy/copy record, and an exact cell
+text record. `Surface.Roster.ImageExport` resolves the filename and serializes
+all format dimensions, quality, labels, failure copy, and optional
+export-specific cell values. The roster row-grid view attaches those helpers to
+its current projection and emits the trigger; layouts without that projection
+omit the trigger instead of exposing an unusable adapter action. No view exposes
+cell kinds or conflict metadata to the browser.
+
+The focused TypeScript adapter resolves one projection inside the trigger's
+nearest Surface mount and parses every exact payload before cloning. It retains
+only layout measurement, computed presentation styles, SVG/Canvas rendering,
+JPG encoding, and browser download mechanics. It must not recover roster meaning
+from feature classes, cell positions, group selectors, week labels, or raw
+conflict annotations.
+
+## Retained Roster Week Overview
+
+The disabled roster week overview is retained behind generated panel/day/today/
+detail-slot roles, exact panel/day payloads, and closed availability, closure,
+and calendar-day states. `Surface.Roster.WeekOverview` builds date labels,
+metric displays, summary copy, navigation URLs, and state values in Haskell.
+Selection uses native `aria-pressed`; CSS and the adapter consume generated
+state attributes rather than shared `is-*` classes.
+
+The adapter validates one clicked day and its local slots before mutation. A
+malformed day emits a structured diagnostic, leaves that element and
+server-rendered details intact, and does not prevent valid siblings from being
+used. The normal roster header still renders a static week label and does not
+mount or fetch this retained capability.
+
 ## Generated HTMX Request Actions
 
 `Action name fields options` describes surface-owned request initiators, not
@@ -203,8 +333,12 @@ successful business refresh behavior. Its `fields` list is the browser-submitted
 payload/form boundary. Unrelated route params and venue/page context stay in
 Haskell route builders such as `pathTo` and `appendQueryParams`; do not move IHP
 routes into the type-level DSL. Declared action fields do not belong in
-`FrontendSurfaceActionRoute`: construct the complete `SurfaceFields` bundle and
-pass it to `frontendSurfaceAction`.
+`FrontendSurfaceActionRoute`. Production callers import their feature-owned
+`Surface.<Feature>.Action` facade, build the complete bundle with its generated
+operation field builder, and pass that bundle to the generated operation
+metadata function. The generic `frontendSurfaceAction` constructor remains an
+implementation seam for private generated modules and focused fixtures, not a
+feature-call-site API.
 
 Use standard HTMX options for stable request metadata:
 
@@ -239,8 +373,10 @@ They can also render standard `method`/`action`, `formaction`, or `href` attrs f
 browser semantics, but that is not a complete no-JS UX unless the controller
 returns full-page or redirect fallbacks.
 
-Controllers parse the same declaration with `parseSurfaceActionParams` or
-`parseSurfaceIntentParams`. Parsing ignores unrelated request parameters,
+Controllers parse the same declaration through the exact operation parser from
+their feature-owned `Surface.<Feature>.Action` or `Surface.<Feature>.Intent`
+facade. Production callers do not invoke the generic Action/Intent parsers
+directly. Parsing ignores unrelated request parameters,
 returns declaration-ordered `SurfaceFields`, and accumulates structured field
 errors. Required fields reject absence, optional fields map absence or blank to
 `Nothing`, and nullable fields require presence while mapping blank to
@@ -259,8 +395,11 @@ actor-local live-fragment refresh metadata through
 shared resource changed. Mutations reporting touched resources use
 `setActorLiveResourcesRefresh`, so actor mount keys and passive subscription keys
 are evaluated by the same planner over the same
-`SurfaceResourceValue`s. Passive invalidation handles other tabs/viewers. OOB
-remains valid for extras such as dialog clears, toasts, disposable-layer cleanup,
+`SurfaceResourceValue`s. A successful workflow that must also reset a
+`ResyncOnly` actor fragment uses `setActorLiveResourcesRefreshIncluding` to
+combine that explicit actor-only key with the resource-planned keys in one
+refresh payload. Passive invalidation handles other tabs/viewers. OOB remains
+valid for extras such as dialog clears, toasts, disposable-layer cleanup,
 focus/scroll hints, and validation-local responses. Plain fragment GET/refetch
 endpoints should return the target node itself, not OOB wrappers.
 
@@ -284,9 +423,10 @@ reflected registry by protocol strings. `surfaceNameValue`, `surfaceScopeValue`,
 `surfaceFragmentValue`, `surfaceResourceValue`, `surfaceSourceRefValue`,
 `surfaceDropzoneRefValue`, `surfaceActivationRefValue`, and
 `surfaceDomTokenValue` are indexed by both the owning `Surface` and marker.
-Actions and intents are selected through the opaque `frontendSurfaceAction` and
-`frontendSurfaceIntentForm` constructors. A marker owned by another surface is
-a compile error.
+Actions and intents are selected through generated operation functions exported
+by their feature-owned `Action` and `Intent` facades. The generic metadata
+constructors remain implementation seams used only by private generated modules
+and focused fixtures. A marker owned by another surface is a compile error.
 
 Build scope, mount-state, fragment, and action payloads with declaration-ordered
 `SurfaceFields`, `surfaceField`, `surfaceOptionalField`, and
@@ -307,10 +447,12 @@ accessor failures identify the marker absent from the complete bundle; action or
 intent ownership failures remain attached to the opaque constructor call.
 
 `SurfaceFields` construction keeps the exact declared field list as its
-contextual type. Do not replace that context with a separately inferred generic
-provided-field list: the declaration must continue to infer numeric values,
-`Nothing`, nested wires, and other valid inputs. The declaration-directed
-`NoSurfaceFields` and `(:&)` checks report:
+contextual type. Its raw data constructors stay hidden: use the
+`noSurfaceFields` and `(&:)` construction functions, which deliberately provide
+no matching or unwrapping path. Do not replace that context with a separately
+inferred generic provided-field list: the declaration must continue to infer
+numeric values, `Nothing`, nested wires, and other valid inputs. These
+declaration-directed builder checks report:
 
 - the next missing field and remaining declared shape;
 - an extra field's marker and presence, explicitly noting that it has no
@@ -351,6 +493,182 @@ field breaks incomplete constructors and matchers at compile time. Feature code
 must not import `Surface.Resource.Internal`, construct resource names/JSON, or
 recover resource fields by text.
 
+### Generated toggle capability
+
+`Application.Helper.FrontendContract.Toggle` is the focused global contract for
+checkbox-style presentation backed by explicit form transport. It generates the
+closed presentation/submission enums, value-or-omitted targets, exact
+`ToggleConfig` parser, and root/input/label/transport/break-region DOM
+attributes. Presentation state is deliberately separate from submitted target
+state, so inverted controls such as **Hide approved** are represented without
+browser-side business translation.
+
+Feature views build Surface-owned scalar and repeated-field mappings through
+`surfaceToggleScalarField` and `surfaceToggleListItemField`. Both require the
+complete generated Action field bundle and the declaration's Haskell source
+type; scalar/list misuse and wrong item wire types fail at compile time. Native
+business forms outside a Surface Action may use `namedBooleanToggleField`, but
+must not restate boolean wire values in the view.
+
+`Application.Helper.View.ToggleButton` renders one unnamed checkbox plus one
+named hidden transport inside the same form. The generated opaque key relates
+the root, input, and transport without document-global id lookup. The generic
+browser adapter parses the exact config, synchronizes the transport during
+capture phase before any submit serialization, then applies immediate or
+deferred submission policy. It also owns checked presentation, state labels,
+ARIA switch state, and an optional native break `fieldset`; feature JavaScript
+must not duplicate those mappings or rediscover picker internals. Responsive
+layouts render each control once and move that one node with CSS rather than
+emitting duplicate ids.
+
+### Generated time-picker capability
+
+`Application.Helper.FrontendContract.TimePicker` owns the reusable quarter-hour
+picker's modal id and field, configuration, value, trigger, label, step-down,
+step-up, options-grid, option, and clear roles. `TimePickerConfig` is an exact
+inbound record of `rangeStart`, `rangeEnd`, `stepMinutes`, and `emptyLabel`;
+`TimePickerOption` is an exact inbound record of `value` and `label`.
+`Application.Helper.FrontendContract.TimePicker.Runtime` serializes both records
+through declaration-indexed carrier fields, so missing or reordered Haskell
+fields fail compilation and malformed browser records fail generated parsing.
+
+`Application.Helper.View.TimePicker` remains semantic authority for overnight
+range resolution, the quarter-hour step, default/empty/modal/accessibility copy,
+canonical option values and display labels, and initial disabled/button state.
+The generic browser adapter resolves only generated roles, parses every field
+and option locally, and rearranges the existing validated server-rendered option
+buttons for the active range. It supplies no fallback range, option, value,
+label, or copy. A malformed field or option emits a structured diagnostic and
+is skipped before its server HTML is mutated.
+
+This capability deliberately ends at picker-internal behavior. The generated
+Toggle capability remains the sole owner of explicit form mapping, synchronized
+submission, and the native timesheet break fieldset. The picker reads ordinary
+native disabled state and neither imports Toggle roles nor installs a break
+handler.
+
+### Generated ordered-range capability
+
+`Application.Helper.FrontendContract.OrderedRange` owns the reusable two-endpoint
+range's root, exact config/state, start, end, and availability roles. The config
+carries the complete allowed integer range, step, workflow defaults, ordered
+label inventory, and closed crossing policy. The state carries current start/end
+values and native availability. Generated position-property constants are the
+only Haskell/TypeScript agreement used for disposable track presentation.
+
+`Application.Helper.FrontendContract.OrderedRange.Runtime` validates and
+serializes both declaration-indexed records. The staff/profile shift-preference
+view composes those attrs with ordinary named range inputs, native labels and
+`output[for]` relationships, plus the existing generated Toggle control. The
+ordered-range adapter validates that whole local subtree before installing
+listeners or changing server HTML, keeps initialization state outside the DOM,
+and looks up every dynamic label from the Haskell inventory. It implements the
+generated `clamp-other-endpoint` policy mechanically in either direction and
+uses native disabled state for availability styling.
+
+The capability does not own request transport or business validation. Toggle
+continues to synchronize the repeated availability field, the named range inputs
+submit unchanged values, and `parseShiftPreferenceSelections` remains
+server-authoritative for weekday, bounds, and endpoint ordering.
+
+### Generated horizontal-scroll capability
+
+`Application.Helper.FrontendContract.HorizontalScroll` owns reusable snap and
+mouse drag-scroll roles plus exact snap/drag configuration. Haskell constructors
+select nearest-item or equal-group snapping and provide the required local item,
+CSS-property/scope, or drag-ignore relationship. Roster and Timesheets views
+render only the focused runtime attrs; TypeScript imports the generated roles
+and exact parsers.
+
+The adapter initializes one controller per mounted scroller and disposes every
+controller in an HTMX cleanup subtree. New user input invalidates stale snap
+work. Pointer thresholds, debounce timing, click suppression, and transient
+`is-horizontal-*` classes remain module-owned browser mechanics rather than
+contract fields or persistent DOM state.
+
+### Generated PWA installation capability
+
+`Application.Helper.FrontendContract.PwaInstall` owns the public installation
+page, install button, result, result-state, and installed-status roles. Its
+closed accepted/dismissed/failed state relates browser outcomes to complete
+Haskell-rendered result messages; no browser prompt or platform object crosses a
+wire schema.
+
+The adapter imports those generated roles and state guard while retaining native
+`beforeinstallprompt`, `appinstalled`, display-mode, and Apple standalone
+handling locally. Availability and installed/result visibility use native
+`hidden`; status and live-region accessibility remain ordinary HTML/ARIA. The
+adapter selects existing server-rendered copy and must not synthesize fallback
+messages or persist an availability/installed state attribute.
+
+### Generated passkey capability
+
+`Application.Helper.FrontendContract.Passkey` owns the reusable passkey login,
+registration, setup-prompt, action, device-name, status, recovery, and dismissal
+roles. Its browser boundary includes one exact tagged configuration for login,
+registration, or setup-prompt plus exact begin-option records, serialized
+registration/authentication request records, tagged finish outcomes, and tagged
+structured errors. Login and registration carry Haskell-built begin/finish URLs,
+an optional success redirect, a local status relationship, and complete
+status/loading copy. Setup prompts carry an opaque user key and the closed
+first-passkey/additional-device mode. The focused Haskell runtime derives all
+names and values from marker-indexed declarations; views render complete
+controls and recovery copy through `Application.Helper.View.Passkey`.
+
+`Application.Helper.FrontendContract.Wire.Passkey` is the Haskell carrier and
+WebAuthn-library conversion seam. Controllers render and parse only those exact
+schema-indexed values. The TypeScript adapter resolves every action, status,
+device-name, and recovery relationship inside the nearest generated flow root,
+parses successful and error server envelopes before invoking native credential
+APIs or redirecting, and encodes serialized credentials through generated
+encoders. It keeps initialization in `WeakSet` storage and reports malformed
+configuration without changing authoritative HTML. Browser capability checks,
+`navigator.credentials`, native credential/response objects, extension-result
+semantics, local-storage hints, and base64url conversion remain adapter-local.
+Setup-prompt dismissals also use the generated overlay close role and consume
+its generated semantic dismissal event. The passkey adapter records the local
+UX hint for close-control, Escape, and backdrop dismissal while the overlay
+adapter alone owns dialog removal, body locking, and focus policy.
+
+### Generated Xero candidate-filter capability
+
+`Application.Helper.FrontendContract.XeroCandidateFilter` owns the root, search,
+candidate, and filtered-empty roles plus one exact candidate configuration for
+the imported pay-item dialog. Its runtime accepts only Haskell-selected text
+fields, normalizes them once, hides the projection constructor, and serializes
+that projection through a declaration-indexed record. Views cannot attach raw
+feature text without crossing the boundary, while the generated exact parser
+rejects absent, extra, or incorrectly typed configuration fields.
+
+The Xero view chooses earnings-rate name and account code as projection inputs
+while retaining checkbox names, remote earnings-rate ids, validation, and import
+routes on the server. The adapter imports every role and the exact config parser,
+validates a complete root before mutation, reports structured diagnostics, then
+fuzzy-matches the opaque projection and changes only native `hidden` state. A
+feature CSS rule keeps hidden candidate labels invisible
+when Bootstrap's `d-flex !important` utility is present. Filtered-empty copy and
+status/live-region semantics remain server-rendered.
+
+### Generated overlay capability
+
+`Application.Helper.FrontendContract.Overlay` owns the shared workflow-dialog
+and toast lane mount ids, role attributes, the semantic dialog-dismissed event,
+dialog auto-submit state, and exact submit/toast configuration schemas. Shared
+Haskell overlay helpers render those roles and serialize loading-label/auto-hide
+configuration through the focused runtime. Dialog and toast TypeScript parse the
+generated exact records and keep one-time/original-markup state in
+`WeakSet`/`WeakMap` storage rather than adding browser-only data attributes. The
+dialog adapter emits the generated event before close-control, backdrop, or
+Escape removal so composed capabilities can record semantic dismissal without
+owning DOM removal, focus, or body locking.
+
+This capability does not own mutation semantics. Dialog launchers and forms
+continue to use their generated AppShell or Surface Action metadata, and picker
+markup remains a separate overlay lane. Bootstrap modal classes/events and
+module-owned toast transition classes stay inside the adapters; native disabled
+state and ARIA dialog/control state remain native rather than being duplicated
+as app DOM vocabulary.
+
 ## Generated Haskell Adapter Foundation
 
 Mechanical feature adapters are generated from the same checked declarations;
@@ -383,24 +701,107 @@ not across kind-separated modules such as Action and Intent.
 The private output/facade pairs are fixed as `.Generated.Resource` / `Resource`,
 `.Generated.Live` / `Live`, `.Generated.Action` / `Action`, and
 `.Generated.Intent` / `Intent`. Scope and fragment declarations deliberately
-share the Live pair. Today the focused resource renderer uses the core and the
+share the Live pair. The focused resource renderer uses the core and the
 aggregate registry assigns exactly one canonical home to every unique checked
-production resource identity. Repeated dependency occurrences do not create
-extra homes. The shared `time-picker-config` identity, for example, has its
-canonical home in the Roster day-timeline family even though Timesheets also
-depends on it. The live/action/intent tickets add only their focused checked
-eligibility, homes, and source shapes over this core.
+production resource identity.
+Repeated dependency occurrences do not create extra homes. The shared
+`time-picker-config` identity, for example, has its canonical home in the Roster
+day-timeline family even though Timesheets also depends on it.
+
+The focused Live renderer selects every checked Surface scope and every fragment
+with `Live`; non-passive fragments that already own an actor-local semantic key
+require a typed, non-empty, reason-bearing exception. Those exceptions cover the
+Admin and Admin Xero parent-page content keys. Scope and fragment
+`CheckedAdapterDeclaration` values come only from kind-specific `SurfaceIR` +
+`ScopeIR`/`FragmentIR` normalizers. Their kinds survive home resolution and only
+the closed `LiveScope` / `LiveFragment` payload reaches the shared
+`.Generated.Live` renderer.
+
+`RegisteredSurfaceScopeAdapterHomes` and
+`RegisteredSurfaceFragmentAdapterHomes` assign exactly one typed production home
+to every selected declaration. Once the first production family migrated, the
+initial empty-home branch was removed: empty, partial, extra, or duplicate Live
+homes now fail the mandatory all-kind generation run. Independent literal
+goldens in `Test.LiveUpdateSpec` continue to pin production scope JSON,
+fragment-key JSON, and canonical `surfaceScopeKey` values across the replacement;
+generated-vs-generic equality is not their source of truth.
+
+The focused Action and Intent renderers independently normalize every checked
+`HtmxActionIR` and `IntentIR`, validate a kind-indexed typed registration, and
+retain their kind through home resolution. Only then can `toRenderableAdapter`
+cross into deterministic module rendering; its constructor and the
+`ResolvedAdapter` constructor are private. Action output therefore cannot enter
+the Intent renderer or vice versa. The only shared request-adapter operations
+are a declaration-complete `SurfaceFields` builder, marker-indexed render
+metadata (`FrontendSurfaceAction` or `FrontendSurfaceIntentForm`), and an exact
+request parser delegating to `parseSurfaceActionParams` or
+`parseSurfaceIntentParams`. Each operation has an explicit generated/excluded
+decision, and every exclusion requires a non-empty reason.
+
+The production inventory contains all 52 checked actions and all five checked
+intents. Forty-seven actions have Haskell adapter consumers; the five action
+declarations backing the same-named interaction intents remain typed,
+reason-bearing declaration exclusions. Exactly one checked home is registered
+for each eligible action across the Admin, LeaveRequests, Profile, Roster,
+SelfServiceLeave, Support, and Timesheets families. All 47 provide generated
+field-builder and render-metadata operations; 32 provide exact parsers and the
+other 15 retain typed, operation-specific no-parser reasons. Production callers
+use the seven curated `Action` facades: generic parser and metadata calls under
+`Web/` are both zero, enforced by source guardrails.
+
+All five intents have exactly one checked production home across the Roster and
+Roster day-timeline families. Each emits its inventoried builder, form metadata,
+and exact parser into the single private `Surface.Roster.Generated.Intent`
+module behind `Surface.Roster.Intent`. The former five generic form constructors
+and five generic parser calls under `Web/` are zero, enforced by source
+guardrails. The same-marker Action declaration exclusions remain typed and
+reason-bearing.
 
 Generated resource modules invoke `frontendSurfaceResource` and
-`matchFrontendSurfaceResource`; only the matching
-`Surface.<Feature>.Resource` facade may import one. Those facades re-export
-canonical constructors and retain handwritten domain aliases and matchers only
-where they add domain meaning. Every generated-kind module must stay behind its
-matching curated facade and must not import opaque internal constructors.
-Unsupported carriers stop generation with an adapter-kind/declaration/field
-specific diagnostic rather than falling back to JSON, a generated carrier
-record, or a handwritten type. The generator uses normal Haskell reflection plus
-`Typeable` module/type metadata;
+`matchFrontendSurfaceResource`; generated Live modules invoke only
+`frontendSurfaceScope`, `matchFrontendSurfaceScope`,
+`frontendSurfaceFragmentKey`, and `matchFrontendSurfaceFragmentKey`. Generated
+Action and Intent builders construct nominal
+`SurfaceActionFields surface action` or `SurfaceIntentFields surface intent`
+from the declaration-owned first field plus its exact typed tail; zero-field
+operations use explicit zero constructors. Raw `SurfaceFields` data
+constructors are hidden behind construction-only functions, and operation
+constructors never accept a complete raw bundle. An existing bundle therefore
+cannot be split or re-indexed to another same-shaped operation. Generated metadata functions consume the
+exact operation wrapper and generated parsers return it inside
+`Either [SurfaceRequestFieldError]`; equal normalized field lists therefore
+cannot make two generated operations interchangeable. The read-only
+`SurfaceFieldBundle` interface preserves `surfaceFieldNameFrom`,
+`surfaceFieldValue`, `surfaceFieldsJson`, and `surfaceFieldsText` for raw and
+nominal bundles without exposing an unwrap operation. Only the matching curated
+facade may import a generated module.
+Resource, Live, and Action facades re-export canonical operations and retain
+handwritten domain matchers or live orchestration only where they add meaning.
+They import and expose only API with a production or test semantic consumer.
+Mechanical aliases, generic builder/matcher bodies, and the old Billing,
+Support, Profile, Staff, and Admin fragment naming synonyms are absent. Every
+generated-kind module must stay behind its matching curated facade and must not
+import opaque internal constructors.
+
+Private production `.Generated.Resource` and `.Generated.Live` modules are
+registry-derived declaration-complete APIs: each checked declaration keeps its
+constructor and matcher even when the executable graph needs only one side.
+`weeder.toml` therefore roots exactly those two generated module categories.
+Typed-home completeness, all-kind generation, generated drift, and source
+import guardrails enforce that exception structurally. Generated Action/Intent,
+curated facades, and handwritten modules remain under normal Weeder
+reachability; symbol allowlists and blanket FrontendContract exclusions are not
+permitted.
+
+The lightweight `HaskellAdapter.Association` module owns only
+`SurfaceAdapterFamily` and `AdapterFamilySurface`. Production family modules and
+private Live output import that seam, while reflection, registry validation, and
+generator mechanics remain in `HaskellAdapter.Family` and
+`HaskellAdapter.Core`. Focused feature compiles therefore do not transitively
+load the generator implementation. Unsupported carriers stop generation with an
+adapter-kind/Surface/declaration/field-specific diagnostic rather than falling
+back to JSON, a generated carrier record, or a handwritten type. The generator
+uses normal Haskell type-level reflection plus `Typeable` module/type metadata;
 it does not parse source or compiler syntax trees.
 
 The Timesheets family was the representative migration checkpoint. Its
@@ -413,6 +814,325 @@ changed from 22 modules in 9.711 seconds to 25 modules in 9.772 seconds: three
 expected modules and 0.061 seconds (+0.6%) in that sample. This checkpoint was
 accepted before registering the remaining homes; it is a compile-impact record,
 not a benchmark.
+
+Timesheets was also the representative Live migration checkpoint. Its
+handwritten `Live` module moved from 38 lines to a 29-line curated facade,
+removing all four mechanical constructor bodies and field assembly while
+retaining the domain-shaped scope matcher: nine net handwritten lines deleted.
+Generation added one 90-line private `.Generated.Live` module; the final bulk
+registration emits seven Live modules (1,020 generated lines) alongside the
+unchanged seven Resource modules. A paired same-host isolated cold focused
+compile of the historical and candidate facades with
+`typecheck Application/Helper/FrontendContract/Surface/Timesheets/Live.hs`
+changed from 41 modules in 27.023 seconds to 44 modules in 22.979 seconds: the
+three expected modules (`Generated.Live`, the feature family module, and the
+lightweight association), and -4.044 seconds (-15.0%) in that sample. The module
+closure, net deletion, and absence of `Family`/`Core` from the production import
+closure were accepted before bulk home registration. This is a checkpoint
+record, not a benchmark; cold wall-clock samples on the host were noisy.
+
+The compiled unregistered Live fixture remains at
+`Test.Support.FrontendSurfaceAdapterFixture.Generated.Live` and covers
+zero-field, parameterized, actor-only, matcher, and collision behavior without
+entering the production registry. Production behavior coverage also exercises
+zero-field and parameterized Timesheets adapters through the curated facade.
+
+The Action/Intent foundation adds two private unregistered fixture modules:
+a 62-line `.Generated.Action` and a 63-line `.Generated.Intent`, each behind its
+matching eight-line curated fixture facade. They exercise one cross-kind
+same-marker declaration through required, optional, nullable, nested-list,
+builder, render-metadata, successful parser, missing, and malformed paths.
+Separate fixtures reject same-lane collisions and Action/Intent output-lane
+misuse. In isolated cold focused samples using a fresh build directory for each
+facade, `typecheck Test/Support/FrontendSurfaceAdapterFixture/Action.hs` loaded
+52 modules in 36.908 seconds and the matching `Intent.hs` target loaded 52
+modules in 16.118 seconds. These noisy one-sample figures record pre-production
+fixture/import impact for #186/#187; they are not benchmarks.
+
+`generateSurfaceAdapterModules` composes Resource, Live, Action, and Intent lane
+results, accumulates complete diagnostics, and rejects duplicate physical module
+paths before the script writes or removes files. Every lane is mandatory and
+complete; empty, partial, extra, or duplicate Action or Intent homes fail before
+a managed module set is exposed. Failure-injection coverage proves a failed
+Live, Action, or Intent lane leaves every other existing lane untouched. The
+write workflow renders, formats, and typechecks the complete temporary set
+before any managed stale deletion or write.
+
+The #185 shared-file merge boundary remains intentionally narrow:
+`HaskellAdapter.Core` owns private checked-conversion input, standalone shared
+field rendering, and the already-exercised shared Interaction-marker locality;
+`HaskellAdapter.RequestRenderer` owns only the import, operation-filtering,
+field-builder, and parser source mechanics exercised by both focused renderers;
+`HaskellAdapter.Family` owns typed operation inventory; and
+`HaskellAdapter.Generator` owns closed all-kind lane composition. #192 and #187
+consumed those seams only by adding homes, facades, and callers. Neither slice
+evolved a parallel registry, operation model, universal renderer, or publication
+path. With every lane mandatory, the temporary publication-state type and parent
+expiry validation have been removed.
+
+The #191 Profile/Staff checkpoint keeps production Action homes empty while
+capturing the first migration boundary. Action/Intent builder, metadata, parser,
+diagnostic, and operation-inventory contracts moved out of the former
+1,578-line generator spec into the independently registered
+`Test.FrontendSurfaceRequestAdapterSpec`; the shared core/composer spec is now
+1,186 lines and the focused spec is 739 lines after adding production
+characterization coverage. Literal expectations pin all six Profile/Staff
+Action names and HTMX metadata. The same seam exercises required text, integer,
+and day fields; optional text and boolean fields; optional UUID and text lists;
+structured success; declaration-ordered missing/malformed diagnostics; and the
+semantic details-versus-preferences selection. Nullable and nested-list shapes
+remain compiled only through #185's unregistered fixture because production has
+no such Action declaration.
+
+The pre-migration Profile/Staff mechanical boundary is 37 source lines: four
+field-bundle bodies occupy 25 lines (13 profile-detail fields, two preference
+fields, and the two three-field leave bundles), six generic
+`frontendSurfaceAction` expressions live in `Web/View/Profiles/Edit.hs` and
+`Web/View/Staff/Edit.hs`, and six generic parser expressions live in
+`Web/Staff/ProfileSurfaceRequest.hs` and `Web/Controller/LeaveRequests.hs`.
+Domain projection, semantic submission selection, route context, and response
+orchestration are deliberately excluded because they remain handwritten. Those
+six parsers are part of the repository-wide 33-call Action baseline recorded by
+#185.
+
+A test-only checked rendering restricted to the six Profile/Staff declarations
+estimates one 233-line private `.Generated.Action` module plus a 39-line curated
+re-export facade: 272 added generated/facade lines across two modules. This did
+not register partial production homes or materialize either production file. A
+single same-host isolated cold compile with a fresh `TYPECHECK_BUILD_DIR` of
+`typecheck Web/Staff/ProfileSurfaceRequest.hs` loaded 522 modules in 47.679
+seconds. Its closure was 480 `Generated.*` model modules, 38 `Application.*`
+modules, and four `Web.*` modules. The complete non-generated closure was:
+
+- `Application.Helper.FrontendContract.{Core,DSL,Interaction,Naming}`;
+- `Application.Helper.FrontendContract.Surface.{DSL,Admin,Billing,ContractIR,Diagnostics,Interaction,LeaveRequests,Profile,Reflect,Registry,Request,Roster,SemanticIR,Support,Timesheets,Values}`;
+- `Application.Bepis.{Action,Architecture,Controller,Fact,Prelude,Response}`;
+- `Application.Helper.{Audit,Conflict,Controller,ControllerAccess,ControllerContext,ControllerSupport,Htmx,Profiling,Telemetry,TimeRules,WeekBoundaries}` plus `Application.Helper.Controller.Input`;
+- `Web.Types`, `Web.Routes`, `Web.Controller.Prelude`, and
+  `Web.Staff.ProfileSurfaceRequest`.
+
+No `HaskellAdapter` implementation, registry, generator, request renderer, or
+future generated Action module appears in that baseline closure. The module and
+wall-clock figures are one noisy checkpoint sample, not a benchmark.
+
+#192 published all 48 eligible Action homes in one mandatory set: 18 Admin,
+three LeaveRequests, six Profile/Staff, 14 Roster, two Support, and five
+Timesheets declarations. It added six private `.Generated.Action` modules
+(1,307 lines) and six curated facades (276 lines). The complete managed Haskell
+adapter set at that checkpoint was 20 modules: seven Resource, seven Live, and
+six Action. Measured against the #191 checkpoint commit over all
+changed `Web/**` production callers plus
+`Application/Helper/View/Timesheets.hs`, the migration added 262 handwritten
+lines and removed 269, for seven net handwritten production-caller lines
+deleted. That deliberately modest net retains domain-shaped mappings for
+Profile/Staff, Timesheets, and Admin shift-type same-shape bundles instead of replacing them
+with opaque wide positional calls. The former 33 generic parser calls and 50
+generic metadata calls are zero.
+
+The post-migration operation-identity hardening keeps those mappings while
+making their result type operation-polymorphic: each caller supplies its exact
+generated builder, and the helper returns that builder's nominal bundle instead
+of normalizing it back to one representative operation. The same-shape
+production inventory at this seam is:
+
+- all 13 zero-field generated Actions (two Support refreshes, seven Roster
+  controls, two LeaveRequests decisions, Admin invite revoke, and Admin Xero
+  sync);
+- all five Timesheets state Actions;
+- the four Admin shift-type create/update/autosave Actions;
+- the three one-field Admin roster-group move/toggle Actions and the three
+  one-field Admin shift-type move/toggle Actions;
+- Admin roster-group create/update;
+- Profile/Staff details, preferences, and leave-request pairs; and
+- the four drag/drop Roster Intents, including the day-timeline operation.
+
+`FrontendSurfaceWrongActionOperation` and
+`FrontendSurfaceWrongIntentOperation` compile-failure fixtures select concrete
+members of those groups and prove that a bundle from one operation cannot feed
+another. The generator still derives every wrapper from the existing typed home
+and checked declaration; no carrier record, consumer source scan, or parallel
+operation registry was added.
+
+The paired fresh-build cold compile of
+`Web/Staff/ProfileSurfaceRequest.hs` moved from 522 modules in 47.679 seconds to
+547 modules in 86.380 seconds: 25 modules (+4.8%) and 38.701 seconds (+81.2%) in
+these noisy one-sample measurements. Both closures contained the same 480 IHP
+model `Generated.*` modules and four `Web.*` modules; `Application.*` increased
+from 38 to 63. The complete 25-module addition was:
+
+- `Application.Helper.FrontendContract.{App,AppShell,AppValues,Htmx,IR,LiveUpdate,LiveUpdateValues,Reflect,Registry,UiRegion,Values}`;
+- `Application.Helper.FrontendContract.Surface.{Contracts,Identity,Live,Runtime}`;
+- `Application.Helper.FrontendContract.Wire.{Carrier,Json,LiveUpdate}`;
+- `Application.Helper.{LiveUpdate.Internal,UiRegion,Url}`; and
+- `Application.Helper.FrontendContract.Surface.HaskellAdapter.Association`,
+  `Surface.Profile.HaskellAdapter`, `Surface.Profile.Generated.Action`, and
+  `Surface.Profile.Action`.
+
+The required isolated cold compile of `Surface.Profile.Action` loaded 50
+`Application.*` modules in 37.783 seconds, with no model `Generated.*` or `Web.*`
+modules. Its complete closure grouped by module family was:
+
+- `Application.Helper.FrontendContract.{App,AppShell,AppValues,Core,DSL,Htmx,IR,Interaction,LiveUpdate,LiveUpdateValues,Naming,Reflect,Registry,UiRegion,Values}`;
+- `Application.Helper.FrontendContract.Surface.{Admin,Billing,ContractIR,Contracts,DSL,Diagnostics,Identity,Interaction,LeaveRequests,Live,Profile,Reflect,Registry,Request,Roster,Runtime,SemanticIR,Support,Timesheets,Values}`;
+- `Application.Helper.FrontendContract.Surface.HaskellAdapter.Association`,
+  `Surface.Profile.HaskellAdapter`, `Surface.Profile.Generated.Action`, and
+  `Surface.Profile.Action`;
+- `Application.Helper.FrontendContract.Wire.{Carrier,Json,LiveUpdate}`;
+- `Application.Bepis.{Action,Fact,Response}`; and
+- `Application.Helper.{LiveUpdate.Internal,Profiling,Telemetry,UiRegion,Url}`.
+
+Neither post-migration closure contains
+`Surface.HaskellAdapter.{Core,Family,Generator,Registry,RequestRenderer}`. The
+wall-clock figures are compile-impact records, not benchmarks; the bounded,
+feature-owned closure and absence of generator implementation modules are the
+acceptance signal.
+
+#187 published all five eligible Intent homes in one mandatory set: four Roster
+and one Roster day-timeline declaration. It added one 228-line private
+`.Generated.Intent` module and one 33-line curated `Intent` facade. The complete
+managed Haskell adapter set is now 21 modules: seven Resource, seven Live, six
+Action, and one Intent. Against the #187 baseline commit `96582ff2`, the two
+production caller modules added 17 handwritten lines and removed 35, for 18 net caller
+lines deleted. Removing the shared publication-state/expiry path while adding
+the complete Intent homes changed the Action, Intent, Family, and Registry
+modules by 31 additions and 102 deletions, another 71 net lines deleted.
+Including the 33-line facade, those foundation and caller changes added 81 and
+removed 137 handwritten Haskell lines, for 56 net deleted; the 228 generated
+lines are recorded separately. The former five generic parser calls, five
+generic form constructors, and two handwritten bundle bodies are absent.
+
+Independent production characterization passed before caller replacement and
+continues to pin all five complete bundles, literal DOM-owned form metadata,
+successful required/optional text parsing, and declaration-ordered missing and
+invalid-UTF-8 diagnostics. Nullable and nested-list behavior remains in the
+compiled #185 fixture because no production Intent declares those shapes.
+
+A paired fresh-build cold compile of `Web/RosterWeeks/FrontendSurface.hs` moved
+from 555 modules in 51.061 seconds to 557 modules in 88.378 seconds: two modules
+(+0.4%) and 37.317 seconds (+73.1%) in these noisy one-sample measurements. Both
+closures contained the same 480 model `Generated.*` modules and seven `Web.*`
+modules; `Application.*` increased from 68 to 70. The exact additions were
+`Surface.Roster.Generated.Intent` and `Surface.Roster.Intent`, with no removals.
+
+The required isolated cold compile of `Surface.Roster.Intent` loaded 50
+`Application.*` modules in 37.330 seconds, with no model `Generated.*` or `Web.*`
+modules. Its complete closure grouped by module family was:
+
+- `Application.Helper.FrontendContract.{App,AppShell,AppValues,Core,DSL,Htmx,IR,Interaction,LiveUpdate,LiveUpdateValues,Naming,Reflect,Registry,UiRegion,Values}`;
+- `Application.Helper.FrontendContract.Surface.{Admin,Billing,ContractIR,Contracts,DSL,Diagnostics,Identity,Interaction,LeaveRequests,Live,Profile,Reflect,Registry,Request,Roster,Runtime,SemanticIR,Support,Timesheets,Values}`;
+- `Application.Helper.FrontendContract.Surface.HaskellAdapter.Association`,
+  `Surface.Roster.HaskellAdapter`, `Surface.Roster.Generated.Intent`, and
+  `Surface.Roster.Intent`;
+- `Application.Helper.FrontendContract.Wire.{Carrier,Json,LiveUpdate}`;
+- `Application.Bepis.{Action,Fact,Response}`; and
+- `Application.Helper.{LiveUpdate.Internal,Profiling,Telemetry,UiRegion,Url}`.
+
+Neither #187 closure contains
+`Surface.HaskellAdapter.{Core,Family,Generator,Registry,RequestRenderer}`. The
+wall-clock samples are compile-impact records, not benchmarks; the exact
+feature-owned two-module caller increase and bounded facade closure are the
+acceptance signals.
+
+#196 split generated request metadata from the mount/live runtime. The focused
+`Surface.Request.Runtime` module owns only the opaque `FrontendSurfaceAction`,
+`FrontendSurfaceIntentForm`, and `FrontendSurfaceHtmxRequest` metadata types and
+the marker-indexed Action/Intent metadata constructors. `Surface.Runtime`
+consumes their read-only selectors for HTML rendering but does not re-export the
+focused interface. Generated Action/Intent modules import the focused module
+directly. Separately, production-registry binding moved out of
+`Surface.Reflect` and into `Surface.Contracts`, so feature-local values and
+request metadata can use the shared reflection evaluator without loading the
+registered Surface catalog.
+
+The deterministic cold-compile capture used a fresh build and log directory for
+every target/run. Run the function at baseline fixed point `ba13567d` and again
+at the #196 candidate; use separate worktrees when retaining both trees:
+
+```bash
+capture_surface_request_closure() {
+    run="$1"
+    target="$2"
+    out="$PWD/.pi/tmp/issue-196-closures/$run"
+    rm -rf "$out"
+    mkdir -p "$out"
+    TYPECHECK_BUILD_DIR="$out/build" \
+        bash ./bin/in-env typecheck "$target" >"$out/typecheck.log" 2>&1
+    sed -nE \
+        's/^\[[^]]+\][[:space:]]+Compiling[[:space:]]+(Application\.[^[:space:]]+).*/\1/p' \
+        "$out/typecheck.log" | sort -u | tee "$out/application-modules.txt"
+}
+
+capture_surface_request_closure \
+    profile \
+    Application/Helper/FrontendContract/Surface/Profile/Action.hs
+capture_surface_request_closure \
+    roster-intent \
+    Application/Helper/FrontendContract/Surface/Roster/Intent.hs
+```
+
+The post-#193/#195 baseline was 50 `Application.*` modules for each target. Its
+exact 47-module common set was:
+
+- `Application.Bepis.{Action,Fact,Response}`;
+- `Application.Helper.FrontendContract.{App,AppShell,AppValues,Core,DSL,Htmx,IR,Interaction,LiveUpdate,LiveUpdateValues,Naming,Reflect,Registry,UiRegion,Values}`;
+- `Application.Helper.FrontendContract.Surface.{Admin,Billing,ContractIR,Contracts,DSL,Diagnostics,Identity,Interaction,LeaveRequests,Live,Profile,Reflect,Registry,Request,Roster,Runtime,SemanticIR,Support,Timesheets,Values}` plus
+  `Surface.HaskellAdapter.Association`;
+- `Application.Helper.FrontendContract.Wire.{Carrier,Json,LiveUpdate}`; and
+- `Application.Helper.{LiveUpdate.Internal,Profiling,Telemetry,UiRegion,Url}`.
+
+Profile added only `Surface.Profile.{Action,Generated.Action,HaskellAdapter}`;
+Roster Intent added only
+`Surface.Roster.{Generated.Intent,HaskellAdapter,Intent}`.
+
+The candidate compiler-observed closures are 17 modules for Profile Action and
+18 for Roster Intent. Their exact 13-module common set is:
+
+- `Application.Helper.FrontendContract.{Core,DSL,Interaction,Naming}`;
+- `Application.Helper.FrontendContract.Surface.{ContractIR,DSL,Diagnostics,Reflect,Request,Request.Runtime,SemanticIR,Values}`; and
+- `Application.Helper.FrontendContract.Surface.HaskellAdapter.Association`.
+
+Profile retains only `Surface.Profile` plus
+`Surface.Profile.{Action,Generated.Action,HaskellAdapter}`. Roster Intent
+retains `Surface.Interaction`, `Surface.Roster`, and
+`Surface.Roster.{Generated.Intent,HaskellAdapter,Intent}`. The exact delta for
+both targets adds only `Surface.Request.Runtime`. Both remove the shared
+32-module set:
+
+- `Application.Bepis.{Action,Fact,Response}`;
+- `Application.Helper.FrontendContract.{App,AppShell,AppValues,Htmx,IR,LiveUpdate,LiveUpdateValues,Reflect,Registry,UiRegion,Values}`;
+- `Application.Helper.FrontendContract.Surface.{Admin,Billing,Contracts,Identity,LeaveRequests,Live,Registry,Runtime,Support,Timesheets}`;
+- `Application.Helper.FrontendContract.Wire.{Carrier,Json,LiveUpdate}`; and
+- `Application.Helper.{LiveUpdate.Internal,Profiling,Telemetry,UiRegion,Url}`.
+
+Profile additionally removes `Surface.Interaction` and `Surface.Roster` (34
+removed, one added, 50 to 17); Roster Intent additionally removes
+`Surface.Profile` (33 removed, one added, 50 to 18).
+
+Every retained dependency has one request-facade role:
+
+- `Surface.DSL`, `Surface.Diagnostics`, and `Surface.Values` own declaration
+  lookup, nominal field construction, diagnostics, and read-only serialization;
+- `Surface.Request` owns exact parsers and structured field errors;
+- `Surface.Request.Runtime`, `Surface.Reflect`, and `Naming` own opaque metadata
+  construction and marker-derived names;
+- `Surface.ContractIR`, `Surface.SemanticIR`, `Core`, and the global
+  `DSL`/`Interaction` modules are the canonical reflected metadata model rather
+  than a request-specific duplicate IR;
+- `HaskellAdapter.Association` supplies the feature family's nominal Surface;
+  and
+- the Profile or Roster feature modules supply only the selected declarations,
+  generated operations, curated facade, and Roster's shared interaction aliases.
+
+The architecture regression check computes transitive membership from generated
+source facts and compares these exact sets, not just counts:
+
+```bash
+bash ./bin/in-env architecture-surface-request-closure --print-modules
+```
+
+It is also part of `architecture-check-fresh`. Both closures exclude unrelated
+Surface specs, `Surface.Runtime`, mount/live/wire implementation, and
+`Surface.HaskellAdapter.{Core,Family,Generator,Registry,RequestRenderer}`.
 
 Write and verify output with:
 
@@ -468,10 +1188,11 @@ attribute names come from reflected global constants shared by Haskell and
 TypeScript. Add or change those values in the frontend contract registry, not as
 runtime string literals.
 
-Lazy placeholders must
-use the `renderFrontendSurfaceLazyFragmentWithConfig` runtime helper (or its
-plain default wrapper) so canonical UI-region attrs, HTMX swap attrs, retry
-metadata, and primitive-derived lazy behavior stay Haskell-owned. Use
+Lazy placeholders must use the
+`renderFrontendSurfaceLazyFragmentWithConfig` runtime helper with
+`defaultFrontendSurfaceLazyFragmentConfig` when the defaults suffice, so
+canonical UI-region attrs, HTMX swap attrs, retry metadata, and
+primitive-derived lazy behavior stay Haskell-owned. Use
 `customPlaceholderFrontendSurfaceLazyFragmentConfig` when the placeholder markup
 already renders its own panel/card chrome, so the outer lazy region stays a
 transparent HTMX/region shell instead of visually nesting surfaces. Feature views
@@ -547,7 +1268,21 @@ The singular actor/passive planner is generated-data driven:
 1. accept exact semantic keys from an actor mount or active subscription;
 2. evaluate each key's fragment `DependsOn` declarations from scope/fragment params;
 3. intersect those concrete dependency values with touched generated resources;
-4. coalesce affected scope/fragment targets before actor delivery or passive broadcast.
+4. collapse exact duplicates, then use reflected `Contains` paths to drop a
+   selected descendant when its matching ancestor is also selected before actor
+   delivery or passive broadcast.
+
+Containment matching is transitive and parameter-aware. For repeated fragments,
+an ancestor's declared parameter fields must have equal values on the descendant,
+so one roster day section does not suppress a row mounted under another day.
+Siblings remain independent. Structural wrappers should depend only on dedicated
+resources that actually change wrapper-owned structure or state; child-owned
+ordinary updates must use narrower resources. Use `ResyncOnly` when no passive
+resource changes the wrapper at all. Reusing one broad child resource on the
+wrapper would make ancestor-wins normalization correctly avoid overlapping swaps
+but unnecessarily replace focus or scroll ownership. Roster uses separate week-
+structure, slots-structure, and broad slots-content resources so precise
+slot/day changes preserve both the grid frame and day-row slot scroller.
 
 Runtime/domain expansion is separate from static fragment dependency planning.
 When a mutation has broad semantic effects, expand it in the producer or a small

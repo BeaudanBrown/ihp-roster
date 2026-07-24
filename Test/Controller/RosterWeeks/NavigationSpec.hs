@@ -28,7 +28,7 @@ import Web.Routes
 import Web.Types
 
 tests :: Spec
-tests = beforeAll testContext do
+tests = aroundAll withDatabaseTestContext do
     describe "RosterWeeksController" do
         it "redirects unauthenticated users from RosterWeeksAction" $ withContext do
             response <- callAction RosterWeeksAction
@@ -206,11 +206,13 @@ tests = beforeAll testContext do
                 response `responseBodyShouldContain` "data-bepis-surface-config=\""
                 response `responseBodyShouldContain` "timesheets:"
                 response `responseBodyShouldContain` "timesheet-day-section"
+                response `responseBodyShouldContain` "data-bepis-surface=\"self-service-leave\""
+                response `responseBodyShouldContain` "data-bepis-surface-action=\"create-self-service-leave-request\""
                 response `responseBodyShouldNotContain` "data-live-update-surface"
 
                 body <- responseBody response
                 let bodyText = cs (LByteString.unpack body)
-                Text.count "data-bepis-surface-config" bodyText `shouldBe` 2
+                Text.count "data-bepis-surface-config" bodyText `shouldBe` 3
 
         it "manager can see draft weeks" $ withContext do
             withCleanDb do
@@ -258,7 +260,9 @@ tests = beforeAll testContext do
                 venue <- createVenueWithConfig "Venue A"
                 manager <- createUserRecord "roster-manager-empty-create@example.com" "staff" True
                 _ <- createVenueMembershipRecord venue manager "manager"
+                panelStaff <- createStaffRecord venue Nothing "Alpha" "Crew"
                 _ <- fetchSlotNameRecord venue "Early"
+                _ <- createVenueRosterGroupWithDefaults venue "Back of House" 1 False
 
                 response <- withUserAndCurrentVenue manager venue.id do
                     callAction (ShowRosterWeekAction 0)
@@ -272,9 +276,27 @@ tests = beforeAll testContext do
                 response `responseBodyShouldContain` "This week</a>"
                 response `responseBodyShouldContain` "btn btn-outline-secondary app-week-nav-button"
                 response `responseBodyShouldNotContain` "data-roster-week-controls=\"manager-actions\""
-                response `responseBodyShouldContain` "data-roster-staff-panel-tab=\"staff\""
-                response `responseBodyShouldContain` "data-roster-staff-panel-tab=\"settings\""
+                response `responseBodyShouldContain` "data-bepis-roster-staff-panel-tab=\"staff\""
+                response `responseBodyShouldContain` "data-bepis-roster-staff-panel-tab=\"settings\""
+                response `responseBodyShouldContain` "data-bepis-roster-staff-panel-sort-root=\"true\""
+                response `responseBodyShouldContain` "data-bepis-roster-staff-panel-sort-control=\"name\""
+                response `responseBodyShouldContain` "data-bepis-roster-staff-panel-sort-control=\"role\""
+                response `responseBodyShouldContain` "data-bepis-roster-staff-panel-sort-control=\"shifts\""
+                response `responseBodyShouldContain` "data-bepis-roster-staff-panel-sort-row=\"{&quot;assignedShifts&quot;:0,&quot;idealShifts&quot;:0,&quot;staffName&quot;:&quot;Alpha&quot;,&quot;staffRole&quot;:&quot;TRIAL&quot;,&quot;staffRowKey&quot;:&quot;staff:"
+                response `responseBodyShouldNotContain` "data-roster-staff-"
+                response `responseBodyShouldContain` "data-bepis-roster-fullscreen-root=\"true\""
+                response `responseBodyShouldContain` "data-bepis-roster-fullscreen=\"collapsed\""
+                response `responseBodyShouldContain` "data-bepis-roster-fullscreen-toggle=\"true\""
+                response `responseBodyShouldContain` "data-bepis-roster-fullscreen-label=\"true\""
+                response `responseBodyShouldContain` "data-bepis-roster-column-editor=\"true\""
+                response `responseBodyShouldContain` "data-bepis-roster-column-editing=\"inactive\""
+                response `responseBodyShouldContain` "data-bepis-roster-column-edit-start=\"true\""
+                response `responseBodyShouldContain` "data-bepis-roster-column-edit-done=\"true\""
+                response `responseBodyShouldNotContain` "data-roster-fullscreen"
+                response `responseBodyShouldNotContain` "data-roster-column-"
                 response `responseBodyShouldContain` "id=\"roster-staff-panel-settings-pane\""
+                response `responseBodyShouldContain` ("data-bepis-roster-staff-highlight-source=\"staff:" <> cs (tshow panelStaff.id) <> "\"")
+                response `responseBodyShouldContain` ("data-bepis-roster-staff-highlight-pin=\"staff:" <> cs (tshow panelStaff.id) <> "\"")
                 response `responseBodyShouldContain` "Week actions"
                 response `responseBodyShouldContain` "hx-post=\"/CopyRosterWeek?sourceWeekOffset=-1&amp;targetWeekOffset=0&amp;rosterGroupId="
                 response `responseBodyShouldContain` "hx-confirm=\"This will overwrite the current week with the previous week&#39;s roster. Continue?\""
@@ -283,9 +305,20 @@ tests = beforeAll testContext do
                 response `responseBodyShouldNotContain` "Roster columns"
                 response `responseBodyShouldNotContain` "data-disable-javascript-submission"
                 response `responseBodyShouldContain` "roster-live-toggle-"
-                response `responseBodyShouldContain` "app-toggle-button btn-outline-success"
+                response `responseBodyShouldContain` "btn btn-outline-success app-toggle-button"
+                response `responseBodyShouldContain` "data-bepis-toggle-transport=\"toggle-transport:roster-live-toggle-"
+                response `responseBodyShouldContain` "data-bepis-toggle-config=\""
                 response `responseBodyShouldContain` "aria-pressed=\"false\""
                 response `responseBodyShouldContain` "role=\"switch\" aria-checked=\"false\""
+                response `responseBodyShouldContain` "data-bepis-surface-action=\"navigate-roster-week\""
+                response `responseBodyShouldContain` "data-bepis-surface-action=\"toggle-roster-week-live-status\""
+                response `responseBodyShouldContain` "data-bepis-surface-action=\"toggle-roster-staff-scope\""
+                response `responseBodyShouldContain` "hx-target=\"#roster-staff-panel-fragment\""
+                response `responseBodyShouldNotContain` "hx-target=\"#roster-staff-panel\""
+                response `responseBodyShouldContain` "data-bepis-surface-action=\"toggle-roster-warnings\""
+                response `responseBodyShouldContain` "data-bepis-surface-action=\"toggle-roster-assignment-filters\""
+                response `responseBodyShouldContain` "data-bepis-surface-action=\"sort-roster-week\""
+                response `responseBodyShouldContain` "data-bepis-surface-action=\"copy-roster-week\""
 
         it "hides copy previous week controls from staff users" $ withContext do
             withCleanDb do

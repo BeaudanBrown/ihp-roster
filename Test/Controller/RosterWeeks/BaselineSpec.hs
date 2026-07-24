@@ -23,7 +23,7 @@ import Web.Types
 
 -- These tests pin the active roster read-model path at a high level.
 tests :: Spec
-tests = beforeAll testContext do
+tests = aroundAll withDatabaseTestContext do
     describe "RosterWeeksController direct read-model integration" do
         it "renders full-page and fragment roster reads through the direct read model" $ withContext do
             withEnv "IHP_ROSTER_PROFILING" (Just "1") do

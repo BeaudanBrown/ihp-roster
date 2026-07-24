@@ -1,3 +1,4 @@
+{-# LANGUAGE FlexibleContexts #-}
 {-# OPTIONS_GHC -Werror=incomplete-patterns #-}
 
 module Web.Timesheets.Projection
@@ -34,9 +35,9 @@ module Web.Timesheets.Projection
 import Application.Helper.Controller (automaticMealBreakForShift,
                                       validRosterShiftDurationMinutes)
 import Application.Helper.FrontendContract.Surface.FragmentRender (FragmentRenderMode (..))
-import Application.Helper.FrontendContract.Surface.Request (SurfaceRequestFieldError,
-                                                            parseSurfaceActionParams)
+import Application.Helper.FrontendContract.Surface.Request (SurfaceRequestFieldError)
 import qualified Application.Helper.FrontendContract.Surface.Timesheets as Surface
+import qualified Application.Helper.FrontendContract.Surface.Timesheets.Action as TimesheetsAction
 import Application.Helper.FrontendContract.Surface.Values
 import Application.Helper.Profiling
 import Application.Helper.VenueScopedQueries (fetchLinkedActiveVenueStaff)
@@ -437,29 +438,29 @@ data TimesheetSurfaceRequestState = TimesheetSurfaceRequestState
 parseNavigateTimesheetWeekState :: (?request :: Request) => Either [SurfaceRequestFieldError] TimesheetSurfaceRequestState
 parseNavigateTimesheetWeekState =
     timesheetSurfaceRequestState
-        <$> parseSurfaceActionParams @Surface.TimesheetsSurface @Surface.NavigateTimesheetWeek
+        <$> TimesheetsAction.parseNavigateTimesheetWeekActionParams
 
 parseUpdateTimesheetFiltersState :: (?request :: Request) => Either [SurfaceRequestFieldError] TimesheetSurfaceRequestState
 parseUpdateTimesheetFiltersState =
     timesheetSurfaceRequestState
-        <$> parseSurfaceActionParams @Surface.TimesheetsSurface @Surface.UpdateTimesheetFilters
+        <$> TimesheetsAction.parseUpdateTimesheetFiltersActionParams
 
 parseCreateTimesheetEntryFromSuggestionState :: (?request :: Request) => Either [SurfaceRequestFieldError] TimesheetSurfaceRequestState
 parseCreateTimesheetEntryFromSuggestionState =
     timesheetSurfaceRequestState
-        <$> parseSurfaceActionParams @Surface.TimesheetsSurface @Surface.CreateTimesheetEntryFromSuggestion
+        <$> TimesheetsAction.parseCreateTimesheetEntryFromSuggestionActionParams
 
 parseApproveTimesheetEntryState :: (?request :: Request) => Either [SurfaceRequestFieldError] TimesheetSurfaceRequestState
 parseApproveTimesheetEntryState =
     timesheetSurfaceRequestState
-        <$> parseSurfaceActionParams @Surface.TimesheetsSurface @Surface.ApproveTimesheetEntry
+        <$> TimesheetsAction.parseApproveTimesheetEntryActionParams
 
 parseUnapproveTimesheetEntryState :: (?request :: Request) => Either [SurfaceRequestFieldError] TimesheetSurfaceRequestState
 parseUnapproveTimesheetEntryState =
     timesheetSurfaceRequestState
-        <$> parseSurfaceActionParams @Surface.TimesheetsSurface @Surface.UnapproveTimesheetEntry
+        <$> TimesheetsAction.parseUnapproveTimesheetEntryActionParams
 
-timesheetSurfaceRequestState :: SurfaceFields (SurfaceActionFieldSpecs Surface.TimesheetsSurface Surface.UpdateTimesheetFilters) -> TimesheetSurfaceRequestState
+timesheetSurfaceRequestState :: SurfaceFieldBundleOf (SurfaceActionFieldSpecs Surface.TimesheetsSurface Surface.UpdateTimesheetFilters) fields => fields -> TimesheetSurfaceRequestState
 timesheetSurfaceRequestState fields =
     TimesheetSurfaceRequestState
         { surfaceRequestWeekOffset = surfaceFieldValue @Surface.WeekOffset fields
@@ -509,11 +510,11 @@ timesheetViewFiltersFromRequest =
     , parseUUIDText =<< paramOrNothing @Text (cs (surfaceFieldNameFrom @Surface.StaffFilterId timesheetRequestFieldWitness))
     )
 
-timesheetRequestFieldWitness :: SurfaceFields (SurfaceActionFieldSpecs Surface.TimesheetsSurface Surface.NavigateTimesheetWeek)
+timesheetRequestFieldWitness :: SurfaceActionFields Surface.TimesheetsSurface Surface.NavigateTimesheetWeek
 timesheetRequestFieldWitness =
-    surfaceField @Surface.WeekOffset 0
-        :& surfaceField @Surface.ShowApproved False
-        :& surfaceField @Surface.ShowAllStaff True
-        :& surfaceField @Surface.ShowSuggestions True
-        :& surfaceOptionalField @Surface.StaffFilterId Nothing
-        :& NoSurfaceFields
+    TimesheetsAction.navigateTimesheetWeekActionFields
+        0
+        False
+        True
+        True
+        Nothing

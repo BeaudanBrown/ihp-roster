@@ -14,7 +14,15 @@ module Application.Helper.FrontendContract.Surface.DSL
     , AuthPolicy (..)
     , InteractionEffect (..)
     , InteractionSessionOption (..)
+    , LinkedHighlightActivation (..)
+    , LinkedHighlightEffect (..)
+    , CompleteSetSortValueType (..)
+    , CompleteSetSortComparatorDirection (..)
+    , CompleteSetSortComparator (..)
+    , CompleteSetSortKeySpec (..)
+    , CompleteSetSortDirection (..)
     , CloneShadowStyle (..)
+    , BrowserReachability (..)
     , WireType (..)
     , PrimitiveOption (..)
     , HtmxMethod (..)
@@ -41,18 +49,30 @@ module Application.Helper.FrontendContract.Surface.DSL
     , SourceRef
     , DropzoneRef
     , ActivationRef
+    , BrowserRole
+    , BrowserState
+    , BrowserClosedState
+    , LinkedHighlight
+    , CompleteSetSort
+    , TabSet
     , ConflictPolicy
     , ConflictPolicyFor
     , Event
     , DomToken
     , BrowserDomToken
     , Dto
+    , BrowserTypeDto
+    , BrowserGuardDto
+    , BrowserInboundDto
+    , BrowserOutboundDto
+    , BrowserBidirectionalDto
     , ContainsSurface
     , DependsOnFragment
     , Append
     , Concat
     ) where
 
+import Application.Helper.FrontendContract.DSL (BrowserReachability (..))
 import Data.Kind (Type)
 import GHC.TypeLits (Symbol)
 
@@ -155,6 +175,47 @@ data InteractionSessionOption
     = Layer Type
     | Effect InteractionEffect
 
+-- | Closed activation mechanics supported by the generic linked-highlight
+-- runtime. A pin activation names the Surface-owned browser role rendered on
+-- the matching toggle controls.
+data LinkedHighlightActivation
+    = ActivateOnHover
+    | ActivateOnFocus
+    | ActivateOnKeyboard
+    | ActivateWithPin Type
+
+-- | Closed presentation effects supported by linked highlighting. CSS class
+-- names remain browser-module-owned transient state; Haskell selects only the
+-- allowed mechanical effect. Ordered bounds name the Surface-owned state attr
+-- carrying an opaque order-group key.
+data LinkedHighlightEffect
+    = HighlightMatchingSource
+    | HighlightMatchingMember
+    | HighlightOrderedMemberBounds Type
+
+-- | Value interpretation is closed so the browser can compare generated row
+-- payloads without recovering semantics from field or feature names.
+data CompleteSetSortValueType
+    = SortText
+    | SortInteger
+    | SortOpaque
+
+-- | A comparator either follows the selected ascending/descending direction or
+-- remains ascending as a deterministic tie-breaker.
+data CompleteSetSortComparatorDirection
+    = FollowSortDirection
+    | AlwaysAscending
+
+data CompleteSetSortComparator
+    = SortComparator Type CompleteSetSortValueType CompleteSetSortComparatorDirection
+
+data CompleteSetSortKeySpec
+    = SortKey Type [CompleteSetSortComparator]
+
+data CompleteSetSortDirection
+    = SortAscending
+    | SortDescending
+
 data PrimitiveOption
     = Eager
     | Lazy [PrimitiveOption]
@@ -214,11 +275,17 @@ data SurfacePrimitive
     | SourceRef Type [PrimitiveOption]
     | DropzoneRef Type [PrimitiveOption]
     | ActivationRef Type [PrimitiveOption]
+    | BrowserRole Type
+    | BrowserState Type
+    | BrowserClosedState Type [Type]
+    | LinkedHighlight Type Type Type [LinkedHighlightActivation] [LinkedHighlightEffect]
+    | CompleteSetSort Type Type Type Type Type [CompleteSetSortKeySpec] Type CompleteSetSortDirection
+    | TabSet Type Type [Type] Type
     | ConflictPolicy SessionSelector FragmentSelector ConflictResolution
     | Event Type [FieldSpec]
     | DomToken Type
     | BrowserDomToken Type
-    | Dto Type [FieldSpec]
+    | SurfaceDto BrowserReachability Type [FieldSpec]
 
 data SurfaceSpec
     = Surface Type [SurfacePrimitive]
@@ -237,12 +304,27 @@ type Session name options = 'Session name options
 type SourceRef name options = 'SourceRef name options
 type DropzoneRef name options = 'DropzoneRef name options
 type ActivationRef name options = 'ActivationRef name options
+type BrowserRole name = 'BrowserRole name
+type BrowserState name = 'BrowserState name
+type BrowserClosedState name values = 'BrowserClosedState name values
+type LinkedHighlight name sourceRole memberRole activations effects = 'LinkedHighlight name sourceRole memberRole activations effects
+type CompleteSetSort name rootRole rowRole controlRole rowDto keys defaultKey defaultDirection =
+    'CompleteSetSort name rootRole rowRole controlRole rowDto keys defaultKey defaultDirection
+type TabSet name tabRole keys defaultKey = 'TabSet name tabRole keys defaultKey
 type ConflictPolicy session fragment resolution = 'ConflictPolicy ('SessionKind session) ('FragmentKind fragment) resolution
 type ConflictPolicyFor sessionSelector fragmentSelector resolution = 'ConflictPolicy sessionSelector fragmentSelector resolution
 type Event name detail = 'Event name detail
 type DomToken name = 'DomToken name
 type BrowserDomToken name = 'BrowserDomToken name
-type Dto name fields = 'Dto name fields
+-- | Surface DTOs stay Haskell-only unless their alias explicitly selects a
+-- browser reachability. Browser inbound DTOs emit an exact type, guard, and
+-- parser for server-rendered JSON consumed by TypeScript.
+type Dto name fields = 'SurfaceDto 'BrowserUnreachable name fields
+type BrowserTypeDto name fields = 'SurfaceDto 'BrowserTypeOnly name fields
+type BrowserGuardDto name fields = 'SurfaceDto 'BrowserGuard name fields
+type BrowserInboundDto name fields = 'SurfaceDto 'BrowserInbound name fields
+type BrowserOutboundDto name fields = 'SurfaceDto 'BrowserOutbound name fields
+type BrowserBidirectionalDto name fields = 'SurfaceDto 'BrowserBidirectional name fields
 type ContainsSurface name = 'ContainsSurface name
 type DependsOnFragment name = 'DependsOnFragment name
 

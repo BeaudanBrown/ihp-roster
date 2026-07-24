@@ -15,6 +15,7 @@ module Application.Helper.FrontendContract.Naming
     , deriveFrontendSurfaceTypeName
     , deriveFrontendSurfaceTypeNameWithExact
     , deriveJsonFieldName
+    , deriveSurfaceBrowserAttributeName
     , deriveWireTagName
     , nameToKebab
     , nameToSnake
@@ -39,7 +40,15 @@ data FrontendSurfaceNameContext
     | LayerName
     | FieldName
     | DomTokenName
+    | BrowserRoleName
+    | BrowserStateName
+    | BrowserStateValueName
     | InteractionRefName
+    | SortKeyName
+    | TabKeyName
+    | SortValueTypeName
+    | SortComparatorDirectionName
+    | SortDirectionName
     | EventName
     deriving (Eq, Ord, Show)
 
@@ -101,6 +110,13 @@ deriveDomAttributeName marker =
 
 deriveDomAttributeTypeName :: forall marker. Typeable marker => Text
 deriveDomAttributeTypeName = deriveDomAttributeName (markerTypeName @marker)
+
+-- | Surface-owned browser attributes are namespaced by the checked Surface
+-- identity so feature-local roles cannot collide with global capabilities or
+-- roles owned by another mounted Surface.
+deriveSurfaceBrowserAttributeName :: Text -> Text -> Text
+deriveSurfaceBrowserAttributeName surfaceName roleName =
+    "data-bepis-" <> surfaceName <> "-" <> roleName
 
 deriveEventName :: Text -> Text -> Text
 deriveEventName namespace marker =
@@ -227,7 +243,15 @@ contextSuffix = \case
     LayerName    -> Just "Layer"
     FieldName    -> Just "Field"
     DomTokenName -> Nothing
+    BrowserRoleName -> Just "Role"
+    BrowserStateName -> Just "State"
+    BrowserStateValueName -> Nothing
     InteractionRefName -> Just "Ref"
+    SortKeyName -> Just "SortKey"
+    TabKeyName -> Just "TabKey"
+    SortValueTypeName -> Just "ValueType"
+    SortComparatorDirectionName -> Just "ComparatorDirection"
+    SortDirectionName -> Just "Direction"
     EventName    -> Nothing
 
 stripSuffixWords :: [Text] -> [Text] -> [Text]

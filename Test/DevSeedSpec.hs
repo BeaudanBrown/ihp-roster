@@ -25,7 +25,7 @@ profileSummary staff =
     )
 
 tests :: Spec
-tests = beforeAll testContext do
+tests = aroundAll withDatabaseTestContext do
     describe "Dev seed fixtures" do
         it "seeds the complete realistic development fixture contract" $ withContext do
             withCleanDb do

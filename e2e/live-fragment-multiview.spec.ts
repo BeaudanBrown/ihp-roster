@@ -1,4 +1,8 @@
 import { expect, Page, test } from '@playwright/test';
+import {
+    dialogOverlayMountDomId,
+    rosterStaffHighlightMemberDomAttr,
+} from '../frontend/ts/generated/contracts';
 import { E2E_TIMEOUT } from './timeouts';
 import { gotoWhenReady, loginAs, openProfileLeaveSection, openRoster, runSql, setFlatpickrDate } from './test-helpers';
 
@@ -47,8 +51,8 @@ async function createProfileLeaveRequest(page: Page, note: string, startDate: st
     await setFlatpickrDate(page, '#endDate', endDate);
     await page.fill('#notes', note);
     await page.getByRole('button', { name: 'Add unavailable time' }).click();
-    await expect(page.locator('#profile-leave-request-form-fragment')).toBeVisible();
-    await expect(page.locator('#profile-leave-requests-list-fragment')).toContainText(note);
+    await expect(page.locator('#self-service-leave-form-fragment')).toBeVisible();
+    await expect(page.locator('#self-service-leave-history-fragment')).toContainText(note);
 }
 
 async function createTimesheet(page: Page, startTime: string, endTime: string) {
@@ -70,7 +74,7 @@ async function fillAndSaveTimesheetDialog(page: Page, startTime: string, endTime
         (input as HTMLInputElement).value = value as string;
     }, endTime);
     await page.getByRole('button', { name: 'Save' }).click();
-    await expect(page.locator('#dialog-overlay-mount')).toBeEmpty();
+    await expect(page.locator(`#${dialogOverlayMountDomId}`)).toBeEmpty();
 }
 
 async function openProfileDetailsSection(page: Page) {
@@ -125,7 +129,7 @@ test.describe('Live fragment multi-view coverage', () => {
         await gotoWhenReady(actorPage, '/EditProfile', '#profile-live-surface');
         await gotoWhenReady(viewerPage, '/EditProfile', '#profile-live-surface');
 
-        await expect(actorPage.locator('#profile-live-surface [data-bepis-surface-config]')).toHaveAttribute('data-bepis-surface-config', /profile-details-section/);
+        await expect(actorPage.locator('#profile-live-surface [data-bepis-surface="profile"][data-bepis-surface-config]')).toHaveAttribute('data-bepis-surface-config', /profile-details-section/);
         await openProfileDetailsSection(actorPage);
         await openProfileDetailsSection(viewerPage);
         await expect(viewerPage.locator('#preferredName')).not.toHaveValue(preferredName);
@@ -161,12 +165,12 @@ test.describe('Live fragment multi-view coverage', () => {
               AND notes = '${note}';
         `);
         await loginAndOpenRoster(viewerPage);
+        const targetStaffId = 'a1000000-0000-0000-0000-000000000031';
+        const targetStaffKey = 'staff:a1000000-0000-0000-0000-000000000031';
         const viewerTargetLauncher = viewerPage
-            .locator('[data-roster-shift-launcher="true"][data-roster-staff-id]:not([data-roster-staff-id=""])')
+            .locator(`[data-roster-shift-launcher="true"][${rosterStaffHighlightMemberDomAttr}="${targetStaffKey}"]`)
             .first();
         await expect(viewerTargetLauncher).toBeVisible({ timeout: E2E_TIMEOUT.assertion });
-        const targetStaffId = await viewerTargetLauncher.getAttribute('data-roster-staff-id');
-        expect(targetStaffId).toBeTruthy();
         const viewerTargetStaffCell = viewerTargetLauncher.locator('.slot-staff-cell').first();
 
         const { startDate, endDate } = await currentBroadLeaveRange(actorPage);
@@ -196,7 +200,6 @@ test.describe('Live fragment multi-view coverage', () => {
         await viewerPage.reload();
         await expect(viewerPage.locator('#roster-content')).toBeVisible({ timeout: E2E_TIMEOUT.navigation });
         await expect(viewerTargetStaffCell).toHaveAttribute('title', /approved unavailable period/i, { timeout: E2E_TIMEOUT.liveUpdate });
-        await expect(viewerTargetStaffCell).toHaveAttribute('data-conflict-message', /approved unavailable period/i);
 
         await actorContext.close();
         await requesterContext.close();

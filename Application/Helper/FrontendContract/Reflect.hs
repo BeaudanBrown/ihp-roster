@@ -266,6 +266,7 @@ instance ReflectWire 'WireInt where reflectWire = WireIntIR
 instance ReflectWire 'WireBool where reflectWire = WireBoolIR
 instance ReflectWire 'WireUUID where reflectWire = WireUuidIR
 instance ReflectWire 'WireDay where reflectWire = WireDayIR
+instance ReflectWire 'WireUnknown where reflectWire = WireUnknownIR
 instance ReflectWire inner => ReflectWire ('WireList inner) where reflectWire = WireListIR (reflectWire @inner)
 instance ReflectWire inner => ReflectWire ('WireOptional inner) where reflectWire = WireOptionalIR (reflectWire @inner)
 instance ReflectWire inner => ReflectWire ('WireNullable inner) where reflectWire = WireNullableIR (reflectWire @inner)

@@ -4,10 +4,6 @@
 module Application.Helper.FrontendContract.App
     ( AppContract
     , App
-    , RosterStaffSortKey
-    , Name
-    , Role
-    , Shifts
     , PageReady
     , LiveFragmentsRefresh
     , Scope
@@ -18,8 +14,6 @@ module Application.Helper.FrontendContract.App
     , InteractionSessionStart
     , InteractionSessionEnd
     , InteractionSessionCancelRequest
-    , DialogOverlayMount
-    , ToastOverlayMount
     , HtmxActionMethod
     , HtmxGet
     , HtmxPost
@@ -39,11 +33,6 @@ import Application.Helper.FrontendContract.DSL
 
 data App
 
-data RosterStaffSortKey
-data Name
-data Role
-data Shifts
-
 data PageReady
 data LiveFragmentsRefresh
 data Scope
@@ -54,9 +43,6 @@ data IntentSubmit
 data InteractionSessionStart
 data InteractionSessionEnd
 data InteractionSessionCancelRequest
-
-data DialogOverlayMount
-data ToastOverlayMount
 
 data HtmxActionMethod
 data HtmxGet
@@ -75,8 +61,7 @@ data HtmxOuterHTMLDashed
 
 type AppContract =
     Global App
-        '[ BrowserGuardSchema (Enum RosterStaffSortKey '[Name, Role, Shifts])
-         , Event PageReady '[]
+        '[ Event PageReady '[]
          , InboundEvent LiveFragmentsRefresh
             '[ Field Scope 'WireSurfaceScope
              , Field ScopeKey 'WireText
@@ -87,6 +72,4 @@ type AppContract =
          , Event InteractionSessionStart '[]
          , Event InteractionSessionEnd '[]
          , Event InteractionSessionCancelRequest '[]
-         , DomId DialogOverlayMount
-         , DomId ToastOverlayMount
          ]

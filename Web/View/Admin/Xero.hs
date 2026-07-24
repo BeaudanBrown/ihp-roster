@@ -15,12 +15,13 @@ import Application.Helper.FrontendContract.AppShell.Runtime (AppShellActionRoute
                                                              appShellActionByMarker,
                                                              renderAppShellActionForm)
 import qualified Application.Helper.FrontendContract.Surface.Admin as Surface
+import qualified Application.Helper.FrontendContract.Surface.Admin.Action as AdminAction
 import Application.Helper.FrontendContract.Surface.Runtime (FrontendSurfaceActionRoute (..),
                                                             FrontendSurfaceCustomHtmxAttrs (..),
-                                                            frontendSurfaceAction,
                                                             renderFrontendSurfaceActionForm,
                                                             renderFrontendSurfaceMount)
-import Application.Helper.FrontendContract.Surface.Values (SurfaceFields (NoSurfaceFields),
+import Application.Helper.FrontendContract.Surface.Values (SurfaceFields,
+                                                           noSurfaceFields,
                                                            surfaceFragmentTargetId)
 import Application.Helper.XeroAdminTypes
 import Web.Admin.FrontendSurface (AdminVenueScopeValue (..),
@@ -67,7 +68,7 @@ currentVenueScopeId =
 renderXeroPageContentSurface :: (?context :: ControllerContext) => Html -> Html
 renderXeroPageContentSurface body =
     renderFrontendSurfaceMount (adminXeroPageSurfaceImpl AdminVenueScopeValue { adminVenueId = currentVenueScopeId, adminRosterGroupId = Nothing }) [hsx|
-        <div id={surfaceFragmentTargetId @Surface.AdminXeroPageSurface @Surface.AdminXeroPageContentFragment NoSurfaceFields}>
+        <div id={surfaceFragmentTargetId @Surface.AdminXeroPageSurface @Surface.AdminXeroPageContentFragment noSurfaceFields}>
             {body}
         </div>
     |]
@@ -87,7 +88,7 @@ renderXeroSectionFragmentWithAutoSync =
 renderXeroSectionFragmentWithSwap :: OobSwapAttr -> Bool -> XeroAdminSectionData -> Html
 renderXeroSectionFragmentWithSwap maybeSwapOob shouldAutoSync xeroSectionData =
     renderFrontendSurfaceMount (adminXeroSurfaceImpl AdminVenueScopeValue { adminVenueId = currentVenueScopeId, adminRosterGroupId = Nothing }) [hsx|
-        <div id={surfaceFragmentTargetId @Surface.AdminXeroSurface @Surface.AdminXeroShellFragment NoSurfaceFields}
+        <div id={surfaceFragmentTargetId @Surface.AdminXeroSurface @Surface.AdminXeroShellFragment noSurfaceFields}
              hx-swap-oob={maybeSwapOob}>
             {renderXeroAutoSyncTrigger shouldAutoSync xeroSectionData.xeroConnection}
             {renderXeroSection xeroSectionData}
@@ -98,7 +99,7 @@ renderXeroAutoSyncTrigger :: Bool -> Maybe XeroConnection -> Html
 renderXeroAutoSyncTrigger True (Just connection)
     | connection.connectionStatus == "active" =
         renderFrontendSurfaceActionForm
-            (frontendSurfaceAction @Surface.AdminXeroSurface @Surface.SyncXeroPayrollReferenceData NoSurfaceFields)
+            (AdminAction.syncXeroPayrollReferenceDataAction AdminAction.syncXeroPayrollReferenceDataActionFields)
             xeroReferenceSyncActionRoute
                 { actionRouteCustomHtmx =
                     [ FrontendSurfaceCustomHtmxAttrs
@@ -180,7 +181,7 @@ renderXeroActionControls connection connectionActionsAllowed = [hsx|
 renderXeroReferenceSyncForm :: Bool -> Html
 renderXeroReferenceSyncForm actionsAllowed =
     renderFrontendSurfaceActionForm
-        (frontendSurfaceAction @Surface.AdminXeroSurface @Surface.SyncXeroPayrollReferenceData NoSurfaceFields)
+        (AdminAction.syncXeroPayrollReferenceDataAction AdminAction.syncXeroPayrollReferenceDataActionFields)
         xeroReferenceSyncActionRoute
         [hsx|<button type="submit" class="btn btn-outline-primary" disabled={not actionsAllowed}>Sync Xero data</button>|]
 

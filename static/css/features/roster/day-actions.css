@@ -1,38 +1,38 @@
 /* Roster column-editing controls and day action buttons. */
 
-.roster-grid-frame[data-roster-column-editing="true"] .roster-day-rail-head {
+[data-bepis-roster-column-editor][data-bepis-roster-column-editing="active"] .roster-day-rail-head {
     background-color: color-mix(in srgb, var(--app-success) 16%, var(--roster-subhead));
 }
 
-.roster-grid-frame[data-roster-column-editor="available"] .roster-column-edit-start,
-.roster-grid-frame[data-roster-column-editing="true"] .roster-column-edit-done {
+[data-bepis-roster-column-editor][data-bepis-roster-column-editing="inactive"] [data-bepis-roster-column-edit-start],
+[data-bepis-roster-column-editor][data-bepis-roster-column-editing="active"] [data-bepis-roster-column-edit-done] {
     display: inline-flex;
     align-items: center;
     justify-content: center;
 }
 
-.roster-grid-frame[data-roster-column-editing="true"] .roster-column-edit-start,
-.roster-grid-frame[data-roster-column-editing="true"] .roster-grid-header-row-subheads {
+[data-bepis-roster-column-editor][data-bepis-roster-column-editing="active"] [data-bepis-roster-column-edit-start],
+[data-bepis-roster-column-editor][data-bepis-roster-column-editing="active"] .roster-grid-header-row-subheads {
     display: none;
 }
 
-.roster-grid-frame[data-roster-column-editing="true"] .roster-grid-header-row-blocks {
+[data-bepis-roster-column-editor][data-bepis-roster-column-editing="active"] .roster-grid-header-row-blocks {
     display: grid;
 }
 
-.roster-grid-frame[data-roster-column-editing="true"] .roster-grid .roster-block-header {
+[data-bepis-roster-column-editor][data-bepis-roster-column-editing="active"] .roster-grid .roster-block-header {
     background-color: color-mix(in srgb, var(--app-accent) 20%, var(--roster-header));
     box-shadow: inset 0 -2px 0 var(--app-accent);
 }
 
-.roster-grid-frame[data-roster-column-editing="true"] .roster-slot-column-header {
+[data-bepis-roster-column-editor][data-bepis-roster-column-editing="active"] .roster-slot-column-header {
     position: relative;
 }
 
-.roster-grid-frame[data-roster-column-editing="true"] .roster-slot-column-delete,
-.roster-grid-frame[data-roster-column-editing="true"] .roster-slot-column-add-form,
-.roster-grid-frame[data-roster-column-editing="true"] .roster-day-action-add,
-.roster-grid-frame[data-roster-column-editing="true"] .roster-day-action-remove {
+[data-bepis-roster-column-editor][data-bepis-roster-column-editing="active"] .roster-slot-column-delete,
+[data-bepis-roster-column-editor][data-bepis-roster-column-editing="active"] .roster-slot-column-add-form,
+[data-bepis-roster-column-editor][data-bepis-roster-column-editing="active"] .roster-day-action-add,
+[data-bepis-roster-column-editor][data-bepis-roster-column-editing="active"] .roster-day-action-remove {
     display: inline-flex;
 }
 

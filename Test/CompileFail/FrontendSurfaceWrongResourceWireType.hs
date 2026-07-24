@@ -12,6 +12,6 @@ import IHP.Prelude
 wrongResourceWireType =
     frontendSurfaceResource @Timesheets.TimesheetsSurface @Timesheets.TimesheetWeek
         ( surfaceField @Timesheets.VenueId ("not-a-uuid" :: Text)
-            :& surfaceField @Timesheets.WeekOffset 0
-            :& NoSurfaceFields
+            &: surfaceField @Timesheets.WeekOffset 0
+            &: noSurfaceFields
         )

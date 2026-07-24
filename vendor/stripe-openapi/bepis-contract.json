@@ -1,0 +1,319 @@
+{
+  "apiVersion": "2026-06-24.dahlia",
+  "commit": "86b6ae4db114ff06968dcc191ff4a898e9b5db7c",
+  "operations": [
+    {
+      "contentType": "application/x-www-form-urlencoded",
+      "formFields": [],
+      "method": "GET",
+      "parameters": [
+        "active",
+        "lookup_keys",
+        "expand"
+      ],
+      "path": "/v1/prices"
+    },
+    {
+      "contentType": "application/x-www-form-urlencoded",
+      "formFields": [],
+      "method": "GET",
+      "parameters": [
+        "price"
+      ],
+      "path": "/v1/prices/{price}"
+    },
+    {
+      "contentType": "application/x-www-form-urlencoded",
+      "formFields": [
+        "name",
+        "email",
+        "metadata"
+      ],
+      "method": "POST",
+      "parameters": [],
+      "path": "/v1/customers"
+    },
+    {
+      "contentType": "application/x-www-form-urlencoded",
+      "formFields": [
+        "mode",
+        "customer",
+        "line_items",
+        "client_reference_id",
+        "metadata",
+        "subscription_data",
+        "success_url",
+        "cancel_url",
+        "automatic_tax",
+        "tax_id_collection"
+      ],
+      "method": "POST",
+      "parameters": [],
+      "path": "/v1/checkout/sessions"
+    },
+    {
+      "contentType": "application/x-www-form-urlencoded",
+      "formFields": [],
+      "method": "GET",
+      "parameters": [
+        "session"
+      ],
+      "path": "/v1/checkout/sessions/{session}"
+    },
+    {
+      "contentType": "application/x-www-form-urlencoded",
+      "formFields": [
+        "customer",
+        "return_url"
+      ],
+      "method": "POST",
+      "parameters": [],
+      "path": "/v1/billing_portal/sessions"
+    },
+    {
+      "contentType": "application/x-www-form-urlencoded",
+      "formFields": [],
+      "method": "GET",
+      "parameters": [
+        "subscription_exposed_id"
+      ],
+      "path": "/v1/subscriptions/{subscription_exposed_id}"
+    }
+  ],
+  "requiredHeaders": [
+    {
+      "name": "Authorization",
+      "requirement": "OpenAPI bearerAuth"
+    },
+    {
+      "name": "Content-Type",
+      "requirement": "OpenAPI form encoding for POST"
+    },
+    {
+      "name": "Stripe-Version",
+      "requirement": "Bepis pinned API version"
+    },
+    {
+      "name": "Idempotency-Key",
+      "requirement": "Bepis create-request contract"
+    }
+  ],
+  "responseSchemas": {
+    "billing_portal.session": {
+      "fields": [
+        "id",
+        "object",
+        "url",
+        "livemode",
+        "customer",
+        "return_url"
+      ],
+      "required": [
+        "customer",
+        "id",
+        "livemode",
+        "object",
+        "url"
+      ]
+    },
+    "checkout.session": {
+      "fields": [
+        "id",
+        "object",
+        "url",
+        "customer",
+        "subscription",
+        "client_reference_id",
+        "metadata",
+        "livemode",
+        "mode",
+        "status",
+        "expires_at"
+      ],
+      "required": [
+        "expires_at",
+        "id",
+        "livemode",
+        "mode",
+        "object"
+      ]
+    },
+    "customer": {
+      "fields": [
+        "id",
+        "object",
+        "livemode"
+      ],
+      "required": [
+        "id",
+        "livemode",
+        "object"
+      ]
+    },
+    "price": {
+      "fields": [
+        "id",
+        "object",
+        "active",
+        "currency",
+        "livemode",
+        "unit_amount",
+        "type",
+        "recurring"
+      ],
+      "required": [
+        "active",
+        "currency",
+        "id",
+        "livemode",
+        "object",
+        "type"
+      ]
+    },
+    "subscription": {
+      "fields": [
+        "id",
+        "object",
+        "customer",
+        "metadata",
+        "livemode",
+        "status",
+        "items",
+        "cancel_at",
+        "cancel_at_period_end"
+      ],
+      "required": [
+        "cancel_at_period_end",
+        "customer",
+        "id",
+        "items",
+        "livemode",
+        "metadata",
+        "object",
+        "status"
+      ]
+    },
+    "subscription_item": {
+      "fields": [
+        "object",
+        "current_period_start",
+        "current_period_end",
+        "price",
+        "quantity"
+      ],
+      "required": [
+        "current_period_end",
+        "current_period_start",
+        "object",
+        "price"
+      ]
+    }
+  },
+  "source": "https://github.com/stripe/openapi",
+  "sourcePath": "openapi/spec3.json",
+  "sourceSha256": "e24a26de4188fd64dec4c043d5d3726277fdcb07556a493ea481c305b0a223d8",
+  "webhookEvents": {
+    "checkout.session.async_payment_failed": {
+      "fields": [
+        "id",
+        "object",
+        "client_reference_id",
+        "customer",
+        "livemode",
+        "metadata",
+        "status",
+        "subscription"
+      ],
+      "objectSchema": "checkout.session"
+    },
+    "checkout.session.async_payment_succeeded": {
+      "fields": [
+        "id",
+        "object",
+        "client_reference_id",
+        "customer",
+        "livemode",
+        "metadata",
+        "status",
+        "subscription"
+      ],
+      "objectSchema": "checkout.session"
+    },
+    "checkout.session.completed": {
+      "fields": [
+        "id",
+        "object",
+        "client_reference_id",
+        "customer",
+        "livemode",
+        "metadata",
+        "status",
+        "subscription"
+      ],
+      "objectSchema": "checkout.session"
+    },
+    "customer.subscription.created": {
+      "fields": [
+        "id",
+        "object",
+        "customer",
+        "metadata",
+        "livemode",
+        "status",
+        "items",
+        "cancel_at",
+        "cancel_at_period_end"
+      ],
+      "objectSchema": "subscription"
+    },
+    "customer.subscription.deleted": {
+      "fields": [
+        "id",
+        "object",
+        "customer",
+        "metadata",
+        "livemode",
+        "status",
+        "items",
+        "cancel_at",
+        "cancel_at_period_end"
+      ],
+      "objectSchema": "subscription"
+    },
+    "customer.subscription.updated": {
+      "fields": [
+        "id",
+        "object",
+        "customer",
+        "metadata",
+        "livemode",
+        "status",
+        "items",
+        "cancel_at",
+        "cancel_at_period_end"
+      ],
+      "objectSchema": "subscription"
+    },
+    "invoice.payment_failed": {
+      "fields": [
+        "id",
+        "object",
+        "customer",
+        "livemode",
+        "parent",
+        "period_end",
+        "period_start"
+      ],
+      "objectSchema": "invoice"
+    }
+  },
+  "webhookRootFields": [
+    "id",
+    "object",
+    "api_version",
+    "created",
+    "livemode",
+    "type",
+    "data"
+  ]
+}

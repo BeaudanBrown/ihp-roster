@@ -9,10 +9,9 @@ module Web.Timesheets.Responses
     ) where
 
 import Application.Helper.FrontendContract.Surface.FragmentRender (FragmentRenderMode (..))
-import Application.Helper.FrontendContract.Surface.Live (matchFrontendSurfaceFragmentKey)
 import Application.Helper.FrontendContract.Surface.Runtime (FrontendSurfaceMountedFragment,
                                                             mountedFragmentKey)
-import qualified Application.Helper.FrontendContract.Surface.Timesheets as Surface
+import qualified Application.Helper.FrontendContract.Surface.Timesheets.Live as SurfaceLive
 import Application.Helper.LiveUpdate (setActorLiveResourcesRefresh,
                                       setActorLocalFragmentsRefresh)
 import Application.Helper.Profiling
@@ -71,18 +70,11 @@ selectTimesheetMountedFragments _ fragments mountedFragments =
   where
     matchesFragment mountedFragment = \case
         TimesheetProjectionToolbar ->
-            isJust
-                ( matchFrontendSurfaceFragmentKey @Surface.TimesheetsSurface @Surface.TimesheetToolbar
-                    mountedFragment.mountedFragmentKey
-                )
+            isJust (SurfaceLive.matchTimesheetToolbarLiveFragment mountedFragment.mountedFragmentKey)
         TimesheetProjectionDayColumns ->
-            isJust
-                ( matchFrontendSurfaceFragmentKey @Surface.TimesheetsSurface @Surface.TimesheetDayColumns
-                    mountedFragment.mountedFragmentKey
-                )
+            isJust (SurfaceLive.matchTimesheetDayColumnsLiveFragment mountedFragment.mountedFragmentKey)
         TimesheetProjectionDaySection dayOffset ->
-            matchFrontendSurfaceFragmentKey @Surface.TimesheetsSurface @Surface.TimesheetDaySection
-                mountedFragment.mountedFragmentKey
+            SurfaceLive.matchTimesheetDaySectionLiveFragment mountedFragment.mountedFragmentKey
                 == Just (dayOffset, ())
 
 normalizeTimesheetFragments :: [TimesheetProjectionFragment] -> [TimesheetProjectionFragment]
