@@ -33,8 +33,9 @@ failures stay sanitized and feed the existing final-retry support alert.
 Owners now receive plain-language state, AUD 100/month plan and period timing,
 cancellation notices, state-specific Stripe-hosted actions, and customer-safe
 live Checkout progress without provider or diagnostic identifiers. Status viewing
-requires no fresh step-up, while payment actions still do. Founder support gets a
-separate step-up-protected bounded diagnostic/reconciliation view with no payer
+requires no fresh step-up, while payment actions do when the shared deployment
+privileged strong-auth policy is enabled. Founder support gets a separate,
+policy-gated step-up-protected bounded diagnostic/reconciliation view with no payer
 or visible manual read-only controls. Deployment-controlled owner navigation is
 positioned after Xero and does not change direct-route canary authorization.
 Automated production-readiness now pins a reviewed Stripe OpenAPI commit,

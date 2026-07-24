@@ -26,12 +26,23 @@ import Network.HTTP.Types.Status
 import qualified Network.HTTP.Types.URI as URI
 import Network.Wai (responseHeaders)
 import qualified Network.Wai as Wai
+import qualified System.Environment as Environment
 import Test.Hspec
 import Test.Support
 import Web.Controller.Billing ()
 import Web.FrontController ()
 import Web.Routes
 import Web.Types
+
+withPrivilegedStrongAuthentication :: Bool -> IO value -> IO value
+withPrivilegedStrongAuthentication enabled action =
+    Exception.bracket
+        (Environment.lookupEnv variableName)
+        restore
+        (\_ -> Environment.setEnv variableName (if enabled then "true" else "false") >> action)
+  where
+    variableName = "IHP_ROSTER_REQUIRE_PRIVILEGED_STRONG_AUTH"
+    restore = maybe (Environment.unsetEnv variableName) (Environment.setEnv variableName)
 
 withCapturedLogger :: (FrameworkConfig -> IO value) -> IO (value, Text)
 withCapturedLogger action = do
@@ -462,6 +473,22 @@ tests = aroundAll withDatabaseTestContext do
                 lookup "Location" (responseHeaders checkoutResponse) `shouldBe` Just "http://localhost/PasskeyStepUp"
                 lookup "Location" (responseHeaders portalResponse) `shouldBe` Just "http://localhost/PasskeyStepUp"
                 query @BillingCheckoutAttempt |> filterWhere (#venueId, unpackId venue.id) |> fetchCount `shouldReturn` 0
+
+        it "lets an owner without a passkey start Checkout when privileged strong authentication is disabled" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Billing Disabled Strong Auth Checkout Venue"
+                owner <- createUserRecord "billing-disabled-strong-auth-owner@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue owner "venue_owner"
+
+                response <- withPrivilegedStrongAuthentication False do
+                    withStripeConfigForTest (Right testStripeConfig) do
+                        withStripeClientForTest (checkoutStripeClientExpectingCustomer "Billing Disabled Strong Auth Checkout Venue" "billing-disabled-strong-auth-owner@example.com") do
+                            withUserAndCurrentVenue owner venue.id do
+                                callAction CreateBillingCheckoutSessionAction
+
+                response `responseStatusShouldBe` status302
+                lookup "Location" (responseHeaders response) `shouldBe` Just "https://checkout.stripe.com/c/pay/cs_test_123"
+                query @BillingCheckoutAttempt |> filterWhere (#venueId, unpackId venue.id) |> fetchCount `shouldReturn` 1
 
         it "rejects Checkout before Stripe calls when the owner's email is unverified" $ withContext do
             withCleanDb do
@@ -896,6 +923,21 @@ tests = aroundAll withDatabaseTestContext do
                 response `responseStatusShouldBe` status302
                 lookup "Location" (responseHeaders response) `shouldBe` Just "http://localhost/PasskeyStepUp"
                 query @AppJob |> filterWhere (#jobKind, billingReconciliationJobKind) |> fetchCount `shouldReturn` 0
+
+        it "lets a founder without a passkey reconcile billing when privileged strong authentication is disabled" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Billing Disabled Strong Auth Reconciliation Venue"
+                superAdmin <- createUserRecordWithPlatformRole "billing-disabled-strong-auth-founder@example.com" "staff" (Just SuperAdminRole) True
+                subscription <- createVenueSubscriptionWithStatus venue "past_due"
+
+                response <- withPrivilegedStrongAuthentication False do
+                    withUserAndCurrentVenue superAdmin venue.id do
+                        callAction ReconcileVenueBillingAction
+
+                response `responseStatusShouldBe` status302
+                lookup "Location" (responseHeaders response) `shouldBe` Just "http://localhost/Billing"
+                [appJob] <- query @AppJob |> filterWhere (#jobKind, billingReconciliationJobKind) |> fetch
+                appJob.relatedId `shouldBe` Just (unpackId subscription.id)
 
         it "denies manual reconciliation to venue owners" $ withContext do
             withCleanDb do

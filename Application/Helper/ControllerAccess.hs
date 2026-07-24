@@ -11,7 +11,6 @@ import IHP.ControllerPrelude
 import qualified IHP.LoginSupport.Helper.Controller as LoginSupport
 import qualified Network.Wai as Wai
 import qualified System.Environment as Environment
-import System.IO.Unsafe (unsafePerformIO)
 import Text.Read (readMaybe)
 import Web.Routes ()
 import Web.Types (PasskeysController (PasskeySetupAction, PasskeyStepUpAction),
@@ -153,17 +152,17 @@ ensureSupportAccess = do
     redirectPermissionDeniedUnless currentUserIsSuperAdmin "You need super admin access to view that page."
     emitScopeFact BepisSupportScopeFact "support-access"
 
-currentUserRequiresMandatoryPasskey :: (?context :: ControllerContext) => Bool
-currentUserRequiresMandatoryPasskey =
-    privilegedStrongAuthenticationRequired
-        && (currentUserIsSuperAdmin || maybe False (`hasVenueRole` VenueAdminRole) currentVenueRoleOrNothing)
+currentUserRequiresMandatoryPasskey :: (?context :: ControllerContext) => IO Bool
+currentUserRequiresMandatoryPasskey = do
+    strongAuthenticationRequired <- privilegedStrongAuthenticationRequired
+    pure $
+        strongAuthenticationRequired
+            && (currentUserIsSuperAdmin || maybe False (`hasVenueRole` VenueAdminRole) currentVenueRoleOrNothing)
 
-privilegedStrongAuthenticationRequired :: Bool
-privilegedStrongAuthenticationRequired =
-    unsafePerformIO do
-        maybeValue <- Environment.lookupEnv "IHP_ROSTER_REQUIRE_PRIVILEGED_STRONG_AUTH"
-        pure (maybe True strongAuthenticationEnabledValue maybeValue)
-{-# NOINLINE privilegedStrongAuthenticationRequired #-}
+privilegedStrongAuthenticationRequired :: IO Bool
+privilegedStrongAuthenticationRequired = do
+    maybeValue <- Environment.lookupEnv "IHP_ROSTER_REQUIRE_PRIVILEGED_STRONG_AUTH"
+    pure (maybe True strongAuthenticationEnabledValue maybeValue)
 
 strongAuthenticationEnabledValue :: String -> Bool
 strongAuthenticationEnabledValue value =
@@ -177,7 +176,8 @@ currentUserHasPasskey =
 
 ensurePrivilegedPasskeySetupComplete :: (?context :: ControllerContext, ?modelContext :: ModelContext) => IO ()
 ensurePrivilegedPasskeySetupComplete = do
-    when currentUserRequiresMandatoryPasskey do
+    strongAuthenticationRequired <- currentUserRequiresMandatoryPasskey
+    when strongAuthenticationRequired do
         hasPasskey <- currentUserHasPasskey
         unless hasPasskey do
             withRequestContext do
@@ -235,8 +235,9 @@ clearCurrentUserPasskeyVerification = do
     clearCurrentUserPasskeyRecoveryVerification
 
 ensurePrivilegedPasskeyReady :: (?context :: ControllerContext, ?modelContext :: ModelContext) => IO ()
-ensurePrivilegedPasskeyReady =
-    when currentUserRequiresMandatoryPasskey ensureFreshPasskeyReady
+ensurePrivilegedPasskeyReady = do
+    strongAuthenticationRequired <- currentUserRequiresMandatoryPasskey
+    when strongAuthenticationRequired ensureFreshPasskeyReady
 
 ensureFreshPasskeyReady :: (?context :: ControllerContext, ?modelContext :: ModelContext) => IO ()
 ensureFreshPasskeyReady = do
@@ -257,8 +258,9 @@ ensureFreshPasskeyVerified = do
             redirectTo PasskeyStepUpAction
 
 ensurePrivilegedPasskeyVerified :: (?context :: ControllerContext) => IO ()
-ensurePrivilegedPasskeyVerified =
-    when currentUserRequiresMandatoryPasskey ensureFreshPasskeyVerified
+ensurePrivilegedPasskeyVerified = do
+    strongAuthenticationRequired <- currentUserRequiresMandatoryPasskey
+    when strongAuthenticationRequired ensureFreshPasskeyVerified
 
 currentRequestPath :: (?request :: Request) => Text
 currentRequestPath =

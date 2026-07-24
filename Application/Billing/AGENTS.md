@@ -12,10 +12,11 @@ Read this before editing `Application/Billing/` or billing controllers.
   inspect billing and request reconciliation, but must never start Checkout or
   open a venue payer's Customer Portal. Venue authority comes from
   `venue_memberships`, not `users`.
-- Keep owner status inspection free of fresh passkey step-up while retaining the
-  normal privileged passkey setup policy. Checkout and Customer Portal actions
-  still require fresh step-up. Founder diagnostics and reconciliation remain
-  step-up protected.
+- Route all billing strong-auth decisions through the shared privileged
+  strong-auth policy. When that deployment policy is enabled, keep owner status
+  inspection free of fresh passkey step-up while Checkout, Customer Portal,
+  founder diagnostics, and reconciliation require fresh step-up. When disabled,
+  billing must not maintain a parallel unconditional passkey requirement.
 - Owner rendering must not expose provider identifiers, event/job diagnostics,
   Checkout failure internals, or dormant manual read-only controls. Founder
   diagnostics may show only bounded persisted identifiers and sanitized

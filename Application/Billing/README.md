@@ -36,10 +36,12 @@ provider diagnostics and read-only reconciliation. The owner view never renders
 provider IDs, event/job tables, failure internals, or manual read-only controls.
 Founder support never receives Checkout or Customer Portal actions.
 
-Owner status inspection requires normal owner authority and passkey setup but no
-fresh step-up. Checkout and Customer Portal still require fresh passkey
-verification. Founder diagnostics and manual reconciliation remain step-up
-protected. Deployment visibility controls only the owner navigation link; the
+When the deployment privileged strong-auth policy is enabled, owner status
+inspection requires normal owner authority and passkey setup but no fresh
+step-up; Checkout, Customer Portal, founder diagnostics, and manual
+reconciliation require fresh verification. All of those requirements use the
+same deployment policy, so disabling it does not leave parallel unconditional
+billing passkey gates. Deployment visibility controls only the owner navigation link; the
 authorized direct route remains available for hidden-navigation canaries.
 
 ## Persistence

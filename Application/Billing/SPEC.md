@@ -179,8 +179,10 @@ cursor so the ordered webhook path can establish it from a validated event.
 ## Hosted Checkout Flow
 
 Only an ordinary current-venue owner may start billing. Founder support mode,
-venue admins, managers, and workers cannot start Checkout. Every Checkout action
-checks the existing fresh-passkey window server-side. The initiating owner's
+venue admins, managers, and workers cannot start Checkout. When the deployment
+privileged strong-auth policy is enabled, every Checkout action checks the
+existing fresh-passkey window server-side through the shared policy boundary.
+The initiating owner's
 current email must be verified; it is supplied only when the venue's Stripe
 Customer is first created. Stripe remains authoritative for later billing-email
 changes.
@@ -233,7 +235,9 @@ parameters.
 
 Only an ordinary current-venue owner may open Stripe Customer Portal after a
 Stripe Customer exists. Founder support mode cannot open the payer's Portal.
-Every Portal action checks the existing fresh-passkey window server-side.
+When the deployment privileged strong-auth policy is enabled, every Portal
+action checks the existing fresh-passkey window server-side through the shared
+policy boundary.
 
 The app creates Portal Sessions on demand using the stored Customer ID, a return
 URL, and a freshly generated request-scoped idempotency key. The response must
@@ -425,10 +429,12 @@ codes, and persisted error summaries are not rendered in the dialog. The full
 Billing page and live-fragment URL retain only the opaque local attempt ID after
 the initial Stripe success callback validates the supplied Stripe Session ID.
 
-Owner status inspection enforces ordinary owner authority and mandatory passkey
-setup but does not require a fresh passkey verification. Checkout and Customer
-Portal actions still require the fresh 30-minute step-up window. Founder
-billing diagnostics and manual reconciliation remain fresh-passkey protected.
+When the deployment privileged strong-auth policy is enabled, owner status
+inspection enforces ordinary owner authority and mandatory passkey setup but
+does not require fresh verification; Checkout, Customer Portal, founder billing
+diagnostics, and manual reconciliation require the fresh 30-minute step-up
+window. Every billing passkey gate goes through that shared policy, and disabling
+it disables those requirements rather than leaving parallel unconditional gates.
 
 Owner Billing navigation is rendered after Xero and before Admin only when
 `STRIPE_OWNER_NAVIGATION_VISIBLE=true` and the current ordinary venue member is
@@ -466,11 +472,12 @@ changes are not treated as venue writes.
 
 ## Access Rules
 
-- Venue owners can inspect customer-ready status without fresh passkey step-up,
-  then start Checkout or open Customer Portal for their current venue only after
-  fresh passkey verification.
-- Founder super admins can inspect step-up-protected bounded diagnostics and use
-  manual reconciliation for a support-mode current venue, but cannot start
+- When privileged strong authentication is enabled, venue owners can inspect
+  customer-ready status without fresh passkey step-up, then start Checkout or
+  open Customer Portal for their current venue only after fresh verification.
+- When privileged strong authentication is enabled, founder super admins can
+  inspect step-up-protected bounded diagnostics and use manual reconciliation
+  for a support-mode current venue, but cannot start
   Checkout or open Customer Portal.
 - Venue admins, managers, workers, and future export-only roles do not manage
   billing unless a future product decision changes the role model.

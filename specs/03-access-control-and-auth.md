@@ -109,12 +109,14 @@ These actions require explicit server-side permission checks and audit logging:
 ## Billing access
 
 - Billing management is venue-scoped.
-- Venue owners can inspect their current venue's customer-ready billing status
-  without a fresh passkey challenge, while the normal mandatory passkey setup
-  policy still applies. Starting Stripe-hosted Checkout and opening Stripe
-  Customer Portal require fresh passkey verification.
-- Founder super admins can inspect step-up-protected bounded billing diagnostics
-  and queue read-only reconciliation for a support-mode current venue, but cannot
+- When the deployment privileged strong-auth policy is enabled, venue owners can
+  inspect their current venue's customer-ready billing status without a fresh
+  passkey challenge while normal mandatory setup applies; starting Stripe-hosted
+  Checkout and opening Stripe Customer Portal require fresh verification. All
+  billing passkey gates use that policy and are disabled with it.
+- When that policy is enabled, founder super admins can inspect step-up-protected
+  bounded billing diagnostics and queue read-only reconciliation for a
+  support-mode current venue, but cannot
   start Checkout or open the venue payer's Customer Portal. Dormant manual
   read-only infrastructure is not rendered in the visible Billing product.
 - Venue admins, managers, workers and future export-only roles do not manage

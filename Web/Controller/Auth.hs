@@ -37,7 +37,8 @@ instance Controller AuthController where
             query @Passkey
                 |> filterWhere (#userId, unpackId (get #id currentUser))
                 |> fetch
-        when (currentUserRequiresMandatoryPasskey && not (null existingPasskeys)) do
+        strongAuthenticationRequired <- currentUserRequiresMandatoryPasskey
+        when (strongAuthenticationRequired && not (null existingPasskeys)) do
             verified <- isCurrentUserPasskeyVerified
             recoveryVerified <- isCurrentUserPasskeyRecoveryVerified
             unless (verified || recoveryVerified) do
@@ -75,7 +76,8 @@ instance Controller AuthController where
             query @Passkey
                 |> filterWhere (#userId, unpackId (get #id currentUser))
                 |> fetch
-        when (currentUserRequiresMandatoryPasskey && not (null existingPasskeys)) do
+        strongAuthenticationRequired <- currentUserRequiresMandatoryPasskey
+        when (strongAuthenticationRequired && not (null existingPasskeys)) do
             verified <- isCurrentUserPasskeyVerified
             recoveryVerified <- isCurrentUserPasskeyRecoveryVerified
             unless (verified || recoveryVerified) do
@@ -109,7 +111,7 @@ instance Controller AuthController where
 
         _ <- createPasskeyRecord (get #id currentUser) passkeyName entry
         recoveryCode <-
-            if currentUserRequiresMandatoryPasskey && null existingPasskeys
+            if strongAuthenticationRequired && null existingPasskeys
                 then issueInitialRecoveryCodeIfMissing (get #id currentUser)
                 else pure Nothing
         clearCurrentUserPasskeyRecoveryVerification
