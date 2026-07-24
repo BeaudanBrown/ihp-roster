@@ -241,7 +241,11 @@ disabled and rejects live mode with a non-HTTPS `baseUrl`.
 
 ## Rollout And Incident Controls
 
-The three controls require a service restart and have separate purposes:
+The three controls require a service restart and have separate purposes. Deploy
+billing webhook changes as a single-version restart: stop the old Bepis web
+process before the replacement accepts traffic, and verify no old webhook writer
+remains. Do not use a mixed-version rolling deployment for billing ingress;
+Stripe retries non-success responses after the replacement starts.
 
 1. `enable` controls the overall Stripe integration, including credentials,
    webhook processing, Portal access, and reconciliation.

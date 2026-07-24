@@ -387,8 +387,9 @@ tests = aroundAll withDatabaseTestContext do
                     owner <- createUserRecord "billing-trouble-dedupe-owner@example.com" "staff" True
                     _ <- createVenueMembershipRecord venue owner "venue_owner"
                     _ <- createBillingCustomer venue "cus_trouble_dedupe_123"
+                    Right _ <- handleStripeWebhookPayload StripeTestMode (subscriptionEventAt testStripeEventCreatedSeconds "evt_trouble_active" venue "cus_trouble_dedupe_123" "sub_trouble_dedupe_123" "active")
 
-                    Right _ <- handleStripeWebhookPayload StripeTestMode (invoicePaymentFailedEventAt (testStripeEventCreatedSeconds + 1) "evt_trouble_invoice" "cus_trouble_dedupe_123" "sub_trouble_dedupe_123")
+                    Right _ <- handleStripeWebhookPayload StripeTestMode (invoicePaymentFailedEventForPeriodAt (testStripeEventCreatedSeconds + 1) 1762592000 1765184000 "evt_trouble_invoice" "cus_trouble_dedupe_123" "sub_trouble_dedupe_123")
                     firstJob <- query @AppJob |> filterWhere (#jobKind, billingNotificationJobKind) |> fetchOne
                     case terminalStatus of
                         JobStatusSucceeded ->
@@ -408,6 +409,36 @@ tests = aroundAll withDatabaseTestContext do
                     map (.relatedTable) jobs `shouldBe` [Just "billing_events"]
                     map (.dedupeKey) jobs `shouldSatisfy` all (maybe False (Text.isInfixOf ":payment_trouble:"))
 
+        it "deduplicates a trouble transition against its adjacent renewal invoice period" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Webhook Renewal Boundary Dedupe Venue"
+                owner <- createUserRecord "billing-renewal-boundary-owner@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue owner "venue_owner"
+                _ <- createBillingCustomer venue "cus_renewal_boundary_123"
+                Right _ <- handleStripeWebhookPayload StripeTestMode (subscriptionEventAt testStripeEventCreatedSeconds "evt_boundary_active" venue "cus_renewal_boundary_123" "sub_renewal_boundary_123" "active")
+                Right _ <- handleStripeWebhookPayload StripeTestMode (subscriptionEventAt (testStripeEventCreatedSeconds + 1) "evt_boundary_trouble" venue "cus_renewal_boundary_123" "sub_renewal_boundary_123" "past_due")
+
+                Right _ <- handleStripeWebhookPayload StripeTestMode (invoicePaymentFailedEventForPeriodAt (testStripeEventCreatedSeconds + 2) 1762592000 1765184000 "evt_boundary_invoice" "cus_renewal_boundary_123" "sub_renewal_boundary_123")
+
+                jobs <- query @AppJob |> filterWhere (#jobKind, billingNotificationJobKind) |> fetch
+                length jobs `shouldBe` 1
+                map (.dedupeKey) jobs `shouldSatisfy` all (maybe False (Text.isInfixOf ":payment_trouble:"))
+
+        it "deduplicates invoice-first delivery when the trouble snapshot has advanced periods" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Webhook Invoice First Boundary Venue"
+                owner <- createUserRecord "billing-invoice-first-boundary-owner@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue owner "venue_owner"
+                _ <- createBillingCustomer venue "cus_invoice_first_boundary_123"
+                Right _ <- handleStripeWebhookPayload StripeTestMode (subscriptionEventAt testStripeEventCreatedSeconds "evt_invoice_first_active" venue "cus_invoice_first_boundary_123" "sub_invoice_first_boundary_123" "active")
+                Right _ <- handleStripeWebhookPayload StripeTestMode (invoicePaymentFailedEventForPeriodAt (testStripeEventCreatedSeconds + 1) 1762592000 1765184000 "evt_invoice_first_failed" "cus_invoice_first_boundary_123" "sub_invoice_first_boundary_123")
+
+                Right _ <- handleStripeWebhookPayload StripeTestMode (subscriptionEventWithModesAndCancellationForPeriodAt False False "customer.subscription.updated" (testStripeEventCreatedSeconds + 2) 1762592000 1765184000 False "evt_invoice_first_trouble" venue "cus_invoice_first_boundary_123" "sub_invoice_first_boundary_123" "past_due")
+
+                jobs <- query @AppJob |> filterWhere (#jobKind, billingNotificationJobKind) |> fetch
+                length jobs `shouldBe` 1
+                map (.dedupeKey) jobs `shouldSatisfy` all (maybe False (Text.isInfixOf ":payment_trouble:"))
+
         it "notifies again when a later billing period fails while the subscription remains troubled" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Webhook Later Trouble Period Venue"
@@ -417,7 +448,7 @@ tests = aroundAll withDatabaseTestContext do
                 Right _ <- handleStripeWebhookPayload StripeTestMode (subscriptionEventAt testStripeEventCreatedSeconds "evt_later_period_active" venue "cus_later_trouble_period_123" "sub_later_trouble_period_123" "active")
                 Right _ <- handleStripeWebhookPayload StripeTestMode (subscriptionEventAt (testStripeEventCreatedSeconds + 1) "evt_later_period_trouble" venue "cus_later_trouble_period_123" "sub_later_trouble_period_123" "past_due")
 
-                Right _ <- handleStripeWebhookPayload StripeTestMode (invoicePaymentFailedEventForPeriodAt testStripeEventCreatedSeconds 1762592000 1765184000 "evt_later_period_invoice" "cus_later_trouble_period_123" "sub_later_trouble_period_123")
+                Right _ <- handleStripeWebhookPayload StripeTestMode (invoicePaymentFailedEventForPeriodAt (testStripeEventCreatedSeconds + 2) 1765184000 1767776000 "evt_later_period_invoice" "cus_later_trouble_period_123" "sub_later_trouble_period_123")
 
                 jobs <- query @AppJob |> filterWhere (#jobKind, billingNotificationJobKind) |> fetch
                 length jobs `shouldBe` 2
@@ -778,7 +809,11 @@ subscriptionEventOfTypeWithCancellationAt =
     subscriptionEventWithModesAndCancellationAt False False
 
 subscriptionEventWithModesAndCancellationAt :: Bool -> Bool -> Text -> Integer -> Bool -> Text -> Venue -> Text -> Text -> Text -> LByteString.ByteString
-subscriptionEventWithModesAndCancellationAt livemode priceLivemode eventType eventCreatedAt cancelAtPeriodEnd eventId venue customerId subscriptionId status =
+subscriptionEventWithModesAndCancellationAt livemode priceLivemode eventType eventCreatedAt =
+    subscriptionEventWithModesAndCancellationForPeriodAt livemode priceLivemode eventType eventCreatedAt 1760000000 1762592000
+
+subscriptionEventWithModesAndCancellationForPeriodAt :: Bool -> Bool -> Text -> Integer -> Integer -> Integer -> Bool -> Text -> Venue -> Text -> Text -> Text -> LByteString.ByteString
+subscriptionEventWithModesAndCancellationForPeriodAt livemode priceLivemode eventType eventCreatedAt periodStart periodEnd cancelAtPeriodEnd eventId venue customerId subscriptionId status =
     Aeson.encode $
         Aeson.object
             [ "id" Aeson..= eventId
@@ -804,8 +839,8 @@ subscriptionEventWithModesAndCancellationAt livemode priceLivemode eventType eve
                                     , "data" Aeson..=
                                         [ Aeson.object
                                             [ "object" Aeson..= ("subscription_item" :: Text)
-                                            , "current_period_start" Aeson..= (1760000000 :: Integer)
-                                            , "current_period_end" Aeson..= (1762592000 :: Integer)
+                                            , "current_period_start" Aeson..= periodStart
+                                            , "current_period_end" Aeson..= periodEnd
                                             , "price" Aeson..= monthlyPriceObject
                                             , "quantity" Aeson..= (1 :: Int)
                                             ]

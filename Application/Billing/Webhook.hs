@@ -396,9 +396,20 @@ subscriptionTransitionNotifications previousSubscription subscriptionId currentS
         BillingNotification
             { notificationKind = kind
             , notificationSubscriptionId = Just subscriptionId
-            , notificationBillingPeriodStart = posixMaybe snapshot.stripeObjectCurrentPeriodStart
-            , notificationBillingPeriodEnd = posixMaybe snapshot.stripeObjectCurrentPeriodEnd
+            , notificationBillingPeriodStart = periodStart
+            , notificationBillingPeriodEnd = periodEnd
             }
+      where
+        snapshotPeriodStart = posixMaybe snapshot.stripeObjectCurrentPeriodStart
+        snapshotPeriodEnd = posixMaybe snapshot.stripeObjectCurrentPeriodEnd
+        previousPeriodStart = previousSubscription >>= (.currentPeriodStart)
+        previousPeriodEnd = previousSubscription >>= (.currentPeriodEnd)
+        (periodStart, periodEnd)
+            | kind == BillingPaymentTrouble
+            , snapshotPeriodStart == previousPeriodEnd
+            , isJust previousPeriodEnd =
+                (previousPeriodStart, previousPeriodEnd)
+            | otherwise = (snapshotPeriodStart, snapshotPeriodEnd)
     troubleNotification =
         [notification BillingPaymentTrouble | isTroubled && not wasTroubled]
     recoveryNotification =

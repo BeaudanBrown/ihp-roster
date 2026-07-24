@@ -155,14 +155,15 @@ enqueueNotificationJobOnce :: (?modelContext :: ModelContext) => AppJobRequest -
 enqueueNotificationJobOnce request =
     case request.dedupeKey of
         Nothing -> extractEnqueuedJob <$> enqueueAppJob request
-        Just key ->
-            query @AppJob
-                |> filterWhere (#dedupeKey, Just key)
-                |> orderByAsc #createdAt
-                |> fetchOneOrNothing
-                >>= \case
-                    Just existingJob -> pure existingJob
-                    Nothing          -> extractEnqueuedJob <$> enqueueAppJob request
+        Just key -> do
+            exactMatch <-
+                query @AppJob
+                    |> filterWhere (#dedupeKey, Just key)
+                    |> orderByAsc #createdAt
+                    |> fetchOneOrNothing
+            case exactMatch of
+                Just existingJob -> pure existingJob
+                Nothing          -> extractEnqueuedJob <$> enqueueAppJob request
 
 extractEnqueuedJob :: EnqueueAppJobResult -> AppJob
 extractEnqueuedJob = \case
@@ -173,17 +174,15 @@ billingNotificationDedupeKey :: Venue -> BillingNotificationSource -> BillingNot
 billingNotificationDedupeKey venue source notification recipient =
     case source of
         BillingEventSource _ ->
-            Text.intercalate
-                ":"
+            Text.intercalate ":" $
                 [ "billing-notification"
                 , billingNotificationModeKey source
                 , inputValue venue.id
                 , fromMaybe "unknown-subscription" notification.notificationSubscriptionId
                 , billingNotificationKindText notification.notificationKind
-                , timestampKey notification.notificationBillingPeriodStart
-                , timestampKey notification.notificationBillingPeriodEnd
-                , inputValue recipient.id
                 ]
+                    <> billingNotificationPeriodKeys source notification
+                    <> [inputValue recipient.id]
         BillingOperationalJobSource sourceJob ->
             Text.intercalate
                 ":"
@@ -192,7 +191,19 @@ billingNotificationDedupeKey venue source notification recipient =
                 , inputValue sourceJob.id
                 , inputValue recipient.id
                 ]
+
+billingNotificationPeriodKeys :: BillingNotificationSource -> BillingNotification -> [Text]
+billingNotificationPeriodKeys source notification =
+    case notification.notificationKind of
+        BillingPaymentTrouble -> [timestampKey renewalBoundary, timestampKey renewalBoundary]
+        _ -> [timestampKey notification.notificationBillingPeriodStart, timestampKey notification.notificationBillingPeriodEnd]
   where
+    renewalBoundary =
+        case source of
+            BillingEventSource event
+                | event.providerObjectType == Just "invoice" -> notification.notificationBillingPeriodStart <|> notification.notificationBillingPeriodEnd
+                | event.providerObjectType == Just "subscription" -> notification.notificationBillingPeriodEnd <|> notification.notificationBillingPeriodStart
+            _ -> notification.notificationBillingPeriodEnd <|> notification.notificationBillingPeriodStart
     timestampKey = maybe "unknown" (tshow . (floor :: NominalDiffTime -> Integer) . utcTimeToPOSIXSeconds)
 
 billingNotificationModeKey :: BillingNotificationSource -> Text

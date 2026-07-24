@@ -377,12 +377,19 @@ Initial active snapshots and repeated snapshots within the same state do not
 send customer messages.
 
 An `invoice.payment_failed` event and the corresponding Subscription trouble
-snapshot share the `payment_trouble` category. Notification jobs are permanently
-deduplicated by Stripe mode, venue, Subscription, category, billing period, and
-recipient, rather than by webhook event ID. This keeps invoice and Subscription
-signals for one period from producing duplicate email while allowing recovery,
-scheduled cancellation, resumed renewal, completed cancellation, and a later billing period to
-remain independently visible. The notification job is enqueued in the same
+snapshot share the `payment_trouble` category. For renewal failures, the ending
+Subscription period and the renewing Invoice period meet at one canonical renewal
+boundary, which is stored in both period positions of the notification key. A
+Subscription snapshot that has already advanced into the renewing period is first
+normalized to its preceding local period, preserving that same boundary in either
+delivery order. Notification jobs are permanently deduplicated by Stripe mode,
+venue, Subscription, category, renewal boundary, and recipient, rather than by
+webhook event ID. Billing webhook releases use the runbook's single-version
+restart; mixed-version concurrent writers are unsupported. This keeps Invoice
+and Subscription signals for one renewal from producing duplicate email while
+allowing recovery, scheduled cancellation, resumed renewal, completed
+cancellation, and a later billing period to remain independently visible. The
+notification job is enqueued in the same
 venue-locked webhook transaction as the processed event and Subscription update.
 
 Only non-deactivated users with active, non-archived owner memberships receive
