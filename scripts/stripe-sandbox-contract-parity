@@ -265,6 +265,12 @@ def validate_checkout(value: dict[str, Any], customer_id: str, venue_id: str, al
     require(value.get("client_reference_id") == venue_id, "Stripe Checkout Session client reference did not match the probe venue")
     metadata = value.get("metadata")
     require(isinstance(metadata, dict) and metadata.get("venue_id") == venue_id, "Stripe Checkout Session venue metadata did not correlate to the probe venue")
+    checkout_url = value.get("url")
+    if checkout_url is None:
+        require(allow_completed and status == "complete", "Stripe open Checkout Session URL was missing")
+        hosted_url_domain = None
+    else:
+        hosted_url_domain = validate_hosted_url(checkout_url, "checkout.stripe.com", "Checkout")
     result = {
         "id": require_string(value.get("id"), "Checkout Session id"),
         "object": "checkout.session",
@@ -275,7 +281,7 @@ def validate_checkout(value: dict[str, Any], customer_id: str, venue_id: str, al
         "client_reference_id": venue_id,
         "metadata": {"venue_id": venue_id},
         "expires_at": require_int(value.get("expires_at"), "Checkout Session expires_at"),
-        "hosted_url_domain": validate_hosted_url(value.get("url"), "checkout.stripe.com", "Checkout"),
+        "hosted_url_domain": hosted_url_domain,
     }
     subscription_id = value.get("subscription")
     if subscription_id is not None:
@@ -637,6 +643,25 @@ def run_self_test() -> None:
         "venue-self-test",
         allow_completed=False,
     )
+    completed_checkout = validate_checkout(
+        {
+            "object": "checkout.session",
+            "id": "cs_sandbox_completed_self_test",
+            "livemode": False,
+            "mode": "subscription",
+            "status": "complete",
+            "customer": "cus_sandbox_self_test",
+            "client_reference_id": "venue-self-test",
+            "metadata": {"venue_id": "venue-self-test"},
+            "expires_at": 1,
+            "url": None,
+            "subscription": "sub_sandbox_self_test",
+        },
+        "cus_sandbox_self_test",
+        "venue-self-test",
+        allow_completed=True,
+    )
+    require(completed_checkout["hosted_url_domain"] is None, "Completed Checkout sanitizer should record an unavailable hosted URL as null")
     portal = validate_portal(
         {
             "object": "billing_portal.session",
@@ -664,7 +689,14 @@ def run_self_test() -> None:
         "https://app.example.test/Billing",
     )
     rendered = json.dumps(
-        {"price": price, "customer": customer, "checkout": checkout, "portal": portal, "prepared_portal": prepared_portal}
+        {
+            "price": price,
+            "customer": customer,
+            "checkout": checkout,
+            "completed_checkout": completed_checkout,
+            "portal": portal,
+            "prepared_portal": prepared_portal,
+        }
     )
     for forbidden in (
         "must-not-appear@example.test",
