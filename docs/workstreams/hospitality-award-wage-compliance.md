@@ -11,19 +11,24 @@ Contract matrix:
 
 - [#228](https://github.com/BeaudanBrown/ihp-roster/issues/228) — compliance matrix and deterministic source fixtures
 - [#229](https://github.com/BeaudanBrown/ihp-roster/issues/229) — pure Haskell engine and typed contract
-- [#230](https://github.com/BeaudanBrown/ihp-roster/issues/230) — authoritative Melbourne instants and DST
+- [#230](https://github.com/BeaudanBrown/ihp-roster/issues/230) — authoritative Melbourne-time umbrella
+  - [#273](https://github.com/BeaudanBrown/ihp-roster/issues/273) — pure `VenueTime` resolution and properties
+  - [#274](https://github.com/BeaudanBrown/ihp-roster/issues/274) — timestamp-only schema, migration and UI integration
 - [#231](https://github.com/BeaudanBrown/ihp-roster/issues/231) — earnings components and final-line rounding
 - [#232](https://github.com/BeaudanBrown/ihp-roster/issues/232) — unpaid-meal-break rules and precedence
 - [#233](https://github.com/BeaudanBrown/ihp-roster/issues/233) — casual/public-holiday minimum payments
 - [#234](https://github.com/BeaudanBrown/ihp-roster/issues/234) — immutable approved-pay ledger
-- [#235](https://github.com/BeaudanBrown/ihp-roster/issues/235) — source freshness and Award drift notifications
+- [#235](https://github.com/BeaudanBrown/ihp-roster/issues/235) — source freshness and Award drift umbrella
+  - [#275](https://github.com/BeaudanBrown/ihp-roster/issues/275) — pure freshness/drift policy
+  - [#276](https://github.com/BeaudanBrown/ihp-roster/issues/276) — approval/export enforcement
 - [#236](https://github.com/BeaudanBrown/ihp-roster/issues/236) — supported per-shift roster limits
-- [#237](https://github.com/BeaudanBrown/ihp-roster/issues/237) — CSV/Xero component publication
-- [#238](https://github.com/BeaudanBrown/ihp-roster/issues/238) — property, performance, migration and workflow verification
-- [#239](https://github.com/BeaudanBrown/ihp-roster/issues/239) — Haskell cutover and SQL retirement
-- [#241](https://github.com/BeaudanBrown/ihp-roster/issues/241) — Staff Hours CSV contract
+- [#237](https://github.com/BeaudanBrown/ihp-roster/issues/237) — consolidated Staff Hours, detailed CSV and Xero publication contract (#241 closed into this ticket)
+- [#238](https://github.com/BeaudanBrown/ihp-roster/issues/238) — final property, performance, migration and workflow audit
+- [#239](https://github.com/BeaudanBrown/ihp-roster/issues/239) — Haskell cutover and same-release SQL retirement
 - [#264](https://github.com/BeaudanBrown/ihp-roster/issues/264) — complete, deterministic and atomic MAPD refresh snapshots
-- [#240](https://github.com/BeaudanBrown/ihp-roster/issues/240) — overtime stretch; explicitly on hold
+
+Closed [#240](https://github.com/BeaudanBrown/ihp-roster/issues/240) remains outside
+this epic; any future work requires separate authorization.
 
 GitHub native blockers and sub-issue state are the implementation tracker; this
 file does not duplicate ticket status.
@@ -36,17 +41,24 @@ file does not duplicate ticket status.
   fixtures exercise ingestion/projection independently of current dollar values.
 - One independent timesheet is the base calculation unit. Paid-time segments
   and earnings components are distinct.
-- Authoritative elapsed instants determine quantities; Melbourne civil time
-  determines Award dates/windows.
-- Approved calculations are immutable ledger facts. Drafts calculate from the
-  effective rate book.
+- The stored `permanent` value means MA000009 part-time exclusively and customer
+  copy says “Part-time”.
+- Timestamp boundaries plus their IANA timezone snapshot are the only persisted
+  time authority for timesheets and rosters. Exact elapsed seconds determine
+  calculations; Melbourne civil time determines Award dates/windows.
+- UI times remain quarter-hour choices without a database invariant. Final export
+  buckets defensively round hourly quantities once to the nearest 15 minutes,
+  recomputing exported amount from rounded quantity and rate.
+- Approved calculations persist immutable exact segments/components, not derived
+  rounded lines or totals. Drafts calculate from the effective rate book.
 - Staff Hours reports paid time. Detailed CSV and Xero conserve every positive
   earnings component exactly once.
-- Missing/stale authoritative source data fails closed at approval/final output.
-  Award document/category drift creates a notification signal, not an automatic
+- Missing/stale authoritative source data fails closed at approval/final output
+  for Award entries; imported overrides bypass FWC/DataVic freshness. Award
+  document/category drift creates a notification signal, not an automatic
   mandatory-review gate.
-- Overtime remains outside the immediate contract until #240 is explicitly
-  authorized.
+- Future overtime work remains outside this epic and introduces no product
+  calculation branch here.
 
 ## Integration points
 
@@ -81,5 +93,5 @@ file does not duplicate ticket status.
   #239 without rewriting migration history.
 - CSV/Xero conservation, source freshness, migrations, property coverage,
   performance structure and critical workflows pass the full verification gate.
-- Remaining future behavior is limited to separately authorized work such as
-  overtime #240, and durable implemented facts have moved into living docs.
+- Remaining future behavior is limited to separately authorized work outside
+  this epic, and durable implemented facts have moved into living docs.
