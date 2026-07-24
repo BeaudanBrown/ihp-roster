@@ -112,6 +112,7 @@ test.describe('Install Bepis', () => {
         }
 
         await expect(page.locator('meta[name="theme-color"]')).toHaveAttribute('content', '#0d1119');
+        await expect(page.locator('meta[name="mobile-web-app-capable"]')).toHaveAttribute('content', 'yes');
         await expect(page.locator('meta[name="apple-mobile-web-app-capable"]')).toHaveAttribute('content', 'yes');
         await expect(page.locator('meta[name="apple-mobile-web-app-title"]')).toHaveAttribute('content', 'Bepis');
         const appleTouchIcon = page.locator('link[rel="apple-touch-icon"][sizes="180x180"]');

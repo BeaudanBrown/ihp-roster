@@ -341,6 +341,7 @@ isPublicLegalPage =
 appInstallMetadata :: Html
 appInstallMetadata = [hsx|
     <meta name="theme-color" content="#0d1119"/>
+    <meta name="mobile-web-app-capable" content="yes"/>
     <meta name="apple-mobile-web-app-capable" content="yes"/>
     <meta name="apple-mobile-web-app-title" content="Bepis"/>
     <link rel="manifest" href={assetPath "/manifest.json"}/>

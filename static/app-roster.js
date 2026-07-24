@@ -1275,6 +1275,7 @@
       for (const mount of surfaceMountsWithin(root)) {
         for (const definition of definitionsForMount3(mount)) {
           const tabs = ownedSurfaceRoleElements(mount, mount, definition.tabRoleAttribute);
+          if (tabs.length === 0) continue;
           const tabsByKey = /* @__PURE__ */ new Map();
           let valid = true;
           for (const tab of tabs) {

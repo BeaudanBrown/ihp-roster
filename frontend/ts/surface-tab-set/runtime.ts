@@ -94,6 +94,7 @@ export function createSurfaceTabSetController(
         for (const mount of surfaceMountsWithin(root)) {
             for (const definition of definitionsForMount(mount)) {
                 const tabs = ownedRoleElements(mount, mount, definition.tabRoleAttribute);
+                if (tabs.length === 0) continue;
                 const tabsByKey = new Map<string, ElementLike[]>();
                 let valid = true;
                 for (const tab of tabs) {

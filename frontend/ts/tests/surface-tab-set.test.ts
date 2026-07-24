@@ -80,6 +80,21 @@ function mountWithTabs(): { mount: MiniElement; staff: MiniElement; settings: Mi
     return { mount, staff, settings };
 }
 
+test("surface tab sets ignore a mount while none of its declared tabs are rendered", () => {
+    const mount = new MiniElement({ [surfaceDomAttr]: "roster" });
+    const diagnostics: SurfaceTabSetDiagnostic[] = [];
+    const shown: string[] = [];
+    const controller = createSurfaceTabSetController(
+        (element) => shown.push((element as unknown as MiniElement).id),
+        (diagnostic) => diagnostics.push(diagnostic),
+    );
+
+    controller.reconcile(mount as unknown as Element);
+
+    assertDeepEqual(shown, []);
+    assertDeepEqual(diagnostics, []);
+});
+
 test("surface tab sets restore remembered generated keys within one mount", () => {
     const first = mountWithTabs();
     const duplicate = mountWithTabs();

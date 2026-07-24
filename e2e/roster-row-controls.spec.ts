@@ -1,4 +1,5 @@
 import { test, expect, type Page } from '@playwright/test';
+import { rosterStaffPanelTabDomAttr } from '../frontend/ts/generated/contracts';
 import {
     addRowToRosterDay,
     editableRosterRows,
@@ -19,6 +20,13 @@ async function loginAndOpenRoster(page: Page) {
 
 test.describe('Roster row controls', () => {
     test('hosts typed roster settings in the staff panel second tab', async ({ page }) => {
+        const tabSetBoundaryErrors: string[] = [];
+        page.on('console', (message) => {
+            if (message.type() === 'error' && message.text().includes('Invalid generated Surface tab-set boundary')) {
+                tabSetBoundaryErrors.push(message.text());
+            }
+        });
+
         await loginAndOpenRoster(page);
 
         const toolbar = page.locator('[data-week-toolbar="roster"]');
@@ -28,6 +36,9 @@ test.describe('Roster row controls', () => {
         const settingsTab = page.getByRole('tab', { name: 'Settings', exact: true });
         await expect(staffTab).toHaveAttribute('aria-selected', 'true');
         await expect(settingsTab).toHaveAttribute('aria-selected', 'false');
+        await expect(staffTab).toHaveAttribute(rosterStaffPanelTabDomAttr, 'staff');
+        await expect(settingsTab).toHaveAttribute(rosterStaffPanelTabDomAttr, 'settings');
+        expect(await staffTab.evaluate((element) => element.closest('[data-bepis-surface]')?.getAttribute('data-bepis-surface'))).toBe('roster');
 
         await staffTab.focus();
         await page.keyboard.press('ArrowRight');
@@ -56,6 +67,7 @@ test.describe('Roster row controls', () => {
         await fragmentResponse;
         await expect(page.getByRole('tab', { name: 'Settings', exact: true })).toHaveAttribute('aria-selected', 'true');
         await expect(page.locator('#roster-staff-panel-settings-pane')).toBeVisible();
+        expect(tabSetBoundaryErrors).toEqual([]);
     });
 
     test('labels the single time column as start in day-row mode', async ({ page }) => {
