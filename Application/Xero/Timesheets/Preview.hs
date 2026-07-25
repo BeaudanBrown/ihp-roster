@@ -652,9 +652,9 @@ periodDays :: Day -> Day -> [Day]
 periodDays start end =
     [addDays offset start | offset <- [0 .. diffDays end start]]
 
-minutesToUnits :: Int -> Scientific.Scientific
+minutesToUnits :: Scientific.Scientific -> Scientific.Scientific
 minutesToUnits minutes =
-    fromIntegral minutes / 60
+    minutes / 60
 
 maybeToEither :: Text -> Maybe value -> Either Text value
 maybeToEither message =

@@ -19,6 +19,7 @@ import qualified Data.ByteString.Base64 as Base64
 import qualified Data.ByteString.Lazy as LBS
 import qualified Data.List as List
 import qualified Data.Map.Strict as Map
+import qualified Data.Scientific as Scientific
 import qualified Data.Text as Text
 import Data.Text.Encoding (decodeUtf8, encodeUtf8)
 import Data.Time.Calendar (Day, addDays)
@@ -178,8 +179,8 @@ addDayHours dayIndex hours existingDayHours =
     | (index, currentHours) <- zip [0 ..] existingDayHours
     ]
 
-paidMinutesToHours :: Int -> Double
-paidMinutesToHours paidMinutes = fromIntegral paidMinutes / 60
+paidMinutesToHours :: Scientific.Scientific -> Double
+paidMinutesToHours paidMinutes = Scientific.toRealFloat paidMinutes / 60
 
 formatStaffPayHours :: Double -> Text
 formatStaffPayHours value = Text.pack (printf "%.2f" value :: String)

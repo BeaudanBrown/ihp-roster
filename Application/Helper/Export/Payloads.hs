@@ -11,6 +11,7 @@ import Application.Helper.Staff (isTrialStaff)
 import Data.Coerce (coerce)
 import qualified Data.List as List
 import qualified Data.Map.Strict as Map
+import Data.Scientific (Scientific)
 import qualified Data.Text as Text
 import Data.Time.Calendar (Day)
 import Generated.Types
@@ -118,7 +119,7 @@ data PayrollEarningsAggregation = PayrollEarningsAggregation
     , aggregationWorkDate            :: !Day
     , aggregationEarningsRateName    :: !Text
     , aggregationTrackingCode        :: !(Maybe Text)
-    , aggregationMinutes             :: !Int
+    , aggregationMinutes             :: !Scientific
     , aggregationStaffId             :: !UUID
     , aggregationTimesheetEntryIds   :: ![UUID]
     , aggregationVersionManifests    :: ![Text]

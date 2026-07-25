@@ -263,12 +263,10 @@ AS $$
         SELECT
             te.*,
             (te.starts_at AT TIME ZONE te.timezone)::DATE AS worked_on,
-            COALESCE(FLOOR(EXTRACT(EPOCH FROM (te.break_ends_at - te.break_starts_at)) / 60)::INT, 0) AS break_minutes,
+            COALESCE(EXTRACT(EPOCH FROM (te.break_ends_at - te.break_starts_at)) / 60, 0) AS break_minutes,
             GREATEST(
-                FLOOR(
-                    EXTRACT(EPOCH FROM (te.ends_at - te.starts_at)) / 60
-                    - COALESCE(EXTRACT(EPOCH FROM (te.break_ends_at - te.break_starts_at)) / 60, 0)
-                )::INT,
+                EXTRACT(EPOCH FROM (te.ends_at - te.starts_at)) / 60
+                - COALESCE(EXTRACT(EPOCH FROM (te.break_ends_at - te.break_starts_at)) / 60, 0),
                 0
             ) AS authoritative_paid_minutes,
             spv.default_award_level_id AS version_staff_award_level_id,
@@ -520,13 +518,13 @@ AS $$
             sw.segment_date,
             sw.sort_index,
             GREATEST(
-                FLOOR(EXTRACT(EPOCH FROM (LEAST(pw.ends_at, sw.window_ends_at) - GREATEST(pw.starts_at, sw.window_starts_at))) / 60)::INT,
+                EXTRACT(EPOCH FROM (LEAST(pw.ends_at, sw.window_ends_at) - GREATEST(pw.starts_at, sw.window_starts_at))) / 60,
                 0
             ) AS worked_segment_minutes,
             CASE
                 WHEN pw.break_starts_at IS NOT NULL AND pw.break_ends_at IS NOT NULL THEN
                     GREATEST(
-                        FLOOR(EXTRACT(EPOCH FROM (LEAST(pw.break_ends_at, pw.ends_at, sw.window_ends_at) - GREATEST(pw.break_starts_at, pw.starts_at, sw.window_starts_at))) / 60)::INT,
+                        EXTRACT(EPOCH FROM (LEAST(pw.break_ends_at, pw.ends_at, sw.window_ends_at) - GREATEST(pw.break_starts_at, pw.starts_at, sw.window_starts_at))) / 60,
                         0
                     )
                 ELSE 0
@@ -534,7 +532,7 @@ AS $$
             CASE
                 WHEN pw.delayed_meal_break_starts_at IS NOT NULL AND pw.delayed_meal_break_ends_at IS NOT NULL THEN
                     GREATEST(
-                        FLOOR(EXTRACT(EPOCH FROM (LEAST(pw.delayed_meal_break_ends_at, pw.ends_at, sw.window_ends_at) - GREATEST(pw.delayed_meal_break_starts_at, pw.starts_at, sw.window_starts_at))) / 60)::INT,
+                        EXTRACT(EPOCH FROM (LEAST(pw.delayed_meal_break_ends_at, pw.ends_at, sw.window_ends_at) - GREATEST(pw.delayed_meal_break_starts_at, pw.starts_at, sw.window_starts_at))) / 60,
                         0
                     )
                 ELSE 0
@@ -546,7 +544,7 @@ AS $$
                     AND pw.delayed_meal_break_ends_at IS NOT NULL
                 THEN
                     GREATEST(
-                        FLOOR(EXTRACT(EPOCH FROM (LEAST(pw.break_ends_at, pw.delayed_meal_break_ends_at, pw.ends_at, sw.window_ends_at) - GREATEST(pw.break_starts_at, pw.delayed_meal_break_starts_at, pw.starts_at, sw.window_starts_at))) / 60)::INT,
+                        EXTRACT(EPOCH FROM (LEAST(pw.break_ends_at, pw.delayed_meal_break_ends_at, pw.ends_at, sw.window_ends_at) - GREATEST(pw.break_starts_at, pw.delayed_meal_break_starts_at, pw.starts_at, sw.window_starts_at))) / 60,
                         0
                     )
                 ELSE 0
@@ -876,7 +874,7 @@ AS $$
             COALESCE(
                 SUM(sr.segment_minutes) FILTER (WHERE sr.segment_minutes > 0),
                 0
-            )::INT AS paid_minutes,
+            ) AS paid_minutes,
             COALESCE(
                 SUM(ROUND(((sr.segment_minutes::NUMERIC / 60.0) * sr.segment_hourly_rate), 2))
                     FILTER (WHERE sr.segment_minutes > 0),

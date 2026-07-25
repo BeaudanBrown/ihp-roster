@@ -242,7 +242,7 @@ lands.
 
 ## Conflict And Availability Rules
 
-- Late-to-early conflict uses start-to-start gap.
+- Late-to-early conflict uses the exact authoritative instant start-to-start gap; it does not truncate timestamps to minutes.
 - The threshold is venue-level configuration.
 - Staff shift preferences are recurring weekday availability windows; the current schema enforces one active row per staff member and weekday, and conflict evaluation treats multiple supplied same-day windows as matching when any window contains the rostered start time.
 - Leave/unavailability conflicts affect roster availability according to the

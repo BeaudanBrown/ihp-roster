@@ -37,6 +37,9 @@ minimum-payment, and ledger rules before cutover.
   compatibility but exclusively means MA000009 part-time. Customer-facing copy
   says “Part-time”; full-time employment is not represented by that value.
 - Break is deducted from shift duration before applying rate rules.
+- The temporary SQL payload retains decimal `minutes` values from exact
+  timestamp differences; the legacy field name is compatibility-only and must
+  not imply whole-minute truncation before final output transforms.
 
 ## Day/window model
 

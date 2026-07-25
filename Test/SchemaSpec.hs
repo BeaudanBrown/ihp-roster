@@ -375,6 +375,8 @@ tests = describe "Schema" do
         migrationSqlText `shouldSatisfy` Text.isInfixOf "CREATE INDEX idx_timesheet_entries_venue_starts_at"
         migrationSqlText `shouldSatisfy` Text.isInfixOf "(te.starts_at AT TIME ZONE te.timezone)::DATE AS worked_on"
         migrationSqlText `shouldSatisfy` Text.isInfixOf "EXTRACT(EPOCH FROM (te.ends_at - te.starts_at))"
+        migrationSqlText `shouldNotSatisfy` Text.isInfixOf "FLOOR(EXTRACT(EPOCH FROM (te.ends_at - te.starts_at)) / 60)::INT"
+        migrationSqlText `shouldNotSatisfy` Text.isInfixOf ")::INT AS paid_minutes"
         let (_, fromValidation) = Text.breakOn "authoritative timesheet boundary backfill failed validation" migrationSqlText
         let (_, fromLegacyDrop) = Text.breakOn "DROP COLUMN worked_on" migrationSqlText
         Text.length fromValidation `shouldSatisfy` (> Text.length fromLegacyDrop)

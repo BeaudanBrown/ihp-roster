@@ -14,8 +14,9 @@ import qualified Data.Map.Strict as Map
 import Data.Scientific (Scientific)
 import qualified Data.Text as Text
 import Data.Time.Calendar (Day, fromGregorian)
-import Data.Time.Clock (UTCTime (..), secondsToDiffTime)
+import Data.Time.Clock (UTCTime (..), addUTCTime, secondsToDiffTime)
 import Data.Time.LocalTime (LocalTime (..), TimeOfDay (..))
+import qualified Database.PostgreSQL.Simple as PG
 import Generated.Types
 import IHP.ControllerPrelude
 import IHP.FrameworkConfig
@@ -136,6 +137,40 @@ tests = do
 
                     result.totals.paidMinutes `shouldBe` 60
                     sum (map (.minutes) result.segments) `shouldBe` 60
+
+            it "preserves fractional elapsed minutes in the canonical SQL calculation" $ withContext do
+                withCleanDb do
+                    (venue, staff, shiftType, _) <- createPayFixture "Exact elapsed seconds"
+                    baseEntry <- createEntry venue staff shiftType (fromGregorian 2025 1 10) (TimeOfDay 9 0 0) (TimeOfDay 10 0 0)
+                    entry <- baseEntry
+                        |> set #endsAt (addUTCTime 30 baseEntry.endsAt)
+                        |> updateRecord
+
+                    paidMinutes :: Scientific <- sqlQueryScalar
+                        "SELECT (calculate_timesheet_pay(?) -> 'totals' ->> 'paidMinutes')::NUMERIC"
+                        (PG.Only (unpackId entry.id))
+
+                    paidMinutes `shouldBe` 60.5
+                    result <- expectPayResult entry
+                    result.totals.paidMinutes `shouldBe` 60.5
+                    fmap (.minutes) result.segments `shouldBe` [60.5]
+
+                    boundaryEntry <- createEntry venue staff shiftType (fromGregorian 2025 1 10) (TimeOfDay 18 59 30) (TimeOfDay 19 0 30)
+                    boundaryResult <- expectPayResult boundaryEntry
+
+                    boundaryResult.totals.paidMinutes `shouldBe` 1
+                    fmap (.minutes) boundaryResult.segments `shouldBe` [0.5, 0.5]
+
+                    breakBaseEntry <- createEntry venue staff shiftType (fromGregorian 2025 1 10) (TimeOfDay 9 0 0) (TimeOfDay 10 0 30)
+                    let breakStartsAt = addUTCTime (30 * 60) breakBaseEntry.startsAt
+                    breakEntry <- breakBaseEntry
+                        |> set #breakStartsAt (Just breakStartsAt)
+                        |> set #breakEndsAt (Just (addUTCTime 15 breakStartsAt))
+                        |> updateRecord
+                    breakResult <- expectPayResult breakEntry
+
+                    breakResult.totals.paidMinutes `shouldBe` 60.25
+                    fmap (.minutes) breakResult.segments `shouldBe` [60.25]
 
             it "rolls a mid-week FWC base rate increase to the next venue week boundary" $ withContext do
                 withCleanDb do

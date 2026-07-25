@@ -43,7 +43,9 @@ latestVenueEffectiveRate weekStartsOn referenceDate =
 data PaySegment = PaySegment
     { segment           :: !Text
     , segmentDate       :: !(Maybe Day)
-    , minutes           :: !Int
+    -- Decimal minutes retain exact timestamp-derived elapsed time; the legacy
+    -- field name remains part of the SQL payload contract.
+    , minutes           :: !Scientific.Scientific
     , shiftTypeId       :: !(Maybe UUID)
     , shiftTypeName     :: !(Maybe Text)
     , payLevelId        :: !(Maybe UUID)
@@ -75,7 +77,9 @@ instance Aeson.FromJSON PaySegment where
             <*> obj .: "amount"
 
 data PayTotals = PayTotals
-    { paidMinutes :: !Int
+    { -- Decimal minutes retain exact timestamp-derived elapsed time; the legacy
+      -- field name remains part of the SQL payload contract.
+      paidMinutes :: !Scientific.Scientific
     , totalAmount :: !Scientific.Scientific
     }
     deriving (Eq, Show)
@@ -113,7 +117,7 @@ instance Aeson.FromJSON TimesheetPayResult where
             <*> obj .: "totals"
 
 data TimesheetPaySummary = TimesheetPaySummary
-    { paidMinutes          :: !Int
+    { paidMinutes          :: !Scientific.Scientific
     , totalAmount          :: !Scientific.Scientific
     , segmentCount         :: !Int
     , weekendApplied       :: !Bool

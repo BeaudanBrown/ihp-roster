@@ -146,6 +146,26 @@ tests = aroundAll withDatabaseTestContext do
                         lookup lateSlot.id conflicts `shouldSatisfy` hasConflictType LateToEarlyConflict
                         lookup preferenceSlot.id conflicts `shouldSatisfy` hasConflictType ShiftPreferenceSlotMismatch
 
+        it "evaluates late-to-early gaps from exact start instants" $ withContext do
+            withCleanDb do
+                fixture <- createDirectReadModelFixture
+
+                withUserAndCurrentVenue fixture.manager fixture.venue.id do
+                    withCurrentControllerContext do
+                        initialData <- fromJust <$> fetchVisibleRosterReadModel fixture.rosterGroup.id 0
+                        rosterDay <- fetch (Id fixture.visibleSparseSlot.rosterDayId) :: IO RosterDay
+                        firstSlot <- createRosterSlotRecord rosterDay fixture.earlySlotName (Just fixture.eligibleStaff) 9
+                            >>= updateRecord
+                                . setTestRosterSlotBoundaries initialData.weekStartDate (TimeOfDay 9 0 30) (TimeOfDay 9 30 30)
+                        secondSlot <- createRosterSlotRecord rosterDay fixture.earlySlotName (Just fixture.eligibleStaff) 10
+                            >>= updateRecord
+                                . setTestRosterSlotBoundaries initialData.weekStartDate (TimeOfDay 10 0 0) (TimeOfDay 10 30 0)
+
+                        conflicts <- buildSlotConflictsForSlotsDirect fixture.rosterGroup.id 60 initialData.weekStartDate [firstSlot, secondSlot] [firstSlot, secondSlot]
+
+                        lookup firstSlot.id conflicts `shouldSatisfy` hasConflictType LateToEarlyConflict
+                        lookup secondSlot.id conflicts `shouldSatisfy` hasConflictType LateToEarlyConflict
+
 addDirectReadModelConflictFacts :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => DirectReadModelFixture -> IO (RosterSlot, RosterSlot, RosterSlot)
 addDirectReadModelConflictFacts fixture = do
     initialData <- fromJust <$> fetchVisibleRosterReadModel fixture.rosterGroup.id 0

@@ -168,6 +168,7 @@ the new contract.
 | `uses the staff default award level for ordinary weekday hours` | Compliance precursor | `HIGA-POLICY-AWARD-LEVEL`, `HIGA-29.2-WEEKDAY-ORDINARY`. |
 | `uses elapsed instants for pay across the repeated autumn hour` | Compliance precursor | `HIGA-POLICY-MELBOURNE-ELAPSED`; the repeated hour contributes exact elapsed paid time. |
 | `uses elapsed instants for pay across the skipped spring hour` | Compliance precursor | `HIGA-POLICY-MELBOURNE-ELAPSED`; the nonexistent hour contributes no elapsed paid time. |
+| `preserves fractional elapsed minutes in the canonical SQL calculation` | Compliance precursor | `HIGA-POLICY-MELBOURNE-ELAPSED`; temporary SQL payloads retain exact timestamp-derived decimal minutes across Award-window splits. |
 | `rolls a mid-week FWC base rate increase to the next venue week boundary` | Policy precursor | `HIGA-POLICY-WEEK-ROLLOVER`. |
 | `does not re-rate an approved entry when a newer FWC row is imported later` | Policy precursor | `HIGA-POLICY-APPROVED-IMMUTABLE`; target ledger replaces created-at SQL anchoring. |
 | `splits evening and after-midnight weekday penalties` | **Non-compliance characterization** | Boundaries map to `HIGA-29.2-EVENING-PART-HOUR` and `HIGA-29.2-EARLY-PART-HOUR`, but current combined hourly amounts must become fixed commenced-hour components in [#231][i231]. |

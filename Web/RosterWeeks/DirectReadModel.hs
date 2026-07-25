@@ -268,11 +268,11 @@ buildSlotConflictsForSlotsDirect _rosterGroupId lateToEarlyMinStartGapMinutes we
     | otherwise = do
         rows <- (sqlQuery
             "WITH params AS ( \
-            \    SELECT ?::date AS week_start, ?::uuid AS venue_id, ?::int AS late_gap_minutes \
+            \    SELECT ?::date AS week_start, ?::uuid AS venue_id, ?::int AS late_gap_seconds \
             \), assigned_slots AS ( \
             \    SELECT roster_slots.*, roster_days.day_offset, COALESCE((roster_slots.starts_at AT TIME ZONE roster_slots.timezone)::date, params.week_start + roster_days.day_offset) AS roster_date, \
             \           EXTRACT(DOW FROM COALESCE((roster_slots.starts_at AT TIME ZONE roster_slots.timezone)::date, params.week_start + roster_days.day_offset))::int AS weekday_index, \
-            \           FLOOR(EXTRACT(EPOCH FROM roster_slots.starts_at) / 60)::bigint AS start_minute_of_week \
+            \           EXTRACT(EPOCH FROM roster_slots.starts_at) AS start_second_of_week \
             \    FROM roster_slots \
             \    JOIN roster_days ON roster_days.id = roster_slots.roster_day_id \
             \    CROSS JOIN params \
@@ -282,8 +282,8 @@ buildSlotConflictsForSlotsDirect _rosterGroupId lateToEarlyMinStartGapMinutes we
             \), day_counts AS ( \
             \    SELECT roster_day_id, staff_id, COUNT(*)::int AS day_count FROM assigned_slots GROUP BY roster_day_id, staff_id \
             \), timeline AS ( \
-            \    SELECT id, start_minute_of_week - LAG(start_minute_of_week) OVER (PARTITION BY staff_id ORDER BY start_minute_of_week, id) AS previous_gap, \
-            \           LEAD(start_minute_of_week) OVER (PARTITION BY staff_id ORDER BY start_minute_of_week, id) - start_minute_of_week AS next_gap \
+            \    SELECT id, start_second_of_week - LAG(start_second_of_week) OVER (PARTITION BY staff_id ORDER BY start_second_of_week, id) AS previous_gap, \
+            \           LEAD(start_second_of_week) OVER (PARTITION BY staff_id ORDER BY start_second_of_week, id) - start_second_of_week AS next_gap \
             \    FROM assigned_slots WHERE starts_at IS NOT NULL \
             \), facts AS ( \
             \    SELECT assigned_slots.id, 'duplicate_assignment'::text AS conflict_type, 1 AS priority \
@@ -300,7 +300,7 @@ buildSlotConflictsForSlotsDirect _rosterGroupId lateToEarlyMinStartGapMinutes we
             \    UNION ALL \
             \    SELECT assigned_slots.id, 'late_to_early'::text, 3 \
             \    FROM assigned_slots JOIN timeline ON timeline.id = assigned_slots.id CROSS JOIN params \
-            \    WHERE params.late_gap_minutes > 0 AND (COALESCE(timeline.previous_gap, params.late_gap_minutes) < params.late_gap_minutes OR COALESCE(timeline.next_gap, params.late_gap_minutes) < params.late_gap_minutes) \
+            \    WHERE params.late_gap_seconds > 0 AND (COALESCE(timeline.previous_gap, params.late_gap_seconds) < params.late_gap_seconds OR COALESCE(timeline.next_gap, params.late_gap_seconds) < params.late_gap_seconds) \
             \    UNION ALL \
             \    SELECT assigned_slots.id, 'preference_day_unavailable'::text, 4 \
             \    FROM assigned_slots CROSS JOIN params \
@@ -335,7 +335,7 @@ buildSlotConflictsForSlotsDirect _rosterGroupId lateToEarlyMinStartGapMinutes we
             \SELECT id, conflict_type FROM facts WHERE id = ANY(?) ORDER BY id, priority"
             ( weekStartDate
             , unpackId currentVenueId
-            , lateToEarlyMinStartGapMinutes
+            , lateToEarlyMinStartGapMinutes * 60
             , assignedSlotIds
             , targetSlotIds
             ) :: IO [(UUID.UUID, Text)])
