@@ -11,10 +11,11 @@ import Application.Helper.FrontendContract.Surface.Runtime (FrontendSurfaceInter
                                                             renderFrontendSurfaceInteractionShell,
                                                             renderFrontendSurfaceMount)
 import Application.Helper.Profiling (profileHtmlComponent)
-import Application.Helper.TimeRules (normalizeWindowEndMinute,
-                                     shiftDurationMinutes)
-import Application.VenueTime.Model (rosterSlotEndTime, rosterSlotStartTime)
+import Application.Helper.TimeRules (normalizeWindowEndMinute)
+import Application.VenueTime.Model (rosterSlotElapsedSeconds, rosterSlotEndTime,
+                                    rosterSlotStartTime)
 import Control.Monad (guard)
+import Data.Fixed (Pico)
 import Data.List (sortOn)
 import qualified Data.Map.Strict as Map
 import Data.Maybe (fromMaybe, mapMaybe)
@@ -84,8 +85,8 @@ renderRosterDayTimelineMounted RosterRenderData { rosterWeek, currentRosterGroup
 
 data TimelineShift = TimelineShift
     { timelineShiftSlot     :: !RosterSlot
-    , timelineShiftStartMin :: !Int
-    , timelineShiftEndMin   :: !Int
+    , timelineShiftStartMin :: !Double
+    , timelineShiftEndMin   :: !Double
     , timelineShiftTrack    :: !Int
     }
 
@@ -184,13 +185,15 @@ renderTimelineShift timelineWindow editable staffById shiftTypeById TimelineShif
         shiftTypeLabel = maybe "Shift" (.name) (timelineShiftSlot.shiftTypeId >>= (`Map.lookup` shiftTypeById))
         groupKey = "existing:" <> tshow timelineShiftSlot.id
         card = [hsx|
-            <article class={classes [("roster-day-timeline-shift", True), ("roster-shift-launcher", editable)]}
-                     style={timelineShiftStyle timelineWindow timelineShiftStartMin timelineShiftEndMin timelineShiftTrack}
-                     tabindex={if editable then ("0" :: Text) else ""}>
-                <div class="roster-day-timeline-shift-time">{minuteLabel timelineShiftStartMin}–{minuteLabel timelineShiftEndMin}</div>
-                <div class="roster-day-timeline-shift-staff">{staffLabel}</div>
-                <div class="roster-day-timeline-shift-role">{shiftTypeLabel}</div>
-            </article>
+            <div class="roster-day-timeline-shift-position"
+                 style={timelineShiftStyle timelineWindow timelineShiftStartMin timelineShiftEndMin timelineShiftTrack}>
+                <article class={classes [("roster-day-timeline-shift", True), ("roster-shift-launcher", editable)]}
+                         tabindex={if editable then ("0" :: Text) else ""}>
+                    <div class="roster-day-timeline-shift-time">{timelineShiftTimeLabel timelineShiftSlot}</div>
+                    <div class="roster-day-timeline-shift-staff">{staffLabel}</div>
+                    <div class="roster-day-timeline-shift-role">{shiftTypeLabel}</div>
+                </article>
+            </div>
         |]
      in if editable
             then SurfaceInteraction.withFrontendSurfaceSourceRef rosterDayTimelineSourceRef groupKey $
@@ -202,20 +205,27 @@ staffTimelineLabel :: Staff -> Text
 staffTimelineLabel staff =
     fromMaybe (staff.firstName <> " " <> staff.lastName) staff.preferredName
 
-normalizeTimelineMinute :: TimelineWindow -> TimeOfDay -> Int
-normalizeTimelineMinute TimelineWindow { timelineWindowStartMinute } tod =
-    let minute = todHour tod * 60 + todMin tod
-     in if minute < timelineWindowStartMinute then minute + 24 * 60 else minute
+normalizeTimelineMinute :: TimelineWindow -> TimeOfDay -> Double
+normalizeTimelineMinute TimelineWindow { timelineWindowStartMinute } TimeOfDay { todHour, todMin, todSec } =
+    let minute = fromIntegral (todHour * 60 + todMin) + realToFrac (todSec :: Pico) / 60
+     in if minute < fromIntegral timelineWindowStartMinute then minute + 24 * 60 else minute
 
 timelineShiftFromSlot :: TimelineWindow -> RosterSlot -> Maybe TimelineShift
 timelineShiftFromSlot timelineWindow slot = do
     start <- rosterSlotStartTime slot
-    end <- rosterSlotEndTime slot
-    let startMin = normalizeTimelineMinute timelineWindow start
-        endMin = startMin + shiftDurationMinutes start end
-        duration = shiftDurationMinutes start end
+    duration <- rosterSlotElapsedSeconds slot
     guard (duration > 0)
+    let startMin = normalizeTimelineMinute timelineWindow start
+        endMin = startMin + realToFrac duration / 60
     pure TimelineShift { timelineShiftSlot = slot, timelineShiftStartMin = startMin, timelineShiftEndMin = endMin, timelineShiftTrack = 0 }
+
+timelineShiftTimeLabel :: RosterSlot -> Text
+timelineShiftTimeLabel slot =
+    case (rosterSlotStartTime slot, rosterSlotEndTime slot) of
+        (Just start, Just end) -> timeLabel start <> "–" <> timeLabel end
+        _                      -> "Invalid time"
+  where
+    timeLabel = Text.pack . formatTime defaultTimeLocale "%H:%M"
 
 assignTimelineTracks :: [TimelineShift] -> [TimelineShift]
 assignTimelineTracks shifts = reverse (snd (foldl assign ([], []) (sortOn timelineShiftStartMin shifts)))
@@ -224,7 +234,7 @@ assignTimelineTracks shifts = reverse (snd (foldl assign ([], []) (sortOn timeli
         let (trackIndex, updatedTrackEnds) = placeInTrack 0 trackEnds shift.timelineShiftStartMin shift.timelineShiftEndMin
          in (updatedTrackEnds, shift { timelineShiftTrack = trackIndex } : placed)
 
-placeInTrack :: Int -> [Int] -> Int -> Int -> (Int, [Int])
+placeInTrack :: Int -> [Double] -> Double -> Double -> (Int, [Double])
 placeInTrack trackIndex [] _startMin endMin = (trackIndex, [endMin])
 placeInTrack trackIndex (trackEnd:rest) startMin endMin
     | trackEnd <= startMin = (trackIndex, endMin : rest)
@@ -247,28 +257,33 @@ timelineHourTicks TimelineWindow { timelineWindowStartMinute, timelineWindowEndM
     [timelineWindowStartMinute, timelineWindowStartMinute + 60 .. timelineWindowEndMinute]
 
 timelineLeftStyle :: TimelineWindow -> Int -> Text
-timelineLeftStyle timelineWindow minute = "left:" <> timelinePercent timelineWindow (minute - timelineWindow.timelineWindowStartMinute) <> "%;"
+timelineLeftStyle timelineWindow minute =
+    "left:" <> timelinePercent timelineWindow (fromIntegral (minute - timelineWindow.timelineWindowStartMinute)) <> "%;"
 
 timelineDropzoneStyle :: TimelineWindow -> Int -> Text
 timelineDropzoneStyle timelineWindow minute
-    | minute == timelineWindow.timelineWindowEndMinute = "left:" <> timelinePercent timelineWindow (minute - timelineWindow.timelineWindowStartMinute) <> "%;right:0;"
-    | otherwise = "left:" <> timelinePercent timelineWindow (minute - timelineWindow.timelineWindowStartMinute) <> "%;width:" <> timelinePercent timelineWindow 15 <> "%;"
+    | minute == timelineWindow.timelineWindowEndMinute = "left:" <> timelinePercent timelineWindow minuteOffset <> "%;right:0;"
+    | otherwise = "left:" <> timelinePercent timelineWindow minuteOffset <> "%;width:" <> timelinePercent timelineWindow 15 <> "%;"
+  where
+    minuteOffset = fromIntegral (minute - timelineWindow.timelineWindowStartMinute)
 
-timelineShiftStyle :: TimelineWindow -> Int -> Int -> Int -> Text
+timelineShiftStyle :: TimelineWindow -> Double -> Double -> Int -> Text
 timelineShiftStyle timelineWindow startMin endMin track =
-    let clampedStart = max timelineWindow.timelineWindowStartMinute (min timelineWindow.timelineWindowEndMinute startMin)
-        clampedEnd = max (clampedStart + 15) (min (timelineWindow.timelineWindowEndMinute + 15) endMin)
+    let windowStart = fromIntegral timelineWindow.timelineWindowStartMinute
+        windowEnd = fromIntegral timelineWindow.timelineWindowEndMinute
+        clampedStart = max windowStart (min windowEnd startMin)
+        clampedEnd = max clampedStart (min (windowEnd + 15) endMin)
      in "left:"
-            <> timelinePercent timelineWindow (clampedStart - timelineWindow.timelineWindowStartMinute)
+            <> timelinePercent timelineWindow (clampedStart - windowStart)
             <> "%;width:"
-            <> timelinePercent timelineWindow (max 15 (clampedEnd - clampedStart))
+            <> timelinePercent timelineWindow (clampedEnd - clampedStart)
             <> "%;--roster-timeline-track:"
             <> tshow track
             <> ";"
 
-timelinePercent :: TimelineWindow -> Int -> Text
+timelinePercent :: TimelineWindow -> Double -> Text
 timelinePercent TimelineWindow { timelineWindowTotalMinutes } minutes =
-    tshow ((fromIntegral minutes :: Double) * 100 / fromIntegral timelineWindowTotalMinutes)
+    tshow (minutes * 100 / fromIntegral timelineWindowTotalMinutes)
 
 minuteLabel :: Int -> Text
 minuteLabel minute =

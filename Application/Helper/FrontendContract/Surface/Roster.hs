@@ -137,7 +137,6 @@ module Application.Helper.FrontendContract.Surface.Roster
     , ShiftGroupHighlightMemberRole
     , MoveRosterTimelineShift
     , TimelineStartOccurrence
-    , TimelineEndOccurrence
     , DuplicateRosterShiftToDay
     , DropRosterStaff
     , NavigateRosterWeek
@@ -203,7 +202,6 @@ data CopyStartOccurrence
 data CopyEndOccurrence
 data MoveRosterTimelineShift
 data TimelineStartOccurrence
-data TimelineEndOccurrence
 data DuplicateRosterShiftToDay
 data DropRosterStaff
 
@@ -756,7 +754,6 @@ type RosterDayTimelineInteractionBundle =
         MoveRosterTimelineShift
         RosterDayTimelineContent
         '[ OptionalField TimelineStartOccurrence 'WireText
-         , OptionalField TimelineEndOccurrence 'WireText
          ]
 
 type RosterDayTimelineLinkedHighlightBundle =

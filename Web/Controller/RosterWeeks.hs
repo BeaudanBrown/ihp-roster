@@ -27,11 +27,14 @@ import Application.Helper.FrontendContract.Surface.Values
 import Application.Helper.Profiling
 import Application.Helper.RosterGroups
 import Application.Helper.SurfaceResource (LiveMutationResult (..))
-import Application.Helper.TimeRules (defaultShiftTimesForVenueConfig,
+import Application.Helper.TimeRules (authoritativeRosterIntervalIsOperationallyValid,
+                                     defaultShiftTimesForVenueConfig,
                                      isQuarterHourMinutes,
+                                     isValidRosterShiftTimePair,
                                      minuteOfDayToTimeOfDay,
-                                     rosterShiftStartDate, shiftDurationMinutes,
-                                     validRosterShiftDurationMinutes,
+                                     rosterOperationalFinalSelectableMinute,
+                                     rosterOperationalStartMinuteOfDay,
+                                     rosterShiftStartDate,
                                      venueTimePickerFinalSelectableTimeText,
                                      venueTimePickerStartTimeText)
 import Application.Helper.UserPreferences
@@ -723,38 +726,38 @@ instance Controller RosterWeeksController where
                 case result of
                     Left message -> respondWithMoveRosterShiftFailure rosterGroup.id weekOffset message
                     Right MoveRosterTimelineShiftIntent { timelineMoveIsNoOp = True } -> respondWithSilentRosterNoOp rosterGroup.id weekOffset
-                    Right MoveRosterTimelineShiftIntent { timelineSourceSlot, timelineSourceRosterDay, timelineTargetRosterDay, timelineTargetSlotDefinition, timelineTargetRowIndex, timelineTargetStartTime, timelineTargetEndTime } -> do
-                        let startOccurrenceValue = surfaceFieldValue @Surface.TimelineStartOccurrence fields
-                        let endOccurrenceValue = surfaceFieldValue @Surface.TimelineEndOccurrence fields
-                        case copyOccurrenceSelectionsFromValues startOccurrenceValue endOccurrenceValue of
+                    Right MoveRosterTimelineShiftIntent { timelineSourceSlot, timelineSourceRosterDay, timelineTargetRosterDay, timelineTargetSlotDefinition, timelineTargetRowIndex, timelineTargetStartTime } -> do
+                        let startOccurrenceValue = fromMaybe "" (surfaceFieldValue @Surface.TimelineStartOccurrence fields)
+                        case parseOccurrenceParam startOccurrenceValue of
                             Left message -> respondWithMoveRosterShiftFailure rosterGroup.id weekOffset message
-                            Right selections -> do
+                            Right startOccurrence -> do
                                 rosterWeek <- fetch (Id timelineTargetRosterDay.rosterWeekId :: Id RosterWeek)
                                 venueConfig <- fetchVenueConfig
                                 let targetRosterDate = Calendar.addDays (toInteger timelineTargetRosterDay.dayOffset) (venueWeekStartDate venueConfig rosterWeek.weekOffset)
                                 let targetShiftDate = rosterShiftStartDate targetRosterDate timelineTargetStartTime
-                                let intentForm = rosterTimelineMoveShiftIntentForm weekOffset rosterGroup.id timelineTargetRosterDay.dayOffset sourceToken targetToken Nothing Nothing
-                                let occurrenceFields = (surfaceFieldNameFrom @Surface.TimelineStartOccurrence fields, surfaceFieldNameFrom @Surface.TimelineEndOccurrence fields)
-                                let repeatedEndpoints = rosterTimelineTargetAmbiguousEndpoints targetRosterDate timelineTargetStartTime timelineTargetEndTime
-                                case resolveShiftBoundaries venueConfig.timezone ShiftBoundaryInput
-                                    { shiftBoundaryDate = targetShiftDate
-                                    , shiftBoundaryStartTime = timelineTargetStartTime
-                                    , shiftBoundaryStartOccurrence = selections.copyShiftStartOccurrence
-                                    , shiftBoundaryEndTime = timelineTargetEndTime
-                                    , shiftBoundaryEndOccurrence = selections.copyShiftEndOccurrence
-                                    , shiftBoundaryBreak = Nothing
-                                    } of
-                                    Left failure -> respondWithRosterSlotCopyBoundaryFailure rosterGroup.id weekOffset "move" intentForm occurrenceFields repeatedEndpoints selections failure
-                                    Right boundaries -> do
-                                        let updatedSlot = timelineSourceSlot
-                                                |> set #rosterDayId (unpackId timelineTargetRosterDay.id)
-                                                |> set #rosterWeekSlotDefinitionId (unpackId timelineTargetSlotDefinition.id)
-                                                |> set #slotSortOrder timelineTargetSlotDefinition.sortOrder
-                                                |> set #rowIndex timelineTargetRowIndex
-                                                |> applyRosterSlotBoundaries boundaries
-                                        mutationResult <- moveRosterSlotMutation rosterGroup.id rosterWeek timelineSourceRosterDay timelineTargetRosterDay timelineSourceSlot updatedSlot
-                                        let shouldWarnSourceTimesheetUnchanged = mutationResult.liveMutationValue.rosterSlotMutationShouldWarnSourceTimesheetUnchanged
-                                        respondToRosterTimelineSlotMove rosterGroup.id rosterWeek mutationResult shouldWarnSourceTimesheetUnchanged
+                                let intentForm = rosterTimelineMoveShiftIntentForm weekOffset rosterGroup.id timelineTargetRosterDay.dayOffset sourceToken targetToken Nothing
+                                let startOccurrenceField = surfaceFieldNameFrom @Surface.TimelineStartOccurrence fields
+                                let occurrenceFields = (startOccurrenceField, startOccurrenceField)
+                                let repeatedEndpoints = (civilBoundaryIsRepeated targetShiftDate timelineTargetStartTime, False)
+                                let selections = noShiftCopyOccurrenceSelections { copyShiftStartOccurrence = startOccurrence }
+                                case rosterSlotElapsedSeconds timelineSourceSlot of
+                                    Nothing -> respondWithMoveRosterShiftFailure rosterGroup.id weekOffset invalidRosterSlotTimingMessage
+                                    Just duration ->
+                                        case resolveRosterTimelineTargetBoundaries venueConfig.timezone duration targetShiftDate timelineTargetStartTime startOccurrence of
+                                            Left failure -> respondWithRosterSlotCopyBoundaryFailure rosterGroup.id weekOffset "move" intentForm occurrenceFields repeatedEndpoints selections failure
+                                            Right boundaries
+                                                | not (authoritativeRosterIntervalIsOperationallyValid boundaries) ->
+                                                    respondWithMoveRosterShiftFailure rosterGroup.id weekOffset invalidRosterSlotTimingMessage
+                                                | otherwise -> do
+                                                    let updatedSlot = timelineSourceSlot
+                                                            |> set #rosterDayId (unpackId timelineTargetRosterDay.id)
+                                                            |> set #rosterWeekSlotDefinitionId (unpackId timelineTargetSlotDefinition.id)
+                                                            |> set #slotSortOrder timelineTargetSlotDefinition.sortOrder
+                                                            |> set #rowIndex timelineTargetRowIndex
+                                                            |> applyRosterSlotBoundaries boundaries
+                                                    mutationResult <- moveRosterSlotMutation rosterGroup.id rosterWeek timelineSourceRosterDay timelineTargetRosterDay timelineSourceSlot updatedSlot
+                                                    let shouldWarnSourceTimesheetUnchanged = mutationResult.liveMutationValue.rosterSlotMutationShouldWarnSourceTimesheetUnchanged
+                                                    respondToRosterTimelineSlotMove rosterGroup.id rosterWeek mutationResult shouldWarnSourceTimesheetUnchanged
 
     action currentAction@DuplicateRosterShiftToDayAction { weekOffset } = runBepis currentAction BepisMutationAction do
         ensureManagerRole
@@ -960,7 +963,6 @@ data MoveRosterTimelineShiftIntent = MoveRosterTimelineShiftIntent
     , timelineTargetSlotDefinition :: !RosterWeekSlotDefinition
     , timelineTargetRowIndex       :: !Int
     , timelineTargetStartTime      :: !TimeOfDay
-    , timelineTargetEndTime        :: !TimeOfDay
     , timelineMoveIsNoOp           :: !Bool
     }
 
@@ -1117,16 +1119,21 @@ validateRosterTimelineShiftDropTarget rosterGroupId weekOffset sourceSlotId targ
             sourceRosterWeek <- fetch (Id sourceRosterDay.rosterWeekId :: Id RosterWeek)
             maybeTargetRosterDay <- fetchOneOrNothing (query @RosterDay |> filterWhere (#id, target.timelineTargetRosterDayId))
             maybeTargetSlotDefinition <- fetchOneOrNothing (query @RosterWeekSlotDefinition |> filterWhere (#id, target.timelineTargetSlotDefinitionId))
-            case (maybeTargetRosterDay, maybeTargetSlotDefinition, rosterSlotStartTime sourceSlot, rosterSlotEndTime sourceSlot) of
-                (Just targetRosterDay, Just targetSlotDefinition, Just sourceStart, Just sourceEnd) -> do
+            case (maybeTargetRosterDay, maybeTargetSlotDefinition, rosterSlotStartTime sourceSlot, rosterSlotElapsedSeconds sourceSlot) of
+                (Just targetRosterDay, Just targetSlotDefinition, Just sourceStart, Just _) -> do
                     targetRosterWeek <- fetch (Id targetRosterDay.rosterWeekId :: Id RosterWeek)
-                    let duration = shiftDurationMinutes sourceStart sourceEnd
-                        targetStartTime = minuteOfDayToTimeOfDay target.timelineTargetOperationalMinute
-                        targetEndTime = minuteOfDayToTimeOfDay (target.timelineTargetOperationalMinute + duration)
+                    let targetStartTime = minuteOfDayToTimeOfDay target.timelineTargetOperationalMinute
                         sourceMatchesScope = sourceRosterWeek.rosterGroupId == unpackId rosterGroupId && sourceRosterWeek.weekOffset == weekOffset
                         targetMatchesScope = targetRosterWeek.rosterGroupId == unpackId rosterGroupId && targetRosterWeek.weekOffset == weekOffset
                         targetDefinitionMatchesWeek = targetSlotDefinition.rosterWeekId == unpackId targetRosterWeek.id
-                        validTargetTime = isQuarterHourMinutes target.timelineTargetOperationalMinute && isJust (validRosterShiftDurationMinutes targetStartTime targetEndTime)
+                        isNoOp = sourceSlot.rosterDayId == unpackId targetRosterDay.id
+                            && sourceSlot.rosterWeekSlotDefinitionId == unpackId targetSlotDefinition.id
+                            && sourceStart == targetStartTime
+                        validTargetStart = isNoOp
+                            || ( isQuarterHourMinutes target.timelineTargetOperationalMinute
+                                 && target.timelineTargetOperationalMinute >= rosterOperationalStartMinuteOfDay
+                                 && target.timelineTargetOperationalMinute <= rosterOperationalFinalSelectableMinute
+                               )
                     maybeRowIndex <- resolveTimelineTargetRowIndex sourceSlot targetRosterDay targetSlotDefinition
                     pure do
                         targetRowIndex <- maybeRowIndex
@@ -1138,12 +1145,7 @@ validateRosterTimelineShiftDropTarget rosterGroupId weekOffset sourceSlotId targ
                         guard (isJust sourceSlot.staffId)
                         guard targetDefinitionMatchesWeek
                         guard (isNothing targetSlotDefinition.deletedAt)
-                        guard (duration > 0)
-                        guard validTargetTime
-                        let isNoOp = sourceSlot.rosterDayId == unpackId targetRosterDay.id
-                                && sourceSlot.rosterWeekSlotDefinitionId == unpackId targetSlotDefinition.id
-                                && rosterSlotStartTime sourceSlot == Just targetStartTime
-                                && rosterSlotEndTime sourceSlot == Just targetEndTime
+                        guard validTargetStart
                         pure MoveRosterTimelineShiftIntent
                             { timelineSourceSlot = sourceSlot
                             , timelineSourceRosterDay = sourceRosterDay
@@ -1151,7 +1153,6 @@ validateRosterTimelineShiftDropTarget rosterGroupId weekOffset sourceSlotId targ
                             , timelineTargetSlotDefinition = targetSlotDefinition
                             , timelineTargetRowIndex = targetRowIndex
                             , timelineTargetStartTime = targetStartTime
-                            , timelineTargetEndTime = targetEndTime
                             , timelineMoveIsNoOp = isNoOp
                             }
                 _ -> pure Nothing

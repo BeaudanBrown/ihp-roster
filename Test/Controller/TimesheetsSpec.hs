@@ -54,6 +54,7 @@ import Web.Timesheets.Projection (TimesheetProjectionFragment (..),
 import Web.Timesheets.Suggestion (TimesheetSuggestion (..),
                                   newTimesheetEntryFromSuggestion)
 import Web.Types
+import qualified Web.View.Timesheets.Index as TimesheetsView
 
 tests :: Spec
 tests = aroundAll withDatabaseTestContext do
@@ -954,6 +955,59 @@ tests = aroundAll withDatabaseTestContext do
                 testWorkedOn entry `shouldBe` fromGregorian 2026 4 5
                 testStartTime entry `shouldBe` TimeOfDay 2 30 0
                 testEndTime entry `shouldBe` TimeOfDay 4 0 0
+
+        it "keeps an equal-clock repeated roster interval eligible and renders its elapsed shape" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Timesheet Equal DST Suggestion Venue"
+                workerUser <- createUserRecord "timesheet-equal-dst-suggestion-worker@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue workerUser "worker"
+                worker <- createStaffRecord venue (Just workerUser) "Equal" "Suggestion"
+                payLevel <- createPayLevelRecord venue "Level 1"
+                shiftType <- createShiftTypeRecord venue payLevel "Repeated"
+                rosterWeek <- createRosterWeekRecord venue 64 True
+                rosterDay <- createRosterDayRecord rosterWeek 5
+                slotName <- fetchSlotNameRecord venue "Early"
+                rosterSlot <- createRosterSlotRecord rosterDay slotName (Just worker) 0
+                boundaries <- case resolveShiftBoundaries "Australia/Melbourne" ShiftBoundaryInput
+                    { shiftBoundaryDate = fromGregorian 2026 4 5
+                    , shiftBoundaryStartTime = TimeOfDay 2 30 0
+                    , shiftBoundaryStartOccurrence = Just FirstOccurrence
+                    , shiftBoundaryEndTime = TimeOfDay 2 30 0
+                    , shiftBoundaryEndOccurrence = Just SecondOccurrence
+                    , shiftBoundaryBreak = Nothing
+                    } of
+                        Left failure -> expectationFailure ("Expected equal repeated boundaries: " <> Text.unpack (tshow failure)) >> error "unreachable"
+                        Right value -> pure value
+                rosterSlot <- updateRecord
+                    ( rosterSlot
+                        |> set #shiftTypeId (Just (unpackId shiftType.id))
+                        |> applyRosterSlotBoundaries boundaries
+                    )
+                let surfaceParams =
+                        [ ("weekOffset", "64")
+                        , ("showApproved", "false")
+                        , ("showAllStaff", "false")
+                        , ("showSuggestions", "true")
+                        ]
+
+                suggestionResponse <- withUserAndCurrentVenue workerUser venue.id do
+                    callActionWithParams ShowTimesheetWeekAction { weekOffset = 64 } surfaceParams
+
+                suggestionResponse `responseStatusShouldBe` status200
+                suggestionResponse `responseBodyShouldContain` cs ("data-timesheet-suggestion-id=\"" <> tshow rosterSlot.id <> "\"")
+
+                createdResponse <- withUserAndCurrentVenue workerUser venue.id do
+                    callActionWithParams CreateTimesheetEntryFromSuggestionAction { rosterSlotId = rosterSlot.id } surfaceParams
+
+                createdResponse `responseStatusShouldBe` status302
+                entry <- query @TimesheetEntry |> fetchOne
+                storedInstantOccurrence entry.timezone entry.startsAt `shouldBe` Just FirstOccurrence
+                storedInstantOccurrence entry.timezone entry.endsAt `shouldBe` Just SecondOccurrence
+                timesheetEntryElapsedSeconds entry `shouldBe` 60 * 60
+                let shapeSegments = TimesheetsView.timesheetShapeSegments TimesheetsView.defaultTimesheetTimelineScale entry
+                length shapeSegments `shouldBe` 1
+                sum (map TimesheetsView.segmentWidth shapeSegments)
+                    `shouldSatisfy` (\width -> abs (width - (100 / 24)) < 0.000001)
 
         it "derives automatic suggestion breaks from exact elapsed DST duration" $ withContext do
             withCleanDb do

@@ -40,6 +40,7 @@ module Application.VenueTime.Model
     , timesheetEntryPaidElapsedSeconds
     , rosterSlotStartTime
     , rosterSlotEndTime
+    , rosterSlotElapsedSeconds
     , rosterSlotDurationMinutes
     , rosterSlotStartOccurrence
     , rosterSlotEndOccurrence
@@ -372,12 +373,15 @@ rosterSlotStartTime slot = ((.localTimeOfDay) . localTimeOfStoredInstant slot.ti
 rosterSlotEndTime :: RosterSlot -> Maybe TimeOfDay
 rosterSlotEndTime slot = ((.localTimeOfDay) . localTimeOfStoredInstant slot.timezone) <$> slot.endsAt
 
-rosterSlotDurationMinutes :: RosterSlot -> Maybe Int
-rosterSlotDurationMinutes slot = do
+rosterSlotElapsedSeconds :: RosterSlot -> Maybe NominalDiffTime
+rosterSlotElapsedSeconds slot = do
     start <- slot.startsAt
     end <- slot.endsAt
     guard (end > start)
-    pure (floor (diffUTCTime end start / 60))
+    pure (diffUTCTime end start)
+
+rosterSlotDurationMinutes :: RosterSlot -> Maybe Int
+rosterSlotDurationMinutes = fmap (floor . (/ 60)) . rosterSlotElapsedSeconds
 
 rosterSlotStartOccurrence :: RosterSlot -> Maybe RepeatedTimeOccurrence
 rosterSlotStartOccurrence slot = slot.startsAt >>= occurrenceOfStoredInstant slot.timezone

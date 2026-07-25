@@ -4,8 +4,7 @@
 
 module Web.View.Timesheets.Index where
 
-import Application.Helper.Controller (currentVenueId, isWithinEditWindow,
-                                      shiftDurationMinutes)
+import Application.Helper.Controller (currentVenueId, isWithinEditWindow)
 import Application.Helper.FrontendContract.AppShell (EditTimesheetEntryDialog,
                                                      OpenTimesheetEntryDialog)
 import Application.Helper.FrontendContract.AppShell.Runtime (AppShellActionRoute (..),
@@ -26,6 +25,7 @@ import Application.VenueTime.Model
 import Data.Fixed (Pico)
 import qualified Data.Text as Text
 import Data.Time.Calendar (Day, addDays)
+import Data.Time.Clock (NominalDiffTime, diffUTCTime)
 import Data.Time.Format (defaultTimeLocale, formatTime)
 import Data.Time.LocalTime (TimeOfDay (..))
 import Data.UUID (UUID)
@@ -564,13 +564,6 @@ renderDuration entry =
         secondsSuffix = if seconds > 0 then " " <> tshow seconds <> "s" else ""
      in [hsx|{show hours}h {show minutes}m{secondsSuffix}|]
 
-renderMinutesDuration :: TimeOfDay -> TimeOfDay -> Int -> Html
-renderMinutesDuration startTime endTime breakMinutes =
-    let netMins = shiftDurationMinutes startTime endTime - breakMinutes
-        hours = netMins `div` 60
-        mins = netMins `mod` 60
-    in [hsx|{show hours}h {show mins}m|]
-
 formatDateCompact :: Day -> Text
 formatDateCompact day =
     Text.pack (formatTime defaultTimeLocale "%d/%m" day)
@@ -631,48 +624,53 @@ timesheetShapeMarkers scale =
 
 timesheetShapeSegments :: TimesheetTimelineScale -> TimesheetEntry -> [TimesheetShapeSegment]
 timesheetShapeSegments scale entry =
-    let shiftSegments = buildSegments "timesheet-shape-segment-shift" scale (scaledSpan scale (timesheetEntryStartTime entry) (timesheetEntryEndTime entry))
+    let shiftStartMinutes = scaleMinuteValue scale (timesheetEntryStartTime entry)
+        shiftSegments =
+            buildSegments
+                "timesheet-shape-segment-shift"
+                scale
+                (shiftStartMinutes, shiftStartMinutes + elapsedMinutes (timesheetEntryElapsedSeconds entry))
         breakSegments =
-            case (timesheetEntryBreakStartTime entry, timesheetEntryBreakEndTime entry) of
+            case (entry.breakStartsAt, entry.breakEndsAt) of
                 (Just breakStart, Just breakEnd) | timesheetEntryHadBreak entry ->
-                    buildSegments "timesheet-shape-segment-break" scale (scaledSpan scale breakStart breakEnd)
+                    let breakStartMinutes = shiftStartMinutes + elapsedMinutes (diffUTCTime breakStart entry.startsAt)
+                     in buildSegments
+                            "timesheet-shape-segment-break"
+                            scale
+                            (breakStartMinutes, breakStartMinutes + elapsedMinutes (diffUTCTime breakEnd breakStart))
                 _ -> []
      in shiftSegments <> breakSegments
 
-buildSegments :: Text -> TimesheetTimelineScale -> (Int, Int) -> [TimesheetShapeSegment]
+buildSegments :: Text -> TimesheetTimelineScale -> (Double, Double) -> [TimesheetShapeSegment]
 buildSegments cssClass scale (startMinutes, endMinutes)
     | endMinutes <= startMinutes = []
-    | endMinutes <= scaleEndMinutes scale = [mkSegment cssClass scale startMinutes endMinutes]
+    | endMinutes <= scaleEnd = [mkSegment cssClass scale startMinutes endMinutes]
     | otherwise =
-        [ mkSegment cssClass scale startMinutes (scaleEndMinutes scale)
-        , mkSegment cssClass scale (scaleStartMinutes scale) (endMinutes - 1440)
+        [ mkSegment cssClass scale startMinutes scaleEnd
+        , mkSegment cssClass scale scaleStart (endMinutes - 1440)
         ]
+  where
+    scaleStart = fromIntegral (scaleStartMinutes scale)
+    scaleEnd = fromIntegral (scaleEndMinutes scale)
 
-mkSegment :: Text -> TimesheetTimelineScale -> Int -> Int -> TimesheetShapeSegment
+mkSegment :: Text -> TimesheetTimelineScale -> Double -> Double -> TimesheetShapeSegment
 mkSegment cssClass scale startMinutes endMinutes =
     let total = fromIntegral (scaleEndMinutes scale - scaleStartMinutes scale) :: Double
-        left = (fromIntegral (startMinutes - scaleStartMinutes scale) / total) * 100
-        width = (fromIntegral (endMinutes - startMinutes) / total) * 100
+        left = ((startMinutes - fromIntegral (scaleStartMinutes scale)) / total) * 100
+        width = ((endMinutes - startMinutes) / total) * 100
     in TimesheetShapeSegment { segmentLeft = left, segmentWidth = width, segmentClass = cssClass }
 
-scaledSpan :: TimesheetTimelineScale -> TimeOfDay -> TimeOfDay -> (Int, Int)
-scaledSpan scale startTime endTime =
-    let startMinutes = scaleMinuteValue scale startTime
-        endBase = scaleMinuteValue scale endTime
-        endMinutes =
-            if endBase <= startMinutes
-                then endBase + 1440
-                else endBase
-    in (startMinutes, endMinutes)
-
-scaleMinuteValue :: TimesheetTimelineScale -> TimeOfDay -> Int
+scaleMinuteValue :: TimesheetTimelineScale -> TimeOfDay -> Double
 scaleMinuteValue scale timeOfDay =
     let minuteValue = timeOfDayToMinutes timeOfDay
-    in if minuteValue < scaleStartMinutes scale then minuteValue + 1440 else minuteValue
+    in if minuteValue < fromIntegral (scaleStartMinutes scale) then minuteValue + 1440 else minuteValue
 
-timeOfDayToMinutes :: TimeOfDay -> Int
+timeOfDayToMinutes :: TimeOfDay -> Double
 timeOfDayToMinutes TimeOfDay { todHour, todMin, todSec } =
-    todHour * 60 + todMin + floor (realToFrac todSec :: Pico) `div` 60
+    fromIntegral (todHour * 60 + todMin) + realToFrac (todSec :: Pico) / 60
+
+elapsedMinutes :: NominalDiffTime -> Double
+elapsedMinutes seconds = realToFrac seconds / 60
 
 timesheetMarkerLeft :: TimesheetTimelineScale -> Int -> Double
 timesheetMarkerLeft scale minutes =

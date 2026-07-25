@@ -185,6 +185,7 @@ the new contract.
 | `allocates breaks to the actual penalty segment instead of trimming the end of an overnight shift` | Compliance precursor | `HIGA-POLICY-BREAK-BUCKET`. |
 | `subtracts roster wage estimate automatic breaks from start+5h30 instead of the shift end` | Policy precursor | Projected-break input to `HIGA-15.2-PART-TIME-SHIFT-MIN`/`MAX`; it is not timesheet missed-break evidence. |
 | `uses elapsed roster instants for wage prediction across DST transitions` | Compliance precursor | `HIGA-POLICY-MELBOURNE-ELAPSED`; roster projections use instant duration rather than wall-clock subtraction. |
+| `treats an equal-clock repeated roster interval as complete for wage prediction` | Compliance precursor | `HIGA-POLICY-MELBOURNE-ELAPSED`; operational validity accepts a positive first-to-second repeated interval without admitting an invalid next-day wall-clock span. |
 | `allocates after-midnight breaks to the next calendar day segment` | Compliance precursor | `HIGA-POLICY-BREAK-BUCKET`, `HIGA-POLICY-MELBOURNE-ELAPSED`. |
 | `resolves weekday, Saturday, Sunday, and public holiday penalties from segment dates` | Compliance precursor | `HIGA-29.2-WEEKDAY-ORDINARY`, `SATURDAY`, `SUNDAY`, `PUBLIC-HOLIDAY`, and `HIGA-29.3-HIGHEST-PENALTY`. |
 | `uses casual base and casual weekend penalty rows when the staff member is casual` | Compliance precursor | `HIGA-11.1-CASUAL-LOADING`, `HIGA-29.2-SATURDAY`. |

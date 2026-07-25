@@ -19,7 +19,7 @@ module Web.RosterWeeks.Service
     , repackRosterWeekDays
     , rosterSlotHasData
     , rosterSlotCopyAmbiguousEndpoints
-    , rosterTimelineTargetAmbiguousEndpoints
+    , resolveRosterTimelineTargetBoundaries
     , rosterSlotTimesheetSourceChanged
     , rosterWeekCopyAmbiguousEndpoints
     , rosterWeekSlotDefinitionHasData
@@ -27,14 +27,14 @@ module Web.RosterWeeks.Service
     ) where
 
 import Application.Helper.RosterGroups
-import Application.Helper.TimeRules (rosterShiftStartDate)
+import Application.VenueTime (RepeatedTimeOccurrence)
 import Application.VenueTime.Model
 import Data.Coerce (coerce)
 import Data.List (nub, sort, sortOn)
 import qualified Data.Map.Strict as Map
 import Data.Maybe (fromMaybe, isJust, isNothing, mapMaybe)
 import qualified Data.Text as Text
-import Data.Time (UTCTime, getCurrentTime, utctDay)
+import Data.Time (NominalDiffTime, UTCTime, addUTCTime, getCurrentTime, utctDay)
 import qualified Data.Time.Calendar as Calendar
 import Data.Time.LocalTime (TimeOfDay (..))
 import Data.Traversable (traverse)
@@ -231,13 +231,10 @@ rosterSlotCopyAmbiguousEndpoints venueConfig sourceWeek sourceDay targetWeek tar
             targetDate = Calendar.addDays (Calendar.diffDays localTime.localDay sourceRosterDate) targetRosterDate
         pure (civilBoundaryIsRepeated targetDate localTime.localTimeOfDay)
 
-rosterTimelineTargetAmbiguousEndpoints :: Day -> TimeOfDay -> TimeOfDay -> (Bool, Bool)
-rosterTimelineTargetAmbiguousEndpoints targetRosterDate targetStartTime targetEndTime =
-    let targetStartDate = rosterShiftStartDate targetRosterDate targetStartTime
-        targetEndDate = Calendar.addDays (if targetEndTime <= targetStartTime && not (repeatedEndpointPairCanShareDate targetStartDate targetStartTime targetEndTime) then 1 else 0) targetStartDate
-     in ( civilBoundaryIsRepeated targetStartDate targetStartTime
-        , civilBoundaryIsRepeated targetEndDate targetEndTime
-        )
+resolveRosterTimelineTargetBoundaries :: Text -> NominalDiffTime -> Day -> TimeOfDay -> Maybe RepeatedTimeOccurrence -> Either BoundaryModelError AuthoritativeBoundaries
+resolveRosterTimelineTargetBoundaries timezone duration targetDate targetStartTime targetStartOccurrence = do
+    startsAt <- resolveBoundaryInstant timezone targetDate targetStartTime targetStartOccurrence
+    authoritativeBoundariesFromInstants timezone startsAt (addUTCTime duration startsAt) Nothing Nothing
 
 data RosterSlotCopyPlan = RosterSlotCopyPlan
     { copiedSourceSlot :: !RosterSlot

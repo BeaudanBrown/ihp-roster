@@ -21,7 +21,7 @@ module Web.Controller.RosterWeeks.Validation
 
 import Application.Helper.Controller
 import Application.Helper.ControllerContext (currentVenueId)
-import Application.VenueTime.Model
+import Application.VenueTime.Model (authoritativeBoundariesFromInstants)
 import Data.Coerce (coerce)
 import Data.Maybe (fromMaybe, isNothing)
 import qualified Data.Text as Text
@@ -65,15 +65,10 @@ rosterSlotHasValidStartEnd :: RosterSlot -> Bool
 rosterSlotHasValidStartEnd slot =
     case (slot.startsAt, slot.endsAt) of
         (Just startsAt, Just endsAt) ->
-            case authoritativeBoundariesFromInstants slot.timezone startsAt endsAt Nothing Nothing of
-                Left _ -> False
-                Right boundaries ->
-                    let startLocal = authoritativeStartLocalTime boundaries
-                        endLocal = authoritativeEndLocalTime boundaries
-                     in isValidRosterShiftTimePair startLocal.localTimeOfDay endLocal.localTimeOfDay
-                            || ( startLocal.localDay == endLocal.localDay
-                                 && repeatedEndpointPairCanShareDate startLocal.localDay startLocal.localTimeOfDay endLocal.localTimeOfDay
-                               )
+            either
+                (const False)
+                authoritativeRosterIntervalIsOperationallyValid
+                (authoritativeBoundariesFromInstants slot.timezone startsAt endsAt Nothing Nothing)
         _ -> False
 
 ensureRosterSlotTimingValidForSave :: (?context :: ControllerContext, ?request :: Request) => RosterWeek -> RosterSlot -> IO ()

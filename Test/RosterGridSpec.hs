@@ -1,6 +1,5 @@
 module Test.RosterGridSpec where
 
-import Data.Time.Calendar (fromGregorian)
 import Data.Time.LocalTime (TimeOfDay (..))
 import qualified Data.UUID as UUID
 import Generated.Types
@@ -9,19 +8,11 @@ import IHP.Prelude
 import Test.Hspec
 import Test.Support (setTestEndTime, setTestStartTime)
 import Web.RosterWeeks.Rows (impactedRowKeysForSlotUpdate)
-import Web.RosterWeeks.Service (rosterTimelineTargetAmbiguousEndpoints)
 import Web.View.RosterWeeks.Grid (compactDayColumnSlots, lastRowIndexForRows,
                                   rowsForDay)
 
 tests :: Spec
 tests = describe "Roster grid row grouping" do
-    it "keeps equal repeated timeline endpoints on the same local date" do
-        rosterTimelineTargetAmbiguousEndpoints
-            (fromGregorian 2026 4 4)
-            (TimeOfDay 2 30 0)
-            (TimeOfDay 2 30 0)
-            `shouldBe` (True, True)
-
     it "sorts day-column slots by start time" do
         let slotA = newRecord @RosterWeekSlotDefinition
             slotB = newRecord @RosterWeekSlotDefinition

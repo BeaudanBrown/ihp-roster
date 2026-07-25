@@ -15,14 +15,23 @@ import Application.Helper.RosterGroups (createVenueRosterGroupWithDefaults,
                                         syncStaffRosterGroupAssignments)
 import Application.Helper.SurfaceResource
 import Application.Helper.View (dialogOverlayMountId)
-import Application.VenueTime (RepeatedTimeOccurrence (SecondOccurrence))
-import Application.VenueTime.Model (rosterSlotStartOccurrence,
-                                    storedInstantLocalTime)
+import Application.VenueTime (RepeatedTimeOccurrence (..))
+import Application.VenueTime.Model (ShiftBoundaryInput (..),
+                                    applyRosterSlotBoundaries,
+                                    resolveShiftBoundaries,
+                                    rosterSlotDurationMinutes,
+                                    rosterSlotElapsedSeconds,
+                                    rosterSlotEndOccurrence, rosterSlotEndTime,
+                                    rosterSlotStartOccurrence,
+                                    rosterSlotStartTime, storedInstantLocalTime)
 import Config
+import Control.Monad (guard)
 import Data.ByteString (ByteString)
+import Data.Char (isDigit)
 import qualified Data.Set as Set
 import qualified Data.Text as Text
 import Data.Time.Calendar (addDays, fromGregorian)
+import Data.Time.Clock (diffUTCTime)
 import Data.Time.LocalTime (TimeOfDay (..))
 import qualified Data.UUID as UUID
 import Generated.Types
@@ -35,6 +44,7 @@ import Network.HTTP.Types.Status
 import Network.Wai
 import Test.Hspec
 import Test.Support
+import qualified Text.Read as TextRead
 import Web.Controller.RosterWeeks ()
 import Web.FrontController ()
 import Web.RosterWeeks.Dom (rosterDayColumnsFragmentId, rosterDaySectionDomId,
@@ -45,6 +55,15 @@ import Web.Routes
 import Web.SurfaceInvalidation (SurfaceInvalidationTarget (..),
                                 planSurfaceInvalidations)
 import Web.Types
+
+cssPercentageAfter :: Text -> Text -> Maybe Double
+cssPercentageAfter property html = do
+    let (_, fromProperty) = Text.breakOn property html
+    guard (not (Text.null fromProperty))
+    let rawValue = Text.takeWhile isCssNumberCharacter (Text.drop (Text.length property) fromProperty)
+    TextRead.readMaybe (Text.unpack rawValue)
+  where
+    isCssNumberCharacter character = isDigit character || character `elem` (".+-eE" :: String)
 
 countText :: Text -> Text -> Int
 countText needle haystack
@@ -387,6 +406,41 @@ tests = aroundAll withDatabaseTestContext do
                 response `responseBodyShouldContain` ("data-bepis-roster-day-timeline-shift-group-highlight-source=\"existing:" <> cs (tshow timelineSlot.id) <> "\"")
                 response `responseBodyShouldContain` ("data-bepis-roster-day-timeline-shift-group-highlight-member=\"existing:" <> cs (tshow timelineSlot.id) <> "\"")
                 response `responseBodyShouldNotContain` "data-roster-timeline-minute=\"360\""
+
+        it "renders an equal-clock repeated shift on the roster timeline" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Roster Equal DST Timeline Venue"
+                manager <- createUserRecord "roster-manager-equal-dst-timeline@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue manager "manager"
+                slotName <- fetchSlotNameRecord venue "Early"
+                staffMember <- createStaffRecord venue Nothing "Equal" "Timeline"
+                rosterWeek <- createRosterWeekRecord venue 64 False
+                rosterDay <- createRosterDayRecord rosterWeek 5
+                timelineSlot <- createRosterSlotRecord rosterDay slotName (Just staffMember) 0
+                boundaries <- case resolveShiftBoundaries "Australia/Melbourne" ShiftBoundaryInput
+                    { shiftBoundaryDate = fromGregorian 2026 4 5
+                    , shiftBoundaryStartTime = TimeOfDay 2 30 0
+                    , shiftBoundaryStartOccurrence = Just FirstOccurrence
+                    , shiftBoundaryEndTime = TimeOfDay 2 30 0
+                    , shiftBoundaryEndOccurrence = Just SecondOccurrence
+                    , shiftBoundaryBreak = Nothing
+                    } of
+                        Left failure -> expectationFailure ("Expected equal repeated boundaries: " <> Text.unpack (tshow failure)) >> error "unreachable"
+                        Right value -> pure value
+                timelineSlot <- updateRecord (applyRosterSlotBoundaries boundaries timelineSlot)
+
+                response <- withUserAndCurrentVenue manager venue.id do
+                    callActionWithParams (ShowRosterWeekAction 64)
+                        [ ("rosterView", "timeline")
+                        , ("dayOffset", "5")
+                        ]
+
+                response `responseStatusShouldBe` status200
+                let shiftSourceAttr = "data-bepis-roster-day-timeline-shift-group-highlight-source=\"existing:" <> tshow timelineSlot.id <> "\""
+                body <- (cs <$> responseBody response) :: IO Text
+                body `shouldSatisfy` Text.isInfixOf shiftSourceAttr
+                let scopedShiftHtml = Text.take 2000 (snd (Text.breakOn shiftSourceAttr body))
+                scopedShiftHtml `shouldSatisfy` Text.isInfixOf "02:30–02:30"
 
         it "defaults new shift dialog times from the venue time picker window" $ withContext do
             withCleanDb do
@@ -1125,7 +1179,7 @@ tests = aroundAll withDatabaseTestContext do
                 targetDay <- createRosterDayRecord rosterWeek 5
                 sourceSlot <- createRosterSlotRecord sourceDay slotName (Just staffMember) 0
                     >>= updateRecord
-                        . setTestRosterSlotBoundaries (fromGregorian 2026 4 3) (TimeOfDay 8 0 0) (TimeOfDay 9 30 0)
+                        . setTestRosterSlotBoundaries (fromGregorian 2026 4 3) (TimeOfDay 8 0 0) (TimeOfDay 9 0 0)
                 let sourceToken = "existing:" <> tshow sourceSlot.id
                 let targetToken = "time:" <> tshow targetDay.id <> ":" <> tshow sourceSlot.rosterWeekSlotDefinitionId <> ":1590"
                 let coreParams =
@@ -1135,7 +1189,7 @@ tests = aroundAll withDatabaseTestContext do
                         , ("sourceItemKey", cs sourceToken)
                         , ("targetDropzoneKey", cs targetToken)
                         ]
-                let baseParams = coreParams <> [("timelineStartOccurrence", ""), ("timelineEndOccurrence", "")]
+                let baseParams = coreParams <> [("timelineStartOccurrence", "")]
 
                 chooserResponse <- withUserAndCurrentVenue manager venue.id do
                     withRequestHeaders [("HX-Request", "true")] do
@@ -1151,14 +1205,137 @@ tests = aroundAll withDatabaseTestContext do
                 movedResponse <- withUserAndCurrentVenue manager venue.id do
                     withRequestHeaders [("HX-Request", "true")] do
                         callActionWithParams MoveRosterTimelineShiftAction { weekOffset = 64 }
-                            (coreParams <> [("timelineStartOccurrence", "second")])
+                            (coreParams <> [("timelineStartOccurrence", "first")])
 
                 movedResponse `responseStatusShouldBe` status200
                 movedSlot <- fetch sourceSlot.id
                 movedSlot.rosterDayId `shouldBe` unpackId targetDay.id
-                rosterSlotStartOccurrence movedSlot `shouldBe` Just SecondOccurrence
+                rosterSlotStartOccurrence movedSlot `shouldBe` Just FirstOccurrence
+                rosterSlotEndOccurrence movedSlot `shouldBe` Just SecondOccurrence
+                rosterSlotElapsedSeconds movedSlot `shouldBe` Just (60 * 60)
+                rosterSlotStartTime movedSlot `shouldBe` Just (TimeOfDay 2 30 0)
+                rosterSlotEndTime movedSlot `shouldBe` Just (TimeOfDay 2 30 0)
                 fmap (.localDay) (storedInstantLocalTime movedSlot.timezone <$> movedSlot.startsAt)
                     `shouldBe` Just (fromGregorian 2026 4 5)
+
+        it "moves an equal-clock repeated timeline shift using its authoritative elapsed duration" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Roster Equal DST Timeline Move Venue"
+                manager <- createUserRecord "roster-manager-equal-dst-timeline-move@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue manager "manager"
+                slotName <- fetchSlotNameRecord venue "Early"
+                staffMember <- createStaffRecord venue Nothing "Equal" "Move"
+                rosterWeek <- createRosterWeekRecord venue 64 False
+                sourceDay <- createRosterDayRecord rosterWeek 5
+                targetDay <- createRosterDayRecord rosterWeek 6
+                sourceSlot <- createRosterSlotRecord sourceDay slotName (Just staffMember) 0
+                boundaries <- case resolveShiftBoundaries "Australia/Melbourne" ShiftBoundaryInput
+                    { shiftBoundaryDate = fromGregorian 2026 4 5
+                    , shiftBoundaryStartTime = TimeOfDay 2 30 0
+                    , shiftBoundaryStartOccurrence = Just FirstOccurrence
+                    , shiftBoundaryEndTime = TimeOfDay 2 30 0
+                    , shiftBoundaryEndOccurrence = Just SecondOccurrence
+                    , shiftBoundaryBreak = Nothing
+                    } of
+                        Left failure -> expectationFailure ("Expected equal repeated boundaries: " <> Text.unpack (tshow failure)) >> error "unreachable"
+                        Right value -> pure value
+                sourceSlot <- updateRecord (applyRosterSlotBoundaries boundaries sourceSlot)
+                let sourceToken = "existing:" <> tshow sourceSlot.id
+                let sameTargetToken = "time:" <> tshow sourceDay.id <> ":" <> tshow sourceSlot.rosterWeekSlotDefinitionId <> ":1590"
+                let targetToken = "time:" <> tshow targetDay.id <> ":" <> tshow sourceSlot.rosterWeekSlotDefinitionId <> ":540"
+                let moveParams targetDropzoneKey dayOffset =
+                        [ ("rosterGroupId", cs (tshow rosterWeek.rosterGroupId))
+                        , ("rosterView", "timeline")
+                        , ("dayOffset", dayOffset)
+                        , ("sourceItemKey", cs sourceToken)
+                        , ("targetDropzoneKey", cs targetDropzoneKey)
+                        , ("timelineStartOccurrence", "")
+                        ]
+
+                noOpResponse <- withUserAndCurrentVenue manager venue.id do
+                    withRequestHeaders [("HX-Request", "true")] do
+                        callActionWithParams MoveRosterTimelineShiftAction { weekOffset = 64 }
+                            (moveParams sameTargetToken "5")
+
+                noOpResponse `responseStatusShouldBe` status200
+                lookup "HX-Reswap" (responseHeaders noOpResponse) `shouldBe` Just "none"
+                noOpResponse `responseBodyShouldNotContain` "data-time-occurrence-chooser"
+                unchangedSlot <- fetch sourceSlot.id
+                unchangedSlot.startsAt `shouldBe` sourceSlot.startsAt
+                unchangedSlot.endsAt `shouldBe` sourceSlot.endsAt
+
+                response <- withUserAndCurrentVenue manager venue.id do
+                    withRequestHeaders [("HX-Request", "true")] do
+                        callActionWithParams MoveRosterTimelineShiftAction { weekOffset = 64 }
+                            (moveParams targetToken "6")
+
+                response `responseStatusShouldBe` status200
+                movedSlot <- fetch sourceSlot.id
+                movedSlot.rosterDayId `shouldBe` unpackId targetDay.id
+                rosterSlotDurationMinutes movedSlot `shouldBe` Just 60
+                rosterSlotStartTime movedSlot `shouldBe` Just (TimeOfDay 9 0 0)
+                rosterSlotEndTime movedSlot `shouldBe` Just (TimeOfDay 10 0 0)
+
+        it "renders and moves a sub-minute authoritative timeline interval without truncation" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Roster Exact-Second Timeline Venue"
+                manager <- createUserRecord "roster-manager-exact-second-timeline@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue manager "manager"
+                slotName <- fetchSlotNameRecord venue "Early"
+                staffMember <- createStaffRecord venue Nothing "Exact" "Second"
+                rosterWeek <- createRosterWeekRecord venue 0 False
+                sourceDay <- createRosterDayRecord rosterWeek 0
+                targetDay <- createRosterDayRecord rosterWeek 1
+                sourceSlot <- createRosterSlotRecord sourceDay slotName (Just staffMember) 0
+                boundaries <- case resolveShiftBoundaries "Australia/Melbourne" ShiftBoundaryInput
+                    { shiftBoundaryDate = fromGregorian 2025 1 6
+                    , shiftBoundaryStartTime = TimeOfDay 9 0 0
+                    , shiftBoundaryStartOccurrence = Nothing
+                    , shiftBoundaryEndTime = TimeOfDay 9 0 0.5
+                    , shiftBoundaryEndOccurrence = Nothing
+                    , shiftBoundaryBreak = Nothing
+                    } of
+                        Left failure -> expectationFailure ("Expected exact-second boundaries: " <> Text.unpack (tshow failure)) >> error "unreachable"
+                        Right value -> pure value
+                sourceSlot <- updateRecord (applyRosterSlotBoundaries boundaries sourceSlot)
+
+                timelineResponse <- withUserAndCurrentVenue manager venue.id do
+                    callActionWithParams (ShowRosterWeekAction 0)
+                        [ ("rosterView", "timeline")
+                        , ("dayOffset", "0")
+                        ]
+
+                timelineResponse `responseStatusShouldBe` status200
+                let shiftSourceAttr = "data-bepis-roster-day-timeline-shift-group-highlight-source=\"existing:" <> tshow sourceSlot.id <> "\""
+                timelineBody <- (cs <$> responseBody timelineResponse) :: IO Text
+                let (beforeShiftSource, fromShiftSource) = Text.breakOn shiftSourceAttr timelineBody
+                let scopedShiftHtml = Text.takeEnd 500 beforeShiftSource <> Text.take 2000 fromShiftSource
+                let exactWidthPercent = ((0.5 / 60) * 100 / 1440 :: Double)
+                scopedShiftHtml `shouldSatisfy` Text.isInfixOf "roster-day-timeline-shift-position"
+                cssPercentageAfter "width:" scopedShiftHtml
+                    `shouldSatisfy` maybe False (\actualWidth -> abs (actualWidth - exactWidthPercent) < 1e-12)
+
+                let sourceToken = "existing:" <> tshow sourceSlot.id
+                let targetToken = "time:" <> tshow targetDay.id <> ":" <> tshow sourceSlot.rosterWeekSlotDefinitionId <> ":540"
+                moveResponse <- withUserAndCurrentVenue manager venue.id do
+                    withRequestHeaders [("HX-Request", "true")] do
+                        callActionWithParams MoveRosterTimelineShiftAction { weekOffset = 0 }
+                            [ ("rosterGroupId", cs (tshow rosterWeek.rosterGroupId))
+                            , ("rosterView", "timeline")
+                            , ("dayOffset", "1")
+                            , ("sourceItemKey", cs sourceToken)
+                            , ("targetDropzoneKey", cs targetToken)
+                            , ("timelineStartOccurrence", "")
+                            ]
+
+                moveResponse `responseStatusShouldBe` status200
+                movedSlot <- fetch sourceSlot.id
+                movedSlot.rosterDayId `shouldBe` unpackId targetDay.id
+                case (movedSlot.startsAt, movedSlot.endsAt) of
+                    (Just startsAt, Just endsAt) -> diffUTCTime endsAt startsAt `shouldBe` 0.5
+                    _ -> expectationFailure "Expected moved exact-second boundaries"
+                rosterSlotStartTime movedSlot `shouldBe` Just (TimeOfDay 9 0 0)
+                rosterSlotEndTime movedSlot `shouldBe` Just (TimeOfDay 9 0 0.5)
 
         it "moves a shift onto a semantic day target and grows the target day rows" $ withContext do
             withCleanDb do

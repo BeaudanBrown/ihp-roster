@@ -1,6 +1,11 @@
 module Application.Helper.TimeRules where
 
+import Application.VenueTime.Model (AuthoritativeBoundaries,
+                                    authoritativeEndLocalTime,
+                                    authoritativeStartLocalTime,
+                                    repeatedEndpointPairCanShareDate)
 import Control.Monad (guard)
+import Data.Fixed (Pico)
 import Data.Time.Calendar (Day, addDays, diffDays)
 import Data.Time.Clock (UTCTime (..), getCurrentTime)
 import Data.Time.Format (defaultTimeLocale, formatTime, parseTimeM)
@@ -152,7 +157,27 @@ validRosterShiftDurationMinutes start end =
             else Nothing
 
 isValidRosterShiftTimePair :: TimeOfDay -> TimeOfDay -> Bool
-isValidRosterShiftTimePair start end = isJust (validRosterShiftDurationMinutes start end)
+isValidRosterShiftTimePair start end =
+    startSecond >= operationalStartSecond
+        && startSecond <= operationalEndSecond
+        && endSecond >= operationalStartSecond
+        && endSecond <= operationalEndSecond
+        && endSecond > startSecond
+  where
+    startSecond = normalizeRosterOperationalSecond start
+    endSecond = normalizeRosterOperationalSecond end
+    operationalStartSecond = fromIntegral (rosterOperationalStartMinuteOfDay * 60)
+    operationalEndSecond = fromIntegral (rosterOperationalFinalSelectableMinute * 60)
+
+authoritativeRosterIntervalIsOperationallyValid :: AuthoritativeBoundaries -> Bool
+authoritativeRosterIntervalIsOperationallyValid boundaries =
+    isValidRosterShiftTimePair startLocal.localTimeOfDay endLocal.localTimeOfDay
+        || ( startLocal.localDay == endLocal.localDay
+             && repeatedEndpointPairCanShareDate startLocal.localDay startLocal.localTimeOfDay endLocal.localTimeOfDay
+           )
+  where
+    startLocal = authoritativeStartLocalTime boundaries
+    endLocal = authoritativeEndLocalTime boundaries
 
 timeOfDayToMinutes :: TimeOfDay -> Int
 timeOfDayToMinutes tod = todHour tod * 60 + todMin tod
@@ -170,6 +195,12 @@ normalizeRosterOperationalMinute :: TimeOfDay -> Int
 normalizeRosterOperationalMinute tod =
     let minuteOfDay = timeOfDayToMinutes tod
     in if minuteOfDay < rosterOperationalStartMinuteOfDay then minuteOfDay + 1440 else minuteOfDay
+
+normalizeRosterOperationalSecond :: TimeOfDay -> Pico
+normalizeRosterOperationalSecond TimeOfDay { todHour, todMin, todSec } =
+    let secondOfDay = fromIntegral ((todHour * 60 + todMin) * 60) + todSec
+        operationalStartSecond = fromIntegral (rosterOperationalStartMinuteOfDay * 60)
+     in if secondOfDay < operationalStartSecond then secondOfDay + 24 * 60 * 60 else secondOfDay
 
 isWithinEditWindow :: Day -> Day -> Int -> Bool
 isWithinEditWindow today workedOn windowDays =

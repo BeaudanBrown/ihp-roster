@@ -3,7 +3,11 @@ module Test.PaySpec where
 import Application.Helper.Pay
 import Application.Helper.RosterWagePrediction
 import Application.Helper.View.Awards (awardLevelOptionLabel)
-import Application.VenueTime.Model (storedInstantLocalTime)
+import Application.VenueTime (RepeatedTimeOccurrence (..))
+import Application.VenueTime.Model (ShiftBoundaryInput (..),
+                                    applyRosterSlotBoundaries,
+                                    resolveShiftBoundaries,
+                                    storedInstantLocalTime)
 import Config
 import Control.Monad (void)
 import qualified Data.Map.Strict as Map
@@ -553,6 +557,43 @@ tests = do
                     fmap (storedInstantLocalTime autumnSlot.timezone . fst) (rosterSlotPredictedAutomaticBreakWindow autumnSlot)
                         `shouldBe` Just (LocalTime (fromGregorian 2026 4 5) (TimeOfDay 4 0 0))
                     rosterSlotPredictedAutomaticBreakWindow springSlot `shouldBe` Nothing
+
+            it "treats an equal-clock repeated roster interval as complete for wage prediction" $ withContext do
+                withCleanDb do
+                    venue <- createVenueWithConfig "Roster Wage Equal DST Venue"
+                    venueConfig <- query @VenueConfig
+                        |> filterWhere (#venueId, unpackId venue.id)
+                        |> fetchOne
+                    level <- createPayLevelRecordWithRates venue "Roster Wage Equal DST Level" 60 0 0 1 1 1
+                    staff <- createStaffRecord venue Nothing "Equal" "Estimate"
+                        >>= updateRecord
+                            . set #employmentBasis Permanent
+                            . set #defaultAwardLevelId (Just level.id)
+                    shiftType <- createShiftTypeRecord venue level "Equal DST Wage"
+                    slotName <- fetchSlotNameRecord venue "Early"
+                    rosterWeek <- createRosterWeekRecord venue 64 False
+                    rosterDay <- createRosterDayRecord rosterWeek 5
+                    rosterSlot <- createRosterSlotRecord rosterDay slotName (Just staff) 0
+                    boundaries <- case resolveShiftBoundaries "Australia/Melbourne" ShiftBoundaryInput
+                        { shiftBoundaryDate = fromGregorian 2026 4 5
+                        , shiftBoundaryStartTime = TimeOfDay 2 30 0
+                        , shiftBoundaryStartOccurrence = Just FirstOccurrence
+                        , shiftBoundaryEndTime = TimeOfDay 2 30 0
+                        , shiftBoundaryEndOccurrence = Just SecondOccurrence
+                        , shiftBoundaryBreak = Nothing
+                        } of
+                            Left failure -> expectationFailure ("Expected equal repeated boundaries: " <> Text.unpack (tshow failure)) >> error "unreachable"
+                            Right value -> pure value
+                    rosterSlot <- updateRecord
+                        ( rosterSlot
+                            |> set #shiftTypeId (Just (unpackId shiftType.id))
+                            |> applyRosterSlotBoundaries boundaries
+                        )
+
+                    prediction <- fetchRosterWagePrediction venueConfig rosterWeek [rosterDay] [rosterSlot]
+
+                    prediction.predictionCompleteShiftCount `shouldBe` 1
+                    prediction.predictionIncompleteShiftCount `shouldBe` 0
 
             it "allocates after-midnight breaks to the next calendar day segment" $ withContext do
                 withCleanDb do

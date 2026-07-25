@@ -32,10 +32,10 @@ module Web.Timesheets.Projection
     , weekOffsetFromParamOrEntry
     ) where
 
-import Application.Helper.Controller (automaticMealBreakMinutes,
+import Application.Helper.Controller (authoritativeRosterIntervalIsOperationallyValid,
+                                      automaticMealBreakMinutes,
                                       automaticMealBreakStartOffsetMinutes,
-                                      automaticMealBreakThresholdMinutes,
-                                      validRosterShiftDurationMinutes)
+                                      automaticMealBreakThresholdMinutes)
 import Application.Helper.FrontendContract.Surface.FragmentRender (FragmentRenderMode (..))
 import Application.Helper.FrontendContract.Surface.Request (SurfaceRequestFieldError)
 import qualified Application.Helper.FrontendContract.Surface.Timesheets as Surface
@@ -228,7 +228,7 @@ fetchTimesheetSuggestionsForWeek venueConfig weekOffset showAllStaff validStaffF
             endLocal = authoritativeEndLocalTime sourceBoundaries
             startTime = startLocal.localTimeOfDay
             endTime = endLocal.localTimeOfDay
-        _ <- validRosterShiftDurationMinutes startTime endTime
+        guard (authoritativeRosterIntervalIsOperationallyValid sourceBoundaries)
         guard (Set.member staffId linkedActiveStaffIds)
         guard (Set.member staffId visibleStaffIds)
         guard (Set.member shiftTypeId activeShiftTypeIds)

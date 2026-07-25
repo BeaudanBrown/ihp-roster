@@ -112,9 +112,17 @@
     outline: 1px solid color-mix(in srgb, var(--bs-primary) 45%, transparent);
 }
 
-.roster-day-timeline-shift {
+.roster-day-timeline-shift-position {
     position: absolute;
     top: calc(var(--roster-timeline-track) * (var(--roster-timeline-track-height) + var(--roster-timeline-track-gap)));
+    min-height: var(--roster-timeline-track-height);
+    overflow: visible;
+    pointer-events: none;
+}
+
+.roster-day-timeline-shift {
+    position: relative;
+    width: 100%;
     min-width: 4rem;
     min-height: var(--roster-timeline-track-height);
     padding: 0.45rem 0.55rem;

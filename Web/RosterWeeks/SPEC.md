@@ -130,8 +130,9 @@ lands.
   spring endpoints are rejected.
   Week and slot copies retain source clock values on the target calendar date,
   re-resolve them there, and request target occurrences when needed rather than
-  preserving a UTC duration. Timeline drags likewise request any repeated target
-  start/end occurrence before mutating the slot.
+  preserving a UTC duration. Timeline drags instead resolve the target start
+  occurrence, add the source's exact elapsed duration, and derive the end clock
+  and occurrence from that authoritative end instant.
 - Roster days store their visible open-day row count independently of slots.
 - Roster slots are sparse positioned data records. Blank editable cells are
   rendered from the day row count and active slot definitions; active blank
@@ -192,7 +193,14 @@ lands.
   window.
 - Timeline overlap tracks are display-only. They are computed from rendered shift
   intervals within a slot-definition lane and do not persist or redefine
-  `row_index`.
+  `row_index`. The positioned shift span and drag target calculation use exact
+  authoritative elapsed seconds, while card labels remain projections of the
+  stored local endpoint clocks. The inner card may retain a minimum visual
+  affordance, but it does not enlarge the positioned span or overlap geometry;
+  this keeps sub-minute and first-to-second equal repeated intervals exact and
+  visible.
+  Dropping a shift back on its current lane, day, and local start is a no-op that
+  retains its original occurrence-selected boundaries.
 - Editable draft timelines render 15-minute server-owned dropzones per
   slot-definition lane within the venue picker window. Dragging an existing staffed shift to a timeline target
   preserves its duration, changes start/end times, and changes

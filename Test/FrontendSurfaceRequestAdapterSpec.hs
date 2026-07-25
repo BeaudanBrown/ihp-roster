@@ -478,7 +478,7 @@ tests = describe "FrontendSurfaceRequestAdapter" do
                 , ("move-roster-shift-to-slot", "/MoveRosterShiftToSlot?weekOffset=3&amp;rosterGroupId=00000000-0000-0000-0000-000000000222", 13)
                 , ("duplicate-roster-shift-to-day", "/DuplicateRosterShiftToDay?weekOffset=3&amp;rosterGroupId=00000000-0000-0000-0000-000000000222", 13)
                 , ("drop-roster-staff", "/DropRosterStaff?weekOffset=3&amp;rosterGroupId=00000000-0000-0000-0000-000000000222", 11)
-                , ("move-roster-timeline-shift", "/MoveRosterTimelineShift?weekOffset=3&amp;rosterGroupId=00000000-0000-0000-0000-000000000222&amp;rosterView=timeline&amp;dayOffset=2", 13)
+                , ("move-roster-timeline-shift", "/MoveRosterTimelineShift?weekOffset=3&amp;rosterGroupId=00000000-0000-0000-0000-000000000222&amp;rosterView=timeline&amp;dayOffset=2", 12)
                 ]
         forM_ (zip expectedFormMetadata renderedForms) \(metadata, html) ->
             assertRosterIntentFormMetadata metadata html
@@ -494,9 +494,9 @@ tests = describe "FrontendSurfaceRequestAdapter" do
         forM_ (take 2 (drop 1 renderedForms)) \copyDragHtml ->
             forM_ ["copyStartOccurrence", "copyEndOccurrence"] \fieldName ->
                 copyDragHtml `shouldSatisfy` Text.isInfixOf (renderedIntentField fieldName "optional")
-        forM_ (drop 4 renderedForms) \timelineDragHtml ->
-            forM_ ["timelineStartOccurrence", "timelineEndOccurrence"] \fieldName ->
-                timelineDragHtml `shouldSatisfy` Text.isInfixOf (renderedIntentField fieldName "optional")
+        forM_ (drop 4 renderedForms) \timelineDragHtml -> do
+            timelineDragHtml `shouldSatisfy` Text.isInfixOf (renderedIntentField "timelineStartOccurrence" "optional")
+            timelineDragHtml `shouldSatisfy` (not . Text.isInfixOf "timelineEndOccurrence")
 
     it "parses every production Roster Intent shape through the canonical facade" do
         let parsedCopyOccurrences =

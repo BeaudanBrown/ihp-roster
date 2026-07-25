@@ -69,8 +69,11 @@ submission work belongs in `docs/workstreams/` until it lands.
   user preference.
 - Suggestions use the same parameterized Timesheet card renderer as persisted
   entries, including fonts, hover behavior, time/break summary, and shape bar.
-  A full-contrast accent border and tinted card background identify the
-  transient state without a status badge. Create is shown in place of approval,
+  Shape geometry is anchored at the projected local start clock but measures
+  shift and break widths from authoritative elapsed instants, so repeated equal
+  clocks do not become missing or full-day bars. A full-contrast accent border
+  and tinted card background identify the transient state without a status
+  badge. Create is shown in place of approval,
   and clicking the card body opens the prefilled form.
 
 ## Materialization And Ad-Hoc Entries

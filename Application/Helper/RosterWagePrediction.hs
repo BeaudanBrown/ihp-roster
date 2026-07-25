@@ -14,16 +14,17 @@ module Application.Helper.RosterWagePrediction
     ) where
 
 import Application.Helper.Pay (latestVenueEffectiveRate)
-import Application.Helper.TimeRules (automaticMealBreakMinutes,
+import Application.Helper.TimeRules (authoritativeRosterIntervalIsOperationallyValid,
+                                     automaticMealBreakMinutes,
                                      automaticMealBreakStartOffsetMinutes,
-                                     automaticMealBreakThresholdMinutes,
-                                     validRosterShiftDurationMinutes)
+                                     automaticMealBreakThresholdMinutes)
 import Application.VenueTime (AwardSegment, LocalDayKind (..),
                               LocalTimeWindow (..), awardSegmentElapsedSeconds,
                               awardSegmentEnd, awardSegmentLocalDate,
                               awardSegmentLocalDayKind, awardSegmentLocalWindow,
                               awardSegmentStart, resolvedInstantUTC)
 import Application.VenueTime.Model
+import Control.Monad (guard)
 import qualified Data.List as List
 import qualified Data.Map.Strict as Map
 import Data.Scientific (Scientific)
@@ -149,10 +150,8 @@ completeRosterSlot :: RosterSlot -> Maybe (UUID, UUID, AuthoritativeBoundaries, 
 completeRosterSlot slot = do
     staffId <- slot.staffId
     shiftTypeId <- slot.shiftTypeId
-    startTime <- rosterSlotStartTime slot
-    endTime <- rosterSlotEndTime slot
-    _ <- validRosterShiftDurationMinutes startTime endTime
     boundaries <- rosterSlotPredictionBoundaries slot
+    guard (authoritativeRosterIntervalIsOperationallyValid boundaries)
     segments <- either (const Nothing) Just (authoritativeAwardSegments boundaries)
     pure (staffId, shiftTypeId, boundaries, segments)
 
