@@ -7,7 +7,7 @@ module Web.RosterWeeks.Overview
 import Application.Helper.Controller (LeaveRequestStatus (..),
                                       parseLeaveRequestStatus)
 import Application.Helper.RosterGroups (fetchEligibleRosterGroupStaff)
-import Application.VenueTime.Model (rosterSlotDurationMinutes)
+import Application.VenueTime.Model (rosterSlotElapsedSeconds)
 import Data.Coerce (coerce)
 import Data.List (nub)
 import qualified Data.Map.Strict as Map
@@ -94,9 +94,9 @@ buildRosterMonthOverviewDays venueConfig rosterGroupId focusDate = do
                         | slot <- daySlots
                         , isJust slot.staffId
                         ]
-                scheduledMinutes =
+                scheduledElapsedSeconds =
                     sum
-                        [ fromMaybe 0 (rosterSlotDurationMinutes slot)
+                        [ fromMaybe 0 (rosterSlotElapsedSeconds slot)
                         | slot <- daySlots
                         , isJust slot.staffId
                         ]
@@ -113,7 +113,7 @@ buildRosterMonthOverviewDays venueConfig rosterGroupId focusDate = do
                     { overviewDate
                     , leaveRequestCount
                     , overviewAssignedShiftCount = assignedShiftCount
-                    , scheduledMinutes
+                    , scheduledElapsedSeconds
                     , overviewIsClosed = maybe False (.isClosed) maybeRosterDay
                     }
 

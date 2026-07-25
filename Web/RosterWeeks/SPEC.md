@@ -85,7 +85,9 @@ lands.
   mechanics without class/cell-position or conflict inference.
 - The retained month overview endpoint uses generated panel/day/detail-slot
   roles, exact Haskell-built date/metric/summary/URL payloads, native
-  `aria-pressed`, and generated availability/closure/calendar state. Malformed
+  `aria-pressed`, and generated availability/closure/calendar state. Assigned
+  slot durations aggregate exact elapsed seconds before the final display
+  formatter. Malformed
   days are diagnosed and skipped locally. The active roster header still renders
   only a static week label, so the overview remains disabled and is not loaded
   during normal navigation.

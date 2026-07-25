@@ -225,7 +225,7 @@ setTestRosterSlotBoundaries rosterDate startTime endTime slot =
      in applyRosterSlotBoundaries boundaries slot
 
 testDurationMinutes :: RosterSlot -> Maybe Int
-testDurationMinutes = rosterSlotDurationMinutes
+testDurationMinutes = fmap (floor . (/ 60)) . rosterSlotElapsedSeconds
 
 setTestDurationMinutes :: Maybe Int -> RosterSlot -> RosterSlot
 setTestDurationMinutes Nothing slot = slot |> set #endsAt Nothing

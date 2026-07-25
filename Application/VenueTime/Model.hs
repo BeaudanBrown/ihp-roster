@@ -41,7 +41,6 @@ module Application.VenueTime.Model
     , rosterSlotStartTime
     , rosterSlotEndTime
     , rosterSlotElapsedSeconds
-    , rosterSlotDurationMinutes
     , rosterSlotStartOccurrence
     , rosterSlotEndOccurrence
     , melbourneDateRangeUTC
@@ -379,9 +378,6 @@ rosterSlotElapsedSeconds slot = do
     end <- slot.endsAt
     guard (end > start)
     pure (diffUTCTime end start)
-
-rosterSlotDurationMinutes :: RosterSlot -> Maybe Int
-rosterSlotDurationMinutes = fmap (floor . (/ 60)) . rosterSlotElapsedSeconds
 
 rosterSlotStartOccurrence :: RosterSlot -> Maybe RepeatedTimeOccurrence
 rosterSlotStartOccurrence slot = slot.startsAt >>= occurrenceOfStoredInstant slot.timezone

@@ -19,7 +19,6 @@ import Application.VenueTime (RepeatedTimeOccurrence (..))
 import Application.VenueTime.Model (ShiftBoundaryInput (..),
                                     applyRosterSlotBoundaries,
                                     resolveShiftBoundaries,
-                                    rosterSlotDurationMinutes,
                                     rosterSlotElapsedSeconds,
                                     rosterSlotEndOccurrence, rosterSlotEndTime,
                                     rosterSlotStartOccurrence,
@@ -1272,7 +1271,7 @@ tests = aroundAll withDatabaseTestContext do
                 response `responseStatusShouldBe` status200
                 movedSlot <- fetch sourceSlot.id
                 movedSlot.rosterDayId `shouldBe` unpackId targetDay.id
-                rosterSlotDurationMinutes movedSlot `shouldBe` Just 60
+                rosterSlotElapsedSeconds movedSlot `shouldBe` Just (60 * 60)
                 rosterSlotStartTime movedSlot `shouldBe` Just (TimeOfDay 9 0 0)
                 rosterSlotEndTime movedSlot `shouldBe` Just (TimeOfDay 10 0 0)
 
@@ -1525,8 +1524,12 @@ tests = aroundAll withDatabaseTestContext do
                 nextWeekDay <- createRosterDayRecord nextWeek 0
                 nextWeekSlotA <- createRosterSlotRecord nextWeekDay slotName (Just staffMember) 0
                 nextWeekSlotB <- createRosterSlotRecord nextWeekDay slotName (Just staffMember) 1
+                nextWeekSlotC <- createRosterSlotRecord nextWeekDay slotName (Just staffMember) 2
+                nextWeekSlotD <- createRosterSlotRecord nextWeekDay slotName (Just staffMember) 3
                 _ <- updateRecord (nextWeekSlotA |> setTestRosterSlotBoundaries (addDays 7 defaultWeekEpoch) (timeOfDay 9 0) (timeOfDay 13 0))
                 _ <- updateRecord (nextWeekSlotB |> setTestRosterSlotBoundaries (addDays 7 defaultWeekEpoch) (timeOfDay 14 0) (timeOfDay 18 0))
+                _ <- updateRecord (nextWeekSlotC |> setTestRosterSlotBoundaries (addDays 7 defaultWeekEpoch) (TimeOfDay 18 0 0) (TimeOfDay 18 0 30))
+                _ <- updateRecord (nextWeekSlotD |> setTestRosterSlotBoundaries (addDays 7 defaultWeekEpoch) (TimeOfDay 18 1 0) (TimeOfDay 18 1 30))
                 _ <- createLeaveRequestRecord venue staffMember (addDays 7 defaultWeekEpoch) (addDays 8 defaultWeekEpoch) "pending"
                 _ <- createLeaveRequestRecord venue staffMember (addDays 7 defaultWeekEpoch) (addDays 8 defaultWeekEpoch) "denied"
                 _ <- createLeaveRequestRecord venue staffMember (addDays 40 defaultWeekEpoch) (addDays 41 defaultWeekEpoch) "approved"
@@ -1538,8 +1541,8 @@ tests = aroundAll withDatabaseTestContext do
                 response `responseStatusShouldBe` status200
                 response `responseBodyShouldContain` "data-bepis-roster-week-overview-panel="
                 response `responseBodyShouldContain` "&quot;weekOverviewDate&quot;:&quot;2025-01-13&quot;"
-                response `responseBodyShouldContain` "&quot;weekOverviewAssignedDisplay&quot;:&quot;2&quot;"
-                response `responseBodyShouldContain` "&quot;weekOverviewHoursDisplay&quot;:&quot;8h&quot;"
+                response `responseBodyShouldContain` "&quot;weekOverviewAssignedDisplay&quot;:&quot;4&quot;"
+                response `responseBodyShouldContain` "&quot;weekOverviewHoursDisplay&quot;:&quot;8h 1m&quot;"
                 response `responseBodyShouldContain` "&quot;weekOverviewLeaveDisplay&quot;:&quot;1&quot;"
                 response `responseBodyShouldNotContain` "&quot;weekOverviewLeaveDisplay&quot;:&quot;2&quot;"
                 response `responseBodyShouldContain` "&quot;weekOverviewDate&quot;:&quot;2025-01-01&quot;"

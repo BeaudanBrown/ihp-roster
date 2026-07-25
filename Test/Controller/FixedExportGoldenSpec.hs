@@ -38,6 +38,22 @@ tests = aroundAll withDatabaseTestContext do
                 get #payConfigVersionManifest exportJob `shouldBe` Just "mixed"
                 unsafeStripCarriageReturns (fromMaybe "" (get #fileContents exportJob)) `shouldBe` unsafeStripCarriageReturns expectedCsv
 
+        it "aggregates fractional staff hours before final CSV formatting" $ withContext do
+            withCleanDb do
+                fixture <- seedCanonicalPayrollFixture
+                let fractionalShift =
+                        [ set #shiftTypeId (unpackId fixture.kitchenShift.id)
+                        , setTestStartTime (TimeOfDay 9 0 0)
+                        , setTestEndTime (TimeOfDay 9 0 15)
+                        ]
+                _ <- createAndApproveEntry fixture.venue fixture.kaiStaff defaultWeekEpoch fixture.snapshot fixture.admin fixture.approvedAt fractionalShift
+                _ <- createAndApproveEntry fixture.venue fixture.kaiStaff defaultWeekEpoch fixture.snapshot fixture.admin fixture.approvedAt fractionalShift
+
+                exportJob <- generatePayrollExportJob fixture.admin fixture.venue StaffPayCsv
+                let csvRows = csvRowsByKey (fromMaybe "" (get #fileContents exportJob))
+
+                take 3 (lookupCsvRow csvRows "Kai LVL 1") `shouldBe` ["0.01", "0.00", "0.00"]
+
         it "renders the canonical payroll earnings CSV shape exactly after normalizing row ids" $ withContext do
             withCleanDb do
                 fixture <- seedCanonicalPayrollFixture

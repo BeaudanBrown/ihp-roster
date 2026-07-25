@@ -9,7 +9,7 @@ import Application.Helper.RosterGroups (createVenueRosterGroupWithDefaults,
 import Application.Helper.SurfaceResource
 import Application.Helper.UserPreferences
 import Application.VenueTime (RepeatedTimeOccurrence (..))
-import Application.VenueTime.Model (rosterSlotDurationMinutes,
+import Application.VenueTime.Model (rosterSlotElapsedSeconds,
                                     rosterSlotEndOccurrence,
                                     rosterSlotStartOccurrence,
                                     storedInstantLocalTime,
@@ -667,7 +667,7 @@ tests = aroundAll withDatabaseTestContext do
                 startsAt <- maybe (expectationFailure "Expected roster start instant" >> error "unreachable") pure slot.startsAt
                 storedInstantOccurrence slot.timezone startsAt `shouldBe` Just SecondOccurrence
                 (storedInstantLocalTime slot.timezone startsAt).localDay `shouldBe` fromGregorian 2026 4 5
-                rosterSlotDurationMinutes slot `shouldBe` Just 90
+                rosterSlotElapsedSeconds slot `shouldBe` Just (90 * 60)
 
         it "creates a positive repeated-hour roster shift with equal local clocks" $ withContext do
             withCleanDb do
@@ -707,7 +707,7 @@ tests = aroundAll withDatabaseTestContext do
                 slot <- query @RosterSlot |> fetchOne
                 rosterSlotStartOccurrence slot `shouldBe` Just FirstOccurrence
                 rosterSlotEndOccurrence slot `shouldBe` Just SecondOccurrence
-                rosterSlotDurationMinutes slot `shouldBe` Just 60
+                rosterSlotElapsedSeconds slot `shouldBe` Just (60 * 60)
                 rosterSlotHasValidStartEnd slot `shouldBe` True
 
         it "rejects a nonexistent after-midnight spring roster boundary" $ withContext do

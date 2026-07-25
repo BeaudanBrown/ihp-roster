@@ -22,6 +22,7 @@ import Application.Helper.FrontendContract.Passkey.Runtime (PasskeySetupPromptMo
 import Application.Helper.RosterWagePrediction (RosterWagePrediction)
 import Data.Map.Strict (Map)
 import Data.Time.Calendar (Day)
+import Data.Time.Clock (NominalDiffTime)
 import Data.UUID (UUID)
 import Generated.Types
 import IHP.Prelude
@@ -86,7 +87,7 @@ data RosterWeekOverviewDay = RosterWeekOverviewDay
     { overviewDate               :: Day
     , leaveRequestCount          :: Int
     , overviewAssignedShiftCount :: Int
-    , scheduledMinutes           :: Int
+    , scheduledElapsedSeconds    :: NominalDiffTime
     , overviewIsClosed           :: Bool
     }
 
