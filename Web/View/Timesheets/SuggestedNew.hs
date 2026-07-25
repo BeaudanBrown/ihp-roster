@@ -4,6 +4,7 @@ module Web.View.Timesheets.SuggestedNew where
 
 import Application.Helper.FrontendContract.AppShell (CreateTimesheetEntryOverlay)
 import Application.Helper.FrontendContract.AppShell.Runtime (appShellActionByMarker)
+import Application.VenueTime.Model (timesheetEntryWorkedOn)
 import Web.Timesheets.Paths (timesheetWeekUrl)
 import Web.View.Prelude
 
@@ -25,7 +26,7 @@ data SuggestedNewView = SuggestedNewView
 instance View SuggestedNewView where
     html SuggestedNewView { .. } =
         renderTimesheetEntryModal
-            ("Rostered " <> timesheetModalTitle timesheetEntry.workedOn)
+            ("Rostered " <> timesheetModalTitle (timesheetEntryWorkedOn timesheetEntry))
             (timesheetWeekUrl weekOffset showApproved showAllStaff showSuggestions selectedStaffFilterId)
             suggestedTimesheetFormId
             (renderSuggestedTimesheetForm PageOverlayForm rosterSlotId timesheetEntry staffMembers shiftTypes weekOffset showApproved showAllStaff showSuggestions selectedStaffFilterId currentViewerStaffId pickerStart pickerEnd)
@@ -36,7 +37,7 @@ suggestedTimesheetFormId = "timesheet-suggestion-create-form"
 renderSuggestedTimesheetDialog :: Id RosterSlot -> TimesheetEntry -> [Staff] -> [ShiftType] -> Int -> Bool -> Bool -> Bool -> Maybe UUID -> Maybe UUID -> Text -> Text -> Html
 renderSuggestedTimesheetDialog rosterSlotId timesheetEntry staffMembers shiftTypes weekOffset showApproved showAllStaff showSuggestions selectedStaffFilterId currentViewerStaffId pickerStart pickerEnd =
     renderTimesheetEntryDialog
-        ("Rostered " <> timesheetModalTitle timesheetEntry.workedOn)
+        ("Rostered " <> timesheetModalTitle (timesheetEntryWorkedOn timesheetEntry))
         suggestedTimesheetFormId
         (renderSuggestedTimesheetForm HtmxOverlayForm rosterSlotId timesheetEntry staffMembers shiftTypes weekOffset showApproved showAllStaff showSuggestions selectedStaffFilterId currentViewerStaffId pickerStart pickerEnd)
 

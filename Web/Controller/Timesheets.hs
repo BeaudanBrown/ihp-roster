@@ -8,12 +8,14 @@ import Application.Helper.SurfaceResource (LiveMutationResult (..))
 import Application.Helper.TimeRules (defaultShiftTimesForVenueConfig,
                                      venueTimePickerFinalSelectableTimeText,
                                      venueTimePickerStartTimeText)
+import Application.VenueTime.Model
 import Web.Controller.Prelude
 import Web.Timesheets.Mutations
 import Web.Timesheets.Paths (timesheetWeekUrl)
 import Web.Timesheets.Projection
 import Web.Timesheets.Responses
-import Web.Timesheets.Suggestion (newTimesheetEntryFromSuggestion)
+import Web.Timesheets.Suggestion (newTimesheetEntryFromSuggestion,
+                                  timesheetSuggestionWorkedOn)
 import Web.Timesheets.Validation
 import Web.View.Timesheets.Edit
 import Web.View.Timesheets.New
@@ -50,6 +52,19 @@ requireTimesheetSurfaceState = \case
             , surfaceRequestShowSuggestions = True
             , surfaceRequestStaffFilterId = Nothing
             }
+
+newTimesheetEntryForForm :: VenueConfig -> Day -> TimeOfDay -> TimeOfDay -> TimesheetEntry
+newTimesheetEntryForForm venueConfig workedOn startTime endTime =
+    case resolveShiftBoundaries venueConfig.timezone ShiftBoundaryInput
+        { shiftBoundaryDate = workedOn
+        , shiftBoundaryStartTime = startTime
+        , shiftBoundaryStartOccurrence = Nothing
+        , shiftBoundaryEndTime = endTime
+        , shiftBoundaryEndOccurrence = Nothing
+        , shiftBoundaryBreak = Nothing
+        } of
+        Left failure -> error ("Cannot build default timesheet boundaries: " <> show failure)
+        Right boundaries -> applyTimesheetEntryBoundaries boundaries (newRecord @TimesheetEntry)
 
 instance Controller TimesheetsController where
     beforeAction = bepisBeforeAction BepisAuthenticatedVenueController do
@@ -129,17 +144,10 @@ instance Controller TimesheetsController where
             (_, defaultShiftType : _, Just workedOn) -> do
                 hasRosterSuggestionForDay <- viewerHasTimesheetSuggestionOnDay weekOffset showAllStaff selectedStaffFilterId workedOn
                 let timesheetEntry =
-                        newRecord @TimesheetEntry
+                        newTimesheetEntryForForm venueConfig workedOn defaultStartTime defaultEndTime
                             |> set #venueId (unpackId currentVenueId)
                             |> (\entry -> maybe entry (\staff -> set #staffId (unpackId (get #id staff)) entry) currentUserStaff)
                             |> set #shiftTypeId (unpackId (get #id defaultShiftType))
-                            |> set #workedOn workedOn
-                            |> set #startTime defaultStartTime
-                            |> set #endTime defaultEndTime
-                            |> set #hadBreak False
-                            |> set #breakStartTime Nothing
-                            |> set #breakEndTime Nothing
-                            |> set #breakMinutes 0
                 if isHtmxRequest
                     then respondHtml (renderNewTimesheetDialog timesheetEntry staffMembers shiftTypes weekOffset showApproved showAllStaff showSuggestions hasRosterSuggestionForDay selectedStaffFilterId currentViewerStaffId pickerStart pickerEnd)
                     else render NewView { .. }
@@ -155,11 +163,14 @@ instance Controller TimesheetsController where
         venueConfig <- fetchVenueConfig
         let pickerStart = venueTimePickerStartTimeText venueConfig
         let pickerEnd = venueTimePickerFinalSelectableTimeText venueConfig
+        let fallbackWorkedOn = venueWeekStartDate venueConfig weekOffset
+        let submittedWorkedOn = fromMaybe fallbackWorkedOn (paramOrNothing @Day "workedOn")
+        let (defaultStartTime, defaultEndTime) = defaultShiftTimesForVenueConfig venueConfig
         let timesheetEntryRecord =
-                newRecord @TimesheetEntry
+                newTimesheetEntryForForm venueConfig submittedWorkedOn defaultStartTime defaultEndTime
                     |> set #venueId (unpackId currentVenueId)
-                    |> buildTimesheetEntry currentViewerStaffId
-        hasRosterSuggestionForDay <- viewerHasTimesheetSuggestionOnDay weekOffset showAllStaff selectedStaffFilterId timesheetEntryRecord.workedOn
+                    |> buildTimesheetEntry venueConfig.timezone currentViewerStaffId
+        hasRosterSuggestionForDay <- viewerHasTimesheetSuggestionOnDay weekOffset showAllStaff selectedStaffFilterId submittedWorkedOn
 
         timesheetEntryRecord
             |> ifValid \case
@@ -187,7 +198,7 @@ instance Controller TimesheetsController where
                 setErrorMessage "That rostered shift is no longer available as a timesheet suggestion."
                 redirectToPath (timesheetWeekUrl weekOffset showApproved showAllStaff showSuggestions selectedStaffFilterId)
             Just suggestion -> do
-                weekOffset <- weekOffsetFromParamOrEntry suggestion.suggestionWorkedOn
+                weekOffset <- weekOffsetFromParamOrEntry (timesheetSuggestionWorkedOn suggestion)
                 staffMembers <- fetchStaffForForm
                 shiftTypes <- fetchShiftTypesForForm
                 currentUserStaff <- fetchCurrentUserStaff
@@ -221,7 +232,7 @@ instance Controller TimesheetsController where
                 let suggestedEntry = newTimesheetEntryFromSuggestion (unpackId currentVenueId) suggestion
                 let timesheetEntry =
                         if hasParam "startTime" || hasParam "hadBreak"
-                            then buildTimesheetEntry currentViewerStaffId suggestedEntry
+                            then buildTimesheetEntry venueConfig.timezone currentViewerStaffId suggestedEntry
                             else suggestedEntry
                 timesheetEntry
                     |> ifValid \case
@@ -232,7 +243,7 @@ instance Controller TimesheetsController where
                                 else render SuggestedNewView { .. }
                         Right validEntry -> do
                             accessDeniedUnless (validEntry.staffId == suggestion.suggestionStaffId)
-                            accessDeniedUnless (validEntry.workedOn == suggestion.suggestionWorkedOn)
+                            accessDeniedUnless (timesheetEntryWorkedOn validEntry == timesheetSuggestionWorkedOn suggestion)
                             ensureStaffAssignmentAllowed validEntry.staffId
                             ensureShiftTypeAllowed validEntry.shiftTypeId
                             materializationResult <- materializeTimesheetSuggestionMutation weekOffset suggestion validEntry
@@ -251,9 +262,10 @@ instance Controller TimesheetsController where
         timesheetEntry <- fetch timesheetEntryId
         ensureRecordInCurrentVenue timesheetEntry.venueId
         ensureTimesheetVisibility timesheetEntry
-        ensureEditWindowOrManager timesheetEntry.workedOn
+        let workedOn = timesheetEntryWorkedOn timesheetEntry
+        ensureEditWindowOrManager workedOn
 
-        weekOffset <- weekOffsetFromParamOrEntry timesheetEntry.workedOn
+        weekOffset <- weekOffsetFromParamOrEntry workedOn
         let (showApproved, showAllStaff, showSuggestions, selectedStaffFilterId) = timesheetViewFiltersFromRequest
         staffMembers <- fetchStaffForForm
         shiftTypes <- fetchShiftTypesForForm
@@ -271,9 +283,10 @@ instance Controller TimesheetsController where
         existingEntry <- fetch timesheetEntryId
         ensureRecordInCurrentVenue existingEntry.venueId
         ensureTimesheetVisibility existingEntry
-        ensureEditWindowOrManager existingEntry.workedOn
+        let existingWorkedOn = timesheetEntryWorkedOn existingEntry
+        ensureEditWindowOrManager existingWorkedOn
 
-        weekOffset <- weekOffsetFromParamOrEntry existingEntry.workedOn
+        weekOffset <- weekOffsetFromParamOrEntry existingWorkedOn
         let (showApproved, showAllStaff, showSuggestions, selectedStaffFilterId) = timesheetViewFiltersFromRequest
         staffMembers <- fetchStaffForForm
         shiftTypes <- fetchShiftTypesForForm
@@ -285,7 +298,7 @@ instance Controller TimesheetsController where
 
         let wasApproved = existingEntry.isApproved
         existingEntry
-            |> buildTimesheetEntry currentViewerStaffId
+            |> buildTimesheetEntry venueConfig.timezone currentViewerStaffId
             |> ifValid \case
                 Left timesheetEntry -> do
                     if isHtmxRequest
@@ -314,9 +327,10 @@ instance Controller TimesheetsController where
         timesheetEntry <- fetch timesheetEntryId
         ensureRecordInCurrentVenue timesheetEntry.venueId
         ensureTimesheetVisibility timesheetEntry
-        ensureEditWindowOrManager timesheetEntry.workedOn
+        let workedOn = timesheetEntryWorkedOn timesheetEntry
+        ensureEditWindowOrManager workedOn
 
-        weekOffset <- weekOffsetFromParamOrEntry timesheetEntry.workedOn
+        weekOffset <- weekOffsetFromParamOrEntry workedOn
         let (showApproved, showAllStaff, showSuggestions, selectedStaffFilterId) = timesheetViewFiltersFromRequest
         ensureTimesheetEntryNotPayrollLocked timesheetEntry weekOffset showApproved showAllStaff showSuggestions selectedStaffFilterId
         mutationResult <- deleteTimesheetEntryMutation weekOffset timesheetEntry

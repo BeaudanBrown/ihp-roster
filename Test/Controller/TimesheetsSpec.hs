@@ -11,6 +11,16 @@ import Application.Helper.LiveUpdate
 import Application.Helper.LiveUpdate.Runtime
 import Application.Helper.SurfaceResource
 import Application.Helper.WeekBoundaries (venueWeekOffsetForDay)
+import Application.VenueTime (RepeatedTimeOccurrence (..))
+import Application.VenueTime.Model (ShiftBoundaryInput (..),
+                                    applyRosterSlotBoundaries,
+                                    authoritativeBreakElapsedSeconds,
+                                    authoritativeBreakStartLocalTime,
+                                    authoritativeBreakStartOccurrence,
+                                    authoritativeElapsedSeconds,
+                                    resolveShiftBoundaries,
+                                    storedInstantOccurrence,
+                                    timesheetEntryElapsedSeconds)
 import Config
 import Control.Concurrent (forkIO, newEmptyMVar, putMVar, takeMVar)
 import Control.Exception (SomeException, try)
@@ -41,7 +51,8 @@ import Web.Timesheets.Mutations (materializeTimesheetSuggestionMutation,
 import Web.Timesheets.Projection (TimesheetProjectionFragment (..),
                                   TimesheetProjectionRequest (..),
                                   fetchTimesheetSuggestionForRosterSlot)
-import Web.Timesheets.Suggestion (newTimesheetEntryFromSuggestion)
+import Web.Timesheets.Suggestion (TimesheetSuggestion (..),
+                                  newTimesheetEntryFromSuggestion)
 import Web.Types
 
 tests :: Spec
@@ -168,7 +179,7 @@ tests = aroundAll withDatabaseTestContext do
                 staff <- createStaffRecord venue Nothing "Tim" "Touched"
                 entry <- createTimesheetEntryRecord venue staff (fromGregorian 2025 1 7)
                 venueConfig <- query @VenueConfig |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
-                let weekOffset = venueWeekOffsetForDay venueConfig entry.workedOn
+                let weekOffset = venueWeekOffsetForDay venueConfig (testWorkedOn entry)
 
                 Set.fromList (timesheetEntryTouchedResources venueConfig [entry])
                     `shouldBe` Set.fromList
@@ -272,7 +283,7 @@ tests = aroundAll withDatabaseTestContext do
                         |> filterWhere (#venueId, unpackId venue.id)
                         |> filterWhere (#staffId, unpackId staff.id)
                         |> fetchOne
-                entry.hadBreak `shouldBe` False
+                testHadBreak entry `shouldBe` False
 
         it "parses the generated explicit false had-break transport as no break" $ withContext do
             withCleanDb do
@@ -296,10 +307,10 @@ tests = aroundAll withDatabaseTestContext do
 
                 response `responseStatusShouldBe` status302
                 entry <- query @TimesheetEntry |> fetchOne
-                entry.hadBreak `shouldBe` False
-                entry.breakStartTime `shouldBe` Nothing
-                entry.breakEndTime `shouldBe` Nothing
-                entry.breakMinutes `shouldBe` 0
+                testHadBreak entry `shouldBe` False
+                testBreakStartTime entry `shouldBe` Nothing
+                testBreakEndTime entry `shouldBe` Nothing
+                testBreakMinutes entry `shouldBe` 0
 
         it "parses the generated explicit true had-break transport with break times" $ withContext do
             withCleanDb do
@@ -325,10 +336,150 @@ tests = aroundAll withDatabaseTestContext do
 
                 response `responseStatusShouldBe` status302
                 entry <- query @TimesheetEntry |> fetchOne
-                entry.hadBreak `shouldBe` True
-                entry.breakStartTime `shouldBe` Just (TimeOfDay 12 0 0)
-                entry.breakEndTime `shouldBe` Just (TimeOfDay 12 30 0)
-                entry.breakMinutes `shouldBe` 30
+                testHadBreak entry `shouldBe` True
+                testBreakStartTime entry `shouldBe` Just (TimeOfDay 12 0 0)
+                testBreakEndTime entry `shouldBe` Just (TimeOfDay 12 30 0)
+                testBreakMinutes entry `shouldBe` 30
+
+        it "requires an occurrence only for an ambiguous autumn timesheet boundary" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Timesheet Autumn Boundary Venue"
+                manager <- createUserRecord "timesheet-autumn-manager@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue manager "manager"
+                staff <- createStaffRecord venue (Just manager) "Autumn" "Manager"
+                payLevel <- createPayLevelRecord venue "Level 1"
+                shiftType <- createShiftTypeRecord venue payLevel "Ordinary"
+                let baseParams =
+                        [ ("weekOffset", "0")
+                        , ("staffId", idToParam staff.id)
+                        , ("shiftTypeId", idToParam shiftType.id)
+                        , ("workedOn", "2026-04-05")
+                        , ("startTime", "02:30")
+                        , ("endTime", "04:00")
+                        , ("hadBreak", "false")
+                        ]
+
+                missingOccurrenceResponse <- withUserAndCurrentVenue manager venue.id do
+                    withRequestHeaders [("HX-Request", "true")] do
+                        callActionWithParams CreateTimesheetEntryAction baseParams
+
+                missingOccurrenceResponse `responseStatusShouldBe` status200
+                missingOccurrenceResponse `responseBodyShouldContain` "Choose whether this is the first or second occurrence."
+                missingOccurrenceResponse `responseBodyShouldContain` "data-time-occurrence-chooser=\"startOccurrence\""
+                missingOccurrenceResponse `responseBodyShouldNotContain` "data-time-occurrence-chooser=\"endOccurrence\""
+                query @TimesheetEntry |> fetchCount >>= (`shouldBe` 0)
+
+                createdResponse <- withUserAndCurrentVenue manager venue.id do
+                    callActionWithParams CreateTimesheetEntryAction (baseParams <> [("startOccurrence", "second")])
+
+                createdResponse `responseStatusShouldBe` status302
+                entry <- query @TimesheetEntry |> fetchOne
+                storedInstantOccurrence entry.timezone entry.startsAt `shouldBe` Just SecondOccurrence
+                timesheetEntryElapsedSeconds entry `shouldBe` 90 * 60
+
+        it "creates a positive repeated-hour timesheet with equal local clocks" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Timesheet Equal Autumn Boundary Venue"
+                manager <- createUserRecord "timesheet-equal-autumn-manager@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue manager "manager"
+                staff <- createStaffRecord venue (Just manager) "Equal Autumn" "Manager"
+                payLevel <- createPayLevelRecord venue "Level 1"
+                shiftType <- createShiftTypeRecord venue payLevel "Ordinary"
+                let baseParams =
+                        [ ("weekOffset", "0")
+                        , ("staffId", idToParam staff.id)
+                        , ("shiftTypeId", idToParam shiftType.id)
+                        , ("workedOn", "2026-04-05")
+                        , ("startTime", "02:30")
+                        , ("endTime", "02:30")
+                        , ("hadBreak", "false")
+                        ]
+
+                missingOccurrenceResponse <- withUserAndCurrentVenue manager venue.id do
+                    withRequestHeaders [("HX-Request", "true")] do
+                        callActionWithParams CreateTimesheetEntryAction baseParams
+
+                missingOccurrenceResponse `responseStatusShouldBe` status200
+                missingOccurrenceResponse `responseBodyShouldContain` "data-time-occurrence-chooser=\"startOccurrence\""
+                missingOccurrenceResponse `responseBodyShouldContain` "data-time-occurrence-chooser=\"endOccurrence\""
+                query @TimesheetEntry |> fetchCount >>= (`shouldBe` 0)
+
+                createdResponse <- withUserAndCurrentVenue manager venue.id do
+                    callActionWithParams CreateTimesheetEntryAction
+                        (baseParams <> [("startOccurrence", "first"), ("endOccurrence", "second")])
+
+                createdResponse `responseStatusShouldBe` status302
+                entry <- query @TimesheetEntry |> fetchOne
+                storedInstantOccurrence entry.timezone entry.startsAt `shouldBe` Just FirstOccurrence
+                storedInstantOccurrence entry.timezone entry.endsAt `shouldBe` Just SecondOccurrence
+                timesheetEntryElapsedSeconds entry `shouldBe` 60 * 60
+
+        it "creates a positive repeated-hour break with equal local clocks" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Timesheet Equal Autumn Break Venue"
+                manager <- createUserRecord "timesheet-equal-autumn-break-manager@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue manager "manager"
+                staff <- createStaffRecord venue (Just manager) "Equal Autumn Break" "Manager"
+                payLevel <- createPayLevelRecord venue "Level 1"
+                shiftType <- createShiftTypeRecord venue payLevel "Ordinary"
+                let baseParams =
+                        [ ("weekOffset", "0")
+                        , ("staffId", idToParam staff.id)
+                        , ("shiftTypeId", idToParam shiftType.id)
+                        , ("workedOn", "2026-04-05")
+                        , ("startTime", "01:30")
+                        , ("endTime", "03:30")
+                        , ("hadBreak", "true")
+                        , ("breakStartTime", "02:30")
+                        , ("breakEndTime", "02:30")
+                        ]
+
+                missingOccurrenceResponse <- withUserAndCurrentVenue manager venue.id do
+                    withRequestHeaders [("HX-Request", "true")] do
+                        callActionWithParams CreateTimesheetEntryAction baseParams
+
+                missingOccurrenceResponse `responseStatusShouldBe` status200
+                missingOccurrenceResponse `responseBodyShouldContain` "data-time-occurrence-chooser=\"breakStartOccurrence\""
+                missingOccurrenceResponse `responseBodyShouldContain` "data-time-occurrence-chooser=\"breakEndOccurrence\""
+                query @TimesheetEntry |> fetchCount >>= (`shouldBe` 0)
+
+                createdResponse <- withUserAndCurrentVenue manager venue.id do
+                    callActionWithParams CreateTimesheetEntryAction
+                        (baseParams <> [("breakStartOccurrence", "first"), ("breakEndOccurrence", "second")])
+
+                createdResponse `responseStatusShouldBe` status302
+                entry <- query @TimesheetEntry |> fetchOne
+                breakStart <- maybe (expectationFailure "Expected break start" >> error "unreachable") pure entry.breakStartsAt
+                breakEnd <- maybe (expectationFailure "Expected break end" >> error "unreachable") pure entry.breakEndsAt
+                storedInstantOccurrence entry.timezone breakStart `shouldBe` Just FirstOccurrence
+                storedInstantOccurrence entry.timezone breakEnd `shouldBe` Just SecondOccurrence
+                testBreakMinutes entry `shouldBe` 60
+
+        it "rejects a nonexistent spring timesheet boundary without normalizing it" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Timesheet Spring Boundary Venue"
+                manager <- createUserRecord "timesheet-spring-manager@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue manager "manager"
+                staff <- createStaffRecord venue (Just manager) "Spring" "Manager"
+                payLevel <- createPayLevelRecord venue "Level 1"
+                shiftType <- createShiftTypeRecord venue payLevel "Ordinary"
+
+                response <- withUserAndCurrentVenue manager venue.id do
+                    withRequestHeaders [("HX-Request", "true")] do
+                        callActionWithParams CreateTimesheetEntryAction
+                            [ ("weekOffset", "0")
+                            , ("staffId", idToParam staff.id)
+                            , ("shiftTypeId", idToParam shiftType.id)
+                            , ("workedOn", "2026-10-04")
+                            , ("startTime", "02:30")
+                            , ("endTime", "04:00")
+                            , ("hadBreak", "false")
+                            ]
+
+                response `responseStatusShouldBe` status200
+                response `responseBodyShouldContain` "This local time does not exist because clocks move forward."
+                response `responseBodyShouldNotContain` "data-time-occurrence-chooser=\"startOccurrence\""
+                query @TimesheetEntry |> fetchCount >>= (`shouldBe` 0)
 
         it "rejects a malformed generated had-break transport without creating an entry" $ withContext do
             withCleanDb do
@@ -365,10 +516,10 @@ tests = aroundAll withDatabaseTestContext do
                 entry <-
                     updateRecord
                         ( entry
-                            |> set #hadBreak True
-                            |> set #breakStartTime (Just (TimeOfDay 12 0 0))
-                            |> set #breakEndTime (Just (TimeOfDay 12 30 0))
-                            |> set #breakMinutes 30
+                            |> setTestHadBreak True
+                            |> setTestBreakStartTime (Just (TimeOfDay 12 0 0))
+                            |> setTestBreakEndTime (Just (TimeOfDay 12 30 0))
+                            |> setTestBreakMinutes 30
                         )
 
                 response <- withUserAndCurrentVenue manager venue.id do
@@ -386,10 +537,10 @@ tests = aroundAll withDatabaseTestContext do
                 response `responseStatusShouldBe` status200
                 response `responseBodyShouldContain` "Had break must be true or false"
                 persistedEntry <- fetch entry.id
-                persistedEntry.hadBreak `shouldBe` True
-                persistedEntry.breakStartTime `shouldBe` Just (TimeOfDay 12 0 0)
-                persistedEntry.breakEndTime `shouldBe` Just (TimeOfDay 12 30 0)
-                persistedEntry.breakMinutes `shouldBe` 30
+                testHadBreak persistedEntry `shouldBe` True
+                testBreakStartTime persistedEntry `shouldBe` Just (TimeOfDay 12 0 0)
+                testBreakEndTime persistedEntry `shouldBe` Just (TimeOfDay 12 30 0)
+                testBreakMinutes persistedEntry `shouldBe` 30
 
         it "renders HTMX timesheet forms with javascript submission disabled" $ withContext do
             withCleanDb do
@@ -610,9 +761,8 @@ tests = aroundAll withDatabaseTestContext do
                 rosterSlot <- createRosterSlotRecord rosterDay slotName (Just worker) 0
                 rosterSlot <- updateRecord
                     ( rosterSlot
-                        |> set #startTime (Just (TimeOfDay 9 0 0))
-                        |> set #endTime (Just (TimeOfDay 17 0 0))
-                        |> set #durationMinutes (Just 480)
+                        |> setTestRosterSlotBoundaries (fromGregorian 2025 1 7) (TimeOfDay 9 0 0) (TimeOfDay 17 0 0)
+                        |> setTestDurationMinutes (Just 480)
                         |> set #shiftTypeId (Just (unpackId shiftType.id))
                     )
 
@@ -649,9 +799,8 @@ tests = aroundAll withDatabaseTestContext do
                 rosterSlot <- createRosterSlotRecord rosterDay slotName (Just worker) 0
                 rosterSlot <- updateRecord
                     ( rosterSlot
-                        |> set #startTime (Just (TimeOfDay 12 0 0))
-                        |> set #endTime (Just (TimeOfDay 20 0 0))
-                        |> set #durationMinutes (Just 480)
+                        |> setTestRosterSlotBoundaries (fromGregorian 2025 1 31) (TimeOfDay 12 0 0) (TimeOfDay 20 0 0)
+                        |> setTestDurationMinutes (Just 480)
                         |> set #shiftTypeId (Just (unpackId shiftType.id))
                     )
 
@@ -679,9 +828,8 @@ tests = aroundAll withDatabaseTestContext do
                 rosterSlot <- createRosterSlotRecord rosterDay slotName (Just worker) 0
                 _ <- updateRecord
                     ( rosterSlot
-                        |> set #startTime (Just (TimeOfDay 10 0 0))
-                        |> set #endTime (Just (TimeOfDay 16 0 0))
-                        |> set #durationMinutes (Just 360)
+                        |> setTestRosterSlotBoundaries (fromGregorian 2025 1 7) (TimeOfDay 10 0 0) (TimeOfDay 16 0 0)
+                        |> setTestDurationMinutes (Just 360)
                         |> set #shiftTypeId (Just (unpackId shiftType.id))
                     )
 
@@ -709,9 +857,8 @@ tests = aroundAll withDatabaseTestContext do
                 rosterSlot <- createRosterSlotRecord rosterDay slotName (Just worker) 0
                 rosterSlot <- updateRecord
                     ( rosterSlot
-                        |> set #startTime (Just (TimeOfDay 9 0 0))
-                        |> set #endTime (Just (TimeOfDay 15 15 0))
-                        |> set #durationMinutes (Just 375)
+                        |> setTestRosterSlotBoundaries (fromGregorian 2025 1 7) (TimeOfDay 9 0 0) (TimeOfDay 15 15 0)
+                        |> setTestDurationMinutes (Just 375)
                         |> set #shiftTypeId (Just (unpackId shiftType.id))
                     )
 
@@ -742,13 +889,13 @@ tests = aroundAll withDatabaseTestContext do
                 entry.venueId `shouldBe` unpackId venue.id
                 entry.staffId `shouldBe` unpackId worker.id
                 entry.shiftTypeId `shouldBe` unpackId shiftType.id
-                entry.workedOn `shouldBe` fromGregorian 2025 1 7
-                entry.startTime `shouldBe` TimeOfDay 9 0 0
-                entry.endTime `shouldBe` TimeOfDay 15 15 0
-                entry.hadBreak `shouldBe` True
-                entry.breakStartTime `shouldBe` Just (TimeOfDay 14 30 0)
-                entry.breakEndTime `shouldBe` Just (TimeOfDay 15 0 0)
-                entry.breakMinutes `shouldBe` 30
+                testWorkedOn entry `shouldBe` fromGregorian 2025 1 7
+                testStartTime entry `shouldBe` TimeOfDay 9 0 0
+                testEndTime entry `shouldBe` TimeOfDay 15 15 0
+                testHadBreak entry `shouldBe` True
+                testBreakStartTime entry `shouldBe` Just (TimeOfDay 14 30 0)
+                testBreakEndTime entry `shouldBe` Just (TimeOfDay 15 0 0)
+                testBreakMinutes entry `shouldBe` 30
                 entry.isApproved `shouldBe` False
                 entry.sourceRosterSlotId `shouldBe` Just (unpackId rosterSlot.id)
                 version <- query @TimesheetEntryVersion |> fetchOne
@@ -756,6 +903,136 @@ tests = aroundAll withDatabaseTestContext do
                     [ "source" Aeson..= ("roster_suggestion" :: Text)
                     , "rosterSlotId" Aeson..= tshow rosterSlot.id
                     ]
+
+        it "preserves an authoritative repeated occurrence through a roster suggestion" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Timesheet DST Suggestion Venue"
+                workerUser <- createUserRecord "timesheet-dst-suggestion-worker@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue workerUser "worker"
+                worker <- createStaffRecord venue (Just workerUser) "Autumn" "Suggestion"
+                payLevel <- createPayLevelRecord venue "Level 1"
+                shiftType <- createShiftTypeRecord venue payLevel "Early"
+                rosterWeek <- createRosterWeekRecord venue 64 True
+                rosterDay <- createRosterDayRecord rosterWeek 5
+                slotName <- fetchSlotNameRecord venue "Early"
+                rosterSlot <- createRosterSlotRecord rosterDay slotName (Just worker) 0
+                boundaries <- case resolveShiftBoundaries "Australia/Melbourne" ShiftBoundaryInput
+                    { shiftBoundaryDate = fromGregorian 2026 4 5
+                    , shiftBoundaryStartTime = TimeOfDay 2 30 0
+                    , shiftBoundaryStartOccurrence = Just SecondOccurrence
+                    , shiftBoundaryEndTime = TimeOfDay 4 0 0
+                    , shiftBoundaryEndOccurrence = Nothing
+                    , shiftBoundaryBreak = Nothing
+                    } of
+                        Left failure -> expectationFailure ("Expected DST suggestion boundaries: " <> Text.unpack (tshow failure)) >> error "unreachable"
+                        Right value -> pure value
+                rosterSlot <- updateRecord
+                    ( rosterSlot
+                        |> set #shiftTypeId (Just (unpackId shiftType.id))
+                        |> applyRosterSlotBoundaries boundaries
+                    )
+
+                let surfaceParams =
+                        [ ("weekOffset", "64")
+                        , ("showApproved", "false")
+                        , ("showAllStaff", "false")
+                        , ("showSuggestions", "true")
+                        ]
+                suggestionResponse <- withUserAndCurrentVenue workerUser venue.id do
+                    callActionWithParams ShowTimesheetWeekAction { weekOffset = 64 } surfaceParams
+
+                suggestionResponse `responseStatusShouldBe` status200
+                suggestionResponse `responseBodyShouldContain` cs ("data-timesheet-suggestion-id=\"" <> tshow rosterSlot.id <> "\"")
+
+                createdResponse <- withUserAndCurrentVenue workerUser venue.id do
+                    callActionWithParams CreateTimesheetEntryFromSuggestionAction { rosterSlotId = rosterSlot.id } surfaceParams
+
+                createdResponse `responseStatusShouldBe` status302
+                entry <- query @TimesheetEntry |> fetchOne
+                storedInstantOccurrence entry.timezone entry.startsAt `shouldBe` Just SecondOccurrence
+                timesheetEntryElapsedSeconds entry `shouldBe` 90 * 60
+                testWorkedOn entry `shouldBe` fromGregorian 2026 4 5
+                testStartTime entry `shouldBe` TimeOfDay 2 30 0
+                testEndTime entry `shouldBe` TimeOfDay 4 0 0
+
+        it "derives automatic suggestion breaks from exact elapsed DST duration" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Timesheet DST Break Suggestion Venue"
+                workerUser <- createUserRecord "timesheet-dst-break-suggestion-worker@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue workerUser "worker"
+                worker <- createStaffRecord venue (Just workerUser) "DST" "Break"
+                payLevel <- createPayLevelRecord venue "Level 1"
+                shiftType <- createShiftTypeRecord venue payLevel "Early"
+                slotName <- fetchSlotNameRecord venue "Early"
+
+                autumnWeek <- createRosterWeekRecord venue 64 True
+                autumnDay <- createRosterDayRecord autumnWeek 5
+                autumnSlot <- createRosterSlotRecord autumnDay slotName (Just worker) 0
+                    >>= updateRecord
+                        . set #shiftTypeId (Just (unpackId shiftType.id))
+                        . setTestRosterSlotBoundaries (fromGregorian 2026 4 4) (TimeOfDay 22 0 0) (TimeOfDay 5 0 0)
+                springWeek <- createRosterWeekRecord venue 90 True
+                springDay <- createRosterDayRecord springWeek 5
+                springSlot <- createRosterSlotRecord springDay slotName (Just worker) 0
+                    >>= updateRecord
+                        . set #shiftTypeId (Just (unpackId shiftType.id))
+                        . setTestRosterSlotBoundaries (fromGregorian 2026 10 3) (TimeOfDay 22 0 0) (TimeOfDay 5 0 0)
+
+                autumnSuggestion <- withUserAndCurrentVenue workerUser venue.id do
+                    withCurrentControllerContext do
+                        fetchTimesheetSuggestionForRosterSlot autumnSlot.id
+                            >>= maybe (expectationFailure "Expected autumn suggestion" >> error "unreachable") pure
+                springSuggestion <- withUserAndCurrentVenue workerUser venue.id do
+                    withCurrentControllerContext do
+                        fetchTimesheetSuggestionForRosterSlot springSlot.id
+                            >>= maybe (expectationFailure "Expected spring suggestion" >> error "unreachable") pure
+
+                authoritativeElapsedSeconds autumnSuggestion.suggestionBoundaries `shouldBe` 480 * 60
+                authoritativeBreakElapsedSeconds autumnSuggestion.suggestionBoundaries `shouldBe` 30 * 60
+                fmap (.localTimeOfDay) (authoritativeBreakStartLocalTime autumnSuggestion.suggestionBoundaries)
+                    `shouldBe` Just (TimeOfDay 2 30 0)
+                authoritativeBreakStartOccurrence autumnSuggestion.suggestionBoundaries `shouldBe` Just SecondOccurrence
+                authoritativeElapsedSeconds springSuggestion.suggestionBoundaries `shouldBe` 360 * 60
+                authoritativeBreakStartLocalTime springSuggestion.suggestionBoundaries `shouldBe` Nothing
+
+        it "projects a Sunday after-midnight roster shift into the following timesheet week" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Timesheet Operational Week Venue"
+                workerUser <- createUserRecord "timesheet-operational-week-worker@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue workerUser "worker"
+                worker <- createStaffRecord venue (Just workerUser) "Monday" "Suggestion"
+                payLevel <- createPayLevelRecord venue "Level 1"
+                shiftType <- createShiftTypeRecord venue payLevel "Early"
+                rosterWeek <- createRosterWeekRecord venue 64 True
+                rosterDay <- createRosterDayRecord rosterWeek 6
+                slotName <- fetchSlotNameRecord venue "Early"
+                rosterSlot <- createRosterSlotRecord rosterDay slotName (Just worker) 0
+                rosterSlot <- updateRecord
+                    ( rosterSlot
+                        |> set #shiftTypeId (Just (unpackId shiftType.id))
+                        |> setTestRosterSlotBoundaries (fromGregorian 2026 4 5) (TimeOfDay 2 0 0) (TimeOfDay 4 0 0)
+                    )
+                let surfaceParams =
+                        [ ("weekOffset", "65")
+                        , ("showApproved", "false")
+                        , ("showAllStaff", "false")
+                        , ("showSuggestions", "true")
+                        ]
+
+                suggestionResponse <- withUserAndCurrentVenue workerUser venue.id do
+                    callActionWithParams ShowTimesheetWeekAction { weekOffset = 65 } surfaceParams
+
+                suggestionResponse `responseStatusShouldBe` status200
+                suggestionResponse `responseBodyShouldContain` cs ("data-timesheet-suggestion-id=\"" <> tshow rosterSlot.id <> "\"")
+
+                createdResponse <- withUserAndCurrentVenue workerUser venue.id do
+                    callActionWithParams CreateTimesheetEntryFromSuggestionAction { rosterSlotId = rosterSlot.id } surfaceParams
+
+                createdResponse `responseStatusShouldBe` status302
+                entry <- query @TimesheetEntry |> fetchOne
+                testWorkedOn entry `shouldBe` fromGregorian 2026 4 6
+                testStartTime entry `shouldBe` TimeOfDay 2 0 0
+                testEndTime entry `shouldBe` TimeOfDay 4 0 0
 
         it "scopes suggestion visibility and creation to the viewer's timesheet authority" $ withContext do
             withCleanDb do
@@ -777,16 +1054,14 @@ tests = aroundAll withDatabaseTestContext do
                 slotB <- createRosterSlotRecord rosterDay slotName (Just workerB) 1
                 slotA <- updateRecord
                     ( slotA
-                        |> set #startTime (Just (TimeOfDay 9 0 0))
-                        |> set #endTime (Just (TimeOfDay 17 0 0))
-                        |> set #durationMinutes (Just 480)
+                        |> setTestRosterSlotBoundaries (fromGregorian 2025 1 7) (TimeOfDay 9 0 0) (TimeOfDay 17 0 0)
+                        |> setTestDurationMinutes (Just 480)
                         |> set #shiftTypeId (Just (unpackId shiftType.id))
                     )
                 slotB <- updateRecord
                     ( slotB
-                        |> set #startTime (Just (TimeOfDay 10 0 0))
-                        |> set #endTime (Just (TimeOfDay 18 0 0))
-                        |> set #durationMinutes (Just 480)
+                        |> setTestRosterSlotBoundaries (fromGregorian 2025 1 7) (TimeOfDay 10 0 0) (TimeOfDay 18 0 0)
+                        |> setTestDurationMinutes (Just 480)
                         |> set #shiftTypeId (Just (unpackId shiftType.id))
                     )
 
@@ -831,16 +1106,15 @@ tests = aroundAll withDatabaseTestContext do
                 rosterSlot <- createRosterSlotRecord rosterDay slotName (Just worker) 0
                 rosterSlot <- updateRecord
                     ( rosterSlot
-                        |> set #startTime (Just (TimeOfDay 9 0 0))
-                        |> set #endTime (Just (TimeOfDay 17 0 0))
-                        |> set #durationMinutes (Just 480)
+                        |> setTestRosterSlotBoundaries (fromGregorian 2025 1 7) (TimeOfDay 9 0 0) (TimeOfDay 17 0 0)
+                        |> setTestDurationMinutes (Just 480)
                         |> set #shiftTypeId (Just (unpackId shiftType.id))
                     )
 
                 materializationResult <- withUserAndCurrentVenue workerUser venue.id do
                     withCurrentControllerContext do
                         suggestion <- fetchTimesheetSuggestionForRosterSlot rosterSlot.id >>= maybe (expectationFailure "Expected initial suggestion" >> error "unreachable") pure
-                        _ <- updateRecord (rosterSlot |> set #endTime (Just (TimeOfDay 18 0 0)) |> set #durationMinutes (Just 540))
+                        _ <- updateRecord (rosterSlot |> setTestEndTime (Just (TimeOfDay 18 0 0)) |> setTestDurationMinutes (Just 540))
                         let entry = newTimesheetEntryFromSuggestion (unpackId venue.id) suggestion
                         materializeTimesheetSuggestionMutation 0 suggestion entry
 
@@ -861,9 +1135,8 @@ tests = aroundAll withDatabaseTestContext do
                 rosterSlot <- createRosterSlotRecord rosterDay slotName (Just worker) 0
                 rosterSlot <- updateRecord
                     ( rosterSlot
-                        |> set #startTime (Just (TimeOfDay 9 0 0))
-                        |> set #endTime (Just (TimeOfDay 17 0 0))
-                        |> set #durationMinutes (Just 480)
+                        |> setTestRosterSlotBoundaries (fromGregorian 2025 1 7) (TimeOfDay 9 0 0) (TimeOfDay 17 0 0)
+                        |> setTestDurationMinutes (Just 480)
                         |> set #shiftTypeId (Just (unpackId shiftType.id))
                     )
 
@@ -895,9 +1168,8 @@ tests = aroundAll withDatabaseTestContext do
                 rosterSlot <- createRosterSlotRecord rosterDay slotName (Just worker) 0
                 rosterSlot <- updateRecord
                     ( rosterSlot
-                        |> set #startTime (Just (TimeOfDay 9 0 0))
-                        |> set #endTime (Just (TimeOfDay 17 0 0))
-                        |> set #durationMinutes (Just 480)
+                        |> setTestRosterSlotBoundaries (fromGregorian 2025 1 7) (TimeOfDay 9 0 0) (TimeOfDay 17 0 0)
+                        |> setTestDurationMinutes (Just 480)
                         |> set #shiftTypeId (Just (unpackId shiftType.id))
                     )
 
@@ -930,9 +1202,9 @@ tests = aroundAll withDatabaseTestContext do
 
                 createResponse `responseStatusShouldBe` status302
                 entry <- query @TimesheetEntry |> fetchOne
-                entry.startTime `shouldBe` TimeOfDay 10 0 0
-                entry.endTime `shouldBe` TimeOfDay 16 0 0
-                entry.hadBreak `shouldBe` False
+                testStartTime entry `shouldBe` TimeOfDay 10 0 0
+                testEndTime entry `shouldBe` TimeOfDay 16 0 0
+                testHadBreak entry `shouldBe` False
                 entry.sourceRosterSlotId `shouldBe` Just (unpackId rosterSlot.id)
 
         it "warns that an ad-hoc entry is separate when a roster suggestion exists" $ withContext do
@@ -949,9 +1221,8 @@ tests = aroundAll withDatabaseTestContext do
                 rosterSlot <- createRosterSlotRecord rosterDay slotName (Just worker) 0
                 _ <- updateRecord
                     ( rosterSlot
-                        |> set #startTime (Just (TimeOfDay 9 0 0))
-                        |> set #endTime (Just (TimeOfDay 17 0 0))
-                        |> set #durationMinutes (Just 480)
+                        |> setTestRosterSlotBoundaries (fromGregorian 2025 1 7) (TimeOfDay 9 0 0) (TimeOfDay 17 0 0)
+                        |> setTestDurationMinutes (Just 480)
                         |> set #shiftTypeId (Just (unpackId shiftType.id))
                     )
 
@@ -1002,9 +1273,8 @@ tests = aroundAll withDatabaseTestContext do
                 rosterSlot <- createRosterSlotRecord rosterDay slotName (Just worker) 0
                 rosterSlot <- updateRecord
                     ( rosterSlot
-                        |> set #startTime (Just (TimeOfDay 9 0 0))
-                        |> set #endTime (Just (TimeOfDay 17 0 0))
-                        |> set #durationMinutes (Just 480)
+                        |> setTestRosterSlotBoundaries (fromGregorian 2025 1 7) (TimeOfDay 9 0 0) (TimeOfDay 17 0 0)
+                        |> setTestDurationMinutes (Just 480)
                         |> set #shiftTypeId (Just (unpackId shiftType.id))
                     )
                 oldEntry <-
@@ -1012,9 +1282,9 @@ tests = aroundAll withDatabaseTestContext do
                         |> set #venueId (unpackId venue.id)
                         |> set #staffId (unpackId worker.id)
                         |> set #shiftTypeId (unpackId shiftType.id)
-                        |> set #workedOn (fromGregorian 2025 1 7)
-                        |> set #startTime (TimeOfDay 9 0 0)
-                        |> set #endTime (TimeOfDay 17 0 0)
+                        |> setTestWorkedOn (fromGregorian 2025 1 7)
+                        |> setTestStartTime (TimeOfDay 9 0 0)
+                        |> setTestEndTime (TimeOfDay 17 0 0)
                         |> set #sourceRosterSlotId (Just (unpackId rosterSlot.id))
                         |> createRecord
                 now <- getCurrentTime
@@ -1064,9 +1334,8 @@ tests = aroundAll withDatabaseTestContext do
                 rosterSlot <- createRosterSlotRecord rosterDay slotName (Just rosteredStaff) 0
                 rosterSlot <- updateRecord
                     ( rosterSlot
-                        |> set #startTime (Just (TimeOfDay 9 0 0))
-                        |> set #endTime (Just (TimeOfDay 17 0 0))
-                        |> set #durationMinutes (Just 480)
+                        |> setTestRosterSlotBoundaries (fromGregorian 2025 1 7) (TimeOfDay 9 0 0) (TimeOfDay 17 0 0)
+                        |> setTestDurationMinutes (Just 480)
                         |> set #shiftTypeId (Just (unpackId shiftType.id))
                     )
 
@@ -1122,10 +1391,10 @@ tests = aroundAll withDatabaseTestContext do
 
                 reassigned <- fetch entry.id
                 reassigned.staffId `shouldBe` unpackId otherStaff.id
-                reassigned.workedOn `shouldBe` fromGregorian 2025 1 7
+                testWorkedOn reassigned `shouldBe` fromGregorian 2025 1 7
                 reassigned.sourceRosterSlotId `shouldBe` Just (unpackId rosterSlot.id)
-                reassigned.startTime `shouldBe` TimeOfDay 10 0 0
-                reassigned.endTime `shouldBe` TimeOfDay 16 0 0
+                testStartTime reassigned `shouldBe` TimeOfDay 10 0 0
+                testEndTime reassigned `shouldBe` TimeOfDay 16 0 0
 
                 deniedDateUpdate <- withUserAndCurrentVenue manager venue.id do
                     callActionWithParams UpdateTimesheetEntryAction { timesheetEntryId = entry.id }
@@ -1141,7 +1410,7 @@ tests = aroundAll withDatabaseTestContext do
 
                 provenanceRetained <- fetch entry.id
                 provenanceRetained.staffId `shouldBe` unpackId otherStaff.id
-                provenanceRetained.workedOn `shouldBe` fromGregorian 2025 1 7
+                testWorkedOn provenanceRetained `shouldBe` fromGregorian 2025 1 7
                 provenanceRetained.sourceRosterSlotId `shouldBe` Just (unpackId rosterSlot.id)
 
         it "shows approved entries to staff with a disabled approved button" $ withContext do
@@ -1284,12 +1553,12 @@ tests = aroundAll withDatabaseTestContext do
                 entry <- createTimesheetEntryRecord venue staff (fromGregorian 2025 1 20)
                 _ <-
                     entry
-                        |> set #startTime (TimeOfDay 0 15 0)
-                        |> set #endTime (TimeOfDay 4 0 0)
-                        |> set #hadBreak False
-                        |> set #breakStartTime Nothing
-                        |> set #breakEndTime Nothing
-                        |> set #breakMinutes 0
+                        |> setTestStartTime (TimeOfDay 0 15 0)
+                        |> setTestEndTime (TimeOfDay 4 0 0)
+                        |> setTestHadBreak False
+                        |> setTestBreakStartTime Nothing
+                        |> setTestBreakEndTime Nothing
+                        |> setTestBreakMinutes 0
                         |> updateRecord
 
                 response <- withUserAndCurrentVenue manager venue.id do
@@ -1510,7 +1779,7 @@ tests = aroundAll withDatabaseTestContext do
                 moveTriggerHeader `shouldSatisfy` maybe False (not . Text.isInfixOf "timesheet-day-section-2")
 
                 updatedEntry <- fetch entry.id
-                updatedEntry.workedOn `shouldBe` fromGregorian 2025 1 8
+                testWorkedOn updatedEntry `shouldBe` fromGregorian 2025 1 8
                 versionAfter <- currentLiveUpdateVersion (TimesheetsLive.timesheetWeekLiveScope (unpackId venue.id) 0)
                 versionAfter `shouldBe` versionBefore
 
@@ -1637,8 +1906,8 @@ tests = aroundAll withDatabaseTestContext do
 
                 updatedEntry <- fetch entry.id
                 updatedEntry.isApproved `shouldBe` False
-                parseTimeParam "09:15" `shouldBe` Just updatedEntry.startTime
-                parseTimeParam "17:15" `shouldBe` Just updatedEntry.endTime
+                parseTimeParam "09:15" `shouldBe` Just (testStartTime updatedEntry)
+                parseTimeParam "17:15" `shouldBe` Just (testEndTime updatedEntry)
 
                 version <- query @TimesheetEntryVersion |> fetchOne
                 inputValue version.versionAction `shouldBe` "approval_reset"

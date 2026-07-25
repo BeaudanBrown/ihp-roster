@@ -26,7 +26,14 @@ submission work belongs in `docs/workstreams/` until it lands.
   outside the window remain valid and displayable. Haskell renders the generated
   exact range/step/copy and option payloads; browser code supplies no fallback
   time data or labels.
-- Each entry has one concrete worked date plus start/end/break data.
+- Each entry persists authoritative `TIMESTAMPTZ` start/end boundaries, paired
+  nullable unpaid-break boundaries, and the `Australia/Melbourne` timezone
+  snapshot. Worked date, displayed clocks, break presence/duration, and elapsed
+  paid time are projections; elapsed values come from instant differences.
+- Ambiguous autumn inputs show first/second occurrence controls only for the
+  endpoints that repeat. First-to-second shift or break endpoints with equal
+  repeated clocks form their positive elapsed interval on the same date.
+  Nonexistent spring inputs are rejected without normalization.
 - **Had break** is a generated deferred toggle. Its explicit boolean transport
   is synchronized before form submission, and it controls one form-local native
   break `fieldset`; unchecked disables the fields and reports
@@ -42,7 +49,9 @@ submission work belongs in `docs/workstreams/` until it lands.
 ## Roster-Derived Suggestions
 
 - Suggestions are derived on each Timesheets projection; no suggestion rows,
-  statuses, delayed jobs, or grace periods exist.
+  statuses, delayed jobs, or grace periods exist. Their week/day comes from the
+  roster slot's projected authoritative start date, so a Sunday operational-day
+  shift after midnight appears in the following Timesheets week.
 - A roster shift is eligible when all of these are true:
   - its roster group is active and unarchived;
   - its roster week is live, including a future live week;
@@ -66,9 +75,11 @@ submission work belongs in `docs/workstreams/` until it lands.
 
 ## Materialization And Ad-Hoc Entries
 
-- Create snapshots the suggestion's current staff, date, shift type, times,
-  automatic break, and immutable `source_roster_slot_id` into one unapproved
-  Timesheet entry.
+- Create snapshots the suggestion's current staff, authoritative boundaries and
+  timezone, shift type, automatic break, and immutable `source_roster_slot_id`
+  into one unapproved Timesheet entry. Automatic-break eligibility and placement
+  use exact elapsed instants; a repeated-time occurrence is preserved as an
+  instant rather than re-resolved from display text.
 - Opening the suggestion card starts from the same snapshot. Staff/date/source
   stay locked while time, break, shift type, staff comment, and authorized
   manager note remain editable before creation.

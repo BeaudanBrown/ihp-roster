@@ -93,8 +93,8 @@ tests = aroundAll withDatabaseTestContext do
                 secondSnapshot <- createPayrollSnapshotWithVersion fixture.venue fixture.admin 2 [fixture.levelOne, fixture.levelTwo] [fixture.barShift, fixture.floorShift, fixture.kitchenShift] fixture.dayNames []
                 _ <- createAndApproveEntry fixture.venue fixture.kaiStaff (fromGregorian 2025 1 12) secondSnapshot fixture.admin fixture.approvedAt
                     [ set #shiftTypeId (unpackId fixture.kitchenShift.id)
-                    , set #startTime (TimeOfDay 10 0 0)
-                    , set #endTime (TimeOfDay 12 0 0)
+                    , setTestStartTime (TimeOfDay 10 0 0)
+                    , setTestEndTime (TimeOfDay 12 0 0)
                     ]
 
                 exportJob <- generatePayrollExportJob fixture.admin fixture.venue StaffPayCsv
@@ -251,54 +251,54 @@ seedPayrollMatrixFixture = do
 
     _ <- createAndApproveEntry venue ava (dayAt 0) snapshot admin approvedAt
         [ set #shiftTypeId (unpackId barShift.id)
-        , set #startTime (TimeOfDay 8 0 0)
-        , set #endTime (TimeOfDay 12 0 0)
+        , setTestStartTime (TimeOfDay 8 0 0)
+        , setTestEndTime (TimeOfDay 12 0 0)
         ]
     _ <- createAndApproveEntry venue ava (dayAt 4) snapshot admin approvedAt
         [ set #shiftTypeId (unpackId supervisorShift.id)
-        , set #startTime (TimeOfDay 18 0 0)
-        , set #endTime (TimeOfDay 2 0 0)
-        , set #hadBreak True
-        , set #breakMinutes 30
-        , set #breakStartTime (Just (TimeOfDay 22 0 0))
-        , set #breakEndTime (Just (TimeOfDay 22 30 0))
+        , setTestStartTime (TimeOfDay 18 0 0)
+        , setTestEndTime (TimeOfDay 2 0 0)
+        , setTestHadBreak True
+        , setTestBreakMinutes 30
+        , setTestBreakStartTime (Just (TimeOfDay 22 0 0))
+        , setTestBreakEndTime (Just (TimeOfDay 22 30 0))
         ]
     _ <- createAndApproveEntry venue ava (dayAt 5) snapshot admin approvedAt
         [ set #shiftTypeId (unpackId barShift.id)
-        , set #startTime (TimeOfDay 17 0 0)
-        , set #endTime (TimeOfDay 1 0 0)
-        , set #hadBreak True
-        , set #breakMinutes 30
-        , set #breakStartTime (Just (TimeOfDay 21 0 0))
-        , set #breakEndTime (Just (TimeOfDay 21 30 0))
+        , setTestStartTime (TimeOfDay 17 0 0)
+        , setTestEndTime (TimeOfDay 1 0 0)
+        , setTestHadBreak True
+        , setTestBreakMinutes 30
+        , setTestBreakStartTime (Just (TimeOfDay 21 0 0))
+        , setTestBreakEndTime (Just (TimeOfDay 21 30 0))
         ]
     _ <- createAndApproveEntry venue ben (dayAt 1) snapshot admin approvedAt
         [ set #shiftTypeId (unpackId barShift.id)
-        , set #startTime (TimeOfDay 6 0 0)
-        , set #endTime (TimeOfDay 14 0 0)
-        , set #hadBreak True
-        , set #breakMinutes 30
-        , set #breakStartTime (Just (TimeOfDay 10 0 0))
-        , set #breakEndTime (Just (TimeOfDay 10 30 0))
+        , setTestStartTime (TimeOfDay 6 0 0)
+        , setTestEndTime (TimeOfDay 14 0 0)
+        , setTestHadBreak True
+        , setTestBreakMinutes 30
+        , setTestBreakStartTime (Just (TimeOfDay 10 0 0))
+        , setTestBreakEndTime (Just (TimeOfDay 10 30 0))
         ]
     _ <- createAndApproveEntry venue ben (dayAt 3) snapshot admin approvedAt
         [ set #shiftTypeId (unpackId barShift.id)
-        , set #startTime (TimeOfDay 19 0 0)
-        , set #endTime (TimeOfDay 0 0 0)
+        , setTestStartTime (TimeOfDay 19 0 0)
+        , setTestEndTime (TimeOfDay 0 0 0)
         ]
     _ <- createAndApproveEntry venue cara (dayAt 2) snapshot admin approvedAt
         [ set #shiftTypeId (unpackId barShift.id)
-        , set #startTime (TimeOfDay 9 0 0)
-        , set #endTime (TimeOfDay 12 0 0)
+        , setTestStartTime (TimeOfDay 9 0 0)
+        , setTestEndTime (TimeOfDay 12 0 0)
         ]
     _ <- createAndApproveEntry venue noor (dayAt 6) snapshot admin approvedAt
         [ set #shiftTypeId (unpackId kitchenShift.id)
-        , set #startTime (TimeOfDay 11 0 0)
-        , set #endTime (TimeOfDay 17 0 0)
-        , set #hadBreak True
-        , set #breakMinutes 20
-        , set #breakStartTime (Just (TimeOfDay 13 30 0))
-        , set #breakEndTime (Just (TimeOfDay 13 50 0))
+        , setTestStartTime (TimeOfDay 11 0 0)
+        , setTestEndTime (TimeOfDay 17 0 0)
+        , setTestHadBreak True
+        , setTestBreakMinutes 20
+        , setTestBreakStartTime (Just (TimeOfDay 13 30 0))
+        , setTestBreakEndTime (Just (TimeOfDay 13 50 0))
         ]
 
     pure PayrollMatrixFixture { venue, admin }

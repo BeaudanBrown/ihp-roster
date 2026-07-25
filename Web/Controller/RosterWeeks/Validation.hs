@@ -5,7 +5,6 @@
 
 module Web.Controller.RosterWeeks.Validation
     ( activeRosterWeekSlotDefinitionWithName
-    , applyRosterSlotDuration
     , ensureOptionalShiftTypeInCurrentVenue
     , ensureRosterSlotTimingValidForSave
     , ensureRosterWeekIsDraftForEdit
@@ -17,17 +16,15 @@ module Web.Controller.RosterWeeks.Validation
     , resolveRosterSlotDefinitionNameForCreate
     , rosterSlotBlocksPublish
     , rosterSlotHasValidStartEnd
-    , rosterSlotTimesheetSourceChanged
     , validateRosterWeekCanGoLive
     ) where
 
 import Application.Helper.Controller
 import Application.Helper.ControllerContext (currentVenueId)
-import Application.Helper.TimeRules (shiftDurationMinutes)
+import Application.VenueTime.Model
 import Data.Coerce (coerce)
 import Data.Maybe (fromMaybe, isNothing)
 import qualified Data.Text as Text
-import qualified Data.Time.Calendar as Calendar
 import qualified Data.UUID as UUID
 import Web.Controller.Prelude
 import Web.RosterWeeks.Paths (rosterWeekUrl)
@@ -59,22 +56,31 @@ publishRequiredFieldsMessage = "Roster week cannot go live until every staffed s
 rosterSlotBlocksPublish :: RosterSlot -> Bool
 rosterSlotBlocksPublish slot =
     isJust slot.staffId
-        && ( isNothing slot.startTime
+        && ( isNothing slot.startsAt
              || isNothing slot.shiftTypeId
              || not (rosterSlotHasValidStartEnd slot)
            )
 
 rosterSlotHasValidStartEnd :: RosterSlot -> Bool
 rosterSlotHasValidStartEnd slot =
-    case (slot.startTime, slot.endTime) of
-        (Just startTime, Just endTime) -> isValidRosterShiftTimePair startTime endTime
+    case (slot.startsAt, slot.endsAt) of
+        (Just startsAt, Just endsAt) ->
+            case authoritativeBoundariesFromInstants slot.timezone startsAt endsAt Nothing Nothing of
+                Left _ -> False
+                Right boundaries ->
+                    let startLocal = authoritativeStartLocalTime boundaries
+                        endLocal = authoritativeEndLocalTime boundaries
+                     in isValidRosterShiftTimePair startLocal.localTimeOfDay endLocal.localTimeOfDay
+                            || ( startLocal.localDay == endLocal.localDay
+                                 && repeatedEndpointPairCanShareDate startLocal.localDay startLocal.localTimeOfDay endLocal.localTimeOfDay
+                               )
         _ -> False
 
 ensureRosterSlotTimingValidForSave :: (?context :: ControllerContext, ?request :: Request) => RosterWeek -> RosterSlot -> IO ()
 ensureRosterSlotTimingValidForSave rosterWeek slot =
-    case (slot.startTime, slot.endTime) of
-        (Just startTime, Just endTime)
-            | not (isValidRosterShiftTimePair startTime endTime) ->
+    case (slot.startsAt, slot.endsAt) of
+        (Just _, Just _)
+            | not (rosterSlotHasValidStartEnd slot) ->
                 let rosterGroupId = coerce rosterWeek.rosterGroupId
                     errorMessage = invalidRosterSlotTimingMessage
                  in if isHtmxRequest
@@ -86,21 +92,6 @@ ensureRosterSlotTimingValidForSave rosterWeek slot =
 
 invalidRosterSlotTimingMessage :: Text
 invalidRosterSlotTimingMessage = "Choose an end time after the start time within the 6:00 AM to 5:45 AM roster day."
-
-rosterSlotTimesheetSourceChanged :: RosterSlot -> RosterSlot -> Bool
-rosterSlotTimesheetSourceChanged previous next =
-    previous.staffId /= next.staffId
-        || previous.startTime /= next.startTime
-        || previous.endTime /= next.endTime
-        || previous.shiftTypeId /= next.shiftTypeId
-
-applyRosterSlotDuration :: RosterSlot -> RosterSlot
-applyRosterSlotDuration slot =
-    case (slot.startTime, slot.endTime) of
-        (Just startTime, Just endTime) ->
-            slot |> set #durationMinutes (validRosterShiftDurationMinutes startTime endTime)
-        _ ->
-            slot |> set #durationMinutes Nothing
 
 ensureOptionalShiftTypeInCurrentVenue :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Maybe UUID.UUID -> IO ()
 ensureOptionalShiftTypeInCurrentVenue Nothing = pure ()

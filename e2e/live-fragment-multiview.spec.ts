@@ -235,10 +235,10 @@ test.describe('Live fragment multi-view coverage', () => {
                 roster_week_slot_definition_id,
                 slot_sort_order,
                 row_index,
-                start_time,
-                end_time,
+                starts_at,
+                ends_at,
+                timezone,
                 shift_type_id,
-                duration_minutes,
                 deleted_at,
                 delete_reason
             )
@@ -249,16 +249,18 @@ test.describe('Live fragment multi-view coverage', () => {
                 roster_week_slot_definitions.id,
                 0,
                 10,
-                '06:15'::time,
-                '07:15'::time,
+                ((venue_config.week_offset_epoch + (roster_weeks.week_offset * 7) + roster_days.day_offset) + TIME '06:15') AT TIME ZONE venue_config.timezone,
+                ((venue_config.week_offset_epoch + (roster_weeks.week_offset * 7) + roster_days.day_offset) + TIME '07:15') AT TIME ZONE venue_config.timezone,
+                venue_config.timezone,
                 shift_types.id,
-                60,
                 NULL,
                 NULL
             FROM roster_weeks
             JOIN roster_days
               ON roster_days.roster_week_id = roster_weeks.id
              AND roster_days.day_offset = 0
+            JOIN venue_config
+              ON venue_config.venue_id = roster_weeks.venue_id
             JOIN roster_week_slot_definitions
               ON roster_week_slot_definitions.roster_week_id = roster_weeks.id
              AND roster_week_slot_definitions.deleted_at IS NULL
@@ -281,10 +283,10 @@ test.describe('Live fragment multi-view coverage', () => {
                 staff_id = EXCLUDED.staff_id,
                 roster_week_slot_definition_id = EXCLUDED.roster_week_slot_definition_id,
                 row_index = EXCLUDED.row_index,
-                start_time = EXCLUDED.start_time,
-                end_time = EXCLUDED.end_time,
+                starts_at = EXCLUDED.starts_at,
+                ends_at = EXCLUDED.ends_at,
+                timezone = EXCLUDED.timezone,
                 shift_type_id = EXCLUDED.shift_type_id,
-                duration_minutes = EXCLUDED.duration_minutes,
                 deleted_at = NULL,
                 deleted_by_user_id = NULL,
                 delete_reason = NULL,

@@ -29,6 +29,7 @@ import Application.Helper.ShiftTypeColours (shiftTypeColourPaletteKeys)
 import Application.Helper.TimeRules (rosterOperationalFinalSelectableTimeText,
                                      rosterOperationalStartTimeText)
 import Application.Helper.View (staffDisplayName)
+import Application.VenueTime.Model (rosterSlotEndTime, rosterSlotStartTime)
 import Data.Coerce (coerce)
 import Data.List (find)
 import qualified Data.Map.Strict as Map
@@ -196,8 +197,8 @@ renderReadOnlyExistingSlotBlockCells shiftTypes endTimesEnabled publishAttempted
 
 buildExistingSlotDisplay :: [ShiftType] -> Bool -> RosterRenderIndexes -> RosterSlot -> ExistingSlotDisplay
 buildExistingSlotDisplay shiftTypes publishAttempted renderIndexes slot =
-    let currentStartTime = optionalTimeOfDayToStorageValue slot.startTime
-        currentEndTime = optionalTimeOfDayToStorageValue slot.endTime
+    let currentStartTime = optionalTimeOfDayToStorageValue (rosterSlotStartTime slot)
+        currentEndTime = optionalTimeOfDayToStorageValue (rosterSlotEndTime slot)
         currentShiftType = findShiftTypeForSlot shiftTypes slot.shiftTypeId
      in ExistingSlotDisplay
         { displayStartLabel = renderTimePickerDisplayLabel "Start" currentStartTime
@@ -207,8 +208,8 @@ buildExistingSlotDisplay shiftTypes publishAttempted renderIndexes slot =
         , displayShiftTypeLabel = maybe "" renderShiftTypeOptionLabel currentShiftType
         , displayShiftTypeColourKey = shiftTypeBadgeColourKey currentShiftType
         , displayPrimaryConflict = primaryConflict (lookupConflicts (get #id slot) renderIndexes)
-        , displayMissingStartTime = publishAttempted && isJust slot.staffId && isNothing slot.startTime
-        , displayMissingEndTime = publishAttempted && isJust slot.staffId && isNothing slot.endTime
+        , displayMissingStartTime = publishAttempted && isJust slot.staffId && isNothing slot.startsAt
+        , displayMissingEndTime = publishAttempted && isJust slot.staffId && isNothing slot.endsAt
         , displayMissingShiftType = publishAttempted && isJust slot.staffId && isNothing slot.shiftTypeId
         , displayHasShiftType = isJust slot.shiftTypeId
         }
@@ -281,7 +282,7 @@ renderReadOnlyExistingSlotCell cell =
     renderExistingSlotCell (Just "gridcell") cell.readOnlyCellClasses cell
 renderDayColumnRosterSlotCard :: (?context :: ControllerContext) => RosterDayRenderModel -> RosterSlot -> Html
 renderDayColumnRosterSlotCard RosterDayRenderModel { dayIsEditable, dayAssignmentFilters, dayStaffMembers, dayShiftTypes, dayRenderIndexes, dayRosterEndTimesEnabled, dayPublishAttempted } slot =
-    renderDayColumnSlotCardContent dayIsEditable dayAssignmentFilters dayStaffMembers dayShiftTypes dayRosterEndTimesEnabled dayPublishAttempted dayRenderIndexes (ExistingRosterSlotTarget slot.id) slot.staffId slot.startTime slot.endTime slot.shiftTypeId (primaryConflict (lookupConflicts (get #id slot) dayRenderIndexes))
+    renderDayColumnSlotCardContent dayIsEditable dayAssignmentFilters dayStaffMembers dayShiftTypes dayRosterEndTimesEnabled dayPublishAttempted dayRenderIndexes (ExistingRosterSlotTarget slot.id) slot.staffId (rosterSlotStartTime slot) (rosterSlotEndTime slot) slot.shiftTypeId (primaryConflict (lookupConflicts (get #id slot) dayRenderIndexes))
 
 renderDayColumnCreateCard :: (?context :: ControllerContext) => RosterDayRenderModel -> RosterDay -> Maybe RosterSlotCellTarget -> Html
 renderDayColumnCreateCard RosterDayRenderModel { dayIsEditable } rosterDay maybeTarget
@@ -309,7 +310,7 @@ renderDayColumnSlotCard isEditable assignmentFilters staffMembers shiftTypes end
     | otherwise =
         case Map.lookup (coerce (get #id rosterDay), rowIndex, coerce (get #id slotName)) renderIndexes.rosterSlotByDayRowSlotName of
             Just slot ->
-                renderDayColumnSlotCardContent isEditable assignmentFilters staffMembers shiftTypes endTimesEnabled publishAttempted renderIndexes (ExistingRosterSlotTarget slot.id) slot.staffId slot.startTime slot.endTime slot.shiftTypeId (primaryConflict (lookupConflicts (get #id slot) renderIndexes))
+                renderDayColumnSlotCardContent isEditable assignmentFilters staffMembers shiftTypes endTimesEnabled publishAttempted renderIndexes (ExistingRosterSlotTarget slot.id) slot.staffId (rosterSlotStartTime slot) (rosterSlotEndTime slot) slot.shiftTypeId (primaryConflict (lookupConflicts (get #id slot) renderIndexes))
             Nothing -> [hsx|<div class="roster-shift-card roster-shift-card-empty"></div>|]
 
 renderDayColumnSlotCardContent :: (?context :: ControllerContext) => Bool -> RosterAssignmentFilters -> [Staff] -> [ShiftType] -> Bool -> Bool -> RosterRenderIndexes -> RosterSlotCellTarget -> Maybe UUID -> Maybe TimeOfDay -> Maybe TimeOfDay -> Maybe UUID -> Maybe RosterConflict -> Html

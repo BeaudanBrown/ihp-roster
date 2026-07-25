@@ -22,6 +22,7 @@ import Application.Helper.FrontendContract.Surface.Runtime (FrontendSurfaceActio
 import qualified Application.Helper.FrontendContract.Surface.Timesheets as Surface
 import qualified Application.Helper.FrontendContract.Surface.Timesheets.Action as TimesheetsAction
 import Application.Helper.FrontendContract.Surface.Values
+import Application.VenueTime.Model
 import Data.Fixed (Pico)
 import qualified Data.Text as Text
 import Data.Time.Calendar (Day, addDays)
@@ -319,8 +320,8 @@ renderDaySectionWithSwap maybeSwapOob model@TimesheetDayRenderModel { dayEntries
 |]
     where
         dayDate = addDays (toInteger dayOffset) dayWeekStartDate
-        dayEntriesForDate = filter (\entry -> entry.workedOn == dayDate) dayEntries
-        suggestionsForDate = filter (\suggestion -> suggestion.suggestionWorkedOn == dayDate) daySuggestions
+        dayEntriesForDate = filter ((== dayDate) . timesheetEntryWorkedOn) dayEntries
+        suggestionsForDate = filter ((== dayDate) . timesheetSuggestionWorkedOn) daySuggestions
         weekdayLabel = Text.pack (formatTime defaultTimeLocale "%A" dayDate)
         weekdayShortLabel = Text.pack (formatTime defaultTimeLocale "%a" dayDate)
         newEntryUrl = newTimesheetEntryUrl dayWeekOffset dayDate dayShowApproved dayShowAllStaff dayShowSuggestions dayStaffFilterId
@@ -367,7 +368,7 @@ renderSuggestionCard model@TimesheetDayRenderModel { dayWeekOffset, dayShowAppro
         suggestedEntry
         "timesheet-entry-card timesheet-suggestion-card"
         (Just (tshow suggestion.suggestionRosterSlotId))
-        (renderSuggestionCardOverlayLink suggestion.suggestionWorkedOn editUrl)
+        (renderSuggestionCardOverlayLink (timesheetSuggestionWorkedOn suggestion) editUrl)
         (renderSuggestionCreateAction createUrl action)
   where
     suggestedEntry = newTimesheetEntryFromSuggestion (unpackId currentVenueId) suggestion
@@ -413,7 +414,7 @@ renderEntryCard model@TimesheetDayRenderModel { dayToday, dayEditWindowDays, day
         (renderEntryCardOverlayLink entry canEdit editUrl)
         (renderApprovalAction dayOffset entry dayWeekOffset dayShowApproved dayShowAllStaff dayShowSuggestions dayStaffFilterId)
   where
-    canEdit = currentUserIsManager || isWithinEditWindow dayToday entry.workedOn dayEditWindowDays
+    canEdit = currentUserIsManager || isWithinEditWindow dayToday (timesheetEntryWorkedOn entry) dayEditWindowDays
     editUrl = editTimesheetEntryUrl (get #id entry) dayWeekOffset dayShowApproved dayShowAllStaff dayShowSuggestions dayStaffFilterId
 
 renderTimesheetCard :: (?context :: ControllerContext) => TimesheetDayRenderModel -> TimesheetEntry -> Text -> Maybe Text -> Html -> Html -> Html
@@ -430,7 +431,7 @@ renderTimesheetCard TimesheetDayRenderModel { dayStaffMembers, dayShiftTypes } e
 
             <div class="timesheet-entry-time">
                 <div class="timesheet-entry-time-range">
-                    {renderCompactTimeRange entry.startTime entry.endTime}
+                    {renderCompactTimeRange (timesheetEntryStartTime entry) (timesheetEntryEndTime entry)}
                 </div>
                 <div class="timesheet-entry-meta">Shift: {renderDuration entry}</div>
                 <div class="timesheet-entry-meta timesheet-entry-break-meta">Break: <span class="timesheet-entry-break-summary">{renderBreakSummary entry}</span></div>
@@ -465,7 +466,7 @@ renderEntryCardOverlayLink entry canEdit editUrl
                 , appShellActionRouteStandardUrl = Nothing
                 , appShellActionRouteExtraAttrs =
                     [ ("class", "timesheet-entry-card-link")
-                    , ("aria-label", "Edit timesheet entry for " <> tshow entry.workedOn)
+                    , ("aria-label", "Edit timesheet entry for " <> tshow (timesheetEntryWorkedOn entry))
                     ]
                 }
             mempty
@@ -531,9 +532,9 @@ renderTimesheetApprovalForm action actionUrl button =
 
 renderBreakSummary :: TimesheetEntry -> Text
 renderBreakSummary entry
-    | not entry.hadBreak = "None"
+    | not (timesheetEntryHadBreak entry) = "None"
     | otherwise =
-        case (entry.breakStartTime, entry.breakEndTime) of
+        case (timesheetEntryBreakStartTime entry, timesheetEntryBreakEndTime entry) of
             (Just breakStart, Just breakEnd) -> renderCompactTimeRange breakStart breakEnd
             _ -> "Invalid"
 
@@ -557,7 +558,11 @@ stripMeridiem label =
 
 renderDuration :: TimesheetEntry -> Html
 renderDuration entry =
-    renderMinutesDuration entry.startTime entry.endTime entry.breakMinutes
+    let totalSeconds = max 0 (floor (timesheetEntryPaidElapsedSeconds entry) :: Int)
+        (hours, afterHours) = totalSeconds `divMod` (60 * 60)
+        (minutes, seconds) = afterHours `divMod` 60
+        secondsSuffix = if seconds > 0 then " " <> tshow seconds <> "s" else ""
+     in [hsx|{show hours}h {show minutes}m{secondsSuffix}|]
 
 renderMinutesDuration :: TimeOfDay -> TimeOfDay -> Int -> Html
 renderMinutesDuration startTime endTime breakMinutes =
@@ -626,10 +631,10 @@ timesheetShapeMarkers scale =
 
 timesheetShapeSegments :: TimesheetTimelineScale -> TimesheetEntry -> [TimesheetShapeSegment]
 timesheetShapeSegments scale entry =
-    let shiftSegments = buildSegments "timesheet-shape-segment-shift" scale (scaledSpan scale entry.startTime entry.endTime)
+    let shiftSegments = buildSegments "timesheet-shape-segment-shift" scale (scaledSpan scale (timesheetEntryStartTime entry) (timesheetEntryEndTime entry))
         breakSegments =
-            case (entry.breakStartTime, entry.breakEndTime) of
-                (Just breakStart, Just breakEnd) | entry.hadBreak ->
+            case (timesheetEntryBreakStartTime entry, timesheetEntryBreakEndTime entry) of
+                (Just breakStart, Just breakEnd) | timesheetEntryHadBreak entry ->
                     buildSegments "timesheet-shape-segment-break" scale (scaledSpan scale breakStart breakEnd)
                 _ -> []
      in shiftSegments <> breakSegments

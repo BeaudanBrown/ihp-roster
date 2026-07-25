@@ -3,6 +3,7 @@ module Web.RosterWeeks.Responses
     , respondWithRosterContentError
     , respondWithRosterContentOob
     , respondWithRosterContentUpdate
+    , respondWithRosterDialogOverlay
     , respondWithRosterFragments
     , respondWithRosterFragmentsUpdate
     , respondWithRosterResourceInvalidation
@@ -18,7 +19,8 @@ import Application.Helper.RosterGroups (fetchCurrentVenueRosterGroupOrDefault,
 import Application.Helper.SurfaceResource (SurfaceResourceValue)
 import Application.Helper.View (ToastOverlayConfig,
                                 ToastOverlayPosition (ToastBottomCenter),
-                                errorToast, renderToastOob, successToast)
+                                dialogOverlayMountId, errorToast,
+                                renderToastOob, successToast)
 import Application.Helper.View.Oob (outerHtmlOobSwap)
 import qualified Data.Set as Set
 import qualified Data.Text.IO as TextIO
@@ -78,6 +80,12 @@ respondWithRosterResourceInvalidation rosterGroupId weekOffset touchedResources 
     setHeader ("HX-Reswap", "none")
     setActorLiveResourcesRefresh (rosterSurfaceScope scope) touchedResources mountedFragments
     respondHtmlProfiled extraHtml
+
+respondWithRosterDialogOverlay :: (?context :: ControllerContext, ?request :: Request) => Id RosterGroup -> Int -> Blaze.Html -> IO ()
+respondWithRosterDialogOverlay rosterGroupId weekOffset dialog =
+    respondWithRosterResourceInvalidation rosterGroupId weekOffset Set.empty [] [hsx|
+        <div id={dialogOverlayMountId} hx-swap-oob="innerHTML">{dialog}</div>
+    |]
 
 respondWithRosterContentOob :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id RosterGroup -> Int -> IO ()
 respondWithRosterContentOob rosterGroupId weekOffset = do

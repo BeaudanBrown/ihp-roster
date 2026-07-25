@@ -28,10 +28,13 @@ module Web.RosterWeeks.FrontendSurface
     , rosterSurfaceScope
     , rosterMountedFragmentPlanFromRenderData
     , rosterMoveShiftIntentName
+    , rosterMoveShiftIntentForm
+    , rosterDuplicateShiftIntentForm
     , rosterFrontendSurfaceIR
     , rosterDayTimelineDropzoneRef
     , rosterDayTimelineFrontendSurfaceIR
     , rosterDayTimelineMoveShiftIntentName
+    , rosterTimelineMoveShiftIntentForm
     , rosterDayTimelineSourceRef
     , rosterDayTimelineIntentForms
     , rosterDayTimelineSurfaceImpl
@@ -282,16 +285,34 @@ rosterDayTimelineScopeFields scope =
         &: surfaceField @Surface.RosterDayId (unpackId scope.rosterDayTimelineDayId)
         &: noSurfaceFields
 
+rosterMoveShiftIntentForm :: Int -> Id RosterGroup -> Text -> Text -> Maybe Text -> Maybe Text -> FrontendSurfaceIntentForm
+rosterMoveShiftIntentForm weekOffset rosterGroupId sourceItemKey targetDropzoneKey startOccurrence endOccurrence =
+    SurfaceIntent.moveRosterShiftToSlotIntentForm
+        (SurfaceIntent.moveRosterShiftToSlotIntentFields sourceItemKey targetDropzoneKey Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing startOccurrence endOccurrence)
+        (rosterDragDropRequest (rosterMoveShiftUrl weekOffset rosterGroupId))
+
+rosterDuplicateShiftIntentForm :: Int -> Id RosterGroup -> Text -> Text -> Maybe Text -> Maybe Text -> FrontendSurfaceIntentForm
+rosterDuplicateShiftIntentForm weekOffset rosterGroupId sourceItemKey targetDropzoneKey startOccurrence endOccurrence =
+    SurfaceIntent.duplicateRosterShiftToDayIntentForm
+        (SurfaceIntent.duplicateRosterShiftToDayIntentFields sourceItemKey targetDropzoneKey Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing startOccurrence endOccurrence)
+        (rosterDragDropRequest (rosterDuplicateShiftUrl weekOffset rosterGroupId))
+
+rosterTimelineMoveShiftIntentForm :: Int -> Id RosterGroup -> Int -> Text -> Text -> Maybe Text -> Maybe Text -> FrontendSurfaceIntentForm
+rosterTimelineMoveShiftIntentForm weekOffset rosterGroupId dayOffset sourceItemKey targetDropzoneKey startOccurrence endOccurrence =
+    SurfaceIntent.moveRosterTimelineShiftIntentForm
+        (SurfaceIntent.moveRosterTimelineShiftIntentFields sourceItemKey targetDropzoneKey Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing startOccurrence endOccurrence)
+        (rosterDragDropRequest (rosterTimelineMoveShiftUrl weekOffset rosterGroupId dayOffset))
+
 rosterIntentForms :: RosterWeekScopeValue -> [FrontendSurfaceIntentForm]
 rosterIntentForms scope =
     [ SurfaceIntent.setRosterLayoutModeIntentForm
         (SurfaceIntent.setRosterLayoutModeIntentFields "day_rows")
         (rosterLayoutModeRequest scope)
     , SurfaceIntent.moveRosterShiftToSlotIntentForm
-        (SurfaceIntent.moveRosterShiftToSlotIntentFields "" "" (Just "") (Just "") (Just "") (Just "") (Just "") (Just "") (Just "") (Just "") (Just ""))
+        (SurfaceIntent.moveRosterShiftToSlotIntentFields "" "" (Just "") (Just "") (Just "") (Just "") (Just "") (Just "") (Just "") (Just "") (Just "") (Just "") (Just ""))
         (rosterMoveShiftRequest scope)
     , SurfaceIntent.duplicateRosterShiftToDayIntentForm
-        (SurfaceIntent.duplicateRosterShiftToDayIntentFields "" "" (Just "") (Just "") (Just "") (Just "") (Just "") (Just "") (Just "") (Just "") (Just ""))
+        (SurfaceIntent.duplicateRosterShiftToDayIntentFields "" "" (Just "") (Just "") (Just "") (Just "") (Just "") (Just "") (Just "") (Just "") (Just "") (Just "") (Just ""))
         (rosterDuplicateShiftRequest scope)
     , SurfaceIntent.dropRosterStaffIntentForm
         (SurfaceIntent.dropRosterStaffIntentFields "" "" (Just "") (Just "") (Just "") (Just "") (Just "") (Just "") (Just "") (Just "") (Just ""))
@@ -301,7 +322,7 @@ rosterIntentForms scope =
 rosterDayTimelineIntentForms :: RosterDayTimelineScopeValue -> [FrontendSurfaceIntentForm]
 rosterDayTimelineIntentForms scope =
     [ SurfaceIntent.moveRosterTimelineShiftIntentForm
-        (SurfaceIntent.moveRosterTimelineShiftIntentFields "" "" (Just "") (Just "") (Just "") (Just "") (Just "") (Just "") (Just "") (Just "") (Just ""))
+        (SurfaceIntent.moveRosterTimelineShiftIntentFields "" "" (Just "") (Just "") (Just "") (Just "") (Just "") (Just "") (Just "") (Just "") (Just "") (Just "") (Just ""))
         (rosterDayTimelineMoveShiftRequest scope)
     ]
 

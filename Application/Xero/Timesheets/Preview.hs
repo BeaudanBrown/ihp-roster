@@ -17,6 +17,7 @@ import Application.Helper.Pay
 import Application.Helper.WeekBoundaries (WeekdayIndex)
 import Application.Helper.Xero (XeroTimesheetRef (..))
 import Application.Helper.XeroTimesheetReadiness
+import Application.VenueTime.Model (requireMelbourneDateRangeUTC)
 import qualified Data.Aeson as Aeson
 import qualified Data.Aeson.Types as AesonTypes
 import qualified Data.List as List
@@ -200,14 +201,15 @@ fetchPreviewInput ::
     XeroConnection ->
     IO XeroTimesheetPreviewInput
 fetchPreviewInput request connection = do
+    let (periodStartsAt, periodEndsAt) = requireMelbourneDateRangeUTC request.readinessPeriodStart request.readinessPeriodEnd
     approvedEntries <-
         query @TimesheetEntry
             |> filterWhere (#venueId, unpackId request.readinessVenueId)
-            |> filterWhereGreaterThanOrEqualTo (#workedOn, request.readinessPeriodStart)
-            |> filterWhereLessThanOrEqualTo (#workedOn, request.readinessPeriodEnd)
+            |> filterWhereGreaterThanOrEqualTo (#startsAt, periodStartsAt)
+            |> filterWhereLessThan (#startsAt, periodEndsAt)
             |> filterWhere (#isApproved, True)
             |> filterWhere (#deletedAt, Nothing)
-            |> orderBy #workedOn
+            |> orderBy #startsAt
             |> fetch
     let includedEntries =
             approvedEntries

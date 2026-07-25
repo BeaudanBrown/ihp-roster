@@ -1,11 +1,18 @@
 module Test.DatabaseProtectionSpec where
 
 import Control.Exception (SomeException, try)
-import Data.Either (isLeft)
+import Data.Either (isLeft, isRight)
+import qualified Data.Text as Text
+import Data.Text.Encoding (encodeUtf8)
+import qualified Data.Text.IO as TextIO
+import Data.Time.Calendar (fromGregorian)
+import Data.Time.Clock (UTCTime (..), secondsToDiffTime)
 import qualified Database.PostgreSQL.Simple as PG
+import qualified Database.PostgreSQL.Simple.Types as PGTypes
 import Generated.Types
 import IHP.ControllerPrelude
-import IHP.ModelSupport (sqlExecDiscardResult, sqlQuery, unpackId)
+import IHP.ModelSupport (sqlExecDiscardResult, sqlQuery, sqlQueryScalar,
+                         unpackId)
 import IHP.Test.Mocking
 import Test.Hspec
 import Test.Support
@@ -62,6 +69,96 @@ tests = aroundAll withDatabaseTestContext do
                         |> filterWhere (#id, preference.id)
                         |> fetchOneOrNothing
                 deletedPreference `shouldBe` Nothing
+
+    describe "authoritative time migration" do
+        it "executes the migration resolver with first-occurrence and gap-rejection policy" $ withContext do
+            migrationSql <- TextIO.readFile "Application/Migration/1784932300.sql"
+            let (_, resolverAndRemainder) = Text.breakOn "CREATE OR REPLACE FUNCTION bepis_first_civil_occurrence" migrationSql
+            let (resolverSql, remainder) = Text.breakOn "\nALTER TABLE roster_slots" resolverAndRemainder
+            resolverSql `shouldSatisfy` (not . Text.null)
+            remainder `shouldSatisfy` (not . Text.null)
+            sqlExecDiscardResult (PGTypes.Query (encodeUtf8 resolverSql)) ()
+
+            firstOccurrence :: UTCTime <- sqlQueryScalar
+                "SELECT bepis_first_civil_occurrence('2026-04-05 02:30:00'::timestamp, 'Australia/Melbourne')"
+                ()
+            firstOccurrence
+                `shouldBe` UTCTime (fromGregorian 2026 4 4) (secondsToDiffTime (15 * 60 * 60 + 30 * 60))
+            nonexistent <- try
+                (sqlQueryScalar
+                    "SELECT bepis_first_civil_occurrence('2026-10-04 02:30:00'::timestamp, 'Australia/Melbourne')"
+                    () :: IO UTCTime)
+                :: IO (Either SomeException UTCTime)
+            nonexistent `shouldSatisfy` isLeft
+
+            sqlExecDiscardResult
+                "DROP FUNCTION bepis_first_civil_occurrence(TIMESTAMP WITHOUT TIME ZONE, TEXT)"
+                ()
+
+    describe "authoritative time boundary constraints" do
+        it "enforces duration, break pairing/containment, and timezone snapshots" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Boundary Constraint Venue"
+                staff <- createStaffRecord venue Nothing "Boundary" "Worker"
+                shiftType <- ensureVenueDefaultShiftType venue
+                rosterWeek <- createRosterWeekRecord venue 0 False
+                rosterDay <- createRosterDayRecord rosterWeek 0
+                slotName <- fetchSlotNameRecord venue "Early"
+                slotDefinition <- ensureRosterWeekSlotDefinitionForSlotName rosterDay slotName
+                let startsAt = resolveTestFixtureInstant "Australia/Melbourne" defaultWeekEpoch (TimeOfDay 9 0 0)
+                let endsAt = resolveTestFixtureInstant "Australia/Melbourne" defaultWeekEpoch (TimeOfDay 17 0 0)
+                let beforeStart = resolveTestFixtureInstant "Australia/Melbourne" defaultWeekEpoch (TimeOfDay 8 45 0)
+                let breakStart = resolveTestFixtureInstant "Australia/Melbourne" defaultWeekEpoch (TimeOfDay 12 0 0)
+
+                nonPositiveTimesheet <- try
+                    (sqlExecDiscardResult
+                        "INSERT INTO timesheet_entries (venue_id, staff_id, shift_type_id, starts_at, ends_at, timezone) VALUES (?, ?, ?, ?, ?, 'Australia/Melbourne')"
+                        (unpackId venue.id, unpackId staff.id, unpackId shiftType.id, startsAt, startsAt))
+                    :: IO (Either SomeException ())
+                halfBreak <- try
+                    (sqlExecDiscardResult
+                        "INSERT INTO timesheet_entries (venue_id, staff_id, shift_type_id, starts_at, ends_at, break_starts_at, timezone) VALUES (?, ?, ?, ?, ?, ?, 'Australia/Melbourne')"
+                        (unpackId venue.id, unpackId staff.id, unpackId shiftType.id, startsAt, endsAt, breakStart))
+                    :: IO (Either SomeException ())
+                outsideBreak <- try
+                    (sqlExecDiscardResult
+                        "INSERT INTO timesheet_entries (venue_id, staff_id, shift_type_id, starts_at, ends_at, break_starts_at, break_ends_at, timezone) VALUES (?, ?, ?, ?, ?, ?, ?, 'Australia/Melbourne')"
+                        (unpackId venue.id, unpackId staff.id, unpackId shiftType.id, startsAt, endsAt, beforeStart, breakStart))
+                    :: IO (Either SomeException ())
+                emptyTimesheetTimezone <- try
+                    (sqlExecDiscardResult
+                        "INSERT INTO timesheet_entries (venue_id, staff_id, shift_type_id, starts_at, ends_at, timezone) VALUES (?, ?, ?, ?, ?, '')"
+                        (unpackId venue.id, unpackId staff.id, unpackId shiftType.id, startsAt, endsAt))
+                    :: IO (Either SomeException ())
+                unsupportedTimesheetTimezone <- try
+                    (sqlExecDiscardResult
+                        "INSERT INTO timesheet_entries (venue_id, staff_id, shift_type_id, starts_at, ends_at, timezone) VALUES (?, ?, ?, ?, ?, 'not-a-zone')"
+                        (unpackId venue.id, unpackId staff.id, unpackId shiftType.id, startsAt, endsAt))
+                    :: IO (Either SomeException ())
+                wholeShiftBreak <- try
+                    (sqlExecDiscardResult
+                        "INSERT INTO timesheet_entries (venue_id, staff_id, shift_type_id, starts_at, ends_at, break_starts_at, break_ends_at, timezone) VALUES (?, ?, ?, ?, ?, ?, ?, 'Australia/Melbourne')"
+                        (unpackId venue.id, unpackId staff.id, unpackId shiftType.id, startsAt, endsAt, startsAt, endsAt))
+                    :: IO (Either SomeException ())
+                nonPositiveRoster <- try
+                    (sqlExecDiscardResult
+                        "INSERT INTO roster_slots (roster_day_id, roster_week_slot_definition_id, row_index, starts_at, ends_at, timezone) VALUES (?, ?, 0, ?, ?, 'Australia/Melbourne')"
+                        (unpackId rosterDay.id, unpackId slotDefinition.id, startsAt, startsAt))
+                    :: IO (Either SomeException ())
+                emptyRosterTimezone <- try
+                    (sqlExecDiscardResult
+                        "INSERT INTO roster_slots (roster_day_id, roster_week_slot_definition_id, row_index, timezone) VALUES (?, ?, 1, '')"
+                        (unpackId rosterDay.id, unpackId slotDefinition.id))
+                    :: IO (Either SomeException ())
+                unsupportedRosterTimezone <- try
+                    (sqlExecDiscardResult
+                        "INSERT INTO roster_slots (roster_day_id, roster_week_slot_definition_id, row_index, timezone) VALUES (?, ?, 2, 'not-a-zone')"
+                        (unpackId rosterDay.id, unpackId slotDefinition.id))
+                    :: IO (Either SomeException ())
+
+                map isLeft [nonPositiveTimesheet, halfBreak, outsideBreak, emptyTimesheetTimezone, unsupportedTimesheetTimezone, nonPositiveRoster, emptyRosterTimezone, unsupportedRosterTimezone]
+                    `shouldBe` replicate 8 True
+                wholeShiftBreak `shouldSatisfy` isRight
 
     describe "database tenant integrity protection" do
         it "rejects direct SQL roster weeks whose venue does not match the roster group" $ withContext do
@@ -123,11 +220,13 @@ tests = aroundAll withDatabaseTestContext do
                 staffA <- createStaffRecord venueA Nothing "Tenant" "Worker"
                 foreignShiftType <- ensureVenueDefaultShiftType venueB
 
+                let startsAt = resolveTestFixtureInstant "Australia/Melbourne" defaultWeekEpoch (TimeOfDay 9 0 0)
+                let endsAt = resolveTestFixtureInstant "Australia/Melbourne" defaultWeekEpoch (TimeOfDay 17 0 0)
                 result <-
                     try
                         ( sqlExecDiscardResult
-                            "INSERT INTO timesheet_entries (venue_id, staff_id, shift_type_id, worked_on, start_time, end_time, had_break, break_minutes) VALUES (?, ?, ?, ?, '09:00', '17:00', FALSE, 0)"
-                            (unpackId venueA.id, unpackId staffA.id, unpackId foreignShiftType.id, defaultWeekEpoch)
+                            "INSERT INTO timesheet_entries (venue_id, staff_id, shift_type_id, starts_at, ends_at, timezone) VALUES (?, ?, ?, ?, ?, 'Australia/Melbourne')"
+                            (unpackId venueA.id, unpackId staffA.id, unpackId foreignShiftType.id, startsAt, endsAt)
                         ) :: IO (Either SomeException ())
 
                 result `shouldSatisfy` isLeft
@@ -147,9 +246,9 @@ tests = aroundAll withDatabaseTestContext do
                         |> set #venueId (unpackId venue.id)
                         |> set #staffId (unpackId sourceStaff.id)
                         |> set #shiftTypeId (unpackId shiftType.id)
-                        |> set #workedOn defaultWeekEpoch
-                        |> set #startTime (TimeOfDay 9 0 0)
-                        |> set #endTime (TimeOfDay 17 0 0)
+                        |> setTestWorkedOn defaultWeekEpoch
+                        |> setTestStartTime (TimeOfDay 9 0 0)
+                        |> setTestEndTime (TimeOfDay 17 0 0)
                         |> set #sourceRosterSlotId (Just (unpackId rosterSlot.id))
                         |> createRecord
 
@@ -158,14 +257,15 @@ tests = aroundAll withDatabaseTestContext do
                     (unpackId otherStaff.id, unpackId linkedEntry.id)
                 reassignedEntry <- fetch linkedEntry.id
                 reassignedEntry.staffId `shouldBe` unpackId otherStaff.id
-                reassignedEntry.workedOn `shouldBe` defaultWeekEpoch
+                testWorkedOn reassignedEntry `shouldBe` defaultWeekEpoch
                 reassignedEntry.sourceRosterSlotId `shouldBe` Just (unpackId rosterSlot.id)
 
+                let movedStartsAt = resolveTestFixtureInstant linkedEntry.timezone (addDays 1 defaultWeekEpoch) (TimeOfDay 9 0 0)
                 changedDateResult <-
                     try
                         ( sqlExecDiscardResult
-                            "UPDATE timesheet_entries SET worked_on = ? WHERE id = ?"
-                            (addDays 1 defaultWeekEpoch, unpackId linkedEntry.id)
+                            "UPDATE timesheet_entries SET starts_at = ? WHERE id = ?"
+                            (movedStartsAt, unpackId linkedEntry.id)
                         ) :: IO (Either SomeException ())
                 changedDateResult `shouldSatisfy` isLeft
 
@@ -179,7 +279,7 @@ tests = aroundAll withDatabaseTestContext do
 
                 retainedEntry <- fetch linkedEntry.id
                 retainedEntry.staffId `shouldBe` unpackId otherStaff.id
-                retainedEntry.workedOn `shouldBe` defaultWeekEpoch
+                testWorkedOn retainedEntry `shouldBe` defaultWeekEpoch
                 retainedEntry.sourceRosterSlotId `shouldBe` Just (unpackId rosterSlot.id)
 
                 secondRosterSlot <- createRosterSlotRecord rosterDay slotName (Just sourceStaff) 1

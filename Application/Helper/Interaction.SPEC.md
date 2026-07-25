@@ -320,7 +320,10 @@ pen, or touch pointer events. Surface specs should use shared aliases such as
 `DragSessionDefinition`, `DragSourceRefFor`, `DragDropzoneRefFor`, and
 `DragDropIntent` when declaring ordinary drag/drop behavior, so multi-source
 surfaces stay explicit without re-declaring pointer fields and session effects.
-A helper-rendered source ref declares only the static generated source ref plus
+Drag continuations that collect more server-rendered input use the
+`WithExtraFields` aliases so those fields remain part of the canonical Haskell
+intent rather than becoming ad hoc request parameters. A helper-rendered source
+ref declares only the static generated source ref plus
 an opaque source key; the generated registry maps that source ref to the session
 kind, compatible dropzone refs, eventual intent, submitted source/target field
 names, and effect metadata. Generated or

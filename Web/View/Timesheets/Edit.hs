@@ -6,6 +6,7 @@ import Application.Helper.FrontendContract.AppShell (DeleteTimesheetEntryOverlay
                                                      UpdateTimesheetEntryOverlay)
 import Application.Helper.FrontendContract.AppShell.Runtime (AppShellActionRoute (..),
                                                              appShellActionByMarker)
+import Application.VenueTime.Model (timesheetEntryWorkedOn)
 import Web.Timesheets.Paths (timesheetStateQueryParams, timesheetWeekUrl)
 import Web.View.Prelude
 
@@ -26,7 +27,7 @@ data EditView = EditView
 instance View EditView where
     html EditView { .. } =
         renderTimesheetEntryModalWithStartButtons
-            (timesheetModalTitle timesheetEntry.workedOn)
+            (timesheetModalTitle (timesheetEntryWorkedOn timesheetEntry))
             (timesheetWeekUrl weekOffset showApproved showAllStaff showSuggestions selectedStaffFilterId)
             editTimesheetFormId
             (renderTimesheetForm (appShellActionByMarker @UpdateTimesheetEntryOverlay) formOrigin timesheetEntry staffMembers shiftTypes weekOffset showApproved showAllStaff showSuggestions selectedStaffFilterId currentViewerStaffId pickerStart pickerEnd (pathTo (UpdateTimesheetEntryAction (get #id timesheetEntry))) editTimesheetFormId PageOverlayForm)
@@ -40,7 +41,7 @@ editTimesheetFormId = "timesheet-entry-edit-form"
 renderEditTimesheetDialog :: TimesheetEntry -> [Staff] -> [ShiftType] -> Int -> Bool -> Bool -> Bool -> Maybe UUID -> Maybe UUID -> Text -> Text -> Html
 renderEditTimesheetDialog timesheetEntry staffMembers shiftTypes weekOffset showApproved showAllStaff showSuggestions selectedStaffFilterId currentViewerStaffId pickerStart pickerEnd =
     renderTimesheetEntryDialogWithStartButtons
-        (timesheetModalTitle timesheetEntry.workedOn)
+        (timesheetModalTitle (timesheetEntryWorkedOn timesheetEntry))
         editTimesheetFormId
         (renderTimesheetForm (appShellActionByMarker @UpdateTimesheetEntryOverlay) formOrigin timesheetEntry staffMembers shiftTypes weekOffset showApproved showAllStaff showSuggestions selectedStaffFilterId currentViewerStaffId pickerStart pickerEnd (pathTo (UpdateTimesheetEntryAction (get #id timesheetEntry))) editTimesheetFormId HtmxOverlayForm)
         (deleteButtonsFor timesheetEntry weekOffset showApproved showAllStaff showSuggestions selectedStaffFilterId)

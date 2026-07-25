@@ -1,17 +1,27 @@
 module Test.RosterGridSpec where
 
+import Data.Time.Calendar (fromGregorian)
 import Data.Time.LocalTime (TimeOfDay (..))
 import qualified Data.UUID as UUID
 import Generated.Types
 import IHP.ControllerPrelude (newRecord, unpackId)
 import IHP.Prelude
 import Test.Hspec
+import Test.Support (setTestEndTime, setTestStartTime)
 import Web.RosterWeeks.Rows (impactedRowKeysForSlotUpdate)
+import Web.RosterWeeks.Service (rosterTimelineTargetAmbiguousEndpoints)
 import Web.View.RosterWeeks.Grid (compactDayColumnSlots, lastRowIndexForRows,
                                   rowsForDay)
 
 tests :: Spec
 tests = describe "Roster grid row grouping" do
+    it "keeps equal repeated timeline endpoints on the same local date" do
+        rosterTimelineTargetAmbiguousEndpoints
+            (fromGregorian 2026 4 4)
+            (TimeOfDay 2 30 0)
+            (TimeOfDay 2 30 0)
+            `shouldBe` (True, True)
+
     it "sorts day-column slots by start time" do
         let slotA = newRecord @RosterWeekSlotDefinition
             slotB = newRecord @RosterWeekSlotDefinition
@@ -20,7 +30,7 @@ tests = describe "Roster grid row grouping" do
             mkSlot daySlot startTime staffId =
                 newRecord @RosterSlot
                     |> set #rosterWeekSlotDefinitionId (unpackId daySlot.id)
-                    |> set #startTime startTime
+                    |> setTestStartTime startTime
                     |> set #staffId staffId
 
             first = mkSlot slotA (Just $ TimeOfDay 10 0 0) (Just (UUID.nil))
@@ -37,14 +47,14 @@ tests = describe "Roster grid row grouping" do
             mkTimedSlot startTime =
                 newRecord @RosterSlot
                     |> set #rosterWeekSlotDefinitionId (unpackId slotA.id)
-                    |> set #startTime (Just startTime)
+                    |> setTestStartTime (Just startTime)
                     |> set #staffId (Just UUID.nil)
 
             mkUntimedSlot =
                 newRecord @RosterSlot
                     |> set #rosterWeekSlotDefinitionId (unpackId slotB.id)
-                    |> set #startTime Nothing
-                    |> set #endTime (Just $ TimeOfDay 9 0 0)
+                    |> setTestStartTime Nothing
+                    |> setTestEndTime (Just $ TimeOfDay 9 0 0)
                     |> set #staffId Nothing
 
             first = mkTimedSlot (TimeOfDay 9 0 0)

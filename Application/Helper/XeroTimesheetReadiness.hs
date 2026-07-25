@@ -13,6 +13,7 @@ import Application.Helper.VenueScopedQueries
 import Application.Helper.Xero
 import Application.Helper.XeroAdminTypes
 import Application.Helper.XeroPayItems
+import Application.VenueTime.Model (requireMelbourneDateRangeUTC)
 import Application.Xero.Timesheets.Buckets
 import Control.Monad (guard)
 import qualified Data.Aeson.Types as AesonTypes
@@ -142,12 +143,13 @@ fetchLatestXeroSyncRun venueId =
         |> fetchOneOrNothing
 
 fetchPeriodTimesheetEntries :: (?modelContext :: ModelContext) => Id Venue -> Day -> Day -> IO [TimesheetEntry]
-fetchPeriodTimesheetEntries venueId periodStart periodEnd =
+fetchPeriodTimesheetEntries venueId periodStart periodEnd = do
+    let (periodStartsAt, periodEndsAt) = requireMelbourneDateRangeUTC periodStart periodEnd
     query @TimesheetEntry
         |> filterWhere (#venueId, unpackId venueId)
-        |> filterWhereGreaterThanOrEqualTo (#workedOn, periodStart)
-        |> filterWhereLessThanOrEqualTo (#workedOn, periodEnd)
-        |> orderBy #workedOn
+        |> filterWhereGreaterThanOrEqualTo (#startsAt, periodStartsAt)
+        |> filterWhereLessThan (#startsAt, periodEndsAt)
+        |> orderBy #startsAt
         |> fetch
 
 fetchVerifiedStaffMappings :: (?modelContext :: ModelContext) => [UUID] -> XeroConnection -> IO [XeroStaffMapping]

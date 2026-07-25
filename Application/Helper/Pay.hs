@@ -4,6 +4,7 @@ import Application.Helper.Controller hiding (venueEffectiveRateDate,
                                       venueEffectiveRateEndDate)
 import Application.Helper.WeekBoundaries (WeekdayIndex)
 import qualified Application.Helper.WeekBoundaries as WeekBoundaries
+import Application.VenueTime.Model (timesheetEntryWorkedOn)
 import Control.Monad (void)
 import Data.Aeson ((.:), (.:?))
 import qualified Data.Aeson as Aeson
@@ -246,8 +247,9 @@ ensurePayVersionsForTimesheetApproval ::
 ensurePayVersionsForTimesheetApproval actorUserId entry = do
     staff <- fetch (Id entry.staffId :: Id Staff)
     shiftType <- fetch (Id entry.shiftTypeId :: Id ShiftType)
-    staffVersion <- ensureStaffPayVersionForStaff actorUserId staff entry.workedOn
-    shiftTypeVersion <- ensureShiftTypePayVersionForShiftType actorUserId shiftType entry.workedOn
+    let workedOn = timesheetEntryWorkedOn entry
+    staffVersion <- ensureStaffPayVersionForStaff actorUserId staff workedOn
+    shiftTypeVersion <- ensureShiftTypePayVersionForShiftType actorUserId shiftType workedOn
     pure (staffVersion, shiftTypeVersion)
 
 lockPayVersionsForApproval ::
@@ -287,8 +289,8 @@ fetchTimesheetPayResultsForEntries :: (?modelContext :: ModelContext) => [Timesh
 fetchTimesheetPayResultsForEntries entries = do
     let groupedEntries = groupByStaff entries
     resultMaps <- forM (Map.toList groupedEntries) \(staffId, staffEntries) -> do
-        let fromDate = minimum (map (.workedOn) staffEntries)
-        let toDate = maximum (map (.workedOn) staffEntries)
+        let fromDate = minimum (map timesheetEntryWorkedOn staffEntries)
+        let toDate = maximum (map timesheetEntryWorkedOn staffEntries)
         let requestedEntryIds = Set.fromList (map (timesheetEntryIdKey . get #id) staffEntries)
         payResults <- fetchTimesheetPayRange staffId fromDate toDate
         case payResults of
@@ -308,8 +310,8 @@ fetchTimesheetPaySummariesForEntries :: (?modelContext :: ModelContext) => [Time
 fetchTimesheetPaySummariesForEntries entries = do
     let groupedEntries = groupByStaff entries
     resultMaps <- forM (Map.toList groupedEntries) \(staffId, staffEntries) -> do
-        let fromDate = minimum (map (.workedOn) staffEntries)
-        let toDate = maximum (map (.workedOn) staffEntries)
+        let fromDate = minimum (map timesheetEntryWorkedOn staffEntries)
+        let toDate = maximum (map timesheetEntryWorkedOn staffEntries)
         payResults <- fetchTimesheetPayRange staffId fromDate toDate
         case payResults of
             Left _        -> pure Map.empty

@@ -21,6 +21,7 @@ import Application.Helper.VenueScopedQueries
 import Application.Helper.XeroAdminTypes
 import Application.Helper.XeroPayItems
 import Application.Helper.XeroTimesheetReadiness
+import Application.VenueTime.Model (timesheetEntryWorkedOn)
 import Control.Monad (guard)
 import qualified Data.Aeson as Aeson
 import qualified Data.Aeson.Types as AesonTypes
@@ -238,7 +239,7 @@ fetchCurrentVenueXeroTimesheetPeriodOptions (Just connection) = do
             |> filterWhere (#venueId, unpackId currentVenueId)
             |> filterWhere (#isApproved, True)
             |> filterWhere (#deletedAt, Nothing)
-            |> orderByDesc #workedOn
+            |> orderByDesc #startsAt
             |> fetch
     today <- utctDay <$> getCurrentTime
     verifiedMappings <-
@@ -258,7 +259,7 @@ fetchCurrentVenueXeroTimesheetPeriodOptions (Just connection) = do
             |> filterWhere (#xeroConnectionId, unpackId connection.id)
             |> orderByDesc #updatedAt
             |> fetch
-    let approvedWorkedOnDates = List.nub (map (.workedOn) approvedEntries)
+    let approvedWorkedOnDates = List.nub (map timesheetEntryWorkedOn approvedEntries)
         staffCalendarAssignments = staffPayrollCalendarAssignments verifiedMappings mappedEmployees
         calendarPeriodOptions = concatMap (derivedPeriodOptions today payRuns approvedWorkedOnDates) calendars
     pure $
@@ -297,7 +298,8 @@ periodOptionHasRelevantApprovedEmployee approvedEntries staffCalendarAssignments
     where
         periodEntries =
             filter \entry ->
-                entry.workedOn >= option.periodOptionStart && entry.workedOn <= option.periodOptionEnd
+                let workedOn = timesheetEntryWorkedOn entry
+                 in workedOn >= option.periodOptionStart && workedOn <= option.periodOptionEnd
         entryMatches entry =
             case Map.lookup entry.staffId staffCalendarAssignments of
                 Nothing -> True

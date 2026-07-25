@@ -105,6 +105,28 @@ tests = aroundAll withDatabaseTestContext do
                         targetState.optionHiddenByLeave `shouldBe` True
                         targetState.optionHiddenByAssignedToday `shouldBe` True
 
+        it "uses the authoritative local start date for after-midnight preferences" $ withContext do
+            withCleanDb do
+                fixture <- createDirectReadModelFixture
+
+                withUserAndCurrentVenue fixture.manager fixture.venue.id do
+                    withCurrentControllerContext do
+                        initialData <- fromJust <$> fetchVisibleRosterReadModel fixture.rosterGroup.id 0
+                        openDay <- fetch (Id fixture.visibleSparseSlot.rosterDayId) :: IO RosterDay
+                        staff <- createStaffRecord fixture.venue Nothing "After Midnight" "Preference"
+                        slot <- createRosterSlotRecord openDay fixture.earlySlotName (Just staff) 8
+                            >>= updateRecord
+                                . setTestRosterSlotBoundaries initialData.weekStartDate (TimeOfDay 1 0 0) (TimeOfDay 2 0 0)
+                        _ <- createStaffShiftPreferenceRecord fixture.venue staff (weekdayIndexForDay (Calendar.addDays 1 initialData.weekStartDate)) 5 6
+
+                        states <- buildRosterStaffOptionStatesForSlotsDirect allAssignmentFilters initialData.weekStartDate [slot] [slot] [staff]
+                        let targetState = fromJust (Map.lookup (coerce slot.id, coerce staff.id) states)
+                        targetState.optionHiddenByUnavailable `shouldBe` False
+
+                        conflicts <- buildSlotConflictsForSlotsDirect fixture.rosterGroup.id 0 initialData.weekStartDate [slot] [slot]
+                        lookup slot.id conflicts `shouldNotSatisfy` hasConflictType ShiftPreferenceDayUnavailable
+                        lookup slot.id conflicts `shouldSatisfy` hasConflictType ShiftPreferenceSlotMismatch
+
         it "derives each direct roster conflict type from SQL facts" $ withContext do
             withCleanDb do
                 fixture <- createDirectReadModelFixture
@@ -135,14 +157,16 @@ addDirectReadModelConflictFacts fixture = do
     _ <- nextDay |> set #isClosed False |> updateRecord
     _ <- fixture.assignedInactiveStaff |> set #idealShiftsPerWeek 1 |> updateRecord
     duplicateSlot <- createRosterSlotRecord openDay fixture.earlySlotName (Just fixture.assignedInactiveStaff) 5 >>= \slot ->
-        slot |> set #startTime (Just (TimeOfDay 12 0 0)) |> updateRecord
+        slot |> setTestStartTime (Just (TimeOfDay 12 0 0)) |> updateRecord
     lateSlot <- createRosterSlotRecord nextDay fixture.earlySlotName (Just fixture.assignedInactiveStaff) 7 >>= \slot ->
-        slot |> set #startTime (Just (TimeOfDay 6 0 0)) |> updateRecord
-    _ <- fixture.visibleSparseSlot |> set #startTime (Just (TimeOfDay 23 0 0)) |> updateRecord
+        slot
+            |> setTestRosterSlotBoundaries (Calendar.addDays 1 initialData.weekStartDate) (TimeOfDay 6 0 0) (TimeOfDay 7 0 0)
+            |> updateRecord
+    _ <- fixture.visibleSparseSlot |> setTestStartTime (Just (TimeOfDay 23 0 0)) |> updateRecord
     _ <- createLeaveRequestRecord fixture.venue fixture.assignedInactiveStaff initialData.weekStartDate (Calendar.addDays 1 initialData.weekStartDate) "approved"
     preferenceStaff <- createStaffRecord fixture.venue Nothing "Pref" "Mismatch"
     preferenceSlot <- createRosterSlotRecord openDay fixture.earlySlotName (Just preferenceStaff) 6 >>= \slot ->
-        slot |> set #startTime (Just (TimeOfDay 12 0 0)) |> updateRecord
+        slot |> setTestStartTime (Just (TimeOfDay 12 0 0)) |> updateRecord
     _ <- createStaffShiftPreferenceRecord fixture.venue preferenceStaff (weekdayIndexForDay initialData.weekStartDate) 9 10
     pure (duplicateSlot, lateSlot, preferenceSlot)
 
@@ -192,12 +216,12 @@ createDirectReadModelFixture = do
 
     visibleSparseSlot <- createRosterSlotRecord openDay earlySlotName (Just assignedInactiveStaff') 3 >>= \slot ->
         slot
-            |> set #startTime (Just (TimeOfDay 9 0 0))
+            |> setTestStartTime (Just (TimeOfDay 9 0 0))
             |> set #shiftTypeId (Just (unpackId breakfast.id))
             |> updateRecord
     closedDaySlot <- createRosterSlotRecord closedDay earlySlotName (Just eligibleStaff) 0 >>= \slot ->
         slot
-            |> set #startTime (Just (TimeOfDay 10 0 0))
+            |> setTestStartTime (Just (TimeOfDay 10 0 0))
             |> set #shiftTypeId (Just (unpackId dinner.id))
             |> updateRecord
 

@@ -25,9 +25,12 @@ module Web.RosterWeeks.Mutations
 import Application.Helper.FrontendContract.Surface.Roster.Resource
 import Application.Helper.FrontendContract.Surface.Timesheets.Resource
 import Application.Helper.SurfaceResource
+import Application.VenueTime.Model (BoundaryModelError,
+                                    ShiftCopyOccurrenceSelections)
 import Data.Coerce (coerce)
 import Data.List (nub)
 import Data.Time (getCurrentTime)
+import Data.Traversable (traverse)
 import Data.UUID (UUID)
 import Web.Controller.Prelude
 import Web.RosterWeeks.Service
@@ -47,17 +50,19 @@ ensureRosterWeekExistsMutation rosterGroupId weekOffset = do
         then invalidateTouchedResources "roster.week.ensure" mutationResult
         else pure mutationResult
 
-copyRosterWeekFromSourceMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id RosterGroup -> RosterWeek -> Int -> IO (LiveMutationResult RosterWeek)
-copyRosterWeekFromSourceMutation rosterGroupId sourceWeek targetWeekOffset = do
-    targetWeek <- withTransaction do
+copyRosterWeekFromSourceMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => ShiftCopyOccurrenceSelections -> Id RosterGroup -> RosterWeek -> Int -> IO (Either BoundaryModelError (LiveMutationResult RosterWeek))
+copyRosterWeekFromSourceMutation selections rosterGroupId sourceWeek targetWeekOffset = do
+    copyResult <- withTransaction do
         existingTarget <- query @RosterWeek
             |> filterWhere (#rosterGroupId, unpackId rosterGroupId)
             |> filterWhere (#weekOffset, targetWeekOffset)
             |> fetchOneOrNothing
         case existingTarget of
-            Just targetWeek -> replaceRosterWeekFromSource sourceWeek targetWeek
-            Nothing         -> copyRosterWeek sourceWeek targetWeekOffset
-    invalidateTouchedResources "roster.week.copy" (liveMutationResult targetWeek (rosterWeekStructuralTouchedResources rosterGroupId targetWeekOffset))
+            Just targetWeek -> replaceRosterWeekFromSource selections sourceWeek targetWeek
+            Nothing         -> copyRosterWeek selections sourceWeek targetWeekOffset
+    traverse
+        (\targetWeek -> invalidateTouchedResources "roster.week.copy" (liveMutationResult targetWeek (rosterWeekStructuralTouchedResources rosterGroupId targetWeekOffset)))
+        copyResult
 
 toggleRosterWeekLiveStatusMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id RosterGroup -> RosterWeek -> Bool -> IO (LiveMutationResult RosterWeek)
 toggleRosterWeekLiveStatusMutation rosterGroupId rosterWeek nextLiveStatus = do
@@ -213,12 +218,6 @@ rosterSlotTimesheetSourceChangeRequiresWarning :: (?modelContext :: ModelContext
 rosterSlotTimesheetSourceChangeRequiresWarning previous next
     | rosterSlotTimesheetSourceChanged previous next = rosterSlotHasGeneratedTimesheet previous
     | otherwise = pure False
-  where
-    rosterSlotTimesheetSourceChanged left right =
-        left.staffId /= right.staffId
-            || left.startTime /= right.startTime
-            || left.endTime /= right.endTime
-            || left.shiftTypeId /= right.shiftTypeId
 
 rosterSlotHasGeneratedTimesheet :: (?modelContext :: ModelContext) => RosterSlot -> IO Bool
 rosterSlotHasGeneratedTimesheet rosterSlot =

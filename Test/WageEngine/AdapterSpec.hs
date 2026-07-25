@@ -169,7 +169,7 @@ databaseTests = aroundAll withDatabaseTestContext do
 
                 importedContexts <- loadWageEngineContextsForEntries [importedEntry] >>= expectRight
                 importedContext <- maybe (expectationFailure "missing imported context" >> fail "unreachable") pure (Map.lookup (unpackId importedEntry.id) importedContexts)
-                calculateTimesheetPay (calculationInputFromLoadedContext importedContext [fourHourInterval importedEntry.workedOn])
+                calculateTimesheetPay (calculationInputFromLoadedContext importedContext [fourHourInterval (testWorkedOn importedEntry)])
                     `shouldSatisfy` \case
                         Right calculation -> rateForCalculation calculation == Just 55
                         Left _            -> False
@@ -213,7 +213,7 @@ databaseTests = aroundAll withDatabaseTestContext do
                 importedEntry <- createAdapterEntry venue importedStaff importedShiftType (fromGregorian 2026 7 11)
                 _ <- newRecord @PublicHoliday
                     |> set #jurisdiction "VIC"
-                    |> set #holidayDate holidayEntry.workedOn
+                    |> set #holidayDate (testWorkedOn holidayEntry)
                     |> set #name "Parity Holiday"
                     |> set #isRegional False
                     |> createRecord
@@ -262,7 +262,7 @@ databaseTests = aroundAll withDatabaseTestContext do
                 forM_ entries \entry -> do
                     sqlResult <- fetchTimesheetPay entry.id >>= expectRight
                     context <- maybe (expectationFailure "missing loaded context" >> fail "unreachable") pure (Map.lookup (unpackId entry.id) contexts)
-                    let calculationInput = calculationInputFromLoadedContext context [fourHourInterval entry.workedOn]
+                    let calculationInput = calculationInputFromLoadedContext context [fourHourInterval (testWorkedOn entry)]
                     haskellResult <- expectRight (calculateTimesheetPay calculationInput)
 
                     sum (map (.amount) haskellResult.earningsComponents)
@@ -425,8 +425,8 @@ createAdapterEntry venue staff shiftType workedOn =
     createTimesheetEntryRecord venue staff workedOn
         >>= updateRecord
             . set #shiftTypeId (unpackId shiftType.id)
-            . set #startTime (TimeOfDay 9 0 0)
-            . set #endTime (TimeOfDay 13 0 0)
+            . setTestStartTime (TimeOfDay 9 0 0)
+            . setTestEndTime (TimeOfDay 13 0 0)
 
 fourHourInterval :: Day -> AwardSegment
 fourHourInterval localDate =

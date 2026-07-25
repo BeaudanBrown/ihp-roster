@@ -11,6 +11,8 @@ a timezone.
 
 - Unique local times resolve without an occurrence choice.
 - Repeated autumn times require `FirstOccurrence` or `SecondOccurrence`.
+  Endpoint ordering is resolved before calendar-day rollover, so equal local
+  clocks from the first occurrence to the second form a positive same-day interval.
 - Nonexistent spring times return `NonexistentCivilTime`.
 - An occurrence attached to a unique time is rejected rather than ignored.
 - Invalid `TimeOfDay` values and non-positive intervals return typed errors.
@@ -37,6 +39,16 @@ seconds and DST transitions. Segment durations conserve the source interval.
 end-date offset relative to the start date. It resolves both copied endpoints on
 the target date instead of adding a UTC duration. A repeated target endpoint still
 requires an explicit occurrence selection; a nonexistent target endpoint fails.
+
+## Persistence integration
+
+`Application.VenueTime.Model` is the typed database/form integration seam. It
+accepts only `Australia/Melbourne`, stores start/end instants plus that timezone
+snapshot atomically, derives all local facts from those values, and validates
+paired break instants inside the shift. A break may start at the shift start or
+end at the shift end, but must itself have positive elapsed duration. Copy
+occurrence selections are applied only to target endpoints that actually repeat,
+so one week-copy selection can coexist with ordinary shifts.
 
 ## Verification
 

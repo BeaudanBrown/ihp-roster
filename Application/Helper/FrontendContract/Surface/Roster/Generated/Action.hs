@@ -14,6 +14,7 @@ module Application.Helper.FrontendContract.Surface.Roster.Generated.Action
     , deleteRosterWeekSlotDefinitionActionFields
     , navigateRosterWeekAction
     , navigateRosterWeekActionFields
+    , parseCopyRosterWeekActionParams
     , parseNavigateRosterWeekActionParams
     , parseToggleRosterAssignmentFiltersActionParams
     , parseToggleRosterStaffScopeActionParams
@@ -49,7 +50,9 @@ import Application.Helper.FrontendContract.Surface.Values (SurfaceActionFields,
                                                            noSurfaceActionFields,
                                                            noSurfaceFields,
                                                            surfaceActionFields,
-                                                           surfaceField, (&:))
+                                                           surfaceField,
+                                                           surfaceOptionalField,
+                                                           (&:))
 import qualified Data.UUID as UUID
 import IHP.Prelude
 import Network.Wai (Request)
@@ -64,13 +67,28 @@ addRosterRowAction =
         @(AdapterFamilySurface Types2.RosterAdapterFamily)
         @Types1.AddRosterRow
 
-copyRosterWeekActionFields :: SurfaceActionFields (AdapterFamilySurface Types2.RosterAdapterFamily) Types1.CopyRosterWeek
-copyRosterWeekActionFields =
-    noSurfaceActionFields
+copyRosterWeekActionFields ::
+    Maybe Text ->
+    Maybe Text ->
+    SurfaceActionFields (AdapterFamilySurface Types2.RosterAdapterFamily) Types1.CopyRosterWeek
+copyRosterWeekActionFields copyStartOccurrence copyEndOccurrence =
+    surfaceActionFields
+        (surfaceOptionalField @Types1.CopyStartOccurrence copyStartOccurrence)
+        ( surfaceOptionalField @Types1.CopyEndOccurrence copyEndOccurrence
+            &: noSurfaceFields
+        )
 
 copyRosterWeekAction :: SurfaceActionFields (AdapterFamilySurface Types2.RosterAdapterFamily) Types1.CopyRosterWeek -> FrontendSurfaceAction
 copyRosterWeekAction =
     frontendSurfaceAction
+        @(AdapterFamilySurface Types2.RosterAdapterFamily)
+        @Types1.CopyRosterWeek
+
+parseCopyRosterWeekActionParams ::
+    (?request :: Request) =>
+    Either [SurfaceRequestFieldError] (SurfaceActionFields (AdapterFamilySurface Types2.RosterAdapterFamily) Types1.CopyRosterWeek)
+parseCopyRosterWeekActionParams =
+    parseSurfaceActionParams
         @(AdapterFamilySurface Types2.RosterAdapterFamily)
         @Types1.CopyRosterWeek
 

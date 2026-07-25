@@ -15,11 +15,14 @@ import Application.Helper.RosterGroups (createVenueRosterGroupWithDefaults,
                                         syncStaffRosterGroupAssignments)
 import Application.Helper.SurfaceResource
 import Application.Helper.View (dialogOverlayMountId)
+import Application.VenueTime (RepeatedTimeOccurrence (SecondOccurrence))
+import Application.VenueTime.Model (rosterSlotStartOccurrence,
+                                    storedInstantLocalTime)
 import Config
 import Data.ByteString (ByteString)
 import qualified Data.Set as Set
 import qualified Data.Text as Text
-import Data.Time.Calendar (addDays)
+import Data.Time.Calendar (addDays, fromGregorian)
 import Data.Time.LocalTime (TimeOfDay (..))
 import qualified Data.UUID as UUID
 import Generated.Types
@@ -370,7 +373,7 @@ tests = aroundAll withDatabaseTestContext do
                 rosterDay <- createRosterDayRecord rosterWeek 0
                 _ <- ensureRosterWeekSlotDefinitionForSlotName rosterDay slotName
                 timelineSlot <- createRosterSlotRecord rosterDay slotName (Just staffMember) 0
-                _ <- updateRecord (timelineSlot |> set #startTime (Just (TimeOfDay 9 0 0)) |> set #endTime (Just (TimeOfDay 13 0 0)))
+                _ <- updateRecord (timelineSlot |> setTestStartTime (Just (TimeOfDay 9 0 0)) |> setTestEndTime (Just (TimeOfDay 13 0 0)))
 
                 response <- withUserAndCurrentVenue manager venue.id do
                     callActionWithParams (ShowRosterWeekAction 0)
@@ -725,7 +728,7 @@ tests = aroundAll withDatabaseTestContext do
                     |> filterWhere (#deletedAt, Nothing)
                     |> fetchOne
                 createdSlot.staffId `shouldBe` Just (unpackId staffMember.id)
-                createdSlot.startTime `shouldBe` Just (timeOfDay 9 0)
+                testStartTime createdSlot `shouldBe` Just (timeOfDay 9 0)
                 createdSlot.shiftTypeId `shouldBe` Just (unpackId shiftType.id)
                 updatedDay <- fetch rosterDay.id
                 updatedDay.rowCount `shouldBe` 4
@@ -870,7 +873,7 @@ tests = aroundAll withDatabaseTestContext do
                 firstSlot <- createRosterSlotRecord rosterDay slotName (Just staffMember) 0
                 secondSlot <- createRosterSlotRecord rosterDay slotName Nothing 1
                 shiftType <- ensureVenueDefaultShiftType venue
-                _ <- updateRecord (firstSlot |> set #startTime (Just (timeOfDay 9 0)))
+                _ <- updateRecord (firstSlot |> setTestStartTime (Just (timeOfDay 9 0)))
 
                 _ <- withUserAndCurrentVenue manager venue.id do
                     callActionWithParams (UpdateRosterSlotAction secondSlot.id) (fullShiftParamsAt staffMember shiftType "13:00")
@@ -1014,6 +1017,148 @@ tests = aroundAll withDatabaseTestContext do
                 updatedSlot.rosterWeekSlotDefinitionId `shouldBe` sourceSlot.rosterWeekSlotDefinitionId
                 updatedSlot.rowIndex `shouldBe` 1
                 response `responseBodyShouldContain` "Roster shift moved."
+
+        it "requires a target occurrence before moving a slot into the repeated autumn hour" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Roster Move DST Venue"
+                manager <- createUserRecord "roster-manager-drag-move-dst@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue manager "manager"
+                slotName <- fetchSlotNameRecord venue "Early"
+                staffMember <- createStaffRecord venue Nothing "Move" "DST"
+                rosterWeek <- createRosterWeekRecord venue 64 False
+                sourceDay <- createRosterDayRecord rosterWeek 4
+                targetDay <- createRosterDayRecord rosterWeek 5
+                sourceSlot <- createRosterSlotRecord sourceDay slotName (Just staffMember) 0
+                    >>= updateRecord
+                        . setTestRosterSlotBoundaries (fromGregorian 2026 4 3) (TimeOfDay 2 30 0) (TimeOfDay 4 0 0)
+                let sourceToken = "existing:" <> tshow sourceSlot.id
+                let targetToken = "new:" <> tshow targetDay.id <> ":" <> tshow sourceSlot.rosterWeekSlotDefinitionId <> ":0"
+                let coreParams =
+                        [ ("rosterGroupId", cs (tshow rosterWeek.rosterGroupId))
+                        , ("sourceItemKey", cs sourceToken)
+                        , ("targetDropzoneKey", cs targetToken)
+                        ]
+                let baseParams = coreParams <> [("copyStartOccurrence", ""), ("copyEndOccurrence", "")]
+
+                chooserResponse <- withUserAndCurrentVenue manager venue.id do
+                    withRequestHeaders [("HX-Request", "true")] do
+                        callActionWithParams MoveRosterShiftToSlotAction { weekOffset = 64 } baseParams
+
+                chooserResponse `responseStatusShouldBe` status200
+                chooserResponse `responseBodyShouldContain` "data-time-occurrence-chooser=\"copyStartOccurrence\""
+                chooserResponse `responseBodyShouldNotContain` "data-time-occurrence-chooser=\"copyEndOccurrence\""
+                chooserResponse `responseBodyShouldNotContain` "type=\"hidden\" name=\"copyStartOccurrence\""
+                chooserResponse `responseBodyShouldContain` "form=\"roster-shift-occurrence-form\""
+                chooserResponse `responseBodyShouldContain` cs ("name=\"sourceItemKey\" value=\"" <> sourceToken <> "\"")
+                unchangedSlot <- fetch sourceSlot.id
+                unchangedSlot.rosterDayId `shouldBe` unpackId sourceDay.id
+
+                movedResponse <- withUserAndCurrentVenue manager venue.id do
+                    withRequestHeaders [("HX-Request", "true")] do
+                        callActionWithParams MoveRosterShiftToSlotAction { weekOffset = 64 }
+                            (coreParams <> [("copyStartOccurrence", "second")])
+
+                movedResponse `responseStatusShouldBe` status200
+                movedSlot <- fetch sourceSlot.id
+                movedSlot.rosterDayId `shouldBe` unpackId targetDay.id
+                rosterSlotStartOccurrence movedSlot `shouldBe` Just SecondOccurrence
+                fmap (.localDay) (storedInstantLocalTime movedSlot.timezone <$> movedSlot.startsAt)
+                    `shouldBe` Just (fromGregorian 2026 4 5)
+
+        it "requires a target occurrence before duplicating a slot into the repeated autumn hour" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Roster Duplicate DST Venue"
+                manager <- createUserRecord "roster-manager-drag-duplicate-dst@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue manager "manager"
+                slotName <- fetchSlotNameRecord venue "Early"
+                staffMember <- createStaffRecord venue Nothing "Duplicate" "DST"
+                rosterWeek <- createRosterWeekRecord venue 64 False
+                sourceDay <- createRosterDayRecord rosterWeek 4
+                targetDay <- createRosterDayRecord rosterWeek 5
+                sourceSlot <- createRosterSlotRecord sourceDay slotName (Just staffMember) 0
+                    >>= updateRecord
+                        . setTestRosterSlotBoundaries (fromGregorian 2026 4 3) (TimeOfDay 2 30 0) (TimeOfDay 4 0 0)
+                let sourceToken = "existing:" <> tshow sourceSlot.id
+                let targetToken = "new:" <> tshow targetDay.id <> ":" <> tshow sourceSlot.rosterWeekSlotDefinitionId <> ":0"
+                let coreParams =
+                        [ ("rosterGroupId", cs (tshow rosterWeek.rosterGroupId))
+                        , ("sourceItemKey", cs sourceToken)
+                        , ("targetDropzoneKey", cs targetToken)
+                        ]
+                let baseParams = coreParams <> [("copyStartOccurrence", ""), ("copyEndOccurrence", "")]
+
+                chooserResponse <- withUserAndCurrentVenue manager venue.id do
+                    withRequestHeaders [("HX-Request", "true")] do
+                        callActionWithParams DuplicateRosterShiftToDayAction { weekOffset = 64 } baseParams
+
+                chooserResponse `responseStatusShouldBe` status200
+                chooserResponse `responseBodyShouldContain` "data-time-occurrence-chooser=\"copyStartOccurrence\""
+                query @RosterSlot
+                    |> filterWhere (#rosterDayId, unpackId targetDay.id)
+                    |> filterWhere (#deletedAt, Nothing)
+                    |> fetchCount
+                    >>= (`shouldBe` 0)
+
+                duplicatedResponse <- withUserAndCurrentVenue manager venue.id do
+                    withRequestHeaders [("HX-Request", "true")] do
+                        callActionWithParams DuplicateRosterShiftToDayAction { weekOffset = 64 }
+                            (coreParams <> [("copyStartOccurrence", "second")])
+
+                duplicatedResponse `responseStatusShouldBe` status200
+                copiedSlot <- query @RosterSlot
+                    |> filterWhere (#rosterDayId, unpackId targetDay.id)
+                    |> filterWhere (#deletedAt, Nothing)
+                    |> fetchOne
+                rosterSlotStartOccurrence copiedSlot `shouldBe` Just SecondOccurrence
+                sourceAfterCopy <- fetch sourceSlot.id
+                sourceAfterCopy.rosterDayId `shouldBe` unpackId sourceDay.id
+
+        it "requires a target occurrence before moving a timeline shift into the repeated autumn hour" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Roster Timeline DST Venue"
+                manager <- createUserRecord "roster-manager-timeline-move-dst@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue manager "manager"
+                slotName <- fetchSlotNameRecord venue "Early"
+                staffMember <- createStaffRecord venue Nothing "Timeline" "DST"
+                rosterWeek <- createRosterWeekRecord venue 64 False
+                sourceDay <- createRosterDayRecord rosterWeek 4
+                targetDay <- createRosterDayRecord rosterWeek 5
+                sourceSlot <- createRosterSlotRecord sourceDay slotName (Just staffMember) 0
+                    >>= updateRecord
+                        . setTestRosterSlotBoundaries (fromGregorian 2026 4 3) (TimeOfDay 8 0 0) (TimeOfDay 9 30 0)
+                let sourceToken = "existing:" <> tshow sourceSlot.id
+                let targetToken = "time:" <> tshow targetDay.id <> ":" <> tshow sourceSlot.rosterWeekSlotDefinitionId <> ":1590"
+                let coreParams =
+                        [ ("rosterGroupId", cs (tshow rosterWeek.rosterGroupId))
+                        , ("rosterView", "timeline")
+                        , ("dayOffset", "5")
+                        , ("sourceItemKey", cs sourceToken)
+                        , ("targetDropzoneKey", cs targetToken)
+                        ]
+                let baseParams = coreParams <> [("timelineStartOccurrence", ""), ("timelineEndOccurrence", "")]
+
+                chooserResponse <- withUserAndCurrentVenue manager venue.id do
+                    withRequestHeaders [("HX-Request", "true")] do
+                        callActionWithParams MoveRosterTimelineShiftAction { weekOffset = 64 } baseParams
+
+                chooserResponse `responseStatusShouldBe` status200
+                chooserResponse `responseBodyShouldContain` "data-time-occurrence-chooser=\"timelineStartOccurrence\""
+                chooserResponse `responseBodyShouldNotContain` "data-time-occurrence-chooser=\"timelineEndOccurrence\""
+                chooserResponse `responseBodyShouldNotContain` "type=\"hidden\" name=\"timelineStartOccurrence\""
+                unchangedSlot <- fetch sourceSlot.id
+                unchangedSlot.rosterDayId `shouldBe` unpackId sourceDay.id
+
+                movedResponse <- withUserAndCurrentVenue manager venue.id do
+                    withRequestHeaders [("HX-Request", "true")] do
+                        callActionWithParams MoveRosterTimelineShiftAction { weekOffset = 64 }
+                            (coreParams <> [("timelineStartOccurrence", "second")])
+
+                movedResponse `responseStatusShouldBe` status200
+                movedSlot <- fetch sourceSlot.id
+                movedSlot.rosterDayId `shouldBe` unpackId targetDay.id
+                rosterSlotStartOccurrence movedSlot `shouldBe` Just SecondOccurrence
+                fmap (.localDay) (storedInstantLocalTime movedSlot.timezone <$> movedSlot.startsAt)
+                    `shouldBe` Just (fromGregorian 2026 4 5)
 
         it "moves a shift onto a semantic day target and grows the target day rows" $ withContext do
             withCleanDb do
@@ -1159,7 +1304,7 @@ tests = aroundAll withDatabaseTestContext do
                 rosterWeek <- createRosterWeekRecord venue 0 False
                 rosterDay <- createRosterDayRecord rosterWeek 0 >>= updateRecord . set #rowCount 1
                 sourceSlot <- createRosterSlotRecord rosterDay slotName (Just staffMember) 0
-                sourceSlot <- updateRecord (sourceSlot |> set #startTime (Just (TimeOfDay 9 0 0)) |> set #endTime (Just (TimeOfDay 17 0 0)) |> set #durationMinutes (Just 480))
+                sourceSlot <- updateRecord (sourceSlot |> setTestStartTime (Just (TimeOfDay 9 0 0)) |> setTestEndTime (Just (TimeOfDay 17 0 0)) |> setTestDurationMinutes (Just 480))
 
                 response <- withUserAndCurrentVenue manager venue.id do
                     withRequestHeaders [("HX-Request", "true")] do
@@ -1181,8 +1326,8 @@ tests = aroundAll withDatabaseTestContext do
                 updatedSource.rowIndex `shouldBe` 0
                 updatedDay.rowCount `shouldBe` 2
                 map (.staffId) copiedSlots `shouldBe` [sourceSlot.staffId, sourceSlot.staffId]
-                map (.startTime) copiedSlots `shouldBe` [sourceSlot.startTime, sourceSlot.startTime]
-                map (.durationMinutes) copiedSlots `shouldBe` [sourceSlot.durationMinutes, sourceSlot.durationMinutes]
+                map testStartTime copiedSlots `shouldBe` [testStartTime sourceSlot, testStartTime sourceSlot]
+                map testDurationMinutes copiedSlots `shouldBe` [testDurationMinutes sourceSlot, testDurationMinutes sourceSlot]
                 response `responseBodyShouldContain` "Roster shift duplicated."
 
         it "month overview fragment includes other weeks in the same month and counts assigned shifts rather than unique staff" $ withContext do
@@ -1203,8 +1348,8 @@ tests = aroundAll withDatabaseTestContext do
                 nextWeekDay <- createRosterDayRecord nextWeek 0
                 nextWeekSlotA <- createRosterSlotRecord nextWeekDay slotName (Just staffMember) 0
                 nextWeekSlotB <- createRosterSlotRecord nextWeekDay slotName (Just staffMember) 1
-                _ <- updateRecord (nextWeekSlotA |> set #durationMinutes (Just 240))
-                _ <- updateRecord (nextWeekSlotB |> set #durationMinutes (Just 240))
+                _ <- updateRecord (nextWeekSlotA |> setTestRosterSlotBoundaries (addDays 7 defaultWeekEpoch) (timeOfDay 9 0) (timeOfDay 13 0))
+                _ <- updateRecord (nextWeekSlotB |> setTestRosterSlotBoundaries (addDays 7 defaultWeekEpoch) (timeOfDay 14 0) (timeOfDay 18 0))
                 _ <- createLeaveRequestRecord venue staffMember (addDays 7 defaultWeekEpoch) (addDays 8 defaultWeekEpoch) "pending"
                 _ <- createLeaveRequestRecord venue staffMember (addDays 7 defaultWeekEpoch) (addDays 8 defaultWeekEpoch) "denied"
                 _ <- createLeaveRequestRecord venue staffMember (addDays 40 defaultWeekEpoch) (addDays 41 defaultWeekEpoch) "approved"

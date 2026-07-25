@@ -10,7 +10,13 @@ import Application.Helper.Pay (ensurePayVersionsForTimesheetApproval,
                                lockPayVersionsForApproval)
 import Application.Helper.RosterGroups (ensureVenueDefaultRosterGroup,
                                         ensureVenueRosterDefaults)
+import Application.Helper.TimeRules (rosterShiftStartDate)
+import qualified Application.Support.PayrollFixtures as Payroll
+import Application.VenueTime (RepeatedTimeOccurrence (FirstOccurrence),
+                              melbourneTimeZoneName)
+import Application.VenueTime.Model
 import Config
+import Control.Applicative ((<|>))
 import Control.Exception (bracket)
 import Control.Monad (void)
 import qualified Data.Aeson as Aeson
@@ -21,8 +27,8 @@ import qualified Data.Map.Strict as Map
 import Data.Scientific (Scientific)
 import qualified Data.Serialize as Serialize
 import qualified Data.Text as Text
-import Data.Time.Calendar (Day, fromGregorian)
-import Data.Time.Clock (UTCTime, getCurrentTime)
+import Data.Time.Calendar (Day, addDays, diffDays, fromGregorian)
+import Data.Time.Clock (UTCTime, addUTCTime, diffUTCTime, getCurrentTime)
 import Data.Time.LocalTime (TimeOfDay (..))
 import qualified Data.Vault.Lazy as Vault
 import Database.PostgreSQL.Simple.Types (Binary (Binary))
@@ -38,6 +44,7 @@ import qualified IHP.LoginSupport.Helper.Controller as LoginSupport
 import IHP.LoginSupport.Middleware (initAuthentication)
 import IHP.ModelSupport (sqlExecDiscardResult)
 import IHP.Prelude
+import qualified IHP.Prelude as Prelude
 import IHP.Test.Mocking
 import Network.HTTP.Types.Header (RequestHeaders)
 import qualified Network.Wai as Wai
@@ -47,6 +54,185 @@ import qualified System.IO as IO
 import System.IO.Unsafe (unsafePerformIO)
 import Web.FrontController ()
 import Web.Types
+
+class TestLocalTimeRecord record localTime | record -> localTime where
+    testStartTime :: record -> localTime
+    testEndTime :: record -> localTime
+    setTestStartTime :: localTime -> record -> record
+    setTestEndTime :: localTime -> record -> record
+
+instance TestLocalTimeRecord TimesheetEntry TimeOfDay where
+    testStartTime = timesheetEntryStartTime
+    testEndTime = timesheetEntryEndTime
+    setTestStartTime startTime entry =
+        entry |> set #startsAt (resolveTestFixtureInstant entry.timezone (timesheetEntryWorkedOn entry) startTime)
+    setTestEndTime endTime entry =
+        let startLocal = storedInstantLocalTime entry.timezone entry.startsAt
+            endDay = addDays (if endTime <= startLocal.localTimeOfDay then 1 else 0) startLocal.localDay
+         in entry |> set #endsAt (resolveTestFixtureInstant entry.timezone endDay endTime)
+
+instance TestLocalTimeRecord Payroll.TimesheetFixtureValues TimeOfDay where
+    testStartTime = (.startTime)
+    testEndTime = (.endTime)
+    setTestStartTime = set #startTime
+    setTestEndTime = set #endTime
+
+instance TestLocalTimeRecord RosterSlot (Maybe TimeOfDay) where
+    testStartTime = rosterSlotStartTime
+    testEndTime = rosterSlotEndTime
+    setTestStartTime Nothing slot = slot |> set #startsAt Nothing
+    setTestStartTime (Just startTime) slot =
+        let startDay = case slot.endsAt of
+                Just endInstant ->
+                    let endLocal = storedInstantLocalTime (testFixtureTimezone slot.timezone) endInstant
+                     in addDays (if endLocal.localTimeOfDay <= startTime then (-1) else 0) endLocal.localDay
+                Nothing -> rosterSlotFixtureDay slot
+         in slot
+                |> set #startsAt (Just (resolveTestFixtureInstant (testFixtureTimezone slot.timezone) startDay startTime))
+                |> set #timezone (testFixtureTimezone slot.timezone)
+    setTestEndTime Nothing slot = slot |> set #endsAt Nothing
+    setTestEndTime (Just endTime) slot =
+        let startDay = rosterSlotFixtureDay slot
+            startTime = fromMaybe endTime (rosterSlotStartTime slot)
+            endDay = addDays (if endTime <= startTime then 1 else 0) startDay
+         in slot
+                |> set #endsAt (Just (resolveTestFixtureInstant (testFixtureTimezone slot.timezone) endDay endTime))
+                |> set #timezone (testFixtureTimezone slot.timezone)
+
+resolveTestFixtureInstant :: Text -> Day -> TimeOfDay -> UTCTime
+resolveTestFixtureInstant rawTimezone day timeOfDay =
+    let timezone = testFixtureTimezone rawTimezone
+        occurrence = if civilBoundaryIsRepeated day timeOfDay then Just FirstOccurrence else Nothing
+     in either (error . ("Invalid test fixture boundary: " <>) . show) Prelude.id $
+            resolveBoundaryInstant timezone day timeOfDay occurrence
+
+testFixtureTimezone :: Text -> Text
+testFixtureTimezone timezone
+    | Text.null timezone = melbourneTimeZoneName
+    | otherwise = timezone
+
+rosterSlotFixtureDay :: RosterSlot -> Day
+rosterSlotFixtureDay slot =
+    case slot.startsAt <|> slot.endsAt of
+        Just instant -> (storedInstantLocalTime (testFixtureTimezone slot.timezone) instant).localDay
+        Nothing -> defaultWeekEpoch
+
+testWorkedOn :: TimesheetEntry -> Day
+testWorkedOn = timesheetEntryWorkedOn
+
+setTestWorkedOn :: Day -> TimesheetEntry -> TimesheetEntry
+setTestWorkedOn targetDay entry
+    | Text.null entry.timezone =
+        let boundaries =
+                either (error . ("Invalid blank test timesheet boundaries: " <>) . show) Prelude.id $
+                    resolveShiftBoundaries melbourneTimeZoneName ShiftBoundaryInput
+                        { shiftBoundaryDate = targetDay
+                        , shiftBoundaryStartTime = TimeOfDay 9 0 0
+                        , shiftBoundaryStartOccurrence = Nothing
+                        , shiftBoundaryEndTime = TimeOfDay 17 0 0
+                        , shiftBoundaryEndOccurrence = Nothing
+                        , shiftBoundaryBreak = Nothing
+                        }
+         in applyTimesheetEntryBoundaries boundaries entry
+    | otherwise =
+        let timezone = entry.timezone
+            sourceDay = timesheetEntryWorkedOn entry
+            moveBoundary instant =
+                let local = storedInstantLocalTime timezone instant
+                    movedDay = addDays (diffDays local.localDay sourceDay) targetDay
+                 in resolveTestFixtureInstant timezone movedDay local.localTimeOfDay
+         in entry
+                |> set #startsAt (moveBoundary entry.startsAt)
+                |> set #endsAt (moveBoundary entry.endsAt)
+                |> set #breakStartsAt (moveBoundary <$> entry.breakStartsAt)
+                |> set #breakEndsAt (moveBoundary <$> entry.breakEndsAt)
+
+setTestTimesheetBoundaries :: Day -> TimeOfDay -> TimeOfDay -> TimesheetEntry -> TimesheetEntry
+setTestTimesheetBoundaries workedOn startTime endTime entry =
+    let boundaries =
+            either (error . ("Invalid test timesheet boundaries: " <>) . show) Prelude.id $
+                resolveShiftBoundaries (testFixtureTimezone entry.timezone) ShiftBoundaryInput
+                    { shiftBoundaryDate = workedOn
+                    , shiftBoundaryStartTime = startTime
+                    , shiftBoundaryStartOccurrence = Nothing
+                    , shiftBoundaryEndTime = endTime
+                    , shiftBoundaryEndOccurrence = Nothing
+                    , shiftBoundaryBreak = Nothing
+                    }
+     in applyTimesheetEntryBoundaries boundaries entry
+
+class TestBreakRecord record where
+    testHadBreak :: record -> Bool
+    setTestHadBreak :: Bool -> record -> record
+    testBreakStartTime :: record -> Maybe TimeOfDay
+    setTestBreakStartTime :: Maybe TimeOfDay -> record -> record
+    testBreakEndTime :: record -> Maybe TimeOfDay
+    setTestBreakEndTime :: Maybe TimeOfDay -> record -> record
+    testBreakMinutes :: record -> Int
+    setTestBreakMinutes :: Int -> record -> record
+
+instance TestBreakRecord TimesheetEntry where
+    testHadBreak = timesheetEntryHadBreak
+    setTestHadBreak False entry = entry |> set #breakStartsAt Nothing |> set #breakEndsAt Nothing
+    setTestHadBreak True entry
+        | isJust entry.breakStartsAt && isJust entry.breakEndsAt = entry
+        | otherwise =
+            let duration = diffUTCTime entry.endsAt entry.startsAt
+                breakStart = addUTCTime (duration / 2) entry.startsAt
+             in entry
+                    |> set #breakStartsAt (Just breakStart)
+                    |> set #breakEndsAt (Just (addUTCTime 1800 breakStart))
+    testBreakStartTime = timesheetEntryBreakStartTime
+    setTestBreakStartTime Nothing entry = entry |> set #breakStartsAt Nothing
+    setTestBreakStartTime (Just breakTime) entry =
+        let startLocal = storedInstantLocalTime entry.timezone entry.startsAt
+            breakDay = addDays (if breakTime < startLocal.localTimeOfDay then 1 else 0) startLocal.localDay
+         in entry |> set #breakStartsAt (Just (resolveTestFixtureInstant entry.timezone breakDay breakTime))
+    testBreakEndTime = timesheetEntryBreakEndTime
+    setTestBreakEndTime Nothing entry = entry |> set #breakEndsAt Nothing
+    setTestBreakEndTime (Just breakTime) entry =
+        let startLocal = storedInstantLocalTime entry.timezone entry.startsAt
+            breakDay = addDays (if breakTime < startLocal.localTimeOfDay then 1 else 0) startLocal.localDay
+         in entry |> set #breakEndsAt (Just (resolveTestFixtureInstant entry.timezone breakDay breakTime))
+    testBreakMinutes = timesheetEntryBreakMinutes
+    setTestBreakMinutes minutes entry =
+        case entry.breakStartsAt of
+            Nothing -> entry
+            Just breakStart -> entry |> set #breakEndsAt (Just (addUTCTime (fromIntegral (minutes * 60)) breakStart))
+
+instance TestBreakRecord Payroll.TimesheetFixtureValues where
+    testHadBreak = (.hadBreak)
+    setTestHadBreak = set #hadBreak
+    testBreakStartTime = (.breakStartTime)
+    setTestBreakStartTime = set #breakStartTime
+    testBreakEndTime = (.breakEndTime)
+    setTestBreakEndTime = set #breakEndTime
+    testBreakMinutes = (.breakMinutes)
+    setTestBreakMinutes = set #breakMinutes
+
+setTestRosterSlotBoundaries :: Day -> TimeOfDay -> TimeOfDay -> RosterSlot -> RosterSlot
+setTestRosterSlotBoundaries rosterDate startTime endTime slot =
+    let boundaries =
+            either (error . ("Invalid test roster boundaries: " <>) . show) Prelude.id $
+                resolveShiftBoundaries (testFixtureTimezone slot.timezone) ShiftBoundaryInput
+                    { shiftBoundaryDate = rosterShiftStartDate rosterDate startTime
+                    , shiftBoundaryStartTime = startTime
+                    , shiftBoundaryStartOccurrence = Nothing
+                    , shiftBoundaryEndTime = endTime
+                    , shiftBoundaryEndOccurrence = Nothing
+                    , shiftBoundaryBreak = Nothing
+                    }
+     in applyRosterSlotBoundaries boundaries slot
+
+testDurationMinutes :: RosterSlot -> Maybe Int
+testDurationMinutes = rosterSlotDurationMinutes
+
+setTestDurationMinutes :: Maybe Int -> RosterSlot -> RosterSlot
+setTestDurationMinutes Nothing slot = slot |> set #endsAt Nothing
+setTestDurationMinutes (Just minutes) slot =
+    case slot.startsAt of
+        Nothing -> slot
+        Just start -> slot |> set #endsAt (Just (addUTCTime (fromIntegral (minutes * 60)) start))
 
 withDatabaseTestContext :: (MockContext WebApplication -> IO a) -> IO a
 withDatabaseTestContext action = do
@@ -313,6 +499,7 @@ createRosterSlotRecord rosterDay slotName maybeStaff rowIndex = do
         |> set #slotSortOrder slotDefinition.sortOrder
         |> set #staffId (fmap (unpackId . get #id) maybeStaff)
         |> set #rowIndex rowIndex
+        |> set #timezone melbourneTimeZoneName
         |> createRecord
 
 ensureRosterWeekSlotDefinitionForSlotName :: (?modelContext :: ModelContext) => RosterDay -> SlotName -> IO RosterWeekSlotDefinition
@@ -334,17 +521,21 @@ ensureRosterWeekSlotDefinitionForSlotName rosterDay slotName = do
 createTimesheetEntryRecord :: (?modelContext :: ModelContext) => Venue -> Staff -> Day -> IO TimesheetEntry
 createTimesheetEntryRecord venue staff workedOn = do
     shiftType <- ensureVenueDefaultShiftType venue
+    let boundaries =
+            either (error . ("Invalid test support timesheet boundaries: " <>) . show) Prelude.id $
+                resolveShiftBoundaries melbourneTimeZoneName ShiftBoundaryInput
+                    { shiftBoundaryDate = workedOn
+                    , shiftBoundaryStartTime = TimeOfDay 9 0 0
+                    , shiftBoundaryStartOccurrence = Nothing
+                    , shiftBoundaryEndTime = TimeOfDay 17 0 0
+                    , shiftBoundaryEndOccurrence = Nothing
+                    , shiftBoundaryBreak = Nothing
+                    }
     newRecord @TimesheetEntry
         |> set #venueId (unpackId (get #id venue))
         |> set #staffId (unpackId (get #id staff))
         |> set #shiftTypeId (unpackId (get #id shiftType))
-        |> set #workedOn workedOn
-        |> set #startTime (TimeOfDay 9 0 0)
-        |> set #endTime (TimeOfDay 17 0 0)
-        |> set #hadBreak False
-        |> set #breakStartTime Nothing
-        |> set #breakEndTime Nothing
-        |> set #breakMinutes 0
+        |> applyTimesheetEntryBoundaries boundaries
         |> createRecord
 
 createApprovedTimesheetEntryRecord :: (?modelContext :: ModelContext) => Venue -> Staff -> User -> Day -> IO TimesheetEntry

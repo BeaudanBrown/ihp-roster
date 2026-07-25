@@ -256,7 +256,7 @@ renderRosterSortForm _ _ = mempty
 renderCopyPreviousWeekForm :: (?context :: ControllerContext) => Int -> Id RosterGroup -> Html
 renderCopyPreviousWeekForm weekOffset rosterGroupId =
     renderFrontendSurfaceActionForm
-        (RosterAction.copyRosterWeekAction RosterAction.copyRosterWeekActionFields)
+        (RosterAction.copyRosterWeekAction (RosterAction.copyRosterWeekActionFields Nothing Nothing))
         (rosterWeekShellSyncRoute (rosterCopyWeekUrl (weekOffset - 1) weekOffset rosterGroupId))
             { actionRouteCustomHtmx =
                 [ FrontendSurfaceCustomHtmxAttrs "copy-roster-week-custom-htmx" [("hx-confirm", "This will overwrite the current week with the previous week's roster. Continue?")]

@@ -13,6 +13,7 @@ import Application.Helper.FrontendContract.Surface.Runtime (FrontendSurfaceInter
 import Application.Helper.Profiling (profileHtmlComponent)
 import Application.Helper.TimeRules (normalizeWindowEndMinute,
                                      shiftDurationMinutes)
+import Application.VenueTime.Model (rosterSlotEndTime, rosterSlotStartTime)
 import Control.Monad (guard)
 import Data.List (sortOn)
 import qualified Data.Map.Strict as Map
@@ -208,8 +209,8 @@ normalizeTimelineMinute TimelineWindow { timelineWindowStartMinute } tod =
 
 timelineShiftFromSlot :: TimelineWindow -> RosterSlot -> Maybe TimelineShift
 timelineShiftFromSlot timelineWindow slot = do
-    start <- slot.startTime
-    end <- slot.endTime
+    start <- rosterSlotStartTime slot
+    end <- rosterSlotEndTime slot
     let startMin = normalizeTimelineMinute timelineWindow start
         endMin = startMin + shiftDurationMinutes start end
         duration = shiftDurationMinutes start end

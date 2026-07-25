@@ -32,9 +32,12 @@ module Application.Helper.FrontendContract.Surface.Interaction
     , CompatibleDropzoneOptions
     , DragDropFields
     , DragDropIntent
+    , DragDropIntentWithExtraFields
     , DragDropInteraction
+    , DragDropInteractionWithExtraFields
     , DragDropInteractionWithRefs
     , DragDropInteractionWithRefsAndVariants
+    , DragDropInteractionWithRefsVariantsAndExtraFields
     , DragDropInteractionWithVariants
     , DragDropzoneRefFor
     , DragSessionDefinition
@@ -177,12 +180,18 @@ type DragDropzoneRefFor (dropzoneRef :: Type) =
     DropzoneRef dropzoneRef '[ 'SessionOption DragSession, 'TargetField TargetDropzoneKey ]
 
 type DragDropIntent (intent :: Type) (targetFragment :: Type) =
-    '[ Action intent DragDropFields '[ 'Target targetFragment ]
-     , Intent intent DragDropFields '[ 'SessionOption DragSession, 'BackedBy intent ]
+    DragDropIntentWithExtraFields intent targetFragment '[]
+
+type DragDropIntentWithExtraFields (intent :: Type) (targetFragment :: Type) (extraFields :: [FieldSpec]) =
+    '[ Action intent (Concat '[ DragDropFields, extraFields ]) '[ 'Target targetFragment ]
+     , Intent intent (Concat '[ DragDropFields, extraFields ]) '[ 'SessionOption DragSession, 'BackedBy intent ]
      ]
 
 type DragDropInteraction (intent :: Type) (targetFragment :: Type) =
     DragDropInteractionWithVariants intent targetFragment '[]
+
+type DragDropInteractionWithExtraFields (intent :: Type) (targetFragment :: Type) (extraFields :: [FieldSpec]) =
+    DragDropInteractionWithRefsVariantsAndExtraFields DragSourceRef DragDropzoneRef intent targetFragment '[] extraFields
 
 type DragDropInteractionWithVariants (intent :: Type) (targetFragment :: Type) (variants :: [PrimitiveOption]) =
     DragDropInteractionWithRefsAndVariants DragSourceRef DragDropzoneRef intent targetFragment variants
@@ -191,11 +200,14 @@ type DragDropInteractionWithRefs (sourceRef :: Type) (dropzoneRef :: Type) (inte
     DragDropInteractionWithRefsAndVariants sourceRef dropzoneRef intent targetFragment '[]
 
 type DragDropInteractionWithRefsAndVariants (sourceRef :: Type) (dropzoneRef :: Type) (intent :: Type) (targetFragment :: Type) (variants :: [PrimitiveOption]) =
+    DragDropInteractionWithRefsVariantsAndExtraFields sourceRef dropzoneRef intent targetFragment variants '[]
+
+type DragDropInteractionWithRefsVariantsAndExtraFields (sourceRef :: Type) (dropzoneRef :: Type) (intent :: Type) (targetFragment :: Type) (variants :: [PrimitiveOption]) (extraFields :: [FieldSpec]) =
     '[ DragSessionDefinition
      , SourceRef sourceRef (Concat '[ '[ 'SessionOption DragSession, 'Submits intent, 'SourceField SourceItemKey, 'CompatibleDropzone dropzoneRef ], variants ])
      , DragDropzoneRefFor dropzoneRef
-     , Action intent DragDropFields '[ 'Target targetFragment ]
-     , Intent intent DragDropFields '[ 'SessionOption DragSession, 'BackedBy intent ]
+     , Action intent (Concat '[ DragDropFields, extraFields ]) '[ 'Target targetFragment ]
+     , Intent intent (Concat '[ DragDropFields, extraFields ]) '[ 'SessionOption DragSession, 'BackedBy intent ]
      , ConflictPolicyFor ('SessionKind DragSession) 'AnyFragment 'Defer
      ]
 

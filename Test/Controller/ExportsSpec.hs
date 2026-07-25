@@ -127,18 +127,18 @@ tests = aroundAll withDatabaseTestContext do
 
                 _ <- createAndApproveEntry venue staff defaultWeekEpoch snapshot admin approvedAt
                     [ set #shiftTypeId (unpackId barShift.id)
-                    , set #startTime (TimeOfDay 9 0 0)
-                    , set #endTime (TimeOfDay 17 0 0)
+                    , setTestStartTime (TimeOfDay 9 0 0)
+                    , setTestEndTime (TimeOfDay 17 0 0)
                     ]
                 _ <- createAndApproveEntry venue staff (fromGregorian 2025 1 10) snapshot admin approvedAt
                     [ set #shiftTypeId (unpackId barShift.id)
-                        , set #startTime (TimeOfDay 19 0 0)
-                        , set #endTime (TimeOfDay 1 0 0)
+                        , setTestStartTime (TimeOfDay 19 0 0)
+                        , setTestEndTime (TimeOfDay 1 0 0)
                     ]
                 _ <- createAndApproveEntry venue trialStaff defaultWeekEpoch snapshot admin approvedAt
                     [ set #shiftTypeId (unpackId barShift.id)
-                    , set #startTime (TimeOfDay 10 0 0)
-                    , set #endTime (TimeOfDay 12 0 0)
+                    , setTestStartTime (TimeOfDay 10 0 0)
+                    , setTestEndTime (TimeOfDay 12 0 0)
                     ]
 
                 response <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
@@ -176,13 +176,13 @@ tests = aroundAll withDatabaseTestContext do
 
                 _ <- createAndApproveEntry venue staff defaultWeekEpoch snapshot admin approvedAt
                     [ set #shiftTypeId (unpackId barShift.id)
-                    , set #startTime (TimeOfDay 9 0 0)
-                    , set #endTime (TimeOfDay 17 0 0)
+                    , setTestStartTime (TimeOfDay 9 0 0)
+                    , setTestEndTime (TimeOfDay 17 0 0)
                     ]
                 _ <- createAndApproveEntry venue staff (fromGregorian 2025 1 8) snapshot admin approvedAt
                     [ set #shiftTypeId (unpackId barShift.id)
-                    , set #startTime (TimeOfDay 10 0 0)
-                    , set #endTime (TimeOfDay 13 0 0)
+                    , setTestStartTime (TimeOfDay 10 0 0)
+                    , setTestEndTime (TimeOfDay 13 0 0)
                     ]
 
                 response <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
@@ -216,13 +216,13 @@ tests = aroundAll withDatabaseTestContext do
 
                 _ <- createAndApproveEntry venue staff (fromGregorian 2025 1 8) snapshot admin approvedAt
                     [ set #shiftTypeId (unpackId barShift.id)
-                    , set #startTime (TimeOfDay 10 0 0)
-                    , set #endTime (TimeOfDay 13 0 0)
+                    , setTestStartTime (TimeOfDay 10 0 0)
+                    , setTestEndTime (TimeOfDay 13 0 0)
                     ]
                 _ <- createAndApproveEntry venue staff (fromGregorian 2025 1 15) snapshot admin approvedAt
                     [ set #shiftTypeId (unpackId barShift.id)
-                    , set #startTime (TimeOfDay 9 0 0)
-                    , set #endTime (TimeOfDay 17 0 0)
+                    , setTestStartTime (TimeOfDay 9 0 0)
+                    , setTestEndTime (TimeOfDay 17 0 0)
                     ]
 
                 response <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
@@ -285,28 +285,28 @@ tests = aroundAll withDatabaseTestContext do
 
                 _ <- createAndApproveEntry venue staff defaultWeekEpoch snapshot admin approvedAt
                     [ set #shiftTypeId (unpackId barShift.id)
-                    , set #startTime (TimeOfDay 9 0 0)
-                    , set #endTime (TimeOfDay 12 0 0)
+                    , setTestStartTime (TimeOfDay 9 0 0)
+                    , setTestEndTime (TimeOfDay 12 0 0)
                     ]
                 _ <- createAndApproveEntry venue staff defaultWeekEpoch snapshot admin approvedAt
                     [ set #shiftTypeId (unpackId barShift.id)
-                    , set #startTime (TimeOfDay 13 0 0)
-                    , set #endTime (TimeOfDay 15 0 0)
+                    , setTestStartTime (TimeOfDay 13 0 0)
+                    , setTestEndTime (TimeOfDay 15 0 0)
                     ]
                 _ <- createAndApproveEntry venue staff (fromGregorian 2025 1 10) snapshot admin approvedAt
                     [ set #shiftTypeId (unpackId barShift.id)
-                    , set #startTime (TimeOfDay 9 0 0)
-                    , set #endTime (TimeOfDay 13 0 0)
+                    , setTestStartTime (TimeOfDay 9 0 0)
+                    , setTestEndTime (TimeOfDay 13 0 0)
                     ]
                 _ <- createAndApproveEntry venue staff (fromGregorian 2025 1 11) snapshot admin approvedAt
                     [ set #shiftTypeId (unpackId kitchenShift.id)
-                    , set #startTime (TimeOfDay 9 0 0)
-                    , set #endTime (TimeOfDay 11 0 0)
+                    , setTestStartTime (TimeOfDay 9 0 0)
+                    , setTestEndTime (TimeOfDay 11 0 0)
                     ]
                 _ <- createAndApproveEntry venue trialStaff defaultWeekEpoch snapshot admin approvedAt
                     [ set #shiftTypeId (unpackId barShift.id)
-                    , set #startTime (TimeOfDay 10 0 0)
-                    , set #endTime (TimeOfDay 12 0 0)
+                    , setTestStartTime (TimeOfDay 10 0 0)
+                    , setTestEndTime (TimeOfDay 12 0 0)
                     ]
 
                 response <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
@@ -338,6 +338,29 @@ tests = aroundAll withDatabaseTestContext do
                 csvContents `shouldSatisfy`
                     (not . Text.isInfixOf "Trial")
 
+        it "buckets exact repeated and skipped DST hours in hourly breakdowns" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Hourly DST Venue"
+                staff <- createStaffRecord venue Nothing "Hourly" "DST"
+                level <- createPayLevelRecord venue "Level 1"
+                shiftType <- createShiftTypeRecord venue level "Bar"
+                autumnEntry <- createTimesheetEntryRecord venue staff (fromGregorian 2026 4 4)
+                    >>= updateRecord
+                        . set #shiftTypeId (unpackId shiftType.id)
+                        . setTestTimesheetBoundaries (fromGregorian 2026 4 4) (TimeOfDay 22 0 0) (TimeOfDay 4 0 0)
+                springEntry <- createTimesheetEntryRecord venue staff (fromGregorian 2026 10 3)
+                    >>= updateRecord
+                        . set #shiftTypeId (unpackId shiftType.id)
+                        . setTestTimesheetBoundaries (fromGregorian 2026 10 3) (TimeOfDay 22 0 0) (TimeOfDay 4 0 0)
+
+                let autumnCsv = Text.lines (renderHourlyBreakdownDateCsv (fromGregorian 2026 4 4) [shiftType] [autumnEntry])
+                let springCsv = Text.lines (renderHourlyBreakdownDateCsv (fromGregorian 2026 10 3) [shiftType] [springEntry])
+
+                autumnCsv `shouldContain` ["02:00+1,2.0"]
+                autumnCsv `shouldContain` ["03:00+1,1.0"]
+                springCsv `shouldContain` ["02:00+1,"]
+                springCsv `shouldContain` ["03:00+1,1.0"]
+
         it "creates and downloads an hourly breakdown ZIP export" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Hourly Venue"
@@ -353,13 +376,13 @@ tests = aroundAll withDatabaseTestContext do
                 let approvedAt = UTCTime (fromGregorian 2025 1 12) (secondsToDiffTime 0)
                 _ <- createAndApproveEntry venue staff defaultWeekEpoch snapshot admin approvedAt
                     [ set #shiftTypeId (unpackId barShift.id)
-                    , set #startTime (TimeOfDay 8 0 0)
-                    , set #endTime (TimeOfDay 10 30 0)
+                    , setTestStartTime (TimeOfDay 8 0 0)
+                    , setTestEndTime (TimeOfDay 10 30 0)
                     ]
                 _ <- createAndApproveEntry venue staff defaultWeekEpoch snapshot admin approvedAt
                     [ set #shiftTypeId (unpackId floorShift.id)
-                    , set #startTime (TimeOfDay 9 0 0)
-                    , set #endTime (TimeOfDay 11 0 0)
+                    , setTestStartTime (TimeOfDay 9 0 0)
+                    , setTestEndTime (TimeOfDay 11 0 0)
                     ]
 
                 response <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
@@ -515,8 +538,8 @@ tests = aroundAll withDatabaseTestContext do
                 let approvedAt = UTCTime (fromGregorian 2025 1 12) (secondsToDiffTime 3600)
                 _ <- createAndApproveEntry venue staff defaultWeekEpoch snapshot manager approvedAt
                     [ set #shiftTypeId (unpackId barShift.id)
-                    , set #startTime (TimeOfDay 9 0 0)
-                    , set #endTime (TimeOfDay 12 0 0)
+                    , setTestStartTime (TimeOfDay 9 0 0)
+                    , setTestEndTime (TimeOfDay 12 0 0)
                     ]
 
                 pageResponse <- withUserAndCurrentVenue manager venue.id do

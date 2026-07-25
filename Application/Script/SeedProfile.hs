@@ -3,12 +3,15 @@ module Application.Script.SeedProfile where
 import Application.Helper.Url (appendQueryParams)
 import Application.Support.Seed.Calendar (currentWeekOffsetForDay,
                                           weekStartForOffset)
+import Application.VenueTime (melbourneTimeZoneName)
+import Application.VenueTime.Model (resolveBoundaryInstant)
 import Control.Monad (foldM)
 import qualified Data.List as List
 import qualified Data.Text as Text
 import qualified Data.Text.IO as TextIO
 import Data.Time.Calendar (Day, addDays)
 import Data.Time.Clock (getCurrentTime, utctDay)
+import Data.Time.LocalTime (TimeOfDay (..))
 import IHP.ControllerPrelude (pathTo)
 import IHP.Prelude
 import System.Directory (createDirectoryIfMissing)
@@ -357,11 +360,11 @@ staffShiftPreferenceColumns = ["id", "venue_id", "staff_id", "weekday_index", "p
 rosterWeekColumns = ["id", "venue_id", "roster_group_id", "week_offset", "is_live"]
 rosterDayColumns = ["id", "roster_week_id", "day_offset", "is_closed"]
 rosterWeekSlotDefinitionColumns = ["id", "roster_week_id", "name", "sort_order"]
-rosterSlotColumns = ["id", "roster_day_id", "staff_id", "roster_week_slot_definition_id", "slot_sort_order", "row_index", "start_time", "duration_minutes"]
+rosterSlotColumns = ["id", "roster_day_id", "staff_id", "roster_week_slot_definition_id", "slot_sort_order", "row_index", "starts_at", "ends_at", "timezone"]
 
 leaveRequestColumns, timesheetEntryColumns, timesheetEntryVersionColumns :: [Text]
 leaveRequestColumns = ["id", "venue_id", "staff_id", "start_date", "end_date", "status", "notes"]
-timesheetEntryColumns = ["id", "venue_id", "staff_id", "shift_type_id", "worked_on", "start_time", "end_time", "had_break", "break_start_time", "break_end_time", "break_minutes", "staff_pay_version_id", "shift_type_pay_version_id", "is_approved", "approved_at", "approved_by_user_id"]
+timesheetEntryColumns = ["id", "venue_id", "staff_id", "shift_type_id", "starts_at", "ends_at", "break_starts_at", "break_ends_at", "timezone", "staff_pay_version_id", "shift_type_pay_version_id", "is_approved", "approved_at", "approved_by_user_id"]
 timesheetEntryVersionColumns = ["id", "venue_id", "timesheet_entry_id", "actor_user_id", "version_action", "snapshot", "payload"]
 
 xeroConnectionColumns, xeroSyncRunColumns, xeroEmployeeColumns, xeroStaffMappingColumns :: [Text]
@@ -573,8 +576,9 @@ rosterSlotRows plan =
       , Just (rosterWeekSlotDefinitionId venueIndex groupIndex weekOffset slotIndex)
       , Just (tshow slotIndex)
       , Just (tshow rowIndex)
-      , if isJust maybeStaffId then Just (timeFor slotIndex dayOffset) else Nothing
-      , if isJust maybeStaffId then Just "360" else Nothing
+      , if isJust maybeStaffId then Just (instantText rosterDate startTime) else Nothing
+      , if isJust maybeStaffId then Just (instantText rosterDate (addTimeMinutes startTime 360)) else Nothing
+      , Just melbourneTimeZoneName
       ]
     | venueIndex <- venueIndexes plan
     , (groupIndex, _) <- rosterGroupTemplates
@@ -583,6 +587,8 @@ rosterSlotRows plan =
     , rowIndex <- [0 .. rowsPerDay plan.options - 1]
     , (slotIndex, _) <- slotNameTemplates
     , let maybeStaffId = assignedStaffId plan venueIndex groupIndex weekOffset dayOffset rowIndex slotIndex
+    , let rosterDate = addDays (toInteger dayOffset) (weekStartForOffset weekOffset)
+    , let startTime = timeFor slotIndex dayOffset
     ]
 
 leaveRequestRows :: ProfileSeedPlan -> [[Maybe Text]]
@@ -610,13 +616,11 @@ timesheetEntryRows plan =
         , venueId venueIndex
         , staffId venueIndex staffIndex
         , shiftTypeId venueIndex (1 + deterministicIndex plan [venueIndex, staffIndex, weekOrdinal, 70] (length shiftTypeTemplates))
-        , dateText workedOn
-        , "09:00:00"
-        , "17:00:00"
-        , "true"
-        , "12:00:00"
-        , "12:30:00"
-        , "30"
+        , instantText workedOn (TimeOfDay 9 0 0)
+        , instantText workedOn (TimeOfDay 17 0 0)
+        , instantText workedOn (TimeOfDay 12 0 0)
+        , instantText workedOn (TimeOfDay 12 30 0)
+        , melbourneTimeZoneName
         , if isApproved then staffPayVersionId venueIndex staffIndex else nullText, if isApproved then shiftTypePayVersionId venueIndex (1 + deterministicIndex plan [venueIndex, staffIndex, weekOrdinal, 70] (length shiftTypeTemplates)) else nullText
         , if isApproved then "true" else "false"
         , if isApproved then timestampText else nullText
@@ -762,12 +766,22 @@ weekOffsets plan =
 dateText :: Day -> Text
 dateText = tshow
 
-timeFor :: Int -> Int -> Text
+timeFor :: Int -> Int -> TimeOfDay
 timeFor slotIndex dayOffset =
     case slotIndex of
-        1 -> if even dayOffset then "06:30:00" else "07:00:00"
-        2 -> if even dayOffset then "11:00:00" else "11:30:00"
-        _ -> if even dayOffset then "16:30:00" else "17:00:00"
+        1 -> if even dayOffset then TimeOfDay 6 30 0 else TimeOfDay 7 0 0
+        2 -> if even dayOffset then TimeOfDay 11 0 0 else TimeOfDay 11 30 0
+        _ -> if even dayOffset then TimeOfDay 16 30 0 else TimeOfDay 17 0 0
+
+addTimeMinutes :: TimeOfDay -> Int -> TimeOfDay
+addTimeMinutes (TimeOfDay hour minute _) addedMinutes =
+    let totalMinutes = hour * 60 + minute + addedMinutes
+     in TimeOfDay (totalMinutes `div` 60) (totalMinutes `mod` 60) 0
+
+instantText :: Day -> TimeOfDay -> Text
+instantText day timeOfDay =
+    either (error . ("Invalid profile-seed boundary: " <>) . show) tshow $
+        resolveBoundaryInstant melbourneTimeZoneName day timeOfDay Nothing
 
 leaveStatus :: Int -> Text
 leaveStatus leaveIndex =

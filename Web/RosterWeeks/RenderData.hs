@@ -21,6 +21,7 @@ import Application.Helper.Profiling
 import Application.Helper.RosterGroups
 import Application.Helper.RosterWagePrediction
 import Application.Helper.UserPreferences
+import Application.VenueTime.Model (requireMelbourneDateRangeUTC)
 import Data.Coerce (coerce)
 import Data.List (find)
 import qualified Data.Map.Strict as Map
@@ -364,13 +365,15 @@ fetchRosterStaffSelfServicePanel venueConfig rosterGroupId weekOffset
                 operationalDay <- currentOperationalDayForVenue venueConfig
                 let timesheetWeekOffset = venueWeekOffsetForDay venueConfig operationalDay
                 let timesheetWeekStartDate = venueWeekStartDate venueConfig timesheetWeekOffset
+                let (dayStartsAt, dayEndsAt) = requireMelbourneDateRangeUTC operationalDay operationalDay
                 quickToolsTimesheetEntries <-
                     query @TimesheetEntry
                         |> filterWhere (#venueId, unpackId currentVenueId)
                         |> filterWhere (#staffId, unpackId staff.id)
-                        |> filterWhere (#workedOn, operationalDay)
+                        |> filterWhereGreaterThanOrEqualTo (#startsAt, dayStartsAt)
+                        |> filterWhereLessThan (#startsAt, dayEndsAt)
                         |> filterWhere (#deletedAt, Nothing)
-                        |> orderByAsc #startTime
+                        |> orderByAsc #startsAt
                         |> fetch
                 quickToolsShiftTypes <- fetchCurrentVenueRosterShiftTypes
                 let quickToolsLeaveRequest = defaultLeaveRequestForOperationalDay operationalDay
@@ -553,10 +556,9 @@ maskRosterSlots rosterWeek slots =
         maskSlot slot =
             slot
                 |> set #staffId Nothing
-                |> set #startTime Nothing
-                |> set #endTime Nothing
+                |> set #startsAt Nothing
+                |> set #endsAt Nothing
                 |> set #shiftTypeId Nothing
-                |> set #durationMinutes Nothing
 
 renderRequestedRow :: (?context :: ControllerContext, ?request :: Request) => Calendar.Day -> [RosterWeekSlotDefinition] -> RosterAssignmentFilters -> [Staff] -> [ShiftType] -> RosterRenderIndexes -> RosterLayoutModeEnum -> Bool -> (UUID.UUID, Int) -> Maybe Blaze.Html
 renderRequestedRow weekStartDate orderedSlotNames assignmentFilters staffMembers shiftTypes renderIndexes rosterLayoutMode rosterEndTimesEnabled (rosterDayUuid, targetRowIndex) = do

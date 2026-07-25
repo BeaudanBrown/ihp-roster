@@ -2,6 +2,7 @@ module Application.Helper.Export.ReadModel where
 
 import Application.Helper.Controller
 import Application.Helper.Pay (payVersionManifestForEntry)
+import Application.VenueTime.Model (requireMelbourneDateRangeUTC)
 import Data.Coerce (coerce)
 import qualified Data.List as List
 import qualified Data.Map.Strict as Map
@@ -36,14 +37,15 @@ fetchApprovedTimesheetEntries ::
     Day ->
     Day ->
     IO [TimesheetEntry]
-fetchApprovedTimesheetEntries rangeStart rangeEnd =
+fetchApprovedTimesheetEntries rangeStart rangeEnd = do
+    let (rangeStartsAt, rangeEndsAt) = requireMelbourneDateRangeUTC rangeStart rangeEnd
     query @TimesheetEntry
         |> filterWhere (#venueId, unpackId currentVenueId)
         |> filterWhere (#isApproved, True)
         |> filterWhere (#deletedAt, Nothing)
-        |> filterWhereIn (#workedOn, [rangeStart .. rangeEnd])
-        |> orderByAsc #workedOn
-        |> orderByAsc #startTime
+        |> filterWhereGreaterThanOrEqualTo (#startsAt, rangeStartsAt)
+        |> filterWhereLessThan (#startsAt, rangeEndsAt)
+        |> orderByAsc #startsAt
         |> fetch
 
 fetchStaffMap :: (?modelContext :: ModelContext) => [TimesheetEntry] -> IO (Map.Map UUID Staff)

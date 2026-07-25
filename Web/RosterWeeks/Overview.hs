@@ -7,6 +7,7 @@ module Web.RosterWeeks.Overview
 import Application.Helper.Controller (LeaveRequestStatus (..),
                                       parseLeaveRequestStatus)
 import Application.Helper.RosterGroups (fetchEligibleRosterGroupStaff)
+import Application.VenueTime.Model (rosterSlotDurationMinutes)
 import Data.Coerce (coerce)
 import Data.List (nub)
 import qualified Data.Map.Strict as Map
@@ -95,7 +96,7 @@ buildRosterMonthOverviewDays venueConfig rosterGroupId focusDate = do
                         ]
                 scheduledMinutes =
                     sum
-                        [ fromMaybe 0 slot.durationMinutes
+                        [ fromMaybe 0 (rosterSlotDurationMinutes slot)
                         | slot <- daySlots
                         , isJust slot.staffId
                         ]

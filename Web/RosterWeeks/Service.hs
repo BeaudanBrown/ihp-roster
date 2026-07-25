@@ -1,6 +1,7 @@
 module Web.RosterWeeks.Service
     ( RosterWeekSlotTemplate
     , appendRosterWeekSlotDefinition
+    , copyRosterSlotToDay
     , copyRosterWeek
     , createEmptyRosterWeek
     , deleteRosterWeekSlotDefinition
@@ -17,18 +18,26 @@ module Web.RosterWeeks.Service
     , removeRosterRowWithPacking
     , repackRosterWeekDays
     , rosterSlotHasData
+    , rosterSlotCopyAmbiguousEndpoints
+    , rosterTimelineTargetAmbiguousEndpoints
+    , rosterSlotTimesheetSourceChanged
+    , rosterWeekCopyAmbiguousEndpoints
     , rosterWeekSlotDefinitionHasData
     , RemoveRosterRowPackingPreview (..)
     ) where
 
 import Application.Helper.RosterGroups
+import Application.Helper.TimeRules (rosterShiftStartDate)
+import Application.VenueTime.Model
 import Data.Coerce (coerce)
 import Data.List (nub, sort, sortOn)
 import qualified Data.Map.Strict as Map
 import Data.Maybe (fromMaybe, isJust, isNothing, mapMaybe)
 import qualified Data.Text as Text
 import Data.Time (UTCTime, getCurrentTime, utctDay)
+import qualified Data.Time.Calendar as Calendar
 import Data.Time.LocalTime (TimeOfDay (..))
+import Data.Traversable (traverse)
 import Data.UUID (UUID)
 import qualified Database.PostgreSQL.Simple as PG
 import IHP.ModelSupport (sqlExecDiscardResult)
@@ -175,54 +184,134 @@ createInitialRosterWeekSlotDefinitions rosterWeek = do
                 |> createRecord
             pure ()
 
-copyRosterWeek :: (?context :: ControllerContext, ?modelContext :: ModelContext) => RosterWeek -> Int -> IO RosterWeek
-copyRosterWeek sourceWeek targetWeekOffset = do
-    targetWeek <- newRecord @RosterWeek
-        |> set #venueId (unpackId currentVenueId)
-        |> set #rosterGroupId sourceWeek.rosterGroupId
-        |> set #weekOffset targetWeekOffset
-        |> set #isLive False
-        |> createRecord
+rosterSlotTimesheetSourceChanged :: RosterSlot -> RosterSlot -> Bool
+rosterSlotTimesheetSourceChanged previous next =
+    previous.staffId /= next.staffId
+        || previous.startsAt /= next.startsAt
+        || previous.endsAt /= next.endsAt
+        || previous.timezone /= next.timezone
+        || previous.shiftTypeId /= next.shiftTypeId
 
-    sqlExecDiscardResult
-        "INSERT INTO roster_days (roster_week_id, day_offset, is_closed, row_count) \
-        \SELECT ?, day_offsets.day_offset, COALESCE(source_days.is_closed, FALSE), COALESCE(source_days.row_count, 4) \
-        \FROM generate_series(0, 6) AS day_offsets(day_offset) \
-        \LEFT JOIN roster_days source_days \
-        \    ON source_days.roster_week_id = ? \
-        \    AND source_days.day_offset = day_offsets.day_offset \
-        \ORDER BY day_offsets.day_offset"
-        (unpackId targetWeek.id, unpackId sourceWeek.id)
+copyRosterSlotToDay :: VenueConfig -> RosterWeek -> RosterDay -> RosterWeek -> RosterDay -> ShiftCopyOccurrenceSelections -> RosterSlot -> Either BoundaryModelError RosterSlot
+copyRosterSlotToDay venueConfig sourceWeek sourceDay targetWeek targetDay selections slot = do
+    let sourceRosterDate = Calendar.addDays (toInteger sourceDay.dayOffset) (venueWeekStartDate venueConfig sourceWeek.weekOffset)
+        targetRosterDate = Calendar.addDays (toInteger targetDay.dayOffset) (venueWeekStartDate venueConfig targetWeek.weekOffset)
+    (copiedStartsAt, copiedEndsAt) <- case (slot.startsAt, slot.endsAt) of
+        (Just startsAt, Just endsAt) -> do
+            source <- authoritativeBoundariesFromInstants slot.timezone startsAt endsAt Nothing Nothing
+            let sourceStartDate = (authoritativeStartLocalTime source).localDay
+                targetStartDate = Calendar.addDays (Calendar.diffDays sourceStartDate sourceRosterDate) targetRosterDate
+            copied <- copyAuthoritativeBoundariesToDate targetStartDate selections source
+            pure (Just (authoritativeStartsAt copied), Just (authoritativeEndsAt copied))
+        (maybeStart, maybeEnd) -> do
+            copiedStart <- traverse (copySingle sourceRosterDate targetRosterDate selections.copyShiftStartOccurrence) maybeStart
+            copiedEnd <- traverse (copySingle sourceRosterDate targetRosterDate selections.copyShiftEndOccurrence) maybeEnd
+            pure (copiedStart, copiedEnd)
+    pure $
+        slot
+            |> set #startsAt copiedStartsAt
+            |> set #endsAt copiedEndsAt
+            |> set #timezone venueConfig.timezone
+  where
+    copySingle sourceRosterDate targetRosterDate occurrence instant =
+        let localTime = storedInstantLocalTime slot.timezone instant
+            targetDate = Calendar.addDays (Calendar.diffDays localTime.localDay sourceRosterDate) targetRosterDate
+            targetOccurrence = if civilBoundaryIsRepeated targetDate localTime.localTimeOfDay then occurrence else Nothing
+         in resolveBoundaryInstant venueConfig.timezone targetDate localTime.localTimeOfDay targetOccurrence
 
-    copyRosterWeekSlotDefinitionsAndSlots sourceWeek targetWeek
+rosterSlotCopyAmbiguousEndpoints :: VenueConfig -> RosterWeek -> RosterDay -> RosterWeek -> RosterDay -> RosterSlot -> (Bool, Bool)
+rosterSlotCopyAmbiguousEndpoints venueConfig sourceWeek sourceDay targetWeek targetDay slot =
+    (endpointIsRepeated slot.startsAt, endpointIsRepeated slot.endsAt)
+  where
+    sourceRosterDate = Calendar.addDays (toInteger sourceDay.dayOffset) (venueWeekStartDate venueConfig sourceWeek.weekOffset)
+    targetRosterDate = Calendar.addDays (toInteger targetDay.dayOffset) (venueWeekStartDate venueConfig targetWeek.weekOffset)
+    endpointIsRepeated maybeInstant = fromMaybe False do
+        instant <- maybeInstant
+        let localTime = storedInstantLocalTime slot.timezone instant
+            targetDate = Calendar.addDays (Calendar.diffDays localTime.localDay sourceRosterDate) targetRosterDate
+        pure (civilBoundaryIsRepeated targetDate localTime.localTimeOfDay)
 
-    pure targetWeek
+rosterTimelineTargetAmbiguousEndpoints :: Day -> TimeOfDay -> TimeOfDay -> (Bool, Bool)
+rosterTimelineTargetAmbiguousEndpoints targetRosterDate targetStartTime targetEndTime =
+    let targetStartDate = rosterShiftStartDate targetRosterDate targetStartTime
+        targetEndDate = Calendar.addDays (if targetEndTime <= targetStartTime && not (repeatedEndpointPairCanShareDate targetStartDate targetStartTime targetEndTime) then 1 else 0) targetStartDate
+     in ( civilBoundaryIsRepeated targetStartDate targetStartTime
+        , civilBoundaryIsRepeated targetEndDate targetEndTime
+        )
 
-replaceRosterWeekFromSource :: (?context :: ControllerContext, ?modelContext :: ModelContext) => RosterWeek -> RosterWeek -> IO RosterWeek
-replaceRosterWeekFromSource sourceWeek targetWeek = do
-    _ <- targetWeek
-        |> set #isLive False
-        |> updateRecord
+data RosterSlotCopyPlan = RosterSlotCopyPlan
+    { copiedSourceSlot :: !RosterSlot
+    , copiedDayOffset  :: !Int
+    , copiedStartsAt   :: !(Maybe UTCTime)
+    , copiedEndsAt     :: !(Maybe UTCTime)
+    , copiedTimezone   :: !Text
+    }
 
-    sqlExecDiscardResult
-        "UPDATE roster_week_slot_definitions \
-        \SET deleted_at = NOW(), delete_reason = 'roster_week_replaced', updated_at = NOW() \
-        \WHERE roster_week_id = ? \
-        \AND deleted_at IS NULL"
-        (PG.Only (unpackId targetWeek.id))
+copyRosterWeek :: (?context :: ControllerContext, ?modelContext :: ModelContext) => ShiftCopyOccurrenceSelections -> RosterWeek -> Int -> IO (Either BoundaryModelError RosterWeek)
+copyRosterWeek selections sourceWeek targetWeekOffset = do
+    venueConfig <- fetchVenueConfig
+    prepared <- prepareRosterWeekCopy venueConfig selections sourceWeek targetWeekOffset
+    case prepared of
+        Left failure -> pure (Left failure)
+        Right plans -> do
+            targetWeek <- newRecord @RosterWeek
+                |> set #venueId (unpackId currentVenueId)
+                |> set #rosterGroupId sourceWeek.rosterGroupId
+                |> set #weekOffset targetWeekOffset
+                |> set #isLive False
+                |> createRecord
 
-    sqlExecDiscardResult
-        "UPDATE roster_slots \
-        \SET deleted_at = NOW(), delete_reason = 'roster_week_replaced', updated_at = NOW() \
-        \FROM roster_days \
-        \WHERE roster_slots.roster_day_id = roster_days.id \
-        \AND roster_days.roster_week_id = ? \
-        \AND roster_slots.deleted_at IS NULL"
-        (PG.Only (unpackId targetWeek.id))
+            sqlExecDiscardResult
+                "INSERT INTO roster_days (roster_week_id, day_offset, is_closed, row_count) \
+                \SELECT ?, day_offsets.day_offset, COALESCE(source_days.is_closed, FALSE), COALESCE(source_days.row_count, 4) \
+                \FROM generate_series(0, 6) AS day_offsets(day_offset) \
+                \LEFT JOIN roster_days source_days \
+                \    ON source_days.roster_week_id = ? \
+                \    AND source_days.day_offset = day_offsets.day_offset \
+                \ORDER BY day_offsets.day_offset"
+                (unpackId targetWeek.id, unpackId sourceWeek.id)
 
-    copyRosterWeekSlotDefinitionsAndSlots sourceWeek targetWeek
+            copyRosterWeekSlotDefinitionsAndSlots sourceWeek targetWeek plans
+            pure (Right targetWeek)
 
-    fetch targetWeek.id
+replaceRosterWeekFromSource :: (?context :: ControllerContext, ?modelContext :: ModelContext) => ShiftCopyOccurrenceSelections -> RosterWeek -> RosterWeek -> IO (Either BoundaryModelError RosterWeek)
+replaceRosterWeekFromSource selections sourceWeek targetWeek = do
+    venueConfig <- fetchVenueConfig
+    prepared <- prepareRosterWeekCopy venueConfig selections sourceWeek targetWeek.weekOffset
+    case prepared of
+        Left failure -> pure (Left failure)
+        Right plans -> do
+            _ <- targetWeek
+                |> set #isLive False
+                |> updateRecord
+
+            sqlExecDiscardResult
+                "UPDATE roster_week_slot_definitions \
+                \SET deleted_at = NOW(), delete_reason = 'roster_week_replaced', updated_at = NOW() \
+                \WHERE roster_week_id = ? \
+                \AND deleted_at IS NULL"
+                (PG.Only (unpackId targetWeek.id))
+
+            sqlExecDiscardResult
+                "UPDATE roster_slots \
+                \SET deleted_at = NOW(), delete_reason = 'roster_week_replaced', updated_at = NOW() \
+                \FROM roster_days \
+                \WHERE roster_slots.roster_day_id = roster_days.id \
+                \AND roster_days.roster_week_id = ? \
+                \AND roster_slots.deleted_at IS NULL"
+                (PG.Only (unpackId targetWeek.id))
+
+            sqlExecDiscardResult
+                "UPDATE roster_days AS target_days \
+                \SET is_closed = source_days.is_closed, row_count = source_days.row_count, updated_at = NOW() \
+                \FROM roster_days AS source_days \
+                \WHERE target_days.roster_week_id = ? \
+                \AND source_days.roster_week_id = ? \
+                \AND target_days.day_offset = source_days.day_offset"
+                (unpackId targetWeek.id, unpackId sourceWeek.id)
+
+            copyRosterWeekSlotDefinitionsAndSlots sourceWeek targetWeek plans
+            Right <$> fetch targetWeek.id
 
 ensureRosterDayHasMinimumRows :: (?modelContext :: ModelContext) => RosterDay -> Id RosterGroup -> Int -> IO ()
 ensureRosterDayHasMinimumRows rosterDay _rosterGroupId minimumRowCount = do
@@ -232,44 +321,118 @@ ensureRosterDayHasMinimumRows rosterDay _rosterGroupId minimumRowCount = do
             |> updateRecord
         pure ()
 
-copyRosterWeekSlotDefinitionsAndSlots :: (?modelContext :: ModelContext) => RosterWeek -> RosterWeek -> IO ()
-copyRosterWeekSlotDefinitionsAndSlots sourceWeek targetWeek = do
-    sqlExecDiscardResult
-        "UPDATE roster_days AS target_days \
-        \SET row_count = source_days.row_count, updated_at = NOW() \
-        \FROM roster_days AS source_days \
-        \WHERE target_days.roster_week_id = ? \
-        \AND source_days.roster_week_id = ? \
-        \AND target_days.day_offset = source_days.day_offset"
-        (unpackId targetWeek.id, unpackId sourceWeek.id)
-    sqlExecDiscardResult
-        "WITH inserted_definitions AS ( \
-        \    INSERT INTO roster_week_slot_definitions (roster_week_id, name, sort_order) \
-        \    SELECT ?, source_definitions.name, source_definitions.sort_order \
-        \    FROM roster_week_slot_definitions source_definitions \
-        \    WHERE source_definitions.roster_week_id = ? \
-        \    AND source_definitions.deleted_at IS NULL \
-        \    ORDER BY source_definitions.sort_order, source_definitions.created_at \
-        \    RETURNING id, name, sort_order \
-        \) \
-        \INSERT INTO roster_slots (roster_day_id, staff_id, roster_week_slot_definition_id, slot_sort_order, row_index, start_time, end_time, shift_type_id, duration_minutes) \
-        \SELECT target_days.id, source_slots.staff_id, inserted_definitions.id, inserted_definitions.sort_order, source_slots.row_index, source_slots.start_time, source_slots.end_time, source_slots.shift_type_id, source_slots.duration_minutes \
-        \FROM roster_days source_days \
-        \JOIN roster_slots source_slots ON source_slots.roster_day_id = source_days.id \
-        \JOIN roster_week_slot_definitions source_definitions ON source_definitions.id = source_slots.roster_week_slot_definition_id \
-        \JOIN inserted_definitions ON inserted_definitions.name = source_definitions.name AND inserted_definitions.sort_order = source_definitions.sort_order \
-        \JOIN roster_days target_days \
-        \    ON target_days.roster_week_id = ? \
-        \    AND target_days.day_offset = source_days.day_offset \
-        \WHERE source_days.roster_week_id = ? \
-        \AND source_slots.deleted_at IS NULL \
-        \AND (source_slots.staff_id IS NOT NULL \
-        \    OR source_slots.start_time IS NOT NULL \
-        \    OR source_slots.end_time IS NOT NULL \
-        \    OR source_slots.shift_type_id IS NOT NULL \
-        \    OR source_slots.duration_minutes IS NOT NULL) \
-        \ORDER BY source_days.day_offset, source_slots.row_index, inserted_definitions.sort_order, source_slots.created_at"
-        (unpackId targetWeek.id, unpackId sourceWeek.id, unpackId targetWeek.id, unpackId sourceWeek.id)
+rosterWeekCopyAmbiguousEndpoints :: (?modelContext :: ModelContext) => VenueConfig -> RosterWeek -> Int -> IO (Bool, Bool)
+rosterWeekCopyAmbiguousEndpoints venueConfig sourceWeek targetWeekOffset = do
+    sourceDays <- query @RosterDay |> filterWhere (#rosterWeekId, unpackId sourceWeek.id) |> fetch
+    sourceSlots <-
+        if null sourceDays
+            then pure []
+            else query @RosterSlot
+                |> filterWhereIn (#rosterDayId, map (unpackId . (.id)) sourceDays)
+                |> filterWhere (#deletedAt, Nothing)
+                |> fetch
+    let sourceDayById = Map.fromList [(unpackId day.id, day) | day <- sourceDays]
+        sourceWeekStart = venueWeekStartDate venueConfig sourceWeek.weekOffset
+        targetWeekStart = venueWeekStartDate venueConfig targetWeekOffset
+        endpointIsRepeated selectInstant slot = do
+            sourceDay <- Map.lookup slot.rosterDayId sourceDayById
+            instant <- selectInstant slot
+            let sourceRosterDate = Calendar.addDays (toInteger sourceDay.dayOffset) sourceWeekStart
+                targetRosterDate = Calendar.addDays (toInteger sourceDay.dayOffset) targetWeekStart
+                localTime = storedInstantLocalTime slot.timezone instant
+                targetDate = Calendar.addDays (Calendar.diffDays localTime.localDay sourceRosterDate) targetRosterDate
+            pure (civilBoundaryIsRepeated targetDate localTime.localTimeOfDay)
+    pure
+        ( any (fromMaybe False . endpointIsRepeated (.startsAt)) sourceSlots
+        , any (fromMaybe False . endpointIsRepeated (.endsAt)) sourceSlots
+        )
+
+prepareRosterWeekCopy :: (?modelContext :: ModelContext) => VenueConfig -> ShiftCopyOccurrenceSelections -> RosterWeek -> Int -> IO (Either BoundaryModelError [RosterSlotCopyPlan])
+prepareRosterWeekCopy venueConfig selections sourceWeek targetWeekOffset = do
+    sourceDays <-
+        query @RosterDay
+            |> filterWhere (#rosterWeekId, unpackId sourceWeek.id)
+            |> fetch
+    let sourceDayById = Map.fromList [(unpackId day.id, day) | day <- sourceDays]
+    sourceSlots <-
+        if null sourceDays
+            then pure []
+            else query @RosterSlot
+                |> filterWhereIn (#rosterDayId, map (unpackId . (.id)) sourceDays)
+                |> filterWhere (#deletedAt, Nothing)
+                |> fetch
+    pure (traverse (copySlot sourceDayById) (filter rosterSlotHasData sourceSlots))
+  where
+    sourceWeekStart = venueWeekStartDate venueConfig sourceWeek.weekOffset
+    targetWeekStart = venueWeekStartDate venueConfig targetWeekOffset
+
+    copySlot sourceDayById sourceSlot = do
+        sourceDay <- maybe (Left (BoundaryUnsupportedTimezone "missing roster day")) Right (Map.lookup sourceSlot.rosterDayId sourceDayById)
+        let sourceRosterDate = Calendar.addDays (toInteger sourceDay.dayOffset) sourceWeekStart
+            targetRosterDate = Calendar.addDays (toInteger sourceDay.dayOffset) targetWeekStart
+        (startsAt, endsAt) <- case (sourceSlot.startsAt, sourceSlot.endsAt) of
+            (Just sourceStartsAt, Just sourceEndsAt) -> do
+                sourceBoundaries <- authoritativeBoundariesFromInstants sourceSlot.timezone sourceStartsAt sourceEndsAt Nothing Nothing
+                let sourceStartDate = (authoritativeStartLocalTime sourceBoundaries).localDay
+                    targetStartDate = Calendar.addDays (Calendar.diffDays sourceStartDate sourceRosterDate) targetRosterDate
+                copied <- copyAuthoritativeBoundariesToDate targetStartDate selections sourceBoundaries
+                pure (Just (authoritativeStartsAt copied), Just (authoritativeEndsAt copied))
+            (maybeStart, maybeEnd) -> do
+                copiedStart <- traverse (copySingleBoundary sourceRosterDate targetRosterDate selections.copyShiftStartOccurrence sourceSlot.timezone) maybeStart
+                copiedEnd <- traverse (copySingleBoundary sourceRosterDate targetRosterDate selections.copyShiftEndOccurrence sourceSlot.timezone) maybeEnd
+                pure (copiedStart, copiedEnd)
+        pure RosterSlotCopyPlan
+            { copiedSourceSlot = sourceSlot
+            , copiedDayOffset = sourceDay.dayOffset
+            , copiedStartsAt = startsAt
+            , copiedEndsAt = endsAt
+            , copiedTimezone = venueConfig.timezone
+            }
+
+    copySingleBoundary sourceRosterDate targetRosterDate occurrence timezone instant = do
+        let localTime = storedInstantLocalTime timezone instant
+            targetDate = Calendar.addDays (Calendar.diffDays localTime.localDay sourceRosterDate) targetRosterDate
+            targetOccurrence = if civilBoundaryIsRepeated targetDate localTime.localTimeOfDay then occurrence else Nothing
+        resolveBoundaryInstant venueConfig.timezone targetDate localTime.localTimeOfDay targetOccurrence
+
+copyRosterWeekSlotDefinitionsAndSlots :: (?modelContext :: ModelContext) => RosterWeek -> RosterWeek -> [RosterSlotCopyPlan] -> IO ()
+copyRosterWeekSlotDefinitionsAndSlots sourceWeek targetWeek plans = do
+    sourceDefinitions <- fetchActiveRosterWeekSlotDefinitions sourceWeek
+    targetDefinitions <- forM sourceDefinitions \sourceDefinition ->
+        newRecord @RosterWeekSlotDefinition
+            |> set #rosterWeekId (unpackId targetWeek.id)
+            |> set #name sourceDefinition.name
+            |> set #sortOrder sourceDefinition.sortOrder
+            |> createRecord
+    targetDays <-
+        query @RosterDay
+            |> filterWhere (#rosterWeekId, unpackId targetWeek.id)
+            |> fetch
+    let targetDayByOffset = Map.fromList [(day.dayOffset, day) | day <- targetDays]
+        sourceDefinitionById = Map.fromList [(unpackId definition.id, definition) | definition <- sourceDefinitions]
+        targetDefinitionByKey = Map.fromList [((definition.name, definition.sortOrder), definition) | definition <- targetDefinitions]
+    forM_ plans \plan -> do
+        let sourceSlot = plan.copiedSourceSlot
+        case do
+            targetDay <- Map.lookup plan.copiedDayOffset targetDayByOffset
+            sourceDefinition <- Map.lookup sourceSlot.rosterWeekSlotDefinitionId sourceDefinitionById
+            targetDefinition <- Map.lookup (sourceDefinition.name, sourceDefinition.sortOrder) targetDefinitionByKey
+            pure (targetDay, targetDefinition)
+          of
+            Nothing -> error "Roster week copy plan no longer matches target structure"
+            Just (targetDay, targetDefinition) -> do
+                _ <- newRecord @RosterSlot
+                    |> set #rosterDayId (unpackId targetDay.id)
+                    |> set #staffId sourceSlot.staffId
+                    |> set #rosterWeekSlotDefinitionId (unpackId targetDefinition.id)
+                    |> set #slotSortOrder targetDefinition.sortOrder
+                    |> set #rowIndex sourceSlot.rowIndex
+                    |> set #startsAt plan.copiedStartsAt
+                    |> set #endsAt plan.copiedEndsAt
+                    |> set #timezone plan.copiedTimezone
+                    |> set #shiftTypeId sourceSlot.shiftTypeId
+                    |> createRecord
+                pure ()
 
 appendRosterWeekSlotDefinition :: (?modelContext :: ModelContext) => RosterWeek -> Text -> IO RosterWeekSlotDefinition
 appendRosterWeekSlotDefinition rosterWeek slotName = do
@@ -292,10 +455,9 @@ rosterWeekSlotDefinitionHasData slotDefinition = do
 rosterSlotHasData :: RosterSlot -> Bool
 rosterSlotHasData slot =
     isJust slot.staffId
-        || isJust slot.startTime
-        || isJust slot.endTime
+        || isJust slot.startsAt
+        || isJust slot.endsAt
         || isJust slot.shiftTypeId
-        || isJust slot.durationMinutes
 
 previewRemoveRosterRowPacking :: (?modelContext :: ModelContext) => RosterDay -> [RosterWeekSlotDefinition] -> IO RemoveRosterRowPackingPreview
 previewRemoveRosterRowPacking rosterDay activeDefinitions = do
@@ -480,8 +642,8 @@ staffSortLabel staff =
 
 slotPackingKey :: Map.Map UUID Int -> Map.Map UUID Text -> RosterSlot -> (Bool, TimeOfDay, Text, Int, Int, UTCTime, Id RosterSlot)
 slotPackingKey definitionSortOrderById staffById slot =
-    ( isNothing slot.startTime
-    , fromMaybe (TimeOfDay 23 59 59) slot.startTime
+    ( isNothing slot.startsAt
+    , fromMaybe (TimeOfDay 23 59 59) (rosterSlotStartTime slot)
     , fromMaybe "\xffff" (slot.staffId >>= (`Map.lookup` staffById))
     , slot.rowIndex
     , Map.findWithDefault slot.slotSortOrder slot.rosterWeekSlotDefinitionId definitionSortOrderById

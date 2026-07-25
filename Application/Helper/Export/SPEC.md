@@ -27,6 +27,10 @@ This file describes implemented export behavior and shared rendering rules.
   formulas.
 - Export filenames and content-disposition values must be treated as output
   boundaries and encoded safely.
+- Timesheet dates and clocks are projected from authoritative instants and their
+  stored timezone snapshot. Duration and hourly-breakdown overlap use exact
+  instant elapsed time: a repeated autumn hour contributes twice and a skipped
+  spring hour contributes zero.
 
 ## Payroll
 

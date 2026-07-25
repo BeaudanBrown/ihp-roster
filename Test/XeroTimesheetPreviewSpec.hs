@@ -334,8 +334,8 @@ createFixtureEntry venue owner staffA staffB periodStart spec = do
     let staff = if spec.entryStaff == FixtureStaffA then staffA else staffB
     entry <- createApprovedTimesheetEntryRecord venue staff owner (addDays spec.entryDayOffset periodStart)
     entry
-        |> set #startTime spec.entryStartTime
-        |> set #endTime spec.entryEndTime
+        |> setTestStartTime spec.entryStartTime
+        |> setTestEndTime spec.entryEndTime
         |> updateRecord
 
 createPreviewXeroConnection :: (?modelContext :: ModelContext) => Venue -> User -> IO XeroConnection

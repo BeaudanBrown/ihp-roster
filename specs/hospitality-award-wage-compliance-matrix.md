@@ -166,6 +166,8 @@ the new contract.
 | `derives venue-effective award dates from the next venue week boundary` | Policy precursor | `HIGA-POLICY-WEEK-ROLLOVER`. |
 | `decodes range payload arrays and indexes summaries by entry id` | Characterization `CHAR-PAY-PAYLOAD-RANGE` | Legacy batch decoder only; replace with typed engine/ledger adapter in [#229][i229]/[#239][i239]. |
 | `uses the staff default award level for ordinary weekday hours` | Compliance precursor | `HIGA-POLICY-AWARD-LEVEL`, `HIGA-29.2-WEEKDAY-ORDINARY`. |
+| `uses elapsed instants for pay across the repeated autumn hour` | Compliance precursor | `HIGA-POLICY-MELBOURNE-ELAPSED`; the repeated hour contributes exact elapsed paid time. |
+| `uses elapsed instants for pay across the skipped spring hour` | Compliance precursor | `HIGA-POLICY-MELBOURNE-ELAPSED`; the nonexistent hour contributes no elapsed paid time. |
 | `rolls a mid-week FWC base rate increase to the next venue week boundary` | Policy precursor | `HIGA-POLICY-WEEK-ROLLOVER`. |
 | `does not re-rate an approved entry when a newer FWC row is imported later` | Policy precursor | `HIGA-POLICY-APPROVED-IMMUTABLE`; target ledger replaces created-at SQL anchoring. |
 | `splits evening and after-midnight weekday penalties` | **Non-compliance characterization** | Boundaries map to `HIGA-29.2-EVENING-PART-HOUR` and `HIGA-29.2-EARLY-PART-HOUR`, but current combined hourly amounts must become fixed commenced-hour components in [#231][i231]. |
@@ -182,6 +184,7 @@ the new contract.
 | `keeps an imported Xero rate flat across time windows and missed break periods` | Policy precursor | `HIGA-POLICY-IMPORTED-OVERRIDE`, `HIGA-POLICY-BREAK-BUCKET`. |
 | `allocates breaks to the actual penalty segment instead of trimming the end of an overnight shift` | Compliance precursor | `HIGA-POLICY-BREAK-BUCKET`. |
 | `subtracts roster wage estimate automatic breaks from start+5h30 instead of the shift end` | Policy precursor | Projected-break input to `HIGA-15.2-PART-TIME-SHIFT-MIN`/`MAX`; it is not timesheet missed-break evidence. |
+| `uses elapsed roster instants for wage prediction across DST transitions` | Compliance precursor | `HIGA-POLICY-MELBOURNE-ELAPSED`; roster projections use instant duration rather than wall-clock subtraction. |
 | `allocates after-midnight breaks to the next calendar day segment` | Compliance precursor | `HIGA-POLICY-BREAK-BUCKET`, `HIGA-POLICY-MELBOURNE-ELAPSED`. |
 | `resolves weekday, Saturday, Sunday, and public holiday penalties from segment dates` | Compliance precursor | `HIGA-29.2-WEEKDAY-ORDINARY`, `SATURDAY`, `SUNDAY`, `PUBLIC-HOLIDAY`, and `HIGA-29.3-HIGHEST-PENALTY`. |
 | `uses casual base and casual weekend penalty rows when the staff member is casual` | Compliance precursor | `HIGA-11.1-CASUAL-LOADING`, `HIGA-29.2-SATURDAY`. |

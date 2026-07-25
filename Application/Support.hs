@@ -6,6 +6,8 @@ import Application.Helper.Pay (ensurePayVersionsForTimesheetApproval,
                                lockPayVersionsForApproval)
 import Application.Helper.RosterGroups (ensureVenueDefaultRosterGroup)
 import Application.Helper.VenueBootstrap
+import Application.VenueTime (melbourneTimeZoneName)
+import Application.VenueTime.Model
 import Control.Monad (void)
 import qualified Data.Aeson as Aeson
 import qualified Data.Char as Char
@@ -17,6 +19,7 @@ import Generated.Types
 import IHP.ControllerPrelude
 import IHP.ModelSupport (sqlExecDiscardResult)
 import IHP.Prelude
+import qualified IHP.Prelude as Prelude
 
 resetDatabase :: (?modelContext :: ModelContext) => IO ()
 resetDatabase = do
@@ -160,6 +163,7 @@ createRosterSlotRecord rosterDay slotName maybeStaff rowIndex = do
         |> set #slotSortOrder slotDefinition.sortOrder
         |> set #staffId (fmap (unpackId . get #id) maybeStaff)
         |> set #rowIndex rowIndex
+        |> set #timezone melbourneTimeZoneName
         |> createRecord
 
 ensureRosterWeekSlotDefinitionForSlotName :: (?modelContext :: ModelContext) => RosterDay -> SlotName -> IO RosterWeekSlotDefinition
@@ -181,17 +185,21 @@ ensureRosterWeekSlotDefinitionForSlotName rosterDay slotName = do
 createTimesheetEntryRecord :: (?modelContext :: ModelContext) => Venue -> Staff -> Day -> IO TimesheetEntry
 createTimesheetEntryRecord venue staff workedOn = do
     shiftType <- ensureVenueDefaultShiftType venue
+    let boundaries =
+            either (error . ("Invalid support timesheet fixture: " <>) . show) Prelude.id $
+                resolveShiftBoundaries melbourneTimeZoneName ShiftBoundaryInput
+                    { shiftBoundaryDate = workedOn
+                    , shiftBoundaryStartTime = TimeOfDay 9 0 0
+                    , shiftBoundaryStartOccurrence = Nothing
+                    , shiftBoundaryEndTime = TimeOfDay 17 0 0
+                    , shiftBoundaryEndOccurrence = Nothing
+                    , shiftBoundaryBreak = Nothing
+                    }
     newRecord @TimesheetEntry
         |> set #venueId (unpackId (get #id venue))
         |> set #staffId (unpackId (get #id staff))
         |> set #shiftTypeId (unpackId (get #id shiftType))
-        |> set #workedOn workedOn
-        |> set #startTime (TimeOfDay 9 0 0)
-        |> set #endTime (TimeOfDay 17 0 0)
-        |> set #hadBreak False
-        |> set #breakStartTime Nothing
-        |> set #breakEndTime Nothing
-        |> set #breakMinutes 0
+        |> applyTimesheetEntryBoundaries boundaries
         |> createRecord
 
 createLeaveRequestRecord :: (?modelContext :: ModelContext) => Venue -> Staff -> Day -> Day -> Text -> IO LeaveRequest

@@ -8,6 +8,12 @@ import Application.Helper.RosterGroups (createVenueRosterGroupWithDefaults,
                                         syncStaffRosterGroupAssignments)
 import Application.Helper.SurfaceResource
 import Application.Helper.UserPreferences
+import Application.VenueTime (RepeatedTimeOccurrence (..))
+import Application.VenueTime.Model (rosterSlotDurationMinutes,
+                                    rosterSlotEndOccurrence,
+                                    rosterSlotStartOccurrence,
+                                    storedInstantLocalTime,
+                                    storedInstantOccurrence)
 import Config
 import qualified Data.ByteString.Char8 as ByteString
 import Data.Coerce (coerce)
@@ -15,7 +21,7 @@ import Data.List (sortOn)
 import Data.Maybe (fromJust)
 import qualified Data.Set as Set
 import qualified Data.Text as Text
-import Data.Time.Calendar (addDays)
+import Data.Time.Calendar (addDays, fromGregorian)
 import Data.Time.LocalTime (TimeOfDay (..))
 import Generated.Types
 import IHP.ControllerPrelude
@@ -29,6 +35,7 @@ import Network.Wai
 import Test.Hspec
 import Test.Support
 import Web.Controller.RosterWeeks ()
+import Web.Controller.RosterWeeks.Validation (rosterSlotHasValidStartEnd)
 import Web.FrontController ()
 import Web.RosterWeeks.Dom (rosterContentFragmentId, rosterDayColumnsFragmentId,
                             rosterDaySectionDomId, rosterGridFrameFragmentId,
@@ -154,7 +161,7 @@ tests = aroundAll withDatabaseTestContext do
                 rosterWeek <- createRosterWeekRecord venue 0 False
                 rosterDay <- createRosterDayRecord rosterWeek 0
                 slot <- createRosterSlotRecord rosterDay slotName (Just staffMember) 0
-                _ <- updateRecord (slot |> set #startTime (Just (timeOfDay 9 0)))
+                _ <- updateRecord (slot |> setTestStartTime (Just (timeOfDay 9 0)))
 
                 response <- withUserAndCurrentVenue manager venue.id do
                     withRequestHeaders [("HX-Request", "true")] do
@@ -177,7 +184,7 @@ tests = aroundAll withDatabaseTestContext do
                 updatedDay.isClosed `shouldBe` True
                 unchangedSlot <- fetch slot.id
                 unchangedSlot.staffId `shouldBe` Just (unpackId staffMember.id)
-                unchangedSlot.startTime `shouldBe` Just (timeOfDay 9 0)
+                testStartTime unchangedSlot `shouldBe` Just (timeOfDay 9 0)
 
         it "closed roster days stay locked at two rows and reject row additions" $ withContext do
             withCleanDb do
@@ -309,9 +316,9 @@ tests = aroundAll withDatabaseTestContext do
                 row1 <- createRosterSlotRecord rosterDay early Nothing 1
                 row2 <- createRosterSlotRecord rosterDay early Nothing 2
                 row3 <- createRosterSlotRecord rosterDay early Nothing 3
-                _ <- updateRecord (row0 |> set #startTime (Just (timeOfDay 8 0)))
-                _ <- updateRecord (row2 |> set #startTime (Just (timeOfDay 10 0)))
-                _ <- updateRecord (row3 |> set #startTime (Just (timeOfDay 12 0)))
+                _ <- updateRecord (row0 |> setTestStartTime (Just (timeOfDay 8 0)))
+                _ <- updateRecord (row2 |> setTestStartTime (Just (timeOfDay 10 0)))
+                _ <- updateRecord (row3 |> setTestStartTime (Just (timeOfDay 12 0)))
 
                 response <- withUserAndCurrentVenue manager venue.id do
                     withRequestHeaders [("HX-Request", "true")] do
@@ -325,7 +332,7 @@ tests = aroundAll withDatabaseTestContext do
                 let packedDataSlots = sortOn (.rowIndex) (filter (\slot -> slot.id `elem` map (.id) [row0, row2, row3]) activeDataSlots)
                 map (.id) packedDataSlots `shouldBe` [row0.id, row2.id, row3.id]
                 map (.rowIndex) packedDataSlots `shouldBe` [0, 1, 2]
-                map (.startTime) packedDataSlots `shouldBe` map (Just . uncurry timeOfDay) [(8, 0), (10, 0), (12, 0)]
+                map testStartTime packedDataSlots `shouldBe` map (Just . uncurry timeOfDay) [(8, 0), (10, 0), (12, 0)]
                 deletedHole <- fetch row1.id
                 deletedHole.deletedAt `shouldSatisfy` isJust
 
@@ -345,11 +352,11 @@ tests = aroundAll withDatabaseTestContext do
                 late0 <- createRosterSlotRecord rosterDayWithRows late Nothing 0
                 late1 <- createRosterSlotRecord rosterDayWithRows late Nothing 1
                 late2 <- createRosterSlotRecord rosterDayWithRows late Nothing 2
-                _ <- updateRecord (early0 |> set #startTime (Just (timeOfDay 8 0)))
-                _ <- updateRecord (early1 |> set #startTime (Just (timeOfDay 9 0)))
-                _ <- updateRecord (late0 |> set #startTime (Just (timeOfDay 10 0)))
-                _ <- updateRecord (early2 |> set #startTime (Just (timeOfDay 11 0)))
-                _ <- updateRecord (late2 |> set #startTime (Just (timeOfDay 12 0)))
+                _ <- updateRecord (early0 |> setTestStartTime (Just (timeOfDay 8 0)))
+                _ <- updateRecord (early1 |> setTestStartTime (Just (timeOfDay 9 0)))
+                _ <- updateRecord (late0 |> setTestStartTime (Just (timeOfDay 10 0)))
+                _ <- updateRecord (early2 |> setTestStartTime (Just (timeOfDay 11 0)))
+                _ <- updateRecord (late2 |> setTestStartTime (Just (timeOfDay 12 0)))
 
                 previewResponse <- withUserAndCurrentVenue manager venue.id do
                     withRequestHeaders [("HX-Request", "true")] do
@@ -386,7 +393,7 @@ tests = aroundAll withDatabaseTestContext do
                 rosterWeek <- createRosterWeekRecord venue 0 False
                 rosterDay <- createRosterDayRecord rosterWeek 0
                 earlySlot <- createRosterSlotRecord rosterDay early Nothing 0
-                _ <- updateRecord (earlySlot |> set #startTime (Just (timeOfDay 9 0)))
+                _ <- updateRecord (earlySlot |> setTestStartTime (Just (timeOfDay 9 0)))
 
                 createResponse <- withUserAndCurrentVenue manager venue.id do
                     withRequestHeaders [("HX-Request", "true")] do
@@ -441,9 +448,9 @@ tests = aroundAll withDatabaseTestContext do
                 charlieSlot <- createRosterSlotRecord rosterDay early (Just charlie) 0
                 alphaSlot <- createRosterSlotRecord rosterDay late (Just alpha) 0
                 bravoSlot <- createRosterSlotRecord rosterDay early (Just bravo) 1
-                _ <- updateRecord (charlieSlot |> set #startTime (Just (timeOfDay 11 0)))
-                _ <- updateRecord (alphaSlot |> set #startTime (Just (timeOfDay 9 0)))
-                _ <- updateRecord (bravoSlot |> set #startTime (Just (timeOfDay 9 0)))
+                _ <- updateRecord (charlieSlot |> setTestStartTime (Just (timeOfDay 11 0)))
+                _ <- updateRecord (alphaSlot |> setTestStartTime (Just (timeOfDay 9 0)))
+                _ <- updateRecord (bravoSlot |> setTestStartTime (Just (timeOfDay 9 0)))
 
                 response <- withUserAndCurrentVenue manager venue.id do
                     withRequestHeaders [("HX-Request", "true")] do
@@ -489,9 +496,9 @@ tests = aroundAll withDatabaseTestContext do
                 bravoSlot <- createRosterSlotRecord rosterDay early (Just bravo) 0
                 charlieSlot <- createRosterSlotRecord rosterDay late (Just charlie) 0
                 alphaSlot <- createRosterSlotRecord rosterDay late (Just alpha) 1
-                _ <- updateRecord (bravoSlot |> set #startTime (Just (timeOfDay 10 0)))
-                _ <- updateRecord (charlieSlot |> set #startTime (Just (timeOfDay 11 0)))
-                _ <- updateRecord (alphaSlot |> set #startTime (Just (timeOfDay 9 0)))
+                _ <- updateRecord (bravoSlot |> setTestStartTime (Just (timeOfDay 10 0)))
+                _ <- updateRecord (charlieSlot |> setTestStartTime (Just (timeOfDay 11 0)))
+                _ <- updateRecord (alphaSlot |> setTestStartTime (Just (timeOfDay 9 0)))
                 earlyDefinition <- query @RosterWeekSlotDefinition
                     |> filterWhere (#rosterWeekId, unpackId rosterWeek.id)
                     |> filterWhere (#name, "Early")
@@ -517,7 +524,7 @@ tests = aroundAll withDatabaseTestContext do
                 let packedDataSlots = sortOn (.rowIndex) (filter (\slot -> slot.rosterWeekSlotDefinitionId == unpackId earlyDefinition.id && isJust slot.staffId) packedSlots)
                 map (.id) packedDataSlots `shouldBe` [alphaSlot.id, bravoSlot.id, charlieSlot.id]
                 map (.rowIndex) packedDataSlots `shouldBe` [0, 1, 2]
-                map (.startTime) packedDataSlots `shouldBe` map (Just . uncurry timeOfDay) [(9, 0), (10, 0), (11, 0)]
+                map testStartTime packedDataSlots `shouldBe` map (Just . uncurry timeOfDay) [(9, 0), (10, 0), (11, 0)]
 
         it "manager can toggle a draft week live via HTMX without redirecting" $ withContext do
             withCleanDb do
@@ -533,8 +540,8 @@ tests = aroundAll withDatabaseTestContext do
                 slot <- createRosterSlotRecord rosterDay slotName (Just staffMember) 0
                 _ <- updateRecord
                     ( slot
-                        |> set #startTime (Just (timeOfDay 9 0))
-                        |> set #endTime (Just (timeOfDay 17 0))
+                        |> setTestStartTime (Just (timeOfDay 9 0))
+                        |> setTestEndTime (Just (timeOfDay 17 0))
                         |> set #shiftTypeId (Just (unpackId shiftType.id))
                     )
 
@@ -597,10 +604,10 @@ tests = aroundAll withDatabaseTestContext do
                 slot <- createRosterSlotRecord rosterDay slotName (Just staffMember) 1
                 completeSlot <- updateRecord
                     ( slot
-                        |> set #startTime (Just (timeOfDay 9 0))
-                        |> set #endTime (Just (timeOfDay 17 0))
+                        |> setTestStartTime (Just (timeOfDay 9 0))
+                        |> setTestEndTime (Just (timeOfDay 17 0))
                         |> set #shiftTypeId (Just (unpackId shiftType.id))
-                        |> set #durationMinutes (Just 480)
+                        |> setTestDurationMinutes (Just 480)
                     )
 
                 updateResponse <- withUserAndCurrentVenue manager venue.id do
@@ -616,9 +623,120 @@ tests = aroundAll withDatabaseTestContext do
                 updateResponse `responseStatusShouldBe` status200
                 updateResponse `responseBodyShouldContain` "Choose an end time after the start time within the 6:00 AM to 5:45 AM roster day."
                 unchangedSlot <- fetch completeSlot.id
-                unchangedSlot.startTime `shouldBe` Just (timeOfDay 9 0)
-                unchangedSlot.endTime `shouldBe` Just (timeOfDay 17 0)
-                unchangedSlot.durationMinutes `shouldBe` Just 480
+                testStartTime unchangedSlot `shouldBe` Just (timeOfDay 9 0)
+                testEndTime unchangedSlot `shouldBe` Just (timeOfDay 17 0)
+                testDurationMinutes unchangedSlot `shouldBe` Just 480
+
+        it "requires an occurrence for an ambiguous after-midnight roster boundary" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Roster Autumn Boundary Venue"
+                manager <- createUserRecord "roster-autumn-manager@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue manager "manager"
+                staffMember <- createStaffRecord venue Nothing "Autumn" "Crew"
+                level <- createPayLevelRecord venue "Level 1"
+                shiftType <- createShiftTypeRecord venue level "Floor"
+                rosterWeek <- createRosterWeekRecord venue 64 False
+                rosterDay <- createRosterDayRecord rosterWeek 5
+                slotName <- fetchSlotNameRecord venue "Early"
+                slotDefinition <- ensureRosterWeekSlotDefinitionForSlotName rosterDay slotName
+                let baseParams =
+                        [ ("staffId", idToParam staffMember.id)
+                        , ("startTime", "02:30")
+                        , ("endTime", "04:00")
+                        , ("shiftTypeId", idToParam shiftType.id)
+                        ]
+
+                missingOccurrenceResponse <- withUserAndCurrentVenue manager venue.id do
+                    withRequestHeaders [("HX-Request", "true")] do
+                        callActionWithParams (CreateRosterSlotAction rosterDay.id slotDefinition.id 0) baseParams
+
+                missingOccurrenceResponse `responseStatusShouldBe` status200
+                missingOccurrenceResponse `responseBodyShouldContain` "Choose whether this is the first or second occurrence."
+                missingOccurrenceResponse `responseBodyShouldContain` "data-time-occurrence-chooser=\"startOccurrence\""
+                missingOccurrenceResponse `responseBodyShouldNotContain` "data-time-occurrence-chooser=\"endOccurrence\""
+                query @RosterSlot |> fetchCount >>= (`shouldBe` 0)
+
+                createdResponse <- withUserAndCurrentVenue manager venue.id do
+                    withRequestHeaders [("HX-Request", "true")] do
+                        callActionWithParams
+                            (CreateRosterSlotAction rosterDay.id slotDefinition.id 0)
+                            (baseParams <> [("startOccurrence", "second")])
+
+                createdResponse `responseStatusShouldBe` status200
+                slot <- query @RosterSlot |> fetchOne
+                startsAt <- maybe (expectationFailure "Expected roster start instant" >> error "unreachable") pure slot.startsAt
+                storedInstantOccurrence slot.timezone startsAt `shouldBe` Just SecondOccurrence
+                (storedInstantLocalTime slot.timezone startsAt).localDay `shouldBe` fromGregorian 2026 4 5
+                rosterSlotDurationMinutes slot `shouldBe` Just 90
+
+        it "creates a positive repeated-hour roster shift with equal local clocks" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Roster Equal Autumn Boundary Venue"
+                manager <- createUserRecord "roster-equal-autumn-manager@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue manager "manager"
+                staffMember <- createStaffRecord venue Nothing "Equal Autumn" "Crew"
+                level <- createPayLevelRecord venue "Level 1"
+                shiftType <- createShiftTypeRecord venue level "Floor"
+                rosterWeek <- createRosterWeekRecord venue 64 False
+                rosterDay <- createRosterDayRecord rosterWeek 5
+                slotName <- fetchSlotNameRecord venue "Early"
+                slotDefinition <- ensureRosterWeekSlotDefinitionForSlotName rosterDay slotName
+                let baseParams =
+                        [ ("staffId", idToParam staffMember.id)
+                        , ("startTime", "02:30")
+                        , ("endTime", "02:30")
+                        , ("shiftTypeId", idToParam shiftType.id)
+                        ]
+
+                missingOccurrenceResponse <- withUserAndCurrentVenue manager venue.id do
+                    withRequestHeaders [("HX-Request", "true")] do
+                        callActionWithParams (CreateRosterSlotAction rosterDay.id slotDefinition.id 0) baseParams
+
+                missingOccurrenceResponse `responseStatusShouldBe` status200
+                missingOccurrenceResponse `responseBodyShouldContain` "data-time-occurrence-chooser=\"startOccurrence\""
+                missingOccurrenceResponse `responseBodyShouldContain` "data-time-occurrence-chooser=\"endOccurrence\""
+                query @RosterSlot |> fetchCount >>= (`shouldBe` 0)
+
+                createdResponse <- withUserAndCurrentVenue manager venue.id do
+                    withRequestHeaders [("HX-Request", "true")] do
+                        callActionWithParams
+                            (CreateRosterSlotAction rosterDay.id slotDefinition.id 0)
+                            (baseParams <> [("startOccurrence", "first"), ("endOccurrence", "second")])
+
+                createdResponse `responseStatusShouldBe` status200
+                slot <- query @RosterSlot |> fetchOne
+                rosterSlotStartOccurrence slot `shouldBe` Just FirstOccurrence
+                rosterSlotEndOccurrence slot `shouldBe` Just SecondOccurrence
+                rosterSlotDurationMinutes slot `shouldBe` Just 60
+                rosterSlotHasValidStartEnd slot `shouldBe` True
+
+        it "rejects a nonexistent after-midnight spring roster boundary" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Roster Spring Boundary Venue"
+                manager <- createUserRecord "roster-spring-manager@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue manager "manager"
+                staffMember <- createStaffRecord venue Nothing "Spring" "Crew"
+                level <- createPayLevelRecord venue "Level 1"
+                shiftType <- createShiftTypeRecord venue level "Floor"
+                rosterWeek <- createRosterWeekRecord venue 90 False
+                rosterDay <- createRosterDayRecord rosterWeek 5
+                slotName <- fetchSlotNameRecord venue "Early"
+                slotDefinition <- ensureRosterWeekSlotDefinitionForSlotName rosterDay slotName
+
+                response <- withUserAndCurrentVenue manager venue.id do
+                    withRequestHeaders [("HX-Request", "true")] do
+                        callActionWithParams
+                            (CreateRosterSlotAction rosterDay.id slotDefinition.id 0)
+                            [ ("staffId", idToParam staffMember.id)
+                            , ("startTime", "02:30")
+                            , ("endTime", "04:00")
+                            , ("shiftTypeId", idToParam shiftType.id)
+                            ]
+
+                response `responseStatusShouldBe` status200
+                response `responseBodyShouldContain` "This local time does not exist because clocks move forward."
+                response `responseBodyShouldNotContain` "data-time-occurrence-chooser=\"startOccurrence\""
+                query @RosterSlot |> fetchCount >>= (`shouldBe` 0)
 
         it "blocks publishing staffed shifts with invalid timing" $ withContext do
             withCleanDb do
@@ -636,10 +754,10 @@ tests = aroundAll withDatabaseTestContext do
                 slot <- createRosterSlotRecord rosterDay slotName (Just staffMember) 0
                 _ <- updateRecord
                     ( slot
-                        |> set #startTime (Just (timeOfDay 9 0))
-                        |> set #endTime (Just (timeOfDay 8 0))
+                        |> setTestStartTime (Just (timeOfDay 9 0))
+                        |> setTestEndTime (Just (timeOfDay 8 0))
                         |> set #shiftTypeId (Just (unpackId shiftType.id))
-                        |> set #durationMinutes (Just 1380)
+                        |> setTestDurationMinutes (Just 1380)
                     )
 
                 response <- withUserAndCurrentVenue manager venue.id do
@@ -669,10 +787,10 @@ tests = aroundAll withDatabaseTestContext do
                 slot <- createRosterSlotRecord rosterDay slotName (Just staffMember) 0
                 _ <- updateRecord
                     ( slot
-                        |> set #startTime (Just (timeOfDay 22 0))
-                        |> set #endTime (Just (timeOfDay 2 0))
+                        |> setTestStartTime (Just (timeOfDay 22 0))
+                        |> setTestEndTime (Just (timeOfDay 2 0))
                         |> set #shiftTypeId (Just (unpackId shiftType.id))
-                        |> set #durationMinutes (Just 240)
+                        |> setTestDurationMinutes (Just 240)
                     )
 
                 response <- withUserAndCurrentVenue manager venue.id do
@@ -838,20 +956,20 @@ tests = aroundAll withDatabaseTestContext do
                 slot <- createRosterSlotRecord rosterDay slotName (Just staffMember) 0
                 _ <- updateRecord
                     ( slot
-                        |> set #startTime (Just (timeOfDay 9 0))
-                        |> set #endTime (Just (timeOfDay 17 0))
+                        |> setTestStartTime (Just (timeOfDay 9 0))
+                        |> setTestEndTime (Just (timeOfDay 17 0))
                         |> set #shiftTypeId (Just (unpackId shiftType.id))
-                        |> set #durationMinutes (Just 480)
+                        |> setTestDurationMinutes (Just 480)
                     )
                 incompleteSlot <- createRosterSlotRecord rosterDay slotName (Just staffMember) 1
-                _ <- updateRecord (incompleteSlot |> set #startTime (Just (timeOfDay 9 0)))
+                _ <- updateRecord (incompleteSlot |> setTestStartTime (Just (timeOfDay 9 0)))
                 invalidTimingSlot <- createRosterSlotRecord rosterDay slotName (Just staffMember) 2
                 _ <- updateRecord
                     ( invalidTimingSlot
-                        |> set #startTime (Just (timeOfDay 9 0))
-                        |> set #endTime (Just (timeOfDay 8 0))
+                        |> setTestStartTime (Just (timeOfDay 9 0))
+                        |> setTestEndTime (Just (timeOfDay 8 0))
                         |> set #shiftTypeId (Just (unpackId shiftType.id))
-                        |> set #durationMinutes (Just 1380)
+                        |> setTestDurationMinutes (Just 1380)
                     )
                 _ <-
                     newRecord @UserPreference
@@ -958,10 +1076,10 @@ tests = aroundAll withDatabaseTestContext do
                 slot <- createRosterSlotRecord rosterDay slotName (Just staffMember) 0
                 _ <- updateRecord
                     ( slot
-                        |> set #startTime (Just (timeOfDay 9 0))
-                        |> set #endTime (Just (timeOfDay 17 0))
+                        |> setTestStartTime (Just (timeOfDay 9 0))
+                        |> setTestEndTime (Just (timeOfDay 17 0))
                         |> set #shiftTypeId (Just (unpackId shiftType.id))
-                        |> set #durationMinutes (Just 480)
+                        |> setTestDurationMinutes (Just 480)
                     )
 
                 adminResponse <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
@@ -1040,10 +1158,10 @@ tests = aroundAll withDatabaseTestContext do
                 slot <- createRosterSlotRecord rosterDay slotName (Just staffMember) 0
                 slot <- updateRecord
                     ( slot
-                        |> set #startTime (Just (timeOfDay 22 0))
-                        |> set #endTime (Just (timeOfDay 2 0))
+                        |> setTestStartTime (Just (timeOfDay 22 0))
+                        |> setTestEndTime (Just (timeOfDay 2 0))
                         |> set #shiftTypeId (Just (unpackId shiftType.id))
-                        |> set #durationMinutes (Just 240)
+                        |> setTestDurationMinutes (Just 240)
                     )
 
                 response <- withUserAndCurrentVenue manager venue.id do
@@ -1077,17 +1195,17 @@ tests = aroundAll withDatabaseTestContext do
                 pendingSlot <- createRosterSlotRecord rosterDay slotName (Just staffMember) 1
                 sourceSlot <- updateRecord
                     ( sourceSlot
-                        |> set #startTime (Just (timeOfDay 9 0))
-                        |> set #endTime (Just (timeOfDay 17 0))
+                        |> setTestStartTime (Just (timeOfDay 9 0))
+                        |> setTestEndTime (Just (timeOfDay 17 0))
                         |> set #shiftTypeId (Just (unpackId shiftType.id))
-                        |> set #durationMinutes (Just 480)
+                        |> setTestDurationMinutes (Just 480)
                     )
                 pendingSlot <- updateRecord
                     ( pendingSlot
-                        |> set #startTime (Just (timeOfDay 18 0))
-                        |> set #endTime (Just (timeOfDay 23 0))
+                        |> setTestStartTime (Just (timeOfDay 18 0))
+                        |> setTestEndTime (Just (timeOfDay 23 0))
                         |> set #shiftTypeId (Just (unpackId shiftType.id))
-                        |> set #durationMinutes (Just 300)
+                        |> setTestDurationMinutes (Just 300)
                     )
 
                 liveResponse <- withUserAndCurrentVenue manager venue.id do
@@ -1114,8 +1232,8 @@ tests = aroundAll withDatabaseTestContext do
                 timesheetsResponse `responseBodyShouldContain` cs (pathTo EditTimesheetEntryAction { timesheetEntryId = materializedEntry.id })
                 unchangedEntry <- fetch materializedEntry.id
                 unchangedEntry.sourceRosterSlotId `shouldBe` Just (unpackId sourceSlot.id)
-                unchangedEntry.startTime `shouldBe` timeOfDay 9 0
-                unchangedEntry.endTime `shouldBe` timeOfDay 17 0
+                testStartTime unchangedEntry `shouldBe` timeOfDay 9 0
+                testEndTime unchangedEntry `shouldBe` timeOfDay 17 0
 
         it "warns and leaves a materialized timesheet snapshot unchanged when its roster source is edited" $ withContext do
             withCleanDb do
@@ -1134,10 +1252,10 @@ tests = aroundAll withDatabaseTestContext do
                 slot <- createRosterSlotRecord rosterDay slotName (Just alpha) 0
                 completeSlot <- updateRecord
                     ( slot
-                        |> set #startTime (Just (timeOfDay 22 0))
-                        |> set #endTime (Just (timeOfDay 2 0))
+                        |> setTestStartTime (Just (timeOfDay 22 0))
+                        |> setTestEndTime (Just (timeOfDay 2 0))
                         |> set #shiftTypeId (Just (unpackId shiftType.id))
-                        |> set #durationMinutes (Just 240)
+                        |> setTestDurationMinutes (Just 240)
                     )
 
                 createResponse <- withUserAndCurrentVenue manager venue.id do
@@ -1161,8 +1279,8 @@ tests = aroundAll withDatabaseTestContext do
                 response `responseBodyShouldContain` "A timesheet entry was already created from this roster shift. The timesheet snapshot was not changed."
                 unchangedEntry <- fetch entry.id
                 unchangedEntry.staffId `shouldBe` unpackId alpha.id
-                unchangedEntry.startTime `shouldBe` timeOfDay 22 0
-                unchangedEntry.endTime `shouldBe` timeOfDay 2 0
+                testStartTime unchangedEntry `shouldBe` timeOfDay 22 0
+                testEndTime unchangedEntry `shouldBe` timeOfDay 2 0
                 unchangedEntry.sourceRosterSlotId `shouldBe` Just (unpackId completeSlot.id)
 
         it "blocks publishing staffed shifts missing end times or shift types when enabled" $ withContext do
@@ -1179,7 +1297,7 @@ tests = aroundAll withDatabaseTestContext do
                 rosterWeek <- createRosterWeekRecord venue 0 False
                 rosterDay <- createRosterDayRecord rosterWeek 0
                 slot <- createRosterSlotRecord rosterDay slotName (Just staffMember) 0
-                _ <- updateRecord (slot |> set #startTime (Just (timeOfDay 9 0)) |> set #shiftTypeId Nothing)
+                _ <- updateRecord (slot |> setTestStartTime (Just (timeOfDay 9 0)) |> set #shiftTypeId Nothing)
 
                 draftResponse <- withUserAndCurrentVenue manager venue.id do
                     callAction (ShowRosterWeekAction 0)
@@ -1201,9 +1319,9 @@ tests = aroundAll withDatabaseTestContext do
 
                 _ <- updateRecord
                     ( slot
-                        |> set #endTime (Just (timeOfDay 17 0))
+                        |> setTestEndTime (Just (timeOfDay 17 0))
                         |> set #shiftTypeId (Just (unpackId shiftType.id))
-                        |> set #durationMinutes (Just 480)
+                        |> setTestDurationMinutes (Just 480)
                     )
 
                 publishedResponse <- withUserAndCurrentVenue manager venue.id do
@@ -1232,7 +1350,7 @@ tests = aroundAll withDatabaseTestContext do
                 rosterWeek <- createRosterWeekRecord venue 0 False
                 rosterDay <- createRosterDayRecord rosterWeek 0
                 slot <- createRosterSlotRecord rosterDay slotName (Just staffMember) 0
-                _ <- updateRecord (slot |> set #startTime (Just (timeOfDay 9 0)) |> set #shiftTypeId Nothing)
+                _ <- updateRecord (slot |> setTestStartTime (Just (timeOfDay 9 0)) |> set #shiftTypeId Nothing)
 
                 blockedResponse <- withUserAndCurrentVenue manager venue.id do
                     withRequestHeaders [("HX-Request", "true")] do
@@ -1258,7 +1376,7 @@ tests = aroundAll withDatabaseTestContext do
                 stillBlockedWeek <- fetch rosterWeek.id
                 stillBlockedWeek.isLive `shouldBe` False
 
-                _ <- updateRecord (slot |> set #endTime (Just (timeOfDay 17 0)) |> set #durationMinutes (Just 480))
+                _ <- updateRecord (slot |> setTestEndTime (Just (timeOfDay 17 0)) |> setTestDurationMinutes (Just 480))
 
                 publishedResponse <- withUserAndCurrentVenue manager venue.id do
                     withRequestHeaders [("HX-Request", "true")] do
@@ -1297,10 +1415,10 @@ tests = aroundAll withDatabaseTestContext do
 
                 response `responseStatusShouldBe` status200
                 updatedSlot <- fetch slot.id
-                updatedSlot.startTime `shouldBe` Just (timeOfDay 22 0)
-                updatedSlot.endTime `shouldBe` Just (timeOfDay 2 0)
+                testStartTime updatedSlot `shouldBe` Just (timeOfDay 22 0)
+                testEndTime updatedSlot `shouldBe` Just (timeOfDay 2 0)
                 updatedSlot.shiftTypeId `shouldBe` Just (unpackId shiftType.id)
-                updatedSlot.durationMinutes `shouldBe` Just 240
+                testDurationMinutes updatedSlot `shouldBe` Just 240
 
         it "manager slot edits save end times when roster end times are hidden" $ withContext do
             withCleanDb do
@@ -1331,10 +1449,10 @@ tests = aroundAll withDatabaseTestContext do
                 response `responseBodyShouldNotContain` "roster-col-time\">End"
                 response `responseBodyShouldNotContain` ">2:00 AM<"
                 updatedSlot <- fetch slot.id
-                updatedSlot.startTime `shouldBe` Just (timeOfDay 22 0)
-                updatedSlot.endTime `shouldBe` Just (timeOfDay 2 0)
+                testStartTime updatedSlot `shouldBe` Just (timeOfDay 22 0)
+                testEndTime updatedSlot `shouldBe` Just (timeOfDay 2 0)
                 updatedSlot.shiftTypeId `shouldBe` Just (unpackId shiftType.id)
-                updatedSlot.durationMinutes `shouldBe` Just 240
+                testDurationMinutes updatedSlot `shouldBe` Just 240
 
         it "manager can toggle a live week back to draft" $ withContext do
             withCleanDb do
@@ -1591,8 +1709,8 @@ tests = aroundAll withDatabaseTestContext do
                 sourceSlot <- createRosterSlotRecord sourceDay slotName (Just staffMember) 0
                 let sourceSlotWithFields =
                         sourceSlot
-                            |> set #startTime (Just (timeOfDay 9 0))
-                            |> set #durationMinutes (Just 480)
+                            |> setTestStartTime (Just (timeOfDay 9 0))
+                            |> setTestDurationMinutes (Just 480)
                 _ <- updateRecord sourceSlotWithFields
 
                 response <- withUser manager do
@@ -1626,8 +1744,76 @@ tests = aroundAll withDatabaseTestContext do
                 copiedSlot.staffId `shouldBe` Just (unpackId staffMember.id)
                 copiedSlotDefinition.name `shouldBe` slotName.name
                 copiedSlot.rowIndex `shouldBe` 0
-                copiedSlot.startTime `shouldBe` Just (timeOfDay 9 0)
-                copiedSlot.durationMinutes `shouldBe` Just 480
+                testStartTime copiedSlot `shouldBe` Just (timeOfDay 9 0)
+                testDurationMinutes copiedSlot `shouldBe` Just 480
+
+        it "copies roster clocks across autumn only after choosing the repeated occurrence" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Roster Copy Autumn Venue"
+                manager <- createUserRecord "roster-copy-autumn-manager@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue manager "manager"
+                slotName <- fetchSlotNameRecord venue "Early"
+                staffMember <- createStaffRecord venue Nothing "Copy" "Crew"
+                sourceWeek <- createRosterWeekRecord venue 63 True
+                sourceDay <- createRosterDayRecord sourceWeek 5
+                sourceSlot <- createRosterSlotRecord sourceDay slotName (Just staffMember) 0
+                _ <- sourceSlot
+                    |> setTestRosterSlotBoundaries (fromGregorian 2026 3 28) (timeOfDay 2 30) (timeOfDay 4 0)
+                    |> updateRecord
+                ordinarySourceSlot <- createRosterSlotRecord sourceDay slotName (Just staffMember) 1
+                _ <- ordinarySourceSlot
+                    |> setTestRosterSlotBoundaries (fromGregorian 2026 3 28) (timeOfDay 9 0) (timeOfDay 17 0)
+                    |> updateRecord
+
+                chooserResponse <- withUserAndCurrentVenue manager venue.id do
+                    withRequestHeaders [("HX-Request", "true")] do
+                        callAction (CopyRosterWeekAction 63 64)
+
+                chooserResponse `responseStatusShouldBe` status200
+                chooserResponse `responseBodyShouldContain` "data-bepis-surface-action=\"copy-roster-week\""
+                chooserResponse `responseBodyShouldContain` "hx-target=\"#roster-content\""
+                chooserResponse `responseBodyShouldContain` "data-time-occurrence-chooser=\"copyStartOccurrence\""
+                chooserResponse `responseBodyShouldNotContain` "data-time-occurrence-chooser=\"copyEndOccurrence\""
+                query @RosterWeek
+                    |> filterWhere (#venueId, unpackId venue.id)
+                    |> filterWhere (#weekOffset, 64)
+                    |> fetchCount
+                    >>= (`shouldBe` 0)
+
+                copiedResponse <- withUserAndCurrentVenue manager venue.id do
+                    withRequestHeaders [("HX-Request", "true")] do
+                        callActionWithParams
+                            (CopyRosterWeekAction 63 64)
+                            [("copyStartOccurrence", "second")]
+
+                copiedResponse `responseStatusShouldBe` status200
+                copiedWeek <- query @RosterWeek
+                    |> filterWhere (#venueId, unpackId venue.id)
+                    |> filterWhere (#weekOffset, 64)
+                    |> fetchOne
+                copiedDay <- query @RosterDay
+                    |> filterWhere (#rosterWeekId, unpackId copiedWeek.id)
+                    |> filterWhere (#dayOffset, 5)
+                    |> fetchOne
+                copiedSlot <- query @RosterSlot
+                    |> filterWhere (#rosterDayId, unpackId copiedDay.id)
+                    |> filterWhere (#rowIndex, 0)
+                    |> filterWhere (#deletedAt, Nothing)
+                    |> fetchOne
+                ordinaryCopiedSlot <- query @RosterSlot
+                    |> filterWhere (#rosterDayId, unpackId copiedDay.id)
+                    |> filterWhere (#rowIndex, 1)
+                    |> filterWhere (#deletedAt, Nothing)
+                    |> fetchOne
+                copiedStartsAt <- maybe (expectationFailure "Expected copied roster start" >> error "unreachable") pure copiedSlot.startsAt
+                storedInstantOccurrence copiedSlot.timezone copiedStartsAt `shouldBe` Just SecondOccurrence
+                (storedInstantLocalTime copiedSlot.timezone copiedStartsAt).localDay `shouldBe` fromGregorian 2026 4 5
+                testStartTime copiedSlot `shouldBe` Just (timeOfDay 2 30)
+                testEndTime copiedSlot `shouldBe` Just (timeOfDay 4 0)
+                testDurationMinutes copiedSlot `shouldBe` Just 90
+                testStartTime ordinaryCopiedSlot `shouldBe` Just (timeOfDay 9 0)
+                testEndTime ordinaryCopiedSlot `shouldBe` Just (timeOfDay 17 0)
+                rosterSlotStartOccurrence ordinaryCopiedSlot `shouldBe` Nothing
 
         it "manager can overwrite an existing target week with the previous roster" $ withContext do
             withCleanDb do
@@ -1644,8 +1830,8 @@ tests = aroundAll withDatabaseTestContext do
                 sourceSlot <- createRosterSlotRecord sourceDay early (Just alpha) 0
                 _ <- updateRecord
                     ( sourceSlot
-                        |> set #startTime (Just (timeOfDay 8 0))
-                        |> set #durationMinutes (Just 300)
+                        |> setTestStartTime (Just (timeOfDay 8 0))
+                        |> setTestDurationMinutes (Just 300)
                     )
 
                 targetWeek <- createRosterWeekRecord venue 1 False
@@ -1653,8 +1839,8 @@ tests = aroundAll withDatabaseTestContext do
                 targetSlot <- createRosterSlotRecord targetDay late (Just bravo) 0
                 _ <- updateRecord
                     ( targetSlot
-                        |> set #startTime (Just (timeOfDay 14 0))
-                        |> set #durationMinutes (Just 180)
+                        |> setTestStartTime (Just (timeOfDay 14 0))
+                        |> setTestDurationMinutes (Just 180)
                     )
 
                 response <- withUserAndCurrentVenue manager venue.id do
@@ -1686,8 +1872,8 @@ tests = aroundAll withDatabaseTestContext do
                 copiedSlotDefinition <- fetch (Id copiedSlot.rosterWeekSlotDefinitionId :: Id RosterWeekSlotDefinition)
                 copiedSlot.staffId `shouldBe` Just (unpackId alpha.id)
                 copiedSlotDefinition.name `shouldBe` early.name
-                copiedSlot.startTime `shouldBe` Just (timeOfDay 8 0)
-                copiedSlot.durationMinutes `shouldBe` Just 300
+                testStartTime copiedSlot `shouldBe` Just (timeOfDay 8 0)
+                testDurationMinutes copiedSlot `shouldBe` Just 300
 
         it "copying over a live target week explicitly replaces it as a draft" $ withContext do
             withCleanDb do
@@ -1704,8 +1890,8 @@ tests = aroundAll withDatabaseTestContext do
                 sourceSlot <- createRosterSlotRecord sourceDay early (Just alpha) 0
                 _ <- updateRecord
                     ( sourceSlot
-                        |> set #startTime (Just (timeOfDay 8 0))
-                        |> set #durationMinutes (Just 300)
+                        |> setTestStartTime (Just (timeOfDay 8 0))
+                        |> setTestDurationMinutes (Just 300)
                     )
 
                 targetWeek <- createRosterWeekRecord venue 1 True
@@ -1713,8 +1899,8 @@ tests = aroundAll withDatabaseTestContext do
                 targetSlot <- createRosterSlotRecord targetDay late (Just bravo) 0
                 _ <- updateRecord
                     ( targetSlot
-                        |> set #startTime (Just (timeOfDay 14 0))
-                        |> set #durationMinutes (Just 180)
+                        |> setTestStartTime (Just (timeOfDay 14 0))
+                        |> setTestDurationMinutes (Just 180)
                     )
 
                 response <- withUserAndCurrentVenue manager venue.id do
@@ -1740,7 +1926,7 @@ tests = aroundAll withDatabaseTestContext do
                 copiedSlotDefinition <- fetch (Id copiedSlot.rosterWeekSlotDefinitionId :: Id RosterWeekSlotDefinition)
                 copiedSlot.staffId `shouldBe` Just (unpackId alpha.id)
                 copiedSlotDefinition.name `shouldBe` early.name
-                copiedSlot.startTime `shouldBe` Just (timeOfDay 8 0)
+                testStartTime copiedSlot `shouldBe` Just (timeOfDay 8 0)
                 replacedTargetSlot <- fetch targetSlot.id
                 replacedTargetSlot.deletedAt `shouldSatisfy` isJust
 
@@ -1759,19 +1945,19 @@ tests = aroundAll withDatabaseTestContext do
                 frontSourceWeek <- createRosterWeekRecordForRosterGroup venue frontOfHouse 0 True
                 frontSourceDay <- createRosterDayRecord frontSourceWeek 0
                 frontSourceSlot <- createRosterSlotRecord frontSourceDay frontSlotName (Just alpha) 0
-                _ <- updateRecord (frontSourceSlot |> set #startTime (Just (timeOfDay 8 0)))
+                _ <- updateRecord (frontSourceSlot |> setTestStartTime (Just (timeOfDay 8 0)))
 
                 backSourceWeek <- createRosterWeekRecordForRosterGroup venue backOfHouse 0 True
                 backSourceDay <- createRosterDayRecord backSourceWeek 0
                 backSourceSlot <- createRosterSlotRecord backSourceDay backSlotName (Just bravo) 0
-                _ <- updateRecord (backSourceSlot |> set #startTime (Just (timeOfDay 12 0)))
+                _ <- updateRecord (backSourceSlot |> setTestStartTime (Just (timeOfDay 12 0)))
 
                 frontTargetWeek <- createRosterWeekRecordForRosterGroup venue frontOfHouse 1 False
                 _ <- createRosterDayRecord frontTargetWeek 0
                 backTargetWeek <- createRosterWeekRecordForRosterGroup venue backOfHouse 1 False
                 backTargetDay <- createRosterDayRecord backTargetWeek 0
                 backTargetSlot <- createRosterSlotRecord backTargetDay backSlotName (Just bravo) 0
-                _ <- updateRecord (backTargetSlot |> set #startTime (Just (timeOfDay 15 0)))
+                _ <- updateRecord (backTargetSlot |> setTestStartTime (Just (timeOfDay 15 0)))
 
                 response <- withUserAndCurrentVenue manager venue.id do
                     callActionWithParams
@@ -1791,12 +1977,12 @@ tests = aroundAll withDatabaseTestContext do
                 length frontCopiedSlots `shouldBe` 1
                 let frontCopiedSlot = fromJust (head frontCopiedSlots)
                 frontCopiedSlot.staffId `shouldBe` Just (unpackId alpha.id)
-                frontCopiedSlot.startTime `shouldBe` Just (timeOfDay 8 0)
+                testStartTime frontCopiedSlot `shouldBe` Just (timeOfDay 8 0)
 
                 backUnchangedSlot <- fetch backTargetSlot.id
                 backUnchangedSlot.deletedAt `shouldBe` Nothing
                 backUnchangedSlot.staffId `shouldBe` Just (unpackId bravo.id)
-                backUnchangedSlot.startTime `shouldBe` Just (timeOfDay 15 0)
+                testStartTime backUnchangedSlot `shouldBe` Just (timeOfDay 15 0)
                 backActiveSlots <- query @RosterSlot
                     |> filterWhere (#rosterDayId, unpackId backTargetDay.id)
                     |> filterWhere (#deletedAt, Nothing)

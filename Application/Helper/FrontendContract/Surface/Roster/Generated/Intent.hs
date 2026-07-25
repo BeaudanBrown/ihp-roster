@@ -94,8 +94,10 @@ duplicateRosterShiftToDayIntentFields ::
     Maybe Text ->
     Maybe Text ->
     Maybe Text ->
+    Maybe Text ->
+    Maybe Text ->
     SurfaceIntentFields (AdapterFamilySurface Types3.RosterAdapterFamily) Types2.DuplicateRosterShiftToDay
-duplicateRosterShiftToDayIntentFields sourceItemKey targetDropzoneKey sessionKind pointerId pointerType startClientX startClientY currentClientX currentClientY deltaX deltaY =
+duplicateRosterShiftToDayIntentFields sourceItemKey targetDropzoneKey sessionKind pointerId pointerType startClientX startClientY currentClientX currentClientY deltaX deltaY copyStartOccurrence copyEndOccurrence =
     surfaceIntentFields
         (surfaceField @Types1.SourceItemKey sourceItemKey)
         ( surfaceField @Types1.TargetDropzoneKey targetDropzoneKey
@@ -108,6 +110,8 @@ duplicateRosterShiftToDayIntentFields sourceItemKey targetDropzoneKey sessionKin
             &: surfaceOptionalField @Types1.CurrentClientY currentClientY
             &: surfaceOptionalField @Types1.DeltaX deltaX
             &: surfaceOptionalField @Types1.DeltaY deltaY
+            &: surfaceOptionalField @Types2.CopyStartOccurrence copyStartOccurrence
+            &: surfaceOptionalField @Types2.CopyEndOccurrence copyEndOccurrence
             &: noSurfaceFields
         )
 
@@ -137,8 +141,10 @@ moveRosterShiftToSlotIntentFields ::
     Maybe Text ->
     Maybe Text ->
     Maybe Text ->
+    Maybe Text ->
+    Maybe Text ->
     SurfaceIntentFields (AdapterFamilySurface Types3.RosterAdapterFamily) Types2.MoveRosterShiftToSlot
-moveRosterShiftToSlotIntentFields sourceItemKey targetDropzoneKey sessionKind pointerId pointerType startClientX startClientY currentClientX currentClientY deltaX deltaY =
+moveRosterShiftToSlotIntentFields sourceItemKey targetDropzoneKey sessionKind pointerId pointerType startClientX startClientY currentClientX currentClientY deltaX deltaY copyStartOccurrence copyEndOccurrence =
     surfaceIntentFields
         (surfaceField @Types1.SourceItemKey sourceItemKey)
         ( surfaceField @Types1.TargetDropzoneKey targetDropzoneKey
@@ -151,6 +157,8 @@ moveRosterShiftToSlotIntentFields sourceItemKey targetDropzoneKey sessionKind po
             &: surfaceOptionalField @Types1.CurrentClientY currentClientY
             &: surfaceOptionalField @Types1.DeltaX deltaX
             &: surfaceOptionalField @Types1.DeltaY deltaY
+            &: surfaceOptionalField @Types2.CopyStartOccurrence copyStartOccurrence
+            &: surfaceOptionalField @Types2.CopyEndOccurrence copyEndOccurrence
             &: noSurfaceFields
         )
 
@@ -180,8 +188,10 @@ moveRosterTimelineShiftIntentFields ::
     Maybe Text ->
     Maybe Text ->
     Maybe Text ->
+    Maybe Text ->
+    Maybe Text ->
     SurfaceIntentFields (AdapterFamilySurface Types3.RosterDayTimelineAdapterFamily) Types2.MoveRosterTimelineShift
-moveRosterTimelineShiftIntentFields sourceItemKey targetDropzoneKey sessionKind pointerId pointerType startClientX startClientY currentClientX currentClientY deltaX deltaY =
+moveRosterTimelineShiftIntentFields sourceItemKey targetDropzoneKey sessionKind pointerId pointerType startClientX startClientY currentClientX currentClientY deltaX deltaY timelineStartOccurrence timelineEndOccurrence =
     surfaceIntentFields
         (surfaceField @Types1.SourceItemKey sourceItemKey)
         ( surfaceField @Types1.TargetDropzoneKey targetDropzoneKey
@@ -194,6 +204,8 @@ moveRosterTimelineShiftIntentFields sourceItemKey targetDropzoneKey sessionKind 
             &: surfaceOptionalField @Types1.CurrentClientY currentClientY
             &: surfaceOptionalField @Types1.DeltaX deltaX
             &: surfaceOptionalField @Types1.DeltaY deltaY
+            &: surfaceOptionalField @Types2.TimelineStartOccurrence timelineStartOccurrence
+            &: surfaceOptionalField @Types2.TimelineEndOccurrence timelineEndOccurrence
             &: noSurfaceFields
         )
 

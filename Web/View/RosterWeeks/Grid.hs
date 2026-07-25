@@ -55,6 +55,7 @@ import Application.Helper.TimeRules (rosterOperationalFinalSelectableTimeText,
                                      rosterOperationalStartTimeText)
 import Application.Helper.UserPreferences (rosterLayoutModeValue)
 import Application.Helper.View (staffDisplayName)
+import Application.VenueTime.Model (rosterSlotStartTime)
 import Data.Coerce (coerce)
 import Data.List (sortOn)
 import qualified Data.Map.Strict as Map
@@ -658,8 +659,8 @@ compactDayColumnSlots slotNames daySlots =
             | (slotIndex, slotName) <- zip [0 :: Int ..] slotNames
             ]
     slotOrder slot =
-        ( isNothing slot.startTime
-        , slot.startTime
+        ( isNothing slot.startsAt
+        , rosterSlotStartTime slot
         , Map.findWithDefault (length slotNames) slot.rosterWeekSlotDefinitionId definitionOrderById
         , slot.rowIndex
         , slot.createdAt
@@ -692,10 +693,9 @@ firstAvailableDayColumnTarget slotNames rosterDay daySlots =
 rosterSlotHasVisibleData :: RosterSlot -> Bool
 rosterSlotHasVisibleData slot =
     isJust slot.staffId
-        || isJust slot.startTime
-        || isJust slot.endTime
+        || isJust slot.startsAt
+        || isJust slot.endsAt
         || isJust slot.shiftTypeId
-        || isJust slot.durationMinutes
 
 renderDayColumnRow :: (?context :: ControllerContext) => RosterRowRenderModel -> (Int, (Int, [RosterSlot])) -> Maybe Text -> Html
 renderDayColumnRow RosterRowRenderModel { rowIsEditable, rowSlotNames, rowAssignmentFilters, rowStaffMembers, rowShiftTypes, rowRosterDay, rowRenderIndexes, rowRosterEndTimesEnabled, rowPublishAttempted } (_, (rowIndex, rowSlots)) maybeSwapOob = [hsx|

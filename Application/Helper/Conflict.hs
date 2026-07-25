@@ -3,7 +3,9 @@ module Application.Helper.Conflict where
 import Application.Helper.Controller (LeaveRequestStatus (..),
                                       parseLeaveRequestStatus)
 import Application.Helper.WeekBoundaries (weekdayIndexForDay)
+import Application.VenueTime.Model (rosterSlotStartTime)
 import Data.Time.Calendar (Day)
+import Data.Time.Clock (diffUTCTime)
 import Data.Time.LocalTime (TimeOfDay (..))
 import Generated.Types
 import IHP.ModelSupport (unpackId)
@@ -122,7 +124,7 @@ checkShiftPreferenceDayUnavailable ctx =
 
 checkShiftPreferenceStartWindowMismatch :: ConflictContext -> Maybe RosterConflict
 checkShiftPreferenceStartWindowMismatch ctx =
-    case (ctx.slot.staffId, ctx.slot.startTime) of
+    case (ctx.slot.staffId, rosterSlotStartTime ctx.slot) of
         (Just _, Just startTime) ->
             case shiftPreferencesForDay ctx of
                 [] -> Nothing
@@ -155,9 +157,10 @@ checkLateToEarlyConflict ctx
         case findIndex ((== get #id ctx.slot) . fst) timeline of
             Nothing -> Nothing
             Just currentIndex ->
-                let previousGap = if currentIndex > 0 then Just (snd (timeline !! currentIndex) - snd (timeline !! (currentIndex - 1))) else Nothing
-                    nextGap = if currentIndex + 1 < length timeline then Just (snd (timeline !! (currentIndex + 1)) - snd (timeline !! currentIndex)) else Nothing
-                    isBelowThreshold = any (< ctx.lateToEarlyMinStartGapMinutes) (catMaybes [previousGap, nextGap])
+                let previousGap = if currentIndex > 0 then Just (diffUTCTime (snd (timeline !! currentIndex)) (snd (timeline !! (currentIndex - 1)))) else Nothing
+                    nextGap = if currentIndex + 1 < length timeline then Just (diffUTCTime (snd (timeline !! (currentIndex + 1))) (snd (timeline !! currentIndex))) else Nothing
+                    thresholdSeconds = fromIntegral (ctx.lateToEarlyMinStartGapMinutes * 60)
+                    isBelowThreshold = any (< thresholdSeconds) (catMaybes [previousGap, nextGap])
                  in if isBelowThreshold
                         then Just RosterConflict
                             { conflictType = LateToEarlyConflict
@@ -168,20 +171,8 @@ checkLateToEarlyConflict ctx
     where
         timeline =
             ctx.weekSlots
-                |> mapMaybe (\candidate -> (,) (get #id candidate) <$> slotStartMinuteOfWeek ctx.weekRosterDays candidate)
+                |> mapMaybe (\candidate -> (,) (get #id candidate) <$> candidate.startsAt)
                 |> sortBy (comparing snd)
-
-slotStartMinuteOfWeek :: [RosterDay] -> RosterSlot -> Maybe Int
-slotStartMinuteOfWeek rosterDays candidate = do
-    dayOffset <- findDayOffset candidate.rosterDayId
-    startTime <- candidate.startTime
-    let minutesFromDayStart = todHour startTime * 60 + todMin startTime
-    pure (dayOffset * 1440 + minutesFromDayStart)
-    where
-        findDayOffset rosterDayId =
-            rosterDays
-                |> find (\day -> unpackId (get #id day) == rosterDayId)
-                |> fmap (.dayOffset)
 
 checkIdealShiftThreshold :: ConflictContext -> Maybe RosterConflict
 checkIdealShiftThreshold ctx =

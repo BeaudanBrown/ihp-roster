@@ -28,12 +28,17 @@ import Application.Helper.FrontendContract.Surface.Values
 import Application.Helper.View.Audience
 import Application.Helper.View.Format
 import Application.Helper.View.Overlay
+import Application.Helper.View.TimeOccurrence
 import Application.Helper.View.TimePicker
 import Application.Helper.View.ToggleButton
+import Application.VenueTime (RepeatedTimeOccurrence)
+import Application.VenueTime.Model
 import qualified Data.Text as Text
 import Data.Time.Calendar (Day)
 import Data.Time.Format (defaultTimeLocale, formatTime)
+import Data.Time.LocalTime (LocalTime (..))
 import Generated.Types
+import qualified IHP.Prelude as Prelude
 import IHP.ViewPrelude
 import Web.Types
 
@@ -90,37 +95,40 @@ renderTimesheetFormFields formOrigin entry staffMembers shiftTypes weekOffset sh
     {renderStaffFieldForOrigin formOrigin entry staffMembers}
     {renderShiftTypeField entry shiftTypes}
     <input type="hidden" name="workedOn" value={dateValueIso} />
-    {renderFieldError entry "workedOn"}
+    {renderFieldError entry "startsAt"}
 
     <div class="row mb-3">
         <div class="col">
             <label class="form-label">Shift Start</label>
             {renderTimePickerField (defaultTimePickerConfig "startTime" startTimeValue pickerStart pickerEnd False)}
-            {renderFieldError entry "startTime"}
+            {renderOccurrenceChooser entry "startsAt" "startOccurrence" "Shift start occurrence" startLocalTime (authoritativeStartOccurrence boundaries)}
+            {renderFieldError entry "startsAt"}
         </div>
         <div class="col">
             <label class="form-label">Shift End</label>
             {renderTimePickerField (defaultTimePickerConfig "endTime" endTimeValue pickerStart pickerEnd False)}
-            {renderFieldError entry "endTime"}
+            {renderOccurrenceChooser entry "endsAt" "endOccurrence" "Shift end occurrence" endLocalTime (authoritativeEndOccurrence boundaries)}
+            {renderFieldError entry "endsAt"}
         </div>
     </div>
 
     <div class="mb-3">
         {renderTimesheetBreakToggle entry}
-        {renderFieldError entry "hadBreak"}
     </div>
 
-    {renderTimesheetBreakFields entry breakStartTimeValue breakEndTimeValue pickerStart pickerEnd}
-    {renderFieldError entry "breakMinutes"}
+    {renderTimesheetBreakFields entry boundaries breakStartTimeValue breakEndTimeValue pickerStart pickerEnd}
     {renderTimesheetStaffCommentField entry currentViewerStaffId}
     {renderTimesheetManagerNoteField entry}
 |]
     where
-        startTimeValue = timeOfDayToStorageValue entry.startTime
-        endTimeValue = timeOfDayToStorageValue entry.endTime
-        breakStartTimeValue = optionalTimeOfDayToStorageValue entry.breakStartTime
-        breakEndTimeValue = optionalTimeOfDayToStorageValue entry.breakEndTime
-        dateValueIso = tshow entry.workedOn :: Text
+        boundaries = either (error . ("Invalid timesheet form boundaries: " <>) . show) Prelude.id (timesheetEntryBoundaries entry)
+        startLocalTime = authoritativeStartLocalTime boundaries
+        endLocalTime = authoritativeEndLocalTime boundaries
+        startTimeValue = timeOfDayToStorageValue startLocalTime.localTimeOfDay
+        endTimeValue = timeOfDayToStorageValue endLocalTime.localTimeOfDay
+        breakStartTimeValue = optionalTimeOfDayToStorageValue (timesheetEntryBreakStartTime entry)
+        breakEndTimeValue = optionalTimeOfDayToStorageValue (timesheetEntryBreakEndTime entry)
+        dateValueIso = tshow startLocalTime.localDay :: Text
         stateFields =
             TimesheetsAction.createTimesheetEntryFromSuggestionActionFields
                 weekOffset
@@ -129,20 +137,38 @@ renderTimesheetFormFields formOrigin entry staffMembers shiftTypes weekOffset sh
                 showSuggestions
                 selectedStaffFilterId
 
-renderTimesheetBreakFields :: TimesheetEntry -> Text -> Text -> Text -> Text -> Html
-renderTimesheetBreakFields entry breakStartTimeValue breakEndTimeValue pickerStart pickerEnd =
-    renderAppToggleBreakRegion timesheetBreakRegion entry.hadBreak "row mb-3" [hsx|
+renderTimesheetBreakFields :: TimesheetEntry -> AuthoritativeBoundaries -> Text -> Text -> Text -> Text -> Html
+renderTimesheetBreakFields entry boundaries breakStartTimeValue breakEndTimeValue pickerStart pickerEnd =
+    renderAppToggleBreakRegion timesheetBreakRegion (timesheetEntryHadBreak entry) "row mb-3" [hsx|
         <div class="col">
             <label class="form-label">Break Start</label>
             {renderTimePickerField (defaultTimePickerConfig "breakStartTime" breakStartTimeValue pickerStart pickerEnd False)}
-            {renderFieldError entry "breakStartTime"}
+            {maybe mempty (\localTime -> renderOccurrenceChooser entry "breakStartsAt" "breakStartOccurrence" "Break start occurrence" localTime (authoritativeBreakStartOccurrence boundaries)) (authoritativeBreakStartLocalTime boundaries)}
+            {renderFieldError entry "breakStartsAt"}
         </div>
         <div class="col">
             <label class="form-label">Break End</label>
             {renderTimePickerField (defaultTimePickerConfig "breakEndTime" breakEndTimeValue pickerStart pickerEnd False)}
-            {renderFieldError entry "breakEndTime"}
+            {maybe mempty (\localTime -> renderOccurrenceChooser entry "breakEndsAt" "breakEndOccurrence" "Break end occurrence" localTime (authoritativeBreakEndOccurrence boundaries)) (authoritativeBreakEndLocalTime boundaries)}
+            {renderFieldError entry "breakEndsAt"}
         </div>
     |]
+
+renderOccurrenceChooser :: TimesheetEntry -> Text -> Text -> Text -> LocalTime -> Maybe RepeatedTimeOccurrence -> Html
+renderOccurrenceChooser entry annotationField fieldName label localTime storedOccurrence
+    | not (civilBoundaryIsRepeated localTime.localDay localTime.localTimeOfDay) = mempty
+    | otherwise =
+        renderTimeOccurrenceChooser
+            TimeOccurrenceChooserConfig
+                { timeOccurrenceFieldName = fieldName
+                , timeOccurrenceLabel = label
+                , timeOccurrenceSelected = selectedOccurrence
+                }
+  where
+    selectedOccurrence =
+        case lookup annotationField entry.meta.annotations of
+            Just (TextViolation "Choose whether this is the first or second occurrence.") -> Nothing
+            _ -> storedOccurrence
 
 renderTimesheetFormOriginNotice :: TimesheetFormOrigin -> Html
 renderTimesheetFormOriginNotice AdHocTimesheetForm = mempty
@@ -194,8 +220,8 @@ timesheetBreakRegion = toggleBreakRegion "timesheet-break-time-fields"
 renderTimesheetBreakToggle :: TimesheetEntry -> Html
 renderTimesheetBreakToggle entry =
     renderAppToggleButton $
-        (defaultAppToggleButtonConfig "hadBreak" (namedBooleanToggleField "hadBreak") entry.hadBreak [hsx|<span>Had break</span>|])
-            { appToggleButtonClass = classes [("btn-sm", True), ("is-invalid", hasErrorFor entry "hadBreak")]
+        (defaultAppToggleButtonConfig "hadBreak" (namedBooleanToggleField "hadBreak") (timesheetEntryHadBreak entry) [hsx|<span>Had break</span>|])
+            { appToggleButtonClass = classes [("btn-sm", True), ("is-invalid", hasErrorFor entry "breakStartsAt")]
             , appToggleBreakRegion = Just timesheetBreakRegion
             }
 

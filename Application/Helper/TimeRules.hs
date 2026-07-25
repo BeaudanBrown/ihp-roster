@@ -53,6 +53,11 @@ rosterOperationalStartTimeText = "06:00"
 rosterOperationalFinalSelectableTimeText :: Text
 rosterOperationalFinalSelectableTimeText = "05:45"
 
+rosterShiftStartDate :: Day -> TimeOfDay -> Day
+rosterShiftStartDate rosterDate startTime
+    | timeOfDayToMinutes startTime < rosterOperationalStartMinuteOfDay = addDays 1 rosterDate
+    | otherwise = rosterDate
+
 defaultNewShiftDurationMinutes :: Int
 defaultNewShiftDurationMinutes = 8 * 60
 

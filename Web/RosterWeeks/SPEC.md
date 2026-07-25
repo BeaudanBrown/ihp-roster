@@ -117,7 +117,21 @@ lands.
 
 - Roster weeks are venue-scoped and may be roster-group-scoped as the group
   model lands.
-- Roster days group slots by day offset.
+- Roster days group slots by hospitality operational-day offset. A shift starting
+  before 06:00 belongs to that operational day but resolves on the following
+  calendar date; 06:00 and later resolve on the displayed roster date.
+- Roster slots persist authoritative `TIMESTAMPTZ` start/end boundaries plus the
+  `Australia/Melbourne` timezone snapshot. Local dates and clocks are projections;
+  elapsed duration, automatic-break eligibility, and wage prediction use instant
+  differences, including DST transitions.
+- Ambiguous autumn endpoints require an explicit first/second occurrence only
+  for the endpoint that repeats. First-to-second endpoints with equal repeated
+  clocks form their positive elapsed interval on the same date. Nonexistent
+  spring endpoints are rejected.
+  Week and slot copies retain source clock values on the target calendar date,
+  re-resolve them there, and request target occurrences when needed rather than
+  preserving a UTC duration. Timeline drags likewise request any repeated target
+  start/end occurrence before mutating the slot.
 - Roster days store their visible open-day row count independently of slots.
 - Roster slots are sparse positioned data records. Blank editable cells are
   rendered from the day row count and active slot definitions; active blank

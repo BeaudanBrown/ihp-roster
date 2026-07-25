@@ -13,6 +13,7 @@ import Application.Helper.Pay (ensurePayVersionsForTimesheetApproval,
                                lockPayVersionsForApproval,
                                payVersionManifestForEntry)
 import Application.Helper.SurfaceResource
+import Application.VenueTime.Model
 import Control.Monad (void)
 import qualified Data.Aeson as Aeson
 import Data.Time.Calendar (diffDays)
@@ -40,7 +41,8 @@ materializeTimesheetSuggestionMutation _weekOffset expectedSuggestion timesheetE
         case existingEntry of
             Just existingEntry
                 | existingEntry.staffId == expectedSuggestion.suggestionStaffId
-                    && existingEntry.workedOn == expectedSuggestion.suggestionWorkedOn ->
+                    && existingEntry.startsAt == authoritativeStartsAt expectedSuggestion.suggestionBoundaries
+                    && existingEntry.timezone == authoritativeTimezone expectedSuggestion.suggestionBoundaries ->
                     pure (Just (existingEntry, False))
                 | otherwise -> pure Nothing
             Nothing -> do
@@ -110,7 +112,8 @@ updateTimesheetEntryMutation _weekOffset existingEntry timesheetEntry shouldRese
                 (unpackId (get #id timesheetEntry))
                 (Aeson.object
                     [ "staffId" Aeson..= timesheetEntry.staffId
-                    , "workedOn" Aeson..= timesheetEntry.workedOn
+                    , "startsAt" Aeson..= timesheetEntry.startsAt
+                    , "timezone" Aeson..= timesheetEntry.timezone
                     , "previousApprovedAt" Aeson..= timesheetEntry.approvedAt
                     , "previousApprovedByUserId" Aeson..= timesheetEntry.approvedByUserId
                     ]
@@ -140,7 +143,8 @@ deleteTimesheetEntryMutation _weekOffset timesheetEntry = do
             (unpackId (get #id timesheetEntry))
             (Aeson.object
                 [ "staffId" Aeson..= timesheetEntry.staffId
-                , "workedOn" Aeson..= timesheetEntry.workedOn
+                , "startsAt" Aeson..= timesheetEntry.startsAt
+                , "timezone" Aeson..= timesheetEntry.timezone
                 , "wasApproved" Aeson..= timesheetEntry.isApproved
                 , "deletedAt" Aeson..= now
                 ]
@@ -177,7 +181,8 @@ approveTimesheetEntryMutation _weekOffset timesheetEntry = do
             (unpackId (get #id timesheetEntry))
             (Aeson.object
                 [ "staffId" Aeson..= timesheetEntry.staffId
-                , "workedOn" Aeson..= timesheetEntry.workedOn
+                , "startsAt" Aeson..= timesheetEntry.startsAt
+                , "timezone" Aeson..= timesheetEntry.timezone
                 , "wasApproved" Aeson..= timesheetEntry.isApproved
                 , "payConfigVersionManifest" Aeson..= payVersionManifestForEntry updatedEntry
                 , "approvedAt" Aeson..= now
@@ -212,7 +217,8 @@ unapproveTimesheetEntryMutation _weekOffset timesheetEntry = do
             (unpackId (get #id timesheetEntry))
             (Aeson.object
                 [ "staffId" Aeson..= timesheetEntry.staffId
-                , "workedOn" Aeson..= timesheetEntry.workedOn
+                , "startsAt" Aeson..= timesheetEntry.startsAt
+                , "timezone" Aeson..= timesheetEntry.timezone
                 , "wasApproved" Aeson..= timesheetEntry.isApproved
                 , "previousApprovedAt" Aeson..= timesheetEntry.approvedAt
                 , "previousApprovedByUserId" Aeson..= timesheetEntry.approvedByUserId
@@ -227,7 +233,8 @@ timesheetEntryTouchedResources venueConfig =
     concatMap entryResources
     where
         entryResources entry =
-            let weekOffset = venueWeekOffsetForDay venueConfig entry.workedOn
+            let workedOn = timesheetEntryWorkedOn entry
+                weekOffset = venueWeekOffsetForDay venueConfig workedOn
                 dayOffset = timesheetEntryDayOffset venueConfig entry
              in [ timesheetWeekResource entry.venueId weekOffset
                 , timesheetDayResource entry.venueId weekOffset dayOffset
@@ -235,4 +242,5 @@ timesheetEntryTouchedResources venueConfig =
 
 timesheetEntryDayOffset :: VenueConfig -> TimesheetEntry -> Int
 timesheetEntryDayOffset venueConfig entry =
-    fromIntegral (diffDays entry.workedOn (venueWeekStartDate venueConfig (venueWeekOffsetForDay venueConfig entry.workedOn)))
+    let workedOn = timesheetEntryWorkedOn entry
+     in fromIntegral (diffDays workedOn (venueWeekStartDate venueConfig (venueWeekOffsetForDay venueConfig workedOn)))

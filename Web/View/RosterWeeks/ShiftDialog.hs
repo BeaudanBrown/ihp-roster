@@ -20,12 +20,15 @@ import Application.Helper.FrontendContract.IR (AppShellActionIR)
 import Application.Helper.View (DialogOverlayConfig (..), OverlayButton (..),
                                 OverlayButtonAction (..), defaultOverlayButtons,
                                 renderDialogOverlay, staffDisplayName)
+import Application.Helper.View.TimeOccurrence
 import Application.Helper.View.TimePicker (defaultTimePickerConfig,
                                            optionalTimeOfDayToStorageValue,
                                            renderTimePickerField)
+import Application.VenueTime (RepeatedTimeOccurrence)
+import Application.VenueTime.Model
 import Data.Coerce (coerce)
 import qualified Data.Map.Strict as Map
-import Data.Maybe (isJust, isNothing)
+import Data.Maybe (isJust)
 import Data.UUID (UUID)
 import Web.RosterWeeks.Types (RosterAssignmentOptionState (..))
 import Web.View.Prelude
@@ -43,15 +46,19 @@ data RosterShiftDialogMode
 
 
 data RosterShiftDialogValues = RosterShiftDialogValues
-    { rosterShiftStaffId    :: !(Maybe UUID)
-    , rosterShiftStartTime  :: !Text
-    , rosterShiftEndTime    :: !Text
-    , rosterShiftTypeId     :: !(Maybe UUID)
-    , rosterShiftFormError  :: !(Maybe Text)
-    , rosterShiftStaffError :: !(Maybe Text)
-    , rosterShiftStartError :: !(Maybe Text)
-    , rosterShiftEndError   :: !(Maybe Text)
-    , rosterShiftTypeError  :: !(Maybe Text)
+    { rosterShiftStaffId         :: !(Maybe UUID)
+    , rosterShiftStartTime       :: !Text
+    , rosterShiftEndTime         :: !Text
+    , rosterShiftTypeId          :: !(Maybe UUID)
+    , rosterShiftStartOccurrence :: !(Maybe RepeatedTimeOccurrence)
+    , rosterShiftEndOccurrence   :: !(Maybe RepeatedTimeOccurrence)
+    , rosterShiftStartIsRepeated :: !Bool
+    , rosterShiftEndIsRepeated   :: !Bool
+    , rosterShiftFormError       :: !(Maybe Text)
+    , rosterShiftStaffError      :: !(Maybe Text)
+    , rosterShiftStartError      :: !(Maybe Text)
+    , rosterShiftEndError        :: !(Maybe Text)
+    , rosterShiftTypeError       :: !(Maybe Text)
     }
 
 
@@ -73,6 +80,10 @@ emptyRosterShiftDialogValues = RosterShiftDialogValues
     , rosterShiftStartTime = ""
     , rosterShiftEndTime = ""
     , rosterShiftTypeId = Nothing
+    , rosterShiftStartOccurrence = Nothing
+    , rosterShiftEndOccurrence = Nothing
+    , rosterShiftStartIsRepeated = False
+    , rosterShiftEndIsRepeated = False
     , rosterShiftFormError = Nothing
     , rosterShiftStaffError = Nothing
     , rosterShiftStartError = Nothing
@@ -84,9 +95,13 @@ emptyRosterShiftDialogValues = RosterShiftDialogValues
 rosterShiftDialogValuesFromSlot :: RosterSlot -> RosterShiftDialogValues
 rosterShiftDialogValuesFromSlot slot = emptyRosterShiftDialogValues
     { rosterShiftStaffId = slot.staffId
-    , rosterShiftStartTime = optionalTimeOfDayToStorageValue slot.startTime
-    , rosterShiftEndTime = optionalTimeOfDayToStorageValue slot.endTime
+    , rosterShiftStartTime = optionalTimeOfDayToStorageValue (rosterSlotStartTime slot)
+    , rosterShiftEndTime = optionalTimeOfDayToStorageValue (rosterSlotEndTime slot)
     , rosterShiftTypeId = slot.shiftTypeId
+    , rosterShiftStartOccurrence = rosterSlotStartOccurrence slot
+    , rosterShiftEndOccurrence = rosterSlotEndOccurrence slot
+    , rosterShiftStartIsRepeated = isJust (rosterSlotStartOccurrence slot)
+    , rosterShiftEndIsRepeated = isJust (rosterSlotEndOccurrence slot)
     }
 
 
@@ -168,11 +183,13 @@ renderRosterShiftForm RosterShiftDialogData { rosterShiftDialogMode, rosterShift
             <div class="col-12 col-sm-6">
                 <label class="form-label">Start time</label>
                 {renderDialogTimePicker "startTime" "Start" rosterShiftDialogValues.rosterShiftStartTime rosterShiftDialogTimePickerStart rosterShiftDialogTimePickerEnd (isJust rosterShiftDialogValues.rosterShiftStartError)}
+                {when rosterShiftDialogValues.rosterShiftStartIsRepeated (renderDialogOccurrenceChooser "startOccurrence" "Start occurrence" rosterShiftDialogValues.rosterShiftStartOccurrence)}
                 {renderDialogFieldError rosterShiftDialogValues.rosterShiftStartError}
             </div>
             <div class="col-12 col-sm-6">
                 <label class="form-label">End time</label>
                 {renderDialogTimePicker "endTime" "End" rosterShiftDialogValues.rosterShiftEndTime rosterShiftDialogTimePickerStart rosterShiftDialogTimePickerEnd (isJust rosterShiftDialogValues.rosterShiftEndError)}
+                {when rosterShiftDialogValues.rosterShiftEndIsRepeated (renderDialogOccurrenceChooser "endOccurrence" "End occurrence" rosterShiftDialogValues.rosterShiftEndOccurrence)}
                 {renderDialogFieldError rosterShiftDialogValues.rosterShiftEndError}
             </div>
         </div>
@@ -206,6 +223,14 @@ renderDialogTimePicker fieldName emptyLabel value rangeStart rangeEnd hasError =
                 }
      in renderTimePickerField pickerConfig
 
+renderDialogOccurrenceChooser :: Text -> Text -> Maybe RepeatedTimeOccurrence -> Html
+renderDialogOccurrenceChooser fieldName label selectedOccurrence =
+    renderTimeOccurrenceChooser
+        TimeOccurrenceChooserConfig
+            { timeOccurrenceFieldName = fieldName
+            , timeOccurrenceLabel = label
+            , timeOccurrenceSelected = selectedOccurrence
+            }
 
 renderStaffOption :: Maybe UUID -> [Staff] -> Staff -> Html
 renderStaffOption selectedStaffId staffMembers staff = [hsx|

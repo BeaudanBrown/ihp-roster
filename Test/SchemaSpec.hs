@@ -147,9 +147,16 @@ tests = describe "Schema" do
         let _rosterGroupVenueId = get #venueId (newRecord @RosterGroup)
         let _rosterWeekVenueId = get #venueId (newRecord @RosterWeek)
         let _rosterWeekRosterGroupId = get #rosterGroupId (newRecord @RosterWeek)
-        let _rosterSlotEndTime = get #endTime (newRecord @RosterSlot)
+        let _rosterSlotStartsAt = get #startsAt (newRecord @RosterSlot)
+        let _rosterSlotEndsAt = get #endsAt (newRecord @RosterSlot)
+        let _rosterSlotTimezone = get #timezone (newRecord @RosterSlot)
         let _rosterSlotShiftTypeId = get #shiftTypeId (newRecord @RosterSlot)
         let _timesheetVenueId = get #venueId (newRecord @TimesheetEntry)
+        let _timesheetStartsAt = get #startsAt (newRecord @TimesheetEntry)
+        let _timesheetEndsAt = get #endsAt (newRecord @TimesheetEntry)
+        let _timesheetBreakStartsAt = get #breakStartsAt (newRecord @TimesheetEntry)
+        let _timesheetBreakEndsAt = get #breakEndsAt (newRecord @TimesheetEntry)
+        let _timesheetTimezone = get #timezone (newRecord @TimesheetEntry)
         let _timesheetSourceRosterSlotId = get #sourceRosterSlotId (newRecord @TimesheetEntry)
         let _timesheetStaffPayVersionId = get #staffPayVersionId (newRecord @TimesheetEntry)
         let _timesheetShiftTypePayVersionId = get #shiftTypePayVersionId (newRecord @TimesheetEntry)
@@ -340,6 +347,39 @@ tests = describe "Schema" do
         migrationSqlText `shouldSatisfy` Text.isInfixOf "CREATE INDEX IF NOT EXISTS idx_app_jobs_pending ON app_jobs"
         migrationSqlText `shouldSatisfy` Text.isInfixOf "CREATE UNIQUE INDEX IF NOT EXISTS idx_app_jobs_active_dedupe"
 
+    it "stores roster and timesheet time only as authoritative instant boundaries" do
+        schemaSqlText <- TextIO.readFile "Application/Schema.sql"
+        schemaSqlText `shouldSatisfy` Text.isInfixOf "starts_at TIMESTAMP WITH TIME ZONE"
+        schemaSqlText `shouldSatisfy` Text.isInfixOf "ends_at TIMESTAMP WITH TIME ZONE"
+        schemaSqlText `shouldSatisfy` Text.isInfixOf "break_starts_at TIMESTAMP WITH TIME ZONE"
+        schemaSqlText `shouldSatisfy` Text.isInfixOf "break_ends_at TIMESTAMP WITH TIME ZONE"
+        schemaSqlText `shouldSatisfy` Text.isInfixOf "timezone TEXT NOT NULL"
+        schemaSqlText `shouldSatisfy` Text.isInfixOf "CHECK (timezone = 'Australia/Melbourne')"
+        schemaSqlText `shouldNotSatisfy` Text.isInfixOf "worked_on DATE NOT NULL"
+        schemaSqlText `shouldNotSatisfy` Text.isInfixOf "had_break BOOLEAN"
+        schemaSqlText `shouldNotSatisfy` Text.isInfixOf "break_minutes INT"
+        schemaSqlText `shouldNotSatisfy` Text.isInfixOf "duration_minutes INT"
+
+    it "migrates authoritative boundaries before retiring legacy columns" do
+        migrationSqlText <- TextIO.readFile "Application/Migration/1784932300.sql"
+        runbookExists <- Directory.doesFileExist "Application/Migration/authoritative-time-boundaries-274-runbook.md"
+        migrationSqlText `shouldSatisfy` Text.isInfixOf "unsupported venue timezone for authoritative-boundary migration"
+        migrationSqlText `shouldSatisfy` Text.isInfixOf "CREATE OR REPLACE FUNCTION bepis_first_civil_occurrence"
+        migrationSqlText `shouldSatisfy` Text.isInfixOf "RETURN resolved - INTERVAL '1 hour'"
+        migrationSqlText `shouldSatisfy` Text.isInfixOf "nonexistent civil time % in timezone %; see #274 runbook"
+        migrationSqlText `shouldSatisfy` Text.isInfixOf "CASE WHEN start_time < TIME '06:00' THEN 1 ELSE 0 END"
+        migrationSqlText `shouldSatisfy` Text.isInfixOf "authoritative timesheet boundary backfill failed validation"
+        migrationSqlText `shouldSatisfy` Text.isInfixOf "timesheet_entries_supported_timezone_check"
+        migrationSqlText `shouldSatisfy` Text.isInfixOf "roster_slots_supported_timezone_check"
+        migrationSqlText `shouldSatisfy` Text.isInfixOf "DROP COLUMN worked_on"
+        migrationSqlText `shouldSatisfy` Text.isInfixOf "CREATE INDEX idx_timesheet_entries_venue_starts_at"
+        migrationSqlText `shouldSatisfy` Text.isInfixOf "(te.starts_at AT TIME ZONE te.timezone)::DATE AS worked_on"
+        migrationSqlText `shouldSatisfy` Text.isInfixOf "EXTRACT(EPOCH FROM (te.ends_at - te.starts_at))"
+        let (_, fromValidation) = Text.breakOn "authoritative timesheet boundary backfill failed validation" migrationSqlText
+        let (_, fromLegacyDrop) = Text.breakOn "DROP COLUMN worked_on" migrationSqlText
+        Text.length fromValidation `shouldSatisfy` (> Text.length fromLegacyDrop)
+        runbookExists `shouldBe` True
+
     it "enforces V1 roster preference and timesheet shape constraints" do
         schemaSqlText <- TextIO.readFile "Application/Schema.sql"
         migrationSqlText <- readHistoricalMigrationText "Application/Migration/1777420000.sql"
@@ -365,7 +405,7 @@ tests = describe "Schema" do
         schemaSqlText `shouldSatisfy` Text.isInfixOf "CREATE UNIQUE INDEX idx_staff_shift_preferences_active_unique ON staff_shift_preferences (staff_id, weekday_index) WHERE deleted_at IS NULL;"
         schemaSqlText `shouldSatisfy` Text.isInfixOf "CHECK ((preferred_start_hour >= 5) AND (preferred_start_hour <= 23))"
         schemaSqlText `shouldSatisfy` Text.isInfixOf "CHECK ((preferred_end_hour >= 5) AND (preferred_end_hour <= 23))"
-        schemaSqlText `shouldSatisfy` Text.isInfixOf "CHECK (((had_break = FALSE) AND break_start_time IS NULL AND break_end_time IS NULL AND break_minutes = 0) OR ((had_break = TRUE) AND break_start_time IS NOT NULL AND break_end_time IS NOT NULL AND break_minutes > 0))"
+        schemaSqlText `shouldSatisfy` Text.isInfixOf "CHECK ((break_starts_at IS NULL AND break_ends_at IS NULL) OR (break_starts_at IS NOT NULL AND break_ends_at IS NOT NULL AND break_starts_at >= starts_at AND break_ends_at > break_starts_at AND break_ends_at <= ends_at))"
         schemaSqlText `shouldSatisfy` Text.isInfixOf "staff_comment TEXT DEFAULT NULL"
         schemaSqlText `shouldSatisfy` Text.isInfixOf "manager_note TEXT DEFAULT NULL"
         schemaSqlText `shouldSatisfy` Text.isInfixOf "CHECK (staff_comment IS NULL OR char_length(staff_comment) <= 1000)"
@@ -838,11 +878,10 @@ tests = describe "Schema" do
                 , "roster_end_times_enabled"
                 , "staff_timesheet_edit_window_days", "week_offset"
                 , "is_live", "roster_week_id", "day_offset", "roster_day_id"
-                , "staff_id", "roster_week_slot_definition_id", "row_index", "start_time"
-                , "duration_minutes", "specific_date", "is_available"
-                , "start_date", "end_date", "status", "notes", "worked_on"
-                , "end_time", "had_break", "break_start_time", "break_end_time"
-                , "break_minutes", "is_approved", "approved_at", "approved_by_user_id"
+                , "staff_id", "roster_week_slot_definition_id", "row_index", "starts_at"
+                , "ends_at", "break_starts_at", "break_ends_at", "specific_date", "is_available"
+                , "start_date", "end_date", "status", "notes", "source_roster_slot_id"
+                , "is_approved", "approved_at", "approved_by_user_id"
                 , "actor_user_id", "event_type", "target_table", "target_id"
                 , "source_channel", "payload"
                 , "requested_by_user_id", "export_type", "schema_version"
@@ -883,21 +922,22 @@ tests = describe "Schema" do
             schemaSqlText <- TextIO.readFile "Application/Schema.sql"
             schemaSqlText `shouldSatisfy` Text.isInfixOf "calculate_timesheet_pay(te.id)"
 
-        it "defines weekday segmentation windows and boundaries" do
+        it "defines local award segmentation windows from timezone-projected boundaries" do
             schemaSqlText <- TextIO.readFile "Application/Schema.sql"
-            schemaSqlText `shouldSatisfy` Text.isInfixOf "('late_night_after_midnight'::TEXT, 0, 420, 1)"
-            schemaSqlText `shouldSatisfy` Text.isInfixOf "('ordinary'::TEXT, 420, 1140, 2)"
-            schemaSqlText `shouldSatisfy` Text.isInfixOf "('evening_after_7pm'::TEXT, 1140, 1440, 3)"
-            schemaSqlText `shouldSatisfy` Text.isInfixOf "LEAST(r.start_minute_of_day + r.paid_minutes, 1860)"
+            schemaSqlText `shouldSatisfy` Text.isInfixOf "date_trunc('day', pw.starts_at AT TIME ZONE pw.timezone)"
+            schemaSqlText `shouldSatisfy` Text.isInfixOf "('late_night_after_midnight'::TEXT, local_midnight, local_midnight + INTERVAL '7 hours', 1)"
+            schemaSqlText `shouldSatisfy` Text.isInfixOf "('ordinary'::TEXT, local_midnight + INTERVAL '7 hours', local_midnight + INTERVAL '19 hours', 2)"
+            schemaSqlText `shouldSatisfy` Text.isInfixOf "('evening_after_7pm'::TEXT, local_midnight + INTERVAL '19 hours', local_midnight + INTERVAL '1 day', 3)"
+            schemaSqlText `shouldSatisfy` Text.isInfixOf "raw_windows.window_start_local AT TIME ZONE pw.timezone AS window_starts_at"
+            schemaSqlText `shouldSatisfy` Text.isInfixOf "raw_windows.window_end_local AT TIME ZONE pw.timezone AS window_ends_at"
 
-        it "builds segment minute overlaps from the paid window and subtracts positioned breaks" do
+        it "builds elapsed segment overlaps from instants and subtracts positioned breaks" do
             schemaSqlText <- TextIO.readFile "Application/Schema.sql"
-            schemaSqlText `shouldSatisfy` Text.isInfixOf "GREATEST("
-            schemaSqlText `shouldSatisfy` Text.isInfixOf "break_start_minute_of_day"
-            schemaSqlText `shouldSatisfy` Text.isInfixOf "break_end_minute_of_day"
-            schemaSqlText `shouldSatisfy` Text.isInfixOf "LEAST(pw.paid_end_minute_of_day, sw.window_end_minute)"
-            schemaSqlText `shouldSatisfy` Text.isInfixOf "- GREATEST(pw.start_minute_of_day, sw.window_start_minute)"
-            schemaSqlText `shouldSatisfy` Text.isInfixOf "- GREATEST(pw.break_start_minute_of_day, sw.window_start_minute)"
+            schemaSqlText `shouldSatisfy` Text.isInfixOf "LEAST(pw.ends_at, sw.window_ends_at) - GREATEST(pw.starts_at, sw.window_starts_at)"
+            schemaSqlText `shouldSatisfy` Text.isInfixOf "LEAST(pw.break_ends_at, pw.ends_at, sw.window_ends_at) - GREATEST(pw.break_starts_at, pw.starts_at, sw.window_starts_at)"
+            schemaSqlText `shouldSatisfy` Text.isInfixOf "ss.worked_segment_minutes"
+            schemaSqlText `shouldSatisfy` Text.isInfixOf "ss.break_segment_minutes"
+            schemaSqlText `shouldSatisfy` Text.isInfixOf "ss.delayed_segment_minutes - ss.break_delayed_segment_minutes"
             schemaSqlText `shouldSatisfy` Text.isInfixOf "FILTER (WHERE sr.segment_minutes > 0)"
 
         it "uses projected award rates and penalty kinds in pay segments" do
@@ -905,10 +945,10 @@ tests = describe "Schema" do
             schemaSqlText `shouldSatisfy` Text.isInfixOf "CREATE TABLE award_level_base_rates"
             schemaSqlText `shouldSatisfy` Text.isInfixOf "CREATE TABLE award_level_penalty_rates"
             schemaSqlText `shouldSatisfy` Text.isInfixOf "CREATE TABLE award_time_penalty_allowances"
-            schemaSqlText `shouldSatisfy` Text.isInfixOf "ph.holiday_date = (pw.worked_on + CASE WHEN sw.window_start_minute >= 1440 THEN 1 ELSE 0 END)"
-            schemaSqlText `shouldSatisfy` Text.isInfixOf "WHEN EXTRACT(DOW FROM (pw.worked_on + CASE WHEN sw.window_start_minute >= 1440 THEN 1 ELSE 0 END))::INT = 6 THEN 'saturday_penalty'::award_penalty_kind_enum"
-            schemaSqlText `shouldSatisfy` Text.isInfixOf "WHEN sw.segment_name = 'evening_after_7pm' THEN 'evening_after_7pm'::award_penalty_kind_enum"
-            schemaSqlText `shouldSatisfy` Text.isInfixOf "WHEN sw.segment_name = 'late_night_after_midnight' THEN 'late_night_after_midnight'::award_penalty_kind_enum"
+            schemaSqlText `shouldSatisfy` Text.isInfixOf "ph.holiday_date = ss.segment_date"
+            schemaSqlText `shouldSatisfy` Text.isInfixOf "WHEN EXTRACT(DOW FROM ss.segment_date)::INT = 6 THEN 'saturday_penalty'::award_penalty_kind_enum"
+            schemaSqlText `shouldSatisfy` Text.isInfixOf "WHEN ss.segment_name = 'evening_after_7pm' THEN 'evening_after_7pm'::award_penalty_kind_enum"
+            schemaSqlText `shouldSatisfy` Text.isInfixOf "WHEN ss.segment_name = 'late_night_after_midnight' THEN 'late_night_after_midnight'::award_penalty_kind_enum"
             schemaSqlText `shouldSatisfy` Text.isInfixOf "SELECT alpr.hourly_rate"
             schemaSqlText `shouldSatisfy` Text.isInfixOf "SELECT atpa.hourly_amount"
 

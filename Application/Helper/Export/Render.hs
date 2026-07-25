@@ -3,6 +3,17 @@ module Application.Helper.Export.Render where
 import Application.Helper.Controller
 import Application.Helper.Export.Types
 import Application.Helper.Pay (PaySegment (..), TimesheetPayResult (..))
+import Application.VenueTime (RepeatedTimeOccurrence (..))
+import Application.VenueTime.Model (civilBoundaryIsRepeated,
+                                    resolveBoundaryInstant,
+                                    storedInstantLocalTime,
+                                    timesheetEntryBreakEndTime,
+                                    timesheetEntryBreakMinutes,
+                                    timesheetEntryBreakStartTime,
+                                    timesheetEntryEndTime,
+                                    timesheetEntryHadBreak,
+                                    timesheetEntryStartTime,
+                                    timesheetEntryWorkedOn)
 import qualified Codec.Archive.Zip as Zip
 import qualified Data.ByteString.Base64 as Base64
 import qualified Data.ByteString.Lazy as LBS
@@ -11,8 +22,9 @@ import qualified Data.Map.Strict as Map
 import qualified Data.Text as Text
 import Data.Text.Encoding (decodeUtf8, encodeUtf8)
 import Data.Time.Calendar (Day, addDays)
+import Data.Time.Clock (NominalDiffTime, UTCTime, diffUTCTime)
 import Data.Time.Format (defaultTimeLocale, formatTime)
-import Data.Time.LocalTime (TimeOfDay)
+import Data.Time.LocalTime (LocalTime (..), TimeOfDay (..), addLocalTime)
 import Generated.Types
 import IHP.ControllerPrelude
 import Text.Printf (printf)
@@ -181,7 +193,7 @@ renderHourlyBreakdownDateCsv date shiftTypes entries =
                 (map csvCell ("Time" : map (.name) shiftTypes))
 
         dayEntries =
-            filter (\entry -> entry.workedOn == date) entries
+            filter ((== date) . timesheetEntryWorkedOn) entries
 
         renderHourRow hourOfWindow =
             let windowLabel = formatHourlyWindow hourOfWindow
@@ -200,34 +212,52 @@ entryHoursForHourlyWindow :: Int -> ShiftType -> TimesheetEntry -> Double
 entryHoursForHourlyWindow hourOfWindow shiftType entry
     | entry.shiftTypeId /= unpackId (get #id shiftType) = 0
     | otherwise =
-        let windowStart = hourlyWindowStartMinute hourOfWindow
-            windowEnd = windowStart + 60
-            entryStart = timeOfDayToMinutes entry.startTime
-            entryEndRaw = timeOfDayToMinutes entry.endTime
-            entryEnd = if entryEndRaw <= entryStart then entryEndRaw + 1440 else entryEndRaw
-            overlapMinutes =
-                max 0
-                    (min entryEnd windowEnd - max entryStart windowStart)
-            paidMinutes = max 0 (overlapMinutes - breakOverlapMinutes windowStart windowEnd entry)
-         in fromIntegral paidMinutes / 60
+        let targetDate = addDays (toInteger (hourOfWindow `div` 24)) (timesheetEntryWorkedOn entry)
+            targetHour = hourOfWindow `mod` 24
+            shiftSeconds = intervalSecondsInLocalHour entry.timezone targetDate targetHour entry.startsAt entry.endsAt
+            breakSeconds = case (entry.breakStartsAt, entry.breakEndsAt) of
+                (Just breakStartsAt, Just breakEndsAt) -> intervalSecondsInLocalHour entry.timezone targetDate targetHour breakStartsAt breakEndsAt
+                _ -> 0
+         in realToFrac (max 0 (shiftSeconds - breakSeconds) / 3600)
 
-breakOverlapMinutes :: Int -> Int -> TimesheetEntry -> Int
-breakOverlapMinutes windowStart windowEnd entry
-    | not entry.hadBreak = 0
-    | entry.breakMinutes <= 0 = 0
-    | otherwise =
-        case (entry.breakStartTime, entry.breakEndTime) of
-            (Just breakStartTime, Just breakEndTime) ->
-                let breakStart = timeOfDayToMinutes breakStartTime
-                    breakEndRaw = timeOfDayToMinutes breakEndTime
-                    breakEnd = if breakEndRaw <= breakStart then breakEndRaw + 1440 else breakEndRaw
-                 in max 0 (min breakEnd windowEnd - max breakStart windowStart)
-            _ -> 0
+intervalSecondsInLocalHour :: Text -> Day -> Int -> UTCTime -> UTCTime -> NominalDiffTime
+intervalSecondsInLocalHour timezone targetDate targetHour startsAt endsAt =
+    sum
+        [ elapsed
+        | (localDate, localHour, elapsed) <- storedIntervalLocalHourSegments timezone startsAt endsAt
+        , localDate == targetDate
+        , localHour == targetHour
+        ]
 
-hourlyWindowStartMinute :: Int -> Int
-hourlyWindowStartMinute hourOfWindow
-    | hourOfWindow < 24 = hourOfWindow * 60
-    | otherwise = (hourOfWindow - 24) * 60 + 1440
+storedIntervalLocalHourSegments :: Text -> UTCTime -> UTCTime -> [(Day, Int, NominalDiffTime)]
+storedIntervalLocalHourSegments timezone startsAt endsAt = go startsAt
+  where
+    go cursor
+        | cursor >= endsAt = []
+        | otherwise =
+            let local = storedInstantLocalTime timezone cursor
+                segmentEnd = min endsAt (nextStoredLocalHourBoundary timezone cursor local)
+             in (local.localDay, local.localTimeOfDay.todHour, diffUTCTime segmentEnd cursor) : go segmentEnd
+
+nextStoredLocalHourBoundary :: Text -> UTCTime -> LocalTime -> UTCTime
+nextStoredLocalHourBoundary timezone cursor local = findBoundary firstCandidateLocal
+  where
+    localHourStart = LocalTime local.localDay (TimeOfDay local.localTimeOfDay.todHour 0 0)
+    firstCandidateLocal = addLocalTime 3600 localHourStart
+
+    findBoundary candidateLocal =
+        case filter (> cursor) (resolvedCandidates candidateLocal) of
+            []         -> findBoundary (addLocalTime 3600 candidateLocal)
+            candidates -> minimum candidates
+
+    resolvedCandidates candidateLocal =
+        let occurrences =
+                if civilBoundaryIsRepeated candidateLocal.localDay candidateLocal.localTimeOfDay
+                    then [Just FirstOccurrence, Just SecondOccurrence]
+                    else [Nothing]
+         in mapMaybe
+                (either (const Nothing) Just . resolveBoundaryInstant timezone candidateLocal.localDay candidateLocal.localTimeOfDay)
+                occurrences
 
 formatHourlyWindow :: Int -> Text
 formatHourlyWindow hourOfWindow
@@ -268,11 +298,11 @@ renderApprovedTimesheetCsv entries staffById approversById versionManifestByEntr
 
         renderRow entry =
             Text.intercalate ","
-                [ csvCell (tshow entry.workedOn)
+                [ csvCell (tshow (timesheetEntryWorkedOn entry))
                 , csvCell (staffDisplayNameForEntry entry.staffId)
-                , csvCell (formatTimeOfDay entry.startTime)
-                , csvCell (formatTimeOfDay entry.endTime)
-                , csvCell (tshow entry.breakMinutes)
+                , csvCell (formatTimeOfDay (timesheetEntryStartTime entry))
+                , csvCell (formatTimeOfDay (timesheetEntryEndTime entry))
+                , csvCell (tshow (timesheetEntryBreakMinutes entry))
                 , csvCell (fromMaybe "" (Map.lookup (unpackId entry.id) versionManifestByEntryId))
                 , csvCell (maybe "" formatUtc entry.approvedAt)
                 , csvCell (maybe "" (.email) (entry.approvedByUserId >>= (`Map.lookup` approversById)))

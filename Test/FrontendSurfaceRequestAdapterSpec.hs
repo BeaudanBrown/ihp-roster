@@ -26,6 +26,7 @@ import Application.Helper.FrontendContract.Surface.Request.Runtime (FrontendSurf
                                                                     FrontendSurfaceIntentForm,
                                                                     intentFormName)
 import qualified Application.Helper.FrontendContract.Surface.Roster as Roster
+import qualified Application.Helper.FrontendContract.Surface.Roster.Action as RosterAction
 import qualified Application.Helper.FrontendContract.Surface.Roster.Intent as RosterIntent
 import Application.Helper.FrontendContract.Surface.Runtime (FrontendSurfaceActionRoute (..),
                                                             FrontendSurfaceCustomHtmxAttrs (..),
@@ -34,8 +35,10 @@ import Application.Helper.FrontendContract.Surface.Runtime (FrontendSurfaceActio
 import qualified Application.Helper.FrontendContract.Surface.SelfServiceLeave as SelfServiceLeave
 import qualified Application.Helper.FrontendContract.Surface.SelfServiceLeave.Action as SelfServiceLeaveAction
 import Application.Helper.FrontendContract.Surface.Values (SurfaceActionFields,
+                                                           SurfaceFieldBundle,
                                                            SurfaceFieldBundleOf,
-                                                           surfaceFieldValue)
+                                                           surfaceFieldValue,
+                                                           surfaceFieldsText)
 import qualified Data.ByteString as ByteString
 import qualified Data.ByteString.Lazy as LBS
 import qualified Data.List as List
@@ -352,7 +355,7 @@ tests = describe "FrontendSurfaceRequestAdapter" do
         length (filter (surfaceAdapterOperationIsGenerated . (.surfaceAdapterRenderMetadataOperation)) generatedActionOperations)
             `shouldBe` 47
         length (filter (surfaceAdapterOperationIsGenerated . (.surfaceAdapterRequestParserOperation)) generatedActionOperations)
-            `shouldBe` 32
+            `shouldBe` 33
         let actionIdentity registration =
                 let declaration = registration.checkedSurfaceRequestAdapterDeclaration
                  in (declaration.checkedAdapterSurfaceName, declaration.checkedAdapterDeclarationName)
@@ -376,7 +379,6 @@ tests = describe "FrontendSurfaceRequestAdapter" do
             ]
             `shouldBe` List.sort
                 [ ("roster", "sort-roster-week")
-                , ("roster", "copy-roster-week")
                 , ("roster", "create-roster-week-slot-definition")
                 , ("roster", "delete-roster-week-slot-definition")
                 , ("roster", "toggle-roster-day-closed")
@@ -473,10 +475,10 @@ tests = describe "FrontendSurfaceRequestAdapter" do
         let renderedForms = map renderIntentFormText (rosterForms <> timelineForms)
         let expectedFormMetadata =
                 [ ("set-roster-layout-mode", "/UpdateRosterLayoutPreference?weekOffset=3&amp;rosterGroupId=00000000-0000-0000-0000-000000000222", 1)
-                , ("move-roster-shift-to-slot", "/MoveRosterShiftToSlot?weekOffset=3&amp;rosterGroupId=00000000-0000-0000-0000-000000000222", 11)
-                , ("duplicate-roster-shift-to-day", "/DuplicateRosterShiftToDay?weekOffset=3&amp;rosterGroupId=00000000-0000-0000-0000-000000000222", 11)
+                , ("move-roster-shift-to-slot", "/MoveRosterShiftToSlot?weekOffset=3&amp;rosterGroupId=00000000-0000-0000-0000-000000000222", 13)
+                , ("duplicate-roster-shift-to-day", "/DuplicateRosterShiftToDay?weekOffset=3&amp;rosterGroupId=00000000-0000-0000-0000-000000000222", 13)
                 , ("drop-roster-staff", "/DropRosterStaff?weekOffset=3&amp;rosterGroupId=00000000-0000-0000-0000-000000000222", 11)
-                , ("move-roster-timeline-shift", "/MoveRosterTimelineShift?weekOffset=3&amp;rosterGroupId=00000000-0000-0000-0000-000000000222&amp;rosterView=timeline&amp;dayOffset=2", 11)
+                , ("move-roster-timeline-shift", "/MoveRosterTimelineShift?weekOffset=3&amp;rosterGroupId=00000000-0000-0000-0000-000000000222&amp;rosterView=timeline&amp;dayOffset=2", 13)
                 ]
         forM_ (zip expectedFormMetadata renderedForms) \(metadata, html) ->
             assertRosterIntentFormMetadata metadata html
@@ -489,8 +491,23 @@ tests = describe "FrontendSurfaceRequestAdapter" do
                 dragHtml `shouldSatisfy` Text.isInfixOf (renderedIntentField fieldName "required")
             forM_ rosterOptionalDragFieldNames \fieldName ->
                 dragHtml `shouldSatisfy` Text.isInfixOf (renderedIntentField fieldName "optional")
+        forM_ (take 2 (drop 1 renderedForms)) \copyDragHtml ->
+            forM_ ["copyStartOccurrence", "copyEndOccurrence"] \fieldName ->
+                copyDragHtml `shouldSatisfy` Text.isInfixOf (renderedIntentField fieldName "optional")
+        forM_ (drop 4 renderedForms) \timelineDragHtml ->
+            forM_ ["timelineStartOccurrence", "timelineEndOccurrence"] \fieldName ->
+                timelineDragHtml `shouldSatisfy` Text.isInfixOf (renderedIntentField fieldName "optional")
 
     it "parses every production Roster Intent shape through the canonical facade" do
+        let parsedCopyOccurrences =
+                let ?request = requestWithParams [("copyStartOccurrence", Just "second")]
+                 in RosterAction.parseCopyRosterWeekActionParams
+        case parsedCopyOccurrences of
+            Left errors -> expectationFailure (cs (show errors))
+            Right fields -> do
+                surfaceFieldValue @Roster.CopyStartOccurrence fields `shouldBe` Just "second"
+                surfaceFieldValue @Roster.CopyEndOccurrence fields `shouldBe` Nothing
+
         let parsedLayout =
                 let ?request = requestWithParams
                         [("rosterLayoutMode", Just "day_columns"), ("unrelated-route-context", Just "ignored")]
@@ -726,23 +743,26 @@ invalidRosterDragIntentParams =
     ]
 
 assertRosterDragIntentFields ::
-    SurfaceFieldBundleOf SurfaceInteraction.DragDropFields fields =>
+    SurfaceFieldBundle fields =>
     Either [SurfaceRequestFieldError] fields ->
     Expectation
 assertRosterDragIntentFields = \case
     Left errors -> expectationFailure (cs (show errors))
-    Right fields -> do
-        surfaceFieldValue @SurfaceInteraction.SourceItemKey fields `shouldBe` "existing:source"
-        surfaceFieldValue @SurfaceInteraction.TargetDropzoneKey fields `shouldBe` "new:target"
-        surfaceFieldValue @SurfaceInteraction.SessionKind fields `shouldBe` Just "drag"
-        surfaceFieldValue @SurfaceInteraction.PointerId fields `shouldBe` Just "7"
-        surfaceFieldValue @SurfaceInteraction.PointerType fields `shouldBe` Just "mouse"
-        surfaceFieldValue @SurfaceInteraction.StartClientX fields `shouldBe` Just "100"
-        surfaceFieldValue @SurfaceInteraction.StartClientY fields `shouldBe` Just "200"
-        surfaceFieldValue @SurfaceInteraction.CurrentClientX fields `shouldBe` Just "140"
-        surfaceFieldValue @SurfaceInteraction.CurrentClientY fields `shouldBe` Just "250"
-        surfaceFieldValue @SurfaceInteraction.DeltaX fields `shouldBe` Just "40"
-        surfaceFieldValue @SurfaceInteraction.DeltaY fields `shouldBe` Just "50"
+    Right fields ->
+        surfaceFieldsText fields
+            `shouldContain`
+                [ ("sourceItemKey", "existing:source")
+                , ("targetDropzoneKey", "new:target")
+                , ("sessionKind", "drag")
+                , ("pointerId", "7")
+                , ("pointerType", "mouse")
+                , ("startClientX", "100")
+                , ("startClientY", "200")
+                , ("currentClientX", "140")
+                , ("currentClientY", "250")
+                , ("deltaX", "40")
+                , ("deltaY", "50")
+                ]
 
 fixtureRegistry :: SurfaceAdapterRegistry
 fixtureRegistry =

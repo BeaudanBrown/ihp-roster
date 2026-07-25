@@ -3,6 +3,7 @@ module Test.PaySpec where
 import Application.Helper.Pay
 import Application.Helper.RosterWagePrediction
 import Application.Helper.View.Awards (awardLevelOptionLabel)
+import Application.VenueTime.Model (storedInstantLocalTime)
 import Config
 import Control.Monad (void)
 import qualified Data.Map.Strict as Map
@@ -10,7 +11,7 @@ import Data.Scientific (Scientific)
 import qualified Data.Text as Text
 import Data.Time.Calendar (Day, fromGregorian)
 import Data.Time.Clock (UTCTime (..), secondsToDiffTime)
-import Data.Time.LocalTime (TimeOfDay (..))
+import Data.Time.LocalTime (LocalTime (..), TimeOfDay (..))
 import Generated.Types
 import IHP.ControllerPrelude
 import IHP.FrameworkConfig
@@ -104,6 +105,33 @@ tests = do
                     fmap (.baseRate) result.segments `shouldBe` [30]
                     fmap (.amount) result.segments `shouldBe` [180]
                     result.payLevelId `shouldBe` Just (unpackId level.id)
+
+            it "uses elapsed instants for pay across the repeated autumn hour" $ withContext do
+                withCleanDb do
+                    (venue, staff, shiftType, _) <- createPayFixture "Autumn Boundary Bar"
+                    entry <- createEntry venue staff shiftType (fromGregorian 2026 4 5) (TimeOfDay 1 30 0) (TimeOfDay 7 30 0)
+                        >>= updateRecord
+                            . set #breakStartsAt (Just (UTCTime (fromGregorian 2026 4 4) (secondsToDiffTime (18 * 60 * 60))))
+                            . set #breakEndsAt (Just (UTCTime (fromGregorian 2026 4 4) (secondsToDiffTime (18 * 60 * 60 + 30 * 60))))
+
+                    result <- expectPayResult entry
+
+                    fmap (.segment) result.segments `shouldBe` ["late_night_after_midnight", "ordinary"]
+                    fmap (.minutes) result.segments `shouldBe` [360, 30]
+                    result.totals.paidMinutes `shouldBe` 390
+
+            it "uses elapsed instants for pay across the skipped spring hour" $ withContext do
+                withCleanDb do
+                    (venue, staff, shiftType, _) <- createPayFixture "Spring Boundary Bar"
+                    entry <- createEntry venue staff shiftType (fromGregorian 2026 10 4) (TimeOfDay 1 30 0) (TimeOfDay 4 0 0)
+                        >>= updateRecord
+                            . set #breakStartsAt (Just (UTCTime (fromGregorian 2026 10 3) (secondsToDiffTime (16 * 60 * 60 + 15 * 60))))
+                            . set #breakEndsAt (Just (UTCTime (fromGregorian 2026 10 3) (secondsToDiffTime (16 * 60 * 60 + 45 * 60))))
+
+                    result <- expectPayResult entry
+
+                    result.totals.paidMinutes `shouldBe` 60
+                    sum (map (.minutes) result.segments) `shouldBe` 60
 
             it "rolls a mid-week FWC base rate increase to the next venue week boundary" $ withContext do
                 withCleanDb do
@@ -217,10 +245,10 @@ tests = do
                     (venue, staff, shiftType, _) <- createPayFixture "Late Bar"
                     entry <- createEntry venue staff shiftType (fromGregorian 2025 1 9) (TimeOfDay 18 0 0) (TimeOfDay 2 0 0)
                         >>= updateRecord
-                            . set #hadBreak True
-                            . set #breakMinutes 30
-                            . set #breakStartTime (Just (TimeOfDay 22 0 0))
-                            . set #breakEndTime (Just (TimeOfDay 22 30 0))
+                            . setTestHadBreak True
+                            . setTestBreakMinutes 30
+                            . setTestBreakStartTime (Just (TimeOfDay 22 0 0))
+                            . setTestBreakEndTime (Just (TimeOfDay 22 30 0))
 
                     result <- expectPayResult entry
 
@@ -426,10 +454,10 @@ tests = do
                     noBreakEntry <- createEntry venue staff shiftType (fromGregorian 2025 1 9) (TimeOfDay 20 0 0) (TimeOfDay 4 0 0)
                     breakEntry <- createEntry venue staff shiftType (fromGregorian 2025 1 10) (TimeOfDay 9 0 0) (TimeOfDay 17 0 0)
                         >>= updateRecord
-                            . set #hadBreak True
-                            . set #breakMinutes 30
-                            . set #breakStartTime (Just (TimeOfDay 14 0 0))
-                            . set #breakEndTime (Just (TimeOfDay 14 30 0))
+                            . setTestHadBreak True
+                            . setTestBreakMinutes 30
+                            . setTestBreakStartTime (Just (TimeOfDay 14 0 0))
+                            . setTestBreakEndTime (Just (TimeOfDay 14 30 0))
 
                     noBreak <- expectPayResult noBreakEntry
                     withBreak <- expectPayResult breakEntry
@@ -445,10 +473,10 @@ tests = do
                     (venue, staff, shiftType, _) <- createPayFixture "Break Placement Bar"
                     entry <- createEntry venue staff shiftType (fromGregorian 2025 1 9) (TimeOfDay 18 0 0) (TimeOfDay 2 0 0)
                         >>= updateRecord
-                            . set #hadBreak True
-                            . set #breakMinutes 30
-                            . set #breakStartTime (Just (TimeOfDay 22 0 0))
-                            . set #breakEndTime (Just (TimeOfDay 22 30 0))
+                            . setTestHadBreak True
+                            . setTestBreakMinutes 30
+                            . setTestBreakStartTime (Just (TimeOfDay 22 0 0))
+                            . setTestBreakEndTime (Just (TimeOfDay 22 30 0))
 
                     result <- expectPayResult entry
 
@@ -478,9 +506,8 @@ tests = do
                     slotName <- fetchSlotNameRecord venue "Early"
                     rosterSlot <- createRosterSlotRecord rosterDay slotName (Just staff) 0
                         >>= updateRecord
-                            . set #startTime (Just (TimeOfDay 18 0 0))
-                            . set #endTime (Just (TimeOfDay 0 15 0))
-                            . set #durationMinutes (Just 375)
+                            . setTestRosterSlotBoundaries (fromGregorian 2025 1 9) (TimeOfDay 18 0 0) (TimeOfDay 0 15 0)
+                            . setTestDurationMinutes (Just 375)
                             . set #shiftTypeId (Just (unpackId shiftType.id))
 
                     prediction <- fetchRosterWagePrediction venueConfig rosterWeek [rosterDay] [rosterSlot]
@@ -489,15 +516,53 @@ tests = do
                     fmap (.predictionDayTotal) (lookupRosterWagePredictionDay prediction rosterDay) `shouldBe` Just 765
                     prediction.predictionCompleteShiftCount `shouldBe` 1
 
+            it "uses elapsed roster instants for wage prediction across DST transitions" $ withContext do
+                withCleanDb do
+                    venue <- createVenueWithConfig "Roster Wage DST Venue"
+                    venueConfig <- query @VenueConfig
+                        |> filterWhere (#venueId, unpackId venue.id)
+                        |> fetchOne
+                    level <- createPayLevelRecordWithRates venue "Roster Wage DST Level" 60 0 0 1 1 1
+                    staff <- createStaffRecord venue Nothing "DST" "Estimate"
+                        >>= updateRecord
+                            . set #employmentBasis Permanent
+                            . set #defaultAwardLevelId (Just level.id)
+                    shiftType <- createShiftTypeRecord venue level "DST Wage"
+                    slotName <- fetchSlotNameRecord venue "Early"
+
+                    autumnWeek <- createRosterWeekRecord venue 64 False
+                    autumnDay <- createRosterDayRecord autumnWeek 5
+                    autumnSlot <- createRosterSlotRecord autumnDay slotName (Just staff) 0
+                        >>= updateRecord
+                            . setTestRosterSlotBoundaries (fromGregorian 2026 4 4) (TimeOfDay 23 30 0) (TimeOfDay 5 30 0)
+                            . set #shiftTypeId (Just (unpackId shiftType.id))
+                    springWeek <- createRosterWeekRecord venue 90 False
+                    springDay <- createRosterDayRecord springWeek 5
+                    springSlot <- createRosterSlotRecord springDay slotName (Just staff) 0
+                        >>= updateRecord
+                            . setTestRosterSlotBoundaries (fromGregorian 2026 10 3) (TimeOfDay 23 30 0) (TimeOfDay 5 30 0)
+                            . set #shiftTypeId (Just (unpackId shiftType.id))
+
+                    autumnPrediction <- fetchRosterWagePrediction venueConfig autumnWeek [autumnDay] [autumnSlot]
+                    springPrediction <- fetchRosterWagePrediction venueConfig springWeek [springDay] [springSlot]
+
+                    autumnPrediction.predictionWeekTotal `shouldBe` 390
+                    springPrediction.predictionWeekTotal `shouldBe` 300
+                    autumnPrediction.predictionCompleteShiftCount `shouldBe` 1
+                    springPrediction.predictionCompleteShiftCount `shouldBe` 1
+                    fmap (storedInstantLocalTime autumnSlot.timezone . fst) (rosterSlotPredictedAutomaticBreakWindow autumnSlot)
+                        `shouldBe` Just (LocalTime (fromGregorian 2026 4 5) (TimeOfDay 4 0 0))
+                    rosterSlotPredictedAutomaticBreakWindow springSlot `shouldBe` Nothing
+
             it "allocates after-midnight breaks to the next calendar day segment" $ withContext do
                 withCleanDb do
                     (venue, staff, shiftType, _) <- createPayFixture "Midnight Break Bar"
                     entry <- createEntry venue staff shiftType (fromGregorian 2025 1 9) (TimeOfDay 19 0 0) (TimeOfDay 2 0 0)
                         >>= updateRecord
-                            . set #hadBreak True
-                            . set #breakMinutes 30
-                            . set #breakStartTime (Just (TimeOfDay 0 15 0))
-                            . set #breakEndTime (Just (TimeOfDay 0 45 0))
+                            . setTestHadBreak True
+                            . setTestBreakMinutes 30
+                            . setTestBreakStartTime (Just (TimeOfDay 0 15 0))
+                            . setTestBreakEndTime (Just (TimeOfDay 0 45 0))
 
                     result <- expectPayResult entry
 
@@ -522,10 +587,10 @@ tests = do
                     fridayEntry <- createEntry venue staff shiftType (fromGregorian 2025 1 10) (TimeOfDay 19 0 0) (TimeOfDay 1 0 0)
                     saturdayEntry <- createEntry venue staff shiftType (fromGregorian 2025 1 11) (TimeOfDay 18 0 0) (TimeOfDay 2 0 0)
                         >>= updateRecord
-                            . set #hadBreak True
-                            . set #breakMinutes 30
-                            . set #breakStartTime (Just (TimeOfDay 22 0 0))
-                            . set #breakEndTime (Just (TimeOfDay 22 30 0))
+                            . setTestHadBreak True
+                            . setTestBreakMinutes 30
+                            . setTestBreakStartTime (Just (TimeOfDay 22 0 0))
+                            . setTestBreakEndTime (Just (TimeOfDay 22 30 0))
                     sundayEntry <- createEntry venue staff shiftType (fromGregorian 2025 1 12) (TimeOfDay 10 0 0) (TimeOfDay 14 0 0)
                     publicHolidayEntry <- createEntry venue staff shiftType (fromGregorian 2025 1 13) (TimeOfDay 10 0 0) (TimeOfDay 14 0 0)
 
@@ -597,10 +662,10 @@ tests = do
                     (venue, staff, shiftType, _) <- createPayFixture "Timely Meal Break Bar"
                     entry <- createEntry venue staff shiftType (fromGregorian 2025 1 10) (TimeOfDay 9 0 0) (TimeOfDay 17 0 0)
                         >>= updateRecord
-                            . set #hadBreak True
-                            . set #breakMinutes 30
-                            . set #breakStartTime (Just (TimeOfDay 14 30 0))
-                            . set #breakEndTime (Just (TimeOfDay 15 0 0))
+                            . setTestHadBreak True
+                            . setTestBreakMinutes 30
+                            . setTestBreakStartTime (Just (TimeOfDay 14 30 0))
+                            . setTestBreakEndTime (Just (TimeOfDay 15 0 0))
 
                     result <- expectPayResult entry
 
@@ -613,10 +678,10 @@ tests = do
                     (venue, staff, shiftType, _) <- createPayFixture "Late Meal Break Bar"
                     entry <- createEntry venue staff shiftType (fromGregorian 2025 1 10) (TimeOfDay 9 0 0) (TimeOfDay 17 0 0)
                         >>= updateRecord
-                            . set #hadBreak True
-                            . set #breakMinutes 30
-                            . set #breakStartTime (Just (TimeOfDay 15 30 0))
-                            . set #breakEndTime (Just (TimeOfDay 16 0 0))
+                            . setTestHadBreak True
+                            . setTestBreakMinutes 30
+                            . setTestBreakStartTime (Just (TimeOfDay 15 30 0))
+                            . setTestBreakEndTime (Just (TimeOfDay 16 0 0))
 
                     result <- expectPayResult entry
 
@@ -692,10 +757,10 @@ tests = do
                     (venue, staff, shiftType, _) <- createPayFixture "Early Meal Break Bar"
                     entry <- createEntry venue staff shiftType (fromGregorian 2025 1 10) (TimeOfDay 9 0 0) (TimeOfDay 17 0 0)
                         >>= updateRecord
-                            . set #hadBreak True
-                            . set #breakMinutes 30
-                            . set #breakStartTime (Just (TimeOfDay 10 0 0))
-                            . set #breakEndTime (Just (TimeOfDay 10 30 0))
+                            . setTestHadBreak True
+                            . setTestBreakMinutes 30
+                            . setTestBreakStartTime (Just (TimeOfDay 10 0 0))
+                            . setTestBreakEndTime (Just (TimeOfDay 10 30 0))
 
                     result <- expectPayResult entry
 
@@ -710,10 +775,10 @@ tests = do
                     (venue, staff, shiftType, _) <- createPayFixture "Two Hour Meal Break Boundary Bar"
                     entry <- createEntry venue staff shiftType (fromGregorian 2025 1 10) (TimeOfDay 9 0 0) (TimeOfDay 17 0 0)
                         >>= updateRecord
-                            . set #hadBreak True
-                            . set #breakMinutes 30
-                            . set #breakStartTime (Just (TimeOfDay 11 0 0))
-                            . set #breakEndTime (Just (TimeOfDay 11 30 0))
+                            . setTestHadBreak True
+                            . setTestBreakMinutes 30
+                            . setTestBreakStartTime (Just (TimeOfDay 11 0 0))
+                            . setTestBreakEndTime (Just (TimeOfDay 11 30 0))
 
                     result <- expectPayResult entry
 
@@ -728,10 +793,10 @@ tests = do
                     (venue, staff, shiftType, _) <- createPayFixture "Six Hour Meal Break Boundary Bar"
                     entry <- createEntry venue staff shiftType (fromGregorian 2025 1 10) (TimeOfDay 9 0 0) (TimeOfDay 17 0 0)
                         >>= updateRecord
-                            . set #hadBreak True
-                            . set #breakMinutes 30
-                            . set #breakStartTime (Just (TimeOfDay 15 0 0))
-                            . set #breakEndTime (Just (TimeOfDay 15 30 0))
+                            . setTestHadBreak True
+                            . setTestBreakMinutes 30
+                            . setTestBreakStartTime (Just (TimeOfDay 15 0 0))
+                            . setTestBreakEndTime (Just (TimeOfDay 15 30 0))
 
                     result <- expectPayResult entry
 
@@ -746,10 +811,10 @@ tests = do
                     (venue, staff, shiftType, _) <- createPayFixture "Zero Paid Bar"
                     entry <- createEntry venue staff shiftType (fromGregorian 2025 1 10) (TimeOfDay 9 0 0) (TimeOfDay 10 0 0)
                         >>= updateRecord
-                            . set #hadBreak True
-                            . set #breakMinutes 60
-                            . set #breakStartTime (Just (TimeOfDay 9 0 0))
-                            . set #breakEndTime (Just (TimeOfDay 10 0 0))
+                            . setTestHadBreak True
+                            . setTestBreakMinutes 60
+                            . setTestBreakStartTime (Just (TimeOfDay 9 0 0))
+                            . setTestBreakEndTime (Just (TimeOfDay 10 0 0))
 
                     result <- expectPayResult entry
 
@@ -821,8 +886,7 @@ createEntry venue staff shiftType workedOn startTime endTime =
     createTimesheetEntryRecord venue staff workedOn
         >>= updateRecord
             . set #shiftTypeId (unpackId shiftType.id)
-            . set #startTime startTime
-            . set #endTime endTime
+            . setTestTimesheetBoundaries workedOn startTime endTime
 
 expectPayResult :: (?modelContext :: ModelContext) => TimesheetEntry -> IO TimesheetPayResult
 expectPayResult entry = do

@@ -17,10 +17,10 @@ import Application.Helper.Pay (PayTotals (..), TimesheetPayResult (..),
                                fetchTimesheetPayResultsForEntries,
                                timesheetEntryIdKey)
 import Application.Helper.Staff (isLinkedActiveStaff)
-import Application.Helper.TimeRules (shiftDurationMinutes)
 import Application.Helper.Xero
 import Application.Helper.XeroAdminTypes
 import Application.Helper.XeroTimesheetReadiness
+import Application.VenueTime.Model (timesheetEntryPaidElapsedSeconds)
 import Application.Xero.Admin.PayItems
 import Application.Xero.Admin.ReadModel
 import Application.Xero.Admin.ReferenceData
@@ -548,7 +548,7 @@ totalEntryUnits entries =
 
 paidEntryMinutes :: TimesheetEntry -> Int
 paidEntryMinutes entry =
-    max 0 (shiftDurationMinutes entry.startTime entry.endTime - entry.breakMinutes)
+    max 0 (floor (timesheetEntryPaidElapsedSeconds entry / 60))
 
 staffSortKey :: Staff -> (Text, Text)
 staffSortKey staff = (staff.lastName, staff.firstName)

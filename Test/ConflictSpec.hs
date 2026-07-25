@@ -2,16 +2,23 @@ module Test.ConflictSpec where
 
 import Application.Helper.Conflict
 import Application.Helper.Controller (unsafeEnumFromText)
-import Data.Time.Calendar (fromGregorian)
+import Application.VenueTime (melbourneTimeZoneName)
+import Application.VenueTime.Model (resolveBoundaryInstant)
+import Data.Time.Calendar (Day, fromGregorian)
 import Data.Time.LocalTime (TimeOfDay (..))
 import Generated.Types
 import IHP.ModelSupport (unpackId)
 import IHP.Prelude
+import qualified IHP.Prelude as Prelude
 import Test.Hspec
 
 tests :: Spec
 tests = describe "Conflict Engine" do
     let mockDate = fromGregorian 2025 1 6 -- A Monday
+    let fixtureInstant day time =
+            either (error . show) Prelude.id (resolveBoundaryInstant melbourneTimeZoneName day time Nothing)
+    let withStart :: Day -> TimeOfDay -> RosterSlot -> RosterSlot
+        withStart day time slot = slot { startsAt = Just (fixtureInstant day time) }
 
     let mockRosterDay = RosterDay
             { id = def
@@ -31,10 +38,10 @@ tests = describe "Conflict Engine" do
             , rosterWeekSlotDefinitionId = def
             , slotSortOrder = 0
             , rowIndex = 0
-            , startTime = def
-            , endTime = Nothing
+            , startsAt = Nothing
+            , endsAt = Nothing
+            , timezone = melbourneTimeZoneName
             , shiftTypeId = Nothing
-            , durationMinutes = Nothing
             , deletedAt = Nothing
             , deletedByUserId = Nothing
             , deleteReason = Nothing
@@ -155,10 +162,9 @@ tests = describe "Conflict Engine" do
 
     it "warns when the assigned start time is outside the preferred start window" do
         let assignedSlot =
-                (mockSlot :: RosterSlot)
-                    { staffId = Just "00000000-0000-0000-0000-0000000000aa"
-                    , startTime = Just (TimeOfDay 8 0 0)
-                    }
+                withStart mockDate (TimeOfDay 8 0 0) $
+                    (mockSlot :: RosterSlot)
+                        { staffId = Just "00000000-0000-0000-0000-0000000000aa" }
         let narrowPreference = mockShiftPreference
                 { preferredStartHour = 12
                 , preferredEndHour = 20
@@ -175,10 +181,9 @@ tests = describe "Conflict Engine" do
 
     it "does not warn when the assigned start time is inside the preferred start window" do
         let assignedSlot =
-                (mockSlot :: RosterSlot)
-                    { staffId = Just "00000000-0000-0000-0000-0000000000aa"
-                    , startTime = Just (TimeOfDay 17 0 0)
-                    }
+                withStart mockDate (TimeOfDay 17 0 0) $
+                    (mockSlot :: RosterSlot)
+                        { staffId = Just "00000000-0000-0000-0000-0000000000aa" }
         let narrowPreference = mockShiftPreference
                 { preferredStartHour = 12
                 , preferredEndHour = 20
@@ -195,10 +200,9 @@ tests = describe "Conflict Engine" do
 
     it "accepts multiple same-day preference windows when any window contains the start time" do
         let assignedSlot =
-                (mockSlot :: RosterSlot)
-                    { staffId = Just "00000000-0000-0000-0000-0000000000aa"
-                    , startTime = Just (TimeOfDay 17 0 0)
-                    }
+                withStart mockDate (TimeOfDay 17 0 0) $
+                    (mockSlot :: RosterSlot)
+                        { staffId = Just "00000000-0000-0000-0000-0000000000aa" }
         let morningPreference = mockShiftPreference
                 { preferredStartHour = 6
                 , preferredEndHour = 10
@@ -231,17 +235,15 @@ tests = describe "Conflict Engine" do
     it "detects late-to-early when start-to-start gap is below threshold" do
         let day0 = mockRosterDay { id = "00000000-0000-0000-0000-000000000000", dayOffset = 0 }
         let day1 = mockRosterDay { id = "00000000-0000-0000-0000-000000000001", dayOffset = 1 }
-        let lateSlot = mockSlot
+        let lateSlot = withStart (fromGregorian 2025 1 6) (TimeOfDay 22 0 0) $ mockSlot
                 { id = "00000000-0000-0000-0000-000000000010"
                 , rosterDayId = unpackId day0.id
                 , staffId = Just "00000000-0000-0000-0000-0000000000aa"
-                , startTime = Just (TimeOfDay 22 0 0)
                 }
-        let earlySlot = mockSlot
+        let earlySlot = withStart (fromGregorian 2025 1 7) (TimeOfDay 5 0 0) $ mockSlot
                 { id = "00000000-0000-0000-0000-000000000011"
                 , rosterDayId = unpackId day1.id
                 , staffId = Just "00000000-0000-0000-0000-0000000000aa"
-                , startTime = Just (TimeOfDay 5 0 0)
                 }
         let ctx = mkContext \base ->
                 base
@@ -261,17 +263,15 @@ tests = describe "Conflict Engine" do
     it "does not detect late-to-early when gap equals threshold" do
         let day0 = mockRosterDay { id = "00000000-0000-0000-0000-000000000000", dayOffset = 0 }
         let day1 = mockRosterDay { id = "00000000-0000-0000-0000-000000000001", dayOffset = 1 }
-        let lateSlot = mockSlot
+        let lateSlot = withStart (fromGregorian 2025 1 6) (TimeOfDay 22 0 0) $ mockSlot
                 { id = "00000000-0000-0000-0000-000000000020"
                 , rosterDayId = unpackId day0.id
                 , staffId = Just "00000000-0000-0000-0000-0000000000bb"
-                , startTime = Just (TimeOfDay 22 0 0)
                 }
-        let earlySlot = mockSlot
+        let earlySlot = withStart (fromGregorian 2025 1 7) (TimeOfDay 8 0 0) $ mockSlot
                 { id = "00000000-0000-0000-0000-000000000021"
                 , rosterDayId = unpackId day1.id
                 , staffId = Just "00000000-0000-0000-0000-0000000000bb"
-                , startTime = Just (TimeOfDay 8 0 0)
                 }
         let ctx = mkContext \base ->
                 base
@@ -292,23 +292,20 @@ tests = describe "Conflict Engine" do
         let day0 = mockRosterDay { id = "00000000-0000-0000-0000-000000000100", dayOffset = 0 }
         let day1 = mockRosterDay { id = "00000000-0000-0000-0000-000000000101", dayOffset = 1 }
         let staffUuid = "00000000-0000-0000-0000-0000000000cc"
-        let previousLateSlot = mockSlot
+        let previousLateSlot = withStart (fromGregorian 2025 1 6) (TimeOfDay 22 0 0) $ mockSlot
                 { id = "00000000-0000-0000-0000-000000000110"
                 , rosterDayId = unpackId day0.id
                 , staffId = Just staffUuid
-                , startTime = Just (TimeOfDay 22 0 0)
                 }
-        let currentEarlySlot = mockSlot
+        let currentEarlySlot = withStart (fromGregorian 2025 1 7) (TimeOfDay 5 0 0) $ mockSlot
                 { id = "00000000-0000-0000-0000-000000000111"
                 , rosterDayId = unpackId day1.id
                 , staffId = Just staffUuid
-                , startTime = Just (TimeOfDay 5 0 0)
                 }
-        let duplicateSameDaySlot = mockSlot
+        let duplicateSameDaySlot = withStart (fromGregorian 2025 1 7) (TimeOfDay 10 0 0) $ mockSlot
                 { id = "00000000-0000-0000-0000-000000000112"
                 , rosterDayId = unpackId day1.id
                 , staffId = Just staffUuid
-                , startTime = Just (TimeOfDay 10 0 0)
                 }
         let ctx = mkContext \base ->
                 base

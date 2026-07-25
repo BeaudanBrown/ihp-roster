@@ -127,7 +127,7 @@ createBaselineRoster = do
         forM [0 :: Int, 1] \rowIndex -> do
             earlySlot <- createRosterSlotRecord day earlySlotName (Just (staffMembers !! ((day.dayOffset + rowIndex) `mod` length staffMembers))) rowIndex
             lateSlot <- createRosterSlotRecord day lateSlotName (Just (staffMembers !! ((day.dayOffset + rowIndex + 2) `mod` length staffMembers))) rowIndex
-            mapM_ (\slot -> slot |> set #startTime (Just (TimeOfDay (8 + rowIndex) 0 0)) |> set #endTime (Just (TimeOfDay (12 + rowIndex) 0 0)) |> set #shiftTypeId (Just (unpackId shiftType.id)) |> updateRecord) [earlySlot, lateSlot]
+            mapM_ (\slot -> slot |> setTestStartTime (Just (TimeOfDay (8 + rowIndex) 0 0)) |> setTestEndTime (Just (TimeOfDay (12 + rowIndex) 0 0)) |> set #shiftTypeId (Just (unpackId shiftType.id)) |> updateRecord) [earlySlot, lateSlot]
             pure (earlySlot, lateSlot)
     let firstDay = fromJust (head rosterDays)
     let firstSlotPair = fromJust (head (fromJust (head createdSlots)))

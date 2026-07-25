@@ -1,6 +1,7 @@
 module Test.VenueTimeSpec where
 
 import Application.VenueTime
+import Application.VenueTime.Model
 import qualified Data.Map.Strict as Map
 import Data.Time.Calendar (fromGregorian)
 import Data.Time.Clock (UTCTime (..), addUTCTime, diffUTCTime,
@@ -224,6 +225,113 @@ tests =
             resolvedInstantOccurrence (resolvedIntervalEnd second) `shouldBe` Just SecondOccurrence
             resolvedIntervalElapsedSeconds first `shouldBe` 4 * 60 * 60
             resolvedIntervalElapsedSeconds second `shouldBe` 5 * 60 * 60
+
+        it "applies copy occurrence choices only to target endpoints that repeat" do
+            source <- expectRight (resolveShiftBoundaries melbourneTimeZoneName ShiftBoundaryInput
+                { shiftBoundaryDate = fromGregorian 2026 3 29
+                , shiftBoundaryStartTime = TimeOfDay 9 0 0
+                , shiftBoundaryStartOccurrence = Nothing
+                , shiftBoundaryEndTime = TimeOfDay 17 0 0
+                , shiftBoundaryEndOccurrence = Nothing
+                , shiftBoundaryBreak = Nothing
+                })
+            copied <- expectRight (copyAuthoritativeBoundariesToDate
+                (fromGregorian 2026 4 5)
+                noShiftCopyOccurrenceSelections
+                    { copyShiftStartOccurrence = Just SecondOccurrence
+                    , copyShiftEndOccurrence = Just SecondOccurrence
+                    }
+                source)
+
+            authoritativeStartLocalTime copied
+                `shouldBe` LocalTime (fromGregorian 2026 4 5) (TimeOfDay 9 0 0)
+            authoritativeEndLocalTime copied
+                `shouldBe` LocalTime (fromGregorian 2026 4 5) (TimeOfDay 17 0 0)
+            authoritativeStartOccurrence copied `shouldBe` Nothing
+            authoritativeEndOccurrence copied `shouldBe` Nothing
+
+        it "integrates a repeated-time shift and contained break into exact persisted boundaries" do
+            let day = fromGregorian 2026 4 5
+                input = ShiftBoundaryInput
+                    { shiftBoundaryDate = day
+                    , shiftBoundaryStartTime = TimeOfDay 1 30 0
+                    , shiftBoundaryStartOccurrence = Nothing
+                    , shiftBoundaryEndTime = TimeOfDay 2 30 0
+                    , shiftBoundaryEndOccurrence = Just SecondOccurrence
+                    , shiftBoundaryBreak = Just BreakBoundaryInput
+                        { breakBoundaryStartTime = TimeOfDay 2 0 0
+                        , breakBoundaryStartOccurrence = Just FirstOccurrence
+                        , breakBoundaryEndTime = TimeOfDay 2 15 0
+                        , breakBoundaryEndOccurrence = Just FirstOccurrence
+                        }
+                    }
+
+            boundaries <- expectRight (resolveShiftBoundaries melbourneTimeZoneName input)
+
+            authoritativeStartsAt boundaries
+                `shouldBe` UTCTime (fromGregorian 2026 4 4) (secondsToDiffTime (14 * 60 * 60 + 30 * 60))
+            authoritativeEndsAt boundaries
+                `shouldBe` UTCTime (fromGregorian 2026 4 4) (secondsToDiffTime (16 * 60 * 60 + 30 * 60))
+            authoritativeBreakStartsAt boundaries
+                `shouldBe` Just (UTCTime (fromGregorian 2026 4 4) (secondsToDiffTime (15 * 60 * 60)))
+            authoritativeBreakEndsAt boundaries
+                `shouldBe` Just (UTCTime (fromGregorian 2026 4 4) (secondsToDiffTime (15 * 60 * 60 + 15 * 60)))
+            authoritativeElapsedSeconds boundaries `shouldBe` 2 * 60 * 60
+            authoritativeBreakElapsedSeconds boundaries `shouldBe` 15 * 60
+            authoritativePaidElapsedSeconds boundaries `shouldBe` 105 * 60
+
+        it "resolves equal repeated shift clocks from the first to second occurrence" do
+            let day = fromGregorian 2026 4 5
+            boundaries <- expectRight (resolveShiftBoundaries melbourneTimeZoneName ShiftBoundaryInput
+                { shiftBoundaryDate = day
+                , shiftBoundaryStartTime = TimeOfDay 2 30 0
+                , shiftBoundaryStartOccurrence = Just FirstOccurrence
+                , shiftBoundaryEndTime = TimeOfDay 2 30 0
+                , shiftBoundaryEndOccurrence = Just SecondOccurrence
+                , shiftBoundaryBreak = Nothing
+                })
+
+            authoritativeStartLocalTime boundaries `shouldBe` LocalTime day (TimeOfDay 2 30 0)
+            authoritativeEndLocalTime boundaries `shouldBe` LocalTime day (TimeOfDay 2 30 0)
+            authoritativeStartOccurrence boundaries `shouldBe` Just FirstOccurrence
+            authoritativeEndOccurrence boundaries `shouldBe` Just SecondOccurrence
+            authoritativeElapsedSeconds boundaries `shouldBe` 60 * 60
+
+        it "resolves equal repeated break clocks from the first to second occurrence" do
+            let day = fromGregorian 2026 4 5
+            boundaries <- expectRight (resolveShiftBoundaries melbourneTimeZoneName ShiftBoundaryInput
+                { shiftBoundaryDate = day
+                , shiftBoundaryStartTime = TimeOfDay 1 30 0
+                , shiftBoundaryStartOccurrence = Nothing
+                , shiftBoundaryEndTime = TimeOfDay 3 30 0
+                , shiftBoundaryEndOccurrence = Nothing
+                , shiftBoundaryBreak = Just BreakBoundaryInput
+                    { breakBoundaryStartTime = TimeOfDay 2 30 0
+                    , breakBoundaryStartOccurrence = Just FirstOccurrence
+                    , breakBoundaryEndTime = TimeOfDay 2 30 0
+                    , breakBoundaryEndOccurrence = Just SecondOccurrence
+                    }
+                })
+
+            authoritativeBreakStartLocalTime boundaries `shouldBe` Just (LocalTime day (TimeOfDay 2 30 0))
+            authoritativeBreakEndLocalTime boundaries `shouldBe` Just (LocalTime day (TimeOfDay 2 30 0))
+            authoritativeBreakStartOccurrence boundaries `shouldBe` Just FirstOccurrence
+            authoritativeBreakEndOccurrence boundaries `shouldBe` Just SecondOccurrence
+            authoritativeBreakElapsedSeconds boundaries `shouldBe` 60 * 60
+
+        it "integration rejects a nonexistent spring boundary instead of normalizing it" do
+            let skipped = LocalTime (fromGregorian 2026 10 4) (TimeOfDay 2 30 0)
+                input = ShiftBoundaryInput
+                    { shiftBoundaryDate = skipped.localDay
+                    , shiftBoundaryStartTime = skipped.localTimeOfDay
+                    , shiftBoundaryStartOccurrence = Nothing
+                    , shiftBoundaryEndTime = TimeOfDay 4 0 0
+                    , shiftBoundaryEndOccurrence = Nothing
+                    , shiftBoundaryBreak = Nothing
+                    }
+
+            resolveShiftBoundaries melbourneTimeZoneName input
+                `shouldBe` Left (BoundaryCivilTimeError (NonexistentCivilTime skipped))
 
         it "property: Award segmentation conserves every exact elapsed second" $
             property propElapsedConservation

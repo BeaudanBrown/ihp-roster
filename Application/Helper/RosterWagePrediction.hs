@@ -9,21 +9,27 @@ module Application.Helper.RosterWagePrediction
     , fetchRosterWagePrediction
     , lookupRosterWagePredictionDay
     , lookupRosterWagePredictionDayByDate
+    , rosterSlotPredictedAutomaticBreakWindow
     , formatMoneyAmount
     ) where
 
 import Application.Helper.Pay (latestVenueEffectiveRate)
 import Application.Helper.TimeRules (automaticMealBreakMinutes,
-                                     automaticMealBreakWindowMinutes,
-                                     timeOfDayToMinutes,
+                                     automaticMealBreakStartOffsetMinutes,
+                                     automaticMealBreakThresholdMinutes,
                                      validRosterShiftDurationMinutes)
-import Application.Helper.WeekBoundaries (weekdayIndexForDay)
+import Application.VenueTime (AwardSegment, LocalDayKind (..),
+                              LocalTimeWindow (..), awardSegmentElapsedSeconds,
+                              awardSegmentEnd, awardSegmentLocalDate,
+                              awardSegmentLocalDayKind, awardSegmentLocalWindow,
+                              awardSegmentStart, resolvedInstantUTC)
+import Application.VenueTime.Model
 import qualified Data.List as List
 import qualified Data.Map.Strict as Map
 import Data.Scientific (Scientific)
 import qualified Data.Scientific as Scientific
 import Data.Time.Calendar (Day, addDays)
-import Data.Time.LocalTime (TimeOfDay)
+import Data.Time.Clock (NominalDiffTime, UTCTime, addUTCTime, diffUTCTime)
 import Data.UUID (UUID)
 import Generated.Types
 import IHP.ControllerPrelude
@@ -50,12 +56,6 @@ data PredictedShift = PredictedShift
     , predictedShiftAmount    :: !Scientific
     }
     deriving (Eq, Show)
-
-data PayWindow = PayWindow
-    { windowStartMinute :: !Int
-    , windowEndMinute   :: !Int
-    , windowPenaltyKind :: !(Maybe AwardPenaltyKindEnum)
-    }
 
 fetchRosterWagePrediction ::
     (?modelContext :: ModelContext) =>
@@ -113,11 +113,11 @@ predictRosterSlot ::
 predictRosterSlot venueConfig rosterWeek rosterDay slot =
     case completeRosterSlot slot of
         Nothing -> pure Nothing
-        Just (staffId, shiftTypeId, startTime, endTime) -> do
+        Just (staffId, shiftTypeId, boundaries, segments) -> do
             staff <- fetch (Id staffId :: Id Staff)
             shiftType <- fetch (Id shiftTypeId :: Id ShiftType)
             let workedOn = addDays (toInteger rosterDay.dayOffset) (weekStartDate venueConfig rosterWeek)
-            amount <- predictShiftAmount venueConfig staff shiftType workedOn startTime endTime
+            amount <- predictShiftAmount venueConfig staff shiftType workedOn boundaries segments
             pure (Just PredictedShift { predictedShiftDayOffset = rosterDay.dayOffset, predictedShiftAmount = amount })
 
 predictShiftAmount ::
@@ -126,80 +126,93 @@ predictShiftAmount ::
     Staff ->
     ShiftType ->
     Day ->
-    TimeOfDay ->
-    TimeOfDay ->
+    AuthoritativeBoundaries ->
+    [AwardSegment] ->
     IO Scientific
-predictShiftAmount venueConfig staff shiftType workedOn startTime endTime = do
+predictShiftAmount venueConfig staff shiftType workedOn boundaries segments = do
     case shiftType.overrideAwardLevelId <|> staff.defaultAwardLevelId of
         Nothing -> pure 0
         Just awardLevelId -> do
             awardLevel <- fetch awardLevelId
             baseRate <- fetchBaseRate venueConfig awardLevel staff.employmentBasis workedOn
-            segmentAmounts <- forM (payWindowsForShift startTime endTime) \window -> do
-                let segmentDate = segmentDateForWindow workedOn window
-                penaltyKind <- resolveWindowPenaltyKind venueConfig segmentDate window
+            segmentAmounts <- forM segments \segment -> do
+                let segmentDate = awardSegmentLocalDate segment
+                penaltyKind <- resolveSegmentPenaltyKind venueConfig segment
                 hourlyRate <- segmentHourlyRate venueConfig awardLevel staff.employmentBasis workedOn segmentDate baseRate penaltyKind
-                pure (roundMoney (fromIntegral (paidMinutesInWindow startTime endTime window) / 60 * hourlyRate))
+                let paidHours = nominalDiffTimeHours (paidSecondsInSegment automaticBreakWindow segment)
+                pure (roundMoney (paidHours * hourlyRate))
             pure (roundMoney (sum segmentAmounts))
+  where
+    automaticBreakWindow = predictedAutomaticMealBreakWindow boundaries
 
-completeRosterSlot :: RosterSlot -> Maybe (UUID, UUID, TimeOfDay, TimeOfDay)
+completeRosterSlot :: RosterSlot -> Maybe (UUID, UUID, AuthoritativeBoundaries, [AwardSegment])
 completeRosterSlot slot = do
     staffId <- slot.staffId
     shiftTypeId <- slot.shiftTypeId
-    startTime <- slot.startTime
-    endTime <- slot.endTime
+    startTime <- rosterSlotStartTime slot
+    endTime <- rosterSlotEndTime slot
     _ <- validRosterShiftDurationMinutes startTime endTime
-    pure (staffId, shiftTypeId, startTime, endTime)
+    boundaries <- rosterSlotPredictionBoundaries slot
+    segments <- either (const Nothing) Just (authoritativeAwardSegments boundaries)
+    pure (staffId, shiftTypeId, boundaries, segments)
 
 staffedIncomplete :: RosterSlot -> Bool
 staffedIncomplete slot =
     isJust slot.staffId && isNothing (completeRosterSlot slot)
 
-payWindowsForShift :: TimeOfDay -> TimeOfDay -> [PayWindow]
-payWindowsForShift startTime endTime =
-    filter ((> 0) . paidMinutesInWindow startTime endTime)
-        [ PayWindow 0 420 (Just LateNightAfterMidnight)
-        , PayWindow 420 1140 Nothing
-        , PayWindow 1140 1440 (Just EveningAfter7Pm)
-        , PayWindow 1440 1860 (Just LateNightAfterMidnight)
-        ]
+rosterSlotPredictedAutomaticBreakWindow :: RosterSlot -> Maybe (UTCTime, UTCTime)
+rosterSlotPredictedAutomaticBreakWindow slot = do
+    boundaries <- rosterSlotPredictionBoundaries slot
+    predictedAutomaticMealBreakWindow boundaries
 
-paidMinutesInWindow :: TimeOfDay -> TimeOfDay -> PayWindow -> Int
-paidMinutesInWindow startTime endTime PayWindow { windowStartMinute, windowEndMinute } =
-    max 0 (basePaidMinutes - breakOverlapMinutes)
-    where
-        startMinute = normalizeShiftMinute startTime
-        endMinute = normalizeShiftMinute endTime
-        basePaidMinutes = max 0 (min endMinute windowEndMinute - max startMinute windowStartMinute)
-        breakOverlapMinutes =
-            case automaticMealBreakWindowMinutes startTime endTime of
-                Nothing -> 0
-                Just (breakStartMinute, breakEndMinute) -> max 0 (min breakEndMinute windowEndMinute - max breakStartMinute windowStartMinute)
+rosterSlotPredictionBoundaries :: RosterSlot -> Maybe AuthoritativeBoundaries
+rosterSlotPredictionBoundaries slot = do
+    startsAt <- slot.startsAt
+    endsAt <- slot.endsAt
+    either (const Nothing) Just (authoritativeBoundariesFromInstants slot.timezone startsAt endsAt Nothing Nothing)
 
-normalizeShiftMinute :: TimeOfDay -> Int
-normalizeShiftMinute timeOfDay =
-    let minute = timeOfDayToMinutes timeOfDay
-     in if minute < 360 then minute + 1440 else minute
+predictedAutomaticMealBreakWindow :: AuthoritativeBoundaries -> Maybe (UTCTime, UTCTime)
+predictedAutomaticMealBreakWindow boundaries
+    | authoritativeElapsedSeconds boundaries >= minutesToNominalDiffTime automaticMealBreakThresholdMinutes =
+        let breakStart = addUTCTime (minutesToNominalDiffTime automaticMealBreakStartOffsetMinutes) (authoritativeStartsAt boundaries)
+         in Just (breakStart, addUTCTime (minutesToNominalDiffTime automaticMealBreakMinutes) breakStart)
+    | otherwise = Nothing
 
-segmentDateForWindow :: Day -> PayWindow -> Day
-segmentDateForWindow workedOn window =
-    addDays (if window.windowStartMinute >= 1440 then 1 else 0) workedOn
+paidSecondsInSegment :: Maybe (UTCTime, UTCTime) -> AwardSegment -> NominalDiffTime
+paidSecondsInSegment maybeBreakWindow segment =
+    max 0 (awardSegmentElapsedSeconds segment - breakOverlapSeconds)
+  where
+    segmentStart = resolvedInstantUTC (awardSegmentStart segment)
+    segmentEnd = resolvedInstantUTC (awardSegmentEnd segment)
+    breakOverlapSeconds =
+        case maybeBreakWindow of
+            Nothing -> 0
+            Just (breakStart, breakEnd) ->
+                max 0 (diffUTCTime (min segmentEnd breakEnd) (max segmentStart breakStart))
 
-resolveWindowPenaltyKind ::
+minutesToNominalDiffTime :: Int -> NominalDiffTime
+minutesToNominalDiffTime minutes = fromIntegral (minutes * 60)
+
+nominalDiffTimeHours :: NominalDiffTime -> Scientific
+nominalDiffTimeHours seconds = fromRational (toRational seconds) / 3600
+
+resolveSegmentPenaltyKind ::
     (?modelContext :: ModelContext) =>
     VenueConfig ->
-    Day ->
-    PayWindow ->
+    AwardSegment ->
     IO (Maybe AwardPenaltyKindEnum)
-resolveWindowPenaltyKind venueConfig segmentDate window = do
-    publicHoliday <- isPublicHolidayForVenue venueConfig segmentDate
+resolveSegmentPenaltyKind venueConfig segment = do
+    publicHoliday <- isPublicHolidayForVenue venueConfig (awardSegmentLocalDate segment)
     pure $
         if publicHoliday
             then Just PublicHolidayPenalty
-            else case weekdayIndexForDay segmentDate of
-                6 -> Just SaturdayPenalty
-                0 -> Just SundayPenalty
-                _ -> window.windowPenaltyKind
+            else case awardSegmentLocalDayKind segment of
+                LocalSaturday -> Just SaturdayPenalty
+                LocalSunday -> Just SundayPenalty
+                LocalWeekday -> case awardSegmentLocalWindow segment of
+                    EarlyMorningWindow -> Just LateNightAfterMidnight
+                    OrdinaryWindow     -> Nothing
+                    EveningWindow      -> Just EveningAfter7Pm
 
 isPublicHolidayForVenue :: (?modelContext :: ModelContext) => VenueConfig -> Day -> IO Bool
 isPublicHolidayForVenue venueConfig day =

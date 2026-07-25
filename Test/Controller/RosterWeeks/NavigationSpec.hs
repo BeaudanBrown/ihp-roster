@@ -245,7 +245,7 @@ tests = aroundAll withDatabaseTestContext do
                 rosterDay <- createRosterDayRecord rosterWeek 0
                 _ <-
                     createRosterSlotRecord rosterDay slotName (Just staffMember) 0
-                        >>= updateRecord . set #startTime (Just (TimeOfDay 8 0 0))
+                        >>= updateRecord . setTestStartTime (Just (TimeOfDay 8 0 0))
                 _ <- createLeaveRequestRecord venue staffMember defaultWeekEpoch (addDays 1 defaultWeekEpoch) "approved"
 
                 response <- withUserAndCurrentVenue manager venue.id do

@@ -167,6 +167,7 @@ pageHelpTopics =
             ]
         , section HelpManagerPlus "Planning"
             [ iconItem HelpManagerPlus "bi-plus-lg" "Add shift" "Create or edit shifts" "In a draft roster, click an empty cell to add a shift or click a shift to edit it."
+            , iconItem HelpManagerPlus "bi-clock-history" "Clock change" "Choose a repeated time" "When an autumn clock time occurs twice, choose First for daylight time or Second for standard time. Times skipped by the spring clock change cannot be saved."
             , buttonItem HelpManagerPlus "bi-broadcast" "Live switch" "Publish or return to draft" "Turn Live on when the roster is ready for staff. Turn it off to return the week to draft and hide uncreated Timesheet suggestions." "btn btn-outline-success" Nothing "Live"
             , iconItem HelpManagerPlus "bi-arrows-move" "Drag" "Move or copy shifts" "Drag a shift to a green-highlighted target to move it. Hold Ctrl, Option, or Alt while dragging to copy it."
             , iconItem HelpManagerPlus "bi-person-plus" "Staff drag" "Assign staff from the list" "Drag a staff member to a green-highlighted empty slot to create a shift, or onto an existing shift to assign them."
@@ -200,6 +201,7 @@ pageHelpTopics =
             , iconItem HelpEveryone "bi-funnel" "Timesheet settings" "Hide or show suggestions" "Open Timesheet settings and toggle Show suggestions. The choice stays in the current page URL while you navigate weeks."
             , iconItem HelpEveryone "bi-pencil" "Edit entry" "Edit an existing entry" "Click the entry card itself to fix times, notes, or break details before approval. Roster-derived entries keep their worked date and roster link; only managers can reassign staff."
             , iconItem HelpEveryone "bi-cup-hot" "Breaks" "Record breaks correctly" "Add break details when a break was taken, including break start and end where required."
+            , iconItem HelpEveryone "bi-clock-history" "Clock change" "Choose a repeated time" "When an autumn clock time occurs twice, choose First for daylight time or Second for standard time. Times skipped by the spring clock change cannot be saved."
             , iconItem HelpEveryone "bi-chat-left-text" "Manager help" "Fix an approved entry" "If an approved entry needs changes, ask a manager to reopen or correct it."
             ]
         , section HelpManagerPlus "Review tasks"

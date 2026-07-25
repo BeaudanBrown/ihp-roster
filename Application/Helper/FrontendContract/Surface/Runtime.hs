@@ -39,6 +39,7 @@ module Application.Helper.FrontendContract.Surface.Runtime
     , renderFrontendSurfaceActionSubmitButton
     , renderFrontendSurfaceInteractionShell
     , renderFrontendSurfaceIntentForm
+    , renderFrontendSurfaceIntentFormWithId
     , renderFrontendSurfaceLazyFragmentWithConfig
     , mkSurfaceImplFromValues
     , renderFrontendSurfaceMount
@@ -583,15 +584,26 @@ applyAttributes :: Blaze.Html -> [Blaze.Attribute] -> Blaze.Html
 applyAttributes = foldl' (!)
 
 renderFrontendSurfaceIntentForm :: FrontendSurfaceIntentForm -> Blaze.Html -> Blaze.Html
-renderFrontendSurfaceIntentForm intent body =
-    Html5.form
-        ! attr (frontendSurfaceHtmxMethodAttr intent.intentFormSubmit.htmxRequestMethod) intent.intentFormSubmit.htmxRequestUrl
-        ! attr "hx-target" intent.intentFormSubmit.htmxRequestTarget
-        ! attr "hx-swap" intent.intentFormSubmit.htmxRequestSwap
-        ! attr (interactionDomAttribute @Interaction.IntentForm) intent.intentFormName
-        $ do
-            mapM_ renderFrontendSurfaceInteractionIntentInput intent.intentFormFields
-            body
+renderFrontendSurfaceIntentForm =
+    renderFrontendSurfaceIntentFormWithOptionalId Nothing
+
+renderFrontendSurfaceIntentFormWithId :: Text -> FrontendSurfaceIntentForm -> Blaze.Html -> Blaze.Html
+renderFrontendSurfaceIntentFormWithId formId =
+    renderFrontendSurfaceIntentFormWithOptionalId (Just formId)
+
+renderFrontendSurfaceIntentFormWithOptionalId :: Maybe Text -> FrontendSurfaceIntentForm -> Blaze.Html -> Blaze.Html
+renderFrontendSurfaceIntentFormWithOptionalId maybeFormId intent body =
+    applyAttributes
+        ( Html5.form
+            ! attr (frontendSurfaceHtmxMethodAttr intent.intentFormSubmit.htmxRequestMethod) intent.intentFormSubmit.htmxRequestUrl
+            ! attr "hx-target" intent.intentFormSubmit.htmxRequestTarget
+            ! attr "hx-swap" intent.intentFormSubmit.htmxRequestSwap
+            ! attr (interactionDomAttribute @Interaction.IntentForm) intent.intentFormName
+            $ do
+                mapM_ renderFrontendSurfaceInteractionIntentInput intent.intentFormFields
+                body
+        )
+        (maybe [] (\formId -> [attr "id" formId]) maybeFormId)
 
 renderHiddenField :: (Text, Text) -> Blaze.Html
 renderHiddenField (fieldName, fieldValue) =

@@ -9,6 +9,7 @@ module Application.Helper.FrontendContract.Surface.Roster.Action
     , deleteRosterWeekSlotDefinitionActionFields
     , navigateRosterWeekAction
     , navigateRosterWeekActionFields
+    , parseCopyRosterWeekActionParams
     , parseNavigateRosterWeekActionParams
     , parseToggleRosterAssignmentFiltersActionParams
     , parseToggleRosterStaffScopeActionParams
@@ -43,6 +44,7 @@ import Application.Helper.FrontendContract.Surface.Roster.Generated.Action (addR
                                                                             deleteRosterWeekSlotDefinitionActionFields,
                                                                             navigateRosterWeekAction,
                                                                             navigateRosterWeekActionFields,
+                                                                            parseCopyRosterWeekActionParams,
                                                                             parseNavigateRosterWeekActionParams,
                                                                             parseToggleRosterAssignmentFiltersActionParams,
                                                                             parseToggleRosterStaffScopeActionParams,

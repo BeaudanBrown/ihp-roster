@@ -211,7 +211,7 @@ type RegisteredSurfaceActionAdapterHomes =
      ]
 
 -- Every eligible Action emits builders and render metadata. The exact parser
--- inventory contains 32 generated operations and 15 typed exclusions for
+-- inventory contains 33 generated operations and 14 typed exclusions for
 -- declarations whose current endpoint consumes no complete Surface envelope.
 registeredSurfaceActionAdapterRegistrations :: [SurfaceRequestAdapterRegistration 'ActionAdapterKind]
 registeredSurfaceActionAdapterRegistrations =
@@ -227,8 +227,7 @@ registeredSurfaceActionAdapterRegistrations =
         (requestAdapterOperationsWithoutParser "The zero-field sort endpoint consumes route context and has no Surface request parser")
     , surfaceActionAdapter @RosterAdapterFamily @Roster.ToggleRosterWeekLiveStatus allRequestAdapterOperations
     , surfaceActionAdapter @RosterAdapterFamily @Roster.ToggleRosterAssignmentFilters allRequestAdapterOperations
-    , surfaceActionAdapter @RosterAdapterFamily @Roster.CopyRosterWeek
-        (requestAdapterOperationsWithoutParser "The zero-field copy endpoint consumes route context and has no Surface request parser")
+    , surfaceActionAdapter @RosterAdapterFamily @Roster.CopyRosterWeek allRequestAdapterOperations
     , surfaceActionAdapter @RosterAdapterFamily @Roster.CreateRosterWeekSlotDefinition
         (requestAdapterOperationsWithoutParser "The zero-field slot creation endpoint consumes route context and has no Surface request parser")
     , surfaceActionAdapter @RosterAdapterFamily @Roster.DeleteRosterWeekSlotDefinition

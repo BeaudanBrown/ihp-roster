@@ -23,6 +23,7 @@ where
 import Application.Helper.WeekBoundaries (venueEffectiveRateDate,
                                           venueEffectiveRateEndDate)
 import Application.VenueTime (AwardSegment)
+import Application.VenueTime.Model (timesheetEntryWorkedOn)
 import Application.WageEngine
 import qualified Data.Bifunctor as Bifunctor
 import qualified Data.List as List
@@ -543,7 +544,7 @@ projectEntryContext venueConfigByVenueId staffById shiftTypeById staffPayVersion
     pure
         EntryContextRow
             { contextEntryId = unpackId entry.id
-            , contextWorkedOn = entry.workedOn
+            , contextWorkedOn = timesheetEntryWorkedOn entry
             , contextVenueTimeZone = venueConfig.timezone
             , contextRosterWeekStartsOn = venueConfig.rosterWeekStartsOn
             , contextHolidayJurisdiction = venueConfig.publicHolidayJurisdiction

@@ -5,6 +5,7 @@ module Application.Xero.Timesheets.Buckets
 import Application.Helper.Pay
 import Application.Helper.WeekBoundaries (WeekdayIndex)
 import Application.Helper.XeroAdminTypes
+import Application.VenueTime.Model (requireMelbourneDateRangeUTC)
 import qualified Data.List as List
 import qualified Data.Map.Strict as Map
 import qualified Data.Text as Text
@@ -21,14 +22,15 @@ fetchPeriodXeroLocalEarningsBuckets ::
     [UUID] ->
     IO [XeroLocalEarningsBucket]
 fetchPeriodXeroLocalEarningsBuckets venueId periodStart periodEnd skippedStaffIds = do
+    let (periodStartsAt, periodEndsAt) = requireMelbourneDateRangeUTC periodStart periodEnd
     approvedEntries <-
         query @TimesheetEntry
             |> filterWhere (#venueId, unpackId venueId)
-            |> filterWhereGreaterThanOrEqualTo (#workedOn, periodStart)
-            |> filterWhereLessThanOrEqualTo (#workedOn, periodEnd)
+            |> filterWhereGreaterThanOrEqualTo (#startsAt, periodStartsAt)
+            |> filterWhereLessThan (#startsAt, periodEndsAt)
             |> filterWhere (#isApproved, True)
             |> filterWhere (#deletedAt, Nothing)
-            |> orderBy #workedOn
+            |> orderBy #startsAt
             |> fetch
     let entries = filter (not . (`elem` skippedStaffIds) . (.staffId)) approvedEntries
     staffMembers <-

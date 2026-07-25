@@ -77,8 +77,8 @@ tests = aroundAll withDatabaseTestContext do
                 length rosterDays `shouldBe` 14
                 length rosterSlots `shouldSatisfy` (> 30)
                 sort (map (.isLive) rosterWeeks) `shouldBe` [False, True]
-                length (filter (isJust . (.startTime)) rosterSlots) `shouldSatisfy` (> 10)
-                length (filter (isJust . (.endTime)) rosterSlots) `shouldBe` length (filter (isJust . (.startTime)) rosterSlots)
+                length (filter (isJust . testStartTime) rosterSlots) `shouldSatisfy` (> 10)
+                length (filter (isJust . testEndTime) rosterSlots) `shouldBe` length (filter (isJust . testStartTime) rosterSlots)
                 sort (nub (map (.idealShiftsPerWeek) seededStaff)) `shouldBe` [0, 1, 2, 3, 4, 5]
                 let seededStaffNames = map (\staff -> (staff.firstName, staff.lastName)) seededStaff
                 let expectedSeededStaffNames =
@@ -339,10 +339,10 @@ tests = aroundAll withDatabaseTestContext do
                         |> fetch
 
                 let totalTimesheetCount = length timesheetEntries
-                let entriesWithBreaks = length (filter (.hadBreak) timesheetEntries)
+                let entriesWithBreaks = length (filter testHadBreak timesheetEntries)
                 let scenarioTimesheetCount = seededScenario.approvedTimesheets + seededScenario.pendingTimesheets
                 let requiredBreakCount = ceiling ((fromIntegral scenarioTimesheetCount :: Double) * 0.8)
-                let timesheetWeekOffsets = sort (nub (map (testWeekOffsetForDay . (.workedOn)) timesheetEntries))
+                let timesheetWeekOffsets = sort (nub (map (testWeekOffsetForDay . testWorkedOn) timesheetEntries))
                 let xeroMatchedStaffIds = map (unpackId . (.id)) xeroMatchedStaff
                 let approvedTimesheets = filter (.isApproved) timesheetEntries
                 let pendingTimesheetCount = length timesheetEntries - length approvedTimesheets

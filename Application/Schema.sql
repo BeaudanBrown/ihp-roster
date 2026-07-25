@@ -742,10 +742,10 @@ CREATE TABLE roster_slots (
     roster_week_slot_definition_id UUID NOT NULL,
     slot_sort_order INT DEFAULT 0 NOT NULL,
     row_index INT NOT NULL,
-    start_time TIME,
-    end_time TIME,
+    starts_at TIMESTAMP WITH TIME ZONE,
+    ends_at TIMESTAMP WITH TIME ZONE,
+    timezone TEXT NOT NULL,
     shift_type_id UUID,
-    duration_minutes INT,
     deleted_at TIMESTAMP WITH TIME ZONE DEFAULT NULL,
     deleted_by_user_id UUID DEFAULT NULL,
     delete_reason TEXT DEFAULT NULL,
@@ -753,7 +753,9 @@ CREATE TABLE roster_slots (
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
     CHECK (row_index >= 0),
     CHECK (slot_sort_order >= 0),
-    CHECK (duration_minutes IS NULL OR duration_minutes >= 0),
+    CHECK (starts_at IS NULL OR ends_at IS NULL OR ends_at > starts_at),
+    CHECK (char_length(btrim(timezone)) > 0),
+    CHECK (timezone = 'Australia/Melbourne'),
     FOREIGN KEY (roster_day_id) REFERENCES roster_days (id) ON DELETE RESTRICT,
     FOREIGN KEY (staff_id) REFERENCES staff (id) ON DELETE SET NULL,
     FOREIGN KEY (shift_type_id) REFERENCES shift_types (id) ON DELETE SET NULL,
@@ -1274,13 +1276,11 @@ CREATE TABLE timesheet_entries (
     venue_id UUID NOT NULL,
     staff_id UUID NOT NULL,
     shift_type_id UUID NOT NULL,
-    worked_on DATE NOT NULL,
-    start_time TIME NOT NULL,
-    end_time TIME NOT NULL,
-    had_break BOOLEAN DEFAULT FALSE NOT NULL,
-    break_start_time TIME,
-    break_end_time TIME,
-    break_minutes INT DEFAULT 0 NOT NULL,
+    starts_at TIMESTAMP WITH TIME ZONE NOT NULL,
+    ends_at TIMESTAMP WITH TIME ZONE NOT NULL,
+    break_starts_at TIMESTAMP WITH TIME ZONE,
+    break_ends_at TIMESTAMP WITH TIME ZONE,
+    timezone TEXT NOT NULL,
     staff_pay_version_id UUID,
     shift_type_pay_version_id UUID,
     source_roster_slot_id UUID DEFAULT NULL,
@@ -1302,8 +1302,10 @@ CREATE TABLE timesheet_entries (
     FOREIGN KEY (source_roster_slot_id) REFERENCES roster_slots (id) ON DELETE RESTRICT,
     FOREIGN KEY (approved_by_user_id) REFERENCES users (id) ON DELETE SET NULL,
     FOREIGN KEY (deleted_by_user_id) REFERENCES users (id) ON DELETE RESTRICT,
-    CHECK (break_minutes >= 0),
-    CHECK (((had_break = FALSE) AND break_start_time IS NULL AND break_end_time IS NULL AND break_minutes = 0) OR ((had_break = TRUE) AND break_start_time IS NOT NULL AND break_end_time IS NOT NULL AND break_minutes > 0)),
+    CHECK (ends_at > starts_at),
+    CHECK ((break_starts_at IS NULL AND break_ends_at IS NULL) OR (break_starts_at IS NOT NULL AND break_ends_at IS NOT NULL AND break_starts_at >= starts_at AND break_ends_at > break_starts_at AND break_ends_at <= ends_at)),
+    CHECK (char_length(btrim(timezone)) > 0),
+    CHECK (timezone = 'Australia/Melbourne'),
     CHECK (staff_comment IS NULL OR char_length(staff_comment) <= 1000),
     CHECK (manager_note IS NULL OR char_length(manager_note) <= 1000),
     CHECK (((is_approved = FALSE) AND approved_at IS NULL AND approved_by_user_id IS NULL AND staff_pay_version_id IS NULL AND shift_type_pay_version_id IS NULL) OR ((is_approved = TRUE) AND approved_at IS NOT NULL AND approved_by_user_id IS NOT NULL AND staff_pay_version_id IS NOT NULL AND shift_type_pay_version_id IS NOT NULL))
@@ -1546,7 +1548,7 @@ CREATE INDEX idx_app_jobs_kind_created_at ON app_jobs (job_kind, created_at DESC
 CREATE INDEX idx_app_jobs_venue_created_at ON app_jobs (venue_id, created_at DESC);
 CREATE UNIQUE INDEX idx_app_jobs_active_dedupe ON app_jobs (dedupe_key) WHERE dedupe_key IS NOT NULL AND (status = 'job_status_not_started' OR status = 'job_status_running' OR status = 'job_status_retry');
 CREATE INDEX idx_timesheet_entries_venue_staff ON timesheet_entries (venue_id, staff_id) WHERE deleted_at IS NULL;
-CREATE INDEX idx_timesheet_entries_venue_worked_on ON timesheet_entries (venue_id, worked_on) WHERE deleted_at IS NULL;
+CREATE INDEX idx_timesheet_entries_venue_starts_at ON timesheet_entries (venue_id, starts_at) WHERE deleted_at IS NULL;
 CREATE INDEX idx_timesheet_entries_staff_pay_version ON timesheet_entries (staff_pay_version_id);
 CREATE INDEX idx_timesheet_entries_shift_type_pay_version ON timesheet_entries (shift_type_pay_version_id);
 CREATE UNIQUE INDEX idx_timesheet_entries_source_roster_slot ON timesheet_entries (source_roster_slot_id) WHERE source_roster_slot_id IS NOT NULL AND deleted_at IS NULL;
@@ -1903,10 +1905,11 @@ BEGIN
     IF (OLD.source_roster_slot_id IS NOT NULL OR NEW.source_roster_slot_id IS NOT NULL)
         AND (
             NEW.source_roster_slot_id IS DISTINCT FROM OLD.source_roster_slot_id
-            OR NEW.worked_on IS DISTINCT FROM OLD.worked_on
+            OR (NEW.starts_at AT TIME ZONE NEW.timezone)::DATE IS DISTINCT FROM (OLD.starts_at AT TIME ZONE OLD.timezone)::DATE
+            OR NEW.timezone IS DISTINCT FROM OLD.timezone
         )
     THEN
-        RAISE EXCEPTION 'roster-derived timesheet worked date and source are immutable';
+        RAISE EXCEPTION 'roster-derived timesheet local date, timezone and source are immutable';
     END IF;
 
     RETURN NEW;
@@ -2085,6 +2088,15 @@ AS $$
     WITH entry_data AS (
         SELECT
             te.*,
+            (te.starts_at AT TIME ZONE te.timezone)::DATE AS worked_on,
+            COALESCE(FLOOR(EXTRACT(EPOCH FROM (te.break_ends_at - te.break_starts_at)) / 60)::INT, 0) AS break_minutes,
+            GREATEST(
+                FLOOR(
+                    EXTRACT(EPOCH FROM (te.ends_at - te.starts_at)) / 60
+                    - COALESCE(EXTRACT(EPOCH FROM (te.break_ends_at - te.break_starts_at)) / 60, 0)
+                )::INT,
+                0
+            ) AS authoritative_paid_minutes,
             spv.default_award_level_id AS version_staff_award_level_id,
             spv.imported_xero_pay_item_id AS version_staff_imported_xero_pay_item_id,
             spv.employment_basis AS version_employment_basis,
@@ -2104,11 +2116,11 @@ AS $$
             e.staff_id,
             e.shift_type_id,
             e.worked_on,
-            e.start_time,
-            e.end_time,
-            e.had_break,
-            e.break_start_time,
-            e.break_end_time,
+            e.starts_at,
+            e.ends_at,
+            e.break_starts_at,
+            e.break_ends_at,
+            e.timezone,
             e.break_minutes,
             e.staff_pay_version_id,
             e.shift_type_pay_version_id,
@@ -2132,52 +2144,7 @@ AS $$
                     LIMIT 1
                 )
             ) AS employment_basis,
-            (EXTRACT(EPOCH FROM e.start_time) / 60)::INT AS start_minute_of_day,
-            (
-                CASE
-                    WHEN (EXTRACT(EPOCH FROM e.end_time) / 60)::INT <= (EXTRACT(EPOCH FROM e.start_time) / 60)::INT
-                        THEN (EXTRACT(EPOCH FROM e.end_time) / 60)::INT + 1440
-                    ELSE (EXTRACT(EPOCH FROM e.end_time) / 60)::INT
-                END
-            ) AS end_minute_of_day,
-            CASE
-                WHEN e.had_break
-                    AND e.break_start_time IS NOT NULL
-                    AND e.break_end_time IS NOT NULL
-                    AND e.break_minutes > 0
-                THEN
-                    CASE
-                        WHEN (EXTRACT(EPOCH FROM e.break_start_time) / 60)::INT < (EXTRACT(EPOCH FROM e.start_time) / 60)::INT
-                            THEN (EXTRACT(EPOCH FROM e.break_start_time) / 60)::INT + 1440
-                        ELSE (EXTRACT(EPOCH FROM e.break_start_time) / 60)::INT
-                    END
-                ELSE NULL
-            END AS break_start_minute_of_day,
-            CASE
-                WHEN e.had_break
-                    AND e.break_start_time IS NOT NULL
-                    AND e.break_end_time IS NOT NULL
-                    AND e.break_minutes > 0
-                THEN
-                    CASE
-                        WHEN (EXTRACT(EPOCH FROM e.break_end_time) / 60)::INT <= (EXTRACT(EPOCH FROM e.break_start_time) / 60)::INT
-                            THEN (EXTRACT(EPOCH FROM e.break_end_time) / 60)::INT + 1440
-                        WHEN (EXTRACT(EPOCH FROM e.break_end_time) / 60)::INT < (EXTRACT(EPOCH FROM e.start_time) / 60)::INT
-                            THEN (EXTRACT(EPOCH FROM e.break_end_time) / 60)::INT + 1440
-                        ELSE (EXTRACT(EPOCH FROM e.break_end_time) / 60)::INT
-                    END
-                ELSE NULL
-            END AS break_end_minute_of_day,
-            GREATEST(
-                (
-                    CASE
-                        WHEN (EXTRACT(EPOCH FROM e.end_time) / 60)::INT <= (EXTRACT(EPOCH FROM e.start_time) / 60)::INT
-                            THEN (EXTRACT(EPOCH FROM e.end_time) / 60)::INT + 1440
-                        ELSE (EXTRACT(EPOCH FROM e.end_time) / 60)::INT
-                    END
-                ) - (EXTRACT(EPOCH FROM e.start_time) / 60)::INT - e.break_minutes,
-                0
-            ) AS paid_minutes,
+            e.authoritative_paid_minutes AS paid_minutes,
             COALESCE(
                 e.version_shift_award_level_id,
                 e.version_staff_award_level_id,
@@ -2301,61 +2268,117 @@ AS $$
         FROM resolved r
     ),
     paid_window AS (
-        SELECT
-            r.*,
-            CASE
-                WHEN r.break_start_minute_of_day IS NOT NULL AND r.break_end_minute_of_day IS NOT NULL
-                    THEN LEAST(r.end_minute_of_day, 1860)
-                ELSE LEAST(r.start_minute_of_day + r.paid_minutes, 1860)
-            END AS paid_end_minute_of_day
+        SELECT r.*
         FROM labelled r
     ),
     delayed_meal_break_window AS (
         SELECT
             pw.*,
             CASE
-                WHEN pw.end_minute_of_day - pw.start_minute_of_day > 360
+                WHEN pw.ends_at - pw.starts_at > INTERVAL '360 minutes'
                     AND NOT (
-                        pw.break_start_minute_of_day IS NOT NULL
-                        AND pw.break_end_minute_of_day IS NOT NULL
-                        AND pw.break_end_minute_of_day - pw.break_start_minute_of_day >= 30
-                        AND pw.break_start_minute_of_day >= pw.start_minute_of_day + 120
-                        AND pw.break_start_minute_of_day <= pw.start_minute_of_day + 360
+                        pw.break_starts_at IS NOT NULL
+                        AND pw.break_ends_at IS NOT NULL
+                        AND pw.break_ends_at - pw.break_starts_at >= INTERVAL '30 minutes'
+                        AND pw.break_starts_at >= pw.starts_at + INTERVAL '120 minutes'
+                        AND pw.break_starts_at <= pw.starts_at + INTERVAL '360 minutes'
                     )
-                THEN pw.start_minute_of_day + 360
+                THEN pw.starts_at + INTERVAL '360 minutes'
                 ELSE NULL
-            END AS delayed_meal_break_start_minute,
+            END AS delayed_meal_break_starts_at,
             CASE
-                WHEN pw.end_minute_of_day - pw.start_minute_of_day > 360
+                WHEN pw.ends_at - pw.starts_at > INTERVAL '360 minutes'
                     AND NOT (
-                        pw.break_start_minute_of_day IS NOT NULL
-                        AND pw.break_end_minute_of_day IS NOT NULL
-                        AND pw.break_end_minute_of_day - pw.break_start_minute_of_day >= 30
-                        AND pw.break_start_minute_of_day >= pw.start_minute_of_day + 120
-                        AND pw.break_start_minute_of_day <= pw.start_minute_of_day + 360
+                        pw.break_starts_at IS NOT NULL
+                        AND pw.break_ends_at IS NOT NULL
+                        AND pw.break_ends_at - pw.break_starts_at >= INTERVAL '30 minutes'
+                        AND pw.break_starts_at >= pw.starts_at + INTERVAL '120 minutes'
+                        AND pw.break_starts_at <= pw.starts_at + INTERVAL '360 minutes'
                     )
                 THEN
                     CASE
-                        WHEN pw.break_start_minute_of_day IS NOT NULL
-                            AND pw.break_end_minute_of_day IS NOT NULL
-                            AND pw.break_end_minute_of_day - pw.break_start_minute_of_day >= 30
-                            AND pw.break_start_minute_of_day > pw.start_minute_of_day + 360
-                        THEN pw.break_start_minute_of_day
-                        ELSE pw.end_minute_of_day
+                        WHEN pw.break_starts_at IS NOT NULL
+                            AND pw.break_ends_at IS NOT NULL
+                            AND pw.break_ends_at - pw.break_starts_at >= INTERVAL '30 minutes'
+                            AND pw.break_starts_at > pw.starts_at + INTERVAL '360 minutes'
+                        THEN pw.break_starts_at
+                        ELSE pw.ends_at
                     END
                 ELSE NULL
-            END AS delayed_meal_break_end_minute
+            END AS delayed_meal_break_ends_at
         FROM paid_window pw
     ),
-    segment_windows AS (
-        SELECT *
-        FROM (
-            VALUES
-                ('late_night_after_midnight'::TEXT, 0, 420, 1),
-                ('ordinary'::TEXT, 420, 1140, 2),
-                ('evening_after_7pm'::TEXT, 1140, 1440, 3),
-                ('late_night_after_midnight'::TEXT, 1440, 1860, 4)
-        ) AS windows(segment_name, window_start_minute, window_end_minute, sort_index)
+    local_segment_windows AS (
+        SELECT
+            pw.id,
+            windows.segment_name,
+            windows.segment_date,
+            windows.window_starts_at,
+            windows.window_ends_at,
+            windows.sort_index
+        FROM delayed_meal_break_window pw
+        CROSS JOIN LATERAL generate_series(
+            date_trunc('day', pw.starts_at AT TIME ZONE pw.timezone),
+            date_trunc('day', pw.ends_at AT TIME ZONE pw.timezone),
+            INTERVAL '1 day'
+        ) AS local_days(local_midnight)
+        CROSS JOIN LATERAL (
+            SELECT
+                raw_windows.segment_name,
+                local_midnight::DATE AS segment_date,
+                raw_windows.window_start_local AT TIME ZONE pw.timezone AS window_starts_at,
+                raw_windows.window_end_local AT TIME ZONE pw.timezone AS window_ends_at,
+                ((local_midnight::DATE - pw.worked_on) * 100 + raw_windows.window_sort_index * 10)::INT AS sort_index
+            FROM (
+                VALUES
+                    ('late_night_after_midnight'::TEXT, local_midnight, local_midnight + INTERVAL '7 hours', 1),
+                    ('ordinary'::TEXT, local_midnight + INTERVAL '7 hours', local_midnight + INTERVAL '19 hours', 2),
+                    ('evening_after_7pm'::TEXT, local_midnight + INTERVAL '19 hours', local_midnight + INTERVAL '1 day', 3)
+            ) AS raw_windows(segment_name, window_start_local, window_end_local, window_sort_index)
+        ) windows
+        WHERE windows.window_ends_at > pw.starts_at
+            AND windows.window_starts_at < pw.ends_at
+    ),
+    segment_scopes AS (
+        SELECT
+            pw.*,
+            sw.segment_name,
+            sw.segment_date,
+            sw.sort_index,
+            GREATEST(
+                FLOOR(EXTRACT(EPOCH FROM (LEAST(pw.ends_at, sw.window_ends_at) - GREATEST(pw.starts_at, sw.window_starts_at))) / 60)::INT,
+                0
+            ) AS worked_segment_minutes,
+            CASE
+                WHEN pw.break_starts_at IS NOT NULL AND pw.break_ends_at IS NOT NULL THEN
+                    GREATEST(
+                        FLOOR(EXTRACT(EPOCH FROM (LEAST(pw.break_ends_at, pw.ends_at, sw.window_ends_at) - GREATEST(pw.break_starts_at, pw.starts_at, sw.window_starts_at))) / 60)::INT,
+                        0
+                    )
+                ELSE 0
+            END AS break_segment_minutes,
+            CASE
+                WHEN pw.delayed_meal_break_starts_at IS NOT NULL AND pw.delayed_meal_break_ends_at IS NOT NULL THEN
+                    GREATEST(
+                        FLOOR(EXTRACT(EPOCH FROM (LEAST(pw.delayed_meal_break_ends_at, pw.ends_at, sw.window_ends_at) - GREATEST(pw.delayed_meal_break_starts_at, pw.starts_at, sw.window_starts_at))) / 60)::INT,
+                        0
+                    )
+                ELSE 0
+            END AS delayed_segment_minutes,
+            CASE
+                WHEN pw.break_starts_at IS NOT NULL
+                    AND pw.break_ends_at IS NOT NULL
+                    AND pw.delayed_meal_break_starts_at IS NOT NULL
+                    AND pw.delayed_meal_break_ends_at IS NOT NULL
+                THEN
+                    GREATEST(
+                        FLOOR(EXTRACT(EPOCH FROM (LEAST(pw.break_ends_at, pw.delayed_meal_break_ends_at, pw.ends_at, sw.window_ends_at) - GREATEST(pw.break_starts_at, pw.delayed_meal_break_starts_at, pw.starts_at, sw.window_starts_at))) / 60)::INT,
+                        0
+                    )
+                ELSE 0
+            END AS break_delayed_segment_minutes
+        FROM delayed_meal_break_window pw
+        JOIN local_segment_windows sw ON sw.id = pw.id
     ),
     segment_rows AS (
         SELECT scoped.*,
@@ -2477,155 +2500,109 @@ AS $$
             END AS segment_hourly_rate
         FROM (
             SELECT
-                pw.id,
-                pw.staff_id,
-                pw.worked_on,
-                pw.break_minutes,
-                pw.paid_minutes,
-                pw.break_start_minute_of_day,
-                pw.break_end_minute_of_day,
-                pw.shift_type_id,
-                pw.shift_type_name,
-                pw.pay_level_id,
-                pw.imported_xero_pay_item_id,
-                pw.pay_level_name,
-                pw.award_fixed_id,
-                pw.employment_basis,
-                pw.venue_week_starts_on,
-                pw.permanent_base_rate,
-                pw.staff_pay_version_id,
-                pw.shift_type_pay_version_id,
-                pw.approved_at,
-                scoped_segments.segment_name,
-                scoped_segments.source_segment_name,
-                scoped_segments.segment_date,
-                scoped_segments.penalty_kind,
-                scoped_segments.segment_minutes,
-                pw.base_rate,
-                scoped_segments.sort_index
-            FROM delayed_meal_break_window pw
-            CROSS JOIN LATERAL (
-                SELECT
-                    sw.segment_name,
-                    sw.segment_name AS source_segment_name,
-                    (pw.worked_on + CASE WHEN sw.window_start_minute >= 1440 THEN 1 ELSE 0 END) AS segment_date,
-                    CASE
-                        WHEN EXISTS (
-                            SELECT 1
-                            FROM staff s
-                            JOIN venue_config vc ON vc.venue_id = s.venue_id
-                            JOIN public_holidays ph ON ph.jurisdiction = vc.public_holiday_jurisdiction
-                                AND ph.holiday_date = (pw.worked_on + CASE WHEN sw.window_start_minute >= 1440 THEN 1 ELSE 0 END)
-                                AND ph.is_regional = FALSE
-                            WHERE s.id = pw.staff_id
-                            LIMIT 1
-                        ) THEN 'public_holiday_penalty'::award_penalty_kind_enum
-                        WHEN EXTRACT(DOW FROM (pw.worked_on + CASE WHEN sw.window_start_minute >= 1440 THEN 1 ELSE 0 END))::INT = 6 THEN 'saturday_penalty'::award_penalty_kind_enum
-                        WHEN EXTRACT(DOW FROM (pw.worked_on + CASE WHEN sw.window_start_minute >= 1440 THEN 1 ELSE 0 END))::INT = 0 THEN 'sunday_penalty'::award_penalty_kind_enum
-                        WHEN sw.segment_name = 'evening_after_7pm' THEN 'evening_after_7pm'::award_penalty_kind_enum
-                        WHEN sw.segment_name = 'late_night_after_midnight' THEN 'late_night_after_midnight'::award_penalty_kind_enum
-                        ELSE NULL::award_penalty_kind_enum
-                    END AS penalty_kind,
-                    GREATEST(
-                        GREATEST(
-                            LEAST(pw.paid_end_minute_of_day, sw.window_end_minute)
-                            - GREATEST(pw.start_minute_of_day, sw.window_start_minute),
-                            0
-                        )::INT
-                        - CASE
-                            WHEN pw.break_start_minute_of_day IS NOT NULL AND pw.break_end_minute_of_day IS NOT NULL THEN
-                                GREATEST(
-                                    LEAST(pw.break_end_minute_of_day, sw.window_end_minute)
-                                    - GREATEST(pw.break_start_minute_of_day, sw.window_start_minute),
-                                    0
-                                )::INT
-                            ELSE 0
-                        END
-                        - GREATEST(
-                            CASE
-                                WHEN pw.delayed_meal_break_start_minute IS NOT NULL AND pw.delayed_meal_break_end_minute IS NOT NULL THEN
-                                    GREATEST(
-                                        LEAST(pw.delayed_meal_break_end_minute, sw.window_end_minute)
-                                        - GREATEST(pw.delayed_meal_break_start_minute, sw.window_start_minute),
-                                        0
-                                    )::INT
-                                    - CASE
-                                        WHEN pw.break_start_minute_of_day IS NOT NULL AND pw.break_end_minute_of_day IS NOT NULL THEN
-                                            GREATEST(
-                                                LEAST(pw.break_end_minute_of_day, pw.delayed_meal_break_end_minute, sw.window_end_minute)
-                                                - GREATEST(pw.break_start_minute_of_day, pw.delayed_meal_break_start_minute, sw.window_start_minute),
-                                                0
-                                            )::INT
-                                        ELSE 0
-                                    END
-                                ELSE 0
-                            END,
-                            0
-                        ),
-                        0
-                    ) AS segment_minutes,
-                    sw.sort_index * 10 AS sort_index
-                FROM segment_windows sw
+                ss.id,
+                ss.staff_id,
+                ss.worked_on,
+                ss.break_minutes,
+                ss.paid_minutes,
+                ss.shift_type_id,
+                ss.shift_type_name,
+                ss.pay_level_id,
+                ss.imported_xero_pay_item_id,
+                ss.pay_level_name,
+                ss.award_fixed_id,
+                ss.employment_basis,
+                ss.venue_week_starts_on,
+                ss.permanent_base_rate,
+                ss.staff_pay_version_id,
+                ss.shift_type_pay_version_id,
+                ss.approved_at,
+                ss.segment_name,
+                ss.segment_name AS source_segment_name,
+                ss.segment_date,
+                CASE
+                    WHEN EXISTS (
+                        SELECT 1
+                        FROM staff s
+                        JOIN venue_config vc ON vc.venue_id = s.venue_id
+                        JOIN public_holidays ph ON ph.jurisdiction = vc.public_holiday_jurisdiction
+                            AND ph.holiday_date = ss.segment_date
+                            AND ph.is_regional = FALSE
+                        WHERE s.id = ss.staff_id
+                        LIMIT 1
+                    ) THEN 'public_holiday_penalty'::award_penalty_kind_enum
+                    WHEN EXTRACT(DOW FROM ss.segment_date)::INT = 6 THEN 'saturday_penalty'::award_penalty_kind_enum
+                    WHEN EXTRACT(DOW FROM ss.segment_date)::INT = 0 THEN 'sunday_penalty'::award_penalty_kind_enum
+                    WHEN ss.segment_name = 'evening_after_7pm' THEN 'evening_after_7pm'::award_penalty_kind_enum
+                    WHEN ss.segment_name = 'late_night_after_midnight' THEN 'late_night_after_midnight'::award_penalty_kind_enum
+                    ELSE NULL::award_penalty_kind_enum
+                END AS penalty_kind,
+                GREATEST(
+                    ss.worked_segment_minutes
+                    - ss.break_segment_minutes
+                    - GREATEST(ss.delayed_segment_minutes - ss.break_delayed_segment_minutes, 0),
+                    0
+                ) AS segment_minutes,
+                ss.base_rate,
+                ss.sort_index
+            FROM segment_scopes ss
 
-                UNION ALL
+            UNION ALL
 
-                SELECT
-                    CASE
-                        WHEN EXISTS (
-                            SELECT 1
-                            FROM staff s
-                            JOIN venue_config vc ON vc.venue_id = s.venue_id
-                            JOIN public_holidays ph ON ph.jurisdiction = vc.public_holiday_jurisdiction
-                                AND ph.holiday_date = (pw.worked_on + CASE WHEN sw.window_start_minute >= 1440 THEN 1 ELSE 0 END)
-                                AND ph.is_regional = FALSE
-                            WHERE s.id = pw.staff_id
-                            LIMIT 1
-                        ) THEN 'delayed_meal_break_public_holiday'
-                        WHEN EXTRACT(DOW FROM (pw.worked_on + CASE WHEN sw.window_start_minute >= 1440 THEN 1 ELSE 0 END))::INT = 6 THEN 'delayed_meal_break_saturday'
-                        WHEN EXTRACT(DOW FROM (pw.worked_on + CASE WHEN sw.window_start_minute >= 1440 THEN 1 ELSE 0 END))::INT = 0 THEN 'delayed_meal_break_sunday'
-                        ELSE 'delayed_meal_break_weekday'
-                    END AS segment_name,
-                    sw.segment_name AS source_segment_name,
-                    (pw.worked_on + CASE WHEN sw.window_start_minute >= 1440 THEN 1 ELSE 0 END) AS segment_date,
-                    CASE
-                        WHEN EXISTS (
-                            SELECT 1
-                            FROM staff s
-                            JOIN venue_config vc ON vc.venue_id = s.venue_id
-                            JOIN public_holidays ph ON ph.jurisdiction = vc.public_holiday_jurisdiction
-                                AND ph.holiday_date = (pw.worked_on + CASE WHEN sw.window_start_minute >= 1440 THEN 1 ELSE 0 END)
-                                AND ph.is_regional = FALSE
-                            WHERE s.id = pw.staff_id
-                            LIMIT 1
-                        ) THEN 'delayed_meal_break_public_holiday'::award_penalty_kind_enum
-                        WHEN EXTRACT(DOW FROM (pw.worked_on + CASE WHEN sw.window_start_minute >= 1440 THEN 1 ELSE 0 END))::INT = 6 THEN 'delayed_meal_break_saturday'::award_penalty_kind_enum
-                        WHEN EXTRACT(DOW FROM (pw.worked_on + CASE WHEN sw.window_start_minute >= 1440 THEN 1 ELSE 0 END))::INT = 0 THEN 'delayed_meal_break_sunday'::award_penalty_kind_enum
-                        ELSE 'delayed_meal_break_weekday'::award_penalty_kind_enum
-                    END AS penalty_kind,
-                    GREATEST(
-                        CASE
-                            WHEN pw.delayed_meal_break_start_minute IS NOT NULL AND pw.delayed_meal_break_end_minute IS NOT NULL THEN
-                                GREATEST(
-                                    LEAST(pw.delayed_meal_break_end_minute, sw.window_end_minute)
-                                    - GREATEST(pw.delayed_meal_break_start_minute, sw.window_start_minute),
-                                    0
-                                )::INT
-                                - CASE
-                                    WHEN pw.break_start_minute_of_day IS NOT NULL AND pw.break_end_minute_of_day IS NOT NULL THEN
-                                        GREATEST(
-                                            LEAST(pw.break_end_minute_of_day, pw.delayed_meal_break_end_minute, sw.window_end_minute)
-                                            - GREATEST(pw.break_start_minute_of_day, pw.delayed_meal_break_start_minute, sw.window_start_minute),
-                                            0
-                                        )::INT
-                                    ELSE 0
-                                END
-                            ELSE 0
-                        END,
-                        0
-                    ) AS segment_minutes,
-                    sw.sort_index * 10 + 5 AS sort_index
-                FROM segment_windows sw
-            ) scoped_segments
+            SELECT
+                ss.id,
+                ss.staff_id,
+                ss.worked_on,
+                ss.break_minutes,
+                ss.paid_minutes,
+                ss.shift_type_id,
+                ss.shift_type_name,
+                ss.pay_level_id,
+                ss.imported_xero_pay_item_id,
+                ss.pay_level_name,
+                ss.award_fixed_id,
+                ss.employment_basis,
+                ss.venue_week_starts_on,
+                ss.permanent_base_rate,
+                ss.staff_pay_version_id,
+                ss.shift_type_pay_version_id,
+                ss.approved_at,
+                CASE
+                    WHEN EXISTS (
+                        SELECT 1
+                        FROM staff s
+                        JOIN venue_config vc ON vc.venue_id = s.venue_id
+                        JOIN public_holidays ph ON ph.jurisdiction = vc.public_holiday_jurisdiction
+                            AND ph.holiday_date = ss.segment_date
+                            AND ph.is_regional = FALSE
+                        WHERE s.id = ss.staff_id
+                        LIMIT 1
+                    ) THEN 'delayed_meal_break_public_holiday'
+                    WHEN EXTRACT(DOW FROM ss.segment_date)::INT = 6 THEN 'delayed_meal_break_saturday'
+                    WHEN EXTRACT(DOW FROM ss.segment_date)::INT = 0 THEN 'delayed_meal_break_sunday'
+                    ELSE 'delayed_meal_break_weekday'
+                END AS segment_name,
+                ss.segment_name AS source_segment_name,
+                ss.segment_date,
+                CASE
+                    WHEN EXISTS (
+                        SELECT 1
+                        FROM staff s
+                        JOIN venue_config vc ON vc.venue_id = s.venue_id
+                        JOIN public_holidays ph ON ph.jurisdiction = vc.public_holiday_jurisdiction
+                            AND ph.holiday_date = ss.segment_date
+                            AND ph.is_regional = FALSE
+                        WHERE s.id = ss.staff_id
+                        LIMIT 1
+                    ) THEN 'delayed_meal_break_public_holiday'::award_penalty_kind_enum
+                    WHEN EXTRACT(DOW FROM ss.segment_date)::INT = 6 THEN 'delayed_meal_break_saturday'::award_penalty_kind_enum
+                    WHEN EXTRACT(DOW FROM ss.segment_date)::INT = 0 THEN 'delayed_meal_break_sunday'::award_penalty_kind_enum
+                    ELSE 'delayed_meal_break_weekday'::award_penalty_kind_enum
+                END AS penalty_kind,
+                GREATEST(ss.delayed_segment_minutes - ss.break_delayed_segment_minutes, 0) AS segment_minutes,
+                ss.base_rate,
+                ss.sort_index + 5 AS sort_index
+            FROM segment_scopes ss
         ) scoped
     ),
     public_holiday_minimum_rows AS (
@@ -2772,12 +2749,12 @@ CREATE OR REPLACE FUNCTION calculate_timesheet_pay_range(p_staff_id UUID, p_from
 RETURNS JSONB
 AS $$
     SELECT COALESCE(
-        jsonb_agg(calculate_timesheet_pay(te.id) ORDER BY te.worked_on ASC, te.id ASC),
+        jsonb_agg(calculate_timesheet_pay(te.id) ORDER BY te.starts_at ASC, te.id ASC),
         jsonb_build_array()
     )
     FROM timesheet_entries te
     WHERE te.staff_id = p_staff_id
-        AND te.worked_on >= p_from_date
-        AND te.worked_on <= p_to_date
+        AND (te.starts_at AT TIME ZONE te.timezone)::DATE >= p_from_date
+        AND (te.starts_at AT TIME ZONE te.timezone)::DATE <= p_to_date
         AND te.deleted_at IS NULL;
 $$ LANGUAGE SQL;

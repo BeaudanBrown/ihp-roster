@@ -186,7 +186,10 @@ low-level primitives. `DragSessionDefinition`, `DragSourceRefFor`,
 `DragDropInteractionWithRefsAndVariants` cover the common pattern: one drag
 session, one or more named source refs, named compatible dropzone refs, opaque
 `sourceItemKey`/`targetDropzoneKey` fields, optional modifier variants, and a
-DOM-owned HTMX intent form. Multi-source surfaces should give each semantic
+DOM-owned HTMX intent form. Use the `WithExtraFields` variants when a committed
+drag may continue through a server-rendered form that needs additional typed
+intent fields; do not append unregistered request parameters in the controller.
+Multi-source surfaces should give each semantic
 source and target a distinct generated ref, then list the compatible dropzone
 refs on each source; the browser runtime uses that manifest data for hit-testing
 and highlighting while controllers keep validating opaque keys server-side.

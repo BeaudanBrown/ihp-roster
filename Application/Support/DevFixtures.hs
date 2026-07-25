@@ -10,10 +10,13 @@ import Application.Helper.RosterGroups (createVenueRosterGroupWithDefaults,
                                         syncStaffRosterGroupAssignments)
 import Application.Helper.ShiftTypeColours (blankShiftTypeColourKey)
 import Application.Helper.StaffShiftPreferences (ShiftPreferenceSelection (..))
+import Application.Helper.TimeRules (rosterShiftStartDate)
 import Application.Helper.VenueBootstrap (provisionVenueUser)
+import Application.Helper.WeekBoundaries (venueWeekStartDate)
 import Application.Support
 import Application.Support.Seed.Calendar (weekOffsetForDay)
 import Application.Support.Seed.Scenario
+import Application.VenueTime.Model
 import Control.Monad (replicateM, void)
 import qualified Data.Aeson as Aeson
 import qualified Data.Map.Strict as Map
@@ -29,6 +32,30 @@ import IHP.ControllerPrelude
 import IHP.ModelSupport (sqlExecDiscardResult)
 import IHP.ModelSupport.Types (CanCreate (createMany))
 import IHP.Prelude
+import qualified IHP.Prelude as Prelude
+
+applyDevTimesheetBoundaries :: Day -> TimeOfDay -> TimeOfDay -> Bool -> Maybe TimeOfDay -> Maybe TimeOfDay -> TimesheetEntry -> TimesheetEntry
+applyDevTimesheetBoundaries workedOn startTime endTime hadBreak maybeBreakStart maybeBreakEnd entry =
+    let breakInput =
+            if hadBreak
+                then Just BreakBoundaryInput
+                    { breakBoundaryStartTime = fromMaybe (error "Missing seeded break start") maybeBreakStart
+                    , breakBoundaryStartOccurrence = Nothing
+                    , breakBoundaryEndTime = fromMaybe (error "Missing seeded break end") maybeBreakEnd
+                    , breakBoundaryEndOccurrence = Nothing
+                    }
+                else Nothing
+        boundaries =
+            either (error . ("Invalid seeded timesheet boundaries: " <>) . show) Prelude.id $
+                resolveShiftBoundaries entry.timezone ShiftBoundaryInput
+                    { shiftBoundaryDate = workedOn
+                    , shiftBoundaryStartTime = startTime
+                    , shiftBoundaryStartOccurrence = Nothing
+                    , shiftBoundaryEndTime = endTime
+                    , shiftBoundaryEndOccurrence = Nothing
+                    , shiftBoundaryBreak = breakInput
+                    }
+     in applyTimesheetEntryBoundaries boundaries entry
 
 data DevRosterSlotSeed = DevRosterSlotSeed
     { slotStaff       :: !(Maybe Staff)
@@ -747,18 +774,21 @@ seedTimesheets fixtureWeekStart venue admin scenario floorShift kitchenShift sta
                 if globalIndex `mod` 4 == 0
                     then unpackId (get #id kitchenShift)
                     else unpackId (get #id floorShift)
-        let (hadBreak, breakStartTime, breakEndTime, breakMinutes) =
-                seededBreakFields scenario.scenarioSeed globalIndex
+        let shiftStartTime = TimeOfDay (6 + ((globalIndex * 2) `mod` 8)) 0 0
+        let shiftEndTime = TimeOfDay (12 + ((globalIndex * 2) `mod` 8)) 0 0
+        let (hadBreak, breakStartTime, breakEndTime, _breakMinutes) =
+                seededBreakFields scenario.scenarioSeed globalIndex shiftStartTime shiftEndTime
+        let workedOn = seededTimesheetWorkedOn fixtureWeekStart globalIndex
         entry <-
-            createTimesheetEntryRecord venue staff (seededTimesheetWorkedOn fixtureWeekStart globalIndex)
+            createTimesheetEntryRecord venue staff workedOn
                 >>= updateRecord
+                    . applyDevTimesheetBoundaries workedOn
+                        shiftStartTime
+                        shiftEndTime
+                        hadBreak
+                        breakStartTime
+                        breakEndTime
                     . set #shiftTypeId shiftTypeId
-                    . set #startTime (TimeOfDay (6 + ((globalIndex * 2) `mod` 8)) 0 0)
-                    . set #endTime (TimeOfDay (12 + ((globalIndex * 2) `mod` 8)) 0 0)
-                    . set #hadBreak hadBreak
-                    . set #breakStartTime breakStartTime
-                    . set #breakEndTime breakEndTime
-                    . set #breakMinutes breakMinutes
         (staffPayVersion, shiftTypePayVersion) <- ensurePayVersionsForTimesheetApproval admin.id entry
         lockPayVersionsForApproval admin.id approvedAt staffPayVersion shiftTypePayVersion
         _ <- entry
@@ -772,18 +802,21 @@ seedTimesheets fixtureWeekStart venue admin scenario floorShift kitchenShift sta
     let pendingStaffPool = nonXeroMatchedStaffPool staffPool <> staffPool
     forM_ (zip [0 ..] (take scenario.pendingTimesheets (drop scenario.approvedTimesheets (cycle pendingStaffPool)))) \(index, staff) -> do
         let globalIndex = scenario.approvedTimesheets + index
-        let (hadBreak, breakStartTime, breakEndTime, breakMinutes) =
-                seededBreakFields scenario.scenarioSeed globalIndex
+        let shiftStartTime = TimeOfDay (9 + (index `mod` 3)) 0 0
+        let shiftEndTime = TimeOfDay (15 + (index `mod` 3)) 0 0
+        let (hadBreak, breakStartTime, breakEndTime, _breakMinutes) =
+                seededBreakFields scenario.scenarioSeed globalIndex shiftStartTime shiftEndTime
+        let workedOn = seededTimesheetWorkedOn fixtureWeekStart (globalIndex + 2)
         _ <-
-            createTimesheetEntryRecord venue staff (seededTimesheetWorkedOn fixtureWeekStart (globalIndex + 2))
+            createTimesheetEntryRecord venue staff workedOn
                 >>= updateRecord
+                    . applyDevTimesheetBoundaries workedOn
+                        shiftStartTime
+                        shiftEndTime
+                        hadBreak
+                        breakStartTime
+                        breakEndTime
                     . set #shiftTypeId (unpackId (get #id floorShift))
-                    . set #startTime (TimeOfDay (9 + (index `mod` 3)) 0 0)
-                    . set #endTime (TimeOfDay (15 + (index `mod` 3)) 0 0)
-                    . set #hadBreak hadBreak
-                    . set #breakStartTime breakStartTime
-                    . set #breakEndTime breakEndTime
-                    . set #breakMinutes breakMinutes
         pure ()
 
 data SeededXeroTimesheetCase = SeededXeroTimesheetCase
@@ -833,13 +866,18 @@ createApprovedSeededTimesheetCase ::
     SeededXeroTimesheetCase ->
     IO TimesheetEntry
 createApprovedSeededTimesheetCase venue admin floorShift kitchenShift staff approvedAt seedCase = do
+    let (hadBreak, breakStartTime, breakEndTime) = seededBreakBoundaries seedCase.caseBreak
     entry <-
         createTimesheetEntryRecord venue staff seedCase.caseWorkedOn
             >>= updateRecord
+                . applyDevTimesheetBoundaries
+                    seedCase.caseWorkedOn
+                    seedCase.caseStartTime
+                    seedCase.caseEndTime
+                    hadBreak
+                    breakStartTime
+                    breakEndTime
                 . set #shiftTypeId (seededCaseShiftTypeId seedCase.caseShiftType floorShift kitchenShift)
-                . set #startTime seedCase.caseStartTime
-                . set #endTime seedCase.caseEndTime
-                . applySeededBreak seedCase.caseBreak
     approveSeededTimesheetEntry admin approvedAt entry
 
 approveSeededTimesheetEntry ::
@@ -863,17 +901,10 @@ seededCaseShiftTypeId :: SeededTimesheetShiftType -> ShiftType -> ShiftType -> U
 seededCaseShiftTypeId SeededFloorShift floorShift _ = unpackId (get #id floorShift)
 seededCaseShiftTypeId SeededKitchenShift _ kitchenShift = unpackId (get #id kitchenShift)
 
-applySeededBreak :: SeededTimesheetBreak -> TimesheetEntry -> TimesheetEntry
-applySeededBreak SeededNoBreak =
-    set #hadBreak False
-        . set #breakStartTime Nothing
-        . set #breakEndTime Nothing
-        . set #breakMinutes 0
-applySeededBreak (SeededBreak startTime endTime minutes) =
-    set #hadBreak True
-        . set #breakStartTime (Just startTime)
-        . set #breakEndTime (Just endTime)
-        . set #breakMinutes minutes
+seededBreakBoundaries :: SeededTimesheetBreak -> (Bool, Maybe TimeOfDay, Maybe TimeOfDay)
+seededBreakBoundaries SeededNoBreak = (False, Nothing, Nothing)
+seededBreakBoundaries (SeededBreak startTime endTime _minutes) =
+    (True, Just startTime, Just endTime)
 
 findStaffByName :: Text -> Text -> [Staff] -> Maybe Staff
 findStaffByName firstName lastName =
@@ -997,13 +1028,15 @@ seededStaffHasXeroEmployeeMatch staff =
             , ("Tracy", "Green")
             ]
 
-seededBreakFields :: Int -> Int -> (Bool, Maybe TimeOfDay, Maybe TimeOfDay, Int)
-seededBreakFields seedValue index
+seededBreakFields :: Int -> Int -> TimeOfDay -> TimeOfDay -> (Bool, Maybe TimeOfDay, Maybe TimeOfDay, Int)
+seededBreakFields seedValue index shiftStartTime shiftEndTime
     | deterministicPercent seedValue [index, 901] < 80 =
-        let breakStartHour = 10 + (index `mod` 4)
-            breakStartMinute = if deterministicPercent seedValue [index, 902] < 50 then 0 else 15
-            breakLengthMinutes = if deterministicPercent seedValue [index, 903] < 55 then 30 else 45
-            breakStartTime = TimeOfDay breakStartHour breakStartMinute 0
+        let breakLengthMinutes = if deterministicPercent seedValue [index, 903] < 55 then 30 else 45
+            shiftStartMinutes = timeOfDayToMinutes shiftStartTime
+            rawShiftEndMinutes = timeOfDayToMinutes shiftEndTime
+            shiftEndMinutes = if rawShiftEndMinutes <= shiftStartMinutes then rawShiftEndMinutes + 1440 else rawShiftEndMinutes
+            breakStartMinutes = shiftStartMinutes + ((shiftEndMinutes - shiftStartMinutes - breakLengthMinutes) `div` 2)
+            breakStartTime = minutesToTimeOfDay breakStartMinutes
             breakEndTime = addBreakMinutes breakStartTime breakLengthMinutes
          in (True, Just breakStartTime, Just breakEndTime, breakLengthMinutes)
     | otherwise = (False, Nothing, Nothing, 0)
@@ -1038,6 +1071,11 @@ createRosterRow ::
     [(Text, DevRosterSlotSeed)] ->
     IO ()
 createRosterRow rosterDay slotNames rowIndex assignments = do
+    rosterWeek <- fetch (Id rosterDay.rosterWeekId :: Id RosterWeek)
+    venueConfig <- query @VenueConfig
+        |> filterWhere (#venueId, rosterWeek.venueId)
+        |> fetchOne
+    let rosterDate = addDays (toInteger rosterDay.dayOffset) (venueWeekStartDate venueConfig rosterWeek.weekOffset)
     slotDefinitions <- forM slotNames (ensureRosterWeekSlotDefinitionForSlotName rosterDay)
     let assignedSlotDefinitions =
             [ (slotDefinition, slotSeed)
@@ -1046,21 +1084,35 @@ createRosterRow rosterDay slotNames rowIndex assignments = do
             ]
     rosterSlotIds <- map Id <$> freshUUIDs (length assignedSlotDefinitions)
     now <- getCurrentTime
-    void (createMany (zipWith (rosterSlotRecord now rosterDay rowIndex) rosterSlotIds assignedSlotDefinitions))
+    void (createMany (zipWith (rosterSlotRecord now rosterDate venueConfig.timezone rosterDay rowIndex) rosterSlotIds assignedSlotDefinitions))
     where
-        rosterSlotRecord now rosterDay rowIndex rosterSlotId (slotDefinition, slotSeed) =
-            newRecord @RosterSlot
-                    |> set #id rosterSlotId
-                    |> set #rosterDayId (unpackId (get #id rosterDay))
-                    |> set #rosterWeekSlotDefinitionId (unpackId (get #id slotDefinition))
-                    |> set #slotSortOrder slotDefinition.sortOrder
-                    |> set #staffId (fmap (unpackId . get #id) slotSeed.slotStaff)
-                    |> set #shiftTypeId slotSeed.slotShiftTypeId
-                    |> set #rowIndex rowIndex
-                    |> set #startTime slotSeed.slotStartTime
-                    |> set #endTime slotSeed.slotEndTime
-                    |> set #createdAt now
-                    |> set #updatedAt now
+        rosterSlotRecord now rosterDate timezone rosterDay rowIndex rosterSlotId (slotDefinition, slotSeed) =
+            let baseSlot =
+                    newRecord @RosterSlot
+                        |> set #id rosterSlotId
+                        |> set #rosterDayId (unpackId (get #id rosterDay))
+                        |> set #rosterWeekSlotDefinitionId (unpackId (get #id slotDefinition))
+                        |> set #slotSortOrder slotDefinition.sortOrder
+                        |> set #staffId (fmap (unpackId . get #id) slotSeed.slotStaff)
+                        |> set #shiftTypeId slotSeed.slotShiftTypeId
+                        |> set #rowIndex rowIndex
+                        |> set #timezone timezone
+                        |> set #createdAt now
+                        |> set #updatedAt now
+             in case (slotSeed.slotStartTime, slotSeed.slotEndTime) of
+                    (Just startTime, Just endTime) ->
+                        let boundaries =
+                                either (error . ("Invalid seeded roster boundaries: " <>) . show) Prelude.id $
+                                    resolveShiftBoundaries timezone ShiftBoundaryInput
+                                        { shiftBoundaryDate = rosterShiftStartDate rosterDate startTime
+                                        , shiftBoundaryStartTime = startTime
+                                        , shiftBoundaryStartOccurrence = Nothing
+                                        , shiftBoundaryEndTime = endTime
+                                        , shiftBoundaryEndOccurrence = Nothing
+                                        , shiftBoundaryBreak = Nothing
+                                        }
+                         in applyRosterSlotBoundaries boundaries baseSlot
+                    _ -> baseSlot
 
 seededRosterSlot :: Maybe Staff -> TimeOfDay -> Maybe UUID -> DevRosterSlotSeed
 seededRosterSlot maybeStaff startTime maybeShiftTypeId =

@@ -6,6 +6,8 @@ import Application.Helper.RosterGroups (ensureVenueRosterDefaults,
                                         fetchVenueDayNames)
 import Application.Helper.VenueBootstrap (provisionVenueUser)
 import Application.Support
+import Application.VenueTime (melbourneTimeZoneName)
+import Application.VenueTime.Model
 import Config
 import Data.Time.Calendar (Day, addDays, fromGregorian)
 import Data.Time.Clock (UTCTime (..), secondsToDiffTime)
@@ -13,6 +15,7 @@ import Data.Time.LocalTime (TimeOfDay (..))
 import Generated.Types
 import IHP.ControllerPrelude
 import IHP.Prelude
+import qualified IHP.Prelude as Prelude
 
 data CanonicalPayrollFixture = CanonicalPayrollFixture
     { venue        :: !Venue
@@ -37,6 +40,37 @@ data ExplorationPayrollFixture = ExplorationPayrollFixture
     , explorationPendingEntries  :: ![TimesheetEntry]
     }
 
+data TimesheetFixtureValues = TimesheetFixtureValues
+    { shiftTypeId    :: !UUID
+    , startTime      :: !TimeOfDay
+    , endTime        :: !TimeOfDay
+    , hadBreak       :: !Bool
+    , breakStartTime :: !(Maybe TimeOfDay)
+    , breakEndTime   :: !(Maybe TimeOfDay)
+    , breakMinutes   :: !Int
+    }
+
+instance SetField "shiftTypeId" TimesheetFixtureValues UUID where
+    setField value fixture = fixture { shiftTypeId = value }
+
+instance SetField "startTime" TimesheetFixtureValues TimeOfDay where
+    setField value fixture = fixture { startTime = value }
+
+instance SetField "endTime" TimesheetFixtureValues TimeOfDay where
+    setField value fixture = fixture { endTime = value }
+
+instance SetField "hadBreak" TimesheetFixtureValues Bool where
+    setField value fixture = fixture { hadBreak = value }
+
+instance SetField "breakStartTime" TimesheetFixtureValues (Maybe TimeOfDay) where
+    setField value fixture = fixture { breakStartTime = value }
+
+instance SetField "breakEndTime" TimesheetFixtureValues (Maybe TimeOfDay) where
+    setField value fixture = fixture { breakEndTime = value }
+
+instance SetField "breakMinutes" TimesheetFixtureValues Int where
+    setField value fixture = fixture { breakMinutes = value }
+
 seedWeekDayNames :: (?modelContext :: ModelContext) => Venue -> IO [DayName]
 seedWeekDayNames venue = do
     _ <- ensureVenueRosterDefaults venue
@@ -56,12 +90,12 @@ createAndApproveEntry ::
     () ->
     User ->
     UTCTime ->
-    [TimesheetEntry -> TimesheetEntry] ->
+    [TimesheetFixtureValues -> TimesheetFixtureValues] ->
     IO TimesheetEntry
 createAndApproveEntry venue staff workedOn _snapshot admin approvedAt transforms = do
     entry <- createTimesheetEntryRecord venue staff workedOn
     updatedEntry <- entry
-        |> applyTransforms transforms
+        |> applyTimesheetFixtureTransforms workedOn transforms
         |> updateRecord
     (staffPayVersion, shiftTypePayVersion) <- ensurePayVersionsForTimesheetApproval admin.id updatedEntry
     lockPayVersionsForApproval admin.id approvedAt staffPayVersion shiftTypePayVersion
@@ -79,6 +113,40 @@ approveEntryWithVersions staffPayVersion shiftTypePayVersion admin approvedAt =
 
 applyTransforms :: [record -> record] -> record -> record
 applyTransforms transforms record = foldl' (\current transform -> transform current) record transforms
+
+applyTimesheetFixtureTransforms :: Day -> [TimesheetFixtureValues -> TimesheetFixtureValues] -> TimesheetEntry -> TimesheetEntry
+applyTimesheetFixtureTransforms workedOn transforms entry =
+    let values = applyTransforms transforms TimesheetFixtureValues
+            { shiftTypeId = entry.shiftTypeId
+            , startTime = TimeOfDay 9 0 0
+            , endTime = TimeOfDay 17 0 0
+            , hadBreak = False
+            , breakStartTime = Nothing
+            , breakEndTime = Nothing
+            , breakMinutes = 0
+            }
+        breakInput =
+            if values.hadBreak
+                then Just BreakBoundaryInput
+                    { breakBoundaryStartTime = fromMaybe (error "Missing payroll fixture break start") values.breakStartTime
+                    , breakBoundaryStartOccurrence = Nothing
+                    , breakBoundaryEndTime = fromMaybe (error "Missing payroll fixture break end") values.breakEndTime
+                    , breakBoundaryEndOccurrence = Nothing
+                    }
+                else Nothing
+        boundaries =
+            either (error . ("Invalid payroll fixture boundaries: " <>) . show) Prelude.id $
+                resolveShiftBoundaries melbourneTimeZoneName ShiftBoundaryInput
+                    { shiftBoundaryDate = workedOn
+                    , shiftBoundaryStartTime = values.startTime
+                    , shiftBoundaryStartOccurrence = Nothing
+                    , shiftBoundaryEndTime = values.endTime
+                    , shiftBoundaryEndOccurrence = Nothing
+                    , shiftBoundaryBreak = breakInput
+                    }
+     in entry
+            |> set #shiftTypeId values.shiftTypeId
+            |> applyTimesheetEntryBoundaries boundaries
 
 createPayrollSnapshot ::
     (?modelContext :: ModelContext) =>
@@ -166,9 +234,11 @@ seedCanonicalPayrollFixtureForWeek fixtureWeekStart = do
         ]
     _ <- createTimesheetEntryRecord venue avaStaff (dayAtOffset 2)
         >>= updateRecord
-            . set #shiftTypeId (unpackId barShift.id)
-            . set #startTime (TimeOfDay 12 0 0)
-            . set #endTime (TimeOfDay 14 0 0)
+            . applyTimesheetFixtureTransforms (dayAtOffset 2)
+                [ set #shiftTypeId (unpackId barShift.id)
+                , set #startTime (TimeOfDay 12 0 0)
+                , set #endTime (TimeOfDay 14 0 0)
+                ]
 
     pure
         CanonicalPayrollFixture
@@ -326,14 +396,18 @@ seedExplorationPayrollFixtureForWeek fixtureWeekStart = do
         sequence
             [ createTimesheetEntryRecord venue avaStaff (dayAtOffset 2)
                 >>= updateRecord
-                    . set #shiftTypeId (unpackId barShift.id)
-                    . set #startTime (TimeOfDay 12 0 0)
-                    . set #endTime (TimeOfDay 14 0 0)
+                    . applyTimesheetFixtureTransforms (dayAtOffset 2)
+                        [ set #shiftTypeId (unpackId barShift.id)
+                        , set #startTime (TimeOfDay 12 0 0)
+                        , set #endTime (TimeOfDay 14 0 0)
+                        ]
             , createTimesheetEntryRecord venue noorStaff (dayAtOffset 4)
                 >>= updateRecord
-                    . set #shiftTypeId (unpackId floorShift.id)
-                    . set #startTime (TimeOfDay 7 30 0)
-                    . set #endTime (TimeOfDay 11 30 0)
+                    . applyTimesheetFixtureTransforms (dayAtOffset 4)
+                        [ set #shiftTypeId (unpackId floorShift.id)
+                        , set #startTime (TimeOfDay 7 30 0)
+                        , set #endTime (TimeOfDay 11 30 0)
+                        ]
             ]
 
     pure

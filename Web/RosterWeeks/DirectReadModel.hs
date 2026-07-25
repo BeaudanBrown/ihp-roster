@@ -197,7 +197,7 @@ buildRosterStaffOptionStatesForSlotsDirect assignmentFilters weekStartDate factS
             "WITH params AS ( \
             \    SELECT ?::date AS week_start, ?::uuid AS venue_id, ?::boolean AS hide_ideal, ?::boolean AS hide_unavailable, ?::boolean AS hide_leave, ?::boolean AS hide_today \
             \), fact_slots AS ( \
-            \    SELECT roster_slots.*, roster_days.day_offset, (params.week_start + roster_days.day_offset) AS roster_date, EXTRACT(DOW FROM (params.week_start + roster_days.day_offset))::int AS weekday_index \
+            \    SELECT roster_slots.*, roster_days.day_offset, COALESCE((roster_slots.starts_at AT TIME ZONE roster_slots.timezone)::date, params.week_start + roster_days.day_offset) AS roster_date, EXTRACT(DOW FROM COALESCE((roster_slots.starts_at AT TIME ZONE roster_slots.timezone)::date, params.week_start + roster_days.day_offset))::int AS weekday_index \
             \    FROM roster_slots \
             \    JOIN roster_days ON roster_days.id = roster_slots.roster_day_id \
             \    CROSS JOIN params \
@@ -270,9 +270,9 @@ buildSlotConflictsForSlotsDirect _rosterGroupId lateToEarlyMinStartGapMinutes we
             "WITH params AS ( \
             \    SELECT ?::date AS week_start, ?::uuid AS venue_id, ?::int AS late_gap_minutes \
             \), assigned_slots AS ( \
-            \    SELECT roster_slots.*, roster_days.day_offset, (params.week_start + roster_days.day_offset) AS roster_date, \
-            \           EXTRACT(DOW FROM (params.week_start + roster_days.day_offset))::int AS weekday_index, \
-            \           (roster_days.day_offset * 1440 + EXTRACT(HOUR FROM roster_slots.start_time)::int * 60 + EXTRACT(MINUTE FROM roster_slots.start_time)::int) AS start_minute_of_week \
+            \    SELECT roster_slots.*, roster_days.day_offset, COALESCE((roster_slots.starts_at AT TIME ZONE roster_slots.timezone)::date, params.week_start + roster_days.day_offset) AS roster_date, \
+            \           EXTRACT(DOW FROM COALESCE((roster_slots.starts_at AT TIME ZONE roster_slots.timezone)::date, params.week_start + roster_days.day_offset))::int AS weekday_index, \
+            \           FLOOR(EXTRACT(EPOCH FROM roster_slots.starts_at) / 60)::bigint AS start_minute_of_week \
             \    FROM roster_slots \
             \    JOIN roster_days ON roster_days.id = roster_slots.roster_day_id \
             \    CROSS JOIN params \
@@ -284,7 +284,7 @@ buildSlotConflictsForSlotsDirect _rosterGroupId lateToEarlyMinStartGapMinutes we
             \), timeline AS ( \
             \    SELECT id, start_minute_of_week - LAG(start_minute_of_week) OVER (PARTITION BY staff_id ORDER BY start_minute_of_week, id) AS previous_gap, \
             \           LEAD(start_minute_of_week) OVER (PARTITION BY staff_id ORDER BY start_minute_of_week, id) - start_minute_of_week AS next_gap \
-            \    FROM assigned_slots WHERE start_time IS NOT NULL \
+            \    FROM assigned_slots WHERE starts_at IS NOT NULL \
             \), facts AS ( \
             \    SELECT assigned_slots.id, 'duplicate_assignment'::text AS conflict_type, 1 AS priority \
             \    FROM assigned_slots JOIN day_counts ON day_counts.roster_day_id = assigned_slots.roster_day_id AND day_counts.staff_id = assigned_slots.staff_id \
@@ -312,7 +312,7 @@ buildSlotConflictsForSlotsDirect _rosterGroupId lateToEarlyMinStartGapMinutes we
             \    UNION ALL \
             \    SELECT assigned_slots.id, 'preference_slot_mismatch'::text, 5 \
             \    FROM assigned_slots CROSS JOIN params \
-            \    WHERE assigned_slots.start_time IS NOT NULL \
+            \    WHERE assigned_slots.starts_at IS NOT NULL \
             \      AND EXISTS ( \
             \        SELECT 1 FROM staff_shift_preferences \
             \        WHERE staff_shift_preferences.venue_id = params.venue_id AND staff_shift_preferences.staff_id = assigned_slots.staff_id \
@@ -322,7 +322,7 @@ buildSlotConflictsForSlotsDirect _rosterGroupId lateToEarlyMinStartGapMinutes we
             \        SELECT 1 FROM staff_shift_preferences \
             \        WHERE staff_shift_preferences.venue_id = params.venue_id AND staff_shift_preferences.staff_id = assigned_slots.staff_id \
             \          AND staff_shift_preferences.weekday_index = assigned_slots.weekday_index AND staff_shift_preferences.deleted_at IS NULL \
-            \          AND (EXTRACT(HOUR FROM assigned_slots.start_time)::int * 60 + EXTRACT(MINUTE FROM assigned_slots.start_time)::int) BETWEEN staff_shift_preferences.preferred_start_hour * 60 AND staff_shift_preferences.preferred_end_hour * 60 \
+            \          AND (EXTRACT(HOUR FROM (assigned_slots.starts_at AT TIME ZONE assigned_slots.timezone))::int * 60 + EXTRACT(MINUTE FROM (assigned_slots.starts_at AT TIME ZONE assigned_slots.timezone))::int) BETWEEN staff_shift_preferences.preferred_start_hour * 60 AND staff_shift_preferences.preferred_end_hour * 60 \
             \    ) \
             \    UNION ALL \
             \    SELECT assigned_slots.id, 'ideal_shift_threshold'::text, 6 \

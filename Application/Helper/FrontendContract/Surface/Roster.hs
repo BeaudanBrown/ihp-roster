@@ -30,6 +30,8 @@ module Application.Helper.FrontendContract.Surface.Roster
     , TimePickerConfig
     , RosterWeekOverview
     , MoveRosterShiftToSlot
+    , CopyStartOccurrence
+    , CopyEndOccurrence
     , ShiftDragSource
     , StaffDragSource
     , ShiftSlotDropzone
@@ -134,6 +136,8 @@ module Application.Helper.FrontendContract.Surface.Roster
     , ShiftGroupHighlightSourceRole
     , ShiftGroupHighlightMemberRole
     , MoveRosterTimelineShift
+    , TimelineStartOccurrence
+    , TimelineEndOccurrence
     , DuplicateRosterShiftToDay
     , DropRosterStaff
     , NavigateRosterWeek
@@ -195,7 +199,11 @@ data RosterDayTimelineContent
 
 data SetRosterLayoutMode
 data MoveRosterShiftToSlot
+data CopyStartOccurrence
+data CopyEndOccurrence
 data MoveRosterTimelineShift
+data TimelineStartOccurrence
+data TimelineEndOccurrence
 data DuplicateRosterShiftToDay
 data DropRosterStaff
 
@@ -435,6 +443,11 @@ type RosterFragmentBundle =
          ]
      ]
 
+type RosterCopyOccurrenceFields =
+    '[ OptionalField CopyStartOccurrence 'WireText
+     , OptionalField CopyEndOccurrence 'WireText
+     ]
+
 type RosterActionBundle =
     '[ Action NavigateRosterWeek
         '[ Field WeekOffset 'WireInt
@@ -488,7 +501,7 @@ type RosterActionBundle =
          , 'HtmxSync ('HtmxSyncOn ('HtmxId RosterWeekShell) 'HtmxSyncReplace)
          ]
      , Action CopyRosterWeek
-        '[]
+        RosterCopyOccurrenceFields
         '[ 'HtmxMethod 'HtmxPost
          , 'HtmxTarget ('HtmxId RosterContent)
          , 'HtmxSwap 'HtmxOuterHTML
@@ -572,9 +585,9 @@ type RosterInteractionBundle =
             , DropzoneRef ExistingShiftDropzone '[ 'SessionOption DragSession, 'TargetField TargetDropzoneKey ]
             , DropzoneRef DeleteShiftDropzone '[ 'SessionOption DragSession, 'TargetField TargetDropzoneKey ]
             ]
-         , DragDropIntent MoveRosterShiftToSlot RosterContent
-         , '[ Action DuplicateRosterShiftToDay DragDropFields '[ 'Target RosterContent ] ]
-         , '[ Intent DuplicateRosterShiftToDay DragDropFields '[ 'SessionOption DragSession, 'BackedBy DuplicateRosterShiftToDay ] ]
+         , DragDropIntentWithExtraFields MoveRosterShiftToSlot RosterContent RosterCopyOccurrenceFields
+         , '[ Action DuplicateRosterShiftToDay (Concat '[ DragDropFields, RosterCopyOccurrenceFields ]) '[ 'Target RosterContent ] ]
+         , '[ Intent DuplicateRosterShiftToDay (Concat '[ DragDropFields, RosterCopyOccurrenceFields ]) '[ 'SessionOption DragSession, 'BackedBy DuplicateRosterShiftToDay ] ]
          , DragDropIntent DropRosterStaff RosterContent
          ]
 
@@ -739,7 +752,12 @@ type RosterDayTimelineActionBundle =
      ]
 
 type RosterDayTimelineInteractionBundle =
-    DragDropInteraction MoveRosterTimelineShift RosterDayTimelineContent
+    DragDropInteractionWithExtraFields
+        MoveRosterTimelineShift
+        RosterDayTimelineContent
+        '[ OptionalField TimelineStartOccurrence 'WireText
+         , OptionalField TimelineEndOccurrence 'WireText
+         ]
 
 type RosterDayTimelineLinkedHighlightBundle =
     '[ BrowserRole ShiftGroupHighlightSourceRole
