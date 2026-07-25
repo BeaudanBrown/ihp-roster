@@ -42,6 +42,9 @@ lands.
   payroll rounding rule. #237 owns the target final-bucket quarter-hour
   transform; the current legacy preview does not claim it.
 - Managed Xero earnings-rate names put human payroll details first, e.g. `Saturday Penalty - Level 1 - CAS - Bepis - 1-July-2025`; legacy `Bepis - HIGA - ...` managed names remain matchable to avoid duplicate pay items.
+- Managed requirements reserve separate `RATEPERUNIT` evening and early-morning
+  commenced-hour additions, rather than combined hourly rates. Legacy
+  preview/submission does not consume those components; #237 owns that cutover.
 - Readiness, managed pay-item proposals, preview, and submission resolve overlapping projected rates through the same latest venue-effective-rate rule as payroll calculations. Raw FWC operative dates are normalized to the venue week before constructing bucket keys.
 - Managed award pay-item effective-date keys/names use the Bepis venue-effective
   rate date from the pay engine, not necessarily the raw FWC/MAPD operative

@@ -115,8 +115,8 @@ deriveXeroPayItemRequirements weekStartsOn today usedScopes awardLevels baseRate
                         "RATEPERUNIT"
                         Nothing
                         (Just allowance.hourlyAmount)
-                        (Just (formatRate allowance.hourlyAmount))
-                        "Flat hourly loading from FWC time allowance"
+                        (Just (formatCommencedHourRate allowance.hourlyAmount))
+                        "Fixed commenced-hour addition from FWC clause 29.2 time allowance"
                 )
 
         delayedMealBreakRequirements row =
@@ -627,3 +627,7 @@ dedupeBucketsByKey =
 formatRate :: Scientific.Scientific -> Text
 formatRate value =
     "$" <> Text.pack (Scientific.formatScientific Scientific.Fixed (Just 4) value) <> "/hr"
+
+formatCommencedHourRate :: Scientific.Scientific -> Text
+formatCommencedHourRate value =
+    "$" <> Text.pack (Scientific.formatScientific Scientific.Fixed (Just 4) value) <> "/commenced hour"

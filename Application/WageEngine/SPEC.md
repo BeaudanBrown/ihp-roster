@@ -4,9 +4,14 @@
 
 `Application.WageEngine` is the provider-neutral, pure calculation module for one
 independent timesheet. It owns the typed calculation interface, complete effective
-rate-book validation, paid-time/component separation, stable calculation version,
-and the currently unchanged Award rule subset. It performs no database or HTTP work.
+rate-book validation, paid-time/component separation, final-line derivation, and
+stable calculation version. It performs no database or HTTP work.
 `Application.VenueTime` is its sole Melbourne civil-time authority.
+
+The facade is the sole caller-facing module. Internally, `Types` owns stable
+calculation facts, `RateBook` owns the opaque validated rate book and its validation,
+`Rules` evaluates intervals, `Components` constructs exact components, and `Rounding`
+derives final buckets/lines.
 
 `Application.WageEngine.Adapter` bulk-loads projected database facts into that
 interface. The existing `Application.Helper.Pay.fetchTimesheetPay` and
@@ -61,11 +66,20 @@ items override staff items and bypass Award conditions and Award-rate-book
 availability.
 
 The implemented arithmetic subset is ordinary part-time/casual, Saturday, Sunday,
-public holiday, and imported flat-rate parity. Public holiday takes precedence over
-weekend. Commenced-hour additions are represented by the component contract but are
-rejected as pending instead of copying the legacy hourly/stacked SQL behavior; #231
-owns their aggregation and final-line rounding. Minimum payments and meal-break
-components remain with #233 and #232 respectively.
+public holiday, imported flat-rate parity, and weekday clause 29.2 additions. Public
+holiday takes precedence over weekend. Eligible evening and early-morning worked
+intervals are grouped separately by local date/window before their exact elapsed
+hours are rounded up to whole `commenced_hours`; a split, break, or future
+missed-break boundary cannot duplicate a unit. The addition is a separate fixed-rate
+component and never adds paid time. Imported overrides remain exact elapsed hourly
+components with no Award additions. Minimum payments and meal-break components remain
+with #233 and #232 respectively.
+
+`deriveFinalEarnings` groups exact components by a stable key containing their unit,
+condition, source, rate, and source identity. It preserves exact quantities/amounts,
+rounds each grouped monetary line once to cents, then sums those rounded lines. Its
+`FinalEarningsSummary` is derived only: it neither mutates exact calculation facts
+nor applies #237's output-only quarter-hour quantity rounding.
 
 ## Database adapter
 
@@ -87,6 +101,7 @@ integration of this implemented pure authority.
 
 ```bash
 bash ./bin/in-env hspec-pure --match "Melbourne civil-time authority"
+bash ./bin/in-env hspec-pure --match "WageEngine components"
 bash ./bin/in-env hspec-pure
 bash ./bin/in-env hspec-test --match "database wage-engine adapter"
 bash ./bin/in-env hspec-test --match "FWC MAPD"

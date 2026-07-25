@@ -52,11 +52,13 @@ function in `Application/Schema.sql`, consumed through `Application/Helper/Pay.h
 until cutover issue #239.
 
 `Application.WageEngine` now provides the parallel pure typed contract and complete
-provider-neutral `ValidatedRateBook`. Its unchanged ordinary, casual, weekend,
-public-holiday, and imported-rate subset has explicitly classified SQL differential
-evidence, but no production consumer has switched. Commenced-hour additions,
-missed-break components, and minimum payments remain owned by their later tickets;
-the new module does not reproduce the legacy non-compliant shapes below.
+provider-neutral `ValidatedRateBook`. It calculates ordinary, casual, weekend,
+public-holiday, imported-rate, and weekday fixed commenced-hour components with
+explicitly classified SQL differential evidence, but no production consumer has
+switched. Exact components derive final bucket lines by one-cent-per-line rounding;
+that result is not persisted or exported here. Missed-break components and minimum
+payments remain owned by their later tickets; the new module does not reproduce the
+legacy non-compliant shapes below.
 
 Implemented behavior:
 

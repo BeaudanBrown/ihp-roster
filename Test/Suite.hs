@@ -91,6 +91,7 @@ import qualified Test.VenueInvitationSpec
 import qualified Test.VenueOnboardingInvitationSpec
 import qualified Test.VenueTimeSpec
 import qualified Test.WageEngine.AdapterSpec
+import qualified Test.WageEngine.ComponentsSpec
 import qualified Test.WageEngine.ContractSpec
 import qualified Test.WageEngine.RulesSpec
 import qualified Test.XeroCandidateFilterSpec
@@ -408,6 +409,7 @@ allSuites =
     , databaseSuite BroadCleanStateRequired CommittedVisibilityRequired SuiteDefinition{definitionLabel = "TimesheetsController", definitionEstimatedRuntimeSeconds = 7.5, definitionFeedbackLane = BroadAcceptance, definitionInvariantFamily = TimesheetsAndLeave, definitionFixtureCost = LargeFixture, definitionExternalMocks = [], definitionOwnedInvariants = [A6, T1, T2, T5, T6], definitionPartialInvariants = []} Test.Controller.TimesheetsSpec.tests
     , databaseSuite BroadCleanStateRequired CommittedVisibilityNotRequired SuiteDefinition{definitionLabel = "Pay", definitionEstimatedRuntimeSeconds = 2.5, definitionFeedbackLane = BroadAcceptance, definitionInvariantFamily = PayAndExports, definitionFixtureCost = SmallFixture, definitionExternalMocks = [], definitionOwnedInvariants = [P1, P2, P3, P4, P5], definitionPartialInvariants = []} Test.PaySpec.tests
     , pureSuite SuiteDefinition{definitionLabel = "VenueTime", definitionEstimatedRuntimeSeconds = 0.1, definitionFeedbackLane = BroadAcceptance, definitionInvariantFamily = PayAndExports, definitionFixtureCost = FixtureFree, definitionExternalMocks = [], definitionOwnedInvariants = [], definitionPartialInvariants = []} Test.VenueTimeSpec.tests
+    , pureSuite SuiteDefinition{definitionLabel = "WageEngine.Components", definitionEstimatedRuntimeSeconds = 0.1, definitionFeedbackLane = BroadAcceptance, definitionInvariantFamily = PayAndExports, definitionFixtureCost = FixtureFree, definitionExternalMocks = [], definitionOwnedInvariants = [], definitionPartialInvariants = []} Test.WageEngine.ComponentsSpec.tests
     , pureSuite SuiteDefinition{definitionLabel = "WageEngine.Contract", definitionEstimatedRuntimeSeconds = 0.1, definitionFeedbackLane = BroadAcceptance, definitionInvariantFamily = PayAndExports, definitionFixtureCost = FixtureFree, definitionExternalMocks = [], definitionOwnedInvariants = [], definitionPartialInvariants = []} Test.WageEngine.ContractSpec.tests
     , pureSuite SuiteDefinition{definitionLabel = "WageEngine.Rules", definitionEstimatedRuntimeSeconds = 0.1, definitionFeedbackLane = BroadAcceptance, definitionInvariantFamily = PayAndExports, definitionFixtureCost = FixtureFree, definitionExternalMocks = [], definitionOwnedInvariants = [], definitionPartialInvariants = []} Test.WageEngine.RulesSpec.tests
     , pureSuite SuiteDefinition{definitionLabel = "WageEngine.AdapterStructure", definitionEstimatedRuntimeSeconds = 0.1, definitionFeedbackLane = RoutineCorrectness, definitionInvariantFamily = PayAndExports, definitionFixtureCost = FixtureFree, definitionExternalMocks = [], definitionOwnedInvariants = [], definitionPartialInvariants = []} Test.WageEngine.AdapterSpec.pureTests

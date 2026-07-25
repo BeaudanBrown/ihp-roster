@@ -167,12 +167,14 @@ tests = do
                 )
                 `shouldBe` Left (UnsupportedCalculationInput (InvalidImportedPayItem "invalid"))
 
-        it "does not reproduce legacy hourly/stacked commenced-hour additions" do
+        it "represents weekday additions as fixed components rather than a combined hourly rate" do
             let day = fromGregorian 2026 1 5
                 eveningInterval = awardSegmentBetween day (TimeOfDay 19 0 0) day (TimeOfDay 21 0 0)
+                calculation = calculateOrFail (testCalculationInput { calculationPaidIntervals = [eveningInterval] })
 
-            calculateTimesheetPay (testCalculationInput { calculationPaidIntervals = [eveningInterval] })
-                `shouldBe` Left (UnsupportedCalculationInput (PendingCommencedHourRule EveningWindow))
+            map (.unitType) calculation.earningsComponents `shouldBe` [Hours, CommencedHours]
+            map (sourceConditionValue . (.sourceCondition)) calculation.earningsComponents
+                `shouldBe` ["ordinary", "evening_after_7pm_addition"]
             show CommencedHours `shouldBe` "CommencedHours"
             map paidTimeKindValue [Worked, CasualMinimumEngagementTopUp, PublicHolidayMinimumTopUp]
                 `shouldBe` ["worked", "casual_minimum_engagement_top_up", "public_holiday_minimum_top_up"]
