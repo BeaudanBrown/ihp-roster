@@ -28,10 +28,13 @@ Award 2020. This is an engineering verification contract, not legal advice.
   into final payroll earnings buckets and each final line is rounded once to
   cents.
 - Calculation and approved-ledger quantities preserve exact elapsed seconds.
-  Export hourly quantities aggregate by final output bucket, then defensively
-  round once to the nearest 15 minutes (exact 7.5-minute ties round up); a
-  rounded line recomputes amount from rounded quantity and rate before cent
-  rounding. Fixed commenced-hour units remain whole.
+  **Target #237 output policy:** export hourly quantities aggregate by final
+  output bucket, then defensively round once to the nearest 15 minutes (exact
+  7.5-minute ties round up); a rounded line recomputes amount from rounded
+  quantity and rate before cent rounding. Fixed commenced-hour units remain
+  whole. Until #237 lands, legacy CSV/Xero renderers retain exact aggregate
+  quantities and apply only their existing final display/protocol decimal
+  formatting; they do not claim this target final-bucket transform.
 - In the coverage columns, **SH** means the Staff Hours CSV, **DE** means the
   Detailed Payroll Earnings CSV, and **XR** means Xero Payroll. “Target” names
   the evidence required from the owning ticket; it does not claim that the

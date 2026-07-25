@@ -34,7 +34,9 @@ This file describes implemented export behavior and shared rendering rules.
   break seconds from those instants rather than flooring to minutes. Staff
   Hours and Hourly Breakdown aggregate exact rational quantities before their
   final CSV-cell formatting. This `break_seconds` shape is export schema
-  version 2.
+  version 2. #237 owns the target final-bucket quarter-hour transform; until it
+  lands, these legacy renderers retain exact aggregate quantities through their
+  existing CSV formatting.
 
 ## Payroll
 

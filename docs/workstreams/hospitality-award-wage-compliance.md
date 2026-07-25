@@ -46,9 +46,11 @@ file does not duplicate ticket status.
 - Timestamp boundaries plus their IANA timezone snapshot are the only persisted
   time authority for timesheets and rosters. Exact elapsed seconds determine
   calculations; Melbourne civil time determines Award dates/windows.
-- UI times remain quarter-hour choices without a database invariant. Final export
-  buckets defensively round hourly quantities once to the nearest 15 minutes,
-  recomputing exported amount from rounded quantity and rate.
+- UI times remain quarter-hour choices without a database invariant. **#237
+  target:** final export buckets defensively round hourly quantities once to
+  the nearest 15 minutes, recomputing exported amount from rounded quantity and
+  rate. Until #237 lands, legacy CSV/Xero renderers retain exact aggregate
+  quantities through their existing final display/protocol decimal formatting.
 - Approved calculations persist immutable exact segments/components, not derived
   rounded lines or totals. Drafts calculate from the effective rate book.
 - Staff Hours reports paid time. Detailed CSV and Xero conserve every positive

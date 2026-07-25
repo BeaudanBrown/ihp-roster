@@ -38,7 +38,7 @@ tests = aroundAll withDatabaseTestContext do
                 get #payConfigVersionManifest exportJob `shouldBe` Just "mixed"
                 unsafeStripCarriageReturns (fromMaybe "" (get #fileContents exportJob)) `shouldBe` unsafeStripCarriageReturns expectedCsv
 
-        it "aggregates fractional staff hours before final CSV formatting" $ withContext do
+        it "retains fractional staff aggregates through legacy final CSV formatting" $ withContext do
             withCleanDb do
                 fixture <- seedCanonicalPayrollFixture
                 let fractionalShift =
