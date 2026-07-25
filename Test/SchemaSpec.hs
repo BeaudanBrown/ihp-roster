@@ -364,6 +364,8 @@ tests = describe "Schema" do
         migrationSqlText <- TextIO.readFile "Application/Migration/1784932300.sql"
         runbookExists <- Directory.doesFileExist "Application/Migration/authoritative-time-boundaries-274-runbook.md"
         migrationSqlText `shouldSatisfy` Text.isInfixOf "unsupported venue timezone for authoritative-boundary migration"
+        migrationSqlText `shouldSatisfy` Text.isInfixOf "btrim(vc.timezone) IS DISTINCT FROM 'Australia/Melbourne'"
+        migrationSqlText `shouldNotSatisfy` Text.isInfixOf "COALESCE(NULLIF(btrim(vc.timezone), ''), 'Australia/Melbourne')"
         migrationSqlText `shouldSatisfy` Text.isInfixOf "CREATE OR REPLACE FUNCTION bepis_first_civil_occurrence"
         migrationSqlText `shouldSatisfy` Text.isInfixOf "RETURN resolved - INTERVAL '1 hour'"
         migrationSqlText `shouldSatisfy` Text.isInfixOf "nonexistent civil time % in timezone %; see #274 runbook"

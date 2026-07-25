@@ -12,7 +12,7 @@ BEGIN
     IF EXISTS (
         SELECT 1
         FROM venue_config vc
-        WHERE btrim(vc.timezone) <> 'Australia/Melbourne'
+        WHERE btrim(vc.timezone) IS DISTINCT FROM 'Australia/Melbourne'
     ) THEN
         RAISE EXCEPTION 'unsupported venue timezone for authoritative-boundary migration; see #274 runbook';
     END IF;
@@ -60,7 +60,7 @@ ALTER TABLE timesheet_entries
 WITH roster_civil AS (
     SELECT
         rs.id,
-        COALESCE(NULLIF(btrim(vc.timezone), ''), 'Australia/Melbourne') AS timezone,
+        btrim(vc.timezone) AS timezone,
         vc.week_offset_epoch + (rw.week_offset * 7) + rd.day_offset AS roster_date,
         rs.start_time,
         rs.end_time
@@ -101,7 +101,7 @@ WHERE resolved.id = rs.id;
 WITH timesheet_civil AS (
     SELECT
         te.id,
-        COALESCE(NULLIF(btrim(vc.timezone), ''), 'Australia/Melbourne') AS timezone,
+        btrim(vc.timezone) AS timezone,
         te.worked_on + te.start_time AS start_local,
         te.worked_on
             + CASE WHEN te.end_time <= te.start_time THEN 1 ELSE 0 END

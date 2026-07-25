@@ -34,7 +34,7 @@ backfill:
 ```sql
 SELECT id, timezone
 FROM venue_config
-WHERE btrim(timezone) <> 'Australia/Melbourne';
+WHERE btrim(timezone) IS DISTINCT FROM 'Australia/Melbourne';
 
 SELECT te.id
 FROM timesheet_entries te
