@@ -53,7 +53,7 @@ module Application.WageEngine
     , FinalEarningsSummary (..)
     , deriveFinalEarnings
     , WageCalculation (..)
-    , PaidIntervalError (..)
+    , ShiftSegmentError (..)
     , UnsupportedInput (..)
     , WageCalculationError (..)
     , calculateTimesheetPay

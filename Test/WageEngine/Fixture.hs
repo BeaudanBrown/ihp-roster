@@ -90,7 +90,8 @@ testCalculationInput =
         , calculationStatewidePublicHolidayDates = Set.empty
         , calculationImportedOverrides = ImportedOverrideContext Nothing Nothing
         , calculationUnsupportedFeatures = Set.empty
-        , calculationPaidIntervals = [twoHourOrdinaryInterval]
+        , calculationShiftSegments = [twoHourOrdinaryInterval]
+        , calculationUnpaidMealBreak = Nothing
         }
 
 twoHourOrdinaryInterval :: AwardSegment

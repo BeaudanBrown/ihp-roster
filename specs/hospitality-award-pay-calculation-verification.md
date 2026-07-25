@@ -53,14 +53,16 @@ until cutover issue #239.
 
 `Application.WageEngine` now provides the parallel pure typed contract and complete
 provider-neutral `ValidatedRateBook`. It calculates ordinary, casual, weekend,
-public-holiday, imported-rate, and weekday fixed commenced-hour components with
-explicitly classified SQL differential evidence, but no production consumer has
-switched. Exact components derive final bucket lines by one-cent-per-line rounding;
-that result is not persisted or exported here. Missed-break components and minimum
-payments remain owned by their later tickets; the new module does not reproduce the
-legacy non-compliant shapes below.
+public-holiday, imported-rate, weekday fixed commenced-hour, and recorded
+unpaid-meal-break components from authoritative instants. A recorded unpaid break is
+deducted exactly once; for a shift over six elapsed hours, the missed-break 50% of
+part-time ordinary-rate component is separate and cumulative with the selected base
+condition and any weekday fixed addition. Imported overrides still deduct a recorded
+unpaid break but bypass Award additions and missed-break pay. No production consumer
+has switched. Exact components derive final bucket lines by one-cent-per-line rounding;
+that result is not persisted or exported here. Minimum payments remain with #233.
 
-Implemented behavior:
+Legacy SQL compatibility behavior (not the Haskell component shape):
 
 - It splits a shift into calendar-day and time-window segments.
 - It detects a public holiday from the venue's configured jurisdiction and the segment's calendar date.

@@ -22,7 +22,7 @@ where
 
 import Application.Helper.WeekBoundaries (venueEffectiveRateDate,
                                           venueEffectiveRateEndDate)
-import Application.VenueTime (AwardSegment)
+import Application.VenueTime (AwardSegment, ResolvedInterval)
 import Application.VenueTime.Model (timesheetEntryWorkedOn)
 import Application.WageEngine
 import qualified Data.Bifunctor as Bifunctor
@@ -427,8 +427,8 @@ projectedRateEffectiveOn weekStartsOn workedOn operativeFrom operativeTo =
     maybe True ((<= workedOn) . venueEffectiveRateDate weekStartsOn) operativeFrom
         && maybe True (>= workedOn) (venueEffectiveRateEndDate weekStartsOn operativeTo)
 
-calculationInputFromLoadedContext :: LoadedCalculationContext -> [AwardSegment] -> WageCalculationInput
-calculationInputFromLoadedContext loadedContext intervals =
+calculationInputFromLoadedContext :: LoadedCalculationContext -> [AwardSegment] -> Maybe ResolvedInterval -> WageCalculationInput
+calculationInputFromLoadedContext loadedContext shiftSegments unpaidMealBreak =
     WageCalculationInput
         { calculationEntryId = CalculationEntryId (tshow loadedContext.loadedEntryId)
         , calculationVenueContext = loadedContext.loadedVenueContext
@@ -437,7 +437,8 @@ calculationInputFromLoadedContext loadedContext intervals =
         , calculationStatewidePublicHolidayDates = loadedContext.loadedStatewideHolidayDates
         , calculationImportedOverrides = loadedContext.loadedImportedOverrides
         , calculationUnsupportedFeatures = Set.empty
-        , calculationPaidIntervals = intervals
+        , calculationShiftSegments = shiftSegments
+        , calculationUnpaidMealBreak = unpaidMealBreak
         }
 
 loadWageEngineContextsForEntries :: (?modelContext :: ModelContext) => [G.TimesheetEntry] -> IO (Either [WageEngineAdapterError] (Map.Map UUID LoadedCalculationContext))

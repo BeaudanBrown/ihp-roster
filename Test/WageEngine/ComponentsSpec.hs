@@ -17,7 +17,7 @@ tests =
         it "HIGA-29.2-EVENING-PART-HOUR pays a 15-minute weekday evening interval plus one fixed commenced unit" do
             let day = fromGregorian 2026 1 5
                 eveningQuarterHour = awardSegmentBetween day (TimeOfDay 19 0 0) day (TimeOfDay 19 15 0)
-                calculation = calculateOrFail (testCalculationInput { calculationPaidIntervals = [eveningQuarterHour] })
+                calculation = calculateOrFail (testCalculationInput { calculationShiftSegments = [eveningQuarterHour] })
 
             calculation.paidTimeSegments `shouldSatisfy` all ((== Worked) . (.paidTimeKind))
             sum (map paidTimeDurationSeconds calculation.paidTimeSegments) `shouldBe` 15 * 60
@@ -50,7 +50,7 @@ tests =
                     calculateOrFail
                         ( testCalculationInput
                             { calculationArrangement = AwardHourlyEmployment CasualEmployment
-                            , calculationPaidIntervals = [eveningQuarterHour]
+                            , calculationShiftSegments = [eveningQuarterHour]
                             }
                         )
 
@@ -66,7 +66,7 @@ tests =
                 ]
                 \(endTime, expectedUnits) -> do
                     let interval = awardSegmentBetween day (TimeOfDay 19 0 0) day endTime
-                        calculation = calculateOrFail (testCalculationInput { calculationPaidIntervals = [interval] })
+                        calculation = calculateOrFail (testCalculationInput { calculationShiftSegments = [interval] })
 
                     commencedQuantity calculation `shouldBe` expectedUnits
 
@@ -77,7 +77,7 @@ tests =
                         (TimeOfDay 18 45 0)
                         (fromGregorian 2026 1 6)
                         (TimeOfDay 0 15 0)
-                calculation = calculateOrFail (testCalculationInput { calculationPaidIntervals = intervals })
+                calculation = calculateOrFail (testCalculationInput { calculationShiftSegments = intervals })
 
             sum (map paidTimeDurationSeconds calculation.paidTimeSegments) `shouldBe` 5 * 60 * 60 + 30 * 60
             hourlyQuantity calculation `shouldBe` 11 / 2
@@ -110,7 +110,7 @@ tests =
                     calculateOrFail
                         ( testCalculationInput
                             { calculationStatewidePublicHolidayDates = Set.singleton day
-                            , calculationPaidIntervals = [evening]
+                            , calculationShiftSegments = [evening]
                             }
                         )
 
@@ -133,7 +133,7 @@ tests =
                         (TimeOfDay 3 30 0)
 
             forM_ [(autumnSunday, 3), (springSunday, 1)] \(intervals, expectedHours) -> do
-                let calculation = calculateOrFail (testCalculationInput { calculationPaidIntervals = intervals })
+                let calculation = calculateOrFail (testCalculationInput { calculationShiftSegments = intervals })
 
                 fixedComponents calculation `shouldBe` []
                 hourlyQuantity calculation `shouldBe` expectedHours
@@ -147,7 +147,7 @@ tests =
                     calculateOrFail
                         ( testCalculationInput
                             { calculationImportedOverrides = ImportedOverrideContext (Just importedPayItem) Nothing
-                            , calculationPaidIntervals = [evening]
+                            , calculationShiftSegments = [evening]
                             }
                         )
 
@@ -164,11 +164,22 @@ tests =
                         }
                     ]
 
-        it "HIGA-16.6-COMMENCED-SPLIT aggregates separated paid intervals before deriving an evening unit" do
+        it "HIGA-16.6-COMMENCED-SPLIT aggregates break-separated paid intervals before deriving an evening unit" do
             let day = fromGregorian 2026 1 5
-                beforeGap = awardSegmentBetween day (TimeOfDay 19 0 0) day (TimeOfDay 19 15 0)
-                afterGap = awardSegmentBetween day (TimeOfDay 19 45 0) day (TimeOfDay 20 0 0)
-                calculation = calculateOrFail (testCalculationInput { calculationPaidIntervals = [beforeGap, afterGap] })
+                evening = awardSegmentBetween day (TimeOfDay 19 0 0) day (TimeOfDay 20 0 0)
+                mealBreak =
+                    case resolveInterval breakStart breakEnd of
+                        Left failure   -> error (show failure)
+                        Right interval -> interval
+                breakStart = MelbourneCivilTime day (TimeOfDay 19 15 0) Nothing
+                breakEnd = MelbourneCivilTime day (TimeOfDay 19 45 0) Nothing
+                calculation =
+                    calculateOrFail
+                        ( testCalculationInput
+                            { calculationShiftSegments = [evening]
+                            , calculationUnpaidMealBreak = Just mealBreak
+                            }
+                        )
 
             sum (map paidTimeDurationSeconds calculation.paidTimeSegments) `shouldBe` 30 * 60
             hourlyQuantity calculation `shouldBe` 1 / 2
@@ -248,8 +259,8 @@ propArtificialSplitInvariance (Positive durationSeed) (NonNegative splitSeed) =
     case (directSegments, splitSegments) of
         (Right direct, Right split) ->
             case
-                ( calculateTimesheetPay (testCalculationInput { calculationPaidIntervals = direct })
-                , calculateTimesheetPay (testCalculationInput { calculationPaidIntervals = split })
+                ( calculateTimesheetPay (testCalculationInput { calculationShiftSegments = direct })
+                , calculateTimesheetPay (testCalculationInput { calculationShiftSegments = split })
                 )
                 of
                     (Right directCalculation, Right splitCalculation) ->

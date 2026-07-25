@@ -54,12 +54,12 @@ tests = do
         it "HIGA-29.2-SATURDAY and SUNDAY select one basis-specific day rate" do
             let saturday = awardSegmentBetween (fromGregorian 2026 1 10) (TimeOfDay 9 0 0) (fromGregorian 2026 1 10) (TimeOfDay 11 0 0)
                 sunday = awardSegmentBetween (fromGregorian 2026 1 11) (TimeOfDay 9 0 0) (fromGregorian 2026 1 11) (TimeOfDay 11 0 0)
-                permanentSaturday = calculateOrFail (testCalculationInput { calculationPaidIntervals = [saturday] })
+                permanentSaturday = calculateOrFail (testCalculationInput { calculationShiftSegments = [saturday] })
                 casualSunday =
                     calculateOrFail
                         ( testCalculationInput
                             { calculationArrangement = AwardHourlyEmployment CasualEmployment
-                            , calculationPaidIntervals = [sunday]
+                            , calculationShiftSegments = [sunday]
                             }
                         )
 
@@ -75,7 +75,7 @@ tests = do
                     calculateOrFail
                         ( testCalculationInput
                             { calculationStatewidePublicHolidayDates = Set.singleton holidayDate
-                            , calculationPaidIntervals = [holidayInterval]
+                            , calculationShiftSegments = [holidayInterval]
                             }
                         )
 
@@ -96,7 +96,7 @@ tests = do
                     calculateOrFail
                         ( testCalculationInput
                             { calculationImportedOverrides = ImportedOverrideContext (Just shiftItem) (Just staffItem)
-                            , calculationPaidIntervals = [saturdayEvening]
+                            , calculationShiftSegments = [saturdayEvening]
                             }
                         )
 
@@ -138,15 +138,15 @@ tests = do
             let day = fromGregorian 2026 1 5
                 firstHour = awardSegmentBetween day (TimeOfDay 9 0 0) day (TimeOfDay 10 0 0)
                 secondHour = awardSegmentBetween day (TimeOfDay 10 0 0) day (TimeOfDay 11 0 0)
-                forward = calculateTimesheetPay (testCalculationInput { calculationPaidIntervals = [firstHour, secondHour] })
-                backward = calculateTimesheetPay (testCalculationInput { calculationPaidIntervals = [secondHour, firstHour] })
+                forward = calculateTimesheetPay (testCalculationInput { calculationShiftSegments = [firstHour, secondHour] })
+                backward = calculateTimesheetPay (testCalculationInput { calculationShiftSegments = [secondHour, firstHour] })
 
             backward `shouldBe` forward
 
         it "HIGA-POLICY-GENERIC-TIME preserves non-quarter-hour elapsed quantities" do
             let day = fromGregorian 2026 1 5
                 thirtySevenMinutes = awardSegmentBetween day (TimeOfDay 9 0 0) day (TimeOfDay 9 37 0)
-                calculation = calculateOrFail (testCalculationInput { calculationPaidIntervals = [thirtySevenMinutes] })
+                calculation = calculateOrFail (testCalculationInput { calculationShiftSegments = [thirtySevenMinutes] })
 
             fmap (.quantity) calculation.earningsComponents `shouldBe` [37 / 60]
             amountFor calculation `shouldBe` 100 * 37 / 60

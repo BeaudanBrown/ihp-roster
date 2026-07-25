@@ -27,13 +27,13 @@ module Application.WageEngine.Types
     , FinalEarningsLine (..)
     , FinalEarningsSummary (..)
     , WageCalculation (..)
-    , PaidIntervalError (..)
+    , ShiftSegmentError (..)
     , UnsupportedInput (..)
     , WageCalculationError (..)
     )
 where
 
-import Application.VenueTime (AwardSegment)
+import Application.VenueTime (AwardSegment, ResolvedInterval, VenueTimeError)
 import Application.WageEngine.RateBook (AwardRateContext, EmploymentBasis,
                                         RateBookVersion, RateSourceIdentity)
 import Data.Scientific (Scientific)
@@ -125,7 +125,8 @@ data WageCalculationInput = WageCalculationInput
     , calculationStatewidePublicHolidayDates :: !(Set.Set Day)
     , calculationImportedOverrides           :: !ImportedOverrideContext
     , calculationUnsupportedFeatures         :: !(Set.Set UnsupportedFeature)
-    , calculationPaidIntervals               :: ![AwardSegment]
+    , calculationShiftSegments               :: ![AwardSegment]
+    , calculationUnpaidMealBreak             :: !(Maybe ResolvedInterval)
     }
     deriving (Eq, Show)
 
@@ -233,9 +234,11 @@ data WageCalculation = WageCalculation
     }
     deriving (Eq, Show)
 
-data PaidIntervalError
-    = NoPaidIntervals
-    | OverlappingPaidIntervals
+data ShiftSegmentError
+    = NoShiftSegments
+    | OverlappingShiftSegments
+    | NonContiguousShiftSegments
+    | UnpaidMealBreakOutsideShift
     deriving (Eq, Show)
 
 data UnsupportedInput
@@ -248,7 +251,8 @@ data UnsupportedInput
     deriving (Eq, Show)
 
 data WageCalculationError
-    = InvalidPaidInterval !PaidIntervalError
+    = InvalidShiftSegments !ShiftSegmentError
+    | AuthoritativeSegmentationFailure !VenueTimeError
     | UnsupportedCalculationInput !UnsupportedInput
     deriving (Eq, Show)
 

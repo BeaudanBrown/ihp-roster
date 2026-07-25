@@ -169,7 +169,7 @@ databaseTests = aroundAll withDatabaseTestContext do
 
                 importedContexts <- loadWageEngineContextsForEntries [importedEntry] >>= expectRight
                 importedContext <- maybe (expectationFailure "missing imported context" >> fail "unreachable") pure (Map.lookup (unpackId importedEntry.id) importedContexts)
-                calculateTimesheetPay (calculationInputFromLoadedContext importedContext [fourHourInterval (testWorkedOn importedEntry)])
+                calculateTimesheetPay (calculationInputFromLoadedContext importedContext [fourHourInterval (testWorkedOn importedEntry)] Nothing)
                     `shouldSatisfy` \case
                         Right calculation -> rateForCalculation calculation == Just 55
                         Left _            -> False
@@ -262,7 +262,7 @@ databaseTests = aroundAll withDatabaseTestContext do
                 forM_ entries \entry -> do
                     sqlResult <- fetchTimesheetPay entry.id >>= expectRight
                     context <- maybe (expectationFailure "missing loaded context" >> fail "unreachable") pure (Map.lookup (unpackId entry.id) contexts)
-                    let calculationInput = calculationInputFromLoadedContext context [fourHourInterval (testWorkedOn entry)]
+                    let calculationInput = calculationInputFromLoadedContext context [fourHourInterval (testWorkedOn entry)] Nothing
                     haskellResult <- expectRight (calculateTimesheetPay calculationInput)
 
                     sum (map (.amount) haskellResult.earningsComponents)

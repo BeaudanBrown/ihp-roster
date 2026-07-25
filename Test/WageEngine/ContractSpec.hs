@@ -118,10 +118,28 @@ tests = do
             let day = fromGregorian 2026 1 5
                 overlap = awardSegmentBetween day (TimeOfDay 9 1 0) day (TimeOfDay 9 2 0)
 
-            calculateTimesheetPay (testCalculationInput { calculationPaidIntervals = [] })
-                `shouldBe` Left (InvalidPaidInterval NoPaidIntervals)
-            calculateTimesheetPay (testCalculationInput { calculationPaidIntervals = [twoHourOrdinaryInterval, overlap] })
-                `shouldBe` Left (InvalidPaidInterval OverlappingPaidIntervals)
+            calculateTimesheetPay (testCalculationInput { calculationShiftSegments = [] })
+                `shouldBe` Left (InvalidShiftSegments NoShiftSegments)
+            calculateTimesheetPay (testCalculationInput { calculationShiftSegments = [twoHourOrdinaryInterval, overlap] })
+                `shouldBe` Left (InvalidShiftSegments OverlappingShiftSegments)
+
+        it "rejects non-contiguous shift segments and unpaid meal breaks outside the authoritative shift" do
+            let day = fromGregorian 2026 1 5
+                firstHour = awardSegmentBetween day (TimeOfDay 9 0 0) day (TimeOfDay 10 0 0)
+                thirdHour = awardSegmentBetween day (TimeOfDay 11 0 0) day (TimeOfDay 12 0 0)
+                outsideBreak =
+                    case
+                        resolveInterval
+                            (MelbourneCivilTime day (TimeOfDay 8 30 0) Nothing)
+                            (MelbourneCivilTime day (TimeOfDay 9 0 0) Nothing)
+                        of
+                            Left failure   -> error (show failure)
+                            Right interval -> interval
+
+            calculateTimesheetPay (testCalculationInput { calculationShiftSegments = [firstHour, thirdHour] })
+                `shouldBe` Left (InvalidShiftSegments NonContiguousShiftSegments)
+            calculateTimesheetPay (testCalculationInput { calculationUnpaidMealBreak = Just outsideBreak })
+                `shouldBe` Left (InvalidShiftSegments UnpaidMealBreakOutsideShift)
 
         it "rejects unsupported venue, holiday, worker and imported inputs explicitly" do
             resolveVenueAwardContext "Etc/UTC" "VIC"
@@ -170,7 +188,7 @@ tests = do
         it "represents weekday additions as fixed components rather than a combined hourly rate" do
             let day = fromGregorian 2026 1 5
                 eveningInterval = awardSegmentBetween day (TimeOfDay 19 0 0) day (TimeOfDay 21 0 0)
-                calculation = calculateOrFail (testCalculationInput { calculationPaidIntervals = [eveningInterval] })
+                calculation = calculateOrFail (testCalculationInput { calculationShiftSegments = [eveningInterval] })
 
             map (.unitType) calculation.earningsComponents `shouldBe` [Hours, CommencedHours]
             map (sourceConditionValue . (.sourceCondition)) calculation.earningsComponents

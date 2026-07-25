@@ -2,19 +2,24 @@ module Application.WageEngine.Components
     ( paidSegment
     , awardHourlyComponent
     , importedHourlyComponent
+    , missedMealBreakAdditionComponent
     , commencedHourAdditionComponents
     )
 where
 
 import Application.VenueTime (AwardSegment, LocalDayKind (..),
-                              LocalTimeWindow (..), awardSegmentEnd,
-                              awardSegmentLocalDate, awardSegmentLocalDayKind,
-                              awardSegmentLocalWindow, awardSegmentStart,
-                              resolvedInstantUTC)
-import Application.WageEngine.RateBook (RateSourceIdentity,
+                              LocalTimeWindow (..), ResolvedInterval,
+                              awardSegmentEnd, awardSegmentLocalDate,
+                              awardSegmentLocalDayKind, awardSegmentLocalWindow,
+                              awardSegmentStart, resolvedInstantUTC,
+                              resolvedIntervalElapsedSeconds)
+import Application.WageEngine.RateBook (AwardClassification,
+                                        BaseRateKind (OrdinaryRate),
+                                        EmploymentBasis (PermanentPartTime),
+                                        RateSourceIdentity,
                                         TimeAdditionKind (..),
                                         ValidatedRateBook,
-                                        ValidatedRateKey (AwardAddition),
+                                        ValidatedRateKey (AwardAddition, ClassificationRate),
                                         lookupValidatedRateWithSource)
 import Application.WageEngine.Types
 import qualified Data.Map.Strict as Map
@@ -51,6 +56,20 @@ importedHourlyComponent importedPayItem condition interval =
         condition
         ExternalImportedPayItem
         Nothing
+
+missedMealBreakAdditionComponent :: ValidatedRateBook -> AwardClassification -> ResolvedInterval -> EarningsComponent
+missedMealBreakAdditionComponent rateBook classification delayedInterval =
+    hourlyComponent
+        (toRational (resolvedIntervalElapsedSeconds delayedInterval) / 3600)
+        (ordinaryRate / 2)
+        MissedMealBreakAdditionCondition
+        HospitalityAward
+        (Just ordinaryRateIdentity)
+  where
+    (ordinaryRate, ordinaryRateIdentity) =
+        lookupValidatedRateWithSource
+            (ClassificationRate classification PermanentPartTime OrdinaryRate)
+            rateBook
 
 commencedHourAdditionComponents :: ValidatedRateBook -> Set.Set Day -> [AwardSegment] -> [EarningsComponent]
 commencedHourAdditionComponents rateBook statewidePublicHolidayDates intervals =

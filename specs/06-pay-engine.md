@@ -15,13 +15,15 @@ Canonical production pay math remains in PostgreSQL functions until cutover issu
 application-layer orchestration/reporting still consumes the SQL seam.
 
 The Haskell module now validates the complete effective MA000009 rate book and
-calculates ordinary, casual, weekend, public-holiday, imported flat-rate, and
-weekday fixed commenced-hour components from opaque `Application.VenueTime` Award
-segments. It derives final earnings buckets by grouping exact components and rounding
-each final monetary line once; this does not change ledger facts or output quantities.
-That pure time authority resolves Melbourne DST and exact local boundaries; issue
-#274 integrates it with persistence and UI. Later compliance tickets add meal-break,
-minimum-payment, and ledger rules before cutover.
+calculates ordinary, casual, weekend, public-holiday, imported flat-rate, weekday
+fixed commenced-hour, and recorded unpaid-meal-break components from opaque
+`Application.VenueTime` shift segments and break intervals. It deducts a recorded
+unpaid break exactly once and emits the clause 16 missed-break 50% ordinary-rate
+addition separately from base wages. It derives final earnings buckets by grouping
+exact components and rounding each final monetary line once; this does not change
+ledger facts or output quantities. That pure time authority resolves Melbourne DST
+and exact local boundaries; issue #274 integrates it with persistence and UI. Later
+compliance tickets add minimum-payment and ledger rules before cutover.
 
 ## Why mixed
 

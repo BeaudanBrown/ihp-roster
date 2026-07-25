@@ -43,8 +43,10 @@ retrieval and curation remain in `Application/FwcMapd/`.
 
 `WageCalculationInput` contains:
 
-- opaque `AwardSegment` values from `Application.VenueTime`, carrying authoritative
-  instants and derived Melbourne local date/day/window context;
+- a non-empty, contiguous full-shift sequence of opaque `AwardSegment` values from
+  `Application.VenueTime`, carrying authoritative instants and derived Melbourne
+  local date/day/window context;
+- an optional opaque `ResolvedInterval` for the recorded unpaid meal break;
 - a validated Melbourne timezone and VIC statewide public-holiday jurisdiction;
 - supported employment arrangement; the stored `permanent` enum is retained for
   database compatibility but means MA000009 part-time exclusively and is displayed
@@ -55,9 +57,11 @@ retrieval and curation remain in `Application/FwcMapd/`.
 - explicit unsupported-feature facts.
 
 The engine never converts civil time to an instant and callers cannot forge UTC/local
-segment metadata. `Application.VenueTime` resolves and positively bounds each segment;
-the engine additionally requires a non-empty, non-overlapping segment list. The input
-remains generic; there is no quarter-hour invariant.
+segment metadata. `Application.VenueTime` resolves and positively bounds each segment
+and break; the engine additionally requires a non-empty, contiguous segment sequence
+and a break contained in that shift. It subtracts the recorded unpaid break exactly
+once before constructing paid segments. The input remains generic; there is no
+quarter-hour invariant.
 
 Each result carries `hospitality-award-v1`, separate `PaidTimeSegment` and
 `EarningsComponent` lists, exact rational quantities/amounts, source condition, and
@@ -66,14 +70,23 @@ items override staff items and bypass Award conditions and Award-rate-book
 availability.
 
 The implemented arithmetic subset is ordinary part-time/casual, Saturday, Sunday,
-public holiday, imported flat-rate parity, and weekday clause 29.2 additions. Public
-holiday takes precedence over weekend. Eligible evening and early-morning worked
-intervals are grouped separately by local date/window before their exact elapsed
-hours are rounded up to whole `commenced_hours`; a split, break, or future
-missed-break boundary cannot duplicate a unit. The addition is a separate fixed-rate
-component and never adds paid time. Imported overrides remain exact elapsed hourly
-components with no Award additions. Minimum payments and meal-break components remain
-with #233 and #232 respectively.
+public holiday, imported flat-rate parity, weekday clause 29.2 additions, and clauses
+16/29.3 recorded unpaid-meal-break rules. Public holiday takes precedence over weekend;
+weekday additions never stack with weekend/public-holiday base rates. Eligible evening
+and early-morning worked intervals are grouped separately by local date/window before
+their exact elapsed hours are rounded up to whole `commenced_hours`; a split, break,
+or six-hour boundary cannot duplicate a unit. The addition is a separate fixed-rate
+component and never adds paid time.
+
+For a gross shift longer than six exact elapsed hours, a recorded break qualifies when
+it lasts at least 30 exact elapsed minutes and starts inclusively from two through six
+hours after shift start. An untimely/absent break emits one separate
+`missed_meal_break_addition` component from the six-hour instant to shift end; a
+30-minute break beginning after six hours stops that addition when it begins. The
+component uses the resolved level's part-time ordinary rate × 50%, including for
+casuals, and remains cumulative with the one selected base condition and any weekday
+fixed addition. Imported overrides still deduct a recorded unpaid break but bypass all
+Award conditions, additions and missed-break pay. Minimum payments remain with #233.
 
 `deriveFinalEarnings` groups exact components by a stable key containing their unit,
 condition, source, rate, and source identity. It preserves exact quantities/amounts,
@@ -93,15 +106,16 @@ holidays are restricted to the requested date span plus the next local date. It
 performs no per-entry database query. Partial projected books return
 `InvalidProjectedRateBook` for Award calculation, while explicit imported overrides
 need no Award book; an unvalidated book can never reach `calculateTimesheetPay`.
-Callers attach `Application.VenueTime` Award segments through
-`calculationInputFromLoadedContext`. Issue #274 owns persistence and controller/UI
-integration of this implemented pure authority.
+Callers attach gross `Application.VenueTime` Award segments and the optional opaque
+recorded-break interval through `calculationInputFromLoadedContext`. Issue #274 owns
+persistence and controller/UI integration of this implemented pure authority.
 
 ## Verification
 
 ```bash
 bash ./bin/in-env hspec-pure --match "Melbourne civil-time authority"
 bash ./bin/in-env hspec-pure --match "WageEngine components"
+bash ./bin/in-env hspec-pure --match "WageEngine unpaid meal breaks"
 bash ./bin/in-env hspec-pure
 bash ./bin/in-env hspec-test --match "database wage-engine adapter"
 bash ./bin/in-env hspec-test --match "FWC MAPD"
