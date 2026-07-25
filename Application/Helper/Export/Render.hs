@@ -173,17 +173,28 @@ fixedStaffPayRecordLabel :: TimesheetPayResult -> Text
 fixedStaffPayRecordLabel payResult =
     fromMaybe "Unknown pay level" payResult.payLevelName
 
-addDayHours :: Int -> Double -> [Double] -> [Double]
+addDayHours :: Int -> Rational -> [Rational] -> [Rational]
 addDayHours dayIndex hours existingDayHours =
     [ if index == dayIndex then currentHours + hours else currentHours
     | (index, currentHours) <- zip [0 ..] existingDayHours
     ]
 
-paidMinutesToHours :: Scientific.Scientific -> Double
-paidMinutesToHours paidMinutes = Scientific.toRealFloat paidMinutes / 60
+paidMinutesToHours :: Scientific.Scientific -> Rational
+paidMinutesToHours paidMinutes = toRational paidMinutes / 60
 
-formatStaffPayHours :: Double -> Text
-formatStaffPayHours value = Text.pack (printf "%.2f" value :: String)
+formatStaffPayHours :: Rational -> Text
+formatStaffPayHours = formatRationalDecimal 2
+
+formatRationalDecimal :: Int -> Rational -> Text
+formatRationalDecimal decimalPlaces value =
+    cs (Scientific.formatScientific Scientific.Fixed (Just decimalPlaces) (rationalToScientificAt decimalPlaces value))
+
+rationalToScientificAt :: Int -> Rational -> Scientific.Scientific
+rationalToScientificAt decimalPlaces value =
+    Scientific.scientific (round (value * fromInteger scale)) (negate decimalPlaces)
+    where
+        scale :: Integer
+        scale = 10 ^ decimalPlaces
 
 renderHourlyBreakdownDateCsv :: Day -> [ShiftType] -> [TimesheetEntry] -> Text
 renderHourlyBreakdownDateCsv date shiftTypes entries =
@@ -209,7 +220,7 @@ renderHourlyBreakdownDateCsv date shiftTypes entries =
                         shiftTypes
              in Text.intercalate "," (csvCell windowLabel : map csvCell hourValues)
 
-entryHoursForHourlyWindow :: Int -> ShiftType -> TimesheetEntry -> Double
+entryHoursForHourlyWindow :: Int -> ShiftType -> TimesheetEntry -> Rational
 entryHoursForHourlyWindow hourOfWindow shiftType entry
     | entry.shiftTypeId /= unpackId (get #id shiftType) = 0
     | otherwise =
@@ -219,7 +230,7 @@ entryHoursForHourlyWindow hourOfWindow shiftType entry
             breakSeconds = case (entry.breakStartsAt, entry.breakEndsAt) of
                 (Just breakStartsAt, Just breakEndsAt) -> intervalSecondsInLocalHour entry.timezone targetDate targetHour breakStartsAt breakEndsAt
                 _ -> 0
-         in realToFrac (max 0 (shiftSeconds - breakSeconds) / 3600)
+         in toRational (max 0 (shiftSeconds - breakSeconds)) / 3600
 
 intervalSecondsInLocalHour :: Text -> Day -> Int -> UTCTime -> UTCTime -> NominalDiffTime
 intervalSecondsInLocalHour timezone targetDate targetHour startsAt endsAt =
@@ -265,8 +276,8 @@ formatHourlyWindow hourOfWindow
     | hourOfWindow < 24 = Text.pack (printf "%02d:00" hourOfWindow :: String)
     | otherwise = Text.pack (printf "%02d:00+1" (hourOfWindow - 24) :: String)
 
-formatHourlyBreakdownHours :: Double -> Text
-formatHourlyBreakdownHours value = Text.pack (printf "%.1f" value :: String)
+formatHourlyBreakdownHours :: Rational -> Text
+formatHourlyBreakdownHours = formatRationalDecimal 1
 
 fallbackReportDayLabels :: Day -> [Text]
 fallbackReportDayLabels reportWeekStart =

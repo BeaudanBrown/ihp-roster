@@ -34,8 +34,8 @@ data ReportWeekSelection = ReportWeekSelection
 data StaffPayCsvRecord = StaffPayCsvRecord
     { staffName   :: !Text
     , label       :: !Text
-    , bucketHours :: ![Double]
-    , total       :: !Double
+    , bucketHours :: ![Rational]
+    , total       :: !Rational
     }
     deriving (Eq, Show)
 
@@ -55,7 +55,7 @@ data PayrollEarningsCsvRecord = PayrollEarningsCsvRecord
     , staffLastName            :: !Text
     , workDate                 :: !Day
     , earningsRateName         :: !Text
-    , hours                    :: !Double
+    , hours                    :: !Rational
     , trackingCode             :: !(Maybe Text)
     , description              :: !Text
     , staffId                  :: !UUID
