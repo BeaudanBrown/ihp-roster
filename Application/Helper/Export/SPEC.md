@@ -30,7 +30,9 @@ This file describes implemented export behavior and shared rendering rules.
 - Timesheet dates and clocks are projected from authoritative instants and their
   stored timezone snapshot. Duration and hourly-breakdown overlap use exact
   instant elapsed time: a repeated autumn hour contributes twice and a skipped
-  spring hour contributes zero.
+  spring hour contributes zero. Approved Timesheets CSV renders exact elapsed
+  break seconds from those instants rather than flooring to minutes. This
+  `break_seconds` shape is export schema version 2.
 
 ## Payroll
 

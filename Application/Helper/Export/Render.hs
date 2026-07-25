@@ -7,8 +7,8 @@ import Application.VenueTime (RepeatedTimeOccurrence (..))
 import Application.VenueTime.Model (civilBoundaryIsRepeated,
                                     resolveBoundaryInstant,
                                     storedInstantLocalTime,
+                                    timesheetEntryBreakElapsedSeconds,
                                     timesheetEntryBreakEndTime,
-                                    timesheetEntryBreakMinutes,
                                     timesheetEntryBreakStartTime,
                                     timesheetEntryEndTime,
                                     timesheetEntryHadBreak,
@@ -291,7 +291,7 @@ renderApprovedTimesheetCsv entries staffById approversById versionManifestByEntr
                 , "staff_name"
                 , "start_time"
                 , "end_time"
-                , "break_minutes"
+                , "break_seconds"
                 , "pay_config_version_manifest"
                 , "approved_at"
                 , "approved_by_email"
@@ -303,7 +303,7 @@ renderApprovedTimesheetCsv entries staffById approversById versionManifestByEntr
                 , csvCell (staffDisplayNameForEntry entry.staffId)
                 , csvCell (formatTimeOfDay (timesheetEntryStartTime entry))
                 , csvCell (formatTimeOfDay (timesheetEntryEndTime entry))
-                , csvCell (tshow (timesheetEntryBreakMinutes entry))
+                , csvCell (formatElapsedSeconds (timesheetEntryBreakElapsedSeconds entry))
                 , csvCell (fromMaybe "" (Map.lookup (unpackId entry.id) versionManifestByEntryId))
                 , csvCell (maybe "" formatUtc entry.approvedAt)
                 , csvCell (maybe "" (.email) (entry.approvedByUserId >>= (`Map.lookup` approversById)))
@@ -316,6 +316,10 @@ renderApprovedTimesheetCsv entries staffById approversById versionManifestByEntr
 
 formatTimeOfDay :: TimeOfDay -> Text
 formatTimeOfDay timeOfDay = Text.pack (formatTime defaultTimeLocale "%H:%M" timeOfDay)
+
+formatElapsedSeconds :: NominalDiffTime -> Text
+formatElapsedSeconds elapsedSeconds =
+    tshow (fromRational (toRational elapsedSeconds) :: Scientific.Scientific)
 
 formatUtc :: UTCTime -> Text
 formatUtc timestamp = Text.pack (formatTime defaultTimeLocale "%Y-%m-%d %H:%M:%S UTC" timestamp)

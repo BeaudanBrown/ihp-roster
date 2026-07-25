@@ -125,7 +125,7 @@ browserDownloadMethod :: Text
 browserDownloadMethod = "browser_download"
 
 exportSchemaVersion :: Int
-exportSchemaVersion = 1
+exportSchemaVersion = 2
 
 exportExpirySeconds :: NominalDiffTime
 exportExpirySeconds = 60 * 60 * 24

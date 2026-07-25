@@ -31,6 +31,27 @@ tests =
                     let line = onlyPreviewLine previewRun
                     line.previewLineNumberOfUnits `shouldBe` [4, 0, 0, 0, 0, 0, 0]
 
+            it "preserves fractional elapsed units in Xero preview payloads" $ withContext do
+                withCleanDb do
+                    fixture <- createPreviewFixture "weekly" [EntrySpec 0 fixtureStaffA (TimeOfDay 9 0 0) (TimeOfDay 13 0 30)]
+                    previewRun <- buildFixturePreview fixture
+
+                    let line = onlyPreviewLine previewRun
+                    line.previewLineNumberOfUnits `shouldBe` [4.008333333333, 0, 0, 0, 0, 0, 0]
+
+            it "rounds fractional Xero units only after same-bucket aggregation" $ withContext do
+                withCleanDb do
+                    fixture <-
+                        createPreviewFixture
+                            "weekly"
+                            [ EntrySpec 0 fixtureStaffA (TimeOfDay 9 0 0) (TimeOfDay 9 0 30)
+                            , EntrySpec 0 fixtureStaffA (TimeOfDay 9 1 0) (TimeOfDay 9 1 30)
+                            ]
+                    previewRun <- buildFixturePreview fixture
+
+                    let line = onlyPreviewLine previewRun
+                    line.previewLineNumberOfUnits `shouldBe` [0.016666666667, 0, 0, 0, 0, 0, 0]
+
             it "uses the latest overlapping venue-effective rate in preview bucket keys" $ withContext do
                 withCleanDb do
                     fixture <- createPreviewFixture "weekly" [EntrySpec 0 fixtureStaffA (TimeOfDay 9 0 0) (TimeOfDay 13 0 0)]

@@ -11,7 +11,7 @@ import qualified Data.ByteString.Lazy as LBS
 import qualified Data.Text as Text
 import Data.Text.Encoding (decodeUtf8, encodeUtf8)
 import Data.Time.Calendar (Day, fromGregorian)
-import Data.Time.Clock (UTCTime (..), secondsToDiffTime)
+import Data.Time.Clock (UTCTime (..), addUTCTime, secondsToDiffTime)
 import Data.Time.LocalTime (TimeOfDay (..))
 import Generated.Types
 import IHP.ControllerPrelude
@@ -55,7 +55,12 @@ tests = aroundAll withDatabaseTestContext do
                 admin <- createUserRecord "exports-admin@example.com" "staff" True
                 _ <- createVenueMembershipRecord venue admin "venue_admin"
                 staff <- createStaffRecord venue Nothing "Ava" "Hours"
-                _ <- createApprovedTimesheetEntryRecordAt venue staff admin (fromGregorian 2025 1 10) approvedAt
+                approvedEntry <- createApprovedTimesheetEntryRecordAt venue staff admin (fromGregorian 2025 1 10) approvedAt
+                let breakStartsAt = addUTCTime (60 * 60) approvedEntry.startsAt
+                _ <- approvedEntry
+                    |> set #breakStartsAt (Just breakStartsAt)
+                    |> set #breakEndsAt (Just (addUTCTime 15 breakStartsAt))
+                    |> updateRecord
                 _ <- createTimesheetEntryRecord venue staff (fromGregorian 2025 1 11)
 
                 response <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
@@ -71,6 +76,7 @@ tests = aroundAll withDatabaseTestContext do
                 exportJob.venueId `shouldBe` unpackId venue.id
                 exportJob.requestedByUserId `shouldBe` unpackId admin.id
                 exportJob.exportType `shouldBe` exportJobTypeToText ApprovedTimesheetsCsv
+                exportJob.schemaVersion `shouldBe` 2
                 exportJob.status `shouldBe` exportJobStatusToText ExportReady
                 exportJob.rangeStart `shouldBe` Just (fromGregorian 2025 1 6)
                 exportJob.rangeEnd `shouldBe` Just (fromGregorian 2025 1 12)
@@ -78,7 +84,8 @@ tests = aroundAll withDatabaseTestContext do
                 exportJob.fileName `shouldBe` Just "approved-timesheets-2025-01-06-to-2025-01-12.csv"
                 exportJob.fileContents `shouldSatisfy` isJust
                 fromMaybe "" exportJob.fileContents `shouldSatisfy`
-                    Text.isInfixOf "worked_on,staff_name,start_time,end_time,break_minutes,pay_config_version_manifest,approved_at,approved_by_email"
+                    Text.isInfixOf "worked_on,staff_name,start_time,end_time,break_seconds,pay_config_version_manifest,approved_at,approved_by_email"
+                fromMaybe "" exportJob.fileContents `shouldSatisfy` Text.isInfixOf ",15.0,"
                 fromMaybe "" exportJob.fileContents `shouldSatisfy` Text.isInfixOf "2025-01-10"
                 fromMaybe "" exportJob.fileContents `shouldSatisfy` Text.isInfixOf ("," <> fromMaybe "" exportJob.payConfigVersionManifest <> ",")
                 fromMaybe "" exportJob.fileContents `shouldSatisfy` (not . Text.isInfixOf "2025-01-11")

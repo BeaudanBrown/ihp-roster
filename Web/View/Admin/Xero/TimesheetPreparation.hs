@@ -30,7 +30,8 @@ import Application.Helper.View.Overlay
 import Application.Helper.XeroAdminTypes
 import Application.Xero.Admin.ReadModel (xeroEmployeeAvailableForStaff)
 import Control.Monad (guard)
-import Data.Scientific (FPFormat (Fixed), Scientific, formatScientific)
+import Data.Scientific (FPFormat (Fixed), Scientific, formatScientific,
+                        scientific)
 import qualified Data.Text as Text
 import Data.Time.Calendar (Day, diffDays)
 import Web.View.Prelude
@@ -347,7 +348,7 @@ renderFinalSummaryCards view = [hsx|
     <div class="row g-2">
         {renderSummaryCard "Employees" (tshow (length view.preparationReviewRows))}
         {renderSummaryCard "Approved shifts" (tshow (sum (map (.reviewRowEntryCount) view.preparationReviewRows)))}
-        {renderSummaryCard "Total hours" (formatUnits (sum (map (.reviewRowTotalUnits) view.preparationReviewRows)))}
+        {renderSummaryCard "Total hours" (formatPreparationUnits (sum (map (.reviewRowTotalUnits) view.preparationReviewRows)))}
         {renderSummaryCard "Estimated wages" (formatMoney (sum (map (.reviewRowTotalAmount) view.preparationReviewRows)))}
     </div>
 |]
@@ -396,7 +397,7 @@ renderReviewRow row = [hsx|
     <tr>
         <td><div class="fw-semibold">{staffName row.reviewRowStaff}</div></td>
         <td class="text-end">{tshow row.reviewRowEntryCount}</td>
-        <td class="text-end">{formatUnits row.reviewRowTotalUnits}</td>
+        <td class="text-end">{formatPreparationUnits row.reviewRowTotalUnits}</td>
         <td class="text-end">{formatMoney row.reviewRowTotalAmount}</td>
     </tr>
 |]
@@ -975,6 +976,16 @@ staffSecondaryLabel row =
 
 formatUnits :: Scientific -> Text
 formatUnits value = cs (formatScientific Fixed (Just 2) value)
+
+formatPreparationUnits :: Rational -> Text
+formatPreparationUnits = formatUnits . rationalToScientificAt 2
+
+rationalToScientificAt :: Int -> Rational -> Scientific
+rationalToScientificAt decimalPlaces value =
+    scientific (round (value * fromInteger scale)) (negate decimalPlaces)
+    where
+        scale :: Integer
+        scale = 10 ^ decimalPlaces
 
 formatMoney :: Scientific -> Text
 formatMoney value = "$" <> cs (formatScientific Fixed (Just 2) value)

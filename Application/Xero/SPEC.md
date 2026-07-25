@@ -35,6 +35,11 @@ lands.
   Employees assigned to another calendar or to no calendar are excluded from
   that period rather than sent to Xero's Timesheets API. The modal summary,
   readiness counts, preview, and submission all use this same eligible set.
+  Preparation summary units aggregate exact elapsed seconds before display
+  formatting; they do not floor individual entries to minutes. Xero request
+  quantities use 12 decimal places only at protocol serialization after
+  aggregation; this finite transport representation is not a per-entry or
+  payroll rounding rule.
 - Managed Xero earnings-rate names put human payroll details first, e.g. `Saturday Penalty - Level 1 - CAS - Bepis - 1-July-2025`; legacy `Bepis - HIGA - ...` managed names remain matchable to avoid duplicate pay items.
 - Readiness, managed pay-item proposals, preview, and submission resolve overlapping projected rates through the same latest venue-effective-rate rule as payroll calculations. Raw FWC operative dates are normalized to the venue week before constructing bucket keys.
 - Managed award pay-item effective-date keys/names use the Bepis venue-effective

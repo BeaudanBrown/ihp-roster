@@ -194,7 +194,7 @@ instance TestBreakRecord TimesheetEntry where
         let startLocal = storedInstantLocalTime entry.timezone entry.startsAt
             breakDay = addDays (if breakTime < startLocal.localTimeOfDay then 1 else 0) startLocal.localDay
          in entry |> set #breakEndsAt (Just (resolveTestFixtureInstant entry.timezone breakDay breakTime))
-    testBreakMinutes = timesheetEntryBreakMinutes
+    testBreakMinutes = floor . (/ 60) . timesheetEntryBreakElapsedSeconds
     setTestBreakMinutes minutes entry =
         case entry.breakStartsAt of
             Nothing -> entry

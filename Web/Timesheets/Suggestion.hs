@@ -7,7 +7,6 @@ module Web.Timesheets.Suggestion
     , timesheetSuggestionHadBreak
     , timesheetSuggestionBreakStartTime
     , timesheetSuggestionBreakEndTime
-    , timesheetSuggestionBreakMinutes
     ) where
 
 import Application.VenueTime.Model
@@ -52,6 +51,3 @@ timesheetSuggestionBreakStartTime = fmap (.localTimeOfDay) . authoritativeBreakS
 
 timesheetSuggestionBreakEndTime :: TimesheetSuggestion -> Maybe TimeOfDay
 timesheetSuggestionBreakEndTime = fmap (.localTimeOfDay) . authoritativeBreakEndLocalTime . (.suggestionBoundaries)
-
-timesheetSuggestionBreakMinutes :: TimesheetSuggestion -> Int
-timesheetSuggestionBreakMinutes = floor . (/ 60) . authoritativeBreakElapsedSeconds . (.suggestionBoundaries)

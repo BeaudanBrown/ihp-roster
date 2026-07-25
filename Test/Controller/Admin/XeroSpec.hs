@@ -715,6 +715,8 @@ tests = aroundAll withDatabaseTestContext do
                         [ Preview.EntrySpec 0 Preview.fixtureStaffA (TimeOfDay 9 0 0) (TimeOfDay 13 0 0)
                         , Preview.EntrySpec 1 Preview.fixtureStaffB (TimeOfDay 9 0 0) (TimeOfDay 12 0 0)
                         ]
+                firstEntry <- maybe (error "Expected a fixture timesheet entry") pure (listToMaybe fixture.entries)
+                _ <- firstEntry |> set #endsAt (addUTCTime 30 firstEntry.endsAt) |> updateRecord
                 markOtherFixtureStaffNotPaid fixture
                 employeeB <-
                     query @XeroEmployee
@@ -760,6 +762,7 @@ tests = aroundAll withDatabaseTestContext do
                 summaryResponse `responseBodyShouldContain` "Step 3 of 3"
                 summaryResponse `responseBodyShouldContain` "Timesheet summary"
                 summaryResponse `responseBodyShouldContain` "Approved shifts"
+                summaryResponse `responseBodyShouldContain` "4.01"
                 summaryResponse `responseBodyShouldContain` "Ada Lovelace"
                 summaryResponse `responseBodyShouldNotContain` "Grace Hopper"
                 summaryResponse `responseBodyShouldContain` "Submit draft timesheets to Xero"

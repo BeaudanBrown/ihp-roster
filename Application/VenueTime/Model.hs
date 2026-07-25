@@ -35,7 +35,7 @@ module Application.VenueTime.Model
     , timesheetEntryHadBreak
     , timesheetEntryBreakStartTime
     , timesheetEntryBreakEndTime
-    , timesheetEntryBreakMinutes
+    , timesheetEntryBreakElapsedSeconds
     , timesheetEntryElapsedSeconds
     , timesheetEntryPaidElapsedSeconds
     , rosterSlotStartTime
@@ -354,8 +354,8 @@ timesheetEntryBreakStartTime = fmap (.localTimeOfDay) . authoritativeBreakStartL
 timesheetEntryBreakEndTime :: TimesheetEntry -> Maybe TimeOfDay
 timesheetEntryBreakEndTime = fmap (.localTimeOfDay) . authoritativeBreakEndLocalTime . requireTimesheetBoundaries
 
-timesheetEntryBreakMinutes :: TimesheetEntry -> Int
-timesheetEntryBreakMinutes = floor . (/ 60) . authoritativeBreakElapsedSeconds . requireTimesheetBoundaries
+timesheetEntryBreakElapsedSeconds :: TimesheetEntry -> NominalDiffTime
+timesheetEntryBreakElapsedSeconds = authoritativeBreakElapsedSeconds . requireTimesheetBoundaries
 
 timesheetEntryElapsedSeconds :: TimesheetEntry -> NominalDiffTime
 timesheetEntryElapsedSeconds = authoritativeElapsedSeconds . requireTimesheetBoundaries

@@ -542,13 +542,12 @@ totalEntryAmount payResultsByEntryId entries =
                 Nothing     -> 0
                 Just result -> result.totals.totalAmount
 
-totalEntryUnits :: [TimesheetEntry] -> Scientific
-totalEntryUnits entries =
-    fromIntegral (sum (map paidEntryMinutes entries)) / 60
+totalEntryUnits :: [TimesheetEntry] -> Rational
+totalEntryUnits = sum . map paidEntryUnits
 
-paidEntryMinutes :: TimesheetEntry -> Int
-paidEntryMinutes entry =
-    max 0 (floor (timesheetEntryPaidElapsedSeconds entry / 60))
+paidEntryUnits :: TimesheetEntry -> Rational
+paidEntryUnits entry =
+    max 0 (toRational (timesheetEntryPaidElapsedSeconds entry) / 3600)
 
 staffSortKey :: Staff -> (Text, Text)
 staffSortKey staff = (staff.lastName, staff.firstName)

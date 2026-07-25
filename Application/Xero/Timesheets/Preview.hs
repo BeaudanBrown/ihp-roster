@@ -93,14 +93,14 @@ data SegmentContribution = SegmentContribution
     , contributionWorkedOn       :: !Day
     , contributionLocalBucketKey :: !Text
     , contributionEarningsRateId :: !Text
-    , contributionUnits          :: !Scientific.Scientific
+    , contributionUnits          :: !Rational
     }
     deriving (Eq, Show)
 
 data LineAggregation = LineAggregation
     { lineAggregationLocalBucketKey  :: !Text
     , lineAggregationEarningsRateId  :: !Text
-    , lineAggregationUnitsByDay      :: !(Map.Map Day Scientific.Scientific)
+    , lineAggregationUnitsByDay      :: !(Map.Map Day Rational)
     , lineAggregationEntryIds        :: ![UUID]
     , lineAggregationStaffVersionIds :: ![UUID]
     , lineAggregationShiftVersionIds :: ![UUID]
@@ -544,14 +544,18 @@ toPreview input aggregation =
 
 toPreviewLine :: XeroTimesheetPreviewInput -> LineAggregation -> XeroTimesheetPreviewLine
 toPreviewLine input aggregation =
-    XeroTimesheetPreviewLine
-        { previewLineLocalBucketKey = aggregation.lineAggregationLocalBucketKey
-        , previewLineXeroEarningsRateId = aggregation.lineAggregationEarningsRateId
-        , previewLineNumberOfUnits = map (\day -> Map.findWithDefault 0 day aggregation.lineAggregationUnitsByDay) (periodDays input.previewPeriodStart input.previewPeriodEnd)
-        , previewLineSourceEntryIds = aggregation.lineAggregationEntryIds
-        , previewLineStaffPayVersionIds = aggregation.lineAggregationStaffVersionIds
-        , previewLineShiftPayVersionIds = aggregation.lineAggregationShiftVersionIds
-        }
+    let unitsForDay day =
+            aggregation.lineAggregationUnitsByDay
+                |> Map.findWithDefault 0 day
+                |> scientificFromRationalAt xeroUnitDecimalPlaces
+     in XeroTimesheetPreviewLine
+            { previewLineLocalBucketKey = aggregation.lineAggregationLocalBucketKey
+            , previewLineXeroEarningsRateId = aggregation.lineAggregationEarningsRateId
+            , previewLineNumberOfUnits = map unitsForDay (periodDays input.previewPeriodStart input.previewPeriodEnd)
+            , previewLineSourceEntryIds = aggregation.lineAggregationEntryIds
+            , previewLineStaffPayVersionIds = aggregation.lineAggregationStaffVersionIds
+            , previewLineShiftPayVersionIds = aggregation.lineAggregationShiftVersionIds
+            }
 
 matchingDraftTimesheetId :: XeroTimesheetPreviewInput -> Text -> Maybe Text
 matchingDraftTimesheetId input employeeId = do
@@ -652,9 +656,21 @@ periodDays :: Day -> Day -> [Day]
 periodDays start end =
     [addDays offset start | offset <- [0 .. diffDays end start]]
 
-minutesToUnits :: Scientific.Scientific -> Scientific.Scientific
+minutesToUnits :: Scientific.Scientific -> Rational
 minutesToUnits minutes =
-    minutes / 60
+    toRational minutes / 60
+
+xeroUnitDecimalPlaces :: Int
+xeroUnitDecimalPlaces = 12
+
+-- Xero accepts finite decimal units, so normalize once after exact
+-- same-bucket aggregation rather than rounding each source segment.
+scientificFromRationalAt :: Int -> Rational -> Scientific.Scientific
+scientificFromRationalAt decimalPlaces value =
+    Scientific.scientific (round (value * fromInteger scale)) (negate decimalPlaces)
+    where
+        scale :: Integer
+        scale = 10 ^ decimalPlaces
 
 maybeToEither :: Text -> Maybe value -> Either Text value
 maybeToEither message =

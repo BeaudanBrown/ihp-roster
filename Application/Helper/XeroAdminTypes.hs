@@ -130,7 +130,7 @@ data XeroTimesheetPreviewRowView = XeroTimesheetPreviewRowView
 data XeroPreparationReviewRow = XeroPreparationReviewRow
     { reviewRowStaff       :: Staff
     , reviewRowEntryCount  :: Int
-    , reviewRowTotalUnits  :: Scientific
+    , reviewRowTotalUnits  :: Rational
     , reviewRowTotalAmount :: Scientific
     }
     deriving (Eq, Show)
