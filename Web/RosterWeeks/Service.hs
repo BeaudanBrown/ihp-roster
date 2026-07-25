@@ -196,7 +196,16 @@ copyRosterSlotToDay :: VenueConfig -> RosterWeek -> RosterDay -> RosterWeek -> R
 copyRosterSlotToDay venueConfig sourceWeek sourceDay targetWeek targetDay selections slot = do
     let sourceRosterDate = Calendar.addDays (toInteger sourceDay.dayOffset) (venueWeekStartDate venueConfig sourceWeek.weekOffset)
         targetRosterDate = Calendar.addDays (toInteger targetDay.dayOffset) (venueWeekStartDate venueConfig targetWeek.weekOffset)
-    (copiedStartsAt, copiedEndsAt) <- case (slot.startsAt, slot.endsAt) of
+    (copiedStartsAt, copiedEndsAt) <- copyRosterSlotBoundariesToDate venueConfig sourceRosterDate targetRosterDate selections slot
+    pure $
+        slot
+            |> set #startsAt copiedStartsAt
+            |> set #endsAt copiedEndsAt
+            |> set #timezone venueConfig.timezone
+
+copyRosterSlotBoundariesToDate :: VenueConfig -> Day -> Day -> ShiftCopyOccurrenceSelections -> RosterSlot -> Either BoundaryModelError (Maybe UTCTime, Maybe UTCTime)
+copyRosterSlotBoundariesToDate venueConfig sourceRosterDate targetRosterDate selections slot =
+    case (slot.startsAt, slot.endsAt) of
         (Just startsAt, Just endsAt) -> do
             source <- authoritativeBoundariesFromInstants slot.timezone startsAt endsAt Nothing Nothing
             let sourceStartDate = (authoritativeStartLocalTime source).localDay
@@ -204,16 +213,11 @@ copyRosterSlotToDay venueConfig sourceWeek sourceDay targetWeek targetDay select
             copied <- copyAuthoritativeBoundariesToDate targetStartDate selections source
             pure (Just (authoritativeStartsAt copied), Just (authoritativeEndsAt copied))
         (maybeStart, maybeEnd) -> do
-            copiedStart <- traverse (copySingle sourceRosterDate targetRosterDate selections.copyShiftStartOccurrence) maybeStart
-            copiedEnd <- traverse (copySingle sourceRosterDate targetRosterDate selections.copyShiftEndOccurrence) maybeEnd
+            copiedStart <- traverse (copySingle selections.copyShiftStartOccurrence) maybeStart
+            copiedEnd <- traverse (copySingle selections.copyShiftEndOccurrence) maybeEnd
             pure (copiedStart, copiedEnd)
-    pure $
-        slot
-            |> set #startsAt copiedStartsAt
-            |> set #endsAt copiedEndsAt
-            |> set #timezone venueConfig.timezone
   where
-    copySingle sourceRosterDate targetRosterDate occurrence instant =
+    copySingle occurrence instant =
         let localTime = storedInstantLocalTime slot.timezone instant
             targetDate = Calendar.addDays (Calendar.diffDays localTime.localDay sourceRosterDate) targetRosterDate
             targetOccurrence = if civilBoundaryIsRepeated targetDate localTime.localTimeOfDay then occurrence else Nothing
@@ -367,17 +371,7 @@ prepareRosterWeekCopy venueConfig selections sourceWeek targetWeekOffset = do
         sourceDay <- maybe (Left (BoundaryUnsupportedTimezone "missing roster day")) Right (Map.lookup sourceSlot.rosterDayId sourceDayById)
         let sourceRosterDate = Calendar.addDays (toInteger sourceDay.dayOffset) sourceWeekStart
             targetRosterDate = Calendar.addDays (toInteger sourceDay.dayOffset) targetWeekStart
-        (startsAt, endsAt) <- case (sourceSlot.startsAt, sourceSlot.endsAt) of
-            (Just sourceStartsAt, Just sourceEndsAt) -> do
-                sourceBoundaries <- authoritativeBoundariesFromInstants sourceSlot.timezone sourceStartsAt sourceEndsAt Nothing Nothing
-                let sourceStartDate = (authoritativeStartLocalTime sourceBoundaries).localDay
-                    targetStartDate = Calendar.addDays (Calendar.diffDays sourceStartDate sourceRosterDate) targetRosterDate
-                copied <- copyAuthoritativeBoundariesToDate targetStartDate selections sourceBoundaries
-                pure (Just (authoritativeStartsAt copied), Just (authoritativeEndsAt copied))
-            (maybeStart, maybeEnd) -> do
-                copiedStart <- traverse (copySingleBoundary sourceRosterDate targetRosterDate selections.copyShiftStartOccurrence sourceSlot.timezone) maybeStart
-                copiedEnd <- traverse (copySingleBoundary sourceRosterDate targetRosterDate selections.copyShiftEndOccurrence sourceSlot.timezone) maybeEnd
-                pure (copiedStart, copiedEnd)
+        (startsAt, endsAt) <- copyRosterSlotBoundariesToDate venueConfig sourceRosterDate targetRosterDate selections sourceSlot
         pure RosterSlotCopyPlan
             { copiedSourceSlot = sourceSlot
             , copiedDayOffset = sourceDay.dayOffset
@@ -385,12 +379,6 @@ prepareRosterWeekCopy venueConfig selections sourceWeek targetWeekOffset = do
             , copiedEndsAt = endsAt
             , copiedTimezone = venueConfig.timezone
             }
-
-    copySingleBoundary sourceRosterDate targetRosterDate occurrence timezone instant = do
-        let localTime = storedInstantLocalTime timezone instant
-            targetDate = Calendar.addDays (Calendar.diffDays localTime.localDay sourceRosterDate) targetRosterDate
-            targetOccurrence = if civilBoundaryIsRepeated targetDate localTime.localTimeOfDay then occurrence else Nothing
-        resolveBoundaryInstant venueConfig.timezone targetDate localTime.localTimeOfDay targetOccurrence
 
 copyRosterWeekSlotDefinitionsAndSlots :: (?modelContext :: ModelContext) => RosterWeek -> RosterWeek -> [RosterSlotCopyPlan] -> IO ()
 copyRosterWeekSlotDefinitionsAndSlots sourceWeek targetWeek plans = do
