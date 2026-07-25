@@ -101,7 +101,7 @@ tests = aroundAll withDatabaseTestContext do
                 response `responseBodyShouldContain` "Kitchen"
                 response `responseBodyShouldContain` "Level A"
                 response `responseBodyShouldContain` "Award rates"
-                response `responseBodyShouldContain` "Level A (perm $31.50/hr)"
+                response `responseBodyShouldContain` "Level A (Part-time $31.50/hr)"
                 response `responseBodyShouldContain` "Use staff default pay rate"
                 response `responseBodyShouldContain` "Back of House"
                 response `responseBodyShouldNotContain` "Pass"

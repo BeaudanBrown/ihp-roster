@@ -13,7 +13,7 @@ import {
     timePickerValueDomAttr,
 } from '../frontend/ts/generated/contracts';
 import { E2E_TIMEOUT } from './timeouts';
-import { addRowToRosterDay, editableRosterRows, firstEditableRosterDaySection, openRoster, openRosterShiftDialog } from './test-helpers';
+import { addRowToRosterDay, editableRosterRows, fillRosterShiftDialogDefaults, firstEditableRosterDaySection, openRoster, openRosterShiftDialog } from './test-helpers';
 
 const modalSelector = `#${timePickerModalDomId}`;
 
@@ -81,6 +81,30 @@ test.describe('Roster Time Picker', () => {
             message.includes("Cannot read properties of null (reading 'addEventListener')")
         );
         expect(initErrors).toHaveLength(0);
+    });
+
+    test('shows a clear Part-time duration validation message for an invalid shift', async ({ page }) => {
+        await loginAndOpenRoster(page);
+
+        await addFreshRowAndGetFirstTimeField(page);
+        const dialog = page.getByRole('dialog', { name: 'Add shift' });
+        const endField = dialog.locator(`[${timePickerFieldDomAttr}]`).nth(1);
+        await endField.locator(`[${timePickerTriggerDomAttr}]`).click();
+        await chooseTime(page, '05:45');
+        await fillRosterShiftDialogDefaults(page);
+        await dialog.locator('#roster-shift-staff-id').selectOption('a1000000-0000-0000-0000-000000000031');
+
+        const responsePromise = page.waitForResponse((response) =>
+            response.request().method() === 'POST' && response.url().includes('/CreateRosterSlot'),
+        );
+        await dialog.getByRole('button', { name: 'Save' }).click();
+        const response = await responsePromise;
+        expect(response.status(), await response.text()).toBe(200);
+
+        await expect(dialog).toContainText('Part-time roster shifts must project between 3 and 11.5 working hours after the automatic unpaid meal break.', {
+            timeout: E2E_TIMEOUT.assertion,
+        });
+        await expect(dialog).toBeVisible();
     });
 
     test('clear action resets the selected time', async ({ page }) => {

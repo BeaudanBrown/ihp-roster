@@ -12,64 +12,20 @@ module Web.Controller.RosterWeeks.Validation
     , invalidRosterSlotTimingMessage
     , nextDefaultRosterSlotDefinitionName
     , normalizeRosterSlotDefinitionName
-    , publishRequiredFieldsMessage
     , resolveRosterSlotDefinitionNameForCreate
-    , rosterSlotBlocksPublish
-    , rosterSlotHasValidStartEnd
-    , validateRosterWeekCanGoLive
     ) where
 
 import Application.Helper.Controller
 import Application.Helper.ControllerContext (currentVenueId)
-import Application.VenueTime.Model (authoritativeBoundariesFromInstants)
 import Data.Coerce (coerce)
-import Data.Maybe (fromMaybe, isNothing)
+import Data.Maybe (fromMaybe)
 import qualified Data.Text as Text
 import qualified Data.UUID as UUID
 import Web.Controller.Prelude
 import Web.RosterWeeks.Paths (rosterWeekUrl)
 import Web.RosterWeeks.Responses (respondWithRosterToast)
+import Web.RosterWeeks.Service (rosterSlotHasValidStartEnd)
 import Web.RosterWeeks.Types
-
-validateRosterWeekCanGoLive :: (?context :: ControllerContext, ?modelContext :: ModelContext) => RosterWeek -> Bool -> IO (Maybe Text)
-validateRosterWeekCanGoLive _ False = pure Nothing
-validateRosterWeekCanGoLive rosterWeek True = do
-    rosterDays <- query @RosterDay
-        |> filterWhere (#rosterWeekId, unpackId rosterWeek.id)
-        |> fetch
-    rosterSlots <-
-        if null rosterDays
-            then pure []
-            else query @RosterSlot
-                |> filterWhereIn (#rosterDayId, map (unpackId . (.id)) rosterDays)
-                |> filterWhere (#deletedAt, Nothing)
-                |> fetch
-    let blockingSlots = filter rosterSlotBlocksPublish rosterSlots
-    pure
-        if null blockingSlots
-            then Nothing
-            else Just publishRequiredFieldsMessage
-
-publishRequiredFieldsMessage :: Text
-publishRequiredFieldsMessage = "Roster week cannot go live until every staffed shift has a start time, valid end time, and shift type."
-
-rosterSlotBlocksPublish :: RosterSlot -> Bool
-rosterSlotBlocksPublish slot =
-    isJust slot.staffId
-        && ( isNothing slot.startsAt
-             || isNothing slot.shiftTypeId
-             || not (rosterSlotHasValidStartEnd slot)
-           )
-
-rosterSlotHasValidStartEnd :: RosterSlot -> Bool
-rosterSlotHasValidStartEnd slot =
-    case (slot.startsAt, slot.endsAt) of
-        (Just startsAt, Just endsAt) ->
-            either
-                (const False)
-                authoritativeRosterIntervalIsOperationallyValid
-                (authoritativeBoundariesFromInstants slot.timezone startsAt endsAt Nothing Nothing)
-        _ -> False
 
 ensureRosterSlotTimingValidForSave :: (?context :: ControllerContext, ?request :: Request) => RosterWeek -> RosterSlot -> IO ()
 ensureRosterSlotTimingValidForSave rosterWeek slot =

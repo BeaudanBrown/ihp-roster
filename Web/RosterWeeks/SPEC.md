@@ -95,8 +95,12 @@ lands.
   renders their role as `TRIAL`; linked staff continue to show their venue
   membership role labels.
 - Publishing requires every staffed shift to have a start time, valid end time,
-  and shift type. Shift end times are always collected; the venue setting only
-  controls whether end times are rendered in the roster grid/cards.
+  shift type, and supported projected working duration. Part-time shifts project
+  from 3 through 11.5 working hours; casual shifts project no more than 12
+  working hours. The same duration checks reject create, edit, copy, drag/drop,
+  and other server-side shift mutations before persistence. Shift end times are
+  always collected; the venue setting only controls whether end times are
+  rendered in the roster grid/cards.
 - Publishing never queues or creates Timesheet entries. Complete linked-staff
   shifts become transient Timesheet suggestions immediately, including future
   live weeks. Complete trial-staff shifts remain roster-only and do not produce
@@ -124,8 +128,10 @@ lands.
   calendar date; 06:00 and later resolve on the displayed roster date.
 - Roster slots persist authoritative `TIMESTAMPTZ` start/end boundaries plus the
   `Australia/Melbourne` timezone snapshot. Local dates and clocks are projections;
-  elapsed duration, automatic-break eligibility, and wage prediction use instant
-  differences, including DST transitions.
+  elapsed duration, automatic-break eligibility, projected Award working time,
+  and wage prediction use instant differences, including DST transitions. The
+  projected-duration rules deduct the existing automatic 30-minute unpaid meal
+  break when a shift is at least 6h15m elapsed.
 - Ambiguous autumn endpoints require an explicit first/second occurrence only
   for the endpoint that repeats. First-to-second endpoints with equal repeated
   clocks form their positive elapsed interval on the same date. Nonexistent

@@ -39,7 +39,7 @@ awardLevelRateLabels awardLevelBaseRates awardLevel =
                 && rate.employmentBasis == employmentBasis
 
 employmentBasisShortLabel :: StaffEmploymentBasisEnum -> Text
-employmentBasisShortLabel Permanent = "perm"
+employmentBasisShortLabel Permanent = "Part-time"
 employmentBasisShortLabel Casual    = "casual"
 
 formatHourlyRate :: Scientific.Scientific -> Text

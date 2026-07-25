@@ -25,6 +25,7 @@ import qualified Application.Helper.FrontendContract.Surface.Roster.Action as Ro
 import qualified Application.Helper.FrontendContract.Surface.Roster.Intent as RosterIntent
 import Application.Helper.FrontendContract.Surface.Values
 import Application.Helper.Profiling
+import qualified Application.Helper.RosterAwardDuration as RosterAwardDuration
 import Application.Helper.RosterGroups
 import Application.Helper.SurfaceResource (LiveMutationResult (..))
 import Application.Helper.TimeRules (authoritativeRosterIntervalIsOperationallyValid,
@@ -392,7 +393,9 @@ instance Controller RosterWeeksController where
                             Right selections -> do
                                 copyResult <- copyRosterWeekFromSourceMutation selections rosterGroup.id sourceWeek targetWeekOffset
                                 case copyResult of
-                                    Left failure -> do
+                                    Left (RosterWeekCopyAwardDurationError violation) ->
+                                        respondWithRosterCopyFailure rosterGroup.id targetWeekOffset (RosterAwardDuration.rosterAwardDurationViolationMessage violation)
+                                    Left (RosterWeekCopyBoundaryError failure) -> do
                                         venueConfig <- fetchVenueConfig
                                         (startIsRepeated, endIsRepeated) <- rosterWeekCopyAmbiguousEndpoints venueConfig sourceWeek targetWeekOffset
                                         case failure of
@@ -427,16 +430,15 @@ instance Controller RosterWeeksController where
                         redirectToPath (rosterWeekUrl rosterWeek.weekOffset rosterGroupId)
             Right fields -> do
                 let nextLiveStatus = surfaceFieldValue @Surface.IsLive fields
-                publishValidationError <- validateRosterWeekCanGoLive rosterWeek nextLiveStatus
-                case publishValidationError of
-                    Just errorMessage ->
+                mutationResult <- toggleRosterWeekLiveStatusMutation rosterGroupId rosterWeek nextLiveStatus
+                case mutationResult of
+                    Left errorMessage ->
                         if isHtmxRequest
                             then respondWithRosterContentError rosterGroupId rosterWeek.weekOffset errorMessage
                             else do
                                 setErrorMessage errorMessage
                                 redirectToPath (rosterWeekUrl rosterWeek.weekOffset rosterGroupId)
-                    Nothing -> do
-                        mutationResult <- toggleRosterWeekLiveStatusMutation rosterGroupId rosterWeek nextLiveStatus
+                    Right mutationResult -> do
                         let successMessage =
                                 if nextLiveStatus
                                     then "Roster week is now live. Timesheet suggestions are available immediately."
@@ -709,9 +711,12 @@ instance Controller RosterWeeksController where
                                                         |> set #slotSortOrder targetSlotDefinition.sortOrder
                                                         |> set #rowIndex targetRowIndex
                                                 mutationResult <- moveRosterSlotMutation rosterGroup.id targetRosterWeek sourceRosterDay targetRosterDay sourceSlot updatedSlot
-                                                let shouldWarnSourceTimesheetUnchanged = mutationResult.liveMutationValue.rosterSlotMutationShouldWarnSourceTimesheetUnchanged
-                                                let impactedRows = nub [(sourceSlot.rosterDayId, sourceSlot.rowIndex), (unpackId targetRosterDay.id, targetRowIndex)]
-                                                respondToRosterSlotMove rosterGroup.id targetRosterWeek mutationResult impactedRows shouldWarnSourceTimesheetUnchanged
+                                                case mutationResult of
+                                                    Left message -> respondWithMoveRosterShiftFailure rosterGroup.id weekOffset message
+                                                    Right mutationResult -> do
+                                                        let shouldWarnSourceTimesheetUnchanged = mutationResult.liveMutationValue.rosterSlotMutationShouldWarnSourceTimesheetUnchanged
+                                                        let impactedRows = nub [(sourceSlot.rosterDayId, sourceSlot.rowIndex), (unpackId targetRosterDay.id, targetRowIndex)]
+                                                        respondToRosterSlotMove rosterGroup.id targetRosterWeek mutationResult impactedRows shouldWarnSourceTimesheetUnchanged
 
     action currentAction@MoveRosterTimelineShiftAction { weekOffset } = runBepis currentAction BepisMutationAction do
         ensureManagerRole
@@ -756,8 +761,11 @@ instance Controller RosterWeeksController where
                                                             |> set #rowIndex timelineTargetRowIndex
                                                             |> applyRosterSlotBoundaries boundaries
                                                     mutationResult <- moveRosterSlotMutation rosterGroup.id rosterWeek timelineSourceRosterDay timelineTargetRosterDay timelineSourceSlot updatedSlot
-                                                    let shouldWarnSourceTimesheetUnchanged = mutationResult.liveMutationValue.rosterSlotMutationShouldWarnSourceTimesheetUnchanged
-                                                    respondToRosterTimelineSlotMove rosterGroup.id rosterWeek mutationResult shouldWarnSourceTimesheetUnchanged
+                                                    case mutationResult of
+                                                        Left message -> respondWithMoveRosterShiftFailure rosterGroup.id weekOffset message
+                                                        Right mutationResult -> do
+                                                            let shouldWarnSourceTimesheetUnchanged = mutationResult.liveMutationValue.rosterSlotMutationShouldWarnSourceTimesheetUnchanged
+                                                            respondToRosterTimelineSlotMove rosterGroup.id rosterWeek mutationResult shouldWarnSourceTimesheetUnchanged
 
     action currentAction@DuplicateRosterShiftToDayAction { weekOffset } = runBepis currentAction BepisMutationAction do
         ensureManagerRole
@@ -804,7 +812,10 @@ instance Controller RosterWeeksController where
                                                         |> set #timezone copiedBoundariesSlot.timezone
                                                         |> set #shiftTypeId sourceSlot.shiftTypeId
                                                 mutationResult <- saveRosterSlotMutation rosterGroup.id targetRosterWeek targetRosterDay Nothing copiedSlot
-                                                respondToRosterSlotMutation rosterGroup.id targetRosterWeek targetRosterDay targetRowIndex mutationResult "Roster shift duplicated."
+                                                case mutationResult of
+                                                    Left message -> respondWithMoveRosterShiftFailure rosterGroup.id weekOffset message
+                                                    Right mutationResult ->
+                                                        respondToRosterSlotMutation rosterGroup.id targetRosterWeek targetRosterDay targetRowIndex mutationResult "Roster shift duplicated."
 
     action currentAction@DropRosterStaffAction { weekOffset } = runBepis currentAction BepisMutationAction do
         ensureManagerRole
@@ -821,9 +832,12 @@ instance Controller RosterWeeksController where
                     Right RosterStaffExistingShiftDropIntent { staffDropStaff, staffDropSlot, staffDropRosterDay, staffDropRosterWeek } -> do
                         let updatedSlot = staffDropSlot |> set #staffId (Just (coerce staffDropStaff.id))
                         mutationResult <- updateRosterSlotMutation rosterGroup.id staffDropRosterWeek staffDropRosterDay staffDropSlot updatedSlot
-                        let warningToast = mutationResult.liveMutationValue.rosterSlotMutationShouldWarnSourceTimesheetUnchanged
-                        respondToRosterSlotMutation rosterGroup.id staffDropRosterWeek staffDropRosterDay updatedSlot.rowIndex mutationResult $
-                            if warningToast then "Staff assigned. A timesheet entry was already created from this roster shift. The timesheet snapshot was not changed." else "Staff assigned."
+                        case mutationResult of
+                            Left message -> respondWithMoveRosterShiftFailure rosterGroup.id weekOffset message
+                            Right mutationResult -> do
+                                let warningToast = mutationResult.liveMutationValue.rosterSlotMutationShouldWarnSourceTimesheetUnchanged
+                                respondToRosterSlotMutation rosterGroup.id staffDropRosterWeek staffDropRosterDay updatedSlot.rowIndex mutationResult $
+                                    if warningToast then "Staff assigned. A timesheet entry was already created from this roster shift. The timesheet snapshot was not changed." else "Staff assigned."
                     Right RosterStaffCreateShiftDropIntent { staffDropStaff, staffDropRosterDay, staffDropRosterWeek, staffDropSlotDefinition, staffDropRowIndex } ->
                         respondWithRosterShiftCreateDialogOob staffDropRosterDay staffDropRosterWeek staffDropSlotDefinition staffDropRowIndex emptyRosterShiftDialogValues { rosterShiftStaffId = Just (coerce staffDropStaff.id) }
 
@@ -905,7 +919,12 @@ instance Controller RosterWeeksController where
                             existingSlot
                             |> applyValidatedRosterShift valid
                 mutationResult <- saveRosterSlotMutation rosterGroupId rosterWeek rosterDay existingSlot newSlot
-                respondToRosterSlotMutation rosterGroupId rosterWeek rosterDay rowIndex mutationResult "Roster shift saved."
+                case mutationResult of
+                    Left message ->
+                        renderRosterShiftDialogForCreate rosterDay rosterWeek slotDefinition rowIndex
+                            (rosterShiftDialogValuesFromSlot newSlot) { rosterShiftFormError = Just message }
+                    Right mutationResult ->
+                        respondToRosterSlotMutation rosterGroupId rosterWeek rosterDay rowIndex mutationResult "Roster shift saved."
 
     action currentAction@UpdateRosterSlotAction { rosterSlotId } = runBepis currentAction BepisMutationAction do
         ensureManagerRole
@@ -918,10 +937,15 @@ instance Controller RosterWeeksController where
             Right valid -> do
                 let updatedSlot = applyValidatedRosterShift valid rosterSlot
                 mutationResult <- updateRosterSlotMutation rosterGroupId rosterWeek rosterDay rosterSlot updatedSlot
-                let RosterSlotMutationResult { rosterSlotMutationPreviousStaffId = previousStaffId, rosterSlotMutationShouldWarnSourceTimesheetUnchanged = shouldWarnSourceTimesheetUnchanged } = mutationResult.liveMutationValue
-                relatedSlots <- fetchRelatedSlotsForStaffIdsInRosterWeek rosterWeek (catMaybes [previousStaffId, Just valid.validRosterShiftStaffId])
-                let impactedRowKeys = impactedRowKeysForSlotUpdate previousStaffId updatedSlot relatedSlots
-                respondToRosterSlotUpdate rosterGroupId rosterWeek mutationResult impactedRowKeys shouldWarnSourceTimesheetUnchanged
+                case mutationResult of
+                    Left message ->
+                        renderRosterShiftDialogForEdit rosterSlot rosterDay rosterWeek
+                            (rosterShiftDialogValuesFromSlot updatedSlot) { rosterShiftFormError = Just message }
+                    Right mutationResult -> do
+                        let RosterSlotMutationResult { rosterSlotMutationPreviousStaffId = previousStaffId, rosterSlotMutationShouldWarnSourceTimesheetUnchanged = shouldWarnSourceTimesheetUnchanged } = mutationResult.liveMutationValue
+                        relatedSlots <- fetchRelatedSlotsForStaffIdsInRosterWeek rosterWeek (catMaybes [previousStaffId, Just valid.validRosterShiftStaffId])
+                        let impactedRowKeys = impactedRowKeysForSlotUpdate previousStaffId updatedSlot relatedSlots
+                        respondToRosterSlotUpdate rosterGroupId rosterWeek mutationResult impactedRowKeys shouldWarnSourceTimesheetUnchanged
 
     action currentAction@DeleteRosterSlotAction { rosterSlotId } = runBepis currentAction BepisMutationAction do
         ensureManagerRole
@@ -1410,7 +1434,8 @@ validateRosterShiftDialogSubmission rosterGroupId rosterDay rosterWeek _maybeExi
     let shiftDate = maybe rosterDate (rosterShiftStartDate rosterDate) parsedStartTime
     let parsedStartOccurrence = parseOccurrenceParam (paramOrDefault "" "startOccurrence")
     let parsedEndOccurrence = parseOccurrenceParam (paramOrDefault "" "endOccurrence")
-    staffInVenue <- maybe (pure False) staffIdIsInCurrentVenue parsedStaffId
+    maybeStaff <- maybe (pure Nothing) (fetchActiveStaffForCurrentVenue . Id) parsedStaffId
+    let staffInVenue = isJust maybeStaff
     staffEligible <- maybe (pure False) (\staffId -> staffIsEligibleForRosterGroup (Id staffId) rosterGroupId) parsedStaffId
     shiftTypeInVenue <- maybe (pure False) shiftTypeIdIsInCurrentVenue parsedShiftTypeId
     let startIsRepeated = maybe False (civilBoundaryIsRepeated shiftDate) parsedStartTime
@@ -1475,15 +1500,22 @@ validateRosterShiftDialogSubmission rosterGroupId rosterDay rosterWeek _maybeExi
                     }
             pure (resolveShiftBoundaries venueConfig.timezone input)
     let resolutionError = either (Just . rosterBoundaryErrorMessage) (const Nothing) =<< maybeResolvedBoundaries
+    let awardDurationError = do
+            staff <- maybeStaff
+            boundaries <- case maybeResolvedBoundaries of
+                Just (Right resolved) -> Just resolved
+                _                     -> Nothing
+            violation <- RosterAwardDuration.rosterAwardDurationViolation staff.employmentBasis boundaries
+            pure (RosterAwardDuration.rosterAwardDurationViolationMessage violation)
     let valuesWithErrors = baseValues
-            { rosterShiftFormError = timingError <|> resolutionError
+            { rosterShiftFormError = timingError <|> resolutionError <|> awardDurationError
             , rosterShiftStaffError = staffError
             , rosterShiftStartError = startError <|> boundaryStartError maybeResolvedBoundaries
             , rosterShiftEndError = endError <|> timingError <|> boundaryEndError maybeResolvedBoundaries
             , rosterShiftTypeError = shiftTypeError
             }
-    case (staffError, startError, endError, shiftTypeError, timingError, resolutionError, parsedStaffId, parsedShiftTypeId, maybeResolvedBoundaries) of
-        (Nothing, Nothing, Nothing, Nothing, Nothing, Nothing, Just staffId, Just shiftTypeId, Just (Right boundaries)) ->
+    case (staffError, startError, endError, shiftTypeError, timingError, resolutionError, awardDurationError, parsedStaffId, parsedShiftTypeId, maybeResolvedBoundaries) of
+        (Nothing, Nothing, Nothing, Nothing, Nothing, Nothing, Nothing, Just staffId, Just shiftTypeId, Just (Right boundaries)) ->
             pure (Right ValidatedRosterShift
                 { validRosterShiftStaffId = staffId
                 , validRosterShiftBoundaries = boundaries
@@ -1506,15 +1538,6 @@ validateRosterShiftDialogSubmission rosterGroupId rosterDay rosterWeek _maybeExi
     rosterBoundaryErrorMessage (BoundaryCivilTimeError (NonPositiveResolvedInterval _ _)) = "Shift end must be after shift start."
     rosterBoundaryErrorMessage BoundaryBreakNotContained = "Break boundaries are not valid for this roster shift."
     rosterBoundaryErrorMessage BoundaryBreakShapeInvalid = "Break boundaries are incomplete."
-
-staffIdIsInCurrentVenue :: (?context :: ControllerContext, ?modelContext :: ModelContext) => UUID.UUID -> IO Bool
-staffIdIsInCurrentVenue staffId =
-    query @Staff
-        |> filterWhere (#id, Id staffId)
-        |> filterWhere (#venueId, unpackId currentVenueId)
-        |> filterWhere (#isActive, True)
-        |> filterWhere (#archivedAt, Nothing)
-        |> fetchExists
 
 shiftTypeIdIsInCurrentVenue :: (?context :: ControllerContext, ?modelContext :: ModelContext) => UUID.UUID -> IO Bool
 shiftTypeIdIsInCurrentVenue shiftTypeId =

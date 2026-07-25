@@ -1166,6 +1166,38 @@ tests = aroundAll withDatabaseTestContext do
                 sourceAfterCopy <- fetch sourceSlot.id
                 sourceAfterCopy.rosterDayId `shouldBe` unpackId sourceDay.id
 
+        it "rejects a duplicated shift when the target DST date exceeds the Part-time maximum" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Roster Award Duplicate DST Venue"
+                manager <- createUserRecord "roster-award-duplicate-dst-manager@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue manager "manager"
+                slotName <- fetchSlotNameRecord venue "Early"
+                staffMember <- createStaffRecord venue Nothing "Part-time" "Duplicate" >>= updateRecord . set #employmentBasis Permanent
+                rosterWeek <- createRosterWeekRecord venue 64 False
+                sourceDay <- createRosterDayRecord rosterWeek 4
+                targetDay <- createRosterDayRecord rosterWeek 5
+                sourceSlot <- createRosterSlotRecord sourceDay slotName (Just staffMember) 0
+                    >>= updateRecord
+                        . setTestRosterSlotBoundaries (fromGregorian 2026 4 3) (TimeOfDay 17 45 0) (TimeOfDay 5 45 0)
+                let sourceToken = "existing:" <> tshow sourceSlot.id
+                let targetToken = "new:" <> tshow targetDay.id <> ":" <> tshow sourceSlot.rosterWeekSlotDefinitionId <> ":0"
+
+                response <- withUserAndCurrentVenue manager venue.id do
+                    withRequestHeaders [("HX-Request", "true")] do
+                        callActionWithParams DuplicateRosterShiftToDayAction { weekOffset = 64 }
+                            [ ("rosterGroupId", cs (tshow rosterWeek.rosterGroupId))
+                            , ("sourceItemKey", cs sourceToken)
+                            , ("targetDropzoneKey", cs targetToken)
+                            ]
+
+                response `responseStatusShouldBe` status200
+                response `responseBodyShouldContain` "Part-time roster shifts must project between 3 and 11.5 working hours after the automatic unpaid meal break."
+                query @RosterSlot
+                    |> filterWhere (#rosterDayId, unpackId targetDay.id)
+                    |> filterWhere (#deletedAt, Nothing)
+                    |> fetchCount
+                    >>= (`shouldBe` 0)
+
         it "requires a target occurrence before moving a timeline shift into the repeated autumn hour" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Roster Timeline DST Venue"
@@ -1392,6 +1424,33 @@ tests = aroundAll withDatabaseTestContext do
                 updatedSlot.rosterDayId `shouldBe` unpackId rosterDay.id
                 updatedSlot.rowIndex `shouldBe` 0
                 response `responseBodyShouldNotContain` "Roster shift moved."
+
+        it "rejects a staff-drop mutation that would breach the Part-time shift maximum" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Roster Award Staff Drop Venue"
+                manager <- createUserRecord "roster-award-staff-drop-manager@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue manager "manager"
+                slotName <- fetchSlotNameRecord venue "Early"
+                originalStaff <- createStaffRecord venue Nothing "Casual" "Crew" >>= updateRecord . set #employmentBasis Casual
+                replacementStaff <- createStaffRecord venue Nothing "Part-time" "Crew" >>= updateRecord . set #employmentBasis Permanent
+                rosterWeek <- createRosterWeekRecord venue 0 False
+                rosterDay <- createRosterDayRecord rosterWeek 0
+                targetSlot <- createRosterSlotRecord rosterDay slotName (Just originalStaff) 0
+                    >>= updateRecord
+                        . setTestRosterSlotBoundaries (fromGregorian 2025 1 6) (timeOfDay 17 30) (timeOfDay 5 45)
+
+                response <- withUserAndCurrentVenue manager venue.id do
+                    withRequestHeaders [("HX-Request", "true")] do
+                        callActionWithParams DropRosterStaffAction { weekOffset = 0 }
+                            [ ("rosterGroupId", cs (tshow rosterWeek.rosterGroupId))
+                            , ("sourceItemKey", cs ("staff:" <> tshow replacementStaff.id))
+                            , ("targetDropzoneKey", cs ("existing:" <> tshow targetSlot.id))
+                            ]
+
+                response `responseStatusShouldBe` status200
+                response `responseBodyShouldContain` "Part-time roster shifts must project between 3 and 11.5 working hours after the automatic unpaid meal break."
+                updatedSlot <- fetch targetSlot.id
+                updatedSlot.staffId `shouldBe` Just (unpackId originalStaff.id)
 
         it "assigns dragged staff onto an existing roster shift" $ withContext do
             withCleanDb do

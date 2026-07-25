@@ -50,7 +50,7 @@ ensureRosterWeekExistsMutation rosterGroupId weekOffset = do
         then invalidateTouchedResources "roster.week.ensure" mutationResult
         else pure mutationResult
 
-copyRosterWeekFromSourceMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => ShiftCopyOccurrenceSelections -> Id RosterGroup -> RosterWeek -> Int -> IO (Either BoundaryModelError (LiveMutationResult RosterWeek))
+copyRosterWeekFromSourceMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => ShiftCopyOccurrenceSelections -> Id RosterGroup -> RosterWeek -> Int -> IO (Either RosterWeekCopyError (LiveMutationResult RosterWeek))
 copyRosterWeekFromSourceMutation selections rosterGroupId sourceWeek targetWeekOffset = do
     copyResult <- withTransaction do
         existingTarget <- query @RosterWeek
@@ -64,18 +64,23 @@ copyRosterWeekFromSourceMutation selections rosterGroupId sourceWeek targetWeekO
         (\targetWeek -> invalidateTouchedResources "roster.week.copy" (liveMutationResult targetWeek (rosterWeekStructuralTouchedResources rosterGroupId targetWeekOffset)))
         copyResult
 
-toggleRosterWeekLiveStatusMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id RosterGroup -> RosterWeek -> Bool -> IO (LiveMutationResult RosterWeek)
+toggleRosterWeekLiveStatusMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id RosterGroup -> RosterWeek -> Bool -> IO (Either Text (LiveMutationResult RosterWeek))
 toggleRosterWeekLiveStatusMutation rosterGroupId rosterWeek nextLiveStatus = do
-    updatedRosterWeek <-
-        rosterWeek
-            |> set #isLive nextLiveStatus
-            |> updateRecord
-    invalidateTouchedResources
-        "roster.week.live_status"
-        ( liveMutationResult
-            updatedRosterWeek
-            (rosterWeekLiveStatusTouchedResources rosterGroupId rosterWeek)
-        )
+    publishValidationError <- validateRosterWeekCanGoLive rosterWeek nextLiveStatus
+    case publishValidationError of
+        Just message -> pure (Left message)
+        Nothing -> do
+            updatedRosterWeek <-
+                rosterWeek
+                    |> set #isLive nextLiveStatus
+                    |> updateRecord
+            mutationResult <- invalidateTouchedResources
+                "roster.week.live_status"
+                ( liveMutationResult
+                    updatedRosterWeek
+                    (rosterWeekLiveStatusTouchedResources rosterGroupId rosterWeek)
+                )
+            pure (Right mutationResult)
 
 appendRosterWeekSlotDefinitionMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id RosterGroup -> RosterWeek -> Text -> IO (LiveMutationResult RosterWeekSlotDefinition)
 appendRosterWeekSlotDefinitionMutation rosterGroupId rosterWeek slotName = do
@@ -112,51 +117,66 @@ removeRosterDayRowMutation rosterGroupId rosterWeek rosterDay activeDefinitions 
     withTransaction (removeRosterRowWithPacking rosterDay activeDefinitions)
     invalidateTouchedResources "roster.day.row_remove" (liveMutationResult () (rosterDayTouchedResources rosterGroupId rosterWeek.weekOffset rosterDay))
 
-saveRosterSlotMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id RosterGroup -> RosterWeek -> RosterDay -> Maybe RosterSlot -> RosterSlot -> IO (LiveMutationResult RosterSlotMutationResult)
+saveRosterSlotMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id RosterGroup -> RosterWeek -> RosterDay -> Maybe RosterSlot -> RosterSlot -> IO (Either Text (LiveMutationResult RosterSlotMutationResult))
 saveRosterSlotMutation rosterGroupId rosterWeek rosterDay existingSlot newSlot = do
-    when (newSlot.rowIndex >= rosterDay.rowCount) do
-        _ <- rosterDay
-            |> set #rowCount (newSlot.rowIndex + 1)
-            |> updateRecord
-        pure ()
-    persistedSlot <-
-        case existingSlot of
-            Just _  -> updateRecord newSlot
-            Nothing -> createRecord newSlot
-    invalidateTouchedResources "roster.slot.save" (liveMutationResult (RosterSlotMutationResult (Just persistedSlot) Nothing False) (rosterSlotMutationTouchedResources rosterGroupId rosterWeek rosterDay (Just persistedSlot)))
+    awardDurationError <- validateRosterSlotAwardDuration newSlot
+    case awardDurationError of
+        Just message -> pure (Left message)
+        Nothing -> do
+            when (newSlot.rowIndex >= rosterDay.rowCount) do
+                _ <- rosterDay
+                    |> set #rowCount (newSlot.rowIndex + 1)
+                    |> updateRecord
+                pure ()
+            persistedSlot <-
+                case existingSlot of
+                    Just _  -> updateRecord newSlot
+                    Nothing -> createRecord newSlot
+            mutationResult <- invalidateTouchedResources "roster.slot.save" (liveMutationResult (RosterSlotMutationResult (Just persistedSlot) Nothing False) (rosterSlotMutationTouchedResources rosterGroupId rosterWeek rosterDay (Just persistedSlot)))
+            pure (Right mutationResult)
 
-moveRosterSlotMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id RosterGroup -> RosterWeek -> RosterDay -> RosterDay -> RosterSlot -> RosterSlot -> IO (LiveMutationResult RosterSlotMutationResult)
+moveRosterSlotMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id RosterGroup -> RosterWeek -> RosterDay -> RosterDay -> RosterSlot -> RosterSlot -> IO (Either Text (LiveMutationResult RosterSlotMutationResult))
 moveRosterSlotMutation rosterGroupId rosterWeek sourceRosterDay targetRosterDay originalSlot updatedSlot = do
-    let previousStaffId = originalSlot.staffId
-    when (updatedSlot.rowIndex >= targetRosterDay.rowCount) do
-        _ <- targetRosterDay
-            |> set #rowCount (updatedSlot.rowIndex + 1)
-            |> updateRecord
-        pure ()
-    persistedSlot <- updateRecord updatedSlot
-    shouldWarnSourceTimesheetUnchanged <- rosterSlotTimesheetSourceChangeRequiresWarning originalSlot updatedSlot
-    invalidateTouchedResources "roster.slot.move" $
-        liveMutationResult
-            RosterSlotMutationResult
-                { rosterSlotMutationSlot = Just persistedSlot
-                , rosterSlotMutationPreviousStaffId = previousStaffId
-                , rosterSlotMutationShouldWarnSourceTimesheetUnchanged = shouldWarnSourceTimesheetUnchanged
-                }
-            (nub (rosterDayTouchedResources rosterGroupId rosterWeek.weekOffset sourceRosterDay <> rosterSlotMutationTouchedResources rosterGroupId rosterWeek targetRosterDay (Just persistedSlot)))
+    awardDurationError <- validateRosterSlotAwardDuration updatedSlot
+    case awardDurationError of
+        Just message -> pure (Left message)
+        Nothing -> do
+            let previousStaffId = originalSlot.staffId
+            when (updatedSlot.rowIndex >= targetRosterDay.rowCount) do
+                _ <- targetRosterDay
+                    |> set #rowCount (updatedSlot.rowIndex + 1)
+                    |> updateRecord
+                pure ()
+            persistedSlot <- updateRecord updatedSlot
+            shouldWarnSourceTimesheetUnchanged <- rosterSlotTimesheetSourceChangeRequiresWarning originalSlot updatedSlot
+            mutationResult <- invalidateTouchedResources "roster.slot.move" $
+                liveMutationResult
+                    RosterSlotMutationResult
+                        { rosterSlotMutationSlot = Just persistedSlot
+                        , rosterSlotMutationPreviousStaffId = previousStaffId
+                        , rosterSlotMutationShouldWarnSourceTimesheetUnchanged = shouldWarnSourceTimesheetUnchanged
+                        }
+                    (nub (rosterDayTouchedResources rosterGroupId rosterWeek.weekOffset sourceRosterDay <> rosterSlotMutationTouchedResources rosterGroupId rosterWeek targetRosterDay (Just persistedSlot)))
+            pure (Right mutationResult)
 
-updateRosterSlotMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id RosterGroup -> RosterWeek -> RosterDay -> RosterSlot -> RosterSlot -> IO (LiveMutationResult RosterSlotMutationResult)
+updateRosterSlotMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id RosterGroup -> RosterWeek -> RosterDay -> RosterSlot -> RosterSlot -> IO (Either Text (LiveMutationResult RosterSlotMutationResult))
 updateRosterSlotMutation rosterGroupId rosterWeek rosterDay originalSlot updatedSlot = do
-    let previousStaffId = originalSlot.staffId
-    persistedSlot <- updateRecord updatedSlot
-    shouldWarnSourceTimesheetUnchanged <- rosterSlotTimesheetSourceChangeRequiresWarning originalSlot updatedSlot
-    invalidateTouchedResources "roster.slot.update" $
-        liveMutationResult
-            RosterSlotMutationResult
-                { rosterSlotMutationSlot = Just persistedSlot
-                , rosterSlotMutationPreviousStaffId = previousStaffId
-                , rosterSlotMutationShouldWarnSourceTimesheetUnchanged = shouldWarnSourceTimesheetUnchanged
-                }
-            (rosterSlotMutationTouchedResources rosterGroupId rosterWeek rosterDay (Just persistedSlot))
+    awardDurationError <- validateRosterSlotAwardDuration updatedSlot
+    case awardDurationError of
+        Just message -> pure (Left message)
+        Nothing -> do
+            let previousStaffId = originalSlot.staffId
+            persistedSlot <- updateRecord updatedSlot
+            shouldWarnSourceTimesheetUnchanged <- rosterSlotTimesheetSourceChangeRequiresWarning originalSlot updatedSlot
+            mutationResult <- invalidateTouchedResources "roster.slot.update" $
+                liveMutationResult
+                    RosterSlotMutationResult
+                        { rosterSlotMutationSlot = Just persistedSlot
+                        , rosterSlotMutationPreviousStaffId = previousStaffId
+                        , rosterSlotMutationShouldWarnSourceTimesheetUnchanged = shouldWarnSourceTimesheetUnchanged
+                        }
+                    (rosterSlotMutationTouchedResources rosterGroupId rosterWeek rosterDay (Just persistedSlot))
+            pure (Right mutationResult)
 
 
 deleteRosterSlotMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id RosterGroup -> RosterWeek -> RosterDay -> RosterSlot -> IO (LiveMutationResult RosterSlotMutationResult)

@@ -35,7 +35,6 @@ import Network.Wai
 import Test.Hspec
 import Test.Support
 import Web.Controller.RosterWeeks ()
-import Web.Controller.RosterWeeks.Validation (rosterSlotHasValidStartEnd)
 import Web.FrontController ()
 import Web.RosterWeeks.Dom (rosterContentFragmentId, rosterDayColumnsFragmentId,
                             rosterDaySectionDomId, rosterGridFrameFragmentId,
@@ -47,6 +46,7 @@ import Web.RosterWeeks.Mutations (rosterDayTouchedResources,
                                   rosterWeekLiveStatusTouchedResources,
                                   rosterWeekStructuralTouchedResources,
                                   rosterWeekTouchedResources)
+import Web.RosterWeeks.Service (rosterSlotHasValidStartEnd)
 import Web.Routes
 import Web.Types
 
@@ -626,6 +626,150 @@ tests = aroundAll withDatabaseTestContext do
                 testStartTime unchangedSlot `shouldBe` Just (timeOfDay 9 0)
                 testEndTime unchangedSlot `shouldBe` Just (timeOfDay 17 0)
                 testDurationMinutes unchangedSlot `shouldBe` Just 480
+
+        it "rejects Part-time and casual roster shifts outside supported projected-duration limits" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Roster Award Duration Venue"
+                manager <- createUserRecord "roster-award-duration-manager@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue manager "manager"
+                partTimeStaff <- createStaffRecord venue Nothing "Part-time" "Crew" >>= updateRecord . set #employmentBasis Permanent
+                casualStaff <- createStaffRecord venue Nothing "Casual" "Crew" >>= updateRecord . set #employmentBasis Casual
+                level <- createPayLevelRecord venue "Level 1"
+                shiftType <- createShiftTypeRecord venue level "Floor"
+                rosterWeek <- createRosterWeekRecord venue 0 False
+                rosterDay <- createRosterDayRecord rosterWeek 0
+                slotName <- fetchSlotNameRecord venue "Early"
+                slotDefinition <- ensureRosterWeekSlotDefinitionForSlotName rosterDay slotName
+                let createShift staffMember rowIndex startTime endTime =
+                        withUserAndCurrentVenue manager venue.id do
+                            withRequestHeaders [("HX-Request", "true")] do
+                                callActionWithParams
+                                    (CreateRosterSlotAction rosterDay.id slotDefinition.id rowIndex)
+                                    [ ("staffId", idToParam staffMember.id)
+                                    , ("startTime", startTime)
+                                    , ("endTime", endTime)
+                                    , ("shiftTypeId", idToParam shiftType.id)
+                                    ]
+
+                tooShortResponse <- createShift partTimeStaff 0 "09:00" "11:45"
+                tooShortResponse `responseStatusShouldBe` status200
+                tooShortResponse `responseBodyShouldContain` "Part-time roster shifts must project between 3 and 11.5 working hours after the automatic unpaid meal break."
+                query @RosterSlot |> fetchCount >>= (`shouldBe` 0)
+
+                tooLongResponse <- createShift partTimeStaff 1 "17:30" "05:45"
+                tooLongResponse `responseStatusShouldBe` status200
+                tooLongResponse `responseBodyShouldContain` "Part-time roster shifts must project between 3 and 11.5 working hours after the automatic unpaid meal break."
+                query @RosterSlot |> fetchCount >>= (`shouldBe` 0)
+
+                minimumResponse <- createShift partTimeStaff 2 "09:00" "12:00"
+                maximumResponse <- createShift partTimeStaff 3 "17:45" "05:45"
+                minimumResponse `responseStatusShouldBe` status200
+                maximumResponse `responseStatusShouldBe` status200
+                query @RosterSlot |> fetchCount >>= (`shouldBe` 2)
+
+                casualTooLongResponse <- createShift casualStaff 4 "17:00" "05:45"
+                casualTooLongResponse `responseStatusShouldBe` status200
+                casualTooLongResponse `responseBodyShouldContain` "Casual roster shifts must project no more than 12 working hours after the automatic unpaid meal break."
+                query @RosterSlot |> fetchCount >>= (`shouldBe` 2)
+
+                casualMaximumResponse <- createShift casualStaff 5 "17:15" "05:45"
+                casualMaximumResponse `responseStatusShouldBe` status200
+                query @RosterSlot |> fetchCount >>= (`shouldBe` 3)
+
+        it "rejects Part-time and casual roster edits outside supported projected-duration limits" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Roster Award Edit Venue"
+                manager <- createUserRecord "roster-award-edit-manager@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue manager "manager"
+                partTimeStaff <- createStaffRecord venue Nothing "Part-time" "Edit" >>= updateRecord . set #employmentBasis Permanent
+                casualStaff <- createStaffRecord venue Nothing "Casual" "Edit" >>= updateRecord . set #employmentBasis Casual
+                level <- createPayLevelRecord venue "Level 1"
+                shiftType <- createShiftTypeRecord venue level "Floor"
+                rosterWeek <- createRosterWeekRecord venue 0 False
+                rosterDay <- createRosterDayRecord rosterWeek 0
+                slotName <- fetchSlotNameRecord venue "Early"
+                slot <- createRosterSlotRecord rosterDay slotName (Just partTimeStaff) 0
+                    >>= updateRecord
+                        . set #shiftTypeId (Just (unpackId shiftType.id))
+                        . setTestRosterSlotBoundaries (fromGregorian 2025 1 6) (timeOfDay 9 0) (timeOfDay 12 0)
+
+                response <- withUserAndCurrentVenue manager venue.id do
+                    withRequestHeaders [("HX-Request", "true")] do
+                        callActionWithParams
+                            (UpdateRosterSlotAction slot.id)
+                            [ ("staffId", idToParam partTimeStaff.id)
+                            , ("startTime", "09:00")
+                            , ("endTime", "11:45")
+                            , ("shiftTypeId", idToParam shiftType.id)
+                            ]
+
+                response `responseStatusShouldBe` status200
+                response `responseBodyShouldContain` "Part-time roster shifts must project between 3 and 11.5 working hours after the automatic unpaid meal break."
+                unchangedSlot <- fetch slot.id
+                testDurationMinutes unchangedSlot `shouldBe` Just 180
+
+                casualSlot <- createRosterSlotRecord rosterDay slotName (Just casualStaff) 1
+                    >>= updateRecord
+                        . set #shiftTypeId (Just (unpackId shiftType.id))
+                        . setTestRosterSlotBoundaries (fromGregorian 2025 1 6) (timeOfDay 9 0) (timeOfDay 17 0)
+                casualResponse <- withUserAndCurrentVenue manager venue.id do
+                    withRequestHeaders [("HX-Request", "true")] do
+                        callActionWithParams
+                            (UpdateRosterSlotAction casualSlot.id)
+                            [ ("staffId", idToParam casualStaff.id)
+                            , ("startTime", "17:00")
+                            , ("endTime", "05:45")
+                            , ("shiftTypeId", idToParam shiftType.id)
+                            ]
+
+                casualResponse `responseStatusShouldBe` status200
+                casualResponse `responseBodyShouldContain` "Casual roster shifts must project no more than 12 working hours after the automatic unpaid meal break."
+                unchangedCasualSlot <- fetch casualSlot.id
+                testDurationMinutes unchangedCasualSlot `shouldBe` Just 480
+
+        it "blocks publishing out-of-bound Part-time and casual shifts" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Roster Award Publish Venue"
+                manager <- createUserRecord "roster-award-publish-manager@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue manager "manager"
+                partTimeStaff <- createStaffRecord venue Nothing "Part-time" "Crew" >>= updateRecord . set #employmentBasis Permanent
+                casualStaff <- createStaffRecord venue Nothing "Casual" "Crew" >>= updateRecord . set #employmentBasis Casual
+                level <- createPayLevelRecord venue "Level 1"
+                shiftType <- createShiftTypeRecord venue level "Floor"
+                rosterWeek <- createRosterWeekRecord venue 0 False
+                rosterDay <- createRosterDayRecord rosterWeek 0
+                slotName <- fetchSlotNameRecord venue "Early"
+                partTimeSlot <- createRosterSlotRecord rosterDay slotName (Just partTimeStaff) 0
+                    >>= updateRecord
+                        . set #shiftTypeId (Just (unpackId shiftType.id))
+                        . setTestRosterSlotBoundaries (fromGregorian 2025 1 6) (timeOfDay 17 30) (timeOfDay 5 45)
+                casualSlot <- createRosterSlotRecord rosterDay slotName (Just casualStaff) 1
+                    >>= updateRecord
+                        . set #shiftTypeId (Just (unpackId shiftType.id))
+                        . setTestRosterSlotBoundaries (fromGregorian 2025 1 6) (timeOfDay 17 0) (timeOfDay 5 45)
+                let publish =
+                        withUserAndCurrentVenue manager venue.id do
+                            withRequestHeaders [("HX-Request", "true")] do
+                                callActionWithParams
+                                    (ToggleRosterWeekLiveStatusAction rosterWeek.id)
+                                    [("isLive", "on")]
+
+                partTimeBlocked <- publish
+                partTimeBlocked `responseStatusShouldBe` status200
+                partTimeBlocked `responseBodyShouldContain` "Part-time roster shifts must project between 3 and 11.5 working hours after the automatic unpaid meal break."
+                fetch rosterWeek.id >>= (\week -> week.isLive `shouldBe` False)
+
+                _ <- updateRecord (partTimeSlot |> set #staffId Nothing)
+                casualBlocked <- publish
+                casualBlocked `responseStatusShouldBe` status200
+                casualBlocked `responseBodyShouldContain` "Casual roster shifts must project no more than 12 working hours after the automatic unpaid meal break."
+                fetch rosterWeek.id >>= (\week -> week.isLive `shouldBe` False)
+
+                _ <- updateRecord
+                    (casualSlot |> setTestRosterSlotBoundaries (fromGregorian 2025 1 6) (timeOfDay 17 15) (timeOfDay 5 45))
+                published <- publish
+                published `responseStatusShouldBe` status200
+                fetch rosterWeek.id >>= (\week -> week.isLive `shouldBe` True)
 
         it "requires an occurrence for an ambiguous after-midnight roster boundary" $ withContext do
             withCleanDb do
@@ -1319,9 +1463,8 @@ tests = aroundAll withDatabaseTestContext do
 
                 _ <- updateRecord
                     ( slot
-                        |> setTestEndTime (Just (timeOfDay 17 0))
+                        |> setTestRosterSlotBoundaries (fromGregorian 2025 1 6) (timeOfDay 9 0) (timeOfDay 17 0)
                         |> set #shiftTypeId (Just (unpackId shiftType.id))
-                        |> setTestDurationMinutes (Just 480)
                     )
 
                 publishedResponse <- withUserAndCurrentVenue manager venue.id do
@@ -1376,7 +1519,7 @@ tests = aroundAll withDatabaseTestContext do
                 stillBlockedWeek <- fetch rosterWeek.id
                 stillBlockedWeek.isLive `shouldBe` False
 
-                _ <- updateRecord (slot |> setTestEndTime (Just (timeOfDay 17 0)) |> setTestDurationMinutes (Just 480))
+                _ <- updateRecord (slot |> setTestRosterSlotBoundaries (fromGregorian 2025 1 6) (timeOfDay 9 0) (timeOfDay 17 0))
 
                 publishedResponse <- withUserAndCurrentVenue manager venue.id do
                     withRequestHeaders [("HX-Request", "true")] do
@@ -1746,6 +1889,56 @@ tests = aroundAll withDatabaseTestContext do
                 copiedSlot.rowIndex `shouldBe` 0
                 testStartTime copiedSlot `shouldBe` Just (timeOfDay 9 0)
                 testDurationMinutes copiedSlot `shouldBe` Just 480
+
+        it "rejects copies whose target-date DST elapsed duration breaches Part-time limits" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Roster Award Copy Venue"
+                manager <- createUserRecord "roster-award-copy-manager@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue manager "manager"
+                staffMember <- createStaffRecord venue Nothing "Part-time" "Copy" >>= updateRecord . set #employmentBasis Permanent
+                slotName <- fetchSlotNameRecord venue "Early"
+                sourceWeek <- createRosterWeekRecord venue 63 False
+                sourceDay <- createRosterDayRecord sourceWeek 5
+                sourceSlot <- createRosterSlotRecord sourceDay slotName (Just staffMember) 0
+                _ <- updateRecord
+                    (sourceSlot |> setTestRosterSlotBoundaries (fromGregorian 2026 3 28) (timeOfDay 17 45) (timeOfDay 5 45))
+
+                response <- withUserAndCurrentVenue manager venue.id do
+                    withRequestHeaders [("HX-Request", "true")] do
+                        callAction (CopyRosterWeekAction 63 64)
+
+                response `responseStatusShouldBe` status200
+                response `responseBodyShouldContain` "Part-time roster shifts must project between 3 and 11.5 working hours after the automatic unpaid meal break."
+                query @RosterWeek
+                    |> filterWhere (#venueId, unpackId venue.id)
+                    |> filterWhere (#weekOffset, 64)
+                    |> fetchOneOrNothing
+                    >>= (`shouldBe` Nothing)
+
+        it "rejects copies whose target-date DST elapsed duration breaches Casual limits" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Roster Award Casual Copy Venue"
+                manager <- createUserRecord "roster-award-casual-copy-manager@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue manager "manager"
+                staffMember <- createStaffRecord venue Nothing "Casual" "Copy" >>= updateRecord . set #employmentBasis Casual
+                slotName <- fetchSlotNameRecord venue "Early"
+                sourceWeek <- createRosterWeekRecord venue 63 False
+                sourceDay <- createRosterDayRecord sourceWeek 5
+                sourceSlot <- createRosterSlotRecord sourceDay slotName (Just staffMember) 0
+                _ <- updateRecord
+                    (sourceSlot |> setTestRosterSlotBoundaries (fromGregorian 2026 3 28) (timeOfDay 17 15) (timeOfDay 5 45))
+
+                response <- withUserAndCurrentVenue manager venue.id do
+                    withRequestHeaders [("HX-Request", "true")] do
+                        callAction (CopyRosterWeekAction 63 64)
+
+                response `responseStatusShouldBe` status200
+                response `responseBodyShouldContain` "Casual roster shifts must project no more than 12 working hours after the automatic unpaid meal break."
+                query @RosterWeek
+                    |> filterWhere (#venueId, unpackId venue.id)
+                    |> filterWhere (#weekOffset, 64)
+                    |> fetchOneOrNothing
+                    >>= (`shouldBe` Nothing)
 
         it "copies roster clocks across autumn only after choosing the repeated occurrence" $ withContext do
             withCleanDb do
