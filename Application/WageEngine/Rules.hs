@@ -4,10 +4,11 @@ module Application.WageEngine.Rules
 where
 
 import Application.VenueTime (AwardSegment, LocalDayKind (..), ResolvedInstant,
-                              ResolvedInterval, awardSegmentEnd,
-                              awardSegmentLocalDate, awardSegmentLocalDayKind,
-                              awardSegmentStart, awardSegments,
-                              resolvedInstantFromUTC, resolvedInstantUTC,
+                              ResolvedInterval, awardSegmentElapsedSeconds,
+                              awardSegmentEnd, awardSegmentLocalDate,
+                              awardSegmentLocalDayKind, awardSegmentStart,
+                              awardSegments, resolvedInstantFromUTC,
+                              resolvedInstantUTC,
                               resolvedIntervalElapsedSeconds,
                               resolvedIntervalEnd, resolvedIntervalFromInstants,
                               resolvedIntervalStart)
@@ -15,9 +16,9 @@ import Application.WageEngine.Components (awardHourlyComponent,
                                           commencedHourAdditionComponents,
                                           importedHourlyComponent,
                                           missedMealBreakAdditionComponent,
-                                          paidSegment)
+                                          paidSegment, paidSegmentWithKind)
 import Application.WageEngine.RateBook (AwardRateContext (awardRateBook, awardRateLevel),
-                                        BaseRateKind (..),
+                                        BaseRateKind (..), EmploymentBasis (..),
                                         ResolvedAwardLevel (resolvedAwardClassification),
                                         ValidatedRateKey (ClassificationRate),
                                         lookupValidatedRateWithSource,
@@ -47,7 +48,28 @@ calculateTimesheetPay calculationInput = do
                 Left (UnsupportedCalculationInput (UnsupportedEmploymentArrangement unsupportedEmployment))
         awardRateContext <- maybe (Left (UnsupportedCalculationInput MissingAwardRateContext)) Right calculationInput.calculationAwardRateContext
         missedInterval <- missedMealBreakInterval shiftBounds calculationInput.calculationUnpaidMealBreak
-        let intervalResults = map (calculateAwardInterval awardRateContext basis) intervals
+        let selectedMinimum =
+                selectMinimumPayment
+                    basis
+                    calculationInput.calculationStatewidePublicHolidayDates
+                    intervals
+        minimumIntervals <-
+            maybe
+                (Right [])
+                (\minimumPayment ->
+                    hypotheticalContinuationSegments
+                        shiftBounds
+                        (minimumPaymentRequiredSeconds basis minimumPayment - paidIntervalElapsedSeconds intervals)
+                )
+                selectedMinimum
+        let intervalResults = map (calculateAwardInterval Worked awardRateContext basis) intervals
+            minimumResults =
+                case selectedMinimum of
+                    Nothing -> []
+                    Just CasualMinimumPayment ->
+                        map (calculateAwardInterval CasualMinimumEngagementTopUp awardRateContext basis) minimumIntervals
+                    Just PublicHolidayMinimumPayment ->
+                        map (calculatePublicHolidayMinimumInterval awardRateContext basis) minimumIntervals
             additionComponents =
                 commencedHourAdditionComponents
                     awardRateContext.awardRateBook
@@ -62,8 +84,8 @@ calculateTimesheetPay calculationInput = do
                 { calculatedEntryId = calculationInput.calculationEntryId
                 , calculationVersion = currentWageCalculationVersion
                 , calculationRateBookVersion = Just (validatedRateBookVersion awardRateContext.awardRateBook)
-                , paidTimeSegments = map fst intervalResults
-                , earningsComponents = map snd intervalResults <> additionComponents <> missedMealBreakComponents
+                , paidTimeSegments = map fst intervalResults <> map fst minimumResults
+                , earningsComponents = map snd intervalResults <> map snd minimumResults <> additionComponents <> missedMealBreakComponents
                 }
 
     calculateImportedPay importedPayItem intervals = do
@@ -83,13 +105,27 @@ calculateTimesheetPay calculationInput = do
                 , earningsComponents = map (importedHourlyComponent importedPayItem condition) intervals
                 }
 
-    calculateAwardInterval awardRateContext basis interval =
+    calculateAwardInterval paidKind awardRateContext basis interval =
+        calculateAwardIntervalForCondition
+            paidKind
+            awardRateContext
+            basis
+            (awardCondition calculationInput.calculationStatewidePublicHolidayDates interval)
+            interval
+
+    calculatePublicHolidayMinimumInterval awardRateContext basis =
+        calculateAwardIntervalForCondition
+            PublicHolidayMinimumTopUp
+            awardRateContext
+            basis
+            (PublicHolidayRate, PublicHolidayCondition)
+
+    calculateAwardIntervalForCondition paidKind awardRateContext basis (rateKind, condition) interval =
         let
-            (rateKind, condition) = awardCondition calculationInput.calculationStatewidePublicHolidayDates interval
             key = ClassificationRate awardRateContext.awardRateLevel.resolvedAwardClassification basis rateKind
             validatedRate = lookupValidatedRateWithSource key awardRateContext.awardRateBook
          in
-            ( paidSegment condition interval
+            ( paidSegmentWithKind paidKind condition interval
             , awardHourlyComponent validatedRate condition interval
             )
 
@@ -107,6 +143,23 @@ data ShiftBounds = ShiftBounds
     { shiftBoundsStart :: !ResolvedInstant
     , shiftBoundsEnd   :: !ResolvedInstant
     }
+
+data MinimumPayment
+    = CasualMinimumPayment
+    | PublicHolidayMinimumPayment
+
+selectMinimumPayment :: EmploymentBasis -> Set.Set Day -> [AwardSegment] -> Maybe MinimumPayment
+selectMinimumPayment basis statewidePublicHolidayDates intervals
+    | any (\interval -> Set.member (awardSegmentLocalDate interval) statewidePublicHolidayDates) intervals = Just PublicHolidayMinimumPayment
+    | basis == CasualEmployment = Just CasualMinimumPayment
+    | otherwise = Nothing
+
+minimumPaymentRequiredSeconds :: EmploymentBasis -> MinimumPayment -> NominalDiffTime
+minimumPaymentRequiredSeconds basis = \case
+    CasualMinimumPayment -> twoHours
+    PublicHolidayMinimumPayment -> case basis of
+        CasualEmployment  -> twoHours
+        PermanentPartTime -> fourHours
 
 validateShiftSegments :: [AwardSegment] -> Either WageCalculationError ([AwardSegment], ShiftBounds)
 validateShiftSegments rawSegments =
@@ -175,6 +228,22 @@ segmentPieces start end
             Left failure   -> Left (AuthoritativeSegmentationFailure failure)
             Right segments -> Right segments
 
+hypotheticalContinuationSegments :: ShiftBounds -> NominalDiffTime -> Either WageCalculationError [AwardSegment]
+hypotheticalContinuationSegments _ duration
+    | duration <= 0 = Right []
+hypotheticalContinuationSegments shiftBounds duration =
+    case
+        resolvedIntervalFromInstants
+            shiftBounds.shiftBoundsEnd
+            (resolvedInstantFromUTC (addUTCTime duration (resolvedInstantUTC shiftBounds.shiftBoundsEnd)))
+            >>= awardSegments
+        of
+            Left failure   -> Left (AuthoritativeSegmentationFailure failure)
+            Right segments -> Right segments
+
+paidIntervalElapsedSeconds :: [AwardSegment] -> NominalDiffTime
+paidIntervalElapsedSeconds = sum . map awardSegmentElapsedSeconds
+
 missedMealBreakInterval :: ShiftBounds -> Maybe ResolvedInterval -> Either WageCalculationError (Maybe ResolvedInterval)
 missedMealBreakInterval shiftBounds maybeMealBreak
     | shiftDuration <= sixHours = Right Nothing
@@ -210,6 +279,9 @@ offsetFromShiftStart offset shiftBounds =
 
 twoHours :: NominalDiffTime
 twoHours = 2 * 60 * 60
+
+fourHours :: NominalDiffTime
+fourHours = 4 * 60 * 60
 
 sixHours :: NominalDiffTime
 sixHours = 6 * 60 * 60

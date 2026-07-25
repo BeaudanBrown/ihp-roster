@@ -43,19 +43,19 @@ tests =
                         }
                     ]
 
-        it "HIGA-29.2-EVENING-PART-HOUR keeps the fixed addition separate from a casual hourly rate" do
+        it "HIGA-29.2-EVENING-PART-HOUR keeps the fixed addition separate from a casual hourly rate once the engagement minimum is already met" do
             let day = fromGregorian 2026 1 5
-                eveningQuarterHour = awardSegmentBetween day (TimeOfDay 19 0 0) day (TimeOfDay 19 15 0)
+                eveningTwoHours = awardSegmentBetween day (TimeOfDay 19 0 0) day (TimeOfDay 21 0 0)
                 calculation =
                     calculateOrFail
                         ( testCalculationInput
                             { calculationArrangement = AwardHourlyEmployment CasualEmployment
-                            , calculationShiftSegments = [eveningQuarterHour]
+                            , calculationShiftSegments = [eveningTwoHours]
                             }
                         )
 
             fmap (\component -> (component.unitType, component.ratePerUnit, component.amount)) calculation.earningsComponents
-                `shouldBe` [(Hours, 125, 125 / 4), (CommencedHours, 10, 10)]
+                `shouldBe` [(Hours, 125, 250), (CommencedHours, 10, 20)]
 
         it "HIGA-29.2-EVENING-PART-HOUR rounds 15, 60 and 75 exact elapsed minutes up to 1, 1 and 2 units" do
             let day = fromGregorian 2026 1 5
@@ -103,9 +103,9 @@ tests =
                         }
                     ]
 
-        it "HIGA-29.2-WEEKDAY additions do not apply to a public-holiday evening" do
+        it "HIGA-29.2-WEEKDAY additions do not apply to a public-holiday evening once the holiday minimum is already met" do
             let day = fromGregorian 2026 1 5
-                evening = awardSegmentBetween day (TimeOfDay 19 0 0) day (TimeOfDay 20 0 0)
+                evening = awardSegmentBetween day (TimeOfDay 19 0 0) day (TimeOfDay 23 0 0)
                 calculation =
                     calculateOrFail
                         ( testCalculationInput
@@ -116,7 +116,7 @@ tests =
 
             fixedComponents calculation `shouldBe` []
             fmap (.sourceCondition) calculation.earningsComponents `shouldBe` [PublicHolidayCondition]
-            hourlyQuantity calculation `shouldBe` 1
+            hourlyQuantity calculation `shouldBe` 4
 
         it "HIGA-POLICY-MELBOURNE-ELAPSED keeps weekday additions out of Sunday DST intervals while preserving elapsed hours" do
             let autumnSunday =

@@ -4,7 +4,6 @@ import Application.PublicHolidays.Coverage
 import Application.PublicHolidays.Sync
 import Config
 import qualified Control.Exception as Exception
-import qualified Data.ByteString.Lazy as LByteString
 import Data.Either (isLeft)
 import Data.Time.Calendar (fromGregorian)
 import Generated.Types
@@ -15,6 +14,7 @@ import IHP.Prelude
 import IHP.Test.Mocking
 import Test.Hspec
 import Test.Support
+import Test.Support.DataVicFixture (loadDataVicHolidayFixture)
 import Web.FrontController ()
 import Web.Routes
 import Web.Types
@@ -47,7 +47,7 @@ tests = do
                 `shouldSatisfy` isLeft
 
         it "decodes the dated DataVic response fixture without a live request" do
-            records <- loadDataVicFixture
+            records <- loadDataVicHolidayFixture
 
             length records `shouldBe` 13
             map (.dateType) records `shouldSatisfy` all (== "PUBLIC_HOLIDAY")
@@ -59,7 +59,7 @@ tests = do
         describe "DataVic public holiday import" do
             it "projects the dated statewide fixture, including its additional public holiday, into the 2026 cache" $ withContext do
                 withCleanDb do
-                    records <- loadDataVicFixture
+                    records <- loadDataVicHolidayFixture
 
                     summary <- importDataVicPublicHolidayRecordsForYears [2026] records
                     holidays <- query @PublicHoliday |> orderByAsc #holidayDate |> fetch
@@ -177,16 +177,6 @@ tests = do
                     coverage <- fetchPublicHolidayCoverage
                     length coverage `shouldBe` 3
                     map (.status) coverage `shouldSatisfy` all (== PublicHolidayCoverageMissing)
-
-dataVicFixturePath :: FilePath
-dataVicFixturePath = "Test/Fixtures/wage-sources/2026-07-24/datavic/public-holidays.json"
-
-loadDataVicFixture :: IO [DataVicHolidayRecord]
-loadDataVicFixture = do
-    payload <- LByteString.readFile dataVicFixturePath
-    case decodeDataVicPublicHolidayResponse payload of
-        Left errorMessage -> fail ("Could not decode DataVic fixture: " <> errorMessage)
-        Right records -> pure records
 
 melbourneCupRecord :: DataVicHolidayRecord
 melbourneCupRecord =

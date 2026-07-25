@@ -57,10 +57,14 @@ public-holiday, imported-rate, weekday fixed commenced-hour, and recorded
 unpaid-meal-break components from authoritative instants. A recorded unpaid break is
 deducted exactly once; for a shift over six elapsed hours, the missed-break 50% of
 part-time ordinary-rate component is separate and cumulative with the selected base
-condition and any weekday fixed addition. Imported overrides still deduct a recorded
-unpaid break but bypass Award additions and missed-break pay. No production consumer
-has switched. Exact components derive final bucket lines by one-cent-per-line rounding;
-that result is not persisted or exported here. Minimum payments remain with #233.
+condition and any weekday fixed addition. Award-calculated casual entries now receive
+an auditable hypothetical-continuation top-up to two paid hours; qualifying
+public-holiday entries instead receive a distinct public-holiday-rate top-up to four
+part-time or two casual paid hours. The selected minimum is entry-local and never
+stacks, while imported overrides still deduct a recorded unpaid break but bypass Award
+additions, missed-break pay, and minimums. No production consumer has switched. Exact
+components derive final bucket lines by one-cent-per-line rounding; that result is not
+persisted or exported here.
 
 Legacy SQL compatibility behavior (not the Haskell component shape):
 

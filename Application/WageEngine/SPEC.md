@@ -70,13 +70,26 @@ items override staff items and bypass Award conditions and Award-rate-book
 availability.
 
 The implemented arithmetic subset is ordinary part-time/casual, Saturday, Sunday,
-public holiday, imported flat-rate parity, weekday clause 29.2 additions, and clauses
-16/29.3 recorded unpaid-meal-break rules. Public holiday takes precedence over weekend;
-weekday additions never stack with weekend/public-holiday base rates. Eligible evening
-and early-morning worked intervals are grouped separately by local date/window before
-their exact elapsed hours are rounded up to whole `commenced_hours`; a split, break,
-or six-hour boundary cannot duplicate a unit. The addition is a separate fixed-rate
-component and never adds paid time.
+public holiday, imported flat-rate parity, weekday clause 29.2 additions, clauses
+16/29.3 recorded unpaid-meal-break rules, and per-entry minimum payments. Public
+holiday takes precedence over weekend; weekday additions never stack with
+weekend/public-holiday base rates. Eligible evening and early-morning worked intervals
+are grouped separately by local date/window before their exact elapsed hours are
+rounded up to whole `commenced_hours`; a split, break, or six-hour boundary cannot
+duplicate a unit. The addition is a separate fixed-rate component and never adds paid
+time.
+
+Award-calculated casual entries receive at least two paid elapsed hours. If short, the
+engine uses `Application.VenueTime` to segment a hypothetical continuation from the
+actual shift end, emits `casual_minimum_engagement_top_up` paid-time segments, and
+selects each hourly condition from that continuation. When a paid actual interval in an
+entry falls on a statewide public holiday, the public-holiday minimum wins instead:
+four paid hours for part-time and two for casual. All paid actual time in that entry,
+including immediately before or after the holiday, counts toward that one threshold;
+the shortfall is a `public_holiday_minimum_top_up` segment with a public-holiday-rate
+hourly component. The two minimum kinds never stack. Both kinds are explicitly
+non-worked paid time, and weekday commenced-hour additions still derive only from
+actual worked intervals.
 
 For a gross shift longer than six exact elapsed hours, a recorded break qualifies when
 it lasts at least 30 exact elapsed minutes and starts inclusively from two through six
@@ -86,7 +99,7 @@ hours after shift start. An untimely/absent break emits one separate
 component uses the resolved level's part-time ordinary rate × 50%, including for
 casuals, and remains cumulative with the one selected base condition and any weekday
 fixed addition. Imported overrides still deduct a recorded unpaid break but bypass all
-Award conditions, additions and missed-break pay. Minimum payments remain with #233.
+Award conditions, additions, missed-break pay, and minimum payments.
 
 `deriveFinalEarnings` groups exact components by a stable key containing their unit,
 condition, source, rate, and source identity. It preserves exact quantities/amounts,

@@ -70,7 +70,7 @@ tests = do
 
         it "HIGA-29.2-PUBLIC-HOLIDAY uses statewide dates and takes priority over Saturday" do
             let holidayDate = fromGregorian 2026 1 10
-                holidayInterval = awardSegmentBetween holidayDate (TimeOfDay 9 0 0) holidayDate (TimeOfDay 11 0 0)
+                holidayInterval = awardSegmentBetween holidayDate (TimeOfDay 9 0 0) holidayDate (TimeOfDay 13 0 0)
                 calculation =
                     calculateOrFail
                         ( testCalculationInput

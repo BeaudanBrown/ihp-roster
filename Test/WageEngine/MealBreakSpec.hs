@@ -222,13 +222,13 @@ tests =
                 sundayEarly = calculationFor sunday (TimeOfDay 1 0 0) sunday (TimeOfDay 3 0 0) Nothing
                 publicHolidaySaturdayEvening =
                     calculateOrFail
-                        ( (calculationInputFor saturday (TimeOfDay 19 0 0) saturday (TimeOfDay 21 0 0) Nothing)
+                        ( (calculationInputFor saturday (TimeOfDay 19 0 0) saturday (TimeOfDay 23 0 0) Nothing)
                             { calculationStatewidePublicHolidayDates = Set.singleton saturday
                             }
                         )
                 publicHolidaySundayEarly =
                     calculateOrFail
-                        ( (calculationInputFor sunday (TimeOfDay 1 0 0) sunday (TimeOfDay 3 0 0) Nothing)
+                        ( (calculationInputFor sunday (TimeOfDay 1 0 0) sunday (TimeOfDay 5 0 0) Nothing)
                             { calculationStatewidePublicHolidayDates = Set.singleton sunday
                             }
                         )
@@ -236,7 +236,7 @@ tests =
             baseHourlyComponents saturdayEvening `shouldBe` [hourlyComponent 2 125 SaturdayCondition]
             baseHourlyComponents sundayEarly `shouldBe` [hourlyComponent 2 150 SundayCondition]
             map baseHourlyComponents [publicHolidaySaturdayEvening, publicHolidaySundayEarly]
-                `shouldBe` replicate 2 [hourlyComponent 2 225 PublicHolidayCondition]
+                `shouldBe` replicate 2 [hourlyComponent 4 225 PublicHolidayCondition]
             map fixedEarningsComponents [saturdayEvening, sundayEarly, publicHolidaySaturdayEvening, publicHolidaySundayEarly] `shouldBe` [[], [], [], []]
 
         it "HIGA-POLICY-MELBOURNE-ELAPSED applies missed-break thresholds and recorded-break deductions to exact autumn and spring Sunday elapsed time" do
@@ -447,17 +447,17 @@ propHighestBasePenaltyUniqueness :: NonNegative Integer -> Bool
 propHighestBasePenaltyUniqueness (NonNegative seed) =
     case calculateTimesheetPay input of
         Right calculation ->
-            baseHourlyComponents calculation == [hourlyComponent 1 expectedRate expectedCondition]
+            baseHourlyComponents calculation == [hourlyComponent expectedHours expectedRate expectedCondition]
                 && fixedEarningsComponents calculation == []
         Left _ -> False
   where
-    (day, holidayDates, expectedRate, expectedCondition) =
-        [ (fromGregorian 2026 1 10, Set.empty, 125, SaturdayCondition)
-        , (fromGregorian 2026 1 11, Set.empty, 150, SundayCondition)
-        , (fromGregorian 2026 1 10, Set.singleton (fromGregorian 2026 1 10), 225, PublicHolidayCondition)
+    (day, endTime, holidayDates, expectedHours, expectedRate, expectedCondition) =
+        [ (fromGregorian 2026 1 10, TimeOfDay 20 0 0, Set.empty, 1, 125, SaturdayCondition)
+        , (fromGregorian 2026 1 11, TimeOfDay 20 0 0, Set.empty, 1, 150, SundayCondition)
+        , (fromGregorian 2026 1 10, TimeOfDay 23 0 0, Set.singleton (fromGregorian 2026 1 10), 4, 225, PublicHolidayCondition)
         ] !! fromInteger (seed `mod` 3)
     input =
-        (calculationInputFor day (TimeOfDay 19 0 0) day (TimeOfDay 20 0 0) Nothing)
+        (calculationInputFor day (TimeOfDay 19 0 0) day endTime Nothing)
             { calculationStatewidePublicHolidayDates = holidayDates
             }
 

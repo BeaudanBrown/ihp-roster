@@ -1,5 +1,6 @@
 module Application.WageEngine.Components
     ( paidSegment
+    , paidSegmentWithKind
     , awardHourlyComponent
     , importedHourlyComponent
     , missedMealBreakAdditionComponent
@@ -30,9 +31,12 @@ import Data.Time.Clock (diffUTCTime)
 import IHP.Prelude
 
 paidSegment :: SourceCondition -> AwardSegment -> PaidTimeSegment
-paidSegment condition interval =
+paidSegment = paidSegmentWithKind Worked
+
+paidSegmentWithKind :: PaidTimeKind -> SourceCondition -> AwardSegment -> PaidTimeSegment
+paidSegmentWithKind kind condition interval =
     PaidTimeSegment
-        { paidTimeKind = Worked
+        { paidTimeKind = kind
         , paidTimeStart = resolvedInstantUTC (awardSegmentStart interval)
         , paidTimeEnd = resolvedInstantUTC (awardSegmentEnd interval)
         , paidTimeLocalDate = awardSegmentLocalDate interval
