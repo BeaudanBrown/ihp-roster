@@ -162,6 +162,22 @@ BEGIN
         RAISE EXCEPTION 'authoritative roster boundary backfill failed validation; see #274 runbook';
     END IF;
 
+    -- A legacy roster duration is retained only when it agrees with the
+    -- resolved authoritative interval; otherwise stop before dropping it.
+    IF EXISTS (
+        SELECT 1
+        FROM roster_slots rs
+        WHERE rs.duration_minutes IS NOT NULL
+            AND (
+                rs.starts_at IS NULL
+                OR rs.ends_at IS NULL
+                OR rs.duration_minutes IS DISTINCT FROM
+                    EXTRACT(EPOCH FROM (rs.ends_at - rs.starts_at)) / 60
+            )
+    ) THEN
+        RAISE EXCEPTION 'legacy roster duration does not match roster clocks; see #274 runbook';
+    END IF;
+
     IF EXISTS (
         SELECT 1
         FROM timesheet_entries
@@ -178,6 +194,19 @@ BEGIN
             ))
     ) THEN
         RAISE EXCEPTION 'authoritative timesheet boundary backfill failed validation; see #274 runbook';
+    END IF;
+
+    -- Do not replace the retired legacy duration with a different authoritative
+    -- interval (including an ambiguous/DST resolution difference) without an
+    -- approved operator data fix.
+    IF EXISTS (
+        SELECT 1
+        FROM timesheet_entries te
+        WHERE te.had_break
+            AND te.break_minutes IS DISTINCT FROM
+                EXTRACT(EPOCH FROM (te.break_ends_at - te.break_starts_at)) / 60
+    ) THEN
+        RAISE EXCEPTION 'legacy timesheet break duration does not match break clocks; see #274 runbook';
     END IF;
 END;
 $$;

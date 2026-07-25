@@ -41,12 +41,40 @@ FROM timesheet_entries te
 WHERE te.end_time = te.start_time
    OR ((te.break_start_time IS NULL) <> (te.break_end_time IS NULL));
 
+SELECT te.id
+FROM timesheet_entries te
+WHERE te.had_break
+  AND te.break_minutes IS DISTINCT FROM
+      EXTRACT(EPOCH FROM (
+          (te.break_end_time - te.break_start_time)
+          + CASE
+              WHEN te.break_end_time <= te.break_start_time THEN INTERVAL '1 day'
+              ELSE INTERVAL '0'
+            END
+      )) / 60;
+
 SELECT rs.id
 FROM roster_slots rs
 JOIN roster_days rd ON rd.id = rs.roster_day_id
 JOIN roster_weeks rw ON rw.id = rd.roster_week_id
 LEFT JOIN venue_config vc ON vc.venue_id = rw.venue_id
 WHERE vc.id IS NULL OR char_length(btrim(vc.timezone)) = 0;
+
+SELECT rs.id
+FROM roster_slots rs
+WHERE rs.duration_minutes IS NOT NULL
+  AND (
+      rs.start_time IS NULL
+      OR rs.end_time IS NULL
+      OR rs.duration_minutes IS DISTINCT FROM
+          EXTRACT(EPOCH FROM (
+              (rs.end_time - rs.start_time)
+              + CASE
+                  WHEN rs.end_time <= rs.start_time THEN INTERVAL '1 day'
+                  ELSE INTERVAL '0'
+                END
+          )) / 60
+  );
 ```
 
 All queries must return zero rows. The current `VenueTime` authority supports
@@ -55,7 +83,10 @@ work before this migration can run. Roster clocks before 06:00 are interpreted a
 the following calendar day of the hospitality operational day. Repeated autumn
 clocks use their first occurrence. A spring-forward clock that does not exist
 causes the migration to abort instead of being normalized; correct that legacy
-row under an approved operator data-fix before retrying.
+row under an approved operator data-fix before retrying. A legacy
+`break_minutes` and any `duration_minutes` value must agree with their clocks;
+the migration repeats those checks after instant resolution so a DST/ambiguity
+difference cannot silently change paid duration.
 
 The migration performs a second, instant-based validation and aborts
 transactionally before dropping columns if any positive, paired, or
