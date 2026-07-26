@@ -247,13 +247,15 @@ tests = do
                     entry <- createEntry venue staff shiftType (fromGregorian 2026 7 6) (TimeOfDay 9 0 0) (TimeOfDay 13 0 0)
                     (staffPayVersion, shiftTypePayVersion) <- ensurePayVersionsForTimesheetApproval owner.id entry
                     lockPayVersionsForApproval owner.id approvedAt staffPayVersion shiftTypePayVersion
-                    approvedEntry <- entry
-                        |> set #isApproved True
-                        |> set #staffPayVersionId (Just (unpackId staffPayVersion.id))
-                        |> set #shiftTypePayVersionId (Just (unpackId shiftTypePayVersion.id))
-                        |> set #approvedAt (Just approvedAt)
-                        |> set #approvedByUserId (Just (unpackId owner.id))
-                        |> updateRecord
+                    approvedEntry <- withLegacyPayBackfillFixture do
+                        entry
+                            |> set #isApproved True
+                            |> set #legacyPayBackfillPending True
+                            |> set #staffPayVersionId (Just (unpackId staffPayVersion.id))
+                            |> set #shiftTypePayVersionId (Just (unpackId shiftTypePayVersion.id))
+                            |> set #approvedAt (Just approvedAt)
+                            |> set #approvedByUserId (Just (unpackId owner.id))
+                            |> updateRecord
                     newerPayRate <-
                         newRecord @FwcMapdPayRate
                             |> set #awardFixedId level.awardFixedId

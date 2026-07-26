@@ -13,9 +13,12 @@ import Application.Helper.Pay (ensurePayVersionsForTimesheetApproval,
                                lockPayVersionsForApproval,
                                payVersionManifestForEntry)
 import Application.Helper.SurfaceResource
+import Application.Helper.TimesheetPayLedger (persistApprovedTimesheetPayCalculation)
 import Application.VenueTime.Model
+import Control.Exception (IOException, try)
 import Control.Monad (void)
 import qualified Data.Aeson as Aeson
+import qualified Data.Text as Text
 import Data.Time.Calendar (diffDays)
 import Data.Time.Clock (getCurrentTime)
 import Data.Tuple.Only (Only (..))
@@ -153,44 +156,62 @@ deleteTimesheetEntryMutation _weekOffset timesheetEntry = do
     venueConfig <- fetchVenueConfig
     invalidateTouchedResources "timesheet.delete" (liveMutationResult softDeletedEntry (timesheetEntryTouchedResources venueConfig [timesheetEntry]))
 
-approveTimesheetEntryMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Int -> TimesheetEntry -> IO (LiveMutationResult TimesheetEntry)
+approveTimesheetEntryMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Int -> TimesheetEntry -> IO (Either Text (LiveMutationResult TimesheetEntry))
 approveTimesheetEntryMutation _weekOffset timesheetEntry = do
     now <- getCurrentTime
-    (staffPayVersion, shiftTypePayVersion) <- ensurePayVersionsForTimesheetApproval currentUser.id timesheetEntry
-    updatedEntry <- withTransaction do
-        lockPayVersionsForApproval currentUser.id now staffPayVersion shiftTypePayVersion
-        updatedEntry <-
-            timesheetEntry
-                |> set #isApproved True
-                |> set #staffPayVersionId (Just (unpackId (get #id staffPayVersion)))
-                |> set #shiftTypePayVersionId (Just (unpackId (get #id shiftTypePayVersion)))
-                |> set #approvedAt (Just now)
-                |> set #approvedByUserId (Just (unpackId (get #id currentUser)))
-                |> updateRecord
-        void $
-            recordCurrentUserTimesheetEntryVersion
-                (unsafeEnumFromText @EntryVersionActionEnum "approved")
-                updatedEntry
-                (Aeson.object
-                    [ "previous" Aeson..= timesheetEntrySnapshot timesheetEntry
-                    ]
-                )
-        void $ recordCurrentUserAuditEvent
-            "timesheet_approved"
-            "timesheet_entries"
-            (unpackId (get #id timesheetEntry))
-            (Aeson.object
-                [ "staffId" Aeson..= timesheetEntry.staffId
-                , "startsAt" Aeson..= timesheetEntry.startsAt
-                , "timezone" Aeson..= timesheetEntry.timezone
-                , "wasApproved" Aeson..= timesheetEntry.isApproved
-                , "payConfigVersionManifest" Aeson..= payVersionManifestForEntry updatedEntry
-                , "approvedAt" Aeson..= now
-                ]
-            )
-        pure updatedEntry
-    venueConfig <- fetchVenueConfig
-    invalidateTouchedResources "timesheet.approve" (liveMutationResult updatedEntry (timesheetEntryTouchedResources venueConfig [updatedEntry]))
+    approval :: Either IOException TimesheetEntry <- try $ withTransaction do
+        -- QueryBuilder has no row-lock combinator; keep this narrow FOR UPDATE
+        -- seam here so concurrent approvals cannot create duplicate ledgers.
+        lockedEntries :: [TimesheetEntry] <- sqlQuery
+            "SELECT timesheet_entries.* FROM timesheet_entries WHERE id = ? FOR UPDATE"
+            (Only (unpackId timesheetEntry.id))
+        lockedEntry <- maybe (ioError (userError "timesheet entry disappeared during approval")) pure (listToMaybe lockedEntries)
+        case (lockedEntry.isApproved, lockedEntry.activePayCalculationId) of
+            (True, Just _) -> pure lockedEntry
+            _ -> do
+                (staffPayVersion, shiftTypePayVersion) <- ensurePayVersionsForTimesheetApproval currentUser.id lockedEntry
+                lockPayVersionsForApproval currentUser.id now staffPayVersion shiftTypePayVersion
+                let approvalEntry =
+                        lockedEntry
+                            |> set #isApproved True
+                            |> set #staffPayVersionId (Just (unpackId (get #id staffPayVersion)))
+                            |> set #shiftTypePayVersionId (Just (unpackId (get #id shiftTypePayVersion)))
+                            |> set #approvedAt (Just now)
+                            |> set #approvedByUserId (Just (unpackId (get #id currentUser)))
+                persistedCalculation <- persistApprovedTimesheetPayCalculation approvalEntry
+                calculation <- case persistedCalculation of
+                    Left reason  -> ioError (userError (Text.unpack reason))
+                    Right result -> pure result
+                activeEntry <- approvalEntry
+                    |> set #activePayCalculationId (Just calculation.id)
+                    |> updateRecord
+                void $
+                    recordCurrentUserTimesheetEntryVersion
+                        (unsafeEnumFromText @EntryVersionActionEnum "approved")
+                        activeEntry
+                        (Aeson.object
+                            [ "previous" Aeson..= timesheetEntrySnapshot lockedEntry
+                            ]
+                        )
+                void $ recordCurrentUserAuditEvent
+                    "timesheet_approved"
+                    "timesheet_entries"
+                    (unpackId (get #id lockedEntry))
+                    (Aeson.object
+                        [ "staffId" Aeson..= lockedEntry.staffId
+                        , "startsAt" Aeson..= lockedEntry.startsAt
+                        , "timezone" Aeson..= lockedEntry.timezone
+                        , "wasApproved" Aeson..= lockedEntry.isApproved
+                        , "payConfigVersionManifest" Aeson..= payVersionManifestForEntry activeEntry
+                        , "approvedAt" Aeson..= now
+                        ]
+                    )
+                pure activeEntry
+    case approval of
+        Left reason -> pure (Left (tshow reason))
+        Right updatedEntry -> do
+            venueConfig <- fetchVenueConfig
+            Right <$> invalidateTouchedResources "timesheet.approve" (liveMutationResult updatedEntry (timesheetEntryTouchedResources venueConfig [updatedEntry]))
 
 unapproveTimesheetEntryMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Int -> TimesheetEntry -> IO (LiveMutationResult TimesheetEntry)
 unapproveTimesheetEntryMutation _weekOffset timesheetEntry = do
@@ -198,6 +219,8 @@ unapproveTimesheetEntryMutation _weekOffset timesheetEntry = do
         updatedEntry <-
             timesheetEntry
                 |> set #isApproved False
+                |> set #activePayCalculationId Nothing
+                |> set #legacyPayBackfillPending False
                 |> set #staffPayVersionId Nothing
                 |> set #shiftTypePayVersionId Nothing
                 |> set #approvedAt Nothing

@@ -350,12 +350,17 @@ instance Controller TimesheetsController where
         let weekOffset = state.surfaceRequestWeekOffset
         let (showApproved, showAllStaff, showSuggestions, selectedStaffFilterId) = timesheetSurfaceFilters state
 
-        mutationResult <- approveTimesheetEntryMutation weekOffset timesheetEntry
-        if isHtmxRequest
-            then respondWithTimesheetMutationUpdate weekOffset showApproved showAllStaff showSuggestions selectedStaffFilterId mutationResult.liveMutationTouchedResources "Timesheet entry approved" False
-            else do
-                setSuccessMessage "Timesheet entry approved"
+        approval <- approveTimesheetEntryMutation weekOffset timesheetEntry
+        case approval of
+            Left reason -> do
+                setErrorMessage reason
                 redirectToPath (timesheetWeekUrl weekOffset showApproved showAllStaff showSuggestions selectedStaffFilterId)
+            Right mutationResult ->
+                if isHtmxRequest
+                    then respondWithTimesheetMutationUpdate weekOffset showApproved showAllStaff showSuggestions selectedStaffFilterId mutationResult.liveMutationTouchedResources "Timesheet entry approved" False
+                    else do
+                        setSuccessMessage "Timesheet entry approved"
+                        redirectToPath (timesheetWeekUrl weekOffset showApproved showAllStaff showSuggestions selectedStaffFilterId)
 
     action currentAction@UnapproveTimesheetEntryAction { timesheetEntryId } = runBepis currentAction BepisPageAction do
         ensureManagerRole

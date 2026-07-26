@@ -18,6 +18,7 @@ module Application.VenueTime.Model
     , authoritativeBreakElapsedSeconds
     , authoritativePaidElapsedSeconds
     , authoritativeAwardSegments
+    , authoritativeUnpaidMealBreak
     , authoritativeStartLocalTime
     , authoritativeEndLocalTime
     , authoritativeBreakStartLocalTime
@@ -283,6 +284,11 @@ authoritativePaidElapsedSeconds boundaries =
 authoritativeAwardSegments :: AuthoritativeBoundaries -> Either BoundaryModelError [AwardSegment]
 authoritativeAwardSegments =
     mapLeft BoundaryCivilTimeError . awardSegments . (.storedShiftInterval)
+
+-- | The resolved break is an input fact for wage calculation, not a derived
+-- payable segment. Keep it opaque so callers cannot construct civil-time data.
+authoritativeUnpaidMealBreak :: AuthoritativeBoundaries -> Maybe ResolvedInterval
+authoritativeUnpaidMealBreak = (.storedBreakInterval)
 
 authoritativeStartLocalTime :: AuthoritativeBoundaries -> LocalTime
 authoritativeStartLocalTime = resolvedInstantLocalTime . resolvedIntervalStart . (.storedShiftInterval)

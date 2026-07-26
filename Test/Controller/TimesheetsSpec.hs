@@ -1,7 +1,7 @@
 module Test.Controller.TimesheetsSpec where
 
 import Application.Helper.Controller (PlatformRole (SuperAdminRole),
-                                      parseTimeParam)
+                                      parseTimeParam, unsafeEnumFromText)
 import Application.Helper.FrontendContract.Surface.Runtime (FrontendSurfaceMountConfig (..),
                                                             FrontendSurfaceMountedFragment (..),
                                                             SurfaceImpl (..))
@@ -1842,7 +1842,9 @@ tests = aroundAll withDatabaseTestContext do
                 venue <- createVenueWithConfig "Timesheet Venue"
                 manager <- createUserRecord "timesheet-live-manager@example.com" "staff" True
                 _ <- createVenueMembershipRecord venue manager "manager"
+                importedPayItem <- createImportedXeroPayItemRecord venue manager "Live approval" "live-approval" 30
                 staff <- createStaffRecord venue Nothing "Tia" "Shift"
+                    >>= updateRecord . set #importedXeroPayItemId (Just importedPayItem.id)
                 entry <- createTimesheetEntryRecord venue staff (fromGregorian 2025 1 7)
 
                 versionBefore <- currentLiveUpdateVersion (TimesheetsLive.timesheetWeekLiveScope (unpackId venue.id) 0)
@@ -1871,7 +1873,9 @@ tests = aroundAll withDatabaseTestContext do
                 venue <- createVenueWithConfig "Timesheet Venue"
                 manager <- createUserRecord "timesheet-manager@example.com" "staff" True
                 _ <- createVenueMembershipRecord venue manager "manager"
+                importedPayItem <- createImportedXeroPayItemRecord venue manager "Timesheet approval" "timesheet-approval" 30
                 staff <- createStaffRecord venue Nothing "Tia" "Shift"
+                    >>= updateRecord . set #importedXeroPayItemId (Just importedPayItem.id)
                 entry <- createTimesheetEntryRecord venue staff (fromGregorian 2025 1 7)
 
                 response <- withUserAndCurrentVenue manager venue.id do
@@ -1888,6 +1892,12 @@ tests = aroundAll withDatabaseTestContext do
                 updatedEntry.isApproved `shouldBe` True
                 updatedEntry.approvedByUserId `shouldBe` Just (unpackId manager.id)
                 updatedEntry.staffPayVersionId `shouldSatisfy` isJust
+                updatedEntry.activePayCalculationId `shouldSatisfy` isJust
+                calculation <- query @TimesheetPayCalculation |> fetchOne
+                calculation.timesheetEntryId `shouldBe` unpackId entry.id
+                calculation.calculationSource `shouldBe` "external_imported_pay_item"
+                components <- query @TimesheetPayEarningsComponent |> fetch
+                components `shouldSatisfy` (not . null)
 
                 version <- query @TimesheetEntryVersion |> fetchOne
                 inputValue version.versionAction `shouldBe` "approved"
@@ -1905,6 +1915,84 @@ tests = aroundAll withDatabaseTestContext do
                 auditEvent.targetTable `shouldBe` "timesheet_entries"
                 auditEvent.targetId `shouldBe` unpackId entry.id
                 auditEvent.sourceChannel `shouldBe` "web"
+
+                unapproveResponse <- withUserAndCurrentVenue manager venue.id do
+                    callActionWithParams UnapproveTimesheetEntryAction { timesheetEntryId = entry.id }
+                        [ ("weekOffset", "0")
+                        , ("showApproved", "false")
+                        , ("showAllStaff", "true")
+                        , ("showSuggestions", "true")
+                        ]
+                unapproveResponse `responseStatusShouldBe` status302
+                unapprovedEntry <- fetch entry.id
+                unapprovedEntry.activePayCalculationId `shouldBe` Nothing
+                query @TimesheetPayCalculation |> fetchCount `shouldReturn` 1
+
+                reapproveResponse <- withUserAndCurrentVenue manager venue.id do
+                    callActionWithParams ApproveTimesheetEntryAction { timesheetEntryId = entry.id }
+                        [ ("weekOffset", "0")
+                        , ("showApproved", "false")
+                        , ("showAllStaff", "true")
+                        , ("showSuggestions", "true")
+                        ]
+                reapproveResponse `responseStatusShouldBe` status302
+                reapprovedEntry <- fetch entry.id
+                reapprovedEntry.activePayCalculationId `shouldSatisfy` maybe False (/= calculation.id)
+                query @TimesheetPayCalculation |> fetchCount `shouldReturn` 2
+
+        it "approves once under concurrent submissions" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Concurrent approval venue"
+                manager <- createUserRecord "concurrent-approval@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue manager "manager"
+                importedPayItem <- createImportedXeroPayItemRecord venue manager "Concurrent approval" "concurrent-approval" 30
+                staff <- createStaffRecord venue Nothing "Connie" "Approval"
+                    >>= updateRecord . set #importedXeroPayItemId (Just importedPayItem.id)
+                entry <- createTimesheetEntryRecord venue staff (fromGregorian 2025 1 7)
+
+                results <- runConcurrentTimesheetActions 8 do
+                    withUserAndCurrentVenue manager venue.id do
+                        callActionWithParams ApproveTimesheetEntryAction { timesheetEntryId = entry.id }
+                            [ ("weekOffset", "0")
+                            , ("showApproved", "false")
+                            , ("showAllStaff", "true")
+                            , ("showSuggestions", "true")
+                            ]
+
+                lefts results `shouldSatisfy` null
+                mapM_ (`responseStatusShouldBe` status302) (rights results)
+                approvedEntry <- fetch entry.id
+                approvedEntry.isApproved `shouldBe` True
+                approvedEntry.activePayCalculationId `shouldSatisfy` isJust
+                query @TimesheetPayCalculation |> fetchCount `shouldReturn` 1
+                approvedVersions <- query @TimesheetEntryVersion
+                    |> filterWhere (#versionAction, unsafeEnumFromText @EntryVersionActionEnum "approved")
+                    |> fetchCount
+                approvedVersions `shouldBe` 1
+
+        it "rolls back approval when required pay facts are missing" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Missing pay facts venue"
+                manager <- createUserRecord "missing-pay-facts@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue manager "manager"
+                staff <- createStaffRecord venue Nothing "Missing" "Facts"
+                entry <- createTimesheetEntryRecord venue staff (fromGregorian 2025 1 7)
+
+                response <- withUserAndCurrentVenue manager venue.id do
+                    callActionWithParams ApproveTimesheetEntryAction { timesheetEntryId = entry.id }
+                        [ ("weekOffset", "0")
+                        , ("showApproved", "false")
+                        , ("showAllStaff", "true")
+                        , ("showSuggestions", "true")
+                        ]
+
+                response `responseStatusShouldBe` status302
+                unchangedEntry <- fetch entry.id
+                unchangedEntry.isApproved `shouldBe` False
+                unchangedEntry.staffPayVersionId `shouldBe` Nothing
+                unchangedEntry.activePayCalculationId `shouldBe` Nothing
+                query @TimesheetPayCalculation |> fetchCount `shouldReturn` 0
+                query @TimesheetEntryVersion |> fetchCount `shouldReturn` 0
 
         it "writes an audit event when unapproving a timesheet entry" $ withContext do
             withCleanDb do

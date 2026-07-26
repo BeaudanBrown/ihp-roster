@@ -668,6 +668,8 @@ tests = aroundAll withDatabaseTestContext do
                 forM_ fixture.entries \entry ->
                     entry
                         |> set #isApproved False
+                        |> set #activePayCalculationId Nothing
+                        |> set #legacyPayBackfillPending False
                         |> set #approvedAt Nothing
                         |> set #approvedByUserId Nothing
                         |> set #staffPayVersionId Nothing

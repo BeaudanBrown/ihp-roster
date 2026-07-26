@@ -11,6 +11,7 @@ import Application.Helper.RosterGroups (createVenueRosterGroupWithDefaults,
 import Application.Helper.ShiftTypeColours (blankShiftTypeColourKey)
 import Application.Helper.StaffShiftPreferences (ShiftPreferenceSelection (..))
 import Application.Helper.TimeRules (rosterShiftStartDate)
+import Application.Helper.TimesheetPayLedger (persistApprovedTimesheetPayCalculation)
 import Application.Helper.VenueBootstrap (provisionVenueUser)
 import Application.Helper.WeekBoundaries (venueWeekStartDate)
 import Application.Support
@@ -232,6 +233,9 @@ ensureSeedShiftTypeAwardLevels :: (?modelContext :: ModelContext) => IO ()
 ensureSeedShiftTypeAwardLevels = do
     sqlExecDiscardResult
         "INSERT INTO award_levels (id, award_fixed_id, classification_fixed_id, classification, classification_level, parent_classification_name, clause_description, operative_from, operative_to, published_year, is_active, raw_json) VALUES ('2cba4998-4691-4eeb-9bd3-e79263c54769', 9, 243, 'Level 1', '2.0', 'Food and beverage attendant grade 1; Guest service grade 1; Kitchen attendant grade 1', 'Hospitality Employees', '2025-07-01', NULL, 2025, TRUE, '{}'::jsonb), ('8a53b7c8-574c-49f8-abd4-0caf3b46a22f', 9, 268, 'Level 4', '5.0', 'Clerical grade 3; Cook (tradesperson) grade 3; Food and beverage attendant (tradesperson) grade 4; Front office grade 3; Gardener grade 3 (tradesperson); Guest service grade 4; Leisure attendant grade 3; Storeperson grade 3', 'Hospitality Employees', '2025-07-01', NULL, 2025, TRUE, '{}'::jsonb) ON CONFLICT (id) DO NOTHING"
+        ()
+    sqlExecDiscardResult
+        "DO $$ BEGIN INSERT INTO award_levels (award_fixed_id, classification_fixed_id, classification, classification_level, operative_from, published_year, is_active) SELECT 9, fixed_id, label, level, DATE '2025-07-01', 2025, TRUE FROM (VALUES (242, 'Introductory', '1.0'), (246, 'Level 2', '3.0'), (257, 'Level 3', '4.0'), (276, 'Level 5', '6.0'), (282, 'Level 6', '7.0')) AS missing(fixed_id, label, level) ON CONFLICT (award_fixed_id, classification_fixed_id) DO NOTHING; INSERT INTO fwc_mapd_pay_rates (award_fixed_id, classification_fixed_id, classification, calculated_rate, calculated_rate_type, operative_from, published_year) SELECT 9, level.classification_fixed_id, level.classification, 30, 'Hourly', DATE '2025-07-01', 2025 FROM award_levels level WHERE level.award_fixed_id = 9 AND NOT EXISTS (SELECT 1 FROM fwc_mapd_pay_rates source WHERE source.award_fixed_id = 9 AND source.classification_fixed_id = level.classification_fixed_id AND source.operative_from = DATE '2025-07-01'); INSERT INTO fwc_mapd_penalty_rates (award_fixed_id, classification_fixed_id, classification, penalty_description, penalty_calculated_value, operative_from, published_year) SELECT 9, level.classification_fixed_id, level.classification, 'Dev seed penalty source', 60, DATE '2025-07-01', 2025 FROM award_levels level WHERE level.award_fixed_id = 9 AND NOT EXISTS (SELECT 1 FROM fwc_mapd_penalty_rates source WHERE source.award_fixed_id = 9 AND source.classification_fixed_id = level.classification_fixed_id AND source.operative_from = DATE '2025-07-01'); INSERT INTO fwc_mapd_wage_allowances (award_fixed_id, wage_allowance_fixed_id, allowance, allowance_amount, operative_from, published_year) SELECT 9, fixed_id, label, amount, DATE '2025-07-01', 2025 FROM (VALUES (700001, 'Dev evening addition', 2.50::numeric), (700002, 'Dev early morning addition', 3.00::numeric)) AS source(fixed_id, label, amount) WHERE NOT EXISTS (SELECT 1 FROM fwc_mapd_wage_allowances existing WHERE existing.award_fixed_id = 9 AND existing.wage_allowance_fixed_id = source.fixed_id); INSERT INTO award_level_base_rates (award_level_id, employment_basis, fwc_mapd_pay_rate_id, hourly_rate, rate_label, operative_from, published_year) SELECT level.id, basis.value::staff_employment_basis_enum, source.id, CASE basis.value WHEN 'casual' THEN 37.50 ELSE 30 END, 'Dev seed hourly', DATE '2025-07-01', 2025 FROM award_levels level CROSS JOIN (VALUES ('permanent'), ('casual')) AS basis(value) JOIN fwc_mapd_pay_rates source ON source.classification_fixed_id = level.classification_fixed_id AND source.operative_from = DATE '2025-07-01' WHERE level.award_fixed_id = 9 ON CONFLICT (award_level_id, employment_basis, operative_from, operative_to) DO NOTHING; INSERT INTO award_level_penalty_rates (award_level_id, employment_basis, penalty_kind, fwc_mapd_penalty_rate_id, hourly_rate, operative_from, published_year) SELECT level.id, basis.value::staff_employment_basis_enum, penalty.kind::award_penalty_kind_enum, source.id, penalty.rate, DATE '2025-07-01', 2025 FROM award_levels level CROSS JOIN (VALUES ('permanent'), ('casual')) AS basis(value) CROSS JOIN (VALUES ('saturday_penalty', 45.00::numeric), ('sunday_penalty', 52.50::numeric), ('public_holiday_penalty', 67.50::numeric)) AS penalty(kind, rate) JOIN fwc_mapd_penalty_rates source ON source.classification_fixed_id = level.classification_fixed_id AND source.operative_from = DATE '2025-07-01' WHERE level.award_fixed_id = 9 ON CONFLICT (award_level_id, employment_basis, penalty_kind, operative_from, operative_to) DO NOTHING; INSERT INTO award_time_penalty_allowances (award_fixed_id, penalty_kind, fwc_mapd_wage_allowance_id, hourly_amount, starts_at_time, ends_at_time, operative_from, published_year) SELECT 9, values_row.kind::award_penalty_kind_enum, source.id, values_row.amount, values_row.starts_at, values_row.ends_at, DATE '2025-07-01', 2025 FROM (VALUES ('evening_after_7pm', 2.50::numeric, TIME '19:00', TIME '00:00', 700001), ('late_night_after_midnight', 3.00::numeric, TIME '00:00', TIME '07:00', 700002)) AS values_row(kind, amount, starts_at, ends_at, fixed_id) JOIN fwc_mapd_wage_allowances source ON source.wage_allowance_fixed_id = values_row.fixed_id AND source.operative_from = DATE '2025-07-01' ON CONFLICT (award_fixed_id, penalty_kind, operative_from, operative_to) DO NOTHING; END $$"
         ()
     pure ()
 
@@ -791,13 +795,7 @@ seedTimesheets fixtureWeekStart venue admin scenario floorShift kitchenShift sta
                     . set #shiftTypeId shiftTypeId
         (staffPayVersion, shiftTypePayVersion) <- ensurePayVersionsForTimesheetApproval admin.id entry
         lockPayVersionsForApproval admin.id approvedAt staffPayVersion shiftTypePayVersion
-        _ <- entry
-            |> set #isApproved True
-            |> set #staffPayVersionId (Just (unpackId staffPayVersion.id))
-            |> set #shiftTypePayVersionId (Just (unpackId shiftTypePayVersion.id))
-            |> set #approvedAt (Just approvedAt)
-            |> set #approvedByUserId (Just (unpackId admin.id))
-            |> updateRecord
+        _ <- approveSeededTimesheetEntryWithVersions admin approvedAt staffPayVersion shiftTypePayVersion entry
         pure ()
     let pendingStaffPool = nonXeroMatchedStaffPool staffPool <> staffPool
     forM_ (zip [0 ..] (take scenario.pendingTimesheets (drop scenario.approvedTimesheets (cycle pendingStaffPool)))) \(index, staff) -> do
@@ -889,12 +887,28 @@ approveSeededTimesheetEntry ::
 approveSeededTimesheetEntry admin approvedAt entry = do
     (staffPayVersion, shiftTypePayVersion) <- ensurePayVersionsForTimesheetApproval admin.id entry
     lockPayVersionsForApproval admin.id approvedAt staffPayVersion shiftTypePayVersion
-    entry
-        |> set #isApproved True
-        |> set #staffPayVersionId (Just (unpackId staffPayVersion.id))
-        |> set #shiftTypePayVersionId (Just (unpackId shiftTypePayVersion.id))
-        |> set #approvedAt (Just approvedAt)
-        |> set #approvedByUserId (Just (unpackId admin.id))
+    approveSeededTimesheetEntryWithVersions admin approvedAt staffPayVersion shiftTypePayVersion entry
+
+approveSeededTimesheetEntryWithVersions ::
+    (?modelContext :: ModelContext) =>
+    User ->
+    UTCTime ->
+    StaffPayVersion ->
+    ShiftTypePayVersion ->
+    TimesheetEntry ->
+    IO TimesheetEntry
+approveSeededTimesheetEntryWithVersions admin approvedAt staffPayVersion shiftTypePayVersion entry = do
+    let approvalEntry =
+            entry
+                |> set #isApproved True
+                |> set #staffPayVersionId (Just (unpackId staffPayVersion.id))
+                |> set #shiftTypePayVersionId (Just (unpackId shiftTypePayVersion.id))
+                |> set #approvedAt (Just approvedAt)
+                |> set #approvedByUserId (Just (unpackId admin.id))
+    persisted <- persistApprovedTimesheetPayCalculation approvalEntry
+    calculation <- either (fail . cs) pure persisted
+    approvalEntry
+        |> set #activePayCalculationId (Just calculation.id)
         |> updateRecord
 
 seededCaseShiftTypeId :: SeededTimesheetShiftType -> ShiftType -> ShiftType -> UUID

@@ -544,17 +544,26 @@ createApprovedTimesheetEntryRecord venue staff approver workedOn = do
     createApprovedTimesheetEntryRecordAt venue staff approver workedOn approvedAt
 
 createApprovedTimesheetEntryRecordAt :: (?modelContext :: ModelContext) => Venue -> Staff -> User -> Day -> UTCTime -> IO TimesheetEntry
+withLegacyPayBackfillFixture :: (?modelContext :: ModelContext) => IO value -> IO value
+withLegacyPayBackfillFixture action =
+    bracket
+        (sqlExecDiscardResult "ALTER TABLE timesheet_entries DISABLE TRIGGER prevent_legacy_pay_backfill_grant" ())
+        (const (sqlExecDiscardResult "ALTER TABLE timesheet_entries ENABLE TRIGGER prevent_legacy_pay_backfill_grant" ()))
+        (const action)
+
 createApprovedTimesheetEntryRecordAt venue staff approver workedOn approvedAt = do
     entry <- createTimesheetEntryRecord venue staff workedOn
     (staffPayVersion, shiftTypePayVersion) <- ensurePayVersionsForTimesheetApproval approver.id entry
     lockPayVersionsForApproval approver.id approvedAt staffPayVersion shiftTypePayVersion
-    entry
-        |> set #isApproved True
-        |> set #staffPayVersionId (Just (unpackId staffPayVersion.id))
-        |> set #shiftTypePayVersionId (Just (unpackId shiftTypePayVersion.id))
-        |> set #approvedAt (Just approvedAt)
-        |> set #approvedByUserId (Just (unpackId approver.id))
-        |> updateRecord
+    withLegacyPayBackfillFixture do
+        entry
+            |> set #isApproved True
+            |> set #legacyPayBackfillPending True
+            |> set #staffPayVersionId (Just (unpackId staffPayVersion.id))
+            |> set #shiftTypePayVersionId (Just (unpackId shiftTypePayVersion.id))
+            |> set #approvedAt (Just approvedAt)
+            |> set #approvedByUserId (Just (unpackId approver.id))
+            |> updateRecord
 
 createLeaveRequestRecord :: (?modelContext :: ModelContext) => Venue -> Staff -> Day -> Day -> Text -> IO LeaveRequest
 createLeaveRequestRecord venue staff startDate endDate leaveStatus =

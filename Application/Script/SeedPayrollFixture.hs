@@ -1,45 +1,13 @@
 module Application.Script.SeedPayrollFixture where
 
 import Application.Script.Prelude
-import Application.Support.PayrollFixtures (ExplorationPayrollFixture (..),
-                                            seedExplorationPayrollFixtureForWeek)
-import Application.Support.Seed.Calendar (currentWeekOffsetForDay,
-                                          weekStartForOffset)
-import qualified Data.Text as Text
+import qualified Application.Script.SeedDev as SeedDev
 import qualified Data.Text.IO as TextIO
-import Data.Time.Calendar (Day)
-import Data.Time.Clock (getCurrentTime, utctDay)
-import System.Exit (exitFailure)
 
+-- The historical export-only fixture uses deliberately unsupported legacy pay
+-- levels for compatibility golden tests. It must never create new approved rows
+-- in a runnable database now that approval seals an exact wage ledger.
 run :: Script
 run = do
-    now <- getCurrentTime
-    let fixtureWeekStart = currentFixtureWeekStart (utctDay now)
-    existingVenue <- query @Venue
-        |> filterWhere (#name, fixtureVenueName)
-        |> fetchOneOrNothing
-
-    when (isJust existingVenue) do
-        TextIO.putStrLn ("Payroll fixture venue already exists: " <> fixtureVenueName)
-        TextIO.putStrLn "Refusing to seed duplicate canonical payroll fixture data."
-        TextIO.putStrLn "Reset the target database first, or remove the existing payroll fixture rows."
-        liftIO exitFailure
-
-    ExplorationPayrollFixture
-        { explorationVenue = seededVenue
-        , explorationAdmin = seededAdmin
-        , explorationApprovedEntries = approvedEntries
-        , explorationPendingEntries = pendingEntries
-        } <- seedExplorationPayrollFixtureForWeek fixtureWeekStart
-
-    TextIO.putStrLn ("Seeded payroll exploration fixture into venue: " <> get #name seededVenue)
-    TextIO.putStrLn ("Admin login: " <> get #email seededAdmin)
-    TextIO.putStrLn ("Week start: " <> tshow fixtureWeekStart)
-    TextIO.putStrLn ("Approved timesheets: " <> tshow (length approvedEntries))
-    TextIO.putStrLn ("Pending timesheets: " <> tshow (length pendingEntries))
-    TextIO.putStrLn "Exports page will now generate the richer payroll fixture data for the current week."
-  where
-    fixtureVenueName = "Payroll Parity Venue"
-
-currentFixtureWeekStart :: Day -> Day
-currentFixtureWeekStart = weekStartForOffset . currentWeekOffsetForDay
+    TextIO.putStrLn "SeedPayrollFixture now delegates to the wage-ledger-safe development seed."
+    SeedDev.run

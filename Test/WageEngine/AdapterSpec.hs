@@ -2,16 +2,22 @@ module Test.WageEngine.AdapterSpec where
 
 import Application.FwcMapd.Sync (storeCuratedMapdAwardData)
 import Application.Helper.Pay (PayTotals (..), TimesheetPayResult (..),
-                               fetchTimesheetPay)
+                               ensurePayVersionsForTimesheetApproval,
+                               fetchTimesheetPay, lockPayVersionsForApproval)
+import Application.Helper.TimesheetPayLedger (backfillApprovedTimesheetPayCalculations,
+                                              loadApprovedTimesheetPayCalculation,
+                                              persistApprovedTimesheetPayCalculation)
 import Application.VenueTime (AwardSegment)
 import Application.WageEngine
 import Application.WageEngine.Adapter
+import Control.Monad (void)
 import Data.IORef
 import qualified Data.Map.Strict as Map
 import Data.Scientific (Scientific)
 import qualified Data.Text as Text
 import qualified Data.Text.Encoding as TextEncoding
 import Data.Time.Calendar (Day, fromGregorian)
+import Data.Time.Clock (getCurrentTime)
 import Data.Time.LocalTime (TimeOfDay (..))
 import qualified Data.UUID as UUID
 import Generated.Types
@@ -173,6 +179,199 @@ databaseTests = aroundAll withDatabaseTestContext do
                     `shouldSatisfy` \case
                         Right calculation -> rateForCalculation calculation == Just 55
                         Left _            -> False
+
+        it "rejects newly approved rows without a sealed active calculation" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Strict approval ledger"
+                approver <- createUserRecord "strict-ledger-approver@example.com" "admin" True
+                staff <- createStaffRecord venue Nothing "Strict" "Ledger"
+                entry <- createTimesheetEntryRecord venue staff (fromGregorian 2026 7 6)
+                approvedAt <- getCurrentTime
+                (staffVersion, shiftVersion) <- ensurePayVersionsForTimesheetApproval approver.id entry
+                ( entry
+                    |> set #isApproved True
+                    |> set #staffPayVersionId (Just (unpackId staffVersion.id))
+                    |> set #shiftTypePayVersionId (Just (unpackId shiftVersion.id))
+                    |> set #approvedAt (Just approvedAt)
+                    |> set #approvedByUserId (Just (unpackId approver.id))
+                    |> updateRecord
+                    |> void
+                    ) `shouldThrow` anyException
+                unchanged <- fetch entry.id
+                unchanged.isApproved `shouldBe` False
+                ( unchanged
+                    |> set #legacyPayBackfillPending True
+                    |> updateRecord
+                    |> void
+                    ) `shouldThrow` anyException
+
+        it "persists exact Award ledger facts with immutable source provenance" $ withContext do
+            withCleanDb do
+                fixture <- loadFwcMapdFixture
+                _ <- storeCuratedMapdAwardData [fixture]
+                venue <- createVenueWithConfig "Immutable Award ledger"
+                level <- query @AwardLevel
+                    |> filterWhere (#classificationFixedId, 243)
+                    |> fetchOne
+                approver <- createUserRecord "ledger-approver@example.com" "admin" True
+                staff <- createStaffRecord venue Nothing "Ledger" "Worker"
+                    >>= updateRecord
+                        . set #employmentBasis Permanent
+                        . set #defaultAwardLevelId (Just level.id)
+                shiftType <- createShiftTypeRecord venue level "Ledger ordinary"
+                entry <- createAdapterEntry venue staff shiftType (fromGregorian 2026 7 6)
+                approvedAt <- getCurrentTime
+                (staffVersion, shiftVersion) <- ensurePayVersionsForTimesheetApproval approver.id entry
+                lockPayVersionsForApproval approver.id approvedAt staffVersion shiftVersion
+                approvedEntry <- withLegacyPayBackfillFixture do
+                    entry
+                        |> set #isApproved True
+                        |> set #legacyPayBackfillPending True
+                        |> set #staffPayVersionId (Just (unpackId staffVersion.id))
+                        |> set #shiftTypePayVersionId (Just (unpackId shiftVersion.id))
+                        |> set #approvedAt (Just approvedAt)
+                        |> set #approvedByUserId (Just (unpackId approver.id))
+                        |> updateRecord
+
+                persisted <- persistApprovedTimesheetPayCalculation approvedEntry >>= expectRight
+                segments <- query @TimesheetPayTimeSegment
+                    |> filterWhere (#timesheetPayCalculationId, unpackId persisted.id)
+                    |> orderBy #ordinal
+                    |> fetch
+                components <- query @TimesheetPayEarningsComponent
+                    |> filterWhere (#timesheetPayCalculationId, unpackId persisted.id)
+                    |> orderBy #ordinal
+                    |> fetch
+
+                persisted.calculationVersion `shouldBe` "hospitality-award-v1"
+                persisted.calculationSource `shouldBe` "hospitality_award"
+                persisted.rateBookVersion `shouldSatisfy` maybe False (not . Text.null)
+                fmap (.paidTimeKind) segments `shouldBe` ["worked"]
+                fmap (.quantity) components `shouldBe` [4]
+                components `shouldSatisfy` all (isJust . (.sourceRateIdentity))
+                activeEntry <- approvedEntry
+                    |> set #activePayCalculationId (Just persisted.id)
+                    |> set #legacyPayBackfillPending False
+                    |> updateRecord
+                frozenBefore <- loadApprovedTimesheetPayCalculation activeEntry >>= expectRight
+
+                sourceRate <- query @AwardLevelBaseRate
+                    |> filterWhere (#awardLevelId, unpackId level.id)
+                    |> filterWhere (#employmentBasis, Permanent)
+                    |> fetchOne
+                _ <- sourceRate |> set #hourlyRate (sourceRate.hourlyRate + 100) |> updateRecord
+                frozenComponents <- query @TimesheetPayEarningsComponent
+                    |> filterWhere (#timesheetPayCalculationId, unpackId persisted.id)
+                    |> orderBy #ordinal
+                    |> fetch
+                fmap (.exactAmount) frozenComponents `shouldBe` fmap (.exactAmount) components
+                fmap (.ratePerUnit) frozenComponents `shouldBe` fmap (.ratePerUnit) components
+                frozenAfter <- loadApprovedTimesheetPayCalculation activeEntry >>= expectRight
+                frozenAfter `shouldBe` frozenBefore
+                let component = fromMaybe (error "expected frozen component") (listToMaybe components)
+                ( newRecord @TimesheetPayEarningsComponent
+                    |> set #timesheetPayCalculationId (unpackId persisted.id)
+                    |> set #ordinal 99
+                    |> set #quantity component.quantity
+                    |> set #unitType component.unitType
+                    |> set #ratePerUnit component.ratePerUnit
+                    |> set #exactAmount component.exactAmount
+                    |> set #sourceCondition component.sourceCondition
+                    |> set #calculationSource component.calculationSource
+                    |> set #sourceRateIdentity component.sourceRateIdentity
+                    |> createRecord
+                    |> void
+                    ) `shouldThrow` anyException
+
+        it "persists imported pay as external_imported_pay_item without an Award book" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Immutable imported ledger"
+                approver <- createUserRecord "imported-ledger-approver@example.com" "admin" True
+                importedItem <- createImportedXeroPayItemRecord venue approver "Imported ledger item" "imported-ledger-item" 55
+                staff <- createStaffRecord venue Nothing "Imported" "Worker"
+                    >>= updateRecord . set #importedXeroPayItemId (Just importedItem.id)
+                shiftType <- newRecord @ShiftType
+                    |> set #venueId (unpackId venue.id)
+                    |> set #name "Imported ledger shift"
+                    |> set #sortOrder 0
+                    |> set #overrideAwardLevelId Nothing
+                    |> set #isActive True
+                    |> createRecord
+                entry <- createAdapterEntry venue staff shiftType (fromGregorian 2026 7 6)
+                approvedAt <- getCurrentTime
+                (staffVersion, shiftVersion) <- ensurePayVersionsForTimesheetApproval approver.id entry
+                lockPayVersionsForApproval approver.id approvedAt staffVersion shiftVersion
+                approvedEntry <- withLegacyPayBackfillFixture do
+                    entry
+                        |> set #isApproved True
+                        |> set #legacyPayBackfillPending True
+                        |> set #staffPayVersionId (Just (unpackId staffVersion.id))
+                        |> set #shiftTypePayVersionId (Just (unpackId shiftVersion.id))
+                        |> set #approvedAt (Just approvedAt)
+                        |> set #approvedByUserId (Just (unpackId approver.id))
+                        |> updateRecord
+
+                persisted <- persistApprovedTimesheetPayCalculation approvedEntry >>= expectRight
+                components <- query @TimesheetPayEarningsComponent
+                    |> filterWhere (#timesheetPayCalculationId, unpackId persisted.id)
+                    |> fetch
+
+                persisted.calculationSource `shouldBe` "external_imported_pay_item"
+                persisted.rateBookVersion `shouldBe` Nothing
+                fmap (.calculationSource) components `shouldBe` ["external_imported_pay_item"]
+                fmap (.sourceCondition) components `shouldBe` ["external_imported_pay_item:" <> tshow (unpackId importedItem.id)]
+
+        it "backfills all-or-nothing and is idempotent" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Ledger backfill"
+                approver <- createUserRecord "ledger-backfill@example.com" "admin" True
+                importedItem <- createImportedXeroPayItemRecord venue approver "Backfill import" "backfill-import" 42
+                shiftType <- newRecord @ShiftType
+                    |> set #venueId (unpackId venue.id)
+                    |> set #name "Backfill shift"
+                    |> set #sortOrder 0
+                    |> set #overrideAwardLevelId Nothing
+                    |> set #isActive True
+                    |> createRecord
+                validStaff <- createStaffRecord venue Nothing "Valid" "Backfill"
+                    >>= updateRecord . set #importedXeroPayItemId (Just importedItem.id)
+                invalidStaff <- createStaffRecord venue Nothing "Invalid" "Backfill"
+                validEntry <- createAdapterEntry venue validStaff shiftType (fromGregorian 2026 7 6)
+                invalidEntry <- createAdapterEntry venue invalidStaff shiftType (fromGregorian 2026 7 7)
+                approvedAt <- getCurrentTime
+                forM_ [validEntry, invalidEntry] \entry -> do
+                    (staffVersion, shiftVersion) <- ensurePayVersionsForTimesheetApproval approver.id entry
+                    lockPayVersionsForApproval approver.id approvedAt staffVersion shiftVersion
+                    void $ withLegacyPayBackfillFixture do
+                        entry
+                            |> set #isApproved True
+                            |> set #legacyPayBackfillPending True
+                            |> set #staffPayVersionId (Just (unpackId staffVersion.id))
+                            |> set #shiftTypePayVersionId (Just (unpackId shiftVersion.id))
+                            |> set #approvedAt (Just approvedAt)
+                            |> set #approvedByUserId (Just (unpackId approver.id))
+                            |> updateRecord
+
+                failed <- backfillApprovedTimesheetPayCalculations
+                failed `shouldSatisfy` \case
+                    Left [(entryId, _)] -> entryId == unpackId invalidEntry.id
+                    _ -> False
+                query @TimesheetPayCalculation |> fetchCount `shouldReturn` 0
+
+                currentInvalidStaff <- fetch invalidStaff.id
+                _ <- currentInvalidStaff
+                    |> set #importedXeroPayItemId (Just importedItem.id)
+                    |> updateRecord
+                invalidStaffVersion <- query @StaffPayVersion
+                    |> filterWhere (#staffId, unpackId invalidStaff.id)
+                    |> fetchOne
+                _ <- invalidStaffVersion
+                    |> set #importedXeroPayItemId (Just importedItem.id)
+                    |> updateRecord
+
+                backfillApprovedTimesheetPayCalculations `shouldReturn` Right 2
+                backfillApprovedTimesheetPayCalculations `shouldReturn` Right 0
+                query @TimesheetPayCalculation |> fetchCount `shouldReturn` 2
 
         it "bulk-loads exact #264 provenance once and matches SQL only for approved parity scenarios" $ withContext do
             withCleanDb do

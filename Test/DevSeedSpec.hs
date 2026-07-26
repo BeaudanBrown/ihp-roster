@@ -259,7 +259,9 @@ tests = aroundAll withDatabaseTestContext do
                 get #status fixture.sandboxInvitation `shouldBe` InvitationStatusEnumPending
                 get #email fixture.sandboxInvitation `shouldBe` "pending-invite@example.com"
 
-                -- Seed data must not fabricate synced FWC MAPD or award-rate rows.
+                -- Approved dev timesheets carry a complete deterministic synthetic
+                -- rate authority, without pretending a provider award/classification
+                -- sync envelope exists.
 
                 fwcAwardCount <- query @FwcMapdAward |> fetchCount
                 fwcClassificationCount <- query @FwcMapdClassification |> fetchCount
@@ -275,13 +277,13 @@ tests = aroundAll withDatabaseTestContext do
 
                 fwcAwardCount `shouldBe` 0
                 fwcClassificationCount `shouldBe` 0
-                fwcPayRateCount `shouldBe` 0
-                fwcPenaltyRateCount `shouldBe` 0
-                fwcWageAllowanceCount `shouldBe` 0
-                awardLevelCount `shouldBe` 2
-                awardLevelBaseRateCount `shouldBe` 0
-                awardLevelPenaltyRateCount `shouldBe` 0
-                awardTimePenaltyAllowanceCount `shouldBe` 0
+                fwcPayRateCount `shouldBe` 7
+                fwcPenaltyRateCount `shouldBe` 7
+                fwcWageAllowanceCount `shouldBe` 2
+                awardLevelCount `shouldBe` 7
+                awardLevelBaseRateCount `shouldBe` 14
+                awardLevelPenaltyRateCount `shouldBe` 42
+                awardTimePenaltyAllowanceCount `shouldBe` 2
                 staffPayVersionCount `shouldSatisfy` (> 0)
                 shiftTypePayVersionCount `shouldSatisfy` (> 0)
 

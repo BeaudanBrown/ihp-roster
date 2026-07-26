@@ -9,11 +9,13 @@ import Application.Support
 import Application.VenueTime (melbourneTimeZoneName)
 import Application.VenueTime.Model
 import Config
+import Control.Exception (bracket)
 import Data.Time.Calendar (Day, addDays, fromGregorian)
 import Data.Time.Clock (UTCTime (..), secondsToDiffTime)
 import Data.Time.LocalTime (TimeOfDay (..))
 import Generated.Types
 import IHP.ControllerPrelude
+import IHP.ModelSupport (sqlExecDiscardResult)
 import IHP.Prelude
 import qualified IHP.Prelude as Prelude
 
@@ -99,15 +101,27 @@ createAndApproveEntry venue staff workedOn _snapshot admin approvedAt transforms
         |> updateRecord
     (staffPayVersion, shiftTypePayVersion) <- ensurePayVersionsForTimesheetApproval admin.id updatedEntry
     lockPayVersionsForApproval admin.id approvedAt staffPayVersion shiftTypePayVersion
-    updatedEntry
-        |> approveEntryWithVersions staffPayVersion shiftTypePayVersion admin approvedAt
-        |> updateRecord
+    withLegacyPayBackfillFixture do
+        updatedEntry
+            |> approveEntryWithVersions staffPayVersion shiftTypePayVersion admin approvedAt
+            |> updateRecord
+
+-- Compatibility fixtures intentionally model pre-ledger approved exports with
+-- legacy unsupported pay-level IDs. Production and dev seed approvals never use
+-- this test-only migration exemption.
+withLegacyPayBackfillFixture :: (?modelContext :: ModelContext) => IO value -> IO value
+withLegacyPayBackfillFixture action =
+    bracket
+        (sqlExecDiscardResult "ALTER TABLE timesheet_entries DISABLE TRIGGER prevent_legacy_pay_backfill_grant" ())
+        (const (sqlExecDiscardResult "ALTER TABLE timesheet_entries ENABLE TRIGGER prevent_legacy_pay_backfill_grant" ()))
+        (const action)
 
 approveEntryWithVersions :: StaffPayVersion -> ShiftTypePayVersion -> User -> UTCTime -> TimesheetEntry -> TimesheetEntry
 approveEntryWithVersions staffPayVersion shiftTypePayVersion admin approvedAt =
     set #staffPayVersionId (Just (unpackId staffPayVersion.id))
         . set #shiftTypePayVersionId (Just (unpackId shiftTypePayVersion.id))
         . set #isApproved True
+        . set #legacyPayBackfillPending True
         . set #approvedAt (Just approvedAt)
         . set #approvedByUserId (Just (unpackId admin.id))
 

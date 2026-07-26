@@ -98,6 +98,8 @@ resetApprovalOnEdit wasApproved entry
     | wasApproved =
         entry
             |> set #isApproved False
+            |> set #activePayCalculationId Nothing
+            |> set #legacyPayBackfillPending False
             |> set #staffPayVersionId Nothing
             |> set #shiftTypePayVersionId Nothing
             |> set #approvedAt Nothing

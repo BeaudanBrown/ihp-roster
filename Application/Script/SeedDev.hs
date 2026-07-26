@@ -2,6 +2,7 @@ module Application.Script.SeedDev where
 
 import Application.Helper.Controller (unsafeEnumFromText)
 import Application.Helper.ShiftTypeColours (blankShiftTypeColourKey)
+import Application.Helper.TimesheetPayLedger (backfillApprovedTimesheetPayCalculations)
 import Application.Script.Prelude
 import Application.Support.DevFixtures (DevSeedFixture (..),
                                         seedDevelopmentFixtureWithScenarioForWeekAndLeaveMonth)
@@ -43,6 +44,11 @@ run = do
         , currentWeekOffset = currentWeekOffset
         , scenario = scenario
         } <- seedDevelopmentFixtureWithScenarioForWeekAndLeaveMonth scenario fixtureWeekStart (utctDay now)
+
+    backfillResult <- backfillApprovedTimesheetPayCalculations
+    case backfillResult of
+        Left failures -> fail (Text.unpack ("Dev seed pay-ledger backfill failed: " <> tshow failures))
+        Right _ -> pure ()
 
     actualStaffCount <-
         query @Staff

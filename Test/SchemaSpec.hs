@@ -435,6 +435,25 @@ tests = describe "Schema" do
         automationMigrationSqlText `shouldSatisfy` Text.isInfixOf "ADD COLUMN IF NOT EXISTS source_roster_slot_id UUID DEFAULT NULL"
         automationMigrationSqlText `shouldSatisfy` Text.isInfixOf "CREATE UNIQUE INDEX IF NOT EXISTS idx_timesheet_entries_source_roster_slot"
 
+    it "stores immutable approved pay facts without persisted rounded totals" do
+        schemaSqlText <- TextIO.readFile "Application/Schema.sql"
+        migrationSqlText <- TextIO.readFile "Application/Migration/1785240000.sql"
+        let (_, ledgerAndFollowing) = Text.breakOn "CREATE TABLE timesheet_pay_calculations" schemaSqlText
+            (ledgerSchema, _) = Text.breakOn "CREATE TABLE timesheet_entry_versions" ledgerAndFollowing
+        ledgerSchema `shouldSatisfy` Text.isInfixOf "CREATE TABLE timesheet_pay_time_segments"
+        ledgerSchema `shouldSatisfy` Text.isInfixOf "CREATE TABLE timesheet_pay_earnings_components"
+        ledgerSchema `shouldSatisfy` Text.isInfixOf "exact_amount NUMERIC NOT NULL"
+        ledgerSchema `shouldNotSatisfy` Text.isInfixOf "total_amount"
+        ledgerSchema `shouldNotSatisfy` Text.isInfixOf "rounded_amount"
+        migrationSqlText `shouldSatisfy` Text.isInfixOf "ADD COLUMN active_pay_calculation_id UUID DEFAULT NULL"
+        migrationSqlText `shouldSatisfy` Text.isInfixOf "legacy_pay_backfill_pending BOOLEAN DEFAULT TRUE NOT NULL"
+        migrationSqlText `shouldSatisfy` Text.isInfixOf "ALTER COLUMN legacy_pay_backfill_pending SET DEFAULT FALSE"
+        migrationSqlText `shouldSatisfy` Text.isInfixOf "legacy pay backfill exemption cannot be granted after migration"
+        migrationSqlText `shouldSatisfy` Text.isInfixOf "timesheet approval requires a sealed same-entry active pay calculation"
+        migrationSqlText `shouldSatisfy` Text.isInfixOf "enforce_timesheet_pay_child_immutability"
+        migrationSqlText `shouldNotSatisfy` Text.isInfixOf "DROP TABLE"
+        migrationSqlText `shouldNotSatisfy` Text.isInfixOf "DROP COLUMN"
+
     it "adds production billing persistence without destructive data changes" do
         migrationSqlText <- TextIO.readFile "Application/Migration/1784761930.sql"
         migrationSqlText `shouldSatisfy` Text.isInfixOf "CREATE TABLE billing_checkout_attempts"
@@ -1053,8 +1072,10 @@ tests = describe "Schema" do
         it "resetApprovalOnEdit clears approval when wasApproved is True" do
             let entry = newRecord @TimesheetEntry
                     |> set #isApproved True
+                    |> set #legacyPayBackfillPending True
                 result = resetApprovalOnEdit True entry
             result.isApproved `shouldBe` False
+            result.legacyPayBackfillPending `shouldBe` False
             result.approvedAt `shouldBe` Nothing
             result.approvedByUserId `shouldBe` Nothing
 

@@ -14,9 +14,12 @@ calculation facts, `RateBook` owns the opaque validated rate book and its valida
 derives final buckets/lines.
 
 `Application.WageEngine.Adapter` bulk-loads projected database facts into that
-interface. The existing `Application.Helper.Pay.fetchTimesheetPay` and
-`fetchTimesheetPayResultsForEntries` SQL seam remains authoritative until cutover
-issue #239; no production caller uses the Haskell result yet.
+interface. Approval persists the Haskell result through
+`Application.Helper.TimesheetPayLedger`; approved exact facts can be reconstructed
+through `loadApprovedTimesheetPayCalculation` without consulting mutable rate
+sources. The existing `Application.Helper.Pay.fetchTimesheetPay` and
+`fetchTimesheetPayResultsForEntries` SQL compatibility seam remains authoritative
+for legacy export/read models until cutover issue #239.
 
 ## Validated rate book
 
@@ -120,8 +123,11 @@ performs no per-entry database query. Partial projected books return
 `InvalidProjectedRateBook` for Award calculation, while explicit imported overrides
 need no Award book; an unvalidated book can never reach `calculateTimesheetPay`.
 Callers attach gross `Application.VenueTime` Award segments and the optional opaque
-recorded-break interval through `calculationInputFromLoadedContext`. Issue #274 owns
-persistence and controller/UI integration of this implemented pure authority.
+recorded-break interval through `calculationInputFromLoadedContext`. Issue #234 owns immutable approval persistence, lifecycle, and deployment
+backfill. Approval serializes on one narrow `SELECT ... FOR UPDATE` seam because
+IHP QueryBuilder has no row-lock combinator; all wage/source loading remains
+QueryBuilder-based. Issue #239 owns switching legacy export/read models to this
+exact ledger.
 
 ## Verification
 
