@@ -1,3 +1,6 @@
+-- Provider-catalogue projection only. This module may describe Xero pay-item
+-- keys and rates, but must never calculate per-entry quantities or totals;
+-- those belong exclusively to Application.WageEvaluation and sealed ledgers.
 module Application.Helper.XeroPayItems
     ( deriveXeroPayItemRequirements
     , deriveXeroLocalEarningsBuckets

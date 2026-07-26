@@ -173,4 +173,6 @@ if [[ -n "$scenario_duplicates" ]]; then
     fail $'duplicate primary wage matrix scenario ids:\n'"$scenario_duplicates"
 fi
 
+bash ./bin/wage-authority-check
+
 echo "doc-drift-check: ok"

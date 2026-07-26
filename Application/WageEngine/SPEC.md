@@ -21,20 +21,44 @@ overrides bypass FWC/DataVic freshness only after their persisted imported pay i
 Legacy approved-ledger backfill continues to ignore source age while requiring complete
 rate and holiday calculation facts.
 
+`Application.WageEvaluation` is the sole production caller of
+`calculateTimesheetPay`. Its typed keys distinguish persisted `Timesheet` subjects
+from projected `RosterSlot` subjects. Every unsealed subject carries venue, staff,
+shift type, immutable authoritative boundaries, and optional pay-version ids;
+there are no temporary database rows. Draft mode uses current staff/shift facts,
+approval mode requires immutable pay-version ids, and historical-backfill mode
+also requires those ids while source-age policy remains intentionally disabled.
+Adapter, segmentation, boundary, missing-version, and pure-engine failures remain
+keyed and entry-local. Complete failures are never converted to zero pay.
+
 `Application.WageEngine.Adapter` bulk-loads projected database facts into that
-interface. Approval persists the Haskell result through
-`Application.Helper.TimesheetPayLedger`; approved exact facts can be reconstructed
+interface. It supports persistence-independent subject requests as well as legacy
+entry requests. One subject batch reads venue, staff, shift type, optional immutable
+versions, imported items, levels, rates, additions, and holidays once per relation;
+query count is bounded independently of batch size. Approval persists the Haskell
+result through `Application.Helper.TimesheetPayLedger`; approved exact facts can be reconstructed
 without consulting mutable rate sources. Final workflows use
 `loadApprovedTimesheetPayCalculations`, which reads calculations, paid-time segments,
 and earnings components in three bounded queries regardless of entry count; the
-single-entry helper delegates to that bulk seam. Draft callers calculate through the adapter and pure engine. Approved/final callers
+single-entry helper delegates to that bulk seam. Draft callers calculate through `Application.WageEvaluation`. Approved/final callers
 load sealed ledger facts; cutover #239 retired the legacy SQL calculator and decoder
 seam.
+
+Production pay-module classification is explicit: `Application.WageEvaluation` is
+canonical unsealed calculation; `TimesheetPayLedger` is sealed-ledger persistence and
+consumption; `WageSourceEnforcement` applies draft/final source policy and selects
+sealed versus unsealed facts; `WagePublication`, exports, and Xero Timesheets are
+publication transforms/consumers; `Application.Helper.XeroPayItems` is provider
+catalogue projection only; roster wage helpers aggregate and format canonical
+outcomes; support/dev fixtures and migration SQL are fixture/history evidence, not
+runtime wage authorities.
 
 ## Wage-source policy
 
 `Application.WageSourcePolicy` is the pure provider-neutral boundary for draft and
-final source-readiness decisions. Callers inject the current UTC time, venue pay-week
+final source-readiness decisions. `Application.WageSourceFacts` is the one shared
+bounded database adapter used by canonical unsealed evaluation and sealed-workflow
+enforcement, preventing roster and Timesheet source-policy drift. Callers inject the current UTC time, venue pay-week
 boundary, applicable DataVic target years, and candidate metadata. Only complete
 successes from the validated MAPD snapshot boundary at or before the injected clock
 count for FWC freshness. DataVic candidates count only when they represent authoritative

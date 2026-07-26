@@ -13,17 +13,17 @@ module Application.WageSourceEnforcement
 
 import Application.Helper.Controller.Input (parseUUIDText)
 import Application.Helper.TimesheetPayLedger (loadApprovedTimesheetPayCalculations)
-import Application.Helper.WeekBoundaries (startOfWeekFor)
 import Application.VenueTime.Model
 import Application.WageEngine
-import Application.WageEngine.Adapter
+import Application.WageEvaluation
+import Application.WageSourceFacts
 import Application.WageSourcePolicy
 import qualified Data.Bifunctor as Bifunctor
 import qualified Data.List as List
 import qualified Data.Map.Strict as Map
 import qualified Data.Set as Set
 import qualified Data.Text as Text
-import Data.Time.Calendar (Day, DayOfWeek (..), addDays, toGregorian)
+import Data.Time.Calendar (Day, addDays, toGregorian)
 import Data.Time.Clock (getCurrentTime)
 import Data.Traversable (traverse)
 import Generated.Types
@@ -43,13 +43,6 @@ data WageEntryOutcome = WageEntryOutcome
     }
     deriving (Eq, Show)
 
-data WageSourceFacts = WageSourceFacts
-    { factFwcSnapshots                   :: ![FwcSnapshot]
-    , factDataVicSnapshots               :: ![DataVicSnapshot]
-    , factVenueConfigs                   :: !(Map.Map UUID VenueConfig)
-    , factValidImportedPayItemIdsByVenue :: !(Map.Map UUID (Set.Set UUID))
-    }
-
 evaluateDraftWageEntries :: (?modelContext :: ModelContext) => [TimesheetEntry] -> IO [WageEntryOutcome]
 evaluateDraftWageEntries entries = do
     now <- getCurrentTime
@@ -60,8 +53,20 @@ evaluateDraftWageEntriesAt clock entries = do
     facts <- loadWageSourceFacts entries
     let (approvedEntries, draftEntries) = List.partition (.isApproved) entries
     approvedCalculations <- loadApprovedTimesheetPayCalculations approvedEntries
-    draftContexts <- if null draftEntries then pure Map.empty else loadWageEngineContextResultsForEntries draftEntries
-    pure (map (evaluateEntry clock facts approvedCalculations draftContexts) entries)
+    let draftSubjects = map (\entry -> (unpackId entry.id, timesheetWageSubject entry)) draftEntries
+        validDraftSubjects = [subject | (_, Right subject) <- draftSubjects]
+        draftSubjectErrors = Map.fromList
+            [ (entryId, Left (renderWageEvaluationError err))
+            | (entryId, Left err) <- draftSubjects
+            ]
+    evaluatedDrafts <- if null validDraftSubjects
+        then pure Map.empty
+        else evaluateUnsealedWages DraftWageEvaluation validDraftSubjects
+    let draftCalculations = draftSubjectErrors <> Map.fromList
+            [ (entryId, Bifunctor.first renderWageEvaluationError result)
+            | (TimesheetSubject entryId, result) <- Map.toList evaluatedDrafts
+            ]
+    pure (map (evaluateEntry clock facts approvedCalculations draftCalculations) entries)
 
 enforceFinalWageEntries :: (?modelContext :: ModelContext) => [TimesheetEntry] -> IO (Either [WageEntryFailure] [WageCalculation])
 enforceFinalWageEntries entries = do
@@ -95,7 +100,7 @@ evaluateEntry ::
     PolicyClock ->
     WageSourceFacts ->
     Map.Map UUID (Either Text (Maybe WageCalculation)) ->
-    Map.Map UUID (Either WageEngineAdapterError LoadedCalculationContext) ->
+    Map.Map UUID (Either Text WageCalculation) ->
     TimesheetEntry ->
     WageEntryOutcome
 evaluateEntry clock facts approvedCalculations draftContexts entry =
@@ -118,7 +123,7 @@ evaluateEntry clock facts approvedCalculations draftContexts entry =
 
 calculateEntryForWorkflow ::
     Map.Map UUID (Either Text (Maybe WageCalculation)) ->
-    Map.Map UUID (Either WageEngineAdapterError LoadedCalculationContext) ->
+    Map.Map UUID (Either Text WageCalculation) ->
     TimesheetEntry ->
     Either Text WageCalculation
 calculateEntryForWorkflow approvedCalculations draftContexts entry
@@ -128,21 +133,19 @@ calculateEntryForWorkflow approvedCalculations draftContexts entry
             Just (Left message) -> Left message
             Just (Right Nothing) -> Left "Approved timesheet entry has no sealed pay calculation."
             Just (Right (Just result)) -> Right result
-    | otherwise = do
-        context <- case Map.lookup entryId draftContexts of
-            Nothing -> Left "Timesheet calculation context was not loaded."
-            Just (Left adapterError) -> Left ("Cannot calculate timesheet pay: " <> tshow [adapterError])
-            Just (Right loadedContext) -> Right loadedContext
-        boundaries <- Bifunctor.first (\err -> "Invalid timesheet boundaries: " <> tshow err) (timesheetEntryBoundaries entry)
-        segments <- Bifunctor.first (\err -> "Cannot segment timesheet: " <> tshow err) (authoritativeAwardSegments boundaries)
-        Bifunctor.first
-            (\err -> "Cannot calculate timesheet pay: " <> tshow err)
-            (calculateTimesheetPay (calculationInputFromLoadedContext context segments (authoritativeUnpaidMealBreak boundaries)))
+    | otherwise =
+        case Map.lookup entryId draftContexts of
+            Nothing     -> Left "Timesheet calculation was not loaded."
+            Just result -> result
   where
     entryId = unpackId entry.id
 
 sourceRequirementForEntry :: WageSourceFacts -> TimesheetEntry -> WageCalculation -> Either Text SourceRequirement
 sourceRequirementForEntry facts entry calculation =
+    sourceRequirementForVenue facts entry.venueId calculation
+
+sourceRequirementForVenue :: WageSourceFacts -> UUID -> WageCalculation -> Either Text SourceRequirement
+sourceRequirementForVenue facts venueId calculation =
     case calculationSourceRequirement calculation of
         HospitalityAwardSources -> Right HospitalityAwardSources
         ImportedXeroOverride ->
@@ -155,7 +158,7 @@ sourceRequirementForEntry facts entry calculation =
                 uniqueImportedIds = List.nub importedIds
              in if not (null uniqueImportedIds)
                     && all
-                        (\itemId -> Set.member itemId (Map.findWithDefault Set.empty entry.venueId facts.factValidImportedPayItemIdsByVenue))
+                        (\itemId -> Set.member itemId (Map.findWithDefault Set.empty venueId facts.factValidImportedPayItemIdsByVenue))
                         uniqueImportedIds
                     then Right ImportedXeroOverride
                     else Left "Imported Xero override pay item is missing, archived, or belongs to another venue."
@@ -168,22 +171,10 @@ calculationSourceRequirement calculation
 
 sourceDiagnostics :: PolicyClock -> WageSourceFacts -> TimesheetEntry -> SourceRequirement -> [SourceDiagnostic]
 sourceDiagnostics clock facts entry requirement =
-    case decision.finalDecision of
-        FinalSourcesReady               -> []
-        FinalSourceBlock allDiagnostics -> allDiagnostics
-  where
-    venueConfig = Map.lookup (entry.venueId) facts.factVenueConfigs
-    weekStartsOnIndex = maybe 1 (.rosterWeekStartsOn) venueConfig
-    workedOn = timesheetEntryWorkedOn entry
-    policyInput = WageSourcePolicyInput
-        { sourceRequirement = requirement
-        , payWeekStart = startOfWeekFor weekStartsOnIndex workedOn
-        , venueWeekStartsOn = weekdayIndexToDayOfWeek weekStartsOnIndex
-        , applicableDataVicTargetYears = entryTargetYears entry
-        , fwcSnapshots = facts.factFwcSnapshots
-        , dataVicSnapshots = facts.factDataVicSnapshots
-        }
-    decision = evaluateWageSourcePolicy clock policyInput
+    sourceDiagnosticsFor clock facts entry.venueId (timesheetEntryWorkedOn entry) (entryTargetYears entry) requirement
+
+sourceDiagnosticsFor :: PolicyClock -> WageSourceFacts -> UUID -> Day -> Set.Set Integer -> SourceRequirement -> [SourceDiagnostic]
+sourceDiagnosticsFor = sourceDiagnosticsForFacts
 
 entryTargetYears :: TimesheetEntry -> Set.Set Integer
 entryTargetYears entry =
@@ -197,85 +188,13 @@ entryTargetYears entry =
          in if endDay < startDay then addDays 1 startDay else endDay
 
 loadWageSourceFacts :: (?modelContext :: ModelContext) => [TimesheetEntry] -> IO WageSourceFacts
-loadWageSourceFacts entries = do
-    syncRuns <- query @FwcMapdSyncRun |> orderByAsc #startedAt |> fetch
-    let venueIds = List.nub (map (.venueId) entries)
-    venueConfigs <- if null venueIds
-        then pure []
-        else query @VenueConfig |> filterWhereIn (#venueId, venueIds) |> fetch
-    validImportedPayItems <- if null venueIds
-        then pure []
-        else query @XeroImportedPayItem
-            |> filterWhereIn (#venueId, venueIds)
-            |> filterWhere (#archivedAt, Nothing)
-            |> fetch
-    let targetYears = Set.unions (map entryTargetYears entries)
-    holidays <- if Set.null targetYears
-        then pure []
-        else query @PublicHoliday
-            |> filterWhere (#jurisdiction, "VIC" :: Text)
-            |> filterWhere (#isRegional, False)
-            |> fetch
-    pure WageSourceFacts
-        { factFwcSnapshots = map fwcSnapshotFromRun syncRuns
-        , factDataVicSnapshots = dataVicSnapshotsFromHolidays targetYears holidays
-        , factVenueConfigs = Map.fromList [(config.venueId, config) | config <- venueConfigs]
-        , factValidImportedPayItemIdsByVenue =
-            Map.fromListWith Set.union
-                [ (item.venueId, Set.singleton (unpackId item.id))
-                | item <- validImportedPayItems
-                ]
-        }
-
-fwcSnapshotFromRun :: FwcMapdSyncRun -> FwcSnapshot
-fwcSnapshotFromRun run =
-    FwcSnapshot
-        { fwcSnapshotMetadata = SourceSnapshot
-            { completedAt = fromMaybe run.startedAt run.finishedAt
-            , status = if completeHospitalitySuccess then CompleteSuccess else statusFromRun run.status
-            }
-        , provenance = if completeHospitalitySuccess then ValidatedMapdSnapshot else UnvalidatedFwcCandidate
-        }
-  where
-    completeHospitalitySuccess = run.status == "succeeded" && 9 `elem` run.syncedAwardFixedIds
-
-statusFromRun :: Text -> SnapshotStatus
-statusFromRun "failed"    = FailedCandidate
-statusFromRun "succeeded" = IncompleteCandidate
-statusFromRun _           = IncompleteCandidate
-
-dataVicSnapshotsFromHolidays :: Set.Set Integer -> [PublicHoliday] -> [DataVicSnapshot]
-dataVicSnapshotsFromHolidays targetYears holidays =
-    [ DataVicSnapshot
-        { targetYear = year
-        , snapshot = SourceSnapshot importedAt CompleteSuccess
-        , coverage = StatewideVictoria
-        }
-    | (year, importedAt) <- Set.toAscList successfulImports
-    ]
-  where
-    successfulImports =
-        Set.fromList
-            [ (year, importedAt)
-            | holiday <- holidays
-            , let year = dayYear holiday.holidayDate
-            , Set.member year targetYears
-            , importedAt <- maybeToList holiday.importedAt
-            ]
+loadWageSourceFacts entries =
+    loadWageSourceFactsFor
+        (List.nub (map (.venueId) entries))
+        (Set.unions (map entryTargetYears entries))
 
 dayYear :: Day -> Integer
 dayYear day = let (year, _, _) = toGregorian day in year
-
-weekdayIndexToDayOfWeek :: Int -> DayOfWeek
-weekdayIndexToDayOfWeek = \case
-    0 -> Sunday
-    1 -> Monday
-    2 -> Tuesday
-    3 -> Wednesday
-    4 -> Thursday
-    5 -> Friday
-    6 -> Saturday
-    _ -> Monday
 
 renderWageEntryFailures :: Text -> [WageEntryFailure] -> Text
 renderWageEntryFailures prefix failures =

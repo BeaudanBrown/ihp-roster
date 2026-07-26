@@ -3,13 +3,17 @@ module Test.WageEngine.AdapterSpec where
 import Application.FwcMapd.Sync (storeCuratedMapdAwardData)
 import Application.Helper.Pay (ensurePayVersionsForTimesheetApproval,
                                lockPayVersionsForApproval)
+import Application.Helper.RosterTimesheetBoundaries (projectRosterSlotTimesheetBoundaries)
 import Application.Helper.TimesheetPayLedger (backfillApprovedTimesheetPayCalculations,
                                               loadApprovedTimesheetPayCalculation,
                                               loadApprovedTimesheetPayCalculations,
                                               persistApprovedTimesheetPayCalculation)
+import Application.Support.WageSourceFixtures (ensureFreshWageSourceFacts)
 import Application.VenueTime (AwardSegment)
+import Application.VenueTime.Model
 import Application.WageEngine
 import Application.WageEngine.Adapter
+import Application.WageEvaluation
 import qualified Control.Exception as Exception
 import Control.Monad (replicateM, void)
 import Data.IORef
@@ -186,6 +190,73 @@ databaseTests = aroundAll withDatabaseTestContext do
                         Right calculation -> rateForCalculation calculation == Just 55
                         Left _            -> False
 
+        it "gives a projected one-hour casual roster slot the identical canonical minimum as its draft Timesheet" $ withContext do
+            withCleanDb do
+                fixture <- loadFwcMapdFixture
+                _ <- storeCuratedMapdAwardData [fixture]
+                venue <- createVenueWithConfig "Roster wage parity"
+                level <- query @AwardLevel |> filterWhere (#classificationFixedId, 243) |> fetchOne
+                staff <- createStaffRecord venue Nothing "Casual" "Parity"
+                    >>= updateRecord
+                        . set #employmentBasis Casual
+                        . set #defaultAwardLevelId (Just level.id)
+                shiftType <- createShiftTypeRecord venue level "Roster parity"
+                rosterWeek <- createRosterWeekRecord venue 0 True
+                rosterDay <- createRosterDayRecord rosterWeek 0
+                slotName <- createSlotNameRecord venue "Ordinary"
+                slot <- createRosterSlotRecord rosterDay slotName (Just staff) 0
+                let workedOn = fromGregorian 2026 7 6
+                    boundaries = either (Prelude.error . Text.unpack . tshow) Prelude.id $
+                        resolveShiftBoundaries "Australia/Melbourne" ShiftBoundaryInput
+                            { shiftBoundaryDate = workedOn
+                            , shiftBoundaryStartTime = TimeOfDay 9 0 0
+                            , shiftBoundaryStartOccurrence = Nothing
+                            , shiftBoundaryEndTime = TimeOfDay 10 0 0
+                            , shiftBoundaryEndOccurrence = Nothing
+                            , shiftBoundaryBreak = Nothing
+                            }
+                slot <- slot
+                    |> set #shiftTypeId (Just (unpackId shiftType.id))
+                    |> applyRosterSlotBoundaries boundaries
+                    |> updateRecord
+                entry <- createAdapterEntry venue staff shiftType workedOn
+                    >>= updateRecord . applyTimesheetEntryBoundaries boundaries
+                rosterSubject <- expectRight (rosterSlotWageSubject (unpackId venue.id) slot)
+                timesheetSubject <- expectRight (timesheetWageSubject entry)
+                projectedBoundaries <- expectRight (projectRosterSlotTimesheetBoundaries slot)
+
+                outcomes <- evaluateUnsealedWagesWithPolicy DraftWageEvaluation [rosterSubject, timesheetSubject]
+                rosterResult <- maybe (fail "missing roster calculation") pure (Map.lookup (RosterSlotSubject (unpackId slot.id)) outcomes)
+                timesheetResult <- maybe (fail "missing timesheet calculation") pure (Map.lookup (TimesheetSubject (unpackId entry.id)) outcomes)
+                rosterOutcome <- expectRight rosterResult
+                timesheetOutcome <- expectRight timesheetResult
+                let rosterCalculation = rosterOutcome.evaluatedCalculation
+                    timesheetCalculation = timesheetOutcome.evaluatedCalculation
+
+                rosterSubject.wageSubjectBoundaries `shouldBe` projectedBoundaries
+                rosterCalculation.paidTimeSegments `shouldBe` timesheetCalculation.paidTimeSegments
+                rosterCalculation.earningsComponents `shouldBe` timesheetCalculation.earningsComponents
+                rosterOutcome.evaluatedFinalEarnings `shouldBe` timesheetOutcome.evaluatedFinalEarnings
+                rosterOutcome.evaluatedSourceDiagnostics `shouldBe` timesheetOutcome.evaluatedSourceDiagnostics
+                map (.paidTimeKind) rosterCalculation.paidTimeSegments `shouldContain` [CasualMinimumEngagementTopUp]
+
+                let rosterWideSubjects =
+                        [ rosterSubject { wageSubjectKey = RosterSlotSubject (UUID.fromWords 0 0 99 subjectNumber) }
+                        | subjectNumber <- [1 .. 250]
+                        ]
+                capturedQueries <- newIORef ([] :: [Text])
+                queryLogger <- queryCaptureLogger capturedQueries
+                let originalModelContext = ?modelContext
+                    observedBatch =
+                        let ?modelContext = originalModelContext { ModelSupport.logger = queryLogger }
+                         in evaluateUnsealedWagesWithPolicy DraftWageEvaluation rosterWideSubjects
+                batchOutcomes <- observedBatch
+                Log.cleanup queryLogger
+                Map.size batchOutcomes `shouldBe` 250
+                queryLines <- selectQueryLines capturedQueries
+                length queryLines `shouldSatisfy` (<= 15)
+                queryLines `shouldSatisfy` allSubjectTablesReadAtMostTwice
+
         it "rejects newly approved rows without a sealed active calculation" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Strict approval ledger"
@@ -238,6 +309,7 @@ databaseTests = aroundAll withDatabaseTestContext do
                         |> set #approvedAt (Just approvedAt)
                         |> set #approvedByUserId (Just (unpackId approver.id))
                         |> updateRecord
+                ensureFreshWageSourceFacts (testWorkedOn approvedEntry)
 
                 persisted <- persistApprovedTimesheetPayCalculation approvedEntry >>= expectRight
                 segments <- query @TimesheetPayTimeSegment
@@ -643,6 +715,22 @@ selectQueryLines :: IORef [Text] -> IO [Text]
 selectQueryLines capturedQueries =
     filter (Text.isInfixOf "SELECT ") . Text.lines . Text.concat <$> readIORef capturedQueries
 
+allSubjectTablesReadAtMostTwice :: [Text] -> Bool
+allSubjectTablesReadAtMostTwice queryLines =
+    all (\tableName -> length (filter (Text.isInfixOf (" FROM " <> tableName <> " ")) queryLines) <= 2) expectedTables
+  where
+    expectedTables =
+        [ "venue_config"
+        , "staff"
+        , "shift_types"
+        , "award_levels"
+        , "award_level_base_rates"
+        , "award_level_penalty_rates"
+        , "award_time_penalty_allowances"
+        , "public_holidays"
+        , "fwc_mapd_sync_runs"
+        ]
+
 boundedBulkApprovedAwardQueryLog :: [Text] -> Bool
 boundedBulkApprovedAwardQueryLog queryLines =
     length queryLines == length expectedTables
@@ -812,6 +900,7 @@ testEntryContext :: UUID -> Day -> EntryContextRow
 testEntryContext entryId workedOn =
     EntryContextRow
         entryId
+        (uuid "10000000-0000-0000-0000-000000000099")
         workedOn
         "Australia/Melbourne"
         1

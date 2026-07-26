@@ -74,7 +74,29 @@ renderRosterWeekWageSummary (Just prediction)
         <div class="roster-wage-summary" aria-label="Week wages estimate">
             <span class="roster-wage-summary-label">Wages:</span>
             <span class="roster-wage-summary-total">{formatMoneyAmount prediction.predictionWeekTotal}</span>
+            {renderRosterWageFailures prediction}
+            {renderRosterWageSourceWarnings prediction}
         </div>
+    |]
+
+renderRosterWageFailures :: RosterWagePrediction -> Html
+renderRosterWageFailures prediction
+    | null prediction.predictionCalculationFailures = mempty
+    | otherwise = [hsx|
+        <span class="text-danger" role="alert" title={Text.intercalate "; " (map snd prediction.predictionCalculationFailures)}>
+            {tshow failureCount} wage estimate {if failureCount == 1 then ("error" :: Text) else "errors"}
+        </span>
+    |]
+  where
+    failureCount = length prediction.predictionCalculationFailures
+
+renderRosterWageSourceWarnings :: RosterWagePrediction -> Html
+renderRosterWageSourceWarnings prediction
+    | null prediction.predictionSourceWarnings = mempty
+    | otherwise = [hsx|
+        <span class="text-warning" role="status" title="Draft estimate uses wage sources requiring attention">
+            Wage source warning
+        </span>
     |]
 
 renderRosterWeekControls :: (?context :: ControllerContext) => Int -> RosterGroup -> Day -> RosterGridViewMode -> Html

@@ -32,16 +32,13 @@ module Web.Timesheets.Projection
     , weekOffsetFromParamOrEntry
     ) where
 
-import Application.Helper.Controller (authoritativeRosterIntervalIsOperationallyValid,
-                                      automaticMealBreakMinutes,
-                                      automaticMealBreakStartOffsetMinutes,
-                                      automaticMealBreakThresholdMinutes)
 import Application.Helper.FrontendContract.Surface.FragmentRender (FragmentRenderMode (..))
 import Application.Helper.FrontendContract.Surface.Request (SurfaceRequestFieldError)
 import qualified Application.Helper.FrontendContract.Surface.Timesheets as Surface
 import qualified Application.Helper.FrontendContract.Surface.Timesheets.Action as TimesheetsAction
 import Application.Helper.FrontendContract.Surface.Values
 import Application.Helper.Profiling
+import Application.Helper.RosterTimesheetBoundaries (projectRosterSlotTimesheetBoundaries)
 import Application.Helper.VenueScopedQueries (fetchLinkedActiveVenueStaff)
 import Application.Helper.WeekBoundaries (venueWeekOffsetForDay)
 import Application.VenueTime.Model
@@ -51,7 +48,7 @@ import Control.Monad (guard)
 import qualified Data.Map.Strict as Map
 import qualified Data.Set as Set
 import Data.Time.Calendar (Day, addDays, diffDays)
-import Data.Time.Clock (addUTCTime, getCurrentTime, utctDay)
+import Data.Time.Clock (getCurrentTime, utctDay)
 import qualified Data.UUID as UUID
 import qualified Text.Blaze.Html as Blaze
 import Web.Controller.Prelude
@@ -76,7 +73,7 @@ data TimesheetWeekProjection = TimesheetWeekProjection
     , timesheetShowSuggestions      :: Bool
     , timesheetStaffFilterId        :: Maybe UUID.UUID
     , timesheetCurrentViewerStaffId :: Maybe UUID.UUID
-    , timesheetWageOutcomes          :: Map.Map UUID.UUID WageEntryOutcome
+    , timesheetWageOutcomes         :: Map.Map UUID.UUID WageEntryOutcome
     }
 
 data TimesheetProjectionRequest = TimesheetProjectionRequest
@@ -224,31 +221,11 @@ fetchTimesheetSuggestionsForWeek venueConfig weekOffset showAllStaff validStaffF
         guard (Set.notMember (unpackId rosterSlot.id) linkedRosterSlotIds)
         _ <- lookup rosterSlot.rosterDayId rosterDaysById
         staffId <- rosterSlot.staffId
-        startsAt <- rosterSlot.startsAt
-        endsAt <- rosterSlot.endsAt
         shiftTypeId <- rosterSlot.shiftTypeId
-        sourceBoundaries <- eitherToMaybe (authoritativeBoundariesFromInstants rosterSlot.timezone startsAt endsAt Nothing Nothing)
-        let startLocal = authoritativeStartLocalTime sourceBoundaries
-            endLocal = authoritativeEndLocalTime sourceBoundaries
-            startTime = startLocal.localTimeOfDay
-            endTime = endLocal.localTimeOfDay
-        guard (authoritativeRosterIntervalIsOperationallyValid sourceBoundaries)
         guard (Set.member staffId linkedActiveStaffIds)
         guard (Set.member staffId visibleStaffIds)
         guard (Set.member shiftTypeId activeShiftTypeIds)
-        suggestionBoundaries <-
-            if authoritativeElapsedSeconds sourceBoundaries < fromIntegral (automaticMealBreakThresholdMinutes * 60)
-                then pure sourceBoundaries
-                else
-                    let automaticBreakStart = addUTCTime (fromIntegral (automaticMealBreakStartOffsetMinutes * 60)) startsAt
-                        automaticBreakEnd = addUTCTime (fromIntegral (automaticMealBreakMinutes * 60)) automaticBreakStart
-                     in eitherToMaybe $
-                            authoritativeBoundariesFromInstants
-                                rosterSlot.timezone
-                                startsAt
-                                endsAt
-                                (Just automaticBreakStart)
-                                (Just automaticBreakEnd)
+        suggestionBoundaries <- eitherToMaybe (projectRosterSlotTimesheetBoundaries rosterSlot)
         pure TimesheetSuggestion
             { suggestionRosterSlotId = rosterSlot.id
             , suggestionStaffId = staffId

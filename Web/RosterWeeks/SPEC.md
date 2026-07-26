@@ -17,9 +17,15 @@ lands.
   manager/admin roster controls according to the controller capability checks.
 - Admin-and-up users may enable compact roster wage totals in roster chrome:
   the week total in the right-side toolbar area and per-day totals in day labels
-  or day-column headers. Managers and staff do not receive wage controls or
-  markup. The wage toggle is independent of the venue-wide roster end-time
-  display setting because shift end times are always collected.
+  or day-column headers. Estimates are canonical unsealed wage evaluations of
+  the exact boundaries a Timesheet suggestion would materialize, including its
+  automatic meal break. Minimums, penalties, additions, holidays, imported
+  overrides, effective snapshots, and final-line rounding therefore match the
+  draft Timesheet preview. Complete calculation failures are excluded from totals
+  and shown as wage-estimate errors; incomplete staffed slots remain counted
+  separately. Managers and staff do not receive wage controls or markup. The wage
+  toggle is independent of the venue-wide roster end-time display setting because
+  shift end times are always collected.
 - Publishing a roster is the visibility gate for staff-facing roster content.
   The live switch submits an explicit `true` or `false` transport synchronized
   before HTMX serialization; actor responses and reloads must converge to the

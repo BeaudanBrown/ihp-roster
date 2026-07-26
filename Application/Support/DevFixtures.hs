@@ -17,6 +17,7 @@ import Application.Helper.WeekBoundaries (venueWeekStartDate)
 import Application.Support
 import Application.Support.Seed.Calendar (weekOffsetForDay)
 import Application.Support.Seed.Scenario
+import Application.Support.WageSourceFixtures (ensureFreshWageSourceFacts)
 import Application.VenueTime.Model
 import Control.Monad (replicateM, void)
 import qualified Data.Aeson as Aeson
@@ -898,6 +899,7 @@ approveSeededTimesheetEntryWithVersions ::
     TimesheetEntry ->
     IO TimesheetEntry
 approveSeededTimesheetEntryWithVersions admin approvedAt staffPayVersion shiftTypePayVersion entry = do
+    ensureFreshWageSourceFacts (timesheetEntryWorkedOn entry)
     let approvalEntry =
             entry
                 |> set #isApproved True

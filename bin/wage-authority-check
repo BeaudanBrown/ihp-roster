@@ -1,0 +1,34 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+fail() {
+    echo "wage-authority-check: $*" >&2
+    exit 1
+}
+
+production_calls="$(
+    rg -n 'calculateTimesheetPay' Application Web -g'*.hs' \
+        | grep -v '^Application/WageEngine/Rules.hs:' \
+        | grep -v '^Application/WageEngine.hs:' \
+        || true
+)"
+expected_call='Application/WageEvaluation.hs:'
+if [[ -z "$production_calls" ]] || [[ "$(printf '%s\n' "$production_calls" | wc -l)" -ne 1 ]] || [[ "$production_calls" != "$expected_call"* ]]; then
+    fail $'calculateTimesheetPay must have exactly one production caller, Application/WageEvaluation.hs:\n'"$production_calls"
+fi
+
+roster_rate_authority="$(
+    rg -n 'AwardLevel(BaseRate|PenaltyRate)|AwardTimePenaltyAllowance|latestVenueEffectiveRate|hourlyRate[[:space:]]*\*|\*[[:space:]]*hourlyRate|roundMoney' \
+        Application/Helper/RosterWagePrediction.hs Web/RosterWeeks Web/View/RosterWeeks -g'*.hs' \
+        || true
+)"
+if [[ -n "$roster_rate_authority" ]]; then
+    fail $'roster-local wage rate query/arithmetic is forbidden:\n'"$roster_rate_authority"
+fi
+
+retired_sql_calls="$(rg -n 'calculate_timesheet_pay(_range)?[[:space:]]*\(' Application Web -g'*.hs' || true)"
+if [[ -n "$retired_sql_calls" ]]; then
+    fail $'retired SQL wage calculator call found:\n'"$retired_sql_calls"
+fi
+
+echo "wage-authority-check: ok"

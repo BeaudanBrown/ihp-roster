@@ -1,5 +1,6 @@
 module Application.WageEngine.Adapter
     ( WageEngineEntryRequest (..)
+    , WageEngineSubjectRequest (..)
     , EntryContextRow (..)
     , ImportedPayItemRow (..)
     , ProjectedAwardLevelRow (..)
@@ -18,6 +19,7 @@ module Application.WageEngine.Adapter
     , databaseWageEngineBulkSourceWith
     , loadWageEngineContextResultsForEntries
     , loadWageEngineContextsForEntries
+    , loadWageEngineContextResultsForSubjects
     , calculationInputFromLoadedContext
     )
 where
@@ -34,6 +36,7 @@ import Data.Scientific (Scientific)
 import qualified Data.Set as Set
 import qualified Data.Text as Text
 import Data.Time.Calendar (Day, addDays)
+import Data.Traversable (traverse)
 import qualified Generated.Types as G
 import IHP.ControllerPrelude
 import IHP.ModelSupport (ModelContext, unpackId)
@@ -44,8 +47,23 @@ newtype WageEngineEntryRequest = WageEngineEntryRequest
     }
     deriving (Eq, Ord, Show)
 
+-- | Persistence-independent facts needed to load one calculation context.
+-- Current draft subjects leave the version ids empty; approval and historical
+-- subjects provide immutable pay-version ids.
+data WageEngineSubjectRequest = WageEngineSubjectRequest
+    { subjectRequestId                    :: !UUID
+    , subjectRequestWorkedOn              :: !Day
+    , subjectRequestVenueId               :: !UUID
+    , subjectRequestStaffId               :: !UUID
+    , subjectRequestShiftTypeId           :: !UUID
+    , subjectRequestStaffPayVersionId     :: !(Maybe UUID)
+    , subjectRequestShiftTypePayVersionId :: !(Maybe UUID)
+    }
+    deriving (Eq, Show)
+
 data EntryContextRow = EntryContextRow
     { contextEntryId                :: !UUID
+    , contextVenueId                :: !UUID
     , contextWorkedOn               :: !Day
     , contextVenueTimeZone          :: !Text
     , contextRosterWeekStartsOn     :: !Int
@@ -60,6 +78,7 @@ data EntryContextRow = EntryContextRow
 
 data ImportedPayItemRow = ImportedPayItemRow
     { importedRowId         :: !UUID
+    , importedRowVenueId    :: !UUID
     , importedRowName       :: !Text
     , importedRowHourlyRate :: !Scientific
     }
@@ -251,8 +270,8 @@ buildLoadedContext entryContextById importedPayItemById awardLevelById holidayDa
             (resolveVenueAwardContext contextRow.contextVenueTimeZone contextRow.contextHolidayJurisdiction)
     importedOverrides <-
         ImportedOverrideContext
-            <$> mapM (resolveImportedPayItemRow request.requestedEntryId importedPayItemById) contextRow.contextShiftImportedPayItemId
-            <*> mapM (resolveImportedPayItemRow request.requestedEntryId importedPayItemById) contextRow.contextStaffImportedPayItemId
+            <$> mapM (resolveImportedPayItemRow request.requestedEntryId contextRow.contextVenueId importedPayItemById) contextRow.contextShiftImportedPayItemId
+            <*> mapM (resolveImportedPayItemRow request.requestedEntryId contextRow.contextVenueId importedPayItemById) contextRow.contextStaffImportedPayItemId
     loadedAwardRateContext <-
         case selectedImportedPayItem importedOverrides of
             Just _ -> Right Nothing
@@ -283,10 +302,12 @@ buildLoadedContext entryContextById importedPayItemById awardLevelById holidayDa
             , loadedImportedOverrides = importedOverrides
             }
 
-resolveImportedPayItemRow :: UUID -> Map.Map UUID ImportedPayItemRow -> UUID -> Either WageEngineAdapterError ImportedPayItem
-resolveImportedPayItemRow entryId importedPayItemById importedPayItemId = do
+resolveImportedPayItemRow :: UUID -> UUID -> Map.Map UUID ImportedPayItemRow -> UUID -> Either WageEngineAdapterError ImportedPayItem
+resolveImportedPayItemRow entryId venueId importedPayItemById importedPayItemId = do
     importedRow <- maybe (Left (MissingCalculationContext entryId)) Right (Map.lookup importedPayItemId importedPayItemById)
-    pure (ImportedPayItem (tshow importedRow.importedRowId) importedRow.importedRowName importedRow.importedRowHourlyRate)
+    if importedRow.importedRowVenueId /= venueId
+        then Left (MissingCalculationContext entryId)
+        else pure (ImportedPayItem (tshow importedRow.importedRowId) importedRow.importedRowName importedRow.importedRowHourlyRate)
 
 data ProjectedRateIndex = ProjectedRateIndex
     { baseRatesByAwardLevel    :: !(Map.Map UUID [ProjectedBaseRateRow])
@@ -475,6 +496,18 @@ loadWageEngineContextResultsForEntries :: (?modelContext :: ModelContext) => [G.
 loadWageEngineContextResultsForEntries entries =
     loadWageEngineContextResultsWith databaseWageEngineBulkSource (entryRequests entries)
 
+-- | Load current or immutable context for arbitrary unsealed subjects without
+-- requiring a persisted Timesheet row. All subject relations and every rate
+-- relation are loaded once per batch.
+loadWageEngineContextResultsForSubjects :: (?modelContext :: ModelContext) => [WageEngineSubjectRequest] -> IO (Map.Map UUID (Either WageEngineAdapterError LoadedCalculationContext))
+loadWageEngineContextResultsForSubjects subjects =
+    loadWageEngineContextResultsWith source requests
+  where
+    requests = [WageEngineEntryRequest subject.subjectRequestId | subject <- subjects]
+    source = databaseWageEngineBulkSource
+        { fetchEntryContextRows = const (fetchDatabaseSubjectContextRows subjects)
+        }
+
 entryRequests :: [G.TimesheetEntry] -> [WageEngineEntryRequest]
 entryRequests entries =
     [ WageEngineEntryRequest (unpackId entry.id)
@@ -504,6 +537,58 @@ fetchDatabaseAwardLevels observeRead = do
         |> filterWhere (#isActive, True)
         |> fetch
         |> fmap (map projectAwardLevel)
+
+fetchDatabaseSubjectContextRows :: (?modelContext :: ModelContext) => [WageEngineSubjectRequest] -> IO [EntryContextRow]
+fetchDatabaseSubjectContextRows [] = pure []
+fetchDatabaseSubjectContextRows subjects = do
+    let venueIds = List.nub (map (.subjectRequestVenueId) subjects)
+        staffIds = List.nub (map (.subjectRequestStaffId) subjects)
+        shiftTypeIds = List.nub (map (.subjectRequestShiftTypeId) subjects)
+        staffPayVersionIds = List.nub (mapMaybe (.subjectRequestStaffPayVersionId) subjects)
+        shiftTypePayVersionIds = List.nub (mapMaybe (.subjectRequestShiftTypePayVersionId) subjects)
+    venueConfigs <- query @G.VenueConfig |> filterWhereIn (#venueId, venueIds) |> fetch
+    staffRows <- query @G.Staff |> filterWhereIn (#id, map (\rowId -> Id rowId :: Id G.Staff) staffIds) |> fetch
+    shiftTypes <- query @G.ShiftType |> filterWhereIn (#id, map (\rowId -> Id rowId :: Id G.ShiftType) shiftTypeIds) |> fetch
+    staffPayVersions <- if null staffPayVersionIds
+        then pure []
+        else query @G.StaffPayVersion |> filterWhereIn (#id, map (\rowId -> Id rowId :: Id G.StaffPayVersion) staffPayVersionIds) |> fetch
+    shiftTypePayVersions <- if null shiftTypePayVersionIds
+        then pure []
+        else query @G.ShiftTypePayVersion |> filterWhereIn (#id, map (\rowId -> Id rowId :: Id G.ShiftTypePayVersion) shiftTypePayVersionIds) |> fetch
+    let venueConfigByVenueId = Map.fromList [(row.venueId, row) | row <- venueConfigs]
+        staffById = Map.fromList [(unpackId row.id, row) | row <- staffRows]
+        shiftTypeById = Map.fromList [(unpackId row.id, row) | row <- shiftTypes]
+        staffPayVersionById = Map.fromList [(unpackId row.id, row) | row <- staffPayVersions]
+        shiftTypePayVersionById = Map.fromList [(unpackId row.id, row) | row <- shiftTypePayVersions]
+    pure (mapMaybe (projectSubjectContext venueConfigByVenueId staffById shiftTypeById staffPayVersionById shiftTypePayVersionById) subjects)
+
+projectSubjectContext ::
+    Map.Map UUID G.VenueConfig ->
+    Map.Map UUID G.Staff ->
+    Map.Map UUID G.ShiftType ->
+    Map.Map UUID G.StaffPayVersion ->
+    Map.Map UUID G.ShiftTypePayVersion ->
+    WageEngineSubjectRequest ->
+    Maybe EntryContextRow
+projectSubjectContext venueConfigs staffRows shiftTypes staffVersions shiftVersions subject = do
+    venueConfig <- Map.lookup subject.subjectRequestVenueId venueConfigs
+    staff <- Map.lookup subject.subjectRequestStaffId staffRows
+    shiftType <- Map.lookup subject.subjectRequestShiftTypeId shiftTypes
+    staffVersion <- traverse (`Map.lookup` staffVersions) subject.subjectRequestStaffPayVersionId
+    shiftVersion <- traverse (`Map.lookup` shiftVersions) subject.subjectRequestShiftTypePayVersionId
+    pure EntryContextRow
+        { contextEntryId = subject.subjectRequestId
+        , contextVenueId = subject.subjectRequestVenueId
+        , contextWorkedOn = subject.subjectRequestWorkedOn
+        , contextVenueTimeZone = venueConfig.timezone
+        , contextRosterWeekStartsOn = venueConfig.rosterWeekStartsOn
+        , contextHolidayJurisdiction = venueConfig.publicHolidayJurisdiction
+        , contextEmploymentBasis = projectEmploymentBasis (maybe staff.employmentBasis (.employmentBasis) staffVersion)
+        , contextShiftAwardLevelId = maybe (fmap unpackId shiftType.overrideAwardLevelId) (.overrideAwardLevelId) shiftVersion
+        , contextStaffAwardLevelId = maybe (fmap unpackId staff.defaultAwardLevelId) (.defaultAwardLevelId) staffVersion
+        , contextShiftImportedPayItemId = fmap unpackId (maybe shiftType.importedXeroPayItemId (.importedXeroPayItemId) shiftVersion)
+        , contextStaffImportedPayItemId = fmap unpackId (maybe staff.importedXeroPayItemId (.importedXeroPayItemId) staffVersion)
+        }
 
 fetchDatabaseEntryContextRows :: (?modelContext :: ModelContext) => (WageEngineDatabaseRead -> IO ()) -> [UUID] -> IO [EntryContextRow]
 fetchDatabaseEntryContextRows _ [] = pure []
@@ -577,6 +662,7 @@ projectEntryContext venueConfigByVenueId staffById shiftTypeById staffPayVersion
     pure
         EntryContextRow
             { contextEntryId = unpackId entry.id
+            , contextVenueId = entry.venueId
             , contextWorkedOn = timesheetEntryWorkedOn entry
             , contextVenueTimeZone = venueConfig.timezone
             , contextRosterWeekStartsOn = venueConfig.rosterWeekStartsOn
@@ -597,7 +683,7 @@ fetchDatabaseImportedPayItemRows observeRead importedPayItemIds = do
         |> filterWhere (#archivedAt, Nothing)
         |> fetch
     pure
-        [ ImportedPayItemRow (unpackId record.id) record.name record.ratePerUnit
+        [ ImportedPayItemRow (unpackId record.id) record.venueId record.name record.ratePerUnit
         | record <- records
         ]
 

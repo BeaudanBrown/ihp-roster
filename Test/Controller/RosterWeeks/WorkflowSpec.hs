@@ -1115,6 +1115,20 @@ tests = aroundAll withDatabaseTestContext do
                         |> set #shiftTypeId (Just (unpackId shiftType.id))
                         |> setTestDurationMinutes (Just 1380)
                     )
+                uncalculableShiftType <- newRecord @ShiftType
+                    |> set #venueId (unpackId venue.id)
+                    |> set #name "Missing pay context"
+                    |> set #sortOrder 99
+                    |> set #isActive True
+                    |> createRecord
+                uncalculableSlot <- createRosterSlotRecord rosterDay slotName (Just staffMember) 3
+                _ <- updateRecord
+                    ( uncalculableSlot
+                        |> setTestStartTime (Just (timeOfDay 10 0))
+                        |> setTestEndTime (Just (timeOfDay 14 0))
+                        |> set #shiftTypeId (Just (unpackId uncalculableShiftType.id))
+                        |> setTestDurationMinutes (Just 240)
+                    )
                 _ <-
                     newRecord @UserPreference
                         |> set #userId (unpackId admin.id)
@@ -1130,6 +1144,8 @@ tests = aroundAll withDatabaseTestContext do
                 adminResponse `responseBodyShouldContain` "$150.00"
                 adminResponse `responseBodyShouldContain` "roster-wage-summary"
                 adminResponse `responseBodyShouldContain` "roster-wage-summary-total"
+                adminResponse `responseBodyShouldContain` "1 wage estimate error"
+                adminResponse `responseBodyShouldContain` "Wage source warning"
                 adminResponse `responseBodyShouldNotContain` "draft shift excluded"
                 adminResponse `responseBodyShouldNotContain` "roster-wage-summary-warning"
                 adminResponse `responseBodyShouldContain` "roster-wage-rail-head"

@@ -7,10 +7,7 @@ module Application.Helper.TimesheetPayLedger
 
 import Application.VenueTime.Model
 import Application.WageEngine
-import Application.WageEngine.Adapter (LoadedCalculationContext (..),
-                                       WageEngineAdapterError (..),
-                                       calculationInputFromLoadedContext,
-                                       loadWageEngineContextsForEntries)
+import Application.WageEvaluation
 import Control.Exception (Exception)
 import qualified Control.Exception as Exception
 import Control.Monad (void)
@@ -156,24 +153,14 @@ persistApprovedTimesheetPayCalculation ::
     TimesheetEntry ->
     IO (Either Text TimesheetPayCalculation)
 persistApprovedTimesheetPayCalculation entry = do
-    contexts <- loadWageEngineContextsForEntries [entry]
-    case contexts of
-        Left errors -> pure (Left ("Cannot freeze approved pay calculation: " <> tshow errors))
-        Right contexts ->
-            case Map.lookup (unpackId entry.id) contexts of
-                Nothing -> pure (Left "Cannot freeze approved pay calculation: entry context was not loaded.")
-                Just loadedContext ->
-                    case calculateEntry loadedContext entry of
-                        Left reason       -> pure (Left reason)
-                        Right calculation -> Right <$> persist entry loadedContext.loadedVenueContext calculation
-
-calculateEntry :: LoadedCalculationContext -> TimesheetEntry -> Either Text WageCalculation
-calculateEntry loadedContext entry = do
-    boundaries <- Bifunctor.first (\err -> "Invalid approved timesheet boundaries: " <> tshow err) (timesheetEntryBoundaries entry)
-    shiftSegments <- Bifunctor.first (\err -> "Cannot segment approved timesheet: " <> tshow err) (authoritativeAwardSegments boundaries)
-    Bifunctor.first
-        (\err -> "Cannot freeze approved pay calculation: " <> tshow err)
-        (calculateTimesheetPay (calculationInputFromLoadedContext loadedContext shiftSegments (authoritativeUnpaidMealBreak boundaries)))
+    case timesheetWageSubject entry of
+        Left err -> pure (Left ("Cannot freeze approved pay calculation: " <> renderWageEvaluationError err))
+        Right subject -> do
+            results <- evaluateUnsealedWages ApprovalWageEvaluation [subject]
+            case Map.lookup (TimesheetSubject (unpackId entry.id)) results of
+                Nothing -> pure (Left "Cannot freeze approved pay calculation: result was not loaded.")
+                Just (Left err) -> pure (Left ("Cannot freeze approved pay calculation: " <> renderWageEvaluationError err))
+                Just (Right calculation) -> Right <$> persist entry calculation
 
 data PayLedgerBackfillException = PayLedgerBackfillException [(UUID, Text)]
     deriving (Show)
@@ -216,23 +203,27 @@ backfillApprovedTimesheetPayCalculations = do
                 ( PayLedgerBackfillException
                     [(entryId, "Locked approved entry could not be reloaded.") | entryId <- missingEntryIds]
                 )
-        contextsResult <- loadWageEngineContextsForEntries entries
-        contexts <- case contextsResult of
-            Left errors -> Exception.throwIO (PayLedgerBackfillException (map adapterFailure errors))
-            Right value -> pure value
-        historicalFactFailures <- validateHistoricalHolidayFacts entries contexts
-        unless (null historicalFactFailures) (Exception.throwIO (PayLedgerBackfillException historicalFactFailures))
+        let subjectResults = [(unpackId entry.id, timesheetWageSubject entry) | entry <- entries]
+            subjectFailures =
+                [ (entryId, renderWageEvaluationError err)
+                | (entryId, Left err) <- subjectResults
+                ]
+            subjects = [subject | (_, Right subject) <- subjectResults]
+        unless (null subjectFailures) (Exception.throwIO (PayLedgerBackfillException subjectFailures))
+        evaluated <- evaluateUnsealedWages HistoricalBackfillWageEvaluation subjects
         let calculations =
-                [ case Map.lookup (unpackId entry.id) contexts of
-                    Nothing -> Left (unpackId entry.id, "Entry context was not loaded.")
-                    Just context -> Bifunctor.first (\reason -> (unpackId entry.id, reason)) (calculateEntry context entry)
+                [ case Map.lookup (TimesheetSubject (unpackId entry.id)) evaluated of
+                    Nothing -> Left (unpackId entry.id, "Entry calculation was not loaded.")
+                    Just result -> Bifunctor.first (\err -> (unpackId entry.id, renderWageEvaluationError err)) result
                 | entry <- entries
                 ]
             failures = lefts calculations
+            successfulCalculations = rights calculations
         unless (null failures) (Exception.throwIO (PayLedgerBackfillException failures))
-        forM_ (zip entries (rights calculations)) \(entry, calculation) -> do
-            context <- maybe (Exception.throwIO (PayLedgerBackfillException [(unpackId entry.id, "Entry context disappeared.")])) pure (Map.lookup (unpackId entry.id) contexts)
-            calculationRecord <- persist entry context.loadedVenueContext calculation
+        historicalFactFailures <- validateHistoricalHolidayFacts entries (Map.fromList (zip (map (unpackId . (.id)) entries) successfulCalculations))
+        unless (null historicalFactFailures) (Exception.throwIO (PayLedgerBackfillException historicalFactFailures))
+        forM_ (zip entries successfulCalculations) \(entry, calculation) -> do
+            calculationRecord <- persist entry calculation
             void $ entry
                 |> set #activePayCalculationId (Just calculationRecord.id)
                 |> set #legacyPayBackfillPending False
@@ -241,17 +232,10 @@ backfillApprovedTimesheetPayCalculations = do
     pure $ case result of
         Left (PayLedgerBackfillException failures) -> Left failures
         Right count                                -> Right count
-  where
-    adapterFailure error = (adapterErrorEntryId error, tshow error)
-    adapterErrorEntryId = \case
-        MissingCalculationContext entryId -> entryId
-        UnsupportedCalculationContext entryId _ -> entryId
-        InvalidProjectedRateBook entryId _ -> entryId
-
 validateHistoricalHolidayFacts ::
     (?modelContext :: ModelContext) =>
     [TimesheetEntry] ->
-    Map.Map UUID LoadedCalculationContext ->
+    Map.Map UUID WageCalculation ->
     IO [(UUID, Text)]
 validateHistoricalHolidayFacts entries contexts = do
     let awardEntries = filter requiresAwardFacts entries
@@ -277,7 +261,7 @@ validateHistoricalHolidayFacts entries contexts = do
     requiresAwardFacts entry =
         case Map.lookup (unpackId entry.id) contexts of
             Nothing -> False
-            Just context -> isNothing (selectedImportedPayItem context.loadedImportedOverrides)
+            Just calculation -> any ((== HospitalityAward) . (.calculationSource)) calculation.earningsComponents
     entryYears entry =
         let startYear = yearOf (timesheetEntryWorkedOn entry)
             endYear = case timesheetEntryBoundaries entry of
@@ -286,8 +270,8 @@ validateHistoricalHolidayFacts entries contexts = do
          in List.nub [startYear, endYear]
     yearOf day = let (year, _, _) = toGregorian day in year
 
-persist :: (?modelContext :: ModelContext) => TimesheetEntry -> VenueAwardContext -> WageCalculation -> IO TimesheetPayCalculation
-persist entry venueContext calculation = do
+persist :: (?modelContext :: ModelContext) => TimesheetEntry -> WageCalculation -> IO TimesheetPayCalculation
+persist entry calculation = do
     approvedAt <- maybe (fail "approved entry missing approved_at") pure entry.approvedAt
     approvedBy <- maybe (fail "approved entry missing approved_by_user_id") pure entry.approvedByUserId
     staffVersion <- maybe (fail "approved entry missing staff_pay_version_id") pure entry.staffPayVersionId
@@ -298,8 +282,8 @@ persist entry venueContext calculation = do
         |> set #calculationVersion (let WageCalculationVersion value = calculation.calculationVersion in value)
         |> set #calculationSource (calculationSourceValue source)
         |> set #rateBookVersion (fmap (\(RateBookVersion value) -> value) calculation.calculationRateBookVersion)
-        |> set #venueTimezone (case venueContext.venueTimeZone of AustraliaMelbourne -> "Australia/Melbourne")
-        |> set #holidayJurisdiction (case venueContext.publicHolidayJurisdiction of VictoriaStatewide -> "VIC")
+        |> set #venueTimezone "Australia/Melbourne"
+        |> set #holidayJurisdiction "VIC"
         |> set #staffPayVersionId staffVersion
         |> set #shiftTypePayVersionId shiftVersion
         |> set #approvedAt approvedAt

@@ -80,7 +80,9 @@ submission work belongs in `docs/workstreams/` until it lands.
 
 - Create snapshots the suggestion's current staff, authoritative boundaries and
   timezone, shift type, automatic break, and immutable `source_roster_slot_id`
-  into one unapproved Timesheet entry. Automatic-break eligibility and placement
+  into one unapproved Timesheet entry. One shared roster-to-Timesheet boundary
+  projector owns that automatic break; roster wage estimates evaluate the same
+  boundary value through the same canonical unsealed wage seam. Automatic-break eligibility and placement
   use exact elapsed instants; a repeated-time occurrence is preserved as an
   instant rather than re-resolved from display text.
 - Opening the suggestion card starts from the same snapshot. Staff/date/source
@@ -110,7 +112,10 @@ submission work belongs in `docs/workstreams/` until it lands.
 
 - Approval writes keep status, actor, timestamp, and pay context consistent.
 - Draft entry cards remain saveable and independently show either a successful pay
-  preview plus source warnings or an explicit calculation error. Approval applies
+  preview plus source warnings or an explicit calculation error. Draft, approval,
+  and historical-backfill orchestration all enter `Application.WageEvaluation`;
+  approval/backfill require immutable pay-version ids, while approved/final reads
+  reconstruct sealed ledger facts and never recalculate mutable sources. Approval applies
   the shared wage-source boundary strictly and rolls back the complete approval on
   any calculation or source failure.
 - Do not seed approved entries by setting only `isApproved`; fixtures must set

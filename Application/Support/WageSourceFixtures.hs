@@ -4,6 +4,7 @@ module Application.Support.WageSourceFixtures
     ) where
 
 import Application.Helper.TimesheetPayLedger (persistApprovedTimesheetPayCalculation)
+import Application.VenueTime.Model (timesheetEntryWorkedOn)
 import Control.Monad (void)
 import Data.Time.Calendar (Day, fromGregorian, toGregorian)
 import Generated.Types
@@ -40,6 +41,7 @@ ensureFreshWageSourceFacts workedOn = do
 -- immutable-ledger path used by production approval.
 sealApprovedFixtureCalculation :: (?modelContext :: ModelContext) => TimesheetEntry -> IO TimesheetEntry
 sealApprovedFixtureCalculation entry = do
+    ensureFreshWageSourceFacts (timesheetEntryWorkedOn entry)
     result <- persistApprovedTimesheetPayCalculation entry
     case result of
         Left reason -> fail (cs reason)
