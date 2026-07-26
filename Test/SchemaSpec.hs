@@ -938,13 +938,16 @@ tests = describe "Schema" do
             schemaSqlText `shouldSatisfy` Text.isInfixOf "CREATE TABLE timesheet_pay_time_segments"
             schemaSqlText `shouldSatisfy` Text.isInfixOf "CREATE TABLE timesheet_pay_earnings_components"
 
-        it "guards the retirement migration with sealed approval-metadata parity" do
-            migrationSqlText <- TextIO.readFile "Application/Migration/1785242000.sql"
-            migrationSqlText `shouldSatisfy` Text.isInfixOf "calculation.sealed_at IS NULL"
-            migrationSqlText `shouldSatisfy` Text.isInfixOf "calculation.approved_at IS DISTINCT FROM te.approved_at"
-            migrationSqlText `shouldSatisfy` Text.isInfixOf "FROM timesheet_pay_time_segments segment"
-            migrationSqlText `shouldSatisfy` Text.isInfixOf "FROM timesheet_pay_earnings_components component"
-            migrationSqlText `shouldSatisfy` Text.isInfixOf "DROP FUNCTION IF EXISTS calculate_timesheet_pay(UUID)"
+        it "defers retirement until the automatic post-migration Haskell cutover" do
+            markerSqlText <- TextIO.readFile "Application/Migration/1785242000.sql"
+            retirementSqlText <- TextIO.readFile "Application/Deployment/retire-legacy-wage-calculators.sql"
+            markerSqlText `shouldSatisfy` Text.isInfixOf "wage-cutover.service"
+            markerSqlText `shouldNotSatisfy` Text.isInfixOf "DROP FUNCTION"
+            retirementSqlText `shouldSatisfy` Text.isInfixOf "calculation.sealed_at IS NULL"
+            retirementSqlText `shouldSatisfy` Text.isInfixOf "calculation.approved_at IS DISTINCT FROM te.approved_at"
+            retirementSqlText `shouldSatisfy` Text.isInfixOf "FROM timesheet_pay_time_segments segment"
+            retirementSqlText `shouldSatisfy` Text.isInfixOf "FROM timesheet_pay_earnings_components component"
+            retirementSqlText `shouldSatisfy` Text.isInfixOf "DROP FUNCTION IF EXISTS calculate_timesheet_pay(UUID)"
 
     describe "Timesheet validation helpers" do
         it "parseTimeParam parses valid HH:MM values" do

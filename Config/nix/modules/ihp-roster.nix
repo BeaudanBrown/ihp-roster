@@ -24,7 +24,7 @@ let
   hasJobRunner = builtins.pathExists ../../../Application/Job;
   hasServiceUser = cfg.serviceUser != null;
   effectiveServiceGroup = if cfg.serviceGroup != null then cfg.serviceGroup else cfg.serviceUser;
-  schemaReadyService = if cfg.enableMigrations then "migrate.service" else "loadSchema.service";
+  schemaReadyService = if cfg.enableMigrations then "wage-cutover.service" else "loadSchema.service";
 
   serviceUserConfig = optionalAttrs hasServiceUser {
     User = cfg.serviceUser;
@@ -991,11 +991,35 @@ in
       systemd.services.migrate = mkIf cfg.enableMigrations {
         after = [ "loadSchema.service" ];
         requires = [ "loadSchema.service" ];
+        before = [ "wage-cutover.service" ];
+        serviceConfig = serviceUserConfig;
+      };
+      systemd.services.wage-cutover = mkIf cfg.enableMigrations {
+        description = "Backfill immutable Haskell wage facts and retire legacy SQL calculators";
+        after = [ "migrate.service" ];
+        requires = [ "migrate.service" ];
         before = [
           "app.service"
           "worker.service"
-        ];
-        serviceConfig = serviceUserConfig;
+        ] ++ optional cfg.bootstrap.enable "bootstrap-account.service";
+        environment.DEFAULT_DATABASE_URL =
+          if cfg.databaseUrl != null then
+            cfg.databaseUrl
+          else
+            "postgresql://${cfg.databaseUser}@/${cfg.databaseName}";
+        path = [ pkgs.postgresql ];
+        serviceConfig = serviceUserConfig // {
+          Type = "oneshot";
+        } // optionalAttrs (runtimeEnvironmentFiles != [ ]) {
+          EnvironmentFile = runtimeEnvironmentFiles;
+        };
+        script = ''
+          DB_URL=''${DATABASE_URL:-''${DEFAULT_DATABASE_URL}}
+          export DATABASE_URL="$DB_URL"
+          ${if cfg.package != null then cfg.package else defaultPackage}/bin/BackfillTimesheetPayLedger
+          ${pkgs.postgresql}/bin/psql "$DB_URL" -v ON_ERROR_STOP=1 \
+            -f ${../../../Application/Deployment/retire-legacy-wage-calculators.sql}
+        '';
       };
       systemd.services.app.after = [
         schemaReadyService

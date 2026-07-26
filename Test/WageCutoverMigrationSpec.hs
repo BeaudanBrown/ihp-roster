@@ -29,7 +29,7 @@ tests = aroundAll withDatabaseTestContext do
 
                 sqlExecDiscardResult "CREATE FUNCTION calculate_timesheet_pay(UUID) RETURNS JSONB LANGUAGE SQL AS 'SELECT ''{}''::jsonb'" ()
                 sqlExecDiscardResult "CREATE FUNCTION calculate_timesheet_pay_range(UUID, DATE, DATE) RETURNS JSONB LANGUAGE SQL AS 'SELECT ''[]''::jsonb'" ()
-                migrationSql <- TextIO.readFile "Application/Migration/1785242000.sql"
+                migrationSql <- TextIO.readFile "Application/Deployment/retire-legacy-wage-calculators.sql"
                 let (guardSql, retirementSql) = Text.breakOn "DROP FUNCTION" migrationSql
                     dropStatements = filter (Text.isPrefixOf "DROP FUNCTION") (Text.lines retirementSql)
                 sqlExecDiscardResult (PGTypes.Query (encodeUtf8 guardSql)) ()
