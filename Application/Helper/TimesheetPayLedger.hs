@@ -200,9 +200,22 @@ backfillApprovedTimesheetPayCalculations = do
                     | PG.Only entryId <- invalidActiveEntryIds
                     ]
                 )
-        entries :: [TimesheetEntry] <- sqlQuery
-            "SELECT timesheet_entries.* FROM timesheet_entries WHERE is_approved = TRUE AND active_pay_calculation_id IS NULL AND deleted_at IS NULL ORDER BY starts_at, id FOR UPDATE"
+        lockedEntryIds :: [PG.Only UUID] <- sqlQuery
+            "SELECT id FROM timesheet_entries WHERE is_approved = TRUE AND active_pay_calculation_id IS NULL AND deleted_at IS NULL ORDER BY starts_at, id FOR UPDATE"
             ()
+        fetchedEntries <- if null lockedEntryIds
+            then pure []
+            else query @TimesheetEntry
+                |> filterWhereIn (#id, [ Id entryId | PG.Only entryId <- lockedEntryIds ])
+                |> fetch
+        let entriesById = Map.fromList [(unpackId entry.id, entry) | entry <- fetchedEntries]
+            missingEntryIds = [entryId | PG.Only entryId <- lockedEntryIds, Map.notMember entryId entriesById]
+            entries = mapMaybe (\(PG.Only entryId) -> Map.lookup entryId entriesById) lockedEntryIds
+        unless (null missingEntryIds) $
+            Exception.throwIO
+                ( PayLedgerBackfillException
+                    [(entryId, "Locked approved entry could not be reloaded.") | entryId <- missingEntryIds]
+                )
         contextsResult <- loadWageEngineContextsForEntries entries
         contexts <- case contextsResult of
             Left errors -> Exception.throwIO (PayLedgerBackfillException (map adapterFailure errors))

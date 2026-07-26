@@ -10,6 +10,7 @@ import Application.Helper.TimesheetPayLedger (backfillApprovedTimesheetPayCalcul
 import Application.VenueTime (AwardSegment)
 import Application.WageEngine
 import Application.WageEngine.Adapter
+import qualified Control.Exception as Exception
 import Control.Monad (replicateM, void)
 import Data.IORef
 import qualified Data.Map.Strict as Map
@@ -395,7 +396,10 @@ databaseTests = aroundAll withDatabaseTestContext do
                     |> set #archiveReason Nothing
                     |> updateRecord
 
-                backfillApprovedTimesheetPayCalculations `shouldReturn` Right 2
+                sqlExecDiscardResult "ALTER TABLE timesheet_entries ADD COLUMN backfill_physical_order_probe UUID" ()
+                backfillResult <- backfillApprovedTimesheetPayCalculations
+                    `Exception.finally` sqlExecDiscardResult "ALTER TABLE timesheet_entries DROP COLUMN backfill_physical_order_probe" ()
+                backfillResult `shouldBe` Right 2
                 backfillApprovedTimesheetPayCalculations `shouldReturn` Right 0
                 query @TimesheetPayCalculation |> fetchCount `shouldReturn` 2
 
