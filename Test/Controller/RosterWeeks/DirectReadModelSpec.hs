@@ -11,6 +11,8 @@ import Data.Coerce (coerce)
 import Data.List (find, sortOn)
 import qualified Data.Map.Strict as Map
 import Data.Maybe (fromJust)
+import qualified Data.Text as Text
+import qualified Data.Text.IO as TextIO
 import qualified Data.Time.Calendar as Calendar
 import Data.Time.Clock (getCurrentTime)
 import Data.Time.LocalTime (TimeOfDay (..))
@@ -50,6 +52,14 @@ tests = aroundAll withDatabaseTestContext do
                 map (.id) baseEligibleStaff `shouldNotContain` [fixture.assignedInactiveStaff.id]
                 map (.id) baseAssignedStaff `shouldBe` [fixture.assignedInactiveStaff.id]
                 map (.id) baseStaffMembers `shouldContain` [fixture.eligibleStaff.id, fixture.assignedInactiveStaff.id]
+
+        it "keeps deployed record decoding independent of physical table order" $ withContext do
+            directReadSource <- TextIO.readFile "Web/RosterWeeks/DirectReadModel.hs"
+            mutationSource <- TextIO.readFile "Web/Timesheets/Mutations.hs"
+            directReadSource `shouldSatisfy` (not . Text.isInfixOf "SELECT roster_slots.*")
+            directReadSource `shouldSatisfy` (not . Text.isInfixOf "SELECT staff.*")
+            mutationSource `shouldSatisfy` (not . Text.isInfixOf "SELECT timesheet_entries.*")
+            mutationSource `shouldSatisfy` (not . Text.isInfixOf "SELECT roster_slots.*")
 
         it "builds direct render data with the same base facts used by the roster seam" $ withContext do
             withCleanDb do

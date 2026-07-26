@@ -62,9 +62,9 @@ materializeTimesheetSuggestionMutation _weekOffset expectedSuggestion timesheetE
 
 lockRosterSlot :: (?modelContext :: ModelContext) => UUID -> IO ()
 lockRosterSlot rosterSlotId = do
-    _lockedRosterSlots :: [RosterSlot] <-
+    _lockedRosterSlotIds :: [Only UUID] <-
         sqlQuery
-            "SELECT roster_slots.* FROM roster_slots WHERE id = ? FOR UPDATE"
+            "SELECT id FROM roster_slots WHERE id = ? FOR UPDATE"
             (Only rosterSlotId)
     pure ()
 
@@ -164,10 +164,11 @@ approveTimesheetEntryMutation _weekOffset timesheetEntry = do
     approval :: Either IOException TimesheetEntry <- try $ withTransaction do
         -- QueryBuilder has no row-lock combinator; keep this narrow FOR UPDATE
         -- seam here so concurrent approvals cannot create duplicate ledgers.
-        lockedEntries :: [TimesheetEntry] <- sqlQuery
-            "SELECT timesheet_entries.* FROM timesheet_entries WHERE id = ? FOR UPDATE"
+        lockedEntryIds :: [Only UUID] <- sqlQuery
+            "SELECT id FROM timesheet_entries WHERE id = ? FOR UPDATE"
             (Only (unpackId timesheetEntry.id))
-        lockedEntry <- maybe (ioError (userError "timesheet entry disappeared during approval")) pure (listToMaybe lockedEntries)
+        lockedEntryId <- maybe (ioError (userError "timesheet entry disappeared during approval")) (\(Only entryId) -> pure entryId) (listToMaybe lockedEntryIds)
+        lockedEntry <- fetch (Id lockedEntryId :: Id TimesheetEntry)
         case (lockedEntry.isApproved, lockedEntry.activePayCalculationId) of
             (True, Just _) -> pure lockedEntry
             _ -> do
