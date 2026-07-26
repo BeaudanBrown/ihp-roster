@@ -266,24 +266,37 @@ detectAwardDrift expected observed =
             AwardDocumentVersionChanged
             expected.documentVersion
             observed.documentVersion
-        , changedSignal
+        , changedSetSignal
             AwardClassificationStructureChanged
-            (renderKeys expected.classificationKeys)
-            (renderKeys observed.classificationKeys)
-        , changedSignal
+            expected.classificationKeys
+            observed.classificationKeys
+        , changedSetSignal
             AwardCategoryStructureChanged
-            (renderKeys expected.categoryKeys)
-            (renderKeys observed.categoryKeys)
+            expected.categoryKeys
+            observed.categoryKeys
         ]
 
 changedSignal :: AwardDriftKind -> Text -> Text -> Maybe AwardDriftSignal
-changedSignal kind expectedValue observedValue
-    | expectedValue == observedValue = Nothing
+changedSignal kind expectedValue observedValue =
+    changedSignalWithCanonicalValues kind expectedValue observedValue expectedValue observedValue
+
+changedSetSignal :: AwardDriftKind -> Set.Set Text -> Set.Set Text -> Maybe AwardDriftSignal
+changedSetSignal kind expectedValues observedValues =
+    changedSignalWithCanonicalValues
+        kind
+        (renderKeys expectedValues)
+        (renderKeys observedValues)
+        (canonicalTextParts (Set.toAscList expectedValues))
+        (canonicalTextParts (Set.toAscList observedValues))
+
+changedSignalWithCanonicalValues :: AwardDriftKind -> Text -> Text -> Text -> Text -> Maybe AwardDriftSignal
+changedSignalWithCanonicalValues kind expectedValue observedValue expectedCanonical observedCanonical
+    | expectedCanonical == observedCanonical = Nothing
     | otherwise =
         Just
             AwardDriftSignal
                 { kind
-                , dedupeKey = awardDriftDedupeKey kind expectedValue observedValue
+                , dedupeKey = awardDriftDedupeKey kind expectedCanonical observedCanonical
                 , audience = PlatformSuperAdmins
                 , payrollEffect = AwardDriftDoesNotBlockPayroll
                 , expectedValue
@@ -291,17 +304,20 @@ changedSignal kind expectedValue observedValue
                 }
 
 renderKeys :: Set.Set Text -> Text
-renderKeys = Text.intercalate "\NUL" . Set.toAscList
+renderKeys = Text.intercalate ", " . Set.toAscList
 
 awardDriftDedupeKey :: AwardDriftKind -> Text -> Text -> Text
-awardDriftDedupeKey kind expectedValue observedValue =
+awardDriftDedupeKey kind expectedCanonical observedCanonical =
     "award-drift:"
         <> driftKindValue kind
         <> ":"
         <> tshow digest
   where
-    payload = Text.intercalate "\NUL" [driftKindValue kind, expectedValue, observedValue]
+    payload = canonicalTextParts [driftKindValue kind, expectedCanonical, observedCanonical]
     digest = Hash.hash (TextEncoding.encodeUtf8 payload) :: Hash.Digest Hash.SHA256
+
+canonicalTextParts :: [Text] -> Text
+canonicalTextParts = Text.concat . map (\value -> tshow (Text.length value) <> ":" <> value)
 
 driftKindValue :: AwardDriftKind -> Text
 driftKindValue AwardDocumentChecksumChanged        = "document-checksum"

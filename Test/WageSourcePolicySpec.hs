@@ -113,6 +113,12 @@ tests = do
             first `shouldSatisfy` all (\signal -> signal.audience == PlatformSuperAdmins && signal.payrollEffect == AwardDriftDoesNotBlockPayroll)
             map (.dedupeKey) first `shouldSatisfy` \keys -> length keys == length (nub keys)
 
+        it "uses unambiguous dedupe keys for structurally distinct category sets" do
+            let separateKeys = baselineFingerprint { categoryKeys = Set.fromList ["a", "b"] }
+                embeddedSeparator = baselineFingerprint { categoryKeys = Set.singleton "a\NULb" }
+                dedupeFor observed = map (.dedupeKey) (detectAwardDrift baselineFingerprint observed)
+            dedupeFor separateKeys `shouldNotBe` dedupeFor embeddedSeparator
+
         it "does not signal rate-only refreshes or unchanged Award structure" do
             detectAwardDrift baselineFingerprint baselineFingerprint `shouldBe` []
 
