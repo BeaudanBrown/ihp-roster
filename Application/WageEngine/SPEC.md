@@ -21,6 +21,24 @@ sources. The existing `Application.Helper.Pay.fetchTimesheetPay` and
 `fetchTimesheetPayResultsForEntries` SQL compatibility seam remains authoritative
 for legacy export/read models until cutover issue #239.
 
+## Wage-source policy
+
+`Application.WageSourcePolicy` is the pure provider-neutral boundary for draft and
+final source-readiness decisions. Callers inject the current UTC time, venue pay-week
+boundary, applicable DataVic target years, and candidate metadata. Only complete
+successes at or before the injected clock count. Award calculations warn in draft and
+block final use when the latest FWC success is older than 8 days, the first full venue
+week beginning on/after 1 July lacks a success on/after 1 July, or an applicable
+DataVic year is missing or older than 45 days. Exact 8-day and 45-day boundaries remain
+valid. Failed and incomplete candidates never displace a last complete success, while
+imported Xero overrides bypass both source checks.
+
+The same module compares canonical Award document and structural fingerprints. A
+document checksum/version, classification, or category change emits a deterministic
+deduplication key scoped to a non-blocking platform-super-admin signal. Rate-only and
+unchanged-structure refreshes emit no drift signal. The policy performs no persistence,
+network, workflow, or notification work; issue #276 owns those adapters and effects.
+
 ## Validated rate book
 
 Callers construct `ValidatedRateBook` only through `mkValidatedRateBook`; its data
@@ -132,6 +150,7 @@ exact ledger.
 ## Verification
 
 ```bash
+bash ./bin/in-env hspec-pure --match "WageSourcePolicy"
 bash ./bin/in-env hspec-pure --match "Melbourne civil-time authority"
 bash ./bin/in-env hspec-pure --match "WageEngine components"
 bash ./bin/in-env hspec-pure --match "WageEngine unpaid meal breaks"
