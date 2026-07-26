@@ -660,7 +660,7 @@ tests = aroundAll withDatabaseTestContext do
                 response `responseStatusShouldBe` status200
                 response `responseBodyShouldContain` "Default Pay Rate"
                 response `responseBodyShouldContain` "Award rates"
-                response `responseBodyShouldContain` "Level 3 (Part-time $32.75/hr)"
+                response `responseBodyShouldContain` "Level 3 (Part-time $32.75/hr, casual $40.94/hr)"
                 response `responseBodyShouldContain` "Not assigned"
 
         it "explains why venue roles are unavailable for unlinked staff" $ withContext do

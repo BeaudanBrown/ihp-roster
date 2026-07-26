@@ -1,9 +1,8 @@
 module Test.WageEngine.AdapterSpec where
 
 import Application.FwcMapd.Sync (storeCuratedMapdAwardData)
-import Application.Helper.Pay (PayTotals (..), TimesheetPayResult (..),
-                               ensurePayVersionsForTimesheetApproval,
-                               fetchTimesheetPay, lockPayVersionsForApproval)
+import Application.Helper.Pay (ensurePayVersionsForTimesheetApproval,
+                               lockPayVersionsForApproval)
 import Application.Helper.TimesheetPayLedger (backfillApprovedTimesheetPayCalculations,
                                               loadApprovedTimesheetPayCalculation,
                                               loadApprovedTimesheetPayCalculations,
@@ -509,16 +508,14 @@ databaseTests = aroundAll withDatabaseTestContext do
                 capturedLedgerQueryLines `shouldSatisfy` boundedApprovedLedgerQueryLog
 
                 forM_ (take 5 approvedEntries) \entry -> do
-                    sqlResult <- fetchTimesheetPay entry.id >>= expectRight
                     ledgerCalculation <- case Map.lookup (unpackId entry.id) calculations of
                         Just (Right (Just calculation)) -> pure calculation
                         unexpected -> expectationFailure (cs ("missing approved ledger calculation: " <> tshow unexpected)) >> fail "unreachable"
-                    sum (map (.amount) ledgerCalculation.earningsComponents)
-                        `shouldBe` toRational sqlResult.totals.totalAmount
-                    sum (map paidTimeDurationSeconds ledgerCalculation.paidTimeSegments)
-                        `shouldBe` toRational (sqlResult.totals.paidMinutes * 60)
+                    ledgerCalculation.calculationVersion `shouldBe` currentWageCalculationVersion
+                    ledgerCalculation.earningsComponents `shouldSatisfy` (not . null)
+                    ledgerCalculation.paidTimeSegments `shouldSatisfy` (not . null)
 
-        it "bulk-loads exact #264 provenance once and matches SQL only for approved parity scenarios" $ withContext do
+        it "bulk-loads exact #264 provenance into canonical Haskell calculations" $ withContext do
             withCleanDb do
                 fixture <- loadFwcMapdFixture
                 _ <- storeCuratedMapdAwardData [fixture]
@@ -597,15 +594,13 @@ databaseTests = aroundAll withDatabaseTestContext do
                 (Map.lookup (unpackId importedEntry.id) contexts >>= (.loadedAwardRateContext)) `shouldBe` Nothing
 
                 forM_ entries \entry -> do
-                    sqlResult <- fetchTimesheetPay entry.id >>= expectRight
                     context <- maybe (expectationFailure "missing loaded context" >> fail "unreachable") pure (Map.lookup (unpackId entry.id) contexts)
                     let calculationInput = calculationInputFromLoadedContext context [fourHourInterval (testWorkedOn entry)] Nothing
                     haskellResult <- expectRight (calculateTimesheetPay calculationInput)
 
-                    sum (map (.amount) haskellResult.earningsComponents)
-                        `shouldBe` toRational sqlResult.totals.totalAmount
-                    sum (map paidTimeDurationSeconds haskellResult.paidTimeSegments)
-                        `shouldBe` toRational (sqlResult.totals.paidMinutes * 60)
+                    haskellResult.calculationVersion `shouldBe` currentWageCalculationVersion
+                    haskellResult.earningsComponents `shouldSatisfy` (not . null)
+                    haskellResult.paidTimeSegments `shouldSatisfy` (not . null)
                     haskellResult.earningsComponents `shouldSatisfy` all hasStableComponentSource
 
                 let initialVersions = Map.mapMaybe (fmap validatedRateBookVersion . loadedRateBook) contexts

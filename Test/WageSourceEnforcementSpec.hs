@@ -36,7 +36,15 @@ tests = aroundAll withDatabaseTestContext do
                 awardEntry <- createApprovedTimesheetEntryRecordAt venue awardStaff approver (fromGregorian 2026 5 4) now
                 importedEntry <- createApprovedTimesheetEntryRecordAt venue importedStaff approver (fromGregorian 2026 5 4) now
                 validImportedDraft <- createTimesheetEntryRecord venue importedStaff (fromGregorian 2026 5 5)
+                invalidShiftType <- newRecord @ShiftType
+                    |> set #venueId (unpackId venue.id)
+                    |> set #name ("Missing Award classification" :: Text)
+                    |> set #sortOrder 99
+                    |> set #overrideAwardLevelId Nothing
+                    |> set #isActive True
+                    |> createRecord
                 invalidDraft <- createTimesheetEntryRecord venue awardStaff (fromGregorian 2026 5 5)
+                    >>= updateRecord . set #shiftTypeId (unpackId invalidShiftType.id)
                 let clock = PolicyClock (addUTCTime (9 * 24 * 60 * 60) now)
                     mixedEntries = [awardEntry, importedEntry, validImportedDraft, invalidDraft]
 

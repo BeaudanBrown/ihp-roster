@@ -65,7 +65,7 @@ file does not duplicate ticket status.
 
 - FWC MAPD ingestion/projection: `Application/FwcMapd/`
 - Public-holiday ingestion: `Application/PublicHolidays/`
-- Current SQL/helper seam: `Application/Schema.sql`, `Application/Helper/Pay.hs`
+- Canonical calculation/ledger seam: `Application/WageEngine/`, `Application/Helper/TimesheetPayLedger.hs`
 - Timesheet approval: `Web/Controller/Timesheets.hs`
 - CSV exports: `Application/Helper/Export/`, export controllers
 - Xero requirements/preview/submission: `Application/Xero/`

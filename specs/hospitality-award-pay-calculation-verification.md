@@ -5,8 +5,8 @@ Checked on 22 July 2026 against the current Hospitality Industry (General) Award
 The executable target envelope, exclusions, stable scenario IDs and output
 owners are defined in
 [`hospitality-award-wage-compliance-matrix.md`](hospitality-award-wage-compliance-matrix.md).
-This document continues to characterize the currently implemented SQL behavior
-until cutover issue #239 lands.
+This document records the verified rules now implemented by the canonical Haskell
+engine and immutable approved-pay ledger after cutover #239.
 
 ## Official award rules
 
@@ -47,34 +47,21 @@ For qualifying Monday–Friday evening or early-morning work, the award's applic
 
 ## Current Bepis calculation
 
-The canonical production calculation remains the `calculate_timesheet_pay` SQL
-function in `Application/Schema.sql`, consumed through `Application/Helper/Pay.hs`,
-until cutover issue #239.
+`Application.WageEngine` is the sole production calculator. It consumes authoritative
+instants and a complete provider-neutral `ValidatedRateBook`, then emits separate exact
+paid-time segments and earnings components. A recorded unpaid break is deducted once;
+the missed-break 50% part-time ordinary-rate component remains separate and cumulative
+with the selected base condition and any weekday fixed addition.
 
-`Application.WageEngine` now provides the parallel pure typed contract and complete
-provider-neutral `ValidatedRateBook`. It calculates ordinary, casual, weekend,
-public-holiday, imported-rate, weekday fixed commenced-hour, and recorded
-unpaid-meal-break components from authoritative instants. A recorded unpaid break is
-deducted exactly once; for a shift over six elapsed hours, the missed-break 50% of
-part-time ordinary-rate component is separate and cumulative with the selected base
-condition and any weekday fixed addition. Award-calculated casual entries now receive
-an auditable hypothetical-continuation top-up to two paid hours; qualifying
-public-holiday entries instead receive a distinct public-holiday-rate top-up to four
-part-time or two casual paid hours. The selected minimum is entry-local and never
-stacks, while imported overrides still deduct a recorded unpaid break but bypass Award
-additions, missed-break pay, and minimums. No production consumer has switched. Exact
-components derive final bucket lines by one-cent-per-line rounding; that result is not
-persisted or exported here.
+Award-calculated casual entries receive an auditable hypothetical-continuation top-up
+to two paid hours. Qualifying public-holiday entries instead receive the applicable
+four-hour part-time or two-hour casual top-up. The selected minimum is entry-local and
+never stacks. Imported overrides deduct a recorded unpaid break but bypass Award
+additions, missed-break pay, and minimums.
 
-Legacy SQL compatibility behavior (not the Haskell component shape):
-
-- It splits a shift into calendar-day and time-window segments.
-- It detects a public holiday from the venue's configured jurisdiction and the segment's calendar date.
-- It selects public-holiday penalty rows ahead of Saturday, Sunday, evening, and early-morning rows.
-- For a shift longer than six hours without a recorded break of at least 30 minutes beginning between two and six hours after commencement, inclusive, it creates delayed-meal-break segments from the six-hour point until a later qualifying break begins or the shift ends.
-- Weekday delayed-break segments use the employment-basis base rate plus 50% of the permanent ordinary base rate and retain any applicable evening or early-morning amount. Weekend and public-holiday delayed-break segments use the applicable day penalty rate plus 50% of the permanent ordinary base rate. This produces the award's expected casual-loading arithmetic where configured rates are correct.
-- It enforces a four-hour public-holiday minimum for permanent employees and a two-hour minimum for casual employees. Adjacent hours in the same continuous timesheet entry count toward the minimum, and any shortfall is emitted as a distinct `public_holiday_minimum_top_up` segment at the public-holiday rate.
-- Imported Xero pay-item rates remain explicit flat-rate overrides and do not receive award penalties or public-holiday minimum top-ups.
+Approval seals exact Haskell results in the immutable ledger. Final CSV and Xero paths
+read only that ledger and derive publication buckets with final-boundary rounding; no
+production SQL wage calculation path remains.
 
 ## Remaining limitations
 

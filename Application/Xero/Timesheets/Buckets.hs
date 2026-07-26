@@ -105,7 +105,7 @@ effectiveDateFor :: XeroComponentBucketContext -> AwardLevel -> UUID -> StaffEmp
 effectiveDateFor context awardLevel payLevelId employmentBasis component =
     case component.sourceCondition of
         OrdinaryCondition                -> base employmentBasis
-        MissedMealBreakAdditionCondition -> base Permanent
+        MissedMealBreakAdditionCondition -> missedBreakBase
         SaturdayCondition                -> penalty SaturdayPenalty
         SundayCondition                  -> penalty SundayPenalty
         PublicHolidayCondition           -> penalty PublicHolidayPenalty
@@ -116,6 +116,11 @@ effectiveDateFor context awardLevel payLevelId employmentBasis component =
     base basis =
         context.bucketAwardLevelBaseRates
             |> find (\rate -> rate.awardLevelId == payLevelId && rate.employmentBasis == basis && sourceMatches component (projectionSourceIdentity "award_level_base_rates" (unpackId rate.id) "fwc_mapd_pay_rates" rate.fwcMapdPayRateId) rate.hourlyRate)
+            |> fmap (.operativeFrom)
+            |> maybeToEither "Missing approval-pinned base-rate source."
+    missedBreakBase =
+        context.bucketAwardLevelBaseRates
+            |> find (\rate -> rate.awardLevelId == payLevelId && rate.employmentBasis == Permanent && sourceIdentityMatches component (projectionSourceIdentity "award_level_base_rates" (unpackId rate.id) "fwc_mapd_pay_rates" rate.fwcMapdPayRateId) && component.ratePerUnit == rate.hourlyRate / 2)
             |> fmap (.operativeFrom)
             |> maybeToEither "Missing approval-pinned base-rate source."
     penalty kind =
@@ -135,8 +140,12 @@ projectionSourceIdentity projectionTable projectionId sourceTable sourceId =
 
 sourceMatches :: EarningsComponent -> Text -> Scientific.Scientific -> Bool
 sourceMatches component candidateIdentity candidateRate =
-    component.sourceRateIdentity == Just (RateSourceIdentity candidateIdentity)
+    sourceIdentityMatches component candidateIdentity
         && component.ratePerUnit == candidateRate
+
+sourceIdentityMatches :: EarningsComponent -> Text -> Bool
+sourceIdentityMatches component candidateIdentity =
+    component.sourceRateIdentity == Just (RateSourceIdentity candidateIdentity)
 
 exactSourceSuffix :: EarningsComponent -> Text
 exactSourceSuffix component =

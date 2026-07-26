@@ -150,57 +150,17 @@ best-effort **notification signal** for platform super admins. It is not, by
 itself, a mandatory review gate and does not block payroll. Missing/stale data
 uses the separate fail-closed policy in `HIGA-SOURCE-FRESHNESS`.
 
-## Existing `Test/PaySpec.hs` classification
+## Retired SQL-suite disposition
 
-The SQL suite predates the target component model. “Precursor” means its
-business boundary maps to the target matrix but must move to named Haskell
-engine evidence. “Characterization” means it protects a legacy seam and is not
-Award-compliance evidence. “Non-compliance characterization” explicitly records
-shape/arithmetic that the target tickets must replace; it must not be copied as
-the new contract.
+Cutover #239 removed the SQL payload decoders and arithmetic characterization suite.
+Named `Application.WageEngine` rule, adapter, ledger, publication, fixed-export, and
+Xero suites now own compliance evidence. `Test/PaySpec.hs` retains only non-arithmetic
+helper contracts:
 
-| Existing example | Classification | Matrix mapping / disposition |
-| --- | --- | --- |
-| `decodes single-entry pay payloads` | Characterization `CHAR-PAY-PAYLOAD-SINGLE` | Legacy SQL JSON decoder only; retire under [#239][i239]. |
-| `builds summary flags for weekend and stacked multipliers` | **Non-compliance characterization** `CHAR-PAY-SUMMARY-STACKING` | Legacy payload permits stacked multipliers; target is `HIGA-29.3-HIGHEST-PENALTY`. |
-| `derives venue-effective award dates from the next venue week boundary` | Policy precursor | `HIGA-POLICY-WEEK-ROLLOVER`. |
-| `decodes range payload arrays and indexes summaries by entry id` | Characterization `CHAR-PAY-PAYLOAD-RANGE` | Legacy batch decoder only; replace with typed engine/ledger adapter in [#229][i229]/[#239][i239]. |
-| `uses the staff default award level for ordinary weekday hours` | Compliance precursor | `HIGA-POLICY-AWARD-LEVEL`, `HIGA-29.2-WEEKDAY-ORDINARY`. |
-| `uses elapsed instants for pay across the repeated autumn hour` | Compliance precursor | `HIGA-POLICY-MELBOURNE-ELAPSED`; the repeated hour contributes exact elapsed paid time. |
-| `uses elapsed instants for pay across the skipped spring hour` | Compliance precursor | `HIGA-POLICY-MELBOURNE-ELAPSED`; the nonexistent hour contributes no elapsed paid time. |
-| `preserves fractional elapsed minutes in the canonical SQL calculation` | Compliance precursor | `HIGA-POLICY-MELBOURNE-ELAPSED`; temporary SQL payloads retain exact timestamp-derived decimal minutes across Award-window splits. |
-| `rolls a mid-week FWC base rate increase to the next venue week boundary` | Policy precursor | `HIGA-POLICY-WEEK-ROLLOVER`. |
-| `does not re-rate an approved entry when a newer FWC row is imported later` | Policy precursor | `HIGA-POLICY-APPROVED-IMMUTABLE`; target ledger replaces created-at SQL anchoring. |
-| `splits evening and after-midnight weekday penalties` | **Non-compliance characterization** | Boundaries map to `HIGA-29.2-EVENING-PART-HOUR` and `HIGA-29.2-EARLY-PART-HOUR`, but current combined hourly amounts must become fixed commenced-hour components in [#231][i231]. |
-| `uses weekend and public holiday penalty rows when applicable` | Compliance precursor | `HIGA-29.2-SATURDAY`, `HIGA-29.2-PUBLIC-HOLIDAY`. |
-| `tops up a permanent employee to four paid hours on a public holiday` | Compliance precursor | `HIGA-29.4-PH-MIN-PERMANENT`. |
-| `tops up a casual employee to two paid hours on a public holiday` | Compliance precursor | `HIGA-29.4-PH-MIN-CASUAL`, `HIGA-POLICY-MINIMUM-PRECEDENCE`. |
-| `counts adjacent hours in a continuous shift toward the public holiday minimum` | Compliance precursor | `HIGA-29.4-PH-CONTINUOUS`; “adjacent” here is within one entry, not cross-entry grouping. |
-| `tops up only the shortfall when a short continuous shift crosses into a public holiday` | Compliance precursor | `HIGA-29.4-PH-CONTINUOUS`, `HIGA-29.4-PH-MIN-PERMANENT`. |
-| `uses casual base rates for casual staff` | Compliance precursor | `HIGA-11.1-CASUAL-LOADING`. |
-| `lets a shift type award level override the staff default` | Policy precursor | `HIGA-POLICY-AWARD-LEVEL`. |
-| `uses a staff imported Xero pay item as the hourly rate` | Policy precursor | `HIGA-POLICY-IMPORTED-OVERRIDE`. |
-| `lets shift type imported Xero pay items override staff imported Xero pay items during penalty periods` | Policy precursor | `HIGA-POLICY-IMPORTED-OVERRIDE`. |
-| `keeps an imported Xero rate flat across weekends and public holidays without minimum top ups` | Policy precursor | `HIGA-POLICY-IMPORTED-OVERRIDE`. |
-| `keeps an imported Xero rate flat across time windows and missed break periods` | Policy precursor | `HIGA-POLICY-IMPORTED-OVERRIDE`, `HIGA-POLICY-BREAK-BUCKET`. |
-| `allocates breaks to the actual penalty segment instead of trimming the end of an overnight shift` | Compliance precursor | `HIGA-POLICY-BREAK-BUCKET`. |
-| `subtracts roster wage estimate automatic breaks from start+5h30 instead of the shift end` | Policy precursor | Projected-break input to `HIGA-15.2-PART-TIME-SHIFT-MIN`/`MAX`; it is not timesheet missed-break evidence. |
-| `uses elapsed roster instants for wage prediction across DST transitions` | Compliance precursor | `HIGA-POLICY-MELBOURNE-ELAPSED`; roster projections use instant duration rather than wall-clock subtraction. |
-| `treats an equal-clock repeated roster interval as complete for wage prediction` | Compliance precursor | `HIGA-POLICY-MELBOURNE-ELAPSED`; operational validity accepts a positive first-to-second repeated interval without admitting an invalid next-day wall-clock span. |
-| `allocates after-midnight breaks to the next calendar day segment` | Compliance precursor | `HIGA-POLICY-BREAK-BUCKET`, `HIGA-POLICY-MELBOURNE-ELAPSED`. |
-| `resolves weekday, Saturday, Sunday, and public holiday penalties from segment dates` | Compliance precursor | `HIGA-29.2-WEEKDAY-ORDINARY`, `SATURDAY`, `SUNDAY`, `PUBLIC-HOLIDAY`, and `HIGA-29.3-HIGHEST-PENALTY`. |
-| `uses casual base and casual weekend penalty rows when the staff member is casual` | Compliance precursor | `HIGA-11.1-CASUAL-LOADING`, `HIGA-29.2-SATURDAY`. |
-| `replaces worked time after six hours with weekday delayed meal break segments when no break is taken` | **Non-compliance characterization** | Arithmetic maps to `HIGA-16.6-BREAK-NOT-RECORDED`, but worked time must not be replaced; [#232][i232] emits a separate cumulative component. |
-| `does not apply delayed meal break when a 30 minute break starts inside the first six hours` | Compliance precursor | `HIGA-16.2-BREAK-30M`. |
-| `stops delayed meal break once a late 30 minute break starts` | Compliance precursor with legacy shape | `HIGA-16.5-BREAK-LATE-STOP`; target uses a separate component. |
-| `uses the permanent ordinary rate for the casual delayed meal break top-up` | Compliance precursor with legacy shape | `HIGA-16.6-BREAK-CASUAL-O`; “top-up” becomes a separate earnings addition, not paid time. |
-| `uses weekend and public holiday day rates as the delayed meal break base` | Compliance precursor with legacy shape | `HIGA-16.6-BREAK-CONDITION-MATRIX`, `HIGA-29.3-BREAK-CUMULATIVE`. |
-| `adds the evening allowance to the delayed meal break rate` | **Non-compliance characterization** | Maps to `HIGA-16.6-BREAK-CONDITION-MATRIX` and `HIGA-16.6-COMMENCED-SPLIT`; the current hourly combination must become separate fixed and missed-break components. |
-| `adds the early morning allowance to the delayed meal break rate` | **Non-compliance characterization** | Same disposition for `HIGA-29.2-EARLY-PART-HOUR`. |
-| `does not treat a meal break before the first two hours as qualifying` | Compliance precursor | `HIGA-16.2-BREAK-BEFORE-2H`. |
-| `treats a meal break at the two hour boundary as qualifying` | Compliance precursor | `HIGA-16.2-BREAK-AT-2H`. |
-| `treats a meal break at the six hour boundary as qualifying` | Compliance precursor | `HIGA-16.2-BREAK-AT-6H`. |
-| `emits zero paid minutes for breaks that consume the whole shift` | Characterization `CHAR-PAY-DEFENSIVE-ZERO` | Legacy defensive behavior, not Award evidence. Structural interval policy is owned by [#230][i230]; supported valid inputs still obey `HIGA-POLICY-BREAK-BUCKET`. |
+| Current example | Matrix mapping / disposition |
+| --- | --- |
+| `derives venue-effective award dates from the next venue week boundary` | `HIGA-POLICY-WEEK-ROLLOVER`. |
+| `collapses deterministic pay-version manifests` | Approved output metadata helper; arithmetic remains ledger-owned. |
 
 ## Official sources
 

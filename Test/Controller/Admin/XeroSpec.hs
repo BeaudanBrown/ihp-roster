@@ -923,7 +923,7 @@ tests = aroundAll withDatabaseTestContext do
                 payItemResponse `responseBodyShouldNotContain` "will be created on submit"
                 payItemResponse `responseBodyShouldNotContain` "1 will be created on submit"
                 payItemResponse `responseBodyShouldContain` "Ordinary - "
-                payItemResponse `responseBodyShouldContain` " - PERM - Bepis - Undated"
+                payItemResponse `responseBodyShouldContain` " - PERM - Bepis - 6-January-2020"
                 payItemResponse `responseBodyShouldNotContain` "Approve creation"
                 payItemResponse `responseBodyShouldNotContain` "Earnings-rate mappings"
                 payItemResponse `responseBodyShouldNotContain` "name=\"xeroEarningsRateSelection\""

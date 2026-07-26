@@ -6,22 +6,15 @@ import Application.Helper.WeekBoundaries (WeekdayIndex)
 import qualified Application.Helper.WeekBoundaries as WeekBoundaries
 import Application.VenueTime.Model (timesheetEntryWorkedOn)
 import Control.Monad (void)
-import Data.Aeson ((.:), (.:?))
-import qualified Data.Aeson as Aeson
 import qualified Data.List as List
-import qualified Data.Map.Strict as Map
 import Data.Ord (Down (..))
-import qualified Data.Scientific as Scientific
-import qualified Data.Set as Set
 import qualified Data.Text as Text
-import Data.Text.Encoding (encodeUtf8)
 import Data.Time.Calendar (Day)
 import Data.Time.Clock (UTCTime)
-import qualified Database.PostgreSQL.Simple as PG
 import Generated.Types
 import GHC.Records (HasField)
 import IHP.ControllerPrelude
-import IHP.ModelSupport (ModelContext, sqlQueryScalar, unpackId)
+import IHP.ModelSupport (ModelContext, unpackId)
 import IHP.Prelude
 
 venueEffectiveRateDate :: WeekdayIndex -> Day -> Day
@@ -39,127 +32,6 @@ latestVenueEffectiveRate :: (HasField "operativeFrom" record (Maybe Day), HasFie
 latestVenueEffectiveRate weekStartsOn referenceDate =
     List.find (rateEffectiveOn weekStartsOn referenceDate)
         . List.sortOn (\record -> (Down (venueEffectiveRateDate weekStartsOn <$> record.operativeFrom), Down record.createdAt))
-
-data PaySegment = PaySegment
-    { segment           :: !Text
-    , segmentDate       :: !(Maybe Day)
-    -- Decimal minutes retain exact timestamp-derived elapsed time; the legacy
-    -- field name remains part of the SQL payload contract.
-    , minutes           :: !Scientific.Scientific
-    , shiftTypeId       :: !(Maybe UUID)
-    , shiftTypeName     :: !(Maybe Text)
-    , payLevelId        :: !(Maybe UUID)
-    , payLevelName      :: !(Maybe Text)
-    , penaltyKind       :: !(Maybe Text)
-    , multiplier        :: !Scientific.Scientific
-    , dayRuleMultiplier :: !(Maybe Scientific.Scientific)
-    , weekendMultiplier :: !(Maybe Scientific.Scientific)
-    , baseRate          :: !Scientific.Scientific
-    , amount            :: !Scientific.Scientific
-    }
-    deriving (Eq, Show)
-
-instance Aeson.FromJSON PaySegment where
-    parseJSON = Aeson.withObject "PaySegment" \obj ->
-        PaySegment
-            <$> obj .: "segment"
-            <*> obj .:? "segmentDate"
-            <*> obj .: "minutes"
-            <*> obj .:? "shiftTypeId"
-            <*> obj .:? "shiftTypeName"
-            <*> obj .:? "payLevelId"
-            <*> obj .:? "payLevelName"
-            <*> obj .:? "penaltyKind"
-            <*> obj .: "multiplier"
-            <*> obj .:? "dayRuleMultiplier"
-            <*> obj .:? "weekendMultiplier"
-            <*> obj .: "baseRate"
-            <*> obj .: "amount"
-
-data PayTotals = PayTotals
-    { -- Decimal minutes retain exact timestamp-derived elapsed time; the legacy
-      -- field name remains part of the SQL payload contract.
-      paidMinutes :: !Scientific.Scientific
-    , totalAmount :: !Scientific.Scientific
-    }
-    deriving (Eq, Show)
-
-instance Aeson.FromJSON PayTotals where
-    parseJSON = Aeson.withObject "PayTotals" \obj ->
-        PayTotals
-            <$> obj .: "paidMinutes"
-            <*> obj .: "totalAmount"
-
-data TimesheetPayResult = TimesheetPayResult
-    { entryId               :: !Text
-    , shiftTypeId           :: !(Maybe UUID)
-    , shiftTypeName         :: !(Maybe Text)
-    , payLevelId            :: !(Maybe UUID)
-    , payLevelName          :: !(Maybe Text)
-    , staffPayVersionId     :: !(Maybe UUID)
-    , shiftTypePayVersionId :: !(Maybe UUID)
-    , segments              :: ![PaySegment]
-    , totals                :: !PayTotals
-    }
-    deriving (Eq, Show)
-
-instance Aeson.FromJSON TimesheetPayResult where
-    parseJSON = Aeson.withObject "TimesheetPayResult" \obj ->
-        TimesheetPayResult
-            <$> obj .: "entryId"
-            <*> obj .:? "shiftTypeId"
-            <*> obj .:? "shiftTypeName"
-            <*> obj .:? "payLevelId"
-            <*> obj .:? "payLevelName"
-            <*> obj .:? "staffPayVersionId"
-            <*> obj .:? "shiftTypePayVersionId"
-            <*> obj .: "segments"
-            <*> obj .: "totals"
-
-data TimesheetPaySummary = TimesheetPaySummary
-    { paidMinutes          :: !Scientific.Scientific
-    , totalAmount          :: !Scientific.Scientific
-    , segmentCount         :: !Int
-    , weekendApplied       :: !Bool
-    , hasStackedMultiplier :: !Bool
-    }
-    deriving (Eq, Show)
-
-decodeTimesheetPayResult :: Text -> Either Text TimesheetPayResult
-decodeTimesheetPayResult payload =
-    case Aeson.eitherDecodeStrict' (encodeUtf8 payload) of
-        Left err -> Left ("Failed to decode calculate_timesheet_pay payload: " <> Text.pack err)
-        Right value -> Right value
-
-decodeTimesheetPayResults :: Text -> Either Text [TimesheetPayResult]
-decodeTimesheetPayResults payload =
-    case Aeson.eitherDecodeStrict' (encodeUtf8 payload) of
-        Left err -> Left ("Failed to decode calculate_timesheet_pay_range payload: " <> Text.pack err)
-        Right value -> Right value
-
-timesheetEntryIdKey :: Id TimesheetEntry -> Text
-timesheetEntryIdKey entryId = tshow (unpackId entryId)
-
-buildTimesheetPaySummary :: TimesheetPayResult -> TimesheetPaySummary
-buildTimesheetPaySummary result =
-    TimesheetPaySummary
-        { paidMinutes = result.totals.paidMinutes
-        , totalAmount = result.totals.totalAmount
-        , segmentCount = length result.segments
-        , weekendApplied = any hasWeekend result.segments
-        , hasStackedMultiplier = any hasStacked result.segments
-        }
-    where
-        hasWeekend segment = maybe False (> 1) segment.weekendMultiplier
-        hasStacked segment = maybe False (> 1) segment.weekendMultiplier && maybe False (/= 1) segment.dayRuleMultiplier
-
-buildTimesheetPaySummariesByEntryId :: [TimesheetPayResult] -> Map.Map Text TimesheetPaySummary
-buildTimesheetPaySummariesByEntryId results =
-    Map.fromList (map (\result -> (result.entryId, buildTimesheetPaySummary result)) results)
-
-buildTimesheetPayResultsByEntryId :: [TimesheetPayResult] -> Map.Map Text TimesheetPayResult
-buildTimesheetPayResultsByEntryId results =
-    Map.fromList (map (\result -> (result.entryId, result)) results)
 
 payVersionManifestForEntry :: TimesheetEntry -> Maybe Text
 payVersionManifestForEntry entry = do
@@ -278,50 +150,3 @@ lockPayVersionsForApproval actorUserId lockedAt staffVersion shiftTypeVersion = 
                 |> set #lockedByUserId (Just (unpackId actorUserId))
                 |> updateRecord
             )
-
-fetchTimesheetPay :: (?modelContext :: ModelContext) => Id TimesheetEntry -> IO (Either Text TimesheetPayResult)
-fetchTimesheetPay entryId = do
-    payload :: Text <- sqlQueryScalar "SELECT calculate_timesheet_pay(?)::text" (PG.Only (unpackId entryId))
-    pure (decodeTimesheetPayResult payload)
-
-fetchTimesheetPayRange :: (?modelContext :: ModelContext) => UUID -> Day -> Day -> IO (Either Text [TimesheetPayResult])
-fetchTimesheetPayRange staffId fromDate toDate = do
-    payload :: Text <- sqlQueryScalar "SELECT calculate_timesheet_pay_range(?, ?, ?)::text" (staffId, fromDate, toDate)
-    pure (decodeTimesheetPayResults payload)
-
-fetchTimesheetPayResultsForEntries :: (?modelContext :: ModelContext) => [TimesheetEntry] -> IO (Map.Map Text TimesheetPayResult)
-fetchTimesheetPayResultsForEntries entries = do
-    let groupedEntries = groupByStaff entries
-    resultMaps <- forM (Map.toList groupedEntries) \(staffId, staffEntries) -> do
-        let fromDate = minimum (map timesheetEntryWorkedOn staffEntries)
-        let toDate = maximum (map timesheetEntryWorkedOn staffEntries)
-        let requestedEntryIds = Set.fromList (map (timesheetEntryIdKey . get #id) staffEntries)
-        payResults <- fetchTimesheetPayRange staffId fromDate toDate
-        case payResults of
-            Left _ -> pure Map.empty
-            Right results ->
-                pure
-                    ( buildTimesheetPayResultsByEntryId results
-                        |> Map.filterWithKey (\entryId _ -> Set.member entryId requestedEntryIds)
-                    )
-    pure (Map.unions resultMaps)
-    where
-        groupByStaff :: [TimesheetEntry] -> Map.Map UUID [TimesheetEntry]
-        groupByStaff =
-            foldl' (\acc entry -> Map.insertWith (<>) entry.staffId [entry] acc) Map.empty
-
-fetchTimesheetPaySummariesForEntries :: (?modelContext :: ModelContext) => [TimesheetEntry] -> IO (Map.Map Text TimesheetPaySummary)
-fetchTimesheetPaySummariesForEntries entries = do
-    let groupedEntries = groupByStaff entries
-    resultMaps <- forM (Map.toList groupedEntries) \(staffId, staffEntries) -> do
-        let fromDate = minimum (map timesheetEntryWorkedOn staffEntries)
-        let toDate = maximum (map timesheetEntryWorkedOn staffEntries)
-        payResults <- fetchTimesheetPayRange staffId fromDate toDate
-        case payResults of
-            Left _        -> pure Map.empty
-            Right results -> pure (buildTimesheetPaySummariesByEntryId results)
-    pure (Map.unions resultMaps)
-    where
-        groupByStaff :: [TimesheetEntry] -> Map.Map UUID [TimesheetEntry]
-        groupByStaff =
-            foldl' (\acc entry -> Map.insertWith (<>) entry.staffId [entry] acc) Map.empty

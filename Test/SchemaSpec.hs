@@ -926,60 +926,25 @@ tests = describe "Schema" do
             let backToCol = fieldNameToColumnName fieldName
             backToCol `shouldBe` col
 
-    describe "Pay SQL functions" do
-        it "defines canonical pay function signatures in schema" do
+    describe "Haskell wage-engine cutover" do
+        it "retires legacy SQL wage calculation functions from the canonical schema" do
             schemaSqlText <- TextIO.readFile "Application/Schema.sql"
-            schemaSqlText `shouldSatisfy` Text.isInfixOf "CREATE OR REPLACE FUNCTION resolve_effective_pay_level(p_staff_id UUID, p_shift_type_id UUID, p_day_of_week INT)"
-            schemaSqlText `shouldSatisfy` Text.isInfixOf "CREATE OR REPLACE FUNCTION venue_effective_award_rate_from(p_week_starts_on INT, p_operative_from DATE)"
-            schemaSqlText `shouldSatisfy` Text.isInfixOf "CREATE OR REPLACE FUNCTION venue_effective_award_rate_to(p_week_starts_on INT, p_operative_to DATE)"
-            schemaSqlText `shouldSatisfy` Text.isInfixOf "CREATE OR REPLACE FUNCTION calculate_timesheet_pay(p_entry_id UUID)"
-            schemaSqlText `shouldSatisfy` Text.isInfixOf "CREATE OR REPLACE FUNCTION calculate_timesheet_pay_range(p_staff_id UUID, p_from_date DATE, p_to_date DATE)"
-            schemaSqlText `shouldSatisfy` Text.isInfixOf "RETURNS JSONB"
+            schemaSqlText `shouldNotSatisfy` Text.isInfixOf "calculate_timesheet_pay"
+            schemaSqlText `shouldNotSatisfy` Text.isInfixOf "calculate_timesheet_pay_range"
 
-        it "documents expected JSON output fields for calculate_timesheet_pay" do
+        it "keeps the immutable approved-pay ledger as the final-pay authority" do
             schemaSqlText <- TextIO.readFile "Application/Schema.sql"
-            schemaSqlText `shouldSatisfy` Text.isInfixOf "'segments', sj.segments"
-            schemaSqlText `shouldSatisfy` Text.isInfixOf "'totals', jsonb_build_object"
-            schemaSqlText `shouldSatisfy` Text.isInfixOf "'paidMinutes', pw.paid_minutes"
-            schemaSqlText `shouldSatisfy` Text.isInfixOf "'shiftTypeName', pw.shift_type_name"
-            schemaSqlText `shouldSatisfy` Text.isInfixOf "'payLevelName', pw.pay_level_name"
-            schemaSqlText `shouldSatisfy` Text.isInfixOf "'baseRate', sr.base_rate"
-            schemaSqlText `shouldSatisfy` Text.isInfixOf "'amount', ROUND(((sr.segment_minutes::NUMERIC / 60.0) * sr.segment_hourly_rate), 2)"
-            schemaSqlText `shouldSatisfy` Text.isInfixOf "'totalAmount', st.total_amount"
+            schemaSqlText `shouldSatisfy` Text.isInfixOf "CREATE TABLE timesheet_pay_calculations"
+            schemaSqlText `shouldSatisfy` Text.isInfixOf "CREATE TABLE timesheet_pay_time_segments"
+            schemaSqlText `shouldSatisfy` Text.isInfixOf "CREATE TABLE timesheet_pay_earnings_components"
 
-        it "uses calculate_timesheet_pay as the canonical range payload source" do
-            schemaSqlText <- TextIO.readFile "Application/Schema.sql"
-            schemaSqlText `shouldSatisfy` Text.isInfixOf "calculate_timesheet_pay(te.id)"
-
-        it "defines local award segmentation windows from timezone-projected boundaries" do
-            schemaSqlText <- TextIO.readFile "Application/Schema.sql"
-            schemaSqlText `shouldSatisfy` Text.isInfixOf "date_trunc('day', pw.starts_at AT TIME ZONE pw.timezone)"
-            schemaSqlText `shouldSatisfy` Text.isInfixOf "('late_night_after_midnight'::TEXT, local_midnight, local_midnight + INTERVAL '7 hours', 1)"
-            schemaSqlText `shouldSatisfy` Text.isInfixOf "('ordinary'::TEXT, local_midnight + INTERVAL '7 hours', local_midnight + INTERVAL '19 hours', 2)"
-            schemaSqlText `shouldSatisfy` Text.isInfixOf "('evening_after_7pm'::TEXT, local_midnight + INTERVAL '19 hours', local_midnight + INTERVAL '1 day', 3)"
-            schemaSqlText `shouldSatisfy` Text.isInfixOf "raw_windows.window_start_local AT TIME ZONE pw.timezone AS window_starts_at"
-            schemaSqlText `shouldSatisfy` Text.isInfixOf "raw_windows.window_end_local AT TIME ZONE pw.timezone AS window_ends_at"
-
-        it "builds elapsed segment overlaps from instants and subtracts positioned breaks" do
-            schemaSqlText <- TextIO.readFile "Application/Schema.sql"
-            schemaSqlText `shouldSatisfy` Text.isInfixOf "LEAST(pw.ends_at, sw.window_ends_at) - GREATEST(pw.starts_at, sw.window_starts_at)"
-            schemaSqlText `shouldSatisfy` Text.isInfixOf "LEAST(pw.break_ends_at, pw.ends_at, sw.window_ends_at) - GREATEST(pw.break_starts_at, pw.starts_at, sw.window_starts_at)"
-            schemaSqlText `shouldSatisfy` Text.isInfixOf "ss.worked_segment_minutes"
-            schemaSqlText `shouldSatisfy` Text.isInfixOf "ss.break_segment_minutes"
-            schemaSqlText `shouldSatisfy` Text.isInfixOf "ss.delayed_segment_minutes - ss.break_delayed_segment_minutes"
-            schemaSqlText `shouldSatisfy` Text.isInfixOf "FILTER (WHERE sr.segment_minutes > 0)"
-
-        it "uses projected award rates and penalty kinds in pay segments" do
-            schemaSqlText <- TextIO.readFile "Application/Schema.sql"
-            schemaSqlText `shouldSatisfy` Text.isInfixOf "CREATE TABLE award_level_base_rates"
-            schemaSqlText `shouldSatisfy` Text.isInfixOf "CREATE TABLE award_level_penalty_rates"
-            schemaSqlText `shouldSatisfy` Text.isInfixOf "CREATE TABLE award_time_penalty_allowances"
-            schemaSqlText `shouldSatisfy` Text.isInfixOf "ph.holiday_date = ss.segment_date"
-            schemaSqlText `shouldSatisfy` Text.isInfixOf "WHEN EXTRACT(DOW FROM ss.segment_date)::INT = 6 THEN 'saturday_penalty'::award_penalty_kind_enum"
-            schemaSqlText `shouldSatisfy` Text.isInfixOf "WHEN ss.segment_name = 'evening_after_7pm' THEN 'evening_after_7pm'::award_penalty_kind_enum"
-            schemaSqlText `shouldSatisfy` Text.isInfixOf "WHEN ss.segment_name = 'late_night_after_midnight' THEN 'late_night_after_midnight'::award_penalty_kind_enum"
-            schemaSqlText `shouldSatisfy` Text.isInfixOf "SELECT alpr.hourly_rate"
-            schemaSqlText `shouldSatisfy` Text.isInfixOf "SELECT atpa.hourly_amount"
+        it "guards the retirement migration with sealed approval-metadata parity" do
+            migrationSqlText <- TextIO.readFile "Application/Migration/1785242000.sql"
+            migrationSqlText `shouldSatisfy` Text.isInfixOf "calculation.sealed_at IS NULL"
+            migrationSqlText `shouldSatisfy` Text.isInfixOf "calculation.approved_at IS DISTINCT FROM te.approved_at"
+            migrationSqlText `shouldSatisfy` Text.isInfixOf "FROM timesheet_pay_time_segments segment"
+            migrationSqlText `shouldSatisfy` Text.isInfixOf "FROM timesheet_pay_earnings_components component"
+            migrationSqlText `shouldSatisfy` Text.isInfixOf "DROP FUNCTION IF EXISTS calculate_timesheet_pay(UUID)"
 
     describe "Timesheet validation helpers" do
         it "parseTimeParam parses valid HH:MM values" do

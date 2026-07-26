@@ -23,6 +23,7 @@ import qualified Data.Text as Text
 import Data.Time.Calendar (toGregorian)
 import Data.Time.Clock (getCurrentTime)
 import Data.Traversable (traverse)
+import qualified Database.PostgreSQL.Simple as PG
 import Generated.Types
 import IHP.ControllerPrelude
 import IHP.ModelSupport (ModelContext, sqlQuery, unpackId)
@@ -189,6 +190,16 @@ backfillApprovedTimesheetPayCalculations ::
     IO (Either [(UUID, Text)] Int)
 backfillApprovedTimesheetPayCalculations = do
     result :: Either PayLedgerBackfillException Int <- Exception.try $ withTransaction do
+        invalidActiveEntryIds :: [PG.Only UUID] <- sqlQuery
+            "SELECT te.id FROM timesheet_entries te LEFT JOIN timesheet_pay_calculations calculation ON calculation.id = te.active_pay_calculation_id WHERE te.is_approved = TRUE AND te.deleted_at IS NULL AND te.active_pay_calculation_id IS NOT NULL AND (calculation.id IS NULL OR calculation.sealed_at IS NULL OR calculation.timesheet_entry_id <> te.id OR calculation.approved_at IS DISTINCT FROM te.approved_at OR calculation.approved_by_user_id IS DISTINCT FROM te.approved_by_user_id OR calculation.staff_pay_version_id IS DISTINCT FROM te.staff_pay_version_id OR calculation.shift_type_pay_version_id IS DISTINCT FROM te.shift_type_pay_version_id OR NOT EXISTS (SELECT 1 FROM timesheet_pay_time_segments segment WHERE segment.timesheet_pay_calculation_id = calculation.id) OR NOT EXISTS (SELECT 1 FROM timesheet_pay_earnings_components component WHERE component.timesheet_pay_calculation_id = calculation.id) OR (SELECT COUNT(*) <> COALESCE(MAX(segment.ordinal) + 1, 0) FROM timesheet_pay_time_segments segment WHERE segment.timesheet_pay_calculation_id = calculation.id) OR (SELECT COUNT(*) <> COALESCE(MAX(component.ordinal) + 1, 0) FROM timesheet_pay_earnings_components component WHERE component.timesheet_pay_calculation_id = calculation.id)) ORDER BY te.starts_at, te.id FOR UPDATE OF te"
+            ()
+        unless (null invalidActiveEntryIds) $
+            Exception.throwIO
+                ( PayLedgerBackfillException
+                    [ (entryId, "Existing active approved-pay ledger is incomplete or does not preserve approval metadata.")
+                    | PG.Only entryId <- invalidActiveEntryIds
+                    ]
+                )
         entries :: [TimesheetEntry] <- sqlQuery
             "SELECT timesheet_entries.* FROM timesheet_entries WHERE is_approved = TRUE AND active_pay_calculation_id IS NULL AND deleted_at IS NULL ORDER BY starts_at, id FOR UPDATE"
             ()

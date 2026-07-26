@@ -1,7 +1,5 @@
 module Test.XeroTimesheetReadinessSpec where
 
-import Application.Helper.Pay (TimesheetPayResult (..),
-                               fetchTimesheetPayResultsForEntries)
 import Application.Helper.Xero
 import Application.Helper.XeroAdminTypes
 import Application.Helper.XeroPayItems
@@ -135,10 +133,13 @@ tests = do
                     periodEnd = fromGregorian 2026 7 21
                 fixture <- createReadinessFixture "weekly" periodStart periodEnd
                 entries <- query @TimesheetEntry |> filterWhere (#venueId, unpackId fixture.venue.id) |> fetch
-                initialPayResults <- fetchTimesheetPayResultsForEntries entries
+                pinnedStaffVersions <- forM entries \entry ->
+                    maybe (expectationFailure "expected approved entry staff pay version" >> error "unreachable") (fetch . (Id :: UUID -> Id StaffPayVersion)) entry.staffPayVersionId
+                pinnedShiftVersions <- forM entries \entry ->
+                    maybe (expectationFailure "expected approved entry shift pay version" >> error "unreachable") (fetch . (Id :: UUID -> Id ShiftTypePayVersion)) entry.shiftTypePayVersionId
                 payLevelUuid <-
-                    case nub (mapMaybe (.payLevelId) (Map.elems initialPayResults)) of
-                        [value] -> pure value
+                    case nub (zipWith (\staffVersion shiftVersion -> shiftVersion.overrideAwardLevelId <|> staffVersion.defaultAwardLevelId) pinnedStaffVersions pinnedShiftVersions) of
+                        [Just value] -> pure value
                         _ -> expectationFailure "expected one fixture pay level" >> error "unreachable"
                 let awardLevelId = Id payLevelUuid :: Id AwardLevel
                 oldBaseRates <-
@@ -177,9 +178,9 @@ tests = do
                         |> filterWhere (#employmentBasis, Permanent)
                         |> orderBy #operativeFrom
                         |> fetch
-                payResults <- fetchTimesheetPayResultsForEntries entries
                 map (.operativeFrom) selectedRates `shouldBe` [Just (fromGregorian 2025 7 1), Just (fromGregorian 2026 7 1)]
-                map (.payLevelId) (Map.elems payResults) `shouldSatisfy` all (== Just (unpackId awardLevelId))
+                zipWith (\staffVersion shiftVersion -> shiftVersion.overrideAwardLevelId <|> staffVersion.defaultAwardLevelId) pinnedStaffVersions pinnedShiftVersions
+                    `shouldSatisfy` all (== Just (unpackId awardLevelId))
 
                 bucketResult <- fetchPeriodXeroLocalEarningsBuckets fixture.venue.id periodStart periodEnd []
                 buckets <- case bucketResult of

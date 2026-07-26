@@ -12,6 +12,7 @@ import Application.Helper.RosterGroups (ensureVenueDefaultRosterGroup,
                                         ensureVenueRosterDefaults)
 import Application.Helper.TimeRules (rosterShiftStartDate)
 import qualified Application.Support.PayrollFixtures as Payroll
+import qualified Application.Support as ApplicationSupport
 import Application.Support.WageSourceFixtures (ensureFreshWageSourceFacts,
                                                sealApprovedFixtureCalculation)
 import Application.VenueTime (RepeatedTimeOccurrence (FirstOccurrence),
@@ -623,8 +624,7 @@ createLeaveRequestRecordWithNotes venue staff startDate endDate leaveStatus note
         |> createRecord
 
 createPayLevelRecord :: (?modelContext :: ModelContext) => Venue -> Text -> IO AwardLevel
-createPayLevelRecord venue levelName =
-    createPayLevelRecordWithRates venue levelName 0 0 0 1 1 1
+createPayLevelRecord = ApplicationSupport.createPayLevelRecord
 
 createPayLevelRecordWithRates ::
     (?modelContext :: ModelContext) =>
@@ -637,95 +637,7 @@ createPayLevelRecordWithRates ::
     Scientific ->
     Scientific ->
     IO AwardLevel
-createPayLevelRecordWithRates venue levelName baseRate eveningPenalty after12Penalty weekdayMultiplier saturdayMultiplier sundayMultiplier =
-    createAwardLevelRecordWithRates levelName baseRate eveningPenalty after12Penalty saturdayMultiplier sundayMultiplier
-
-createAwardLevelRecordWithRates :: (?modelContext :: ModelContext) => Text -> Scientific -> Scientific -> Scientific -> Scientific -> Scientific -> IO AwardLevel
-createAwardLevelRecordWithRates levelName baseRate eveningPenalty after12Penalty saturdayMultiplier sundayMultiplier = do
-    let classificationFixedId = awardLevelClassificationFixedId levelName
-    awardLevel <-
-        newRecord @AwardLevel
-            |> set #awardFixedId 9
-            |> set #classificationFixedId classificationFixedId
-            |> set #classification levelName
-            |> set #isActive True
-            |> createRecord
-    payRate <-
-        newRecord @FwcMapdPayRate
-            |> set #awardFixedId 9
-            |> set #classificationFixedId (Just awardLevel.classificationFixedId)
-            |> set #classification levelName
-            |> set #employeeRateTypeCode (Just "AD")
-            |> set #calculatedRate (Just baseRate)
-            |> set #calculatedRateType (Just "Hourly")
-            |> createRecord
-    void
-        ( newRecord @AwardLevelBaseRate
-            |> set #awardLevelId (unpackId awardLevel.id)
-            |> set #employmentBasis Permanent
-            |> set #fwcMapdPayRateId (unpackId payRate.id)
-            |> set #hourlyRate baseRate
-            |> set #rateLabel ("Hourly" :: Text)
-            |> createRecord
-        )
-    createSyntheticPenalty awardLevel SaturdayPenalty payRate (baseRate * saturdayMultiplier)
-    createSyntheticPenalty awardLevel SundayPenalty payRate (baseRate * sundayMultiplier)
-    createSyntheticPenalty awardLevel EveningAfter7Pm payRate (baseRate + eveningPenalty)
-    createSyntheticPenalty awardLevel LateNightAfterMidnight payRate (baseRate + after12Penalty)
-    createSyntheticTimeAllowanceIfMissing awardLevel EveningAfter7Pm eveningPenalty
-    createSyntheticTimeAllowanceIfMissing awardLevel LateNightAfterMidnight after12Penalty
-    pure awardLevel
-
-awardLevelClassificationFixedId :: Text -> Int
-awardLevelClassificationFixedId levelName =
-    abs (Text.foldl' (\acc ch -> acc * 31 + Char.ord ch) 7 levelName)
-
-createSyntheticPenalty :: (?modelContext :: ModelContext) => AwardLevel -> AwardPenaltyKindEnum -> FwcMapdPayRate -> Scientific -> IO ()
-createSyntheticPenalty awardLevel penaltyKind payRate hourlyRate = do
-    penaltyRate <-
-        newRecord @FwcMapdPenaltyRate
-            |> set #awardFixedId awardLevel.awardFixedId
-            |> set #classificationFixedId (Just awardLevel.classificationFixedId)
-            |> set #classification awardLevel.classification
-            |> set #employeeRateTypeCode (Just "AD")
-            |> set #basePayRateId payRate.basePayRateId
-            |> set #penaltyDescription (Just (inputValue penaltyKind))
-            |> set #penaltyCalculatedValue (Just hourlyRate)
-            |> createRecord
-    void
-        ( newRecord @AwardLevelPenaltyRate
-            |> set #awardLevelId (unpackId awardLevel.id)
-            |> set #employmentBasis Permanent
-            |> set #penaltyKind penaltyKind
-            |> set #fwcMapdPenaltyRateId (unpackId penaltyRate.id)
-            |> set #hourlyRate hourlyRate
-            |> createRecord
-        )
-
-createSyntheticTimeAllowanceIfMissing :: (?modelContext :: ModelContext) => AwardLevel -> AwardPenaltyKindEnum -> Scientific -> IO ()
-createSyntheticTimeAllowanceIfMissing awardLevel penaltyKind hourlyAmount =
-    when (hourlyAmount > 0) do
-        existingAllowance <- query @AwardTimePenaltyAllowance
-            |> filterWhere (#awardFixedId, awardLevel.awardFixedId)
-            |> filterWhere (#penaltyKind, penaltyKind)
-            |> fetchOneOrNothing
-        case existingAllowance of
-            Just _ -> pure ()
-            Nothing -> do
-                wageAllowance <-
-                    newRecord @FwcMapdWageAllowance
-                        |> set #awardFixedId awardLevel.awardFixedId
-                        |> set #allowance (Just (inputValue penaltyKind))
-                        |> set #allowanceAmount (Just hourlyAmount)
-                        |> createRecord
-                void
-                    ( newRecord @AwardTimePenaltyAllowance
-                        |> set #awardFixedId awardLevel.awardFixedId
-                        |> set #penaltyKind penaltyKind
-                        |> set #fwcMapdWageAllowanceId (unpackId wageAllowance.id)
-                        |> set #hourlyAmount hourlyAmount
-                        |> createRecord
-                    )
+createPayLevelRecordWithRates = ApplicationSupport.createPayLevelRecordWithRates
 
 createShiftTypeRecord :: (?modelContext :: ModelContext) => Venue -> AwardLevel -> Text -> IO ShiftType
 createShiftTypeRecord venue awardLevel shiftTypeName =

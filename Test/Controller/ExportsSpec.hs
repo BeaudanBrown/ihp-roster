@@ -341,7 +341,7 @@ tests = aroundAll withDatabaseTestContext do
                 csvContents `shouldSatisfy`
                     Text.isInfixOf "Rae,Worker,2025-01-11,Kitchen - Saturday,2/1,2.00,hours,"
                 csvContents `shouldSatisfy`
-                    Text.isInfixOf ",public_holiday,fixture:sealed-approved-calculation,Bar,Bar"
+                    Text.isInfixOf ",public_holiday,bepis-projection:award_level_penalty_rates:"
                 csvContents `shouldSatisfy`
                     (not . Text.isInfixOf "Trial")
 

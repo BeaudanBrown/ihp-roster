@@ -219,7 +219,7 @@ createLeaveRequestRecordWithNotes venue staff startDate endDate leaveStatus note
 
 createPayLevelRecord :: (?modelContext :: ModelContext) => Venue -> Text -> IO AwardLevel
 createPayLevelRecord venue levelName =
-    createPayLevelRecordWithRates venue levelName 0 0 0 1 1 1
+    createPayLevelRecordWithRates venue levelName 30 0 0 1 1.25 1.5
 
 createPayLevelRecordWithRates ::
     (?modelContext :: ModelContext) =>
@@ -237,41 +237,108 @@ createPayLevelRecordWithRates venue levelName baseRate eveningPenalty after12Pen
 
 createAwardLevelRecordWithRates :: (?modelContext :: ModelContext) => Text -> Scientific -> Scientific -> Scientific -> Scientific -> Scientific -> IO AwardLevel
 createAwardLevelRecordWithRates levelName baseRate eveningPenalty after12Penalty saturdayMultiplier sundayMultiplier = do
-    awardLevel <-
-        newRecord @AwardLevel
-            |> set #awardFixedId 9
-            |> set #classificationFixedId (abs (Text.foldl' (\acc ch -> acc * 31 + Char.ord ch) 7 levelName))
-            |> set #classification levelName
-            |> set #isActive True
-            |> createRecord
-    payRate <-
-        newRecord @FwcMapdPayRate
-            |> set #awardFixedId 9
-            |> set #classificationFixedId (Just awardLevel.classificationFixedId)
-            |> set #classification levelName
-            |> set #employeeRateTypeCode (Just "AD")
-            |> set #calculatedRate (Just baseRate)
-            |> set #calculatedRateType (Just "Hourly")
-            |> createRecord
-    void
-        ( newRecord @AwardLevelBaseRate
-            |> set #awardLevelId (unpackId awardLevel.id)
-            |> set #employmentBasis Permanent
-            |> set #fwcMapdPayRateId (unpackId payRate.id)
-            |> set #hourlyRate baseRate
-            |> set #rateLabel ("Hourly" :: Text)
-            |> createRecord
-        )
-    createSyntheticPenalty awardLevel SaturdayPenalty payRate (baseRate * saturdayMultiplier)
-    createSyntheticPenalty awardLevel SundayPenalty payRate (baseRate * sundayMultiplier)
-    createSyntheticPenalty awardLevel EveningAfter7Pm payRate (baseRate + eveningPenalty)
-    createSyntheticPenalty awardLevel LateNightAfterMidnight payRate (baseRate + after12Penalty)
-    createSyntheticTimeAllowanceIfMissing awardLevel EveningAfter7Pm eveningPenalty
-    createSyntheticTimeAllowanceIfMissing awardLevel LateNightAfterMidnight after12Penalty
-    pure awardLevel
+    existingLevels <- query @AwardLevel |> filterWhere (#awardFixedId, 9 :: Int) |> fetch
+    let preferredClassificationId = awardLevelClassificationFixedId levelName
+    case find ((== preferredClassificationId) . (.classificationFixedId)) existingLevels of
+        Just existingLevel
+            | "Fixture Level " `Text.isPrefixOf` existingLevel.classification ->
+                existingLevel
+                    |> set #classification levelName
+                    |> updateRecord
+            | otherwise -> pure existingLevel
+        Nothing -> do
+            let usedClassificationIds = map (.classificationFixedId) existingLevels
+                classificationFixedId =
+                    fromMaybe
+                        (error "synthetic wage fixture exhausted supported MA000009 classifications")
+                        (find (`notElem` usedClassificationIds) (preferredClassificationId : filter (/= preferredClassificationId) supportedFixtureClassificationIds))
+            requestedLevel <- createFixtureLevel classificationFixedId levelName
+            let remainingClassificationIds =
+                    supportedFixtureClassificationIds
+                        \\ (classificationFixedId : usedClassificationIds)
+            forM_ remainingClassificationIds \fixedId ->
+                void (createFixtureLevel fixedId ("Fixture Level " <> tshow fixedId))
+            pure requestedLevel
+  where
+    createFixtureLevel classificationFixedId classificationName = do
+        awardLevel <-
+            newRecord @AwardLevel
+                |> set #awardFixedId 9
+                |> set #classificationFixedId classificationFixedId
+                |> set #classification classificationName
+                |> set #operativeFrom (Just (fromGregorian 2020 1 1))
+                |> set #isActive True
+                |> createRecord
+        payRate <-
+            newRecord @FwcMapdPayRate
+                |> set #awardFixedId 9
+                |> set #classificationFixedId (Just awardLevel.classificationFixedId)
+                |> set #classification classificationName
+                |> set #employeeRateTypeCode (Just "AD")
+                |> set #calculatedRate (Just baseRate)
+                |> set #calculatedRateType (Just "Hourly")
+                |> createRecord
+        void
+            ( newRecord @AwardLevelBaseRate
+                |> set #awardLevelId (unpackId awardLevel.id)
+                |> set #employmentBasis Permanent
+                |> set #fwcMapdPayRateId (unpackId payRate.id)
+                |> set #hourlyRate baseRate
+                |> set #rateLabel ("Hourly" :: Text)
+                |> set #operativeFrom (Just (fromGregorian 2020 1 1))
+                |> createRecord
+            )
+        createSyntheticPenaltyFor Permanent awardLevel SaturdayPenalty payRate (baseRate * saturdayMultiplier)
+        createSyntheticPenaltyFor Permanent awardLevel SundayPenalty payRate (baseRate * sundayMultiplier)
+        createSyntheticPenaltyFor Permanent awardLevel PublicHolidayPenalty payRate (baseRate * 2.25)
+        casualPayRate <-
+            newRecord @FwcMapdPayRate
+                |> set #awardFixedId 9
+                |> set #classificationFixedId (Just awardLevel.classificationFixedId)
+                |> set #classification classificationName
+                |> set #employeeRateTypeCode (Just "AD")
+                |> set #calculatedRate (Just (baseRate * 1.25))
+                |> set #calculatedRateType (Just "Casual Hourly")
+                |> createRecord
+        void
+            ( newRecord @AwardLevelBaseRate
+                |> set #awardLevelId (unpackId awardLevel.id)
+                |> set #employmentBasis Casual
+                |> set #fwcMapdPayRateId (unpackId casualPayRate.id)
+                |> set #hourlyRate (baseRate * 1.25)
+                |> set #rateLabel ("Casual Hourly" :: Text)
+                |> set #operativeFrom (Just (fromGregorian 2020 1 1))
+                |> createRecord
+            )
+        createSyntheticPenaltyFor Casual awardLevel SaturdayPenalty casualPayRate (baseRate * 1.5)
+        createSyntheticPenaltyFor Casual awardLevel SundayPenalty casualPayRate (baseRate * 1.75)
+        createSyntheticPenaltyFor Casual awardLevel PublicHolidayPenalty casualPayRate (baseRate * 2.5)
+        createSyntheticTimeAllowanceIfMissing awardLevel EveningAfter7Pm (max 0.01 eveningPenalty)
+        createSyntheticTimeAllowanceIfMissing awardLevel LateNightAfterMidnight (max 0.01 after12Penalty)
+        pure awardLevel
+
+supportedFixtureClassificationIds :: [Int]
+supportedFixtureClassificationIds = [242, 243, 246, 257, 268, 276, 282]
+
+awardLevelClassificationFixedId :: Text -> Int
+awardLevelClassificationFixedId levelName
+    | "intro" `Text.isInfixOf` normalized = 242
+    | "level 6" `Text.isInfixOf` normalized || "lvl 6" `Text.isInfixOf` normalized = 282
+    | "level 5" `Text.isInfixOf` normalized || "lvl 5" `Text.isInfixOf` normalized = 276
+    | "level 4" `Text.isInfixOf` normalized || "lvl 4" `Text.isInfixOf` normalized = 268
+    | "level 3" `Text.isInfixOf` normalized || "lvl 3" `Text.isInfixOf` normalized = 257
+    | "level 2" `Text.isInfixOf` normalized || "lvl 2" `Text.isInfixOf` normalized = 246
+    | "level 1" `Text.isInfixOf` normalized || "lvl 1" `Text.isInfixOf` normalized = 243
+    | otherwise = supportedFixtureClassificationIds !! (awardLevelNameHash `mod` length supportedFixtureClassificationIds)
+  where
+    normalized = Text.toCaseFold levelName
+    awardLevelNameHash = abs (Text.foldl' (\acc ch -> acc * 31 + Char.ord ch) 7 normalized)
 
 createSyntheticPenalty :: (?modelContext :: ModelContext) => AwardLevel -> AwardPenaltyKindEnum -> FwcMapdPayRate -> Scientific -> IO ()
-createSyntheticPenalty awardLevel penaltyKind payRate hourlyRate = do
+createSyntheticPenalty = createSyntheticPenaltyFor Permanent
+
+createSyntheticPenaltyFor :: (?modelContext :: ModelContext) => StaffEmploymentBasisEnum -> AwardLevel -> AwardPenaltyKindEnum -> FwcMapdPayRate -> Scientific -> IO ()
+createSyntheticPenaltyFor employmentBasis awardLevel penaltyKind payRate hourlyRate = do
     penaltyRate <-
         newRecord @FwcMapdPenaltyRate
             |> set #awardFixedId awardLevel.awardFixedId
@@ -285,10 +352,11 @@ createSyntheticPenalty awardLevel penaltyKind payRate hourlyRate = do
     void
         ( newRecord @AwardLevelPenaltyRate
             |> set #awardLevelId (unpackId awardLevel.id)
-            |> set #employmentBasis Permanent
+            |> set #employmentBasis employmentBasis
             |> set #penaltyKind penaltyKind
             |> set #fwcMapdPenaltyRateId (unpackId penaltyRate.id)
             |> set #hourlyRate hourlyRate
+            |> set #operativeFrom (Just (fromGregorian 2020 1 1))
             |> createRecord
         )
 
@@ -314,6 +382,7 @@ createSyntheticTimeAllowanceIfMissing awardLevel penaltyKind hourlyAmount =
                         |> set #penaltyKind penaltyKind
                         |> set #fwcMapdWageAllowanceId (unpackId wageAllowance.id)
                         |> set #hourlyAmount hourlyAmount
+                        |> set #operativeFrom (Just (fromGregorian 2020 1 1))
                         |> createRecord
                     )
 

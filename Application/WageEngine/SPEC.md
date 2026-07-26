@@ -27,9 +27,9 @@ interface. Approval persists the Haskell result through
 without consulting mutable rate sources. Final workflows use
 `loadApprovedTimesheetPayCalculations`, which reads calculations, paid-time segments,
 and earnings components in three bounded queries regardless of entry count; the
-single-entry helper delegates to that bulk seam. The existing `Application.Helper.Pay.fetchTimesheetPay` and
-`fetchTimesheetPayResultsForEntries` SQL compatibility seam remains authoritative
-for legacy export/read models until cutover issue #239.
+single-entry helper delegates to that bulk seam. Draft callers calculate through the adapter and pure engine. Approved/final callers
+load sealed ledger facts; cutover #239 retired the legacy SQL calculator and decoder
+seam.
 
 ## Wage-source policy
 
@@ -166,8 +166,7 @@ Callers attach gross `Application.VenueTime` Award segments and the optional opa
 recorded-break interval through `calculationInputFromLoadedContext`. Issue #234 owns immutable approval persistence, lifecycle, and deployment
 backfill. Approval serializes on one narrow `SELECT ... FOR UPDATE` seam because
 IHP QueryBuilder has no row-lock combinator; all wage/source loading remains
-QueryBuilder-based. Issue #239 owns switching legacy export/read models to this
-exact ledger.
+QueryBuilder-based. All approved export/read models use this exact ledger after cutover #239.
 
 ## Verification
 

@@ -44,6 +44,10 @@ restart/wait for the dev server after applying locally so IHP sees the final
 
 ## Operator-Gated Retirements
 
+GitHub #239's forward-only Haskell wage cutover is documented in
+`haskell-wage-cutover-239-runbook.md`. Migration `1785242000.sql` refuses to retire
+the legacy calculators while any active approved entry lacks its immutable calculation.
+
 GitHub #151's approved read-only inventory/export procedure is documented in
 `legacy-schema-retirement-151-runbook.md` and implemented by
 `bin/legacy-schema-retirement-review`. Migration `1783899114.sql` and its

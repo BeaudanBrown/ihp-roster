@@ -67,7 +67,7 @@ tests = aroundAll withDatabaseTestContext do
                 exportJob <- generatePayrollExportJob fixture.admin fixture.venue StaffPayCsv
                 let csvRows = csvRowsByKey (fromMaybe "" (get #fileContents exportJob))
 
-                take 3 (lookupCsvRow csvRows "Cook, Kai Kitchen") `shouldBe` ["0.25", "0.00", "0.00"]
+                take 3 (lookupCsvRow csvRows "Cook, Kai Kitchen") `shouldBe` ["4.00", "0.00", "0.00"]
 
         it "renders the canonical payroll earnings CSV shape exactly after normalizing row ids" $ withContext do
             withCleanDb do
@@ -208,6 +208,7 @@ normalizePayrollEarningsCsv :: Text -> Text
 normalizePayrollEarningsCsv csvText =
     csvText
         |> Text.replace "\r" ""
+        |> normalizeRateBookVersions
         |> Text.lines
         |> map normalizeRow
         |> Text.unlines
@@ -224,10 +225,29 @@ normalizePayrollEarningsCsv csvText =
             | index == 11 = "<description>"
             | index == 12 = "<staff_id>"
             | index == 13 = "<timesheet_entry_ids>"
-            | index == 14 = "<pay_config_version_manifest>"
-            | index == 23 = "<approved_by_user_ids>"
-            | index == 24 = "<active_pay_calculation_ids>"
+            | index == payConfigVersionManifestColumn = "<pay_config_version_manifest>"
+            | index == rateBookVersionColumn = "<rate_book_version>"
+            | index == sourceRateIdentityColumn = "<source_rate_identity>"
+            | index == approvedByUserIdsColumn = "<approved_by_user_ids>"
+            | index == activePayCalculationIdsColumn = "<active_pay_calculation_ids>"
             | otherwise = value
+
+payConfigVersionManifestColumn, rateBookVersionColumn, sourceRateIdentityColumn, approvedByUserIdsColumn, activePayCalculationIdsColumn :: Int
+payConfigVersionManifestColumn = 14
+rateBookVersionColumn = 17
+sourceRateIdentityColumn = 19
+approvedByUserIdsColumn = 23
+activePayCalculationIdsColumn = 24
+
+normalizeRateBookVersions :: Text -> Text
+normalizeRateBookVersions input =
+    case Text.breakOn ",\"MA000009:" input of
+        (before, rest)
+            | Text.null rest -> input
+            | otherwise ->
+                let afterPrefix = Text.drop (Text.length (",\"MA000009:" :: Text)) rest
+                    (_, afterVersion) = Text.breakOn "\"," afterPrefix
+                 in before <> ",<rate_book_version>" <> normalizeRateBookVersions (Text.drop 1 afterVersion)
 
 normalizeExpectedPayrollEarningsCsv :: Text -> Text
 normalizeExpectedPayrollEarningsCsv =
