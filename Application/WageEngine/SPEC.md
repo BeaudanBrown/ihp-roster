@@ -26,12 +26,15 @@ for legacy export/read models until cutover issue #239.
 `Application.WageSourcePolicy` is the pure provider-neutral boundary for draft and
 final source-readiness decisions. Callers inject the current UTC time, venue pay-week
 boundary, applicable DataVic target years, and candidate metadata. Only complete
-successes at or before the injected clock count. Award calculations warn in draft and
+successes from the validated MAPD snapshot boundary at or before the injected clock
+count for FWC freshness. DataVic candidates count only when they represent authoritative
+statewide Victoria coverage for the target year. Award calculations warn in draft and
 block final use when the latest FWC success is older than 8 days, the first full venue
 week beginning on/after 1 July lacks a success on/after 1 July, or an applicable
 DataVic year is missing or older than 45 days. Exact 8-day and 45-day boundaries remain
-valid. Failed and incomplete candidates never displace a last complete success, while
-imported Xero overrides bypass both source checks.
+valid. Failed, incomplete, unvalidated, and non-statewide candidates never displace a
+last complete authoritative success, while imported Xero overrides bypass both source
+checks.
 
 The same module compares canonical Award document and structural fingerprints. A
 document checksum/version, classification, or category change emits a deterministic

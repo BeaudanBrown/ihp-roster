@@ -4,9 +4,12 @@ module Application.WageSourcePolicy
     , AwardDriftPayrollEffect (..)
     , AwardDriftSignal (..)
     , AwardFingerprint (..)
+    , DataVicCoverage (..)
     , DataVicSnapshot (..)
     , DraftSourceDecision (..)
     , FinalSourceDecision (..)
+    , FwcSnapshot (..)
+    , FwcSnapshotProvenance (..)
     , PolicyClock (..)
     , SnapshotStatus (..)
     , SourceDiagnostic (..)
@@ -52,9 +55,26 @@ data SourceSnapshot = SourceSnapshot
     }
     deriving (Eq, Show)
 
+data FwcSnapshotProvenance
+    = ValidatedMapdSnapshot
+    | UnvalidatedFwcCandidate
+    deriving (Eq, Show)
+
+data FwcSnapshot = FwcSnapshot
+    { fwcSnapshotMetadata :: !SourceSnapshot
+    , provenance          :: !FwcSnapshotProvenance
+    }
+    deriving (Eq, Show)
+
+data DataVicCoverage
+    = StatewideVictoria
+    | RegionalVictoria
+    deriving (Eq, Show)
+
 data DataVicSnapshot = DataVicSnapshot
     { targetYear :: !Integer
     , snapshot   :: !SourceSnapshot
+    , coverage   :: !DataVicCoverage
     }
     deriving (Eq, Show)
 
@@ -63,7 +83,7 @@ data WageSourcePolicyInput = WageSourcePolicyInput
     , payWeekStart                 :: !Day
     , venueWeekStartsOn            :: !DayOfWeek
     , applicableDataVicTargetYears :: !(Set.Set Integer)
-    , fwcSnapshots                 :: ![SourceSnapshot]
+    , fwcSnapshots                 :: ![FwcSnapshot]
     , dataVicSnapshots             :: ![DataVicSnapshot]
     }
     deriving (Eq, Show)
@@ -106,13 +126,13 @@ data WageSourceDecision = WageSourceDecision
     deriving (Eq, Show)
 
 fwcMaximumAge :: NominalDiffTime
-fwcMaximumAge = 8 * day
+fwcMaximumAge = 8 * secondsPerDay
 
 dataVicMaximumAge :: NominalDiffTime
-dataVicMaximumAge = 45 * day
+dataVicMaximumAge = 45 * secondsPerDay
 
-day :: NominalDiffTime
-day = 24 * 60 * 60
+secondsPerDay :: NominalDiffTime
+secondsPerDay = 24 * 60 * 60
 
 evaluateWageSourcePolicy :: PolicyClock -> WageSourcePolicyInput -> WageSourceDecision
 evaluateWageSourcePolicy clock input
@@ -134,7 +154,11 @@ readyDecision = WageSourceDecision DraftSourcesReady FinalSourcesReady
 fwcDiagnostics :: PolicyClock -> WageSourcePolicyInput -> [SourceDiagnostic]
 fwcDiagnostics clock input = freshnessDiagnostic <> annualRefreshDiagnostic
   where
-    latestSuccess = latestCompleteSuccess clock.now input.fwcSnapshots
+    latestSuccess =
+        input.fwcSnapshots
+            |> filter ((== ValidatedMapdSnapshot) . (.provenance))
+            |> map (.fwcSnapshotMetadata)
+            |> latestCompleteSuccess clock.now
     freshnessDiagnostic = case latestSuccess of
         Nothing -> [FwcSnapshotMissing]
         Just completedAt
@@ -171,7 +195,11 @@ dataVicDiagnostics clock input =
       where
         snapshotsForYear =
             input.dataVicSnapshots
-                |> filter (\candidate -> candidate.targetYear == targetYear)
+                |> filter
+                    ( \candidate ->
+                        candidate.targetYear == targetYear
+                            && candidate.coverage == StatewideVictoria
+                    )
                 |> map (.snapshot)
 
 latestCompleteSuccess :: UTCTime -> [SourceSnapshot] -> Maybe UTCTime
