@@ -13,7 +13,7 @@ import Test.WageEngine.Fixture
 tests :: Spec
 tests = do
     describe "ValidatedRateBook contract" do
-        it "accepts exactly the complete MA000009 semantic set" do
+        it "HIGA-18.1-ADULT-CORE and HIGA-SOURCE-FWC-COVERAGE accept exactly the complete MA000009 semantic set" do
             case mkValidatedRateBook (completeRateBookCandidate 100) of
                 Left validationError -> expectationFailure (Text.unpack (tshow validationError))
                 Right rateBook -> do
@@ -141,7 +141,7 @@ tests = do
             calculateTimesheetPay (testCalculationInput { calculationUnpaidMealBreak = Just outsideBreak })
                 `shouldBe` Left (InvalidShiftSegments UnpaidMealBreakOutsideShift)
 
-        it "rejects unsupported venue, holiday, worker and imported inputs explicitly" do
+        it "HIGA-EXCL-FULL-TIME, HIGA-EXCL-MANAGERIAL-SALARY, HIGA-EXCL-JUNIOR, HIGA-EXCL-APPRENTICE, HIGA-EXCL-TRAINEE and HIGA-EXCL-SUPPORTED-WAGE reject unsupported workers explicitly" do
             resolveVenueAwardContext "Etc/UTC" "VIC"
                 `shouldBe` Left (UnsupportedVenueTimeZone "Etc/UTC")
             resolveVenueAwardContext "Australia/Melbourne" "NSW"
@@ -161,6 +161,12 @@ tests = do
                     calculateTimesheetPay
                         (testCalculationInput { calculationArrangement = UnsupportedEmployment unsupportedEmployment })
                         `shouldBe` Left (UnsupportedCalculationInput (UnsupportedEmploymentArrangement unsupportedEmployment))
+            -- HIGA-EXCL-AIRPORT-CATERING, HIGA-EXCL-LOADED-RATE,
+            -- HIGA-EXCL-ALLOWANCES, HIGA-EXCL-HIGHER-DUTIES,
+            -- HIGA-EXCL-ANNUALISED-SALARY-RECONCILIATION, HIGA-EXCL-LEAVE,
+            -- HIGA-EXCL-SUPERANNUATION, HIGA-EXCL-TERMINATION,
+            -- HIGA-EXCL-GUARANTEED-HOURS-TOP-UP, HIGA-EXCL-SUBSTITUTED-HOLIDAY,
+            -- and HIGA-EXCL-PH-125-PAID-TIME are typed unsupported features.
             forM_
                 [ AirportCateringArrangement
                 , LoadedRateArrangement

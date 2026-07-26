@@ -554,8 +554,46 @@ withLegacyPayBackfillFixture action =
         (const action)
 
 createApprovedTimesheetEntryRecordAt venue staff approver workedOn approvedAt = do
+    shiftType <- ensureVenueDefaultShiftType venue
+    createApprovedTimesheetEntryRecordAtWithShiftTimes
+        venue
+        staff
+        approver
+        shiftType
+        workedOn
+        approvedAt
+        (TimeOfDay 9 0 0)
+        (TimeOfDay 17 0 0)
+
+createApprovedTimesheetEntryRecordAtWithShiftTimes ::
+    (?modelContext :: ModelContext) =>
+    Venue ->
+    Staff ->
+    User ->
+    ShiftType ->
+    Day ->
+    UTCTime ->
+    TimeOfDay ->
+    TimeOfDay ->
+    IO TimesheetEntry
+createApprovedTimesheetEntryRecordAtWithShiftTimes venue staff approver shiftType workedOn approvedAt startTime endTime = do
     ensureFreshWageSourceFacts workedOn
-    entry <- createTimesheetEntryRecord venue staff workedOn
+    let boundaries =
+            either (error . ("Invalid approved test support timesheet boundaries: " <>) . show) Prelude.id $
+                resolveShiftBoundaries melbourneTimeZoneName ShiftBoundaryInput
+                    { shiftBoundaryDate = workedOn
+                    , shiftBoundaryStartTime = startTime
+                    , shiftBoundaryStartOccurrence = Nothing
+                    , shiftBoundaryEndTime = endTime
+                    , shiftBoundaryEndOccurrence = Nothing
+                    , shiftBoundaryBreak = Nothing
+                    }
+    entry <- newRecord @TimesheetEntry
+        |> set #venueId (unpackId venue.id)
+        |> set #staffId (unpackId staff.id)
+        |> set #shiftTypeId (unpackId shiftType.id)
+        |> applyTimesheetEntryBoundaries boundaries
+        |> createRecord
     (staffPayVersion, shiftTypePayVersion) <- ensurePayVersionsForTimesheetApproval approver.id entry
     lockPayVersionsForApproval approver.id approvedAt staffPayVersion shiftTypePayVersion
     approvedEntry <- withLegacyPayBackfillFixture do

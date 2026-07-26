@@ -294,6 +294,83 @@ tests =
         it "property: artificial weekday-evening splitting preserves final wages and commenced units" $
             property propArtificialSplitInvariance
 
+        it "property: imported overrides remain flat, deterministic and split-invariant" $
+            property propImportedOverrideDeterminism
+
+        it "property: export-only quarter-hour rounding is deterministic, split-invariant and internally reconciled" $
+            property propPublishedEarningsReconciliation
+
+propImportedOverrideDeterminism :: Positive Integer -> NonNegative Integer -> Bool
+propImportedOverrideDeterminism (Positive durationSeed) (NonNegative splitSeed) =
+    case (directSegments, splitSegments) of
+        (Right direct, Right split) ->
+            case (calculate direct, calculate split) of
+                (Right directCalculation, Right splitCalculation) ->
+                    deriveFinalEarnings directCalculation.earningsComponents
+                        == deriveFinalEarnings splitCalculation.earningsComponents
+                        && directCalculation == calculateOrFail (input direct)
+                        && all isFlatImported (directCalculation.earningsComponents <> splitCalculation.earningsComponents)
+                        && sum (map (.quantity) directCalculation.earningsComponents) * 3600 == toRational durationSeconds
+                _ -> False
+        _ -> False
+  where
+    durationSeconds = 2 + durationSeed `mod` (12 * 60 * 60 - 1)
+    splitSeconds = 1 + splitSeed `mod` (durationSeconds - 1)
+    start = resolvedInstantFromUTC (UTCTime (fromGregorian 2026 1 5) (secondsToDiffTime (8 * 60 * 60)))
+    split = resolvedInstantFromUTC (addUTCTime (fromInteger splitSeconds) (resolvedInstantUTC start))
+    end = resolvedInstantFromUTC (addUTCTime (fromInteger durationSeconds) (resolvedInstantUTC start))
+    directSegments = resolvedIntervalFromInstants start end >>= awardSegments
+    splitSegments = do
+        left <- resolvedIntervalFromInstants start split >>= awardSegments
+        right <- resolvedIntervalFromInstants split end >>= awardSegments
+        pure (left <> right)
+    imported = ImportedPayItem "property-imported" "Property imported" 73
+    input segments =
+        testCalculationInput
+            { calculationImportedOverrides = ImportedOverrideContext (Just imported) Nothing
+            , calculationShiftSegments = segments
+            }
+    calculate = calculateTimesheetPay . input
+    isFlatImported component =
+        component.unitType == Hours
+            && component.ratePerUnit == 73
+            && component.sourceCondition == ImportedFlatRateCondition "property-imported"
+            && component.calculationSource == ExternalImportedPayItem
+            && isNothing component.sourceRateIdentity
+
+propPublishedEarningsReconciliation :: Positive Integer -> NonNegative Integer -> Positive Integer -> Bool
+propPublishedEarningsReconciliation (Positive durationSeed) (NonNegative splitSeed) (Positive rateSeed) =
+    direct == splitPublished
+        && direct == derivePublishedEarnings (reverse splitComponents)
+        && case direct of
+            [line] ->
+                line.publishedExactQuantity == quantity
+                    && line.publishedExactAmount == quantity * toRational rate
+                    && (floor (line.publishedQuantity * 4) :: Integer) == ceiling (line.publishedQuantity * 4)
+                    && line.publishedAmount == roundCents (line.publishedQuantity * toRational rate)
+            _ -> False
+  where
+    elapsedSeconds = 2 + durationSeed `mod` (24 * 60 * 60 - 1)
+    firstSeconds = 1 + splitSeed `mod` (elapsedSeconds - 1)
+    quantity = toRational elapsedSeconds / 3600
+    firstQuantity = toRational firstSeconds / 3600
+    secondQuantity = quantity - firstQuantity
+    rate = fromInteger (1 + rateSeed `mod` 10000) / 100
+    component componentQuantity =
+        EarningsComponent
+            { quantity = componentQuantity
+            , unitType = Hours
+            , ratePerUnit = rate
+            , amount = componentQuantity * toRational rate
+            , sourceCondition = OrdinaryCondition
+            , calculationSource = HospitalityAward
+            , sourceRateIdentity = Just (RateSourceIdentity "publication-property-source")
+            }
+    splitComponents = [component firstQuantity, component secondQuantity]
+    direct = derivePublishedEarnings [component quantity]
+    splitPublished = derivePublishedEarnings splitComponents
+    roundCents value = fromInteger (floor (value * 100 + 1 / 2)) / 100
+
 roundingComponent :: SourceCondition -> EarningsComponent
 roundingComponent condition =
     EarningsComponent

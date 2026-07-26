@@ -24,8 +24,10 @@ rate and holiday calculation facts.
 `Application.WageEngine.Adapter` bulk-loads projected database facts into that
 interface. Approval persists the Haskell result through
 `Application.Helper.TimesheetPayLedger`; approved exact facts can be reconstructed
-through `loadApprovedTimesheetPayCalculation` without consulting mutable rate
-sources. The existing `Application.Helper.Pay.fetchTimesheetPay` and
+without consulting mutable rate sources. Final workflows use
+`loadApprovedTimesheetPayCalculations`, which reads calculations, paid-time segments,
+and earnings components in three bounded queries regardless of entry count; the
+single-entry helper delegates to that bulk seam. The existing `Application.Helper.Pay.fetchTimesheetPay` and
 `fetchTimesheetPayResultsForEntries` SQL compatibility seam remains authoritative
 for legacy export/read models until cutover issue #239.
 
@@ -150,7 +152,9 @@ It also adapts sealed paid-time segments into Staff Hours local clock buckets.
 
 The adapter accepts many entry requests, calls seven bounded bulk-loader phases at
 most once each, and builds in-memory indexes for contexts, imported items, Award
-levels, rates, additions, holidays, and effective books. The database adapter uses
+levels, rates, additions, holidays, and effective books. Its per-entry result form
+retains successful draft contexts beside deterministic entry-local failures, so
+bulk draft diagnostics do not reintroduce per-entry loading or discard valid previews. The database adapter uses
 at most 12 QueryBuilder reads regardless of entry count (fewer when no stored pay
 versions or imported items are present). Projection queries are restricted
 to the requested active Award levels and effective worked-date window; statewide
@@ -166,6 +170,12 @@ QueryBuilder-based. Issue #239 owns switching legacy export/read models to this
 exact ledger.
 
 ## Verification
+
+HPC reports the `Application.WageEngine` facade as `0/0` because it only re-exports
+focused modules. The remaining unticked pure `Rules` expressions are defensive
+failure mappings behind opaque, positively bounded `VenueTime` segments and the
+second unsupported-employment guard after `validateCalculationContext`; callers
+cannot construct those states. Supported rule branches have named matrix evidence.
 
 ```bash
 bash ./bin/in-env hspec-pure --match "WageSourcePolicy"

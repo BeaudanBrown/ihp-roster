@@ -3,13 +3,13 @@ module Test.WageSourceEnforcementSpec where
 import Application.Helper.Controller (PlatformRole (SuperAdminRole))
 import Application.WageSourceEnforcement
 import Application.WageSourceNotifications (emitLatestAwardDriftNotifications,
-                                             wageSourceDriftNotificationJobKind)
+                                            wageSourceDriftNotificationJobKind)
 import Application.WageSourcePolicy (PolicyClock (..), SourceDiagnostic (..))
-import Data.Either (isLeft, isRight)
-import Data.Time.Calendar (fromGregorian)
 import Control.Monad (void)
 import qualified Data.Aeson as Aeson
 import qualified Data.Aeson.Types as AesonTypes
+import Data.Either (isLeft, isRight)
+import Data.Time.Calendar (fromGregorian)
 import Data.Time.Clock (UTCTime, addUTCTime, getCurrentTime)
 import Data.UUID (UUID)
 import Generated.Types
@@ -35,23 +35,28 @@ tests = aroundAll withDatabaseTestContext do
                 now <- getCurrentTime
                 awardEntry <- createApprovedTimesheetEntryRecordAt venue awardStaff approver (fromGregorian 2026 5 4) now
                 importedEntry <- createApprovedTimesheetEntryRecordAt venue importedStaff approver (fromGregorian 2026 5 4) now
+                validImportedDraft <- createTimesheetEntryRecord venue importedStaff (fromGregorian 2026 5 5)
                 invalidDraft <- createTimesheetEntryRecord venue awardStaff (fromGregorian 2026 5 5)
                 let clock = PolicyClock (addUTCTime (9 * 24 * 60 * 60) now)
+                    mixedEntries = [awardEntry, importedEntry, validImportedDraft, invalidDraft]
 
-                outcomes <- evaluateDraftWageEntriesAt clock [awardEntry, importedEntry, invalidDraft]
+                outcomes <- evaluateDraftWageEntriesAt clock mixedEntries
 
-                length outcomes `shouldBe` 3
+                length outcomes `shouldBe` 4
                 let awardOutcome = outcomes !! 0
                     importedOutcome = outcomes !! 1
-                    invalidOutcome = outcomes !! 2
+                    validImportedDraftOutcome = outcomes !! 2
+                    invalidOutcome = outcomes !! 3
                 awardOutcome.outcomeCalculation `shouldSatisfy` isRight
                 awardOutcome.outcomeSourceDiagnostics `shouldSatisfy` any isFwcStale
                 importedOutcome.outcomeCalculation `shouldSatisfy` isRight
                 importedOutcome.outcomeSourceDiagnostics `shouldBe` []
+                validImportedDraftOutcome.outcomeCalculation `shouldSatisfy` isRight
+                validImportedDraftOutcome.outcomeSourceDiagnostics `shouldBe` []
                 invalidOutcome.outcomeCalculation `shouldSatisfy` isLeft
                 invalidOutcome.outcomeSourceDiagnostics `shouldBe` []
 
-                enforceFinalWageEntriesAt clock [awardEntry, importedEntry, invalidDraft] >>= \case
+                enforceFinalWageEntriesAt clock mixedEntries >>= \case
                     Right _ -> expectationFailure "strict enforcement unexpectedly accepted a mixed failing batch"
                     Left failures -> do
                         length failures `shouldBe` 2
@@ -92,7 +97,7 @@ tests = aroundAll withDatabaseTestContext do
     isAwardSourceFailure WageSourcesBlocked {} = True
     isAwardSourceFailure _                     = False
     isInvalidCalculationFailure (WageCalculationFailed _ _) = True
-    isInvalidCalculationFailure _                            = False
+    isInvalidCalculationFailure _                           = False
 
 seedFingerprintSnapshot :: (?modelContext :: ModelContext) => UTCTime -> Int -> Text -> IO ()
 seedFingerprintSnapshot syncedAt versionNumber classification = do

@@ -1,6 +1,7 @@
 module Application.Helper.TimesheetPayLedger
     ( backfillApprovedTimesheetPayCalculations
     , loadApprovedTimesheetPayCalculation
+    , loadApprovedTimesheetPayCalculations
     , persistApprovedTimesheetPayCalculation
     ) where
 
@@ -32,24 +33,60 @@ loadApprovedTimesheetPayCalculation ::
     (?modelContext :: ModelContext) =>
     TimesheetEntry ->
     IO (Either Text (Maybe WageCalculation))
-loadApprovedTimesheetPayCalculation entry =
-    case entry.activePayCalculationId of
-        Nothing -> pure (Right Nothing)
-        Just calculationId -> do
-            calculation <- fetch calculationId
-            segments <- query @TimesheetPayTimeSegment
-                |> filterWhere (#timesheetPayCalculationId, unpackId calculation.id)
-                |> orderBy #ordinal
-                |> fetch
-            components <- query @TimesheetPayEarningsComponent
-                |> filterWhere (#timesheetPayCalculationId, unpackId calculation.id)
-                |> orderBy #ordinal
-                |> fetch
-            if calculation.timesheetEntryId /= unpackId entry.id
-                then pure (Left "Active pay calculation belongs to a different timesheet entry.")
-                else if isNothing calculation.sealedAt
-                    then pure (Left "Active pay calculation is not sealed.")
-                    else pure (Just <$> wageCalculationFromRows entry calculation segments components)
+loadApprovedTimesheetPayCalculation entry = do
+    results <- loadApprovedTimesheetPayCalculations [entry]
+    pure $ fromMaybe (Left "Approved pay calculation result was not loaded.") (Map.lookup (unpackId entry.id) results)
+
+-- | Bulk approved-ledger read. The three persisted ledger relations are each
+-- queried at most once, regardless of entry count; reconstruction and error
+-- selection are deterministic in entry/ordinal order.
+loadApprovedTimesheetPayCalculations ::
+    (?modelContext :: ModelContext) =>
+    [TimesheetEntry] ->
+    IO (Map.Map UUID (Either Text (Maybe WageCalculation)))
+loadApprovedTimesheetPayCalculations entries
+    | null calculationIds = pure resultWithoutRows
+    | otherwise = do
+        calculations <- query @TimesheetPayCalculation
+            |> filterWhereIn (#id, map Id calculationIds)
+            |> fetch
+        segments <- query @TimesheetPayTimeSegment
+            |> filterWhereIn (#timesheetPayCalculationId, calculationIds)
+            |> fetch
+        components <- query @TimesheetPayEarningsComponent
+            |> filterWhereIn (#timesheetPayCalculationId, calculationIds)
+            |> fetch
+        let calculationById = Map.fromList [(unpackId calculation.id, calculation) | calculation <- calculations]
+            segmentsByCalculation = groupRows (.timesheetPayCalculationId) segments
+            componentsByCalculation = groupRows (.timesheetPayCalculationId) components
+        pure $ Map.fromList
+            [ (unpackId entry.id, reconstruct calculationById segmentsByCalculation componentsByCalculation entry)
+            | entry <- entries
+            ]
+  where
+    calculationIds = List.nub (mapMaybe (fmap unpackId . (.activePayCalculationId)) entries)
+    resultWithoutRows = Map.fromList [(unpackId entry.id, Right Nothing) | entry <- entries]
+
+    reconstruct calculationById segmentsByCalculation componentsByCalculation entry =
+        case fmap unpackId entry.activePayCalculationId of
+            Nothing -> Right Nothing
+            Just calculationId -> do
+                calculation <- maybe (Left "Active pay calculation does not exist.") Right (Map.lookup calculationId calculationById)
+                if calculation.timesheetEntryId /= unpackId entry.id
+                    then Left "Active pay calculation belongs to a different timesheet entry."
+                    else if isNothing calculation.sealedAt
+                        then Left "Active pay calculation is not sealed."
+                        else
+                            Just
+                                <$> wageCalculationFromRows
+                                    entry
+                                    calculation
+                                    (List.sortOn (.ordinal) (Map.findWithDefault [] calculationId segmentsByCalculation))
+                                    (List.sortOn (.ordinal) (Map.findWithDefault [] calculationId componentsByCalculation))
+
+    groupRows rowCalculationId =
+        Map.fromListWith (<>)
+            . map (\row -> (rowCalculationId row, [row]))
 
 wageCalculationFromRows :: TimesheetEntry -> TimesheetPayCalculation -> [TimesheetPayTimeSegment] -> [TimesheetPayEarningsComponent] -> Either Text WageCalculation
 wageCalculationFromRows entry calculation segmentRows componentRows = do

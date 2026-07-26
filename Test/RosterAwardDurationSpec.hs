@@ -14,7 +14,7 @@ import Test.QuickCheck (NonNegative (..), property)
 tests :: Spec
 tests =
     describe "Roster Award shift duration" do
-        it "accepts exact Part-time and casual projected-working-hour limits" do
+        it "HIGA-15.2-PART-TIME-SHIFT-MIN, HIGA-15.2-PART-TIME-SHIFT-MAX and HIGA-11.2-CASUAL-SHIFT-MAX accept exact limits" do
             let partTimeMinimum = boundariesForElapsedSeconds (3 * hours)
                 partTimeMaximum = boundariesForElapsedSeconds (12 * hours)
                 casualMaximum = boundariesForElapsedSeconds (12 * hours + 30 * minutes)
@@ -33,7 +33,7 @@ tests =
             projectedRosterWorkingSeconds beforeBreakThreshold `shouldBe` 6 * hours + 15 * minutes - 1
             projectedRosterWorkingSeconds atBreakThreshold `shouldBe` 5 * hours + 45 * minutes
 
-        it "rejects one elapsed second beyond every supported boundary" do
+        it "HIGA-15.2-PART-TIME-SHIFT-MIN, HIGA-15.2-PART-TIME-SHIFT-MAX and HIGA-11.2-CASUAL-SHIFT-MAX reject one second beyond limits" do
             let partTimeTooShort = boundariesForElapsedSeconds (3 * hours - 1)
                 partTimeTooLong = boundariesForElapsedSeconds (12 * hours + 1)
                 casualTooLong = boundariesForElapsedSeconds (12 * hours + 30 * minutes + 1)

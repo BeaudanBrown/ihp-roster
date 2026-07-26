@@ -12,7 +12,7 @@ import Test.WageEngine.Fixture
 tests :: Spec
 tests = do
     describe "pure unchanged Award rule subset" do
-        it "HIGA-29.2-WEEKDAY-ORDINARY pays permanent part-time worked time at O" do
+        it "HIGA-10.3-PART-TIME-PERMANENT and HIGA-29.2-WEEKDAY-ORDINARY pay permanent part-time worked time at O" do
             let calculation = calculateOrFail testCalculationInput
 
             calculation.calculatedEntryId `shouldBe` CalculationEntryId "entry-1"
@@ -51,7 +51,7 @@ tests = do
             rateFor calculation `shouldBe` 125
             amountFor calculation `shouldBe` 250
 
-        it "HIGA-29.2-SATURDAY and SUNDAY select one basis-specific day rate" do
+        it "HIGA-29.2-SATURDAY and HIGA-29.2-SUNDAY select one basis-specific day rate" do
             let saturday = awardSegmentBetween (fromGregorian 2026 1 10) (TimeOfDay 9 0 0) (fromGregorian 2026 1 10) (TimeOfDay 11 0 0)
                 sunday = awardSegmentBetween (fromGregorian 2026 1 11) (TimeOfDay 9 0 0) (fromGregorian 2026 1 11) (TimeOfDay 11 0 0)
                 permanentSaturday = calculateOrFail (testCalculationInput { calculationShiftSegments = [saturday] })
@@ -134,7 +134,7 @@ tests = do
             rateFor newCalculation `shouldBe` 110
             newCalculation.calculationRateBookVersion `shouldBe` Just (RateBookVersion "fixture-2026")
 
-        it "orders resolved intervals deterministically" do
+        it "HIGA-POLICY-DETERMINISTIC-CALCULATION orders calculation and error selection deterministically" do
             let day = fromGregorian 2026 1 5
                 firstHour = awardSegmentBetween day (TimeOfDay 9 0 0) day (TimeOfDay 10 0 0)
                 secondHour = awardSegmentBetween day (TimeOfDay 10 0 0) day (TimeOfDay 11 0 0)
@@ -142,6 +142,10 @@ tests = do
                 backward = calculateTimesheetPay (testCalculationInput { calculationShiftSegments = [secondHour, firstHour] })
 
             backward `shouldBe` forward
+            let unsupported = Set.fromList [AllowancePayments, LeaveCalculation]
+                invalid = testCalculationInput { calculationShiftSegments = [], calculationUnsupportedFeatures = unsupported }
+            calculateTimesheetPay invalid `shouldBe` calculateTimesheetPay invalid
+            calculateTimesheetPay invalid `shouldBe` Left (UnsupportedCalculationInput (UnsupportedFeatureRequested AllowancePayments))
 
         it "HIGA-POLICY-GENERIC-TIME preserves non-quarter-hour elapsed quantities" do
             let day = fromGregorian 2026 1 5

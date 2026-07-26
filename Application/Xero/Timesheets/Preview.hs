@@ -13,7 +13,7 @@ module Application.Xero.Timesheets.Preview
     )
 where
 
-import Application.Helper.TimesheetPayLedger (loadApprovedTimesheetPayCalculation)
+import Application.Helper.TimesheetPayLedger (loadApprovedTimesheetPayCalculations)
 import Application.Helper.WeekBoundaries (WeekdayIndex)
 import Application.Helper.Xero (XeroTimesheetRef (..))
 import Application.Helper.XeroTimesheetReadiness
@@ -273,10 +273,8 @@ fetchPreviewInput request connection = do
         query @VenueConfig
             |> filterWhere (#venueId, unpackId request.readinessVenueId)
             |> fetchOne
-    calculations <- fmap Map.fromList $ fmap catMaybes $ forM entries \entry ->
-        loadApprovedTimesheetPayCalculation entry >>= \case
-            Right (Just calculation) -> pure (Just (unpackId entry.id, calculation))
-            _                        -> pure Nothing
+    loadedCalculations <- loadApprovedTimesheetPayCalculations entries
+    let calculations = Map.mapMaybe (\case Left _ -> Nothing; Right calculation -> calculation) loadedCalculations
     awardLevels <- query @AwardLevel |> fetch
     baseRates <- query @AwardLevelBaseRate |> fetch
     penaltyRates <- query @AwardLevelPenaltyRate |> fetch

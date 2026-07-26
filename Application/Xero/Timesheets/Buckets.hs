@@ -5,7 +5,7 @@ module Application.Xero.Timesheets.Buckets
     ) where
 
 import Application.Helper.Pay (venueEffectiveRateDate)
-import Application.Helper.TimesheetPayLedger (loadApprovedTimesheetPayCalculation)
+import Application.Helper.TimesheetPayLedger (loadApprovedTimesheetPayCalculations)
 import Application.Helper.WeekBoundaries (WeekdayIndex)
 import Application.Helper.XeroAdminTypes
 import Application.VenueTime.Model (requireMelbourneDateRangeUTC)
@@ -56,9 +56,14 @@ fetchPeriodXeroLocalEarningsBuckets venueId periodStart periodEnd skippedStaffId
     baseRates <- query @AwardLevelBaseRate |> fetch
     penaltyRates <- query @AwardLevelPenaltyRate |> fetch
     timeAllowances <- query @AwardTimePenaltyAllowance |> fetch
-    calculations <- mapM load entries
+    loadedCalculations <- loadApprovedTimesheetPayCalculations entries
     pure do
-        entryCalculations <- sequence calculations
+        entryCalculations <- forM entries \entry ->
+            case Map.lookup (unpackId entry.id) loadedCalculations of
+                Nothing -> Left ("Approved entry ledger result was not loaded: " <> tshow (unpackId entry.id))
+                Just (Left message) -> Left message
+                Just (Right Nothing) -> Left ("Approved entry has no sealed calculation: " <> tshow (unpackId entry.id))
+                Just (Right (Just result)) -> Right (entry, result)
         let staffMap = Map.fromList [(unpackId staff.id, staff) | staff <- staffMembers]
             context = XeroComponentBucketContext
                 { bucketRosterWeekStartsOn = venueConfig.rosterWeekStartsOn
@@ -75,11 +80,6 @@ fetchPeriodXeroLocalEarningsBuckets venueId periodStart periodEnd skippedStaffId
                 key <- componentBucketKey context entry staff component componentDate
                 pure XeroLocalEarningsBucket { localBucketKey = key, localBucketLabel = key }
         pure (dedupeBuckets buckets)
-  where
-    load entry = loadApprovedTimesheetPayCalculation entry >>= \case
-        Left message        -> pure (Left message)
-        Right Nothing       -> pure (Left ("Approved entry has no sealed calculation: " <> tshow (unpackId entry.id)))
-        Right (Just result) -> pure (Right (entry, result))
 
 componentBucketKey :: XeroComponentBucketContext -> TimesheetEntry -> Staff -> EarningsComponent -> Day -> Either Text Text
 componentBucketKey context entry staff component componentDate =

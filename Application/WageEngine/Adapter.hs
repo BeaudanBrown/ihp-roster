@@ -12,9 +12,11 @@ module Application.WageEngine.Adapter
     , WageEngineDatabaseRead (..)
     , WageEngineAdapterError (..)
     , LoadedCalculationContext (..)
+    , loadWageEngineContextResultsWith
     , loadWageEngineContextsWith
     , databaseWageEngineBulkSource
     , databaseWageEngineBulkSourceWith
+    , loadWageEngineContextResultsForEntries
     , loadWageEngineContextsForEntries
     , calculationInputFromLoadedContext
     )
@@ -159,6 +161,20 @@ data LoadedCalculationContext = LoadedCalculationContext
 
 loadWageEngineContextsWith :: Monad m => WageEngineBulkSource m -> [WageEngineEntryRequest] -> m (Either [WageEngineAdapterError] (Map.Map UUID LoadedCalculationContext))
 loadWageEngineContextsWith source requests = do
+    results <- loadWageEngineContextResultsWith source requests
+    let orderedResults = mapMaybe (\request -> Map.lookup request.requestedEntryId results) requests
+        errors = [validationError | Left validationError <- orderedResults]
+        contexts = [context | Right context <- orderedResults]
+    pure $
+        if null errors
+            then Right (Map.fromList (map (\context -> (context.loadedEntryId, context)) contexts))
+            else Left errors
+
+-- | Bulk-load every source relation once while retaining successful contexts
+-- beside entry-local failures. Workflow previews use this form so one invalid
+-- draft cannot discard another draft's valid calculation.
+loadWageEngineContextResultsWith :: Monad m => WageEngineBulkSource m -> [WageEngineEntryRequest] -> m (Map.Map UUID (Either WageEngineAdapterError LoadedCalculationContext))
+loadWageEngineContextResultsWith source requests = do
     entryContextRows <- source.fetchEntryContextRows (map (.requestedEntryId) requests)
     let importedPayItemIds =
             entryContextRows
@@ -217,12 +233,7 @@ loadWageEngineContextsWith source requests = do
                     rateBooksByRequest
                 )
                 requests
-        errors = [validationError | Left validationError <- built]
-        contexts = [context | Right context <- built]
-    pure
-        if null errors
-            then Right (Map.fromList (map (\context -> (context.loadedEntryId, context)) contexts))
-            else Left errors
+    pure $ Map.fromList (zip (map (.requestedEntryId) requests) built)
 
 buildLoadedContext ::
     Map.Map UUID EntryContextRow ->
@@ -443,11 +454,17 @@ calculationInputFromLoadedContext loadedContext shiftSegments unpaidMealBreak =
 
 loadWageEngineContextsForEntries :: (?modelContext :: ModelContext) => [G.TimesheetEntry] -> IO (Either [WageEngineAdapterError] (Map.Map UUID LoadedCalculationContext))
 loadWageEngineContextsForEntries entries =
-    loadWageEngineContextsWith
-        databaseWageEngineBulkSource
-        [ WageEngineEntryRequest (unpackId entry.id)
-        | entry <- entries
-        ]
+    loadWageEngineContextsWith databaseWageEngineBulkSource (entryRequests entries)
+
+loadWageEngineContextResultsForEntries :: (?modelContext :: ModelContext) => [G.TimesheetEntry] -> IO (Map.Map UUID (Either WageEngineAdapterError LoadedCalculationContext))
+loadWageEngineContextResultsForEntries entries =
+    loadWageEngineContextResultsWith databaseWageEngineBulkSource (entryRequests entries)
+
+entryRequests :: [G.TimesheetEntry] -> [WageEngineEntryRequest]
+entryRequests entries =
+    [ WageEngineEntryRequest (unpackId entry.id)
+    | entry <- entries
+    ]
 
 databaseWageEngineBulkSource :: (?modelContext :: ModelContext) => WageEngineBulkSource IO
 databaseWageEngineBulkSource = databaseWageEngineBulkSourceWith (const (pure ()))

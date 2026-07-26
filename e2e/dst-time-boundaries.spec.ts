@@ -77,7 +77,7 @@ test.describe('DST time boundaries', () => {
 
     test('shows an occurrence chooser only for the repeated autumn roster time', async ({ page }) => {
         await openFreshSaturdayShift(page, '2026-03-30');
-        await fillBoundaryShift(page, '02:30', '04:00');
+        await fillBoundaryShift(page, '02:30', '05:30');
         await expect(page.locator('[data-time-occurrence-chooser]')).toHaveCount(0);
 
         await submitRosterShift(page);

@@ -6,17 +6,18 @@ import Application.Helper.Pay (PayTotals (..), TimesheetPayResult (..),
                                fetchTimesheetPay, lockPayVersionsForApproval)
 import Application.Helper.TimesheetPayLedger (backfillApprovedTimesheetPayCalculations,
                                               loadApprovedTimesheetPayCalculation,
+                                              loadApprovedTimesheetPayCalculations,
                                               persistApprovedTimesheetPayCalculation)
 import Application.VenueTime (AwardSegment)
 import Application.WageEngine
 import Application.WageEngine.Adapter
-import Control.Monad (void)
+import Control.Monad (replicateM, void)
 import Data.IORef
 import qualified Data.Map.Strict as Map
 import Data.Scientific (Scientific)
 import qualified Data.Text as Text
 import qualified Data.Text.Encoding as TextEncoding
-import Data.Time.Calendar (Day, fromGregorian)
+import Data.Time.Calendar (Day, addDays, fromGregorian)
 import Data.Time.Clock (getCurrentTime)
 import Data.Time.LocalTime (TimeOfDay (..))
 import qualified Data.UUID as UUID
@@ -51,7 +52,7 @@ pureTests =
                         , fetchStatewideHolidayRows = \_ -> record "holidays" []
                         }
                 entryId = uuid "10000000-0000-0000-0000-000000000001"
-                requests = replicate 100 (WageEngineEntryRequest entryId)
+                requests = replicate 1000 (WageEngineEntryRequest entryId)
 
             result <- loadWageEngineContextsWith source requests
 
@@ -69,7 +70,7 @@ pureTests =
                     , "holidays"
                     ]
 
-        it "selects versioned rates at the venue week rollover from one in-memory index" do
+        it "HIGA-POLICY-AWARD-LEVEL and HIGA-POLICY-WEEK-ROLLOVER select versioned rates from one in-memory index" do
             let beforeEntryId = uuid "10000000-0000-0000-0000-000000000010"
                 afterEntryId = uuid "10000000-0000-0000-0000-000000000011"
                 beforeDate = fromGregorian 2026 7 3
@@ -205,7 +206,7 @@ databaseTests = aroundAll withDatabaseTestContext do
                     |> void
                     ) `shouldThrow` anyException
 
-        it "persists exact Award ledger facts with immutable source provenance" $ withContext do
+        it "HIGA-POLICY-APPROVED-IMMUTABLE persists exact Award ledger facts with immutable source provenance" $ withContext do
             withCleanDb do
                 fixture <- loadFwcMapdFixture
                 _ <- storeCuratedMapdAwardData [fixture]
@@ -268,6 +269,19 @@ databaseTests = aroundAll withDatabaseTestContext do
                 fmap (.ratePerUnit) frozenComponents `shouldBe` fmap (.ratePerUnit) components
                 frozenAfter <- loadApprovedTimesheetPayCalculation activeEntry >>= expectRight
                 frozenAfter `shouldBe` frozenBefore
+
+                capturedLedgerQueries <- newIORef ([] :: [Text])
+                ledgerQueryLogger <- queryCaptureLogger capturedLedgerQueries
+                let originalModelContext = ?modelContext
+                    observedLedgerLoad =
+                        let ?modelContext = originalModelContext { ModelSupport.logger = ledgerQueryLogger }
+                         in loadApprovedTimesheetPayCalculations (replicate 1000 activeEntry)
+                bulkLoaded <- observedLedgerLoad
+                Log.cleanup ledgerQueryLogger
+                Map.lookup (unpackId activeEntry.id) bulkLoaded `shouldBe` Just (Right frozenBefore)
+                ledgerQueryLines <- filter (Text.isInfixOf "SELECT ") . Text.lines . Text.concat <$> readIORef capturedLedgerQueries
+                ledgerQueryLines `shouldSatisfy` boundedApprovedLedgerQueryLog
+
                 let component = fromMaybe (error "expected frozen component") (listToMaybe components)
                 ( newRecord @TimesheetPayEarningsComponent
                     |> set #timesheetPayCalculationId (unpackId persisted.id)
@@ -386,6 +400,124 @@ databaseTests = aroundAll withDatabaseTestContext do
                 backfillApprovedTimesheetPayCalculations `shouldReturn` Right 0
                 query @TimesheetPayCalculation |> fetchCount `shouldReturn` 2
 
+        it "bulk-loads 250 distinct imported entries within one structural query budget" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Wage adapter bulk fixture"
+                importedBy <- createUserRecord "wage-adapter-bulk@example.com" "admin" True
+                importedPayItem <- createImportedXeroPayItemRecord venue importedBy "Bulk imported" "wage-adapter-bulk" 55
+                importedStaff <- createStaffRecord venue Nothing "Bulk" "Imported"
+                    >>= updateRecord . set #importedXeroPayItemId (Just importedPayItem.id)
+                importedShiftType <- newRecord @ShiftType
+                    |> set #venueId (unpackId venue.id)
+                    |> set #name "Bulk imported shift"
+                    |> set #sortOrder 0
+                    |> set #overrideAwardLevelId Nothing
+                    |> set #isActive True
+                    |> createRecord
+                entries :: [TimesheetEntry] <- replicateM 250 (createAdapterEntry venue importedStaff importedShiftType (fromGregorian 2026 7 6))
+                databaseReads <- newIORef ([] :: [WageEngineDatabaseRead])
+                capturedQueries <- newIORef ([] :: [Text])
+                queryLogger <- queryCaptureLogger capturedQueries
+                let originalModelContext = ?modelContext
+                    observedLoad :: IO (Either [WageEngineAdapterError] (Map.Map UUID LoadedCalculationContext))
+                    observedLoad =
+                        let ?modelContext = originalModelContext { ModelSupport.logger = queryLogger }
+                         in loadWageEngineContextsWith
+                                (databaseWageEngineBulkSourceWith (\databaseRead -> modifyIORef' databaseReads (<> [databaseRead])))
+                                [WageEngineEntryRequest (unpackId entry.id) | entry <- entries]
+
+                loaded <- observedLoad
+                Log.cleanup queryLogger
+                contexts <- expectRight loaded
+                Map.size contexts `shouldBe` 250
+                Map.keysSet contexts `shouldBe` Map.keysSet (Map.fromList [(unpackId entry.id, ()) | entry <- entries])
+                contexts `shouldSatisfy` all (isNothing . (.loadedAwardRateContext))
+                readIORef databaseReads >>= (`shouldSatisfy` satisfyBulkImportedDatabaseReads)
+                queryLines <- filter (Text.isInfixOf "SELECT ") . Text.lines . Text.concat <$> readIORef capturedQueries
+                queryLines `shouldSatisfy` boundedBulkImportedQueryLog
+
+        it "bulk-loads and reconstructs 200 distinct approved Award entries with bounded rate, holiday, version and ledger reads" $ withContext do
+            withCleanDb do
+                fixture <- loadFwcMapdFixture
+                _ <- storeCuratedMapdAwardData [fixture]
+                venue <- createVenueWithConfig "Approved Award bulk fixture"
+                level <- query @AwardLevel
+                    |> filterWhere (#classificationFixedId, 243)
+                    |> fetchOne
+                alternateLevel <- query @AwardLevel
+                    |> filterWhere (#classificationFixedId, 246)
+                    |> fetchOne
+                approver <- createUserRecord "approved-award-bulk@example.com" "admin" True
+                staff <- createStaffRecord venue Nothing "Approved" "Bulk"
+                    >>= updateRecord
+                        . set #employmentBasis Permanent
+                        . set #defaultAwardLevelId (Just level.id)
+                shiftType <- createShiftTypeRecord venue level "Approved bulk ordinary"
+                _ <- newRecord @PublicHoliday
+                    |> set #jurisdiction "VIC"
+                    |> set #holidayDate (fromGregorian 2026 7 7)
+                    |> set #name "Approved bulk holiday"
+                    |> set #isRegional False
+                    |> createRecord
+                approvedAt <- getCurrentTime
+                approvedEntries <- forM [0 .. 199 :: Int] \index -> do
+                    currentStaff <- fetch staff.id
+                    void $ currentStaff
+                        |> set #defaultAwardLevelId (Just (if even index then level.id else alternateLevel.id))
+                        |> updateRecord
+                    currentShiftType <- fetch shiftType.id
+                    void $ currentShiftType
+                        |> set #name ("Approved bulk ordinary " <> tshow index)
+                        |> updateRecord
+                    createApprovedTimesheetEntryRecordAtWithShiftTimes
+                        venue
+                        staff
+                        approver
+                        shiftType
+                        (addDays (fromIntegral index) (fromGregorian 2026 7 6))
+                        approvedAt
+                        (TimeOfDay 9 0 0)
+                        (TimeOfDay 13 0 0)
+
+                adapterReads <- newIORef ([] :: [WageEngineDatabaseRead])
+                adapterQueries <- newIORef ([] :: [Text])
+                adapterLogger <- queryCaptureLogger adapterQueries
+                let originalModelContext = ?modelContext
+                    observedAdapterLoad :: IO (Either [WageEngineAdapterError] (Map.Map UUID LoadedCalculationContext))
+                    observedAdapterLoad =
+                        let ?modelContext = originalModelContext { ModelSupport.logger = adapterLogger }
+                         in loadWageEngineContextsWith
+                                (databaseWageEngineBulkSourceWith (\databaseRead -> modifyIORef' adapterReads (<> [databaseRead])))
+                                [WageEngineEntryRequest (unpackId entry.id) | entry <- approvedEntries]
+                contexts <- observedAdapterLoad >>= expectRight
+                Log.cleanup adapterLogger
+                Map.size contexts `shouldBe` 200
+                readIORef adapterReads >>= (`shouldSatisfy` satisfyBulkApprovedAwardDatabaseReads)
+                capturedAdapterQueryLines <- selectQueryLines adapterQueries
+                capturedAdapterQueryLines `shouldSatisfy` boundedBulkApprovedAwardQueryLog
+
+                ledgerQueries <- newIORef ([] :: [Text])
+                ledgerLogger <- queryCaptureLogger ledgerQueries
+                let observedLedgerLoad =
+                        let ?modelContext = originalModelContext { ModelSupport.logger = ledgerLogger }
+                         in loadApprovedTimesheetPayCalculations approvedEntries
+                calculations <- observedLedgerLoad
+                Log.cleanup ledgerLogger
+                Map.size calculations `shouldBe` 200
+                calculations `shouldSatisfy` all (either (const False) isJust)
+                capturedLedgerQueryLines <- selectQueryLines ledgerQueries
+                capturedLedgerQueryLines `shouldSatisfy` boundedApprovedLedgerQueryLog
+
+                forM_ (take 5 approvedEntries) \entry -> do
+                    sqlResult <- fetchTimesheetPay entry.id >>= expectRight
+                    ledgerCalculation <- case Map.lookup (unpackId entry.id) calculations of
+                        Just (Right (Just calculation)) -> pure calculation
+                        unexpected -> expectationFailure (cs ("missing approved ledger calculation: " <> tshow unexpected)) >> fail "unreachable"
+                    sum (map (.amount) ledgerCalculation.earningsComponents)
+                        `shouldBe` toRational sqlResult.totals.totalAmount
+                    sum (map paidTimeDurationSeconds ledgerCalculation.paidTimeSegments)
+                        `shouldBe` toRational (sqlResult.totals.paidMinutes * 60)
+
         it "bulk-loads exact #264 provenance once and matches SQL only for approved parity scenarios" $ withContext do
             withCleanDb do
                 fixture <- loadFwcMapdFixture
@@ -434,14 +566,7 @@ databaseTests = aroundAll withDatabaseTestContext do
                 calls <- newIORef ([] :: [Text])
                 databaseReads <- newIORef ([] :: [WageEngineDatabaseRead])
                 capturedQueries <- newIORef ([] :: [Text])
-                queryLogger <-
-                    Log.newLogger
-                        def
-                            { Log.destination =
-                                Log.Callback
-                                    (\line -> modifyIORef' capturedQueries (<> [TextEncoding.decodeUtf8 (Log.fromLogStr line)]))
-                                    (pure ())
-                            }
+                queryLogger <- queryCaptureLogger capturedQueries
                 let originalModelContext = ?modelContext
                     observedLoad :: IO (Either [WageEngineAdapterError] (Map.Map UUID LoadedCalculationContext))
                     observedLoad =
@@ -500,6 +625,65 @@ databaseTests = aroundAll withDatabaseTestContext do
                 Map.mapMaybe (fmap validatedRateBookVersion . loadedRateBook) changedContexts
                     `shouldNotBe` refreshedVersions
 
+queryCaptureLogger :: IORef [Text] -> IO Log.Logger
+queryCaptureLogger capturedQueries =
+    Log.newLogger
+        def
+            { Log.destination =
+                Log.Callback
+                    (\line -> modifyIORef' capturedQueries (<> [TextEncoding.decodeUtf8 (Log.fromLogStr line)]))
+                    (pure ())
+            }
+
+selectQueryLines :: IORef [Text] -> IO [Text]
+selectQueryLines capturedQueries =
+    filter (Text.isInfixOf "SELECT ") . Text.lines . Text.concat <$> readIORef capturedQueries
+
+boundedBulkApprovedAwardQueryLog :: [Text] -> Bool
+boundedBulkApprovedAwardQueryLog queryLines =
+    length queryLines == length expectedTables
+        && all (\tableName -> length (filter (Text.isInfixOf (" FROM " <> tableName <> " ")) queryLines) == 1) expectedTables
+  where
+    expectedTables =
+        [ "timesheet_entries"
+        , "venue_config"
+        , "staff"
+        , "shift_types"
+        , "staff_pay_versions"
+        , "shift_type_pay_versions"
+        , "award_levels"
+        , "award_level_base_rates"
+        , "award_level_penalty_rates"
+        , "award_time_penalty_allowances"
+        , "public_holidays"
+        ]
+
+boundedBulkImportedQueryLog :: [Text] -> Bool
+boundedBulkImportedQueryLog queryLines =
+    length queryLines == length expectedTables
+        && all (\tableName -> length (filter (Text.isInfixOf (" FROM " <> tableName <> " ")) queryLines) == 1) expectedTables
+  where
+    expectedTables =
+        [ "timesheet_entries"
+        , "venue_config"
+        , "staff"
+        , "shift_types"
+        , "xero_imported_pay_items"
+        , "award_levels"
+        , "public_holidays"
+        ]
+
+boundedApprovedLedgerQueryLog :: [Text] -> Bool
+boundedApprovedLedgerQueryLog queryLines =
+    length queryLines == length expectedTables
+        && all (\tableName -> length (filter (Text.isInfixOf (" FROM " <> tableName <> " ")) queryLines) == 1) expectedTables
+  where
+    expectedTables =
+        [ "timesheet_pay_calculations"
+        , "timesheet_pay_time_segments"
+        , "timesheet_pay_earnings_components"
+        ]
+
 boundedQueryLog :: [Text] -> Bool
 boundedQueryLog queryLines =
     length queryLines == length expectedTables
@@ -526,6 +710,43 @@ boundedQueryLog queryLines =
         case filter (Text.isInfixOf (" FROM " <> tableName <> " ")) queryLines of
             [queryLine] -> all (`Text.isInfixOf` queryLine) requiredFragments
             _           -> False
+
+satisfyBulkApprovedAwardDatabaseReads :: [WageEngineDatabaseRead] -> Bool
+satisfyBulkApprovedAwardDatabaseReads = \case
+    [ TimesheetEntriesRead 200
+        , VenueConfigsRead 1
+        , StaffRowsRead 1
+        , ShiftTypeRowsRead 1
+        , StaffPayVersionsRead 200
+        , ShiftTypePayVersionsRead 200
+        , AwardLevelsRead
+        , BaseRatesRead baseScope
+        , PenaltyRatesRead penaltyScope
+        , TimeAdditionsRead additionScope
+        , StatewideHolidaysRead holidayFrom holidayTo
+        ] ->
+            baseScope == penaltyScope
+                && penaltyScope == additionScope
+                && length baseScope.scopedAwardLevelIds == 7
+                && baseScope.scopedWorkedFrom == Just (fromGregorian 2026 7 6)
+                && baseScope.scopedWorkedTo == Just (fromGregorian 2027 1 21)
+                && holidayFrom == fromGregorian 2026 7 6
+                && holidayTo == fromGregorian 2027 1 22
+    _ -> False
+
+satisfyBulkImportedDatabaseReads :: [WageEngineDatabaseRead] -> Bool
+satisfyBulkImportedDatabaseReads = \case
+    [ TimesheetEntriesRead 250
+        , VenueConfigsRead 1
+        , StaffRowsRead 1
+        , ShiftTypeRowsRead 1
+        , ImportedPayItemsRead 1
+        , AwardLevelsRead
+        , StatewideHolidaysRead holidayFrom holidayTo
+        ] ->
+            holidayFrom == fromGregorian 2026 7 6
+                && holidayTo == fromGregorian 2026 7 7
+    _ -> False
 
 satisfyBoundedDatabaseReads :: [WageEngineDatabaseRead] -> Bool
 satisfyBoundedDatabaseReads = \case
