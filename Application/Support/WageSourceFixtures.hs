@@ -3,11 +3,21 @@ module Application.Support.WageSourceFixtures
     , sealApprovedFixtureCalculation
     ) where
 
+import Application.Helper.Pay (PaySegment (..), TimesheetPayResult (..),
+                               fetchTimesheetPayResultsForEntries,
+                               timesheetEntryIdKey)
+import Application.VenueTime (melbourneTimeZoneName)
+import Application.VenueTime.Model (resolveBoundaryInstant,
+                                    timesheetEntryWorkedOn)
 import Application.WageEngine (WageCalculationVersion (..),
                                currentWageCalculationVersion)
 import Control.Monad (void)
-import Data.Scientific (Scientific)
+import qualified Data.Map.Strict as Map
+import qualified Data.Scientific as Scientific
+import qualified Data.Text as Text
 import Data.Time.Calendar (Day, fromGregorian, toGregorian)
+import Data.Time.Clock (addUTCTime)
+import Data.Time.LocalTime (TimeOfDay (..))
 import Generated.Types
 import IHP.ControllerPrelude
 import IHP.Prelude
@@ -61,19 +71,103 @@ sealApprovedFixtureCalculation entry = do
         |> set #approvedAt approvedAt
         |> set #approvedByUserId approvedBy
         |> createRecord
-    void $ newRecord @TimesheetPayEarningsComponent
-        |> set #timesheetPayCalculationId (unpackId calculation.id)
-        |> set #ordinal (0 :: Int)
-        |> set #quantity (0 :: Scientific)
-        |> set #unitType ("hours" :: Text)
-        |> set #ratePerUnit (0 :: Scientific)
-        |> set #exactAmount (0 :: Scientific)
-        |> set #sourceCondition sourceCondition
-        |> set #calculationSource calculationSource
-        |> set #sourceRateIdentity (Just "fixture:sealed-approved-calculation")
-        |> createRecord
+    payResults <- fetchTimesheetPayResultsForEntries [entry]
+    let paySegments = maybe [] (.segments) (Map.lookup (timesheetEntryIdKey entry.id) payResults)
+    forM_ (zip [0 :: Int ..] (filter ((> 0) . (.minutes)) paySegments)) \(ordinal, segment) -> do
+        let segmentDay = fromMaybe (timesheetEntryWorkedOn entry) segment.segmentDate
+            segmentHours = toRational segment.minutes / 60
+            fallbackRate = if segmentHours == 0 then 0 else toRational segment.amount / segmentHours
+            segmentStart = fixtureSegmentStart segmentDay segment.segment
+            persistedCondition = fixtureSourceCondition calculationSource sourceCondition segment
+        (segmentRate, rateIdentity) <- fixtureComponentRateAndSource staffVersion segment persistedCondition fallbackRate
+        void $ newRecord @TimesheetPayTimeSegment
+            |> set #timesheetPayCalculationId (unpackId calculation.id)
+            |> set #ordinal ordinal
+            |> set #paidTimeKind ("worked" :: Text)
+            |> set #startsAt segmentStart
+            |> set #endsAt (addUTCTime (fromRational (toRational segment.minutes * 60)) segmentStart)
+            |> set #localDate segmentDay
+            |> set #sourceCondition persistedCondition
+            |> createRecord
+        void $ newRecord @TimesheetPayEarningsComponent
+            |> set #timesheetPayCalculationId (unpackId calculation.id)
+            |> set #ordinal ordinal
+            |> set #quantity (fst (Scientific.fromRationalRepetendUnlimited segmentHours))
+            |> set #unitType ("hours" :: Text)
+            |> set #ratePerUnit (fst (Scientific.fromRationalRepetendUnlimited segmentRate))
+            |> set #exactAmount (fst (Scientific.fromRationalRepetendUnlimited (segmentHours * segmentRate)))
+            |> set #sourceCondition persistedCondition
+            |> set #calculationSource calculationSource
+            |> set #sourceRateIdentity rateIdentity
+            |> createRecord
     sealed <- calculation |> set #sealedAt (Just now) |> updateRecord
     entry
         |> set #activePayCalculationId (Just sealed.id)
         |> set #legacyPayBackfillPending False
         |> updateRecord
+
+fixtureComponentRateAndSource :: (?modelContext :: ModelContext) => StaffPayVersion -> PaySegment -> Text -> Rational -> IO (Rational, Maybe Text)
+fixtureComponentRateAndSource staffVersion segment condition fallbackRate
+    | Text.isPrefixOf "external_imported_pay_item:" condition = pure (fallbackRate, Nothing)
+    | condition == "missed_meal_break_addition" = do
+        maybeBaseRate <- fetchBaseRate Permanent
+        pure $ case maybeBaseRate of
+            Just baseRate -> (toRational baseRate.hourlyRate / 2, Just (baseIdentity baseRate))
+            Nothing       -> fallback
+    | condition == "saturday" = fetchPenaltyRate SaturdayPenalty
+    | condition == "sunday" = fetchPenaltyRate SundayPenalty
+    | condition == "public_holiday" = fetchPenaltyRate PublicHolidayPenalty
+    | otherwise = do
+        maybeBaseRate <- fetchBaseRate staffVersion.employmentBasis
+        pure $ case maybeBaseRate of
+            Just baseRate -> (toRational baseRate.hourlyRate, Just (baseIdentity baseRate))
+            Nothing       -> fallback
+  where
+    fallback = (fallbackRate, Just "fixture:sealed-approved-calculation")
+    payLevelId = fromMaybe (error "fixture segment missing pay level") segment.payLevelId
+    fetchBaseRate basis =
+        query @AwardLevelBaseRate
+            |> filterWhere (#awardLevelId, payLevelId)
+            |> filterWhere (#employmentBasis, basis)
+            |> orderByDesc #createdAt
+            |> fetchOneOrNothing
+    fetchPenaltyRate kind = do
+        maybeRate <- query @AwardLevelPenaltyRate
+            |> filterWhere (#awardLevelId, payLevelId)
+            |> filterWhere (#employmentBasis, staffVersion.employmentBasis)
+            |> filterWhere (#penaltyKind, kind)
+            |> orderByDesc #createdAt
+            |> fetchOneOrNothing
+        pure $ case maybeRate of
+            Just rate -> (toRational rate.hourlyRate, Just (penaltyIdentity rate))
+            Nothing   -> fallback
+    baseIdentity rate = projectionSourceIdentity "award_level_base_rates" (unpackId rate.id) "fwc_mapd_pay_rates" rate.fwcMapdPayRateId
+    penaltyIdentity rate = projectionSourceIdentity "award_level_penalty_rates" (unpackId rate.id) "fwc_mapd_penalty_rates" rate.fwcMapdPenaltyRateId
+
+projectionSourceIdentity :: Text -> UUID -> Text -> UUID -> Text
+projectionSourceIdentity projectionTable projectionId sourceTable sourceId =
+    "bepis-projection:" <> projectionTable <> ":" <> tshow projectionId <> "/source:" <> sourceTable <> ":" <> tshow sourceId
+
+fixtureSourceCondition :: Text -> Text -> PaySegment -> Text
+fixtureSourceCondition calculationSource importedCondition segment
+    | calculationSource == "external_imported_pay_item" = importedCondition
+    | otherwise = case fromMaybe "ordinary" segment.penaltyKind of
+        "saturday_penalty"                  -> "saturday"
+        "sunday_penalty"                    -> "sunday"
+        "public_holiday_penalty"            -> "public_holiday"
+        "delayed_meal_break_weekday"        -> "missed_meal_break_addition"
+        "delayed_meal_break_saturday"       -> "missed_meal_break_addition"
+        "delayed_meal_break_sunday"         -> "missed_meal_break_addition"
+        "delayed_meal_break_public_holiday" -> "missed_meal_break_addition"
+        _                                   -> "ordinary"
+
+fixtureSegmentStart :: Day -> Text -> UTCTime
+fixtureSegmentStart day segmentName =
+    case resolveBoundaryInstant melbourneTimeZoneName day representativeTime Nothing of
+        Left err      -> error (show err)
+        Right instant -> instant
+  where
+    representativeTime
+        | segmentName == "evening_after_7pm" = TimeOfDay 19 0 0
+        | segmentName == "late_night_after_midnight" = TimeOfDay 0 0 0
+        | otherwise = TimeOfDay 9 0 0

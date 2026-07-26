@@ -1,6 +1,7 @@
 module Test.XeroTimesheetPreviewSpec where
 
 import Application.Helper.Pay
+import Application.Helper.TimesheetPayLedger (loadApprovedTimesheetPayCalculation)
 import Application.Helper.Xero
 import Application.Helper.XeroAdminTypes
 import Application.Helper.XeroPayItems
@@ -18,6 +19,7 @@ import IHP.ControllerPrelude
 import IHP.Test.Mocking
 import Test.Hspec
 import Test.Support
+import Test.Support.PayrollFixtures (createAndApproveEntry)
 
 tests :: Spec
 tests =
@@ -31,15 +33,15 @@ tests =
                     let line = onlyPreviewLine previewRun
                     line.previewLineNumberOfUnits `shouldBe` [4, 0, 0, 0, 0, 0, 0]
 
-            it "preserves fractional elapsed units in Xero preview payloads" $ withContext do
+            it "defensively rounds a final hourly Xero bucket once to the nearest quarter hour" $ withContext do
                 withCleanDb do
                     fixture <- createPreviewFixture "weekly" [EntrySpec 0 fixtureStaffA (TimeOfDay 9 0 0) (TimeOfDay 13 0 30)]
                     previewRun <- buildFixturePreview fixture
 
                     let line = onlyPreviewLine previewRun
-                    line.previewLineNumberOfUnits `shouldBe` [4.008333333333, 0, 0, 0, 0, 0, 0]
+                    line.previewLineNumberOfUnits `shouldBe` [4, 0, 0, 0, 0, 0, 0]
 
-            it "rounds fractional Xero units only after same-bucket aggregation" $ withContext do
+            it "aggregates exact components before defensively rounding the Xero bucket" $ withContext do
                 withCleanDb do
                     fixture <-
                         createPreviewFixture
@@ -50,17 +52,21 @@ tests =
                     previewRun <- buildFixturePreview fixture
 
                     let line = onlyPreviewLine previewRun
-                    line.previewLineNumberOfUnits `shouldBe` [0.016666666667, 0, 0, 0, 0, 0, 0]
+                    line.previewLineNumberOfUnits `shouldBe` [0, 0, 0, 0, 0, 0, 0]
 
-            it "uses the latest overlapping venue-effective rate in preview bucket keys" $ withContext do
+            it "uses the approval-pinned source rather than a newer overlapping rate in preview bucket keys" $ withContext do
                 withCleanDb do
                     fixture <- createPreviewFixture "weekly" [EntrySpec 0 fixtureStaffA (TimeOfDay 9 0 0) (TimeOfDay 13 0 0)]
                     input <- fetchPreviewInput fixture.request fixture.connection
-                    payLevelUuid <-
-                        case nub (mapMaybe (.payLevelId) (Map.elems input.previewPayResultsByEntryId)) of
-                            [value] -> pure value
-                            _ -> expectationFailure "expected one preview pay level" >> error "unreachable"
                     let firstEntry = fromMaybe (error "expected preview entry") (head fixture.entries)
+                    payLevelUuid <- case do
+                        staffVersionId <- firstEntry.staffPayVersionId
+                        shiftVersionId <- firstEntry.shiftTypePayVersionId
+                        staffVersion <- find (\version -> unpackId version.id == staffVersionId) input.previewStaffPayVersions
+                        shiftVersion <- find (\version -> unpackId version.id == shiftVersionId) input.previewShiftTypePayVersions
+                        shiftVersion.overrideAwardLevelId <|> staffVersion.defaultAwardLevelId of
+                            Just value -> pure value
+                            Nothing -> expectationFailure "expected one preview pay level" >> error "unreachable"
                     staff <-
                         case find (\candidate -> unpackId candidate.id == firstEntry.staffId) input.previewStaff of
                             Just value -> pure value
@@ -74,15 +80,23 @@ tests =
                             Just value -> pure value
                             Nothing -> expectationFailure "expected preview base rate" >> error "unreachable"
                     mapping <-
-                        case find (Text.isSuffixOf ":ordinary" . (.localBucketKey)) input.previewEarningsMappings of
+                        case find (Text.isInfixOf ":ordinary:source:" . (.localBucketKey)) input.previewEarningsMappings of
                             Just value -> pure value
                             Nothing -> expectationFailure "expected ordinary earnings mapping" >> error "unreachable"
-                    let expectedKey =
+                    let sourceIdentity =
+                            "bepis-projection:award_level_base_rates:"
+                                <> tshow (unpackId baseRate.id)
+                                <> "/source:fwc_mapd_pay_rates:"
+                                <> tshow baseRate.fwcMapdPayRateId
+                        expectedKey =
                             "xero:pay-item:classification:"
                                 <> tshow awardLevel.classificationFixedId
                                 <> ":basis:"
                                 <> inputValue staff.employmentBasis
-                                <> ":effective:2026-07-06:ordinary"
+                                <> ":effective:2025-07-07:ordinary:source:"
+                                <> sourceIdentity
+                                <> ":rate:"
+                                <> tshow baseRate.hourlyRate
                         oldBaseRate = baseRate |> set #operativeFrom (Just (fromGregorian 2025 7 1)) |> set #operativeTo Nothing
                         newerBaseRate = baseRate |> set #operativeFrom (Just (fromGregorian 2026 7 1)) |> set #operativeTo Nothing |> set #hourlyRate 40
                         otherBaseRates = filter (\candidate -> candidate.awardLevelId /= payLevelUuid || candidate.employmentBasis /= staff.employmentBasis) input.previewAwardLevelBaseRates
@@ -213,18 +227,18 @@ tests =
 
                     (onlyPreviewLine previewRun).previewLineXeroEarningsRateId `shouldSatisfy` Text.isPrefixOf "earnings-"
 
-            it "maps weekday delayed meal break segments to the managed pay item bucket" $ withContext do
+            it "maps the separate missed meal break 50% component to its managed pay item bucket" $ withContext do
                 withCleanDb do
                     fixture <- createPreviewFixture "weekly" [EntrySpec 0 fixtureStaffA (TimeOfDay 9 0 0) (TimeOfDay 17 0 0)]
 
                     previewRun <- buildFixturePreview fixture
 
                     let lines = (onlyPreview previewRun).previewLines
-                    map (.previewLineLocalBucketKey) lines `shouldSatisfy` any (Text.isInfixOf "penalty:delayed_meal_break_weekday")
+                    map (.previewLineLocalBucketKey) lines `shouldSatisfy` any (Text.isInfixOf "penalty:missed_meal_break_addition")
                     delayedLine <-
-                        case find (Text.isInfixOf "penalty:delayed_meal_break_weekday" . (.previewLineLocalBucketKey)) lines of
+                        case find (Text.isInfixOf "penalty:missed_meal_break_addition" . (.previewLineLocalBucketKey)) lines of
                             Just line -> pure line
-                            Nothing   -> expectationFailure "expected a delayed meal break preview line" >> error "unreachable"
+                            Nothing   -> expectationFailure "expected a missed meal break preview line" >> error "unreachable"
                     delayedLine.previewLineNumberOfUnits `shouldBe` [2, 0, 0, 0, 0, 0, 0]
 
             it "persists preview payload, readiness snapshot, and duplicate-check snapshot without posting to Xero" $ withContext do
@@ -353,11 +367,11 @@ createMappedStaff venue awardLevel firstName lastName = do
 createFixtureEntry :: (?modelContext :: ModelContext) => Venue -> User -> Staff -> Staff -> Day -> EntrySpec -> IO TimesheetEntry
 createFixtureEntry venue owner staffA staffB periodStart spec = do
     let staff = if spec.entryStaff == FixtureStaffA then staffA else staffB
-    entry <- createApprovedTimesheetEntryRecord venue staff owner (addDays spec.entryDayOffset periodStart)
-    entry
-        |> setTestStartTime spec.entryStartTime
-        |> setTestEndTime spec.entryEndTime
-        |> updateRecord
+    approvedAt <- getCurrentTime
+    createAndApproveEntry venue staff (addDays spec.entryDayOffset periodStart) () owner approvedAt
+        [ setTestStartTime spec.entryStartTime
+        , setTestEndTime spec.entryEndTime
+        ]
 
 createPreviewXeroConnection :: (?modelContext :: ModelContext) => Venue -> User -> IO XeroConnection
 createPreviewXeroConnection venue owner =
@@ -521,7 +535,11 @@ buildFixturePreview fixture = buildFixturePreviewWithRemotes fixture []
 
 buildFixturePreviewWithRemotes :: (?modelContext :: ModelContext) => PreviewFixture -> [XeroTimesheetRef] -> IO XeroTimesheetPreviewRun
 buildFixturePreviewWithRemotes fixture remoteTimesheets = do
-    payResults <- fetchTimesheetPayResultsForEntries fixture.entries
+    calculations <- fmap Map.fromList $ forM fixture.entries \entry -> do
+        loaded <- loadApprovedTimesheetPayCalculation entry
+        case loaded of
+            Right (Just calculation) -> pure (unpackId entry.id, calculation)
+            _                        -> expectationFailure "expected sealed preview calculation" >> error "unreachable"
     staffMappings <- query @XeroStaffMapping |> filterWhere (#xeroConnectionId, unpackId fixture.connection.id) |> fetch
     earningsMappings <- query @XeroEarningsRateMapping |> filterWhere (#xeroConnectionId, unpackId fixture.connection.id) |> fetch
     payItemRequirements <- query @XeroPayItemRequirementRecord |> filterWhere (#xeroConnectionId, unpackId fixture.connection.id) |> fetch
@@ -546,7 +564,7 @@ buildFixturePreviewWithRemotes fixture remoteTimesheets = do
                 , previewImportedPayItems = importedPayItems
                 , previewEarningsMappings = earningsMappings
                 , previewPayItemRequirements = payItemRequirements
-                , previewPayResultsByEntryId = payResults
+                , previewCalculationsByEntryId = calculations
                 , previewAwardLevels = awardLevels
                 , previewAwardLevelBaseRates = baseRates
                 , previewAwardLevelPenalties = penaltyRates

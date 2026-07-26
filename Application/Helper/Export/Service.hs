@@ -7,8 +7,6 @@ import Application.Helper.Export.Persistence
 import Application.Helper.Export.ReadModel
 import Application.Helper.Export.Render
 import Application.Helper.Export.Types
-import Application.Helper.Pay (fetchTimesheetPayResultsForEntries,
-                               timesheetEntryIdKey)
 import Application.WageSourceEnforcement (enforceFinalWageEntries,
                                           renderWageEntryFailures)
 import Control.Monad (void)
@@ -46,11 +44,12 @@ requestFixedStaffPayCsvExport rangeStart rangeEnd = do
     entries <- fetchApprovedTimesheetEntries rangeStart rangeEnd
     staffById <- fetchReportStaffMap entries
     let includedEntries = filter (shouldIncludeFixedStaffPayEntry staffById) entries
-    enforceExportEntries includedEntries >>= \case
-        Left message -> pure (Left message)
-        Right () -> do
+    enforceFinalWageEntries includedEntries >>= \case
+        Left failures -> pure (Left (renderWageEntryFailures "Payroll output blocked: " failures))
+        Right calculations -> do
             weekSelections <- rangeWeekSlices rangeStart rangeEnd
-            payloadResults <- mapM buildFixedStaffPayCsvPayload weekSelections
+            let calculationsByEntryId = calculationMap includedEntries calculations
+            payloadResults <- mapM (buildFixedStaffPayCsvPayload calculationsByEntryId) weekSelections
             case lefts payloadResults of
                 err : _ -> pure (Left err)
                 [] -> do
@@ -74,14 +73,14 @@ persistFixedStaffPayExport rangeStart rangeEnd payloads = withTransaction do
     let rowCount = sum (map (.rowCount) payloads)
     let isSingleWeek = length payloads == 1
     let fileName =
-            if isSingleWeek
-                then "staff_hours-" <> tshow rangeStart <> "-to-" <> tshow rangeEnd <> ".csv"
-                else "staff_hours-" <> tshow rangeStart <> "-to-" <> tshow rangeEnd <> ".zip"
+            case payloads of
+                [payload] -> payload.fileName
+                _         -> "staff_hrs-" <> tshow rangeStart <> "-to-" <> tshow rangeEnd <> ".zip"
     let fileContents =
             case payloads of
                 [payload] -> payload.csvContents
                 _ -> renderTextZipBase64
-                        [ ( weeklyFolderName payload.weekSelection <> "/staff_hours.csv"
+                        [ ( weeklyFolderName payload.weekSelection <> "/" <> payload.fileName
                           , payload.csvContents
                           )
                         | payload <- payloads
@@ -133,7 +132,7 @@ requestFixedHourlyBreakdownZipExport rangeStart rangeEnd = do
     enforcement <- enforceExportEntries entries
     case enforcement of
         Left message -> pure (Left message)
-        Right () -> requestWithEnforcedEntries entries
+        Right ()     -> requestWithEnforcedEntries entries
   where
     requestWithEnforcedEntries entries = do
         shiftTypes <- fetchCurrentVenueActiveShiftTypes
@@ -186,20 +185,16 @@ requestFixedPayrollEarningsCsvExport ::
 requestFixedPayrollEarningsCsvExport rangeStart rangeEnd = do
     entries <- fetchApprovedTimesheetEntries rangeStart rangeEnd
     staffById <- fetchReportStaffMap entries
-    payResultsByEntryId <- fetchTimesheetPayResultsForEntries entries
     versionManifestsByEntryId <- fetchVersionManifestsForEntries entries
+    labelsByEntryId <- fetchApprovedEntryPayLabels entries
+    shiftLabelsByEntryId <- fetchApprovedEntryShiftLabels entries
     let filteredEntries = filter (shouldIncludeFixedStaffPayEntry staffById) entries
-    enforcement <- enforceExportEntries filteredEntries
-    let missingEntryIds =
-            map (tshow . get #id) $
-                filter (\entry -> Map.notMember (timesheetEntryIdKey (get #id entry)) payResultsByEntryId) filteredEntries
 
-    case enforcement of
-        Left message -> pure (Left message)
-        Right () | not (null missingEntryIds) ->
-            pure (Left "Failed to resolve payroll data for one or more approved timesheet entries.")
-        Right () -> do
-            let records = buildPayrollEarningsCsvRecords filteredEntries staffById payResultsByEntryId versionManifestsByEntryId
+    enforceFinalWageEntries filteredEntries >>= \case
+        Left failures -> pure (Left (renderWageEntryFailures "Payroll output blocked: " failures))
+        Right calculations -> do
+            let calculationsByEntryId = calculationMap filteredEntries calculations
+                records = buildPayrollEarningsCsvRecords filteredEntries staffById calculationsByEntryId labelsByEntryId shiftLabelsByEntryId versionManifestsByEntryId
             let versionManifests =
                     filteredEntries
                         |> mapMaybe (\entry -> Map.lookup (coerce (get #id entry)) versionManifestsByEntryId)

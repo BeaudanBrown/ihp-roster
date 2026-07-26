@@ -33,19 +33,34 @@ This file describes implemented export behavior and shared rendering rules.
   spring hour contributes zero. Approved Timesheets CSV renders exact elapsed
   break seconds from those instants rather than flooring to minutes. Staff
   Hours and Hourly Breakdown aggregate exact rational quantities before their
-  final CSV-cell formatting. This `break_seconds` shape is export schema
-  version 2. #237 owns the target final-bucket quarter-hour transform; until it
-  lands, these legacy renderers retain exact aggregate quantities through their
-  existing CSV formatting.
+  final output transform. The exact-second `break_seconds` shape was introduced
+  in export schema version
+  2; the approved-ledger payroll publication contract is schema version 3.
+  Payroll hourly quantities aggregate by final output bucket and then round once
+  to the nearest quarter hour; exact 7.5-minute ties round up. Commenced-hour
+  quantities remain whole units. Rounded hourly line amounts are recomputed from
+  output quantity × approved rate and rounded once to cents.
 
 ## Payroll
 
-- Staff Hours CSV is one canonical, unfiltered `staff_hours`-style export for
-  the venue's active, non-trial staff.
+- Staff Hours CSV is one canonical, unfiltered paid-time export for the venue's
+  active, non-trial staff. For the supported Tuesday payroll week it uses the
+  exact `Employee,Tues Ord,...,Mon 12+` contract and filename
+  `staff_hrs_starting-YYYY-MM-DD.csv`. Rows use `Last, First` plus the optional
+  approval-pinned calculated pay label, preserve separate labels, and sort by
+  last name, first name, then label with the unlabeled row first. Non-worked
+  minimum top-ups fall back to that local day's ordinary bucket; fixed and
+  missed-break additions never inflate Staff Hours.
 - Historical report-definition variants such as `kitchen` are not runtime
   export behavior.
-- Payroll exports must use approved timesheet facts and pay-version context as
-  the pay-config-versioning workstream lands.
+- Staff Hours and Payroll Earnings consume sealed approved paid-time segments
+  and earnings components. They do not recalculate from mutable rate tables or
+  the legacy SQL pay-result renderer.
+- Payroll Earnings records exact and exported quantity/amount, explicit
+  `hours`/`commenced_hours` units, rate/source identity, calculation and rate-book
+  versions, approval provenance, active calculation ids, and source entry ids.
+  Every positive approved component contributes to exactly one final earnings
+  bucket.
 - Award-rate amounts in exports come from the canonical pay calculation, which
   applies raw FWC/MAPD operative dates through the venue week-start rollover
   rule and does not automatically re-rate already-approved entries.

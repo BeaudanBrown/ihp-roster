@@ -35,16 +35,22 @@ lands.
   Employees assigned to another calendar or to no calendar are excluded from
   that period rather than sent to Xero's Timesheets API. The modal summary,
   readiness counts, preview, and submission all use this same eligible set.
-  Preparation summary units aggregate exact elapsed seconds before display
-  formatting; they do not floor individual entries to minutes. Xero request
-  quantities use 12 decimal places only at protocol serialization after
-  aggregation; this finite transport representation is not a per-entry or
-  payroll rounding rule. #237 owns the target final-bucket quarter-hour
-  transform; the current legacy preview does not claim it.
+  Preparation summary units use locked approved pay facts. Xero request hourly
+  quantities aggregate by employee, managed earning bucket and local day, then
+  round once to the nearest quarter hour with exact 7.5-minute ties up.
+  Commenced-hour quantities remain whole. Protocol serialization uses 12 decimal
+  places only after that output transform.
 - Managed Xero earnings-rate names put human payroll details first, e.g. `Saturday Penalty - Level 1 - CAS - Bepis - 1-July-2025`; legacy `Bepis - HIGA - ...` managed names remain matchable to avoid duplicate pay items.
-- Managed requirements reserve separate `RATEPERUNIT` evening and early-morning
-  commenced-hour additions, rather than combined hourly rates. Legacy
-  preview/submission does not consume those components; #237 owns that cutover.
+- Preview/submission consumes every positive sealed earnings component exactly
+  once. Managed requirements reserve separate `RATEPERUNIT` evening and
+  early-morning commenced-hour additions and a separate missed-meal-break 50%
+  addition per classification/effective rate. Base ordinary, weekend and public
+  holiday components remain hourly; minimum top-ups merge into those hourly
+  buckets. Imported components resolve through the imported-item id locked in
+  the approved staff/shift pay version and require no managed Award mapping.
+  Imported-item venue, connection and remote earnings-rate identity are database
+  immutable; refresh may update display/rate/freshness metadata but cannot reroute
+  a sealed component to another Xero earning rate.
 - Readiness, managed pay-item proposals, preview, and submission resolve overlapping projected rates through the same latest venue-effective-rate rule as payroll calculations. Raw FWC operative dates are normalized to the venue week before constructing bucket keys.
 - Managed award pay-item effective-date keys/names use the Bepis venue-effective
   rate date from the pay engine, not necessarily the raw FWC/MAPD operative
@@ -93,7 +99,9 @@ lands.
 - Preview and submission should record the entries and pay-version context they
   include.
 - Submitted entries need explicit correction/reversal behavior rather than
-  silent destructive edits.
+  silent destructive edits. Submission idempotency keys are stable for the
+  employee, selected period and create/update target rather than varying by local
+  run id.
 - Staff-level Xero pay item overrides are tracked in
   `docs/workstreams/rooks-pilot.md`.
 

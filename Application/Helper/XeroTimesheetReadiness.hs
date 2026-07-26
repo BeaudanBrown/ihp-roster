@@ -19,6 +19,7 @@ import Application.WageSourceEnforcement (WageEntryFailure (..),
                                           renderWageEntryFailure)
 import Application.Xero.Timesheets.Buckets
 import Control.Monad (guard)
+import Data.Either (fromRight)
 import qualified Data.Aeson.Types as AesonTypes
 import qualified Data.List as List
 import qualified Data.Text as Text
@@ -95,7 +96,8 @@ validateXeroTimesheetReadiness request = do
     let approvedEntries = approvedSubmittableEntries entries
     let includedStaffIds = List.nub (map (.staffId) approvedEntries)
     wageSourceResult <- enforceFinalWageEntries approvedEntries
-    buckets <- fetchPeriodXeroLocalEarningsBuckets request.readinessVenueId request.readinessPeriodStart request.readinessPeriodEnd effectiveSkippedStaffIds
+    bucketResult <- fetchPeriodXeroLocalEarningsBuckets request.readinessVenueId request.readinessPeriodStart request.readinessPeriodEnd effectiveSkippedStaffIds
+    let buckets = fromRight [] bucketResult
     earningsMappings <- maybe (pure []) (fetchVerifiedEarningsMappings buckets) maybeConnection
     allPayItemRequirements <- maybe (pure []) fetchPayItemRequirements maybeConnection
     let bucketKeys = map (.localBucketKey) buckets
@@ -110,6 +112,7 @@ validateXeroTimesheetReadiness request = do
                 , calendarBlockers request maybeCalendar
                 , entryBlockers entries
                 , wageSourceBlockers wageSourceResult
+                , publicationBucketBlockers bucketResult
                 , earningsMappingBlockers buckets earningsMappings payItemRequirements
                 , payItemRequirementBlockers earningsMappings payItemRequirements maybeAccountCodeSelection
                 , duplicateBlockers request entries staffMappings request.readinessRemoteTimesheets
@@ -130,6 +133,14 @@ validateXeroTimesheetReadiness request = do
         , xeroReadinessEntryCount = length approvedEntries
         , xeroReadinessPayBucketCount = length buckets
         }
+
+publicationBucketBlockers :: Either Text buckets -> [XeroReadinessBlocker]
+publicationBucketBlockers (Right _) = []
+publicationBucketBlockers (Left message) =
+    [ (blockerWith "wage_publication_failed" ("Approved wage components could not be published: " <> message))
+        { xeroBlockerActionHint = Just "Correct the approved pay ledger before preparing payroll."
+        }
+    ]
 
 wageSourceBlockers :: Either [WageEntryFailure] calculations -> [XeroReadinessBlocker]
 wageSourceBlockers (Right _) = []
@@ -388,7 +399,7 @@ earningsMappingBlockers :: [XeroLocalEarningsBucket] -> [XeroEarningsRateMapping
 earningsMappingBlockers buckets mappings requirements =
     buckets
         |> mapMaybe \bucket ->
-            if bucketHasMapping bucket || bucketHasReadyRequirement bucket
+            if Text.isPrefixOf "xero:imported-pay-item:" bucket.localBucketKey || bucketHasMapping bucket || bucketHasReadyRequirement bucket
                 then Nothing
                 else
                     Just

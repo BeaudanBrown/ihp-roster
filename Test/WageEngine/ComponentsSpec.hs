@@ -2,8 +2,9 @@ module Test.WageEngine.ComponentsSpec where
 
 import Application.VenueTime
 import Application.WageEngine
+import Application.WagePublication
 import qualified Data.Set as Set
-import Data.Time.Calendar (fromGregorian)
+import Data.Time.Calendar (addDays, fromGregorian)
 import Data.Time.Clock (UTCTime (..), addUTCTime, secondsToDiffTime)
 import Data.Time.LocalTime (TimeOfDay (..))
 import IHP.Prelude
@@ -216,6 +217,79 @@ tests =
 
             fmap (.finalEarningsLineRoundedAmount) summary.finalEarningsLines `shouldBe` [0, 0]
             summary.finalEarningsTotalAmount `shouldBe` 0
+
+        it "HIGA-POLICY-OUTPUT-ROUNDING aggregates hourly quantities before one quarter-hour half-up transform" do
+            let component = (roundingComponent OrdinaryCondition) { quantity = 1 / 16, ratePerUnit = 30, amount = 15 / 8 }
+                lines = derivePublishedEarnings [component, component]
+
+            lines `shouldBe`
+                [ PublishedEarningsLine
+                    { publishedBucketKey = publicationBucketKey component
+                    , publishedExactQuantity = 1 / 8
+                    , publishedQuantity = 1 / 4
+                    , publishedExactAmount = 15 / 4
+                    , publishedAmount = 15 / 2
+                    }
+                ]
+
+        it "HIGA-POLICY-OUTPUT-ROUNDING keeps commenced-hour units whole and rounds their final amount once" do
+            let component =
+                    EarningsComponent
+                        { quantity = 2
+                        , unitType = CommencedHours
+                        , ratePerUnit = 10.005
+                        , amount = 20.01
+                        , sourceCondition = EveningAdditionCondition
+                        , calculationSource = HospitalityAward
+                        , sourceRateIdentity = Just (RateSourceIdentity "fixed-source")
+                        }
+                [line] = derivePublishedEarnings [component]
+
+            line.publishedQuantity `shouldBe` 2
+            line.publishedAmount `shouldBe` 2001 / 100
+
+        it "HIGA-POLICY-OUTPUT-CONSERVATION publishes paid evening time without publishing its fixed addition as hours" do
+            let day = fromGregorian 2026 1 5
+                calculation = calculateOrFail (testCalculationInput { calculationShiftSegments = [awardSegmentBetween day (TimeOfDay 19 0 0) day (TimeOfDay 19 15 0)] })
+
+            staffHoursContributions calculation `shouldBe` [StaffHoursContribution day StaffHoursEvening (1 / 4)]
+            map (\(_, component) -> component.unitType) (datedEarningsComponents calculation) `shouldBe` [Hours, CommencedHours]
+
+        it "HIGA-POLICY-OUTPUT-CONSERVATION keeps an overnight late-break addition on the local day where it applied" do
+            let day = fromGregorian 2026 1 5
+                nextDay = addDays 1 day
+                lateBreak =
+                    case resolveInterval (MelbourneCivilTime day (TimeOfDay 23 0 0) Nothing) (MelbourneCivilTime day (TimeOfDay 23 30 0) Nothing) of
+                        Left failure   -> error (show failure)
+                        Right interval -> interval
+                calculation =
+                    calculateOrFail
+                        ( testCalculationInput
+                            { calculationShiftSegments = awardSegmentsBetween day (TimeOfDay 16 0 0) nextDay (TimeOfDay 1 0 0)
+                            , calculationUnpaidMealBreak = Just lateBreak
+                            }
+                        )
+                missed =
+                    [ (componentDate, component.quantity)
+                    | (componentDate, component) <- datedEarningsComponents calculation
+                    , component.sourceCondition == MissedMealBreakAdditionCondition
+                    ]
+
+            missed `shouldBe` [(day, 1)]
+
+        it "HIGA-POLICY-OUTPUT-CONSERVATION sends non-worked casual minimum top-up time to the ordinary Staff Hours bucket" do
+            let day = fromGregorian 2026 1 5
+                calculation =
+                    calculateOrFail
+                        ( testCalculationInput
+                            { calculationArrangement = AwardHourlyEmployment CasualEmployment
+                            , calculationShiftSegments = [awardSegmentBetween day (TimeOfDay 19 0 0) day (TimeOfDay 19 15 0)]
+                            }
+                        )
+                contributions = staffHoursContributions calculation
+
+            contributions `shouldContain` [StaffHoursContribution day StaffHoursEvening (1 / 4)]
+            sum [quantity | StaffHoursContribution _ StaffHoursOrdinary quantity <- contributions] `shouldBe` 7 / 4
 
         it "property: artificial weekday-evening splitting preserves final wages and commenced units" $
             property propArtificialSplitInvariance

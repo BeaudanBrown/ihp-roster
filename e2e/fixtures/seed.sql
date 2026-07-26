@@ -931,11 +931,11 @@ VALUES
         ((CURRENT_DATE - ((EXTRACT(ISODOW FROM CURRENT_DATE)::INT) - 1)) + TIME '08:00') AT TIME ZONE 'Australia/Melbourne',
         ((CURRENT_DATE - ((EXTRACT(ISODOW FROM CURRENT_DATE)::INT) - 1)) + TIME '16:00') AT TIME ZONE 'Australia/Melbourne',
         'Australia/Melbourne',
-        'a1000000-0000-0000-0000-000000000302',
-        'a1000000-0000-0000-0000-000000000311',
-        TRUE,
-        '2025-01-12 01:00:00+00',
-        'a0000000-0000-0000-0000-000000000001'
+        NULL,
+        NULL,
+        FALSE,
+        NULL,
+        NULL
     ),
     (
         'a1000000-0000-0000-0000-000000000092',
@@ -945,11 +945,11 @@ VALUES
         ((CURRENT_DATE - ((EXTRACT(ISODOW FROM CURRENT_DATE)::INT) - 1) + 1) + TIME '10:00') AT TIME ZONE 'Australia/Melbourne',
         ((CURRENT_DATE - ((EXTRACT(ISODOW FROM CURRENT_DATE)::INT) - 1) + 1) + TIME '14:00') AT TIME ZONE 'Australia/Melbourne',
         'Australia/Melbourne',
-        'a1000000-0000-0000-0000-000000000302',
-        'a1000000-0000-0000-0000-000000000312',
-        TRUE,
-        '2025-01-12 01:05:00+00',
-        'a0000000-0000-0000-0000-000000000001'
+        NULL,
+        NULL,
+        FALSE,
+        NULL,
+        NULL
     ),
     (
         'a1000000-0000-0000-0000-000000000093',
@@ -959,11 +959,11 @@ VALUES
         ((CURRENT_DATE - ((EXTRACT(ISODOW FROM CURRENT_DATE)::INT) - 1) + 4) + TIME '19:00') AT TIME ZONE 'Australia/Melbourne',
         ((CURRENT_DATE - ((EXTRACT(ISODOW FROM CURRENT_DATE)::INT) - 1) + 5) + TIME '01:00') AT TIME ZONE 'Australia/Melbourne',
         'Australia/Melbourne',
-        'a1000000-0000-0000-0000-000000000302',
-        'a1000000-0000-0000-0000-000000000311',
-        TRUE,
-        '2025-01-12 01:10:00+00',
-        'a0000000-0000-0000-0000-000000000001'
+        NULL,
+        NULL,
+        FALSE,
+        NULL,
+        NULL
     ),
     (
         'a1000000-0000-0000-0000-000000000094',
@@ -973,11 +973,11 @@ VALUES
         ((CURRENT_DATE - ((EXTRACT(ISODOW FROM CURRENT_DATE)::INT) - 1)) + TIME '09:00') AT TIME ZONE 'Australia/Melbourne',
         ((CURRENT_DATE - ((EXTRACT(ISODOW FROM CURRENT_DATE)::INT) - 1)) + TIME '11:00') AT TIME ZONE 'Australia/Melbourne',
         'Australia/Melbourne',
-        'a1000000-0000-0000-0000-000000000301',
-        'a1000000-0000-0000-0000-000000000313',
-        TRUE,
-        '2025-01-12 01:15:00+00',
-        'a0000000-0000-0000-0000-000000000003'
+        NULL,
+        NULL,
+        FALSE,
+        NULL,
+        NULL
     ),
     (
         'a1000000-0000-0000-0000-000000000096',
@@ -1019,3 +1019,85 @@ ON CONFLICT (id) DO UPDATE SET
     is_approved = EXCLUDED.is_approved,
     approved_at = EXCLUDED.approved_at,
     approved_by_user_id = EXCLUDED.approved_by_user_id;
+
+-- Approved payroll fixtures are staged as drafts above, then sealed against
+-- exact paid-time/component facts before the approval state is applied.
+INSERT INTO timesheet_pay_calculations (
+    id, timesheet_entry_id, calculation_version, calculation_source,
+    rate_book_version, venue_timezone, holiday_jurisdiction,
+    staff_pay_version_id, shift_type_pay_version_id, approved_at,
+    approved_by_user_id
+)
+VALUES
+    ('a2000000-0000-0000-0000-000000000091', 'a1000000-0000-0000-0000-000000000091', 'hospitality-award-v1', 'hospitality_award', 'e2e-rate-book', 'Australia/Melbourne', 'VIC', 'a1000000-0000-0000-0000-000000000302', 'a1000000-0000-0000-0000-000000000311', '2025-01-12 01:00:00+00', 'a0000000-0000-0000-0000-000000000001'),
+    ('a2000000-0000-0000-0000-000000000092', 'a1000000-0000-0000-0000-000000000092', 'hospitality-award-v1', 'hospitality_award', 'e2e-rate-book', 'Australia/Melbourne', 'VIC', 'a1000000-0000-0000-0000-000000000302', 'a1000000-0000-0000-0000-000000000312', '2025-01-12 01:05:00+00', 'a0000000-0000-0000-0000-000000000001'),
+    ('a2000000-0000-0000-0000-000000000093', 'a1000000-0000-0000-0000-000000000093', 'hospitality-award-v1', 'hospitality_award', 'e2e-rate-book', 'Australia/Melbourne', 'VIC', 'a1000000-0000-0000-0000-000000000302', 'a1000000-0000-0000-0000-000000000311', '2025-01-12 01:10:00+00', 'a0000000-0000-0000-0000-000000000001'),
+    ('a2000000-0000-0000-0000-000000000094', 'a1000000-0000-0000-0000-000000000094', 'hospitality-award-v1', 'hospitality_award', 'e2e-rate-book', 'Australia/Melbourne', 'VIC', 'a1000000-0000-0000-0000-000000000301', 'a1000000-0000-0000-0000-000000000313', '2025-01-12 01:15:00+00', 'a0000000-0000-0000-0000-000000000003');
+
+INSERT INTO timesheet_pay_time_segments (
+    id, timesheet_pay_calculation_id, ordinal, paid_time_kind,
+    starts_at, ends_at, local_date, source_condition
+)
+VALUES
+    ('a2100000-0000-0000-0000-000000000091', 'a2000000-0000-0000-0000-000000000091', 0, 'worked', ((CURRENT_DATE - ((EXTRACT(ISODOW FROM CURRENT_DATE)::INT) - 1)) + TIME '08:00') AT TIME ZONE 'Australia/Melbourne', ((CURRENT_DATE - ((EXTRACT(ISODOW FROM CURRENT_DATE)::INT) - 1)) + TIME '16:00') AT TIME ZONE 'Australia/Melbourne', (CURRENT_DATE - ((EXTRACT(ISODOW FROM CURRENT_DATE)::INT) - 1))::date, 'ordinary'),
+    ('a2100000-0000-0000-0000-000000000092', 'a2000000-0000-0000-0000-000000000092', 0, 'worked', ((CURRENT_DATE - ((EXTRACT(ISODOW FROM CURRENT_DATE)::INT) - 1) + 1) + TIME '10:00') AT TIME ZONE 'Australia/Melbourne', ((CURRENT_DATE - ((EXTRACT(ISODOW FROM CURRENT_DATE)::INT) - 1) + 1) + TIME '14:00') AT TIME ZONE 'Australia/Melbourne', (CURRENT_DATE - ((EXTRACT(ISODOW FROM CURRENT_DATE)::INT) - 1) + 1)::date, 'ordinary'),
+    ('a2100000-0000-0000-0000-000000000093', 'a2000000-0000-0000-0000-000000000093', 0, 'worked', ((CURRENT_DATE - ((EXTRACT(ISODOW FROM CURRENT_DATE)::INT) - 1) + 4) + TIME '19:00') AT TIME ZONE 'Australia/Melbourne', ((CURRENT_DATE - ((EXTRACT(ISODOW FROM CURRENT_DATE)::INT) - 1) + 5) + TIME '00:00') AT TIME ZONE 'Australia/Melbourne', (CURRENT_DATE - ((EXTRACT(ISODOW FROM CURRENT_DATE)::INT) - 1) + 4)::date, 'ordinary'),
+    ('a2100000-0000-0000-0000-000000000193', 'a2000000-0000-0000-0000-000000000093', 1, 'worked', ((CURRENT_DATE - ((EXTRACT(ISODOW FROM CURRENT_DATE)::INT) - 1) + 5) + TIME '00:00') AT TIME ZONE 'Australia/Melbourne', ((CURRENT_DATE - ((EXTRACT(ISODOW FROM CURRENT_DATE)::INT) - 1) + 5) + TIME '01:00') AT TIME ZONE 'Australia/Melbourne', (CURRENT_DATE - ((EXTRACT(ISODOW FROM CURRENT_DATE)::INT) - 1) + 5)::date, 'saturday'),
+    ('a2100000-0000-0000-0000-000000000094', 'a2000000-0000-0000-0000-000000000094', 0, 'worked', ((CURRENT_DATE - ((EXTRACT(ISODOW FROM CURRENT_DATE)::INT) - 1)) + TIME '09:00') AT TIME ZONE 'Australia/Melbourne', ((CURRENT_DATE - ((EXTRACT(ISODOW FROM CURRENT_DATE)::INT) - 1)) + TIME '11:00') AT TIME ZONE 'Australia/Melbourne', (CURRENT_DATE - ((EXTRACT(ISODOW FROM CURRENT_DATE)::INT) - 1))::date, 'ordinary');
+
+INSERT INTO timesheet_pay_earnings_components (
+    id, timesheet_pay_calculation_id, ordinal, quantity, unit_type,
+    rate_per_unit, exact_amount, source_condition, calculation_source,
+    source_rate_identity
+)
+VALUES
+    ('a2200000-0000-0000-0000-000000000091', 'a2000000-0000-0000-0000-000000000091', 0, 8, 'hours', 30, 240, 'ordinary', 'hospitality_award', 'e2e:ordinary'),
+    ('a2200000-0000-0000-0000-000000000092', 'a2000000-0000-0000-0000-000000000092', 0, 4, 'hours', 30, 120, 'ordinary', 'hospitality_award', 'e2e:ordinary'),
+    ('a2200000-0000-0000-0000-000000000093', 'a2000000-0000-0000-0000-000000000093', 0, 5, 'hours', 30, 150, 'ordinary', 'hospitality_award', 'e2e:ordinary'),
+    ('a2200000-0000-0000-0000-000000000193', 'a2000000-0000-0000-0000-000000000093', 1, 1, 'hours', 45, 45, 'saturday', 'hospitality_award', 'e2e:saturday'),
+    ('a2200000-0000-0000-0000-000000000293', 'a2000000-0000-0000-0000-000000000093', 2, 5, 'commenced_hours', 3, 15, 'evening_after_7pm_addition', 'hospitality_award', 'e2e:evening'),
+    ('a2200000-0000-0000-0000-000000000094', 'a2000000-0000-0000-0000-000000000094', 0, 2, 'hours', 30, 60, 'ordinary', 'hospitality_award', 'e2e:ordinary');
+
+UPDATE timesheet_pay_calculations
+SET sealed_at = '2025-01-12 01:20:00+00'
+WHERE id IN (
+    'a2000000-0000-0000-0000-000000000091',
+    'a2000000-0000-0000-0000-000000000092',
+    'a2000000-0000-0000-0000-000000000093',
+    'a2000000-0000-0000-0000-000000000094'
+);
+
+UPDATE timesheet_entries
+SET staff_pay_version_id = CASE id
+        WHEN 'a1000000-0000-0000-0000-000000000094' THEN 'a1000000-0000-0000-0000-000000000301'::uuid
+        ELSE 'a1000000-0000-0000-0000-000000000302'::uuid
+    END,
+    shift_type_pay_version_id = CASE id
+        WHEN 'a1000000-0000-0000-0000-000000000091' THEN 'a1000000-0000-0000-0000-000000000311'::uuid
+        WHEN 'a1000000-0000-0000-0000-000000000092' THEN 'a1000000-0000-0000-0000-000000000312'::uuid
+        WHEN 'a1000000-0000-0000-0000-000000000093' THEN 'a1000000-0000-0000-0000-000000000311'::uuid
+        WHEN 'a1000000-0000-0000-0000-000000000094' THEN 'a1000000-0000-0000-0000-000000000313'::uuid
+    END,
+    active_pay_calculation_id = CASE id
+        WHEN 'a1000000-0000-0000-0000-000000000091' THEN 'a2000000-0000-0000-0000-000000000091'::uuid
+        WHEN 'a1000000-0000-0000-0000-000000000092' THEN 'a2000000-0000-0000-0000-000000000092'::uuid
+        WHEN 'a1000000-0000-0000-0000-000000000093' THEN 'a2000000-0000-0000-0000-000000000093'::uuid
+        WHEN 'a1000000-0000-0000-0000-000000000094' THEN 'a2000000-0000-0000-0000-000000000094'::uuid
+    END,
+    is_approved = TRUE,
+    approved_at = CASE id
+        WHEN 'a1000000-0000-0000-0000-000000000091' THEN '2025-01-12 01:00:00+00'::timestamptz
+        WHEN 'a1000000-0000-0000-0000-000000000092' THEN '2025-01-12 01:05:00+00'::timestamptz
+        WHEN 'a1000000-0000-0000-0000-000000000093' THEN '2025-01-12 01:10:00+00'::timestamptz
+        WHEN 'a1000000-0000-0000-0000-000000000094' THEN '2025-01-12 01:15:00+00'::timestamptz
+    END,
+    approved_by_user_id = CASE id
+        WHEN 'a1000000-0000-0000-0000-000000000094' THEN 'a0000000-0000-0000-0000-000000000003'::uuid
+        ELSE 'a0000000-0000-0000-0000-000000000001'::uuid
+    END
+WHERE id IN (
+    'a1000000-0000-0000-0000-000000000091',
+    'a1000000-0000-0000-0000-000000000092',
+    'a1000000-0000-0000-0000-000000000093',
+    'a1000000-0000-0000-0000-000000000094'
+);

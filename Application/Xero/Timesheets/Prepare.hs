@@ -13,14 +13,15 @@ module Application.Xero.Timesheets.Prepare
 
 import Application.Helper.Audit (recordCurrentUserAuditEvent)
 import Application.Helper.ControllerContext (currentVenueId)
-import Application.Helper.Pay (PayTotals (..), TimesheetPayResult (..),
-                               fetchTimesheetPayResultsForEntries,
-                               timesheetEntryIdKey)
 import Application.Helper.Staff (isLinkedActiveStaff)
 import Application.Helper.Xero
 import Application.Helper.XeroAdminTypes
 import Application.Helper.XeroTimesheetReadiness
 import Application.VenueTime.Model (timesheetEntryPaidElapsedSeconds)
+import Application.WageEngine (WageCalculation (..))
+import Application.WagePublication (PublishedEarningsLine (..),
+                                    datedEarningsComponents,
+                                    derivePublishedEarnings)
 import Application.Xero.Admin.PayItems
 import Application.Xero.Admin.ReadModel
 import Application.Xero.Admin.ReferenceData
@@ -35,6 +36,7 @@ import qualified Data.Aeson.Types as AesonTypes
 import qualified Data.List as List
 import qualified Data.Map.Strict as Map
 import Data.Scientific (Scientific)
+import qualified Data.Scientific as Scientific
 import qualified Data.Text as Text
 import Data.Time.Calendar (Day)
 import Generated.Types
@@ -514,33 +516,41 @@ fetchPreparationReviewRows ::
 fetchPreparationReviewRows request connection staffRows = do
     previewInput <- fetchPreviewInput request connection
     let entries = previewInput.previewTimesheetEntries
-        payResultsByEntryId = previewInput.previewPayResultsByEntryId
+        calculationsByEntryId = previewInput.previewCalculationsByEntryId
     let xeroMappedStaffRows =
             staffRows
                 |> filter (staffMappingVerified . (.mappingRowMapping))
                 |> filter (\row -> unpackId row.mappingRowStaff.id `elem` map (.staffId) entries)
                 |> List.sortOn (staffSortKey . (.mappingRowStaff))
-    pure (map (reviewRowForStaff entries payResultsByEntryId) xeroMappedStaffRows)
+    pure (map (reviewRowForStaff entries calculationsByEntryId) xeroMappedStaffRows)
 
-reviewRowForStaff :: [TimesheetEntry] -> Map.Map Text TimesheetPayResult -> XeroStaffMappingRow -> XeroPreparationReviewRow
-reviewRowForStaff entries payResultsByEntryId row =
+reviewRowForStaff :: [TimesheetEntry] -> Map.Map UUID WageCalculation -> XeroStaffMappingRow -> XeroPreparationReviewRow
+reviewRowForStaff entries calculationsByEntryId row =
     let staff = row.mappingRowStaff
         staffEntries = filter (\entry -> entry.staffId == unpackId staff.id) entries
      in XeroPreparationReviewRow
             { reviewRowStaff = staff
             , reviewRowEntryCount = length staffEntries
             , reviewRowTotalUnits = totalEntryUnits staffEntries
-            , reviewRowTotalAmount = totalEntryAmount payResultsByEntryId staffEntries
+            , reviewRowTotalAmount = totalEntryAmount calculationsByEntryId staffEntries
             }
 
-totalEntryAmount :: Map.Map Text TimesheetPayResult -> [TimesheetEntry] -> Scientific
-totalEntryAmount payResultsByEntryId entries =
-    sum (map entryAmount entries)
-    where
-        entryAmount entry =
-            case Map.lookup (timesheetEntryIdKey entry.id) payResultsByEntryId of
-                Nothing     -> 0
-                Just result -> result.totals.totalAmount
+totalEntryAmount :: Map.Map UUID WageCalculation -> [TimesheetEntry] -> Scientific
+totalEntryAmount calculationsByEntryId entries =
+    let calculations = mapMaybe (\entry -> Map.lookup (unpackId entry.id) calculationsByEntryId) entries
+        componentsByDay =
+            Map.fromListWith (<>)
+                [ (componentDate, [component])
+                | calculation <- calculations
+                , (componentDate, component) <- datedEarningsComponents calculation
+                ]
+        total =
+            sum
+                [ line.publishedAmount
+                | components <- Map.elems componentsByDay
+                , line <- derivePublishedEarnings components
+                ]
+     in fst (Scientific.fromRationalRepetendUnlimited total)
 
 totalEntryUnits :: [TimesheetEntry] -> Rational
 totalEntryUnits = sum . map paidEntryUnits
@@ -563,7 +573,10 @@ fetchPreparationPayItemRequirements run connection xeroEarningsRates = do
     case (run.payPeriodStart, run.payPeriodEnd) of
         (Just periodStart, Just periodEnd) -> do
             skippedStaffIds <- fetchPreparationNotPaidStaffIds connection
-            buckets <- fetchPeriodXeroLocalEarningsBuckets (Id run.venueId) periodStart periodEnd skippedStaffIds
+            bucketResult <- fetchPeriodXeroLocalEarningsBuckets (Id run.venueId) periodStart periodEnd skippedStaffIds
+            buckets <- case bucketResult of
+                Left message -> fail (cs ("Cannot derive managed pay items from approved wage facts: " <> message))
+                Right values  -> pure values
             let bucketKeys = map (.localBucketKey) buckets
             pure (filter (\requirement -> requirement.payItemRequirementKey `elem` bucketKeys) requirements)
         _ -> pure []

@@ -1,18 +1,33 @@
 module Application.Xero.Timesheets.Buckets
-    ( fetchPeriodXeroLocalEarningsBuckets
+    ( XeroComponentBucketContext (..)
+    , componentBucketKey
+    , fetchPeriodXeroLocalEarningsBuckets
     ) where
 
-import Application.Helper.Pay
+import Application.Helper.Pay (venueEffectiveRateDate)
+import Application.Helper.TimesheetPayLedger (loadApprovedTimesheetPayCalculation)
 import Application.Helper.WeekBoundaries (WeekdayIndex)
 import Application.Helper.XeroAdminTypes
 import Application.VenueTime.Model (requireMelbourneDateRangeUTC)
+import Application.WageEngine
+import Application.WagePublication (datedEarningsComponents)
 import qualified Data.List as List
 import qualified Data.Map.Strict as Map
-import qualified Data.Text as Text
+import qualified Data.Scientific as Scientific
 import Data.Time.Calendar (Day)
 import Generated.Types
 import IHP.ControllerPrelude
 import IHP.ModelSupport (inputValue, unpackId)
+
+data XeroComponentBucketContext = XeroComponentBucketContext
+    { bucketRosterWeekStartsOn    :: !WeekdayIndex
+    , bucketStaffPayVersions      :: !(Map.Map UUID StaffPayVersion)
+    , bucketShiftTypePayVersions  :: !(Map.Map UUID ShiftTypePayVersion)
+    , bucketAwardLevels           :: ![AwardLevel]
+    , bucketAwardLevelBaseRates   :: ![AwardLevelBaseRate]
+    , bucketAwardLevelPenalties   :: ![AwardLevelPenaltyRate]
+    , bucketTimePenaltyAllowances :: ![AwardTimePenaltyAllowance]
+    }
 
 fetchPeriodXeroLocalEarningsBuckets ::
     (?modelContext :: ModelContext) =>
@@ -20,7 +35,7 @@ fetchPeriodXeroLocalEarningsBuckets ::
     Day ->
     Day ->
     [UUID] ->
-    IO [XeroLocalEarningsBucket]
+    IO (Either Text [XeroLocalEarningsBucket])
 fetchPeriodXeroLocalEarningsBuckets venueId periodStart periodEnd skippedStaffIds = do
     let (periodStartsAt, periodEndsAt) = requireMelbourneDateRangeUTC periodStart periodEnd
     approvedEntries <-
@@ -33,163 +48,118 @@ fetchPeriodXeroLocalEarningsBuckets venueId periodStart periodEnd skippedStaffId
             |> orderBy #startsAt
             |> fetch
     let entries = filter (not . (`elem` skippedStaffIds) . (.staffId)) approvedEntries
-    staffMembers <-
-        query @Staff
-            |> filterWhere (#venueId, unpackId venueId)
-            |> filterWhereIn (#id, map (Id . (.staffId)) entries)
-            |> fetch
-    staffPayVersions <-
-        query @StaffPayVersion
-            |> filterWhereIn (#id, mapMaybe (fmap Id . (.staffPayVersionId)) entries)
-            |> fetch
-    shiftTypePayVersions <-
-        query @ShiftTypePayVersion
-            |> filterWhereIn (#id, mapMaybe (fmap Id . (.shiftTypePayVersionId)) entries)
-            |> fetch
-    venueConfig <-
-        query @VenueConfig
-            |> filterWhere (#venueId, unpackId venueId)
-            |> fetchOne
-    payResults <- fetchTimesheetPayResultsForEntries entries
+    staffMembers <- query @Staff |> filterWhere (#venueId, unpackId venueId) |> filterWhereIn (#id, map (Id . (.staffId)) entries) |> fetch
+    staffPayVersions <- query @StaffPayVersion |> filterWhereIn (#id, mapMaybe (fmap Id . (.staffPayVersionId)) entries) |> fetch
+    shiftTypePayVersions <- query @ShiftTypePayVersion |> filterWhereIn (#id, mapMaybe (fmap Id . (.shiftTypePayVersionId)) entries) |> fetch
+    venueConfig <- query @VenueConfig |> filterWhere (#venueId, unpackId venueId) |> fetchOne
     awardLevels <- query @AwardLevel |> fetch
     baseRates <- query @AwardLevelBaseRate |> fetch
     penaltyRates <- query @AwardLevelPenaltyRate |> fetch
     timeAllowances <- query @AwardTimePenaltyAllowance |> fetch
-    let buckets = concatMap (entryBuckets venueConfig.rosterWeekStartsOn staffMembers staffPayVersions shiftTypePayVersions payResults awardLevels baseRates penaltyRates timeAllowances) entries
-    pure (dedupeBuckets buckets)
+    calculations <- mapM load entries
+    pure do
+        entryCalculations <- sequence calculations
+        let staffMap = Map.fromList [(unpackId staff.id, staff) | staff <- staffMembers]
+            context = XeroComponentBucketContext
+                { bucketRosterWeekStartsOn = venueConfig.rosterWeekStartsOn
+                , bucketStaffPayVersions = Map.fromList [(unpackId version.id, version) | version <- staffPayVersions]
+                , bucketShiftTypePayVersions = Map.fromList [(unpackId version.id, version) | version <- shiftTypePayVersions]
+                , bucketAwardLevels = awardLevels
+                , bucketAwardLevelBaseRates = baseRates
+                , bucketAwardLevelPenalties = penaltyRates
+                , bucketTimePenaltyAllowances = timeAllowances
+                }
+        buckets <- fmap concat $ forM entryCalculations \(entry, calculation) -> do
+            staff <- maybeToEither ("Missing staff for approved entry " <> tshow (unpackId entry.id)) (Map.lookup entry.staffId staffMap)
+            forM (datedEarningsComponents calculation) \(componentDate, component) -> do
+                key <- componentBucketKey context entry staff component componentDate
+                pure XeroLocalEarningsBucket { localBucketKey = key, localBucketLabel = key }
+        pure (dedupeBuckets buckets)
+  where
+    load entry = loadApprovedTimesheetPayCalculation entry >>= \case
+        Left message        -> pure (Left message)
+        Right Nothing       -> pure (Left ("Approved entry has no sealed calculation: " <> tshow (unpackId entry.id)))
+        Right (Just result) -> pure (Right (entry, result))
 
-entryBuckets ::
-    WeekdayIndex ->
-    [Staff] ->
-    [StaffPayVersion] ->
-    [ShiftTypePayVersion] ->
-    Map.Map Text TimesheetPayResult ->
-    [AwardLevel] ->
-    [AwardLevelBaseRate] ->
-    [AwardLevelPenaltyRate] ->
-    [AwardTimePenaltyAllowance] ->
-    TimesheetEntry ->
-    [XeroLocalEarningsBucket]
-entryBuckets weekStartsOn staffMembers staffPayVersions shiftTypePayVersions payResults awardLevels baseRates penaltyRates timeAllowances entry
-    | entryUsesImportedPayItem staffPayVersions shiftTypePayVersions entry = []
-    | otherwise =
-        case do
-            staff <- List.find (\candidate -> unpackId candidate.id == entry.staffId) staffMembers
-            payResult <- Map.lookup (timesheetEntryIdKey entry.id) payResults
-            pure (staff, payResult)
-        of
-            Nothing -> []
-            Just (staff, payResult) ->
-                payResult.segments
-                    |> filter (\segment -> segment.minutes > 0)
-                    |> mapMaybe (segmentBucket weekStartsOn awardLevels baseRates penaltyRates timeAllowances staff payResult)
+componentBucketKey :: XeroComponentBucketContext -> TimesheetEntry -> Staff -> EarningsComponent -> Day -> Either Text Text
+componentBucketKey context entry staff component componentDate =
+    case component.sourceCondition of
+        ImportedFlatRateCondition itemId ->
+            pure ("xero:imported-pay-item:" <> itemId)
+        condition -> do
+            staffVersionId <- maybeToEither "Missing approved staff pay version." entry.staffPayVersionId
+            shiftVersionId <- maybeToEither "Missing approved shift pay version." entry.shiftTypePayVersionId
+            staffVersion <- maybeToEither "Approved staff pay version was not loaded." (Map.lookup staffVersionId context.bucketStaffPayVersions)
+            shiftVersion <- maybeToEither "Approved shift pay version was not loaded." (Map.lookup shiftVersionId context.bucketShiftTypePayVersions)
+            payLevelId <- maybeToEither "Missing approved Award classification." (shiftVersion.overrideAwardLevelId <|> staffVersion.defaultAwardLevelId)
+            awardLevel <- maybeToEither "Approved Award classification was not loaded." (find (\level -> unpackId level.id == payLevelId) context.bucketAwardLevels)
+            effectiveFrom <- effectiveDateFor context awardLevel payLevelId staffVersion.employmentBasis component
+            let classificationPrefix = "xero:pay-item:classification:" <> tshow awardLevel.classificationFixedId
+                effectivePart = ":effective:" <> maybe "undated" tshow (venueEffectiveRateDate context.bucketRosterWeekStartsOn <$> effectiveFrom)
+                sourceSuffix = exactSourceSuffix component
+            pure $ case condition of
+                MissedMealBreakAdditionCondition -> classificationPrefix <> effectivePart <> ":penalty:missed_meal_break_addition" <> sourceSuffix
+                _ -> classificationPrefix <> ":basis:" <> inputValue staffVersion.employmentBasis <> effectivePart <> ":" <> conditionKey condition <> sourceSuffix
 
-entryUsesImportedPayItem :: [StaffPayVersion] -> [ShiftTypePayVersion] -> TimesheetEntry -> Bool
-entryUsesImportedPayItem staffPayVersions shiftTypePayVersions entry =
-    maybe False staffVersionUsesImportedPayItem entry.staffPayVersionId
-        || maybe False shiftVersionUsesImportedPayItem entry.shiftTypePayVersionId
-    where
-        staffVersionUsesImportedPayItem versionId =
-            any (\version -> unpackId version.id == versionId && isJust version.importedXeroPayItemId) staffPayVersions
-        shiftVersionUsesImportedPayItem versionId =
-            any (\version -> unpackId version.id == versionId && isJust version.importedXeroPayItemId) shiftTypePayVersions
+effectiveDateFor :: XeroComponentBucketContext -> AwardLevel -> UUID -> StaffEmploymentBasisEnum -> EarningsComponent -> Either Text (Maybe Day)
+effectiveDateFor context awardLevel payLevelId employmentBasis component =
+    case component.sourceCondition of
+        OrdinaryCondition                -> base employmentBasis
+        MissedMealBreakAdditionCondition -> base Permanent
+        SaturdayCondition                -> penalty SaturdayPenalty
+        SundayCondition                  -> penalty SundayPenalty
+        PublicHolidayCondition           -> penalty PublicHolidayPenalty
+        EveningAdditionCondition         -> allowance EveningAfter7Pm
+        EarlyMorningAdditionCondition    -> allowance LateNightAfterMidnight
+        ImportedFlatRateCondition _      -> Right Nothing
+  where
+    base basis =
+        context.bucketAwardLevelBaseRates
+            |> find (\rate -> rate.awardLevelId == payLevelId && rate.employmentBasis == basis && sourceMatches component (projectionSourceIdentity "award_level_base_rates" (unpackId rate.id) "fwc_mapd_pay_rates" rate.fwcMapdPayRateId) rate.hourlyRate)
+            |> fmap (.operativeFrom)
+            |> maybeToEither "Missing approval-pinned base-rate source."
+    penalty kind =
+        context.bucketAwardLevelPenalties
+            |> find (\rate -> rate.awardLevelId == payLevelId && rate.employmentBasis == employmentBasis && rate.penaltyKind == kind && sourceMatches component (projectionSourceIdentity "award_level_penalty_rates" (unpackId rate.id) "fwc_mapd_penalty_rates" rate.fwcMapdPenaltyRateId) rate.hourlyRate)
+            |> fmap (.operativeFrom)
+            |> maybeToEither "Missing approval-pinned penalty-rate source."
+    allowance kind =
+        context.bucketTimePenaltyAllowances
+            |> find (\item -> item.awardFixedId == awardLevel.awardFixedId && item.penaltyKind == kind && sourceMatches component (projectionSourceIdentity "award_time_penalty_allowances" (unpackId item.id) "fwc_mapd_wage_allowances" item.fwcMapdWageAllowanceId) item.hourlyAmount)
+            |> fmap (.operativeFrom)
+            |> maybeToEither "Missing approval-pinned fixed-addition source."
 
-segmentBucket ::
-    WeekdayIndex ->
-    [AwardLevel] ->
-    [AwardLevelBaseRate] ->
-    [AwardLevelPenaltyRate] ->
-    [AwardTimePenaltyAllowance] ->
-    Staff ->
-    TimesheetPayResult ->
-    PaySegment ->
-    Maybe XeroLocalEarningsBucket
-segmentBucket weekStartsOn awardLevels baseRates penaltyRates timeAllowances staff payResult segment = do
-    segmentDate <- segment.segmentDate
-    payLevelId <- segment.payLevelId <|> payResult.payLevelId <|> fmap unpackId staff.defaultAwardLevelId
-    awardLevel <- List.find (\level -> unpackId level.id == payLevelId) awardLevels
-    let condition = fromMaybe "ordinary" segment.penaltyKind
-    rawEffectiveFrom <-
-        if condition == "ordinary"
-            then ordinaryEffectiveFrom weekStartsOn baseRates payLevelId staff.employmentBasis segmentDate
-            else penaltyEffectiveFrom weekStartsOn awardLevel baseRates penaltyRates timeAllowances payLevelId staff.employmentBasis condition segmentDate
-    let effectiveFrom = venueEffectiveRateDate weekStartsOn <$> rawEffectiveFrom
-        key =
-            "xero:pay-item:classification:"
-                <> tshow awardLevel.classificationFixedId
-                <> ":basis:"
-                <> inputValue staff.employmentBasis
-                <> ":effective:"
-                <> maybe "undated" tshow effectiveFrom
-                <> ":"
-                <> if condition == "ordinary" then "ordinary" else "penalty:" <> condition
-    pure XeroLocalEarningsBucket {localBucketKey = key, localBucketLabel = key}
+projectionSourceIdentity :: Text -> UUID -> Text -> UUID -> Text
+projectionSourceIdentity projectionTable projectionId sourceTable sourceId =
+    "bepis-projection:" <> projectionTable <> ":" <> tshow projectionId <> "/source:" <> sourceTable <> ":" <> tshow sourceId
 
-ordinaryEffectiveFrom :: WeekdayIndex -> [AwardLevelBaseRate] -> UUID -> StaffEmploymentBasisEnum -> Day -> Maybe (Maybe Day)
-ordinaryEffectiveFrom weekStartsOn baseRates payLevelId employmentBasis segmentDate =
-    baseRates
-        |> filter (\rate -> rate.awardLevelId == payLevelId && rate.employmentBasis == employmentBasis)
-        |> latestVenueEffectiveRate weekStartsOn segmentDate
-        |> fmap (.operativeFrom)
+sourceMatches :: EarningsComponent -> Text -> Scientific.Scientific -> Bool
+sourceMatches component candidateIdentity candidateRate =
+    component.sourceRateIdentity == Just (RateSourceIdentity candidateIdentity)
+        && component.ratePerUnit == candidateRate
 
-penaltyEffectiveFrom ::
-    WeekdayIndex ->
-    AwardLevel ->
-    [AwardLevelBaseRate] ->
-    [AwardLevelPenaltyRate] ->
-    [AwardTimePenaltyAllowance] ->
-    UUID ->
-    StaffEmploymentBasisEnum ->
-    Text ->
-    Day ->
-    Maybe (Maybe Day)
-penaltyEffectiveFrom weekStartsOn awardLevel baseRates penaltyRates timeAllowances payLevelId employmentBasis penaltyKindText segmentDate = do
-    penaltyKind <- parsePenaltyKind penaltyKindText
-    case delayedMealBreakSourcePenaltyKind penaltyKind of
-        Just Nothing ->
-            ordinaryEffectiveFrom weekStartsOn baseRates payLevelId employmentBasis segmentDate
-        Just (Just sourcePenaltyKind) ->
-            activeLevelPenaltyEffectiveFrom weekStartsOn penaltyRates payLevelId employmentBasis sourcePenaltyKind segmentDate
-        Nothing ->
-            activeLevelPenaltyEffectiveFrom weekStartsOn penaltyRates payLevelId employmentBasis penaltyKind segmentDate
-                <|> activeTimeAllowanceEffectiveFrom weekStartsOn timeAllowances awardLevel.awardFixedId penaltyKind segmentDate
+exactSourceSuffix :: EarningsComponent -> Text
+exactSourceSuffix component =
+    case component.sourceRateIdentity of
+        Nothing -> ":source:missing:rate:" <> tshow component.ratePerUnit
+        Just (RateSourceIdentity identity) -> ":source:" <> identity <> ":rate:" <> tshow component.ratePerUnit
 
-activeLevelPenaltyEffectiveFrom :: WeekdayIndex -> [AwardLevelPenaltyRate] -> UUID -> StaffEmploymentBasisEnum -> AwardPenaltyKindEnum -> Day -> Maybe (Maybe Day)
-activeLevelPenaltyEffectiveFrom weekStartsOn penaltyRates payLevelId employmentBasis penaltyKind segmentDate =
-    penaltyRates
-        |> filter (\rate -> rate.awardLevelId == payLevelId && rate.employmentBasis == employmentBasis && rate.penaltyKind == penaltyKind)
-        |> latestVenueEffectiveRate weekStartsOn segmentDate
-        |> fmap (.operativeFrom)
-
-activeTimeAllowanceEffectiveFrom :: WeekdayIndex -> [AwardTimePenaltyAllowance] -> Int -> AwardPenaltyKindEnum -> Day -> Maybe (Maybe Day)
-activeTimeAllowanceEffectiveFrom weekStartsOn timeAllowances awardFixedId penaltyKind segmentDate =
-    timeAllowances
-        |> filter (\allowance -> allowance.awardFixedId == awardFixedId && allowance.penaltyKind == penaltyKind)
-        |> latestVenueEffectiveRate weekStartsOn segmentDate
-        |> fmap (.operativeFrom)
-
-delayedMealBreakSourcePenaltyKind :: AwardPenaltyKindEnum -> Maybe (Maybe AwardPenaltyKindEnum)
-delayedMealBreakSourcePenaltyKind DelayedMealBreakWeekday = Just Nothing
-delayedMealBreakSourcePenaltyKind DelayedMealBreakSaturday = Just (Just SaturdayPenalty)
-delayedMealBreakSourcePenaltyKind DelayedMealBreakSunday = Just (Just SundayPenalty)
-delayedMealBreakSourcePenaltyKind DelayedMealBreakPublicHoliday = Just (Just PublicHolidayPenalty)
-delayedMealBreakSourcePenaltyKind _ = Nothing
-
-parsePenaltyKind :: Text -> Maybe AwardPenaltyKindEnum
-parsePenaltyKind "evening_after_7pm" = Just EveningAfter7Pm
-parsePenaltyKind "late_night_after_midnight" = Just LateNightAfterMidnight
-parsePenaltyKind "saturday_penalty" = Just SaturdayPenalty
-parsePenaltyKind "sunday_penalty" = Just SundayPenalty
-parsePenaltyKind "public_holiday_penalty" = Just PublicHolidayPenalty
-parsePenaltyKind "delayed_meal_break_weekday" = Just DelayedMealBreakWeekday
-parsePenaltyKind "delayed_meal_break_saturday" = Just DelayedMealBreakSaturday
-parsePenaltyKind "delayed_meal_break_sunday" = Just DelayedMealBreakSunday
-parsePenaltyKind "delayed_meal_break_public_holiday" = Just DelayedMealBreakPublicHoliday
-parsePenaltyKind _ = Nothing
+conditionKey :: SourceCondition -> Text
+conditionKey = \case
+    OrdinaryCondition                -> "ordinary"
+    SaturdayCondition                -> "penalty:saturday_penalty"
+    SundayCondition                  -> "penalty:sunday_penalty"
+    PublicHolidayCondition           -> "penalty:public_holiday_penalty"
+    EveningAdditionCondition         -> "penalty:evening_after_7pm"
+    EarlyMorningAdditionCondition    -> "penalty:late_night_after_midnight"
+    MissedMealBreakAdditionCondition -> "penalty:missed_meal_break_addition"
+    ImportedFlatRateCondition itemId -> "imported:" <> itemId
 
 dedupeBuckets :: [XeroLocalEarningsBucket] -> [XeroLocalEarningsBucket]
-dedupeBuckets buckets =
-    buckets
-        |> List.sortOn (.localBucketKey)
-        |> List.groupBy (\left right -> left.localBucketKey == right.localBucketKey)
-        |> mapMaybe listToMaybe
+dedupeBuckets =
+    mapMaybe listToMaybe
+        . List.groupBy (\left right -> left.localBucketKey == right.localBucketKey)
+        . List.sortOn (.localBucketKey)
+
+maybeToEither :: Text -> Maybe value -> Either Text value
+maybeToEither message = maybe (Left message) Right

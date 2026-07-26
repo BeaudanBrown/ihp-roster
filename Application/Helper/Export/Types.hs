@@ -32,10 +32,10 @@ data ReportWeekSelection = ReportWeekSelection
     deriving (Eq, Show)
 
 data StaffPayCsvRecord = StaffPayCsvRecord
-    { staffName   :: !Text
-    , label       :: !Text
-    , bucketHours :: ![Rational]
-    , total       :: !Rational
+    { staffFirstName :: !Text
+    , staffLastName  :: !Text
+    , label          :: !(Maybe Text)
+    , bucketHours    :: ![Rational]
     }
     deriving (Eq, Show)
 
@@ -55,15 +55,27 @@ data PayrollEarningsCsvRecord = PayrollEarningsCsvRecord
     , staffLastName            :: !Text
     , workDate                 :: !Day
     , earningsRateName         :: !Text
-    , hours                    :: !Rational
+    , exactQuantity            :: !Rational
+    , quantity                 :: !Rational
+    , unit                     :: !Text
+    , ratePerUnit              :: !Rational
+    , exactAmount              :: !Rational
+    , amount                   :: !Rational
     , trackingCode             :: !(Maybe Text)
     , description              :: !Text
     , staffId                  :: !UUID
     , timesheetEntryIds        :: ![UUID]
     , payConfigVersionManifest :: !(Maybe Text)
-    , sourcePenaltyKind        :: !Text
+    , calculationSource        :: !Text
+    , calculationVersion       :: !Text
+    , rateBookVersion          :: !(Maybe Text)
+    , sourceCondition          :: !Text
+    , sourceRateIdentity       :: !(Maybe Text)
     , sourcePayLevelName       :: !(Maybe Text)
     , sourceShiftTypeName      :: !(Maybe Text)
+    , approvedAt               :: ![UTCTime]
+    , approvedByUserIds        :: ![UUID]
+    , activePayCalculationIds  :: ![UUID]
     }
     deriving (Eq, Show)
 
@@ -125,7 +137,7 @@ browserDownloadMethod :: Text
 browserDownloadMethod = "browser_download"
 
 exportSchemaVersion :: Int
-exportSchemaVersion = 2
+exportSchemaVersion = 3
 
 exportExpirySeconds :: NominalDiffTime
 exportExpirySeconds = 60 * 60 * 24

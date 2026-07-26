@@ -76,7 +76,7 @@ tests = aroundAll withDatabaseTestContext do
                 exportJob.venueId `shouldBe` unpackId venue.id
                 exportJob.requestedByUserId `shouldBe` unpackId admin.id
                 exportJob.exportType `shouldBe` exportJobTypeToText ApprovedTimesheetsCsv
-                exportJob.schemaVersion `shouldBe` 2
+                exportJob.schemaVersion `shouldBe` 3
                 exportJob.status `shouldBe` exportJobStatusToText ExportReady
                 exportJob.rangeStart `shouldBe` Just (fromGregorian 2025 1 6)
                 exportJob.rangeEnd `shouldBe` Just (fromGregorian 2025 1 12)
@@ -159,12 +159,12 @@ tests = aroundAll withDatabaseTestContext do
 
                 exportJob <- query @ExportJob |> orderByDesc #createdAt |> fetchOne
                 exportJob.exportType `shouldBe` exportJobTypeToText StaffPayCsv
-                exportJob.fileName `shouldBe` Just "staff_hours-2025-01-06-to-2025-01-12.csv"
+                exportJob.fileName `shouldBe` Just "staff_hrs_starting-2025-01-06.csv"
                 exportJob.payConfigVersionManifest `shouldSatisfy` isJust
                 fromMaybe "" exportJob.fileContents `shouldSatisfy`
-                    Text.isInfixOf "Name/Type,Mond Ord,Mond 7-12,Mond 12+"
+                    Text.isInfixOf "Employee,Mon Ord,Mon 7-12,Mon 12+"
                 fromMaybe "" exportJob.fileContents `shouldSatisfy`
-                    Text.isInfixOf "Ava LVL 2,8.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,5.00,0.00,0.00,1.00,0.00"
+                    Text.isInfixOf "\"Worker, Ava Bar\",8.00,0.00,0.00"
                 fromMaybe "" exportJob.fileContents `shouldSatisfy`
                     (not . Text.isInfixOf "Trial")
 
@@ -202,9 +202,9 @@ tests = aroundAll withDatabaseTestContext do
                 response `responseStatusShouldBe` status302
 
                 exportJob <- query @ExportJob |> orderByDesc #createdAt |> fetchOne
-                exportJob.fileName `shouldBe` Just "staff_hours-2025-01-08-to-2025-01-08.csv"
+                exportJob.fileName `shouldBe` Just "staff_hrs_starting-2025-01-06.csv"
                 fromMaybe "" exportJob.fileContents `shouldSatisfy`
-                    Text.isInfixOf "Ava LVL 1,0.00,0.00,0.00,0.00,0.00,0.00,3.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00"
+                    Text.isInfixOf "\"Worker, Ava Bar\",0.00,0.00,0.00,0.00,0.00,0.00,3.00"
                 fromMaybe "" exportJob.fileContents `shouldSatisfy`
                     (not . Text.isInfixOf "8.00")
 
@@ -243,7 +243,7 @@ tests = aroundAll withDatabaseTestContext do
 
                 exportJob <- query @ExportJob |> orderByDesc #createdAt |> fetchOne
                 exportJob.exportType `shouldBe` exportJobTypeToText StaffPayCsv
-                exportJob.fileName `shouldBe` Just "staff_hours-2025-01-08-to-2025-01-15.zip"
+                exportJob.fileName `shouldBe` Just "staff_hrs-2025-01-08-to-2025-01-15.zip"
                 exportJob.contentType `shouldBe` Just "application/zip"
                 exportJob.fileEncoding `shouldBe` "base64"
                 exportJob.payConfigVersionManifest `shouldSatisfy` isJust
@@ -252,21 +252,21 @@ tests = aroundAll withDatabaseTestContext do
                         fromMaybe Zip.emptyArchive do
                             fileContents <- exportJob.fileContents
                             either (const Nothing) (Just . Zip.toArchive . LBS.fromStrict) (Base64.decode (encodeUtf8 fileContents))
-                Zip.filesInArchive archive `shouldContain` ["2025-01-06-to-2025-01-12/staff_hours.csv"]
-                Zip.filesInArchive archive `shouldContain` ["2025-01-13-to-2025-01-19/staff_hours.csv"]
+                Zip.filesInArchive archive `shouldContain` ["2025-01-06-to-2025-01-12/staff_hrs_starting-2025-01-06.csv"]
+                Zip.filesInArchive archive `shouldContain` ["2025-01-13-to-2025-01-19/staff_hrs_starting-2025-01-13.csv"]
                 let firstWeekCsv =
                         archive
-                            |> Zip.findEntryByPath "2025-01-06-to-2025-01-12/staff_hours.csv"
+                            |> Zip.findEntryByPath "2025-01-06-to-2025-01-12/staff_hrs_starting-2025-01-06.csv"
                             |> fmap (decodeUtf8 . LBS.toStrict . Zip.fromEntry)
                             |> fromMaybe ""
                 let secondWeekCsv =
                         archive
-                            |> Zip.findEntryByPath "2025-01-13-to-2025-01-19/staff_hours.csv"
+                            |> Zip.findEntryByPath "2025-01-13-to-2025-01-19/staff_hrs_starting-2025-01-13.csv"
                             |> fmap (decodeUtf8 . LBS.toStrict . Zip.fromEntry)
                             |> fromMaybe ""
-                firstWeekCsv `shouldSatisfy` Text.isInfixOf "Ava LVL 1,0.00,0.00,0.00,0.00,0.00,0.00,3.00"
+                firstWeekCsv `shouldSatisfy` Text.isInfixOf "\"Worker, Ava Bar\",0.00,0.00,0.00,0.00,0.00,0.00,3.00"
                 firstWeekCsv `shouldSatisfy` (not . Text.isInfixOf "8.00")
-                secondWeekCsv `shouldSatisfy` Text.isInfixOf "Ava LVL 1,0.00,0.00,0.00,0.00,0.00,0.00,8.00"
+                secondWeekCsv `shouldSatisfy` Text.isInfixOf "\"Worker, Ava Bar\",0.00,0.00,0.00,0.00,0.00,0.00,8.00"
                 secondWeekCsv `shouldSatisfy` (not . Text.isInfixOf "3.00")
 
         it "creates a payroll earnings export grouped by staff date earnings and tracking code" $ withContext do
@@ -333,15 +333,15 @@ tests = aroundAll withDatabaseTestContext do
                 exportJob.fileEncoding `shouldBe` "utf8"
                 exportJob.payConfigVersionManifest `shouldSatisfy` isJust
                 csvContents `shouldSatisfy`
-                    Text.isInfixOf "staff_first_name,staff_last_name,work_date,earnings_rate_name,hours,tracking_code,description,staff_id,timesheet_entry_ids,pay_config_version_manifest,source_penalty_kind,source_pay_level_name,source_shift_type_name"
+                    Text.isInfixOf "staff_first_name,staff_last_name,work_date,earnings_rate_name,exact_quantity,quantity,unit,rate_per_unit,exact_amount,amount,tracking_code"
                 csvContents `shouldSatisfy`
-                    Text.isInfixOf "Rae,Worker,2025-01-06,LVL 1 - Ordinary,5.00,Bar,"
+                    Text.isInfixOf "Rae,Worker,2025-01-06,Bar - Ordinary,5/1,5.00,hours,"
                 csvContents `shouldSatisfy`
-                    Text.isInfixOf "Rae,Worker,2025-01-10,LVL 1 - Public Holiday,4.00,Bar,"
+                    Text.isInfixOf "Rae,Worker,2025-01-10,Bar - Public Holiday,4/1,4.00,hours,"
                 csvContents `shouldSatisfy`
-                    Text.isInfixOf "Rae,Worker,2025-01-11,LVL 1 - Saturday,2.00,Kitchen,"
+                    Text.isInfixOf "Rae,Worker,2025-01-11,Kitchen - Saturday,2/1,2.00,hours,"
                 csvContents `shouldSatisfy`
-                    Text.isInfixOf ",public_holiday_penalty,LVL 1,Bar"
+                    Text.isInfixOf ",public_holiday,fixture:sealed-approved-calculation,Bar,Bar"
                 csvContents `shouldSatisfy`
                     (not . Text.isInfixOf "Trial")
 

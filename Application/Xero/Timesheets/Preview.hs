@@ -13,13 +13,18 @@ module Application.Xero.Timesheets.Preview
     )
 where
 
-import Application.Helper.Pay
+import Application.Helper.TimesheetPayLedger (loadApprovedTimesheetPayCalculation)
 import Application.Helper.WeekBoundaries (WeekdayIndex)
 import Application.Helper.Xero (XeroTimesheetRef (..))
 import Application.Helper.XeroTimesheetReadiness
 import Application.VenueTime.Model (requireMelbourneDateRangeUTC)
+import Application.WageEngine
+import Application.WagePublication (datedEarningsComponents,
+                                    roundHourlyQuantity)
 import Application.WageSourceEnforcement (enforceFinalWageEntries,
                                           renderWageEntryFailures)
+import Application.Xero.Timesheets.Buckets (XeroComponentBucketContext (..),
+                                            componentBucketKey)
 import qualified Data.Aeson as Aeson
 import qualified Data.Aeson.Types as AesonTypes
 import qualified Data.List as List
@@ -45,7 +50,7 @@ data XeroTimesheetPreviewInput = XeroTimesheetPreviewInput
     , previewImportedPayItems      :: ![XeroImportedPayItem]
     , previewEarningsMappings      :: ![XeroEarningsRateMapping]
     , previewPayItemRequirements   :: ![XeroPayItemRequirementRecord]
-    , previewPayResultsByEntryId   :: !(Map.Map Text TimesheetPayResult)
+    , previewCalculationsByEntryId :: !(Map.Map UUID WageCalculation)
     , previewAwardLevels           :: ![AwardLevel]
     , previewAwardLevelBaseRates   :: ![AwardLevelBaseRate]
     , previewAwardLevelPenalties   :: ![AwardLevelPenaltyRate]
@@ -95,6 +100,7 @@ data SegmentContribution = SegmentContribution
     , contributionWorkedOn       :: !Day
     , contributionLocalBucketKey :: !Text
     , contributionEarningsRateId :: !Text
+    , contributionUnit           :: !EarningsUnit
     , contributionUnits          :: !Rational
     }
     deriving (Eq, Show)
@@ -102,6 +108,7 @@ data SegmentContribution = SegmentContribution
 data LineAggregation = LineAggregation
     { lineAggregationLocalBucketKey  :: !Text
     , lineAggregationEarningsRateId  :: !Text
+    , lineAggregationUnit            :: !EarningsUnit
     , lineAggregationUnitsByDay      :: !(Map.Map Day Rational)
     , lineAggregationEntryIds        :: ![UUID]
     , lineAggregationStaffVersionIds :: ![UUID]
@@ -266,7 +273,10 @@ fetchPreviewInput request connection = do
         query @VenueConfig
             |> filterWhere (#venueId, unpackId request.readinessVenueId)
             |> fetchOne
-    payResults <- fetchTimesheetPayResultsForEntries entries
+    calculations <- fmap Map.fromList $ fmap catMaybes $ forM entries \entry ->
+        loadApprovedTimesheetPayCalculation entry >>= \case
+            Right (Just calculation) -> pure (Just (unpackId entry.id, calculation))
+            _                        -> pure Nothing
     awardLevels <- query @AwardLevel |> fetch
     baseRates <- query @AwardLevelBaseRate |> fetch
     penaltyRates <- query @AwardLevelPenaltyRate |> fetch
@@ -284,7 +294,7 @@ fetchPreviewInput request connection = do
         , previewImportedPayItems = importedPayItems
         , previewEarningsMappings = earningsMappings
         , previewPayItemRequirements = payItemRequirements
-        , previewPayResultsByEntryId = payResults
+        , previewCalculationsByEntryId = calculations
         , previewAwardLevels = awardLevels
         , previewAwardLevelBaseRates = baseRates
         , previewAwardLevelPenalties = penaltyRates
@@ -325,40 +335,69 @@ fetchActivePreviewXeroConnection venueId =
 
 entryContributions :: XeroTimesheetPreviewInput -> TimesheetEntry -> Either Text [SegmentContribution]
 entryContributions input entry = do
-    staff <- maybeToEither ("Missing staff for timesheet entry " <> tshow (unpackId entry.id)) (find (\staff -> unpackId staff.id == entry.staffId) input.previewStaff)
+    staff <- maybeToEither ("Missing staff for timesheet entry " <> tshow (unpackId entry.id)) (find (\candidate -> unpackId candidate.id == entry.staffId) input.previewStaff)
     xeroEmployeeId <- staffXeroEmployeeId input entry
     staffVersionId <- maybeToEither ("Missing staff pay version for timesheet entry " <> tshow (unpackId entry.id)) entry.staffPayVersionId
     shiftVersionId <- maybeToEither ("Missing shift type pay version for timesheet entry " <> tshow (unpackId entry.id)) entry.shiftTypePayVersionId
-    payResult <- maybeToEither ("Missing pay result for timesheet entry " <> tshow (unpackId entry.id)) (Map.lookup (timesheetEntryIdKey entry.id) input.previewPayResultsByEntryId)
+    calculation <- maybeToEither ("Missing sealed pay calculation for timesheet entry " <> tshow (unpackId entry.id)) (Map.lookup (unpackId entry.id) input.previewCalculationsByEntryId)
     entry.approvedAt |> maybeToEither ("Missing approval timestamp for timesheet entry " <> tshow (unpackId entry.id)) |> const (pure ())
-    payResult.segments
-        |> filter (\segment -> segment.minutes > 0)
-        |> mapM (segmentContribution input entry staff xeroEmployeeId staffVersionId shiftVersionId payResult)
+    datedEarningsComponents calculation
+        |> filter ((> 0) . (.quantity) . snd)
+        |> mapM (componentContribution input entry staff xeroEmployeeId staffVersionId shiftVersionId)
 
-segmentContribution ::
+componentContribution ::
     XeroTimesheetPreviewInput ->
     TimesheetEntry ->
     Staff ->
     Text ->
     UUID ->
     UUID ->
-    TimesheetPayResult ->
-    PaySegment ->
+    (Day, EarningsComponent) ->
     Either Text SegmentContribution
-segmentContribution input entry staff xeroEmployeeId staffVersionId shiftVersionId payResult segment = do
-    segmentDate <- maybeToEither ("Missing pay segment date for timesheet entry " <> tshow (unpackId entry.id)) segment.segmentDate
-    let workedOn = segmentDate
-    (localBucketKey, earningsRateId) <- earningsRateForSegment input staff staffVersionId shiftVersionId payResult segment workedOn
+componentContribution input entry staff xeroEmployeeId staffVersionId shiftVersionId (componentDate, component) = do
+    localBucketKey <- componentBucketKey (previewBucketContext input) entry staff component componentDate
+    earningsRateId <- case component.sourceCondition of
+        ImportedFlatRateCondition itemId -> do
+            item <- maybeToEither ("Missing approval-pinned imported Xero earnings rate for component " <> itemId) (approvedImportedPayItemForVersions input staffVersionId shiftVersionId)
+            if inputValue item.id == itemId
+                then pure item.xeroEarningsRateId
+                else Left ("Approved imported Xero pay item does not match component " <> itemId)
+        _ -> earningsRateIdForBucket input localBucketKey
     pure SegmentContribution
         { contributionStaffId = unpackId staff.id
         , contributionXeroEmployeeId = xeroEmployeeId
         , contributionEntryId = unpackId entry.id
         , contributionStaffVersionId = staffVersionId
         , contributionShiftVersionId = shiftVersionId
-        , contributionWorkedOn = workedOn
+        , contributionWorkedOn = componentDate
         , contributionLocalBucketKey = localBucketKey
         , contributionEarningsRateId = earningsRateId
-        , contributionUnits = minutesToUnits segment.minutes
+        , contributionUnit = component.unitType
+        , contributionUnits = component.quantity
+        }
+
+approvedImportedPayItemForVersions :: XeroTimesheetPreviewInput -> UUID -> UUID -> Maybe XeroImportedPayItem
+approvedImportedPayItemForVersions input staffVersionId shiftVersionId = do
+    importedPayItemId <- shiftImportedPayItemId <|> staffImportedPayItemId
+    find (\item -> item.id == importedPayItemId) input.previewImportedPayItems
+  where
+    shiftImportedPayItemId = do
+        version <- find (\candidate -> unpackId candidate.id == shiftVersionId) input.previewShiftTypePayVersions
+        version.importedXeroPayItemId
+    staffImportedPayItemId = do
+        version <- find (\candidate -> unpackId candidate.id == staffVersionId) input.previewStaffPayVersions
+        version.importedXeroPayItemId
+
+previewBucketContext :: XeroTimesheetPreviewInput -> XeroComponentBucketContext
+previewBucketContext input =
+    XeroComponentBucketContext
+        { bucketRosterWeekStartsOn = input.previewRosterWeekStartsOn
+        , bucketStaffPayVersions = Map.fromList [(unpackId version.id, version) | version <- input.previewStaffPayVersions]
+        , bucketShiftTypePayVersions = Map.fromList [(unpackId version.id, version) | version <- input.previewShiftTypePayVersions]
+        , bucketAwardLevels = input.previewAwardLevels
+        , bucketAwardLevelBaseRates = input.previewAwardLevelBaseRates
+        , bucketAwardLevelPenalties = input.previewAwardLevelPenalties
+        , bucketTimePenaltyAllowances = input.previewTimePenaltyAllowances
         }
 
 staffXeroEmployeeId :: XeroTimesheetPreviewInput -> TimesheetEntry -> Either Text Text
@@ -366,28 +405,6 @@ staffXeroEmployeeId input entry =
     maybeToEither ("Missing verified Xero employee mapping for staff " <> tshow entry.staffId) do
         mapping <- find (\candidate -> candidate.staffId == entry.staffId) input.previewStaffMappings
         mapping.xeroEmployeeId
-
-earningsRateForSegment :: XeroTimesheetPreviewInput -> Staff -> UUID -> UUID -> TimesheetPayResult -> PaySegment -> Day -> Either Text (Text, Text)
-earningsRateForSegment input staff staffVersionId shiftVersionId payResult segment workedOn =
-    case importedPayItemForVersions input staffVersionId shiftVersionId of
-        Just importedPayItem ->
-            pure ("xero:imported-pay-item:" <> tshow (unpackId importedPayItem.id), importedPayItem.xeroEarningsRateId)
-        Nothing -> do
-            localBucketKey <- localBucketKeyForSegment input staff payResult segment workedOn
-            earningsRateId <- earningsRateIdForBucket input localBucketKey
-            pure (localBucketKey, earningsRateId)
-
-importedPayItemForVersions :: XeroTimesheetPreviewInput -> UUID -> UUID -> Maybe XeroImportedPayItem
-importedPayItemForVersions input staffVersionId shiftVersionId = do
-    importedPayItemId <- shiftImportedPayItemId <|> staffImportedPayItemId
-    find (\item -> item.id == importedPayItemId) input.previewImportedPayItems
-    where
-        shiftImportedPayItemId = do
-            version <- find (\candidate -> unpackId candidate.id == shiftVersionId) input.previewShiftTypePayVersions
-            version.importedXeroPayItemId
-        staffImportedPayItemId = do
-            version <- find (\candidate -> unpackId candidate.id == staffVersionId) input.previewStaffPayVersions
-            version.importedXeroPayItemId
 
 earningsRateIdForBucket :: XeroTimesheetPreviewInput -> Text -> Either Text Text
 earningsRateIdForBucket input localBucketKey =
@@ -400,81 +417,6 @@ earningsRateIdForBucket input localBucketKey =
         managedRequirementEarningsRateId = do
             requirement <- find (\candidate -> candidate.requirementKey == localBucketKey) input.previewPayItemRequirements
             requirement.xeroEarningsRateId
-
-localBucketKeyForSegment :: XeroTimesheetPreviewInput -> Staff -> TimesheetPayResult -> PaySegment -> Day -> Either Text Text
-localBucketKeyForSegment input staff payResult segment segmentDate = do
-    payLevelId <- maybeToEither "Missing award level for pay segment." (segment.payLevelId <|> payResult.payLevelId <|> fmap unpackId staff.defaultAwardLevelId)
-    awardLevel <- maybeToEither ("Missing award level " <> tshow payLevelId) (find (\level -> unpackId level.id == payLevelId) input.previewAwardLevels)
-    let condition = fromMaybe "ordinary" segment.penaltyKind
-    rawEffectiveFrom <-
-        if condition == "ordinary"
-            then ordinaryEffectiveFrom input payLevelId staff.employmentBasis segmentDate
-            else penaltyEffectiveFrom input awardLevel payLevelId staff.employmentBasis condition segmentDate
-    let effectiveFrom = venueEffectiveRateDate input.previewRosterWeekStartsOn <$> rawEffectiveFrom
-    pure $
-        "xero:pay-item:classification:"
-            <> tshow awardLevel.classificationFixedId
-            <> ":basis:"
-            <> inputValue staff.employmentBasis
-            <> ":effective:"
-            <> maybe "undated" tshow effectiveFrom
-            <> ":"
-            <> if condition == "ordinary" then "ordinary" else "penalty:" <> condition
-
-ordinaryEffectiveFrom :: XeroTimesheetPreviewInput -> UUID -> StaffEmploymentBasisEnum -> Day -> Either Text (Maybe Day)
-ordinaryEffectiveFrom input payLevelId employmentBasis segmentDate =
-    input.previewAwardLevelBaseRates
-        |> filter (\rate -> rate.awardLevelId == payLevelId && rate.employmentBasis == employmentBasis)
-        |> latestVenueEffectiveRate input.previewRosterWeekStartsOn segmentDate
-        |> fmap (.operativeFrom)
-        |> maybeToEither ("Missing active base rate for award level " <> tshow payLevelId)
-
-penaltyEffectiveFrom :: XeroTimesheetPreviewInput -> AwardLevel -> UUID -> StaffEmploymentBasisEnum -> Text -> Day -> Either Text (Maybe Day)
-penaltyEffectiveFrom input awardLevel payLevelId employmentBasis penaltyKindText segmentDate = do
-    penaltyKind <- maybeToEither ("Unsupported Xero pay-item penalty kind " <> penaltyKindText) (parsePenaltyKind penaltyKindText)
-    case delayedMealBreakSourcePenaltyKind penaltyKind of
-        Just Nothing ->
-            ordinaryEffectiveFrom input payLevelId employmentBasis segmentDate
-        Just (Just sourcePenaltyKind) ->
-            activeLevelPenaltyEffectiveFrom input payLevelId employmentBasis sourcePenaltyKind segmentDate
-                |> maybeToEither ("Missing active pay item source for penalty kind " <> penaltyKindText)
-        Nothing ->
-            maybeToEither ("Missing active pay item source for penalty kind " <> penaltyKindText) do
-                activeLevelPenaltyEffectiveFrom input payLevelId employmentBasis penaltyKind segmentDate
-                    <|> activeTimeAllowanceEffectiveFrom input awardLevel.awardFixedId penaltyKind segmentDate
-
-activeLevelPenaltyEffectiveFrom :: XeroTimesheetPreviewInput -> UUID -> StaffEmploymentBasisEnum -> AwardPenaltyKindEnum -> Day -> Maybe (Maybe Day)
-activeLevelPenaltyEffectiveFrom input payLevelId employmentBasis penaltyKind segmentDate =
-    input.previewAwardLevelPenalties
-        |> filter (\rate -> rate.awardLevelId == payLevelId && rate.employmentBasis == employmentBasis && rate.penaltyKind == penaltyKind)
-        |> latestVenueEffectiveRate input.previewRosterWeekStartsOn segmentDate
-        |> fmap (.operativeFrom)
-
-activeTimeAllowanceEffectiveFrom :: XeroTimesheetPreviewInput -> Int -> AwardPenaltyKindEnum -> Day -> Maybe (Maybe Day)
-activeTimeAllowanceEffectiveFrom input awardFixedId penaltyKind segmentDate =
-    input.previewTimePenaltyAllowances
-        |> filter (\allowance -> allowance.awardFixedId == awardFixedId && allowance.penaltyKind == penaltyKind)
-        |> latestVenueEffectiveRate input.previewRosterWeekStartsOn segmentDate
-        |> fmap (.operativeFrom)
-
-delayedMealBreakSourcePenaltyKind :: AwardPenaltyKindEnum -> Maybe (Maybe AwardPenaltyKindEnum)
-delayedMealBreakSourcePenaltyKind DelayedMealBreakWeekday       = Just Nothing
-delayedMealBreakSourcePenaltyKind DelayedMealBreakSaturday      = Just (Just SaturdayPenalty)
-delayedMealBreakSourcePenaltyKind DelayedMealBreakSunday        = Just (Just SundayPenalty)
-delayedMealBreakSourcePenaltyKind DelayedMealBreakPublicHoliday = Just (Just PublicHolidayPenalty)
-delayedMealBreakSourcePenaltyKind _                             = Nothing
-
-parsePenaltyKind :: Text -> Maybe AwardPenaltyKindEnum
-parsePenaltyKind "evening_after_7pm"                 = Just EveningAfter7Pm
-parsePenaltyKind "late_night_after_midnight"         = Just LateNightAfterMidnight
-parsePenaltyKind "saturday_penalty"                  = Just SaturdayPenalty
-parsePenaltyKind "sunday_penalty"                    = Just SundayPenalty
-parsePenaltyKind "public_holiday_penalty"            = Just PublicHolidayPenalty
-parsePenaltyKind "delayed_meal_break_weekday"        = Just DelayedMealBreakWeekday
-parsePenaltyKind "delayed_meal_break_saturday"       = Just DelayedMealBreakSaturday
-parsePenaltyKind "delayed_meal_break_sunday"         = Just DelayedMealBreakSunday
-parsePenaltyKind "delayed_meal_break_public_holiday" = Just DelayedMealBreakPublicHoliday
-parsePenaltyKind _                                   = Nothing
 
 accumulateTimesheet :: XeroTimesheetPreviewInput -> Map.Map Text TimesheetAggregation -> SegmentContribution -> Map.Map Text TimesheetAggregation
 accumulateTimesheet input acc contribution =
@@ -490,7 +432,7 @@ newTimesheetAggregation input contribution =
         , timesheetAggregationShiftVersionIds = [contribution.contributionShiftVersionId]
         , timesheetAggregationLines =
             Map.singleton
-                contribution.contributionEarningsRateId
+                contribution.contributionLocalBucketKey
                 (newLineAggregation input contribution)
         }
 
@@ -499,6 +441,7 @@ newLineAggregation _ contribution =
     LineAggregation
         { lineAggregationLocalBucketKey = contribution.contributionLocalBucketKey
         , lineAggregationEarningsRateId = contribution.contributionEarningsRateId
+        , lineAggregationUnit = contribution.contributionUnit
         , lineAggregationUnitsByDay = Map.singleton contribution.contributionWorkedOn contribution.contributionUnits
         , lineAggregationEntryIds = [contribution.contributionEntryId]
         , lineAggregationStaffVersionIds = [contribution.contributionStaffVersionId]
@@ -549,9 +492,11 @@ toPreview input aggregation =
 toPreviewLine :: XeroTimesheetPreviewInput -> LineAggregation -> XeroTimesheetPreviewLine
 toPreviewLine input aggregation =
     let unitsForDay day =
-            aggregation.lineAggregationUnitsByDay
-                |> Map.findWithDefault 0 day
-                |> scientificFromRationalAt xeroUnitDecimalPlaces
+            let exactUnits = Map.findWithDefault 0 day aggregation.lineAggregationUnitsByDay
+                outputUnits = case aggregation.lineAggregationUnit of
+                    Hours          -> roundHourlyQuantity exactUnits
+                    CommencedHours -> exactUnits
+             in scientificFromRationalAt xeroUnitDecimalPlaces outputUnits
      in XeroTimesheetPreviewLine
             { previewLineLocalBucketKey = aggregation.lineAggregationLocalBucketKey
             , previewLineXeroEarningsRateId = aggregation.lineAggregationEarningsRateId
@@ -659,10 +604,6 @@ blockerJson blocker =
 periodDays :: Day -> Day -> [Day]
 periodDays start end =
     [addDays offset start | offset <- [0 .. diffDays end start]]
-
-minutesToUnits :: Scientific.Scientific -> Rational
-minutesToUnits minutes =
-    toRational minutes / 60
 
 xeroUnitDecimalPlaces :: Int
 xeroUnitDecimalPlaces = 12

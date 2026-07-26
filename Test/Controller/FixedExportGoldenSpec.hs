@@ -16,7 +16,9 @@ import IHP.FrameworkConfig
 import IHP.HaskellSupport
 import IHP.Prelude
 import IHP.Test.Mocking
-import Network.HTTP.Types.Status (status302)
+import Network.HTTP.Types.Header (hContentDisposition)
+import Network.HTTP.Types.Status (status200, status302)
+import Network.Wai (responseHeaders)
 import Test.Hspec
 import Test.Support
 import Test.Support.PayrollFixtures
@@ -24,50 +26,63 @@ import Web.Controller.Exports ()
 import Web.FrontController ()
 import Web.Types
 
+goldenWeekStart :: Day
+goldenWeekStart = fromGregorian 2025 1 7
+
+goldenWeekEnd :: Day
+goldenWeekEnd = addDays 6 goldenWeekStart
+
 tests :: Spec
 tests = aroundAll withDatabaseTestContext do
     describe "Fixed export goldens" do
         it "renders the canonical staff-hours CSV exactly" $ withContext do
             withCleanDb do
-                fixture <- seedCanonicalPayrollFixture
+                fixture <- seedCanonicalPayrollFixtureForWeek goldenWeekStart
                 exportJob <- generatePayrollExportJob fixture.admin fixture.venue StaffPayCsv
                 expectedCsv <- readExportFixtureText "staff_hours-expected.csv"
 
                 get #exportType exportJob `shouldBe` exportJobTypeToText StaffPayCsv
-                get #fileName exportJob `shouldBe` Just "staff_hours-2025-01-06-to-2025-01-12.csv"
+                get #fileName exportJob `shouldBe` Just "staff_hrs_starting-2025-01-07.csv"
                 get #payConfigVersionManifest exportJob `shouldBe` Just "mixed"
                 unsafeStripCarriageReturns (fromMaybe "" (get #fileContents exportJob)) `shouldBe` unsafeStripCarriageReturns expectedCsv
 
-        it "retains fractional staff aggregates through legacy final CSV formatting" $ withContext do
+                downloadResponse <- withPasskeyVerifiedUserAndCurrentVenue fixture.admin fixture.venue.id do
+                    callActionWithParams (DownloadExportJobAction exportJob.id)
+                        [("token", cs (tshow exportJob.downloadToken))]
+                downloadResponse `responseStatusShouldBe` status200
+                lookup hContentDisposition (responseHeaders downloadResponse)
+                    `shouldBe` Just "attachment; filename=\"staff_hrs_starting-2025-01-07.csv\""
+
+        it "aggregates exact staff time before one quarter-hour tie-up transform" $ withContext do
             withCleanDb do
-                fixture <- seedCanonicalPayrollFixture
+                fixture <- seedCanonicalPayrollFixtureForWeek goldenWeekStart
                 let fractionalShift =
                         [ set #shiftTypeId (unpackId fixture.kitchenShift.id)
                         , setTestStartTime (TimeOfDay 9 0 0)
-                        , setTestEndTime (TimeOfDay 9 0 15)
+                        , setTestEndTime (TimeOfDay 9 3 45)
                         ]
-                _ <- createAndApproveEntry fixture.venue fixture.kaiStaff defaultWeekEpoch fixture.snapshot fixture.admin fixture.approvedAt fractionalShift
-                _ <- createAndApproveEntry fixture.venue fixture.kaiStaff defaultWeekEpoch fixture.snapshot fixture.admin fixture.approvedAt fractionalShift
+                _ <- createAndApproveEntry fixture.venue fixture.kaiStaff goldenWeekStart fixture.snapshot fixture.admin fixture.approvedAt fractionalShift
+                _ <- createAndApproveEntry fixture.venue fixture.kaiStaff goldenWeekStart fixture.snapshot fixture.admin fixture.approvedAt fractionalShift
 
                 exportJob <- generatePayrollExportJob fixture.admin fixture.venue StaffPayCsv
                 let csvRows = csvRowsByKey (fromMaybe "" (get #fileContents exportJob))
 
-                take 3 (lookupCsvRow csvRows "Kai LVL 1") `shouldBe` ["0.01", "0.00", "0.00"]
+                take 3 (lookupCsvRow csvRows "Cook, Kai Kitchen") `shouldBe` ["0.25", "0.00", "0.00"]
 
         it "renders the canonical payroll earnings CSV shape exactly after normalizing row ids" $ withContext do
             withCleanDb do
-                fixture <- seedCanonicalPayrollFixture
+                fixture <- seedCanonicalPayrollFixtureForWeek goldenWeekStart
                 exportJob <- generatePayrollExportJob fixture.admin fixture.venue PayrollEarningsCsv
                 expectedCsv <- readExportFixtureText "payroll_earnings-expected.normalized.csv"
 
                 get #exportType exportJob `shouldBe` exportJobTypeToText PayrollEarningsCsv
-                get #fileName exportJob `shouldBe` Just "payroll_earnings-2025-01-06-to-2025-01-12.csv"
+                get #fileName exportJob `shouldBe` Just "payroll_earnings-2025-01-07-to-2025-01-13.csv"
                 get #payConfigVersionManifest exportJob `shouldBe` Just "mixed"
                 normalizePayrollEarningsCsv (fromMaybe "" (get #fileContents exportJob)) `shouldBe` normalizeExpectedPayrollEarningsCsv expectedCsv
 
         it "keeps repeated CSV and ZIP jobs distinct with deterministic contents" $ withContext do
             withCleanDb do
-                fixture <- seedCanonicalPayrollFixture
+                fixture <- seedCanonicalPayrollFixtureForWeek goldenWeekStart
                 firstCsv <- generatePayrollExportJob fixture.admin fixture.venue StaffPayCsv
                 secondCsv <- generatePayrollExportJob fixture.admin fixture.venue StaffPayCsv
                 firstZip <- generatePayrollExportJob fixture.admin fixture.venue HourlyBreakdownZip
@@ -80,18 +95,26 @@ tests = aroundAll withDatabaseTestContext do
 
         it "keeps only approved non-trial hours and buckets canonical rows into the expected days" $ withContext do
             withCleanDb do
-                fixture <- seedCanonicalPayrollFixture
+                fixture <- seedCanonicalPayrollFixtureForWeek goldenWeekStart
+                inactiveStaff <- createStaffRecord fixture.venue Nothing "Inactive" "Worker"
+                    >>= updateRecord . set #defaultAwardLevelId (Just fixture.levelOne.id)
+                _ <- createAndApproveEntry fixture.venue inactiveStaff goldenWeekStart fixture.snapshot fixture.admin fixture.approvedAt
+                    [ set #shiftTypeId (unpackId fixture.floorShift.id)
+                    , setTestStartTime (TimeOfDay 9 0 0)
+                    , setTestEndTime (TimeOfDay 11 0 0)
+                    ]
+                _ <- inactiveStaff |> set #isActive False |> updateRecord
                 exportJob <- generatePayrollExportJob fixture.admin fixture.venue StaffPayCsv
                 let csvRows = csvRowsByKey (fromMaybe "" (get #fileContents exportJob))
 
-                Map.keys csvRows `shouldBe` ["Ava LVL 1", "Ava LVL 2", "Kai LVL 1"]
-                lookupCsvRow csvRows "Ava LVL 1" `shouldBe` ["2.00", "0.00", "0.00", "0.00", "0.00", "0.00", "0.00", "0.00", "0.00", "0.00", "0.00", "0.00", "0.00", "0.00", "0.00", "0.00", "0.00", "0.00"]
-                lookupCsvRow csvRows "Ava LVL 2" `shouldBe` ["2.50", "0.00", "0.00", "0.00", "0.00", "0.00", "0.00", "0.00", "0.00", "0.00", "0.00", "0.00", "0.00", "5.00", "0.00", "3.50", "1.00", "0.00"]
-                lookupCsvRow csvRows "Kai LVL 1" `shouldBe` ["0.00", "0.00", "0.00", "4.00", "0.00", "0.00", "0.00", "0.00", "0.00", "0.00", "0.00", "0.00", "0.00", "0.00", "0.00", "0.00", "0.00", "0.00"]
+                Map.keys csvRows `shouldBe` ["Cook, Kai Kitchen", "Worker, Ava Bar", "Worker, Ava Floor"]
+                lookupCsvRow csvRows "Worker, Ava Floor" `shouldBe` ["2.00", "0.00", "0.00", "0.00", "0.00", "0.00", "0.00", "0.00", "0.00", "0.00", "0.00", "0.00", "0.00", "0.00", "0.00", "0.00", "0.00", "0.00"]
+                lookupCsvRow csvRows "Worker, Ava Bar" `shouldBe` ["2.50", "0.00", "0.00", "0.00", "0.00", "0.00", "0.00", "0.00", "0.00", "0.00", "0.00", "0.00", "5.00", "0.00", "4.50", "0.00", "0.00", "0.00"]
+                lookupCsvRow csvRows "Cook, Kai Kitchen" `shouldBe` ["0.00", "0.00", "0.00", "4.00", "0.00", "0.00", "0.00", "0.00", "0.00", "0.00", "0.00", "0.00", "0.00", "0.00", "0.00", "0.00", "0.00", "0.00"]
 
         it "keeps relational-version-pinned payroll CSV output stable after later pay-config changes" $ withContext do
             withCleanDb do
-                fixture <- seedCanonicalPayrollFixture
+                fixture <- seedCanonicalPayrollFixtureForWeek goldenWeekStart
                 expectedCsv <- readExportFixtureText "staff_hours-expected.csv"
 
                 _ <- fixture.barShift
@@ -105,9 +128,9 @@ tests = aroundAll withDatabaseTestContext do
 
         it "marks payroll exports as mixed when approved rows span multiple pay version manifests" $ withContext do
             withCleanDb do
-                fixture <- seedCanonicalPayrollFixture
+                fixture <- seedCanonicalPayrollFixtureForWeek goldenWeekStart
                 secondSnapshot <- createPayrollSnapshotWithVersion fixture.venue fixture.admin 2 [fixture.levelOne, fixture.levelTwo] [fixture.barShift, fixture.floorShift, fixture.kitchenShift] fixture.dayNames []
-                _ <- createAndApproveEntry fixture.venue fixture.kaiStaff (fromGregorian 2025 1 12) secondSnapshot fixture.admin fixture.approvedAt
+                _ <- createAndApproveEntry fixture.venue fixture.kaiStaff goldenWeekEnd secondSnapshot fixture.admin fixture.approvedAt
                     [ set #shiftTypeId (unpackId fixture.kitchenShift.id)
                     , setTestStartTime (TimeOfDay 10 0 0)
                     , setTestEndTime (TimeOfDay 12 0 0)
@@ -117,7 +140,7 @@ tests = aroundAll withDatabaseTestContext do
                 let csvRows = csvRowsByKey (fromMaybe "" (get #fileContents exportJob))
 
                 get #payConfigVersionManifest exportJob `shouldBe` Just "mixed"
-                lookupCsvRow csvRows "Kai LVL 1" `shouldBe` ["0.00", "0.00", "0.00", "4.00", "0.00", "0.00", "0.00", "0.00", "0.00", "0.00", "0.00", "0.00", "0.00", "0.00", "0.00", "0.00", "0.00", "2.00"]
+                lookupCsvRow csvRows "Cook, Kai Kitchen" `shouldBe` ["0.00", "0.00", "0.00", "4.00", "0.00", "0.00", "0.00", "0.00", "0.00", "0.00", "0.00", "0.00", "0.00", "0.00", "0.00", "2.00", "0.00", "0.00"]
 
         it "aggregates multiple staff, employment bases, roles, breaks, and overnight penalty buckets" $ withContext do
             withCleanDb do
@@ -126,31 +149,31 @@ tests = aroundAll withDatabaseTestContext do
                 let csvRows = csvRowsByKey (fromMaybe "" (get #fileContents exportJob))
 
                 Map.keys csvRows `shouldBe`
-                    [ "Ava LVL 2"
-                    , "Ava LVL 4"
-                    , "Ben LVL 1"
-                    , "Cara LVL 1"
-                    , "Noor LVL 3"
+                    [ "Casual, Ben Bar"
+                    , "Casual, Cara Bar"
+                    , "Cook, Noor Kitchen"
+                    , "Manager, Ava Bar"
+                    , "Manager, Ava Supervisor"
                     ]
-                lookupCsvRow csvRows "Ava LVL 2" `shouldBe`
+                lookupCsvRow csvRows "Manager, Ava Bar" `shouldBe`
                     [ "4.00", "0.00", "0.00"
                     , "0.00", "0.00", "0.00"
                     , "0.00", "0.00", "0.00"
                     , "0.00", "0.00", "0.00"
-                    , "0.00", "0.00", "0.00"
-                    , "6.50", "0.00"
-                    , "1.00"
+                    , "0.00", "0.00"
+                    , "6.50"
+                    , "0.00", "0.00", "1.00"
                     ]
-                lookupCsvRow csvRows "Ava LVL 4" `shouldBe`
+                lookupCsvRow csvRows "Manager, Ava Supervisor" `shouldBe`
                     [ "0.00", "0.00", "0.00"
                     , "0.00", "0.00", "0.00"
                     , "0.00", "0.00", "0.00"
                     , "0.00", "0.00", "0.00"
-                    , "1.00", "4.50", "0.00"
-                    , "0.00", "2.00"
-                    , "0.00"
+                    , "5.50", "0.00"
+                    , "2.00"
+                    , "0.00", "0.00", "0.00"
                     ]
-                lookupCsvRow csvRows "Ben LVL 1" `shouldBe`
+                lookupCsvRow csvRows "Casual, Ben Bar" `shouldBe`
                     [ "0.00", "0.00", "0.00"
                     , "6.50", "0.00", "1.00"
                     , "0.00", "0.00", "0.00"
@@ -159,7 +182,7 @@ tests = aroundAll withDatabaseTestContext do
                     , "0.00", "0.00"
                     , "0.00"
                     ]
-                lookupCsvRow csvRows "Cara LVL 1" `shouldBe`
+                lookupCsvRow csvRows "Casual, Cara Bar" `shouldBe`
                     [ "0.00", "0.00", "0.00"
                     , "0.00", "0.00", "0.00"
                     , "3.00", "0.00", "0.00"
@@ -168,14 +191,14 @@ tests = aroundAll withDatabaseTestContext do
                     , "0.00", "0.00"
                     , "0.00"
                     ]
-                lookupCsvRow csvRows "Noor LVL 3" `shouldBe`
+                lookupCsvRow csvRows "Cook, Noor Kitchen" `shouldBe`
                     [ "0.00", "0.00", "0.00"
                     , "0.00", "0.00", "0.00"
                     , "0.00", "0.00", "0.00"
                     , "0.00", "0.00", "0.00"
-                    , "0.00", "0.00", "0.00"
                     , "0.00", "0.00"
-                    , "5.67"
+                    , "0.00"
+                    , "5.75", "0.00", "0.00"
                     ]
 
     where
@@ -189,27 +212,22 @@ normalizePayrollEarningsCsv csvText =
         |> map normalizeRow
         |> Text.unlines
     where
-        normalizeRow row =
-            if Text.isPrefixOf "staff_first_name," row
-                then row
-                else case Text.splitOn "," row of
-                firstName : lastName : workDate : earningsRateName : hours : trackingCode : _description : _staffId : _entryIds : _manifest : penaltyKind : payLevelName : shiftTypeName : [] ->
-                    Text.intercalate ","
-                        [ firstName
-                        , lastName
-                        , workDate
-                        , earningsRateName
-                        , hours
-                        , trackingCode
-                        , "<description>"
-                        , "<staff_id>"
-                        , "<timesheet_entry_ids>"
-                        , "<pay_config_version_manifest>"
-                        , penaltyKind
-                        , payLevelName
-                        , shiftTypeName
-                        ]
-                _ -> row
+        normalizeRow row
+            | Text.isPrefixOf "staff_first_name," row = row
+            | otherwise =
+                let fields = Text.splitOn "," row
+                 in if length fields /= 25
+                        then row
+                        else Text.intercalate "," (normalizeField <$> zip [0 :: Int ..] fields)
+
+        normalizeField (index, value)
+            | index == 11 = "<description>"
+            | index == 12 = "<staff_id>"
+            | index == 13 = "<timesheet_entry_ids>"
+            | index == 14 = "<pay_config_version_manifest>"
+            | index == 23 = "<approved_by_user_ids>"
+            | index == 24 = "<active_pay_calculation_ids>"
+            | otherwise = value
 
 normalizeExpectedPayrollEarningsCsv :: Text -> Text
 normalizeExpectedPayrollEarningsCsv =
@@ -222,10 +240,12 @@ data PayrollMatrixFixture = PayrollMatrixFixture
 
 seedPayrollMatrixFixture :: (?modelContext :: ModelContext) => IO PayrollMatrixFixture
 seedPayrollMatrixFixture = do
-    let weekStart = defaultWeekEpoch
+    let weekStart = goldenWeekStart
     let dayAt offset = addDays offset weekStart
     let approvedAt = UTCTime (fromGregorian 2025 1 12) (secondsToDiffTime 3600)
     venue <- createVenueWithConfig "Payroll Matrix Venue"
+    venueConfig <- query @VenueConfig |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
+    _ <- venueConfig |> set #rosterWeekStartsOn 2 |> set #weekOffsetEpoch weekStart |> updateRecord
     admin <- createUserRecord "payroll-matrix-admin@example.com" "staff" True
     _ <- createVenueMembershipRecord venue admin "venue_admin"
     dayNames <- seedWeekDayNames venue
@@ -349,10 +369,15 @@ csvRowsByKey csvText =
         |> map parseCsvRow
         |> Map.fromList
     where
-        parseCsvRow row =
-            case Text.splitOn "," row of
-                nameType : values -> (nameType, values)
-                _ -> error ("Unexpected payroll CSV row: " <> row)
+        parseCsvRow row
+            | Text.isPrefixOf "\"" row =
+                let (quotedName, remainder) = Text.breakOn "\"," (Text.drop 1 row)
+                 in if Text.null remainder
+                        then error ("Unexpected quoted payroll CSV row: " <> row)
+                        else (Text.replace "\"\"" "\"" quotedName, Text.splitOn "," (Text.drop 2 remainder))
+            | otherwise =
+                let (nameType, remainder) = Text.breakOn "," row
+                 in (nameType, Text.splitOn "," (Text.drop 1 remainder))
 
         unsafeStripCarriageReturns = Text.replace "\r" ""
 
@@ -372,8 +397,8 @@ generatePayrollExportJob user venue exportType = do
     response <- withPasskeyVerifiedUserAndCurrentVenue user venue.id do
         callActionWithParams CreateExportJobAction
             [ ("exportType", cs (exportJobTypeToText exportType))
-            , ("rangeStart", "2025-01-06")
-            , ("rangeEnd", "2025-01-12")
+            , ("rangeStart", "2025-01-07")
+            , ("rangeEnd", "2025-01-13")
             ]
 
     response `responseStatusShouldBe` status302

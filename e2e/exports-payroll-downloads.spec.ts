@@ -45,42 +45,52 @@ test.describe('Payroll export downloads', () => {
         const rangeSuffix = `${currentWeek.weekStart}-to-${currentWeek.weekEnd}`;
 
         await generatePayrollReport(page, 'Staff Hours CSV');
-        const staffHoursDownload = await downloadExport(page, `staff_hours-${rangeSuffix}.csv`);
-        expect(staffHoursDownload.suggestedFilename()).toBe(`staff_hours-${rangeSuffix}.csv`);
+        const staffHoursFileName = `staff_hrs_starting-${currentWeek.weekStart}.csv`;
+        const staffHoursDownload = await downloadExport(page, staffHoursFileName);
+        expect(staffHoursDownload.suggestedFilename()).toBe(staffHoursFileName);
 
         const staffHoursRows = parseCsv(await readDownloadText(staffHoursDownload));
         expect(staffHoursRows[0]).toEqual([
-            'Name/Type',
-            'Mond Ord',
-            'Mond 7-12',
-            'Mond 12+',
+            'Employee',
+            'Mon Ord',
+            'Mon 7-12',
+            'Mon 12+',
             'Tues Ord',
             'Tues 7-12',
             'Tues 12+',
-            'Wedn Ord',
-            'Wedn 7-12',
-            'Wedn 12+',
-            'Thur Ord',
-            'Thur 7-12',
-            'Thur 12+',
-            'Frid Ord',
-            'Frid 7-12',
-            'Frid 12+',
-            'Satu Ord',
-            'Satu 12+',
-            'Sund Ord',
+            'Wed Ord',
+            'Wed 7-12',
+            'Wed 12+',
+            'Thurs Ord',
+            'Thurs 7-12',
+            'Thurs 12+',
+            'Fri Ord',
+            'Fri 7-12',
+            'Fri 12+',
+            'Sat Ord',
+            'Sat 12+',
+            'Sun Ord',
         ]);
-        expect(rowByNameType(staffHoursRows, 'Alpha LVL 1')).toEqual([
-            'Alpha LVL 1',
+        expect(rowByNameType(staffHoursRows, 'Crew, Alpha Bar')).toEqual([
+            'Crew, Alpha Bar',
             '8.00', '0.00', '0.00',
-            '4.00', '0.00', '0.00',
+            '0.00', '0.00', '0.00',
             '0.00', '0.00', '0.00',
             '0.00', '0.00', '0.00',
             '0.00', '5.00', '0.00',
             '0.00', '1.00',
             '0.00',
         ]);
-        expect(rowByNameType(staffHoursRows, 'Alpha LVL 2')).toBeUndefined();
+        expect(rowByNameType(staffHoursRows, 'Crew, Alpha Kitchen')).toEqual([
+            'Crew, Alpha Kitchen',
+            '0.00', '0.00', '0.00',
+            '4.00', '0.00', '0.00',
+            '0.00', '0.00', '0.00',
+            '0.00', '0.00', '0.00',
+            '0.00', '0.00', '0.00',
+            '0.00', '0.00',
+            '0.00',
+        ]);
 
         await generatePayrollReport(page, 'Hourly Breakdown ZIP');
         const wageDownload = await downloadExport(page, `hourly_breakdown-${rangeSuffix}.zip`);

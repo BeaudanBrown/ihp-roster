@@ -16,6 +16,7 @@ import IHP.ControllerPrelude
 import IHP.Test.Mocking
 import Test.Hspec
 import Test.Support
+import Test.Support.PayrollFixtures (createAndApproveEntry)
 
 tests :: Spec
 tests = do
@@ -128,7 +129,7 @@ tests = do
                 map (.localBucketKey) beforeRolloverBuckets `shouldNotSatisfy` any (Text.isInfixOf ":effective:2026-07-06:")
                 map (.localBucketKey) afterRolloverBuckets `shouldSatisfy` any (Text.isInfixOf ":effective:2026-07-06:")
 
-        it "uses the latest venue-effective rate for persisted-period pay bucket keys" $ withContext do
+        it "uses the approval-pinned rate source for persisted-period pay bucket keys" $ withContext do
             withCleanDb do
                 let periodStart = fromGregorian 2026 7 15
                     periodEnd = fromGregorian 2026 7 21
@@ -180,10 +181,13 @@ tests = do
                 map (.operativeFrom) selectedRates `shouldBe` [Just (fromGregorian 2025 7 1), Just (fromGregorian 2026 7 1)]
                 map (.payLevelId) (Map.elems payResults) `shouldSatisfy` all (== Just (unpackId awardLevelId))
 
-                buckets <- fetchPeriodXeroLocalEarningsBuckets fixture.venue.id periodStart periodEnd []
+                bucketResult <- fetchPeriodXeroLocalEarningsBuckets fixture.venue.id periodStart periodEnd []
+                buckets <- case bucketResult of
+                    Left message -> expectationFailure (cs message) >> error "unreachable"
+                    Right values  -> pure values
 
                 map (.localBucketKey) buckets `shouldSatisfy` (not . null)
-                map (.localBucketKey) buckets `shouldSatisfy` all (Text.isInfixOf ":effective:2026-07-06:")
+                map (.localBucketKey) buckets `shouldSatisfy` all (Text.isInfixOf ":effective:2025-07-07:")
 
         it "blocks missing earnings mapping when no managed requirement covers the bucket" $ withContext do
             withCleanDb do
@@ -268,18 +272,30 @@ tests = do
                         |> set #rawPayload Aeson.Null
                         |> set #importedByUserId (unpackId fixture.owner.id)
                         |> createRecord
-                entry <- query @TimesheetEntry |> filterWhere (#venueId, unpackId fixture.venue.id) |> fetchOne
-                case entry.staffPayVersionId of
-                    Nothing -> expectationFailure "expected approved entry to lock a staff pay version"
-                    Just staffPayVersionId -> do
-                        staffPayVersion <- fetch (Id staffPayVersionId :: Id StaffPayVersion)
-                        staffPayVersion |> set #importedXeroPayItemId (Just importedPayItem.id) |> updateRecord >>= const (pure ())
+                importedUser <- createUserRecord "imported-ready@example.com" "staff" True
+                _ <- createVenueMembershipRecord fixture.venue importedUser "worker"
+                importedStaff <- createStaffRecord fixture.venue (Just importedUser) "Imported" "Worker"
+                    >>= updateRecord . set #importedXeroPayItemId (Just importedPayItem.id)
+                _ <-
+                    newRecord @XeroStaffMapping
+                        |> set #venueId (unpackId fixture.venue.id)
+                        |> set #staffId (unpackId importedStaff.id)
+                        |> set #xeroConnectionId (unpackId fixture.connection.id)
+                        |> set #xeroEmployeeId (Just "employee-imported")
+                        |> set #xeroEmployeeName (Just "Imported Worker")
+                        |> set #mappingStatus ("verified" :: Text)
+                        |> createRecord
+                _ <- createReadinessXeroEmployee fixture "employee-imported" (Just "calendar-ready")
+                now <- getCurrentTime
+                importedEntry <- createAndApproveEntry fixture.venue importedStaff (fromGregorian 2026 4 27) () fixture.owner now []
+                importedEntry.staffPayVersionId `shouldSatisfy` isJust
+                let request = fixture.request { readinessSkippedStaffIds = [unpackId fixture.staff.id] }
 
-                readiness <- validateXeroTimesheetReadiness fixture.request
+                readiness <- validateXeroTimesheetReadiness request
 
                 readinessBlockerCodes readiness `shouldNotSatisfy` elem "earnings_mapping_not_verified"
                 readinessBlockerCodes readiness `shouldNotSatisfy` elem "managed_pay_item_not_ready"
-                readiness.xeroReadinessPayBucketCount `shouldBe` 0
+                readiness.xeroReadinessPayBucketCount `shouldBe` 1
                 readiness.xeroTimesheetReady `shouldBe` True
 
         it "allows a Xero period to include multiple relational pay versions" $ withContext do

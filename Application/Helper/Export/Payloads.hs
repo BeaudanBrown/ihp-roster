@@ -4,14 +4,12 @@ import Application.Helper.Export.Definitions
 import Application.Helper.Export.ReadModel
 import Application.Helper.Export.Render
 import Application.Helper.Export.Types
-import Application.Helper.Pay (PaySegment (..), TimesheetPayResult (..),
-                               fetchTimesheetPayResultsForEntries,
-                               timesheetEntryIdKey)
 import Application.Helper.Staff (isTrialStaff)
+import Application.WageEngine
+import Application.WagePublication
 import Data.Coerce (coerce)
 import qualified Data.List as List
 import qualified Data.Map.Strict as Map
-import Data.Scientific (Scientific)
 import qualified Data.Text as Text
 import Data.Time.Calendar (Day)
 import Generated.Types
@@ -19,24 +17,22 @@ import IHP.ControllerPrelude
 
 buildFixedStaffPayCsvPayload ::
     (?context :: ControllerContext, ?modelContext :: ModelContext) =>
+    Map.Map UUID WageCalculation ->
     ReportWeekSlice ->
     IO (Either Text StaffPayCsvPayload)
-buildFixedStaffPayCsvPayload reportWeekSlice = do
+buildFixedStaffPayCsvPayload calculationsByEntryId reportWeekSlice = do
     entries <- fetchApprovedTimesheetEntries reportWeekSlice.sliceStart reportWeekSlice.sliceEnd
     staffById <- fetchReportStaffMap entries
-    payResultsByEntryId <- fetchTimesheetPayResultsForEntries entries
+    labelsByEntryId <- fetchApprovedEntryPayLabels entries
     versionManifestsByEntryId <- fetchVersionManifestsForEntries entries
     let reportWeekSelection = reportWeekSlice.weekSelection
-    let filteredEntries = filter (shouldIncludeFixedStaffPayEntry staffById) entries
-    let missingEntryIds =
-            map (tshow . get #id) $
-                filter (\entry -> Map.notMember (timesheetEntryIdKey (get #id entry)) payResultsByEntryId) filteredEntries
-
-    if not (null missingEntryIds)
-        then pure (Left "Failed to resolve payroll data for one or more approved timesheet entries.")
+        filteredEntries = filter (shouldIncludeFixedStaffPayEntry staffById) entries
+    let missingCalculations = filter (\entry -> Map.notMember (unpackId entry.id) calculationsByEntryId) filteredEntries
+    if not (null missingCalculations)
+        then pure (Left "Failed to resolve sealed payroll data for one or more approved timesheet entries.")
         else do
-            let records = buildFixedStaffPayCsvRecords reportWeekSelection filteredEntries staffById payResultsByEntryId
-            let versionManifests =
+            let records = buildFixedStaffPayCsvRecords reportWeekSelection filteredEntries staffById calculationsByEntryId labelsByEntryId
+                versionManifests =
                     filteredEntries
                         |> mapMaybe (\entry -> Map.lookup (coerce (get #id entry)) versionManifestsByEntryId)
                         |> List.nub
@@ -45,7 +41,7 @@ buildFixedStaffPayCsvPayload reportWeekSlice = do
                 Right
                     StaffPayCsvPayload
                         { weekSelection = reportWeekSelection
-                        , fileName = "staff_hours-" <> tshow reportWeekSelection.weekStart <> ".csv"
+                        , fileName = "staff_hrs_starting-" <> tshow reportWeekSelection.weekStart <> ".csv"
                         , csvContents = renderStaffPayCsv reportWeekSelection records
                         , entryCount = length filteredEntries
                         , rowCount = length records
@@ -57,50 +53,43 @@ buildFixedStaffPayCsvRecords ::
     ReportWeekSelection ->
     [TimesheetEntry] ->
     Map.Map UUID Staff ->
-    Map.Map Text TimesheetPayResult ->
+    Map.Map UUID WageCalculation ->
+    Map.Map UUID (Maybe Text) ->
     [StaffPayCsvRecord]
-buildFixedStaffPayCsvRecords reportWeekSelection entries staffById payResultsByEntryId =
+buildFixedStaffPayCsvRecords reportWeekSelection entries staffById calculationsByEntryId labelsByEntryId =
     aggregated
         |> Map.toList
         |> map toRecord
-        |> List.sortOn (\record -> (record.staffName, record.label))
-    where
-        aggregated =
-            foldl' accumulate Map.empty entries
+        |> List.sortOn (\record -> (Text.toCaseFold record.staffLastName, Text.toCaseFold record.staffFirstName, isJust record.label, Text.toCaseFold (fromMaybe "" record.label)))
+  where
+    buckets = staffPayBuckets reportWeekSelection
+    emptyBucketHours = replicate (length buckets) 0
+    aggregated = foldl' accumulateEntry Map.empty entries
 
-        accumulate acc entry =
-            case (Map.lookup entry.staffId staffById, Map.lookup (timesheetEntryIdKey (get #id entry)) payResultsByEntryId) of
-                (Just staff, Just payResult) ->
-                    foldl' (accumulateSegment staff payResult) acc payResult.segments
-                _ -> acc
+    accumulateEntry acc entry =
+        case (Map.lookup entry.staffId staffById, Map.lookup (unpackId entry.id) calculationsByEntryId) of
+            (Just staff, Just calculation) ->
+                foldl' (accumulateContribution staff (Map.findWithDefault Nothing (unpackId entry.id) labelsByEntryId)) acc (staffHoursContributions calculation)
+            _ -> acc
 
-        buckets = staffPayBuckets reportWeekSelection
+    accumulateContribution staff payLabel acc contribution =
+        case staffPayContributionBucketIndex buckets contribution of
+            Nothing -> acc
+            Just bucketIndex ->
+                let key = (staff.lastName, staff.firstName, payLabel)
+                 in Map.alter (Just . addDayHours bucketIndex contribution.staffHoursQuantity . fromMaybe emptyBucketHours) key acc
 
-        emptyBucketHours = replicate (length buckets) 0
-
-        accumulateSegment staff payResult acc segment =
-            case staffPaySegmentBucketIndex buckets segment of
-                Just bucketIndex ->
-                    let key = (staffPayDisplayName staff, fixedStaffPayRecordLabel payResult)
-                        hours = paidMinutesToHours segment.minutes
-                     in if hours <= 0
-                            then acc
-                            else Map.alter (Just . addDayHours bucketIndex hours . fromMaybe emptyBucketHours) key acc
-                Nothing -> acc
-
-        toRecord ((recordStaffName, recordLabel), recordBucketHours) =
-            StaffPayCsvRecord
-                { staffName = recordStaffName
-                , label = recordLabel
-                , bucketHours = recordBucketHours
-                , total = sum recordBucketHours
-                }
+    toRecord ((lastName, firstName, payLabel), hoursByBucket) =
+        StaffPayCsvRecord
+            { staffFirstName = firstName
+            , staffLastName = lastName
+            , label = payLabel
+            , bucketHours = map roundHourlyQuantity hoursByBucket
+            }
 
 shouldIncludeFixedStaffPayEntry :: Map.Map UUID Staff -> TimesheetEntry -> Bool
 shouldIncludeFixedStaffPayEntry staffById entry =
-    case Map.lookup entry.staffId staffById of
-        Nothing    -> False
-        Just staff -> not (isTrialStaff staff)
+    maybe False (\staff -> staff.isActive && isNothing staff.archivedAt && not (isTrialStaff staff)) (Map.lookup entry.staffId staffById)
 
 weeklyFolderName :: ReportWeekSelection -> Text
 weeklyFolderName reportWeekSelection =
@@ -117,126 +106,156 @@ data PayrollEarningsAggregation = PayrollEarningsAggregation
     { aggregationStaffFirstName      :: !Text
     , aggregationStaffLastName       :: !Text
     , aggregationWorkDate            :: !Day
-    , aggregationEarningsRateName    :: !Text
-    , aggregationTrackingCode        :: !(Maybe Text)
-    , aggregationMinutes             :: !Scientific
+    , aggregationPayLabels           :: ![Text]
+    , aggregationTrackingCodes       :: ![Text]
+    , aggregationComponents          :: ![EarningsComponent]
     , aggregationStaffId             :: !UUID
     , aggregationTimesheetEntryIds   :: ![UUID]
     , aggregationVersionManifests    :: ![Text]
-    , aggregationSourcePenaltyKind   :: !Text
-    , aggregationSourcePayLevelName  :: !(Maybe Text)
-    , aggregationSourceShiftTypeName :: !(Maybe Text)
+    , aggregationCalculationVersions :: ![Text]
+    , aggregationRateBookVersions    :: ![Text]
+    , aggregationShiftTypeNames      :: ![Text]
+    , aggregationApprovedAt          :: ![UTCTime]
+    , aggregationApprovedByUserIds   :: ![UUID]
+    , aggregationPayCalculationIds   :: ![UUID]
     }
     deriving (Eq, Show)
 
 buildPayrollEarningsCsvRecords ::
     [TimesheetEntry] ->
     Map.Map UUID Staff ->
-    Map.Map Text TimesheetPayResult ->
+    Map.Map UUID WageCalculation ->
+    Map.Map UUID (Maybe Text) ->
+    Map.Map UUID Text ->
     Map.Map UUID Text ->
     [PayrollEarningsCsvRecord]
-buildPayrollEarningsCsvRecords entries staffById payResultsByEntryId versionManifestsByEntryId =
+buildPayrollEarningsCsvRecords entries staffById calculationsByEntryId labelsByEntryId shiftLabelsByEntryId versionManifestsByEntryId =
     aggregated
         |> Map.elems
-        |> map toRecord
-        |> List.sortOn (\record -> (record.workDate, record.staffLastName, record.staffFirstName, record.earningsRateName, record.trackingCode))
-    where
-        aggregated =
-            foldl' accumulate Map.empty entries
+        |> concatMap toRecords
+        |> List.sortOn (\record -> (record.workDate, Text.toCaseFold record.staffLastName, Text.toCaseFold record.staffFirstName, record.earningsRateName, record.unit, record.ratePerUnit))
+  where
+    aggregated = foldl' accumulateEntry Map.empty entries
 
-        accumulate acc entry =
-            case (Map.lookup entry.staffId staffById, Map.lookup (timesheetEntryIdKey (get #id entry)) payResultsByEntryId) of
-                (Just staff, Just payResult) ->
-                    foldl' (accumulateSegment entry staff payResult) acc payResult.segments
-                _ -> acc
+    accumulateEntry acc entry =
+        case (Map.lookup entry.staffId staffById, Map.lookup (unpackId entry.id) calculationsByEntryId) of
+            (Just staff, Just calculation) ->
+                foldl' (accumulateComponent entry staff calculation) acc (datedEarningsComponents calculation)
+            _ -> acc
 
-        accumulateSegment entry staff payResult acc segment =
-            case segment.segmentDate of
-                Nothing -> acc
-                Just segmentDate
-                    | segment.minutes <= 0 -> acc
-                    | otherwise ->
-                        let staffId = coerce (get #id staff)
-                            entryId = coerce (get #id entry)
-                            trackingCode = segment.shiftTypeName <|> payResult.shiftTypeName
-                            earningsRateName = payrollEarningsRateName payResult segment
-                            sourcePenaltyKind = payrollEarningsPenaltyKind segment
-                            sourcePayLevelName = segment.payLevelName <|> payResult.payLevelName
-                            sourceShiftTypeName = segment.shiftTypeName <|> payResult.shiftTypeName
-                            versionManifests = maybeToList (Map.lookup (coerce (get #id entry)) versionManifestsByEntryId)
-                            key = (staffId, segmentDate, earningsRateName, trackingCode)
-                            newAggregation =
-                                PayrollEarningsAggregation
-                                    { aggregationStaffFirstName = staff.firstName
-                                    , aggregationStaffLastName = staff.lastName
-                                    , aggregationWorkDate = segmentDate
-                                    , aggregationEarningsRateName = earningsRateName
-                                    , aggregationTrackingCode = trackingCode
-                                    , aggregationMinutes = segment.minutes
-                                    , aggregationStaffId = staffId
-                                    , aggregationTimesheetEntryIds = [entryId]
-                                    , aggregationVersionManifests = versionManifests
-                                    , aggregationSourcePenaltyKind = sourcePenaltyKind
-                                    , aggregationSourcePayLevelName = sourcePayLevelName
-                                    , aggregationSourceShiftTypeName = sourceShiftTypeName
-                                    }
-                         in Map.insertWith mergeAggregation key newAggregation acc
+    accumulateComponent entry staff calculation acc (componentDate, component)
+        | component.quantity <= 0 = acc
+        | otherwise =
+            let entryId = unpackId entry.id
+                staffId = unpackId staff.id
+                payLabel = Map.findWithDefault Nothing entryId labelsByEntryId
+                trackingCode = Map.lookup entryId shiftLabelsByEntryId
+                key = (staffId, componentDate, publicationBucketKey component)
+                newAggregation =
+                    PayrollEarningsAggregation
+                        { aggregationStaffFirstName = staff.firstName
+                        , aggregationStaffLastName = staff.lastName
+                        , aggregationWorkDate = componentDate
+                        , aggregationPayLabels = maybeToList payLabel
+                        , aggregationTrackingCodes = maybeToList trackingCode
+                        , aggregationComponents = [component]
+                        , aggregationStaffId = staffId
+                        , aggregationTimesheetEntryIds = [entryId]
+                        , aggregationVersionManifests = maybeToList (Map.lookup entryId versionManifestsByEntryId)
+                        , aggregationCalculationVersions = [let WageCalculationVersion value = calculation.calculationVersion in value]
+                        , aggregationRateBookVersions = maybeToList (fmap (\(RateBookVersion value) -> value) calculation.calculationRateBookVersion)
+                        , aggregationShiftTypeNames = maybeToList trackingCode
+                        , aggregationApprovedAt = maybeToList entry.approvedAt
+                        , aggregationApprovedByUserIds = maybeToList entry.approvedByUserId
+                        , aggregationPayCalculationIds = maybeToList (unpackId <$> entry.activePayCalculationId)
+                        }
+             in Map.insertWith mergeAggregation key newAggregation acc
 
-        mergeAggregation new old =
-            old
-                { aggregationMinutes = old.aggregationMinutes + new.aggregationMinutes
-                , aggregationTimesheetEntryIds = List.sort (List.nub (old.aggregationTimesheetEntryIds <> new.aggregationTimesheetEntryIds))
-                , aggregationVersionManifests = List.sort (List.nub (old.aggregationVersionManifests <> new.aggregationVersionManifests))
-                }
+    mergeAggregation new old =
+        old
+            { aggregationPayLabels = sortNub (old.aggregationPayLabels <> new.aggregationPayLabels)
+            , aggregationTrackingCodes = sortNub (old.aggregationTrackingCodes <> new.aggregationTrackingCodes)
+            , aggregationComponents = old.aggregationComponents <> new.aggregationComponents
+            , aggregationTimesheetEntryIds = sortNub (old.aggregationTimesheetEntryIds <> new.aggregationTimesheetEntryIds)
+            , aggregationVersionManifests = sortNub (old.aggregationVersionManifests <> new.aggregationVersionManifests)
+            , aggregationCalculationVersions = sortNub (old.aggregationCalculationVersions <> new.aggregationCalculationVersions)
+            , aggregationRateBookVersions = sortNub (old.aggregationRateBookVersions <> new.aggregationRateBookVersions)
+            , aggregationShiftTypeNames = sortNub (old.aggregationShiftTypeNames <> new.aggregationShiftTypeNames)
+            , aggregationApprovedAt = sortNub (old.aggregationApprovedAt <> new.aggregationApprovedAt)
+            , aggregationApprovedByUserIds = sortNub (old.aggregationApprovedByUserIds <> new.aggregationApprovedByUserIds)
+            , aggregationPayCalculationIds = sortNub (old.aggregationPayCalculationIds <> new.aggregationPayCalculationIds)
+            }
 
-        toRecord aggregation =
-            PayrollEarningsCsvRecord
+    toRecords aggregation =
+        [ let bucket = line.publishedBucketKey
+              sourceConditionText = sourceConditionValue bucket.finalEarningsBucketSourceCondition
+              payLabel = collapseOptionalText aggregation.aggregationPayLabels
+              trackingCode = collapseOptionalText aggregation.aggregationTrackingCodes
+           in PayrollEarningsCsvRecord
                 { staffFirstName = aggregation.aggregationStaffFirstName
                 , staffLastName = aggregation.aggregationStaffLastName
                 , workDate = aggregation.aggregationWorkDate
-                , earningsRateName = aggregation.aggregationEarningsRateName
-                , hours = paidMinutesToHours aggregation.aggregationMinutes
-                , trackingCode = aggregation.aggregationTrackingCode
+                , earningsRateName = earningsLineName payLabel bucket.finalEarningsBucketSourceCondition
+                , exactQuantity = line.publishedExactQuantity
+                , quantity = line.publishedQuantity
+                , unit = earningsUnitText bucket.finalEarningsBucketUnitType
+                , ratePerUnit = toRational bucket.finalEarningsBucketRatePerUnit
+                , exactAmount = line.publishedExactAmount
+                , amount = line.publishedAmount
+                , trackingCode
                 , description = "Bepis entries: " <> Text.intercalate " " (map tshow aggregation.aggregationTimesheetEntryIds)
                 , staffId = aggregation.aggregationStaffId
                 , timesheetEntryIds = aggregation.aggregationTimesheetEntryIds
-                , payConfigVersionManifest = versionManifestForAggregation aggregation.aggregationVersionManifests
-                , sourcePenaltyKind = aggregation.aggregationSourcePenaltyKind
-                , sourcePayLevelName = aggregation.aggregationSourcePayLevelName
-                , sourceShiftTypeName = aggregation.aggregationSourceShiftTypeName
+                , payConfigVersionManifest = collapseVersionManifests aggregation.aggregationVersionManifests
+                , calculationSource = calculationSourceValue bucket.finalEarningsBucketCalculationSource
+                , calculationVersion = collapseText aggregation.aggregationCalculationVersions
+                , rateBookVersion = collapseOptionalText aggregation.aggregationRateBookVersions
+                , sourceCondition = sourceConditionText
+                , sourceRateIdentity = fmap (\(RateSourceIdentity value) -> value) bucket.finalEarningsBucketSourceRateIdentity
+                , sourcePayLevelName = payLabel
+                , sourceShiftTypeName = collapseOptionalText aggregation.aggregationShiftTypeNames
+                , approvedAt = aggregation.aggregationApprovedAt
+                , approvedByUserIds = aggregation.aggregationApprovedByUserIds
+                , activePayCalculationIds = aggregation.aggregationPayCalculationIds
                 }
+        | line <- derivePublishedEarnings aggregation.aggregationComponents
+        ]
 
-        versionManifestForAggregation versionManifests =
-            case List.nub versionManifests of
-                []                -> Nothing
-                [snapshotVersion] -> Just snapshotVersion
-                _                 -> Just "mixed"
+calculationMap :: [TimesheetEntry] -> [WageCalculation] -> Map.Map UUID WageCalculation
+calculationMap entries calculations =
+    Map.fromList (zip (map (unpackId . (.id)) entries) calculations)
 
-payrollEarningsRateName :: TimesheetPayResult -> PaySegment -> Text
-payrollEarningsRateName payResult segment =
-    payrollEarningsBaseName payResult segment <> " - " <> payrollEarningsPenaltyLabel segment
+earningsLineName :: Maybe Text -> SourceCondition -> Text
+earningsLineName payLabel condition =
+    fromMaybe "Unlabelled" payLabel <> " - " <> conditionLabel condition
 
-payrollEarningsBaseName :: TimesheetPayResult -> PaySegment -> Text
-payrollEarningsBaseName payResult segment =
-    fromMaybe "Unknown pay level" (segment.payLevelName <|> payResult.payLevelName)
+conditionLabel :: SourceCondition -> Text
+conditionLabel = \case
+    OrdinaryCondition                -> "Ordinary"
+    SaturdayCondition                -> "Saturday"
+    SundayCondition                  -> "Sunday"
+    PublicHolidayCondition           -> "Public Holiday"
+    EveningAdditionCondition         -> "Evening After 7pm Addition"
+    EarlyMorningAdditionCondition    -> "Early Morning Addition"
+    MissedMealBreakAdditionCondition -> "Missed Meal Break 50% Addition"
+    ImportedFlatRateCondition _      -> "Imported Xero Rate"
 
-payrollEarningsPenaltyKind :: PaySegment -> Text
-payrollEarningsPenaltyKind segment =
-    fromMaybe "ordinary" segment.penaltyKind
+earningsUnitText :: EarningsUnit -> Text
+earningsUnitText Hours          = "hours"
+earningsUnitText CommencedHours = "commenced_hours"
 
-payrollEarningsPenaltyLabel :: PaySegment -> Text
-payrollEarningsPenaltyLabel segment =
-    case payrollEarningsPenaltyKind segment of
-        "saturday_penalty"          -> "Saturday"
-        "sunday_penalty"            -> "Sunday"
-        "public_holiday_penalty"    -> "Public Holiday"
-        "evening_after_7pm"         -> "Evening After 7pm"
-        "late_night_after_midnight" -> "Late Night After Midnight"
-        "delayed_meal_break_weekday" -> "M-F Delayed Meal Break"
-        "delayed_meal_break_saturday" -> "Saturday Delayed Meal Break"
-        "delayed_meal_break_sunday" -> "Sunday Delayed Meal Break"
-        "delayed_meal_break_public_holiday" -> "Public Holiday Delayed Meal Break"
-        _                           -> "Ordinary"
+collapseText :: [Text] -> Text
+collapseText values = fromMaybe "" (collapseOptionalText values)
+
+collapseOptionalText :: [Text] -> Maybe Text
+collapseOptionalText values =
+    case List.nub values of
+        []      -> Nothing
+        [value] -> Just value
+        _       -> Just "mixed"
+
+sortNub :: Ord value => [value] -> [value]
+sortNub = List.sort . List.nub
 
 buildApprovedTimesheetExportFileName :: Day -> Day -> Text
 buildApprovedTimesheetExportFileName rangeStart rangeEnd =

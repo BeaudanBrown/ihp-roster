@@ -34,6 +34,60 @@ tests = aroundAll withDatabaseTestContext do
             map PG.fromOnly retainedTables `shouldSatisfy` all isJust
 
     describe "database hard-delete protection" do
+        it "keeps approval-pinned imported Xero remote identities immutable" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Immutable Xero identity"
+                owner <- createUserRecord "immutable-xero@example.com" "staff" True
+                importedItem <- createImportedXeroPayItemRecord venue owner "Pinned imported rate" "xero-rate-pinned" 42
+                replacementItem <- newRecord @XeroImportedPayItem
+                    |> set #venueId (unpackId venue.id)
+                    |> set #xeroConnectionId importedItem.xeroConnectionId
+                    |> set #xeroEarningsRateId "xero-rate-replacement"
+                    |> set #name "Replacement imported rate"
+                    |> set #earningsType "ordinarytimeearnings"
+                    |> set #rateType "rateperunit"
+                    |> set #typeOfUnits "hours"
+                    |> set #ratePerUnit 44
+                    |> set #importedByUserId (unpackId owner.id)
+                    |> createRecord
+
+                identityChange <- try (importedItem |> set #xeroEarningsRateId "xero-rate-changed" |> updateRecord) :: IO (Either SomeException XeroImportedPayItem)
+                identityChange `shouldSatisfy` isLeft
+                importedItem |> set #name "Refreshed display name" |> updateRecord >>= (\updated -> updated.name `shouldBe` "Refreshed display name")
+
+                staff <- createStaffRecord venue Nothing "Pinned" "Worker"
+                now <- getCurrentTime
+                lockedVersion <- newRecord @StaffPayVersion
+                    |> set #venueId (unpackId venue.id)
+                    |> set #staffId (unpackId staff.id)
+                    |> set #importedXeroPayItemId (Just importedItem.id)
+                    |> set #employmentBasis Permanent
+                    |> set #effectiveFrom (fromGregorian 2026 1 1)
+                    |> set #createdByUserId (unpackId owner.id)
+                    |> set #lockedAt (Just now)
+                    |> set #lockedByUserId (Just (unpackId owner.id))
+                    |> createRecord
+                versionReroute <- try (lockedVersion |> set #importedXeroPayItemId (Just replacementItem.id) |> updateRecord) :: IO (Either SomeException StaffPayVersion)
+                versionReroute `shouldSatisfy` isLeft
+
+                shiftType <- newRecord @ShiftType
+                    |> set #venueId (unpackId venue.id)
+                    |> set #name "Pinned shift"
+                    |> set #sortOrder 1
+                    |> createRecord
+                lockedShiftVersion <- newRecord @ShiftTypePayVersion
+                    |> set #venueId (unpackId venue.id)
+                    |> set #shiftTypeId (unpackId shiftType.id)
+                    |> set #importedXeroPayItemId (Just importedItem.id)
+                    |> set #payrollLabel "Pinned payroll label"
+                    |> set #effectiveFrom (fromGregorian 2026 1 1)
+                    |> set #createdByUserId (unpackId owner.id)
+                    |> set #lockedAt (Just now)
+                    |> set #lockedByUserId (Just (unpackId owner.id))
+                    |> createRecord
+                labelChange <- try (lockedShiftVersion |> set #payrollLabel "Changed payroll label" |> updateRecord) :: IO (Either SomeException ShiftTypePayVersion)
+                labelChange `shouldSatisfy` isLeft
+
         it "blocks direct DELETEs on protected operational records" $ withContext do
             withCleanDb do
                 preference <- createProtectedShiftPreference

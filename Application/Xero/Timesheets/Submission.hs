@@ -287,10 +287,19 @@ xeroTimesheetSubmissionRequestJson preview =
     Aeson.Array (Vector.fromList [preview.previewRequestObjectJson])
 
 submissionIdempotencyKey :: XeroSubmissionRun -> XeroTimesheetPreview -> Text
-submissionIdempotencyKey run preview =
-    Text.take 128 ("xero-timesheet:" <> operation <> ":" <> tshow (unpackId run.id) <> ":" <> preview.previewXeroEmployeeId <> maybe "" (":" <>) preview.previewExistingXeroTimesheetId)
-    where
-        operation = if isJust preview.previewExistingXeroTimesheetId then "update" else "create"
+submissionIdempotencyKey _run preview =
+    Text.take 128 $
+        "xero-timesheet:"
+            <> operation
+            <> ":"
+            <> preview.previewXeroEmployeeId
+            <> ":"
+            <> tshow preview.previewPayPeriodStart
+            <> ":"
+            <> tshow preview.previewPayPeriodEnd
+            <> maybe "" (":" <>) preview.previewExistingXeroTimesheetId
+  where
+    operation = if isJust preview.previewExistingXeroTimesheetId then "update" else "create"
 
 fetchPreviewSourceEntries :: (?modelContext :: ModelContext) => XeroTimesheetPreview -> IO [TimesheetEntry]
 fetchPreviewSourceEntries preview =

@@ -1790,6 +1790,46 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+CREATE OR REPLACE FUNCTION prevent_xero_imported_pay_item_identity_change()
+RETURNS TRIGGER
+AS $$
+BEGIN
+    IF NEW.venue_id IS DISTINCT FROM OLD.venue_id
+        OR NEW.xero_connection_id IS DISTINCT FROM OLD.xero_connection_id
+        OR NEW.xero_earnings_rate_id IS DISTINCT FROM OLD.xero_earnings_rate_id
+    THEN
+        RAISE EXCEPTION 'imported Xero pay item identity is immutable';
+    END IF;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE OR REPLACE FUNCTION prevent_locked_pay_version_imported_item_change()
+RETURNS TRIGGER
+AS $$
+BEGIN
+    IF OLD.locked_at IS NOT NULL
+        AND NEW.imported_xero_pay_item_id IS DISTINCT FROM OLD.imported_xero_pay_item_id
+    THEN
+        RAISE EXCEPTION 'locked pay version imported Xero item is immutable';
+    END IF;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE OR REPLACE FUNCTION prevent_locked_shift_pay_version_label_change()
+RETURNS TRIGGER
+AS $$
+BEGIN
+    IF OLD.locked_at IS NOT NULL
+        AND NEW.payroll_label IS DISTINCT FROM OLD.payroll_label
+    THEN
+        RAISE EXCEPTION 'locked shift pay version payroll label is immutable';
+    END IF;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
 CREATE TRIGGER prevent_hard_delete_venues BEFORE DELETE ON venues FOR EACH ROW EXECUTE FUNCTION prevent_hard_delete();
 CREATE TRIGGER prevent_hard_delete_users BEFORE DELETE ON users FOR EACH ROW EXECUTE FUNCTION prevent_hard_delete();
 CREATE TRIGGER prevent_hard_delete_venue_memberships BEFORE DELETE ON venue_memberships FOR EACH ROW EXECUTE FUNCTION prevent_hard_delete();
@@ -1803,6 +1843,9 @@ CREATE TRIGGER prevent_hard_delete_shift_types BEFORE DELETE ON shift_types FOR 
 CREATE TRIGGER prevent_hard_delete_venue_config BEFORE DELETE ON venue_config FOR EACH ROW EXECUTE FUNCTION prevent_hard_delete();
 CREATE TRIGGER prevent_hard_delete_staff_pay_versions BEFORE DELETE ON staff_pay_versions FOR EACH ROW EXECUTE FUNCTION prevent_hard_delete();
 CREATE TRIGGER prevent_hard_delete_shift_type_pay_versions BEFORE DELETE ON shift_type_pay_versions FOR EACH ROW EXECUTE FUNCTION prevent_hard_delete();
+CREATE TRIGGER prevent_locked_staff_pay_version_imported_item_update BEFORE UPDATE ON staff_pay_versions FOR EACH ROW EXECUTE FUNCTION prevent_locked_pay_version_imported_item_change();
+CREATE TRIGGER prevent_locked_shift_pay_version_imported_item_update BEFORE UPDATE ON shift_type_pay_versions FOR EACH ROW EXECUTE FUNCTION prevent_locked_pay_version_imported_item_change();
+CREATE TRIGGER prevent_locked_shift_pay_version_payroll_label_update BEFORE UPDATE ON shift_type_pay_versions FOR EACH ROW EXECUTE FUNCTION prevent_locked_shift_pay_version_label_change();
 CREATE TRIGGER prevent_hard_delete_roster_weeks BEFORE DELETE ON roster_weeks FOR EACH ROW EXECUTE FUNCTION prevent_hard_delete();
 CREATE TRIGGER prevent_hard_delete_roster_days BEFORE DELETE ON roster_days FOR EACH ROW EXECUTE FUNCTION prevent_hard_delete();
 CREATE TRIGGER prevent_hard_delete_roster_slots BEFORE DELETE ON roster_slots FOR EACH ROW EXECUTE FUNCTION prevent_hard_delete();
@@ -1820,6 +1863,7 @@ CREATE TRIGGER prevent_hard_delete_xero_sync_runs BEFORE DELETE ON xero_sync_run
 CREATE TRIGGER prevent_hard_delete_xero_employees BEFORE DELETE ON xero_employees FOR EACH ROW EXECUTE FUNCTION prevent_hard_delete();
 CREATE TRIGGER prevent_hard_delete_xero_earnings_rates BEFORE DELETE ON xero_earnings_rates FOR EACH ROW EXECUTE FUNCTION prevent_hard_delete();
 CREATE TRIGGER prevent_hard_delete_xero_imported_pay_items BEFORE DELETE ON xero_imported_pay_items FOR EACH ROW EXECUTE FUNCTION prevent_hard_delete();
+CREATE TRIGGER prevent_xero_imported_pay_item_identity_update BEFORE UPDATE ON xero_imported_pay_items FOR EACH ROW EXECUTE FUNCTION prevent_xero_imported_pay_item_identity_change();
 CREATE TRIGGER prevent_hard_delete_xero_accounts BEFORE DELETE ON xero_accounts FOR EACH ROW EXECUTE FUNCTION prevent_hard_delete();
 CREATE TRIGGER prevent_hard_delete_xero_payroll_calendars BEFORE DELETE ON xero_payroll_calendars FOR EACH ROW EXECUTE FUNCTION prevent_hard_delete();
 CREATE TRIGGER prevent_hard_delete_xero_pay_runs BEFORE DELETE ON xero_pay_runs FOR EACH ROW EXECUTE FUNCTION prevent_hard_delete();

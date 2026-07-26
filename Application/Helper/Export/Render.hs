@@ -2,7 +2,6 @@ module Application.Helper.Export.Render where
 
 import Application.Helper.Controller
 import Application.Helper.Export.Types
-import Application.Helper.Pay (PaySegment (..), TimesheetPayResult (..))
 import Application.VenueTime (RepeatedTimeOccurrence (..))
 import Application.VenueTime.Model (civilBoundaryIsRepeated,
                                     resolveBoundaryInstant,
@@ -14,11 +13,14 @@ import Application.VenueTime.Model (civilBoundaryIsRepeated,
                                     timesheetEntryHadBreak,
                                     timesheetEntryStartTime,
                                     timesheetEntryWorkedOn)
+import Application.WagePublication (StaffHoursBucketKind (..),
+                                    StaffHoursContribution (..))
 import qualified Codec.Archive.Zip as Zip
 import qualified Data.ByteString.Base64 as Base64
 import qualified Data.ByteString.Lazy as LBS
 import qualified Data.List as List
 import qualified Data.Map.Strict as Map
+import Data.Ratio (denominator, numerator)
 import qualified Data.Scientific as Scientific
 import qualified Data.Text as Text
 import Data.Text.Encoding (decodeUtf8, encodeUtf8)
@@ -52,7 +54,7 @@ renderStaffPayCsv reportWeekSelection records =
         bucketLabels = staffPayBucketLabels reportWeekSelection
         csvHeader =
             Text.intercalate ","
-                (map csvCell (["Name/Type"] <> bucketLabels))
+                (map csvCell (["Employee"] <> bucketLabels))
 
         renderRow record =
             Text.intercalate ","
@@ -70,15 +72,27 @@ renderPayrollEarningsCsv records =
                 , "staff_last_name"
                 , "work_date"
                 , "earnings_rate_name"
-                , "hours"
+                , "exact_quantity"
+                , "quantity"
+                , "unit"
+                , "rate_per_unit"
+                , "exact_amount"
+                , "amount"
                 , "tracking_code"
                 , "description"
                 , "staff_id"
                 , "timesheet_entry_ids"
                 , "pay_config_version_manifest"
-                , "source_penalty_kind"
+                , "calculation_source"
+                , "calculation_version"
+                , "rate_book_version"
+                , "source_condition"
+                , "source_rate_identity"
                 , "source_pay_level_name"
                 , "source_shift_type_name"
+                , "approved_at"
+                , "approved_by_user_ids"
+                , "active_pay_calculation_ids"
                 ]
 
         renderRow record =
@@ -87,21 +101,35 @@ renderPayrollEarningsCsv records =
                 , csvCell record.staffLastName
                 , csvCell (tshow record.workDate)
                 , csvCell record.earningsRateName
-                , formatStaffPayHours record.hours
+                , csvCell (renderExactRational record.exactQuantity)
+                , formatStaffPayHours record.quantity
+                , csvCell record.unit
+                , formatRationalDecimal 4 record.ratePerUnit
+                , csvCell (renderExactRational record.exactAmount)
+                , formatRationalDecimal 2 record.amount
                 , csvCell (fromMaybe "" record.trackingCode)
                 , csvCell record.description
                 , csvCell (tshow record.staffId)
                 , csvCell (Text.intercalate " " (map tshow record.timesheetEntryIds))
                 , csvCell (fromMaybe "" record.payConfigVersionManifest)
-                , csvCell record.sourcePenaltyKind
+                , csvCell record.calculationSource
+                , csvCell record.calculationVersion
+                , csvCell (fromMaybe "" record.rateBookVersion)
+                , csvCell record.sourceCondition
+                , csvCell (fromMaybe "" record.sourceRateIdentity)
                 , csvCell (fromMaybe "" record.sourcePayLevelName)
                 , csvCell (fromMaybe "" record.sourceShiftTypeName)
+                , csvCell (Text.intercalate " " (map formatUtc record.approvedAt))
+                , csvCell (Text.intercalate " " (map tshow record.approvedByUserIds))
+                , csvCell (Text.intercalate " " (map tshow record.activePayCalculationIds))
                 ]
 
 staffPayNameType :: StaffPayCsvRecord -> Text
-staffPayNameType record
-    | Text.null record.label = record.staffName
-    | otherwise = record.staffName <> " " <> record.label
+staffPayNameType record =
+    record.staffLastName
+        <> ", "
+        <> record.staffFirstName
+        <> maybe "" (" " <>) record.label
 
 data StaffPayBucket = StaffPayBucket
     { bucketDate  :: !Day
@@ -131,22 +159,16 @@ staffPayBucketLabels :: ReportWeekSelection -> [Text]
 staffPayBucketLabels reportWeekSelection =
     map (.bucketLabel) (staffPayBuckets reportWeekSelection)
 
-staffPaySegmentBucketIndex :: [StaffPayBucket] -> PaySegment -> Maybe Int
-staffPaySegmentBucketIndex buckets segment =
-    segment.segmentDate >>= \date ->
-        let wantedKind = staffPaySegmentBucketKind date segment.segment
-         in List.findIndex (\bucket -> bucket.bucketDate == date && bucket.bucketKind == wantedKind) buckets
-
-staffPaySegmentBucketKind :: Day -> Text -> Text
-staffPaySegmentBucketKind date segmentName =
-    case formatTime defaultTimeLocale "%u" date :: String of
-        _ | Text.isPrefixOf "delayed_meal_break_" segmentName -> "ordinary"
-        "6" | segmentName == "late_night_after_midnight" -> "late_night_after_midnight"
-        "6" -> "ordinary"
-        "7" -> "ordinary"
-        _ | segmentName == "evening_after_7pm" -> "evening_after_7pm"
-        _ | segmentName == "late_night_after_midnight" -> "late_night_after_midnight"
-        _ -> "ordinary"
+staffPayContributionBucketIndex :: [StaffPayBucket] -> StaffHoursContribution -> Maybe Int
+staffPayContributionBucketIndex buckets contribution =
+    List.findIndex
+        (\bucket -> bucket.bucketDate == contribution.staffHoursDate && bucket.bucketKind == contributionKind)
+        buckets
+  where
+    contributionKind = case contribution.staffHoursBucketKind of
+        StaffHoursOrdinary     -> "ordinary"
+        StaffHoursEvening      -> "evening_after_7pm"
+        StaffHoursEarlyMorning -> "late_night_after_midnight"
 
 bucketKindsForDate :: Day -> [(Text, Text)]
 bucketKindsForDate date =
@@ -156,7 +178,16 @@ bucketKindsForDate date =
         _   -> [("ordinary", "Ord"), ("evening_after_7pm", "7-12"), ("late_night_after_midnight", "12+")]
 
 shortDayLabel :: Text -> Text
-shortDayLabel = Text.take 4
+shortDayLabel dayLabel =
+    case Text.toCaseFold dayLabel of
+        "monday"    -> "Mon"
+        "tuesday"   -> "Tues"
+        "wednesday" -> "Wed"
+        "thursday"  -> "Thurs"
+        "friday"    -> "Fri"
+        "saturday"  -> "Sat"
+        "sunday"    -> "Sun"
+        _           -> Text.take 4 dayLabel
 
 safeIndex :: [a] -> Int -> Maybe a
 safeIndex values index
@@ -166,21 +197,11 @@ safeIndex values index
             value : _ -> Just value
             []        -> Nothing
 
-staffPayDisplayName :: Staff -> Text
-staffPayDisplayName staff = staff.firstName
-
-fixedStaffPayRecordLabel :: TimesheetPayResult -> Text
-fixedStaffPayRecordLabel payResult =
-    fromMaybe "Unknown pay level" payResult.payLevelName
-
 addDayHours :: Int -> Rational -> [Rational] -> [Rational]
 addDayHours dayIndex hours existingDayHours =
     [ if index == dayIndex then currentHours + hours else currentHours
     | (index, currentHours) <- zip [0 ..] existingDayHours
     ]
-
-paidMinutesToHours :: Scientific.Scientific -> Rational
-paidMinutesToHours paidMinutes = toRational paidMinutes / 60
 
 formatStaffPayHours :: Rational -> Text
 formatStaffPayHours = formatRationalDecimal 2
@@ -188,6 +209,10 @@ formatStaffPayHours = formatRationalDecimal 2
 formatRationalDecimal :: Int -> Rational -> Text
 formatRationalDecimal decimalPlaces value =
     cs (Scientific.formatScientific Scientific.Fixed (Just decimalPlaces) (rationalToScientificAt decimalPlaces value))
+
+renderExactRational :: Rational -> Text
+renderExactRational value =
+    tshow (numerator value) <> "/" <> tshow (denominator value)
 
 rationalToScientificAt :: Int -> Rational -> Scientific.Scientific
 rationalToScientificAt decimalPlaces value =

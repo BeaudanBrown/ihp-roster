@@ -37,7 +37,7 @@ deriveXeroPayItemRequirements weekStartsOn today usedScopes awardLevels baseRate
             concatMap ordinaryRequirement baseRows
                 ++ map penaltyRequirement penaltyRows
                 ++ concatMap timeAllowanceRequirements baseRows
-                ++ concatMap delayedMealBreakRequirements baseRows
+                ++ map missedMealBreakRequirement baseRows
     where
         activeAwardLevels = filter (.isActive) awardLevels
         allBaseRows = awardBaseRows weekStartsOn activeAwardLevels baseRates
@@ -102,6 +102,7 @@ deriveXeroPayItemRequirements weekStartsOn today usedScopes awardLevels baseRate
                             , hourlyRate = allowance.hourlyAmount
                             , operativeFrom = venueEffectiveRateDate weekStartsOn <$> allowance.operativeFrom
                             , operativeTo = venueEffectiveRateEndDate weekStartsOn allowance.operativeTo
+                            , sourceIdentity = projectionSourceIdentity "award_time_penalty_allowances" (unpackId allowance.id) "fwc_mapd_wage_allowances" allowance.fwcMapdWageAllowanceId
                             }
                      in
                     requirement
@@ -119,23 +120,22 @@ deriveXeroPayItemRequirements weekStartsOn today usedScopes awardLevels baseRate
                         "Fixed commenced-hour addition from FWC clause 29.2 time allowance"
                 )
 
-        delayedMealBreakRequirements row =
-            delayedMealBreakRows allBaseRows penaltyRows row
-                |> map (\delayedRow ->
-                    requirement
-                            today
-                            delayedRow.operativeFrom
-                            delayedRow.operativeTo
-                            (requiredPayItemKey delayedRow)
-                            (requiredPayItemName delayedRow)
-                            (penaltyKindValue delayedRow.condition)
-                            "ORDINARYTIMEEARNINGS"
-                            "RATEPERUNIT"
-                            Nothing
-                            (Just delayedRow.hourlyRate)
-                            (Just (formatRate delayedRow.hourlyRate))
-                            "HIGA delayed meal break rate: applicable day rate plus 50% of permanent ordinary hourly rate"
-                )
+        missedMealBreakRequirement row =
+            let permanentRow = permanentBaseRowFor allBaseRows row
+                missedRate = permanentRow.hourlyRate * 0.5
+             in requirement
+                    today
+                    permanentRow.operativeFrom
+                    permanentRow.operativeTo
+                    (missedMealBreakKey permanentRow missedRate)
+                    ("Missed Meal Break 50% Addition - " <> row.classification <> " - " <> xeroManagedPayItemNameBrand <> " - " <> effectiveDateLabel row.operativeFrom)
+                    (Just "missed_meal_break_addition")
+                    "ORDINARYTIMEEARNINGS"
+                    "RATEPERUNIT"
+                    Nothing
+                    (Just missedRate)
+                    (Just (formatRate missedRate))
+                    "HIGA missed meal break addition: 50% of the permanent ordinary classification rate"
 
 deriveXeroLocalEarningsBuckets ::
     WeekdayIndex ->
@@ -151,7 +151,7 @@ deriveXeroLocalEarningsBuckets weekStartsOn today usedScopes awardLevels baseRat
         concatMap ordinaryBucket baseRows
             ++ map penaltyBucket penaltyRows
             ++ concatMap timeAllowanceBuckets baseRows
-            ++ concatMap delayedMealBreakBuckets baseRows
+            ++ map missedMealBreakBucket baseRows
     where
         activeAwardLevels = filter (.isActive) awardLevels
         allBaseRows = awardBaseRows weekStartsOn activeAwardLevels baseRates
@@ -177,15 +177,20 @@ deriveXeroLocalEarningsBuckets weekStartsOn today usedScopes awardLevels baseRat
                 |> map (\allowance ->
                     bucket row
                         { condition = PenaltyCondition allowance.penaltyKind
+                        , hourlyRate = allowance.hourlyAmount
                         , operativeFrom = venueEffectiveRateDate weekStartsOn <$> allowance.operativeFrom
                         , operativeTo = venueEffectiveRateEndDate weekStartsOn allowance.operativeTo
+                        , sourceIdentity = projectionSourceIdentity "award_time_penalty_allowances" (unpackId allowance.id) "fwc_mapd_wage_allowances" allowance.fwcMapdWageAllowanceId
                         }
                 )
 
-        delayedMealBreakBuckets row =
-            delayedMealBreakRows allBaseRows penaltyRows row
-                |> filter (rowIsActiveOn today)
-                |> map bucket
+        missedMealBreakBucket row =
+            let permanentRow = permanentBaseRowFor allBaseRows row
+                missedRate = permanentRow.hourlyRate * 0.5
+             in XeroLocalEarningsBucket
+                { localBucketKey = missedMealBreakKey permanentRow missedRate
+                , localBucketLabel = "Missed Meal Break 50% Addition - " <> row.classification
+                }
 
         bucket row =
             XeroLocalEarningsBucket
@@ -203,6 +208,7 @@ data AwardPayItemRow = AwardPayItemRow
     , hourlyRate            :: Scientific.Scientific
     , operativeFrom         :: Maybe Day
     , operativeTo           :: Maybe Day
+    , sourceIdentity        :: Text
     }
 
 data PayItemCondition
@@ -231,6 +237,7 @@ awardBaseRows weekStartsOn awardLevels baseRates =
                 , hourlyRate = baseRate.hourlyRate
                 , operativeFrom = venueEffectiveRateDate weekStartsOn <$> baseRate.operativeFrom
                 , operativeTo = venueEffectiveRateEndDate weekStartsOn baseRate.operativeTo
+                , sourceIdentity = projectionSourceIdentity "award_level_base_rates" (unpackId baseRate.id) "fwc_mapd_pay_rates" baseRate.fwcMapdPayRateId
                 }
 
 awardPenaltyRows ::
@@ -255,6 +262,7 @@ awardPenaltyRows weekStartsOn awardLevels penaltyRates =
                 , hourlyRate = penaltyRate.hourlyRate
                 , operativeFrom = venueEffectiveRateDate weekStartsOn <$> penaltyRate.operativeFrom
                 , operativeTo = venueEffectiveRateEndDate weekStartsOn penaltyRate.operativeTo
+                , sourceIdentity = projectionSourceIdentity "award_level_penalty_rates" (unpackId penaltyRate.id) "fwc_mapd_penalty_rates" penaltyRate.fwcMapdPenaltyRateId
                 }
 
 penaltyPayItemKinds :: [AwardPenaltyKindEnum]
@@ -270,53 +278,12 @@ timeAllowancePenaltyKinds =
     , LateNightAfterMidnight
     ]
 
-delayedMealBreakPenaltyKinds :: [AwardPenaltyKindEnum]
-delayedMealBreakPenaltyKinds =
-    [ DelayedMealBreakWeekday
-    , DelayedMealBreakSaturday
-    , DelayedMealBreakSunday
-    , DelayedMealBreakPublicHoliday
-    ]
-
-delayedMealBreakRows :: [AwardPayItemRow] -> [AwardPayItemRow] -> AwardPayItemRow -> [AwardPayItemRow]
-delayedMealBreakRows allBaseRows penaltyRows row =
-    weekdayRow : weekendRows
-    where
-        weekdayRow =
-            row
-                { condition = PenaltyCondition DelayedMealBreakWeekday
-                , hourlyRate = row.hourlyRate + permanentBaseRateFor allBaseRows row * 0.5
-                }
-        weekendRows =
-            delayedMealBreakDayPairs
-                |> mapMaybe \(sourceKind, delayedKind) -> do
-                    sourceRow <-
-                        penaltyRows
-                            |> List.find
-                                ( \penaltyRow ->
-                                    penaltyRow.awardLevelId == row.awardLevelId
-                                        && penaltyRow.employmentBasis == row.employmentBasis
-                                        && penaltyRow.condition == PenaltyCondition sourceKind
-                                        && penaltyRow.operativeFrom == row.operativeFrom
-                                )
-                    pure sourceRow
-                        { condition = PenaltyCondition delayedKind
-                        , hourlyRate = sourceRow.hourlyRate + permanentBaseRateFor allBaseRows sourceRow * 0.5
-                        }
-
-delayedMealBreakDayPairs :: [(AwardPenaltyKindEnum, AwardPenaltyKindEnum)]
-delayedMealBreakDayPairs =
-    [ (SaturdayPenalty, DelayedMealBreakSaturday)
-    , (SundayPenalty, DelayedMealBreakSunday)
-    , (PublicHolidayPenalty, DelayedMealBreakPublicHoliday)
-    ]
-
-permanentBaseRateFor :: [AwardPayItemRow] -> AwardPayItemRow -> Scientific.Scientific
-permanentBaseRateFor allBaseRows row =
+permanentBaseRowFor :: [AwardPayItemRow] -> AwardPayItemRow -> AwardPayItemRow
+permanentBaseRowFor allBaseRows row =
     allBaseRows
         |> List.find exactPermanentMatch
         |> (<|> List.find anyPermanentMatch allBaseRows)
-        |> maybe row.hourlyRate (.hourlyRate)
+        |> fromMaybe row
     where
         exactPermanentMatch baseRow =
             anyPermanentMatch baseRow
@@ -336,6 +303,23 @@ allowanceIsActiveOn weekStartsOn today allowance =
     maybe True ((<= today) . venueEffectiveRateDate weekStartsOn) allowance.operativeFrom
         && maybe True (>= today) (venueEffectiveRateEndDate weekStartsOn allowance.operativeTo)
 
+projectionSourceIdentity :: Text -> UUID -> Text -> UUID -> Text
+projectionSourceIdentity projectionTable projectionId sourceTable sourceId =
+    "bepis-projection:" <> projectionTable <> ":" <> tshow projectionId <> "/source:" <> sourceTable <> ":" <> tshow sourceId
+
+exactSourceSuffix :: Text -> Scientific.Scientific -> Text
+exactSourceSuffix sourceIdentity rate =
+    ":source:" <> sourceIdentity <> ":rate:" <> tshow rate
+
+missedMealBreakKey :: AwardPayItemRow -> Scientific.Scientific -> Text
+missedMealBreakKey row missedRate =
+    "xero:pay-item:classification:"
+        <> tshow row.classificationFixedId
+        <> ":effective:"
+        <> effectiveDateKey row.operativeFrom
+        <> ":penalty:missed_meal_break_addition"
+        <> exactSourceSuffix row.sourceIdentity missedRate
+
 requiredPayItemKey :: AwardPayItemRow -> Text
 requiredPayItemKey row =
     "xero:pay-item:classification:"
@@ -346,6 +330,7 @@ requiredPayItemKey row =
         <> effectiveDateKey row.operativeFrom
         <> ":"
         <> conditionKey row.condition
+        <> exactSourceSuffix row.sourceIdentity row.hourlyRate
 
 requiredPayItemName :: AwardPayItemRow -> Text
 requiredPayItemName row =

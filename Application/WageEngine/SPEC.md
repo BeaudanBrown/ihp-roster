@@ -139,8 +139,12 @@ Award conditions, additions, missed-break pay, and minimum payments.
 `deriveFinalEarnings` groups exact components by a stable key containing their unit,
 condition, source, rate, and source identity. It preserves exact quantities/amounts,
 rounds each grouped monetary line once to cents, then sums those rounded lines. Its
-`FinalEarningsSummary` is derived only: it neither mutates exact calculation facts
-nor applies #237's output-only quarter-hour quantity rounding.
+`FinalEarningsSummary` remains provider-neutral and exact-quantity based.
+`Application.WagePublication` owns the payroll-output transform shared by detailed
+CSV and Xero: aggregate by final bucket, round hourly quantities once to the nearest
+quarter hour with exact ties up, keep commenced-hour units whole, and recompute the
+exported amount from transformed quantity × rate without mutating approved facts.
+It also adapts sealed paid-time segments into Staff Hours local clock buckets.
 
 ## Database adapter
 

@@ -326,6 +326,17 @@ databaseTests = aroundAll withDatabaseTestContext do
                 venue <- createVenueWithConfig "Ledger backfill"
                 approver <- createUserRecord "ledger-backfill@example.com" "admin" True
                 importedItem <- createImportedXeroPayItemRecord venue approver "Backfill import" "backfill-import" 42
+                invalidImportedItem <- newRecord @XeroImportedPayItem
+                    |> set #venueId (unpackId venue.id)
+                    |> set #xeroConnectionId importedItem.xeroConnectionId
+                    |> set #xeroEarningsRateId "backfill-import-invalid"
+                    |> set #name "Backfill invalid import"
+                    |> set #earningsType "ordinarytimeearnings"
+                    |> set #rateType "rateperunit"
+                    |> set #typeOfUnits "hours"
+                    |> set #ratePerUnit 42
+                    |> set #importedByUserId (unpackId approver.id)
+                    |> createRecord
                 shiftType <- newRecord @ShiftType
                     |> set #venueId (unpackId venue.id)
                     |> set #name "Backfill shift"
@@ -336,6 +347,7 @@ databaseTests = aroundAll withDatabaseTestContext do
                 validStaff <- createStaffRecord venue Nothing "Valid" "Backfill"
                     >>= updateRecord . set #importedXeroPayItemId (Just importedItem.id)
                 invalidStaff <- createStaffRecord venue Nothing "Invalid" "Backfill"
+                    >>= updateRecord . set #importedXeroPayItemId (Just invalidImportedItem.id)
                 validEntry <- createAdapterEntry venue validStaff shiftType (fromGregorian 2026 7 6)
                 invalidEntry <- createAdapterEntry venue invalidStaff shiftType (fromGregorian 2026 7 7)
                 approvedAt <- getCurrentTime
@@ -352,21 +364,22 @@ databaseTests = aroundAll withDatabaseTestContext do
                             |> set #approvedByUserId (Just (unpackId approver.id))
                             |> updateRecord
 
+                _ <- invalidImportedItem
+                    |> set #archivedAt (Just approvedAt)
+                    |> set #archivedByUserId (Just (unpackId approver.id))
+                    |> set #archiveReason (Just "exercise atomic backfill")
+                    |> updateRecord
+
                 failed <- backfillApprovedTimesheetPayCalculations
                 failed `shouldSatisfy` \case
                     Left [(entryId, _)] -> entryId == unpackId invalidEntry.id
                     _ -> False
                 query @TimesheetPayCalculation |> fetchCount `shouldReturn` 0
 
-                currentInvalidStaff <- fetch invalidStaff.id
-                _ <- currentInvalidStaff
-                    |> set #importedXeroPayItemId (Just importedItem.id)
-                    |> updateRecord
-                invalidStaffVersion <- query @StaffPayVersion
-                    |> filterWhere (#staffId, unpackId invalidStaff.id)
-                    |> fetchOne
-                _ <- invalidStaffVersion
-                    |> set #importedXeroPayItemId (Just importedItem.id)
+                _ <- invalidImportedItem
+                    |> set #archivedAt Nothing
+                    |> set #archivedByUserId Nothing
+                    |> set #archiveReason Nothing
                     |> updateRecord
 
                 backfillApprovedTimesheetPayCalculations `shouldReturn` Right 2

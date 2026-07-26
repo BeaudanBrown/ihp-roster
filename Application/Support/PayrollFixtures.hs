@@ -12,7 +12,8 @@ import Application.VenueTime (melbourneTimeZoneName)
 import Application.VenueTime.Model
 import Config
 import Control.Exception (bracket)
-import Data.Time.Calendar (Day, addDays, fromGregorian)
+import Data.Time.Calendar (Day, DayOfWeek (..), addDays, dayOfWeek,
+                           fromGregorian)
 import Data.Time.Clock (UTCTime (..), secondsToDiffTime)
 import Data.Time.LocalTime (TimeOfDay (..))
 import Generated.Types
@@ -191,6 +192,16 @@ createPayrollSnapshotWithVersion ::
 createPayrollSnapshotWithVersion _venue _admin _versionNumber _awardLevels _shiftTypes _dayNames _rules =
     pure ()
 
+fixtureWeekdayIndex :: Day -> Int
+fixtureWeekdayIndex day = case dayOfWeek day of
+    Sunday    -> 0
+    Monday    -> 1
+    Tuesday   -> 2
+    Wednesday -> 3
+    Thursday  -> 4
+    Friday    -> 5
+    Saturday  -> 6
+
 seedCanonicalPayrollFixture :: (?modelContext :: ModelContext) => IO CanonicalPayrollFixture
 seedCanonicalPayrollFixture = seedCanonicalPayrollFixtureForWeek defaultWeekEpoch
 
@@ -198,6 +209,11 @@ seedCanonicalPayrollFixtureForWeek :: (?modelContext :: ModelContext) => Day -> 
 seedCanonicalPayrollFixtureForWeek fixtureWeekStart = do
     let dayAtOffset offset = addDays offset fixtureWeekStart
     venue <- createVenueWithConfig "Payroll Parity Venue"
+    venueConfig <- query @VenueConfig |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
+    _ <- venueConfig
+        |> set #rosterWeekStartsOn (fixtureWeekdayIndex fixtureWeekStart)
+        |> set #weekOffsetEpoch fixtureWeekStart
+        |> updateRecord
     admin <- createUserRecord "payroll-parity-admin@example.com" "staff" True
     _ <- provisionVenueUser venue admin "venue_admin" "Payroll" "Admin"
     dayNames <- seedWeekDayNames venue
