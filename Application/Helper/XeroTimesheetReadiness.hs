@@ -14,6 +14,9 @@ import Application.Helper.Xero
 import Application.Helper.XeroAdminTypes
 import Application.Helper.XeroPayItems
 import Application.VenueTime.Model (requireMelbourneDateRangeUTC)
+import Application.WageSourceEnforcement (WageEntryFailure (..),
+                                          enforceFinalWageEntries,
+                                          renderWageEntryFailure)
 import Application.Xero.Timesheets.Buckets
 import Control.Monad (guard)
 import qualified Data.Aeson.Types as AesonTypes
@@ -91,6 +94,7 @@ validateXeroTimesheetReadiness request = do
     let entries = filter (not . staffIsSkipped effectiveSkippedStaffIds . (.staffId)) periodEntries
     let approvedEntries = approvedSubmittableEntries entries
     let includedStaffIds = List.nub (map (.staffId) approvedEntries)
+    wageSourceResult <- enforceFinalWageEntries approvedEntries
     buckets <- fetchPeriodXeroLocalEarningsBuckets request.readinessVenueId request.readinessPeriodStart request.readinessPeriodEnd effectiveSkippedStaffIds
     earningsMappings <- maybe (pure []) (fetchVerifiedEarningsMappings buckets) maybeConnection
     allPayItemRequirements <- maybe (pure []) fetchPayItemRequirements maybeConnection
@@ -105,6 +109,7 @@ validateXeroTimesheetReadiness request = do
                 , referenceSyncBlockers latestSync
                 , calendarBlockers request maybeCalendar
                 , entryBlockers entries
+                , wageSourceBlockers wageSourceResult
                 , earningsMappingBlockers buckets earningsMappings payItemRequirements
                 , payItemRequirementBlockers earningsMappings payItemRequirements maybeAccountCodeSelection
                 , duplicateBlockers request entries staffMappings request.readinessRemoteTimesheets
@@ -125,6 +130,25 @@ validateXeroTimesheetReadiness request = do
         , xeroReadinessEntryCount = length approvedEntries
         , xeroReadinessPayBucketCount = length buckets
         }
+
+wageSourceBlockers :: Either [WageEntryFailure] calculations -> [XeroReadinessBlocker]
+wageSourceBlockers (Right _) = []
+wageSourceBlockers (Left failures) = map blocker failures
+  where
+    blocker failure =
+        XeroReadinessBlockerDetail
+            { xeroBlockerCode = "wage_source_policy"
+            , xeroBlockerSeverity = XeroReadinessBlocker
+            , xeroBlockerMessage = renderWageEntryFailure failure
+            , xeroBlockerAffectedStaffId = Nothing
+            , xeroBlockerTimesheetEntryId = Just (failureEntryId failure)
+            , xeroBlockerLocalBucketKey = Nothing
+            , xeroBlockerXeroObjectId = Nothing
+            , xeroBlockerActionHint = Just "Refresh authoritative wage sources or correct the entry before payroll."
+            }
+    failureEntryId = \case
+        WageCalculationFailed entryId _ -> entryId
+        WageSourcesBlocked entryId _    -> entryId
 
 fetchActiveXeroConnection :: (?modelContext :: ModelContext) => Id Venue -> IO (Maybe XeroConnection)
 fetchActiveXeroConnection venueId =

@@ -45,7 +45,10 @@ import Application.Helper.Profiling
 import Application.Helper.VenueScopedQueries (fetchLinkedActiveVenueStaff)
 import Application.Helper.WeekBoundaries (venueWeekOffsetForDay)
 import Application.VenueTime.Model
+import Application.WageSourceEnforcement (WageEntryOutcome (..),
+                                          evaluateDraftWageEntries)
 import Control.Monad (guard)
+import qualified Data.Map.Strict as Map
 import qualified Data.Set as Set
 import Data.Time.Calendar (Day, addDays, diffDays)
 import Data.Time.Clock (addUTCTime, getCurrentTime, utctDay)
@@ -73,6 +76,7 @@ data TimesheetWeekProjection = TimesheetWeekProjection
     , timesheetShowSuggestions      :: Bool
     , timesheetStaffFilterId        :: Maybe UUID.UUID
     , timesheetCurrentViewerStaffId :: Maybe UUID.UUID
+    , timesheetWageOutcomes          :: Map.Map UUID.UUID WageEntryOutcome
     }
 
 data TimesheetProjectionRequest = TimesheetProjectionRequest
@@ -280,6 +284,7 @@ fetchTimesheetWeekProjection TimesheetProjectionRequest { projectionWeekOffset =
             then profileActionSpan "timesheets.fetch_suggestions" (fetchTimesheetSuggestionsForWeek venueConfig weekOffset showAllStaff validStaffFilterId staffMembers currentViewerStaffId)
             else pure []
     shiftTypes <- profileActionSpan "timesheets.fetch_shift_types" fetchShiftTypesForForm
+    wageOutcomes <- profileActionSpan "timesheets.calculate_wage_previews" (evaluateDraftWageEntries entries)
     today <- utctDay <$> getCurrentTime
     let editWindowDays = venueConfig.staffTimesheetEditWindowDays
 
@@ -299,6 +304,7 @@ fetchTimesheetWeekProjection TimesheetProjectionRequest { projectionWeekOffset =
             , timesheetShowSuggestions = showSuggestions
             , timesheetStaffFilterId = validStaffFilterId
             , timesheetCurrentViewerStaffId = currentViewerStaffId
+            , timesheetWageOutcomes = Map.fromList [(outcome.outcomeEntryId, outcome) | outcome <- wageOutcomes]
             }
 
 -- Action authority is evaluated against the viewer's full Timesheets scope.
@@ -396,6 +402,7 @@ timesheetDayRenderModelFromProjection projection dayOffset =
         , daySuggestions = projection.timesheetSuggestions
         , dayStaffMembers = projection.timesheetStaffMembers
         , dayShiftTypes = projection.timesheetShiftTypes
+        , dayWageOutcomes = projection.timesheetWageOutcomes
         , dayToday = projection.timesheetToday
         , dayEditWindowDays = projection.timesheetEditWindowDays
         , dayWeekOffset = projection.timesheetWeekOffset
@@ -408,12 +415,13 @@ timesheetDayRenderModelFromProjection projection dayOffset =
         }
 
 timesheetIndexView :: (?context :: ControllerContext) => TimesheetWeekProjection -> IndexView
-timesheetIndexView TimesheetWeekProjection { timesheetEntries, timesheetSuggestions, timesheetStaffMembers, timesheetShiftTypes, timesheetToday, timesheetEditWindowDays, timesheetWeekOffset, timesheetWeekStartDate, timesheetWeekEndDate, timesheetShowApproved, timesheetShowAllStaff, timesheetShowSuggestions, timesheetStaffFilterId, timesheetCurrentViewerStaffId } =
+timesheetIndexView TimesheetWeekProjection { timesheetEntries, timesheetSuggestions, timesheetStaffMembers, timesheetShiftTypes, timesheetToday, timesheetEditWindowDays, timesheetWeekOffset, timesheetWeekStartDate, timesheetWeekEndDate, timesheetShowApproved, timesheetShowAllStaff, timesheetShowSuggestions, timesheetStaffFilterId, timesheetCurrentViewerStaffId, timesheetWageOutcomes } =
     IndexView
         { entries = timesheetEntries
         , suggestions = timesheetSuggestions
         , staffMembers = timesheetStaffMembers
         , shiftTypes = timesheetShiftTypes
+        , wageOutcomes = timesheetWageOutcomes
         , today = timesheetToday
         , editWindowDays = timesheetEditWindowDays
         , weekOffset = timesheetWeekOffset

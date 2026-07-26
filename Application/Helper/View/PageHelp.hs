@@ -204,10 +204,11 @@ pageHelpTopics =
             , iconItem HelpEveryone "bi-pencil" "Edit entry" "Edit an existing entry" "Click the entry card itself to fix times, notes, or break details before approval. Roster-derived entries keep their worked date and roster link; only managers can reassign staff."
             , iconItem HelpEveryone "bi-cup-hot" "Breaks" "Record breaks correctly" "Add break details when a break was taken, including break start and end where required."
             , iconItem HelpEveryone "bi-clock-history" "Clock change" "Choose a repeated time" "When an autumn clock time occurs twice, choose First for daylight time or Second for standard time. Times skipped by the spring clock change cannot be saved."
+            , iconItem HelpEveryone "bi-cash-coin" "Pay preview" "Check each draft calculation" "Each saved entry shows its own pay preview. A source warning keeps the draft editable, while an unavailable preview explains the entry-specific calculation error."
             , iconItem HelpEveryone "bi-chat-left-text" "Manager help" "Fix an approved entry" "If an approved entry needs changes, ask a manager to reopen or correct it."
             ]
         , section HelpManagerPlus "Review tasks"
-            [ buttonItem HelpManagerPlus "bi-check-lg" "Approve" "Approve staff entries" "Creating a roster suggestion never approves it. Review the resulting entry, then click the separate green Approve button." "btn btn-sm btn-outline-success timesheet-approval-toggle" Nothing "Approve"
+            [ buttonItem HelpManagerPlus "bi-check-lg" "Approve" "Approve staff entries" "Creating a roster suggestion never approves it. Review the resulting entry, then click the separate green Approve button. Approval stops without changing the entry when its pay calculation or authoritative wage sources are not ready." "btn btn-sm btn-outline-success timesheet-approval-toggle" Nothing "Approve"
             , iconItem HelpManagerPlus "bi-people" "Staff assignment" "Correct roster-derived staff" "Open a created roster-derived entry and choose another active staff member when the worked shift needs reassignment. Its worked date and roster source remain fixed."
             , buttonItem HelpManagerPlus "bi-arrow-counterclockwise" "Unapprove" "Correct approved entries" "Click the green Approved button to unapprove an entry before editing it, then approve it again after correction." "btn btn-sm btn-success timesheet-approval-toggle" Nothing "Approved"
             ]
@@ -242,7 +243,7 @@ pageHelpTopics =
             [ iconItem HelpOwnerPlus "bi-link-45deg" "Connect" "Connect Xero first" "Use the connection section before syncing payroll data or preparing timesheets."
             , iconItem HelpOwnerPlus "bi-arrow-repeat" "Sync" "Sync payroll reference data" "Refresh Xero employees, earnings rates, calendars, and accounts from the connection shell."
             , iconItem HelpOwnerPlus "bi-cloud-download" "Import" "Import optional pay items" "Use Import pay items to search by name or account code, then select supported hourly earnings rates to bring into Bepis."
-            , iconItem HelpOwnerPlus "bi-send-check" "Prepare" "Review before submitting" "Upload timesheets opens the guided workflow for staff decisions, pay items, readiness, preview, and draft submission."
+            , iconItem HelpOwnerPlus "bi-send-check" "Prepare" "Review before submitting" "Upload timesheets opens the guided workflow for staff decisions, pay items, readiness, preview, and draft submission. Wage-source or calculation blockers identify the affected entry and stop the complete preview or submission until resolved."
             ]
         ]
     , topic "billing" "Billing"

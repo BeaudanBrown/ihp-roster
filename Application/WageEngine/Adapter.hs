@@ -562,6 +562,7 @@ fetchDatabaseImportedPayItemRows observeRead importedPayItemIds = do
     observeRead (ImportedPayItemsRead (length importedPayItemIds))
     records <- query @G.XeroImportedPayItem
         |> filterWhereIn (#id, map (\recordId -> Id recordId :: Id G.XeroImportedPayItem) importedPayItemIds)
+        |> filterWhere (#archivedAt, Nothing)
         |> fetch
     pure
         [ ImportedPayItemRow (unpackId record.id) record.name record.ratePerUnit

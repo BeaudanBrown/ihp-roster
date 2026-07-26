@@ -8,6 +8,7 @@ import Application.FwcMapd.Job
 import Application.InvitationDelivery.Job
 import Application.PublicHolidays.Job
 import Application.StaffDocuments.Rsa
+import Application.WageSourceNotifications
 import Application.Xero.Keepalive
 import qualified Control.Exception as Exception
 import Control.Monad (void)
@@ -39,6 +40,7 @@ dispatchAppJobByKind appJob =
         kind | kind == xeroConnectionKeepaliveJobKind -> performXeroConnectionKeepaliveJob appJob
         kind | kind == billingNotificationJobKind -> performBillingNotificationJob appJob
         kind | kind == billingReconciliationJobKind -> performBillingReconciliationJob appJob
+        kind | kind == wageSourceDriftNotificationJobKind -> performWageSourceDriftNotificationJob appJob
         kind | kind == venueInvitationDeliveryJobKind -> performVenueInvitationDeliveryJob appJob
         kind | kind == venueOnboardingInvitationDeliveryJobKind -> performVenueOnboardingInvitationDeliveryJob appJob
         _ -> fail ("Unknown app job kind: " <> Text.unpack appJob.jobKind)

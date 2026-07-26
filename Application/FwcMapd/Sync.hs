@@ -15,6 +15,7 @@ import Application.FwcMapd.Payload
 import Application.FwcMapd.Projection
 import Application.FwcMapd.RawStore
 import Application.FwcMapd.Validation
+import Application.WageSourceNotifications (emitLatestAwardDriftNotifications)
 import qualified Control.Exception as Exception
 import Control.Monad (void)
 import Generated.Types
@@ -68,5 +69,6 @@ runMapdSyncWith requestedAwardFixedIds syncAction = do
                     |> set #finishedAt (Just finishedAt)
                     |> updateRecord
                 )
+            void emitLatestAwardDriftNotifications
             pure summary
 

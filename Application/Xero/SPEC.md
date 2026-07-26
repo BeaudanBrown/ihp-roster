@@ -50,6 +50,10 @@ lands.
   rate date from the pay engine, not necessarily the raw FWC/MAPD operative
   date.
 - Xero remains payroll, tax, and STP authority. Bepis does not calculate tax.
+- Readiness, persisted preview, direct submission, retry, and guided preparation
+  use the shared strict wage-source enforcement boundary. Any included entry's
+  calculation or source failure blocks the complete operation; imported overrides
+  bypass FWC/DataVic freshness only with a valid imported pay item.
 
 ## Boundaries
 

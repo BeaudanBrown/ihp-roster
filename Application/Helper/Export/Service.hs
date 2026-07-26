@@ -9,11 +9,14 @@ import Application.Helper.Export.Render
 import Application.Helper.Export.Types
 import Application.Helper.Pay (fetchTimesheetPayResultsForEntries,
                                timesheetEntryIdKey)
+import Application.WageSourceEnforcement (enforceFinalWageEntries,
+                                          renderWageEntryFailures)
 import Control.Monad (void)
 import qualified Data.Aeson as Aeson
 import Data.Coerce (coerce)
 import qualified Data.List as List
 import qualified Data.Map.Strict as Map
+import qualified Data.Text as Text
 import Data.Time.Calendar (Day)
 import Data.Time.Clock (addUTCTime, getCurrentTime)
 import Generated.Types
@@ -29,7 +32,7 @@ requestFixedExport exportType rangeStart rangeEnd
     | rangeStart > rangeEnd = pure (Left "Choose a valid start and end date for the export range.")
     | otherwise =
         case exportType of
-            ApprovedTimesheetsCsv -> Right <$> requestApprovedTimesheetsCsvExport rangeStart rangeEnd
+            ApprovedTimesheetsCsv -> requestApprovedTimesheetsCsvExport rangeStart rangeEnd
             StaffPayCsv -> requestFixedStaffPayCsvExport rangeStart rangeEnd
             HourlyBreakdownZip -> requestFixedHourlyBreakdownZipExport rangeStart rangeEnd
             PayrollEarningsCsv -> requestFixedPayrollEarningsCsvExport rangeStart rangeEnd
@@ -40,14 +43,20 @@ requestFixedStaffPayCsvExport ::
     Day ->
     IO (Either Text ExportJob)
 requestFixedStaffPayCsvExport rangeStart rangeEnd = do
-    weekSelections <- rangeWeekSlices rangeStart rangeEnd
-    payloadResults <- mapM buildFixedStaffPayCsvPayload weekSelections
-    case lefts payloadResults of
-        err : _ -> pure (Left err)
-        [] -> do
-            let payloads = rights payloadResults
-            exportJob <- persistFixedStaffPayExport rangeStart rangeEnd payloads
-            pure (Right exportJob)
+    entries <- fetchApprovedTimesheetEntries rangeStart rangeEnd
+    staffById <- fetchReportStaffMap entries
+    let includedEntries = filter (shouldIncludeFixedStaffPayEntry staffById) entries
+    enforceExportEntries includedEntries >>= \case
+        Left message -> pure (Left message)
+        Right () -> do
+            weekSelections <- rangeWeekSlices rangeStart rangeEnd
+            payloadResults <- mapM buildFixedStaffPayCsvPayload weekSelections
+            case lefts payloadResults of
+                err : _ -> pure (Left err)
+                [] -> do
+                    let payloads = rights payloadResults
+                    exportJob <- persistFixedStaffPayExport rangeStart rangeEnd payloads
+                    pure (Right exportJob)
 
 persistFixedStaffPayExport ::
     (?context :: ControllerContext, ?modelContext :: ModelContext) =>
@@ -121,47 +130,53 @@ requestFixedHourlyBreakdownZipExport ::
     IO (Either Text ExportJob)
 requestFixedHourlyBreakdownZipExport rangeStart rangeEnd = do
     entries <- fetchApprovedTimesheetEntries rangeStart rangeEnd
-    shiftTypes <- fetchCurrentVenueActiveShiftTypes
-    versionManifestsByEntryId <- fetchVersionManifestsForEntries entries
-    let dates = [rangeStart .. rangeEnd]
-    let versionManifests = List.sort (List.nub (Map.elems versionManifestsByEntryId))
-    let exportVersionManifest = collapseVersionManifests versionManifests
-    let fileName = "hourly_breakdown-" <> tshow rangeStart <> "-to-" <> tshow rangeEnd <> ".zip"
-    let fileContents =
-            renderTextZipBase64
-                [ (tshow date <> "_" <> fallbackReportDayLabel date 0 <> ".csv", renderHourlyBreakdownDateCsv date shiftTypes entries)
-                | date <- dates
-                ]
-    exportJob <- withTransaction do
-        now <- getCurrentTime
-        persistReadyExportJob
-            (exportJobTypeToText HourlyBreakdownZip)
-            rangeStart
-            rangeEnd
-            (Aeson.object
-                [ "rangeStart" Aeson..= rangeStart
-                , "rangeEnd" Aeson..= rangeEnd
-                , "approvedOnly" Aeson..= True
-                , "entryCount" Aeson..= length entries
-                , "fileCount" Aeson..= length dates
-                , "versionManifests" Aeson..= versionManifests
-                ])
-            fileName
-            "application/zip"
-            "base64"
-            fileContents
-            exportVersionManifest
-            (addUTCTime exportExpirySeconds now)
-            (Aeson.object
-                [ "exportType" Aeson..= exportJobTypeToText HourlyBreakdownZip
-                , "rangeStart" Aeson..= rangeStart
-                , "rangeEnd" Aeson..= rangeEnd
-                , "entryCount" Aeson..= length entries
-                , "fileCount" Aeson..= length dates
-                , "payConfigVersionManifest" Aeson..= exportVersionManifest
-                , "deliveryMethod" Aeson..= browserDownloadMethod
-                ])
-    pure (Right exportJob)
+    enforcement <- enforceExportEntries entries
+    case enforcement of
+        Left message -> pure (Left message)
+        Right () -> requestWithEnforcedEntries entries
+  where
+    requestWithEnforcedEntries entries = do
+        shiftTypes <- fetchCurrentVenueActiveShiftTypes
+        versionManifestsByEntryId <- fetchVersionManifestsForEntries entries
+        let dates = [rangeStart .. rangeEnd]
+        let versionManifests = List.sort (List.nub (Map.elems versionManifestsByEntryId))
+        let exportVersionManifest = collapseVersionManifests versionManifests
+        let fileName = "hourly_breakdown-" <> tshow rangeStart <> "-to-" <> tshow rangeEnd <> ".zip"
+        let fileContents =
+                renderTextZipBase64
+                    [ (tshow date <> "_" <> fallbackReportDayLabel date 0 <> ".csv", renderHourlyBreakdownDateCsv date shiftTypes entries)
+                    | date <- dates
+                    ]
+        exportJob <- withTransaction do
+            now <- getCurrentTime
+            persistReadyExportJob
+                (exportJobTypeToText HourlyBreakdownZip)
+                rangeStart
+                rangeEnd
+                (Aeson.object
+                    [ "rangeStart" Aeson..= rangeStart
+                    , "rangeEnd" Aeson..= rangeEnd
+                    , "approvedOnly" Aeson..= True
+                    , "entryCount" Aeson..= length entries
+                    , "fileCount" Aeson..= length dates
+                    , "versionManifests" Aeson..= versionManifests
+                    ])
+                fileName
+                "application/zip"
+                "base64"
+                fileContents
+                exportVersionManifest
+                (addUTCTime exportExpirySeconds now)
+                (Aeson.object
+                    [ "exportType" Aeson..= exportJobTypeToText HourlyBreakdownZip
+                    , "rangeStart" Aeson..= rangeStart
+                    , "rangeEnd" Aeson..= rangeEnd
+                    , "entryCount" Aeson..= length entries
+                    , "fileCount" Aeson..= length dates
+                    , "payConfigVersionManifest" Aeson..= exportVersionManifest
+                    , "deliveryMethod" Aeson..= browserDownloadMethod
+                    ])
+        pure (Right exportJob)
 
 requestFixedPayrollEarningsCsvExport ::
     (?context :: ControllerContext, ?modelContext :: ModelContext) =>
@@ -174,13 +189,16 @@ requestFixedPayrollEarningsCsvExport rangeStart rangeEnd = do
     payResultsByEntryId <- fetchTimesheetPayResultsForEntries entries
     versionManifestsByEntryId <- fetchVersionManifestsForEntries entries
     let filteredEntries = filter (shouldIncludeFixedStaffPayEntry staffById) entries
+    enforcement <- enforceExportEntries filteredEntries
     let missingEntryIds =
             map (tshow . get #id) $
                 filter (\entry -> Map.notMember (timesheetEntryIdKey (get #id entry)) payResultsByEntryId) filteredEntries
 
-    if not (null missingEntryIds)
-        then pure (Left "Failed to resolve payroll data for one or more approved timesheet entries.")
-        else do
+    case enforcement of
+        Left message -> pure (Left message)
+        Right () | not (null missingEntryIds) ->
+            pure (Left "Failed to resolve payroll data for one or more approved timesheet entries.")
+        Right () -> do
             let records = buildPayrollEarningsCsvRecords filteredEntries staffById payResultsByEntryId versionManifestsByEntryId
             let versionManifests =
                     filteredEntries
@@ -224,73 +242,84 @@ requestApprovedTimesheetsCsvExport ::
     (?context :: ControllerContext, ?modelContext :: ModelContext) =>
     Day ->
     Day ->
-    IO ExportJob
-requestApprovedTimesheetsCsvExport rangeStart rangeEnd = withTransaction do
-    now <- getCurrentTime
-    let expiresAt = addUTCTime exportExpirySeconds now
-    let exportType = exportJobTypeToText ApprovedTimesheetsCsv
-    let initialScope =
-            Aeson.object
-                [ "rangeStart" Aeson..= rangeStart
-                , "rangeEnd" Aeson..= rangeEnd
-                , "approvedOnly" Aeson..= True
-                ]
-    exportJob <-
-        newRecord @ExportJob
-            |> set #venueId (unpackId currentVenueId)
-            |> set #requestedByUserId (unpackId (get #id authenticatedCurrentUser))
-            |> set #exportType exportType
-            |> set #status (exportJobStatusToText ExportPending)
-            |> set #schemaVersion exportSchemaVersion
-            |> set #rangeStart (Just rangeStart)
-            |> set #rangeEnd (Just rangeEnd)
-            |> set #scope initialScope
-            |> set #deliveryMethod browserDownloadMethod
-            |> set #destinationMetadata (Aeson.object ["requestedVia" Aeson..= requestAuditSourceChannel])
-            |> set #expiresAt expiresAt
-            |> createRecord
-
+    IO (Either Text ExportJob)
+requestApprovedTimesheetsCsvExport rangeStart rangeEnd = do
     entries <- fetchApprovedTimesheetEntries rangeStart rangeEnd
-    staffById <- fetchStaffMap entries
-    approversById <- fetchApproverMap entries
-    versionManifestsByEntryId <- fetchVersionManifestsForEntries entries
-    let versionManifests = List.sort (List.nub (Map.elems versionManifestsByEntryId))
-    let exportVersionManifest = collapseVersionManifests versionManifests
-    let csvContents = renderApprovedTimesheetCsv entries staffById approversById versionManifestsByEntryId
-    let fileName = buildApprovedTimesheetExportFileName rangeStart rangeEnd
-    let finalScope =
-            Aeson.object
-                [ "rangeStart" Aeson..= rangeStart
+    enforceExportEntries entries >>= \case
+        Left message -> pure (Left message)
+        Right () -> Right <$> persistExport entries
+  where
+    persistExport entries = withTransaction do
+        now <- getCurrentTime
+        let expiresAt = addUTCTime exportExpirySeconds now
+        let exportType = exportJobTypeToText ApprovedTimesheetsCsv
+        let initialScope =
+                Aeson.object
+                    [ "rangeStart" Aeson..= rangeStart
+                    , "rangeEnd" Aeson..= rangeEnd
+                    , "approvedOnly" Aeson..= True
+                    ]
+        exportJob <-
+            newRecord @ExportJob
+                |> set #venueId (unpackId currentVenueId)
+                |> set #requestedByUserId (unpackId (get #id authenticatedCurrentUser))
+                |> set #exportType exportType
+                |> set #status (exportJobStatusToText ExportPending)
+                |> set #schemaVersion exportSchemaVersion
+                |> set #rangeStart (Just rangeStart)
+                |> set #rangeEnd (Just rangeEnd)
+                |> set #scope initialScope
+                |> set #deliveryMethod browserDownloadMethod
+                |> set #destinationMetadata (Aeson.object ["requestedVia" Aeson..= requestAuditSourceChannel])
+                |> set #expiresAt expiresAt
+                |> createRecord
+
+        staffById <- fetchStaffMap entries
+        approversById <- fetchApproverMap entries
+        versionManifestsByEntryId <- fetchVersionManifestsForEntries entries
+        let versionManifests = List.sort (List.nub (Map.elems versionManifestsByEntryId))
+        let exportVersionManifest = collapseVersionManifests versionManifests
+        let csvContents = renderApprovedTimesheetCsv entries staffById approversById versionManifestsByEntryId
+        let fileName = buildApprovedTimesheetExportFileName rangeStart rangeEnd
+        let finalScope =
+                Aeson.object
+                    [ "rangeStart" Aeson..= rangeStart
+                    , "rangeEnd" Aeson..= rangeEnd
+                    , "approvedOnly" Aeson..= True
+                    , "entryCount" Aeson..= length entries
+                    , "versionManifests" Aeson..= versionManifests
+                    ]
+        exportJob <-
+            exportJob
+                |> set #status (exportJobStatusToText ExportReady)
+                |> set #payConfigVersionManifest exportVersionManifest
+                |> set #scope finalScope
+                |> set #fileName (Just fileName)
+                |> set #contentType (Just "text/csv; charset=utf-8")
+                |> set #fileEncoding "utf8"
+                |> set #fileContents (Just csvContents)
+                |> updateRecord
+
+        recordExportJobEntries exportJob entries
+
+        void $ recordCurrentUserAuditEvent
+            "export_generated"
+            "export_jobs"
+            (unpackId (get #id exportJob))
+            (Aeson.object
+                [ "exportType" Aeson..= exportType
+                , "rangeStart" Aeson..= rangeStart
                 , "rangeEnd" Aeson..= rangeEnd
-                , "approvedOnly" Aeson..= True
                 , "entryCount" Aeson..= length entries
-                , "versionManifests" Aeson..= versionManifests
+                , "payConfigVersionManifest" Aeson..= exportVersionManifest
+                , "deliveryMethod" Aeson..= exportJob.deliveryMethod
                 ]
-    exportJob <-
-        exportJob
-            |> set #status (exportJobStatusToText ExportReady)
-            |> set #payConfigVersionManifest exportVersionManifest
-            |> set #scope finalScope
-            |> set #fileName (Just fileName)
-            |> set #contentType (Just "text/csv; charset=utf-8")
-            |> set #fileEncoding "utf8"
-            |> set #fileContents (Just csvContents)
-            |> updateRecord
+            )
 
-    recordExportJobEntries exportJob entries
+        pure exportJob
 
-    void $ recordCurrentUserAuditEvent
-        "export_generated"
-        "export_jobs"
-        (unpackId (get #id exportJob))
-        (Aeson.object
-            [ "exportType" Aeson..= exportType
-            , "rangeStart" Aeson..= rangeStart
-            , "rangeEnd" Aeson..= rangeEnd
-            , "entryCount" Aeson..= length entries
-            , "payConfigVersionManifest" Aeson..= exportVersionManifest
-            , "deliveryMethod" Aeson..= exportJob.deliveryMethod
-            ]
-        )
-
-    pure exportJob
+enforceExportEntries :: (?modelContext :: ModelContext) => [TimesheetEntry] -> IO (Either Text ())
+enforceExportEntries entries =
+    enforceFinalWageEntries entries >>= \case
+        Left failures -> pure (Left (renderWageEntryFailures "Payroll output blocked: " failures))
+        Right _       -> pure (Right ())

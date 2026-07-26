@@ -14,6 +14,8 @@ import Application.Helper.Pay (ensurePayVersionsForTimesheetApproval,
                                payVersionManifestForEntry)
 import Application.Helper.SurfaceResource
 import Application.Helper.TimesheetPayLedger (persistApprovedTimesheetPayCalculation)
+import Application.WageSourceEnforcement (enforceFinalWageEntries,
+                                          renderWageEntryFailures)
 import Application.VenueTime.Model
 import Control.Exception (IOException, try)
 import Control.Monad (void)
@@ -178,6 +180,10 @@ approveTimesheetEntryMutation _weekOffset timesheetEntry = do
                             |> set #shiftTypePayVersionId (Just (unpackId (get #id shiftTypePayVersion)))
                             |> set #approvedAt (Just now)
                             |> set #approvedByUserId (Just (unpackId (get #id currentUser)))
+                sourceEnforcement <- enforceFinalWageEntries [approvalEntry |> set #isApproved False]
+                case sourceEnforcement of
+                    Left failures -> ioError (userError (Text.unpack (renderWageEntryFailures "Approval blocked: " failures)))
+                    Right _       -> pure ()
                 persistedCalculation <- persistApprovedTimesheetPayCalculation approvalEntry
                 calculation <- case persistedCalculation of
                     Left reason  -> ioError (userError (Text.unpack reason))

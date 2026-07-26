@@ -12,6 +12,8 @@ import Application.Helper.RosterGroups (ensureVenueDefaultRosterGroup,
                                         ensureVenueRosterDefaults)
 import Application.Helper.TimeRules (rosterShiftStartDate)
 import qualified Application.Support.PayrollFixtures as Payroll
+import Application.Support.WageSourceFixtures (ensureFreshWageSourceFacts,
+                                               sealApprovedFixtureCalculation)
 import Application.VenueTime (RepeatedTimeOccurrence (FirstOccurrence),
                               melbourneTimeZoneName)
 import Application.VenueTime.Model
@@ -552,10 +554,11 @@ withLegacyPayBackfillFixture action =
         (const action)
 
 createApprovedTimesheetEntryRecordAt venue staff approver workedOn approvedAt = do
+    ensureFreshWageSourceFacts workedOn
     entry <- createTimesheetEntryRecord venue staff workedOn
     (staffPayVersion, shiftTypePayVersion) <- ensurePayVersionsForTimesheetApproval approver.id entry
     lockPayVersionsForApproval approver.id approvedAt staffPayVersion shiftTypePayVersion
-    withLegacyPayBackfillFixture do
+    approvedEntry <- withLegacyPayBackfillFixture do
         entry
             |> set #isApproved True
             |> set #legacyPayBackfillPending True
@@ -564,6 +567,7 @@ createApprovedTimesheetEntryRecordAt venue staff approver workedOn approvedAt = 
             |> set #approvedAt (Just approvedAt)
             |> set #approvedByUserId (Just (unpackId approver.id))
             |> updateRecord
+    sealApprovedFixtureCalculation approvedEntry
 
 createLeaveRequestRecord :: (?modelContext :: ModelContext) => Venue -> Staff -> Day -> Day -> Text -> IO LeaveRequest
 createLeaveRequestRecord venue staff startDate endDate leaveStatus =

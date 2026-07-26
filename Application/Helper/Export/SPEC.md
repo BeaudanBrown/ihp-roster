@@ -49,6 +49,10 @@ This file describes implemented export behavior and shared rendering rules.
 - Award-rate amounts in exports come from the canonical pay calculation, which
   applies raw FWC/MAPD operative dates through the venue week-start rollover
   rule and does not automatically re-rate already-approved entries.
+- Every fixed final export enforces wage calculation and source readiness as one
+  strict batch before persisting output. Any included entry failure rejects the
+  requested export; no entry is silently omitted. Imported Xero overrides bypass
+  FWC/DataVic freshness only when their imported pay item remains valid.
 
 ## Extension Rules
 

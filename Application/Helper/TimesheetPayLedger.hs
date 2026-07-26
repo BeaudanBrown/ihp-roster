@@ -19,6 +19,7 @@ import qualified Data.List as List
 import qualified Data.Map.Strict as Map
 import qualified Data.Scientific as Scientific
 import qualified Data.Text as Text
+import Data.Time.Calendar (toGregorian)
 import Data.Time.Clock (getCurrentTime)
 import Data.Traversable (traverse)
 import Generated.Types
@@ -158,6 +159,8 @@ backfillApprovedTimesheetPayCalculations = do
         contexts <- case contextsResult of
             Left errors -> Exception.throwIO (PayLedgerBackfillException (map adapterFailure errors))
             Right value -> pure value
+        historicalFactFailures <- validateHistoricalHolidayFacts entries contexts
+        unless (null historicalFactFailures) (Exception.throwIO (PayLedgerBackfillException historicalFactFailures))
         let calculations =
                 [ case Map.lookup (unpackId entry.id) contexts of
                     Nothing -> Left (unpackId entry.id, "Entry context was not loaded.")
@@ -183,6 +186,44 @@ backfillApprovedTimesheetPayCalculations = do
         MissingCalculationContext entryId -> entryId
         UnsupportedCalculationContext entryId _ -> entryId
         InvalidProjectedRateBook entryId _ -> entryId
+
+validateHistoricalHolidayFacts ::
+    (?modelContext :: ModelContext) =>
+    [TimesheetEntry] ->
+    Map.Map UUID LoadedCalculationContext ->
+    IO [(UUID, Text)]
+validateHistoricalHolidayFacts entries contexts = do
+    let awardEntries = filter requiresAwardFacts entries
+        requiredYears = List.nub (concatMap entryYears awardEntries)
+    holidays <- if null requiredYears
+        then pure []
+        else query @PublicHoliday
+            |> filterWhere (#jurisdiction, "VIC" :: Text)
+            |> filterWhere (#isRegional, False)
+            |> fetch
+    let coveredYears = List.nub
+            [ yearOf holiday.holidayDate
+            | holiday <- holidays
+            , isJust holiday.importedAt
+            ]
+    pure
+        [ (unpackId entry.id, "Historical statewide holiday facts are missing for " <> tshow year <> ".")
+        | entry <- awardEntries
+        , year <- entryYears entry
+        , year `notElem` coveredYears
+        ]
+  where
+    requiresAwardFacts entry =
+        case Map.lookup (unpackId entry.id) contexts of
+            Nothing -> False
+            Just context -> isNothing (selectedImportedPayItem context.loadedImportedOverrides)
+    entryYears entry =
+        let startYear = yearOf (timesheetEntryWorkedOn entry)
+            endYear = case timesheetEntryBoundaries entry of
+                Left _           -> startYear
+                Right boundaries -> yearOf (authoritativeEndLocalTime boundaries).localDay
+         in List.nub [startYear, endYear]
+    yearOf day = let (year, _, _) = toGregorian day in year
 
 persist :: (?modelContext :: ModelContext) => TimesheetEntry -> VenueAwardContext -> WageCalculation -> IO TimesheetPayCalculation
 persist entry venueContext calculation = do

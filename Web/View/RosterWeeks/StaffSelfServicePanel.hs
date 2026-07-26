@@ -67,6 +67,7 @@ timesheetDayModel panel =
         , daySuggestions = []
         , dayStaffMembers = panel.quickToolsStaffMembers
         , dayShiftTypes = panel.quickToolsShiftTypes
+        , dayWageOutcomes = mempty
         , dayToday = panel.quickToolsOperationalDay
         , dayEditWindowDays = panel.quickToolsTimesheetEditWindowDays
         , dayWeekOffset = panel.quickToolsTimesheetWeekOffset

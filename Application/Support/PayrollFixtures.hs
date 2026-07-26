@@ -6,6 +6,8 @@ import Application.Helper.RosterGroups (ensureVenueRosterDefaults,
                                         fetchVenueDayNames)
 import Application.Helper.VenueBootstrap (provisionVenueUser)
 import Application.Support
+import Application.Support.WageSourceFixtures (ensureFreshWageSourceFacts,
+                                               sealApprovedFixtureCalculation)
 import Application.VenueTime (melbourneTimeZoneName)
 import Application.VenueTime.Model
 import Config
@@ -95,16 +97,18 @@ createAndApproveEntry ::
     [TimesheetFixtureValues -> TimesheetFixtureValues] ->
     IO TimesheetEntry
 createAndApproveEntry venue staff workedOn _snapshot admin approvedAt transforms = do
+    ensureFreshWageSourceFacts workedOn
     entry <- createTimesheetEntryRecord venue staff workedOn
     updatedEntry <- entry
         |> applyTimesheetFixtureTransforms workedOn transforms
         |> updateRecord
     (staffPayVersion, shiftTypePayVersion) <- ensurePayVersionsForTimesheetApproval admin.id updatedEntry
     lockPayVersionsForApproval admin.id approvedAt staffPayVersion shiftTypePayVersion
-    withLegacyPayBackfillFixture do
+    approvedEntry <- withLegacyPayBackfillFixture do
         updatedEntry
             |> approveEntryWithVersions staffPayVersion shiftTypePayVersion admin approvedAt
             |> updateRecord
+    sealApprovedFixtureCalculation approvedEntry
 
 -- Compatibility fixtures intentionally model pre-ledger approved exports with
 -- legacy unsupported pay-level IDs. Production and dev seed approvals never use

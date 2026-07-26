@@ -13,6 +13,14 @@ calculation facts, `RateBook` owns the opaque validated rate book and its valida
 `Rules` evaluates intervals, `Components` constructs exact components, and `Rounding`
 derives final buckets/lines.
 
+Draft Timesheets calculations preserve each successful preview and attach source warnings
+without preventing saves; calculation failures remain entry-local. Approval, fixed exports,
+and Xero readiness/preview/submission all call the shared strict enforcement boundary, so
+one failing included entry rejects the complete requested final operation. Imported Xero
+overrides bypass FWC/DataVic freshness only after their persisted imported pay item resolves.
+Legacy approved-ledger backfill continues to ignore source age while requiring complete
+rate and holiday calculation facts.
+
 `Application.WageEngine.Adapter` bulk-loads projected database facts into that
 interface. Approval persists the Haskell result through
 `Application.Helper.TimesheetPayLedger`; approved exact facts can be reconstructed
@@ -39,8 +47,11 @@ checks.
 The same module compares canonical Award document and structural fingerprints. A
 document checksum/version, classification, or category change emits a deterministic
 deduplication key scoped to a non-blocking platform-super-admin signal. Rate-only and
-unchanged-structure refreshes emit no drift signal. The policy performs no persistence,
-network, workflow, or notification work; issue #276 owns those adapters and effects.
+unchanged-structure refreshes emit no drift signal. The pure policy performs no persistence
+or network work. `Application.WageSourceEnforcement` adapts persisted source facts and
+entry calculations into per-entry draft outcomes and strict final batches. Successful MAPD
+publication compares the latest two fingerprints and enqueues permanently deduplicated
+notifications for active platform super admins only; drift remains non-blocking.
 
 ## Validated rate book
 

@@ -18,6 +18,8 @@ import Application.Helper.WeekBoundaries (WeekdayIndex)
 import Application.Helper.Xero (XeroTimesheetRef (..))
 import Application.Helper.XeroTimesheetReadiness
 import Application.VenueTime.Model (requireMelbourneDateRangeUTC)
+import Application.WageSourceEnforcement (enforceFinalWageEntries,
+                                          renderWageEntryFailures)
 import qualified Data.Aeson as Aeson
 import qualified Data.Aeson.Types as AesonTypes
 import qualified Data.List as List
@@ -171,29 +173,31 @@ createPersistedXeroTimesheetPreviewWithPreparation submittedByUserId maybePrepar
             Nothing -> pure (Left "Active Xero connection was not found.")
             Just connection -> do
                 previewInput <- fetchPreviewInput request connection
-                case buildXeroTimesheetPreviewRun previewInput of
-                    Left err -> pure (Left err)
-                    Right previewRun -> do
-                        run <-
-                            newRecord @XeroSubmissionRun
-                                |> set #venueId (unpackId request.readinessVenueId)
-                                |> set #xeroConnectionId (unpackId connection.id)
-                                |> set #submittedByUserId (unpackId submittedByUserId)
-                                |> set #payPeriodStart request.readinessPeriodStart
-                                |> set #payPeriodEnd request.readinessPeriodEnd
-                                |> set #xeroTimesheetPreparationRunId maybePreparationRunId
-                                |> set #selectedPayrollCalendarId request.readinessPayrollCalendarId
-                                |> set #selectedPayrollCalendarName request.readinessPayrollCalendarName
-                                |> set #selectedPeriodKey request.readinessSelectedPeriodKey
-                                |> set #paymentDate request.readinessPaymentDate
-                                |> set #xeroPayRunId request.readinessXeroPayRunId
-                                |> set #xeroPayRunStatus request.readinessXeroPayRunStatus
-                                |> set #status ("previewed" :: Text)
-                                |> set #previewPayloadJson (xeroTimesheetPreviewRunJson previewRun)
-                                |> set #readinessSnapshotJson (xeroReadinessSnapshotJson readiness)
-                                |> set #xeroDuplicateCheckJson duplicateCheckJson
-                                |> createRecord
-                        pure (Right run)
+                enforceFinalWageEntries previewInput.previewTimesheetEntries >>= \case
+                    Left failures -> pure (Left (renderWageEntryFailures "Xero preview blocked: " failures))
+                    Right _ -> case buildXeroTimesheetPreviewRun previewInput of
+                        Left err -> pure (Left err)
+                        Right previewRun -> do
+                            run <-
+                                newRecord @XeroSubmissionRun
+                                    |> set #venueId (unpackId request.readinessVenueId)
+                                    |> set #xeroConnectionId (unpackId connection.id)
+                                    |> set #submittedByUserId (unpackId submittedByUserId)
+                                    |> set #payPeriodStart request.readinessPeriodStart
+                                    |> set #payPeriodEnd request.readinessPeriodEnd
+                                    |> set #xeroTimesheetPreparationRunId maybePreparationRunId
+                                    |> set #selectedPayrollCalendarId request.readinessPayrollCalendarId
+                                    |> set #selectedPayrollCalendarName request.readinessPayrollCalendarName
+                                    |> set #selectedPeriodKey request.readinessSelectedPeriodKey
+                                    |> set #paymentDate request.readinessPaymentDate
+                                    |> set #xeroPayRunId request.readinessXeroPayRunId
+                                    |> set #xeroPayRunStatus request.readinessXeroPayRunStatus
+                                    |> set #status ("previewed" :: Text)
+                                    |> set #previewPayloadJson (xeroTimesheetPreviewRunJson previewRun)
+                                    |> set #readinessSnapshotJson (xeroReadinessSnapshotJson readiness)
+                                    |> set #xeroDuplicateCheckJson duplicateCheckJson
+                                    |> createRecord
+                            pure (Right run)
 
 fetchPreviewInput ::
     (?modelContext :: ModelContext) =>

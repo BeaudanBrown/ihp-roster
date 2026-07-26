@@ -10,6 +10,8 @@ where
 
 import Application.Helper.Xero
 import Application.Helper.XeroTimesheetReadiness
+import Application.WageSourceEnforcement (enforceFinalWageEntries,
+                                          renderWageEntryFailures)
 import Application.Xero.Connection
 import Application.Xero.Timesheets.Preview
 import Control.Monad (void)
@@ -65,10 +67,12 @@ submitXeroDraftTimesheetsWithPreparation submittedByUserId maybePreparationRunId
                                         readinessRequest = request { readinessRemoteTimesheets = remoteTimesheets }
                                     readiness <- validateXeroTimesheetReadiness readinessRequest
                                     previewInput <- fetchPreviewInput readinessRequest refreshedConnection
-                                    case buildXeroTimesheetPreviewRun previewInput of
-                                        Left message -> pure (Left message)
-                                        Right previewRun ->
-                                            persistAndSubmitPreview submittedByUserId maybePreparationRunId xeroClient accessToken refreshedConnection readinessRequest readiness duplicateSnapshot previewRun
+                                    enforceFinalWageEntries previewInput.previewTimesheetEntries >>= \case
+                                        Left failures -> pure (Left (renderWageEntryFailures "Xero submission blocked: " failures))
+                                        Right _ -> case buildXeroTimesheetPreviewRun previewInput of
+                                            Left message -> pure (Left message)
+                                            Right previewRun ->
+                                                persistAndSubmitPreview submittedByUserId maybePreparationRunId xeroClient accessToken refreshedConnection readinessRequest readiness duplicateSnapshot previewRun
 
 retryXeroDraftTimesheetSubmission ::
     (?modelContext :: ModelContext) =>
@@ -118,17 +122,58 @@ retryExistingSubmission submission = do
                                         }
                                 duplicateSnapshot = duplicateCheckSnapshotJson remoteTimesheets
                             readiness <- validateXeroTimesheetReadiness readinessRequest
+                            sourceEntries <- fetchRetrySubmissionSourceEntries submission
+                            let scopedReadiness = scopeRetryReadinessToEntries sourceEntries readiness
                             _ <-
                                 run
-                                    |> set #readinessSnapshotJson (xeroReadinessSnapshotJson readiness)
+                                    |> set #readinessSnapshotJson (xeroReadinessSnapshotJson scopedReadiness)
                                     |> set #xeroDuplicateCheckJson duplicateSnapshot
                                     |> updateRecord
+                            retrySourceCheck <- enforceRetrySubmissionSources sourceEntries
                             updatedSubmission <-
-                                if not readiness.xeroTimesheetReady
-                                    then markSubmissionBlocked submission (blockedReadinessSummary readiness)
-                                    else submitExistingSubmission xeroClient accessToken refreshedConnection submission
+                                if not scopedReadiness.xeroTimesheetReady
+                                    then markSubmissionBlocked submission (blockedReadinessSummary scopedReadiness)
+                                    else case retrySourceCheck of
+                                        Left message -> markSubmissionBlocked submission message
+                                        Right () -> submitExistingSubmission xeroClient accessToken refreshedConnection submission
                             refreshRunStatus run
                             pure (Right updatedSubmission)
+
+fetchRetrySubmissionSourceEntries :: (?modelContext :: ModelContext) => XeroTimesheetSubmission -> IO [TimesheetEntry]
+fetchRetrySubmissionSourceEntries submission = do
+    links <- query @XeroTimesheetSubmissionEntry
+        |> filterWhere (#xeroTimesheetSubmissionId, unpackId submission.id)
+        |> fetch
+    query @TimesheetEntry
+        |> filterWhereIn (#id, map (Id . (.timesheetEntryId)) links)
+        |> fetch
+
+enforceRetrySubmissionSources :: (?modelContext :: ModelContext) => [TimesheetEntry] -> IO (Either Text ())
+enforceRetrySubmissionSources entries = do
+    let missingOrIneligible =
+            null entries || any (\entry -> not entry.isApproved || isJust entry.deletedAt) entries
+    if missingOrIneligible
+        then pure (Left "Xero retry blocked: a recorded source entry is missing, unapproved, or deleted.")
+        else enforceFinalWageEntries entries >>= \case
+            Left failures -> pure (Left (renderWageEntryFailures "Xero retry blocked: " failures))
+            Right _       -> pure (Right ())
+
+scopeRetryReadinessToEntries :: [TimesheetEntry] -> XeroTimesheetReadiness -> XeroTimesheetReadiness
+scopeRetryReadinessToEntries entries readiness =
+    readiness
+        { xeroTimesheetReady = null relevantBlockers
+        , xeroReadinessBlockers = relevantBlockers
+        , xeroReadinessWarnings = filter relevant readiness.xeroReadinessWarnings
+        , xeroReadinessStaffCount = length (List.nub staffIds)
+        , xeroReadinessEntryCount = length entries
+        }
+  where
+    entryIds = map (unpackId . (.id)) entries
+    staffIds = map (.staffId) entries
+    relevant blocker =
+        maybe True (`elem` entryIds) blocker.xeroBlockerTimesheetEntryId
+            && maybe True (`elem` staffIds) blocker.xeroBlockerAffectedStaffId
+    relevantBlockers = filter relevant readiness.xeroReadinessBlockers
 
 persistAndSubmitPreview ::
     (?modelContext :: ModelContext) =>

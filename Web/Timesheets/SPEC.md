@@ -109,6 +109,10 @@ submission work belongs in `docs/workstreams/` until it lands.
 ## Approval And History
 
 - Approval writes keep status, actor, timestamp, and pay context consistent.
+- Draft entry cards remain saveable and independently show either a successful pay
+  preview plus source warnings or an explicit calculation error. Approval applies
+  the shared wage-source boundary strictly and rolls back the complete approval on
+  any calculation or source failure.
 - Do not seed approved entries by setting only `isApproved`; fixtures must set
   all required approval fields together.
 - Roster-derived materialization is always unapproved. Managers review and use
