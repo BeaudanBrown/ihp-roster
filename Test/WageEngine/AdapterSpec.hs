@@ -75,7 +75,12 @@ pureTests =
                 afterEntryId = uuid "10000000-0000-0000-0000-000000000011"
                 beforeDate = fromGregorian 2026 7 3
                 afterDate = fromGregorian 2026 7 6
-                oldCandidate = completeRateBookCandidate 100
+                oldPeriod = EffectivePeriod (Just (fromGregorian 2025 7 1)) Nothing
+                oldCandidate =
+                    (completeRateBookCandidate 100)
+                        { candidateEffectivePeriod = oldPeriod
+                        , candidateRates = map (\rate -> rate { candidateRateEffectivePeriod = oldPeriod }) (candidateRates (completeRateBookCandidate 100))
+                        }
                 newPeriod = EffectivePeriod (Just (fromGregorian 2026 7 1)) Nothing
                 newCandidate =
                     (completeRateBookCandidate 110)

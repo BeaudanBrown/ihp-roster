@@ -338,8 +338,9 @@ buildProjectedRateBook weekStartsOn workedOn awardLevels rateIndex = do
                             >>= \penaltyCandidates ->
                                 mapM additionCandidateRate effectiveAdditions
                                     >>= \additionCandidates -> pure (baseCandidates <> penaltyCandidates <> additionCandidates)
-            let sortedCandidates = List.sortOn (.candidateRateKey) candidateRates
-                effectivePeriod = maybe fallbackPeriod (.candidateRateEffectivePeriod) (listToMaybe sortedCandidates)
+            let latestSnapshotCandidates = selectLatestEffectiveSnapshot candidateRates
+                sortedCandidates = List.sortOn (.candidateRateKey) latestSnapshotCandidates
+                effectivePeriod = fromMaybe fallbackPeriod (minimumMay (map (.candidateRateEffectivePeriod) sortedCandidates))
                 version = renderRateBookVersion effectivePeriod sortedCandidates
             mkValidatedRateBook
                 RateBookCandidate
@@ -350,6 +351,20 @@ buildProjectedRateBook weekStartsOn workedOn awardLevels rateIndex = do
                     }
   where
     fallbackPeriod = EffectivePeriod (Just workedOn) (Just workedOn)
+
+-- MAPD annual snapshots can remain open-ended after the next annual snapshot is
+-- published. Select the latest effective start for the worked date before
+-- validating completeness; rows within that snapshot still conflict normally.
+selectLatestEffectiveSnapshot :: [CandidateRate] -> [CandidateRate]
+selectLatestEffectiveSnapshot [] = []
+selectLatestEffectiveSnapshot rates =
+    filter ((== latestEffectiveFrom) . (.effectiveFrom) . (.candidateRateEffectivePeriod)) rates
+  where
+    latestEffectiveFrom = maximum (map ((.effectiveFrom) . (.candidateRateEffectivePeriod)) rates)
+
+minimumMay :: Ord value => [value] -> Maybe value
+minimumMay []     = Nothing
+minimumMay values = Just (minimum values)
 
 baseCandidateRate :: Map.Map UUID ProjectedAwardLevelRow -> ProjectedBaseRateRow -> Either RateBookError CandidateRate
 baseCandidateRate awardLevelById row = do

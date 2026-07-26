@@ -67,9 +67,13 @@ constructor is hidden. A valid MA000009 book has one common effective period and
 - positive values, non-empty source identities, and source ownership matching the
   classification or Award.
 
-Value-identical duplicate semantic keys normalize. Any conflict, missing category,
-unsupported classification, inconsistent period, invalid value, identity, or owner
-returns a named `RateBookError`. Candidate order never selects a conflicting value.
+MAPD annual projection rows can remain open-ended after a newer annual snapshot is
+published. For a worked date, the adapter selects the snapshot with the latest applicable
+`operative_from` before constructing the candidate; it preserves every historical source
+row and still rejects conflicts within the selected snapshot. Value-identical duplicate
+semantic keys normalize. Any conflict, missing category, unsupported classification,
+inconsistent period, invalid value, identity, or owner returns a named `RateBookError`.
+Candidate order never selects a conflicting value.
 The adapter carries each projection row ID and its exact persisted `fwc_mapd_*`
 source-row ID into `RateSourceIdentity`; the rate-book version fingerprints those
 identities together with normalized semantic keys and values. The separate
