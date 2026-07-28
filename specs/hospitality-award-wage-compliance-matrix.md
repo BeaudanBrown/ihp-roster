@@ -161,6 +161,11 @@ helper contracts:
 | --- | --- |
 | `derives venue-effective award dates from the next venue week boundary` | `HIGA-POLICY-WEEK-ROLLOVER`. |
 | `collapses deterministic pay-version manifests` | Approved output metadata helper; arithmetic remains ledger-owned. |
+| `makes staff roster-only absolute` | Pay-disposition precedence; no Award arithmetic. |
+| `applies shift roster-only before rate overrides` | Pay-disposition precedence; no Award arithmetic. |
+| `prefers a valid shift override to the staff default` | Selects the source entering the canonical engine. |
+| `uses the staff rate for staff-default shift types` | Selects the source entering the canonical engine. |
+| `surfaces migration-only and malformed configurations` | Invalid configuration fails before Award arithmetic. |
 
 ## Official sources
 

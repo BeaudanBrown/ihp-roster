@@ -21,6 +21,15 @@ overrides bypass FWC/DataVic freshness only after their persisted imported pay i
 Legacy approved-ledger backfill continues to ignore source age while requiring complete
 rate and holiday calculation facts.
 
+`Application.PayAssignment` owns the pure typed pay-disposition contract for
+calculation and suppression callers. Persisted current rows and immutable pay
+versions carry one explicit mode plus constrained Award/Xero references. The
+resolver returns effective Award, effective imported Xero, roster-only, or an
+invalid configuration; staff roster-only is absolute, then shift roster-only,
+shift override, and staff default apply in order. Migration-only
+legacy-unresolved is always invalid. The active explicit-disposition workstream
+owns wiring roster, Timesheet, and wage callers to this contract.
+
 `Application.WageEvaluation` is the sole production caller of
 `calculateTimesheetPay`. Its typed keys distinguish persisted `Timesheet` subjects
 from projected `RosterSlot` subjects. Every unsealed subject carries venue, staff,

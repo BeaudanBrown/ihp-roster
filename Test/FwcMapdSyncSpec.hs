@@ -377,9 +377,10 @@ tests = do
                         newRecord @ShiftType
                             |> set #venueId (unpackId venue.id)
                             |> set #name "Award override"
+                            |> set #payAssignmentMode AwardRate
                             |> set #overrideAwardLevelId (Just firstAwardLevel.id)
                             |> createRecord
-                    _ <- staff |> set #defaultAwardLevelId (Just firstAwardLevel.id) |> updateRecord
+                    _ <- staff |> set #payAssignmentMode AwardRate |> set #defaultAwardLevelId (Just firstAwardLevel.id) |> updateRecord
 
                     secondSyncedAt <- getCurrentTime
                     _ <-

@@ -60,7 +60,8 @@ ensureStaffPayVersionForStaff actorUserId staff effectiveFrom = do
         |> fetchOneOrNothing
     case currentVersion of
         Just version
-            | version.defaultAwardLevelId == fmap unpackId staff.defaultAwardLevelId
+            | version.payAssignmentMode == staff.payAssignmentMode
+                && version.defaultAwardLevelId == fmap unpackId staff.defaultAwardLevelId
                 && version.importedXeroPayItemId == staff.importedXeroPayItemId
                 && version.employmentBasis == staff.employmentBasis ->
                 pure version
@@ -74,6 +75,7 @@ ensureStaffPayVersionForStaff actorUserId staff effectiveFrom = do
             newRecord @StaffPayVersion
                 |> set #venueId staff.venueId
                 |> set #staffId (unpackId staff.id)
+                |> set #payAssignmentMode staff.payAssignmentMode
                 |> set #defaultAwardLevelId (fmap unpackId staff.defaultAwardLevelId)
                 |> set #importedXeroPayItemId staff.importedXeroPayItemId
                 |> set #employmentBasis staff.employmentBasis
@@ -94,7 +96,8 @@ ensureShiftTypePayVersionForShiftType actorUserId shiftType effectiveFrom = do
         |> fetchOneOrNothing
     case currentVersion of
         Just version
-            | version.overrideAwardLevelId == fmap unpackId shiftType.overrideAwardLevelId
+            | version.payAssignmentMode == shiftType.payAssignmentMode
+                && version.overrideAwardLevelId == fmap unpackId shiftType.overrideAwardLevelId
                 && version.importedXeroPayItemId == shiftType.importedXeroPayItemId
                 && version.payrollLabel == shiftType.name ->
                 pure version
@@ -108,6 +111,7 @@ ensureShiftTypePayVersionForShiftType actorUserId shiftType effectiveFrom = do
             newRecord @ShiftTypePayVersion
                 |> set #venueId shiftType.venueId
                 |> set #shiftTypeId (unpackId shiftType.id)
+                |> set #payAssignmentMode shiftType.payAssignmentMode
                 |> set #overrideAwardLevelId (fmap unpackId shiftType.overrideAwardLevelId)
                 |> set #importedXeroPayItemId shiftType.importedXeroPayItemId
                 |> set #payrollLabel shiftType.name

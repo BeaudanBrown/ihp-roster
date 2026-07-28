@@ -381,6 +381,7 @@ createStaffUsingAwardLevel venue firstName lastName awardLevel employmentBasis =
     staff <- createStaffRecord venue (Just user) firstName lastName
     staff
         |> set #employmentBasis employmentBasis
+        |> set #payAssignmentMode AwardRate
         |> set #defaultAwardLevelId (Just awardLevel.id)
         |> updateRecord
 

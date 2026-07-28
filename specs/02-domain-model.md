@@ -139,13 +139,21 @@
   - `award_levels`
   - `award_level_base_rates`
   - `award_level_penalty_rates`
-  - `staff.default_award_level_id`
-  - `shift_types.override_award_level_id`
+  - `staff.pay_assignment_mode`, `staff.default_award_level_id`, and `staff.imported_xero_pay_item_id`
+  - `shift_types.pay_assignment_mode`, `shift_types.override_award_level_id`, and `shift_types.imported_xero_pay_item_id`
+  - append-only `staff_pay_versions` and `shift_type_pay_versions`, which capture the same mode and references
+
+Pay-assignment mode makes nullable rate references unambiguous. Staff modes are
+Award, imported Xero, roster-only, and migration-only legacy-unresolved. Shift
+modes are staff default, Award/Xero override, and roster-only. Database checks
+require exactly the reference shape for each mode; normal application mutations
+cannot select legacy-unresolved. Staff roster-only is absolute; otherwise shift
+roster-only wins, then a shift override, then the staff rate.
 
 The current pay configuration model does not include day-specific pay-level
-override rows. A shift type may override the staff member's default award level
-for every entry using that shift type. Reintroducing day-specific overrides
-would require a new schema and pay-engine change.
+override rows. A shift type Award/Xero override applies to every entry using
+that shift type. Reintroducing day-specific overrides would require a new schema
+and pay-engine change.
 
 ## Data classification requirements
 

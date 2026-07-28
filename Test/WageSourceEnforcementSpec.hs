@@ -30,6 +30,7 @@ tests = aroundAll withDatabaseTestContext do
                 importedStaff <- createStaffRecord venue Nothing "Imported" "Worker"
                 importedItem <- createImportedXeroPayItemRecord venue approver "Imported Ordinary" "imported-ordinary" 42
                 importedStaff <- importedStaff
+                    |> set #payAssignmentMode XeroRate
                     |> set #importedXeroPayItemId (Just importedItem.id)
                     |> updateRecord
                 now <- getCurrentTime

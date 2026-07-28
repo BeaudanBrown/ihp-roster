@@ -35,6 +35,7 @@ import Application.Helper.TimeRules (formatMinuteOfDayText)
 import Application.Helper.VenueInvitation
 import Application.Helper.WeekBoundaries (defaultWeekOffsetEpochForStartDay)
 import Application.InvitationDelivery.Job (enqueueVenueInvitationDeliveryJob)
+import Application.PayAssignment (selectableShiftAssignmentMode)
 import Control.Monad (void)
 import Data.Time.Clock (addUTCTime, getCurrentTime, utctDay)
 import Web.Controller.Admin.Support
@@ -155,11 +156,13 @@ createShiftTypeMutation name isActive overrideAwardLevelId importedXeroPayItemId
     sortOrder <- nextShiftTypeSortOrder
     colourKey <- resolveSubmittedShiftTypeColourKey Nothing isActive maybeSubmittedColourKey blankShiftTypeColourKey
     now <- getCurrentTime
+    let payAssignmentMode = fromMaybe (error "validated shift pay selection contains conflicting rate sources") (selectableShiftAssignmentMode overrideAwardLevelId importedXeroPayItemId)
     shiftType <- withTransaction do
         shiftType <- newRecord @ShiftType
             |> set #venueId (unpackId currentVenueId)
             |> set #name name
             |> set #sortOrder sortOrder
+            |> set #payAssignmentMode payAssignmentMode
             |> set #overrideAwardLevelId overrideAwardLevelId
             |> set #importedXeroPayItemId importedXeroPayItemId
             |> set #colourKey colourKey
@@ -178,16 +181,18 @@ updateShiftTypeMutation shiftType name isActive overrideAwardLevelId importedXer
             then nextShiftTypeSortOrder
             else pure shiftType.sortOrder
     colourKey <- resolveSubmittedShiftTypeColourKey (Just shiftType.id) isActive maybeSubmittedColourKey shiftType.colourKey
+    let payAssignmentMode = fromMaybe (error "validated shift pay selection contains conflicting rate sources") (selectableShiftAssignmentMode overrideAwardLevelId importedXeroPayItemId)
     updatedShiftType <- withTransaction do
         updated <- shiftType
             |> set #name name
             |> set #sortOrder sortOrder
+            |> set #payAssignmentMode payAssignmentMode
             |> set #overrideAwardLevelId overrideAwardLevelId
             |> set #importedXeroPayItemId importedXeroPayItemId
             |> set #colourKey colourKey
             |> set #isActive isActive
             |> updateRecord
-        when (shiftType.name /= updated.name || shiftType.overrideAwardLevelId /= updated.overrideAwardLevelId || shiftType.importedXeroPayItemId /= updated.importedXeroPayItemId) do
+        when (shiftType.name /= updated.name || shiftType.payAssignmentMode /= updated.payAssignmentMode || shiftType.overrideAwardLevelId /= updated.overrideAwardLevelId || shiftType.importedXeroPayItemId /= updated.importedXeroPayItemId) do
             _ <- ensureShiftTypePayVersionForShiftType currentUser.id updated (utctDay now)
             pure ()
         pure updated
@@ -219,7 +224,7 @@ shiftTypeXeroPayItemScopeChanged :: ShiftType -> ShiftType -> Bool
 shiftTypeXeroPayItemScopeChanged oldShiftType newShiftType =
     shiftTypeXeroPayItemScope oldShiftType /= shiftTypeXeroPayItemScope newShiftType
 
-shiftTypeXeroPayItemScope :: ShiftType -> Maybe (Maybe (Id AwardLevel), Maybe (Id XeroImportedPayItem))
+shiftTypeXeroPayItemScope :: ShiftType -> Maybe (PayAssignmentModeEnum, Maybe (Id AwardLevel), Maybe (Id XeroImportedPayItem))
 shiftTypeXeroPayItemScope shiftType
-    | shiftType.isActive = Just (shiftType.overrideAwardLevelId, shiftType.importedXeroPayItemId)
+    | shiftType.isActive = Just (shiftType.payAssignmentMode, shiftType.overrideAwardLevelId, shiftType.importedXeroPayItemId)
     | otherwise = Nothing

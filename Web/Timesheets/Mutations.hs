@@ -14,9 +14,9 @@ import Application.Helper.Pay (ensurePayVersionsForTimesheetApproval,
                                payVersionManifestForEntry)
 import Application.Helper.SurfaceResource
 import Application.Helper.TimesheetPayLedger (persistApprovedTimesheetPayCalculation)
+import Application.VenueTime.Model
 import Application.WageSourceEnforcement (enforceFinalWageEntries,
                                           renderWageEntryFailures)
-import Application.VenueTime.Model
 import Control.Exception (IOException, try)
 import Control.Monad (void)
 import qualified Data.Aeson as Aeson

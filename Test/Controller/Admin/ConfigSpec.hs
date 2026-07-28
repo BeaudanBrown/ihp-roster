@@ -1005,6 +1005,7 @@ tests = aroundAll withDatabaseTestContext do
 
                 versions <- query @ShiftTypePayVersion |> orderByDesc #createdAt |> fetch
                 map (.createdByUserId) versions `shouldBe` [unpackId admin.id]
+                map (.payAssignmentMode) versions `shouldBe` [StaffDefault]
 
 openingTagWithId :: Text -> LByteString.ByteString -> String
 openingTagWithId elementId body =

@@ -435,6 +435,25 @@ tests = describe "Schema" do
         automationMigrationSqlText `shouldSatisfy` Text.isInfixOf "ADD COLUMN IF NOT EXISTS source_roster_slot_id UUID DEFAULT NULL"
         automationMigrationSqlText `shouldSatisfy` Text.isInfixOf "CREATE UNIQUE INDEX IF NOT EXISTS idx_timesheet_entries_source_roster_slot"
 
+    it "adds and safely backfills explicit pay-assignment modes" do
+        schemaSqlText <- TextIO.readFile "Application/Schema.sql"
+        migrationSqlText <- TextIO.readFile "Application/Migration/1785280000.sql"
+        schemaSqlText `shouldSatisfy` Text.isInfixOf "CREATE TYPE pay_assignment_mode_enum AS ENUM ('award_rate', 'xero_rate', 'roster_only', 'staff_default', 'legacy_unresolved')"
+        migrationSqlText `shouldSatisfy` Text.isInfixOf "staff:both_rate_ids"
+        migrationSqlText `shouldSatisfy` Text.isInfixOf "staff:cross_venue_xero"
+        migrationSqlText `shouldSatisfy` Text.isInfixOf "staff_pay_version:missing_or_cross_venue_staff"
+        migrationSqlText `shouldSatisfy` Text.isInfixOf "shift_type_pay_version:missing_or_cross_venue_shift_type"
+        migrationSqlText `shouldSatisfy` Text.isInfixOf "ORDER BY kind, id LIMIT 50"
+        migrationSqlText `shouldSatisfy` Text.isInfixOf "WHEN user_id IS NULL THEN 'roster_only'"
+        migrationSqlText `shouldSatisfy` Text.isInfixOf "ELSE 'legacy_unresolved'"
+        migrationSqlText `shouldSatisfy` Text.isInfixOf "ELSE 'staff_default'"
+        migrationSqlText `shouldSatisfy` Text.isInfixOf "ALTER TABLE staff_pay_versions ALTER COLUMN pay_assignment_mode SET NOT NULL"
+        migrationSqlText `shouldSatisfy` Text.isInfixOf "NEW.default_award_level_id IS DISTINCT FROM OLD.default_award_level_id"
+        migrationSqlText `shouldSatisfy` Text.isInfixOf "NEW.override_award_level_id IS DISTINCT FROM OLD.override_award_level_id"
+        migrationSqlText `shouldNotSatisfy` Text.isInfixOf "DROP TABLE"
+        migrationSqlText `shouldNotSatisfy` Text.isInfixOf "DROP COLUMN"
+        migrationSqlText `shouldNotSatisfy` Text.isInfixOf "DELETE FROM"
+
     it "stores immutable approved pay facts without persisted rounded totals" do
         schemaSqlText <- TextIO.readFile "Application/Schema.sql"
         migrationSqlText <- TextIO.readFile "Application/Migration/1785240000.sql"

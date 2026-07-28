@@ -60,6 +60,7 @@ tests = aroundAll withDatabaseTestContext do
                 lockedVersion <- newRecord @StaffPayVersion
                     |> set #venueId (unpackId venue.id)
                     |> set #staffId (unpackId staff.id)
+                    |> set #payAssignmentMode XeroRate
                     |> set #importedXeroPayItemId (Just importedItem.id)
                     |> set #employmentBasis Permanent
                     |> set #effectiveFrom (fromGregorian 2026 1 1)
@@ -69,6 +70,25 @@ tests = aroundAll withDatabaseTestContext do
                     |> createRecord
                 versionReroute <- try (lockedVersion |> set #importedXeroPayItemId (Just replacementItem.id) |> updateRecord) :: IO (Either SomeException StaffPayVersion)
                 versionReroute `shouldSatisfy` isLeft
+                modeChange <- try (lockedVersion |> set #payAssignmentMode RosterOnly |> set #importedXeroPayItemId Nothing |> updateRecord) :: IO (Either SomeException StaffPayVersion)
+                modeChange `shouldSatisfy` isLeft
+
+                awardLevel <- createPayLevelRecord venue "Level 1"
+                replacementAwardLevel <- createPayLevelRecord venue "Level 2"
+                awardStaff <- createStaffRecord venue Nothing "Pinned Award" "Worker"
+                lockedAwardVersion <- newRecord @StaffPayVersion
+                    |> set #venueId (unpackId venue.id)
+                    |> set #staffId (unpackId awardStaff.id)
+                    |> set #payAssignmentMode AwardRate
+                    |> set #defaultAwardLevelId (Just (unpackId awardLevel.id))
+                    |> set #employmentBasis Permanent
+                    |> set #effectiveFrom (fromGregorian 2026 2 1)
+                    |> set #createdByUserId (unpackId owner.id)
+                    |> set #lockedAt (Just now)
+                    |> set #lockedByUserId (Just (unpackId owner.id))
+                    |> createRecord
+                staffAwardChange <- try (lockedAwardVersion |> set #defaultAwardLevelId (Just (unpackId replacementAwardLevel.id)) |> updateRecord) :: IO (Either SomeException StaffPayVersion)
+                staffAwardChange `shouldSatisfy` isLeft
 
                 shiftType <- newRecord @ShiftType
                     |> set #venueId (unpackId venue.id)
@@ -78,6 +98,7 @@ tests = aroundAll withDatabaseTestContext do
                 lockedShiftVersion <- newRecord @ShiftTypePayVersion
                     |> set #venueId (unpackId venue.id)
                     |> set #shiftTypeId (unpackId shiftType.id)
+                    |> set #payAssignmentMode XeroRate
                     |> set #importedXeroPayItemId (Just importedItem.id)
                     |> set #payrollLabel "Pinned payroll label"
                     |> set #effectiveFrom (fromGregorian 2026 1 1)
@@ -87,6 +108,40 @@ tests = aroundAll withDatabaseTestContext do
                     |> createRecord
                 labelChange <- try (lockedShiftVersion |> set #payrollLabel "Changed payroll label" |> updateRecord) :: IO (Either SomeException ShiftTypePayVersion)
                 labelChange `shouldSatisfy` isLeft
+                awardShiftType <- newRecord @ShiftType
+                    |> set #venueId (unpackId venue.id)
+                    |> set #name "Pinned Award shift"
+                    |> set #sortOrder 2
+                    |> createRecord
+                lockedAwardShiftVersion <- newRecord @ShiftTypePayVersion
+                    |> set #venueId (unpackId venue.id)
+                    |> set #shiftTypeId (unpackId awardShiftType.id)
+                    |> set #payAssignmentMode AwardRate
+                    |> set #overrideAwardLevelId (Just (unpackId awardLevel.id))
+                    |> set #payrollLabel "Pinned Award label"
+                    |> set #effectiveFrom (fromGregorian 2026 2 1)
+                    |> set #createdByUserId (unpackId owner.id)
+                    |> set #lockedAt (Just now)
+                    |> set #lockedByUserId (Just (unpackId owner.id))
+                    |> createRecord
+                shiftAwardChange <- try (lockedAwardShiftVersion |> set #overrideAwardLevelId (Just (unpackId replacementAwardLevel.id)) |> updateRecord) :: IO (Either SomeException ShiftTypePayVersion)
+                shiftAwardChange `shouldSatisfy` isLeft
+
+        it "rejects pay-assignment modes whose rate references do not match" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Pay assignment shapes"
+                awardLevel <- createPayLevelRecord venue "Level 1"
+                staff <- createStaffRecord venue Nothing "Shape" "Check"
+                invalidStaff <- try (staff |> set #defaultAwardLevelId (Just awardLevel.id) |> updateRecord) :: IO (Either SomeException Staff)
+                invalidStaff `shouldSatisfy` isLeft
+
+                shiftType <- newRecord @ShiftType
+                    |> set #venueId (unpackId venue.id)
+                    |> set #name "Shape check"
+                    |> set #sortOrder 1
+                    |> createRecord
+                invalidShiftType <- try (shiftType |> set #payAssignmentMode LegacyUnresolved |> updateRecord) :: IO (Either SomeException ShiftType)
+                invalidShiftType `shouldSatisfy` isLeft
 
         it "blocks direct DELETEs on protected operational records" $ withContext do
             withCleanDb do

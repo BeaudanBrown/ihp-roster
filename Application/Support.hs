@@ -392,6 +392,7 @@ createShiftTypeRecord venue awardLevel shiftTypeName =
         |> set #venueId (unpackId (get #id venue))
         |> set #name shiftTypeName
         |> set #sortOrder 0
+        |> set #payAssignmentMode AwardRate
         |> set #overrideAwardLevelId (Just awardLevel.id)
         |> set #isActive True
         |> createRecord
@@ -399,6 +400,7 @@ createShiftTypeRecord venue awardLevel shiftTypeName =
 createPayLevelDayRuleRecord :: (?modelContext :: ModelContext) => ShiftType -> DayName -> AwardLevel -> IO ShiftType
 createPayLevelDayRuleRecord shiftType _dayName awardLevel =
     shiftType
+        |> set #payAssignmentMode AwardRate
         |> set #overrideAwardLevelId (Just awardLevel.id)
         |> updateRecord
 

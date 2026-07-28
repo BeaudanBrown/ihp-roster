@@ -42,6 +42,7 @@ CREATE TYPE leave_request_event_type_enum AS ENUM ('created', 'approved', 'denie
 CREATE TYPE entry_version_action_enum AS ENUM ('created', 'updated', 'approved', 'unapproved', 'approval_reset', 'deleted');
 CREATE TYPE venue_membership_role_event_type_enum AS ENUM ('assigned', 'changed');
 CREATE TYPE staff_employment_basis_enum AS ENUM ('permanent', 'casual');
+CREATE TYPE pay_assignment_mode_enum AS ENUM ('award_rate', 'xero_rate', 'roster_only', 'staff_default', 'legacy_unresolved');
 CREATE TYPE staff_document_type_enum AS ENUM ('rsa_statement_of_attainment');
 CREATE TYPE staff_document_status_enum AS ENUM ('pending_review', 'verified', 'rejected', 'expired');
 CREATE TYPE award_penalty_kind_enum AS ENUM ('evening_after_7pm', 'late_night_after_midnight', 'saturday_penalty', 'sunday_penalty', 'public_holiday_penalty', 'delayed_meal_break_weekday', 'delayed_meal_break_saturday', 'delayed_meal_break_sunday', 'delayed_meal_break_public_holiday');
@@ -219,6 +220,7 @@ CREATE TABLE staff (
     emergency_contact_phone TEXT NOT NULL,
     ideal_shifts_per_week INT DEFAULT 0 NOT NULL,
     employment_basis staff_employment_basis_enum DEFAULT 'casual' NOT NULL,
+    pay_assignment_mode pay_assignment_mode_enum DEFAULT 'roster_only' NOT NULL,
     default_award_level_id UUID DEFAULT NULL,
     imported_xero_pay_item_id UUID DEFAULT NULL,
     is_active BOOLEAN DEFAULT TRUE NOT NULL,
@@ -236,7 +238,13 @@ CREATE TABLE staff (
     CHECK ((char_length(btrim(phone)) > 0) AND (char_length(phone) <= 80)),
     CHECK ((char_length(btrim(emergency_contact_name)) > 0) AND (char_length(emergency_contact_name) <= 120)),
     CHECK ((char_length(btrim(emergency_contact_phone)) > 0) AND (char_length(emergency_contact_phone) <= 80)),
-    CHECK ((ideal_shifts_per_week >= 0) AND (ideal_shifts_per_week <= 7))
+    CHECK ((ideal_shifts_per_week >= 0) AND (ideal_shifts_per_week <= 7)),
+    CHECK (
+        (pay_assignment_mode = 'award_rate' AND default_award_level_id IS NOT NULL AND imported_xero_pay_item_id IS NULL)
+        OR (pay_assignment_mode = 'xero_rate' AND default_award_level_id IS NULL AND imported_xero_pay_item_id IS NOT NULL)
+        OR (pay_assignment_mode = 'roster_only' AND default_award_level_id IS NULL AND imported_xero_pay_item_id IS NULL)
+        OR (pay_assignment_mode = 'legacy_unresolved' AND default_award_level_id IS NULL AND imported_xero_pay_item_id IS NULL)
+    )
 );
 
 -- schema-nav: staff-documents
@@ -293,6 +301,7 @@ CREATE TABLE shift_types (
     venue_id UUID NOT NULL,
     name TEXT NOT NULL,
     sort_order INT DEFAULT 0 NOT NULL,
+    pay_assignment_mode pay_assignment_mode_enum DEFAULT 'staff_default' NOT NULL,
     override_award_level_id UUID DEFAULT NULL,
     imported_xero_pay_item_id UUID DEFAULT NULL,
     colour_key TEXT DEFAULT '' NOT NULL,
@@ -305,7 +314,13 @@ CREATE TABLE shift_types (
     FOREIGN KEY (venue_id) REFERENCES venues (id) ON DELETE RESTRICT,
     FOREIGN KEY (archived_by_user_id) REFERENCES users (id) ON DELETE RESTRICT,
     CHECK ((char_length(btrim(name)) > 0) AND (char_length(name) <= 120)),
-    CHECK (colour_key = '' OR colour_key = 'palette-1' OR colour_key = 'palette-2' OR colour_key = 'palette-3' OR colour_key = 'palette-4' OR colour_key = 'palette-5' OR colour_key = 'palette-6' OR colour_key = 'palette-7' OR colour_key = 'palette-8' OR colour_key = 'palette-9' OR colour_key = 'palette-10')
+    CHECK (colour_key = '' OR colour_key = 'palette-1' OR colour_key = 'palette-2' OR colour_key = 'palette-3' OR colour_key = 'palette-4' OR colour_key = 'palette-5' OR colour_key = 'palette-6' OR colour_key = 'palette-7' OR colour_key = 'palette-8' OR colour_key = 'palette-9' OR colour_key = 'palette-10'),
+    CHECK (
+        (pay_assignment_mode = 'award_rate' AND override_award_level_id IS NOT NULL AND imported_xero_pay_item_id IS NULL)
+        OR (pay_assignment_mode = 'xero_rate' AND override_award_level_id IS NULL AND imported_xero_pay_item_id IS NOT NULL)
+        OR (pay_assignment_mode = 'roster_only' AND override_award_level_id IS NULL AND imported_xero_pay_item_id IS NULL)
+        OR (pay_assignment_mode = 'staff_default' AND override_award_level_id IS NULL AND imported_xero_pay_item_id IS NULL)
+    )
 );
 
 -- schema-nav: roster-group-config
@@ -403,6 +418,7 @@ CREATE TABLE staff_pay_versions (
     id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
     venue_id UUID NOT NULL,
     staff_id UUID NOT NULL,
+    pay_assignment_mode pay_assignment_mode_enum DEFAULT 'roster_only' NOT NULL,
     default_award_level_id UUID DEFAULT NULL,
     imported_xero_pay_item_id UUID DEFAULT NULL,
     employment_basis staff_employment_basis_enum NOT NULL,
@@ -419,12 +435,19 @@ CREATE TABLE staff_pay_versions (
     FOREIGN KEY (superseded_by_id) REFERENCES staff_pay_versions (id) ON DELETE RESTRICT,
     FOREIGN KEY (created_by_user_id) REFERENCES users (id) ON DELETE RESTRICT,
     FOREIGN KEY (locked_by_user_id) REFERENCES users (id) ON DELETE RESTRICT,
-    CHECK (effective_to IS NULL OR effective_to >= effective_from)
+    CHECK (effective_to IS NULL OR effective_to >= effective_from),
+    CHECK (
+        (pay_assignment_mode = 'award_rate' AND default_award_level_id IS NOT NULL AND imported_xero_pay_item_id IS NULL)
+        OR (pay_assignment_mode = 'xero_rate' AND default_award_level_id IS NULL AND imported_xero_pay_item_id IS NOT NULL)
+        OR (pay_assignment_mode = 'roster_only' AND default_award_level_id IS NULL AND imported_xero_pay_item_id IS NULL)
+        OR (pay_assignment_mode = 'legacy_unresolved' AND default_award_level_id IS NULL AND imported_xero_pay_item_id IS NULL)
+    )
 );
 CREATE TABLE shift_type_pay_versions (
     id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
     venue_id UUID NOT NULL,
     shift_type_id UUID NOT NULL,
+    pay_assignment_mode pay_assignment_mode_enum DEFAULT 'staff_default' NOT NULL,
     override_award_level_id UUID DEFAULT NULL,
     imported_xero_pay_item_id UUID DEFAULT NULL,
     payroll_label TEXT NOT NULL,
@@ -441,7 +464,13 @@ CREATE TABLE shift_type_pay_versions (
     FOREIGN KEY (superseded_by_id) REFERENCES shift_type_pay_versions (id) ON DELETE RESTRICT,
     FOREIGN KEY (created_by_user_id) REFERENCES users (id) ON DELETE RESTRICT,
     FOREIGN KEY (locked_by_user_id) REFERENCES users (id) ON DELETE RESTRICT,
-    CHECK (effective_to IS NULL OR effective_to >= effective_from)
+    CHECK (effective_to IS NULL OR effective_to >= effective_from),
+    CHECK (
+        (pay_assignment_mode = 'award_rate' AND override_award_level_id IS NOT NULL AND imported_xero_pay_item_id IS NULL)
+        OR (pay_assignment_mode = 'xero_rate' AND override_award_level_id IS NULL AND imported_xero_pay_item_id IS NOT NULL)
+        OR (pay_assignment_mode = 'roster_only' AND override_award_level_id IS NULL AND imported_xero_pay_item_id IS NULL)
+        OR (pay_assignment_mode = 'staff_default' AND override_award_level_id IS NULL AND imported_xero_pay_item_id IS NULL)
+    )
 );
 CREATE TABLE fwc_mapd_sync_runs (
     id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
@@ -1804,14 +1833,35 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
-CREATE OR REPLACE FUNCTION prevent_locked_pay_version_imported_item_change()
+CREATE OR REPLACE FUNCTION prevent_locked_staff_pay_version_change()
 RETURNS TRIGGER
 AS $$
 BEGIN
     IF OLD.locked_at IS NOT NULL
-        AND NEW.imported_xero_pay_item_id IS DISTINCT FROM OLD.imported_xero_pay_item_id
+        AND (
+            NEW.pay_assignment_mode IS DISTINCT FROM OLD.pay_assignment_mode
+            OR NEW.default_award_level_id IS DISTINCT FROM OLD.default_award_level_id
+            OR NEW.imported_xero_pay_item_id IS DISTINCT FROM OLD.imported_xero_pay_item_id
+        )
     THEN
-        RAISE EXCEPTION 'locked pay version imported Xero item is immutable';
+        RAISE EXCEPTION 'locked staff pay assignment is immutable';
+    END IF;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE OR REPLACE FUNCTION prevent_locked_shift_pay_version_change()
+RETURNS TRIGGER
+AS $$
+BEGIN
+    IF OLD.locked_at IS NOT NULL
+        AND (
+            NEW.pay_assignment_mode IS DISTINCT FROM OLD.pay_assignment_mode
+            OR NEW.override_award_level_id IS DISTINCT FROM OLD.override_award_level_id
+            OR NEW.imported_xero_pay_item_id IS DISTINCT FROM OLD.imported_xero_pay_item_id
+        )
+    THEN
+        RAISE EXCEPTION 'locked shift pay assignment is immutable';
     END IF;
     RETURN NEW;
 END;
@@ -1843,8 +1893,8 @@ CREATE TRIGGER prevent_hard_delete_shift_types BEFORE DELETE ON shift_types FOR 
 CREATE TRIGGER prevent_hard_delete_venue_config BEFORE DELETE ON venue_config FOR EACH ROW EXECUTE FUNCTION prevent_hard_delete();
 CREATE TRIGGER prevent_hard_delete_staff_pay_versions BEFORE DELETE ON staff_pay_versions FOR EACH ROW EXECUTE FUNCTION prevent_hard_delete();
 CREATE TRIGGER prevent_hard_delete_shift_type_pay_versions BEFORE DELETE ON shift_type_pay_versions FOR EACH ROW EXECUTE FUNCTION prevent_hard_delete();
-CREATE TRIGGER prevent_locked_staff_pay_version_imported_item_update BEFORE UPDATE ON staff_pay_versions FOR EACH ROW EXECUTE FUNCTION prevent_locked_pay_version_imported_item_change();
-CREATE TRIGGER prevent_locked_shift_pay_version_imported_item_update BEFORE UPDATE ON shift_type_pay_versions FOR EACH ROW EXECUTE FUNCTION prevent_locked_pay_version_imported_item_change();
+CREATE TRIGGER prevent_locked_staff_pay_version_imported_item_update BEFORE UPDATE ON staff_pay_versions FOR EACH ROW EXECUTE FUNCTION prevent_locked_staff_pay_version_change();
+CREATE TRIGGER prevent_locked_shift_pay_version_imported_item_update BEFORE UPDATE ON shift_type_pay_versions FOR EACH ROW EXECUTE FUNCTION prevent_locked_shift_pay_version_change();
 CREATE TRIGGER prevent_locked_shift_pay_version_payroll_label_update BEFORE UPDATE ON shift_type_pay_versions FOR EACH ROW EXECUTE FUNCTION prevent_locked_shift_pay_version_label_change();
 CREATE TRIGGER prevent_hard_delete_roster_weeks BEFORE DELETE ON roster_weeks FOR EACH ROW EXECUTE FUNCTION prevent_hard_delete();
 CREATE TRIGGER prevent_hard_delete_roster_days BEFORE DELETE ON roster_days FOR EACH ROW EXECUTE FUNCTION prevent_hard_delete();

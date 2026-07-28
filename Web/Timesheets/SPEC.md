@@ -16,9 +16,10 @@ submission work belongs in `docs/workstreams/` until it lands.
 ## Current Contract
 
 - Timesheet entries are venue-scoped and staff-scoped.
-- Trial staff placeholders (`staff.user_id IS NULL`) are roster-only. They are
-  excluded from timesheet selectors, manager filters, and suggestions; tampered
-  create/update requests targeting them are rejected.
+- Trial staff placeholders (`staff.user_id IS NULL`) are created with explicit
+  `roster_only` pay assignment. They are excluded from timesheet selectors,
+  manager filters, and suggestions; tampered create/update requests targeting
+  them are rejected.
 - Time inputs must be exact 15-minute increments.
 - Timesheet start/end/break pickers use the venue-configured time-picker window.
   New ad-hoc entries default to the venue picker start time and an 8-hour end
@@ -111,6 +112,8 @@ submission work belongs in `docs/workstreams/` until it lands.
 ## Approval And History
 
 - Approval writes keep status, actor, timestamp, and pay context consistent.
+  Immutable staff/shift pay versions capture the explicit pay-assignment mode
+  together with its Award/Xero references.
 - Draft entry cards remain saveable and independently show either a successful pay
   preview plus source warnings or an explicit calculation error. Draft, approval,
   and historical-backfill orchestration all enter `Application.WageEvaluation`;

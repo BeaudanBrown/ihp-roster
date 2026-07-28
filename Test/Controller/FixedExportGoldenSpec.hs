@@ -97,7 +97,7 @@ tests = aroundAll withDatabaseTestContext do
             withCleanDb do
                 fixture <- seedCanonicalPayrollFixtureForWeek goldenWeekStart
                 inactiveStaff <- createStaffRecord fixture.venue Nothing "Inactive" "Worker"
-                    >>= updateRecord . set #defaultAwardLevelId (Just fixture.levelOne.id)
+                    >>= updateRecord . set #payAssignmentMode AwardRate . set #defaultAwardLevelId (Just fixture.levelOne.id)
                 _ <- createAndApproveEntry fixture.venue inactiveStaff goldenWeekStart fixture.snapshot fixture.admin fixture.approvedAt
                     [ set #shiftTypeId (unpackId fixture.floorShift.id)
                     , setTestStartTime (TimeOfDay 9 0 0)
@@ -118,6 +118,7 @@ tests = aroundAll withDatabaseTestContext do
                 expectedCsv <- readExportFixtureText "staff_hours-expected.csv"
 
                 _ <- fixture.barShift
+                    |> set #payAssignmentMode AwardRate
                     |> set #overrideAwardLevelId (Just fixture.levelTwo.id)
                     |> updateRecord
 
@@ -276,6 +277,7 @@ seedPayrollMatrixFixture = do
     barShift <- createShiftTypeRecord venue levelTwo "Bar"
         >>= updateRecord
             . set #sortOrder 10
+            . set #payAssignmentMode StaffDefault
             . set #overrideAwardLevelId Nothing
     supervisorShift <- createShiftTypeRecord venue levelFour "Supervisor"
         >>= updateRecord . set #sortOrder 20
@@ -289,18 +291,22 @@ seedPayrollMatrixFixture = do
     ava <- createStaffRecord venue (Just avaUser) "Ava" "Manager"
         >>= updateRecord
             . set #employmentBasis Permanent
+            . set #payAssignmentMode AwardRate
             . set #defaultAwardLevelId (Just levelTwo.id)
     ben <- createStaffRecord venue (Just benUser) "Ben" "Casual"
         >>= updateRecord
             . set #employmentBasis Casual
+            . set #payAssignmentMode AwardRate
             . set #defaultAwardLevelId (Just levelOne.id)
     cara <- createStaffRecord venue (Just caraUser) "Cara" "Casual"
         >>= updateRecord
             . set #employmentBasis Casual
+            . set #payAssignmentMode AwardRate
             . set #defaultAwardLevelId (Just levelOne.id)
     noor <- createStaffRecord venue (Just noorUser) "Noor" "Cook"
         >>= updateRecord
             . set #employmentBasis Permanent
+            . set #payAssignmentMode AwardRate
             . set #defaultAwardLevelId (Just levelOne.id)
     seedCasualBaseRate levelOne 37.5
     snapshot <- createPayrollSnapshot venue admin [levelOne, levelTwo, levelThree, levelFour] [barShift, supervisorShift, kitchenShift] dayNames []

@@ -19,8 +19,8 @@ import Application.WageSourceEnforcement (WageEntryFailure (..),
                                           renderWageEntryFailure)
 import Application.Xero.Timesheets.Buckets
 import Control.Monad (guard)
-import Data.Either (fromRight)
 import qualified Data.Aeson.Types as AesonTypes
+import Data.Either (fromRight)
 import qualified Data.List as List
 import qualified Data.Text as Text
 import Data.Time.Calendar (Day, addDays, diffDays)

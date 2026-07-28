@@ -11,8 +11,8 @@ import Application.Helper.Pay (ensurePayVersionsForTimesheetApproval,
 import Application.Helper.RosterGroups (ensureVenueDefaultRosterGroup,
                                         ensureVenueRosterDefaults)
 import Application.Helper.TimeRules (rosterShiftStartDate)
-import qualified Application.Support.PayrollFixtures as Payroll
 import qualified Application.Support as ApplicationSupport
+import qualified Application.Support.PayrollFixtures as Payroll
 import Application.Support.WageSourceFixtures (ensureFreshWageSourceFacts,
                                                sealApprovedFixtureCalculation)
 import Application.VenueTime (RepeatedTimeOccurrence (FirstOccurrence),
@@ -645,6 +645,7 @@ createShiftTypeRecord venue awardLevel shiftTypeName =
         |> set #venueId (unpackId (get #id venue))
         |> set #name shiftTypeName
         |> set #sortOrder 0
+        |> set #payAssignmentMode AwardRate
         |> set #overrideAwardLevelId (Just awardLevel.id)
         |> set #isActive True
         |> createRecord
@@ -668,6 +669,7 @@ fetchDayNameRecord venue weekdayIndex =
 createPayLevelDayRuleRecord :: (?modelContext :: ModelContext) => ShiftType -> DayName -> AwardLevel -> IO ShiftType
 createPayLevelDayRuleRecord shiftType _dayName awardLevel =
     shiftType
+        |> set #payAssignmentMode AwardRate
         |> set #overrideAwardLevelId (Just awardLevel.id)
         |> updateRecord
 

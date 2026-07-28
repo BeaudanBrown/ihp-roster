@@ -26,12 +26,21 @@ migration files remain unchanged as deployment history.
 - Imported Xero pay-item overrides remain explicit external flat-rate calculations and
   bypass Award arithmetic/source freshness only after the imported item resolves.
 
+`Application.PayAssignment` defines the typed disposition contract for wage
+callers. It validates persisted mode/reference shapes and distinguishes an
+effective Award rate, effective imported Xero rate, roster-only, and invalid
+configuration. Staff roster-only is absolute; otherwise shift roster-only wins,
+then a shift override, then staff default. Migration-only legacy-unresolved is
+always invalid and requires remediation. Wiring all roster/Timesheet/wage callers
+to this contract remains tracked by the active explicit-disposition workstream.
+
 ## Effective facts and reproducibility
 
 Raw FWC/MAPD operative dates are preserved. Bepis applies a rate from the first venue
 week boundary on or after that date. Draft calculations use the applicable effective
 book; approved calculations retain exact source identities, calculation/rate-book
-versions, pay-version references, approval metadata, segments, and components.
+versions, pay-version references (including explicit assignment modes), approval
+metadata, segments, and components.
 
 Historical approved entries were backfilled all-or-nothing through the Haskell engine.
 That reconstruction ignores source-age thresholds but requires complete effective rates

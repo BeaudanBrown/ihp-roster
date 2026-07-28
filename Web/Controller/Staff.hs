@@ -21,6 +21,7 @@ import Application.Helper.Url (appendQueryParams)
 import Application.Helper.View (OverlayFormMode (HtmxOverlayForm),
                                 ToastOverlayPosition (..), dialogOverlayMountId,
                                 errorToast, renderToastOob, successToast)
+import Application.PayAssignment (selectableStaffAssignmentMode)
 import Application.StaffDocuments.Rsa (latestRsaDocumentForStaff)
 import qualified Data.Set as Set
 import qualified Data.Text as Text
@@ -395,7 +396,8 @@ buildStaffFromSurfaceSubmission canManageStaffStatus canManageStaffPay maybeSubm
                 else
                     let withEmploymentBasis = applyEmploymentBasis withActive
                         withAwardLevel = maybe withEmploymentBasis (\value -> set #defaultAwardLevelId value withEmploymentBasis) maybeSubmittedDefaultAwardLevelId
-                     in maybe withAwardLevel (\value -> set #importedXeroPayItemId value withAwardLevel) maybeSubmittedImportedXeroPayItemId
+                        withImportedPayItem = maybe withAwardLevel (\value -> set #importedXeroPayItemId value withAwardLevel) maybeSubmittedImportedXeroPayItemId
+                     in applySelectableStaffPayMode withImportedPayItem
 
     applyEmploymentBasis currentStaff =
         case Text.toLower <$> submitted.submittedEmploymentBasis of
@@ -482,14 +484,21 @@ buildStaff canManageStaffPay maybeSubmittedDefaultAwardLevelId maybeSubmittedImp
             | not canManageStaffPay = currentStaff
             | otherwise =
                 let withEmploymentBasis = currentStaff |> fill @'["employmentBasis"]
-                 in case maybeSubmittedDefaultAwardLevelId of
+                    withPayReferences = case maybeSubmittedDefaultAwardLevelId of
                         Just defaultAwardLevelId -> withEmploymentBasis |> set #defaultAwardLevelId defaultAwardLevelId |> applyImportedPayItem
                         Nothing -> withEmploymentBasis |> applyImportedPayItem
+                 in applySelectableStaffPayMode withPayReferences
 
         applyImportedPayItem currentStaff =
             case maybeSubmittedImportedXeroPayItemId of
                 Just importedXeroPayItemId -> currentStaff |> set #importedXeroPayItemId importedXeroPayItemId
                 Nothing -> currentStaff
+
+applySelectableStaffPayMode :: Staff -> Staff
+applySelectableStaffPayMode staff =
+    case selectableStaffAssignmentMode staff.defaultAwardLevelId staff.importedXeroPayItemId of
+        Just mode -> staff |> set #payAssignmentMode mode
+        Nothing -> staff |> attachFailure #defaultAwardLevelId "Choose one pay-rate source."
 
 fetchAwardLevelsForStaffForm :: (?modelContext :: ModelContext) => IO [AwardLevel]
 fetchAwardLevelsForStaffForm =

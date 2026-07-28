@@ -34,10 +34,10 @@ staffXeroPayItemScopeChanged :: Staff -> Staff -> Bool
 staffXeroPayItemScopeChanged oldStaff newStaff =
     staffXeroPayItemScope oldStaff /= staffXeroPayItemScope newStaff
 
-staffXeroPayItemScope :: Staff -> Maybe (Maybe (Id AwardLevel), Maybe (Id XeroImportedPayItem), StaffEmploymentBasisEnum)
+staffXeroPayItemScope :: Staff -> Maybe (PayAssignmentModeEnum, Maybe (Id AwardLevel), Maybe (Id XeroImportedPayItem), StaffEmploymentBasisEnum)
 staffXeroPayItemScope staff
     | staff.isActive && isNothing staff.archivedAt =
-        Just (staff.defaultAwardLevelId, staff.importedXeroPayItemId, staff.employmentBasis)
+        Just (staff.payAssignmentMode, staff.defaultAwardLevelId, staff.importedXeroPayItemId, staff.employmentBasis)
     | otherwise = Nothing
 
 createTrialStaffInvitationMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Staff -> Text -> IO (Either Text (LiveMutationResult VenueInvitation))

@@ -1844,7 +1844,7 @@ tests = aroundAll withDatabaseTestContext do
                 _ <- createVenueMembershipRecord venue manager "manager"
                 importedPayItem <- createImportedXeroPayItemRecord venue manager "Live approval" "live-approval" 30
                 staff <- createStaffRecord venue Nothing "Tia" "Shift"
-                    >>= updateRecord . set #importedXeroPayItemId (Just importedPayItem.id)
+                    >>= updateRecord . set #payAssignmentMode XeroRate . set #importedXeroPayItemId (Just importedPayItem.id)
                 entry <- createTimesheetEntryRecord venue staff (fromGregorian 2025 1 7)
 
                 versionBefore <- currentLiveUpdateVersion (TimesheetsLive.timesheetWeekLiveScope (unpackId venue.id) 0)
@@ -1875,7 +1875,7 @@ tests = aroundAll withDatabaseTestContext do
                 _ <- createVenueMembershipRecord venue manager "manager"
                 importedPayItem <- createImportedXeroPayItemRecord venue manager "Timesheet approval" "timesheet-approval" 30
                 staff <- createStaffRecord venue Nothing "Tia" "Shift"
-                    >>= updateRecord . set #importedXeroPayItemId (Just importedPayItem.id)
+                    >>= updateRecord . set #payAssignmentMode XeroRate . set #importedXeroPayItemId (Just importedPayItem.id)
                 entry <- createTimesheetEntryRecord venue staff (fromGregorian 2025 1 7)
 
                 response <- withUserAndCurrentVenue manager venue.id do
@@ -1907,6 +1907,9 @@ tests = aroundAll withDatabaseTestContext do
                 snapshot <- query @StaffPayVersion |> fetchOne
                 updatedEntry.staffPayVersionId `shouldBe` Just (unpackId snapshot.id)
                 snapshot.staffId `shouldBe` updatedEntry.staffId
+                snapshot.payAssignmentMode `shouldBe` XeroRate
+                shiftSnapshot <- query @ShiftTypePayVersion |> fetchOne
+                shiftSnapshot.payAssignmentMode `shouldBe` AwardRate
 
                 auditEvent <- query @AuditEvent |> fetchOne
                 auditEvent.venueId `shouldBe` unpackId venue.id
@@ -1947,7 +1950,7 @@ tests = aroundAll withDatabaseTestContext do
                 _ <- createVenueMembershipRecord venue manager "manager"
                 importedPayItem <- createImportedXeroPayItemRecord venue manager "Concurrent approval" "concurrent-approval" 30
                 staff <- createStaffRecord venue Nothing "Connie" "Approval"
-                    >>= updateRecord . set #importedXeroPayItemId (Just importedPayItem.id)
+                    >>= updateRecord . set #payAssignmentMode XeroRate . set #importedXeroPayItemId (Just importedPayItem.id)
                 entry <- createTimesheetEntryRecord venue staff (fromGregorian 2025 1 7)
 
                 results <- runConcurrentTimesheetActions 8 do

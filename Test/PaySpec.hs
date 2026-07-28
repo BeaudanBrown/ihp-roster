@@ -1,14 +1,19 @@
 module Test.PaySpec where
 
 import Application.Helper.Pay
+import Application.PayAssignment
 import Data.Time.Calendar (fromGregorian)
+import qualified Data.UUID as UUID
+import Generated.Types
+import IHP.ModelSupport (Id)
+import IHP.ModelSupport.Types (Id' (Id))
 import IHP.Prelude
 import Test.Hspec
 
 -- Non-calculation pay-version/date helpers remain here. Wage arithmetic and
 -- approved-ledger contracts live in the focused WageEngine/export suites.
 tests :: Spec
-tests =
+tests = do
     describe "Pay helper orchestration" do
         it "derives venue-effective award dates from the next venue week boundary" do
             venueEffectiveRateDate 1 (fromGregorian 2026 7 1) `shouldBe` fromGregorian 2026 7 6
@@ -20,3 +25,58 @@ tests =
             collapsePayVersionManifests ["staff:a;shift:b"] `shouldBe` Just "staff:a;shift:b"
             collapsePayVersionManifests ["staff:b;shift:c", "staff:a;shift:b"]
                 `shouldBe` Just "staff:b;shift:c | staff:a;shift:b"
+
+    describe "pay assignment resolver" do
+        it "makes staff roster-only absolute" do
+            resolvePayAssignment
+                (staffAssignment RosterOnly Nothing Nothing)
+                (shiftAssignment AwardRate (Just testAwardLevelId) Nothing)
+                `shouldBe` EffectiveRosterOnly
+
+        it "applies shift roster-only before rate overrides" do
+            resolvePayAssignment
+                (staffAssignment AwardRate (Just testAwardLevelId) Nothing)
+                (shiftAssignment RosterOnly Nothing Nothing)
+                `shouldBe` EffectiveRosterOnly
+
+        it "prefers a valid shift override to the staff default" do
+            resolvePayAssignment
+                (staffAssignment AwardRate (Just testAwardLevelId) Nothing)
+                (shiftAssignment XeroRate Nothing (Just importedPayItemId))
+                `shouldBe` EffectiveXeroRate importedPayItemId
+
+        it "uses the staff rate for staff-default shift types" do
+            resolvePayAssignment
+                (staffAssignment AwardRate (Just testAwardLevelId) Nothing)
+                (shiftAssignment StaffDefault Nothing Nothing)
+                `shouldBe` EffectiveAwardRate testAwardLevelId
+
+        it "surfaces migration-only and malformed configurations" do
+            resolvePayAssignment
+                (staffAssignment LegacyUnresolved Nothing Nothing)
+                (shiftAssignment StaffDefault Nothing Nothing)
+                `shouldSatisfy` isInvalidPayAssignment
+            resolvePayAssignment
+                (staffAssignment AwardRate Nothing Nothing)
+                (shiftAssignment StaffDefault Nothing Nothing)
+                `shouldSatisfy` isInvalidPayAssignment
+            resolvePayAssignment
+                (staffAssignment XeroRate Nothing (Just importedPayItemId))
+                (shiftAssignment AwardRate (Just testAwardLevelId) (Just importedPayItemId))
+                `shouldSatisfy` isInvalidPayAssignment
+
+staffAssignment :: PayAssignmentModeEnum -> Maybe (Id AwardLevel) -> Maybe (Id XeroImportedPayItem) -> StaffPayAssignment
+staffAssignment = StaffPayAssignment
+
+shiftAssignment :: PayAssignmentModeEnum -> Maybe (Id AwardLevel) -> Maybe (Id XeroImportedPayItem) -> ShiftPayAssignment
+shiftAssignment = ShiftPayAssignment
+
+testAwardLevelId :: Id AwardLevel
+testAwardLevelId = Id (fromMaybe UUID.nil (UUID.fromText "10000000-0000-0000-0000-000000000001"))
+
+importedPayItemId :: Id XeroImportedPayItem
+importedPayItemId = Id (fromMaybe UUID.nil (UUID.fromText "20000000-0000-0000-0000-000000000001"))
+
+isInvalidPayAssignment :: EffectivePayAssignment -> Bool
+isInvalidPayAssignment InvalidPayAssignment {} = True
+isInvalidPayAssignment _                       = False

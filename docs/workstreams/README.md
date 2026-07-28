@@ -28,6 +28,7 @@ for forward-looking design.
 
 - `rooks-pilot.md` - Rooks pilot readiness.
 - `pay-config-versioning.md` - append-only pay config versioning.
+- `explicit-roster-pay-disposition.md` - explicit staff/shift pay modes and roster-only behavior.
 - `hospitality-award-wage-compliance.md` - MA000009 wage-engine certification and cutover.
 - `xero-payroll.md` - Xero Payroll AU integration.
 - `roster-groups.md` - roster groups and bootstrap defaults.

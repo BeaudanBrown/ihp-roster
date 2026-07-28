@@ -193,6 +193,7 @@ createSeedShiftTypeRecord venue actorUser effectiveFrom shiftTypeName sortOrder 
             |> set #name shiftTypeName
             |> set #sortOrder sortOrder
             |> set #colourKey colourKey
+            |> set #payAssignmentMode AwardRate
             |> set #overrideAwardLevelId (Just awardLevelId)
             |> set #isActive True
             |> createRecord

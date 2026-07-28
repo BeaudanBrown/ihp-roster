@@ -5,7 +5,8 @@ module Application.WageSourceNotifications
     ) where
 
 import Application.Async.Queue
-import Application.Helper.Controller (PlatformRole (SuperAdminRole), platformRoleToEnum)
+import Application.Helper.Controller (PlatformRole (SuperAdminRole),
+                                      platformRoleToEnum)
 import Application.Helper.EmailVerification (isEmailDeliveryDisabled)
 import Application.Helper.Mail
 import Application.WageSourcePolicy
@@ -25,11 +26,11 @@ wageSourceDriftNotificationJobKind :: Text
 wageSourceDriftNotificationJobKind = "wage_source_award_drift_notification"
 
 data DriftPayload = DriftPayload
-    { payloadUserId       :: !UUID
-    , payloadKind         :: !Text
-    , payloadExpected     :: !Text
-    , payloadObserved     :: !Text
-    , payloadDedupeKey    :: !Text
+    { payloadUserId    :: !UUID
+    , payloadKind      :: !Text
+    , payloadExpected  :: !Text
+    , payloadObserved  :: !Text
+    , payloadDedupeKey :: !Text
     }
 
 instance Aeson.FromJSON DriftPayload where

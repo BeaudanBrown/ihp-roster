@@ -160,7 +160,7 @@ databaseTests = aroundAll withDatabaseTestContext do
                     |> set #isActive True
                     |> createRecord
                 staff <- createStaffRecord venue Nothing "Partial" "Rate"
-                    >>= updateRecord . set #defaultAwardLevelId (Just partialLevel.id)
+                    >>= updateRecord . set #payAssignmentMode AwardRate . set #defaultAwardLevelId (Just partialLevel.id)
                 shiftType <- createShiftTypeRecord venue partialLevel "Ordinary"
                 entry <- createAdapterEntry venue staff shiftType (fromGregorian 2026 1 6)
 
@@ -173,7 +173,7 @@ databaseTests = aroundAll withDatabaseTestContext do
                 importedBy <- createUserRecord "partial-import@example.com" "admin" True
                 importedPayItem <- createImportedXeroPayItemRecord venue importedBy "Partial-book import" "partial-book-import" 55
                 importedStaff <- createStaffRecord venue Nothing "Imported" "Without Award"
-                    >>= updateRecord . set #importedXeroPayItemId (Just importedPayItem.id)
+                    >>= updateRecord . set #payAssignmentMode XeroRate . set #importedXeroPayItemId (Just importedPayItem.id)
                 importedShiftType <- newRecord @ShiftType
                     |> set #venueId (unpackId venue.id)
                     |> set #name "Imported without Award"
@@ -199,6 +199,7 @@ databaseTests = aroundAll withDatabaseTestContext do
                 staff <- createStaffRecord venue Nothing "Casual" "Parity"
                     >>= updateRecord
                         . set #employmentBasis Casual
+                        . set #payAssignmentMode AwardRate
                         . set #defaultAwardLevelId (Just level.id)
                 shiftType <- createShiftTypeRecord venue level "Roster parity"
                 rosterWeek <- createRosterWeekRecord venue 0 True
@@ -294,6 +295,7 @@ databaseTests = aroundAll withDatabaseTestContext do
                 staff <- createStaffRecord venue Nothing "Ledger" "Worker"
                     >>= updateRecord
                         . set #employmentBasis Permanent
+                        . set #payAssignmentMode AwardRate
                         . set #defaultAwardLevelId (Just level.id)
                 shiftType <- createShiftTypeRecord venue level "Ledger ordinary"
                 entry <- createAdapterEntry venue staff shiftType (fromGregorian 2026 7 6)
@@ -380,7 +382,7 @@ databaseTests = aroundAll withDatabaseTestContext do
                 approver <- createUserRecord "imported-ledger-approver@example.com" "admin" True
                 importedItem <- createImportedXeroPayItemRecord venue approver "Imported ledger item" "imported-ledger-item" 55
                 staff <- createStaffRecord venue Nothing "Imported" "Worker"
-                    >>= updateRecord . set #importedXeroPayItemId (Just importedItem.id)
+                    >>= updateRecord . set #payAssignmentMode XeroRate . set #importedXeroPayItemId (Just importedItem.id)
                 shiftType <- newRecord @ShiftType
                     |> set #venueId (unpackId venue.id)
                     |> set #name "Imported ledger shift"
@@ -436,9 +438,9 @@ databaseTests = aroundAll withDatabaseTestContext do
                     |> set #isActive True
                     |> createRecord
                 validStaff <- createStaffRecord venue Nothing "Valid" "Backfill"
-                    >>= updateRecord . set #importedXeroPayItemId (Just importedItem.id)
+                    >>= updateRecord . set #payAssignmentMode XeroRate . set #importedXeroPayItemId (Just importedItem.id)
                 invalidStaff <- createStaffRecord venue Nothing "Invalid" "Backfill"
-                    >>= updateRecord . set #importedXeroPayItemId (Just invalidImportedItem.id)
+                    >>= updateRecord . set #payAssignmentMode XeroRate . set #importedXeroPayItemId (Just invalidImportedItem.id)
                 validEntry <- createAdapterEntry venue validStaff shiftType (fromGregorian 2026 7 6)
                 invalidEntry <- createAdapterEntry venue invalidStaff shiftType (fromGregorian 2026 7 7)
                 approvedAt <- getCurrentTime
@@ -486,7 +488,7 @@ databaseTests = aroundAll withDatabaseTestContext do
                 importedBy <- createUserRecord "wage-adapter-bulk@example.com" "admin" True
                 importedPayItem <- createImportedXeroPayItemRecord venue importedBy "Bulk imported" "wage-adapter-bulk" 55
                 importedStaff <- createStaffRecord venue Nothing "Bulk" "Imported"
-                    >>= updateRecord . set #importedXeroPayItemId (Just importedPayItem.id)
+                    >>= updateRecord . set #payAssignmentMode XeroRate . set #importedXeroPayItemId (Just importedPayItem.id)
                 importedShiftType <- newRecord @ShiftType
                     |> set #venueId (unpackId venue.id)
                     |> set #name "Bulk imported shift"
@@ -531,6 +533,7 @@ databaseTests = aroundAll withDatabaseTestContext do
                 staff <- createStaffRecord venue Nothing "Approved" "Bulk"
                     >>= updateRecord
                         . set #employmentBasis Permanent
+                        . set #payAssignmentMode AwardRate
                         . set #defaultAwardLevelId (Just level.id)
                 shiftType <- createShiftTypeRecord venue level "Approved bulk ordinary"
                 _ <- newRecord @PublicHoliday
@@ -543,6 +546,7 @@ databaseTests = aroundAll withDatabaseTestContext do
                 approvedEntries <- forM [0 .. 199 :: Int] \index -> do
                     currentStaff <- fetch staff.id
                     void $ currentStaff
+                        |> set #payAssignmentMode AwardRate
                         |> set #defaultAwardLevelId (Just (if even index then level.id else alternateLevel.id))
                         |> updateRecord
                     currentShiftType <- fetch shiftType.id
@@ -610,15 +614,17 @@ databaseTests = aroundAll withDatabaseTestContext do
                 permanentStaff <- createStaffRecord venue Nothing "Permanent" "Parity"
                     >>= updateRecord
                         . set #employmentBasis Permanent
+                        . set #payAssignmentMode AwardRate
                         . set #defaultAwardLevelId (Just level1.id)
                 casualStaff <- createStaffRecord venue Nothing "Casual" "Parity"
                     >>= updateRecord
                         . set #employmentBasis Casual
+                        . set #payAssignmentMode AwardRate
                         . set #defaultAwardLevelId (Just level1.id)
                 importedBy <- createUserRecord "wage-adapter-import@example.com" "admin" True
                 importedPayItem <- createImportedXeroPayItemRecord venue importedBy "Imported parity" "wage-adapter-import" 55
                 importedStaff <- createStaffRecord venue Nothing "Imported" "Parity"
-                    >>= updateRecord . set #importedXeroPayItemId (Just importedPayItem.id)
+                    >>= updateRecord . set #payAssignmentMode XeroRate . set #importedXeroPayItemId (Just importedPayItem.id)
                 shiftType <- createShiftTypeRecord venue level1 "Ordinary"
                 overrideShiftType <- createShiftTypeRecord venue level2 "Level 2 override"
                 importedShiftType <- newRecord @ShiftType

@@ -276,7 +276,7 @@ tests = do
                 importedUser <- createUserRecord "imported-ready@example.com" "staff" True
                 _ <- createVenueMembershipRecord fixture.venue importedUser "worker"
                 importedStaff <- createStaffRecord fixture.venue (Just importedUser) "Imported" "Worker"
-                    >>= updateRecord . set #importedXeroPayItemId (Just importedPayItem.id)
+                    >>= updateRecord . set #payAssignmentMode XeroRate . set #importedXeroPayItemId (Just importedPayItem.id)
                 _ <-
                     newRecord @XeroStaffMapping
                         |> set #venueId (unpackId fixture.venue.id)
@@ -307,6 +307,7 @@ tests = do
                     newRecord @StaffPayVersion
                         |> set #venueId (unpackId fixture.venue.id)
                         |> set #staffId (unpackId fixture.staff.id)
+                        |> set #payAssignmentMode fixture.staff.payAssignmentMode
                         |> set #defaultAwardLevelId (fmap unpackId fixture.staff.defaultAwardLevelId)
                         |> set #employmentBasis fixture.staff.employmentBasis
                         |> set #effectiveFrom (fromGregorian 2026 4 28)
@@ -487,7 +488,7 @@ createReadinessFixture calendarType periodStart periodEnd = do
     _ <- createVenueMembershipRecord venue owner "venue_owner"
     awardLevel <- createPayLevelRecordWithRates venue "Level 2" 25 2 3 1 1.25 1.5
     staff <- createStaffRecord venue Nothing "Ada" "Lovelace"
-    staff <- staff |> set #employmentBasis Permanent |> set #defaultAwardLevelId (Just awardLevel.id) |> updateRecord
+    staff <- staff |> set #employmentBasis Permanent |> set #payAssignmentMode AwardRate |> set #defaultAwardLevelId (Just awardLevel.id) |> updateRecord
     _ <- createApprovedTimesheetEntryRecord venue staff owner periodStart
     connection <- createReadinessXeroConnection venue owner
     _ <- createSucceededXeroSyncRun venue connection
