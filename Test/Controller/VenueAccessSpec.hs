@@ -641,6 +641,80 @@ tests = aroundAll withDatabaseTestContext do
                 response `responseStatusShouldBe` status302
                 lookup HTTP.hLocation (responseHeaders response) `shouldBe` Just "http://localhost/LeaveRequests"
 
+        it "preserves venue-independent roster landing options after a support switch" $ withContext do
+            withCleanDb do
+                venueA <- createVenueWithConfig "Alpha Venue"
+                venueB <- createVenueWithConfig "Beta Venue"
+                founder <- createUserRecordWithPlatformRole "founder-switch-roster-options@example.com" "staff" (Just SuperAdminRole) True
+                _ <- createVenueMembershipRecord venueA founder "venue_owner"
+
+                response <- withPasskeyVerifiedUserAndCurrentVenue founder venueA.id do
+                    callActionWithParams SwitchSupportVenueAction
+                        [ ("venueId", cs (tshow venueB.id))
+                        , ("next", "/RosterWeeks?rosterView=timeline")
+                        ]
+
+                response `responseStatusShouldBe` status302
+                lookup HTTP.hLocation (responseHeaders response) `shouldBe` Just "http://localhost/RosterWeeks?rosterView=timeline"
+
+        it "preserves a roster week return path without venue-scoped parameters" $ withContext do
+            withCleanDb do
+                venueA <- createVenueWithConfig "Alpha Venue"
+                venueB <- createVenueWithConfig "Beta Venue"
+                founder <- createUserRecordWithPlatformRole "founder-switch-roster-week@example.com" "staff" (Just SuperAdminRole) True
+                _ <- createVenueMembershipRecord venueA founder "venue_owner"
+
+                forM_
+                    [ "/ShowRosterWeek?weekOffset=3"
+                    , "/ShowRosterWeek?weekOffset=3&note=hello%20world"
+                    , "/ShowRosterWeek?weekOffset=3&note=one%26two"
+                    , "/ShowRosterWeek?weekOffset=3&note=left%3Dright"
+                    , "/ShowRosterWeek?weekOffset=3&note=100%25"
+                    , "/ShowRosterWeek?weekOffset=3&note="
+                    , "/ShowRosterWeek?weekOffset=3&token=abc.def_123"
+                    ] \nextPath -> do
+                        response <- withPasskeyVerifiedUserAndCurrentVenue founder venueA.id do
+                            callActionWithParams SwitchSupportVenueAction
+                                [ ("venueId", cs (tshow venueB.id))
+                                , ("next", nextPath)
+                                ]
+
+                        response `responseStatusShouldBe` status302
+                        lookup HTTP.hLocation (responseHeaders response) `shouldBe` Just ("http://localhost" <> nextPath)
+
+        it "drops the previous venue roster scope when redirecting after a support switch" $ withContext do
+            withCleanDb do
+                venueA <- createVenueWithConfig "Alpha Venue"
+                venueB <- createVenueWithConfig "Beta Venue"
+                founder <- createUserRecordWithPlatformRole "founder-switch-roster@example.com" "staff" (Just SuperAdminRole) True
+                _ <- createVenueMembershipRecord venueA founder "venue_owner"
+
+                response <- withPasskeyVerifiedUserAndCurrentVenue founder venueA.id do
+                    callActionWithParams SwitchSupportVenueAction
+                        [ ("venueId", cs (tshow venueB.id))
+                        , ("next", "/ShowRosterWeek?weekOffset=0&rosterGroupId=a1000000-0000-0000-0000-000000000211")
+                        ]
+
+                response `responseStatusShouldBe` status302
+                lookup HTTP.hLocation (responseHeaders response) `shouldBe` Just "http://localhost/RosterWeeks"
+
+        it "drops a malformed previous venue roster scope without replaying it" $ withContext do
+            withCleanDb do
+                venueA <- createVenueWithConfig "Alpha Venue"
+                venueB <- createVenueWithConfig "Beta Venue"
+                founder <- createUserRecordWithPlatformRole "founder-switch-malformed-roster@example.com" "staff" (Just SuperAdminRole) True
+                _ <- createVenueMembershipRecord venueA founder "venue_owner"
+
+                forM_ ["", "%20", "%26", "%3D", "%25", "abc.def_123", "%ZZ"] \rosterGroupIdValue -> do
+                    response <- withPasskeyVerifiedUserAndCurrentVenue founder venueA.id do
+                        callActionWithParams SwitchSupportVenueAction
+                            [ ("venueId", cs (tshow venueB.id))
+                            , ("next", "/ShowRosterWeek?weekOffset=0&rosterGroupId=" <> rosterGroupIdValue)
+                            ]
+
+                    response `responseStatusShouldBe` status302
+                    lookup HTTP.hLocation (responseHeaders response) `shouldBe` Just "http://localhost/RosterWeeks"
+
         it "falls back to support when given an unsafe redirect target" $ withContext do
             withCleanDb do
                 venueA <- createVenueWithConfig "Alpha Venue"

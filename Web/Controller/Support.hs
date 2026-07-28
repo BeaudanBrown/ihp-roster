@@ -27,6 +27,7 @@ import Control.Monad (forM, forM_, void)
 import Data.Coerce (coerce)
 import qualified Data.Text as Text
 import Web.Controller.Prelude
+import Web.RosterWeeks.Paths (supportVenueSwitchReturnPath)
 import Web.SurfaceInvalidation (invalidateTouchedResources)
 import Web.View.Support.Index
 
@@ -185,7 +186,7 @@ instance Controller SupportController where
                 setSession currentVenueSessionKey currentVenue.id
                 setSuccessMessage ("Support venue switched to " <> currentVenue.name)
                 if isSafeReturnPath nextPath
-                    then redirectToPath nextPath
+                    then redirectToPath (supportVenueSwitchReturnPath nextPath)
                     else redirectTo SupportAction
 
 buildSupportVenueOnboardingInvitationForm :: VenueOnboardingInvitation

@@ -25,20 +25,41 @@ module Web.RosterWeeks.Paths
     , rosterWeekStaffPanelFragmentUrl
     , rosterWeekUrl
     , rosterWeekWithDateUrl
+    , supportVenueSwitchReturnPath
     ) where
 
 import qualified Application.Helper.FrontendContract.Surface.Roster.Action as RosterAction
 import Application.Helper.FrontendContract.Surface.Values (surfaceFieldsText)
 import Application.Helper.Url (appendQueryParams, replaceQueryParams)
 import Data.Coerce (coerce)
+import qualified Data.Text as Text
+import qualified Data.Text.Encoding as TextEncoding
 import Data.Time.Calendar (Day)
 import Data.Time.Format (defaultTimeLocale, formatTime)
 import Generated.Types
 import IHP.ModelSupport.Types (Id' (..))
 import IHP.Prelude
 import IHP.Router.UrlGenerator (pathTo)
+import qualified Network.HTTP.Types.URI as URI
 import Web.Routes ()
 import Web.Types
+
+supportVenueSwitchReturnPath :: Text -> Text
+supportVenueSwitchReturnPath candidate
+    | returnPathWithoutQuery candidate == returnPathWithoutQuery (pathTo ShowRosterWeekAction { weekOffset = 0 })
+        && returnPathHasQueryParameter "rosterGroupId" candidate = pathTo RosterWeeksAction
+    | otherwise = candidate
+
+returnPathWithoutQuery :: Text -> Text
+returnPathWithoutQuery = Text.takeWhile (/= '?')
+
+returnPathHasQueryParameter :: Text -> Text -> Bool
+returnPathHasQueryParameter parameterName candidate =
+    any ((== TextEncoding.encodeUtf8 parameterName) . fst) parsedQuery
+    where
+        queryWithPrefix = snd (Text.breakOn "?" candidate)
+        queryWithoutFragment = Text.takeWhile (/= '#') (Text.drop 1 queryWithPrefix)
+        parsedQuery = URI.parseQuery (TextEncoding.encodeUtf8 queryWithoutFragment)
 
 rosterWeekUrl :: Int -> Id RosterGroup -> Text
 rosterWeekUrl weekOffset rosterGroupId =

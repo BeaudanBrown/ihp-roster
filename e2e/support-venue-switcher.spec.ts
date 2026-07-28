@@ -1,6 +1,12 @@
 import { expect, test } from '@playwright/test';
 import { E2E_TIMEOUT } from './timeouts';
-import { gotoWhenReady, loginAsPrivilegedUserWithSeededPasskeySession, webauthnBaseURL } from './test-helpers';
+import {
+    defaultE2ERosterGroupId,
+    gotoWhenReady,
+    loginAsPrivilegedUserWithSeededPasskeySession,
+    openRoster,
+    webauthnBaseURL,
+} from './test-helpers';
 
 test.use({ baseURL: webauthnBaseURL });
 
@@ -28,9 +34,34 @@ test.describe('Super-admin venue switcher', () => {
 
         await page.selectOption('#support-venue-switch', { label: 'e2e-beta-venue' });
         await expect(page).toHaveURL(/LeaveRequests/, { timeout: E2E_TIMEOUT.navigation });
+        await expect(page.locator('#leave-requests-content')).toBeVisible({ timeout: E2E_TIMEOUT.navigation });
+        await expect(page.locator('body')).not.toContainText(/FORBIDDEN/i);
 
         await gotoWhenReady(page, '/Support', '#support-venue-switch');
         await expect(page.locator('#support-venue-switch')).toContainText('e2e-beta-venue');
+    });
+
+    test('switching from a venue-specific roster URL opens the new venue roster', async ({ page }) => {
+        await loginAsSuperAdmin(page);
+        await openRoster(page, {
+            email: 'e2e-super-admin@example.com',
+            password: 'test-password-123',
+            ensureEditable: false,
+            useCurrentSession: true,
+        });
+
+        await page.selectOption('#support-venue-switch', { label: 'e2e-beta-venue' });
+
+        await expect(page).toHaveURL(
+            (url) =>
+                url.pathname === '/ShowRosterWeek'
+                && url.searchParams.has('rosterGroupId')
+                && url.searchParams.get('rosterGroupId') !== defaultE2ERosterGroupId,
+            { timeout: E2E_TIMEOUT.navigation },
+        );
+        await expect(page.locator('#roster-week-shell')).toBeVisible({ timeout: E2E_TIMEOUT.navigation });
+        await expect(page.locator('#support-venue-switch option:checked')).toHaveText('e2e-beta-venue');
+        await expect(page.locator('body')).not.toContainText(/FORBIDDEN/i);
     });
 
     test('does not show the venue switcher for ordinary venue admins', async ({ page }) => {

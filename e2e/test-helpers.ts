@@ -470,6 +470,7 @@ type OpenRosterOptions = {
     ensureDraft?: boolean;
     ensureEditable?: boolean;
     rosterLayoutMode?: RosterLayoutMode;
+    useCurrentSession?: boolean;
 };
 
 export async function openRosterSettings(page: Page) {
@@ -535,9 +536,12 @@ export async function openRoster(page: Page, options: OpenRosterOptions = {}) {
         ensureDraft = true,
         ensureEditable = true,
         rosterLayoutMode = 'day_rows',
+        useCurrentSession = false,
     } = options;
 
-    await loginAs(page, email, password);
+    if (!useCurrentSession) {
+        await loginAs(page, email, password);
+    }
     await expect(page.locator('#roster-content')).toBeVisible();
     await gotoWhenReady(
         page,
