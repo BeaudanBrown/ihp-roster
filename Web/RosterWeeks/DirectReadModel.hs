@@ -124,6 +124,10 @@ fetchEligibleRosterGroupStaffDirect rosterGroupId = do
         \AND staff.venue_id = ? \
         \AND staff.is_active = TRUE \
         \AND staff.archived_at IS NULL \
+        \AND (staff.pay_assignment_mode = 'roster_only' \
+        \     OR (staff.pay_assignment_mode = 'award_rate' AND EXISTS (SELECT 1 FROM award_levels WHERE award_levels.id = staff.default_award_level_id AND award_levels.is_active = TRUE)) \
+        \     OR (staff.pay_assignment_mode = 'xero_rate' AND EXISTS (SELECT 1 FROM xero_imported_pay_items WHERE xero_imported_pay_items.id = staff.imported_xero_pay_item_id AND xero_imported_pay_items.venue_id = staff.venue_id AND xero_imported_pay_items.archived_at IS NULL)) \
+        \ ) \
         \ORDER BY staff.last_name"
         (unpackId rosterGroupId, unpackId currentVenueId)
     fetchStaffInIdOrder orderedStaffIds
@@ -132,7 +136,7 @@ fetchRosterStaffPanelEntriesDirect :: (?context :: ControllerContext, ?modelCont
 fetchRosterStaffPanelEntriesDirect panelScope rosterGroupId rosterWeek = do
     panelStaffMembers <-
         case panelScope of
-            RosterStaffPanelCurrentGroup -> fetchEligibleRosterGroupStaffDirect rosterGroupId
+            RosterStaffPanelCurrentGroup -> fetchRosterGroupStaffForPanelDirect rosterGroupId
             RosterStaffPanelAllVenue     -> fetchCurrentVenueActiveStaff
     visibleSlots <- fetchVisibleRosterWeekSlotsDirect rosterWeek
     fetchRosterStaffPanelEntriesForScope panelScope panelStaffMembers visibleSlots
@@ -197,14 +201,38 @@ fetchLinkedVenueMembershipsDirect staffMembers = do
                 |> filterWhere (#isActive, True)
                 |> fetch
 
+fetchRosterGroupStaffForPanelDirect :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Id RosterGroup -> IO [Staff]
+fetchRosterGroupStaffForPanelDirect rosterGroupId = do
+    orderedStaffIds :: [PG.Only UUID.UUID] <- sqlQuery
+        "SELECT staff.id \
+        \FROM staff \
+        \JOIN staff_roster_groups ON staff_roster_groups.staff_id = staff.id \
+        \WHERE staff_roster_groups.roster_group_id = ? \
+        \AND staff_roster_groups.deleted_at IS NULL \
+        \AND staff.venue_id = ? \
+        \AND staff.is_active = TRUE \
+        \AND staff.archived_at IS NULL \
+        \ORDER BY staff.last_name"
+        (unpackId rosterGroupId, unpackId currentVenueId)
+    fetchStaffInIdOrder orderedStaffIds
+
 fetchCurrentVenueRosterShiftTypesDirect :: (?context :: ControllerContext, ?modelContext :: ModelContext) => IO [ShiftType]
-fetchCurrentVenueRosterShiftTypesDirect =
-    query @ShiftType
-        |> filterWhere (#venueId, unpackId currentVenueId)
-        |> filterWhere (#archivedAt, Nothing)
-        |> orderByAsc #sortOrder
-        |> orderByAsc #createdAt
-        |> fetch
+fetchCurrentVenueRosterShiftTypesDirect = do
+    shiftTypeIds :: [PG.Only UUID.UUID] <- sqlQuery
+        "SELECT shift_types.id \
+        \FROM shift_types \
+        \WHERE shift_types.venue_id = ? \
+        \AND shift_types.archived_at IS NULL \
+        \AND shift_types.is_active = TRUE \
+        \AND (shift_types.pay_assignment_mode IN ('staff_default', 'roster_only') \
+        \     OR (shift_types.pay_assignment_mode = 'award_rate' AND EXISTS (SELECT 1 FROM award_levels WHERE award_levels.id = shift_types.override_award_level_id AND award_levels.is_active = TRUE)) \
+        \     OR (shift_types.pay_assignment_mode = 'xero_rate' AND EXISTS (SELECT 1 FROM xero_imported_pay_items WHERE xero_imported_pay_items.id = shift_types.imported_xero_pay_item_id AND xero_imported_pay_items.venue_id = shift_types.venue_id AND xero_imported_pay_items.archived_at IS NULL)) \
+        \ ) \
+        \ORDER BY shift_types.sort_order, shift_types.created_at"
+        (PG.Only (unpackId currentVenueId))
+    records <- query @ShiftType |> filterWhereIn (#id, [Id shiftTypeId | PG.Only shiftTypeId <- shiftTypeIds]) |> fetch
+    let recordsById = Map.fromList [(unpackId shiftType.id, shiftType) | shiftType <- records]
+    pure (mapMaybe (\(PG.Only shiftTypeId) -> Map.lookup shiftTypeId recordsById) shiftTypeIds)
 
 buildRosterStaffOptionStatesDirect :: (?context :: ControllerContext, ?modelContext :: ModelContext) => RosterAssignmentFilters -> Calendar.Day -> [RosterSlot] -> [Staff] -> IO (Map.Map (UUID.UUID, UUID.UUID) RosterAssignmentOptionState)
 buildRosterStaffOptionStatesDirect assignmentFilters weekStartDate visibleSlots =

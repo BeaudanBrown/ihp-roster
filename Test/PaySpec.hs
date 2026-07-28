@@ -51,6 +51,13 @@ tests = do
                 (shiftAssignment StaffDefault Nothing Nothing)
                 `shouldBe` EffectiveAwardRate testAwardLevelId
 
+        it "flags unresolved and unavailable assignments for management remediation" do
+            staffPayAssignmentRequiresRemediation [] [] (staffAssignment LegacyUnresolved Nothing Nothing) `shouldBe` True
+            staffPayAssignmentRequiresRemediation [testAwardLevelId] [] (staffAssignment AwardRate (Just testAwardLevelId) Nothing) `shouldBe` False
+            staffPayAssignmentRequiresRemediation [] [] (staffAssignment AwardRate (Just testAwardLevelId) Nothing) `shouldBe` True
+            shiftPayAssignmentRequiresRemediation [] [] (shiftAssignment StaffDefault Nothing Nothing) `shouldBe` False
+            shiftPayAssignmentRequiresRemediation [] [] (shiftAssignment XeroRate Nothing (Just importedPayItemId)) `shouldBe` True
+
         it "surfaces migration-only and malformed configurations" do
             resolvePayAssignment
                 (staffAssignment LegacyUnresolved Nothing Nothing)

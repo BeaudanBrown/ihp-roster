@@ -373,8 +373,12 @@ renderRosterStaffPanelEntry panelStaffMembers weekOffset currentRosterGroupId en
 
 renderRosterStaffPanelEntryRow :: Int -> Id RosterGroup -> Text -> Text -> RosterStaffPanelEntry -> Html
 renderRosterStaffPanelEntryRow weekOffset currentRosterGroupId staffDisplayLabel staffRoleLabel entry =
-    let staffKey = "staff:" <> tshow entry.staff.id
-     in SurfaceInteraction.withFrontendSurfaceSourceRef rosterStaffDragSourceRef staffKey $
+    let
+        staffKey = "staff:" <> tshow entry.staff.id
+        sourceRef
+            | entry.staffPayConfigurationRequired = \html -> html
+            | otherwise = SurfaceInteraction.withFrontendSurfaceSourceRef rosterStaffDragSourceRef staffKey
+     in sourceRef $
         SurfaceLinkedHighlight.withFrontendSurfaceLinkedHighlightSource rosterStaffLinkedHighlight staffKey $
             applyAppShellActionAttrs
                 (appShellActionByMarker @OpenRosterStaffEditDialog)
@@ -382,6 +386,7 @@ renderRosterStaffPanelEntryRow weekOffset currentRosterGroupId staffDisplayLabel
                 [hsx|
                     <tr class="roster-staff-panel-entry"
                     {...rosterStaffPanelSortRowAttrs staffKey staffDisplayLabel staffRoleLabel entry.assignedShiftCount entry.staff.idealShiftsPerWeek}
+                    aria-disabled={if entry.staffPayConfigurationRequired then ("true" :: Text) else ("false" :: Text)}
                     role="button"
                     tabindex="0">
                     {forEach rosterStaffPanelColumns (renderRosterStaffPanelEntryCell weekOffset currentRosterGroupId staffDisplayLabel staffRoleLabel entry)}
@@ -393,6 +398,7 @@ renderRosterStaffPanelEntryCell weekOffset currentRosterGroupId staffDisplayLabe
     <th scope="row" class="roster-staff-cell roster-staff-name">
         <div class="roster-staff-name-primary d-inline-flex align-items-center gap-2">
             <span>{staffDisplayLabel}</span>
+            {renderStaffPayConfigurationWarning entry}
             {renderTrialStaffInviteButton weekOffset currentRosterGroupId staffDisplayLabel entry}
         </div>
     </th>
@@ -418,6 +424,14 @@ renderRosterStaffPanelEntryCell _ _ staffDisplayLabel _ entry RosterStaffActionC
      in [hsx|
         <td class="roster-staff-cell roster-staff-action">{locateButton}</td>
     |]
+
+renderStaffPayConfigurationWarning :: (?context :: ControllerContext) => RosterStaffPanelEntry -> Html
+renderStaffPayConfigurationWarning entry
+    | not currentUserIsManager || not entry.staffPayConfigurationRequired = mempty
+    | otherwise = [hsx|<span class="text-warning small" role="img" tabindex="0" title={warningText} aria-label={warningText}>(!)</span>|]
+  where
+    warningText :: Text
+    warningText = "Pay configuration required. A venue admin must choose a default pay rate or “No Timesheets (roster only).”"
 
 renderTrialStaffInviteButton :: Int -> Id RosterGroup -> Text -> RosterStaffPanelEntry -> Html
 renderTrialStaffInviteButton weekOffset currentRosterGroupId staffDisplayLabel entry

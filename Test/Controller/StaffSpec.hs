@@ -105,6 +105,7 @@ tests = aroundAll withDatabaseTestContext do
                 staff.userId `shouldBe` Nothing
                 staff.isActive `shouldBe` True
                 staff.employmentBasis `shouldBe` Casual
+                staff.payAssignmentMode `shouldBe` RosterOnly
                 assignments <- query @StaffRosterGroup
                     |> filterWhere (#staffId, unpackId staff.id)
                     |> filterWhere (#deletedAt, Nothing)
@@ -643,6 +644,7 @@ tests = aroundAll withDatabaseTestContext do
                 updatedStaff <- fetch staff.id
                 updatedStaff.employmentBasis `shouldBe` Permanent
                 updatedStaff.defaultAwardLevelId `shouldBe` Just payLevel.id
+                updatedStaff.payAssignmentMode `shouldBe` AwardRate
                 xeroVersionAfter <- LiveUpdate.currentLiveUpdateVersion (AdminLive.adminXeroLiveScope (unpackId venue.id))
                 xeroVersionAfter `shouldBe` xeroVersionBefore
 
@@ -661,7 +663,7 @@ tests = aroundAll withDatabaseTestContext do
                 response `responseBodyShouldContain` "Default Pay Rate"
                 response `responseBodyShouldContain` "Award rates"
                 response `responseBodyShouldContain` "Level 3 (Part-time $32.75/hr, casual $40.94/hr)"
-                response `responseBodyShouldContain` "Not assigned"
+                response `responseBodyShouldContain` "No Timesheets (roster only)"
 
         it "explains why venue roles are unavailable for unlinked staff" $ withContext do
             withCleanDb do
@@ -763,6 +765,7 @@ tests = aroundAll withDatabaseTestContext do
                 updatedStaff <- fetch staff.id
                 updatedStaff.defaultAwardLevelId `shouldBe` Nothing
                 updatedStaff.importedXeroPayItemId `shouldBe` Just importedPayItem.id
+                updatedStaff.payAssignmentMode `shouldBe` XeroRate
 
         it "hides archived imported Xero pay items from the staff pay override dropdown" $ withContext do
             withCleanDb do

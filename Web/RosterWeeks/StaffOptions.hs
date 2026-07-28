@@ -13,6 +13,8 @@ import Application.Helper.Controller (LeaveRequestStatus (..),
 import Application.Helper.Staff (isTrialStaff)
 import Application.Helper.View (rosterableStaffForRosterPanel)
 import Application.Helper.WeekBoundaries (weekdayIndexForDay)
+import Application.PayAssignment (StaffPayAssignment (..),
+                                  staffPayAssignmentRequiresRemediation)
 import Data.Coerce (coerce)
 import Data.List (find, nub, sortBy)
 import qualified Data.Map.Strict as Map
@@ -43,11 +45,15 @@ fetchRosterStaffPanelEntriesForScope panelScope staffMembers allSlots = do
                 |> filterWhere (#isActive, True)
                 |> fetch
 
+    activeAwardLevels <- query @AwardLevel |> filterWhere (#isActive, True) |> fetch
+    activeImportedPayItems <- query @XeroImportedPayItem |> filterWhere (#venueId, unpackId currentVenueId) |> filterWhere (#archivedAt, Nothing :: Maybe UTCTime) |> fetch
     let membershipsByUserId = Map.fromList [ (membership.userId, membership) | membership <- memberships ]
     let assignedShiftCountByStaffId = Map.fromListWith (+) [ (staffId, 1 :: Int) | slot <- allSlots, staffId <- maybeToList slot.staffId ]
-    pure (map (buildPanelEntry membershipsByUserId assignedShiftCountByStaffId) panelStaff)
+    let activeAwardLevelIds = map (.id) activeAwardLevels
+    let activeImportedPayItemIds = map (.id) activeImportedPayItems
+    pure (map (buildPanelEntry activeAwardLevelIds activeImportedPayItemIds membershipsByUserId assignedShiftCountByStaffId) panelStaff)
     where
-        buildPanelEntry membershipsByUserId assignedShiftCountByStaffId staff =
+        buildPanelEntry activeAwardLevelIds activeImportedPayItemIds membershipsByUserId assignedShiftCountByStaffId staff =
             let staffId = coerce (get #id staff)
                 assignedShiftCount = Map.findWithDefault 0 staffId assignedShiftCountByStaffId
                 roleText = if isTrialStaff staff
@@ -59,6 +65,7 @@ fetchRosterStaffPanelEntriesForScope panelScope staffMembers allSlots = do
                     { staff
                     , assignedShiftCount
                     , userRole = roleText
+                    , staffPayConfigurationRequired = staffPayAssignmentRequiresRemediation activeAwardLevelIds activeImportedPayItemIds (StaffPayAssignment staff.payAssignmentMode staff.defaultAwardLevelId staff.importedXeroPayItemId)
                     }
 
 staffForPanelScope :: RosterStaffPanelScope -> [Staff] -> [Staff]

@@ -9,6 +9,8 @@ import Application.Helper.FrontendContract.OrderedRange.Runtime
 import qualified Application.Helper.FrontendContract.Surface.Profile as Surface
 import Application.Helper.FrontendContract.Surface.Values
 import Application.Helper.StaffShiftPreferences
+import Application.PayAssignment (StaffPayAssignment (..),
+                                  staffPayAssignmentRequiresRemediation)
 import qualified Data.Text as Text
 import qualified Data.UUID as UUID
 import Web.View.Prelude
@@ -73,10 +75,12 @@ staffShiftPreferencesSurfaceValues section selectedShiftPreferences =
 
 staffPayRateSelectionValue :: Staff -> Text
 staffPayRateSelectionValue staff =
-    case (staff.importedXeroPayItemId, staff.defaultAwardLevelId) of
-        (Just importedPayItemId, _)  -> "xero:" <> inputValue importedPayItemId
-        (Nothing, Just awardLevelId) -> "award:" <> inputValue awardLevelId
-        (Nothing, Nothing)           -> ""
+    case staff.payAssignmentMode of
+        XeroRate -> maybe "" ("xero:" <>) (inputValue <$> staff.importedXeroPayItemId)
+        AwardRate -> maybe "" ("award:" <>) (inputValue <$> staff.defaultAwardLevelId)
+        RosterOnly -> ""
+        LegacyUnresolved -> "legacy-unresolved"
+        StaffDefault -> "legacy-unresolved"
 
 renderPersonalProfileFields :: SurfaceFieldBundleOf Surface.StaffProfileFields fields => fields -> Staff -> Maybe Text -> Html
 renderPersonalProfileFields fields = renderPersonalProfileFieldsWithEmailId fields "email"
@@ -402,15 +406,29 @@ renderStaffPayFields fields staff awardLevels awardLevelBaseRates importedPayIte
         <div class="col-12 col-md-6">
             <label for="payRateSelection" class="form-label">Default Pay Rate</label>
             <select name={surfaceFieldNameFrom @Surface.PayRateSelectionField fields} id="payRateSelection" class={selectClass staff "defaultAwardLevelId"}>
-                <option value="" selected={isNothing staff.defaultAwardLevelId && isNothing staff.importedXeroPayItemId}>Not assigned</option>
+                {renderLegacyPaySelectionOption staff}
+                <option value="" selected={staff.payAssignmentMode == RosterOnly}>No Timesheets (roster only)</option>
                 {renderAwardLevelOptionsGroup staff awardLevels awardLevelBaseRates}
                 {renderImportedPayItemOptionsGroup staff.importedXeroPayItemId importedPayItems}
             </select>
+            {renderStaffPayAssignmentWarning staff awardLevels importedPayItems}
             {renderStaffFieldError staff "defaultAwardLevelId"}
             {renderStaffFieldError staff "importedXeroPayItemId"}
         </div>
     </div>
 |]
+
+renderLegacyPaySelectionOption :: Staff -> Html
+renderLegacyPaySelectionOption staff
+    | staff.payAssignmentMode == LegacyUnresolved = [hsx|<option value="legacy-unresolved" selected={True} disabled={True}>Pay configuration required — choose a rate or roster-only</option>|]
+    | otherwise = mempty
+
+renderStaffPayAssignmentWarning :: Staff -> [AwardLevel] -> [XeroImportedPayItem] -> Html
+renderStaffPayAssignmentWarning staff awardLevels importedPayItems
+    | not (staffPayAssignmentRequiresRemediation (map (.id) awardLevels) (map (.id) importedPayItems) assignment) = mempty
+    | otherwise = [hsx|<div class="form-text text-warning" role="alert">Pay configuration required. Choose a default pay rate or “No Timesheets (roster only).”</div>|]
+  where
+    assignment = StaffPayAssignment staff.payAssignmentMode staff.defaultAwardLevelId staff.importedXeroPayItemId
 
 renderImportedPayItemOptionsGroup :: Maybe (Id XeroImportedPayItem) -> [XeroImportedPayItem] -> Html
 renderImportedPayItemOptionsGroup _ [] = mempty

@@ -22,6 +22,8 @@ import Application.Helper.ShiftTypeColours (blankShiftTypeColourKey,
                                             normalizeShiftTypeColourKey,
                                             shiftTypeColourPaletteKeys)
 import Application.Helper.SurfaceResource
+import Application.PayAssignment (ShiftPayAssignment (..),
+                                  shiftPayAssignmentRequiresRemediation)
 import qualified Data.Text as Text
 import Web.Admin.FrontendSurface (AdminVenueScopeValue (..),
                                   adminShiftTypesSurfaceImpl)
@@ -50,10 +52,11 @@ currentVenueScopeId =
         Just venue -> unpackId venue.id
         Nothing -> error "Admin shift types live surface requires a current venue"
 
-submittedPayRateSelectionValue :: Maybe (Id AwardLevel) -> Maybe (Id XeroImportedPayItem) -> Text
-submittedPayRateSelectionValue _ (Just importedPayItemId) = "xero:" <> tshow importedPayItemId
-submittedPayRateSelectionValue (Just awardLevelId) Nothing = "award:" <> tshow awardLevelId
-submittedPayRateSelectionValue Nothing Nothing = ""
+submittedPayRateSelectionValue :: PayAssignmentModeEnum -> Maybe (Id AwardLevel) -> Maybe (Id XeroImportedPayItem) -> Text
+submittedPayRateSelectionValue RosterOnly _ _ = "roster-only"
+submittedPayRateSelectionValue XeroRate _ (Just importedPayItemId) = "xero:" <> tshow importedPayItemId
+submittedPayRateSelectionValue AwardRate (Just awardLevelId) Nothing = "award:" <> tshow awardLevelId
+submittedPayRateSelectionValue _ _ _ = ""
 
 renderShiftTypesInactiveSummary :: [ShiftType] -> Bool -> Html
 renderShiftTypesInactiveSummary shiftTypes showInactive = [hsx|
@@ -95,7 +98,7 @@ renderShiftTypeCreateForm _shiftTypes showInactive awardLevels awardLevelBaseRat
                 <input id="new-shift-type-name" class="form-control" type="text" name={surfaceFieldNameFrom @Surface.Name fields} placeholder="Standard Shift" />
             </div>
             <div class="col-12 col-lg-4">
-                {renderPayRateSelect fields "new-shift-type-pay-rate" Nothing Nothing awardLevels awardLevelBaseRates importedPayItems Nothing}
+                {renderPayRateSelect fields "new-shift-type-pay-rate" StaffDefault Nothing Nothing awardLevels awardLevelBaseRates importedPayItems Nothing}
             </div>
             <div class="col-12 col-lg-3">
                 {renderShiftTypeColourSelect fields "new-shift-type-colour" defaultCreateColourKey Nothing}
@@ -151,7 +154,7 @@ renderShiftTypeRow shiftTypes showInactive awardLevels awardLevelBaseRates impor
                 {autosaveNameInput}
             </div>
             <div class="col-12 col-lg-4">
-                {renderPayRateSelect fields ("shift-type-pay-rate-" <> tshow shiftType.id) shiftType.overrideAwardLevelId shiftType.importedXeroPayItemId awardLevels awardLevelBaseRates importedPayItems (Just (autosaveSelectionAction, autosaveSelectionRoute shiftType))}
+                {renderPayRateSelect fields ("shift-type-pay-rate-" <> tshow shiftType.id) shiftType.payAssignmentMode shiftType.overrideAwardLevelId shiftType.importedXeroPayItemId awardLevels awardLevelBaseRates importedPayItems (Just (autosaveSelectionAction, autosaveSelectionRoute shiftType))}
             </div>
             <div class="col-12 col-lg-3">
                 {renderShiftTypeColourSelect fields ("shift-type-colour-" <> tshow shiftType.id) shiftType.colourKey (Just (autosaveSelectionAction, autosaveSelectionRoute shiftType))}
@@ -162,7 +165,7 @@ renderShiftTypeRow shiftTypes showInactive awardLevels awardLevelBaseRates impor
             </div>
         </div>
     |]
-        selectedPayRate = submittedPayRateSelectionValue shiftType.overrideAwardLevelId shiftType.importedXeroPayItemId
+        selectedPayRate = submittedPayRateSelectionValue shiftType.payAssignmentMode shiftType.overrideAwardLevelId shiftType.importedXeroPayItemId
         fields = AdminAction.updateShiftTypeActionFields showInactive shiftType.name selectedPayRate shiftType.colourKey shiftType.isActive
         moveUpFields = AdminAction.moveShiftTypeUpActionFields showInactive
         moveDownFields = AdminAction.moveShiftTypeDownActionFields showInactive
@@ -216,8 +219,8 @@ renderShiftTypeMoveButton isDisabled action actionUrl label =
             , actionRouteExtraAttrs = [("class", "btn btn-outline-secondary")]
             }
 
-renderPayRateSelect :: SurfaceFieldBundleOf (SurfaceActionFieldSpecs Surface.AdminShiftTypesSurface Surface.CreateShiftType) fields => fields -> Text -> Maybe (Id AwardLevel) -> Maybe (Id XeroImportedPayItem) -> [AwardLevel] -> [AwardLevelBaseRate] -> [XeroImportedPayItem] -> Maybe (FrontendSurfaceAction, FrontendSurfaceActionRoute) -> Html
-renderPayRateSelect fields fieldId selectedAwardLevelId selectedImportedPayItemId awardLevels awardLevelBaseRates importedPayItems maybeAutosave = [hsx|
+renderPayRateSelect :: SurfaceFieldBundleOf (SurfaceActionFieldSpecs Surface.AdminShiftTypesSurface Surface.CreateShiftType) fields => fields -> Text -> PayAssignmentModeEnum -> Maybe (Id AwardLevel) -> Maybe (Id XeroImportedPayItem) -> [AwardLevel] -> [AwardLevelBaseRate] -> [XeroImportedPayItem] -> Maybe (FrontendSurfaceAction, FrontendSurfaceActionRoute) -> Html
+renderPayRateSelect fields fieldId selectedMode selectedAwardLevelId selectedImportedPayItemId awardLevels awardLevelBaseRates importedPayItems maybeAutosave = [hsx|
     <label class="form-label" for={fieldId}>Pay Rate</label>
     {renderSelect selectBody}
 |]
@@ -226,14 +229,25 @@ renderPayRateSelect fields fieldId selectedAwardLevelId selectedImportedPayItemI
             <select id={fieldId}
                     class="form-select"
                     name={surfaceFieldNameFrom @Surface.PayRateSelection fields}>
-                <option value="" selected={isNothing selectedAwardLevelId && isNothing selectedImportedPayItemId}>Use staff default pay rate</option>
+                <option value="" selected={selectedMode == StaffDefault}>Use staff default pay rate</option>
+                <option value="roster-only" selected={selectedMode == RosterOnly}>No Timesheets (roster only)</option>
                 {renderAwardLevelOptionsGroup awardLevels awardLevelBaseRates selectedAwardLevelId selectedImportedPayItemId}
                 {renderImportedPayItemOptionsGroup selectedImportedPayItemId importedPayItems}
             </select>
+            {renderShiftPayAssignmentWarning selectedMode selectedAwardLevelId selectedImportedPayItemId awardLevels importedPayItems}
         |]
         renderSelect selectHtml = case maybeAutosave of
             Just (action, route) -> applyFrontendSurfaceActionAttrs action route selectHtml
             Nothing -> selectHtml
+
+renderShiftPayAssignmentWarning :: PayAssignmentModeEnum -> Maybe (Id AwardLevel) -> Maybe (Id XeroImportedPayItem) -> [AwardLevel] -> [XeroImportedPayItem] -> Html
+renderShiftPayAssignmentWarning selectedMode selectedAwardLevelId selectedImportedPayItemId awardLevels importedPayItems
+    | not (shiftPayAssignmentRequiresRemediation (map (.id) awardLevels) (map (.id) importedPayItems) assignment) = mempty
+    | otherwise = [hsx|<span class="ms-1 text-warning" role="img" tabindex="0" title={warningText} aria-label={warningText}>(!)</span>|]
+  where
+    warningText :: Text
+    warningText = "Pay configuration required. Choose an override pay rate, use the staff default, or “No Timesheets (roster only).”"
+    assignment = ShiftPayAssignment selectedMode selectedAwardLevelId selectedImportedPayItemId
 
 renderImportedPayItemOptionsGroup :: Maybe (Id XeroImportedPayItem) -> [XeroImportedPayItem] -> Html
 renderImportedPayItemOptionsGroup _ [] = mempty

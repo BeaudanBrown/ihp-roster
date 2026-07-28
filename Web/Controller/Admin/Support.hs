@@ -312,10 +312,11 @@ validateRequiredEmail rawValue emptyMessage =
 data SubmittedPayRateSelection = SubmittedPayRateSelection
     { submittedAwardLevelId          :: !(Maybe (Id AwardLevel))
     , submittedImportedXeroPayItemId :: !(Maybe (Id XeroImportedPayItem))
+    , submittedRosterOnly            :: !Bool
     }
 
 emptySubmittedPayRateSelection :: SubmittedPayRateSelection
-emptySubmittedPayRateSelection = SubmittedPayRateSelection Nothing Nothing
+emptySubmittedPayRateSelection = SubmittedPayRateSelection Nothing Nothing False
 
 parseSubmittedPayRateSelection ::
     (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
@@ -329,6 +330,7 @@ parseSubmittedPayRateSelectionValue ::
     Text ->
     IO (Maybe SubmittedPayRateSelection)
 parseSubmittedPayRateSelectionValue "" = pure (Just emptySubmittedPayRateSelection)
+parseSubmittedPayRateSelectionValue "roster-only" = pure (Just emptySubmittedPayRateSelection { submittedRosterOnly = True })
 parseSubmittedPayRateSelectionValue value
     | Just rawAwardLevelId <- Text.stripPrefix "award:" value =
         validateSubmittedAwardLevelId rawAwardLevelId

@@ -459,7 +459,7 @@ instance Controller AdminController where
                         maybePayRateSelection <- parseSubmittedPayRateSelectionValue (surfaceFieldValue @Surface.PayRateSelection fields)
                         case maybePayRateSelection of
                             Just payRateSelection -> do
-                                mutationResult <- createShiftTypeMutation name (surfaceFieldValue @Surface.IsActive fields) payRateSelection.submittedAwardLevelId payRateSelection.submittedImportedXeroPayItemId (Just (surfaceFieldValue @Surface.ColourKey fields))
+                                mutationResult <- createShiftTypeMutation name (surfaceFieldValue @Surface.IsActive fields) payRateSelection.submittedAwardLevelId payRateSelection.submittedImportedXeroPayItemId payRateSelection.submittedRosterOnly (Just (surfaceFieldValue @Surface.ColourKey fields))
                                 setSuccessMessage "Shift type added"
                                 respondToShiftTypesSectionMutationWithXeroRefresh mutationResult
                             Nothing -> respondToShiftTypesSectionMutation (surfaceFieldValue @Surface.ShowInactiveShiftTypes fields)
@@ -478,7 +478,7 @@ instance Controller AdminController where
                         maybePayRateSelection <- parseSubmittedPayRateSelectionValue (surfaceFieldValue @Surface.PayRateSelection fields)
                         case maybePayRateSelection of
                             Just payRateSelection -> do
-                                mutationResult <- updateShiftTypeMutation shiftType name (surfaceFieldValue @Surface.IsActive fields) payRateSelection.submittedAwardLevelId payRateSelection.submittedImportedXeroPayItemId (Just (surfaceFieldValue @Surface.ColourKey fields))
+                                mutationResult <- updateShiftTypeMutation shiftType name (surfaceFieldValue @Surface.IsActive fields) payRateSelection.submittedAwardLevelId payRateSelection.submittedImportedXeroPayItemId payRateSelection.submittedRosterOnly (Just (surfaceFieldValue @Surface.ColourKey fields))
                                 unless isHtmxRequest do
                                     setSuccessMessage "Shift type updated"
                                 respondToShiftTypesSectionMutationWithXeroRefresh mutationResult

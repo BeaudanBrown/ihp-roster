@@ -213,6 +213,27 @@ tests = aroundAll withDatabaseTestContext do
                     |> fetchOne
                 createdShiftType.overrideAwardLevelId `shouldBe` Nothing
                 createdShiftType.importedXeroPayItemId `shouldBe` Just importedPayItem.id
+                createdShiftType.payAssignmentMode `shouldBe` XeroRate
+
+        it "creates a roster-only shift type from the pay dropdown" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Roster Only Shift Type Venue"
+                admin <- createUserRecord "roster-only-shift-admin@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue admin "venue_admin"
+
+                response <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
+                    callActionWithParams CreateShiftTypeAction
+                        [ ("showInactiveShiftTypes", "false")
+                        , ("name", "Roster only")
+                        , ("payRateSelection", "roster-only")
+                        , ("colourKey", "")
+                        , ("isActive", "true")
+                        ]
+                response `responseStatusShouldBe` status302
+                shiftType <- query @ShiftType |> filterWhere (#venueId, unpackId venue.id) |> filterWhere (#name, "Roster only" :: Text) |> fetchOne
+                shiftType.payAssignmentMode `shouldBe` RosterOnly
+                shiftType.overrideAwardLevelId `shouldBe` Nothing
+                shiftType.importedXeroPayItemId `shouldBe` Nothing
 
         it "hides archived imported Xero pay items from shift type dropdowns" $ withContext do
             withCleanDb do

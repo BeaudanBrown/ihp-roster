@@ -97,9 +97,10 @@ data RosterStaffPanelScope
     deriving (Eq, Show)
 
 data RosterStaffPanelEntry = RosterStaffPanelEntry
-    { staff              :: Staff
-    , assignedShiftCount :: Int
-    , userRole           :: Text
+    { staff                         :: Staff
+    , assignedShiftCount            :: Int
+    , userRole                      :: Text
+    , staffPayConfigurationRequired :: Bool
     }
 
 data RosterStaffPanelRenderModel = RosterStaffPanelRenderModel

@@ -103,6 +103,7 @@ tests = aroundAll withDatabaseTestContext do
                 response `responseBodyShouldContain` "Award rates"
                 response `responseBodyShouldContain` "Level A (Part-time $31.50/hr, casual $39.38/hr)"
                 response `responseBodyShouldContain` "Use staff default pay rate"
+                response `responseBodyShouldContain` "No Timesheets (roster only)"
                 response `responseBodyShouldContain` "Back of House"
                 response `responseBodyShouldNotContain` "Pass"
                 response `responseBodyShouldNotContain` "Default Only"

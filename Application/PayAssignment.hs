@@ -6,6 +6,8 @@ module Application.PayAssignment
     , resolvePayAssignment
     , selectableStaffAssignmentMode
     , selectableShiftAssignmentMode
+    , staffPayAssignmentRequiresRemediation
+    , shiftPayAssignmentRequiresRemediation
     ) where
 
 import Generated.Types
@@ -130,3 +132,23 @@ hasOnlyXero award xero = isNothing award && isJust xero
 
 hasNoRate :: Maybe award -> Maybe xero -> Bool
 hasNoRate award xero = isNothing award && isNothing xero
+
+-- | A selected reference must still be present in the currently selectable
+-- inventory. Callers supply active Award and venue-valid Xero ids.
+staffPayAssignmentRequiresRemediation :: [Id AwardLevel] -> [Id XeroImportedPayItem] -> StaffPayAssignment -> Bool
+staffPayAssignmentRequiresRemediation activeAwardIds activeXeroIds assignment =
+    case assignment.staffAssignmentMode of
+        LegacyUnresolved -> True
+        AwardRate -> maybe True (`notElem` activeAwardIds) assignment.staffAssignmentAwardLevelId
+        XeroRate -> maybe True (`notElem` activeXeroIds) assignment.staffAssignmentImportedPayItemId
+        RosterOnly -> False
+        StaffDefault -> True
+
+shiftPayAssignmentRequiresRemediation :: [Id AwardLevel] -> [Id XeroImportedPayItem] -> ShiftPayAssignment -> Bool
+shiftPayAssignmentRequiresRemediation activeAwardIds activeXeroIds assignment =
+    case assignment.shiftAssignmentMode of
+        AwardRate -> maybe True (`notElem` activeAwardIds) assignment.shiftAssignmentAwardLevelId
+        XeroRate -> maybe True (`notElem` activeXeroIds) assignment.shiftAssignmentImportedPayItemId
+        RosterOnly -> False
+        StaffDefault -> False
+        LegacyUnresolved -> True

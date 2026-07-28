@@ -30,7 +30,6 @@ import Data.Time.Clock (getCurrentTime, utctDay)
 import qualified Data.UUID as UUID
 import Web.Controller.Admin.Support (SubmittedPayRateSelection (..),
                                      fetchActiveImportedXeroPayItems,
-                                     parseSubmittedPayRateSelection,
                                      parseSubmittedPayRateSelectionValue)
 import Web.Controller.Prelude
 import Web.RosterWeeks.Projection (rosterGridInnerAndStaffPanelFragments)
@@ -76,7 +75,7 @@ instance Controller StaffController where
         maybeSelectedRosterGroupIds <- parseStaffRosterGroupIds
         let submittedRosterGroupIds = nub (mapMaybe parseRosterGroupIdText (paramTexts "rosterGroupIds"))
         let canManageStaffPay = hasRole VenueAdminRole
-        maybeSubmittedPayRateSelection <- if canManageStaffPay then parseSubmittedPayRateSelection "payRateSelection" else pure (Just emptyStaffPayRateSelection)
+        maybeSubmittedPayRateSelection <- if canManageStaffPay then requireSubmittedPayRateSelection "payRateSelection" else pure (Just emptyStaffPayRateSelection)
         let maybeSubmittedDefaultAwardLevelId = submittedAwardLevelId <$> maybeSubmittedPayRateSelection
         let maybeSubmittedImportedXeroPayItemId = submittedImportedXeroPayItemId <$> maybeSubmittedPayRateSelection
         staff <- buildNewTrialStaff
@@ -286,7 +285,7 @@ instance Controller StaffController where
                     Left message -> renderTrialStaffInvitationError staff message Nothing
 
 emptyStaffPayRateSelection :: SubmittedPayRateSelection
-emptyStaffPayRateSelection = SubmittedPayRateSelection Nothing Nothing
+emptyStaffPayRateSelection = SubmittedPayRateSelection Nothing Nothing True
 
 buildNewTrialStaff :: (?context :: ControllerContext) => IO Staff
 buildNewTrialStaff =
@@ -301,6 +300,7 @@ buildNewTrialStaff =
             |> set #emergencyContactPhone "Trial placeholder"
             |> set #idealShiftsPerWeek 0
             |> set #employmentBasis Casual
+            |> set #payAssignmentMode RosterOnly
             |> set #isActive True
 
 renderNewStaffResponse :: (?context :: ControllerContext, ?request :: Request, ?respond :: Respond) => Staff -> [Id RosterGroup] -> [RosterGroup] -> [AwardLevel] -> [AwardLevelBaseRate] -> [XeroImportedPayItem] -> Int -> Maybe (Id RosterGroup) -> IO ()
@@ -516,6 +516,17 @@ fetchAwardLevelBaseRatesForStaffForm = do
             |> orderByAsc #createdAt
             |> fetch
     pure (filter (rateEffectiveOn venueConfig.rosterWeekStartsOn today) rates)
+
+requireSubmittedPayRateSelection ::
+    (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
+    ByteString ->
+    IO (Maybe SubmittedPayRateSelection)
+requireSubmittedPayRateSelection paramName =
+    case paramOrNothing @Text paramName of
+        Nothing -> do
+            setErrorMessage "Choose a default pay rate or No Timesheets (roster only)."
+            pure Nothing
+        Just value -> parseSubmittedPayRateSelectionValue value
 
 parseSubmittedDefaultAwardLevelId ::
     (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
