@@ -118,8 +118,12 @@ tests = aroundAll withDatabaseTestContext do
                 expectedCsv <- readExportFixtureText "staff_hours-expected.csv"
 
                 _ <- fixture.barShift
-                    |> set #payAssignmentMode AwardRate
-                    |> set #overrideAwardLevelId (Just fixture.levelTwo.id)
+                    |> set #payAssignmentMode RosterOnly
+                    |> set #overrideAwardLevelId Nothing
+                    |> updateRecord
+                _ <- fixture.avaStaff
+                    |> set #payAssignmentMode RosterOnly
+                    |> set #defaultAwardLevelId Nothing
                     |> updateRecord
 
                 exportJob <- generatePayrollExportJob fixture.admin fixture.venue StaffPayCsv

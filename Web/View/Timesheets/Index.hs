@@ -21,6 +21,8 @@ import Application.Helper.FrontendContract.Surface.Runtime (FrontendSurfaceActio
 import qualified Application.Helper.FrontendContract.Surface.Timesheets as Surface
 import qualified Application.Helper.FrontendContract.Surface.Timesheets.Action as TimesheetsAction
 import Application.Helper.FrontendContract.Surface.Values
+import Application.PayAssignment (StaffPayAssignment (..),
+                                  staffAssignmentAllowsTimesheets)
 import Application.VenueTime.Model
 import Application.WageEngine (EarningsComponent (..),
                                FinalEarningsSummary (..), WageCalculation (..),
@@ -249,11 +251,14 @@ renderTimesheetStaffFilter fields selectedStaffFilterId staffMembers = [hsx|
                 class="form-select form-select-sm"
                 onchange="this.form.requestSubmit();">
             <option value="" selected={isNothing selectedStaffFilterId}>All staff</option>
-            {forEach staffMembers renderOption}
+            {forEach (filter staffCanProduceTimesheets staffMembers) renderOption}
         </select>
     </div>
 |]
     where
+        staffCanProduceTimesheets staff =
+            staffAssignmentAllowsTimesheets
+                (StaffPayAssignment staff.payAssignmentMode staff.defaultAwardLevelId staff.importedXeroPayItemId)
         renderOption staff =
             let staffId = unpackId (get #id staff)
              in [hsx|

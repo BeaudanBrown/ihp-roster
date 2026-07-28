@@ -267,8 +267,8 @@ instance Controller TimesheetsController where
 
         weekOffset <- weekOffsetFromParamOrEntry workedOn
         let (showApproved, showAllStaff, showSuggestions, selectedStaffFilterId) = timesheetViewFiltersFromRequest
-        staffMembers <- fetchStaffForForm
-        shiftTypes <- fetchShiftTypesForForm
+        staffMembers <- fetchStaffForFormIncluding timesheetEntry.staffId
+        shiftTypes <- fetchShiftTypesForFormIncluding timesheetEntry.shiftTypeId
         currentUserStaff <- fetchCurrentUserStaff
         let currentViewerStaffId = unpackId . get #id <$> currentUserStaff
         venueConfig <- fetchVenueConfig
@@ -288,8 +288,8 @@ instance Controller TimesheetsController where
 
         weekOffset <- weekOffsetFromParamOrEntry existingWorkedOn
         let (showApproved, showAllStaff, showSuggestions, selectedStaffFilterId) = timesheetViewFiltersFromRequest
-        staffMembers <- fetchStaffForForm
-        shiftTypes <- fetchShiftTypesForForm
+        staffMembers <- fetchStaffForFormIncluding existingEntry.staffId
+        shiftTypes <- fetchShiftTypesForFormIncluding existingEntry.shiftTypeId
         currentUserStaff <- fetchCurrentUserStaff
         let currentViewerStaffId = unpackId . get #id <$> currentUserStaff
         venueConfig <- fetchVenueConfig
@@ -306,8 +306,8 @@ instance Controller TimesheetsController where
                         else render EditView { .. }
                 Right timesheetEntry -> do
                     ensureRosterDerivedIdentityUnchanged existingEntry timesheetEntry
-                    ensureStaffAssignmentAllowed timesheetEntry.staffId
-                    ensureShiftTypeAllowed timesheetEntry.shiftTypeId
+                    ensureStaffAssignmentAllowedForExisting existingEntry timesheetEntry.staffId
+                    ensureShiftTypeAllowedForExisting existingEntry timesheetEntry.shiftTypeId
                     let coreChanged = timesheetCoreChanged existingEntry timesheetEntry
                     when (wasApproved && coreChanged) do
                         ensureTimesheetEntryNotPayrollLocked existingEntry weekOffset showApproved showAllStaff showSuggestions selectedStaffFilterId

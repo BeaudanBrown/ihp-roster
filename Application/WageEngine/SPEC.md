@@ -27,8 +27,10 @@ versions carry one explicit mode plus constrained Award/Xero references. The
 resolver returns effective Award, effective imported Xero, roster-only, or an
 invalid configuration; staff roster-only is absolute, then shift roster-only,
 shift override, and staff default apply in order. Migration-only
-legacy-unresolved is always invalid. The active explicit-disposition workstream
-owns wiring roster, Timesheet, and wage callers to this contract.
+legacy-unresolved is always invalid. Timesheet selectors, suggestion eligibility,
+materialization authorization, and roster wage prediction consume this contract.
+Roster wage prediction removes effective roster-only subjects before canonical
+unsealed evaluation, so suppression is not represented as zero pay or an error.
 
 `Application.WageEvaluation` is the sole production caller of
 `calculateTimesheetPay`. Its typed keys distinguish persisted `Timesheet` subjects

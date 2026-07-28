@@ -1267,7 +1267,11 @@ tests = aroundAll withDatabaseTestContext do
                 staffMember <- createStaffRecord venue Nothing "Alpha" "Crew"
                 _ <- updateRecord (staffMember |> set #employmentBasis Permanent)
                 level <- createPayLevelRecordWithRates venue "Level 1" 20 5 10 1 1.5 2
+                _ <- updateRecord (staffMember |> set #payAssignmentMode AwardRate |> set #defaultAwardLevelId (Just level.id))
                 shiftType <- createShiftTypeRecord venue level "Floor"
+                rosterOnlyStaff <- createStaffRecord venue Nothing "Roster-only" "Staff"
+                rosterOnlyShiftType <- createShiftTypeRecord venue level "Roster-only shift"
+                _ <- updateRecord (rosterOnlyShiftType |> set #payAssignmentMode RosterOnly |> set #overrideAwardLevelId Nothing)
                 rosterWeek <- createRosterWeekRecord venue 0 True
                 rosterDay <- createRosterDayRecord rosterWeek 0
                 slot <- createRosterSlotRecord rosterDay slotName (Just staffMember) 0
@@ -1276,6 +1280,22 @@ tests = aroundAll withDatabaseTestContext do
                         |> setTestStartTime (Just (timeOfDay 9 0))
                         |> setTestEndTime (Just (timeOfDay 17 0))
                         |> set #shiftTypeId (Just (unpackId shiftType.id))
+                        |> setTestDurationMinutes (Just 480)
+                    )
+                rosterOnlyStaffSlot <- createRosterSlotRecord rosterDay slotName (Just rosterOnlyStaff) 4
+                _ <- updateRecord
+                    ( rosterOnlyStaffSlot
+                        |> setTestStartTime (Just (timeOfDay 9 0))
+                        |> setTestEndTime (Just (timeOfDay 17 0))
+                        |> set #shiftTypeId (Just (unpackId shiftType.id))
+                        |> setTestDurationMinutes (Just 480)
+                    )
+                rosterOnlyShiftSlot <- createRosterSlotRecord rosterDay slotName (Just staffMember) 5
+                _ <- updateRecord
+                    ( rosterOnlyShiftSlot
+                        |> setTestStartTime (Just (timeOfDay 9 0))
+                        |> setTestEndTime (Just (timeOfDay 17 0))
+                        |> set #shiftTypeId (Just (unpackId rosterOnlyShiftType.id))
                         |> setTestDurationMinutes (Just 480)
                     )
                 incompleteSlot <- createRosterSlotRecord rosterDay slotName (Just staffMember) 1
@@ -1288,10 +1308,15 @@ tests = aroundAll withDatabaseTestContext do
                         |> set #shiftTypeId (Just (unpackId shiftType.id))
                         |> setTestDurationMinutes (Just 1380)
                     )
+                importedPayItem <- createImportedXeroPayItemRecord venue admin "Unavailable imported rate" "unavailable-rate" 25
+                now <- getCurrentTime
+                _ <- updateRecord (importedPayItem |> set #archivedAt (Just now) |> set #archivedByUserId (Just (unpackId admin.id)))
                 uncalculableShiftType <- newRecord @ShiftType
                     |> set #venueId (unpackId venue.id)
-                    |> set #name "Missing pay context"
+                    |> set #name "Unavailable pay context"
                     |> set #sortOrder 99
+                    |> set #payAssignmentMode XeroRate
+                    |> set #importedXeroPayItemId (Just importedPayItem.id)
                     |> set #isActive True
                     |> createRecord
                 uncalculableSlot <- createRosterSlotRecord rosterDay slotName (Just staffMember) 3
@@ -1320,6 +1345,7 @@ tests = aroundAll withDatabaseTestContext do
                 adminResponse `responseBodyShouldContain` "1 wage estimate error"
                 adminResponse `responseBodyShouldContain` "Wage source warning"
                 adminResponse `responseBodyShouldNotContain` "draft shift excluded"
+                adminResponse `responseBodyShouldNotContain` "roster-only excluded"
                 adminResponse `responseBodyShouldNotContain` "roster-wage-summary-warning"
                 adminResponse `responseBodyShouldContain` "roster-wage-rail-head"
                 adminResponse `responseBodyShouldContain` ">Wages<"
@@ -1403,6 +1429,7 @@ tests = aroundAll withDatabaseTestContext do
                 staffMember <- createStaffRecord venue Nothing "Alpha" "Crew"
                 _ <- updateRecord (staffMember |> set #employmentBasis Permanent)
                 level <- createPayLevelRecordWithRates venue "Level 1" 20 5 10 1 1.5 2
+                _ <- updateRecord (staffMember |> set #payAssignmentMode AwardRate |> set #defaultAwardLevelId (Just level.id))
                 shiftType <- createShiftTypeRecord venue level "Floor"
                 rosterWeek <- createRosterWeekRecord venue 0 True
                 rosterDay <- createRosterDayRecord rosterWeek 0
@@ -1485,6 +1512,7 @@ tests = aroundAll withDatabaseTestContext do
                 slotName <- fetchSlotNameRecord venue "Late"
                 staffMember <- createStaffRecord venue (Just manager) "Alpha" "Crew"
                 level <- createPayLevelRecord venue "Level 1"
+                _ <- updateRecord (staffMember |> set #payAssignmentMode AwardRate |> set #defaultAwardLevelId (Just level.id))
                 shiftType <- createShiftTypeRecord venue level "Bar"
                 rosterWeek <- createRosterWeekRecord venue 0 False
                 rosterDay <- createRosterDayRecord rosterWeek 0
@@ -1520,6 +1548,7 @@ tests = aroundAll withDatabaseTestContext do
                 _ <- createVenueMembershipRecord venue manager "manager"
                 staffMember <- createStaffRecord venue (Just manager) "Alpha" "Crew"
                 level <- createPayLevelRecord venue "Level 1"
+                _ <- updateRecord (staffMember |> set #payAssignmentMode AwardRate |> set #defaultAwardLevelId (Just level.id))
                 shiftType <- createShiftTypeRecord venue level "Bar"
                 slotName <- fetchSlotNameRecord venue "Late"
                 rosterWeek <- createRosterWeekRecord venue 0 True
@@ -1578,6 +1607,8 @@ tests = aroundAll withDatabaseTestContext do
                 _ <- createVenueMembershipRecord venue bravoUser "worker"
                 bravo <- createStaffRecord venue (Just bravoUser) "Bravo" "Crew"
                 level <- createPayLevelRecord venue "Level 1"
+                _ <- updateRecord (alpha |> set #payAssignmentMode AwardRate |> set #defaultAwardLevelId (Just level.id))
+                _ <- updateRecord (bravo |> set #payAssignmentMode AwardRate |> set #defaultAwardLevelId (Just level.id))
                 shiftType <- createShiftTypeRecord venue level "Bar"
                 slotName <- fetchSlotNameRecord venue "Late"
                 rosterWeek <- createRosterWeekRecord venue 0 True

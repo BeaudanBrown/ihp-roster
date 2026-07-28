@@ -266,6 +266,7 @@ tests = aroundAll withDatabaseTestContext do
                 _ <- createVenueMembershipRecord venue worker "worker"
                 staff <- createStaffRecord venue (Just worker) "Tess" "Worker"
                 payLevel <- createPayLevelRecord venue "Level 1"
+                _ <- makeStaffTimesheetProducing payLevel staff
                 shiftType <- createShiftTypeRecord venue payLevel "Ordinary"
 
                 response <- withPasskeyVerifiedUserAndCurrentVenue superAdmin venue.id do
@@ -293,6 +294,7 @@ tests = aroundAll withDatabaseTestContext do
                 _ <- createVenueMembershipRecord venue workerUser "worker"
                 worker <- createStaffRecord venue (Just workerUser) "Nora" "NoBreak"
                 payLevel <- createPayLevelRecord venue "Level 1"
+                _ <- makeStaffTimesheetProducing payLevel worker
                 shiftType <- createShiftTypeRecord venue payLevel "Ordinary"
 
                 response <- withUserAndCurrentVenue workerUser venue.id do
@@ -320,6 +322,7 @@ tests = aroundAll withDatabaseTestContext do
                 _ <- createVenueMembershipRecord venue workerUser "worker"
                 worker <- createStaffRecord venue (Just workerUser) "Tara" "TakesBreak"
                 payLevel <- createPayLevelRecord venue "Level 1"
+                _ <- makeStaffTimesheetProducing payLevel worker
                 shiftType <- createShiftTypeRecord venue payLevel "Ordinary"
 
                 response <- withUserAndCurrentVenue workerUser venue.id do
@@ -349,6 +352,7 @@ tests = aroundAll withDatabaseTestContext do
                 _ <- createVenueMembershipRecord venue manager "manager"
                 staff <- createStaffRecord venue (Just manager) "Autumn" "Manager"
                 payLevel <- createPayLevelRecord venue "Level 1"
+                _ <- makeStaffTimesheetProducing payLevel staff
                 shiftType <- createShiftTypeRecord venue payLevel "Ordinary"
                 let baseParams =
                         [ ("weekOffset", "0")
@@ -385,6 +389,7 @@ tests = aroundAll withDatabaseTestContext do
                 _ <- createVenueMembershipRecord venue manager "manager"
                 staff <- createStaffRecord venue (Just manager) "Equal Autumn" "Manager"
                 payLevel <- createPayLevelRecord venue "Level 1"
+                _ <- makeStaffTimesheetProducing payLevel staff
                 shiftType <- createShiftTypeRecord venue payLevel "Ordinary"
                 let baseParams =
                         [ ("weekOffset", "0")
@@ -422,6 +427,7 @@ tests = aroundAll withDatabaseTestContext do
                 _ <- createVenueMembershipRecord venue manager "manager"
                 staff <- createStaffRecord venue (Just manager) "Equal Autumn Break" "Manager"
                 payLevel <- createPayLevelRecord venue "Level 1"
+                _ <- makeStaffTimesheetProducing payLevel staff
                 shiftType <- createShiftTypeRecord venue payLevel "Ordinary"
                 let baseParams =
                         [ ("weekOffset", "0")
@@ -548,8 +554,9 @@ tests = aroundAll withDatabaseTestContext do
                 venue <- createVenueWithConfig "Timesheet Venue"
                 user <- createUserRecord "timesheet-form@example.com" "staff" True
                 _ <- createVenueMembershipRecord venue user "worker"
-                _ <- createStaffRecord venue (Just user) "Tess" "Form"
+                staff <- createStaffRecord venue (Just user) "Tess" "Form"
                 payLevel <- createPayLevelRecord venue "Level 1"
+                _ <- makeStaffTimesheetProducing payLevel staff
                 _ <- createShiftTypeRecord venue payLevel "Ordinary"
 
                 response <- withUserAndCurrentVenue user venue.id do
@@ -575,8 +582,9 @@ tests = aroundAll withDatabaseTestContext do
                 venue <- createVenueWithConfig "Timesheet Picker Venue"
                 user <- createUserRecord "timesheet-picker@example.com" "staff" True
                 _ <- createVenueMembershipRecord venue user "worker"
-                _ <- createStaffRecord venue (Just user) "Tess" "Picker"
+                staff <- createStaffRecord venue (Just user) "Tess" "Picker"
                 payLevel <- createPayLevelRecord venue "Level 1"
+                _ <- makeStaffTimesheetProducing payLevel staff
                 _ <- createShiftTypeRecord venue payLevel "Ordinary"
                 venueConfig <- query @VenueConfig |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
                 _ <- updateRecord (venueConfig |> set #timePickerStartMinuteOfDay 540 |> set #timePickerFinalSelectableMinuteOfDay 780)
@@ -605,6 +613,7 @@ tests = aroundAll withDatabaseTestContext do
                 linkedStaff <- createStaffRecord venue (Just linkedUser) "Linked" "Worker"
                 trialStaff <- createStaffRecord venue Nothing "Trial" "Worker"
                 payLevel <- createPayLevelRecord venue "Level 1"
+                _ <- makeStaffTimesheetProducing payLevel linkedStaff
                 _ <- createShiftTypeRecord venue payLevel "Ordinary"
 
                 formResponse <- withUserAndCurrentVenue manager venue.id do
@@ -625,6 +634,125 @@ tests = aroundAll withDatabaseTestContext do
                 weekResponse `responseBodyShouldContain` "Linked Worker"
                 weekResponse `responseBodyShouldNotContain` "Trial Worker"
                 weekResponse `responseBodyShouldNotContain` cs (tshow trialStaff.id)
+
+        it "excludes roster-only staff and shift types from ad-hoc selectors and authorization" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Timesheet Roster-only Selector Venue"
+                manager <- createUserRecord "timesheet-roster-only-manager@example.com" "staff" True
+                workerUser <- createUserRecord "timesheet-roster-only-worker@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue manager "manager"
+                _ <- createVenueMembershipRecord venue workerUser "worker"
+                managerStaff <- createStaffRecord venue (Just manager) "Mia" "Manager"
+                worker <- createStaffRecord venue (Just workerUser) "Rory" "RosterOnly"
+                payLevel <- createPayLevelRecord venue "Level 1"
+                _ <- updateRecord (managerStaff |> set #payAssignmentMode AwardRate |> set #defaultAwardLevelId (Just payLevel.id))
+                ordinaryShift <- createShiftTypeRecord venue payLevel "Timesheet shift"
+                rosterOnlyShift <- createShiftTypeRecord venue payLevel "Roster-only shift"
+                currentWorker <- fetch worker.id
+                _ <- updateRecord (currentWorker |> set #payAssignmentMode RosterOnly |> set #defaultAwardLevelId Nothing)
+                _ <- updateRecord (rosterOnlyShift |> set #payAssignmentMode RosterOnly |> set #overrideAwardLevelId Nothing)
+
+                formResponse <- withUserAndCurrentVenue manager venue.id do
+                    withRequestHeaders [("HX-Request", "true")] do
+                        callActionWithParams NewTimesheetEntryAction
+                            [("weekOffset", "0"), ("workedOn", "2025-01-07")]
+
+                formResponse `responseStatusShouldBe` status200
+                formResponse `responseBodyShouldNotContain` "Rory RosterOnly"
+                formResponse `responseBodyShouldNotContain` "Roster-only shift"
+                formResponse `responseBodyShouldContain` "Timesheet shift"
+
+                let createParams staffId shiftTypeId =
+                        [ ("weekOffset", "0")
+                        , ("staffId", idToParam staffId)
+                        , ("shiftTypeId", idToParam shiftTypeId)
+                        , ("workedOn", "2025-01-07")
+                        , ("startTime", "09:00")
+                        , ("endTime", "17:00")
+                        ]
+                rosterOnlyStaffResponse <- withUserAndCurrentVenue manager venue.id do
+                    callActionWithParams CreateTimesheetEntryAction (createParams worker.id ordinaryShift.id)
+                rosterOnlyShiftResponse <- withUserAndCurrentVenue manager venue.id do
+                    callActionWithParams CreateTimesheetEntryAction (createParams managerStaff.id rosterOnlyShift.id)
+
+                rosterOnlyStaffResponse `responseStatusShouldBe` status403
+                rosterOnlyShiftResponse `responseStatusShouldBe` status403
+                query @TimesheetEntry |> fetchCount >>= (`shouldBe` 0)
+
+        it "derives suggestions only for timesheet-producing staff and shifts and restores them after pay correction" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Timesheet Roster-only Suggestion Venue"
+                manager <- createUserRecord "timesheet-roster-only-suggestion-manager@example.com" "staff" True
+                payableUser <- createUserRecord "timesheet-payable-suggestion@example.com" "staff" True
+                rosterOnlyUser <- createUserRecord "timesheet-roster-only-suggestion@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue manager "manager"
+                _ <- createVenueMembershipRecord venue payableUser "worker"
+                _ <- createVenueMembershipRecord venue rosterOnlyUser "worker"
+                payableStaff <- createStaffRecord venue (Just payableUser) "Payable" "Worker"
+                rosterOnlyStaff <- createStaffRecord venue (Just rosterOnlyUser) "Roster" "Only"
+                payLevel <- createPayLevelRecord venue "Level 1"
+                _ <- updateRecord (payableStaff |> set #payAssignmentMode AwardRate |> set #defaultAwardLevelId (Just payLevel.id))
+                payableShift <- createShiftTypeRecord venue payLevel "Payable shift"
+                rosterOnlyShift <- createShiftTypeRecord venue payLevel "Roster-only shift"
+                currentRosterOnlyStaff <- fetch rosterOnlyStaff.id
+                _ <- updateRecord (currentRosterOnlyStaff |> set #payAssignmentMode RosterOnly |> set #defaultAwardLevelId Nothing)
+                _ <- updateRecord (rosterOnlyShift |> set #payAssignmentMode RosterOnly |> set #overrideAwardLevelId Nothing)
+                persistedRosterOnlyStaff <- fetch rosterOnlyStaff.id
+                persistedRosterOnlyStaff.payAssignmentMode `shouldBe` RosterOnly
+                rosterWeek <- createRosterWeekRecord venue 0 True
+                rosterDay <- createRosterDayRecord rosterWeek 1
+                slotName <- fetchSlotNameRecord venue "Early"
+                let createSuggestionSlot rowIndex staff shiftType = do
+                        slot <- createRosterSlotRecord rosterDay slotName (Just staff) rowIndex
+                        updateRecord
+                            ( slot
+                                |> setTestRosterSlotBoundaries (fromGregorian 2025 1 7) (TimeOfDay (9 + rowIndex) 0 0) (TimeOfDay (10 + rowIndex) 0 0)
+                                |> setTestDurationMinutes (Just 60)
+                                |> set #shiftTypeId (Just (unpackId shiftType.id))
+                            )
+                eligibleSlot <- createSuggestionSlot 0 payableStaff payableShift
+                staffSuppressedSlot <- createSuggestionSlot 1 rosterOnlyStaff payableShift
+                shiftSuppressedSlot <- createSuggestionSlot 2 payableStaff rosterOnlyShift
+                bothSuppressedSlot <- createSuggestionSlot 3 rosterOnlyStaff rosterOnlyShift
+
+                initialSuggestions <- withUserAndCurrentVenue manager venue.id do
+                    withCurrentControllerContext do
+                        mapM (fetchTimesheetSuggestionForRosterSlot . (.id))
+                            [eligibleSlot, staffSuppressedSlot, shiftSuppressedSlot, bothSuppressedSlot]
+                map isJust initialSuggestions `shouldBe` [True, False, False, False]
+
+                tamperedMaterialization <- withUserAndCurrentVenue manager venue.id do
+                    callActionWithParams CreateTimesheetEntryFromSuggestionAction { rosterSlotId = eligibleSlot.id }
+                        [ ("weekOffset", "0")
+                        , ("showApproved", "false")
+                        , ("showAllStaff", "true")
+                        , ("showSuggestions", "true")
+                        , ("staffId", idToParam payableStaff.id)
+                        , ("shiftTypeId", idToParam rosterOnlyShift.id)
+                        , ("workedOn", "2025-01-07")
+                        , ("startTime", "09:00")
+                        , ("endTime", "10:00")
+                        , ("hadBreak", "false")
+                        ]
+                tamperedMaterialization `responseStatusShouldBe` status403
+                query @TimesheetEntry |> fetchCount >>= (`shouldBe` 0)
+
+                let eligibleSuggestion = fromMaybe (error "expected eligible suggestion") (listToMaybe initialSuggestions >>= \suggestion -> suggestion)
+                    tamperedEntry =
+                        newTimesheetEntryFromSuggestion (unpackId venue.id) eligibleSuggestion
+                            |> set #shiftTypeId (unpackId rosterOnlyShift.id)
+                lockedRevalidation <- withUserAndCurrentVenue manager venue.id do
+                    withCurrentControllerContext do
+                        materializeTimesheetSuggestionMutation 0 eligibleSuggestion tamperedEntry
+                lockedRevalidation `shouldBe` Nothing
+                query @TimesheetEntry |> fetchCount >>= (`shouldBe` 0)
+
+                suppressedStaff <- fetch rosterOnlyStaff.id
+                _ <- updateRecord (suppressedStaff |> set #payAssignmentMode AwardRate |> set #defaultAwardLevelId (Just payLevel.id))
+                restoredSuggestion <- withUserAndCurrentVenue manager venue.id do
+                    withCurrentControllerContext do
+                        fetchTimesheetSuggestionForRosterSlot staffSuppressedSlot.id
+                restoredSuggestion `shouldSatisfy` isJust
 
         it "rejects tampered manager timesheet creation for trial staff" $ withContext do
             withCleanDb do
@@ -755,6 +883,7 @@ tests = aroundAll withDatabaseTestContext do
                 _ <- createVenueMembershipRecord venue workerUser "worker"
                 worker <- createStaffRecord venue (Just workerUser) "Rita" "Rostered"
                 payLevel <- createPayLevelRecord venue "Level 1"
+                _ <- makeStaffTimesheetProducing payLevel worker
                 shiftType <- createShiftTypeRecord venue payLevel "Dinner"
                 rosterWeek <- createRosterWeekRecord venue 0 True
                 rosterDay <- createRosterDayRecord rosterWeek 1
@@ -793,6 +922,7 @@ tests = aroundAll withDatabaseTestContext do
                 _ <- createVenueMembershipRecord venue workerUser "worker"
                 worker <- createStaffRecord venue (Just workerUser) "Faye" "Future"
                 payLevel <- createPayLevelRecord venue "Level 1"
+                _ <- makeStaffTimesheetProducing payLevel worker
                 shiftType <- createShiftTypeRecord venue payLevel "Day"
                 rosterWeek <- createRosterWeekRecord venue 3 True
                 rosterDay <- createRosterDayRecord rosterWeek 4
@@ -851,6 +981,7 @@ tests = aroundAll withDatabaseTestContext do
                 _ <- createVenueMembershipRecord venue workerUser "worker"
                 worker <- createStaffRecord venue (Just workerUser) "Quinn" "QuickCreate"
                 payLevel <- createPayLevelRecord venue "Level 1"
+                _ <- makeStaffTimesheetProducing payLevel worker
                 shiftType <- createShiftTypeRecord venue payLevel "Day"
                 rosterWeek <- createRosterWeekRecord venue 0 True
                 rosterDay <- createRosterDayRecord rosterWeek 1
@@ -912,6 +1043,7 @@ tests = aroundAll withDatabaseTestContext do
                 _ <- createVenueMembershipRecord venue workerUser "worker"
                 worker <- createStaffRecord venue (Just workerUser) "Autumn" "Suggestion"
                 payLevel <- createPayLevelRecord venue "Level 1"
+                _ <- makeStaffTimesheetProducing payLevel worker
                 shiftType <- createShiftTypeRecord venue payLevel "Early"
                 rosterWeek <- createRosterWeekRecord venue 64 True
                 rosterDay <- createRosterDayRecord rosterWeek 5
@@ -963,6 +1095,7 @@ tests = aroundAll withDatabaseTestContext do
                 _ <- createVenueMembershipRecord venue workerUser "worker"
                 worker <- createStaffRecord venue (Just workerUser) "Equal" "Suggestion"
                 payLevel <- createPayLevelRecord venue "Level 1"
+                _ <- makeStaffTimesheetProducing payLevel worker
                 shiftType <- createShiftTypeRecord venue payLevel "Repeated"
                 rosterWeek <- createRosterWeekRecord venue 64 True
                 rosterDay <- createRosterDayRecord rosterWeek 5
@@ -1016,6 +1149,7 @@ tests = aroundAll withDatabaseTestContext do
                 _ <- createVenueMembershipRecord venue workerUser "worker"
                 worker <- createStaffRecord venue (Just workerUser) "DST" "Break"
                 payLevel <- createPayLevelRecord venue "Level 1"
+                _ <- makeStaffTimesheetProducing payLevel worker
                 shiftType <- createShiftTypeRecord venue payLevel "Early"
                 slotName <- fetchSlotNameRecord venue "Early"
 
@@ -1056,6 +1190,7 @@ tests = aroundAll withDatabaseTestContext do
                 _ <- createVenueMembershipRecord venue workerUser "worker"
                 worker <- createStaffRecord venue (Just workerUser) "Monday" "Suggestion"
                 payLevel <- createPayLevelRecord venue "Level 1"
+                _ <- makeStaffTimesheetProducing payLevel worker
                 shiftType <- createShiftTypeRecord venue payLevel "Early"
                 rosterWeek <- createRosterWeekRecord venue 64 True
                 rosterDay <- createRosterDayRecord rosterWeek 6
@@ -1100,6 +1235,8 @@ tests = aroundAll withDatabaseTestContext do
                 workerA <- createStaffRecord venue (Just workerAUser) "Alice" "Authority"
                 workerB <- createStaffRecord venue (Just workerBUser) "Bob" "Boundary"
                 payLevel <- createPayLevelRecord venue "Level 1"
+                _ <- makeStaffTimesheetProducing payLevel workerA
+                _ <- makeStaffTimesheetProducing payLevel workerB
                 shiftType <- createShiftTypeRecord venue payLevel "Day"
                 rosterWeek <- createRosterWeekRecord venue 0 True
                 rosterDay <- createRosterDayRecord rosterWeek 1
@@ -1153,6 +1290,7 @@ tests = aroundAll withDatabaseTestContext do
                 _ <- createVenueMembershipRecord venue workerUser "worker"
                 worker <- createStaffRecord venue (Just workerUser) "Stella" "Stale"
                 payLevel <- createPayLevelRecord venue "Level 1"
+                _ <- makeStaffTimesheetProducing payLevel worker
                 shiftType <- createShiftTypeRecord venue payLevel "Day"
                 rosterWeek <- createRosterWeekRecord venue 0 True
                 rosterDay <- createRosterDayRecord rosterWeek 1
@@ -1182,6 +1320,7 @@ tests = aroundAll withDatabaseTestContext do
                 _ <- createVenueMembershipRecord venue workerUser "worker"
                 worker <- createStaffRecord venue (Just workerUser) "Connie" "Concurrent"
                 payLevel <- createPayLevelRecord venue "Level 1"
+                _ <- makeStaffTimesheetProducing payLevel worker
                 shiftType <- createShiftTypeRecord venue payLevel "Day"
                 rosterWeek <- createRosterWeekRecord venue 0 True
                 rosterDay <- createRosterDayRecord rosterWeek 1
@@ -1215,6 +1354,7 @@ tests = aroundAll withDatabaseTestContext do
                 _ <- createVenueMembershipRecord venue workerUser "worker"
                 worker <- createStaffRecord venue (Just workerUser) "Edie" "Editor"
                 payLevel <- createPayLevelRecord venue "Level 1"
+                _ <- makeStaffTimesheetProducing payLevel worker
                 shiftType <- createShiftTypeRecord venue payLevel "Day"
                 rosterWeek <- createRosterWeekRecord venue 0 True
                 rosterDay <- createRosterDayRecord rosterWeek 1
@@ -1268,6 +1408,7 @@ tests = aroundAll withDatabaseTestContext do
                 _ <- createVenueMembershipRecord venue workerUser "worker"
                 worker <- createStaffRecord venue (Just workerUser) "Ada" "AdHoc"
                 payLevel <- createPayLevelRecord venue "Level 1"
+                _ <- makeStaffTimesheetProducing payLevel worker
                 shiftType <- createShiftTypeRecord venue payLevel "Day"
                 rosterWeek <- createRosterWeekRecord venue 0 True
                 rosterDay <- createRosterDayRecord rosterWeek 1
@@ -1320,6 +1461,7 @@ tests = aroundAll withDatabaseTestContext do
                 _ <- createVenueMembershipRecord venue workerUser "worker"
                 worker <- createStaffRecord venue (Just workerUser) "Rory" "Restore"
                 payLevel <- createPayLevelRecord venue "Level 1"
+                _ <- makeStaffTimesheetProducing payLevel worker
                 shiftType <- createShiftTypeRecord venue payLevel "Day"
                 rosterWeek <- createRosterWeekRecord venue 0 True
                 rosterDay <- createRosterDayRecord rosterWeek 1
@@ -1381,6 +1523,8 @@ tests = aroundAll withDatabaseTestContext do
                 rosteredStaff <- createStaffRecord venue (Just rosteredUser) "Robin" "Rostered"
                 otherStaff <- createStaffRecord venue (Just otherUser) "Sam" "Separate"
                 payLevel <- createPayLevelRecord venue "Level 1"
+                _ <- updateRecord (rosteredStaff |> set #payAssignmentMode AwardRate |> set #defaultAwardLevelId (Just payLevel.id))
+                _ <- updateRecord (otherStaff |> set #payAssignmentMode AwardRate |> set #defaultAwardLevelId (Just payLevel.id))
                 shiftType <- createShiftTypeRecord venue payLevel "Day"
                 rosterWeek <- createRosterWeekRecord venue 0 True
                 rosterDay <- createRosterDayRecord rosterWeek 1
@@ -1547,6 +1691,8 @@ tests = aroundAll withDatabaseTestContext do
                 manager <- createUserRecord "timesheet-live-filter-url-manager@example.com" "staff" True
                 _ <- createVenueMembershipRecord venue manager "manager"
                 staff <- createStaffRecord venue (Just manager) "Lina" "Filtered"
+                payLevel <- createPayLevelRecord venue "Level 1"
+                _ <- updateRecord (staff |> set #payAssignmentMode AwardRate |> set #defaultAwardLevelId (Just payLevel.id))
 
                 response <- withUserAndCurrentVenue manager venue.id do
                     callActionWithParams ShowTimesheetWeekAction { weekOffset = 0 }
@@ -1576,6 +1722,9 @@ tests = aroundAll withDatabaseTestContext do
                 _ <- createVenueMembershipRecord venue workerBUser "worker"
                 workerA <- createStaffRecord venue (Just workerAUser) "Ava" "Filter"
                 workerB <- createStaffRecord venue (Just workerBUser) "Bea" "Filter"
+                payLevel <- createPayLevelRecord venue "Level 1"
+                _ <- updateRecord (workerA |> set #payAssignmentMode AwardRate |> set #defaultAwardLevelId (Just payLevel.id))
+                _ <- updateRecord (workerB |> set #payAssignmentMode AwardRate |> set #defaultAwardLevelId (Just payLevel.id))
                 entryA <- createTimesheetEntryRecord venue workerA (fromGregorian 2025 1 7)
                 _ <- createTimesheetEntryRecord venue workerB (fromGregorian 2025 1 7)
 
@@ -1732,6 +1881,7 @@ tests = aroundAll withDatabaseTestContext do
                 approvedStaff <- createStaffRecord venue (Just approvedUser) "Ada" "Approved"
                 pendingStaff <- createStaffRecord venue (Just pendingUser) "Pia" "Pending"
                 payLevel <- createPayLevelRecord venue "Level 1"
+                _ <- updateRecord (pendingStaff |> set #payAssignmentMode AwardRate |> set #defaultAwardLevelId (Just payLevel.id))
                 shiftType <- createShiftTypeRecord venue payLevel "Ordinary"
                 _ <- createApprovedTimesheetEntryRecord venue approvedStaff manager (fromGregorian 2025 1 7)
 
@@ -1763,6 +1913,7 @@ tests = aroundAll withDatabaseTestContext do
                 _ <- createVenueMembershipRecord venue user "worker"
                 staff <- createStaffRecord venue (Just user) "Tess" "Create"
                 payLevel <- createPayLevelRecord venue "Level 1"
+                _ <- updateRecord (staff |> set #payAssignmentMode AwardRate |> set #defaultAwardLevelId (Just payLevel.id))
                 shiftType <- createShiftTypeRecord venue payLevel "Ordinary"
 
                 versionBefore <- currentLiveUpdateVersion (TimesheetsLive.timesheetWeekLiveScope (unpackId venue.id) 0)
@@ -2104,6 +2255,13 @@ tests = aroundAll withDatabaseTestContext do
 
                 versionCount <- query @TimesheetEntryVersion |> fetchCount
                 versionCount `shouldBe` 1
+
+makeStaffTimesheetProducing :: (?modelContext :: ModelContext) => AwardLevel -> Staff -> IO Staff
+makeStaffTimesheetProducing payLevel staff =
+    staff
+        |> set #payAssignmentMode AwardRate
+        |> set #defaultAwardLevelId (Just payLevel.id)
+        |> updateRecord
 
 runConcurrentTimesheetActions :: Int -> IO a -> IO [Either SomeException a]
 runConcurrentTimesheetActions count action = do

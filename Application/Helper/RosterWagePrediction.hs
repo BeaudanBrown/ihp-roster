@@ -15,6 +15,10 @@ module Application.Helper.RosterWagePrediction
 
 import Application.Helper.RosterTimesheetBoundaries
 import Application.Helper.TimeRules (automaticMealBreakMinutes)
+import Application.PayAssignment (EffectivePayAssignment (..),
+                                  ShiftPayAssignment (..),
+                                  StaffPayAssignment (..), resolvePayAssignment,
+                                  staffAssignmentSuppressesTimesheets)
 import Application.VenueTime.Model
 import Application.WageEngine (FinalEarningsSummary (..))
 import Application.WageEvaluation
@@ -63,11 +67,24 @@ fetchRosterWagePrediction ::
     [RosterSlot] ->
     IO RosterWagePrediction
 fetchRosterWagePrediction venueConfig rosterWeek rosterDays rosterSlots = do
+    let referencedStaffIds = List.nub (mapMaybe (.staffId) rosterSlots)
+        referencedShiftTypeIds = List.nub (mapMaybe (.shiftTypeId) rosterSlots)
+    staffMembers <-
+        if null referencedStaffIds
+            then pure []
+            else query @Staff |> filterWhere (#venueId, rosterWeek.venueId) |> filterWhereIn (#id, map Id referencedStaffIds) |> fetch
+    shiftTypes <-
+        if null referencedShiftTypeIds
+            then pure []
+            else query @ShiftType |> filterWhere (#venueId, rosterWeek.venueId) |> filterWhereIn (#id, map Id referencedShiftTypeIds) |> fetch
     let rosterDaysById = Map.fromList [(unpackId rosterDay.id, rosterDay) | rosterDay <- rosterDays]
+        staffById = Map.fromList [(unpackId staff.id, staff) | staff <- staffMembers]
+        shiftTypeById = Map.fromList [(unpackId shiftType.id, shiftType) | shiftType <- shiftTypes]
         subjectCandidates =
             [ (slot, Map.lookup slot.rosterDayId rosterDaysById, rosterSlotWageSubject rosterWeek.venueId slot)
             | slot <- rosterSlots
             , isJust slot.staffId
+            , not (rosterSlotIsRosterOnly staffById shiftTypeById slot)
             ]
         subjects = [subject | (_, Just _, Right subject) <- subjectCandidates]
         incompleteCount = length
@@ -112,6 +129,20 @@ fetchRosterWagePrediction venueConfig rosterWeek rosterDays rosterSlots = do
             Nothing         -> "Wage calculation result was not loaded."
             Just (Left err) -> renderWageEvaluationError err
             Just (Right _)  -> ""
+
+rosterSlotIsRosterOnly :: Map.Map UUID Staff -> Map.Map UUID ShiftType -> RosterSlot -> Bool
+rosterSlotIsRosterOnly staffById shiftTypeById slot =
+    case slot.staffId >>= (`Map.lookup` staffById) of
+        Just staff
+            | staffAssignmentSuppressesTimesheets (staffAssignment staff) -> True
+        Just staff ->
+            case slot.shiftTypeId >>= (`Map.lookup` shiftTypeById) of
+                Just shiftType -> resolvePayAssignment (staffAssignment staff) (shiftAssignment shiftType) == EffectiveRosterOnly
+                Nothing -> False
+        Nothing -> False
+  where
+    staffAssignment staff = StaffPayAssignment staff.payAssignmentMode staff.defaultAwardLevelId staff.importedXeroPayItemId
+    shiftAssignment shiftType = ShiftPayAssignment shiftType.payAssignmentMode shiftType.overrideAwardLevelId shiftType.importedXeroPayItemId
 
 lookupRosterWagePredictionDay :: RosterWagePrediction -> RosterDay -> Maybe RosterWagePredictionDay
 lookupRosterWagePredictionDay prediction rosterDay =

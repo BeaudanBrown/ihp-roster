@@ -4,6 +4,10 @@ module Application.PayAssignment
     , EffectivePayAssignment (..)
     , PayAssignmentError (..)
     , resolvePayAssignment
+    , staffAssignmentAllowsTimesheets
+    , staffAssignmentSuppressesTimesheets
+    , shiftAssignmentAllowsTimesheets
+    , shiftAssignmentSuppressesTimesheets
     , selectableStaffAssignmentMode
     , selectableShiftAssignmentMode
     , staffPayAssignmentRequiresRemediation
@@ -97,6 +101,24 @@ resolveValidAssignments staff shift
   where
     invalidStaff = InvalidPayAssignment [InvalidStaffAssignmentShape staff.staffAssignmentMode]
     invalidShift = InvalidPayAssignment [InvalidShiftAssignmentShape shift.shiftAssignmentMode]
+
+staffAssignmentAllowsTimesheets :: StaffPayAssignment -> Bool
+staffAssignmentAllowsTimesheets assignment =
+    null (validateStaffAssignment assignment)
+        && assignment.staffAssignmentMode `elem` [AwardRate, XeroRate]
+
+staffAssignmentSuppressesTimesheets :: StaffPayAssignment -> Bool
+staffAssignmentSuppressesTimesheets assignment =
+    assignment.staffAssignmentMode == RosterOnly && null (validateStaffAssignment assignment)
+
+shiftAssignmentAllowsTimesheets :: ShiftPayAssignment -> Bool
+shiftAssignmentAllowsTimesheets assignment =
+    null (validateShiftAssignment assignment)
+        && assignment.shiftAssignmentMode `elem` [StaffDefault, AwardRate, XeroRate]
+
+shiftAssignmentSuppressesTimesheets :: ShiftPayAssignment -> Bool
+shiftAssignmentSuppressesTimesheets assignment =
+    assignment.shiftAssignmentMode == RosterOnly && null (validateShiftAssignment assignment)
 
 validateStaffAssignment :: StaffPayAssignment -> [PayAssignmentError]
 validateStaffAssignment assignment =

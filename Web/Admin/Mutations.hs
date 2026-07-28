@@ -15,13 +15,16 @@ module Web.Admin.Mutations
     , setRosterTimePickerWindowMutation
     , setRosterWeekStartsOnMutation
     , shiftTypeAffectsXeroPayItems
+    , shiftTypePayResources
     , shiftTypeXeroPayItemScopeChanged
     , updateRosterGroupMutation
     , updateShiftTypeMutation
     ) where
 
 import Application.Helper.FrontendContract.Surface.Admin.Resource
+import Application.Helper.FrontendContract.Surface.Roster.Live (activeRosterWeekScopes)
 import Application.Helper.FrontendContract.Surface.Roster.Resource
+import Application.Helper.FrontendContract.Surface.Timesheets.Live (activeTimesheetWeekScopes)
 import Application.Helper.FrontendContract.Surface.Timesheets.Resource
 import Application.Helper.Pay (ensureShiftTypePayVersionForShiftType)
 import Application.Helper.RosterGroups (createVenueRosterGroupWithDefaults,
@@ -37,6 +40,7 @@ import Application.Helper.WeekBoundaries (defaultWeekOffsetEpochForStartDay)
 import Application.InvitationDelivery.Job (enqueueVenueInvitationDeliveryJob)
 import Application.PayAssignment (selectableShiftAssignmentMode)
 import Control.Monad (void)
+import qualified Data.Set as Set
 import Data.Time.Clock (addUTCTime, getCurrentTime, utctDay)
 import Web.Controller.Admin.Support
 import Web.Controller.Prelude
@@ -171,7 +175,10 @@ createShiftTypeMutation name isActive overrideAwardLevelId importedXeroPayItemId
         _ <- ensureShiftTypePayVersionForShiftType currentUser.id shiftType (utctDay now)
         pure shiftType
     let shouldRefreshXero = shiftTypeAffectsXeroPayItems shiftType
-    invalidateTouchedResources "admin.shift_type.create" (liveMutationResult (AdminShiftTypeMutationResult shiftType shouldRefreshXero) shiftTypeTouchedResources)
+    activeRosterScopes <- activeRosterWeekScopes
+    activeTimesheetScopes <- activeTimesheetWeekScopes
+    let payResources = shiftTypePayResources (unpackId currentVenueId) activeRosterScopes activeTimesheetScopes
+    invalidateTouchedResources "admin.shift_type.create" (liveMutationResult (AdminShiftTypeMutationResult shiftType shouldRefreshXero) (shiftTypeTouchedResources <> payResources))
 
 updateShiftTypeMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => ShiftType -> Text -> Bool -> Maybe (Id AwardLevel) -> Maybe (Id XeroImportedPayItem) -> Bool -> Maybe Text -> IO (LiveMutationResult AdminShiftTypeMutationResult)
 updateShiftTypeMutation shiftType name isActive overrideAwardLevelId importedXeroPayItemId submittedRosterOnly maybeSubmittedColourKey = do
@@ -197,7 +204,13 @@ updateShiftTypeMutation shiftType name isActive overrideAwardLevelId importedXer
             pure ()
         pure updated
     let shouldRefreshXero = shiftTypeXeroPayItemScopeChanged shiftType updatedShiftType
-    invalidateTouchedResources "admin.shift_type.update" (liveMutationResult (AdminShiftTypeMutationResult updatedShiftType shouldRefreshXero) shiftTypeTouchedResources)
+    activeRosterScopes <- activeRosterWeekScopes
+    activeTimesheetScopes <- activeTimesheetWeekScopes
+    let payResources =
+            if shiftTypePayDispositionChanged shiftType updatedShiftType
+                then shiftTypePayResources (unpackId currentVenueId) activeRosterScopes activeTimesheetScopes
+                else []
+    invalidateTouchedResources "admin.shift_type.update" (liveMutationResult (AdminShiftTypeMutationResult updatedShiftType shouldRefreshXero) (shiftTypeTouchedResources <> payResources))
 
 resolveSubmittedShiftTypeColourKey :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Maybe (Id ShiftType) -> Bool -> Maybe Text -> Text -> IO Text
 resolveSubmittedShiftTypeColourKey maybeCurrentShiftTypeId isActive maybeSubmittedColourKey fallbackColourKey =
@@ -215,6 +228,28 @@ moveShiftTypeMutation shiftType direction = do
 shiftTypeTouchedResources :: (?context :: ControllerContext) => [SurfaceResourceValue]
 shiftTypeTouchedResources =
     [adminShiftTypesResource (unpackId currentVenueId)]
+
+shiftTypePayResources :: UUID -> [(UUID, UUID, Int)] -> [(UUID, Int)] -> [SurfaceResourceValue]
+shiftTypePayResources venueId activeRosterScopes activeTimesheetScopes =
+    Set.toList $ Set.fromList
+        ( [ resource
+          | (activeVenueId, rosterGroupId, weekOffset) <- activeRosterScopes
+          , activeVenueId == venueId
+          , resource <-
+                [ rosterWeekResource rosterGroupId weekOffset
+                , rosterSlotsContentResource rosterGroupId weekOffset
+                ]
+          ]
+            <> [ timesheetWeekResource activeVenueId weekOffset
+               | (activeVenueId, weekOffset) <- activeTimesheetScopes
+               , activeVenueId == venueId
+               ]
+        )
+
+shiftTypePayDispositionChanged :: ShiftType -> ShiftType -> Bool
+shiftTypePayDispositionChanged previous next =
+    (previous.payAssignmentMode, previous.overrideAwardLevelId, previous.importedXeroPayItemId)
+        /= (next.payAssignmentMode, next.overrideAwardLevelId, next.importedXeroPayItemId)
 
 shiftTypeAffectsXeroPayItems :: ShiftType -> Bool
 shiftTypeAffectsXeroPayItems shiftType =

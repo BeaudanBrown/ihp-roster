@@ -2,7 +2,9 @@ module Web.Timesheets.Validation
     ( buildTimesheetEntry
     , ensureRosterDerivedIdentityUnchanged
     , ensureShiftTypeAllowed
+    , ensureShiftTypeAllowedForExisting
     , ensureStaffAssignmentAllowed
+    , ensureStaffAssignmentAllowedForExisting
     , ensureTimesheetEntryNotPayrollLocked
     , ensureTimesheetVisibility
     , resetApprovalOnEdit
@@ -12,6 +14,10 @@ module Web.Timesheets.Validation
 
 import Application.Helper.Staff (isLinkedActiveStaff)
 import Application.Helper.Url (appendQueryParams)
+import Application.PayAssignment (ShiftPayAssignment (..),
+                                  StaffPayAssignment (..),
+                                  shiftAssignmentAllowsTimesheets,
+                                  staffAssignmentAllowsTimesheets)
 import Application.VenueTime (RepeatedTimeOccurrence (..), VenueTimeError (..))
 import Application.VenueTime.Model
 import Data.Either (fromRight)
@@ -77,11 +83,16 @@ ensureStaffAssignmentAllowed staffId = do
         |> filterWhere (#venueId, unpackId currentVenueId)
         |> filterWhere (#id, Id staffId)
         |> fetchOneOrNothing
-    accessDeniedUnless (maybe False isLinkedActiveStaff maybeStaff)
+    accessDeniedUnless (maybe False (\staff -> isLinkedActiveStaff staff && staffAssignmentAllowsTimesheets (staffPayAssignment staff)) maybeStaff)
     unless (hasRole ManagerRole') do
         maybeCurrentStaff <- fetchCurrentUserStaff
         let isOwnStaff = maybe False (\staff -> unpackId (get #id staff) == staffId) maybeCurrentStaff
         accessDeniedUnless isOwnStaff
+
+ensureStaffAssignmentAllowedForExisting :: (?context :: ControllerContext, ?modelContext :: ModelContext) => TimesheetEntry -> UUID.UUID -> IO ()
+ensureStaffAssignmentAllowedForExisting existingEntry staffId
+    | existingEntry.staffId == staffId = pure ()
+    | otherwise = ensureStaffAssignmentAllowed staffId
 
 ensureShiftTypeAllowed :: (?context :: ControllerContext, ?modelContext :: ModelContext) => UUID.UUID -> IO ()
 ensureShiftTypeAllowed shiftTypeId = do
@@ -90,8 +101,22 @@ ensureShiftTypeAllowed shiftTypeId = do
             |> filterWhere (#venueId, unpackId currentVenueId)
             |> filterWhere (#id, Id shiftTypeId)
             |> filterWhere (#isActive, True)
+            |> filterWhere (#archivedAt, Nothing)
             |> fetchOneOrNothing
-    accessDeniedUnless (isJust maybeShiftType)
+    accessDeniedUnless (maybe False (shiftAssignmentAllowsTimesheets . shiftPayAssignment) maybeShiftType)
+
+staffPayAssignment :: Staff -> StaffPayAssignment
+staffPayAssignment staff =
+    StaffPayAssignment staff.payAssignmentMode staff.defaultAwardLevelId staff.importedXeroPayItemId
+
+shiftPayAssignment :: ShiftType -> ShiftPayAssignment
+shiftPayAssignment shiftType =
+    ShiftPayAssignment shiftType.payAssignmentMode shiftType.overrideAwardLevelId shiftType.importedXeroPayItemId
+
+ensureShiftTypeAllowedForExisting :: (?context :: ControllerContext, ?modelContext :: ModelContext) => TimesheetEntry -> UUID.UUID -> IO ()
+ensureShiftTypeAllowedForExisting existingEntry shiftTypeId
+    | existingEntry.shiftTypeId == shiftTypeId = pure ()
+    | otherwise = ensureShiftTypeAllowed shiftTypeId
 
 resetApprovalOnEdit :: Bool -> TimesheetEntry -> TimesheetEntry
 resetApprovalOnEdit wasApproved entry

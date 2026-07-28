@@ -7,7 +7,8 @@ import qualified Application.Helper.FrontendContract.Surface.Admin.Live as Admin
 import Application.Helper.FrontendContract.Surface.Admin.Resource (adminVenueSettingsResource)
 import qualified Application.Helper.FrontendContract.Surface.Roster.Live as RosterLive
 import Application.Helper.FrontendContract.Surface.Roster.Resource
-import Application.Helper.FrontendContract.Surface.Timesheets.Resource (timesheetWeekBoundaryConfigResource)
+import Application.Helper.FrontendContract.Surface.Timesheets.Resource (timesheetWeekBoundaryConfigResource,
+                                                                        timesheetWeekResource)
 import Application.Helper.LiveUpdate
 import Application.Helper.LiveUpdate.Runtime
 import Application.Helper.RosterGroups (createVenueRosterGroupWithDefaults)
@@ -43,7 +44,8 @@ import qualified Test.XeroMock as XeroMock
 import Web.Admin.Mutations (adminVenueSettingsTouchedResources,
                             rosterEndTimesTouchedResources,
                             rosterTimePickerWindowTouchedResources,
-                            rosterWeekStartsOnTouchedResources)
+                            rosterWeekStartsOnTouchedResources,
+                            shiftTypePayResources)
 import Web.Controller.Admin ()
 import Web.FrontController ()
 import Web.Routes
@@ -103,6 +105,27 @@ tests = aroundAll withDatabaseTestContext do
                         , rosterWeekBoundaryConfigResource venueId
                         , timesheetWeekBoundaryConfigResource venueId
                         ]
+
+        it "touches active roster and Timesheet views after shift-type pay changes" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Shift Type Pay Resource Venue"
+                rosterGroup <- query @RosterGroup |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
+                otherVenue <- createVenueWithConfig "Other Shift Type Resource Venue"
+                otherGroup <- query @RosterGroup |> filterWhere (#venueId, unpackId otherVenue.id) |> fetchOne
+                let venueId = unpackId venue.id
+                    resources = shiftTypePayResources venueId
+                        [ (venueId, unpackId rosterGroup.id, 0)
+                        , (unpackId otherVenue.id, unpackId otherGroup.id, 0)
+                        ]
+                        [ (venueId, 0)
+                        , (unpackId otherVenue.id, 0)
+                        ]
+
+                Set.fromList resources `shouldBe` Set.fromList
+                    [ rosterWeekResource (unpackId rosterGroup.id) 0
+                    , rosterSlotsContentResource (unpackId rosterGroup.id) 0
+                    , timesheetWeekResource venueId 0
+                    ]
 
         it "plans non-overlapping roster refreshes for roster-affecting venue config resources" $ withContext do
             withCleanDb do

@@ -12,8 +12,13 @@ import Application.Helper.FrontendContract.Surface.Timesheets.Resource
 import Application.Helper.Pay (ensurePayVersionsForTimesheetApproval,
                                lockPayVersionsForApproval,
                                payVersionManifestForEntry)
+import Application.Helper.Staff (isLinkedActiveStaff)
 import Application.Helper.SurfaceResource
 import Application.Helper.TimesheetPayLedger (persistApprovedTimesheetPayCalculation)
+import Application.PayAssignment (ShiftPayAssignment (..),
+                                  StaffPayAssignment (..),
+                                  shiftAssignmentAllowsTimesheets,
+                                  staffAssignmentAllowsTimesheets)
 import Application.VenueTime.Model
 import Application.WageSourceEnforcement (enforceFinalWageEntries,
                                           renderWageEntryFailures)
@@ -51,14 +56,38 @@ materializeTimesheetSuggestionMutation _weekOffset expectedSuggestion timesheetE
                     pure (Just (existingEntry, False))
                 | otherwise -> pure Nothing
             Nothing -> do
+                targetAllowed <- timesheetTargetAllowsCreation timesheetEntry
                 currentSuggestion <- fetchTimesheetSuggestionForRosterSlot expectedSuggestion.suggestionRosterSlotId
-                if currentSuggestion /= Just expectedSuggestion
+                if not targetAllowed || currentSuggestion /= Just expectedSuggestion
                     then pure Nothing
                     else Just . (, True) <$> createTimesheetEntryWithVersion timesheetEntry
     case materialization of
         Nothing -> pure Nothing
         Just (materializedEntry, wasCreated) ->
             Just <$> invalidateTimesheetCreation (if wasCreated then "timesheet.suggestion.create" else "timesheet.suggestion.create.idempotent") materializedEntry
+
+timesheetTargetAllowsCreation :: (?modelContext :: ModelContext) => TimesheetEntry -> IO Bool
+timesheetTargetAllowsCreation entry = do
+    maybeStaff <-
+        query @Staff
+            |> filterWhere (#id, Id entry.staffId)
+            |> filterWhere (#venueId, entry.venueId)
+            |> fetchOneOrNothing
+    maybeShiftType <-
+        query @ShiftType
+            |> filterWhere (#id, Id entry.shiftTypeId)
+            |> filterWhere (#venueId, entry.venueId)
+            |> filterWhere (#isActive, True)
+            |> filterWhere (#archivedAt, Nothing)
+            |> fetchOneOrNothing
+    pure $
+        maybe False (\staff -> isLinkedActiveStaff staff && staffAssignmentAllowsTimesheets (staffAssignment staff)) maybeStaff
+            && maybe False (shiftAssignmentAllowsTimesheets . shiftAssignment) maybeShiftType
+  where
+    staffAssignment staff =
+        StaffPayAssignment staff.payAssignmentMode staff.defaultAwardLevelId staff.importedXeroPayItemId
+    shiftAssignment shiftType =
+        ShiftPayAssignment shiftType.payAssignmentMode shiftType.overrideAwardLevelId shiftType.importedXeroPayItemId
 
 lockRosterSlot :: (?modelContext :: ModelContext) => UUID -> IO ()
 lockRosterSlot rosterSlotId = do

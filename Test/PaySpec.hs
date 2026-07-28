@@ -39,6 +39,38 @@ tests = do
                 (shiftAssignment RosterOnly Nothing Nothing)
                 `shouldBe` EffectiveRosterOnly
 
+        it "classifies selector suppression across every selectable mode" do
+            let staffAssignments =
+                    [ staffAssignment AwardRate (Just testAwardLevelId) Nothing
+                    , staffAssignment XeroRate Nothing (Just importedPayItemId)
+                    , staffAssignment RosterOnly Nothing Nothing
+                    ]
+                shiftAssignments =
+                    [ shiftAssignment StaffDefault Nothing Nothing
+                    , shiftAssignment AwardRate (Just testAwardLevelId) Nothing
+                    , shiftAssignment XeroRate Nothing (Just importedPayItemId)
+                    , shiftAssignment RosterOnly Nothing Nothing
+                    ]
+            map staffAssignmentAllowsTimesheets staffAssignments
+                `shouldBe` [True, True, False]
+            map staffAssignmentSuppressesTimesheets staffAssignments
+                `shouldBe` [False, False, True]
+            map shiftAssignmentAllowsTimesheets shiftAssignments
+                `shouldBe` [True, True, True, False]
+            map shiftAssignmentSuppressesTimesheets shiftAssignments
+                `shouldBe` [False, False, False, True]
+            let actual =
+                    [ resolvePayAssignment staff shift == EffectiveRosterOnly
+                    | staff <- staffAssignments
+                    , shift <- shiftAssignments
+                    ]
+                expected =
+                    [ staffAssignmentSuppressesTimesheets staff || shiftAssignmentSuppressesTimesheets shift
+                    | staff <- staffAssignments
+                    , shift <- shiftAssignments
+                    ]
+            actual `shouldBe` expected
+
         it "prefers a valid shift override to the staff default" do
             resolvePayAssignment
                 (staffAssignment AwardRate (Just testAwardLevelId) Nothing)

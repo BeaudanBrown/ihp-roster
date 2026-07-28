@@ -9,7 +9,9 @@ module Web.Timesheets.Projection
     , TimesheetWeekProjection (..)
     , currentTimesheetWeekOffset
     , fetchShiftTypesForForm
+    , fetchShiftTypesForFormIncluding
     , fetchStaffForForm
+    , fetchStaffForFormIncluding
     , fetchTimesheetSuggestionForRosterSlot
     , fetchTimesheetWeekProjection
     , renderTimesheetProjectionFragment
@@ -41,6 +43,10 @@ import Application.Helper.Profiling
 import Application.Helper.RosterTimesheetBoundaries (projectRosterSlotTimesheetBoundaries)
 import Application.Helper.VenueScopedQueries (fetchLinkedActiveVenueStaff)
 import Application.Helper.WeekBoundaries (venueWeekOffsetForDay)
+import Application.PayAssignment (ShiftPayAssignment (..),
+                                  StaffPayAssignment (..),
+                                  shiftAssignmentAllowsTimesheets,
+                                  staffAssignmentAllowsTimesheets)
 import Application.VenueTime.Model
 import Application.WageSourceEnforcement (WageEntryOutcome (..),
                                           evaluateDraftWageEntries)
@@ -99,7 +105,7 @@ fetchTimesheetDataForWeek weekStartDate weekEndDate showApproved showAllStaff re
     let validStaffFilterId =
             if hasRole ManagerRole'
                 then requestedStaffFilterId >>= \staffFilterId ->
-                    if any (\staff -> unpackId (get #id staff) == staffFilterId) staffMembers
+                    if any (\staff -> staffCanProduceTimesheets staff && unpackId (get #id staff) == staffFilterId) staffMembers
                         then Just staffFilterId
                         else Nothing
                 else Nothing
@@ -195,7 +201,7 @@ fetchTimesheetSuggestionsForWeek venueConfig weekOffset showAllStaff validStaffF
                     |> fetch
 
     let linkedRosterSlotIds = Set.fromList (mapMaybe (.sourceRosterSlotId) activeLinkedEntries)
-    let linkedActiveStaffIds = Set.fromList (map (unpackId . (.id)) staffMembers)
+    let linkedActiveStaffIds = Set.fromList (map (unpackId . (.id)) (filter staffCanProduceTimesheets staffMembers))
     let visibleStaffIds =
             if hasRole ManagerRole'
                 then case (validStaffFilterId, showAllStaff, currentViewerStaffId) of
@@ -236,16 +242,74 @@ fetchTimesheetSuggestionsForWeek venueConfig weekOffset showAllStaff validStaffF
     eitherToMaybe = either (const Nothing) Just
 
 fetchStaffForForm :: (?modelContext :: ModelContext, ?context :: ControllerContext) => IO [Staff]
-fetchStaffForForm =
-    if hasRole ManagerRole'
-        then fetchLinkedActiveVenueStaff currentVenueId
-        else filter (isJust . (.userId)) . maybeToList <$> fetchCurrentUserStaff
+fetchStaffForForm = do
+    staffMembers <-
+        if hasRole ManagerRole'
+            then fetchLinkedActiveVenueStaff currentVenueId
+            else filter (isJust . (.userId)) . maybeToList <$> fetchCurrentUserStaff
+    pure (filter staffCanProduceTimesheets staffMembers)
+
+fetchStaffForFormIncluding :: (?modelContext :: ModelContext, ?context :: ControllerContext) => UUID.UUID -> IO [Staff]
+fetchStaffForFormIncluding staffId = do
+    eligible <- fetchStaffForForm
+    if any ((== staffId) . unpackId . (.id)) eligible
+        then pure eligible
+        else do
+            retained <-
+                query @Staff
+                    |> filterWhere (#venueId, unpackId currentVenueId)
+                    |> filterWhere (#id, Id staffId)
+                    |> filterWhere (#isActive, True)
+                    |> filterWhere (#archivedAt, Nothing)
+                    |> fetchOneOrNothing
+            pure (maybe eligible (: eligible) retained)
 
 fetchShiftTypesForForm :: (?modelContext :: ModelContext, ?context :: ControllerContext) => IO [ShiftType]
-fetchShiftTypesForForm =
+fetchShiftTypesForForm = do
+    shiftTypes <-
+        query @ShiftType
+            |> filterWhere (#venueId, unpackId currentVenueId)
+            |> filterWhere (#isActive, True)
+            |> filterWhere (#archivedAt, Nothing)
+            |> orderByAsc #createdAt
+            |> fetch
+    pure (filter shiftTypeCanProduceTimesheets shiftTypes)
+
+fetchShiftTypesForFormIncluding :: (?modelContext :: ModelContext, ?context :: ControllerContext) => UUID.UUID -> IO [ShiftType]
+fetchShiftTypesForFormIncluding shiftTypeId = do
+    eligible <- fetchShiftTypesForForm
+    if any ((== shiftTypeId) . unpackId . (.id)) eligible
+        then pure eligible
+        else do
+            retained <-
+                query @ShiftType
+                    |> filterWhere (#venueId, unpackId currentVenueId)
+                    |> filterWhere (#id, Id shiftTypeId)
+                    |> filterWhere (#isActive, True)
+                    |> filterWhere (#archivedAt, Nothing)
+                    |> fetchOneOrNothing
+            pure (maybe eligible (: eligible) retained)
+
+staffCanProduceTimesheets :: Staff -> Bool
+staffCanProduceTimesheets = staffAssignmentAllowsTimesheets . staffPayAssignment
+
+shiftTypeCanProduceTimesheets :: ShiftType -> Bool
+shiftTypeCanProduceTimesheets = shiftAssignmentAllowsTimesheets . shiftPayAssignment
+
+staffPayAssignment :: Staff -> StaffPayAssignment
+staffPayAssignment staff =
+    StaffPayAssignment staff.payAssignmentMode staff.defaultAwardLevelId staff.importedXeroPayItemId
+
+shiftPayAssignment :: ShiftType -> ShiftPayAssignment
+shiftPayAssignment shiftType =
+    ShiftPayAssignment shiftType.payAssignmentMode shiftType.overrideAwardLevelId shiftType.importedXeroPayItemId
+
+fetchShiftTypesForProjection :: (?modelContext :: ModelContext, ?context :: ControllerContext) => IO [ShiftType]
+fetchShiftTypesForProjection =
     query @ShiftType
         |> filterWhere (#venueId, unpackId currentVenueId)
         |> filterWhere (#isActive, True)
+        |> filterWhere (#archivedAt, Nothing)
         |> orderByAsc #createdAt
         |> fetch
 
@@ -260,7 +324,7 @@ fetchTimesheetWeekProjection TimesheetProjectionRequest { projectionWeekOffset =
         if showSuggestions
             then profileActionSpan "timesheets.fetch_suggestions" (fetchTimesheetSuggestionsForWeek venueConfig weekOffset showAllStaff validStaffFilterId staffMembers currentViewerStaffId)
             else pure []
-    shiftTypes <- profileActionSpan "timesheets.fetch_shift_types" fetchShiftTypesForForm
+    shiftTypes <- profileActionSpan "timesheets.fetch_shift_types" fetchShiftTypesForProjection
     wageOutcomes <- profileActionSpan "timesheets.calculate_wage_previews" (evaluateDraftWageEntries entries)
     today <- utctDay <$> getCurrentTime
     let editWindowDays = venueConfig.staffTimesheetEditWindowDays

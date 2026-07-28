@@ -4,6 +4,7 @@ import qualified Application.Helper.FrontendContract.Surface.Admin.Live as Admin
 import Application.Helper.FrontendContract.Surface.Profile.Resource
 import Application.Helper.FrontendContract.Surface.Roster.Resource (rosterSlotsContentResource,
                                                                     rosterWeekResource)
+import Application.Helper.FrontendContract.Surface.Timesheets.Resource (timesheetWeekResource)
 import qualified Application.Helper.LiveUpdate as LiveUpdate
 import Application.Helper.RosterGroups (createVenueRosterGroupWithDefaults)
 import Application.Helper.StaffShiftPreferences (encodeShiftPreferenceKey,
@@ -29,7 +30,7 @@ import Web.Controller.Staff ()
 import Web.FrontController ()
 import Web.Routes
 import Web.Staff.Mutations (staffCreateTouchedResources,
-                            staffRosterGroupResources,
+                            staffRosterGroupResources, staffTimesheetResources,
                             staffUpdateTouchedResources)
 import Web.Types
 
@@ -207,6 +208,21 @@ tests = aroundAll withDatabaseTestContext do
                         , rosterWeekResource (unpackId selectedGroup.id) 1
                         , rosterSlotsContentResource (unpackId selectedGroup.id) 1
                         ]
+
+        it "touches every active venue Timesheet week after staff pay changes" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Staff Timesheet Resource Venue"
+                otherVenue <- createVenueWithConfig "Other Staff Timesheet Resource Venue"
+                let resources = staffTimesheetResources (unpackId venue.id)
+                        [ (unpackId venue.id, 0)
+                        , (unpackId venue.id, 2)
+                        , (unpackId otherVenue.id, 0)
+                        ]
+
+                Set.fromList resources `shouldBe` Set.fromList
+                    [ timesheetWeekResource (unpackId venue.id) 0
+                    , timesheetWeekResource (unpackId venue.id) 2
+                    ]
 
         it "invalidates roster child and staff list resources for HTMX roster-launched staff edits" $ withContext do
             withCleanDb do

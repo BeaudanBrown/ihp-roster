@@ -21,9 +21,11 @@ lands.
   the exact boundaries a Timesheet suggestion would materialize, including its
   automatic meal break. Minimums, penalties, additions, holidays, imported
   overrides, effective snapshots, and final-line rounding therefore match the
-  draft Timesheet preview. Complete calculation failures are excluded from totals
-  and shown as wage-estimate errors; incomplete staffed slots remain counted
-  separately. Managers and staff do not receive wage controls or markup. The wage
+  draft Timesheet preview. Effective roster-only shifts are omitted before
+  canonical wage evaluation: they add neither money nor errors and have no
+  separate excluded count. Complete calculation failures for timesheet-producing
+  shifts are excluded from totals and shown as wage-estimate errors; incomplete
+  staffed slots remain counted separately. Managers and staff do not receive wage controls or markup. The wage
   toggle is independent of the venue-wide roster end-time display setting because
   shift end times are always collected.
 - Publishing a roster is the visibility gate for staff-facing roster content.
@@ -275,7 +277,8 @@ lands.
 - Actor browser responses return HTMX fragments or OOB swaps.
 - Roster publication/draft transitions and slot mutations also touch the
   corresponding Timesheet week resource so open Timesheets pages refetch
-  authorized suggestion fragments.
+  authorized suggestion fragments. Staff and shift-type pay-mode changes touch
+  affected active roster resources and every active Timesheet week for the venue.
 - Passive viewers receive websocket invalidations containing semantic fragment keys; each browser resolves them through its local roster mount descriptors.
 - Fragment GET routes must enforce the same venue/visibility rules as the full
   page.

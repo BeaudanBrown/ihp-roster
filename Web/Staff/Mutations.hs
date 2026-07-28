@@ -4,6 +4,7 @@ module Web.Staff.Mutations
     , createTrialStaffMember
     , staffCreateTouchedResources
     , staffRosterGroupResources
+    , staffTimesheetResources
     , staffUpdateTouchedResources
     , staffXeroPayItemScopeChanged
     , updateStaffMember
@@ -13,6 +14,8 @@ import Application.Helper.Audit (updateVenueMembershipRoleWithAudit)
 import Application.Helper.FrontendContract.Surface.Admin.Resource (adminInvitesResource)
 import Application.Helper.FrontendContract.Surface.Profile.Resource
 import Application.Helper.FrontendContract.Surface.Roster.Live (activeRosterWeekScopes)
+import Application.Helper.FrontendContract.Surface.Timesheets.Live (activeTimesheetWeekScopes)
+import Application.Helper.FrontendContract.Surface.Timesheets.Resource (timesheetWeekResource)
 import Application.Helper.Pay (ensureStaffPayVersionForStaff)
 import Application.Helper.RosterGroups (fetchStaffRosterGroupIds,
                                         syncStaffRosterGroupAssignments)
@@ -24,6 +27,7 @@ import Application.Helper.VenueInvitation (venueInvitationLifetime)
 import Application.InvitationDelivery.Job (enqueueVenueInvitationDeliveryJob)
 import Control.Monad (void)
 import qualified Data.Aeson as Aeson
+import qualified Data.Set as Set
 import Data.Time.Clock (addUTCTime, getCurrentTime, utctDay)
 import Data.UUID (UUID)
 import Web.Controller.Prelude
@@ -122,8 +126,13 @@ updateStaffMember originalStaff staff selectedRosterGroupIds submittedSelections
             venueRole
             (Aeson.object ["staffId" Aeson..= tshow staff.id])
     activeRosterScopes <- activeRosterWeekScopes
+    activeTimesheetScopes <- activeTimesheetWeekScopes
     let affectedRosterGroupIds = nub (previousRosterGroupIds <> selectedRosterGroupIds)
-    invalidateTouchedResources "staff.update" (liveMutationResult updatedStaff (staffUpdateTouchedResources updatedStaff <> staffRosterGroupResources (unpackId currentVenueId) activeRosterScopes affectedRosterGroupIds))
+        payResources =
+            if staffPayDispositionChanged originalStaff updatedStaff
+                then staffTimesheetResources (unpackId currentVenueId) activeTimesheetScopes
+                else []
+    invalidateTouchedResources "staff.update" (liveMutationResult updatedStaff (staffUpdateTouchedResources updatedStaff <> staffRosterGroupResources (unpackId currentVenueId) activeRosterScopes affectedRosterGroupIds <> payResources))
 
 staffUpdateTouchedResources :: Staff -> [SurfaceResourceValue]
 staffUpdateTouchedResources staff =
@@ -133,3 +142,16 @@ staffUpdateTouchedResources staff =
 
 staffRosterGroupResources :: UUID -> [(UUID, UUID, Int)] -> [Id RosterGroup] -> [SurfaceResourceValue]
 staffRosterGroupResources = activeRosterResourcesForStaffGroups
+
+staffTimesheetResources :: UUID -> [(UUID, Int)] -> [SurfaceResourceValue]
+staffTimesheetResources venueId activeScopes =
+    Set.toList $ Set.fromList
+        [ timesheetWeekResource activeVenueId weekOffset
+        | (activeVenueId, weekOffset) <- activeScopes
+        , activeVenueId == venueId
+        ]
+
+staffPayDispositionChanged :: Staff -> Staff -> Bool
+staffPayDispositionChanged previous next =
+    (previous.payAssignmentMode, previous.defaultAwardLevelId, previous.importedXeroPayItemId)
+        /= (next.payAssignmentMode, next.defaultAwardLevelId, next.importedXeroPayItemId)
