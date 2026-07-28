@@ -86,6 +86,24 @@ test.describe('Generated toggle capability', () => {
         await exerciseRosterLivePersistence(page, { width: 390, height: 844 }, 12);
     });
 
+    test('rejects publishing when an assigned shift pay configuration becomes unavailable', async ({ page }) => {
+        runSql("UPDATE roster_weeks SET is_live = FALSE WHERE id = 'a1000000-0000-0000-0000-000000000051';");
+        runSql("UPDATE shift_types SET is_active = FALSE WHERE id = 'a1000000-0000-0000-0000-000000000133';");
+        try {
+            await openRoster(page, { weekOffset: 0, ensureDraft: true, ensureEditable: true });
+            const root = await rosterLiveRoot(page);
+            await root.click();
+            await expect(page.locator(`#${toastOverlayMountDomId}`)).toContainText(
+                'Resolve pay configuration for the selected staff member or shift type before saving this roster shift.',
+                { timeout: E2E_TIMEOUT.assertion },
+            );
+            await expect(root.locator(`[${toggleInputDomAttr}]`)).not.toBeChecked();
+        } finally {
+            runSql("UPDATE shift_types SET is_active = TRUE WHERE id = 'a1000000-0000-0000-0000-000000000133';");
+            runSql("UPDATE roster_weeks SET is_live = FALSE WHERE id = 'a1000000-0000-0000-0000-000000000051';");
+        }
+    });
+
     test('submits explicit all/group staff scope and inverted hide-approved mappings', async ({ page }) => {
         const extraRosterGroupId = 'a1000000-0000-0000-0000-000000000169';
         runSql(`

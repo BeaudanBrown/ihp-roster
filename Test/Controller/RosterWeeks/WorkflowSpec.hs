@@ -627,6 +627,114 @@ tests = aroundAll withDatabaseTestContext do
                 testEndTime unchangedSlot `shouldBe` Just (timeOfDay 17 0)
                 testDurationMinutes unchangedSlot `shouldBe` Just 480
 
+        it "rejects tampered dialog assignments with unresolved pay configuration" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Roster Pay Validation Venue"
+                manager <- createUserRecord "roster-pay-validation-manager@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue manager "manager"
+                unresolvedStaff <- createStaffRecord venue Nothing "Unresolved" "Crew"
+                    >>= updateRecord . set #payAssignmentMode LegacyUnresolved
+                level <- createPayLevelRecord venue "Level 1"
+                shiftType <- createShiftTypeRecord venue level "Floor"
+                rosterWeek <- createRosterWeekRecord venue 0 False
+                rosterDay <- createRosterDayRecord rosterWeek 0
+                slotName <- fetchSlotNameRecord venue "Early"
+                slotDefinition <- ensureRosterWeekSlotDefinitionForSlotName rosterDay slotName
+
+                response <- withUserAndCurrentVenue manager venue.id do
+                    withRequestHeaders [("HX-Request", "true")] do
+                        callActionWithParams
+                            (CreateRosterSlotAction rosterDay.id slotDefinition.id 0)
+                            [ ("staffId", idToParam unresolvedStaff.id)
+                            , ("startTime", "09:00")
+                            , ("endTime", "17:00")
+                            , ("shiftTypeId", idToParam shiftType.id)
+                            ]
+
+                response `responseStatusShouldBe` status200
+                response `responseBodyShouldContain` "Resolve pay configuration for the selected staff member or shift type before saving this roster shift."
+                query @RosterSlot |> fetchCount >>= (`shouldBe` 0)
+
+        it "rejects unavailable and cross-venue pay assignments submitted outside roster selectors" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Roster Tampered Pay Venue"
+                otherVenue <- createVenueWithConfig "Other Roster Tampered Pay Venue"
+                manager <- createUserRecord "roster-tampered-pay-manager@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue manager "manager"
+                staffMember <- createStaffRecord venue Nothing "Current" "Crew"
+                foreignStaff <- createStaffRecord otherVenue Nothing "Foreign" "Crew"
+                level <- createPayLevelRecord venue "Inactive Level"
+                inactiveShift <- createShiftTypeRecord venue level "Inactive Pay Reference"
+                _ <- updateRecord (level |> set #isActive False)
+                foreignLevel <- createPayLevelRecord otherVenue "Foreign Level"
+                foreignShift <- createShiftTypeRecord otherVenue foreignLevel "Foreign Shift"
+                rosterWeek <- createRosterWeekRecord venue 0 False
+                rosterDay <- createRosterDayRecord rosterWeek 0
+                slotName <- fetchSlotNameRecord venue "Early"
+                slotDefinition <- ensureRosterWeekSlotDefinitionForSlotName rosterDay slotName
+                let submit rowIndex staffId shiftTypeId =
+                        withUserAndCurrentVenue manager venue.id do
+                            withRequestHeaders [("HX-Request", "true")] do
+                                callActionWithParams
+                                    (CreateRosterSlotAction rosterDay.id slotDefinition.id rowIndex)
+                                    [ ("staffId", idToParam staffId)
+                                    , ("startTime", "09:00")
+                                    , ("endTime", "17:00")
+                                    , ("shiftTypeId", idToParam shiftTypeId)
+                                    ]
+
+                unavailableResponse <- submit 0 staffMember.id inactiveShift.id
+                unavailableResponse `responseBodyShouldContain` "Resolve pay configuration for the selected staff member or shift type before saving this roster shift."
+                foreignStaffResponse <- submit 1 foreignStaff.id inactiveShift.id
+                foreignStaffResponse `responseBodyShouldContain` "Choose a staff member for this venue."
+                foreignShiftResponse <- submit 2 staffMember.id foreignShift.id
+                foreignShiftResponse `responseBodyShouldContain` "Choose a shift type for this venue."
+                query @RosterSlot |> fetchCount >>= (`shouldBe` 0)
+
+        it "allows roster-only shifts outside Award projected-duration limits" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Roster Only Duration Venue"
+                manager <- createUserRecord "roster-only-duration-manager@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue manager "manager"
+                partTimeStaff <- createStaffRecord venue Nothing "Roster Only" "Crew" >>= updateRecord . set #employmentBasis Permanent
+                rateProducingStaff <- createStaffRecord venue Nothing "Rate Producing" "Crew" >>= updateRecord . set #employmentBasis Permanent
+                level <- createPayLevelRecord venue "Level 1"
+                rateProducingStaff <- updateRecord (rateProducingStaff |> set #payAssignmentMode AwardRate |> set #defaultAwardLevelId (Just level.id))
+                shiftType <- createShiftTypeRecord venue level "Floor"
+                rosterOnlyShiftType <- createShiftTypeRecord venue level "Roster only shift"
+                    >>= updateRecord
+                        . set #payAssignmentMode RosterOnly
+                        . set #overrideAwardLevelId Nothing
+                rosterWeek <- createRosterWeekRecord venue 0 False
+                rosterDay <- createRosterDayRecord rosterWeek 0
+                slotName <- fetchSlotNameRecord venue "Early"
+                slotDefinition <- ensureRosterWeekSlotDefinitionForSlotName rosterDay slotName
+
+                response <- withUserAndCurrentVenue manager venue.id do
+                    withRequestHeaders [("HX-Request", "true")] do
+                        callActionWithParams
+                            (CreateRosterSlotAction rosterDay.id slotDefinition.id 0)
+                            [ ("staffId", idToParam partTimeStaff.id)
+                            , ("startTime", "17:30")
+                            , ("endTime", "05:45")
+                            , ("shiftTypeId", idToParam shiftType.id)
+                            ]
+
+                response `responseStatusShouldBe` status200
+                response `responseBodyShouldNotContain` "Part-time roster shifts must project"
+
+                shiftRosterOnlyResponse <- withUserAndCurrentVenue manager venue.id do
+                    withRequestHeaders [("HX-Request", "true")] do
+                        callActionWithParams
+                            (CreateRosterSlotAction rosterDay.id slotDefinition.id 1)
+                            [ ("staffId", idToParam rateProducingStaff.id)
+                            , ("startTime", "17:30")
+                            , ("endTime", "05:45")
+                            , ("shiftTypeId", idToParam rosterOnlyShiftType.id)
+                            ]
+                shiftRosterOnlyResponse `responseBodyShouldNotContain` "Part-time roster shifts must project"
+                query @RosterSlot |> fetchCount >>= (`shouldBe` 2)
+
         it "rejects Part-time and casual roster shifts outside supported projected-duration limits" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Roster Award Duration Venue"
@@ -635,6 +743,8 @@ tests = aroundAll withDatabaseTestContext do
                 partTimeStaff <- createStaffRecord venue Nothing "Part-time" "Crew" >>= updateRecord . set #employmentBasis Permanent
                 casualStaff <- createStaffRecord venue Nothing "Casual" "Crew" >>= updateRecord . set #employmentBasis Casual
                 level <- createPayLevelRecord venue "Level 1"
+                _ <- updateRecord (partTimeStaff |> set #payAssignmentMode AwardRate |> set #defaultAwardLevelId (Just level.id))
+                _ <- updateRecord (casualStaff |> set #payAssignmentMode AwardRate |> set #defaultAwardLevelId (Just level.id))
                 shiftType <- createShiftTypeRecord venue level "Floor"
                 rosterWeek <- createRosterWeekRecord venue 0 False
                 rosterDay <- createRosterDayRecord rosterWeek 0
@@ -684,6 +794,8 @@ tests = aroundAll withDatabaseTestContext do
                 partTimeStaff <- createStaffRecord venue Nothing "Part-time" "Edit" >>= updateRecord . set #employmentBasis Permanent
                 casualStaff <- createStaffRecord venue Nothing "Casual" "Edit" >>= updateRecord . set #employmentBasis Casual
                 level <- createPayLevelRecord venue "Level 1"
+                _ <- updateRecord (partTimeStaff |> set #payAssignmentMode AwardRate |> set #defaultAwardLevelId (Just level.id))
+                _ <- updateRecord (casualStaff |> set #payAssignmentMode AwardRate |> set #defaultAwardLevelId (Just level.id))
                 shiftType <- createShiftTypeRecord venue level "Floor"
                 rosterWeek <- createRosterWeekRecord venue 0 False
                 rosterDay <- createRosterDayRecord rosterWeek 0
@@ -735,6 +847,8 @@ tests = aroundAll withDatabaseTestContext do
                 partTimeStaff <- createStaffRecord venue Nothing "Part-time" "Crew" >>= updateRecord . set #employmentBasis Permanent
                 casualStaff <- createStaffRecord venue Nothing "Casual" "Crew" >>= updateRecord . set #employmentBasis Casual
                 level <- createPayLevelRecord venue "Level 1"
+                _ <- updateRecord (partTimeStaff |> set #payAssignmentMode AwardRate |> set #defaultAwardLevelId (Just level.id))
+                _ <- updateRecord (casualStaff |> set #payAssignmentMode AwardRate |> set #defaultAwardLevelId (Just level.id))
                 shiftType <- createShiftTypeRecord venue level "Floor"
                 rosterWeek <- createRosterWeekRecord venue 0 False
                 rosterDay <- createRosterDayRecord rosterWeek 0
@@ -770,6 +884,65 @@ tests = aroundAll withDatabaseTestContext do
                 published <- publish
                 published `responseStatusShouldBe` status200
                 fetch rosterWeek.id >>= (\week -> week.isLive `shouldBe` True)
+
+        it "blocks publishing legacy-unresolved staff even with a roster-only shift type" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Roster Pay Publish Venue"
+                manager <- createUserRecord "roster-pay-publish-manager@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue manager "manager"
+                unresolvedStaff <- createStaffRecord venue Nothing "Unresolved" "Publish"
+                    >>= updateRecord . set #payAssignmentMode LegacyUnresolved
+                level <- createPayLevelRecord venue "Publish Level"
+                rosterOnlyShift <- createShiftTypeRecord venue level "Roster only"
+                    >>= updateRecord
+                        . set #payAssignmentMode RosterOnly
+                        . set #overrideAwardLevelId Nothing
+                rosterWeek <- createRosterWeekRecord venue 0 False
+                rosterDay <- createRosterDayRecord rosterWeek 0
+                slotName <- fetchSlotNameRecord venue "Early"
+                _ <- createRosterSlotRecord rosterDay slotName (Just unresolvedStaff) 0
+                    >>= updateRecord
+                        . set #shiftTypeId (Just (unpackId rosterOnlyShift.id))
+                        . setTestRosterSlotBoundaries (fromGregorian 2025 1 6) (timeOfDay 9 0) (timeOfDay 17 0)
+
+                response <- withUserAndCurrentVenue manager venue.id do
+                    withRequestHeaders [("HX-Request", "true")] do
+                        callActionWithParams (ToggleRosterWeekLiveStatusAction rosterWeek.id) [("isLive", "on")]
+
+                response `responseStatusShouldBe` status200
+                response `responseBodyShouldContain` "Resolve pay configuration for the selected staff member or shift type before saving this roster shift."
+                fetch rosterWeek.id >>= (\week -> week.isLive `shouldBe` False)
+
+        it "rejects copying unresolved pay configuration without replacing existing target data" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Roster Pay Copy Venue"
+                manager <- createUserRecord "roster-pay-copy-manager@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue manager "manager"
+                unresolvedStaff <- createStaffRecord venue Nothing "Unresolved" "Copy"
+                    >>= updateRecord . set #payAssignmentMode LegacyUnresolved
+                level <- createPayLevelRecord venue "Copy Pay Level"
+                shiftType <- createShiftTypeRecord venue level "Copy Shift"
+                slotName <- fetchSlotNameRecord venue "Early"
+                sourceWeek <- createRosterWeekRecord venue 0 False
+                sourceDay <- createRosterDayRecord sourceWeek 0
+                _ <- createRosterSlotRecord sourceDay slotName (Just unresolvedStaff) 0
+                    >>= updateRecord
+                        . set #shiftTypeId (Just (unpackId shiftType.id))
+                        . setTestRosterSlotBoundaries (fromGregorian 2025 1 6) (timeOfDay 9 0) (timeOfDay 17 0)
+                targetWeek <- createRosterWeekRecord venue 1 False
+                targetDay <- createRosterDayRecord targetWeek 0
+                targetStaff <- createStaffRecord venue Nothing "Existing" "Target"
+                targetSlot <- createRosterSlotRecord targetDay slotName (Just targetStaff) 0
+
+                response <- withUserAndCurrentVenue manager venue.id do
+                    withRequestHeaders [("HX-Request", "true")] do
+                        callAction (CopyRosterWeekAction 0 1)
+
+                response `responseStatusShouldBe` status200
+                response `responseBodyShouldContain` "Resolve pay configuration for the selected staff member or shift type before saving this roster shift."
+                persistedTarget <- fetch targetSlot.id
+                persistedTarget.deletedAt `shouldBe` Nothing
+                persistedTarget.staffId `shouldBe` Just (unpackId targetStaff.id)
 
         it "requires an occurrence for an ambiguous after-midnight roster boundary" $ withContext do
             withCleanDb do
@@ -1865,7 +2038,7 @@ tests = aroundAll withDatabaseTestContext do
                 staffMember <- createStaffRecord venue Nothing "Alpha" "Crew"
                 sourceWeek <- createRosterWeekRecord venue 0 True
                 sourceDay <- createRosterDayRecord sourceWeek 0
-                sourceSlot <- createRosterSlotRecord sourceDay slotName (Just staffMember) 0
+                sourceSlot <- createCompleteRosterSlotRecord sourceDay slotName staffMember 0
                 let sourceSlotWithFields =
                         sourceSlot
                             |> setTestStartTime (Just (timeOfDay 9 0))
@@ -1912,12 +2085,15 @@ tests = aroundAll withDatabaseTestContext do
                 manager <- createUserRecord "roster-award-copy-manager@example.com" "staff" True
                 _ <- createVenueMembershipRecord venue manager "manager"
                 staffMember <- createStaffRecord venue Nothing "Part-time" "Copy" >>= updateRecord . set #employmentBasis Permanent
+                level <- createPayLevelRecord venue "Copy Level"
+                staffMemberWithRate <- updateRecord (staffMember |> set #payAssignmentMode AwardRate |> set #defaultAwardLevelId (Just level.id))
+                shiftType <- createShiftTypeRecord venue level "Copy Shift"
                 slotName <- fetchSlotNameRecord venue "Early"
                 sourceWeek <- createRosterWeekRecord venue 63 False
                 sourceDay <- createRosterDayRecord sourceWeek 5
-                sourceSlot <- createRosterSlotRecord sourceDay slotName (Just staffMember) 0
+                sourceSlot <- createRosterSlotRecord sourceDay slotName (Just staffMemberWithRate) 0
                 _ <- updateRecord
-                    (sourceSlot |> setTestRosterSlotBoundaries (fromGregorian 2026 3 28) (timeOfDay 17 45) (timeOfDay 5 45))
+                    (sourceSlot |> set #shiftTypeId (Just (unpackId shiftType.id)) |> setTestRosterSlotBoundaries (fromGregorian 2026 3 28) (timeOfDay 17 45) (timeOfDay 5 45))
 
                 response <- withUserAndCurrentVenue manager venue.id do
                     withRequestHeaders [("HX-Request", "true")] do
@@ -1937,12 +2113,15 @@ tests = aroundAll withDatabaseTestContext do
                 manager <- createUserRecord "roster-award-casual-copy-manager@example.com" "staff" True
                 _ <- createVenueMembershipRecord venue manager "manager"
                 staffMember <- createStaffRecord venue Nothing "Casual" "Copy" >>= updateRecord . set #employmentBasis Casual
+                level <- createPayLevelRecord venue "Copy Level"
+                staffMemberWithRate <- updateRecord (staffMember |> set #payAssignmentMode AwardRate |> set #defaultAwardLevelId (Just level.id))
+                shiftType <- createShiftTypeRecord venue level "Copy Shift"
                 slotName <- fetchSlotNameRecord venue "Early"
                 sourceWeek <- createRosterWeekRecord venue 63 False
                 sourceDay <- createRosterDayRecord sourceWeek 5
-                sourceSlot <- createRosterSlotRecord sourceDay slotName (Just staffMember) 0
+                sourceSlot <- createRosterSlotRecord sourceDay slotName (Just staffMemberWithRate) 0
                 _ <- updateRecord
-                    (sourceSlot |> setTestRosterSlotBoundaries (fromGregorian 2026 3 28) (timeOfDay 17 15) (timeOfDay 5 45))
+                    (sourceSlot |> set #shiftTypeId (Just (unpackId shiftType.id)) |> setTestRosterSlotBoundaries (fromGregorian 2026 3 28) (timeOfDay 17 15) (timeOfDay 5 45))
 
                 response <- withUserAndCurrentVenue manager venue.id do
                     withRequestHeaders [("HX-Request", "true")] do
@@ -1965,11 +2144,11 @@ tests = aroundAll withDatabaseTestContext do
                 staffMember <- createStaffRecord venue Nothing "Copy" "Crew"
                 sourceWeek <- createRosterWeekRecord venue 63 True
                 sourceDay <- createRosterDayRecord sourceWeek 5
-                sourceSlot <- createRosterSlotRecord sourceDay slotName (Just staffMember) 0
+                sourceSlot <- createCompleteRosterSlotRecord sourceDay slotName staffMember 0
                 _ <- sourceSlot
                     |> setTestRosterSlotBoundaries (fromGregorian 2026 3 28) (timeOfDay 2 30) (timeOfDay 4 0)
                     |> updateRecord
-                ordinarySourceSlot <- createRosterSlotRecord sourceDay slotName (Just staffMember) 1
+                ordinarySourceSlot <- createCompleteRosterSlotRecord sourceDay slotName staffMember 1
                 _ <- ordinarySourceSlot
                     |> setTestRosterSlotBoundaries (fromGregorian 2026 3 28) (timeOfDay 9 0) (timeOfDay 17 0)
                     |> updateRecord
@@ -2036,7 +2215,7 @@ tests = aroundAll withDatabaseTestContext do
 
                 sourceWeek <- createRosterWeekRecord venue 0 True
                 sourceDay <- createRosterDayRecord sourceWeek 0
-                sourceSlot <- createRosterSlotRecord sourceDay early (Just alpha) 0
+                sourceSlot <- createCompleteRosterSlotRecord sourceDay early alpha 0
                 _ <- updateRecord
                     ( sourceSlot
                         |> setTestStartTime (Just (timeOfDay 8 0))
@@ -2096,7 +2275,7 @@ tests = aroundAll withDatabaseTestContext do
 
                 sourceWeek <- createRosterWeekRecord venue 0 True
                 sourceDay <- createRosterDayRecord sourceWeek 0
-                sourceSlot <- createRosterSlotRecord sourceDay early (Just alpha) 0
+                sourceSlot <- createCompleteRosterSlotRecord sourceDay early alpha 0
                 _ <- updateRecord
                     ( sourceSlot
                         |> setTestStartTime (Just (timeOfDay 8 0))
@@ -2153,7 +2332,7 @@ tests = aroundAll withDatabaseTestContext do
 
                 frontSourceWeek <- createRosterWeekRecordForRosterGroup venue frontOfHouse 0 True
                 frontSourceDay <- createRosterDayRecord frontSourceWeek 0
-                frontSourceSlot <- createRosterSlotRecord frontSourceDay frontSlotName (Just alpha) 0
+                frontSourceSlot <- createCompleteRosterSlotRecord frontSourceDay frontSlotName alpha 0
                 _ <- updateRecord (frontSourceSlot |> setTestStartTime (Just (timeOfDay 8 0)))
 
                 backSourceWeek <- createRosterWeekRecordForRosterGroup venue backOfHouse 0 True

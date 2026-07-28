@@ -131,7 +131,11 @@ the full Start/End/Staff/Role span rather than a nested visual cell.
 All rendered keys remain opaque (`existing:<slot-id>`, `staff:<staff-id>`,
 `new:<day-id>:<slot-definition-id>:<row-index>`); controllers parse and validate
 venue, roster-group, draft/open-day, active staff, and eligibility before any
-mutation or dialog render.
+mutation or dialog render. Every slot persistence boundary also resolves the
+selected staff and shift type through `Web.RosterWeeks.Service`; malformed,
+unavailable, archived, or venue-invalid pay configuration is rejected even when
+a request bypasses rendered selector options. Effective roster-only shifts skip
+Award duration checks but still require authoritative boundaries.
 
 ## Shift Time Picker Contract
 

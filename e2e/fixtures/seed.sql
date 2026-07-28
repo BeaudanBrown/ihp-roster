@@ -464,6 +464,7 @@ INSERT INTO staff (
     emergency_contact_phone,
     ideal_shifts_per_week,
     employment_basis,
+    pay_assignment_mode,
     default_award_level_id,
     is_active
 )
@@ -479,6 +480,7 @@ VALUES
         '0400000101',
         0,
         'permanent',
+        'award_rate',
         'a1000000-0000-0000-0000-000000000111',
         TRUE
     ),
@@ -493,6 +495,7 @@ VALUES
         '0400000102',
         0,
         'permanent',
+        'award_rate',
         'a1000000-0000-0000-0000-000000000111',
         TRUE
     ),
@@ -507,6 +510,7 @@ VALUES
         '0400000103',
         0,
         'permanent',
+        'award_rate',
         'a1000000-0000-0000-0000-000000000111',
         TRUE
     ),
@@ -521,6 +525,7 @@ VALUES
         '0400000104',
         0,
         'permanent',
+        'award_rate',
         'a1000000-0000-0000-0000-000000000121',
         TRUE
     ),
@@ -535,6 +540,7 @@ VALUES
         '0400000105',
         0,
         'permanent',
+        'award_rate',
         'a1000000-0000-0000-0000-000000000111',
         TRUE
     ),
@@ -549,6 +555,7 @@ VALUES
         '0400000107',
         0,
         'permanent',
+        'award_rate',
         'a1000000-0000-0000-0000-000000000111',
         FALSE
     ),
@@ -563,7 +570,8 @@ VALUES
         '0400000106',
         0,
         'casual',
-        'a1000000-0000-0000-0000-000000000111',
+        'roster_only',
+        NULL,
         TRUE
     )
 ON CONFLICT (id) DO UPDATE SET
@@ -576,20 +584,24 @@ ON CONFLICT (id) DO UPDATE SET
     emergency_contact_phone = EXCLUDED.emergency_contact_phone,
     ideal_shifts_per_week = EXCLUDED.ideal_shifts_per_week,
     employment_basis = EXCLUDED.employment_basis,
+    pay_assignment_mode = EXCLUDED.pay_assignment_mode,
     default_award_level_id = EXCLUDED.default_award_level_id,
+    imported_xero_pay_item_id = NULL,
     is_active = EXCLUDED.is_active;
 
-INSERT INTO shift_types (id, venue_id, name, sort_order, override_award_level_id, is_active)
+INSERT INTO shift_types (id, venue_id, name, sort_order, pay_assignment_mode, override_award_level_id, is_active)
 VALUES
-    ('a1000000-0000-0000-0000-000000000131', 'a1000000-0000-0000-0000-000000000001', 'Bar', 10, 'a1000000-0000-0000-0000-000000000111', TRUE),
-    ('a1000000-0000-0000-0000-000000000132', 'a1000000-0000-0000-0000-000000000001', 'Kitchen', 20, 'a1000000-0000-0000-0000-000000000111', TRUE),
-    ('a1000000-0000-0000-0000-000000000133', 'a1000000-0000-0000-0000-000000000001', 'Floor', 30, 'a1000000-0000-0000-0000-000000000113', TRUE),
-    ('a1000000-0000-0000-0000-000000000141', 'a1000000-0000-0000-0000-000000000002', 'Beta Shift', 10, 'a1000000-0000-0000-0000-000000000121', TRUE)
+    ('a1000000-0000-0000-0000-000000000131', 'a1000000-0000-0000-0000-000000000001', 'Bar', 10, 'award_rate', 'a1000000-0000-0000-0000-000000000111', TRUE),
+    ('a1000000-0000-0000-0000-000000000132', 'a1000000-0000-0000-0000-000000000001', 'Kitchen', 20, 'award_rate', 'a1000000-0000-0000-0000-000000000111', TRUE),
+    ('a1000000-0000-0000-0000-000000000133', 'a1000000-0000-0000-0000-000000000001', 'Floor', 30, 'award_rate', 'a1000000-0000-0000-0000-000000000113', TRUE),
+    ('a1000000-0000-0000-0000-000000000141', 'a1000000-0000-0000-0000-000000000002', 'Beta Shift', 10, 'award_rate', 'a1000000-0000-0000-0000-000000000121', TRUE)
 ON CONFLICT (id) DO UPDATE SET
     venue_id = EXCLUDED.venue_id,
     name = EXCLUDED.name,
     sort_order = EXCLUDED.sort_order,
+    pay_assignment_mode = EXCLUDED.pay_assignment_mode,
     override_award_level_id = EXCLUDED.override_award_level_id,
+    imported_xero_pay_item_id = NULL,
     is_active = EXCLUDED.is_active;
 
 INSERT INTO day_names (id, venue_id, weekday_index, name, is_active)
@@ -618,6 +630,7 @@ INSERT INTO staff_pay_versions (
     id,
     venue_id,
     staff_id,
+    pay_assignment_mode,
     default_award_level_id,
     employment_basis,
     effective_from,
@@ -630,6 +643,7 @@ VALUES
         'a1000000-0000-0000-0000-000000000301',
         'a1000000-0000-0000-0000-000000000001',
         'a0000000-0000-0000-0000-000000000101',
+        'award_rate',
         'a1000000-0000-0000-0000-000000000111',
         'permanent',
         CURRENT_DATE - ((EXTRACT(ISODOW FROM CURRENT_DATE)::INT) - 1),
@@ -641,6 +655,7 @@ VALUES
         'a1000000-0000-0000-0000-000000000302',
         'a1000000-0000-0000-0000-000000000001',
         'a1000000-0000-0000-0000-000000000031',
+        'award_rate',
         'a1000000-0000-0000-0000-000000000111',
         'permanent',
         CURRENT_DATE - ((EXTRACT(ISODOW FROM CURRENT_DATE)::INT) - 1),
@@ -652,6 +667,7 @@ VALUES
         'a1000000-0000-0000-0000-000000000303',
         'a1000000-0000-0000-0000-000000000001',
         'a1000000-0000-0000-0000-000000000033',
+        'award_rate',
         'a1000000-0000-0000-0000-000000000111',
         'permanent',
         CURRENT_DATE - ((EXTRACT(ISODOW FROM CURRENT_DATE)::INT) - 1),
@@ -663,6 +679,7 @@ VALUES
         'a1000000-0000-0000-0000-000000000304',
         'a1000000-0000-0000-0000-000000000002',
         'a1000000-0000-0000-0000-000000000032',
+        'award_rate',
         'a1000000-0000-0000-0000-000000000121',
         'permanent',
         CURRENT_DATE - ((EXTRACT(ISODOW FROM CURRENT_DATE)::INT) - 1),
@@ -673,6 +690,7 @@ VALUES
 ON CONFLICT (id) DO UPDATE SET
     venue_id = EXCLUDED.venue_id,
     staff_id = EXCLUDED.staff_id,
+    pay_assignment_mode = EXCLUDED.pay_assignment_mode,
     default_award_level_id = EXCLUDED.default_award_level_id,
     employment_basis = EXCLUDED.employment_basis,
     effective_from = EXCLUDED.effective_from,
@@ -685,6 +703,7 @@ INSERT INTO shift_type_pay_versions (
     id,
     venue_id,
     shift_type_id,
+    pay_assignment_mode,
     override_award_level_id,
     payroll_label,
     effective_from,
@@ -697,6 +716,7 @@ VALUES
         'a1000000-0000-0000-0000-000000000311',
         'a1000000-0000-0000-0000-000000000001',
         'a1000000-0000-0000-0000-000000000131',
+        'award_rate',
         'a1000000-0000-0000-0000-000000000111',
         'Bar',
         CURRENT_DATE - ((EXTRACT(ISODOW FROM CURRENT_DATE)::INT) - 1),
@@ -708,6 +728,7 @@ VALUES
         'a1000000-0000-0000-0000-000000000312',
         'a1000000-0000-0000-0000-000000000001',
         'a1000000-0000-0000-0000-000000000132',
+        'award_rate',
         'a1000000-0000-0000-0000-000000000111',
         'Kitchen',
         CURRENT_DATE - ((EXTRACT(ISODOW FROM CURRENT_DATE)::INT) - 1),
@@ -719,6 +740,7 @@ VALUES
         'a1000000-0000-0000-0000-000000000313',
         'a1000000-0000-0000-0000-000000000001',
         'a1000000-0000-0000-0000-000000000133',
+        'award_rate',
         'a1000000-0000-0000-0000-000000000113',
         'Floor',
         CURRENT_DATE - ((EXTRACT(ISODOW FROM CURRENT_DATE)::INT) - 1),
@@ -730,6 +752,7 @@ VALUES
         'a1000000-0000-0000-0000-000000000314',
         'a1000000-0000-0000-0000-000000000002',
         'a1000000-0000-0000-0000-000000000141',
+        'award_rate',
         'a1000000-0000-0000-0000-000000000121',
         'Beta Shift',
         CURRENT_DATE - ((EXTRACT(ISODOW FROM CURRENT_DATE)::INT) - 1),
@@ -740,6 +763,7 @@ VALUES
 ON CONFLICT (id) DO UPDATE SET
     venue_id = EXCLUDED.venue_id,
     shift_type_id = EXCLUDED.shift_type_id,
+    pay_assignment_mode = EXCLUDED.pay_assignment_mode,
     override_award_level_id = EXCLUDED.override_award_level_id,
     payroll_label = EXCLUDED.payroll_label,
     effective_from = EXCLUDED.effective_from,

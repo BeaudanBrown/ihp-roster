@@ -505,6 +505,16 @@ createRosterSlotRecord rosterDay slotName maybeStaff rowIndex = do
         |> set #timezone melbourneTimeZoneName
         |> createRecord
 
+createCompleteRosterSlotRecord :: (?modelContext :: ModelContext) => RosterDay -> SlotName -> Staff -> Int -> IO RosterSlot
+createCompleteRosterSlotRecord rosterDay slotName staff rowIndex = do
+    rosterWeek <- fetch (Id rosterDay.rosterWeekId :: Id RosterWeek)
+    venue <- fetch (Id rosterWeek.venueId :: Id Venue)
+    shiftType <- ensureVenueDefaultShiftType venue
+    createRosterSlotRecord rosterDay slotName (Just staff) rowIndex
+        >>= updateRecord
+            . set #shiftTypeId (Just (unpackId shiftType.id))
+            . setTestRosterSlotBoundaries (fromGregorian 2025 1 6) (TimeOfDay 9 0 0) (TimeOfDay 17 0 0)
+
 ensureRosterWeekSlotDefinitionForSlotName :: (?modelContext :: ModelContext) => RosterDay -> SlotName -> IO RosterWeekSlotDefinition
 ensureRosterWeekSlotDefinitionForSlotName rosterDay slotName = do
     existing <- query @RosterWeekSlotDefinition

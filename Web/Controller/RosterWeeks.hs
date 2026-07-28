@@ -25,7 +25,6 @@ import qualified Application.Helper.FrontendContract.Surface.Roster.Action as Ro
 import qualified Application.Helper.FrontendContract.Surface.Roster.Intent as RosterIntent
 import Application.Helper.FrontendContract.Surface.Values
 import Application.Helper.Profiling
-import qualified Application.Helper.RosterAwardDuration as RosterAwardDuration
 import Application.Helper.RosterGroups
 import Application.Helper.SurfaceResource (LiveMutationResult (..))
 import Application.Helper.TimeRules (authoritativeRosterIntervalIsOperationallyValid,
@@ -393,8 +392,8 @@ instance Controller RosterWeeksController where
                             Right selections -> do
                                 copyResult <- copyRosterWeekFromSourceMutation selections rosterGroup.id sourceWeek targetWeekOffset
                                 case copyResult of
-                                    Left (RosterWeekCopyAwardDurationError violation) ->
-                                        respondWithRosterCopyFailure rosterGroup.id targetWeekOffset (RosterAwardDuration.rosterAwardDurationViolationMessage violation)
+                                    Left (RosterWeekCopyPersistenceError message) ->
+                                        respondWithRosterCopyFailure rosterGroup.id targetWeekOffset message
                                     Left (RosterWeekCopyBoundaryError failure) -> do
                                         venueConfig <- fetchVenueConfig
                                         (startIsRepeated, endIsRepeated) <- rosterWeekCopyAmbiguousEndpoints venueConfig sourceWeek targetWeekOffset
@@ -1500,22 +1499,15 @@ validateRosterShiftDialogSubmission rosterGroupId rosterDay rosterWeek _maybeExi
                     }
             pure (resolveShiftBoundaries venueConfig.timezone input)
     let resolutionError = either (Just . rosterBoundaryErrorMessage) (const Nothing) =<< maybeResolvedBoundaries
-    let awardDurationError = do
-            staff <- maybeStaff
-            boundaries <- case maybeResolvedBoundaries of
-                Just (Right resolved) -> Just resolved
-                _                     -> Nothing
-            violation <- RosterAwardDuration.rosterAwardDurationViolation staff.employmentBasis boundaries
-            pure (RosterAwardDuration.rosterAwardDurationViolationMessage violation)
     let valuesWithErrors = baseValues
-            { rosterShiftFormError = timingError <|> resolutionError <|> awardDurationError
+            { rosterShiftFormError = timingError <|> resolutionError
             , rosterShiftStaffError = staffError
             , rosterShiftStartError = startError <|> boundaryStartError maybeResolvedBoundaries
             , rosterShiftEndError = endError <|> timingError <|> boundaryEndError maybeResolvedBoundaries
             , rosterShiftTypeError = shiftTypeError
             }
-    case (staffError, startError, endError, shiftTypeError, timingError, resolutionError, awardDurationError, parsedStaffId, parsedShiftTypeId, maybeResolvedBoundaries) of
-        (Nothing, Nothing, Nothing, Nothing, Nothing, Nothing, Nothing, Just staffId, Just shiftTypeId, Just (Right boundaries)) ->
+    case (staffError, startError, endError, shiftTypeError, timingError, resolutionError, parsedStaffId, parsedShiftTypeId, maybeResolvedBoundaries) of
+        (Nothing, Nothing, Nothing, Nothing, Nothing, Nothing, Just staffId, Just shiftTypeId, Just (Right boundaries)) ->
             pure (Right ValidatedRosterShift
                 { validRosterShiftStaffId = staffId
                 , validRosterShiftBoundaries = boundaries

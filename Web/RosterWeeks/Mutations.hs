@@ -119,8 +119,8 @@ removeRosterDayRowMutation rosterGroupId rosterWeek rosterDay activeDefinitions 
 
 saveRosterSlotMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id RosterGroup -> RosterWeek -> RosterDay -> Maybe RosterSlot -> RosterSlot -> IO (Either Text (LiveMutationResult RosterSlotMutationResult))
 saveRosterSlotMutation rosterGroupId rosterWeek rosterDay existingSlot newSlot = do
-    awardDurationError <- validateRosterSlotAwardDuration newSlot
-    case awardDurationError of
+    validationError <- validateRosterSlotForPersistence (Id rosterWeek.venueId) newSlot
+    case validationError of
         Just message -> pure (Left message)
         Nothing -> do
             when (newSlot.rowIndex >= rosterDay.rowCount) do
@@ -137,8 +137,8 @@ saveRosterSlotMutation rosterGroupId rosterWeek rosterDay existingSlot newSlot =
 
 moveRosterSlotMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id RosterGroup -> RosterWeek -> RosterDay -> RosterDay -> RosterSlot -> RosterSlot -> IO (Either Text (LiveMutationResult RosterSlotMutationResult))
 moveRosterSlotMutation rosterGroupId rosterWeek sourceRosterDay targetRosterDay originalSlot updatedSlot = do
-    awardDurationError <- validateRosterSlotAwardDuration updatedSlot
-    case awardDurationError of
+    validationError <- validateRosterSlotForPersistence (Id rosterWeek.venueId) updatedSlot
+    case validationError of
         Just message -> pure (Left message)
         Nothing -> do
             let previousStaffId = originalSlot.staffId
@@ -161,8 +161,8 @@ moveRosterSlotMutation rosterGroupId rosterWeek sourceRosterDay targetRosterDay 
 
 updateRosterSlotMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id RosterGroup -> RosterWeek -> RosterDay -> RosterSlot -> RosterSlot -> IO (Either Text (LiveMutationResult RosterSlotMutationResult))
 updateRosterSlotMutation rosterGroupId rosterWeek rosterDay originalSlot updatedSlot = do
-    awardDurationError <- validateRosterSlotAwardDuration updatedSlot
-    case awardDurationError of
+    validationError <- validateRosterSlotForPersistence (Id rosterWeek.venueId) updatedSlot
+    case validationError of
         Just message -> pure (Left message)
         Nothing -> do
             let previousStaffId = originalSlot.staffId

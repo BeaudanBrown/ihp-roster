@@ -101,12 +101,18 @@ lands.
   renders their role as `TRIAL`; linked staff continue to show their venue
   membership role labels.
 - Publishing requires every staffed shift to have a start time, valid end time,
-  shift type, and supported projected working duration. Part-time shifts project
-  from 3 through 11.5 working hours; casual shifts project no more than 12
-  working hours. The same duration checks reject create, edit, copy, drag/drop,
-  and other server-side shift mutations before persistence. Shift end times are
-  always collected; the venue setting only controls whether end times are
-  rendered in the roster grid/cards.
+  shift type, resolved structural pay disposition, and supported projected
+  working duration. Dialog saves, reassignment, shift-type changes, move,
+  duplicate, week copy, publication, and tampered submissions all use the same
+  server-side pay-disposition validation. Legacy-unresolved, unavailable,
+  inconsistent, archived, or venue-invalid staff/shift pay configuration is
+  rejected; existing invalid shifts may only be deleted or corrected.
+- Effective roster-only shifts retain authoritative start/end validation but do
+  not run Award projected-duration validation. For timesheet-producing shifts,
+  part-time shifts project from 3 through 11.5 working hours and casual shifts
+  project no more than 12 working hours. Shift end times are always collected;
+  the venue setting only controls whether end times are rendered in the roster
+  grid/cards.
 - Publishing never queues or creates Timesheet entries. Complete linked-staff
   shifts become transient Timesheet suggestions immediately, including future
   live weeks. Complete trial-staff shifts remain roster-only and do not produce

@@ -28,20 +28,22 @@ module Web.RosterWeeks.Service
     , publishRequiredFieldsMessage
     , rosterSlotBlocksPublish
     , rosterSlotHasValidStartEnd
-    , validateRosterSlotAwardDuration
-    , validateRosterSlotsAwardDuration
+    , validateRosterSlotForPersistence
+    , validateRosterSlotsForPersistence
     , validateRosterWeekCanGoLive
     ) where
 
 import qualified Application.Helper.RosterAwardDuration as RosterAwardDuration
 import Application.Helper.RosterGroups
 import Application.Helper.TimeRules (authoritativeRosterIntervalIsOperationallyValid)
+import Application.PayAssignment
 import Application.VenueTime (RepeatedTimeOccurrence)
 import Application.VenueTime.Model
 import Data.Coerce (coerce)
 import Data.List (nub, sort, sortOn)
 import qualified Data.Map.Strict as Map
-import Data.Maybe (fromMaybe, isJust, isNothing, listToMaybe, mapMaybe)
+import Data.Maybe (catMaybes, fromMaybe, isJust, isNothing, listToMaybe,
+                   mapMaybe)
 import qualified Data.Text as Text
 import Data.Time (NominalDiffTime, UTCTime, addUTCTime, getCurrentTime, utctDay)
 import qualified Data.Time.Calendar as Calendar
@@ -259,7 +261,7 @@ data RosterSlotCopyPlan = RosterSlotCopyPlan
 
 data RosterWeekCopyError
     = RosterWeekCopyBoundaryError !BoundaryModelError
-    | RosterWeekCopyAwardDurationError !RosterAwardDuration.RosterAwardDurationViolation
+    | RosterWeekCopyPersistenceError !Text
     deriving (Eq, Show)
 
 validateRosterWeekCanGoLive :: (?modelContext :: ModelContext) => RosterWeek -> Bool -> IO (Maybe Text)
@@ -278,7 +280,7 @@ validateRosterWeekCanGoLive rosterWeek True = do
     let blockingSlots = filter rosterSlotBlocksPublish rosterSlots
     if not (null blockingSlots)
         then pure (Just publishRequiredFieldsMessage)
-        else validateRosterSlotsAwardDuration rosterSlots
+        else validateRosterSlotsForPersistence (Id rosterWeek.venueId) (filter (isJust . (.staffId)) rosterSlots)
 
 publishRequiredFieldsMessage :: Text
 publishRequiredFieldsMessage = "Roster week cannot go live until every staffed shift has a start time, valid end time, and shift type."
@@ -301,32 +303,80 @@ rosterSlotHasValidStartEnd slot =
                 (authoritativeBoundariesFromInstants slot.timezone startsAt endsAt Nothing Nothing)
         _ -> False
 
-validateRosterSlotAwardDuration :: (?modelContext :: ModelContext) => RosterSlot -> IO (Maybe Text)
-validateRosterSlotAwardDuration slot =
-    validateRosterSlotsAwardDuration [slot]
+rosterPayConfigurationMessage :: Text
+rosterPayConfigurationMessage = "Resolve pay configuration for the selected staff member or shift type before saving this roster shift."
 
-validateRosterSlotsAwardDuration :: (?modelContext :: ModelContext) => [RosterSlot] -> IO (Maybe Text)
-validateRosterSlotsAwardDuration rosterSlots = do
-    durationViolation <- firstRosterSlotAwardDurationViolation rosterSlots
-    pure (RosterAwardDuration.rosterAwardDurationViolationMessage <$> durationViolation)
+rosterSlotRequiredFieldsMessage :: Text
+rosterSlotRequiredFieldsMessage = "Choose a staff member, valid start/end times, and a shift type before saving this roster shift."
 
-firstRosterSlotAwardDurationViolation :: (?modelContext :: ModelContext) => [RosterSlot] -> IO (Maybe RosterAwardDuration.RosterAwardDurationViolation)
-firstRosterSlotAwardDurationViolation rosterSlots = do
-    let staffIds = nub (mapMaybe (.staffId) rosterSlots)
-    if null staffIds
-        then pure Nothing
-        else do
-            staffMembers <- query @Staff
-                |> filterWhereIn (#id, map Id staffIds)
-                |> fetch
-            let staffById = Map.fromList [(unpackId staff.id, staff) | staff <- staffMembers]
-            pure $ listToMaybe
-                [ violation
-                | slot <- rosterSlots
-                , Just staffId <- [slot.staffId]
-                , Just staff <- [Map.lookup staffId staffById]
-                , Just violation <- [rosterSlotAwardDurationViolation staff slot]
-                ]
+validateRosterSlotForPersistence :: (?modelContext :: ModelContext) => Id Venue -> RosterSlot -> IO (Maybe Text)
+validateRosterSlotForPersistence venueId slot
+    | isNothing slot.staffId || isNothing slot.shiftTypeId || not (rosterSlotHasValidStartEnd slot) =
+        pure (Just rosterSlotRequiredFieldsMessage)
+    | otherwise = do
+        disposition <- resolveRosterSlotPayDisposition venueId slot
+        case disposition of
+            Left message -> pure (Just message)
+            Right EffectiveRosterOnly -> pure Nothing
+            Right _ -> do
+                maybeStaff <- case slot.staffId of
+                    Just staffId -> query @Staff |> filterWhere (#id, Id staffId) |> fetchOneOrNothing
+                    Nothing      -> pure Nothing
+                pure do
+                    staff <- maybeStaff
+                    violation <- rosterSlotAwardDurationViolation staff slot
+                    pure (RosterAwardDuration.rosterAwardDurationViolationMessage violation)
+
+validateRosterSlotsForPersistence :: (?modelContext :: ModelContext) => Id Venue -> [RosterSlot] -> IO (Maybe Text)
+validateRosterSlotsForPersistence venueId slots =
+    firstJustM (map (validateRosterSlotForPersistence venueId) slots)
+
+resolveRosterSlotPayDisposition :: (?modelContext :: ModelContext) => Id Venue -> RosterSlot -> IO (Either Text EffectivePayAssignment)
+resolveRosterSlotPayDisposition venueId slot = do
+    maybeStaff <- case slot.staffId of
+        Just staffId -> query @Staff |> filterWhere (#id, Id staffId) |> fetchOneOrNothing
+        Nothing      -> pure Nothing
+    maybeShiftType <- case slot.shiftTypeId of
+        Just shiftTypeId -> query @ShiftType |> filterWhere (#id, Id shiftTypeId) |> fetchOneOrNothing
+        Nothing          -> pure Nothing
+    case (maybeStaff, maybeShiftType) of
+        (Just staff, Just shiftType)
+            | staffIsAvailable venueId staff && shiftTypeIsAvailable venueId shiftType -> do
+                activeAwardIds <- fetchActiveReferencedAwardIds staff shiftType
+                activeXeroIds <- fetchActiveReferencedXeroIds venueId staff shiftType
+                let staffAssignment = StaffPayAssignment staff.payAssignmentMode staff.defaultAwardLevelId staff.importedXeroPayItemId
+                    shiftAssignment = ShiftPayAssignment shiftType.payAssignmentMode shiftType.overrideAwardLevelId shiftType.importedXeroPayItemId
+                    referencesAvailable =
+                        not (staffPayAssignmentRequiresRemediation activeAwardIds activeXeroIds staffAssignment)
+                            && not (shiftPayAssignmentRequiresRemediation activeAwardIds activeXeroIds shiftAssignment)
+                pure case (referencesAvailable, resolvePayAssignment staffAssignment shiftAssignment) of
+                    (True, effective@EffectiveAwardRate {}) -> Right effective
+                    (True, effective@EffectiveXeroRate {}) -> Right effective
+                    (True, EffectiveRosterOnly) -> Right EffectiveRosterOnly
+                    _ -> Left rosterPayConfigurationMessage
+        _ -> pure (Left rosterPayConfigurationMessage)
+
+staffIsAvailable :: Id Venue -> Staff -> Bool
+staffIsAvailable venueId staff =
+    staff.venueId == unpackId venueId && staff.isActive && isNothing staff.archivedAt
+
+shiftTypeIsAvailable :: Id Venue -> ShiftType -> Bool
+shiftTypeIsAvailable venueId shiftType =
+    shiftType.venueId == unpackId venueId && shiftType.isActive && isNothing shiftType.archivedAt
+
+fetchActiveReferencedAwardIds :: (?modelContext :: ModelContext) => Staff -> ShiftType -> IO [Id AwardLevel]
+fetchActiveReferencedAwardIds staff shiftType = do
+    let ids = nub (catMaybes [staff.defaultAwardLevelId, shiftType.overrideAwardLevelId])
+    if null ids
+        then pure []
+        else map (.id) <$> (query @AwardLevel |> filterWhereIn (#id, ids) |> filterWhere (#isActive, True) |> fetch)
+
+fetchActiveReferencedXeroIds :: (?modelContext :: ModelContext) => Id Venue -> Staff -> ShiftType -> IO [Id XeroImportedPayItem]
+fetchActiveReferencedXeroIds venueId staff shiftType = do
+    let ids = nub (catMaybes [staff.importedXeroPayItemId, shiftType.importedXeroPayItemId])
+    if null ids
+        then pure []
+        else map (.id) <$> (query @XeroImportedPayItem |> filterWhereIn (#id, ids) |> filterWhere (#venueId, unpackId venueId) |> filterWhere (#archivedAt, Nothing) |> fetch)
 
 rosterSlotAwardDurationViolation :: Staff -> RosterSlot -> Maybe RosterAwardDuration.RosterAwardDurationViolation
 rosterSlotAwardDurationViolation staff slot = do
@@ -334,6 +384,12 @@ rosterSlotAwardDurationViolation staff slot = do
     endsAt <- slot.endsAt
     boundaries <- either (const Nothing) Just (authoritativeBoundariesFromInstants slot.timezone startsAt endsAt Nothing Nothing)
     RosterAwardDuration.rosterAwardDurationViolation staff.employmentBasis boundaries
+
+firstJustM :: Monad m => [m (Maybe value)] -> m (Maybe value)
+firstJustM [] = pure Nothing
+firstJustM (action : remaining) = do
+    result <- action
+    maybe (firstJustM remaining) (pure . Just) result
 
 copyRosterWeek :: (?context :: ControllerContext, ?modelContext :: ModelContext) => ShiftCopyOccurrenceSelections -> RosterWeek -> Int -> IO (Either RosterWeekCopyError RosterWeek)
 copyRosterWeek selections sourceWeek targetWeekOffset = do
@@ -473,37 +529,23 @@ prepareRosterWeekCopyForPersistence venueConfig selections sourceWeek targetWeek
     case prepared of
         Left failure -> pure (Left (RosterWeekCopyBoundaryError failure))
         Right plans -> do
-            durationValidation <- validateRosterWeekCopyAwardDurations plans
-            pure (plans <$ durationValidation)
+            validation <- validateRosterWeekCopyPersistence (Id sourceWeek.venueId) plans
+            pure (plans <$ validation)
 
-validateRosterWeekCopyAwardDurations :: (?modelContext :: ModelContext) => [RosterSlotCopyPlan] -> IO (Either RosterWeekCopyError ())
-validateRosterWeekCopyAwardDurations plans = do
-    let staffIds = nub [staffId | plan <- plans, Just staffId <- [plan.copiedSourceSlot.staffId]]
-    if null staffIds
-        then pure (Right ())
-        else do
-            staffMembers <- query @Staff
-                |> filterWhereIn (#id, map Id staffIds)
-                |> fetch
-            let staffById = Map.fromList [(unpackId staff.id, staff) | staff <- staffMembers]
-            pure (validatePlans staffById plans)
+validateRosterWeekCopyPersistence :: (?modelContext :: ModelContext) => Id Venue -> [RosterSlotCopyPlan] -> IO (Either RosterWeekCopyError ())
+validateRosterWeekCopyPersistence venueId = go
   where
-    validatePlans _ [] = Right ()
-    validatePlans staffById (plan : remainingPlans) =
-        case copiedRosterSlotAwardDurationViolation staffById plan of
-            Left failure -> Left (RosterWeekCopyBoundaryError failure)
-            Right (Just violation) -> Left (RosterWeekCopyAwardDurationError violation)
-            Right Nothing -> validatePlans staffById remainingPlans
-
-copiedRosterSlotAwardDurationViolation :: Map.Map UUID Staff -> RosterSlotCopyPlan -> Either BoundaryModelError (Maybe RosterAwardDuration.RosterAwardDurationViolation)
-copiedRosterSlotAwardDurationViolation staffById plan =
-    case (plan.copiedSourceSlot.staffId, plan.copiedStartsAt, plan.copiedEndsAt) of
-        (Just staffId, Just startsAt, Just endsAt) -> do
-            boundaries <- authoritativeBoundariesFromInstants plan.copiedTimezone startsAt endsAt Nothing Nothing
-            pure do
-                staff <- Map.lookup staffId staffById
-                RosterAwardDuration.rosterAwardDurationViolation staff.employmentBasis boundaries
-        _ -> Right Nothing
+    go [] = pure (Right ())
+    go (plan : remainingPlans) = do
+        let candidate =
+                plan.copiedSourceSlot
+                    |> set #startsAt plan.copiedStartsAt
+                    |> set #endsAt plan.copiedEndsAt
+                    |> set #timezone plan.copiedTimezone
+        validationError <- validateRosterSlotForPersistence venueId candidate
+        case validationError of
+            Just message -> pure (Left (RosterWeekCopyPersistenceError message))
+            Nothing      -> go remainingPlans
 
 copyRosterWeekSlotDefinitionsAndSlots :: (?modelContext :: ModelContext) => RosterWeek -> RosterWeek -> [RosterSlotCopyPlan] -> IO ()
 copyRosterWeekSlotDefinitionsAndSlots sourceWeek targetWeek plans = do
