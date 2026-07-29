@@ -1,0 +1,205 @@
+#!/usr/bin/env bash
+set -euo pipefail
+umask 077
+
+program="epic-worktree-provision"
+
+usage() {
+    cat <<'EOF'
+Usage: epic-worktree-provision --epic NUMBER --base REF [--json]
+
+Creates or discovers the stable epic-N branch and sibling REPOSITORY-epic-N
+worktree, initializes its direnv/Nix state without starting services, and
+registers it in the shared epic worktree registry.
+EOF
+}
+
+die() {
+    local status="$1"
+    shift
+    echo "$program: $*" >&2
+    exit "$status"
+}
+
+for required in direnv git jq realpath; do
+    command -v "$required" >/dev/null 2>&1 || die 69 "required command is unavailable: $required"
+done
+
+epic=""
+base_ref=""
+json=false
+while [ "$#" -gt 0 ]; do
+    case "$1" in
+        --epic|--base)
+            option="$1"
+            [ "$#" -ge 2 ] || die 64 "missing value for $option"
+            value="$2"
+            shift 2
+            case "$option" in
+                --epic) epic="$value" ;;
+                --base) base_ref="$value" ;;
+            esac
+            ;;
+        --json)
+            json=true
+            shift
+            ;;
+        -h|--help)
+            usage
+            exit 0
+            ;;
+        *) die 64 "unknown option: $1" ;;
+    esac
+done
+
+[ -n "$epic" ] || die 64 "provisioning requires --epic"
+[ -n "$base_ref" ] || die 64 "provisioning requires --base"
+[[ "$epic" =~ ^[1-9][0-9]*$ ]] || die 64 "epic must be a positive integer: $epic"
+if [[ "$base_ref" == *$'\n'* || "$base_ref" == *$'\r'* ]]; then
+    die 64 "base ref may not contain line breaks"
+fi
+git check-ref-format --branch "$base_ref" >/dev/null 2>&1 || die 64 "invalid base ref: $base_ref"
+
+primary_root="$(git rev-parse --show-toplevel 2>/dev/null || true)"
+[ -n "$primary_root" ] || die 66 "run from the primary Git checkout"
+primary_root="$(realpath "$primary_root")"
+common_dir="$(git -C "$primary_root" rev-parse --path-format=absolute --git-common-dir 2>/dev/null || true)"
+[ -n "$common_dir" ] || die 66 "cannot resolve Git common directory"
+common_dir="$(realpath "$common_dir")"
+
+main_worktree_line="$(git -C "$primary_root" worktree list --porcelain | grep -m1 '^worktree ' || true)"
+[ -n "$main_worktree_line" ] || die 66 "cannot identify primary Git checkout"
+main_worktree="$(realpath "${main_worktree_line#worktree }")"
+[ "$primary_root" = "$main_worktree" ] \
+    || die 65 "provisioning must run from the primary checkout: $main_worktree"
+[ ! -e "$primary_root/.bepis-epic-worktree.json" ] \
+    || die 65 "primary checkout unexpectedly contains epic identity"
+
+base_commit="$(git -C "$primary_root" rev-parse --verify --end-of-options "$base_ref^{commit}" 2>/dev/null || true)"
+[ -n "$base_commit" ] || die 66 "base ref does not resolve to a commit: $base_ref"
+branch="epic-$epic"
+repo_name="$(basename "$primary_root")"
+derived_path="$(dirname "$primary_root")/${repo_name}-epic-${epic}"
+[ ! -L "$derived_path" ] || die 65 "refusing symlink at stable sibling path: $derived_path"
+path="$(realpath -m "$derived_path")"
+[ "$path" = "$derived_path" ] || die 65 "derived sibling path is not canonical: $derived_path"
+[ "$path" != "$primary_root" ] || die 65 "derived worktree path collides with primary checkout"
+
+registry_command="${EPIC_WORKTREE_COMMAND:-}"
+if [ -z "$registry_command" ]; then
+    registry_command="$(command -v epic-worktree 2>/dev/null || true)"
+fi
+if [ -z "$registry_command" ]; then
+    candidate="$primary_root/Config/nix/scripts/epic/worktree"
+    [ -f "$candidate" ] && registry_command="$candidate"
+fi
+[ -n "$registry_command" ] && [ -f "$registry_command" ] \
+    || die 69 "epic-worktree registry command is unavailable"
+
+run_registry() {
+    if [ -x "$registry_command" ]; then
+        "$registry_command" "$@"
+    else
+        bash "$registry_command" "$@"
+    fi
+}
+
+set +e
+existing_json="$(run_registry inspect --epic "$epic" --json 2>/dev/null)"
+existing_status=$?
+set -e
+if [ "$existing_status" -eq 0 ]; then
+    jq -e --arg target "$base_ref" --arg branch "$branch" --arg path "$path" '
+        .targetBranch == $target
+        and .branch == $branch
+        and .path == $path
+        and .status == "active"
+    ' <<<"$existing_json" >/dev/null \
+        || die 65 "existing epic registration conflicts with stable provisioning identity"
+elif [ "$existing_status" -ne 66 ]; then
+    die "$existing_status" "cannot inspect existing epic registration"
+fi
+
+if [ "$existing_status" -ne 0 ]; then
+    if git -C "$primary_root" show-ref --verify --quiet "refs/heads/$branch" \
+        && ! git -C "$primary_root" merge-base --is-ancestor "$base_commit" "$branch"; then
+        die 65 "existing epic branch does not descend from requested base ref: $branch"
+    fi
+
+    if [ -e "$path" ]; then
+        path_top_level="$(git -C "$path" rev-parse --show-toplevel 2>/dev/null || true)"
+        path_common_dir="$(git -C "$path" rev-parse --path-format=absolute --git-common-dir 2>/dev/null || true)"
+        path_branch="$(git -C "$path" symbolic-ref --quiet --short HEAD 2>/dev/null || true)"
+        if [ -z "$path_top_level" ] \
+            || [ "$(realpath "$path_top_level")" != "$path" ] \
+            || [ -z "$path_common_dir" ] \
+            || [ "$(realpath "$path_common_dir")" != "$common_dir" ] \
+            || [ "$path_branch" != "$branch" ]; then
+            die 65 "refusing existing path that is not the expected epic worktree: $path"
+        fi
+    else
+        checked_out_path="$(
+            git -C "$primary_root" worktree list --porcelain \
+                | awk -v wanted="refs/heads/$branch" '
+                    /^worktree / { current = substr($0, 10) }
+                    $0 == "branch " wanted { print current; exit }
+                '
+        )"
+        [ -z "$checked_out_path" ] \
+            || die 65 "epic branch is already checked out at another path: $checked_out_path"
+
+        if git -C "$primary_root" show-ref --verify --quiet "refs/heads/$branch"; then
+            git -C "$primary_root" worktree add --quiet "$path" "$branch" \
+                || die 70 "failed to create worktree from existing branch"
+        else
+            git -C "$primary_root" worktree add --quiet -b "$branch" "$path" "$base_commit" \
+                || die 70 "failed to create epic branch and worktree"
+        fi
+    fi
+fi
+
+set +e
+direnv allow "$path" >/dev/null
+allow_status=$?
+if [ "$allow_status" -eq 0 ]; then
+    direnv exec "$path" true >/dev/null
+    init_status=$?
+else
+    init_status=$allow_status
+fi
+set -e
+if [ "$init_status" -ne 0 ]; then
+    echo "$program: direnv/Nix initialization failed for $path" >&2
+    exit "$init_status"
+fi
+
+if [ "$existing_status" -ne 0 ]; then
+    run_registry register \
+        --epic "$epic" \
+        --target "$base_ref" \
+        --branch "$branch" \
+        --path "$path" \
+        --kind epic >/dev/null
+fi
+workspace_json="$(run_registry inspect --epic "$epic" --json)"
+slot="$(jq -r '.slot' <<<"$workspace_json")"
+app_url="http://127.0.0.1:$((8000 + slot))"
+mailhog_url="http://127.0.0.1:$((8025 + slot))"
+report="$(
+    jq -cn \
+        --argjson epic "$epic" \
+        --arg target "$base_ref" \
+        --arg baseCommit "$base_commit" \
+        --arg branch "$branch" \
+        --arg path "$path" \
+        --argjson slot "$slot" \
+        --arg appUrl "$app_url" \
+        --arg mailhogUrl "$mailhog_url" \
+        '{epic: $epic, targetBranch: $target, baseCommit: $baseCommit, branch: $branch, path: $path, slot: $slot, appUrl: $appUrl, mailhogUrl: $mailhogUrl}'
+)"
+
+if [ "$json" = true ]; then
+    jq . <<<"$report"
+else
+    jq -r '"epic #\(.epic) | slot \(.slot) | \(.branch) @ \(.baseCommit[0:12]) -> \(.targetBranch)\npath: \(.path)\napp: \(.appUrl)\nmailhog: \(.mailhogUrl)"' <<<"$report"
+fi

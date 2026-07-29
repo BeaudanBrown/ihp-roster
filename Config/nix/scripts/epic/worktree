@@ -172,9 +172,15 @@ write_identity() {
     local record="$2"
     local identity_file="$path/$identity_name"
     local temporary
-    temporary="$(mktemp "$path/${identity_name}.XXXXXX")"
-    jq '{version: 1, epic, targetBranch, slot, kind}' <<<"$record" >"$temporary"
-    mv "$temporary" "$identity_file"
+    temporary="$(mktemp "$path/${identity_name}.XXXXXX")" || return 1
+    if ! jq '{version: 1, epic, targetBranch, slot, kind}' <<<"$record" >"$temporary"; then
+        rm -f "$temporary"
+        return 1
+    fi
+    if ! mv "$temporary" "$identity_file"; then
+        rm -f "$temporary"
+        return 1
+    fi
 }
 
 record_with_status() {
@@ -296,7 +302,10 @@ if [ "$command_name" = register ]; then
         validate_identity "$RESOLVED_PATH/$identity_name" "$record" || identity_status=$?
         case "$identity_status" in
             0) ;;
-            2) write_identity "$RESOLVED_PATH" "$record" ;;
+            2)
+                write_identity "$RESOLVED_PATH" "$record" \
+                    || die 73 "cannot restore missing worktree identity"
+                ;;
             *) die 65 "worktree identity conflicts with registry" ;;
         esac
     else
@@ -309,8 +318,14 @@ if [ "$command_name" = register ]; then
             '{epic: $epic, targetBranch: $target, branch: $branch, path: $path, slot: $slot, kind: $kind}')"
         temporary="$(mktemp "$REGISTRY_DIR/registry.XXXXXX")"
         jq --argjson record "$record" '.workspaces += [$record] | .workspaces |= sort_by(.slot)' "$REGISTRY_FILE" >"$temporary"
-        mv "$temporary" "$REGISTRY_FILE"
-        write_identity "$RESOLVED_PATH" "$record"
+        if ! write_identity "$RESOLVED_PATH" "$record"; then
+            rm -f "$temporary"
+            die 73 "cannot write worktree identity; registry unchanged"
+        fi
+        if ! mv "$temporary" "$REGISTRY_FILE"; then
+            rm -f "$temporary" "$RESOLVED_PATH/$identity_name"
+            die 73 "cannot publish workspace registry; identity rolled back"
+        fi
     fi
 
     print_record "$(record_with_status "$record")" false
