@@ -29,6 +29,7 @@ import Application.VenueTime.Model
 import Data.Coerce (coerce)
 import qualified Data.Map.Strict as Map
 import Data.Maybe (isJust)
+import qualified Data.Set as Set
 import Data.UUID (UUID)
 import Web.RosterWeeks.Types (RosterAssignmentOptionState (..))
 import Web.View.Prelude
@@ -67,6 +68,7 @@ data RosterShiftDialogData = RosterShiftDialogData
     , rosterShiftDialogTitle      :: !Text
     , rosterShiftDialogStaff             :: ![Staff]
     , rosterShiftDialogStaffOptionStates :: !(Map.Map UUID RosterAssignmentOptionState)
+    , rosterShiftDialogPayInvalidStaffIds :: !(Set.Set UUID)
     , rosterShiftDialogShiftTypes        :: ![ShiftType]
     , rosterShiftDialogTimePickerStart   :: !Text
     , rosterShiftDialogTimePickerEnd     :: !Text
@@ -142,7 +144,7 @@ rosterAppShellActionRoute actionUrl =
 
 
 renderRosterShiftForm :: (?context :: ControllerContext) => RosterShiftDialogData -> Html
-renderRosterShiftForm RosterShiftDialogData { rosterShiftDialogMode, rosterShiftDialogStaff, rosterShiftDialogStaffOptionStates, rosterShiftDialogShiftTypes, rosterShiftDialogTimePickerStart, rosterShiftDialogTimePickerEnd, rosterShiftDialogValues } =
+renderRosterShiftForm RosterShiftDialogData { rosterShiftDialogMode, rosterShiftDialogStaff, rosterShiftDialogStaffOptionStates, rosterShiftDialogPayInvalidStaffIds, rosterShiftDialogShiftTypes, rosterShiftDialogTimePickerStart, rosterShiftDialogTimePickerEnd, rosterShiftDialogValues } =
     renderAppShellActionForm
         (rosterShiftSubmitAppShellAction rosterShiftDialogMode)
         (rosterAppShellActionRoute (pathTo (rosterShiftFormAction rosterShiftDialogMode)))
@@ -171,7 +173,7 @@ renderRosterShiftForm RosterShiftDialogData { rosterShiftDialogMode, rosterShift
                 <label class="form-label" for="roster-shift-staff-id">Staff member</label>
                 <select id="roster-shift-staff-id" name="staffId" class={classes [("form-select", True), ("is-invalid", isJust rosterShiftDialogValues.rosterShiftStaffError)]}>
                     <option value="">Select staff member</option>
-                    {forEach visibleStaffMembers (renderStaffOption rosterShiftDialogValues.rosterShiftStaffId rosterShiftDialogStaff)}
+                    {forEach visibleStaffMembers (renderStaffOption rosterShiftDialogValues.rosterShiftStaffId rosterShiftDialogStaff rosterShiftDialogPayInvalidStaffIds)}
                 </select>
                 {renderDialogFieldError rosterShiftDialogValues.rosterShiftStaffError}
             </div>
@@ -232,10 +234,15 @@ renderDialogOccurrenceChooser fieldName label selectedOccurrence =
             , timeOccurrenceSelected = selectedOccurrence
             }
 
-renderStaffOption :: Maybe UUID -> [Staff] -> Staff -> Html
-renderStaffOption selectedStaffId staffMembers staff = [hsx|
-    <option value={tshow staff.id} selected={Just (coerce staff.id) == selectedStaffId}>{staffDisplayName staffMembers staff}</option>
+renderStaffOption :: Maybe UUID -> [Staff] -> Set.Set UUID -> Staff -> Html
+renderStaffOption selectedStaffId staffMembers payInvalidStaffIds staff = [hsx|
+    <option value={tshow staff.id} selected={Just staffId == selectedStaffId}>{staffLabel}</option>
 |]
+  where
+    staffId = coerce staff.id
+    staffLabel
+        | staffId `Set.member` payInvalidStaffIds = staffDisplayName staffMembers staff <> " (pay configuration required)"
+        | otherwise = staffDisplayName staffMembers staff
 
 
 renderDialogShiftTypeOption :: Maybe UUID -> ShiftType -> Html

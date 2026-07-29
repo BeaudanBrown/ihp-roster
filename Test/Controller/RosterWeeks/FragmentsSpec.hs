@@ -277,6 +277,31 @@ tests = aroundAll withDatabaseTestContext do
                 currentWeekTriggerHeader `shouldSatisfy` maybe False (Text.isInfixOf rosterDayColumnsFragmentId)
                 currentWeekTriggerHeader `shouldSatisfy` maybe False (not . Text.isInfixOf (cs otherWeekRowTarget))
 
+        it "keeps an invalid current assignment marked in the edit dialog while filtering invalid alternatives" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Roster Invalid Current Staff Venue"
+                manager <- createUserRecord "roster-invalid-current-staff-manager@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue manager "manager"
+                currentStaff <- createStaffRecord venue Nothing "CurrentInvalid" "Crew"
+                    >>= updateRecord
+                        . set #payAssignmentMode LegacyUnresolved
+                        . set #isActive False
+                alternativeStaff <- createStaffRecord venue Nothing "AlternativeInvalid" "Crew"
+                    >>= updateRecord . set #payAssignmentMode LegacyUnresolved
+                validStaff <- createStaffRecord venue Nothing "ValidOption" "Crew"
+                slotName <- fetchSlotNameRecord venue "Early"
+                rosterWeek <- createRosterWeekRecord venue 0 False
+                rosterDay <- createRosterDayRecord rosterWeek 0
+                slot <- createRosterSlotRecord rosterDay slotName (Just currentStaff) 0
+
+                response <- withUserAndCurrentVenue manager venue.id do
+                    callAction (EditRosterSlotDialogAction slot.id)
+
+                response `responseStatusShouldBe` status200
+                response `responseBodyShouldContain` "selected=\"selected\">CurrentInvalid (pay configuration required)</option>"
+                response `responseBodyShouldContain` ">ValidOption</option>"
+                response `responseBodyShouldNotContain` ">AlternativeInvalid</option>"
+
         it "keeps selected staff labels plain when ideal-shift filters hide them" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Venue A"
@@ -1512,6 +1537,8 @@ tests = aroundAll withDatabaseTestContext do
 
                 response `responseStatusShouldBe` status200
                 response `responseBodyShouldContain` "Resolve pay configuration for the selected staff member or shift type before saving this roster shift."
+                response `responseBodyShouldContain` "app-toast app-toast-error"
+                lookup "HX-Reswap" (responseHeaders response) `shouldBe` Just "none"
                 persistedSlot <- fetch targetSlot.id
                 persistedSlot.staffId `shouldBe` Just (unpackId originalStaff.id)
 
@@ -1608,6 +1635,37 @@ tests = aroundAll withDatabaseTestContext do
                 updatedSlot <- fetch targetSlot.id
                 updatedSlot.staffId `shouldBe` Just (unpackId originalStaff.id)
                 response `responseBodyShouldContain` "Drop staff onto an editable shift in this roster week."
+
+        it "rejects dragging unresolved staff onto an add-shift target with an error toast" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Roster Invalid Staff Create Drop Venue"
+                manager <- createUserRecord "roster-invalid-staff-create-drop-manager@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue manager "manager"
+                slotName <- fetchSlotNameRecord venue "Early"
+                unresolvedStaff <- createStaffRecord venue Nothing "Unresolved" "CreateDrop"
+                    >>= updateRecord . set #payAssignmentMode LegacyUnresolved
+                rosterWeek <- createRosterWeekRecord venue 0 False
+                rosterDay <- createRosterDayRecord rosterWeek 0
+                slotDefinition <- ensureRosterWeekSlotDefinitionForSlotName rosterDay slotName
+                let targetToken = "new:" <> tshow rosterDay.id <> ":" <> tshow slotDefinition.id <> ":0"
+
+                response <- withUserAndCurrentVenue manager venue.id do
+                    withRequestHeaders [("HX-Request", "true")] do
+                        callActionWithParams DropRosterStaffAction { weekOffset = 0 }
+                            [ ("rosterGroupId", cs (tshow rosterWeek.rosterGroupId))
+                            , ("sourceItemKey", cs ("staff:" <> tshow unresolvedStaff.id))
+                            , ("targetDropzoneKey", cs targetToken)
+                            ]
+
+                response `responseStatusShouldBe` status200
+                response `responseBodyShouldContain` "Resolve pay configuration for the selected staff member before adding a roster shift."
+                response `responseBodyShouldContain` "app-toast app-toast-error"
+                lookup "HX-Reswap" (responseHeaders response) `shouldBe` Just "none"
+                response `responseBodyShouldNotContain` "Add shift"
+                query @RosterSlot
+                    |> filterWhere (#rosterDayId, unpackId rosterDay.id)
+                    |> fetchCount
+                    >>= (`shouldBe` 0)
 
         it "opens the new shift dialog with dragged staff preselected" $ withContext do
             withCleanDb do

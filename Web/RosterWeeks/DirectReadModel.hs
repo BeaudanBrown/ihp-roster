@@ -42,6 +42,7 @@ data RosterBaseFacts = RosterBaseFacts
     , baseOrderedSlotDefinitions :: ![RosterWeekSlotDefinition]
     , baseShiftTypes             :: ![ShiftType]
     , baseEligibleStaff          :: ![Staff]
+    , basePanelStaff             :: ![Staff]
     , baseAssignedStaff          :: ![Staff]
     , baseStaffMembers           :: ![Staff]
     }
@@ -98,6 +99,7 @@ fetchRosterBaseFactsForWeekDirect rosterGroupId rosterWeek =
 
         let visibleSlots = filterVisibleRosterSlots rosterDays allSlots
         eligibleStaffMembers <- profileActionSpan "roster.direct.fetch_eligible_staff" (fetchEligibleRosterGroupStaffDirect rosterGroupId)
+        panelStaffMembers <- profileActionSpan "roster.direct.fetch_panel_staff" (fetchRosterGroupStaffForPanelDirect rosterGroupId)
         assignedStaffMembers <- profileActionSpan "roster.direct.fetch_assigned_staff" (fetchAssignedRosterWeekStaff visibleSlots)
         shiftTypes <- profileActionSpan "roster.direct.fetch_shift_types" fetchCurrentVenueRosterShiftTypesDirect
         let staffMembers = nubBy (\left right -> left.id == right.id) (eligibleStaffMembers <> assignedStaffMembers)
@@ -109,6 +111,7 @@ fetchRosterBaseFactsForWeekDirect rosterGroupId rosterWeek =
             , baseOrderedSlotDefinitions = orderedSlotDefinitions
             , baseShiftTypes = shiftTypes
             , baseEligibleStaff = eligibleStaffMembers
+            , basePanelStaff = panelStaffMembers
             , baseAssignedStaff = assignedStaffMembers
             , baseStaffMembers = staffMembers
             }

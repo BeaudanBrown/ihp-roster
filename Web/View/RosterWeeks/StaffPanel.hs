@@ -373,12 +373,8 @@ renderRosterStaffPanelEntry panelStaffMembers weekOffset currentRosterGroupId en
 
 renderRosterStaffPanelEntryRow :: Int -> Id RosterGroup -> Text -> Text -> RosterStaffPanelEntry -> Html
 renderRosterStaffPanelEntryRow weekOffset currentRosterGroupId staffDisplayLabel staffRoleLabel entry =
-    let
-        staffKey = "staff:" <> tshow entry.staff.id
-        sourceRef
-            | entry.staffPayConfigurationRequired = \html -> html
-            | otherwise = SurfaceInteraction.withFrontendSurfaceSourceRef rosterStaffDragSourceRef staffKey
-     in sourceRef $
+    let staffKey = "staff:" <> tshow entry.staff.id
+     in SurfaceInteraction.withFrontendSurfaceSourceRef rosterStaffDragSourceRef staffKey $
         SurfaceLinkedHighlight.withFrontendSurfaceLinkedHighlightSource rosterStaffLinkedHighlight staffKey $
             applyAppShellActionAttrs
                 (appShellActionByMarker @OpenRosterStaffEditDialog)
@@ -386,7 +382,7 @@ renderRosterStaffPanelEntryRow weekOffset currentRosterGroupId staffDisplayLabel
                 [hsx|
                     <tr class="roster-staff-panel-entry"
                     {...rosterStaffPanelSortRowAttrs staffKey staffDisplayLabel staffRoleLabel entry.assignedShiftCount entry.staff.idealShiftsPerWeek}
-                    aria-disabled={if entry.staffPayConfigurationRequired then ("true" :: Text) else ("false" :: Text)}
+                    aria-disabled="false"
                     role="button"
                     tabindex="0">
                     {forEach rosterStaffPanelColumns (renderRosterStaffPanelEntryCell weekOffset currentRosterGroupId staffDisplayLabel staffRoleLabel entry)}

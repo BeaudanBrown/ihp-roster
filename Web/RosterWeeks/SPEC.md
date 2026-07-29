@@ -101,7 +101,10 @@ lands.
   during normal navigation.
 - The roster staff panel uses the existing role column for trial placeholders and
   renders their role as `TRIAL`; linked staff continue to show their venue
-  membership role labels.
+  membership role labels. Active group staff requiring pay remediation remain
+  visible, editable, warned, and draggable in this panel so their profile can be
+  corrected. Roster shift staff selectors exclude those staff, except an existing
+  invalid assignee remains selected and explicitly marked in its shift-edit dialog.
 - Publishing requires every staffed shift to have a start time, valid end time,
   shift type, resolved structural pay disposition, and supported projected
   working duration. Dialog saves, reassignment, shift-type changes, move,
@@ -182,10 +185,13 @@ lands.
 - In editable draft rosters, manager staff-panel rows are draggable staff
   sources. Dropping staff onto an existing editable shift immediately replaces
   that shift's assigned staff after server-side venue, roster-group, draft/open
-  day, active-staff, and eligibility validation, then refreshes roster fragments
-  and shows a toast. Dropping staff onto an empty row-grid create cell or the
-  day-column bottom `+ Add shift` card opens the new-shift dialog with that staff
-  member preselected; required time and shift-type fields still need user input.
+  day, active-staff, eligibility, and effective-pay validation, then refreshes
+  roster fragments and shows a toast. Invalid assignments leave the roster
+  unchanged and show an error toast. Dropping pay-valid staff onto an empty
+  row-grid create cell or the day-column bottom `+ Add shift` card opens the
+  new-shift dialog with that staff member preselected; dropping staff requiring
+  pay remediation shows an error toast instead. Required time and shift-type
+  fields still need user input.
   Day-column whitespace/gaps are not staff-create targets, even though the whole
   day column remains a shift-move target for dragging existing shifts. Shift
   drags in day-row layout target row-grid `shift-slot-dropzone` slots; shift

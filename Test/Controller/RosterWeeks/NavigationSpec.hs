@@ -320,6 +320,25 @@ tests = aroundAll withDatabaseTestContext do
                 response `responseBodyShouldContain` "data-bepis-surface-action=\"sort-roster-week\""
                 response `responseBodyShouldContain` "data-bepis-surface-action=\"copy-roster-week\""
 
+        it "keeps staff requiring pay remediation visible and editable in the roster staff panel" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Roster Staff Remediation Venue"
+                manager <- createUserRecord "roster-staff-remediation-manager@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue manager "manager"
+                unresolvedStaff <- createStaffRecord venue Nothing "Unresolved" "Crew"
+                    >>= updateRecord . set #payAssignmentMode LegacyUnresolved
+                _ <- fetchSlotNameRecord venue "Early"
+
+                response <- withUserAndCurrentVenue manager venue.id do
+                    callAction (ShowRosterWeekAction 0)
+
+                response `responseStatusShouldBe` status200
+                response `responseBodyShouldContain` "Unresolved"
+                response `responseBodyShouldContain` ("hx-get=\"/EditStaff?staffId=" <> cs (tshow unresolvedStaff.id))
+                response `responseBodyShouldContain` "Pay configuration required"
+                response `responseBodyShouldContain` "data-bepis-source-ref=\"staff-drag-source\""
+                response `responseBodyShouldContain` ("data-bepis-source-key=\"staff:" <> cs (tshow unresolvedStaff.id) <> "\"")
+
         it "hides copy previous week controls from staff users" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Venue A"

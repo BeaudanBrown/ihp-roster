@@ -84,7 +84,9 @@ import Web.RosterWeeks.Responses (respondWithRosterContent,
                                   respondWithRosterToast)
 import Web.RosterWeeks.Rows
 import Web.RosterWeeks.Service
-import Web.RosterWeeks.StaffOptions (buildRosterStaffOptionStates)
+import Web.RosterWeeks.StaffOptions (buildRosterStaffOptionStates,
+                                     fetchRosterShiftDialogStaff,
+                                     fetchStaffPayConfigurationRequiredIds)
 import Web.RosterWeeks.Types
 import Web.View.RosterWeeks.OccurrenceDialog
 import Web.View.RosterWeeks.Overview (renderWeekOverviewPanelFragment)
@@ -837,8 +839,11 @@ instance Controller RosterWeeksController where
                                 let warningToast = mutationResult.liveMutationValue.rosterSlotMutationShouldWarnSourceTimesheetUnchanged
                                 respondToRosterSlotMutation rosterGroup.id staffDropRosterWeek staffDropRosterDay updatedSlot.rowIndex mutationResult $
                                     if warningToast then "Staff assigned. A timesheet entry was already created from this roster shift. The timesheet snapshot was not changed." else "Staff assigned."
-                    Right RosterStaffCreateShiftDropIntent { staffDropStaff, staffDropRosterDay, staffDropRosterWeek, staffDropSlotDefinition, staffDropRowIndex } ->
-                        respondWithRosterShiftCreateDialogOob staffDropRosterDay staffDropRosterWeek staffDropSlotDefinition staffDropRowIndex emptyRosterShiftDialogValues { rosterShiftStaffId = Just (coerce staffDropStaff.id) }
+                    Right RosterStaffCreateShiftDropIntent { staffDropStaff, staffDropRosterDay, staffDropRosterWeek, staffDropSlotDefinition, staffDropRowIndex } -> do
+                        payInvalidStaffIds <- fetchStaffPayConfigurationRequiredIds [staffDropStaff]
+                        if coerce staffDropStaff.id `Set.member` payInvalidStaffIds
+                            then respondWithMoveRosterShiftFailure rosterGroup.id weekOffset "Resolve pay configuration for the selected staff member before adding a roster shift."
+                            else respondWithRosterShiftCreateDialogOob staffDropRosterDay staffDropRosterWeek staffDropSlotDefinition staffDropRowIndex emptyRosterShiftDialogValues { rosterShiftStaffId = Just (coerce staffDropStaff.id) }
 
     action currentAction@UpdateRosterWarningPreferenceAction { weekOffset } =
         runBepis currentAction BepisMutationAction do
@@ -1339,7 +1344,7 @@ respondWithRosterShiftCreateDialogOob rosterDay rosterWeek slotDefinition rowInd
 
 rosterShiftDialogForCreateHtml :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => RosterDay -> RosterWeek -> RosterWeekSlotDefinition -> Int -> RosterShiftDialogValues -> IO Blaze.Html
 rosterShiftDialogForCreateHtml rosterDay rosterWeek slotDefinition rowIndex values = do
-    staffMembers <- fetchEligibleRosterGroupStaff (coerce rosterWeek.rosterGroupId)
+    (staffMembers, payInvalidStaffIds) <- fetchRosterShiftDialogStaff (coerce rosterWeek.rosterGroupId) Nothing
     shiftTypes <- fetchCurrentVenueRosterShiftTypesForDialog
     venueConfig <- fetchVenueConfig
     let targetSlot =
@@ -1354,6 +1359,7 @@ rosterShiftDialogForCreateHtml rosterDay rosterWeek slotDefinition rowIndex valu
         , rosterShiftDialogTitle = "Add shift"
         , rosterShiftDialogStaff = staffMembers
         , rosterShiftDialogStaffOptionStates = staffOptionStates
+        , rosterShiftDialogPayInvalidStaffIds = payInvalidStaffIds
         , rosterShiftDialogShiftTypes = shiftTypes
         , rosterShiftDialogTimePickerStart = venueTimePickerStartTimeText venueConfig
         , rosterShiftDialogTimePickerEnd = venueTimePickerFinalSelectableTimeText venueConfig
@@ -1362,7 +1368,7 @@ rosterShiftDialogForCreateHtml rosterDay rosterWeek slotDefinition rowIndex valu
 
 renderRosterShiftDialogForEdit :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => RosterSlot -> RosterDay -> RosterWeek -> RosterShiftDialogValues -> IO ()
 renderRosterShiftDialogForEdit rosterSlot _rosterDay rosterWeek values = do
-    staffMembers <- fetchEligibleRosterGroupStaff (coerce rosterWeek.rosterGroupId)
+    (staffMembers, payInvalidStaffIds) <- fetchRosterShiftDialogStaff (coerce rosterWeek.rosterGroupId) rosterSlot.staffId
     shiftTypes <- fetchCurrentVenueRosterShiftTypesForDialog
     venueConfig <- fetchVenueConfig
     staffOptionStates <- buildRosterShiftDialogStaffOptionStates (coerce rosterWeek.rosterGroupId) rosterWeek rosterSlot staffMembers
@@ -1371,6 +1377,7 @@ renderRosterShiftDialogForEdit rosterSlot _rosterDay rosterWeek values = do
         , rosterShiftDialogTitle = "Edit shift"
         , rosterShiftDialogStaff = staffMembers
         , rosterShiftDialogStaffOptionStates = staffOptionStates
+        , rosterShiftDialogPayInvalidStaffIds = payInvalidStaffIds
         , rosterShiftDialogShiftTypes = shiftTypes
         , rosterShiftDialogTimePickerStart = venueTimePickerStartTimeText venueConfig
         , rosterShiftDialogTimePickerEnd = venueTimePickerFinalSelectableTimeText venueConfig

@@ -2,7 +2,9 @@ module Web.RosterWeeks.StaffOptions
     ( buildRosterStaffOptionStates
     , fetchAssignedRosterWeekStaff
     , fetchRosterStaffPanelEntries
+    , fetchRosterShiftDialogStaff
     , fetchRosterStaffPanelEntriesForScope
+    , fetchStaffPayConfigurationRequiredIds
     , hasNoPreferredShiftsOnDay
     , isApprovedLeaveOn
     , rosterAssignmentOptionStateFor
@@ -10,6 +12,7 @@ module Web.RosterWeeks.StaffOptions
 
 import Application.Helper.Controller (LeaveRequestStatus (..),
                                       parseLeaveRequestStatus, venueRoleToText)
+import Application.Helper.RosterGroups (fetchEligibleRosterGroupStaff)
 import Application.Helper.Staff (isTrialStaff)
 import Application.Helper.View (rosterableStaffForRosterPanel)
 import Application.Helper.WeekBoundaries (weekdayIndexForDay)
@@ -45,15 +48,12 @@ fetchRosterStaffPanelEntriesForScope panelScope staffMembers allSlots = do
                 |> filterWhere (#isActive, True)
                 |> fetch
 
-    activeAwardLevels <- query @AwardLevel |> filterWhere (#isActive, True) |> fetch
-    activeImportedPayItems <- query @XeroImportedPayItem |> filterWhere (#venueId, unpackId currentVenueId) |> filterWhere (#archivedAt, Nothing :: Maybe UTCTime) |> fetch
+    payConfigurationRequiredIds <- fetchStaffPayConfigurationRequiredIds panelStaff
     let membershipsByUserId = Map.fromList [ (membership.userId, membership) | membership <- memberships ]
     let assignedShiftCountByStaffId = Map.fromListWith (+) [ (staffId, 1 :: Int) | slot <- allSlots, staffId <- maybeToList slot.staffId ]
-    let activeAwardLevelIds = map (.id) activeAwardLevels
-    let activeImportedPayItemIds = map (.id) activeImportedPayItems
-    pure (map (buildPanelEntry activeAwardLevelIds activeImportedPayItemIds membershipsByUserId assignedShiftCountByStaffId) panelStaff)
+    pure (map (buildPanelEntry payConfigurationRequiredIds membershipsByUserId assignedShiftCountByStaffId) panelStaff)
     where
-        buildPanelEntry activeAwardLevelIds activeImportedPayItemIds membershipsByUserId assignedShiftCountByStaffId staff =
+        buildPanelEntry payConfigurationRequiredIds membershipsByUserId assignedShiftCountByStaffId staff =
             let staffId = coerce (get #id staff)
                 assignedShiftCount = Map.findWithDefault 0 staffId assignedShiftCountByStaffId
                 roleText = if isTrialStaff staff
@@ -65,8 +65,42 @@ fetchRosterStaffPanelEntriesForScope panelScope staffMembers allSlots = do
                     { staff
                     , assignedShiftCount
                     , userRole = roleText
-                    , staffPayConfigurationRequired = staffPayAssignmentRequiresRemediation activeAwardLevelIds activeImportedPayItemIds (StaffPayAssignment staff.payAssignmentMode staff.defaultAwardLevelId staff.importedXeroPayItemId)
+                    , staffPayConfigurationRequired = staffId `Set.member` payConfigurationRequiredIds
                     }
+
+fetchRosterShiftDialogStaff :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Id RosterGroup -> Maybe UUID.UUID -> IO ([Staff], Set.Set UUID.UUID)
+fetchRosterShiftDialogStaff rosterGroupId currentStaffId = do
+    groupStaff <- fetchEligibleRosterGroupStaff rosterGroupId
+    maybeCurrentStaff <- case currentStaffId of
+        Nothing -> pure Nothing
+        Just staffId ->
+            query @Staff
+                |> filterWhere (#id, Id staffId)
+                |> filterWhere (#venueId, unpackId currentVenueId)
+                |> fetchOneOrNothing
+    let dialogStaff = groupStaff <> [staff | staff <- maybeToList maybeCurrentStaff, all ((/= staff.id) . (.id)) groupStaff]
+    payInvalidStaffIds <- fetchStaffPayConfigurationRequiredIds dialogStaff
+    let validStaff = filter (not . (`Set.member` payInvalidStaffIds) . coerce . (.id)) dialogStaff
+    let currentInvalidStaff =
+            [ staff
+            | staff <- dialogStaff
+            , coerce staff.id `Set.member` payInvalidStaffIds
+            , Just (coerce staff.id) == currentStaffId
+            ]
+    pure (validStaff <> currentInvalidStaff, Set.fromList (map (coerce . (.id)) currentInvalidStaff))
+
+fetchStaffPayConfigurationRequiredIds :: (?context :: ControllerContext, ?modelContext :: ModelContext) => [Staff] -> IO (Set.Set UUID.UUID)
+fetchStaffPayConfigurationRequiredIds staffMembers = do
+    activeAwardLevels <- query @AwardLevel |> filterWhere (#isActive, True) |> fetch
+    activeImportedPayItems <- query @XeroImportedPayItem |> filterWhere (#venueId, unpackId currentVenueId) |> filterWhere (#archivedAt, Nothing :: Maybe UTCTime) |> fetch
+    let activeAwardLevelIds = map (.id) activeAwardLevels
+    let activeImportedPayItemIds = map (.id) activeImportedPayItems
+    pure $ Set.fromList
+        [ coerce staff.id
+        | staff <- staffMembers
+        , staffPayAssignmentRequiresRemediation activeAwardLevelIds activeImportedPayItemIds
+            (StaffPayAssignment staff.payAssignmentMode staff.defaultAwardLevelId staff.importedXeroPayItemId)
+        ]
 
 staffForPanelScope :: RosterStaffPanelScope -> [Staff] -> [Staff]
 staffForPanelScope RosterStaffPanelCurrentGroup = rosterableStaffForRosterPanel

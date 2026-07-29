@@ -36,6 +36,7 @@ tests = do
             rendered `shouldSatisfy` any (Text.isInfixOf "Option, or Alt")
             rendered `shouldSatisfy` any (Text.isInfixOf "Turn Live on")
             rendered `shouldSatisfy` any (Text.isInfixOf "Part-time shifts")
+            rendered `shouldSatisfy` any (Text.isInfixOf "pay configuration warning")
 
         it "omits manager-only planning details from staff-only viewers" do
             roster <- maybe (expectationFailure "missing roster topic" >> error "missing roster topic") pure (lookupPageHelpTopic (PageHelpTopicId "roster"))

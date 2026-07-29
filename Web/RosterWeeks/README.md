@@ -117,8 +117,9 @@ JavaScript:
 - `staff-drag-source` can drop onto existing shift cards, shared row-grid
   `shift-slot-dropzone` targets, or explicit day-column
   `staff-create-dropzone` targets. Existing-shift drops assign/replace staff
-  immediately with a toast; create-target drops open the new-shift dialog with
-  staff preselected.
+  immediately with a toast; valid create-target drops open the new-shift dialog
+  with staff preselected. Pay-invalid assignments and create drops leave the
+  roster unchanged and return an error toast.
 - Day-column gaps/whitespace are not staff-create targets. Only the bottom
   `+ Add shift` card is a staff-create target in day-column layout. Shift drags
   do not target that create card in day-column layout.
