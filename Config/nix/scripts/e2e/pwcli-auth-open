@@ -1,9 +1,12 @@
 #!/usr/bin/env bash
 set -euo pipefail
+# shellcheck source=../lib/workspace.sh
+. "@scriptsRoot@/lib/workspace.sh"
+bepis_workspace_configure
 
 ROLE="${1:-}"
 TARGET="${2:-/RosterWeeks}"
-BASE_URL="${PWCLI_BASE_URL:-http://127.0.0.1:8000}"
+BASE_URL="$PWCLI_BASE_URL"
 
 if [ -z "$ROLE" ]; then
     echo "Usage: pwcli-auth-open <manager|worker|admin|support> [path-or-url]" >&2
@@ -11,7 +14,11 @@ if [ -z "$ROLE" ]; then
 fi
 
 STATE_FILE="$PWD/.devenv/playwright-cli/$ROLE-state.json"
-SESSION_NAME="ihp-$ROLE"
+if [ "$BEPIS_WORKSPACE_SLOT" -eq 0 ]; then
+    SESSION_NAME="ihp-$ROLE"
+else
+    SESSION_NAME="ihp-epic-$BEPIS_WORKSPACE_EPIC-$ROLE"
+fi
 
 if [ ! -f "$STATE_FILE" ]; then
     echo "Missing auth state at $STATE_FILE" >&2

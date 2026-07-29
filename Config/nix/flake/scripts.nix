@@ -67,6 +67,10 @@ in
 
     scripts = {
         dev-agent-state-dir = script ../scripts/dev/agent-state-dir;
+        dev-app = script ../scripts/dev/app;
+        dev-workspace-info = script ../scripts/dev/workspace-info;
+        dev-workspace-test = script ../scripts/dev/workspace-test;
+        dev-runtime-isolation-test = script ../scripts/dev/runtime-isolation-test;
         devenv-script-freshness-check = script ../scripts/dev/script-freshness-check;
         dev-ensure-postgres = script ../scripts/dev/ensure-postgres;
         dev-ensure-mailhog = script ../scripts/dev/ensure-mailhog;
@@ -93,6 +97,14 @@ in
         frontend-watch = script ../scripts/frontend/watch;
         git-install-hooks = script ../scripts/git/install-hooks;
         git-pre-commit-check = script ../scripts/git/pre-commit-check;
+        epic-worktree = script ../scripts/epic/worktree;
+        epic-worktree-test = script ../scripts/epic/worktree-test;
+        epic-worktree-orientation-test = script ../scripts/epic/orientation-test;
+        epic-worktree-manage = script ../scripts/epic/manage;
+        epic-worktree-manage-test = script ../scripts/epic/manage-test;
+        epic-worktree-concurrency-test = script ../scripts/epic/concurrency-test;
+        epic-worktree-provision = script ../scripts/epic/provision;
+        epic-worktree-provision-test = script ../scripts/epic/provision-test;
         architecture-contracts = script ../scripts/architecture/contracts;
         architecture-facts = script ../scripts/architecture/facts;
         architecture-schema = script ../scripts/architecture/schema;

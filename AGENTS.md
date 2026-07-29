@@ -92,6 +92,11 @@ Use the current repository's GitHub issues, native sub-issues, and blocker
 relationships for implementation tracking. Inspect an issue before changing it,
 and use the ready, unassigned, unblocked frontier when selecting agent work.
 
+In a checkout containing `.bepis-epic-worktree.json`, first run
+`bash ./bin/in-env epic-worktree orient`. Present its live frontier and wait for
+the user to choose. Follow the command's interruption and approval guidance;
+never start, close, or move to a sub-issue automatically.
+
 ## Core IHP Conventions
 
 - New controllers require `Web/Types.hs`, `Web/Routes.hs`,

@@ -1,5 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
+# shellcheck source=../lib/workspace.sh
+. "@scriptsRoot@/lib/workspace.sh"
+bepis_workspace_configure
 STATE_DIR="$(dev-agent-state-dir)"
 PID_FILE="$STATE_DIR/devenv.pid"
 FRONTEND_WATCH_PID_FILE="$STATE_DIR/frontend-watch.pid"
@@ -11,7 +14,6 @@ STRIPE_PID_FILE="$STATE_DIR/stripe-listen.pid"
 
 stop_tracked_process() {
     local pid_file="$1"
-    local label="$2"
 
     if [ ! -f "$pid_file" ]; then
         return 0
@@ -38,6 +40,12 @@ stop_tracked_process() {
     kill -KILL -"$tracked_pid" 2>/dev/null || kill -KILL "$tracked_pid" 2>/dev/null || true
     rm -f "$pid_file"
 }
+
+if [ -f "$STATE_DIR/tempo.pid" ] \
+    || [ -f "$STATE_DIR/otel-collector.pid" ] \
+    || [ -f "$STATE_DIR/grafana.pid" ]; then
+    dev-observability-stop
+fi
 
 if [ ! -f "$PID_FILE" ]; then
     stop_tracked_process "$FRONTEND_WATCH_PID_FILE" "frontend-watch"
@@ -70,4 +78,4 @@ stop_tracked_process "$LEGACY_FRONTEND_CONTRACTS_WATCH_PID_FILE" "frontend-contr
 stop_tracked_process "$STRIPE_PID_FILE" "stripe-listen"
 stop_tracked_process "$POSTGRES_PID_FILE" "postgres"
 stop_tracked_process "$MAILHOG_PID_FILE" "mailhog"
-echo "devenv stopped"
+echo "devenv stopped (slot=$BEPIS_WORKSPACE_SLOT, state=$STATE_DIR)"

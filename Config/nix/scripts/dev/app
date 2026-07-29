@@ -3,4 +3,4 @@ set -euo pipefail
 # shellcheck source=../lib/workspace.sh
 . "@scriptsRoot@/lib/workspace.sh"
 bepis_workspace_configure
-exec node ./e2e/pwcli-auth-state.mjs "$@"
+exec start "$@"

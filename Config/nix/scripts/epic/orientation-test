@@ -1,0 +1,96 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+repo_root="$(git rev-parse --show-toplevel)"
+command_path="$repo_root/Config/nix/scripts/epic/worktree"
+fixture_root="$(mktemp -d)"
+cleanup() {
+    rm -rf "$fixture_root"
+}
+trap cleanup EXIT
+
+fail() {
+    echo "epic-worktree-orientation-test: $*" >&2
+    exit 1
+}
+
+fixture_repo="$fixture_root/repo"
+git init --quiet --initial-branch=roster "$fixture_repo"
+git -C "$fixture_repo" config user.name "Epic Orientation Test"
+git -C "$fixture_repo" config user.email "epic-orientation-test@example.invalid"
+printf 'fixture\n' >"$fixture_repo/README"
+printf '.bepis-epic-worktree.json\n' >"$fixture_repo/.gitignore"
+git -C "$fixture_repo" add README .gitignore
+git -C "$fixture_repo" commit --quiet -m fixture
+git -C "$fixture_repo" switch --quiet -c epic-265-agent-first
+(
+    cd "$fixture_repo"
+    bash "$command_path" register --epic 265 --target roster >/dev/null
+)
+
+mock_bin="$fixture_root/bin"
+mkdir -p "$mock_bin"
+cat >"$mock_bin/gh" <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+if [ "$1" = repo ] && [ "$2" = view ]; then
+    printf '%s\n' 'BeaudanBrown/ihp-roster'
+    exit 0
+fi
+[ "$1" = api ] || exit 64
+endpoint="${!#}"
+case "$endpoint" in
+    repos/BeaudanBrown/ihp-roster/issues/265)
+        printf '%s\n' '{"number":265,"title":"Epic: Agent-first native-Nix epic worktree orchestration","state":"open","html_url":"https://example.invalid/issues/265"}'
+        ;;
+    repos/BeaudanBrown/ihp-roster/issues/265/sub_issues?*)
+        printf '%s\n' '[{"number":268,"title":"Runtime isolation","state":"closed","html_url":"https://example.invalid/issues/268","assignees":[]},{"number":269,"title":"Fresh-agent orientation","state":"open","html_url":"https://example.invalid/issues/269","assignees":[]},{"number":270,"title":"Integration safeguards","state":"open","html_url":"https://example.invalid/issues/270","assignees":[]},{"number":271,"title":"Concurrent acceptance","state":"open","html_url":"https://example.invalid/issues/271","assignees":[{"login":"agent"}]}]'
+        ;;
+    repos/BeaudanBrown/ihp-roster/issues/269/dependencies/blocked_by?*)
+        printf '%s\n' '[]'
+        ;;
+    repos/BeaudanBrown/ihp-roster/issues/270/dependencies/blocked_by?*)
+        printf '%s\n' '[{"number":269,"title":"Fresh-agent orientation","state":"open","html_url":"https://example.invalid/issues/269"}]'
+        ;;
+    repos/BeaudanBrown/ihp-roster/issues/271/dependencies/blocked_by?*)
+        printf '%s\n' '[]'
+        ;;
+    *)
+        echo "unexpected gh endpoint: $endpoint" >&2
+        exit 64
+        ;;
+esac
+EOF
+chmod +x "$mock_bin/gh"
+
+orientation_json="$(cd "$fixture_repo" && PATH="$mock_bin:$PATH" bash "$command_path" orient --json)"
+[ "$(jq -r '.epic.number' <<<"$orientation_json")" = 265 ] || fail "epic identity was not detected"
+[ "$(jq -r '.workspace.slot' <<<"$orientation_json")" = 1 ] || fail "workspace slot was not reported"
+[ "$(jq -r '.issues.ready[0].number' <<<"$orientation_json")" = 269 ] || fail "ready issue was not presented"
+[ "$(jq -r '.issues.activeInterrupted[0].number' <<<"$orientation_json")" = 271 ] || fail "assigned issue was not presented as active"
+[ "$(jq -r '.issues.blocked[0].number' <<<"$orientation_json")" = 270 ] || fail "blocked issue was not presented"
+[ "$(jq -r '.issues.blocked[0].blockedBy[0].number' <<<"$orientation_json")" = 269 ] || fail "open blocker was not presented"
+[ "$(jq -r '.selection.allowed' <<<"$orientation_json")" = true ] || fail "clean workspace did not allow user selection"
+[ "$(jq -r '.selection.requiresUserChoice' <<<"$orientation_json")" = true ] || fail "orientation did not require user choice"
+
+git -C "$fixture_repo" commit --quiet --allow-empty -m 'Implement orientation (#269)'
+pending_json="$(cd "$fixture_repo" && PATH="$mock_bin:$PATH" bash "$command_path" orient --json)"
+[ "$(jq -r '.selection.allowed' <<<"$pending_json")" = false ] || fail "committed open-issue work still offered new work"
+[ "$(jq -r '.workspace.interrupted' <<<"$pending_json")" = true ] || fail "committed open-issue work was not marked interrupted"
+[ "$(jq -r '.workspace.pendingCommittedIssues[0]' <<<"$pending_json")" = 269 ] || fail "pending committed issue was not reported"
+[ "$(jq -r '.issues.activeInterrupted[] | select(.number == 269) | .reasons[0]' <<<"$pending_json")" = committed-work-awaiting-resolution ] \
+    || fail "committed open issue was not presented as active/interrupted"
+
+printf 'interrupted\n' >>"$fixture_repo/README"
+interrupted_json="$(cd "$fixture_repo" && PATH="$mock_bin:$PATH" bash "$command_path" orient --json)"
+[ "$(jq -r '.selection.allowed' <<<"$interrupted_json")" = false ] || fail "dirty worktree still offered new work"
+[ "$(jq -r '.workspace.interrupted' <<<"$interrupted_json")" = true ] || fail "dirty worktree was not marked interrupted"
+[ "$(jq -r '.workspace.changes.unstaged | length' <<<"$interrupted_json")" -gt 0 ] || fail "unstaged work was not reported"
+
+human_output="$(cd "$fixture_repo" && PATH="$mock_bin:$PATH" bash "$command_path" orient)"
+[[ "$human_output" == *"EPIC #265"* ]] || fail "human output omitted epic"
+[[ "$human_output" == *"READY — unavailable until interruption resolved"* ]] || fail "human output offered new work despite interruption"
+[[ "$human_output" == *"STOP: interrupted workspace work must be resumed or resolved"* ]] || fail "human output did not block selection"
+[[ "$human_output" == *"Wait for the user; do not begin, close, or move issues automatically."* ]] || fail "human output omitted approval rule"
+
+echo "epic-worktree-orientation-test: ok"

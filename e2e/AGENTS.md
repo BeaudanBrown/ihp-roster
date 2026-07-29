@@ -27,7 +27,8 @@ bash ./bin/in-env e2e --headed
 bash ./bin/in-env e2e --ui
 
 # Take a screenshot of a page
-bash ./bin/in-env screenshot http://localhost:8000/Dashboard dash.png
+bash ./bin/in-env screenshot \
+  "$(bash ./bin/in-env dev-workspace-info --json | jq -r .appUrl)/Dashboard" dash.png
 
 # Take a screenshot of a protected page with reusable login flow
 bash ./bin/in-env screenshot-page /RosterWeeks roster.png --selector '.roster-grid'
@@ -243,7 +244,7 @@ The current useful mixed-live baseline is about `100` subscribers and `10` synch
 
 ## Operational Notes
 
-- `dev-status` still reports the normal dev server on `:8000`; the E2E wrapper launches a separate temporary server on the next free IHP dev port and exports that URL to Playwright
+- `dev-status` reports the current workspace URL: the primary checkout uses `:8000`, while registered epic worktrees use `8000 + slot`; the E2E wrapper launches separate temporary servers and exports each shard URL to Playwright
 - If Playwright keeps seeing stale compile output, check the listening IHP ports and the temporary server log:
 
 ```bash
@@ -261,7 +262,8 @@ tail -n 80 .devenv/e2e/server.log
 - Common first steps:
 
 ```bash
-bash ./bin/in-env pwcli open http://127.0.0.1:8000 --headed
+bash ./bin/in-env dev-workspace-info
+bash ./bin/in-env pwcli open "$(bash ./bin/in-env dev-workspace-info --json | jq -r .appUrl)" --headed
 bash ./bin/in-env pwcli snapshot
 bash ./bin/in-env pwcli screenshot
 ```
@@ -279,7 +281,7 @@ bash ./bin/in-env pwcli state-load .devenv/playwright-cli/manager-state.json
   - `pwcli-auth-save` defaults to password `password123` for those dev accounts; this is intentionally different from the isolated `app_e2e` test password `test-password-123`
   - `pwcli-auth-save` verifies a concrete post-login page for the chosen role before writing the state file
   - open a pre-authenticated session with `bash ./bin/in-env pwcli-auth-open manager /RosterWeeks`
-  - reuse the named session with `bash ./bin/in-env pwcli -s=ihp-manager snapshot`
+  - reuse the named session with `bash ./bin/in-env pwcli -s=ihp-manager snapshot` in the primary checkout; `pwcli-auth-open` namespaces epic sessions as `ihp-epic-N-ROLE` so authenticated browser state is never shared across worktrees
   - if state is missing or stale, regenerate it explicitly instead of expecting `pwcli-auth-open` to do it implicitly
 
 ## Responsive Project Split

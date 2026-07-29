@@ -1,0 +1,33 @@
+#!/usr/bin/env bash
+set -euo pipefail
+# shellcheck source=../lib/workspace.sh
+scripts_root="${BEPIS_SCRIPTS_ROOT:-@scriptsRoot@}"
+scripts_root_placeholder="@""scriptsRoot@"
+if [ "$scripts_root" = "$scripts_root_placeholder" ]; then
+    scripts_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+fi
+. "$scripts_root/lib/workspace.sh"
+
+mode="${1:---human}"
+[ "$#" -le 1 ] || { echo "Usage: dev-workspace-info [--human|--json|--shell]" >&2; exit 64; }
+
+bepis_workspace_configure
+case "$mode" in
+    --json)
+        bepis_workspace_json
+        ;;
+    --shell)
+        bepis_workspace_shell
+        ;;
+    --human)
+        bepis_workspace_json \
+            | jq -r '"\(.kind) workspace | slot \(.slot) | app \(.appUrl) | SMTP \(.smtpPort) | MailHog \(.mailhogUrl) | Grafana :\(.grafanaPort) | OTLP :\(.otlpHttpPort)\nstate: \(.stateDir)\npostgres: \(.postgresSocket)"'
+        ;;
+    -h|--help)
+        echo "Usage: dev-workspace-info [--human|--json|--shell]"
+        ;;
+    *)
+        echo "dev-workspace-info: unknown option: $mode" >&2
+        exit 64
+        ;;
+esac

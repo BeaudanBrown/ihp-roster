@@ -1,0 +1,429 @@
+#!/usr/bin/env bash
+set -euo pipefail
+umask 077
+
+program="epic-worktree-manage"
+
+usage() {
+    cat <<'EOF'
+Usage:
+  epic-worktree-manage preflight --epic NUMBER [--json]
+  epic-worktree-manage sync --epic NUMBER [--apply] [--json]
+  epic-worktree-manage integrate --epic NUMBER [--approve] [--json]
+  epic-worktree-manage cleanup --epic NUMBER [--approve] [--json]
+
+Preflight is non-mutating. Sync only merges the recorded target into the epic
+with --apply. Integration uses a --no-ff merge only with --approve. Cleanup
+removes an integrated, stopped, clean epic workspace only with --approve.
+Parent issue closure is always a separate action.
+EOF
+}
+
+die() {
+    local status="$1"
+    shift
+    echo "$program: $*" >&2
+    exit "$status"
+}
+
+for required in flock git jq realpath; do
+    command -v "$required" >/dev/null 2>&1 || die 69 "required command is unavailable: $required"
+done
+
+action="${1:-}"
+case "$action" in
+    preflight|sync|integrate|cleanup) shift ;;
+    help|-h|--help) usage; exit 0 ;;
+    *) usage >&2; die 64 "expected preflight, sync, integrate, or cleanup" ;;
+esac
+
+epic=""
+json=false
+apply=false
+approve=false
+while [ "$#" -gt 0 ]; do
+    case "$1" in
+        --epic)
+            [ "$#" -ge 2 ] || die 64 "missing value for --epic"
+            epic="$2"
+            shift 2
+            ;;
+        --json) json=true; shift ;;
+        --apply) apply=true; shift ;;
+        --approve) approve=true; shift ;;
+        -h|--help) usage; exit 0 ;;
+        *) die 64 "unknown $action option: $1" ;;
+    esac
+done
+[ -n "$epic" ] || die 64 "$action requires --epic"
+[[ "$epic" =~ ^[1-9][0-9]*$ ]] || die 64 "epic must be a positive integer: $epic"
+[ "$action" = sync ] || [ "$apply" = false ] || die 64 "--apply is only valid for sync"
+{ [ "$action" = integrate ] || [ "$action" = cleanup ]; } || [ "$approve" = false ] \
+    || die 64 "--approve is only valid for integrate or cleanup"
+
+current_root="$(git rev-parse --show-toplevel 2>/dev/null || true)"
+[ -n "$current_root" ] || die 66 "run from a checkout in the registered repository"
+current_root="$(realpath "$current_root")"
+common_dir="$(git -C "$current_root" rev-parse --path-format=absolute --git-common-dir 2>/dev/null || true)"
+[ -n "$common_dir" ] || die 66 "cannot resolve Git common directory"
+common_dir="$(realpath "$common_dir")"
+
+registry_command="${EPIC_WORKTREE_COMMAND:-}"
+if [ -z "$registry_command" ]; then
+    registry_command="$(command -v epic-worktree 2>/dev/null || true)"
+fi
+if [ -z "$registry_command" ]; then
+    candidate="$current_root/Config/nix/scripts/epic/worktree"
+    [ -f "$candidate" ] && registry_command="$candidate"
+fi
+[ -n "$registry_command" ] && [ -f "$registry_command" ] \
+    || die 69 "epic-worktree registry command is unavailable"
+
+run_registry() {
+    if [ -x "$registry_command" ]; then
+        "$registry_command" "$@"
+    else
+        bash "$registry_command" "$@"
+    fi
+}
+
+workspace="$(run_registry inspect --epic "$epic" --json)" \
+    || die 66 "cannot inspect epic #$epic registration"
+workspace_status="$(jq -r '.status' <<<"$workspace")"
+epic_path="$(jq -r '.path' <<<"$workspace")"
+epic_branch="$(jq -r '.branch' <<<"$workspace")"
+target_branch="$(jq -r '.targetBranch' <<<"$workspace")"
+slot="$(jq -r '.slot' <<<"$workspace")"
+
+find_branch_worktree() {
+    local branch="$1"
+    git -C "$current_root" worktree list --porcelain \
+        | awk -v wanted="refs/heads/$branch" '
+            /^worktree / { current = substr($0, 10) }
+            $0 == "branch " wanted { print current; exit }
+        '
+}
+
+target_path="$(find_branch_worktree "$target_branch")"
+if [ -n "$target_path" ]; then
+    target_path="$(realpath "$target_path")"
+fi
+
+git_paths() {
+    local range="$1"
+    git -C "$current_root" diff --name-only -z "$range" \
+        | jq -Rs 'split("\u0000") | map(select(length > 0))'
+}
+
+runtime_state() {
+    if [ ! -d "$epic_path" ]; then
+        jq -cn '{active: [], stale: [], stateDirs: []}'
+        return
+    fi
+
+    local configured_state=""
+    local caller_state_root="${BEPIS_WORKSPACE_STATE_ROOT:-}"
+    if [ -z "$caller_state_root" ] && [ "${BEPIS_WORKSPACE_STATE_CONFIGURED:-}" != "1" ]; then
+        caller_state_root="${DEVENV_AGENT_STATE_DIR:-}"
+    fi
+    configured_state="$({
+        env -u BEPIS_WORKSPACE_STATE_CONFIGURED -u BEPIS_WORKSPACE_REPO_ROOT \
+            BEPIS_WORKSPACE_REPO_ROOT="$epic_path" \
+            BEPIS_WORKSPACE_STATE_ROOT="$caller_state_root" \
+            DEVENV_AGENT_STATE_DIR="$caller_state_root" \
+            BEPIS_EPIC_WORKTREE_COMMAND="$registry_command" \
+            bash -c '. "@scriptsRoot@/lib/workspace.sh"; bepis_workspace_configure >/dev/null; printf "%s" "$DEVENV_AGENT_STATE_DIR"'
+    } 2>/dev/null || true)"
+    local default_state="$epic_path/.devenv/agent"
+    local -a state_dirs=()
+    [ -z "$configured_state" ] || state_dirs+=("$configured_state")
+    if [ "$default_state" != "$configured_state" ]; then
+        state_dirs+=("$default_state")
+    fi
+
+    local active='[]'
+    local stale='[]'
+    local state_dir pid_file pid
+    for state_dir in "${state_dirs[@]}"; do
+        [ -d "$state_dir" ] || continue
+        while IFS= read -r -d '' pid_file; do
+            pid="$(cat "$pid_file" 2>/dev/null || true)"
+            if [[ "$pid" =~ ^[1-9][0-9]*$ ]] && kill -0 "$pid" 2>/dev/null; then
+                active="$(jq -c --arg file "$pid_file" --argjson pid "$pid" '. + [{pidFile: $file, pid: $pid}]' <<<"$active")"
+            else
+                stale="$(jq -c --arg file "$pid_file" '. + [$file]' <<<"$stale")"
+            fi
+        done < <(find "$state_dir" -maxdepth 1 -type f -name '*.pid' -print0 2>/dev/null)
+    done
+    local postgres_pid_file="$epic_path/build/db/postmaster.pid"
+    if [ -f "$postgres_pid_file" ]; then
+        pid="$(head -n1 "$postgres_pid_file" 2>/dev/null || true)"
+        if [[ "$pid" =~ ^[1-9][0-9]*$ ]] && kill -0 "$pid" 2>/dev/null; then
+            active="$(jq -c --arg file "$postgres_pid_file" --argjson pid "$pid" '. + [{pidFile: $file, pid: $pid}]' <<<"$active")"
+        else
+            stale="$(jq -c --arg file "$postgres_pid_file" '. + [$file]' <<<"$stale")"
+        fi
+    fi
+    printf '%s\n' "${state_dirs[@]}" | jq -Rn \
+        --argjson active "$active" --argjson stale "$stale" \
+        '{active: $active, stale: $stale, stateDirs: [inputs | select(length > 0)]}'
+}
+
+preflight() {
+    [ "$workspace_status" = active ] \
+        || die 65 "epic #$epic registry identity is $workspace_status; repair identity or use approved stale cleanup"
+    [ -d "$epic_path" ] || die 65 "registered epic worktree is missing: $epic_path"
+    git -C "$current_root" rev-parse --verify --quiet "$target_branch^{commit}" >/dev/null \
+        || die 65 "recorded target branch is unavailable: $target_branch"
+    git -C "$current_root" rev-parse --verify --quiet "$epic_branch^{commit}" >/dev/null \
+        || die 65 "registered epic branch is unavailable: $epic_branch"
+
+    local clean=false
+    [ -z "$(git -C "$epic_path" status --porcelain=v1)" ] && clean=true
+    local target_clean=null
+    if [ -n "$target_path" ]; then
+        target_clean=false
+        [ -z "$(git -C "$target_path" status --porcelain=v1)" ] && target_clean=true
+    fi
+    local merge_base epic_oid target_oid epic_ahead target_ahead
+    epic_oid="$(git -C "$current_root" rev-parse "$epic_branch^{commit}")"
+    target_oid="$(git -C "$current_root" rev-parse "$target_branch^{commit}")"
+    merge_base="$(git -C "$current_root" merge-base "$target_oid" "$epic_oid")" \
+        || die 65 "epic and target branches have no merge base"
+    epic_ahead="$(git -C "$current_root" rev-list --count "$target_oid..$epic_oid")"
+    target_ahead="$(git -C "$current_root" rev-list --count "$epic_oid..$target_oid")"
+    local epic_files target_files all_files
+    epic_files="$(git_paths "$merge_base..$epic_oid")"
+    target_files="$(git_paths "$merge_base..$target_oid")"
+    all_files="$(jq -cn --argjson epic "$epic_files" --argjson target "$target_files" '$epic + $target | unique')"
+
+    local conflicts=false conflict_summary=""
+    local merge_object_root
+    merge_object_root="$(mktemp -d)"
+    mkdir -p "$merge_object_root/objects/info"
+    printf '%s\n' "$common_dir/objects" >"$merge_object_root/objects/info/alternates"
+    set +e
+    conflict_summary="$(GIT_OBJECT_DIRECTORY="$merge_object_root/objects" \
+        git -C "$current_root" merge-tree --write-tree --name-only "$target_oid" "$epic_oid" 2>&1)"
+    local conflict_status=$?
+    set -e
+    rm -rf "$merge_object_root"
+    case "$conflict_status" in
+        0) ;;
+        1) conflicts=true ;;
+        *) die 70 "cannot predict merge conflicts: $conflict_summary" ;;
+    esac
+
+    local migrations generated required_checks runtime
+    migrations="$(jq 'any(.[]; startswith("Application/Migration/") or . == "Application/Schema.sql")' <<<"$all_files")"
+    generated="$(jq 'any(.[];
+        startswith("build/Generated/")
+        or startswith("frontend/ts/generated/")
+        or (startswith("static/app") and endswith(".js"))
+        or test("/Generated/(Resource|Live|Action|Intent)\\.hs$"))' <<<"$all_files")"
+    required_checks='["typecheck", "hspec-test"]'
+    if [ "$migrations" = true ]; then
+        required_checks="$(jq -c '. + ["regen-types"] | unique' <<<"$required_checks")"
+    fi
+    if [ "$generated" = true ]; then
+        required_checks="$(jq -c '. + ["frontend-check", "generated-code-sync"] | unique' <<<"$required_checks")"
+    fi
+    runtime="$(runtime_state)"
+
+    jq -cn \
+        --argjson epic "$epic" --argjson slot "$slot" --arg path "$epic_path" \
+        --arg branch "$epic_branch" --arg target "$target_branch" --arg targetPath "$target_path" \
+        --arg status "$workspace_status" --argjson clean "$clean" --argjson targetClean "$target_clean" \
+        --arg base "$merge_base" --arg epicOid "$epic_oid" --arg targetOid "$target_oid" \
+        --argjson epicAhead "$epic_ahead" --argjson targetAhead "$target_ahead" \
+        --argjson conflicts "$conflicts" --arg conflictSummary "$conflict_summary" \
+        --argjson epicFiles "$epic_files" --argjson targetFiles "$target_files" \
+        --argjson migrations "$migrations" --argjson generated "$generated" \
+        --argjson checks "$required_checks" --argjson runtime "$runtime" '
+        {
+            epic: $epic,
+            workspace: {slot: $slot, path: $path, branch: $branch, status: $status, clean: $clean, runtime: $runtime},
+            target: {branch: $target, path: (if $targetPath == "" then null else $targetPath end), clean: $targetClean},
+            divergence: {mergeBase: $base, epicOid: $epicOid, targetOid: $targetOid, epicAhead: $epicAhead, targetAhead: $targetAhead},
+            conflicts: {detected: $conflicts, summary: $conflictSummary},
+            impact: {epicFiles: $epicFiles, targetFiles: $targetFiles, migrations: $migrations, generatedFiles: $generated},
+            requiredChecks: $checks,
+            generatedConflictPolicy: "Resolve canonical source first, then regenerate generated files; never hand-merge generated output.",
+            parentClosure: "separate-approval-required"
+        }'
+}
+
+assert_preflight_refs_unchanged() {
+    local report="$1"
+    local expected_epic expected_target
+    expected_epic="$(jq -r '.divergence.epicOid' <<<"$report")"
+    expected_target="$(jq -r '.divergence.targetOid' <<<"$report")"
+    [ "$(git -C "$current_root" rev-parse "$epic_branch^{commit}")" = "$expected_epic" ] \
+        || die 65 "epic branch changed after preflight; inspect again before mutation"
+    [ "$(git -C "$current_root" rev-parse "$target_branch^{commit}")" = "$expected_target" ] \
+        || die 65 "target branch changed after preflight; inspect again before mutation"
+}
+
+assert_worktree_ready() {
+    local path="$1"
+    local branch="$2"
+    local label="$3"
+    [ "$(git -C "$path" symbolic-ref --quiet --short HEAD 2>/dev/null || true)" = "$branch" ] \
+        || die 65 "$label worktree changed branches after preflight; inspect again before mutation"
+    [ -z "$(git -C "$path" status --porcelain=v1)" ] \
+        || die 65 "$label worktree changed after preflight; inspect again before mutation"
+}
+
+assert_runtime_stopped() {
+    [ "$(runtime_state | jq '.active | length')" -eq 0 ] \
+        || die 65 "epic runtime started after preflight; stop it and inspect again"
+}
+
+print_preflight() {
+    jq -r '"epic #\(.epic) | \(.workspace.branch) -> \(.target.branch) | clean=\(.workspace.clean) | ahead=\(.divergence.epicAhead) behind=\(.divergence.targetAhead) | conflicts=\(.conflicts.detected)\nruntime: active=\(.workspace.runtime.active | length) stale=\(.workspace.runtime.stale | length)\nimpact: migrations=\(.impact.migrations) generated=\(.impact.generatedFiles)\nchecks: \(.requiredChecks | join(", "))\nparent closure: separate approval required"' <<<"$1"
+}
+
+if [ "$action" = preflight ]; then
+    report="$(preflight)"
+    if [ "$json" = true ]; then jq . <<<"$report"; else print_preflight "$report"; fi
+    exit 0
+fi
+
+if [ "$action" = sync ]; then
+    report="$(preflight)"
+    if [ "$apply" = false ]; then
+        result="$(jq -cn --argjson preflight "$report" '{action: "sync", applied: false, approval: "rerun with --apply", preflight: $preflight}')"
+        if [ "$json" = true ]; then jq . <<<"$result"; else print_preflight "$report"; echo "sync not applied; rerun with --apply"; fi
+        exit 0
+    fi
+    print_preflight "$report" >&2
+    assert_preflight_refs_unchanged "$report"
+    [ "$(jq -r '.workspace.clean' <<<"$report")" = true ] || die 65 "refusing sync with uncommitted epic work"
+    [ "$(jq '.workspace.runtime.active | length' <<<"$report")" -eq 0 ] || die 65 "refusing sync while epic runtime has active processes"
+    assert_worktree_ready "$epic_path" "$epic_branch" "epic"
+    assert_runtime_stopped
+    if [ "$(jq -r '.divergence.targetAhead' <<<"$report")" -gt 0 ]; then
+        sync_target_oid="$(jq -r '.divergence.targetOid' <<<"$report")"
+        set +e
+        merge_output="$(git -C "$epic_path" merge --no-edit "$sync_target_oid" 2>&1)"
+        merge_status=$?
+        set -e
+        if [ "$merge_status" -ne 0 ]; then
+            echo "$merge_output" >&2
+            echo "$program: sync conflicts require canonical-source resolution followed by regeneration; do not rebase or hand-merge generated output" >&2
+            exit "$merge_status"
+        fi
+    fi
+    result="$(jq -cn --argjson preflight "$report" --arg head "$(git -C "$epic_path" rev-parse HEAD)" '{action: "sync", applied: true, head: $head, preflight: $preflight}')"
+    if [ "$json" = true ]; then jq . <<<"$result"; else echo "epic #$epic synchronized with $target_branch"; fi
+    exit 0
+fi
+
+if [ "$action" = integrate ]; then
+    report="$(preflight)"
+    if [ "$approve" = false ]; then
+        result="$(jq -cn --argjson preflight "$report" '{action: "integrate", applied: false, approval: "rerun with --approve", mergeMode: "--no-ff", parentClosure: "separate", preflight: $preflight}')"
+        if [ "$json" = true ]; then jq . <<<"$result"; else print_preflight "$report"; echo "integration not applied; rerun with --approve"; fi
+        exit 0
+    fi
+    print_preflight "$report" >&2
+    assert_preflight_refs_unchanged "$report"
+    [ -n "$target_path" ] || die 65 "target branch must be checked out before integration: $target_branch"
+    [ "$(jq -r '.workspace.clean' <<<"$report")" = true ] || die 65 "refusing integration with uncommitted epic work"
+    [ "$(jq -r '.target.clean' <<<"$report")" = true ] || die 65 "refusing integration with uncommitted target work"
+    [ "$(jq '.workspace.runtime.active | length' <<<"$report")" -eq 0 ] || die 65 "refusing integration while epic runtime has active processes"
+    [ "$(jq -r '.conflicts.detected' <<<"$report")" = false ] || die 65 "refusing integration with predicted conflicts; sync and resolve first"
+    assert_worktree_ready "$epic_path" "$epic_branch" "epic"
+    assert_worktree_ready "$target_path" "$target_branch" "target"
+    assert_runtime_stopped
+    integration_epic_oid="$(jq -r '.divergence.epicOid' <<<"$report")"
+    integration_target_oid="$(jq -r '.divergence.targetOid' <<<"$report")"
+    git -C "$current_root" merge-base --is-ancestor "$integration_target_oid" "$integration_epic_oid" \
+        || die 65 "epic is behind its target; run approved sync first"
+    if git -C "$current_root" merge-base --is-ancestor "$integration_epic_oid" "$integration_target_oid"; then
+        applied=false
+    else
+        git -C "$target_path" merge --no-ff --no-edit -m "Merge epic #$epic" "$integration_epic_oid" \
+            || die 70 "approved integration failed; inspect target worktree conflicts"
+        applied=true
+    fi
+    result="$(jq -cn --argjson applied "$applied" --arg head "$(git -C "$target_path" rev-parse HEAD)" '{action: "integrate", applied: $applied, head: $head, mergeMode: "--no-ff", parentClosure: "separate-approval-required"}')"
+    if [ "$json" = true ]; then jq . <<<"$result"; else echo "epic #$epic integrated into $target_branch; parent closure still requires separate approval"; fi
+    exit 0
+fi
+
+# cleanup
+case "$workspace_status" in
+    active) ;;
+    stale)
+        [ ! -e "$epic_path" ] || die 65 "stale registry points at an existing path; diagnose manually: $epic_path"
+        ;;
+    *) die 65 "refusing cleanup with $workspace_status epic identity" ;;
+esac
+if [ -d "$epic_path" ] && [ -n "$(git -C "$epic_path" status --porcelain=v1)" ]; then
+    die 65 "refusing cleanup with uncommitted work"
+fi
+runtime="$(runtime_state)"
+[ "$(jq '.active | length' <<<"$runtime")" -eq 0 ] || die 65 "refusing cleanup while epic runtime has active processes"
+git -C "$current_root" show-ref --verify --quiet "refs/heads/$epic_branch" \
+    || die 65 "cannot prove integration because the epic branch is missing; registry retained for recovery"
+git -C "$current_root" rev-parse --verify --quiet "$target_branch^{commit}" >/dev/null \
+    || die 65 "recorded target branch is unavailable: $target_branch"
+git -C "$current_root" merge-base --is-ancestor "$epic_branch" "$target_branch" \
+    || die 65 "refusing cleanup with unintegrated commits"
+cleanup_report="$(jq -cn --argjson epic "$epic" --arg path "$epic_path" --arg branch "$epic_branch" --arg target "$target_branch" --arg status "$workspace_status" --argjson runtime "$runtime" '{action: "cleanup", applied: false, epic: $epic, path: $path, branch: $branch, targetBranch: $target, registryStatus: $status, runtime: $runtime}')"
+if [ "$approve" = false ]; then
+    if [ "$json" = true ]; then jq . <<<"$cleanup_report"; else echo "cleanup safe but not applied; rerun with --approve"; fi
+    exit 0
+fi
+jq -r '"cleanup preflight: epic #\(.epic) | \(.branch) -> \(.targetBranch) | registry=\(.registryStatus) | active=\(.runtime.active | length) stale=\(.runtime.stale | length)"' <<<"$cleanup_report" >&2
+
+registry_dir="$common_dir/bepis/epic-worktrees"
+registry_file="$registry_dir/registry.json"
+registry_lock="$registry_dir/registry.lock"
+[ -f "$registry_file" ] || die 65 "epic registry disappeared during cleanup"
+exec 9>"$registry_lock"
+flock 9
+current_workspace="$(run_registry inspect --epic "$epic" --json)" \
+    || die 65 "epic registry changed during cleanup"
+jq -e --arg path "$epic_path" --arg branch "$epic_branch" --arg target "$target_branch" \
+    '.path == $path and .branch == $branch and .targetBranch == $target' \
+    <<<"$current_workspace" >/dev/null || die 65 "epic registry changed during cleanup"
+locked_status="$(jq -r '.status' <<<"$current_workspace")"
+case "$locked_status" in
+    active)
+        [ -d "$epic_path" ] || die 65 "epic worktree disappeared after cleanup preflight"
+        [ -z "$(git -C "$epic_path" status --porcelain=v1)" ] \
+            || die 65 "epic worktree became dirty after cleanup preflight"
+        ;;
+    stale)
+        [ ! -e "$epic_path" ] || die 65 "stale epic path reappeared after cleanup preflight"
+        ;;
+    *) die 65 "epic identity changed after cleanup preflight: $locked_status" ;;
+esac
+locked_runtime="$(runtime_state)"
+[ "$(jq '.active | length' <<<"$locked_runtime")" -eq 0 ] \
+    || die 65 "epic runtime started after cleanup preflight"
+branch_oid="$(git -C "$current_root" rev-parse --verify "refs/heads/$epic_branch^{commit}" 2>/dev/null || true)"
+[ -n "$branch_oid" ] \
+    || die 65 "epic branch disappeared after cleanup preflight; registry retained for recovery"
+git -C "$current_root" merge-base --is-ancestor "$branch_oid" "$target_branch" \
+    || die 65 "target changed and no longer contains the epic branch"
+registered_worktree="$(find_branch_worktree "$epic_branch")"
+if [ -n "$registered_worktree" ]; then
+    [ "$(realpath -m "$registered_worktree")" = "$epic_path" ] \
+        || die 65 "epic branch is checked out at an unexpected path: $registered_worktree"
+fi
+temporary="$(mktemp "$registry_dir/registry.XXXXXX")"
+jq --argjson epic "$epic" '.workspaces |= map(select(.epic != $epic))' "$registry_file" >"$temporary"
+if [ -n "$registered_worktree" ]; then
+    git -C "$current_root" worktree remove "$epic_path" \
+        || { rm -f "$temporary"; die 70 "failed to remove epic worktree metadata"; }
+fi
+if [ -n "$branch_oid" ]; then
+    git -C "$current_root" update-ref -d "refs/heads/$epic_branch" "$branch_oid" \
+        || { rm -f "$temporary"; die 70 "worktree removed but integrated branch deletion failed; registry retained for recovery"; }
+fi
+mv "$temporary" "$registry_file"
+result="$(jq --argjson applied true '.applied = $applied' <<<"$cleanup_report")"
+if [ "$json" = true ]; then jq . <<<"$result"; else echo "epic #$epic worktree, branch, and registry entry removed"; fi

@@ -7,7 +7,7 @@ default:
 # Keep this file as an alias layer only; do not duplicate real logic here.
 
 start:
-    start
+    dev-app
 
 dev:
     dev-foreground

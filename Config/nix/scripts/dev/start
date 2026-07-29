@@ -1,16 +1,16 @@
 #!/usr/bin/env bash
 set -euo pipefail
+# shellcheck source=../lib/workspace.sh
+. "@scriptsRoot@/lib/workspace.sh"
+bepis_workspace_configure
 STATE_DIR="$(dev-agent-state-dir)"
 PID_FILE="$STATE_DIR/devenv.pid"
 FRONTEND_WATCH_PID_FILE="$STATE_DIR/frontend-watch.pid"
 FRONTEND_GENERATED_WATCH_PID_FILE="$STATE_DIR/frontend-generated-watch.pid"
-POSTGRES_PID_FILE="$STATE_DIR/postgres.pid"
-MAILHOG_PID_FILE="$STATE_DIR/mailhog.pid"
 LOG_FILE="$STATE_DIR/devenv.log"
 FRONTEND_WATCH_LOG_FILE="$STATE_DIR/frontend-watch.log"
 FRONTEND_GENERATED_WATCH_LOG_FILE="$STATE_DIR/frontend-generated-watch.log"
-DB_SOCKET="${PGHOST:-$PWD/build/db}"
-APP_HEALTH_URL="${APP_BASE_URL:-http://127.0.0.1:8000}"
+APP_HEALTH_URL="$APP_BASE_URL"
 
 mkdir -p "$STATE_DIR"
 
@@ -72,11 +72,11 @@ dev-ensure-mailhog
 start_frontend_watchers
 
 if command -v lsof >/dev/null 2>&1 \
-    && lsof -nP -iTCP:8000 -sTCP:LISTEN >/dev/null 2>&1 \
+    && lsof -nP -iTCP:"$PORT" -sTCP:LISTEN >/dev/null 2>&1 \
     && ! curl --connect-timeout 1 --max-time 2 -fsS "$APP_HEALTH_URL" >/dev/null 2>&1; then
-    echo "Port 8000 is occupied but not responding to $APP_HEALTH_URL." >&2
+    echo "Port $PORT is occupied but not responding to $APP_HEALTH_URL." >&2
     echo "Stop the stale process before starting dev again:" >&2
-    lsof -nP -iTCP:8000 -sTCP:LISTEN >&2 || true
+    lsof -nP -iTCP:"$PORT" -sTCP:LISTEN >&2 || true
     exit 1
 fi
 
@@ -97,4 +97,4 @@ for _ in $(seq 1 3); do
     fi
 done
 
-echo "devenv started (pid=$PID, log=$LOG_FILE)"
+echo "devenv started (slot=$BEPIS_WORKSPACE_SLOT, pid=$PID, app=$APP_BASE_URL, mailhog=$MAILHOG_BASE_URL, log=$LOG_FILE)"

@@ -4,8 +4,10 @@ set -euo pipefail
 . "@scriptsRoot@/lib/ghc.sh"
 # shellcheck source=../lib/common.sh
 . "@scriptsRoot@/lib/common.sh"
-export TEST_DB_SOCKET="${TEST_DB_SOCKET:-${PGHOST:-$PWD/build/db}}"
-export MAILHOG_BASE_URL="${MAILHOG_BASE_URL:-http://127.0.0.1:8025}"
+# shellcheck source=../lib/workspace.sh
+. "@scriptsRoot@/lib/workspace.sh"
+bepis_workspace_configure
+export TEST_DB_SOCKET="${TEST_DB_SOCKET:-$PGHOST}"
 BASE_E2E_DATABASE_NAME="${TEST_DATABASE_NAME:-app_e2e}"
 export E2E_RUN_ID="${E2E_RUN_ID:-$(date +%s)-$$-$RANDOM}"
 export IHP_ROSTER_E2E=1
@@ -88,9 +90,9 @@ mkdir -p "$STATE_DIR" "$MERGED_BLOB_DIR"
 if ! curl -fsS "$MAILHOG_BASE_URL/api/v2/messages" >/dev/null 2>&1; then
     MAILHOG_LOG="$STATE_DIR/mailhog.log"
     @mailhog@/bin/MailHog \
-        -smtp-bind-addr 127.0.0.1:1025 \
-        -ui-bind-addr 127.0.0.1:8025 \
-        -api-bind-addr 127.0.0.1:8025 \
+        -smtp-bind-addr "127.0.0.1:$MAILHOG_SMTP_PORT" \
+        -ui-bind-addr "127.0.0.1:$MAILHOG_PORT" \
+        -api-bind-addr "127.0.0.1:$MAILHOG_PORT" \
         >>"$MAILHOG_LOG" 2>&1 &
     MAILHOG_PID="$!"
     MAILHOG_STARTED=1
@@ -233,12 +235,14 @@ SQL
         setsid "$E2E_STRIPE_MOCK_BIN" "$stripe_mock_port" </dev/null >>"$shard_dir/stripe-mock.log" 2>&1 &
         local stripe_mock_pid="$!"
 
+        local shard_port
+        shard_port="$(find_e2e_port "$((8100 + (shard_index - 1) * 20))")"
         if [ "$E2E_SERVER_MODE" = "compiled" ]; then
-            local shard_port
-            shard_port="$(find_e2e_port "$((8100 + (shard_index - 1) * 20))")"
-            PORT="$shard_port" IHP_BROWSER=echo setsid "$E2E_SERVER_BIN" </dev/null >>"$shard_log" 2>&1 &
+            PORT="$shard_port" APP_BASE_URL="http://127.0.0.1:$shard_port" IHP_BROWSER=echo \
+                setsid "$E2E_SERVER_BIN" </dev/null >>"$shard_log" 2>&1 &
         else
-            setsid test-e2e-server </dev/null >>"$shard_log" 2>&1 &
+            PORT="$shard_port" APP_BASE_URL="http://127.0.0.1:$shard_port" \
+                setsid test-e2e-server </dev/null >>"$shard_log" 2>&1 &
         fi
         local server_pid="$!"
         echo "$server_pid" > "$shard_pid_file"

@@ -1,0 +1,580 @@
+#!/usr/bin/env bash
+set -euo pipefail
+umask 077
+
+program="epic-worktree"
+identity_name=".bepis-epic-worktree.json"
+
+usage() {
+    cat <<'EOF'
+Usage:
+  epic-worktree register --epic NUMBER --target BRANCH [--branch BRANCH] [--path PATH] [--kind epic]
+  epic-worktree inspect [--epic NUMBER | --branch BRANCH | --path PATH | --all] [--json]
+  epic-worktree orient [--json]
+
+Registers, inspects, and orients local epic worktrees. The shared registry is
+stored beneath Git's common directory; the compact identity is stored in the
+worktree root. Orientation reads live parent/sub-issue/blocker state from GitHub
+and never selects, starts, or closes work.
+EOF
+}
+
+die() {
+    local status="$1"
+    shift
+    echo "$program: $*" >&2
+    exit "$status"
+}
+
+require_command() {
+    command -v "$1" >/dev/null 2>&1 || die 69 "required command is unavailable: $1"
+}
+
+for required in flock git jq realpath; do
+    require_command "$required"
+done
+
+reject_line_breaks() {
+    local label="$1"
+    local value="$2"
+    if [[ "$value" == *$'\n'* || "$value" == *$'\r'* ]]; then
+        die 64 "$label may not contain line breaks"
+    fi
+}
+
+validate_epic() {
+    [[ "$1" =~ ^[1-9][0-9]*$ ]] || die 64 "epic must be a positive integer: $1"
+}
+
+validate_branch() {
+    local label="$1"
+    local value="$2"
+    reject_line_breaks "$label" "$value"
+    git check-ref-format --branch "$value" >/dev/null 2>&1 || die 64 "invalid $label: $value"
+}
+
+resolve_worktree() {
+    local requested_path="$1"
+    reject_line_breaks "path" "$requested_path"
+    [ -d "$requested_path" ] || die 66 "worktree path does not exist: $requested_path"
+
+    local canonical_path
+    canonical_path="$(realpath "$requested_path")"
+    local top_level
+    top_level="$(git -C "$canonical_path" rev-parse --show-toplevel 2>/dev/null)" \
+        || die 66 "path is not a Git worktree: $canonical_path"
+    top_level="$(realpath "$top_level")"
+    [ "$canonical_path" = "$top_level" ] \
+        || die 64 "path must be the worktree root: $canonical_path"
+
+    local git_common_dir
+    git_common_dir="$(git -C "$canonical_path" rev-parse --path-format=absolute --git-common-dir 2>/dev/null)" \
+        || die 66 "cannot resolve Git common directory for: $canonical_path"
+    git_common_dir="$(realpath "$git_common_dir")"
+    reject_line_breaks "Git common directory" "$git_common_dir"
+
+    RESOLVED_PATH="$canonical_path"
+    RESOLVED_COMMON_DIR="$git_common_dir"
+}
+
+registry_paths() {
+    local common_dir="$1"
+    REGISTRY_DIR="$common_dir/bepis/epic-worktrees"
+    REGISTRY_FILE="$REGISTRY_DIR/registry.json"
+    REGISTRY_LOCK="$REGISTRY_DIR/registry.lock"
+}
+
+empty_registry() {
+    jq -n --arg owner "$1" '{version: 1, commonGitDir: $owner, workspaces: []}'
+}
+
+validate_registry() {
+    local common_dir="$1"
+    [ -f "$REGISTRY_FILE" ] || return 0
+    jq -e --arg owner "$common_dir" '
+        type == "object"
+        and (keys | sort == ["commonGitDir", "version", "workspaces"])
+        and .version == 1
+        and .commonGitDir == $owner
+        and (.workspaces | type == "array")
+        and (all(.workspaces[];
+            type == "object"
+            and (keys | sort == ["branch", "epic", "kind", "path", "slot", "targetBranch"])
+            and (.epic | type == "number" and . > 0 and floor == .)
+            and (.slot | type == "number" and . > 0 and floor == .)
+            and (.branch | type == "string" and length > 0 and ((contains("\n") or contains("\r")) | not))
+            and (.targetBranch | type == "string" and length > 0 and ((contains("\n") or contains("\r")) | not))
+            and (.path | type == "string" and startswith("/") and . != "/" and ((contains("\n") or contains("\r")) | not))
+            and .kind == "epic"))
+        and ([.workspaces[].epic] | length == (unique | length))
+        and ([.workspaces[].branch] | length == (unique | length))
+        and ([.workspaces[].path] | length == (unique | length))
+        and ([.workspaces[].slot] | length == (unique | length))
+    ' "$REGISTRY_FILE" >/dev/null \
+        || die 65 "malformed or foreign registry: $REGISTRY_FILE"
+
+    local record branch target path
+    while IFS= read -r record; do
+        branch="$(jq -r '.branch' <<<"$record")"
+        target="$(jq -r '.targetBranch' <<<"$record")"
+        path="$(jq -r '.path' <<<"$record")"
+        git check-ref-format --branch "$branch" >/dev/null 2>&1 \
+            || die 65 "registry contains an invalid workspace branch"
+        git check-ref-format --branch "$target" >/dev/null 2>&1 \
+            || die 65 "registry contains an invalid target branch"
+        [ "$(realpath -m "$path")" = "$path" ] \
+            || die 65 "registry contains a non-canonical workspace path"
+    done < <(jq -c '.workspaces[]' "$REGISTRY_FILE")
+}
+
+ensure_registry() {
+    local common_dir="$1"
+    mkdir -p "$REGISTRY_DIR"
+    if [ ! -e "$REGISTRY_FILE" ]; then
+        local temporary
+        temporary="$(mktemp "$REGISTRY_DIR/registry.XXXXXX")"
+        empty_registry "$common_dir" >"$temporary"
+        mv "$temporary" "$REGISTRY_FILE"
+    fi
+    validate_registry "$common_dir"
+}
+
+validate_record_git_state() {
+    local record="$1"
+    local path branch record_common top_level
+    path="$(jq -r '.path' <<<"$record")"
+    branch="$(jq -r '.branch' <<<"$record")"
+    [ -d "$path" ] || return 1
+    top_level="$(git -C "$path" rev-parse --show-toplevel 2>/dev/null || true)"
+    [ -n "$top_level" ] || return 1
+    [ "$(realpath "$top_level")" = "$path" ] || return 1
+    record_common="$(git -C "$path" rev-parse --path-format=absolute --git-common-dir 2>/dev/null || true)"
+    [ -n "$record_common" ] || return 1
+    [ "$(realpath "$record_common")" = "$RESOLVED_COMMON_DIR" ] || return 1
+    [ "$(git -C "$path" symbolic-ref --quiet --short HEAD 2>/dev/null || true)" = "$branch" ] || return 1
+}
+
+validate_identity() {
+    local identity_file="$1"
+    local record="$2"
+    [ -f "$identity_file" ] || return 2
+    jq -e --argjson record "$record" '
+        type == "object"
+        and (keys | sort == ["epic", "kind", "slot", "targetBranch", "version"])
+        and .version == 1
+        and .epic == $record.epic
+        and .targetBranch == $record.targetBranch
+        and .slot == $record.slot
+        and .kind == $record.kind
+    ' "$identity_file" >/dev/null 2>&1
+}
+
+write_identity() {
+    local path="$1"
+    local record="$2"
+    local identity_file="$path/$identity_name"
+    local temporary
+    temporary="$(mktemp "$path/${identity_name}.XXXXXX")" || return 1
+    if ! jq '{version: 1, epic, targetBranch, slot, kind}' <<<"$record" >"$temporary"; then
+        rm -f "$temporary"
+        return 1
+    fi
+    if ! mv "$temporary" "$identity_file"; then
+        rm -f "$temporary"
+        return 1
+    fi
+}
+
+record_with_status() {
+    local record="$1"
+    local status="stale"
+    if validate_record_git_state "$record"; then
+        local identity_status=0
+        validate_identity "$(jq -r '.path' <<<"$record")/$identity_name" "$record" || identity_status=$?
+        case "$identity_status" in
+            0) status="active" ;;
+            2) status="missing-identity" ;;
+            *) status="inconsistent-identity" ;;
+        esac
+    fi
+    jq -c --arg status "$status" '. + {status: $status}' <<<"$record"
+}
+
+print_record() {
+    local record="$1"
+    local json="$2"
+    if [ "$json" = true ]; then
+        jq . <<<"$record"
+    else
+        jq -r '"epic #\(.epic) | \(.kind) | slot \(.slot) | \(.branch) -> \(.targetBranch) | \(.status) | \(.path)"' <<<"$record"
+    fi
+}
+
+command_name="${1:-}"
+case "$command_name" in
+    register|inspect|orient)
+        shift
+        ;;
+    help|-h|--help)
+        usage
+        exit 0
+        ;;
+    *)
+        usage >&2
+        die 64 "expected register, inspect, or orient"
+        ;;
+esac
+
+if [ "$command_name" = orient ]; then
+    json=false
+    while [ "$#" -gt 0 ]; do
+        case "$1" in
+            --json)
+                json=true
+                shift
+                ;;
+            -h|--help)
+                usage
+                exit 0
+                ;;
+            *) die 64 "unknown orient option: $1" ;;
+        esac
+    done
+
+    require_command gh
+    current_path="$(git rev-parse --show-toplevel 2>/dev/null || true)"
+    [ -n "$current_path" ] || die 66 "orient must run from a registered epic worktree"
+    resolve_worktree "$current_path"
+    registry_paths "$RESOLVED_COMMON_DIR"
+    [ -f "$REGISTRY_FILE" ] || die 66 "epic worktree registry does not exist"
+    validate_registry "$RESOLVED_COMMON_DIR"
+
+    mapfile -t orientation_records < <(jq -c --arg path "$RESOLVED_PATH" '.workspaces[] | select(.path == $path)' "$REGISTRY_FILE")
+    [ "${#orientation_records[@]}" -eq 1 ] || die 66 "current worktree is not registered as an epic workspace"
+    orientation_record="${orientation_records[0]}"
+    [ "$(jq -r '.status' <<<"$(record_with_status "$orientation_record")")" = active ] \
+        || die 65 "current epic worktree identity is stale or inconsistent"
+
+    epic_number="$(jq -r '.epic' <<<"$orientation_record")"
+    target_branch="$(jq -r '.targetBranch' <<<"$orientation_record")"
+    repository="$(gh repo view --json nameWithOwner --jq .nameWithOwner 2>/dev/null)" \
+        || die 69 "cannot resolve the GitHub repository; authenticate gh and retry"
+    [[ "$repository" =~ ^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$ ]] \
+        || die 65 "GitHub returned an invalid repository name"
+
+    github_api() {
+        local endpoint="$1"
+        gh api -H "Accept: application/vnd.github+json" \
+            -H "X-GitHub-Api-Version: 2022-11-28" "$endpoint" 2>/dev/null \
+            || die 69 "cannot read live GitHub issue state: $endpoint"
+    }
+
+    github_api_collection() {
+        local endpoint="$1"
+        local response
+        response="$(gh api --paginate --slurp \
+            -H "Accept: application/vnd.github+json" \
+            -H "X-GitHub-Api-Version: 2022-11-28" "$endpoint" 2>/dev/null)" \
+            || die 69 "cannot read live GitHub issue state: $endpoint"
+        jq -c 'if length == 0 then [] elif (.[0] | type) == "array" then add else . end' <<<"$response" \
+            || die 65 "GitHub returned malformed paginated issue state"
+    }
+
+    parent="$(github_api "repos/$repository/issues/$epic_number")"
+    jq -e --argjson epic "$epic_number" \
+        '.number == $epic and (.title | type == "string") and (.state | type == "string") and (.html_url | type == "string")' \
+        <<<"$parent" >/dev/null || die 65 "GitHub returned malformed parent issue state"
+    children="$(github_api_collection "repos/$repository/issues/$epic_number/sub_issues?per_page=100")"
+    jq -e 'type == "array" and all(.[]; (.number | type == "number") and (.title | type == "string") and (.state | type == "string") and (.assignees | type == "array"))' \
+        <<<"$children" >/dev/null || die 65 "GitHub returned malformed sub-issue state"
+
+    mapfile -d '' -t staged_paths < <(git -C "$RESOLVED_PATH" diff --cached --name-only -z)
+    mapfile -d '' -t unstaged_paths < <(git -C "$RESOLVED_PATH" diff --name-only -z)
+    mapfile -d '' -t untracked_paths < <(git -C "$RESOLVED_PATH" ls-files --others --exclude-standard -z)
+    mapfile -d '' -t conflicted_paths < <(git -C "$RESOLVED_PATH" diff --name-only --diff-filter=U -z)
+    staged_json="$(printf '%s\0' "${staged_paths[@]}" | jq -Rs 'split("\u0000") | map(select(length > 0))')"
+    unstaged_json="$(printf '%s\0' "${unstaged_paths[@]}" | jq -Rs 'split("\u0000") | map(select(length > 0))')"
+    untracked_json="$(printf '%s\0' "${untracked_paths[@]}" | jq -Rs 'split("\u0000") | map(select(length > 0))')"
+    conflicted_json="$(printf '%s\0' "${conflicted_paths[@]}" | jq -Rs 'split("\u0000") | map(select(length > 0))')"
+    changes_json="$(jq -cn \
+        --argjson staged "$staged_json" --argjson unstaged "$unstaged_json" \
+        --argjson untracked "$untracked_json" --argjson conflicted "$conflicted_json" \
+        '{staged: $staged, unstaged: $unstaged, untracked: $untracked, conflicted: $conflicted}')"
+    local_interrupted="$(jq 'any(.[]; length > 0)' <<<"$changes_json")"
+
+    target_ref="$target_branch"
+    if ! git -C "$RESOLVED_PATH" rev-parse --verify --quiet "$target_ref^{commit}" >/dev/null; then
+        die 65 "recorded target branch is unavailable: $target_branch"
+    fi
+    ahead_count="$(git -C "$RESOLVED_PATH" rev-list --count "$target_ref..HEAD")"
+    commit_text="$(git -C "$RESOLVED_PATH" log --format='%s%n%b' "$target_ref..HEAD")"
+    committed_numbers="$({ grep -Eo '#[1-9][0-9]*' <<<"$commit_text" 2>/dev/null || true; } \
+        | tr -d '#' | sort -nu | jq -Rsc 'split("\n") | map(select(length > 0) | tonumber)')"
+
+    ready='[]'
+    active='[]'
+    blocked='[]'
+    while IFS= read -r child; do
+        [ "$(jq -r '.state' <<<"$child")" = open ] || continue
+        child_number="$(jq -r '.number' <<<"$child")"
+        blockers="$(github_api_collection "repos/$repository/issues/$child_number/dependencies/blocked_by?per_page=100")"
+        jq -e 'type == "array" and all(.[]; (.number | type == "number") and (.state | type == "string"))' \
+            <<<"$blockers" >/dev/null || die 65 "GitHub returned malformed blocker state for issue #$child_number"
+        open_blockers="$(jq '[.[] | select(.state == "open") | {number, title, url: .html_url}]' <<<"$blockers")"
+        issue="$(jq '{number, title, url: .html_url, assignees: [.assignees[].login]}' <<<"$child")"
+        if [ "$(jq 'length' <<<"$open_blockers")" -gt 0 ]; then
+            blocked="$(jq -c --argjson issue "$issue" --argjson blockers "$open_blockers" '. + [$issue + {blockedBy: $blockers}]' <<<"$blocked")"
+        elif [ "$(jq '.assignees | length' <<<"$child")" -gt 0 ] || jq -e --argjson number "$child_number" 'index($number) != null' <<<"$committed_numbers" >/dev/null; then
+            reasons='[]'
+            if [ "$(jq '.assignees | length' <<<"$child")" -gt 0 ]; then
+                reasons="$(jq -c '. + ["assigned"]' <<<"$reasons")"
+            fi
+            if jq -e --argjson number "$child_number" 'index($number) != null' <<<"$committed_numbers" >/dev/null; then
+                reasons="$(jq -c '. + ["committed-work-awaiting-resolution"]' <<<"$reasons")"
+            fi
+            active="$(jq -c --argjson issue "$issue" --argjson reasons "$reasons" '. + [$issue + {reasons: $reasons}]' <<<"$active")"
+        else
+            ready="$(jq -c --argjson issue "$issue" '. + [$issue]' <<<"$ready")"
+        fi
+    done < <(jq -c '.[]' <<<"$children")
+
+    pending_committed_issues="$(jq -c --argjson committed "$committed_numbers" \
+        '[.[] | select(.state == "open" and (.number as $number | $committed | index($number) != null)) | .number]' \
+        <<<"$children")"
+    interrupted="$local_interrupted"
+    if [ "$(jq 'length' <<<"$pending_committed_issues")" -gt 0 ]; then
+        interrupted=true
+    fi
+    selection_allowed="$([ "$interrupted" = false ] && printf true || printf false)"
+    result="$(jq -cn \
+        --argjson parent "$parent" --argjson workspace "$orientation_record" \
+        --argjson changes "$changes_json" --argjson interrupted "$interrupted" \
+        --argjson pending "$pending_committed_issues" --argjson ahead "$ahead_count" \
+        --argjson ready "$ready" --argjson active "$active" \
+        --argjson blocked "$blocked" --argjson allowed "$selection_allowed" '
+        {
+            epic: {number: $parent.number, title: $parent.title, state: $parent.state, url: $parent.html_url},
+            workspace: ($workspace + {interrupted: $interrupted, pendingCommittedIssues: $pending, aheadOfTarget: $ahead, changes: $changes}),
+            issues: {ready: $ready, activeInterrupted: $active, blocked: $blocked},
+            selection: {allowed: $allowed, requiresUserChoice: true},
+            approvalRules: [
+                "Wait for the user to choose an issue before beginning work.",
+                "Commit and present verification evidence before requesting approval to close.",
+                "Close only after approval, then refresh orientation and wait again."
+            ]
+        }')"
+
+    if [ "$json" = true ]; then
+        jq . <<<"$result"
+        exit 0
+    fi
+
+    jq -r '"EPIC #\(.epic.number): \(.epic.title) [\(.epic.state)]\nWORKSPACE: slot \(.workspace.slot), \(.workspace.branch) -> \(.workspace.targetBranch), ahead \(.workspace.aheadOfTarget)"' <<<"$result"
+    if [ "$interrupted" = true ]; then
+        echo "STOP: interrupted workspace work must be resumed or resolved before choosing new work."
+        echo "READY — unavailable until interruption resolved"
+    else
+        echo "READY — choose explicitly"
+    fi
+    jq -r '.issues.ready[] | "  #\(.number) \(.title)"' <<<"$result"
+    echo "ACTIVE / INTERRUPTED"
+    jq -r '.issues.activeInterrupted[] | "  #\(.number) \(.title) [\(.reasons | join(", "))]"' <<<"$result"
+    echo "BLOCKED"
+    jq -r '.issues.blocked[] | "  #\(.number) \(.title) [blocked by \([.blockedBy[].number | "#\(.)"] | join(", "))]"' <<<"$result"
+    echo "Wait for the user; do not begin, close, or move issues automatically."
+    echo "After implementation: commit, present verification evidence, and request approval before closure."
+    echo "After approved closure: run epic-worktree orient again and wait."
+    exit 0
+fi
+
+if [ "$command_name" = register ]; then
+    epic=""
+    target=""
+    branch=""
+    path=""
+    kind="epic"
+    while [ "$#" -gt 0 ]; do
+        case "$1" in
+            --epic|--target|--branch|--path|--kind)
+                option="$1"
+                [ "$#" -ge 2 ] || die 64 "missing value for $option"
+                value="$2"
+                shift 2
+                case "$option" in
+                    --epic) epic="$value" ;;
+                    --target) target="$value" ;;
+                    --branch) branch="$value" ;;
+                    --path) path="$value" ;;
+                    --kind) kind="$value" ;;
+                esac
+                ;;
+            -h|--help)
+                usage
+                exit 0
+                ;;
+            *) die 64 "unknown register option: $1" ;;
+        esac
+    done
+
+    [ -n "$epic" ] || die 64 "register requires --epic"
+    [ -n "$target" ] || die 64 "register requires --target"
+    validate_epic "$epic"
+    validate_branch "target branch" "$target"
+    [ "$kind" = epic ] || die 64 "unsupported workspace kind: $kind"
+
+    if [ -z "$path" ]; then
+        path="$(git rev-parse --show-toplevel 2>/dev/null || true)"
+        [ -n "$path" ] || die 66 "run from a Git worktree or pass --path"
+    fi
+    resolve_worktree "$path"
+    registry_paths "$RESOLVED_COMMON_DIR"
+
+    actual_branch="$(git -C "$RESOLVED_PATH" symbolic-ref --quiet --short HEAD 2>/dev/null || true)"
+    [ -n "$actual_branch" ] || die 64 "worktree must have a checked-out branch"
+    if [ -z "$branch" ]; then
+        branch="$actual_branch"
+    fi
+    validate_branch "workspace branch" "$branch"
+    [ "$branch" = "$actual_branch" ] \
+        || die 65 "workspace branch '$branch' does not match checked-out branch '$actual_branch'"
+    [ "$branch" != "$target" ] \
+        || die 64 "workspace branch and target branch must differ"
+
+    mkdir -p "$REGISTRY_DIR"
+    exec 9>"$REGISTRY_LOCK"
+    flock 9
+    ensure_registry "$RESOLVED_COMMON_DIR"
+
+    matches="$(jq -c --argjson epic "$epic" --arg branch "$branch" --arg path "$RESOLVED_PATH" \
+        '[.workspaces[] | select(.epic == $epic or .branch == $branch or .path == $path)]' "$REGISTRY_FILE")"
+    match_count="$(jq 'length' <<<"$matches")"
+    if [ "$match_count" -gt 1 ]; then
+        die 65 "epic, branch, or path resolve to conflicting registry entries"
+    fi
+
+    if [ "$match_count" -eq 1 ]; then
+        record="$(jq -c '.[0]' <<<"$matches")"
+        jq -e --argjson epic "$epic" --arg target "$target" --arg branch "$branch" \
+            --arg path "$RESOLVED_PATH" --arg kind "$kind" '
+                .epic == $epic and .targetBranch == $target and .branch == $branch
+                and .path == $path and .kind == $kind
+            ' <<<"$record" >/dev/null \
+            || die 65 "registration conflicts with existing workspace"
+        validate_record_git_state "$record" \
+            || die 65 "existing registration is stale or belongs to another repository"
+        identity_status=0
+        validate_identity "$RESOLVED_PATH/$identity_name" "$record" || identity_status=$?
+        case "$identity_status" in
+            0) ;;
+            2)
+                write_identity "$RESOLVED_PATH" "$record" \
+                    || die 73 "cannot restore missing worktree identity"
+                ;;
+            *) die 65 "worktree identity conflicts with registry" ;;
+        esac
+    else
+        if [ -e "$RESOLVED_PATH/$identity_name" ]; then
+            die 65 "unregistered worktree already contains an epic identity"
+        fi
+        slot="$(jq '[.workspaces[].slot] as $used | first(range(1; (($used | max // 0) + 2)) | select(. as $candidate | $used | index($candidate) | not))' "$REGISTRY_FILE")"
+        record="$(jq -cn --argjson epic "$epic" --arg target "$target" --arg branch "$branch" \
+            --arg path "$RESOLVED_PATH" --argjson slot "$slot" --arg kind "$kind" \
+            '{epic: $epic, targetBranch: $target, branch: $branch, path: $path, slot: $slot, kind: $kind}')"
+        temporary="$(mktemp "$REGISTRY_DIR/registry.XXXXXX")"
+        jq --argjson record "$record" '.workspaces += [$record] | .workspaces |= sort_by(.slot)' "$REGISTRY_FILE" >"$temporary"
+        if ! write_identity "$RESOLVED_PATH" "$record"; then
+            rm -f "$temporary"
+            die 73 "cannot write worktree identity; registry unchanged"
+        fi
+        if ! mv "$temporary" "$REGISTRY_FILE"; then
+            rm -f "$temporary" "$RESOLVED_PATH/$identity_name"
+            die 73 "cannot publish workspace registry; identity rolled back"
+        fi
+    fi
+
+    print_record "$(record_with_status "$record")" false
+    exit 0
+fi
+
+selector_count=0
+selector_kind="path"
+selector_value=""
+json=false
+all=false
+while [ "$#" -gt 0 ]; do
+    case "$1" in
+        --epic|--branch|--path)
+            option="$1"
+            [ "$#" -ge 2 ] || die 64 "missing value for $option"
+            selector_count=$((selector_count + 1))
+            selector_kind="${option#--}"
+            selector_value="$2"
+            shift 2
+            ;;
+        --all)
+            selector_count=$((selector_count + 1))
+            all=true
+            shift
+            ;;
+        --json)
+            json=true
+            shift
+            ;;
+        -h|--help)
+            usage
+            exit 0
+            ;;
+        *) die 64 "unknown inspect option: $1" ;;
+    esac
+done
+[ "$selector_count" -le 1 ] || die 64 "inspect accepts only one selector"
+
+if [ "$selector_kind" = epic ] && [ -n "$selector_value" ]; then
+    validate_epic "$selector_value"
+elif [ "$selector_kind" = branch ] && [ -n "$selector_value" ]; then
+    validate_branch "workspace branch" "$selector_value"
+fi
+
+lookup_path="$(git rev-parse --show-toplevel 2>/dev/null || true)"
+if [ "$selector_kind" = path ] && [ -n "$selector_value" ]; then
+    lookup_path="$selector_value"
+fi
+[ -n "$lookup_path" ] || die 66 "run from a Git worktree or pass --path"
+resolve_worktree "$lookup_path"
+registry_paths "$RESOLVED_COMMON_DIR"
+[ -f "$REGISTRY_FILE" ] || die 66 "epic worktree registry does not exist"
+validate_registry "$RESOLVED_COMMON_DIR"
+
+if [ "$all" = true ]; then
+    mapfile -t records < <(jq -c '.workspaces[]' "$REGISTRY_FILE")
+else
+    if [ -z "$selector_value" ]; then
+        selector_value="$RESOLVED_PATH"
+    elif [ "$selector_kind" = path ]; then
+        selector_value="$RESOLVED_PATH"
+    fi
+    case "$selector_kind" in
+        epic)
+            mapfile -t records < <(jq -c --argjson value "$selector_value" '.workspaces[] | select(.epic == $value)' "$REGISTRY_FILE")
+            ;;
+        branch)
+            mapfile -t records < <(jq -c --arg value "$selector_value" '.workspaces[] | select(.branch == $value)' "$REGISTRY_FILE")
+            ;;
+        path)
+            mapfile -t records < <(jq -c --arg value "$selector_value" '.workspaces[] | select(.path == $value)' "$REGISTRY_FILE")
+            ;;
+    esac
+fi
+
+[ "${#records[@]}" -gt 0 ] || die 66 "no registered epic workspace matched"
+if [ "$json" = true ] && [ "$all" = true ]; then
+    statuses='[]'
+    for record in "${records[@]}"; do
+        statuses="$(jq -c --argjson record "$(record_with_status "$record")" '. + [$record]' <<<"$statuses")"
+    done
+    jq . <<<"$statuses"
+else
+    for record in "${records[@]}"; do
+        print_record "$(record_with_status "$record")" "$json"
+    done
+fi

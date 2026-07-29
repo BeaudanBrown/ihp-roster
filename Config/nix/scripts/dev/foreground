@@ -1,10 +1,13 @@
 #!/usr/bin/env bash
 set -euo pipefail
+# shellcheck source=../lib/workspace.sh
+. "@scriptsRoot@/lib/workspace.sh"
+bepis_workspace_configure
 
 STATE_DIR="$(dev-agent-state-dir)"
 LOG_FILE="$STATE_DIR/devenv.log"
-DB_SOCKET="${PGHOST:-$PWD/build/db}"
-APP_HEALTH_URL="${APP_BASE_URL:-http://127.0.0.1:8000}"
+DB_SOCKET="$PGHOST"
+APP_HEALTH_URL="$APP_BASE_URL"
 APP_PID=""
 FRONTEND_WATCH_PID=""
 FRONTEND_GENERATED_WATCH_PID=""
@@ -13,6 +16,7 @@ MAILHOG_STARTED=0
 OBSERVABILITY_STARTED=0
 MAILHOG_BIN="$(command -v MailHog || command -v mailhog)"
 OTLP_HTTP_PORT="${IHP_ROSTER_DEV_OTLP_HTTP_PORT:-4318}"
+OBSERVABILITY_ENABLED="${IHP_ROSTER_DEV_OBSERVABILITY:-0}"
 
 mkdir -p "$STATE_DIR"
 export XDG_CACHE_HOME="${XDG_CACHE_HOME:-/tmp/nix-cache}"
@@ -20,13 +24,13 @@ mkdir -p "$XDG_CACHE_HOME"
 
 frontend-generated-ensure
 
-if curl --connect-timeout 1 --max-time 2 -fsS "${MAILHOG_BASE_URL:-http://127.0.0.1:8025}/api/v2/messages" >/dev/null 2>&1; then
+if curl --connect-timeout 1 --max-time 2 -fsS "$MAILHOG_BASE_URL/api/v2/messages" >/dev/null 2>&1; then
     MAILHOG_STARTED=0
 else
     "$MAILHOG_BIN" \
-        -smtp-bind-addr 127.0.0.1:1025 \
-        -ui-bind-addr 127.0.0.1:8025 \
-        -api-bind-addr 127.0.0.1:8025 &
+        -smtp-bind-addr "127.0.0.1:$MAILHOG_SMTP_PORT" \
+        -ui-bind-addr "127.0.0.1:$MAILHOG_PORT" \
+        -api-bind-addr "127.0.0.1:$MAILHOG_PORT" &
     MAILHOG_PID=$!
     MAILHOG_STARTED=1
 fi
@@ -50,16 +54,20 @@ cleanup() {
 }
 trap cleanup EXIT INT TERM
 
-if dev-observability-status >/dev/null 2>&1; then
-    OBSERVABILITY_STARTED=0
+if [ "$OBSERVABILITY_ENABLED" = "1" ]; then
+    if dev-observability-status >/dev/null 2>&1; then
+        OBSERVABILITY_STARTED=0
+    else
+        dev-observability-start
+        OBSERVABILITY_STARTED=1
+    fi
+    export IHP_ROSTER_OTEL="${IHP_ROSTER_OTEL:-1}"
+    export IHP_ROSTER_OTEL_DIAGNOSTIC_HEADERS="${IHP_ROSTER_OTEL_DIAGNOSTIC_HEADERS:-1}"
 else
-    dev-observability-start
-    OBSERVABILITY_STARTED=1
+    export IHP_ROSTER_OTEL="${IHP_ROSTER_OTEL:-0}"
+    export IHP_ROSTER_OTEL_DIAGNOSTIC_HEADERS="${IHP_ROSTER_OTEL_DIAGNOSTIC_HEADERS:-0}"
 fi
-
-export IHP_ROSTER_OTEL="${IHP_ROSTER_OTEL:-1}"
-export IHP_ROSTER_OTEL_DIAGNOSTIC_HEADERS="${IHP_ROSTER_OTEL_DIAGNOSTIC_HEADERS:-1}"
-export OTEL_SERVICE_NAME="${OTEL_SERVICE_NAME:-ihp-roster-dev}"
+export OTEL_SERVICE_NAME="${OTEL_SERVICE_NAME:-$BEPIS_WORKSPACE_OTEL_SERVICE_NAME}"
 export OTEL_EXPORTER_OTLP_ENDPOINT="${OTEL_EXPORTER_OTLP_ENDPOINT:-http://127.0.0.1:${OTLP_HTTP_PORT}}"
 export OTEL_TRACES_SAMPLER="${OTEL_TRACES_SAMPLER:-always_on}"
 export OTEL_BSP_SCHEDULE_DELAY="${OTEL_BSP_SCHEDULE_DELAY:-1000}"
@@ -76,20 +84,24 @@ fi
 
 if curl --connect-timeout 1 --max-time 2 -fsS "$APP_HEALTH_URL" >/dev/null 2>&1; then
     APP_WAS_ALREADY_RUNNING=1
-    echo "App server already running; frontend-watch and frontend-generated-watch active; MailHog available at http://127.0.0.1:8025"
-    echo "Dev observability available at http://127.0.0.1:${IHP_ROSTER_DEV_GRAFANA_PORT:-3300}/explore"
-    echo "Existing app process was left unchanged; restart it if it was not started with IHP_ROSTER_OTEL=1."
+    echo "App server already running at $APP_BASE_URL; frontend watchers active; MailHog available at $MAILHOG_BASE_URL"
+    if [ "$OBSERVABILITY_ENABLED" = "1" ]; then
+        echo "Dev observability available at http://127.0.0.1:${IHP_ROSTER_DEV_GRAFANA_PORT:-3300}/explore"
+        echo "Existing app process was left unchanged; restart it if it was not started with IHP_ROSTER_OTEL=1."
+    fi
 else
-    if command -v lsof >/dev/null 2>&1 && lsof -nP -iTCP:8000 -sTCP:LISTEN >/dev/null 2>&1; then
-        echo "Port 8000 is occupied but not responding to $APP_HEALTH_URL." >&2
+    if command -v lsof >/dev/null 2>&1 && lsof -nP -iTCP:"$PORT" -sTCP:LISTEN >/dev/null 2>&1; then
+        echo "Port $PORT is occupied but not responding to $APP_HEALTH_URL." >&2
         echo "Stop the stale process before starting dev again:" >&2
-        lsof -nP -iTCP:8000 -sTCP:LISTEN >&2 || true
+        lsof -nP -iTCP:"$PORT" -sTCP:LISTEN >&2 || true
         exit 1
     fi
     echo "[dev-foreground] launching start with observability (XDG_CACHE_HOME=$XDG_CACHE_HOME)" >>"$LOG_FILE"
-    echo "Starting app server, frontend-watch, frontend-generated-watch, postgres, MailHog, and observability..."
-    echo "Tracing env: OTEL_SERVICE_NAME=$OTEL_SERVICE_NAME OTEL_EXPORTER_OTLP_ENDPOINT=$OTEL_EXPORTER_OTLP_ENDPOINT OTEL_TRACES_SAMPLER=$OTEL_TRACES_SAMPLER"
-    echo "Grafana Explore: http://127.0.0.1:${IHP_ROSTER_DEV_GRAFANA_PORT:-3300}/explore"
+    echo "Starting slot $BEPIS_WORKSPACE_SLOT app at $APP_BASE_URL with frontend watchers, PostgreSQL, and MailHog at $MAILHOG_BASE_URL..."
+    if [ "$OBSERVABILITY_ENABLED" = "1" ]; then
+        echo "Tracing env: OTEL_SERVICE_NAME=$OTEL_SERVICE_NAME OTEL_EXPORTER_OTLP_ENDPOINT=$OTEL_EXPORTER_OTLP_ENDPOINT OTEL_TRACES_SAMPLER=$OTEL_TRACES_SAMPLER"
+        echo "Grafana Explore: http://127.0.0.1:${IHP_ROSTER_DEV_GRAFANA_PORT:-3300}/explore"
+    fi
     start &
     APP_PID=$!
     wait "$APP_PID"

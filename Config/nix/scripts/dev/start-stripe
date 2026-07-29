@@ -2,18 +2,8 @@
 set -euo pipefail
 # shellcheck source=../lib/stripe.sh
 . "@scriptsRoot@/lib/stripe.sh"
-STATE_DIR="$(dev-agent-state-dir)"
-PID_FILE="$STATE_DIR/devenv.pid"
-POSTGRES_PID_FILE="$STATE_DIR/postgres.pid"
-MAILHOG_PID_FILE="$STATE_DIR/mailhog.pid"
-STRIPE_PID_FILE="$STATE_DIR/stripe-listen.pid"
-LOG_FILE="$STATE_DIR/devenv.log"
-STRIPE_LOG_FILE="$STATE_DIR/stripe-listen.log"
-STRIPE_GENERATED_ENV="$STATE_DIR/stripe-generated.env"
-DB_SOCKET="${PGHOST:-$PWD/build/db}"
-APP_HEALTH_URL="${APP_BASE_URL:-http://127.0.0.1:8000}"
-
-mkdir -p "$STATE_DIR"
+# shellcheck source=../lib/workspace.sh
+. "@scriptsRoot@/lib/workspace.sh"
 
 if [ ! -f "$PWD/.env" ]; then
     echo "dev-start-stripe requires a local .env file with STRIPE_SECRET_KEY and STRIPE_PRICE_ID or STRIPE_PRICE_LOOKUP_KEY." >&2
@@ -24,6 +14,17 @@ set -a
 # shellcheck disable=SC1091
 . "$PWD/.env"
 set +a
+
+# Reassert workspace-owned runtime coordinates after loading opt-in secrets.
+bepis_workspace_configure
+STATE_DIR="$(dev-agent-state-dir)"
+PID_FILE="$STATE_DIR/devenv.pid"
+STRIPE_PID_FILE="$STATE_DIR/stripe-listen.pid"
+LOG_FILE="$STATE_DIR/devenv.log"
+STRIPE_LOG_FILE="$STATE_DIR/stripe-listen.log"
+STRIPE_GENERATED_ENV="$STATE_DIR/stripe-generated.env"
+APP_HEALTH_URL="$APP_BASE_URL"
+mkdir -p "$STATE_DIR"
 
 if [ -z "${STRIPE_SECRET_KEY:-}" ]; then
     echo "dev-start-stripe requires STRIPE_SECRET_KEY in .env." >&2
@@ -80,11 +81,11 @@ dev-ensure-postgres
 dev-ensure-mailhog
 
 if command -v lsof >/dev/null 2>&1 \
-    && lsof -nP -iTCP:8000 -sTCP:LISTEN >/dev/null 2>&1 \
+    && lsof -nP -iTCP:"$PORT" -sTCP:LISTEN >/dev/null 2>&1 \
     && ! curl --connect-timeout 1 --max-time 2 -fsS "$APP_HEALTH_URL" >/dev/null 2>&1; then
-    echo "Port 8000 is occupied but not responding to $APP_HEALTH_URL." >&2
+    echo "Port $PORT is occupied but not responding to $APP_HEALTH_URL." >&2
     echo "Stop the stale process before starting dev again:" >&2
-    lsof -nP -iTCP:8000 -sTCP:LISTEN >&2 || true
+    lsof -nP -iTCP:"$PORT" -sTCP:LISTEN >&2 || true
     exit 1
 fi
 
@@ -95,7 +96,7 @@ if [ ! -f "$STRIPE_PID_FILE" ]; then
         --skip-update \
         --latest \
         --events "$IHP_ROSTER_STRIPE_WEBHOOK_EVENTS" \
-        --forward-to localhost:8000/StripeWebhook \
+        --forward-to "127.0.0.1:$PORT/StripeWebhook" \
         </dev/null >>"$STRIPE_LOG_FILE" 2>&1 &
     STRIPE_PID=$!
     echo "$STRIPE_PID" > "$STRIPE_PID_FILE"
@@ -132,14 +133,18 @@ umask 077
 printf 'STRIPE_WEBHOOK_SECRET=%s\n' "$WEBHOOK_SECRET" > "$STRIPE_GENERATED_ENV"
 
 echo "[dev-start-stripe] launching start with Stripe webhook forwarding" >>"$LOG_FILE"
+# The child shell expands its own positional parameters.
+# shellcheck disable=SC2016
 setsid nohup bash -c '
     set -euo pipefail
     set -a
     . "$PWD/.env"
     . "$1"
     set +a
+    . "$2"
+    bepis_workspace_configure
     exec start
-' bash "$STRIPE_GENERATED_ENV" </dev/null >>"$LOG_FILE" 2>&1 &
+' bash "$STRIPE_GENERATED_ENV" "@scriptsRoot@/lib/workspace.sh" </dev/null >>"$LOG_FILE" 2>&1 &
 PID=$!
 echo "$PID" > "$PID_FILE"
 disown "$PID" 2>/dev/null || true

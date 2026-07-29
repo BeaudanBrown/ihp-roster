@@ -1,0 +1,203 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+repo_root="$(git rev-parse --show-toplevel)"
+provision_command="$repo_root/Config/nix/scripts/epic/provision"
+registry_command="$repo_root/Config/nix/scripts/epic/worktree"
+fixture_root="$(mktemp -d)"
+cleanup() {
+    rm -rf "$fixture_root"
+}
+trap cleanup EXIT
+
+fail() {
+    echo "epic-worktree-provision-test: $*" >&2
+    exit 1
+}
+
+assert_contains() {
+    local haystack="$1"
+    local needle="$2"
+    [[ "$haystack" == *"$needle"* ]] || fail "expected output to contain '$needle'; got: $haystack"
+}
+
+fixture_repo="$fixture_root/repo"
+git init --quiet --initial-branch=roster "$fixture_repo"
+git -C "$fixture_repo" config user.name "Epic Provision Test"
+git -C "$fixture_repo" config user.email "epic-provision-test@example.invalid"
+printf 'committed\n' >"$fixture_repo/tracked"
+printf '.bepis-epic-worktree.json\n.env\n' >"$fixture_repo/.gitignore"
+git -C "$fixture_repo" add tracked .gitignore
+git -C "$fixture_repo" commit --quiet -m fixture
+base_commit="$(git -C "$fixture_repo" rev-parse HEAD)"
+
+# Dirty and secret primary-checkout state must not enter or change the new worktree.
+printf 'dirty staged\n' >"$fixture_repo/tracked"
+git -C "$fixture_repo" add tracked
+printf 'SECRET=do-not-copy\n' >"$fixture_repo/.env"
+status_before="$(git -C "$fixture_repo" status --porcelain=v1)"
+branch_before="$(git -C "$fixture_repo" branch --show-current)"
+head_before="$(git -C "$fixture_repo" rev-parse HEAD)"
+
+fake_bin="$fixture_root/bin"
+mkdir -p "$fake_bin"
+cat >"$fake_bin/direnv" <<'EOF'
+#!/usr/bin/env bash
+printf '%s\n' "$*" >>"$EPIC_PROVISION_DIRENV_LOG"
+if [ "${EPIC_PROVISION_FAIL_DIRENV:-}" = 1 ] && [ "${1:-}" = exec ]; then
+    exit 42
+fi
+if [ "${EPIC_PROVISION_READONLY_AFTER_INIT:-}" = 1 ] && [ "${1:-}" = exec ]; then
+    chmod a-w "$2"
+fi
+EOF
+chmod +x "$fake_bin/direnv"
+direnv_log="$fixture_root/direnv.log"
+
+provision_json="$(
+    cd "$fixture_repo"
+    PATH="$fake_bin:$PATH" \
+        EPIC_WORKTREE_COMMAND="$registry_command" \
+        EPIC_PROVISION_DIRENV_LOG="$direnv_log" \
+        bash "$provision_command" --epic 265 --base roster --json
+)"
+expected_path="$fixture_root/repo-epic-265"
+[ "$(jq -r '.epic' <<<"$provision_json")" = "265" ] || fail "report omitted epic"
+[ "$(jq -r '.targetBranch' <<<"$provision_json")" = "roster" ] || fail "report did not record actual target"
+[ "$(jq -r '.baseCommit' <<<"$provision_json")" = "$base_commit" ] || fail "report omitted resolved base commit"
+[ "$(jq -r '.branch' <<<"$provision_json")" = "epic-265" ] || fail "unstable branch convention"
+[ "$(jq -r '.path' <<<"$provision_json")" = "$expected_path" ] || fail "unstable sibling path convention"
+[ "$(jq -r '.slot' <<<"$provision_json")" = "1" ] || fail "report omitted allocated slot"
+[ "$(jq -r '.appUrl' <<<"$provision_json")" = "http://127.0.0.1:8001" ] || fail "unexpected app URL"
+[ "$(jq -r '.mailhogUrl' <<<"$provision_json")" = "http://127.0.0.1:8026" ] || fail "unexpected MailHog URL"
+
+[ "$(git -C "$fixture_repo" branch --show-current)" = "$branch_before" ] || fail "primary branch changed"
+[ "$(git -C "$fixture_repo" rev-parse HEAD)" = "$head_before" ] || fail "primary HEAD changed"
+[ "$(git -C "$fixture_repo" status --porcelain=v1)" = "$status_before" ] || fail "primary dirty state changed"
+[ "$(cat "$expected_path/tracked")" = "committed" ] || fail "dirty staged content leaked into worktree"
+[ ! -e "$expected_path/.env" ] || fail "primary .env was copied"
+[ "$(git -C "$expected_path" branch --show-current)" = "epic-265" ] || fail "worktree branch mismatch"
+assert_contains "$(cat "$direnv_log")" "allow $expected_path"
+assert_contains "$(cat "$direnv_log")" "exec $expected_path true"
+
+# Repeating provisioning must discover, not duplicate, the branch/worktree/registry.
+second_json="$(
+    cd "$fixture_repo"
+    PATH="$fake_bin:$PATH" \
+        EPIC_WORKTREE_COMMAND="$registry_command" \
+        EPIC_PROVISION_DIRENV_LOG="$direnv_log" \
+        bash "$provision_command" --epic 265 --base roster --json
+)"
+[ "$(jq -r '.path' <<<"$second_json")" = "$expected_path" ] || fail "repeat changed workspace"
+common_dir="$(git -C "$fixture_repo" rev-parse --path-format=absolute --git-common-dir)"
+registry_file="$common_dir/bepis/epic-worktrees/registry.json"
+[ "$(jq '.workspaces | length' "$registry_file")" = "1" ] || fail "repeat duplicated registration"
+[ "$(git -C "$fixture_repo" worktree list --porcelain | grep -c '^worktree ')" = "2" ] || fail "repeat duplicated worktree"
+
+# Existing unsafe sibling directories must not be overwritten or registered.
+unsafe_path="$fixture_root/repo-epic-266"
+mkdir "$unsafe_path"
+printf 'keep\n' >"$unsafe_path/sentinel"
+set +e
+unsafe_output="$(
+    cd "$fixture_repo"
+    PATH="$fake_bin:$PATH" \
+        EPIC_WORKTREE_COMMAND="$registry_command" \
+        EPIC_PROVISION_DIRENV_LOG="$direnv_log" \
+        bash "$provision_command" --epic 266 --base roster --json 2>&1
+)"
+unsafe_status=$?
+set -e
+[ "$unsafe_status" -ne 0 ] || fail "unsafe existing path was accepted"
+assert_contains "$unsafe_output" "refusing existing path"
+[ "$(cat "$unsafe_path/sentinel")" = "keep" ] || fail "unsafe path content was overwritten"
+[ "$(jq '[.workspaces[] | select(.epic == 266)] | length' "$registry_file")" = "0" ] || fail "failed path was registered"
+
+# Initialization failure may leave resumable Git state, but never a registry claim.
+set +e
+init_output="$(
+    cd "$fixture_repo"
+    PATH="$fake_bin:$PATH" \
+        EPIC_WORKTREE_COMMAND="$registry_command" \
+        EPIC_PROVISION_DIRENV_LOG="$direnv_log" \
+        EPIC_PROVISION_FAIL_DIRENV=1 \
+        bash "$provision_command" --epic 267 --base roster --json 2>&1
+)"
+init_status=$?
+set -e
+[ "$init_status" -eq 42 ] || fail "direnv initialization failure was hidden"
+assert_contains "$init_output" "direnv/Nix initialization failed"
+[ "$(jq '[.workspaces[] | select(.epic == 267)] | length' "$registry_file")" = "0" ] || fail "failed initialization was registered"
+
+# A safe pre-existing branch is resumed at the stable sibling path.
+git -C "$fixture_repo" branch epic-268 "$base_commit"
+resumed_json="$(
+    cd "$fixture_repo"
+    PATH="$fake_bin:$PATH" \
+        EPIC_WORKTREE_COMMAND="$registry_command" \
+        EPIC_PROVISION_DIRENV_LOG="$direnv_log" \
+        bash "$provision_command" --epic 268 --base roster --json
+)"
+[ "$(jq -r '.path' <<<"$resumed_json")" = "$fixture_root/repo-epic-268" ] || fail "existing branch was not resumed"
+[ "$(git -C "$fixture_root/repo-epic-268" branch --show-current)" = "epic-268" ] || fail "resumed worktree branch mismatch"
+
+# A conventionally named but unrelated branch is ambiguous and must be refused.
+unrelated_commit="$(printf 'unrelated\n' | git -C "$fixture_repo" commit-tree "$(git -C "$fixture_repo" rev-parse 'HEAD^{tree}')")"
+git -C "$fixture_repo" branch epic-269 "$unrelated_commit"
+set +e
+unrelated_output="$(
+    cd "$fixture_repo"
+    PATH="$fake_bin:$PATH" \
+        EPIC_WORKTREE_COMMAND="$registry_command" \
+        EPIC_PROVISION_DIRENV_LOG="$direnv_log" \
+        bash "$provision_command" --epic 269 --base roster --json 2>&1
+)"
+unrelated_status=$?
+set -e
+[ "$unrelated_status" -eq 65 ] || fail "unrelated existing branch was adopted"
+assert_contains "$unrelated_output" "does not descend from requested base"
+[ "$(jq '[.workspaces[] | select(.epic == 269)] | length' "$registry_file")" = "0" ] || fail "unrelated branch was registered"
+
+# Registration failure after initialization must roll back any registry record.
+set +e
+readonly_output="$(
+    cd "$fixture_repo"
+    PATH="$fake_bin:$PATH" \
+        EPIC_WORKTREE_COMMAND="$registry_command" \
+        EPIC_PROVISION_DIRENV_LOG="$direnv_log" \
+        EPIC_PROVISION_READONLY_AFTER_INIT=1 \
+        bash "$provision_command" --epic 270 --base roster --json 2>&1
+)"
+readonly_status=$?
+set -e
+chmod u+w "$fixture_root/repo-epic-270"
+[ "$readonly_status" -ne 0 ] || fail "unwritable identity path unexpectedly provisioned"
+assert_contains "$readonly_output" "registry unchanged"
+[ "$(jq '[.workspaces[] | select(.epic == 270)] | length' "$registry_file")" = "0" ] \
+    || fail "failed identity write left a partial registry record"
+
+# Stable sibling symlinks must never redirect provisioning elsewhere.
+mkdir "$fixture_root/symlink-target"
+ln -s "$fixture_root/symlink-target" "$fixture_root/repo-epic-271"
+set +e
+symlink_output="$(
+    cd "$fixture_repo"
+    PATH="$fake_bin:$PATH" \
+        EPIC_WORKTREE_COMMAND="$registry_command" \
+        EPIC_PROVISION_DIRENV_LOG="$direnv_log" \
+        bash "$provision_command" --epic 271 --base roster --json 2>&1
+)"
+symlink_status=$?
+set -e
+[ "$symlink_status" -eq 65 ] || fail "symlinked sibling path was accepted"
+assert_contains "$symlink_output" "refusing symlink"
+[ "$(jq '[.workspaces[] | select(.epic == 271)] | length' "$registry_file")" = "0" ] || fail "symlinked path was registered"
+
+set +e
+missing_base_output="$(cd "$fixture_repo" && bash "$provision_command" --epic 272 2>&1)"
+missing_base_status=$?
+set -e
+[ "$missing_base_status" -eq 64 ] || fail "missing explicit base ref was accepted"
+assert_contains "$missing_base_output" "requires --base"
+
+echo "epic-worktree-provision-test: ok"
