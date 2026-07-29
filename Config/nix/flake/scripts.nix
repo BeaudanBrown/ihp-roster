@@ -103,6 +103,7 @@ in
         epic-worktree-manage = script ../scripts/epic/manage;
         epic-worktree-manage-test = script ../scripts/epic/manage-test;
         epic-worktree-concurrency-test = script ../scripts/epic/concurrency-test;
+        epic-worktree-workflow-acceptance-test = script ../scripts/epic/workflow-acceptance-test;
         epic-worktree-provision = script ../scripts/epic/provision;
         epic-worktree-provision-test = script ../scripts/epic/provision-test;
         architecture-contracts = script ../scripts/architecture/contracts;

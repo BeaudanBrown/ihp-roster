@@ -1,0 +1,169 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+program="epic-worktree-workflow-acceptance-test"
+
+fail() {
+    echo "$program: $*" >&2
+    exit 69
+}
+
+commands=(
+    epic-worktree-test
+    epic-worktree-provision-test
+    epic-worktree-orientation-test
+    epic-worktree-manage-test
+    epic-worktree-concurrency-test
+)
+
+for command_name in "${commands[@]}"; do
+    command -v "$command_name" >/dev/null 2>&1 \
+        || fail "named command unavailable: $command_name"
+done
+
+for command_name in "${commands[@]}"; do
+    echo "$program: running $command_name"
+    "$command_name"
+done
+
+fixture_root="$(mktemp -d)"
+cleanup() {
+    rm -rf "$fixture_root"
+}
+trap cleanup EXIT
+
+primary_repo="$fixture_root/repo"
+mock_bin="$fixture_root/bin"
+mkdir -p "$mock_bin"
+git init --quiet --initial-branch=roster "$primary_repo"
+git -C "$primary_repo" config user.name "Epic Workflow Acceptance"
+git -C "$primary_repo" config user.email "epic-workflow-acceptance@example.invalid"
+printf 'base\n' >"$primary_repo/README"
+printf '.bepis-epic-worktree.json\n' >"$primary_repo/.gitignore"
+git -C "$primary_repo" add README .gitignore
+git -C "$primary_repo" commit --quiet -m base
+printf 'primary work\n' >"$primary_repo/primary-only"
+primary_status_before="$(git -C "$primary_repo" status --porcelain=v1)"
+primary_head_before="$(git -C "$primary_repo" rev-parse HEAD)"
+
+cat >"$mock_bin/direnv" <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+case "${1:-}" in
+    allow|exec) exit 0 ;;
+    *) exit 64 ;;
+esac
+EOF
+cat >"$mock_bin/gh" <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+if [ "$1" = issue ] && [ "$2" = close ]; then
+    [ "${EPIC_CLOSURE_APPROVED:-}" = true ] || exit 77
+    printf '%s\n' "$*" >>"$EPIC_GH_LOG"
+    exit 0
+fi
+if [ "$1" = repo ] && [ "$2" = view ]; then
+    printf '%s\n' 'BeaudanBrown/ihp-roster'
+    exit 0
+fi
+[ "$1" = api ] || exit 64
+case "${!#}" in
+    repos/BeaudanBrown/ihp-roster/issues/999)
+        printf '%s\n' '{"number":999,"title":"Workflow acceptance","state":"open","html_url":"https://example.invalid/issues/999"}'
+        ;;
+    repos/BeaudanBrown/ihp-roster/issues/999/sub_issues?*)
+        printf '%s\n' '[{"number":1000,"title":"Workflow sub-issue","state":"open","html_url":"https://example.invalid/issues/1000","assignees":[]}]'
+        ;;
+    repos/BeaudanBrown/ihp-roster/issues/1000/dependencies/blocked_by?*)
+        printf '%s\n' '[]'
+        ;;
+    *) exit 64 ;;
+esac
+EOF
+chmod +x "$mock_bin"/*
+
+run_primary() {
+    (
+        cd "$primary_repo"
+        PATH="$mock_bin:$PATH" \
+        EPIC_GH_LOG="$fixture_root/gh.log" \
+        EPIC_WORKTREE_COMMAND="$(command -v epic-worktree)" \
+            "$@"
+    )
+}
+
+provision="$(run_primary epic-worktree-provision --epic 999 --base roster --json)"
+epic_path="$(jq -r '.path' <<<"$provision")"
+run_epic() {
+    (
+        cd "$epic_path"
+        PATH="$mock_bin:$PATH" EPIC_GH_LOG="$fixture_root/gh.log" "$@"
+    )
+}
+[ "$(jq -r '.slot' <<<"$provision")" = 1 ] || fail "provisioning did not allocate slot 1"
+[ "$(git -C "$primary_repo" rev-parse HEAD)" = "$primary_head_before" ] \
+    || fail "provisioning changed primary HEAD"
+[ "$(git -C "$primary_repo" status --porcelain=v1)" = "$primary_status_before" ] \
+    || fail "provisioning changed primary work"
+orientation_before="$(run_epic epic-worktree orient --json)"
+[ "$(jq -r '.selection.allowed' <<<"$orientation_before")" = true ] \
+    || fail "fresh epic workspace did not wait for user selection"
+[[ "$(run_epic epic-worktree orient)" == *"present verification evidence, and request approval before closure"* ]] \
+    || fail "orientation omitted verification-evidence closure rule"
+git -C "$primary_repo" add primary-only
+git -C "$primary_repo" commit --quiet -m 'Continue primary work'
+
+printf 'integrated\n' >"$epic_path/epic-result"
+git -C "$epic_path" add epic-result
+git -C "$epic_path" commit --quiet -m 'Complete workflow acceptance (#1000)'
+orientation_after="$(run_epic epic-worktree orient --json)"
+[ "$(jq -r '.selection.allowed' <<<"$orientation_after")" = false ] \
+    || fail "interrupted epic workspace offered a new selection"
+[ "$(jq -r '.workspace.pendingCommittedIssues[0]' <<<"$orientation_after")" = 1000 ] \
+    || fail "interrupted work was not tied to its open sub-issue"
+completion_evidence="$(jq -cn --arg commit "$(git -C "$epic_path" rev-parse HEAD)" \
+    '{commit: $commit, checks: ["orientation"]}')"
+[ "$(jq -r '.commit' <<<"$completion_evidence")" = "$(git -C "$epic_path" rev-parse HEAD)" ] \
+    || fail "completion evidence omitted the implemented commit"
+printf '%s: completion evidence %s; awaiting approval\n' "$program" "$completion_evidence"
+set +e
+run_epic gh issue close 1000 --comment "$completion_evidence" >/dev/null 2>&1
+unapproved_child_status=$?
+set -e
+[ "$unapproved_child_status" = 77 ] || fail "sub-issue closure did not require approval"
+EPIC_CLOSURE_APPROVED=true run_epic gh issue close 1000 --comment "$completion_evidence"
+grep -Fq "issue close 1000 --comment $completion_evidence" "$fixture_root/gh.log" \
+    || fail "completion evidence was not supplied before sub-issue closure"
+run_primary epic-worktree-manage sync --epic 999 --apply --json >/dev/null
+target_before_integration="$(git -C "$primary_repo" rev-parse HEAD)"
+integration_plan="$(run_primary epic-worktree-manage integrate --epic 999 --json)"
+[ "$(jq -r '.applied' <<<"$integration_plan")" = false ] \
+    || fail "integration ran without approval"
+[ "$(git -C "$primary_repo" rev-parse HEAD)" = "$target_before_integration" ] \
+    || fail "unapproved integration changed primary HEAD"
+run_primary epic-worktree-manage integrate --epic 999 --approve --json >/dev/null
+[ "$(git -C "$primary_repo" show HEAD:epic-result)" = integrated ] \
+    || fail "approved integration omitted epic commit"
+
+[[ "$(run_primary epic-worktree-manage preflight --epic 999)" == *"parent closure: separate approval required"* ]] \
+    || fail "preflight omitted separate parent-closure approval"
+set +e
+run_primary gh issue close 999 --comment "approved parent closure" >/dev/null 2>&1
+unapproved_parent_status=$?
+set -e
+[ "$unapproved_parent_status" = 77 ] || fail "parent closure did not require approval"
+EPIC_CLOSURE_APPROVED=true run_primary gh issue close 999 --comment "approved parent closure"
+grep -Fq 'issue close 999 --comment approved parent closure' "$fixture_root/gh.log" \
+    || fail "parent closure did not require its own explicit approval"
+cleanup_plan="$(run_primary epic-worktree-manage cleanup --epic 999 --json)"
+[ "$(jq -r '.applied' <<<"$cleanup_plan")" = false ] \
+    || fail "cleanup ran without approval"
+[ -d "$epic_path" ] || fail "unapproved cleanup removed worktree"
+run_primary epic-worktree-manage cleanup --epic 999 --approve --json >/dev/null
+[ ! -e "$epic_path" ] || fail "approved cleanup left worktree"
+git -C "$primary_repo" show-ref --verify --quiet refs/heads/epic-999 \
+    && fail "approved cleanup left epic branch"
+[ "$(git -C "$primary_repo" show HEAD:primary-only)" = 'primary work' ] \
+    || fail "integration or cleanup changed primary work"
+
+echo "$program: ok"

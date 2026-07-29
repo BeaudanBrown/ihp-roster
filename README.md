@@ -99,14 +99,17 @@ state paths. `just start`, `dev-start`, `dev-status`, `dev-wait`, and `dev-stop`
 apply workspace-derived environment and affect only that checkout. Explicit
 `DEVENV_AGENT_STATE_DIR` roots are namespaced per worktree.
 
+Epic worktrees are agent-operated. See `AGENTS.md` for the orientation and
+approval contract.
+
 For a registered epic, `epic-worktree-manage preflight --epic N` reports
 cleanliness, divergence, conflicts, affected generated/migration files, runtime
 state, and required checks without changing refs or worktrees. Synchronization
 requires `sync --apply`; final `--no-ff` integration and safe cleanup each
-require their own `--approve`. Parent-issue closure remains separate. The
-bounded `epic-worktree-concurrency-test` acceptance gate provisions two
-worktrees in a disposable clone, uses isolated high ports and real local
-PostgreSQL/MailHog processes, and removes all fixture state on exit.
+require their own `--approve`; parent-issue closure is separate. The bounded
+`epic-worktree-workflow-acceptance-test` runs the disposable lifecycle gate,
+including the two-worktree native runtime isolation check, and removes all
+fixture state on exit.
 
 ### Android PWA emulator
 
