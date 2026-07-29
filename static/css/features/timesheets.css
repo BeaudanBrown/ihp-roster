@@ -128,7 +128,7 @@
 }
 
 .timesheet-entry-card:has(.timesheet-entry-card-link):hover,
-.timesheet-entry-card:has(.timesheet-entry-card-link):focus-within {
+.timesheet-entry-card:has(.timesheet-entry-card-link:focus-visible) {
     border-color: var(--app-accent-border-strong);
     background: linear-gradient(
         180deg,
@@ -139,7 +139,7 @@
     transform: translateY(-1px);
 }
 
-.timesheet-entry-card:has(.timesheet-entry-card-link):focus-within {
+.timesheet-entry-card:has(.timesheet-entry-card-link:focus-visible) {
     outline: 2px solid var(--app-accent);
     outline-offset: 2px;
 }

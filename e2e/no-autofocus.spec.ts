@@ -61,6 +61,33 @@ test.describe('No automatic focus', () => {
         await expectNoFocusedControl(page, `#${dialogOverlayMountDomId}`);
     });
 
+    test('timesheet cards reserve their focus outline for keyboard focus', async ({ page }) => {
+        await loginAs(page, 'e2e-test@example.com', 'test-password-123');
+        await gotoWhenReady(page, '/Timesheets?showApproved=true&showAllStaff=true', '#timesheet-week-shell');
+
+        const cardLink = page.locator('.timesheet-entry-card-link').first();
+        const card = cardLink.locator('..');
+        await cardLink.scrollIntoViewIfNeeded();
+        let reachedCardLink = false;
+        for (let index = 0; index < 100; index += 1) {
+            await page.keyboard.press('Tab');
+            reachedCardLink = await cardLink.evaluate((link) => document.activeElement === link);
+            if (reachedCardLink) break;
+        }
+        expect(reachedCardLink).toBe(true);
+        await expect(cardLink).toBeFocused();
+        await expect(card).toHaveCSS('outline-width', '2px');
+        await cardLink.evaluate((link) => (link as HTMLElement).blur());
+
+        const bounds = await cardLink.boundingBox();
+        expect(bounds).not.toBeNull();
+
+        await page.mouse.move((bounds?.x ?? 0) + 4, (bounds?.y ?? 0) + 4);
+        await page.mouse.down();
+        await expect(card).toHaveCSS('outline-width', '0px');
+        await page.mouse.up();
+    });
+
     test('leave dialog does not focus controls when opened', async ({ page }) => {
         await loginAs(page, 'e2e-worker@example.com', 'test-password-123');
         await gotoWhenReady(page, '/EditProfile', '#profile-content-fragment');

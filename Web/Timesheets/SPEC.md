@@ -77,8 +77,9 @@ submission work belongs in `docs/workstreams/` until it lands.
   shift and break widths from authoritative elapsed instants, so repeated equal
   clocks do not become missing or full-day bars. A full-contrast accent border
   and tinted card background identify the transient state without a status
-  badge. Create is shown in place of approval,
-  and clicking the card body opens the prefilled form.
+  badge. Create is shown in place of approval, and clicking the card body opens
+  the prefilled form. Mouse activation does not leave a focus outline on the
+  card; keyboard `focus-visible` navigation retains the accessible outline.
 
 ## Materialization And Ad-Hoc Entries
 
