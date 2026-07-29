@@ -45,6 +45,13 @@ tests = do
             rendered `shouldSatisfy` all (not . Text.isInfixOf "Turn Live on")
             rendered `shouldSatisfy` any (Text.isInfixOf "future roster")
 
+    describe "timesheet help copy" do
+        it "explains origin semantics without relying on removed form banners" do
+            timesheets <- maybe (expectationFailure "missing timesheets topic" >> error "missing timesheets topic") pure (lookupPageHelpTopic (PageHelpTopicId "timesheets"))
+            let rendered = flattenHelpText (filterPageHelpTopic managerContext timesheets)
+            rendered `shouldSatisfy` any (Text.isInfixOf "without an origin warning")
+            rendered `shouldSatisfy` any (Text.isInfixOf "no separate origin banner")
+
     describe "billing help role filtering" do
         it "keeps payer actions owner-only while showing diagnostics to founder support" do
             billing <- maybe (expectationFailure "missing billing topic" >> error "missing billing topic") pure (lookupPageHelpTopic (PageHelpTopicId "billing"))

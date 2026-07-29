@@ -172,24 +172,14 @@ renderOccurrenceChooser entry annotationField fieldName label localTime storedOc
 
 renderTimesheetFormOriginNotice :: TimesheetFormOrigin -> Html
 renderTimesheetFormOriginNotice AdHocTimesheetForm = mempty
-renderTimesheetFormOriginNotice AdHocTimesheetFormWithSuggestion = [hsx|
-    <div class="alert alert-warning" role="status">
-        <strong>This creates a separate timesheet entry.</strong>
-        The rostered suggestion will remain until it is created from its own card.
-    </div>
-|]
+renderTimesheetFormOriginNotice AdHocTimesheetFormWithSuggestion = mempty
 renderTimesheetFormOriginNotice RosteredTimesheetForm = [hsx|
     <div class="alert alert-info" role="status">
         <strong>Roster suggestion.</strong>
         This form starts from the current roster shift. Your changes are saved only to the new timesheet entry.
     </div>
 |]
-renderTimesheetFormOriginNotice RosteredTimesheetEntryForm = [hsx|
-    <div class="alert alert-info" role="status">
-        <strong>Roster-derived entry.</strong>
-        This entry is a snapshot of a roster shift. Its roster source and date stay fixed; edits do not change the roster.
-    </div>
-|]
+renderTimesheetFormOriginNotice RosteredTimesheetEntryForm = mempty
 
 renderStaffFieldForOrigin :: (?context :: ControllerContext) => TimesheetFormOrigin -> TimesheetEntry -> [Staff] -> Html
 renderStaffFieldForOrigin AdHocTimesheetForm entry staffMembers = renderStaffField entry staffMembers

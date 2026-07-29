@@ -1401,7 +1401,7 @@ tests = aroundAll withDatabaseTestContext do
                 testHadBreak entry `shouldBe` False
                 entry.sourceRosterSlotId `shouldBe` Just (unpackId rosterSlot.id)
 
-        it "warns that an ad-hoc entry is separate when a roster suggestion exists" $ withContext do
+        it "keeps an ad-hoc entry separate without showing an origin warning" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Timesheet Ad Hoc Warning Venue"
                 workerUser <- createUserRecord "timesheet-ad-hoc-warning-worker@example.com" "staff" True
@@ -1430,8 +1430,8 @@ tests = aroundAll withDatabaseTestContext do
                             ]
 
                 response `responseStatusShouldBe` status200
-                response `responseBodyShouldContain` "This creates a separate timesheet entry"
-                response `responseBodyShouldContain` "The rostered suggestion will remain"
+                response `responseBodyShouldNotContain` "This creates a separate timesheet entry"
+                response `responseBodyShouldNotContain` "The rostered suggestion will remain"
                 response `responseBodyShouldContain` cs (pathTo CreateTimesheetEntryAction)
                 response `responseBodyShouldNotContain` cs (pathTo CreateTimesheetEntryFromSuggestionAction { rosterSlotId = rosterSlot.id })
 
@@ -1568,7 +1568,8 @@ tests = aroundAll withDatabaseTestContext do
                         callActionWithParams EditTimesheetEntryAction { timesheetEntryId = entry.id }
                             [("weekOffset", "0"), ("showAllStaff", "true")]
                 editResponse `responseStatusShouldBe` status200
-                editResponse `responseBodyShouldContain` "<strong>Roster-derived entry.</strong>"
+                editResponse `responseBodyShouldNotContain` "<strong>Roster-derived entry.</strong>"
+                editResponse `responseBodyShouldNotContain` "This entry is a snapshot of a roster shift."
                 editResponse `responseBodyShouldNotContain` "<span class=\"badge text-bg-info\">Rostered</span>"
                 editResponse `responseBodyShouldContain` "<select name=\"staffId\""
                 editResponse `responseBodyShouldContain` "Sam Separate"

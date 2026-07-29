@@ -95,13 +95,14 @@ submission work belongs in `docs/workstreams/` until it lands.
 - On a persisted roster-derived entry, managers may correct the assigned staff
   within their normal venue scope. Staff cannot reassign an entry. The worked
   date and source link stay immutable, and later roster changes never update or
-  delete the entry.
+  delete the entry. Its edit form does not render a separate roster-origin
+  notice; provenance remains enforced by the stored source link.
 - Creation and approval are separate actions. There is no create-and-approve or
   bulk-create path.
 - The day add control always creates an unrelated ad-hoc entry with no source
-  link. If a suggestion exists for that day the form warns that it is separate,
-  including when cards are hidden by Show suggestions; creation remains allowed
-  and does not consume the suggestion.
+  link. If a suggestion exists for that day, creation remains allowed and does
+  not consume the suggestion; the form does not render a separate origin
+  warning, including when cards are hidden by Show suggestions.
 - Active source identity is enforced by the partial unique index on
   `source_roster_slot_id` where `deleted_at IS NULL`. Materialization also
   serializes on the source roster slot and revalidates the projected source;
