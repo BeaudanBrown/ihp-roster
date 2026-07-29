@@ -1,0 +1,122 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+repo_root="$(git rev-parse --show-toplevel)"
+command_path="$repo_root/Config/nix/scripts/epic/worktree"
+fixture_root="$(mktemp -d)"
+cleanup() {
+    rm -rf "$fixture_root"
+}
+trap cleanup EXIT
+
+fail() {
+    echo "epic-worktree-test: $*" >&2
+    exit 1
+}
+
+assert_contains() {
+    local haystack="$1"
+    local needle="$2"
+    [[ "$haystack" == *"$needle"* ]] || fail "expected output to contain '$needle'; got: $haystack"
+}
+
+fixture_repo="$fixture_root/repo"
+git init --quiet --initial-branch=roster "$fixture_repo"
+git -C "$fixture_repo" config user.name "Epic Worktree Test"
+git -C "$fixture_repo" config user.email "epic-worktree-test@example.invalid"
+printf 'fixture\n' >"$fixture_repo/README"
+git -C "$fixture_repo" add README
+git -C "$fixture_repo" commit --quiet -m fixture
+git -C "$fixture_repo" switch --quiet -c epic-266-identity
+
+register_output="$(cd "$fixture_repo" && bash "$command_path" register --epic 266 --target roster --branch epic-266-identity --kind epic)"
+assert_contains "$register_output" "epic #266"
+assert_contains "$register_output" "slot 1"
+
+identity_file="$fixture_repo/.bepis-epic-worktree.json"
+[ -f "$identity_file" ] || fail "register did not write identity"
+identity_keys="$(jq -r 'keys | sort | join(",")' "$identity_file")"
+[ "$identity_keys" = "epic,kind,slot,targetBranch,version" ] || fail "identity contains unexpected fields: $identity_keys"
+[ "$(jq -r '.version' "$identity_file")" = "1" ] || fail "identity version is not 1"
+[ "$(jq -r '.slot' "$identity_file")" = "1" ] || fail "first slot is not 1"
+
+json_output="$(cd "$fixture_repo" && bash "$command_path" inspect --json)"
+[ "$(jq -r '.epic' <<<"$json_output")" = "266" ] || fail "inspect did not find epic"
+[ "$(jq -r '.branch' <<<"$json_output")" = "epic-266-identity" ] || fail "inspect did not report branch"
+[ "$(jq -r '.status' <<<"$json_output")" = "active" ] || fail "inspect did not report active workspace"
+
+second_output="$(cd "$fixture_repo" && bash "$command_path" register --epic 266 --target roster --branch epic-266-identity --kind epic)"
+assert_contains "$second_output" "slot 1"
+fixture_common_dir="$(git -C "$fixture_repo" rev-parse --path-format=absolute --git-common-dir)"
+registry_file="$fixture_common_dir/bepis/epic-worktrees/registry.json"
+[ "$(jq '.workspaces | length' "$registry_file")" = "1" ] \
+    || fail "idempotent registration duplicated the workspace"
+
+# Main and linked worktrees must share discovery and allocate under one lock.
+concurrent_root="$fixture_root/concurrent"
+mkdir -p "$concurrent_root"
+pids=()
+for number in 267 268 269 270; do
+    branch="epic-$number-test"
+    path="$concurrent_root/$branch"
+    git -C "$fixture_repo" branch "$branch"
+    git -C "$fixture_repo" worktree add --quiet "$path" "$branch"
+    (
+        cd "$path"
+        bash "$command_path" register --epic "$number" --target roster --kind epic >"$fixture_root/register-$number.out"
+    ) &
+    pids+=("$!")
+done
+for pid in "${pids[@]}"; do
+    wait "$pid"
+done
+
+[ "$(jq '[.workspaces[].slot] | length == (unique | length)' "$registry_file")" = "true" ] \
+    || fail "concurrent registration allocated duplicate slots"
+[ "$(jq '.workspaces | length' "$registry_file")" = "5" ] \
+    || fail "concurrent registrations were lost"
+[ "$(cd "$concurrent_root/epic-267-test" && bash "$command_path" inspect --epic 266 --json | jq -r '.path')" = "$fixture_repo" ] \
+    || fail "linked worktree did not discover the common registry"
+
+# Stale and inconsistent local metadata must remain visible and block reuse.
+stale_path="$concurrent_root/epic-270-test"
+git -C "$fixture_repo" worktree remove --force "$stale_path"
+stale_json="$(cd "$fixture_repo" && bash "$command_path" inspect --epic 270 --json)"
+[ "$(jq -r '.status' <<<"$stale_json")" = "stale" ] || fail "removed worktree was not reported stale"
+
+inconsistent_identity="$concurrent_root/epic-269-test/.bepis-epic-worktree.json"
+jq '.slot = 99' "$inconsistent_identity" >"$inconsistent_identity.tmp"
+mv "$inconsistent_identity.tmp" "$inconsistent_identity"
+inconsistent_json="$(cd "$fixture_repo" && bash "$command_path" inspect --epic 269 --json)"
+[ "$(jq -r '.status' <<<"$inconsistent_json")" = "inconsistent-identity" ] \
+    || fail "identity drift was not reported"
+set +e
+conflict_output="$(cd "$concurrent_root/epic-269-test" && bash "$command_path" register --epic 269 --target roster --kind epic 2>&1)"
+conflict_status=$?
+set -e
+[ "$conflict_status" -eq 65 ] || fail "identity drift did not block registration"
+assert_contains "$conflict_output" "identity conflicts"
+
+all_json="$(cd "$fixture_repo" && bash "$command_path" inspect --all --json)"
+[ "$(jq 'length' <<<"$all_json")" = "5" ] || fail "machine-readable all inspection is incomplete"
+[ "$(jq '[.[].status] | index("stale") != null' <<<"$all_json")" = "true" ] \
+    || fail "all inspection omitted stale status"
+
+cp "$registry_file" "$registry_file.valid"
+jq '.commonGitDir = "/tmp/foreign-repository"' "$registry_file.valid" >"$registry_file"
+set +e
+foreign_output="$(cd "$fixture_repo" && bash "$command_path" inspect --json 2>&1)"
+foreign_status=$?
+set -e
+[ "$foreign_status" -eq 65 ] || fail "foreign registry owner did not fail safely"
+assert_contains "$foreign_output" "malformed or foreign registry"
+mv "$registry_file.valid" "$registry_file"
+
+set +e
+invalid_branch_output="$(cd "$fixture_repo" && bash "$command_path" register --epic 271 --target 'invalid branch' 2>&1)"
+invalid_branch_status=$?
+set -e
+[ "$invalid_branch_status" -eq 64 ] || fail "invalid branch name was accepted"
+assert_contains "$invalid_branch_output" "invalid target branch"
+
+echo "epic-worktree-test: ok"

@@ -3,6 +3,7 @@
 .codex
 .loom/
 .env
+.bepis-epic-worktree.json
 .ghci
 tmp
 result

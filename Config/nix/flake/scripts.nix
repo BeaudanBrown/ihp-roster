@@ -93,6 +93,8 @@ in
         frontend-watch = script ../scripts/frontend/watch;
         git-install-hooks = script ../scripts/git/install-hooks;
         git-pre-commit-check = script ../scripts/git/pre-commit-check;
+        epic-worktree = script ../scripts/epic/worktree;
+        epic-worktree-test = script ../scripts/epic/worktree-test;
         architecture-contracts = script ../scripts/architecture/contracts;
         architecture-facts = script ../scripts/architecture/facts;
         architecture-schema = script ../scripts/architecture/schema;
