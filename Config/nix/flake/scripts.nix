@@ -99,6 +99,7 @@ in
         git-pre-commit-check = script ../scripts/git/pre-commit-check;
         epic-worktree = script ../scripts/epic/worktree;
         epic-worktree-test = script ../scripts/epic/worktree-test;
+        epic-worktree-orientation-test = script ../scripts/epic/orientation-test;
         epic-worktree-provision = script ../scripts/epic/provision;
         epic-worktree-provision-test = script ../scripts/epic/provision-test;
         architecture-contracts = script ../scripts/architecture/contracts;

@@ -10,10 +10,12 @@ usage() {
 Usage:
   epic-worktree register --epic NUMBER --target BRANCH [--branch BRANCH] [--path PATH] [--kind epic]
   epic-worktree inspect [--epic NUMBER | --branch BRANCH | --path PATH | --all] [--json]
+  epic-worktree orient [--json]
 
-Registers and inspects local epic worktree identity. The shared registry is
+Registers, inspects, and orients local epic worktrees. The shared registry is
 stored beneath Git's common directory; the compact identity is stored in the
-worktree root.
+worktree root. Orientation reads live parent/sub-issue/blocker state from GitHub
+and never selects, starts, or closes work.
 EOF
 }
 
@@ -210,7 +212,7 @@ print_record() {
 
 command_name="${1:-}"
 case "$command_name" in
-    register|inspect)
+    register|inspect|orient)
         shift
         ;;
     help|-h|--help)
@@ -219,9 +221,171 @@ case "$command_name" in
         ;;
     *)
         usage >&2
-        die 64 "expected register or inspect"
+        die 64 "expected register, inspect, or orient"
         ;;
 esac
+
+if [ "$command_name" = orient ]; then
+    json=false
+    while [ "$#" -gt 0 ]; do
+        case "$1" in
+            --json)
+                json=true
+                shift
+                ;;
+            -h|--help)
+                usage
+                exit 0
+                ;;
+            *) die 64 "unknown orient option: $1" ;;
+        esac
+    done
+
+    require_command gh
+    current_path="$(git rev-parse --show-toplevel 2>/dev/null || true)"
+    [ -n "$current_path" ] || die 66 "orient must run from a registered epic worktree"
+    resolve_worktree "$current_path"
+    registry_paths "$RESOLVED_COMMON_DIR"
+    [ -f "$REGISTRY_FILE" ] || die 66 "epic worktree registry does not exist"
+    validate_registry "$RESOLVED_COMMON_DIR"
+
+    mapfile -t orientation_records < <(jq -c --arg path "$RESOLVED_PATH" '.workspaces[] | select(.path == $path)' "$REGISTRY_FILE")
+    [ "${#orientation_records[@]}" -eq 1 ] || die 66 "current worktree is not registered as an epic workspace"
+    orientation_record="${orientation_records[0]}"
+    [ "$(jq -r '.status' <<<"$(record_with_status "$orientation_record")")" = active ] \
+        || die 65 "current epic worktree identity is stale or inconsistent"
+
+    epic_number="$(jq -r '.epic' <<<"$orientation_record")"
+    target_branch="$(jq -r '.targetBranch' <<<"$orientation_record")"
+    repository="$(gh repo view --json nameWithOwner --jq .nameWithOwner 2>/dev/null)" \
+        || die 69 "cannot resolve the GitHub repository; authenticate gh and retry"
+    [[ "$repository" =~ ^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$ ]] \
+        || die 65 "GitHub returned an invalid repository name"
+
+    github_api() {
+        local endpoint="$1"
+        gh api -H "Accept: application/vnd.github+json" \
+            -H "X-GitHub-Api-Version: 2022-11-28" "$endpoint" 2>/dev/null \
+            || die 69 "cannot read live GitHub issue state: $endpoint"
+    }
+
+    github_api_collection() {
+        local endpoint="$1"
+        local response
+        response="$(gh api --paginate --slurp \
+            -H "Accept: application/vnd.github+json" \
+            -H "X-GitHub-Api-Version: 2022-11-28" "$endpoint" 2>/dev/null)" \
+            || die 69 "cannot read live GitHub issue state: $endpoint"
+        jq -c 'if length == 0 then [] elif (.[0] | type) == "array" then add else . end' <<<"$response" \
+            || die 65 "GitHub returned malformed paginated issue state"
+    }
+
+    parent="$(github_api "repos/$repository/issues/$epic_number")"
+    jq -e --argjson epic "$epic_number" \
+        '.number == $epic and (.title | type == "string") and (.state | type == "string") and (.html_url | type == "string")' \
+        <<<"$parent" >/dev/null || die 65 "GitHub returned malformed parent issue state"
+    children="$(github_api_collection "repos/$repository/issues/$epic_number/sub_issues?per_page=100")"
+    jq -e 'type == "array" and all(.[]; (.number | type == "number") and (.title | type == "string") and (.state | type == "string") and (.assignees | type == "array"))' \
+        <<<"$children" >/dev/null || die 65 "GitHub returned malformed sub-issue state"
+
+    mapfile -d '' -t staged_paths < <(git -C "$RESOLVED_PATH" diff --cached --name-only -z)
+    mapfile -d '' -t unstaged_paths < <(git -C "$RESOLVED_PATH" diff --name-only -z)
+    mapfile -d '' -t untracked_paths < <(git -C "$RESOLVED_PATH" ls-files --others --exclude-standard -z)
+    mapfile -d '' -t conflicted_paths < <(git -C "$RESOLVED_PATH" diff --name-only --diff-filter=U -z)
+    staged_json="$(printf '%s\0' "${staged_paths[@]}" | jq -Rs 'split("\u0000") | map(select(length > 0))')"
+    unstaged_json="$(printf '%s\0' "${unstaged_paths[@]}" | jq -Rs 'split("\u0000") | map(select(length > 0))')"
+    untracked_json="$(printf '%s\0' "${untracked_paths[@]}" | jq -Rs 'split("\u0000") | map(select(length > 0))')"
+    conflicted_json="$(printf '%s\0' "${conflicted_paths[@]}" | jq -Rs 'split("\u0000") | map(select(length > 0))')"
+    changes_json="$(jq -cn \
+        --argjson staged "$staged_json" --argjson unstaged "$unstaged_json" \
+        --argjson untracked "$untracked_json" --argjson conflicted "$conflicted_json" \
+        '{staged: $staged, unstaged: $unstaged, untracked: $untracked, conflicted: $conflicted}')"
+    local_interrupted="$(jq 'any(.[]; length > 0)' <<<"$changes_json")"
+
+    target_ref="$target_branch"
+    if ! git -C "$RESOLVED_PATH" rev-parse --verify --quiet "$target_ref^{commit}" >/dev/null; then
+        die 65 "recorded target branch is unavailable: $target_branch"
+    fi
+    ahead_count="$(git -C "$RESOLVED_PATH" rev-list --count "$target_ref..HEAD")"
+    commit_text="$(git -C "$RESOLVED_PATH" log --format='%s%n%b' "$target_ref..HEAD")"
+    committed_numbers="$({ grep -Eo '#[1-9][0-9]*' <<<"$commit_text" 2>/dev/null || true; } \
+        | tr -d '#' | sort -nu | jq -Rsc 'split("\n") | map(select(length > 0) | tonumber)')"
+
+    ready='[]'
+    active='[]'
+    blocked='[]'
+    while IFS= read -r child; do
+        [ "$(jq -r '.state' <<<"$child")" = open ] || continue
+        child_number="$(jq -r '.number' <<<"$child")"
+        blockers="$(github_api_collection "repos/$repository/issues/$child_number/dependencies/blocked_by?per_page=100")"
+        jq -e 'type == "array" and all(.[]; (.number | type == "number") and (.state | type == "string"))' \
+            <<<"$blockers" >/dev/null || die 65 "GitHub returned malformed blocker state for issue #$child_number"
+        open_blockers="$(jq '[.[] | select(.state == "open") | {number, title, url: .html_url}]' <<<"$blockers")"
+        issue="$(jq '{number, title, url: .html_url, assignees: [.assignees[].login]}' <<<"$child")"
+        if [ "$(jq 'length' <<<"$open_blockers")" -gt 0 ]; then
+            blocked="$(jq -c --argjson issue "$issue" --argjson blockers "$open_blockers" '. + [$issue + {blockedBy: $blockers}]' <<<"$blocked")"
+        elif [ "$(jq '.assignees | length' <<<"$child")" -gt 0 ] || jq -e --argjson number "$child_number" 'index($number) != null' <<<"$committed_numbers" >/dev/null; then
+            reasons='[]'
+            if [ "$(jq '.assignees | length' <<<"$child")" -gt 0 ]; then
+                reasons="$(jq -c '. + ["assigned"]' <<<"$reasons")"
+            fi
+            if jq -e --argjson number "$child_number" 'index($number) != null' <<<"$committed_numbers" >/dev/null; then
+                reasons="$(jq -c '. + ["committed-work-awaiting-resolution"]' <<<"$reasons")"
+            fi
+            active="$(jq -c --argjson issue "$issue" --argjson reasons "$reasons" '. + [$issue + {reasons: $reasons}]' <<<"$active")"
+        else
+            ready="$(jq -c --argjson issue "$issue" '. + [$issue]' <<<"$ready")"
+        fi
+    done < <(jq -c '.[]' <<<"$children")
+
+    pending_committed_issues="$(jq -c --argjson committed "$committed_numbers" \
+        '[.[] | select(.state == "open" and (.number as $number | $committed | index($number) != null)) | .number]' \
+        <<<"$children")"
+    interrupted="$local_interrupted"
+    if [ "$(jq 'length' <<<"$pending_committed_issues")" -gt 0 ]; then
+        interrupted=true
+    fi
+    selection_allowed="$([ "$interrupted" = false ] && printf true || printf false)"
+    result="$(jq -cn \
+        --argjson parent "$parent" --argjson workspace "$orientation_record" \
+        --argjson changes "$changes_json" --argjson interrupted "$interrupted" \
+        --argjson pending "$pending_committed_issues" --argjson ahead "$ahead_count" \
+        --argjson ready "$ready" --argjson active "$active" \
+        --argjson blocked "$blocked" --argjson allowed "$selection_allowed" '
+        {
+            epic: {number: $parent.number, title: $parent.title, state: $parent.state, url: $parent.html_url},
+            workspace: ($workspace + {interrupted: $interrupted, pendingCommittedIssues: $pending, aheadOfTarget: $ahead, changes: $changes}),
+            issues: {ready: $ready, activeInterrupted: $active, blocked: $blocked},
+            selection: {allowed: $allowed, requiresUserChoice: true},
+            approvalRules: [
+                "Wait for the user to choose an issue before beginning work.",
+                "Commit and present verification evidence before requesting approval to close.",
+                "Close only after approval, then refresh orientation and wait again."
+            ]
+        }')"
+
+    if [ "$json" = true ]; then
+        jq . <<<"$result"
+        exit 0
+    fi
+
+    jq -r '"EPIC #\(.epic.number): \(.epic.title) [\(.epic.state)]\nWORKSPACE: slot \(.workspace.slot), \(.workspace.branch) -> \(.workspace.targetBranch), ahead \(.workspace.aheadOfTarget)"' <<<"$result"
+    if [ "$interrupted" = true ]; then
+        echo "STOP: interrupted workspace work must be resumed or resolved before choosing new work."
+        echo "READY — unavailable until interruption resolved"
+    else
+        echo "READY — choose explicitly"
+    fi
+    jq -r '.issues.ready[] | "  #\(.number) \(.title)"' <<<"$result"
+    echo "ACTIVE / INTERRUPTED"
+    jq -r '.issues.activeInterrupted[] | "  #\(.number) \(.title) [\(.reasons | join(", "))]"' <<<"$result"
+    echo "BLOCKED"
+    jq -r '.issues.blocked[] | "  #\(.number) \(.title) [blocked by \([.blockedBy[].number | "#\(.)"] | join(", "))]"' <<<"$result"
+    echo "Wait for the user; do not begin, close, or move issues automatically."
+    echo "After implementation: commit, present verification evidence, and request approval before closure."
+    echo "After approved closure: run epic-worktree orient again and wait."
+    exit 0
+fi
 
 if [ "$command_name" = register ]; then
     epic=""
