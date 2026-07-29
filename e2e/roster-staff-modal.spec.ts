@@ -8,7 +8,7 @@ import {
     rosterStaffPanelSortRowDomAttr,
     toastOverlayMountDomId,
 } from '../frontend/ts/generated/contracts';
-import { openRoster } from './test-helpers';
+import { openRoster, runSql } from './test-helpers';
 
 async function loginAndOpenRoster(page: Page) {
     await openRoster(page, { email: 'e2e-test@example.com' });
@@ -100,6 +100,50 @@ test.describe('Roster Staff Modal', () => {
         await expect(modalMount.locator('#staff-profile-preferences')).toBeVisible();
         await expect(page.locator(`#${toastOverlayMountDomId}`)).toContainText('Shift preferences updated');
 
+    });
+
+    test('admin pay remediation removes the staff-panel error pill without a reload', async ({ page }) => {
+        const staffId = 'a1000000-0000-0000-0000-000000000031';
+        const awardLevelId = 'a1000000-0000-0000-0000-000000000111';
+        runSql(`
+            UPDATE staff
+            SET pay_assignment_mode = 'legacy_unresolved',
+                default_award_level_id = NULL,
+                imported_xero_pay_item_id = NULL
+            WHERE id = '${staffId}'
+        `);
+
+        try {
+            await openRoster(page, { email: 'e2e-admin@example.com' });
+
+            const modalMount = page.locator(`#${dialogOverlayMountDomId}`);
+            const staffEntry = page.locator(
+                `[${rosterStaffPanelSortRowDomAttr}][${rosterStaffHighlightSourceDomAttr}="staff:${staffId}"]:visible`,
+            );
+            await expect(staffEntry.locator('[aria-label^="Pay configuration required"]')).toBeVisible();
+            await staffEntry.click();
+            await modalMount.getByRole('button', { name: 'Profile Details' }).click();
+
+            const staffEditForm = modalMount.locator('#staff-edit-form:visible');
+            await staffEditForm.locator('#payRateSelection').selectOption(`award:${awardLevelId}`);
+            const updateResponsePromise = page.waitForResponse((response) => response.request().method() === 'POST' && response.url().includes('/UpdateStaff'));
+            const staffListRefreshPromise = page.waitForResponse((response) => response.request().method() === 'GET' && response.url().includes('/ShowRosterWeekStaffPanelFragment'));
+            await staffEditForm.getByRole('button', { name: 'Save profile details' }).click();
+            const updateResponse = await updateResponsePromise;
+            expect(updateResponse.headers()['hx-trigger']).toContain('roster-staff-panel');
+            await (await staffListRefreshPromise).finished();
+
+            await expect(page.locator(`#${toastOverlayMountDomId}`)).toContainText('Staff member updated');
+            await expect(staffEntry.locator('[aria-label^="Pay configuration required"]')).toHaveCount(0);
+        } finally {
+            runSql(`
+                UPDATE staff
+                SET pay_assignment_mode = 'award_rate',
+                    default_award_level_id = '${awardLevelId}',
+                    imported_xero_pay_item_id = NULL
+                WHERE id = '${staffId}'
+            `);
+        }
     });
 
     test('admin profile save refreshes an assigned roster staff name and exposes the venue role control', async ({ page }) => {

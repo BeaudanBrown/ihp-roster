@@ -203,9 +203,10 @@ lands.
   opens the existing delete confirmation dialog instead of deleting immediately.
 - Saving staff profile details or shift preferences from the roster modal emits
   typed staff resources plus active roster-week resources for both previous and
-  newly selected roster groups. The acting roster invalidates both
-  `RosterContent` and `RosterStaffPanel`, so assigned-shift labels and the staff
-  list refetch from authoritative fragment endpoints. Venue admins can change a
+  newly selected roster groups. The acting roster offers the inner grid
+  fragments and `RosterStaffPanel` to typed dependency planning, so affected
+  assigned-shift labels, staff names, and pay-configuration warning pills refetch
+  from authoritative fragment endpoints without a page reload. Venue admins can change a
   linked staff member's venue access role in Profile Details; unlinked trial
   profiles explain that an account link is required before a venue role can be
   assigned.
