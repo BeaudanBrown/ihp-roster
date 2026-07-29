@@ -71,12 +71,13 @@ bepis_workspace_configure() {
     fi
 
     local state_dir=""
+    local state_root="${BEPIS_WORKSPACE_STATE_ROOT:-}"
     if [ "${BEPIS_WORKSPACE_STATE_CONFIGURED:-}" = "1" ] \
         && [ "${BEPIS_WORKSPACE_REPO_ROOT:-}" = "$repo_root" ] \
         && [ -n "${DEVENV_AGENT_STATE_DIR:-}" ]; then
         state_dir="$DEVENV_AGENT_STATE_DIR"
     elif [ -n "${DEVENV_AGENT_STATE_DIR:-}" ]; then
-        local state_root="$DEVENV_AGENT_STATE_DIR"
+        state_root="$DEVENV_AGENT_STATE_DIR"
         if [[ "$state_root" != /* ]]; then
             state_root="$repo_root/$state_root"
         fi
@@ -116,6 +117,7 @@ bepis_workspace_configure() {
     export BEPIS_WORKSPACE_SLOT="$slot"
     export BEPIS_WORKSPACE_EPIC="$epic"
     export BEPIS_WORKSPACE_STATE_CONFIGURED=1
+    export BEPIS_WORKSPACE_STATE_ROOT="$state_root"
     export DEVENV_AGENT_STATE_DIR="$state_dir"
     export PORT="$app_port"
     export APP_BASE_URL="$app_url"
@@ -163,7 +165,7 @@ bepis_workspace_shell() {
     local name
     for name in \
         BEPIS_WORKSPACE_REPO_ROOT BEPIS_WORKSPACE_KIND BEPIS_WORKSPACE_SLOT BEPIS_WORKSPACE_EPIC \
-        BEPIS_WORKSPACE_STATE_CONFIGURED DEVENV_AGENT_STATE_DIR PORT APP_BASE_URL BASE_URL PWCLI_BASE_URL \
+        BEPIS_WORKSPACE_STATE_CONFIGURED BEPIS_WORKSPACE_STATE_ROOT DEVENV_AGENT_STATE_DIR PORT APP_BASE_URL BASE_URL PWCLI_BASE_URL \
         SMTP_HOST SMTP_PORT MAILHOG_SMTP_PORT MAILHOG_PORT MAILHOG_BASE_URL PGHOST DATABASE_URL \
         BEPIS_WORKSPACE_OTEL_SERVICE_NAME IHP_ROSTER_DEV_TEMPO_PORT IHP_ROSTER_DEV_TEMPO_SERVER_GRPC_PORT IHP_ROSTER_DEV_TEMPO_OTLP_GRPC_PORT IHP_ROSTER_DEV_TEMPO_OTLP_HTTP_PORT \
         IHP_ROSTER_DEV_OTLP_GRPC_PORT IHP_ROSTER_DEV_OTLP_HTTP_PORT IHP_ROSTER_DEV_COLLECTOR_HEALTH_PORT \

@@ -99,6 +99,12 @@ state paths. `just start`, `dev-start`, `dev-status`, `dev-wait`, and `dev-stop`
 apply workspace-derived environment and affect only that checkout. Explicit
 `DEVENV_AGENT_STATE_DIR` roots are namespaced per worktree.
 
+For a registered epic, `epic-worktree-manage preflight --epic N` reports
+cleanliness, divergence, conflicts, affected generated/migration files, runtime
+state, and required checks without changing refs or worktrees. Synchronization
+requires `sync --apply`; final `--no-ff` integration and safe cleanup each
+require their own `--approve`. Parent-issue closure remains separate.
+
 ### Android PWA emulator
 
 The opt-in Android emulator is separate from the default development shell and
