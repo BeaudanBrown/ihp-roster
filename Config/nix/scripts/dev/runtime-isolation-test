@@ -1,0 +1,189 @@
+#!/usr/bin/env bash
+set -euo pipefail
+unset DEVENV_AGENT_STATE_DIR XDG_RUNTIME_DIR
+
+repo_root="$(git rev-parse --show-toplevel)"
+registry_command="$repo_root/Config/nix/scripts/epic/worktree"
+fixture_root="$(mktemp -d)"
+main_pid=""
+epic_pid=""
+cleanup() {
+    for pid in "$main_pid" "$epic_pid"; do
+        if [ -n "$pid" ]; then
+            kill -TERM -"$pid" 2>/dev/null || kill -TERM "$pid" 2>/dev/null || true
+        fi
+    done
+    rm -rf "$fixture_root"
+}
+trap cleanup EXIT
+
+fail() {
+    echo "dev-runtime-isolation-test: $*" >&2
+    exit 1
+}
+
+assert_contains() {
+    local haystack="$1"
+    local needle="$2"
+    [[ "$haystack" == *"$needle"* ]] || fail "expected marker was absent: $needle"
+}
+
+for command_name in dev-app dev-start dev-status dev-stop pwcli-auth-open; do
+    command -v "$command_name" >/dev/null 2>&1 || fail "named command unavailable: $command_name"
+done
+dev_app_command="$(command -v dev-app)"
+dev_start_command="$(command -v dev-start)"
+dev_status_command="$(command -v dev-status)"
+dev_stop_command="$(command -v dev-stop)"
+pwcli_auth_open_command="$(command -v pwcli-auth-open)"
+
+fixture_repo="$fixture_root/repo"
+epic_path="$fixture_root/repo-epic-265"
+git init --quiet --initial-branch=roster "$fixture_repo"
+git -C "$fixture_repo" config user.name "Runtime Isolation Test"
+git -C "$fixture_repo" config user.email "runtime-isolation@example.invalid"
+printf 'fixture\n' >"$fixture_repo/README"
+printf '.bepis-epic-worktree.json\n.devenv/\n' >"$fixture_repo/.gitignore"
+git -C "$fixture_repo" add README .gitignore
+git -C "$fixture_repo" commit --quiet -m fixture
+git -C "$fixture_repo" worktree add --quiet -b epic-265 "$epic_path" roster
+(
+    cd "$epic_path"
+    bash "$registry_command" register --epic 265 --target roster --kind epic >/dev/null
+)
+
+fake_bin="$fixture_root/bin"
+mkdir -p "$fake_bin"
+cat >"$fake_bin/dev-status" <<'EOF'
+#!/usr/bin/env bash
+exit 1
+EOF
+cat >"$fake_bin/frontend-generated-ensure" <<'EOF'
+#!/usr/bin/env bash
+exit 0
+EOF
+cat >"$fake_bin/dev-ensure-postgres" <<'EOF'
+#!/usr/bin/env bash
+exit 0
+EOF
+cat >"$fake_bin/dev-ensure-mailhog" <<'EOF'
+#!/usr/bin/env bash
+exit 0
+EOF
+cat >"$fake_bin/dev-observability-stop" <<'EOF'
+#!/usr/bin/env bash
+printf '%s\n' "$DEVENV_AGENT_STATE_DIR" >>"$OBS_STOP_LOG"
+rm -f "$DEVENV_AGENT_STATE_DIR/tempo.pid" \
+    "$DEVENV_AGENT_STATE_DIR/otel-collector.pid" \
+    "$DEVENV_AGENT_STATE_DIR/grafana.pid"
+EOF
+for watcher in frontend-watch frontend-generated-watch; do
+    cat >"$fake_bin/$watcher" <<'EOF'
+#!/usr/bin/env bash
+exec sleep 300
+EOF
+done
+cat >"$fake_bin/start" <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+if [ "${1:-}" = "--probe" ]; then
+    printf 'PORT=%s APP_BASE_URL=%s SMTP_PORT=%s MAILHOG_BASE_URL=%s\n' \
+        "$PORT" "$APP_BASE_URL" "$SMTP_PORT" "$MAILHOG_BASE_URL"
+    exit 0
+fi
+mkdir -p "$DEVENV_AGENT_STATE_DIR"
+env | sort >"$DEVENV_AGENT_STATE_DIR/runtime.env"
+exec sleep 300
+EOF
+cat >"$fake_bin/lsof" <<'EOF'
+#!/usr/bin/env bash
+exit 1
+EOF
+chmod +x "$fake_bin"/*
+
+run_for() {
+    local root="$1"
+    shift
+    (
+        cd "$root"
+        PATH="$fake_bin:$PATH" \
+            BEPIS_WORKSPACE_REPO_ROOT="$root" \
+            BEPIS_EPIC_WORKTREE_COMMAND="$registry_command" \
+            BEPIS_SCRIPTS_ROOT="$repo_root/Config/nix/scripts" \
+            "$@"
+    )
+}
+
+app_probe="$(run_for "$epic_path" "$dev_app_command" --probe)"
+assert_contains "$app_probe" "PORT=8001 APP_BASE_URL=http://127.0.0.1:8001 SMTP_PORT=1026"
+run_for "$fixture_repo" "$dev_start_command" >/dev/null
+run_for "$epic_path" "$dev_start_command" >/dev/null
+main_state="$fixture_repo/.devenv/agent"
+epic_state="$epic_path/.devenv/agent"
+main_pid="$(cat "$main_state/devenv.pid")"
+epic_pid="$(cat "$epic_state/devenv.pid")"
+kill -0 "$main_pid" 2>/dev/null || fail "primary managed process did not start"
+kill -0 "$epic_pid" 2>/dev/null || fail "epic managed process did not start"
+[ "$main_pid" != "$epic_pid" ] || fail "worktrees share managed PID"
+[ -f "$main_state/frontend-watch.pid" ] || fail "primary watcher PID missing"
+[ -f "$epic_state/frontend-watch.pid" ] || fail "epic watcher PID missing"
+assert_contains "$(cat "$main_state/runtime.env")" "PORT=8000"
+assert_contains "$(cat "$epic_state/runtime.env")" "PORT=8001"
+assert_contains "$(cat "$epic_state/runtime.env")" "APP_BASE_URL=http://127.0.0.1:8001"
+assert_contains "$(cat "$epic_state/runtime.env")" "SMTP_PORT=1026"
+assert_contains "$(cat "$epic_state/runtime.env")" "MAILHOG_BASE_URL=http://127.0.0.1:8026"
+assert_contains "$(cat "$epic_state/runtime.env")" "PGHOST=$epic_path/build/db"
+assert_contains "$(cat "$epic_state/runtime.env")" "DATABASE_URL=postgresql:///app?host=$epic_path/build/db"
+
+# Exercise real status scripts with deterministic healthy probes.
+rm "$fake_bin/dev-status"
+cat >"$fake_bin/psql" <<'EOF'
+#!/usr/bin/env bash
+printf 'psql:%s\n' "$*" >>"$RUNTIME_PROBE_LOG"
+exit 0
+EOF
+cat >"$fake_bin/curl" <<'EOF'
+#!/usr/bin/env bash
+printf 'curl:%s\n' "$*" >>"$RUNTIME_PROBE_LOG"
+exit 0
+EOF
+chmod +x "$fake_bin/psql" "$fake_bin/curl"
+probe_log="$fixture_root/probes.log"
+main_status="$(RUNTIME_PROBE_LOG="$probe_log" run_for "$fixture_repo" "$dev_status_command")"
+epic_status="$(RUNTIME_PROBE_LOG="$probe_log" run_for "$epic_path" "$dev_status_command")"
+assert_contains "$main_status" "slot=0 app_url=http://127.0.0.1:8000"
+assert_contains "$epic_status" "slot=1 app_url=http://127.0.0.1:8001"
+assert_contains "$(cat "$probe_log")" "http://127.0.0.1:8026/api/v2/messages"
+assert_contains "$(cat "$probe_log")" "-h $epic_path/build/db"
+
+# Browser auth helper must derive the epic URL rather than defaulting to slot zero.
+mkdir -p "$epic_path/.devenv/playwright-cli"
+printf '{}\n' >"$epic_path/.devenv/playwright-cli/manager-state.json"
+cat >"$fake_bin/pwcli" <<'EOF'
+#!/usr/bin/env bash
+printf '%s\n' "$*" >>"$PWCLI_TEST_LOG"
+EOF
+chmod +x "$fake_bin/pwcli"
+pwcli_log="$fixture_root/pwcli.log"
+PWCLI_TEST_LOG="$pwcli_log" run_for "$epic_path" "$pwcli_auth_open_command" manager /RosterWeeks
+assert_contains "$(cat "$pwcli_log")" "-s=ihp-epic-265-manager open http://127.0.0.1:8001"
+assert_contains "$(cat "$pwcli_log")" "-s=ihp-epic-265-manager goto http://127.0.0.1:8001/RosterWeeks"
+
+# Stopping primary must not touch any epic process or state, including opt-in observability.
+printf '999999\n' >"$main_state/tempo.pid"
+obs_stop_log="$fixture_root/observability-stop.log"
+OBS_STOP_LOG="$obs_stop_log" run_for "$fixture_repo" "$dev_stop_command" >/dev/null
+[ "$(cat "$obs_stop_log")" = "$main_state" ] || fail "dev-stop did not scope observability cleanup to primary state"
+if kill -0 "$main_pid" 2>/dev/null; then
+    fail "primary managed process survived its own stop"
+fi
+kill -0 "$epic_pid" 2>/dev/null || fail "stopping primary killed epic process"
+[ -f "$epic_state/devenv.pid" ] || fail "stopping primary removed epic PID state"
+run_for "$epic_path" "$dev_stop_command" >/dev/null
+if kill -0 "$epic_pid" 2>/dev/null; then
+    fail "epic managed process survived its own stop"
+fi
+main_pid=""
+epic_pid=""
+
+echo "dev-runtime-isolation-test: ok"

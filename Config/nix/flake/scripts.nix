@@ -67,6 +67,10 @@ in
 
     scripts = {
         dev-agent-state-dir = script ../scripts/dev/agent-state-dir;
+        dev-app = script ../scripts/dev/app;
+        dev-workspace-info = script ../scripts/dev/workspace-info;
+        dev-workspace-test = script ../scripts/dev/workspace-test;
+        dev-runtime-isolation-test = script ../scripts/dev/runtime-isolation-test;
         devenv-script-freshness-check = script ../scripts/dev/script-freshness-check;
         dev-ensure-postgres = script ../scripts/dev/ensure-postgres;
         dev-ensure-mailhog = script ../scripts/dev/ensure-mailhog;

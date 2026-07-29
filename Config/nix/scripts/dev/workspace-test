@@ -1,0 +1,116 @@
+#!/usr/bin/env bash
+set -euo pipefail
+unset DEVENV_AGENT_STATE_DIR XDG_RUNTIME_DIR
+
+repo_root="$(git rev-parse --show-toplevel)"
+info_command="$repo_root/Config/nix/scripts/dev/workspace-info"
+registry_command="$repo_root/Config/nix/scripts/epic/worktree"
+fixture_root="$(mktemp -d)"
+cleanup() {
+    rm -rf "$fixture_root"
+}
+trap cleanup EXIT
+
+fail() {
+    echo "dev-workspace-test: $*" >&2
+    exit 1
+}
+
+fixture_repo="$fixture_root/repo"
+epic_path="$fixture_root/repo-epic-265"
+git init --quiet --initial-branch=roster "$fixture_repo"
+git -C "$fixture_repo" config user.name "Workspace Runtime Test"
+git -C "$fixture_repo" config user.email "workspace-runtime@example.invalid"
+printf 'fixture\n' >"$fixture_repo/README"
+printf '.bepis-epic-worktree.json\n' >"$fixture_repo/.gitignore"
+git -C "$fixture_repo" add README .gitignore
+git -C "$fixture_repo" commit --quiet -m fixture
+git -C "$fixture_repo" worktree add --quiet -b epic-265 "$epic_path" roster
+(
+    cd "$epic_path"
+    bash "$registry_command" register --epic 265 --target roster --kind epic >/dev/null
+)
+
+main_json="$(
+    BEPIS_WORKSPACE_REPO_ROOT="$fixture_repo" \
+        BEPIS_EPIC_WORKTREE_COMMAND="$registry_command" \
+        bash "$info_command" --json
+)"
+epic_json="$(
+    BEPIS_WORKSPACE_REPO_ROOT="$epic_path" \
+        BEPIS_EPIC_WORKTREE_COMMAND="$registry_command" \
+        bash "$info_command" --json
+)"
+
+[ "$(jq -r '.slot' <<<"$main_json")" = "0" ] || fail "primary checkout did not retain slot zero"
+[ "$(jq -r '.appPort' <<<"$main_json")" = "8000" ] || fail "primary app port changed"
+[ "$(jq -r '.smtpPort' <<<"$main_json")" = "1025" ] || fail "primary SMTP port changed"
+[ "$(jq -r '.mailhogPort' <<<"$main_json")" = "8025" ] || fail "primary MailHog port changed"
+[ "$(jq -r '.slot' <<<"$epic_json")" = "1" ] || fail "epic slot was not resolved from registry"
+[ "$(jq -r '.appUrl' <<<"$epic_json")" = "http://127.0.0.1:8001" ] || fail "epic app URL mismatch"
+[ "$(jq -r '.smtpPort' <<<"$epic_json")" = "1026" ] || fail "epic SMTP port mismatch"
+[ "$(jq -r '.mailhogUrl' <<<"$epic_json")" = "http://127.0.0.1:8026" ] || fail "epic MailHog URL mismatch"
+[ "$(jq -r '.grafanaPort' <<<"$main_json")" = "3300" ] || fail "primary Grafana port changed"
+[ "$(jq -r '.grafanaPort' <<<"$epic_json")" = "3301" ] || fail "epic Grafana port mismatch"
+[ "$(jq -r '.otlpHttpPort' <<<"$epic_json")" = "4319" ] || fail "epic OTLP port mismatch"
+[ "$(jq -r '.stateDir' <<<"$main_json")" != "$(jq -r '.stateDir' <<<"$epic_json")" ] \
+    || fail "worktrees share process state"
+[ "$(jq -r '.postgresSocket' <<<"$main_json")" = "$fixture_repo/build/db" ] || fail "primary PostgreSQL socket mismatch"
+[ "$(jq -r '.postgresSocket' <<<"$epic_json")" = "$epic_path/build/db" ] || fail "epic PostgreSQL socket is not worktree-specific"
+[ "$(jq -r '.databaseUrl' <<<"$epic_json")" = "postgresql:///app?host=$epic_path/build/db" ] \
+    || fail "epic app database URL is not worktree-specific"
+[ "$(jq -r '.otelServiceName' <<<"$epic_json")" = "ihp-roster-dev-epic-265" ] || fail "epic OTel service name mismatch"
+legacy_state="$(
+    XDG_RUNTIME_DIR="$fixture_root/runtime" \
+        BEPIS_WORKSPACE_REPO_ROOT="$fixture_repo" \
+        BEPIS_EPIC_WORKTREE_COMMAND="$registry_command" \
+        bash "$info_command" --json \
+        | jq -r '.stateDir'
+)"
+[ "$legacy_state" = "$fixture_root/runtime/ihp-roster-dev" ] || fail "slot-zero XDG state behavior changed"
+shared_override="$fixture_root/shared-state"
+main_override_state="$(
+    DEVENV_AGENT_STATE_DIR="$shared_override" \
+        BEPIS_WORKSPACE_REPO_ROOT="$fixture_repo" \
+        BEPIS_EPIC_WORKTREE_COMMAND="$registry_command" \
+        bash "$info_command" --json | jq -r '.stateDir'
+)"
+epic_override_state="$(
+    DEVENV_AGENT_STATE_DIR="$shared_override" \
+        BEPIS_WORKSPACE_REPO_ROOT="$epic_path" \
+        BEPIS_EPIC_WORKTREE_COMMAND="$registry_command" \
+        bash "$info_command" --json | jq -r '.stateDir'
+)"
+[ "$main_override_state" != "$epic_override_state" ] || fail "explicit state override was shared across worktrees"
+[[ "$main_override_state" == "$shared_override"/workspace-* ]] || fail "explicit state override was not safely namespaced"
+[[ "$epic_override_state" == "$shared_override"/workspace-* ]] || fail "epic state override was not safely namespaced"
+
+shell_env="$(
+    BEPIS_WORKSPACE_REPO_ROOT="$epic_path" \
+        BEPIS_EPIC_WORKTREE_COMMAND="$registry_command" \
+        bash "$info_command" --shell
+)"
+eval "$shell_env"
+[ "$PORT" = "8001" ] || fail "shell output omitted PORT"
+[ "$APP_BASE_URL" = "http://127.0.0.1:8001" ] || fail "shell output omitted APP_BASE_URL"
+[ "$SMTP_PORT" = "1026" ] || fail "shell output omitted SMTP_PORT"
+[ "$MAILHOG_BASE_URL" = "http://127.0.0.1:8026" ] || fail "shell output omitted MailHog URL"
+[ "$PWCLI_BASE_URL" = "$APP_BASE_URL" ] || fail "browser auth URL differs from app URL"
+[ "$BASE_URL" = "$APP_BASE_URL" ] || fail "screenshot URL differs from app URL"
+[ "$PGHOST" = "$epic_path/build/db" ] || fail "shell output omitted worktree PostgreSQL socket"
+[ "$DATABASE_URL" = "postgresql:///app?host=$epic_path/build/db" ] || fail "shell output omitted worktree database URL"
+
+jq '.slot = 99' "$epic_path/.bepis-epic-worktree.json" >"$epic_path/.bepis-epic-worktree.json.tmp"
+mv "$epic_path/.bepis-epic-worktree.json.tmp" "$epic_path/.bepis-epic-worktree.json"
+set +e
+invalid_output="$(
+    BEPIS_WORKSPACE_REPO_ROOT="$epic_path" \
+        BEPIS_EPIC_WORKTREE_COMMAND="$registry_command" \
+        bash "$info_command" --json 2>&1
+)"
+invalid_status=$?
+set -e
+[ "$invalid_status" -eq 65 ] || fail "inconsistent epic identity was accepted"
+[[ "$invalid_output" == *"active registry identity"* ]] || fail "identity failure was not diagnosed"
+
+echo "dev-workspace-test: ok"

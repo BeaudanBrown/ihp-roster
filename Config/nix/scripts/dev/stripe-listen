@@ -2,12 +2,15 @@
 set -euo pipefail
 # shellcheck source=../lib/stripe.sh
 . "@scriptsRoot@/lib/stripe.sh"
+# shellcheck source=../lib/workspace.sh
+. "@scriptsRoot@/lib/workspace.sh"
 if [ -f "$PWD/.env" ]; then
     set -a
     # shellcheck disable=SC1091
     . "$PWD/.env"
     set +a
 fi
+bepis_workspace_configure
 if [ -z "${STRIPE_SECRET_KEY:-}" ]; then
     echo "stripe-listen requires STRIPE_SECRET_KEY in the environment or .env." >&2
     exit 64
@@ -19,4 +22,4 @@ exec stripe listen \
     --skip-update \
     --latest \
     --events "$IHP_ROSTER_STRIPE_WEBHOOK_EVENTS" \
-    --forward-to localhost:8000/StripeWebhook
+    --forward-to "127.0.0.1:$PORT/StripeWebhook"

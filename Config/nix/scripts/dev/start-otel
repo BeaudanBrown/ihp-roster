@@ -1,5 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
+# shellcheck source=../lib/workspace.sh
+. "@scriptsRoot@/lib/workspace.sh"
+bepis_workspace_configure
 
 OTLP_HTTP_PORT="${IHP_ROSTER_DEV_OTLP_HTTP_PORT:-4318}"
 
@@ -15,7 +18,7 @@ fi
 
 export IHP_ROSTER_OTEL=1
 export IHP_ROSTER_OTEL_DIAGNOSTIC_HEADERS="${IHP_ROSTER_OTEL_DIAGNOSTIC_HEADERS:-1}"
-export OTEL_SERVICE_NAME="${OTEL_SERVICE_NAME:-ihp-roster-dev}"
+export OTEL_SERVICE_NAME="${OTEL_SERVICE_NAME:-$BEPIS_WORKSPACE_OTEL_SERVICE_NAME}"
 export OTEL_EXPORTER_OTLP_ENDPOINT="${OTEL_EXPORTER_OTLP_ENDPOINT:-http://127.0.0.1:${OTLP_HTTP_PORT}}"
 export OTEL_TRACES_SAMPLER="${OTEL_TRACES_SAMPLER:-always_on}"
 export OTEL_BSP_SCHEDULE_DELAY="${OTEL_BSP_SCHEDULE_DELAY:-1000}"
@@ -28,4 +31,4 @@ echo "Tracing env for this dev app start:"
 echo "  OTEL_SERVICE_NAME=$OTEL_SERVICE_NAME"
 echo "  OTEL_EXPORTER_OTLP_ENDPOINT=$OTEL_EXPORTER_OTLP_ENDPOINT"
 echo "  OTEL_TRACES_SAMPLER=$OTEL_TRACES_SAMPLER"
-echo "Open Grafana Explore at http://127.0.0.1:${IHP_ROSTER_DEV_GRAFANA_PORT:-3300}/explore and search service ihp-roster-dev after making app requests."
+echo "Open Grafana Explore at http://127.0.0.1:${IHP_ROSTER_DEV_GRAFANA_PORT}/explore and search service $OTEL_SERVICE_NAME after making app requests."

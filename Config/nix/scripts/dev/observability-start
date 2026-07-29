@@ -1,5 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
+# shellcheck source=../lib/workspace.sh
+. "@scriptsRoot@/lib/workspace.sh"
+bepis_workspace_configure
 
 STATE_DIR="$(dev-agent-state-dir)"
 OBS_DIR="${IHP_ROSTER_DEV_OBSERVABILITY_DIR:-$PWD/build/dev-observability}"
@@ -10,6 +13,7 @@ TEMPO_LOG_FILE="$STATE_DIR/tempo.log"
 COLLECTOR_LOG_FILE="$STATE_DIR/otel-collector.log"
 GRAFANA_LOG_FILE="$STATE_DIR/grafana.log"
 TEMPO_PORT="${IHP_ROSTER_DEV_TEMPO_PORT:-3200}"
+TEMPO_SERVER_GRPC_PORT="${IHP_ROSTER_DEV_TEMPO_SERVER_GRPC_PORT:-9095}"
 TEMPO_OTLP_GRPC_PORT="${IHP_ROSTER_DEV_TEMPO_OTLP_GRPC_PORT:-14317}"
 TEMPO_OTLP_HTTP_PORT="${IHP_ROSTER_DEV_TEMPO_OTLP_HTTP_PORT:-14318}"
 COLLECTOR_OTLP_GRPC_PORT="${IHP_ROSTER_DEV_OTLP_GRPC_PORT:-4317}"
@@ -43,7 +47,7 @@ server:
   http_listen_address: 127.0.0.1
   http_listen_port: ${TEMPO_PORT}
   grpc_listen_address: 127.0.0.1
-  grpc_listen_port: 9095
+  grpc_listen_port: ${TEMPO_SERVER_GRPC_PORT}
 
 distributor:
   receivers:
@@ -216,7 +220,7 @@ wait_for_url "grafana" "http://127.0.0.1:${GRAFANA_PORT}/api/health" "$GRAFANA_L
 cat <<EOF_READY
 
 Dev observability frontend is ready:
-  Grafana Explore:   http://127.0.0.1:${GRAFANA_PORT}/explore?schemaVersion=1&panes=%7B%22trace%22:%7B%22datasource%22:%22bepis-tempo-dev%22,%22queries%22:%5B%7B%22queryType%22:%22serviceSearch%22,%22serviceName%22:%22ihp-roster-dev%22,%22refId%22:%22A%22%7D%5D%7D%7D&orgId=1
+  Grafana Explore:   http://127.0.0.1:${GRAFANA_PORT}/explore?schemaVersion=1&panes=%7B%22trace%22:%7B%22datasource%22:%22bepis-tempo-dev%22,%22queries%22:%5B%7B%22queryType%22:%22serviceSearch%22,%22serviceName%22:%22${BEPIS_WORKSPACE_OTEL_SERVICE_NAME}%22,%22refId%22:%22A%22%7D%5D%7D%7D&orgId=1
   Tempo health:      http://127.0.0.1:${TEMPO_PORT}/ready
   Collector health:  http://127.0.0.1:${COLLECTOR_HEALTH_PORT}/
   App OTLP endpoint: http://127.0.0.1:${COLLECTOR_OTLP_HTTP_PORT}
@@ -226,7 +230,7 @@ http://127.0.0.1:${TEMPO_PORT}/ or http://127.0.0.1:${COLLECTOR_OTLP_HTTP_PORT}/
 
 Start or restart the dev app with tracing enabled:
   IHP_ROSTER_OTEL=1 \\
-  OTEL_SERVICE_NAME=ihp-roster-dev \\
+  OTEL_SERVICE_NAME=${BEPIS_WORKSPACE_OTEL_SERVICE_NAME} \\
   OTEL_EXPORTER_OTLP_ENDPOINT=http://127.0.0.1:${COLLECTOR_OTLP_HTTP_PORT} \\
   OTEL_TRACES_SAMPLER=always_on \\
   bash ./bin/in-env dev-start

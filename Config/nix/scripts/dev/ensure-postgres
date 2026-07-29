@@ -1,9 +1,12 @@
 #!/usr/bin/env bash
 set -euo pipefail
+# shellcheck source=../lib/workspace.sh
+. "@scriptsRoot@/lib/workspace.sh"
+bepis_workspace_configure
 STATE_DIR="$(dev-agent-state-dir)"
 POSTGRES_PID_FILE="$STATE_DIR/postgres.pid"
 LOG_FILE="$STATE_DIR/devenv.log"
-DB_SOCKET="${PGHOST:-$PWD/build/db}"
+DB_SOCKET="$PGHOST"
 
 mkdir -p "$STATE_DIR"
 : > "$LOG_FILE"

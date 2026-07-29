@@ -85,10 +85,19 @@ bash ./bin/in-env dev-stop
 ```
 
 For foreground local development, `just dev` starts the app, frontend contract
-watcher, frontend asset watcher, postgres, MailHog, and the localhost-only
-observability stack. After making app
-requests, open Grafana Explore at `http://127.0.0.1:3300/explore` and search the
-Tempo datasource for service `ihp-roster-dev`.
+watcher, frontend asset watcher, PostgreSQL, and MailHog. Observability remains
+opt-in: use `IHP_ROSTER_DEV_OBSERVABILITY=1 just dev`, then use
+`dev-workspace-info --json` to find the slot-derived Grafana port (3300 in the
+primary checkout). Search Tempo for service `ihp-roster-dev` in the primary
+checkout or `ihp-roster-dev-epic-N` in an epic worktree.
+
+Managed development commands derive workspace-local process state, PostgreSQL
+socket, app port, SMTP port, and MailHog port from the registered epic slot;
+the primary checkout remains slot zero on ports 8000/1025/8025. Run
+`bash ./bin/in-env dev-workspace-info` in any checkout to report its URLs and
+state paths. `just start`, `dev-start`, `dev-status`, `dev-wait`, and `dev-stop`
+apply workspace-derived environment and affect only that checkout. Explicit
+`DEVENV_AGENT_STATE_DIR` roots are namespaced per worktree.
 
 ### Android PWA emulator
 
@@ -202,8 +211,8 @@ documentation drift. `dev-start` and `just dev` first use content fingerprints
 to generate only stale frontend contracts, Haskell Surface adapters, and
 JavaScript, then run the coordinated frontend-generated watcher plus the
 frontend asset watcher. IHP's `RunDevServer` remains the sole live owner of
-schema-derived `build/Generated/` Haskell types. `just dev` also runs the local
-observability stack in foreground dev; `dev-stop` cleans up detached dev
+schema-derived `build/Generated/` Haskell types. Foreground observability is
+opt-in via `IHP_ROSTER_DEV_OBSERVABILITY=1`; `dev-stop` cleans up detached dev
 processes. There is no Vite dev server or true HMR requirement. Contract-source
 edits regenerate both Haskell adapters and `frontend/ts/generated/contracts.ts`;
 the asset watcher then rebundles dependent JS. `generated-code-sync` (or
