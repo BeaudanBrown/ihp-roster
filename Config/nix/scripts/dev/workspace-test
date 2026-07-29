@@ -60,6 +60,16 @@ epic_json="$(
 [ "$(jq -r '.databaseUrl' <<<"$epic_json")" = "postgresql:///app?host=$epic_path/build/db" ] \
     || fail "epic app database URL is not worktree-specific"
 [ "$(jq -r '.otelServiceName' <<<"$epic_json")" = "ihp-roster-dev-epic-265" ] || fail "epic OTel service name mismatch"
+offset_json="$(
+    BEPIS_WORKSPACE_PORT_OFFSET=20000 \
+        BEPIS_WORKSPACE_REPO_ROOT="$epic_path" \
+        BEPIS_EPIC_WORKTREE_COMMAND="$registry_command" \
+        bash "$info_command" --json
+)"
+[ "$(jq -r '.portOffset' <<<"$offset_json")" = 20000 ] || fail "explicit acceptance port offset was omitted"
+[ "$(jq -r '.appPort' <<<"$offset_json")" = 28001 ] || fail "acceptance app port offset was not applied"
+[ "$(jq -r '.smtpPort' <<<"$offset_json")" = 21026 ] || fail "acceptance SMTP port offset was not applied"
+[ "$(jq -r '.mailhogPort' <<<"$offset_json")" = 28026 ] || fail "acceptance MailHog port offset was not applied"
 legacy_state="$(
     XDG_RUNTIME_DIR="$fixture_root/runtime" \
         BEPIS_WORKSPACE_REPO_ROOT="$fixture_repo" \
@@ -99,6 +109,18 @@ eval "$shell_env"
 [ "$BASE_URL" = "$APP_BASE_URL" ] || fail "screenshot URL differs from app URL"
 [ "$PGHOST" = "$epic_path/build/db" ] || fail "shell output omitted worktree PostgreSQL socket"
 [ "$DATABASE_URL" = "postgresql:///app?host=$epic_path/build/db" ] || fail "shell output omitted worktree database URL"
+
+set +e
+invalid_offset_output="$(
+    BEPIS_WORKSPACE_PORT_OFFSET=50000 \
+        BEPIS_WORKSPACE_REPO_ROOT="$epic_path" \
+        BEPIS_EPIC_WORKTREE_COMMAND="$registry_command" \
+        bash "$info_command" --json 2>&1
+)"
+invalid_offset_status=$?
+set -e
+[ "$invalid_offset_status" -eq 64 ] || fail "unsafe acceptance port offset was accepted"
+[[ "$invalid_offset_output" == *"port offset"* ]] || fail "invalid port offset was not diagnosed"
 
 jq '.slot = 99' "$epic_path/.bepis-epic-worktree.json" >"$epic_path/.bepis-epic-worktree.json.tmp"
 mv "$epic_path/.bepis-epic-worktree.json.tmp" "$epic_path/.bepis-epic-worktree.json"

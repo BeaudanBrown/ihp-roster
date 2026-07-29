@@ -1,0 +1,302 @@
+#!/usr/bin/env bash
+set -euo pipefail
+umask 077
+unset DEVENV_AGENT_STATE_DIR BEPIS_WORKSPACE_STATE_CONFIGURED BEPIS_WORKSPACE_STATE_ROOT
+
+source_repo="$(git rev-parse --show-toplevel)"
+fixture_root="$(mktemp -d)"
+primary_repo="$fixture_root/repo"
+epic_one="$fixture_root/repo-epic-901"
+epic_two="$fixture_root/repo-epic-902"
+one_test_root="$fixture_root/test-postgres-901"
+two_test_root="$fixture_root/test-postgres-902"
+port_offset=""
+cleanup_started=false
+test_postgres_started=false
+
+fail() {
+    echo "epic-worktree-concurrency-test: $*" >&2
+    exit 1
+}
+
+cleanup() {
+    local exit_status=$?
+    local path pid_file pid cwd log_file
+    if [ "$exit_status" -ne 0 ]; then
+        for log_file in \
+            "$epic_one/.devenv/agent/devenv.log" \
+            "$epic_two/.devenv/agent/devenv.log"; do
+            if [ -f "$log_file" ]; then
+                echo "epic-worktree-concurrency-test: recent $(dirname "$log_file") log:" >&2
+                tail -n 40 "$log_file" >&2 || true
+            fi
+        done
+    fi
+    if [ "$test_postgres_started" = true ]; then
+        if [ -d "$epic_one" ]; then
+            TEST_POSTGRES_REPO_ROOT="$epic_one" TEST_POSTGRES_ROOT="$one_test_root" \
+                "${test_postgres_command:-false}" stop >/dev/null 2>&1 || true
+        fi
+        if [ -d "$epic_two" ]; then
+            TEST_POSTGRES_REPO_ROOT="$epic_two" TEST_POSTGRES_ROOT="$two_test_root" \
+                "${test_postgres_command:-false}" stop >/dev/null 2>&1 || true
+        fi
+    fi
+    if [ "$cleanup_started" = true ]; then
+        for path in "$epic_one" "$epic_two"; do
+            if [ -d "$path" ]; then
+                timeout 30 env \
+                    FRONTEND_REPO_ROOT="$source_repo" \
+                    BEPIS_WORKSPACE_PORT_OFFSET="${port_offset:-0}" \
+                    BEPIS_WORKSPACE_REPO_ROOT="$path" \
+                    BEPIS_EPIC_WORKTREE_COMMAND="${registry_command:-}" \
+                    PATH="${fake_bin:-}:$PATH" \
+                    "${dev_stop_command:-false}" >/dev/null 2>&1 || true
+            fi
+        done
+    fi
+    while IFS= read -r -d '' pid_file; do
+        pid="$(cat "$pid_file" 2>/dev/null || true)"
+        [[ "$pid" =~ ^[1-9][0-9]*$ ]] || continue
+        cwd="$(readlink -f "/proc/$pid/cwd" 2>/dev/null || true)"
+        case "$cwd" in
+            "$fixture_root"/*)
+                kill -TERM -"$pid" 2>/dev/null || kill -TERM "$pid" 2>/dev/null || true
+                ;;
+        esac
+    done < <(find "$fixture_root" -type f -name '*.pid' -print0 2>/dev/null || true)
+    rm -rf "$fixture_root"
+}
+trap cleanup EXIT INT TERM
+
+for command_name in \
+    epic-worktree epic-worktree-provision epic-worktree-manage \
+    dev-ensure-postgres dev-start dev-stop dev-status dev-workspace-info test-postgres; do
+    command -v "$command_name" >/dev/null 2>&1 || fail "named command unavailable: $command_name"
+done
+for command_name in curl git jq lsof node psql timeout; do
+    command -v "$command_name" >/dev/null 2>&1 || fail "required command unavailable: $command_name"
+done
+registry_command="$(command -v epic-worktree)"
+provision_command="$(command -v epic-worktree-provision)"
+manage_command="$(command -v epic-worktree-manage)"
+dev_ensure_postgres_command="$(command -v dev-ensure-postgres)"
+dev_start_command="$(command -v dev-start)"
+dev_stop_command="$(command -v dev-stop)"
+dev_status_command="$(command -v dev-status)"
+workspace_info_command="$(command -v dev-workspace-info)"
+test_postgres_command="$(command -v test-postgres)"
+
+git clone --quiet --no-local "$source_repo" "$primary_repo"
+git -C "$primary_repo" config user.name "Epic Concurrency Acceptance"
+git -C "$primary_repo" config user.email "epic-concurrency@example.invalid"
+target_branch="$(git -C "$primary_repo" symbolic-ref --short HEAD)"
+
+fake_bin="$fixture_root/bin"
+mkdir -p "$fake_bin"
+cat >"$fake_bin/direnv" <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+case "${1:-}" in
+    allow) exit 0 ;;
+    exec)
+        shift 2
+        exec "$@"
+        ;;
+    *) exit 64 ;;
+esac
+EOF
+cat >"$fake_bin/frontend-generated-ensure" <<'EOF'
+#!/usr/bin/env bash
+exit 0
+EOF
+for watcher in frontend-watch frontend-generated-watch; do
+    cat >"$fake_bin/$watcher" <<'EOF'
+#!/usr/bin/env bash
+exec sleep 600
+EOF
+done
+cat >"$fake_bin/start" <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+exec node -e '
+    const http = require("http");
+    const port = Number(process.env.PORT);
+    http.createServer((_request, response) => {
+        response.writeHead(200, { "content-type": "text/plain" });
+        response.end(`workspace:${process.env.BEPIS_WORKSPACE_EPIC}\n`);
+    }).listen(port, "127.0.0.1");
+'
+EOF
+chmod +x "$fake_bin"/*
+
+run_primary() {
+    (
+        cd "$primary_repo"
+        PATH="$fake_bin:$PATH" \
+        FRONTEND_REPO_ROOT="$source_repo" \
+        EPIC_WORKTREE_COMMAND="$registry_command" \
+            "$@"
+    )
+}
+
+first_provision="$(run_primary "$provision_command" --epic 901 --base "$target_branch" --json)"
+second_provision="$(run_primary "$provision_command" --epic 902 --base "$target_branch" --json)"
+[ "$(jq -r '.path' <<<"$first_provision")" = "$epic_one" ] || fail "first stable worktree path mismatch"
+[ "$(jq -r '.path' <<<"$second_provision")" = "$epic_two" ] || fail "second stable worktree path mismatch"
+[ "$(jq -r '.slot' <<<"$first_provision")" = 1 ] || fail "first worktree slot mismatch"
+[ "$(jq -r '.slot' <<<"$second_provision")" = 2 ] || fail "second worktree slot mismatch"
+reprovision="$(run_primary "$provision_command" --epic 901 --base "$target_branch" --json)"
+[ "$(jq -r '.path, .slot' <<<"$reprovision")" = "$(printf '%s\n1' "$epic_one")" ] \
+    || fail "idempotent reprovisioning changed identity"
+[ "$(run_primary "$registry_command" inspect --all --json | jq 'length')" = 2 ] \
+    || fail "idempotent reprovisioning duplicated registry state"
+
+ports_available() {
+    local offset="$1"
+    local slot base port
+    for slot in 1 2; do
+        for base in 8000 1025 8025; do
+            port=$((base + offset + slot))
+            if lsof -nP -iTCP:"$port" -sTCP:LISTEN >/dev/null 2>&1; then
+                return 1
+            fi
+        done
+    done
+}
+port_offset=$((20000 + ($$ % 500) * 20))
+for _ in $(seq 1 100); do
+    [ "$port_offset" -le 39000 ] || port_offset=20000
+    if ports_available "$port_offset"; then
+        break
+    fi
+    port_offset=$((port_offset + 20))
+done
+ports_available "$port_offset" || fail "could not reserve an isolated acceptance port range"
+cleanup_started=true
+
+run_for() {
+    local path="$1"
+    shift
+    (
+        cd "$path"
+        PATH="$fake_bin:$PATH" \
+        FRONTEND_REPO_ROOT="$source_repo" \
+        BEPIS_WORKSPACE_PORT_OFFSET="$port_offset" \
+        BEPIS_WORKSPACE_REPO_ROOT="$path" \
+        BEPIS_EPIC_WORKTREE_COMMAND="$registry_command" \
+            "$@"
+    )
+}
+
+one_info="$(run_for "$epic_one" "$workspace_info_command" --json)"
+two_info="$(run_for "$epic_two" "$workspace_info_command" --json)"
+one_app="$(jq -r '.appUrl' <<<"$one_info")"
+two_app="$(jq -r '.appUrl' <<<"$two_info")"
+one_mailhog="$(jq -r '.mailhogUrl' <<<"$one_info")"
+two_mailhog="$(jq -r '.mailhogUrl' <<<"$two_info")"
+[ "$one_app" != "$two_app" ] || fail "epic app URLs collide"
+[ "$one_mailhog" != "$two_mailhog" ] || fail "epic MailHog URLs collide"
+[ "$(jq -r '.stateDir' <<<"$one_info")" != "$(jq -r '.stateDir' <<<"$two_info")" ] \
+    || fail "epic runtime state directories collide"
+[ "$(jq -r '.postgresSocket' <<<"$one_info")" != "$(jq -r '.postgresSocket' <<<"$two_info")" ] \
+    || fail "epic PostgreSQL sockets collide"
+
+symlink_target="$fixture_root/postgres-symlink-target"
+mkdir -p "$symlink_target" "$epic_one/.devenv"
+ln -s "$symlink_target" "$epic_one/.devenv/postgres"
+set +e
+symlink_output="$(run_for "$epic_one" "$dev_ensure_postgres_command" 2>&1)"
+symlink_status=$?
+set -e
+[ "$symlink_status" -eq 65 ] || fail "workspace PostgreSQL accepted symlinked data path"
+[[ "$symlink_output" == *"refusing symlinked"* ]] || fail "workspace PostgreSQL did not diagnose symlinked data path"
+[ -z "$(find "$symlink_target" -mindepth 1 -print -quit)" ] || fail "workspace PostgreSQL mutated symlink target"
+rm "$epic_one/.devenv/postgres"
+
+default_one_test_root="$(TEST_POSTGRES_REPO_ROOT="$epic_one" "$test_postgres_command" root)"
+default_two_test_root="$(TEST_POSTGRES_REPO_ROOT="$epic_two" "$test_postgres_command" root)"
+[ "$default_one_test_root" != "$default_two_test_root" ] || fail "default test PostgreSQL roots collide"
+case "$default_one_test_root:$default_two_test_root" in
+    *"$source_repo"*) fail "acceptance test PostgreSQL root reused developer checkout identity" ;;
+esac
+one_test_socket="$(TEST_POSTGRES_REPO_ROOT="$epic_one" TEST_POSTGRES_ROOT="$one_test_root" "$test_postgres_command" ensure)"
+test_postgres_started=true
+two_test_socket="$(TEST_POSTGRES_REPO_ROOT="$epic_two" TEST_POSTGRES_ROOT="$two_test_root" "$test_postgres_command" ensure)"
+[ "$one_test_socket" != "$two_test_socket" ] || fail "test PostgreSQL sockets collide"
+one_test_status="$(TEST_POSTGRES_REPO_ROOT="$epic_one" TEST_POSTGRES_ROOT="$one_test_root" "$test_postgres_command" status)"
+two_test_status="$(TEST_POSTGRES_REPO_ROOT="$epic_two" TEST_POSTGRES_ROOT="$two_test_root" "$test_postgres_command" status)"
+[[ "$one_test_status" == *"state=running"* ]] || fail "first test PostgreSQL process is not healthy"
+[[ "$two_test_status" == *"state=running"* ]] || fail "second test PostgreSQL process is not healthy"
+[ "$(printf '%s\n' "$one_test_status" | sed -n 's/^instance=//p')" != "$(printf '%s\n' "$two_test_status" | sed -n 's/^instance=//p')" ] \
+    || fail "test PostgreSQL process identities collide"
+TEST_POSTGRES_REPO_ROOT="$epic_one" TEST_POSTGRES_ROOT="$one_test_root" "$test_postgres_command" stop >/dev/null
+TEST_POSTGRES_REPO_ROOT="$epic_two" TEST_POSTGRES_ROOT="$two_test_root" "$test_postgres_command" status | grep -q '^state=running$' \
+    || fail "stopping first test PostgreSQL affected second"
+
+run_for "$epic_one" "$dev_start_command" >/dev/null
+run_for "$epic_two" "$dev_start_command" >/dev/null
+one_state="$(jq -r '.stateDir' <<<"$one_info")"
+two_state="$(jq -r '.stateDir' <<<"$two_info")"
+one_pid="$(cat "$one_state/devenv.pid")"
+two_pid="$(cat "$two_state/devenv.pid")"
+[ "$one_pid" != "$two_pid" ] || fail "epic app processes share a PID"
+kill -0 "$one_pid" 2>/dev/null || fail "first native environment did not stay running"
+kill -0 "$two_pid" 2>/dev/null || fail "second native environment did not stay running"
+
+wait_healthy() {
+    local path="$1"
+    local app_url="$2"
+    local mailhog_url="$3"
+    local _attempt
+    for _attempt in $(seq 1 30); do
+        if run_for "$path" "$dev_status_command" >/dev/null 2>&1 \
+            && curl --connect-timeout 1 --max-time 2 -fsS "$app_url" >/dev/null \
+            && curl --connect-timeout 1 --max-time 2 -fsS "$mailhog_url/api/v2/messages" >/dev/null; then
+            return 0
+        fi
+        sleep 1
+    done
+    return 1
+}
+wait_healthy "$epic_one" "$one_app" "$one_mailhog" || fail "first native environment did not become healthy"
+wait_healthy "$epic_two" "$two_app" "$two_mailhog" || fail "second native environment did not become healthy"
+
+psql_for() {
+    local path="$1"
+    shift
+    run_for "$path" bash -c '
+        set -euo pipefail
+        eval "$(dev-workspace-info --shell)"
+        psql "$DATABASE_URL" -v ON_ERROR_STOP=1 "$@"
+    ' bash "$@"
+}
+psql_for "$epic_one" -qAtc 'create table acceptance_probe (value text not null); insert into acceptance_probe values ('"'"'epic-901'"'"');'
+psql_for "$epic_two" -qAtc 'create table acceptance_probe (value text not null); insert into acceptance_probe values ('"'"'epic-902'"'"');'
+[ "$(psql_for "$epic_one" -qAtc 'select value from acceptance_probe')" = epic-901 ] \
+    || fail "first same-named database lost independent data"
+[ "$(psql_for "$epic_two" -qAtc 'select value from acceptance_probe')" = epic-902 ] \
+    || fail "second same-named database lost independent data"
+
+run_for "$epic_one" "$dev_stop_command" >/dev/null
+if kill -0 "$one_pid" 2>/dev/null; then
+    fail "first environment survived its own stop"
+fi
+kill -0 "$two_pid" 2>/dev/null || fail "stopping first environment killed second"
+wait_healthy "$epic_two" "$two_app" "$two_mailhog" || fail "second environment became unhealthy after first stopped"
+[ "$(psql_for "$epic_two" -qAtc 'select value from acceptance_probe')" = epic-902 ] \
+    || fail "second database changed when first environment stopped"
+
+run_for "$epic_two" "$dev_stop_command" >/dev/null
+TEST_POSTGRES_REPO_ROOT="$epic_two" TEST_POSTGRES_ROOT="$two_test_root" "$test_postgres_command" stop >/dev/null
+test_postgres_started=false
+run_primary env BEPIS_WORKSPACE_PORT_OFFSET="$port_offset" \
+    "$manage_command" cleanup --epic 901 --approve --json >/dev/null
+run_primary env BEPIS_WORKSPACE_PORT_OFFSET="$port_offset" \
+    "$manage_command" cleanup --epic 902 --approve --json >/dev/null
+[ ! -e "$epic_one" ] && [ ! -e "$epic_two" ] || fail "safe cleanup left epic worktrees"
+registry_file="$(git -C "$primary_repo" rev-parse --path-format=absolute --git-common-dir)/bepis/epic-worktrees/registry.json"
+[ "$(jq '.workspaces | length' "$registry_file")" = 0 ] || fail "safe cleanup left registry entries"
+cleanup_started=false
+
+echo "epic-worktree-concurrency-test: ok"

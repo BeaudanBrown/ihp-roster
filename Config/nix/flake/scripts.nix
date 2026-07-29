@@ -102,6 +102,7 @@ in
         epic-worktree-orientation-test = script ../scripts/epic/orientation-test;
         epic-worktree-manage = script ../scripts/epic/manage;
         epic-worktree-manage-test = script ../scripts/epic/manage-test;
+        epic-worktree-concurrency-test = script ../scripts/epic/concurrency-test;
         epic-worktree-provision = script ../scripts/epic/provision;
         epic-worktree-provision-test = script ../scripts/epic/provision-test;
         architecture-contracts = script ../scripts/architecture/contracts;

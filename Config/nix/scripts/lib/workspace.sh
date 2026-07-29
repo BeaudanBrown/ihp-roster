@@ -70,6 +70,12 @@ bepis_workspace_configure() {
             || { bepis_workspace_die 65 "linked worktree is missing epic identity: $repo_root"; return; }
     fi
 
+    local port_offset="${BEPIS_WORKSPACE_PORT_OFFSET:-0}"
+    if ! [[ "$port_offset" =~ ^[0-9]+$ ]] || [ "$port_offset" -gt 40000 ]; then
+        bepis_workspace_die 64 "port offset must be an integer from 0 through 40000"
+        return
+    fi
+
     local state_dir=""
     local state_root="${BEPIS_WORKSPACE_STATE_ROOT:-}"
     if [ "${BEPIS_WORKSPACE_STATE_CONFIGURED:-}" = "1" ] \
@@ -92,9 +98,9 @@ bepis_workspace_configure() {
         state_dir="$repo_root/.devenv/agent"
     fi
     state_dir="$(realpath -m "$state_dir")"
-    local app_port=$((8000 + slot))
-    local smtp_port=$((1025 + slot))
-    local mailhog_port=$((8025 + slot))
+    local app_port=$((8000 + port_offset + slot))
+    local smtp_port=$((1025 + port_offset + slot))
+    local mailhog_port=$((8025 + port_offset + slot))
     local app_url="http://127.0.0.1:$app_port"
     local mailhog_url="http://127.0.0.1:$mailhog_port"
     local postgres_socket="$repo_root/build/db"
@@ -103,14 +109,18 @@ bepis_workspace_configure() {
     if [ "$slot" -ne 0 ]; then
         otel_service_name="ihp-roster-dev-epic-$epic"
     fi
-    local tempo_port=$((3200 + slot))
-    local tempo_server_grpc_port=$((9095 + slot))
-    local tempo_otlp_grpc_port=$((14317 + slot))
-    local tempo_otlp_http_port=$((14318 + slot))
-    local collector_otlp_grpc_port=$((4317 + slot))
-    local collector_otlp_http_port=$((4318 + slot))
-    local collector_health_port=$((13133 + slot))
-    local grafana_port=$((3300 + slot))
+    local tempo_port=$((3200 + port_offset + slot))
+    local tempo_server_grpc_port=$((9095 + port_offset + slot))
+    local tempo_otlp_grpc_port=$((14317 + port_offset + slot))
+    local tempo_otlp_http_port=$((14318 + port_offset + slot))
+    local collector_otlp_grpc_port=$((4317 + port_offset + slot))
+    local collector_otlp_http_port=$((4318 + port_offset + slot))
+    local collector_health_port=$((13133 + port_offset + slot))
+    local grafana_port=$((3300 + port_offset + slot))
+    if [ "$tempo_otlp_http_port" -gt 65535 ]; then
+        bepis_workspace_die 64 "port offset and workspace slot exceed the TCP port range"
+        return
+    fi
 
     export BEPIS_WORKSPACE_REPO_ROOT="$repo_root"
     export BEPIS_WORKSPACE_KIND="$kind"
@@ -118,6 +128,7 @@ bepis_workspace_configure() {
     export BEPIS_WORKSPACE_EPIC="$epic"
     export BEPIS_WORKSPACE_STATE_CONFIGURED=1
     export BEPIS_WORKSPACE_STATE_ROOT="$state_root"
+    export BEPIS_WORKSPACE_PORT_OFFSET="$port_offset"
     export DEVENV_AGENT_STATE_DIR="$state_dir"
     export PORT="$app_port"
     export APP_BASE_URL="$app_url"
@@ -147,6 +158,7 @@ bepis_workspace_json() {
         --arg kind "$BEPIS_WORKSPACE_KIND" \
         --arg epic "$BEPIS_WORKSPACE_EPIC" \
         --argjson slot "$BEPIS_WORKSPACE_SLOT" \
+        --argjson portOffset "$BEPIS_WORKSPACE_PORT_OFFSET" \
         --argjson appPort "$PORT" \
         --arg appUrl "$APP_BASE_URL" \
         --argjson smtpPort "$SMTP_PORT" \
@@ -158,14 +170,14 @@ bepis_workspace_json() {
         --arg otelServiceName "$BEPIS_WORKSPACE_OTEL_SERVICE_NAME" \
         --argjson grafanaPort "$IHP_ROSTER_DEV_GRAFANA_PORT" \
         --argjson otlpHttpPort "$IHP_ROSTER_DEV_OTLP_HTTP_PORT" \
-        '{path: $path, kind: $kind, epic: (if $epic == "" then null else ($epic | tonumber) end), slot: $slot, appPort: $appPort, appUrl: $appUrl, smtpPort: $smtpPort, mailhogPort: $mailhogPort, mailhogUrl: $mailhogUrl, stateDir: $stateDir, postgresSocket: $postgresSocket, databaseUrl: $databaseUrl, otelServiceName: $otelServiceName, grafanaPort: $grafanaPort, otlpHttpPort: $otlpHttpPort}'
+        '{path: $path, kind: $kind, epic: (if $epic == "" then null else ($epic | tonumber) end), slot: $slot, portOffset: $portOffset, appPort: $appPort, appUrl: $appUrl, smtpPort: $smtpPort, mailhogPort: $mailhogPort, mailhogUrl: $mailhogUrl, stateDir: $stateDir, postgresSocket: $postgresSocket, databaseUrl: $databaseUrl, otelServiceName: $otelServiceName, grafanaPort: $grafanaPort, otlpHttpPort: $otlpHttpPort}'
 }
 
 bepis_workspace_shell() {
     local name
     for name in \
         BEPIS_WORKSPACE_REPO_ROOT BEPIS_WORKSPACE_KIND BEPIS_WORKSPACE_SLOT BEPIS_WORKSPACE_EPIC \
-        BEPIS_WORKSPACE_STATE_CONFIGURED BEPIS_WORKSPACE_STATE_ROOT DEVENV_AGENT_STATE_DIR PORT APP_BASE_URL BASE_URL PWCLI_BASE_URL \
+        BEPIS_WORKSPACE_STATE_CONFIGURED BEPIS_WORKSPACE_STATE_ROOT BEPIS_WORKSPACE_PORT_OFFSET DEVENV_AGENT_STATE_DIR PORT APP_BASE_URL BASE_URL PWCLI_BASE_URL \
         SMTP_HOST SMTP_PORT MAILHOG_SMTP_PORT MAILHOG_PORT MAILHOG_BASE_URL PGHOST DATABASE_URL \
         BEPIS_WORKSPACE_OTEL_SERVICE_NAME IHP_ROSTER_DEV_TEMPO_PORT IHP_ROSTER_DEV_TEMPO_SERVER_GRPC_PORT IHP_ROSTER_DEV_TEMPO_OTLP_GRPC_PORT IHP_ROSTER_DEV_TEMPO_OTLP_HTTP_PORT \
         IHP_ROSTER_DEV_OTLP_GRPC_PORT IHP_ROSTER_DEV_OTLP_HTTP_PORT IHP_ROSTER_DEV_COLLECTOR_HEALTH_PORT \

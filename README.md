@@ -103,7 +103,10 @@ For a registered epic, `epic-worktree-manage preflight --epic N` reports
 cleanliness, divergence, conflicts, affected generated/migration files, runtime
 state, and required checks without changing refs or worktrees. Synchronization
 requires `sync --apply`; final `--no-ff` integration and safe cleanup each
-require their own `--approve`. Parent-issue closure remains separate.
+require their own `--approve`. Parent-issue closure remains separate. The
+bounded `epic-worktree-concurrency-test` acceptance gate provisions two
+worktrees in a disposable clone, uses isolated high ports and real local
+PostgreSQL/MailHog processes, and removes all fixture state on exit.
 
 ### Android PWA emulator
 
