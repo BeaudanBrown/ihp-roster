@@ -42,6 +42,7 @@ module Application.Helper.FrontendContract.Surface.Admin
     , UpdateVenueConfig
     , CreateVenueInvitation
     , RevokeVenueInvitation
+    , RenewVenueInvitation
     , CreateExportJob
     , CreateShiftType
     , UpdateShiftType
@@ -111,6 +112,7 @@ data ToggleInactiveRosterGroups
 data UpdateVenueConfig
 data CreateVenueInvitation
 data RevokeVenueInvitation
+data RenewVenueInvitation
 data CreateExportJob
 data CreateShiftType
 data UpdateShiftType
@@ -216,6 +218,12 @@ type AdminInvitesSurface =
              ]
          , Action RevokeVenueInvitation
             '[]
+            '[ 'HtmxMethod 'HtmxPost
+             , 'HtmxTarget ('HtmxId AdminInvitesFragment)
+             , 'HtmxSwap 'HtmxNoSwap
+             ]
+         , Action RenewVenueInvitation
+            '[ OptionalField Email 'WireText ]
             '[ 'HtmxMethod 'HtmxPost
              , 'HtmxTarget ('HtmxId AdminInvitesFragment)
              , 'HtmxSwap 'HtmxNoSwap

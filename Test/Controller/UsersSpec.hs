@@ -121,6 +121,21 @@ tests = aroundAll withDatabaseTestContext do
                 response `responseBodyShouldContain` "Invitation Required"
                 response `responseBodyShouldNotContain` "Accept Invitation"
 
+        it "does not render signup for a legacy invitation more than two weeks old without explicit expiry" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Legacy Expired Invite Venue"
+                now <- getCurrentTime
+                invitation <- createVenueInvitationRecord venue Nothing "legacy-expired-signup@example.com" "worker"
+                    >>= updateRecord
+                        . set #createdAt (addUTCTime (negate (15 * 24 * 60 * 60)) now)
+                        . set #expiresAt Nothing
+
+                response <- callActionWithParams NewUserAction [("invitationId", idToParam invitation.id)]
+
+                response `responseStatusShouldBe` status200
+                response `responseBodyShouldContain` "Invitation Required"
+                response `responseBodyShouldNotContain` "Accept Invitation"
+
         it "does not create accounts without an invitation" $ withContext do
             withCleanDb do
                 response <- callActionWithParams CreateUserAction
@@ -331,6 +346,54 @@ tests = aroundAll withDatabaseTestContext do
                 inputValue roleEvent.eventType `shouldBe` "assigned"
                 roleEvent.previousRole `shouldBe` Nothing
                 inputValue roleEvent.newRole `shouldBe` "venue_owner"
+
+        it "rejects the replaced link and adopts the same trial staff identity through the renewed link" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Renewed Trial Adoption Venue"
+                manager <- createUserRecord "renewed-trial-manager@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue manager "manager"
+                trialStaff <- createStaffRecord venue Nothing "Renewed" "Trial"
+                rosterWeek <- createRosterWeekRecord venue 0 False
+                rosterDay <- createRosterDayRecord rosterWeek 0
+                slotName <- createSlotNameRecord venue "Floor"
+                rosterSlot <- createRosterSlotRecord rosterDay slotName (Just trialStaff) 0
+                original <- createVenueInvitationRecord venue (Just manager) "old-renewed-trial@example.com" "worker"
+                    >>= updateRecord . set #staffId (Just trialStaff.id)
+
+                renewalResponse <- withUserAndCurrentVenue manager venue.id do
+                    callActionWithParams (RenewTrialStaffInvitationAction original.id)
+                        [("invitationEmail", "fresh-renewed-trial@example.com")]
+                renewalResponse `responseStatusShouldBe` status200
+                replacement <- query @VenueInvitation
+                    |> filterWhere (#staffId, Just trialStaff.id)
+                    |> filterWhere (#email, "fresh-renewed-trial@example.com")
+                    |> fetchOne
+
+                oldLinkResponse <- callActionWithParams NewUserAction [("invitationId", idToParam original.id)]
+                oldLinkResponse `responseBodyShouldContain` "Invitation Required"
+                oldLinkResponse `responseBodyShouldNotContain` "Accept Invitation"
+
+                acceptanceResponse <- callActionWithParams CreateUserAction $
+                    [ ("invitationId", idToParam replacement.id)
+                    , ("passwordHash", "test-password-123")
+                    , ("passwordConfirmation", "test-password-123")
+                    , ("firstName", "Renewed Updated")
+                    , ("lastName", "Trial")
+                    , ("preferredName", "Renew")
+                    , ("phone", "0499999999")
+                    , ("emergencyContactName", "Casey Trial")
+                    , ("emergencyContactPhone", "0488888888")
+                    , ("idealShiftsPerWeek", "4")
+                    ]
+
+                acceptanceResponse `responseStatusShouldBe` status302
+                adoptedStaff <- fetch trialStaff.id
+                updatedSlot <- fetch rosterSlot.id
+                adoptedStaff.userId `shouldSatisfy` isJust
+                adoptedStaff.firstName `shouldBe` "Renewed Updated"
+                updatedSlot.staffId `shouldBe` Just (unpackId trialStaff.id)
+                acceptedReplacement <- fetch replacement.id
+                inputValue acceptedReplacement.status `shouldBe` "accepted"
 
         it "adopts an existing trial staff row when accepting a staff-linked invitation" $ withContext do
             withCleanDb do

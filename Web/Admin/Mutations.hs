@@ -8,6 +8,7 @@ module Web.Admin.Mutations
     , moveRosterGroupMutation
     , moveShiftTypeMutation
     , revokeVenueInvitationMutation
+    , renewVenueInvitationMutation
     , rosterEndTimesTouchedResources
     , rosterTimePickerWindowTouchedResources
     , rosterWeekStartsOnTouchedResources
@@ -33,14 +34,18 @@ import Application.Helper.RosterGroups (createVenueRosterGroupWithDefaults,
 import Application.Helper.ShiftTypeColours (assignShiftTypeColourKey,
                                             blankShiftTypeColourKey,
                                             normalizeShiftTypeColourKey)
+import Application.Helper.Staff (isAdoptableTrialStaff)
 import Application.Helper.SurfaceResource
 import Application.Helper.TimeRules (formatMinuteOfDayText)
 import Application.Helper.VenueInvitation
 import Application.Helper.WeekBoundaries (defaultWeekOffsetEpochForStartDay)
 import Application.InvitationDelivery.Job (enqueueVenueInvitationDeliveryJob)
 import Application.PayAssignment (selectableShiftAssignmentMode)
+import Application.VenueInvitation.Mutations (withVenueInvitationEmailLock,
+                                              withVenueInvitationRenewalLock)
 import Control.Monad (void)
 import qualified Data.Set as Set
+import qualified Data.Text as Text
 import Data.Time.Clock (addUTCTime, getCurrentTime, utctDay)
 import Web.Controller.Admin.Support
 import Web.Controller.Prelude
@@ -97,20 +102,72 @@ rosterWeekStartsOnTouchedResources venueId =
            , timesheetWeekBoundaryConfigResource (unpackId venueId)
            ]
 
-createVenueInvitationMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Text -> IO (LiveMutationResult VenueInvitation)
+createVenueInvitationMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Text -> IO (Either Text (LiveMutationResult VenueInvitation))
 createVenueInvitationMutation email = do
+    creation <- withVenueInvitationEmailLock (Text.toCaseFold email) do
+        staffLinkedInvitations <- query @VenueInvitation
+            |> filterWhere (#venueId, unpackId currentVenueId)
+            |> filterWhereNot (#staffId, Nothing)
+            |> fetch
+        let matchingInvitations = filter ((== Text.toCaseFold email) . Text.toCaseFold . (.email)) staffLinkedInvitations
+        matchingTrialStaff <- forM (mapMaybe (.staffId) matchingInvitations) fetch
+        if any isAdoptableTrialStaff matchingTrialStaff
+            then pure (Left "Use the trial-staff renewal workflow for this active trial staff email.")
+            else do
+                now <- getCurrentTime
+                invitation <- newRecord @VenueInvitation
+                    |> set #venueId (unpackId currentVenueId)
+                    |> set #invitedByUserId (Just (unpackId currentUser.id))
+                    |> set #email email
+                    |> set #inviteRole (venueRoleToEnum WorkerRole)
+                    |> set #status (unsafeEnumFromText @InvitationStatusEnum "pending")
+                    |> set #deliveryStatus (unsafeEnumFromText @InvitationDeliveryStatusEnum "queued")
+                    |> set #expiresAt (Just (addUTCTime venueInvitationLifetime now))
+                    |> createRecord
+                void (enqueueVenueInvitationDeliveryJob (Just currentUser.id) invitation)
+                pure (Right invitation)
+    case creation of
+        Left message -> pure (Left message)
+        Right invitation ->
+            Right <$> invalidateTouchedResources "admin.invite.create" (liveMutationResult invitation [adminInvitesResource (unpackId currentVenueId)])
+
+renewVenueInvitationMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => VenueInvitation -> Text -> IO (Either Text (LiveMutationResult VenueInvitation))
+renewVenueInvitationMutation invitation correctedEmail
+    | invitation.venueId /= unpackId currentVenueId = pure (Left "Choose an invitation from the current venue.")
+    | isJust invitation.staffId = pure (Left "Use the trial-staff renewal workflow for staff-linked invitations.")
+    | otherwise = do
+        maybeRenewal <- withVenueInvitationRenewalLock
+            (unpackId invitation.id)
+            Nothing
+            (Text.toCaseFold correctedEmail)
+            do
+                lockedInvitation <- fetch invitation.id
+                if inputValue lockedInvitation.status /= ("pending" :: Text)
+                    then pure (Left "Only pending invitations can be renewed.")
+                    else Right <$> replaceVenueInvitation lockedInvitation correctedEmail
+        case maybeRenewal of
+            Nothing -> pure (Left "That invitation is no longer available to renew.")
+            Just (Left message) -> pure (Left message)
+            Just (Right replacement) ->
+                Right <$> invalidateTouchedResources "admin.invite.renew" (liveMutationResult replacement [adminInvitesResource (unpackId currentVenueId)])
+
+replaceVenueInvitation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => VenueInvitation -> Text -> IO VenueInvitation
+replaceVenueInvitation invitation correctedEmail = do
     now <- getCurrentTime
-    invitation <- newRecord @VenueInvitation
-        |> set #venueId (unpackId currentVenueId)
+    _ <- invitation
+        |> set #status (unsafeEnumFromText @InvitationStatusEnum "revoked")
+        |> updateRecord
+    replacement <- newRecord @VenueInvitation
+        |> set #venueId invitation.venueId
         |> set #invitedByUserId (Just (unpackId currentUser.id))
-        |> set #email email
-        |> set #inviteRole (venueRoleToEnum WorkerRole)
+        |> set #email correctedEmail
+        |> set #inviteRole invitation.inviteRole
         |> set #status (unsafeEnumFromText @InvitationStatusEnum "pending")
         |> set #deliveryStatus (unsafeEnumFromText @InvitationDeliveryStatusEnum "queued")
         |> set #expiresAt (Just (addUTCTime venueInvitationLifetime now))
         |> createRecord
-    void (enqueueVenueInvitationDeliveryJob (Just currentUser.id) invitation)
-    invalidateTouchedResources "admin.invite.create" (liveMutationResult invitation [adminInvitesResource (unpackId currentVenueId)])
+    void (enqueueVenueInvitationDeliveryJob (Just currentUser.id) replacement)
+    pure replacement
 
 revokeVenueInvitationMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => VenueInvitation -> IO (LiveMutationResult VenueInvitation)
 revokeVenueInvitationMutation invitation = do

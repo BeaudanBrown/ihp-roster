@@ -8,7 +8,7 @@ import {
     rosterStaffPanelSortRowDomAttr,
     toastOverlayMountDomId,
 } from '../frontend/ts/generated/contracts';
-import { openRoster, runSql } from './test-helpers';
+import { openRoster, runSql, uniqueE2EValue } from './test-helpers';
 
 async function loginAndOpenRoster(page: Page) {
     await openRoster(page, { email: 'e2e-test@example.com' });
@@ -42,6 +42,48 @@ test.describe('Roster Staff Modal', () => {
         await expect(modalMount).toContainText('Invite trial staff');
         await expect(modalMount).not.toContainText('Edit Staff Member');
         await expect(modalMount.locator('#trial-staff-invite-form')).toBeVisible();
+    });
+
+    test('renews an expired trial invitation with a corrected fresh link', async ({ page }) => {
+        const staffId = 'a1000000-0000-0000-0000-000000000035';
+        const invitationId = 'a1000000-0000-0000-0000-000000000935';
+        const originalEmail = `${uniqueE2EValue('expired-trial-renewal')}@example.com`;
+        const correctedEmail = `${uniqueE2EValue('corrected-trial-renewal')}@example.com`;
+        runSql(`
+            DELETE FROM app_jobs WHERE related_table = 'venue_invitations' AND related_id = '${invitationId}';
+            DELETE FROM venue_invitations WHERE staff_id = '${staffId}';
+            INSERT INTO venue_invitations (id, venue_id, staff_id, email, expires_at)
+            VALUES ('${invitationId}', 'a1000000-0000-0000-0000-000000000001', '${staffId}', '${originalEmail}', NOW() - INTERVAL '1 minute')
+        `);
+
+        try {
+            await loginAndOpenRoster(page);
+            const modalMount = page.locator(`#${dialogOverlayMountDomId}`);
+            const trialEntry = page.locator(
+                `[${rosterStaffPanelSortRowDomAttr}][${rosterStaffHighlightSourceDomAttr}="staff:${staffId}"]:visible`,
+            );
+            await trialEntry.getByRole('button', { name: /^Invite / }).click();
+
+            await expect(modalMount).toContainText('Expired');
+            const renewalForm = modalMount.locator(`form[action*="/RenewTrialStaffInvitation"]`);
+            await expect(renewalForm.locator('[name="invitationEmail"]')).toHaveValue(originalEmail);
+            await renewalForm.locator('[name="invitationEmail"]').fill(correctedEmail);
+            await renewalForm.getByRole('button', { name: 'Renew' }).click();
+
+            await expect(page.locator(`#${toastOverlayMountDomId}`)).toContainText(`Invitation renewed for ${correctedEmail}`);
+            await expect(modalMount.locator(`[${dialogMountDomAttr}]`)).toHaveCount(0);
+
+            await trialEntry.getByRole('button', { name: /^Invite / }).click();
+            await expect(modalMount.getByRole('textbox', { name: 'Renewal email' })).toHaveValue(correctedEmail);
+            await expect(modalMount).not.toContainText(originalEmail);
+        } finally {
+            runSql(`
+                DELETE FROM app_jobs WHERE related_table = 'venue_invitations' AND related_id IN (
+                    SELECT id FROM venue_invitations WHERE staff_id = '${staffId}'
+                );
+                DELETE FROM venue_invitations WHERE staff_id = '${staffId}'
+            `);
+        }
     });
 
     test('edits staff inline without navigating away from the roster', async ({ page }) => {

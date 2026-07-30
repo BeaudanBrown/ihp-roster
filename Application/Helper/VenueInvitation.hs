@@ -12,7 +12,17 @@ import Web.Mail.Users.VenueInvitation
 import Web.Types
 
 venueInvitationLifetime :: NominalDiffTime
-venueInvitationLifetime = 60 * 60 * 24
+venueInvitationLifetime = 60 * 60 * 24 * 14
+
+venueInvitationEffectiveExpiresAt :: VenueInvitation -> UTCTime
+venueInvitationEffectiveExpiresAt invitation =
+    fromMaybe (addUTCTime venueInvitationLifetime invitation.createdAt) invitation.expiresAt
+
+venueInvitationIsActive :: UTCTime -> VenueInvitation -> Bool
+venueInvitationIsActive now invitation =
+    invitation.status == unsafeEnumFromText @InvitationStatusEnum "pending"
+        && invitation.acceptedAt == Nothing
+        && venueInvitationEffectiveExpiresAt invitation > now
 
 venueInvitationUrl :: Text -> VenueInvitation -> Text
 venueInvitationUrl appBaseUrl invitation =

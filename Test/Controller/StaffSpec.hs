@@ -1,5 +1,6 @@
 module Test.Controller.StaffSpec where
 
+import Application.Async.Queue (EnqueueAppJobResult (..))
 import qualified Application.Helper.FrontendContract.Surface.Admin.Live as AdminLive
 import Application.Helper.FrontendContract.Surface.Profile.Resource
 import Application.Helper.FrontendContract.Surface.Roster.Resource (rosterSlotsContentResource,
@@ -11,8 +12,13 @@ import Application.Helper.StaffShiftPreferences (encodeShiftPreferenceKey,
                                                  shiftPreferenceEndHourParamName,
                                                  shiftPreferenceStartHourParamName)
 import Application.Helper.SurfaceResource
-import Application.InvitationDelivery.Job (venueInvitationDeliveryJobKind)
+import Application.InvitationDelivery.Job (enqueueVenueInvitationDeliveryJob,
+                                           performVenueInvitationDeliveryJob,
+                                           venueInvitationDeliveryJobKind)
 import Config
+import Control.Concurrent (forkIO, newEmptyMVar, putMVar, readMVar, takeMVar)
+import Control.Exception.Safe (SomeException, try)
+import Control.Monad (void, zipWithM)
 import qualified Data.List as List
 import qualified Data.Set as Set
 import qualified Data.Text as Text
@@ -316,6 +322,26 @@ tests = aroundAll withDatabaseTestContext do
                 response `responseBodyShouldContain` "pending-dialog@example.com"
                 response `responseBodyShouldContain` "name=\"weekOffset\" value=\"3\""
 
+        it "shows expired trial invitations with corrected-email renewal controls" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Staff Expired Trial Invite Dialog Venue"
+                manager <- createUserRecord "staff-expired-trial-dialog-manager@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue manager "manager"
+                staff <- createStaffRecord venue Nothing "Expired" "Trial"
+                now <- getCurrentTime
+                invitation <- createVenueInvitationRecord venue (Just manager) "expired-trial-dialog@example.com" "worker"
+                    >>= updateRecord . set #staffId (Just staff.id) . set #expiresAt (Just (addUTCTime (-60) now))
+
+                response <- withUserAndCurrentVenue manager venue.id do
+                    withRequestHeaders [("HX-Request", "true")] do
+                        callAction (NewTrialStaffInvitationAction staff.id)
+
+                response `responseStatusShouldBe` status200
+                response `responseBodyShouldContain` "Expired"
+                response `responseBodyShouldContain` cs (pathTo (RenewTrialStaffInvitationAction invitation.id))
+                response `responseBodyShouldContain` "name=\"invitationEmail\""
+                response `responseBodyShouldContain` "value=\"expired-trial-dialog@example.com\""
+
         it "rejects opening the invitation dialog for linked staff" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Staff Linked Invite Dialog Venue"
@@ -413,6 +439,9 @@ tests = aroundAll withDatabaseTestContext do
                 invitation.staffId `shouldBe` Just staff.id
                 inputValue invitation.inviteRole `shouldBe` "worker"
                 inputValue invitation.status `shouldBe` "pending"
+                now <- getCurrentTime
+                diffUTCTime (fromMaybe now invitation.expiresAt) now
+                    `shouldSatisfy` (\seconds -> seconds > 1209500 && seconds < 1210100)
                 appJob <- query @AppJob
                     |> filterWhere (#relatedTable, Just ("venue_invitations" :: Text))
                     |> filterWhere (#relatedId, Just (unpackId invitation.id))
@@ -421,23 +450,225 @@ tests = aroundAll withDatabaseTestContext do
                 versionAfter <- LiveUpdate.currentLiveUpdateVersion (AdminLive.adminInvitesLiveScope (unpackId venue.id))
                 versionAfter `shouldBe` versionBefore
 
-        it "closes the dedicated dialog after resending a trial staff invitation" $ withContext do
+        it "renews a trial staff invitation with a fresh link and the same staff identity" $ withContext do
             withCleanDb do
-                venue <- createVenueWithConfig "Staff Resend Trial Invite Venue"
-                manager <- createUserRecord "staff-resend-trial-invite-manager@example.com" "staff" True
+                venue <- createVenueWithConfig "Staff Renew Trial Invite Venue"
+                manager <- createUserRecord "staff-renew-trial-invite-manager@example.com" "staff" True
                 _ <- createVenueMembershipRecord venue manager "manager"
-                staff <- createStaffRecord venue Nothing "Resend" "Invite"
-                invitation <- createVenueInvitationRecord venue (Just manager) "resend-trial-invite@example.com" "worker"
+                staff <- createStaffRecord venue Nothing "Renew" "Invite"
+                original <- createVenueInvitationRecord venue (Just manager) "renew-trial-invite@example.com" "worker"
+                    >>= updateRecord . set #staffId (Just staff.id)
+                EnqueuedAppJob originalJob <- enqueueVenueInvitationDeliveryJob (Just manager.id) original
+
+                response <- withUserAndCurrentVenue manager venue.id do
+                    withRequestHeaders [("HX-Request", "true")] do
+                        callAction (RenewTrialStaffInvitationAction original.id)
+
+                response `responseStatusShouldBe` status200
+                response `responseBodyShouldContain` "Invitation renewed for renew-trial-invite@example.com"
+                response `responseBodyShouldContain` "id=\"dialog-overlay-mount\" hx-swap-oob=\"innerHTML\""
+                response `responseBodyShouldNotContain` "Invite trial staff"
+                revokedOriginal <- fetch original.id
+                inputValue revokedOriginal.status `shouldBe` "revoked"
+                replacement <- query @VenueInvitation
+                    |> filterWhere (#staffId, Just staff.id)
+                    |> filterWhere (#status, original.status)
+                    |> fetchOne
+                replacement.id `shouldNotBe` original.id
+                replacement.email `shouldBe` original.email
+                replacement.staffId `shouldBe` Just staff.id
+                inputValue replacement.deliveryStatus `shouldBe` "queued"
+                replacementJob <- query @AppJob
+                    |> filterWhere (#relatedId, Just (unpackId replacement.id))
+                    |> fetchOne
+                replacementJob.id `shouldNotBe` originalJob.id
+                replacementJob.dedupeKey `shouldNotBe` originalJob.dedupeKey
+                withFrameworkConfig config \frameworkConfig -> do
+                    let ?context = frameworkConfig
+                    performVenueInvitationDeliveryJob originalJob
+                    performVenueInvitationDeliveryJob replacementJob
+                staleOriginal <- fetch original.id
+                deliveredReplacement <- fetch replacement.id
+                staleOriginal.deliveredAt `shouldBe` Nothing
+                deliveredReplacement.deliveredAt `shouldSatisfy` isJust
+
+        it "rejects blank, malformed, and oversized corrected renewal emails without revoking the link" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Staff Invalid Trial Renewal Venue"
+                manager <- createUserRecord "staff-invalid-trial-renewal-manager@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue manager "manager"
+                staff <- createStaffRecord venue Nothing "Invalid" "Renewal"
+                original <- createVenueInvitationRecord venue (Just manager) "valid-trial-renewal@example.com" "worker"
+                    >>= updateRecord . set #staffId (Just staff.id)
+                let invalidEmails = ["   ", "not-an-email", Text.replicate 250 "a" <> "@example.com", "<script>alert(1)</script>@example.com"]
+
+                forM_ invalidEmails \invalidEmail -> do
+                    response <- withUserAndCurrentVenue manager venue.id do
+                        withRequestHeaders [("HX-Request", "true")] do
+                            callActionWithParams (RenewTrialStaffInvitationAction original.id)
+                                [("invitationEmail", cs invalidEmail)]
+                    response `responseStatusShouldBe` status200
+
+                unchanged <- fetch original.id
+                inputValue unchanged.status `shouldBe` "pending"
+                query @VenueInvitation |> fetchCount >>= (`shouldBe` 1)
+                query @AppJob |> fetchCount >>= (`shouldBe` 0)
+
+        it "serializes concurrent renewals to one active link for the trial staff identity" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Staff Concurrent Trial Invite Venue"
+                manager <- createUserRecord "staff-concurrent-trial-invite-manager@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue manager "manager"
+                staff <- createStaffRecord venue Nothing "Concurrent" "Invite"
+                original <- createVenueInvitationRecord venue (Just manager) "concurrent-trial-invite@example.com" "worker"
+                    >>= updateRecord . set #staffId (Just staff.id)
+
+                results <- runConcurrentStaffActionList
+                    [ withUserAndCurrentVenue manager venue.id do
+                        withRequestHeaders [("HX-Request", "true")] do
+                            callAction (RenewTrialStaffInvitationAction original.id)
+                    , withUserAndCurrentVenue manager venue.id do
+                        withRequestHeaders [("HX-Request", "true")] do
+                            callAction (RenewTrialStaffInvitationAction original.id)
+                    ]
+
+                lefts results `shouldSatisfy` null
+                mapM_ (`responseStatusShouldBe` status200) (rights results)
+                query @VenueInvitation
+                    |> filterWhere (#staffId, Just staff.id)
+                    |> filterWhere (#status, original.status)
+                    |> fetchCount
+                    >>= (`shouldBe` 1)
+
+        it "serializes trial invitation acceptance against renewal so only one link outcome wins" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Staff Accept Renew Race Venue"
+                manager <- createUserRecord "staff-accept-renew-race-manager@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue manager "manager"
+                staff <- createStaffRecord venue Nothing "Accept" "Race"
+                original <- createVenueInvitationRecord venue (Just manager) "staff-accept-renew-race@example.com" "worker"
+                    >>= updateRecord . set #staffId (Just staff.id)
+
+                results <- runConcurrentStaffActionList
+                    [ void $ callActionWithParams CreateUserAction
+                        [ ("invitationId", idToParam original.id)
+                        , ("passwordHash", "test-password-123")
+                        , ("passwordConfirmation", "test-password-123")
+                        , ("firstName", "Accept")
+                        , ("lastName", "Race")
+                        , ("preferredName", "")
+                        , ("phone", "0499999999")
+                        , ("emergencyContactName", "Casey Race")
+                        , ("emergencyContactPhone", "0488888888")
+                        , ("idealShiftsPerWeek", "4")
+                        ]
+                    , void $ withUserAndCurrentVenue manager venue.id do
+                        withRequestHeaders [("HX-Request", "true")] do
+                            callAction (RenewTrialStaffInvitationAction original.id)
+                    ]
+
+                lefts results `shouldSatisfy` null
+                finalOriginal <- fetch original.id
+                inputValue finalOriginal.status `shouldSatisfy` (`elem` ["accepted", "revoked"])
+                acceptedUserCount <- query @User
+                    |> filterWhere (#email, "staff-accept-renew-race@example.com")
+                    |> fetchCount
+                pendingReplacementCount <- query @VenueInvitation
+                    |> filterWhere (#staffId, Just staff.id)
+                    |> filterWhere (#status, original.status)
+                    |> fetchCount
+                acceptedUserCount + pendingReplacementCount `shouldBe` 1
+
+        it "serializes queued delivery against trial invitation renewal" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Staff Delivery Renew Race Venue"
+                manager <- createUserRecord "staff-delivery-renew-race-manager@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue manager "manager"
+                staff <- createStaffRecord venue Nothing "Delivery" "Race"
+                original <- createVenueInvitationRecord venue (Just manager) "staff-delivery-renew-race@example.com" "worker"
+                    >>= updateRecord . set #staffId (Just staff.id)
+                EnqueuedAppJob originalJob <- enqueueVenueInvitationDeliveryJob (Just manager.id) original
+
+                results <- withFrameworkConfig config \frameworkConfig -> do
+                    let ?context = frameworkConfig
+                    runConcurrentStaffActionList
+                        [ performVenueInvitationDeliveryJob originalJob
+                        , void $ withUserAndCurrentVenue manager venue.id do
+                            withRequestHeaders [("HX-Request", "true")] do
+                                callAction (RenewTrialStaffInvitationAction original.id)
+                        ]
+
+                lefts results `shouldSatisfy` null
+                finalOriginal <- fetch original.id
+                inputValue finalOriginal.status `shouldBe` "revoked"
+                query @VenueInvitation
+                    |> filterWhere (#staffId, Just staff.id)
+                    |> filterWhere (#status, original.status)
+                    |> fetchCount
+                    >>= (`shouldBe` 1)
+
+        it "renews to a corrected email and revokes every prior pending link for the trial staff identity" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Staff Corrected Trial Invite Venue"
+                manager <- createUserRecord "staff-corrected-trial-invite-manager@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue manager "manager"
+                staff <- createStaffRecord venue Nothing "Corrected" "Invite"
+                firstOriginal <- createVenueInvitationRecord venue (Just manager) "first-trial-invite@example.com" "worker"
+                    >>= updateRecord . set #staffId (Just staff.id)
+                secondOriginal <- createVenueInvitationRecord venue (Just manager) "second-trial-invite@example.com" "worker"
                     >>= updateRecord . set #staffId (Just staff.id)
 
                 response <- withUserAndCurrentVenue manager venue.id do
                     withRequestHeaders [("HX-Request", "true")] do
-                        callAction (ResendTrialStaffInvitationAction invitation.id)
+                        callActionWithParams (RenewTrialStaffInvitationAction firstOriginal.id)
+                            [("invitationEmail", " corrected-trial-invite@example.com ")]
 
                 response `responseStatusShouldBe` status200
-                response `responseBodyShouldContain` "Invitation resent to resend-trial-invite@example.com"
-                response `responseBodyShouldContain` "id=\"dialog-overlay-mount\" hx-swap-oob=\"innerHTML\""
-                response `responseBodyShouldNotContain` "Invite trial staff"
+                response `responseBodyShouldContain` "Invitation renewed for corrected-trial-invite@example.com"
+                renewedOriginals <- query @VenueInvitation
+                    |> filterWhereIn (#id, [firstOriginal.id, secondOriginal.id])
+                    |> fetch
+                map (inputValue . (.status)) renewedOriginals `shouldMatchList` ["revoked", "revoked"]
+                replacements <- query @VenueInvitation
+                    |> filterWhere (#staffId, Just staff.id)
+                    |> filterWhere (#status, firstOriginal.status)
+                    |> fetch
+                map (.email) replacements `shouldBe` ["corrected-trial-invite@example.com"]
+
+        it "prevents non-managers from renewing trial staff invitations" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Staff Worker Renew Venue"
+                worker <- createUserRecord "staff-worker-renew-worker@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue worker "worker"
+                staff <- createStaffRecord venue Nothing "Worker" "Renew"
+                invitation <- createVenueInvitationRecord venue Nothing "worker-renew-trial@example.com" "worker"
+                    >>= updateRecord . set #staffId (Just staff.id)
+
+                response <- withUserAndCurrentVenue worker venue.id do
+                    callAction (RenewTrialStaffInvitationAction invitation.id)
+
+                response `responseStatusShouldBe` status302
+                unchanged <- fetch invitation.id
+                inputValue unchanged.status `shouldBe` "pending"
+                query @VenueInvitation |> fetchCount >>= (`shouldBe` 1)
+
+        it "rejects cross-venue trial invitation renewal" $ withContext do
+            withCleanDb do
+                currentVenue <- createVenueWithConfig "Staff Renew Current Venue"
+                foreignVenue <- createVenueWithConfig "Staff Renew Foreign Venue"
+                manager <- createUserRecord "staff-cross-venue-renew-manager@example.com" "staff" True
+                _ <- createVenueMembershipRecord currentVenue manager "manager"
+                foreignStaff <- createStaffRecord foreignVenue Nothing "Foreign" "Renew"
+                invitation <- createVenueInvitationRecord foreignVenue Nothing "foreign-renew-trial@example.com" "worker"
+                    >>= updateRecord . set #staffId (Just foreignStaff.id)
+
+                response <- withUserAndCurrentVenue manager currentVenue.id do
+                    callAction (RenewTrialStaffInvitationAction invitation.id)
+
+                response `responseStatusShouldBe` status403
+                unchanged <- fetch invitation.id
+                inputValue unchanged.status `shouldBe` "pending"
+                query @VenueInvitation |> fetchCount >>= (`shouldBe` 1)
 
         it "prevents non-managers from creating trial staff adoption invitations" $ withContext do
             withCleanDb do
@@ -854,6 +1085,20 @@ tests = aroundAll withDatabaseTestContext do
                 updatedStaff <- fetch staff.id
                 updatedStaff.employmentBasis `shouldBe` Casual
                 updatedStaff.defaultAwardLevelId `shouldBe` Nothing
+
+runConcurrentStaffActionList :: [IO result] -> IO [Either SomeException result]
+runConcurrentStaffActionList actions = do
+    resultVars <- mapM (const newEmptyMVar) actions
+    readyVars <- mapM (const newEmptyMVar) actions
+    startVar <- newEmptyMVar
+    _ <- zipWithM (\resultVar (readyVar, action) -> forkIO do
+            putMVar readyVar ()
+            _ <- readMVar startVar
+            try action >>= putMVar resultVar
+        ) resultVars (zip readyVars actions)
+    mapM_ takeMVar readyVars
+    putMVar startVar ()
+    mapM takeMVar resultVars
 
 shouldContainInOrder :: String -> [String] -> Expectation
 shouldContainInOrder haystack needles =

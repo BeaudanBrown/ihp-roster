@@ -21,6 +21,7 @@ import Application.Helper.FrontendContract.Surface.Runtime (FrontendSurfaceActio
                                                             renderFrontendSurfaceMount)
 import Application.Helper.FrontendContract.Surface.Values
 import Application.Helper.StaffShiftPreferences
+import Application.Helper.VenueInvitation (venueInvitationEffectiveExpiresAt)
 import Web.LeaveRequests.SelfService (renderSelfServiceLeaveHistory)
 import Web.Profiles.FrontendSurface (ProfileScopeValue (..), staffSurfaceImpl)
 import Web.View.LeaveRequests.New (LeaveRequestFieldNames (..),
@@ -405,12 +406,12 @@ renderStaffDetailsForm formMode staff maybeLinkedUserEmail managementFields acti
             values.profileDetailsIsActive
             values.profileDetailsRosterGroupIds
 
-renderTrialStaffInvitationModalFragment :: Staff -> [VenueInvitation] -> Maybe Text -> Maybe Text -> Int -> Maybe (Id RosterGroup) -> Html
-renderTrialStaffInvitationModalFragment staff pendingInvitations maybeError submittedEmail weekOffset maybeRosterGroupId =
+renderTrialStaffInvitationModalFragment :: UTCTime -> Staff -> [VenueInvitation] -> Maybe Text -> Maybe Text -> Int -> Maybe (Id RosterGroup) -> Html
+renderTrialStaffInvitationModalFragment now staff pendingInvitations maybeError submittedEmail weekOffset maybeRosterGroupId =
     renderDialogOverlay DialogOverlayConfig
         { dialogOverlayTitle = "Invite trial staff"
         , dialogOverlayBody = [hsx|
-            {renderTrialStaffInvitationForm staff pendingInvitations maybeError submittedEmail weekOffset maybeRosterGroupId}
+            {renderTrialStaffInvitationForm now staff pendingInvitations maybeError submittedEmail weekOffset maybeRosterGroupId}
         |]
         , dialogOverlayStartButtons = []
         , dialogOverlayButtons =
@@ -428,8 +429,14 @@ renderTrialStaffInvitationModalFragment staff pendingInvitations maybeError subm
         , dialogOverlayDialogClass = ""
         }
 
-renderTrialStaffInvitationForm :: Staff -> [VenueInvitation] -> Maybe Text -> Maybe Text -> Int -> Maybe (Id RosterGroup) -> Html
-renderTrialStaffInvitationForm staff pendingInvitations maybeError submittedEmail weekOffset maybeRosterGroupId =
+renderTrialStaffInvitationForm :: UTCTime -> Staff -> [VenueInvitation] -> Maybe Text -> Maybe Text -> Int -> Maybe (Id RosterGroup) -> Html
+renderTrialStaffInvitationForm now staff pendingInvitations maybeError submittedEmail weekOffset maybeRosterGroupId = [hsx|
+    {renderCreateTrialStaffInvitationForm staff maybeError submittedEmail weekOffset maybeRosterGroupId}
+    {renderPendingTrialInvitationList now pendingInvitations}
+|]
+
+renderCreateTrialStaffInvitationForm :: Staff -> Maybe Text -> Maybe Text -> Int -> Maybe (Id RosterGroup) -> Html
+renderCreateTrialStaffInvitationForm staff maybeError submittedEmail weekOffset maybeRosterGroupId =
     applyAppShellActionAttrs
         (appShellActionByMarker @CreateTrialStaffInvitationOverlay)
         (trialInvitationSubmitRoute (pathTo (CreateTrialStaffInvitationAction staff.id)) [("id", "trial-staff-invite-form")])
@@ -443,7 +450,6 @@ renderTrialStaffInvitationForm staff pendingInvitations maybeError submittedEmai
                     <label for="trial-staff-invitation-email" class="form-label">Email</label>
                     <input id="trial-staff-invitation-email" name="invitationEmail" type="email" class="form-control" placeholder="name@example.com" value={fromMaybe "" submittedEmail} required="required" />
                 </div>
-                {renderPendingTrialInvitationList pendingInvitations}
             </form>
         |]
 
@@ -460,39 +466,42 @@ trialInvitationSubmitRoute actionUrl extraAttrs =
 renderTrialInviteError :: Text -> Html
 renderTrialInviteError message = [hsx|<div class="alert alert-danger" role="alert">{message}</div>|]
 
-renderPendingTrialInvitationList :: [VenueInvitation] -> Html
-renderPendingTrialInvitationList [] = mempty
-renderPendingTrialInvitationList invitations = [hsx|
+renderPendingTrialInvitationList :: UTCTime -> [VenueInvitation] -> Html
+renderPendingTrialInvitationList _ [] = mempty
+renderPendingTrialInvitationList now invitations = [hsx|
     <div class="border-top pt-3 mt-3">
         <h3 class="h6 mb-2">Pending invites</h3>
         <div class="list-group list-group-flush">
-            {forEach invitations renderPendingTrialInvitationRow}
+            {forEach invitations (renderPendingTrialInvitationRow now)}
         </div>
     </div>
 |]
 
-renderPendingTrialInvitationRow :: VenueInvitation -> Html
-renderPendingTrialInvitationRow invitation = [hsx|
+renderPendingTrialInvitationRow :: UTCTime -> VenueInvitation -> Html
+renderPendingTrialInvitationRow now invitation = [hsx|
     <div class="list-group-item px-0 d-flex flex-wrap align-items-center justify-content-between gap-2">
         <div class="min-w-0">
             <div class="fw-semibold text-truncate">{invitation.email}</div>
-            <div class="small app-muted">Expires {formatUtcTimestamp (fromMaybe invitation.createdAt invitation.expiresAt)}</div>
+            <div class="small app-muted">{if venueInvitationEffectiveExpiresAt invitation <= now then "Expired" else "Expires " <> formatUtcTimestamp (venueInvitationEffectiveExpiresAt invitation)}</div>
         </div>
         <div class="d-flex align-items-center gap-2">
             {renderInvitationStatusOrDeliveryBadge (inputValue invitation.status) (inputValue invitation.deliveryStatus)}
-            {renderResendTrialInvitationForm invitation}
+            {renderRenewTrialInvitationForm invitation}
         </div>
     </div>
 |]
 
-renderResendTrialInvitationForm :: VenueInvitation -> Html
-renderResendTrialInvitationForm invitation =
+renderRenewTrialInvitationForm :: VenueInvitation -> Html
+renderRenewTrialInvitationForm invitation =
     applyAppShellActionAttrs
         (appShellActionByMarker @CreateTrialStaffInvitationOverlay)
-        (trialInvitationSubmitRoute (pathTo (ResendTrialStaffInvitationAction invitation.id)) [("class", "mb-0")])
+        (trialInvitationSubmitRoute (pathTo (RenewTrialStaffInvitationAction invitation.id)) [("class", "mb-0")])
         [hsx|
-            <form method="POST" action={pathTo (ResendTrialStaffInvitationAction invitation.id)}>
-                <button type="submit" class="btn btn-sm btn-outline-primary">Resend</button>
+            <form method="POST" action={pathTo (RenewTrialStaffInvitationAction invitation.id)}>
+                <div class="input-group input-group-sm">
+                    <input type="email" class="form-control" name="invitationEmail" value={invitation.email} required="required" aria-label="Renewal email" />
+                    <button type="submit" class="btn btn-outline-primary">Renew</button>
+                </div>
             </form>
         |]
 

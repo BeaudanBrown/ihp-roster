@@ -1,6 +1,6 @@
 module Web.Staff.Mutations
     ( createTrialStaffInvitationMutation
-    , resendTrialStaffInvitationMutation
+    , renewTrialStaffInvitationMutation
     , createTrialStaffMember
     , staffCreateTouchedResources
     , staffRosterGroupResources
@@ -25,9 +25,12 @@ import Application.Helper.StaffShiftPreferences (ShiftPreferenceSelection,
 import Application.Helper.SurfaceResource
 import Application.Helper.VenueInvitation (venueInvitationLifetime)
 import Application.InvitationDelivery.Job (enqueueVenueInvitationDeliveryJob)
+import Application.VenueInvitation.Mutations (withTrialStaffInvitationLock,
+                                              withVenueInvitationRenewalLock)
 import Control.Monad (void)
 import qualified Data.Aeson as Aeson
 import qualified Data.Set as Set
+import qualified Data.Text as Text
 import Data.Time.Clock (addUTCTime, getCurrentTime, utctDay)
 import Data.UUID (UUID)
 import Web.Controller.Prelude
@@ -49,42 +52,95 @@ createTrialStaffInvitationMutation staff email
     | staff.venueId /= unpackId currentVenueId = pure (Left "Choose trial staff from the current venue.")
     | not (isAdoptableTrialStaff staff) = pure (Left "Only active trial staff without a linked login can be invited.")
     | otherwise = do
-        existingUser <- query @User
-            |> filterWhere (#email, email)
-            |> fetchOneOrNothing
-        case existingUser of
-            Just _ -> pure (Left "That email already has an account. Trial adoption invites must create a new account.")
-            Nothing -> do
-                now <- getCurrentTime
-                invitation <- newRecord @VenueInvitation
-                    |> set #venueId (unpackId currentVenueId)
-                    |> set #invitedByUserId (Just (unpackId currentUser.id))
-                    |> set #staffId (Just staff.id)
-                    |> set #email email
-                    |> set #inviteRole (venueRoleToEnum WorkerRole)
-                    |> set #status (unsafeEnumFromText @InvitationStatusEnum "pending")
-                    |> set #deliveryStatus (unsafeEnumFromText @InvitationDeliveryStatusEnum "queued")
-                    |> set #expiresAt (Just (addUTCTime venueInvitationLifetime now))
-                    |> createRecord
-                void (enqueueVenueInvitationDeliveryJob (Just currentUser.id) invitation)
+        maybeCreation <- withTrialStaffInvitationLock (unpackId staff.id) (Text.toCaseFold email) do
+            lockedStaff <- fetch staff.id
+            existingPendingInvitation <- query @VenueInvitation
+                |> filterWhere (#staffId, Just lockedStaff.id)
+                |> filterWhere (#status, unsafeEnumFromText @InvitationStatusEnum "pending")
+                |> fetchOneOrNothing
+            existingUser <- query @User
+                |> filterWhere (#email, email)
+                |> fetchOneOrNothing
+            case (existingPendingInvitation, existingUser) of
+                (Just _, _) -> pure (Left "Renew the existing trial staff invitation instead of creating another link.")
+                (_, Just _) -> pure (Left "That email already has an account. Trial adoption invites must create a new account.")
+                _ | not (isAdoptableTrialStaff lockedStaff) -> pure (Left "Only active trial staff without a linked login can be invited.")
+                _ -> do
+                    now <- getCurrentTime
+                    invitation <- newRecord @VenueInvitation
+                        |> set #venueId (unpackId currentVenueId)
+                        |> set #invitedByUserId (Just (unpackId currentUser.id))
+                        |> set #staffId (Just lockedStaff.id)
+                        |> set #email email
+                        |> set #inviteRole (venueRoleToEnum WorkerRole)
+                        |> set #status (unsafeEnumFromText @InvitationStatusEnum "pending")
+                        |> set #deliveryStatus (unsafeEnumFromText @InvitationDeliveryStatusEnum "queued")
+                        |> set #expiresAt (Just (addUTCTime venueInvitationLifetime now))
+                        |> createRecord
+                    void (enqueueVenueInvitationDeliveryJob (Just currentUser.id) invitation)
+                    pure (Right invitation)
+        case maybeCreation of
+            Nothing -> pure (Left "That trial staff member is no longer available to invite.")
+            Just (Left message) -> pure (Left message)
+            Just (Right invitation) ->
                 Right <$> invalidateTouchedResources "staff.invite_trial" (liveMutationResult invitation (trialStaffInvitationTouchedResources staff))
 
-resendTrialStaffInvitationMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Staff -> VenueInvitation -> IO (Either Text (LiveMutationResult VenueInvitation))
-resendTrialStaffInvitationMutation staff invitation
+renewTrialStaffInvitationMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Staff -> VenueInvitation -> Text -> IO (Either Text (LiveMutationResult VenueInvitation))
+renewTrialStaffInvitationMutation staff invitation correctedEmail
     | staff.venueId /= unpackId currentVenueId = pure (Left "Choose trial staff from the current venue.")
     | invitation.venueId /= unpackId currentVenueId = pure (Left "Choose an invitation from the current venue.")
     | invitation.staffId /= Just staff.id = pure (Left "Choose a pending invitation for this trial staff member.")
-    | inputValue invitation.status /= ("pending" :: Text) = pure (Left "Only pending invitations can be resent.")
-    | not (isAdoptableTrialStaff staff) = pure (Left "Only active trial staff without a linked login can be invited.")
     | otherwise = do
-        now <- getCurrentTime
-        resentInvitation <- invitation
-            |> set #deliveryStatus (unsafeEnumFromText @InvitationDeliveryStatusEnum "queued")
-            |> set #deliveryError Nothing
-            |> set #expiresAt (Just (addUTCTime venueInvitationLifetime now))
-            |> updateRecord
-        void (enqueueVenueInvitationDeliveryJob (Just currentUser.id) resentInvitation)
-        Right <$> invalidateTouchedResources "staff.resend_trial_invite" (liveMutationResult resentInvitation (trialStaffInvitationTouchedResources staff))
+        maybeRenewal <- withVenueInvitationRenewalLock
+            (unpackId invitation.id)
+            (Just (unpackId staff.id))
+            (Text.toCaseFold correctedEmail)
+            do
+                lockedInvitation <- fetch invitation.id
+                lockedStaff <- fetch staff.id
+                if lockedInvitation.staffId /= Just lockedStaff.id
+                    then pure (Left "Choose a pending invitation for this trial staff member.")
+                    else if inputValue lockedInvitation.status /= ("pending" :: Text)
+                        then pure (Left "Only pending invitations can be renewed.")
+                    else if not (isAdoptableTrialStaff lockedStaff)
+                        then pure (Left "Only active trial staff without a linked login can be invited.")
+                    else do
+                        existingUser <- query @User
+                            |> filterWhere (#email, correctedEmail)
+                            |> fetchOneOrNothing
+                        case existingUser of
+                            Just _ -> pure (Left "That email already has an account. Trial adoption invites must create a new account.")
+                            Nothing -> Right <$> replaceTrialStaffInvitation lockedStaff lockedInvitation correctedEmail
+        case maybeRenewal of
+            Nothing -> pure (Left "That invitation is no longer available to renew.")
+            Just (Left message) -> pure (Left message)
+            Just (Right renewedInvitation) ->
+                Right <$> invalidateTouchedResources "staff.renew_trial_invite" (liveMutationResult renewedInvitation (trialStaffInvitationTouchedResources staff))
+
+replaceTrialStaffInvitation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Staff -> VenueInvitation -> Text -> IO VenueInvitation
+replaceTrialStaffInvitation staff invitation correctedEmail = do
+    now <- getCurrentTime
+    pendingInvitations <- query @VenueInvitation
+        |> filterWhere (#staffId, Just staff.id)
+        |> filterWhere (#status, unsafeEnumFromText @InvitationStatusEnum "pending")
+        |> fetch
+    forM_ pendingInvitations \pendingInvitation ->
+        void $
+            pendingInvitation
+                |> set #status (unsafeEnumFromText @InvitationStatusEnum "revoked")
+                |> updateRecord
+    replacement <- newRecord @VenueInvitation
+        |> set #venueId invitation.venueId
+        |> set #invitedByUserId (Just (unpackId currentUser.id))
+        |> set #staffId (Just staff.id)
+        |> set #email correctedEmail
+        |> set #inviteRole invitation.inviteRole
+        |> set #status (unsafeEnumFromText @InvitationStatusEnum "pending")
+        |> set #deliveryStatus (unsafeEnumFromText @InvitationDeliveryStatusEnum "queued")
+        |> set #expiresAt (Just (addUTCTime venueInvitationLifetime now))
+        |> createRecord
+    void (enqueueVenueInvitationDeliveryJob (Just currentUser.id) replacement)
+    pure replacement
 
 trialStaffInvitationTouchedResources :: (?context :: ControllerContext) => Staff -> [SurfaceResourceValue]
 trialStaffInvitationTouchedResources staff =

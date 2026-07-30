@@ -32,12 +32,15 @@ module Application.Helper.FrontendContract.Surface.Admin.Generated.Action
     , parseMoveRosterGroupUpActionParams
     , parseMoveShiftTypeDownActionParams
     , parseMoveShiftTypeUpActionParams
+    , parseRenewVenueInvitationActionParams
     , parseShowXeroTimesheetPreparationStaffMappingsActionParams
     , parseToggleInactiveRosterGroupsActionParams
     , parseToggleInactiveShiftTypesActionParams
     , parseUpdateRosterGroupActionParams
     , parseUpdateShiftTypeActionParams
     , parseUpdateVenueConfigActionParams
+    , renewVenueInvitationAction
+    , renewVenueInvitationActionFields
     , revokeVenueInvitationAction
     , revokeVenueInvitationActionFields
     , showXeroTimesheetPreparationStaffMappingsAction
@@ -315,6 +318,28 @@ parseMoveShiftTypeUpActionParams =
     parseSurfaceActionParams
         @(AdapterFamilySurface Types2.AdminShiftTypesAdapterFamily)
         @Types1.MoveShiftTypeUp
+
+renewVenueInvitationActionFields ::
+    Maybe Text ->
+    SurfaceActionFields (AdapterFamilySurface Types2.AdminInvitesAdapterFamily) Types1.RenewVenueInvitation
+renewVenueInvitationActionFields email =
+    surfaceActionFields
+        (surfaceOptionalField @Types1.Email email)
+        noSurfaceFields
+
+renewVenueInvitationAction :: SurfaceActionFields (AdapterFamilySurface Types2.AdminInvitesAdapterFamily) Types1.RenewVenueInvitation -> FrontendSurfaceAction
+renewVenueInvitationAction =
+    frontendSurfaceAction
+        @(AdapterFamilySurface Types2.AdminInvitesAdapterFamily)
+        @Types1.RenewVenueInvitation
+
+parseRenewVenueInvitationActionParams ::
+    (?request :: Request) =>
+    Either [SurfaceRequestFieldError] (SurfaceActionFields (AdapterFamilySurface Types2.AdminInvitesAdapterFamily) Types1.RenewVenueInvitation)
+parseRenewVenueInvitationActionParams =
+    parseSurfaceActionParams
+        @(AdapterFamilySurface Types2.AdminInvitesAdapterFamily)
+        @Types1.RenewVenueInvitation
 
 revokeVenueInvitationActionFields :: SurfaceActionFields (AdapterFamilySurface Types2.AdminInvitesAdapterFamily) Types1.RevokeVenueInvitation
 revokeVenueInvitationActionFields =

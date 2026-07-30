@@ -9,8 +9,10 @@ import Application.Helper.VenueBootstrap (VenueBootstrapConfig (..),
                                           defaultVenueBootstrapTimezone,
                                           ensureLinkedStaffRecord,
                                           provisionVenueMembership)
+import Application.Helper.VenueInvitation (venueInvitationIsActive)
 import Application.Helper.VenueOnboardingInvitation (venueOnboardingInvitationIsActive)
 import Application.Helper.WeekBoundaries (validRosterWeekStartDays)
+import Application.VenueInvitation.Mutations (withVenueInvitationAcceptanceLock)
 import Application.VenueOnboardingInvitation.Mutations (withVenueOnboardingInvitationLock)
 import Control.Monad (void)
 import qualified Data.Aeson as Aeson
@@ -19,7 +21,8 @@ import qualified IHP.LoginSupport.Helper.Controller as LoginSupport
 import Web.Controller.Prelude
 import Web.Controller.Sessions ()
 import Web.Controller.StaffProfileValidation (buildRequiredPersonalProfileStaff)
-import Web.Users.Mutations (acceptVenueInvitation)
+import Web.Users.Mutations (acceptVenueInvitationInCurrentTransaction,
+                            invalidateAcceptedVenueInvitation)
 import Web.View.Users.New
 
 instance Controller UsersController where
@@ -35,7 +38,7 @@ instance Controller UsersController where
                 now <- getCurrentTime
                 invitationOrNothing <- fetchInvitation invitationId
                 case invitationOrNothing of
-                    Just invitation | invitationIsActive now invitation -> do
+                    Just invitation | venueInvitationIsActive now invitation -> do
                         maybeStaff <- invitationSignupStaff invitation
                         case maybeStaff of
                             Just staff -> do
@@ -62,7 +65,7 @@ instance Controller UsersController where
                 now <- getCurrentTime
                 invitationOrNothing <- fetchInvitation invitationId
                 case invitationOrNothing of
-                    Just invitation | invitationIsActive now invitation -> do
+                    Just invitation | venueInvitationIsActive now invitation -> do
                         maybeInvitationStaff <- invitationSignupStaff invitation
                         case maybeInvitationStaff of
                             Nothing -> do
@@ -93,11 +96,26 @@ instance Controller UsersController where
                                                     render InvitationSignupView { user, venueInvitation = invitation, staff }
                                                 Right staff -> do
                                                     hashed <- hashPassword user.passwordHash
-                                                    user <- liveMutationValue <$> acceptVenueInvitation now invitation user hashed staff
-                                                    Sessions.beforeLogin user
-                                                    LoginSupport.login user
-                                                    setSuccessMessage "Invitation accepted."
-                                                    redirectTo RosterWeeksAction
+                                                    maybeAcceptedUser <- withVenueInvitationAcceptanceLock
+                                                        (unpackId invitation.id)
+                                                        (unpackId <$> invitation.staffId)
+                                                        do
+                                                            lockedInvitation <- fetch invitation.id
+                                                            lockedNow <- getCurrentTime
+                                                            if venueInvitationIsActive lockedNow lockedInvitation
+                                                                then Just <$> acceptVenueInvitationInCurrentTransaction lockedNow lockedInvitation user hashed staff
+                                                                else pure Nothing
+                                                    case join maybeAcceptedUser of
+                                                        Just mutationResult -> do
+                                                            acceptedUser <- liveMutationValue <$> invalidateAcceptedVenueInvitation mutationResult
+                                                            Sessions.beforeLogin acceptedUser
+                                                            LoginSupport.login acceptedUser
+                                                            setSuccessMessage "Invitation accepted."
+                                                            redirectTo RosterWeeksAction
+                                                        Nothing -> do
+                                                            setErrorMessage "That invitation is no longer valid. Contact support for a new bootstrap invite."
+                                                            setTitle "Request Access"
+                                                            render InviteOnlyView
                     _ -> do
                         setErrorMessage "That invitation is no longer valid. Contact support for a new bootstrap invite."
                         setTitle "Request Access"
@@ -328,9 +346,3 @@ fetchVenueOnboardingInvitation invitationId =
     query @VenueOnboardingInvitation
         |> filterWhere (#id, invitationId)
         |> fetchOneOrNothing
-
-invitationIsActive :: UTCTime -> VenueInvitation -> Bool
-invitationIsActive now invitation =
-    invitation.status == unsafeEnumFromText @InvitationStatusEnum "pending"
-        && isNothing invitation.acceptedAt
-        && maybe True (> now) invitation.expiresAt

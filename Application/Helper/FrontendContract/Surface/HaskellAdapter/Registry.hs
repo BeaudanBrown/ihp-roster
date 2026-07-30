@@ -193,6 +193,7 @@ type RegisteredSurfaceActionAdapterHomes =
      , SurfaceActionAdapterHome AdminVenueSettingsAdapterFamily Admin.UpdateVenueConfig
      , SurfaceActionAdapterHome AdminInvitesAdapterFamily Admin.CreateVenueInvitation
      , SurfaceActionAdapterHome AdminInvitesAdapterFamily Admin.RevokeVenueInvitation
+     , SurfaceActionAdapterHome AdminInvitesAdapterFamily Admin.RenewVenueInvitation
      , SurfaceActionAdapterHome AdminExportsAdapterFamily Admin.CreateExportJob
      , SurfaceActionAdapterHome AdminShiftTypesAdapterFamily Admin.CreateShiftType
      , SurfaceActionAdapterHome AdminShiftTypesAdapterFamily Admin.UpdateShiftType
@@ -211,7 +212,7 @@ type RegisteredSurfaceActionAdapterHomes =
      ]
 
 -- Every eligible Action emits builders and render metadata. The exact parser
--- inventory contains 33 generated operations and 14 typed exclusions for
+-- inventory contains 34 generated operations and 14 typed exclusions for
 -- declarations whose current endpoint consumes no complete Surface envelope.
 registeredSurfaceActionAdapterRegistrations :: [SurfaceRequestAdapterRegistration 'ActionAdapterKind]
 registeredSurfaceActionAdapterRegistrations =
@@ -263,6 +264,7 @@ registeredSurfaceActionAdapterRegistrations =
     , surfaceActionAdapter @AdminInvitesAdapterFamily @Admin.CreateVenueInvitation allRequestAdapterOperations
     , surfaceActionAdapter @AdminInvitesAdapterFamily @Admin.RevokeVenueInvitation
         (requestAdapterOperationsWithoutParser "The zero-field revoke endpoint consumes its route id and has no Surface request parser")
+    , surfaceActionAdapter @AdminInvitesAdapterFamily @Admin.RenewVenueInvitation allRequestAdapterOperations
     , surfaceActionAdapter @AdminExportsAdapterFamily @Admin.CreateExportJob allRequestAdapterOperations
     , surfaceActionAdapter @AdminShiftTypesAdapterFamily @Admin.CreateShiftType allRequestAdapterOperations
     , surfaceActionAdapter @AdminShiftTypesAdapterFamily @Admin.UpdateShiftType allRequestAdapterOperations

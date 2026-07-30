@@ -30,7 +30,7 @@ The closeout state is more precise:
 - the single-day timeline remains a supported URL-scoped roster view with
   server rendering and direct behavior coverage, but the week-grid layout menu
   does not advertise it;
-- trial-staff invitation create/resend routes and modal rendering are active
+- trial-staff invitation creation and fresh-link renewal routes, including corrected-email modal controls, are active
   through the staff-edit invitation flow; and
 - the four fixed exports are active. Only the configurable report-definition
   engine was retired.

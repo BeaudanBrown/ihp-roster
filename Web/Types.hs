@@ -150,6 +150,7 @@ data AdminController
     | ShowadminXeroShellLiveFragmentAction
     | CreateVenueInvitationAction
     | RevokeVenueInvitationAction { venueInvitationId :: !(Id VenueInvitation) }
+    | RenewVenueInvitationAction { venueInvitationId :: !(Id VenueInvitation) }
     | SendStaffPasskeySetupEmailAction { staffId :: !(Id Staff) }
     | SendStaffPasskeyRecoveryEmailAction { staffId :: !(Id Staff) }
     | CreateRosterGroupAction
@@ -201,7 +202,7 @@ data StaffController
     | UpdateStaffAction { staffId :: !(Id Staff) }
     | NewTrialStaffInvitationAction { staffId :: !(Id Staff) }
     | CreateTrialStaffInvitationAction { staffId :: !(Id Staff) }
-    | ResendTrialStaffInvitationAction { venueInvitationId :: !(Id VenueInvitation) }
+    | RenewTrialStaffInvitationAction { venueInvitationId :: !(Id VenueInvitation) }
     deriving (Eq, Show, Data)
 
 newtype LiveUpdatesWSApp

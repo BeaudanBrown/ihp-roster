@@ -29,6 +29,7 @@ data IndexView = IndexView
     , importedPayItems         :: [XeroImportedPayItem]
     , invitations              :: [VenueInvitation]
     , today                    :: Day
+    , currentTime              :: UTCTime
     , exportWeekSelection      :: ReportWeekSelection
     , exportSectionOpen        :: Bool
     , showInactiveRosterGroups :: Bool
@@ -49,7 +50,7 @@ instance View IndexView where
                     , appPanelBodyClass = ""
                     , appPanelBody = renderAdminPageContentSurface [hsx|
                         <div id={surfaceFragmentTargetId @Surface.AdminPageSurface @Surface.AdminPageContentFragment noSurfaceFields}>
-                            {renderConfigSectionsAccordion rosterGroups currentRosterGroup showInactiveRosterGroups shiftTypes showInactiveShiftTypes venueConfig awardLevels awardLevelBaseRates importedPayItems invitations exportWeekSelection exportSectionOpen}
+                            {renderConfigSectionsAccordion currentTime rosterGroups currentRosterGroup showInactiveRosterGroups shiftTypes showInactiveShiftTypes venueConfig awardLevels awardLevelBaseRates importedPayItems invitations exportWeekSelection exportSectionOpen}
                         </div>
                     |]
                     }
@@ -74,10 +75,10 @@ currentVenueScopeId =
         Just venue -> unpackId venue.id
         Nothing    -> error "Admin page surface requires a current venue"
 
-renderConfigSectionsAccordion :: [RosterGroup] -> RosterGroup -> Bool -> [ShiftType] -> Bool -> VenueConfig -> [AwardLevel] -> [AwardLevelBaseRate] -> [XeroImportedPayItem] -> [VenueInvitation] -> ReportWeekSelection -> Bool -> Html
-renderConfigSectionsAccordion rosterGroups currentRosterGroup showInactiveRosterGroups shiftTypes showInactiveShiftTypes venueConfig awardLevels awardLevelBaseRates importedPayItems invitations exportWeekSelection exportSectionOpen = [hsx|
+renderConfigSectionsAccordion :: UTCTime -> [RosterGroup] -> RosterGroup -> Bool -> [ShiftType] -> Bool -> VenueConfig -> [AwardLevel] -> [AwardLevelBaseRate] -> [XeroImportedPayItem] -> [VenueInvitation] -> ReportWeekSelection -> Bool -> Html
+renderConfigSectionsAccordion currentTime rosterGroups currentRosterGroup showInactiveRosterGroups shiftTypes showInactiveShiftTypes venueConfig awardLevels awardLevelBaseRates importedPayItems invitations exportWeekSelection exportSectionOpen = [hsx|
     <div class="accordion admin-config-accordion" id="admin-config-sections">
-        {renderAccordionItem "invites" "Invites" False (renderInvitesSectionFragment invitations currentRosterGroup.id)}
+        {renderAccordionItem "invites" "Invites" False (renderInvitesSectionFragment currentTime invitations currentRosterGroup.id)}
         {renderAccordionItem "venue-settings" "Venue Settings" False (renderVenueSettingsSectionFragment venueConfig)}
         {renderAccordionItem "exports" "Exports" exportSectionOpen (renderExportsSectionFragment exportWeekSelection)}
         {renderAccordionItem "shift-types" "Shift Types" False (renderShiftTypesSectionFragment shiftTypes showInactiveShiftTypes awardLevels awardLevelBaseRates importedPayItems)}

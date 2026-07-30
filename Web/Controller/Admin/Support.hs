@@ -7,6 +7,8 @@ import Application.Helper.Pay
 import Application.Helper.RosterGroups
 import Application.Helper.SurfaceResource (LiveMutationResult (..))
 import Application.Helper.VenueInvitation
+import Application.Helper.View (ToastOverlayPosition (..), errorToast,
+                                renderToastOob)
 import Application.Helper.WeekBoundaries (defaultWeekOffsetEpochForStartDay,
                                           sortDayNamesForVenueWeek,
                                           validRosterWeekStartDays,
@@ -111,8 +113,28 @@ respondToInvitesSectionMutation successMessage rosterGroupId =
         , adminSectionRenderFragment = do
             setHeader ("HX-Reswap", "none")
             invitations <- fetchCurrentVenueInvitations
-            pure (renderInvitesSectionFragmentWithSwap (Just "outerHTML") invitations rosterGroupId)
+            now <- getCurrentTime
+            pure (renderInvitesSectionFragmentWithSwap (Just "outerHTML") now invitations rosterGroupId)
         }
+
+respondToInvitesSectionError ::
+    (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
+    Text ->
+    Id RosterGroup ->
+    IO ()
+respondToInvitesSectionError message rosterGroupId =
+    if isHtmxRequest
+        then do
+            setHeader ("HX-Reswap", "none")
+            invitations <- fetchCurrentVenueInvitations
+            now <- getCurrentTime
+            respondHtml [hsx|
+                {renderInvitesSectionFragmentWithSwap (Just "outerHTML") now invitations rosterGroupId}
+                {renderToastOob ToastBottomCenter (errorToast message)}
+            |]
+        else do
+            setErrorMessage message
+            redirectToAdminFor (Just rosterGroupId)
 
 respondToShiftTypesSectionMutation ::
     (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
@@ -243,7 +265,9 @@ venueInvitationHistoryRetentionSeconds = 7 * 24 * 60 * 60
 shouldShowVenueInvitation :: UTCTime -> UTCTime -> VenueInvitation -> Bool
 shouldShowVenueInvitation now retentionCutoff invitation =
     case inputValue invitation.status of
-        "pending" -> maybe True (> now) invitation.expiresAt || maybe False (>= retentionCutoff) invitation.expiresAt
+        "pending" ->
+            let effectiveExpiry = venueInvitationEffectiveExpiresAt invitation
+             in effectiveExpiry > now || effectiveExpiry >= retentionCutoff
         "accepted" -> fromMaybe invitation.updatedAt invitation.acceptedAt >= retentionCutoff
         "revoked" -> invitation.updatedAt >= retentionCutoff
         _ -> invitation.updatedAt >= retentionCutoff
@@ -300,6 +324,10 @@ validateRequiredEmail rawValue emptyMessage =
                 then do
                     setErrorMessage "Email must be 254 characters or fewer."
                     pure Nothing
+                else if Text.any (`elem` ("<>\r\n" :: String)) value
+                    then do
+                        setErrorMessage "Enter a valid email address."
+                        pure Nothing
                 else
                     case isEmail value of
                         Success -> pure (Just value)

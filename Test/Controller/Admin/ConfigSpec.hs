@@ -632,7 +632,131 @@ tests = aroundAll withDatabaseTestContext do
                 inputValue createdInvitation.inviteRole `shouldBe` "worker"
                 inputValue createdInvitation.status `shouldBe` "pending"
                 inputValue createdInvitation.deliveryStatus `shouldSatisfy` (`elem` ["queued", "sent", "failed"])
-                inviteExpiryDeltaSeconds `shouldSatisfy` (\seconds -> seconds > 86000 && seconds < 87000)
+                inviteExpiryDeltaSeconds `shouldSatisfy` (\seconds -> seconds > 1209500 && seconds < 1210100)
+
+        it "shows expired pending invitations and corrected-email renewal controls in Admin" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Admin Expired Invite Lifecycle Venue"
+                admin <- createUserRecord "admin-expired-invite-lifecycle@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue admin "venue_admin"
+                now <- getCurrentTime
+                invitation <- createVenueInvitationRecord venue (Just admin) "expired-admin-lifecycle@example.com" "worker"
+                    >>= updateRecord . set #expiresAt (Just (addUTCTime (-60) now))
+
+                response <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
+                    callAction AdminAction
+
+                response `responseStatusShouldBe` status200
+                response `responseBodyShouldContain` "Expired"
+                response `responseBodyShouldContain` cs (pathTo (RenewVenueInvitationAction invitation.id))
+                response `responseBodyShouldContain` "name=\"email\""
+                response `responseBodyShouldContain` "value=\"expired-admin-lifecycle@example.com\""
+
+        it "renews an invitation from Admin with a corrected fresh link" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Admin Renew Invite Venue"
+                admin <- createUserRecord "admin-renew-invite@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue admin "venue_admin"
+                now <- getCurrentTime
+                original <- createVenueInvitationRecord venue (Just admin) "old-admin-invite@example.com" "worker"
+                    >>= updateRecord . set #expiresAt (Just (addUTCTime (-60) now))
+                rosterGroup <- query @RosterGroup
+                    |> filterWhere (#venueId, unpackId venue.id)
+                    |> filterWhere (#isDefault, True)
+                    |> fetchOne
+
+                response <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
+                    callActionWithParams (RenewVenueInvitationAction original.id)
+                        [ ("email", "corrected-admin-invite@example.com")
+                        , ("rosterGroupId", idToParam rosterGroup.id)
+                        ]
+
+                response `responseStatusShouldBe` status302
+                revokedOriginal <- fetch original.id
+                inputValue revokedOriginal.status `shouldBe` "revoked"
+                replacement <- query @VenueInvitation
+                    |> filterWhere (#email, "corrected-admin-invite@example.com")
+                    |> fetchOne
+                replacement.id `shouldNotBe` original.id
+                replacement.staffId `shouldBe` Nothing
+                inputValue replacement.status `shouldBe` "pending"
+                inputValue replacement.deliveryStatus `shouldBe` "queued"
+                query @AppJob
+                    |> filterWhere (#relatedId, Just (unpackId replacement.id))
+                    |> fetchCount
+                    >>= (`shouldBe` 1)
+
+        it "rejects invalid corrected Admin renewal emails without replacing or queueing" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Admin Invalid Email Renew Venue"
+                admin <- createUserRecord "admin-invalid-email-renew@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue admin "venue_admin"
+                original <- createVenueInvitationRecord venue (Just admin) "valid-admin-renewal@example.com" "worker"
+                rosterGroup <- query @RosterGroup
+                    |> filterWhere (#venueId, unpackId venue.id)
+                    |> filterWhere (#isDefault, True)
+                    |> fetchOne
+                let invalidEmails =
+                        [ "   "
+                        , "not-an-email"
+                        , Text.replicate 250 "a" <> "@example.com"
+                        , "<script>alert(1)</script>@example.com"
+                        ]
+
+                forM_ invalidEmails \invalidEmail -> do
+                    response <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
+                        callActionWithParams (RenewVenueInvitationAction original.id)
+                            [ ("email", cs invalidEmail)
+                            , ("rosterGroupId", idToParam rosterGroup.id)
+                            ]
+                    response `responseStatusShouldBe` status302
+                    unchangedAfterSubmission <- fetch original.id
+                    (inputValue unchangedAfterSubmission.status <> ":" <> invalidEmail)
+                        `shouldBe` ("pending:" <> invalidEmail)
+
+                unchanged <- fetch original.id
+                inputValue unchanged.status `shouldBe` "pending"
+                query @VenueInvitation |> fetchCount >>= (`shouldBe` 1)
+                query @AppJob |> fetchCount >>= (`shouldBe` 0)
+
+        it "renews from Admin with the original email when no correction is submitted" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Admin Same Email Renew Venue"
+                admin <- createUserRecord "admin-same-email-renew@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue admin "venue_admin"
+                original <- createVenueInvitationRecord venue (Just admin) "same-email-admin-invite@example.com" "worker"
+                rosterGroup <- query @RosterGroup
+                    |> filterWhere (#venueId, unpackId venue.id)
+                    |> filterWhere (#isDefault, True)
+                    |> fetchOne
+
+                response <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
+                    callActionWithParams (RenewVenueInvitationAction original.id)
+                        [("rosterGroupId", idToParam rosterGroup.id)]
+
+                response `responseStatusShouldBe` status302
+                replacement <- query @VenueInvitation
+                    |> filterWhere (#email, original.email)
+                    |> filterWhere (#status, original.status)
+                    |> fetchOne
+                replacement.id `shouldNotBe` original.id
+
+        it "rejects cross-venue Admin invitation renewal" $ withContext do
+            withCleanDb do
+                currentVenue <- createVenueWithConfig "Admin Renew Current Venue"
+                foreignVenue <- createVenueWithConfig "Admin Renew Foreign Venue"
+                admin <- createUserRecord "admin-cross-venue-renew@example.com" "staff" True
+                _ <- createVenueMembershipRecord currentVenue admin "venue_admin"
+                ensureTestUserHasPasskey admin
+                foreignInvitation <- createVenueInvitationRecord foreignVenue Nothing "foreign-admin-renew@example.com" "worker"
+
+                response <- withPasskeyVerifiedUserAndCurrentVenue admin currentVenue.id do
+                    callAction (RenewVenueInvitationAction foreignInvitation.id)
+
+                response `responseStatusShouldBe` status403
+                unchanged <- fetch foreignInvitation.id
+                inputValue unchanged.status `shouldBe` "pending"
+                query @VenueInvitation |> fetchCount >>= (`shouldBe` 1)
 
         it "hides accepted and expired venue invitations after one week" $ withContext do
             withCleanDb do
@@ -768,6 +892,32 @@ tests = aroundAll withDatabaseTestContext do
                 duplicateCreateResponse `responseStatusShouldBe` status302
                 duplicateCreatedShiftType <- query @ShiftType |> filterWhere (#name, "Another Manual Colour Shift") |> fetchOne
                 duplicateCreatedShiftType.colourKey `shouldBe` firstShiftType.colourKey
+
+        it "directs generic invites for active trial staff email to the trial renewal workflow" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Admin Trial Email Guard Venue"
+                admin <- createUserRecord "admin-trial-email-guard@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue admin "venue_admin"
+                staff <- createStaffRecord venue Nothing "Guarded" "Trial"
+                _ <- createVenueInvitationRecord venue (Just admin) "guarded-trial@example.com" "worker"
+                    >>= updateRecord
+                        . set #staffId (Just staff.id)
+                        . set #status (unsafeEnumFromText @InvitationStatusEnum "revoked")
+                rosterGroup <- query @RosterGroup
+                    |> filterWhere (#venueId, unpackId venue.id)
+                    |> filterWhere (#isDefault, True)
+                    |> fetchOne
+
+                response <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
+                    withRequestHeaders [("HX-Request", "true")] do
+                        callActionWithParams CreateVenueInvitationAction
+                            [ ("email", "guarded-trial@example.com")
+                            , ("rosterGroupId", idToParam rosterGroup.id)
+                            ]
+
+                response `responseStatusShouldBe` status200
+                response `responseBodyShouldContain` "Use the trial-staff renewal workflow"
+                query @VenueInvitation |> fetchCount >>= (`shouldBe` 1)
 
         it "rejects invalid invite emails without creating invitations or broadcasting admin changes" $ withContext do
             withCleanDb do

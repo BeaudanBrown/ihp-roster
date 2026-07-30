@@ -11,9 +11,11 @@ import Application.Async.Queue
 import Application.Helper.Controller (unsafeEnumFromText)
 import Application.Helper.FrontendContract.Surface.Admin.Resource (adminInvitesResource)
 import Application.Helper.SurfaceResource
-import Application.Helper.VenueInvitation (deliverVenueInvitationEmail)
+import Application.Helper.VenueInvitation (deliverVenueInvitationEmail,
+                                           venueInvitationIsActive)
 import Application.Helper.VenueOnboardingInvitation (deliverVenueOnboardingInvitationEmail,
                                                      venueOnboardingInvitationIsActive)
+import Application.VenueInvitation.Mutations (withVenueInvitationLock)
 import Application.VenueOnboardingInvitation.Mutations (withVenueOnboardingInvitationLock)
 import Control.Monad (void)
 import qualified Data.Aeson as Aeson
@@ -72,9 +74,11 @@ performVenueInvitationDeliveryJob ::
     IO ()
 performVenueInvitationDeliveryJob appJob = do
     invitation <- fetchVenueInvitation appJob
-    when (venueInvitationNeedsDelivery invitation) do
-        _ <- deliverVenueInvitationEmail invitation
-        pure ()
+    void $ withVenueInvitationLock (unpackId invitation.id) do
+        lockedInvitation <- fetch invitation.id
+        now <- getCurrentTime
+        when (venueInvitationNeedsDelivery now lockedInvitation) do
+            void (deliverVenueInvitationEmail lockedInvitation)
     void
         ( appJob
             |> set #result (Aeson.object ["invitationId" Aeson..= tshow invitation.id])
@@ -129,10 +133,9 @@ fetchVenueOnboardingInvitation appJob =
         _ ->
             fail ("Invalid onboarding invitation delivery job payload for job " <> cs (tshow appJob.id))
 
-venueInvitationNeedsDelivery :: VenueInvitation -> Bool
-venueInvitationNeedsDelivery invitation =
-    invitation.status == unsafeEnumFromText @InvitationStatusEnum "pending"
-        && invitation.acceptedAt == Nothing
+venueInvitationNeedsDelivery :: UTCTime -> VenueInvitation -> Bool
+venueInvitationNeedsDelivery now invitation =
+    venueInvitationIsActive now invitation
         && invitation.deliveryStatus /= unsafeEnumFromText @InvitationDeliveryStatusEnum "sent"
 
 venueOnboardingInvitationNeedsDelivery :: UTCTime -> VenueOnboardingInvitation -> Bool

@@ -27,12 +27,15 @@ module Application.Helper.FrontendContract.Surface.Admin.Action
     , parseMoveRosterGroupUpActionParams
     , parseMoveShiftTypeDownActionParams
     , parseMoveShiftTypeUpActionParams
+    , parseRenewVenueInvitationActionParams
     , parseShowXeroTimesheetPreparationStaffMappingsActionParams
     , parseToggleInactiveRosterGroupsActionParams
     , parseToggleInactiveShiftTypesActionParams
     , parseUpdateRosterGroupActionParams
     , parseUpdateShiftTypeActionParams
     , parseUpdateVenueConfigActionParams
+    , renewVenueInvitationAction
+    , renewVenueInvitationActionFields
     , revokeVenueInvitationAction
     , revokeVenueInvitationActionFields
     , showXeroTimesheetPreparationStaffMappingsAction
@@ -79,12 +82,15 @@ import Application.Helper.FrontendContract.Surface.Admin.Generated.Action (autos
                                                                            parseMoveRosterGroupUpActionParams,
                                                                            parseMoveShiftTypeDownActionParams,
                                                                            parseMoveShiftTypeUpActionParams,
+                                                                           parseRenewVenueInvitationActionParams,
                                                                            parseShowXeroTimesheetPreparationStaffMappingsActionParams,
                                                                            parseToggleInactiveRosterGroupsActionParams,
                                                                            parseToggleInactiveShiftTypesActionParams,
                                                                            parseUpdateRosterGroupActionParams,
                                                                            parseUpdateShiftTypeActionParams,
                                                                            parseUpdateVenueConfigActionParams,
+                                                                           renewVenueInvitationAction,
+                                                                           renewVenueInvitationActionFields,
                                                                            revokeVenueInvitationAction,
                                                                            revokeVenueInvitationActionFields,
                                                                            showXeroTimesheetPreparationStaffMappingsAction,

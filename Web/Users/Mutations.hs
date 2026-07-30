@@ -1,5 +1,6 @@
 module Web.Users.Mutations
-    ( acceptVenueInvitation
+    ( acceptVenueInvitationInCurrentTransaction
+    , invalidateAcceptedVenueInvitation
     , acceptedVenueInvitationTouchedResources
     , acceptedVenueInvitationTouchedResourcesForScopes
     ) where
@@ -20,11 +21,11 @@ import qualified Data.Set as Set
 import Data.UUID (UUID)
 import Web.Controller.Prelude
 import Web.RosterWeeks.SurfaceInvalidation (activeRosterResourcesForStaffGroups)
-import Web.SurfaceInvalidation (invalidateTouchedResourcesWithoutContext)
+import Web.SurfaceInvalidation (invalidateTouchedResources)
 
-acceptVenueInvitation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => UTCTime -> VenueInvitation -> User -> Text -> Staff -> IO (LiveMutationResult User)
-acceptVenueInvitation acceptedAt invitation user hashedPassword staffInput = do
-    (acceptedUser, adoptedStaff) <- withTransaction do
+acceptVenueInvitationInCurrentTransaction :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => UTCTime -> VenueInvitation -> User -> Text -> Staff -> IO (LiveMutationResult User)
+acceptVenueInvitationInCurrentTransaction acceptedAt invitation user hashedPassword staffInput = do
+    (acceptedUser, adoptedStaff) <- do
         verifiedAt <- getCurrentTime
         acceptedUser <-
             user
@@ -77,8 +78,11 @@ acceptVenueInvitation acceptedAt invitation user hashedPassword staffInput = do
             activeTimesheetScopes <- activeTimesheetWeekScopes
             rosterGroupIds <- fetchStaffRosterGroupIds staff
             pure (acceptedVenueInvitationTouchedResourcesForScopes invitation activeRosterScopes activeTimesheetScopes rosterGroupIds)
-    invalidateTouchedResourcesWithoutContext "user.invitation.accept" $
-        liveMutationResult acceptedUser touchedResources
+    pure (liveMutationResult acceptedUser touchedResources)
+
+invalidateAcceptedVenueInvitation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => LiveMutationResult User -> IO (LiveMutationResult User)
+invalidateAcceptedVenueInvitation =
+    invalidateTouchedResources "user.invitation.accept"
 
 acceptInvitationStaffLink :: (?modelContext :: ModelContext) => VenueInvitation -> Venue -> User -> Staff -> IO (Maybe Staff)
 acceptInvitationStaffLink invitation venue acceptedUser staffInput =

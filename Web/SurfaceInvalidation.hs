@@ -18,6 +18,7 @@ module Web.SurfaceInvalidation
 
 import Application.Bepis.Fact (BepisFact (..), BepisLiveFact (..),
                                BepisLiveMechanism (..), emitBepisFact)
+import Application.Helper.ControllerContext (currentVenueOrNothing)
 import Application.Helper.FrontendContract.Surface.Authorization (authorizeFrontendSurfaceScope)
 import Application.Helper.FrontendContract.Surface.DependencyPlanner (SurfaceInvalidationTarget (..),
                                                                       planFrontendSurfaceInvalidations)
@@ -69,7 +70,10 @@ invalidateTouchedResources label result =
         (activeRosterScopes, activeRosterDurationMs) <- measureDuration activeRosterWeekScopes
         let activeDurationMs = activeSubscriptionDurationMs + activeRosterDurationMs
         let activeScopes = coalesceScopes (map (.subscriptionScope) activeSubscriptions)
-        (expandedResources, expandDurationMs) <- measureDuration (expandSurfaceResources activeRosterScopes (liveMutationTouchedResources observed))
+        (expandedResources, expandDurationMs) <- measureDuration $
+            case currentVenueOrNothing of
+                Just _ -> expandSurfaceResources activeRosterScopes (liveMutationTouchedResources observed)
+                Nothing -> pure (expandSurfaceResourcesWithoutContext activeRosterScopes (liveMutationTouchedResources observed))
         (dependencyTargets, planDurationMs) <- measureDuration (pure (planSurfaceInvalidations expandedResources activeSubscriptions))
         (broadcastResults, broadcastDurationMs) <- measureDuration (mapM performSurfaceInvalidationTarget dependencyTargets)
         completedAtNs <- getMonotonicTimeNSec

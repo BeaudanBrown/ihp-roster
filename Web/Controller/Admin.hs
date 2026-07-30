@@ -37,6 +37,7 @@ import Web.Controller.Admin.Support
 import Web.Controller.Admin.Xero
 import Web.Controller.Admin.Xero.Responses
 import Web.Controller.Prelude
+import Web.Staff.Mutations (renewTrialStaffInvitationMutation)
 import Web.SurfaceInvalidation (invalidateTouchedResources)
 import Web.View.Admin.Exports
 import Web.View.Admin.Index
@@ -167,7 +168,8 @@ instance Controller AdminController where
             exportWeekSelection <- profileActionSpan "admin.page.export_week_selection" $
                 maybe currentExportWeekSelection exportWeekSelectionForOffset maybeExportWeekOffset
             let exportSectionOpen = paramOrDefault False "showExports" || isJust maybeExportWeekOffset
-            today <- utctDay <$> getCurrentTime
+            currentTime <- getCurrentTime
+            let today = utctDay currentTime
             profileActionSpan "admin.page.render_response" (render IndexView { .. })
 
     action currentAction@XeroAction = runBepis currentAction BepisPageAction $
@@ -326,7 +328,8 @@ instance Controller AdminController where
         profileActionSpan "admin.invites_fragment.respond" do
             currentRosterGroup <- profileActionSpan "admin.invites_fragment.resolve_current_group" (fetchCurrentVenueRosterGroupOrDefault (paramOrNothing "rosterGroupId"))
             invitations <- profileActionSpan "admin.invites_fragment.fetch_invitations" fetchCurrentVenueInvitations
-            profileActionSpan "admin.invites_fragment.render_response" (respondFragmentHtml (renderInvitesSectionFragment invitations currentRosterGroup.id))
+            currentTime <- getCurrentTime
+            profileActionSpan "admin.invites_fragment.render_response" (respondFragmentHtml (renderInvitesSectionFragment currentTime invitations currentRosterGroup.id))
 
     action currentAction@ShowadminShiftTypesLiveFragmentAction = runBepis currentAction BepisFragmentAction $
         profileActionSpan "admin.shift_types_fragment.respond" do
@@ -368,10 +371,40 @@ instance Controller AdminController where
             Right fields -> do
                 maybeEmail <- validateRequiredEmail (surfaceFieldValue @Surface.Email fields) "Invite email is required."
                 case maybeEmail of
-                    Just email -> do
-                        _ <- createVenueInvitationMutation email
-                        respondToInvitesSectionMutation ("Invitation queued for " <> email) currentRosterGroup.id
+                    Just email ->
+                        createVenueInvitationMutation email >>= \case
+                            Right _ -> respondToInvitesSectionMutation ("Invitation queued for " <> email) currentRosterGroup.id
+                            Left message -> respondToInvitesSectionError message currentRosterGroup.id
                     Nothing -> respondToInvitesSectionMutation "" currentRosterGroup.id
+
+    action currentAction@RenewVenueInvitationAction { venueInvitationId } = runBepis currentAction BepisMutationAction do
+        ensureVenueWritable
+        currentRosterGroup <- fetchCurrentVenueRosterGroupOrDefault (paramOrNothing "rosterGroupId")
+        invitation <- fetch venueInvitationId
+        ensureRecordInCurrentVenue invitation.venueId
+        case AdminAction.parseRenewVenueInvitationActionParams of
+            Left errors -> do
+                reportSurfaceRequestErrors errors
+                respondToInvitesSectionMutation "" currentRosterGroup.id
+            Right fields -> do
+                let rawSubmittedEmail = paramOrDefault @Text "" "email"
+                let submittedEmail = fromMaybe invitation.email (surfaceFieldValue @Surface.Email fields)
+                if hasParam "email" && Text.null (Text.strip rawSubmittedEmail)
+                    then do
+                        setErrorMessage "Invite email cannot be blank."
+                        respondToInvitesSectionMutation "" currentRosterGroup.id
+                    else validateRequiredEmail submittedEmail "Invite email is required." >>= \case
+                        Nothing -> respondToInvitesSectionMutation "" currentRosterGroup.id
+                        Just correctedEmail -> do
+                            result <- case invitation.staffId of
+                                Nothing -> renewVenueInvitationMutation invitation correctedEmail
+                                Just staffId -> do
+                                    staff <- fetch staffId
+                                    ensureRecordInCurrentVenue staff.venueId
+                                    renewTrialStaffInvitationMutation staff invitation correctedEmail
+                            case result of
+                                Left message -> respondToInvitesSectionError message currentRosterGroup.id
+                                Right _ -> respondToInvitesSectionMutation ("Invitation renewed for " <> correctedEmail) currentRosterGroup.id
 
     action currentAction@RevokeVenueInvitationAction { venueInvitationId } = runBepis currentAction BepisMutationAction do
         ensureVenueWritable

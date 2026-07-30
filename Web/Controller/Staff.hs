@@ -255,7 +255,8 @@ instance Controller StaffController where
                 pendingInvitations <- fetchPendingTrialStaffInvitations staff
                 let weekOffset = paramOrDefault @Int 0 "weekOffset"
                 let maybeRosterGroupId = paramOrNothing "rosterGroupId"
-                respondHtml (renderTrialStaffInvitationModalFragment staff pendingInvitations Nothing Nothing weekOffset maybeRosterGroupId)
+                now <- getCurrentTime
+                respondHtml (renderTrialStaffInvitationModalFragment now staff pendingInvitations Nothing Nothing weekOffset maybeRosterGroupId)
             else respondWithTrialStaffInvitationFailure ineligibleTrialStaffInvitationMessage
 
     action currentAction@CreateTrialStaffInvitationAction { staffId } = runBepis currentAction BepisMutationAction do
@@ -264,14 +265,14 @@ instance Controller StaffController where
         ensureRecordInCurrentVenue staff.venueId
         if not (isAdoptableTrialStaff staff)
             then respondWithTrialStaffInvitationFailure ineligibleTrialStaffInvitationMessage
-            else case parseTrialStaffInvitationEmail of
+            else case validateTrialStaffInvitationEmail submittedTrialStaffInvitationEmail of
                 Left message -> renderTrialStaffInvitationError staff message (Just submittedTrialStaffInvitationEmail)
                 Right email ->
                     createTrialStaffInvitationMutation staff email >>= \case
                         Right _ -> respondWithTrialStaffInvitationSuccess ("Invitation sent to " <> email)
                         Left message -> renderTrialStaffInvitationError staff message (Just email)
 
-    action currentAction@ResendTrialStaffInvitationAction { venueInvitationId } = runBepis currentAction BepisMutationAction do
+    action currentAction@RenewTrialStaffInvitationAction { venueInvitationId } = runBepis currentAction BepisMutationAction do
         ensureVenueWritable
         invitation <- fetch venueInvitationId
         ensureRecordInCurrentVenue invitation.venueId
@@ -280,9 +281,13 @@ instance Controller StaffController where
             Just staffId -> do
                 staff <- fetch staffId
                 ensureRecordInCurrentVenue staff.venueId
-                resendTrialStaffInvitationMutation staff invitation >>= \case
-                    Right _ -> respondWithTrialStaffInvitationSuccess ("Invitation resent to " <> invitation.email)
-                    Left message -> renderTrialStaffInvitationError staff message Nothing
+                let correctedEmail = Text.strip (fromMaybe invitation.email (paramOrNothing @Text "invitationEmail"))
+                case validateTrialStaffInvitationEmail correctedEmail of
+                    Left message -> renderTrialStaffInvitationError staff message (Just correctedEmail)
+                    Right email ->
+                        renewTrialStaffInvitationMutation staff invitation email >>= \case
+                            Right _ -> respondWithTrialStaffInvitationSuccess ("Invitation renewed for " <> email)
+                            Left message -> renderTrialStaffInvitationError staff message (Just email)
 
 emptyStaffPayRateSelection :: SubmittedPayRateSelection
 emptyStaffPayRateSelection = SubmittedPayRateSelection Nothing Nothing True
@@ -315,12 +320,13 @@ ineligibleTrialStaffInvitationMessage = "Only active trial staff without a linke
 submittedTrialStaffInvitationEmail :: (?request :: Request) => Text
 submittedTrialStaffInvitationEmail = Text.strip (paramOrDefault "" "invitationEmail")
 
-parseTrialStaffInvitationEmail :: (?request :: Request) => Either Text Text
-parseTrialStaffInvitationEmail =
-    case submittedTrialStaffInvitationEmail of
+validateTrialStaffInvitationEmail :: Text -> Either Text Text
+validateTrialStaffInvitationEmail submittedEmail =
+    case submittedEmail of
         "" -> Left "Invite email is required."
         email
             | Text.length email > 254 -> Left "Email must be 254 characters or fewer."
+            | Text.any (`elem` ("<>\r\n" :: String)) email -> Left "Enter a valid email address."
             | otherwise ->
                 case isEmail email of
                     Success       -> Right email
@@ -348,7 +354,8 @@ renderTrialStaffInvitationError staff message submittedEmail
         pendingInvitations <- fetchPendingTrialStaffInvitations staff
         let weekOffset = paramOrDefault @Int 0 "weekOffset"
         let maybeRosterGroupId = paramOrNothing "rosterGroupId"
-        respondHtml (renderTrialStaffInvitationModalFragment staff pendingInvitations (Just message) submittedEmail weekOffset maybeRosterGroupId)
+        now <- getCurrentTime
+        respondHtml (renderTrialStaffInvitationModalFragment now staff pendingInvitations (Just message) submittedEmail weekOffset maybeRosterGroupId)
 
 renderTrialStaffInvitationErrorForInvitation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request, ?respond :: Respond) => VenueInvitation -> Text -> IO ()
 renderTrialStaffInvitationErrorForInvitation invitation message =

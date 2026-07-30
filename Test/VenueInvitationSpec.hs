@@ -68,6 +68,46 @@ tests = aroundAll withDatabaseTestContext do
                 versionAfter <- currentLiveUpdateVersion (AdminLive.adminInvitesLiveScope (unpackId venue.id))
                 versionAfter `shouldBe` versionBefore
 
+        it "treats legacy invitations without an explicit expiry as expired two weeks after creation" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Invite Legacy Expiry Venue"
+                now <- getCurrentTime
+                invitation <- createVenueInvitationRecord venue Nothing "legacy-expired-invite@example.com" "worker"
+                    >>= updateRecord
+                        . set #createdAt (addUTCTime (negate (15 * 24 * 60 * 60)) now)
+                        . set #expiresAt Nothing
+                EnqueuedAppJob appJob <- enqueueVenueInvitationDeliveryJob Nothing invitation
+
+                withFrameworkConfig config \frameworkConfig -> do
+                    let ?context = frameworkConfig
+                    performVenueInvitationDeliveryJob appJob
+
+                updatedInvitation <- fetch invitation.id
+                updatedInvitation.deliveredAt `shouldBe` Nothing
+
+        it "does not deliver expired or revoked venue invitations from already queued jobs" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Invite Stale Delivery Venue"
+                now <- getCurrentTime
+                expired <- createVenueInvitationRecord venue Nothing "expired-queued-invite@example.com" "worker"
+                    >>= updateRecord . set #expiresAt (Just (addUTCTime (-60) now))
+                revoked <- createVenueInvitationRecord venue Nothing "revoked-queued-invite@example.com" "worker"
+                    >>= updateRecord . set #status (unsafeEnumFromText @InvitationStatusEnum "revoked")
+                EnqueuedAppJob expiredJob <- enqueueVenueInvitationDeliveryJob Nothing expired
+                EnqueuedAppJob revokedJob <- enqueueVenueInvitationDeliveryJob Nothing revoked
+
+                withFrameworkConfig config \frameworkConfig -> do
+                    let ?context = frameworkConfig
+                    performVenueInvitationDeliveryJob expiredJob
+                    performVenueInvitationDeliveryJob revokedJob
+
+                updatedExpired <- fetch expired.id
+                updatedRevoked <- fetch revoked.id
+                updatedExpired.deliveredAt `shouldBe` Nothing
+                updatedRevoked.deliveredAt `shouldBe` Nothing
+                inputValue updatedExpired.deliveryStatus `shouldBe` "queued"
+                inputValue updatedRevoked.deliveryStatus `shouldBe` "queued"
+
         it "does not resend accepted venue invitations when a delivery job is retried" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Invite Accepted Venue"
