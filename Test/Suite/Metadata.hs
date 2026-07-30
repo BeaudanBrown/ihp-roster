@@ -15,6 +15,7 @@ module Test.Suite.Metadata
     , TestLane (..)
     , acceptanceEvidenceShape
     , allAcceptanceInvariants
+    , allInvariantFamilies
     , composedAcceptanceInvariants
     , excludedAcceptanceInvariants
     , incompleteAcceptanceInvariants
@@ -191,6 +192,9 @@ suiteKind metadata =
 allAcceptanceInvariants :: [AcceptanceInvariant]
 allAcceptanceInvariants = [minBound .. maxBound]
 
+allInvariantFamilies :: [InvariantFamily]
+allInvariantFamilies = [minBound .. maxBound]
+
 acceptanceEvidenceShape :: AcceptanceInvariant -> AcceptanceEvidenceShape
 acceptanceEvidenceShape = \case
     T4 -> ComposedEvidence
@@ -233,11 +237,16 @@ validateSuiteRegistry :: [SuiteMetadata] -> [Text]
 validateSuiteRegistry registry =
     concatMap validateSuiteMetadata registry
         <> duplicateLabelDiagnostics
+        <> missingInvariantFamilyDiagnostics
         <> concatMap validateInvariantCoverage allAcceptanceInvariants
   where
     duplicateLabelDiagnostics =
         duplicateValues (map suiteLabel registry)
             |> map (\label -> "duplicate suite label: " <> cs label)
+    missingInvariantFamilyDiagnostics =
+        allInvariantFamilies
+            |> filter (`notElem` map invariantFamily registry)
+            |> map (\family -> "mandatory invariant family has no suite: " <> tshow family)
     validateInvariantCoverage invariant =
         let completeOwners = filter (elem invariant . ownedAcceptanceInvariants) registry
             partialOwners = filter (elem invariant . partiallyCoveredAcceptanceInvariants) registry

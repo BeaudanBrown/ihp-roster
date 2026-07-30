@@ -8,6 +8,30 @@ Use project scripts via the repo environment wrapper:
 - `bash ./bin/in-env hspec-test` for test suite.
 - `bash ./bin/in-env lint` and `bash ./bin/in-env format` before finalizing.
 
+`hspec-test` is the single mandatory Hspec command and always selects the
+complete registry by default. `hspec-pure`, `hspec-db`, focused matches, and the
+expert-only `TEST_FEEDBACK_LANE=routine|acceptance` selections are additive
+feedback or diagnostic interfaces; their output names omitted mandatory
+invariants and they are not merge-gate substitutes. Required CI runs typecheck
+and complete Hspec.
+
+Verification authorities remain separate:
+
+- Hspec owns deterministic domain, controller, persistence, fixture, golden,
+  current-schema/parser, and generated-contract runtime evidence.
+- Typecheck and compile-fail checks own impossible typed states.
+- Generator, frontend, architecture, and drift checks own checked-in artifacts,
+  TypeScript/browser-unit behavior, module topology, and stale ownership.
+- Migration and deployment checks own upgrade ordering and preservation of live
+  customer data; a current-schema Hspec pass does not replace them.
+- Playwright owns real-browser workflow and reachability evidence in local and
+  release verification tiers.
+- Stripe sandbox/test-clock evidence for B8 is operator-only and remains in
+  `Application/Billing/RUNBOOK.md` rather than automated-suite metadata.
+
+The measured feedback-lane decision is archived in
+`docs/archive/hspec-feedback-lane-decision-2026-07-30.md`.
+
 ## Required test coverage (minimum)
 
 ## Access and onboarding

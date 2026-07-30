@@ -252,9 +252,11 @@ bash ./bin/in-env typecheck
 bash ./bin/in-env hspec-test
 ```
 
-The required CI scope remains typecheck plus complete Hspec. Those sequential
-steps reuse the fingerprinted verification compilation cache; browser tiers are
-local/release commands and are not a newly mandatory CI gate.
+The required CI scope remains typecheck plus complete Hspec. Routine-only,
+acceptance-only, pure, database-only, and focused selections are diagnostic or
+additive feedback and must not replace the complete `hspec-test` step. Those
+sequential CI steps reuse the fingerprinted verification compilation cache;
+browser tiers are local/release commands and are not a newly mandatory CI gate.
 
 Deployment is managed outside this workflow. Production NixOS configuration lives
 under `Config/nix/`.

@@ -37,5 +37,5 @@ jobs:
       - name: Typecheck
         run: bash ./bin/in-env typecheck
 
-      - name: Hspec
+      - name: Complete Hspec
         run: bash ./bin/in-env hspec-test

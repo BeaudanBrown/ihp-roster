@@ -18,11 +18,12 @@ tests = do
             validateSuiteMetadata invalid
                 `shouldContain` ["invalid-visibility: committed visibility requires broad clean-state isolation"]
 
-        it "diagnoses duplicate labels and mandatory invariants without owners" do
+        it "diagnoses duplicate labels, missing families, and mandatory invariants without owners" do
             let duplicated = pureMetadata "duplicate" RoutineCorrectness [A1]
                 diagnostics = validateSuiteRegistry [duplicated, duplicated]
 
             diagnostics `shouldSatisfy` any (Text.isInfixOf "duplicate suite label: duplicate")
+            diagnostics `shouldSatisfy` any (Text.isInfixOf "mandatory invariant family has no suite: Billing")
             diagnostics `shouldSatisfy` any (Text.isInfixOf "mandatory complete invariant has no owning suite: A2")
 
     describe "suite metadata selection" do

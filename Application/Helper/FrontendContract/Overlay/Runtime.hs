@@ -5,7 +5,6 @@ module Application.Helper.FrontendContract.Overlay.Runtime
     , canonicalOverlayDom
     , dialogAutoSubmitOnceAttr
     , dialogBackdropAttrs
-    , dialogBlockingAttrs
     , dialogCloseAttrs
     , dialogMountAttrs
     , dialogSubmitAttrs
@@ -67,9 +66,6 @@ dialogMountAttrs = roleAttrs canonicalOverlayDom.overlayDialogMountAttribute
 
 dialogBackdropAttrs :: [(Text, Text)]
 dialogBackdropAttrs = roleAttrs canonicalOverlayDom.overlayDialogBackdropAttribute
-
-dialogBlockingAttrs :: [(Text, Text)]
-dialogBlockingAttrs = roleAttrs canonicalOverlayDom.overlayDialogBlockingAttribute
 
 dialogCloseAttrs :: [(Text, Text)]
 dialogCloseAttrs = roleAttrs canonicalOverlayDom.overlayDialogCloseAttribute

@@ -225,6 +225,7 @@ renderSuiteMetadataReport :: Text
 renderSuiteMetadataReport =
     Text.unlines $
         [ "Hspec suite metadata: " <> tshow (length allSuiteMetadata) <> " suites"
+        , "Invariant families=[" <> renderList allInvariantFamilies <> "]"
         , "Routine feedback mandatory-acceptance-excluded=[" <> renderInvariantList routineExcluded <> "]"
         , "Known partial mandatory-acceptance=[" <> renderInvariantList (incompleteAcceptanceInvariants allSuiteMetadata) <> "]"
         , "Known composed mandatory-acceptance=[" <> renderInvariantList composedAcceptanceInvariants <> "]"
