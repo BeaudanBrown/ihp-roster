@@ -235,119 +235,29 @@ tests = aroundAll withDatabaseTestContext do
 
                 duplicateSessionAttempt `shouldSatisfy` isLeft
 
-        it "rejects unknown Checkout attempt statuses" $ withContext do
+        it "rejects invalid Checkout attempt status, completion, failure metadata, and provider identifiers" $ withContext do
             withCleanDb do
-                venue <- createVenueWithConfig "Checkout Status Constraint Venue"
-                owner <- createUserRecord "checkout-status-constraint@example.com" "admin" True
-
-                invalidStatus <-
-                    try
-                        ( checkoutAttemptFor venue owner
-                            |> set #status "unknown"
-                            |> createRecord
-                        ) :: IO (Either SomeException BillingCheckoutAttempt)
-
-                invalidStatus `shouldSatisfy` isLeft
-
-        it "keeps Checkout completion status and timestamp consistent" $ withContext do
-            withCleanDb do
-                venue <- createVenueWithConfig "Checkout Completion Constraint Venue"
-                owner <- createUserRecord "checkout-completion-constraint@example.com" "admin" True
+                venue <- createVenueWithConfig "Checkout Constraint Venue"
+                owner <- createUserRecord "checkout-constraint@example.com" "admin" True
                 now <- getCurrentTime
+                let rejectedAttempts =
+                        [ ("unknown status", checkoutAttemptFor venue owner |> set #status "unknown")
+                        , ("completed without timestamp", checkoutAttemptFor venue owner |> set #stripeCheckoutSessionId (Just "cs_missing_completion_time") |> set #status "completed")
+                        , ("open with completion timestamp", checkoutAttemptFor venue owner |> set #stripeCheckoutSessionId (Just "cs_open_with_completion_time") |> set #completedAt (Just now))
+                        , ("oversized error code", checkoutAttemptFor venue owner |> set #status "failed" |> set #errorCode (Just (Text.replicate 121 "x")))
+                        , ("oversized error summary", checkoutAttemptFor venue owner |> set #status "failed" |> set #errorSummary (Just (Text.replicate 1001 "x")))
+                        , ("blank error summary", checkoutAttemptFor venue owner |> set #status "failed" |> set #errorSummary (Just "   "))
+                        , ("blank customer id", checkoutAttemptFor venue owner |> set #stripeCustomerId "   " |> set #status "failed")
+                        , ("oversized price id", checkoutAttemptFor venue owner |> set #stripePriceId (Text.replicate 256 "x") |> set #status "failed")
+                        , ("blank session id", checkoutAttemptFor venue owner |> set #stripeCheckoutSessionId (Just "   ") |> set #status "failed")
+                        , ("oversized subscription id", checkoutAttemptFor venue owner |> set #stripeSubscriptionId (Just (Text.replicate 256 "x")) |> set #status "failed")
+                        ]
 
-                completedWithoutTimestamp <-
-                    try
-                        ( checkoutAttemptFor venue owner
-                            |> set #stripeCheckoutSessionId (Just "cs_missing_completion_time")
-                            |> set #status "completed"
-                            |> createRecord
-                        ) :: IO (Either SomeException BillingCheckoutAttempt)
-
-                openWithCompletionTimestamp <-
-                    try
-                        ( checkoutAttemptFor venue owner
-                            |> set #stripeCheckoutSessionId (Just "cs_open_with_completion_time")
-                            |> set #completedAt (Just now)
-                            |> createRecord
-                        ) :: IO (Either SomeException BillingCheckoutAttempt)
-
-                completedWithoutTimestamp `shouldSatisfy` isLeft
-                openWithCompletionTimestamp `shouldSatisfy` isLeft
-
-        it "bounds sanitized Checkout failure metadata" $ withContext do
-            withCleanDb do
-                venue <- createVenueWithConfig "Checkout Failure Metadata Venue"
-                owner <- createUserRecord "checkout-failure-metadata@example.com" "admin" True
-
-                oversizedErrorCode <-
-                    try
-                        ( checkoutAttemptFor venue owner
-                            |> set #status "failed"
-                            |> set #errorCode (Just (Text.replicate 121 "x"))
-                            |> createRecord
-                        ) :: IO (Either SomeException BillingCheckoutAttempt)
-
-                oversizedErrorSummary <-
-                    try
-                        ( checkoutAttemptFor venue owner
-                            |> set #status "failed"
-                            |> set #errorSummary (Just (Text.replicate 1001 "x"))
-                            |> createRecord
-                        ) :: IO (Either SomeException BillingCheckoutAttempt)
-
-                blankErrorSummary <-
-                    try
-                        ( checkoutAttemptFor venue owner
-                            |> set #status "failed"
-                            |> set #errorSummary (Just "   ")
-                            |> createRecord
-                        ) :: IO (Either SomeException BillingCheckoutAttempt)
-
-                oversizedErrorCode `shouldSatisfy` isLeft
-                oversizedErrorSummary `shouldSatisfy` isLeft
-                blankErrorSummary `shouldSatisfy` isLeft
-
-        it "rejects blank or oversized Checkout provider identifiers" $ withContext do
-            withCleanDb do
-                venue <- createVenueWithConfig "Checkout Identifier Constraint Venue"
-                owner <- createUserRecord "checkout-identifier-constraint@example.com" "admin" True
-
-                blankCustomerId <-
-                    try
-                        ( checkoutAttemptFor venue owner
-                            |> set #stripeCustomerId "   "
-                            |> set #status "failed"
-                            |> createRecord
-                        ) :: IO (Either SomeException BillingCheckoutAttempt)
-
-                oversizedPriceId <-
-                    try
-                        ( checkoutAttemptFor venue owner
-                            |> set #stripePriceId (Text.replicate 256 "x")
-                            |> set #status "failed"
-                            |> createRecord
-                        ) :: IO (Either SomeException BillingCheckoutAttempt)
-
-                blankSessionId <-
-                    try
-                        ( checkoutAttemptFor venue owner
-                            |> set #stripeCheckoutSessionId (Just "   ")
-                            |> set #status "failed"
-                            |> createRecord
-                        ) :: IO (Either SomeException BillingCheckoutAttempt)
-
-                oversizedSubscriptionId <-
-                    try
-                        ( checkoutAttemptFor venue owner
-                            |> set #stripeSubscriptionId (Just (Text.replicate 256 "x"))
-                            |> set #status "failed"
-                            |> createRecord
-                        ) :: IO (Either SomeException BillingCheckoutAttempt)
-
-                blankCustomerId `shouldSatisfy` isLeft
-                oversizedPriceId `shouldSatisfy` isLeft
-                blankSessionId `shouldSatisfy` isLeft
-                oversizedSubscriptionId `shouldSatisfy` isLeft
+                forM_ rejectedAttempts \(label, attempt) -> do
+                    result <- try (createRecord attempt) :: IO (Either SomeException BillingCheckoutAttempt)
+                    case result of
+                        Left _ -> pure ()
+                        Right _ -> expectationFailure ("accepted invalid Checkout attempt: " <> label)
 
         it "enforces one billing customer and one subscription per venue" $ withContext do
             withCleanDb do

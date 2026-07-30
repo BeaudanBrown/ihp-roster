@@ -24,8 +24,8 @@ import Test.Hspec
 import Test.Support
 import Test.Support.FwcMapdFixture (loadFwcMapdFixture)
 
-tests :: Spec
-tests = do
+pureTests :: Spec
+pureTests = do
     describe "FWC MAPD sync curation" do
         it "keeps only latest active adult hourly bar/pub rates and referenced classifications" do
             let asOfDate = fromGregorian 2026 4 24
@@ -273,6 +273,8 @@ tests = do
             map (normaliseTimePenaltyKind . fst) fixture.curatedWageAllowances
                 `shouldMatchList` [Just EveningAfter7Pm, Just LateNightAfterMidnight]
 
+databaseTests :: Spec
+databaseTests = do
     aroundAll withDatabaseTestContext do
         describe "FWC MAPD admin data" do
             it "projects every fixture classification and expected rate category without asserting current dollar amounts" $ withContext do

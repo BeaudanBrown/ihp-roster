@@ -32,10 +32,10 @@ fixtureState = OrderedRangeBrowserState
     , orderedRangeAvailable = True
     }
 
-tests :: Spec
-tests = aroundAll withDatabaseTestContext do
+pureTests :: Spec
+pureTests = do
     describe "Ordered range contract runtime" do
-        it "serializes exact generated configuration, state, and roles" $ withContext do
+        it "serializes exact generated configuration, state, and roles" do
             orderedRangeConfigJson fixtureConfig
                 `shouldBe` "{\"crossingPolicy\":\"clamp-other-endpoint\",\"defaultEndValue\":7,\"defaultStartValue\":5,\"maximumValue\":7,\"minimumValue\":5,\"stepValue\":1,\"valueLabels\":[\"5 AM\",\"6 AM\",\"7 AM\"]}"
             orderedRangeStateJson fixtureConfig fixtureState
@@ -65,7 +65,7 @@ tests = aroundAll withDatabaseTestContext do
             orderedRangePositionStyle fixtureConfig fixtureState
                 `shouldBe` "--ordered-range-start-position: 50.000%; --ordered-range-end-position: 100.000%;"
 
-        it "rejects incomplete semantic value inventories and invalid initial state" $ withContext do
+        it "rejects incomplete semantic value inventories and invalid initial state" do
             let missingLabel = fixtureConfig { orderedRangeValueLabels = ["5 AM", "6 AM"] }
             evaluate (Text.length (orderedRangeConfigJson missingLabel))
                 `shouldThrow` errorCall "Ordered range labels must cover every allowed value"
@@ -73,6 +73,8 @@ tests = aroundAll withDatabaseTestContext do
             evaluate (Text.length (orderedRangeStateJson fixtureConfig crossedState))
                 `shouldThrow` errorCall "Ordered range start value must not exceed end value"
 
+databaseTests :: Spec
+databaseTests = aroundAll withDatabaseTestContext do
     describe "Shift preference ordered range rendering" do
         it "renders generated roles and Haskell-owned state without legacy DOM names" $ withContext do
             withCurrentControllerContext do

@@ -42,11 +42,16 @@ RELEVANT_PROCESS_MARKERS = (
     "/k6 ",
 )
 SUITE_PATTERN = re.compile(
-    r'^\s*(?:\[|,)\s*(pureSuite|databaseSuite)\s+[\s\S]*?SuiteDefinition\s*\{([\s\S]*?)\}\s+([A-Za-z][A-Za-z0-9_.]+)\.tests\s*$',
+    r'^\s*(?:\[|,)\s*(pureSuite|databaseSuite)\s+[\s\S]*?SuiteDefinition\s*\{([\s\S]*?)\}\s+([A-Za-z][A-Za-z0-9_.]+)\.(tests|pureTests|databaseTests)\s*$',
     re.MULTILINE,
 )
 SUITE_LABEL_PATTERN = re.compile(r'definitionLabel\s*=\s*"([^"]+)"')
 SUITE_WEIGHT_PATTERN = re.compile(r"definitionEstimatedRuntimeSeconds\s*=\s*(\d+(?:\.\d+)?)")
+PURE_DATABASE_CALL_PATTERN = re.compile(
+    r"\b(withCleanDb|withDatabaseTestContext|withMockContext|mockContextNoDatabase|"
+    r"testContext|withContext|withControllerTestContext|withCurrentControllerContext|"
+    r"withUser|withUserAndCurrentVenue|callAction|callActionWithParams)\b"
+)
 FIXTURE_BUILDERS = (
     "createVenueWithConfig",
     "createUserRecord",
@@ -858,11 +863,28 @@ def parse_metadata_report(runner: Path) -> dict[str, dict[str, Any]]:
     return metadata
 
 
+def extract_top_level_binding(source_text: str, binding: str) -> str:
+    definition = re.search(rf"^{re.escape(binding)}\s*=", source_text, re.MULTILINE)
+    if definition is None:
+        raise RuntimeError(f"could not find top-level spec binding: {binding}")
+    following_declaration = re.search(
+        r"^[A-Za-z_][A-Za-z0-9_']*\s*(?:::|=)",
+        source_text[definition.end():],
+        re.MULTILINE,
+    )
+    end = (
+        len(source_text)
+        if following_declaration is None
+        else definition.end() + following_declaration.start()
+    )
+    return source_text[definition.start():end]
+
+
 def parse_registry(runner: Path) -> list[dict[str, Any]]:
     suite_source = (ROOT / "Test/Suite.hs").read_text()
     reported_metadata = parse_metadata_report(runner)
     suites: list[dict[str, Any]] = []
-    for constructor, definition_source, module in SUITE_PATTERN.findall(suite_source):
+    for constructor, definition_source, module, spec_binding in SUITE_PATTERN.findall(suite_source):
         label_match = SUITE_LABEL_PATTERN.search(definition_source)
         weight_match = SUITE_WEIGHT_PATTERN.search(definition_source)
         if label_match is None or weight_match is None:
@@ -885,7 +907,14 @@ def parse_registry(runner: Path) -> list[dict[str, Any]]:
                 f"suite weight differs between source and metadata report: "
                 f"{label} ({weight} != {metadata['estimatedRuntimeSeconds']})"
             )
-        clean_db_call_sites = len(re.findall(r"\bwithCleanDb\s+do\b", source_text))
+        spec_source = extract_top_level_binding(source_text, spec_binding)
+        clean_db_call_sites = len(re.findall(r"\bwithCleanDb\b", spec_source))
+        pure_database_calls = sorted(set(PURE_DATABASE_CALL_PATTERN.findall(spec_source)))
+        if expected_kind == "pure" and pure_database_calls:
+            raise RuntimeError(
+                f"pure suite binding uses database context/reset helpers: {label} "
+                f"({module}.{spec_binding}: {', '.join(pure_database_calls)})"
+            )
         expected_clean_state = (
             "not-applicable"
             if expected_kind == "pure"
@@ -901,6 +930,7 @@ def parse_registry(runner: Path) -> list[dict[str, Any]]:
                 "label": label,
                 "module": module,
                 "source": source_path,
+                "specBinding": spec_binding,
                 "kind": expected_kind,
                 "declaredWeight": float(weight),
                 "cleanState": metadata["cleanState"],

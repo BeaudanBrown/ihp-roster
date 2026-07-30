@@ -319,10 +319,12 @@ When adding a new controller (e.g., `PostsController`), create a corresponding s
 - Use it with Hspec's `aroundAll`, not `beforeAll`; `aroundAll` gives the
   bracket a continuation whose completion releases the pool and PG listener.
 - A genuinely no-database suite belongs in the registry's pure lane and must
-  not construct a `MockContext`, call `withCleanDb`, or open PostgreSQL. A
-  controller spec using `withContext`, authentication/current-venue setup, or
-  database-backed middleware is a database suite even if one example only
-  renders or redirects.
+  not construct a `MockContext`, call `withCleanDb`, or open PostgreSQL. Split
+  pure parsing, policy, and contract examples from persistence/rendering specs
+  when they share a source module. A controller spec using `withContext`,
+  authentication/current-venue setup, database-backed middleware, or an HSX
+  renderer requiring implicit `ControllerContext`/`Request` values remains a
+  database suite even when the example itself only renders or redirects.
 - Never use the deprecated name `mockContextNoDatabase`: in current IHP it
   still creates a real `ModelContext` pool, despite its historical name, and
   it has no release continuation.

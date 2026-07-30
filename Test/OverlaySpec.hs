@@ -16,8 +16,18 @@ import Text.Blaze.Html (Html)
 import qualified Text.Blaze.Html.Renderer.Text as HtmlRenderer
 import qualified Text.Blaze.Html5 as Html5
 
-tests :: Spec
-tests = aroundAll withDatabaseTestContext do
+pureTests :: Spec
+pureTests = do
+    describe "Overlay contract attributes" do
+        it "renders exact generated navigation-loading configuration" do
+            navigationLoadingAttrs "Opening Stripe" "Please wait while Bepis opens Stripe's secure billing page."
+                `shouldBe`
+                    [ ("data-bepis-navigation-loading", "true")
+                    , ("data-bepis-navigation-loading-config", "{\"loadingMessage\":\"Please wait while Bepis opens Stripe's secure billing page.\",\"loadingTitle\":\"Opening Stripe\"}")
+                    ]
+
+databaseTests :: Spec
+databaseTests = aroundAll withDatabaseTestContext do
     describe "Overlay render helpers" do
         it "renders generated dialog roles and exact submit config with native accessibility state" $ withContext do
             withCurrentControllerContext do
@@ -33,13 +43,6 @@ tests = aroundAll withDatabaseTestContext do
                 html `shouldSatisfy` Text.isInfixOf "aria-labelledby=\"dialog-overlay-title\""
                 html `shouldSatisfy` not . Text.isInfixOf "data-dialog-overlay"
                 html `shouldSatisfy` not . Text.isInfixOf "data-loading-label"
-
-        it "renders exact generated navigation-loading configuration" $ withContext do
-            navigationLoadingAttrs "Opening Stripe" "Please wait while Bepis opens Stripe's secure billing page."
-                `shouldBe`
-                    [ ("data-bepis-navigation-loading", "true")
-                    , ("data-bepis-navigation-loading-config", "{\"loadingMessage\":\"Please wait while Bepis opens Stripe's secure billing page.\",\"loadingTitle\":\"Opening Stripe\"}")
-                    ]
 
         it "composes a supplemental generated close role without exposing raw attributes" $ withContext do
             withCurrentControllerContext do

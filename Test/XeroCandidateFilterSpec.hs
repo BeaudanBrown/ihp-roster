@@ -15,8 +15,8 @@ import Text.Blaze.Html (Html)
 import qualified Text.Blaze.Html.Renderer.Text as HtmlRenderer
 import Web.View.Admin.Xero.ImportedPayItems (renderXeroImportedPayItemImportDialog)
 
-tests :: Spec
-tests = do
+pureTests :: Spec
+pureTests = do
     describe "Xero candidate filter contract runtime" do
         it "renders generated roles with one normalized opaque search projection" do
             xeroCandidateFilterRootAttrs
@@ -37,6 +37,8 @@ tests = do
                 (attrsTextLength (xeroCandidateFilterCandidateAttrs (xeroCandidateSearchProjection ["  ", "\t"])))
                 `shouldThrow` errorCall "Xero candidate search projection must not be empty"
 
+databaseTests :: Spec
+databaseTests = do
     aroundAll withDatabaseTestContext do
         describe "Xero candidate filter rendering" do
             it "renders generated filter roles, Haskell-selected projection, accessibility, and import fields" $ withContext do

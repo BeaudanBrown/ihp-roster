@@ -19,8 +19,8 @@ import Web.FrontController ()
 import Web.Routes
 import Web.Types
 
-tests :: Spec
-tests = do
+pureTests :: Spec
+pureTests = do
     describe "DataVic public holiday parsing" do
         it "parses D/MM/YYYY dates" do
             parseDataVicDate "3/11/2026" `shouldBe` Right (fromGregorian 2026 11 3)
@@ -55,6 +55,8 @@ tests = do
                 `shouldSatisfy` \dates -> all (`elem` dates) ["3/11/2026", "25/12/2026", "28/12/2026"]
             map (.publisher) records `shouldSatisfy` all (== Just "Business Victoria")
 
+databaseTests :: Spec
+databaseTests = do
     aroundAll withDatabaseTestContext do
         describe "DataVic public holiday import" do
             it "projects the dated statewide fixture, including its additional public holiday, into the 2026 cache" $ withContext do
