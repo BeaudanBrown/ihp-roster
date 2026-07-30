@@ -4,10 +4,16 @@ Status: active
 
 Tickets:
 
-- `#4` - parent epic
+- `#4` - original Xero payroll parent epic
 - `#84` - connection foundation maintenance
 - `#47`, `#101`, `#78`, `#103`, `#109`, `#119`
-- GitHub `#142` - retire disconnected operational panels and pre-wizard endpoints
+- `#142` - retire disconnected operational panels and pre-wizard endpoints
+- `#244` - reliable Xero reference data for large tenants
+- `#245` - current vendored OpenAPI contracts and local Earnings Rates supplement
+- `#246` - provider-availability reconciliation and historical pay preservation
+- `#247` - paced, tenant-scoped durable bulk sync
+- `#248` - initial and six-day scheduled sync automation
+- `#249` - trusted-reference-data import/preparation UX
 
 Living docs to update:
 
@@ -16,6 +22,7 @@ Living docs to update:
 - `Application/Xero/AGENTS.md`
 - `Web/Controller/Admin/Xero/AGENTS.md`
 - `Application/Helper/Export/SPEC.md`
+- `Application/Helper/View/PageHelp.hs`
 
 Archived context:
 
@@ -31,12 +38,35 @@ managed pay items and draft timesheet submission.
 
 ## Current State
 
-The app has owner-only connection management, one shared reference-data sync
-service, imported-pay-item support, and a guided preparation workflow covering
-staff decisions, managed pay items, readiness, preview, and submission. The
-ordinary Xero page is connection-state-only; disconnected operational panels
-and pre-wizard preview/submit/retry endpoints have been retired. Open work
-remains around audit trails, correction behavior, and custom pay item overrides.
+The app has owner-only connection management, one shared synchronous
+reference-data sync service, imported-pay-item support, explicit staff/shift pay
+assignment modes with immutable pay versions, and a guided preparation workflow
+covering staff decisions, managed pay items, readiness, preview, and submission.
+The ordinary Xero page is connection-state-only; disconnected operational panels
+and pre-wizard preview/submit/retry endpoints have been retired. Initial sync is
+still browser-triggered after OAuth, and preparation still performs synchronous
+reference refresh. Open work remains around reliable background reference sync,
+audit trails, correction behavior, and custom pay item overrides.
+
+## Reliable Reference Data
+
+Epic `#244` moves complete reference refresh onto the existing durable
+`app_jobs` worker. Sync requests coalesce by connection, serialize by Xero tenant,
+pace provider calls, preserve `Retry-After`, and retain the prior successful
+snapshot until every phase succeeds. The daily maintenance sweep requests refresh
+around six days; snapshots become stale at seven days.
+
+Provider availability is distinct from owner archival. Missing or inactive Xero
+records remain historical facts but cannot be selected for new work. Current
+explicit `xero_rate` assignments become remediation-required. Immutable pay
+versions and sealed calculations are never silently remapped; approved entries
+pinned to an unavailable remote rate block Xero preparation/submission and use
+the explicit correction/reapproval path.
+
+Owners join background sync automatically from connection, stale import or
+preparation, and missing payroll-eligible staff mappings. Effective roster-only
+work does not trigger Xero mapping refresh. Super admins can inspect sanitized
+job state and request a coalescing refresh.
 
 ## Intended Contract
 
@@ -85,4 +115,6 @@ Relevant tickets:
 - Xero preview and submission use the same locked payroll facts as exports.
 - Guided preparation clearly shows missing staff, pay item, and mapping inputs.
 - Submission results and errors are auditable.
+- Large reference snapshots are paced, recoverable, availability-reconciled, and
+  refreshed without browser-dependent owner action.
 - Living Xero docs replace archived plan instructions for future agents.
