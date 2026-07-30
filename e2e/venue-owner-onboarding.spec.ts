@@ -51,6 +51,39 @@ test.describe('Venue owner onboarding invites', () => {
         await expect(onboardingInviteRow(page, ownerEmail)).toContainText('Pending');
     });
 
+    test('support renews an owner invite with a corrected email and invalidates the old link', async ({ browser, page, request, baseURL }) => {
+        const suffix = uniqueE2EValue('e2e-owner-renewal');
+        const originalEmail = `${suffix}-old@example.com`;
+        const correctedEmail = `${suffix}-corrected@example.com`;
+
+        await loginAsSuperAdmin(page);
+        await page.fill('#support-create-onboarding-email', originalEmail);
+        await page.getByRole('button', { name: 'Send Owner Invite' }).click();
+
+        const originalMessage = await waitForMailhogMessage(request, originalEmail, E2E_TIMEOUT.mailhog);
+        const originalInviteUrl = inviteUrlForCurrentBase(extractFirstUrl(mailhogMessageText(originalMessage)), baseURL!);
+
+        const originalRow = onboardingInviteRow(page, originalEmail);
+        await originalRow.getByLabel('Corrected owner email').fill(correctedEmail);
+        await originalRow.getByRole('button', { name: 'Renew' }).click();
+
+        const correctedMessage = await waitForMailhogMessage(request, correctedEmail, E2E_TIMEOUT.mailhog);
+        const correctedInviteUrl = inviteUrlForCurrentBase(extractFirstUrl(mailhogMessageText(correctedMessage)), baseURL!);
+        expect(correctedInviteUrl).not.toBe(originalInviteUrl);
+
+        await openSupport(page);
+        await expect(onboardingInviteRow(page, originalEmail)).toContainText('Revoked');
+        await expect(onboardingInviteRow(page, correctedEmail)).toContainText('Pending');
+
+        const ownerContext = await browser.newContext();
+        const ownerPage = await ownerContext.newPage();
+        await gotoWhenReady(ownerPage, originalInviteUrl, 'body');
+        await expect(ownerPage.locator('body')).toContainText('Invitation Required');
+        await gotoWhenReady(ownerPage, correctedInviteUrl, '#email');
+        await expect(ownerPage.locator('#email')).toHaveValue(correctedEmail);
+        await ownerContext.close();
+    });
+
     test('owner can redeem an emailed onboarding invite, create a Tuesday-start venue, and the link cannot be reused', async ({ browser, page, request, baseURL }) => {
         const suffix = uniqueE2EValue('e2e-owner-onboarding');
         const ownerEmail = `${suffix}@example.com`;

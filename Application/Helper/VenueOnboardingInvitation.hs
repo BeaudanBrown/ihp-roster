@@ -12,7 +12,7 @@ import Web.Mail.Users.VenueOnboardingInvitation
 import Web.Types
 
 venueOnboardingInvitationLifetime :: NominalDiffTime
-venueOnboardingInvitationLifetime = 60 * 60 * 24
+venueOnboardingInvitationLifetime = 60 * 60 * 24 * 14
 
 venueOnboardingInvitationUrl :: Text -> VenueOnboardingInvitation -> Text
 venueOnboardingInvitationUrl appBaseUrl invitation =

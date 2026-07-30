@@ -79,7 +79,7 @@ instance View IndexView where
                                 <button class="btn btn-primary w-100" type="submit">Send Owner Invite</button>
                             </div>
                         </form>
-                        {renderVenueOnboardingInvitationList onboardingInvitations}
+                        {renderVenueOnboardingInvitationList now onboardingInvitations}
                     |]
             feedbackPanel =
                 renderFeedbackPanel unreadFeedbackCount feedbackRows
@@ -675,8 +675,8 @@ renderOnboardingInvitationError invitation fieldName =
 hasOnboardingInvitationErrorFor :: VenueOnboardingInvitation -> Text -> Bool
 hasOnboardingInvitationErrorFor invitation fieldName = isJust (lookup fieldName invitation.meta.annotations)
 
-renderVenueOnboardingInvitationList :: [VenueOnboardingInvitation] -> Html
-renderVenueOnboardingInvitationList invitations =
+renderVenueOnboardingInvitationList :: UTCTime -> [VenueOnboardingInvitation] -> Html
+renderVenueOnboardingInvitationList now invitations =
     case invitations of
         [] -> [hsx|<p class="app-muted small mb-0 mt-4">No venue owner onboarding invites yet.</p>|]
         _ -> [hsx|
@@ -690,32 +690,56 @@ renderVenueOnboardingInvitationList invitations =
                                 <th scope="col">Invite</th>
                                 <th scope="col">Delivery</th>
                                 <th scope="col">Expires</th>
+                                <th scope="col">Action</th>
                             </tr>
                         </thead>
                         <tbody>
-                            {forEach invitations renderVenueOnboardingInvitationRow}
+                            {forEach invitations (renderVenueOnboardingInvitationRow now)}
                         </tbody>
                     </table>
                 </div>
             </div>
         |]
 
-renderVenueOnboardingInvitationRow :: VenueOnboardingInvitation -> Html
-renderVenueOnboardingInvitationRow invitation = [hsx|
+renderVenueOnboardingInvitationRow :: UTCTime -> VenueOnboardingInvitation -> Html
+renderVenueOnboardingInvitationRow now invitation = [hsx|
     <tr>
         <td>{invitation.email}</td>
-        <td>{renderOnboardingInvitationStatusBadge invitation}</td>
+        <td>{renderOnboardingInvitationStatusBadge now invitation}</td>
         <td>
             {renderOnboardingInvitationDeliveryBadge invitation}
             {renderOnboardingInvitationDeliveryError invitation}
         </td>
         <td>{renderOnboardingInvitationExpiry invitation.expiresAt}</td>
+        <td>{renderOnboardingInvitationRenewalControl invitation}</td>
     </tr>
 |]
 
-renderOnboardingInvitationStatusBadge :: VenueOnboardingInvitation -> Html
-renderOnboardingInvitationStatusBadge invitation =
-    renderInvitationLifecycleStatusBadge (inputValue invitation.status)
+renderOnboardingInvitationStatusBadge :: UTCTime -> VenueOnboardingInvitation -> Html
+renderOnboardingInvitationStatusBadge now invitation
+    | inputValue invitation.status == "pending"
+        && maybe False (<= now) invitation.expiresAt =
+            renderAppStatusBadge AppStatusNeutral "Expired"
+    | otherwise =
+        renderInvitationLifecycleStatusBadge (inputValue invitation.status)
+
+renderOnboardingInvitationRenewalControl :: VenueOnboardingInvitation -> Html
+renderOnboardingInvitationRenewalControl invitation
+    | inputValue invitation.status == "pending" && isNothing invitation.acceptedAt = [hsx|
+        <form method="POST" action={RenewSupportVenueOnboardingInvitationAction invitation.id} class="d-flex gap-2">
+            <label class="visually-hidden" for={"support-renew-onboarding-email-" <> tshow invitation.id}>Corrected owner email</label>
+            <input
+                id={"support-renew-onboarding-email-" <> tshow invitation.id}
+                class="form-control form-control-sm"
+                type="email"
+                name="email"
+                value={invitation.email}
+                required="required"
+            />
+            <button class="btn btn-sm btn-outline-primary" type="submit">Renew</button>
+        </form>
+    |]
+    | otherwise = [hsx|<span class="app-muted">—</span>|]
 
 renderOnboardingInvitationDeliveryBadge :: VenueOnboardingInvitation -> Html
 renderOnboardingInvitationDeliveryBadge invitation =

@@ -15,7 +15,8 @@ import Application.Helper.FrontendContract.Surface.Support.Resource
 import Application.Helper.FwcMapd (FwcMapdAdminData, fetchFwcMapdAdminData)
 import Application.Helper.SurfaceResource (SurfaceResourceValue,
                                            liveMutationResult)
-import Application.Helper.VenueOnboardingInvitation (venueOnboardingInvitationLifetime)
+import Application.Helper.VenueOnboardingInvitation (venueOnboardingInvitationIsActive,
+                                                     venueOnboardingInvitationLifetime)
 import Application.InvitationDelivery.Job (enqueueVenueOnboardingInvitationDeliveryJob)
 import Application.PublicHolidays.Coverage (PublicHolidayCoverageYear,
                                             fetchPublicHolidayCoverage)
@@ -23,6 +24,7 @@ import Application.PublicHolidays.Job (enqueuePublicHolidayRefreshJob,
                                        publicHolidayRefreshJobDedupeKey,
                                        publicHolidayRefreshJobKind)
 import Application.Support.LiveUpdates
+import Application.VenueOnboardingInvitation.Mutations (withVenueOnboardingInvitationRenewalLock)
 import Control.Monad (forM, forM_, void)
 import Data.Coerce (coerce)
 import qualified Data.Text as Text
@@ -30,6 +32,11 @@ import Web.Controller.Prelude
 import Web.RosterWeeks.Paths (supportVenueSwitchReturnPath)
 import Web.SurfaceInvalidation (invalidateTouchedResources)
 import Web.View.Support.Index
+
+data OnboardingRenewalResult
+    = OnboardingRenewed VenueOnboardingInvitation
+    | OnboardingRenewalUnavailable
+    | OnboardingRenewalEmailConflict
 
 instance Controller SupportController where
     beforeAction = bepisBeforeAction BepisSupportController do
@@ -91,6 +98,59 @@ instance Controller SupportController where
                             void (enqueueVenueOnboardingInvitationDeliveryJob (Just currentUser.id) invitation)
                             setSuccessMessage ("Venue owner invitation queued for " <> invitation.email)
                             redirectTo SupportAction
+
+    action currentAction@RenewSupportVenueOnboardingInvitationAction { onboardingInvitationId } = runBepis currentAction BepisMutationAction do
+        now <- getCurrentTime
+        invitationForDefaultEmail <- query @VenueOnboardingInvitation
+            |> filterWhere (#id, onboardingInvitationId)
+            |> fetchOneOrNothing
+        let submittedEmail = paramOrNothing @Text "email"
+        let replacementForm =
+                buildSupportVenueOnboardingInvitationForm
+                    |> set #email (fromMaybe (maybe "" (.email) invitationForDefaultEmail) submittedEmail)
+                    |> normalizeTextField #email
+                    |> modify #email Text.toLower
+                    |> validateField #email nonEmpty
+                    |> validateField #email (boundedText 254)
+                    |> validateField #email isEmail
+        case replacementForm.meta.annotations of
+            [] -> do
+                maybeRenewalResult <- withVenueOnboardingInvitationRenewalLock (unpackId onboardingInvitationId) replacementForm.email do
+                    invitationOrNothing <- query @VenueOnboardingInvitation
+                        |> filterWhere (#id, onboardingInvitationId)
+                        |> filterWhere (#status, unsafeEnumFromText @InvitationStatusEnum "pending")
+                        |> filterWhere (#acceptedAt, Nothing)
+                        |> fetchOneOrNothing
+                    case invitationOrNothing of
+                        Nothing -> pure OnboardingRenewalUnavailable
+                        Just invitationToReplace -> do
+                            matchingInvitations <- fetchPendingVenueOnboardingInvitationsExcept replacementForm.email invitationToReplace.id
+                            renewedAt <- getCurrentTime
+                            if any (venueOnboardingInvitationIsActive renewedAt) matchingInvitations
+                                then pure OnboardingRenewalEmailConflict
+                                else do
+                                    forM_ (invitationToReplace : matchingInvitations) \invitation ->
+                                        void $
+                                            invitation
+                                                |> set #status (unsafeEnumFromText @InvitationStatusEnum "revoked")
+                                                |> set #updatedAt renewedAt
+                                                |> updateRecord
+                                    replacement <- replacementForm
+                                        |> set #invitedByUserId (Just (unpackId currentUser.id))
+                                        |> set #expiresAt (Just (addUTCTime venueOnboardingInvitationLifetime now))
+                                        |> createRecord
+                                    void (enqueueVenueOnboardingInvitationDeliveryJob (Just currentUser.id) replacement)
+                                    pure (OnboardingRenewed replacement)
+                case fromMaybe OnboardingRenewalUnavailable maybeRenewalResult of
+                    OnboardingRenewed replacement ->
+                        setSuccessMessage ("Venue owner invitation renewed for " <> replacement.email)
+                    OnboardingRenewalUnavailable ->
+                        setErrorMessage "Only pending, unaccepted owner invitations can be renewed."
+                    OnboardingRenewalEmailConflict ->
+                        setErrorMessage "There is already a pending owner invite for this email."
+            _ ->
+                setErrorMessage "Enter a valid owner email address."
+        redirectTo SupportAction
 
     action currentAction@CreateFwcMapdRefreshJobAction = runBepis currentAction BepisMutationAction do
         enqueueResult <- enqueueFwcMapdRefreshJob (Just (unpackId currentUser.id))
@@ -244,11 +304,24 @@ fetchVenueOnboardingInvitations =
 
 pendingVenueOnboardingInvitationExists :: (?modelContext :: ModelContext) => Text -> IO Bool
 pendingVenueOnboardingInvitationExists email = do
-    pendingInvitations <- query @VenueOnboardingInvitation
+    pendingInvitations <- fetchPendingVenueOnboardingInvitations
+    pure (any (hasNormalizedOnboardingEmail email) pendingInvitations)
+
+fetchPendingVenueOnboardingInvitationsExcept :: (?modelContext :: ModelContext) => Text -> Id VenueOnboardingInvitation -> IO [VenueOnboardingInvitation]
+fetchPendingVenueOnboardingInvitationsExcept email excludedInvitationId = do
+    pendingInvitations <- fetchPendingVenueOnboardingInvitations
+    pure (filter (\invitation -> invitation.id /= excludedInvitationId && hasNormalizedOnboardingEmail email invitation) pendingInvitations)
+
+fetchPendingVenueOnboardingInvitations :: (?modelContext :: ModelContext) => IO [VenueOnboardingInvitation]
+fetchPendingVenueOnboardingInvitations =
+    query @VenueOnboardingInvitation
         |> filterWhere (#status, unsafeEnumFromText @InvitationStatusEnum "pending")
         |> filterWhere (#acceptedAt, Nothing)
         |> fetch
-    pure (any ((== Text.toLower (Text.strip email)) . Text.toLower . Text.strip . (.email)) pendingInvitations)
+
+hasNormalizedOnboardingEmail :: Text -> VenueOnboardingInvitation -> Bool
+hasNormalizedOnboardingEmail email invitation =
+    Text.toLower (Text.strip email) == Text.toLower (Text.strip invitation.email)
 
 fetchFwcMapdAwardRatesSectionData ::
     (?modelContext :: ModelContext) =>

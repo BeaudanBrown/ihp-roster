@@ -103,6 +103,10 @@ Read `/home/beau/documents/projects/ihp/Guide/querybuilder.markdown`.
 
 Use IHP QueryBuilder for application/database queries. Avoid raw SQL in
 controllers. Validate venue/tenant scope before mutating user-requested ids.
+When QueryBuilder cannot express required PostgreSQL serialization, isolate
+only the minimal `FOR UPDATE` or transaction-scoped advisory-lock primitive in
+a focused `Application/*/Mutations.hs` module; keep business reads and writes
+on QueryBuilder. Advisory locks must use a bounded, normalized domain key.
 
 ## Verification
 

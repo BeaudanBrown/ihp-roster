@@ -182,6 +182,7 @@ data SupportController
     | ShowFwcMapdAwardRatesSectionAction
     | ShowPublicHolidaysSectionAction
     | CreateSupportVenueOnboardingInvitationAction
+    | RenewSupportVenueOnboardingInvitationAction { onboardingInvitationId :: !(Id VenueOnboardingInvitation) }
     | CreateFwcMapdRefreshJobAction
     | CreatePublicHolidayRefreshJobAction
     | MarkFeedbackReadAction { feedbackItemId :: !(Id UserFeedbackItem) }

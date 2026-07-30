@@ -2,6 +2,7 @@
 
 module Test.Controller.VenueAccessSpec where
 
+import Application.Async.Queue (EnqueueAppJobResult (EnqueuedAppJob))
 import Application.FwcMapd.Job (fwcMapdRefreshJobDedupeKey,
                                 fwcMapdRefreshJobKind)
 import Application.Helper.Controller (PlatformRole (SuperAdminRole),
@@ -16,12 +17,17 @@ import qualified Application.Helper.FrontendContract.Surface.Roster.Live as Rost
 import qualified Application.Helper.FrontendContract.Surface.Support.Live as SupportLive
 import qualified Application.Helper.FrontendContract.Surface.Timesheets.Live as TimesheetsLive
 import Application.Helper.LiveUpdate
+import Application.InvitationDelivery.Job (enqueueVenueOnboardingInvitationDeliveryJob,
+                                           performVenueOnboardingInvitationDeliveryJob)
 import Application.PublicHolidays.Job (publicHolidayRefreshJobKind)
 import Config
+import Control.Concurrent (forkIO, newEmptyMVar, putMVar, readMVar, takeMVar)
+import Control.Exception (SomeException, try)
+import Control.Monad (zipWithM)
 import qualified Data.Serialize as Serialize
 import qualified Data.Text as Text
 import Data.Time.Calendar (fromGregorian)
-import Data.Time.Clock (getCurrentTime)
+import Data.Time.Clock (addUTCTime, diffUTCTime, getCurrentTime)
 import Generated.Types
 import qualified IHP.AuthSupport.Controller.Sessions as Sessions
 import IHP.Controller.Context (ControllerContext, newControllerContext)
@@ -471,6 +477,7 @@ tests = aroundAll withDatabaseTestContext do
                 founder <- createUserRecordWithPlatformRole "founder-create-owner-invite@example.com" "staff" (Just SuperAdminRole) True
                 _ <- createVenueMembershipRecord homeVenue founder "venue_owner"
 
+                beforeCreate <- getCurrentTime
                 response <- withPasskeyVerifiedUser founder do
                     callActionWithParams CreateSupportVenueOnboardingInvitationAction
                         [ ("email", "new-owner@example.com")
@@ -482,7 +489,306 @@ tests = aroundAll withDatabaseTestContext do
 
                 invitation.invitedByUserId `shouldBe` Just (unpackId founder.id)
                 inputValue invitation.status `shouldBe` "pending"
-                isJust invitation.expiresAt `shouldBe` True
+                invitation.expiresAt `shouldSatisfy` maybe False (\expiresAt ->
+                    let remaining = diffUTCTime expiresAt beforeCreate
+                     in remaining > 13 * 24 * 60 * 60 && remaining <= 14 * 24 * 60 * 60 + 5)
+
+        it "renews an owner onboarding invitation with a corrected two-week replacement" $ withContext do
+            withCleanDb do
+                homeVenue <- createVenueWithConfig "Home Venue"
+                founder <- createUserRecordWithPlatformRole "founder-renew-owner-invite@example.com" "staff" (Just SuperAdminRole) True
+                _ <- createVenueMembershipRecord homeVenue founder "venue_owner"
+                now <- getCurrentTime
+                original <-
+                    createVenueOnboardingInvitationRecord (Just founder) "mistyped-owner@example.com"
+                        >>= updateRecord . set #expiresAt (Just (addUTCTime (-60) now))
+                EnqueuedAppJob originalJob <- enqueueVenueOnboardingInvitationDeliveryJob (Just founder.id) original
+
+                response <- withPasskeyVerifiedUser founder do
+                    callActionWithParams (RenewSupportVenueOnboardingInvitationAction original.id)
+                        [ ("email", "  Corrected-Owner@Example.com  ")
+                        ]
+
+                response `responseStatusShouldBe` status302
+                replacedInvitation <- fetch original.id
+                inputValue replacedInvitation.status `shouldBe` "revoked"
+
+                freshInvitation <- query @VenueOnboardingInvitation
+                    |> filterWhere (#email, "corrected-owner@example.com")
+                    |> filterWhere (#status, unsafeEnumFromText @InvitationStatusEnum "pending")
+                    |> fetchOne
+                freshInvitation.id `shouldNotBe` original.id
+                freshInvitation.invitedByUserId `shouldBe` Just (unpackId founder.id)
+                freshInvitation.expiresAt `shouldSatisfy` maybe False (\expiresAt ->
+                    let remaining = diffUTCTime expiresAt now
+                     in remaining > 13 * 24 * 60 * 60 && remaining <= 14 * 24 * 60 * 60 + 5)
+
+                jobs <- query @AppJob
+                    |> filterWhere (#relatedTable, Just "venue_onboarding_invitations")
+                    |> fetch
+                freshJob <- jobs
+                    |> find ((== Just (unpackId freshInvitation.id)) . (.relatedId))
+                    |> maybe (expectationFailure "fresh invitation delivery job missing" >> error "unreachable") pure
+                freshJob.dedupeKey `shouldNotBe` originalJob.dedupeKey
+
+                oldLinkResponse <- callActionWithParams NewVenueOnboardingUserAction
+                    [("invitationId", idToParam original.id)]
+                oldLinkResponse `responseStatusShouldBe` status200
+                oldLinkResponse `responseBodyShouldContain` "no longer valid"
+
+                freshLinkResponse <- callActionWithParams NewVenueOnboardingUserAction
+                    [("invitationId", idToParam freshInvitation.id)]
+                freshLinkResponse `responseStatusShouldBe` status200
+                freshLinkResponse `responseBodyShouldContain` "Create Your Venue"
+                freshLinkResponse `responseBodyShouldContain` "corrected-owner@example.com"
+
+        it "handles concurrent renewal requests without duplicate replacements or 500s" $ withContext do
+            withCleanDb do
+                homeVenue <- createVenueWithConfig "Home Venue"
+                founder <- createUserRecordWithPlatformRole "founder-concurrent-owner-renewal@example.com" "staff" (Just SuperAdminRole) True
+                _ <- createVenueMembershipRecord homeVenue founder "venue_owner"
+                ensureTestUserHasPasskey founder
+                original <- createVenueOnboardingInvitationRecord (Just founder) "concurrent-owner@example.com"
+
+                results <- runConcurrentVenueAccessActions 12 do
+                    withPasskeyVerifiedUser founder do
+                        callActionWithParams (RenewSupportVenueOnboardingInvitationAction original.id)
+                            [("email", "replacement-owner@example.com")]
+
+                lefts results `shouldSatisfy` null
+                mapM_ (`responseStatusShouldBe` status302) (rights results)
+
+                replacements <- query @VenueOnboardingInvitation
+                    |> filterWhere (#email, "replacement-owner@example.com")
+                    |> filterWhere (#status, unsafeEnumFromText @InvitationStatusEnum "pending")
+                    |> fetch
+                length replacements `shouldBe` 1
+                jobs <- query @AppJob
+                    |> filterWhere (#relatedTable, Just "venue_onboarding_invitations")
+                    |> fetch
+                length jobs `shouldBe` 1
+
+        it "serializes different owner invitations renewed to the same corrected email" $ withContext do
+            withCleanDb do
+                homeVenue <- createVenueWithConfig "Home Venue"
+                founder <- createUserRecordWithPlatformRole "founder-target-email-renewal-race@example.com" "staff" (Just SuperAdminRole) True
+                _ <- createVenueMembershipRecord homeVenue founder "venue_owner"
+                ensureTestUserHasPasskey founder
+                firstOriginal <- createVenueOnboardingInvitationRecord (Just founder) "first-original-owner@example.com"
+                secondOriginal <- createVenueOnboardingInvitationRecord (Just founder) "second-original-owner@example.com"
+
+                results <- runConcurrentVenueAccessActionList
+                    [ withPasskeyVerifiedUser founder do
+                        callActionWithParams (RenewSupportVenueOnboardingInvitationAction original.id)
+                            [("email", "shared-corrected-owner@example.com")]
+                    | original <- [firstOriginal, secondOriginal]
+                    ]
+
+                lefts results `shouldSatisfy` null
+                mapM_ (`responseStatusShouldBe` status302) (rights results)
+                replacements <- query @VenueOnboardingInvitation
+                    |> filterWhere (#email, "shared-corrected-owner@example.com")
+                    |> filterWhere (#status, unsafeEnumFromText @InvitationStatusEnum "pending")
+                    |> fetch
+                length replacements `shouldBe` 1
+                originals <- query @VenueOnboardingInvitation
+                    |> filterWhereIn (#id, [firstOriginal.id, secondOriginal.id])
+                    |> fetch
+                length (filter ((== "revoked") . inputValue . (.status)) originals) `shouldBe` 1
+                length (filter ((== "pending") . inputValue . (.status)) originals) `shouldBe` 1
+                query @AppJob
+                    |> filterWhere (#relatedTable, Just "venue_onboarding_invitations")
+                    |> fetchCount
+                    >>= (`shouldBe` 1)
+
+        it "serializes owner acceptance against renewal so only one link can win" $ withContext do
+            withCleanDb do
+                homeVenue <- createVenueWithConfig "Home Venue"
+                founder <- createUserRecordWithPlatformRole "founder-acceptance-renewal-race@example.com" "staff" (Just SuperAdminRole) True
+                _ <- createVenueMembershipRecord homeVenue founder "venue_owner"
+                ensureTestUserHasPasskey founder
+                invitation <- createVenueOnboardingInvitationRecord (Just founder) "acceptance-renewal-race@example.com"
+                let signupParams =
+                        [ ("invitationId", idToParam invitation.id)
+                        , ("passwordHash", "test-password-123")
+                        , ("passwordConfirmation", "test-password-123")
+                        , ("name", "Acceptance Renewal Race Venue")
+                        , ("rosterWeekStartsOn", "1")
+                        , ("firstName", "Race")
+                        , ("lastName", "Owner")
+                        , ("preferredName", "")
+                        , ("phone", "0400000000")
+                        , ("emergencyContactName", "Emergency Contact")
+                        , ("emergencyContactPhone", "0411111111")
+                        , ("idealShiftsPerWeek", "3")
+                        ]
+
+                results <- runConcurrentVenueAccessActionList
+                    [ callActionWithParams CreateVenueOnboardingUserAction signupParams
+                    , withPasskeyVerifiedUser founder do
+                        callActionWithParams (RenewSupportVenueOnboardingInvitationAction invitation.id)
+                            [("email", "acceptance-renewal-replacement@example.com")]
+                    ]
+
+                lefts results `shouldSatisfy` null
+                mapM_ (\response -> Wai.responseStatus response `shouldSatisfy` (`elem` [status200, status302])) (rights results)
+
+                finalInvitation <- fetch invitation.id
+                replacementCount <- query @VenueOnboardingInvitation
+                    |> filterWhere (#email, "acceptance-renewal-replacement@example.com")
+                    |> filterWhere (#status, unsafeEnumFromText @InvitationStatusEnum "pending")
+                    |> fetchCount
+                venueCount <- query @Venue |> filterWhere (#name, "Acceptance Renewal Race Venue") |> fetchCount
+                case inputValue finalInvitation.status of
+                    "accepted" -> do
+                        replacementCount `shouldBe` 0
+                        venueCount `shouldBe` 1
+                    "revoked" -> do
+                        replacementCount `shouldBe` 1
+                        venueCount `shouldBe` 0
+                    unexpectedStatus -> expectationFailure ("unexpected race status: " <> cs unexpectedStatus)
+
+        it "serializes queued delivery against renewal" $ withContext do
+            withCleanDb do
+                homeVenue <- createVenueWithConfig "Home Venue"
+                founder <- createUserRecordWithPlatformRole "founder-delivery-renewal-race@example.com" "staff" (Just SuperAdminRole) True
+                _ <- createVenueMembershipRecord homeVenue founder "venue_owner"
+                ensureTestUserHasPasskey founder
+                invitation <- createVenueOnboardingInvitationRecord (Just founder) "delivery-renewal-race@example.com"
+                EnqueuedAppJob appJob <- enqueueVenueOnboardingInvitationDeliveryJob (Just founder.id) invitation
+
+                let performDelivery = withFrameworkConfig config \frameworkConfig -> do
+                        let ?context = frameworkConfig
+                        performVenueOnboardingInvitationDeliveryJob appJob
+                results <- runConcurrentVenueAccessActionList
+                    [ performDelivery >> pure status200
+                    , withPasskeyVerifiedUser founder do
+                        response <- callActionWithParams (RenewSupportVenueOnboardingInvitationAction invitation.id)
+                            [("email", "delivery-renewal-replacement@example.com")]
+                        pure (Wai.responseStatus response)
+                    ]
+
+                lefts results `shouldSatisfy` null
+                updatedInvitation <- fetch invitation.id
+                inputValue updatedInvitation.status `shouldBe` "revoked"
+                updatedInvitation.deliveredAt `shouldSatisfy` maybe True (<= updatedInvitation.updatedAt)
+                query @VenueOnboardingInvitation
+                    |> filterWhere (#email, "delivery-renewal-replacement@example.com")
+                    |> filterWhere (#status, unsafeEnumFromText @InvitationStatusEnum "pending")
+                    |> fetchCount
+                    >>= (`shouldBe` 1)
+
+        it "keeps the original invitation active when the corrected email already has a pending invite" $ withContext do
+            withCleanDb do
+                homeVenue <- createVenueWithConfig "Home Venue"
+                founder <- createUserRecordWithPlatformRole "founder-conflicting-owner-renewal@example.com" "staff" (Just SuperAdminRole) True
+                _ <- createVenueMembershipRecord homeVenue founder "venue_owner"
+                original <- createVenueOnboardingInvitationRecord (Just founder) "original-owner@example.com"
+                _ <- createVenueOnboardingInvitationRecord (Just founder) "existing-owner@example.com"
+
+                response <- withPasskeyVerifiedUser founder do
+                    callActionWithParams (RenewSupportVenueOnboardingInvitationAction original.id)
+                        [("email", "EXISTING-owner@example.com")]
+
+                response `responseStatusShouldBe` status302
+                unchangedOriginal <- fetch original.id
+                inputValue unchangedOriginal.status `shouldBe` "pending"
+                query @VenueOnboardingInvitation |> fetchCount >>= (`shouldBe` 2)
+                query @AppJob |> filterWhere (#relatedTable, Just "venue_onboarding_invitations") |> fetchCount >>= (`shouldBe` 0)
+
+        it "rejects blank, malformed, and oversized corrected emails without revoking the original" $ withContext do
+            withCleanDb do
+                homeVenue <- createVenueWithConfig "Home Venue"
+                founder <- createUserRecordWithPlatformRole "founder-invalid-owner-renewal@example.com" "staff" (Just SuperAdminRole) True
+                _ <- createVenueMembershipRecord homeVenue founder "venue_owner"
+
+                let invalidEmails =
+                        [ Just "   "
+                        , Just "not-an-email"
+                        , Just (Text.replicate 300 "a" <> "@example.com")
+                        ]
+                forM_ (zip [1 :: Int ..] invalidEmails) \(index, maybeInvalidEmail) -> do
+                    original <- createVenueOnboardingInvitationRecord (Just founder) ("invalid-renewal-" <> tshow index <> "@example.com")
+
+                    response <- withPasskeyVerifiedUser founder do
+                        case maybeInvalidEmail of
+                            Nothing -> callAction (RenewSupportVenueOnboardingInvitationAction original.id)
+                            Just invalidEmail -> callActionWithParams (RenewSupportVenueOnboardingInvitationAction original.id)
+                                [("email", cs invalidEmail)]
+
+                    response `responseStatusShouldBe` status302
+                    unchangedOriginal <- fetch original.id
+                    inputValue unchangedOriginal.status `shouldBe` "pending"
+
+                query @VenueOnboardingInvitation |> fetchCount >>= (`shouldBe` 3)
+                query @AppJob |> filterWhere (#relatedTable, Just "venue_onboarding_invitations") |> fetchCount >>= (`shouldBe` 0)
+
+        it "renews with the original email when no corrected email is submitted" $ withContext do
+            withCleanDb do
+                homeVenue <- createVenueWithConfig "Home Venue"
+                founder <- createUserRecordWithPlatformRole "founder-same-email-owner-renewal@example.com" "staff" (Just SuperAdminRole) True
+                _ <- createVenueMembershipRecord homeVenue founder "venue_owner"
+                original <- createVenueOnboardingInvitationRecord (Just founder) "same-email-owner@example.com"
+
+                response <- withPasskeyVerifiedUser founder do
+                    callAction (RenewSupportVenueOnboardingInvitationAction original.id)
+
+                response `responseStatusShouldBe` status302
+                replacedOriginal <- fetch original.id
+                inputValue replacedOriginal.status `shouldBe` "revoked"
+                replacement <- query @VenueOnboardingInvitation
+                    |> filterWhere (#email, "same-email-owner@example.com")
+                    |> filterWhere (#status, unsafeEnumFromText @InvitationStatusEnum "pending")
+                    |> fetchOne
+                replacement.id `shouldNotBe` original.id
+
+        it "replaces an expired pending invite already using the corrected email" $ withContext do
+            withCleanDb do
+                homeVenue <- createVenueWithConfig "Home Venue"
+                founder <- createUserRecordWithPlatformRole "founder-expired-target-owner-renewal@example.com" "staff" (Just SuperAdminRole) True
+                _ <- createVenueMembershipRecord homeVenue founder "venue_owner"
+                now <- getCurrentTime
+                original <- createVenueOnboardingInvitationRecord (Just founder) "source-owner@example.com"
+                expiredTarget <-
+                    createVenueOnboardingInvitationRecord (Just founder) "expired-target-owner@example.com"
+                        >>= updateRecord . set #expiresAt (Just (addUTCTime (-60) now))
+
+                response <- withPasskeyVerifiedUser founder do
+                    callActionWithParams (RenewSupportVenueOnboardingInvitationAction original.id)
+                        [("email", "expired-target-owner@example.com")]
+
+                response `responseStatusShouldBe` status302
+                replacedOriginal <- fetch original.id
+                replacedTarget <- fetch expiredTarget.id
+                inputValue replacedOriginal.status `shouldBe` "revoked"
+                inputValue replacedTarget.status `shouldBe` "revoked"
+                query @VenueOnboardingInvitation
+                    |> filterWhere (#email, "expired-target-owner@example.com")
+                    |> filterWhere (#status, unsafeEnumFromText @InvitationStatusEnum "pending")
+                    |> fetchCount
+                    >>= (`shouldBe` 1)
+
+        it "does not replace an accepted owner onboarding invitation" $ withContext do
+            withCleanDb do
+                homeVenue <- createVenueWithConfig "Home Venue"
+                founder <- createUserRecordWithPlatformRole "founder-accepted-owner-renewal@example.com" "staff" (Just SuperAdminRole) True
+                _ <- createVenueMembershipRecord homeVenue founder "venue_owner"
+                now <- getCurrentTime
+                acceptedInvitation <-
+                    createVenueOnboardingInvitationRecord (Just founder) "accepted-renewal@example.com"
+                        >>= updateRecord
+                            . set #status (unsafeEnumFromText @InvitationStatusEnum "accepted")
+                            . set #acceptedAt (Just now)
+
+                response <- withPasskeyVerifiedUser founder do
+                    callActionWithParams (RenewSupportVenueOnboardingInvitationAction acceptedInvitation.id)
+                        [("email", "replacement-for-accepted@example.com")]
+
+                response `responseStatusShouldBe` status302
+                unchangedInvitation <- fetch acceptedInvitation.id
+                inputValue unchangedInvitation.status `shouldBe` "accepted"
+                query @VenueOnboardingInvitation |> fetchCount >>= (`shouldBe` 1)
+                query @AppJob |> filterWhere (#relatedTable, Just "venue_onboarding_invitations") |> fetchCount >>= (`shouldBe` 0)
 
         it "normalizes and rejects duplicate pending venue owner onboarding invitations" $ withContext do
             withCleanDb do
@@ -543,6 +849,42 @@ tests = aroundAll withDatabaseTestContext do
                 response `responseStatusShouldBe` status200
                 response `responseBodyShouldContain` "listed-owner@example.com"
                 response `responseBodyShouldContain` "Sent"
+
+        it "shows expired owner invitations with a corrected-email renewal control" $ withContext do
+            withCleanDb do
+                homeVenue <- createVenueWithConfig "Home Venue"
+                founder <- createUserRecordWithPlatformRole "founder-expired-owner-invite-list@example.com" "staff" (Just SuperAdminRole) True
+                _ <- createVenueMembershipRecord homeVenue founder "venue_owner"
+                now <- getCurrentTime
+                _ <-
+                    createVenueOnboardingInvitationRecord (Just founder) "expired-listed-owner@example.com"
+                        >>= updateRecord . set #expiresAt (Just (addUTCTime (-60) now))
+
+                response <- withPasskeyVerifiedUser founder do
+                    callAction SupportAction
+
+                response `responseStatusShouldBe` status200
+                response `responseBodyShouldContain` "Expired"
+                response `responseBodyShouldContain` "/RenewSupportVenueOnboardingInvitation"
+                response `responseBodyShouldContain` "value=\"expired-listed-owner@example.com\""
+
+        it "denies venue owner onboarding invitation renewal to ordinary venue admins" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Venue A"
+                founder <- createUserRecordWithPlatformRole "founder-renewal-target@example.com" "staff" (Just SuperAdminRole) True
+                admin <- createUserRecord "venue-admin-owner-renewal@example.com" "admin" True
+                _ <- createVenueMembershipRecord venue admin "venue_admin"
+                invitation <- createVenueOnboardingInvitationRecord (Just founder) "blocked-renewal@example.com"
+
+                response <- withUser admin do
+                    callActionWithParams (RenewSupportVenueOnboardingInvitationAction invitation.id)
+                        [("email", "changed-by-admin@example.com")]
+
+                response `responseStatusShouldBe` status302
+                lookup "Location" (responseHeaders response) `shouldBe` Just "http://localhost/RosterWeeks"
+                unchangedInvitation <- fetch invitation.id
+                inputValue unchangedInvitation.status `shouldBe` "pending"
+                query @VenueOnboardingInvitation |> fetchCount >>= (`shouldBe` 1)
 
         it "denies venue owner onboarding invitation creation to ordinary venue admins" $ withContext do
             withCleanDb do
@@ -840,6 +1182,24 @@ tests = aroundAll withDatabaseTestContext do
 
                 length rosterDays `shouldBe` 7
                 map (.name) slotDefinitions `shouldMatchList` ["Early", "Mid", "Late"]
+
+runConcurrentVenueAccessActions :: Int -> IO a -> IO [Either SomeException a]
+runConcurrentVenueAccessActions count action =
+    runConcurrentVenueAccessActionList (replicate count action)
+
+runConcurrentVenueAccessActionList :: [IO a] -> IO [Either SomeException a]
+runConcurrentVenueAccessActionList actions = do
+    resultVars <- mapM (const newEmptyMVar) actions
+    readyVars <- mapM (const newEmptyMVar) actions
+    startVar <- newEmptyMVar
+    _ <- zipWithM (\resultVar (readyVar, action) -> forkIO do
+            putMVar readyVar ()
+            _ <- readMVar startVar
+            try action >>= putMVar resultVar
+        ) resultVars (zip readyVars actions)
+    mapM_ takeMVar readyVars
+    putMVar startVar ()
+    mapM takeMVar resultVars
 
 withAuthenticatedControllerContext ::
     forall result.

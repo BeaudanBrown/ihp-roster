@@ -85,6 +85,42 @@ tests = aroundAll withDatabaseTestContext do
                 updatedInvitation.deliveredAt `shouldSatisfy` isJust
                 updatedJob.status `shouldBe` JobStatusSucceeded
 
+        it "does not deliver an expired onboarding invitation from an already-queued job" $ withContext do
+            withCleanDb do
+                now <- getCurrentTime
+                invitation <-
+                    createVenueOnboardingInvitationRecord Nothing "expired-owner-delivery@example.com"
+                        >>= updateRecord . set #expiresAt (Just (addUTCTime (-60) now))
+                EnqueuedAppJob appJob <- enqueueVenueOnboardingInvitationDeliveryJob Nothing invitation
+
+                withFrameworkConfig config \frameworkConfig -> do
+                    let ?context = frameworkConfig
+                    performVenueOnboardingInvitationDeliveryJob appJob
+
+                updatedInvitation <- fetch invitation.id
+                updatedJob <- fetch appJob.id
+                inputValue updatedInvitation.deliveryStatus `shouldBe` "queued"
+                updatedInvitation.deliveredAt `shouldBe` Nothing
+                updatedJob.status `shouldBe` JobStatusSucceeded
+
+        it "does not deliver a revoked replacement invitation from an already-queued job" $ withContext do
+            withCleanDb do
+                invitation <- createVenueOnboardingInvitationRecord Nothing "replaced-owner-delivery@example.com"
+                EnqueuedAppJob appJob <- enqueueVenueOnboardingInvitationDeliveryJob Nothing invitation
+                _ <- invitation
+                    |> set #status (unsafeEnumFromText @InvitationStatusEnum "revoked")
+                    |> updateRecord
+
+                withFrameworkConfig config \frameworkConfig -> do
+                    let ?context = frameworkConfig
+                    performVenueOnboardingInvitationDeliveryJob appJob
+
+                updatedInvitation <- fetch invitation.id
+                updatedJob <- fetch appJob.id
+                inputValue updatedInvitation.deliveryStatus `shouldBe` "queued"
+                updatedInvitation.deliveredAt `shouldBe` Nothing
+                updatedJob.status `shouldBe` JobStatusSucceeded
+
         it "does not resend accepted onboarding invitations when a delivery job is retried" $ withContext do
             withCleanDb do
                 invitation <- createVenueOnboardingInvitationRecord Nothing "accepted-owner-delivery@example.com"
