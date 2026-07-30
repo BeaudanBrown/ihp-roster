@@ -46,7 +46,9 @@ let
                         printf '%s' "$repo_root/Config/nix/scripts" \
                             | sed 's/[\\&|]/\\&/g'
                     )"
-                    exec bash -s -- "$@" < <(
+                    # Keep caller stdin intact for interactive project commands
+                    # such as pi; read the templated script from a separate fd.
+                    exec bash /dev/fd/3 "$@" 3< <(
                         sed \
                             -e "s|@scriptsRoot@|$scripts_root_replacement|g" \
                             -e 's|@mailhog@|${pkgs.mailhog}|g' \

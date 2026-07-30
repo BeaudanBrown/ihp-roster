@@ -27,6 +27,11 @@ mkdir -p "$fixture_repo/$(dirname "$fixture_relative")"
 cat >"$fixture_repo/$fixture_relative" <<EOF
 #!/usr/bin/env bash
 set -euo pipefail
+if [ "\${1:-}" = --stdin-probe ]; then
+    IFS= read -r value
+    printf 'stdin:%s\\n' "\$value"
+    exit 0
+fi
 printf '%s\\n' \
     'working-tree-script' \
     '$scripts_root_placeholder' \
@@ -143,6 +148,13 @@ in_env_actual="$(
         bash "$repo_root/bin/in-env" probe-command
 )"
 in_env_expected="direnv-exec|exec|$repo_root|probe-command"
+stdin_actual="$(printf 'preserved-input\n' | FRONTEND_REPO_ROOT="$fixture_repo" "$command_name" --stdin-probe)"
+if [ "$stdin_actual" != 'stdin:preserved-input' ]; then
+    echo "devenv-script-freshness-check: named project command replaced caller stdin with script source" >&2
+    echo "actual: $stdin_actual" >&2
+    exit 1
+fi
+
 if [ "$in_env_actual" != "$in_env_expected" ]; then
     echo "devenv-script-freshness-check: bin/in-env bypassed direnv freshness checks from an active shell" >&2
     echo "expected: $in_env_expected" >&2
