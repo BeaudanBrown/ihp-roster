@@ -1087,19 +1087,20 @@ Profile added only `Surface.Profile.{Action,Generated.Action,HaskellAdapter}`;
 Roster Intent added only
 `Surface.Roster.{Generated.Intent,HaskellAdapter,Intent}`.
 
-The candidate compiler-observed closures are 17 modules for Profile Action and
-18 for Roster Intent. Their exact 13-module common set is:
+The current compiler-observed closures are 18 modules for Profile Action and
+19 for Roster Intent. Their exact 14-module common set is:
 
 - `Application.Helper.FrontendContract.{Core,DSL,Interaction,Naming}`;
-- `Application.Helper.FrontendContract.Surface.{ContractIR,DSL,Diagnostics,Reflect,Request,Request.Runtime,SemanticIR,Values}`; and
+- `Application.Helper.FrontendContract.Surface.{ContractIR,DSL,Diagnostics,Reflect,Request,Request.Runtime,SelfServiceLeave,SemanticIR,Values}`; and
 - `Application.Helper.FrontendContract.Surface.HaskellAdapter.Association`.
 
 Profile retains only `Surface.Profile` plus
 `Surface.Profile.{Action,Generated.Action,HaskellAdapter}`. Roster Intent
 retains `Surface.Interaction`, `Surface.Roster`, and
-`Surface.Roster.{Generated.Intent,HaskellAdapter,Intent}`. The exact delta for
-both targets adds only `Surface.Request.Runtime`. Both remove the shared
-32-module set:
+`Surface.Roster.{Generated.Intent,HaskellAdapter,Intent}`. Relative to the
+recorded baseline, both targets add `Surface.Request.Runtime` and the shared
+`Surface.SelfServiceLeave` declaration module. Both remove the shared 32-module
+set:
 
 - `Application.Bepis.{Action,Fact,Response}`;
 - `Application.Helper.FrontendContract.{App,AppShell,AppValues,Htmx,IR,LiveUpdate,LiveUpdateValues,Reflect,Registry,UiRegion,Values}`;
@@ -1108,8 +1109,8 @@ both targets adds only `Surface.Request.Runtime`. Both remove the shared
 - `Application.Helper.{LiveUpdate.Internal,Profiling,Telemetry,UiRegion,Url}`.
 
 Profile additionally removes `Surface.Interaction` and `Surface.Roster` (34
-removed, one added, 50 to 17); Roster Intent additionally removes
-`Surface.Profile` (33 removed, one added, 50 to 18).
+removed, two added, 50 to 18); Roster Intent additionally removes
+`Surface.Profile` (33 removed, two added, 50 to 19).
 
 Every retained dependency has one request-facade role:
 
@@ -1122,6 +1123,7 @@ Every retained dependency has one request-facade role:
   `DSL`/`Interaction` modules are the canonical reflected metadata model rather
   than a request-specific duplicate IR;
 - `HaskellAdapter.Association` supplies the feature family's nominal Surface;
+- `Surface.SelfServiceLeave` supplies the shared self-service declaration bundle;
   and
 - the Profile or Roster feature modules supply only the selected declarations,
   generated operations, curated facade, and Roster's shared interaction aliases.
@@ -1361,6 +1363,16 @@ printf '%s\n' '{"name":"generated-contracts","args":{"target":"roster"}}' \
 Module imports, routes, schema relationships, and runtime traces continue to use
 their dedicated source scanners or telemetry. Do not reintroduce compiler-type
 inspection as Surface contract authority for those diagrams.
+
+## Verification Authority
+
+The checked reflected IR and runtime round trips own semantic Surface behavior.
+Compile-fail fixtures own impossible marker, field, wire, lane, and operation
+combinations. Byte-identical generated TypeScript/Haskell checks own complete
+rendered output. Architecture queries own generated-facade dependency closure.
+`frontend-surface-guardrails` owns only narrow deleted-vocabulary tombstones and
+forbidden import edges. Do not duplicate those authorities with broad generated
+source substring inventories.
 
 ## Verification
 

@@ -207,6 +207,16 @@ backfill. Approval serializes on one narrow `SELECT ... FOR UPDATE` seam because
 IHP QueryBuilder has no row-lock combinator; all wage/source loading remains
 QueryBuilder-based. All approved export/read models use this exact ledger after cutover #239.
 
+## Verification Authority
+
+Named pure scenario matrices own MA000009 arithmetic and source-policy behavior.
+Database adapter/enforcement tests own persisted source selection and sealed-ledger
+workflow boundaries. `Application/Schema.sql`, generated types, and parser/startup
+checks own current database shape. Migration and deployment SQL checks remain
+separate evidence for customer-data-preserving backfill, cutover ordering, and
+legacy calculator retirement; they must read the real retained artifact rather
+than substitute fallback text for a deleted historical migration.
+
 ## Verification
 
 HPC reports the `Application.WageEngine` facade as `0/0` because it only re-exports

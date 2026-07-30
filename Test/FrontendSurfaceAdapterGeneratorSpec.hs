@@ -44,10 +44,6 @@ tests = describe "FrontendSurfaceAdapterGenerator" do
                 generated.generatedModulePath
                     `shouldBe` "Test/Support/FrontendSurfaceAdapterFixture/Generated/Resource.hs"
                 generated.generatedModuleSource `shouldBe` expected
-                generated.generatedModuleSource `shouldSatisfy` Text.isInfixOf "frontendSurfaceResource"
-                generated.generatedModuleSource `shouldSatisfy` Text.isInfixOf "matchFrontendSurfaceResource"
-                generated.generatedModuleSource `shouldNotSatisfy` Text.isInfixOf ".Internal"
-                generated.generatedModuleSource `shouldNotSatisfy` Text.isInfixOf "GHC."
             Right generated -> expectationFailure (cs ("expected one generated module, got " <> tshow (length generated)))
 
     it "renders scope and fragment fixture adapters into one shared Live golden module" do
@@ -59,18 +55,7 @@ tests = describe "FrontendSurfaceAdapterGenerator" do
                     `shouldBe` "Test.Support.FrontendSurfaceAdapterFixture.Generated.Live"
                 generated.generatedModulePath
                     `shouldBe` "Test/Support/FrontendSurfaceAdapterFixture/Generated/Live.hs"
-                generated.generatedModuleSource `shouldSatisfy` Text.isInfixOf "frontendSurfaceScope"
-                generated.generatedModuleSource `shouldSatisfy` Text.isInfixOf "matchFrontendSurfaceScope"
-                generated.generatedModuleSource `shouldSatisfy` Text.isInfixOf "frontendSurfaceFragmentKey"
                 generated.generatedModuleSource `shouldBe` expected
-                generated.generatedModuleSource `shouldSatisfy` Text.isInfixOf "crossKindDeclarationLiveScope :: SurfaceScope"
-                generated.generatedModuleSource `shouldSatisfy` Text.isInfixOf "fixtureActorOnlyPanelLiveFragment :: SurfaceFragmentKey"
-                generated.generatedModuleSource `shouldSatisfy` Text.isInfixOf "matchFrontendSurfaceFragmentKey"
-                generated.generatedModuleSource `shouldNotSatisfy` Text.isInfixOf ".Internal"
-                generated.generatedModuleSource `shouldNotSatisfy` Text.isInfixOf "HaskellAdapter.Registry"
-                generated.generatedModuleSource `shouldSatisfy` Text.isInfixOf "HaskellAdapter.Association"
-                generated.generatedModuleSource `shouldNotSatisfy` Text.isInfixOf "HaskellAdapter.Family"
-                generated.generatedModuleSource `shouldNotSatisfy` Text.isInfixOf "Aeson"
             Right generated -> expectationFailure (cs ("expected one generated Live module, got " <> tshow (length generated)))
 
     it "composes every mandatory output lane before exposing the managed module set" do

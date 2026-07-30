@@ -91,6 +91,23 @@ absent from `Test/Suite.hs` and must never change canonical example counts.
 The issue #198 protocol and baseline are archived in
 `docs/archive/hspec-critical-path-baseline-2026-07-19.md`.
 
+## Guard Authority
+
+Prefer one strongest guard per invariant:
+
+- use type checking and compile-fail fixtures for impossible Haskell states;
+- use checked IR/runtime round trips for semantic contract behavior;
+- use byte-identical generator goldens and drift checks for generated files;
+- use architecture queries for module/import topology;
+- use schema/parser/generated-type checks for the current database shape;
+- keep migration/deployment SQL checks separate when upgrade safety or customer-data preservation is the contract;
+- use source-text checks only for narrow deleted-vocabulary tombstones or intentional source-ownership/import boundaries.
+
+Do not maintain broad generated-source substring inventories beside a byte golden,
+or fallback text pretending to verify a migration file that no longer exists.
+Every retained guard should name the durable behavior, authority boundary, or
+deployment protection it owns.
+
 ## Coverage
 
 Use `bash ./bin/in-env hspec-coverage [hspec-args...]` when adding or materially changing Hspec coverage. It compiles the test runner with GHC HPC instrumentation, runs serially against the isolated `app_test_coverage` database, prints an app-source per-module text report, and writes durable artifacts under `output/coverage/hspec/latest/`:
