@@ -1,5 +1,6 @@
 module Test.StripeBillingSpec where
 
+import Application.Billing.Checkout (checkoutAllowedForSubscription)
 import Application.Billing.Stripe
 import Control.Exception (bracket, bracket_)
 import qualified Data.Bifunctor as Bifunctor
@@ -7,6 +8,8 @@ import qualified Data.ByteString.Lazy as LByteString
 import qualified Data.List as List
 import qualified Data.Text as Text
 import qualified Data.Text.IO as TextIO
+import Generated.Types
+import IHP.ModelSupport (newRecord)
 import IHP.Prelude
 import Network.HTTP.Types.Status (status302)
 import qualified Network.Wai as Wai
@@ -19,6 +22,23 @@ import Test.Hspec
 tests :: Spec
 tests =
     describe "StripeBilling" do
+        describe "Checkout subscription eligibility" do
+            it "keeps the complete Stripe subscription status matrix at the domain seam" do
+                checkoutAllowedForSubscription Nothing `shouldBe` True
+                let statusEligibility =
+                        [ ("incomplete", False)
+                        , ("trialing", False)
+                        , ("active", False)
+                        , ("past_due", False)
+                        , ("unpaid", False)
+                        , ("paused", False)
+                        , ("canceled", True)
+                        , ("incomplete_expired", True)
+                        ]
+                forM_ statusEligibility \(status, expected) ->
+                    checkoutAllowedForSubscription (Just (subscriptionWithStatus status))
+                        `shouldBe` expected
+
         describe "configuration" do
             it "loads file-backed secrets and the default price lookup key" do
                 withTempSecret "sk_test_file" \secretPath ->
@@ -479,6 +499,11 @@ formBody request =
 
 bodyKeys :: [(LByteString.ByteString, LByteString.ByteString)] -> [LByteString.ByteString]
 bodyKeys = map fst
+
+subscriptionWithStatus :: Text -> VenueSubscription
+subscriptionWithStatus status =
+    newRecord @VenueSubscription
+        |> set #status status
 
 withTempSecret :: Text -> (String -> IO a) -> IO a
 withTempSecret value action =

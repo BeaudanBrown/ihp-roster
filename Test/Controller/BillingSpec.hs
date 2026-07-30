@@ -767,45 +767,43 @@ tests = aroundAll withDatabaseTestContext do
                 customerCount <- query @VenueBillingCustomer |> filterWhere (#venueId, unpackId venue.id) |> fetchCount
                 customerCount `shouldBe` 0
 
-        it "blocks new Checkout for every non-terminal subscription status" $ withContext do
-            forM_ ["incomplete", "trialing", "active", "past_due", "unpaid", "paused"] \subscriptionStatus ->
-                withCleanDb do
-                    venue <- createVenueWithConfig ("Billing Blocked " <> subscriptionStatus <> " Venue")
-                    owner <- createUserRecord ("billing-blocked-" <> subscriptionStatus <> "@example.com") "staff" True
-                    _ <- createVenueMembershipRecord venue owner "venue_owner"
-                    _ <- createVenueSubscriptionWithStatus venue subscriptionStatus
-                    stripeCalls <- IORef.newIORef (0 :: Int)
-                    let client = checkoutStripeClient
-                            { listPrices = \_ -> do
-                                IORef.modifyIORef' stripeCalls (+ 1)
-                                pure (Right [validMonthlyPrice])
-                            }
+        it "wires active-subscription Checkout rejection before Stripe calls" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Billing Active Subscription Venue"
+                owner <- createUserRecord "billing-active-subscription@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue owner "venue_owner"
+                _ <- createVenueSubscriptionWithStatus venue "active"
+                stripeCalls <- IORef.newIORef (0 :: Int)
+                let client = checkoutStripeClient
+                        { listPrices = \_ -> do
+                            IORef.modifyIORef' stripeCalls (+ 1)
+                            pure (Right [validMonthlyPrice])
+                        }
 
-                    response <- withStripeConfigForTest (Right testStripeConfig) do
-                        withStripeClientForTest client do
-                            withPasskeyVerifiedUserAndCurrentVenue owner venue.id do
-                                callAction CreateBillingCheckoutSessionAction
+                response <- withStripeConfigForTest (Right testStripeConfig) do
+                    withStripeClientForTest client do
+                        withPasskeyVerifiedUserAndCurrentVenue owner venue.id do
+                            callAction CreateBillingCheckoutSessionAction
 
-                    lookup "Location" (responseHeaders response) `shouldBe` Just "http://localhost/Billing"
-                    IORef.readIORef stripeCalls `shouldReturn` 0
-                    query @VenueBillingCustomer |> filterWhere (#venueId, unpackId venue.id) |> fetchCount `shouldReturn` 0
-                    query @BillingCheckoutAttempt |> filterWhere (#venueId, unpackId venue.id) |> fetchCount `shouldReturn` 0
+                lookup "Location" (responseHeaders response) `shouldBe` Just "http://localhost/Billing"
+                IORef.readIORef stripeCalls `shouldReturn` 0
+                query @VenueBillingCustomer |> filterWhere (#venueId, unpackId venue.id) |> fetchCount `shouldReturn` 0
+                query @BillingCheckoutAttempt |> filterWhere (#venueId, unpackId venue.id) |> fetchCount `shouldReturn` 0
 
-        it "allows a new Checkout after canceled and incomplete-expired subscriptions" $ withContext do
-            forM_ ["canceled", "incomplete_expired"] \subscriptionStatus ->
-                withCleanDb do
-                    venue <- createVenueWithConfig ("Billing Restart " <> subscriptionStatus <> " Venue")
-                    owner <- createUserRecord ("billing-restart-" <> subscriptionStatus <> "@example.com") "staff" True
-                    _ <- createVenueMembershipRecord venue owner "venue_owner"
-                    _ <- createVenueSubscriptionWithStatus venue subscriptionStatus
+        it "wires canceled-subscription restart to hosted Checkout" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Billing Canceled Subscription Venue"
+                owner <- createUserRecord "billing-canceled-subscription@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue owner "venue_owner"
+                _ <- createVenueSubscriptionWithStatus venue "canceled"
 
-                    response <- withStripeConfigForTest (Right testStripeConfig) do
-                        withStripeClientForTest checkoutStripeClient do
-                            withPasskeyVerifiedUserAndCurrentVenue owner venue.id do
-                                callAction CreateBillingCheckoutSessionAction
+                response <- withStripeConfigForTest (Right testStripeConfig) do
+                    withStripeClientForTest checkoutStripeClient do
+                        withPasskeyVerifiedUserAndCurrentVenue owner venue.id do
+                            callAction CreateBillingCheckoutSessionAction
 
-                    lookup "Location" (responseHeaders response) `shouldBe` Just "https://checkout.stripe.com/c/pay/cs_test_123"
-                    query @BillingCheckoutAttempt |> filterWhere (#venueId, unpackId venue.id) |> fetchCount `shouldReturn` 1
+                lookup "Location" (responseHeaders response) `shouldBe` Just "https://checkout.stripe.com/c/pay/cs_test_123"
+                query @BillingCheckoutAttempt |> filterWhere (#venueId, unpackId venue.id) |> fetchCount `shouldReturn` 1
 
         it "keeps existing-customer Portal access when new Checkout is disabled" $ withContext do
             withCleanDb do
