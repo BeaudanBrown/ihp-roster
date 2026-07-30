@@ -4,6 +4,8 @@ import Application.Helper.Xero
 import Application.Script.Prelude
 import Application.Xero.Connection
 import qualified Data.Aeson as Aeson
+import qualified Data.Aeson.Key as Key
+import qualified Data.Aeson.KeyMap as KeyMap
 import qualified Data.Aeson.Types as AesonTypes
 import qualified Data.ByteString.Lazy.Char8 as LByteString
 import qualified Data.Char as Char
@@ -12,17 +14,20 @@ import qualified Data.Text.Encoding as TextEncoding
 import qualified Data.Text.IO as TextIO
 import Data.Time.Format (defaultTimeLocale, formatTime)
 import qualified Data.UUID as UUID
+import qualified Data.Vector as Vector
 import Network.HTTP.Simple
+import System.Environment (lookupEnv)
 import System.Exit (exitFailure, exitSuccess)
 
 data ProbeOptions = ProbeOptions
-    { optionConnectionId   :: !(Maybe Text)
-    , optionRequirementKey :: !(Maybe Text)
-    , optionIdempotencyKey :: !(Maybe Text)
-    , optionConfirmPost    :: !Bool
-    , optionConnections    :: !Bool
-    , optionList           :: !Bool
-    , optionGetPayItems    :: !Bool
+    { optionConnectionId         :: !(Maybe Text)
+    , optionRequirementKey       :: !(Maybe Text)
+    , optionIdempotencyKey       :: !(Maybe Text)
+    , optionConfirmPost          :: !Bool
+    , optionConnections          :: !Bool
+    , optionList                 :: !Bool
+    , optionGetPayItems          :: !Bool
+    , optionProbeEarningsRatesV2 :: !Bool
     }
 
 defaultProbeOptions :: ProbeOptions
@@ -35,12 +40,16 @@ defaultProbeOptions =
         , optionConnections = False
         , optionList = False
         , optionGetPayItems = False
+        , optionProbeEarningsRatesV2 = False
         }
 
 run :: Script
 run = do
     args <- liftIO getArgs
     options <- liftIO (parseOptions defaultProbeOptions args)
+    case validateEarningsRatesV2ProbeOptions options of
+        Left message -> liftIO (liftIOError message)
+        Right ()     -> pure ()
     when options.optionConnections listConnections
     when options.optionConnections do
         when (isNothing options.optionConnectionId && isNothing options.optionRequirementKey && not options.optionList && not options.optionGetPayItems) do
@@ -48,15 +57,21 @@ run = do
     connection <- resolveConnection options.optionConnectionId
     liftIO do
         TextIO.putStrLn ("Connection: " <> tshow connection.id)
-        TextIO.putStrLn ("Tenant: " <> fromMaybe connection.tenantId connection.tenantName <> " (" <> connection.tenantId <> ")")
+        if options.optionProbeEarningsRatesV2
+            then TextIO.putStrLn ("Tenant ID: " <> connection.tenantId)
+            else TextIO.putStrLn ("Tenant: " <> fromMaybe connection.tenantId connection.tenantName <> " (" <> connection.tenantId <> ")")
     when options.optionList do
         listRequirements connection
     when options.optionGetPayItems do
         accessToken <- refreshConnection connection
         liftIO (rawGetPayItems connection accessToken)
+    when options.optionProbeEarningsRatesV2 do
+        liftIO (authorizeEarningsRatesV2Probe connection)
+        accessToken <- readStoredAccessTokenForProbe connection
+        liftIO (probeEarningsRatesV2 connection accessToken)
     case options.optionRequirementKey of
         Nothing ->
-            when (not options.optionList && not options.optionGetPayItems) (liftIO usageAndExitFailure)
+            when (not options.optionList && not options.optionGetPayItems && not options.optionProbeEarningsRatesV2) (liftIO usageAndExitFailure)
         Just requirementKey -> do
             requirement <- fetchRequirement connection requirementKey
             accountCode <- fetchVerifiedAccountCode connection
@@ -86,12 +101,29 @@ parseOptions options (arg : rest)
     | arg == "--connections" = parseOptions options { optionConnections = True } rest
     | arg == "--list" = parseOptions options { optionList = True } rest
     | arg == "--get-pay-items" = parseOptions options { optionGetPayItems = True } rest
+    | arg == "--probe-earnings-rates-v2" = parseOptions options { optionProbeEarningsRatesV2 = True } rest
     | Just value <- stripPrefixText "--connection-id=" arg = parseOptions options { optionConnectionId = Just value } rest
     | Just value <- stripPrefixText "--requirement-key=" arg = parseOptions options { optionRequirementKey = Just value } rest
     | Just value <- stripPrefixText "--idempotency-key=" arg = parseOptions options { optionIdempotencyKey = Just value } rest
     | otherwise = do
         TextIO.putStrLn ("Unknown option: " <> arg)
         usageAndExitFailure
+
+validateEarningsRatesV2ProbeOptions :: ProbeOptions -> Either Text ()
+validateEarningsRatesV2ProbeOptions options
+    | not options.optionProbeEarningsRatesV2 = Right ()
+    | isNothing options.optionConnectionId = Left "The live Xero Earnings Rates probe requires --connection-id=<uuid>."
+    | probeHasIncompatibleOptions options = Left "The live Xero Earnings Rates probe cannot be combined with list, raw PayItems, requirement, idempotency, or mutation options."
+    | otherwise = Right ()
+
+probeHasIncompatibleOptions :: ProbeOptions -> Bool
+probeHasIncompatibleOptions options =
+    options.optionConnections
+        || options.optionList
+        || options.optionGetPayItems
+        || isJust options.optionRequirementKey
+        || isJust options.optionIdempotencyKey
+        || options.optionConfirmPost
 
 stripPrefixText :: Text -> Text -> Maybe Text
 stripPrefixText prefix arg =
@@ -113,8 +145,10 @@ usage = do
     TextIO.putStrLn "  xero-pay-item-probe [app|app_test] --connections"
     TextIO.putStrLn "  xero-pay-item-probe [app|app_test] --connection-id=<uuid> --list"
     TextIO.putStrLn "  xero-pay-item-probe [app|app_test] --connection-id=<uuid> --get-pay-items"
+    TextIO.putStrLn "  XERO_ALLOW_LIVE_PROBE=1 XERO_ALLOW_LIVE_PROBE_TENANT_ID=<tenant-id> xero-pay-item-probe [app|app_test] --connection-id=<uuid> --probe-earnings-rates-v2"
     TextIO.putStrLn "  xero-pay-item-probe [app|app_test] --connection-id=<uuid> --requirement-key=<key> [--idempotency-key=<key>] [--confirm-post]"
     TextIO.putStrLn ""
+    TextIO.putStrLn "The v2 probe is read-only and prints only response structure; it refuses CI and requires both live-probe gates."
     TextIO.putStrLn "Without --confirm-post, the command prints the exact request body but does not create anything in Xero."
 
 listConnections :: (?modelContext :: ModelContext) => IO ()
@@ -218,6 +252,60 @@ rawFetchPayItemsResponse connection accessToken = do
                 |> setRequestHeader "Xero-Tenant-Id" [TextEncoding.encodeUtf8 connection.tenantId]
                 |> setRequestHeader "Accept" ["application/json"]
     httpLBS requestWithHeaders
+
+readStoredAccessTokenForProbe :: (?modelContext :: ModelContext) => XeroConnection -> IO Text
+readStoredAccessTokenForProbe connection =
+    readXeroConfig >>= \case
+        Left message -> liftIOError message
+        Right xeroConfig -> do
+            now <- getCurrentTime
+            case (connection.encryptedAccessToken, connection.accessTokenExpiresAt) of
+                (Just encryptedAccessToken, Just expiresAt)
+                    | expiresAt > addUTCTime 60 now ->
+                        case decryptXeroToken xeroConfig.tokenEncryptionKey encryptedAccessToken of
+                            Left _ -> liftIOError "Could not decrypt the stored Xero access token. Use the normal Xero workflow before probing."
+                            Right accessToken -> pure accessToken
+                _ -> liftIOError "The stored Xero access token is missing or near expiry. Use the normal Xero workflow to refresh it before probing; this read-only probe never rotates tokens."
+
+authorizeEarningsRatesV2Probe :: XeroConnection -> IO ()
+authorizeEarningsRatesV2Probe connection = do
+    ci <- lookupEnv "CI"
+    allowLiveProbe <- lookupEnv "XERO_ALLOW_LIVE_PROBE"
+    allowedTenantId <- lookupEnv "XERO_ALLOW_LIVE_PROBE_TENANT_ID"
+    when (isJust ci) (liftIOError "The live Xero Earnings Rates probe refuses to run in CI.")
+    when (allowLiveProbe /= Just "1") (liftIOError "Set XERO_ALLOW_LIVE_PROBE=1 to acknowledge the real Xero network call.")
+    when (allowedTenantId /= Just (cs connection.tenantId)) (liftIOError "XERO_ALLOW_LIVE_PROBE_TENANT_ID must exactly match the selected connection tenant id.")
+
+probeEarningsRatesV2 :: XeroConnection -> Text -> IO ()
+probeEarningsRatesV2 connection accessToken = do
+    request <- parseRequest "https://api.xero.com/payroll.xro/2.0/earningsRates"
+    let requestWithHeaders =
+            request
+                |> setRequestMethod "GET"
+                |> setRequestHeader "Authorization" ["Bearer " <> TextEncoding.encodeUtf8 accessToken]
+                |> setRequestHeader "Xero-Tenant-Id" [TextEncoding.encodeUtf8 connection.tenantId]
+                |> setRequestHeader "Accept" ["application/json"]
+    response <- httpLBS requestWithHeaders
+    let statusCode = getResponseStatusCode response
+    TextIO.putStrLn "Operation: GET /payroll.xro/2.0/earningsRates"
+    TextIO.putStrLn ("Xero status: " <> tshow statusCode)
+    if statusCode >= 200 && statusCode < 300
+        then TextIO.putStrLn ("Sanitized response shape: " <> earningsRatesResponseShape (getResponseBody response))
+        else TextIO.putStrLn ("Response body redacted; bytes=" <> tshow (LByteString.length (getResponseBody response)))
+
+-- Keep live diagnostics structural: names, rates, account codes, and provider
+-- error bodies can contain customer data and must not be emitted by this probe.
+earningsRatesResponseShape :: LByteString.ByteString -> Text
+earningsRatesResponseShape body =
+    case Aeson.decode body of
+        Nothing -> "non-JSON body; bytes=" <> tshow (LByteString.length body)
+        Just (Aeson.Array values) -> "direct array; count=" <> tshow (Vector.length values)
+        Just (Aeson.Object object) ->
+            case KeyMap.lookup (Key.fromText "EarningsRates") object <|> KeyMap.lookup (Key.fromText "earningsRates") object of
+                Just (Aeson.Array values) -> "EarningsRates envelope; count=" <> tshow (Vector.length values)
+                Just _ -> "EarningsRates envelope; collection is not an array"
+                Nothing -> "object; EarningsRates collection absent"
+        Just _ -> "JSON scalar"
 
 rawPostPayItem :: XeroConnection -> Text -> Text -> Aeson.Value -> IO ()
 rawPostPayItem connection accessToken idempotencyKey body = do

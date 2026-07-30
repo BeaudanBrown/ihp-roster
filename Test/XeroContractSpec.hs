@@ -1,17 +1,21 @@
 module Test.XeroContractSpec where
 
 import Application.Helper.Xero
+import qualified Application.Script.XeroPayItemProbe as XeroPayItemProbe
 import qualified Data.Aeson as Aeson
 import qualified Data.ByteString.Base64 as Base64
 import qualified Data.ByteString.Lazy as LByteString
-import Data.Either (isRight)
+import Data.Either (isLeft, isRight)
 import qualified Data.List as List
 import qualified Data.Text as Text
 import qualified Data.Text.Encoding as TextEncoding
+import qualified Data.Vector as Vector
 import IHP.Prelude
 import Network.HTTP.Simple (getResponseStatusCode, httpLBS)
 import Network.HTTP.Types.Status (status200, status400, status401, status403,
                                   status429)
+import System.Exit (ExitCode (ExitSuccess))
+import System.Process (readProcessWithExitCode)
 import Test.Hspec
 import qualified Test.XeroMock as XeroMock
 
@@ -19,6 +23,39 @@ tests :: Spec
 tests =
     describe "Xero contract" do
         (identitySpec, payrollSpec) <- runIO XeroMock.loadXeroOpenApiSpecs
+        accountingSpec <- runIO (XeroMock.loadOpenApiSpec "vendor/xero-openapi/xero-accounting.yaml")
+        payrollV2Spec <- runIO (XeroMock.loadOpenApiSpec "vendor/xero-openapi/xero-payroll-au-v2.yaml")
+        earningsRatesSpec <- runIO (XeroMock.loadOpenApiSpec "vendor/xero-openapi/xero-payroll-au-v2-earnings-rates.local.yaml")
+
+        it "verifies checksums and provenance for the complete vendored source bundle" do
+            (exitCode, stdoutText, stderrText) <- readProcessWithExitCode "python3" ["scripts/check-xero-openapi-contract"] ""
+            (exitCode, stderrText) `shouldBe` (ExitSuccess, "")
+            stdoutText `shouldContain` "Xero OpenAPI contract OK"
+
+        it "keeps the local Earnings Rates supplement explicit and separate from official v2 source" do
+            XeroMock.assertSpecServer payrollV2Spec XeroMock.xeroPayrollV2Server
+            XeroMock.assertSpecOperation payrollV2Spec "/Timesheets" "get"
+            XeroMock.specText payrollV2Spec `shouldNotSatisfy` Text.isInfixOf "  /earningsRates:"
+            XeroMock.specText payrollV2Spec `shouldNotSatisfy` Text.isInfixOf "  /EarningsRates:"
+
+            XeroMock.assertSpecServer earningsRatesSpec XeroMock.xeroPayrollV2Server
+            XeroMock.assertSpecOperation earningsRatesSpec "/earningsRates" "get"
+            XeroMock.assertSpecOperation earningsRatesSpec "/earningsRates" "post"
+            XeroMock.assertSpecContains earningsRatesSpec "Classification: local Bepis contract supplement; not official Xero OpenAPI"
+            XeroMock.assertSpecContains earningsRatesSpec "Retrieved: 2026-07-30"
+            XeroMock.assertOperationContains earningsRatesSpec "/earningsRates" "post" "EarningsRates"
+
+        it "keeps the operator Earnings Rates probe isolated and customer-data-free" do
+            let shape = XeroPayItemProbe.earningsRatesResponseShape (Aeson.encode XeroMock.samplePayItemsBody)
+            shape `shouldBe` "EarningsRates envelope; count=1"
+            shape `shouldNotSatisfy` Text.isInfixOf "Bepis - Ordinary"
+
+            let missingConnection = XeroPayItemProbe.defaultProbeOptions { XeroPayItemProbe.optionProbeEarningsRatesV2 = True }
+            XeroPayItemProbe.validateEarningsRatesV2ProbeOptions missingConnection `shouldSatisfy` isLeft
+            let validProbe = missingConnection { XeroPayItemProbe.optionConnectionId = Just "connection-id" }
+            XeroPayItemProbe.validateEarningsRatesV2ProbeOptions validProbe `shouldBe` Right ()
+            let mutationCombination = validProbe { XeroPayItemProbe.optionConfirmPost = True, XeroPayItemProbe.optionRequirementKey = Just "requirement" }
+            XeroPayItemProbe.validateEarningsRatesV2ProbeOptions mutationCombination `shouldSatisfy` isLeft
 
         it "constructs Identity token exchange and refresh requests from the vendored token URL" do
             XeroMock.assertSpecContains identitySpec "tokenUrl: https://identity.xero.com/connect/token"
@@ -69,7 +106,9 @@ tests =
             assertRequest (buildFetchPayrollSettingsAccountsRequest "access-token" "tenant-id") "GET" XeroMock.xeroPayrollServer "/Settings"
             assertRequest (buildFetchPayRunsRequest "access-token" "tenant-id" XeroMock.samplePayRunQuery) "GET" XeroMock.xeroPayrollServer "/PayRuns"
 
-        it "constructs Accounting accounts read requests with tenant header" do
+        it "constructs Accounting accounts read requests from the official Accounting source with tenant header" do
+            XeroMock.assertSpecServer accountingSpec "https://api.xero.com/api.xro/2.0"
+            XeroMock.assertSpecOperation accountingSpec "/Accounts" "get"
             let request = buildFetchAccountsRequest "access-token" "tenant-id"
             request.xeroRequestMethod `shouldBe` "GET"
             assertRequest request "GET" "https://api.xero.com/api.xro/2.0" "/Accounts"
@@ -101,6 +140,7 @@ tests =
             XeroMock.assertSpecOperation payrollSpec "/Timesheets" "post"
             XeroMock.assertSpecOperation payrollSpec "/Timesheets/{TimesheetID}" "post"
             XeroMock.assertSpecContains payrollSpec "name: Idempotency-Key"
+            XeroMock.assertSpecOperation earningsRatesSpec "/earningsRates" "post"
             XeroMock.assertOperationContains payrollSpec "/Timesheets" "post" "type: array"
             XeroMock.assertOperationContains payrollSpec "/Timesheets/{TimesheetID}" "post" "type: array"
 
@@ -120,11 +160,11 @@ tests =
             XeroMock.jsonBody updateRequest `shouldSatisfy` XeroMock.isJsonArray
 
         it "validates every app Xero endpoint request builder against the vendored OpenAPI operations" do
-            forM_ (XeroMock.xeroRequestContractCases identitySpec payrollSpec) \(spec, contract, request) ->
+            forM_ (XeroMock.xeroRequestContractCases identitySpec payrollSpec accountingSpec earningsRatesSpec) \(spec, contract, request) ->
                 XeroMock.validateXeroRequest spec contract request
 
         it "covers every concrete Xero client operation in the OpenAPI contract table" do
-            List.sort (map (XeroMock.contractName . middleOfThree) (XeroMock.xeroRequestContractCases identitySpec payrollSpec))
+            List.sort (map (XeroMock.contractName . middleOfThree) (XeroMock.xeroRequestContractCases identitySpec payrollSpec accountingSpec earningsRatesSpec))
                 `shouldBe` List.sort expectedContractCaseNames
             coveredXeroClientOperationNames `shouldBe` expectedContractCaseNames
 
@@ -184,6 +224,19 @@ tests =
                     updateTimesheetResult <- client.updateTimesheet "access-token" "tenant-id" "idem-update" "timesheet-id" XeroMock.sampleTimesheetArrayBody
                     fmap (map (.xeroTimesheetEmployeeId)) updateTimesheetResult `shouldBe` Right ["employee-id"]
 
+        it "detects documented Earnings Rates response-shape drift through the strict localhost transport" do
+            let responseVariants =
+                    [ Aeson.object ["earningsRates" Aeson..= [XeroMock.earningsRateFixture]]
+                    , Aeson.Array (Vector.singleton XeroMock.earningsRateFixture)
+                    , XeroMock.earningsRateFixture
+                    ]
+            forM_ responseVariants \responseVariant ->
+                XeroMock.withStrictXeroMockEarningsRateResponse identitySpec payrollSpec responseVariant \urls ->
+                    withXeroRequestBaseUrlsForTest urls do
+                        client <- currentXeroClient
+                        result <- client.createPayItem "access-token" "tenant-id" "idem-response-variant" XeroMock.sampleEarningsRateBody
+                        fmap (map (.xeroEarningsRateId)) result `shouldBe` Right ["earnings-rate-id"]
+
         it "rejects malformed localhost mock requests before returning fixtures" do
             XeroMock.withStrictXeroMockBaseUrl identitySpec payrollSpec \baseUrl -> do
                 forM_ XeroMock.malformedMockRequests \(_label, expectedStatus, buildRequest) -> do
@@ -222,6 +275,7 @@ expectedContractCaseNames =
     , "employees list"
     , "pay items list"
     , "payroll calendars list"
+    , "accounts list"
     , "payroll settings accounts"
     , "pay runs list"
     , "timesheets list"

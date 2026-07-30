@@ -1,0 +1,75 @@
+#!/usr/bin/env python3
+"""Verify the committed Xero OpenAPI bundle without network access."""
+
+from __future__ import annotations
+
+import hashlib
+import json
+import re
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[1]
+VENDOR = ROOT / "vendor" / "xero-openapi"
+MANIFEST_PATH = VENDOR / "manifest.json"
+RAW_BASE = "https://raw.githubusercontent.com/XeroAPI/Xero-OpenAPI"
+OFFICIAL_PATHS = {
+    "xero-identity.yaml",
+    "xero-payroll-au.yaml",
+    "xero-payroll-au-v2.yaml",
+    "xero-accounting.yaml",
+}
+LOCAL_SUPPLEMENT = "xero-payroll-au-v2-earnings-rates.local.yaml"
+
+
+def require(condition: bool, message: str) -> None:
+    if not condition:
+        raise SystemExit(f"Xero OpenAPI contract check failed: {message}")
+
+
+def sha256(path: Path) -> str:
+    return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def main() -> None:
+    manifest = json.loads(MANIFEST_PATH.read_text())
+    commit = manifest.get("upstream_commit", "")
+    require(re.fullmatch(r"[0-9a-f]{40}", commit) is not None, "upstream_commit must be a full commit SHA")
+
+    files = manifest.get("files")
+    require(isinstance(files, list), "files must be an array")
+    require({entry.get("path") for entry in files} == OFFICIAL_PATHS, "official file set is incomplete or unexpected")
+
+    for entry in files:
+        local_path = VENDOR / entry["path"]
+        upstream_path = entry.get("upstream_path", entry["path"])
+        require(local_path.is_file(), f"missing official file {entry['path']}")
+        require(entry.get("classification") == "official_upstream", f"{entry['path']} is not classified as official_upstream")
+        require(entry.get("source_url") == f"{RAW_BASE}/{commit}/{upstream_path}", f"{entry['path']} source URL is not pinned to the manifest commit")
+        require(entry.get("sha256") == sha256(local_path), f"{entry['path']} checksum drift")
+        text = local_path.read_text()
+        for required_path in entry.get("required_paths", []):
+            require(f"  {required_path}:" in text, f"{entry['path']} is missing {required_path}")
+
+    payroll_v2 = (VENDOR / "xero-payroll-au-v2.yaml").read_text()
+    require("  /earningsRates:" not in payroll_v2 and "  /EarningsRates:" not in payroll_v2, "official Payroll AU v2 now contains Earnings Rates; remove the local exception instead of refreshing it")
+
+    supplements = manifest.get("local_supplements")
+    require(isinstance(supplements, list) and len(supplements) == 1, "exactly one local supplement must be declared")
+    supplement = supplements[0]
+    require(supplement.get("path") == LOCAL_SUPPLEMENT, "unexpected local supplement path")
+    require(supplement.get("classification") == "local_bepis_contract_supplement", "supplement must be explicitly local")
+    require(supplement.get("source_documentation_url") == "https://developer.xero.com/documentation/api/payrollau/earningsrates", "supplement documentation provenance drift")
+    require(re.fullmatch(r"\d{4}-\d{2}-\d{2}", supplement.get("retrieved_at", "")) is not None, "supplement retrieval date is missing")
+    supplement_path = VENDOR / LOCAL_SUPPLEMENT
+    require(supplement.get("sha256") == sha256(supplement_path), "local supplement checksum drift")
+    supplement_text = supplement_path.read_text()
+    require("Classification: local Bepis contract supplement; not official Xero OpenAPI" in supplement_text, "supplement classification warning is missing")
+    require(f"Source documentation: {supplement['source_documentation_url']}" in supplement_text, "supplement source documentation does not match manifest provenance")
+    require(f"Retrieved: {supplement['retrieved_at']}." in supplement_text, "supplement retrieval date does not match manifest provenance")
+    require("  /earningsRates:" in supplement_text, "supplement is missing /earningsRates")
+
+    print(f"Xero OpenAPI contract OK: {commit} ({len(files)} official files, 1 local supplement)")
+
+
+if __name__ == "__main__":
+    main()

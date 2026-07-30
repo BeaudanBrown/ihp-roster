@@ -6,6 +6,9 @@ VENDOR_DIR="$ROOT_DIR/vendor/xero-openapi"
 UPSTREAM_REPO="https://github.com/XeroAPI/Xero-OpenAPI"
 RAW_BASE="https://raw.githubusercontent.com/XeroAPI/Xero-OpenAPI"
 REF="${1:-master}"
+LOCAL_SUPPLEMENT="xero-payroll-au-v2-earnings-rates.local.yaml"
+LOCAL_DOC_URL="https://developer.xero.com/documentation/api/payrollau/earningsrates"
+LOCAL_RETRIEVED_AT="2026-07-30"
 
 require_path() {
     local file="$1"
@@ -25,54 +28,83 @@ require_text() {
     fi
 }
 
-if ! command -v curl >/dev/null; then
-    echo "curl is required" >&2
+reject_path() {
+    local file="$1"
+    local path="$2"
+    if rg -Fq "  $path:" "$file"; then
+        echo "Official OpenAPI now contains $path in $file; remove the local supplement instead of refreshing it" >&2
+        exit 1
+    fi
+}
+
+for command in curl rg sha256sum python3; do
+    if ! command -v "$command" >/dev/null; then
+        echo "$command is required" >&2
+        exit 1
+    fi
+done
+
+if [[ ! -f "$VENDOR_DIR/$LOCAL_SUPPLEMENT" ]]; then
+    echo "Missing local contract supplement $VENDOR_DIR/$LOCAL_SUPPLEMENT" >&2
     exit 1
 fi
 
-if ! command -v rg >/dev/null; then
-    echo "rg is required" >&2
-    exit 1
+COMMIT="$REF"
+if [[ "$REF" == "master" || "$REF" == "main" ]]; then
+    COMMIT="$(git ls-remote "$UPSTREAM_REPO" "refs/heads/$REF" | awk '{print $1}')"
 fi
 
-if ! command -v sha256sum >/dev/null; then
-    echo "sha256sum is required" >&2
+if [[ ! "$COMMIT" =~ ^[0-9a-f]{40}$ ]]; then
+    echo "Could not resolve a full upstream commit SHA for ref $REF" >&2
     exit 1
 fi
 
 mkdir -p "$VENDOR_DIR"
+STAGING_DIR="$(mktemp -d "$VENDOR_DIR/.refresh.XXXXXX")"
+trap 'rm -rf "$STAGING_DIR"' EXIT
 
-COMMIT="$REF"
-if command -v git >/dev/null && [[ "$REF" == "master" || "$REF" == "main" ]]; then
-    COMMIT="$(git ls-remote "$UPSTREAM_REPO" "refs/heads/$REF" | awk '{print $1}')"
-fi
+fetch_spec() {
+    local upstream_path="$1"
+    local local_path="$2"
+    curl -fsSL "$RAW_BASE/$COMMIT/$upstream_path" -o "$STAGING_DIR/$local_path"
+}
 
-if [[ -z "$COMMIT" ]]; then
-    echo "Could not resolve upstream commit for ref $REF" >&2
-    exit 1
-fi
+fetch_spec "xero-identity.yaml" "xero-identity.yaml"
+fetch_spec "xero-payroll-au.yaml" "xero-payroll-au.yaml"
+fetch_spec "xero-payroll-au-v2.yaml" "xero-payroll-au-v2.yaml"
+fetch_spec "xero_accounting.yaml" "xero-accounting.yaml"
 
-curl -fsSL "$RAW_BASE/$COMMIT/xero-identity.yaml" -o "$VENDOR_DIR/xero-identity.yaml"
-curl -fsSL "$RAW_BASE/$COMMIT/xero-payroll-au.yaml" -o "$VENDOR_DIR/xero-payroll-au.yaml"
+require_path "$STAGING_DIR/xero-identity.yaml" "/Connections"
+require_path "$STAGING_DIR/xero-identity.yaml" "/Connections/{id}"
+require_text "$STAGING_DIR/xero-identity.yaml" "tokenUrl: https://identity.xero.com/connect/token"
 
-require_path "$VENDOR_DIR/xero-identity.yaml" "/Connections"
-require_path "$VENDOR_DIR/xero-identity.yaml" "/Connections/{id}"
-require_text "$VENDOR_DIR/xero-identity.yaml" "tokenUrl: https://identity.xero.com/connect/token"
+for path in /Employees /PayItems /PayrollCalendars /Timesheets '/Timesheets/{TimesheetID}'; do
+    require_path "$STAGING_DIR/xero-payroll-au.yaml" "$path"
+done
+require_text "$STAGING_DIR/xero-payroll-au.yaml" "url: https://api.xero.com/payroll.xro/1.0"
+require_text "$STAGING_DIR/xero-payroll-au.yaml" "name: Xero-Tenant-Id"
+require_text "$STAGING_DIR/xero-payroll-au.yaml" "name: Idempotency-Key"
 
-require_path "$VENDOR_DIR/xero-payroll-au.yaml" "/Employees"
-require_path "$VENDOR_DIR/xero-payroll-au.yaml" "/PayItems"
-require_path "$VENDOR_DIR/xero-payroll-au.yaml" "/PayrollCalendars"
-require_path "$VENDOR_DIR/xero-payroll-au.yaml" "/Timesheets"
-require_path "$VENDOR_DIR/xero-payroll-au.yaml" "/Timesheets/{TimesheetID}"
-require_text "$VENDOR_DIR/xero-payroll-au.yaml" "url: https://api.xero.com/payroll.xro/1.0"
-require_text "$VENDOR_DIR/xero-payroll-au.yaml" "name: Xero-Tenant-Id"
-require_text "$VENDOR_DIR/xero-payroll-au.yaml" "name: Idempotency-Key"
+require_path "$STAGING_DIR/xero-payroll-au-v2.yaml" "/Timesheets"
+require_text "$STAGING_DIR/xero-payroll-au-v2.yaml" "url: https://api.xero.com/payroll.xro/2.0"
+reject_path "$STAGING_DIR/xero-payroll-au-v2.yaml" "/earningsRates"
+reject_path "$STAGING_DIR/xero-payroll-au-v2.yaml" "/EarningsRates"
 
-IDENTITY_SHA="$(sha256sum "$VENDOR_DIR/xero-identity.yaml" | awk '{print $1}')"
-PAYROLL_SHA="$(sha256sum "$VENDOR_DIR/xero-payroll-au.yaml" | awk '{print $1}')"
+require_path "$STAGING_DIR/xero-accounting.yaml" "/Accounts"
+require_text "$STAGING_DIR/xero-accounting.yaml" "url: https://api.xero.com/api.xro/2.0"
+
+sha() {
+    sha256sum "$1" | awk '{print $1}'
+}
+
+IDENTITY_SHA="$(sha "$STAGING_DIR/xero-identity.yaml")"
+PAYROLL_SHA="$(sha "$STAGING_DIR/xero-payroll-au.yaml")"
+PAYROLL_V2_SHA="$(sha "$STAGING_DIR/xero-payroll-au-v2.yaml")"
+ACCOUNTING_SHA="$(sha "$STAGING_DIR/xero-accounting.yaml")"
+LOCAL_SHA="$(sha "$VENDOR_DIR/$LOCAL_SUPPLEMENT")"
 FETCHED_AT="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 
-cat > "$VENDOR_DIR/manifest.json" <<EOF
+cat > "$STAGING_DIR/manifest.json" <<EOF
 {
   "upstream_repo": "$UPSTREAM_REPO",
   "upstream_commit": "$COMMIT",
@@ -80,28 +112,53 @@ cat > "$VENDOR_DIR/manifest.json" <<EOF
   "files": [
     {
       "path": "xero-identity.yaml",
+      "upstream_path": "xero-identity.yaml",
+      "classification": "official_upstream",
       "source_url": "$RAW_BASE/$COMMIT/xero-identity.yaml",
       "sha256": "$IDENTITY_SHA",
-      "required_paths": [
-        "/Connections",
-        "/Connections/{id}"
-      ],
-      "required_token_url": "https://identity.xero.com/connect/token"
+      "required_paths": ["/Connections", "/Connections/{id}"]
     },
     {
       "path": "xero-payroll-au.yaml",
+      "upstream_path": "xero-payroll-au.yaml",
+      "classification": "official_upstream",
       "source_url": "$RAW_BASE/$COMMIT/xero-payroll-au.yaml",
       "sha256": "$PAYROLL_SHA",
-      "required_paths": [
-        "/Employees",
-        "/PayItems",
-        "/PayrollCalendars",
-        "/Timesheets",
-        "/Timesheets/{TimesheetID}"
-      ]
+      "required_paths": ["/Employees", "/PayItems", "/PayrollCalendars", "/Timesheets", "/Timesheets/{TimesheetID}"]
+    },
+    {
+      "path": "xero-payroll-au-v2.yaml",
+      "upstream_path": "xero-payroll-au-v2.yaml",
+      "classification": "official_upstream",
+      "source_url": "$RAW_BASE/$COMMIT/xero-payroll-au-v2.yaml",
+      "sha256": "$PAYROLL_V2_SHA",
+      "required_paths": ["/Timesheets"]
+    },
+    {
+      "path": "xero-accounting.yaml",
+      "upstream_path": "xero_accounting.yaml",
+      "classification": "official_upstream",
+      "source_url": "$RAW_BASE/$COMMIT/xero_accounting.yaml",
+      "sha256": "$ACCOUNTING_SHA",
+      "required_paths": ["/Accounts"]
+    }
+  ],
+  "local_supplements": [
+    {
+      "path": "$LOCAL_SUPPLEMENT",
+      "classification": "local_bepis_contract_supplement",
+      "source_documentation_url": "$LOCAL_DOC_URL",
+      "retrieved_at": "$LOCAL_RETRIEVED_AT",
+      "sha256": "$LOCAL_SHA",
+      "required_paths": ["/earningsRates"]
     }
   ]
 }
 EOF
 
-echo "Vendored Xero OpenAPI specs at $COMMIT"
+for file in xero-identity.yaml xero-payroll-au.yaml xero-payroll-au-v2.yaml xero-accounting.yaml manifest.json; do
+    mv "$STAGING_DIR/$file" "$VENDOR_DIR/$file"
+done
+
+python3 "$ROOT_DIR/scripts/check-xero-openapi-contract"
+echo "Vendored official Xero OpenAPI specs at $COMMIT; preserved local Earnings Rates supplement"

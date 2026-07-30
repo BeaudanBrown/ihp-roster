@@ -27,6 +27,11 @@ lands.
   and retry endpoints are retired.
 - Manual reference sync and preparation use the same application service and
   persistence/reconciliation path.
+- Offline request contracts use checksum-pinned, unmodified official Identity,
+  Payroll AU v1/v2, and Accounting OpenAPI files from one upstream commit. The
+  only application API operation without an official upstream operation is
+  Payroll AU v2 Earnings Rates creation; its separately named local supplement
+  records documentation provenance and explicit response-shape assumptions.
 - Synced payroll calendars are retained reference data. Calendar and period
   choice is explicit on each guided preparation run; no global
   `xero_payroll_calendar_selections` fallback is read or written.
@@ -69,7 +74,9 @@ lands.
 - `Web/Controller/Admin/Xero/*` owns params, redirects, toasts, HTMX/OOB
   responses, and permission response choices.
 - Probe scripts are diagnostics; do not make production behavior depend on
-  ad hoc probe output.
+  ad hoc probe output. The Payroll AU v2 Earnings Rates gap probe is operator-only,
+  read-only, refuses CI, requires an exact tenant-id gate, and emits structural
+  response facts rather than customer/provider payloads.
 
 ## Mutation And Live Invalidation Boundary
 

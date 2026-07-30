@@ -1,0 +1,146 @@
+openapi: 3.0.1
+info:
+  title: Bepis local Payroll AU v2 Earnings Rates contract supplement
+  version: 2026-07-30
+  description: |
+    Classification: local Bepis contract supplement; not official Xero OpenAPI.
+    Source documentation: https://developer.xero.com/documentation/api/payrollau/earningsrates
+    Retrieved: 2026-07-30.
+
+    Xero's official xero-payroll-au-v2.yaml did not contain /earningsRates at
+    retrieval time. This supplement records the request and response assumptions
+    used by Bepis and must remain separate from checksum-pinned upstream files.
+servers:
+  - description: Xero Payroll AU API 2.0
+    url: https://api.xero.com/payroll.xro/2.0
+paths:
+  /earningsRates:
+    parameters:
+      - $ref: '#/components/parameters/XeroTenantId'
+    get:
+      security:
+        - OAuth2:
+            - payroll.settings
+            - payroll.settings.read
+      operationId: getEarningsRatesLocalSupplement
+      summary: Probe the documented Payroll AU v2 Earnings Rates collection
+      responses:
+        '200':
+          description: |
+            Assumption: Xero returns either an EarningsRates object envelope or
+            a direct array. The operator probe records only status and structural
+            shape until official OpenAPI coverage defines the response.
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: '#/components/schemas/EarningsRatesEnvelope'
+                  - $ref: '#/components/schemas/LegacyEarningsRatesEnvelope'
+                  - type: array
+                    items:
+                      $ref: '#/components/schemas/EarningsRate'
+    post:
+      security:
+        - OAuth2:
+            - payroll.settings
+      operationId: createEarningsRateLocalSupplement
+      summary: Create one Payroll AU v2 earnings rate
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EarningsRateInput'
+      responses:
+        '200':
+          description: |
+            Assumption: Xero returns the created rate either in an EarningsRates
+            envelope, as a direct array, or as one direct object. Bepis accepts
+            those documented/observed variants without treating this supplement
+            as an official provider schema.
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: '#/components/schemas/EarningsRatesEnvelope'
+                  - $ref: '#/components/schemas/LegacyEarningsRatesEnvelope'
+                  - type: array
+                    items:
+                      $ref: '#/components/schemas/EarningsRate'
+                  - $ref: '#/components/schemas/EarningsRate'
+components:
+  securitySchemes:
+    OAuth2:
+      type: oauth2
+      flows:
+        authorizationCode:
+          authorizationUrl: https://login.xero.com/identity/connect/authorize
+          tokenUrl: https://identity.xero.com/connect/token
+          scopes:
+            payroll.settings: Read and write payroll settings
+            payroll.settings.read: Read payroll settings
+  parameters:
+    XeroTenantId:
+      in: header
+      name: Xero-Tenant-Id
+      required: true
+      schema:
+        type: string
+        format: uuid
+    IdempotencyKey:
+      in: header
+      name: Idempotency-Key
+      required: true
+      schema:
+        type: string
+  schemas:
+    EarningsRateInput:
+      type: object
+      required:
+        - Name
+        - EarningsType
+        - RateType
+      properties:
+        Name:
+          type: string
+        EarningsType:
+          type: string
+        RateType:
+          type: string
+        TypeOfUnits:
+          type: string
+        RatePerUnit:
+          type: number
+        AccountCode:
+          type: string
+    EarningsRate:
+      allOf:
+        - $ref: '#/components/schemas/EarningsRateInput'
+        - type: object
+          properties:
+            EarningsRateID:
+              type: string
+              format: uuid
+            IsActive:
+              type: boolean
+    EarningsRatesEnvelope:
+      type: object
+      required:
+        - earningsRates
+      properties:
+        earningsRates:
+          type: array
+          items:
+            $ref: '#/components/schemas/EarningsRate'
+    LegacyEarningsRatesEnvelope:
+      description: Compatibility assumption retained for existing Xero responses.
+      type: object
+      required:
+        - EarningsRates
+      properties:
+        EarningsRates:
+          type: array
+          items:
+            $ref: '#/components/schemas/EarningsRate'

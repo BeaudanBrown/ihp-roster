@@ -33,3 +33,4 @@ selection.
 - `Web/Controller/Admin/Xero/AGENTS.md`
 - `docs/workstreams/xero-payroll.md`
 - `docs/workstreams/rooks-pilot.md`
+- `vendor/xero-openapi/README.md`

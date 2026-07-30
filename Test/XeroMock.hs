@@ -47,6 +47,18 @@ data BodyContract
     | JsonArrayBody
     deriving (Eq, Show)
 
+data StrictMockResponses = StrictMockResponses
+    { strictMockTimesheetCreateResponses :: ![Wai.Response]
+    , strictMockEarningsRateResponses    :: ![Wai.Response]
+    }
+
+defaultStrictMockResponses :: StrictMockResponses
+defaultStrictMockResponses =
+    StrictMockResponses
+        { strictMockTimesheetCreateResponses = []
+        , strictMockEarningsRateResponses = []
+        }
+
 data XeroEndpointContract = XeroEndpointContract
     { contractName             :: !Text
     , contractSpecServer       :: !(Maybe Text)
@@ -86,8 +98,8 @@ loadXeroOpenApiSpecs = do
     payrollSpec <- loadOpenApiSpec "vendor/xero-openapi/xero-payroll-au.yaml"
     pure (identitySpec, payrollSpec)
 
-xeroRequestContractCases :: OpenApiSpec -> OpenApiSpec -> [(OpenApiSpec, XeroEndpointContract, XeroHttpRequest)]
-xeroRequestContractCases identitySpec payrollSpec =
+xeroRequestContractCases :: OpenApiSpec -> OpenApiSpec -> OpenApiSpec -> OpenApiSpec -> [(OpenApiSpec, XeroEndpointContract, XeroHttpRequest)]
+xeroRequestContractCases identitySpec payrollSpec accountingSpec earningsRatesSpec =
     [ (identitySpec, tokenContract "token exchange" (FormRequestFields ["grant_type", "code", "redirect_uri"]), buildExchangeCodeForTokenRequest testConfig "auth-code")
     , (identitySpec, tokenContract "token refresh" (FormRequestFields ["grant_type", "refresh_token"]), buildRefreshXeroTokenRequest testConfig "refresh-token")
     , (identitySpec, identityContract "connections list" "GET" "/Connections" "/connections" NoRequestBody, buildFetchConnectedTenantsRequest "access-token")
@@ -95,6 +107,7 @@ xeroRequestContractCases identitySpec payrollSpec =
     , (payrollSpec, payrollReadContract "employees list" "/Employees" "/Employees" [], buildFetchPayrollEmployeesRequest "access-token" "tenant-id")
     , (payrollSpec, (payrollReadContract "pay items list" "/PayItems" "/PayItems" ["page"]) { contractAllowedQueries = [] }, buildFetchEarningsRatesRequest "access-token" "tenant-id")
     , (payrollSpec, payrollReadContract "payroll calendars list" "/PayrollCalendars" "/PayrollCalendars" [], buildFetchPayrollCalendarsRequest "access-token" "tenant-id")
+    , (accountingSpec, accountingReadContract "accounts list" "/Accounts" "/Accounts", buildFetchAccountsRequest "access-token" "tenant-id")
     , (payrollSpec, payrollReadContract "payroll settings accounts" "/Settings" "/Settings" [], buildFetchPayrollSettingsAccountsRequest "access-token" "tenant-id")
     , ( payrollSpec
       , (payrollReadContract "pay runs list" "/PayRuns" "/PayRuns" ["where", "order", "page", "If-Modified-Since"]) { contractAllowedQueries = ["where", "order", "page"] }
@@ -105,7 +118,7 @@ xeroRequestContractCases identitySpec payrollSpec =
       , buildFetchTimesheetsRequest "access-token" "tenant-id" sampleTimesheetQuery
       )
     , (payrollSpec, payrollReadContract "timesheet show" "/Timesheets/{TimesheetID}" "/Timesheets/timesheet-id" [], buildFetchTimesheetRequest "access-token" "tenant-id" "timesheet-id")
-    , (payrollSpec, payrollEarningsRateCreateContract "earnings rate create", buildCreatePayItemRequest "access-token" "tenant-id" "idem-pay-items" sampleEarningsRateBody)
+    , (earningsRatesSpec, payrollEarningsRateCreateContract "earnings rate create" "/earningsRates", buildCreatePayItemRequest "access-token" "tenant-id" "idem-pay-items" sampleEarningsRateBody)
     , (payrollSpec, payrollWriteContract "timesheet create" "/Timesheets" "/Timesheets" JsonArrayBody, buildCreateTimesheetRequest "access-token" "tenant-id" "idem-create" sampleTimesheetArrayBody)
     , (payrollSpec, payrollWriteContract "timesheet update" "/Timesheets/{TimesheetID}" "/Timesheets/timesheet-id" JsonArrayBody, buildUpdateTimesheetRequest "access-token" "tenant-id" "idem-update" "timesheet-id" sampleTimesheetArrayBody)
     ]
@@ -158,6 +171,13 @@ payrollReadContract name specPath requestPath documentedParams =
         , contractBody = NoRequestBody
         }
 
+accountingReadContract :: Text -> Text -> Text -> XeroEndpointContract
+accountingReadContract name specPath requestPath =
+    (payrollReadContract name specPath requestPath [])
+        { contractSpecServer = Just "https://api.xero.com/api.xro/2.0"
+        , contractRequestServer = "https://api.xero.com/api.xro/2.0"
+        }
+
 payrollWriteContract :: Text -> Text -> Text -> BodyContract -> XeroEndpointContract
 payrollWriteContract name specPath requestPath body =
     XeroEndpointContract
@@ -174,18 +194,18 @@ payrollWriteContract name specPath requestPath body =
         , contractBody = body
         }
 
-payrollEarningsRateCreateContract :: Text -> XeroEndpointContract
-payrollEarningsRateCreateContract name =
+payrollEarningsRateCreateContract :: Text -> Text -> XeroEndpointContract
+payrollEarningsRateCreateContract name specPath =
     XeroEndpointContract
         { contractName = name
         , contractSpecServer = Nothing
         , contractRequestServer = xeroPayrollV2Server
-        , contractSpecPath = "/current-docs/payrollau/earningsRates"
+        , contractSpecPath = specPath
         , contractMethod = "POST"
         , contractRequestPath = "/earningsRates"
         , contractPathMatch = CaseSensitivePath
         , contractRequiredHeaders = ["Authorization", "Accept", "Xero-Tenant-Id", "Idempotency-Key", "Content-Type"]
-        , contractDocumentedParams = []
+        , contractDocumentedParams = ["Idempotency-Key", "Xero-Tenant-Id"]
         , contractAllowedQueries = []
         , contractBody = JsonObjectWithFields ["Name", "EarningsType", "RateType"]
         }
@@ -255,6 +275,8 @@ assertContractSpecOperation spec contract
     | otherwise = do
         forM_ contract.contractSpecServer (assertSpecServer spec)
         assertSpecOperation spec contract.contractSpecPath (Text.toLower (TextEncoding.decodeUtf8 contract.contractMethod))
+        when ("Authorization" `elem` contract.contractRequiredHeaders) do
+            assertOperationOrSpecContains spec contract "OAuth2:"
         forM_ contract.contractDocumentedParams \paramName ->
             assertOperationOrSpecContains spec contract ("name: " <> paramName)
 
@@ -345,18 +367,33 @@ withStrictXeroMock :: OpenApiSpec -> OpenApiSpec -> (XeroRequestBaseUrls -> IO a
 withStrictXeroMock identitySpec payrollSpec action =
     withStrictXeroMockBaseUrl identitySpec payrollSpec (action . xeroRequestBaseUrlsFor)
 
+withStrictXeroMockEarningsRateResponse :: OpenApiSpec -> OpenApiSpec -> Aeson.Value -> (XeroRequestBaseUrls -> IO a) -> IO a
+withStrictXeroMockEarningsRateResponse identitySpec payrollSpec earningsRateResponse action =
+    withStrictXeroMockBaseUrlWithResponses
+        identitySpec
+        payrollSpec
+        defaultStrictMockResponses { strictMockEarningsRateResponses = [jsonResponse status200 earningsRateResponse] }
+        (action . xeroRequestBaseUrlsFor)
+
 withStrictXeroMockTimesheetCreateResponses :: OpenApiSpec -> OpenApiSpec -> [Wai.Response] -> (XeroRequestBaseUrls -> IO a) -> IO a
 withStrictXeroMockTimesheetCreateResponses identitySpec payrollSpec timesheetCreateResponses action =
-    withStrictXeroMockBaseUrlWithTimesheetCreateResponses identitySpec payrollSpec timesheetCreateResponses (action . xeroRequestBaseUrlsFor)
+    withStrictXeroMockBaseUrlWithResponses
+        identitySpec
+        payrollSpec
+        defaultStrictMockResponses { strictMockTimesheetCreateResponses = timesheetCreateResponses }
+        (action . xeroRequestBaseUrlsFor)
 
 withStrictXeroMockBaseUrl :: OpenApiSpec -> OpenApiSpec -> (Text -> IO a) -> IO a
 withStrictXeroMockBaseUrl identitySpec payrollSpec action =
-    withStrictXeroMockBaseUrlWithTimesheetCreateResponses identitySpec payrollSpec [] action
+    withStrictXeroMockBaseUrlWithResponses identitySpec payrollSpec defaultStrictMockResponses action
 
-withStrictXeroMockBaseUrlWithTimesheetCreateResponses :: OpenApiSpec -> OpenApiSpec -> [Wai.Response] -> (Text -> IO a) -> IO a
-withStrictXeroMockBaseUrlWithTimesheetCreateResponses identitySpec payrollSpec timesheetCreateResponses action = do
-    timesheetCreateResponseRef <- IORef.newIORef timesheetCreateResponses
-    Warp.testWithApplication (pure (xeroStrictMockApp identitySpec payrollSpec timesheetCreateResponseRef)) \port ->
+withStrictXeroMockBaseUrlWithResponses :: OpenApiSpec -> OpenApiSpec -> StrictMockResponses -> (Text -> IO a) -> IO a
+withStrictXeroMockBaseUrlWithResponses identitySpec payrollSpec responses action = do
+    accountingSpec <- loadOpenApiSpec "vendor/xero-openapi/xero-accounting.yaml"
+    earningsRatesSpec <- loadOpenApiSpec "vendor/xero-openapi/xero-payroll-au-v2-earnings-rates.local.yaml"
+    timesheetCreateResponseRef <- IORef.newIORef responses.strictMockTimesheetCreateResponses
+    earningsRateResponseRef <- IORef.newIORef responses.strictMockEarningsRateResponses
+    Warp.testWithApplication (pure (xeroStrictMockApp identitySpec payrollSpec accountingSpec earningsRatesSpec timesheetCreateResponseRef earningsRateResponseRef)) \port ->
         action ("http://127.0.0.1:" <> tshow port)
 
 xeroRequestBaseUrlsFor :: Text -> XeroRequestBaseUrls
@@ -477,8 +514,8 @@ payItemsPageRate index =
         , "IsActive" Aeson..= True
         ]
 
-xeroStrictMockApp :: OpenApiSpec -> OpenApiSpec -> IORef.IORef [Wai.Response] -> Wai.Application
-xeroStrictMockApp identitySpec payrollSpec timesheetCreateResponseRef request respond = do
+xeroStrictMockApp :: OpenApiSpec -> OpenApiSpec -> OpenApiSpec -> OpenApiSpec -> IORef.IORef [Wai.Response] -> IORef.IORef [Wai.Response] -> Wai.Application
+xeroStrictMockApp identitySpec payrollSpec accountingSpec earningsRatesSpec timesheetCreateResponseRef earningsRateResponseRef request respond = do
     body <- Wai.strictRequestBody request
     let baseUrl = requestBaseUrl request
     let mockRequest = waiToXeroHttpRequest baseUrl request body
@@ -507,13 +544,15 @@ xeroStrictMockApp identitySpec payrollSpec timesheetCreateResponseRef request re
                 (method, "/payroll.xro/1.0/PayItems")
                     | method == methodGet -> pure (Just (payrollSpec, (mockPayrollReadContract baseUrl "mock pay items list" "/PayItems" "/PayItems" ["page"]) { contractAllowedQueries = ["page"] }, jsonResponse status200 payItemsFixture))
                 (method, "/payroll.xro/2.0/earningsRates")
-                    | method == methodPost -> pure (Just (payrollSpec, (payrollEarningsRateCreateContract "mock earnings rate create") { contractRequestServer = baseUrl <> "/payroll.xro/2.0" }, jsonResponse status200 earningsRatesFixture))
+                    | method == methodPost -> do
+                        response <- nextEarningsRateResponse
+                        pure (Just (earningsRatesSpec, (payrollEarningsRateCreateContract "mock earnings rate create" "/earningsRates") { contractRequestServer = baseUrl <> "/payroll.xro/2.0" }, response))
                 (method, "/payroll.xro/1.0/PayrollCalendars")
                     | method == methodGet -> pure (Just (payrollSpec, mockPayrollReadContract baseUrl "mock payroll calendars list" "/PayrollCalendars" "/PayrollCalendars" [], jsonResponse status200 calendarsFixture))
                 (method, "/payroll.xro/1.0/Settings")
                     | method == methodGet -> pure (Just (payrollSpec, mockPayrollReadContract baseUrl "mock payroll settings" "/Settings" "/Settings" [], jsonResponse status200 payrollSettingsFixture))
                 (method, "/api.xro/2.0/Accounts")
-                    | method == methodGet -> pure (Just (payrollSpec, (mockPayrollReadContract baseUrl "mock accounts list" "/Settings" "/Accounts" []) { contractRequestServer = baseUrl <> "/api.xro/2.0" }, jsonResponse status200 accountsFixture))
+                    | method == methodGet -> pure (Just (accountingSpec, (accountingReadContract "mock accounts list" "/Accounts" "/Accounts") { contractRequestServer = baseUrl <> "/api.xro/2.0" }, jsonResponse status200 accountsFixture))
                 (method, "/payroll.xro/1.0/PayRuns")
                     | method == methodGet -> pure (Just (payrollSpec, (mockPayrollReadContract baseUrl "mock pay runs list" "/PayRuns" "/PayRuns" ["where", "order", "page", "If-Modified-Since"]) { contractAllowedQueries = ["where", "order", "page"] }, jsonResponse status200 payRunsFixture))
                 (method, "/payroll.xro/1.0/Timesheets")
@@ -530,6 +569,10 @@ xeroStrictMockApp identitySpec payrollSpec timesheetCreateResponseRef request re
 
         nextTimesheetCreateResponse = IORef.atomicModifyIORef' timesheetCreateResponseRef \case
             [] -> ([], jsonResponse status200 timesheetsFixture)
+            response : rest -> (rest, response)
+
+        nextEarningsRateResponse = IORef.atomicModifyIORef' earningsRateResponseRef \case
+            [] -> ([], jsonResponse status200 earningsRatesFixture)
             response : rest -> (rest, response)
 
 mockTokenContract :: Text -> LByteString.ByteString -> XeroEndpointContract
