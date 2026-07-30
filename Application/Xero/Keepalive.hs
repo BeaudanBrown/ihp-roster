@@ -1,6 +1,7 @@
 module Application.Xero.Keepalive
     ( XeroKeepaliveSweepSummary (..)
     , enqueueDueXeroKeepaliveJobs
+    , enqueueDueXeroMaintenanceJobsAt
     , performXeroConnectionKeepaliveJob
     , xeroConnectionKeepaliveDedupeKey
     , xeroConnectionKeepaliveJobKind
@@ -11,6 +12,10 @@ import Application.Helper.FrontendContract.Surface.Admin.Resource (xeroConnectio
 import Application.Helper.SurfaceResource
 import Application.Helper.Xero
 import Application.Xero.Connection
+import Application.Xero.ReferenceSyncJob (acquireXeroReferenceSyncLease,
+                                          enqueueXeroReferenceSyncJob,
+                                          releaseXeroReferenceSyncLease)
+import qualified Control.Exception as Exception
 import Control.Monad (void)
 import qualified Data.Aeson as Aeson
 import qualified Data.Text.IO as TextIO
@@ -20,9 +25,12 @@ import IHP.Job.Types
 import Web.SurfaceInvalidation (invalidateTouchedResourcesWithoutContext)
 
 data XeroKeepaliveSweepSummary = XeroKeepaliveSweepSummary
-    { dueConnectionCount :: !Int
-    , enqueuedJobCount   :: !Int
-    , existingJobCount   :: !Int
+    { dueConnectionCount              :: !Int
+    , enqueuedJobCount                :: !Int
+    , existingJobCount                :: !Int
+    , referenceSyncDueConnectionCount :: !Int
+    , referenceSyncEnqueuedJobCount   :: !Int
+    , referenceSyncExistingJobCount   :: !Int
     }
     deriving (Eq, Show)
 
@@ -36,21 +44,31 @@ xeroConnectionKeepaliveDedupeKey connection =
 enqueueDueXeroKeepaliveJobs ::
     (?modelContext :: ModelContext) =>
     IO XeroKeepaliveSweepSummary
-enqueueDueXeroKeepaliveJobs = do
-    now <- getCurrentTime
-    let dueBefore = addUTCTime (negate (7 * 24 * 60 * 60)) now
+enqueueDueXeroKeepaliveJobs =
+    getCurrentTime >>= enqueueDueXeroMaintenanceJobsAt
+
+enqueueDueXeroMaintenanceJobsAt ::
+    (?modelContext :: ModelContext) =>
+    UTCTime ->
+    IO XeroKeepaliveSweepSummary
+enqueueDueXeroMaintenanceJobsAt now = do
+    let keepaliveDueBefore = addUTCTime (negate (7 * 24 * 60 * 60)) now
+    let referenceSyncDueBefore = addUTCTime (negate (6 * 24 * 60 * 60)) now
     activeConnections <-
         query @XeroConnection
             |> filterWhere (#connectionStatus, "active" :: Text)
             |> fetch
-    let dueConnections = filter (xeroConnectionDueForKeepalive dueBefore) activeConnections
-    results <- forM dueConnections enqueueXeroConnectionKeepaliveJob
-    let enqueuedCount = length [ () | EnqueuedAppJob _ <- results ]
-    let existingCount = length [ () | ExistingActiveAppJob _ <- results ]
+    let keepaliveDueConnections = filter (xeroConnectionDueForKeepalive keepaliveDueBefore) activeConnections
+    let referenceSyncDueConnections = filter (xeroConnectionDueForReferenceSync referenceSyncDueBefore) activeConnections
+    keepaliveResults <- forM keepaliveDueConnections enqueueXeroConnectionKeepaliveJob
+    referenceSyncResults <- forM referenceSyncDueConnections (enqueueXeroReferenceSyncJob Nothing)
     pure XeroKeepaliveSweepSummary
-        { dueConnectionCount = length dueConnections
-        , enqueuedJobCount = enqueuedCount
-        , existingJobCount = existingCount
+        { dueConnectionCount = length keepaliveDueConnections
+        , enqueuedJobCount = countEnqueuedJobs keepaliveResults
+        , existingJobCount = countExistingJobs keepaliveResults
+        , referenceSyncDueConnectionCount = length referenceSyncDueConnections
+        , referenceSyncEnqueuedJobCount = countEnqueuedJobs referenceSyncResults
+        , referenceSyncExistingJobCount = countExistingJobs referenceSyncResults
         }
 
 xeroConnectionDueForKeepalive :: UTCTime -> XeroConnection -> Bool
@@ -58,6 +76,20 @@ xeroConnectionDueForKeepalive dueBefore connection =
     case connection.lastRefreshedAt of
         Nothing              -> True
         Just lastRefreshedAt -> lastRefreshedAt <= dueBefore
+
+xeroConnectionDueForReferenceSync :: UTCTime -> XeroConnection -> Bool
+xeroConnectionDueForReferenceSync dueBefore connection =
+    case connection.lastSyncAt of
+        Nothing         -> True
+        Just lastSyncAt -> lastSyncAt <= dueBefore
+
+countEnqueuedJobs :: [EnqueueAppJobResult] -> Int
+countEnqueuedJobs results =
+    length [ () | EnqueuedAppJob _ <- results ]
+
+countExistingJobs :: [EnqueueAppJobResult] -> Int
+countExistingJobs results =
+    length [ () | ExistingActiveAppJob _ <- results ]
 
 enqueueXeroConnectionKeepaliveJob ::
     (?modelContext :: ModelContext) =>
@@ -97,36 +129,54 @@ performXeroConnectionKeepaliveJob appJob =
                 Just connection
                     | connection.connectionStatus /= "active" ->
                         completeKeepaliveJob appJob (Aeson.object ["skipped" Aeson..= ("inactive_connection" :: Text)])
-                    | otherwise ->
-                        readXeroConfig >>= \case
-                            Left message -> fail (cs message)
-                            Right xeroConfig -> do
-                                refreshResult <- refreshXeroConnectionAccess xeroConfig connection
-                                case refreshResult of
-                                    Right (updatedConnection, _) -> do
-                                        _ <- invalidateXeroKeepaliveConnection updatedConnection "xero.connection.keepalive.refresh"
-                                        completeKeepaliveJob appJob
-                                            (Aeson.object
-                                                [ "xeroConnectionId" Aeson..= tshow updatedConnection.id
-                                                , "tenantId" Aeson..= updatedConnection.tenantId
-                                                , "refreshed" Aeson..= True
-                                                ]
-                                            )
-                                    Left message -> do
-                                        latestConnection <- fetch connection.id
-                                        if latestConnection.connectionStatus == "reauthorization_required"
-                                            then do
-                                                _ <- invalidateXeroKeepaliveConnection latestConnection "xero.connection.keepalive.reauthorization_required"
-                                                completeKeepaliveJob appJob
-                                                    ( Aeson.object
-                                                        [ "xeroConnectionId" Aeson..= tshow latestConnection.id
-                                                        , "tenantId" Aeson..= latestConnection.tenantId
-                                                        , "refreshed" Aeson..= False
-                                                        , "reauthorizationRequired" Aeson..= True
-                                                        , "message" Aeson..= message
-                                                        ]
-                                                    )
-                                            else fail (cs message)
+                    | otherwise -> do
+                        now <- getCurrentTime
+                        acquired <- acquireXeroReferenceSyncLease now appJob connection.tenantId
+                        unless acquired (fail "Another Xero job is already refreshing credentials for this tenant.")
+                        Exception.finally
+                            (do
+                                refreshedConnection <- fetch connection.id
+                                if refreshedConnection.connectionStatus /= "active" || refreshedConnection.tenantId /= connection.tenantId
+                                    then completeKeepaliveJob appJob (Aeson.object ["skipped" Aeson..= ("connection_changed" :: Text)])
+                                    else performLeasedXeroConnectionKeepaliveJob appJob refreshedConnection
+                            )
+                            (releaseXeroReferenceSyncLease appJob connection.tenantId)
+
+performLeasedXeroConnectionKeepaliveJob ::
+    (?modelContext :: ModelContext) =>
+    AppJob ->
+    XeroConnection ->
+    IO ()
+performLeasedXeroConnectionKeepaliveJob appJob connection =
+    readXeroConfig >>= \case
+        Left message -> fail (cs message)
+        Right xeroConfig -> do
+            refreshResult <- refreshXeroConnectionAccess xeroConfig connection
+            case refreshResult of
+                Right (updatedConnection, _) -> do
+                    _ <- invalidateXeroKeepaliveConnection updatedConnection "xero.connection.keepalive.refresh"
+                    completeKeepaliveJob appJob
+                        (Aeson.object
+                            [ "xeroConnectionId" Aeson..= tshow updatedConnection.id
+                            , "tenantId" Aeson..= updatedConnection.tenantId
+                            , "refreshed" Aeson..= True
+                            ]
+                        )
+                Left message -> do
+                    latestConnection <- fetch connection.id
+                    if latestConnection.connectionStatus == "reauthorization_required"
+                        then do
+                            _ <- invalidateXeroKeepaliveConnection latestConnection "xero.connection.keepalive.reauthorization_required"
+                            completeKeepaliveJob appJob
+                                ( Aeson.object
+                                    [ "xeroConnectionId" Aeson..= tshow latestConnection.id
+                                    , "tenantId" Aeson..= latestConnection.tenantId
+                                    , "refreshed" Aeson..= False
+                                    , "reauthorizationRequired" Aeson..= True
+                                    , "message" Aeson..= message
+                                    ]
+                                )
+                        else fail (cs message)
 
 invalidateXeroKeepaliveConnection :: XeroConnection -> Text -> IO (LiveMutationResult XeroConnection)
 invalidateXeroKeepaliveConnection connection label =

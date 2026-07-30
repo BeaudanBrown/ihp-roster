@@ -33,6 +33,16 @@ lands.
   failures use Xero-specific jittered continuations for at most 24 hours without
   changing unrelated job retry policy. Progress and errors contain phase/page
   facts only, never tokens or raw provider payloads.
+- Successful OAuth connection or same-tenant repair transactionally enqueues
+  one coalescing reference-sync job and redirects directly to the Xero shell;
+  reference refresh never depends on a browser page-load trigger. The daily
+  maintenance sweep independently evaluates `lastSyncAt` for a six-day
+  reference refresh and `lastRefreshedAt` for seven-day token keepalive. All
+  reference requests reuse the durable connection dedupe and tenant lease;
+  keepalive shares that tenant lease so simultaneous due jobs cannot race
+  refresh-token rotation, while each job retains independent success/failure.
+  Lease contention uses the existing keepalive worker retries; an expired or
+  revoked token instead completes in reconnect-required state and does not loop.
 - A complete successful snapshot atomically marks missing or provider-inactive
   employees, earnings rates, calendars, accounts, and imported pay items
   unavailable; reappearance restores provider availability without changing

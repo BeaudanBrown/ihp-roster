@@ -3,8 +3,10 @@ module Test.XeroKeepaliveSpec where
 import Application.Async.Queue
 import Application.Helper.Xero
 import Application.Xero.Keepalive
+import Application.Xero.ReferenceSyncJob
 import Config
 import qualified Data.Aeson as Aeson
+import qualified Data.IORef as IORef
 import Data.Time.Clock (NominalDiffTime, addUTCTime, getCurrentTime)
 import Generated.Types
 import IHP.ControllerPrelude
@@ -20,31 +22,72 @@ import Web.Types
 tests :: Spec
 tests = aroundAll withDatabaseTestContext do
     describe "Xero keepalive jobs" do
-        it "enqueues due active Xero connections and deduplicates active keepalive jobs" $ withContext do
+        it "independently enqueues six-day reference sync and seven-day token keepalive work" $ withContext do
             withCleanDb do
-                venue <- createVenueWithConfig "Xero Keepalive Venue"
-                freshVenue <- createVenueWithConfig "Xero Keepalive Fresh Venue"
-                inactiveVenue <- createVenueWithConfig "Xero Keepalive Inactive Venue"
-                owner <- createUserRecord "xero-keepalive-owner@example.com" "staff" True
-                oldConnection <- createKeepaliveXeroConnection venue owner (Just (negate (8 * oneDay))) "tenant-old" "active"
-                _freshConnection <- createKeepaliveXeroConnection freshVenue owner (Just (negate oneDay)) "tenant-fresh" "active"
-                _inactiveConnection <- createKeepaliveXeroConnection inactiveVenue owner (Just (negate (8 * oneDay))) "tenant-inactive" "reauthorization_required"
+                now <- getCurrentTime
+                bothVenue <- createVenueWithConfig "Xero Both Maintenance Venue"
+                referenceVenue <- createVenueWithConfig "Xero Reference Maintenance Venue"
+                keepaliveVenue <- createVenueWithConfig "Xero Token Maintenance Venue"
+                freshVenue <- createVenueWithConfig "Xero Fresh Maintenance Venue"
+                inactiveVenue <- createVenueWithConfig "Xero Inactive Maintenance Venue"
+                owner <- createUserRecord "xero-maintenance-owner@example.com" "staff" True
+                bothConnection <- createKeepaliveXeroConnection bothVenue owner (Just (negate (8 * oneDay))) "tenant-both" "active" >>= setLastSyncAge now (Just (negate (7 * oneDay)))
+                _referenceConnection <- createKeepaliveXeroConnection referenceVenue owner (Just (negate oneDay)) "tenant-reference" "active" >>= setLastSyncAge now (Just (negate (7 * oneDay)))
+                _keepaliveConnection <- createKeepaliveXeroConnection keepaliveVenue owner (Just (negate (8 * oneDay))) "tenant-keepalive" "active" >>= setLastSyncAge now (Just (negate oneDay))
+                _freshConnection <- createKeepaliveXeroConnection freshVenue owner (Just (negate oneDay)) "tenant-fresh" "active" >>= setLastSyncAge now (Just (negate oneDay))
+                _inactiveConnection <- createKeepaliveXeroConnection inactiveVenue owner (Just (negate (8 * oneDay))) "tenant-inactive" "reauthorization_required" >>= setLastSyncAge now Nothing
 
-                firstSummary <- enqueueDueXeroKeepaliveJobs
-                firstSummary.dueConnectionCount `shouldBe` 1
-                firstSummary.enqueuedJobCount `shouldBe` 1
+                firstSummary <- enqueueDueXeroMaintenanceJobsAt now
+                firstSummary.dueConnectionCount `shouldBe` 2
+                firstSummary.enqueuedJobCount `shouldBe` 2
                 firstSummary.existingJobCount `shouldBe` 0
+                firstSummary.referenceSyncDueConnectionCount `shouldBe` 2
+                firstSummary.referenceSyncEnqueuedJobCount `shouldBe` 2
+                firstSummary.referenceSyncExistingJobCount `shouldBe` 0
 
-                secondSummary <- enqueueDueXeroKeepaliveJobs
-                secondSummary.dueConnectionCount `shouldBe` 1
+                secondSummary <- enqueueDueXeroMaintenanceJobsAt now
                 secondSummary.enqueuedJobCount `shouldBe` 0
-                secondSummary.existingJobCount `shouldBe` 1
+                secondSummary.existingJobCount `shouldBe` 2
+                secondSummary.referenceSyncEnqueuedJobCount `shouldBe` 0
+                secondSummary.referenceSyncExistingJobCount `shouldBe` 2
 
-                [job] <- query @AppJob |> filterWhere (#jobKind, xeroConnectionKeepaliveJobKind) |> fetch
-                job.venueId `shouldBe` Just (unpackId venue.id)
-                job.relatedTable `shouldBe` Just "xero_connections"
-                job.relatedId `shouldBe` Just (unpackId oldConnection.id)
-                job.dedupeKey `shouldBe` Just (xeroConnectionKeepaliveDedupeKey oldConnection)
+                keepaliveJobs <- query @AppJob |> filterWhere (#jobKind, xeroConnectionKeepaliveJobKind) |> fetch
+                referenceJobs <- query @AppJob |> filterWhere (#jobKind, xeroReferenceSyncJobKind) |> fetch
+                length keepaliveJobs `shouldBe` 2
+                length referenceJobs `shouldBe` 2
+                keepaliveJobs `shouldSatisfy` any (\job -> job.relatedId == Just (unpackId bothConnection.id) && job.dedupeKey == Just (xeroConnectionKeepaliveDedupeKey bothConnection))
+                referenceJobs `shouldSatisfy` any (\job -> job.relatedId == Just (unpackId bothConnection.id) && job.dedupeKey == Just (xeroReferenceSyncDedupeKey bothConnection))
+
+        it "serializes token keepalive behind the shared tenant lease" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Xero Shared Lease Venue"
+                owner <- createUserRecord "xero-shared-lease-owner@example.com" "staff" True
+                connection <- createKeepaliveXeroConnection venue owner (Just (negate (8 * oneDay))) "tenant-shared-lease" "active"
+                EnqueuedAppJob keepaliveJob <- enqueueAppJob (keepaliveJobRequest connection)
+                EnqueuedAppJob referenceJob <- enqueueXeroReferenceSyncJob Nothing connection
+                now <- getCurrentTime
+                acquireXeroReferenceSyncLease now referenceJob connection.tenantId `shouldReturn` True
+                refreshCalls <- IORef.newIORef (0 :: Int)
+                let tokenResponse = XeroTokenResponse "lease-access-token" "lease-refresh-token" 1800 (Just requiredXeroScopesText)
+                    client =
+                        (keepaliveXeroClient (Right tokenResponse))
+                            { refreshXeroToken = \_ _ -> do
+                                IORef.modifyIORef' refreshCalls (+ 1)
+                                pure (Right tokenResponse)
+                            }
+
+                withXeroConfigForTest (Right testXeroConfig) do
+                    withXeroClientForTest client do
+                        performXeroConnectionKeepaliveJob keepaliveJob `shouldThrow` anyException
+                IORef.readIORef refreshCalls `shouldReturn` 0
+
+                releaseXeroReferenceSyncLease referenceJob connection.tenantId
+                withXeroConfigForTest (Right testXeroConfig) do
+                    withXeroClientForTest client do
+                        performXeroConnectionKeepaliveJob keepaliveJob
+                IORef.readIORef refreshCalls `shouldReturn` 1
+                updatedJob <- fetch keepaliveJob.id
+                updatedJob.status `shouldBe` JobStatusSucceeded
 
         it "refreshes and stores rotated Xero tokens from a keepalive job" $ withContext do
             withCleanDb do
@@ -122,6 +165,17 @@ createKeepaliveXeroConnection venue owner maybeRefreshAge tenantId status = do
         |> set #lastRefreshedAt (addUTCTime <$> maybeRefreshAge <*> pure now)
         |> set #connectedByUserId (Just (unpackId owner.id))
         |> createRecord
+
+setLastSyncAge ::
+    (?modelContext :: ModelContext) =>
+    UTCTime ->
+    Maybe NominalDiffTime ->
+    XeroConnection ->
+    IO XeroConnection
+setLastSyncAge now maybeSyncAge connection =
+    connection
+        |> set #lastSyncAt (addUTCTime <$> maybeSyncAge <*> pure now)
+        |> updateRecord
 
 keepaliveJobRequest :: XeroConnection -> AppJobRequest
 keepaliveJobRequest connection =

@@ -747,13 +747,13 @@ in
         enable = mkOption {
           type = types.bool;
           default = true;
-          description = "Whether to run the Xero connection keepalive sweep on a systemd timer.";
+          description = "Whether to run the Xero reference-sync and token-keepalive maintenance sweep on a systemd timer.";
         };
 
         onCalendar = mkOption {
           type = types.str;
           default = "daily";
-          description = "systemd OnCalendar expression for the Xero keepalive sweep.";
+          description = "systemd OnCalendar expression for the Xero maintenance sweep.";
         };
 
         randomizedDelaySec = mkOption {
@@ -1092,7 +1092,7 @@ in
         };
       };
       systemd.services.xero-keepalive-sweep = mkIf cfg.xero.keepalive.enable {
-        description = "Enqueue Xero connection keepalive jobs for ihp-roster";
+        description = "Enqueue Xero reference-sync and token-keepalive jobs for ihp-roster";
         after = [ schemaReadyService ];
         requires = [ schemaReadyService ];
         serviceConfig = {

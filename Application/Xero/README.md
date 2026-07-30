@@ -9,7 +9,8 @@ preparation/submission workflow.
 ## Modules
 
 - `Connection.hs` - connection and token boundary.
-- `Keepalive.hs` - recurring token/connection health support.
+- `Keepalive.hs` - daily maintenance scheduling for independent six-day
+  reference refresh and seven-day token/connection health work.
 - `ReferenceSyncJob.hs` - durable connection-deduplicated, tenant-leased,
   paced reference refresh with Xero-specific retry scheduling.
 - `ReferenceSyncRequest.hs` - background-safe demand request/coalescing boundary.

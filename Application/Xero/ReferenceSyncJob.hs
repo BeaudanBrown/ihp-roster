@@ -116,7 +116,12 @@ performXeroReferenceSyncJobWith runtime source appJob =
                             then handleReferenceSyncFailure runtime appJob payload connection Nothing (XeroReferencePhaseFailure "tenant_lease" (XeroHttpError "Another reference sync is already running for this Xero tenant."))
                             else
                                 Exception.finally
-                                    (runLeasedReferenceSync runtime source appJob payload connection)
+                                    (do
+                                        refreshedConnection <- fetch connection.id
+                                        if refreshedConnection.connectionStatus /= "active" || refreshedConnection.tenantId /= connection.tenantId
+                                            then completeSkippedReferenceSyncJob appJob "connection_changed"
+                                            else runLeasedReferenceSync runtime source appJob payload refreshedConnection
+                                    )
                                     (releaseXeroReferenceSyncLease appJob connection.tenantId)
 
 runLeasedReferenceSync ::

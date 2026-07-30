@@ -13,6 +13,8 @@ import Application.Helper.XeroAdminTypes (XeroLocalEarningsBucket (..))
 import Application.Helper.XeroTimesheetReadiness (readinessBlockerCodes,
                                                   validateXeroTimesheetReadiness)
 import Application.PayAssignment
+import Application.Xero.Keepalive (XeroKeepaliveSweepSummary (..),
+                                   enqueueDueXeroMaintenanceJobsAt)
 import Application.Xero.ReferenceSyncJob
 import Application.Xero.ReferenceSyncRequest
 import Config
@@ -259,7 +261,7 @@ tests = aroundAll withFastXeroReferenceSyncRuntime $ aroundAll withDatabaseTestC
                                 ]
 
                 response `responseStatusShouldBe` status302
-                lookup "Location" (responseHeaders response) `shouldBe` Just "http://localhost/Xero?syncAfterConnect=true"
+                lookup "Location" (responseHeaders response) `shouldBe` Just "http://localhost/Xero"
                 connection <- query @XeroConnection |> fetchOne
                 connection.venueId `shouldBe` unpackId venue.id
                 connection.tenantId `shouldBe` "tenant-123"
@@ -275,6 +277,15 @@ tests = aroundAll withFastXeroReferenceSyncRuntime $ aroundAll withDatabaseTestC
                 updatedState.consumedAt `shouldSatisfy` isJust
                 auditEvents <- query @AuditEvent |> filterWhere (#eventType, "xero_connection_completed" :: Text) |> fetch
                 length auditEvents `shouldBe` 1
+                [initialSyncJob] <- query @AppJob |> filterWhere (#jobKind, xeroReferenceSyncJobKind) |> fetch
+                initialSyncJob.relatedId `shouldBe` Just (unpackId connection.id)
+                initialSyncJob.requestedByUserId `shouldBe` Just (unpackId admin.id)
+                initialSyncJob.status `shouldBe` JobStatusNotStarted
+                sweepNow <- getCurrentTime
+                sweepSummary <- enqueueDueXeroMaintenanceJobsAt sweepNow
+                sweepSummary.referenceSyncDueConnectionCount `shouldBe` 1
+                sweepSummary.referenceSyncEnqueuedJobCount `shouldBe` 0
+                sweepSummary.referenceSyncExistingJobCount `shouldBe` 1
 
         it "completes Xero OAuth callback through the strict localhost Xero mock" $ withContext do
             withCleanDb do
@@ -1501,10 +1512,12 @@ tests = aroundAll withFastXeroReferenceSyncRuntime $ aroundAll withDatabaseTestC
                 updatedConnection.connectionStatus `shouldBe` "reauthorization_required"
                 syncRun <- query @XeroSyncRun |> fetchOne
                 syncRun.syncStatus `shouldBe` "failed"
+                [referenceJob] <- query @AppJob |> filterWhere (#jobKind, xeroReferenceSyncJobKind) |> fetch
+                referenceJob.status `shouldBe` JobStatusFailed
                 stateCount <- query @XeroOauthState |> fetchCount
                 stateCount `shouldBe` 1
 
-        it "returns from successful Xero OAuth with an automatic reference sync trigger" $ withContext do
+        it "queues reference sync from OAuth without requiring a follow-up browser request" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Xero Auto Sync After Connect Venue"
                 owner <- createUserRecord "xero-auto-sync-after-connect@example.com" "staff" True
@@ -1519,16 +1532,14 @@ tests = aroundAll withFastXeroReferenceSyncRuntime $ aroundAll withDatabaseTestC
                             callActionWithParams XeroOAuthCallbackAction [("state", cs oauthState.stateToken), ("code", "auto-sync-code")]
 
                 callbackResponse `responseStatusShouldBe` status302
-                lookup "Location" (responseHeaders callbackResponse) `shouldSatisfy` maybe False (Text.isInfixOf "/Xero?syncAfterConnect=true" . cs)
+                lookup "Location" (responseHeaders callbackResponse) `shouldBe` Just "http://localhost/Xero"
+                [initialSyncJob] <- query @AppJob |> filterWhere (#jobKind, xeroReferenceSyncJobKind) |> fetch
+                initialSyncJob.status `shouldBe` JobStatusNotStarted
                 pageResponse <- withPasskeyVerifiedUserAndCurrentVenue owner venue.id do
                     callActionWithParams XeroAction [("syncAfterConnect", "true")]
                 pageResponse `responseStatusShouldBe` status200
-                pageResponse `responseBodyShouldContain` "id=\"xero-auto-reference-sync\""
-                pageResponse `responseBodyShouldContain` "hx-trigger=\"load\""
-                pageResponse `responseBodyShouldContain` "hx-post=\"/SyncXeroPayrollReferenceData\""
-                pageResponse `responseBodyShouldContain` "hx-target=\"#admin-xero-fragment\""
-                pageResponse `responseBodyShouldContain` "hx-push-url=\"/Xero\""
-                pageResponse `responseBodyShouldContain` "hx-indicator=\"#xero-connection-status-badge\""
+                pageResponse `responseBodyShouldNotContain` "id=\"xero-auto-reference-sync\""
+                pageResponse `responseBodyShouldNotContain` "hx-trigger=\"load\""
 
         it "rejects reconnect callbacks when Xero returns a different tenant" $ withContext do
             withCleanDb do
@@ -1591,13 +1602,16 @@ tests = aroundAll withFastXeroReferenceSyncRuntime $ aroundAll withDatabaseTestC
                             callActionWithParams XeroOAuthCallbackAction [("state", cs oauthState.stateToken), ("code", "repair-code")]
 
                 response `responseStatusShouldBe` status302
-                lookup "Location" (responseHeaders response) `shouldBe` Just "http://localhost/Xero?syncAfterConnect=true"
+                lookup "Location" (responseHeaders response) `shouldBe` Just "http://localhost/Xero"
                 connectionCount <- query @XeroConnection |> fetchCount
                 connectionCount `shouldBe` 1
                 repaired <- fetch staleConnection.id
                 repaired.connectionStatus `shouldBe` "active"
                 repaired.xeroConnectionRemoteId `shouldBe` Just "connection-repaired"
                 repaired.lastError `shouldBe` Nothing
+                [repairSyncJob] <- query @AppJob |> filterWhere (#jobKind, xeroReferenceSyncJobKind) |> fetch
+                repairSyncJob.relatedId `shouldBe` Just (unpackId repaired.id)
+                repairSyncJob.dedupeKey `shouldBe` Just (xeroReferenceSyncDedupeKey repaired)
                 mapping <- query @XeroStaffMapping |> fetchOne
                 mapping.xeroConnectionId `shouldBe` unpackId staleConnection.id
 

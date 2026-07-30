@@ -169,7 +169,6 @@ instance Controller AdminController where
     action currentAction@XeroAction = runBepis currentAction BepisPageAction $
         profileActionSpan "admin.xero.page.render" do
             redirectPermissionDeniedUnless currentUserCanManageXeroIntegration "Only the venue owner or a super admin can manage Xero for this venue."
-            let xeroAutoSyncAfterConnect = paramOrDefault @Text "false" "syncAfterConnect" == "true"
             xeroSectionData <- profileActionSpan "admin.xero.page.fetch_section_data" fetchCurrentVenueXeroAdminSectionData
             profileActionSpan "admin.xero.page.render_response" (render XeroView { .. })
 

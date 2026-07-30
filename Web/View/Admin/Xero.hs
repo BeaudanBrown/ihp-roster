@@ -32,8 +32,7 @@ import Web.View.Admin.Xero.Connection
 import Web.View.Prelude
 
 data XeroView = XeroView
-    { xeroSectionData          :: XeroAdminSectionData
-    , xeroAutoSyncAfterConnect :: Bool
+    { xeroSectionData :: XeroAdminSectionData
     }
 
 instance View XeroView where
@@ -48,7 +47,7 @@ instance View XeroView where
                     , appPanelCustomHeader = mempty
                     , appPanelClass = "overflow-hidden"
                     , appPanelBodyClass = ""
-                    , appPanelBody = renderXeroPageContentSurface (renderXeroSectionFragmentWithAutoSync xeroAutoSyncAfterConnect xeroSectionData)
+                    , appPanelBody = renderXeroPageContentSurface (renderXeroSectionFragment xeroSectionData)
                     }
          in renderAppPage AppPageConfig
             { appPageTitle = "Xero"
@@ -78,48 +77,13 @@ renderXeroSection XeroAdminSectionData { xeroConnection, xeroConnectionActionsAl
     renderXeroConnectionBody xeroConnection xeroConnectionActionsAllowed
 
 renderXeroSectionFragment :: XeroAdminSectionData -> Html
-renderXeroSectionFragment =
-    renderXeroSectionFragmentWithAutoSync False
-
-renderXeroSectionFragmentWithAutoSync :: Bool -> XeroAdminSectionData -> Html
-renderXeroSectionFragmentWithAutoSync =
-    renderXeroSectionFragmentWithSwap noOobSwap
-
-renderXeroSectionFragmentWithSwap :: OobSwapAttr -> Bool -> XeroAdminSectionData -> Html
-renderXeroSectionFragmentWithSwap maybeSwapOob shouldAutoSync xeroSectionData =
+renderXeroSectionFragment xeroSectionData =
     renderFrontendSurfaceMount (adminXeroSurfaceImpl AdminVenueScopeValue { adminVenueId = currentVenueScopeId, adminRosterGroupId = Nothing }) [hsx|
         <div id={surfaceFragmentTargetId @Surface.AdminXeroSurface @Surface.AdminXeroShellFragment noSurfaceFields}
-             hx-swap-oob={maybeSwapOob}>
-            {renderXeroAutoSyncTrigger shouldAutoSync xeroSectionData.xeroConnection}
+             hx-swap-oob={noOobSwap}>
             {renderXeroSection xeroSectionData}
         </div>
     |]
-
-renderXeroAutoSyncTrigger :: Bool -> Maybe XeroConnection -> Html
-renderXeroAutoSyncTrigger True (Just connection)
-    | connection.connectionStatus == "active" =
-        renderFrontendSurfaceActionForm
-            (AdminAction.syncXeroPayrollReferenceDataAction AdminAction.syncXeroPayrollReferenceDataActionFields)
-            xeroReferenceSyncActionRoute
-                { actionRouteCustomHtmx =
-                    [ FrontendSurfaceCustomHtmxAttrs
-                        { customHtmxAttrMarker = "load-reference-sync-custom-htmx"
-                        , customHtmxAttrValues =
-                            [ ("hx-trigger", "load")
-                            , ("hx-push-url", pathTo XeroAction)
-                            , ("hx-indicator", "#xero-connection-status-badge")
-                            ]
-                        }
-                    ]
-                , actionRouteStandardUrl = Just (pathTo SyncXeroPayrollReferenceDataAction)
-                , actionRouteExtraAttrs =
-                    [ ("id", "xero-auto-reference-sync")
-
-                    ]
-                }
-            mempty
-renderXeroAutoSyncTrigger _ _ =
-    mempty
 
 renderXeroConnectionBody :: Maybe XeroConnection -> Bool -> Html
 renderXeroConnectionBody Nothing connectionActionsAllowed = [hsx|

@@ -7,7 +7,6 @@ module Web.Controller.Admin.Xero.Connection
     ) where
 
 import Application.Helper.SurfaceResource (LiveMutationResult (..))
-import Application.Helper.Url (appendQueryParams)
 import Application.Helper.Xero
 import Application.Xero.Admin.ReadModel
 import Application.Xero.Connection
@@ -235,7 +234,7 @@ redirectAfterCompletedXeroConnection ::
     XeroOauthState ->
     IO ()
 redirectAfterCompletedXeroConnection _oauthState =
-    redirectToPath (appendQueryParams (pathTo XeroAction) [("syncAfterConnect", "true")])
+    redirectTo XeroAction
 
 chooseXeroTenantForOAuth ::
     (?context :: ControllerContext, ?modelContext :: ModelContext) =>

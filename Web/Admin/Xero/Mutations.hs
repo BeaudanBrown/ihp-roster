@@ -28,6 +28,7 @@ import Application.Helper.Xero
 import Application.Helper.XeroAdminTypes
 import qualified Application.Xero.Admin.ImportedPayItems as ImportedPayItems
 import Application.Xero.Admin.ReferenceData
+import Application.Xero.ReferenceSyncJob (enqueueXeroReferenceSyncJob)
 import Application.Xero.ReferenceSyncRequest
 import qualified Application.Xero.Timesheets.Prepare as XeroPrepare
 import Control.Monad (void)
@@ -175,6 +176,7 @@ completeXeroConnectionMutation now actorUserId xeroConfig oauthState tokenRespon
             case existingSameTenant of
                 Just existing -> fillConnection existing |> updateRecord
                 Nothing -> fillConnection (newRecord @XeroConnection) |> createRecord
+        void $ enqueueXeroReferenceSyncJob (Just actorUserId) connection
         void $
             recordCurrentUserAuditEvent
                 "xero_connection_completed"
