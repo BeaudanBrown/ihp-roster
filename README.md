@@ -305,6 +305,16 @@ acceptance-only, pure, database-only, and focused selections are diagnostic or
 additive feedback and must not replace the complete `hspec-test` step. Those
 sequential CI steps reuse the fingerprinted verification compilation cache;
 browser tiers are local/release commands and are not a newly mandatory CI gate.
+ADR 0004 records why complete Hspec—not a routine, acceptance, pure, or DB
+subset—is protected. Suite metadata and seam-selection rules live in
+`Test/AGENTS.md`; cross-system acceptance ownership lives in
+`specs/09-testing-and-acceptance.md`.
+
+The final Epic #197 inventory is 93 suites and 1,322 examples: 539 pure and 783
+database-backed. Pure Hspec executes in about 0.55 seconds; the warm complete
+six-shard median is 23.01 seconds with a 1.149 slowest/median shard ratio and
+715 broad resets. These are measured outcomes, not quotas. See
+`docs/archive/hspec-refactor-closeout-2026-07-30.md`.
 
 Deployment is managed outside this workflow. Production NixOS configuration lives
 under `Config/nix/`.

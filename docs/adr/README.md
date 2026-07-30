@@ -20,3 +20,5 @@ Use `docs/templates/adr.md` for new ADRs.
   business meaning while TypeScript owns reusable presentation mechanics.
 - `0003-frontend-contract-runtime-authority.md` - reflection-backed contract,
   runtime, wire, target-ID, and browser-authority ownership.
+- `0004-complete-hspec-is-the-protected-test-gate.md` - complete Hspec remains
+  the protected gate; partial metadata selections are additive diagnostics.

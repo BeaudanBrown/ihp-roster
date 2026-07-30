@@ -1,5 +1,6 @@
 let
-  flake = builtins.getFlake (toString ../../..);
+  verificationSource = import ./verification-source.nix { root = ../../..; };
+  flake = builtins.getFlake (builtins.unsafeDiscardStringContext (toString verificationSource));
   lib = flake.inputs.nixpkgs.lib;
   evaluate =
     {

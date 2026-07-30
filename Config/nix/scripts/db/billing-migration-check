@@ -3,20 +3,24 @@ set -euo pipefail
 
 # Prove the production billing migration upgrades a representative predecessor
 # while preserving its venue, Customer, Subscription, and Event rows.
-test-postgres ensure >/dev/null
-socket="${TEST_DB_SOCKET:-${PGHOST:-$PWD/build/db}}"
+port=5432
+database_user="$(id -un)"
+PGPORT="$port" PGUSER="$database_user" test-postgres ensure >/dev/null
+# This check owns a disposable database in the managed Hspec cluster. Do not
+# inherit the development or caller PGHOST after selecting that authority.
+socket="$(test-postgres root)/socket"
 database="billing_migration_check_${$}_${RANDOM}"
 
 cleanup() {
-    dropdb -h "$socket" --if-exists "$database" >/dev/null 2>&1 || true
+    dropdb -h "$socket" -p "$port" -U "$database_user" --if-exists "$database" >/dev/null 2>&1 || true
 }
 trap cleanup EXIT INT TERM
 
-createdb -h "$socket" "$database"
-psql -h "$socket" -d "$database" -v ON_ERROR_STOP=1 -f Test/Fixtures/billing/pre-production-schema.sql >/dev/null
-psql -h "$socket" -d "$database" -v ON_ERROR_STOP=1 -f Application/Migration/1784761930.sql >/dev/null
+createdb -h "$socket" -p "$port" -U "$database_user" "$database"
+psql -h "$socket" -p "$port" -U "$database_user" -d "$database" -v ON_ERROR_STOP=1 -f Test/Fixtures/billing/pre-production-schema.sql >/dev/null
+psql -h "$socket" -p "$port" -U "$database_user" -d "$database" -v ON_ERROR_STOP=1 -f Application/Migration/1784761930.sql >/dev/null
 
-psql -h "$socket" -d "$database" -v ON_ERROR_STOP=1 <<'SQL' >/dev/null
+psql -h "$socket" -p "$port" -U "$database_user" -d "$database" -v ON_ERROR_STOP=1 <<'SQL' >/dev/null
 DO $$
 BEGIN
     IF (SELECT count(*) FROM venues WHERE name = 'Preserved Venue') <> 1 THEN

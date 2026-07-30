@@ -2,11 +2,19 @@
 
 ## Verification workflow
 
-Use project scripts via the repo environment wrapper:
+Use project scripts through the repository environment wrapper:
 
-- `bash ./bin/in-env typecheck` after each change.
-- `bash ./bin/in-env hspec-test` for test suite.
-- `bash ./bin/in-env lint` and `bash ./bin/in-env format` before finalizing.
+| Command | Meaning |
+| --- | --- |
+| `bash ./bin/in-env typecheck` | Required compile/type authority and first check after code changes. |
+| `bash ./bin/in-env hspec-test` | Required complete deterministic Hspec authority; default six-shard cap for DB-backed work. |
+| `bash ./bin/in-env verify-fast` | Additive feedback: script freshness, typecheck, pure Hspec, desktop plus canonical-mobile browser behavior. |
+| `bash ./bin/in-env verify-full` | Complete local/release composition: complete Hspec plus reachability, frontend, CSS, architecture/docs, billing/deployment, and complete Playwright authorities. |
+| `bash ./bin/in-env lint` / `format` | Source hygiene; neither is coverage evidence. |
+
+Required GitHub CI intentionally runs `typecheck` then complete `hspec-test`.
+`verify-full` remains the broader local/release gate rather than a duplicate CI
+workflow. Commands and semantics are fixed by ADR 0004.
 
 `hspec-test` is the single mandatory Hspec command and always selects the
 complete registry by default. `hspec-pure`, `hspec-db`, focused matches, and the
@@ -30,7 +38,31 @@ Verification authorities remain separate:
   `Application/Billing/RUNBOOK.md` rather than automated-suite metadata.
 
 The measured feedback-lane decision is archived in
-`docs/archive/hspec-feedback-lane-decision-2026-07-30.md`.
+`docs/archive/hspec-feedback-lane-decision-2026-07-30.md`; final inventory and
+performance evidence is in
+`docs/archive/hspec-final-performance-evidence-2026-07-30.md`.
+
+## Test architecture selection
+
+- Pure domain matrices own WageEngine arithmetic, VenueTime civil-time
+  segmentation, pay-assignment precedence, and wage-source policy.
+- Database adapter/enforcement suites own persisted projection, strict final
+  batching, committed visibility, and immutable approved-ledger reconstruction.
+- Controller suites retain representative request/auth/venue-scope/response
+  wiring plus dedicated destructive, cross-venue, malformed-ID, and strong-auth
+  protections; they do not duplicate exhaustive domain matrices.
+- Exact fixed-export goldens own payroll CSV/ZIP bytes. Xero
+  readiness/preview/submission tests own sealed-fact publication and controlled
+  provider requests. Browser tests own workflow reachability, not payroll
+  arithmetic.
+- Current schema tests, migration/predecessor upgrades, generated/frontend and
+  architecture checks, Playwright, and operator-only Stripe `B8` evidence remain
+  separate authorities. Passing Hspec cannot substitute for them.
+
+Broad database cleanup remains the default for isolation-sensitive behavior.
+There is no arbitrary reset quota. `CommittedVisibilityRequired` is reserved for
+an explicit second context/thread that must observe committed rows; ordinary DB
+access does not qualify.
 
 ## Required test coverage (minimum)
 

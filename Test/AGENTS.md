@@ -110,6 +110,54 @@ or fallback text pretending to verify a migration file that no longer exists.
 Every retained guard should name the durable behavior, authority boundary, or
 deployment protection it owns.
 
+## Seam And Evidence Selection
+
+Start at the narrowest authoritative interface. Add a controller example only
+when request parsing, authentication, venue scope, response wiring, or mutation
+orchestration is the behavior; do not repeat a domain state matrix through every
+controller action.
+
+- **MA000009 arithmetic:** named `HIGA-*` scenarios in
+  `specs/hospitality-award-wage-compliance-matrix.md` map to pure
+  `WageEngine`/`VenueTime` matrices. Keep scenario IDs diagnosable and table-drive
+  only genuinely shared behavior. Adapter tests own persisted projection and
+  bounded-query behavior; approved-ledger tests own immutable reconstruction.
+- **Civil time:** test DST gaps/folds, local dates, and segment boundaries through
+  `Application.VenueTime`, then keep one representative caller wiring example.
+- **Source policy:** exhaustive freshness, annual-boundary, provenance, and
+  imported-override decisions belong at `Application.WageSourcePolicy`; database
+  enforcement tests prove persisted fact loading and strict final batching.
+- **Billing:** pure eligibility and strict Stripe request/response contracts own
+  complete provider-state matrices. Controller tests prove owner/fresh-auth/
+  venue wiring; persistence, webhook, and reconciliation suites retain
+  idempotency, signature, ordering, deduplication, and sensitive-data evidence.
+  `B8` remains operator-only sandbox/test-clock evidence in the Billing runbook.
+- **Immutable pay history:** approve through the real persistence seam and read
+  through `TimesheetPayLedger`. Never emulate approval by flipping
+  `is_approved`, and never recalculate historical output from mutable current
+  rates.
+- **Fixed exports:** `FixedExportGoldenSpec` is the byte-level CSV/ZIP authority,
+  including formula neutralization, exact payroll values, version metadata, and
+  repeat determinism. Controller tests own authorization/lifecycle; Playwright
+  proves only the download workflow.
+- **Xero:** pure publication transforms and candidate policy own quantity/rate
+  behavior; readiness/preview/submission suites own sealed-fact selection,
+  idempotency, and controlled HTTP requests. Browser tests prove the guided
+  workflow. Real API probes are diagnostics, never production or CI authority.
+- **Schema and deployment:** current schema/parser/generated-type tests own fresh
+  shape. Real retained migrations, predecessor upgrades, cutover checks, and
+  deployment assertions separately own customer-data preservation and ordering.
+
+Deterministic fixtures use fixed identifiers, explicit clocks/dates, and reviewed
+provider snapshots. Keep exact provider/compliance provenance beside fixtures.
+Do not replace reviewed Stripe, wage-source, migration, or export artifacts with
+inline source substrings.
+
+There is deliberately no database-reset quota. Move behavior to a pure seam when
+it is truly persistence-independent; otherwise retain broad cleanup for nested
+transactions, queues/jobs, audit/version rows, constraints, sessions, immutable
+approval facts, or committed cross-context visibility.
+
 ## Coverage
 
 Use `bash ./bin/in-env hspec-coverage [hspec-args...]` when adding or materially changing Hspec coverage. It compiles the test runner with GHC HPC instrumentation, runs serially against the isolated `app_test_coverage` database, prints an app-source per-module text report, and writes durable artifacts under `output/coverage/hspec/latest/`:
