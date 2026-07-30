@@ -1231,8 +1231,21 @@
   }
 
   // frontend/ts/surface-tab-set/runtime.ts
+  function tabPresentationMatchesSelection(element) {
+    if (typeof HTMLElement === "undefined" || !(element instanceof HTMLElement)) {
+      return element.getAttribute("aria-selected") === "true";
+    }
+    const paneSelector = element.getAttribute("data-bs-target");
+    if (paneSelector === null || !paneSelector.startsWith("#")) return false;
+    const pane = document.querySelector(paneSelector);
+    return element.classList.contains("active") && pane?.classList.contains("active") === true && pane.classList.contains("show");
+  }
   function defaultShowTab(element) {
     if (!(element instanceof HTMLElement)) return;
+    if (element.getAttribute("aria-selected") === "true" && !tabPresentationMatchesSelection(element)) {
+      element.classList.remove("active");
+      element.setAttribute("aria-selected", "false");
+    }
     window.bootstrap?.Tab?.getOrCreateInstance(element).show();
   }
   function defaultDiagnosticReporter5(diagnostic7) {
@@ -1307,7 +1320,7 @@
             continue;
           }
           const desiredTab = desiredTabs[0];
-          if (desiredTab?.getAttribute("aria-selected") === "true") continue;
+          if (desiredTab && tabPresentationMatchesSelection(desiredTab)) continue;
           showTab(desiredTab);
         }
       }

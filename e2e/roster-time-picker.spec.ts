@@ -162,7 +162,13 @@ test.describe('Roster Time Picker', () => {
         const clearButton = page.locator(`${modalSelector} [${timePickerClearDomAttr}]`);
 
         await trigger.click();
+        await modal.evaluate((element) => {
+            element.addEventListener('hidden.bs.modal', () => {
+                element.setAttribute('data-e2e-hidden-complete', 'true');
+            }, { once: true });
+        });
         await chooseTime(page, '06:30');
+        await expect(modal).toHaveAttribute('data-e2e-hidden-complete', 'true', { timeout: E2E_TIMEOUT.assertion });
         await expect(modal).toBeHidden();
         await expect(firstField.locator(`[${timePickerLabelDomAttr}]`)).toHaveText('6:30 AM');
         await expect(firstField.locator(`[${timePickerValueDomAttr}]`)).toHaveValue('06:30');

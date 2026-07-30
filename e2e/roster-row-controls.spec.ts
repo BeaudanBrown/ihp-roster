@@ -55,6 +55,15 @@ test.describe('Roster row controls', () => {
         await expect(settingsPane.locator('[data-bepis-activation-ref]')).toHaveCount(2);
         expect(await settingsPane.locator('form[data-bepis-surface-action]').count()).toBeGreaterThanOrEqual(3);
 
+        const originalStaffPanel = await page.locator('#roster-staff-panel-fragment').elementHandle();
+        if (originalStaffPanel === null) throw new Error('Expected original roster staff panel');
+        const fragmentSettled = page.evaluate((timeoutMs) => new Promise<void>((resolve, reject) => {
+            const timeout = window.setTimeout(() => reject(new Error('Timed out waiting for htmx:afterSettle')), timeoutMs);
+            document.addEventListener('htmx:afterSettle', () => {
+                window.clearTimeout(timeout);
+                resolve();
+            }, { once: true });
+        }), E2E_TIMEOUT.assertion);
         const fragmentResponse = page.waitForResponse((response) => response.url().includes('/ShowRosterWeekStaffPanelFragment'));
         await settingsPane.evaluate((pane) => {
             const actionForm = pane.querySelector('form[action*="CopyRosterWeek"]');
@@ -70,6 +79,8 @@ test.describe('Roster row controls', () => {
             htmx.ajax('GET', fragmentUrl.toString(), { target: '#roster-staff-panel-fragment', swap: 'outerHTML' });
         });
         await fragmentResponse;
+        await fragmentSettled;
+        await expect.poll(() => originalStaffPanel.evaluate((panel) => panel.isConnected), { timeout: E2E_TIMEOUT.assertion }).toBe(false);
         await expect(page.getByRole('tab', { name: 'Settings', exact: true })).toHaveAttribute('aria-selected', 'true');
         await expect(page.locator('#roster-staff-panel-settings-pane')).toBeVisible();
         expect(tabSetBoundaryErrors).toEqual([]);

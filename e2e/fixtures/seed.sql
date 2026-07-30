@@ -264,6 +264,73 @@ ON CONFLICT (id) DO UPDATE SET
     created_at = EXCLUDED.created_at,
     updated_at = EXCLUDED.updated_at;
 
+INSERT INTO fwc_mapd_sync_runs (
+    id,
+    status,
+    requested_award_fixed_ids,
+    synced_award_fixed_ids,
+    fetched_award_count,
+    fetched_classification_count,
+    fetched_pay_rate_count,
+    fetched_penalty_rate_count,
+    fetched_wage_allowance_count,
+    started_at,
+    finished_at
+)
+VALUES (
+    'a1000000-0000-0000-0000-000000000701',
+    'succeeded',
+    ARRAY[9],
+    ARRAY[9],
+    1,
+    7,
+    14,
+    42,
+    2,
+    NOW() - INTERVAL '1 minute',
+    NOW()
+)
+ON CONFLICT (id) DO UPDATE SET
+    status = EXCLUDED.status,
+    requested_award_fixed_ids = EXCLUDED.requested_award_fixed_ids,
+    synced_award_fixed_ids = EXCLUDED.synced_award_fixed_ids,
+    fetched_award_count = EXCLUDED.fetched_award_count,
+    fetched_classification_count = EXCLUDED.fetched_classification_count,
+    fetched_pay_rate_count = EXCLUDED.fetched_pay_rate_count,
+    fetched_penalty_rate_count = EXCLUDED.fetched_penalty_rate_count,
+    fetched_wage_allowance_count = EXCLUDED.fetched_wage_allowance_count,
+    started_at = EXCLUDED.started_at,
+    finished_at = EXCLUDED.finished_at,
+    error_message = NULL,
+    updated_at = NOW();
+
+INSERT INTO public_holidays (
+    id,
+    jurisdiction,
+    holiday_date,
+    name,
+    is_regional,
+    source,
+    source_id,
+    imported_at
+)
+VALUES (
+    md5('e2e-victoria-statewide-' || EXTRACT(YEAR FROM CURRENT_DATE)::text)::uuid,
+    'VIC',
+    make_date(EXTRACT(YEAR FROM CURRENT_DATE)::int, 1, 1),
+    'E2E statewide holiday coverage',
+    FALSE,
+    'e2e-fixture',
+    'e2e-statewide-current-year',
+    NOW()
+)
+ON CONFLICT (id) DO UPDATE SET
+    is_regional = FALSE,
+    source = EXCLUDED.source,
+    source_id = EXCLUDED.source_id,
+    imported_at = EXCLUDED.imported_at,
+    updated_at = NOW();
+
 INSERT INTO award_levels (
     id,
     award_fixed_id,
@@ -276,10 +343,13 @@ INSERT INTO award_levels (
     raw_json
 )
 VALUES
-    ('a1000000-0000-0000-0000-000000000111', 900001, 1, 'LVL 1', NULL, '2025-07-01', 2025, TRUE, '{}'::jsonb),
-    ('a1000000-0000-0000-0000-000000000112', 900001, 2, 'LVL 2', NULL, '2025-07-01', 2025, TRUE, '{}'::jsonb),
-    ('a1000000-0000-0000-0000-000000000113', 900001, 3, 'Floor Level', NULL, '2025-07-01', 2025, TRUE, '{}'::jsonb),
-    ('a1000000-0000-0000-0000-000000000121', 900001, 4, 'Beta Level', NULL, '2025-07-01', 2025, TRUE, '{}'::jsonb)
+    ('a1000000-0000-0000-0000-000000000111', 9, 243, 'Level 1', '2.0', '2025-07-01', 2025, TRUE, '{}'::jsonb),
+    ('a1000000-0000-0000-0000-000000000112', 9, 246, 'Level 2', '3.0', '2025-07-01', 2025, TRUE, '{}'::jsonb),
+    ('a1000000-0000-0000-0000-000000000113', 9, 257, 'Level 3', '4.0', '2025-07-01', 2025, TRUE, '{}'::jsonb),
+    ('a1000000-0000-0000-0000-000000000114', 9, 242, 'Introductory level', '1.0', '2025-07-01', 2025, TRUE, '{}'::jsonb),
+    ('a1000000-0000-0000-0000-000000000115', 9, 276, 'Level 5', '6.0', '2025-07-01', 2025, TRUE, '{}'::jsonb),
+    ('a1000000-0000-0000-0000-000000000116', 9, 282, 'Level 6', '7.0', '2025-07-01', 2025, TRUE, '{}'::jsonb),
+    ('a1000000-0000-0000-0000-000000000121', 9, 268, 'Level 4', '5.0', '2025-07-01', 2025, TRUE, '{}'::jsonb)
 ON CONFLICT (id) DO UPDATE SET
     award_fixed_id = EXCLUDED.award_fixed_id,
     classification_fixed_id = EXCLUDED.classification_fixed_id,
@@ -291,6 +361,19 @@ ON CONFLICT (id) DO UPDATE SET
     raw_json = EXCLUDED.raw_json,
     updated_at = NOW();
 
+WITH fixture_classifications (classification_fixed_id, classification, permanent_ordinary_rate) AS (
+    VALUES
+        (242, 'Introductory level', 24.28::numeric),
+        (243, 'Level 1', 24.95::numeric),
+        (246, 'Level 2', 25.85::numeric),
+        (257, 'Level 3', 26.70::numeric),
+        (268, 'Level 4', 28.12::numeric),
+        (276, 'Level 5', 29.88::numeric),
+        (282, 'Level 6', 30.00::numeric)
+),
+fixture_bases (employment_basis, employee_rate_type_code, multiplier) AS (
+    VALUES ('permanent'::staff_employment_basis_enum, 'AD', 1.0), ('casual'::staff_employment_basis_enum, 'CA', 1.25)
+)
 INSERT INTO fwc_mapd_pay_rates (
     id,
     award_fixed_id,
@@ -304,11 +387,20 @@ INSERT INTO fwc_mapd_pay_rates (
     published_year,
     raw_json
 )
-VALUES
-    ('a1000000-0000-0000-0000-000000000711', 900001, 1, 'LVL 1', NULL, 'AD', 30.00, 'Hourly', '2025-07-01', 2025, '{}'::jsonb),
-    ('a1000000-0000-0000-0000-000000000712', 900001, 2, 'LVL 2', NULL, 'AD', 35.00, 'Hourly', '2025-07-01', 2025, '{}'::jsonb),
-    ('a1000000-0000-0000-0000-000000000713', 900001, 3, 'Floor Level', NULL, 'AD', 28.00, 'Hourly', '2025-07-01', 2025, '{}'::jsonb),
-    ('a1000000-0000-0000-0000-000000000714', 900001, 4, 'Beta Level', NULL, 'AD', 27.00, 'Hourly', '2025-07-01', 2025, '{}'::jsonb)
+SELECT
+    md5('e2e-fwc-base-' || classification_fixed_id::text || '-' || employment_basis::text)::uuid,
+    9,
+    classification_fixed_id,
+    classification,
+    NULL,
+    employee_rate_type_code,
+    round(permanent_ordinary_rate * multiplier, 2),
+    'Hourly',
+    '2025-07-01'::date,
+    2025,
+    '{}'::jsonb
+FROM fixture_classifications
+CROSS JOIN fixture_bases
 ON CONFLICT (id) DO UPDATE SET
     award_fixed_id = EXCLUDED.award_fixed_id,
     classification_fixed_id = EXCLUDED.classification_fixed_id,
@@ -322,6 +414,19 @@ ON CONFLICT (id) DO UPDATE SET
     raw_json = EXCLUDED.raw_json,
     updated_at = NOW();
 
+WITH fixture_award_levels (award_level_id, classification_fixed_id, permanent_ordinary_rate) AS (
+    VALUES
+        ('a1000000-0000-0000-0000-000000000114'::uuid, 242, 24.28::numeric),
+        ('a1000000-0000-0000-0000-000000000111'::uuid, 243, 24.95::numeric),
+        ('a1000000-0000-0000-0000-000000000112'::uuid, 246, 25.85::numeric),
+        ('a1000000-0000-0000-0000-000000000113'::uuid, 257, 26.70::numeric),
+        ('a1000000-0000-0000-0000-000000000121'::uuid, 268, 28.12::numeric),
+        ('a1000000-0000-0000-0000-000000000115'::uuid, 276, 29.88::numeric),
+        ('a1000000-0000-0000-0000-000000000116'::uuid, 282, 30.00::numeric)
+),
+fixture_bases (employment_basis, multiplier) AS (
+    VALUES ('permanent'::staff_employment_basis_enum, 1.0), ('casual'::staff_employment_basis_enum, 1.25)
+)
 INSERT INTO award_level_base_rates (
     id,
     award_level_id,
@@ -332,11 +437,17 @@ INSERT INTO award_level_base_rates (
     operative_from,
     published_year
 )
-VALUES
-    ('a1000000-0000-0000-0000-000000000721', 'a1000000-0000-0000-0000-000000000111', 'permanent', 'a1000000-0000-0000-0000-000000000711', 30.00, 'Permanent hourly', '2025-07-01', 2025),
-    ('a1000000-0000-0000-0000-000000000722', 'a1000000-0000-0000-0000-000000000112', 'permanent', 'a1000000-0000-0000-0000-000000000712', 35.00, 'Permanent hourly', '2025-07-01', 2025),
-    ('a1000000-0000-0000-0000-000000000723', 'a1000000-0000-0000-0000-000000000113', 'permanent', 'a1000000-0000-0000-0000-000000000713', 28.00, 'Permanent hourly', '2025-07-01', 2025),
-    ('a1000000-0000-0000-0000-000000000724', 'a1000000-0000-0000-0000-000000000121', 'permanent', 'a1000000-0000-0000-0000-000000000714', 27.00, 'Permanent hourly', '2025-07-01', 2025)
+SELECT
+    md5('e2e-base-' || award_level_id::text || '-' || employment_basis::text)::uuid,
+    award_level_id,
+    employment_basis,
+    md5('e2e-fwc-base-' || classification_fixed_id::text || '-' || employment_basis::text)::uuid,
+    round(permanent_ordinary_rate * multiplier, 2),
+    CASE employment_basis WHEN 'casual' THEN 'Casual ordinary hours' ELSE 'Hourly' END,
+    '2025-07-01'::date,
+    2025
+FROM fixture_award_levels
+CROSS JOIN fixture_bases
 ON CONFLICT (id) DO UPDATE SET
     award_level_id = EXCLUDED.award_level_id,
     employment_basis = EXCLUDED.employment_basis,
@@ -359,8 +470,8 @@ INSERT INTO fwc_mapd_wage_allowances (
     raw_json
 )
 VALUES
-    ('a1000000-0000-0000-0000-000000000731', 900001, 7001, 'Monday to Friday - 7pm to midnight allowance', 'Hourly', 2.81, '2025-07-01', 2025, '{}'::jsonb),
-    ('a1000000-0000-0000-0000-000000000732', 900001, 7002, 'Monday to Friday - midnight to 7am allowance', 'Hourly', 4.22, '2025-07-01', 2025, '{}'::jsonb)
+    ('a1000000-0000-0000-0000-000000000731', 9, 7001, 'Monday to Friday - 7pm to midnight allowance', 'Hourly', 2.81, '2025-07-01', 2025, '{}'::jsonb),
+    ('a1000000-0000-0000-0000-000000000732', 9, 7002, 'Monday to Friday - midnight to 7am allowance', 'Hourly', 4.22, '2025-07-01', 2025, '{}'::jsonb)
 ON CONFLICT (id) DO UPDATE SET
     award_fixed_id = EXCLUDED.award_fixed_id,
     wage_allowance_fixed_id = EXCLUDED.wage_allowance_fixed_id,
@@ -384,8 +495,8 @@ INSERT INTO award_time_penalty_allowances (
     published_year
 )
 VALUES
-    ('a1000000-0000-0000-0000-000000000741', 900001, 'evening_after_7pm', 'a1000000-0000-0000-0000-000000000731', 2.81, '19:00', '00:00', '2025-07-01', 2025),
-    ('a1000000-0000-0000-0000-000000000742', 900001, 'late_night_after_midnight', 'a1000000-0000-0000-0000-000000000732', 4.22, '00:00', '07:00', '2025-07-01', 2025)
+    ('a1000000-0000-0000-0000-000000000741', 9, 'evening_after_7pm', 'a1000000-0000-0000-0000-000000000731', 2.81, '19:00', '00:00', '2025-07-01', 2025),
+    ('a1000000-0000-0000-0000-000000000742', 9, 'late_night_after_midnight', 'a1000000-0000-0000-0000-000000000732', 4.22, '00:00', '07:00', '2025-07-01', 2025)
 ON CONFLICT (id) DO UPDATE SET
     award_fixed_id = EXCLUDED.award_fixed_id,
     penalty_kind = EXCLUDED.penalty_kind,
@@ -397,6 +508,27 @@ ON CONFLICT (id) DO UPDATE SET
     published_year = EXCLUDED.published_year,
     updated_at = NOW();
 
+WITH fixture_classifications (classification_fixed_id, classification, permanent_ordinary_rate, ordinal) AS (
+    VALUES
+        (242, 'Introductory level', 24.28::numeric, 0),
+        (243, 'Level 1', 24.95::numeric, 1),
+        (246, 'Level 2', 25.85::numeric, 2),
+        (257, 'Level 3', 26.70::numeric, 3),
+        (268, 'Level 4', 28.12::numeric, 4),
+        (276, 'Level 5', 29.88::numeric, 5),
+        (282, 'Level 6', 30.00::numeric, 6)
+),
+fixture_bases (employment_basis, employee_rate_type_code, basis_ordinal) AS (
+    VALUES
+        ('permanent'::staff_employment_basis_enum, 'AD', 0),
+        ('casual'::staff_employment_basis_enum, 'CA', 1)
+),
+fixture_penalties (penalty_kind, description, permanent_multiplier, casual_multiplier, penalty_ordinal) AS (
+    VALUES
+        ('saturday_penalty'::award_penalty_kind_enum, 'Saturday', 1.25, 1.5, 1),
+        ('sunday_penalty'::award_penalty_kind_enum, 'Sunday', 1.5, 1.75, 2),
+        ('public_holiday_penalty'::award_penalty_kind_enum, 'Public holiday', 2.25, 2.5, 3)
+)
 INSERT INTO fwc_mapd_penalty_rates (
     id,
     award_fixed_id,
@@ -411,10 +543,22 @@ INSERT INTO fwc_mapd_penalty_rates (
     published_year,
     raw_json
 )
-VALUES
-    ('a1000000-0000-0000-0000-000000000751', 900001, 1, 'LVL 1', NULL, 'AD', 7501, 'Saturday', 45.00, '2025-07-01', 2025, '{}'::jsonb),
-    ('a1000000-0000-0000-0000-000000000752', 900001, 1, 'LVL 1', NULL, 'AD', 7502, 'Sunday', 52.50, '2025-07-01', 2025, '{}'::jsonb),
-    ('a1000000-0000-0000-0000-000000000753', 900001, 1, 'LVL 1', NULL, 'AD', 7503, 'Public holiday', 67.50, '2025-07-01', 2025, '{}'::jsonb)
+SELECT
+    md5('e2e-fwc-penalty-' || classification_fixed_id::text || '-' || employment_basis::text || '-' || penalty_kind::text)::uuid,
+    9,
+    classification_fixed_id,
+    classification,
+    NULL,
+    employee_rate_type_code,
+    7500 + (ordinal * 10) + (basis_ordinal * 3) + penalty_ordinal,
+    description,
+    round(permanent_ordinary_rate * CASE employment_basis WHEN 'casual' THEN casual_multiplier ELSE permanent_multiplier END, 2),
+    '2025-07-01'::date,
+    2025,
+    '{}'::jsonb
+FROM fixture_classifications
+CROSS JOIN fixture_bases
+CROSS JOIN fixture_penalties
 ON CONFLICT (id) DO UPDATE SET
     award_fixed_id = EXCLUDED.award_fixed_id,
     classification_fixed_id = EXCLUDED.classification_fixed_id,
@@ -429,6 +573,25 @@ ON CONFLICT (id) DO UPDATE SET
     raw_json = EXCLUDED.raw_json,
     updated_at = NOW();
 
+WITH fixture_award_levels (award_level_id, classification_fixed_id, permanent_ordinary_rate) AS (
+    VALUES
+        ('a1000000-0000-0000-0000-000000000114'::uuid, 242, 24.28::numeric),
+        ('a1000000-0000-0000-0000-000000000111'::uuid, 243, 24.95::numeric),
+        ('a1000000-0000-0000-0000-000000000112'::uuid, 246, 25.85::numeric),
+        ('a1000000-0000-0000-0000-000000000113'::uuid, 257, 26.70::numeric),
+        ('a1000000-0000-0000-0000-000000000121'::uuid, 268, 28.12::numeric),
+        ('a1000000-0000-0000-0000-000000000115'::uuid, 276, 29.88::numeric),
+        ('a1000000-0000-0000-0000-000000000116'::uuid, 282, 30.00::numeric)
+),
+fixture_bases (employment_basis) AS (
+    VALUES ('permanent'::staff_employment_basis_enum), ('casual'::staff_employment_basis_enum)
+),
+fixture_penalties (penalty_kind, permanent_multiplier, casual_multiplier) AS (
+    VALUES
+        ('saturday_penalty'::award_penalty_kind_enum, 1.25, 1.5),
+        ('sunday_penalty'::award_penalty_kind_enum, 1.5, 1.75),
+        ('public_holiday_penalty'::award_penalty_kind_enum, 2.25, 2.5)
+)
 INSERT INTO award_level_penalty_rates (
     id,
     award_level_id,
@@ -439,10 +602,18 @@ INSERT INTO award_level_penalty_rates (
     operative_from,
     published_year
 )
-VALUES
-    ('a1000000-0000-0000-0000-000000000761', 'a1000000-0000-0000-0000-000000000111', 'permanent', 'saturday_penalty', 'a1000000-0000-0000-0000-000000000751', 45.00, '2025-07-01', 2025),
-    ('a1000000-0000-0000-0000-000000000762', 'a1000000-0000-0000-0000-000000000111', 'permanent', 'sunday_penalty', 'a1000000-0000-0000-0000-000000000752', 52.50, '2025-07-01', 2025),
-    ('a1000000-0000-0000-0000-000000000763', 'a1000000-0000-0000-0000-000000000111', 'permanent', 'public_holiday_penalty', 'a1000000-0000-0000-0000-000000000753', 67.50, '2025-07-01', 2025)
+SELECT
+    md5('e2e-penalty-' || award_level_id::text || '-' || employment_basis::text || '-' || penalty_kind::text)::uuid,
+    award_level_id,
+    employment_basis,
+    penalty_kind,
+    md5('e2e-fwc-penalty-' || classification_fixed_id::text || '-' || employment_basis::text || '-' || penalty_kind::text)::uuid,
+    round(permanent_ordinary_rate * CASE employment_basis WHEN 'casual' THEN casual_multiplier ELSE permanent_multiplier END, 2),
+    '2025-07-01'::date,
+    2025
+FROM fixture_award_levels
+CROSS JOIN fixture_bases
+CROSS JOIN fixture_penalties
 ON CONFLICT (id) DO UPDATE SET
     award_level_id = EXCLUDED.award_level_id,
     employment_basis = EXCLUDED.employment_basis,

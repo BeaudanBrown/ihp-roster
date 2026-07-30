@@ -55,9 +55,25 @@ async function createProfileLeaveRequest(page: Page, note: string, startDate: st
     await expect(page.locator('#self-service-leave-history-fragment')).toContainText(note);
 }
 
-async function createTimesheet(page: Page, startTime: string, endTime: string) {
+async function createTimesheet(page: Page, startTime: string, endTime: string, staffComment?: string) {
     await page.locator('[data-timesheet-day-add="true"]').first().click();
+    if (staffComment !== undefined) {
+        await expect(page.locator('#timesheet-entry-create-form')).toBeVisible();
+        await page.fill('textarea[name="staffComment"]', staffComment);
+    }
     await fillAndSaveTimesheetDialog(page, startTime, endTime);
+}
+
+const managerApprovalEntryMarker = 'e2e-live-manager-approval';
+
+function cleanupManagerApprovalEntry() {
+    runSql(`
+        UPDATE timesheet_entries
+        SET deleted_at = NOW(), delete_reason = 'e2e_cleanup', updated_at = NOW()
+        WHERE staff_id = 'a1000000-0000-0000-0000-000000000031'
+          AND staff_comment = '${managerApprovalEntryMarker}'
+          AND deleted_at IS NULL;
+    `);
 }
 
 async function createTimesheetForDaySection(page: Page, dayOffset: string, startTime: string, endTime: string) {
@@ -354,29 +370,34 @@ test.describe('Live fragment multi-view coverage', () => {
         const workerPage = await workerContext.newPage();
         const renderedRange = '11:15 AM–3:15 PM';
 
-        await loginManager(managerPage);
-        await loginWorker(workerPage);
+        cleanupManagerApprovalEntry();
+        try {
+            await loginManager(managerPage);
+            await loginWorker(workerPage);
 
-        await gotoWhenReady(managerPage, '/Timesheets?showApproved=true', '#timesheet-week-shell');
-        await gotoWhenReady(workerPage, '/Timesheets?showApproved=true', '#timesheet-week-shell');
+            await gotoWhenReady(managerPage, '/Timesheets?showApproved=true', '#timesheet-week-shell');
+            await gotoWhenReady(workerPage, '/Timesheets?showApproved=true', '#timesheet-week-shell');
 
-        await createTimesheet(workerPage, '11:15', '15:15');
+            await createTimesheet(workerPage, '11:15', '15:15', managerApprovalEntryMarker);
 
-        const managerEntry = managerPage.locator('#timesheet-day-section-0 .timesheet-entry-card').filter({ hasText: renderedRange });
-        const workerEntry = workerPage.locator('#timesheet-day-section-0 .timesheet-entry-card').filter({ hasText: renderedRange });
+            const managerEntry = managerPage.locator('#timesheet-day-section-0 .timesheet-entry-card').filter({ hasText: managerApprovalEntryMarker });
+            const workerEntry = workerPage.locator('#timesheet-day-section-0 .timesheet-entry-card').filter({ hasText: managerApprovalEntryMarker });
 
-        await expect(managerEntry).toHaveCount(1);
-        await expect(managerEntry.getByRole('button', { name: 'Approve' })).toBeVisible();
-        await expect(workerEntry).toHaveCount(1);
-        await expect(workerEntry).not.toContainText('Approved');
+            await expect(managerEntry).toHaveCount(1);
+            await expect(managerEntry).toContainText(renderedRange);
+            await expect(managerEntry.getByRole('button', { name: 'Approve' })).toBeVisible();
+            await expect(workerEntry).toHaveCount(1);
+            await expect(workerEntry).not.toContainText('Approved');
 
-        await managerEntry.getByRole('button', { name: 'Approve' }).click();
+            await managerEntry.getByRole('button', { name: 'Approve' }).click();
 
-        await expect(managerEntry).toContainText('Approved');
-        await expect(workerEntry).toHaveAttribute('data-timesheet-entry-approved', 'true');
-
-        await managerContext.close();
-        await workerContext.close();
+            await expect(managerEntry).toContainText('Approved');
+            await expect(workerEntry).toHaveAttribute('data-timesheet-entry-approved', 'true', { timeout: E2E_TIMEOUT.liveUpdate });
+        } finally {
+            cleanupManagerApprovalEntry();
+            await managerContext.close();
+            await workerContext.close();
+        }
     });
 
     test('worker roster quick timesheet card and timesheet page refresh each other live', async ({ browser }) => {
