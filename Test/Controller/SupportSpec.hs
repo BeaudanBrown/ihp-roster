@@ -95,7 +95,45 @@ tests = aroundAll withDatabaseTestContext do
                 response `responseBodyShouldContain` "Roster page needs a clearer publish button"
                 response `responseBodyShouldContain` "feedback-support-user@example.com"
                 response `responseBodyShouldContain` "Unread feedback: <span class=\"fw-semibold\">1</span>"
+                response `responseBodyShouldContain` ">Info</summary>"
+                response `responseBodyShouldContain` "Page</dt>"
+                response `responseBodyShouldContain` "Not reported"
                 response `responseBodyShouldNotContain` "hx-get=\"/NewFeedback\""
+
+        it "shows captured feedback diagnostics inline" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Feedback Diagnostics Venue"
+                submitter <- createUserRecord "feedback-diagnostics-user@example.com" "staff" True
+                superAdmin <- createUserRecordWithPlatformRole "feedback-diagnostics-super@example.com" "staff" (Just SuperAdminRole) True
+                _ <- newRecord @UserFeedbackItem
+                    |> set #venueId (unpackId venue.id)
+                    |> set #submittedByUserId (unpackId submitter.id)
+                    |> set #feedbackType "bug"
+                    |> set #status "new"
+                    |> set #priority "normal"
+                    |> set #content "Diagnostics are available"
+                    |> set #submittedPath (Just "/LeaveRequests")
+                    |> set #userAgent (Just "FeedbackBrowser/1.0")
+                    |> set #submittedRole (Just "venue_admin")
+                    |> set #viewportWidth (Just 390)
+                    |> set #viewportHeight (Just 844)
+                    |> set #devicePixelRatio (Just 2.625)
+                    |> set #deviceClass (Just "mobile")
+                    |> set #displayMode (Just "standalone")
+                    |> createRecord
+
+                response <- withPasskeyVerifiedUser superAdmin do
+                    callAction SupportAction
+
+                response `responseStatusShouldBe` status200
+                response `responseBodyShouldContain` "Feedback Diagnostics Venue"
+                response `responseBodyShouldContain` "/LeaveRequests"
+                response `responseBodyShouldContain` "FeedbackBrowser/1.0"
+                response `responseBodyShouldContain` "Venue admin"
+                response `responseBodyShouldContain` "390 × 844"
+                response `responseBodyShouldContain` "2.625"
+                response `responseBodyShouldContain` "Mobile"
+                response `responseBodyShouldContain` "Standalone PWA"
 
         it "marks feedback read for super admins" $ withContext do
             withCleanDb do

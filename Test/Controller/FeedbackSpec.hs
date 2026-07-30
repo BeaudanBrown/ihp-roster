@@ -1,5 +1,6 @@
 module Test.Controller.FeedbackSpec where
 
+import Application.Helper.Controller (PlatformRole (SuperAdminRole))
 import Generated.Types
 import IHP.ControllerPrelude
 import IHP.FrameworkConfig
@@ -36,10 +37,20 @@ tests = aroundAll withDatabaseTestContext do
                 _ <- createVenueMembershipRecord venue user "worker"
 
                 response <- withPasskeyVerifiedUserAndCurrentVenue user venue.id do
-                    withRequestHeaders [("HX-Request", "true"), ("User-Agent", "FeedbackSpec/1.0")] do
+                    withRequestHeaders
+                        [ ("HX-Request", "true")
+                        , ("User-Agent", "FeedbackSpec/1.0")
+                        , ("Host", "app.example")
+                        , ("Referer", "https://app.example/LeaveRequests?staff=secret#private")
+                        ] do
                         callActionWithParams CreateFeedbackAction
                             [ ("feedbackType", "suggestion")
                             , ("content", "  Please add a daily print view.  ")
+                            , ("feedbackOriginPath", "/invented-path?forged=secret")
+                            , ("feedbackViewportWidth", "390")
+                            , ("feedbackViewportHeight", "844")
+                            , ("feedbackDevicePixelRatio", "2.625")
+                            , ("feedbackDisplayMode", "standalone")
                             ]
 
                 response `responseStatusShouldBe` status200
@@ -52,6 +63,83 @@ tests = aroundAll withDatabaseTestContext do
                 feedbackItem.feedbackType `shouldBe` "suggestion"
                 feedbackItem.content `shouldBe` "Please add a daily print view."
                 feedbackItem.userAgent `shouldBe` Just "FeedbackSpec/1.0"
+                feedbackItem.submittedPath `shouldBe` Just "/LeaveRequests"
+                feedbackItem.submittedRole `shouldBe` Just "worker"
+                feedbackItem.viewportWidth `shouldBe` Just 390
+                feedbackItem.viewportHeight `shouldBe` Just 844
+                feedbackItem.devicePixelRatio `shouldBe` Just 2.625
+                feedbackItem.deviceClass `shouldBe` Just "mobile"
+                feedbackItem.displayMode `shouldBe` Just "standalone"
+
+        it "creates feedback when browser diagnostics are missing or malformed" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Feedback Best Effort Venue"
+                user <- createUserRecord "feedback-best-effort@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue user "manager"
+
+                response <- withPasskeyVerifiedUserAndCurrentVenue user venue.id do
+                    withRequestHeaders
+                        [ ("HX-Request", "true")
+                        , ("Host", "app.example")
+                        , ("Referer", "https://app.example/CreateFeedback?token=bad")
+                        ] do
+                        callActionWithParams CreateFeedbackAction
+                            [ ("feedbackType", "bug")
+                            , ("content", "Browser metadata must remain optional")
+                            , ("feedbackOriginPath", "/invented-path")
+                            , ("feedbackViewportWidth", "-1")
+                            , ("feedbackViewportHeight", "not-a-number")
+                            , ("feedbackDevicePixelRatio", "NaN")
+                            , ("feedbackDisplayMode", "installed-with-secrets")
+                            ]
+
+                response `responseStatusShouldBe` status200
+                feedbackItem <- query @UserFeedbackItem |> fetchOne
+                feedbackItem.submittedPath `shouldBe` Nothing
+                feedbackItem.submittedRole `shouldBe` Just "manager"
+                feedbackItem.userAgent `shouldBe` Nothing
+                feedbackItem.viewportWidth `shouldBe` Nothing
+                feedbackItem.viewportHeight `shouldBe` Nothing
+                feedbackItem.devicePixelRatio `shouldBe` Nothing
+                feedbackItem.deviceClass `shouldBe` Nothing
+                feedbackItem.displayMode `shouldBe` Nothing
+
+        it "persists the direct feedback page as the no-JavaScript origin" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Feedback No JavaScript Venue"
+                user <- createUserRecord "feedback-no-js@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue user "worker"
+
+                response <- withPasskeyVerifiedUserAndCurrentVenue user venue.id do
+                    withRequestHeaders
+                        [ ("Host", "app.example")
+                        , ("Referer", "https://app.example/NewFeedback?ignored=secret")
+                        ] do
+                        callActionWithParams CreateFeedbackAction
+                            [ ("feedbackType", "bug")
+                            , ("content", "The native feedback form still submits")
+                            ]
+
+                response `responseStatusShouldBe` status302
+                feedbackItem <- query @UserFeedbackItem |> fetchOne
+                feedbackItem.submittedPath `shouldBe` Just "/NewFeedback"
+                feedbackItem.viewportWidth `shouldBe` Nothing
+
+        it "snapshots platform support submissions distinctly from venue roles" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Feedback Support Role Venue"
+                supportUser <- createUserRecordWithPlatformRole "feedback-role-support@example.com" "staff" (Just SuperAdminRole) True
+
+                response <- withPasskeyVerifiedUserAndCurrentVenue supportUser venue.id do
+                    withRequestHeaders [("HX-Request", "true")] do
+                        callActionWithParams CreateFeedbackAction
+                            [ ("feedbackType", "bug")
+                            , ("content", "Support context needs a distinct role")
+                            ]
+
+                response `responseStatusShouldBe` status200
+                feedbackItem <- query @UserFeedbackItem |> fetchOne
+                feedbackItem.submittedRole `shouldBe` Just "support_super_admin"
 
         it "rejects missing feedback content without creating a row" $ withContext do
             withCleanDb do

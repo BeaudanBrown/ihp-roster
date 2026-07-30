@@ -189,7 +189,7 @@ renderFeedbackRow SupportFeedbackRow { supportFeedbackItem = feedbackItem, suppo
             <details>
                 <summary>{feedbackContentPreview feedbackItem.content}</summary>
                 <div class="mt-2 text-break">{feedbackItem.content}</div>
-                {forEach feedbackItem.submittedPath renderSubmittedPath}
+                {renderFeedbackDiagnostics supportFeedbackVenueName feedbackItem}
                 {renderSupportNoteForm feedbackItem}
             </details>
         </td>
@@ -260,8 +260,57 @@ renderSupportNoteForm feedbackItem = [hsx|
     </form>
 |]
 
-renderSubmittedPath :: Text -> Html
-renderSubmittedPath submittedPath = [hsx|<div class="small app-muted mt-2">Page: {submittedPath}</div>|]
+renderFeedbackDiagnostics :: Text -> UserFeedbackItem -> Html
+renderFeedbackDiagnostics venueName feedbackItem = [hsx|
+    <details class="mt-3" data-feedback-diagnostics="true">
+        <summary>Info</summary>
+        <dl class="row small mb-0 mt-2">
+            {renderFeedbackDiagnostic "Page" feedbackItem.submittedPath}
+            {renderFeedbackDiagnostic "Venue" (Just venueName)}
+            {renderFeedbackDiagnostic "Submitter role" (feedbackRoleLabel <$> feedbackItem.submittedRole)}
+            {renderFeedbackDiagnostic "User-Agent" feedbackItem.userAgent}
+            {renderFeedbackDiagnostic "Viewport" (renderViewport feedbackItem.viewportWidth feedbackItem.viewportHeight)}
+            {renderFeedbackDiagnostic "Device pixel ratio" (tshow <$> feedbackItem.devicePixelRatio)}
+            {renderFeedbackDiagnostic "Device class" (feedbackDeviceClassLabel <$> feedbackItem.deviceClass)}
+            {renderFeedbackDiagnostic "App mode" (feedbackDisplayModeLabel <$> feedbackItem.displayMode)}
+        </dl>
+    </details>
+|]
+
+renderFeedbackDiagnostic :: Text -> Maybe Text -> Html
+renderFeedbackDiagnostic label maybeValue = [hsx|
+    <dt class="col-sm-4">{label}</dt>
+    <dd class="col-sm-8 text-break">{fromMaybe "Not reported" maybeValue}</dd>
+|]
+
+renderViewport :: Maybe Int -> Maybe Int -> Maybe Text
+renderViewport (Just width) (Just height) = Just (tshow width <> " × " <> tshow height)
+renderViewport _ _ = Nothing
+
+feedbackRoleLabel :: Text -> Text
+feedbackRoleLabel role =
+    case role of
+        "worker"              -> "Worker"
+        "supervisor"          -> "Supervisor"
+        "manager"             -> "Manager"
+        "venue_admin"         -> "Venue admin"
+        "venue_owner"         -> "Venue owner"
+        "support_super_admin" -> "Support super admin"
+        _                     -> role
+
+feedbackDeviceClassLabel :: Text -> Text
+feedbackDeviceClassLabel deviceClass =
+    case deviceClass of
+        "mobile"  -> "Mobile"
+        "desktop" -> "Desktop"
+        _         -> deviceClass
+
+feedbackDisplayModeLabel :: Text -> Text
+feedbackDisplayModeLabel displayMode =
+    case displayMode of
+        "standalone" -> "Standalone PWA"
+        "browser"    -> "Browser"
+        _            -> displayMode
 
 feedbackContentPreview :: Text -> Text
 feedbackContentPreview content =

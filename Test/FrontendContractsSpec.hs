@@ -281,7 +281,14 @@ tests = describe "Frontend contract generator foundation" do
                 , Contract.HtmxActionPushUrlIR Contract.HtmxPushUrlFalseIR
                 ]
         let submitFeedbackAction = find ((== "submit-feedback") . (.appShellActionName)) appShellActions
-        fmap (fmap (.fieldName) . (.appShellActionFields)) submitFeedbackAction `shouldBe` Just ["feedbackType", "content"]
+        fmap (fmap (.fieldName) . (.appShellActionFields)) submitFeedbackAction `shouldBe` Just
+            [ "feedbackType"
+            , "content"
+            , "feedbackViewportWidth"
+            , "feedbackViewportHeight"
+            , "feedbackDevicePixelRatio"
+            , "feedbackDisplayMode"
+            ]
         fmap (.appShellActionOptions) submitFeedbackAction
             `shouldBe` Just
                 [ Contract.HtmxActionMethodIR Contract.HtmxPostIR

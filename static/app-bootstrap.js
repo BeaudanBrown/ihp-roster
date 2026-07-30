@@ -2,6 +2,56 @@
 (() => {
   // frontend/ts/generated/contracts.ts
   var pageReadyEvent = "bepis:page-ready";
+  var feedbackViewportWidthInputDomAttr = "data-bepis-feedback-viewport-width-input";
+  var feedbackViewportHeightInputDomAttr = "data-bepis-feedback-viewport-height-input";
+  var feedbackDevicePixelRatioInputDomAttr = "data-bepis-feedback-device-pixel-ratio-input";
+  var feedbackDisplayModeInputDomAttr = "data-bepis-feedback-display-mode-input";
+
+  // frontend/ts/feedback-diagnostics.ts
+  var initializedForms = /* @__PURE__ */ new WeakSet();
+  function roleSelector(attribute) {
+    return `[${attribute}]`;
+  }
+  function hiddenInput(form, attribute) {
+    const input = form.querySelector(roleSelector(attribute));
+    return input?.type === "hidden" ? input : null;
+  }
+  function diagnosticInputs(viewportWidth) {
+    const form = viewportWidth.closest("form");
+    if (!form || viewportWidth.type !== "hidden") return null;
+    const viewportHeight = hiddenInput(form, feedbackViewportHeightInputDomAttr);
+    const devicePixelRatio = hiddenInput(form, feedbackDevicePixelRatioInputDomAttr);
+    const displayMode = hiddenInput(form, feedbackDisplayModeInputDomAttr);
+    if (!viewportWidth || !viewportHeight || !devicePixelRatio || !displayMode) return null;
+    return { form, viewportWidth, viewportHeight, devicePixelRatio, displayMode };
+  }
+  function currentDisplayMode() {
+    const mediaStandalone = typeof window.matchMedia === "function" && window.matchMedia("(display-mode: standalone)").matches;
+    const appleStandalone = navigator.standalone === true;
+    return mediaStandalone || appleStandalone ? "standalone" : "browser";
+  }
+  function populateFeedbackDiagnostics(inputs) {
+    inputs.viewportWidth.value = String(window.innerWidth);
+    inputs.viewportHeight.value = String(window.innerHeight);
+    inputs.devicePixelRatio.value = String(window.devicePixelRatio);
+    inputs.displayMode.value = currentDisplayMode();
+  }
+  function initializeFeedbackDiagnostics(root = document) {
+    const viewportWidths = Array.from(
+      root.querySelectorAll(roleSelector(feedbackViewportWidthInputDomAttr))
+    );
+    if (root instanceof HTMLInputElement && root.matches(roleSelector(feedbackViewportWidthInputDomAttr))) {
+      viewportWidths.unshift(root);
+    }
+    for (const viewportWidth of viewportWidths) {
+      const inputs = diagnosticInputs(viewportWidth);
+      if (!inputs) continue;
+      populateFeedbackDiagnostics(inputs);
+      if (initializedForms.has(inputs.form)) continue;
+      initializedForms.add(inputs.form);
+      inputs.form.addEventListener("submit", () => populateFeedbackDiagnostics(inputs));
+    }
+  }
 
   // frontend/ts/shared/dom.ts
   function isElement(value) {
@@ -77,6 +127,7 @@
     document.addEventListener(pageReadyEventName, function(event) {
       const target = normalizeTarget(detailTarget(event, "target"));
       window.htmx?.process?.(target);
+      initializeFeedbackDiagnostics(target);
     });
     document.addEventListener("DOMContentLoaded", function() {
       dispatchPageReady({

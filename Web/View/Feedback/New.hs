@@ -6,6 +6,7 @@ import Application.Helper.FrontendContract.AppShell (SubmitFeedback)
 import Application.Helper.FrontendContract.AppShell.Runtime (AppShellActionRoute (..),
                                                              appShellActionByMarker,
                                                              renderAppShellActionForm)
+import Application.Helper.FrontendContract.FeedbackDiagnostics.Runtime (renderFeedbackDiagnosticInputs)
 import qualified Data.Text as Text
 import Web.View.Prelude
 
@@ -63,6 +64,7 @@ renderFeedbackForm formMode feedbackItem =
 
 renderFeedbackFormFields :: UserFeedbackItem -> Html
 renderFeedbackFormFields feedbackItem = [hsx|
+    {renderFeedbackDiagnosticInputs}
     <div class="app-form-width">
         <div class="mb-3">
             <label class="form-label" for="feedback-type">Type</label>

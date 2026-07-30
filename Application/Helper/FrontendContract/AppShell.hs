@@ -11,6 +11,10 @@ module Application.Helper.FrontendContract.AppShell
     , SubmitFeedback
     , FeedbackTypeField
     , ContentField
+    , FeedbackViewportWidthField
+    , FeedbackViewportHeightField
+    , FeedbackDevicePixelRatioField
+    , FeedbackDisplayModeField
     , OpenTimesheetEntryDialog
     , EditTimesheetEntryDialog
     , CreateTimesheetEntryOverlay
@@ -99,6 +103,10 @@ data OpenPageHelpDialog
 data SubmitFeedback
 data FeedbackTypeField
 data ContentField
+data FeedbackViewportWidthField
+data FeedbackViewportHeightField
+data FeedbackDevicePixelRatioField
+data FeedbackDisplayModeField
 
 data OpenTimesheetEntryDialog
 data EditTimesheetEntryDialog
@@ -196,6 +204,10 @@ type AppShellContract =
          , AppShellAction SubmitFeedback
             '[ Field FeedbackTypeField 'WireText
              , Field ContentField 'WireText
+             , Field FeedbackViewportWidthField 'WireText
+             , Field FeedbackViewportHeightField 'WireText
+             , Field FeedbackDevicePixelRatioField 'WireText
+             , Field FeedbackDisplayModeField 'WireText
              ]
             '[ AppShellHtmxMethod 'AppShellPost
              , AppShellHtmxTarget DialogOverlayMount
