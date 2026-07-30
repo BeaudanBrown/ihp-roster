@@ -463,15 +463,23 @@ malformedMockRequests =
 
 fixedXeroResponse :: Status -> Aeson.Value -> (XeroRequestBaseUrls -> IO a) -> IO a
 fixedXeroResponse status body =
-    fixedXeroRawResponse status (Aeson.encode body)
+    fixedXeroResponseWithHeaders status [] body
+
+fixedXeroResponseWithHeaders :: Status -> [(HeaderName, ByteString)] -> Aeson.Value -> (XeroRequestBaseUrls -> IO a) -> IO a
+fixedXeroResponseWithHeaders status headers body =
+    fixedXeroRawResponseWithHeaders status headers (Aeson.encode body)
 
 fixedXeroRawResponse :: Status -> LByteString.ByteString -> (XeroRequestBaseUrls -> IO a) -> IO a
-fixedXeroRawResponse status body action =
+fixedXeroRawResponse status body =
+    fixedXeroRawResponseWithHeaders status [] body
+
+fixedXeroRawResponseWithHeaders :: Status -> [(HeaderName, ByteString)] -> LByteString.ByteString -> (XeroRequestBaseUrls -> IO a) -> IO a
+fixedXeroRawResponseWithHeaders status headers body action =
     Warp.testWithApplication (pure app) \port ->
         action (xeroRequestBaseUrlsFor ("http://127.0.0.1:" <> tshow port))
     where
         app _ respond =
-            respond (Wai.responseLBS status [("Content-Type", "application/json")] body)
+            respond (Wai.responseLBS status (("Content-Type", "application/json") : headers) body)
 
 withPaginatedPayItemsMock :: (XeroRequestBaseUrls -> IO a) -> IO a
 withPaginatedPayItemsMock action =

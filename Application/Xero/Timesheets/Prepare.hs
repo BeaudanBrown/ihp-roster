@@ -26,6 +26,7 @@ import Application.Xero.Admin.PayItems
 import Application.Xero.Admin.ReadModel
 import Application.Xero.Admin.ReferenceData
 import Application.Xero.Connection
+import Application.Xero.ReferenceSyncRequest
 import Application.Xero.Timesheets.Buckets
 import Application.Xero.Timesheets.Prepare.Helpers
 import Application.Xero.Timesheets.Preview
@@ -80,7 +81,7 @@ refreshCurrentVenueXeroReferenceDataForPreparation ::
 refreshCurrentVenueXeroReferenceDataForPreparation connection
     | connection.connectionStatus /= "active" = pure (Left "Reconnect Xero before preparing draft timesheets.")
     | otherwise =
-        fmap (fmap (.referenceDataSyncConnection)) (syncCurrentVenueXeroReferenceData connection)
+        fmap (fmap (.referenceDataSyncConnection)) (runXeroReferenceDataSyncRequest (Just currentUser.id) connection)
 
 refreshXeroTimesheetPreparation ::
     (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>

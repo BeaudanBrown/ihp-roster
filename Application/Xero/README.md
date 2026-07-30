@@ -10,8 +10,13 @@ preparation/submission workflow.
 
 - `Connection.hs` - connection and token boundary.
 - `Keepalive.hs` - recurring token/connection health support.
-- `Admin/ReferenceData.hs` - the shared reference-data sync service and atomic
-  provider-availability reconciliation used by manual sync and preparation.
+- `ReferenceSyncJob.hs` - durable connection-deduplicated, tenant-leased,
+  paced reference refresh with Xero-specific retry scheduling.
+- `ReferenceSyncRequest.hs` - background-safe demand request/coalescing boundary.
+- `Admin/ReferenceData.hs` - the background-safe reference-data persistence
+  service and atomic provider-availability reconciliation used by every sync path.
+- `Admin/ReferenceSyncPolicy.hs` - PayItems pagination, request pacing, and
+  bounded retry policy.
 - `Admin/ImportedPayItems.hs` - the pay-item import boundary.
 - `Admin/PayItems.hs` - managed pay item behavior used by preparation.
 - `Admin/ReadModel.hs` - connection-shell and preparation read models.

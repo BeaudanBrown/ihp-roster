@@ -146,6 +146,7 @@ keepaliveXeroClient refreshResult =
         , refreshXeroToken = \_ _ -> pure refreshResult
         , fetchPayrollEmployees = \_ _ -> pure (Right [])
         , fetchEarningsRates = \_ _ -> pure (Right [])
+        , fetchEarningsRatesPage = \_ _ _ -> pure (Right [])
         , fetchPayrollCalendars = \_ _ -> pure (Right [])
         , fetchAccounts = \_ _ -> pure (Right [])
         , fetchPayrollSettingsAccounts = \_ _ -> pure (Right [])

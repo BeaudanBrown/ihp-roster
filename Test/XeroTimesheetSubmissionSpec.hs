@@ -289,6 +289,7 @@ failIfCreateTimesheetClient =
         , refreshXeroToken = \_ _ -> pure (Right (XeroTokenResponse "access-token" "refresh-token" 1800 (Just requiredXeroScopesText)))
         , fetchPayrollEmployees = \_ _ -> pure (Right [])
         , fetchEarningsRates = \_ _ -> pure (Right [])
+        , fetchEarningsRatesPage = \_ _ _ -> pure (Right [])
         , fetchPayrollCalendars = \_ _ -> pure (Right [])
         , fetchAccounts = \_ _ -> pure (Right [])
         , fetchPayrollSettingsAccounts = \_ _ -> pure (Right [])

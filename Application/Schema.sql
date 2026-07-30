@@ -1099,6 +1099,17 @@ CREATE TABLE xero_sync_runs (
     FOREIGN KEY (xero_connection_id) REFERENCES xero_connections (id) ON DELETE RESTRICT,
     CHECK ((sync_status = 'running') OR (sync_status = 'succeeded') OR (sync_status = 'failed'))
 );
+CREATE TABLE xero_reference_sync_leases (
+    id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
+    tenant_id TEXT NOT NULL UNIQUE,
+    app_job_id UUID DEFAULT NULL,
+    lease_expires_at TIMESTAMP WITH TIME ZONE NOT NULL,
+    next_request_not_before TIMESTAMP WITH TIME ZONE DEFAULT NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
+    FOREIGN KEY (app_job_id) REFERENCES app_jobs (id) ON DELETE SET NULL
+);
+CREATE INDEX idx_xero_reference_sync_leases_expiry ON xero_reference_sync_leases (lease_expires_at);
 CREATE TABLE xero_employees (
     id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
     venue_id UUID NOT NULL,

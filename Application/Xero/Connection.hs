@@ -15,8 +15,18 @@ import IHP.ControllerPrelude
 
 xeroClientErrorText :: XeroClientError -> Text
 xeroClientErrorText (XeroHttpError message) = message
+xeroClientErrorText XeroHttpResponseError { customerMessage } = customerMessage
+xeroClientErrorText (XeroSemanticError message) = message
 xeroClientErrorText (XeroDecodeError message) = "Could not decode Xero response: " <> message
 xeroClientErrorText XeroNoTenantsError = "Xero returned no connected tenants."
+
+durableXeroClientErrorText :: XeroClientError -> Text
+durableXeroClientErrorText = \case
+    XeroHttpResponseError { statusCode } -> "provider request returned status " <> tshow statusCode <> "."
+    XeroHttpError _ -> "provider request could not be completed."
+    XeroSemanticError _ -> "provider rejected the request."
+    XeroDecodeError _ -> "provider response could not be read."
+    XeroNoTenantsError -> "no connected tenant was available."
 
 isXeroRefreshTokenExpiredError :: XeroClientError -> Bool
 isXeroRefreshTokenExpiredError errorValue =
@@ -33,9 +43,9 @@ refreshXeroConnectionAccess ::
     IO (Either Text (XeroConnection, Text))
 refreshXeroConnectionAccess xeroConfig connection =
     case decryptXeroToken xeroConfig.tokenEncryptionKey connection.encryptedRefreshToken of
-        Left message -> do
+        Left _ -> do
             let friendly = "Could not decrypt the stored Xero refresh token. Reconnect Xero to continue."
-            markXeroConnectionReauthorizationRequired connection (friendly <> " " <> message)
+            markXeroConnectionReauthorizationRequired connection friendly
             pure (Left friendly)
         Right refreshToken -> do
             xeroClient <- currentXeroClient
@@ -48,10 +58,10 @@ refreshXeroConnectionAccess xeroConfig connection =
                 Left err
                     | isXeroRefreshTokenExpiredError err -> do
                         let friendly = "Xero needs to be reconnected because the refresh token expired or was revoked."
-                        markXeroConnectionReauthorizationRequired connection (friendly <> " " <> xeroClientErrorText err)
+                        markXeroConnectionReauthorizationRequired connection friendly
                         pure (Left friendly)
                     | otherwise -> do
-                        let message = "Xero token refresh failed: " <> xeroClientErrorText err
+                        let message = "Xero token refresh failed: " <> durableXeroClientErrorText err
                         markXeroConnectionError connection message
                         pure (Left message)
 

@@ -1,6 +1,7 @@
 module Application.Helper.Xero
     ( XeroClient (..)
     , XeroClientError (..)
+    , XeroRetryAfter (..)
     , XeroConfig (..)
     , XeroAccountRef (..)
     , XeroEarningsRateRef (..)
@@ -28,6 +29,7 @@ module Application.Helper.Xero
     , buildFetchConnectedTenantsRequest
     , buildFetchAccountsRequest
     , buildFetchEarningsRatesRequest
+    , fetchEarningsRatesPageRequest
     , buildFetchPayRunsRequest
     , buildFetchPayrollCalendarsRequest
     , buildFetchPayrollSettingsAccountsRequest
@@ -43,6 +45,8 @@ module Application.Helper.Xero
     , readXeroConfig
     , requiredXeroScopes
     , requiredXeroScopesText
+    , xeroPayItemsMaxPages
+    , xeroPayItemsPageSize
     , withXeroClientForTest
     , withXeroConfigForTest
     , withXeroRequestBaseUrlsForTest
@@ -82,7 +86,7 @@ import qualified Data.Time.Format as TimeFormat
 import qualified Data.Vector as Vector
 import IHP.Prelude
 import Network.HTTP.Simple
-import Network.HTTP.Types.Header (HeaderName)
+import Network.HTTP.Types.Header (HeaderName, hRetryAfter)
 import qualified Network.HTTP.Types.URI as URI
 import System.Environment (lookupEnv)
 import System.IO.Unsafe (unsafePerformIO)
@@ -209,6 +213,7 @@ defaultXeroClient =
         , refreshXeroToken = refreshXeroTokenRequest
         , fetchPayrollEmployees = fetchPayrollEmployeesRequest
         , fetchEarningsRates = fetchEarningsRatesRequest
+        , fetchEarningsRatesPage = fetchEarningsRatesPageRequest
         , fetchPayrollCalendars = fetchPayrollCalendarsRequest
         , fetchAccounts = fetchAccountsRequest
         , fetchPayrollSettingsAccounts = fetchPayrollSettingsAccountsRequest
@@ -300,6 +305,12 @@ fetchEarningsRatesRequest :: Text -> Text -> IO (Either XeroClientError [XeroEar
 fetchEarningsRatesRequest accessToken tenantId = do
     urls <- currentXeroRequestBaseUrls
     fetchAllEarningsRatePages urls accessToken tenantId 1 []
+
+fetchEarningsRatesPageRequest :: Text -> Text -> Int -> IO (Either XeroClientError [XeroEarningsRateRef])
+fetchEarningsRatesPageRequest accessToken tenantId page = do
+    urls <- currentXeroRequestBaseUrls
+    fmap unXeroPayItemsResponse <$>
+        sendXeroJsonRequest "Xero payroll pay items request" (buildFetchEarningsRatesPageRequestWith urls accessToken tenantId page)
 
 xeroPayItemsPageSize :: Int
 xeroPayItemsPageSize = 100
@@ -651,11 +662,9 @@ decodeXeroResponse :: Aeson.FromJSON value => Text -> Response LByteString.ByteS
 decodeXeroResponse label response = do
     let statusCode = getResponseStatusCode response
     let responseBody = getResponseBody response
-    let bodyExcerpt = Text.take 500 (TextEncoding.decodeUtf8With lenientDecode (LByteString.toStrict responseBody))
     if statusCode < 200 || statusCode >= 300
-        then
-            pure (Left (XeroHttpError (label <> " failed with status " <> tshow statusCode <> responseBodySuffix bodyExcerpt)))
-        else case xeroSemanticErrorFromBody label responseBody bodyExcerpt of
+        then pure (Left (xeroHttpResponseError label response))
+        else case xeroSemanticErrorFromBody label responseBody of
             Just err -> pure (Left err)
             Nothing  -> decodeBody responseBody
     where
@@ -664,13 +673,39 @@ decodeXeroResponse label response = do
                 Left err      -> pure (Left (XeroDecodeError (cs err)))
                 Right decoded -> pure (Right decoded)
 
-responseBodySuffix :: Text -> Text
-responseBodySuffix bodyExcerpt
-    | Text.null (Text.strip bodyExcerpt) = ""
-    | otherwise = ": " <> Text.strip bodyExcerpt
+xeroHttpResponseError :: Text -> Response LByteString.ByteString -> XeroClientError
+xeroHttpResponseError label response =
+    XeroHttpResponseError
+        { statusCode = status
+        , retryAfter = listToMaybe (getResponseHeader hRetryAfter response) >>= parseXeroRetryAfter
+        , customerMessage = label <> " failed with status " <> tshow status <> xeroProviderMessageSuffix (getResponseBody response)
+        }
+    where
+        status = getResponseStatusCode response
 
-xeroSemanticErrorFromBody :: Text -> LByteString.ByteString -> Text -> Maybe XeroClientError
-xeroSemanticErrorFromBody label responseBody bodyExcerpt = do
+parseXeroRetryAfter :: ByteString -> Maybe XeroRetryAfter
+parseXeroRetryAfter rawValue =
+    let value = Text.strip (TextEncoding.decodeUtf8With lenientDecode rawValue)
+     in case readMaybe (Text.unpack value) of
+            Just seconds | seconds >= (0 :: Int) -> Just (XeroRetryAfterDelay seconds)
+            _ -> XeroRetryAfterAt <$> parseTimeM True defaultTimeLocale "%a, %d %b %Y %H:%M:%S GMT" (Text.unpack value)
+
+xeroProviderMessageSuffix :: LByteString.ByteString -> Text
+xeroProviderMessageSuffix responseBody =
+    case Aeson.decode responseBody of
+        Just (Aeson.Object object) ->
+            let maybeErrorType = nonEmptyText =<< firstPresent object ["Type", "type"]
+                maybeMessage = nonEmptyText =<< firstPresent object ["Message", "message", "Detail", "detail", "Title", "title"]
+                details = catMaybes [maybeErrorType, maybeMessage]
+             in if null details then "" else ": " <> Text.intercalate ": " details
+        _ -> ""
+    where
+        nonEmptyText (Aeson.String value)
+            | not (Text.null (Text.strip value)) = Just (Text.strip value)
+        nonEmptyText _ = Nothing
+
+xeroSemanticErrorFromBody :: Text -> LByteString.ByteString -> Maybe XeroClientError
+xeroSemanticErrorFromBody label responseBody = do
     Aeson.Object object <- Aeson.decode responseBody
     Aeson.String errorType <- firstPresent object ["Type", "type"]
     guard (not (Text.null (Text.strip errorType)))
@@ -679,20 +714,17 @@ xeroSemanticErrorFromBody label responseBody bodyExcerpt = do
                 Just (Aeson.String message) -> Just message
                 _                           -> Nothing
     pure $
-        XeroHttpError $
+        XeroSemanticError $
             label
                 <> " returned Xero "
                 <> errorType
                 <> maybe "" (": " <>) maybeMessage
-                <> responseBodySuffix bodyExcerpt
 
 decodeXeroEmptyResponse :: Text -> Response LByteString.ByteString -> IO (Either XeroClientError ())
 decodeXeroEmptyResponse label response = do
     let statusCode = getResponseStatusCode response
     if statusCode < 200 || statusCode >= 300
-        then do
-            let bodyExcerpt = Text.take 500 (TextEncoding.decodeUtf8With lenientDecode (LByteString.toStrict (getResponseBody response)))
-            pure (Left (XeroHttpError (label <> " failed with status " <> tshow statusCode <> responseBodySuffix bodyExcerpt)))
+        then pure (Left (xeroHttpResponseError label response))
         else pure (Right ())
 
 handleXeroHttpExceptions :: IO (Either XeroClientError value) -> IO (Either XeroClientError value)

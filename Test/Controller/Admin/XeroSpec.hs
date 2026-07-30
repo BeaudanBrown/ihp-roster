@@ -13,6 +13,8 @@ import Application.Helper.XeroAdminTypes (XeroLocalEarningsBucket (..))
 import Application.Helper.XeroTimesheetReadiness (readinessBlockerCodes,
                                                   validateXeroTimesheetReadiness)
 import Application.PayAssignment
+import Application.Xero.ReferenceSyncJob
+import Application.Xero.ReferenceSyncRequest
 import Config
 import qualified Data.Aeson as Aeson
 import qualified Data.Aeson.Key as AesonKey
@@ -50,8 +52,18 @@ import Web.FrontController ()
 import Web.Routes
 import Web.Types
 
+withFastXeroReferenceSyncRuntime :: ActionWith () -> IO ()
+withFastXeroReferenceSyncRuntime action =
+    withXeroReferenceSyncRuntimeForTest
+        XeroReferenceSyncRuntime
+            { currentReferenceSyncTime = getCurrentTime
+            , sleepForReferenceSyncMicros = const (pure ())
+            , referenceSyncJitterSeconds = pure 0
+            }
+        (withInlineXeroReferenceSyncRequestsForTest (action ()))
+
 tests :: Spec
-tests = aroundAll withDatabaseTestContext do
+tests = aroundAll withFastXeroReferenceSyncRuntime $ aroundAll withDatabaseTestContext do
     describe "AdminController Xero" do
         it "shows the Xero page as not connected" $ withContext do
             withCleanDb do
@@ -544,8 +556,11 @@ tests = aroundAll withDatabaseTestContext do
                         |> set #lastVerifiedAt (Just now)
                         |> createRecord
 
-                let failedClient = (referenceSyncXeroClient tokenResponse [] [] [])
-                        { fetchEarningsRates = \_ _ -> pure (Left (XeroHttpError "incomplete earnings-rate pull")) }
+                let incompleteError = XeroHttpResponseError 400 Nothing "incomplete earnings-rate pull"
+                    failedClient = (referenceSyncXeroClient tokenResponse [] [] [])
+                        { fetchEarningsRates = \_ _ -> pure (Left incompleteError)
+                        , fetchEarningsRatesPage = \_ _ _ -> pure (Left incompleteError)
+                        }
                 failedResponse <- runSync failedClient
                 failedResponse `responseStatusShouldBe` status302
                 fetch syncedEmployee.id >>= (\record -> record.providerAvailable `shouldBe` True)
@@ -1436,9 +1451,9 @@ tests = aroundAll withDatabaseTestContext do
                 employeeCount `shouldBe` 0
                 syncRun <- query @XeroSyncRun |> fetchOne
                 syncRun.syncStatus `shouldBe` "failed"
-                syncRun.errorMessage `shouldBe` Just "Xero token refresh failed: refresh denied"
+                syncRun.errorMessage `shouldBe` Just "Xero refresh_access sync failed: provider request could not be completed."
                 updatedConnection <- fetch connection.id
-                updatedConnection.lastError `shouldBe` Just "Xero token refresh failed: refresh denied"
+                updatedConnection.lastError `shouldBe` Just "Xero refresh_access sync failed: provider request could not be completed."
 
         it "marks Xero connections as reconnect required when refresh tokens expire" $ withContext do
             withCleanDb do

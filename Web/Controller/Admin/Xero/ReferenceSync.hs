@@ -24,6 +24,8 @@ syncXeroPayrollReferenceDataAction = do
             syncResult <- syncXeroReferenceDataMutation connection
             case liveMutationValue syncResult of
                 Left message
+                    | referenceSyncContinuesInBackground message ->
+                        respondReferenceSyncSuccess syncResult.liveMutationTouchedResources "Xero payroll reference sync started in the background."
                     | shouldStartReconnectAfterSyncFailure message && currentUserCanManageXeroIntegration ->
                         redirectToXeroAuthorizationForReferenceSync
                     | otherwise -> respondReferenceSyncFailure message
@@ -38,6 +40,11 @@ syncXeroPayrollReferenceDataAction = do
                             <> " payroll calendars, and "
                             <> tshow result.referenceDataSyncAccountCount
                             <> " accounts from Xero."
+
+referenceSyncContinuesInBackground :: Text -> Bool
+referenceSyncContinuesInBackground message =
+    message == "Xero payroll reference data is continuing in the background."
+        || message == "Xero payroll reference data is already syncing in the background."
 
 shouldStartReconnectAfterSyncFailure :: Text -> Bool
 shouldStartReconnectAfterSyncFailure message =

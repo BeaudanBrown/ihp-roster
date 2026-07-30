@@ -1,6 +1,7 @@
 module Application.Helper.Xero.Types
     ( XeroClient (..)
     , XeroClientError (..)
+    , XeroRetryAfter (..)
     , XeroConfig (..)
     , XeroAccountRef (..)
     , XeroEarningsRateRef (..)
@@ -277,8 +278,19 @@ data XeroRequestBaseUrls = XeroRequestBaseUrls
     }
     deriving (Eq, Show)
 
+data XeroRetryAfter
+    = XeroRetryAfterDelay !Int
+    | XeroRetryAfterAt !UTCTime
+    deriving (Eq, Show)
+
 data XeroClientError
     = XeroHttpError Text
+    | XeroHttpResponseError
+        { statusCode      :: !Int
+        , retryAfter      :: !(Maybe XeroRetryAfter)
+        , customerMessage :: !Text
+        }
+    | XeroSemanticError Text
     | XeroDecodeError Text
     | XeroNoTenantsError
     deriving (Eq, Show)
@@ -290,6 +302,7 @@ data XeroClient = XeroClient
     , refreshXeroToken :: XeroConfig -> Text -> IO (Either XeroClientError XeroTokenResponse)
     , fetchPayrollEmployees :: Text -> Text -> IO (Either XeroClientError [XeroEmployeeRef])
     , fetchEarningsRates :: Text -> Text -> IO (Either XeroClientError [XeroEarningsRateRef])
+    , fetchEarningsRatesPage :: Text -> Text -> Int -> IO (Either XeroClientError [XeroEarningsRateRef])
     , fetchPayrollCalendars :: Text -> Text -> IO (Either XeroClientError [XeroPayrollCalendarRef])
     , fetchAccounts :: Text -> Text -> IO (Either XeroClientError [XeroAccountRef])
     , fetchPayrollSettingsAccounts :: Text -> Text -> IO (Either XeroClientError [XeroAccountRef])

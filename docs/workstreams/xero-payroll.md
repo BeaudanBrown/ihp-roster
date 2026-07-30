@@ -38,15 +38,19 @@ managed pay items and draft timesheet submission.
 
 ## Current State
 
-The app has owner-only connection management, one shared synchronous
-reference-data sync service with atomic provider-availability reconciliation,
+The app has owner-only connection management, a shared background-safe
+reference-data persistence service with atomic provider-availability
+reconciliation, and a durable paced bulk-sync job with connection coalescing,
+tenant leasing, and recoverable Xero-specific retries. It also has
 imported-pay-item support, explicit staff/shift pay assignment modes with
 immutable pay versions, and a guided preparation workflow
 covering staff decisions, managed pay items, readiness, preview, and submission.
 The ordinary Xero page is connection-state-only; disconnected operational panels
 and pre-wizard preview/submit/retry endpoints have been retired. Initial sync is
-still browser-triggered after OAuth, and preparation still performs synchronous
-reference refresh. Open work remains around reliable background reference sync,
+still browser-triggered after OAuth. Manual and preparation refresh requests now
+coalesce onto the durable job, but preparation does not yet wait and resume with
+trusted-snapshot UX; later tickets remove the browser initial trigger and add
+that workflow. Open work remains around automatic refresh scheduling, trusted-snapshot UX,
 audit trails, correction behavior, and custom pay item overrides.
 
 ## Reliable Reference Data

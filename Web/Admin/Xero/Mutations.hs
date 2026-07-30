@@ -28,6 +28,7 @@ import Application.Helper.Xero
 import Application.Helper.XeroAdminTypes
 import qualified Application.Xero.Admin.ImportedPayItems as ImportedPayItems
 import Application.Xero.Admin.ReferenceData
+import Application.Xero.ReferenceSyncRequest
 import qualified Application.Xero.Timesheets.Prepare as XeroPrepare
 import Control.Monad (void)
 import qualified Data.Aeson as Aeson
@@ -215,7 +216,7 @@ importXeroEarningsRatesMutation connection now fetchedRates selectedRateIds = do
 
 syncXeroReferenceDataMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => XeroConnection -> IO (LiveMutationResult (Either Text XeroReferenceDataSyncResult))
 syncXeroReferenceDataMutation connection = do
-    result <- syncCurrentVenueXeroReferenceData connection
+    result <- runXeroReferenceDataSyncRequest (Just currentUser.id) connection
     invalidateTouchedResources "xero.reference_sync" $
         liveMutationResult result (xeroReferenceSyncTouchedResources currentVenueId)
 

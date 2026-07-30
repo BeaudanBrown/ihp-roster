@@ -10,6 +10,7 @@ import Application.PublicHolidays.Job
 import Application.StaffDocuments.Rsa
 import Application.WageSourceNotifications
 import Application.Xero.Keepalive
+import Application.Xero.ReferenceSyncJob
 import qualified Control.Exception as Exception
 import Control.Monad (void)
 import qualified Data.Aeson as Aeson
@@ -38,6 +39,7 @@ dispatchAppJobByKind appJob =
         kind | kind == retiredRosterTimesheetCreationJobKind -> retireRosterTimesheetCreationJob appJob
         kind | kind == rsaReminderJobKind -> performRsaReminderJob appJob
         kind | kind == xeroConnectionKeepaliveJobKind -> performXeroConnectionKeepaliveJob appJob
+        kind | kind == xeroReferenceSyncJobKind -> performXeroReferenceSyncJob appJob
         kind | kind == billingNotificationJobKind -> performBillingNotificationJob appJob
         kind | kind == billingReconciliationJobKind -> performBillingReconciliationJob appJob
         kind | kind == wageSourceDriftNotificationJobKind -> performWageSourceDriftNotificationJob appJob

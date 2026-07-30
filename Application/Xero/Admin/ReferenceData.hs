@@ -1,5 +1,8 @@
 module Application.Xero.Admin.ReferenceData
     ( XeroReferenceDataSyncResult (..)
+    , completeXeroReferenceDataSync
+    , failXeroReferenceDataSync
+    , startXeroReferenceDataSync
     , markStaleXeroEarningsRateMappings
     , reconcileXeroPayItemAccountCodeSelection
     , markStaleXeroStaffMappings
@@ -8,14 +11,10 @@ module Application.Xero.Admin.ReferenceData
     , upsertXeroEmployee
     , upsertXeroPayRun
     , upsertXeroPayrollCalendar
-    , syncCurrentVenueXeroReferenceData
     ) where
 
-import Application.Helper.Audit (recordCurrentUserAuditEvent)
-import Application.Helper.ControllerContext
+import Application.Helper.Audit (recordAuditEvent)
 import Application.Helper.Xero
-import Application.Xero.Connection (refreshXeroConnectionAccessWithoutBroadcast,
-                                    xeroClientErrorText)
 import Control.Monad (void)
 import qualified Data.Aeson as Aeson
 import Data.Functor ((<&>))
@@ -33,48 +32,11 @@ data XeroReferenceDataSyncResult = XeroReferenceDataSyncResult
     , referenceDataSyncAccountCount         :: Int
     }
 
-syncCurrentVenueXeroReferenceData ::
-    (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
-    XeroConnection ->
-    IO (Either Text XeroReferenceDataSyncResult)
-syncCurrentVenueXeroReferenceData connection
-    | connection.venueId /= unpackId currentVenueId =
-        pure (Left "Xero connection was not found for this venue.")
-    | connection.connectionStatus /= "active" =
-        pure (Left "Reconnect Xero before syncing payroll reference data.")
-    | otherwise = do
-        syncRun <- startReferenceDataSync connection
-        readXeroConfig >>= \case
-            Left message -> failReferenceDataSync syncRun connection message
-            Right config ->
-                refreshXeroConnectionAccessWithoutBroadcast config connection >>= \case
-                    Left message -> failReferenceDataSync syncRun connection message
-                    Right (refreshedConnection, accessToken) -> do
-                        xeroClient <- currentXeroClient
-                        employeesResult <- fetchPayrollEmployees xeroClient accessToken refreshedConnection.tenantId
-                        earningsRatesResult <- fetchEarningsRates xeroClient accessToken refreshedConnection.tenantId
-                        payrollCalendarsResult <- fetchPayrollCalendars xeroClient accessToken refreshedConnection.tenantId
-                        accountsResult <- fetchAccounts xeroClient accessToken refreshedConnection.tenantId
-                        payrollSettingsAccountsResult <- fetchPayrollSettingsAccounts xeroClient accessToken refreshedConnection.tenantId
-                        case (employeesResult, earningsRatesResult, payrollCalendarsResult, accountsResult, payrollSettingsAccountsResult) of
-                            (Right employees, Right earningsRates, Right payrollCalendars, Right accounts, Right payrollSettingsAccounts) ->
-                                Right <$> completeReferenceDataSync syncRun refreshedConnection employees earningsRates payrollCalendars accounts payrollSettingsAccounts
-                            (Left err, _, _, _, _) ->
-                                failReferenceDataSync syncRun refreshedConnection ("Xero employee sync failed: " <> xeroClientErrorText err)
-                            (_, Left err, _, _, _) ->
-                                failReferenceDataSync syncRun refreshedConnection ("Xero earnings-rate sync failed: " <> xeroClientErrorText err)
-                            (_, _, Left err, _, _) ->
-                                failReferenceDataSync syncRun refreshedConnection ("Xero payroll-calendar sync failed: " <> xeroClientErrorText err)
-                            (_, _, _, Left err, _) ->
-                                failReferenceDataSync syncRun refreshedConnection ("Xero account sync failed: " <> xeroClientErrorText err)
-                            (_, _, _, _, Left err) ->
-                                failReferenceDataSync syncRun refreshedConnection ("Xero payroll-settings sync failed: " <> xeroClientErrorText err)
-
-startReferenceDataSync ::
-    (?context :: ControllerContext, ?modelContext :: ModelContext) =>
+startXeroReferenceDataSync ::
+    (?modelContext :: ModelContext) =>
     XeroConnection ->
     IO XeroSyncRun
-startReferenceDataSync connection = do
+startXeroReferenceDataSync connection = do
     now <- getCurrentTime
     newRecord @XeroSyncRun
         |> set #venueId connection.venueId
@@ -84,8 +46,9 @@ startReferenceDataSync connection = do
         |> set #startedAt now
         |> createRecord
 
-completeReferenceDataSync ::
-    (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
+completeXeroReferenceDataSync ::
+    (?modelContext :: ModelContext) =>
+    Maybe UUID ->
     XeroSyncRun ->
     XeroConnection ->
     [XeroEmployeeRef] ->
@@ -94,7 +57,7 @@ completeReferenceDataSync ::
     [XeroAccountRef] ->
     [XeroAccountRef] ->
     IO XeroReferenceDataSyncResult
-completeReferenceDataSync syncRun connection employees earningsRates payrollCalendars accounts payrollSettingsAccounts = do
+completeXeroReferenceDataSync maybeActorUserId syncRun connection employees earningsRates payrollCalendars accounts payrollSettingsAccounts = do
     now <- getCurrentTime
     completedRun <- withTransaction do
         mapM_ (upsertXeroEmployee connection now) employees
@@ -104,7 +67,7 @@ completeReferenceDataSync syncRun connection employees earningsRates payrollCale
         reconcileXeroProviderAvailability connection now employees earningsRates payrollCalendars accounts
         markStaleXeroStaffMappings connection employees
         markStaleXeroEarningsRateMappings connection earningsRates
-        reconcileXeroPayItemAccountCodeSelection connection accounts payrollSettingsAccounts
+        reconcileXeroPayItemAccountCodeSelection maybeActorUserId connection accounts payrollSettingsAccounts
         updatedSyncRun <-
             syncRun
                 |> set #syncStatus ("succeeded" :: Text)
@@ -118,19 +81,15 @@ completeReferenceDataSync syncRun connection employees earningsRates payrollCale
                 |> set #lastSyncAt (Just now)
                 |> set #lastError Nothing
                 |> updateRecord
-        void $
-            recordCurrentUserAuditEvent
-                "xero_reference_sync_succeeded"
-                "xero_sync_runs"
-                (unpackId syncRun.id)
-                (Aeson.object
-                    [ "tenantId" Aeson..= connection.tenantId
-                    , "employeesCount" Aeson..= length employees
-                    , "earningsRatesCount" Aeson..= length earningsRates
-                    , "payrollCalendarsCount" Aeson..= length payrollCalendars
-                    , "accountsCount" Aeson..= length accounts
-                    ]
-                )
+        recordXeroReferenceSyncAudit maybeActorUserId connection "xero_reference_sync_succeeded" syncRun.id
+            (Aeson.object
+                [ "tenantId" Aeson..= connection.tenantId
+                , "employeesCount" Aeson..= length employees
+                , "earningsRatesCount" Aeson..= length earningsRates
+                , "payrollCalendarsCount" Aeson..= length payrollCalendars
+                , "accountsCount" Aeson..= length accounts
+                ]
+            )
         pure updatedSyncRun
     pure
         XeroReferenceDataSyncResult
@@ -142,13 +101,14 @@ completeReferenceDataSync syncRun connection employees earningsRates payrollCale
             , referenceDataSyncAccountCount = length accounts
             }
 
-failReferenceDataSync ::
-    (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
+failXeroReferenceDataSync ::
+    (?modelContext :: ModelContext) =>
+    Maybe UUID ->
     XeroSyncRun ->
     XeroConnection ->
     Text ->
     IO (Either Text a)
-failReferenceDataSync syncRun connection message = do
+failXeroReferenceDataSync maybeActorUserId syncRun connection message = do
     now <- getCurrentTime
     withTransaction do
         _ <-
@@ -158,24 +118,41 @@ failReferenceDataSync syncRun connection message = do
                 |> set #finishedAt (Just now)
                 |> updateRecord
         latestConnection <- fetch connection.id
-        _ <-
-            latestConnection
-                |> set #lastError (Just message)
-                |> updateRecord
-        void $
-            recordCurrentUserAuditEvent
-                "xero_reference_sync_failed"
-                "xero_sync_runs"
-                (unpackId syncRun.id)
-                (Aeson.object
-                    [ "tenantId" Aeson..= connection.tenantId
-                    , "failure" Aeson..= message
-                    ]
-                )
+        unless (latestConnection.connectionStatus == "reauthorization_required") $
+            void $
+                latestConnection
+                    |> set #lastError (Just message)
+                    |> updateRecord
+        recordXeroReferenceSyncAudit maybeActorUserId connection "xero_reference_sync_failed" syncRun.id
+            (Aeson.object
+                [ "tenantId" Aeson..= connection.tenantId
+                , "failure" Aeson..= message
+                ]
+            )
     pure (Left message)
 
+recordXeroReferenceSyncAudit ::
+    (?modelContext :: ModelContext) =>
+    Maybe UUID ->
+    XeroConnection ->
+    Text ->
+    Id XeroSyncRun ->
+    Aeson.Value ->
+    IO ()
+recordXeroReferenceSyncAudit maybeActorUserId connection eventType syncRunId payload =
+    forM_ maybeActorUserId \actorUserId ->
+        void $
+            recordAuditEvent
+                connection.venueId
+                actorUserId
+                eventType
+                "xero_sync_runs"
+                (unpackId syncRunId)
+                payload
+                "application"
+
 markStaleXeroStaffMappings ::
-    (?context :: ControllerContext, ?modelContext :: ModelContext) =>
+    (?modelContext :: ModelContext) =>
     XeroConnection ->
     [XeroEmployeeRef] ->
     IO ()
@@ -183,7 +160,7 @@ markStaleXeroStaffMappings connection employees = do
     let activeEmployeeIds = map (.xeroEmployeeId) (filter xeroEmployeeRefIsProviderAvailable employees)
     mappings <-
         query @XeroStaffMapping
-            |> filterWhere (#venueId, unpackId currentVenueId)
+            |> filterWhere (#venueId, connection.venueId)
             |> filterWhere (#xeroConnectionId, unpackId connection.id)
             |> filterWhere (#mappingStatus, "verified" :: Text)
             |> fetch
@@ -198,7 +175,7 @@ markStaleXeroStaffMappings connection employees = do
                     |> void
 
 markStaleXeroEarningsRateMappings ::
-    (?context :: ControllerContext, ?modelContext :: ModelContext) =>
+    (?modelContext :: ModelContext) =>
     XeroConnection ->
     [XeroEarningsRateRef] ->
     IO ()
@@ -206,7 +183,7 @@ markStaleXeroEarningsRateMappings connection earningsRates = do
     let activeEarningsRateIds = map (.xeroEarningsRateId) (filter (.xeroEarningsRateIsActive) earningsRates)
     mappings <-
         query @XeroEarningsRateMapping
-            |> filterWhere (#venueId, unpackId currentVenueId)
+            |> filterWhere (#venueId, connection.venueId)
             |> filterWhere (#xeroConnectionId, unpackId connection.id)
             |> filterWhere (#mappingStatus, "verified" :: Text)
             |> fetch
@@ -221,7 +198,7 @@ markStaleXeroEarningsRateMappings connection earningsRates = do
                     |> void
     requirements <-
         query @XeroPayItemRequirementRecord
-            |> filterWhere (#venueId, unpackId currentVenueId)
+            |> filterWhere (#venueId, connection.venueId)
             |> filterWhere (#xeroConnectionId, unpackId connection.id)
             |> filterWhereIn (#requirementStatus, ["matched" :: Text, "created"])
             |> fetch
@@ -236,12 +213,13 @@ markStaleXeroEarningsRateMappings connection earningsRates = do
                     |> void
 
 reconcileXeroPayItemAccountCodeSelection ::
-    (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
+    (?modelContext :: ModelContext) =>
+    Maybe UUID ->
     XeroConnection ->
     [XeroAccountRef] ->
     [XeroAccountRef] ->
     IO ()
-reconcileXeroPayItemAccountCodeSelection connection accounts payrollSettingsAccounts = do
+reconcileXeroPayItemAccountCodeSelection maybeActorUserId connection accounts payrollSettingsAccounts = do
     let activeAccountCodes = activeExpenseAccountCodes accounts
         maybeWagesExpenseCode =
             payrollSettingsAccounts
@@ -251,7 +229,7 @@ reconcileXeroPayItemAccountCodeSelection connection accounts payrollSettingsAcco
                 >>= \accountCode -> if Text.null accountCode then Nothing else Just accountCode
     maybeSelection <-
         query @XeroPayItemAccountCodeSelection
-            |> filterWhere (#venueId, unpackId currentVenueId)
+            |> filterWhere (#venueId, connection.venueId)
             |> filterWhere (#xeroConnectionId, unpackId connection.id)
             |> fetchOneOrNothing
     case (maybeSelection, activeAccountCodes) of
@@ -262,15 +240,15 @@ reconcileXeroPayItemAccountCodeSelection connection accounts payrollSettingsAcco
         (_, _)
             | Just accountCode <- maybeWagesExpenseCode
             , accountCode `elem` activeAccountCodes ->
-                upsertXeroPayItemAccountCodeSelection connection "verified" (Just accountCode)
+                upsertXeroPayItemAccountCodeSelection maybeActorUserId connection "verified" (Just accountCode)
         (_, [accountCode]) ->
-            upsertXeroPayItemAccountCodeSelection connection "verified" (Just accountCode)
+            upsertXeroPayItemAccountCodeSelection maybeActorUserId connection "verified" (Just accountCode)
         (Just selection, _)
             | selection.selectionStatus == "verified" ->
                 selection
                     |> set #selectionStatus ("stale" :: Text)
                     |> set #lastVerifiedAt Nothing
-                    |> set #updatedByUserId (Just (unpackId currentUser.id))
+                    |> set #updatedByUserId maybeActorUserId
                     |> updateRecord
                     |> void
         _ -> pure ()
@@ -288,12 +266,13 @@ activeExpenseAccountCodes accounts =
         |> List.sort
 
 upsertXeroPayItemAccountCodeSelection ::
-    (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
+    (?modelContext :: ModelContext) =>
+    Maybe UUID ->
     XeroConnection ->
     Text ->
     Maybe Text ->
     IO ()
-upsertXeroPayItemAccountCodeSelection connection selectionStatus maybeAccountCode = do
+upsertXeroPayItemAccountCodeSelection maybeActorUserId connection selectionStatus maybeAccountCode = do
     now <- getCurrentTime
     existingSelection <-
         query @XeroPayItemAccountCodeSelection
@@ -301,17 +280,17 @@ upsertXeroPayItemAccountCodeSelection connection selectionStatus maybeAccountCod
             |> fetchOneOrNothing
     let prepared record =
             record
-                |> set #venueId (unpackId currentVenueId)
+                |> set #venueId connection.venueId
                 |> set #xeroConnectionId (unpackId connection.id)
                 |> set #accountCode maybeAccountCode
                 |> set #selectionStatus selectionStatus
                 |> set #lastVerifiedAt (if selectionStatus == "verified" then Just now else Nothing)
-                |> set #updatedByUserId (Just (unpackId currentUser.id))
+                |> set #updatedByUserId maybeActorUserId
     case existingSelection of
         Just existing -> prepared existing |> updateRecord |> void
         Nothing ->
             prepared (newRecord @XeroPayItemAccountCodeSelection)
-                |> set #createdByUserId (Just (unpackId currentUser.id))
+                |> set #createdByUserId maybeActorUserId
                 |> createRecord
                 |> void
 
@@ -389,7 +368,7 @@ xeroAccountRefIsProviderAvailable :: XeroAccountRef -> Bool
 xeroAccountRefIsProviderAvailable account =
     maybe True ((== "ACTIVE") . Text.toUpper . Text.strip) account.xeroAccountStatus
 
-upsertXeroEmployee :: (?context :: ControllerContext, ?modelContext :: ModelContext) => XeroConnection -> UTCTime -> XeroEmployeeRef -> IO XeroEmployee
+upsertXeroEmployee :: (?modelContext :: ModelContext) => XeroConnection -> UTCTime -> XeroEmployeeRef -> IO XeroEmployee
 upsertXeroEmployee connection syncedAt employee = do
     existing <-
         query @XeroEmployee
@@ -398,7 +377,7 @@ upsertXeroEmployee connection syncedAt employee = do
             |> fetchOneOrNothing
     let fillRecord record =
             record
-                |> set #venueId (unpackId currentVenueId)
+                |> set #venueId connection.venueId
                 |> set #xeroConnectionId (unpackId connection.id)
                 |> set #xeroEmployeeId employee.xeroEmployeeId
                 |> set #displayName employee.xeroEmployeeName
@@ -412,7 +391,7 @@ upsertXeroEmployee connection syncedAt employee = do
         Just record -> fillRecord record |> updateRecord
         Nothing     -> fillRecord (newRecord @XeroEmployee) |> createRecord
 
-upsertXeroAccount :: (?context :: ControllerContext, ?modelContext :: ModelContext) => XeroConnection -> UTCTime -> XeroAccountRef -> IO XeroAccount
+upsertXeroAccount :: (?modelContext :: ModelContext) => XeroConnection -> UTCTime -> XeroAccountRef -> IO XeroAccount
 upsertXeroAccount connection syncedAt account = do
     existing <-
         query @XeroAccount
@@ -421,7 +400,7 @@ upsertXeroAccount connection syncedAt account = do
             |> fetchOneOrNothing
     let fillRecord record =
             record
-                |> set #venueId (unpackId currentVenueId)
+                |> set #venueId connection.venueId
                 |> set #xeroConnectionId (unpackId connection.id)
                 |> set #xeroAccountId account.xeroAccountId
                 |> set #code account.xeroAccountCode
@@ -436,7 +415,7 @@ upsertXeroAccount connection syncedAt account = do
         Just record -> fillRecord record |> updateRecord
         Nothing     -> fillRecord (newRecord @XeroAccount) |> createRecord
 
-upsertXeroEarningsRate :: (?context :: ControllerContext, ?modelContext :: ModelContext) => XeroConnection -> UTCTime -> XeroEarningsRateRef -> IO XeroEarningsRate
+upsertXeroEarningsRate :: (?modelContext :: ModelContext) => XeroConnection -> UTCTime -> XeroEarningsRateRef -> IO XeroEarningsRate
 upsertXeroEarningsRate connection syncedAt earningsRate = do
     existing <-
         query @XeroEarningsRate
@@ -445,7 +424,7 @@ upsertXeroEarningsRate connection syncedAt earningsRate = do
             |> fetchOneOrNothing
     let fillRecord record =
             record
-                |> set #venueId (unpackId currentVenueId)
+                |> set #venueId connection.venueId
                 |> set #xeroConnectionId (unpackId connection.id)
                 |> set #xeroEarningsRateId earningsRate.xeroEarningsRateId
                 |> set #name earningsRate.xeroEarningsRateName
@@ -461,7 +440,7 @@ upsertXeroEarningsRate connection syncedAt earningsRate = do
         Just record -> fillRecord record |> updateRecord
         Nothing     -> fillRecord (newRecord @XeroEarningsRate) |> createRecord
 
-upsertXeroPayrollCalendar :: (?context :: ControllerContext, ?modelContext :: ModelContext) => XeroConnection -> UTCTime -> XeroPayrollCalendarRef -> IO XeroPayrollCalendar
+upsertXeroPayrollCalendar :: (?modelContext :: ModelContext) => XeroConnection -> UTCTime -> XeroPayrollCalendarRef -> IO XeroPayrollCalendar
 upsertXeroPayrollCalendar connection syncedAt payrollCalendar = do
     existing <-
         query @XeroPayrollCalendar
@@ -470,7 +449,7 @@ upsertXeroPayrollCalendar connection syncedAt payrollCalendar = do
             |> fetchOneOrNothing
     let fillRecord record =
             record
-                |> set #venueId (unpackId currentVenueId)
+                |> set #venueId connection.venueId
                 |> set #xeroConnectionId (unpackId connection.id)
                 |> set #xeroPayrollCalendarId payrollCalendar.xeroPayrollCalendarId
                 |> set #name payrollCalendar.xeroPayrollCalendarName
@@ -485,7 +464,7 @@ upsertXeroPayrollCalendar connection syncedAt payrollCalendar = do
         Just record -> fillRecord record |> updateRecord
         Nothing     -> fillRecord (newRecord @XeroPayrollCalendar) |> createRecord
 
-upsertXeroPayRun :: (?context :: ControllerContext, ?modelContext :: ModelContext) => XeroConnection -> UTCTime -> XeroPayRunRef -> IO XeroPayRun
+upsertXeroPayRun :: (?modelContext :: ModelContext) => XeroConnection -> UTCTime -> XeroPayRunRef -> IO XeroPayRun
 upsertXeroPayRun connection syncedAt payRun = do
     existing <-
         query @XeroPayRun
@@ -494,7 +473,7 @@ upsertXeroPayRun connection syncedAt payRun = do
             |> fetchOneOrNothing
     let fillRecord record =
             record
-                |> set #venueId (unpackId currentVenueId)
+                |> set #venueId connection.venueId
                 |> set #xeroConnectionId (unpackId connection.id)
                 |> set #xeroPayRunId payRun.xeroPayRunId
                 |> set #xeroPayrollCalendarId payRun.xeroPayRunCalendarId

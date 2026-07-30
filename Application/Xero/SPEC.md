@@ -25,12 +25,18 @@ lands.
 - Staff decisions, managed pay items, readiness checks, preview, and submission
   belong to the guided preparation workflow. The pre-wizard preview, submit,
   and retry endpoints are retired.
-- Manual reference sync and preparation use the same application service and
-  persistence/reconciliation path. A complete successful snapshot atomically
-  marks missing or provider-inactive employees, earnings rates, calendars,
-  accounts, and imported pay items unavailable; reappearance restores provider
-  availability without changing local identity. Failed pulls leave the prior
-  availability snapshot untouched.
+- Every reference-sync path uses the same background-safe persistence and
+  reconciliation service. Complete bulk refresh can run as a durable `app_jobs`
+  job, coalesced per connection and leased per Xero tenant. Provider requests
+  are sequential and paced to 50 requests/minute; PayItems remains capped at
+  100 pages. Structured 429 handling honors valid `Retry-After`, while transient
+  failures use Xero-specific jittered continuations for at most 24 hours without
+  changing unrelated job retry policy. Progress and errors contain phase/page
+  facts only, never tokens or raw provider payloads.
+- A complete successful snapshot atomically marks missing or provider-inactive
+  employees, earnings rates, calendars, accounts, and imported pay items
+  unavailable; reappearance restores provider availability without changing
+  local identity. Failed pulls leave the prior availability snapshot untouched.
 - Provider availability is separate from owner archival. Unavailable imported
   pay items stay queryable for immutable pay versions and sealed calculations,
   but are excluded from new imports and current assignment selectors. Current
@@ -102,9 +108,10 @@ lands.
 - Controllers in `Web/Controller/Admin/Xero/*` should not import Xero
   preparation/preview/submission services directly, except narrow domain types
   needed for request parsing.
-- Background Xero jobs that mutate connection state should route passive
-  invalidation through touched resources, not through direct live-surface
-  broadcasts.
+- Background Xero jobs that mutate connection state route passive invalidation
+  through touched resources, not through direct live-surface broadcasts. They
+  may retain optional requesting-actor attribution but never require a request
+  or current-user context.
 - The retained Xero live shell depends only on its declared connection
   resource. Guided timesheet preparation mutations are dialog-local and emit no
   Surface resource; do not recreate the retired undeclared Xero mappings,

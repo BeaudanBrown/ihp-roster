@@ -258,6 +258,24 @@ tests =
                         client.fetchPayrollEmployees "access-token" "tenant-id"
                     result `shouldSatisfyLeftText` Text.isInfixOf ("status " <> marker)
 
+            let retryAfterCases =
+                    [ (Just "120", Just (XeroRetryAfterDelay 120))
+                    , (Just "Wed, 21 Oct 2015 07:28:00 GMT", Just (XeroRetryAfterAt (UTCTime (fromGregorian 2015 10 21) (secondsToDiffTime (7 * 3600 + 28 * 60)))))
+                    , (Just "not-valid", Nothing)
+                    , (Nothing, Nothing)
+                    ]
+            forM_ retryAfterCases \(maybeHeader, expectedRetryAfter) ->
+                XeroMock.fixedXeroResponseWithHeaders status429 (maybe [] (\value -> [("Retry-After", value)]) maybeHeader) (Aeson.object ["message" Aeson..= ("Rate limit exceeded" :: Text), "rawSecret" Aeson..= ("must-not-leak" :: Text)]) \urls -> do
+                    result <- withXeroRequestBaseUrlsForTest urls do
+                        client <- currentXeroClient
+                        client.fetchPayrollEmployees "access-token" "tenant-id"
+                    result `shouldSatisfy` \case
+                        Left XeroHttpResponseError { statusCode = 429, retryAfter, customerMessage } ->
+                            retryAfter == expectedRetryAfter
+                                && "Rate limit exceeded" `Text.isInfixOf` customerMessage
+                                && not ("must-not-leak" `Text.isInfixOf` customerMessage)
+                        _ -> False
+
             XeroMock.fixedXeroRawResponse status200 "not-json" \urls -> do
                 result <- withXeroRequestBaseUrlsForTest urls do
                     client <- currentXeroClient
@@ -331,5 +349,7 @@ shouldSatisfyLeftText result predicate =
 xeroClientErrorMessage :: XeroClientError -> Text
 xeroClientErrorMessage = \case
     XeroHttpError message -> message
+    XeroHttpResponseError { customerMessage } -> customerMessage
+    XeroSemanticError message -> message
     XeroDecodeError message -> message
     XeroNoTenantsError -> "No tenants"

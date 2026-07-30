@@ -241,7 +241,7 @@ pageHelpTopics =
     , topic "xero" "Xero"
         [ section HelpOwnerPlus "Xero tasks"
             [ iconItem HelpOwnerPlus "bi-link-45deg" "Connect" "Connect Xero first" "Use the connection section before syncing payroll data or preparing timesheets."
-            , iconItem HelpOwnerPlus "bi-arrow-repeat" "Sync" "Sync payroll reference data" "Refresh Xero employees, earnings rates, calendars, and accounts from the connection shell. Items removed or made inactive in Xero remain in payroll history but must be replaced before new use."
+            , iconItem HelpOwnerPlus "bi-arrow-repeat" "Sync" "Sync payroll reference data" "Start a background refresh of Xero employees, earnings rates, calendars, and accounts from the connection shell. Repeated requests join the same refresh. Items removed or made inactive in Xero remain in payroll history but must be replaced before new use."
             , iconItem HelpOwnerPlus "bi-cloud-download" "Import" "Import optional pay items" "Use Import pay items to search by name or account code, then select supported hourly earnings rates to bring into Bepis."
             , iconItem HelpOwnerPlus "bi-send-check" "Prepare" "Review before submitting" "Upload timesheets opens the guided workflow for staff decisions, pay items, readiness, preview, and draft submission. Wage-source or calculation blockers identify the affected entry and stop the complete preview or submission until resolved. An approved entry pinned to a Xero rate that is no longer available must be corrected and reapproved; Bepis never silently remaps it."
             ]
