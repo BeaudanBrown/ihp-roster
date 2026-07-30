@@ -81,7 +81,7 @@ if command -v lsof >/dev/null 2>&1 \
 fi
 
 echo "[dev-start] launching start (XDG_CACHE_HOME=$XDG_CACHE_HOME)" >>"$LOG_FILE"
-setsid nohup start </dev/null >>"$LOG_FILE" 2>&1 &
+IHP_BROWSER="${IHP_BROWSER:-echo}" setsid nohup start </dev/null >>"$LOG_FILE" 2>&1 &
 PID=$!
 echo "$PID" > "$PID_FILE"
 disown "$PID" 2>/dev/null || true

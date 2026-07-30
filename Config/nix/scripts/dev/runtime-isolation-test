@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
-unset DEVENV_AGENT_STATE_DIR XDG_RUNTIME_DIR
+unset DEVENV_AGENT_STATE_DIR XDG_RUNTIME_DIR DEV_POSTGRES_MODE DEV_POSTGRES_ROOT DEV_POSTGRES_SOCKET PGHOST DATABASE_URL
 
 repo_root="$(git rev-parse --show-toplevel)"
 registry_command="$repo_root/Config/nix/scripts/epic/worktree"
@@ -44,7 +44,10 @@ git -C "$fixture_repo" config user.name "Runtime Isolation Test"
 git -C "$fixture_repo" config user.email "runtime-isolation@example.invalid"
 printf 'fixture\n' >"$fixture_repo/README"
 printf '.bepis-epic-worktree.json\n.devenv/\n' >"$fixture_repo/.gitignore"
-git -C "$fixture_repo" add README .gitignore
+mkdir -p "$fixture_repo/Config/nix/flake"
+cp -R "$repo_root/Config/nix/scripts" "$fixture_repo/Config/nix/scripts"
+cp "$repo_root/Config/nix/flake/scripts.nix" "$fixture_repo/Config/nix/flake/scripts.nix"
+git -C "$fixture_repo" add README .gitignore Config
 git -C "$fixture_repo" commit --quiet -m fixture
 git -C "$fixture_repo" worktree add --quiet -b epic-265 "$epic_path" roster
 (
@@ -63,6 +66,10 @@ cat >"$fake_bin/frontend-generated-ensure" <<'EOF'
 exit 0
 EOF
 cat >"$fake_bin/dev-ensure-postgres" <<'EOF'
+#!/usr/bin/env bash
+exit 0
+EOF
+cat >"$fake_bin/dev-postgres" <<'EOF'
 #!/usr/bin/env bash
 exit 0
 EOF
@@ -104,9 +111,13 @@ chmod +x "$fake_bin"/*
 run_for() {
     local root="$1"
     shift
+    local root_id
+    root_id="$(printf '%s' "$root" | sha256sum | cut -c1-12)"
     (
         cd "$root"
         PATH="$fake_bin:$PATH" \
+            DEVENV_AGENT_STATE_DIR="$fixture_root/state" \
+            DEV_POSTGRES_ROOT="$fixture_root/postgres-$root_id" \
             BEPIS_WORKSPACE_REPO_ROOT="$root" \
             BEPIS_EPIC_WORKTREE_COMMAND="$registry_command" \
             BEPIS_SCRIPTS_ROOT="$repo_root/Config/nix/scripts" \
@@ -118,8 +129,10 @@ app_probe="$(run_for "$epic_path" "$dev_app_command" --probe)"
 assert_contains "$app_probe" "PORT=8001 APP_BASE_URL=http://127.0.0.1:8001 SMTP_PORT=1026"
 run_for "$fixture_repo" "$dev_start_command" >/dev/null
 run_for "$epic_path" "$dev_start_command" >/dev/null
-main_state="$fixture_repo/.devenv/agent"
-epic_state="$epic_path/.devenv/agent"
+main_id="$(printf '%s' "$fixture_repo" | sha256sum | cut -c1-12)"
+epic_id="$(printf '%s' "$epic_path" | sha256sum | cut -c1-12)"
+main_state="$fixture_root/state/workspace-$main_id"
+epic_state="$fixture_root/state/workspace-$epic_id"
 main_pid="$(cat "$main_state/devenv.pid")"
 epic_pid="$(cat "$epic_state/devenv.pid")"
 kill -0 "$main_pid" 2>/dev/null || fail "primary managed process did not start"
@@ -132,8 +145,8 @@ assert_contains "$(cat "$epic_state/runtime.env")" "PORT=8001"
 assert_contains "$(cat "$epic_state/runtime.env")" "APP_BASE_URL=http://127.0.0.1:8001"
 assert_contains "$(cat "$epic_state/runtime.env")" "SMTP_PORT=1026"
 assert_contains "$(cat "$epic_state/runtime.env")" "MAILHOG_BASE_URL=http://127.0.0.1:8026"
-assert_contains "$(cat "$epic_state/runtime.env")" "PGHOST=$epic_path/build/db"
-assert_contains "$(cat "$epic_state/runtime.env")" "DATABASE_URL=postgresql:///app?host=$epic_path/build/db"
+assert_contains "$(cat "$epic_state/runtime.env")" "PGHOST=$fixture_root/postgres-$epic_id/socket"
+assert_contains "$(cat "$epic_state/runtime.env")" "DATABASE_URL=postgresql:///app?host=$fixture_root/postgres-$epic_id/socket"
 
 # Exercise real status scripts with deterministic healthy probes.
 rm "$fake_bin/dev-status"
@@ -154,7 +167,7 @@ epic_status="$(RUNTIME_PROBE_LOG="$probe_log" run_for "$epic_path" "$dev_status_
 assert_contains "$main_status" "slot=0 app_url=http://127.0.0.1:8000"
 assert_contains "$epic_status" "slot=1 app_url=http://127.0.0.1:8001"
 assert_contains "$(cat "$probe_log")" "http://127.0.0.1:8026/api/v2/messages"
-assert_contains "$(cat "$probe_log")" "-h $epic_path/build/db"
+assert_contains "$(cat "$probe_log")" "-h $fixture_root/postgres-$epic_id/socket"
 
 # Browser auth helper must derive the epic URL rather than defaulting to slot zero.
 mkdir -p "$epic_path/.devenv/playwright-cli"

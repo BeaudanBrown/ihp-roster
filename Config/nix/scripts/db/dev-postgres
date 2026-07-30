@@ -1,0 +1,112 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+usage() {
+    cat <<'EOF'
+Usage: dev-postgres ensure|status|stop|recreate|root|shell|log|legacy-status|acknowledge-legacy
+
+Managed mode stores durable development data on project-scoped native temporary
+storage. Healthy stop/start preserves data. Set DEV_POSTGRES_MODE=external with
+absolute DEV_POSTGRES_SOCKET for an explicit external server. Recreate is
+always refused in external mode.
+EOF
+}
+
+command_name="${1:-}"
+[ -n "$command_name" ] || { usage >&2; exit 64; }
+shift
+mode="${DEV_POSTGRES_MODE:-managed}"
+case "$mode" in managed|external) ;; *) echo "dev-postgres: DEV_POSTGRES_MODE must be managed or external" >&2; exit 64 ;; esac
+
+ensure_app_database() {
+    local socket="$1"
+    if ! psql -X -q -h "$socket" -d app -At -v ON_ERROR_STOP=1 -c 'SELECT 1' >/dev/null 2>&1; then
+        if ! psql -X -q -h "$socket" -d postgres -v ON_ERROR_STOP=1 -c 'CREATE DATABASE app'; then
+            # Another concurrent ensure may have won the create race after our
+            # missing-database observation. Accept only the intended outcome.
+            psql -X -q -h "$socket" -d app -At -v ON_ERROR_STOP=1 -c 'SELECT 1' >/dev/null
+        fi
+    fi
+}
+
+if [ "$mode" = external ]; then
+    socket="${DEV_POSTGRES_SOCKET:-}"
+    [ -n "$socket" ] && [[ "$socket" = /* ]] || { echo "dev-postgres: external mode requires absolute DEV_POSTGRES_SOCKET" >&2; exit 64; }
+    case "$command_name" in
+        ensure) psql -X -q -h "$socket" -d app -At -v ON_ERROR_STOP=1 -c 'SELECT 1' >/dev/null; printf '%s\n' "$socket" ;;
+        root) printf '%s\n' "$socket" ;;
+        status) psql -X -q -h "$socket" -d app -At -v ON_ERROR_STOP=1 -c 'SELECT 1' >/dev/null; printf 'mode=external\nsocket=%s\nstate=running\ndatabase=app\n' "$socket" ;;
+        shell) exec psql -X -h "$socket" -d "${DEV_DATABASE_NAME:-app}" "$@" ;;
+        log) echo "dev-postgres: external mode has no managed log" >&2; exit 64 ;;
+        stop) echo "dev-postgres: external server left running" ;;
+        recreate) echo "dev-postgres: refusing recreate in external mode" >&2; exit 73 ;;
+        -h|--help|help) usage ;;
+        *) usage >&2; exit 64 ;;
+    esac
+    exit 0
+fi
+
+repo_root="${DEV_POSTGRES_REPO_ROOT:-$(git rev-parse --show-toplevel)}"
+project_id="$(printf '%s' "$(realpath "$repo_root")" | sha256sum | cut -c1-12)"
+root="${DEV_POSTGRES_ROOT:-/tmp/bepis-dev-postgres-$(id -u)-${project_id}}"
+manager=(env TEST_POSTGRES_PROFILE=dev TEST_POSTGRES_REPO_ROOT="$repo_root" TEST_POSTGRES_ROOT="$root" TEST_POSTGRES_DURABILITY=durable TEST_POSTGRES_PRESERVE_ON_STOP=1 test-postgres)
+legacy_paths=("$repo_root/.devenv/postgres" "$repo_root/.devenv/state/postgres")
+legacy_found=()
+for path in "${legacy_paths[@]}"; do [ -e "$path" ] && legacy_found+=("$path"); done
+if [ "${#legacy_found[@]}" -gt 0 ] && [ ! -f "$root/legacy-reviewed" ] \
+    && [ "$command_name" = ensure ]; then
+    printf 'dev-postgres: existing checkout-backed data remains untouched: %s\n' "${legacy_found[*]}" >&2
+    echo "dev-postgres: review README migration/rollback guidance, then run dev-postgres acknowledge-legacy" >&2
+fi
+
+case "$command_name" in
+    ensure)
+        [ "$#" -eq 0 ] || { usage >&2; exit 64; }
+        socket="$("${manager[@]}" ensure)"
+        ensure_app_database "$socket"
+        printf '%s\n' "$socket"
+        ;;
+    status)
+        [ "$#" -eq 0 ] || { usage >&2; exit 64; }
+        "${manager[@]}" status
+        printf 'mode=managed\ndatabase=app\n'
+        ;;
+    stop)
+        [ "$#" -eq 0 ] || { usage >&2; exit 64; }
+        "${manager[@]}" stop
+        ;;
+    recreate)
+        [ "$#" -eq 0 ] || { usage >&2; exit 64; }
+        socket="$("${manager[@]}" recreate)"
+        ensure_app_database "$socket"
+        printf '%s\n' "$socket"
+        ;;
+    root)
+        [ "$#" -eq 0 ] || { usage >&2; exit 64; }
+        "${manager[@]}" root
+        ;;
+    shell)
+        socket="$("${manager[@]}" ensure)"
+        ensure_app_database "$socket"
+        exec psql -X -h "$socket" -d "${DEV_DATABASE_NAME:-app}" "$@"
+        ;;
+    log)
+        [ "$#" -le 1 ] || { usage >&2; exit 64; }
+        lines="${1:-80}"
+        [[ "$lines" =~ ^[1-9][0-9]*$ ]] || { echo "dev-postgres: log line count must be positive" >&2; exit 64; }
+        tail -n "$lines" "$root/postgres.log"
+        ;;
+    legacy-status)
+        [ "$#" -eq 0 ] || { usage >&2; exit 64; }
+        if [ "${#legacy_found[@]}" -eq 0 ]; then echo "legacy=absent"; else printf 'legacy=present\npath=%s\n' "${legacy_found[@]}"; fi
+        printf 'reviewed=%s\n' "$([ -f "$root/legacy-reviewed" ] && echo true || echo false)"
+        ;;
+    acknowledge-legacy)
+        [ "$#" -eq 0 ] || { usage >&2; exit 64; }
+        "${manager[@]}" ensure >/dev/null
+        printf 'reviewed-at=%s\n' "$(date -u +%FT%TZ)" >"$root/legacy-reviewed"
+        echo "dev-postgres: legacy state acknowledged; no legacy data was changed"
+        ;;
+    -h|--help|help) usage ;;
+    *) usage >&2; exit 64 ;;
+esac

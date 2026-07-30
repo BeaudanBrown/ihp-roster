@@ -1,7 +1,7 @@
 import { test, expect, type Page } from '@playwright/test';
 import { rosterStaffPanelSortRowDomAttr } from '../frontend/ts/generated/contracts';
 import { E2E_TIMEOUT } from './timeouts';
-import { gotoWhenReady } from './test-helpers';
+import { gotoWhenReady, runSql } from './test-helpers';
 
 async function login(page: Page) {
     await gotoWhenReady(page, '/NewSession', '#email');
@@ -13,6 +13,17 @@ async function login(page: Page) {
 }
 
 test.describe('Venue-scoped navigation', () => {
+    test.beforeEach(() => {
+        runSql(`
+            UPDATE staff
+            SET first_name = 'Alpha', last_name = 'Crew', preferred_name = NULL, is_active = TRUE, archived_at = NULL, updated_at = NOW()
+            WHERE id = 'a1000000-0000-0000-0000-000000000031';
+            UPDATE staff_roster_groups
+            SET deleted_at = NULL, deleted_by_user_id = NULL, delete_reason = NULL, updated_at = NOW()
+            WHERE id = 'a1000000-0000-0000-0000-000000000242';
+        `);
+    });
+
     test('login resolves the current venue and scopes roster, timesheets, and leave views', async ({ page }) => {
         await login(page);
 

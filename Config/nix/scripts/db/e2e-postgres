@@ -1,0 +1,83 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+usage() {
+    cat <<'EOF'
+Usage: e2e-postgres ensure|status|stop|recreate|root|shell|log|cleanup [--apply]
+
+Managed mode is the default and ignores inherited PGHOST. Set
+E2E_POSTGRES_MODE=external together with absolute E2E_DB_SOCKET to opt into an
+external PostgreSQL server. Destructive lifecycle commands are refused in
+external mode.
+EOF
+}
+
+command_name="${1:-}"
+[ -n "$command_name" ] || { usage >&2; exit 64; }
+shift
+mode="${E2E_POSTGRES_MODE:-managed}"
+case "$mode" in managed|external) ;; *) echo "e2e-postgres: E2E_POSTGRES_MODE must be managed or external" >&2; exit 64 ;; esac
+
+if [ "$mode" = external ]; then
+    socket="${E2E_DB_SOCKET:-}"
+    [ -n "$socket" ] && [[ "$socket" = /* ]] || { echo "e2e-postgres: external mode requires absolute E2E_DB_SOCKET" >&2; exit 64; }
+    case "$command_name" in
+        ensure|root) printf '%s\n' "$socket" ;;
+        status) psql -X -q -h "$socket" -d postgres -At -v ON_ERROR_STOP=1 -c 'SELECT 1' >/dev/null; printf 'mode=external\nsocket=%s\nstate=running\n' "$socket" ;;
+        shell) exec psql -X -h "$socket" -d "${TEST_DATABASE_NAME:-postgres}" "$@" ;;
+        log) echo "e2e-postgres: external mode has no managed log" >&2; exit 64 ;;
+        stop|recreate|cleanup) echo "e2e-postgres: refusing $command_name in external mode" >&2; exit 73 ;;
+        -h|--help|help) usage ;;
+        *) usage >&2; exit 64 ;;
+    esac
+    exit 0
+fi
+
+repo_root="${E2E_POSTGRES_REPO_ROOT:-$(git rev-parse --show-toplevel)}"
+project_id="$(printf '%s' "$(realpath "$repo_root")" | sha256sum | cut -c1-12)"
+root="${E2E_POSTGRES_ROOT:-/tmp/bepis-e2e-postgres-$(id -u)-${project_id}}"
+manager=(env TEST_POSTGRES_PROFILE=e2e TEST_POSTGRES_REPO_ROOT="$repo_root" TEST_POSTGRES_ROOT="$root" TEST_POSTGRES_DURABILITY=disposable test-postgres)
+
+case "$command_name" in
+    ensure|stop|recreate|root)
+        [ "$#" -eq 0 ] || { usage >&2; exit 64; }
+        "${manager[@]}" "$command_name"
+        ;;
+    status)
+        [ "$#" -eq 0 ] || { usage >&2; exit 64; }
+        "${manager[@]}" status
+        printf 'mode=managed\n'
+        ;;
+    shell)
+        socket="$("${manager[@]}" ensure)"
+        exec psql -X -h "$socket" -d "${TEST_DATABASE_NAME:-postgres}" "$@"
+        ;;
+    log)
+        [ "$#" -le 1 ] || { usage >&2; exit 64; }
+        lines="${1:-80}"
+        [[ "$lines" =~ ^[1-9][0-9]*$ ]] || { echo "e2e-postgres: log line count must be positive" >&2; exit 64; }
+        tail -n "$lines" "$root/postgres.log"
+        ;;
+    cleanup)
+        apply=0
+        if [ "${1:-}" = "--apply" ] && [ "$#" -eq 1 ]; then apply=1; elif [ "$#" -ne 0 ]; then usage >&2; exit 64; fi
+        socket="$("${manager[@]}" ensure)"
+        mkdir -p "$root"
+        exec 8>>"$root/runs.lock"
+        if ! flock -n -x 8; then
+            echo "e2e-postgres: active E2E run holds the lifecycle lock; refusing cleanup" >&2
+            exit 75
+        fi
+        mapfile -t databases < <(psql -X -q -h "$socket" -d postgres -At -v ON_ERROR_STOP=1 -c \
+            "SELECT candidate.datname FROM pg_database AS candidate WHERE candidate.datname LIKE 'app_e2e_%' AND NOT EXISTS (SELECT 1 FROM pg_stat_activity AS activity WHERE activity.pid <> pg_backend_pid() AND activity.datname = candidate.datname) ORDER BY candidate.datname")
+        if [ "${#databases[@]}" -eq 0 ]; then echo "e2e-postgres: no inactive shard databases"; exit 0; fi
+        printf 'inactive=%s\n' "${databases[*]}"
+        if [ "$apply" != 1 ]; then echo "e2e-postgres: dry run; repeat cleanup --apply"; exit 0; fi
+        for database in "${databases[@]}"; do
+            quoted="${database//\"/\"\"}"
+            psql -X -q -h "$socket" -d postgres -v ON_ERROR_STOP=1 -c "DROP DATABASE \"$quoted\" WITH (FORCE)"
+        done
+        ;;
+    -h|--help|help) usage ;;
+    *) usage >&2; exit 64 ;;
+esac

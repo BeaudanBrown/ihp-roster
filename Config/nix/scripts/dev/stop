@@ -3,12 +3,15 @@ set -euo pipefail
 # shellcheck source=../lib/workspace.sh
 . "@scriptsRoot@/lib/workspace.sh"
 bepis_workspace_configure
+stop_postgres() {
+    dev-postgres stop >/dev/null || true
+}
+trap stop_postgres EXIT
 STATE_DIR="$(dev-agent-state-dir)"
 PID_FILE="$STATE_DIR/devenv.pid"
 FRONTEND_WATCH_PID_FILE="$STATE_DIR/frontend-watch.pid"
 FRONTEND_GENERATED_WATCH_PID_FILE="$STATE_DIR/frontend-generated-watch.pid"
 LEGACY_FRONTEND_CONTRACTS_WATCH_PID_FILE="$STATE_DIR/frontend-contracts-watch.pid"
-POSTGRES_PID_FILE="$STATE_DIR/postgres.pid"
 MAILHOG_PID_FILE="$STATE_DIR/mailhog.pid"
 STRIPE_PID_FILE="$STATE_DIR/stripe-listen.pid"
 
@@ -76,6 +79,5 @@ stop_tracked_process "$FRONTEND_WATCH_PID_FILE" "frontend-watch"
 stop_tracked_process "$FRONTEND_GENERATED_WATCH_PID_FILE" "frontend-generated-watch"
 stop_tracked_process "$LEGACY_FRONTEND_CONTRACTS_WATCH_PID_FILE" "frontend-contracts-watch"
 stop_tracked_process "$STRIPE_PID_FILE" "stripe-listen"
-stop_tracked_process "$POSTGRES_PID_FILE" "postgres"
 stop_tracked_process "$MAILHOG_PID_FILE" "mailhog"
-echo "devenv stopped (slot=$BEPIS_WORKSPACE_SLOT, state=$STATE_DIR)"
+echo "devenv stopped (slot=$BEPIS_WORKSPACE_SLOT, state=$STATE_DIR, postgres_root=$DEV_POSTGRES_ROOT, data=preserved)"

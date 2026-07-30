@@ -1,0 +1,104 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+usage() { echo "Usage: e2e-runtime root|status|runs|log RUN_ID [LINES]|cleanup [--apply]"; }
+command_name="${1:-}"
+[ -n "$command_name" ] || { usage >&2; exit 64; }
+shift
+repo_root="$(git rev-parse --show-toplevel)"
+repo_id="$(printf '%s' "$(realpath "$repo_root")" | sha256sum | cut -c1-12)"
+root="${E2E_RUNTIME_ROOT:-/tmp/bepis-e2e-runtime-$(id -u)-$repo_id}"
+marker="$root/.bepis-e2e-runtime"
+canonical_root="$(realpath -m "$root")"
+[ "$canonical_root" = "$root" ] || { echo "e2e-runtime: root must be canonical: $root" >&2; exit 73; }
+path_component="$root"
+while [ "$path_component" != / ]; do
+    [ ! -L "$path_component" ] || { echo "e2e-runtime: refusing symlinked root component: $path_component" >&2; exit 73; }
+    path_component="$(dirname "$path_component")"
+done
+validate() {
+    [ -d "$root" ] || return 3
+    [ ! -L "$root" ] && [ "$(stat -c %u "$root")" = "$(id -u)" ] \
+        && [ -f "$marker" ] \
+        && [ "$(sed -n '1p' "$marker")" = bepis-e2e-runtime-v1 ] \
+        && [ "$(sed -n '2p' "$marker")" = "uid=$(id -u)" ] \
+        && [ "$(sed -n '3p' "$marker")" = "project=$repo_id" ] \
+        || { echo "e2e-runtime: ownership mismatch: $root" >&2; exit 73; }
+}
+case "$command_name" in
+    root) printf '%s\n' "$root" ;;
+    status)
+        if ! validate; then printf 'state=absent\nroot=%s\n' "$root"; exit 3; fi
+        count="$(find "$root/runs" -mindepth 1 -maxdepth 1 -type d 2>/dev/null | wc -l)"
+        printf 'state=present\nroot=%s\nfilesystem=%s\nruns=%s\n' "$root" "$(stat -f -c %T "$root")" "$count"
+        ;;
+    runs)
+        validate || { echo "e2e-runtime: absent"; exit 3; }
+        find "$root/runs" -mindepth 1 -maxdepth 1 -type d -printf '%f\n' 2>/dev/null | sort
+        ;;
+    log)
+        validate || exit
+        run_id="${1:-}"; lines="${2:-100}"
+        [[ "$run_id" =~ ^[A-Za-z0-9][A-Za-z0-9._-]{0,27}$ ]] && [[ "$lines" =~ ^[1-9][0-9]*$ ]] || { usage >&2; exit 64; }
+        run="$root/runs/$run_id"
+        [ -d "$run" ] || { echo "e2e-runtime: unknown run: $run_id" >&2; exit 66; }
+        find "$run" -maxdepth 2 -type f \( -name '*.log' -o -name 'run.log' \) -print -exec tail -n "$lines" {} \;
+        ;;
+    cleanup)
+        validate || { echo "e2e-runtime: absent"; exit 0; }
+        apply=0
+        if [ "${1:-}" = --apply ] && [ "$#" -eq 1 ]; then apply=1; elif [ "$#" -ne 0 ]; then usage >&2; exit 64; fi
+        removable=()
+        run_fds=()
+        port_fds=()
+        while IFS= read -r run; do
+            [ -d "$run" ] || continue
+            run_id="${run##*/}"
+            [[ "$run_id" =~ ^[A-Za-z0-9][A-Za-z0-9._-]{0,27}$ ]] || continue
+            exec {run_fd}>>"$root/run-locks/$run_id.lock"
+            if ! flock -n -x "$run_fd"; then
+                eval "exec ${run_fd}>&-"
+                continue
+            fi
+            port_fd=""
+            slot="$(cat "$run/port-slot" 2>/dev/null || true)"
+            if [[ "$slot" =~ ^[0-9]+$ ]] && [ "$slot" -le 99 ]; then
+                exec {port_fd}>>"$root/port-locks/$slot.lock"
+                if ! flock -n -x "$port_fd"; then
+                    eval "exec ${port_fd}>&-"
+                    eval "exec ${run_fd}>&-"
+                    continue
+                fi
+            fi
+            removable+=("$run")
+            run_fds+=("$run_fd")
+            port_fds+=("$port_fd")
+        done < <(find "$root/runs" -mindepth 1 -maxdepth 1 -type d 2>/dev/null)
+        printf 'inactive=%s\n' "${#removable[@]}"
+        if [ "$apply" = 1 ]; then
+            for index in "${!removable[@]}"; do
+                run="${removable[$index]}"
+                rm -rf --one-file-system "$run"
+                rm -f "$root/run-locks/${run##*/}.lock"
+            done
+        else
+            echo "e2e-runtime: dry run; repeat cleanup --apply"
+        fi
+        for fd in "${port_fds[@]}" "${run_fds[@]}"; do
+            [ -n "$fd" ] && eval "exec ${fd}>&-"
+        done
+        if [ "$apply" = 1 ]; then
+            for lock_file in "$root"/run-locks/*.lock; do
+                [ -f "$lock_file" ] || continue
+                run_id="$(basename "$lock_file" .lock)"
+                [[ "$run_id" =~ ^[A-Za-z0-9][A-Za-z0-9._-]{0,27}$ ]] || continue
+                [ ! -e "$root/runs/$run_id" ] || continue
+                exec {orphan_fd}>>"$lock_file"
+                if flock -n -x "$orphan_fd"; then rm -f "$lock_file"; fi
+                eval "exec ${orphan_fd}>&-"
+            done
+        fi
+        ;;
+    -h|--help|help) usage ;;
+    *) usage >&2; exit 64 ;;
+esac

@@ -86,6 +86,14 @@ async function openProfileDetailsSection(page: Page) {
 }
 
 test.describe('Live fragment multi-view coverage', () => {
+    test.afterEach(() => {
+        runSql(`
+            UPDATE staff
+            SET preferred_name = NULL, updated_at = NOW()
+            WHERE id = 'a1000000-0000-0000-0000-000000000031';
+        `);
+    });
+
     test.setTimeout(E2E_TIMEOUT.slowTest);
 
     test('worker profile leave submit updates an open manager leave page live', async ({ browser }) => {

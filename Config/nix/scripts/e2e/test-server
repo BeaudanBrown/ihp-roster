@@ -1,8 +1,10 @@
 #!/usr/bin/env bash
 set -euo pipefail
 export TEST_DATABASE_NAME="${TEST_DATABASE_NAME:-app_e2e}"
-export TEST_DB_SOCKET="${TEST_DB_SOCKET:-${PGHOST:-$PWD/build/db}}"
+export E2E_POSTGRES_MODE="${E2E_POSTGRES_MODE:-managed}"
+export TEST_DB_SOCKET="$(e2e-postgres ensure)"
 export DATABASE_URL="postgresql:///$TEST_DATABASE_NAME?host=$TEST_DB_SOCKET"
 export IHP_BROWSER="echo"
 export IHP_ROSTER_E2E=1
+echo "E2E test server PostgreSQL: mode=$E2E_POSTGRES_MODE socket=$TEST_DB_SOCKET" >&2
 exec RunDevServer

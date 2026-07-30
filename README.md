@@ -71,10 +71,30 @@ the deterministic `devenv-script-freshness-check` regression gate.
 the canonical Pixel 7 profile. `e2e` remains the complete gate and repeats
 profile-sensitive mobile behaviors on Galaxy S9+ and iPad Mini. Normal
 typecheck, Hspec, and compiled E2E commands reuse a compatible fingerprinted
-GHC cache; HPC remains isolated. DB-backed Hspec uses a private disposable
-PostgreSQL instance on native temporary storage and prints its effective path
-and durability settings at startup; use `bash ./bin/in-env test-postgres status`
-or `stop` to inspect or remove it. The normal development database is separate.
+GHC cache; HPC remains isolated. Hspec, E2E, and development use distinct
+checkout/UID-scoped PostgreSQL profiles on native temporary storage. Hspec and
+E2E are disposable; development uses full durable PostgreSQL settings and
+preserves data across healthy stop/start. Inspect them without hard-coded paths:
+
+```bash
+bash ./bin/in-env test-postgres status
+bash ./bin/in-env e2e-postgres status
+bash ./bin/in-env dev-postgres status
+bash ./bin/in-env dev-postgres shell
+bash ./bin/in-env e2e-runtime status
+```
+
+A successful E2E run publishes its HTML report, removes its volatile native run
+directory, and stops/removes the disposable E2E PostgreSQL data when it is the
+last concurrent run. A failed run publishes logs/test results under
+`.devenv/e2e/<run-id>/failure` and retains its native state until the next E2E
+run or explicit dry-run-first cleanup; `E2E_KEEP_RUNTIME=1` retains successful
+runtime state only for an intentional diagnostic.
+
+Managed mode ignores inherited `PGHOST`. External E2E or development PostgreSQL
+requires the explicit pairs `E2E_POSTGRES_MODE=external` + `E2E_DB_SOCKET`, or
+`DEV_POSTGRES_MODE=external` + `DEV_POSTGRES_SOCKET`; destructive recreate and
+cleanup operations are refused in external mode.
 
 For browser or integration work, use the managed dev server helpers:
 
@@ -91,13 +111,41 @@ opt-in: use `IHP_ROSTER_DEV_OBSERVABILITY=1 just dev`, then use
 primary checkout). Search Tempo for service `ihp-roster-dev` in the primary
 checkout or `ihp-roster-dev-epic-N` in an epic worktree.
 
-Managed development commands derive workspace-local process state, PostgreSQL
-socket, app port, SMTP port, and MailHog port from the registered epic slot;
-the primary checkout remains slot zero on ports 8000/1025/8025. Run
-`bash ./bin/in-env dev-workspace-info` in any checkout to report its URLs and
-state paths. `just start`, `dev-start`, `dev-status`, `dev-wait`, and `dev-stop`
-apply workspace-derived environment and affect only that checkout. Explicit
-`DEVENV_AGENT_STATE_DIR` roots are namespaced per worktree.
+Managed development commands derive workspace-local native runtime state,
+PostgreSQL socket, app port, SMTP port, and MailHog port from the registered epic
+slot; the primary checkout remains slot zero on ports 8000/1025/8025. Run
+`bash ./bin/in-env dev-workspace-info` in any checkout to report its URLs, state
+paths, and PostgreSQL profile. `just start`, `dev-start`, `dev-status`,
+`dev-wait`, and `dev-stop` apply workspace-derived environment and affect only
+that checkout. Explicit `DEVENV_AGENT_STATE_DIR` roots are namespaced per
+worktree.
+
+Development data under `/tmp` survives `dev-stop`/`dev-start`, but host reboot
+or temporary-storage cleanup can remove it. Use `dev-postgres shell` with
+`pg_dump` before relying on local data, and `dev-postgres recreate` only for a
+deliberate reset. Roll back to an existing checkout-backed cluster without
+modifying it by setting `DEV_POSTGRES_MODE=external` and
+`DEV_POSTGRES_SOCKET` to its running socket. `dev-postgres legacy-status` warns
+when `.devenv/postgres` or `.devenv/state/postgres` exists; after export/import
+or an explicit rollback decision, `dev-postgres acknowledge-legacy` records
+review without deleting either legacy directory. A deliberate migration keeps a
+rollback dump outside volatile state:
+
+```bash
+mkdir -p output/dev-data
+pg_dump -h "$PWD/build/db" -Fc app > output/dev-data/legacy-app.dump
+bash ./bin/in-env dev-postgres recreate
+bash ./bin/in-env env DEV_DATABASE_NAME=postgres dev-postgres shell \
+  -c 'DROP DATABASE app WITH (FORCE)'
+bash ./bin/in-env env DEV_DATABASE_NAME=postgres dev-postgres shell \
+  -c 'CREATE DATABASE app'
+pg_restore -h "$(bash ./bin/in-env dev-postgres root)/socket" -d app \
+  output/dev-data/legacy-app.dump
+bash ./bin/in-env dev-postgres acknowledge-legacy
+```
+
+If validation fails, stop managed development and point the explicit external
+mode at the still-untouched legacy socket; the dump is the recovery artifact.
 
 Epic worktrees are agent-operated. See `AGENTS.md` for the orientation and
 approval contract. Inside the project environment, plain `pi` launches the

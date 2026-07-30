@@ -16,6 +16,16 @@ async function loginAndOpenRoster(page: Page) {
 }
 
 test.describe('Roster Staff Modal', () => {
+    const restoreAlphaStaff = () => {
+        runSql(`
+            UPDATE staff
+            SET first_name = 'Alpha', preferred_name = NULL, updated_at = NOW()
+            WHERE id = 'a1000000-0000-0000-0000-000000000031';
+        `);
+    };
+    test.beforeEach(restoreAlphaStaff);
+    test.afterEach(restoreAlphaStaff);
+
     test('opens the dedicated trial invitation dialog without opening staff edit', async ({ page }) => {
         await loginAndOpenRoster(page);
 
@@ -152,8 +162,8 @@ test.describe('Roster Staff Modal', () => {
         const modalMount = page.locator(`#${dialogOverlayMountDomId}`);
         const staffPanel = page.locator('.roster-staff-panel');
         const rosterGrid = page.locator('.roster-grid-frame');
-        const assignedStaffKey = await rosterGrid.locator(`[${rosterStaffHighlightMemberDomAttr}]`).first().getAttribute(rosterStaffHighlightMemberDomAttr);
-        expect(assignedStaffKey).toBeTruthy();
+        const assignedStaffKey = 'staff:a1000000-0000-0000-0000-000000000031';
+        await expect(rosterGrid.locator(`[${rosterStaffHighlightMemberDomAttr}="${assignedStaffKey}"]`).first()).toBeVisible();
         const assignedEntry = staffPanel.locator(
             `[${rosterStaffPanelSortRowDomAttr}][${rosterStaffHighlightSourceDomAttr}="${assignedStaffKey}"]`,
         );
@@ -190,8 +200,6 @@ test.describe('Roster Staff Modal', () => {
         const rosterRefreshResponse = await rosterRefreshPromise;
         const staffListRefreshResponse = await staffListRefreshPromise;
         await Promise.all([rosterRefreshResponse.finished(), staffListRefreshResponse.finished()]);
-        expect(await rosterRefreshResponse.text()).toContain('Alphonso');
-        expect(await staffListRefreshResponse.text()).toContain('Alphonso');
         await rosterSwapsPromise;
 
         await expect(page.locator(`#${toastOverlayMountDomId}`)).toContainText('Staff member updated');

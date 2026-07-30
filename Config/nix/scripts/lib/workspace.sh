@@ -8,6 +8,50 @@ bepis_workspace_die() {
     return "$status"
 }
 
+bepis_workspace_reject_symlink_path() {
+    local path="$1"
+    local canonical component
+    canonical="$(realpath -m "$path")"
+    [ "$canonical" = "$path" ] || { bepis_workspace_die 73 "state path must be canonical: $path"; return; }
+    component="$path"
+    while [ "$component" != / ]; do
+        [ ! -L "$component" ] || { bepis_workspace_die 73 "refusing symlinked state path component: $component"; return; }
+        component="$(dirname "$component")"
+    done
+}
+
+bepis_workspace_ensure_native_state() {
+    local state_dir="$1"
+    local repo_root="$2"
+    local marker="$state_dir/.bepis-dev-runtime"
+    local owner_uid project_id fs_type
+    owner_uid="$(id -u)"
+    project_id="$(printf '%s' "$repo_root" | sha256sum | cut -c1-12)"
+    case "$state_dir" in /|/tmp|/var|/var/tmp|/run|/run/user|"$repo_root") bepis_workspace_die 64 "refusing unsafe state directory: $state_dir"; return ;; esac
+    [ ! -L "$state_dir" ] || { bepis_workspace_die 73 "refusing symlink state directory: $state_dir"; return; }
+    mkdir -p "$state_dir"
+    [ "$(stat -c %u "$state_dir")" = "$owner_uid" ] || { bepis_workspace_die 73 "state directory is not owned by uid $owner_uid: $state_dir"; return; }
+    if [ ! -f "$marker" ]; then
+        if find "$state_dir" -mindepth 1 -maxdepth 1 -print -quit | grep -q .; then
+            bepis_workspace_die 73 "refusing non-empty unowned state directory: $state_dir"
+            return
+        fi
+        printf 'bepis-dev-runtime-v1\nuid=%s\nproject=%s\n' "$owner_uid" "$project_id" >"$marker"
+    fi
+    [ "$(sed -n '1p' "$marker")" = "bepis-dev-runtime-v1" ] \
+        && [ "$(sed -n '2p' "$marker")" = "uid=$owner_uid" ] \
+        && [ "$(sed -n '3p' "$marker")" = "project=$project_id" ] \
+        || { bepis_workspace_die 73 "state ownership marker does not match this checkout: $marker"; return; }
+    chmod 700 "$state_dir"
+    fs_type="$(stat -f -c %T "$state_dir")"
+    case "$fs_type" in
+        virtiofs|9p|nfs|nfs4|fuse*|smb*|cifs)
+            [ "${BEPIS_DEV_RUNTIME_ALLOW_NON_NATIVE:-0}" = 1 ] \
+                || { bepis_workspace_die 78 "refusing $fs_type runtime state at $state_dir"; return; }
+            ;;
+    esac
+}
+
 bepis_workspace_configure() {
     local repo_root="${BEPIS_WORKSPACE_REPO_ROOT:-}"
     if [ -z "$repo_root" ]; then
@@ -76,34 +120,59 @@ bepis_workspace_configure() {
         return
     fi
 
+    local workspace_id
+    workspace_id="$(printf '%s' "$repo_root" | sha256sum | cut -c1-12)"
     local state_dir=""
     local state_root="${BEPIS_WORKSPACE_STATE_ROOT:-}"
     if [ "${BEPIS_WORKSPACE_STATE_CONFIGURED:-}" = "1" ] \
         && [ "${BEPIS_WORKSPACE_REPO_ROOT:-}" = "$repo_root" ] \
-        && [ -n "${DEVENV_AGENT_STATE_DIR:-}" ]; then
+        && [ -n "${DEVENV_AGENT_STATE_DIR:-}" ] \
+        && [ -f "${DEVENV_AGENT_STATE_DIR}/.bepis-dev-runtime" ]; then
         state_dir="$DEVENV_AGENT_STATE_DIR"
-    elif [ -n "${DEVENV_AGENT_STATE_DIR:-}" ]; then
+    elif [ -n "${DEVENV_AGENT_STATE_DIR:-}" ] \
+        && { [ "${BEPIS_WORKSPACE_STATE_CONFIGURED:-}" != "1" ] \
+            || [ "${BEPIS_WORKSPACE_REPO_ROOT:-}" != "$repo_root" ] \
+            || [ "${DEVENV_AGENT_STATE_DIR:-}" != "$repo_root/.devenv/agent" ]; }; then
         state_root="$DEVENV_AGENT_STATE_DIR"
         if [[ "$state_root" != /* ]]; then
             state_root="$repo_root/$state_root"
         fi
-        state_root="$(realpath -m "$state_root")"
-        local workspace_id
-        workspace_id="$(printf '%s' "$repo_root" | sha256sum | cut -c1-12)"
         state_dir="$state_root/workspace-$workspace_id"
-    elif [ "$slot" -eq 0 ] && [ -n "${XDG_RUNTIME_DIR:-}" ]; then
-        # Preserve the primary checkout's existing slot-zero state location.
-        state_dir="$XDG_RUNTIME_DIR/ihp-roster-dev"
     else
-        state_dir="$repo_root/.devenv/agent"
+        state_root="/tmp/bepis-dev-runtime-$(id -u)-$workspace_id"
+        state_dir="$state_root"
     fi
+    bepis_workspace_reject_symlink_path "$state_dir" || return
     state_dir="$(realpath -m "$state_dir")"
+    bepis_workspace_ensure_native_state "$state_dir" "$repo_root" || return
     local app_port=$((8000 + port_offset + slot))
     local smtp_port=$((1025 + port_offset + slot))
     local mailhog_port=$((8025 + port_offset + slot))
     local app_url="http://127.0.0.1:$app_port"
     local mailhog_url="http://127.0.0.1:$mailhog_port"
-    local postgres_socket="$repo_root/build/db"
+    local dev_postgres_mode="${DEV_POSTGRES_MODE:-managed}"
+    local dev_postgres_root="${DEV_POSTGRES_ROOT:-/tmp/bepis-dev-postgres-$(id -u)-$workspace_id}"
+    local postgres_socket
+    case "$dev_postgres_mode" in
+        managed)
+            [[ "$dev_postgres_root" = /* ]] \
+                || { bepis_workspace_die 64 "DEV_POSTGRES_ROOT must be absolute"; return; }
+            case "$dev_postgres_root" in
+                /|/tmp|/var|/var/tmp|/run|/run/user|"$repo_root")
+                    bepis_workspace_die 64 "refusing unsafe development PostgreSQL root: $dev_postgres_root"
+                    return
+                    ;;
+            esac
+            bepis_workspace_reject_symlink_path "$dev_postgres_root" || return
+            postgres_socket="$dev_postgres_root/socket"
+            ;;
+        external)
+            postgres_socket="${DEV_POSTGRES_SOCKET:-}"
+            [ -n "$postgres_socket" ] && [[ "$postgres_socket" = /* ]] \
+                || { bepis_workspace_die 64 "DEV_POSTGRES_MODE=external requires absolute DEV_POSTGRES_SOCKET"; return; }
+            ;;
+        *) bepis_workspace_die 64 "DEV_POSTGRES_MODE must be managed or external"; return ;;
+    esac
     local database_url="postgresql:///app?host=$postgres_socket"
     local otel_service_name="ihp-roster-dev"
     if [ "$slot" -ne 0 ]; then
@@ -139,6 +208,9 @@ bepis_workspace_configure() {
     export MAILHOG_SMTP_PORT="$smtp_port"
     export MAILHOG_PORT="$mailhog_port"
     export MAILHOG_BASE_URL="$mailhog_url"
+    export DEV_POSTGRES_MODE="$dev_postgres_mode"
+    export DEV_POSTGRES_ROOT="$dev_postgres_root"
+    export DEV_POSTGRES_SOCKET="$postgres_socket"
     export PGHOST="$postgres_socket"
     export DATABASE_URL="$database_url"
     export BEPIS_WORKSPACE_OTEL_SERVICE_NAME="$otel_service_name"
@@ -165,12 +237,14 @@ bepis_workspace_json() {
         --argjson mailhogPort "$MAILHOG_PORT" \
         --arg mailhogUrl "$MAILHOG_BASE_URL" \
         --arg stateDir "$DEVENV_AGENT_STATE_DIR" \
+        --arg postgresMode "$DEV_POSTGRES_MODE" \
+        --arg postgresRoot "$DEV_POSTGRES_ROOT" \
         --arg postgresSocket "$PGHOST" \
         --arg databaseUrl "$DATABASE_URL" \
         --arg otelServiceName "$BEPIS_WORKSPACE_OTEL_SERVICE_NAME" \
         --argjson grafanaPort "$IHP_ROSTER_DEV_GRAFANA_PORT" \
         --argjson otlpHttpPort "$IHP_ROSTER_DEV_OTLP_HTTP_PORT" \
-        '{path: $path, kind: $kind, epic: (if $epic == "" then null else ($epic | tonumber) end), slot: $slot, portOffset: $portOffset, appPort: $appPort, appUrl: $appUrl, smtpPort: $smtpPort, mailhogPort: $mailhogPort, mailhogUrl: $mailhogUrl, stateDir: $stateDir, postgresSocket: $postgresSocket, databaseUrl: $databaseUrl, otelServiceName: $otelServiceName, grafanaPort: $grafanaPort, otlpHttpPort: $otlpHttpPort}'
+        '{path: $path, kind: $kind, epic: (if $epic == "" then null else ($epic | tonumber) end), slot: $slot, portOffset: $portOffset, appPort: $appPort, appUrl: $appUrl, smtpPort: $smtpPort, mailhogPort: $mailhogPort, mailhogUrl: $mailhogUrl, stateDir: $stateDir, postgresMode: $postgresMode, postgresRoot: $postgresRoot, postgresSocket: $postgresSocket, databaseUrl: $databaseUrl, otelServiceName: $otelServiceName, grafanaPort: $grafanaPort, otlpHttpPort: $otlpHttpPort}'
 }
 
 bepis_workspace_shell() {
@@ -178,7 +252,7 @@ bepis_workspace_shell() {
     for name in \
         BEPIS_WORKSPACE_REPO_ROOT BEPIS_WORKSPACE_KIND BEPIS_WORKSPACE_SLOT BEPIS_WORKSPACE_EPIC \
         BEPIS_WORKSPACE_STATE_CONFIGURED BEPIS_WORKSPACE_STATE_ROOT BEPIS_WORKSPACE_PORT_OFFSET DEVENV_AGENT_STATE_DIR PORT APP_BASE_URL BASE_URL PWCLI_BASE_URL \
-        SMTP_HOST SMTP_PORT MAILHOG_SMTP_PORT MAILHOG_PORT MAILHOG_BASE_URL PGHOST DATABASE_URL \
+        SMTP_HOST SMTP_PORT MAILHOG_SMTP_PORT MAILHOG_PORT MAILHOG_BASE_URL DEV_POSTGRES_MODE DEV_POSTGRES_ROOT DEV_POSTGRES_SOCKET PGHOST DATABASE_URL \
         BEPIS_WORKSPACE_OTEL_SERVICE_NAME IHP_ROSTER_DEV_TEMPO_PORT IHP_ROSTER_DEV_TEMPO_SERVER_GRPC_PORT IHP_ROSTER_DEV_TEMPO_OTLP_GRPC_PORT IHP_ROSTER_DEV_TEMPO_OTLP_HTTP_PORT \
         IHP_ROSTER_DEV_OTLP_GRPC_PORT IHP_ROSTER_DEV_OTLP_HTTP_PORT IHP_ROSTER_DEV_COLLECTOR_HEALTH_PORT \
         IHP_ROSTER_DEV_GRAFANA_PORT; do

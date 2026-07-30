@@ -10,8 +10,10 @@ Manages the private disposable PostgreSQL instance used by DB-backed Hspec.
 The default state directory is /tmp/bepis-hspec-postgres-<uid>-<project-id>.
 
 Environment:
+  TEST_POSTGRES_PROFILE              Managed profile name (default: hspec).
   TEST_POSTGRES_ROOT                 Override the managed state directory.
   TEST_POSTGRES_DURABILITY           disposable (default), durable, or custom.
+  TEST_POSTGRES_PRESERVE_ON_STOP     Preserve durable data when set to 1.
   TEST_POSTGRES_FSYNC                Required on/off value for custom mode.
   TEST_POSTGRES_SYNCHRONOUS_COMMIT   Required on/off value for custom mode.
   TEST_POSTGRES_FULL_PAGE_WRITES     Required on/off value for custom mode.
@@ -68,7 +70,12 @@ fi
 
 project_id="$(printf '%s' "$repo_root" | sha256sum | cut -c1-12)"
 owner_uid="$(id -u)"
-state_root="${TEST_POSTGRES_ROOT:-/tmp/bepis-hspec-postgres-${owner_uid}-${project_id}}"
+profile="${TEST_POSTGRES_PROFILE:-hspec}"
+if ! [[ "$profile" =~ ^[a-z][a-z0-9-]*$ ]]; then
+    echo "test-postgres: TEST_POSTGRES_PROFILE must be a lowercase profile name: $profile" >&2
+    exit 64
+fi
+state_root="${TEST_POSTGRES_ROOT:-/tmp/bepis-${profile}-postgres-${owner_uid}-${project_id}}"
 if [[ "$state_root" != /* ]]; then
     echo "test-postgres: TEST_POSTGRES_ROOT must be absolute: $state_root" >&2
     exit 64
@@ -83,13 +90,26 @@ case "$state_root" in
         exit 64
         ;;
 esac
+canonical_state_root="$(realpath -m "$state_root")"
+if [ "$canonical_state_root" != "$state_root" ]; then
+    echo "test-postgres: state root must be canonical: $state_root" >&2
+    exit 73
+fi
+path_component="$state_root"
+while [ "$path_component" != / ]; do
+    if [ -L "$path_component" ]; then
+        echo "test-postgres: refusing symlinked state path component: $path_component" >&2
+        exit 73
+    fi
+    path_component="$(dirname "$path_component")"
+done
 
 if [ "$command_name" = "root" ]; then
     printf '%s\n' "$state_root"
     exit 0
 fi
 
-marker_file="$state_root/.bepis-hspec-postgres"
+marker_file="$state_root/.bepis-${profile}-postgres"
 lock_file="$state_root/manager.lock"
 data_dir="$state_root/data"
 socket_dir="$state_root/socket"
@@ -136,8 +156,13 @@ for setting_name in fsync_setting synchronous_commit_setting full_page_writes_se
 done
 
 postgres_version="$(postgres --version | awk '{ print $NF }')"
-expected_signature="postgres=$postgres_version durability=$durability fsync=$fsync_setting synchronous_commit=$synchronous_commit_setting full_page_writes=$full_page_writes_setting"
-expected_marker_magic="bepis-hspec-postgres-v1"
+if [ "$profile" = "hspec" ]; then
+    # Preserve compatibility with #200's already-running Hspec instances.
+    expected_signature="postgres=$postgres_version durability=$durability fsync=$fsync_setting synchronous_commit=$synchronous_commit_setting full_page_writes=$full_page_writes_setting"
+else
+    expected_signature="postgres=$postgres_version profile=$profile durability=$durability fsync=$fsync_setting synchronous_commit=$synchronous_commit_setting full_page_writes=$full_page_writes_setting"
+fi
+expected_marker_magic="bepis-${profile}-postgres-v1"
 
 validate_or_create_state_root() {
     local allow_create="$1"
@@ -260,7 +285,7 @@ initialize_and_start() {
 
     cat >> "$data_dir/postgresql.conf" <<EOF
 
-# Managed exclusively by ihp-roster test-postgres. This cluster is disposable.
+# Managed exclusively by ihp-roster test-postgres (profile: $profile).
 listen_addresses = ''
 unix_socket_directories = '$socket_dir'
 unix_socket_permissions = 0700
@@ -295,6 +320,21 @@ EOF
     fi
 }
 
+start_existing_instance() {
+    mkdir -p "$socket_dir"
+    chmod 700 "$socket_dir"
+    if ! pg_ctl -D "$data_dir" -l "$postgres_log" -w -t 30 start 9>&- >/dev/null; then
+        echo "test-postgres: PostgreSQL failed to restart; see $postgres_log" >&2
+        exit 70
+    fi
+    if ! server_ready \
+        || [ "$(actual_settings)" != "$fsync_setting $synchronous_commit_setting $full_page_writes_setting" ]; then
+        echo "test-postgres: restarted PostgreSQL has unexpected health or durability settings" >&2
+        stop_running_server || true
+        exit 70
+    fi
+}
+
 ensure_instance() {
     validate_or_create_state_root 1
     validate_native_storage
@@ -306,15 +346,24 @@ ensure_instance() {
             && [ "$(actual_settings)" = "$fsync_setting $synchronous_commit_setting $full_page_writes_setting" ]; then
             return 0
         fi
-        stop_running_server
+        echo "test-postgres: running managed instance does not match the requested profile; refusing reconfiguration" >&2
+        exit 73
     elif stale_live_pid; then
         echo "test-postgres: managed postmaster exists but is not healthy; refusing automatic deletion" >&2
         exit 73
     fi
 
-    # A stopped or crashed reduced-durability cluster is never recovered. Its
-    # complete state is discarded and initialized again.
-    initialize_and_start
+    if [ -f "$data_dir/PG_VERSION" ]; then
+        if [ "$durability" != "durable" ] || [ ! -f "$signature_file" ] \
+            || [ "$(cat "$signature_file")" != "$expected_signature" ]; then
+            # A stopped or crashed reduced-durability cluster is never recovered.
+            initialize_and_start
+        else
+            start_existing_instance
+        fi
+    else
+        initialize_and_start
+    fi
 }
 
 case "$command_name" in
@@ -351,8 +400,12 @@ esac
             ;;
         stop)
             stop_running_server
-            remove_disposable_instance
-            printf 'test-postgres: stopped; next ensure will recreate %s\n' "$state_root"
+            if [ "${TEST_POSTGRES_PRESERVE_ON_STOP:-0}" = "1" ]; then
+                printf 'test-postgres: stopped; preserved durable data at %s\n' "$state_root"
+            else
+                remove_disposable_instance
+                printf 'test-postgres: stopped; next ensure will recreate %s\n' "$state_root"
+            fi
             ;;
         status)
             printf 'root=%s\ndata=%s\nsocket=%s\nfilesystem=%s\n' \

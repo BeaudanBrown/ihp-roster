@@ -7,9 +7,21 @@ set -euo pipefail
 # shellcheck source=../lib/workspace.sh
 . "@scriptsRoot@/lib/workspace.sh"
 bepis_workspace_configure
-export TEST_DB_SOCKET="${TEST_DB_SOCKET:-$PGHOST}"
+E2E_POSTGRES_MODE="${E2E_POSTGRES_MODE:-managed}"
+export E2E_POSTGRES_MODE
+if [ "$E2E_POSTGRES_MODE" = external ]; then
+    [ -n "${E2E_DB_SOCKET:-}" ] || { echo "E2E_POSTGRES_MODE=external requires E2E_DB_SOCKET" >&2; exit 64; }
+fi
 BASE_E2E_DATABASE_NAME="${TEST_DATABASE_NAME:-app_e2e}"
+if ! [[ "$BASE_E2E_DATABASE_NAME" =~ ^[a-z][a-z0-9_]{0,15}$ ]]; then
+    echo "e2e: TEST_DATABASE_NAME must be a safe base identifier of at most 16 characters" >&2
+    exit 64
+fi
 export E2E_RUN_ID="${E2E_RUN_ID:-$(date +%s)-$$-$RANDOM}"
+if ! [[ "$E2E_RUN_ID" =~ ^[A-Za-z0-9][A-Za-z0-9._-]{0,27}$ ]]; then
+    echo "e2e: E2E_RUN_ID must start with an alphanumeric and contain at most 28 safe path/identifier characters" >&2
+    exit 64
+fi
 export IHP_ROSTER_E2E=1
 export E2E_TEST_TOKEN="${E2E_TEST_TOKEN:-e2e-$E2E_RUN_ID-$RANDOM}"
 # Keep Xero error-path fixtures deterministic in isolated shells without
@@ -26,8 +38,8 @@ case "$E2E_SHARDS_MAX" in
         exit 1
         ;;
 esac
-if [ "$E2E_SHARDS_MAX" -lt 1 ]; then
-    echo "E2E_SHARDS_MAX must be at least 1" >&2
+if [ "$E2E_SHARDS_MAX" -lt 1 ] || [ "$E2E_SHARDS_MAX" -gt 8 ]; then
+    echo "E2E_SHARDS_MAX must be between 1 and 8" >&2
     exit 1
 fi
 
@@ -76,36 +88,159 @@ case "$E2E_SHARDS" in
         exit 1
         ;;
 esac
-if [ "$E2E_SHARDS" -lt 1 ]; then
-    echo "E2E_SHARDS must be at least 1" >&2
+if [ "$E2E_SHARDS" -lt 1 ] || [ "$E2E_SHARDS" -gt 8 ]; then
+    echo "E2E_SHARDS must be between 1 and 8 so the locked runtime port block remains disjoint" >&2
     exit 1
 fi
 
-STATE_ROOT="$PWD/.devenv/e2e"
-STATE_DIR="$STATE_ROOT/$E2E_RUN_ID"
+repo_id="$(printf '%s' "$BEPIS_WORKSPACE_REPO_ROOT" | sha256sum | cut -c1-12)"
+STATE_ROOT="${E2E_RUNTIME_ROOT:-/tmp/bepis-e2e-runtime-$(id -u)-$repo_id}"
+ARTIFACT_ROOT="$PWD/.devenv/e2e"
+STATE_DIR="$STATE_ROOT/runs/$E2E_RUN_ID"
 MERGED_BLOB_DIR="$STATE_DIR/blob-report"
 MERGED_HTML_DIR="$STATE_DIR/playwright-report"
+marker="$STATE_ROOT/.bepis-e2e-runtime"
+canonical_state_root="$(realpath -m "$STATE_ROOT")"
+[ "$canonical_state_root" = "$STATE_ROOT" ] || { echo "e2e: runtime root must be canonical: $STATE_ROOT" >&2; exit 73; }
+path_component="$STATE_ROOT"
+while [ "$path_component" != / ]; do
+    [ ! -L "$path_component" ] || { echo "e2e: refusing symlinked runtime path component: $path_component" >&2; exit 73; }
+    path_component="$(dirname "$path_component")"
+done
+mkdir -p "$STATE_ROOT"
+if [ ! -f "$marker" ]; then
+    if find "$STATE_ROOT" -mindepth 1 -maxdepth 1 -print -quit | grep -q .; then
+        echo "e2e: refusing non-empty unowned runtime root: $STATE_ROOT" >&2
+        exit 73
+    fi
+    printf 'bepis-e2e-runtime-v1\nuid=%s\nproject=%s\n' "$(id -u)" "$repo_id" >"$marker"
+fi
+[ "$(stat -c %u "$STATE_ROOT")" = "$(id -u)" ] \
+    && [ "$(sed -n '1p' "$marker")" = bepis-e2e-runtime-v1 ] \
+    && [ "$(sed -n '2p' "$marker")" = "uid=$(id -u)" ] \
+    && [ "$(sed -n '3p' "$marker")" = "project=$repo_id" ] \
+    || { echo "e2e: runtime ownership mismatch: $STATE_ROOT" >&2; exit 73; }
+case "$(stat -f -c %T "$STATE_ROOT")" in
+    virtiofs|9p|nfs|nfs4|fuse*|smb*|cifs)
+        [ "${E2E_RUNTIME_ALLOW_NON_NATIVE:-0}" = 1 ] || { echo "e2e: refusing non-native runtime root: $STATE_ROOT" >&2; exit 78; }
+        ;;
+esac
+chmod 700 "$STATE_ROOT"
+case "${E2E_RUNTIME_AUTO_CLEANUP:-1}" in 0|1) ;; *) echo "e2e: E2E_RUNTIME_AUTO_CLEANUP must be 0 or 1" >&2; exit 64 ;; esac
+mkdir -p "$STATE_ROOT/runs" "$STATE_ROOT/port-locks" "$STATE_ROOT/run-locks"
+if [ -e "$STATE_DIR" ] || [ -e "$ARTIFACT_ROOT/$E2E_RUN_ID" ]; then
+    echo "e2e: refusing to reuse existing run id: $E2E_RUN_ID" >&2
+    exit 73
+fi
+exec 9>>"$STATE_ROOT/run-locks/$E2E_RUN_ID.lock"
+if ! flock -n -x 9; then
+    echo "e2e: run id is already active: $E2E_RUN_ID" >&2
+    exit 75
+fi
 mkdir -p "$STATE_DIR" "$MERGED_BLOB_DIR"
 
-if ! curl -fsS "$MAILHOG_BASE_URL/api/v2/messages" >/dev/null 2>&1; then
-    MAILHOG_LOG="$STATE_DIR/mailhog.log"
-    @mailhog@/bin/MailHog \
-        -smtp-bind-addr "127.0.0.1:$MAILHOG_SMTP_PORT" \
-        -ui-bind-addr "127.0.0.1:$MAILHOG_PORT" \
-        -api-bind-addr "127.0.0.1:$MAILHOG_PORT" \
-        >>"$MAILHOG_LOG" 2>&1 &
-    MAILHOG_PID="$!"
-    MAILHOG_STARTED=1
-else
-    MAILHOG_STARTED=0
-fi
-
+shard_pids=()
+PARENT_CLEANED=0
+RUN_SUCCEEDED=0
+FAILURE_PUBLISHED=0
+MAILHOG_STARTED=0
+LIFECYCLE_LOCKED=0
+postgres_root=""
+publish_failure_diagnostics() {
+    [ "$FAILURE_PUBLISHED" = 0 ] || return 0
+    FAILURE_PUBLISHED=1
+    local failure_dir="$ARTIFACT_ROOT/$E2E_RUN_ID/failure"
+    local shard_dir shard_name
+    mkdir -p "$failure_dir"
+    cp "$STATE_DIR"/*.log "$failure_dir/" 2>/dev/null || true
+    for shard_dir in "$STATE_DIR"/shard-*; do
+        [ -d "$shard_dir" ] || continue
+        shard_name="${shard_dir##*/}"
+        mkdir -p "$failure_dir/$shard_name"
+        cp "$shard_dir"/*.log "$failure_dir/$shard_name/" 2>/dev/null || true
+        if [ -d "$shard_dir/test-results" ]; then
+            cp -a "$shard_dir/test-results" "$failure_dir/$shard_name/"
+        fi
+    done
+    printf 'run_id=%s\nruntime=%s\npublished_at=%s\n' \
+        "$E2E_RUN_ID" "$STATE_DIR" "$(date -u +%FT%TZ)" >"$failure_dir/runtime.env"
+    echo "E2E durable failure diagnostics: $failure_dir" >&2
+}
 cleanup_parent() {
+    [ "$PARENT_CLEANED" = 0 ] || return 0
+    PARENT_CLEANED=1
+    local pid
+    for pid in "${shard_pids[@]:-}"; do
+        if kill -0 "$pid" 2>/dev/null; then kill -TERM "$pid" 2>/dev/null || true; fi
+    done
+    for pid in "${shard_pids[@]:-}"; do wait "$pid" 2>/dev/null || true; done
     if [ "${MAILHOG_STARTED:-0}" = "1" ] && [ -n "${MAILHOG_PID:-}" ]; then
         kill "$MAILHOG_PID" 2>/dev/null || true
+        wait "$MAILHOG_PID" 2>/dev/null || true
     fi
+    if [ "$LIFECYCLE_LOCKED" = 1 ]; then
+        exec 7>&-
+        LIFECYCLE_LOCKED=0
+        if [ "$E2E_POSTGRES_MODE" = managed ]; then
+            exec {idle_postgres_fd}>>"$postgres_root/runs.lock"
+            if flock -n -x "$idle_postgres_fd"; then
+                e2e-postgres stop >/dev/null 2>&1 || true
+            fi
+            eval "exec ${idle_postgres_fd}>&-"
+        fi
+    fi
+    if [ "$RUN_SUCCEEDED" != 1 ]; then
+        publish_failure_diagnostics
+    fi
+    exec 9>&-
+    rm -f "$STATE_ROOT/run-locks/$E2E_RUN_ID.lock"
 }
 trap cleanup_parent EXIT
+trap 'exit 130' INT TERM
+
+postgres_root="$(e2e-postgres root)"
+if [ "$E2E_POSTGRES_MODE" = managed ]; then
+    lifecycle_lock="$postgres_root/runs.lock"
+else
+    lifecycle_lock="$STATE_ROOT/external-runs.lock"
+fi
+exec 7>>"$lifecycle_lock"
+flock -s 7
+LIFECYCLE_LOCKED=1
+if [ "${E2E_RUNTIME_AUTO_CLEANUP:-1}" = 1 ]; then
+    e2e-runtime cleanup --apply >/dev/null 2>&1 || true
+fi
+# Holding the shared lifecycle lock before ensure prevents a concurrently
+# finishing last run from stopping the cluster after this run observed it.
+export TEST_DB_SOCKET="$(e2e-postgres ensure 7>&- 9>&-)"
+
+PORT_SLOT=""
+for candidate in $(seq 0 99); do
+    exec {candidate_fd}>>"$STATE_ROOT/port-locks/$candidate.lock"
+    if flock -n -x "$candidate_fd"; then
+        PORT_SLOT="$candidate"
+        PORT_LOCK_FD="$candidate_fd"
+        break
+    fi
+    eval "exec ${candidate_fd}>&-"
+done
+[ -n "$PORT_SLOT" ] || { echo "e2e: no runtime port slot available" >&2; exit 75; }
+printf '%s\n' "$PORT_SLOT" >"$STATE_DIR/port-slot"
+printf '%s\n' "$$" >"$STATE_DIR/owner.pid"
+E2E_PORT_BASE=$((10000 + PORT_SLOT * 300))
+export MAILHOG_SMTP_PORT="$E2E_PORT_BASE"
+export MAILHOG_PORT=$((E2E_PORT_BASE + 1))
+export SMTP_HOST=127.0.0.1
+export SMTP_PORT="$MAILHOG_SMTP_PORT"
+export MAILHOG_BASE_URL="http://127.0.0.1:$MAILHOG_PORT"
+MAILHOG_LOG="$STATE_DIR/mailhog.log"
+@mailhog@/bin/MailHog \
+    -smtp-bind-addr "127.0.0.1:$MAILHOG_SMTP_PORT" \
+    -ui-bind-addr "127.0.0.1:$MAILHOG_PORT" \
+    -api-bind-addr "127.0.0.1:$MAILHOG_PORT" \
+    7>&- 9>&- {PORT_LOCK_FD}>&- >>"$MAILHOG_LOG" 2>&1 &
+MAILHOG_PID="$!"
+MAILHOG_STARTED=1
 
 detect_e2e_base_url() {
     local pgid="$1"
@@ -129,7 +264,6 @@ detect_e2e_base_url() {
     return 1
 }
 
-shard_pids=()
 shard_statuses=()
 
 E2E_SERVER_MODE="${E2E_SERVER_MODE:-}"
@@ -149,7 +283,8 @@ if [ "$E2E_SERVER_MODE" = "compiled" ]; then
     mkdir -p "$E2E_RUN_BUILD_DIR"
     GHC_OPTS="$(ihp_roster_ghc_opts) -iTest"
     ihp_roster_prepare_ghc_build_dir "$E2E_BUILD_DIR" "$GHC_OPTS"
-    ghc $GHC_OPTS Main.hs -o "$E2E_SERVER_BIN" -odir "$E2E_BUILD_DIR/obj" -hidir "$E2E_BUILD_DIR/hi"
+    ghc $GHC_OPTS Main.hs -o "$E2E_SERVER_BIN" -odir "$E2E_BUILD_DIR/obj" -hidir "$E2E_BUILD_DIR/hi" \
+        7>&- 9>&- {PORT_LOCK_FD}>&- 2>&1 | tee "$STATE_DIR/app-build.log"
 elif [ "$E2E_SERVER_MODE" != "dev" ]; then
     echo "E2E_SERVER_MODE must be compiled or dev, got: $E2E_SERVER_MODE" >&2
     exit 1
@@ -164,12 +299,13 @@ ghc $STRIPE_MOCK_GHC_OPTS \
     Test/StripeProcessMockMain.hs \
     -o "$E2E_STRIPE_MOCK_BIN" \
     -odir "$E2E_STRIPE_MOCK_BUILD_DIR/obj" \
-    -hidir "$E2E_STRIPE_MOCK_BUILD_DIR/hi"
+    -hidir "$E2E_STRIPE_MOCK_BUILD_DIR/hi" \
+    7>&- 9>&- {PORT_LOCK_FD}>&- 2>&1 | tee "$STATE_DIR/stripe-mock-build.log"
 
 find_e2e_port() {
     local start_port="$1"
     local port
-    for port in $(seq "$start_port" 8999); do
+    for port in $(seq "$start_port" "$((start_port + 9))"); do
         if ! lsof -Pan -iTCP:"$port" -sTCP:LISTEN >/dev/null 2>&1; then
             printf '%s\n' "$port"
             return 0
@@ -201,11 +337,13 @@ run_e2e_shard() {
         cleanup() {
             if [ -n "${stripe_mock_pid:-}" ]; then
                 kill -TERM -"$stripe_mock_pid" 2>/dev/null || kill -TERM "$stripe_mock_pid" 2>/dev/null || true
+                wait "$stripe_mock_pid" 2>/dev/null || true
             fi
             if [ -f "$shard_pid_file" ]; then
                 local pid
                 pid=$(cat "$shard_pid_file")
                 kill -TERM -"$pid" 2>/dev/null || kill -TERM "$pid" 2>/dev/null || true
+                wait "$pid" 2>/dev/null || true
                 rm -f "$shard_pid_file"
             fi
 
@@ -215,12 +353,13 @@ DROP DATABASE IF EXISTS "$TEST_DATABASE_NAME" WITH (FORCE);
 SQL
             fi
         }
-        trap cleanup EXIT INT TERM
+        trap cleanup EXIT
+        trap 'exit 130' INT TERM
 
         test-db-reset
 
         local stripe_mock_port
-        stripe_mock_port="$(find_e2e_port "$((7100 + (shard_index - 1) * 20))")"
+        stripe_mock_port="$(find_e2e_port "$((E2E_PORT_BASE + 20 + (shard_index - 1) * 20))")"
         export STRIPE_MOCK_BASE_URL="http://127.0.0.1:$stripe_mock_port"
         export STRIPE_TEST_API_BASE_URL="$STRIPE_MOCK_BASE_URL"
         export STRIPE_MODE=test
@@ -232,17 +371,18 @@ SQL
         export STRIPE_SECRET_KEY=sk_test_123
         export STRIPE_WEBHOOK_SECRET=whsec_e2e_strict_boundary
         export STRIPE_PRICE_LOOKUP_KEY=bepis_venue_monthly_aud_100
-        setsid "$E2E_STRIPE_MOCK_BIN" "$stripe_mock_port" </dev/null >>"$shard_dir/stripe-mock.log" 2>&1 &
+        setsid "$E2E_STRIPE_MOCK_BIN" "$stripe_mock_port" \
+            7>&- 9>&- {PORT_LOCK_FD}>&- </dev/null >>"$shard_dir/stripe-mock.log" 2>&1 &
         local stripe_mock_pid="$!"
 
         local shard_port
-        shard_port="$(find_e2e_port "$((8100 + (shard_index - 1) * 20))")"
+        shard_port="$(find_e2e_port "$((E2E_PORT_BASE + 180 + (shard_index - 1) * 10))")"
         if [ "$E2E_SERVER_MODE" = "compiled" ]; then
             PORT="$shard_port" APP_BASE_URL="http://127.0.0.1:$shard_port" IHP_BROWSER=echo \
-                setsid "$E2E_SERVER_BIN" </dev/null >>"$shard_log" 2>&1 &
+                setsid "$E2E_SERVER_BIN" 7>&- 9>&- {PORT_LOCK_FD}>&- </dev/null >>"$shard_log" 2>&1 &
         else
             PORT="$shard_port" APP_BASE_URL="http://127.0.0.1:$shard_port" \
-                setsid test-e2e-server </dev/null >>"$shard_log" 2>&1 &
+                setsid test-e2e-server 7>&- 9>&- {PORT_LOCK_FD}>&- </dev/null >>"$shard_log" 2>&1 &
         fi
         local server_pid="$!"
         echo "$server_pid" > "$shard_pid_file"
@@ -252,7 +392,8 @@ SQL
                 export E2E_BASE_URL
                 echo "E2E shard $shard_index/$E2E_SHARDS app server ready at $E2E_BASE_URL"
                 echo "E2E database: $TEST_DATABASE_NAME"
-                node ./node_modules/@playwright/test/cli.js test --shard="$shard_index/$E2E_SHARDS" "$@"
+                node ./node_modules/@playwright/test/cli.js test --shard="$shard_index/$E2E_SHARDS" "$@" \
+                    7>&- 9>&- {PORT_LOCK_FD}>&-
                 exit $?
             fi
 
@@ -294,15 +435,17 @@ for shard_index in $(seq 1 "$E2E_SHARDS"); do
 done
 
 if [ -n "$(find "$MERGED_BLOB_DIR" -mindepth 1 -maxdepth 1 -type f 2>/dev/null)" ]; then
-    node ./node_modules/@playwright/test/cli.js merge-reports \
-        --reporter html \
-        --config playwright.config.ts \
-        "$MERGED_BLOB_DIR" >/dev/null
     rm -rf "$MERGED_HTML_DIR"
-    if [ -d "$PWD/playwright-report" ]; then
-        mv "$PWD/playwright-report" "$MERGED_HTML_DIR"
-    fi
-    ln -sfn "$MERGED_HTML_DIR" "$STATE_ROOT/latest-report"
+    PLAYWRIGHT_HTML_REPORT_DIR="$MERGED_HTML_DIR" \
+        PLAYWRIGHT_HTML_OUTPUT_DIR="$MERGED_HTML_DIR" \
+        node ./node_modules/@playwright/test/cli.js merge-reports \
+            --reporter html \
+            --config playwright.config.ts \
+            "$MERGED_BLOB_DIR" 7>&- 9>&- {PORT_LOCK_FD}>&- >/dev/null
+    artifact_dir="$ARTIFACT_ROOT/$E2E_RUN_ID"
+    mkdir -p "$artifact_dir"
+    cp -a "$MERGED_HTML_DIR" "$artifact_dir/playwright-report"
+    ln -sfn "$artifact_dir/playwright-report" "$ARTIFACT_ROOT/latest-report"
 fi
 
 if [ "$failed" -ne 0 ]; then
@@ -319,4 +462,14 @@ if [ "$failed" -ne 0 ]; then
 fi
 
 echo "Parallel Playwright run completed across $E2E_SHARDS shards"
-echo "E2E artifacts: $STATE_DIR"
+echo "E2E PostgreSQL: mode=$E2E_POSTGRES_MODE socket=$TEST_DB_SOCKET filesystem=$(stat -f -c %T "$TEST_DB_SOCKET")"
+echo "E2E runtime: $STATE_DIR (filesystem=$(stat -f -c %T "$STATE_DIR"), port_slot=$PORT_SLOT)"
+echo "E2E durable report: $ARTIFACT_ROOT/latest-report"
+RUN_SUCCEEDED=1
+cleanup_parent
+if [ "${E2E_KEEP_RUNTIME:-0}" != 1 ]; then
+    rm -rf --one-file-system "$STATE_DIR"
+    echo "E2E volatile runtime: removed after successful report publication"
+else
+    echo "E2E volatile runtime: retained by E2E_KEEP_RUNTIME=1"
+fi

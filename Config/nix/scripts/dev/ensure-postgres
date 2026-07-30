@@ -3,72 +3,11 @@ set -euo pipefail
 # shellcheck source=../lib/workspace.sh
 . "@scriptsRoot@/lib/workspace.sh"
 bepis_workspace_configure
-STATE_DIR="$(dev-agent-state-dir)"
-POSTGRES_PID_FILE="$STATE_DIR/postgres.pid"
-LOG_FILE="$STATE_DIR/devenv.log"
-DB_SOCKET="$PGHOST"
 
-mkdir -p "$STATE_DIR"
-: > "$LOG_FILE"
-
-if psql -h "$DB_SOCKET" -d postgres -c "select 1" >/dev/null 2>&1; then
-    exit 0
+socket="$(dev-postgres ensure)"
+if [ "$socket" != "$PGHOST" ]; then
+    echo "dev-ensure-postgres: runtime socket mismatch: workspace=$PGHOST manager=$socket" >&2
+    exit 73
 fi
-
-if [ -f "$POSTGRES_PID_FILE" ]; then
-    PG_PID=$(cat "$POSTGRES_PID_FILE")
-    if ! kill -0 "$PG_PID" 2>/dev/null; then
-        rm -f "$POSTGRES_PID_FILE"
-    fi
-fi
-
-if [ ! -f "$POSTGRES_PID_FILE" ]; then
-    if [ "$BEPIS_WORKSPACE_SLOT" -eq 0 ]; then
-        echo "[dev-ensure-postgres] launching primary start-postgres (socket=$DB_SOCKET)" >>"$LOG_FILE"
-        setsid nohup start-postgres </dev/null >>"$LOG_FILE" 2>&1 &
-    else
-        POSTGRES_DATA="$BEPIS_WORKSPACE_REPO_ROOT/.devenv/postgres"
-        for workspace_db_path in "$POSTGRES_DATA" "$DB_SOCKET"; do
-            if [ -L "$workspace_db_path" ] \
-                || [ "$(realpath -m "$workspace_db_path")" != "$workspace_db_path" ]; then
-                echo "dev-ensure-postgres: refusing symlinked or non-canonical workspace database path: $workspace_db_path" >&2
-                exit 65
-            fi
-            case "$workspace_db_path" in
-                "$BEPIS_WORKSPACE_REPO_ROOT"/*) ;;
-                *)
-                    echo "dev-ensure-postgres: workspace database path escapes checkout: $workspace_db_path" >&2
-                    exit 65
-                    ;;
-            esac
-        done
-        mkdir -p "$POSTGRES_DATA" "$DB_SOCKET"
-        chmod 700 "$POSTGRES_DATA" "$DB_SOCKET"
-        if [ ! -f "$POSTGRES_DATA/PG_VERSION" ]; then
-            echo "[dev-ensure-postgres] initializing workspace postgres (data=$POSTGRES_DATA)" >>"$LOG_FILE"
-            env -u PGDATA initdb --no-locale --encoding=UTF8 --auth=trust -D "$POSTGRES_DATA" \
-                </dev/null >>"$LOG_FILE" 2>&1
-        fi
-        echo "[dev-ensure-postgres] launching workspace postgres (data=$POSTGRES_DATA socket=$DB_SOCKET)" >>"$LOG_FILE"
-        setsid nohup env -u PGDATA postgres -D "$POSTGRES_DATA" -k "$DB_SOCKET" -h '' \
-            </dev/null >>"$LOG_FILE" 2>&1 &
-    fi
-    PG_PID=$!
-    echo "$PG_PID" > "$POSTGRES_PID_FILE"
-    disown "$PG_PID" 2>/dev/null || true
-fi
-
-for _ in $(seq 1 20); do
-    if psql -h "$DB_SOCKET" -d postgres -c "select 1" >/dev/null 2>&1; then
-        if ! psql -h "$DB_SOCKET" -d app -c "select 1" >/dev/null 2>&1; then
-            psql -h "$DB_SOCKET" -d postgres -v ON_ERROR_STOP=1 -c "create database app" \
-                >/dev/null
-        fi
-        exit 0
-    fi
-    sleep 1
-done
-
-echo "devenv postgres failed to start; recent log output:"
-tail -n 60 "$LOG_FILE" || true
-exit 1
+printf 'dev PostgreSQL: mode=%s socket=%s root=%s durability=durable\n' \
+    "$DEV_POSTGRES_MODE" "$socket" "$DEV_POSTGRES_ROOT"

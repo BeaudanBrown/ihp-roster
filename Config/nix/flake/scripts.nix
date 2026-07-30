@@ -155,6 +155,9 @@ in
         sync-fwc-mapd = script ../scripts/xero/sync-fwc-mapd;
         xero-pay-item-probe = script ../scripts/xero/pay-item-probe;
         test-e2e-server = script ../scripts/e2e/test-server;
+        e2e-postgres = script ../scripts/db/e2e-postgres;
+        dev-postgres = script ../scripts/db/dev-postgres;
+        e2e-runtime = script ../scripts/e2e/runtime;
         e2e = script ../scripts/e2e/e2e;
         e2e-fast = script ../scripts/e2e/e2e-fast;
         screenshot = script ../scripts/e2e/screenshot;

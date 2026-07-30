@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
-unset DEVENV_AGENT_STATE_DIR XDG_RUNTIME_DIR
+unset DEVENV_AGENT_STATE_DIR XDG_RUNTIME_DIR DEV_POSTGRES_MODE DEV_POSTGRES_ROOT DEV_POSTGRES_SOCKET PGHOST DATABASE_URL
 
 repo_root="$(git rev-parse --show-toplevel)"
 info_command="$repo_root/Config/nix/scripts/dev/workspace-info"
@@ -8,6 +8,8 @@ registry_command="$repo_root/Config/nix/scripts/epic/worktree"
 fixture_root="$(mktemp -d)"
 cleanup() {
     rm -rf "$fixture_root"
+    if [ -n "${fixture_repo:-}" ]; then rm -rf "/tmp/bepis-dev-runtime-$(id -u)-$(printf '%s' "$fixture_repo" | sha256sum | cut -c1-12)"; fi
+    if [ -n "${epic_path:-}" ]; then rm -rf "/tmp/bepis-dev-runtime-$(id -u)-$(printf '%s' "$epic_path" | sha256sum | cut -c1-12)"; fi
 }
 trap cleanup EXIT
 
@@ -55,9 +57,14 @@ epic_json="$(
 [ "$(jq -r '.otlpHttpPort' <<<"$epic_json")" = "4319" ] || fail "epic OTLP port mismatch"
 [ "$(jq -r '.stateDir' <<<"$main_json")" != "$(jq -r '.stateDir' <<<"$epic_json")" ] \
     || fail "worktrees share process state"
-[ "$(jq -r '.postgresSocket' <<<"$main_json")" = "$fixture_repo/build/db" ] || fail "primary PostgreSQL socket mismatch"
-[ "$(jq -r '.postgresSocket' <<<"$epic_json")" = "$epic_path/build/db" ] || fail "epic PostgreSQL socket is not worktree-specific"
-[ "$(jq -r '.databaseUrl' <<<"$epic_json")" = "postgresql:///app?host=$epic_path/build/db" ] \
+main_id="$(printf '%s' "$fixture_repo" | sha256sum | cut -c1-12)"
+epic_id="$(printf '%s' "$epic_path" | sha256sum | cut -c1-12)"
+main_dev_root="/tmp/bepis-dev-postgres-$(id -u)-$main_id"
+epic_dev_root="/tmp/bepis-dev-postgres-$(id -u)-$epic_id"
+[ "$(jq -r '.postgresMode' <<<"$main_json")" = managed ] || fail "primary PostgreSQL mode changed"
+[ "$(jq -r '.postgresSocket' <<<"$main_json")" = "$main_dev_root/socket" ] || fail "primary PostgreSQL socket mismatch"
+[ "$(jq -r '.postgresSocket' <<<"$epic_json")" = "$epic_dev_root/socket" ] || fail "epic PostgreSQL socket is not worktree-specific"
+[ "$(jq -r '.databaseUrl' <<<"$epic_json")" = "postgresql:///app?host=$epic_dev_root/socket" ] \
     || fail "epic app database URL is not worktree-specific"
 [ "$(jq -r '.otelServiceName' <<<"$epic_json")" = "ihp-roster-dev-epic-265" ] || fail "epic OTel service name mismatch"
 offset_json="$(
@@ -70,14 +77,9 @@ offset_json="$(
 [ "$(jq -r '.appPort' <<<"$offset_json")" = 28001 ] || fail "acceptance app port offset was not applied"
 [ "$(jq -r '.smtpPort' <<<"$offset_json")" = 21026 ] || fail "acceptance SMTP port offset was not applied"
 [ "$(jq -r '.mailhogPort' <<<"$offset_json")" = 28026 ] || fail "acceptance MailHog port offset was not applied"
-legacy_state="$(
-    XDG_RUNTIME_DIR="$fixture_root/runtime" \
-        BEPIS_WORKSPACE_REPO_ROOT="$fixture_repo" \
-        BEPIS_EPIC_WORKTREE_COMMAND="$registry_command" \
-        bash "$info_command" --json \
-        | jq -r '.stateDir'
-)"
-[ "$legacy_state" = "$fixture_root/runtime/ihp-roster-dev" ] || fail "slot-zero XDG state behavior changed"
+native_state="$(jq -r '.stateDir' <<<"$main_json")"
+[ "$native_state" = "/tmp/bepis-dev-runtime-$(id -u)-$main_id" ] || fail "default runtime state is not project-scoped native temporary storage"
+[ "$(stat -f -c %T "$native_state")" = tmpfs ] || fail "default runtime state is not on native tmpfs"
 shared_override="$fixture_root/shared-state"
 main_override_state="$(
     DEVENV_AGENT_STATE_DIR="$shared_override" \
@@ -107,8 +109,9 @@ eval "$shell_env"
 [ "$MAILHOG_BASE_URL" = "http://127.0.0.1:8026" ] || fail "shell output omitted MailHog URL"
 [ "$PWCLI_BASE_URL" = "$APP_BASE_URL" ] || fail "browser auth URL differs from app URL"
 [ "$BASE_URL" = "$APP_BASE_URL" ] || fail "screenshot URL differs from app URL"
-[ "$PGHOST" = "$epic_path/build/db" ] || fail "shell output omitted worktree PostgreSQL socket"
-[ "$DATABASE_URL" = "postgresql:///app?host=$epic_path/build/db" ] || fail "shell output omitted worktree database URL"
+[ "$DEV_POSTGRES_MODE" = managed ] || fail "shell output omitted managed PostgreSQL mode"
+[ "$PGHOST" = "$epic_dev_root/socket" ] || fail "shell output omitted worktree PostgreSQL socket"
+[ "$DATABASE_URL" = "postgresql:///app?host=$epic_dev_root/socket" ] || fail "shell output omitted worktree database URL"
 
 set +e
 invalid_offset_output="$(

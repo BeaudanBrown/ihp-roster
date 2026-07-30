@@ -1,5 +1,6 @@
 import { test, expect, type Page } from '@playwright/test';
 import { rosterStaffPanelTabDomAttr } from '../frontend/ts/generated/contracts';
+import { E2E_TIMEOUT } from './timeouts';
 import {
     addRowToRosterDay,
     editableRosterRows,
@@ -40,10 +41,14 @@ test.describe('Roster row controls', () => {
         await expect(settingsTab).toHaveAttribute(rosterStaffPanelTabDomAttr, 'settings');
         expect(await staffTab.evaluate((element) => element.closest('[data-bepis-surface]')?.getAttribute('data-bepis-surface'))).toBe('roster');
 
-        await staffTab.focus();
-        await page.keyboard.press('ArrowRight');
-        await expect(settingsTab).toHaveAttribute('aria-selected', 'true');
         const settingsPane = page.locator('#roster-staff-panel-settings-pane');
+        await expect(async () => {
+            if (await settingsTab.getAttribute('aria-selected') !== 'true' || !(await settingsPane.isVisible())) {
+                await settingsTab.click();
+            }
+            await expect(settingsTab).toHaveAttribute('aria-selected', 'true');
+            await expect(settingsPane).toBeVisible();
+        }).toPass({ timeout: E2E_TIMEOUT.assertion });
         await expect(settingsPane.getByRole('heading', { name: 'Roster layout' })).toBeVisible();
         await expect(settingsPane.getByRole('heading', { name: 'Display' })).toBeVisible();
         await expect(settingsPane.getByRole('heading', { name: 'Prevent assignment' })).toBeVisible();

@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 umask 077
-unset DEVENV_AGENT_STATE_DIR BEPIS_WORKSPACE_STATE_CONFIGURED BEPIS_WORKSPACE_STATE_ROOT
+unset DEVENV_AGENT_STATE_DIR BEPIS_WORKSPACE_STATE_CONFIGURED BEPIS_WORKSPACE_STATE_ROOT \
+    DEV_POSTGRES_MODE DEV_POSTGRES_ROOT DEV_POSTGRES_SOCKET PGHOST DATABASE_URL
 
 source_repo="$(git rev-parse --show-toplevel)"
 fixture_root="$(mktemp -d)"
@@ -71,7 +72,8 @@ trap cleanup EXIT INT TERM
 
 for command_name in \
     epic-worktree epic-worktree-provision epic-worktree-manage \
-    dev-ensure-postgres dev-start dev-stop dev-status dev-workspace-info test-postgres; do
+    dev-postgres dev-ensure-postgres dev-start dev-stop dev-status dev-workspace-info \
+    test-postgres e2e-postgres e2e-runtime; do
     command -v "$command_name" >/dev/null 2>&1 || fail "named command unavailable: $command_name"
 done
 for command_name in curl git jq lsof node psql timeout; do
@@ -86,6 +88,8 @@ dev_stop_command="$(command -v dev-stop)"
 dev_status_command="$(command -v dev-status)"
 workspace_info_command="$(command -v dev-workspace-info)"
 test_postgres_command="$(command -v test-postgres)"
+e2e_postgres_command="$(command -v e2e-postgres)"
+e2e_runtime_command="$(command -v e2e-runtime)"
 
 git clone --quiet --no-local "$source_repo" "$primary_repo"
 git -C "$primary_repo" config user.name "Epic Concurrency Acceptance"
@@ -189,10 +193,14 @@ cleanup_started=true
 run_for() {
     local path="$1"
     shift
+    local path_id
+    path_id="$(printf '%s' "$path" | sha256sum | cut -c1-12)"
     (
         cd "$path"
         PATH="$fake_bin:$PATH" \
         FRONTEND_REPO_ROOT="$source_repo" \
+        DEVENV_AGENT_STATE_DIR="$fixture_root/dev-runtime" \
+        DEV_POSTGRES_ROOT="$fixture_root/dev-postgres-$path_id" \
         BEPIS_WORKSPACE_PORT_OFFSET="$port_offset" \
         BEPIS_WORKSPACE_REPO_ROOT="$path" \
         BEPIS_EPIC_WORKTREE_COMMAND="$registry_command" \
@@ -212,22 +220,34 @@ two_mailhog="$(jq -r '.mailhogUrl' <<<"$two_info")"
     || fail "epic runtime state directories collide"
 [ "$(jq -r '.postgresSocket' <<<"$one_info")" != "$(jq -r '.postgresSocket' <<<"$two_info")" ] \
     || fail "epic PostgreSQL sockets collide"
+one_e2e_postgres_root="$(E2E_POSTGRES_REPO_ROOT="$epic_one" "$e2e_postgres_command" root)"
+two_e2e_postgres_root="$(E2E_POSTGRES_REPO_ROOT="$epic_two" "$e2e_postgres_command" root)"
+one_e2e_runtime_root="$(run_for "$epic_one" "$e2e_runtime_command" root)"
+two_e2e_runtime_root="$(run_for "$epic_two" "$e2e_runtime_command" root)"
+[ "$one_e2e_postgres_root" != "$two_e2e_postgres_root" ] || fail "epic E2E PostgreSQL roots collide"
+[ "$one_e2e_runtime_root" != "$two_e2e_runtime_root" ] || fail "epic E2E runtime roots collide"
+[ "$one_e2e_postgres_root" != "$(jq -r '.postgresRoot' <<<"$one_info")" ] \
+    || fail "first worktree shares E2E and development PostgreSQL roots"
 
 symlink_target="$fixture_root/postgres-symlink-target"
-mkdir -p "$symlink_target" "$epic_one/.devenv"
-ln -s "$symlink_target" "$epic_one/.devenv/postgres"
+one_id="$(printf '%s' "$epic_one" | sha256sum | cut -c1-12)"
+one_dev_root="$fixture_root/dev-postgres-$one_id"
+mkdir -p "$symlink_target"
+ln -s "$symlink_target" "$one_dev_root"
 set +e
 symlink_output="$(run_for "$epic_one" "$dev_ensure_postgres_command" 2>&1)"
 symlink_status=$?
 set -e
-[ "$symlink_status" -eq 65 ] || fail "workspace PostgreSQL accepted symlinked data path"
-[[ "$symlink_output" == *"refusing symlinked"* ]] || fail "workspace PostgreSQL did not diagnose symlinked data path"
+[ "$symlink_status" -eq 73 ] || fail "workspace PostgreSQL accepted symlinked data path"
+[[ "$symlink_output" == *"refusing symlink state root"* ]] || fail "workspace PostgreSQL did not diagnose symlinked data path"
 [ -z "$(find "$symlink_target" -mindepth 1 -print -quit)" ] || fail "workspace PostgreSQL mutated symlink target"
-rm "$epic_one/.devenv/postgres"
+rm "$one_dev_root"
 
 default_one_test_root="$(TEST_POSTGRES_REPO_ROOT="$epic_one" "$test_postgres_command" root)"
 default_two_test_root="$(TEST_POSTGRES_REPO_ROOT="$epic_two" "$test_postgres_command" root)"
 [ "$default_one_test_root" != "$default_two_test_root" ] || fail "default test PostgreSQL roots collide"
+[ "$default_one_test_root" != "$one_e2e_postgres_root" ] || fail "first worktree shares Hspec and E2E PostgreSQL roots"
+[ "$default_one_test_root" != "$(jq -r '.postgresRoot' <<<"$one_info")" ] || fail "first worktree shares Hspec and development PostgreSQL roots"
 case "$default_one_test_root:$default_two_test_root" in
     *"$source_repo"*) fail "acceptance test PostgreSQL root reused developer checkout identity" ;;
 esac

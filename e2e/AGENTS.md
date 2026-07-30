@@ -66,20 +66,22 @@ bash ./bin/in-env pwcli --help
 
 ## Prerequisites
 
-- The local project Postgres socket under `build/db` must be available
+- Canonical E2E ensures its own checkout/UID-scoped disposable PostgreSQL profile on native temporary storage; use `e2e-postgres status|shell|log|recreate|stop`, never a hard-coded socket
 - `e2e-fast` sets `E2E_TIER=fast` and selects desktop plus canonical Pixel without changing focused-argument shard detection; `e2e` uses `E2E_TIER=full` by default
 - `bash ./bin/in-env e2e` auto-shards the full suite up to `E2E_SHARDS_MAX=8` app/database shards when no interactive or focused Playwright args are passed. Same-host 2/3/4/6/8-shard measurements selected eight; do not map directly to raw CPU count. Set `E2E_SHARDS` for an explicit diagnostic override or lower `E2E_SHARDS_MAX` on a constrained host.
-- Each shard gets its own ephemeral database, dedicated app server, blob report, and test-results directory under `.devenv/e2e/<run-id>/`
-- Parallel full-suite runs default to a single compiled app executable under the run artifact directory instead of multiple live-reload `RunDevServer` instances. Compatible application objects and interfaces are reused from the fingerprinted `build/Verification` cache shared with typecheck and normal Hspec; the run-specific executable still lives under `.devenv/e2e/<run-id>/build`. This avoids GHCi/file-watcher/schema-codegen reload races against the shared working tree. Set `E2E_SERVER_MODE=dev` only when intentionally debugging the dev-server path.
-- The wrapper merges shard blob reports into one HTML report and updates `.devenv/e2e/latest-report`
+- Each shard gets its own ephemeral database and dedicated app/Stripe server. Volatile PIDs, locks, build products, sockets, and logs live under the owned native root reported by `e2e-runtime`; merged durable reports are copied to `.devenv/e2e/<run-id>/`
+- Concurrent runs allocate exclusive native runtime port slots and unique run/database names. The native root may retain a bounded set of at most 100 zero-length reusable port-lock identities; per-run locks and payloads are reclaimed. Separate worktrees also have distinct PostgreSQL/runtime roots, so parallel feature work must not share database names, sockets, app/Stripe/MailHog ports, or lifecycle locks
+- Parallel full-suite runs default to a single compiled app executable under the native run directory reported by `e2e-runtime`, instead of multiple live-reload `RunDevServer` instances. Compatible application objects and interfaces are reused from the fingerprinted `build/Verification` cache shared with typecheck and normal Hspec; `.devenv/e2e/<run-id>/` receives only the merged durable report. This avoids GHCi/file-watcher/schema-codegen reload races against the shared working tree. Set `E2E_SERVER_MODE=dev` only when intentionally debugging the dev-server path.
+- The wrapper merges shard blob reports into one HTML report and updates `.devenv/e2e/latest-report`. On success it removes the native run directory and, when no concurrent run remains, stops/removes disposable E2E PostgreSQL data. Failures copy logs/test results to `.devenv/e2e/<run-id>/failure` before native runtime is reclaimed on the next run; set `E2E_KEEP_RUNTIME=1` solely for intentional successful-run diagnostics. Use `e2e-runtime runs|log` and dry-run-first `e2e-runtime cleanup` / `e2e-postgres cleanup` for manual inspection
 - Focused or interactive runs such as `--ui`, `--headed`, `--debug`, explicit file paths, `--project`, or `--grep` default back to a single shard unless `E2E_SHARDS` is set explicitly
 - Playwright retries default to `1`; set `PLAYWRIGHT_RETRIES=0` through `bash ./bin/in-env env ...` when iterating on a known failure and you want the first failure immediately
 - Test data is seeded automatically via `global-setup.ts` before tests run
 - Before blaming Playwright, verify the app is actually serving the expected page:
 
 ```bash
-tail -n 80 .devenv/e2e/server.log
-ss -ltnp | rg '8000|8001|8002|8003'
+bash ./bin/in-env e2e-runtime runs
+bash ./bin/in-env e2e-runtime log RUN_ID 80
+bash ./bin/in-env e2e-postgres status
 ```
 
 If you see `Is compiling`, wait for the reload to finish or restart the managed dev server before rerunning tests.
@@ -159,6 +161,7 @@ test('authenticated feature', async ({ page }) => {
 - All e2e test data uses the **`e2e-` prefix** on emails and identifiers
 - The seeded manager is `e2e-test@example.com`, the seeded venue admin is `e2e-admin@example.com`, and the seeded worker is `e2e-worker@example.com`; all use password `test-password-123`
 - Auth now also requires seeded `venues`, `venue_config`, and `venue_memberships` for the login user. A bare user row is not enough.
+- The MA000009 fixture must remain a complete canonical rate book: all seven supported classifications, permanent/casual bases, ordinary/Saturday/Sunday/public-holiday rates, both time additions, a recent validated FWC run, and statewide DataVic coverage for every target year used by approval tests. A selected-level-only fixture cannot pass final-pay source validation.
 - The export/payroll fixture is seeded for the current report week in `e2e/fixtures/seed.sql`:
   - alpha venue has deterministic approved entries for the fixed Admin export formats
   - alpha venue has deterministic approved entries that produce visible CSV/ZIP content for those reports
@@ -244,13 +247,9 @@ The current useful mixed-live baseline is about `100` subscribers and `10` synch
 
 ## Operational Notes
 
-- `dev-status` reports the current workspace URL: the primary checkout uses `:8000`, while registered epic worktrees use `8000 + slot`; the E2E wrapper launches separate temporary servers and exports each shard URL to Playwright
-- If Playwright keeps seeing stale compile output, check the listening IHP ports and the temporary server log:
-
-```bash
-ss -ltnp | rg '8000|8001|8002|8003'
-tail -n 80 .devenv/e2e/server.log
-```
+- `dev-status` reports the current workspace URL: the primary checkout uses `:8000`, while registered epic worktrees use `8000 + slot`; E2E uses separately allocated runtime port slots and exports each shard URL to Playwright
+- If Playwright keeps seeing stale compile output, use `e2e-runtime runs` and `e2e-runtime log RUN_ID`; callers should not infer temporary ports or paths
+- `E2E_POSTGRES_MODE=external` is supported only with explicit absolute `E2E_DB_SOCKET`. Managed mode ignores inherited `PGHOST`, and cleanup/recreate are refused against external PostgreSQL
 
 ## Playwright CLI
 
