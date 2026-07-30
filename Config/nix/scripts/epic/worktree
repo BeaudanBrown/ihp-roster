@@ -4,6 +4,14 @@ umask 077
 
 program="epic-worktree"
 identity_name=".bepis-epic-worktree.json"
+scripts_root="${BEPIS_SCRIPTS_ROOT:-@scriptsRoot@}"
+scripts_root_placeholder="@""scriptsRoot@"
+if [ "$scripts_root" = "$scripts_root_placeholder" ]; then
+    scripts_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+fi
+# shellcheck source=../lib/workspace-resources.sh
+# shellcheck disable=SC1091
+. "$scripts_root/lib/workspace-resources.sh"
 
 usage() {
     cat <<'EOF'
@@ -197,7 +205,12 @@ record_with_status() {
             *) status="inconsistent-identity" ;;
         esac
     fi
-    jq -c --arg status "$status" '. + {status: $status}' <<<"$record"
+    local resources path uncontained
+    path="$(jq -r '.path' <<<"$record")"
+    resources="$(bepis_workspace_resource_status "$RESOLVED_COMMON_DIR" epic "$(jq -r '.slot' <<<"$record")")"
+    uncontained="$(bepis_workspace_uncontained_processes_in_path "$path" "$(jq -r '.slice' <<<"$resources")")"
+    resources="$(jq -c --argjson uncontained "$uncontained" '. + {uncontainedPathProcesses: $uncontained, warning: (if ($uncontained | length) > 0 then "processes in worktree are outside expected slice" else null end)}' <<<"$resources")"
+    jq -c --arg status "$status" --argjson resources "$resources" '. + {status: $status, resources: $resources}' <<<"$record"
 }
 
 print_record() {
@@ -206,7 +219,10 @@ print_record() {
     if [ "$json" = true ]; then
         jq . <<<"$record"
     else
-        jq -r '"epic #\(.epic) | \(.kind) | slot \(.slot) | \(.branch) -> \(.targetBranch) | \(.status) | \(.path)"' <<<"$record"
+        jq -r '
+            "epic #\(.epic) | \(.kind) | slot \(.slot) | \(.branch) -> \(.targetBranch) | \(.status) | cpu weight \(.resources.cpuWeight), processes \(.resources.processes), uncontained \(.resources.uncontainedPathProcesses | length) | \(.path)",
+            (if .resources.warning == null then empty else "WARNING: \(.resources.warning)" end)
+        ' <<<"$record"
     fi
 }
 

@@ -44,6 +44,8 @@ json_output="$(cd "$fixture_repo" && bash "$command_path" inspect --json)"
 [ "$(jq -r '.epic' <<<"$json_output")" = "266" ] || fail "inspect did not find epic"
 [ "$(jq -r '.branch' <<<"$json_output")" = "epic-266-identity" ] || fail "inspect did not report branch"
 [ "$(jq -r '.status' <<<"$json_output")" = "active" ] || fail "inspect did not report active workspace"
+[ "$(jq -r '.resources.cpuWeight' <<<"$json_output")" = "100" ] || fail "inspect omitted equal CPU weight"
+[[ "$(jq -r '.resources.slice' <<<"$json_output")" == *'-epic1.slice' ]] || fail "inspect omitted slot slice identity"
 
 second_output="$(cd "$fixture_repo" && bash "$command_path" register --epic 266 --target roster --branch epic-266-identity --kind epic)"
 assert_contains "$second_output" "slot 1"

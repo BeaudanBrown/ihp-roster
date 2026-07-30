@@ -66,6 +66,8 @@ in
     };
 
     scripts = {
+        pi = script ../scripts/dev/pi;
+        workspace-pi-test = script ../scripts/dev/pi-test;
         dev-agent-state-dir = script ../scripts/dev/agent-state-dir;
         dev-app = script ../scripts/dev/app;
         dev-workspace-info = script ../scripts/dev/workspace-info;

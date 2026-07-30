@@ -100,13 +100,22 @@ apply workspace-derived environment and affect only that checkout. Explicit
 `DEVENV_AGENT_STATE_DIR` roots are namespaced per worktree.
 
 Epic worktrees are agent-operated. See `AGENTS.md` for the orientation and
-approval contract.
+approval contract. Inside the project environment, plain `pi` launches the
+primary checkout or registered epic in its equal-weight per-worktree CPU slice;
+Pi children inherit that slice. If local cgroup v2/user-systemd setup fails,
+Pi warns and continues uncontained; `BEPIS_WORKSPACE_CPU_SHARING=off` is the
+explicit warned bypass. Nix daemon builds and production services are unchanged.
+`epic-worktree inspect --all` reports slice identity, weight, and
+process count.
 
 For a registered epic, `epic-worktree-manage preflight --epic N` reports
 cleanliness, divergence, conflicts, affected generated/migration files, runtime
 state, and required checks without changing refs or worktrees. Synchronization
 requires `sync --apply`; final `--no-ff` integration and safe cleanup each
-require their own `--approve`; parent-issue closure is separate. The bounded
+require their own `--approve`; parent-issue closure is separate and must precede
+cleanup. Approved cleanup terminates remaining worktree processes, removes the
+worktree/local branch/registry identity, and best-effort deletes the matching
+integrated remote branch. The bounded
 `epic-worktree-workflow-acceptance-test` runs the disposable lifecycle gate,
 including the two-worktree native runtime isolation check, and removes all
 fixture state on exit.

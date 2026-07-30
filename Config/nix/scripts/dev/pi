@@ -1,0 +1,46 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+scripts_root="${BEPIS_SCRIPTS_ROOT:-@scriptsRoot@}"
+scripts_root_placeholder="@""scriptsRoot@"
+if [ "$scripts_root" = "$scripts_root_placeholder" ]; then
+    scripts_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+fi
+# shellcheck source=../lib/workspace.sh
+# shellcheck disable=SC1091
+. "$scripts_root/lib/workspace.sh"
+# shellcheck source=../lib/workspace-resources.sh
+# shellcheck disable=SC1091
+. "$scripts_root/lib/workspace-resources.sh"
+
+find_real_pi() {
+    if [ -n "${BEPIS_REAL_PI_COMMAND:-}" ]; then
+        printf '%s\n' "$BEPIS_REAL_PI_COMMAND"
+        return
+    fi
+    local shim candidate
+    shim="$(command -v pi 2>/dev/null || true)"
+    while IFS= read -r candidate; do
+        [ -n "$candidate" ] || continue
+        if [ "$candidate" != "$shim" ] \
+            && [ "$(readlink -f "$candidate" 2>/dev/null || printf '%s' "$candidate")" != "$(readlink -f "$shim" 2>/dev/null || printf '%s' "$shim")" ]; then
+            printf '%s\n' "$candidate"
+            return
+        fi
+    done < <(type -aP pi 2>/dev/null || true)
+    return 69
+}
+
+real_pi="$(find_real_pi)" || {
+    echo "workspace-pi: cannot locate the real pi executable behind the project shim" >&2
+    exit 69
+}
+
+if ! bepis_workspace_configure 2>/dev/null; then
+    bepis_workspace_resource_warn "current checkout has no valid Bepis workspace identity; launching Pi uncontained"
+    exec "$real_pi" "$@"
+fi
+
+common_dir="$(git -C "$BEPIS_WORKSPACE_REPO_ROOT" rev-parse --path-format=absolute --git-common-dir)"
+common_dir="$(realpath "$common_dir")"
+bepis_workspace_resource_exec "$common_dir" "$BEPIS_WORKSPACE_KIND" "$BEPIS_WORKSPACE_SLOT" "$real_pi" "$@"

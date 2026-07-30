@@ -34,7 +34,7 @@ trap cleanup EXIT
 
 primary_repo="$fixture_root/repo"
 mock_bin="$fixture_root/bin"
-mkdir -p "$mock_bin"
+mkdir -p "$mock_bin" "$fixture_root/gh-state"
 git init --quiet --initial-branch=roster "$primary_repo"
 git -C "$primary_repo" config user.name "Epic Workflow Acceptance"
 git -C "$primary_repo" config user.email "epic-workflow-acceptance@example.invalid"
@@ -60,6 +60,7 @@ set -euo pipefail
 if [ "$1" = issue ] && [ "$2" = close ]; then
     [ "${EPIC_CLOSURE_APPROVED:-}" = true ] || exit 77
     printf '%s\n' "$*" >>"$EPIC_GH_LOG"
+    touch "$EPIC_GH_STATE_DIR/closed-$3"
     exit 0
 fi
 if [ "$1" = repo ] && [ "$2" = view ]; then
@@ -69,7 +70,9 @@ fi
 [ "$1" = api ] || exit 64
 case "${!#}" in
     repos/BeaudanBrown/ihp-roster/issues/999)
-        printf '%s\n' '{"number":999,"title":"Workflow acceptance","state":"open","html_url":"https://example.invalid/issues/999"}'
+        state=open
+        [ ! -f "$EPIC_GH_STATE_DIR/closed-999" ] || state=closed
+        printf '{"number":999,"title":"Workflow acceptance","state":"%s","html_url":"https://example.invalid/issues/999"}\n' "$state"
         ;;
     repos/BeaudanBrown/ihp-roster/issues/999/sub_issues?*)
         printf '%s\n' '[{"number":1000,"title":"Workflow sub-issue","state":"open","html_url":"https://example.invalid/issues/1000","assignees":[]}]'
@@ -87,6 +90,7 @@ run_primary() {
         cd "$primary_repo"
         PATH="$mock_bin:$PATH" \
         EPIC_GH_LOG="$fixture_root/gh.log" \
+        EPIC_GH_STATE_DIR="$fixture_root/gh-state" \
         EPIC_WORKTREE_COMMAND="$(command -v epic-worktree)" \
             "$@"
     )
@@ -97,7 +101,7 @@ epic_path="$(jq -r '.path' <<<"$provision")"
 run_epic() {
     (
         cd "$epic_path"
-        PATH="$mock_bin:$PATH" EPIC_GH_LOG="$fixture_root/gh.log" "$@"
+        PATH="$mock_bin:$PATH" EPIC_GH_LOG="$fixture_root/gh.log" EPIC_GH_STATE_DIR="$fixture_root/gh-state" "$@"
     )
 }
 [ "$(jq -r '.slot' <<<"$provision")" = 1 ] || fail "provisioning did not allocate slot 1"

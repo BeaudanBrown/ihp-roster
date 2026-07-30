@@ -3,6 +3,14 @@ set -euo pipefail
 umask 077
 
 program="epic-worktree-manage"
+scripts_root="${BEPIS_SCRIPTS_ROOT:-@scriptsRoot@}"
+scripts_root_placeholder="@""scriptsRoot@"
+if [ "$scripts_root" = "$scripts_root_placeholder" ]; then
+    scripts_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+fi
+# shellcheck source=../lib/workspace-resources.sh
+# shellcheck disable=SC1091
+. "$scripts_root/lib/workspace-resources.sh"
 
 usage() {
     cat <<'EOF'
@@ -26,7 +34,7 @@ die() {
     exit "$status"
 }
 
-for required in flock git jq realpath; do
+for required in flock gh git jq realpath; do
     command -v "$required" >/dev/null 2>&1 || die 69 "required command is unavailable: $required"
 done
 
@@ -363,20 +371,33 @@ esac
 if [ -d "$epic_path" ] && [ -n "$(git -C "$epic_path" status --porcelain=v1)" ]; then
     die 65 "refusing cleanup with uncommitted work"
 fi
+[ -n "$target_path" ] && [ "$current_root" = "$target_path" ] \
+    || die 65 "cleanup must run from the recorded target checkout: $target_branch"
+bepis_workspace_resource_names "$common_dir" epic "$slot" \
+    || die 65 "cannot resolve registered epic resource identity"
+caller_cgroup="$(bepis_workspace_resource_current_cgroup)"
+[[ "/$caller_cgroup/" != *"/$BEPIS_WORKSPACE_RESOURCE_SLICE/"* ]] \
+    || die 65 "cleanup must run from the coordinator process, not the epic CPU slice"
+repository="$(gh repo view --json nameWithOwner --jq .nameWithOwner 2>/dev/null || true)"
+[[ "$repository" =~ ^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$ ]] \
+    || die 69 "cannot resolve GitHub repository before cleanup"
+parent_state="$(gh api "repos/$repository/issues/$epic" 2>/dev/null | jq -r '.state // empty' || true)"
+[ "$parent_state" = closed ] || die 65 "refusing cleanup while parent epic #$epic is not closed"
 runtime="$(runtime_state)"
-[ "$(jq '.active | length' <<<"$runtime")" -eq 0 ] || die 65 "refusing cleanup while epic runtime has active processes"
+path_processes="$(bepis_workspace_processes_in_path "$epic_path")"
+resources="$(bepis_workspace_resource_status "$common_dir" epic "$slot")"
 git -C "$current_root" show-ref --verify --quiet "refs/heads/$epic_branch" \
     || die 65 "cannot prove integration because the epic branch is missing; registry retained for recovery"
 git -C "$current_root" rev-parse --verify --quiet "$target_branch^{commit}" >/dev/null \
     || die 65 "recorded target branch is unavailable: $target_branch"
 git -C "$current_root" merge-base --is-ancestor "$epic_branch" "$target_branch" \
     || die 65 "refusing cleanup with unintegrated commits"
-cleanup_report="$(jq -cn --argjson epic "$epic" --arg path "$epic_path" --arg branch "$epic_branch" --arg target "$target_branch" --arg status "$workspace_status" --argjson runtime "$runtime" '{action: "cleanup", applied: false, epic: $epic, path: $path, branch: $branch, targetBranch: $target, registryStatus: $status, runtime: $runtime}')"
+cleanup_report="$(jq -cn --argjson epic "$epic" --arg path "$epic_path" --arg branch "$epic_branch" --arg target "$target_branch" --arg status "$workspace_status" --argjson runtime "$runtime" --argjson pathProcesses "$path_processes" --argjson resources "$resources" '{action: "cleanup", applied: false, epic: $epic, path: $path, branch: $branch, targetBranch: $target, registryStatus: $status, runtime: $runtime, pathProcesses: $pathProcesses, resources: $resources, termination: "SIGTERM, wait 5 seconds, then SIGKILL"}')"
 if [ "$approve" = false ]; then
     if [ "$json" = true ]; then jq . <<<"$cleanup_report"; else echo "cleanup safe but not applied; rerun with --approve"; fi
     exit 0
 fi
-jq -r '"cleanup preflight: epic #\(.epic) | \(.branch) -> \(.targetBranch) | registry=\(.registryStatus) | active=\(.runtime.active | length) stale=\(.runtime.stale | length)"' <<<"$cleanup_report" >&2
+jq -r '"cleanup preflight: epic #\(.epic) | \(.branch) -> \(.targetBranch) | registry=\(.registryStatus) | runtime=\(.runtime.active | length) path-processes=\(.pathProcesses | length) slice-processes=\(.resources.processes)"' <<<"$cleanup_report" >&2
 
 registry_dir="$common_dir/bepis/epic-worktrees"
 registry_file="$registry_dir/registry.json"
@@ -401,14 +422,39 @@ case "$locked_status" in
         ;;
     *) die 65 "epic identity changed after cleanup preflight: $locked_status" ;;
 esac
+bepis_workspace_resource_terminate "$common_dir" epic "$slot" "$epic_path" "$runtime"
 locked_runtime="$(runtime_state)"
 [ "$(jq '.active | length' <<<"$locked_runtime")" -eq 0 ] \
-    || die 65 "epic runtime started after cleanup preflight"
+    || die 65 "epic runtime survived approved cleanup termination"
+[ "$(bepis_workspace_processes_in_path "$epic_path" | jq 'length')" -eq 0 ] \
+    || die 65 "worktree processes survived approved cleanup termination"
 branch_oid="$(git -C "$current_root" rev-parse --verify "refs/heads/$epic_branch^{commit}" 2>/dev/null || true)"
 [ -n "$branch_oid" ] \
     || die 65 "epic branch disappeared after cleanup preflight; registry retained for recovery"
 git -C "$current_root" merge-base --is-ancestor "$branch_oid" "$target_branch" \
     || die 65 "target changed and no longer contains the epic branch"
+remote_cleanup="absent"
+remote_oid=""
+if git -C "$current_root" remote get-url origin >/dev/null 2>&1; then
+    set +e
+    remote_line="$(git -C "$current_root" ls-remote --heads origin "refs/heads/$epic_branch" 2>/dev/null)"
+    remote_query_status=$?
+    set -e
+    if [ "$remote_query_status" -ne 0 ]; then
+        remote_cleanup="retained-query-failed"
+    elif [ -n "$remote_line" ]; then
+        remote_oid="${remote_line%%[[:space:]]*}"
+        if ! git -C "$current_root" cat-file -e "$remote_oid^{commit}" 2>/dev/null; then
+            git -C "$current_root" fetch --quiet origin "refs/heads/$epic_branch" 2>/dev/null || true
+        fi
+        if git -C "$current_root" cat-file -e "$remote_oid^{commit}" 2>/dev/null \
+            && git -C "$current_root" merge-base --is-ancestor "$remote_oid" "$target_branch"; then
+            remote_cleanup="pending"
+        else
+            remote_cleanup="retained-unintegrated"
+        fi
+    fi
+fi
 registered_worktree="$(find_branch_worktree "$epic_branch")"
 if [ -n "$registered_worktree" ]; then
     [ "$(realpath -m "$registered_worktree")" = "$epic_path" ] \
@@ -425,5 +471,20 @@ if [ -n "$branch_oid" ]; then
         || { rm -f "$temporary"; die 70 "worktree removed but integrated branch deletion failed; registry retained for recovery"; }
 fi
 mv "$temporary" "$registry_file"
-result="$(jq --argjson applied true '.applied = $applied' <<<"$cleanup_report")"
-if [ "$json" = true ]; then jq . <<<"$result"; else echo "epic #$epic worktree, branch, and registry entry removed"; fi
+flock -u 9
+if [ "$remote_cleanup" = pending ]; then
+    if git -C "$current_root" push \
+        --force-with-lease="refs/heads/$epic_branch:$remote_oid" \
+        origin ":refs/heads/$epic_branch" >/dev/null 2>&1; then
+        remote_cleanup="deleted"
+    else
+        remote_cleanup="retained-delete-failed"
+        echo "$program: warning: local cleanup completed but origin/$epic_branch could not be deleted" >&2
+    fi
+elif [ "$remote_cleanup" = retained-unintegrated ]; then
+    echo "$program: warning: local cleanup completed but divergent origin/$epic_branch was retained" >&2
+elif [ "$remote_cleanup" = retained-query-failed ]; then
+    echo "$program: warning: local cleanup completed but origin/$epic_branch could not be inspected and was retained" >&2
+fi
+result="$(jq --argjson applied true --arg remoteCleanup "$remote_cleanup" '.applied = $applied | .remoteCleanup = $remoteCleanup' <<<"$cleanup_report")"
+if [ "$json" = true ]; then jq . <<<"$result"; else echo "epic #$epic worktree, local branch, and registry entry removed; remote=$remote_cleanup"; fi
