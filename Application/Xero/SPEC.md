@@ -26,7 +26,17 @@ lands.
   belong to the guided preparation workflow. The pre-wizard preview, submit,
   and retry endpoints are retired.
 - Manual reference sync and preparation use the same application service and
-  persistence/reconciliation path.
+  persistence/reconciliation path. A complete successful snapshot atomically
+  marks missing or provider-inactive employees, earnings rates, calendars,
+  accounts, and imported pay items unavailable; reappearance restores provider
+  availability without changing local identity. Failed pulls leave the prior
+  availability snapshot untouched.
+- Provider availability is separate from owner archival. Unavailable imported
+  pay items stay queryable for immutable pay versions and sealed calculations,
+  but are excluded from new imports and current assignment selectors. Current
+  explicit `xero_rate` assignments require remediation; `roster_only` and
+  `staff_default` do not. Approved entries pinned to unavailable rates block
+  Xero preparation with the explicit correction/reapproval path.
 - Offline request contracts use checksum-pinned, unmodified official Identity,
   Payroll AU v1/v2, and Accounting OpenAPI files from one upstream commit. The
   only application API operation without an official upstream operation is

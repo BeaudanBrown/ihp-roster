@@ -55,6 +55,7 @@ fetchActiveImportedXeroPayItems =
     query @XeroImportedPayItem
         |> filterWhere (#venueId, unpackId currentVenueId)
         |> filterWhere (#archivedAt, Nothing :: Maybe UTCTime)
+        |> filterWhere (#providerAvailable, True)
         |> orderByAsc #name
         |> fetch
 
@@ -396,6 +397,7 @@ validateSubmittedImportedPayItemId rawImportedPayItemId =
                     |> filterWhere (#id, importedPayItemId)
                     |> filterWhere (#venueId, unpackId currentVenueId)
                     |> filterWhere (#archivedAt, Nothing :: Maybe UTCTime)
+                    |> filterWhere (#providerAvailable, True)
                     |> fetchOneOrNothing
             case maybeImportedPayItem of
                 Just _ -> pure (Just emptySubmittedPayRateSelection { submittedImportedXeroPayItemId = Just importedPayItemId })
@@ -417,6 +419,7 @@ parseSubmittedImportedXeroPayItemId =
                     |> filterWhere (#id, importedPayItemId)
                     |> filterWhere (#venueId, unpackId currentVenueId)
                     |> filterWhere (#archivedAt, Nothing :: Maybe UTCTime)
+                    |> filterWhere (#providerAvailable, True)
                     |> fetchOneOrNothing
             case maybeImportedPayItem of
                 Just _ -> pure (Just (Just importedPayItemId))

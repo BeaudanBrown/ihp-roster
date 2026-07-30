@@ -235,6 +235,7 @@ fetchPreviewInput request connection = do
         query @XeroEmployee
             |> filterWhere (#xeroConnectionId, unpackId connection.id)
             |> filterWhereIn (#xeroEmployeeId, List.nub (mapMaybe (.xeroEmployeeId) staffMappings))
+            |> filterWhere (#providerAvailable, True)
             |> fetch
     let entries =
             includedEntries

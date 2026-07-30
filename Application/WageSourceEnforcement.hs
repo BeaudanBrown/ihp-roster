@@ -156,12 +156,13 @@ sourceRequirementForVenue facts venueId calculation =
                     , itemId <- maybeToList (parseUUIDText rawItemId)
                     ]
                 uniqueImportedIds = List.nub importedIds
-             in if not (null uniqueImportedIds)
-                    && all
-                        (\itemId -> Set.member itemId (Map.findWithDefault Set.empty venueId facts.factValidImportedPayItemIdsByVenue))
-                        uniqueImportedIds
+                validImportedIds = Map.findWithDefault Set.empty venueId facts.factValidImportedPayItemIdsByVenue
+                unavailableImportedIds = Map.findWithDefault Set.empty venueId facts.factUnavailableImportedPayItemIdsByVenue
+             in if not (null uniqueImportedIds) && all (`Set.member` validImportedIds) uniqueImportedIds
                     then Right ImportedXeroOverride
-                    else Left "Imported Xero override pay item is missing, archived, or belongs to another venue."
+                    else if any (`Set.member` unavailableImportedIds) uniqueImportedIds
+                        then Left "Approved entry is pinned to a Xero earnings rate that is no longer available. Choose a current pay assignment, then correct and reapprove the entry before Xero payroll preparation."
+                        else Left "Imported Xero override pay item is missing, owner-archived, or belongs to another venue."
 
 calculationSourceRequirement :: WageCalculation -> SourceRequirement
 calculationSourceRequirement calculation

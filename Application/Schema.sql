@@ -1109,10 +1109,13 @@ CREATE TABLE xero_employees (
     status TEXT,
     raw_payload JSONB DEFAULT '{}'::JSONB NOT NULL,
     synced_at TIMESTAMP WITH TIME ZONE NOT NULL,
+    provider_available BOOLEAN DEFAULT TRUE NOT NULL,
+    provider_unavailable_at TIMESTAMP WITH TIME ZONE DEFAULT NULL,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
     FOREIGN KEY (venue_id) REFERENCES venues (id) ON DELETE RESTRICT,
-    FOREIGN KEY (xero_connection_id) REFERENCES xero_connections (id) ON DELETE RESTRICT
+    FOREIGN KEY (xero_connection_id) REFERENCES xero_connections (id) ON DELETE RESTRICT,
+    CHECK (provider_available = (provider_unavailable_at IS NULL))
 );
 CREATE TABLE xero_earnings_rates (
     id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
@@ -1126,10 +1129,13 @@ CREATE TABLE xero_earnings_rates (
     is_active BOOLEAN DEFAULT TRUE NOT NULL,
     raw_payload JSONB DEFAULT '{}'::JSONB NOT NULL,
     synced_at TIMESTAMP WITH TIME ZONE NOT NULL,
+    provider_available BOOLEAN DEFAULT TRUE NOT NULL,
+    provider_unavailable_at TIMESTAMP WITH TIME ZONE DEFAULT NULL,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
     FOREIGN KEY (venue_id) REFERENCES venues (id) ON DELETE RESTRICT,
-    FOREIGN KEY (xero_connection_id) REFERENCES xero_connections (id) ON DELETE RESTRICT
+    FOREIGN KEY (xero_connection_id) REFERENCES xero_connections (id) ON DELETE RESTRICT,
+    CHECK (provider_available = (provider_unavailable_at IS NULL))
 );
 CREATE TABLE xero_imported_pay_items (
     id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
@@ -1146,6 +1152,8 @@ CREATE TABLE xero_imported_pay_items (
     imported_by_user_id UUID NOT NULL,
     imported_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
     last_seen_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
+    provider_available BOOLEAN DEFAULT TRUE NOT NULL,
+    provider_unavailable_at TIMESTAMP WITH TIME ZONE DEFAULT NULL,
     archived_at TIMESTAMP WITH TIME ZONE DEFAULT NULL,
     archived_by_user_id UUID DEFAULT NULL,
     archive_reason TEXT DEFAULT NULL,
@@ -1162,6 +1170,7 @@ CREATE TABLE xero_imported_pay_items (
     CHECK (lower(rate_type) = 'rateperunit'),
     CHECK (lower(type_of_units) = 'hours'),
     CHECK (rate_per_unit > 0),
+    CHECK (provider_available = (provider_unavailable_at IS NULL)),
     CHECK (archived_at IS NULL OR archived_by_user_id IS NOT NULL)
 );
 CREATE TABLE xero_accounts (
@@ -1175,10 +1184,13 @@ CREATE TABLE xero_accounts (
     status TEXT,
     raw_payload JSONB DEFAULT '{}'::JSONB NOT NULL,
     synced_at TIMESTAMP WITH TIME ZONE NOT NULL,
+    provider_available BOOLEAN DEFAULT TRUE NOT NULL,
+    provider_unavailable_at TIMESTAMP WITH TIME ZONE DEFAULT NULL,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
     FOREIGN KEY (venue_id) REFERENCES venues (id) ON DELETE RESTRICT,
-    FOREIGN KEY (xero_connection_id) REFERENCES xero_connections (id) ON DELETE RESTRICT
+    FOREIGN KEY (xero_connection_id) REFERENCES xero_connections (id) ON DELETE RESTRICT,
+    CHECK (provider_available = (provider_unavailable_at IS NULL))
 );
 CREATE TABLE xero_payroll_calendars (
     id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
@@ -1191,10 +1203,13 @@ CREATE TABLE xero_payroll_calendars (
     payment_date DATE,
     raw_payload JSONB DEFAULT '{}'::JSONB NOT NULL,
     synced_at TIMESTAMP WITH TIME ZONE NOT NULL,
+    provider_available BOOLEAN DEFAULT TRUE NOT NULL,
+    provider_unavailable_at TIMESTAMP WITH TIME ZONE DEFAULT NULL,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
     FOREIGN KEY (venue_id) REFERENCES venues (id) ON DELETE RESTRICT,
-    FOREIGN KEY (xero_connection_id) REFERENCES xero_connections (id) ON DELETE RESTRICT
+    FOREIGN KEY (xero_connection_id) REFERENCES xero_connections (id) ON DELETE RESTRICT,
+    CHECK (provider_available = (provider_unavailable_at IS NULL))
 );
 CREATE TABLE xero_pay_runs (
     id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
@@ -1766,17 +1781,17 @@ CREATE INDEX idx_xero_oauth_states_token ON xero_oauth_states (state_token);
 CREATE INDEX idx_xero_oauth_states_venue_user_created_at ON xero_oauth_states (venue_id, user_id, created_at DESC);
 CREATE INDEX idx_xero_sync_runs_venue_started_at ON xero_sync_runs (venue_id, started_at DESC);
 CREATE UNIQUE INDEX idx_xero_employees_connection_employee ON xero_employees (xero_connection_id, xero_employee_id);
-CREATE INDEX idx_xero_employees_venue_name ON xero_employees (venue_id, display_name);
+CREATE INDEX idx_xero_employees_venue_name ON xero_employees (venue_id, display_name) WHERE provider_available = TRUE;
 CREATE UNIQUE INDEX idx_xero_earnings_rates_connection_rate ON xero_earnings_rates (xero_connection_id, xero_earnings_rate_id);
-CREATE INDEX idx_xero_earnings_rates_venue_name ON xero_earnings_rates (venue_id, name);
+CREATE INDEX idx_xero_earnings_rates_venue_name ON xero_earnings_rates (venue_id, name) WHERE provider_available = TRUE;
 CREATE UNIQUE INDEX idx_xero_imported_pay_items_active_remote ON xero_imported_pay_items (xero_connection_id, xero_earnings_rate_id) WHERE archived_at IS NULL;
-CREATE INDEX idx_xero_imported_pay_items_venue_active_name ON xero_imported_pay_items (venue_id, name) WHERE archived_at IS NULL;
+CREATE INDEX idx_xero_imported_pay_items_venue_active_name ON xero_imported_pay_items (venue_id, name) WHERE archived_at IS NULL AND provider_available = TRUE;
 CREATE INDEX idx_xero_imported_pay_items_venue_archived ON xero_imported_pay_items (venue_id, archived_at DESC) WHERE archived_at IS NOT NULL;
 CREATE UNIQUE INDEX idx_xero_accounts_connection_account ON xero_accounts (xero_connection_id, xero_account_id);
 CREATE INDEX idx_xero_accounts_connection_code ON xero_accounts (xero_connection_id, code);
-CREATE INDEX idx_xero_accounts_venue_type_status ON xero_accounts (venue_id, account_type, status);
+CREATE INDEX idx_xero_accounts_venue_type_status ON xero_accounts (venue_id, account_type, status) WHERE provider_available = TRUE;
 CREATE UNIQUE INDEX idx_xero_payroll_calendars_connection_calendar ON xero_payroll_calendars (xero_connection_id, xero_payroll_calendar_id);
-CREATE INDEX idx_xero_payroll_calendars_venue_name ON xero_payroll_calendars (venue_id, name);
+CREATE INDEX idx_xero_payroll_calendars_venue_name ON xero_payroll_calendars (venue_id, name) WHERE provider_available = TRUE;
 CREATE UNIQUE INDEX idx_xero_pay_runs_connection_pay_run ON xero_pay_runs (xero_connection_id, xero_pay_run_id);
 CREATE INDEX idx_xero_pay_runs_connection_calendar_period ON xero_pay_runs (xero_connection_id, xero_payroll_calendar_id, pay_period_start, pay_period_end);
 CREATE INDEX idx_xero_pay_runs_venue_period ON xero_pay_runs (venue_id, pay_period_start DESC, pay_period_end DESC);

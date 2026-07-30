@@ -376,7 +376,7 @@ fetchActiveReferencedXeroIds venueId staff shiftType = do
     let ids = nub (catMaybes [staff.importedXeroPayItemId, shiftType.importedXeroPayItemId])
     if null ids
         then pure []
-        else map (.id) <$> (query @XeroImportedPayItem |> filterWhereIn (#id, ids) |> filterWhere (#venueId, unpackId venueId) |> filterWhere (#archivedAt, Nothing) |> fetch)
+        else map (.id) <$> (query @XeroImportedPayItem |> filterWhereIn (#id, ids) |> filterWhere (#venueId, unpackId venueId) |> filterWhere (#archivedAt, Nothing) |> filterWhere (#providerAvailable, True) |> fetch)
 
 rosterSlotAwardDurationViolation :: Staff -> RosterSlot -> Maybe RosterAwardDuration.RosterAwardDurationViolation
 rosterSlotAwardDurationViolation staff slot = do

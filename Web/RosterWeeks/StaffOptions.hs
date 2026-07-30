@@ -92,7 +92,7 @@ fetchRosterShiftDialogStaff rosterGroupId currentStaffId = do
 fetchStaffPayConfigurationRequiredIds :: (?context :: ControllerContext, ?modelContext :: ModelContext) => [Staff] -> IO (Set.Set UUID.UUID)
 fetchStaffPayConfigurationRequiredIds staffMembers = do
     activeAwardLevels <- query @AwardLevel |> filterWhere (#isActive, True) |> fetch
-    activeImportedPayItems <- query @XeroImportedPayItem |> filterWhere (#venueId, unpackId currentVenueId) |> filterWhere (#archivedAt, Nothing :: Maybe UTCTime) |> fetch
+    activeImportedPayItems <- query @XeroImportedPayItem |> filterWhere (#venueId, unpackId currentVenueId) |> filterWhere (#archivedAt, Nothing :: Maybe UTCTime) |> filterWhere (#providerAvailable, True) |> fetch
     let activeAwardLevelIds = map (.id) activeAwardLevels
     let activeImportedPayItemIds = map (.id) activeImportedPayItems
     pure $ Set.fromList

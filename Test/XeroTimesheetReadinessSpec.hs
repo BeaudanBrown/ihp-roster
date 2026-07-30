@@ -299,6 +299,16 @@ tests = do
                 readiness.xeroReadinessPayBucketCount `shouldBe` 1
                 readiness.xeroTimesheetReady `shouldBe` True
 
+                _ <- importedPayItem
+                    |> set #providerAvailable False
+                    |> set #providerUnavailableAt (Just now)
+                    |> updateRecord
+                unavailableReadiness <- validateXeroTimesheetReadiness request
+                readinessBlockerCodes unavailableReadiness `shouldSatisfy` elem "wage_source_policy"
+                map (.xeroBlockerMessage) unavailableReadiness.xeroReadinessBlockers
+                    `shouldSatisfy` any (Text.isInfixOf "no longer available")
+                unavailableReadiness.xeroTimesheetReady `shouldBe` False
+
         it "allows a Xero period to include multiple relational pay versions" $ withContext do
             withCleanDb do
                 fixture <- createReadyMappedFixture "weekly" (fromGregorian 2026 4 27) (fromGregorian 2026 5 3)

@@ -454,6 +454,18 @@ tests = describe "Schema" do
         migrationSqlText `shouldNotSatisfy` Text.isInfixOf "DROP COLUMN"
         migrationSqlText `shouldNotSatisfy` Text.isInfixOf "DELETE FROM"
 
+    it "adds customer-data-preserving Xero provider availability" do
+        schemaSqlText <- TextIO.readFile "Application/Schema.sql"
+        migrationSqlText <- TextIO.readFile "Application/Migration/1785376000.sql"
+        schemaSqlText `shouldSatisfy` Text.isInfixOf "provider_available BOOLEAN DEFAULT TRUE NOT NULL"
+        schemaSqlText `shouldSatisfy` Text.isInfixOf "CHECK (provider_available = (provider_unavailable_at IS NULL))"
+        migrationSqlText `shouldSatisfy` Text.isInfixOf "ALTER TABLE xero_imported_pay_items"
+        migrationSqlText `shouldSatisfy` Text.isInfixOf "FROM xero_earnings_rates rate"
+        migrationSqlText `shouldSatisfy` Text.isInfixOf "rate.provider_available = FALSE"
+        migrationSqlText `shouldNotSatisfy` Text.isInfixOf "DROP COLUMN"
+        migrationSqlText `shouldNotSatisfy` Text.isInfixOf "DELETE FROM"
+        migrationSqlText `shouldNotSatisfy` Text.isInfixOf "archived_at ="
+
     it "stores immutable approved pay facts without persisted rounded totals" do
         schemaSqlText <- TextIO.readFile "Application/Schema.sql"
         migrationSqlText <- TextIO.readFile "Application/Migration/1785240000.sql"

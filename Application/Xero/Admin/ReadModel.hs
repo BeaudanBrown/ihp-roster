@@ -59,6 +59,7 @@ fetchCurrentVenueXeroEmployees maybeConnection =
             query @XeroEmployee
                 |> filterWhere (#venueId, unpackId currentVenueId)
                 |> filterWhere (#xeroConnectionId, unpackId connection.id)
+                |> filterWhere (#providerAvailable, True)
                 |> orderBy #displayName
                 |> fetch
 
@@ -71,6 +72,7 @@ fetchCurrentVenueXeroEarningsRates maybeConnection =
                 |> filterWhere (#venueId, unpackId currentVenueId)
                 |> filterWhere (#xeroConnectionId, unpackId connection.id)
                 |> filterWhere (#isActive, True)
+                |> filterWhere (#providerAvailable, True)
                 |> orderBy #name
                 |> fetch
 
@@ -82,6 +84,7 @@ fetchCurrentVenueXeroAccounts maybeConnection =
             query @XeroAccount
                 |> filterWhere (#venueId, unpackId currentVenueId)
                 |> filterWhere (#xeroConnectionId, unpackId connection.id)
+                |> filterWhere (#providerAvailable, True)
                 |> orderBy #code
                 |> fetch
 
@@ -98,6 +101,7 @@ fetchCurrentVenueXeroPayrollCalendars maybeConnection =
             query @XeroPayrollCalendar
                 |> filterWhere (#venueId, unpackId currentVenueId)
                 |> filterWhere (#xeroConnectionId, unpackId connection.id)
+                |> filterWhere (#providerAvailable, True)
                 |> orderBy #name
                 |> fetch
 
@@ -252,6 +256,7 @@ fetchCurrentVenueXeroTimesheetPeriodOptions (Just connection) = do
         query @XeroEmployee
             |> filterWhere (#xeroConnectionId, unpackId connection.id)
             |> filterWhereIn (#xeroEmployeeId, List.nub (mapMaybe (.xeroEmployeeId) verifiedMappings))
+            |> filterWhere (#providerAvailable, True)
             |> fetch
     submissionRuns <-
         query @XeroSubmissionRun

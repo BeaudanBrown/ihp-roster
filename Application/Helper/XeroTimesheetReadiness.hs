@@ -200,6 +200,7 @@ fetchMappedXeroEmployees mappings connection =
     query @XeroEmployee
         |> filterWhere (#xeroConnectionId, unpackId connection.id)
         |> filterWhereIn (#xeroEmployeeId, List.nub (mapMaybe (.xeroEmployeeId) mappings))
+        |> filterWhere (#providerAvailable, True)
         |> fetch
 
 fetchNotPaidStaffMappingIds :: (?modelContext :: ModelContext) => XeroConnection -> IO [UUID]
@@ -233,6 +234,7 @@ fetchRequestPayrollCalendar request maybeConnection =
                 |> filterWhere (#venueId, unpackId request.readinessVenueId)
                 |> filterWhere (#xeroConnectionId, unpackId connection.id)
                 |> filterWhere (#xeroPayrollCalendarId, calendarId)
+                |> filterWhere (#providerAvailable, True)
                 |> fetchOneOrNothing
         _ -> pure Nothing
 

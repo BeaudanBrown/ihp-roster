@@ -24,6 +24,7 @@ fetchActiveImportedXeroPayItems connection =
         |> filterWhere (#venueId, unpackId currentVenueId)
         |> filterWhere (#xeroConnectionId, unpackId connection.id)
         |> filterWhere (#archivedAt, Nothing :: Maybe UTCTime)
+        |> filterWhere (#providerAvailable, True)
         |> orderBy #name
         |> fetch
 
@@ -83,6 +84,8 @@ upsertImportedXeroPayItem connection now rate = do
                 |> set #ratePerUnit (fromMaybe 0 rate.xeroEarningsRateRatePerUnit)
                 |> set #rawPayload rate.xeroEarningsRateRaw
                 |> set #lastSeenAt now
+                |> set #providerAvailable True
+                |> set #providerUnavailableAt Nothing
                 |> set #archivedAt Nothing
                 |> set #archivedByUserId Nothing
                 |> set #archiveReason Nothing

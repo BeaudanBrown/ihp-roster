@@ -228,6 +228,7 @@ selectedXeroPayItemExpenseAccountId connection accountCode = do
             |> filterWhere (#code, Just accountCode)
             |> filterWhere (#accountType, Just ("EXPENSE" :: Text))
             |> filterWhere (#status, Just ("ACTIVE" :: Text))
+            |> filterWhere (#providerAvailable, True)
             |> fetch
     pure (fmap (.xeroAccountId) (listToMaybe accounts))
 

@@ -101,6 +101,7 @@ completeReferenceDataSync syncRun connection employees earningsRates payrollCale
         mapM_ (upsertXeroEarningsRate connection now) earningsRates
         mapM_ (upsertXeroPayrollCalendar connection now) payrollCalendars
         mapM_ (upsertXeroAccount connection now) accounts
+        reconcileXeroProviderAvailability connection now employees earningsRates payrollCalendars accounts
         markStaleXeroStaffMappings connection employees
         markStaleXeroEarningsRateMappings connection earningsRates
         reconcileXeroPayItemAccountCodeSelection connection accounts payrollSettingsAccounts
@@ -179,7 +180,7 @@ markStaleXeroStaffMappings ::
     [XeroEmployeeRef] ->
     IO ()
 markStaleXeroStaffMappings connection employees = do
-    let activeEmployeeIds = map (.xeroEmployeeId) employees
+    let activeEmployeeIds = map (.xeroEmployeeId) (filter xeroEmployeeRefIsProviderAvailable employees)
     mappings <-
         query @XeroStaffMapping
             |> filterWhere (#venueId, unpackId currentVenueId)
@@ -202,7 +203,7 @@ markStaleXeroEarningsRateMappings ::
     [XeroEarningsRateRef] ->
     IO ()
 markStaleXeroEarningsRateMappings connection earningsRates = do
-    let activeEarningsRateIds = map (.xeroEarningsRateId) earningsRates
+    let activeEarningsRateIds = map (.xeroEarningsRateId) (filter (.xeroEarningsRateIsActive) earningsRates)
     mappings <-
         query @XeroEarningsRateMapping
             |> filterWhere (#venueId, unpackId currentVenueId)
@@ -215,6 +216,21 @@ markStaleXeroEarningsRateMappings connection earningsRates = do
             _ ->
                 mapping
                     |> set #mappingStatus "stale"
+                    |> set #lastVerifiedAt Nothing
+                    |> updateRecord
+                    |> void
+    requirements <-
+        query @XeroPayItemRequirementRecord
+            |> filterWhere (#venueId, unpackId currentVenueId)
+            |> filterWhere (#xeroConnectionId, unpackId connection.id)
+            |> filterWhereIn (#requirementStatus, ["matched" :: Text, "created"])
+            |> fetch
+    forM_ requirements \requirement ->
+        case requirement.xeroEarningsRateId of
+            Just earningsRateId | earningsRateId `elem` activeEarningsRateIds -> pure ()
+            _ ->
+                requirement
+                    |> set #requirementStatus "stale"
                     |> set #lastVerifiedAt Nothing
                     |> updateRecord
                     |> void
@@ -299,6 +315,80 @@ upsertXeroPayItemAccountCodeSelection connection selectionStatus maybeAccountCod
                 |> createRecord
                 |> void
 
+reconcileXeroProviderAvailability :: (?modelContext :: ModelContext) => XeroConnection -> UTCTime -> [XeroEmployeeRef] -> [XeroEarningsRateRef] -> [XeroPayrollCalendarRef] -> [XeroAccountRef] -> IO ()
+reconcileXeroProviderAvailability connection reconciledAt employees earningsRates payrollCalendars accounts = do
+    let availableEmployeeIds = map (.xeroEmployeeId) (filter xeroEmployeeRefIsProviderAvailable employees)
+        availableEarningsRateIds = map (.xeroEarningsRateId) (filter (.xeroEarningsRateIsActive) earningsRates)
+        seenEarningsRateIds = map (.xeroEarningsRateId) earningsRates
+        availablePayrollCalendarIds = map (.xeroPayrollCalendarId) payrollCalendars
+        availableAccountIds = map (.xeroAccountId) (filter xeroAccountRefIsProviderAvailable accounts)
+    storedEmployees <- query @XeroEmployee |> filterWhere (#xeroConnectionId, unpackId connection.id) |> fetch
+    storedEarningsRates <- query @XeroEarningsRate |> filterWhere (#xeroConnectionId, unpackId connection.id) |> fetch
+    storedPayrollCalendars <- query @XeroPayrollCalendar |> filterWhere (#xeroConnectionId, unpackId connection.id) |> fetch
+    storedAccounts <- query @XeroAccount |> filterWhere (#xeroConnectionId, unpackId connection.id) |> fetch
+    importedPayItems <- query @XeroImportedPayItem |> filterWhere (#xeroConnectionId, unpackId connection.id) |> fetch
+    forM_ storedEmployees \record ->
+        setXeroEmployeeProviderAvailability reconciledAt (record.xeroEmployeeId `elem` availableEmployeeIds) record
+    forM_ storedEarningsRates \record ->
+        setXeroEarningsRateProviderAvailability reconciledAt (record.xeroEarningsRateId `elem` availableEarningsRateIds) record
+    forM_ storedPayrollCalendars \record ->
+        setXeroPayrollCalendarProviderAvailability reconciledAt (record.xeroPayrollCalendarId `elem` availablePayrollCalendarIds) record
+    forM_ storedAccounts \record ->
+        setXeroAccountProviderAvailability reconciledAt (record.xeroAccountId `elem` availableAccountIds) record
+    forM_ importedPayItems \record -> do
+        let seen = record.xeroEarningsRateId `elem` seenEarningsRateIds
+            available = record.xeroEarningsRateId `elem` availableEarningsRateIds
+        record
+            |> set #providerAvailable available
+            |> set #providerUnavailableAt (nextProviderUnavailableAt reconciledAt available record.providerUnavailableAt)
+            |> set #lastSeenAt (if seen then reconciledAt else record.lastSeenAt)
+            |> updateRecord
+            |> void
+
+setXeroEmployeeProviderAvailability :: (?modelContext :: ModelContext) => UTCTime -> Bool -> XeroEmployee -> IO ()
+setXeroEmployeeProviderAvailability reconciledAt available record =
+    record
+        |> set #providerAvailable available
+        |> set #providerUnavailableAt (nextProviderUnavailableAt reconciledAt available record.providerUnavailableAt)
+        |> updateRecord
+        |> void
+
+setXeroEarningsRateProviderAvailability :: (?modelContext :: ModelContext) => UTCTime -> Bool -> XeroEarningsRate -> IO ()
+setXeroEarningsRateProviderAvailability reconciledAt available record =
+    record
+        |> set #providerAvailable available
+        |> set #providerUnavailableAt (nextProviderUnavailableAt reconciledAt available record.providerUnavailableAt)
+        |> updateRecord
+        |> void
+
+setXeroPayrollCalendarProviderAvailability :: (?modelContext :: ModelContext) => UTCTime -> Bool -> XeroPayrollCalendar -> IO ()
+setXeroPayrollCalendarProviderAvailability reconciledAt available record =
+    record
+        |> set #providerAvailable available
+        |> set #providerUnavailableAt (nextProviderUnavailableAt reconciledAt available record.providerUnavailableAt)
+        |> updateRecord
+        |> void
+
+setXeroAccountProviderAvailability :: (?modelContext :: ModelContext) => UTCTime -> Bool -> XeroAccount -> IO ()
+setXeroAccountProviderAvailability reconciledAt available record =
+    record
+        |> set #providerAvailable available
+        |> set #providerUnavailableAt (nextProviderUnavailableAt reconciledAt available record.providerUnavailableAt)
+        |> updateRecord
+        |> void
+
+nextProviderUnavailableAt :: UTCTime -> Bool -> Maybe UTCTime -> Maybe UTCTime
+nextProviderUnavailableAt _ True _ = Nothing
+nextProviderUnavailableAt reconciledAt False previous = previous <|> Just reconciledAt
+
+xeroEmployeeRefIsProviderAvailable :: XeroEmployeeRef -> Bool
+xeroEmployeeRefIsProviderAvailable employee =
+    maybe True ((== "ACTIVE") . Text.toUpper . Text.strip) employee.xeroEmployeeStatus
+
+xeroAccountRefIsProviderAvailable :: XeroAccountRef -> Bool
+xeroAccountRefIsProviderAvailable account =
+    maybe True ((== "ACTIVE") . Text.toUpper . Text.strip) account.xeroAccountStatus
+
 upsertXeroEmployee :: (?context :: ControllerContext, ?modelContext :: ModelContext) => XeroConnection -> UTCTime -> XeroEmployeeRef -> IO XeroEmployee
 upsertXeroEmployee connection syncedAt employee = do
     existing <-
@@ -316,6 +406,8 @@ upsertXeroEmployee connection syncedAt employee = do
                 |> set #status employee.xeroEmployeeStatus
                 |> set #rawPayload employee.xeroEmployeeRaw
                 |> set #syncedAt syncedAt
+                |> set #providerAvailable (xeroEmployeeRefIsProviderAvailable employee)
+                |> set #providerUnavailableAt (nextProviderUnavailableAt syncedAt (xeroEmployeeRefIsProviderAvailable employee) record.providerUnavailableAt)
     case existing of
         Just record -> fillRecord record |> updateRecord
         Nothing     -> fillRecord (newRecord @XeroEmployee) |> createRecord
@@ -338,6 +430,8 @@ upsertXeroAccount connection syncedAt account = do
                 |> set #status account.xeroAccountStatus
                 |> set #rawPayload account.xeroAccountRaw
                 |> set #syncedAt syncedAt
+                |> set #providerAvailable (xeroAccountRefIsProviderAvailable account)
+                |> set #providerUnavailableAt (nextProviderUnavailableAt syncedAt (xeroAccountRefIsProviderAvailable account) record.providerUnavailableAt)
     case existing of
         Just record -> fillRecord record |> updateRecord
         Nothing     -> fillRecord (newRecord @XeroAccount) |> createRecord
@@ -361,6 +455,8 @@ upsertXeroEarningsRate connection syncedAt earningsRate = do
                 |> set #isActive earningsRate.xeroEarningsRateIsActive
                 |> set #rawPayload earningsRate.xeroEarningsRateRaw
                 |> set #syncedAt syncedAt
+                |> set #providerAvailable earningsRate.xeroEarningsRateIsActive
+                |> set #providerUnavailableAt (nextProviderUnavailableAt syncedAt earningsRate.xeroEarningsRateIsActive record.providerUnavailableAt)
     case existing of
         Just record -> fillRecord record |> updateRecord
         Nothing     -> fillRecord (newRecord @XeroEarningsRate) |> createRecord
@@ -383,6 +479,8 @@ upsertXeroPayrollCalendar connection syncedAt payrollCalendar = do
                 |> set #paymentDate payrollCalendar.xeroPayrollCalendarPaymentDate
                 |> set #rawPayload payrollCalendar.xeroPayrollCalendarRaw
                 |> set #syncedAt syncedAt
+                |> set #providerAvailable True
+                |> set #providerUnavailableAt Nothing
     case existing of
         Just record -> fillRecord record |> updateRecord
         Nothing     -> fillRecord (newRecord @XeroPayrollCalendar) |> createRecord

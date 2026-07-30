@@ -129,7 +129,7 @@ fetchEligibleRosterGroupStaffDirect rosterGroupId = do
         \AND staff.archived_at IS NULL \
         \AND (staff.pay_assignment_mode = 'roster_only' \
         \     OR (staff.pay_assignment_mode = 'award_rate' AND EXISTS (SELECT 1 FROM award_levels WHERE award_levels.id = staff.default_award_level_id AND award_levels.is_active = TRUE)) \
-        \     OR (staff.pay_assignment_mode = 'xero_rate' AND EXISTS (SELECT 1 FROM xero_imported_pay_items WHERE xero_imported_pay_items.id = staff.imported_xero_pay_item_id AND xero_imported_pay_items.venue_id = staff.venue_id AND xero_imported_pay_items.archived_at IS NULL)) \
+        \     OR (staff.pay_assignment_mode = 'xero_rate' AND EXISTS (SELECT 1 FROM xero_imported_pay_items WHERE xero_imported_pay_items.id = staff.imported_xero_pay_item_id AND xero_imported_pay_items.venue_id = staff.venue_id AND xero_imported_pay_items.archived_at IS NULL AND xero_imported_pay_items.provider_available = TRUE)) \
         \ ) \
         \ORDER BY staff.last_name"
         (unpackId rosterGroupId, unpackId currentVenueId)
@@ -229,7 +229,7 @@ fetchCurrentVenueRosterShiftTypesDirect = do
         \AND shift_types.is_active = TRUE \
         \AND (shift_types.pay_assignment_mode IN ('staff_default', 'roster_only') \
         \     OR (shift_types.pay_assignment_mode = 'award_rate' AND EXISTS (SELECT 1 FROM award_levels WHERE award_levels.id = shift_types.override_award_level_id AND award_levels.is_active = TRUE)) \
-        \     OR (shift_types.pay_assignment_mode = 'xero_rate' AND EXISTS (SELECT 1 FROM xero_imported_pay_items WHERE xero_imported_pay_items.id = shift_types.imported_xero_pay_item_id AND xero_imported_pay_items.venue_id = shift_types.venue_id AND xero_imported_pay_items.archived_at IS NULL)) \
+        \     OR (shift_types.pay_assignment_mode = 'xero_rate' AND EXISTS (SELECT 1 FROM xero_imported_pay_items WHERE xero_imported_pay_items.id = shift_types.imported_xero_pay_item_id AND xero_imported_pay_items.venue_id = shift_types.venue_id AND xero_imported_pay_items.archived_at IS NULL AND xero_imported_pay_items.provider_available = TRUE)) \
         \ ) \
         \ORDER BY shift_types.sort_order, shift_types.created_at"
         (PG.Only (unpackId currentVenueId))

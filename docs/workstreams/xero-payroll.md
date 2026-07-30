@@ -39,8 +39,9 @@ managed pay items and draft timesheet submission.
 ## Current State
 
 The app has owner-only connection management, one shared synchronous
-reference-data sync service, imported-pay-item support, explicit staff/shift pay
-assignment modes with immutable pay versions, and a guided preparation workflow
+reference-data sync service with atomic provider-availability reconciliation,
+imported-pay-item support, explicit staff/shift pay assignment modes with
+immutable pay versions, and a guided preparation workflow
 covering staff decisions, managed pay items, readiness, preview, and submission.
 The ordinary Xero page is connection-state-only; disconnected operational panels
 and pre-wizard preview/submit/retry endpoints have been retired. Initial sync is
@@ -56,12 +57,12 @@ pace provider calls, preserve `Retry-After`, and retain the prior successful
 snapshot until every phase succeeds. The daily maintenance sweep requests refresh
 around six days; snapshots become stale at seven days.
 
-Provider availability is distinct from owner archival. Missing or inactive Xero
-records remain historical facts but cannot be selected for new work. Current
-explicit `xero_rate` assignments become remediation-required. Immutable pay
-versions and sealed calculations are never silently remapped; approved entries
-pinned to an unavailable remote rate block Xero preparation/submission and use
-the explicit correction/reapproval path.
+Issue `#246` implements provider availability separately from owner archival.
+Missing or inactive Xero records remain historical facts but cannot be selected
+for new work. Current explicit `xero_rate` assignments become
+remediation-required. Immutable pay versions and sealed calculations are never
+silently remapped; approved entries pinned to an unavailable remote rate block
+Xero preparation/submission and use the explicit correction/reapproval path.
 
 Owners join background sync automatically from connection, stale import or
 preparation, and missing payroll-eligible staff mappings. Effective roster-only

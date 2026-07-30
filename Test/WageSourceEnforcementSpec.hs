@@ -9,6 +9,7 @@ import Control.Monad (void)
 import qualified Data.Aeson as Aeson
 import qualified Data.Aeson.Types as AesonTypes
 import Data.Either (isLeft, isRight)
+import qualified Data.Text as Text
 import Data.Time.Calendar (fromGregorian)
 import Data.Time.Clock (UTCTime, addUTCTime, getCurrentTime)
 import Data.UUID (UUID)
@@ -72,7 +73,19 @@ tests = aroundAll withDatabaseTestContext do
                         failures `shouldSatisfy` any isAwardSourceFailure
                         failures `shouldSatisfy` any isInvalidCalculationFailure
 
-                _ <- importedItem
+                unavailableItem <- importedItem
+                    |> set #providerAvailable False
+                    |> set #providerUnavailableAt (Just now)
+                    |> updateRecord
+                unavailableOutcomes <- evaluateDraftWageEntriesAt clock [importedEntry]
+                case unavailableOutcomes of
+                    [unavailableOutcome] ->
+                        unavailableOutcome.outcomeCalculation `shouldSatisfy` either ("no longer available" `Text.isInfixOf`) (const False)
+                    _ -> expectationFailure "expected one unavailable imported-pay outcome"
+
+                _ <- unavailableItem
+                    |> set #providerAvailable True
+                    |> set #providerUnavailableAt Nothing
                     |> set #archivedAt (Just now)
                     |> set #archivedByUserId (Just (unpackId approver.id))
                     |> set #archiveReason (Just "test_archive")

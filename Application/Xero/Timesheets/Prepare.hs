@@ -381,6 +381,7 @@ saveXeroPreparationPayrollCalendar runId payrollCalendarId =
                             |> filterWhere (#venueId, unpackId currentVenueId)
                             |> filterWhere (#xeroConnectionId, unpackId connection.id)
                             |> filterWhere (#xeroPayrollCalendarId, selectedCalendarId)
+                            |> filterWhere (#providerAvailable, True)
                             |> fetchOneOrNothing
                     case maybePayrollCalendar of
                         Nothing -> pure (Left "Choose a synced Xero payroll calendar from this venue.")
@@ -716,6 +717,7 @@ applyEmployeeMappingDecisionWithoutReload run connection staff decisionKind empl
             |> filterWhere (#venueId, unpackId currentVenueId)
             |> filterWhere (#xeroConnectionId, unpackId connection.id)
             |> filterWhere (#xeroEmployeeId, employeeId)
+            |> filterWhere (#providerAvailable, True)
             |> fetchOneOrNothing
     case maybeEmployee of
         Nothing -> pure (Left "Choose a synced Xero employee from this venue.")

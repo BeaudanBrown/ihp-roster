@@ -12,6 +12,7 @@ import Application.Helper.Xero
 import Application.Helper.XeroAdminTypes (XeroLocalEarningsBucket (..))
 import Application.Helper.XeroTimesheetReadiness (readinessBlockerCodes,
                                                   validateXeroTimesheetReadiness)
+import Application.PayAssignment
 import Config
 import qualified Data.Aeson as Aeson
 import qualified Data.Aeson.Key as AesonKey
@@ -459,6 +460,152 @@ tests = aroundAll withDatabaseTestContext do
                 updatedConnection <- fetch connection.id
                 updatedConnection.lastSyncAt `shouldSatisfy` isJust
                 decryptXeroToken testXeroConfig.tokenEncryptionKey updatedConnection.encryptedRefreshToken `shouldBe` Right "new-refresh-token"
+
+        it "atomically reconciles provider availability while preserving archival and locked pay history" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Xero Availability Reconciliation Venue"
+                owner <- createUserRecord "xero-availability@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue owner "venue_owner"
+                connection <- createSyncableXeroConnection venue owner
+                let tokenResponse = XeroTokenResponse "availability-access-token" "availability-refresh-token" 1800 (Just requiredXeroScopesText)
+                    employee = XeroEmployeeRef "employee-availability" "Available Worker" (Just "worker@example.com") (Just "ACTIVE") (Aeson.object ["EmployeeID" Aeson..= ("employee-availability" :: Text)])
+                    rate = XeroEarningsRateRef "rate-availability" "Venue ordinary" (Just "ORDINARYTIMEEARNINGS") (Just "RATEPERUNIT") (Just "477") (Just "Hours") (Just 30) True (Aeson.object ["EarningsRateID" Aeson..= ("rate-availability" :: Text)])
+                    calendar = XeroPayrollCalendarRef "calendar-availability" "Weekly" (Just "WEEKLY") (Just (fromGregorian 2026 4 27)) (Just (fromGregorian 2026 5 1)) (Aeson.object ["PayrollCalendarID" Aeson..= ("calendar-availability" :: Text)])
+                    runSync client = withXeroConfigForTest (Right testXeroConfig) do
+                        withXeroClientForTest client do
+                            withPasskeyVerifiedUserAndCurrentVenue owner venue.id do
+                                callAction SyncXeroPayrollReferenceDataAction
+
+                initialResponse <- runSync (referenceSyncXeroClient tokenResponse [employee] [rate] [calendar])
+                initialResponse `responseStatusShouldBe` status302
+                syncedEmployee <- query @XeroEmployee |> fetchOne
+                syncedRate <- query @XeroEarningsRate |> fetchOne
+                syncedAccount <- query @XeroAccount |> fetchOne
+                syncedCalendar <- query @XeroPayrollCalendar |> fetchOne
+                now <- getCurrentTime
+                importedItem <-
+                    newRecord @XeroImportedPayItem
+                        |> set #venueId (unpackId venue.id)
+                        |> set #xeroConnectionId (unpackId connection.id)
+                        |> set #xeroEarningsRateId rate.xeroEarningsRateId
+                        |> set #name rate.xeroEarningsRateName
+                        |> set #accountCode rate.xeroEarningsRateAccountCode
+                        |> set #earningsType "ORDINARYTIMEEARNINGS"
+                        |> set #rateType "RATEPERUNIT"
+                        |> set #typeOfUnits "Hours"
+                        |> set #ratePerUnit 30
+                        |> set #rawPayload rate.xeroEarningsRateRaw
+                        |> set #importedByUserId (unpackId owner.id)
+                        |> createRecord
+                staff <- createStaffRecord venue Nothing "Pinned" "Worker"
+                    >>= updateRecord . set #payAssignmentMode XeroRate . set #importedXeroPayItemId (Just importedItem.id)
+                lockedVersion <-
+                    newRecord @StaffPayVersion
+                        |> set #venueId (unpackId venue.id)
+                        |> set #staffId (unpackId staff.id)
+                        |> set #payAssignmentMode XeroRate
+                        |> set #importedXeroPayItemId (Just importedItem.id)
+                        |> set #employmentBasis Permanent
+                        |> set #effectiveFrom (fromGregorian 2026 4 27)
+                        |> set #createdByUserId (unpackId owner.id)
+                        |> set #lockedAt (Just now)
+                        |> set #lockedByUserId (Just (unpackId owner.id))
+                        |> createRecord
+                _ <-
+                    newRecord @XeroStaffMapping
+                        |> set #venueId (unpackId venue.id)
+                        |> set #staffId (unpackId staff.id)
+                        |> set #xeroConnectionId (unpackId connection.id)
+                        |> set #xeroEmployeeId (Just employee.xeroEmployeeId)
+                        |> set #mappingStatus "verified"
+                        |> set #lastVerifiedAt (Just now)
+                        |> createRecord
+                _ <-
+                    newRecord @XeroEarningsRateMapping
+                        |> set #venueId (unpackId venue.id)
+                        |> set #xeroConnectionId (unpackId connection.id)
+                        |> set #localBucketKey "availability-bucket"
+                        |> set #localBucketLabel "Availability bucket"
+                        |> set #xeroEarningsRateId (Just rate.xeroEarningsRateId)
+                        |> set #mappingStatus "verified"
+                        |> set #lastVerifiedAt (Just now)
+                        |> createRecord
+                _ <-
+                    newRecord @XeroPayItemRequirementRecord
+                        |> set #venueId (unpackId venue.id)
+                        |> set #xeroConnectionId (unpackId connection.id)
+                        |> set #requirementKey "availability-requirement"
+                        |> set #displayName "Availability requirement"
+                        |> set #earningsType "ORDINARYTIMEEARNINGS"
+                        |> set #rateType "RATEPERUNIT"
+                        |> set #sourceDescription "availability test"
+                        |> set #requirementStatus "matched"
+                        |> set #xeroEarningsRateId (Just rate.xeroEarningsRateId)
+                        |> set #lastVerifiedAt (Just now)
+                        |> createRecord
+
+                let failedClient = (referenceSyncXeroClient tokenResponse [] [] [])
+                        { fetchEarningsRates = \_ _ -> pure (Left (XeroHttpError "incomplete earnings-rate pull")) }
+                failedResponse <- runSync failedClient
+                failedResponse `responseStatusShouldBe` status302
+                fetch syncedEmployee.id >>= (\record -> record.providerAvailable `shouldBe` True)
+                fetch syncedRate.id >>= (\record -> record.providerAvailable `shouldBe` True)
+                fetch syncedAccount.id >>= (\record -> record.providerAvailable `shouldBe` True)
+                fetch syncedCalendar.id >>= (\record -> record.providerAvailable `shouldBe` True)
+
+                let inactiveEmployee = employee { xeroEmployeeStatus = Just "INACTIVE" }
+                    inactiveRate = rate { xeroEarningsRateIsActive = False }
+                    unavailableClient = (referenceSyncXeroClient tokenResponse [inactiveEmployee] [inactiveRate] [])
+                        { fetchAccounts = \_ _ -> pure (Right [])
+                        , fetchPayrollSettingsAccounts = \_ _ -> pure (Right [])
+                        }
+                unavailableResponse <- runSync unavailableClient
+                unavailableResponse `responseStatusShouldBe` status302
+
+                unavailableEmployee <- fetch syncedEmployee.id
+                unavailableRate <- fetch syncedRate.id
+                unavailableAccount <- fetch syncedAccount.id
+                unavailableCalendar <- fetch syncedCalendar.id
+                unavailableImport <- fetch importedItem.id
+                unavailableEmployee.providerAvailable `shouldBe` False
+                unavailableRate.providerAvailable `shouldBe` False
+                unavailableAccount.providerAvailable `shouldBe` False
+                unavailableCalendar.providerAvailable `shouldBe` False
+                unavailableImport.providerAvailable `shouldBe` False
+                map (.providerUnavailableAt) [unavailableEmployee] `shouldSatisfy` all isJust
+                unavailableImport.providerUnavailableAt `shouldSatisfy` isJust
+                unavailableImport.archivedAt `shouldBe` Nothing
+                unavailableImport.archivedByUserId `shouldBe` Nothing
+                fetch lockedVersion.id >>= (\version -> version.importedXeroPayItemId `shouldBe` Just importedItem.id)
+                staffMapping <- query @XeroStaffMapping |> fetchOne
+                staffMapping.mappingStatus `shouldBe` "stale"
+                earningsMapping <- query @XeroEarningsRateMapping |> fetchOne
+                earningsMapping.mappingStatus `shouldBe` "stale"
+                managedRequirement <- query @XeroPayItemRequirementRecord |> fetchOne
+                managedRequirement.requirementStatus `shouldBe` "stale"
+                managedRequirement.lastVerifiedAt `shouldBe` Nothing
+                staffEditResponse <- withPasskeyVerifiedUserAndCurrentVenue owner venue.id do
+                    callActionWithParams (EditStaffAction staff.id) [("weekOffset", "0")]
+                staffEditResponse `responseBodyShouldContain` "Pay configuration required"
+                staffEditResponse `responseBodyShouldNotContain` "Venue ordinary"
+                staffPayAssignmentRequiresRemediation [] [] (StaffPayAssignment XeroRate Nothing (Just importedItem.id)) `shouldBe` True
+                staffPayAssignmentRequiresRemediation [] [] (StaffPayAssignment RosterOnly Nothing Nothing) `shouldBe` False
+                shiftPayAssignmentRequiresRemediation [] [] (ShiftPayAssignment StaffDefault Nothing Nothing) `shouldBe` False
+
+                reappearedResponse <- runSync (referenceSyncXeroClient tokenResponse [employee] [rate] [calendar])
+                reappearedResponse `responseStatusShouldBe` status302
+                reappearedEmployee <- fetch syncedEmployee.id
+                reappearedRate <- fetch syncedRate.id
+                reappearedAccount <- fetch syncedAccount.id
+                reappearedCalendar <- fetch syncedCalendar.id
+                reappearedImport <- fetch importedItem.id
+                map (.providerAvailable) [reappearedEmployee] `shouldBe` [True]
+                reappearedRate.providerAvailable `shouldBe` True
+                reappearedAccount.providerAvailable `shouldBe` True
+                reappearedCalendar.providerAvailable `shouldBe` True
+                reappearedImport.providerAvailable `shouldBe` True
+                reappearedImport.providerUnavailableAt `shouldBe` Nothing
+                reappearedImport.archivedAt `shouldBe` Nothing
 
         it "syncs Xero payroll reference data over HTMX with actor-local shell invalidation" $ withContext do
             withCleanDb do
@@ -955,6 +1102,8 @@ tests = aroundAll withDatabaseTestContext do
                 let xeroClient = (payItemCreateXeroClient tokenResponse requestsRef)
                         { fetchPayrollEmployees = fetchPayrollEmployees baseClient
                         , fetchPayrollCalendars = fetchPayrollCalendars baseClient
+                        , fetchAccounts = fetchAccounts baseClient
+                        , fetchPayrollSettingsAccounts = fetchPayrollSettingsAccounts baseClient
                         }
                 _ <- withXeroConfigForTest (Right testXeroConfig) do
                     withXeroClientForTest xeroClient do
@@ -1033,6 +1182,8 @@ tests = aroundAll withDatabaseTestContext do
                 let xeroClient = (payItemCreateXeroClientWithVerifiedLimit tokenResponse requestsRef (Just 0))
                         { fetchPayrollEmployees = fetchPayrollEmployees baseClient
                         , fetchPayrollCalendars = fetchPayrollCalendars baseClient
+                        , fetchAccounts = fetchAccounts baseClient
+                        , fetchPayrollSettingsAccounts = fetchPayrollSettingsAccounts baseClient
                         }
                 _ <- withXeroConfigForTest (Right testXeroConfig) do
                     withXeroClientForTest xeroClient do

@@ -16,10 +16,11 @@ import IHP.ModelSupport (ModelContext, unpackId)
 import IHP.Prelude
 
 data WageSourceFacts = WageSourceFacts
-    { factFwcSnapshots                   :: ![FwcSnapshot]
-    , factDataVicSnapshots               :: ![DataVicSnapshot]
-    , factVenueConfigs                   :: !(Map.Map UUID VenueConfig)
-    , factValidImportedPayItemIdsByVenue :: !(Map.Map UUID (Set.Set UUID))
+    { factFwcSnapshots                         :: ![FwcSnapshot]
+    , factDataVicSnapshots                     :: ![DataVicSnapshot]
+    , factVenueConfigs                         :: !(Map.Map UUID VenueConfig)
+    , factValidImportedPayItemIdsByVenue       :: !(Map.Map UUID (Set.Set UUID))
+    , factUnavailableImportedPayItemIdsByVenue :: !(Map.Map UUID (Set.Set UUID))
     }
 
 loadWageSourceFactsFor :: (?modelContext :: ModelContext) => [UUID] -> Set.Set Integer -> IO WageSourceFacts
@@ -28,7 +29,7 @@ loadWageSourceFactsFor venueIds targetYears = do
     venueConfigs <- if null venueIds
         then pure []
         else query @VenueConfig |> filterWhereIn (#venueId, List.nub venueIds) |> fetch
-    validImportedPayItems <- if null venueIds
+    importedPayItems <- if null venueIds
         then pure []
         else query @XeroImportedPayItem
             |> filterWhereIn (#venueId, List.nub venueIds)
@@ -44,11 +45,16 @@ loadWageSourceFactsFor venueIds targetYears = do
         { factFwcSnapshots = map fwcSnapshotFromRun syncRuns
         , factDataVicSnapshots = dataVicSnapshotsFromHolidays targetYears holidays
         , factVenueConfigs = Map.fromList [(config.venueId, config) | config <- venueConfigs]
-        , factValidImportedPayItemIdsByVenue = Map.fromListWith Set.union
-            [ (item.venueId, Set.singleton (unpackId item.id))
-            | item <- validImportedPayItems
-            ]
+        , factValidImportedPayItemIdsByVenue = importedPayItemIdsByVenue (filter (.providerAvailable) importedPayItems)
+        , factUnavailableImportedPayItemIdsByVenue = importedPayItemIdsByVenue (filter (not . (.providerAvailable)) importedPayItems)
         }
+
+importedPayItemIdsByVenue :: [XeroImportedPayItem] -> Map.Map UUID (Set.Set UUID)
+importedPayItemIdsByVenue items =
+    Map.fromListWith Set.union
+        [ (item.venueId, Set.singleton (unpackId item.id))
+        | item <- items
+        ]
 
 sourceDiagnosticsForFacts :: PolicyClock -> WageSourceFacts -> UUID -> Day -> Set.Set Integer -> SourceRequirement -> [SourceDiagnostic]
 sourceDiagnosticsForFacts clock facts venueId workedOn targetYears requirement =

@@ -10,8 +10,8 @@ preparation/submission workflow.
 
 - `Connection.hs` - connection and token boundary.
 - `Keepalive.hs` - recurring token/connection health support.
-- `Admin/ReferenceData.hs` - the shared reference-data sync service and
-  reconciliation logic used by manual sync and preparation.
+- `Admin/ReferenceData.hs` - the shared reference-data sync service and atomic
+  provider-availability reconciliation used by manual sync and preparation.
 - `Admin/ImportedPayItems.hs` - the pay-item import boundary.
 - `Admin/PayItems.hs` - managed pay item behavior used by preparation.
 - `Admin/ReadModel.hs` - connection-shell and preparation read models.
