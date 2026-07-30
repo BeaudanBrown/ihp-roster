@@ -38,9 +38,16 @@ import Web.Types
 tests :: Spec
 tests = aroundAll withDatabaseTestContext do
     describe "LeaveRequestsController" do
-        it "redirects unauthenticated users from leave requests page" $ withContext do
-            response <- callAction LeaveRequestsAction
-            response `responseStatusShouldBe` status302
+        it "redirects unauthenticated users through shared controller middleware" $ withContext do
+            let requestId = "00000000-0000-0000-0000-000000000000" :: Id LeaveRequest
+            actionResponsesShouldHaveStatus status302
+                [ ("index", callAction LeaveRequestsAction)
+                , ("content fragment", callAction ShowleaveRequestsContentLiveFragmentAction)
+                , ("new request", callAction NewLeaveRequestAction)
+                , ("create request", callAction CreateLeaveRequestAction)
+                , ("approve", callAction ApproveLeaveRequestAction { leaveRequestId = requestId })
+                , ("deny", callAction DenyLeaveRequestAction { leaveRequestId = requestId })
+                ]
 
         it "redirects venue-less super-admins from leave to support" $ withContext do
             withCleanDb do
@@ -51,28 +58,6 @@ tests = aroundAll withDatabaseTestContext do
 
                 response `responseStatusShouldBe` status302
                 responseHeaders response `shouldContain` [("Location", "http://localhost/Support")]
-
-        it "redirects unauthenticated users from leave requests fragment page" $ withContext do
-            response <- callAction ShowleaveRequestsContentLiveFragmentAction
-            response `responseStatusShouldBe` status302
-
-        it "redirects unauthenticated users from new leave request page" $ withContext do
-            response <- callAction NewLeaveRequestAction
-            response `responseStatusShouldBe` status302
-
-        it "redirects unauthenticated users from create leave request action" $ withContext do
-            response <- callAction CreateLeaveRequestAction
-            response `responseStatusShouldBe` status302
-
-        it "redirects unauthenticated users from approve leave action" $ withContext do
-            let requestId = "00000000-0000-0000-0000-000000000000" :: Id LeaveRequest
-            response <- callAction ApproveLeaveRequestAction { leaveRequestId = requestId }
-            response `responseStatusShouldBe` status302
-
-        it "redirects unauthenticated users from deny leave action" $ withContext do
-            let requestId = "00000000-0000-0000-0000-000000000000" :: Id LeaveRequest
-            response <- callAction DenyLeaveRequestAction { leaveRequestId = requestId }
-            response `responseStatusShouldBe` status302
 
         it "selects leave roster invalidation targets from active roster week scopes in the current venue" $ withContext do
             withCleanDb do

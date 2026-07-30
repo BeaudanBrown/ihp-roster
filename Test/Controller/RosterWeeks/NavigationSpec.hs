@@ -30,9 +30,21 @@ import Web.Types
 tests :: Spec
 tests = aroundAll withDatabaseTestContext do
     describe "RosterWeeksController" do
-        it "redirects unauthenticated users from RosterWeeksAction" $ withContext do
-            response <- callAction RosterWeeksAction
-            response `responseStatusShouldBe` status302
+        it "redirects unauthenticated users through shared controller middleware" $ withContext do
+            actionResponsesShouldHaveStatus status302
+                [ ("index", callAction RosterWeeksAction)
+                , ("show week", callAction (ShowRosterWeekAction 0))
+                , ("content fragment", callAction (ShowRosterWeekContentFragmentAction 0))
+                , ("staff panel fragment", callAction (ShowRosterWeekStaffPanelFragmentAction 0))
+                , ("row fragment", callAction (ShowRosterWeekRowFragmentAction 0 "11111111-1111-1111-1111-111111111111" 0))
+                , ("create week", callAction (CreateRosterWeekAction 0))
+                , ("copy week", callAction (CopyRosterWeekAction 0 1))
+                , ("toggle day", callAction (ToggleRosterDayClosedAction "11111111-1111-1111-1111-111111111111"))
+                , ("add row", callAction (AddRosterRowAction "11111111-1111-1111-1111-111111111111"))
+                , ("remove row", callAction (RemoveRosterRowAction "11111111-1111-1111-1111-111111111111"))
+                , ("update slot", callAction (UpdateRosterSlotAction "22222222-2222-2222-2222-222222222222"))
+                , ("create slot", callAction (CreateRosterSlotAction "11111111-1111-1111-1111-111111111111" "22222222-2222-2222-2222-222222222222" 0))
+                ]
 
         it "redirects venue-less super-admins from roster weeks to support" $ withContext do
             withCleanDb do
@@ -43,50 +55,6 @@ tests = aroundAll withDatabaseTestContext do
 
                 response `responseStatusShouldBe` status302
                 responseHeaders response `shouldContain` [("Location", "http://localhost/Support")]
-
-        it "redirects unauthenticated users from ShowRosterWeekAction" $ withContext do
-            response <- callAction (ShowRosterWeekAction 0)
-            response `responseStatusShouldBe` status302
-
-        it "redirects unauthenticated users from ShowRosterWeekContentFragmentAction" $ withContext do
-            response <- callAction (ShowRosterWeekContentFragmentAction 0)
-            response `responseStatusShouldBe` status302
-
-        it "redirects unauthenticated users from ShowRosterWeekStaffPanelFragmentAction" $ withContext do
-            response <- callAction (ShowRosterWeekStaffPanelFragmentAction 0)
-            response `responseStatusShouldBe` status302
-
-        it "redirects unauthenticated users from ShowRosterWeekRowFragmentAction" $ withContext do
-            response <- callAction (ShowRosterWeekRowFragmentAction 0 "11111111-1111-1111-1111-111111111111" 0)
-            response `responseStatusShouldBe` status302
-
-        it "redirects unauthenticated users from CreateRosterWeekAction" $ withContext do
-            response <- callAction (CreateRosterWeekAction 0)
-            response `responseStatusShouldBe` status302
-
-        it "redirects unauthenticated users from CopyRosterWeekAction" $ withContext do
-            response <- callAction (CopyRosterWeekAction 0 1)
-            response `responseStatusShouldBe` status302
-
-        it "redirects unauthenticated users from ToggleRosterDayClosedAction" $ withContext do
-            response <- callAction (ToggleRosterDayClosedAction "11111111-1111-1111-1111-111111111111")
-            response `responseStatusShouldBe` status302
-
-        it "redirects unauthenticated users from AddRosterRowAction" $ withContext do
-            response <- callAction (AddRosterRowAction "11111111-1111-1111-1111-111111111111")
-            response `responseStatusShouldBe` status302
-
-        it "redirects unauthenticated users from RemoveRosterRowAction" $ withContext do
-            response <- callAction (RemoveRosterRowAction "11111111-1111-1111-1111-111111111111")
-            response `responseStatusShouldBe` status302
-
-        it "redirects unauthenticated users from UpdateRosterSlotAction" $ withContext do
-            response <- callAction (UpdateRosterSlotAction "22222222-2222-2222-2222-222222222222")
-            response `responseStatusShouldBe` status302
-
-        it "redirects unauthenticated users from CreateRosterSlotAction" $ withContext do
-            response <- callAction (CreateRosterSlotAction "11111111-1111-1111-1111-111111111111" "22222222-2222-2222-2222-222222222222" 0)
-            response `responseStatusShouldBe` status302
 
         it "redirects venue members without a completed staff profile to edit profile" $ withContext do
             withCleanDb do

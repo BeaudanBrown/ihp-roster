@@ -38,27 +38,24 @@ tests :: Spec
 tests = aroundAll withDatabaseTestContext do
     describe "StaffController" do
         let sampleStaffId = Id "6f9638dc-f13c-4ed3-b4f1-a2f860532cab"
-        it "redirects unauthenticated users from edit staff form" $ withContext do
-            response <- callActionWithParams (EditStaffAction sampleStaffId) [("weekOffset", "7")]
-            response `responseStatusShouldBe` status302
-
-        it "redirects unauthenticated users from update staff" $ withContext do
-            response <- callActionWithParams (UpdateStaffAction sampleStaffId)
-                [ ("section", "profile")
-                , ("firstName", "Test")
-                , ("lastName", "User")
-                , ("preferredName", "")
-                , ("phone", "0400000000")
-                , ("emergencyContactName", "Casey User")
-                , ("emergencyContactPhone", "0411111111")
-                , ("idealShiftsPerWeek", "3")
-                , ("weekOffset", "7")
+        it "redirects unauthenticated users through shared controller middleware" $ withContext do
+            actionResponsesShouldHaveStatus status302
+                [ ("edit", callActionWithParams (EditStaffAction sampleStaffId) [("weekOffset", "7")])
+                , ( "update"
+                  , callActionWithParams (UpdateStaffAction sampleStaffId)
+                        [ ("section", "profile")
+                        , ("firstName", "Test")
+                        , ("lastName", "User")
+                        , ("preferredName", "")
+                        , ("phone", "0400000000")
+                        , ("emergencyContactName", "Casey User")
+                        , ("emergencyContactPhone", "0411111111")
+                        , ("idealShiftsPerWeek", "3")
+                        , ("weekOffset", "7")
+                        ]
+                  )
+                , ("new trial", callAction NewStaffAction)
                 ]
-            response `responseStatusShouldBe` status302
-
-        it "redirects unauthenticated users from new trial staff form" $ withContext do
-            response <- callAction NewStaffAction
-            response `responseStatusShouldBe` status302
 
         it "labels the trial staff dialog as add trial" $ withContext do
             withCleanDb do

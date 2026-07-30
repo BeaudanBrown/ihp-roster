@@ -49,14 +49,27 @@ import IHP.ModelSupport (sqlExecDiscardResult)
 import IHP.Prelude
 import qualified IHP.Prelude as Prelude
 import IHP.Test.Mocking
+import Network.HTTP.Types (Status)
 import Network.HTTP.Types.Header (RequestHeaders)
 import qualified Network.Wai as Wai
 import qualified Network.Wai.Session.Maybe as WaiSession
 import System.Environment (lookupEnv, setEnv, unsetEnv)
 import qualified System.IO as IO
 import System.IO.Unsafe (unsafePerformIO)
+import Test.Hspec (Expectation, shouldBe)
 import Web.FrontController ()
 import Web.Types
+
+actionResponsesShouldHaveStatus :: Status -> [(Text, IO Wai.Response)] -> Expectation
+actionResponsesShouldHaveStatus expectedStatus actions = do
+    actualStatuses <-
+        mapM
+            (\(label, request) -> do
+                response <- request
+                pure (label, Wai.responseStatus response)
+            )
+            actions
+    actualStatuses `shouldBe` map (\(label, _) -> (label, expectedStatus)) actions
 
 class TestLocalTimeRecord record localTime | record -> localTime where
     testStartTime :: record -> localTime

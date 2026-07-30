@@ -59,9 +59,17 @@ import qualified Web.View.Timesheets.Index as TimesheetsView
 tests :: Spec
 tests = aroundAll withDatabaseTestContext do
     describe "TimesheetsController" do
-        it "redirects unauthenticated users from timesheets page" $ withContext do
-            response <- callAction TimesheetsAction
-            response `responseStatusShouldBe` status302
+        it "redirects unauthenticated users through shared controller middleware" $ withContext do
+            let entryId = Id "00000000-0000-0000-0000-000000000000"
+            actionResponsesShouldHaveStatus status302
+                [ ("index", callAction TimesheetsAction)
+                , ("week", callAction ShowTimesheetWeekAction { weekOffset = 0 })
+                , ("day fragment", callAction ShowTimesheetDaySectionFragmentAction { weekOffset = 0, dayOffset = 0 })
+                , ("new entry", callAction NewTimesheetEntryAction)
+                , ("create entry", callAction CreateTimesheetEntryAction)
+                , ("approve", callAction ApproveTimesheetEntryAction { timesheetEntryId = entryId })
+                , ("unapprove", callAction UnapproveTimesheetEntryAction { timesheetEntryId = entryId })
+                ]
 
         it "redirects venue-less super-admins from timesheets to support" $ withContext do
             withCleanDb do
@@ -72,32 +80,6 @@ tests = aroundAll withDatabaseTestContext do
 
                 response `responseStatusShouldBe` status302
                 responseHeaders response `shouldContain` [("Location", "http://localhost/Support")]
-
-        it "redirects unauthenticated users from weekly timesheets page" $ withContext do
-            response <- callAction ShowTimesheetWeekAction { weekOffset = 0 }
-            response `responseStatusShouldBe` status302
-
-        it "redirects unauthenticated users from day-section fragment action" $ withContext do
-            response <- callAction ShowTimesheetDaySectionFragmentAction { weekOffset = 0, dayOffset = 0 }
-            response `responseStatusShouldBe` status302
-
-        it "redirects unauthenticated users from new timesheet entry" $ withContext do
-            response <- callAction NewTimesheetEntryAction
-            response `responseStatusShouldBe` status302
-
-        it "redirects unauthenticated users from create timesheet entry" $ withContext do
-            response <- callAction CreateTimesheetEntryAction
-            response `responseStatusShouldBe` status302
-
-        it "redirects unauthenticated users from approve action" $ withContext do
-            let entryId = Id "00000000-0000-0000-0000-000000000000"
-            response <- callAction ApproveTimesheetEntryAction { timesheetEntryId = entryId }
-            response `responseStatusShouldBe` status302
-
-        it "redirects unauthenticated users from unapprove action" $ withContext do
-            let entryId = Id "00000000-0000-0000-0000-000000000000"
-            response <- callAction UnapproveTimesheetEntryAction { timesheetEntryId = entryId }
-            response `responseStatusShouldBe` status302
 
         it "renders a subscribed timesheet shell for authenticated viewers" $ withContext do
             withCleanDb do

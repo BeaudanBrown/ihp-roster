@@ -189,44 +189,33 @@ tests = aroundAll withDatabaseTestContext do
                 response `responseBodyShouldNotContain` "data-status-id"
                 response `responseBodyShouldNotContain` "data-success-redirect"
 
-        it "lets venue admins without passkeys reach roster before restricted access" $ withContext do
+        it "keeps roster access available across the no-passkey venue-role matrix" $ withContext do
             withCleanDb do
-                venue <- createVenueWithConfig "Mandatory Admin Passkey Venue"
-                user <- createUserRecord "mandatory-admin-passkey@example.com" "admin" True
-                _ <- createVenueMembershipRecord venue user "venue_admin"
+                venue <- createVenueWithConfig "Optional Roster Passkey Venue"
+                admin <- createUserRecord "optional-roster-admin@example.com" "admin" True
+                owner <- createUserRecord "optional-roster-owner@example.com" "admin" True
+                worker <- createUserRecord "optional-roster-worker@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue admin "venue_admin"
+                _ <- createVenueMembershipRecord venue owner "venue_owner"
+                _ <- createVenueMembershipRecord venue worker "worker"
 
-                response <- withUserAndCurrentVenue user venue.id do
-                    callAction RosterWeeksAction
+                responses <-
+                    forM [("admin", admin), ("owner", owner), ("worker", worker)] \(role, user) -> do
+                        response <- withUserAndCurrentVenue user venue.id do
+                            callAction RosterWeeksAction
+                        pure (role, response)
 
-                response `responseStatusShouldBe` status302
-                lookup HTTP.hLocation (responseHeaders response)
-                    `shouldSatisfy` maybe False ("http://localhost/ShowRosterWeek?weekOffset=" `ByteString.isPrefixOf`)
-
-        it "lets venue owners without passkeys reach roster before restricted access" $ withContext do
-            withCleanDb do
-                venue <- createVenueWithConfig "Mandatory Owner Passkey Venue"
-                user <- createUserRecord "mandatory-owner-passkey@example.com" "admin" True
-                _ <- createVenueMembershipRecord venue user "venue_owner"
-
-                response <- withUserAndCurrentVenue user venue.id do
-                    callAction RosterWeeksAction
-
-                response `responseStatusShouldBe` status302
-                lookup HTTP.hLocation (responseHeaders response)
-                    `shouldSatisfy` maybe False ("http://localhost/ShowRosterWeek?weekOffset=" `ByteString.isPrefixOf`)
-
-        it "does not require workers without passkeys to finish passkey setup before roster access" $ withContext do
-            withCleanDb do
-                venue <- createVenueWithConfig "Worker Optional Passkey Venue"
-                user <- createUserRecord "worker-passkey-optional@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue user "worker"
-
-                response <- withUserAndCurrentVenue user venue.id do
-                    callAction RosterWeeksAction
-
-                response `responseStatusShouldBe` status302
-                lookup HTTP.hLocation (responseHeaders response)
-                    `shouldSatisfy` maybe False ("http://localhost/ShowRosterWeek?weekOffset=" `ByteString.isPrefixOf`)
+                map (\(role, response) -> (role, Wai.responseStatus response)) responses
+                    `shouldBe` [("admin", status302), ("owner", status302), ("worker", status302)]
+                map
+                    (\(role, response) ->
+                        ( role
+                        , lookup HTTP.hLocation (responseHeaders response)
+                            |> maybe False ("http://localhost/ShowRosterWeek?weekOffset=" `ByteString.isPrefixOf`)
+                        )
+                    )
+                    responses
+                    `shouldBe` [("admin", True), ("owner", True), ("worker", True)]
 
         it "requires passkey verification before venue admin pages when a passkey exists" $ withContext do
             withCleanDb do
@@ -306,63 +295,31 @@ tests = aroundAll withDatabaseTestContext do
                 response `responseStatusShouldBe` status400
                 response `responseBodyShouldContain` "Expected JSON body, but the request has a form content type."
 
-        it "allows venue admin pages after the session has passkey verification" $ withContext do
+        it "enforces the privileged passkey freshness boundary through admin middleware" $ withContext do
             withCleanDb do
-                venue <- createVenueWithConfig "Verified Admin Venue"
-                user <- createUserRecord "verified-admin@example.com" "admin" True
+                venue <- createVenueWithConfig "Admin Passkey Freshness Venue"
+                user <- createUserRecord "admin-passkey-freshness@example.com" "admin" True
                 _ <- createVenueMembershipRecord venue user "venue_admin"
                 _ <- createTestPasskeyRecord user "Admin passkey"
                 now <- getCurrentTime
+                let sessionFor verifiedAt =
+                        [ (cs (LoginSupport.sessionKey @User), Serialize.encode user.id)
+                        , (currentVenueSessionKey, Serialize.encode venue.id)
+                        , (passkeyVerifiedUserSessionKey, Serialize.encode (inputValue user.id :: Text))
+                        , (passkeyVerifiedAtSessionKey, Serialize.encode verifiedAt)
+                        ]
 
-                response <- withSessionValues
-                    [ (cs (LoginSupport.sessionKey @User), Serialize.encode user.id)
-                    , (currentVenueSessionKey, Serialize.encode venue.id)
-                    , (passkeyVerifiedUserSessionKey, Serialize.encode (inputValue user.id :: Text))
-                    , (passkeyVerifiedAtSessionKey, Serialize.encode (formatPasskeyVerifiedAt now))
-                    ]
-                    do
-                        callAction AdminAction
+                currentResponse <- withSessionValues (sessionFor (formatPasskeyVerifiedAt now)) do
+                    callAction AdminAction
+                twentyMinuteResponse <- withSessionValues (sessionFor (formatPasskeyVerifiedAt (addUTCTime (negate (20 * 60)) now))) do
+                    callAction AdminAction
+                expiredResponse <- withSessionValues (sessionFor "0") do
+                    callAction AdminAction
 
-                response `responseStatusShouldBe` status200
-
-        it "keeps passkey verification fresh for privileged access within 30 minutes" $ withContext do
-            withCleanDb do
-                venue <- createVenueWithConfig "Twenty Minute Admin Passkey Venue"
-                user <- createUserRecord "twenty-minute-admin@example.com" "admin" True
-                _ <- createVenueMembershipRecord venue user "venue_admin"
-                _ <- createTestPasskeyRecord user "Admin passkey"
-                now <- getCurrentTime
-                let verifiedAt = addUTCTime (negate (20 * 60)) now
-
-                response <- withSessionValues
-                    [ (cs (LoginSupport.sessionKey @User), Serialize.encode user.id)
-                    , (currentVenueSessionKey, Serialize.encode venue.id)
-                    , (passkeyVerifiedUserSessionKey, Serialize.encode (inputValue user.id :: Text))
-                    , (passkeyVerifiedAtSessionKey, Serialize.encode (formatPasskeyVerifiedAt verifiedAt))
-                    ]
-                    do
-                        callAction AdminAction
-
-                response `responseStatusShouldBe` status200
-
-        it "requires a fresh passkey verification for venue admin pages" $ withContext do
-            withCleanDb do
-                venue <- createVenueWithConfig "Expired Admin Passkey Venue"
-                user <- createUserRecord "expired-admin@example.com" "admin" True
-                _ <- createVenueMembershipRecord venue user "venue_admin"
-                _ <- createTestPasskeyRecord user "Admin passkey"
-
-                response <- withSessionValues
-                    [ (cs (LoginSupport.sessionKey @User), Serialize.encode user.id)
-                    , (currentVenueSessionKey, Serialize.encode venue.id)
-                    , (passkeyVerifiedUserSessionKey, Serialize.encode (inputValue user.id :: Text))
-                    , (passkeyVerifiedAtSessionKey, Serialize.encode ("0" :: Text))
-                    ]
-                    do
-                        callAction AdminAction
-
-                response `responseStatusShouldBe` status302
-                lookup HTTP.hLocation (responseHeaders response) `shouldBe` Just "http://localhost/PasskeyStepUp"
+                Wai.responseStatus currentResponse `shouldBe` status200
+                Wai.responseStatus twentyMinuteResponse `shouldBe` status200
+                Wai.responseStatus expiredResponse `shouldBe` status302
+                lookup HTTP.hLocation (responseHeaders expiredResponse) `shouldBe` Just "http://localhost/PasskeyStepUp"
 
         it "requires passkey setup after promotion when opening admin pages" $ withContext do
             withCleanDb do
