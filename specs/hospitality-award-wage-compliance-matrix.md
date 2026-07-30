@@ -163,8 +163,10 @@ helper contracts:
 | `collapses deterministic pay-version manifests` | Approved output metadata helper; arithmetic remains ledger-owned. |
 | `makes staff roster-only absolute` | Pay-disposition precedence; no Award arithmetic. |
 | `applies shift roster-only before rate overrides` | Pay-disposition precedence; no Award arithmetic. |
+| `classifies selector suppression across every selectable mode` | Exhaustive roster-only timesheet-suppression policy across staff and shift assignment modes; no Award arithmetic. |
 | `prefers a valid shift override to the staff default` | Selects the source entering the canonical engine. |
 | `uses the staff rate for staff-default shift types` | Selects the source entering the canonical engine. |
+| `flags unresolved and unavailable assignments for management remediation` | Management remediation policy for missing configured Award/Xero sources; no Award arithmetic. |
 | `surfaces migration-only and malformed configurations` | Invalid configuration fails before Award arithmetic. |
 
 ## Official sources
