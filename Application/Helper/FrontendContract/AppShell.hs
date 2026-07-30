@@ -78,6 +78,8 @@ module Application.Helper.FrontendContract.AppShell
     , ShiftPreferenceKeysField
     , ConfirmDeletePopulatedRowField
     , LoadCandidatesField
+    , ReferenceWaitStartedAtField
+    , ReferenceDemandField
     , PeriodKeyField
     , DecisionField
     , XeroEmployeeSelectionField
@@ -166,6 +168,8 @@ data RosterGroupIdField
 data ShiftPreferenceKeysField
 data ConfirmDeletePopulatedRowField
 data LoadCandidatesField
+data ReferenceWaitStartedAtField
+data ReferenceDemandField
 data PeriodKeyField
 data DecisionField
 data XeroEmployeeSelectionField
@@ -236,12 +240,14 @@ type AppShellContract =
             DialogSubmitOptions
          , AppShellAction OpenXeroTimesheetPreparationOverlay DialogLauncherFields DialogSubmitOptions
          , AppShellAction RunXeroTimesheetPreparationOverlay
-            '[]
+            '[ Field ReferenceWaitStartedAtField 'WireText
+             , Field ReferenceDemandField 'WireText
+             ]
             '[ AppShellHtmxMethod 'AppShellPost
              , AppShellHtmxTarget DialogOverlayMount
              , AppShellHtmxSwap "innerHTML"
              , AppShellHtmxPushUrl 'AppShellPushUrlFalse
-             , AppShellHtmxTrigger "load"
+             , AppShellHtmxTrigger "load delay:1s"
              , AppShellHtmxIndicator "#xero-timesheet-preparation-modal-loading-indicator"
              ]
          , AppShellAction ContinueXeroTimesheetPreparationStaffOverlay '[] DialogSubmitOptions
@@ -283,12 +289,13 @@ type AppShellContract =
          , AppShellAction OpenXeroPayItemImportOverlay DialogLauncherFields DialogLauncherOptions
          , AppShellAction LoadXeroPayItemImportOverlay
             '[ Field LoadCandidatesField 'WireText
+             , Field ReferenceWaitStartedAtField 'WireText
              ]
             '[ AppShellHtmxMethod 'AppShellGet
              , AppShellHtmxTarget DialogOverlayMount
              , AppShellHtmxSwap "innerHTML"
              , AppShellHtmxPushUrl 'AppShellPushUrlFalse
-             , AppShellHtmxTrigger "load"
+             , AppShellHtmxTrigger "load delay:1s"
              , AppShellHtmxIndicator "#xero-import-pay-items-loading-indicator"
              ]
          , AppShellAction ImportXeroPayItemsOverlay

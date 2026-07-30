@@ -89,6 +89,25 @@ tests = do
                 readinessBlockerCodes readiness `shouldNotSatisfy` elem "earnings_mapping_not_verified"
                 readinessBlockerCodes readiness `shouldSatisfy` elem "managed_pay_item_not_ready"
 
+        it "uses a fresh successful snapshot even when a later maintenance attempt failed" $ withContext do
+            withCleanDb do
+                fixture <- createReadinessFixture "weekly" (fromGregorian 2026 4 27) (fromGregorian 2026 5 3)
+                now <- getCurrentTime
+                _ <- fixture.connection |> set #lastSyncAt (Just now) |> updateRecord
+                _ <-
+                    newRecord @XeroSyncRun
+                        |> set #venueId (unpackId fixture.venue.id)
+                        |> set #xeroConnectionId (unpackId fixture.connection.id)
+                        |> set #syncStatus ("failed" :: Text)
+                        |> set #syncKind ("payroll_reference_data" :: Text)
+                        |> set #startedAt (addUTCTime 1 now)
+                        |> createRecord
+
+                readiness <- validateXeroTimesheetReadiness fixture.request
+
+                readinessBlockerCodes readiness `shouldNotSatisfy` elem "latest_reference_sync_not_successful"
+                readinessBlockerCodes readiness `shouldNotSatisfy` elem "stale_reference_snapshot"
+
         it "uses venue-effective dates in local award pay item bucket keys" $ withContext do
             withCleanDb do
                 fixture <- createReadinessFixture "weekly" (fromGregorian 2026 7 6) (fromGregorian 2026 7 12)
@@ -306,7 +325,9 @@ tests = do
                 unavailableReadiness <- validateXeroTimesheetReadiness request
                 readinessBlockerCodes unavailableReadiness `shouldSatisfy` elem "wage_source_policy"
                 map (.xeroBlockerMessage) unavailableReadiness.xeroReadinessBlockers
-                    `shouldSatisfy` any (Text.isInfixOf "no longer available")
+                    `shouldSatisfy` any (Text.isInfixOf "Approved entry is pinned")
+                map (.xeroBlockerMessage) unavailableReadiness.xeroReadinessBlockers
+                    `shouldSatisfy` any (Text.isInfixOf "correct and reapprove")
                 unavailableReadiness.xeroTimesheetReady `shouldBe` False
 
         it "allows a Xero period to include multiple relational pay versions" $ withContext do
@@ -638,7 +659,9 @@ createReadinessXeroConnection venue owner =
         |> createRecord
 
 createSucceededXeroSyncRun :: (?modelContext :: ModelContext) => Venue -> XeroConnection -> IO XeroSyncRun
-createSucceededXeroSyncRun venue connection =
+createSucceededXeroSyncRun venue connection = do
+    now <- getCurrentTime
+    _ <- connection |> set #lastSyncAt (Just now) |> updateRecord
     newRecord @XeroSyncRun
         |> set #venueId (unpackId venue.id)
         |> set #xeroConnectionId (unpackId connection.id)

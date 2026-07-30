@@ -1,5 +1,6 @@
 module Test.Controller.Admin.XeroSpec where
 
+import Application.Async.Queue (EnqueueAppJobResult (EnqueuedAppJob))
 import Application.Helper.Controller (PlatformRole (SuperAdminRole))
 import qualified Application.Helper.FrontendContract.Surface.Admin.Live as AdminLive
 import Application.Helper.FrontendContract.Surface.Admin.Resource
@@ -31,6 +32,7 @@ import qualified Data.Text as Text
 import Data.Time.Calendar (addDays, fromGregorian)
 import Data.Time.Clock (NominalDiffTime, addUTCTime, diffUTCTime,
                         getCurrentTime)
+import Data.Time.Format (defaultTimeLocale, formatTime)
 import Data.Time.LocalTime (TimeOfDay (..))
 import Generated.Types
 import IHP.ControllerPrelude
@@ -119,10 +121,9 @@ tests = aroundAll withFastXeroReferenceSyncRuntime $ aroundAll withDatabaseTestC
                 response `responseStatusShouldBe` status200
                 response `responseBodyShouldContain` "Upload timesheets"
                 response `responseBodyShouldContain` "Import pay items"
-                response `responseBodyShouldContain` "Sync Xero data"
-                response `responseBodyShouldContain` "hx-post=\"/SyncXeroPayrollReferenceData\""
-                response `responseBodyShouldContain` "data-bepis-surface-action=\"sync-xero-payroll-reference-data\""
-                response `responseBodyShouldContain` "hx-swap=\"none\""
+                response `responseBodyShouldNotContain` "Sync Xero data"
+                response `responseBodyShouldNotContain` "hx-post=\"/SyncXeroPayrollReferenceData\""
+                response `responseBodyShouldNotContain` "data-bepis-surface-action=\"sync-xero-payroll-reference-data\""
                 response `responseBodyShouldNotContain` "hx-trigger=\"load\""
                 response `responseBodyShouldNotContain` "xero-staff-mappings-data"
                 response `responseBodyShouldNotContain` "xero-pay-items-data"
@@ -131,6 +132,255 @@ tests = aroundAll withFastXeroReferenceSyncRuntime $ aroundAll withDatabaseTestC
                 payItemRequirementCount <- query @XeroPayItemRequirementRecord |> fetchCount
                 mappingCount `shouldBe` 0
                 payItemRequirementCount `shouldBe` 0
+
+        it "rejects owner manual reference refresh requests" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Xero Owner Refresh Block Venue"
+                owner <- createUserRecord "xero-owner-refresh-block@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue owner "venue_owner"
+                _ <- createSyncableXeroConnection venue owner
+
+                response <- withPasskeyVerifiedUserAndCurrentVenue owner venue.id do
+                    callAction SyncXeroPayrollReferenceDataAction
+
+                response `responseStatusShouldBe` status302
+                jobCount <- query @AppJob |> filterWhere (#jobKind, xeroReferenceSyncJobKind) |> fetchCount
+                jobCount `shouldBe` 0
+
+        it "shows sanitized reference-sync diagnostics and coalescing refresh only to founders" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Xero Founder Diagnostics Venue"
+                founder <- createUserRecordWithPlatformRole "xero-founder-diagnostics@example.com" "staff" (Just SuperAdminRole) True
+                now <- getCurrentTime
+                connection <- createSyncableXeroConnection venue founder >>= \record ->
+                    record |> set #lastSyncAt (Just (addUTCTime (negate (2 * 24 * 60 * 60)) now)) |> updateRecord
+                EnqueuedAppJob job <- enqueueXeroReferenceSyncJob Nothing connection
+                _ <- job
+                    |> set #status JobStatusFailed
+                    |> set #progress (Aeson.object ["phase" Aeson..= ("accounts" :: Text), "completedPayItemsPage" Aeson..= (7 :: Int)])
+                    |> set #lastError (Just "unsafe provider body token=secret")
+                    |> updateRecord
+
+                response <- withPasskeyVerifiedUserAndCurrentVenue founder venue.id do
+                    callAction XeroAction
+
+                response `responseStatusShouldBe` status200
+                response `responseBodyShouldContain` "Reference sync diagnostics"
+                response `responseBodyShouldContain` "Last successful reference sync"
+                response `responseBodyShouldContain` "Stopped"
+                response `responseBodyShouldContain` "Fetching Xero accounts"
+                response `responseBodyShouldContain` "Completed PayItems page 7"
+                response `responseBodyShouldContain` "Xero reference sync stopped after the accounts phase failed."
+                response `responseBodyShouldNotContain` "token=secret"
+                response `responseBodyShouldContain` "Sync Xero data"
+                response `responseBodyShouldContain` "hx-post=\"/SyncXeroPayrollReferenceData\""
+
+                withQueuedXeroReferenceSyncRequestsForTest do
+                    firstRefresh <- withPasskeyVerifiedUserAndCurrentVenue founder venue.id do
+                        withRequestHeaders [("HX-Request", "true")] do
+                            callAction SyncXeroPayrollReferenceDataAction
+                    secondRefresh <- withPasskeyVerifiedUserAndCurrentVenue founder venue.id do
+                        withRequestHeaders [("HX-Request", "true")] do
+                            callAction SyncXeroPayrollReferenceDataAction
+                    firstRefresh `responseStatusShouldBe` status200
+                    secondRefresh `responseStatusShouldBe` status200
+                activeJobCount <-
+                    query @AppJob
+                        |> filterWhere (#jobKind, xeroReferenceSyncJobKind)
+                        |> filterWhereIn (#status, [JobStatusNotStarted, JobStatusRunning, JobStatusRetry])
+                        |> fetchCount
+                activeJobCount `shouldBe` 1
+
+        it "opens pay-item import from a fresh local snapshot without calling Xero" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Xero Trusted Import Venue"
+                owner <- createUserRecord "xero-trusted-import@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue owner "venue_owner"
+                now <- getCurrentTime
+                connection <- createSyncableXeroConnection venue owner >>= \record ->
+                    record |> set #lastSyncAt (Just now) |> updateRecord
+                rate <- createXeroEarningsRateRecord connection "Trusted Ordinary Hours" "trusted-rate"
+                _ <- rate
+                    |> set #rawPayload
+                        ( Aeson.object
+                            [ "EarningsRateID" Aeson..= ("trusted-rate" :: Text)
+                            , "Name" Aeson..= ("Trusted Ordinary Hours" :: Text)
+                            , "EarningsType" Aeson..= ("ORDINARYTIMEEARNINGS" :: Text)
+                            , "RateType" Aeson..= ("RATEPERUNIT" :: Text)
+                            , "AccountCode" Aeson..= ("477" :: Text)
+                            , "TypeOfUnits" Aeson..= ("Hours" :: Text)
+                            , "RatePerUnit" Aeson..= (30 :: Scientific)
+                            , "IsActive" Aeson..= True
+                            ]
+                        )
+                    |> updateRecord
+
+                response <- withXeroConfigForTest (Left "Xero must not be called for a fresh snapshot") do
+                    withPasskeyVerifiedUserAndCurrentVenue owner venue.id do
+                        withRequestHeaders [("HX-Request", "true")] do
+                            callActionWithParams OpenXeroPayItemImportAction [("loadCandidates", "true")]
+
+                response `responseStatusShouldBe` status200
+                response `responseBodyShouldContain` "Trusted Ordinary Hours"
+                response `responseBodyShouldNotContain` "Xero must not be called"
+                appJobCount <- query @AppJob |> filterWhere (#jobKind, xeroReferenceSyncJobKind) |> fetchCount
+                appJobCount `shouldBe` 0
+
+                importResponse <- withXeroConfigForTest (Left "Xero must not be called while importing a trusted local candidate") do
+                    withPasskeyVerifiedUserAndCurrentVenue owner venue.id do
+                        withRequestHeaders [("HX-Request", "true")] do
+                            callActionWithParams ImportXeroPayItemsAction [("xeroEarningsRateId", "trusted-rate")]
+                importResponse `responseBodyShouldContain` "Imported 1 Xero pay item"
+                [importedItem] <- query @XeroImportedPayItem |> fetch
+                importedItem.xeroEarningsRateId `shouldBe` "trusted-rate"
+
+        it "rejects importing a provider-unavailable earnings rate from a stale form" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Xero Unavailable Import Venue"
+                owner <- createUserRecord "xero-unavailable-import@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue owner "venue_owner"
+                now <- getCurrentTime
+                connection <- createSyncableXeroConnection venue owner >>= \record ->
+                    record |> set #lastSyncAt (Just now) |> updateRecord
+                rate <- createXeroEarningsRateRecord connection "Removed Ordinary Hours" "removed-rate"
+                _ <- rate
+                    |> set #providerAvailable False
+                    |> set #providerUnavailableAt (Just now)
+                    |> updateRecord
+
+                response <- withPasskeyVerifiedUserAndCurrentVenue owner venue.id do
+                    withRequestHeaders [("HX-Request", "true")] do
+                        callActionWithParams ImportXeroPayItemsAction [("xeroEarningsRateId", "removed-rate")]
+
+                response `responseBodyShouldContain` "no longer available"
+                importedCount <- query @XeroImportedPayItem |> fetchCount
+                importedCount `shouldBe` 0
+
+        it "queues stale pay-item import refresh, shows honest progress, and resumes from the snapshot" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Xero Waiting Import Venue"
+                owner <- createUserRecord "xero-waiting-import@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue owner "venue_owner"
+                now <- getCurrentTime
+                connection <- createSyncableXeroConnection venue owner >>= \record ->
+                    record |> set #lastSyncAt (Just (addUTCTime (negate (8 * 24 * 60 * 60)) now)) |> updateRecord
+
+                waitingResponse <- withPasskeyVerifiedUserAndCurrentVenue owner venue.id do
+                    withRequestHeaders [("HX-Request", "true")] do
+                        callActionWithParams OpenXeroPayItemImportAction [("loadCandidates", "true")]
+
+                waitingResponse `responseStatusShouldBe` status200
+                waitingResponse `responseBodyShouldContain` "Refreshing Xero reference data"
+                waitingResponse `responseBodyShouldContain` "Queued"
+                waitingResponse `responseBodyShouldContain` "hx-trigger=\"load delay:1s\""
+                [job] <- query @AppJob |> filterWhere (#jobKind, xeroReferenceSyncJobKind) |> fetch
+                _ <- job
+                    |> set #status JobStatusRunning
+                    |> set #progress (Aeson.object ["phase" Aeson..= ("pay_items" :: Text), "completedPayItemsPage" Aeson..= (3 :: Int)])
+                    |> updateRecord
+
+                progressResponse <- withPasskeyVerifiedUserAndCurrentVenue owner venue.id do
+                    withRequestHeaders [("HX-Request", "true")] do
+                        callActionWithParams OpenXeroPayItemImportAction [("loadCandidates", "true")]
+                progressResponse `responseBodyShouldContain` "Fetching Xero pay items"
+                progressResponse `responseBodyShouldContain` "Completed page 3"
+                joinedJobCount <- query @AppJob |> filterWhere (#jobKind, xeroReferenceSyncJobKind) |> fetchCount
+                joinedJobCount `shouldBe` 1
+
+                trustedConnection <- connection |> set #lastSyncAt (Just now) |> updateRecord
+                rate <- createXeroEarningsRateRecord trustedConnection "Resumed Ordinary Hours" "resumed-rate"
+                _ <- rate
+                    |> set #rawPayload
+                        ( Aeson.object
+                            [ "EarningsRateID" Aeson..= ("resumed-rate" :: Text)
+                            , "Name" Aeson..= ("Resumed Ordinary Hours" :: Text)
+                            , "EarningsType" Aeson..= ("ORDINARYTIMEEARNINGS" :: Text)
+                            , "RateType" Aeson..= ("RATEPERUNIT" :: Text)
+                            , "TypeOfUnits" Aeson..= ("Hours" :: Text)
+                            , "RatePerUnit" Aeson..= (31 :: Scientific)
+                            , "IsActive" Aeson..= True
+                            ]
+                        )
+                    |> updateRecord
+                resumedResponse <- withPasskeyVerifiedUserAndCurrentVenue owner venue.id do
+                    withRequestHeaders [("HX-Request", "true")] do
+                        callActionWithParams OpenXeroPayItemImportAction [("loadCandidates", "true")]
+                resumedResponse `responseBodyShouldContain` "Resumed Ordinary Hours"
+
+        it "keeps polling after the five-minute dialog transition" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Xero Long Running Import Venue"
+                owner <- createUserRecord "xero-long-running-import@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue owner "venue_owner"
+                now <- getCurrentTime
+                connection <- createSyncableXeroConnection venue owner >>= \record ->
+                    record |> set #lastSyncAt (Just (addUTCTime (negate (8 * 24 * 60 * 60)) now)) |> updateRecord
+                EnqueuedAppJob job <- enqueueXeroReferenceSyncJob Nothing connection
+                _ <- job |> set #status JobStatusRunning |> set #progress (Aeson.object ["phase" Aeson..= ("employees" :: Text)]) |> updateRecord
+
+                response <- withPasskeyVerifiedUserAndCurrentVenue owner venue.id do
+                    withRequestHeaders [("HX-Request", "true")] do
+                        callActionWithParams OpenXeroPayItemImportAction
+                            [ ("loadCandidates", "true")
+                            , ("referenceWaitStartedAt", cs (formatTime defaultTimeLocale "%Y-%m-%dT%H:%M:%SZ" (addUTCTime (-301) now)))
+                            ]
+
+                response `responseBodyShouldContain` "Taking longer than usual"
+                response `responseBodyShouldContain` "continues in the background"
+                response `responseBodyShouldContain` "Fetching Xero employees"
+                response `responseBodyShouldContain` "hx-trigger=\"load delay:1s\""
+
+        it "blocks stale import and preparation after retry exhaustion with safe support guidance" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Xero Exhausted Trust Venue"
+                owner <- createUserRecord "xero-exhausted-trust@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue owner "venue_owner"
+                now <- getCurrentTime
+                connection <- createSyncableXeroConnection venue owner >>= \record ->
+                    record |> set #lastSyncAt (Just (addUTCTime (negate (8 * 24 * 60 * 60)) now)) |> updateRecord
+                EnqueuedAppJob job <- enqueueXeroReferenceSyncJob Nothing connection
+                _ <- job
+                    |> set #status JobStatusFailed
+                    |> set #lastError (Just "Xero payroll_settings sync failed: provider request returned status 503.")
+                    |> updateRecord
+
+                importResponse <- withPasskeyVerifiedUserAndCurrentVenue owner venue.id do
+                    withRequestHeaders [("HX-Request", "true")] do
+                        callActionWithParams OpenXeroPayItemImportAction [("loadCandidates", "true")]
+                preparationResponse <- withPasskeyVerifiedUserAndCurrentVenue owner venue.id do
+                    withRequestHeaders [("HX-Request", "true")] do
+                        callAction OpenXeroTimesheetPreparationAction
+
+                importResponse `responseBodyShouldContain` "Contact support before importing pay items"
+                preparationResponse `responseBodyShouldContain` "Contact support before preparing draft timesheets"
+                importResponse `responseBodyShouldNotContain` "provider request returned"
+                preparationResponse `responseBodyShouldNotContain` "provider request returned"
+
+        it "prioritizes reconnect over stale support guidance" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Xero Reconnect Trust Venue"
+                owner <- createUserRecord "xero-reconnect-trust@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue owner "venue_owner"
+                now <- getCurrentTime
+                connection <- createSyncableXeroConnection venue owner >>= \record ->
+                    record
+                        |> set #lastSyncAt (Just (addUTCTime (negate (8 * 24 * 60 * 60)) now))
+                        |> set #connectionStatus ("reauthorization_required" :: Text)
+                        |> updateRecord
+                EnqueuedAppJob job <- enqueueXeroReferenceSyncJob Nothing connection
+                _ <- job |> set #status JobStatusFailed |> set #lastError (Just "safe terminal failure") |> updateRecord
+
+                importResponse <- withPasskeyVerifiedUserAndCurrentVenue owner venue.id do
+                    withRequestHeaders [("HX-Request", "true")] do
+                        callActionWithParams OpenXeroPayItemImportAction [("loadCandidates", "true")]
+                preparationResponse <- withPasskeyVerifiedUserAndCurrentVenue owner venue.id do
+                    withRequestHeaders [("HX-Request", "true")] do
+                        callAction OpenXeroTimesheetPreparationAction
+
+                importResponse `responseBodyShouldContain` "Reconnect Xero before importing pay items"
+                preparationResponse `responseBodyShouldContain` "Reconnect Xero before preparing draft timesheets"
+                importResponse `responseBodyShouldNotContain` "Contact support"
+                preparationResponse `responseBodyShouldNotContain` "Contact support"
 
         it "records touched resources for Xero connection mutations" $ withContext do
             withCleanDb do
@@ -405,7 +655,7 @@ tests = aroundAll withFastXeroReferenceSyncRuntime $ aroundAll withDatabaseTestC
         it "syncs Xero payroll reference data for an active connection" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Xero Sync Venue"
-                admin <- createUserRecord "xero-sync@example.com" "staff" True
+                admin <- createUserRecordWithPlatformRole "xero-sync@example.com" "staff" (Just SuperAdminRole) True
                 _ <- createVenueMembershipRecord venue admin "venue_owner"
                 connection <- createSyncableXeroConnection venue admin
                 let tokenResponse = XeroTokenResponse "new-access-token" "new-refresh-token" 1800 (Just requiredXeroScopesText)
@@ -487,7 +737,7 @@ tests = aroundAll withFastXeroReferenceSyncRuntime $ aroundAll withDatabaseTestC
         it "atomically reconciles provider availability while preserving archival and locked pay history" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Xero Availability Reconciliation Venue"
-                owner <- createUserRecord "xero-availability@example.com" "staff" True
+                owner <- createUserRecordWithPlatformRole "xero-availability@example.com" "staff" (Just SuperAdminRole) True
                 _ <- createVenueMembershipRecord venue owner "venue_owner"
                 connection <- createSyncableXeroConnection venue owner
                 let tokenResponse = XeroTokenResponse "availability-access-token" "availability-refresh-token" 1800 (Just requiredXeroScopesText)
@@ -578,6 +828,8 @@ tests = aroundAll withFastXeroReferenceSyncRuntime $ aroundAll withDatabaseTestC
                 fetch syncedRate.id >>= (\record -> record.providerAvailable `shouldBe` True)
                 fetch syncedAccount.id >>= (\record -> record.providerAvailable `shouldBe` True)
                 fetch syncedCalendar.id >>= (\record -> record.providerAvailable `shouldBe` True)
+                failedSyncMapping <- query @XeroStaffMapping |> fetchOne
+                failedSyncMapping.referenceRefreshedAt `shouldBe` Nothing
 
                 let inactiveEmployee = employee { xeroEmployeeStatus = Just "INACTIVE" }
                     inactiveRate = rate { xeroEarningsRateIsActive = False }
@@ -605,6 +857,7 @@ tests = aroundAll withFastXeroReferenceSyncRuntime $ aroundAll withDatabaseTestC
                 fetch lockedVersion.id >>= (\version -> version.importedXeroPayItemId `shouldBe` Just importedItem.id)
                 staffMapping <- query @XeroStaffMapping |> fetchOne
                 staffMapping.mappingStatus `shouldBe` "stale"
+                staffMapping.referenceRefreshedAt `shouldSatisfy` isJust
                 earningsMapping <- query @XeroEarningsRateMapping |> fetchOne
                 earningsMapping.mappingStatus `shouldBe` "stale"
                 managedRequirement <- query @XeroPayItemRequirementRecord |> fetchOne
@@ -636,7 +889,7 @@ tests = aroundAll withFastXeroReferenceSyncRuntime $ aroundAll withDatabaseTestC
         it "syncs Xero payroll reference data over HTMX with actor-local shell invalidation" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Xero HTMX Sync Venue"
-                admin <- createUserRecord "xero-htmx-sync@example.com" "staff" True
+                admin <- createUserRecordWithPlatformRole "xero-htmx-sync@example.com" "staff" (Just SuperAdminRole) True
                 _ <- createVenueMembershipRecord venue admin "venue_owner"
                 _connection <- createSyncableXeroConnection venue admin
                 let tokenResponse = XeroTokenResponse "htmx-access-token" "htmx-refresh-token" 1800 (Just requiredXeroScopesText)
@@ -661,7 +914,7 @@ tests = aroundAll withFastXeroReferenceSyncRuntime $ aroundAll withDatabaseTestC
         it "preselects the Xero wages expense account while retaining ambiguous payroll calendars" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Xero Multiple Defaults Venue"
-                admin <- createUserRecord "xero-multiple-defaults@example.com" "staff" True
+                admin <- createUserRecordWithPlatformRole "xero-multiple-defaults@example.com" "staff" (Just SuperAdminRole) True
                 _ <- createVenueMembershipRecord venue admin "venue_owner"
                 connection <- createSyncableXeroConnection venue admin
                 let tokenResponse = XeroTokenResponse "new-access-token" "new-refresh-token" 1800 (Just requiredXeroScopesText)
@@ -720,7 +973,7 @@ tests = aroundAll withFastXeroReferenceSyncRuntime $ aroundAll withDatabaseTestC
         it "syncs Xero payroll reference data through the strict localhost Xero mock" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Xero Mock Sync Venue"
-                admin <- createUserRecord "xero-mock-sync@example.com" "staff" True
+                admin <- createUserRecordWithPlatformRole "xero-mock-sync@example.com" "staff" (Just SuperAdminRole) True
                 _ <- createVenueMembershipRecord venue admin "venue_owner"
                 connection <- createSyncableXeroConnection venue admin
 
@@ -882,6 +1135,109 @@ tests = aroundAll withFastXeroReferenceSyncRuntime $ aroundAll withDatabaseTestC
                 response `responseBodyShouldNotContain` "name=\"periodKey\""
                 response `responseBodyShouldNotContain` "DRAFT"
 
+        it "queues missing-mapping refresh only for approval-pinned payroll-eligible work" $ withContext do
+            withCleanDb do
+                fixture <- Preview.createPreviewFixture "weekly" [Preview.EntrySpec 0 Preview.fixtureStaffA (TimeOfDay 9 0 0) (TimeOfDay 13 0 0)]
+                now <- getCurrentTime
+                _ <- fixture.connection |> set #lastSyncAt (Just now) |> updateRecord
+                resetXeroStaffMappingForPreparation fixture.staffA
+                missingMapping <- query @XeroStaffMapping |> filterWhere (#staffId, unpackId fixture.staffA.id) |> fetchOne
+                _ <- missingMapping |> set #updatedAt (addUTCTime 1 now) |> updateRecord
+                _ <- fixture.staffA
+                    |> set #payAssignmentMode RosterOnly
+                    |> set #defaultAwardLevelId Nothing
+                    |> set #importedXeroPayItemId Nothing
+                    |> updateRecord
+
+                response <- withPasskeyVerifiedUserAndCurrentVenue fixture.owner fixture.venue.id do
+                    withRequestHeaders [("HX-Request", "true")] do
+                        callActionWithParams OpenXeroTimesheetPreparationAction [("referenceDemand", "snapshot")]
+
+                response `responseBodyShouldContain` "Refreshing Xero reference data"
+                jobCount <- query @AppJob |> filterWhere (#jobKind, xeroReferenceSyncJobKind) |> fetchCount
+                jobCount `shouldBe` 1
+
+        it "does not request missing-mapping refresh for effective roster-only work" $ withContext do
+            withCleanDb do
+                fixture <- Preview.createPreviewFixture "weekly" [Preview.EntrySpec 0 Preview.fixtureStaffA (TimeOfDay 9 0 0) (TimeOfDay 13 0 0)]
+                entry <- maybe (error "Expected fixture entry") pure (listToMaybe fixture.entries)
+                _ <- entry
+                    |> set #isApproved False
+                    |> set #activePayCalculationId Nothing
+                    |> set #legacyPayBackfillPending False
+                    |> set #staffPayVersionId Nothing
+                    |> set #shiftTypePayVersionId Nothing
+                    |> set #approvedAt Nothing
+                    |> set #approvedByUserId Nothing
+                    |> updateRecord
+                _ <- fixture.staffA
+                    |> set #payAssignmentMode RosterOnly
+                    |> set #defaultAwardLevelId Nothing
+                    |> set #importedXeroPayItemId Nothing
+                    |> updateRecord
+                now <- getCurrentTime
+                _ <- fixture.connection |> set #lastSyncAt (Just (addUTCTime (-1) now)) |> updateRecord
+                resetXeroStaffMappingForPreparation fixture.staffA
+
+                response <- withXeroConfigForTest (Left "Roster-only work must not call Xero") do
+                    withPasskeyVerifiedUserAndCurrentVenue fixture.owner fixture.venue.id do
+                        withRequestHeaders [("HX-Request", "true")] do
+                            callAction OpenXeroTimesheetPreparationAction
+
+                response `responseBodyShouldNotContain` "Refreshing Xero reference data"
+                response `responseBodyShouldNotContain` "Roster-only work must not call Xero"
+                jobCount <- query @AppJob |> filterWhere (#jobKind, xeroReferenceSyncJobKind) |> fetchCount
+                jobCount `shouldBe` 0
+
+        it "opens preparation from a fresh snapshot without requesting Xero" $ withContext do
+            withCleanDb do
+                fixture <- Preview.createPreviewFixture "weekly" [Preview.EntrySpec 0 Preview.fixtureStaffA (TimeOfDay 9 0 0) (TimeOfDay 13 0 0)]
+                now <- getCurrentTime
+                _ <- fixture.connection |> set #lastSyncAt (Just now) |> updateRecord
+
+                response <- withXeroConfigForTest (Left "Xero must not be called for fresh preparation") do
+                    withPasskeyVerifiedUserAndCurrentVenue fixture.owner fixture.venue.id do
+                        withRequestHeaders [("HX-Request", "true")] do
+                            callAction OpenXeroTimesheetPreparationAction
+
+                response `responseStatusShouldBe` status200
+                response `responseBodyShouldContain` "Prepare Xero draft timesheets"
+                response `responseBodyShouldNotContain` "Xero must not be called"
+                appJobCount <- query @AppJob |> filterWhere (#jobKind, xeroReferenceSyncJobKind) |> fetchCount
+                appJobCount `shouldBe` 0
+
+        it "waits for stale preparation references and resumes after the durable sync" $ withContext do
+            withCleanDb do
+                fixture <- Preview.createPreviewFixture "weekly" [Preview.EntrySpec 0 Preview.fixtureStaffA (TimeOfDay 9 0 0) (TimeOfDay 13 0 0)]
+                now <- getCurrentTime
+                _ <- fixture.connection |> set #lastSyncAt (Just (addUTCTime (negate (8 * 24 * 60 * 60)) now)) |> updateRecord
+
+                waitingResponse <- withPasskeyVerifiedUserAndCurrentVenue fixture.owner fixture.venue.id do
+                    withRequestHeaders [("HX-Request", "true")] do
+                        callAction OpenXeroTimesheetPreparationAction
+                waitingResponse `responseBodyShouldContain` "Refreshing Xero reference data"
+                waitingResponse `responseBodyShouldContain` "Queued"
+                waitingResponse `responseBodyShouldContain` "hx-trigger=\"load delay:1s\""
+                [job] <- query @AppJob |> filterWhere (#jobKind, xeroReferenceSyncJobKind) |> fetch
+                _ <- job
+                    |> set #status JobStatusRunning
+                    |> set #progress (Aeson.object ["phase" Aeson..= ("payroll_calendars" :: Text), "completedPayItemsPage" Aeson..= (4 :: Int)])
+                    |> updateRecord
+
+                progressResponse <- withPasskeyVerifiedUserAndCurrentVenue fixture.owner fixture.venue.id do
+                    withRequestHeaders [("HX-Request", "true")] do
+                        callAction RunXeroTimesheetPreparationAction
+                progressResponse `responseBodyShouldContain` "Fetching Xero payroll calendars"
+                progressResponse `responseBodyShouldContain` "Completed page 4"
+
+                _ <- fixture.connection |> set #lastSyncAt (Just now) |> updateRecord
+                resumedResponse <- withXeroConfigForTest (Left "Xero must not be called after preparation resumes") do
+                    withPasskeyVerifiedUserAndCurrentVenue fixture.owner fixture.venue.id do
+                        withRequestHeaders [("HX-Request", "true")] do
+                            callAction RunXeroTimesheetPreparationAction
+                resumedResponse `responseBodyShouldContain` "Prepare Xero draft timesheets"
+                resumedResponse `responseBodyShouldNotContain` "Xero must not be called"
+
         it "opens the guided Xero preparation modal for a selected pay period" $ withContext do
             withCleanDb do
                 fixture <-
@@ -976,6 +1332,12 @@ tests = aroundAll withFastXeroReferenceSyncRuntime $ aroundAll withDatabaseTestC
                         |> updateRecord
                 resetXeroStaffMappingForPreparation fixture.staffA
                 resetXeroStaffMappingForPreparation fixture.staffB
+                mappingRefreshCompletedAt <- getCurrentTime
+                _ <- fixture.connection |> set #lastSyncAt (Just mappingRefreshCompletedAt) |> updateRecord
+                refreshedMappings <- query @XeroStaffMapping |> filterWhere (#xeroConnectionId, unpackId fixture.connection.id) |> fetch
+                forM_ refreshedMappings \mapping -> do
+                    _ <- mapping |> set #referenceRefreshedAt (Just mappingRefreshCompletedAt) |> updateRecord
+                    pure ()
 
                 xeroClient <- referenceSyncXeroClientForFixture (XeroTokenResponse "prepare-access-token" "prepare-refresh-token" 1800 (Just requiredXeroScopesText)) fixture.connection
                 response <- withXeroConfigForTest (Right testXeroConfig) do
@@ -1019,7 +1381,7 @@ tests = aroundAll withFastXeroReferenceSyncRuntime $ aroundAll withDatabaseTestC
                 appliedStaffDecisions <- query @XeroTimesheetPreparationDecision |> filterWhere (#decisionKind, "staff_auto_match" :: Text) |> filterWhere (#decisionStatus, "applied" :: Text) |> fetchCount
                 appliedStaffDecisions `shouldBe` 2
                 staffStepApprovals <- query @XeroTimesheetPreparationDecision |> filterWhere (#decisionKind, "staff_step_approved" :: Text) |> filterWhere (#decisionStatus, "applied" :: Text) |> fetchCount
-                staffStepApprovals `shouldBe` 0
+                staffStepApprovals `shouldBe` 1
 
         it "applies the selected suggested employee through the unified preparation dropdown" $ withContext do
             withCleanDb do
@@ -1030,6 +1392,12 @@ tests = aroundAll withFastXeroReferenceSyncRuntime $ aroundAll withDatabaseTestC
                         |> set #encryptedRefreshToken encryptedRefreshToken
                         |> updateRecord
                 resetXeroStaffMappingForPreparation fixture.staffA
+                mappingRefreshCompletedAt <- getCurrentTime
+                _ <- fixture.connection |> set #lastSyncAt (Just mappingRefreshCompletedAt) |> updateRecord
+                refreshedMappings <- query @XeroStaffMapping |> filterWhere (#xeroConnectionId, unpackId fixture.connection.id) |> fetch
+                forM_ refreshedMappings \mapping -> do
+                    _ <- mapping |> set #referenceRefreshedAt (Just mappingRefreshCompletedAt) |> updateRecord
+                    pure ()
                 xeroClient <- referenceSyncXeroClientForFixture (XeroTokenResponse "prepare-access-token" "prepare-refresh-token" 1800 (Just requiredXeroScopesText)) fixture.connection
                 _ <- withXeroConfigForTest (Right testXeroConfig) do
                     withXeroClientForTest xeroClient do
@@ -1448,7 +1816,7 @@ tests = aroundAll withFastXeroReferenceSyncRuntime $ aroundAll withDatabaseTestC
         it "records Xero payroll reference sync failures without storing stale rows" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Xero Sync Failure Venue"
-                admin <- createUserRecord "xero-sync-failure@example.com" "staff" True
+                admin <- createUserRecordWithPlatformRole "xero-sync-failure@example.com" "staff" (Just SuperAdminRole) True
                 _ <- createVenueMembershipRecord venue admin "venue_owner"
                 connection <- createSyncableXeroConnection venue admin
 
@@ -1469,7 +1837,7 @@ tests = aroundAll withFastXeroReferenceSyncRuntime $ aroundAll withDatabaseTestC
         it "marks Xero connections as reconnect required when refresh tokens expire" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Xero Expired Refresh Venue"
-                owner <- createUserRecord "xero-expired-refresh@example.com" "staff" True
+                owner <- createUserRecordWithPlatformRole "xero-expired-refresh@example.com" "staff" (Just SuperAdminRole) True
                 _ <- createVenueMembershipRecord venue owner "venue_owner"
                 connection <- createSyncableXeroConnection venue owner
 
@@ -1493,7 +1861,7 @@ tests = aroundAll withFastXeroReferenceSyncRuntime $ aroundAll withDatabaseTestC
         it "sends HTMX sync requests into the reconnect flow when the refresh token is expired" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Xero HTMX Expired Refresh Venue"
-                owner <- createUserRecord "xero-htmx-expired-refresh@example.com" "staff" True
+                owner <- createUserRecordWithPlatformRole "xero-htmx-expired-refresh@example.com" "staff" (Just SuperAdminRole) True
                 _ <- createVenueMembershipRecord venue owner "venue_owner"
                 connection <- createSyncableXeroConnection venue owner
 

@@ -43,6 +43,23 @@ lands.
   refresh-token rotation, while each job retains independent success/failure.
   Lease contention uses the existing keepalive worker retries; an expired or
   revoked token instead completes in reconnect-required state and does not loop.
+- Import and preparation resolve typed snapshot trust before job state. A
+  snapshot remains trusted for seven days and opens immediately even while its
+  six-day maintenance refresh is queued, running, retrying, or failed. Missing,
+  stale, or newly payroll-eligible missing-staff demand enqueues or joins the
+  durable job; polling dialogs show canonical phase/page facts, transition copy
+  after five minutes, and resume from local reference rows after success.
+- Missing-staff demand resolves approval-pinned pay versions through the
+  canonical explicit pay-assignment resolver. Successful snapshots stamp
+  unresolved staff mappings as checked; approval times, not later mutable staff
+  edits, determine whether another mapping refresh is required. Effective
+  `roster_only` work does not request Xero data or block eligible payroll work.
+  Suggested staff matches remain pending until explicit owner approval.
+- Owners do not receive or access manual reference refresh. Founder support sees
+  last success, aggregate queued/running/retry-chain state, retry timing,
+  canonical progress and sanitized failure, and may request the same coalescing
+  refresh. Reauthorization-required state takes precedence over stale-data
+  support guidance.
 - A complete successful snapshot atomically marks missing or provider-inactive
   employees, earnings rates, calendars, accounts, and imported pay items
   unavailable; reappearance restores provider availability without changing

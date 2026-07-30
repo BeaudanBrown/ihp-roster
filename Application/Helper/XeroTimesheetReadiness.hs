@@ -17,6 +17,7 @@ import Application.VenueTime.Model (requireMelbourneDateRangeUTC)
 import Application.WageSourceEnforcement (WageEntryFailure (..),
                                           enforceFinalWageEntries,
                                           renderWageEntryFailure)
+import Application.Xero.ReferenceTrust (xeroReferenceSnapshotMaxAge)
 import Application.Xero.Timesheets.Buckets
 import Control.Monad (guard)
 import qualified Data.Aeson.Types as AesonTypes
@@ -81,7 +82,7 @@ validateXeroTimesheetReadiness ::
     IO XeroTimesheetReadiness
 validateXeroTimesheetReadiness request = do
     maybeConnection <- fetchActiveXeroConnection request.readinessVenueId
-    latestSync <- fetchLatestXeroSyncRun request.readinessVenueId
+    now <- getCurrentTime
     periodEntries <- fetchPeriodTimesheetEntries request.readinessVenueId request.readinessPeriodStart request.readinessPeriodEnd
     notPaidStaffIds <- maybe (pure []) fetchNotPaidStaffMappingIds maybeConnection
     let baseSkippedStaffIds = List.nub (request.readinessSkippedStaffIds <> notPaidStaffIds)
@@ -108,7 +109,7 @@ validateXeroTimesheetReadiness request = do
     let blockers =
             concat
                 [ connectionBlockers maybeConnection
-                , referenceSyncBlockers latestSync
+                , referenceSyncBlockers now maybeConnection
                 , calendarBlockers request maybeCalendar
                 , entryBlockers entries
                 , wageSourceBlockers wageSourceResult
@@ -167,14 +168,6 @@ fetchActiveXeroConnection venueId =
         |> filterWhere (#venueId, unpackId venueId)
         |> filterWhere (#connectionStatus, "active" :: Text)
         |> orderByDesc #connectedAt
-        |> fetchOneOrNothing
-
-fetchLatestXeroSyncRun :: (?modelContext :: ModelContext) => Id Venue -> IO (Maybe XeroSyncRun)
-fetchLatestXeroSyncRun venueId =
-    query @XeroSyncRun
-        |> filterWhere (#venueId, unpackId venueId)
-        |> filterWhere (#syncKind, "payroll_reference_data" :: Text)
-        |> orderByDesc #startedAt
         |> fetchOneOrNothing
 
 fetchPeriodTimesheetEntries :: (?modelContext :: ModelContext) => Id Venue -> Day -> Day -> IO [TimesheetEntry]
@@ -269,11 +262,14 @@ connectionBlockers (Just connection)
         [blocker "xero_connection_not_active" "Reconnect Xero before preparing payroll timesheets."]
     | otherwise = []
 
-referenceSyncBlockers :: Maybe XeroSyncRun -> [XeroReadinessBlocker]
-referenceSyncBlockers (Just syncRun)
-    | syncRun.syncStatus == "succeeded" = []
-    | otherwise = [blocker "latest_reference_sync_not_successful" "Run a successful Xero payroll reference sync before preparing timesheets."]
-referenceSyncBlockers Nothing = [blocker "missing_reference_sync" "Sync Xero payroll reference data before preparing timesheets."]
+referenceSyncBlockers :: UTCTime -> Maybe XeroConnection -> [XeroReadinessBlocker]
+referenceSyncBlockers _ Nothing = [blocker "missing_reference_sync" "Connect Xero and wait for trusted reference data before preparing timesheets."]
+referenceSyncBlockers now (Just connection) =
+    case connection.lastSyncAt of
+        Nothing -> [blocker "missing_reference_sync" "Wait for the initial Xero reference sync before preparing timesheets."]
+        Just lastSyncAt
+            | diffUTCTime now lastSyncAt < xeroReferenceSnapshotMaxAge -> []
+            | otherwise -> [blocker "stale_reference_snapshot" "Xero reference data is out of date and could not be refreshed. Contact support before preparing timesheets."]
 
 calendarBlockers :: XeroTimesheetReadinessRequest -> Maybe XeroPayrollCalendar -> [XeroReadinessBlocker]
 calendarBlockers request maybeCalendar =

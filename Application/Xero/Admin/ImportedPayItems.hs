@@ -1,6 +1,7 @@
 module Application.Xero.Admin.ImportedPayItems
     ( XeroImportedPayItemCandidate (..)
     , fetchActiveImportedXeroPayItems
+    , fetchSyncedXeroEarningsRateRefs
     , importXeroEarningsRates
     , viableImportedPayItemCandidates
     , xeroEarningsRateIsBepisGenerated
@@ -9,6 +10,7 @@ module Application.Xero.Admin.ImportedPayItems
 
 import Application.Helper.ControllerContext
 import Application.Helper.Xero
+import qualified Data.Aeson as Aeson
 import qualified Data.Text as Text
 import Generated.Types
 import IHP.ControllerPrelude
@@ -27,6 +29,27 @@ fetchActiveImportedXeroPayItems connection =
         |> filterWhere (#providerAvailable, True)
         |> orderBy #name
         |> fetch
+
+fetchSyncedXeroEarningsRateRefs ::
+    (?context :: ControllerContext, ?modelContext :: ModelContext) =>
+    XeroConnection ->
+    IO [XeroEarningsRateRef]
+fetchSyncedXeroEarningsRateRefs connection = do
+    rates <-
+        query @XeroEarningsRate
+            |> filterWhere (#venueId, unpackId currentVenueId)
+            |> filterWhere (#xeroConnectionId, unpackId connection.id)
+            |> filterWhere (#isActive, True)
+            |> filterWhere (#providerAvailable, True)
+            |> orderBy #name
+            |> fetch
+    pure (mapMaybe xeroEarningsRateRefFromStoredRate rates)
+
+xeroEarningsRateRefFromStoredRate :: XeroEarningsRate -> Maybe XeroEarningsRateRef
+xeroEarningsRateRefFromStoredRate rate =
+    case Aeson.fromJSON rate.rawPayload of
+        Aeson.Success reference -> Just reference
+        Aeson.Error _           -> Nothing
 
 viableImportedPayItemCandidates :: [XeroImportedPayItem] -> [XeroEarningsRateRef] -> [XeroImportedPayItemCandidate]
 viableImportedPayItemCandidates activeImports fetchedRates =

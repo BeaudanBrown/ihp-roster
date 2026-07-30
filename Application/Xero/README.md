@@ -14,6 +14,10 @@ preparation/submission workflow.
 - `ReferenceSyncJob.hs` - durable connection-deduplicated, tenant-leased,
   paced reference refresh with Xero-specific retry scheduling.
 - `ReferenceSyncRequest.hs` - background-safe demand request/coalescing boundary.
+- `ReferenceTrust.hs` and `ReferenceTrust/` - typed seven-day snapshot trust,
+  retry-chain/progress read model, and enqueue-or-join service.
+- `ReferenceDemand.hs` - canonical approval-pinned pay-assignment and missing
+  staff-reference demand resolution.
 - `Admin/ReferenceData.hs` - the background-safe reference-data persistence
   service and atomic provider-availability reconciliation used by every sync path.
 - `Admin/ReferenceSyncPolicy.hs` - PayItems pagination, request pacing, and

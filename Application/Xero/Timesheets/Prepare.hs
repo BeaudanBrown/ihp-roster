@@ -26,7 +26,10 @@ import Application.Xero.Admin.PayItems
 import Application.Xero.Admin.ReadModel
 import Application.Xero.Admin.ReferenceData
 import Application.Xero.Connection
-import Application.Xero.ReferenceSyncRequest
+import Application.Xero.ReferenceDemand (fetchXeroMissingReferenceDemand)
+import Application.Xero.ReferenceTrust
+import Application.Xero.ReferenceTrust.ReadModel (XeroReferenceTrustState (..))
+import Application.Xero.ReferenceTrust.Service
 import Application.Xero.Timesheets.Buckets
 import Application.Xero.Timesheets.Prepare.Helpers
 import Application.Xero.Timesheets.Preview
@@ -78,10 +81,16 @@ refreshCurrentVenueXeroReferenceDataForPreparation ::
     (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
     XeroConnection ->
     IO (Either Text XeroConnection)
-refreshCurrentVenueXeroReferenceDataForPreparation connection
-    | connection.connectionStatus /= "active" = pure (Left "Reconnect Xero before preparing draft timesheets.")
-    | otherwise =
-        fmap (fmap (.referenceDataSyncConnection)) (runXeroReferenceDataSyncRequest (Just currentUser.id) connection)
+refreshCurrentVenueXeroReferenceDataForPreparation connection = do
+    now <- getCurrentTime
+    missingReferenceDemand <- fetchXeroMissingReferenceDemand connection
+    trustState <- ensureTrustedXeroReferenceData now (Just currentUser.id) connection missingReferenceDemand
+    pure case trustState.trustDecision of
+        UseTrustedXeroReferenceSnapshot -> Right connection
+        StartOrJoinXeroReferenceSync -> Left "Xero payroll reference data is starting in the background."
+        WaitForTrustedXeroReferenceSnapshot _ -> Left "Xero payroll reference data is syncing in the background."
+        ReconnectXeroForReferenceData -> Left "Reconnect Xero before preparing draft timesheets."
+        BlockStaleXeroReferenceData _ -> Left "Xero reference data is out of date and could not be refreshed. Contact support before preparing draft timesheets."
 
 refreshXeroTimesheetPreparation ::
     (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>

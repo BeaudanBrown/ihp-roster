@@ -66,6 +66,7 @@ completeXeroReferenceDataSync maybeActorUserId syncRun connection employees earn
         mapM_ (upsertXeroAccount connection now) accounts
         reconcileXeroProviderAvailability connection now employees earningsRates payrollCalendars accounts
         markStaleXeroStaffMappings connection employees
+        markXeroStaffMappingsReferenceRefreshed connection now
         markStaleXeroEarningsRateMappings connection earningsRates
         reconcileXeroPayItemAccountCodeSelection maybeActorUserId connection accounts payrollSettingsAccounts
         updatedSyncRun <-
@@ -173,6 +174,23 @@ markStaleXeroStaffMappings connection employees = do
                     |> set #lastVerifiedAt Nothing
                     |> updateRecord
                     |> void
+
+markXeroStaffMappingsReferenceRefreshed ::
+    (?modelContext :: ModelContext) =>
+    XeroConnection ->
+    UTCTime ->
+    IO ()
+markXeroStaffMappingsReferenceRefreshed connection refreshedAt = do
+    mappings <-
+        query @XeroStaffMapping
+            |> filterWhere (#venueId, connection.venueId)
+            |> filterWhere (#xeroConnectionId, unpackId connection.id)
+            |> fetch
+    forM_ mappings \mapping ->
+        mapping
+            |> set #referenceRefreshedAt (Just refreshedAt)
+            |> updateRecord
+            |> void
 
 markStaleXeroEarningsRateMappings ::
     (?modelContext :: ModelContext) =>

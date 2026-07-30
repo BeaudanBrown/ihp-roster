@@ -1,5 +1,6 @@
 module Application.Helper.XeroAdminTypes where
 
+import Application.Xero.ReferenceTrust
 import Control.Monad (guard)
 import qualified Data.List as List
 import Data.Scientific (Scientific)
@@ -212,7 +213,16 @@ data XeroTimesheetPreparationView = XeroTimesheetPreparationView
     , preparationSubmissionRun               :: Maybe XeroSubmissionRun
     }
 
+data XeroReferenceSyncDiagnostics = XeroReferenceSyncDiagnostics
+    { referenceSyncLastSucceededAt :: !(Maybe UTCTime)
+    , referenceSyncActivity        :: !XeroReferenceSyncActivity
+    , referenceSyncProgress        :: !XeroReferenceSyncProgressFacts
+    , referenceSyncSanitizedError  :: !(Maybe Text)
+    }
+
 data XeroAdminSectionData = XeroAdminSectionData
     { xeroConnection               :: Maybe XeroConnection
     , xeroConnectionActionsAllowed :: Bool
+    , xeroReferenceRefreshAllowed  :: Bool
+    , xeroReferenceSyncDiagnostics :: Maybe XeroReferenceSyncDiagnostics
     }

@@ -402,7 +402,9 @@ createPreviewPayRun fixture status = do
         |> createRecord
 
 createPreviewSyncRun :: (?modelContext :: ModelContext) => Venue -> XeroConnection -> IO XeroSyncRun
-createPreviewSyncRun venue connection =
+createPreviewSyncRun venue connection = do
+    now <- getCurrentTime
+    _ <- connection |> set #lastSyncAt (Just now) |> updateRecord
     newRecord @XeroSyncRun
         |> set #venueId (unpackId venue.id)
         |> set #xeroConnectionId (unpackId connection.id)

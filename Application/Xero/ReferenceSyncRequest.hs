@@ -1,6 +1,7 @@
 module Application.Xero.ReferenceSyncRequest
     ( runXeroReferenceDataSyncRequest
     , withInlineXeroReferenceSyncRequestsForTest
+    , withQueuedXeroReferenceSyncRequestsForTest
     ) where
 
 import Application.Async.Queue
@@ -55,9 +56,17 @@ runXeroReferenceDataSyncRequest maybeActorUserId connection
                     Right () -> referenceSyncResultFromJob appJob connection
 
 withInlineXeroReferenceSyncRequestsForTest :: IO value -> IO value
-withInlineXeroReferenceSyncRequestsForTest action =
+withInlineXeroReferenceSyncRequestsForTest =
+    withInlineXeroReferenceSyncSettingForTest True
+
+withQueuedXeroReferenceSyncRequestsForTest :: IO value -> IO value
+withQueuedXeroReferenceSyncRequestsForTest =
+    withInlineXeroReferenceSyncSettingForTest False
+
+withInlineXeroReferenceSyncSettingForTest :: Bool -> IO value -> IO value
+withInlineXeroReferenceSyncSettingForTest runInline action =
     Exception.bracket
-        (IORef.atomicModifyIORef' inlineXeroReferenceSyncRequestsForTestRef (\old -> (True, old)))
+        (IORef.atomicModifyIORef' inlineXeroReferenceSyncRequestsForTestRef (\old -> (runInline, old)))
         (IORef.writeIORef inlineXeroReferenceSyncRequestsForTestRef)
         (const action)
 

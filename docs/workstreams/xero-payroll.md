@@ -50,10 +50,13 @@ and pre-wizard preview/submit/retry endpoints have been retired. Successful OAut
 connection or same-tenant repair now transactionally queues the initial durable
 reference sync without a browser page-load trigger. The daily maintenance sweep
 independently queues six-day reference refresh and seven-day token keepalive work.
-Manual and preparation refresh requests coalesce onto the same durable job, but
-preparation does not yet wait and resume with trusted-snapshot UX. Open work
-remains around trusted-snapshot UX, audit trails, correction behavior, and custom
-pay item overrides.
+Import and preparation now use a typed seven-day trust gate: fresh snapshots
+open immediately, while missing/stale or newly payroll-eligible missing-staff
+demand joins the durable job, reports phase/page progress through bounded dialog
+polling, and resumes automatically. Effective roster-only work does not trigger
+Xero mapping refresh. Owners no longer manually refresh; founders retain
+sanitized diagnostics and a coalescing Refresh control. Open work remains around
+audit trails, correction behavior, and custom pay item overrides.
 
 ## Reliable Reference Data
 

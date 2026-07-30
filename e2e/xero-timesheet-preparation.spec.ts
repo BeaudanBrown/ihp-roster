@@ -11,6 +11,10 @@ const xeroConnectionId = 'b1000000-0000-0000-0000-000000000002';
 
 function resetXeroTimesheetPreparationFixture() {
     runSql(`
+        DELETE FROM app_jobs
+        WHERE job_kind = 'xero_reference_sync'
+          AND related_id = '${xeroConnectionId}';
+
         UPDATE venue_memberships
         SET
             venue_role = 'venue_owner',
@@ -76,6 +80,32 @@ function resetXeroTimesheetPreparationFixture() {
             connected_at = EXCLUDED.connected_at,
             disconnected_by_user_id = NULL,
             disconnected_at = NULL,
+            updated_at = NOW();
+
+        INSERT INTO xero_staff_mappings (
+            id,
+            venue_id,
+            staff_id,
+            xero_connection_id,
+            mapping_status,
+            reference_refreshed_at
+        )
+        SELECT
+            uuid_generate_v4(),
+            '${alphaVenueId}',
+            approved.staff_id,
+            '${xeroConnectionId}',
+            'not_applicable',
+            NOW()
+        FROM (
+            SELECT DISTINCT staff_id
+            FROM timesheet_entries
+            WHERE venue_id = '${alphaVenueId}'
+              AND is_approved = TRUE
+              AND deleted_at IS NULL
+        ) AS approved
+        ON CONFLICT (staff_id, xero_connection_id) DO UPDATE SET
+            reference_refreshed_at = EXCLUDED.reference_refreshed_at,
             updated_at = NOW();
 
         INSERT INTO xero_sync_runs (
@@ -150,6 +180,48 @@ function resetXeroTimesheetPreparationFixture() {
     `);
 }
 
+function seedRunningReferenceSync() {
+    runSql(`
+        UPDATE xero_connections
+        SET last_sync_at = NOW() - INTERVAL '8 days', updated_at = NOW()
+        WHERE id = '${xeroConnectionId}';
+
+        UPDATE xero_staff_mappings
+        SET reference_refreshed_at = NOW(), updated_at = NOW()
+        WHERE xero_connection_id = '${xeroConnectionId}';
+
+        INSERT INTO app_jobs (
+            id,
+            status,
+            attempts_count,
+            run_at,
+            job_kind,
+            payload,
+            payload_schema_version,
+            venue_id,
+            related_table,
+            related_id,
+            dedupe_key,
+            progress,
+            result
+        ) VALUES (
+            'b1000000-0000-0000-0000-000000000302',
+            'job_status_not_started',
+            0,
+            NOW() + INTERVAL '1 hour',
+            'xero_reference_sync',
+            jsonb_build_object('requestedAt', NOW(), 'retryNumber', 0),
+            1,
+            '${alphaVenueId}',
+            'xero_connections',
+            '${xeroConnectionId}',
+            'xero-reference-sync-${xeroConnectionId}',
+            '{"phase":"pay_items","completedPayItemsPage":4}'::jsonb,
+            '{}'::jsonb
+        );
+    `);
+}
+
 async function openXeroPage(page: import('@playwright/test').Page) {
     await gotoWhenReady(page, '/Xero', '#admin-xero-fragment');
     await expect(page.locator('[data-xero-timesheet-preparation-form="true"]')).toBeVisible({ timeout: E2E_TIMEOUT.action });
@@ -158,6 +230,35 @@ async function openXeroPage(page: import('@playwright/test').Page) {
 test.describe('Xero timesheet preparation', () => {
     test.beforeEach(() => {
         resetXeroTimesheetPreparationFixture();
+    });
+
+    test('waits with honest progress, transitions after five minutes, and resumes automatically', async ({ page }) => {
+        seedRunningReferenceSync();
+        await loginAsPrivilegedUserWithSeededPasskeySession(page, 'e2e-admin@example.com', 'test-password-123');
+        await openXeroPage(page);
+
+        await page.locator('[data-xero-timesheet-preparation-form="true"]').getByRole('button', { name: 'Upload timesheets' }).click();
+        const waitingDialog = page.locator('[data-xero-reference-sync-waiting="true"]');
+        await expect(waitingDialog).toBeVisible({ timeout: E2E_TIMEOUT.assertion });
+        await expect(waitingDialog).toContainText('Fetching Xero pay items');
+        await expect(waitingDialog).toContainText('Completed page 4');
+
+        await waitingDialog.locator('input[name="referenceWaitStartedAt"]').evaluate((input) => {
+            const startedAt = new Date(Date.now() - 6 * 60 * 1000).toISOString().replace(/\.\d{3}Z$/, 'Z');
+            (input as HTMLInputElement).value = startedAt;
+        });
+        await expect(waitingDialog).toContainText('Taking longer than usual', { timeout: E2E_TIMEOUT.assertion });
+        await expect(waitingDialog).toContainText('continues in the background');
+
+        runSql(`
+            UPDATE xero_connections SET last_sync_at = NOW(), updated_at = NOW() WHERE id = '${xeroConnectionId}';
+            UPDATE app_jobs
+            SET status = 'job_status_succeeded', progress = '{"phase":"payroll_settings","completedPayItemsPage":4}'::jsonb, updated_at = NOW()
+            WHERE id = 'b1000000-0000-0000-0000-000000000302';
+        `);
+
+        await expect(page.locator('[data-xero-timesheet-preparation-dialog="true"]')).toBeVisible({ timeout: E2E_TIMEOUT.assertion });
+        await expect(waitingDialog).toHaveCount(0);
     });
 
     test('opens the guided preparation modal from a selected Xero pay period', async ({ page }) => {
@@ -169,33 +270,20 @@ test.describe('Xero timesheet preparation', () => {
         const prepareResponsePromise = page.waitForResponse((response) =>
             response.request().method() === 'POST' && response.url().includes('/OpenXeroTimesheetPreparation')
         );
-        const runResponsePromise = page.waitForResponse((response) =>
-            response.request().method() === 'POST' && response.url().includes('/RunXeroTimesheetPreparation')
-        ).catch(() => undefined);
         await form.getByRole('button', { name: 'Upload timesheets' }).click();
         const prepareResponse = await prepareResponsePromise;
         const responseText = await prepareResponse.text();
         expect(prepareResponse.status(), responseText).toBe(200);
 
-        if (responseText.includes('data-xero-timesheet-preparation-loading="true"')) {
-            const runResponse = await runResponsePromise;
-            expect(runResponse).toBeTruthy();
-            const runResponseText = await runResponse!.text();
-            expect(runResponse!.status(), runResponseText).toBe(200);
+        const dialog = page.locator(`[${dialogMountDomAttr}]`);
+        const preparationDialog = page.locator('[data-xero-timesheet-preparation-dialog="true"]');
 
-            const dialog = page.locator(`[${dialogMountDomAttr}]`);
-            const preparationDialog = page.locator('[data-xero-timesheet-preparation-dialog="true"]');
-
-            await expect(dialog).toBeVisible({ timeout: E2E_TIMEOUT.assertion });
-            await expect(page.getByRole('heading', { name: 'Match staff to Xero employees' })).toBeVisible();
-            await expect(preparationDialog).toContainText('Pay Period');
-            await expect(preparationDialog).toContainText(/\d{2}\/\d{2}\/\d{4} to \d{2}\/\d{2}\/\d{4} · payment \d{2}\/\d{2}\/\d{4}/);
-            await expect(preparationDialog).toContainText('Step 1 of 3');
-            await expect(preparationDialog).toContainText('Staff mappings');
-            await expect(preparationDialog).toContainText('Readiness validation');
-            await expect(preparationDialog.locator('a[href="/StartXeroConnection"]')).toBeVisible();
-        } else {
-            expect(responseText).toContain('Could not decrypt the stored Xero refresh token');
-        }
+        await expect(dialog).toBeVisible({ timeout: E2E_TIMEOUT.assertion });
+        await expect(page.getByRole('heading', { name: 'Staff mappings' })).toBeVisible();
+        await expect(preparationDialog).toContainText('Step 1 of 3');
+        await expect(preparationDialog).toContainText('Confirm proposed staff matches');
+        const approveButton = page.getByRole('button', { name: 'Approve', exact: true });
+        await expect(approveButton).toBeVisible();
+        await expect(preparationDialog.getByRole('combobox', { name: /Xero employee for/ }).first()).toBeVisible();
     });
 });

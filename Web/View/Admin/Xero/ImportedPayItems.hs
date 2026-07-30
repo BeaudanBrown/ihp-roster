@@ -4,6 +4,7 @@ module Web.View.Admin.Xero.ImportedPayItems
     ( renderXeroImportedPayItemImportDialog
     , renderXeroImportedPayItemImportErrorDialog
     , renderXeroImportedPayItemImportLoadingDialog
+    , renderXeroImportedPayItemImportWaitingDialog
     ) where
 
 import Application.Helper.FrontendContract.AppShell (ImportXeroPayItemsOverlay,
@@ -15,8 +16,12 @@ import Application.Helper.FrontendContract.AppShell.Runtime (AppShellActionRoute
 import Application.Helper.FrontendContract.XeroCandidateFilter.Runtime
 import Application.Helper.Xero (XeroEarningsRateRef (..))
 import Application.Xero.Admin.ImportedPayItems (XeroImportedPayItemCandidate (..))
+import Application.Xero.ReferenceTrust (XeroReferenceSyncProgressFacts (..))
+import Application.Xero.ReferenceTrust.Presentation
+import Application.Xero.ReferenceTrust.ReadModel (XeroReferenceTrustState (..))
 import Data.Scientific (FPFormat (Fixed), Scientific, formatScientific)
 import qualified Data.Text as Text
+import Data.Time.Format (defaultTimeLocale, formatTime)
 import Web.View.Prelude
 
 xeroPayItemAppShellActionRoute :: Text -> AppShellActionRoute
@@ -38,9 +43,9 @@ renderXeroImportedPayItemImportLoadingDialog =
                 <div id="xero-import-pay-items-loading-indicator" class="spinner-border text-primary" role="status" aria-hidden="true"></div>
                 <div>
                     <div class="fw-semibold">Fetching Xero pay items...</div>
-                    <div class="small app-muted">Bepis is refreshing the Xero connection and loading supported hourly earnings rates.</div>
+                    <div class="small app-muted">Bepis is checking trusted Xero reference data before loading supported hourly earnings rates.</div>
                 </div>
-                {renderLoadXeroPayItemImportForm}
+                {renderLoadXeroPayItemImportForm Nothing}
             </div>
         |]
         , dialogOverlayStartButtons = []
@@ -48,12 +53,57 @@ renderXeroImportedPayItemImportLoadingDialog =
         , dialogOverlayDialogClass = ""
         }
 
-renderLoadXeroPayItemImportForm :: Html
-renderLoadXeroPayItemImportForm =
+renderXeroImportedPayItemImportWaitingDialog :: UTCTime -> UTCTime -> XeroReferenceTrustState -> Html
+renderXeroImportedPayItemImportWaitingDialog now waitStartedAt trustState =
+    renderDialogOverlay DialogOverlayConfig
+        { dialogOverlayTitle = "Import Xero pay items"
+        , dialogOverlayBody = [hsx|
+            <div class="d-flex align-items-start gap-3" data-xero-reference-sync-waiting="true">
+                <div id="xero-import-pay-items-loading-indicator" class="spinner-border text-primary mt-1" role="status" aria-hidden="true"></div>
+                <div class="d-flex flex-column gap-1">
+                    <div class="fw-semibold">Refreshing Xero reference data</div>
+                    <div>{xeroReferenceSyncActivityText trustState.syncActivity}</div>
+                    {renderReferenceSyncPhase trustState.syncProgress.progressPhase}
+                    {renderCompletedPayItemsPage trustState.syncProgress.progressCompletedPayItemsPage}
+                    {renderReferenceWaitDurationNotice now waitStartedAt}
+                </div>
+                {renderLoadXeroPayItemImportForm (Just waitStartedAt)}
+            </div>
+        |]
+        , dialogOverlayStartButtons = []
+        , dialogOverlayButtons =
+            [ OverlayButton
+                { overlayButtonLabel = "Close"
+                , overlayButtonClass = "btn btn-outline-secondary"
+                , overlayButtonAction = OverlayCloseAction
+                }
+            ]
+        , dialogOverlayDialogClass = ""
+        }
+
+renderReferenceWaitDurationNotice :: UTCTime -> UTCTime -> Html
+renderReferenceWaitDurationNotice now waitStartedAt
+    | xeroReferenceWaitIsLongRunning now waitStartedAt = [hsx|
+        <div class="small app-muted"><strong>Taking longer than usual.</strong> The refresh continues in the background and this dialog will keep checking for trusted data.</div>
+    |]
+    | otherwise = [hsx|<div class="small app-muted">This dialog will continue automatically when trusted reference data is ready.</div>|]
+
+renderReferenceSyncPhase :: Maybe Text -> Html
+renderReferenceSyncPhase Nothing = mempty
+renderReferenceSyncPhase (Just phase) = [hsx|<div class="small app-muted">{xeroReferenceSyncPhaseText phase}</div>|]
+
+renderCompletedPayItemsPage :: Maybe Int -> Html
+renderCompletedPayItemsPage Nothing = mempty
+renderCompletedPayItemsPage (Just page) = [hsx|<div class="small app-muted">Completed page {page}</div>|]
+
+renderLoadXeroPayItemImportForm :: Maybe UTCTime -> Html
+renderLoadXeroPayItemImportForm maybeWaitStartedAt =
     renderAppShellActionForm
         (appShellActionByMarker @LoadXeroPayItemImportOverlay)
         (xeroPayItemAppShellActionRoute (pathTo OpenXeroPayItemImportAction))
-            { appShellActionRouteFields = [AppShellFieldValue ("loadCandidates", "true")]
+            { appShellActionRouteFields =
+                [AppShellFieldValue ("loadCandidates", "true")]
+                    <> maybe [] (\waitStartedAt -> [AppShellFieldValue ("referenceWaitStartedAt", cs (formatTime defaultTimeLocale "%Y-%m-%dT%H:%M:%SZ" waitStartedAt))]) maybeWaitStartedAt
             }
         mempty
 

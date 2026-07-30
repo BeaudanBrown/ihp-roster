@@ -24,6 +24,8 @@ import Application.Helper.FrontendContract.Surface.Values (SurfaceFields,
                                                            noSurfaceFields,
                                                            surfaceFragmentTargetId)
 import Application.Helper.XeroAdminTypes
+import Application.Xero.ReferenceTrust
+import Application.Xero.ReferenceTrust.Presentation (xeroReferenceSyncPhaseText)
 import Web.Admin.FrontendSurface (AdminVenueScopeValue (..),
                                   adminXeroPageSurfaceImpl,
                                   adminXeroSurfaceImpl)
@@ -73,8 +75,8 @@ renderXeroPageContentSurface body =
     |]
 
 renderXeroSection :: XeroAdminSectionData -> Html
-renderXeroSection XeroAdminSectionData { xeroConnection, xeroConnectionActionsAllowed } =
-    renderXeroConnectionBody xeroConnection xeroConnectionActionsAllowed
+renderXeroSection =
+    renderXeroConnectionBody
 
 renderXeroSectionFragment :: XeroAdminSectionData -> Html
 renderXeroSectionFragment xeroSectionData =
@@ -85,20 +87,21 @@ renderXeroSectionFragment xeroSectionData =
         </div>
     |]
 
-renderXeroConnectionBody :: Maybe XeroConnection -> Bool -> Html
-renderXeroConnectionBody Nothing connectionActionsAllowed = [hsx|
+renderXeroConnectionBody :: XeroAdminSectionData -> Html
+renderXeroConnectionBody XeroAdminSectionData { xeroConnection = Nothing, xeroConnectionActionsAllowed } = [hsx|
     <div class="d-flex flex-column gap-4">
         <section class={appSurfaceClasses "p-3"}>
-            {renderXeroDisconnectedConnectionDetails connectionActionsAllowed}
+            {renderXeroDisconnectedConnectionDetails xeroConnectionActionsAllowed}
         </section>
     </div>
 |]
-renderXeroConnectionBody (Just connection) connectionActionsAllowed = [hsx|
+renderXeroConnectionBody XeroAdminSectionData { xeroConnection = Just connection, .. } = [hsx|
     <div class="d-flex flex-column gap-4">
         <section class={appSurfaceClasses "p-3"}>
             <div class="d-flex flex-column gap-3">
                 {renderXeroConnectionDetails connection}
-                {renderXeroActionControls connection connectionActionsAllowed}
+                {renderXeroActionControls connection xeroConnectionActionsAllowed xeroReferenceRefreshAllowed}
+                {maybe mempty renderXeroReferenceSyncDiagnostics xeroReferenceSyncDiagnostics}
             </div>
         </section>
     </div>
@@ -128,12 +131,12 @@ xeroReferenceSyncActionRoute =
         , actionRouteExtraAttrs = []
         }
 
-renderXeroActionControls :: XeroConnection -> Bool -> Html
-renderXeroActionControls connection connectionActionsAllowed = [hsx|
+renderXeroActionControls :: XeroConnection -> Bool -> Bool -> Html
+renderXeroActionControls connection connectionActionsAllowed referenceRefreshAllowed = [hsx|
     <div class="d-flex flex-wrap gap-2">
         {renderOpenXeroTimesheetPreparationForm canRunXeroActions}
         {renderOpenXeroPayItemImportForm canRunXeroActions}
-        {renderXeroReferenceSyncForm canRunXeroActions}
+        {if referenceRefreshAllowed then renderXeroReferenceSyncForm canRunXeroActions else mempty}
         <form method="POST" action={DisconnectXeroConnectionAction}>
             <button class="btn btn-outline-danger" type="submit" disabled={not connectionActionsAllowed}>Disconnect</button>
         </form>
@@ -141,6 +144,47 @@ renderXeroActionControls connection connectionActionsAllowed = [hsx|
 |]
     where
         canRunXeroActions = connectionActionsAllowed && connection.connectionStatus == "active"
+
+renderXeroReferenceSyncDiagnostics :: XeroReferenceSyncDiagnostics -> Html
+renderXeroReferenceSyncDiagnostics diagnostics = [hsx|
+    <section class="border rounded p-3 d-flex flex-column gap-2" data-xero-reference-sync-diagnostics="true">
+        <div class="fw-semibold">Reference sync diagnostics</div>
+        <dl class="row mb-0 small">
+            <dt class="col-sm-4">Last successful reference sync</dt>
+            <dd class="col-sm-8">{maybe "Never" tshow diagnostics.referenceSyncLastSucceededAt}</dd>
+            <dt class="col-sm-4">Current state</dt>
+            <dd class="col-sm-8">{referenceSyncDiagnosticsActivityText diagnostics.referenceSyncActivity}</dd>
+        </dl>
+        {renderReferenceSyncDiagnosticsProgress diagnostics.referenceSyncProgress}
+        {renderReferenceSyncDiagnosticsError diagnostics.referenceSyncSanitizedError}
+    </section>
+|]
+
+renderReferenceSyncDiagnosticsProgress :: XeroReferenceSyncProgressFacts -> Html
+renderReferenceSyncDiagnosticsProgress progress = [hsx|
+    {renderReferenceSyncDiagnosticsPhase progress.progressPhase}
+    {renderReferenceSyncDiagnosticsPage progress.progressCompletedPayItemsPage}
+|]
+
+renderReferenceSyncDiagnosticsPhase :: Maybe Text -> Html
+renderReferenceSyncDiagnosticsPhase Nothing = mempty
+renderReferenceSyncDiagnosticsPhase (Just phase) = [hsx|<div class="small app-muted">{xeroReferenceSyncPhaseText phase}</div>|]
+
+renderReferenceSyncDiagnosticsPage :: Maybe Int -> Html
+renderReferenceSyncDiagnosticsPage Nothing = mempty
+renderReferenceSyncDiagnosticsPage (Just page) = [hsx|<div class="small app-muted">Completed PayItems page {page}</div>|]
+
+renderReferenceSyncDiagnosticsError :: Maybe Text -> Html
+renderReferenceSyncDiagnosticsError Nothing = mempty
+renderReferenceSyncDiagnosticsError (Just message) = [hsx|<div class="small text-danger">{message}</div>|]
+
+referenceSyncDiagnosticsActivityText :: XeroReferenceSyncActivity -> Text
+referenceSyncDiagnosticsActivityText = \case
+    XeroReferenceSyncIdle -> "Idle"
+    XeroReferenceSyncQueued -> "Queued"
+    XeroReferenceSyncRunning -> "Running"
+    XeroReferenceSyncRetryWaiting retryAt -> "Retry scheduled for " <> tshow retryAt
+    XeroReferenceSyncFailed _ -> "Stopped"
 
 renderXeroReferenceSyncForm :: Bool -> Html
 renderXeroReferenceSyncForm actionsAllowed =

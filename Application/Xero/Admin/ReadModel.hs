@@ -22,6 +22,10 @@ import Application.Helper.XeroAdminTypes
 import Application.Helper.XeroPayItems
 import Application.Helper.XeroTimesheetReadiness
 import Application.VenueTime.Model (timesheetEntryWorkedOn)
+import Application.Xero.ReferenceDemand (fetchXeroPayrollEligibleApprovedStaffIds)
+import Application.Xero.ReferenceTrust (XeroMissingReferenceDemand (NoMissingPayrollReferenceDemand))
+import Application.Xero.ReferenceTrust.ReadModel (XeroReferenceTrustState (..),
+                                                  fetchXeroReferenceTrustState)
 import Control.Monad (guard)
 import qualified Data.Aeson as Aeson
 import qualified Data.Aeson.Types as AesonTypes
@@ -178,7 +182,10 @@ fetchCurrentVenueXeroStaffMappingRows maybeConnection =
     case maybeConnection of
         Nothing -> pure []
         Just connection -> do
-            staffMembers <- fetchLinkedActiveVenueStaff currentVenueId
+            payrollEligibleStaffIds <- fetchXeroPayrollEligibleApprovedStaffIds connection
+            staffMembers <-
+                fetchLinkedActiveVenueStaff currentVenueId
+                    |> fmap (filter (\staff -> unpackId staff.id `elem` payrollEligibleStaffIds))
             mappings <-
                 query @XeroStaffMapping
                     |> filterWhere (#venueId, unpackId currentVenueId)
@@ -222,6 +229,19 @@ fetchCurrentVenueXeroAdminSectionData ::
     IO XeroAdminSectionData
 fetchCurrentVenueXeroAdminSectionData xeroConnectionActionsAllowed = do
     xeroConnection <- profileActionSpan "admin.xero.fragment.load_connection" fetchCurrentVenueXeroConnection
+    let xeroReferenceRefreshAllowed = currentUserIsSuperAdmin
+    xeroReferenceSyncDiagnostics <-
+        if not xeroReferenceRefreshAllowed
+            then pure Nothing
+            else forM xeroConnection \connection -> do
+                now <- getCurrentTime
+                trustState <- fetchXeroReferenceTrustState now connection NoMissingPayrollReferenceDemand
+                pure XeroReferenceSyncDiagnostics
+                    { referenceSyncLastSucceededAt = connection.lastSyncAt
+                    , referenceSyncActivity = trustState.syncActivity
+                    , referenceSyncProgress = trustState.syncProgress
+                    , referenceSyncSanitizedError = trustState.syncSanitizedError
+                    }
     pure XeroAdminSectionData { .. }
 
 fetchCurrentVenueXeroTimesheetPeriodOptions ::

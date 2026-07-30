@@ -4,6 +4,7 @@ module Web.View.Admin.Xero.TimesheetPreparation
     ( renderXeroTimesheetPreparationDialog
     , renderXeroTimesheetPreparationErrorDialog
     , renderXeroTimesheetPreparationLoadingDialog
+    , renderXeroTimesheetPreparationReferenceSyncWaitingDialog
     , renderXeroTimesheetPreparationStaffMappingsFragment
     , renderXeroTimesheetPreparationSubmittingDialog
     ) where
@@ -18,6 +19,7 @@ import Application.Helper.FrontendContract.AppShell (ApplyXeroTimesheetPreparati
                                                      SelectXeroTimesheetPreparationPeriodOverlay,
                                                      SubmitXeroTimesheetPreparationOverlay)
 import Application.Helper.FrontendContract.AppShell.Runtime (AppShellActionRoute (..),
+                                                             AppShellFieldValue (..),
                                                              appShellActionByMarker,
                                                              renderAppShellActionForm)
 import Application.Helper.FrontendContract.IR (AppShellActionIR)
@@ -29,11 +31,16 @@ import Application.Helper.FrontendContract.Surface.Values
 import Application.Helper.View.Overlay
 import Application.Helper.XeroAdminTypes
 import Application.Xero.Admin.ReadModel (xeroEmployeeAvailableForStaff)
+import Application.Xero.ReferenceTrust (XeroMissingReferenceDemand (..),
+                                        XeroReferenceSyncProgressFacts (..))
+import Application.Xero.ReferenceTrust.Presentation
+import Application.Xero.ReferenceTrust.ReadModel (XeroReferenceTrustState (..))
 import Control.Monad (guard)
 import Data.Scientific (FPFormat (Fixed), Scientific, formatScientific,
                         scientific)
 import qualified Data.Text as Text
 import Data.Time.Calendar (Day, diffDays)
+import Data.Time.Format (defaultTimeLocale, formatTime)
 import Web.View.Prelude
 
 xeroPreparationAppShellActionRoute :: Text -> AppShellActionRoute
@@ -87,9 +94,53 @@ renderXeroTimesheetPreparationLoadingDialog =
             <div>
                 <div class="fw-semibold">Prepare Xero draft timesheets</div>
             </div>
-            {renderXeroPreparationOverlayForm (appShellActionByMarker @RunXeroTimesheetPreparationOverlay) (pathTo RunXeroTimesheetPreparationAction) [] mempty}
+            {renderXeroPreparationReferenceWaitForm Nothing Nothing}
         </div>
     |]
+
+renderXeroTimesheetPreparationReferenceSyncWaitingDialog :: UTCTime -> UTCTime -> XeroMissingReferenceDemand -> XeroReferenceTrustState -> Html
+renderXeroTimesheetPreparationReferenceSyncWaitingDialog now waitStartedAt missingReferenceDemand trustState =
+    renderDialogOverlayBodyOnly "Prepare Xero draft timesheets" "" [hsx|
+        <div class="d-flex align-items-start gap-3" data-xero-reference-sync-waiting="true">
+            <div id="xero-timesheet-preparation-modal-loading-indicator" class="spinner-border text-primary mt-1" role="status" aria-hidden="true"></div>
+            <div class="d-flex flex-column gap-1">
+                <div class="fw-semibold">Refreshing Xero reference data</div>
+                <div>{xeroReferenceSyncActivityText trustState.syncActivity}</div>
+                {renderPreparationReferenceSyncPhase trustState.syncProgress.progressPhase}
+                {renderPreparationCompletedPayItemsPage trustState.syncProgress.progressCompletedPayItemsPage}
+                {renderPreparationReferenceWaitNotice now waitStartedAt}
+            </div>
+            {renderXeroPreparationReferenceWaitForm (Just waitStartedAt) (Just missingReferenceDemand)}
+        </div>
+    |]
+
+renderXeroPreparationReferenceWaitForm :: Maybe UTCTime -> Maybe XeroMissingReferenceDemand -> Html
+renderXeroPreparationReferenceWaitForm maybeWaitStartedAt maybeMissingReferenceDemand =
+    renderAppShellActionForm
+        (appShellActionByMarker @RunXeroTimesheetPreparationOverlay)
+        (xeroPreparationAppShellActionRoute (pathTo RunXeroTimesheetPreparationAction))
+            { appShellActionRouteFields =
+                maybe [] (\waitStartedAt -> [AppShellFieldValue ("referenceWaitStartedAt", cs (formatTime defaultTimeLocale "%Y-%m-%dT%H:%M:%SZ" waitStartedAt))]) maybeWaitStartedAt
+                    <> [AppShellFieldValue ("referenceDemand", maybe "detect" referenceDemandFieldValue maybeMissingReferenceDemand)]
+            }
+        mempty
+
+referenceDemandFieldValue :: XeroMissingReferenceDemand -> Text
+referenceDemandFieldValue MissingPayrollEligibleStaffReference = "missing_payroll_staff"
+referenceDemandFieldValue _ = "snapshot"
+
+renderPreparationReferenceSyncPhase :: Maybe Text -> Html
+renderPreparationReferenceSyncPhase Nothing = mempty
+renderPreparationReferenceSyncPhase (Just phase) = [hsx|<div class="small app-muted">{xeroReferenceSyncPhaseText phase}</div>|]
+
+renderPreparationCompletedPayItemsPage :: Maybe Int -> Html
+renderPreparationCompletedPayItemsPage Nothing = mempty
+renderPreparationCompletedPayItemsPage (Just page) = [hsx|<div class="small app-muted">Completed page {page}</div>|]
+
+renderPreparationReferenceWaitNotice :: UTCTime -> UTCTime -> Html
+renderPreparationReferenceWaitNotice now waitStartedAt
+    | xeroReferenceWaitIsLongRunning now waitStartedAt = [hsx|<div class="small app-muted"><strong>Taking longer than usual.</strong> The refresh continues in the background and this dialog will keep checking for trusted data.</div>|]
+    | otherwise = [hsx|<div class="small app-muted">This dialog will continue automatically when trusted reference data is ready.</div>|]
 
 renderXeroTimesheetPreparationStaffStep :: XeroTimesheetPreparationView -> Html
 renderXeroTimesheetPreparationStaffStep view =

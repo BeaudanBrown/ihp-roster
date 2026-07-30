@@ -1250,6 +1250,7 @@ CREATE TABLE xero_staff_mappings (
     xero_employee_email TEXT,
     mapping_status TEXT DEFAULT 'not_applicable' NOT NULL,
     last_verified_at TIMESTAMP WITH TIME ZONE,
+    reference_refreshed_at TIMESTAMP WITH TIME ZONE,
     created_by_user_id UUID,
     updated_by_user_id UUID,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
