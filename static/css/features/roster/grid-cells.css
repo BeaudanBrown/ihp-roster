@@ -10,6 +10,16 @@
     padding: 0 !important;
 }
 
+.roster-grid .slot-shift-type-cell .roster-shift-type-label {
+    display: block;
+    width: 100%;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+
 .roster-grid-day-section {
     display: grid;
     grid-auto-rows: var(--roster-grid-row-height);

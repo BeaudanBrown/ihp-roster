@@ -23,7 +23,8 @@ import Application.Helper.FrontendContract.AppShell.Runtime (AppShellActionRoute
                                                              applyAppShellActionAttrs)
 import qualified Application.Helper.FrontendContract.Surface.Interaction as SurfaceInteraction
 import qualified Application.Helper.FrontendContract.Surface.LinkedHighlight as SurfaceLinkedHighlight
-import Application.Helper.FrontendContract.Surface.Roster.ImageExport (rosterImageExportCellAttrs)
+import Application.Helper.FrontendContract.Surface.Roster.ImageExport (rosterImageExportCellAttrs,
+                                                                       rosterImageExportEllipsizedCellAttrs)
 import Application.Helper.Profiling (profileRenderCounter)
 import Application.Helper.ShiftTypeColours (shiftTypeColourPaletteKeys)
 import Application.Helper.TimeRules (rosterOperationalFinalSelectableTimeText,
@@ -67,11 +68,12 @@ data ExistingSlotDisplay = ExistingSlotDisplay
     }
 
 data ReadOnlyExistingSlotCell = ReadOnlyExistingSlotCell
-    { readOnlyCellClasses       :: Text
-    , readOnlyCellColourKey     :: Text
-    , readOnlyCellContent       :: Html
-    , readOnlyCellConflictAttrs :: Maybe Text
-    , readOnlyCellExportText    :: Text
+    { readOnlyCellClasses           :: Text
+    , readOnlyCellColourKey         :: Text
+    , readOnlyCellContent           :: Html
+    , readOnlyCellConflictAttrs     :: Maybe Text
+    , readOnlyCellExportText        :: Text
+    , readOnlyCellExportEndEllipsis :: Bool
     }
 renderBlockCells :: (?context :: ControllerContext) => Bool -> RosterAssignmentFilters -> [Staff] -> [ShiftType] -> Bool -> Bool -> RosterDay -> Int -> [RosterSlot] -> RosterRenderIndexes -> (Int, RosterWeekSlotDefinition) -> Html
 renderBlockCells isEditable assignmentFilters staffMembers shiftTypes endTimesEnabled publishAttempted rosterDay rowIndex _rowSlots renderIndexes (blockIndex, slotName) =
@@ -174,15 +176,21 @@ renderEditableShiftUnitCell cell =
     renderExistingSlotCell Nothing ("roster-shift-unit-cell " <> cell.readOnlyCellClasses) cell
 
 renderExistingSlotCell :: Maybe Text -> Text -> ReadOnlyExistingSlotCell -> Html
-renderExistingSlotCell maybeRole cellClasses ReadOnlyExistingSlotCell { readOnlyCellColourKey, readOnlyCellContent, readOnlyCellConflictAttrs, readOnlyCellExportText } = [hsx|
+renderExistingSlotCell maybeRole cellClasses ReadOnlyExistingSlotCell { readOnlyCellColourKey, readOnlyCellContent, readOnlyCellConflictAttrs, readOnlyCellExportText, readOnlyCellExportEndEllipsis } = [hsx|
     <div role={maybeRole}
          class={cellClasses}
          title={readOnlyCellConflictAttrs}
          data-roster-shift-colour={readOnlyCellColourKey}
-         {...rosterImageExportCellAttrs readOnlyCellExportText}>
+         {...exportCellAttrs}>
         {readOnlyCellContent}
     </div>
 |]
+  where
+    exportCellAttrs =
+        if readOnlyCellExportEndEllipsis
+            then rosterImageExportEllipsizedCellAttrs readOnlyCellExportText
+            else rosterImageExportCellAttrs readOnlyCellExportText
+
 renderReadOnlyExistingSlotBlockCells :: (?context :: ControllerContext) => [ShiftType] -> Bool -> Bool -> RosterRenderIndexes -> Int -> RosterSlot -> Html
 renderReadOnlyExistingSlotBlockCells shiftTypes endTimesEnabled publishAttempted renderIndexes blockIndex slot =
     let display = buildExistingSlotDisplay shiftTypes publishAttempted renderIndexes slot
@@ -260,6 +268,7 @@ readOnlyTimeCell cellClasses colourKey label = ReadOnlyExistingSlotCell
     , readOnlyCellContent = renderReadOnlyCell label
     , readOnlyCellConflictAttrs = Nothing
     , readOnlyCellExportText = label
+    , readOnlyCellExportEndEllipsis = False
     }
 
 readOnlyStaffCell :: ExistingSlotDisplay -> ReadOnlyExistingSlotCell
@@ -269,15 +278,17 @@ readOnlyStaffCell display = ReadOnlyExistingSlotCell
     , readOnlyCellContent = renderReadOnlyStaffCell display.displayStaffLabel display.displayPrimaryConflict
     , readOnlyCellConflictAttrs = Just (renderConflictMessage display.displayPrimaryConflict)
     , readOnlyCellExportText = display.displayStaffLabel
+    , readOnlyCellExportEndEllipsis = False
     }
 
 readOnlyShiftTypeCell :: ExistingSlotDisplay -> ReadOnlyExistingSlotCell
 readOnlyShiftTypeCell display = ReadOnlyExistingSlotCell
     { readOnlyCellClasses = classes [("slot-shift-type-cell roster-block-end", True), ("is-shift-type-empty", not display.displayHasShiftType), ("is-shift-type-required", display.displayMissingShiftType)]
     , readOnlyCellColourKey = display.displayShiftTypeColourKey
-    , readOnlyCellContent = renderReadOnlyCell display.displayShiftTypeLabel
-    , readOnlyCellConflictAttrs = Nothing
+    , readOnlyCellContent = renderRosterShiftTypeLabel display.displayShiftTypeLabel
+    , readOnlyCellConflictAttrs = Just display.displayShiftTypeLabel
     , readOnlyCellExportText = display.displayShiftTypeLabel
+    , readOnlyCellExportEndEllipsis = True
     }
 
 renderReadOnlyExistingSlotCell :: ReadOnlyExistingSlotCell -> Html
@@ -514,9 +525,12 @@ renderReadOnlyDayColumnShiftTypeBadge :: Maybe UUID -> Maybe ShiftType -> Bool -
 renderReadOnlyDayColumnShiftTypeBadge staffId selectedShiftType isPublishRequired = [hsx|
     <div class={classes [("app-dense-static slot-cell-static roster-shift-type-badge roster-shift-type-badge-readonly", True), ("is-empty", isNothing selectedShiftType), ("is-required", isPublishRequired), ("is-publish-required", isPublishRequired)]}
          data-roster-shift-colour={shiftTypeBadgeColourKey selectedShiftType}>
-        <span class="roster-shift-type-badge-label">{shiftTypeBadgeLabel staffId selectedShiftType}</span>
+        <span class="roster-shift-type-badge-label" title={fullLabel}>{fullLabel}</span>
     </div>
 |]
+
+  where
+    fullLabel = shiftTypeBadgeLabel staffId selectedShiftType
 
 renderReadOnlyStaffCell :: Text -> Maybe RosterConflict -> Html
 renderReadOnlyStaffCell currentStaffLabel currentPrimaryConflict =
@@ -534,6 +548,13 @@ rosterShiftGroupKey (ExistingRosterSlotTarget rosterSlotId) =
     "existing:" <> tshow rosterSlotId
 rosterShiftGroupKey (NewRosterSlotTarget rosterDayId rosterWeekSlotDefinitionId rowIndex) =
     "new:" <> tshow rosterDayId <> ":" <> tshow rosterWeekSlotDefinitionId <> ":" <> tshow rowIndex
+
+renderRosterShiftTypeLabel :: Text -> Html
+renderRosterShiftTypeLabel value = [hsx|
+    <div class={classes [("app-dense-static slot-cell-static", True), ("app-muted", Text.null value)]}>
+        <span class="roster-shift-type-label" title={value}>{if Text.null value then " " else value}</span>
+    </div>
+|]
 
 renderReadOnlyCell :: Text -> Html
 renderReadOnlyCell value = [hsx|

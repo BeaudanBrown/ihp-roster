@@ -138,7 +138,7 @@ tests = describe "Frontend contract generator foundation" do
             , "export function isRosterImageExportFormatState(value: unknown): value is RosterImageExportFormatState"
             , "export type RosterImageExportConfig = { imageExportFilename: string"
             , "export function parseRosterImageExportConfig(value: unknown): RosterImageExportConfig"
-            , "export type RosterImageExportCell = { imageExportText: string };"
+            , "export type RosterImageExportCell = { imageExportText: string; imageExportEndEllipsis: boolean };"
             , "export function parseRosterImageExportCell(value: unknown): RosterImageExportCell"
             ]
             (\expected -> frontendContractsTypeScript `shouldSatisfy` Text.isInfixOf expected)

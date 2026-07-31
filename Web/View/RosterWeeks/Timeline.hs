@@ -191,7 +191,7 @@ renderTimelineShift timelineWindow editable staffById shiftTypeById TimelineShif
                          tabindex={if editable then ("0" :: Text) else ""}>
                     <div class="roster-day-timeline-shift-time">{timelineShiftTimeLabel timelineShiftSlot}</div>
                     <div class="roster-day-timeline-shift-staff">{staffLabel}</div>
-                    <div class="roster-day-timeline-shift-role">{shiftTypeLabel}</div>
+                    <div class="roster-day-timeline-shift-role" title={shiftTypeLabel}>{shiftTypeLabel}</div>
                 </article>
             </div>
         |]

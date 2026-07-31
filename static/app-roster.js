@@ -25,7 +25,7 @@
     throw new Error("Invalid RosterImageExportConfig");
   }
   function isRosterImageExportCell(value) {
-    return isRecord(value) && hasExactKeys(value, ["imageExportText"], ["imageExportText"]) && typeof value["imageExportText"] === "string";
+    return isRecord(value) && hasExactKeys(value, ["imageExportText", "imageExportEndEllipsis"], ["imageExportText", "imageExportEndEllipsis"]) && typeof value["imageExportText"] === "string" && typeof value["imageExportEndEllipsis"] === "boolean";
   }
   function parseRosterImageExportCell(value) {
     if (isRosterImageExportCell(value)) return value;
@@ -713,6 +713,24 @@
   }
 
   // frontend/ts/roster/image-export.ts
+  function fitRosterExportText(value, maximumWidth, endEllipsis, measure) {
+    if (!endEllipsis || measure(value) <= maximumWidth) return value;
+    const ellipsis = "\u2026";
+    if (measure(ellipsis) > maximumWidth) return "";
+    const characters = Array.from(value);
+    let lowerBound = 0;
+    let upperBound = characters.length;
+    while (lowerBound < upperBound) {
+      const candidateLength = Math.ceil((lowerBound + upperBound) / 2);
+      const candidate = `${characters.slice(0, candidateLength).join("")}${ellipsis}`;
+      if (measure(candidate) <= maximumWidth) {
+        lowerBound = candidateLength;
+      } else {
+        upperBound = candidateLength - 1;
+      }
+    }
+    return `${characters.slice(0, lowerBound).join("")}${ellipsis}`;
+  }
   var triggerSelector = `[${rosterImageExportTriggerDomAttr}]`;
   var projectionSelector = `[${rosterImageExportProjectionDomAttr}]`;
   var rowSelector = `[${rosterImageExportRowDomAttr}]`;
@@ -833,6 +851,9 @@
     return normalizedValue === "transparent" || normalizedValue === "rgba(0, 0, 0, 0)";
   }
   function buildCellTextSvg(cell, x, y, width, height) {
+    const rawCellConfig = cell.getAttribute(rosterImageExportCellDomAttr);
+    if (rawCellConfig === null) throw new Error(`Missing ${rosterImageExportCellDomAttr}`);
+    const cellConfig = parseRosterImageExportCellConfiguration(rawCellConfig);
     const lines = (cell.textContent || "").split("\n").map((line) => line.trim()).filter(Boolean);
     if (lines.length === 0) return "";
     const computedStyle = window.getComputedStyle(cell);
@@ -844,6 +865,18 @@
     const lineHeight = Math.max(fontSize * 1.15, 12);
     const blockHeight = lineHeight * lines.length;
     const startY = y + (height - blockHeight) / 2 + lineHeight * 0.78;
+    const measurementCanvas = document.createElement("canvas");
+    const measurementContext = measurementCanvas.getContext("2d");
+    if (measurementContext === null) return "";
+    measurementContext.font = `${fontWeight} ${fontSize}px ${computedStyle.fontFamily || "sans-serif"}`;
+    const measure = (value) => measurementContext.measureText(value).width;
+    const availableTextWidth = Math.max(0, width - 16);
+    const fittedLines = lines.map((line) => fitRosterExportText(
+      line,
+      availableTextWidth,
+      cellConfig.imageExportEndEllipsis,
+      measure
+    ));
     let textAnchor = "middle";
     let textX = x + width / 2;
     if (textAlign === "left" || textAlign === "start") {
@@ -853,7 +886,7 @@
       textAnchor = "end";
       textX = x + width - 8;
     }
-    const tspans = lines.map((line, index) => `<tspan x="${textX}" y="${startY + index * lineHeight}">${escapeXml(line)}</tspan>`).join("");
+    const tspans = fittedLines.map((line, index) => `<tspan x="${textX}" y="${startY + index * lineHeight}">${escapeXml(line)}</tspan>`).join("");
     return `<text font-family="${fontFamily}" font-size="${fontSize}" font-weight="${fontWeight}" fill="${escapeXml(textColor)}" text-anchor="${textAnchor}">${tspans}</text>`;
   }
   function buildProjectionSvgMarkup(surface, projection) {

@@ -9,6 +9,7 @@ module Application.Helper.FrontendContract.Surface.Roster.ImageExport
     , rosterImageExportProjectionAttrs
     , rosterImageExportRowAttrs
     , rosterImageExportCellAttrs
+    , rosterImageExportEllipsizedCellAttrs
     , rosterJpgImageExportTriggerAttrs
     ) where
 
@@ -71,12 +72,19 @@ rosterImageExportRowAttrs =
     roleAttrs (surfaceBrowserRoleValue @Roster.RosterSurface @Roster.ImageExportRowRole)
 
 rosterImageExportCellAttrs :: Text -> [(Text, Text)]
-rosterImageExportCellAttrs exportText =
+rosterImageExportCellAttrs = rosterImageExportCellAttrsWithPolicy False
+
+rosterImageExportEllipsizedCellAttrs :: Text -> [(Text, Text)]
+rosterImageExportEllipsizedCellAttrs = rosterImageExportCellAttrsWithPolicy True
+
+rosterImageExportCellAttrsWithPolicy :: Bool -> Text -> [(Text, Text)]
+rosterImageExportCellAttrsWithPolicy endEllipsis exportText =
     surfaceBrowserDtoRoleAttrs
         @Roster.RosterSurface
         @Roster.ImageExportCellRole
         @Roster.RosterImageExportCell
         ( surfaceField @Roster.ImageExportText exportText
+            &: surfaceField @Roster.ImageExportEndEllipsis endEllipsis
             &: noSurfaceFields
         )
 

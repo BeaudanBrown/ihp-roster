@@ -99,6 +99,7 @@ module Application.Helper.FrontendContract.Surface.Roster
     , ImageExportCanvasFailureMessage
     , ImageExportEncodingFailureMessage
     , ImageExportText
+    , ImageExportEndEllipsis
     , WeekOverviewPanelRole
     , WeekOverviewDayRole
     , WeekOverviewTodayRole
@@ -278,6 +279,7 @@ data ImageExportRenderFailureMessage
 data ImageExportCanvasFailureMessage
 data ImageExportEncodingFailureMessage
 data ImageExportText
+data ImageExportEndEllipsis
 
 data WeekOverviewPanelRole
 data WeekOverviewDayRole
@@ -660,7 +662,9 @@ type RosterImageExportBrowserBundle =
          , Field ImageExportEncodingFailureMessage 'WireText
          ]
      , BrowserInboundDto RosterImageExportCell
-        '[ Field ImageExportText 'WireText ]
+        '[ Field ImageExportText 'WireText
+         , Field ImageExportEndEllipsis 'WireBool
+         ]
      ]
 
 type RosterWeekOverviewBrowserBundle =

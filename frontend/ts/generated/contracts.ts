@@ -996,9 +996,9 @@ export function parseRosterImageExportConfig(value: unknown): RosterImageExportC
     throw new Error("Invalid RosterImageExportConfig");
 }
 
-export type RosterImageExportCell = { imageExportText: string };
+export type RosterImageExportCell = { imageExportText: string; imageExportEndEllipsis: boolean };
 export function isRosterImageExportCell(value: unknown): value is RosterImageExportCell {
-    return isRecord(value) && hasExactKeys(value, ["imageExportText"], ["imageExportText"]) && (typeof value["imageExportText"] === "string");
+    return isRecord(value) && hasExactKeys(value, ["imageExportText", "imageExportEndEllipsis"], ["imageExportText", "imageExportEndEllipsis"]) && (typeof value["imageExportText"] === "string") && (typeof value["imageExportEndEllipsis"] === "boolean");
 }
 
 export function parseRosterImageExportCell(value: unknown): RosterImageExportCell {

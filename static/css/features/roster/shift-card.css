@@ -150,9 +150,8 @@ article.roster-shift-card:not(.roster-shift-card-create) {
 }
 
 .roster-shift-type-badge-label {
-    display: flex;
-    align-items: center;
-    justify-content: center;
+    display: block;
+    width: 100%;
     min-width: 0;
     height: 100%;
     min-height: inherit;
@@ -161,6 +160,11 @@ article.roster-shift-card:not(.roster-shift-card-create) {
     white-space: nowrap;
     font-weight: 800;
     line-height: 1.1;
+}
+
+.roster-shift-card .roster-shift-type-badge-label {
+    height: auto;
+    min-height: 0;
 }
 
 .roster-shift-type-badge.is-empty {

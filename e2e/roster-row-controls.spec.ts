@@ -1,4 +1,4 @@
-import { test, expect, type Page } from '@playwright/test';
+import { test, expect, type Locator, type Page } from '@playwright/test';
 import { rosterStaffPanelTabDomAttr } from '../frontend/ts/generated/contracts';
 import { E2E_TIMEOUT } from './timeouts';
 import {
@@ -7,6 +7,8 @@ import {
     assignRosterShiftStaff,
     existingRosterShiftLaunchers,
     firstEditableRosterDaySection,
+    gotoWhenReady,
+    openAdminWithSeededPasskeySession,
     openRoster,
     openRosterSettings,
     removeRowFromRosterDay,
@@ -19,7 +21,81 @@ async function loginAndOpenRoster(page: Page) {
     await openRoster(page);
 }
 
+async function expectReliableEndEllipsis(label: Locator, fullLabel: string) {
+    const metrics = await label.evaluate((element) => {
+        if (!(element instanceof HTMLElement)) throw new Error('Expected an HTML shift-type label');
+        const style = getComputedStyle(element);
+        return {
+            display: style.display,
+            overflow: style.overflow,
+            textOverflow: style.textOverflow,
+            whiteSpace: style.whiteSpace,
+            title: element.title,
+            text: element.textContent,
+            clientWidth: element.clientWidth,
+            scrollWidth: element.scrollWidth,
+        };
+    });
+
+    expect(metrics.display).toBe('block');
+    expect(metrics.overflow).toBe('hidden');
+    expect(metrics.textOverflow).toBe('ellipsis');
+    expect(metrics.whiteSpace).toBe('nowrap');
+    expect(metrics.title).toBe(fullLabel);
+    expect(metrics.text).toBe(fullLabel);
+    expect(metrics.clientWidth).toBeGreaterThan(20);
+    expect(metrics.scrollWidth).toBeGreaterThan(metrics.clientWidth);
+}
+
 test.describe('Roster row controls', () => {
+    test('applies scoped reliable end ellipsis to long row-grid and day-column shift labels', async ({ browser, page }) => {
+        const fullLabel = 'Front of House Supervisor and Closing Coordinator for Private Functions and Special Events';
+        await loginAndOpenRoster(page);
+
+        const rowLabel = page.locator('.roster-grid .slot-shift-type-cell .roster-shift-type-label').first();
+        await expect(rowLabel).toBeVisible();
+        for (const width of [1280, 390]) {
+            await page.setViewportSize({ width, height: 900 });
+            await expectReliableEndEllipsis(rowLabel, fullLabel);
+        }
+
+        await page.setViewportSize({ width: 1280, height: 900 });
+        await openRosterSettings(page);
+        await page.locator('label[for="roster-layout-mode-day_columns"]').click();
+        const dayColumnLabel = page.locator('.roster-day-columns .roster-shift-type-badge-label').filter({ hasText: fullLabel }).first();
+        for (const width of [1280, 390]) {
+            await page.setViewportSize({ width, height: 900 });
+            await expect(dayColumnLabel).toBeVisible();
+            await expectReliableEndEllipsis(dayColumnLabel, fullLabel);
+        }
+
+        const rosterUrl = new URL(page.url());
+        await gotoWhenReady(
+            page,
+            `/ShowRosterWeek?${new URLSearchParams({
+                weekOffset: rosterUrl.searchParams.get('weekOffset') ?? '0',
+                rosterGroupId: rosterUrl.searchParams.get('rosterGroupId') ?? '',
+                rosterView: 'timeline',
+                dayOffset: '0',
+            }).toString()}`,
+            '.roster-day-timeline',
+        );
+        await page.setViewportSize({ width: 390, height: 900 });
+        const timelineLabel = page.locator('.roster-day-timeline-shift-role').filter({ hasText: fullLabel }).first();
+        await expect(timelineLabel).toBeVisible();
+        await expectReliableEndEllipsis(timelineLabel, fullLabel);
+
+        const adminContext = await browser.newContext();
+        const adminPage = await adminContext.newPage();
+        try {
+            await openAdminWithSeededPasskeySession(adminPage);
+            const nonRosterInput = adminPage.locator('input[value="Front of House Supervisor and Closing Coordinator for Private Functions and Special Events"]');
+            await expect(nonRosterInput).toHaveCount(1);
+            await expect(nonRosterInput).toHaveValue(fullLabel);
+        } finally {
+            await adminContext.close();
+        }
+    });
     test('hosts typed roster settings in the staff panel second tab', async ({ page }) => {
         const tabSetBoundaryErrors: string[] = [];
         page.on('console', (message) => {

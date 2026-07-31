@@ -21,6 +21,35 @@ type RosterExportRenderSpec = {
     svgMarkup: string;
 };
 
+type MeasureRosterExportText = (value: string) => number;
+
+export function fitRosterExportText(
+    value: string,
+    maximumWidth: number,
+    endEllipsis: boolean,
+    measure: MeasureRosterExportText,
+): string {
+    if (!endEllipsis || measure(value) <= maximumWidth) return value;
+
+    const ellipsis = "…";
+    if (measure(ellipsis) > maximumWidth) return "";
+
+    const characters = Array.from(value);
+    let lowerBound = 0;
+    let upperBound = characters.length;
+    while (lowerBound < upperBound) {
+        const candidateLength = Math.ceil((lowerBound + upperBound) / 2);
+        const candidate = `${characters.slice(0, candidateLength).join("")}${ellipsis}`;
+        if (measure(candidate) <= maximumWidth) {
+            lowerBound = candidateLength;
+        } else {
+            upperBound = candidateLength - 1;
+        }
+    }
+
+    return `${characters.slice(0, lowerBound).join("")}${ellipsis}`;
+}
+
 export type RosterImageExportDiagnosticCode =
     | "invalid-trigger-role"
     | "invalid-format"
@@ -204,6 +233,9 @@ function isTransparentColor(colorValue: string | null | undefined): boolean {
 }
 
 function buildCellTextSvg(cell: HTMLElement, x: number, y: number, width: number, height: number): string {
+    const rawCellConfig = cell.getAttribute(rosterImageExportCellDomAttr);
+    if (rawCellConfig === null) throw new Error(`Missing ${rosterImageExportCellDomAttr}`);
+    const cellConfig = parseRosterImageExportCellConfiguration(rawCellConfig);
     const lines = (cell.textContent || "")
         .split("\n")
         .map((line) => line.trim())
@@ -220,6 +252,18 @@ function buildCellTextSvg(cell: HTMLElement, x: number, y: number, width: number
     const lineHeight = Math.max(fontSize * 1.15, 12);
     const blockHeight = lineHeight * lines.length;
     const startY = y + ((height - blockHeight) / 2) + (lineHeight * 0.78);
+    const measurementCanvas = document.createElement("canvas");
+    const measurementContext = measurementCanvas.getContext("2d");
+    if (measurementContext === null) return "";
+    measurementContext.font = `${fontWeight} ${fontSize}px ${computedStyle.fontFamily || "sans-serif"}`;
+    const measure = (value: string) => measurementContext.measureText(value).width;
+    const availableTextWidth = Math.max(0, width - 16);
+    const fittedLines = lines.map((line) => fitRosterExportText(
+        line,
+        availableTextWidth,
+        cellConfig.imageExportEndEllipsis,
+        measure,
+    ));
 
     let textAnchor = "middle";
     let textX = x + (width / 2);
@@ -231,7 +275,7 @@ function buildCellTextSvg(cell: HTMLElement, x: number, y: number, width: number
         textX = x + width - 8;
     }
 
-    const tspans = lines.map((line, index) => (
+    const tspans = fittedLines.map((line, index) => (
         `<tspan x="${textX}" y="${startY + (index * lineHeight)}">${escapeXml(line)}</tspan>`
     )).join("");
 

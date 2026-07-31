@@ -6,6 +6,7 @@ import {
     parseRosterImageExportCellConfiguration,
     parseRosterImageExportConfiguration,
 } from "../roster/image-export-configuration";
+import { fitRosterExportText } from "../roster/image-export";
 import { assertDeepEqual, assertEqual, assertThrows, test } from "./harness";
 
 const validConfig = {
@@ -47,11 +48,20 @@ test("roster image export rejects invalid format policy and parses exact cell te
         "width range",
     );
     assertDeepEqual(
-        parseRosterImageExportCellConfiguration('{"imageExportText":"09:00"}'),
-        { imageExportText: "09:00" },
+        parseRosterImageExportCellConfiguration('{"imageExportText":"09:00","imageExportEndEllipsis":false}'),
+        { imageExportText: "09:00", imageExportEndEllipsis: false },
     );
     assertThrows(
-        () => parseRosterImageExportCellConfiguration('{"imageExportText":"09:00","kind":"time"}'),
+        () => parseRosterImageExportCellConfiguration('{"imageExportText":"09:00","imageExportEndEllipsis":false,"kind":"time"}'),
         "Invalid RosterImageExportCell",
     );
+});
+
+test("roster image export applies deterministic width-aware end ellipsis only when Haskell enables it", () => {
+    const measure = (value: string) => Array.from(value).length * 10;
+
+    assertEqual(fitRosterExportText("Front of House Supervisor", 95, true, measure), "Front of…");
+    assertEqual(fitRosterExportText("Front of House Supervisor", 95, false, measure), "Front of House Supervisor");
+    assertEqual(fitRosterExportText("Floor", 95, true, measure), "Floor");
+    assertEqual(fitRosterExportText("Floor", 5, true, measure), "");
 });

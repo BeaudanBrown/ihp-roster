@@ -70,7 +70,7 @@ test.describe('unavailability archive pagination', () => {
             { timeout: E2E_TIMEOUT.assertion },
         ).toBe('true');
         await expect(page.locator('#leave-pending-heading .accordion-button')).toHaveAttribute('aria-expanded', 'false', { timeout: E2E_TIMEOUT.assertion });
-        await expect(page.locator('#leave-archive-page-content')).toContainText('e2e-archive-pagination-11', { timeout: E2E_TIMEOUT.assertion });
+        await expect(page.locator('#leave-archive-page-content')).toContainText('e2e-archive-pagination-12', { timeout: E2E_TIMEOUT.assertion });
         await expect.poll(
             async () => page.evaluate(() => (window as Window & { __archivePagerNoReload?: boolean }).__archivePagerNoReload === true),
             { timeout: E2E_TIMEOUT.assertion },

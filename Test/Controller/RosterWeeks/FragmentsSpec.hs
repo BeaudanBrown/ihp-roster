@@ -629,6 +629,35 @@ tests = aroundAll withDatabaseTestContext do
                 bodyText `shouldContain` ("data-bepis-dropzone-key=\"new:" <> cs (tshow rosterDay.id) <> ":" <> cs (tshow slotDefinition.id) <> ":0\"")
                 bodyText `shouldNotContain` ">Add shift</div>"
 
+        it "preserves full shift-type names for accessible roster labels while marking only row-grid export text for end ellipsis" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Venue A"
+                manager <- createUserRecord "roster-manager-long-shift-label@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue manager "manager"
+                early <- fetchSlotNameRecord venue "Early"
+                staffMember <- createStaffRecord venue Nothing "Alpha" "Crew"
+                rosterWeek <- createRosterWeekRecord venue 0 False
+                rosterDay <- createRosterDayRecord rosterWeek 0
+                shiftType <- ensureVenueDefaultShiftType venue >>= updateRecord . set #name "Front of House Supervisor and Closing Coordinator"
+                slot <- createRosterSlotRecord rosterDay early (Just staffMember) 0
+                _ <- slot
+                    |> set #shiftTypeId (Just (unpackId shiftType.id))
+                    |> updateRecord
+
+                rowResponse <- withUserAndCurrentVenue manager venue.id do
+                    callAction (ShowRosterWeekRowFragmentAction 0 rosterDay.id 0)
+                rowBody <- responseBody rowResponse
+                let rowText = cs rowBody :: String
+                rowText `shouldContain` "title=\"Front of House Supervisor and Closing Coordinator\""
+                rowText `shouldContain` "&quot;imageExportEndEllipsis&quot;:true"
+
+                _ <- withUserAndCurrentVenue manager venue.id do
+                    withRequestHeaders [("HX-Request", "true")] do
+                        callActionWithParams (UpdateRosterLayoutPreferenceAction 0) [("rosterLayoutMode", "day_columns")]
+                dayColumnResponse <- withUserAndCurrentVenue manager venue.id do
+                    callAction (ShowRosterWeekDayColumnsFragmentAction 0)
+                dayColumnResponse `responseBodyShouldContain` "title=\"Front of House Supervisor and Closing Coordinator\""
+
         it "renders editable day-column shifts as typed drag sources and create cards as drop targets" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Venue A"

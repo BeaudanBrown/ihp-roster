@@ -95,7 +95,11 @@ lands.
   the trigger because they have no row-grid projection. Haskell resolves the
   filename, dimensions, quality, copy, errors, and rendered values; TypeScript
   retains measurement, computed styles, SVG/Canvas encoding, and download
-  mechanics without class/cell-position or conflict inference.
+  mechanics without class/cell-position or conflict inference. Long shift-type
+  names retain their full accessible/hover label while roster row-grid,
+  day-column, and timeline presentation uses scoped end ellipsis. Generated
+  export cell payloads explicitly opt shift-type text into deterministic
+  width-aware end ellipsis; other cell policy remains unchanged.
 - The retained month overview endpoint uses generated panel/day/detail-slot
   roles, exact Haskell-built date/metric/summary/URL payloads, native
   `aria-pressed`, and generated availability/closure/calendar state. Assigned

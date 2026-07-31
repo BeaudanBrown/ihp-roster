@@ -85,7 +85,9 @@ projection. The projection, rows, and every visual cell carry generated Surface
 roles; each cell carries exact Haskell-rendered export text. The browser adapter
 may measure that projection, read computed styles, render SVG/Canvas, encode JPG,
 and download it, but it must not infer cell meaning from classes/positions or
-read conflict metadata.
+read conflict metadata. Each generated cell payload also declares whether its
+exact text receives deterministic width-aware end ellipsis; shift-type cells opt
+in while other export cells retain their existing policy.
 
 ## Dormant Week Overview Contract
 

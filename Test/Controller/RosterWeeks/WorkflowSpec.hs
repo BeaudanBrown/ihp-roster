@@ -1155,7 +1155,7 @@ tests = aroundAll withDatabaseTestContext do
                 draftManagerResponse `responseStatusShouldBe` status200
                 draftManagerResponse `responseBodyShouldNotContain` "Export JPG"
                 draftManagerResponse `responseBodyShouldContain` "roster-shift-create-grid"
-                draftManagerResponse `responseBodyShouldContain` "class=\"roster-shift-unit-cell slot-empty-cell\" data-bepis-roster-image-export-cell=\"{&quot;imageExportText&quot;:&quot;&quot;}\""
+                draftManagerResponse `responseBodyShouldContain` "class=\"roster-shift-unit-cell slot-empty-cell\" data-bepis-roster-image-export-cell=\"{&quot;imageExportEndEllipsis&quot;:false,&quot;imageExportText&quot;:&quot;&quot;}\""
 
                 _ <- updateRecord (draftWeek |> set #isLive True)
 
@@ -1169,7 +1169,7 @@ tests = aroundAll withDatabaseTestContext do
                 liveManagerResponse `responseBodyShouldContain` "&quot;imageExportFilename&quot;:&quot;roster-"
                 liveManagerResponse `responseBodyShouldContain` "data-bepis-roster-image-export-projection=\"true\""
                 liveManagerResponse `responseBodyShouldContain` "data-bepis-roster-image-export-cell="
-                liveManagerResponse `responseBodyShouldContain` "class=\"roster-subhead roster-col-time\" data-bepis-roster-image-export-cell=\"{&quot;imageExportText&quot;:&quot;Start&quot;}\">Start</div>"
+                liveManagerResponse `responseBodyShouldContain` "class=\"roster-subhead roster-col-time\" data-bepis-roster-image-export-cell=\"{&quot;imageExportEndEllipsis&quot;:false,&quot;imageExportText&quot;:&quot;Start&quot;}\">Start</div>"
 
                 _ <- withPasskeyVerifiedUserAndCurrentVenue manager venue.id do
                     withRequestHeaders [("HX-Request", "true")] do

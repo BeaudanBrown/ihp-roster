@@ -873,7 +873,11 @@ tests = describe "FrontendSurface DSL foundation" do
         rosterImageExportRowAttrs `shouldBe` [("data-bepis-roster-image-export-row", "true")]
         rosterImageExportCellAttrs "09:00"
             `shouldBe`
-                [ ("data-bepis-roster-image-export-cell", "{\"imageExportText\":\"09:00\"}")
+                [ ("data-bepis-roster-image-export-cell", "{\"imageExportEndEllipsis\":false,\"imageExportText\":\"09:00\"}")
+                ]
+        rosterImageExportEllipsizedCellAttrs "Front of House Supervisor"
+            `shouldBe`
+                [ ("data-bepis-roster-image-export-cell", "{\"imageExportEndEllipsis\":true,\"imageExportText\":\"Front of House Supervisor\"}")
                 ]
         let triggerAttrs = rosterJpgImageExportTriggerAttrs filename
         triggerAttrs `shouldContain` [("data-bepis-roster-image-export-trigger", "true")]
@@ -1110,7 +1114,7 @@ tests = describe "FrontendSurface DSL foundation" do
         frontendSurfaceContractsTypeScript `shouldContainText` "export type RosterStaffPanelSortRow = { staffRowKey: string; staffName: string; staffRole: string; assignedShifts: number; idealShifts: number };"
         frontendSurfaceContractsTypeScript `shouldContainText` "export type RosterImageExportConfig = { imageExportFilename: string; imageExportMimeType: string; imageExportQualityPercent: number; imageExportPixelRatio: number; imageExportMinimumWidth: number; imageExportMaximumWidth: number; imageExportIdleLabel: string; imageExportPreparingLabel: string;"
         frontendSurfaceContractsTypeScript `shouldContainText` "export function parseRosterImageExportConfig(value: unknown): RosterImageExportConfig"
-        frontendSurfaceContractsTypeScript `shouldContainText` "export type RosterImageExportCell = { imageExportText: string };"
+        frontendSurfaceContractsTypeScript `shouldContainText` "export type RosterImageExportCell = { imageExportText: string; imageExportEndEllipsis: boolean };"
         frontendSurfaceContractsTypeScript `shouldContainText` "export type RosterWeekOverviewPanelConfig = { weekOverviewCurrentDate: FrontendContractDay };"
         frontendSurfaceContractsTypeScript `shouldContainText` "export type RosterWeekOverviewDayConfig = { weekOverviewDate: FrontendContractDay; weekOverviewSelectedLabel: string; weekOverviewLeaveDisplay: string; weekOverviewAssignedDisplay: string; weekOverviewHoursDisplay: string; weekOverviewSummaryText: string; weekOverviewWeekLabel: string; weekOverviewNavigationUrl: string; weekOverviewAvailability: string; weekOverviewClosure: string };"
         frontendSurfaceContractsTypeScript `shouldContainText` "export function parseRosterWeekOverviewDayConfig(value: unknown): RosterWeekOverviewDayConfig"
