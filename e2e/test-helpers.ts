@@ -1005,11 +1005,46 @@ export async function readZipEntryText(download: Download, entryName: string) {
     return execFileSync('unzip', ['-p', filePath, entryName], { encoding: 'utf8' });
 }
 
-export function parseCsv(text: string) {
-    return text
-        .trim()
-        .split('\n')
-        .map((line) => line.replace(/\r$/, '').split(','));
+export function parseCsv(text: string): string[][] {
+    const rows: string[][] = [];
+    let row: string[] = [];
+    let field = '';
+    let quoted = false;
+
+    const finishField = () => {
+        row.push(field);
+        field = '';
+    };
+    const finishRow = () => {
+        finishField();
+        rows.push(row);
+        row = [];
+    };
+
+    for (let index = 0; index < text.length; index += 1) {
+        const character = text[index];
+        if (quoted) {
+            if (character === '"' && text[index + 1] === '"') {
+                field += '"';
+                index += 1;
+            } else if (character === '"') {
+                quoted = false;
+            } else {
+                field += character;
+            }
+        } else if (character === '"' && field === '') {
+            quoted = true;
+        } else if (character === ',') {
+            finishField();
+        } else if (character === '\n') {
+            finishRow();
+        } else if (character !== '\r') {
+            field += character;
+        }
+    }
+
+    if (field !== '' || row.length > 0) finishRow();
+    return rows;
 }
 
 async function persistDownload(download: Download) {
