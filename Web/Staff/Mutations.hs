@@ -12,7 +12,8 @@ module Web.Staff.Mutations
     , updateStaffMember
     ) where
 
-import Application.Helper.Audit (recordCurrentUserAuditEvent,
+import Application.Helper.Audit (AuditEventType (..), AuditSourceChannel (..),
+                                 recordCurrentUserAuditEvent,
                                  recordCurrentUserLeaveRequestEvent,
                                  updateVenueMembershipRoleWithAuditInCurrentTransaction)
 import Application.Helper.FrontendContract.Surface.Admin.Resource (adminInvitesResource)
@@ -242,7 +243,7 @@ removeStaffMember staff
                                 void $ setupToken |> set #consumedAt (Just now) |> updateRecord
                     void $
                         recordCurrentUserAuditEvent
-                            "staff_removed"
+                            StaffRemovedAudit
                             "staff"
                             (unpackId lockedStaff.id)
                             (Aeson.object
@@ -298,7 +299,7 @@ denyPendingStaffLeaveRequests staff = do
                 (Aeson.object ["reason" Aeson..= ("staff_removed" :: Text)])
         void $
             recordCurrentUserAuditEvent
-                "leave_denied"
+                LeaveDeniedAudit
                 "leave_requests"
                 (unpackId pendingRequest.id)
                 (Aeson.object
@@ -378,10 +379,11 @@ updateStaffMember originalStaff staff selectedRosterGroupIds submittedSelections
                 when (staffXeroPayItemScopeChanged originalStaff updatedStaff) do
                     today <- utctDay <$> getCurrentTime
                     void (ensureStaffPayVersionForStaff currentUser.id updatedStaff today)
+                -- This workflow is classified as web even when HTMX invokes it.
                 forM_ ((,) <$> maybeMembership <*> maybeVenueRole) \(membership, venueRole) ->
                     void $ updateVenueMembershipRoleWithAuditInCurrentTransaction
                         (unpackId currentUser.id)
-                        "web"
+                        WebAuditSource
                         membership
                         venueRole
                         (Aeson.object ["staffId" Aeson..= tshow staff.id])

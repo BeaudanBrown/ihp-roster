@@ -28,30 +28,6 @@ allPlatformRoleValues = map inputValue (allEnumValues @PlatformRoleEnum)
 allLeaveRequestStatusValues :: [Text]
 allLeaveRequestStatusValues = map inputValue (allEnumValues @LeaveRequestStatusEnum)
 
-allAuditEventTypeValues :: [Text]
-allAuditEventTypeValues =
-    [ "timesheet_approved"
-    , "timesheet_unapproved"
-    , "timesheet_approval_reset"
-    , "leave_approved"
-    , "leave_denied"
-    , "leave_deleted"
-    , "venue_role_assigned"
-    , "venue_role_changed"
-    , "venue_bootstrapped"
-    , "export_generated"
-    , "export_downloaded"
-    , "support_access_granted"
-    , "login_succeeded"
-    , "login_failed"
-    , "login_blocked"
-    , "passkey_step_up_succeeded"
-    , "passkey_step_up_failed"
-    ]
-
-allAuditSourceChannelValues :: [Text]
-allAuditSourceChannelValues = ["web", "htmx", "system"]
-
 enumFromText :: forall enum. (Enum enum, InputValue enum) => Text -> Maybe enum
 enumFromText value = find (\enumValue -> inputValue enumValue == value) (allEnumValues @enum)
 

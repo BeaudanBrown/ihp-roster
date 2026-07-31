@@ -30,6 +30,9 @@
 - `audit_events`
   - Immutable audit trail for security-sensitive and employment-record actions.
   - Includes actor, venue, event type, timestamp, target record and before/after metadata.
+  - Event names and source channels come from the closed typed vocabulary in
+    `Application.Helper.Audit.Vocabulary`; its exhaustive renderers own the exact
+    persisted and telemetry wire text.
 - `export_jobs`
   - Venue-scoped record of generated exports, scope, file metadata, requestor and lifecycle.
 - `venue_billing_customers`

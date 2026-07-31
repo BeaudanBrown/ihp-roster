@@ -36,7 +36,7 @@ persistReadyExportJob exportType rangeStart rangeEnd finalScope fileName content
             |> set #rangeEnd (Just rangeEnd)
             |> set #scope finalScope
             |> set #deliveryMethod browserDownloadMethod
-            |> set #destinationMetadata (Aeson.object ["requestedVia" Aeson..= requestAuditSourceChannel])
+            |> set #destinationMetadata (Aeson.object ["requestedVia" Aeson..= auditSourceChannelText requestAuditSourceChannel])
             |> set #expiresAt expiresAt
             |> createRecord
 
@@ -54,7 +54,7 @@ persistReadyExportJob exportType rangeStart rangeEnd finalScope fileName content
     recordExportJobEntriesForRange exportJob rangeStart rangeEnd
 
     void $ recordCurrentUserAuditEvent
-        "export_generated"
+        ExportGeneratedAudit
         "export_jobs"
         (unpackId (get #id exportJob))
         auditPayload
@@ -143,7 +143,7 @@ recordExportDownload exportJob = withTransaction do
             |> updateRecord
 
     void $ recordCurrentUserAuditEvent
-        "export_downloaded"
+        ExportDownloadedAudit
         "export_jobs"
         (unpackId (get #id exportJob))
         (Aeson.object

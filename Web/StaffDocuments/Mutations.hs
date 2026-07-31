@@ -17,7 +17,7 @@ uploadRsaDocument actorUserId staff upload = do
     staffDocument <- createRsaDocument actorUserId staff upload
     void $
         recordCurrentUserAuditEvent
-            "rsa_document_uploaded"
+            RsaDocumentUploadedAudit
             "staff_documents"
             (unpackId staffDocument.id)
             ( Aeson.object
@@ -35,7 +35,7 @@ reviewStaffDocument reviewerUserId staffDocument newStatus maybeRejectionReason 
     updatedDocument <- reviewRsaDocument reviewerUserId staffDocument newStatus maybeRejectionReason
     void $
         recordCurrentUserAuditEvent
-            "rsa_document_reviewed"
+            RsaDocumentReviewedAudit
             "staff_documents"
             (unpackId updatedDocument.id)
             ( Aeson.object

@@ -4,6 +4,7 @@ module Application.Helper.Htmx
     , requestAuditSourceChannel
     ) where
 
+import Application.Helper.Audit.Vocabulary (AuditSourceChannel (..))
 import Application.Helper.ControllerContext (withRequestContext)
 import IHP.ControllerPrelude
 
@@ -13,8 +14,8 @@ isHtmxRequest = withRequestContext (getHeader "HX-Request" == Just "true")
 setHtmxPushUrl :: (?context :: ControllerContext) => Text -> IO ()
 setHtmxPushUrl url = withRequestContext (setHeader ("HX-Push-Url", cs url))
 
-requestAuditSourceChannel :: (?context :: ControllerContext) => Text
+requestAuditSourceChannel :: (?context :: ControllerContext) => AuditSourceChannel
 requestAuditSourceChannel =
     if isHtmxRequest
-        then "htmx"
-        else "web"
+        then HtmxAuditSource
+        else WebAuditSource

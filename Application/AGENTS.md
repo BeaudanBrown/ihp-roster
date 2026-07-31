@@ -81,6 +81,10 @@ or reset changes; never discover framework or migration tables dynamically.
 - Venue-linked operational accounts should have one linked `staff` row per
   `(venue_id, user_id)` pair.
 - Payroll-adjacent records must preserve provenance.
+- Audit event names and source channels are closed application contracts owned by
+  `Application.Helper.Audit.Vocabulary`. Emitters choose typed constructors;
+  only the exhaustive renderers at the recording boundary produce persisted and
+  telemetry text. Preserve exact wire values when extending the vocabulary.
 - Pay/config reproducibility is moving to append-only relational version ids;
   see `docs/workstreams/pay-config-versioning.md`.
 

@@ -1,4 +1,18 @@
-module Application.Helper.Audit where
+module Application.Helper.Audit
+    ( module Application.Helper.Audit.Vocabulary
+    , recordAuditEvent
+    , recordAuditEventWithFactKind
+    , recordCurrentUserAuditEvent
+    , recordCurrentUserLeaveRequestEvent
+    , recordCurrentUserTimesheetEntryVersion
+    , recordLeaveRequestEvent
+    , recordTimesheetEntryVersion
+    , recordUserAuthenticationAuditEvent
+    , recordVenueMembershipRoleEvent
+    , timesheetEntrySnapshot
+    , updateVenueMembershipRoleWithAudit
+    , updateVenueMembershipRoleWithAuditInCurrentTransaction
+    ) where
 
 import qualified Data.Aeson as Aeson
 import Generated.Types
@@ -6,6 +20,7 @@ import IHP.ControllerPrelude
 
 import Application.Bepis.Fact (BepisAuditFact (..), BepisAuditFactKind (..),
                                BepisFact (..), emitBepisFact)
+import Application.Helper.Audit.Vocabulary
 import Application.Helper.ControllerContext (authenticatedCurrentUser,
                                              currentVenueId,
                                              resolveVenueContextForUser)
@@ -15,11 +30,11 @@ recordAuditEvent ::
     (?modelContext :: ModelContext) =>
     UUID ->
     UUID ->
-    Text ->
+    AuditEventType ->
     Text ->
     UUID ->
     Aeson.Value ->
-    Text ->
+    AuditSourceChannel ->
     IO AuditEvent
 recordAuditEvent venueId actorUserId eventType targetTable targetId payload sourceChannel =
     recordAuditEventWithFactKind BepisAuditEventRecorded venueId actorUserId eventType targetTable targetId payload sourceChannel
@@ -29,28 +44,28 @@ recordAuditEventWithFactKind ::
     BepisAuditFactKind ->
     UUID ->
     UUID ->
-    Text ->
+    AuditEventType ->
     Text ->
     UUID ->
     Aeson.Value ->
-    Text ->
+    AuditSourceChannel ->
     IO AuditEvent
 recordAuditEventWithFactKind factKind venueId actorUserId eventType targetTable targetId payload sourceChannel = do
     event <- newRecord @AuditEvent
         |> set #venueId venueId
         |> set #actorUserId actorUserId
-        |> set #eventType eventType
+        |> set #eventType (auditEventTypeText eventType)
         |> set #targetTable targetTable
         |> set #targetId targetId
         |> set #payload payload
-        |> set #sourceChannel sourceChannel
+        |> set #sourceChannel (auditSourceChannelText sourceChannel)
         |> createRecord
-    emitAuditFact factKind eventType targetTable sourceChannel
+    emitAuditFact factKind (auditEventTypeText eventType) targetTable sourceChannel
     pure event
 
 recordCurrentUserAuditEvent ::
     (?context :: ControllerContext, ?modelContext :: ModelContext) =>
-    Text ->
+    AuditEventType ->
     Text ->
     UUID ->
     Aeson.Value ->
@@ -68,7 +83,7 @@ recordCurrentUserAuditEvent eventType targetTable targetId payload =
 recordUserAuthenticationAuditEvent ::
     (?modelContext :: ModelContext) =>
     User ->
-    Text ->
+    AuditEventType ->
     Aeson.Value ->
     IO (Maybe AuditEvent)
 recordUserAuthenticationAuditEvent user eventType payload =
@@ -83,7 +98,7 @@ recordUserAuthenticationAuditEvent user eventType payload =
                 "users"
                 (unpackId (get #id user))
                 payload
-                "web"
+                WebAuditSource
             pure (Just event)
 
 timesheetEntrySnapshot :: TimesheetEntry -> Aeson.Value
@@ -123,7 +138,7 @@ recordTimesheetEntryVersion venueId actorUserId versionAction entry payload = do
         |> set #snapshot (timesheetEntrySnapshot entry)
         |> set #payload payload
         |> createRecord
-    emitAuditFact BepisVersionEventRecorded (inputValue versionAction) "timesheet_entries" "web"
+    emitAuditFact BepisVersionEventRecorded (inputValue versionAction) "timesheet_entries" WebAuditSource
     pure version
 
 recordCurrentUserTimesheetEntryVersion ::
@@ -157,7 +172,7 @@ recordLeaveRequestEvent venueId actorUserId leaveRequestId eventType previousSta
         |> set #newStatus newStatus
         |> set #payload payload
         |> createRecord
-    emitAuditFact BepisAuditEventRecorded (inputValue eventType) "leave_requests" "web"
+    emitAuditFact BepisAuditEventRecorded (inputValue eventType) "leave_requests" WebAuditSource
     pure event
 
 recordCurrentUserLeaveRequestEvent ::
@@ -194,13 +209,14 @@ recordVenueMembershipRoleEvent venueId actorUserId membership eventType previous
         |> set #newRole newRole
         |> set #payload payload
         |> createRecord
-    emitAuditFact BepisAuditEventRecorded (inputValue eventType) "venue_memberships" "web"
+    -- Dedicated role-history facts retain their historical web classification.
+    emitAuditFact BepisAuditEventRecorded (inputValue eventType) "venue_memberships" WebAuditSource
     pure event
 
 updateVenueMembershipRoleWithAudit ::
     (?modelContext :: ModelContext) =>
     UUID ->
-    Text ->
+    AuditSourceChannel ->
     VenueMembership ->
     VenueRoleEnum ->
     Aeson.Value ->
@@ -223,7 +239,7 @@ updateVenueMembershipRoleWithAuditInCurrentTransaction actorUserId sourceChannel
         _ <- recordAuditEvent
             membership.venueId
             actorUserId
-            "venue_role_changed"
+            VenueRoleChangedAudit
             "venue_memberships"
             (unpackId (get #id membership))
             (Aeson.object
@@ -243,11 +259,11 @@ updateVenueMembershipRoleWithAuditInCurrentTransaction actorUserId sourceChannel
             payload
         pure updatedMembership
 
-emitAuditFact :: BepisAuditFactKind -> Text -> Text -> Text -> IO ()
+emitAuditFact :: BepisAuditFactKind -> Text -> Text -> AuditSourceChannel -> IO ()
 emitAuditFact kind eventType target sourceChannel =
     emitBepisFact $ BepisAuditFactValue BepisAuditFact
         { auditFactKind = kind
         , auditFactEventType = eventType
         , auditFactTarget = target
-        , auditFactSourceChannel = sourceChannel
+        , auditFactSourceChannel = auditSourceChannelText sourceChannel
         }

@@ -179,7 +179,7 @@ instance Controller AuthController where
         _ <-
             recordUserAuthenticationAuditEvent
                 user
-                "login_succeeded"
+                LoginSucceededAudit
                 ( Aeson.object
                     [ "authMethod" Aeson..= ("passkey" :: Text)
                     , "email" Aeson..= user.email
@@ -263,7 +263,7 @@ instance Controller AuthController where
         void $
             recordUserAuthenticationAuditEvent
                 currentUser
-                "passkey_step_up_succeeded"
+                PasskeyStepUpSucceededAudit
                 ( Aeson.object
                     [ "authMethod" Aeson..= ("passkey" :: Text)
                     , "passkeyId" Aeson..= inputValue (get #id passkey)
@@ -495,7 +495,7 @@ auditPasskeyStepUpFailure reason =
     void $
         recordUserAuthenticationAuditEvent
             currentUser
-            "passkey_step_up_failed"
+            PasskeyStepUpFailedAudit
             ( Aeson.object
                 [ "authMethod" Aeson..= ("passkey" :: Text)
                 , "reason" Aeson..= reason

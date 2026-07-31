@@ -32,7 +32,7 @@ startOrResumeBillingCheckoutMutation stripeClient stripeConfig venue owner succe
     result <- startOrResumeCheckout stripeClient stripeConfig venue owner successUrlFor cancelUrlFor
     forM_ result.checkoutCreatedCustomer \customer ->
         void $ recordCurrentUserAuditEvent
-            "billing_customer_created"
+            BillingCustomerCreatedAudit
             "venue_billing_customers"
             (unpackId customer.id)
             (Aeson.object ["stripeCustomerId" Aeson..= customer.stripeCustomerId])
@@ -62,7 +62,7 @@ updateVenueBillingControlMutation manualReadOnly reason now = do
                 |> set #setAt (Just now)
                 |> updateRecord
     void $ recordCurrentUserAuditEvent
-        "venue_billing_control_updated"
+        VenueBillingControlUpdatedAudit
         "venue_billing_controls"
         (unpackId control.id)
         ( Aeson.object

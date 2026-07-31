@@ -13,7 +13,9 @@ module Application.Xero.Admin.ReferenceData
     , upsertXeroPayrollCalendar
     ) where
 
-import Application.Helper.Audit (recordAuditEvent)
+import Application.Helper.Audit (AuditEventType (XeroReferenceSyncFailedAudit, XeroReferenceSyncSucceededAudit),
+                                 AuditSourceChannel (ApplicationAuditSource),
+                                 recordAuditEvent)
 import Application.Helper.Xero
 import Control.Monad (void)
 import qualified Data.Aeson as Aeson
@@ -82,7 +84,7 @@ completeXeroReferenceDataSync maybeActorUserId syncRun connection employees earn
                 |> set #lastSyncAt (Just now)
                 |> set #lastError Nothing
                 |> updateRecord
-        recordXeroReferenceSyncAudit maybeActorUserId connection "xero_reference_sync_succeeded" syncRun.id
+        recordXeroReferenceSyncAudit maybeActorUserId connection XeroReferenceSyncSucceededAudit syncRun.id
             (Aeson.object
                 [ "tenantId" Aeson..= connection.tenantId
                 , "employeesCount" Aeson..= length employees
@@ -124,7 +126,7 @@ failXeroReferenceDataSync maybeActorUserId syncRun connection message = do
                 latestConnection
                     |> set #lastError (Just message)
                     |> updateRecord
-        recordXeroReferenceSyncAudit maybeActorUserId connection "xero_reference_sync_failed" syncRun.id
+        recordXeroReferenceSyncAudit maybeActorUserId connection XeroReferenceSyncFailedAudit syncRun.id
             (Aeson.object
                 [ "tenantId" Aeson..= connection.tenantId
                 , "failure" Aeson..= message
@@ -136,7 +138,7 @@ recordXeroReferenceSyncAudit ::
     (?modelContext :: ModelContext) =>
     Maybe UUID ->
     XeroConnection ->
-    Text ->
+    AuditEventType ->
     Id XeroSyncRun ->
     Aeson.Value ->
     IO ()
@@ -150,7 +152,7 @@ recordXeroReferenceSyncAudit maybeActorUserId connection eventType syncRunId pay
                 "xero_sync_runs"
                 (unpackId syncRunId)
                 payload
-                "application"
+                ApplicationAuditSource
 
 markStaleXeroStaffMappings ::
     (?modelContext :: ModelContext) =>

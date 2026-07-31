@@ -53,7 +53,7 @@ instance Controller SessionsController where
                                 void $
                                     recordUserAuthenticationAuditEvent
                                         user
-                                        "login_blocked"
+                                        LoginBlockedAudit
                                         (Aeson.object
                                             [ "authMethod" Aeson..= ("password" :: Text)
                                             , "email" Aeson..= submittedEmail
@@ -77,7 +77,7 @@ instance Controller SessionsController where
                                     void $
                                         recordUserAuthenticationAuditEvent
                                             user
-                                            "login_succeeded"
+                                            LoginSucceededAudit
                                             (Aeson.object
                                                 [ "authMethod" Aeson..= ("password" :: Text)
                                                 , "email" Aeson..= submittedEmail
@@ -106,7 +106,7 @@ instance Controller SessionsController where
                                     void $
                                         recordUserAuthenticationAuditEvent
                                             user'
-                                            "login_failed"
+                                            LoginFailedAudit
                                             (Aeson.object
                                                 [ "authMethod" Aeson..= ("password" :: Text)
                                                 , "email" Aeson..= submittedEmail

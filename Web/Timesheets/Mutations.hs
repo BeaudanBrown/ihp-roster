@@ -141,7 +141,7 @@ updateTimesheetEntryMutation _weekOffset existingEntry timesheetEntry shouldRese
                 )
         when shouldResetApproval do
             void $ recordCurrentUserAuditEvent
-                "timesheet_approval_reset"
+                TimesheetApprovalResetAudit
                 "timesheet_entries"
                 (unpackId (get #id timesheetEntry))
                 (Aeson.object
@@ -172,7 +172,7 @@ deleteTimesheetEntryMutation _weekOffset timesheetEntry = do
                 softDeletedEntry
                 Aeson.Null
         void $ recordCurrentUserAuditEvent
-            "timesheet_deleted"
+            TimesheetDeletedAudit
             "timesheet_entries"
             (unpackId (get #id timesheetEntry))
             (Aeson.object
@@ -230,7 +230,7 @@ approveTimesheetEntryMutation _weekOffset timesheetEntry = do
                             ]
                         )
                 void $ recordCurrentUserAuditEvent
-                    "timesheet_approved"
+                    TimesheetApprovedAudit
                     "timesheet_entries"
                     (unpackId (get #id lockedEntry))
                     (Aeson.object
@@ -271,7 +271,7 @@ unapproveTimesheetEntryMutation _weekOffset timesheetEntry = do
                     ]
                 )
         void $ recordCurrentUserAuditEvent
-            "timesheet_unapproved"
+            TimesheetUnapprovedAudit
             "timesheet_entries"
             (unpackId (get #id timesheetEntry))
             (Aeson.object

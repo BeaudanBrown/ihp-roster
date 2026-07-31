@@ -174,26 +174,6 @@ tests = describe "Schema" do
         allVenueRoleValues `shouldBe` ["worker", "supervisor", "manager", "venue_admin", "venue_owner"]
         allPlatformRoleValues `shouldBe` ["super_admin"]
         allLeaveRequestStatusValues `shouldBe` ["pending", "approved", "denied"]
-        allAuditEventTypeValues `shouldBe`
-            [ "timesheet_approved"
-            , "timesheet_unapproved"
-            , "timesheet_approval_reset"
-            , "leave_approved"
-            , "leave_denied"
-            , "leave_deleted"
-            , "venue_role_assigned"
-            , "venue_role_changed"
-            , "venue_bootstrapped"
-            , "export_generated"
-            , "export_downloaded"
-            , "support_access_granted"
-            , "login_succeeded"
-            , "login_failed"
-            , "login_blocked"
-            , "passkey_step_up_succeeded"
-            , "passkey_step_up_failed"
-            ]
-        allAuditSourceChannelValues `shouldBe` ["web", "htmx", "system"]
         allExportJobTypeValues `shouldBe` ["approved_timesheets_csv", "staff_pay_csv", "hourly_breakdown_zip", "payroll_earnings_csv"]
         allExportJobStatusValues `shouldBe` ["pending", "ready", "expired"]
 

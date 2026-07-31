@@ -49,7 +49,7 @@ startXeroConnectionMutation xeroConfig now stateToken = do
             |> createRecord
     void $
         recordCurrentUserAuditEvent
-            "xero_connection_started"
+            XeroConnectionStartedAudit
             "xero_oauth_states"
             (unpackId oauthState.id)
             ( Aeson.object
@@ -98,7 +98,7 @@ completeLocalXeroDisconnectMutation connection maybeRemoteConnectionId remoteDis
                 |> void
         void $
             recordCurrentUserAuditEvent
-                "xero_connection_disconnected"
+                XeroConnectionDisconnectedAudit
                 "xero_connections"
                 (unpackId updated.id)
                 ( Aeson.object
@@ -179,7 +179,7 @@ completeXeroConnectionMutation now actorUserId xeroConfig oauthState tokenRespon
         void $ enqueueXeroReferenceSyncJob (Just actorUserId) connection
         void $
             recordCurrentUserAuditEvent
-                "xero_connection_completed"
+                XeroConnectionCompletedAudit
                 "xero_connections"
                 (unpackId connection.id)
                 ( Aeson.object
@@ -198,7 +198,7 @@ failXeroConnectionAttemptMutation :: (?context :: ControllerContext, ?modelConte
 failXeroConnectionAttemptMutation message maybeState = do
     void $
         recordCurrentUserAuditEvent
-            "xero_connection_failed"
+            XeroConnectionFailedAudit
             "xero_connections"
             (maybe (unpackId currentVenueId) (unpackId . (.id)) maybeState)
             ( Aeson.object

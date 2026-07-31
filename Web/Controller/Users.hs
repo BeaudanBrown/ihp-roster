@@ -234,7 +234,7 @@ instance Controller UsersController where
                                                                     , venueBootstrapRosterEndTimesEnabled = venueRosterEndTimesEnabled
                                                                     }
                                                             (createdVenue, _) <- createVenueWithBootstrapConfigInCurrentTransaction bootstrapConfig
-                                                            membership <- provisionVenueMembership createdVenue user "venue_owner"
+                                                            membership <- provisionVenueMembership createdVenue user VenueOwner
                                                             _ <- createSignupStaff createdVenue user staff
                                                             _ <-
                                                                 lockedInvitation
@@ -246,7 +246,7 @@ instance Controller UsersController where
                                                                 recordAuditEvent
                                                                     (unpackId createdVenue.id)
                                                                     (unpackId (get #id user))
-                                                                    "venue_bootstrapped"
+                                                                    VenueBootstrappedAudit
                                                                     "venues"
                                                                     (unpackId (get #id createdVenue))
                                                                     (Aeson.object
@@ -261,7 +261,7 @@ instance Controller UsersController where
                                                                 recordAuditEvent
                                                                     (unpackId createdVenue.id)
                                                                     (unpackId (get #id user))
-                                                                    "venue_role_assigned"
+                                                                    VenueRoleAssignedAudit
                                                                     "venue_memberships"
                                                                     (unpackId (get #id membership))
                                                                     (Aeson.object

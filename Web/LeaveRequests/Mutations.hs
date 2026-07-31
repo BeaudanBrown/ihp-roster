@@ -167,9 +167,9 @@ reviewDecisionEventType :: LeaveReviewDecision -> LeaveRequestEventTypeEnum
 reviewDecisionEventType ApproveLeave = LeaveRequestEventTypeEnumApproved
 reviewDecisionEventType DenyLeave    = LeaveRequestEventTypeEnumDenied
 
-reviewDecisionAuditAction :: LeaveReviewDecision -> Text
-reviewDecisionAuditAction ApproveLeave = "leave_approved"
-reviewDecisionAuditAction DenyLeave    = "leave_denied"
+reviewDecisionAuditAction :: LeaveReviewDecision -> AuditEventType
+reviewDecisionAuditAction ApproveLeave = LeaveApprovedAudit
+reviewDecisionAuditAction DenyLeave    = LeaveDeniedAudit
 
 reviewDecisionChangesRoster :: LeaveReviewDecision -> Bool -> Bool
 reviewDecisionChangesRoster ApproveLeave wasApproved = not wasApproved

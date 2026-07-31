@@ -46,7 +46,7 @@ acceptVenueInvitationInCurrentTransaction acceptedAt invitation user hashedPassw
             recordAuditEvent
                 invitation.venueId
                 (unpackId (get #id acceptedUser))
-                "venue_role_assigned"
+                VenueRoleAssignedAudit
                 "venue_memberships"
                 (unpackId (get #id membership))
                 ( Aeson.object

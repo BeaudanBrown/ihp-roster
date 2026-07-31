@@ -1,6 +1,7 @@
 module Test.Controller.UsersSpec where
 
-import Application.Helper.Controller (updateVenueMembershipRoleWithAudit,
+import Application.Helper.Controller (AuditSourceChannel (WebAuditSource),
+                                      updateVenueMembershipRoleWithAudit,
                                       validRosterWeekStartDays)
 import Application.Helper.FrontendContract.Surface.Admin.Resource (adminInvitesResource)
 import Application.Helper.FrontendContract.Surface.Profile.Resource (staffPreferencesResource,
@@ -470,7 +471,7 @@ tests = aroundAll withDatabaseTestContext do
 
                 updatedMembership <- updateVenueMembershipRoleWithAudit
                     (unpackId owner.id)
-                    "web"
+                    WebAuditSource
                     membership
                     (Manager)
                     Null

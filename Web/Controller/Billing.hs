@@ -67,7 +67,7 @@ instance Controller BillingController where
                         EnqueuedAppJob job       -> (job, False)
                         ExistingActiveAppJob job -> (job, True)
                 void $ recordCurrentUserAuditEvent
-                    "billing_reconciliation_requested"
+                    BillingReconciliationRequestedAudit
                     "app_jobs"
                     (unpackId appJob.id)
                     ( Aeson.object
@@ -308,7 +308,7 @@ createEnabledBillingCheckoutSession stripeConfig = do
                         Left message -> billingRedirectWithError message
                         Right validatedCheckoutUrl -> do
                             void $ recordCurrentUserAuditEvent
-                                "billing_checkout_started"
+                                BillingCheckoutStartedAudit
                                 "billing_checkout_attempts"
                                 (unpackId attempt.id)
                                 (Aeson.object
@@ -360,7 +360,7 @@ createBillingPortalSessionAction =
                                         Left message -> billingRedirectWithError message
                                         Right validatedPortalUrl -> do
                                             void $ recordCurrentUserAuditEvent
-                                                "billing_portal_started"
+                                                BillingPortalStartedAudit
                                                 "venue_billing_customers"
                                                 (unpackId billingCustomer.id)
                                                 (Aeson.object

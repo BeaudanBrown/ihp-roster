@@ -265,7 +265,7 @@ requestApprovedTimesheetsCsvExport rangeStart rangeEnd = do
                 |> set #rangeEnd (Just rangeEnd)
                 |> set #scope initialScope
                 |> set #deliveryMethod browserDownloadMethod
-                |> set #destinationMetadata (Aeson.object ["requestedVia" Aeson..= requestAuditSourceChannel])
+                |> set #destinationMetadata (Aeson.object ["requestedVia" Aeson..= auditSourceChannelText requestAuditSourceChannel])
                 |> set #expiresAt expiresAt
                 |> createRecord
 
@@ -298,7 +298,7 @@ requestApprovedTimesheetsCsvExport rangeStart rangeEnd = do
         recordExportJobEntries exportJob entries
 
         void $ recordCurrentUserAuditEvent
-            "export_generated"
+            ExportGeneratedAudit
             "export_jobs"
             (unpackId (get #id exportJob))
             (Aeson.object
