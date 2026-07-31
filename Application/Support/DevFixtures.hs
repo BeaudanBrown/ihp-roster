@@ -137,8 +137,8 @@ seedDevelopmentFixtureWithScenarioForWeekAndLeaveMonth scenario fixtureWeekStart
     xeroStaff <- workerStaff |> set #payAssignmentMode XeroRate |> set #defaultAwardLevelId Nothing |> set #importedXeroPayItemId (Just xeroPayItem.id) |> updateRecord
     rosterOnlySeedStaff <- maybe (fail "Dev seed requires at least one generated staff profile") pure (listToMaybe seededStaff)
     rosterOnlyStaff <- rosterOnlySeedStaff |> set #payAssignmentMode RosterOnly |> set #defaultAwardLevelId Nothing |> set #importedXeroPayItemId Nothing |> updateRecord
-    forM_ (listToMaybe aliasStaff) \remediationStaff ->
-        remediationStaff |> set #payAssignmentMode LegacyUnresolved |> set #defaultAwardLevelId Nothing |> set #importedXeroPayItemId Nothing |> updateRecord |> void
+    remediationStaff <- maybe (fail "Dev seed requires a linked remediation profile") pure (listToMaybe aliasStaff)
+    remediationStaff |> set #payAssignmentMode LegacyUnresolved |> set #defaultAwardLevelId Nothing |> set #importedXeroPayItemId Nothing |> updateRecord |> void
 
     mapM_ (\staff -> syncStaffRosterGroupAssignments staff [get #id frontGroup, get #id backGroup]) managerStaffs
     syncStaffRosterGroupAssignments rosterOnlyStaff [get #id frontGroup, get #id backGroup]
@@ -176,11 +176,15 @@ seedDevelopmentFixtureWithScenarioForWeekAndLeaveMonth scenario fixtureWeekStart
         allFrontCandidates
         allBackCandidates
         seedShiftTypes
+    matrixShiftTypes <-
+        case extraShiftTypes of
+            barShift:gamingShift:_ -> pure [floorShift, kitchenShift, barShift, gamingShift]
+            _ -> fail "Dev seed requires Bar and Gaming shift types for the pay matrix"
     seedPayAssignmentMatrix
         frontGroup
         weekOffset
         [awardStaff, xeroStaff, rosterOnlyStaff]
-        [floorShift, kitchenShift, extraShiftTypes !! 0, extraShiftTypes !! 1]
+        matrixShiftTypes
 
     let operationalStaffIds = map (.id) (managerStaffs <> [xeroStaff] <> seededStaff <> trialStaffs)
     allOperationalStaff <- query @Staff |> filterWhereIn (#id, operationalStaffIds) |> fetch
