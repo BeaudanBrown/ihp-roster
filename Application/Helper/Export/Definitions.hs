@@ -5,16 +5,42 @@ import Application.Helper.Export.Render (fallbackReportDayLabels)
 import Application.Helper.Export.Types
 import Data.Time.Calendar (Day, addDays)
 import Data.Time.Clock (getCurrentTime)
+import Generated.Types (VenueConfig)
 import IHP.ControllerPrelude
+
+currentExportWeekSelection ::
+    (?context :: ControllerContext, ?modelContext :: ModelContext) =>
+    IO ReportWeekSelection
+currentExportWeekSelection = do
+    venueConfig <- fetchVenueConfig
+    today <- utctDay <$> getCurrentTime
+    pure (exportWeekSelection venueConfig (venueWeekOffsetForDay venueConfig today))
+
+exportWeekSelectionForOffset ::
+    (?context :: ControllerContext, ?modelContext :: ModelContext) =>
+    Int ->
+    IO ReportWeekSelection
+exportWeekSelectionForOffset weekOffset = do
+    venueConfig <- fetchVenueConfig
+    pure (exportWeekSelection venueConfig weekOffset)
+
+exportWeekSelection :: VenueConfig -> Int -> ReportWeekSelection
+exportWeekSelection venueConfig weekOffset =
+    ReportWeekSelection
+        { weekOffset
+        , weekStart
+        , weekEnd = addDays 6 weekStart
+        , dayLabels = fallbackReportDayLabels weekStart
+        }
+  where
+    weekStart = venueWeekStartDate venueConfig weekOffset
 
 currentExportDateRange ::
     (?context :: ControllerContext, ?modelContext :: ModelContext) =>
     IO (Day, Day)
 currentExportDateRange = do
-    venueConfig <- fetchVenueConfig
-    today <- utctDay <$> getCurrentTime
-    let weekStart = venueWeekStartDate venueConfig (venueWeekOffsetForDay venueConfig today)
-    pure (weekStart, addDays 6 weekStart)
+    selection <- currentExportWeekSelection
+    pure (selection.weekStart, selection.weekEnd)
 
 rangeWeekSlices ::
     (?context :: ControllerContext, ?modelContext :: ModelContext) =>

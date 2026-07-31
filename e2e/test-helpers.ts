@@ -908,13 +908,23 @@ export async function gotoExports(page: Page) {
 }
 
 export async function currentReportWeek(page: Page) {
-    const weekStart = await page.locator('#admin-export-range-start').inputValue();
-    const weekEnd = await page.locator('#admin-export-range-end').inputValue();
+    const form = page.locator('#admin-export-generation-form');
+    const weekStart = await form.locator('input[name="rangeStart"]').inputValue();
+    const weekEnd = await form.locator('input[name="rangeEnd"]').inputValue();
     return { weekStart, weekEnd };
 }
 
 export async function shiftExportWeek(page: Page, direction: 'Previous' | 'Current' | 'Next') {
-    throw new Error(`Export week navigation has been replaced by date range inputs; requested ${direction}`);
+    await ensureExportsSectionOpen(page);
+    const before = await currentReportWeek(page);
+    const linkName = direction === 'Current' ? 'This week' : `${direction} week`;
+    await page.getByRole('link', { name: linkName }).click();
+    await ensureExportsSectionOpen(page);
+    const after = await currentReportWeek(page);
+    if (direction !== 'Current') {
+        expect(after.weekStart).not.toBe(before.weekStart);
+    }
+    return after;
 }
 
 export function payrollReportCard(page: Page, reportName: string) {
@@ -928,10 +938,11 @@ export async function generatePayrollReport(page: Page, reportName: string) {
     const card = payrollReportCard(page, reportName);
     await expect(card).toHaveCount(1, { timeout: E2E_TIMEOUT.action });
     await expect(card).toBeVisible({ timeout: E2E_TIMEOUT.action });
-    const generateButton = card.getByRole('button', { name: 'Generate' });
-    await expect(generateButton).toBeVisible({ timeout: E2E_TIMEOUT.action });
-    await generateButton.click({ timeout: E2E_TIMEOUT.action });
-    await expect(page.locator('body')).toContainText('Export generated', { timeout: E2E_TIMEOUT.assertion });
+    const downloadButton = card.getByRole('button', { name: 'Download CSV' });
+    await expect(downloadButton).toBeVisible({ timeout: E2E_TIMEOUT.action });
+    const downloadPromise = page.waitForEvent('download', { timeout: E2E_TIMEOUT.assertion });
+    await downloadButton.click({ timeout: E2E_TIMEOUT.action });
+    return downloadPromise;
 }
 
 export function exportJobRow(page: Page, fileName: string) {

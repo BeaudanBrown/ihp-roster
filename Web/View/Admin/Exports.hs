@@ -1,5 +1,4 @@
 {-# LANGUAGE TypeApplications #-}
-{-# OPTIONS_GHC -Werror=incomplete-patterns #-}
 
 module Web.View.Admin.Exports
     ( renderExportsSection
@@ -12,11 +11,13 @@ import Application.Helper.Export
 import qualified Application.Helper.FrontendContract.Surface.Admin as Surface
 import qualified Application.Helper.FrontendContract.Surface.Admin.Action as AdminAction
 import Application.Helper.FrontendContract.Surface.Runtime (FrontendSurfaceActionRoute (..),
-                                                            renderFrontendSurfaceActionForm,
+                                                            renderFrontendSurfaceActionFormWithHiddenFields,
                                                             renderFrontendSurfaceMount)
 import Application.Helper.FrontendContract.Surface.Values
+import qualified Data.Text as Text
+import Data.Time.Format (defaultTimeLocale, formatTime)
 import Web.Admin.FrontendSurface (AdminVenueScopeValue (..),
-                                  adminExportsSurfaceImpl)
+                                  adminExportsSurfaceImplForWeek)
 import Web.View.Admin.Common
 import Web.View.Prelude
 
@@ -27,160 +28,100 @@ currentVenueScopeId :: (?context :: ControllerContext) => UUID
 currentVenueScopeId =
     case currentVenueOrNothing of
         Just venue -> unpackId venue.id
-        Nothing -> error "Admin exports live surface requires a current venue"
+        Nothing    -> error "Admin exports live surface requires a current venue"
 
-renderExportsSectionFragment :: Day -> Day -> [ExportJob] -> Html
+renderExportsSectionFragment :: ReportWeekSelection -> Html
 renderExportsSectionFragment =
     renderExportsSectionFragmentWithSwap Nothing
 
-renderExportsSectionFragmentWithSwap :: Maybe Text -> Day -> Day -> [ExportJob] -> Html
-renderExportsSectionFragmentWithSwap maybeSwapOob defaultRangeStart defaultRangeEnd exportJobs =
-    renderFrontendSurfaceMount (adminExportsSurfaceImpl AdminVenueScopeValue { adminVenueId = currentVenueScopeId, adminRosterGroupId = Nothing }) [hsx|
+renderExportsSectionFragmentWithSwap :: Maybe Text -> ReportWeekSelection -> Html
+renderExportsSectionFragmentWithSwap maybeSwapOob selection =
+    renderFrontendSurfaceMount (adminExportsSurfaceImplForWeek AdminVenueScopeValue { adminVenueId = currentVenueScopeId, adminRosterGroupId = Nothing } selection.weekOffset) [hsx|
         <div id={adminExportsFragmentId}
              hx-swap-oob={maybeSwapOob}>
-            {renderExportsSection defaultRangeStart defaultRangeEnd exportJobs}
+            {renderExportsSection selection}
         </div>
     |]
 
-renderExportsSection :: Day -> Day -> [ExportJob] -> Html
-renderExportsSection defaultRangeStart defaultRangeEnd exportJobs =
+renderExportsSection :: ReportWeekSelection -> Html
+renderExportsSection selection =
     renderConfigSection
         "admin-exports-section"
-        (renderExportSummary exportJobs)
-        mempty
         [hsx|
-            {renderExportGenerationForm defaultRangeStart defaultRangeEnd}
-            <div class="mt-4">
-                <div class="fw-semibold mb-2">Recent Exports</div>
-                {if null exportJobs then renderEmptyState "No export jobs yet." else renderExportTable exportJobs}
-            </div>
+            <p class="small app-muted mb-3">
+                Download approved Staff Hours for one roster week. The export is also retained in the venue's export history.
+            </p>
         |]
+        [hsx|
+            {renderExportWeekSelector selection}
+            {renderExportGenerationForm selection}
+        |]
+        mempty
 
-renderExportGenerationForm :: Day -> Day -> Html
-renderExportGenerationForm defaultRangeStart defaultRangeEnd =
-    renderFrontendSurfaceActionForm
+renderExportWeekSelector :: ReportWeekSelection -> Html
+renderExportWeekSelector selection = [hsx|
+    <div class="d-flex flex-wrap align-items-center gap-2 mb-3">
+        <a class={weekNavigationButtonClass ""} href={thisWeekUrl}>This week</a>
+        {weekNavigation}
+    </div>
+|]
+  where
+    thisWeekUrl = appendQueryParams (pathTo AdminAction) [("showExports", "true")] <> "#exports"
+    weekNavigation =
+        renderWeekNavigationGroup WeekNavigationConfig
+            { weekNavigationAriaLabel = "Export week navigation"
+            , weekNavigationExtraClass = ""
+            , weekNavigationPrevious = renderWeekLink "<" "Previous week" (selection.weekOffset - 1)
+            , weekNavigationCurrentLabel = [hsx|{exportWeekLabel selection}|]
+            , weekNavigationLabelClass = ""
+            , weekNavigationNext = renderWeekLink ">" "Next week" (selection.weekOffset + 1)
+            }
+
+renderWeekLink :: Text -> Text -> Int -> Html
+renderWeekLink label ariaLabel targetWeekOffset = [hsx|
+    <a class={weekNavigationButtonClass ""}
+       href={exportWeekUrl targetWeekOffset}
+       aria-label={ariaLabel}
+       title={ariaLabel}>{label}</a>
+|]
+
+exportWeekUrl :: Int -> Text
+exportWeekUrl weekOffset =
+    appendQueryParams (pathTo AdminAction)
+        [ ("showExports", "true")
+        , ("weekOffset", tshow weekOffset)
+        ]
+        <> "#exports"
+
+exportWeekLabel :: ReportWeekSelection -> Text
+exportWeekLabel selection =
+    Text.pack (formatTime defaultTimeLocale "%-d %b" selection.weekStart)
+        <> " – "
+        <> Text.pack (formatTime defaultTimeLocale "%-d %b %Y" selection.weekEnd)
+
+renderExportGenerationForm :: ReportWeekSelection -> Html
+renderExportGenerationForm selection =
+    renderFrontendSurfaceActionFormWithHiddenFields
         (AdminAction.createExportJobAction fields)
         createExportRoute
         [hsx|
-            <div class="row g-3 align-items-end">
-                <div class="col-12 col-md-4 col-lg-3">
-                    <label class="form-label" for="admin-export-range-start">From</label>
-                    <input id="admin-export-range-start" class="form-control" type="date" name={surfaceFieldNameFrom @Surface.RangeStart fields} value={tshow defaultRangeStart} required={True} />
-                </div>
-                <div class="col-12 col-md-4 col-lg-3">
-                    <label class="form-label" for="admin-export-range-end">To</label>
-                    <input id="admin-export-range-end" class="form-control" type="date" name={surfaceFieldNameFrom @Surface.RangeEnd fields} value={tshow defaultRangeEnd} required={True} />
-                </div>
-                <div class="col-12">
-                    <div class="row g-2">
-                        {forEach fixedExportDefinitions (renderFixedExportAction fields)}
+            <div class={appSurfaceClasses "p-3"} data-fixed-export-card="true" data-export-type={exportJobTypeToText StaffPayCsv}>
+                <div class="d-flex flex-wrap justify-content-between align-items-center gap-3">
+                    <div>
+                        <div class="fw-semibold">Staff Hours CSV</div>
+                        <div class="small app-muted">Hours grouped by staff member and effective pay level for the selected roster week.</div>
                     </div>
+                    <button class="btn btn-primary" type="submit">Download CSV</button>
                 </div>
             </div>
         |]
   where
-    fields = AdminAction.createExportJobActionFields defaultRangeStart defaultRangeEnd ""
+    fields = AdminAction.createExportJobActionFields selection.weekStart selection.weekEnd (exportJobTypeToText StaffPayCsv)
 
 createExportRoute :: FrontendSurfaceActionRoute
 createExportRoute = FrontendSurfaceActionRoute
     { actionRouteUrl = pathTo CreateExportJobAction
     , actionRouteCustomHtmx = []
     , actionRouteStandardUrl = Just (pathTo CreateExportJobAction)
-    , actionRouteExtraAttrs = [("id", "admin-export-generation-form"), ("class", appSurfaceClasses "p-3")]
+    , actionRouteExtraAttrs = [("id", "admin-export-generation-form")]
     }
-
-renderExportSummary :: [ExportJob] -> Html
-renderExportSummary exportJobs = [hsx|
-    <p class="small app-muted mb-3">
-        {tshow (length fixedExportDefinitions)} fixed export formats are available. {tshow (length exportJobs)} recent export jobs are listed below.
-    </p>
-|]
-
-renderFixedExportAction :: SurfaceActionFields Surface.AdminExportsSurface Surface.CreateExportJob -> FixedExportDefinition -> Html
-renderFixedExportAction fields exportDefinition = [hsx|
-    <div class="col-12 col-lg-6">
-        <div class={appSurfaceClasses "p-3 h-100"} data-fixed-export-card="true" data-export-type={exportJobTypeToText exportDefinition.fixedExportType}>
-            <div class="d-flex justify-content-between align-items-start gap-3">
-                <div>
-                    <div class="fw-semibold">{exportDefinition.fixedExportLabel}</div>
-                    <div class="small app-muted">{exportDefinition.fixedExportDescription}</div>
-                </div>
-                {renderAppStatusBadge AppStatusNeutral (exportJobTypeToText exportDefinition.fixedExportType)}
-            </div>
-            <div class="mt-3">
-                <button
-                    class="btn btn-outline-primary btn-sm"
-                    type="submit"
-                    name={surfaceFieldNameFrom @Surface.ExportType fields}
-                    value={exportJobTypeToText exportDefinition.fixedExportType}
-                >
-                    Generate
-                </button>
-            </div>
-        </div>
-    </div>
-|]
-
-renderExportTable :: [ExportJob] -> Html
-renderExportTable exportJobs = [hsx|
-    <div class="table-responsive">
-        <table id="export-jobs-table" class="table table-sm align-middle mb-0">
-            <thead>
-                <tr>
-                    <th>Export</th>
-                    <th>Created</th>
-                    <th>Range</th>
-                    <th>Status</th>
-                    <th>Expires</th>
-                    <th class="text-end">Action</th>
-                </tr>
-            </thead>
-            <tbody>
-                {forEach exportJobs renderExportJobRow}
-            </tbody>
-        </table>
-    </div>
-|]
-
-renderExportJobRow :: ExportJob -> Html
-renderExportJobRow exportJob = [hsx|
-    <tr data-export-job-row="true" data-export-job-file={fromMaybe exportJob.exportType exportJob.fileName} data-export-job-status={exportJob.status}>
-        <td>{renderExportDescriptor exportJob}</td>
-        <td>{formatTimestamp exportJob.createdAt}</td>
-        <td>{renderRange exportJob}</td>
-        <td>{renderStatusBadge exportJob}</td>
-        <td>{formatTimestamp exportJob.expiresAt}</td>
-        <td class="text-end">{renderDownloadAction exportJob}</td>
-    </tr>
-|]
-
-renderRange :: ExportJob -> Html
-renderRange exportJob =
-    case (exportJob.rangeStart, exportJob.rangeEnd) of
-        (Just rangeStart, Just rangeEnd) -> [hsx|{tshow rangeStart} to {tshow rangeEnd}|]
-        _ -> [hsx|<span class="app-muted">Unscoped</span>|]
-
-renderStatusBadge :: ExportJob -> Html
-renderStatusBadge exportJob =
-    case parseExportJobStatus exportJob.status of
-        Just ExportReady -> [hsx|<span class={appStatusBadgeClass AppStatusSuccess} data-export-job-status-badge="ready">ready</span>|]
-        Just ExportExpired -> [hsx|<span class={appStatusBadgeClass AppStatusNeutral} data-export-job-status-badge="expired">expired</span>|]
-        _ -> [hsx|<span class={appStatusBadgeClass AppStatusWarning} data-export-job-status-badge="pending">pending</span>|]
-
-renderExportDescriptor :: ExportJob -> Html
-renderExportDescriptor exportJob = [hsx|
-    <div class="d-grid gap-1">
-        <span class="fw-semibold">{fromMaybe exportJob.exportType exportJob.fileName}</span>
-        <span class="small app-muted font-monospace">{exportJob.exportType}</span>
-    </div>
-|]
-
-renderDownloadAction :: ExportJob -> Html
-renderDownloadAction exportJob =
-    case (parseExportJobStatus exportJob.status, exportJob.fileName) of
-        (Just ExportReady, Just _) ->
-            let downloadUrl = appendQueryParams (pathTo (DownloadExportJobAction (get #id exportJob))) [("token", tshow exportJob.downloadToken)]
-             in [hsx|
-                    <a href={downloadUrl} class="btn btn-outline-primary btn-sm">Download</a>
-                |]
-        _ -> [hsx|<span class="app-muted small">Unavailable</span>|]

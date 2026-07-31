@@ -163,8 +163,10 @@ instance Controller AdminController where
                 Left errors -> reportSurfaceRequestErrors errors >> pure False
                 Right value -> pure value
             invitations <- profileActionSpan "admin.page.fetch_invitations" fetchCurrentVenueInvitations
-            (exportRangeStart, exportRangeEnd) <- profileActionSpan "admin.page.current_export_date_range" currentExportDateRange
-            exportJobs <- profileActionSpan "admin.page.fetch_export_jobs" fetchCurrentVenueExportJobs
+            let maybeExportWeekOffset = paramOrNothing @Int "weekOffset"
+            exportWeekSelection <- profileActionSpan "admin.page.export_week_selection" $
+                maybe currentExportWeekSelection exportWeekSelectionForOffset maybeExportWeekOffset
+            let exportSectionOpen = paramOrDefault False "showExports" || isJust maybeExportWeekOffset
             today <- utctDay <$> getCurrentTime
             profileActionSpan "admin.page.render_response" (render IndexView { .. })
 
@@ -348,9 +350,9 @@ instance Controller AdminController where
 
     action currentAction@ShowadminExportsLiveFragmentAction = runBepis currentAction BepisFragmentAction $
         profileActionSpan "admin.exports_fragment.respond" do
-            (defaultRangeStart, defaultRangeEnd) <- profileActionSpan "admin.exports_fragment.current_date_range" currentExportDateRange
-            exportJobs <- profileActionSpan "admin.exports_fragment.fetch_export_jobs" fetchCurrentVenueExportJobs
-            profileActionSpan "admin.exports_fragment.render_response" (respondFragmentHtml (renderExportsSectionFragment defaultRangeStart defaultRangeEnd exportJobs))
+            exportWeekSelection <- profileActionSpan "admin.exports_fragment.week_selection" $
+                maybe currentExportWeekSelection exportWeekSelectionForOffset (paramOrNothing @Int "weekOffset")
+            profileActionSpan "admin.exports_fragment.render_response" (respondFragmentHtml (renderExportsSectionFragment exportWeekSelection))
 
     action currentAction@ShowadminXeroShellLiveFragmentAction = runBepis currentAction BepisFragmentAction $
         profileActionSpan "admin.xero_fragment.respond" do

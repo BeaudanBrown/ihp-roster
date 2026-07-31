@@ -156,6 +156,7 @@ tests = aroundAll withDatabaseTestContext do
                         ]
 
                 response `responseStatusShouldBe` status302
+                lookup "Location" (responseHeaders response) `shouldSatisfy` maybe False (Text.isInfixOf "/DownloadExportJob" . cs)
 
                 exportJob <- query @ExportJob |> orderByDesc #createdAt |> fetchOne
                 exportJob.exportType `shouldBe` exportJobTypeToText StaffPayCsv
@@ -164,9 +165,85 @@ tests = aroundAll withDatabaseTestContext do
                 fromMaybe "" exportJob.fileContents `shouldSatisfy`
                     Text.isInfixOf "Employee,Mon Ord,Mon 7-12,Mon 12+"
                 fromMaybe "" exportJob.fileContents `shouldSatisfy`
-                    Text.isInfixOf "\"Worker, Ava Bar\",8.00,0.00,0.00"
+                    Text.isInfixOf "\"Worker, Ava LVL 2\",8.00,0.00,0.00"
                 fromMaybe "" exportJob.fileContents `shouldSatisfy`
                     (not . Text.isInfixOf "Trial")
+
+        it "aggregates different shift types that resolve to the same pay level" $ withContext do
+            withCleanDb do
+                let approvedAt = UTCTime (fromGregorian 2025 1 12) (secondsToDiffTime 3600)
+                venue <- createVenueWithConfig "Shared Level Payroll Venue"
+                admin <- createUserRecord "shared-level-admin@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue admin "venue_admin"
+                dayNames <- seedWeekDayNames venue
+                levelOne <- createPayLevelRecord venue "LVL 1"
+                barShift <- createShiftTypeRecord venue levelOne "Bar"
+                floorShift <- createShiftTypeRecord venue levelOne "Floor"
+                staffUser <- createUserRecord "shared-level-staff@example.com" "staff" True
+                staff <- createStaffRecord venue (Just staffUser) "Ava" "Worker"
+                snapshot <- createPayrollSnapshot venue admin [levelOne] [barShift, floorShift] dayNames []
+                _ <- createAndApproveEntry venue staff defaultWeekEpoch snapshot admin approvedAt
+                    [ set #shiftTypeId (unpackId barShift.id)
+                    , setTestStartTime (TimeOfDay 9 0 0)
+                    , setTestEndTime (TimeOfDay 11 0 0)
+                    ]
+                _ <- createAndApproveEntry venue staff defaultWeekEpoch snapshot admin approvedAt
+                    [ set #shiftTypeId (unpackId floorShift.id)
+                    , setTestStartTime (TimeOfDay 12 0 0)
+                    , setTestEndTime (TimeOfDay 15 0 0)
+                    ]
+
+                response <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
+                    callActionWithParams CreateExportJobAction
+                        [ ("exportType", cs (exportJobTypeToText StaffPayCsv))
+                        , ("rangeStart", "2025-01-06")
+                        , ("rangeEnd", "2025-01-12")
+                        ]
+
+                response `responseStatusShouldBe` status302
+                exportJob <- query @ExportJob |> orderByDesc #createdAt |> fetchOne
+                let csvContents = fromMaybe "" exportJob.fileContents
+                Text.count "\"Worker, Ava LVL 1\"," csvContents `shouldBe` 1
+                csvContents `shouldSatisfy` Text.isInfixOf "\"Worker, Ava LVL 1\",5.00,0.00,0.00"
+                csvContents `shouldSatisfy` (not . Text.isInfixOf "Worker, Ava Bar")
+                csvContents `shouldSatisfy` (not . Text.isInfixOf "Worker, Ava Floor")
+
+        it "uses the approval-pinned Xero pay-item name for imported Staff Hours rows" $ withContext do
+            withCleanDb do
+                let approvedAt = UTCTime (fromGregorian 2025 1 12) (secondsToDiffTime 3600)
+                venue <- createVenueWithConfig "Imported Payroll Venue"
+                admin <- createUserRecord "imported-payroll-admin@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue admin "venue_admin"
+                dayNames <- seedWeekDayNames venue
+                levelOne <- createPayLevelRecord venue "LVL 1"
+                importedItem <- createImportedXeroPayItemRecord venue admin "Xero Weekend Rate" "weekend-rate" 52
+                shiftType <- createShiftTypeRecord venue levelOne "Bar"
+                    >>= updateRecord
+                        . set #payAssignmentMode XeroRate
+                        . set #overrideAwardLevelId Nothing
+                        . set #importedXeroPayItemId (Just importedItem.id)
+                staffUser <- createUserRecord "imported-payroll-staff@example.com" "staff" True
+                staff <- createStaffRecord venue (Just staffUser) "Ava" "Worker"
+                snapshot <- createPayrollSnapshot venue admin [levelOne] [shiftType] dayNames []
+                _ <- createAndApproveEntry venue staff defaultWeekEpoch snapshot admin approvedAt
+                    [ set #shiftTypeId (unpackId shiftType.id)
+                    , setTestStartTime (TimeOfDay 9 0 0)
+                    , setTestEndTime (TimeOfDay 17 0 0)
+                    ]
+
+                response <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
+                    callActionWithParams CreateExportJobAction
+                        [ ("exportType", cs (exportJobTypeToText StaffPayCsv))
+                        , ("rangeStart", "2025-01-06")
+                        , ("rangeEnd", "2025-01-12")
+                        ]
+
+                response `responseStatusShouldBe` status302
+                exportJob <- query @ExportJob |> orderByDesc #createdAt |> fetchOne
+                fromMaybe "" exportJob.fileContents `shouldSatisfy`
+                    Text.isInfixOf "\"Worker, Ava Xero Weekend Rate\",8.00,0.00,0.00"
+                fromMaybe "" exportJob.fileContents `shouldSatisfy`
+                    (not . Text.isInfixOf "Worker, Ava Bar")
 
         it "limits staff-hours payroll exports to the requested date range" $ withContext do
             withCleanDb do
@@ -204,7 +281,7 @@ tests = aroundAll withDatabaseTestContext do
                 exportJob <- query @ExportJob |> orderByDesc #createdAt |> fetchOne
                 exportJob.fileName `shouldBe` Just "staff_hrs_starting-2025-01-06.csv"
                 fromMaybe "" exportJob.fileContents `shouldSatisfy`
-                    Text.isInfixOf "\"Worker, Ava Bar\",0.00,0.00,0.00,0.00,0.00,0.00,3.00"
+                    Text.isInfixOf "\"Worker, Ava LVL 1\",0.00,0.00,0.00,0.00,0.00,0.00,3.00"
                 fromMaybe "" exportJob.fileContents `shouldSatisfy`
                     (not . Text.isInfixOf "8.00")
 
@@ -264,9 +341,9 @@ tests = aroundAll withDatabaseTestContext do
                             |> Zip.findEntryByPath "2025-01-13-to-2025-01-19/staff_hrs_starting-2025-01-13.csv"
                             |> fmap (decodeUtf8 . LBS.toStrict . Zip.fromEntry)
                             |> fromMaybe ""
-                firstWeekCsv `shouldSatisfy` Text.isInfixOf "\"Worker, Ava Bar\",0.00,0.00,0.00,0.00,0.00,0.00,3.00"
+                firstWeekCsv `shouldSatisfy` Text.isInfixOf "\"Worker, Ava LVL 1\",0.00,0.00,0.00,0.00,0.00,0.00,3.00"
                 firstWeekCsv `shouldSatisfy` (not . Text.isInfixOf "8.00")
-                secondWeekCsv `shouldSatisfy` Text.isInfixOf "\"Worker, Ava Bar\",0.00,0.00,0.00,0.00,0.00,0.00,8.00"
+                secondWeekCsv `shouldSatisfy` Text.isInfixOf "\"Worker, Ava LVL 1\",0.00,0.00,0.00,0.00,0.00,0.00,8.00"
                 secondWeekCsv `shouldSatisfy` (not . Text.isInfixOf "3.00")
 
         it "creates a payroll earnings export grouped by staff date earnings and tracking code" $ withContext do
@@ -460,7 +537,7 @@ tests = aroundAll withDatabaseTestContext do
                 auditEvents <- query @AuditEvent |> orderByAsc #createdAt |> fetch
                 map (.eventType) auditEvents `shouldBe` ["export_generated", "export_downloaded"]
 
-        it "shows only current-venue export jobs" $ withContext do
+        it "hides persisted recent export jobs from the simplified export surface" $ withContext do
             withCleanDb do
                 venueA <- createVenueWithConfig "Venue A"
                 venueB <- createVenueWithConfig "Venue B"
@@ -498,10 +575,10 @@ tests = aroundAll withDatabaseTestContext do
                     callAction ShowadminExportsLiveFragmentAction
 
                 response `responseStatusShouldBe` status200
-                response `responseBodyShouldContain` "Exports"
-                response `responseBodyShouldContain` "Approved Timesheets CSV"
-                response `responseBodyShouldNotContain` "data-disable-javascript-submission"
-                response `responseBodyShouldContain` "venue-b.csv"
+                response `responseBodyShouldContain` "Staff Hours CSV"
+                response `responseBodyShouldContain` "Download CSV"
+                response `responseBodyShouldNotContain` "Recent Exports"
+                response `responseBodyShouldNotContain` "venue-b.csv"
                 response `responseBodyShouldNotContain` "venue-a.csv"
 
         it "redirects the legacy export jobs page to the admin exports section" $ withContext do
@@ -514,6 +591,27 @@ tests = aroundAll withDatabaseTestContext do
                     callAction ExportJobsAction
 
                 response `responseStatusShouldBe` status302
+
+        it "shows an error toast when the selected week has no approved staff hours" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Empty Staff Hours Venue"
+                admin <- createUserRecord "empty-staff-hours@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue admin "venue_admin"
+
+                response <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
+                    withRequestHeaders [("HX-Request", "true")] do
+                        callActionWithParams CreateExportJobAction
+                            [ ("exportType", cs (exportJobTypeToText StaffPayCsv))
+                            , ("rangeStart", "2025-01-06")
+                            , ("rangeEnd", "2025-01-12")
+                            ]
+
+                response `responseStatusShouldBe` status200
+                lookup "HX-Reswap" (responseHeaders response) `shouldBe` Just "none"
+                lookup "HX-Redirect" (responseHeaders response) `shouldBe` Nothing
+                response `responseBodyShouldContain` "No approved staff hours were found for the selected roster week."
+                exportJobCount <- query @ExportJob |> fetchCount
+                exportJobCount `shouldBe` 0
 
         it "rejects invalid export date ranges without creating a job" $ withContext do
             withCleanDb do

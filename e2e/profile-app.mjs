@@ -515,10 +515,7 @@ function renderMarkdown(options, manifest, summary) {
 
 async function runExportGenerationScenario(page, options, manifest, scenario, records, iteration, warmup) {
     const routes = manifest.routes || {};
-    const range = manifest.exports || {};
     await gotoReady(page, options.baseUrl, routes.adminExports || routes.admin || '/Admin#exports', '#exports', options.timeoutMs);
-    await page.locator('#admin-export-range-start').fill(range.rangeStart || '');
-    await page.locator('#admin-export-range-end').fill(range.rangeEnd || '');
 
     const startedAt = performance.now();
     const exportResponse = await Promise.all([
@@ -526,7 +523,7 @@ async function runExportGenerationScenario(page, options, manifest, scenario, re
             response.request().method() === 'POST'
             && new URL(response.url()).pathname.includes('CreateExportJob')
         ),
-        page.locator('#admin-export-generation-form button[name="exportType"]').first().click(),
+        page.locator('#admin-export-generation-form button', { hasText: 'Download CSV' }).click(),
     ]).then(([response]) => response);
     const wallMs = performance.now() - startedAt;
     const exportResponseHeaders = exportResponse.headers();

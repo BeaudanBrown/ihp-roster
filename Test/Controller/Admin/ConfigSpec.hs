@@ -377,9 +377,18 @@ tests = aroundAll withDatabaseTestContext do
                 exportsResponse `responseBodyShouldContain` "hx-target=\"#admin-exports-fragment\""
                 exportsResponse `responseBodyShouldContain` "hx-swap=\"none\""
                 exportsResponse `responseBodyShouldContain` "data-bepis-surface-action=\"create-export-job\""
+                exportsResponse `responseBodyShouldContain` "Staff Hours CSV"
+                exportsResponse `responseBodyShouldContain` "Download CSV"
+                exportsResponse `responseBodyShouldContain` "Export week navigation"
+                exportsResponse `responseBodyShouldNotContain` "Recent Exports"
+                exportsResponse `responseBodyShouldNotContain` "Approved Timesheets CSV"
+                exportsResponse `responseBodyShouldNotContain` "Hourly Breakdown ZIP"
+                exportsResponse `responseBodyShouldNotContain` "Payroll Earnings CSV"
+                exportsResponse `responseBodyShouldNotContain` "admin-export-range-start"
+                exportsResponse `responseBodyShouldNotContain` "admin-export-range-end"
                 exportsResponse `responseBodyShouldNotContain` "id=\"app\""
 
-        it "creates export jobs through targeted admin fragments" $ withContext do
+        it "redirects targeted export generation to its immediate download" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Admin Export Fragment Mutation Venue"
                 admin <- createUserRecord "admin-export-fragment-mutation@example.com" "staff" True
@@ -396,8 +405,8 @@ tests = aroundAll withDatabaseTestContext do
 
                 response `responseStatusShouldBe` status200
                 lookup "HX-Reswap" (responseHeaders response) `shouldBe` Just "none"
-                response `responseBodyShouldContain` "id=\"admin-exports-fragment\" hx-swap-oob=\"outerHTML\""
-                response `responseBodyShouldContain` "approved-timesheets-2025-01-06-to-2025-01-12.csv"
+                lookup "HX-Redirect" (responseHeaders response) `shouldSatisfy` maybe False (Text.isInfixOf "/DownloadExportJob" . cs)
+                response `responseBodyShouldNotContain` "id=\"admin-exports-fragment\""
                 response `responseBodyShouldNotContain` "id=\"app\""
                 versionAfter <- currentLiveUpdateVersion (AdminLive.adminExportsLiveScope (unpackId venue.id))
                 versionAfter `shouldBe` versionBefore

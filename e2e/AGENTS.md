@@ -124,13 +124,13 @@ For privileged admin/support feature specs that are not directly testing passkey
 For payroll/export coverage, the shared helpers in `e2e/test-helpers.ts` also provide:
 
 - `gotoExports(page)` for the Admin > Exports accordion section
-- `currentReportWeek(page)` for the default date-range inputs, which start on the current roster week
-- `generatePayrollReport(page, reportName)` for the fixed export-generation cards
-- `downloadExport(page, fileName)` for the recent-exports table
-- `readDownloadText`, `listZipEntries`, and `readZipEntryText` for real file-content assertions
+- `currentReportWeek(page)` for the currently selected roster-week boundary
+- `shiftExportWeek(page, direction)` for previous/current/next week navigation
+- `generatePayrollReport(page, reportName)` for the immediate Staff Hours download
+- `readDownloadText` for real file-content assertions
 - `parseCsv(text)` for simple CSV sanity checks without duplicating parsing logic in specs
 
-Exports are no longer a standalone page and report definitions are not managed through e2e flows. Use the fixed card labels (`Approved Timesheets CSV`, `Staff Hours CSV`, `Hourly Breakdown ZIP`, `Payroll Earnings CSV`) and assert the Admin export history table via `data-export-job-file`.
+Exports are no longer a standalone page and report definitions are not managed through e2e flows. The Admin UI exposes only the `Staff Hours CSV` card, selects complete roster weeks, immediately downloads after generation, and intentionally has no recent-export table. Other fixed formats remain backend-supported and controller-tested.
 
 ### UI behavior expectations worth covering
 - For HTMX week pagers, assert both the shell swap and that no full page navigation occurred by preserving a `window` marker across clicks.

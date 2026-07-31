@@ -9,8 +9,13 @@ This file describes implemented export behavior and shared rendering rules.
   may generate/download exports; managers are denied.
 - `export_jobs` records venue scope, requested fixed export, file metadata,
   requestor, expiry/download lifecycle, and audit-adjacent details.
-- The request surface exposes exactly four fixed formats: Approved Timesheets
-  CSV, Staff Hours CSV, Hourly Breakdown ZIP, and Payroll Earnings CSV.
+- The fixed backend catalog retains four formats: Approved Timesheets CSV,
+  Staff Hours CSV, Hourly Breakdown ZIP, and Payroll Earnings CSV. The current
+  Admin UI exposes only Staff Hours CSV.
+- The Admin export surface selects exactly one venue roster week through a
+  URL-driven `This week`/previous/next week control. It has no arbitrary date
+  inputs or recent-export list. Submitting generates and persists the export,
+  then immediately redirects the browser to the audited download response.
 - Runtime export generation does not load, bootstrap, or filter through report
   definitions. The legacy report-definition tables remain unused by the app
   runtime until a dedicated data-preserving schema-retirement change removes
@@ -47,9 +52,14 @@ This file describes implemented export behavior and shared rendering rules.
 - Staff Hours CSV is one canonical, unfiltered paid-time export for the venue's
   active, non-trial staff. For the supported Tuesday payroll week it uses the
   exact `Employee,Tues Ord,...,Mon 12+` contract and filename
-  `staff_hrs_starting-YYYY-MM-DD.csv`. Rows use `Last, First` plus the optional
-  approval-pinned calculated pay label, preserve separate labels, and sort by
-  last name, first name, then label with the unlabeled row first. Non-worked
+  `staff_hrs_starting-YYYY-MM-DD.csv`. Rows use `Last, First` plus the
+  approval-pinned effective pay label: `LVL 0` for the introductory Award
+  classification, `LVL 1` through `LVL 6` for the core Award levels, or the
+  selected imported Xero pay-item name. Shift type names are not Staff Hours
+  labels. A selected week with no approved Staff Hours returns an error and does
+  not persist an empty export. Rows aggregate different shift types that resolve to the same label,
+  preserve separate effective labels, and sort by last name, first name, then
+  label with the unlabeled row first. Non-worked
   minimum top-ups fall back to that local day's ordinary bucket; fixed and
   missed-break additions never inflate Staff Hours.
 - Historical report-definition variants such as `kitchen` are not runtime

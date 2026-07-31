@@ -9,6 +9,7 @@ module Web.Admin.FrontendSurface
     , adminVenueSettingsSurfaceImpl
     , adminInvitesSurfaceImpl
     , adminExportsSurfaceImpl
+    , adminExportsSurfaceImplForWeek
     , adminShiftTypesSurfaceImpl
     , adminRosterGroupsSurfaceImpl
     , adminXeroSurfaceImpl
@@ -72,12 +73,15 @@ adminInvitesSurfaceImpl scope =
         [adminInvitesFragment scope.adminRosterGroupId]
 
 adminExportsSurfaceImpl :: AdminVenueScopeValue -> SurfaceImpl Surface.AdminExportsSurface
-adminExportsSurfaceImpl scope =
+adminExportsSurfaceImpl scope = adminExportsSurfaceImplForWeek scope 0
+
+adminExportsSurfaceImplForWeek :: AdminVenueScopeValue -> Int -> SurfaceImpl Surface.AdminExportsSurface
+adminExportsSurfaceImplForWeek scope weekOffset =
     mkSurfaceImplFromValues @Surface.AdminExportsSurface @Surface.AdminExportsScope
         "primary"
         (adminVenueScopeFields scope)
         noSurfaceFields
-        [adminExportsFragment]
+        [adminExportsFragmentForWeek weekOffset]
 
 adminShiftTypesSurfaceImpl :: AdminVenueScopeValue -> SurfaceImpl Surface.AdminShiftTypesSurface
 adminShiftTypesSurfaceImpl scope =
@@ -142,11 +146,14 @@ adminInvitesFragment maybeRosterGroupId =
     query = maybe [] (\rosterGroupId -> [("rosterGroupId", tshow rosterGroupId)]) maybeRosterGroupId
 
 adminExportsFragment :: FrontendSurfaceMountedFragment
-adminExportsFragment =
+adminExportsFragment = adminExportsFragmentForWeek 0
+
+adminExportsFragmentForWeek :: Int -> FrontendSurfaceMountedFragment
+adminExportsFragmentForWeek weekOffset =
     frontendSurfaceMountedFragmentFor @Surface.AdminExportsSurface @Surface.AdminExportsFragment
         noSurfaceFields
         noSurfaceFields
-        (pathTo ShowadminExportsLiveFragmentAction)
+        (appendQueryParams (pathTo ShowadminExportsLiveFragmentAction) [("weekOffset", tshow weekOffset)])
         FrontendSurfaceReplace
 
 adminShiftTypesFragment :: FrontendSurfaceMountedFragment
