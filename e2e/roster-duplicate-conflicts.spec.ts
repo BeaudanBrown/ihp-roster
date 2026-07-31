@@ -1,5 +1,11 @@
 import { test, expect, type Page } from '@playwright/test';
-import { dialogCloseDomAttr, dialogOverlayMountDomId } from '../frontend/ts/generated/contracts';
+import {
+    dialogCloseDomAttr,
+    dialogOverlayMountDomId,
+    rosterStaffHighlightMemberDomAttr,
+    rosterStaffHighlightSourceDomAttr,
+    rosterStaffPanelSortRowDomAttr,
+} from '../frontend/ts/generated/contracts';
 import { E2E_TIMEOUT } from './timeouts';
 import {
     addRowToRosterDay,
@@ -89,6 +95,31 @@ test.describe('Roster duplicate conflicts', () => {
         await expect
             .poll(async () => duplicateConflictCells(page).count(), { timeout: E2E_TIMEOUT.liveUpdate })
             .toBeGreaterThan(initialConflictCount);
+    });
+
+    test('keeps disabled warning colours hidden across hover highlights while retaining tooltips', async ({ page }) => {
+        await loginAndOpenRoster(page);
+        await normalizeRosterForDuplicateConflict(page);
+        const alphaCrewStaffId = 'a1000000-0000-0000-0000-000000000031';
+        await assignStaffToRow(page, 1, alphaCrewStaffId);
+
+        const conflictCell = duplicateConflictCells(page).first();
+        await expect(conflictCell).toHaveAttribute('title', /.+/);
+        await expect(page.locator('.roster-grid-frame')).toHaveAttribute('data-roster-warnings', 'hidden');
+        const hiddenBackground = await conflictCell.evaluate((cell) => getComputedStyle(cell).backgroundImage);
+
+        await conflictCell.hover();
+        await expect.poll(async () => conflictCell.evaluate((cell) => getComputedStyle(cell).backgroundImage)).toBe(hiddenBackground);
+
+        const launcher = conflictCell.locator('xpath=ancestor::*[@data-roster-shift-launcher="true"][1]');
+        const staffKey = await launcher.getAttribute(rosterStaffHighlightMemberDomAttr);
+        expect(staffKey).toBeTruthy();
+        const staffRow = page.locator(`[${rosterStaffPanelSortRowDomAttr}][${rosterStaffHighlightSourceDomAttr}="${staffKey}"]`).first();
+        await staffRow.hover();
+        await expect.poll(async () => conflictCell.evaluate((cell) => getComputedStyle(cell).backgroundImage)).toBe(hiddenBackground);
+
+        await launcher.hover();
+        await expect.poll(async () => conflictCell.evaluate((cell) => getComputedStyle(cell).backgroundImage)).toBe(hiddenBackground);
     });
 
     test('actor and viewer both keep duplicate conflict highlighting without breaking the roster grid', async ({ browser }) => {
