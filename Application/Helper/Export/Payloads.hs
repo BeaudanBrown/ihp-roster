@@ -23,7 +23,7 @@ buildFixedStaffPayCsvPayload ::
 buildFixedStaffPayCsvPayload calculationsByEntryId reportWeekSlice = do
     entries <- fetchApprovedTimesheetEntries reportWeekSlice.sliceStart reportWeekSlice.sliceEnd
     staffById <- fetchReportStaffMap entries
-    labelsByEntryId <- fetchApprovedEntryPayLabels entries
+    labelsByEntryId <- fetchApprovedEntryStaffHoursLabels entries
     versionManifestsByEntryId <- fetchVersionManifestsForEntries entries
     let reportWeekSelection = reportWeekSlice.weekSelection
         filteredEntries = filter (shouldIncludeFixedStaffPayEntry staffById) entries
@@ -37,17 +37,20 @@ buildFixedStaffPayCsvPayload calculationsByEntryId reportWeekSlice = do
                         |> mapMaybe (\entry -> Map.lookup (coerce (get #id entry)) versionManifestsByEntryId)
                         |> List.nub
                         |> List.sort
-            pure $
-                Right
-                    StaffPayCsvPayload
-                        { weekSelection = reportWeekSelection
-                        , fileName = "staff_hrs_starting-" <> tshow reportWeekSelection.weekStart <> ".csv"
-                        , csvContents = renderStaffPayCsv reportWeekSelection records
-                        , entryCount = length filteredEntries
-                        , rowCount = length records
-                        , versionManifests
-                        , exportVersionManifest = collapseVersionManifests versionManifests
-                        }
+            if null records
+                then pure (Left "No approved staff hours were found for the selected roster week.")
+                else
+                    pure $
+                        Right
+                            StaffPayCsvPayload
+                                { weekSelection = reportWeekSelection
+                                , fileName = "staff_hrs_starting-" <> tshow reportWeekSelection.weekStart <> ".csv"
+                                , csvContents = renderStaffPayCsv reportWeekSelection records
+                                , entryCount = length filteredEntries
+                                , rowCount = length records
+                                , versionManifests
+                                , exportVersionManifest = collapseVersionManifests versionManifests
+                                }
 
 buildFixedStaffPayCsvRecords ::
     ReportWeekSelection ->

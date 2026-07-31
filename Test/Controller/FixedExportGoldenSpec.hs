@@ -1,6 +1,7 @@
 module Test.Controller.FixedExportGoldenSpec where
 
 import Application.Helper.Export
+import Application.WageEngine (AwardClassification (..))
 import Config
 import Control.Monad (void)
 import qualified Data.Map.Strict as Map
@@ -35,6 +36,18 @@ goldenWeekEnd = addDays 6 goldenWeekStart
 tests :: Spec
 tests = aroundAll withDatabaseTestContext do
     describe "Fixed export goldens" do
+        it "uses canonical Staff Hours labels for every supported Award classification" $ withContext do
+            map staffHoursAwardClassificationLabel
+                [ HospitalityIntroductory
+                , HospitalityLevel1
+                , HospitalityLevel2
+                , HospitalityLevel3
+                , HospitalityLevel4
+                , HospitalityLevel5
+                , HospitalityLevel6
+                ]
+                `shouldBe` ["LVL 0", "LVL 1", "LVL 2", "LVL 3", "LVL 4", "LVL 5", "LVL 6"]
+
         it "renders the canonical staff-hours CSV exactly" $ withContext do
             withCleanDb do
                 fixture <- seedCanonicalPayrollFixtureForWeek goldenWeekStart
@@ -67,7 +80,7 @@ tests = aroundAll withDatabaseTestContext do
                 exportJob <- generatePayrollExportJob fixture.admin fixture.venue StaffPayCsv
                 let csvRows = csvRowsByKey (fromMaybe "" (get #fileContents exportJob))
 
-                take 3 (lookupCsvRow csvRows "Cook, Kai Kitchen") `shouldBe` ["4.00", "0.00", "0.00"]
+                take 3 (lookupCsvRow csvRows "Cook, Kai LVL 1") `shouldBe` ["4.00", "0.00", "0.00"]
 
         it "renders the canonical payroll earnings CSV shape exactly after normalizing row ids" $ withContext do
             withCleanDb do
@@ -107,10 +120,10 @@ tests = aroundAll withDatabaseTestContext do
                 exportJob <- generatePayrollExportJob fixture.admin fixture.venue StaffPayCsv
                 let csvRows = csvRowsByKey (fromMaybe "" (get #fileContents exportJob))
 
-                Map.keys csvRows `shouldBe` ["Cook, Kai Kitchen", "Worker, Ava Bar", "Worker, Ava Floor"]
-                lookupCsvRow csvRows "Worker, Ava Floor" `shouldBe` ["2.00", "0.00", "0.00", "0.00", "0.00", "0.00", "0.00", "0.00", "0.00", "0.00", "0.00", "0.00", "0.00", "0.00", "0.00", "0.00", "0.00", "0.00"]
-                lookupCsvRow csvRows "Worker, Ava Bar" `shouldBe` ["2.50", "0.00", "0.00", "0.00", "0.00", "0.00", "0.00", "0.00", "0.00", "0.00", "0.00", "0.00", "5.00", "0.00", "4.50", "0.00", "0.00", "0.00"]
-                lookupCsvRow csvRows "Cook, Kai Kitchen" `shouldBe` ["0.00", "0.00", "0.00", "4.00", "0.00", "0.00", "0.00", "0.00", "0.00", "0.00", "0.00", "0.00", "0.00", "0.00", "0.00", "0.00", "0.00", "0.00"]
+                Map.keys csvRows `shouldBe` ["Cook, Kai LVL 1", "Worker, Ava LVL 1", "Worker, Ava LVL 2"]
+                lookupCsvRow csvRows "Worker, Ava LVL 1" `shouldBe` ["2.00", "0.00", "0.00", "0.00", "0.00", "0.00", "0.00", "0.00", "0.00", "0.00", "0.00", "0.00", "0.00", "0.00", "0.00", "0.00", "0.00", "0.00"]
+                lookupCsvRow csvRows "Worker, Ava LVL 2" `shouldBe` ["2.50", "0.00", "0.00", "0.00", "0.00", "0.00", "0.00", "0.00", "0.00", "0.00", "0.00", "0.00", "5.00", "0.00", "4.50", "0.00", "0.00", "0.00"]
+                lookupCsvRow csvRows "Cook, Kai LVL 1" `shouldBe` ["0.00", "0.00", "0.00", "4.00", "0.00", "0.00", "0.00", "0.00", "0.00", "0.00", "0.00", "0.00", "0.00", "0.00", "0.00", "0.00", "0.00", "0.00"]
 
         it "keeps relational-version-pinned payroll CSV output stable after later pay-config changes" $ withContext do
             withCleanDb do
@@ -145,7 +158,7 @@ tests = aroundAll withDatabaseTestContext do
                 let csvRows = csvRowsByKey (fromMaybe "" (get #fileContents exportJob))
 
                 get #payConfigVersionManifest exportJob `shouldBe` Just "mixed"
-                lookupCsvRow csvRows "Cook, Kai Kitchen" `shouldBe` ["0.00", "0.00", "0.00", "4.00", "0.00", "0.00", "0.00", "0.00", "0.00", "0.00", "0.00", "0.00", "0.00", "0.00", "0.00", "2.00", "0.00", "0.00"]
+                lookupCsvRow csvRows "Cook, Kai LVL 1" `shouldBe` ["0.00", "0.00", "0.00", "4.00", "0.00", "0.00", "0.00", "0.00", "0.00", "0.00", "0.00", "0.00", "0.00", "0.00", "0.00", "2.00", "0.00", "0.00"]
 
         it "aggregates multiple staff, employment bases, roles, breaks, and overnight penalty buckets" $ withContext do
             withCleanDb do
@@ -154,13 +167,13 @@ tests = aroundAll withDatabaseTestContext do
                 let csvRows = csvRowsByKey (fromMaybe "" (get #fileContents exportJob))
 
                 Map.keys csvRows `shouldBe`
-                    [ "Casual, Ben Bar"
-                    , "Casual, Cara Bar"
-                    , "Cook, Noor Kitchen"
-                    , "Manager, Ava Bar"
-                    , "Manager, Ava Supervisor"
+                    [ "Casual, Ben LVL 1"
+                    , "Casual, Cara LVL 1"
+                    , "Cook, Noor LVL 3"
+                    , "Manager, Ava LVL 2"
+                    , "Manager, Ava LVL 4"
                     ]
-                lookupCsvRow csvRows "Manager, Ava Bar" `shouldBe`
+                lookupCsvRow csvRows "Manager, Ava LVL 2" `shouldBe`
                     [ "4.00", "0.00", "0.00"
                     , "0.00", "0.00", "0.00"
                     , "0.00", "0.00", "0.00"
@@ -169,7 +182,7 @@ tests = aroundAll withDatabaseTestContext do
                     , "6.50"
                     , "0.00", "0.00", "1.00"
                     ]
-                lookupCsvRow csvRows "Manager, Ava Supervisor" `shouldBe`
+                lookupCsvRow csvRows "Manager, Ava LVL 4" `shouldBe`
                     [ "0.00", "0.00", "0.00"
                     , "0.00", "0.00", "0.00"
                     , "0.00", "0.00", "0.00"
@@ -178,7 +191,7 @@ tests = aroundAll withDatabaseTestContext do
                     , "2.00"
                     , "0.00", "0.00", "0.00"
                     ]
-                lookupCsvRow csvRows "Casual, Ben Bar" `shouldBe`
+                lookupCsvRow csvRows "Casual, Ben LVL 1" `shouldBe`
                     [ "0.00", "0.00", "0.00"
                     , "6.50", "0.00", "1.00"
                     , "0.00", "0.00", "0.00"
@@ -187,7 +200,7 @@ tests = aroundAll withDatabaseTestContext do
                     , "0.00", "0.00"
                     , "0.00"
                     ]
-                lookupCsvRow csvRows "Casual, Cara Bar" `shouldBe`
+                lookupCsvRow csvRows "Casual, Cara LVL 1" `shouldBe`
                     [ "0.00", "0.00", "0.00"
                     , "0.00", "0.00", "0.00"
                     , "3.00", "0.00", "0.00"
@@ -196,7 +209,7 @@ tests = aroundAll withDatabaseTestContext do
                     , "0.00", "0.00"
                     , "0.00"
                     ]
-                lookupCsvRow csvRows "Cook, Noor Kitchen" `shouldBe`
+                lookupCsvRow csvRows "Cook, Noor LVL 3" `shouldBe`
                     [ "0.00", "0.00", "0.00"
                     , "0.00", "0.00", "0.00"
                     , "0.00", "0.00", "0.00"

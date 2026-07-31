@@ -3,6 +3,8 @@ module Application.Helper.Export.ReadModel where
 import Application.Helper.Controller
 import Application.Helper.Pay (payVersionManifestForEntry)
 import Application.VenueTime.Model (requireMelbourneDateRangeUTC)
+import Application.WageEngine (AwardClassification (..),
+                               awardClassificationFromFixedId)
 import Data.Coerce (coerce)
 import qualified Data.List as List
 import qualified Data.Map.Strict as Map
@@ -76,9 +78,74 @@ fetchVersionManifestsForEntries entries =
         entryManifest entry =
             fmap (\manifest -> (coerce (get #id entry), manifest)) (payVersionManifestForEntry entry)
 
--- | The shift pay version is immutable once approval locks it, and owns the
--- optional payroll type label. Mutable Award/import names must never re-label a
--- historical output.
+-- | Staff Hours groups by the effective approval-pinned pay selection, never by
+-- shift type. Imported assignments take precedence over Award assignments, and
+-- shift overrides take precedence over staff defaults, matching the wage engine.
+fetchApprovedEntryStaffHoursLabels :: (?modelContext :: ModelContext) => [TimesheetEntry] -> IO (Map.Map UUID (Maybe Text))
+fetchApprovedEntryStaffHoursLabels entries = do
+    let staffVersionIds = List.nub (mapMaybe (.staffPayVersionId) entries)
+        shiftVersionIds = List.nub (mapMaybe (.shiftTypePayVersionId) entries)
+    staffVersions <- if null staffVersionIds then pure [] else query @StaffPayVersion |> filterWhereIn (#id, map Id staffVersionIds) |> fetch
+    shiftVersions <- if null shiftVersionIds then pure [] else query @ShiftTypePayVersion |> filterWhereIn (#id, map Id shiftVersionIds) |> fetch
+    let staffVersionsById = Map.fromList [(unpackId version.id, version) | version <- staffVersions]
+        shiftVersionsById = Map.fromList [(unpackId version.id, version) | version <- shiftVersions]
+        selections = map (entryPaySelection staffVersionsById shiftVersionsById) entries
+        awardLevelIds = List.nub (mapMaybe (fst . snd) selections)
+        importedPayItemIds = List.nub (mapMaybe (snd . snd) selections)
+    awardLevels <- if null awardLevelIds then pure [] else query @AwardLevel |> filterWhereIn (#id, map Id awardLevelIds) |> fetch
+    importedPayItems <- if null importedPayItemIds then pure [] else query @XeroImportedPayItem |> filterWhereIn (#id, map Id importedPayItemIds) |> fetch
+    let awardLabelsById = Map.fromList [(unpackId level.id, staffHoursAwardLabel level) | level <- awardLevels]
+        importedLabelsById = Map.fromList [(unpackId item.id, item.name) | item <- importedPayItems]
+    pure $ Map.fromList
+        [ (entryId, resolveSelectionLabel awardLabelsById importedLabelsById selection)
+        | (entryId, selection) <- selections
+        ]
+  where
+    entryPaySelection :: Map.Map UUID StaffPayVersion -> Map.Map UUID ShiftTypePayVersion -> TimesheetEntry -> (UUID, (Maybe UUID, Maybe UUID))
+    entryPaySelection staffVersionsById shiftVersionsById entry =
+        let staffVersion = entry.staffPayVersionId >>= (`Map.lookup` staffVersionsById)
+            shiftVersion = entry.shiftTypePayVersionId >>= (`Map.lookup` shiftVersionsById)
+            importedPayItemId =
+                (shiftVersion >>= shiftImportedPayItemId)
+                    <|> (staffVersion >>= staffImportedPayItemId)
+            awardLevelId =
+                (shiftVersion >>= shiftAwardLevelId)
+                    <|> (staffVersion >>= staffAwardLevelId)
+         in (unpackId entry.id, (awardLevelId, importedPayItemId))
+
+    shiftImportedPayItemId :: ShiftTypePayVersion -> Maybe UUID
+    shiftImportedPayItemId version = fmap unpackId version.importedXeroPayItemId
+
+    staffImportedPayItemId :: StaffPayVersion -> Maybe UUID
+    staffImportedPayItemId version = fmap unpackId version.importedXeroPayItemId
+
+    shiftAwardLevelId :: ShiftTypePayVersion -> Maybe UUID
+    shiftAwardLevelId version = version.overrideAwardLevelId
+
+    staffAwardLevelId :: StaffPayVersion -> Maybe UUID
+    staffAwardLevelId version = version.defaultAwardLevelId
+
+    resolveSelectionLabel :: Map.Map UUID Text -> Map.Map UUID Text -> (Maybe UUID, Maybe UUID) -> Maybe Text
+    resolveSelectionLabel awardLabelsById importedLabelsById (awardLevelId, importedPayItemId) =
+        (importedPayItemId >>= (`Map.lookup` importedLabelsById))
+            <|> (awardLevelId >>= (`Map.lookup` awardLabelsById))
+
+staffHoursAwardLabel :: AwardLevel -> Text
+staffHoursAwardLabel awardLevel =
+    maybe awardLevel.classification staffHoursAwardClassificationLabel (awardClassificationFromFixedId awardLevel.classificationFixedId)
+
+staffHoursAwardClassificationLabel :: AwardClassification -> Text
+staffHoursAwardClassificationLabel = \case
+    HospitalityIntroductory -> "LVL 0"
+    HospitalityLevel1       -> "LVL 1"
+    HospitalityLevel2       -> "LVL 2"
+    HospitalityLevel3       -> "LVL 3"
+    HospitalityLevel4       -> "LVL 4"
+    HospitalityLevel5       -> "LVL 5"
+    HospitalityLevel6       -> "LVL 6"
+
+-- | Detailed payroll output retains the approval-pinned shift payroll label as
+-- tracking context alongside its detailed calculation fields.
 fetchApprovedEntryPayLabels :: (?modelContext :: ModelContext) => [TimesheetEntry] -> IO (Map.Map UUID (Maybe Text))
 fetchApprovedEntryPayLabels entries = do
     let versionIds = List.nub (mapMaybe (.shiftTypePayVersionId) entries)
