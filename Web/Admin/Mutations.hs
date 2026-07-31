@@ -13,6 +13,7 @@ module Web.Admin.Mutations
     , rosterTimePickerWindowTouchedResources
     , rosterWeekStartsOnTouchedResources
     , setRosterEndTimesEnabledMutation
+    , setUnavailableStaffWarningThresholdMutation
     , setRosterTimePickerWindowMutation
     , setRosterWeekStartsOnMutation
     , shiftTypeAffectsXeroPayItems
@@ -23,6 +24,7 @@ module Web.Admin.Mutations
     ) where
 
 import Application.Helper.FrontendContract.Surface.Admin.Resource
+import Application.Helper.FrontendContract.Surface.LeaveRequests.Resource (leaveAvailabilityWarningsResource)
 import Application.Helper.FrontendContract.Surface.Roster.Live (activeRosterWeekScopes)
 import Application.Helper.FrontendContract.Surface.Roster.Resource
 import Application.Helper.FrontendContract.Surface.Timesheets.Live (activeTimesheetWeekScopes)
@@ -62,6 +64,17 @@ setRosterEndTimesEnabledMutation venueConfig rosterEndTimesEnabled = do
         |> set #rosterEndTimesEnabled rosterEndTimesEnabled
         |> updateRecord
     invalidateTouchedResources "admin.venue_config.roster_end_times" (liveMutationResult updated (rosterEndTimesTouchedResources currentVenueId))
+
+setUnavailableStaffWarningThresholdMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => VenueConfig -> Maybe Int -> IO (LiveMutationResult VenueConfig)
+setUnavailableStaffWarningThresholdMutation venueConfig threshold = do
+    now <- getCurrentTime
+    updated <- venueConfig
+        |> set #unavailableStaffWarningThreshold threshold
+        |> set #updatedAt now
+        |> updateRecord
+    invalidateTouchedResources
+        "admin.venue_config.unavailable_staff_warning_threshold"
+        (liveMutationResult updated (adminVenueSettingsTouchedResources currentVenueId <> [leaveAvailabilityWarningsResource (unpackId currentVenueId)]))
 
 setRosterWeekStartsOnMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => VenueConfig -> Int -> IO (LiveMutationResult VenueConfig)
 setRosterWeekStartsOnMutation venueConfig rosterWeekStartsOn = do

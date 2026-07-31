@@ -59,6 +59,77 @@ tests = aroundAll withDatabaseTestContext do
                 response `responseStatusShouldBe` status302
                 responseHeaders response `shouldContain` [("Location", "http://localhost/Support")]
 
+        it "renders grouped threshold warnings for distinct active linked and trial staff" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Leave Threshold Venue"
+                foreignVenue <- createVenueWithConfig "Foreign Leave Threshold Venue"
+                manager <- createUserRecord "leave-threshold-manager@example.com" "staff" True
+                linkedUser <- createUserRecord "leave-threshold-linked@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue manager "manager"
+                _ <- createVenueMembershipRecord venue linkedUser "worker"
+                linkedStaff <- createStaffRecord venue (Just linkedUser) "Linked" "Worker"
+                trialStaff <- createStaffRecord venue Nothing "Trial" "Worker"
+                inactiveStaff <- createStaffRecord venue Nothing "Inactive" "Worker" >>= updateRecord . set #isActive False
+                now <- getCurrentTime
+                archivedStaff <- createStaffRecord venue Nothing "Archived" "Worker"
+                    >>= updateRecord
+                        . set #archivedAt (Just now)
+                        . set #archivedByUserId (Just (unpackId manager.id))
+                        . set #archiveReason (Just "threshold_test")
+                deletedStaff <- createStaffRecord venue Nothing "Deleted" "Worker"
+                foreignStaff <- createStaffRecord foreignVenue Nothing "Foreign" "Worker"
+                venueConfig <- query @VenueConfig |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
+                _ <- venueConfig |> set #unavailableStaffWarningThreshold (Just 2) |> updateRecord
+                today <- utctDay <$> getCurrentTime
+                let firstWarningDay = addDays 1 today
+                let availableAgain = addDays 4 today
+                _ <- createLeaveRequestRecord venue linkedStaff firstWarningDay availableAgain "pending"
+                _ <- createLeaveRequestRecord venue trialStaff firstWarningDay (addDays 3 today) "approved"
+                _ <- createLeaveRequestRecord venue trialStaff (addDays 3 today) availableAgain "pending"
+                _ <- createLeaveRequestRecord venue inactiveStaff firstWarningDay availableAgain "approved"
+                _ <- createLeaveRequestRecord venue archivedStaff firstWarningDay availableAgain "pending"
+                _ <- createLeaveRequestRecord venue deletedStaff firstWarningDay availableAgain "approved"
+                    >>= updateRecord
+                        . set #deletedAt (Just now)
+                        . set #deletedByUserId (Just (unpackId manager.id))
+                        . set #deleteReason (Just "threshold_test")
+                _ <- createLeaveRequestRecord venue linkedStaff firstWarningDay availableAgain "denied"
+                _ <- createLeaveRequestRecord foreignVenue foreignStaff firstWarningDay availableAgain "approved"
+
+                response <- withUserAndCurrentVenue manager venue.id do
+                    callAction LeaveRequestsAction
+
+                response `responseStatusShouldBe` status200
+                response `responseBodyShouldContain` "Unavailable-staff threshold reached"
+                response `responseBodyShouldContain` "Warning threshold: 2 active staff"
+                response `responseBodyShouldContain` "2 staff unavailable"
+                response `responseBodyShouldContain` "Linked Worker"
+                response `responseBodyShouldContain` "Trial Worker"
+                response `responseBodyShouldContain` "Pending and approved"
+                response `responseBodyShouldContain` (cs (formatTime defaultTimeLocale "%d/%m/%Y" firstWarningDay))
+                response `responseBodyShouldContain` (cs (formatTime defaultTimeLocale "%d/%m/%Y" (addDays 3 today)))
+                response `responseBodyShouldNotContain` "3 staff unavailable"
+                response `responseBodyShouldNotContain` "Foreign Worker"
+
+        it "shows managers the disabled threshold state and withholds warnings from workers" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Leave Disabled Threshold Venue"
+                manager <- createUserRecord "leave-disabled-threshold-manager@example.com" "staff" True
+                worker <- createUserRecord "leave-disabled-threshold-worker@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue manager "manager"
+                _ <- createVenueMembershipRecord venue worker "worker"
+                _ <- createStaffRecord venue (Just worker) "Threshold" "Worker"
+
+                managerResponse <- withUserAndCurrentVenue manager venue.id do
+                    callAction LeaveRequestsAction
+                workerResponse <- withUserAndCurrentVenue worker venue.id do
+                    callAction LeaveRequestsAction
+
+                managerResponse `responseStatusShouldBe` status200
+                managerResponse `responseBodyShouldContain` "Unavailable-staff warnings are disabled for this venue."
+                workerResponse `responseStatusShouldBe` status302
+                workerResponse `responseBodyShouldNotContain` "Unavailable-staff warnings"
+
         it "selects leave roster invalidation targets from active roster week scopes in the current venue" $ withContext do
             withCleanDb do
                 let staleTimestamp = UTCTime (fromGregorian 2024 12 1) (secondsToDiffTime 0)
@@ -117,13 +188,15 @@ tests = aroundAll withDatabaseTestContext do
                 leaveRequest <- createLeaveRequestRecord venue staff (fromGregorian 2025 1 8) (fromGregorian 2025 1 15) "pending"
                 Set.fromList (leaveReviewTouchedResources (fromGregorian 2025 1 10) ApproveLeave (Just LeavePending) leaveRequest)
                     `shouldBe` Set.fromList
-                        [ pendingLeaveRequestsResource (unpackId venue.id)
+                        [ leaveAvailabilityWarningsResource (unpackId venue.id)
+                        , pendingLeaveRequestsResource (unpackId venue.id)
                         , approvedLeaveRequestsResource (unpackId venue.id)
                         , staffLeaveRequestsResource leaveRequest.staffId
                         ]
                 Set.fromList (leaveReviewTouchedResources (fromGregorian 2025 1 16) ApproveLeave (Just LeavePending) leaveRequest)
                     `shouldBe` Set.fromList
-                        [ archivedLeaveRequestsResource (unpackId venue.id)
+                        [ leaveAvailabilityWarningsResource (unpackId venue.id)
+                        , archivedLeaveRequestsResource (unpackId venue.id)
                         , staffLeaveRequestsResource leaveRequest.staffId
                         ]
 
@@ -434,6 +507,8 @@ tests = aroundAll withDatabaseTestContext do
                 manager <- createUserRecord "leave-manager-actor@example.com" "staff" True
                 _ <- createVenueMembershipRecord venue manager "manager"
                 _ <- createStaffRecord venue (Just manager) "Mara" "Manager"
+                venueConfig <- query @VenueConfig |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
+                _ <- venueConfig |> set #unavailableStaffWarningThreshold (Just 1) |> updateRecord
 
                 response <- withUserAndCurrentVenue manager venue.id do
                     withRequestHeaders [("HX-Request", "true")] do
@@ -448,6 +523,7 @@ tests = aroundAll withDatabaseTestContext do
                 triggerHeader `shouldSatisfy` maybe False (Text.isInfixOf "bepis:live-fragments-refresh")
                 triggerHeader `shouldSatisfy` maybe False (Text.isInfixOf "leave-section-count")
                 triggerHeader `shouldSatisfy` maybe False (Text.isInfixOf "leave-section-list")
+                triggerHeader `shouldSatisfy` maybe False (Text.isInfixOf "leave-availability-warnings")
                 triggerHeader `shouldSatisfy` maybe False (Text.isInfixOf "\"leaveSection\":\"archive\"")
                 triggerHeader `shouldSatisfy` maybe True (not . Text.isInfixOf "\"leaveSection\":\"pending\"")
 
@@ -457,6 +533,8 @@ tests = aroundAll withDatabaseTestContext do
                 user <- createUserRecord "leave-htmx-create@example.com" "staff" True
                 _ <- createVenueMembershipRecord venue user "worker"
                 _ <- createStaffRecord venue (Just user) "Liv" "Create"
+                venueConfig <- query @VenueConfig |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
+                _ <- venueConfig |> set #unavailableStaffWarningThreshold (Just 1) |> updateRecord
 
                 versionBefore <- currentLiveUpdateVersion (LeaveLive.leaveRequestsLiveScope (unpackId venue.id))
 

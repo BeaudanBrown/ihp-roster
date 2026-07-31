@@ -1,6 +1,7 @@
 module Test.Controller.ProfilesSpec where
 
 import Application.Helper.Controller (PlatformRole (SuperAdminRole))
+import Application.Helper.FrontendContract.Surface.LeaveRequests.Resource (leaveAvailabilityWarningsResource)
 import qualified Application.Helper.FrontendContract.Surface.Profile.Live as ProfileLive
 import Application.Helper.FrontendContract.Surface.Profile.Resource
 import qualified Application.Helper.FrontendContract.Surface.Roster.Live as RosterLive
@@ -335,7 +336,8 @@ tests = aroundAll withDatabaseTestContext do
 
                 Set.fromList (profileUpdateTouchedResources staff)
                     `shouldBe` Set.fromList
-                        [ staffProfileResource (unpackId staff.id)
+                        [ leaveAvailabilityWarningsResource (unpackId venue.id)
+                        , staffProfileResource (unpackId staff.id)
                         , staffPreferencesResource (unpackId staff.id)
                         ]
 

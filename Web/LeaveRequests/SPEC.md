@@ -24,6 +24,15 @@ This file describes implemented leave/availability behavior.
 - Removing a staff member denies that staff identity's pending requests through
   the normal denied event and audit provenance lifecycle. Approved and
   already-denied requests remain unchanged as retained history.
+- Venues can optionally configure an unavailable-staff warning threshold from
+  1–100. `NULL` disables warnings. Venue admins and owners edit it through
+  Venue Settings; managers see the configured state and warnings on the
+  Unavailability page. Warnings never block submissions.
+- Warning counts are per calendar date and count distinct active, unarchived
+  linked or trial staff with pending or approved requests. Deleted/denied
+  requests and inactive/archived staff do not count. Request `end_date` remains
+  exclusive. Consecutive dates with equal counts are grouped and expose the
+  affected staff names and statuses.
 
 ## History
 
@@ -34,6 +43,9 @@ This file describes implemented leave/availability behavior.
 ## Live Updates
 
 - Leave pages can use declarative live surfaces for manager/worker visibility.
+- The manager warning fragment depends on the typed venue warning resource.
+  Threshold configuration, request creation/review, and staff removal invalidate
+  that resource so open manager pages refetch authoritative server HTML.
 - Successful actor responses request a local shared-form refetch plus the
   resource-planned history refetch and return only toast OOB HTML. Roster mounts
   ignore the absent history key; validation failures still replace the form

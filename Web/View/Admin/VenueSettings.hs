@@ -53,6 +53,7 @@ renderVenueSettingsSection venueConfig =
         [hsx|
             <div class="admin-settings-grid">
                 {renderRosterTimePickerWindowForm venueConfig}
+                {renderUnavailableStaffWarningThresholdForm venueConfig}
                 {renderRosterEndTimesForm venueConfig}
             </div>
         |]
@@ -96,6 +97,40 @@ renderRosterTimePickerWindowForm venueConfig =
             (Just (venueTimePickerStartTimeText venueConfig))
             (Just (venueTimePickerFinalSelectableTimeText venueConfig))
             Nothing
+            Nothing
+
+renderUnavailableStaffWarningThresholdForm :: VenueConfig -> Html
+renderUnavailableStaffWarningThresholdForm venueConfig =
+    renderFrontendSurfaceActionForm
+        (AdminAction.updateVenueConfigAction fields)
+        venueTimePickerSettingRoute
+        [hsx|
+        <input type="hidden" name={surfaceFieldNameFrom @Surface.ConfigFieldField fields} value="unavailableStaffWarningThreshold" />
+        <div class="admin-setting-row-copy">
+            <label class="fw-semibold" for="venue-unavailable-staff-warning-threshold">Unavailable-staff warning threshold</label>
+            <p class="small app-muted mb-0">Warn managers when this many active staff are unavailable on the same date. Leave blank to keep warnings Disabled.</p>
+        </div>
+        <div class="admin-setting-row-control">
+            <input id="venue-unavailable-staff-warning-threshold"
+                   class="form-control form-control-sm"
+                   type="number"
+                   min="1"
+                   max="100"
+                   name={surfaceFieldNameFrom @Surface.UnavailableStaffWarningThreshold fields}
+                   value={maybe "" tshow venueConfig.unavailableStaffWarningThreshold}
+                   placeholder="Disabled" />
+        </div>
+    |]
+  where
+    fields =
+        AdminAction.updateVenueConfigActionFields
+            "unavailableStaffWarningThreshold"
+            Nothing
+            Nothing
+            Nothing
+            Nothing
+            Nothing
+            venueConfig.unavailableStaffWarningThreshold
 
 renderRosterEndTimesForm :: VenueConfig -> Html
 renderRosterEndTimesForm venueConfig =
@@ -117,6 +152,7 @@ renderRosterEndTimesForm venueConfig =
         AdminAction.updateVenueConfigActionFields
             "rosterEndTimesEnabled"
             (Just venueConfig.rosterEndTimesEnabled)
+            Nothing
             Nothing
             Nothing
             Nothing

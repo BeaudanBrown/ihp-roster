@@ -6,6 +6,7 @@ module Web.Profiles.Mutations
     , updateCurrentUserProfile
     ) where
 
+import Application.Helper.FrontendContract.Surface.LeaveRequests.Resource (leaveAvailabilityWarningsResource)
 import Application.Helper.FrontendContract.Surface.Profile.Resource
 import Application.Helper.FrontendContract.Surface.Roster.Live (activeRosterWeekScopes)
 import Application.Helper.RosterGroups (fetchCurrentVenueDefaultRosterGroup,
@@ -57,7 +58,8 @@ updateCurrentUserProfile openSection staffInput submittedSelections = do
 
 profileUpdateTouchedResources :: Staff -> [SurfaceResourceValue]
 profileUpdateTouchedResources staff =
-    [ staffProfileResource (unpackId staff.id)
+    [ leaveAvailabilityWarningsResource staff.venueId
+    , staffProfileResource (unpackId staff.id)
     , staffPreferencesResource (unpackId staff.id)
     ]
 

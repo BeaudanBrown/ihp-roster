@@ -20,6 +20,7 @@ import Application.Helper.Controller (VenueRole (VenueOwnerRole),
 import Application.Helper.FrontendContract.Surface.Admin.Resource (adminInvitesResource)
 import Application.Helper.FrontendContract.Surface.LeaveRequests.Resource (archivedLeaveRequestsResource,
                                                                            deniedLeaveRequestsResource,
+                                                                           leaveAvailabilityWarningsResource,
                                                                            pendingLeaveRequestsResource)
 import Application.Helper.FrontendContract.Surface.Profile.Resource
 import Application.Helper.FrontendContract.Surface.Roster.Live (activeRosterWeekScopes)
@@ -270,6 +271,7 @@ removeStaffMember staff
                             <> [ adminInvitesResource (unpackId currentVenueId)
                                , staffLeaveRequestsResource (unpackId removedStaff.id)
                                , pendingLeaveRequestsResource (unpackId currentVenueId)
+                               , leaveAvailabilityWarningsResource (unpackId currentVenueId)
                                , deniedLeaveRequestsResource (unpackId currentVenueId)
                                , archivedLeaveRequestsResource (unpackId currentVenueId)
                                ]
@@ -398,7 +400,8 @@ updateStaffMember originalStaff staff selectedRosterGroupIds submittedSelections
 
 staffUpdateTouchedResources :: Staff -> [SurfaceResourceValue]
 staffUpdateTouchedResources staff =
-    [ staffProfileResource (unpackId staff.id)
+    [ leaveAvailabilityWarningsResource staff.venueId
+    , staffProfileResource (unpackId staff.id)
     , staffPreferencesResource (unpackId staff.id)
     ]
 

@@ -293,6 +293,20 @@ instance Controller AdminController where
                     "autoTimesheetCreationEnabled" -> do
                         setErrorMessage "Automatic timesheet creation has been replaced by rostered timesheet suggestions."
                         respondToVenueSettingsMutation
+                    "unavailableStaffWarningThreshold" -> do
+                        let threshold = surfaceFieldValue @Surface.UnavailableStaffWarningThreshold fields
+                        if maybe True (\value -> value >= 1 && value <= 100) threshold
+                            then do
+                                _ <- setUnavailableStaffWarningThresholdMutation venueConfig threshold
+                                setSuccessMessage $
+                                    maybe
+                                        "Unavailable-staff warnings disabled."
+                                        (\value -> "Managers will be warned at " <> tshow value <> " unavailable staff.")
+                                        threshold
+                                respondToVenueSettingsMutation
+                            else do
+                                setErrorMessage "Enter a threshold from 1 to 100, or leave it blank to disable warnings."
+                                respondToVenueSettingsMutation
                     "timePickerWindow" -> do
                         let maybeStartMinute = parseQuarterHourMinuteOfDay =<< surfaceFieldValue @Surface.TimePickerStart fields
                         let maybeFinalSelectableMinute = parseQuarterHourMinuteOfDay =<< surfaceFieldValue @Surface.TimePickerEnd fields

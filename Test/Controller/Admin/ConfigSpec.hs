@@ -987,6 +987,10 @@ tests = aroundAll withDatabaseTestContext do
                 pageResponse `responseBodyShouldContain` "hx-target=\"#admin-venue-settings-fragment\""
                 pageResponse `responseBodyShouldContain` "hx-swap=\"none\""
                 pageResponse `responseBodyShouldContain` "Valid shift window"
+                pageResponse `responseBodyShouldContain` "Unavailable-staff warning threshold"
+                pageResponse `responseBodyShouldContain` "name=\"unavailableStaffWarningThreshold\""
+                pageResponse `responseBodyShouldContain` "value=\"\""
+                pageResponse `responseBodyShouldContain` "Disabled"
                 pageResponse `responseBodyShouldContain` "name=\"timePickerStart\" value=\"06:00\""
                 pageResponse `responseBodyShouldContain` "name=\"timePickerEnd\" value=\"05:45\""
                 pageResponse `responseBodyShouldNotContain` "Roster week starts on"
@@ -1010,6 +1014,63 @@ tests = aroundAll withDatabaseTestContext do
                 venueConfig.rosterEndTimesEnabled `shouldBe` True
                 versionAfter <- currentLiveUpdateVersion (AdminLive.adminVenueConfigLiveScope (unpackId venue.id))
                 versionAfter `shouldBe` versionBefore
+
+        it "configures, disables, and validates the unavailable-staff warning threshold" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Admin Availability Threshold Venue"
+                admin <- createUserRecord "admin-availability-threshold@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue admin "venue_admin"
+                auditCountBefore <- query @AuditEvent |> fetchCount
+                originalConfig <- query @VenueConfig |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
+
+                enabledResponse <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
+                    withRequestHeaders [("HX-Request", "true")] do
+                        callActionWithParams UpdateVenueConfigAction
+                            [ ("configField", "unavailableStaffWarningThreshold")
+                            , ("unavailableStaffWarningThreshold", "3")
+                            ]
+
+                enabledResponse `responseStatusShouldBe` status200
+                enabledResponse `responseBodyShouldContain` "value=\"3\""
+                enabledConfig <- query @VenueConfig |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
+                enabledConfig.unavailableStaffWarningThreshold `shouldBe` Just 3
+                enabledConfig.updatedAt `shouldSatisfy` (> originalConfig.updatedAt)
+
+                invalidResponse <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
+                    callActionWithParams UpdateVenueConfigAction
+                        [ ("configField", "unavailableStaffWarningThreshold")
+                        , ("unavailableStaffWarningThreshold", "101")
+                        ]
+                invalidResponse `responseStatusShouldBe` status302
+                unchangedConfig <- fetch enabledConfig.id
+                unchangedConfig.unavailableStaffWarningThreshold `shouldBe` Just 3
+
+                zeroResponse <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
+                    callActionWithParams UpdateVenueConfigAction
+                        [ ("configField", "unavailableStaffWarningThreshold")
+                        , ("unavailableStaffWarningThreshold", "0")
+                        ]
+                zeroResponse `responseStatusShouldBe` status302
+                zeroRejectedConfig <- fetch enabledConfig.id
+                zeroRejectedConfig.unavailableStaffWarningThreshold `shouldBe` Just 3
+
+                boundaryResponse <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
+                    callActionWithParams UpdateVenueConfigAction
+                        [ ("configField", "unavailableStaffWarningThreshold")
+                        , ("unavailableStaffWarningThreshold", "100")
+                        ]
+                boundaryResponse `responseStatusShouldBe` status302
+                boundaryConfig <- fetch enabledConfig.id
+                boundaryConfig.unavailableStaffWarningThreshold `shouldBe` Just 100
+
+                disabledResponse <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
+                    callActionWithParams UpdateVenueConfigAction
+                        [("configField", "unavailableStaffWarningThreshold")]
+                disabledResponse `responseStatusShouldBe` status302
+                disabledConfig <- fetch enabledConfig.id
+                disabledConfig.unavailableStaffWarningThreshold `shouldBe` Nothing
+                auditCountAfter <- query @AuditEvent |> fetchCount
+                auditCountAfter `shouldBe` auditCountBefore
 
         it "updates non-pay config rows from the admin page" $ withContext do
             withCleanDb do

@@ -393,6 +393,7 @@ tests = describe "FrontendSurfaceAdapterGenerator" do
                         , ("roster", "roster-day-section")
                         , ("roster", "roster-row")
                         , ("roster-day-timeline", "roster-day-timeline-content")
+                        , ("leave-requests", "leave-availability-warnings")
                         , ("leave-requests", "leave-section-count")
                         , ("leave-requests", "leave-section-list")
                         , ("self-service-leave", "self-service-leave-form")

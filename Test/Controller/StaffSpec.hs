@@ -2,6 +2,7 @@ module Test.Controller.StaffSpec where
 
 import Application.Async.Queue (EnqueueAppJobResult (..))
 import qualified Application.Helper.FrontendContract.Surface.Admin.Live as AdminLive
+import Application.Helper.FrontendContract.Surface.LeaveRequests.Resource (leaveAvailabilityWarningsResource)
 import Application.Helper.FrontendContract.Surface.Profile.Resource
 import Application.Helper.FrontendContract.Surface.Roster.Resource (rosterSlotsContentResource,
                                                                     rosterWeekResource)
@@ -190,7 +191,8 @@ tests = aroundAll withDatabaseTestContext do
 
                 Set.fromList (staffUpdateTouchedResources staff)
                     `shouldBe` Set.fromList
-                        [ staffProfileResource (unpackId staff.id)
+                        [ leaveAvailabilityWarningsResource (unpackId venue.id)
+                        , staffProfileResource (unpackId staff.id)
                         , staffPreferencesResource (unpackId staff.id)
                         ]
 

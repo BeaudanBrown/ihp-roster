@@ -16,6 +16,7 @@ import Application.Helper.FrontendContract.Surface.Values
 import Data.Coerce (coerce)
 import Data.List (sortOn)
 import Data.Ord (Down (..))
+import Web.LeaveRequests.AvailabilityWarnings
 import Web.View.Prelude
 
 leaveRequestsActionRoute :: Text -> FrontendSurfaceActionRoute
@@ -34,6 +35,8 @@ data IndexView = IndexView
     , today                :: Day
     , archivePage          :: Int
     , archiveIsOpen        :: Bool
+    , warningThreshold     :: Maybe Int
+    , warningPeriods       :: [AvailabilityWarningPeriod]
     , liveUpdateSurface    :: Maybe (SurfaceImpl Surface.LeaveRequestsSurface)
     }
 
@@ -92,7 +95,7 @@ renderLeaveRequestsShell IndexView { .. } =
                 , appPanelCustomHeader = mempty
                 , appPanelClass = "overflow-hidden"
                 , appPanelBodyClass = ""
-                , appPanelBody = renderleaveRequestsContentLiveFragment leaveRequests staffMembers currentViewerStaffId today archivePage archiveIsOpen
+                , appPanelBody = renderleaveRequestsContentLiveFragment leaveRequests staffMembers currentViewerStaffId today archivePage archiveIsOpen warningThreshold warningPeriods
                 }
         page = renderAppPage (AppPageConfig
             { appPageTitle = "Unavailability"
@@ -111,21 +114,67 @@ renderLeaveRequestsShell IndexView { .. } =
         </section>
     |]
 
-renderleaveRequestsContentLiveFragment :: (?context :: ControllerContext) => [LeaveRequest] -> [Staff] -> Maybe UUID -> Day -> Int -> Bool -> Html
+renderleaveRequestsContentLiveFragment :: (?context :: ControllerContext) => [LeaveRequest] -> [Staff] -> Maybe UUID -> Day -> Int -> Bool -> Maybe Int -> [AvailabilityWarningPeriod] -> Html
 renderleaveRequestsContentLiveFragment =
     renderleaveRequestsContentLiveFragmentWithSwap Nothing
 
-renderleaveRequestsContentLiveFragmentWithSwap :: (?context :: ControllerContext) => Maybe Text -> [LeaveRequest] -> [Staff] -> Maybe UUID -> Day -> Int -> Bool -> Html
-renderleaveRequestsContentLiveFragmentWithSwap maybeSwapOob leaveRequests staffMembers currentViewerStaffId today archivePage archiveIsOpen = [hsx|
+renderleaveRequestsContentLiveFragmentWithSwap :: (?context :: ControllerContext) => Maybe Text -> [LeaveRequest] -> [Staff] -> Maybe UUID -> Day -> Int -> Bool -> Maybe Int -> [AvailabilityWarningPeriod] -> Html
+renderleaveRequestsContentLiveFragmentWithSwap maybeSwapOob leaveRequests staffMembers currentViewerStaffId today archivePage archiveIsOpen warningThreshold warningPeriods = [hsx|
     <div id={leaveRequestsContentFragmentId} hx-swap-oob={maybeSwapOob}>
         {if currentUserIsManager
-            then renderManagerLeaveRequests leaveRequests staffMembers currentViewerStaffId today archivePage archiveIsOpen
+            then renderAvailabilityWarningsLiveFragment warningThreshold warningPeriods <> renderManagerLeaveRequests leaveRequests staffMembers currentViewerStaffId today archivePage archiveIsOpen
             else if null leaveRequests
                 then renderEmptyState
                 else renderLeaveRequestsTable leaveRequests staffMembers currentViewerStaffId
         }
     </div>
 |]
+
+renderAvailabilityWarningsLiveFragment :: Maybe Int -> [AvailabilityWarningPeriod] -> Html
+renderAvailabilityWarningsLiveFragment warningThreshold warningPeriods = [hsx|
+    <div id={surfaceFragmentTargetId @Surface.LeaveRequestsSurface @Surface.LeaveAvailabilityWarnings noSurfaceFields} class="mb-3">
+        {renderAvailabilityWarningContent warningThreshold warningPeriods}
+    </div>
+|]
+
+renderAvailabilityWarningContent :: Maybe Int -> [AvailabilityWarningPeriod] -> Html
+renderAvailabilityWarningContent Nothing _ = [hsx|<p class="small app-muted mb-0">Unavailable-staff warnings are disabled for this venue.</p>|]
+renderAvailabilityWarningContent (Just threshold) [] = [hsx|<p class="small app-muted mb-0">Managers are warned when at least {threshold} active staff are unavailable on the same date. No dates currently meet the threshold.</p>|]
+renderAvailabilityWarningContent (Just threshold) warningPeriods = [hsx|
+    <div class="alert alert-warning mb-0" role="status">
+        <h2 class="h6 mb-2">Unavailable-staff threshold reached</h2>
+        <p class="small mb-2">Warning threshold: {threshold} active staff. Requests remain available and are not blocked.</p>
+        <div class="d-grid gap-2">
+            {forEach warningPeriods renderAvailabilityWarningPeriod}
+        </div>
+    </div>
+|]
+
+renderAvailabilityWarningPeriod :: AvailabilityWarningPeriod -> Html
+renderAvailabilityWarningPeriod warningPeriod = [hsx|
+    <details>
+        <summary>{warningPeriodLabel warningPeriod} — {warningPeriod.availabilityWarningCount} staff unavailable</summary>
+        <ul class="small mb-0 mt-2">
+            {forEach warningPeriod.availabilityWarningStaff renderAvailabilityWarningStaff}
+        </ul>
+    </details>
+|]
+
+renderAvailabilityWarningStaff :: AvailabilityWarningStaff -> Html
+renderAvailabilityWarningStaff warningStaff = [hsx|
+    <li>{warningStaff.availabilityWarningStaffName} — {warningStatusLabel warningStaff.availabilityWarningStaffStatuses}</li>
+|]
+
+warningPeriodLabel :: AvailabilityWarningPeriod -> Text
+warningPeriodLabel warningPeriod
+    | warningPeriod.availabilityWarningEndDate == addDays 1 warningPeriod.availabilityWarningStartDate = formatDateDisplay warningPeriod.availabilityWarningStartDate
+    | otherwise = formatDateDisplay warningPeriod.availabilityWarningStartDate <> " – " <> formatDateDisplay (addDays (-1) warningPeriod.availabilityWarningEndDate)
+
+warningStatusLabel :: [LeaveRequestStatus] -> Text
+warningStatusLabel statuses
+    | statuses == [LeavePending] = "Pending"
+    | statuses == [LeaveApproved] = "Approved"
+    | otherwise = "Pending and approved"
 
 renderEmptyState :: Html
 renderEmptyState = [hsx|<p class="app-muted mb-0">No unavailable periods yet.</p>|]

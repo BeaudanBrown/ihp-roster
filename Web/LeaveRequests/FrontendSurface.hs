@@ -99,7 +99,17 @@ leaveRequestsSurfaceScope scope =
 
 leaveRequestsCandidateMountedFragments :: LeaveRequestsScopeValue -> [FrontendSurfaceMountedFragment]
 leaveRequestsCandidateMountedFragments _ =
-    leaveRequestsSectionMountedFragments
+    leaveAvailabilityWarningsMountedFragment : leaveRequestsSectionMountedFragments
+
+leaveAvailabilityWarningsMountedFragment :: FrontendSurfaceMountedFragment
+leaveAvailabilityWarningsMountedFragment =
+    frontendSurfaceMountedFragmentFor @Surface.LeaveRequestsSurface @Surface.LeaveAvailabilityWarnings
+        noSurfaceFields
+        noSurfaceFields
+        (appendQueryParams
+            (pathTo ShowleaveRequestsContentLiveFragmentAction)
+            [("fragment", surfaceFragmentNameValue @Surface.LeaveRequestsSurface @Surface.LeaveAvailabilityWarnings)])
+        FrontendSurfaceReplace
 
 leaveRequestsSurfaceFragmentKeys :: [FrontendSurfaceMountedFragment] -> [SurfaceFragmentKey]
 leaveRequestsSurfaceFragmentKeys = map (.mountedFragmentKey)

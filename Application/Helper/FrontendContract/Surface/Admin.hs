@@ -59,6 +59,7 @@ module Application.Helper.FrontendContract.Surface.Admin
     , TimePickerStart
     , TimePickerEnd
     , RosterWeekStartsOn
+    , UnavailableStaffWarningThreshold
     , Email
     , RangeStart
     , RangeEnd
@@ -129,6 +130,7 @@ data AutoTimesheetCreationEnabled
 data TimePickerStart
 data TimePickerEnd
 data RosterWeekStartsOn
+data UnavailableStaffWarningThreshold
 data Email
 data RangeStart
 data RangeEnd
@@ -197,6 +199,7 @@ type AdminVenueSettingsSurface =
              , OptionalField TimePickerStart 'WireText
              , OptionalField TimePickerEnd 'WireText
              , OptionalField RosterWeekStartsOn 'WireText
+             , OptionalField UnavailableStaffWarningThreshold 'WireInt
              ]
             '[ 'HtmxMethod 'HtmxPost
              , 'HtmxTarget ('HtmxId AdminVenueSettingsFragment)

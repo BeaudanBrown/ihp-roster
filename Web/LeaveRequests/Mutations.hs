@@ -105,7 +105,9 @@ reviewLeaveRequest decision leaveRequest = do
 
 baseLeaveTouchedResources :: LeaveRequest -> [SurfaceResourceValue]
 baseLeaveTouchedResources leaveRequest =
-    [staffLeaveRequestsResource leaveRequest.staffId]
+    [ staffLeaveRequestsResource leaveRequest.staffId
+    , leaveAvailabilityWarningsResource leaveRequest.venueId
+    ]
 
 leaveReviewTouchedResources :: Day -> LeaveReviewDecision -> Maybe LeaveRequestStatus -> LeaveRequest -> [SurfaceResourceValue]
 leaveReviewTouchedResources today decision previousStatus leaveRequest =

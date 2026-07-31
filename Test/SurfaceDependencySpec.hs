@@ -115,15 +115,20 @@ tests = do
             let venueId = fromWords 10 0 0 0
             let scopeValue = LeaveRequestsScopeValue venueId
             let candidates = leaveRequestsCandidateMountedFragments scopeValue
+            let warningResources = Set.fromList [leaveAvailabilityWarningsResource venueId]
             let pendingResources = Set.fromList [leaveRequestsSectionResource venueId "pending"]
             let approvedResources = Set.fromList [leaveRequestsSectionResource venueId "approved"]
+            let affectedByWarnings = planMountedFragments warningResources (leaveRequestsSurfaceScope scopeValue) candidates
             let affectedByPending = planMountedFragments pendingResources (leaveRequestsSurfaceScope scopeValue) candidates
             let affectedByApproved = planMountedFragments approvedResources (leaveRequestsSurfaceScope scopeValue) candidates
 
+            actorLiveFragmentsRefreshKeys (leaveRequestsSurfaceScope scopeValue) warningResources candidates
+                `shouldBe` passiveFragmentKeys warningResources (leaveRequestsSurfaceScope scopeValue) candidates
             actorLiveFragmentsRefreshKeys (leaveRequestsSurfaceScope scopeValue) pendingResources candidates
                 `shouldBe` passiveFragmentKeys pendingResources (leaveRequestsSurfaceScope scopeValue) candidates
             actorLiveFragmentsRefreshKeys (leaveRequestsSurfaceScope scopeValue) approvedResources candidates
                 `shouldBe` passiveFragmentKeys approvedResources (leaveRequestsSurfaceScope scopeValue) candidates
+            map (.mountedFragmentTargetId) affectedByWarnings `shouldBe` ["leave-availability-warnings"]
             map (.mountedFragmentTargetId) affectedByPending `shouldBe` ["leave-pending-count", "leave-pending-list"]
             map (.mountedFragmentTargetId) affectedByApproved `shouldBe` ["leave-approved-count", "leave-approved-list"]
 
@@ -131,7 +136,7 @@ tests = do
             let scopeValue = LeaveRequestsScopeValue (fromWords 10 0 0 0)
             let configJson = frontendSurfaceMountConfigJson (leaveRequestsSurfaceImpl scopeValue).surfaceImplMountConfig
 
-            Text.count "\"fragmentKey\":" configJson `shouldBe` 8
+            Text.count "\"fragmentKey\":" configJson `shouldBe` 9
             configJson `shouldSatisfy` Text.isInfixOf "\"subscription\":{\"scope\":{"
             configJson `shouldSatisfy` (not . Text.isInfixOf "\"resyncFragments\"")
             configJson `shouldSatisfy` (not . Text.isInfixOf "\"mountState\"")

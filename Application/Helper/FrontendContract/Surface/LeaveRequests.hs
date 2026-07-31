@@ -3,6 +3,8 @@
 
 module Application.Helper.FrontendContract.Surface.LeaveRequests
     ( LeaveRequestsContent
+    , LeaveAvailabilityWarnings
+    , LeaveAvailabilityWarningsResource
     , LeaveSection
     , LeaveSectionCount
     , LeaveSectionList
@@ -26,6 +28,7 @@ data LeaveRequestsScope
 data VenueId
 
 data LeaveRequestsContent
+data LeaveAvailabilityWarnings
 data LeaveSection
 data LeaveSectionCount
 data LeaveSectionList
@@ -38,6 +41,7 @@ data ArchivePage
 data None
 data LeaveArchivePageContent
 
+type LeaveAvailabilityWarningsResource = Resource LeaveAvailabilityWarnings '[ Field VenueId 'WireUUID ]
 type LeaveRequestsSectionResource = Resource LeaveRequestsSection '[ Field VenueId 'WireUUID, Field LeaveSection 'WireText ]
 data LeaveRequestsSection
 
@@ -47,6 +51,13 @@ type LeaveRequestsSurface =
             '[ Field VenueId 'WireUUID
              ]
             '[ 'Authorize 'CurrentVenueManager '[ VenueId ] ]
+         , Fragment LeaveAvailabilityWarnings
+            '[]
+            '[ 'MountTarget LeaveAvailabilityWarnings '[]
+             , 'Eager
+             , 'Live
+             , 'DependsOn LeaveAvailabilityWarningsResource '[ 'FromScope VenueId ]
+             ]
          , Fragment LeaveSectionCount
             '[ Field LeaveSection 'WireText ]
             '[ 'MountTarget Leave '[ Field LeaveSection 'WireText, Field LeaveTargetSuffix 'WireText ]

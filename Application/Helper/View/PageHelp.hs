@@ -225,6 +225,7 @@ pageHelpTopics =
         , section HelpManagerPlus "Manager tasks"
             [ buttonItem HelpManagerPlus "bi-check-lg" "Approve" "Approve a request" "Open a pending request, review the dates and reason, then click Approve." "btn btn-sm btn-outline-success me-1" Nothing "Approve"
             , buttonItem HelpManagerPlus "bi-x-lg" "Deny" "Deny a request" "Click Deny when the time away cannot be accepted, then add any needed follow-up outside the request." "btn btn-sm btn-outline-danger me-1" Nothing "Deny"
+            , iconItem HelpManagerPlus "bi-exclamation-triangle" "Staffing warning" "Review busy unavailable dates" "When the venue threshold is enabled, warnings group consecutive dates with the same unavailable-staff count. Expand a warning to see affected active staff and pending or approved statuses. Warnings never block submissions."
             , iconItem HelpManagerPlus "bi-calendar-week" "Roster" "Check roster impact" "After approving time away, review affected roster weeks for conflicts."
             ]
         ]

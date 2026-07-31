@@ -187,8 +187,9 @@ reportLeaveArchivePageErrors =
 requestedLeaveRequestsFragment :: (?request :: Request) => LeaveRequestsFragment
 requestedLeaveRequestsFragment =
     case paramOrDefault @Text "leave-requests-content" "fragment" of
-        "leave-section-count" -> LeaveRequestsSectionCount requestedLeaveSection
-        "leave-section-list"  -> LeaveRequestsSectionList requestedLeaveSection
+        "leave-availability-warnings" -> LeaveAvailabilityWarnings
+        "leave-section-count"         -> LeaveRequestsSectionCount requestedLeaveSection
+        "leave-section-list"          -> LeaveRequestsSectionList requestedLeaveSection
         _                     -> LeaveRequestsContent
 
 requestedLeaveSection :: (?request :: Request) => Text

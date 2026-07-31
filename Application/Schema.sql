@@ -400,6 +400,7 @@ CREATE TABLE venue_config (
     roster_end_times_enabled BOOLEAN DEFAULT TRUE NOT NULL,
     auto_timesheet_creation_enabled BOOLEAN DEFAULT FALSE NOT NULL,
     staff_timesheet_edit_window_days INT DEFAULT 7 NOT NULL,
+    unavailable_staff_warning_threshold INT DEFAULT NULL,
     public_holiday_jurisdiction TEXT DEFAULT 'VIC' NOT NULL,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
@@ -410,7 +411,8 @@ CREATE TABLE venue_config (
     CHECK ((time_picker_start_minute_of_day >= 0) AND (time_picker_start_minute_of_day < 1440) AND (MOD(time_picker_start_minute_of_day, 15) = 0)),
     CHECK ((time_picker_final_selectable_minute_of_day >= 0) AND (time_picker_final_selectable_minute_of_day < 1440) AND (MOD(time_picker_final_selectable_minute_of_day, 15) = 0)),
     CHECK (time_picker_start_minute_of_day <> time_picker_final_selectable_minute_of_day),
-    CHECK (staff_timesheet_edit_window_days >= 0)
+    CHECK (staff_timesheet_edit_window_days >= 0),
+    CHECK (unavailable_staff_warning_threshold IS NULL OR ((unavailable_staff_warning_threshold >= 1) AND (unavailable_staff_warning_threshold <= 100)))
 );
 
 -- schema-nav: pay-reference
