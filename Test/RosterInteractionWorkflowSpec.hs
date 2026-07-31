@@ -1,14 +1,20 @@
 module Test.RosterInteractionWorkflowSpec where
 
+import Application.VenueTime.Model
+import Data.Time.Calendar (fromGregorian)
+import Data.Time.Clock (UTCTime (..), secondsToDiffTime)
+import Data.Time.LocalTime (TimeOfDay (..))
 import Data.UUID (UUID)
 import qualified Data.UUID as UUID
-import IHP.ModelSupport (unpackId)
+import Generated.Types
+import IHP.ModelSupport (newRecord, unpackId)
 import IHP.Prelude
 import Test.Hspec
 import Web.RosterWeeks.DropWorkflow
+import Web.RosterWeeks.ShiftWorkflow
 
 tests :: Spec
-tests =
+tests = do
     describe "roster interaction workflow tokens" do
         it "rejects malformed and wrong-kind opaque source tokens" do
             parseRosterDropSourceToken "" `shouldBe` Nothing
@@ -51,6 +57,32 @@ tests =
                     _ -> False
             parseTimelineShiftDropTargetToken "time:11111111-1111-1111-1111-111111111111:22222222-2222-2222-2222-222222222222:not-a-minute"
                 `shouldBe` Nothing
+
+    describe "roster shift workflow application" do
+        it "applies one validated typed submission as exact authoritative slot fields" do
+            let staffId = workflowUuid "33333333-3333-3333-3333-333333333333"
+                shiftTypeId = workflowUuid "44444444-4444-4444-4444-444444444444"
+                boundaryInput = ShiftBoundaryInput
+                    { shiftBoundaryDate = fromGregorian 2025 1 6
+                    , shiftBoundaryStartTime = TimeOfDay 9 0 0
+                    , shiftBoundaryStartOccurrence = Nothing
+                    , shiftBoundaryEndTime = TimeOfDay 17 0 0
+                    , shiftBoundaryEndOccurrence = Nothing
+                    , shiftBoundaryBreak = Nothing
+                    }
+                boundaries = either (error . show) (\value -> value) (resolveShiftBoundaries "Australia/Melbourne" boundaryInput)
+                valid = ValidatedRosterShift
+                    { validRosterShiftStaffId = staffId
+                    , validRosterShiftBoundaries = boundaries
+                    , validRosterShiftTypeId = shiftTypeId
+                    }
+                slot = applyValidatedRosterShift valid (newRecord @RosterSlot)
+
+            slot.staffId `shouldBe` Just staffId
+            slot.shiftTypeId `shouldBe` Just shiftTypeId
+            slot.startsAt `shouldBe` Just (UTCTime (fromGregorian 2025 1 5) (secondsToDiffTime (22 * 60 * 60)))
+            slot.endsAt `shouldBe` Just (UTCTime (fromGregorian 2025 1 6) (secondsToDiffTime (6 * 60 * 60)))
+            slot.timezone `shouldBe` "Australia/Melbourne"
 
 workflowUuid :: String -> UUID
 workflowUuid value = fromMaybe (error "invalid roster workflow test UUID") (UUID.fromString value)
