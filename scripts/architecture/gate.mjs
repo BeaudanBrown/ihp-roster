@@ -2,6 +2,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { repoRoot } from "./shared.mjs";
+import { checkWiringRegistries } from "./wiring-registry.mjs";
 
 const factsPath = path.join(repoRoot, "output/architecture/facts.json");
 if (!fs.existsSync(factsPath)) {
@@ -12,7 +13,7 @@ if (!fs.existsSync(factsPath)) {
 const facts = JSON.parse(fs.readFileSync(factsPath, "utf8"));
 const policyModules = new Set((facts.web.controllerPolicies || []).map((policy) => policy.module));
 const operationKinds = new Set((facts.web.bepisArchitectureContracts?.operationKinds || facts.web.bepisArchitectureContracts?.actionKinds || []).map((kind) => kind.constructor));
-const errors = [];
+const errors = checkWiringRegistries(facts);
 
 for (const controller of facts.web.controllers || []) {
   const modules = new Set(controller.actions.map((action) => (facts.web.handlers || []).find((handler) => handler.action === action.name)?.module).filter(Boolean));
@@ -43,10 +44,10 @@ for (const handler of facts.web.handlers || []) {
 }
 
 if (errors.length > 0) {
-  console.error(`Bepis architecture gate failed with ${errors.length} error(s):`);
+  console.error(`Application architecture gate failed with ${errors.length} error(s):`);
   for (const error of errors.slice(0, 50)) console.error(`- ${error}`);
   if (errors.length > 50) console.error(`... ${errors.length - 50} more`);
   process.exit(1);
 }
 
-console.log(`Bepis architecture gate passed: ${(facts.web.controllers || []).length} controllers, ${(facts.web.handlers || []).length} runBepis handlers.`);
+console.log(`Application architecture gate passed: ${(facts.web.controllers || []).length} wired controllers, ${(facts.frontend?.entrypoints || []).length} wired frontend bundles, ${(facts.web.handlers || []).length} runBepis handlers.`);

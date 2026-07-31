@@ -12,6 +12,7 @@ Use these wrappers from the project environment:
 
 ```bash
 bash ./bin/in-env architecture-facts
+bash ./bin/in-env architecture-wiring-registry-test
 bash ./bin/in-env architecture-schema
 bash ./bin/in-env architecture-web-map
 bash ./bin/in-env architecture-module-graph
@@ -33,6 +34,22 @@ For focused questions, prefer structured queries through Pi when available:
 - `trace`: OpenTelemetry trace timing diagrams from profile artifacts.
 
 Do not commit generated architecture outputs unless a future ticket explicitly changes that policy.
+
+## Closed Wiring Registries
+
+`Web/Types.hs` controller declarations are the canonical controller set; every
+controller must have exactly one `AutoRoute` instance in `Web/Routes.hs` and one
+`parseRoute` mount in `Web/FrontController.hs`. Custom routes remain part of
+that parity. Websocket applications are a separate mount kind and do not enter
+the controller set.
+
+Every top-level `frontend/ts/app*.ts` entrypoint is a globally built bundle and
+must appear exactly once as its `/app*.js` output in `Web/View/Layout.hs`.
+Generated-file byte drift remains owned by `frontend-drift-check`; this
+architecture gate owns only authored-entrypoint/Layout parity. Rare intentional
+exceptions belong in `scripts/architecture/wiring-policy.mjs` with an
+accountable subsystem owner and specific reason. Ownerless, reasonless,
+duplicate, or stale exceptions fail the gate.
 
 ## Bepis-IHP Boundary
 

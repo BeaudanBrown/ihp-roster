@@ -124,6 +124,7 @@ in
         epic-worktree-provision-test = script ../scripts/epic/provision-test;
         architecture-contracts = script ../scripts/architecture/contracts;
         architecture-facts = script ../scripts/architecture/facts;
+        architecture-wiring-registry-test = script ../scripts/architecture/wiring-registry-test;
         architecture-schema = script ../scripts/architecture/schema;
         architecture-web-map = script ../scripts/architecture/web-map;
         architecture-module-graph = script ../scripts/architecture/module-graph;

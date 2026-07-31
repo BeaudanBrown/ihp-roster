@@ -6,6 +6,12 @@ Read this before editing `frontend/ts/`.
 
 - App-owned JavaScript source lives in `frontend/ts/`.
 - Generated browser assets live in `static/app*.js` and are still loaded by IHP through `assetPath`.
+- Every top-level authored `frontend/ts/app*.ts` entrypoint is global by default:
+  its `/app*.js` output must appear exactly once in `Web/View/Layout.hs`.
+  `architecture-check-fresh` enforces this registry. A rare intentionally
+  non-global entrypoint needs an accountable subsystem owner and specific reason
+  in `scripts/architecture/wiring-policy.mjs`; ownerless, reasonless,
+  stale, or duplicate exceptions fail.
 - Generated TypeScript contracts live in `frontend/ts/generated/` and are
   backend-owned. Do not hand-edit generated files. `frontend-contracts`, its
   drift check, and its watcher all render the same checked typeclass-reflected

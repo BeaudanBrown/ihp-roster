@@ -16,12 +16,16 @@
       "refactoring-radar",
       "otel-trace-diagrams"
     ],
-    "factModel": "project-local v2 entities/relationships with source provenance, heuristic classifiers, and confidence in query results; diagrams are derived views"
+    "factModel": "project-local v3 entities/relationships with source provenance, closed wiring registries, heuristic classifiers, and confidence in query results; diagrams are derived views"
   },
   "commands": {
     "facts": {
       "description": "Generate canonical IHP architecture facts JSON under output/architecture/.",
       "command": ["bash", "./bin/in-env", "architecture-facts"]
+    },
+    "wiring-registry-test": {
+      "description": "Test closed controller and global frontend wiring registry parity diagnostics.",
+      "command": ["bash", "./bin/in-env", "architecture-wiring-registry-test"]
     },
     "schema": {
       "description": "Generate database schema DOT/SVG diagrams from Application/Schema.sql.",

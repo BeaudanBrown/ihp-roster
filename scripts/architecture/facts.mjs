@@ -1,6 +1,8 @@
 import fs from "node:fs";
 import path from "node:path";
 import { fileHash, listFiles, outputDir, readText, repoRoot, writeJson } from "./shared.mjs";
+import { wiringRegistryPolicy } from "./wiring-policy.mjs";
+import { parseControllerMounts, parseControllerRoutes, parseFrontendLayoutScripts } from "./wiring-source.mjs";
 
 function lineNumberAt(text, index) {
   return text.slice(0, index).split("\n").length;
@@ -99,14 +101,10 @@ function parseControllers(typesText) {
   return controllers;
 }
 
-function parseRoutes(routesText) {
-  return [...routesText.matchAll(/instance\s+AutoRoute\s+([A-Za-z0-9_]+Controller)/g)].map((m) => ({ controller: m[1], source: { path: "Web/Routes.hs", line: lineForMatch(routesText, m) } }));
-}
-
 function parseFrontController(frontText) {
   return {
     imports: [...frontText.matchAll(/^import\s+(Web\.Controller\.[A-Za-z0-9_.]+)/gm)].map((m) => ({ module: m[1], source: { path: "Web/FrontController.hs", line: lineForMatch(frontText, m) } })),
-    mounts: [...frontText.matchAll(/parseRoute\s+@([A-Za-z0-9_]+Controller)/g)].map((m) => ({ controller: m[1], source: { path: "Web/FrontController.hs", line: lineForMatch(frontText, m) } })),
+    mounts: parseControllerMounts(frontText),
     websocketMounts: [...frontText.matchAll(/webSocketAppWithCustomPath\s+@([A-Za-z0-9_]+)\s+"([^"]+)"/g)].map((m) => ({ app: m[1], path: m[2], source: { path: "Web/FrontController.hs", line: lineForMatch(frontText, m) } })),
   };
 }
@@ -338,6 +336,20 @@ function parseRealtime(files) {
   return { surfaces, references };
 }
 
+function parseFrontendWiring() {
+  const entrypoints = listFiles(["frontend/ts"], (file) =>
+    path.dirname(path.relative(repoRoot, file)) === "frontend/ts"
+      && /^app.*\.ts$/.test(path.basename(file))
+  ).map((relPath) => ({
+    path: relPath,
+    outputAsset: `/${path.basename(relPath, ".ts")}.js`,
+    source: { path: relPath, line: 1 },
+  }));
+  const layoutPath = "Web/View/Layout.hs";
+  const layoutScripts = parseFrontendLayoutScripts(readText(layoutPath), layoutPath);
+  return { entrypoints, layoutScripts };
+}
+
 function parseFrontendContracts() {
   const generatedFiles = listFiles(["frontend/ts/generated"], (file) => file.endsWith(".ts"));
   const tsFiles = listFiles(["frontend/ts"], (file) => file.endsWith(".ts"));
@@ -371,7 +383,7 @@ function parseFrontendContracts() {
   return { sources, generated, consumers };
 }
 
-const sourceFiles = ["Application/Schema.sql", "Web/Types.hs", "Web/Routes.hs", "Web/FrontController.hs"];
+const sourceFiles = ["Application/Schema.sql", "Web/Types.hs", "Web/Routes.hs", "Web/FrontController.hs", "Web/View/Layout.hs"];
 const controllerFiles = listFiles(["Web/Controller"], (file) => file.endsWith(".hs"));
 const viewFiles = listFiles(["Web/View"], (file) => file.endsWith(".hs"));
 const moduleFiles = listFiles(["Application", "Web", "Test"], (file) => file.endsWith(".hs"));
@@ -383,14 +395,14 @@ const tableModels = new Map(schema.tables.map((table) => [table.model, table.nam
 const allReferenceFiles = unique([...moduleFiles, ...viewFiles, ...frontendFiles]);
 const bepisArchitectureContracts = loadBepisArchitectureContracts();
 const facts = {
-  version: 2,
+  version: 3,
   generatedBy: "scripts/architecture/facts.mjs",
   model: "source-scanned entities/relationships with generated typed Bepis contracts, provenance, and heuristic confidence",
   sources: Object.fromEntries([...sourceFiles, ...controllerFiles, ...viewFiles, ...moduleFiles, ...frontendFiles].sort().map((file) => [file, fileHash(file)])),
   schema,
   web: {
     controllers,
-    routes: parseRoutes(readText("Web/Routes.hs")),
+    routes: parseControllerRoutes(readText("Web/Routes.hs")),
     frontController: parseFrontController(readText("Web/FrontController.hs")),
     handlers: parseHandlers(controllerFiles, tableModels, bepisArchitectureContracts),
     controllerPolicies: parseControllerPolicies(controllerFiles),
@@ -406,7 +418,9 @@ const facts = {
   },
   modules: parseHaskellModules(),
   realtime: parseRealtime(allReferenceFiles),
+  wiringRegistryPolicy,
   frontend: {
+    ...parseFrontendWiring(),
     contracts: {
       ...parseFrontendContracts(),
       reflectedSurfaceContracts: bepisArchitectureContracts?.frontendSurfaceContracts,

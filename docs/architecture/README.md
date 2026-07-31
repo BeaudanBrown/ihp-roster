@@ -13,6 +13,7 @@ written under `.pi/tmp/architecture-query/` or `.pi/tmp/architecture-trace/`.
 ```bash
 bash ./bin/in-env architecture-contracts
 bash ./bin/in-env architecture-facts
+bash ./bin/in-env architecture-wiring-registry-test
 bash ./bin/in-env architecture-schema
 bash ./bin/in-env architecture-web-map
 bash ./bin/in-env architecture-module-graph
@@ -37,6 +38,13 @@ tools. The current project queries are:
 
 Do not treat generated diagrams as durable source until a future change promotes
 a specific output set into version control.
+
+`architecture-check-fresh` also enforces closed wiring parity: controller
+records in `Web/Types.hs` must be routed and mounted exactly once, and every
+top-level `frontend/ts/app*.ts` bundle must be loaded exactly once by
+`Web/View/Layout.hs`. Each exception's accountable subsystem owner and rationale
+live in `scripts/architecture/wiring-policy.mjs`; generated JavaScript byte drift stays
+with the existing frontend drift check.
 
 ### Flexibility Contract
 
