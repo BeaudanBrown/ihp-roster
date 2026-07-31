@@ -82,10 +82,14 @@ data LeaveRequestsController
     = LeaveRequestsAction
     | ShowleaveRequestsContentLiveFragmentAction
     | ShowSelfServiceLeaveFragmentAction
+    | ShowVisibleUnavailabilityBlackoutsFragmentAction
     | NewLeaveRequestAction
     | CreateLeaveRequestAction
     | ApproveLeaveRequestAction { leaveRequestId :: !(Id LeaveRequest) }
     | DenyLeaveRequestAction { leaveRequestId :: !(Id LeaveRequest) }
+    | CreateUnavailabilityBlackoutAction
+    | UpdateUnavailabilityBlackoutAction { unavailabilityBlackoutId :: !(Id UnavailabilityBlackout) }
+    | DeleteUnavailabilityBlackoutAction { unavailabilityBlackoutId :: !(Id UnavailabilityBlackout) }
     deriving (Eq, Show, Data)
 
 data ExportsController

@@ -25,7 +25,8 @@ import Application.Helper.FrontendContract.Surface.Values
 import Application.Helper.StaffShiftPreferences
 import Application.Helper.Url (appendQueryParams)
 import Application.Helper.VenueInvitation (venueInvitationEffectiveExpiresAt)
-import Web.LeaveRequests.SelfService (renderSelfServiceLeaveHistory)
+import Web.LeaveRequests.SelfService (renderSelfServiceLeaveHistory,
+                                      renderVisibleUnavailabilityBlackouts)
 import Web.Profiles.FrontendSurface (ProfileScopeValue (..), staffSurfaceImpl)
 import Web.View.LeaveRequests.New (LeaveRequestFieldNames (..),
                                    renderLeaveRequestFormFieldsWithNames)
@@ -288,6 +289,7 @@ staffLeaveRequestsListFragmentId = "staff-leave-requests-list-fragment"
 
 renderStaffleaveRequestsContentLiveFragment :: Staff -> LeaveRequest -> [LeaveRequest] -> Html
 renderStaffleaveRequestsContentLiveFragment staff leaveRequest leaveRequests = [hsx|
+    {renderStaffVisibleUnavailabilityBlackoutsMount}
     <div class="row g-4 align-items-start">
         <div class="col-12 col-xl-5">
             {renderStaffLeaveRequestFormFragment staff.id leaveRequest}
@@ -295,6 +297,24 @@ renderStaffleaveRequestsContentLiveFragment staff leaveRequest leaveRequests = [
         <div class="col-12 col-xl-7">
             {renderStaffLeaveRequestsListFragment leaveRequests}
         </div>
+    </div>
+|]
+
+renderStaffVisibleUnavailabilityBlackoutsMount :: Html
+renderStaffVisibleUnavailabilityBlackoutsMount = [hsx|
+    <div id={surfaceFragmentTargetId @Surface.StaffSurface @Surface.StaffVisibleUnavailabilityBlackouts noSurfaceFields}
+         class="mb-3"
+         hx-get={appendQueryParams (pathTo ShowVisibleUnavailabilityBlackoutsFragmentAction) [("surface", "staff")]}
+         hx-trigger="load"
+         hx-swap="outerHTML">
+        <p class="small app-muted mb-0">Loading submission blackout periods…</p>
+    </div>
+|]
+
+renderStaffVisibleUnavailabilityBlackoutsFragment :: [UnavailabilityBlackout] -> Html
+renderStaffVisibleUnavailabilityBlackoutsFragment blackouts = [hsx|
+    <div id={surfaceFragmentTargetId @Surface.StaffSurface @Surface.StaffVisibleUnavailabilityBlackouts noSurfaceFields} class="mb-3">
+        {if null blackouts then mempty else renderVisibleUnavailabilityBlackouts blackouts}
     </div>
 |]
 

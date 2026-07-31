@@ -7,6 +7,9 @@ module Web.LeaveRequests.SelfService
     , renderSelfServiceLeaveHistoryFragment
     , selfServiceLeaveFormFragmentId
     , selfServiceLeaveFormId
+    , renderVisibleUnavailabilityBlackouts
+    , renderVisibleUnavailabilityBlackoutsFragment
+    , renderVisibleUnavailabilityBlackoutsMount
     ) where
 
 import Application.Helper.Controller (currentVenueId)
@@ -48,7 +51,8 @@ renderSelfServiceLeaveFormMount mountKey includeHistory staff leaveRequest leave
                 , selfServiceLeaveStaffId = unpackId staff.id
                 }
         )
-        ( if includeHistory
+        ( renderVisibleUnavailabilityBlackoutsMount
+            <> if includeHistory
             then [hsx|
                 <div class="row g-4 align-items-start">
                     <div class="col-12 col-xl-5">
@@ -61,6 +65,40 @@ renderSelfServiceLeaveFormMount mountKey includeHistory staff leaveRequest leave
             |]
             else renderSelfServiceLeaveFormFragment Nothing leaveRequest
         )
+
+renderVisibleUnavailabilityBlackoutsMount :: Html
+renderVisibleUnavailabilityBlackoutsMount = [hsx|
+    <div id={surfaceFragmentTargetId @Surface.SelfServiceLeaveSurface @Surface.VisibleUnavailabilityBlackoutsFragment noSurfaceFields}
+         class="mb-3"
+         hx-get={ShowVisibleUnavailabilityBlackoutsFragmentAction}
+         hx-trigger="load"
+         hx-swap="outerHTML">
+        <p class="small app-muted mb-0">Loading submission blackout periods…</p>
+    </div>
+|]
+
+renderVisibleUnavailabilityBlackoutsFragment :: [UnavailabilityBlackout] -> Html
+renderVisibleUnavailabilityBlackoutsFragment blackouts = [hsx|
+    <div id={surfaceFragmentTargetId @Surface.SelfServiceLeaveSurface @Surface.VisibleUnavailabilityBlackoutsFragment noSurfaceFields} class="mb-3">
+        {if null blackouts then mempty else renderVisibleUnavailabilityBlackouts blackouts}
+    </div>
+|]
+
+renderVisibleUnavailabilityBlackouts :: [UnavailabilityBlackout] -> Html
+renderVisibleUnavailabilityBlackouts blackouts = [hsx|
+    <div class="alert alert-warning mb-0">
+        <h5 class="mb-2">Unavailable submission blackout periods</h5>
+        <p class="small mb-2">New unavailable time cannot overlap these inclusive dates.</p>
+        <ul class="small mb-0">
+            {forEach blackouts renderVisibleUnavailabilityBlackout}
+        </ul>
+    </div>
+|]
+
+renderVisibleUnavailabilityBlackout :: UnavailabilityBlackout -> Html
+renderVisibleUnavailabilityBlackout blackout = [hsx|
+    <li><strong>{formatDateDisplay blackout.startDate} – {formatDateDisplay blackout.endDate}</strong>: {blackout.reason}</li>
+|]
 
 renderSelfServiceLeaveFormFragment :: (?context :: ControllerContext) => Maybe Text -> LeaveRequest -> Html
 renderSelfServiceLeaveFormFragment maybeSwapOob leaveRequest = [hsx|

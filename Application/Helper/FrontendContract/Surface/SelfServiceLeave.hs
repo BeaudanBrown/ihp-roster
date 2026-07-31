@@ -8,6 +8,8 @@ module Application.Helper.FrontendContract.Surface.SelfServiceLeave
     , SelfServiceLeave
     , SelfServiceLeaveFormFragment
     , SelfServiceLeaveHistoryFragment
+    , VisibleUnavailabilityBlackoutsFragment
+    , UnavailabilityBlackoutsResource
     , SelfServiceLeaveScope
     , SelfServiceLeaveSurface
     , StaffId
@@ -18,6 +20,7 @@ module Application.Helper.FrontendContract.Surface.SelfServiceLeave
     ) where
 
 import Application.Helper.FrontendContract.Surface.DSL
+import qualified Application.Helper.FrontendContract.Surface.LeaveRequests as LeaveRequests
 
 data SelfServiceLeave
 data SelfServiceLeaveScope
@@ -26,6 +29,7 @@ data StaffId
 
 data SelfServiceLeaveFormFragment
 data SelfServiceLeaveHistoryFragment
+data VisibleUnavailabilityBlackoutsFragment
 data StaffLeaveRequests
 data CreateSelfServiceLeaveRequest
 data StartDate
@@ -33,6 +37,7 @@ data EndDate
 data Notes
 
 type StaffLeaveRequestsResource = Resource StaffLeaveRequests '[ Field StaffId 'WireUUID ]
+type UnavailabilityBlackoutsResource = LeaveRequests.UnavailabilityBlackoutsResource
 
 type SelfServiceLeaveSurface =
     Surface SelfServiceLeave
@@ -47,6 +52,13 @@ type SelfServiceLeaveSurface =
              , 'Eager
              , 'Live
              , 'ResyncOnly
+             ]
+         , Fragment VisibleUnavailabilityBlackoutsFragment
+            '[]
+            '[ 'MountTarget VisibleUnavailabilityBlackoutsFragment '[]
+             , 'Eager
+             , 'Live
+             , 'DependsOn UnavailabilityBlackoutsResource '[ 'FromScope VenueId ]
              ]
          , Fragment SelfServiceLeaveHistoryFragment
             '[]

@@ -28,6 +28,18 @@ This file describes implemented leave/availability behavior.
   1–100. `NULL` disables warnings. Venue admins and owners edit it through
   Venue Settings; managers see the configured state and warnings on the
   Unavailability page. Warnings never block submissions.
+- Venue admins and owners manage venue-wide unavailability submission blackout
+  periods. Blackout first/last dates are inclusive, starts use the venue-local
+  calendar date, ranges are at most 366 inclusive days, and the normalized
+  3–160 character reason is visible to staff. Current/future periods are visible
+  from shared self-service forms; managers can also see them on the
+  Unavailability page but cannot manage them.
+- Blackout periods cannot overlap within a venue. New self-service and
+  manager-entered unavailable ranges are rejected in full when any covered date
+  overlaps, with no role/support override and with the blackout reason shown.
+  Leave request `end_date` remains exclusive, so overlap checks compare through
+  `end_date - 1`. Existing pending/approved requests remain valid when a later
+  blackout is created and appear to admins as pre-existing exceptions.
 - Warning counts are per calendar date and count distinct active, unarchived
   linked or trial staff with pending or approved requests. Deleted/denied
   requests and inactive/archived staff do not count. Request `end_date` remains
@@ -43,6 +55,10 @@ This file describes implemented leave/availability behavior.
 ## Live Updates
 
 - Leave pages can use declarative live surfaces for manager/worker visibility.
+- Blackout management and visible-period fragments depend on a typed venue
+  blackout resource. Create, edit, and remove mutations invalidate it so open
+  manager, Profile, roster, and Staff Surface viewers refetch authoritative HTML
+  without replacing focused self-service form input.
 - The manager warning fragment depends on the typed venue warning resource.
   Threshold configuration, request creation/review, and staff removal invalidate
   that resource so open manager pages refetch authoritative server HTML.

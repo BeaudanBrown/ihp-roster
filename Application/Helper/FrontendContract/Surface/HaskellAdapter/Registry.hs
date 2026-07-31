@@ -107,9 +107,11 @@ type RegisteredSurfaceFragmentAdapterHomes =
      , SurfaceFragmentAdapterHome RosterAdapterFamily Roster.RosterDaySection
      , SurfaceFragmentAdapterHome RosterAdapterFamily Roster.RosterRow
      , SurfaceFragmentAdapterHome RosterDayTimelineAdapterFamily Roster.RosterDayTimelineContent
+     , SurfaceFragmentAdapterHome LeaveRequestsAdapterFamily LeaveRequests.UnavailabilityBlackouts
      , SurfaceFragmentAdapterHome LeaveRequestsAdapterFamily LeaveRequests.LeaveAvailabilityWarnings
      , SurfaceFragmentAdapterHome LeaveRequestsAdapterFamily LeaveRequests.LeaveSectionCount
      , SurfaceFragmentAdapterHome LeaveRequestsAdapterFamily LeaveRequests.LeaveSectionList
+     , SurfaceFragmentAdapterHome SelfServiceLeaveAdapterFamily SelfServiceLeave.VisibleUnavailabilityBlackoutsFragment
      , SurfaceFragmentAdapterHome SelfServiceLeaveAdapterFamily SelfServiceLeave.SelfServiceLeaveFormFragment
      , SurfaceFragmentAdapterHome SelfServiceLeaveAdapterFamily SelfServiceLeave.SelfServiceLeaveHistoryFragment
      , SurfaceFragmentAdapterHome BillingAdapterFamily Billing.BillingStatus
@@ -122,6 +124,7 @@ type RegisteredSurfaceFragmentAdapterHomes =
      , SurfaceFragmentAdapterHome ProfileAdapterFamily Profile.ProfileRsaSection
      , SurfaceFragmentAdapterHome StaffAdapterFamily Profile.StaffDetailsSection
      , SurfaceFragmentAdapterHome StaffAdapterFamily Profile.StaffPreferencesSection
+     , SurfaceFragmentAdapterHome StaffAdapterFamily Profile.StaffVisibleUnavailabilityBlackouts
      , SurfaceFragmentAdapterHome StaffAdapterFamily Profile.StaffLeaveSection
      , SurfaceFragmentAdapterHome AdminPageAdapterFamily Admin.AdminPageContentFragment
      , SurfaceFragmentAdapterHome AdminXeroPageAdapterFamily Admin.AdminXeroPageContentFragment
@@ -145,6 +148,7 @@ type RegisteredSurfaceResourceAdapterHomes =
      , SurfaceResourceAdapterHome RosterAdapterFamily Roster.RosterEndTimesConfig
      , SurfaceResourceAdapterHome RosterAdapterFamily Roster.RosterWeekBoundaryConfig
      , SurfaceResourceAdapterHome RosterDayTimelineAdapterFamily Roster.TimePickerConfig
+     , SurfaceResourceAdapterHome LeaveRequestsAdapterFamily LeaveRequests.UnavailabilityBlackouts
      , SurfaceResourceAdapterHome LeaveRequestsAdapterFamily LeaveRequests.LeaveAvailabilityWarnings
      , SurfaceResourceAdapterHome LeaveRequestsAdapterFamily LeaveRequests.LeaveRequestsSection
      , SurfaceResourceAdapterHome BillingAdapterFamily Billing.Billing
@@ -184,6 +188,9 @@ type RegisteredSurfaceActionAdapterHomes =
      , SurfaceActionAdapterHome LeaveRequestsAdapterFamily LeaveRequests.ArchiveLeaveRequestsPage
      , SurfaceActionAdapterHome LeaveRequestsAdapterFamily LeaveRequests.ApproveLeaveRequest
      , SurfaceActionAdapterHome LeaveRequestsAdapterFamily LeaveRequests.DenyLeaveRequest
+     , SurfaceActionAdapterHome LeaveRequestsAdapterFamily LeaveRequests.CreateUnavailabilityBlackout
+     , SurfaceActionAdapterHome LeaveRequestsAdapterFamily LeaveRequests.UpdateUnavailabilityBlackout
+     , SurfaceActionAdapterHome LeaveRequestsAdapterFamily LeaveRequests.DeleteUnavailabilityBlackout
      , SurfaceActionAdapterHome SelfServiceLeaveAdapterFamily SelfServiceLeave.CreateSelfServiceLeaveRequest
      , SurfaceActionAdapterHome SupportAdapterFamily Support.CreatePublicHolidayRefreshJob
      , SurfaceActionAdapterHome SupportAdapterFamily Support.CreateFwcMapdRefreshJob
@@ -214,7 +221,7 @@ type RegisteredSurfaceActionAdapterHomes =
      ]
 
 -- Every eligible Action emits builders and render metadata. The exact parser
--- inventory contains 34 generated operations and 14 typed exclusions for
+-- inventory contains 36 generated operations and 15 typed exclusions for
 -- declarations whose current endpoint consumes no complete Surface envelope.
 registeredSurfaceActionAdapterRegistrations :: [SurfaceRequestAdapterRegistration 'ActionAdapterKind]
 registeredSurfaceActionAdapterRegistrations =
@@ -252,6 +259,10 @@ registeredSurfaceActionAdapterRegistrations =
         (requestAdapterOperationsWithoutParser "The zero-field approval endpoint consumes its route id and has no Surface request parser")
     , surfaceActionAdapter @LeaveRequestsAdapterFamily @LeaveRequests.DenyLeaveRequest
         (requestAdapterOperationsWithoutParser "The zero-field denial endpoint consumes its route id and has no Surface request parser")
+    , surfaceActionAdapter @LeaveRequestsAdapterFamily @LeaveRequests.CreateUnavailabilityBlackout allRequestAdapterOperations
+    , surfaceActionAdapter @LeaveRequestsAdapterFamily @LeaveRequests.UpdateUnavailabilityBlackout allRequestAdapterOperations
+    , surfaceActionAdapter @LeaveRequestsAdapterFamily @LeaveRequests.DeleteUnavailabilityBlackout
+        (requestAdapterOperationsWithoutParser "The zero-field deletion endpoint consumes its route id and has no Surface request parser")
     , surfaceActionAdapter @SelfServiceLeaveAdapterFamily @SelfServiceLeave.CreateSelfServiceLeaveRequest allRequestAdapterOperations
     , surfaceActionAdapter @SupportAdapterFamily @Support.CreatePublicHolidayRefreshJob
         (requestAdapterOperationsWithoutParser "The zero-field refresh endpoint has no Surface request parser")

@@ -3,6 +3,8 @@
 
 module Application.Helper.FrontendContract.Surface.LeaveRequests
     ( LeaveRequestsContent
+    , UnavailabilityBlackouts
+    , UnavailabilityBlackoutsResource
     , LeaveAvailabilityWarnings
     , LeaveAvailabilityWarningsResource
     , LeaveSection
@@ -17,6 +19,12 @@ module Application.Helper.FrontendContract.Surface.LeaveRequests
     , ArchivePage
     , ApproveLeaveRequest
     , DenyLeaveRequest
+    , CreateUnavailabilityBlackout
+    , UpdateUnavailabilityBlackout
+    , DeleteUnavailabilityBlackout
+    , StartDate
+    , EndDate
+    , Reason
     , VenueId
     ) where
 
@@ -28,6 +36,7 @@ data LeaveRequestsScope
 data VenueId
 
 data LeaveRequestsContent
+data UnavailabilityBlackouts
 data LeaveAvailabilityWarnings
 data LeaveSection
 data LeaveSectionCount
@@ -37,10 +46,17 @@ data LeaveTargetSuffix
 data ArchiveLeaveRequestsPage
 data ApproveLeaveRequest
 data DenyLeaveRequest
+data CreateUnavailabilityBlackout
+data UpdateUnavailabilityBlackout
+data DeleteUnavailabilityBlackout
+data StartDate
+data EndDate
+data Reason
 data ArchivePage
 data None
 data LeaveArchivePageContent
 
+type UnavailabilityBlackoutsResource = Resource UnavailabilityBlackouts '[ Field VenueId 'WireUUID ]
 type LeaveAvailabilityWarningsResource = Resource LeaveAvailabilityWarnings '[ Field VenueId 'WireUUID ]
 type LeaveRequestsSectionResource = Resource LeaveRequestsSection '[ Field VenueId 'WireUUID, Field LeaveSection 'WireText ]
 data LeaveRequestsSection
@@ -51,6 +67,13 @@ type LeaveRequestsSurface =
             '[ Field VenueId 'WireUUID
              ]
             '[ 'Authorize 'CurrentVenueManager '[ VenueId ] ]
+         , Fragment UnavailabilityBlackouts
+            '[]
+            '[ 'MountTarget UnavailabilityBlackouts '[]
+             , 'Eager
+             , 'Live
+             , 'DependsOn UnavailabilityBlackoutsResource '[ 'FromScope VenueId ]
+             ]
          , Fragment LeaveAvailabilityWarnings
             '[]
             '[ 'MountTarget LeaveAvailabilityWarnings '[]
@@ -90,6 +113,27 @@ type LeaveRequestsSurface =
             '[]
             '[ 'HtmxMethod 'HtmxPost
              , 'HtmxTarget ('HtmxId LeaveRequestsContent)
+             , 'HtmxSwap 'HtmxNoSwap
+             , 'HtmxPushUrl 'HtmxPushUrlFalse
+             ]
+         , Action CreateUnavailabilityBlackout
+            '[ Field StartDate 'WireDay, Field EndDate 'WireDay, Field Reason 'WireText ]
+            '[ 'HtmxMethod 'HtmxPost
+             , 'HtmxTarget ('HtmxId UnavailabilityBlackouts)
+             , 'HtmxSwap 'HtmxOuterHTML
+             , 'HtmxPushUrl 'HtmxPushUrlFalse
+             ]
+         , Action UpdateUnavailabilityBlackout
+            '[ Field StartDate 'WireDay, Field EndDate 'WireDay, Field Reason 'WireText ]
+            '[ 'HtmxMethod 'HtmxPost
+             , 'HtmxTarget ('HtmxId UnavailabilityBlackouts)
+             , 'HtmxSwap 'HtmxOuterHTML
+             , 'HtmxPushUrl 'HtmxPushUrlFalse
+             ]
+         , Action DeleteUnavailabilityBlackout
+            '[]
+            '[ 'HtmxMethod 'HtmxDelete
+             , 'HtmxTarget ('HtmxId UnavailabilityBlackouts)
              , 'HtmxSwap 'HtmxNoSwap
              , 'HtmxPushUrl 'HtmxPushUrlFalse
              ]

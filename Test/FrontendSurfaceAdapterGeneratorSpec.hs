@@ -393,10 +393,12 @@ tests = describe "FrontendSurfaceAdapterGenerator" do
                         , ("roster", "roster-day-section")
                         , ("roster", "roster-row")
                         , ("roster-day-timeline", "roster-day-timeline-content")
+                        , ("leave-requests", "unavailability-blackouts")
                         , ("leave-requests", "leave-availability-warnings")
                         , ("leave-requests", "leave-section-count")
                         , ("leave-requests", "leave-section-list")
                         , ("self-service-leave", "self-service-leave-form")
+                        , ("self-service-leave", "visible-unavailability-blackouts")
                         , ("self-service-leave", "self-service-leave-history")
                         , ("billing", "billing-status")
                         , ("support", "support-award-rates")
@@ -408,6 +410,7 @@ tests = describe "FrontendSurfaceAdapterGenerator" do
                         , ("profile", "profile-rsa-section")
                         , ("staff", "staff-details-section")
                         , ("staff", "staff-preferences-section")
+                        , ("staff", "staff-visible-unavailability-blackouts")
                         , ("staff", "staff-leave-section")
                         , ("admin-page", "admin-page-content")
                         , ("admin-xero-page", "admin-xero-page-content")
@@ -501,7 +504,7 @@ tests = describe "FrontendSurfaceAdapterGenerator" do
         extraDiagnosticCodes `shouldContain` ["missing-adapter-scope-home"]
 
     it "publishes exactly one production home for every eligible Action declaration" do
-        length registeredSurfaceAdapterRegistry.surfaceActionAdapterHomes `shouldBe` 48
+        length registeredSurfaceAdapterRegistry.surfaceActionAdapterHomes `shouldBe` 51
         case generateSurfaceActionAdapterModules registeredFrontendSurfaceContractIR registeredSurfaceAdapterRegistry of
             Left diagnostics -> expectationFailure (cs (show diagnostics))
             Right generatedModules ->

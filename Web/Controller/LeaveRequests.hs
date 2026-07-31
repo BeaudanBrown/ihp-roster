@@ -1,5 +1,8 @@
 module Web.Controller.LeaveRequests where
 
+import qualified Application.Helper.FrontendContract.Surface.LeaveRequests as LeaveRequestsSurface
+import qualified Application.Helper.FrontendContract.Surface.LeaveRequests.Action as LeaveRequestsAction
+import Application.Helper.FrontendContract.Surface.LeaveRequests.Resource (unavailabilityBlackoutsResource)
 import qualified Application.Helper.FrontendContract.Surface.Profile as ProfileSurface
 import qualified Application.Helper.FrontendContract.Surface.Profile.Action as ProfileAction
 import Application.Helper.FrontendContract.Surface.Request (SurfaceRequestFieldError,
@@ -15,13 +18,18 @@ import Application.Helper.ProfileLeave (buildDefaultLeaveRequest,
                                         fetchStaffLeaveRequests)
 import Application.Helper.Profiling
 import Application.Helper.SurfaceResource (LiveMutationResult (..),
-                                           SurfaceResourceValue)
+                                           SurfaceResourceValue,
+                                           liveMutationResult)
 import Application.Helper.View (ToastOverlayPosition (..), dialogOverlayMountId,
                                 errorToast, renderToastOob, successToast)
+import qualified Application.UnavailabilityBlackout.Mutations as BlackoutMutations
 import Data.Coerce (coerce)
 import qualified Data.Set as Set
+import qualified Data.Text as Text
 import qualified Data.Text.IO as TextIO
 import Web.Controller.Prelude
+import Web.LeaveRequests.Blackouts (currentVenueCalendarDay,
+                                    fetchCurrentAndFutureUnavailabilityBlackouts)
 import Web.LeaveRequests.FrontendSurface (LeaveRequestsScopeValue (..),
                                           SelfServiceLeaveScopeValue (..),
                                           leaveRequestsCandidateMountedFragments,
@@ -35,9 +43,11 @@ import Web.LeaveRequests.SelfService
 import Web.Profiles.FrontendSurface (ProfileScopeValue (..),
                                      staffCandidateMountedFragments,
                                      staffSurfaceScope)
+import Web.SurfaceInvalidation (invalidateTouchedResources)
 import Web.View.LeaveRequests.Index
 import Web.View.LeaveRequests.New
-import Web.View.Staff.Edit (renderStaffLeaveRequestFormFragment)
+import Web.View.Staff.Edit (renderStaffLeaveRequestFormFragment,
+                            renderStaffVisibleUnavailabilityBlackoutsFragment)
 
 instance Controller LeaveRequestsController where
     beforeAction = bepisBeforeAction BepisAuthenticatedVenueController do
@@ -89,6 +99,15 @@ instance Controller LeaveRequestsController where
                         leaveRequest <- buildDefaultLeaveRequest
                         respondHtmlProfiled (renderSelfServiceLeaveFormFragment Nothing leaveRequest)
 
+    action currentAction@ShowVisibleUnavailabilityBlackoutsFragmentAction = runBepis currentAction BepisFragmentAction do
+        ensureStaffSelfServiceAccess
+        venueConfig <- fetchVenueConfig
+        today <- currentVenueCalendarDay venueConfig
+        blackouts <- fetchCurrentAndFutureUnavailabilityBlackouts today
+        if paramOrDefault @Text "self-service" "surface" == "staff"
+            then respondHtmlProfiled (renderStaffVisibleUnavailabilityBlackoutsFragment blackouts)
+            else respondHtmlProfiled (renderVisibleUnavailabilityBlackoutsFragment blackouts)
+
     action currentAction@NewLeaveRequestAction = runBepis currentAction BepisFormAction do
         ensureStaffSelfServiceAccess
         maybeStaff <- fetchCurrentUserStaff
@@ -132,15 +151,92 @@ instance Controller LeaveRequestsController where
                                 else render NewView { leaveRequest = invalidLeaveRequest }
                         Right validLeaveRequest -> do
                             submitLeaveRequest validLeaveRequest >>= \case
-                                Nothing -> do
+                                LeaveSubmissionStaffInactive -> do
                                     setErrorMessage "This staff member is no longer active."
                                     redirectToPath (leaveFallbackPath responseContext)
-                                Just mutationResult ->
+                                LeaveSubmissionBlocked blackout -> do
+                                    let blockedMessage = "Unavailable submissions are blocked for these dates: " <> blackout.reason
+                                    let blockedLeaveRequest = attachFailure #startDate blockedMessage validLeaveRequest
+                                    if isHtmxRequest
+                                        then respondWithLeaveRequestValidationFailure responseContext blockedLeaveRequest
+                                        else render NewView { leaveRequest = blockedLeaveRequest }
+                                LeaveSubmissionCreated mutationResult ->
                                     if isHtmxRequest
                                         then respondWithLeaveMutationSuccess responseContext mutationResult.liveMutationTouchedResources "Unavailable period submitted"
                                         else do
                                             setSuccessMessage "Unavailable period submitted"
                                             redirectToPath (leaveFallbackPath responseContext)
+
+    action currentAction@CreateUnavailabilityBlackoutAction = runBepis currentAction BepisMutationAction do
+        ensureProfileCompleted
+        ensureUnavailabilityBlackoutManager
+        ensureVenueWritable
+        venueConfig <- fetchVenueConfig
+        today <- currentVenueCalendarDay venueConfig
+        let baseBlackout =
+                newRecord @UnavailabilityBlackout
+                    |> set #venueId (unpackId currentVenueId)
+                    |> set #startDate today
+                    |> set #endDate today
+        let blackout =
+                case LeaveRequestsAction.parseCreateUnavailabilityBlackoutActionParams of
+                    Left errors -> attachSurfaceRequestFieldErrors errors baseBlackout
+                    Right fields ->
+                        baseBlackout
+                            |> set #startDate (surfaceFieldValue @LeaveRequestsSurface.StartDate fields)
+                            |> set #endDate (surfaceFieldValue @LeaveRequestsSurface.EndDate fields)
+                            |> set #reason (surfaceFieldValue @LeaveRequestsSurface.Reason fields)
+                            |> validateUnavailabilityBlackout today
+        blackout |> ifValid \case
+            Left invalidBlackout ->
+                respondWithBlackoutValidationFailure invalidBlackout "Check the blackout period and try again."
+            Right validBlackout ->
+                BlackoutMutations.createUnavailabilityBlackout validBlackout >>= \case
+                    Left overlapError ->
+                        respondWithBlackoutValidationFailure (attachFailure #startDate overlapError validBlackout) overlapError
+                    Right createdBlackout ->
+                        respondWithBlackoutMutation "blackout.create" createdBlackout "Unavailability blackout created"
+
+    action currentAction@UpdateUnavailabilityBlackoutAction { unavailabilityBlackoutId } = runBepis currentAction BepisMutationAction do
+        ensureProfileCompleted
+        ensureUnavailabilityBlackoutManager
+        ensureVenueWritable
+        existing <- fetch unavailabilityBlackoutId
+        ensureRecordInCurrentVenue existing.venueId
+        venueConfig <- fetchVenueConfig
+        today <- currentVenueCalendarDay venueConfig
+        let earliestAllowedStart = min today existing.startDate
+        let blackout =
+                case LeaveRequestsAction.parseUpdateUnavailabilityBlackoutActionParams of
+                    Left errors -> attachSurfaceRequestFieldErrors errors existing
+                    Right fields ->
+                        existing
+                            |> set #startDate (surfaceFieldValue @LeaveRequestsSurface.StartDate fields)
+                            |> set #endDate (surfaceFieldValue @LeaveRequestsSurface.EndDate fields)
+                            |> set #reason (surfaceFieldValue @LeaveRequestsSurface.Reason fields)
+                            |> validateUnavailabilityBlackout earliestAllowedStart
+        blackout |> ifValid \case
+            Left invalidBlackout ->
+                respondWithBlackoutValidationFailure invalidBlackout "Check the blackout period and try again."
+            Right validBlackout ->
+                BlackoutMutations.updateUnavailabilityBlackout validBlackout >>= \case
+                    Left mutationError ->
+                        respondWithBlackoutValidationFailure (attachFailure #startDate mutationError validBlackout) mutationError
+                    Right updatedBlackout ->
+                        respondWithBlackoutMutation "blackout.update" updatedBlackout "Unavailability blackout updated"
+
+    action currentAction@DeleteUnavailabilityBlackoutAction { unavailabilityBlackoutId } = runBepis currentAction BepisMutationAction do
+        ensureProfileCompleted
+        ensureUnavailabilityBlackoutManager
+        ensureVenueWritable
+        blackout <- fetch unavailabilityBlackoutId
+        ensureRecordInCurrentVenue blackout.venueId
+        deleted <- BlackoutMutations.deleteUnavailabilityBlackout blackout
+        if deleted
+            then respondWithBlackoutMutation "blackout.delete" blackout "Unavailability blackout removed"
+            else do
+                setErrorMessage "This blackout period no longer exists."
+                redirectTo LeaveRequestsAction
 
     action currentAction@ApproveLeaveRequestAction { leaveRequestId } = runBepis currentAction BepisMutationAction do
         ensureProfileCompleted
@@ -187,6 +283,7 @@ reportLeaveArchivePageErrors =
 requestedLeaveRequestsFragment :: (?request :: Request) => LeaveRequestsFragment
 requestedLeaveRequestsFragment =
     case paramOrDefault @Text "leave-requests-content" "fragment" of
+        "unavailability-blackouts" -> UnavailabilityBlackouts
         "leave-availability-warnings" -> LeaveAvailabilityWarnings
         "leave-section-count"         -> LeaveRequestsSectionCount requestedLeaveSection
         "leave-section-list"          -> LeaveRequestsSectionList requestedLeaveSection
@@ -197,6 +294,38 @@ requestedLeaveSection =
     case paramOrDefault @Text leavePendingSection "section" of
         section | section `elem` [leavePendingSection, leaveApprovedSection, leaveDeniedSection, leaveArchiveSection] -> section
         _ -> leavePendingSection
+
+ensureUnavailabilityBlackoutManager :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => IO ()
+ensureUnavailabilityBlackoutManager = do
+    ensureAdminRole
+    redirectPermissionDeniedUnless (isJust currentVenueMembershipOrNothing) "Only venue admins and owners can manage submission blackout periods."
+
+respondWithBlackoutValidationFailure :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => UnavailabilityBlackout -> Text -> IO ()
+respondWithBlackoutValidationFailure submittedBlackout errorMessage =
+    if isHtmxRequest
+        then do
+            readModel <- fetchLeaveRequestsReadModel
+            respondHtmlProfiled $
+                renderUnavailabilityBlackoutsValidationFragment
+                    readModel.leaveReadModelVenueToday
+                    readModel.leaveReadModelBlackouts
+                    readModel.leaveReadModelRequests
+                    readModel.leaveReadModelStaffMembers
+                    (Just submittedBlackout)
+                    <> renderToastOob ToastBottomCenter (errorToast errorMessage)
+        else do
+            setErrorMessage errorMessage
+            redirectTo LeaveRequestsAction
+
+respondWithBlackoutMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Text -> UnavailabilityBlackout -> Text -> IO ()
+respondWithBlackoutMutation mutationName blackout successMessage = do
+    mutationResult <- invalidateTouchedResources mutationName $
+        liveMutationResult blackout [unavailabilityBlackoutsResource blackout.venueId]
+    if isHtmxRequest
+        then respondWithLeaveRequestsContent mutationResult.liveMutationTouchedResources successMessage
+        else do
+            setSuccessMessage successMessage
+            redirectTo LeaveRequestsAction
 
 respondWithLeaveRequestsContent :: (?context :: ControllerContext, ?request :: Request) => Set.Set SurfaceResourceValue -> Text -> IO ()
 respondWithLeaveRequestsContent touchedResources successMessage = do
@@ -371,6 +500,24 @@ buildLeaveRequestFromSurface submitted leaveRequest =
         |> set #endDate submitted.surfaceLeaveEndDate
         |> set #notes (Just submitted.surfaceLeaveNotes)
         |> validateLeaveRequest
+
+validateUnavailabilityBlackout :: Day -> UnavailabilityBlackout -> UnavailabilityBlackout
+validateUnavailabilityBlackout today blackout =
+    let normalized =
+            blackout
+                |> normalizeTextField #reason
+                |> validateField #reason (\reason -> if Text.length reason < 3 then Failure "Reason must be at least 3 characters" else Success)
+                |> validateField #reason (boundedText 160)
+        withStartValidation =
+            normalized
+                |> validateField #startDate (\startDate -> if startDate < today then Failure "First blocked date cannot be before today" else Success)
+     in withStartValidation
+            |> validateField #endDate (validateBlackoutEndDate withStartValidation.startDate)
+  where
+    validateBlackoutEndDate startDate endDate
+        | endDate < startDate = Failure "Last blocked date cannot be before first blocked date"
+        | diffDays endDate startDate > 365 = Failure "Blackout periods cannot exceed 366 days"
+        | otherwise = Success
 
 validateLeaveRequest :: LeaveRequest -> LeaveRequest
 validateLeaveRequest leaveRequest =

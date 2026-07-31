@@ -8,9 +8,17 @@ module Application.Helper.FrontendContract.Surface.LeaveRequests.Generated.Actio
     , approveLeaveRequestActionFields
     , archiveLeaveRequestsPageAction
     , archiveLeaveRequestsPageActionFields
+    , createUnavailabilityBlackoutAction
+    , createUnavailabilityBlackoutActionFields
+    , deleteUnavailabilityBlackoutAction
+    , deleteUnavailabilityBlackoutActionFields
     , denyLeaveRequestAction
     , denyLeaveRequestActionFields
     , parseArchiveLeaveRequestsPageActionParams
+    , parseCreateUnavailabilityBlackoutActionParams
+    , parseUpdateUnavailabilityBlackoutActionParams
+    , updateUnavailabilityBlackoutAction
+    , updateUnavailabilityBlackoutActionFields
     ) where
 
 import Application.Helper.FrontendContract.Surface.HaskellAdapter.Association (AdapterFamilySurface)
@@ -24,7 +32,8 @@ import Application.Helper.FrontendContract.Surface.Values (SurfaceActionFields,
                                                            noSurfaceActionFields,
                                                            noSurfaceFields,
                                                            surfaceActionFields,
-                                                           surfaceField)
+                                                           surfaceField, (&:))
+import Data.Time (Day)
 import IHP.Prelude
 import Network.Wai (Request)
 
@@ -60,6 +69,43 @@ parseArchiveLeaveRequestsPageActionParams =
         @(AdapterFamilySurface Types2.LeaveRequestsAdapterFamily)
         @Types1.ArchiveLeaveRequestsPage
 
+createUnavailabilityBlackoutActionFields ::
+    Day ->
+    Day ->
+    Text ->
+    SurfaceActionFields (AdapterFamilySurface Types2.LeaveRequestsAdapterFamily) Types1.CreateUnavailabilityBlackout
+createUnavailabilityBlackoutActionFields startDate endDate reason =
+    surfaceActionFields
+        (surfaceField @Types1.StartDate startDate)
+        ( surfaceField @Types1.EndDate endDate
+            &: surfaceField @Types1.Reason reason
+            &: noSurfaceFields
+        )
+
+createUnavailabilityBlackoutAction :: SurfaceActionFields (AdapterFamilySurface Types2.LeaveRequestsAdapterFamily) Types1.CreateUnavailabilityBlackout -> FrontendSurfaceAction
+createUnavailabilityBlackoutAction =
+    frontendSurfaceAction
+        @(AdapterFamilySurface Types2.LeaveRequestsAdapterFamily)
+        @Types1.CreateUnavailabilityBlackout
+
+parseCreateUnavailabilityBlackoutActionParams ::
+    (?request :: Request) =>
+    Either [SurfaceRequestFieldError] (SurfaceActionFields (AdapterFamilySurface Types2.LeaveRequestsAdapterFamily) Types1.CreateUnavailabilityBlackout)
+parseCreateUnavailabilityBlackoutActionParams =
+    parseSurfaceActionParams
+        @(AdapterFamilySurface Types2.LeaveRequestsAdapterFamily)
+        @Types1.CreateUnavailabilityBlackout
+
+deleteUnavailabilityBlackoutActionFields :: SurfaceActionFields (AdapterFamilySurface Types2.LeaveRequestsAdapterFamily) Types1.DeleteUnavailabilityBlackout
+deleteUnavailabilityBlackoutActionFields =
+    noSurfaceActionFields
+
+deleteUnavailabilityBlackoutAction :: SurfaceActionFields (AdapterFamilySurface Types2.LeaveRequestsAdapterFamily) Types1.DeleteUnavailabilityBlackout -> FrontendSurfaceAction
+deleteUnavailabilityBlackoutAction =
+    frontendSurfaceAction
+        @(AdapterFamilySurface Types2.LeaveRequestsAdapterFamily)
+        @Types1.DeleteUnavailabilityBlackout
+
 denyLeaveRequestActionFields :: SurfaceActionFields (AdapterFamilySurface Types2.LeaveRequestsAdapterFamily) Types1.DenyLeaveRequest
 denyLeaveRequestActionFields =
     noSurfaceActionFields
@@ -69,3 +115,30 @@ denyLeaveRequestAction =
     frontendSurfaceAction
         @(AdapterFamilySurface Types2.LeaveRequestsAdapterFamily)
         @Types1.DenyLeaveRequest
+
+updateUnavailabilityBlackoutActionFields ::
+    Day ->
+    Day ->
+    Text ->
+    SurfaceActionFields (AdapterFamilySurface Types2.LeaveRequestsAdapterFamily) Types1.UpdateUnavailabilityBlackout
+updateUnavailabilityBlackoutActionFields startDate endDate reason =
+    surfaceActionFields
+        (surfaceField @Types1.StartDate startDate)
+        ( surfaceField @Types1.EndDate endDate
+            &: surfaceField @Types1.Reason reason
+            &: noSurfaceFields
+        )
+
+updateUnavailabilityBlackoutAction :: SurfaceActionFields (AdapterFamilySurface Types2.LeaveRequestsAdapterFamily) Types1.UpdateUnavailabilityBlackout -> FrontendSurfaceAction
+updateUnavailabilityBlackoutAction =
+    frontendSurfaceAction
+        @(AdapterFamilySurface Types2.LeaveRequestsAdapterFamily)
+        @Types1.UpdateUnavailabilityBlackout
+
+parseUpdateUnavailabilityBlackoutActionParams ::
+    (?request :: Request) =>
+    Either [SurfaceRequestFieldError] (SurfaceActionFields (AdapterFamilySurface Types2.LeaveRequestsAdapterFamily) Types1.UpdateUnavailabilityBlackout)
+parseUpdateUnavailabilityBlackoutActionParams =
+    parseSurfaceActionParams
+        @(AdapterFamilySurface Types2.LeaveRequestsAdapterFamily)
+        @Types1.UpdateUnavailabilityBlackout

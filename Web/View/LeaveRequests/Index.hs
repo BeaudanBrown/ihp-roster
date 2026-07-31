@@ -3,6 +3,7 @@
 module Web.View.LeaveRequests.Index where
 
 import Application.Helper.Controller (LeaveRequestStatus (..),
+                                      currentVenueMembershipOrNothing,
                                       leaveRequestIsArchivedOn,
                                       parseLeaveRequestStatus)
 import qualified Application.Helper.FrontendContract.Surface.LeaveRequests as Surface
@@ -17,6 +18,7 @@ import Data.Coerce (coerce)
 import Data.List (sortOn)
 import Data.Ord (Down (..))
 import Web.LeaveRequests.AvailabilityWarnings
+import Web.LeaveRequests.Blackouts
 import Web.View.Prelude
 
 leaveRequestsActionRoute :: Text -> FrontendSurfaceActionRoute
@@ -37,6 +39,8 @@ data IndexView = IndexView
     , archiveIsOpen        :: Bool
     , warningThreshold     :: Maybe Int
     , warningPeriods       :: [AvailabilityWarningPeriod]
+    , venueToday           :: Day
+    , blackouts            :: [UnavailabilityBlackout]
     , liveUpdateSurface    :: Maybe (SurfaceImpl Surface.LeaveRequestsSurface)
     }
 
@@ -103,7 +107,9 @@ renderLeaveRequestsShell IndexView { .. } =
             , appPageActions = mempty
             , appPageHelpTopic = Just (PageHelpTopicId "leave")
             , appPageWidthClass = ""
-            , appPageBody = leaveRequestsPanel
+            , appPageBody =
+                renderUnavailabilityBlackoutsLiveFragment venueToday blackouts leaveRequests staffMembers
+                    <> leaveRequestsPanel
             })
         mountedPage = case liveUpdateSurface of
             Just surface -> renderFrontendSurfaceMount surface page
@@ -113,6 +119,160 @@ renderLeaveRequestsShell IndexView { .. } =
             {mountedPage}
         </section>
     |]
+
+renderUnavailabilityBlackoutsLiveFragment :: (?context :: ControllerContext) => Day -> [UnavailabilityBlackout] -> [LeaveRequest] -> [Staff] -> Html
+renderUnavailabilityBlackoutsLiveFragment today blackouts leaveRequests staffMembers =
+    renderUnavailabilityBlackoutsValidationFragment today blackouts leaveRequests staffMembers Nothing
+
+renderUnavailabilityBlackoutsValidationFragment :: (?context :: ControllerContext) => Day -> [UnavailabilityBlackout] -> [LeaveRequest] -> [Staff] -> Maybe UnavailabilityBlackout -> Html
+renderUnavailabilityBlackoutsValidationFragment today persistedBlackouts leaveRequests staffMembers submittedBlackout = [hsx|
+    <section id={surfaceFragmentTargetId @Surface.LeaveRequestsSurface @Surface.UnavailabilityBlackouts noSurfaceFields} class="mb-4">
+        <div class="card shadow-sm">
+            <div class="card-body">
+                <div class="d-flex flex-wrap justify-content-between gap-2 align-items-start mb-3">
+                    <div>
+                        <h2 class="h5 mb-1">Submission blackout periods</h2>
+                        <p class="small app-muted mb-0">Staff cannot add unavailable time that overlaps these inclusive dates.</p>
+                    </div>
+                </div>
+                {if currentUserCanManageBlackouts then renderCreateBlackoutForm today createFormBlackout else mempty}
+                {renderBlackoutPeriods leaveRequests staffMembers renderedBlackouts}
+            </div>
+        </div>
+    </section>
+|]
+  where
+    defaultBlackout =
+        newRecord @UnavailabilityBlackout
+            |> set #startDate today
+            |> set #endDate today
+            |> set #reason ""
+    createFormBlackout = fromMaybe defaultBlackout (submittedBlackout >>= \blackout -> if isNew blackout then Just blackout else Nothing)
+    renderedBlackouts =
+        case submittedBlackout >>= \blackout -> if isNew blackout then Nothing else Just blackout of
+            Nothing -> persistedBlackouts
+            Just invalidUpdate -> map (\blackout -> if blackout.id == invalidUpdate.id then invalidUpdate else blackout) persistedBlackouts
+
+renderBlackoutPeriods :: (?context :: ControllerContext) => [LeaveRequest] -> [Staff] -> [UnavailabilityBlackout] -> Html
+renderBlackoutPeriods _ _ [] = [hsx|<p class="small app-muted mb-0">No current or upcoming blackout periods.</p>|]
+renderBlackoutPeriods leaveRequests staffMembers blackouts = [hsx|
+    <div class="d-grid gap-3">{forEach blackouts (renderBlackoutPeriod leaveRequests staffMembers)}</div>
+|]
+
+currentUserCanManageBlackouts :: (?context :: ControllerContext) => Bool
+currentUserCanManageBlackouts = currentUserIsAdmin && isJust currentVenueMembershipOrNothing
+
+renderCreateBlackoutForm :: (?context :: ControllerContext) => Day -> UnavailabilityBlackout -> Html
+renderCreateBlackoutForm today blackout =
+    renderFrontendSurfaceActionForm
+        (LeaveRequestsAction.createUnavailabilityBlackoutAction fields)
+        (leaveRequestsActionRouteWithStandard (pathTo CreateUnavailabilityBlackoutAction))
+        [hsx|
+            <div class="row g-2 align-items-end mb-3">
+                <div class="col-12 col-md-3">
+                    <label class="form-label" for="blackout-start-date">First blocked date</label>
+                    <input id="blackout-start-date" class={blackoutInputClass (getValidationFailure #startDate blackout)} type="date" name={surfaceFieldNameFrom @Surface.StartDate fields} value={tshow blackout.startDate} min={tshow today} required/>
+                    {renderBlackoutStartDateError blackout}
+                </div>
+                <div class="col-12 col-md-3">
+                    <label class="form-label" for="blackout-end-date">Last blocked date</label>
+                    <input id="blackout-end-date" class={blackoutInputClass (getValidationFailure #endDate blackout)} type="date" name={surfaceFieldNameFrom @Surface.EndDate fields} value={tshow blackout.endDate} min={tshow today} required/>
+                    {renderBlackoutEndDateError blackout}
+                </div>
+                <div class="col-12 col-md-4">
+                    <label class="form-label" for="blackout-reason">Staff-visible reason</label>
+                    <input id="blackout-reason" class={blackoutInputClass (getValidationFailure #reason blackout)} type="text" name={surfaceFieldNameFrom @Surface.Reason fields} value={blackout.reason} minlength="3" maxlength="160" required/>
+                    {renderBlackoutReasonError blackout}
+                </div>
+                <div class="col-12 col-md-2 d-grid">
+                    <button class="btn btn-primary" type="submit">Add blackout</button>
+                </div>
+            </div>
+        |]
+  where
+    fields = LeaveRequestsAction.createUnavailabilityBlackoutActionFields blackout.startDate blackout.endDate blackout.reason
+
+blackoutInputClass :: Maybe Text -> Text
+blackoutInputClass maybeError = classes ["form-control", ("is-invalid", isJust maybeError)]
+
+renderBlackoutStartDateError :: UnavailabilityBlackout -> Html
+renderBlackoutStartDateError = renderBlackoutValidationError . getValidationFailure #startDate
+
+renderBlackoutEndDateError :: UnavailabilityBlackout -> Html
+renderBlackoutEndDateError = renderBlackoutValidationError . getValidationFailure #endDate
+
+renderBlackoutReasonError :: UnavailabilityBlackout -> Html
+renderBlackoutReasonError = renderBlackoutValidationError . getValidationFailure #reason
+
+renderBlackoutValidationError :: Maybe Text -> Html
+renderBlackoutValidationError Nothing = mempty
+renderBlackoutValidationError (Just message) = [hsx|<div class="invalid-feedback">{message}</div>|]
+
+renderBlackoutPeriod :: (?context :: ControllerContext) => [LeaveRequest] -> [Staff] -> UnavailabilityBlackout -> Html
+renderBlackoutPeriod leaveRequests staffMembers blackout = [hsx|
+    <article class="border rounded p-3" data-blackout-id={tshow blackout.id}>
+        <div class="d-flex flex-wrap justify-content-between gap-2">
+            <div>
+                <strong>{formatDateDisplay blackout.startDate} – {formatDateDisplay blackout.endDate}</strong>
+                <div class="small">{blackout.reason}</div>
+            </div>
+            {if currentUserCanManageBlackouts then renderDeleteBlackoutForm blackout else mempty}
+        </div>
+        {if currentUserCanManageBlackouts then renderBlackoutExceptions (blackoutExceptions leaveRequests staffMembers blackout) else mempty}
+        {if currentUserCanManageBlackouts then renderUpdateBlackoutForm blackout else mempty}
+    </article>
+|]
+
+renderBlackoutExceptions :: [BlackoutException] -> Html
+renderBlackoutExceptions [] = mempty
+renderBlackoutExceptions exceptions = [hsx|
+    <div class="alert alert-warning py-2 mt-3 mb-0">
+        <strong>Pre-existing exceptions</strong>
+        <ul class="small mb-0 mt-1">
+            {forEach exceptions renderBlackoutException}
+        </ul>
+    </div>
+|]
+
+renderBlackoutException :: BlackoutException -> Html
+renderBlackoutException exception = [hsx|
+    <li>{exception.blackoutExceptionStaff.firstName} {exception.blackoutExceptionStaff.lastName} — {formatDateDisplay exception.blackoutExceptionRequest.startDate} to {formatDateDisplay (addDays (-1) exception.blackoutExceptionRequest.endDate)} ({inputValue exception.blackoutExceptionRequest.status})</li>
+|]
+
+renderUpdateBlackoutForm :: (?context :: ControllerContext) => UnavailabilityBlackout -> Html
+renderUpdateBlackoutForm blackout = [hsx|
+    <details class="mt-3" open={not (isValid blackout)}>
+        <summary>Edit period</summary>
+        <div class="mt-2">
+            {updateForm}
+        </div>
+    </details>
+|]
+  where
+    fields = LeaveRequestsAction.updateUnavailabilityBlackoutActionFields blackout.startDate blackout.endDate blackout.reason
+    updateForm =
+        renderFrontendSurfaceActionForm
+            (LeaveRequestsAction.updateUnavailabilityBlackoutAction fields)
+            (leaveRequestsActionRouteWithStandard (pathTo (UpdateUnavailabilityBlackoutAction blackout.id)))
+            [hsx|
+                <div class="row g-2 align-items-end">
+                    <div class="col-12 col-md-3"><label class="form-label">First blocked date</label><input class={blackoutInputClass (getValidationFailure #startDate blackout)} type="date" name={surfaceFieldNameFrom @Surface.StartDate fields} value={tshow blackout.startDate} required/>{renderBlackoutStartDateError blackout}</div>
+                    <div class="col-12 col-md-3"><label class="form-label">Last blocked date</label><input class={blackoutInputClass (getValidationFailure #endDate blackout)} type="date" name={surfaceFieldNameFrom @Surface.EndDate fields} value={tshow blackout.endDate} required/>{renderBlackoutEndDateError blackout}</div>
+                    <div class="col-12 col-md-4"><label class="form-label">Staff-visible reason</label><input class={blackoutInputClass (getValidationFailure #reason blackout)} type="text" name={surfaceFieldNameFrom @Surface.Reason fields} value={blackout.reason} minlength="3" maxlength="160" required/>{renderBlackoutReasonError blackout}</div>
+                    <div class="col-12 col-md-2 d-grid"><button class="btn btn-outline-primary" type="submit">Save blackout</button></div>
+                </div>
+            |]
+
+renderDeleteBlackoutForm :: (?context :: ControllerContext) => UnavailabilityBlackout -> Html
+renderDeleteBlackoutForm blackout =
+    renderFrontendSurfaceActionForm
+        (LeaveRequestsAction.deleteUnavailabilityBlackoutAction LeaveRequestsAction.deleteUnavailabilityBlackoutActionFields)
+        (leaveRequestsActionRouteWithStandard (pathTo (DeleteUnavailabilityBlackoutAction blackout.id)))
+        [hsx|<button class="btn btn-sm btn-outline-danger" type="submit">Remove</button>|]
+
+leaveRequestsActionRouteWithStandard :: Text -> FrontendSurfaceActionRoute
+leaveRequestsActionRouteWithStandard actionUrl =
+    (leaveRequestsActionRoute actionUrl) { actionRouteStandardUrl = Just actionUrl }
 
 renderleaveRequestsContentLiveFragment :: (?context :: ControllerContext) => [LeaveRequest] -> [Staff] -> Maybe UUID -> Day -> Int -> Bool -> Maybe Int -> [AvailabilityWarningPeriod] -> Html
 renderleaveRequestsContentLiveFragment =

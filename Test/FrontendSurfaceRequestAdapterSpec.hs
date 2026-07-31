@@ -346,16 +346,16 @@ tests = describe "FrontendSurfaceRequestAdapter" do
                 registeredSurfaceAdapterRegistry.surfaceActionAdapterRegistrations of
                 Left diagnostics -> expectationFailure (cs (show diagnostics)) >> pure []
                 Right inventory -> pure inventory
-        length actionDeclarations `shouldBe` 53
+        length actionDeclarations `shouldBe` 56
         length actionInventory `shouldBe` length actionDeclarations
         let generatedActionOperations = mapMaybe (.checkedSurfaceRequestAdapterOperations) actionInventory
-        length generatedActionOperations `shouldBe` 48
+        length generatedActionOperations `shouldBe` 51
         length (filter (surfaceAdapterOperationIsGenerated . (.surfaceAdapterFieldsBuilderOperation)) generatedActionOperations)
-            `shouldBe` 48
+            `shouldBe` 51
         length (filter (surfaceAdapterOperationIsGenerated . (.surfaceAdapterRenderMetadataOperation)) generatedActionOperations)
-            `shouldBe` 48
+            `shouldBe` 51
         length (filter (surfaceAdapterOperationIsGenerated . (.surfaceAdapterRequestParserOperation)) generatedActionOperations)
-            `shouldBe` 34
+            `shouldBe` 36
         let actionIdentity registration =
                 let declaration = registration.checkedSurfaceRequestAdapterDeclaration
                  in (declaration.checkedAdapterSurfaceName, declaration.checkedAdapterDeclarationName)
@@ -386,6 +386,7 @@ tests = describe "FrontendSurfaceRequestAdapter" do
                 , ("roster", "remove-roster-row")
                 , ("leave-requests", "approve-leave-request")
                 , ("leave-requests", "deny-leave-request")
+                , ("leave-requests", "delete-unavailability-blackout")
                 , ("support", "create-public-holiday-refresh-job")
                 , ("support", "create-fwc-mapd-refresh-job")
                 , ("admin-invites", "revoke-venue-invitation")

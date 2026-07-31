@@ -147,18 +147,20 @@ export function isRosterDayTimelineSurfaceFragmentKey(value: unknown): value is 
 }
 
 export type LeaveRequestsSurfaceFragmentKey =
-    { kind: "leave-availability-warnings"; params: LeaveRequestsLeaveAvailabilityWarningsFragmentParams | null }
+    { kind: "unavailability-blackouts"; params: LeaveRequestsUnavailabilityBlackoutsFragmentParams | null }
+  | { kind: "leave-availability-warnings"; params: LeaveRequestsLeaveAvailabilityWarningsFragmentParams | null }
   | { kind: "leave-section-count"; params: LeaveRequestsLeaveSectionCountFragmentParams }
   | { kind: "leave-section-list"; params: LeaveRequestsLeaveSectionListFragmentParams };
 export function isLeaveRequestsSurfaceFragmentKey(value: unknown): value is LeaveRequestsSurfaceFragmentKey {
-    return ((isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "leave-availability-warnings" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], []))) || (isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "leave-section-count" && (isRecord(value["params"]) && hasExactKeys(value["params"], ["leaveSection"], ["leaveSection"]) && (typeof value["params"]["leaveSection"] === "string"))) || (isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "leave-section-list" && (isRecord(value["params"]) && hasExactKeys(value["params"], ["leaveSection"], ["leaveSection"]) && (typeof value["params"]["leaveSection"] === "string"))));
+    return ((isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "unavailability-blackouts" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], []))) || (isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "leave-availability-warnings" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], []))) || (isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "leave-section-count" && (isRecord(value["params"]) && hasExactKeys(value["params"], ["leaveSection"], ["leaveSection"]) && (typeof value["params"]["leaveSection"] === "string"))) || (isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "leave-section-list" && (isRecord(value["params"]) && hasExactKeys(value["params"], ["leaveSection"], ["leaveSection"]) && (typeof value["params"]["leaveSection"] === "string"))));
 }
 
 export type SelfServiceLeaveSurfaceFragmentKey =
     { kind: "self-service-leave-form"; params: SelfServiceLeaveSelfServiceLeaveFormFragmentFragmentParams | null }
+  | { kind: "visible-unavailability-blackouts"; params: SelfServiceLeaveVisibleUnavailabilityBlackoutsFragmentFragmentParams | null }
   | { kind: "self-service-leave-history"; params: SelfServiceLeaveSelfServiceLeaveHistoryFragmentFragmentParams | null };
 export function isSelfServiceLeaveSurfaceFragmentKey(value: unknown): value is SelfServiceLeaveSurfaceFragmentKey {
-    return ((isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "self-service-leave-form" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], []))) || (isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "self-service-leave-history" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], []))));
+    return ((isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "self-service-leave-form" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], []))) || (isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "visible-unavailability-blackouts" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], []))) || (isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "self-service-leave-history" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], []))));
 }
 
 export type BillingSurfaceFragmentKey =
@@ -187,9 +189,10 @@ export function isProfileSurfaceFragmentKey(value: unknown): value is ProfileSur
 export type StaffSurfaceFragmentKey =
     { kind: "staff-details-section"; params: StaffStaffDetailsSectionFragmentParams | null }
   | { kind: "staff-preferences-section"; params: StaffStaffPreferencesSectionFragmentParams | null }
+  | { kind: "staff-visible-unavailability-blackouts"; params: StaffStaffVisibleUnavailabilityBlackoutsFragmentParams | null }
   | { kind: "staff-leave-section"; params: StaffStaffLeaveSectionFragmentParams | null };
 export function isStaffSurfaceFragmentKey(value: unknown): value is StaffSurfaceFragmentKey {
-    return ((isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "staff-details-section" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], []))) || (isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "staff-preferences-section" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], []))) || (isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "staff-leave-section" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], []))));
+    return ((isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "staff-details-section" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], []))) || (isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "staff-preferences-section" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], []))) || (isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "staff-visible-unavailability-blackouts" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], []))) || (isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "staff-leave-section" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], []))));
 }
 
 export type AdminPageSurfaceFragmentKey =
@@ -1103,6 +1106,11 @@ export function isLeaveRequestsLeaveRequestsScopeScope(value: unknown): value is
     return isRecord(value) && hasExactKeys(value, ["venueId"], ["venueId"]) && (typeof value["venueId"] === "string");
 }
 
+export type LeaveRequestsUnavailabilityBlackoutsFragmentParams = {  };
+export function isLeaveRequestsUnavailabilityBlackoutsFragmentParams(value: unknown): value is LeaveRequestsUnavailabilityBlackoutsFragmentParams {
+    return isRecord(value) && hasExactKeys(value, [], []);
+}
+
 export type LeaveRequestsLeaveAvailabilityWarningsFragmentParams = {  };
 export function isLeaveRequestsLeaveAvailabilityWarningsFragmentParams(value: unknown): value is LeaveRequestsLeaveAvailabilityWarningsFragmentParams {
     return isRecord(value) && hasExactKeys(value, [], []);
@@ -1125,6 +1133,11 @@ export function isSelfServiceLeaveSelfServiceLeaveScopeScope(value: unknown): va
 
 export type SelfServiceLeaveSelfServiceLeaveFormFragmentFragmentParams = {  };
 export function isSelfServiceLeaveSelfServiceLeaveFormFragmentFragmentParams(value: unknown): value is SelfServiceLeaveSelfServiceLeaveFormFragmentFragmentParams {
+    return isRecord(value) && hasExactKeys(value, [], []);
+}
+
+export type SelfServiceLeaveVisibleUnavailabilityBlackoutsFragmentFragmentParams = {  };
+export function isSelfServiceLeaveVisibleUnavailabilityBlackoutsFragmentFragmentParams(value: unknown): value is SelfServiceLeaveVisibleUnavailabilityBlackoutsFragmentFragmentParams {
     return isRecord(value) && hasExactKeys(value, [], []);
 }
 
@@ -1200,6 +1213,11 @@ export function isStaffStaffDetailsSectionFragmentParams(value: unknown): value 
 
 export type StaffStaffPreferencesSectionFragmentParams = {  };
 export function isStaffStaffPreferencesSectionFragmentParams(value: unknown): value is StaffStaffPreferencesSectionFragmentParams {
+    return isRecord(value) && hasExactKeys(value, [], []);
+}
+
+export type StaffStaffVisibleUnavailabilityBlackoutsFragmentParams = {  };
+export function isStaffStaffVisibleUnavailabilityBlackoutsFragmentParams(value: unknown): value is StaffStaffVisibleUnavailabilityBlackoutsFragmentParams {
     return isRecord(value) && hasExactKeys(value, [], []);
 }
 
@@ -1403,7 +1421,7 @@ export const FrontendSurfaceCompleteSetSortRegistry: Record<FrontendSurfaceName,
 export type FrontendSurfaceTabSetDefinition = { name: string; tabRoleAttribute: string; keys: ReadonlyArray<string>; defaultKey: string; isKey: (value: unknown) => boolean };
 export const FrontendSurfaceTabSetRegistry: Record<FrontendSurfaceName, ReadonlyArray<FrontendSurfaceTabSetDefinition>> = {"timesheets":[],"roster":[{"name":"roster-staff-panel-tabs","tabRoleAttribute":rosterStaffPanelTabDomAttr,"keys":["staff","settings"],"defaultKey":"staff","isKey":isRosterStaffPanelTabsKey}],"roster-day-timeline":[],"leave-requests":[],"self-service-leave":[],"billing":[],"support":[],"profile":[],"staff":[],"admin-page":[],"admin-xero-page":[],"admin-venue-config":[],"admin-invites":[],"admin-exports":[],"admin-shift-types":[],"admin-roster-groups":[],"admin-xero":[]};
 
-export const FrontendSurfaceFragmentRegistry = {"timesheets":["timesheet-toolbar","timesheet-day-columns","timesheet-day-section"],"roster":["roster-content","roster-grid-toolbar","roster-grid-frame","roster-day-columns","roster-day-rail","roster-wage-rail","roster-slots-grid","roster-staff-panel","roster-day-section","roster-row"],"roster-day-timeline":["roster-day-timeline-content"],"leave-requests":["leave-availability-warnings","leave-section-count","leave-section-list"],"self-service-leave":["self-service-leave-form","self-service-leave-history"],"billing":["billing-status"],"support":["support-award-rates","support-public-holidays"],"profile":["profile-details-section","profile-preferences-section","profile-security-section","profile-leave-section","profile-rsa-section"],"staff":["staff-details-section","staff-preferences-section","staff-leave-section"],"admin-page":[],"admin-xero-page":[],"admin-venue-config":["admin-venue-settings"],"admin-invites":["admin-invites"],"admin-exports":["admin-exports"],"admin-shift-types":["admin-shift-types"],"admin-roster-groups":["admin-roster-groups"],"admin-xero":["admin-xero-shell"]} as const;
+export const FrontendSurfaceFragmentRegistry = {"timesheets":["timesheet-toolbar","timesheet-day-columns","timesheet-day-section"],"roster":["roster-content","roster-grid-toolbar","roster-grid-frame","roster-day-columns","roster-day-rail","roster-wage-rail","roster-slots-grid","roster-staff-panel","roster-day-section","roster-row"],"roster-day-timeline":["roster-day-timeline-content"],"leave-requests":["unavailability-blackouts","leave-availability-warnings","leave-section-count","leave-section-list"],"self-service-leave":["self-service-leave-form","visible-unavailability-blackouts","self-service-leave-history"],"billing":["billing-status"],"support":["support-award-rates","support-public-holidays"],"profile":["profile-details-section","profile-preferences-section","profile-security-section","profile-leave-section","profile-rsa-section"],"staff":["staff-details-section","staff-preferences-section","staff-visible-unavailability-blackouts","staff-leave-section"],"admin-page":[],"admin-xero-page":[],"admin-venue-config":["admin-venue-settings"],"admin-invites":["admin-invites"],"admin-exports":["admin-exports"],"admin-shift-types":["admin-shift-types"],"admin-roster-groups":["admin-roster-groups"],"admin-xero":["admin-xero-shell"]} as const;
 export function isFrontendSurfaceName(value: unknown): value is FrontendSurfaceName {
     return typeof value === "string" && Object.prototype.hasOwnProperty.call(FrontendSurfaceFragmentRegistry, value);
 }

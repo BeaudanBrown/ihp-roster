@@ -92,6 +92,7 @@ staffCandidateMountedFragments :: StaffScopeValue -> [FrontendSurfaceMountedFrag
 staffCandidateMountedFragments scope =
     [ staffDetailsMountedFragment scope
     , staffPreferencesMountedFragment scope
+    , staffVisibleUnavailabilityBlackoutsMountedFragment
     , staffLeaveMountedFragment scope
     ]
 
@@ -118,6 +119,14 @@ staffPreferencesMountedFragment scope =
         noSurfaceFields
         noSurfaceFields
         (staffSectionFragmentUrl scope "preferences")
+        FrontendSurfaceReplace
+
+staffVisibleUnavailabilityBlackoutsMountedFragment :: FrontendSurfaceMountedFragment
+staffVisibleUnavailabilityBlackoutsMountedFragment =
+    frontendSurfaceMountedFragmentFor @Surface.StaffSurface @Surface.StaffVisibleUnavailabilityBlackouts
+        noSurfaceFields
+        noSurfaceFields
+        (appendQueryParams (pathTo ShowVisibleUnavailabilityBlackoutsFragmentAction) [("surface", "staff")])
         FrontendSurfaceReplace
 
 staffLeaveMountedFragment :: StaffScopeValue -> FrontendSurfaceMountedFragment

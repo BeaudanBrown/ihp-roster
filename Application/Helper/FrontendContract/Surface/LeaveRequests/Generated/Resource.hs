@@ -7,6 +7,8 @@ module Application.Helper.FrontendContract.Surface.LeaveRequests.Generated.Resou
     , leaveRequestsSectionResource
     , matchLeaveAvailabilityWarningsResource
     , matchLeaveRequestsSectionResource
+    , matchUnavailabilityBlackoutsResource
+    , unavailabilityBlackoutsResource
     ) where
 
 import Application.Helper.FrontendContract.Surface.HaskellAdapter.Family (AdapterFamilySurface)
@@ -55,3 +57,20 @@ matchLeaveRequestsSectionResource =
     matchFrontendSurfaceResource
         @(AdapterFamilySurface Types2.LeaveRequestsAdapterFamily)
         @Types1.LeaveRequestsSection
+
+unavailabilityBlackoutsResource ::
+    UUID.UUID ->
+    SurfaceResourceValue
+unavailabilityBlackoutsResource venueId =
+    frontendSurfaceResource
+        @(AdapterFamilySurface Types2.LeaveRequestsAdapterFamily)
+        @Types1.UnavailabilityBlackouts
+        ( surfaceField @Types1.VenueId venueId
+            &: noSurfaceFields
+        )
+
+matchUnavailabilityBlackoutsResource :: SurfaceResourceValue -> Maybe (UUID.UUID, ())
+matchUnavailabilityBlackoutsResource =
+    matchFrontendSurfaceResource
+        @(AdapterFamilySurface Types2.LeaveRequestsAdapterFamily)
+        @Types1.UnavailabilityBlackouts

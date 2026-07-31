@@ -11,6 +11,8 @@ module Application.Helper.FrontendContract.Surface.LeaveRequests.Generated.Live
     , matchLeaveRequestsLiveScope
     , matchLeaveSectionCountLiveFragment
     , matchLeaveSectionListLiveFragment
+    , matchUnavailabilityBlackoutsLiveFragment
+    , unavailabilityBlackoutsLiveFragment
     ) where
 
 import Application.Helper.FrontendContract.Surface.HaskellAdapter.Association (AdapterFamilySurface)
@@ -90,3 +92,16 @@ matchLeaveSectionListLiveFragment =
     matchFrontendSurfaceFragmentKey
         @(AdapterFamilySurface Types2.LeaveRequestsAdapterFamily)
         @Types1.LeaveSectionList
+
+unavailabilityBlackoutsLiveFragment :: SurfaceFragmentKey
+unavailabilityBlackoutsLiveFragment =
+    frontendSurfaceFragmentKey
+        @(AdapterFamilySurface Types2.LeaveRequestsAdapterFamily)
+        @Types1.UnavailabilityBlackouts
+        noSurfaceFields
+
+matchUnavailabilityBlackoutsLiveFragment :: SurfaceFragmentKey -> Maybe ()
+matchUnavailabilityBlackoutsLiveFragment =
+    matchFrontendSurfaceFragmentKey
+        @(AdapterFamilySurface Types2.LeaveRequestsAdapterFamily)
+        @Types1.UnavailabilityBlackouts

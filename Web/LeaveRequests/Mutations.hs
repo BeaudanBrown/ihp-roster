@@ -1,5 +1,6 @@
 module Web.LeaveRequests.Mutations
     ( LeaveReviewDecision (..)
+    , LeaveSubmissionResult (..)
     , ReviewedLeaveRequest (..)
     , leaveReviewTouchedResources
     , reviewLeaveRequest
@@ -14,6 +15,8 @@ import Application.Helper.FrontendContract.Surface.Roster.Resource (rosterSlotsC
 import Application.Helper.SurfaceResource
 import Application.Helper.WeekBoundaries (affectedVenueWeekOffsetsForDateRange)
 import Application.Staff.Mutations (withStaffOperationalLock)
+import Application.UnavailabilityBlackout.Mutations (findOverlappingUnavailabilityBlackout,
+                                                     lockVenueUnavailabilityBlackoutInCurrentTransaction)
 import Control.Monad (void)
 import qualified Data.Aeson as Aeson
 import qualified Data.Set as Set
@@ -33,27 +36,42 @@ data ReviewedLeaveRequest = ReviewedLeaveRequest
     }
     deriving (Eq, Show)
 
-submitLeaveRequest :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => LeaveRequest -> IO (Maybe (LiveMutationResult LeaveRequest))
+data LeaveSubmissionResult
+    = LeaveSubmissionStaffInactive
+    | LeaveSubmissionBlocked !UnavailabilityBlackout
+    | LeaveSubmissionCreated !(LiveMutationResult LeaveRequest)
+
+submitLeaveRequest :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => LeaveRequest -> IO LeaveSubmissionResult
 submitLeaveRequest leaveRequest = do
-    maybeCreatedLeaveRequest <- fmap join $ withStaffOperationalLock leaveRequest.staffId do
+    maybeMutationResult <- withStaffOperationalLock leaveRequest.staffId do
         staff <- fetch (Id leaveRequest.staffId :: Id Staff)
         if not staff.isActive || isJust staff.archivedAt || staff.venueId /= leaveRequest.venueId
-            then pure Nothing
+            then pure (Left Nothing)
             else do
-                createdLeaveRequest <- leaveRequest |> createRecord
-                void $
-                    recordCurrentUserLeaveRequestEvent
-                        createdLeaveRequest
-                        (unsafeEnumFromText @LeaveRequestEventTypeEnum "created")
-                        Nothing
-                        (Just createdLeaveRequest.status)
-                        Aeson.Null
-                pure (Just createdLeaveRequest)
-    forM maybeCreatedLeaveRequest \createdLeaveRequest -> do
-        today <- utctDay <$> getCurrentTime
-        let createdStatus = fromMaybe LeavePending (parseLeaveRequestStatus createdLeaveRequest.status)
-        let sectionResource = leaveRequestVisibleSectionResource today createdStatus createdLeaveRequest
-        invalidateTouchedResources "leave.submit" (liveMutationResult createdLeaveRequest (baseLeaveTouchedResources createdLeaveRequest <> [sectionResource]))
+                lockVenueUnavailabilityBlackoutInCurrentTransaction leaveRequest.venueId
+                let lastUnavailableDate = addDays (-1) leaveRequest.endDate
+                findOverlappingUnavailabilityBlackout leaveRequest.venueId leaveRequest.startDate lastUnavailableDate Nothing >>= \case
+                    Just blackout -> pure (Left (Just blackout))
+                    Nothing -> do
+                        createdLeaveRequest <- leaveRequest |> createRecord
+                        void $
+                            recordCurrentUserLeaveRequestEvent
+                                createdLeaveRequest
+                                (unsafeEnumFromText @LeaveRequestEventTypeEnum "created")
+                                Nothing
+                                (Just createdLeaveRequest.status)
+                                Aeson.Null
+                        pure (Right createdLeaveRequest)
+    case maybeMutationResult of
+        Nothing -> pure LeaveSubmissionStaffInactive
+        Just (Left Nothing) -> pure LeaveSubmissionStaffInactive
+        Just (Left (Just blackout)) -> pure (LeaveSubmissionBlocked blackout)
+        Just (Right createdLeaveRequest) -> do
+            today <- utctDay <$> getCurrentTime
+            let createdStatus = fromMaybe LeavePending (parseLeaveRequestStatus createdLeaveRequest.status)
+            let sectionResource = leaveRequestVisibleSectionResource today createdStatus createdLeaveRequest
+            mutationResult <- invalidateTouchedResources "leave.submit" (liveMutationResult createdLeaveRequest (baseLeaveTouchedResources createdLeaveRequest <> [sectionResource]))
+            pure (LeaveSubmissionCreated mutationResult)
 
 reviewLeaveRequest :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => LeaveReviewDecision -> LeaveRequest -> IO (Maybe (LiveMutationResult ReviewedLeaveRequest))
 reviewLeaveRequest decision leaveRequest = do

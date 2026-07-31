@@ -56,11 +56,19 @@ selfServiceLeaveSurfaceImpl mountKey includeHistory scope =
             &: noSurfaceFields
         )
         noSurfaceFields
-        (selfServiceLeaveFormMountedFragment : [selfServiceLeaveHistoryMountedFragment | includeHistory])
+        (visibleUnavailabilityBlackoutsMountedFragment : selfServiceLeaveFormMountedFragment : [selfServiceLeaveHistoryMountedFragment | includeHistory])
 
 selfServiceLeaveSurfaceScope :: SelfServiceLeaveScopeValue -> SurfaceScope
 selfServiceLeaveSurfaceScope scope =
     SelfServiceLeaveLive.selfServiceLeaveLiveScope scope.selfServiceLeaveVenueId scope.selfServiceLeaveStaffId
+
+visibleUnavailabilityBlackoutsMountedFragment :: FrontendSurfaceMountedFragment
+visibleUnavailabilityBlackoutsMountedFragment =
+    frontendSurfaceMountedFragmentFor @SelfServiceLeave.SelfServiceLeaveSurface @SelfServiceLeave.VisibleUnavailabilityBlackoutsFragment
+        noSurfaceFields
+        noSurfaceFields
+        (pathTo ShowVisibleUnavailabilityBlackoutsFragmentAction)
+        FrontendSurfaceReplace
 
 selfServiceLeaveFormMountedFragment :: FrontendSurfaceMountedFragment
 selfServiceLeaveFormMountedFragment =
@@ -99,7 +107,17 @@ leaveRequestsSurfaceScope scope =
 
 leaveRequestsCandidateMountedFragments :: LeaveRequestsScopeValue -> [FrontendSurfaceMountedFragment]
 leaveRequestsCandidateMountedFragments _ =
-    leaveAvailabilityWarningsMountedFragment : leaveRequestsSectionMountedFragments
+    unavailabilityBlackoutsMountedFragment : leaveAvailabilityWarningsMountedFragment : leaveRequestsSectionMountedFragments
+
+unavailabilityBlackoutsMountedFragment :: FrontendSurfaceMountedFragment
+unavailabilityBlackoutsMountedFragment =
+    frontendSurfaceMountedFragmentFor @Surface.LeaveRequestsSurface @Surface.UnavailabilityBlackouts
+        noSurfaceFields
+        noSurfaceFields
+        (appendQueryParams
+            (pathTo ShowleaveRequestsContentLiveFragmentAction)
+            [("fragment", surfaceFragmentNameValue @Surface.LeaveRequestsSurface @Surface.UnavailabilityBlackouts)])
+        FrontendSurfaceReplace
 
 leaveAvailabilityWarningsMountedFragment :: FrontendSurfaceMountedFragment
 leaveAvailabilityWarningsMountedFragment =

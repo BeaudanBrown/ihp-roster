@@ -32,6 +32,7 @@ import qualified Data.UUID as UUID
 import qualified Text.Blaze.Html as Blaze
 import Web.Controller.Prelude
 import Web.LeaveRequests.AvailabilityWarnings
+import Web.LeaveRequests.Blackouts
 import Web.LeaveRequests.FrontendSurface (LeaveRequestsScopeValue (..),
                                           leaveRequestsSurfaceImpl)
 import Web.View.LeaveRequests.Index
@@ -43,10 +44,13 @@ data LeaveRequestsReadModel = LeaveRequestsReadModel
     , leaveReadModelToday                :: Day
     , leaveReadModelWarningThreshold     :: Maybe Int
     , leaveReadModelWarningPeriods       :: [AvailabilityWarningPeriod]
+    , leaveReadModelVenueToday           :: Day
+    , leaveReadModelBlackouts            :: [UnavailabilityBlackout]
     }
 
 data LeaveRequestsFragment
     = LeaveRequestsContent
+    | UnavailabilityBlackouts
     | LeaveAvailabilityWarnings
     | LeaveRequestsSectionCount !Text
     | LeaveRequestsSectionList !Text
@@ -89,6 +93,8 @@ fetchLeaveRequestsReadModel = do
     leaveReadModelCurrentViewerStaffId <- fmap (fmap (coerce . get #id)) fetchCurrentUserStaff
     leaveReadModelToday <- liftIO (utctDay <$> getCurrentTime)
     venueConfig <- profileActionSpan "leave.fetch_venue_config" fetchVenueConfig
+    leaveReadModelVenueToday <- profileActionSpan "leave.fetch_venue_today" (currentVenueCalendarDay venueConfig)
+    leaveReadModelBlackouts <- profileActionSpan "leave.fetch_blackouts" (fetchCurrentAndFutureUnavailabilityBlackouts leaveReadModelVenueToday)
     let leaveReadModelWarningThreshold = venueConfig.unavailableStaffWarningThreshold
     let leaveReadModelWarningPeriods =
             maybe
@@ -116,6 +122,8 @@ renderLeaveRequestsFragmentFromReadModel renderMode readModel fragment =
                 currentLeaveArchiveOpen
                 readModel.leaveReadModelWarningThreshold
                 readModel.leaveReadModelWarningPeriods
+        UnavailabilityBlackouts ->
+            renderUnavailabilityBlackoutsLiveFragment readModel.leaveReadModelVenueToday readModel.leaveReadModelBlackouts readModel.leaveReadModelRequests readModel.leaveReadModelStaffMembers
         LeaveAvailabilityWarnings ->
             renderAvailabilityWarningsLiveFragment readModel.leaveReadModelWarningThreshold readModel.leaveReadModelWarningPeriods
         LeaveRequestsSectionCount section ->
@@ -131,7 +139,7 @@ renderLeaveRequestsFragmentFromReadModel renderMode readModel fragment =
         archivedPageRequests = archivePageItems archivePagination archivedRequests
 
 leaveRequestsIndexView :: (?context :: ControllerContext, ?request :: Request) => LeaveRequestsReadModel -> IndexView
-leaveRequestsIndexView LeaveRequestsReadModel { leaveReadModelRequests, leaveReadModelStaffMembers, leaveReadModelCurrentViewerStaffId, leaveReadModelToday, leaveReadModelWarningThreshold, leaveReadModelWarningPeriods } =
+leaveRequestsIndexView LeaveRequestsReadModel { leaveReadModelRequests, leaveReadModelStaffMembers, leaveReadModelCurrentViewerStaffId, leaveReadModelToday, leaveReadModelWarningThreshold, leaveReadModelWarningPeriods, leaveReadModelVenueToday, leaveReadModelBlackouts } =
     IndexView
         { leaveRequests = leaveReadModelRequests
         , staffMembers = leaveReadModelStaffMembers
@@ -141,6 +149,8 @@ leaveRequestsIndexView LeaveRequestsReadModel { leaveReadModelRequests, leaveRea
         , archiveIsOpen = currentLeaveArchiveOpen
         , warningThreshold = leaveReadModelWarningThreshold
         , warningPeriods = leaveReadModelWarningPeriods
+        , venueToday = leaveReadModelVenueToday
+        , blackouts = leaveReadModelBlackouts
         , liveUpdateSurface = Just currentLeaveRequestsSurface
         }
 

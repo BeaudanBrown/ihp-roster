@@ -11,6 +11,9 @@ import Application.Helper.RosterGroups (ensureVenueDefaultRosterGroup)
 import Application.Helper.SurfaceResource
 import Application.Helper.WeekBoundaries (affectedVenueWeekOffsetsForDateRange)
 import Config
+import Control.Concurrent (forkIO, newEmptyMVar, putMVar, readMVar, takeMVar)
+import Control.Exception.Safe (SomeException, try)
+import Control.Monad (zipWithM)
 import qualified Data.ByteString.Lazy.Char8 as LByteString
 import qualified Data.Set as Set
 import qualified Data.Text as Text
@@ -48,6 +51,337 @@ tests = aroundAll withDatabaseTestContext do
                 , ("approve", callAction ApproveLeaveRequestAction { leaveRequestId = requestId })
                 , ("deny", callAction DenyLeaveRequestAction { leaveRequestId = requestId })
                 ]
+
+        it "provides venue-scoped inclusive unavailability blackout persistence" $ withContext do
+            relations <- sqlQuery
+                "SELECT to_regclass('unavailability_blackouts')::text"
+                ()
+            relations `shouldBe` [Only (Just ("unavailability_blackouts" :: Text))]
+
+        it "lets venue admins create inclusive blackout periods" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Blackout Create Venue"
+                admin <- createUserRecord "blackout-create-admin@example.com" "admin" True
+                owner <- createUserRecord "blackout-create-owner@example.com" "admin" True
+                _ <- createVenueMembershipRecord venue admin "venue_admin"
+                _ <- createVenueMembershipRecord venue owner "venue_owner"
+                today <- utctDay <$> getCurrentTime
+                let firstBlockedDate = addDays 2 today
+                let lastBlockedDate = addDays 4 today
+
+                response <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
+                    callActionWithParams CreateUnavailabilityBlackoutAction
+                        [ ("startDate", cs (tshow firstBlockedDate))
+                        , ("endDate", cs (tshow lastBlockedDate))
+                        , ("reason", "Annual stocktake")
+                        ]
+
+                response `responseStatusShouldBe` status302
+                blackout <- query @UnavailabilityBlackout |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
+                blackout.startDate `shouldBe` firstBlockedDate
+                blackout.endDate `shouldBe` lastBlockedDate
+                blackout.reason `shouldBe` "Annual stocktake"
+
+                ownerResponse <- withPasskeyVerifiedUserAndCurrentVenue owner venue.id do
+                    callActionWithParams CreateUnavailabilityBlackoutAction
+                        [ ("startDate", cs (tshow (addDays 1 lastBlockedDate)))
+                        , ("endDate", cs (tshow (addDays 1 lastBlockedDate)))
+                        , ("reason", "Owner closure")
+                        ]
+                ownerResponse `responseStatusShouldBe` status302
+                query @UnavailabilityBlackout |> filterWhere (#venueId, unpackId venue.id) |> fetchCount >>= (`shouldBe` 2)
+
+        it "accepts a start on venue-local today" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Blackout Venue Local Today"
+                config <- query @VenueConfig |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
+                _ <- config |> set #timezone "Etc/GMT+12" |> updateRecord
+                admin <- createUserRecord "blackout-local-admin@example.com" "admin" True
+                _ <- createVenueMembershipRecord venue admin "venue_admin"
+                now <- getCurrentTime
+                venueToday :: Day <- sqlQueryScalar "SELECT (?::timestamptz AT TIME ZONE 'Etc/GMT+12')::date" (Only now)
+
+                response <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
+                    callActionWithParams CreateUnavailabilityBlackoutAction
+                        [ ("startDate", cs (tshow venueToday))
+                        , ("endDate", cs (tshow venueToday))
+                        , ("reason", "Local calendar date")
+                        ]
+
+                response `responseStatusShouldBe` status302
+                query @UnavailabilityBlackout |> filterWhere (#venueId, unpackId venue.id) |> fetchCount >>= (`shouldBe` 1)
+
+        it "enforces staff-visible reason and 366-day inclusive limits" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Blackout Validation Venue"
+                admin <- createUserRecord "blackout-validation-admin@example.com" "admin" True
+                _ <- createVenueMembershipRecord venue admin "venue_admin"
+                today <- utctDay <$> getCurrentTime
+                let submit endDate reason = withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
+                        callActionWithParams CreateUnavailabilityBlackoutAction
+                            [ ("startDate", cs (tshow today))
+                            , ("endDate", cs (tshow endDate))
+                            , ("reason", reason)
+                            ]
+
+                _ <- submit today " x "
+                query @UnavailabilityBlackout |> filterWhere (#venueId, unpackId venue.id) |> fetchCount >>= (`shouldBe` 0)
+                _ <- submit (addDays 366 today) "Too long"
+                query @UnavailabilityBlackout |> filterWhere (#venueId, unpackId venue.id) |> fetchCount >>= (`shouldBe` 0)
+                whitespaceResult <- (try $
+                    newRecord @UnavailabilityBlackout
+                        |> set #venueId (unpackId venue.id)
+                        |> set #startDate today
+                        |> set #endDate today
+                        |> set #reason "   "
+                        |> createRecord) :: IO (Either SomeException UnavailabilityBlackout)
+                whitespaceResult `shouldSatisfy` either (const True) (const False)
+                let maximumReason = cs (Text.replicate 160 "r")
+                validResponse <- submit (addDays 365 today) maximumReason
+                validResponse `responseStatusShouldBe` status302
+                saved <- query @UnavailabilityBlackout |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
+                Text.length saved.reason `shouldBe` 160
+                saved.endDate `shouldBe` addDays 365 today
+
+        it "rejects inclusive blackout overlaps while allowing the next date" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Blackout Overlap Venue"
+                admin <- createUserRecord "blackout-overlap-admin@example.com" "admin" True
+                _ <- createVenueMembershipRecord venue admin "venue_admin"
+                today <- utctDay <$> getCurrentTime
+                let firstBlockedDate = addDays 2 today
+                let lastBlockedDate = addDays 4 today
+                _ <- newRecord @UnavailabilityBlackout
+                    |> set #venueId (unpackId venue.id)
+                    |> set #startDate firstBlockedDate
+                    |> set #endDate lastBlockedDate
+                    |> set #reason "Existing closure"
+                    |> createRecord
+
+                overlapResponse <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
+                    withRequestHeaders [("HX-Request", "true")] do
+                        callActionWithParams CreateUnavailabilityBlackoutAction
+                            [ ("startDate", cs (tshow lastBlockedDate))
+                            , ("endDate", cs (tshow (addDays 1 lastBlockedDate)))
+                            , ("reason", "Overlapping closure")
+                            ]
+                overlapResponse `responseStatusShouldBe` status200
+                overlapResponse `responseBodyShouldContain` "Blackout periods cannot overlap"
+                overlapResponse `responseBodyShouldContain` "Overlapping closure"
+                overlapResponse `responseBodyShouldContain` "invalid-feedback"
+                query @UnavailabilityBlackout |> filterWhere (#venueId, unpackId venue.id) |> fetchCount >>= (`shouldBe` 1)
+
+                adjacentResponse <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
+                    callActionWithParams CreateUnavailabilityBlackoutAction
+                        [ ("startDate", cs (tshow (addDays 1 lastBlockedDate)))
+                        , ("endDate", cs (tshow (addDays 1 lastBlockedDate)))
+                        , ("reason", "Adjacent closure")
+                        ]
+                adjacentResponse `responseStatusShouldBe` status302
+                query @UnavailabilityBlackout |> filterWhere (#venueId, unpackId venue.id) |> fetchCount >>= (`shouldBe` 2)
+
+        it "serializes concurrent overlapping blackout creation" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Concurrent Blackout Venue"
+                admin <- createUserRecord "concurrent-blackout-admin@example.com" "admin" True
+                _ <- createVenueMembershipRecord venue admin "venue_admin"
+                today <- utctDay <$> getCurrentTime
+                let createAction reason = withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
+                        callActionWithParams CreateUnavailabilityBlackoutAction
+                            [ ("startDate", cs (tshow (addDays 2 today)))
+                            , ("endDate", cs (tshow (addDays 4 today)))
+                            , ("reason", reason)
+                            ]
+
+                results <- runConcurrentLeaveActionList
+                    [createAction "Concurrent closure one", createAction "Concurrent closure two"]
+
+                lefts results `shouldSatisfy` null
+                mapM_ (`responseStatusShouldBe` status302) (rights results)
+                query @UnavailabilityBlackout |> filterWhere (#venueId, unpackId venue.id) |> fetchCount >>= (`shouldBe` 1)
+
+        it "rejects a self-service unavailable range at inclusive blackout boundaries with the visible reason" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Blackout Submission Venue"
+                worker <- createUserRecord "blackout-worker@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue worker "worker"
+                staff <- createStaffRecord venue (Just worker) "Blocked" "Worker"
+                today <- utctDay <$> getCurrentTime
+                let blockedDate = addDays 3 today
+                _ <- newRecord @UnavailabilityBlackout
+                    |> set #venueId (unpackId venue.id)
+                    |> set #startDate blockedDate
+                    |> set #endDate blockedDate
+                    |> set #reason "Annual fire inspection"
+                    |> createRecord
+
+                blockedResponse <- withUserAndCurrentVenue worker venue.id do
+                    withRequestHeaders [("HX-Request", "true")] do
+                        callActionWithParams CreateLeaveRequestAction
+                            [ ("responseContext", "self-service")
+                            , ("startDate", cs (tshow blockedDate))
+                            , ("endDate", cs (tshow (addDays 1 blockedDate)))
+                            , ("notes", "Need this date")
+                            ]
+                blockedResponse `responseStatusShouldBe` status200
+                blockedResponse `responseBodyShouldContain` "Annual fire inspection"
+                query @LeaveRequest |> filterWhere (#staffId, unpackId staff.id) |> fetchCount >>= (`shouldBe` 0)
+
+                beforeResponse <- withUserAndCurrentVenue worker venue.id do
+                    withRequestHeaders [("HX-Request", "true")] do
+                        callActionWithParams CreateLeaveRequestAction
+                            [ ("responseContext", "self-service")
+                            , ("startDate", cs (tshow (addDays (-1) blockedDate)))
+                            , ("endDate", cs (tshow blockedDate))
+                            , ("notes", "Boundary before")
+                            ]
+                beforeResponse `responseStatusShouldBe` status200
+                query @LeaveRequest |> filterWhere (#staffId, unpackId staff.id) |> fetchCount >>= (`shouldBe` 1)
+
+        it "does not let managers or support override blackouts for staff-entered requests" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Blackout No Override Venue"
+                manager <- createUserRecord "blackout-manager@example.com" "manager" True
+                superAdmin <- createUserRecordWithPlatformRole "blackout-support@example.com" "staff" (Just SuperAdminRole) True
+                _ <- createVenueMembershipRecord venue manager "manager"
+                staff <- createStaffRecord venue Nothing "Target" "Staff"
+                today <- utctDay <$> getCurrentTime
+                let blockedDate = addDays 5 today
+                _ <- newRecord @UnavailabilityBlackout
+                    |> set #venueId (unpackId venue.id)
+                    |> set #startDate blockedDate
+                    |> set #endDate blockedDate
+                    |> set #reason "Mandatory training day"
+                    |> createRecord
+                let requestParams =
+                        [ ("responseContext", "staff")
+                        , ("staffId", cs (tshow staff.id))
+                        , ("startDate", cs (tshow blockedDate))
+                        , ("endDate", cs (tshow (addDays 1 blockedDate)))
+                        , ("notes", "Manager entry")
+                        ]
+
+                managerResponse <- withPasskeyVerifiedUserAndCurrentVenue manager venue.id do
+                    withRequestHeaders [("HX-Request", "true")] do
+                        callActionWithParams CreateLeaveRequestAction requestParams
+                managerResponse `responseStatusShouldBe` status200
+                managerResponse `responseBodyShouldContain` "Mandatory training day"
+
+                supportResponse <- withPasskeyVerifiedUserAndCurrentVenue superAdmin venue.id do
+                    withRequestHeaders [("HX-Request", "true")] do
+                        callActionWithParams CreateLeaveRequestAction requestParams
+                supportResponse `responseStatusShouldBe` status302
+                supportManagementResponse <- withPasskeyVerifiedUserAndCurrentVenue superAdmin venue.id do
+                    callActionWithParams CreateUnavailabilityBlackoutAction
+                        [ ("startDate", cs (tshow (addDays 1 blockedDate)))
+                        , ("endDate", cs (tshow (addDays 1 blockedDate)))
+                        , ("reason", "Support override period")
+                        ]
+                supportManagementResponse `responseStatusShouldBe` status302
+                query @UnavailabilityBlackout |> filterWhere (#venueId, unpackId venue.id) |> fetchCount >>= (`shouldBe` 1)
+                query @LeaveRequest |> filterWhere (#staffId, unpackId staff.id) |> fetchCount >>= (`shouldBe` 0)
+
+        it "lets admins edit and remove blackouts while managers cannot manage them" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Blackout Manage Venue"
+                foreignVenue <- createVenueWithConfig "Foreign Blackout Manage Venue"
+                admin <- createUserRecord "blackout-manage-admin@example.com" "admin" True
+                manager <- createUserRecord "blackout-manage-manager@example.com" "manager" True
+                _ <- createVenueMembershipRecord venue admin "venue_admin"
+                _ <- createVenueMembershipRecord foreignVenue admin "venue_admin"
+                _ <- createVenueMembershipRecord venue manager "manager"
+                today <- utctDay <$> getCurrentTime
+                blackout <- newRecord @UnavailabilityBlackout
+                    |> set #venueId (unpackId venue.id)
+                    |> set #startDate (addDays 2 today)
+                    |> set #endDate (addDays 3 today)
+                    |> set #reason "Original reason"
+                    |> createRecord
+
+                managerResponse <- withPasskeyVerifiedUserAndCurrentVenue manager venue.id do
+                    callActionWithParams (UpdateUnavailabilityBlackoutAction blackout.id)
+                        [ ("startDate", cs (tshow (addDays 3 today)))
+                        , ("endDate", cs (tshow (addDays 4 today)))
+                        , ("reason", "Manager changed")
+                        ]
+                managerResponse `responseStatusShouldBe` status302
+                managerRejected <- fetch blackout.id
+                managerRejected.reason `shouldBe` "Original reason"
+
+                crossVenueResponse <- withPasskeyVerifiedUserAndCurrentVenue admin foreignVenue.id do
+                    callActionWithParams (UpdateUnavailabilityBlackoutAction blackout.id)
+                        [ ("startDate", cs (tshow (addDays 3 today)))
+                        , ("endDate", cs (tshow (addDays 4 today)))
+                        , ("reason", "Cross venue change")
+                        ]
+                crossVenueResponse `responseStatusShouldBe` status403
+                crossVenueRejected <- fetch blackout.id
+                crossVenueRejected.reason `shouldBe` "Original reason"
+
+                updateResponse <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
+                    callActionWithParams (UpdateUnavailabilityBlackoutAction blackout.id)
+                        [ ("startDate", cs (tshow (addDays 3 today)))
+                        , ("endDate", cs (tshow (addDays 4 today)))
+                        , ("reason", "Updated closure")
+                        ]
+                updateResponse `responseStatusShouldBe` status302
+                updated <- fetch blackout.id
+                updated.startDate `shouldBe` addDays 3 today
+                updated.endDate `shouldBe` addDays 4 today
+                updated.reason `shouldBe` "Updated closure"
+
+                deleteResponse <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
+                    callAction (DeleteUnavailabilityBlackoutAction blackout.id)
+                deleteResponse `responseStatusShouldBe` status302
+                query @UnavailabilityBlackout |> filterWhere (#id, blackout.id) |> fetchCount >>= (`shouldBe` 0)
+
+        it "renders active blackout visibility by role and pre-existing exceptions for admins" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Blackout Visibility Venue"
+                admin <- createUserRecord "blackout-visibility-admin@example.com" "admin" True
+                manager <- createUserRecord "blackout-visibility-manager@example.com" "manager" True
+                worker <- createUserRecord "blackout-visibility-worker@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue admin "venue_admin"
+                _ <- createVenueMembershipRecord venue manager "manager"
+                _ <- createVenueMembershipRecord venue worker "worker"
+                staff <- createStaffRecord venue (Just worker) "Visible" "Worker"
+                today <- utctDay <$> getCurrentTime
+                existingRequest <- createLeaveRequestRecord venue staff today (addDays 1 today) "approved"
+                activeBlackout <- newRecord @UnavailabilityBlackout
+                    |> set #venueId (unpackId venue.id)
+                    |> set #startDate today
+                    |> set #endDate (addDays 1 today)
+                    |> set #reason "Kitchen renovation"
+                    |> createRecord
+                _ <- newRecord @UnavailabilityBlackout
+                    |> set #venueId (unpackId venue.id)
+                    |> set #startDate (addDays (-3) today)
+                    |> set #endDate (addDays (-1) today)
+                    |> set #reason "Ended closure"
+                    |> createRecord
+
+                retainedRequest <- fetch existingRequest.id
+                inputValue retainedRequest.status `shouldBe` "approved"
+                adminResponse <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
+                    callAction LeaveRequestsAction
+                adminResponse `responseBodyShouldContain` "Kitchen renovation"
+                adminResponse `responseBodyShouldContain` "Add blackout"
+                adminResponse `responseBodyShouldContain` "Pre-existing exceptions"
+                adminResponse `responseBodyShouldContain` "Visible Worker"
+                adminResponse `responseBodyShouldNotContain` "Ended closure"
+
+                managerResponse <- withUserAndCurrentVenue manager venue.id do
+                    callAction LeaveRequestsAction
+                managerResponse `responseBodyShouldContain` "Kitchen renovation"
+                managerResponse `responseBodyShouldNotContain` "Add blackout"
+                managerResponse `responseBodyShouldNotContain` "Pre-existing exceptions"
+
+                workerResponse <- withUserAndCurrentVenue worker venue.id do
+                    callAction ShowVisibleUnavailabilityBlackoutsFragmentAction
+                workerResponse `responseStatusShouldBe` status200
+                workerResponse `responseBodyShouldContain` activeBlackout.reason
+                workerResponse `responseBodyShouldNotContain` "Ended closure"
+
 
         it "redirects venue-less super-admins from leave to support" $ withContext do
             withCleanDb do
@@ -750,4 +1084,18 @@ tests = aroundAll withDatabaseTestContext do
                 inputValue leaveEvent.eventType `shouldBe` "created"
                 leaveEvent.previousStatus `shouldBe` Nothing
                 fmap inputValue leaveEvent.newStatus `shouldBe` Just "pending"
+
+runConcurrentLeaveActionList :: [IO result] -> IO [Either SomeException result]
+runConcurrentLeaveActionList actions = do
+    resultVars <- mapM (const newEmptyMVar) actions
+    readyVars <- mapM (const newEmptyMVar) actions
+    startVar <- newEmptyMVar
+    _ <- zipWithM (\resultVar (readyVar, action) -> forkIO do
+            putMVar readyVar ()
+            _ <- readMVar startVar
+            try action >>= putMVar resultVar
+        ) resultVars (zip readyVars actions)
+    mapM_ takeMVar readyVars
+    putMVar startVar ()
+    mapM takeMVar resultVars
 

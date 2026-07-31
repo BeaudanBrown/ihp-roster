@@ -13,6 +13,7 @@ module Application.Helper.FrontendContract.Surface.Profile.Generated.Live
     , matchStaffLeaveSectionLiveFragment
     , matchStaffLiveScope
     , matchStaffPreferencesSectionLiveFragment
+    , matchStaffVisibleUnavailabilityBlackoutsLiveFragment
     , profileDetailsSectionLiveFragment
     , profileLeaveSectionLiveFragment
     , profileLiveScope
@@ -23,6 +24,7 @@ module Application.Helper.FrontendContract.Surface.Profile.Generated.Live
     , staffLeaveSectionLiveFragment
     , staffLiveScope
     , staffPreferencesSectionLiveFragment
+    , staffVisibleUnavailabilityBlackoutsLiveFragment
     ) where
 
 import Application.Helper.FrontendContract.Surface.HaskellAdapter.Association (AdapterFamilySurface)
@@ -180,3 +182,16 @@ matchStaffPreferencesSectionLiveFragment =
     matchFrontendSurfaceFragmentKey
         @(AdapterFamilySurface Types2.StaffAdapterFamily)
         @Types1.StaffPreferencesSection
+
+staffVisibleUnavailabilityBlackoutsLiveFragment :: SurfaceFragmentKey
+staffVisibleUnavailabilityBlackoutsLiveFragment =
+    frontendSurfaceFragmentKey
+        @(AdapterFamilySurface Types2.StaffAdapterFamily)
+        @Types1.StaffVisibleUnavailabilityBlackouts
+        noSurfaceFields
+
+matchStaffVisibleUnavailabilityBlackoutsLiveFragment :: SurfaceFragmentKey -> Maybe ()
+matchStaffVisibleUnavailabilityBlackoutsLiveFragment =
+    matchFrontendSurfaceFragmentKey
+        @(AdapterFamilySurface Types2.StaffAdapterFamily)
+        @Types1.StaffVisibleUnavailabilityBlackouts

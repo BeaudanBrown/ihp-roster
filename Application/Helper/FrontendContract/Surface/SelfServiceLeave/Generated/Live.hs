@@ -6,9 +6,11 @@ module Application.Helper.FrontendContract.Surface.SelfServiceLeave.Generated.Li
     ( matchSelfServiceLeaveFormLiveFragment
     , matchSelfServiceLeaveHistoryLiveFragment
     , matchSelfServiceLeaveLiveScope
+    , matchVisibleUnavailabilityBlackoutsLiveFragment
     , selfServiceLeaveFormLiveFragment
     , selfServiceLeaveHistoryLiveFragment
     , selfServiceLeaveLiveScope
+    , visibleUnavailabilityBlackoutsLiveFragment
     ) where
 
 import Application.Helper.FrontendContract.Surface.HaskellAdapter.Association (AdapterFamilySurface)
@@ -69,3 +71,16 @@ matchSelfServiceLeaveLiveScope =
     matchFrontendSurfaceScope
         @(AdapterFamilySurface Types2.SelfServiceLeaveAdapterFamily)
         @Types1.SelfServiceLeaveScope
+
+visibleUnavailabilityBlackoutsLiveFragment :: SurfaceFragmentKey
+visibleUnavailabilityBlackoutsLiveFragment =
+    frontendSurfaceFragmentKey
+        @(AdapterFamilySurface Types2.SelfServiceLeaveAdapterFamily)
+        @Types1.VisibleUnavailabilityBlackoutsFragment
+        noSurfaceFields
+
+matchVisibleUnavailabilityBlackoutsLiveFragment :: SurfaceFragmentKey -> Maybe ()
+matchVisibleUnavailabilityBlackoutsLiveFragment =
+    matchFrontendSurfaceFragmentKey
+        @(AdapterFamilySurface Types2.SelfServiceLeaveAdapterFamily)
+        @Types1.VisibleUnavailabilityBlackoutsFragment

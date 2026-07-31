@@ -43,7 +43,9 @@ import Web.LeaveRequests.FrontendSurface (LeaveRequestsScopeValue (..),
                                           selfServiceLeaveSurfaceScope)
 import Web.Profiles.FrontendSurface (ProfileScopeValue (..),
                                      profileCandidateMountedFragments,
-                                     profileSurfaceScope)
+                                     profileSurfaceScope,
+                                     staffCandidateMountedFragments,
+                                     staffSurfaceScope)
 import Web.RosterWeeks.FrontendSurface (RosterMountedFragmentPlan (..),
                                         RosterWeekScopeValue (..),
                                         rosterCandidateMountedFragments,
@@ -74,12 +76,16 @@ tests = do
             rosterMount.mountKey `shouldBe` "roster"
             map (.mountedFragmentKey) profileMount.mountFragments
                 `shouldBe`
-                    [ SelfServiceLeaveLive.selfServiceLeaveFormLiveFragment
+                    [ SelfServiceLeaveLive.visibleUnavailabilityBlackoutsLiveFragment
+                    , SelfServiceLeaveLive.selfServiceLeaveFormLiveFragment
                     , SelfServiceLeaveLive.selfServiceLeaveHistoryLiveFragment
                     ]
             map (.mountedFragmentKey) rosterMount.mountFragments
-                `shouldBe` [SelfServiceLeaveLive.selfServiceLeaveFormLiveFragment]
-            map (.mountedFragmentTargetId) (take 1 profileMount.mountFragments)
+                `shouldBe`
+                    [ SelfServiceLeaveLive.visibleUnavailabilityBlackoutsLiveFragment
+                    , SelfServiceLeaveLive.selfServiceLeaveFormLiveFragment
+                    ]
+            map (.mountedFragmentTargetId) (take 2 profileMount.mountFragments)
                 `shouldBe` map (.mountedFragmentTargetId) rosterMount.mountFragments
 
     describe "generated FrontendSurface resource dependencies" do
@@ -115,19 +121,24 @@ tests = do
             let venueId = fromWords 10 0 0 0
             let scopeValue = LeaveRequestsScopeValue venueId
             let candidates = leaveRequestsCandidateMountedFragments scopeValue
+            let blackoutResources = Set.fromList [unavailabilityBlackoutsResource venueId]
             let warningResources = Set.fromList [leaveAvailabilityWarningsResource venueId]
             let pendingResources = Set.fromList [leaveRequestsSectionResource venueId "pending"]
             let approvedResources = Set.fromList [leaveRequestsSectionResource venueId "approved"]
+            let affectedByBlackouts = planMountedFragments blackoutResources (leaveRequestsSurfaceScope scopeValue) candidates
             let affectedByWarnings = planMountedFragments warningResources (leaveRequestsSurfaceScope scopeValue) candidates
             let affectedByPending = planMountedFragments pendingResources (leaveRequestsSurfaceScope scopeValue) candidates
             let affectedByApproved = planMountedFragments approvedResources (leaveRequestsSurfaceScope scopeValue) candidates
 
+            actorLiveFragmentsRefreshKeys (leaveRequestsSurfaceScope scopeValue) blackoutResources candidates
+                `shouldBe` passiveFragmentKeys blackoutResources (leaveRequestsSurfaceScope scopeValue) candidates
             actorLiveFragmentsRefreshKeys (leaveRequestsSurfaceScope scopeValue) warningResources candidates
                 `shouldBe` passiveFragmentKeys warningResources (leaveRequestsSurfaceScope scopeValue) candidates
             actorLiveFragmentsRefreshKeys (leaveRequestsSurfaceScope scopeValue) pendingResources candidates
                 `shouldBe` passiveFragmentKeys pendingResources (leaveRequestsSurfaceScope scopeValue) candidates
             actorLiveFragmentsRefreshKeys (leaveRequestsSurfaceScope scopeValue) approvedResources candidates
                 `shouldBe` passiveFragmentKeys approvedResources (leaveRequestsSurfaceScope scopeValue) candidates
+            map (.mountedFragmentTargetId) affectedByBlackouts `shouldBe` ["unavailability-blackouts"]
             map (.mountedFragmentTargetId) affectedByWarnings `shouldBe` ["leave-availability-warnings"]
             map (.mountedFragmentTargetId) affectedByPending `shouldBe` ["leave-pending-count", "leave-pending-list"]
             map (.mountedFragmentTargetId) affectedByApproved `shouldBe` ["leave-approved-count", "leave-approved-list"]
@@ -136,7 +147,7 @@ tests = do
             let scopeValue = LeaveRequestsScopeValue (fromWords 10 0 0 0)
             let configJson = frontendSurfaceMountConfigJson (leaveRequestsSurfaceImpl scopeValue).surfaceImplMountConfig
 
-            Text.count "\"fragmentKey\":" configJson `shouldBe` 9
+            Text.count "\"fragmentKey\":" configJson `shouldBe` 10
             configJson `shouldSatisfy` Text.isInfixOf "\"subscription\":{\"scope\":{"
             configJson `shouldSatisfy` (not . Text.isInfixOf "\"resyncFragments\"")
             configJson `shouldSatisfy` (not . Text.isInfixOf "\"mountState\"")
@@ -340,17 +351,23 @@ tests = do
             let candidates = profileCandidateMountedFragments scopeValue
             let affectedByProfile = planMountedFragments (Set.fromList [staffProfileResource staffId]) (profileSurfaceScope scopeValue) candidates
             let affectedByRsa = planMountedFragments (Set.fromList [staffRsaDocumentsResource staffId]) (profileSurfaceScope scopeValue) candidates
+            let affectedStaffBlackoutFragments = planMountedFragments (Set.fromList [unavailabilityBlackoutsResource venueId]) (staffSurfaceScope scopeValue) (staffCandidateMountedFragments scopeValue)
             let leaveResources = Set.fromList [staffLeaveRequestsResource staffId]
+            let blackoutResources = Set.fromList [unavailabilityBlackoutsResource venueId]
             let affectedProfileFragments = planMountedFragments leaveResources (profileSurfaceScope scopeValue) candidates
             let selfServiceScope = SelfServiceLeaveScopeValue venueId staffId
             let selfServiceMount = (selfServiceLeaveSurfaceImpl "profile" True selfServiceScope).surfaceImplMountConfig
             let affectedSelfServiceFragments = planMountedFragments leaveResources (selfServiceLeaveSurfaceScope selfServiceScope) selfServiceMount.mountFragments
+            let affectedSelfServiceBlackoutFragments = planMountedFragments blackoutResources (selfServiceLeaveSurfaceScope selfServiceScope) selfServiceMount.mountFragments
 
             map (.mountedFragmentTargetId) affectedByProfile `shouldBe` ["profile-details"]
             map (.mountedFragmentTargetId) affectedByRsa `shouldBe` ["profile-rsa"]
+            map (.mountedFragmentTargetId) affectedStaffBlackoutFragments `shouldBe` ["staff-visible-unavailability-blackouts"]
             affectedProfileFragments `shouldBe` []
             map (.mountedFragmentTargetId) affectedSelfServiceFragments
                 `shouldBe` ["self-service-leave-history-fragment"]
+            map (.mountedFragmentTargetId) affectedSelfServiceBlackoutFragments
+                `shouldBe` ["visible-unavailability-blackouts-fragment"]
 
 planMountedFragments :: Set.Set SurfaceResourceValue -> SurfaceScope -> [FrontendSurfaceMountedFragment] -> [FrontendSurfaceMountedFragment]
 planMountedFragments resources scope mountedFragments =
