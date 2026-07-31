@@ -1224,6 +1224,15 @@ passive viewers both refresh by resolving semantic scope and fragment keys
 through mounted surface metadata and each mount's plain fragment GET URL, so
 successful actor responses must not carry authoritative business OOB HTML.
 
+A feature that needs transient mount-local request context may register a
+mechanical fragment-request decorator through
+`frontend/ts/live-updates/request-context.ts`. The registry is shared across
+separately bundled feature and live-update entrypoints; decorators may add only
+values encoded by their generated browser-outbound DTO and must leave business
+calculation/filtering on the server. Context ownership must be tied to the
+concrete configured Surface mount so child refreshes retain it and mount
+replacement naturally discards it.
+
 ## Live Authorization, Resources, And Fragment Rendering
 
 `FrontendSurface` invalidations are semantic and surface-native:

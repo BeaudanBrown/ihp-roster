@@ -27,7 +27,14 @@ lands.
   shifts are excluded from totals and shown as wage-estimate errors; incomplete
   staffed slots remain counted separately. Managers and staff do not receive wage controls or markup. The wage
   toggle is independent of the venue-wide roster end-time display setting because
-  shift end times are always collected.
+  shift end times are always collected. For these authorized viewers, pinning a
+  staff-panel eye control filters every visible week/day amount, failure count,
+  and source warning to that validated current-group staff member. Switching pins
+  changes the filter directly and unpinning restores venue totals. The opaque pin
+  key is transient typed roster Surface request context: it survives child and
+  passive live fragment refreshes inside the same mount, but is absent from full
+  navigation, URLs, persistence, and replacement mounts. The server filters slots
+  before the unchanged canonical wage evaluator and roster-only suppression path.
 - Publishing a roster is the visibility gate for staff-facing roster content.
   The live switch submits an explicit `true` or `false` transport synchronized
   before HTMX serialization; actor responses and reloads must converge to the

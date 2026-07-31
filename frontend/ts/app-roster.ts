@@ -6,6 +6,7 @@ import { enableRosterImageExport } from "./roster/image-export";
 import { enableFrontendSurfaceCompleteSetSort } from "./complete-set-sort/runtime";
 import { enableFrontendSurfaceTabSets } from "./surface-tab-set/runtime";
 import { enableRosterWeekOverview } from "./roster/week-overview";
+import { enableRosterWageFilter } from "./roster/wage-filter";
 
 export { rosterFullscreenLabels };
 
@@ -21,4 +22,5 @@ enableFrontendSurfaceCompleteSetSort();
 
 enableFrontendSurfaceTabSets();
 
-enableFrontendSurfaceLinkedHighlight();
+const rosterWageFilter = enableRosterWageFilter();
+enableFrontendSurfaceLinkedHighlight({ onPinChange: rosterWageFilter.pinChanged });

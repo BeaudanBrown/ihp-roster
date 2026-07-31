@@ -1202,8 +1202,11 @@ tests = aroundAll withDatabaseTestContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Venue A"
                 admin <- createUserRecord "roster-admin-wage-prediction@example.com" "staff" True
+                supportAdmin <- createUserRecordWithPlatformRole "roster-support-wage-prediction@example.com" "staff" (Just SuperAdminRole) True
+                owner <- createUserRecord "roster-owner-wage-prediction@example.com" "staff" True
                 manager <- createUserRecord "roster-manager-wage-prediction@example.com" "staff" True
                 _ <- createVenueMembershipRecord venue admin "venue_admin"
+                _ <- createVenueMembershipRecord venue owner "venue_owner"
                 _ <- createVenueMembershipRecord venue manager "manager"
                 venueConfig <- query @VenueConfig |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
                 _ <- updateRecord (venueConfig |> set #rosterEndTimesEnabled True)
@@ -1271,9 +1274,33 @@ tests = aroundAll withDatabaseTestContext do
                         |> set #shiftTypeId (Just (unpackId uncalculableShiftType.id))
                         |> setTestDurationMinutes (Just 240)
                     )
+                secondStaff <- createStaffRecord venue Nothing "Bravo" "Crew"
+                _ <- updateRecord (secondStaff |> set #employmentBasis Permanent)
+                _ <- updateRecord (secondStaff |> set #payAssignmentMode AwardRate |> set #defaultAwardLevelId (Just level.id))
+                secondShiftType <- createShiftTypeRecord venue level "Bar"
+                secondSlot <- createRosterSlotRecord rosterDay slotName (Just secondStaff) 6
+                _ <- updateRecord
+                    ( secondSlot
+                        |> setTestStartTime (Just (timeOfDay 9 0))
+                        |> setTestEndTime (Just (timeOfDay 13 0))
+                        |> set #shiftTypeId (Just (unpackId secondShiftType.id))
+                        |> setTestDurationMinutes (Just 240)
+                    )
+                otherVenue <- createVenueWithConfig "Venue B"
+                foreignStaff <- createStaffRecord otherVenue Nothing "Foreign" "Staff"
                 _ <-
                     newRecord @UserPreference
                         |> set #userId (unpackId admin.id)
+                        |> set #showWageEstimates True
+                        |> createRecord
+                _ <-
+                    newRecord @UserPreference
+                        |> set #userId (unpackId supportAdmin.id)
+                        |> set #showWageEstimates True
+                        |> createRecord
+                _ <-
+                    newRecord @UserPreference
+                        |> set #userId (unpackId owner.id)
                         |> set #showWageEstimates True
                         |> createRecord
 
@@ -1283,7 +1310,7 @@ tests = aroundAll withDatabaseTestContext do
                 adminResponse `responseStatusShouldBe` status200
                 adminResponse `responseBodyShouldContain` "data-roster-layout=\"day_rows\""
                 adminResponse `responseBodyShouldContain` "Wages:"
-                adminResponse `responseBodyShouldContain` "$150.00"
+                adminResponse `responseBodyShouldContain` "$230.00"
                 adminResponse `responseBodyShouldContain` "roster-wage-summary"
                 adminResponse `responseBodyShouldContain` "roster-wage-summary-total"
                 adminResponse `responseBodyShouldContain` "1 wage estimate error"
@@ -1298,6 +1325,82 @@ tests = aroundAll withDatabaseTestContext do
                 adminResponse `responseBodyShouldContain` "Wages enabled"
                 adminResponse `responseBodyShouldNotContain` "Admin estimate only"
                 adminResponse `responseBodyShouldNotContain` "roster-wage-prediction"
+
+                alphaToolbarResponse <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
+                    withRequestHeaders [("HX-Request", "true")] do
+                        callActionWithParams
+                            (ShowRosterWeekGridToolbarFragmentAction 0)
+                            [ ("rosterGroupId", cs (tshow rosterWeek.rosterGroupId))
+                            , ("pinnedStaffKey", "staff:" <> cs (tshow staffMember.id))
+                            ]
+                alphaToolbarResponse `responseBodyShouldContain` "$150.00"
+                alphaToolbarResponse `responseBodyShouldContain` "1 wage estimate error"
+                alphaToolbarResponse `responseBodyShouldContain` "Wage source warning"
+                alphaToolbarResponse `responseBodyShouldNotContain` "$230.00"
+
+                alphaWageRailResponse <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
+                    withRequestHeaders [("HX-Request", "true")] do
+                        callActionWithParams
+                            (ShowRosterWeekWageRailFragmentAction 0)
+                            [ ("rosterGroupId", cs (tshow rosterWeek.rosterGroupId))
+                            , ("pinnedStaffKey", "staff:" <> cs (tshow staffMember.id))
+                            ]
+                alphaWageRailResponse `responseBodyShouldContain` "$150.00"
+                alphaWageRailResponse `responseBodyShouldNotContain` "$230.00"
+
+                supportToolbarResponse <- withUserAndCurrentVenue supportAdmin venue.id do
+                    withRequestHeaders [("HX-Request", "true")] do
+                        callActionWithParams
+                            (ShowRosterWeekGridToolbarFragmentAction 0)
+                            [ ("rosterGroupId", cs (tshow rosterWeek.rosterGroupId))
+                            , ("pinnedStaffKey", "staff:" <> cs (tshow staffMember.id))
+                            ]
+                supportToolbarResponse `responseBodyShouldContain` "$150.00"
+                supportToolbarResponse `responseBodyShouldContain` "1 wage estimate error"
+
+                ownerToolbarResponse <- withUserAndCurrentVenue owner venue.id do
+                    withRequestHeaders [("HX-Request", "true")] do
+                        callActionWithParams
+                            (ShowRosterWeekGridToolbarFragmentAction 0)
+                            [ ("rosterGroupId", cs (tshow rosterWeek.rosterGroupId))
+                            , ("pinnedStaffKey", "staff:" <> cs (tshow staffMember.id))
+                            ]
+                ownerToolbarResponse `responseBodyShouldContain` "$150.00"
+                ownerToolbarResponse `responseBodyShouldContain` "1 wage estimate error"
+
+                bravoToolbarResponse <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
+                    withRequestHeaders [("HX-Request", "true")] do
+                        callActionWithParams
+                            (ShowRosterWeekGridToolbarFragmentAction 0)
+                            [ ("rosterGroupId", cs (tshow rosterWeek.rosterGroupId))
+                            , ("pinnedStaffKey", "staff:" <> cs (tshow secondStaff.id))
+                            ]
+                bravoToolbarResponse `responseBodyShouldContain` "$80.00"
+                bravoToolbarResponse `responseBodyShouldNotContain` "wage estimate error"
+
+                unpinnedToolbarResponse <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
+                    withRequestHeaders [("HX-Request", "true")] do
+                        callActionWithParams
+                            (ShowRosterWeekGridToolbarFragmentAction 0)
+                            [("rosterGroupId", cs (tshow rosterWeek.rosterGroupId))]
+                unpinnedToolbarResponse `responseBodyShouldContain` "$230.00"
+
+                foreignPinToolbarResponse <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
+                    withRequestHeaders [("HX-Request", "true")] do
+                        callActionWithParams
+                            (ShowRosterWeekGridToolbarFragmentAction 0)
+                            [ ("rosterGroupId", cs (tshow rosterWeek.rosterGroupId))
+                            , ("pinnedStaffKey", "staff:" <> cs (tshow foreignStaff.id))
+                            ]
+                foreignPinToolbarResponse `responseBodyShouldContain` "$230.00"
+                foreignPinToolbarResponse `responseBodyShouldNotContain` "$80.00"
+
+                fullNavigationIgnoresPinResponse <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
+                    callActionWithParams
+                        (ShowRosterWeekAction 0)
+                        [("pinnedStaffKey", "staff:" <> cs (tshow secondStaff.id))]
+                fullNavigationIgnoresPinResponse `responseBodyShouldContain` "$230.00"
+                fullNavigationIgnoresPinResponse `responseBodyShouldNotContain` "$80.00"
 
                 dayColumnsResponse <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
                     withRequestHeaders [("HX-Request", "true")] do

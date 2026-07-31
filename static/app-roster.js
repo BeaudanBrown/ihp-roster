@@ -8,8 +8,121 @@
     const valueKeys = Object.keys(value);
     return valueKeys.every((key) => keys.includes(key)) && requiredKeys.every((key) => Object.prototype.hasOwnProperty.call(value, key));
   }
+  function isTimesheetsSurfaceScope(value) {
+    return isTimesheetsTimesheetWeekScope(value);
+  }
+  function isRosterSurfaceScope(value) {
+    return isRosterRosterWeekScope(value);
+  }
+  function isRosterDayTimelineSurfaceScope(value) {
+    return isRosterDayTimelineRosterDayTimelineScope(value);
+  }
+  function isLeaveRequestsSurfaceScope(value) {
+    return isLeaveRequestsLeaveRequestsScopeScope(value);
+  }
+  function isSelfServiceLeaveSurfaceScope(value) {
+    return isSelfServiceLeaveSelfServiceLeaveScopeScope(value);
+  }
+  function isBillingSurfaceScope(value) {
+    return isBillingBillingVenueScope(value);
+  }
+  function isSupportSurfaceScope(value) {
+    return isSupportSupportPlatformScope(value);
+  }
+  function isProfileSurfaceScope(value) {
+    return isProfileProfileScopeScope(value);
+  }
+  function isStaffSurfaceScope(value) {
+    return isStaffStaffScopeScope(value);
+  }
+  function isAdminPageSurfaceScope(value) {
+    return isAdminPageAdminPageScopeScope(value);
+  }
+  function isAdminXeroPageSurfaceScope(value) {
+    return isAdminXeroPageAdminXeroPageScopeScope(value);
+  }
+  function isAdminVenueConfigSurfaceScope(value) {
+    return isAdminVenueConfigAdminVenueConfigScopeScope(value);
+  }
+  function isAdminInvitesSurfaceScope(value) {
+    return isAdminInvitesAdminInvitesScopeScope(value);
+  }
+  function isAdminExportsSurfaceScope(value) {
+    return isAdminExportsAdminExportsScopeScope(value);
+  }
+  function isAdminShiftTypesSurfaceScope(value) {
+    return isAdminShiftTypesAdminShiftTypesScopeScope(value);
+  }
+  function isAdminRosterGroupsSurfaceScope(value) {
+    return isAdminRosterGroupsAdminRosterGroupsScopeScope(value);
+  }
+  function isAdminXeroSurfaceScope(value) {
+    return isAdminXeroAdminXeroScopeScope(value);
+  }
+  function isTimesheetsSurfaceFragmentKey(value) {
+    return isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "timesheet-toolbar" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], [])) || isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "timesheet-day-columns" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], [])) || isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "timesheet-day-section" && (isRecord(value["params"]) && hasExactKeys(value["params"], ["dayOffset"], ["dayOffset"]) && (typeof value["params"]["dayOffset"] === "number" && Number.isInteger(value["params"]["dayOffset"])));
+  }
+  function isRosterSurfaceFragmentKey(value) {
+    return isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "roster-layout" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], [])) || isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "roster-content" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], [])) || isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "roster-grid-toolbar" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], [])) || isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "roster-grid-frame" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], [])) || isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "roster-day-columns" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], [])) || isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "roster-day-rail" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], [])) || isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "roster-wage-rail" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], [])) || isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "roster-slots-grid" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], [])) || isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "roster-staff-panel" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], [])) || isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "roster-week-overview" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], [])) || isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "roster-day-section" && (isRecord(value["params"]) && hasExactKeys(value["params"], ["rosterDayId"], ["rosterDayId"]) && typeof value["params"]["rosterDayId"] === "string") || isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "roster-row" && (isRecord(value["params"]) && hasExactKeys(value["params"], ["rosterDayId", "rowIndex"], ["rosterDayId", "rowIndex"]) && typeof value["params"]["rosterDayId"] === "string" && (typeof value["params"]["rowIndex"] === "number" && Number.isInteger(value["params"]["rowIndex"])));
+  }
+  function isRosterDayTimelineSurfaceFragmentKey(value) {
+    return isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "roster-day-timeline-content" && (isRecord(value["params"]) && hasExactKeys(value["params"], ["rosterDayId"], ["rosterDayId"]) && typeof value["params"]["rosterDayId"] === "string");
+  }
+  function isLeaveRequestsSurfaceFragmentKey(value) {
+    return isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "unavailability-blackouts" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], [])) || isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "leave-availability-warnings" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], [])) || isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "leave-section-count" && (isRecord(value["params"]) && hasExactKeys(value["params"], ["leaveSection"], ["leaveSection"]) && typeof value["params"]["leaveSection"] === "string") || isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "leave-section-list" && (isRecord(value["params"]) && hasExactKeys(value["params"], ["leaveSection"], ["leaveSection"]) && typeof value["params"]["leaveSection"] === "string");
+  }
+  function isSelfServiceLeaveSurfaceFragmentKey(value) {
+    return isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "self-service-leave-form" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], [])) || isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "visible-unavailability-blackouts" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], [])) || isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "self-service-leave-history" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], []));
+  }
+  function isBillingSurfaceFragmentKey(value) {
+    return isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "billing-status" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], []));
+  }
+  function isSupportSurfaceFragmentKey(value) {
+    return isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "support-award-rates" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], [])) || isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "support-public-holidays" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], []));
+  }
+  function isProfileSurfaceFragmentKey(value) {
+    return isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "profile-details-section" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], [])) || isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "profile-preferences-section" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], [])) || isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "profile-security-section" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], [])) || isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "profile-leave-section" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], [])) || isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "profile-rsa-section" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], []));
+  }
+  function isStaffSurfaceFragmentKey(value) {
+    return isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "staff-details-section" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], [])) || isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "staff-preferences-section" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], [])) || isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "staff-visible-unavailability-blackouts" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], [])) || isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "staff-leave-section" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], []));
+  }
+  function isAdminPageSurfaceFragmentKey(value) {
+    return isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "admin-page-content" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], []));
+  }
+  function isAdminXeroPageSurfaceFragmentKey(value) {
+    return isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "admin-xero-page-content" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], []));
+  }
+  function isAdminVenueConfigSurfaceFragmentKey(value) {
+    return isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "admin-venue-settings" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], []));
+  }
+  function isAdminInvitesSurfaceFragmentKey(value) {
+    return isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "admin-invites" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], []));
+  }
+  function isAdminExportsSurfaceFragmentKey(value) {
+    return isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "admin-exports" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], []));
+  }
+  function isAdminShiftTypesSurfaceFragmentKey(value) {
+    return isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "admin-shift-types" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], []));
+  }
+  function isAdminRosterGroupsSurfaceFragmentKey(value) {
+    return isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "admin-roster-groups" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], []));
+  }
+  function isAdminXeroSurfaceFragmentKey(value) {
+    return isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "admin-xero-shell" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], []));
+  }
+  function isSurfaceScope(value) {
+    return isRecord(value) && hasExactKeys(value, ["surface", "scope"]) && value.surface === "timesheets" && isTimesheetsSurfaceScope(value.scope) || isRecord(value) && hasExactKeys(value, ["surface", "scope"]) && value.surface === "roster" && isRosterSurfaceScope(value.scope) || isRecord(value) && hasExactKeys(value, ["surface", "scope"]) && value.surface === "roster-day-timeline" && isRosterDayTimelineSurfaceScope(value.scope) || isRecord(value) && hasExactKeys(value, ["surface", "scope"]) && value.surface === "leave-requests" && isLeaveRequestsSurfaceScope(value.scope) || isRecord(value) && hasExactKeys(value, ["surface", "scope"]) && value.surface === "self-service-leave" && isSelfServiceLeaveSurfaceScope(value.scope) || isRecord(value) && hasExactKeys(value, ["surface", "scope"]) && value.surface === "billing" && isBillingSurfaceScope(value.scope) || isRecord(value) && hasExactKeys(value, ["surface", "scope"]) && value.surface === "support" && isSupportSurfaceScope(value.scope) || isRecord(value) && hasExactKeys(value, ["surface", "scope"]) && value.surface === "profile" && isProfileSurfaceScope(value.scope) || isRecord(value) && hasExactKeys(value, ["surface", "scope"]) && value.surface === "staff" && isStaffSurfaceScope(value.scope) || isRecord(value) && hasExactKeys(value, ["surface", "scope"]) && value.surface === "admin-page" && isAdminPageSurfaceScope(value.scope) || isRecord(value) && hasExactKeys(value, ["surface", "scope"]) && value.surface === "admin-xero-page" && isAdminXeroPageSurfaceScope(value.scope) || isRecord(value) && hasExactKeys(value, ["surface", "scope"]) && value.surface === "admin-venue-config" && isAdminVenueConfigSurfaceScope(value.scope) || isRecord(value) && hasExactKeys(value, ["surface", "scope"]) && value.surface === "admin-invites" && isAdminInvitesSurfaceScope(value.scope) || isRecord(value) && hasExactKeys(value, ["surface", "scope"]) && value.surface === "admin-exports" && isAdminExportsSurfaceScope(value.scope) || isRecord(value) && hasExactKeys(value, ["surface", "scope"]) && value.surface === "admin-shift-types" && isAdminShiftTypesSurfaceScope(value.scope) || isRecord(value) && hasExactKeys(value, ["surface", "scope"]) && value.surface === "admin-roster-groups" && isAdminRosterGroupsSurfaceScope(value.scope) || isRecord(value) && hasExactKeys(value, ["surface", "scope"]) && value.surface === "admin-xero" && isAdminXeroSurfaceScope(value.scope);
+  }
+  function isSurfaceFragmentKey(value) {
+    return isRecord(value) && hasExactKeys(value, ["surface", "kind", "params"]) && value.surface === "timesheets" && isTimesheetsSurfaceFragmentKey({ kind: value.kind, params: value.params }) || isRecord(value) && hasExactKeys(value, ["surface", "kind", "params"]) && value.surface === "roster" && isRosterSurfaceFragmentKey({ kind: value.kind, params: value.params }) || isRecord(value) && hasExactKeys(value, ["surface", "kind", "params"]) && value.surface === "roster-day-timeline" && isRosterDayTimelineSurfaceFragmentKey({ kind: value.kind, params: value.params }) || isRecord(value) && hasExactKeys(value, ["surface", "kind", "params"]) && value.surface === "leave-requests" && isLeaveRequestsSurfaceFragmentKey({ kind: value.kind, params: value.params }) || isRecord(value) && hasExactKeys(value, ["surface", "kind", "params"]) && value.surface === "self-service-leave" && isSelfServiceLeaveSurfaceFragmentKey({ kind: value.kind, params: value.params }) || isRecord(value) && hasExactKeys(value, ["surface", "kind", "params"]) && value.surface === "billing" && isBillingSurfaceFragmentKey({ kind: value.kind, params: value.params }) || isRecord(value) && hasExactKeys(value, ["surface", "kind", "params"]) && value.surface === "support" && isSupportSurfaceFragmentKey({ kind: value.kind, params: value.params }) || isRecord(value) && hasExactKeys(value, ["surface", "kind", "params"]) && value.surface === "profile" && isProfileSurfaceFragmentKey({ kind: value.kind, params: value.params }) || isRecord(value) && hasExactKeys(value, ["surface", "kind", "params"]) && value.surface === "staff" && isStaffSurfaceFragmentKey({ kind: value.kind, params: value.params }) || isRecord(value) && hasExactKeys(value, ["surface", "kind", "params"]) && value.surface === "admin-page" && isAdminPageSurfaceFragmentKey({ kind: value.kind, params: value.params }) || isRecord(value) && hasExactKeys(value, ["surface", "kind", "params"]) && value.surface === "admin-xero-page" && isAdminXeroPageSurfaceFragmentKey({ kind: value.kind, params: value.params }) || isRecord(value) && hasExactKeys(value, ["surface", "kind", "params"]) && value.surface === "admin-venue-config" && isAdminVenueConfigSurfaceFragmentKey({ kind: value.kind, params: value.params }) || isRecord(value) && hasExactKeys(value, ["surface", "kind", "params"]) && value.surface === "admin-invites" && isAdminInvitesSurfaceFragmentKey({ kind: value.kind, params: value.params }) || isRecord(value) && hasExactKeys(value, ["surface", "kind", "params"]) && value.surface === "admin-exports" && isAdminExportsSurfaceFragmentKey({ kind: value.kind, params: value.params }) || isRecord(value) && hasExactKeys(value, ["surface", "kind", "params"]) && value.surface === "admin-shift-types" && isAdminShiftTypesSurfaceFragmentKey({ kind: value.kind, params: value.params }) || isRecord(value) && hasExactKeys(value, ["surface", "kind", "params"]) && value.surface === "admin-roster-groups" && isAdminRosterGroupsSurfaceFragmentKey({ kind: value.kind, params: value.params }) || isRecord(value) && hasExactKeys(value, ["surface", "kind", "params"]) && value.surface === "admin-xero" && isAdminXeroSurfaceFragmentKey({ kind: value.kind, params: value.params });
+  }
   var pageReadyEvent = "bepis:page-ready";
+  var liveFragmentsRefreshEvent = "bepis:live-fragments-refresh";
   var surfaceDomAttr = "data-bepis-surface";
+  var surfaceConfigDomAttr = "data-bepis-surface-config";
+  function isTimesheetsTimesheetWeekScope(value) {
+    return isRecord(value) && hasExactKeys(value, ["venueId", "weekOffset"], ["venueId", "weekOffset"]) && typeof value["venueId"] === "string" && (typeof value["weekOffset"] === "number" && Number.isInteger(value["weekOffset"]));
+  }
   function isRosterStaffPanelSortRow(value) {
     return isRecord(value) && hasExactKeys(value, ["staffRowKey", "staffName", "staffRole", "assignedShifts", "idealShifts"], ["staffRowKey", "staffName", "staffRole", "assignedShifts", "idealShifts"]) && typeof value["staffRowKey"] === "string" && typeof value["staffName"] === "string" && typeof value["staffRole"] === "string" && (typeof value["assignedShifts"] === "number" && Number.isInteger(value["assignedShifts"])) && (typeof value["idealShifts"] === "number" && Number.isInteger(value["idealShifts"]));
   }
@@ -31,6 +144,16 @@
     if (isRosterImageExportCell(value)) return value;
     throw new Error("Invalid RosterImageExportCell");
   }
+  function isRosterWageFilterConfig(value) {
+    return isRecord(value) && hasExactKeys(value, ["wageFilterEnabled", "wageFilterRefreshTargetIds", "wageFilterRequestTargetIds"], ["wageFilterEnabled", "wageFilterRefreshTargetIds", "wageFilterRequestTargetIds"]) && typeof value["wageFilterEnabled"] === "boolean" && (Array.isArray(value["wageFilterRefreshTargetIds"]) && value["wageFilterRefreshTargetIds"].every((item) => typeof item === "string")) && (Array.isArray(value["wageFilterRequestTargetIds"]) && value["wageFilterRequestTargetIds"].every((item) => typeof item === "string"));
+  }
+  function parseRosterWageFilterConfig(value) {
+    if (isRosterWageFilterConfig(value)) return value;
+    throw new Error("Invalid RosterWageFilterConfig");
+  }
+  function encodeRosterWageFilterRequest(value) {
+    return value;
+  }
   function isRosterWeekOverviewPanelConfig(value) {
     return isRecord(value) && hasExactKeys(value, ["weekOverviewCurrentDate"], ["weekOverviewCurrentDate"]) && typeof value["weekOverviewCurrentDate"] === "string";
   }
@@ -44,6 +167,54 @@
   function parseRosterWeekOverviewDayConfig(value) {
     if (isRosterWeekOverviewDayConfig(value)) return value;
     throw new Error("Invalid RosterWeekOverviewDayConfig");
+  }
+  function isRosterRosterWeekScope(value) {
+    return isRecord(value) && hasExactKeys(value, ["venueId", "rosterGroupId", "weekOffset"], ["venueId", "rosterGroupId", "weekOffset"]) && typeof value["venueId"] === "string" && typeof value["rosterGroupId"] === "string" && (typeof value["weekOffset"] === "number" && Number.isInteger(value["weekOffset"]));
+  }
+  function isRosterDayTimelineRosterDayTimelineScope(value) {
+    return isRecord(value) && hasExactKeys(value, ["venueId", "rosterGroupId", "weekOffset", "rosterDayId"], ["venueId", "rosterGroupId", "weekOffset", "rosterDayId"]) && typeof value["venueId"] === "string" && typeof value["rosterGroupId"] === "string" && (typeof value["weekOffset"] === "number" && Number.isInteger(value["weekOffset"])) && typeof value["rosterDayId"] === "string";
+  }
+  function isLeaveRequestsLeaveRequestsScopeScope(value) {
+    return isRecord(value) && hasExactKeys(value, ["venueId"], ["venueId"]) && typeof value["venueId"] === "string";
+  }
+  function isSelfServiceLeaveSelfServiceLeaveScopeScope(value) {
+    return isRecord(value) && hasExactKeys(value, ["venueId", "staffId"], ["venueId", "staffId"]) && typeof value["venueId"] === "string" && typeof value["staffId"] === "string";
+  }
+  function isBillingBillingVenueScope(value) {
+    return isRecord(value) && hasExactKeys(value, ["venueId"], ["venueId"]) && typeof value["venueId"] === "string";
+  }
+  function isSupportSupportPlatformScope(value) {
+    return isRecord(value) && hasExactKeys(value, [], []);
+  }
+  function isProfileProfileScopeScope(value) {
+    return isRecord(value) && hasExactKeys(value, ["venueId", "staffId"], ["venueId", "staffId"]) && typeof value["venueId"] === "string" && typeof value["staffId"] === "string";
+  }
+  function isStaffStaffScopeScope(value) {
+    return isRecord(value) && hasExactKeys(value, ["venueId", "staffId"], ["venueId", "staffId"]) && typeof value["venueId"] === "string" && typeof value["staffId"] === "string";
+  }
+  function isAdminPageAdminPageScopeScope(value) {
+    return isRecord(value) && hasExactKeys(value, ["venueId"], ["venueId"]) && typeof value["venueId"] === "string";
+  }
+  function isAdminXeroPageAdminXeroPageScopeScope(value) {
+    return isRecord(value) && hasExactKeys(value, ["venueId"], ["venueId"]) && typeof value["venueId"] === "string";
+  }
+  function isAdminVenueConfigAdminVenueConfigScopeScope(value) {
+    return isRecord(value) && hasExactKeys(value, ["venueId"], ["venueId"]) && typeof value["venueId"] === "string";
+  }
+  function isAdminInvitesAdminInvitesScopeScope(value) {
+    return isRecord(value) && hasExactKeys(value, ["venueId"], ["venueId"]) && typeof value["venueId"] === "string";
+  }
+  function isAdminExportsAdminExportsScopeScope(value) {
+    return isRecord(value) && hasExactKeys(value, ["venueId"], ["venueId"]) && typeof value["venueId"] === "string";
+  }
+  function isAdminShiftTypesAdminShiftTypesScopeScope(value) {
+    return isRecord(value) && hasExactKeys(value, ["venueId"], ["venueId"]) && typeof value["venueId"] === "string";
+  }
+  function isAdminRosterGroupsAdminRosterGroupsScopeScope(value) {
+    return isRecord(value) && hasExactKeys(value, ["venueId"], ["venueId"]) && typeof value["venueId"] === "string";
+  }
+  function isAdminXeroAdminXeroScopeScope(value) {
+    return isRecord(value) && hasExactKeys(value, ["venueId"], ["venueId"]) && typeof value["venueId"] === "string";
   }
   var rosterStaffPanelSortRootDomAttr = "data-bepis-roster-staff-panel-sort-root";
   var rosterStaffPanelSortRowDomAttr = "data-bepis-roster-staff-panel-sort-row";
@@ -60,6 +231,7 @@
   var rosterImageExportProjectionDomAttr = "data-bepis-roster-image-export-projection";
   var rosterImageExportRowDomAttr = "data-bepis-roster-image-export-row";
   var rosterImageExportCellDomAttr = "data-bepis-roster-image-export-cell";
+  var rosterWageFilterConfigDomAttr = "data-bepis-roster-wage-filter-config";
   var rosterWeekOverviewPanelDomAttr = "data-bepis-roster-week-overview-panel";
   var rosterWeekOverviewDayDomAttr = "data-bepis-roster-week-overview-day";
   var rosterWeekOverviewTodayDomAttr = "data-bepis-roster-week-overview-today";
@@ -121,6 +293,121 @@
   var FrontendSurfaceFragmentRegistry = { "timesheets": ["timesheet-toolbar", "timesheet-day-columns", "timesheet-day-section"], "roster": ["roster-content", "roster-grid-toolbar", "roster-grid-frame", "roster-day-columns", "roster-day-rail", "roster-wage-rail", "roster-slots-grid", "roster-staff-panel", "roster-day-section", "roster-row"], "roster-day-timeline": ["roster-day-timeline-content"], "leave-requests": ["unavailability-blackouts", "leave-availability-warnings", "leave-section-count", "leave-section-list"], "self-service-leave": ["self-service-leave-form", "visible-unavailability-blackouts", "self-service-leave-history"], "billing": ["billing-status"], "support": ["support-award-rates", "support-public-holidays"], "profile": ["profile-details-section", "profile-preferences-section", "profile-security-section", "profile-leave-section", "profile-rsa-section"], "staff": ["staff-details-section", "staff-preferences-section", "staff-visible-unavailability-blackouts", "staff-leave-section"], "admin-page": [], "admin-xero-page": [], "admin-venue-config": ["admin-venue-settings"], "admin-invites": ["admin-invites"], "admin-exports": ["admin-exports"], "admin-shift-types": ["admin-shift-types"], "admin-roster-groups": ["admin-roster-groups"], "admin-xero": ["admin-xero-shell"] };
   function isFrontendSurfaceName(value) {
     return typeof value === "string" && Object.prototype.hasOwnProperty.call(FrontendSurfaceFragmentRegistry, value);
+  }
+  function isFrontendSurfaceLiveFragmentName(surface, value) {
+    return typeof value === "string" && FrontendSurfaceFragmentRegistry[surface].includes(value);
+  }
+  function isFrontendSurfaceFragmentProtection(value) {
+    return isRecord(value) && hasExactKeys(value, ["kind"], ["kind"]) && value["kind"] === "replace" || isRecord(value) && hasExactKeys(value, ["kind", "activeSelector", "fieldKeyAttr", "fieldNameFallback", "containerSelector"], ["kind", "activeSelector", "fieldKeyAttr", "fieldNameFallback", "containerSelector"]) && value["kind"] === "focused-field" && typeof value["activeSelector"] === "string" && typeof value["fieldKeyAttr"] === "string" && typeof value["fieldNameFallback"] === "boolean" && (value["containerSelector"] === null || typeof value["containerSelector"] === "string");
+  }
+  function isTimesheetsMountedFragmentConfig(value) {
+    return isRecord(value) && hasExactKeys(value, ["fragmentKey", "targetId", "url", "protection"]) && isSurfaceFragmentKey(value["fragmentKey"]) && value["fragmentKey"].surface === "timesheets" && typeof value["targetId"] === "string" && value["targetId"].length > 0 && typeof value["url"] === "string" && value["url"].length > 0 && isFrontendSurfaceFragmentProtection(value["protection"]);
+  }
+  function isRosterMountedFragmentConfig(value) {
+    return isRecord(value) && hasExactKeys(value, ["fragmentKey", "targetId", "url", "protection"]) && isSurfaceFragmentKey(value["fragmentKey"]) && value["fragmentKey"].surface === "roster" && typeof value["targetId"] === "string" && value["targetId"].length > 0 && typeof value["url"] === "string" && value["url"].length > 0 && isFrontendSurfaceFragmentProtection(value["protection"]);
+  }
+  function isRosterDayTimelineMountedFragmentConfig(value) {
+    return isRecord(value) && hasExactKeys(value, ["fragmentKey", "targetId", "url", "protection"]) && isSurfaceFragmentKey(value["fragmentKey"]) && value["fragmentKey"].surface === "roster-day-timeline" && typeof value["targetId"] === "string" && value["targetId"].length > 0 && typeof value["url"] === "string" && value["url"].length > 0 && isFrontendSurfaceFragmentProtection(value["protection"]);
+  }
+  function isLeaveRequestsMountedFragmentConfig(value) {
+    return isRecord(value) && hasExactKeys(value, ["fragmentKey", "targetId", "url", "protection"]) && isSurfaceFragmentKey(value["fragmentKey"]) && value["fragmentKey"].surface === "leave-requests" && typeof value["targetId"] === "string" && value["targetId"].length > 0 && typeof value["url"] === "string" && value["url"].length > 0 && isFrontendSurfaceFragmentProtection(value["protection"]);
+  }
+  function isSelfServiceLeaveMountedFragmentConfig(value) {
+    return isRecord(value) && hasExactKeys(value, ["fragmentKey", "targetId", "url", "protection"]) && isSurfaceFragmentKey(value["fragmentKey"]) && value["fragmentKey"].surface === "self-service-leave" && typeof value["targetId"] === "string" && value["targetId"].length > 0 && typeof value["url"] === "string" && value["url"].length > 0 && isFrontendSurfaceFragmentProtection(value["protection"]);
+  }
+  function isBillingMountedFragmentConfig(value) {
+    return isRecord(value) && hasExactKeys(value, ["fragmentKey", "targetId", "url", "protection"]) && isSurfaceFragmentKey(value["fragmentKey"]) && value["fragmentKey"].surface === "billing" && typeof value["targetId"] === "string" && value["targetId"].length > 0 && typeof value["url"] === "string" && value["url"].length > 0 && isFrontendSurfaceFragmentProtection(value["protection"]);
+  }
+  function isSupportMountedFragmentConfig(value) {
+    return isRecord(value) && hasExactKeys(value, ["fragmentKey", "targetId", "url", "protection"]) && isSurfaceFragmentKey(value["fragmentKey"]) && value["fragmentKey"].surface === "support" && typeof value["targetId"] === "string" && value["targetId"].length > 0 && typeof value["url"] === "string" && value["url"].length > 0 && isFrontendSurfaceFragmentProtection(value["protection"]);
+  }
+  function isProfileMountedFragmentConfig(value) {
+    return isRecord(value) && hasExactKeys(value, ["fragmentKey", "targetId", "url", "protection"]) && isSurfaceFragmentKey(value["fragmentKey"]) && value["fragmentKey"].surface === "profile" && typeof value["targetId"] === "string" && value["targetId"].length > 0 && typeof value["url"] === "string" && value["url"].length > 0 && isFrontendSurfaceFragmentProtection(value["protection"]);
+  }
+  function isStaffMountedFragmentConfig(value) {
+    return isRecord(value) && hasExactKeys(value, ["fragmentKey", "targetId", "url", "protection"]) && isSurfaceFragmentKey(value["fragmentKey"]) && value["fragmentKey"].surface === "staff" && typeof value["targetId"] === "string" && value["targetId"].length > 0 && typeof value["url"] === "string" && value["url"].length > 0 && isFrontendSurfaceFragmentProtection(value["protection"]);
+  }
+  function isAdminPageMountedFragmentConfig(value) {
+    return isRecord(value) && hasExactKeys(value, ["fragmentKey", "targetId", "url", "protection"]) && isSurfaceFragmentKey(value["fragmentKey"]) && value["fragmentKey"].surface === "admin-page" && typeof value["targetId"] === "string" && value["targetId"].length > 0 && typeof value["url"] === "string" && value["url"].length > 0 && isFrontendSurfaceFragmentProtection(value["protection"]);
+  }
+  function isAdminXeroPageMountedFragmentConfig(value) {
+    return isRecord(value) && hasExactKeys(value, ["fragmentKey", "targetId", "url", "protection"]) && isSurfaceFragmentKey(value["fragmentKey"]) && value["fragmentKey"].surface === "admin-xero-page" && typeof value["targetId"] === "string" && value["targetId"].length > 0 && typeof value["url"] === "string" && value["url"].length > 0 && isFrontendSurfaceFragmentProtection(value["protection"]);
+  }
+  function isAdminVenueConfigMountedFragmentConfig(value) {
+    return isRecord(value) && hasExactKeys(value, ["fragmentKey", "targetId", "url", "protection"]) && isSurfaceFragmentKey(value["fragmentKey"]) && value["fragmentKey"].surface === "admin-venue-config" && typeof value["targetId"] === "string" && value["targetId"].length > 0 && typeof value["url"] === "string" && value["url"].length > 0 && isFrontendSurfaceFragmentProtection(value["protection"]);
+  }
+  function isAdminInvitesMountedFragmentConfig(value) {
+    return isRecord(value) && hasExactKeys(value, ["fragmentKey", "targetId", "url", "protection"]) && isSurfaceFragmentKey(value["fragmentKey"]) && value["fragmentKey"].surface === "admin-invites" && typeof value["targetId"] === "string" && value["targetId"].length > 0 && typeof value["url"] === "string" && value["url"].length > 0 && isFrontendSurfaceFragmentProtection(value["protection"]);
+  }
+  function isAdminExportsMountedFragmentConfig(value) {
+    return isRecord(value) && hasExactKeys(value, ["fragmentKey", "targetId", "url", "protection"]) && isSurfaceFragmentKey(value["fragmentKey"]) && value["fragmentKey"].surface === "admin-exports" && typeof value["targetId"] === "string" && value["targetId"].length > 0 && typeof value["url"] === "string" && value["url"].length > 0 && isFrontendSurfaceFragmentProtection(value["protection"]);
+  }
+  function isAdminShiftTypesMountedFragmentConfig(value) {
+    return isRecord(value) && hasExactKeys(value, ["fragmentKey", "targetId", "url", "protection"]) && isSurfaceFragmentKey(value["fragmentKey"]) && value["fragmentKey"].surface === "admin-shift-types" && typeof value["targetId"] === "string" && value["targetId"].length > 0 && typeof value["url"] === "string" && value["url"].length > 0 && isFrontendSurfaceFragmentProtection(value["protection"]);
+  }
+  function isAdminRosterGroupsMountedFragmentConfig(value) {
+    return isRecord(value) && hasExactKeys(value, ["fragmentKey", "targetId", "url", "protection"]) && isSurfaceFragmentKey(value["fragmentKey"]) && value["fragmentKey"].surface === "admin-roster-groups" && typeof value["targetId"] === "string" && value["targetId"].length > 0 && typeof value["url"] === "string" && value["url"].length > 0 && isFrontendSurfaceFragmentProtection(value["protection"]);
+  }
+  function isAdminXeroMountedFragmentConfig(value) {
+    return isRecord(value) && hasExactKeys(value, ["fragmentKey", "targetId", "url", "protection"]) && isSurfaceFragmentKey(value["fragmentKey"]) && value["fragmentKey"].surface === "admin-xero" && typeof value["targetId"] === "string" && value["targetId"].length > 0 && typeof value["url"] === "string" && value["url"].length > 0 && isFrontendSurfaceFragmentProtection(value["protection"]);
+  }
+  function isTimesheetsMountConfig(value) {
+    return isRecord(value) && hasExactKeys(value, ["surface", "scopeKey", "mountKey", "fragments", "subscription"]) && value["surface"] === "timesheets" && typeof value["scopeKey"] === "string" && value["scopeKey"].length > 0 && typeof value["mountKey"] === "string" && value["mountKey"].length > 0 && Array.isArray(value["fragments"]) && value["fragments"].every((fragment) => isTimesheetsMountedFragmentConfig(fragment)) && (value["subscription"] === null && !value["fragments"].some((fragment) => isFrontendSurfaceLiveFragmentName("timesheets", fragment.fragmentKey.kind)) || isRecord(value["subscription"]) && hasExactKeys(value["subscription"], ["scope"]) && isSurfaceScope(value["subscription"].scope) && value["subscription"].scope.surface === "timesheets" && value["fragments"].some((fragment) => isFrontendSurfaceLiveFragmentName("timesheets", fragment.fragmentKey.kind)));
+  }
+  function isRosterMountConfig(value) {
+    return isRecord(value) && hasExactKeys(value, ["surface", "scopeKey", "mountKey", "fragments", "subscription"]) && value["surface"] === "roster" && typeof value["scopeKey"] === "string" && value["scopeKey"].length > 0 && typeof value["mountKey"] === "string" && value["mountKey"].length > 0 && Array.isArray(value["fragments"]) && value["fragments"].every((fragment) => isRosterMountedFragmentConfig(fragment)) && (value["subscription"] === null && !value["fragments"].some((fragment) => isFrontendSurfaceLiveFragmentName("roster", fragment.fragmentKey.kind)) || isRecord(value["subscription"]) && hasExactKeys(value["subscription"], ["scope"]) && isSurfaceScope(value["subscription"].scope) && value["subscription"].scope.surface === "roster" && value["fragments"].some((fragment) => isFrontendSurfaceLiveFragmentName("roster", fragment.fragmentKey.kind)));
+  }
+  function isRosterDayTimelineMountConfig(value) {
+    return isRecord(value) && hasExactKeys(value, ["surface", "scopeKey", "mountKey", "fragments", "subscription"]) && value["surface"] === "roster-day-timeline" && typeof value["scopeKey"] === "string" && value["scopeKey"].length > 0 && typeof value["mountKey"] === "string" && value["mountKey"].length > 0 && Array.isArray(value["fragments"]) && value["fragments"].every((fragment) => isRosterDayTimelineMountedFragmentConfig(fragment)) && (value["subscription"] === null && !value["fragments"].some((fragment) => isFrontendSurfaceLiveFragmentName("roster-day-timeline", fragment.fragmentKey.kind)) || isRecord(value["subscription"]) && hasExactKeys(value["subscription"], ["scope"]) && isSurfaceScope(value["subscription"].scope) && value["subscription"].scope.surface === "roster-day-timeline" && value["fragments"].some((fragment) => isFrontendSurfaceLiveFragmentName("roster-day-timeline", fragment.fragmentKey.kind)));
+  }
+  function isLeaveRequestsMountConfig(value) {
+    return isRecord(value) && hasExactKeys(value, ["surface", "scopeKey", "mountKey", "fragments", "subscription"]) && value["surface"] === "leave-requests" && typeof value["scopeKey"] === "string" && value["scopeKey"].length > 0 && typeof value["mountKey"] === "string" && value["mountKey"].length > 0 && Array.isArray(value["fragments"]) && value["fragments"].every((fragment) => isLeaveRequestsMountedFragmentConfig(fragment)) && (value["subscription"] === null && !value["fragments"].some((fragment) => isFrontendSurfaceLiveFragmentName("leave-requests", fragment.fragmentKey.kind)) || isRecord(value["subscription"]) && hasExactKeys(value["subscription"], ["scope"]) && isSurfaceScope(value["subscription"].scope) && value["subscription"].scope.surface === "leave-requests" && value["fragments"].some((fragment) => isFrontendSurfaceLiveFragmentName("leave-requests", fragment.fragmentKey.kind)));
+  }
+  function isSelfServiceLeaveMountConfig(value) {
+    return isRecord(value) && hasExactKeys(value, ["surface", "scopeKey", "mountKey", "fragments", "subscription"]) && value["surface"] === "self-service-leave" && typeof value["scopeKey"] === "string" && value["scopeKey"].length > 0 && typeof value["mountKey"] === "string" && value["mountKey"].length > 0 && Array.isArray(value["fragments"]) && value["fragments"].every((fragment) => isSelfServiceLeaveMountedFragmentConfig(fragment)) && (value["subscription"] === null && !value["fragments"].some((fragment) => isFrontendSurfaceLiveFragmentName("self-service-leave", fragment.fragmentKey.kind)) || isRecord(value["subscription"]) && hasExactKeys(value["subscription"], ["scope"]) && isSurfaceScope(value["subscription"].scope) && value["subscription"].scope.surface === "self-service-leave" && value["fragments"].some((fragment) => isFrontendSurfaceLiveFragmentName("self-service-leave", fragment.fragmentKey.kind)));
+  }
+  function isBillingMountConfig(value) {
+    return isRecord(value) && hasExactKeys(value, ["surface", "scopeKey", "mountKey", "fragments", "subscription"]) && value["surface"] === "billing" && typeof value["scopeKey"] === "string" && value["scopeKey"].length > 0 && typeof value["mountKey"] === "string" && value["mountKey"].length > 0 && Array.isArray(value["fragments"]) && value["fragments"].every((fragment) => isBillingMountedFragmentConfig(fragment)) && (value["subscription"] === null && !value["fragments"].some((fragment) => isFrontendSurfaceLiveFragmentName("billing", fragment.fragmentKey.kind)) || isRecord(value["subscription"]) && hasExactKeys(value["subscription"], ["scope"]) && isSurfaceScope(value["subscription"].scope) && value["subscription"].scope.surface === "billing" && value["fragments"].some((fragment) => isFrontendSurfaceLiveFragmentName("billing", fragment.fragmentKey.kind)));
+  }
+  function isSupportMountConfig(value) {
+    return isRecord(value) && hasExactKeys(value, ["surface", "scopeKey", "mountKey", "fragments", "subscription"]) && value["surface"] === "support" && typeof value["scopeKey"] === "string" && value["scopeKey"].length > 0 && typeof value["mountKey"] === "string" && value["mountKey"].length > 0 && Array.isArray(value["fragments"]) && value["fragments"].every((fragment) => isSupportMountedFragmentConfig(fragment)) && (value["subscription"] === null && !value["fragments"].some((fragment) => isFrontendSurfaceLiveFragmentName("support", fragment.fragmentKey.kind)) || isRecord(value["subscription"]) && hasExactKeys(value["subscription"], ["scope"]) && isSurfaceScope(value["subscription"].scope) && value["subscription"].scope.surface === "support" && value["fragments"].some((fragment) => isFrontendSurfaceLiveFragmentName("support", fragment.fragmentKey.kind)));
+  }
+  function isProfileMountConfig(value) {
+    return isRecord(value) && hasExactKeys(value, ["surface", "scopeKey", "mountKey", "fragments", "subscription"]) && value["surface"] === "profile" && typeof value["scopeKey"] === "string" && value["scopeKey"].length > 0 && typeof value["mountKey"] === "string" && value["mountKey"].length > 0 && Array.isArray(value["fragments"]) && value["fragments"].every((fragment) => isProfileMountedFragmentConfig(fragment)) && (value["subscription"] === null && !value["fragments"].some((fragment) => isFrontendSurfaceLiveFragmentName("profile", fragment.fragmentKey.kind)) || isRecord(value["subscription"]) && hasExactKeys(value["subscription"], ["scope"]) && isSurfaceScope(value["subscription"].scope) && value["subscription"].scope.surface === "profile" && value["fragments"].some((fragment) => isFrontendSurfaceLiveFragmentName("profile", fragment.fragmentKey.kind)));
+  }
+  function isStaffMountConfig(value) {
+    return isRecord(value) && hasExactKeys(value, ["surface", "scopeKey", "mountKey", "fragments", "subscription"]) && value["surface"] === "staff" && typeof value["scopeKey"] === "string" && value["scopeKey"].length > 0 && typeof value["mountKey"] === "string" && value["mountKey"].length > 0 && Array.isArray(value["fragments"]) && value["fragments"].every((fragment) => isStaffMountedFragmentConfig(fragment)) && (value["subscription"] === null && !value["fragments"].some((fragment) => isFrontendSurfaceLiveFragmentName("staff", fragment.fragmentKey.kind)) || isRecord(value["subscription"]) && hasExactKeys(value["subscription"], ["scope"]) && isSurfaceScope(value["subscription"].scope) && value["subscription"].scope.surface === "staff" && value["fragments"].some((fragment) => isFrontendSurfaceLiveFragmentName("staff", fragment.fragmentKey.kind)));
+  }
+  function isAdminPageMountConfig(value) {
+    return isRecord(value) && hasExactKeys(value, ["surface", "scopeKey", "mountKey", "fragments", "subscription"]) && value["surface"] === "admin-page" && typeof value["scopeKey"] === "string" && value["scopeKey"].length > 0 && typeof value["mountKey"] === "string" && value["mountKey"].length > 0 && Array.isArray(value["fragments"]) && value["fragments"].every((fragment) => isAdminPageMountedFragmentConfig(fragment)) && value["subscription"] === null;
+  }
+  function isAdminXeroPageMountConfig(value) {
+    return isRecord(value) && hasExactKeys(value, ["surface", "scopeKey", "mountKey", "fragments", "subscription"]) && value["surface"] === "admin-xero-page" && typeof value["scopeKey"] === "string" && value["scopeKey"].length > 0 && typeof value["mountKey"] === "string" && value["mountKey"].length > 0 && Array.isArray(value["fragments"]) && value["fragments"].every((fragment) => isAdminXeroPageMountedFragmentConfig(fragment)) && value["subscription"] === null;
+  }
+  function isAdminVenueConfigMountConfig(value) {
+    return isRecord(value) && hasExactKeys(value, ["surface", "scopeKey", "mountKey", "fragments", "subscription"]) && value["surface"] === "admin-venue-config" && typeof value["scopeKey"] === "string" && value["scopeKey"].length > 0 && typeof value["mountKey"] === "string" && value["mountKey"].length > 0 && Array.isArray(value["fragments"]) && value["fragments"].every((fragment) => isAdminVenueConfigMountedFragmentConfig(fragment)) && (value["subscription"] === null && !value["fragments"].some((fragment) => isFrontendSurfaceLiveFragmentName("admin-venue-config", fragment.fragmentKey.kind)) || isRecord(value["subscription"]) && hasExactKeys(value["subscription"], ["scope"]) && isSurfaceScope(value["subscription"].scope) && value["subscription"].scope.surface === "admin-venue-config" && value["fragments"].some((fragment) => isFrontendSurfaceLiveFragmentName("admin-venue-config", fragment.fragmentKey.kind)));
+  }
+  function isAdminInvitesMountConfig(value) {
+    return isRecord(value) && hasExactKeys(value, ["surface", "scopeKey", "mountKey", "fragments", "subscription"]) && value["surface"] === "admin-invites" && typeof value["scopeKey"] === "string" && value["scopeKey"].length > 0 && typeof value["mountKey"] === "string" && value["mountKey"].length > 0 && Array.isArray(value["fragments"]) && value["fragments"].every((fragment) => isAdminInvitesMountedFragmentConfig(fragment)) && (value["subscription"] === null && !value["fragments"].some((fragment) => isFrontendSurfaceLiveFragmentName("admin-invites", fragment.fragmentKey.kind)) || isRecord(value["subscription"]) && hasExactKeys(value["subscription"], ["scope"]) && isSurfaceScope(value["subscription"].scope) && value["subscription"].scope.surface === "admin-invites" && value["fragments"].some((fragment) => isFrontendSurfaceLiveFragmentName("admin-invites", fragment.fragmentKey.kind)));
+  }
+  function isAdminExportsMountConfig(value) {
+    return isRecord(value) && hasExactKeys(value, ["surface", "scopeKey", "mountKey", "fragments", "subscription"]) && value["surface"] === "admin-exports" && typeof value["scopeKey"] === "string" && value["scopeKey"].length > 0 && typeof value["mountKey"] === "string" && value["mountKey"].length > 0 && Array.isArray(value["fragments"]) && value["fragments"].every((fragment) => isAdminExportsMountedFragmentConfig(fragment)) && (value["subscription"] === null && !value["fragments"].some((fragment) => isFrontendSurfaceLiveFragmentName("admin-exports", fragment.fragmentKey.kind)) || isRecord(value["subscription"]) && hasExactKeys(value["subscription"], ["scope"]) && isSurfaceScope(value["subscription"].scope) && value["subscription"].scope.surface === "admin-exports" && value["fragments"].some((fragment) => isFrontendSurfaceLiveFragmentName("admin-exports", fragment.fragmentKey.kind)));
+  }
+  function isAdminShiftTypesMountConfig(value) {
+    return isRecord(value) && hasExactKeys(value, ["surface", "scopeKey", "mountKey", "fragments", "subscription"]) && value["surface"] === "admin-shift-types" && typeof value["scopeKey"] === "string" && value["scopeKey"].length > 0 && typeof value["mountKey"] === "string" && value["mountKey"].length > 0 && Array.isArray(value["fragments"]) && value["fragments"].every((fragment) => isAdminShiftTypesMountedFragmentConfig(fragment)) && (value["subscription"] === null && !value["fragments"].some((fragment) => isFrontendSurfaceLiveFragmentName("admin-shift-types", fragment.fragmentKey.kind)) || isRecord(value["subscription"]) && hasExactKeys(value["subscription"], ["scope"]) && isSurfaceScope(value["subscription"].scope) && value["subscription"].scope.surface === "admin-shift-types" && value["fragments"].some((fragment) => isFrontendSurfaceLiveFragmentName("admin-shift-types", fragment.fragmentKey.kind)));
+  }
+  function isAdminRosterGroupsMountConfig(value) {
+    return isRecord(value) && hasExactKeys(value, ["surface", "scopeKey", "mountKey", "fragments", "subscription"]) && value["surface"] === "admin-roster-groups" && typeof value["scopeKey"] === "string" && value["scopeKey"].length > 0 && typeof value["mountKey"] === "string" && value["mountKey"].length > 0 && Array.isArray(value["fragments"]) && value["fragments"].every((fragment) => isAdminRosterGroupsMountedFragmentConfig(fragment)) && (value["subscription"] === null && !value["fragments"].some((fragment) => isFrontendSurfaceLiveFragmentName("admin-roster-groups", fragment.fragmentKey.kind)) || isRecord(value["subscription"]) && hasExactKeys(value["subscription"], ["scope"]) && isSurfaceScope(value["subscription"].scope) && value["subscription"].scope.surface === "admin-roster-groups" && value["fragments"].some((fragment) => isFrontendSurfaceLiveFragmentName("admin-roster-groups", fragment.fragmentKey.kind)));
+  }
+  function isAdminXeroMountConfig(value) {
+    return isRecord(value) && hasExactKeys(value, ["surface", "scopeKey", "mountKey", "fragments", "subscription"]) && value["surface"] === "admin-xero" && typeof value["scopeKey"] === "string" && value["scopeKey"].length > 0 && typeof value["mountKey"] === "string" && value["mountKey"].length > 0 && Array.isArray(value["fragments"]) && value["fragments"].every((fragment) => isAdminXeroMountedFragmentConfig(fragment)) && (value["subscription"] === null && !value["fragments"].some((fragment) => isFrontendSurfaceLiveFragmentName("admin-xero", fragment.fragmentKey.kind)) || isRecord(value["subscription"]) && hasExactKeys(value["subscription"], ["scope"]) && isSurfaceScope(value["subscription"].scope) && value["subscription"].scope.surface === "admin-xero" && value["fragments"].some((fragment) => isFrontendSurfaceLiveFragmentName("admin-xero", fragment.fragmentKey.kind)));
+  }
+  function isFrontendSurfaceMountConfig(value) {
+    return isTimesheetsMountConfig(value) || isRosterMountConfig(value) || isRosterDayTimelineMountConfig(value) || isLeaveRequestsMountConfig(value) || isSelfServiceLeaveMountConfig(value) || isBillingMountConfig(value) || isSupportMountConfig(value) || isProfileMountConfig(value) || isStaffMountConfig(value) || isAdminPageMountConfig(value) || isAdminXeroPageMountConfig(value) || isAdminVenueConfigMountConfig(value) || isAdminInvitesMountConfig(value) || isAdminExportsMountConfig(value) || isAdminShiftTypesMountConfig(value) || isAdminRosterGroupsMountConfig(value) || isAdminXeroMountConfig(value);
+  }
+  function parseFrontendSurfaceMountConfig(value) {
+    if (isFrontendSurfaceMountConfig(value)) return value;
+    throw new Error("Invalid FrontendSurfaceMountConfig");
   }
 
   // frontend/ts/shared/dom.ts
@@ -437,7 +724,7 @@
     firstMemberHighlightClass,
     lastMemberHighlightClass
   ];
-  function createLinkedHighlightController() {
+  function createLinkedHighlightController(options = {}) {
     const statesByMount = /* @__PURE__ */ new WeakMap();
     function stateFor3(mount, definition) {
       let mountStates = statesByMount.get(mount);
@@ -493,6 +780,11 @@
         state.pinnedKey = context.membershipKey;
       }
       refreshMount(context.mount);
+      options.onPinChange?.({
+        mount: context.mount,
+        pinRoleAttribute: context.definition.pinRoleAttribute ?? "",
+        pinnedKey: state.pinnedKey
+      });
       return true;
     }
     function activateKeyboard(target, key) {
@@ -510,7 +802,16 @@
       for (const mount of mounts) {
         for (const definition of definitionsForMount(mount)) {
           const state = stateFor3(mount, definition);
-          if (state.pinnedKey && !sourceExists(mount, definition, state.pinnedKey)) state.pinnedKey = null;
+          if (state.pinnedKey && !sourceExists(mount, definition, state.pinnedKey)) {
+            state.pinnedKey = null;
+            if (definition.pinRoleAttribute) {
+              options.onPinChange?.({
+                mount,
+                pinRoleAttribute: definition.pinRoleAttribute,
+                pinnedKey: null
+              });
+            }
+          }
           if (state.hoverKey && !sourceExists(mount, definition, state.hoverKey)) state.hoverKey = null;
           if (state.focusKey && !sourceExists(mount, definition, state.focusKey)) state.focusKey = null;
         }
@@ -643,10 +944,10 @@
     return Boolean(candidate.classList) && typeof candidate.getAttribute === "function" && typeof candidate.setAttribute === "function" && typeof candidate.closest === "function" && typeof candidate.querySelectorAll === "function";
   }
   var browserRuntimeEnabled = false;
-  function enableFrontendSurfaceLinkedHighlight() {
+  function enableFrontendSurfaceLinkedHighlight(options = {}) {
     if (browserRuntimeEnabled || typeof document === "undefined") return;
     browserRuntimeEnabled = true;
-    const controller = createLinkedHighlightController();
+    const controller = createLinkedHighlightController(options);
     document.addEventListener("mouseover", (event) => {
       controller.pointerEntered(event.target, relatedElement(event));
     });
@@ -1574,6 +1875,131 @@
     });
   }
 
+  // frontend/ts/live-updates/mount.ts
+  function readFrontendSurfaceMountElement(ownerEl, reportError) {
+    const rawConfig = ownerEl.getAttribute(surfaceConfigDomAttr);
+    if (!rawConfig) return null;
+    let config;
+    try {
+      config = parseFrontendSurfaceMountConfig(JSON.parse(rawConfig));
+    } catch (error) {
+      reportError?.(ownerEl, error instanceof Error ? error : new Error(String(error)));
+      return null;
+    }
+    const ownerSurface = ownerEl.getAttribute(surfaceDomAttr);
+    if (!frontendSurfaceMountMatchesOwnerSurface(config, ownerSurface)) {
+      reportError?.(ownerEl, new Error(`FrontendSurface DOM/config mismatch: ${ownerSurface ?? "missing"} != ${config.surface}`));
+      return null;
+    }
+    return config;
+  }
+  function frontendSurfaceMountMatchesOwnerSurface(config, ownerSurface) {
+    return ownerSurface === config.surface;
+  }
+
+  // frontend/ts/live-updates/request-context.ts
+  function decorators() {
+    const runtimeGlobal = globalThis;
+    runtimeGlobal.__bepisSurfaceFragmentRequestDecorators ?? (runtimeGlobal.__bepisSurfaceFragmentRequestDecorators = /* @__PURE__ */ new Set());
+    return runtimeGlobal.__bepisSurfaceFragmentRequestDecorators;
+  }
+  function registerSurfaceFragmentRequestDecorator(decorator) {
+    decorators().add(decorator);
+    return () => decorators().delete(decorator);
+  }
+
+  // frontend/ts/roster/wage-filter.ts
+  function createRosterWageFilterController(targetDocument) {
+    const pinnedKeysByMount = /* @__PURE__ */ new WeakMap();
+    function pinChanged(change) {
+      if (change.pinRoleAttribute !== rosterStaffHighlightPinDomAttr) return;
+      if (!(change.mount instanceof HTMLElement)) return;
+      const ownerMount = owningRosterMount(change.mount);
+      if (!ownerMount) return;
+      pinnedKeysByMount.set(ownerMount, change.pinnedKey);
+      const config = readWageFilterConfig(ownerMount);
+      if (!config?.wageFilterEnabled) return;
+      const mountConfig = readFrontendSurfaceMountElement(ownerMount);
+      if (!mountConfig || mountConfig.surface !== "roster" || !mountConfig.subscription) return;
+      const targetIds = new Set(config.wageFilterRefreshTargetIds);
+      const fragments = mountConfig.fragments.filter((fragment) => targetIds.has(fragment.targetId)).map((fragment) => fragment.fragmentKey);
+      if (fragments.length === 0) return;
+      targetDocument.dispatchEvent(new CustomEvent(liveFragmentsRefreshEvent, {
+        detail: {
+          scope: mountConfig.subscription.scope,
+          scopeKey: mountConfig.scopeKey,
+          fragments
+        }
+      }));
+    }
+    function decorateRequest(event) {
+      const htmxEvent = event;
+      const source = htmxEvent.detail?.elt;
+      if (!(source instanceof Element)) return;
+      const ownerMount = source.closest(`[${surfaceDomAttr}="roster"][${surfaceConfigDomAttr}]`);
+      if (!ownerMount) return;
+      const config = readWageFilterConfig(ownerMount);
+      const mountConfig = readFrontendSurfaceMountElement(ownerMount);
+      if (!config?.wageFilterEnabled || !mountConfig || !htmxEvent.detail?.path) return;
+      if (!requestTargetsWageFragment(source, ownerMount, config.wageFilterRequestTargetIds)) return;
+      const requestPath = new URL(htmxEvent.detail.path, targetDocument.defaultView?.location.origin ?? "http://localhost").pathname;
+      const isMountedFragmentRequest = mountConfig.fragments.some(
+        (fragment) => config.wageFilterRequestTargetIds.includes(fragment.targetId) && new URL(fragment.url, targetDocument.defaultView?.location.origin ?? "http://localhost").pathname === requestPath
+      );
+      if (!isMountedFragmentRequest) return;
+      const pinnedStaffKey = pinnedKeysByMount.get(ownerMount) ?? null;
+      if (!pinnedStaffKey || !htmxEvent.detail) return;
+      const encodedRequest = encodeRosterWageFilterRequest({ pinnedStaffKey });
+      if (htmxEvent.detail.parameters) {
+        Object.assign(htmxEvent.detail.parameters, encodedRequest);
+      } else {
+        htmxEvent.detail.parameters = { ...encodedRequest };
+      }
+    }
+    function decorateFragmentUrl(url, _fragment, target) {
+      const ownerMount = target.closest(`[${surfaceDomAttr}="roster"][${surfaceConfigDomAttr}]`);
+      if (!ownerMount) return url;
+      const config = readWageFilterConfig(ownerMount);
+      if (!config?.wageFilterEnabled || !config.wageFilterRequestTargetIds.includes(target.id)) return url;
+      const pinnedStaffKey = pinnedKeysByMount.get(ownerMount) ?? null;
+      if (!pinnedStaffKey) return url;
+      const request = encodeRosterWageFilterRequest({ pinnedStaffKey });
+      const parsed = new URL(url, targetDocument.defaultView?.location.origin ?? "http://localhost");
+      Object.entries(request).forEach(([name, value]) => {
+        if (value !== void 0) parsed.searchParams.set(name, value);
+      });
+      return url.startsWith("/") ? `${parsed.pathname}${parsed.search}${parsed.hash}` : parsed.toString();
+    }
+    return { pinChanged, decorateRequest, decorateFragmentUrl };
+  }
+  function enableRosterWageFilter() {
+    const controller = createRosterWageFilterController(document);
+    document.addEventListener("htmx:configRequest", controller.decorateRequest);
+    registerSurfaceFragmentRequestDecorator(controller.decorateFragmentUrl);
+    return controller;
+  }
+  function owningRosterMount(interactionMount) {
+    return interactionMount.closest(`[${surfaceDomAttr}="roster"][${surfaceConfigDomAttr}]`);
+  }
+  function readWageFilterConfig(mount) {
+    const element = mount.querySelector(`[${rosterWageFilterConfigDomAttr}]`);
+    if (!element) return null;
+    const raw = element.getAttribute(rosterWageFilterConfigDomAttr);
+    if (!raw) return null;
+    try {
+      return parseRosterWageFilterConfig(JSON.parse(raw));
+    } catch {
+      return null;
+    }
+  }
+  function requestTargetsWageFragment(source, mount, targetIds) {
+    for (const targetId of targetIds) {
+      const target = mount.querySelector(`#${targetId}`);
+      if (target && (target === source || target.contains(source))) return true;
+    }
+    return false;
+  }
+
   // frontend/ts/app-roster.ts
   enableRosterWeekOverview();
   enableRosterFullscreenToggle();
@@ -1581,5 +2007,6 @@
   enableRosterImageExport();
   enableFrontendSurfaceCompleteSetSort();
   enableFrontendSurfaceTabSets();
-  enableFrontendSurfaceLinkedHighlight();
+  var rosterWageFilter = enableRosterWageFilter();
+  enableFrontendSurfaceLinkedHighlight({ onPinChange: rosterWageFilter.pinChanged });
 })();

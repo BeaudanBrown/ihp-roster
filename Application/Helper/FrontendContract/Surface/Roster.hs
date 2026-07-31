@@ -100,6 +100,13 @@ module Application.Helper.FrontendContract.Surface.Roster
     , ImageExportEncodingFailureMessage
     , ImageExportText
     , ImageExportEndEllipsis
+    , WageFilterConfigRole
+    , RosterWageFilterConfig
+    , RosterWageFilterRequest
+    , WageFilterEnabled
+    , WageFilterRefreshTargetIds
+    , WageFilterRequestTargetIds
+    , PinnedStaffKey
     , WeekOverviewPanelRole
     , WeekOverviewDayRole
     , WeekOverviewTodayRole
@@ -280,6 +287,14 @@ data ImageExportCanvasFailureMessage
 data ImageExportEncodingFailureMessage
 data ImageExportText
 data ImageExportEndEllipsis
+
+data WageFilterConfigRole
+data RosterWageFilterConfig
+data RosterWageFilterRequest
+data WageFilterEnabled
+data WageFilterRefreshTargetIds
+data WageFilterRequestTargetIds
+data PinnedStaffKey
 
 data WeekOverviewPanelRole
 data WeekOverviewDayRole
@@ -667,6 +682,17 @@ type RosterImageExportBrowserBundle =
          ]
      ]
 
+type RosterWageFilterBrowserBundle =
+    '[ BrowserRole WageFilterConfigRole
+     , BrowserInboundDto RosterWageFilterConfig
+        '[ Field WageFilterEnabled 'WireBool
+         , Field WageFilterRefreshTargetIds ('WireList 'WireText)
+         , Field WageFilterRequestTargetIds ('WireList 'WireText)
+         ]
+     , BrowserOutboundDto RosterWageFilterRequest
+        '[ OptionalField PinnedStaffKey 'WireText ]
+     ]
+
 type RosterWeekOverviewBrowserBundle =
     '[ BrowserRole WeekOverviewPanelRole
      , BrowserRole WeekOverviewDayRole
@@ -724,7 +750,7 @@ type RosterLinkedHighlightBundle =
      ]
 
 type RosterSurface =
-    Surface Roster (Concat '[ RosterScopeBundle, RosterFragmentBundle, RosterActionBundle, RosterInteractionBundle, RosterStaffPanelBrowserBundle, RosterChromeBrowserBundle, RosterImageExportBrowserBundle, RosterWeekOverviewBrowserBundle, RosterLinkedHighlightBundle ])
+    Surface Roster (Concat '[ RosterScopeBundle, RosterFragmentBundle, RosterActionBundle, RosterInteractionBundle, RosterStaffPanelBrowserBundle, RosterChromeBrowserBundle, RosterImageExportBrowserBundle, RosterWageFilterBrowserBundle, RosterWeekOverviewBrowserBundle, RosterLinkedHighlightBundle ])
 
 type RosterDayTimelineScopeBundle =
     '[ Scope RosterDayTimeline

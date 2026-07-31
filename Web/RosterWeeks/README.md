@@ -45,7 +45,14 @@ roles so their existing hover/focus appearance uses the same generic runtime.
 The contained day-timeline Surface declares its own shift-group roles; it does
 not reach through its mount boundary to reuse outer-roster elements. Views and
 tests consume generated role names rather than raw staff/slot ID attributes or
-feature-specific highlight selectors.
+feature-specific highlight selectors. When wage estimates are enabled for an
+admin-authorized viewer, the same opaque staff pin also selects a transient
+mount-local wage filter. A generated roster DTO identifies the authoritative
+wage fragment targets and a generated outbound DTO carries the opaque pinned
+key on fragment refetches. The server validates the staff against the current
+venue/group panel before filtering slots into the canonical wage evaluator.
+Child and passive refreshes retain this context; replacing the roster mount
+resets it.
 
 ## Staff-Panel Sort And Tab Contract
 

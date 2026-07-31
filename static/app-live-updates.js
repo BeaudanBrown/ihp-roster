@@ -1373,6 +1373,18 @@
     return value instanceof HTMLInputElement || value instanceof HTMLSelectElement || value instanceof HTMLTextAreaElement;
   }
 
+  // frontend/ts/live-updates/request-context.ts
+  function decorators() {
+    const runtimeGlobal = globalThis;
+    runtimeGlobal.__bepisSurfaceFragmentRequestDecorators ?? (runtimeGlobal.__bepisSurfaceFragmentRequestDecorators = /* @__PURE__ */ new Set());
+    return runtimeGlobal.__bepisSurfaceFragmentRequestDecorators;
+  }
+  function decorateSurfaceFragmentRequest(url, fragment, target) {
+    let decoratedUrl = url;
+    for (const decorator of decorators()) decoratedUrl = decorator(decoratedUrl, fragment, target);
+    return decoratedUrl;
+  }
+
   // frontend/ts/live-updates/refresh.ts
   function createLiveFragmentRefresher(options) {
     const { targetWindow, targetDocument, diagnostics, activeInteractionSessions } = options;
@@ -1418,7 +1430,9 @@
         url: fragment.url,
         focusProtected: fragment.protection.kind === "focused-field"
       });
-      const response = await targetWindow.fetch(fragment.url, {
+      const target = targetDocument.getElementById(fragment.targetId);
+      const requestUrl = target instanceof HTMLElement ? decorateSurfaceFragmentRequest(fragment.url, fragment, target) : fragment.url;
+      const response = await targetWindow.fetch(requestUrl, {
         credentials: "same-origin",
         headers: { "HX-Request": "true" }
       });

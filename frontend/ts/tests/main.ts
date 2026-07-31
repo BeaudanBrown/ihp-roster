@@ -20,6 +20,7 @@ import "./medium-risk.test";
 import "./overlay.test";
 import "./live-updates.test";
 import "./live-updates-validation.test";
+import "./live-fragment-request-context.test";
 import "./lazy-surface.test";
 import "./ui-region-events.test";
 import "./ui-region-transitions.test";

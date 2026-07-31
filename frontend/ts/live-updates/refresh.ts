@@ -1,6 +1,7 @@
 import { resolveLiveFragmentInteractionConflict, type ActiveInteractionSessionTracker } from "../interaction/live-conflicts";
 import type { createLiveUpdateDiagnostics } from "./diagnostics";
 import { createFocusedFieldProtection } from "./focus";
+import { decorateSurfaceFragmentRequest } from "./request-context";
 import type { InFlightFragmentState, LiveUpdateFragmentWithState } from "./runtime-types";
 
 export type LiveFragmentRefresher = {
@@ -66,7 +67,11 @@ export function createLiveFragmentRefresher(options: {
             url: fragment.url,
             focusProtected: fragment.protection.kind === "focused-field",
         });
-        const response = await targetWindow.fetch(fragment.url, {
+        const target = targetDocument.getElementById(fragment.targetId);
+        const requestUrl = target instanceof HTMLElement
+            ? decorateSurfaceFragmentRequest(fragment.url, fragment, target)
+            : fragment.url;
+        const response = await targetWindow.fetch(requestUrl, {
             credentials: "same-origin",
             headers: { "HX-Request": "true" },
         });

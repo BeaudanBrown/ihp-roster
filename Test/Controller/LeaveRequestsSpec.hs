@@ -32,6 +32,7 @@ import Network.Wai (responseHeaders)
 import Test.Hspec
 import Test.Support
 import Web.FrontController ()
+import Web.LeaveRequests.Blackouts (currentVenueCalendarDay)
 import Web.LeaveRequests.Mutations (LeaveReviewDecision (..),
                                     leaveReviewTouchedResources)
 import Web.LeaveRequests.ReadModel (affectedRosterWeekInvalidationTargetsForScopes)
@@ -116,7 +117,8 @@ tests = aroundAll withDatabaseTestContext do
                 venue <- createVenueWithConfig "Blackout Validation Venue"
                 admin <- createUserRecord "blackout-validation-admin@example.com" "admin" True
                 _ <- createVenueMembershipRecord venue admin "venue_admin"
-                today <- utctDay <$> getCurrentTime
+                venueConfig <- query @VenueConfig |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
+                today <- currentVenueCalendarDay venueConfig
                 let submit endDate reason = withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
                         callActionWithParams CreateUnavailabilityBlackoutAction
                             [ ("startDate", cs (tshow today))

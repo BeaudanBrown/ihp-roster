@@ -145,6 +145,24 @@ test("linked highlighting applies closed source/member/order effects inside one 
     assertEqual(first.classList.contains("is-linked-highlight-member"), false);
 });
 
+test("linked highlighting reports opaque pin changes without changing generic pin behavior", () => {
+    const changes: Array<{ mount: Element; pinRoleAttribute: string; pinnedKey: string | null }> = [];
+    const controller = createLinkedHighlightController({ onPinChange: (change) => changes.push(change) });
+    const mount = rosterMount();
+    mount.append(new MiniElement({ [rosterStaffHighlightSourceDomAttr]: "staff:opaque" }));
+    const pin = mount.append(new MiniElement({ [rosterStaffHighlightPinDomAttr]: "staff:opaque", "aria-pressed": "false" }));
+
+    controller.togglePin(pin as unknown as Element);
+    controller.togglePin(pin as unknown as Element);
+
+    assertEqual(changes.length, 2);
+    assertEqual(changes[0]?.mount, mount as unknown as Element);
+    assertEqual(changes[0]?.pinRoleAttribute, rosterStaffHighlightPinDomAttr);
+    assertEqual(changes[0]?.pinnedKey, "staff:opaque");
+    assertEqual(changes[1]?.pinnedKey, null);
+    assertEqual(pin.getAttribute("aria-pressed"), "false");
+});
+
 test("linked highlighting preserves focus, keyboard activation, and duplicate-mount isolation", () => {
     const controller = createLinkedHighlightController();
     const firstMount = rosterMount();

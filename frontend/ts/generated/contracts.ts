@@ -1006,6 +1006,19 @@ export function parseRosterImageExportCell(value: unknown): RosterImageExportCel
     throw new Error("Invalid RosterImageExportCell");
 }
 
+export type RosterWageFilterConfig = { wageFilterEnabled: boolean; wageFilterRefreshTargetIds: ReadonlyArray<string>; wageFilterRequestTargetIds: ReadonlyArray<string> };
+export function isRosterWageFilterConfig(value: unknown): value is RosterWageFilterConfig {
+    return isRecord(value) && hasExactKeys(value, ["wageFilterEnabled", "wageFilterRefreshTargetIds", "wageFilterRequestTargetIds"], ["wageFilterEnabled", "wageFilterRefreshTargetIds", "wageFilterRequestTargetIds"]) && (typeof value["wageFilterEnabled"] === "boolean") && (Array.isArray(value["wageFilterRefreshTargetIds"]) && value["wageFilterRefreshTargetIds"].every((item) => typeof item === "string")) && (Array.isArray(value["wageFilterRequestTargetIds"]) && value["wageFilterRequestTargetIds"].every((item) => typeof item === "string"));
+}
+
+export function parseRosterWageFilterConfig(value: unknown): RosterWageFilterConfig {
+    if (isRosterWageFilterConfig(value)) return value;
+    throw new Error("Invalid RosterWageFilterConfig");
+}
+
+export type RosterWageFilterRequest = { pinnedStaffKey?: string };
+export function encodeRosterWageFilterRequest(value: RosterWageFilterRequest): RosterWageFilterRequest { return value; }
+
 export type RosterWeekOverviewPanelConfig = { weekOverviewCurrentDate: FrontendContractDay };
 export function isRosterWeekOverviewPanelConfig(value: unknown): value is RosterWeekOverviewPanelConfig {
     return isRecord(value) && hasExactKeys(value, ["weekOverviewCurrentDate"], ["weekOverviewCurrentDate"]) && (typeof value["weekOverviewCurrentDate"] === "string");
@@ -1331,6 +1344,7 @@ export const rosterImageExportConfigDomAttr = "data-bepis-roster-image-export-co
 export const rosterImageExportProjectionDomAttr = "data-bepis-roster-image-export-projection" as const;
 export const rosterImageExportRowDomAttr = "data-bepis-roster-image-export-row" as const;
 export const rosterImageExportCellDomAttr = "data-bepis-roster-image-export-cell" as const;
+export const rosterWageFilterConfigDomAttr = "data-bepis-roster-wage-filter-config" as const;
 export const rosterWeekOverviewPanelDomAttr = "data-bepis-roster-week-overview-panel" as const;
 export const rosterWeekOverviewDayDomAttr = "data-bepis-roster-week-overview-day" as const;
 export const rosterWeekOverviewTodayDomAttr = "data-bepis-roster-week-overview-today" as const;

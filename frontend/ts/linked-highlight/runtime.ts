@@ -55,6 +55,16 @@ type PinContext = {
     membershipKey: string;
 };
 
+export type LinkedHighlightPinChange = {
+    mount: Element;
+    pinRoleAttribute: string;
+    pinnedKey: string | null;
+};
+
+export type LinkedHighlightControllerOptions = {
+    onPinChange?: (change: LinkedHighlightPinChange) => void;
+};
+
 export type LinkedHighlightController = {
     pointerEntered: (target: Element, relatedTarget: Element | null) => void;
     pointerLeft: (target: Element, relatedTarget: Element | null) => void;
@@ -65,7 +75,7 @@ export type LinkedHighlightController = {
     reconcile: (root: Document | Element) => void;
 };
 
-export function createLinkedHighlightController(): LinkedHighlightController {
+export function createLinkedHighlightController(options: LinkedHighlightControllerOptions = {}): LinkedHighlightController {
     const statesByMount = new WeakMap<object, Map<string, HighlightState>>();
 
     function stateFor(mount: ElementLike, definition: FrontendSurfaceLinkedHighlightDefinition): HighlightState {
@@ -133,6 +143,11 @@ export function createLinkedHighlightController(): LinkedHighlightController {
             state.pinnedKey = context.membershipKey;
         }
         refreshMount(context.mount);
+        options.onPinChange?.({
+            mount: context.mount as unknown as Element,
+            pinRoleAttribute: context.definition.pinRoleAttribute ?? "",
+            pinnedKey: state.pinnedKey,
+        });
         return true;
     }
 
@@ -154,7 +169,16 @@ export function createLinkedHighlightController(): LinkedHighlightController {
         for (const mount of mounts) {
             for (const definition of definitionsForMount(mount)) {
                 const state = stateFor(mount, definition);
-                if (state.pinnedKey && !sourceExists(mount, definition, state.pinnedKey)) state.pinnedKey = null;
+                if (state.pinnedKey && !sourceExists(mount, definition, state.pinnedKey)) {
+                    state.pinnedKey = null;
+                    if (definition.pinRoleAttribute) {
+                        options.onPinChange?.({
+                            mount: mount as unknown as Element,
+                            pinRoleAttribute: definition.pinRoleAttribute,
+                            pinnedKey: null,
+                        });
+                    }
+                }
                 if (state.hoverKey && !sourceExists(mount, definition, state.hoverKey)) state.hoverKey = null;
                 if (state.focusKey && !sourceExists(mount, definition, state.focusKey)) state.focusKey = null;
             }
@@ -327,11 +351,11 @@ function isElementLike(value: unknown): value is ElementLike {
 
 let browserRuntimeEnabled = false;
 
-export function enableFrontendSurfaceLinkedHighlight(): void {
+export function enableFrontendSurfaceLinkedHighlight(options: LinkedHighlightControllerOptions = {}): void {
     if (browserRuntimeEnabled || typeof document === "undefined") return;
     browserRuntimeEnabled = true;
 
-    const controller = createLinkedHighlightController();
+    const controller = createLinkedHighlightController(options);
 
     document.addEventListener("mouseover", (event) => {
         controller.pointerEntered(event.target as Element, relatedElement(event));
