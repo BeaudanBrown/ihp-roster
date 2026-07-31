@@ -1,10 +1,15 @@
 module Test.DevSeedSpec where
 
 import Application.Helper.Controller (unsafeEnumFromText)
+import Application.PayAssignment (EffectivePayAssignment (..),
+                                  ShiftPayAssignment (..),
+                                  StaffPayAssignment (..),
+                                  resolvePayAssignment)
 import Application.Support.Seed.Scenario
 import Control.Monad (void)
 import Data.List (sort)
 import qualified Data.Map.Strict as Map
+import qualified Data.Set as Set
 import qualified Data.Text as Text
 import Data.Time.Calendar (Day, addDays, diffDays)
 import Generated.Types
@@ -267,6 +272,15 @@ tests = aroundAll withDatabaseTestContext do
                 supportMemberships `shouldBe` []
                 inputValue (get #venueRole managerMembership) `shouldBe` ("manager" :: Text)
                 inputValue (get #venueRole workerMembership) `shouldBe` ("worker" :: Text)
+                activeSandboxMemberships <-
+                    query @VenueMembership
+                        |> filterWhere (#venueId, unpackId fixture.sandboxVenue.id)
+                        |> filterWhere (#isActive, True)
+                        |> fetch
+                let linkedSandboxUserIds = sort (mapMaybe (.userId) seededStaff)
+                let activeMembershipUserIds = sort (map (.userId) activeSandboxMemberships)
+                linkedSandboxUserIds `shouldSatisfy` all (`elem` activeMembershipUserIds)
+                length activeMembershipUserIds `shouldBe` length (nub activeMembershipUserIds)
                 sort (map (.email) dummyUsers) `shouldBe` ["manager@bepis.lol", "owner@bepis.lol", "staff@bepis.lol", "venue@bepis.lol"]
                 map (.isProfileCompleted) dummyUsers `shouldBe` replicate 4 True
                 fmap inputValue (Map.lookup "staff@bepis.lol" dummyRoleByEmail) `shouldBe` Just ("worker" :: Text)
@@ -321,9 +335,9 @@ tests = aroundAll withDatabaseTestContext do
                         |> orderByAsc #payrollLabel
                         |> fetch
 
-                map (\shiftType -> (shiftType.name, shiftType.colourKey, tshow <$> shiftType.overrideAwardLevelId)) shiftTypes
+                map (\shiftType -> (shiftType.name, shiftType.colourKey, shiftType.payAssignmentMode, tshow <$> shiftType.overrideAwardLevelId, isJust shiftType.importedXeroPayItemId)) shiftTypes
                     `shouldBe` expectedSeedShiftTypesBySortOrder
-                map (\version -> (version.payrollLabel, tshow <$> version.overrideAwardLevelId)) shiftTypeVersions
+                map (\version -> (version.payrollLabel, version.payAssignmentMode, tshow <$> version.overrideAwardLevelId, isJust version.importedXeroPayItemId)) shiftTypeVersions
                     `shouldBe` expectedSeedShiftTypeVersionsByLabel
 
                 rosterWeeks <-
@@ -347,6 +361,65 @@ tests = aroundAll withDatabaseTestContext do
                 assignedShiftTypeIds `shouldSatisfy` all (`elem` seededShiftTypeIds)
                 length assignedShiftTypeIds `shouldBe` length staffedRosterSlots
                 length (nub assignedShiftTypeIds) `shouldSatisfy` (> 2)
+
+                let staffById = Map.fromList [(unpackId staff.id, staff) | staff <- seededStaff]
+                let shiftTypeById = Map.fromList [(unpackId shiftType.id, shiftType) | shiftType <- shiftTypes]
+                let matrixAssignments =
+                        [ (staff, shiftType)
+                        | slot <- staffedRosterSlots
+                        , staffId <- maybeToList slot.staffId
+                        , shiftTypeId <- maybeToList slot.shiftTypeId
+                        , staff <- maybeToList (Map.lookup staffId staffById)
+                        , shiftType <- maybeToList (Map.lookup shiftTypeId shiftTypeById)
+                        ]
+                let seededPayModePairs =
+                        Set.fromList [(staff.payAssignmentMode, shiftType.payAssignmentMode) | (staff, shiftType) <- matrixAssignments]
+                let expectedPayModePairs =
+                        Set.fromList
+                            [ (staffMode, shiftMode)
+                            | staffMode <- [AwardRate, XeroRate, RosterOnly]
+                            , shiftMode <- [StaffDefault, AwardRate, XeroRate, RosterOnly]
+                            ]
+                expectedPayModePairs `Set.isSubsetOf` seededPayModePairs `shouldBe` True
+                let matrixOutcomes =
+                        [ resolvePayAssignment
+                            (StaffPayAssignment staff.payAssignmentMode staff.defaultAwardLevelId staff.importedXeroPayItemId)
+                            (ShiftPayAssignment shiftType.payAssignmentMode shiftType.overrideAwardLevelId shiftType.importedXeroPayItemId)
+                        | (staff, shiftType) <- matrixAssignments
+                        , (staff.payAssignmentMode, shiftType.payAssignmentMode) `Set.member` expectedPayModePairs
+                        ]
+                matrixOutcomes `shouldSatisfy` all (\case InvalidPayAssignment {} -> False; _ -> True)
+                let outcomeTag = \case
+                        EffectiveAwardRate _ -> "award_rate" :: Text
+                        EffectiveXeroRate _ -> "xero_rate"
+                        EffectiveRosterOnly -> "roster_only"
+                        InvalidPayAssignment {} -> "invalid"
+                let resolvedModePairs =
+                        Set.fromList
+                            [ (staff.payAssignmentMode, shiftType.payAssignmentMode, outcomeTag (resolvePayAssignment
+                                (StaffPayAssignment staff.payAssignmentMode staff.defaultAwardLevelId staff.importedXeroPayItemId)
+                                (ShiftPayAssignment shiftType.payAssignmentMode shiftType.overrideAwardLevelId shiftType.importedXeroPayItemId)))
+                            | (staff, shiftType) <- matrixAssignments
+                            ]
+                let expectedResolvedModePairs =
+                        Set.fromList
+                            [ (AwardRate, StaffDefault, "award_rate")
+                            , (AwardRate, AwardRate, "award_rate")
+                            , (AwardRate, XeroRate, "xero_rate")
+                            , (AwardRate, RosterOnly, "roster_only")
+                            , (XeroRate, StaffDefault, "xero_rate")
+                            , (XeroRate, AwardRate, "award_rate")
+                            , (XeroRate, XeroRate, "xero_rate")
+                            , (XeroRate, RosterOnly, "roster_only")
+                            , (RosterOnly, StaffDefault, "roster_only")
+                            , (RosterOnly, AwardRate, "roster_only")
+                            , (RosterOnly, XeroRate, "roster_only")
+                            , (RosterOnly, RosterOnly, "roster_only")
+                            ]
+                expectedResolvedModePairs `Set.isSubsetOf` resolvedModePairs `shouldBe` True
+                map (.payAssignmentMode) seededStaff `shouldSatisfy` all (`elem` [AwardRate, XeroRate, RosterOnly, LegacyUnresolved])
+                filter (isNothing . (.userId)) seededStaff `shouldSatisfy` all ((== RosterOnly) . (.payAssignmentMode))
+                length (filter ((== LegacyUnresolved) . (.payAssignmentMode)) seededStaff) `shouldBe` 1
 
                 -- Timesheets span the scenario window with realistic break coverage.
                 let seededScenario = get #scenario fixture
@@ -496,23 +569,23 @@ tests = aroundAll withDatabaseTestContext do
                 seededStaffCount `shouldSatisfy` (>= 12)
                 managerMembershipCount `shouldBe` 3
 
-expectedSeedShiftTypesBySortOrder :: [(Text, Text, Maybe Text)]
+expectedSeedShiftTypesBySortOrder :: [(Text, Text, PayAssignmentModeEnum, Maybe Text, Bool)]
 expectedSeedShiftTypesBySortOrder =
-    [ ("Floor", "palette-1", Just floorAwardLevelIdText)
-    , ("Kitchen", "palette-2", Just kitchenAwardLevelIdText)
-    , ("Bar", "", Just floorAwardLevelIdText)
-    , ("Gaming", "", Just floorAwardLevelIdText)
-    , ("Glassy", "", Just floorAwardLevelIdText)
-    , ("Cellar", "", Just floorAwardLevelIdText)
-    , ("Functions", "", Just floorAwardLevelIdText)
-    , ("Runner", "", Just floorAwardLevelIdText)
-    , ("Door", "", Just kitchenAwardLevelIdText)
-    , ("Supervisor", "", Just kitchenAwardLevelIdText)
+    [ ("Floor", "palette-1", StaffDefault, Nothing, False)
+    , ("Kitchen", "palette-2", AwardRate, Just kitchenAwardLevelIdText, False)
+    , ("Bar", "", XeroRate, Nothing, True)
+    , ("Gaming", "", RosterOnly, Nothing, False)
+    , ("Glassy", "", AwardRate, Just floorAwardLevelIdText, False)
+    , ("Cellar", "", AwardRate, Just floorAwardLevelIdText, False)
+    , ("Functions", "", AwardRate, Just floorAwardLevelIdText, False)
+    , ("Runner", "", AwardRate, Just floorAwardLevelIdText, False)
+    , ("Door", "", AwardRate, Just kitchenAwardLevelIdText, False)
+    , ("Supervisor", "", AwardRate, Just kitchenAwardLevelIdText, False)
     ]
 
-expectedSeedShiftTypeVersionsByLabel :: [(Text, Maybe Text)]
+expectedSeedShiftTypeVersionsByLabel :: [(Text, PayAssignmentModeEnum, Maybe Text, Bool)]
 expectedSeedShiftTypeVersionsByLabel =
-    sort (map (\(name, _colourKey, awardLevelId) -> (name, awardLevelId)) expectedSeedShiftTypesBySortOrder)
+    sort (map (\(name, _colourKey, mode, awardLevelId, hasXero) -> (name, mode, awardLevelId, hasXero)) expectedSeedShiftTypesBySortOrder)
 
 floorAwardLevelIdText :: Text
 floorAwardLevelIdText = "2cba4998-4691-4eeb-9bd3-e79263c54769"

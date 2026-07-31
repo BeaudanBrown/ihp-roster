@@ -18,6 +18,8 @@ import Application.Support
 import Application.Support.Seed.Calendar (weekOffsetForDay)
 import Application.Support.Seed.Scenario
 import Application.Support.WageSourceFixtures (ensureFreshWageSourceFacts)
+import Application.PayAssignment (StaffPayAssignment (..),
+                                  staffAssignmentAllowsTimesheets)
 import Application.VenueTime.Model
 import Control.Monad (replicateM, void)
 import qualified Data.Aeson as Aeson
@@ -103,7 +105,7 @@ seedDevelopmentFixtureWithScenarioForWeekAndLeaveMonth scenario fixtureWeekStart
     let managerUser = fromMaybe (error "Expected at least one seeded manager user") (listToMaybe managerUsers)
     workerUser <- createUserRecord "dev-worker@example.com" "staff" True
     (_, seededWorkerStaff) <- provisionVenueUser venue workerUser "worker" "Willa" "Worker"
-    seedSandboxRoleAliasAccounts venue
+    aliasStaff <- seedSandboxRoleAliasAccounts venue
     invitation <- createVenueInvitationRecord venue (Just admin) "pending-invite@example.com" "worker"
 
     frontGroup <-
@@ -114,10 +116,11 @@ seedDevelopmentFixtureWithScenarioForWeekAndLeaveMonth scenario fixtureWeekStart
     frontSlots <- fetchActiveRosterGroupSlotNames (get #id frontGroup)
     backSlots <- fetchActiveRosterGroupSlotNames (get #id backGroup)
 
-    floorShift <- createSeedShiftTypeRecord venue admin fixtureWeekStart "Floor" 10 "palette-1" seededFloorAwardLevelId
-    kitchenShift <- createSeedShiftTypeRecord venue admin fixtureWeekStart "Kitchen" 20 "palette-2" seededKitchenAwardLevelId
-    extraShiftTypes <- forM seedExtraShiftTypeSpecs \(shiftTypeName, sortOrder, colourKey, awardLevelId) ->
-        createSeedShiftTypeRecord venue admin fixtureWeekStart shiftTypeName sortOrder colourKey awardLevelId
+    xeroPayItem <- createSeedImportedXeroPayItem venue admin
+    floorShift <- createSeedShiftTypeRecord venue admin fixtureWeekStart "Floor" 10 "palette-1" StaffDefault Nothing Nothing
+    kitchenShift <- createSeedShiftTypeRecord venue admin fixtureWeekStart "Kitchen" 20 "palette-2" AwardRate (Just seededKitchenAwardLevelId) Nothing
+    extraShiftTypes <- forM (seedExtraShiftTypeSpecs xeroPayItem.id) \(shiftTypeName, sortOrder, colourKey, payMode, awardLevelId, importedPayItemId) ->
+        createSeedShiftTypeRecord venue admin fixtureWeekStart shiftTypeName sortOrder colourKey payMode awardLevelId importedPayItemId
     let seedShiftTypes = [floorShift, kitchenShift] <> extraShiftTypes
     managerStaffs <- mapM (createManagerStaff venue) (zip [0 ..] managerUsers)
     workerStaff <- seededWorkerStaff |> set #idealShiftsPerWeek 3 |> updateRecord
@@ -127,7 +130,18 @@ seedDevelopmentFixtureWithScenarioForWeekAndLeaveMonth scenario fixtureWeekStart
     let crossGroupStaff = takeCrossGroup seededStaff
     trialStaffs <- createTrialStaff venue scenario.trialStaffCount
 
+    linkedStaff <- query @Staff |> filterWhere (#venueId, unpackId venue.id) |> filterWhereNot (#userId, Nothing) |> fetch
+    linkedStaff
+        |> mapM_ (updateRecord . set #payAssignmentMode AwardRate . set #defaultAwardLevelId (Just seededFloorAwardLevelId) . set #importedXeroPayItemId Nothing)
+    awardStaff <- maybe (fail "Dev seed requires at least one manager staff profile") pure (listToMaybe managerStaffs)
+    xeroStaff <- workerStaff |> set #payAssignmentMode XeroRate |> set #defaultAwardLevelId Nothing |> set #importedXeroPayItemId (Just xeroPayItem.id) |> updateRecord
+    rosterOnlySeedStaff <- maybe (fail "Dev seed requires at least one generated staff profile") pure (listToMaybe seededStaff)
+    rosterOnlyStaff <- rosterOnlySeedStaff |> set #payAssignmentMode RosterOnly |> set #defaultAwardLevelId Nothing |> set #importedXeroPayItemId Nothing |> updateRecord
+    forM_ (listToMaybe aliasStaff) \remediationStaff ->
+        remediationStaff |> set #payAssignmentMode LegacyUnresolved |> set #defaultAwardLevelId Nothing |> set #importedXeroPayItemId Nothing |> updateRecord |> void
+
     mapM_ (\staff -> syncStaffRosterGroupAssignments staff [get #id frontGroup, get #id backGroup]) managerStaffs
+    syncStaffRosterGroupAssignments rosterOnlyStaff [get #id frontGroup, get #id backGroup]
     syncStaffRosterGroupAssignments workerStaff [get #id frontGroup]
     mapM_ (\staff -> syncStaffRosterGroupAssignments staff [get #id frontGroup]) frontOnlyStaff
     mapM_ (\staff -> syncStaffRosterGroupAssignments staff [get #id backGroup]) backOnlyStaff
@@ -147,7 +161,7 @@ seedDevelopmentFixtureWithScenarioForWeekAndLeaveMonth scenario fixtureWeekStart
         crossGroupStaff
         trialStaffs
 
-    let allFrontCandidates = managerStaffs <> [workerStaff] <> frontOnlyStaff <> crossGroupStaff <> trialStaffs
+    let allFrontCandidates = managerStaffs <> [xeroStaff] <> frontOnlyStaff <> crossGroupStaff <> trialStaffs
     let allBackCandidates = managerStaffs <> backOnlyStaff <> crossGroupStaff
 
     let weekOffset = weekOffsetFor fixtureWeekStart
@@ -162,8 +176,14 @@ seedDevelopmentFixtureWithScenarioForWeekAndLeaveMonth scenario fixtureWeekStart
         allFrontCandidates
         allBackCandidates
         seedShiftTypes
+    seedPayAssignmentMatrix
+        frontGroup
+        weekOffset
+        [awardStaff, xeroStaff, rosterOnlyStaff]
+        [floorShift, kitchenShift, extraShiftTypes !! 0, extraShiftTypes !! 1]
 
-    let allOperationalStaff = managerStaffs <> [workerStaff] <> seededStaff <> trialStaffs
+    let operationalStaffIds = map (.id) (managerStaffs <> [xeroStaff] <> seededStaff <> trialStaffs)
+    allOperationalStaff <- query @Staff |> filterWhereIn (#id, operationalStaffIds) |> fetch
 
     seedLeaveRequests fixtureWeekStart leaveMonthAnchor venue scenario allOperationalStaff
 
@@ -185,32 +205,59 @@ seedDevelopmentFixtureWithScenarioForWeekAndLeaveMonth scenario fixtureWeekStart
             , scenario = scenario
             }
 
-createSeedShiftTypeRecord :: (?modelContext :: ModelContext) => Venue -> User -> Day -> Text -> Int -> Text -> Id AwardLevel -> IO ShiftType
-createSeedShiftTypeRecord venue actorUser effectiveFrom shiftTypeName sortOrder colourKey awardLevelId = do
+createSeedShiftTypeRecord :: (?modelContext :: ModelContext) => Venue -> User -> Day -> Text -> Int -> Text -> PayAssignmentModeEnum -> Maybe (Id AwardLevel) -> Maybe (Id XeroImportedPayItem) -> IO ShiftType
+createSeedShiftTypeRecord venue actorUser effectiveFrom shiftTypeName sortOrder colourKey payMode awardLevelId importedPayItemId = do
     shiftType <-
         newRecord @ShiftType
             |> set #venueId (unpackId (get #id venue))
             |> set #name shiftTypeName
             |> set #sortOrder sortOrder
             |> set #colourKey colourKey
-            |> set #payAssignmentMode AwardRate
-            |> set #overrideAwardLevelId (Just awardLevelId)
+            |> set #payAssignmentMode payMode
+            |> set #overrideAwardLevelId awardLevelId
+            |> set #importedXeroPayItemId importedPayItemId
             |> set #isActive True
             |> createRecord
     _ <- ensureShiftTypePayVersionForShiftType actorUser.id shiftType effectiveFrom
     pure shiftType
 
-seedExtraShiftTypeSpecs :: [(Text, Int, Text, Id AwardLevel)]
-seedExtraShiftTypeSpecs =
-    [ ("Bar", 30, blankShiftTypeColourKey, seededFloorAwardLevelId)
-    , ("Gaming", 40, blankShiftTypeColourKey, seededFloorAwardLevelId)
-    , ("Glassy", 50, blankShiftTypeColourKey, seededFloorAwardLevelId)
-    , ("Cellar", 60, blankShiftTypeColourKey, seededFloorAwardLevelId)
-    , ("Functions", 70, blankShiftTypeColourKey, seededFloorAwardLevelId)
-    , ("Runner", 80, blankShiftTypeColourKey, seededFloorAwardLevelId)
-    , ("Door", 90, blankShiftTypeColourKey, seededKitchenAwardLevelId)
-    , ("Supervisor", 100, blankShiftTypeColourKey, seededKitchenAwardLevelId)
+seedExtraShiftTypeSpecs :: Id XeroImportedPayItem -> [(Text, Int, Text, PayAssignmentModeEnum, Maybe (Id AwardLevel), Maybe (Id XeroImportedPayItem))]
+seedExtraShiftTypeSpecs importedPayItemId =
+    [ ("Bar", 30, blankShiftTypeColourKey, XeroRate, Nothing, Just importedPayItemId)
+    , ("Gaming", 40, blankShiftTypeColourKey, RosterOnly, Nothing, Nothing)
+    , ("Glassy", 50, blankShiftTypeColourKey, AwardRate, Just seededFloorAwardLevelId, Nothing)
+    , ("Cellar", 60, blankShiftTypeColourKey, AwardRate, Just seededFloorAwardLevelId, Nothing)
+    , ("Functions", 70, blankShiftTypeColourKey, AwardRate, Just seededFloorAwardLevelId, Nothing)
+    , ("Runner", 80, blankShiftTypeColourKey, AwardRate, Just seededFloorAwardLevelId, Nothing)
+    , ("Door", 90, blankShiftTypeColourKey, AwardRate, Just seededKitchenAwardLevelId, Nothing)
+    , ("Supervisor", 100, blankShiftTypeColourKey, AwardRate, Just seededKitchenAwardLevelId, Nothing)
     ]
+
+createSeedImportedXeroPayItem :: (?modelContext :: ModelContext) => Venue -> User -> IO XeroImportedPayItem
+createSeedImportedXeroPayItem venue importedBy = do
+    connection <-
+        newRecord @XeroConnection
+            |> set #venueId (unpackId venue.id)
+            |> set #tenantId ("dev-seed-pay-tenant" :: Text)
+            |> set #tenantName (Just "Development Seed Payroll")
+            |> set #connectionStatus ("active" :: Text)
+            |> set #scopes ("payroll.employees payroll.payitems" :: Text)
+            |> set #encryptedRefreshToken ("dev-seed-encrypted-refresh-token" :: Text)
+            |> set #connectedByUserId (Just (unpackId importedBy.id))
+            |> createRecord
+    newRecord @XeroImportedPayItem
+        |> set #venueId (unpackId venue.id)
+        |> set #xeroConnectionId (unpackId connection.id)
+        |> set #xeroEarningsRateId ("dev-seed-ordinary-hours" :: Text)
+        |> set #name ("Development ordinary hours" :: Text)
+        |> set #accountCode (Just "477")
+        |> set #earningsType ("ORDINARYTIMEEARNINGS" :: Text)
+        |> set #rateType ("RATEPERUNIT" :: Text)
+        |> set #typeOfUnits ("Hours" :: Text)
+        |> set #ratePerUnit 34.5
+        |> set #rawPayload (Aeson.object [])
+        |> set #importedByUserId (unpackId importedBy.id)
+        |> createRecord
 
 seededFloorAwardLevelId :: Id AwardLevel
 seededFloorAwardLevelId =
@@ -224,10 +271,65 @@ seededHospitalityAwardLevelId :: Text -> Id AwardLevel
 seededHospitalityAwardLevelId value =
     Id (fromMaybe (error ("Invalid dev award level id: " <> cs value)) (UUID.fromText value))
 
+seedPayAssignmentMatrix :: (?modelContext :: ModelContext) => RosterGroup -> Int -> [Staff] -> [ShiftType] -> IO ()
+seedPayAssignmentMatrix rosterGroup weekOffset staffModes shiftModes = do
+    when (length staffModes /= 3 || length shiftModes /= 4) $
+        fail "Dev pay matrix requires three staff modes and four shift modes"
+    rosterWeek <-
+        query @RosterWeek
+            |> filterWhere (#rosterGroupId, unpackId rosterGroup.id)
+            |> filterWhere (#weekOffset, weekOffset)
+            |> fetchOne
+    rosterDays <-
+        query @RosterDay
+            |> filterWhere (#rosterWeekId, unpackId rosterWeek.id)
+            |> orderByAsc #dayOffset
+            |> fetch
+    when (length rosterDays < length shiftModes) $
+        fail "Dev pay matrix requires four roster days"
+    forM_ (zip (take 4 rosterDays) shiftModes) \(rosterDay, shiftType) -> do
+        slots <-
+            query @RosterSlot
+                |> filterWhere (#rosterDayId, unpackId rosterDay.id)
+                |> orderByAsc #rowIndex
+                |> orderByAsc #slotSortOrder
+                |> fetch
+        when (length slots < length staffModes) $
+            fail "Dev pay matrix requires three persisted slots on each matrix day"
+        forM_ (zip (take 3 slots) staffModes) \(slot, staff) -> do
+            slot
+                |> set #staffId (Just (unpackId staff.id))
+                |> set #shiftTypeId (Just (unpackId shiftType.id))
+                |> updateRecord
+                |> void
+            ensureSeedMatrixDayPreference staff rosterDay.dayOffset
+
+ensureSeedMatrixDayPreference :: (?modelContext :: ModelContext) => Staff -> Int -> IO ()
+ensureSeedMatrixDayPreference staff dayOffset = do
+    let weekdayIndex = case (dayOffset + 1) `mod` 7 of
+            0     -> 0
+            index -> index
+    existing <-
+        query @StaffShiftPreference
+            |> filterWhere (#staffId, unpackId staff.id)
+            |> filterWhere (#weekdayIndex, weekdayIndex)
+            |> fetchOneOrNothing
+    case existing of
+        Just _ -> pure ()
+        Nothing ->
+            newRecord @StaffShiftPreference
+                |> set #venueId staff.venueId
+                |> set #staffId (unpackId staff.id)
+                |> set #weekdayIndex weekdayIndex
+                |> set #preferredStartHour 5
+                |> set #preferredEndHour 23
+                |> createRecord
+                |> void
+
 resetDevFixtureData :: (?modelContext :: ModelContext) => IO ()
 resetDevFixtureData = do
     sqlExecDiscardResult
-        "TRUNCATE TABLE app_jobs, xero_timesheet_submission_entries, xero_timesheet_submissions, xero_submission_runs, xero_earnings_rate_mappings, xero_staff_mappings, xero_payroll_calendars, xero_earnings_rates, xero_employees, xero_sync_runs, xero_oauth_states, xero_connections, export_jobs, audit_events, venue_membership_role_events, timesheet_entry_versions, timesheet_entries, leave_request_events, leave_requests, staff_shift_preferences, roster_slots, roster_week_slot_definitions, roster_days, roster_weeks, export_job_entries, shift_type_pay_versions, staff_pay_versions, venue_config, day_names, slot_names, staff_roster_groups, roster_groups, shift_types, staff_documents, staff, user_preferences, passkey_setup_tokens, passkey_recovery_codes, email_verification_tokens, venue_invitations, venue_onboarding_invitations, venue_memberships, users, venues RESTART IDENTITY CASCADE"
+        "TRUNCATE TABLE app_jobs, xero_timesheet_submission_entries, xero_timesheet_submissions, xero_submission_runs, xero_earnings_rate_mappings, xero_staff_mappings, xero_payroll_calendars, xero_imported_pay_items, xero_earnings_rates, xero_employees, xero_sync_runs, xero_oauth_states, xero_connections, export_jobs, audit_events, venue_membership_role_events, timesheet_entry_versions, timesheet_entries, leave_request_events, leave_requests, staff_shift_preferences, roster_slots, roster_week_slot_definitions, roster_days, roster_weeks, export_job_entries, shift_type_pay_versions, staff_pay_versions, venue_config, day_names, slot_names, staff_roster_groups, roster_groups, shift_types, staff_documents, staff, user_preferences, passkey_setup_tokens, passkey_recovery_codes, email_verification_tokens, venue_invitations, venue_onboarding_invitations, venue_memberships, users, venues RESTART IDENTITY CASCADE"
         ()
     pure ()
 
@@ -241,21 +343,21 @@ ensureSeedShiftTypeAwardLevels = do
         ()
     pure ()
 
-seedSandboxRoleAliasAccounts :: (?modelContext :: ModelContext) => Venue -> IO ()
+seedSandboxRoleAliasAccounts :: (?modelContext :: ModelContext) => Venue -> IO [Staff]
 seedSandboxRoleAliasAccounts venue = do
     staffUser <- createSeededUserRecordWithPassword "staff@bepis.lol" "staff" "staff" True
-    _ <- provisionVenueUser venue staffUser "worker" "staff" "bepis"
+    (_, staffProfile) <- provisionVenueUser venue staffUser "worker" "staff" "bepis"
 
     managerUser <- createSeededUserRecordWithPassword "manager@bepis.lol" "manager" "manager" True
-    _ <- provisionVenueUser venue managerUser "manager" "manager" "bepis"
+    (_, managerProfile) <- provisionVenueUser venue managerUser "manager" "manager" "bepis"
 
     venueAdminUser <- createSeededUserRecordWithPassword "venue@bepis.lol" "venue" "admin" True
-    _ <- provisionVenueUser venue venueAdminUser "venue_admin" "venue" "bepis"
+    (_, venueAdminProfile) <- provisionVenueUser venue venueAdminUser "venue_admin" "venue" "bepis"
 
     venueOwnerUser <- createSeededUserRecordWithPassword "owner@bepis.lol" "owner" "admin" True
-    _ <- provisionVenueUser venue venueOwnerUser "venue_owner" "owner" "bepis"
+    (_, venueOwnerProfile) <- provisionVenueUser venue venueOwnerUser "venue_owner" "owner" "bepis"
 
-    pure ()
+    pure [staffProfile, managerProfile, venueAdminProfile, venueOwnerProfile]
 
 createSeededUserRecordWithPassword :: (?modelContext :: ModelContext) => Text -> Text -> Text -> Bool -> IO User
 createSeededUserRecordWithPassword emailAddress password globalRole isProfileCompleted =
@@ -303,6 +405,7 @@ createGeneratedStaff :: (?modelContext :: ModelContext) => Venue -> Int -> Int -
 createGeneratedStaff venue seedValue requestedCount =
     forM (take (max 0 requestedCount) generatedStaffCatalog) \(index, firstName, lastName, preferredName) -> do
         user <- createUserRecord ("dev-" <> Text.toLower firstName <> "-" <> tshow (index + 1) <> "@example.com") "staff" True
+        _ <- createVenueMembershipRecord venue user "worker"
         createPlaceholderStaffRecord venue (Just user) firstName lastName
             >>= updateRecord . set #preferredName (preferredNameFor seedValue index firstName preferredName)
             >>= updateRecord . set #idealShiftsPerWeek (1 + ((index + 2) `mod` 5))
@@ -764,16 +867,18 @@ seedTimesheets ::
     UTCTime ->
     IO ()
 seedTimesheets fixtureWeekStart venue admin scenario floorShift kitchenShift staffPool approvedAt = do
+    let timesheetStaffPool = filter staffCanProduceTimesheets staffPool
+    when (null timesheetStaffPool) $ fail "Dev seed requires at least one Timesheet-eligible staff profile"
     seededXeroCaseCount <-
         seedXeroPayCalendarTimesheets
             venue
             admin
             floorShift
             kitchenShift
-            staffPool
+            timesheetStaffPool
             approvedAt
     let remainingApprovedCount = max 0 (scenario.approvedTimesheets - seededXeroCaseCount)
-    let approvedStaffPool = concat (replicate 3 (seededXeroMatchedStaffPool staffPool)) <> staffPool
+    let approvedStaffPool = concat (replicate 3 (seededXeroMatchedStaffPool timesheetStaffPool)) <> timesheetStaffPool
     forM_ (zip [0 ..] (take remainingApprovedCount (cycle approvedStaffPool))) \(index, staff) -> do
         let globalIndex = index + seededXeroCaseCount
         let shiftTypeId =
@@ -799,7 +904,7 @@ seedTimesheets fixtureWeekStart venue admin scenario floorShift kitchenShift sta
         lockPayVersionsForApproval admin.id approvedAt staffPayVersion shiftTypePayVersion
         _ <- approveSeededTimesheetEntryWithVersions admin approvedAt staffPayVersion shiftTypePayVersion entry
         pure ()
-    let pendingStaffPool = nonXeroMatchedStaffPool staffPool <> staffPool
+    let pendingStaffPool = nonXeroMatchedStaffPool timesheetStaffPool <> timesheetStaffPool
     forM_ (zip [0 ..] (take scenario.pendingTimesheets (drop scenario.approvedTimesheets (cycle pendingStaffPool)))) \(index, staff) -> do
         let globalIndex = scenario.approvedTimesheets + index
         let shiftStartTime = TimeOfDay (9 + (index `mod` 3)) 0 0
@@ -818,6 +923,10 @@ seedTimesheets fixtureWeekStart venue admin scenario floorShift kitchenShift sta
                         breakEndTime
                     . set #shiftTypeId (unpackId (get #id floorShift))
         pure ()
+  where
+    staffCanProduceTimesheets staff =
+        staffAssignmentAllowsTimesheets
+            (StaffPayAssignment staff.payAssignmentMode staff.defaultAwardLevelId staff.importedXeroPayItemId)
 
 data SeededXeroTimesheetCase = SeededXeroTimesheetCase
     { caseFirstName :: !Text

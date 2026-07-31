@@ -72,6 +72,16 @@ usable after `make db`. Venue business authority still comes from
 - Pay/config reproducibility is moving to append-only relational version ids;
   see `docs/workstreams/pay-config-versioning.md`.
 
+## Development Fixtures
+
+- `Application.Support.DevFixtures` keeps linked generated users backed by active
+  venue memberships.
+- The realistic dev roster must retain all 12 supported staff/shift pay-mode
+  pairings (`award_rate`, `xero_rate`, `roster_only` × `staff_default`,
+  `award_rate`, `xero_rate`, `roster_only`) on actual slots. Trials remain
+  roster-only, and one unassigned linked profile remains `legacy_unresolved` for
+  remediation testing.
+
 ## Helper Ownership
 
 - Generic controller helper notes: `Application/Helper/Controller/AGENTS.md`.
