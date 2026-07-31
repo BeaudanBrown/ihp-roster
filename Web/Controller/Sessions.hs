@@ -184,7 +184,7 @@ defaultLoginRedirectPath :: (?modelContext :: ModelContext) => User -> IO Text
 defaultLoginRedirectPath user = do
     maybeVenueContext <- resolveVenueContextForUser Nothing user
     pure
-        if user.platformRole == Just (platformRoleToEnum SuperAdminRole) && isNothing maybeVenueContext
+        if user.platformRole == Just (SuperAdmin) && isNothing maybeVenueContext
             then pathTo SupportAction
             else Sessions.afterLoginRedirectPath @User
 

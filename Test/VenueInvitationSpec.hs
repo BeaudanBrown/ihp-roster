@@ -1,7 +1,6 @@
 module Test.VenueInvitationSpec where
 
 import Application.Async.Queue (EnqueueAppJobResult (..))
-import Application.Helper.Controller (unsafeEnumFromText)
 import qualified Application.Helper.FrontendContract.Surface.Admin.Live as AdminLive
 import Application.Helper.LiveUpdate
 import Application.Helper.VenueInvitation (venueInvitationUrl)
@@ -24,7 +23,7 @@ tests = aroundAll withDatabaseTestContext do
         it "builds the signup URL from the invitation id" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Invite URL Venue"
-                invitation <- createVenueInvitationRecord venue Nothing "invite-url@example.com" "manager"
+                invitation <- createVenueInvitationRecord venue Nothing "invite-url@example.com" Manager
                 let invitationId = get #id invitation :: Id VenueInvitation
 
                 venueInvitationUrl "http://localhost:8000" invitation
@@ -34,7 +33,7 @@ tests = aroundAll withDatabaseTestContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Invite Job Venue"
                 actor <- createUserRecord "invite-job-actor@example.com" "staff" True
-                invitation <- createVenueInvitationRecord venue (Just actor) "invite-job@example.com" "manager"
+                invitation <- createVenueInvitationRecord venue (Just actor) "invite-job@example.com" Manager
 
                 enqueueResult <- enqueueVenueInvitationDeliveryJob (Just actor.id) invitation
 
@@ -51,7 +50,7 @@ tests = aroundAll withDatabaseTestContext do
         it "delivers pending venue invitations from the app job and broadcasts invite resync" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Invite Delivery Venue"
-                invitation <- createVenueInvitationRecord venue Nothing "deliver-invite@example.com" "manager"
+                invitation <- createVenueInvitationRecord venue Nothing "deliver-invite@example.com" Manager
                 EnqueuedAppJob appJob <- enqueueVenueInvitationDeliveryJob Nothing invitation
                 versionBefore <- currentLiveUpdateVersion (AdminLive.adminInvitesLiveScope (unpackId venue.id))
 
@@ -72,7 +71,7 @@ tests = aroundAll withDatabaseTestContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Invite Legacy Expiry Venue"
                 now <- getCurrentTime
-                invitation <- createVenueInvitationRecord venue Nothing "legacy-expired-invite@example.com" "worker"
+                invitation <- createVenueInvitationRecord venue Nothing "legacy-expired-invite@example.com" Worker
                     >>= updateRecord
                         . set #createdAt (addUTCTime (negate (15 * 24 * 60 * 60)) now)
                         . set #expiresAt Nothing
@@ -89,10 +88,10 @@ tests = aroundAll withDatabaseTestContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Invite Stale Delivery Venue"
                 now <- getCurrentTime
-                expired <- createVenueInvitationRecord venue Nothing "expired-queued-invite@example.com" "worker"
+                expired <- createVenueInvitationRecord venue Nothing "expired-queued-invite@example.com" Worker
                     >>= updateRecord . set #expiresAt (Just (addUTCTime (-60) now))
-                revoked <- createVenueInvitationRecord venue Nothing "revoked-queued-invite@example.com" "worker"
-                    >>= updateRecord . set #status (unsafeEnumFromText @InvitationStatusEnum "revoked")
+                revoked <- createVenueInvitationRecord venue Nothing "revoked-queued-invite@example.com" Worker
+                    >>= updateRecord . set #status (Revoked)
                 EnqueuedAppJob expiredJob <- enqueueVenueInvitationDeliveryJob Nothing expired
                 EnqueuedAppJob revokedJob <- enqueueVenueInvitationDeliveryJob Nothing revoked
 
@@ -111,11 +110,11 @@ tests = aroundAll withDatabaseTestContext do
         it "does not resend accepted venue invitations when a delivery job is retried" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Invite Accepted Venue"
-                invitation <- createVenueInvitationRecord venue Nothing "accepted-invite@example.com" "manager"
+                invitation <- createVenueInvitationRecord venue Nothing "accepted-invite@example.com" Manager
                 now <- getCurrentTime
                 acceptedInvitation <-
                     invitation
-                        |> set #status (unsafeEnumFromText @InvitationStatusEnum "accepted")
+                        |> set #status (Accepted)
                         |> set #acceptedAt (Just now)
                         |> updateRecord
                 EnqueuedAppJob appJob <- enqueueVenueInvitationDeliveryJob Nothing acceptedInvitation

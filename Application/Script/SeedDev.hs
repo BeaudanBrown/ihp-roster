@@ -7,7 +7,6 @@ import Application.Fixture.Reset (resetDatabase)
 import Application.Fixture.Seed.Calendar (currentWeekOffsetForDay,
                                           weekStartForOffset)
 import Application.Fixture.Seed.Scenario
-import Application.Helper.Controller (unsafeEnumFromText)
 import Application.Helper.ShiftTypeColours (blankShiftTypeColourKey)
 import Application.Helper.TimesheetPayLedger (backfillApprovedTimesheetPayCalculations)
 import Application.Script.Prelude
@@ -74,7 +73,7 @@ runWithResetMode resetMode = do
     actualManagerCount <-
         query @VenueMembership
             |> filterWhere (#venueId, unpackId (get #id sandboxVenue))
-            |> filterWhere (#venueRole, unsafeEnumFromText @VenueRoleEnum "manager")
+            |> filterWhere (#venueRole, Manager)
             |> fetchCount
     leaveRequests <-
         query @LeaveRequest
@@ -105,9 +104,9 @@ runWithResetMode resetMode = do
             |> fetch
     let filledRosterSlotCount = length (filter (isJust . (.staffId)) rosterSlots)
     let totalRosterSlotCount = length rosterSlots
-    let approvedLeaveCount = length (filter (\leaveRequest -> get #status leaveRequest == unsafeEnumFromText @LeaveRequestStatusEnum "approved") leaveRequests)
-    let pendingLeaveCount = length (filter (\leaveRequest -> get #status leaveRequest == unsafeEnumFromText @LeaveRequestStatusEnum "pending") leaveRequests)
-    let deniedLeaveCount = length (filter (\leaveRequest -> get #status leaveRequest == unsafeEnumFromText @LeaveRequestStatusEnum "denied") leaveRequests)
+    let approvedLeaveCount = length (filter (\leaveRequest -> get #status leaveRequest == LeaveRequestStatusEnumApproved) leaveRequests)
+    let pendingLeaveCount = length (filter (\leaveRequest -> get #status leaveRequest == LeaveRequestStatusEnumPending) leaveRequests)
+    let deniedLeaveCount = length (filter (\leaveRequest -> get #status leaveRequest == LeaveRequestStatusEnumDenied) leaveRequests)
     let approvedTimesheetCount = length (filter (.isApproved) timesheetEntries)
     let pendingTimesheetCount = length timesheetEntries - approvedTimesheetCount
 

@@ -6,8 +6,6 @@ module Web.LeaveRequests.AvailabilityWarnings
     , buildAvailabilityWarningPeriods
     ) where
 
-import Application.Helper.Controller (LeaveRequestStatus (..),
-                                      parseLeaveRequestStatus)
 import qualified Data.Map.Strict as Map
 import Data.Time.Calendar (addDays)
 import Web.Controller.Prelude
@@ -15,7 +13,7 @@ import Web.Controller.Prelude
 data AvailabilityWarningStaff = AvailabilityWarningStaff
     { availabilityWarningStaffId       :: !UUID
     , availabilityWarningStaffName     :: !Text
-    , availabilityWarningStaffStatuses :: ![LeaveRequestStatus]
+    , availabilityWarningStaffStatuses :: ![LeaveRequestStatusEnum]
     }
     deriving (Eq, Show)
 
@@ -50,12 +48,12 @@ buildAvailabilityWarningPeriods threshold staffMembers leaveRequests =
         , Map.size staffById >= threshold
         ]
     addRequestDays eligible byDay leaveRequest =
-        case (Map.lookup leaveRequest.staffId eligible, parseLeaveRequestStatus leaveRequest.status) of
-            (Just staff, Just status)
-                | status `elem` [LeavePending, LeaveApproved]
+        case Map.lookup leaveRequest.staffId eligible of
+            Just staff
+                | leaveRequest.status `elem` [LeaveRequestStatusEnumPending, LeaveRequestStatusEnumApproved]
                 , isNothing leaveRequest.deletedAt ->
                     foldl'
-                        (\days day -> Map.insertWith (Map.unionWith mergeWarningStaff) day (Map.singleton leaveRequest.staffId (warningStaff staff status)) days)
+                        (\days day -> Map.insertWith (Map.unionWith mergeWarningStaff) day (Map.singleton leaveRequest.staffId (warningStaff staff leaveRequest.status)) days)
                         byDay
                         [leaveRequest.startDate .. addDays (-1) leaveRequest.endDate]
             _ -> byDay

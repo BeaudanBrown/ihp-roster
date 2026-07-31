@@ -1,7 +1,6 @@
 module Test.Controller.TimesheetsSpec where
 
-import Application.Helper.Controller (PlatformRole (SuperAdminRole),
-                                      parseTimeParam, unsafeEnumFromText)
+import Application.Helper.Controller (parseTimeParam)
 import Application.Helper.FrontendContract.Surface.Runtime (FrontendSurfaceMountConfig (..),
                                                             FrontendSurfaceMountedFragment (..),
                                                             SurfaceImpl (..))
@@ -73,7 +72,7 @@ tests = aroundAll withDatabaseTestContext do
 
         it "redirects venue-less super-admins from timesheets to support" $ withContext do
             withCleanDb do
-                user <- createUserRecordWithPlatformRole "timesheets-bootstrap-super-admin@example.com" "staff" (Just SuperAdminRole) True
+                user <- createUserRecordWithPlatformRole "timesheets-bootstrap-super-admin@example.com" "staff" (Just SuperAdmin) True
 
                 response <- withUser user do
                     callAction TimesheetsAction
@@ -85,7 +84,7 @@ tests = aroundAll withDatabaseTestContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Timesheet Venue"
                 user <- createUserRecord "timesheet-shell@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue user "worker"
+                _ <- createVenueMembershipRecord venue user Worker
                 _ <- createStaffRecord venue (Just user) "Tess" "Viewer"
 
                 (response, mountConfig, expectedRefs) <- withUserAndCurrentVenue user venue.id do
@@ -117,7 +116,7 @@ tests = aroundAll withDatabaseTestContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Timesheet Partial Route Venue"
                 user <- createUserRecord "timesheet-partial-route@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue user "worker"
+                _ <- createVenueMembershipRecord venue user Worker
                 _ <- createStaffRecord venue (Just user) "Partial" "Route"
 
                 response <- withUserAndCurrentVenue user venue.id do
@@ -182,7 +181,7 @@ tests = aroundAll withDatabaseTestContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Timesheet Fragment Contract Venue"
                 user <- createUserRecord "timesheet-fragment-contract@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue user "worker"
+                _ <- createVenueMembershipRecord venue user Worker
                 _ <- createStaffRecord venue (Just user) "Tara" "Target"
 
                 (response, fragmentRef) <- withUserAndCurrentVenue user venue.id do
@@ -203,7 +202,7 @@ tests = aroundAll withDatabaseTestContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Timesheet HTMX Fragment Venue"
                 manager <- createUserRecord "timesheet-htmx-fragment-manager@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue manager "manager"
+                _ <- createVenueMembershipRecord venue manager Manager
                 _ <- createStaffRecord venue (Just manager) "Mia" "Manager"
 
                 response <- withUserAndCurrentVenue manager venue.id do
@@ -226,7 +225,7 @@ tests = aroundAll withDatabaseTestContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Timesheet Layout Fragment Venue"
                 manager <- createUserRecord "timesheet-layout-fragment-manager@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue manager "manager"
+                _ <- createVenueMembershipRecord venue manager Manager
                 _ <- createStaffRecord venue (Just manager) "Mia" "Manager"
 
                 toolbarResponse <- withUserAndCurrentVenue manager venue.id do
@@ -245,9 +244,9 @@ tests = aroundAll withDatabaseTestContext do
         it "lets super-admin create timesheet entries for venue staff without a staff identity" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Support Timesheet Venue"
-                superAdmin <- createUserRecordWithPlatformRole "timesheet-super-admin@example.com" "staff" (Just SuperAdminRole) True
+                superAdmin <- createUserRecordWithPlatformRole "timesheet-super-admin@example.com" "staff" (Just SuperAdmin) True
                 worker <- createUserRecord "timesheet-super-admin-worker@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue worker "worker"
+                _ <- createVenueMembershipRecord venue worker Worker
                 staff <- createStaffRecord venue (Just worker) "Tess" "Worker"
                 payLevel <- createPayLevelRecord venue "Level 1"
                 _ <- makeStaffTimesheetProducing payLevel staff
@@ -275,7 +274,7 @@ tests = aroundAll withDatabaseTestContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Timesheet Explicit No Break Venue"
                 workerUser <- createUserRecord "timesheet-explicit-no-break@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue workerUser "worker"
+                _ <- createVenueMembershipRecord venue workerUser Worker
                 worker <- createStaffRecord venue (Just workerUser) "Nora" "NoBreak"
                 payLevel <- createPayLevelRecord venue "Level 1"
                 _ <- makeStaffTimesheetProducing payLevel worker
@@ -303,7 +302,7 @@ tests = aroundAll withDatabaseTestContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Timesheet Explicit Break Venue"
                 workerUser <- createUserRecord "timesheet-explicit-break@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue workerUser "worker"
+                _ <- createVenueMembershipRecord venue workerUser Worker
                 worker <- createStaffRecord venue (Just workerUser) "Tara" "TakesBreak"
                 payLevel <- createPayLevelRecord venue "Level 1"
                 _ <- makeStaffTimesheetProducing payLevel worker
@@ -333,7 +332,7 @@ tests = aroundAll withDatabaseTestContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Timesheet Autumn Boundary Venue"
                 manager <- createUserRecord "timesheet-autumn-manager@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue manager "manager"
+                _ <- createVenueMembershipRecord venue manager Manager
                 staff <- createStaffRecord venue (Just manager) "Autumn" "Manager"
                 payLevel <- createPayLevelRecord venue "Level 1"
                 _ <- makeStaffTimesheetProducing payLevel staff
@@ -370,7 +369,7 @@ tests = aroundAll withDatabaseTestContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Timesheet Equal Autumn Boundary Venue"
                 manager <- createUserRecord "timesheet-equal-autumn-manager@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue manager "manager"
+                _ <- createVenueMembershipRecord venue manager Manager
                 staff <- createStaffRecord venue (Just manager) "Equal Autumn" "Manager"
                 payLevel <- createPayLevelRecord venue "Level 1"
                 _ <- makeStaffTimesheetProducing payLevel staff
@@ -408,7 +407,7 @@ tests = aroundAll withDatabaseTestContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Timesheet Equal Autumn Break Venue"
                 manager <- createUserRecord "timesheet-equal-autumn-break-manager@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue manager "manager"
+                _ <- createVenueMembershipRecord venue manager Manager
                 staff <- createStaffRecord venue (Just manager) "Equal Autumn Break" "Manager"
                 payLevel <- createPayLevelRecord venue "Level 1"
                 _ <- makeStaffTimesheetProducing payLevel staff
@@ -450,7 +449,7 @@ tests = aroundAll withDatabaseTestContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Timesheet Spring Boundary Venue"
                 manager <- createUserRecord "timesheet-spring-manager@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue manager "manager"
+                _ <- createVenueMembershipRecord venue manager Manager
                 staff <- createStaffRecord venue (Just manager) "Spring" "Manager"
                 payLevel <- createPayLevelRecord venue "Level 1"
                 shiftType <- createShiftTypeRecord venue payLevel "Ordinary"
@@ -476,7 +475,7 @@ tests = aroundAll withDatabaseTestContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Timesheet Invalid Break Transport Venue"
                 workerUser <- createUserRecord "timesheet-invalid-break-transport@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue workerUser "worker"
+                _ <- createVenueMembershipRecord venue workerUser Worker
                 worker <- createStaffRecord venue (Just workerUser) "Ivy" "InvalidBreak"
                 payLevel <- createPayLevelRecord venue "Level 1"
                 shiftType <- createShiftTypeRecord venue payLevel "Ordinary"
@@ -501,7 +500,7 @@ tests = aroundAll withDatabaseTestContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Timesheet Invalid Break Edit Venue"
                 manager <- createUserRecord "timesheet-invalid-break-edit@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue manager "manager"
+                _ <- createVenueMembershipRecord venue manager Manager
                 staff <- createStaffRecord venue (Just manager) "Mara" "Manager"
                 entry <- createTimesheetEntryRecord venue staff (fromGregorian 2025 1 7)
                 entry <-
@@ -537,7 +536,7 @@ tests = aroundAll withDatabaseTestContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Timesheet Venue"
                 user <- createUserRecord "timesheet-form@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue user "worker"
+                _ <- createVenueMembershipRecord venue user Worker
                 staff <- createStaffRecord venue (Just user) "Tess" "Form"
                 payLevel <- createPayLevelRecord venue "Level 1"
                 _ <- makeStaffTimesheetProducing payLevel staff
@@ -565,7 +564,7 @@ tests = aroundAll withDatabaseTestContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Timesheet Picker Venue"
                 user <- createUserRecord "timesheet-picker@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue user "worker"
+                _ <- createVenueMembershipRecord venue user Worker
                 staff <- createStaffRecord venue (Just user) "Tess" "Picker"
                 payLevel <- createPayLevelRecord venue "Level 1"
                 _ <- makeStaffTimesheetProducing payLevel staff
@@ -592,8 +591,8 @@ tests = aroundAll withDatabaseTestContext do
                 venue <- createVenueWithConfig "Timesheet Trial Exclusion Venue"
                 manager <- createUserRecord "timesheet-trial-manager@example.com" "staff" True
                 linkedUser <- createUserRecord "timesheet-linked-worker@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue manager "manager"
-                _ <- createVenueMembershipRecord venue linkedUser "worker"
+                _ <- createVenueMembershipRecord venue manager Manager
+                _ <- createVenueMembershipRecord venue linkedUser Worker
                 linkedStaff <- createStaffRecord venue (Just linkedUser) "Linked" "Worker"
                 trialStaff <- createStaffRecord venue Nothing "Trial" "Worker"
                 payLevel <- createPayLevelRecord venue "Level 1"
@@ -624,8 +623,8 @@ tests = aroundAll withDatabaseTestContext do
                 venue <- createVenueWithConfig "Timesheet Roster-only Selector Venue"
                 manager <- createUserRecord "timesheet-roster-only-manager@example.com" "staff" True
                 workerUser <- createUserRecord "timesheet-roster-only-worker@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue manager "manager"
-                _ <- createVenueMembershipRecord venue workerUser "worker"
+                _ <- createVenueMembershipRecord venue manager Manager
+                _ <- createVenueMembershipRecord venue workerUser Worker
                 managerStaff <- createStaffRecord venue (Just manager) "Mia" "Manager"
                 worker <- createStaffRecord venue (Just workerUser) "Rory" "RosterOnly"
                 payLevel <- createPayLevelRecord venue "Level 1"
@@ -669,9 +668,9 @@ tests = aroundAll withDatabaseTestContext do
                 manager <- createUserRecord "timesheet-roster-only-suggestion-manager@example.com" "staff" True
                 payableUser <- createUserRecord "timesheet-payable-suggestion@example.com" "staff" True
                 rosterOnlyUser <- createUserRecord "timesheet-roster-only-suggestion@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue manager "manager"
-                _ <- createVenueMembershipRecord venue payableUser "worker"
-                _ <- createVenueMembershipRecord venue rosterOnlyUser "worker"
+                _ <- createVenueMembershipRecord venue manager Manager
+                _ <- createVenueMembershipRecord venue payableUser Worker
+                _ <- createVenueMembershipRecord venue rosterOnlyUser Worker
                 payableStaff <- createStaffRecord venue (Just payableUser) "Payable" "Worker"
                 rosterOnlyStaff <- createStaffRecord venue (Just rosterOnlyUser) "Roster" "Only"
                 payLevel <- createPayLevelRecord venue "Level 1"
@@ -742,7 +741,7 @@ tests = aroundAll withDatabaseTestContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Timesheet Trial Tamper Venue"
                 manager <- createUserRecord "timesheet-trial-tamper-manager@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue manager "manager"
+                _ <- createVenueMembershipRecord venue manager Manager
                 trialStaff <- createStaffRecord venue Nothing "Trial" "Tamper"
                 payLevel <- createPayLevelRecord venue "Level 1"
                 shiftType <- createShiftTypeRecord venue payLevel "Ordinary"
@@ -765,7 +764,7 @@ tests = aroundAll withDatabaseTestContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Timesheet Required Venue"
                 user <- createUserRecord "timesheet-required@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue user "manager"
+                _ <- createVenueMembershipRecord venue user Manager
                 payLevel <- createPayLevelRecord venue "Level 1"
                 shiftType <- createShiftTypeRecord venue payLevel "Ordinary"
 
@@ -788,7 +787,7 @@ tests = aroundAll withDatabaseTestContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Timesheet Venue"
                 user <- createUserRecord "timesheet-delete-form@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue user "manager"
+                _ <- createVenueMembershipRecord venue user Manager
                 staff <- createStaffRecord venue Nothing "Tess" "Delete"
                 entry <- createTimesheetEntryRecord venue staff (fromGregorian 2025 1 7)
 
@@ -813,7 +812,7 @@ tests = aroundAll withDatabaseTestContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Timesheet Venue"
                 user <- createUserRecord "timesheet-page-delete-form@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue user "manager"
+                _ <- createVenueMembershipRecord venue user Manager
                 staff <- createStaffRecord venue Nothing "Tess" "Delete"
                 entry <- createTimesheetEntryRecord venue staff (fromGregorian 2025 1 7)
 
@@ -838,9 +837,9 @@ tests = aroundAll withDatabaseTestContext do
                 manager <- createUserRecord "timesheet-fragment-manager@example.com" "staff" True
                 workerAUser <- createUserRecord "timesheet-fragment-worker-a@example.com" "staff" True
                 workerBUser <- createUserRecord "timesheet-fragment-worker-b@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue manager "manager"
-                _ <- createVenueMembershipRecord venue workerAUser "worker"
-                _ <- createVenueMembershipRecord venue workerBUser "worker"
+                _ <- createVenueMembershipRecord venue manager Manager
+                _ <- createVenueMembershipRecord venue workerAUser Worker
+                _ <- createVenueMembershipRecord venue workerBUser Worker
                 workerA <- createStaffRecord venue (Just workerAUser) "Ava" "Hours"
                 workerB <- createStaffRecord venue (Just workerBUser) "Bea" "Hours"
                 _ <- createTimesheetEntryRecord venue workerA (fromGregorian 2025 1 7)
@@ -863,8 +862,8 @@ tests = aroundAll withDatabaseTestContext do
                 venue <- createVenueWithConfig "Timesheet Suggestion Venue"
                 manager <- createUserRecord "timesheet-suggestion-manager@example.com" "staff" True
                 workerUser <- createUserRecord "timesheet-suggestion-worker@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue manager "manager"
-                _ <- createVenueMembershipRecord venue workerUser "worker"
+                _ <- createVenueMembershipRecord venue manager Manager
+                _ <- createVenueMembershipRecord venue workerUser Worker
                 worker <- createStaffRecord venue (Just workerUser) "Rita" "Rostered"
                 payLevel <- createPayLevelRecord venue "Level 1"
                 _ <- makeStaffTimesheetProducing payLevel worker
@@ -903,7 +902,7 @@ tests = aroundAll withDatabaseTestContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Timesheet Future Suggestion Venue"
                 workerUser <- createUserRecord "timesheet-future-suggestion-worker@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue workerUser "worker"
+                _ <- createVenueMembershipRecord venue workerUser Worker
                 worker <- createStaffRecord venue (Just workerUser) "Faye" "Future"
                 payLevel <- createPayLevelRecord venue "Level 1"
                 _ <- makeStaffTimesheetProducing payLevel worker
@@ -932,8 +931,8 @@ tests = aroundAll withDatabaseTestContext do
                 venue <- createVenueWithConfig "Timesheet Suggestion Filter Venue"
                 manager <- createUserRecord "timesheet-suggestion-filter-manager@example.com" "staff" True
                 workerUser <- createUserRecord "timesheet-suggestion-filter-worker@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue manager "manager"
-                _ <- createVenueMembershipRecord venue workerUser "worker"
+                _ <- createVenueMembershipRecord venue manager Manager
+                _ <- createVenueMembershipRecord venue workerUser Worker
                 worker <- createStaffRecord venue (Just workerUser) "Fiona" "Filtered"
                 payLevel <- createPayLevelRecord venue "Level 1"
                 shiftType <- createShiftTypeRecord venue payLevel "Lunch"
@@ -962,7 +961,7 @@ tests = aroundAll withDatabaseTestContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Timesheet Suggestion Create Venue"
                 workerUser <- createUserRecord "timesheet-suggestion-create-worker@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue workerUser "worker"
+                _ <- createVenueMembershipRecord venue workerUser Worker
                 worker <- createStaffRecord venue (Just workerUser) "Quinn" "QuickCreate"
                 payLevel <- createPayLevelRecord venue "Level 1"
                 _ <- makeStaffTimesheetProducing payLevel worker
@@ -1024,7 +1023,7 @@ tests = aroundAll withDatabaseTestContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Timesheet DST Suggestion Venue"
                 workerUser <- createUserRecord "timesheet-dst-suggestion-worker@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue workerUser "worker"
+                _ <- createVenueMembershipRecord venue workerUser Worker
                 worker <- createStaffRecord venue (Just workerUser) "Autumn" "Suggestion"
                 payLevel <- createPayLevelRecord venue "Level 1"
                 _ <- makeStaffTimesheetProducing payLevel worker
@@ -1076,7 +1075,7 @@ tests = aroundAll withDatabaseTestContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Timesheet Equal DST Suggestion Venue"
                 workerUser <- createUserRecord "timesheet-equal-dst-suggestion-worker@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue workerUser "worker"
+                _ <- createVenueMembershipRecord venue workerUser Worker
                 worker <- createStaffRecord venue (Just workerUser) "Equal" "Suggestion"
                 payLevel <- createPayLevelRecord venue "Level 1"
                 _ <- makeStaffTimesheetProducing payLevel worker
@@ -1130,7 +1129,7 @@ tests = aroundAll withDatabaseTestContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Timesheet DST Break Suggestion Venue"
                 workerUser <- createUserRecord "timesheet-dst-break-suggestion-worker@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue workerUser "worker"
+                _ <- createVenueMembershipRecord venue workerUser Worker
                 worker <- createStaffRecord venue (Just workerUser) "DST" "Break"
                 payLevel <- createPayLevelRecord venue "Level 1"
                 _ <- makeStaffTimesheetProducing payLevel worker
@@ -1171,7 +1170,7 @@ tests = aroundAll withDatabaseTestContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Timesheet Operational Week Venue"
                 workerUser <- createUserRecord "timesheet-operational-week-worker@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue workerUser "worker"
+                _ <- createVenueMembershipRecord venue workerUser Worker
                 worker <- createStaffRecord venue (Just workerUser) "Monday" "Suggestion"
                 payLevel <- createPayLevelRecord venue "Level 1"
                 _ <- makeStaffTimesheetProducing payLevel worker
@@ -1213,9 +1212,9 @@ tests = aroundAll withDatabaseTestContext do
                 manager <- createUserRecord "timesheet-suggestion-authority-manager@example.com" "staff" True
                 workerAUser <- createUserRecord "timesheet-suggestion-authority-a@example.com" "staff" True
                 workerBUser <- createUserRecord "timesheet-suggestion-authority-b@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue manager "manager"
-                _ <- createVenueMembershipRecord venue workerAUser "worker"
-                _ <- createVenueMembershipRecord venue workerBUser "worker"
+                _ <- createVenueMembershipRecord venue manager Manager
+                _ <- createVenueMembershipRecord venue workerAUser Worker
+                _ <- createVenueMembershipRecord venue workerBUser Worker
                 workerA <- createStaffRecord venue (Just workerAUser) "Alice" "Authority"
                 workerB <- createStaffRecord venue (Just workerBUser) "Bob" "Boundary"
                 payLevel <- createPayLevelRecord venue "Level 1"
@@ -1271,7 +1270,7 @@ tests = aroundAll withDatabaseTestContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Timesheet Suggestion Stale Venue"
                 workerUser <- createUserRecord "timesheet-suggestion-stale-worker@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue workerUser "worker"
+                _ <- createVenueMembershipRecord venue workerUser Worker
                 worker <- createStaffRecord venue (Just workerUser) "Stella" "Stale"
                 payLevel <- createPayLevelRecord venue "Level 1"
                 _ <- makeStaffTimesheetProducing payLevel worker
@@ -1301,7 +1300,7 @@ tests = aroundAll withDatabaseTestContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Timesheet Suggestion Concurrent Venue"
                 workerUser <- createUserRecord "timesheet-suggestion-concurrent-worker@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue workerUser "worker"
+                _ <- createVenueMembershipRecord venue workerUser Worker
                 worker <- createStaffRecord venue (Just workerUser) "Connie" "Concurrent"
                 payLevel <- createPayLevelRecord venue "Level 1"
                 _ <- makeStaffTimesheetProducing payLevel worker
@@ -1335,7 +1334,7 @@ tests = aroundAll withDatabaseTestContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Timesheet Suggestion Edit Venue"
                 workerUser <- createUserRecord "timesheet-suggestion-edit-worker@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue workerUser "worker"
+                _ <- createVenueMembershipRecord venue workerUser Worker
                 worker <- createStaffRecord venue (Just workerUser) "Edie" "Editor"
                 payLevel <- createPayLevelRecord venue "Level 1"
                 _ <- makeStaffTimesheetProducing payLevel worker
@@ -1389,7 +1388,7 @@ tests = aroundAll withDatabaseTestContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Timesheet Ad Hoc Warning Venue"
                 workerUser <- createUserRecord "timesheet-ad-hoc-warning-worker@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue workerUser "worker"
+                _ <- createVenueMembershipRecord venue workerUser Worker
                 worker <- createStaffRecord venue (Just workerUser) "Ada" "AdHoc"
                 payLevel <- createPayLevelRecord venue "Level 1"
                 _ <- makeStaffTimesheetProducing payLevel worker
@@ -1442,7 +1441,7 @@ tests = aroundAll withDatabaseTestContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Timesheet Suggestion Restore Venue"
                 workerUser <- createUserRecord "timesheet-suggestion-restore-worker@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue workerUser "worker"
+                _ <- createVenueMembershipRecord venue workerUser Worker
                 worker <- createStaffRecord venue (Just workerUser) "Rory" "Restore"
                 payLevel <- createPayLevelRecord venue "Level 1"
                 _ <- makeStaffTimesheetProducing payLevel worker
@@ -1499,11 +1498,11 @@ tests = aroundAll withDatabaseTestContext do
                 venueConfig <- query @VenueConfig |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
                 _ <- updateRecord (venueConfig |> set #staffTimesheetEditWindowDays 10000)
                 manager <- createUserRecord "timesheet-suggestion-immutable-manager@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue manager "manager"
+                _ <- createVenueMembershipRecord venue manager Manager
                 rosteredUser <- createUserRecord "timesheet-suggestion-immutable-rostered@example.com" "staff" True
                 otherUser <- createUserRecord "timesheet-suggestion-immutable-other@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue rosteredUser "worker"
-                _ <- createVenueMembershipRecord venue otherUser "worker"
+                _ <- createVenueMembershipRecord venue rosteredUser Worker
+                _ <- createVenueMembershipRecord venue otherUser Worker
                 rosteredStaff <- createStaffRecord venue (Just rosteredUser) "Robin" "Rostered"
                 otherStaff <- createStaffRecord venue (Just otherUser) "Sam" "Separate"
                 payLevel <- createPayLevelRecord venue "Level 1"
@@ -1601,8 +1600,8 @@ tests = aroundAll withDatabaseTestContext do
                 venue <- createVenueWithConfig "Timesheet Approved Staff Venue"
                 manager <- createUserRecord "timesheet-approved-marker-manager@example.com" "staff" True
                 workerUser <- createUserRecord "timesheet-approved-marker-worker@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue manager "manager"
-                _ <- createVenueMembershipRecord venue workerUser "worker"
+                _ <- createVenueMembershipRecord venue manager Manager
+                _ <- createVenueMembershipRecord venue workerUser Worker
                 worker <- createStaffRecord venue (Just workerUser) "Ava" "Approved"
                 _ <- createApprovedTimesheetEntryRecord venue worker manager (fromGregorian 2025 1 7)
 
@@ -1621,7 +1620,7 @@ tests = aroundAll withDatabaseTestContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Timesheet Worker Filter Venue"
                 workerUser <- createUserRecord "timesheet-filter-worker@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue workerUser "worker"
+                _ <- createVenueMembershipRecord venue workerUser Worker
                 _ <- createStaffRecord venue (Just workerUser) "Willa" "Worker"
 
                 response <- withUserAndCurrentVenue workerUser venue.id do
@@ -1643,8 +1642,8 @@ tests = aroundAll withDatabaseTestContext do
                 venue <- createVenueWithConfig "Timesheet Filter Venue"
                 manager <- createUserRecord "timesheet-filter-manager@example.com" "staff" True
                 workerAUser <- createUserRecord "timesheet-filter-worker-a@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue manager "manager"
-                _ <- createVenueMembershipRecord venue workerAUser "worker"
+                _ <- createVenueMembershipRecord venue manager Manager
+                _ <- createVenueMembershipRecord venue workerAUser Worker
                 managerStaff <- createStaffRecord venue (Just manager) "Mia" "Manager"
                 workerA <- createStaffRecord venue (Just workerAUser) "Ava" "Hours"
                 _ <- createApprovedTimesheetEntryRecord venue managerStaff manager (fromGregorian 2025 1 7)
@@ -1674,7 +1673,7 @@ tests = aroundAll withDatabaseTestContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Timesheet Live Filter Url Venue"
                 manager <- createUserRecord "timesheet-live-filter-url-manager@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue manager "manager"
+                _ <- createVenueMembershipRecord venue manager Manager
                 staff <- createStaffRecord venue (Just manager) "Lina" "Filtered"
                 payLevel <- createPayLevelRecord venue "Level 1"
                 _ <- updateRecord (staff |> set #payAssignmentMode AwardRate |> set #defaultAwardLevelId (Just payLevel.id))
@@ -1700,11 +1699,11 @@ tests = aroundAll withDatabaseTestContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Timesheet Staff Filter Venue"
                 manager <- createUserRecord "timesheet-staff-filter-manager@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue manager "manager"
+                _ <- createVenueMembershipRecord venue manager Manager
                 workerAUser <- createUserRecord "timesheet-staff-filter-a@example.com" "staff" True
                 workerBUser <- createUserRecord "timesheet-staff-filter-b@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue workerAUser "worker"
-                _ <- createVenueMembershipRecord venue workerBUser "worker"
+                _ <- createVenueMembershipRecord venue workerAUser Worker
+                _ <- createVenueMembershipRecord venue workerBUser Worker
                 workerA <- createStaffRecord venue (Just workerAUser) "Ava" "Filter"
                 workerB <- createStaffRecord venue (Just workerBUser) "Bea" "Filter"
                 payLevel <- createPayLevelRecord venue "Level 1"
@@ -1736,7 +1735,7 @@ tests = aroundAll withDatabaseTestContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Timesheet After Midnight Venue"
                 manager <- createUserRecord "timesheet-after-midnight-manager@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue manager "manager"
+                _ <- createVenueMembershipRecord venue manager Manager
                 staff <- createStaffRecord venue (Just manager) "Mia" "Manager"
                 entry <- createTimesheetEntryRecord venue staff (fromGregorian 2025 1 20)
                 _ <-
@@ -1762,7 +1761,7 @@ tests = aroundAll withDatabaseTestContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Timesheet Menu Venue"
                 manager <- createUserRecord "timesheet-menu-manager@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue manager "manager"
+                _ <- createVenueMembershipRecord venue manager Manager
                 _ <- createStaffRecord venue (Just manager) "Mia" "Manager"
 
                 response <- withUserAndCurrentVenue manager venue.id do
@@ -1793,8 +1792,8 @@ tests = aroundAll withDatabaseTestContext do
                 venue <- createVenueWithConfig "Timesheet Comments Venue"
                 manager <- createUserRecord "timesheet-comments-manager@example.com" "staff" True
                 workerUser <- createUserRecord "timesheet-comments-worker@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue manager "manager"
-                _ <- createVenueMembershipRecord venue workerUser "worker"
+                _ <- createVenueMembershipRecord venue manager Manager
+                _ <- createVenueMembershipRecord venue workerUser Worker
                 staff <- createStaffRecord venue (Just workerUser) "Cora" "Comment"
                 today <- utctDay <$> getCurrentTime
                 entry <- createApprovedTimesheetEntryRecord venue staff manager today
@@ -1858,11 +1857,11 @@ tests = aroundAll withDatabaseTestContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Timesheet Create Hidden Approved Venue"
                 manager <- createUserRecord "timesheet-create-hide-approved-manager@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue manager "manager"
+                _ <- createVenueMembershipRecord venue manager Manager
                 approvedUser <- createUserRecord "timesheet-approved-worker@example.com" "staff" True
                 pendingUser <- createUserRecord "timesheet-pending-worker@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue approvedUser "worker"
-                _ <- createVenueMembershipRecord venue pendingUser "worker"
+                _ <- createVenueMembershipRecord venue approvedUser Worker
+                _ <- createVenueMembershipRecord venue pendingUser Worker
                 approvedStaff <- createStaffRecord venue (Just approvedUser) "Ada" "Approved"
                 pendingStaff <- createStaffRecord venue (Just pendingUser) "Pia" "Pending"
                 payLevel <- createPayLevelRecord venue "Level 1"
@@ -1895,7 +1894,7 @@ tests = aroundAll withDatabaseTestContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Timesheet Venue"
                 user <- createUserRecord "timesheet-htmx-create@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue user "worker"
+                _ <- createVenueMembershipRecord venue user Worker
                 staff <- createStaffRecord venue (Just user) "Tess" "Create"
                 payLevel <- createPayLevelRecord venue "Level 1"
                 _ <- updateRecord (staff |> set #payAssignmentMode AwardRate |> set #defaultAwardLevelId (Just payLevel.id))
@@ -1934,7 +1933,7 @@ tests = aroundAll withDatabaseTestContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Timesheet Venue"
                 manager <- createUserRecord "timesheet-date-move-manager@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue manager "manager"
+                _ <- createVenueMembershipRecord venue manager Manager
                 staff <- createStaffRecord venue (Just manager) "Tia" "Move"
                 payLevel <- createPayLevelRecord venue "Level 1"
                 shiftType <- createShiftTypeRecord venue payLevel "Ordinary"
@@ -1977,7 +1976,7 @@ tests = aroundAll withDatabaseTestContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Timesheet Venue"
                 manager <- createUserRecord "timesheet-live-manager@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue manager "manager"
+                _ <- createVenueMembershipRecord venue manager Manager
                 importedPayItem <- createImportedXeroPayItemRecord venue manager "Live approval" "live-approval" 30
                 staff <- createStaffRecord venue Nothing "Tia" "Shift"
                     >>= updateRecord . set #payAssignmentMode XeroRate . set #importedXeroPayItemId (Just importedPayItem.id)
@@ -2008,7 +2007,7 @@ tests = aroundAll withDatabaseTestContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Timesheet Venue"
                 manager <- createUserRecord "timesheet-manager@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue manager "manager"
+                _ <- createVenueMembershipRecord venue manager Manager
                 importedPayItem <- createImportedXeroPayItemRecord venue manager "Timesheet approval" "timesheet-approval" 30
                 staff <- createStaffRecord venue Nothing "Tia" "Shift"
                     >>= updateRecord . set #payAssignmentMode XeroRate . set #importedXeroPayItemId (Just importedPayItem.id)
@@ -2083,7 +2082,7 @@ tests = aroundAll withDatabaseTestContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Concurrent approval venue"
                 manager <- createUserRecord "concurrent-approval@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue manager "manager"
+                _ <- createVenueMembershipRecord venue manager Manager
                 importedPayItem <- createImportedXeroPayItemRecord venue manager "Concurrent approval" "concurrent-approval" 30
                 staff <- createStaffRecord venue Nothing "Connie" "Approval"
                     >>= updateRecord . set #payAssignmentMode XeroRate . set #importedXeroPayItemId (Just importedPayItem.id)
@@ -2105,7 +2104,7 @@ tests = aroundAll withDatabaseTestContext do
                 approvedEntry.activePayCalculationId `shouldSatisfy` isJust
                 query @TimesheetPayCalculation |> fetchCount `shouldReturn` 1
                 approvedVersions <- query @TimesheetEntryVersion
-                    |> filterWhere (#versionAction, unsafeEnumFromText @EntryVersionActionEnum "approved")
+                    |> filterWhere (#versionAction, EntryVersionActionEnumApproved)
                     |> fetchCount
                 approvedVersions `shouldBe` 1
 
@@ -2113,7 +2112,7 @@ tests = aroundAll withDatabaseTestContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Missing pay facts venue"
                 manager <- createUserRecord "missing-pay-facts@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue manager "manager"
+                _ <- createVenueMembershipRecord venue manager Manager
                 staff <- createStaffRecord venue Nothing "Missing" "Facts"
                 entry <- createTimesheetEntryRecord venue staff (fromGregorian 2025 1 7)
 
@@ -2137,7 +2136,7 @@ tests = aroundAll withDatabaseTestContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Timesheet Venue"
                 manager <- createUserRecord "timesheet-unapprove@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue manager "manager"
+                _ <- createVenueMembershipRecord venue manager Manager
                 staff <- createStaffRecord venue Nothing "Una" "Shift"
                 entry <- createApprovedTimesheetEntryRecord venue staff manager (fromGregorian 2025 1 8)
 
@@ -2168,7 +2167,7 @@ tests = aroundAll withDatabaseTestContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Timesheet Venue"
                 manager <- createUserRecord "timesheet-reset@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue manager "manager"
+                _ <- createVenueMembershipRecord venue manager Manager
                 staff <- createStaffRecord venue (Just manager) "Ria" "Shift"
                 payLevel <- createPayLevelRecord venue "Level 1"
                 shiftType <- createShiftTypeRecord venue payLevel "Ordinary"
@@ -2202,7 +2201,7 @@ tests = aroundAll withDatabaseTestContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Timesheet Venue"
                 manager <- createUserRecord "timesheet-delete@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue manager "manager"
+                _ <- createVenueMembershipRecord venue manager Manager
                 staff <- createStaffRecord venue Nothing "Del" "Shift"
                 entry <- createTimesheetEntryRecord venue staff (fromGregorian 2025 1 10)
 
@@ -2224,7 +2223,7 @@ tests = aroundAll withDatabaseTestContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Timesheet Venue"
                 manager <- createUserRecord "timesheet-protected-delete@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue manager "manager"
+                _ <- createVenueMembershipRecord venue manager Manager
                 staff <- createStaffRecord venue Nothing "Ada" "Shift"
                 entry <- createApprovedTimesheetEntryRecord venue staff manager (fromGregorian 2025 1 11)
 

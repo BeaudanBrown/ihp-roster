@@ -1,7 +1,6 @@
 module Test.Controller.UsersSpec where
 
-import Application.Helper.Controller (unsafeEnumFromText,
-                                      updateVenueMembershipRoleWithAudit,
+import Application.Helper.Controller (updateVenueMembershipRoleWithAudit,
                                       validRosterWeekStartDays)
 import Application.Helper.FrontendContract.Surface.Admin.Resource (adminInvitesResource)
 import Application.Helper.FrontendContract.Surface.Profile.Resource (staffPreferencesResource,
@@ -59,7 +58,7 @@ tests = aroundAll withDatabaseTestContext do
         it "renders the invited signup form for a valid invitation" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Invite Venue"
-                invitation <- createVenueInvitationRecord venue Nothing "invitee@example.com" "venue_admin"
+                invitation <- createVenueInvitationRecord venue Nothing "invitee@example.com" VenueAdmin
 
                 response <- callActionWithParams NewUserAction [("invitationId", idToParam invitation.id)]
 
@@ -80,7 +79,7 @@ tests = aroundAll withDatabaseTestContext do
                 venue <- createVenueWithConfig "Trial Adoption Signup Venue"
                 staff <- createStaffRecord venue Nothing "Blair" "Trial"
                     >>= updateRecord . set #preferredName (Just "Bee")
-                invitation <- createVenueInvitationRecord venue Nothing "blair-trial@example.com" "worker"
+                invitation <- createVenueInvitationRecord venue Nothing "blair-trial@example.com" Worker
                     >>= updateRecord . set #staffId (Just staff.id)
 
                 response <- callActionWithParams NewUserAction [("invitationId", idToParam invitation.id)]
@@ -99,7 +98,7 @@ tests = aroundAll withDatabaseTestContext do
                 venue <- createVenueWithConfig "Linked Adoption Signup Venue"
                 linkedUser <- createUserRecord "linked-adoption-target@example.com" "staff" True
                 staff <- createStaffRecord venue (Just linkedUser) "Linked" "Trial"
-                invitation <- createVenueInvitationRecord venue Nothing "linked-adoption@example.com" "worker"
+                invitation <- createVenueInvitationRecord venue Nothing "linked-adoption@example.com" Worker
                     >>= updateRecord . set #staffId (Just staff.id)
 
                 response <- callActionWithParams NewUserAction [("invitationId", idToParam invitation.id)]
@@ -112,7 +111,7 @@ tests = aroundAll withDatabaseTestContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Expired Invite Venue"
                 now <- getCurrentTime
-                invitation <- createVenueInvitationRecord venue Nothing "expired@example.com" "worker"
+                invitation <- createVenueInvitationRecord venue Nothing "expired@example.com" Worker
                     >>= updateRecord . set #expiresAt (Just (addUTCTime (-3600) now))
 
                 response <- callActionWithParams NewUserAction [("invitationId", idToParam invitation.id)]
@@ -125,7 +124,7 @@ tests = aroundAll withDatabaseTestContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Legacy Expired Invite Venue"
                 now <- getCurrentTime
-                invitation <- createVenueInvitationRecord venue Nothing "legacy-expired-signup@example.com" "worker"
+                invitation <- createVenueInvitationRecord venue Nothing "legacy-expired-signup@example.com" Worker
                     >>= updateRecord
                         . set #createdAt (addUTCTime (negate (15 * 24 * 60 * 60)) now)
                         . set #expiresAt Nothing
@@ -208,8 +207,8 @@ tests = aroundAll withDatabaseTestContext do
         it "does not redeem an invitation that has already been accepted" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Accepted Invite Venue"
-                invitation <- createVenueInvitationRecord venue Nothing "accepted@example.com" "manager"
-                    >>= updateRecord . set #status (unsafeEnumFromText @InvitationStatusEnum "accepted")
+                invitation <- createVenueInvitationRecord venue Nothing "accepted@example.com" Manager
+                    >>= updateRecord . set #status (Accepted)
 
                 response <- callActionWithParams CreateUserAction
                     [ ("invitationId", idToParam invitation.id)
@@ -228,8 +227,8 @@ tests = aroundAll withDatabaseTestContext do
         it "does not redeem an invitation that has been revoked" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Revoked Invite Venue"
-                invitation <- createVenueInvitationRecord venue Nothing "revoked@example.com" "worker"
-                    >>= updateRecord . set #status (unsafeEnumFromText @InvitationStatusEnum "revoked")
+                invitation <- createVenueInvitationRecord venue Nothing "revoked@example.com" Worker
+                    >>= updateRecord . set #status (Revoked)
 
                 response <- callActionWithParams CreateUserAction
                     [ ("invitationId", idToParam invitation.id)
@@ -248,7 +247,7 @@ tests = aroundAll withDatabaseTestContext do
         it "does not create or accept invited accounts until staff details are complete" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Incomplete Staff Invite Venue"
-                invitation <- createVenueInvitationRecord venue Nothing "incomplete-staff@example.com" "worker"
+                invitation <- createVenueInvitationRecord venue Nothing "incomplete-staff@example.com" Worker
 
                 response <- callActionWithParams CreateUserAction
                     [ ("invitationId", idToParam invitation.id)
@@ -267,9 +266,9 @@ tests = aroundAll withDatabaseTestContext do
         it "records touched resources for accepted venue invitations" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Invitation Touch Venue"
-                invitation <- createVenueInvitationRecord venue Nothing "touch@example.com" "manager"
+                invitation <- createVenueInvitationRecord venue Nothing "touch@example.com" Manager
                 staff <- createStaffRecord venue Nothing "Touch" "Trial"
-                adoptionInvitation <- createVenueInvitationRecord venue Nothing "touch-adoption@example.com" "worker"
+                adoptionInvitation <- createVenueInvitationRecord venue Nothing "touch-adoption@example.com" Worker
                     >>= updateRecord . set #staffId (Just staff.id)
 
                 acceptedVenueInvitationTouchedResources invitation `shouldBe` [adminInvitesResource (unpackId venue.id)]
@@ -297,7 +296,7 @@ tests = aroundAll withDatabaseTestContext do
         it "creates a verified user and venue membership from a pending invitation" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Bootstrap Venue"
-                invitation <- createVenueInvitationRecord venue Nothing "owner@example.com" "venue_owner"
+                invitation <- createVenueInvitationRecord venue Nothing "owner@example.com" VenueOwner
 
                 response <- callActionWithParams CreateUserAction $
                     [ ("invitationId", idToParam invitation.id)
@@ -351,13 +350,13 @@ tests = aroundAll withDatabaseTestContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Renewed Trial Adoption Venue"
                 manager <- createUserRecord "renewed-trial-manager@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue manager "manager"
+                _ <- createVenueMembershipRecord venue manager Manager
                 trialStaff <- createStaffRecord venue Nothing "Renewed" "Trial"
                 rosterWeek <- createRosterWeekRecord venue 0 False
                 rosterDay <- createRosterDayRecord rosterWeek 0
                 slotName <- createSlotNameRecord venue "Floor"
                 rosterSlot <- createRosterSlotRecord rosterDay slotName (Just trialStaff) 0
-                original <- createVenueInvitationRecord venue (Just manager) "old-renewed-trial@example.com" "worker"
+                original <- createVenueInvitationRecord venue (Just manager) "old-renewed-trial@example.com" Worker
                     >>= updateRecord . set #staffId (Just trialStaff.id)
 
                 renewalResponse <- withUserAndCurrentVenue manager venue.id do
@@ -403,7 +402,7 @@ tests = aroundAll withDatabaseTestContext do
                 rosterDay <- createRosterDayRecord rosterWeek 0
                 slotName <- createSlotNameRecord venue "Floor"
                 rosterSlot <- createRosterSlotRecord rosterDay slotName (Just trialStaff) 0
-                invitation <- createVenueInvitationRecord venue Nothing "adopt-trial@example.com" "worker"
+                invitation <- createVenueInvitationRecord venue Nothing "adopt-trial@example.com" Worker
                     >>= updateRecord . set #staffId (Just trialStaff.id)
 
                 response <- callActionWithParams CreateUserAction $
@@ -445,7 +444,7 @@ tests = aroundAll withDatabaseTestContext do
                 venue <- createVenueWithConfig "Stale Adoption Venue"
                 linkedUser <- createUserRecord "stale-adoption-linked@example.com" "staff" True
                 staff <- createStaffRecord venue (Just linkedUser) "Stale" "Trial"
-                invitation <- createVenueInvitationRecord venue Nothing "stale-adoption@example.com" "worker"
+                invitation <- createVenueInvitationRecord venue Nothing "stale-adoption@example.com" Worker
                     >>= updateRecord . set #staffId (Just staff.id)
 
                 response <- callActionWithParams CreateUserAction $
@@ -466,14 +465,14 @@ tests = aroundAll withDatabaseTestContext do
                 venue <- createVenueWithConfig "Role Change Venue"
                 owner <- createUserRecord "owner-role@example.com" "staff" True
                 user <- createUserRecord "worker-role@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue owner "venue_owner"
-                membership <- createVenueMembershipRecord venue user "worker"
+                _ <- createVenueMembershipRecord venue owner VenueOwner
+                membership <- createVenueMembershipRecord venue user Worker
 
                 updatedMembership <- updateVenueMembershipRoleWithAudit
                     (unpackId owner.id)
                     "web"
                     membership
-                    (unsafeEnumFromText @VenueRoleEnum "manager")
+                    (Manager)
                     Null
 
                 inputValue updatedMembership.venueRole `shouldBe` "manager"

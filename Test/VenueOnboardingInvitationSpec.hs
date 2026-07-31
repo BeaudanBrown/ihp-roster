@@ -1,7 +1,6 @@
 module Test.VenueOnboardingInvitationSpec where
 
 import Application.Async.Queue (EnqueueAppJobResult (..))
-import Application.Helper.Controller (unsafeEnumFromText)
 import Application.Helper.VenueOnboardingInvitation (venueOnboardingInvitationIsActive,
                                                      venueOnboardingInvitationUrl)
 import Application.InvitationDelivery.Job (enqueueVenueOnboardingInvitationDeliveryJob,
@@ -44,7 +43,7 @@ tests = aroundAll withDatabaseTestContext do
                 acceptedInvitation <-
                     createVenueOnboardingInvitationRecord Nothing "accepted-owner@example.com"
                         >>= updateRecord
-                            . set #status (unsafeEnumFromText @InvitationStatusEnum "accepted")
+                            . set #status (Accepted)
                             . set #acceptedAt (Just now)
                 expiredInvitation <-
                     createVenueOnboardingInvitationRecord Nothing "expired-owner@example.com"
@@ -108,7 +107,7 @@ tests = aroundAll withDatabaseTestContext do
                 invitation <- createVenueOnboardingInvitationRecord Nothing "replaced-owner-delivery@example.com"
                 EnqueuedAppJob appJob <- enqueueVenueOnboardingInvitationDeliveryJob Nothing invitation
                 _ <- invitation
-                    |> set #status (unsafeEnumFromText @InvitationStatusEnum "revoked")
+                    |> set #status (Revoked)
                     |> updateRecord
 
                 withFrameworkConfig config \frameworkConfig -> do
@@ -127,7 +126,7 @@ tests = aroundAll withDatabaseTestContext do
                 now <- getCurrentTime
                 acceptedInvitation <-
                     invitation
-                        |> set #status (unsafeEnumFromText @InvitationStatusEnum "accepted")
+                        |> set #status (Accepted)
                         |> set #acceptedAt (Just now)
                         |> updateRecord
                 EnqueuedAppJob appJob <- enqueueVenueOnboardingInvitationDeliveryJob Nothing acceptedInvitation

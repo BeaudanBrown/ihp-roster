@@ -1,7 +1,5 @@
 module Test.Controller.Admin.ConfigSpec where
 
-import Application.Helper.Controller (PlatformRole (SuperAdminRole),
-                                      unsafeEnumFromText)
 import Application.Helper.Export (ExportJobType (..), exportJobTypeToText)
 import qualified Application.Helper.FrontendContract.Surface.Admin.Live as AdminLive
 import Application.Helper.FrontendContract.Surface.Admin.Resource (adminVenueSettingsResource)
@@ -60,7 +58,7 @@ tests = aroundAll withDatabaseTestContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Venue A"
                 owner <- createUserRecord "owner-admin@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue owner "venue_owner"
+                _ <- createVenueMembershipRecord venue owner VenueOwner
 
                 response <- withPasskeyVerifiedUserAndCurrentVenue owner venue.id do
                     callAction AdminAction
@@ -133,7 +131,7 @@ tests = aroundAll withDatabaseTestContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Admin Roster Config Planning Venue"
                 admin <- createUserRecord "admin-roster-config-planning@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue admin "venue_admin"
+                _ <- createVenueMembershipRecord venue admin VenueAdmin
                 rosterGroup <- query @RosterGroup |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
                 let venueId = unpackId venue.id
                 let scope = RosterLive.rosterWeekLiveScope venueId (unpackId rosterGroup.id) 0
@@ -171,7 +169,7 @@ tests = aroundAll withDatabaseTestContext do
         it "shows the Xero header button and page to super admins" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Xero Super Admin Venue"
-                superAdmin <- createUserRecordWithPlatformRole "xero-super-admin@example.com" "staff" (Just SuperAdminRole) True
+                superAdmin <- createUserRecordWithPlatformRole "xero-super-admin@example.com" "staff" (Just SuperAdmin) True
 
                 response <- withPasskeyVerifiedUserAndCurrentVenue superAdmin venue.id do
                     callAction XeroAction
@@ -188,7 +186,7 @@ tests = aroundAll withDatabaseTestContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Xero Venue Admin Tab Venue"
                 venueAdmin <- createUserRecord "xero-venue-admin-tab@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue venueAdmin "venue_admin"
+                _ <- createVenueMembershipRecord venue venueAdmin VenueAdmin
 
                 adminResponse <- withPasskeyVerifiedUserAndCurrentVenue venueAdmin venue.id do
                     callAction AdminAction
@@ -205,7 +203,7 @@ tests = aroundAll withDatabaseTestContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Admin Imported Pay Item Venue"
                 admin <- createUserRecord "admin-imported-pay-items@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue admin "venue_admin"
+                _ <- createVenueMembershipRecord venue admin VenueAdmin
                 level <- createPayLevelRecord venue "Level 1"
                 _ <- createShiftTypeRecord venue level "Custom Rate Shift"
                 importedPayItem <- createImportedXeroPayItemRecord venue admin "Imported Bar Rate" "imported-bar-rate" 42.50
@@ -244,7 +242,7 @@ tests = aroundAll withDatabaseTestContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Roster Only Shift Type Venue"
                 admin <- createUserRecord "roster-only-shift-admin@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue admin "venue_admin"
+                _ <- createVenueMembershipRecord venue admin VenueAdmin
 
                 response <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
                     callActionWithParams CreateShiftTypeAction
@@ -264,7 +262,7 @@ tests = aroundAll withDatabaseTestContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Admin Archived Imported Pay Item Venue"
                 admin <- createUserRecord "admin-archived-imported-pay-items@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue admin "venue_admin"
+                _ <- createVenueMembershipRecord venue admin VenueAdmin
                 level <- createPayLevelRecord venue "Level 1"
                 _ <- createShiftTypeRecord venue level "Custom Rate Shift"
                 importedPayItem <- createImportedXeroPayItemRecord venue admin "Archived Bar Rate" "archived-bar-rate" 42.50
@@ -286,7 +284,7 @@ tests = aroundAll withDatabaseTestContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Admin Fragment Venue"
                 admin <- createUserRecord "admin-fragments@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue admin "venue_admin"
+                _ <- createVenueMembershipRecord venue admin VenueAdmin
                 level <- createPayLevelRecord venue "Level 1"
                 _ <- createShiftTypeRecord venue level "Active Shift"
                 inactiveShiftType <- createShiftTypeRecord venue level "Inactive Shift"
@@ -346,7 +344,7 @@ tests = aroundAll withDatabaseTestContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Admin Expansion Fragment Venue"
                 admin <- createUserRecord "admin-expansion-fragments@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue admin "venue_admin"
+                _ <- createVenueMembershipRecord venue admin VenueAdmin
 
                 venueSettingsResponse <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
                     callAction ShowAdminVenueSettingsFragmentAction
@@ -392,7 +390,7 @@ tests = aroundAll withDatabaseTestContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Admin Export Fragment Mutation Venue"
                 admin <- createUserRecord "admin-export-fragment-mutation@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue admin "venue_admin"
+                _ <- createVenueMembershipRecord venue admin VenueAdmin
 
                 versionBefore <- currentLiveUpdateVersion (AdminLive.adminExportsLiveScope (unpackId venue.id))
                 response <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
@@ -415,7 +413,7 @@ tests = aroundAll withDatabaseTestContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Admin Mutation Fragment Venue"
                 admin <- createUserRecord "admin-mutation-fragments@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue admin "venue_admin"
+                _ <- createVenueMembershipRecord venue admin VenueAdmin
                 level <- createPayLevelRecord venue "Level 1"
                 shiftType <- createShiftTypeRecord venue level "Starter Shift"
                 rosterGroup <- createVenueRosterGroupWithDefaults venue "Starter Group" 10 True
@@ -586,7 +584,7 @@ tests = aroundAll withDatabaseTestContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Admin Venue"
                 admin <- createUserRecord "admin-create@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue admin "venue_admin"
+                _ <- createVenueMembershipRecord venue admin VenueAdmin
                 inviteNow <- getCurrentTime
 
                 rosterGroupResponse <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
@@ -638,9 +636,9 @@ tests = aroundAll withDatabaseTestContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Admin Expired Invite Lifecycle Venue"
                 admin <- createUserRecord "admin-expired-invite-lifecycle@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue admin "venue_admin"
+                _ <- createVenueMembershipRecord venue admin VenueAdmin
                 now <- getCurrentTime
-                invitation <- createVenueInvitationRecord venue (Just admin) "expired-admin-lifecycle@example.com" "worker"
+                invitation <- createVenueInvitationRecord venue (Just admin) "expired-admin-lifecycle@example.com" Worker
                     >>= updateRecord . set #expiresAt (Just (addUTCTime (-60) now))
 
                 response <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
@@ -656,9 +654,9 @@ tests = aroundAll withDatabaseTestContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Admin Renew Invite Venue"
                 admin <- createUserRecord "admin-renew-invite@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue admin "venue_admin"
+                _ <- createVenueMembershipRecord venue admin VenueAdmin
                 now <- getCurrentTime
-                original <- createVenueInvitationRecord venue (Just admin) "old-admin-invite@example.com" "worker"
+                original <- createVenueInvitationRecord venue (Just admin) "old-admin-invite@example.com" Worker
                     >>= updateRecord . set #expiresAt (Just (addUTCTime (-60) now))
                 rosterGroup <- query @RosterGroup
                     |> filterWhere (#venueId, unpackId venue.id)
@@ -690,8 +688,8 @@ tests = aroundAll withDatabaseTestContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Admin Invalid Email Renew Venue"
                 admin <- createUserRecord "admin-invalid-email-renew@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue admin "venue_admin"
-                original <- createVenueInvitationRecord venue (Just admin) "valid-admin-renewal@example.com" "worker"
+                _ <- createVenueMembershipRecord venue admin VenueAdmin
+                original <- createVenueInvitationRecord venue (Just admin) "valid-admin-renewal@example.com" Worker
                 rosterGroup <- query @RosterGroup
                     |> filterWhere (#venueId, unpackId venue.id)
                     |> filterWhere (#isDefault, True)
@@ -723,8 +721,8 @@ tests = aroundAll withDatabaseTestContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Admin Same Email Renew Venue"
                 admin <- createUserRecord "admin-same-email-renew@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue admin "venue_admin"
-                original <- createVenueInvitationRecord venue (Just admin) "same-email-admin-invite@example.com" "worker"
+                _ <- createVenueMembershipRecord venue admin VenueAdmin
+                original <- createVenueInvitationRecord venue (Just admin) "same-email-admin-invite@example.com" Worker
                 rosterGroup <- query @RosterGroup
                     |> filterWhere (#venueId, unpackId venue.id)
                     |> filterWhere (#isDefault, True)
@@ -746,9 +744,9 @@ tests = aroundAll withDatabaseTestContext do
                 currentVenue <- createVenueWithConfig "Admin Renew Current Venue"
                 foreignVenue <- createVenueWithConfig "Admin Renew Foreign Venue"
                 admin <- createUserRecord "admin-cross-venue-renew@example.com" "staff" True
-                _ <- createVenueMembershipRecord currentVenue admin "venue_admin"
+                _ <- createVenueMembershipRecord currentVenue admin VenueAdmin
                 ensureTestUserHasPasskey admin
-                foreignInvitation <- createVenueInvitationRecord foreignVenue Nothing "foreign-admin-renew@example.com" "worker"
+                foreignInvitation <- createVenueInvitationRecord foreignVenue Nothing "foreign-admin-renew@example.com" Worker
 
                 response <- withPasskeyVerifiedUserAndCurrentVenue admin currentVenue.id do
                     callAction (RenewVenueInvitationAction foreignInvitation.id)
@@ -762,22 +760,22 @@ tests = aroundAll withDatabaseTestContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Admin Invite Retention Venue"
                 admin <- createUserRecord "admin-invite-retention@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue admin "venue_admin"
+                _ <- createVenueMembershipRecord venue admin VenueAdmin
                 now <- getCurrentTime
                 let daysAgo days = addUTCTime (negate (days * 24 * 60 * 60)) now
 
-                _ <- createVenueInvitationRecord venue (Just admin) "active-pending@example.com" "worker"
-                _ <- createVenueInvitationRecord venue (Just admin) "recent-expired@example.com" "worker"
+                _ <- createVenueInvitationRecord venue (Just admin) "active-pending@example.com" Worker
+                _ <- createVenueInvitationRecord venue (Just admin) "recent-expired@example.com" Worker
                     >>= updateRecord . set #expiresAt (Just (addUTCTime (-3600) now))
-                _ <- createVenueInvitationRecord venue (Just admin) "old-expired@example.com" "worker"
+                _ <- createVenueInvitationRecord venue (Just admin) "old-expired@example.com" Worker
                     >>= updateRecord . set #expiresAt (Just (daysAgo 8))
-                _ <- createVenueInvitationRecord venue (Just admin) "recent-accepted@example.com" "worker"
+                _ <- createVenueInvitationRecord venue (Just admin) "recent-accepted@example.com" Worker
                     >>= updateRecord
-                        . set #status (unsafeEnumFromText @InvitationStatusEnum "accepted")
+                        . set #status (Accepted)
                         . set #acceptedAt (Just (daysAgo 3))
-                _ <- createVenueInvitationRecord venue (Just admin) "old-accepted@example.com" "worker"
+                _ <- createVenueInvitationRecord venue (Just admin) "old-accepted@example.com" Worker
                     >>= updateRecord
-                        . set #status (unsafeEnumFromText @InvitationStatusEnum "accepted")
+                        . set #status (Accepted)
                         . set #acceptedAt (Just (daysAgo 8))
 
                 pageResponse <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
@@ -794,7 +792,7 @@ tests = aroundAll withDatabaseTestContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Admin Shift Colour Venue"
                 admin <- createUserRecord "admin-shift-colours@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue admin "venue_admin"
+                _ <- createVenueMembershipRecord venue admin VenueAdmin
 
                 response <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
                     callActionWithParams CreateShiftTypeAction
@@ -820,7 +818,7 @@ tests = aroundAll withDatabaseTestContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Admin Shift Reactivation Colour Venue"
                 admin <- createUserRecord "admin-reactivate-shift-colours@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue admin "venue_admin"
+                _ <- createVenueMembershipRecord venue admin VenueAdmin
                 level <- createPayLevelRecord venue "Level 1"
                 activeShiftType <-
                     createShiftTypeRecord venue level "Active Shift"
@@ -847,7 +845,7 @@ tests = aroundAll withDatabaseTestContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Admin Manual Shift Colour Venue"
                 admin <- createUserRecord "admin-manual-shift-colours@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue admin "venue_admin"
+                _ <- createVenueMembershipRecord venue admin VenueAdmin
                 level <- createPayLevelRecord venue "Level 1"
                 firstShiftType <-
                     createShiftTypeRecord venue level "First Shift"
@@ -897,12 +895,12 @@ tests = aroundAll withDatabaseTestContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Admin Trial Email Guard Venue"
                 admin <- createUserRecord "admin-trial-email-guard@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue admin "venue_admin"
+                _ <- createVenueMembershipRecord venue admin VenueAdmin
                 staff <- createStaffRecord venue Nothing "Guarded" "Trial"
-                _ <- createVenueInvitationRecord venue (Just admin) "guarded-trial@example.com" "worker"
+                _ <- createVenueInvitationRecord venue (Just admin) "guarded-trial@example.com" Worker
                     >>= updateRecord
                         . set #staffId (Just staff.id)
-                        . set #status (unsafeEnumFromText @InvitationStatusEnum "revoked")
+                        . set #status (Revoked)
                 rosterGroup <- query @RosterGroup
                     |> filterWhere (#venueId, unpackId venue.id)
                     |> filterWhere (#isDefault, True)
@@ -923,7 +921,7 @@ tests = aroundAll withDatabaseTestContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Admin Invalid Invite Venue"
                 admin <- createUserRecord "admin-invalid-invite@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue admin "venue_admin"
+                _ <- createVenueMembershipRecord venue admin VenueAdmin
                 rosterGroup <- createVenueRosterGroupWithDefaults venue "Default Group" 0 True
 
                 versionBefore <- currentLiveUpdateVersion (AdminLive.adminInvitesLiveScope (unpackId venue.id))
@@ -946,7 +944,7 @@ tests = aroundAll withDatabaseTestContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Admin Last Group Venue"
                 admin <- createUserRecord "admin-last-group@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue admin "venue_admin"
+                _ <- createVenueMembershipRecord venue admin VenueAdmin
                 rosterGroup <-
                     query @RosterGroup
                         |> filterWhere (#venueId, unpackId venue.id)
@@ -977,7 +975,7 @@ tests = aroundAll withDatabaseTestContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Admin Venue Settings Fragment Venue"
                 admin <- createUserRecord "admin-venue-settings-fragment@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue admin "venue_admin"
+                _ <- createVenueMembershipRecord venue admin VenueAdmin
 
                 pageResponse <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
                     callAction AdminAction
@@ -1019,7 +1017,7 @@ tests = aroundAll withDatabaseTestContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Admin Availability Threshold Venue"
                 admin <- createUserRecord "admin-availability-threshold@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue admin "venue_admin"
+                _ <- createVenueMembershipRecord venue admin VenueAdmin
                 auditCountBefore <- query @AuditEvent |> fetchCount
                 originalConfig <- query @VenueConfig |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
 
@@ -1076,7 +1074,7 @@ tests = aroundAll withDatabaseTestContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Admin Venue"
                 admin <- createUserRecord "admin-update@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue admin "venue_admin"
+                _ <- createVenueMembershipRecord venue admin VenueAdmin
                 level <- createPayLevelRecord venue "Level 1"
                 shiftType <- createShiftTypeRecord venue level "Kitchen"
                 overrideLevel <- createPayLevelRecord venue "Level 2"
@@ -1120,7 +1118,7 @@ tests = aroundAll withDatabaseTestContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Admin Venue"
                 admin <- createUserRecord "admin-week-start@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue admin "venue_admin"
+                _ <- createVenueMembershipRecord venue admin VenueAdmin
 
                 response <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
                     callActionWithParams UpdateVenueConfigAction
@@ -1139,7 +1137,7 @@ tests = aroundAll withDatabaseTestContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Admin Venue"
                 admin <- createUserRecord "admin-roster-end-times@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue admin "venue_admin"
+                _ <- createVenueMembershipRecord venue admin VenueAdmin
                 originalConfig <- query @VenueConfig |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
 
                 response <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
@@ -1158,7 +1156,7 @@ tests = aroundAll withDatabaseTestContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Admin Venue"
                 admin <- createUserRecord "admin-time-picker-window@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue admin "venue_admin"
+                _ <- createVenueMembershipRecord venue admin VenueAdmin
                 originalConfig <- query @VenueConfig |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
 
                 response <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
@@ -1179,7 +1177,7 @@ tests = aroundAll withDatabaseTestContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Admin Venue"
                 admin <- createUserRecord "admin-time-picker-window-invalid@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue admin "venue_admin"
+                _ <- createVenueMembershipRecord venue admin VenueAdmin
                 originalConfig <- query @VenueConfig |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
 
                 response <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
@@ -1199,7 +1197,7 @@ tests = aroundAll withDatabaseTestContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Admin Venue"
                 admin <- createUserRecord "admin-auto-timesheets@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue admin "venue_admin"
+                _ <- createVenueMembershipRecord venue admin VenueAdmin
                 originalConfig <- query @VenueConfig |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
 
                 response <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
@@ -1219,8 +1217,8 @@ tests = aroundAll withDatabaseTestContext do
                 venueA <- createVenueWithConfig "Venue A"
                 venueB <- createVenueWithConfig "Venue B"
                 admin <- createUserRecord "admin-scope@example.com" "staff" True
-                _ <- createVenueMembershipRecord venueA admin "venue_admin"
-                _ <- createVenueMembershipRecord venueB admin "venue_admin"
+                _ <- createVenueMembershipRecord venueA admin VenueAdmin
+                _ <- createVenueMembershipRecord venueB admin VenueAdmin
                 foreignLevel <- createPayLevelRecord venueB "Foreign Level"
                 foreignShiftType <- createShiftTypeRecord venueB foreignLevel "Foreign Shift"
 
@@ -1243,7 +1241,7 @@ tests = aroundAll withDatabaseTestContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Admin Venue"
                 admin <- createUserRecord "admin-save@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue admin "venue_admin"
+                _ <- createVenueMembershipRecord venue admin VenueAdmin
 
                 rosterGroupResponse <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
                     callActionWithParams CreateRosterGroupAction

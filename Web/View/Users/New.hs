@@ -2,6 +2,7 @@ module Web.View.Users.New where
 
 import qualified Application.Helper.FrontendContract.Surface.Profile.Action as ProfileAction
 import Application.Helper.View.VenueBootstrap (renderVenueBootstrapFields)
+import Application.VenueRole (venueRoleMailLabel)
 import Web.View.Prelude
 import Web.View.StaffProfileForm (StaffProfileDetailsSurfaceValues (..),
                                   renderPersonalProfileFields,
@@ -71,7 +72,7 @@ instance View NewView where
 invitationSignupIntro :: VenueInvitation -> Text
 invitationSignupIntro invitation
     | isJust invitation.staffId = "You have been invited to claim an existing trial staff profile. Review the prefilled details, update anything that has changed, and create your account."
-    | otherwise = "You have been invited to join this venue as " <> invitationRoleLabel invitation.inviteRole <> "."
+    | otherwise = "You have been invited to join this venue as " <> venueRoleMailLabel invitation.inviteRole <> "."
 
 renderInvitationForm :: User -> VenueInvitation -> Staff -> Html
 renderInvitationForm user invitation staff =
@@ -218,12 +219,3 @@ renderVenueDefaultToggles rosterEndTimesEnabled = [hsx|
         </div>
     </div>
 |]
-
-invitationRoleLabel :: InputValue value => value -> Text
-invitationRoleLabel value =
-    case inputValue value of
-        "venue_owner" -> "venue owner"
-        "venue_admin" -> "venue admin"
-        "manager"     -> "manager"
-        "supervisor"  -> "supervisor"
-        _             -> "worker"

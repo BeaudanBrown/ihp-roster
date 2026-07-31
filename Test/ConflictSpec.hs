@@ -1,7 +1,6 @@
 module Test.ConflictSpec where
 
 import Application.Helper.Conflict
-import Application.Helper.Controller (unsafeEnumFromText)
 import Application.VenueTime (melbourneTimeZoneName)
 import Application.VenueTime.Model (resolveBoundaryInstant)
 import Data.Time.Calendar (Day, fromGregorian)
@@ -70,7 +69,7 @@ tests = describe "Conflict Engine" do
             , staffId = def
             , startDate = fromGregorian 2025 1 5
             , endDate = fromGregorian 2025 1 7
-            , status = unsafeEnumFromText @LeaveRequestStatusEnum "approved"
+            , status = LeaveRequestStatusEnumApproved
             , notes = Nothing
             , deletedAt = Nothing
             , deletedByUserId = Nothing

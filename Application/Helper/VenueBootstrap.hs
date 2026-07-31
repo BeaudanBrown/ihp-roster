@@ -10,8 +10,7 @@ module Application.Helper.VenueBootstrap
     , provisionVenueUser
     ) where
 
-import Application.Helper.Controller (defaultWeekOffsetEpochForStartDay,
-                                      unsafeEnumFromText)
+import Application.Helper.Controller (defaultWeekOffsetEpochForStartDay)
 import Application.Helper.RosterGroups (ensureVenueDefaultRosterGroup,
                                         ensureVenueRosterDefaults)
 import qualified Data.Char as Char
@@ -39,7 +38,7 @@ createVenueWithBootstrapConfigInCurrentTransaction bootstrapConfig = do
     venue <-
         newRecord @Venue
             |> set #name bootstrapConfig.venueBootstrapName
-            |> set #status (unsafeEnumFromText @VenueStatusEnum "active")
+            |> set #status (Active)
             |> createRecord
     venueConfig <-
         newRecord @VenueConfig
@@ -63,7 +62,7 @@ defaultVenueBootstrapConfig venueName = VenueBootstrapConfig
     , venueBootstrapRosterEndTimesEnabled = True
     }
 
-provisionVenueMembership :: (?modelContext :: ModelContext) => Venue -> User -> Text -> IO VenueMembership
+provisionVenueMembership :: (?modelContext :: ModelContext) => Venue -> User -> VenueRoleEnum -> IO VenueMembership
 provisionVenueMembership venue user venueRole =
     query @VenueMembership
         |> filterWhere (#venueId, unpackId venue.id)
@@ -72,16 +71,16 @@ provisionVenueMembership venue user venueRole =
         >>= \case
             Just membership ->
                 membership
-                    |> set #venueRole (unsafeEnumFromText @VenueRoleEnum venueRole)
+                    |> set #venueRole venueRole
                     |> updateRecord
             Nothing ->
                 newRecord @VenueMembership
                     |> set #venueId (unpackId venue.id)
                     |> set #userId (unpackId user.id)
-                    |> set #venueRole (unsafeEnumFromText @VenueRoleEnum venueRole)
+                    |> set #venueRole venueRole
                     |> createRecord
 
-provisionVenueUser :: (?modelContext :: ModelContext) => Venue -> User -> Text -> Text -> Text -> IO (VenueMembership, Staff)
+provisionVenueUser :: (?modelContext :: ModelContext) => Venue -> User -> VenueRoleEnum -> Text -> Text -> IO (VenueMembership, Staff)
 provisionVenueUser venue user venueRole firstName lastName = do
     membership <- provisionVenueMembership venue user venueRole
     staff <- ensureLinkedStaffRecord venue user firstName lastName

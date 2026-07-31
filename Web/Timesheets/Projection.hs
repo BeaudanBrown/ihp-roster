@@ -99,7 +99,7 @@ fetchTimesheetDataForWeek weekStartDate weekEndDate showApproved showAllStaff re
 
     maybeCurrentViewerStaff <- fetchCurrentUserStaff
     let validStaffFilterId =
-            if hasRole ManagerRole'
+            if hasRole Manager
                 then requestedStaffFilterId >>= \staffFilterId ->
                     if any (\staff -> staffCanProduceTimesheets staff && unpackId (get #id staff) == staffFilterId) staffMembers
                         then Just staffFilterId
@@ -119,7 +119,7 @@ fetchTimesheetDataForWeek weekStartDate weekEndDate showApproved showAllStaff re
                 |> filterWhere (#deletedAt, Nothing)
 
     entries <-
-        if hasRole ManagerRole'
+        if hasRole Manager
             then
                 case (validStaffFilterId, showAllStaff, maybeCurrentViewerStaff) of
                     (Just staffFilterId, _, _) ->
@@ -199,7 +199,7 @@ fetchTimesheetSuggestionsForWeek venueConfig weekOffset showAllStaff validStaffF
     let linkedRosterSlotIds = Set.fromList (mapMaybe (.sourceRosterSlotId) activeLinkedEntries)
     let linkedActiveStaffIds = Set.fromList (map (unpackId . (.id)) (filter staffCanProduceTimesheets staffMembers))
     let visibleStaffIds =
-            if hasRole ManagerRole'
+            if hasRole Manager
                 then case (validStaffFilterId, showAllStaff, currentViewerStaffId) of
                     (Just staffFilterId, _, _) -> Set.singleton staffFilterId
                     (Nothing, False, Just viewerStaffId) -> Set.singleton viewerStaffId
@@ -240,7 +240,7 @@ fetchTimesheetSuggestionsForWeek venueConfig weekOffset showAllStaff validStaffF
 fetchStaffForForm :: (?modelContext :: ModelContext, ?context :: ControllerContext) => IO [Staff]
 fetchStaffForForm = do
     staffMembers <-
-        if hasRole ManagerRole'
+        if hasRole Manager
             then fetchLinkedActiveVenueStaff currentVenueId
             else filter (isJust . (.userId)) . maybeToList <$> fetchCurrentUserStaff
     pure (filter staffCanProduceTimesheets staffMembers)

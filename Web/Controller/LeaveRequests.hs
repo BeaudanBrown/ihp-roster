@@ -136,7 +136,7 @@ instance Controller LeaveRequestsController where
                         newRecord @LeaveRequest
                             |> set #venueId (unpackId currentVenueId)
                             |> set #staffId (coerce (get #id staff))
-                            |> set #status (leaveRequestStatusToEnum LeavePending)
+                            |> set #status (LeaveRequestStatusEnumPending)
                 let leaveRequest =
                         case parseSurfaceLeaveRequest responseContext of
                             Nothing -> buildLeaveRequest baseLeaveRequest
@@ -395,7 +395,7 @@ effectiveLeaveResponseContext :: (?context :: ControllerContext) => LeaveRespons
 effectiveLeaveResponseContext requestedContext
     | requestedContext == LeaveSelfServiceResponseContext = LeaveSelfServiceResponseContext
     | requestedContext == LeaveStaffResponseContext = LeaveStaffResponseContext
-    | not (hasRole ManagerRole') = LeaveSelfServiceResponseContext
+    | not (hasRole Manager) = LeaveSelfServiceResponseContext
     | otherwise = requestedContext
 
 requestedLeaveResponseContext :: (?context :: ControllerContext, ?request :: Request) => LeaveResponseContext

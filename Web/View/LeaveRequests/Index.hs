@@ -2,10 +2,8 @@
 
 module Web.View.LeaveRequests.Index where
 
-import Application.Helper.Controller (LeaveRequestStatus (..),
-                                      currentVenueMembershipOrNothing,
-                                      leaveRequestIsArchivedOn,
-                                      parseLeaveRequestStatus)
+import Application.Helper.Controller (currentVenueMembershipOrNothing,
+                                      leaveRequestIsArchivedOn)
 import qualified Application.Helper.FrontendContract.Surface.LeaveRequests as Surface
 import qualified Application.Helper.FrontendContract.Surface.LeaveRequests.Action as LeaveRequestsAction
 import Application.Helper.FrontendContract.Surface.Runtime (FrontendSurfaceActionRoute (..),
@@ -330,10 +328,10 @@ warningPeriodLabel warningPeriod
     | warningPeriod.availabilityWarningEndDate == addDays 1 warningPeriod.availabilityWarningStartDate = formatDateDisplay warningPeriod.availabilityWarningStartDate
     | otherwise = formatDateDisplay warningPeriod.availabilityWarningStartDate <> " – " <> formatDateDisplay (addDays (-1) warningPeriod.availabilityWarningEndDate)
 
-warningStatusLabel :: [LeaveRequestStatus] -> Text
+warningStatusLabel :: [LeaveRequestStatusEnum] -> Text
 warningStatusLabel statuses
-    | statuses == [LeavePending] = "Pending"
-    | statuses == [LeaveApproved] = "Approved"
+    | statuses == [LeaveRequestStatusEnumPending] = "Pending"
+    | statuses == [LeaveRequestStatusEnumApproved] = "Approved"
     | otherwise = "Pending and approved"
 
 renderEmptyState :: Html
@@ -374,9 +372,9 @@ renderManagerLeaveRequests leaveRequests staffMembers currentViewerStaffId today
         archivedRequests = sortOn (Down . (.endDate)) (filter (leaveRequestIsArchivedOn today) leaveRequests)
         archivePagination = buildArchivePagination archivePage archivedRequests
         archivedPageRequests = archivePageItems archivePagination archivedRequests
-        pendingRequests = sortOn (Down . (.startDate)) (filter ((== Just LeavePending) . parseLeaveRequestStatus . (.status)) activeRequests)
-        approvedRequests = sortOn (Down . (.startDate)) (filter ((== Just LeaveApproved) . parseLeaveRequestStatus . (.status)) activeRequests)
-        deniedRequests = sortOn (Down . (.startDate)) (filter ((== Just LeaveDenied) . parseLeaveRequestStatus . (.status)) activeRequests)
+        pendingRequests = sortOn (Down . (.startDate)) (filter ((== LeaveRequestStatusEnumPending) . (.status)) activeRequests)
+        approvedRequests = sortOn (Down . (.startDate)) (filter ((== LeaveRequestStatusEnumApproved) . (.status)) activeRequests)
+        deniedRequests = sortOn (Down . (.startDate)) (filter ((== LeaveRequestStatusEnumDenied) . (.status)) activeRequests)
 
 renderLeaveSectionCountLiveFragment :: Text -> [LeaveRequest] -> Day -> Html
 renderLeaveSectionCountLiveFragment section leaveRequests today
@@ -403,9 +401,9 @@ renderApprovedListLiveFragment leaveRequests staffMembers currentViewerStaffId t
 renderDeniedListLiveFragment leaveRequests staffMembers currentViewerStaffId today = renderManagerSectionList leaveDeniedListFragmentId (deniedLeaveRequests leaveRequests today) staffMembers currentViewerStaffId True
 
 pendingLeaveRequests, approvedLeaveRequests, deniedLeaveRequests :: [LeaveRequest] -> Day -> [LeaveRequest]
-pendingLeaveRequests leaveRequests today = sortOn (Down . (.startDate)) (filter ((== Just LeavePending) . parseLeaveRequestStatus . (.status)) (activeLeaveRequests leaveRequests today))
-approvedLeaveRequests leaveRequests today = sortOn (Down . (.startDate)) (filter ((== Just LeaveApproved) . parseLeaveRequestStatus . (.status)) (activeLeaveRequests leaveRequests today))
-deniedLeaveRequests leaveRequests today = sortOn (Down . (.startDate)) (filter ((== Just LeaveDenied) . parseLeaveRequestStatus . (.status)) (activeLeaveRequests leaveRequests today))
+pendingLeaveRequests leaveRequests today = sortOn (Down . (.startDate)) (filter ((== LeaveRequestStatusEnumPending) . (.status)) (activeLeaveRequests leaveRequests today))
+approvedLeaveRequests leaveRequests today = sortOn (Down . (.startDate)) (filter ((== LeaveRequestStatusEnumApproved) . (.status)) (activeLeaveRequests leaveRequests today))
+deniedLeaveRequests leaveRequests today = sortOn (Down . (.startDate)) (filter ((== LeaveRequestStatusEnumDenied) . (.status)) (activeLeaveRequests leaveRequests today))
 
 activeLeaveRequests, archivedLeaveRequests :: [LeaveRequest] -> Day -> [LeaveRequest]
 activeLeaveRequests leaveRequests today = filter (not . leaveRequestIsArchivedOn today) leaveRequests
@@ -669,12 +667,10 @@ resolveStaffName staffUuid staffMembers =
         Just staff -> staff.firstName <> " " <> staff.lastName
         Nothing    -> "Unknown" :: Text
 
-renderStatusBadge :: InputValue value => value -> Html
-renderStatusBadge status =
-    case parseLeaveRequestStatus status of
-        Just LeaveApproved -> renderAppStatusBadge AppStatusSuccess "Approved"
-        Just LeaveDenied   -> renderAppStatusBadge AppStatusDanger "Denied"
-        _                  -> renderAppStatusBadge AppStatusWarning "Pending"
+renderStatusBadge :: LeaveRequestStatusEnum -> Html
+renderStatusBadge LeaveRequestStatusEnumApproved = renderAppStatusBadge AppStatusSuccess "Approved"
+renderStatusBadge LeaveRequestStatusEnumDenied = renderAppStatusBadge AppStatusDanger "Denied"
+renderStatusBadge LeaveRequestStatusEnumPending = renderAppStatusBadge AppStatusWarning "Pending"
 
 renderActions :: (?context :: ControllerContext) => Maybe UUID -> LeaveRequest -> Html
 renderActions _currentViewerStaffId =
@@ -684,10 +680,10 @@ renderReviewActions :: (?context :: ControllerContext) => LeaveRequest -> Html
 renderReviewActions leaveRequest
     | not currentUserIsManager = mempty
     | otherwise =
-        case parseLeaveRequestStatus leaveRequest.status of
-            Just LeaveApproved -> renderReviewActionForm (DenyLeaveRequestAction leaveRequest.id) "btn btn-sm btn-outline-danger me-1" "Deny"
-            Just LeaveDenied   -> renderReviewActionForm (ApproveLeaveRequestAction leaveRequest.id) "btn btn-sm btn-outline-success me-1" "Approve"
-            _ ->
+        case leaveRequest.status of
+            LeaveRequestStatusEnumApproved -> renderReviewActionForm (DenyLeaveRequestAction leaveRequest.id) "btn btn-sm btn-outline-danger me-1" "Deny"
+            LeaveRequestStatusEnumDenied -> renderReviewActionForm (ApproveLeaveRequestAction leaveRequest.id) "btn btn-sm btn-outline-success me-1" "Approve"
+            LeaveRequestStatusEnumPending ->
                 renderReviewActionForm (ApproveLeaveRequestAction leaveRequest.id) "btn btn-sm btn-outline-success me-1" "Approve"
                     <> renderReviewActionForm (DenyLeaveRequestAction leaveRequest.id) "btn btn-sm btn-outline-danger me-1" "Deny"
 

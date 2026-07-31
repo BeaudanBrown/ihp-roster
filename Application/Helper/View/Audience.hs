@@ -9,28 +9,29 @@ module Application.Helper.View.Audience
     , renderWhenAudience
     ) where
 
-import Application.Helper.Controller (VenueRole (..), currentUserIsSuperAdmin,
+import Application.Helper.Controller (currentUserIsSuperAdmin,
                                       currentVenueRoleOrNothing, hasRole)
+import Generated.Types
 import IHP.ViewPrelude
 
 -- | True when the current user has at least manager privileges.
 -- Use in views for conditional rendering of management UI.
 currentUserIsManager :: (?context :: ControllerContext) => Bool
-currentUserIsManager = hasRole ManagerRole'
+currentUserIsManager = hasRole Manager
 
 -- | True when the current user is an admin.
 -- Use in views for conditional rendering of admin-only UI.
 currentUserIsAdmin :: (?context :: ControllerContext) => Bool
-currentUserIsAdmin = hasRole VenueAdminRole
+currentUserIsAdmin = hasRole VenueAdmin
 
 currentUserIsSupportAdmin :: (?context :: ControllerContext) => Bool
 currentUserIsSupportAdmin = currentUserIsSuperAdmin
 
 currentUserIsVenueOwner :: (?context :: ControllerContext) => Bool
-currentUserIsVenueOwner = currentVenueRoleOrNothing == Just VenueOwnerRole
+currentUserIsVenueOwner = currentVenueRoleOrNothing == Just VenueOwner
 
 currentUserCanSeeXero :: (?context :: ControllerContext) => Bool
-currentUserCanSeeXero = hasRole VenueOwnerRole
+currentUserCanSeeXero = hasRole VenueOwner
 
 data ViewAudience
     = AnySignedInAudience

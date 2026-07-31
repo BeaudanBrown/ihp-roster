@@ -28,7 +28,7 @@ tests = aroundAll withDatabaseTestContext do
         it "renders venue invitation recipient, sender, subject, and role-specific text" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Mail Invite Venue"
-                invitation <- createVenueInvitationRecord venue Nothing "manager-invite@example.com" "manager"
+                invitation <- createVenueInvitationRecord venue Nothing "manager-invite@example.com" Manager
                 let mail =
                         VenueInvitationMail
                             { invitation = invitation
@@ -55,7 +55,7 @@ tests = aroundAll withDatabaseTestContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Mail Adoption Invite Venue"
                 staff <- createStaffRecord venue Nothing "Mail" "Trial"
-                invitation <- createVenueInvitationRecord venue Nothing "trial-mail-invite@example.com" "worker"
+                invitation <- createVenueInvitationRecord venue Nothing "trial-mail-invite@example.com" Worker
                     >>= updateRecord . set #staffId (Just staff.id)
                 let mail =
                         VenueInvitationMail

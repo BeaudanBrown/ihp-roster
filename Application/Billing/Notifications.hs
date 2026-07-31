@@ -11,9 +11,6 @@ where
 import Application.Async.Queue
 import Application.Billing.NotificationKind
 import Application.Billing.Persistence (lockVenueForBilling)
-import Application.Helper.Controller (PlatformRole (SuperAdminRole),
-                                      VenueRole (VenueOwnerRole),
-                                      platformRoleToEnum, venueRoleToEnum)
 import Application.Helper.EmailVerification (isEmailDeliveryDisabled)
 import Application.Helper.Mail
 import Control.Monad (void)
@@ -244,7 +241,7 @@ billingOwnerRecipients venue = do
     ownerMemberships <-
         query @VenueMembership
             |> filterWhere (#venueId, unpackId venue.id)
-            |> filterWhere (#venueRole, venueRoleToEnum VenueOwnerRole)
+            |> filterWhere (#venueRole, VenueOwner)
             |> filterWhere (#isActive, True)
             |> filterWhere (#archivedAt, Nothing)
             |> fetch
@@ -259,7 +256,7 @@ billingOwnerRecipients venue = do
 billingSupportRecipients :: (?modelContext :: ModelContext) => IO [User]
 billingSupportRecipients =
     query @User
-        |> filterWhere (#platformRole, Just (platformRoleToEnum SuperAdminRole))
+        |> filterWhere (#platformRole, Just (SuperAdmin))
         |> filterWhere (#deactivatedAt, Nothing)
         |> fetch
 
@@ -314,14 +311,14 @@ billingNotificationRecipientIsEligible notificationKind user venue
         query @VenueMembership
             |> filterWhere (#venueId, unpackId venue.id)
             |> filterWhere (#userId, unpackId user.id)
-            |> filterWhere (#venueRole, venueRoleToEnum VenueOwnerRole)
+            |> filterWhere (#venueRole, VenueOwner)
             |> filterWhere (#isActive, True)
             |> filterWhere (#archivedAt, Nothing)
             |> fetchExists
 
 isBillingSupportRecipient :: User -> Bool
 isBillingSupportRecipient user =
-    user.platformRole == Just (platformRoleToEnum SuperAdminRole)
+    user.platformRole == Just (SuperAdmin)
 
 sendBillingNotificationEmail ::
     (?context :: context, ConfigProvider context, ?modelContext :: ModelContext) =>

@@ -319,7 +319,7 @@ createPreviewFixtureAtPeriod calendarType periodStart entrySpecs = do
         periodEnd = addDays (periodLength - 1) periodStart
     venue <- createVenueWithConfig "Xero Preview Venue"
     owner <- createUserRecord "preview-owner@example.com" "admin" True
-    _ <- createVenueMembershipRecord venue owner "venue_owner"
+    _ <- createVenueMembershipRecord venue owner VenueOwner
     awardLevel <- createPayLevelRecordWithRates venue "Level 2" 25 2 3 1 1.25 1.5
     staffA <- createMappedStaff venue awardLevel "Ada" "Lovelace"
     staffB <- createMappedStaff venue awardLevel "Grace" "Hopper"
@@ -357,7 +357,7 @@ createPreviewFixtureAtPeriod calendarType periodStart entrySpecs = do
 createMappedStaff :: (?modelContext :: ModelContext) => Venue -> AwardLevel -> Text -> Text -> IO Staff
 createMappedStaff venue awardLevel firstName lastName = do
     user <- createUserRecord ("xero-preview-staff-" <> Text.toLower firstName <> "-" <> Text.toLower lastName <> "@example.com") "staff" True
-    _ <- createVenueMembershipRecord venue user "worker"
+    _ <- createVenueMembershipRecord venue user Worker
     staff <- createStaffRecord venue (Just user) firstName lastName
     staff
         |> set #employmentBasis Permanent

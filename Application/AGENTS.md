@@ -17,6 +17,12 @@ Conventions:
   `updated_at` where appropriate.
 - Prefer PostgreSQL enums for finite states when generated constructor names
   will not collide.
+- Generated PostgreSQL enum constructors are the application identity for
+  schema-backed states. Use constructors directly for compile-time-known values;
+  parse only untrusted external text through total helpers. Keep rank,
+  capability, and presentation projections centralized and exhaustive so new
+  schema cases become compiler-visible. Do not add shadow enum ADTs or partial
+  text-to-enum helpers.
 - Avoid enum type names starting with built-in SQL type tokens such as `time`,
   `timestamp`, or `interval`.
 - If enum values would collide with model constructors, keep the column as

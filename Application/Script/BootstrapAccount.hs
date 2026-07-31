@@ -1,6 +1,5 @@
 module Application.Script.BootstrapAccount where
 
-import Application.Helper.Controller (PlatformRole (..), platformRoleToEnum)
 import Application.Script.Prelude
 import Control.Monad (guard)
 import qualified Data.Text as Text
@@ -93,7 +92,7 @@ requireEnvText name =
 fetchExistingSuperAdmin :: (?modelContext :: ModelContext) => IO (Maybe User)
 fetchExistingSuperAdmin =
     query @User
-        |> filterWhere (#platformRole, Just (platformRoleToEnum SuperAdminRole))
+        |> filterWhere (#platformRole, Just (SuperAdmin))
         |> fetchOneOrNothing
 
 createBootstrapUser :: (?modelContext :: ModelContext) => Text -> Text -> IO User
@@ -109,7 +108,7 @@ createBootstrapUser email password =
                     |> set #email email
                     |> set #passwordHash passwordHash
                     |> set #userRole "staff"
-                    |> set #platformRole (Just (platformRoleToEnum SuperAdminRole))
+                    |> set #platformRole (Just (SuperAdmin))
                     |> set #isProfileCompleted True
                     |> set #emailVerifiedAt (Just def)
                     |> createRecord

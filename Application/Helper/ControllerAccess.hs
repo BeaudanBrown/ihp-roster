@@ -24,6 +24,7 @@ import Application.Bepis.Fact (BepisFact (..), BepisRoleKind (..),
                                emitBepisFact)
 import Application.Helper.ControllerContext
 import Application.Helper.ControllerSupport
+import Application.VenueRole (hasVenueRole)
 
 passkeyVerifiedUserSessionKey :: ByteString
 passkeyVerifiedUserSessionKey = "passkeyVerifiedUserId"
@@ -76,10 +77,7 @@ ensureProfileCompleted = do
             setErrorMessage "Please complete your profile to continue."
             redirectTo EditProfileAction
 
-hasVenueRole :: VenueRole -> VenueRole -> Bool
-hasVenueRole actualRole minimumRole = actualRole >= minimumRole
-
-hasRole :: (?context :: ControllerContext) => VenueRole -> Bool
+hasRole :: (?context :: ControllerContext) => VenueRoleEnum -> Bool
 hasRole minimumRole =
     currentUserIsSuperAdmin || maybe False (`hasVenueRole` minimumRole) currentVenueRoleOrNothing
 
@@ -138,12 +136,12 @@ ensureVenueWritable = do
 
 ensureManagerRole :: (?context :: ControllerContext, ?request :: Request) => IO ()
 ensureManagerRole = do
-    redirectPermissionDeniedUnless (hasRole ManagerRole') "You need manager access to view that page."
+    redirectPermissionDeniedUnless (hasRole Manager) "You need manager access to view that page."
     emitScopeFact (BepisRoleScopeFact BepisManagerRole) "manager-role"
 
 ensureAdminRole :: (?context :: ControllerContext, ?request :: Request, ?modelContext :: ModelContext) => IO ()
 ensureAdminRole = do
-    redirectPermissionDeniedUnless (hasRole VenueAdminRole) "You need admin access to view that page."
+    redirectPermissionDeniedUnless (hasRole VenueAdmin) "You need admin access to view that page."
     emitScopeFact (BepisRoleScopeFact BepisAdminRole) "admin-role"
     ensurePrivilegedPasskeyReady
 
@@ -157,7 +155,7 @@ currentUserRequiresMandatoryPasskey = do
     strongAuthenticationRequired <- privilegedStrongAuthenticationRequired
     pure $
         strongAuthenticationRequired
-            && (currentUserIsSuperAdmin || maybe False (`hasVenueRole` VenueAdminRole) currentVenueRoleOrNothing)
+            && (currentUserIsSuperAdmin || maybe False (`hasVenueRole` VenueAdmin) currentVenueRoleOrNothing)
 
 privilegedStrongAuthenticationRequired :: IO Bool
 privilegedStrongAuthenticationRequired = do

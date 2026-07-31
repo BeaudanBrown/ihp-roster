@@ -9,7 +9,6 @@ module Application.Fixture.DevFixtures.Staff
 import Application.Fixture
 import Application.Fixture.DevFixtures.Deterministic
 import Application.Fixture.Seed.Scenario (SeedScenario (..))
-import Application.Helper.Controller (PlatformRole (..))
 import Application.Helper.VenueBootstrap (provisionVenueUser)
 import qualified Data.Map.Strict as Map
 import qualified Data.Text as Text
@@ -46,14 +45,14 @@ data SeededStaff = SeededStaff
 seedAccounts :: (?modelContext :: ModelContext) => Venue -> SeedScenario -> IO SeededAccounts
 seedAccounts venue scenario = do
     admin <- createSeededUserRecordWithPassword "venue2@bepis.lol" "venue2" "admin" True
-    _ <- provisionVenueUser venue admin "venue_admin" "venue2" "bepis"
-    supportAdmin <- createSeededUserRecordWithPasswordAndPlatformRole "admin@bepis.lol" "admin" "admin" (Just SuperAdminRole) True
+    _ <- provisionVenueUser venue admin VenueAdmin "venue2" "bepis"
+    supportAdmin <- createSeededUserRecordWithPasswordAndPlatformRole "admin@bepis.lol" "admin" "admin" (Just SuperAdmin) True
     managerUsers <- createManagerUsers venue scenario.managerCount
     let managerUser = fromMaybe (error "Expected at least one seeded manager user") (listToMaybe managerUsers)
     workerUser <- createUserRecord "dev-worker@example.com" "staff" True
-    (_, provisionedWorkerStaff) <- provisionVenueUser venue workerUser "worker" "Willa" "Worker"
+    (_, provisionedWorkerStaff) <- provisionVenueUser venue workerUser Worker "Willa" "Worker"
     aliasStaff <- seedSandboxRoleAliasAccounts venue
-    invitation <- createVenueInvitationRecord venue (Just admin) "pending-invite@example.com" "worker"
+    invitation <- createVenueInvitationRecord venue (Just admin) "pending-invite@example.com" Worker
     pure SeededAccounts { .. }
 
 seedStaff :: (?modelContext :: ModelContext) => Venue -> SeedScenario -> SeededAccounts -> IO SeededStaff
@@ -118,20 +117,20 @@ applySeededPayAssignments awardLevelId importedPayItemId aliasStaff fixture = do
 seedSandboxRoleAliasAccounts :: (?modelContext :: ModelContext) => Venue -> IO [Staff]
 seedSandboxRoleAliasAccounts venue = do
     staffUser <- createSeededUserRecordWithPassword "staff@bepis.lol" "staff" "staff" True
-    (_, staffProfile) <- provisionVenueUser venue staffUser "worker" "staff" "bepis"
+    (_, staffProfile) <- provisionVenueUser venue staffUser Worker "staff" "bepis"
     managerUser <- createSeededUserRecordWithPassword "manager@bepis.lol" "manager" "manager" True
-    (_, managerProfile) <- provisionVenueUser venue managerUser "manager" "manager" "bepis"
+    (_, managerProfile) <- provisionVenueUser venue managerUser Manager Manager "bepis"
     venueAdminUser <- createSeededUserRecordWithPassword "venue@bepis.lol" "venue" "admin" True
-    (_, venueAdminProfile) <- provisionVenueUser venue venueAdminUser "venue_admin" "venue" "bepis"
+    (_, venueAdminProfile) <- provisionVenueUser venue venueAdminUser VenueAdmin "venue" "bepis"
     venueOwnerUser <- createSeededUserRecordWithPassword "owner@bepis.lol" "owner" "admin" True
-    (_, venueOwnerProfile) <- provisionVenueUser venue venueOwnerUser "venue_owner" "owner" "bepis"
+    (_, venueOwnerProfile) <- provisionVenueUser venue venueOwnerUser VenueOwner "owner" "bepis"
     pure [staffProfile, managerProfile, venueAdminProfile, venueOwnerProfile]
 
 createSeededUserRecordWithPassword :: (?modelContext :: ModelContext) => Text -> Text -> Text -> Bool -> IO User
 createSeededUserRecordWithPassword emailAddress password globalRole isProfileCompleted =
     createSeededUserRecordWithPasswordAndPlatformRole emailAddress password globalRole Nothing isProfileCompleted
 
-createSeededUserRecordWithPasswordAndPlatformRole :: (?modelContext :: ModelContext) => Text -> Text -> Text -> Maybe PlatformRole -> Bool -> IO User
+createSeededUserRecordWithPasswordAndPlatformRole :: (?modelContext :: ModelContext) => Text -> Text -> Text -> Maybe PlatformRoleEnum -> Bool -> IO User
 createSeededUserRecordWithPasswordAndPlatformRole emailAddress password globalRole platformRole isProfileCompleted =
     createUserRecordWithPasswordAndPlatformRoleAndId emailAddress password globalRole platformRole isProfileCompleted (seededUserIdForPasskeyEmail emailAddress)
 
@@ -155,7 +154,7 @@ createManagerUsers venue count =
     forM [0 .. max 0 (count - 1)] \index -> do
         let emailAddress = if index == 0 then "dev-manager@example.com" else "dev-manager-" <> tshow (index + 1) <> "@example.com"
         user <- createUserRecord emailAddress "manager" True
-        _ <- createVenueMembershipRecord venue user "manager"
+        _ <- createVenueMembershipRecord venue user Manager
         pure user
 
 createManagerStaff :: (?modelContext :: ModelContext) => Venue -> (Int, User) -> IO Staff
@@ -169,7 +168,7 @@ createGeneratedStaff :: (?modelContext :: ModelContext) => Venue -> Int -> Int -
 createGeneratedStaff venue seedValue requestedCount =
     forM (take (max 0 requestedCount) generatedStaffCatalog) \(index, firstName, lastName, preferredName) -> do
         user <- createUserRecord ("dev-" <> Text.toLower firstName <> "-" <> tshow (index + 1) <> "@example.com") "staff" True
-        _ <- createVenueMembershipRecord venue user "worker"
+        _ <- createVenueMembershipRecord venue user Worker
         createPlaceholderStaffRecord venue (Just user) firstName lastName
             >>= updateRecord . set #preferredName (preferredNameFor seedValue index firstName preferredName)
             >>= updateRecord . set #idealShiftsPerWeek (1 + ((index + 2) `mod` 5))

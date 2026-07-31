@@ -77,7 +77,7 @@ xeroErrorToast :: Text -> ToastOverlayConfig
 xeroErrorToast = errorToast
 
 currentUserCanManageXeroIntegration :: (?context :: ControllerContext) => Bool
-currentUserCanManageXeroIntegration = hasRole VenueOwnerRole
+currentUserCanManageXeroIntegration = hasRole VenueOwner
 
 requireCurrentVenueOwnerForXero :: (?context :: ControllerContext, ?request :: Request) => IO () -> IO ()
 requireCurrentVenueOwnerForXero action =

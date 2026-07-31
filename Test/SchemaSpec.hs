@@ -202,19 +202,19 @@ tests = describe "Schema" do
         parseUserRole ("admin" :: Text) `shouldBe` Just AdminRole
         parseUserRole ("owner" :: Text) `shouldBe` Nothing
 
-        parseVenueRole ("worker" :: Text) `shouldBe` Just WorkerRole
-        parseVenueRole ("manager" :: Text) `shouldBe` Just ManagerRole'
-        parseVenueRole ("venue_admin" :: Text) `shouldBe` Just VenueAdminRole
-        parseVenueRole ("venue_owner" :: Text) `shouldBe` Just VenueOwnerRole
+        parseVenueRole ("worker" :: Text) `shouldBe` Just Worker
+        parseVenueRole ("manager" :: Text) `shouldBe` Just Manager
+        parseVenueRole ("venue_admin" :: Text) `shouldBe` Just VenueAdmin
+        parseVenueRole ("venue_owner" :: Text) `shouldBe` Just VenueOwner
         parseVenueRole ("admin" :: Text) `shouldBe` Nothing
 
-        parsePlatformRole ("super_admin" :: Text) `shouldBe` Just SuperAdminRole
-        parsePlatformRole ("venue_owner" :: Text) `shouldBe` Nothing
+        enumFromText @PlatformRoleEnum "super_admin" `shouldBe` Just SuperAdmin
+        enumFromText @PlatformRoleEnum "venue_owner" `shouldBe` Nothing
 
-        parseLeaveRequestStatus ("pending" :: Text) `shouldBe` Just LeavePending
-        parseLeaveRequestStatus ("approved" :: Text) `shouldBe` Just LeaveApproved
-        parseLeaveRequestStatus ("denied" :: Text) `shouldBe` Just LeaveDenied
-        parseLeaveRequestStatus ("cancelled" :: Text) `shouldBe` Nothing
+        enumFromText @LeaveRequestStatusEnum "pending" `shouldBe` Just LeaveRequestStatusEnumPending
+        enumFromText @LeaveRequestStatusEnum "approved" `shouldBe` Just LeaveRequestStatusEnumApproved
+        enumFromText @LeaveRequestStatusEnum "denied" `shouldBe` Just LeaveRequestStatusEnumDenied
+        enumFromText @LeaveRequestStatusEnum "cancelled" `shouldBe` Nothing
         parseExportJobType "approved_timesheets_csv" `shouldBe` Just ApprovedTimesheetsCsv
         parseExportJobType "staff_pay_csv" `shouldBe` Just StaffPayCsv
         parseExportJobType "hourly_breakdown_zip" `shouldBe` Just HourlyBreakdownZip
@@ -226,9 +226,22 @@ tests = describe "Schema" do
         parseExportJobStatus "deleted" `shouldBe` Nothing
 
         map userRoleToText [StaffRole, ManagerRole, AdminRole] `shouldBe` allUserRoleValues
-        map venueRoleToText [WorkerRole, SupervisorRole, ManagerRole', VenueAdminRole, VenueOwnerRole] `shouldBe` allVenueRoleValues
-        map platformRoleToText [SuperAdminRole] `shouldBe` allPlatformRoleValues
-        map leaveRequestStatusToText [LeavePending, LeaveApproved, LeaveDenied] `shouldBe` allLeaveRequestStatusValues
+        map venueRoleToText [Worker, Supervisor, Manager, VenueAdmin, VenueOwner] `shouldBe` allVenueRoleValues
+        map venueRoleLabel [Worker, Supervisor, Manager, VenueAdmin, VenueOwner]
+            `shouldBe` ["Worker", "Supervisor", "Manager", "Venue Admin", "Venue Owner"]
+        map venueRoleMailLabel [Worker, Supervisor, Manager, VenueAdmin, VenueOwner]
+            `shouldBe` ["worker", "supervisor", "manager", "venue admin", "venue owner"]
+        assignableVenueRolesFor False (Just VenueAdmin)
+            `shouldBe` [Worker, Supervisor, Manager, VenueAdmin]
+        assignableVenueRolesFor False (Just VenueOwner)
+            `shouldBe` [Worker, Supervisor, Manager, VenueAdmin, VenueOwner]
+        assignableVenueRolesFor True Nothing
+            `shouldBe` [Worker, Supervisor, Manager, VenueAdmin, VenueOwner]
+        canAssignVenueRole False (Just VenueAdmin) Worker Manager `shouldBe` True
+        canAssignVenueRole False (Just VenueAdmin) Worker VenueOwner `shouldBe` False
+        canAssignVenueRole False (Just VenueAdmin) VenueOwner VenueAdmin `shouldBe` False
+        canAssignVenueRole False (Just VenueOwner) VenueOwner VenueAdmin `shouldBe` True
+        canAssignVenueRole True Nothing VenueOwner VenueAdmin `shouldBe` True
         map exportJobTypeToText [ApprovedTimesheetsCsv, StaffPayCsv, HourlyBreakdownZip, PayrollEarningsCsv] `shouldBe` allExportJobTypeValues
         map exportJobStatusToText [ExportPending, ExportReady, ExportExpired] `shouldBe` allExportJobStatusValues
 
@@ -557,17 +570,17 @@ tests = describe "Schema" do
 
     describe "Venue-scoped authorization helpers" do
         it "uses venue role hierarchy worker < manager < venue_admin < venue_owner" do
-            WorkerRole `shouldSatisfy` (< ManagerRole')
-            ManagerRole' `shouldSatisfy` (< VenueAdminRole)
-            VenueAdminRole `shouldSatisfy` (< VenueOwnerRole)
+            Worker `shouldSatisfy` (< Manager)
+            Manager `shouldSatisfy` (< VenueAdmin)
+            VenueAdmin `shouldSatisfy` (< VenueOwner)
 
         it "checks minimum venue role correctly" do
-            hasVenueRole WorkerRole WorkerRole `shouldBe` True
-            hasVenueRole WorkerRole ManagerRole' `shouldBe` False
-            hasVenueRole ManagerRole' WorkerRole `shouldBe` True
-            hasVenueRole ManagerRole' VenueAdminRole `shouldBe` False
-            hasVenueRole VenueAdminRole ManagerRole' `shouldBe` True
-            hasVenueRole VenueOwnerRole VenueAdminRole `shouldBe` True
+            hasVenueRole Worker Worker `shouldBe` True
+            hasVenueRole Worker Manager `shouldBe` False
+            hasVenueRole Manager Worker `shouldBe` True
+            hasVenueRole Manager VenueAdmin `shouldBe` False
+            hasVenueRole VenueAdmin Manager `shouldBe` True
+            hasVenueRole VenueOwner VenueAdmin `shouldBe` True
 
         it "selects the session venue when it matches an active membership" do
             let venueUuidA = fromString "00000000-0000-0000-0000-000000000001" :: UUID
@@ -609,12 +622,11 @@ tests = describe "Schema" do
                         |> set #userRole "admin"
             let membership =
                     newRecord @VenueMembership
-                        |> set #venueRole (unsafeEnumFromText @VenueRoleEnum "worker")
+                        |> set #venueRole (Worker)
 
             parseUserRole user.userRole `shouldBe` Just AdminRole
-            parseVenueRole membership.venueRole `shouldBe` Just WorkerRole
-            maybe False (`hasVenueRole` VenueAdminRole) (parseVenueRole membership.venueRole)
-                `shouldBe` False
+            membership.venueRole `shouldBe` Worker
+            hasVenueRole membership.venueRole VenueAdmin `shouldBe` False
 
     describe "Trial staff" do
         it "identifies trial staff by missing user_id" do

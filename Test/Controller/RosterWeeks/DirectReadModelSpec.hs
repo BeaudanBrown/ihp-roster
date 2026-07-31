@@ -103,7 +103,7 @@ tests = aroundAll withDatabaseTestContext do
                         openDay <- fetch (Id fixture.visibleSparseSlot.rosterDayId) :: IO RosterDay
                         _ <- fixture.eligibleStaff |> set #idealShiftsPerWeek 1 |> updateRecord
                         _ <- createRosterSlotRecord openDay fixture.earlySlotName (Just fixture.eligibleStaff) 4
-                        _ <- createLeaveRequestRecord fixture.venue fixture.eligibleStaff initialData.weekStartDate (Calendar.addDays 1 initialData.weekStartDate) "approved"
+                        _ <- createLeaveRequestRecord fixture.venue fixture.eligibleStaff initialData.weekStartDate (Calendar.addDays 1 initialData.weekStartDate) LeaveRequestStatusEnumApproved
 
                         facts <- fromJust <$> fetchRosterBaseFactsDirect fixture.rosterGroup.id 0
                         states <- buildRosterStaffOptionStatesDirect allAssignmentFilters initialData.weekStartDate facts.baseVisibleSlots facts.baseStaffMembers
@@ -193,7 +193,7 @@ addDirectReadModelConflictFacts fixture = do
             |> setTestRosterSlotBoundaries (Calendar.addDays 1 initialData.weekStartDate) (TimeOfDay 6 0 0) (TimeOfDay 7 0 0)
             |> updateRecord
     _ <- fixture.visibleSparseSlot |> setTestStartTime (Just (TimeOfDay 23 0 0)) |> updateRecord
-    _ <- createLeaveRequestRecord fixture.venue fixture.assignedInactiveStaff initialData.weekStartDate (Calendar.addDays 1 initialData.weekStartDate) "approved"
+    _ <- createLeaveRequestRecord fixture.venue fixture.assignedInactiveStaff initialData.weekStartDate (Calendar.addDays 1 initialData.weekStartDate) LeaveRequestStatusEnumApproved
     preferenceStaff <- createStaffRecord fixture.venue Nothing "Pref" "Mismatch"
     preferenceSlot <- createRosterSlotRecord openDay fixture.earlySlotName (Just preferenceStaff) 6 >>= \slot ->
         slot |> setTestStartTime (Just (TimeOfDay 12 0 0)) |> updateRecord
@@ -218,7 +218,7 @@ createDirectReadModelFixture :: (?modelContext :: ModelContext) => IO DirectRead
 createDirectReadModelFixture = do
     venue <- createVenueWithConfig "Direct Read Venue"
     manager <- createUserRecord "direct-read-manager@example.com" "staff" True
-    _ <- createVenueMembershipRecord venue manager "manager"
+    _ <- createVenueMembershipRecord venue manager Manager
     rosterGroup <- ensureVenueDefaultRosterGroup venue
     otherRosterGroup <- createVenueRosterGroupWithDefaults venue "Other" 1 True
     earlySlotName <- fetchSlotNameRecordForRosterGroup rosterGroup "Early"
@@ -231,11 +231,11 @@ createDirectReadModelFixture = do
     _ <- dinner |> set #sortOrder 2 |> updateRecord
 
     eligibleUser <- createUserRecord "direct-eligible@example.com" "staff" True
-    _ <- createVenueMembershipRecord venue eligibleUser "worker"
+    _ <- createVenueMembershipRecord venue eligibleUser Worker
     eligibleStaff <- createStaffRecord venue (Just eligibleUser) "Able" "Eligible"
 
     inactiveUser <- createUserRecord "direct-inactive@example.com" "staff" True
-    _ <- createVenueMembershipRecord venue inactiveUser "worker"
+    _ <- createVenueMembershipRecord venue inactiveUser Worker
     assignedInactiveStaff <- createStaffRecord venue (Just inactiveUser) "Bert" "Inactive"
     assignedInactiveStaff' <- assignedInactiveStaff |> set #isActive False |> updateRecord
 

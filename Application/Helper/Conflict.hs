@@ -1,7 +1,5 @@
 module Application.Helper.Conflict where
 
-import Application.Helper.Controller (LeaveRequestStatus (..),
-                                      parseLeaveRequestStatus)
 import Application.Helper.WeekBoundaries (weekdayIndexForDay)
 import Application.VenueTime.Model (rosterSlotStartTime)
 import Data.Time.Calendar (Day)
@@ -96,10 +94,9 @@ checkLeaveConflict ctx =
     let
         isOnLeave = any overlaps ctx.leaveRequests
         overlaps req =
-            let status = parseLeaveRequestStatus req.status
-            in status == Just LeaveApproved &&
-               ctx.rosterDayDate >= req.startDate &&
-               ctx.rosterDayDate < req.endDate
+            req.status == LeaveRequestStatusEnumApproved
+                && ctx.rosterDayDate >= req.startDate
+                && ctx.rosterDayDate < req.endDate
     in if isOnLeave
         then Just RosterConflict
             { conflictType = LeaveConflict

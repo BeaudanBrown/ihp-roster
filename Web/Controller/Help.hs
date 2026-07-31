@@ -29,8 +29,8 @@ instance Controller HelpController where
 currentPageHelpContext :: (?context :: ControllerContext) => PageHelpContext
 currentPageHelpContext =
     PageHelpContext
-        { pageHelpCanManage = hasRole ManagerRole'
-        , pageHelpCanAdmin = hasRole VenueAdminRole
-        , pageHelpCanOwn = hasRole VenueOwnerRole
+        { pageHelpCanManage = hasRole Manager
+        , pageHelpCanAdmin = hasRole VenueAdmin
+        , pageHelpCanOwn = hasRole VenueOwner
         , pageHelpIsSupport = currentUserIsSuperAdmin
         }

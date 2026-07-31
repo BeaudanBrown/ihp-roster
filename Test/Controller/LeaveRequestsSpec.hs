@@ -1,7 +1,5 @@
 module Test.Controller.LeaveRequestsSpec where
 
-import Application.Helper.Controller (LeaveRequestStatus (LeavePending),
-                                      PlatformRole (SuperAdminRole))
 import qualified Application.Helper.FrontendContract.Surface.LeaveRequests.Live as LeaveLive
 import Application.Helper.FrontendContract.Surface.LeaveRequests.Resource
 import Application.Helper.FrontendContract.Surface.Profile.Resource (staffLeaveRequestsResource)
@@ -64,8 +62,8 @@ tests = aroundAll withDatabaseTestContext do
                 venue <- createVenueWithConfig "Blackout Create Venue"
                 admin <- createUserRecord "blackout-create-admin@example.com" "admin" True
                 owner <- createUserRecord "blackout-create-owner@example.com" "admin" True
-                _ <- createVenueMembershipRecord venue admin "venue_admin"
-                _ <- createVenueMembershipRecord venue owner "venue_owner"
+                _ <- createVenueMembershipRecord venue admin VenueAdmin
+                _ <- createVenueMembershipRecord venue owner VenueOwner
                 today <- utctDay <$> getCurrentTime
                 let firstBlockedDate = addDays 2 today
                 let lastBlockedDate = addDays 4 today
@@ -98,7 +96,7 @@ tests = aroundAll withDatabaseTestContext do
                 config <- query @VenueConfig |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
                 _ <- config |> set #timezone "Etc/GMT+12" |> updateRecord
                 admin <- createUserRecord "blackout-local-admin@example.com" "admin" True
-                _ <- createVenueMembershipRecord venue admin "venue_admin"
+                _ <- createVenueMembershipRecord venue admin VenueAdmin
                 now <- getCurrentTime
                 venueToday :: Day <- sqlQueryScalar "SELECT (?::timestamptz AT TIME ZONE 'Etc/GMT+12')::date" (Only now)
 
@@ -116,7 +114,7 @@ tests = aroundAll withDatabaseTestContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Blackout Validation Venue"
                 admin <- createUserRecord "blackout-validation-admin@example.com" "admin" True
-                _ <- createVenueMembershipRecord venue admin "venue_admin"
+                _ <- createVenueMembershipRecord venue admin VenueAdmin
                 venueConfig <- query @VenueConfig |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
                 today <- currentVenueCalendarDay venueConfig
                 let submit endDate reason = withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
@@ -149,7 +147,7 @@ tests = aroundAll withDatabaseTestContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Blackout Overlap Venue"
                 admin <- createUserRecord "blackout-overlap-admin@example.com" "admin" True
-                _ <- createVenueMembershipRecord venue admin "venue_admin"
+                _ <- createVenueMembershipRecord venue admin VenueAdmin
                 today <- utctDay <$> getCurrentTime
                 let firstBlockedDate = addDays 2 today
                 let lastBlockedDate = addDays 4 today
@@ -186,7 +184,7 @@ tests = aroundAll withDatabaseTestContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Concurrent Blackout Venue"
                 admin <- createUserRecord "concurrent-blackout-admin@example.com" "admin" True
-                _ <- createVenueMembershipRecord venue admin "venue_admin"
+                _ <- createVenueMembershipRecord venue admin VenueAdmin
                 today <- utctDay <$> getCurrentTime
                 let createAction reason = withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
                         callActionWithParams CreateUnavailabilityBlackoutAction
@@ -206,7 +204,7 @@ tests = aroundAll withDatabaseTestContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Blackout Submission Venue"
                 worker <- createUserRecord "blackout-worker@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue worker "worker"
+                _ <- createVenueMembershipRecord venue worker Worker
                 staff <- createStaffRecord venue (Just worker) "Blocked" "Worker"
                 today <- utctDay <$> getCurrentTime
                 let blockedDate = addDays 3 today
@@ -245,7 +243,7 @@ tests = aroundAll withDatabaseTestContext do
                 venue <- createVenueWithConfig "Blackout No Override Venue"
                 manager <- createUserRecord "blackout-manager@example.com" "manager" True
                 superAdmin <- createUserRecordWithPlatformRole "blackout-support@example.com" "staff" (Just SuperAdminRole) True
-                _ <- createVenueMembershipRecord venue manager "manager"
+                _ <- createVenueMembershipRecord venue manager Manager
                 staff <- createStaffRecord venue Nothing "Target" "Staff"
                 today <- utctDay <$> getCurrentTime
                 let blockedDate = addDays 5 today
@@ -289,9 +287,9 @@ tests = aroundAll withDatabaseTestContext do
                 foreignVenue <- createVenueWithConfig "Foreign Blackout Manage Venue"
                 admin <- createUserRecord "blackout-manage-admin@example.com" "admin" True
                 manager <- createUserRecord "blackout-manage-manager@example.com" "manager" True
-                _ <- createVenueMembershipRecord venue admin "venue_admin"
-                _ <- createVenueMembershipRecord foreignVenue admin "venue_admin"
-                _ <- createVenueMembershipRecord venue manager "manager"
+                _ <- createVenueMembershipRecord venue admin VenueAdmin
+                _ <- createVenueMembershipRecord foreignVenue admin VenueAdmin
+                _ <- createVenueMembershipRecord venue manager Manager
                 today <- utctDay <$> getCurrentTime
                 blackout <- newRecord @UnavailabilityBlackout
                     |> set #venueId (unpackId venue.id)
@@ -343,9 +341,9 @@ tests = aroundAll withDatabaseTestContext do
                 admin <- createUserRecord "blackout-visibility-admin@example.com" "admin" True
                 manager <- createUserRecord "blackout-visibility-manager@example.com" "manager" True
                 worker <- createUserRecord "blackout-visibility-worker@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue admin "venue_admin"
-                _ <- createVenueMembershipRecord venue manager "manager"
-                _ <- createVenueMembershipRecord venue worker "worker"
+                _ <- createVenueMembershipRecord venue admin VenueAdmin
+                _ <- createVenueMembershipRecord venue manager Manager
+                _ <- createVenueMembershipRecord venue worker Worker
                 staff <- createStaffRecord venue (Just worker) "Visible" "Worker"
                 today <- utctDay <$> getCurrentTime
                 existingRequest <- createLeaveRequestRecord venue staff today (addDays 1 today) "approved"
@@ -387,7 +385,7 @@ tests = aroundAll withDatabaseTestContext do
 
         it "redirects venue-less super-admins from leave to support" $ withContext do
             withCleanDb do
-                user <- createUserRecordWithPlatformRole "leave-bootstrap-super-admin@example.com" "staff" (Just SuperAdminRole) True
+                user <- createUserRecordWithPlatformRole "leave-bootstrap-super-admin@example.com" "staff" (Just SuperAdmin) True
 
                 response <- withUser user do
                     callAction LeaveRequestsAction
@@ -401,8 +399,8 @@ tests = aroundAll withDatabaseTestContext do
                 foreignVenue <- createVenueWithConfig "Foreign Leave Threshold Venue"
                 manager <- createUserRecord "leave-threshold-manager@example.com" "staff" True
                 linkedUser <- createUserRecord "leave-threshold-linked@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue manager "manager"
-                _ <- createVenueMembershipRecord venue linkedUser "worker"
+                _ <- createVenueMembershipRecord venue manager Manager
+                _ <- createVenueMembershipRecord venue linkedUser Worker
                 linkedStaff <- createStaffRecord venue (Just linkedUser) "Linked" "Worker"
                 trialStaff <- createStaffRecord venue Nothing "Trial" "Worker"
                 inactiveStaff <- createStaffRecord venue Nothing "Inactive" "Worker" >>= updateRecord . set #isActive False
@@ -452,8 +450,8 @@ tests = aroundAll withDatabaseTestContext do
                 venue <- createVenueWithConfig "Leave Disabled Threshold Venue"
                 manager <- createUserRecord "leave-disabled-threshold-manager@example.com" "staff" True
                 worker <- createUserRecord "leave-disabled-threshold-worker@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue manager "manager"
-                _ <- createVenueMembershipRecord venue worker "worker"
+                _ <- createVenueMembershipRecord venue manager Manager
+                _ <- createVenueMembershipRecord venue worker Worker
                 _ <- createStaffRecord venue (Just worker) "Threshold" "Worker"
 
                 managerResponse <- withUserAndCurrentVenue manager venue.id do
@@ -474,12 +472,12 @@ tests = aroundAll withDatabaseTestContext do
                 rosterGroupA <- ensureVenueDefaultRosterGroup venueA
                 rosterGroupB <- ensureVenueDefaultRosterGroup venueB
                 manager <- createUserRecord "leave-manager@example.com" "staff" True
-                _ <- createVenueMembershipRecord venueA manager "manager"
+                _ <- createVenueMembershipRecord venueA manager Manager
                 staffA <- createStaffRecord venueA Nothing "Ava" "Leave"
                 rosterWeekA <- createRosterWeekRecord venueA 0 False >>= updateRecord . set #updatedAt staleTimestamp
                 rosterWeekA1 <- createRosterWeekRecord venueA 1 False >>= updateRecord . set #updatedAt staleTimestamp
                 rosterWeekB <- createRosterWeekRecord venueB 0 False >>= updateRecord . set #updatedAt staleTimestamp
-                leaveRequest <- createLeaveRequestRecord venueA staffA (fromGregorian 2025 1 8) (fromGregorian 2025 1 15) "pending"
+                leaveRequest <- createLeaveRequestRecord venueA staffA (fromGregorian 2025 1 8) (fromGregorian 2025 1 15) LeaveRequestStatusEnumPending
                 venueConfigA <- query @VenueConfig |> filterWhere (#venueId, unpackId venueA.id) |> fetchOne
                 let activeTargets =
                         affectedRosterWeekInvalidationTargetsForScopes
@@ -519,17 +517,17 @@ tests = aroundAll withDatabaseTestContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Touched Leave Venue"
                 manager <- createUserRecord "leave-touched-manager@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue manager "manager"
+                _ <- createVenueMembershipRecord venue manager Manager
                 staff <- createStaffRecord venue Nothing "Touched" "Staff"
-                leaveRequest <- createLeaveRequestRecord venue staff (fromGregorian 2025 1 8) (fromGregorian 2025 1 15) "pending"
-                Set.fromList (leaveReviewTouchedResources (fromGregorian 2025 1 10) ApproveLeave (Just LeavePending) leaveRequest)
+                leaveRequest <- createLeaveRequestRecord venue staff (fromGregorian 2025 1 8) (fromGregorian 2025 1 15) LeaveRequestStatusEnumPending
+                Set.fromList (leaveReviewTouchedResources (fromGregorian 2025 1 10) ApproveLeave LeaveRequestStatusEnumPending leaveRequest)
                     `shouldBe` Set.fromList
                         [ leaveAvailabilityWarningsResource (unpackId venue.id)
                         , pendingLeaveRequestsResource (unpackId venue.id)
                         , approvedLeaveRequestsResource (unpackId venue.id)
                         , staffLeaveRequestsResource leaveRequest.staffId
                         ]
-                Set.fromList (leaveReviewTouchedResources (fromGregorian 2025 1 16) ApproveLeave (Just LeavePending) leaveRequest)
+                Set.fromList (leaveReviewTouchedResources (fromGregorian 2025 1 16) ApproveLeave LeaveRequestStatusEnumPending leaveRequest)
                     `shouldBe` Set.fromList
                         [ leaveAvailabilityWarningsResource (unpackId venue.id)
                         , archivedLeaveRequestsResource (unpackId venue.id)
@@ -540,7 +538,7 @@ tests = aroundAll withDatabaseTestContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Leave Venue"
                 user <- createUserRecord "leave-shell@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue user "manager"
+                _ <- createVenueMembershipRecord venue user Manager
                 _ <- createStaffRecord venue (Just user) "Shell" "Viewer"
 
                 response <- withUserAndCurrentVenue user venue.id do
@@ -555,7 +553,7 @@ tests = aroundAll withDatabaseTestContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Leave Venue"
                 user <- createUserRecord "leave-staff-blocked@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue user "worker"
+                _ <- createVenueMembershipRecord venue user Worker
                 _ <- createStaffRecord venue (Just user) "Blocked" "Worker"
 
                 response <- withUserAndCurrentVenue user venue.id do
@@ -568,9 +566,9 @@ tests = aroundAll withDatabaseTestContext do
             withCleanDb do
                 today <- utctDay <$> getCurrentTime
                 venue <- createVenueWithConfig "Support Leave Venue"
-                superAdmin <- createUserRecordWithPlatformRole "leave-super-admin@example.com" "staff" (Just SuperAdminRole) True
+                superAdmin <- createUserRecordWithPlatformRole "leave-super-admin@example.com" "staff" (Just SuperAdmin) True
                 worker <- createStaffRecord venue Nothing "Liv" "Worker"
-                _ <- createLeaveRequestRecord venue worker (addDays 10 today) (addDays 12 today) "pending"
+                _ <- createLeaveRequestRecord venue worker (addDays 10 today) (addDays 12 today) LeaveRequestStatusEnumPending
 
                 response <- withPasskeyVerifiedUserAndCurrentVenue superAdmin venue.id do
                     callAction LeaveRequestsAction
@@ -586,7 +584,7 @@ tests = aroundAll withDatabaseTestContext do
         it "denies super-admin self-service leave creation" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Support Leave Create Venue"
-                superAdmin <- createUserRecordWithPlatformRole "leave-create-super-admin@example.com" "staff" (Just SuperAdminRole) True
+                superAdmin <- createUserRecordWithPlatformRole "leave-create-super-admin@example.com" "staff" (Just SuperAdmin) True
 
                 newResponse <- withPasskeyVerifiedUserAndCurrentVenue superAdmin venue.id do
                     callAction NewLeaveRequestAction
@@ -609,7 +607,7 @@ tests = aroundAll withDatabaseTestContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Leave Venue"
                 user <- createUserRecord "leave-form@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue user "worker"
+                _ <- createVenueMembershipRecord venue user Worker
                 _ <- createStaffRecord venue (Just user) "Liv" "Form"
 
                 response <- withUserAndCurrentVenue user venue.id do
@@ -623,7 +621,7 @@ tests = aroundAll withDatabaseTestContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Leave Required Venue"
                 user <- createUserRecord "leave-required@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue user "worker"
+                _ <- createVenueMembershipRecord venue user Worker
                 _ <- createStaffRecord venue (Just user) "Liv" "Required"
 
                 response <- withUserAndCurrentVenue user venue.id do
@@ -644,13 +642,13 @@ tests = aroundAll withDatabaseTestContext do
                 venue <- createVenueWithConfig "Leave Venue"
                 manager <- createUserRecord "leave-manager-headings@example.com" "staff" True
                 workerUser <- createUserRecord "leave-worker-headings@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue manager "manager"
-                _ <- createVenueMembershipRecord venue workerUser "worker"
+                _ <- createVenueMembershipRecord venue manager Manager
+                _ <- createVenueMembershipRecord venue workerUser Worker
                 staff <- createStaffRecord venue (Just workerUser) "Hana" "Headings"
-                _ <- createLeaveRequestRecord venue staff (addDays 10 today) (addDays 12 today) "pending"
-                _ <- createLeaveRequestRecord venue staff (addDays 13 today) (addDays 14 today) "pending"
-                _ <- createLeaveRequestRecord venue staff (addDays 15 today) (addDays 16 today) "approved"
-                _ <- createLeaveRequestRecord venue staff (addDays 17 today) (addDays 18 today) "denied"
+                _ <- createLeaveRequestRecord venue staff (addDays 10 today) (addDays 12 today) LeaveRequestStatusEnumPending
+                _ <- createLeaveRequestRecord venue staff (addDays 13 today) (addDays 14 today) LeaveRequestStatusEnumPending
+                _ <- createLeaveRequestRecord venue staff (addDays 15 today) (addDays 16 today) LeaveRequestStatusEnumApproved
+                _ <- createLeaveRequestRecord venue staff (addDays 17 today) (addDays 18 today) LeaveRequestStatusEnumDenied
 
                 response <- withUserAndCurrentVenue manager venue.id do
                     callAction LeaveRequestsAction
@@ -670,14 +668,14 @@ tests = aroundAll withDatabaseTestContext do
                 venue <- createVenueWithConfig "Leave Venue"
                 manager <- createUserRecord "leave-manager-archive@example.com" "staff" True
                 workerUser <- createUserRecord "leave-worker-archive@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue manager "manager"
-                _ <- createVenueMembershipRecord venue workerUser "worker"
+                _ <- createVenueMembershipRecord venue manager Manager
+                _ <- createVenueMembershipRecord venue workerUser Worker
                 staff <- createStaffRecord venue (Just workerUser) "Ari" "Archive"
-                _ <- createLeaveRequestRecord venue staff (addDays (-20) today) (addDays (-18) today) "pending"
-                _ <- createLeaveRequestRecord venue staff (addDays (-17) today) (addDays (-16) today) "approved"
-                _ <- createLeaveRequestRecord venue staff (addDays (-15) today) (addDays (-14) today) "denied"
-                _ <- createLeaveRequestRecord venue staff (addDays (-1) today) today "approved"
-                _ <- createLeaveRequestRecord venue staff (addDays 1 today) (addDays 2 today) "pending"
+                _ <- createLeaveRequestRecord venue staff (addDays (-20) today) (addDays (-18) today) LeaveRequestStatusEnumPending
+                _ <- createLeaveRequestRecord venue staff (addDays (-17) today) (addDays (-16) today) LeaveRequestStatusEnumApproved
+                _ <- createLeaveRequestRecord venue staff (addDays (-15) today) (addDays (-14) today) LeaveRequestStatusEnumDenied
+                _ <- createLeaveRequestRecord venue staff (addDays (-1) today) today LeaveRequestStatusEnumApproved
+                _ <- createLeaveRequestRecord venue staff (addDays 1 today) (addDays 2 today) LeaveRequestStatusEnumPending
 
                 response <- withUserAndCurrentVenue manager venue.id do
                     callAction LeaveRequestsAction
@@ -703,13 +701,13 @@ tests = aroundAll withDatabaseTestContext do
                 venue <- createVenueWithConfig "Leave Archive Pagination Venue"
                 manager <- createUserRecord "leave-manager-archive-pagination@example.com" "staff" True
                 workerUser <- createUserRecord "leave-worker-archive-pagination@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue manager "manager"
-                _ <- createVenueMembershipRecord venue workerUser "worker"
+                _ <- createVenueMembershipRecord venue manager Manager
+                _ <- createVenueMembershipRecord venue workerUser Worker
                 staff <- createStaffRecord venue (Just workerUser) "Page" "Archive"
-                _ <- createLeaveRequestRecord venue staff (addDays 2 today) (addDays 3 today) "pending"
+                _ <- createLeaveRequestRecord venue staff (addDays 2 today) (addDays 3 today) LeaveRequestStatusEnumPending
                 forM_ [1 .. 12 :: Int] \index -> do
                     let endDate = addDays (negate (toInteger index)) today
-                    leaveRequest <- createLeaveRequestRecord venue staff (addDays (-1) endDate) endDate "approved"
+                    leaveRequest <- createLeaveRequestRecord venue staff (addDays (-1) endDate) endDate LeaveRequestStatusEnumApproved
                     leaveRequest
                         |> set #notes (Just ("archive-page-note-" <> tshow index))
                         |> updateRecord
@@ -749,12 +747,12 @@ tests = aroundAll withDatabaseTestContext do
                 venue <- createVenueWithConfig "Leave Archive OOB Pagination Venue"
                 manager <- createUserRecord "leave-manager-archive-oob@example.com" "staff" True
                 workerUser <- createUserRecord "leave-worker-archive-oob@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue manager "manager"
-                _ <- createVenueMembershipRecord venue workerUser "worker"
+                _ <- createVenueMembershipRecord venue manager Manager
+                _ <- createVenueMembershipRecord venue workerUser Worker
                 staff <- createStaffRecord venue (Just workerUser) "Oob" "Archive"
                 forM_ [1 .. 12 :: Int] \index -> do
                     let endDate = addDays (negate (toInteger index)) today
-                    leaveRequest <- createLeaveRequestRecord venue staff (addDays (-1) endDate) endDate "approved"
+                    leaveRequest <- createLeaveRequestRecord venue staff (addDays (-1) endDate) endDate LeaveRequestStatusEnumApproved
                     leaveRequest
                         |> set #notes (Just ("archive-oob-note-" <> tshow index))
                         |> updateRecord
@@ -779,7 +777,7 @@ tests = aroundAll withDatabaseTestContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Leave Venue"
                 manager <- createUserRecord "leave-manager-empty@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue manager "manager"
+                _ <- createVenueMembershipRecord venue manager Manager
 
                 response <- withUserAndCurrentVenue manager venue.id do
                     callAction LeaveRequestsAction
@@ -798,13 +796,13 @@ tests = aroundAll withDatabaseTestContext do
                 manager <- createUserRecord "leave-fragment-manager@example.com" "staff" True
                 workerAUser <- createUserRecord "leave-fragment-worker-a@example.com" "staff" True
                 workerBUser <- createUserRecord "leave-fragment-worker-b@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue manager "manager"
-                _ <- createVenueMembershipRecord venue workerAUser "worker"
-                _ <- createVenueMembershipRecord venue workerBUser "worker"
+                _ <- createVenueMembershipRecord venue manager Manager
+                _ <- createVenueMembershipRecord venue workerAUser Worker
+                _ <- createVenueMembershipRecord venue workerBUser Worker
                 workerA <- createStaffRecord venue (Just workerAUser) "Ava" "Viewer"
                 workerB <- createStaffRecord venue (Just workerBUser) "Bea" "Viewer"
-                _ <- createLeaveRequestRecord venue workerA (fromGregorian 2025 1 8) (fromGregorian 2025 1 10) "pending"
-                _ <- createLeaveRequestRecord venue workerB (fromGregorian 2025 1 11) (fromGregorian 2025 1 12) "pending"
+                _ <- createLeaveRequestRecord venue workerA (fromGregorian 2025 1 8) (fromGregorian 2025 1 10) LeaveRequestStatusEnumPending
+                _ <- createLeaveRequestRecord venue workerB (fromGregorian 2025 1 11) (fromGregorian 2025 1 12) LeaveRequestStatusEnumPending
 
                 managerResponse <- withUserAndCurrentVenue manager venue.id do
                     callAction ShowleaveRequestsContentLiveFragmentAction
@@ -822,10 +820,10 @@ tests = aroundAll withDatabaseTestContext do
                 venue <- createVenueWithConfig "Leave Venue"
                 rosterGroup <- ensureVenueDefaultRosterGroup venue
                 manager <- createUserRecord "leave-deny-live-update@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue manager "manager"
+                _ <- createVenueMembershipRecord venue manager Manager
                 staff <- createStaffRecord venue Nothing "Dina" "Leave"
                 _ <- createRosterWeekRecord venue 0 False
-                leaveRequest <- createLeaveRequestRecord venue staff (fromGregorian 2025 1 8) (fromGregorian 2025 1 10) "approved"
+                leaveRequest <- createLeaveRequestRecord venue staff (fromGregorian 2025 1 8) (fromGregorian 2025 1 10) LeaveRequestStatusEnumApproved
 
                 versionBefore <- currentLiveUpdateVersion (RosterLive.rosterWeekLiveScope (unpackId venue.id) (unpackId rosterGroup.id) 0)
 
@@ -841,7 +839,7 @@ tests = aroundAll withDatabaseTestContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Leave Manager Actor Venue"
                 manager <- createUserRecord "leave-manager-actor@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue manager "manager"
+                _ <- createVenueMembershipRecord venue manager Manager
                 _ <- createStaffRecord venue (Just manager) "Mara" "Manager"
                 venueConfig <- query @VenueConfig |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
                 _ <- venueConfig |> set #unavailableStaffWarningThreshold (Just 1) |> updateRecord
@@ -867,7 +865,7 @@ tests = aroundAll withDatabaseTestContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Leave Venue"
                 user <- createUserRecord "leave-htmx-create@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue user "worker"
+                _ <- createVenueMembershipRecord venue user Worker
                 _ <- createStaffRecord venue (Just user) "Liv" "Create"
                 venueConfig <- query @VenueConfig |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
                 _ <- venueConfig |> set #unavailableStaffWarningThreshold (Just 1) |> updateRecord
@@ -906,7 +904,7 @@ tests = aroundAll withDatabaseTestContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Shared Leave Venue"
                 user <- createUserRecord "leave-shared-create@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue user "worker"
+                _ <- createVenueMembershipRecord venue user Worker
                 _ <- createStaffRecord venue (Just user) "Rae" "Roster"
 
                 response <- withUserAndCurrentVenue user venue.id do
@@ -936,7 +934,7 @@ tests = aroundAll withDatabaseTestContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Leave Venue"
                 incompleteUser <- createUserRecord "leave-profile-no-staff@example.com" "staff" False
-                _ <- createVenueMembershipRecord venue incompleteUser "worker"
+                _ <- createVenueMembershipRecord venue incompleteUser Worker
                 user <- incompleteUser |> set #isProfileCompleted True |> updateRecord
 
                 response <- withUserAndCurrentVenue user venue.id do
@@ -955,7 +953,7 @@ tests = aroundAll withDatabaseTestContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Leave Venue"
                 user <- createUserRecord "leave-profile-target-inference@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue user "manager"
+                _ <- createVenueMembershipRecord venue user Manager
                 _ <- createStaffRecord venue (Just user) "Admin" "Crew"
 
                 response <- withUserAndCurrentVenue user venue.id do
@@ -986,10 +984,10 @@ tests = aroundAll withDatabaseTestContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Leave Venue"
                 manager <- createUserRecord "leave-live-manager@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue manager "manager"
+                _ <- createVenueMembershipRecord venue manager Manager
                 staff <- createStaffRecord venue Nothing "Dina" "Leave"
                 today <- utctDay <$> getCurrentTime
-                leaveRequest <- createLeaveRequestRecord venue staff (addDays 7 today) (addDays 9 today) "pending"
+                leaveRequest <- createLeaveRequestRecord venue staff (addDays 7 today) (addDays 9 today) LeaveRequestStatusEnumPending
 
                 versionBefore <- currentLiveUpdateVersion (LeaveLive.leaveRequestsLiveScope (unpackId venue.id))
 
@@ -1017,9 +1015,9 @@ tests = aroundAll withDatabaseTestContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Leave Venue"
                 manager <- createUserRecord "leave-approve@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue manager "manager"
+                _ <- createVenueMembershipRecord venue manager Manager
                 staff <- createStaffRecord venue Nothing "Ava" "Leave"
-                leaveRequest <- createLeaveRequestRecord venue staff (fromGregorian 2025 1 8) (fromGregorian 2025 1 10) "pending"
+                leaveRequest <- createLeaveRequestRecord venue staff (fromGregorian 2025 1 8) (fromGregorian 2025 1 10) LeaveRequestStatusEnumPending
 
                 response <- withUserAndCurrentVenue manager venue.id do
                     callAction ApproveLeaveRequestAction { leaveRequestId = leaveRequest.id }
@@ -1045,9 +1043,9 @@ tests = aroundAll withDatabaseTestContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Leave Venue"
                 manager <- createUserRecord "leave-deny@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue manager "manager"
+                _ <- createVenueMembershipRecord venue manager Manager
                 staff <- createStaffRecord venue Nothing "Dina" "Leave"
-                leaveRequest <- createLeaveRequestRecord venue staff (fromGregorian 2025 1 11) (fromGregorian 2025 1 12) "pending"
+                leaveRequest <- createLeaveRequestRecord venue staff (fromGregorian 2025 1 11) (fromGregorian 2025 1 12) LeaveRequestStatusEnumPending
 
                 response <- withUserAndCurrentVenue manager venue.id do
                     callAction DenyLeaveRequestAction { leaveRequestId = leaveRequest.id }
@@ -1070,7 +1068,7 @@ tests = aroundAll withDatabaseTestContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Leave Venue"
                 user <- createUserRecord "leave-create@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue user "worker"
+                _ <- createVenueMembershipRecord venue user Worker
                 _ <- createStaffRecord venue (Just user) "Liv" "Create"
 
                 response <- withUserAndCurrentVenue user venue.id do

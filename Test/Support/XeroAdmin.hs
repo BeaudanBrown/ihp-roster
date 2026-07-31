@@ -380,7 +380,7 @@ createStaffUsingAwardLevel ::
     IO Staff
 createStaffUsingAwardLevel venue firstName lastName awardLevel employmentBasis = do
     user <- createUserRecord ("xero-award-staff-" <> Text.toLower firstName <> "-" <> Text.toLower lastName <> "@example.com") "staff" True
-    _ <- createVenueMembershipRecord venue user "worker"
+    _ <- createVenueMembershipRecord venue user Worker
     staff <- createStaffRecord venue (Just user) firstName lastName
     staff
         |> set #employmentBasis employmentBasis

@@ -5,8 +5,6 @@ module Web.LeaveRequests.Blackouts
     , fetchCurrentAndFutureUnavailabilityBlackouts
     ) where
 
-import Application.Helper.Controller (LeaveRequestStatus (LeaveApproved, LeavePending),
-                                      parseLeaveRequestStatus)
 import Data.Coerce (coerce)
 import Data.Time.Clock (getCurrentTime)
 import Web.Controller.Prelude
@@ -41,7 +39,7 @@ blackoutExceptions leaveRequests staffMembers blackout =
     | leaveRequest <- leaveRequests
     , leaveRequest.venueId == blackout.venueId
     , isNothing leaveRequest.deletedAt
-    , parseLeaveRequestStatus leaveRequest.status `elem` [Just LeavePending, Just LeaveApproved]
+    , leaveRequest.status `elem` [LeaveRequestStatusEnumPending, LeaveRequestStatusEnumApproved]
     , leaveRequest.startDate <= blackout.endDate
     , addDays (-1) leaveRequest.endDate >= blackout.startDate
     , staff <- staffMembers

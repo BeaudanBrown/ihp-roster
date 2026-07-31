@@ -20,7 +20,7 @@ venueInvitationEffectiveExpiresAt invitation =
 
 venueInvitationIsActive :: UTCTime -> VenueInvitation -> Bool
 venueInvitationIsActive now invitation =
-    invitation.status == unsafeEnumFromText @InvitationStatusEnum "pending"
+    invitation.status == InvitationStatusEnumPending
         && isNothing invitation.acceptedAt
         && venueInvitationEffectiveExpiresAt invitation > now
 
@@ -52,7 +52,7 @@ deliverVenueInvitationEmail invitation = do
         Right () ->
             Right <$>
                 ( invitation
-                    |> set #deliveryStatus (unsafeEnumFromText @InvitationDeliveryStatusEnum "sent")
+                    |> set #deliveryStatus (Sent)
                     |> set #deliveryError Nothing
                     |> set #deliveredAt (Just now)
                     |> updateRecord
@@ -61,7 +61,7 @@ deliverVenueInvitationEmail invitation = do
             let errorMessage = cs (displayException exception)
             _ <-
                 invitation
-                    |> set #deliveryStatus (unsafeEnumFromText @InvitationDeliveryStatusEnum "failed")
+                    |> set #deliveryStatus (Failed)
                     |> set #deliveryError (Just errorMessage)
                     |> updateRecord
             pure (Left errorMessage)

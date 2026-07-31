@@ -16,8 +16,7 @@ module Application.Helper.UserPreferences
     , upsertCurrentUserShowWageEstimates
     ) where
 
-import Application.Helper.Controller (VenueRole (ManagerRole'), enumFromText,
-                                      hasRole, unsafeEnumFromText)
+import Application.Helper.Controller (enumFromText, hasRole)
 import Generated.Types
 import IHP.ControllerPrelude
 
@@ -38,7 +37,7 @@ normaliseUserRosterPreferences maybePreferences =
         }
 
 defaultRosterLayoutMode :: RosterLayoutModeEnum
-defaultRosterLayoutMode = unsafeEnumFromText @RosterLayoutModeEnum "day_rows"
+defaultRosterLayoutMode = DayRows
 
 rosterLayoutModes :: [RosterLayoutModeEnum]
 rosterLayoutModes = allEnumValues @RosterLayoutModeEnum
@@ -71,7 +70,7 @@ fetchCurrentRosterLayoutMode =
 
 fetchCurrentUserShowRosterWarnings :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => IO Bool
 fetchCurrentUserShowRosterWarnings
-    | not (hasRole ManagerRole') = pure False
+    | not (hasRole Manager) = pure False
     | otherwise = (.userShowRosterWarnings) <$> fetchCurrentUserRosterPreferences
 
 fetchCurrentUserShowWageEstimates :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => IO Bool

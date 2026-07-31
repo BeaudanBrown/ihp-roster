@@ -24,7 +24,7 @@ tests = aroundAll withDatabaseTestContext do
             withCleanDb do
                 venue <- createVenueWithConfig "E2E Venue"
                 user <- createUserRecord "e2e-admin@example.com" "admin" True
-                _ <- createVenueMembershipRecord venue user "venue_admin"
+                _ <- createVenueMembershipRecord venue user VenueAdmin
                 _ <- createTestPasskeyRecord user "Seeded E2E passkey"
 
                 withE2ETestEnv do
@@ -49,7 +49,7 @@ tests = aroundAll withDatabaseTestContext do
             withCleanDb do
                 venue <- createVenueWithConfig "E2E Venue"
                 user <- createUserRecord "e2e-admin@example.com" "admin" True
-                _ <- createVenueMembershipRecord venue user "venue_admin"
+                _ <- createVenueMembershipRecord venue user VenueAdmin
                 _ <- createTestPasskeyRecord user "Seeded E2E passkey"
 
                 withTestEnv [("IHP_ROSTER_E2E", Nothing), ("E2E_TEST_TOKEN", Just "test-token")] do
@@ -62,7 +62,7 @@ tests = aroundAll withDatabaseTestContext do
             withCleanDb do
                 venue <- createVenueWithConfig "E2E Venue"
                 user <- createUserRecord "e2e-admin@example.com" "admin" True
-                _ <- createVenueMembershipRecord venue user "venue_admin"
+                _ <- createVenueMembershipRecord venue user VenueAdmin
                 _ <- createTestPasskeyRecord user "Seeded E2E passkey"
 
                 withE2ETestEnv do
@@ -75,7 +75,7 @@ tests = aroundAll withDatabaseTestContext do
             withCleanDb do
                 venue <- createVenueWithConfig "E2E Venue"
                 user <- createUserRecord "e2e-admin@example.com" "admin" True
-                _ <- createVenueMembershipRecord venue user "venue_admin"
+                _ <- createVenueMembershipRecord venue user VenueAdmin
 
                 withE2ETestEnv do
                     response <- withUserAndCurrentVenue user venue.id do

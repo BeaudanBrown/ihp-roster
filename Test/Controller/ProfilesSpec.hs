@@ -64,7 +64,7 @@ tests = aroundAll withDatabaseTestContext do
         it "denies super-admin access to staff profile setup" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Support Profile Venue"
-                superAdmin <- createUserRecordWithPlatformRole "profile-super-admin@example.com" "staff" (Just SuperAdminRole) True
+                superAdmin <- createUserRecordWithPlatformRole "profile-super-admin@example.com" "staff" (Just SuperAdmin) True
 
                 response <- withUserAndCurrentVenue superAdmin venue.id do
                     callAction EditProfileAction
@@ -75,7 +75,7 @@ tests = aroundAll withDatabaseTestContext do
         it "does not let super-admin create a staff row through profile update" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Support Profile Update Venue"
-                superAdmin <- createUserRecordWithPlatformRole "profile-update-super-admin@example.com" "staff" (Just SuperAdminRole) True
+                superAdmin <- createUserRecordWithPlatformRole "profile-update-super-admin@example.com" "staff" (Just SuperAdmin) True
 
                 response <- withUserAndCurrentVenue superAdmin venue.id do
                     callActionWithParams UpdateProfileAction
@@ -102,7 +102,7 @@ tests = aroundAll withDatabaseTestContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Profile Venue"
                 user <- createUserRecord "profile-native-submit@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue user "worker"
+                _ <- createVenueMembershipRecord venue user Worker
                 staff <- createStaffRecord venue (Just user) "Taylor" "Smith"
                 _ <-
                     newRecord @StaffShiftPreference
@@ -192,7 +192,7 @@ tests = aroundAll withDatabaseTestContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Profile Accordion Venue"
                 user <- createUserRecord "profile-accordion@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue user "worker"
+                _ <- createVenueMembershipRecord venue user Worker
                 _ <- createStaffRecord venue (Just user) "Taylor" "Accordion"
 
                 response <- withUserAndCurrentVenue user venue.id do
@@ -215,7 +215,7 @@ tests = aroundAll withDatabaseTestContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Profile RSA Chrome Venue"
                 user <- createUserRecord "profile-rsa-chrome@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue user "worker"
+                _ <- createVenueMembershipRecord venue user Worker
                 _ <- createStaffRecord venue (Just user) "Riley" "RSA"
 
                 response <- withUserAndCurrentVenue user venue.id do
@@ -229,7 +229,7 @@ tests = aroundAll withDatabaseTestContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Profile Onboarding Venue"
                 user <- createUserRecord "profile-onboarding@example.com" "staff" False
-                _ <- createVenueMembershipRecord venue user "worker"
+                _ <- createVenueMembershipRecord venue user Worker
 
                 response <- withUserAndCurrentVenue user venue.id do
                     callAction EditProfileAction
@@ -248,7 +248,7 @@ tests = aroundAll withDatabaseTestContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Profile Venue"
                 user <- createUserRecord "profile-worker-header@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue user "worker"
+                _ <- createVenueMembershipRecord venue user Worker
                 _ <- createStaffRecord venue (Just user) "Taylor" "Worker"
 
                 response <- withUserAndCurrentVenue user venue.id do
@@ -266,7 +266,7 @@ tests = aroundAll withDatabaseTestContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Profile Venue"
                 user <- createUserRecord "profile-manager-header@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue user "manager"
+                _ <- createVenueMembershipRecord venue user Manager
                 _ <- createStaffRecord venue (Just user) "Morgan" "Manager"
 
                 response <- withUserAndCurrentVenue user venue.id do
@@ -280,7 +280,7 @@ tests = aroundAll withDatabaseTestContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Profile Venue"
                 user <- createUserRecord "profile-preferences@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue user "worker"
+                _ <- createVenueMembershipRecord venue user Worker
                 staff <- createStaffRecord venue (Just user) "Taylor" "Smith"
                 let preferenceKey =
                         encodeShiftPreferenceKey 1
@@ -304,7 +304,7 @@ tests = aroundAll withDatabaseTestContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Profile Preference Validation Venue"
                 user <- createUserRecord "profile-preference-validation@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue user "worker"
+                _ <- createVenueMembershipRecord venue user Worker
                 staff <- createStaffRecord venue (Just user) "Taylor" "Validation"
                 let preferenceKey = encodeShiftPreferenceKey 1
                 let submitRange startHour endHour =
@@ -331,7 +331,7 @@ tests = aroundAll withDatabaseTestContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Profile Touched Venue"
                 user <- createUserRecord "profile-touched@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue user "worker"
+                _ <- createVenueMembershipRecord venue user Worker
                 staff <- createStaffRecord venue (Just user) "Taylor" "Touched"
 
                 Set.fromList (profileUpdateTouchedResources staff)
@@ -345,7 +345,7 @@ tests = aroundAll withDatabaseTestContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Profile Status Venue"
                 user <- createUserRecord "profile-status-worker@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue user "worker"
+                _ <- createVenueMembershipRecord venue user Worker
                 staff <- createStaffRecord venue (Just user) "Taylor" "Smith"
 
                 response <- withUserAndCurrentVenue user venue.id do
@@ -369,7 +369,7 @@ tests = aroundAll withDatabaseTestContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Profile Bootstrap Venue"
                 user <- createUserRecord "profile-bootstrap@example.com" "staff" False
-                _ <- createVenueMembershipRecord venue user "worker"
+                _ <- createVenueMembershipRecord venue user Worker
 
                 response <- withUserAndCurrentVenue user venue.id do
                     callActionWithParams UpdateProfileAction
@@ -401,7 +401,7 @@ tests = aroundAll withDatabaseTestContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Profile Bootstrap Preferences Venue"
                 user <- createUserRecord "profile-bootstrap-preferences@example.com" "staff" False
-                _ <- createVenueMembershipRecord venue user "worker"
+                _ <- createVenueMembershipRecord venue user Worker
                 let preferenceKey = encodeShiftPreferenceKey 2
 
                 profileResponse <- withUserAndCurrentVenue user venue.id do
@@ -440,7 +440,7 @@ tests = aroundAll withDatabaseTestContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Profile Validation Venue"
                 user <- createUserRecord "profile-validation@example.com" "staff" False
-                _ <- createVenueMembershipRecord venue user "worker"
+                _ <- createVenueMembershipRecord venue user Worker
                 let oversizedName = Text.replicate 81 "A"
 
                 response <- withUserAndCurrentVenue user venue.id do
@@ -465,7 +465,7 @@ tests = aroundAll withDatabaseTestContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Profile Venue"
                 user <- createUserRecord "profile-htmx@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue user "worker"
+                _ <- createVenueMembershipRecord venue user Worker
                 staff <- createStaffRecord venue (Just user) "Taylor" "Smith"
                 profileVersionBefore <- currentLiveUpdateVersion (ProfileLive.profileLiveScope (unpackId venue.id) (unpackId staff.id))
 
@@ -499,8 +499,8 @@ tests = aroundAll withDatabaseTestContext do
                 venue <- createVenueWithConfig "Profile Venue"
                 user <- createUserRecord "profile-roster-invalidation@example.com" "staff" True
                 manager <- createUserRecord "profile-roster-manager@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue user "worker"
-                _ <- createVenueMembershipRecord venue manager "manager"
+                _ <- createVenueMembershipRecord venue user Worker
+                _ <- createVenueMembershipRecord venue manager Manager
                 staff <- createStaffRecord venue (Just user) "Taylor" "Smith"
                 frontGroup <- createVenueRosterGroupWithDefaults venue "Front of House" 1 True
                 backGroup <- createVenueRosterGroupWithDefaults venue "Back of House" 2 False

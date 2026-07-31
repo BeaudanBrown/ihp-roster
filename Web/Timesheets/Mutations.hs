@@ -115,7 +115,7 @@ createTimesheetEntryWithVersion timesheetEntry = do
                         [ "source" Aeson..= ("roster_suggestion" :: Text)
                         , "rosterSlotId" Aeson..= tshow rosterSlotId
                         ]
-    void $ recordCurrentUserTimesheetEntryVersion (unsafeEnumFromText @EntryVersionActionEnum "created") createdEntry versionPayload
+    void $ recordCurrentUserTimesheetEntryVersion (EntryVersionActionEnumCreated) createdEntry versionPayload
     pure createdEntry
 
 invalidateTimesheetCreation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Text -> TimesheetEntry -> IO (LiveMutationResult TimesheetEntry)
@@ -125,7 +125,7 @@ invalidateTimesheetCreation eventName entry = do
 
 updateTimesheetEntryMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Int -> TimesheetEntry -> TimesheetEntry -> Bool -> IO (LiveMutationResult TimesheetEntry)
 updateTimesheetEntryMutation _weekOffset existingEntry timesheetEntry shouldResetApproval = do
-    let updateAction = unsafeEnumFromText @EntryVersionActionEnum (if shouldResetApproval then "approval_reset" else "updated")
+    let updateAction = if shouldResetApproval then ApprovalReset else Updated
     updatedEntry <- withTransaction do
         updatedEntry <-
             timesheetEntry
@@ -168,7 +168,7 @@ deleteTimesheetEntryMutation _weekOffset timesheetEntry = do
                 |> updateRecord
         void $
             recordCurrentUserTimesheetEntryVersion
-                (unsafeEnumFromText @EntryVersionActionEnum "deleted")
+                (EntryVersionActionEnumDeleted)
                 softDeletedEntry
                 Aeson.Null
         void $ recordCurrentUserAuditEvent
@@ -223,7 +223,7 @@ approveTimesheetEntryMutation _weekOffset timesheetEntry = do
                     |> updateRecord
                 void $
                     recordCurrentUserTimesheetEntryVersion
-                        (unsafeEnumFromText @EntryVersionActionEnum "approved")
+                        (EntryVersionActionEnumApproved)
                         activeEntry
                         (Aeson.object
                             [ "previous" Aeson..= timesheetEntrySnapshot lockedEntry
@@ -264,7 +264,7 @@ unapproveTimesheetEntryMutation _weekOffset timesheetEntry = do
                 |> updateRecord
         void $
             recordCurrentUserTimesheetEntryVersion
-                (unsafeEnumFromText @EntryVersionActionEnum "unapproved")
+                (Unapproved)
                 updatedEntry
                 (Aeson.object
                     [ "previous" Aeson..= timesheetEntrySnapshot timesheetEntry

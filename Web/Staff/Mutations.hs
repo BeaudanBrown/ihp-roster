@@ -15,8 +15,6 @@ module Web.Staff.Mutations
 import Application.Helper.Audit (recordCurrentUserAuditEvent,
                                  recordCurrentUserLeaveRequestEvent,
                                  updateVenueMembershipRoleWithAuditInCurrentTransaction)
-import Application.Helper.Controller (VenueRole (VenueOwnerRole),
-                                      venueRoleToEnum)
 import Application.Helper.FrontendContract.Surface.Admin.Resource (adminInvitesResource)
 import Application.Helper.FrontendContract.Surface.LeaveRequests.Resource (archivedLeaveRequestsResource,
                                                                            deniedLeaveRequestsResource,
@@ -72,7 +70,7 @@ createTrialStaffInvitationMutation staff email
             lockedStaff <- fetch staff.id
             existingPendingInvitation <- query @VenueInvitation
                 |> filterWhere (#staffId, Just lockedStaff.id)
-                |> filterWhere (#status, unsafeEnumFromText @InvitationStatusEnum "pending")
+                |> filterWhere (#status, InvitationStatusEnumPending)
                 |> fetchOneOrNothing
             existingUser <- query @User
                 |> filterWhere (#email, email)
@@ -88,9 +86,9 @@ createTrialStaffInvitationMutation staff email
                         |> set #invitedByUserId (Just (unpackId currentUser.id))
                         |> set #staffId (Just lockedStaff.id)
                         |> set #email email
-                        |> set #inviteRole (venueRoleToEnum WorkerRole)
-                        |> set #status (unsafeEnumFromText @InvitationStatusEnum "pending")
-                        |> set #deliveryStatus (unsafeEnumFromText @InvitationDeliveryStatusEnum "queued")
+                        |> set #inviteRole (Worker)
+                        |> set #status (InvitationStatusEnumPending)
+                        |> set #deliveryStatus (Queued)
                         |> set #expiresAt (Just (addUTCTime venueInvitationLifetime now))
                         |> createRecord
                     void (enqueueVenueInvitationDeliveryJob (Just currentUser.id) invitation)
@@ -116,7 +114,7 @@ renewTrialStaffInvitationMutation staff invitation correctedEmail
                 lockedStaff <- fetch staff.id
                 if lockedInvitation.staffId /= Just lockedStaff.id
                     then pure (Left "Choose a pending invitation for this trial staff member.")
-                    else if inputValue lockedInvitation.status /= ("pending" :: Text)
+                    else if lockedInvitation.status /= InvitationStatusEnumPending
                         then pure (Left "Only pending invitations can be renewed.")
                     else if not (isAdoptableTrialStaff lockedStaff)
                         then pure (Left "Only active trial staff without a linked login can be invited.")
@@ -138,12 +136,12 @@ replaceTrialStaffInvitation staff invitation correctedEmail = do
     now <- getCurrentTime
     pendingInvitations <- query @VenueInvitation
         |> filterWhere (#staffId, Just staff.id)
-        |> filterWhere (#status, unsafeEnumFromText @InvitationStatusEnum "pending")
+        |> filterWhere (#status, InvitationStatusEnumPending)
         |> fetch
     forM_ pendingInvitations \pendingInvitation ->
         void $
             pendingInvitation
-                |> set #status (unsafeEnumFromText @InvitationStatusEnum "revoked")
+                |> set #status (Revoked)
                 |> updateRecord
     replacement <- newRecord @VenueInvitation
         |> set #venueId invitation.venueId
@@ -151,8 +149,8 @@ replaceTrialStaffInvitation staff invitation correctedEmail = do
         |> set #staffId (Just staff.id)
         |> set #email correctedEmail
         |> set #inviteRole invitation.inviteRole
-        |> set #status (unsafeEnumFromText @InvitationStatusEnum "pending")
-        |> set #deliveryStatus (unsafeEnumFromText @InvitationDeliveryStatusEnum "queued")
+        |> set #status (InvitationStatusEnumPending)
+        |> set #deliveryStatus (Queued)
         |> set #expiresAt (Just (addUTCTime venueInvitationLifetime now))
         |> createRecord
     void (enqueueVenueInvitationDeliveryJob (Just currentUser.id) replacement)
@@ -179,7 +177,7 @@ staffRemovalBlockReason staff
                     |> filterWhere (#isActive, True)
                     |> fetchOneOrNothing
         pure $
-            if maybe False ((== venueRoleToEnum VenueOwnerRole) . (.venueRole)) maybeMembership
+            if maybe False ((== VenueOwner) . (.venueRole)) maybeMembership
                 then Just "Venue owners cannot be removed from staff."
                 else Nothing
 
@@ -200,7 +198,7 @@ removeStaffMember staff
                         |> fetchOneOrNothing
             if lockedStaff.userId == Just (unpackId currentUser.id)
                 then pure (Left "You cannot remove your own staff access.")
-                else if maybe False ((== venueRoleToEnum VenueOwnerRole) . (.venueRole)) maybeMembership
+                else if maybe False ((== VenueOwner) . (.venueRole)) maybeMembership
                     then pure (Left "Venue owners cannot be removed from staff.")
                 else if isJust lockedStaff.archivedAt || not lockedStaff.isActive
                     then pure (Left "That staff member has already been removed.")
@@ -225,12 +223,12 @@ removeStaffMember staff
                     pendingInvitations <- query @VenueInvitation
                         |> filterWhere (#venueId, unpackId currentVenueId)
                         |> filterWhere (#staffId, Just lockedStaff.id)
-                        |> filterWhere (#status, unsafeEnumFromText @InvitationStatusEnum "pending")
+                        |> filterWhere (#status, InvitationStatusEnumPending)
                         |> fetch
                     forM_ pendingInvitations \invitation ->
                         void $
                             invitation
-                                |> set #status (unsafeEnumFromText @InvitationStatusEnum "revoked")
+                                |> set #status (Revoked)
                                 |> updateRecord
                     forM_ lockedStaff.userId \linkedUserId -> do
                         setupTokens <- query @PasskeySetupToken
@@ -284,17 +282,17 @@ denyPendingStaffLeaveRequests staff = do
     pendingRequests <- query @LeaveRequest
         |> filterWhere (#venueId, unpackId currentVenueId)
         |> filterWhere (#staffId, unpackId staff.id)
-        |> filterWhere (#status, unsafeEnumFromText @LeaveRequestStatusEnum "pending")
+        |> filterWhere (#status, LeaveRequestStatusEnumPending)
         |> filterWhere (#deletedAt, Nothing)
         |> fetch
     forM_ pendingRequests \pendingRequest -> do
         deniedRequest <- pendingRequest
-            |> set #status (unsafeEnumFromText @LeaveRequestStatusEnum "denied")
+            |> set #status (LeaveRequestStatusEnumDenied)
             |> updateRecord
         void $
             recordCurrentUserLeaveRequestEvent
                 deniedRequest
-                (unsafeEnumFromText @LeaveRequestEventTypeEnum "denied")
+                (LeaveRequestEventTypeEnumDenied)
                 (Just pendingRequest.status)
                 (Just deniedRequest.status)
                 (Aeson.object ["reason" Aeson..= ("staff_removed" :: Text)])

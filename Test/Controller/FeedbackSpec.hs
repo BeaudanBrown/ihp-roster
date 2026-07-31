@@ -19,7 +19,7 @@ tests = aroundAll withDatabaseTestContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Feedback Dialog Venue"
                 user <- createUserRecord "feedback-dialog@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue user "worker"
+                _ <- createVenueMembershipRecord venue user Worker
 
                 response <- withPasskeyVerifiedUserAndCurrentVenue user venue.id do
                     withRequestHeaders [("HX-Request", "true")] do
@@ -34,7 +34,7 @@ tests = aroundAll withDatabaseTestContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Feedback Venue"
                 user <- createUserRecord "feedback-user@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue user "worker"
+                _ <- createVenueMembershipRecord venue user Worker
 
                 response <- withPasskeyVerifiedUserAndCurrentVenue user venue.id do
                     withRequestHeaders
@@ -75,7 +75,7 @@ tests = aroundAll withDatabaseTestContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Feedback Best Effort Venue"
                 user <- createUserRecord "feedback-best-effort@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue user "manager"
+                _ <- createVenueMembershipRecord venue user Manager
 
                 response <- withPasskeyVerifiedUserAndCurrentVenue user venue.id do
                     withRequestHeaders
@@ -108,7 +108,7 @@ tests = aroundAll withDatabaseTestContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Feedback No JavaScript Venue"
                 user <- createUserRecord "feedback-no-js@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue user "worker"
+                _ <- createVenueMembershipRecord venue user Worker
 
                 response <- withPasskeyVerifiedUserAndCurrentVenue user venue.id do
                     withRequestHeaders
@@ -145,7 +145,7 @@ tests = aroundAll withDatabaseTestContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Feedback Required Venue"
                 user <- createUserRecord "feedback-required@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue user "worker"
+                _ <- createVenueMembershipRecord venue user Worker
 
                 response <- withPasskeyVerifiedUserAndCurrentVenue user venue.id do
                     withRequestHeaders [("HX-Request", "true")] do
@@ -162,7 +162,7 @@ tests = aroundAll withDatabaseTestContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Feedback Type Venue"
                 user <- createUserRecord "feedback-type@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue user "worker"
+                _ <- createVenueMembershipRecord venue user Worker
 
                 response <- withPasskeyVerifiedUserAndCurrentVenue user venue.id do
                     withRequestHeaders [("HX-Request", "true")] do

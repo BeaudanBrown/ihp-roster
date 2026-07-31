@@ -95,7 +95,7 @@ tests = aroundAll withDatabaseTestContext do
             withCleanDb do
                 venue <- createVenueWithConfig "RSA Mismatch Venue"
                 user <- createUserRecord "rsa-mismatch@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue user "worker"
+                _ <- createVenueMembershipRecord venue user Worker
                 staff <- createStaffRecord venue (Just user) "Casey" "Certificate"
                 let baseResult = parseRsaCertificateText sampleText
                     scanResult = baseResult { candidate = baseResult.candidate { recipientName = Just "Riley RSA" } }
@@ -158,7 +158,7 @@ tests = aroundAll withDatabaseTestContext do
             withCleanDb do
                 venue <- createVenueWithConfig "RSA Venue"
                 user <- createUserRecord "rsa-worker@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue user "worker"
+                _ <- createVenueMembershipRecord venue user Worker
                 staff <- createStaffRecord venue (Just user) "Riley" "RSA"
 
                 staffDocument <- createRsaDocument user.id staff (testRsaUpload (fromGregorian 2027 5 2))
@@ -180,7 +180,7 @@ tests = aroundAll withDatabaseTestContext do
                 today <- utctDay <$> getCurrentTime
                 venue <- createVenueWithConfig "RSA Reminder Venue"
                 user <- createUserRecord "rsa-reminder@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue user "worker"
+                _ <- createVenueMembershipRecord venue user Worker
                 staff <- createStaffRecord venue (Just user) "Remy" "Reminder"
                 staffDocument <- createVerifiedRsaDocument user staff (addDays 20 today)
 
@@ -205,7 +205,7 @@ tests = aroundAll withDatabaseTestContext do
                 today <- utctDay <$> getCurrentTime
                 venue <- createVenueWithConfig "RSA Expired Reminder Venue"
                 user <- createUserRecord "rsa-expired@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue user "worker"
+                _ <- createVenueMembershipRecord venue user Worker
                 staff <- createStaffRecord venue (Just user) "Eli" "Expired"
                 staffDocument <- createVerifiedRsaDocument user staff (addDays (-1) today)
                 EnqueuedAppJob appJob <- enqueueAppJob (expiredReminderRequest staffDocument)

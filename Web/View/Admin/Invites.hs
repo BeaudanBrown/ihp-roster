@@ -121,13 +121,13 @@ inviteRowId invitationId = "invite-row-" <> tshow invitationId
 
 renderInvitationStatusBadge :: UTCTime -> VenueInvitation -> Html
 renderInvitationStatusBadge now invitation
-    | inputValue invitation.status == ("pending" :: Text)
+    | invitation.status == InvitationStatusEnumPending
         && venueInvitationEffectiveExpiresAt invitation <= now = renderAppStatusBadge AppStatusNeutral "Expired"
     | otherwise = renderInvitationStatusOrDeliveryBadge (inputValue invitation.status) (inputValue invitation.deliveryStatus)
 
 renderInviteRowActions :: Id RosterGroup -> VenueInvitation -> Html
 renderInviteRowActions rosterGroupId invitation
-    | inputValue invitation.status /= "pending" = mempty
+    | invitation.status /= InvitationStatusEnumPending = mempty
     | otherwise = [hsx|
         <div class="d-flex flex-column flex-lg-row justify-content-end gap-2">
             {renderRenewVenueInvitationForm rosterGroupId invitation}

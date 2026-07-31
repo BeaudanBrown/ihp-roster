@@ -1,8 +1,6 @@
 module Application.Fixture where
 
 import Application.Fixture.Reset (resetDatabase)
-import Application.Helper.Controller (PlatformRole (..), platformRoleToEnum,
-                                      unsafeEnumFromText)
 import Application.Helper.Pay (ensurePayVersionsForTimesheetApproval,
                                lockPayVersionsForApproval)
 import Application.Helper.RosterGroups (ensureVenueDefaultRosterGroup,
@@ -46,15 +44,15 @@ createUserRecordWithPassword :: (?modelContext :: ModelContext) => Text -> Text 
 createUserRecordWithPassword emailAddress password globalRole isProfileCompleted =
     createUserRecordWithPasswordAndPlatformRole emailAddress password globalRole Nothing isProfileCompleted
 
-createUserRecordWithPlatformRole :: (?modelContext :: ModelContext) => Text -> Text -> Maybe PlatformRole -> Bool -> IO User
+createUserRecordWithPlatformRole :: (?modelContext :: ModelContext) => Text -> Text -> Maybe PlatformRoleEnum -> Bool -> IO User
 createUserRecordWithPlatformRole emailAddress globalRole platformRole isProfileCompleted = do
     createUserRecordWithPasswordAndPlatformRole emailAddress testPassword globalRole platformRole isProfileCompleted
 
-createUserRecordWithPasswordAndPlatformRole :: (?modelContext :: ModelContext) => Text -> Text -> Text -> Maybe PlatformRole -> Bool -> IO User
+createUserRecordWithPasswordAndPlatformRole :: (?modelContext :: ModelContext) => Text -> Text -> Text -> Maybe PlatformRoleEnum -> Bool -> IO User
 createUserRecordWithPasswordAndPlatformRole emailAddress password globalRole platformRole isProfileCompleted = do
     createUserRecordWithPasswordAndPlatformRoleAndId emailAddress password globalRole platformRole isProfileCompleted Nothing
 
-createUserRecordWithPasswordAndPlatformRoleAndId :: (?modelContext :: ModelContext) => Text -> Text -> Text -> Maybe PlatformRole -> Bool -> Maybe (Id User) -> IO User
+createUserRecordWithPasswordAndPlatformRoleAndId :: (?modelContext :: ModelContext) => Text -> Text -> Text -> Maybe PlatformRoleEnum -> Bool -> Maybe (Id User) -> IO User
 createUserRecordWithPasswordAndPlatformRoleAndId emailAddress password globalRole platformRole isProfileCompleted maybeUserId =
     createUserRecordWithPasswordInputAndPlatformRoleAndId
         emailAddress
@@ -64,7 +62,7 @@ createUserRecordWithPasswordAndPlatformRoleAndId emailAddress password globalRol
         isProfileCompleted
         maybeUserId
 
-createUserRecordWithPasswordInputAndPlatformRoleAndId :: (?modelContext :: ModelContext) => Text -> FixturePasswordInput -> Text -> Maybe PlatformRole -> Bool -> Maybe (Id User) -> IO User
+createUserRecordWithPasswordInputAndPlatformRoleAndId :: (?modelContext :: ModelContext) => Text -> FixturePasswordInput -> Text -> Maybe PlatformRoleEnum -> Bool -> Maybe (Id User) -> IO User
 createUserRecordWithPasswordInputAndPlatformRoleAndId emailAddress passwordInput globalRole platformRole isProfileCompleted maybeUserId = do
     passwordHash <- case passwordInput of
         HashFixturePassword password        -> hashPassword password
@@ -74,7 +72,7 @@ createUserRecordWithPasswordInputAndPlatformRoleAndId emailAddress passwordInput
                 |> set #email emailAddress
                 |> set #passwordHash passwordHash
                 |> set #userRole globalRole
-                |> set #platformRole (platformRoleToEnum <$> platformRole)
+                |> set #platformRole platformRole
                 |> set #isProfileCompleted isProfileCompleted
                 |> set #emailVerifiedAt (Just def)
     maybe user (\userId -> user |> set #id userId) maybeUserId
@@ -85,23 +83,23 @@ data MembershipStaffFixture
     | EnsureProfileStaffForCompletedUser
     deriving (Eq)
 
-createVenueMembershipRecord :: (?modelContext :: ModelContext) => Venue -> User -> Text -> IO VenueMembership
+createVenueMembershipRecord :: (?modelContext :: ModelContext) => Venue -> User -> VenueRoleEnum -> IO VenueMembership
 createVenueMembershipRecord venue user venueRole =
     createVenueMembershipRecordWithStaffFixture MembershipOnly venue user venueRole
 
-createVenueMembershipRecordWithStaffFixture :: (?modelContext :: ModelContext) => MembershipStaffFixture -> Venue -> User -> Text -> IO VenueMembership
+createVenueMembershipRecordWithStaffFixture :: (?modelContext :: ModelContext) => MembershipStaffFixture -> Venue -> User -> VenueRoleEnum -> IO VenueMembership
 createVenueMembershipRecordWithStaffFixture staffFixture venue user venueRole = do
     membership <- newRecord @VenueMembership
         |> set #venueId (unpackId (get #id venue))
         |> set #userId (unpackId (get #id user))
-        |> set #venueRole (unsafeEnumFromText @VenueRoleEnum venueRole)
+        |> set #venueRole venueRole
         |> set #isActive True
         |> createRecord
     when (staffFixture == EnsureProfileStaffForCompletedUser && user.isProfileCompleted) do
         void (createIdempotentStaffRecordWithDefaults venue (Just user) "Profile" "Complete")
     pure membership
 
-ensureVenueMembershipRecord :: (?modelContext :: ModelContext) => Venue -> User -> Text -> IO VenueMembership
+ensureVenueMembershipRecord :: (?modelContext :: ModelContext) => Venue -> User -> VenueRoleEnum -> IO VenueMembership
 ensureVenueMembershipRecord venue user venueRole =
     query @VenueMembership
         |> filterWhere (#venueId, unpackId (get #id venue))
@@ -110,20 +108,20 @@ ensureVenueMembershipRecord venue user venueRole =
         >>= \case
             Just membership ->
                 membership
-                    |> set #venueRole (unsafeEnumFromText @VenueRoleEnum venueRole)
+                    |> set #venueRole venueRole
                     |> set #isActive True
                     |> updateRecord
             Nothing ->
                 createVenueMembershipRecord venue user venueRole
 
-createVenueInvitationRecord :: (?modelContext :: ModelContext) => Venue -> Maybe User -> Text -> Text -> IO VenueInvitation
+createVenueInvitationRecord :: (?modelContext :: ModelContext) => Venue -> Maybe User -> Text -> VenueRoleEnum -> IO VenueInvitation
 createVenueInvitationRecord venue maybeInviter emailAddress inviteRole =
     newRecord @VenueInvitation
         |> set #venueId (unpackId (get #id venue))
         |> set #invitedByUserId (fmap (unpackId . get #id) maybeInviter)
         |> set #email emailAddress
-        |> set #inviteRole (unsafeEnumFromText @VenueRoleEnum inviteRole)
-        |> set #status (unsafeEnumFromText @InvitationStatusEnum "pending")
+        |> set #inviteRole inviteRole
+        |> set #status (InvitationStatusEnumPending)
         |> createRecord
 
 createVenueOnboardingInvitationRecord :: (?modelContext :: ModelContext) => Maybe User -> Text -> IO VenueOnboardingInvitation
@@ -131,7 +129,7 @@ createVenueOnboardingInvitationRecord maybeInviter emailAddress =
     newRecord @VenueOnboardingInvitation
         |> set #invitedByUserId (fmap (unpackId . get #id) maybeInviter)
         |> set #email emailAddress
-        |> set #status (unsafeEnumFromText @InvitationStatusEnum "pending")
+        |> set #status (InvitationStatusEnumPending)
         |> createRecord
 
 createStaffRecord :: (?modelContext :: ModelContext) => Venue -> Maybe User -> Text -> Text -> Maybe Text -> Text -> Text -> Text -> Int -> Bool -> IO Staff
@@ -274,18 +272,18 @@ createTimesheetEntryRecordWithDefaultLevelName venue staff workedOn defaultLevel
         |> applyTimesheetEntryBoundaries boundaries
         |> createRecord
 
-createLeaveRequestRecord :: (?modelContext :: ModelContext) => Venue -> Staff -> Day -> Day -> Text -> IO LeaveRequest
+createLeaveRequestRecord :: (?modelContext :: ModelContext) => Venue -> Staff -> Day -> Day -> LeaveRequestStatusEnum -> IO LeaveRequest
 createLeaveRequestRecord venue staff startDate endDate leaveStatus =
     createLeaveRequestRecordWithNotes venue staff startDate endDate leaveStatus Nothing
 
-createLeaveRequestRecordWithNotes :: (?modelContext :: ModelContext) => Venue -> Staff -> Day -> Day -> Text -> Maybe Text -> IO LeaveRequest
+createLeaveRequestRecordWithNotes :: (?modelContext :: ModelContext) => Venue -> Staff -> Day -> Day -> LeaveRequestStatusEnum -> Maybe Text -> IO LeaveRequest
 createLeaveRequestRecordWithNotes venue staff startDate endDate leaveStatus notes =
     newRecord @LeaveRequest
         |> set #venueId (unpackId (get #id venue))
         |> set #staffId (unpackId (get #id staff))
         |> set #startDate startDate
         |> set #endDate endDate
-        |> set #status (unsafeEnumFromText @LeaveRequestStatusEnum leaveStatus)
+        |> set #status leaveStatus
         |> set #notes notes
         |> createRecord
 

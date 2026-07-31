@@ -1,6 +1,5 @@
 module Test.Controller.Admin.AccessSpec where
 
-import Application.Helper.Controller (PlatformRole (SuperAdminRole))
 import Application.Helper.LiveUpdate
 import Application.Helper.RosterGroups (createVenueRosterGroupWithDefaults,
                                         fetchActiveRosterGroupSlotNames)
@@ -44,7 +43,7 @@ tests = aroundAll withDatabaseTestContext do
 
         it "redirects venue-less super-admins from admin to support" $ withContext do
             withCleanDb do
-                user <- createUserRecordWithPlatformRole "admin-bootstrap-super-admin@example.com" "staff" (Just SuperAdminRole) True
+                user <- createUserRecordWithPlatformRole "admin-bootstrap-super-admin@example.com" "staff" (Just SuperAdmin) True
 
                 response <- withUser user do
                     callAction AdminAction
@@ -57,8 +56,8 @@ tests = aroundAll withDatabaseTestContext do
                 venueA <- createVenueWithConfig "Venue A"
                 venueB <- createVenueWithConfig "Venue B"
                 admin <- createUserRecord "admin-page@example.com" "staff" True
-                _ <- createVenueMembershipRecord venueA admin "venue_admin"
-                _ <- createVenueMembershipRecord venueB admin "venue_admin"
+                _ <- createVenueMembershipRecord venueA admin VenueAdmin
+                _ <- createVenueMembershipRecord venueB admin VenueAdmin
 
                 levelA <- createPayLevelRecordWithRates venueA "Level A" 31.50 3.15 6.30 1 1.25 1.50
                 _ <- createShiftTypeRecord venueA levelA "Kitchen"
@@ -114,7 +113,7 @@ tests = aroundAll withDatabaseTestContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Admin Slot Group Venue"
                 admin <- createUserRecord "admin-slot-groups@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue admin "venue_admin"
+                _ <- createVenueMembershipRecord venue admin VenueAdmin
                 firstGroup <- createVenueRosterGroupWithDefaults venue "Front Lane" 10 True
                 secondGroup <- createVenueRosterGroupWithDefaults venue "Back Lane" 20 True
                 _ <- newRecord @SlotName
@@ -146,7 +145,7 @@ tests = aroundAll withDatabaseTestContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Venue A"
                 manager <- createUserRecord "manager-admin@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue manager "manager"
+                _ <- createVenueMembershipRecord venue manager Manager
 
                 response <- withUserAndCurrentVenue manager venue.id do
                     callAction AdminAction

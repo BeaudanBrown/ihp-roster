@@ -18,11 +18,11 @@ seedLeaveRequests :: (?modelContext :: ModelContext) => Day -> Day -> Venue -> S
 seedLeaveRequests fixtureWeekStart _leaveMonthAnchor venue scenario staffPool = do
     let approvedCount = max 0 (scenario.leaveRequestCount - scenario.pendingLeaveCount - scenario.deniedLeaveCount)
         leaveDates = spreadLeaveDatesAcrossSeedWindow fixtureWeekStart scenario.leaveRequestCount
-    createLeaveBatch venue staffPool leaveDates 0 approvedCount "approved"
-    createLeaveBatch venue staffPool leaveDates approvedCount scenario.pendingLeaveCount "pending"
-    createLeaveBatch venue staffPool leaveDates (approvedCount + scenario.pendingLeaveCount) scenario.deniedLeaveCount "denied"
+    createLeaveBatch venue staffPool leaveDates 0 approvedCount LeaveRequestStatusEnumApproved
+    createLeaveBatch venue staffPool leaveDates approvedCount scenario.pendingLeaveCount LeaveRequestStatusEnumPending
+    createLeaveBatch venue staffPool leaveDates (approvedCount + scenario.pendingLeaveCount) scenario.deniedLeaveCount LeaveRequestStatusEnumDenied
 
-createLeaveBatch :: (?modelContext :: ModelContext) => Venue -> [Staff] -> [(Day, Day)] -> Int -> Int -> Text -> IO ()
+createLeaveBatch :: (?modelContext :: ModelContext) => Venue -> [Staff] -> [(Day, Day)] -> Int -> Int -> LeaveRequestStatusEnum -> IO ()
 createLeaveBatch venue staffPool leaveDates startIndex count status =
     forM_ (zip [startIndex ..] (zip (drop startIndex (cycle staffPool)) (take count (drop startIndex leaveDates)))) \(index, (staff, (startDate, endDate))) -> do
         _ <- createLeaveRequestRecordWithNotes venue staff startDate endDate status (Just (leaveNoteFor status index))
@@ -45,10 +45,11 @@ spreadLeaveDatesAcrossSeedWindow fixtureWeekStart count
                 endDate = addDays durationDays startDate
              in (startDate, endDate)
 
-leaveNoteFor :: Text -> Int -> Text
+leaveNoteFor :: LeaveRequestStatusEnum -> Int -> Text
 leaveNoteFor status index =
-    noteBank !! deterministicIndex (textHash status + 7001) [index, Text.length status] (length noteBank)
+    noteBank !! deterministicIndex (textHash statusText + 7001) [index, Text.length statusText] (length noteBank)
     where
+        statusText = inputValue status
         noteBank =
             [ "Family event"
             , "Medical appointment"

@@ -264,13 +264,12 @@ venueInvitationHistoryRetentionSeconds = 7 * 24 * 60 * 60
 
 shouldShowVenueInvitation :: UTCTime -> UTCTime -> VenueInvitation -> Bool
 shouldShowVenueInvitation now retentionCutoff invitation =
-    case inputValue invitation.status of
-        "pending" ->
+    case invitation.status of
+        InvitationStatusEnumPending ->
             let effectiveExpiry = venueInvitationEffectiveExpiresAt invitation
              in effectiveExpiry > now || effectiveExpiry >= retentionCutoff
-        "accepted" -> fromMaybe invitation.updatedAt invitation.acceptedAt >= retentionCutoff
-        "revoked" -> invitation.updatedAt >= retentionCutoff
-        _ -> invitation.updatedAt >= retentionCutoff
+        Accepted -> fromMaybe invitation.updatedAt invitation.acceptedAt >= retentionCutoff
+        Revoked -> invitation.updatedAt >= retentionCutoff
 
 isVenueRosterWeekStartLocked :: (?context :: ControllerContext, ?modelContext :: ModelContext) => IO Bool
 isVenueRosterWeekStartLocked = do
@@ -487,13 +486,6 @@ validateRosterWeekStartsOn maybeValue =
             | otherwise -> do
                 setErrorMessage "Choose a valid first day of the roster week."
                 pure Nothing
-
-venueRoleLabel :: VenueRole -> Text
-venueRoleLabel WorkerRole     = "Worker"
-venueRoleLabel SupervisorRole = "Supervisor"
-venueRoleLabel ManagerRole'   = "Manager"
-venueRoleLabel VenueAdminRole = "Venue Admin"
-venueRoleLabel VenueOwnerRole = "Venue Owner"
 
 parseShiftTypeId ::
     (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>

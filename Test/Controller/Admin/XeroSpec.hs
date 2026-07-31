@@ -1,7 +1,6 @@
 module Test.Controller.Admin.XeroSpec where
 
 import Application.Async.Queue (EnqueueAppJobResult (EnqueuedAppJob))
-import Application.Helper.Controller (PlatformRole (SuperAdminRole))
 import qualified Application.Helper.FrontendContract.Surface.Admin.Live as AdminLive
 import Application.Helper.FrontendContract.Surface.Admin.Resource
 import Application.Helper.LiveUpdate
@@ -73,7 +72,7 @@ tests = aroundAll withFastXeroReferenceSyncRuntime $ aroundAll withDatabaseTestC
             withCleanDb do
                 venue <- createVenueWithConfig "Xero Admin Venue"
                 admin <- createUserRecord "xero-admin-page@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue admin "venue_owner"
+                _ <- createVenueMembershipRecord venue admin VenueOwner
 
                 adminResponse <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
                     callAction AdminAction
@@ -112,7 +111,7 @@ tests = aroundAll withFastXeroReferenceSyncRuntime $ aroundAll withDatabaseTestC
             withCleanDb do
                 venue <- createVenueWithConfig "Xero Shell Read Boundary Venue"
                 owner <- createUserRecord "xero-shell-read-boundary@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue owner "venue_owner"
+                _ <- createVenueMembershipRecord venue owner VenueOwner
                 _ <- createXeroConnectionRecord venue owner "xero-shell-read-boundary-tenant"
 
                 response <- withPasskeyVerifiedUserAndCurrentVenue owner venue.id do
@@ -137,7 +136,7 @@ tests = aroundAll withFastXeroReferenceSyncRuntime $ aroundAll withDatabaseTestC
             withCleanDb do
                 venue <- createVenueWithConfig "Xero Owner Refresh Block Venue"
                 owner <- createUserRecord "xero-owner-refresh-block@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue owner "venue_owner"
+                _ <- createVenueMembershipRecord venue owner VenueOwner
                 _ <- createSyncableXeroConnection venue owner
 
                 response <- withPasskeyVerifiedUserAndCurrentVenue owner venue.id do
@@ -150,7 +149,7 @@ tests = aroundAll withFastXeroReferenceSyncRuntime $ aroundAll withDatabaseTestC
         it "shows sanitized reference-sync diagnostics and coalescing refresh only to founders" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Xero Founder Diagnostics Venue"
-                founder <- createUserRecordWithPlatformRole "xero-founder-diagnostics@example.com" "staff" (Just SuperAdminRole) True
+                founder <- createUserRecordWithPlatformRole "xero-founder-diagnostics@example.com" "staff" (Just SuperAdmin) True
                 now <- getCurrentTime
                 connection <- createSyncableXeroConnection venue founder >>= \record ->
                     record |> set #lastSyncAt (Just (addUTCTime (negate (2 * 24 * 60 * 60)) now)) |> updateRecord
@@ -195,7 +194,7 @@ tests = aroundAll withFastXeroReferenceSyncRuntime $ aroundAll withDatabaseTestC
             withCleanDb do
                 venue <- createVenueWithConfig "Xero Trusted Import Venue"
                 owner <- createUserRecord "xero-trusted-import@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue owner "venue_owner"
+                _ <- createVenueMembershipRecord venue owner VenueOwner
                 now <- getCurrentTime
                 connection <- createSyncableXeroConnection venue owner >>= \record ->
                     record |> set #lastSyncAt (Just now) |> updateRecord
@@ -238,7 +237,7 @@ tests = aroundAll withFastXeroReferenceSyncRuntime $ aroundAll withDatabaseTestC
             withCleanDb do
                 venue <- createVenueWithConfig "Xero Unavailable Import Venue"
                 owner <- createUserRecord "xero-unavailable-import@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue owner "venue_owner"
+                _ <- createVenueMembershipRecord venue owner VenueOwner
                 now <- getCurrentTime
                 connection <- createSyncableXeroConnection venue owner >>= \record ->
                     record |> set #lastSyncAt (Just now) |> updateRecord
@@ -260,7 +259,7 @@ tests = aroundAll withFastXeroReferenceSyncRuntime $ aroundAll withDatabaseTestC
             withCleanDb do
                 venue <- createVenueWithConfig "Xero Waiting Import Venue"
                 owner <- createUserRecord "xero-waiting-import@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue owner "venue_owner"
+                _ <- createVenueMembershipRecord venue owner VenueOwner
                 now <- getCurrentTime
                 connection <- createSyncableXeroConnection venue owner >>= \record ->
                     record |> set #lastSyncAt (Just (addUTCTime (negate (8 * 24 * 60 * 60)) now)) |> updateRecord
@@ -311,7 +310,7 @@ tests = aroundAll withFastXeroReferenceSyncRuntime $ aroundAll withDatabaseTestC
             withCleanDb do
                 venue <- createVenueWithConfig "Xero Long Running Import Venue"
                 owner <- createUserRecord "xero-long-running-import@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue owner "venue_owner"
+                _ <- createVenueMembershipRecord venue owner VenueOwner
                 now <- getCurrentTime
                 connection <- createSyncableXeroConnection venue owner >>= \record ->
                     record |> set #lastSyncAt (Just (addUTCTime (negate (8 * 24 * 60 * 60)) now)) |> updateRecord
@@ -334,7 +333,7 @@ tests = aroundAll withFastXeroReferenceSyncRuntime $ aroundAll withDatabaseTestC
             withCleanDb do
                 venue <- createVenueWithConfig "Xero Exhausted Trust Venue"
                 owner <- createUserRecord "xero-exhausted-trust@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue owner "venue_owner"
+                _ <- createVenueMembershipRecord venue owner VenueOwner
                 now <- getCurrentTime
                 connection <- createSyncableXeroConnection venue owner >>= \record ->
                     record |> set #lastSyncAt (Just (addUTCTime (negate (8 * 24 * 60 * 60)) now)) |> updateRecord
@@ -360,7 +359,7 @@ tests = aroundAll withFastXeroReferenceSyncRuntime $ aroundAll withDatabaseTestC
             withCleanDb do
                 venue <- createVenueWithConfig "Xero Reconnect Trust Venue"
                 owner <- createUserRecord "xero-reconnect-trust@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue owner "venue_owner"
+                _ <- createVenueMembershipRecord venue owner VenueOwner
                 now <- getCurrentTime
                 connection <- createSyncableXeroConnection venue owner >>= \record ->
                     record
@@ -420,7 +419,7 @@ tests = aroundAll withFastXeroReferenceSyncRuntime $ aroundAll withDatabaseTestC
             withCleanDb do
                 venue <- createVenueWithConfig "Xero Missing Config Venue"
                 admin <- createUserRecord "xero-missing-config@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue admin "venue_owner"
+                _ <- createVenueMembershipRecord venue admin VenueOwner
 
                 response <- withXeroConfigForTest (Left "Xero test config missing") do
                     withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
@@ -434,7 +433,7 @@ tests = aroundAll withFastXeroReferenceSyncRuntime $ aroundAll withDatabaseTestC
             withCleanDb do
                 venue <- createVenueWithConfig "Xero Start Venue"
                 admin <- createUserRecord "xero-start@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue admin "venue_owner"
+                _ <- createVenueMembershipRecord venue admin VenueOwner
 
                 response <- withXeroConfigForTest (Right testXeroConfig) do
                     withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
@@ -456,7 +455,7 @@ tests = aroundAll withFastXeroReferenceSyncRuntime $ aroundAll withDatabaseTestC
             withCleanDb do
                 venue <- createVenueWithConfig "Xero Invalid State Venue"
                 admin <- createUserRecord "xero-invalid-state@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue admin "venue_owner"
+                _ <- createVenueMembershipRecord venue admin VenueOwner
                 expiredState <- createTestXeroOauthState venue admin "expired-state" (-60) Nothing
                 consumedAt <- getCurrentTime
                 consumedState <- createTestXeroOauthState venue admin "consumed-state" 600 (Just consumedAt)
@@ -478,7 +477,7 @@ tests = aroundAll withFastXeroReferenceSyncRuntime $ aroundAll withDatabaseTestC
             withCleanDb do
                 venue <- createVenueWithConfig "Xero Error Venue"
                 admin <- createUserRecord "xero-error@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue admin "venue_owner"
+                _ <- createVenueMembershipRecord venue admin VenueOwner
                 oauthState <- createTestXeroOauthState venue admin "xero-error-state" 600 Nothing
 
                 response <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
@@ -497,7 +496,7 @@ tests = aroundAll withFastXeroReferenceSyncRuntime $ aroundAll withDatabaseTestC
             withCleanDb do
                 venue <- createVenueWithConfig "Xero Success Venue"
                 admin <- createUserRecord "xero-success@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue admin "venue_owner"
+                _ <- createVenueMembershipRecord venue admin VenueOwner
                 oauthState <- createTestXeroOauthState venue admin "xero-success-state" 600 Nothing
                 let tokenResponse = XeroTokenResponse "raw-access-token" "raw-refresh-token" 1800 (Just requiredXeroScopesText)
                 let tenant = XeroTenant "connection-123" "tenant-123" (Just "Demo Company")
@@ -541,7 +540,7 @@ tests = aroundAll withFastXeroReferenceSyncRuntime $ aroundAll withDatabaseTestC
             withCleanDb do
                 venue <- createVenueWithConfig "Xero Mock Callback Venue"
                 admin <- createUserRecord "xero-mock-callback@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue admin "venue_owner"
+                _ <- createVenueMembershipRecord venue admin VenueOwner
                 oauthState <- createTestXeroOauthState venue admin "xero-mock-callback-state" 600 Nothing
 
                 response <- withXeroConfigForTest (Right testXeroConfig) do
@@ -568,7 +567,7 @@ tests = aroundAll withFastXeroReferenceSyncRuntime $ aroundAll withDatabaseTestC
             withCleanDb do
                 venue <- createVenueWithConfig "Xero Disconnect Venue"
                 admin <- createUserRecord "xero-disconnect@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue admin "venue_owner"
+                _ <- createVenueMembershipRecord venue admin VenueOwner
                 staleConnection <- createSyncableXeroConnection venue admin >>= \record ->
                     record
                         |> set #connectionStatus "reauthorization_required"
@@ -604,7 +603,7 @@ tests = aroundAll withFastXeroReferenceSyncRuntime $ aroundAll withDatabaseTestC
             withCleanDb do
                 venue <- createVenueWithConfig "Xero Expired Disconnect Venue"
                 owner <- createUserRecord "xero-expired-disconnect@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue owner "venue_owner"
+                _ <- createVenueMembershipRecord venue owner VenueOwner
                 connection <- createSyncableXeroConnection venue owner >>= \record ->
                     record
                         |> set #xeroConnectionRemoteId Nothing
@@ -631,7 +630,7 @@ tests = aroundAll withFastXeroReferenceSyncRuntime $ aroundAll withDatabaseTestC
             withCleanDb do
                 venue <- createVenueWithConfig "Xero Venue Admin Blocked Venue"
                 admin <- createUserRecord "xero-venue-admin-blocked@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue admin "venue_admin"
+                _ <- createVenueMembershipRecord venue admin VenueAdmin
                 oauthState <- createTestXeroOauthState venue admin "admin-state" 600 Nothing
                 connection <- createActiveXeroConnection venue admin
 
@@ -655,8 +654,8 @@ tests = aroundAll withFastXeroReferenceSyncRuntime $ aroundAll withDatabaseTestC
         it "syncs Xero payroll reference data for an active connection" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Xero Sync Venue"
-                admin <- createUserRecordWithPlatformRole "xero-sync@example.com" "staff" (Just SuperAdminRole) True
-                _ <- createVenueMembershipRecord venue admin "venue_owner"
+                admin <- createUserRecordWithPlatformRole "xero-sync@example.com" "staff" (Just SuperAdmin) True
+                _ <- createVenueMembershipRecord venue admin VenueOwner
                 connection <- createSyncableXeroConnection venue admin
                 let tokenResponse = XeroTokenResponse "new-access-token" "new-refresh-token" 1800 (Just requiredXeroScopesText)
                 let employees =
@@ -737,8 +736,8 @@ tests = aroundAll withFastXeroReferenceSyncRuntime $ aroundAll withDatabaseTestC
         it "atomically reconciles provider availability while preserving archival and locked pay history" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Xero Availability Reconciliation Venue"
-                owner <- createUserRecordWithPlatformRole "xero-availability@example.com" "staff" (Just SuperAdminRole) True
-                _ <- createVenueMembershipRecord venue owner "venue_owner"
+                owner <- createUserRecordWithPlatformRole "xero-availability@example.com" "staff" (Just SuperAdmin) True
+                _ <- createVenueMembershipRecord venue owner VenueOwner
                 connection <- createSyncableXeroConnection venue owner
                 let tokenResponse = XeroTokenResponse "availability-access-token" "availability-refresh-token" 1800 (Just requiredXeroScopesText)
                     employee = XeroEmployeeRef "employee-availability" "Available Worker" (Just "worker@example.com") (Just "ACTIVE") (Aeson.object ["EmployeeID" Aeson..= ("employee-availability" :: Text)])
@@ -889,8 +888,8 @@ tests = aroundAll withFastXeroReferenceSyncRuntime $ aroundAll withDatabaseTestC
         it "syncs Xero payroll reference data over HTMX with actor-local shell invalidation" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Xero HTMX Sync Venue"
-                admin <- createUserRecordWithPlatformRole "xero-htmx-sync@example.com" "staff" (Just SuperAdminRole) True
-                _ <- createVenueMembershipRecord venue admin "venue_owner"
+                admin <- createUserRecordWithPlatformRole "xero-htmx-sync@example.com" "staff" (Just SuperAdmin) True
+                _ <- createVenueMembershipRecord venue admin VenueOwner
                 _connection <- createSyncableXeroConnection venue admin
                 let tokenResponse = XeroTokenResponse "htmx-access-token" "htmx-refresh-token" 1800 (Just requiredXeroScopesText)
 
@@ -914,8 +913,8 @@ tests = aroundAll withFastXeroReferenceSyncRuntime $ aroundAll withDatabaseTestC
         it "preselects the Xero wages expense account while retaining ambiguous payroll calendars" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Xero Multiple Defaults Venue"
-                admin <- createUserRecordWithPlatformRole "xero-multiple-defaults@example.com" "staff" (Just SuperAdminRole) True
-                _ <- createVenueMembershipRecord venue admin "venue_owner"
+                admin <- createUserRecordWithPlatformRole "xero-multiple-defaults@example.com" "staff" (Just SuperAdmin) True
+                _ <- createVenueMembershipRecord venue admin VenueOwner
                 connection <- createSyncableXeroConnection venue admin
                 let tokenResponse = XeroTokenResponse "new-access-token" "new-refresh-token" 1800 (Just requiredXeroScopesText)
                 let employees = []
@@ -973,8 +972,8 @@ tests = aroundAll withFastXeroReferenceSyncRuntime $ aroundAll withDatabaseTestC
         it "syncs Xero payroll reference data through the strict localhost Xero mock" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Xero Mock Sync Venue"
-                admin <- createUserRecordWithPlatformRole "xero-mock-sync@example.com" "staff" (Just SuperAdminRole) True
-                _ <- createVenueMembershipRecord venue admin "venue_owner"
+                admin <- createUserRecordWithPlatformRole "xero-mock-sync@example.com" "staff" (Just SuperAdmin) True
+                _ <- createVenueMembershipRecord venue admin VenueOwner
                 connection <- createSyncableXeroConnection venue admin
 
                 response <- withXeroConfigForTest (Right testXeroConfig) do
@@ -1794,7 +1793,7 @@ tests = aroundAll withFastXeroReferenceSyncRuntime $ aroundAll withDatabaseTestC
             withCleanDb do
                 fixture <- Preview.createPreviewFixture "weekly" [Preview.EntrySpec 0 Preview.fixtureStaffA (TimeOfDay 9 0 0) (TimeOfDay 13 0 0)]
                 manager <- createUserRecord "xero-timesheet-manager@example.com" "staff" True
-                _ <- createVenueMembershipRecord fixture.venue manager "manager"
+                _ <- createVenueMembershipRecord fixture.venue manager Manager
 
                 pageResponse <- withPasskeyVerifiedUserAndCurrentVenue manager fixture.venue.id do
                     callAction XeroAction
@@ -1816,8 +1815,8 @@ tests = aroundAll withFastXeroReferenceSyncRuntime $ aroundAll withDatabaseTestC
         it "records Xero payroll reference sync failures without storing stale rows" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Xero Sync Failure Venue"
-                admin <- createUserRecordWithPlatformRole "xero-sync-failure@example.com" "staff" (Just SuperAdminRole) True
-                _ <- createVenueMembershipRecord venue admin "venue_owner"
+                admin <- createUserRecordWithPlatformRole "xero-sync-failure@example.com" "staff" (Just SuperAdmin) True
+                _ <- createVenueMembershipRecord venue admin VenueOwner
                 connection <- createSyncableXeroConnection venue admin
 
                 response <- withXeroConfigForTest (Right testXeroConfig) do
@@ -1837,8 +1836,8 @@ tests = aroundAll withFastXeroReferenceSyncRuntime $ aroundAll withDatabaseTestC
         it "marks Xero connections as reconnect required when refresh tokens expire" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Xero Expired Refresh Venue"
-                owner <- createUserRecordWithPlatformRole "xero-expired-refresh@example.com" "staff" (Just SuperAdminRole) True
-                _ <- createVenueMembershipRecord venue owner "venue_owner"
+                owner <- createUserRecordWithPlatformRole "xero-expired-refresh@example.com" "staff" (Just SuperAdmin) True
+                _ <- createVenueMembershipRecord venue owner VenueOwner
                 connection <- createSyncableXeroConnection venue owner
 
                 response <- withXeroConfigForTest (Right testXeroConfig) do
@@ -1861,8 +1860,8 @@ tests = aroundAll withFastXeroReferenceSyncRuntime $ aroundAll withDatabaseTestC
         it "sends HTMX sync requests into the reconnect flow when the refresh token is expired" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Xero HTMX Expired Refresh Venue"
-                owner <- createUserRecordWithPlatformRole "xero-htmx-expired-refresh@example.com" "staff" (Just SuperAdminRole) True
-                _ <- createVenueMembershipRecord venue owner "venue_owner"
+                owner <- createUserRecordWithPlatformRole "xero-htmx-expired-refresh@example.com" "staff" (Just SuperAdmin) True
+                _ <- createVenueMembershipRecord venue owner VenueOwner
                 connection <- createSyncableXeroConnection venue owner
 
                 response <- withXeroConfigForTest (Right testXeroConfig) do
@@ -1889,7 +1888,7 @@ tests = aroundAll withFastXeroReferenceSyncRuntime $ aroundAll withDatabaseTestC
             withCleanDb do
                 venue <- createVenueWithConfig "Xero Auto Sync After Connect Venue"
                 owner <- createUserRecord "xero-auto-sync-after-connect@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue owner "venue_owner"
+                _ <- createVenueMembershipRecord venue owner VenueOwner
                 oauthState <- createTestXeroOauthState venue owner "auto-sync-state" 600 Nothing
                 let tokenResponse = XeroTokenResponse "auto-sync-access-token" "auto-sync-refresh-token" 1800 (Just requiredXeroScopesText)
                 let tenant = XeroTenant "connection-auto-sync" "tenant-auto-sync" (Just "Auto Sync Demo Company")
@@ -1913,7 +1912,7 @@ tests = aroundAll withFastXeroReferenceSyncRuntime $ aroundAll withDatabaseTestC
             withCleanDb do
                 venue <- createVenueWithConfig "Xero Wrong Tenant Reconnect Venue"
                 owner <- createUserRecord "xero-wrong-tenant-reconnect@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue owner "venue_owner"
+                _ <- createVenueMembershipRecord venue owner VenueOwner
                 connection <- createSyncableXeroConnection venue owner >>= \record ->
                     record
                         |> set #connectionStatus "reauthorization_required"
@@ -1945,7 +1944,7 @@ tests = aroundAll withFastXeroReferenceSyncRuntime $ aroundAll withDatabaseTestC
             withCleanDb do
                 venue <- createVenueWithConfig "Xero Reconnect Repair Venue"
                 owner <- createUserRecord "xero-reconnect-repair@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue owner "venue_owner"
+                _ <- createVenueMembershipRecord venue owner VenueOwner
                 connection <- createSyncableXeroConnection venue owner
                 staleConnection <-
                     connection
@@ -1987,7 +1986,7 @@ tests = aroundAll withFastXeroReferenceSyncRuntime $ aroundAll withDatabaseTestC
             withCleanDb do
                 venue <- createVenueWithConfig "Xero Non Admin Venue"
                 manager <- createUserRecord "xero-manager@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue manager "manager"
+                _ <- createVenueMembershipRecord venue manager Manager
                 oauthState <- createTestXeroOauthState venue manager "manager-state" 600 Nothing
                 connection <- createActiveXeroConnection venue manager
 

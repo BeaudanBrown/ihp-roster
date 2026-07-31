@@ -58,7 +58,7 @@ The product must not rely on global in-app business roles without venue boundari
 - Public self-registration is not part of the near-term operating model.
 - If public self-registration is retained for any reason, it must not grant privileged venue roles automatically.
 - Default first-client workflow is founder-managed venue creation and invitation.
-- Venue business roles belong to `venue_memberships`, not `users`.
+- Venue business roles belong to `venue_memberships`, not `users`. Their closed vocabulary is the schema-generated `venue_role_enum`; application authorization and presentation operate on those generated values directly.
 
 ## Authentication requirements
 

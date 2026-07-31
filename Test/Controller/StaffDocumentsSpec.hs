@@ -39,7 +39,7 @@ tests = aroundAll withDatabaseTestContext do
             withCleanDb do
                 venue <- createVenueWithConfig "RSA Download Venue"
                 user <- createUserRecord "rsa-download@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue user "worker"
+                _ <- createVenueMembershipRecord venue user Worker
                 staff <- createStaffRecord venue (Just user) "Drew" "Download"
                 staffDocument <- createRsaDocument user.id staff (testRsaUpload (fromGregorian 2027 5 2))
 
@@ -55,8 +55,8 @@ tests = aroundAll withDatabaseTestContext do
                 venue <- createVenueWithConfig "RSA Private Venue"
                 owner <- createUserRecord "rsa-owner@example.com" "staff" True
                 other <- createUserRecord "rsa-other@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue owner "worker"
-                _ <- createVenueMembershipRecord venue other "worker"
+                _ <- createVenueMembershipRecord venue owner Worker
+                _ <- createVenueMembershipRecord venue other Worker
                 ownerStaff <- createStaffRecord venue (Just owner) "Owner" "RSA"
                 _ <- createStaffRecord venue (Just other) "Other" "RSA"
                 staffDocument <- createRsaDocument owner.id ownerStaff (testRsaUpload (fromGregorian 2027 5 2))
@@ -70,7 +70,7 @@ tests = aroundAll withDatabaseTestContext do
             withCleanDb do
                 venue <- createVenueWithConfig "RSA Confirm Venue"
                 user <- createUserRecord "rsa-confirm@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue user "worker"
+                _ <- createVenueMembershipRecord venue user Worker
                 staff <- createStaffRecord venue (Just user) "Casey" "Confirm"
 
                 response <- withUserAndCurrentVenue user venue.id do
@@ -107,7 +107,7 @@ tests = aroundAll withDatabaseTestContext do
             withCleanDb do
                 venue <- createVenueWithConfig "RSA Image Venue"
                 user <- createUserRecord "rsa-image@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue user "worker"
+                _ <- createVenueMembershipRecord venue user Worker
                 staff <- createStaffRecord venue (Just user) "Iris" "Image"
 
                 response <- withUserAndCurrentVenue user venue.id do
@@ -134,8 +134,8 @@ tests = aroundAll withDatabaseTestContext do
                 venue <- createVenueWithConfig "RSA Manager Upload Venue"
                 manager <- createUserRecord "rsa-manager-upload@example.com" "staff" True
                 worker <- createUserRecord "rsa-worker-upload@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue manager "manager"
-                _ <- createVenueMembershipRecord venue worker "worker"
+                _ <- createVenueMembershipRecord venue manager Manager
+                _ <- createVenueMembershipRecord venue worker Worker
                 staff <- createStaffRecord venue (Just worker) "Mina" "Managed"
                 current <- createRsaDocument worker.id staff (testRsaUpload (fromGregorian 2027 5 2)) >>= updateRecord . set #status Verified
 
@@ -162,7 +162,7 @@ tests = aroundAll withDatabaseTestContext do
             withCleanDb do
                 venue <- createVenueWithConfig "RSA Touch Venue"
                 user <- createUserRecord "rsa-touch@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue user "worker"
+                _ <- createVenueMembershipRecord venue user Worker
                 staff <- createStaffRecord venue (Just user) "Touch" "Worker"
                 staffDocument <- createRsaDocument user.id staff (testRsaUpload (fromGregorian 2027 5 2))
 
@@ -175,8 +175,8 @@ tests = aroundAll withDatabaseTestContext do
                 venue <- createVenueWithConfig "RSA Review Venue"
                 manager <- createUserRecord "rsa-manager@example.com" "staff" True
                 worker <- createUserRecord "rsa-review-worker@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue manager "manager"
-                _ <- createVenueMembershipRecord venue worker "worker"
+                _ <- createVenueMembershipRecord venue manager Manager
+                _ <- createVenueMembershipRecord venue worker Worker
                 staff <- createStaffRecord venue (Just worker) "Review" "Worker"
                 staffDocument <- createRsaDocument worker.id staff (testRsaUpload (fromGregorian 2027 5 2))
 
@@ -205,8 +205,8 @@ tests = aroundAll withDatabaseTestContext do
                 venueB <- createVenueWithConfig "RSA Venue B"
                 managerA <- createUserRecord "rsa-manager-a@example.com" "staff" True
                 workerB <- createUserRecord "rsa-worker-b@example.com" "staff" True
-                _ <- createVenueMembershipRecord venueA managerA "manager"
-                _ <- createVenueMembershipRecord venueB workerB "worker"
+                _ <- createVenueMembershipRecord venueA managerA Manager
+                _ <- createVenueMembershipRecord venueB workerB Worker
                 staffB <- createStaffRecord venueB (Just workerB) "Cross" "Venue"
                 staffDocument <- createRsaDocument workerB.id staffB (testRsaUpload (fromGregorian 2027 5 2))
 

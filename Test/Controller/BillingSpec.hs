@@ -4,7 +4,6 @@ import Application.Billing.Checkout
 import Application.Billing.Reconciliation (billingReconciliationJobKind,
                                            performBillingReconciliationJob)
 import Application.Billing.Stripe
-import Application.Helper.Controller (PlatformRole (SuperAdminRole))
 import Application.Job.App ()
 import Config
 import qualified Control.Concurrent as Concurrent
@@ -59,7 +58,7 @@ tests = aroundAll withDatabaseTestContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Billing Owner Venue"
                 owner <- createUserRecord "billing-owner-page@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue owner "venue_owner"
+                _ <- createVenueMembershipRecord venue owner VenueOwner
                 _ <- createTestPasskeyRecord owner "Billing owner passkey"
                 _ <-
                     newRecord @BillingEvent
@@ -95,7 +94,7 @@ tests = aroundAll withDatabaseTestContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Billing Sensitive Boundary Venue"
                 owner <- createUserRecord "billing-sensitive-boundary@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue owner "venue_owner"
+                _ <- createVenueMembershipRecord venue owner VenueOwner
                 _ <- createTestPasskeyRecord owner "Billing sensitive boundary passkey"
                 let sensitiveValues =
                         [ "sk_live_sensitive_123"
@@ -196,7 +195,7 @@ tests = aroundAll withDatabaseTestContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Billing Unhealthy Config Venue"
                 owner <- createUserRecord "billing-unhealthy-config@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue owner "venue_owner"
+                _ <- createVenueMembershipRecord venue owner VenueOwner
 
                 response <- withStripeConfigForTest (Left "Stripe configuration is unavailable") do
                     withPasskeyVerifiedUserAndCurrentVenue owner venue.id do
@@ -210,7 +209,7 @@ tests = aroundAll withDatabaseTestContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Billing Fragment Venue"
                 owner <- createUserRecord "billing-fragment-owner@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue owner "venue_owner"
+                _ <- createVenueMembershipRecord venue owner VenueOwner
 
                 response <- withPasskeyVerifiedUserAndCurrentVenue owner venue.id do
                     callAction ShowbillingStatusLiveFragmentAction
@@ -224,7 +223,7 @@ tests = aroundAll withDatabaseTestContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Billing Manager Venue"
                 manager <- createUserRecord "billing-manager@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue manager "manager"
+                _ <- createVenueMembershipRecord venue manager Manager
 
                 response <- withUserAndCurrentVenue manager venue.id do
                     callAction BillingAction
@@ -235,7 +234,7 @@ tests = aroundAll withDatabaseTestContext do
         it "shows support-mode founders a separate diagnostic view without payer or manual controls" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Billing Support Venue"
-                superAdmin <- createUserRecordWithPlatformRole "billing-support@example.com" "staff" (Just SuperAdminRole) True
+                superAdmin <- createUserRecordWithPlatformRole "billing-support@example.com" "staff" (Just SuperAdmin) True
                 _ <-
                     newRecord @VenueBillingCustomer
                         |> set #venueId (unpackId venue.id)
@@ -294,7 +293,7 @@ tests = aroundAll withDatabaseTestContext do
         it "requires fresh passkey verification before founder diagnostics" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Billing Founder Diagnostic Step-Up Venue"
-                superAdmin <- createUserRecordWithPlatformRole "billing-founder-diagnostic-step-up@example.com" "staff" (Just SuperAdminRole) True
+                superAdmin <- createUserRecordWithPlatformRole "billing-founder-diagnostic-step-up@example.com" "staff" (Just SuperAdmin) True
                 _ <- createTestPasskeyRecord superAdmin "Billing founder diagnostic passkey"
 
                 response <- withUserAndCurrentVenue superAdmin venue.id do
@@ -306,9 +305,9 @@ tests = aroundAll withDatabaseTestContext do
         it "exposes sanitized terminal reconciliation diagnostics to founders only" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Billing Reconciliation Diagnostics Venue"
-                superAdmin <- createUserRecordWithPlatformRole "billing-reconciliation-diagnostics@example.com" "staff" (Just SuperAdminRole) True
+                superAdmin <- createUserRecordWithPlatformRole "billing-reconciliation-diagnostics@example.com" "staff" (Just SuperAdmin) True
                 owner <- createUserRecord "billing-reconciliation-diagnostics-owner@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue owner "venue_owner"
+                _ <- createVenueMembershipRecord venue owner VenueOwner
                 failedJob <-
                     newRecord @AppJob
                         |> set #jobKind billingReconciliationJobKind
@@ -345,7 +344,7 @@ tests = aroundAll withDatabaseTestContext do
                 \(maybeStatus, cancelAtPeriodEnd, stateLabel, actionLabel, guidance) -> withCleanDb do
                     venue <- createVenueWithConfig ("Billing State " <> stateLabel <> " Venue")
                     owner <- createUserRecord ("billing-state-" <> Text.replace " " "-" (Text.toLower stateLabel) <> "@example.com") "staff" True
-                    _ <- createVenueMembershipRecord venue owner "venue_owner"
+                    _ <- createVenueMembershipRecord venue owner VenueOwner
                     _ <- createTestPasskeyRecord owner "Billing state owner passkey"
                     now <- getCurrentTime
                     forM_ maybeStatus \status -> do
@@ -386,10 +385,10 @@ tests = aroundAll withDatabaseTestContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Billing Navigation Venue"
                 owner <- createUserRecord "billing-navigation-owner@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue owner "venue_owner"
+                _ <- createVenueMembershipRecord venue owner VenueOwner
                 _ <- createTestPasskeyRecord owner "Billing navigation owner passkey"
-                superAdmin <- createUserRecordWithPlatformRole "billing-navigation-support@example.com" "staff" (Just SuperAdminRole) True
-                _ <- createVenueMembershipRecord venue superAdmin "venue_owner"
+                superAdmin <- createUserRecordWithPlatformRole "billing-navigation-support@example.com" "staff" (Just SuperAdmin) True
+                _ <- createVenueMembershipRecord venue superAdmin VenueOwner
                 let hiddenConfig = testStripeConfig
                 let visibleConfig =
                         testStripeConfig
@@ -424,7 +423,7 @@ tests = aroundAll withDatabaseTestContext do
         it "prevents founder support mode from starting Checkout or opening Customer Portal" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Billing Support Payment Boundary Venue"
-                superAdmin <- createUserRecordWithPlatformRole "billing-support-payment-boundary@example.com" "staff" (Just SuperAdminRole) True
+                superAdmin <- createUserRecordWithPlatformRole "billing-support-payment-boundary@example.com" "staff" (Just SuperAdmin) True
                 _ <-
                     newRecord @VenueBillingCustomer
                         |> set #venueId (unpackId venue.id)
@@ -448,7 +447,7 @@ tests = aroundAll withDatabaseTestContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Billing Payment Step-Up Venue"
                 owner <- createUserRecord "billing-payment-step-up@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue owner "venue_owner"
+                _ <- createVenueMembershipRecord venue owner VenueOwner
                 _ <- createTestPasskeyRecord owner "Billing owner passkey"
                 _ <-
                     newRecord @VenueBillingCustomer
@@ -470,7 +469,7 @@ tests = aroundAll withDatabaseTestContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Billing Disabled Strong Auth Checkout Venue"
                 owner <- createUserRecord "billing-disabled-strong-auth-owner@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue owner "venue_owner"
+                _ <- createVenueMembershipRecord venue owner VenueOwner
 
                 response <- withPrivilegedStrongAuthentication False do
                     withStripeConfigForTest (Right testStripeConfig) do
@@ -487,7 +486,7 @@ tests = aroundAll withDatabaseTestContext do
                 venue <- createVenueWithConfig "Billing Verified Email Venue"
                 owner <- createUserRecord "billing-unverified-owner@example.com" "staff" True
                     >>= updateRecord . set #emailVerifiedAt Nothing
-                _ <- createVenueMembershipRecord venue owner "venue_owner"
+                _ <- createVenueMembershipRecord venue owner VenueOwner
                 stripeCalls <- IORef.newIORef (0 :: Int)
                 let client = checkoutStripeClient
                         { listPrices = \_ -> do
@@ -509,7 +508,7 @@ tests = aroundAll withDatabaseTestContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Billing Checkout Venue"
                 owner <- createUserRecord "billing-checkout-owner@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue owner "venue_owner"
+                _ <- createVenueMembershipRecord venue owner VenueOwner
 
                 response <- withStripeConfigForTest (Right testStripeConfig) do
                     withStripeClientForTest (checkoutStripeClientExpectingCustomer "Billing Checkout Venue" "billing-checkout-owner@example.com") do
@@ -535,7 +534,7 @@ tests = aroundAll withDatabaseTestContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Billing Direct Price Checkout Venue"
                 owner <- createUserRecord "billing-direct-price-owner@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue owner "venue_owner"
+                _ <- createVenueMembershipRecord venue owner VenueOwner
                 lookupCalls <- IORef.newIORef (0 :: Int)
                 retrievedPriceIds <- IORef.newIORef ([] :: [Text])
                 let directPriceConfig =
@@ -569,7 +568,7 @@ tests = aroundAll withDatabaseTestContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Billing Resumable Checkout Venue"
                 owner <- createUserRecord "billing-resumable-checkout@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue owner "venue_owner"
+                _ <- createVenueMembershipRecord venue owner VenueOwner
                 createCalls <- IORef.newIORef (0 :: Int)
                 retrieveCalls <- IORef.newIORef (0 :: Int)
                 let client = resumableCheckoutStripeClient createCalls retrieveCalls
@@ -595,7 +594,7 @@ tests = aroundAll withDatabaseTestContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Billing Completed Checkout Resume Venue"
                 owner <- createUserRecord "billing-completed-checkout-resume@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue owner "venue_owner"
+                _ <- createVenueMembershipRecord venue owner VenueOwner
                 attempt <- createOpenBillingCheckoutAttempt venue owner "cs_completed_resume_123"
 
                 response <- withStripeConfigForTest (Right testStripeConfig) do
@@ -613,7 +612,7 @@ tests = aroundAll withDatabaseTestContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Billing Retried Checkout Venue"
                 owner <- createUserRecord "billing-retried-checkout@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue owner "venue_owner"
+                _ <- createVenueMembershipRecord venue owner VenueOwner
                 createAttempts <- IORef.newIORef ([] :: [Text])
                 let client = retryingCheckoutStripeClient createAttempts
 
@@ -665,7 +664,7 @@ tests = aroundAll withDatabaseTestContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Billing Expired Checkout Venue"
                 owner <- createUserRecord "billing-expired-checkout@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue owner "venue_owner"
+                _ <- createVenueMembershipRecord venue owner VenueOwner
                 createAttemptIds <- IORef.newIORef ([] :: [Text])
                 let client = expiringCheckoutStripeClient createAttemptIds
 
@@ -728,7 +727,7 @@ tests = aroundAll withDatabaseTestContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Billing Unsafe Checkout Redirect Venue"
                 owner <- createUserRecord "billing-unsafe-checkout-redirect@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue owner "venue_owner"
+                _ <- createVenueMembershipRecord venue owner VenueOwner
 
                 response <- withStripeConfigForTest (Right testStripeConfig) do
                     withStripeClientForTest unsafeCheckoutRedirectClient do
@@ -742,7 +741,7 @@ tests = aroundAll withDatabaseTestContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Billing Checkout Disabled Venue"
                 owner <- createUserRecord "billing-checkout-disabled@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue owner "venue_owner"
+                _ <- createVenueMembershipRecord venue owner VenueOwner
                 let disabledConfig =
                         testStripeConfig
                             { stripeDeploymentControls =
@@ -771,7 +770,7 @@ tests = aroundAll withDatabaseTestContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Billing Active Subscription Venue"
                 owner <- createUserRecord "billing-active-subscription@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue owner "venue_owner"
+                _ <- createVenueMembershipRecord venue owner VenueOwner
                 _ <- createVenueSubscriptionWithStatus venue "active"
                 stripeCalls <- IORef.newIORef (0 :: Int)
                 let client = checkoutStripeClient
@@ -794,7 +793,7 @@ tests = aroundAll withDatabaseTestContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Billing Canceled Subscription Venue"
                 owner <- createUserRecord "billing-canceled-subscription@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue owner "venue_owner"
+                _ <- createVenueMembershipRecord venue owner VenueOwner
                 _ <- createVenueSubscriptionWithStatus venue "canceled"
 
                 response <- withStripeConfigForTest (Right testStripeConfig) do
@@ -809,7 +808,7 @@ tests = aroundAll withDatabaseTestContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Billing Portal Venue"
                 owner <- createUserRecord "billing-portal-owner@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue owner "venue_owner"
+                _ <- createVenueMembershipRecord venue owner VenueOwner
                 _ <-
                     newRecord @VenueBillingCustomer
                         |> set #venueId (unpackId venue.id)
@@ -836,7 +835,7 @@ tests = aroundAll withDatabaseTestContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Billing Fresh Portal Venue"
                 owner <- createUserRecord "billing-fresh-portal-owner@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue owner "venue_owner"
+                _ <- createVenueMembershipRecord venue owner VenueOwner
                 _ <-
                     newRecord @VenueBillingCustomer
                         |> set #venueId (unpackId venue.id)
@@ -864,7 +863,7 @@ tests = aroundAll withDatabaseTestContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Billing Unsafe Portal Redirect Venue"
                 owner <- createUserRecord "billing-unsafe-portal-redirect@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue owner "venue_owner"
+                _ <- createVenueMembershipRecord venue owner VenueOwner
                 _ <-
                     newRecord @VenueBillingCustomer
                         |> set #venueId (unpackId venue.id)
@@ -883,7 +882,7 @@ tests = aroundAll withDatabaseTestContext do
         it "lets a passkey-verified founder queue per-venue reconciliation" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Billing Manual Reconciliation Venue"
-                superAdmin <- createUserRecordWithPlatformRole "billing-manual-reconciliation@example.com" "staff" (Just SuperAdminRole) True
+                superAdmin <- createUserRecordWithPlatformRole "billing-manual-reconciliation@example.com" "staff" (Just SuperAdmin) True
                 subscription <- createVenueSubscriptionWithStatus venue "past_due"
 
                 response <- withPasskeyVerifiedUserAndCurrentVenue superAdmin venue.id do
@@ -903,7 +902,7 @@ tests = aroundAll withDatabaseTestContext do
         it "requires fresh passkey step-up for founder reconciliation" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Billing Reconciliation Step-Up Venue"
-                superAdmin <- createUserRecordWithPlatformRole "billing-reconciliation-step-up@example.com" "staff" (Just SuperAdminRole) True
+                superAdmin <- createUserRecordWithPlatformRole "billing-reconciliation-step-up@example.com" "staff" (Just SuperAdmin) True
                 _ <- createTestPasskeyRecord superAdmin "Billing reconciliation passkey"
                 _ <- createVenueSubscriptionWithStatus venue "active"
 
@@ -917,7 +916,7 @@ tests = aroundAll withDatabaseTestContext do
         it "lets a founder without a passkey reconcile billing when privileged strong authentication is disabled" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Billing Disabled Strong Auth Reconciliation Venue"
-                superAdmin <- createUserRecordWithPlatformRole "billing-disabled-strong-auth-founder@example.com" "staff" (Just SuperAdminRole) True
+                superAdmin <- createUserRecordWithPlatformRole "billing-disabled-strong-auth-founder@example.com" "staff" (Just SuperAdmin) True
                 subscription <- createVenueSubscriptionWithStatus venue "past_due"
 
                 response <- withPrivilegedStrongAuthentication False do
@@ -933,7 +932,7 @@ tests = aroundAll withDatabaseTestContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Billing Owner Reconciliation Boundary Venue"
                 owner <- createUserRecord "billing-owner-reconciliation-boundary@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue owner "venue_owner"
+                _ <- createVenueMembershipRecord venue owner VenueOwner
                 _ <- createVenueSubscriptionWithStatus venue "active"
 
                 response <- withPasskeyVerifiedUserAndCurrentVenue owner venue.id do
@@ -945,7 +944,7 @@ tests = aroundAll withDatabaseTestContext do
         it "lets support-mode super admins update manual read-only state" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Billing Toggle Venue"
-                superAdmin <- createUserRecordWithPlatformRole "billing-toggle-support@example.com" "staff" (Just SuperAdminRole) True
+                superAdmin <- createUserRecordWithPlatformRole "billing-toggle-support@example.com" "staff" (Just SuperAdmin) True
 
                 response <- withPasskeyVerifiedUserAndCurrentVenue superAdmin venue.id do
                     callActionWithParams
@@ -964,7 +963,7 @@ tests = aroundAll withDatabaseTestContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Billing Success Venue"
                 owner <- createUserRecord "billing-success-owner@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue owner "venue_owner"
+                _ <- createVenueMembershipRecord venue owner VenueOwner
                 attempt <- createOpenBillingCheckoutAttempt venue owner "cs_test_123"
 
                 response <- withPasskeyVerifiedUserAndCurrentVenue owner venue.id do
@@ -983,7 +982,7 @@ tests = aroundAll withDatabaseTestContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Billing Return Reconciliation Venue"
                 owner <- createUserRecord "billing-return-reconciliation@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue owner "venue_owner"
+                _ <- createVenueMembershipRecord venue owner VenueOwner
                 attempt <- createOpenBillingCheckoutAttempt venue owner "cs_reconcile_return_123"
 
                 response <- withPasskeyVerifiedUserAndCurrentVenue owner venue.id do
@@ -1006,7 +1005,7 @@ tests = aroundAll withDatabaseTestContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Billing Completed Return Reconciliation Venue"
                 owner <- createUserRecord "billing-completed-return-reconciliation@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue owner "venue_owner"
+                _ <- createVenueMembershipRecord venue owner VenueOwner
                 now <- getCurrentTime
                 attempt <-
                     createOpenBillingCheckoutAttempt venue owner "cs_completed_reconcile_return_123"
@@ -1030,11 +1029,11 @@ tests = aroundAll withDatabaseTestContext do
             withCleanDb do
                 sourceVenue <- createVenueWithConfig "Billing Return Source Venue"
                 sourceOwner <- createUserRecord "billing-return-source@example.com" "staff" True
-                _ <- createVenueMembershipRecord sourceVenue sourceOwner "venue_owner"
+                _ <- createVenueMembershipRecord sourceVenue sourceOwner VenueOwner
                 sourceAttempt <- createOpenBillingCheckoutAttempt sourceVenue sourceOwner "cs_source_123"
                 currentVenue <- createVenueWithConfig "Billing Return Current Venue"
                 currentOwner <- createUserRecord "billing-return-current@example.com" "staff" True
-                _ <- createVenueMembershipRecord currentVenue currentOwner "venue_owner"
+                _ <- createVenueMembershipRecord currentVenue currentOwner VenueOwner
                 currentAttempt <- createOpenBillingCheckoutAttempt currentVenue currentOwner "cs_current_123"
 
                 crossVenueResponse <- withPasskeyVerifiedUserAndCurrentVenue currentOwner currentVenue.id do
@@ -1055,11 +1054,11 @@ tests = aroundAll withDatabaseTestContext do
             withCleanDb do
                 sourceVenue <- createVenueWithConfig "Billing Cancel Source Venue"
                 sourceOwner <- createUserRecord "billing-cancel-source@example.com" "staff" True
-                _ <- createVenueMembershipRecord sourceVenue sourceOwner "venue_owner"
+                _ <- createVenueMembershipRecord sourceVenue sourceOwner VenueOwner
                 sourceAttempt <- createOpenBillingCheckoutAttempt sourceVenue sourceOwner "cs_cancel_source_123"
                 currentVenue <- createVenueWithConfig "Billing Cancel Current Venue"
                 currentOwner <- createUserRecord "billing-cancel-current@example.com" "staff" True
-                _ <- createVenueMembershipRecord currentVenue currentOwner "venue_owner"
+                _ <- createVenueMembershipRecord currentVenue currentOwner VenueOwner
                 currentAttempt <- createOpenBillingCheckoutAttempt currentVenue currentOwner "cs_cancel_current_123"
 
                 validResponse <- withPasskeyVerifiedUserAndCurrentVenue currentOwner currentVenue.id do
@@ -1085,7 +1084,7 @@ tests = aroundAll withDatabaseTestContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Billing Pending Modal Venue"
                 owner <- createUserRecord "billing-pending-modal-owner@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue owner "venue_owner"
+                _ <- createVenueMembershipRecord venue owner VenueOwner
                 attempt <- createOpenBillingCheckoutAttempt venue owner "cs_test_123"
 
                 response <- withPasskeyVerifiedUserAndCurrentVenue owner venue.id do
@@ -1108,7 +1107,7 @@ tests = aroundAll withDatabaseTestContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Billing Forged Return Query Venue"
                 owner <- createUserRecord "billing-forged-return-query@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue owner "venue_owner"
+                _ <- createVenueMembershipRecord venue owner VenueOwner
 
                 response <- withPasskeyVerifiedUserAndCurrentVenue owner venue.id do
                     withRequestQuery "checkout=success&attempt_id=00000000-0000-0000-0000-000000000001&session_id=cs_forged_123" do
@@ -1123,7 +1122,7 @@ tests = aroundAll withDatabaseTestContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Billing Malformed Return Venue"
                 owner <- createUserRecord "billing-malformed-return@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue owner "venue_owner"
+                _ <- createVenueMembershipRecord venue owner VenueOwner
 
                 successResponse <- withPasskeyVerifiedUserAndCurrentVenue owner venue.id do
                     callActionWithParams BillingSuccessAction
@@ -1151,7 +1150,7 @@ tests = aroundAll withDatabaseTestContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Billing Unrelated Subscription Return Venue"
                 owner <- createUserRecord "billing-unrelated-subscription-return@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue owner "venue_owner"
+                _ <- createVenueMembershipRecord venue owner VenueOwner
                 _ <- createVenueSubscriptionWithStatus venue "active"
                 attempt <- createOpenBillingCheckoutAttempt venue owner "cs_pending_123"
                 processedAt <- getCurrentTime
@@ -1181,7 +1180,7 @@ tests = aroundAll withDatabaseTestContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Billing Confirmed Modal Venue"
                 owner <- createUserRecord "billing-confirmed-modal-owner@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue owner "venue_owner"
+                _ <- createVenueMembershipRecord venue owner VenueOwner
                 _ <-
                     newRecord @VenueSubscription
                         |> set #venueId (unpackId venue.id)
@@ -1222,7 +1221,7 @@ tests = aroundAll withDatabaseTestContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Billing Failed Modal Venue"
                 owner <- createUserRecord "billing-failed-modal-owner@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue owner "venue_owner"
+                _ <- createVenueMembershipRecord venue owner VenueOwner
                 attempt <- createOpenBillingCheckoutAttempt venue owner "cs_test_123"
                     >>= updateRecord
                         . set #errorSummary (Just "processing failed")

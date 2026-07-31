@@ -106,7 +106,7 @@ createBaselineRoster :: (?modelContext :: ModelContext) => IO BaselineRoster
 createBaselineRoster = do
     venue <- createVenueWithConfig "Roster Baseline Venue"
     manager <- createUserRecord "roster-baseline-manager@example.com" "staff" True
-    _ <- createVenueMembershipRecord venue manager "manager"
+    _ <- createVenueMembershipRecord venue manager Manager
     rosterGroup <- ensureVenueDefaultRosterGroup venue
     earlySlotName <- fetchSlotNameRecordForRosterGroup rosterGroup "Early"
     lateSlotName <- fetchSlotNameRecordForRosterGroup rosterGroup "Late"
@@ -114,7 +114,7 @@ createBaselineRoster = do
     shiftType <- createShiftTypeRecord venue awardLevel "Baseline Shift"
     staffMembers <- forM [1 :: Int .. 6] \index -> do
         user <- createUserRecord ("roster-baseline-staff-" <> tshow index <> "@example.com") "staff" True
-        _ <- createVenueMembershipRecord venue user "worker"
+        _ <- createVenueMembershipRecord venue user Worker
         staff <- createStaffRecord venue (Just user) ("Staff" <> tshow index) "Baseline"
         staff
             |> set #idealShiftsPerWeek 5

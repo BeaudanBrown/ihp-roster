@@ -1,6 +1,5 @@
 module Test.BillingReadOnlySpec where
 
-import Application.Helper.Controller (PlatformRole (SuperAdminRole))
 import qualified Data.Text as Text
 import Generated.Types
 import IHP.ControllerPrelude
@@ -25,8 +24,8 @@ tests = aroundAll withDatabaseTestContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Read Only Read Venue"
                 manager <- createUserRecord "readonly-read-manager@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue manager "manager"
-                superAdmin <- createUserRecordWithPlatformRole "readonly-read-support@example.com" "staff" (Just SuperAdminRole) True
+                _ <- createVenueMembershipRecord venue manager Manager
+                superAdmin <- createUserRecordWithPlatformRole "readonly-read-support@example.com" "staff" (Just SuperAdmin) True
                 _ <- markVenueReadOnly venue superAdmin
 
                 response <- withUserAndCurrentVenue manager venue.id do
@@ -40,8 +39,8 @@ tests = aroundAll withDatabaseTestContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Read Only Billing Venue"
                 owner <- createUserRecord "readonly-billing-owner@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue owner "venue_owner"
-                superAdmin <- createUserRecordWithPlatformRole "readonly-billing-support@example.com" "staff" (Just SuperAdminRole) True
+                _ <- createVenueMembershipRecord venue owner VenueOwner
+                superAdmin <- createUserRecordWithPlatformRole "readonly-billing-support@example.com" "staff" (Just SuperAdmin) True
                 _ <- markVenueReadOnly venue superAdmin
 
                 response <- withPasskeyVerifiedUserAndCurrentVenue owner venue.id do
@@ -55,8 +54,8 @@ tests = aroundAll withDatabaseTestContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Read Only Roster Venue"
                 manager <- createUserRecord "readonly-roster-manager@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue manager "manager"
-                superAdmin <- createUserRecordWithPlatformRole "readonly-roster-support@example.com" "staff" (Just SuperAdminRole) True
+                _ <- createVenueMembershipRecord venue manager Manager
+                superAdmin <- createUserRecordWithPlatformRole "readonly-roster-support@example.com" "staff" (Just SuperAdmin) True
                 _ <- markVenueReadOnly venue superAdmin
 
                 response <- withUserAndCurrentVenue manager venue.id do
@@ -69,9 +68,9 @@ tests = aroundAll withDatabaseTestContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Read Only Timesheet Venue"
                 manager <- createUserRecord "readonly-timesheet-manager@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue manager "manager"
+                _ <- createVenueMembershipRecord venue manager Manager
                 _ <- ensureProfileCompleteStaffRecord venue manager
-                superAdmin <- createUserRecordWithPlatformRole "readonly-timesheet-support@example.com" "staff" (Just SuperAdminRole) True
+                superAdmin <- createUserRecordWithPlatformRole "readonly-timesheet-support@example.com" "staff" (Just SuperAdmin) True
                 _ <- markVenueReadOnly venue superAdmin
 
                 response <- withUserAndCurrentVenue manager venue.id do
@@ -84,9 +83,9 @@ tests = aroundAll withDatabaseTestContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Read Only Leave Venue"
                 manager <- createUserRecord "readonly-leave-manager@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue manager "manager"
+                _ <- createVenueMembershipRecord venue manager Manager
                 _ <- ensureProfileCompleteStaffRecord venue manager
-                superAdmin <- createUserRecordWithPlatformRole "readonly-leave-support@example.com" "staff" (Just SuperAdminRole) True
+                superAdmin <- createUserRecordWithPlatformRole "readonly-leave-support@example.com" "staff" (Just SuperAdmin) True
                 _ <- markVenueReadOnly venue superAdmin
 
                 response <- withUserAndCurrentVenue manager venue.id do
@@ -99,9 +98,9 @@ tests = aroundAll withDatabaseTestContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Read Only Admin Venue"
                 admin <- createUserRecord "readonly-admin@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue admin "venue_admin"
+                _ <- createVenueMembershipRecord venue admin VenueAdmin
                 _ <- ensureProfileCompleteStaffRecord venue admin
-                superAdmin <- createUserRecordWithPlatformRole "readonly-admin-support@example.com" "staff" (Just SuperAdminRole) True
+                superAdmin <- createUserRecordWithPlatformRole "readonly-admin-support@example.com" "staff" (Just SuperAdmin) True
                 _ <- markVenueReadOnly venue superAdmin
 
                 response <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
@@ -115,7 +114,7 @@ tests = aroundAll withDatabaseTestContext do
         it "keeps support manual billing controls available" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Read Only Support Toggle Venue"
-                superAdmin <- createUserRecordWithPlatformRole "readonly-toggle-support@example.com" "staff" (Just SuperAdminRole) True
+                superAdmin <- createUserRecordWithPlatformRole "readonly-toggle-support@example.com" "staff" (Just SuperAdmin) True
                 _ <- markVenueReadOnly venue superAdmin
 
                 response <- withPasskeyVerifiedUserAndCurrentVenue superAdmin venue.id do

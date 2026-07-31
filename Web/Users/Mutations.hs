@@ -34,11 +34,11 @@ acceptVenueInvitationInCurrentTransaction acceptedAt invitation user hashedPassw
                 |> set #isProfileCompleted True
                 |> createRecord
         venue <- fetch (Id invitation.venueId :: Id Venue)
-        membership <- provisionVenueMembership venue acceptedUser (inputValue invitation.inviteRole)
+        membership <- provisionVenueMembership venue acceptedUser invitation.inviteRole
         adoptedStaff <- acceptInvitationStaffLink invitation venue acceptedUser staffInput
         _ <-
             invitation
-                |> set #status (unsafeEnumFromText @InvitationStatusEnum "accepted")
+                |> set #status (Accepted)
                 |> set #acceptedByUserId (Just (unpackId (get #id acceptedUser)))
                 |> set #acceptedAt (Just acceptedAt)
                 |> updateRecord
@@ -62,7 +62,7 @@ acceptVenueInvitationInCurrentTransaction acceptedAt invitation user hashedPassw
                 invitation.venueId
                 (unpackId (get #id acceptedUser))
                 membership
-                (unsafeEnumFromText @VenueMembershipRoleEventTypeEnum "assigned")
+                (Assigned)
                 Nothing
                 membership.venueRole
                 ( Aeson.object

@@ -98,7 +98,7 @@ instance Controller StaffDocumentsController where
                         fileContents
 
     action currentAction@ReviewStaffDocumentAction { staffDocumentId } = runBepis currentAction BepisMutationAction do
-        redirectPermissionDeniedUnless (hasRole ManagerRole') "You need manager access to review RSA documents."
+        redirectPermissionDeniedUnless (hasRole Manager) "You need manager access to review RSA documents."
         ensureVenueWritable
         staffDocument <- fetch staffDocumentId
         ensureRecordInCurrentVenue staffDocument.venueId
@@ -126,7 +126,7 @@ parseSubmittedStaff =
 
 currentUserCanAccessStaffDocumentsFor :: (?context :: ControllerContext) => Staff -> IO Bool
 currentUserCanAccessStaffDocumentsFor staff =
-    pure (hasRole ManagerRole' || staff.userId == Just (unpackId authenticatedCurrentUser.id))
+    pure (hasRole Manager || staff.userId == Just (unpackId authenticatedCurrentUser.id))
 
 data RsaScanUpload = RsaScanUpload
     { rsaScanFileName     :: !Text

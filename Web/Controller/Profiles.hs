@@ -142,7 +142,7 @@ instance Controller ProfilesController where
                     setErrorMessage "Choose a valid profile section."
                     renderProfileResponse staff selectedShiftPreferences
                 | otherwise -> do
-                    let canManageProfileStaff = hasRole VenueAdminRole && isJust maybeExistingStaff
+                    let canManageProfileStaff = hasRole VenueAdmin && isJust maybeExistingStaff
                     maybeSelectedRosterGroupIds <- if canManageProfileStaff then validateSubmittedRosterGroupIds submitted.submittedRosterGroupIds else pure Nothing
                     maybeSubmittedPayRateSelection <- if canManageProfileStaff then parseSubmittedPayRateSelectionValue (fromMaybe "" submitted.submittedPayRateSelection) else pure (Just emptyStaffPayRateSelection)
                     let maybeSubmittedDefaultAwardLevelId = submittedAwardLevelId <$> maybeSubmittedPayRateSelection
@@ -185,7 +185,7 @@ buildNewCurrentUserStaff user =
 fetchProfileStaffManagementFields :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Maybe Staff -> Maybe [Id RosterGroup] -> IO (Maybe StaffManagementFieldData)
 fetchProfileStaffManagementFields Nothing _ = pure Nothing
 fetchProfileStaffManagementFields (Just staff) maybeSubmittedRosterGroupIds
-    | not (hasRole VenueAdminRole) = pure Nothing
+    | not (hasRole VenueAdmin) = pure Nothing
     | otherwise = do
         rosterGroups <- fetchCurrentVenueRosterGroups
         awardLevels <- fetchAwardLevelsForStaffForm

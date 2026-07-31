@@ -5,8 +5,6 @@ module Application.WageSourceNotifications
     ) where
 
 import Application.Async.Queue
-import Application.Helper.Controller (PlatformRole (SuperAdminRole),
-                                      platformRoleToEnum)
 import Application.Helper.EmailVerification (isEmailDeliveryDisabled)
 import Application.Helper.Mail
 import Application.WageSourcePolicy
@@ -48,7 +46,7 @@ emitLatestAwardDriftNotifications = do
     case fingerprints of
         current : previous : _ -> do
             recipients <- query @User
-                |> filterWhere (#platformRole, Just (platformRoleToEnum SuperAdminRole))
+                |> filterWhere (#platformRole, Just (SuperAdmin))
                 |> filterWhere (#deactivatedAt, Nothing)
                 |> fetch
             concat <$> mapM (enqueueSignal recipients) (detectAwardDrift previous current)
@@ -139,7 +137,7 @@ performWageSourceDriftNotificationJob appJob =
         Aeson.Success DriftPayload { .. } -> do
             recipient <- fetch (Id payloadUserId :: Id User)
             let eligible = isNothing recipient.deactivatedAt
-                    && recipient.platformRole == Just (platformRoleToEnum SuperAdminRole)
+                    && recipient.platformRole == Just (SuperAdmin)
             when eligible do
                 AppMailSettings { .. } <- loadAppMailSettings
                 deliveryDisabled <- isEmailDeliveryDisabled

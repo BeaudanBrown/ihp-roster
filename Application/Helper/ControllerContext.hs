@@ -53,8 +53,8 @@ currentVenueMembership :: (?context :: ControllerContext) => VenueMembership
 currentVenueMembership =
     fromMaybe (error "currentVenueMembership: no active venue membership in controller context") currentVenueMembershipOrNothing
 
-currentVenueRoleOrNothing :: (?context :: ControllerContext) => Maybe VenueRole
-currentVenueRoleOrNothing = unsafePerformIO (join <$> maybeFromContext @(Maybe VenueRole))
+currentVenueRoleOrNothing :: (?context :: ControllerContext) => Maybe VenueRoleEnum
+currentVenueRoleOrNothing = unsafePerformIO (join <$> maybeFromContext @(Maybe VenueRoleEnum))
 {-# NOINLINE currentVenueRoleOrNothing #-}
 
 currentSupportVenueOptionsOrNothing :: (?context :: ControllerContext) => Maybe [Venue]
@@ -67,17 +67,17 @@ currentSupportVenueOptionsOrNothing =
 currentSupportVenueOptions :: (?context :: ControllerContext) => [Venue]
 currentSupportVenueOptions = fromMaybe [] currentSupportVenueOptionsOrNothing
 
-currentVenueRole :: (?context :: ControllerContext) => VenueRole
+currentVenueRole :: (?context :: ControllerContext) => VenueRoleEnum
 currentVenueRole =
     fromMaybe (error "currentVenueRole: no active venue role in controller context") currentVenueRoleOrNothing
 
-currentUserPlatformRoleOrNothing :: (?context :: ControllerContext) => Maybe PlatformRole
+currentUserPlatformRoleOrNothing :: (?context :: ControllerContext) => Maybe PlatformRoleEnum
 currentUserPlatformRoleOrNothing =
     currentUserOrNothing @User >>= \user ->
-        platformRoleEnumToRole <$> user.platformRole
+        user.platformRole
 
 currentUserIsSuperAdmin :: (?context :: ControllerContext) => Bool
-currentUserIsSuperAdmin = currentUserPlatformRoleOrNothing == Just SuperAdminRole
+currentUserIsSuperAdmin = currentUserPlatformRoleOrNothing == Just SuperAdmin
 
 selectCurrentVenueMembership :: Maybe (Id Venue) -> [VenueMembership] -> Maybe VenueMembership
 selectCurrentVenueMembership sessionVenueId memberships =
@@ -92,13 +92,13 @@ initCurrentVenueContext =
         supportVenues <-
             profileActionSpan "context.current_venue.fetch_support_options" do
                 query @Venue
-                    |> filterWhere (#status, unsafeEnumFromText @VenueStatusEnum "active")
+                    |> filterWhere (#status, Active)
                     |> orderByAsc #createdAt
                     |> fetch
 
         putContext (Nothing :: Maybe Venue)
         putContext (Nothing :: Maybe VenueMembership)
-        putContext (Nothing :: Maybe VenueRole)
+        putContext (Nothing :: Maybe VenueRoleEnum)
         putContext (SupportVenueOptions supportVenues)
 
         forM_ (currentUserOrNothing @User) \user -> do
@@ -112,7 +112,7 @@ initCurrentVenueContext =
                     putContext role
                     withRequestContext (setSession currentVenueSessionKey (get #id venue))
 
-resolveVenueContextForUser :: (?modelContext :: ModelContext) => Maybe (Id Venue) -> User -> IO (Maybe (Maybe VenueMembership, Venue, Maybe VenueRole))
+resolveVenueContextForUser :: (?modelContext :: ModelContext) => Maybe (Id Venue) -> User -> IO (Maybe (Maybe VenueMembership, Venue, Maybe VenueRoleEnum))
 resolveVenueContextForUser sessionVenueId user = do
     memberships <- withTelemetrySpan "context.current_venue.fetch_memberships" do
         query @VenueMembership
@@ -128,7 +128,7 @@ resolveVenueContextForUser sessionVenueId user = do
                 then pure []
                 else query @Venue
                     |> filterWhereIn (#id, venueIds)
-                    |> filterWhere (#status, unsafeEnumFromText @VenueStatusEnum "active")
+                    |> filterWhere (#status, Active)
                     |> fetch
 
     let activeVenueIds = map (coerce . (.id)) venues
@@ -140,11 +140,11 @@ resolveVenueContextForUser sessionVenueId user = do
             selectedMembership >>= \membership ->
                 find (\candidate -> coerce (get #id candidate) == membership.venueId) venues
 
-    if user.platformRole == Just (platformRoleToEnum SuperAdminRole)
+    if user.platformRole == Just (SuperAdmin)
         then do
             activeVenues <- withTelemetrySpan "context.current_venue.fetch_super_admin_venues" do
                 query @Venue
-                    |> filterWhere (#status, unsafeEnumFromText @VenueStatusEnum "active")
+                    |> filterWhere (#status, Active)
                     |> orderByAsc #createdAt
                     |> fetch
 
@@ -156,11 +156,10 @@ resolveVenueContextForUser sessionVenueId user = do
             pure do
                 venue <- selectedVenue
                 let membership = find (\candidate -> candidate.venueId == unpackId (get #id venue)) activeMemberships
-                let role = membership >>= parseVenueRole . (.venueRole)
+                let role = (.venueRole) <$> membership
                 pure (membership, venue, role)
         else
             pure do
                 membership <- selectedMembership
                 venue <- selectedMembershipVenue
-                role <- parseVenueRole membership.venueRole
-                pure (Just membership, venue, Just role)
+                pure (Just membership, venue, Just membership.venueRole)

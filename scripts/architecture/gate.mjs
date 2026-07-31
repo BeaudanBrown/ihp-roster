@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import fs from "node:fs";
 import path from "node:path";
+import { checkProductionEnumAuthority } from "./enum-authority.mjs";
 import { repoRoot } from "./shared.mjs";
 import { checkWiringRegistries } from "./wiring-registry.mjs";
 
@@ -13,7 +14,7 @@ if (!fs.existsSync(factsPath)) {
 const facts = JSON.parse(fs.readFileSync(factsPath, "utf8"));
 const policyModules = new Set((facts.web.controllerPolicies || []).map((policy) => policy.module));
 const operationKinds = new Set((facts.web.bepisArchitectureContracts?.operationKinds || facts.web.bepisArchitectureContracts?.actionKinds || []).map((kind) => kind.constructor));
-const errors = checkWiringRegistries(facts);
+const errors = [...checkWiringRegistries(facts), ...checkProductionEnumAuthority()];
 
 for (const controller of facts.web.controllers || []) {
   const modules = new Set(controller.actions.map((action) => (facts.web.handlers || []).find((handler) => handler.action === action.name)?.module).filter(Boolean));

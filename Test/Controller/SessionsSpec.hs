@@ -2,8 +2,7 @@
 
 module Test.Controller.SessionsSpec where
 
-import Application.Helper.Controller (PlatformRole (SuperAdminRole),
-                                      currentVenueSessionKey)
+import Application.Helper.Controller (currentVenueSessionKey)
 import Application.Helper.FrontendContract.Passkey.Runtime (PasskeyDom (..),
                                                             canonicalPasskeyDom)
 import Config
@@ -45,7 +44,7 @@ tests = aroundAll withDatabaseTestContext do
                 venue <- createVenueWithConfig "Verify Venue"
                 user <- createUserRecord "verify-me@example.com" "staff" False
                     >>= updateRecord . set #emailVerifiedAt Nothing
-                _ <- createVenueMembershipRecord venue user "worker"
+                _ <- createVenueMembershipRecord venue user Worker
                 now <- getCurrentTime
                 tokenRecord <- newRecord @EmailVerificationToken
                     |> set #userId (unpackId (get #id user))
@@ -122,7 +121,7 @@ tests = aroundAll withDatabaseTestContext do
                 venue <- createVenueWithConfig "Pending Verification Venue"
                 user <- createUserRecord "pending-login@example.com" "staff" True
                     >>= updateRecord . set #emailVerifiedAt Nothing
-                _ <- createVenueMembershipRecord venue user "worker"
+                _ <- createVenueMembershipRecord venue user Worker
 
                 withSessionValues [] do
                     response <- callActionWithParams CreateSessionAction
@@ -142,7 +141,7 @@ tests = aroundAll withDatabaseTestContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Verified Login Venue"
                 user <- createUserRecord "verified-login@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue user "worker"
+                _ <- createVenueMembershipRecord venue user Worker
 
                 response <- callActionWithParams CreateSessionAction
                     [ ("email", cs user.email)
@@ -162,7 +161,7 @@ tests = aroundAll withDatabaseTestContext do
 
         it "redirects a bootstrap super-admin without venues to support" $ withContext do
             withCleanDb do
-                user <- createUserRecordWithPlatformRole "bootstrap-super-admin@example.com" "staff" (Just SuperAdminRole) True
+                user <- createUserRecordWithPlatformRole "bootstrap-super-admin@example.com" "staff" (Just SuperAdmin) True
 
                 response <- callActionWithParams CreateSessionAction
                     [ ("email", cs user.email)
@@ -176,7 +175,7 @@ tests = aroundAll withDatabaseTestContext do
             withCleanDb do
                 venue <- createVenueWithConfig "First Passkey Prompt Venue"
                 user <- createUserRecord "first-passkey-prompt@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue user "worker"
+                _ <- createVenueMembershipRecord venue user Worker
 
                 withSessionValues [] do
                     loginResponse <- callActionWithParams CreateSessionAction
@@ -201,7 +200,7 @@ tests = aroundAll withDatabaseTestContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Optional Admin Passkey Prompt Venue"
                 user <- createUserRecord "optional-admin-passkey-prompt@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue user "venue_owner"
+                _ <- createVenueMembershipRecord venue user VenueOwner
 
                 withPrivilegedStrongAuthentication False do
                     withSessionValues [] do
@@ -222,7 +221,7 @@ tests = aroundAll withDatabaseTestContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Additional Device Prompt Venue"
                 user <- createUserRecord "additional-device-prompt@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue user "worker"
+                _ <- createVenueMembershipRecord venue user Worker
                 _ <- createTestPasskeyRecord user "Phone"
 
                 withSessionValues [] do
@@ -248,7 +247,7 @@ tests = aroundAll withDatabaseTestContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Failed Login Venue"
                 user <- createUserRecord "failed-login@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue user "worker"
+                _ <- createVenueMembershipRecord venue user Worker
 
                 response <- callActionWithParams CreateSessionAction
                     [ ("email", cs user.email)
@@ -311,7 +310,7 @@ tests = aroundAll withDatabaseTestContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Current Venue"
                 user <- createUserRecord "before-login@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue user "worker"
+                _ <- createVenueMembershipRecord venue user Worker
 
                 selectedVenueId <- withControllerTestContext do
                     Sessions.beforeLogin @User user

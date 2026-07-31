@@ -43,16 +43,16 @@ authorizeSurfaceScopeRequirement (RequireCurrentVenueRosterGroup venueId rosterG
         then isAuthorizedCurrentVenueRosterGroupScope rosterGroupId
         else pure False
 authorizeSurfaceScopeRequirement (RequireCurrentVenueAdmin venueId) =
-    pure (currentVenueMatches venueId && hasRole VenueAdminRole)
+    pure (currentVenueMatches venueId && hasRole VenueAdmin)
 authorizeSurfaceScopeRequirement (RequireCurrentVenueManager venueId) =
-    pure (currentVenueMatches venueId && hasRole ManagerRole')
+    pure (currentVenueMatches venueId && hasRole Manager)
 authorizeSurfaceScopeRequirement (RequireCurrentVenueOwner venueId) =
-    pure (currentVenueMatches venueId && hasRole VenueOwnerRole)
+    pure (currentVenueMatches venueId && hasRole VenueOwner)
 authorizeSurfaceScopeRequirement (RequireCurrentVenueAdminRosterGroup venueId rosterGroupId) =
     if currentVenueMatches venueId
         then do
             hasRosterGroupAccess <- isAuthorizedCurrentVenueRosterGroupScope rosterGroupId
-            pure (hasRosterGroupAccess && hasRole VenueAdminRole)
+            pure (hasRosterGroupAccess && hasRole VenueAdmin)
         else pure False
 authorizeSurfaceScopeRequirement RequireSupportSuperAdmin =
     pure currentUserIsSuperAdmin

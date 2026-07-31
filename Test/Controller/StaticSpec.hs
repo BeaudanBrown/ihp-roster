@@ -118,7 +118,7 @@ tests = aroundAll withDatabaseTestContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Venue A"
                 user <- createUserRecord "welcome-auth@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue user "worker"
+                _ <- createVenueMembershipRecord venue user Worker
 
                 response <- withUser user do
                     callAction WelcomeAction
@@ -130,7 +130,7 @@ tests = aroundAll withDatabaseTestContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Venue Public Support"
                 user <- createUserRecord "public-support-auth@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue user "worker"
+                _ <- createVenueMembershipRecord venue user Worker
 
                 response <- withUser user do
                     callAction PublicBillingSupportAction

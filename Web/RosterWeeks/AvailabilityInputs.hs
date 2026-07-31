@@ -4,24 +4,22 @@ module Web.RosterWeeks.AvailabilityInputs
     , fetchRosterShiftPreferencesForWindow
     ) where
 
-import Application.Helper.Controller (LeaveRequestStatus,
-                                      leaveRequestStatusToEnum)
 import qualified Data.Time.Calendar as Calendar
 import qualified Data.UUID as UUID
 import Web.Controller.Prelude
 
 fetchApprovedLeaveRequestsForRosterWindow :: (?context :: ControllerContext, ?modelContext :: ModelContext) => [UUID.UUID] -> Calendar.Day -> Calendar.Day -> IO [LeaveRequest]
 fetchApprovedLeaveRequestsForRosterWindow =
-    fetchLeaveRequestsForRosterWindowByStatus [LeaveApproved]
+    fetchLeaveRequestsForRosterWindowByStatus [LeaveRequestStatusEnumApproved]
 
-fetchLeaveRequestsForRosterWindowByStatus :: (?context :: ControllerContext, ?modelContext :: ModelContext) => [LeaveRequestStatus] -> [UUID.UUID] -> Calendar.Day -> Calendar.Day -> IO [LeaveRequest]
+fetchLeaveRequestsForRosterWindowByStatus :: (?context :: ControllerContext, ?modelContext :: ModelContext) => [LeaveRequestStatusEnum] -> [UUID.UUID] -> Calendar.Day -> Calendar.Day -> IO [LeaveRequest]
 fetchLeaveRequestsForRosterWindowByStatus statuses staffIds windowStartDate windowEndExclusive
     | null statuses || null staffIds = pure []
     | otherwise =
         query @LeaveRequest
             |> filterWhere (#venueId, unpackId currentVenueId)
             |> filterWhereIn (#staffId, staffIds)
-            |> filterWhereIn (#status, map leaveRequestStatusToEnum statuses)
+            |> filterWhereIn (#status, statuses)
             |> filterWhere (#deletedAt, Nothing)
             |> filterWhereLessThan (#startDate, windowEndExclusive)
             |> filterWhereGreaterThan (#endDate, windowStartDate)

@@ -293,7 +293,7 @@ tests = do
                         |> set #importedByUserId (unpackId fixture.owner.id)
                         |> createRecord
                 importedUser <- createUserRecord "imported-ready@example.com" "staff" True
-                _ <- createVenueMembershipRecord fixture.venue importedUser "worker"
+                _ <- createVenueMembershipRecord fixture.venue importedUser Worker
                 importedStaff <- createStaffRecord fixture.venue (Just importedUser) "Imported" "Worker"
                     >>= updateRecord . set #payAssignmentMode XeroRate . set #importedXeroPayItemId (Just importedPayItem.id)
                 _ <-
@@ -516,7 +516,7 @@ createReadinessFixture :: (?modelContext :: ModelContext) => Text -> Day -> Day 
 createReadinessFixture calendarType periodStart periodEnd = do
     venue <- createVenueWithConfig "Xero Readiness Venue"
     owner <- createUserRecord "owner@example.com" "admin" True
-    _ <- createVenueMembershipRecord venue owner "venue_owner"
+    _ <- createVenueMembershipRecord venue owner VenueOwner
     awardLevel <- createPayLevelRecordWithRates venue "Level 2" 25 2 3 1 1.25 1.5
     staff <- createStaffRecord venue Nothing "Ada" "Lovelace"
     staff <- staff |> set #employmentBasis Permanent |> set #payAssignmentMode AwardRate |> set #defaultAwardLevelId (Just awardLevel.id) |> updateRecord

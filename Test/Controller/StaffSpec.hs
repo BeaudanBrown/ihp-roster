@@ -73,7 +73,7 @@ tests = aroundAll withDatabaseTestContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Trial Staff Dialog Venue"
                 manager <- createUserRecord "trial-staff-dialog-manager@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue manager "manager"
+                _ <- createVenueMembershipRecord venue manager Manager
 
                 response <- withUserAndCurrentVenue manager venue.id do
                     withRequestHeaders [("HX-Request", "true")] do
@@ -87,7 +87,7 @@ tests = aroundAll withDatabaseTestContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Trial Staff Venue"
                 manager <- createUserRecord "trial-staff-manager@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue manager "manager"
+                _ <- createVenueMembershipRecord venue manager Manager
                 frontOfHouse <- createVenueRosterGroupWithDefaults venue "Front of House" 1 True
                 backOfHouse <- createVenueRosterGroupWithDefaults venue "Back of House" 2 True
 
@@ -126,7 +126,7 @@ tests = aroundAll withDatabaseTestContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Trial Staff Worker Venue"
                 worker <- createUserRecord "trial-staff-worker@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue worker "worker"
+                _ <- createVenueMembershipRecord venue worker Worker
                 rosterGroup <- query @RosterGroup |> filterWhere (#venueId, unpackId venue.id) |> filterWhere (#isDefault, True) |> fetchOne
 
                 response <- withUserAndCurrentVenue worker venue.id do
@@ -151,7 +151,7 @@ tests = aroundAll withDatabaseTestContext do
                 venue <- createVenueWithConfig "Trial Staff Current Venue"
                 otherVenue <- createVenueWithConfig "Trial Staff Other Venue"
                 manager <- createUserRecord "trial-staff-cross-venue-manager@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue manager "manager"
+                _ <- createVenueMembershipRecord venue manager Manager
                 otherGroup <- createVenueRosterGroupWithDefaults otherVenue "Other Venue Group" 1 True
 
                 response <- withUserAndCurrentVenue manager venue.id do
@@ -239,8 +239,8 @@ tests = aroundAll withDatabaseTestContext do
                 venue <- createVenueWithConfig "Venue A"
                 manager <- createUserRecord "staff-modal-manager@example.com" "staff" True
                 linkedUser <- createUserRecord "staff-modal-worker@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue manager "manager"
-                _ <- createVenueMembershipRecord venue linkedUser "worker"
+                _ <- createVenueMembershipRecord venue manager Manager
+                _ <- createVenueMembershipRecord venue linkedUser Worker
                 _ <- createRosterWeekRecord venue 0 False
                 staff <- createStaffRecord venue (Just linkedUser) "Alpha" "Crew"
                 rosterGroup <- query @RosterGroup |> filterWhere (#venueId, unpackId venue.id) |> filterWhere (#isDefault, True) |> fetchOne
@@ -277,7 +277,7 @@ tests = aroundAll withDatabaseTestContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Staff Trial Invite Field Venue"
                 manager <- createUserRecord "staff-trial-invite-field-manager@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue manager "manager"
+                _ <- createVenueMembershipRecord venue manager Manager
                 staff <- createStaffRecord venue Nothing "Trial" "Invite"
 
                 response <- withUserAndCurrentVenue manager venue.id do
@@ -291,9 +291,9 @@ tests = aroundAll withDatabaseTestContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Staff Pending Invite Field Venue"
                 manager <- createUserRecord "staff-pending-invite-field-manager@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue manager "manager"
+                _ <- createVenueMembershipRecord venue manager Manager
                 staff <- createStaffRecord venue Nothing "Pending" "Invite"
-                _ <- createVenueInvitationRecord venue (Just manager) "pending-trial-invite@example.com" "worker"
+                _ <- createVenueInvitationRecord venue (Just manager) "pending-trial-invite@example.com" Worker
                     >>= updateRecord . set #staffId (Just staff.id)
 
                 response <- withUserAndCurrentVenue manager venue.id do
@@ -308,9 +308,9 @@ tests = aroundAll withDatabaseTestContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Staff Trial Invite Dialog Venue"
                 manager <- createUserRecord "staff-trial-invite-dialog-manager@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue manager "manager"
+                _ <- createVenueMembershipRecord venue manager Manager
                 staff <- createStaffRecord venue Nothing "Trial" "Dialog"
-                _ <- createVenueInvitationRecord venue (Just manager) "pending-dialog@example.com" "worker"
+                _ <- createVenueInvitationRecord venue (Just manager) "pending-dialog@example.com" Worker
                     >>= updateRecord . set #staffId (Just staff.id)
                 rosterGroup <- query @RosterGroup |> filterWhere (#venueId, unpackId venue.id) |> filterWhere (#isDefault, True) |> fetchOne
 
@@ -333,10 +333,10 @@ tests = aroundAll withDatabaseTestContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Staff Expired Trial Invite Dialog Venue"
                 manager <- createUserRecord "staff-expired-trial-dialog-manager@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue manager "manager"
+                _ <- createVenueMembershipRecord venue manager Manager
                 staff <- createStaffRecord venue Nothing "Expired" "Trial"
                 now <- getCurrentTime
-                invitation <- createVenueInvitationRecord venue (Just manager) "expired-trial-dialog@example.com" "worker"
+                invitation <- createVenueInvitationRecord venue (Just manager) "expired-trial-dialog@example.com" Worker
                     >>= updateRecord . set #staffId (Just staff.id) . set #expiresAt (Just (addUTCTime (-60) now))
 
                 response <- withUserAndCurrentVenue manager venue.id do
@@ -354,7 +354,7 @@ tests = aroundAll withDatabaseTestContext do
                 venue <- createVenueWithConfig "Staff Linked Invite Dialog Venue"
                 manager <- createUserRecord "staff-linked-invite-dialog-manager@example.com" "staff" True
                 linkedUser <- createUserRecord "staff-linked-invite-dialog-worker@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue manager "manager"
+                _ <- createVenueMembershipRecord venue manager Manager
                 staff <- createStaffRecord venue (Just linkedUser) "Linked" "Dialog"
 
                 response <- withUserAndCurrentVenue manager venue.id do
@@ -370,7 +370,7 @@ tests = aroundAll withDatabaseTestContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Staff Invalid Trial Invite Venue"
                 manager <- createUserRecord "staff-invalid-trial-invite-manager@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue manager "manager"
+                _ <- createVenueMembershipRecord venue manager Manager
                 staff <- createStaffRecord venue Nothing "Invalid" "Invite"
 
                 response <- withUserAndCurrentVenue manager venue.id do
@@ -389,7 +389,7 @@ tests = aroundAll withDatabaseTestContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Staff Missing Trial Invite Email Venue"
                 manager <- createUserRecord "staff-missing-trial-invite-manager@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue manager "manager"
+                _ <- createVenueMembershipRecord venue manager Manager
                 staff <- createStaffRecord venue Nothing "Missing" "Invite"
 
                 response <- withUserAndCurrentVenue manager venue.id do
@@ -405,7 +405,7 @@ tests = aroundAll withDatabaseTestContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Staff Oversized Trial Invite Email Venue"
                 manager <- createUserRecord "staff-oversized-trial-invite-manager@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue manager "manager"
+                _ <- createVenueMembershipRecord venue manager Manager
                 staff <- createStaffRecord venue Nothing "Oversized" "Invite"
                 let oversizedEmail = Text.replicate 250 "a" <> "@example.com"
 
@@ -424,7 +424,7 @@ tests = aroundAll withDatabaseTestContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Staff Trial Invite Venue"
                 manager <- createUserRecord "staff-trial-invite-manager@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue manager "manager"
+                _ <- createVenueMembershipRecord venue manager Manager
                 staff <- createStaffRecord venue Nothing "Trial" "Invite"
                 versionBefore <- LiveUpdate.currentLiveUpdateVersion (AdminLive.adminInvitesLiveScope (unpackId venue.id))
 
@@ -461,9 +461,9 @@ tests = aroundAll withDatabaseTestContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Staff Renew Trial Invite Venue"
                 manager <- createUserRecord "staff-renew-trial-invite-manager@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue manager "manager"
+                _ <- createVenueMembershipRecord venue manager Manager
                 staff <- createStaffRecord venue Nothing "Renew" "Invite"
-                original <- createVenueInvitationRecord venue (Just manager) "renew-trial-invite@example.com" "worker"
+                original <- createVenueInvitationRecord venue (Just manager) "renew-trial-invite@example.com" Worker
                     >>= updateRecord . set #staffId (Just staff.id)
                 EnqueuedAppJob originalJob <- enqueueVenueInvitationDeliveryJob (Just manager.id) original
 
@@ -503,9 +503,9 @@ tests = aroundAll withDatabaseTestContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Staff Invalid Trial Renewal Venue"
                 manager <- createUserRecord "staff-invalid-trial-renewal-manager@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue manager "manager"
+                _ <- createVenueMembershipRecord venue manager Manager
                 staff <- createStaffRecord venue Nothing "Invalid" "Renewal"
-                original <- createVenueInvitationRecord venue (Just manager) "valid-trial-renewal@example.com" "worker"
+                original <- createVenueInvitationRecord venue (Just manager) "valid-trial-renewal@example.com" Worker
                     >>= updateRecord . set #staffId (Just staff.id)
                 let invalidEmails = ["   ", "not-an-email", Text.replicate 250 "a" <> "@example.com", "<script>alert(1)</script>@example.com"]
 
@@ -525,9 +525,9 @@ tests = aroundAll withDatabaseTestContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Staff Concurrent Trial Invite Venue"
                 manager <- createUserRecord "staff-concurrent-trial-invite-manager@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue manager "manager"
+                _ <- createVenueMembershipRecord venue manager Manager
                 staff <- createStaffRecord venue Nothing "Concurrent" "Invite"
-                original <- createVenueInvitationRecord venue (Just manager) "concurrent-trial-invite@example.com" "worker"
+                original <- createVenueInvitationRecord venue (Just manager) "concurrent-trial-invite@example.com" Worker
                     >>= updateRecord . set #staffId (Just staff.id)
 
                 results <- runConcurrentStaffActionList
@@ -551,9 +551,9 @@ tests = aroundAll withDatabaseTestContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Staff Accept Renew Race Venue"
                 manager <- createUserRecord "staff-accept-renew-race-manager@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue manager "manager"
+                _ <- createVenueMembershipRecord venue manager Manager
                 staff <- createStaffRecord venue Nothing "Accept" "Race"
-                original <- createVenueInvitationRecord venue (Just manager) "staff-accept-renew-race@example.com" "worker"
+                original <- createVenueInvitationRecord venue (Just manager) "staff-accept-renew-race@example.com" Worker
                     >>= updateRecord . set #staffId (Just staff.id)
 
                 results <- runConcurrentStaffActionList
@@ -590,9 +590,9 @@ tests = aroundAll withDatabaseTestContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Staff Accept Removal Race Venue"
                 admin <- createUserRecord "staff-accept-removal-admin@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue admin "venue_admin"
+                _ <- createVenueMembershipRecord venue admin VenueAdmin
                 staff <- createStaffRecord venue Nothing "Accept" "Removal"
-                invitation <- createVenueInvitationRecord venue (Just admin) "staff-accept-removal@example.com" "worker"
+                invitation <- createVenueInvitationRecord venue (Just admin) "staff-accept-removal@example.com" Worker
                     >>= updateRecord . set #staffId (Just staff.id)
 
                 results <- runConcurrentStaffActionList
@@ -637,9 +637,9 @@ tests = aroundAll withDatabaseTestContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Staff Delivery Renew Race Venue"
                 manager <- createUserRecord "staff-delivery-renew-race-manager@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue manager "manager"
+                _ <- createVenueMembershipRecord venue manager Manager
                 staff <- createStaffRecord venue Nothing "Delivery" "Race"
-                original <- createVenueInvitationRecord venue (Just manager) "staff-delivery-renew-race@example.com" "worker"
+                original <- createVenueInvitationRecord venue (Just manager) "staff-delivery-renew-race@example.com" Worker
                     >>= updateRecord . set #staffId (Just staff.id)
                 EnqueuedAppJob originalJob <- enqueueVenueInvitationDeliveryJob (Just manager.id) original
 
@@ -665,11 +665,11 @@ tests = aroundAll withDatabaseTestContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Staff Corrected Trial Invite Venue"
                 manager <- createUserRecord "staff-corrected-trial-invite-manager@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue manager "manager"
+                _ <- createVenueMembershipRecord venue manager Manager
                 staff <- createStaffRecord venue Nothing "Corrected" "Invite"
-                firstOriginal <- createVenueInvitationRecord venue (Just manager) "first-trial-invite@example.com" "worker"
+                firstOriginal <- createVenueInvitationRecord venue (Just manager) "first-trial-invite@example.com" Worker
                     >>= updateRecord . set #staffId (Just staff.id)
-                secondOriginal <- createVenueInvitationRecord venue (Just manager) "second-trial-invite@example.com" "worker"
+                secondOriginal <- createVenueInvitationRecord venue (Just manager) "second-trial-invite@example.com" Worker
                     >>= updateRecord . set #staffId (Just staff.id)
 
                 response <- withUserAndCurrentVenue manager venue.id do
@@ -693,9 +693,9 @@ tests = aroundAll withDatabaseTestContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Staff Worker Renew Venue"
                 worker <- createUserRecord "staff-worker-renew-worker@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue worker "worker"
+                _ <- createVenueMembershipRecord venue worker Worker
                 staff <- createStaffRecord venue Nothing "Worker" "Renew"
-                invitation <- createVenueInvitationRecord venue Nothing "worker-renew-trial@example.com" "worker"
+                invitation <- createVenueInvitationRecord venue Nothing "worker-renew-trial@example.com" Worker
                     >>= updateRecord . set #staffId (Just staff.id)
 
                 response <- withUserAndCurrentVenue worker venue.id do
@@ -711,9 +711,9 @@ tests = aroundAll withDatabaseTestContext do
                 currentVenue <- createVenueWithConfig "Staff Renew Current Venue"
                 foreignVenue <- createVenueWithConfig "Staff Renew Foreign Venue"
                 manager <- createUserRecord "staff-cross-venue-renew-manager@example.com" "staff" True
-                _ <- createVenueMembershipRecord currentVenue manager "manager"
+                _ <- createVenueMembershipRecord currentVenue manager Manager
                 foreignStaff <- createStaffRecord foreignVenue Nothing "Foreign" "Renew"
-                invitation <- createVenueInvitationRecord foreignVenue Nothing "foreign-renew-trial@example.com" "worker"
+                invitation <- createVenueInvitationRecord foreignVenue Nothing "foreign-renew-trial@example.com" Worker
                     >>= updateRecord . set #staffId (Just foreignStaff.id)
 
                 response <- withUserAndCurrentVenue manager currentVenue.id do
@@ -728,7 +728,7 @@ tests = aroundAll withDatabaseTestContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Staff Worker Invite Venue"
                 worker <- createUserRecord "staff-worker-invite-worker@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue worker "worker"
+                _ <- createVenueMembershipRecord venue worker Worker
                 staff <- createStaffRecord venue Nothing "Worker" "Invite"
 
                 response <- withUserAndCurrentVenue worker venue.id do
@@ -748,7 +748,7 @@ tests = aroundAll withDatabaseTestContext do
                 venue <- createVenueWithConfig "Staff Linked Invite Venue"
                 manager <- createUserRecord "staff-linked-invite-manager@example.com" "staff" True
                 linkedUser <- createUserRecord "staff-linked-invite-worker@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue manager "manager"
+                _ <- createVenueMembershipRecord venue manager Manager
                 staff <- createStaffRecord venue (Just linkedUser) "Linked" "Invite"
 
                 response <- withUserAndCurrentVenue manager venue.id do
@@ -768,7 +768,7 @@ tests = aroundAll withDatabaseTestContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Staff Preferences Accordion Venue"
                 manager <- createUserRecord "staff-preferences-accordion-manager@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue manager "manager"
+                _ <- createVenueMembershipRecord venue manager Manager
                 staff <- createStaffRecord venue Nothing "Alpha" "Crew"
 
                 response <- withUserAndCurrentVenue manager venue.id do
@@ -790,7 +790,7 @@ tests = aroundAll withDatabaseTestContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Venue A"
                 manager <- createUserRecord "staff-group-manager@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue manager "manager"
+                _ <- createVenueMembershipRecord venue manager Manager
                 frontOfHouse <- createVenueRosterGroupWithDefaults venue "Front of House" 1 True
                 backOfHouse <- createVenueRosterGroupWithDefaults venue "Back of House" 2 True
                 staff <- createStaffRecord venue Nothing "Alpha" "Crew"
@@ -823,7 +823,7 @@ tests = aroundAll withDatabaseTestContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Staff Preserve Preferences Venue"
                 manager <- createUserRecord "staff-preserve-preferences-manager@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue manager "manager"
+                _ <- createVenueMembershipRecord venue manager Manager
                 rosterGroup <- query @RosterGroup |> filterWhere (#venueId, unpackId venue.id) |> filterWhere (#isDefault, True) |> fetchOne
                 staff <- createStaffRecord venue Nothing "Alpha" "Crew"
                 _ <-
@@ -861,7 +861,7 @@ tests = aroundAll withDatabaseTestContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Staff Dedicated Preferences Venue"
                 manager <- createUserRecord "staff-dedicated-preferences-manager@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue manager "manager"
+                _ <- createVenueMembershipRecord venue manager Manager
                 staff <- createStaffRecord venue Nothing "Alpha" "Crew"
                 let preferenceKey = encodeShiftPreferenceKey 2
 
@@ -885,7 +885,7 @@ tests = aroundAll withDatabaseTestContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Venue A"
                 manager <- createUserRecord "staff-malformed-manager@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue manager "manager"
+                _ <- createVenueMembershipRecord venue manager Manager
                 staff <- createStaffRecord venue Nothing "Alpha" "Crew"
 
                 response <- withUserAndCurrentVenue manager venue.id do
@@ -914,7 +914,7 @@ tests = aroundAll withDatabaseTestContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Venue A"
                 admin <- createUserRecord "staff-pay-admin@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue admin "venue_admin"
+                _ <- createVenueMembershipRecord venue admin VenueAdmin
                 rosterGroup <- query @RosterGroup |> filterWhere (#venueId, unpackId venue.id) |> filterWhere (#isDefault, True) |> fetchOne
                 payLevel <- createPayLevelRecord venue "Level 2"
                 staff <- createStaffRecord venue Nothing "Alpha" "Crew"
@@ -950,7 +950,7 @@ tests = aroundAll withDatabaseTestContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Venue A"
                 admin <- createUserRecord "staff-pay-options-admin@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue admin "venue_admin"
+                _ <- createVenueMembershipRecord venue admin VenueAdmin
                 _ <- createPayLevelRecordWithRates venue "Level 3" 32.75 3.25 6.50 1 1.25 1.50
                 staff <- createStaffRecord venue Nothing "Alpha" "Crew"
 
@@ -967,7 +967,7 @@ tests = aroundAll withDatabaseTestContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Staff Removal Workflow Venue"
                 admin <- createUserRecord "staff-removal-workflow-admin@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue admin "venue_admin"
+                _ <- createVenueMembershipRecord venue admin VenueAdmin
                 staff <- createStaffRecord venue Nothing "Removal" "Target"
 
                 response <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
@@ -982,7 +982,7 @@ tests = aroundAll withDatabaseTestContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Staff Removal Confirmation Venue"
                 admin <- createUserRecord "staff-removal-confirmation-admin@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue admin "venue_admin"
+                _ <- createVenueMembershipRecord venue admin VenueAdmin
                 staff <- createStaffRecord venue Nothing "Confirm" "Removal"
 
                 response <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
@@ -999,7 +999,7 @@ tests = aroundAll withDatabaseTestContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Trial Staff Removal Venue"
                 admin <- createUserRecord "trial-staff-removal-admin@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue admin "venue_admin"
+                _ <- createVenueMembershipRecord venue admin VenueAdmin
                 staff <- createStaffRecord venue Nothing "Trial" "Removal"
 
                 response <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
@@ -1016,7 +1016,7 @@ tests = aroundAll withDatabaseTestContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Manager Removal Rejection Venue"
                 manager <- createUserRecord "staff-removal-manager@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue manager "manager"
+                _ <- createVenueMembershipRecord venue manager Manager
                 staff <- createStaffRecord venue Nothing "Protected" "Worker"
 
                 editResponse <- withUserAndCurrentVenue manager venue.id do
@@ -1036,8 +1036,8 @@ tests = aroundAll withDatabaseTestContext do
                 venue <- createVenueWithConfig "Owner Removal Rejection Venue"
                 actor <- createUserRecord "staff-removal-actor-owner@example.com" "staff" True
                 targetUser <- createUserRecord "staff-removal-target-owner@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue actor "venue_owner"
-                _ <- createVenueMembershipRecord venue targetUser "venue_owner"
+                _ <- createVenueMembershipRecord venue actor VenueOwner
+                _ <- createVenueMembershipRecord venue targetUser VenueOwner
                 staff <- createStaffRecord venue (Just targetUser) "Protected" "Owner"
 
                 editResponse <- withPasskeyVerifiedUserAndCurrentVenue actor venue.id do
@@ -1058,9 +1058,9 @@ tests = aroundAll withDatabaseTestContext do
                 otherVenue <- createVenueWithConfig "Preserved Other Venue"
                 admin <- createUserRecord "linked-staff-removal-admin@example.com" "staff" True
                 worker <- createUserRecord "linked-staff-removal-worker@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue admin "venue_admin"
-                currentMembership <- createVenueMembershipRecord venue worker "worker"
-                otherMembership <- createVenueMembershipRecord otherVenue worker "manager"
+                _ <- createVenueMembershipRecord venue admin VenueAdmin
+                currentMembership <- createVenueMembershipRecord venue worker Worker
+                otherMembership <- createVenueMembershipRecord otherVenue worker Manager
                 currentStaff <- createStaffRecord venue (Just worker) "Current" "Worker"
                 otherStaff <- createStaffRecord otherVenue (Just worker) "Other" "Worker"
 
@@ -1086,12 +1086,12 @@ tests = aroundAll withDatabaseTestContext do
                 otherVenue <- createVenueWithConfig "Preserved Credential Venue"
                 admin <- createUserRecord "staff-credential-cleanup-admin@example.com" "staff" True
                 worker <- createUserRecord "staff-credential-cleanup-worker@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue admin "venue_admin"
-                _ <- createVenueMembershipRecord venue worker "worker"
-                _ <- createVenueMembershipRecord otherVenue worker "worker"
+                _ <- createVenueMembershipRecord venue admin VenueAdmin
+                _ <- createVenueMembershipRecord venue worker Worker
+                _ <- createVenueMembershipRecord otherVenue worker Worker
                 staff <- createStaffRecord venue (Just worker) "Credential" "Worker"
                 passkey <- createTestPasskeyRecord worker "Preserved global passkey"
-                invitation <- createVenueInvitationRecord venue (Just admin) worker.email "worker"
+                invitation <- createVenueInvitationRecord venue (Just admin) worker.email Worker
                     >>= updateRecord . set #staffId (Just staff.id)
                 (currentVenueRecoveryToken, _) <- issuePasskeySetupToken StaffPasskeyRecovery worker (Just admin.id) (Just venue.id)
                 (currentVenueSetupToken, _) <- issuePasskeySetupToken StaffNewDevicePasskeySetup worker (Just admin.id) (Just venue.id)
@@ -1122,7 +1122,7 @@ tests = aroundAll withDatabaseTestContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Staff Roster Cleanup Venue"
                 admin <- createUserRecord "staff-roster-cleanup-admin@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue admin "venue_admin"
+                _ <- createVenueMembershipRecord venue admin VenueAdmin
                 staff <- createStaffRecord venue Nothing "Roster" "Removal"
                 defaultGroup <- query @RosterGroup |> filterWhere (#venueId, unpackId venue.id) |> filterWhere (#isDefault, True) |> fetchOne
                 secondGroup <- createVenueRosterGroupWithDefaults venue "Second" 1 True
@@ -1159,7 +1159,7 @@ tests = aroundAll withDatabaseTestContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Staff Roster Creation Race Venue"
                 admin <- createUserRecord "staff-roster-creation-race-admin@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue admin "venue_admin"
+                _ <- createVenueMembershipRecord venue admin VenueAdmin
                 staff <- createStaffRecord venue Nothing "Roster" "Race"
                 rosterGroup <- query @RosterGroup |> filterWhere (#venueId, unpackId venue.id) |> filterWhere (#isDefault, True) |> fetchOne
                 slotName <- createSlotNameRecordForRosterGroup venue rosterGroup "Race lane"
@@ -1206,7 +1206,7 @@ tests = aroundAll withDatabaseTestContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Staff Profile Removal Race Venue"
                 admin <- createUserRecord "staff-profile-removal-race-admin@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue admin "venue_admin"
+                _ <- createVenueMembershipRecord venue admin VenueAdmin
                 staff <- createStaffRecord venue Nothing "Profile" "Race"
                 let preferenceKey = encodeShiftPreferenceKey 1
                 ensureTestUserHasPasskey admin
@@ -1248,7 +1248,7 @@ tests = aroundAll withDatabaseTestContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Staff Roster Reassignment Race Venue"
                 admin <- createUserRecord "staff-roster-reassignment-race-admin@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue admin "venue_admin"
+                _ <- createVenueMembershipRecord venue admin VenueAdmin
                 removedStaff <- createStaffRecord venue Nothing "Removed" "Race"
                 replacementStaff <- createStaffRecord venue Nothing "Replacement" "Race"
                 rosterGroup <- query @RosterGroup |> filterWhere (#venueId, unpackId venue.id) |> filterWhere (#isDefault, True) |> fetchOne
@@ -1300,7 +1300,7 @@ tests = aroundAll withDatabaseTestContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Staff Roster Move Race Venue"
                 admin <- createUserRecord "staff-roster-move-race-admin@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue admin "venue_admin"
+                _ <- createVenueMembershipRecord venue admin VenueAdmin
                 staff <- createStaffRecord venue Nothing "Move" "Race"
                 rosterGroup <- query @RosterGroup |> filterWhere (#venueId, unpackId venue.id) |> filterWhere (#isDefault, True) |> fetchOne
                 slotName <- createSlotNameRecordForRosterGroup venue rosterGroup "Move race lane"
@@ -1340,7 +1340,7 @@ tests = aroundAll withDatabaseTestContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Roster Slot Delete Update Race Venue"
                 manager <- createUserRecord "roster-slot-delete-update-race-manager@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue manager "manager"
+                _ <- createVenueMembershipRecord venue manager Manager
                 staff <- createStaffRecord venue Nothing "Delete Update" "Race"
                 slotName <- createSlotNameRecord venue "Delete update race lane"
                 payLevel <- createPayLevelRecord venue "Delete update race level"
@@ -1376,7 +1376,7 @@ tests = aroundAll withDatabaseTestContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Staff Roster Copy Race Venue"
                 admin <- createUserRecord "staff-roster-copy-race-admin@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue admin "venue_admin"
+                _ <- createVenueMembershipRecord venue admin VenueAdmin
                 staff <- createStaffRecord venue Nothing "Copy" "Race"
                 rosterGroup <- query @RosterGroup |> filterWhere (#venueId, unpackId venue.id) |> filterWhere (#isDefault, True) |> fetchOne
                 slotName <- createSlotNameRecordForRosterGroup venue rosterGroup "Copy race lane"
@@ -1430,7 +1430,7 @@ tests = aroundAll withDatabaseTestContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Staff New Roster Copy Race Venue"
                 admin <- createUserRecord "staff-new-roster-copy-race-admin@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue admin "venue_admin"
+                _ <- createVenueMembershipRecord venue admin VenueAdmin
                 staff <- createStaffRecord venue Nothing "New Copy" "Race"
                 rosterGroup <- query @RosterGroup |> filterWhere (#venueId, unpackId venue.id) |> filterWhere (#isDefault, True) |> fetchOne
                 slotName <- createSlotNameRecordForRosterGroup venue rosterGroup "New copy race lane"
@@ -1481,7 +1481,7 @@ tests = aroundAll withDatabaseTestContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Staff Leave Cleanup Venue"
                 admin <- createUserRecord "staff-leave-cleanup-admin@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue admin "venue_admin"
+                _ <- createVenueMembershipRecord venue admin VenueAdmin
                 staff <- createStaffRecord venue Nothing "Leave" "Removal"
                 today <- utctDay <$> getCurrentTime
                 pendingRequest <- createLeaveRequestRecord venue staff today (addDays 1 today) "pending"
@@ -1509,8 +1509,8 @@ tests = aroundAll withDatabaseTestContext do
                 venue <- createVenueWithConfig "Staff Leave Submission Race Venue"
                 admin <- createUserRecord "staff-leave-submission-race-admin@example.com" "staff" True
                 worker <- createUserRecord "staff-leave-submission-race-worker@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue admin "venue_admin"
-                _ <- createVenueMembershipRecord venue worker "worker"
+                _ <- createVenueMembershipRecord venue admin VenueAdmin
+                _ <- createVenueMembershipRecord venue worker Worker
                 staff <- createStaffRecord venue (Just worker) "Leave Submit" "Race"
                 today <- utctDay <$> getCurrentTime
                 ensureTestUserHasPasskey admin
@@ -1537,7 +1537,7 @@ tests = aroundAll withDatabaseTestContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Staff Leave Review Race Venue"
                 admin <- createUserRecord "staff-leave-review-race-admin@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue admin "venue_admin"
+                _ <- createVenueMembershipRecord venue admin VenueAdmin
                 staff <- createStaffRecord venue Nothing "Leave Review" "Race"
                 today <- utctDay <$> getCurrentTime
                 leaveRequest <- createLeaveRequestRecord venue staff (addDays 1 today) (addDays 2 today) "pending"
@@ -1563,7 +1563,7 @@ tests = aroundAll withDatabaseTestContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Self Removal Rejection Venue"
                 admin <- createUserRecord "staff-self-removal-admin@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue admin "venue_admin"
+                _ <- createVenueMembershipRecord venue admin VenueAdmin
                 staff <- createStaffRecord venue (Just admin) "Self" "Admin"
 
                 editResponse <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
@@ -1582,7 +1582,7 @@ tests = aroundAll withDatabaseTestContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Staff Payroll Preservation Venue"
                 admin <- createUserRecord "staff-payroll-preservation-admin@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue admin "venue_admin"
+                _ <- createVenueMembershipRecord venue admin VenueAdmin
                 staff <- createStaffRecord venue Nothing "Payroll" "History"
                 today <- utctDay <$> getCurrentTime
                 approvedEntry <- createApprovedTimesheetEntryRecord venue staff admin today
@@ -1604,7 +1604,7 @@ tests = aroundAll withDatabaseTestContext do
                 venue <- createVenueWithConfig "Pay Invalid Removal Venue"
                 otherVenue <- createVenueWithConfig "Cross Venue Removal Target"
                 admin <- createUserRecord "pay-invalid-removal-admin@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue admin "venue_admin"
+                _ <- createVenueMembershipRecord venue admin VenueAdmin
                 payInvalidStaff <- createStaffRecord venue Nothing "Pay" "Invalid"
                     >>= updateRecord
                         . set #payAssignmentMode LegacyUnresolved
@@ -1629,7 +1629,7 @@ tests = aroundAll withDatabaseTestContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Unlinked Staff Role Venue"
                 admin <- createUserRecord "unlinked-staff-role-admin@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue admin "venue_admin"
+                _ <- createVenueMembershipRecord venue admin VenueAdmin
                 staff <- createStaffRecord venue Nothing "Trial" "Role"
 
                 response <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
@@ -1644,9 +1644,9 @@ tests = aroundAll withDatabaseTestContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Staff Role Venue"
                 admin <- createUserRecord "staff-role-admin@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue admin "venue_admin"
+                _ <- createVenueMembershipRecord venue admin VenueAdmin
                 workerUser <- createUserRecord "staff-role-worker@example.com" "staff" True
-                membership <- createVenueMembershipRecord venue workerUser "worker"
+                membership <- createVenueMembershipRecord venue workerUser Worker
                 rosterGroup <- query @RosterGroup |> filterWhere (#venueId, unpackId venue.id) |> filterWhere (#isDefault, True) |> fetchOne
                 staff <- createStaffRecord venue (Just workerUser) "Role" "Target"
 
@@ -1687,7 +1687,7 @@ tests = aroundAll withDatabaseTestContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Staff Imported Pay Item Venue"
                 admin <- createUserRecord "staff-imported-pay-items-admin@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue admin "venue_admin"
+                _ <- createVenueMembershipRecord venue admin VenueAdmin
                 staff <- createStaffRecord venue Nothing "Alpha" "Crew"
                 _ <- createPayLevelRecordWithRates venue "Level Staff" 45.00 4.50 9.00 1 1.25 1.50
                 importedPayItem <- createImportedXeroPayItemRecord venue admin "Imported Staff Rate" "imported-staff-rate" 55.25
@@ -1731,7 +1731,7 @@ tests = aroundAll withDatabaseTestContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Staff Archived Imported Pay Item Venue"
                 admin <- createUserRecord "staff-archived-imported-pay-items-admin@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue admin "venue_admin"
+                _ <- createVenueMembershipRecord venue admin VenueAdmin
                 staff <- createStaffRecord venue Nothing "Alpha" "Crew"
                 importedPayItem <- createImportedXeroPayItemRecord venue admin "Archived Staff Rate" "archived-staff-rate" 55.25
                 now <- getCurrentTime
@@ -1753,8 +1753,8 @@ tests = aroundAll withDatabaseTestContext do
                 venue <- createVenueWithConfig "Staff Access Modal Venue"
                 owner <- createUserRecord "staff-access-owner@example.com" "admin" True
                 worker <- createUserRecord "staff-access-worker@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue owner "venue_owner"
-                _ <- createVenueMembershipRecord venue worker "worker"
+                _ <- createVenueMembershipRecord venue owner VenueOwner
+                _ <- createVenueMembershipRecord venue worker Worker
                 staff <- createStaffRecord venue (Just worker) "Access" "Worker"
 
                 response <- withPasskeyVerifiedUserAndCurrentVenue owner venue.id do
@@ -1774,7 +1774,7 @@ tests = aroundAll withDatabaseTestContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Venue A"
                 manager <- createUserRecord "staff-pay-manager@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue manager "manager"
+                _ <- createVenueMembershipRecord venue manager Manager
                 rosterGroup <- query @RosterGroup |> filterWhere (#venueId, unpackId venue.id) |> filterWhere (#isDefault, True) |> fetchOne
                 payLevel <- createPayLevelRecord venue "Level 2"
                 staff <- createStaffRecord venue Nothing "Alpha" "Crew"

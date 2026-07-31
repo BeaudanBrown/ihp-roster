@@ -1,7 +1,6 @@
 module Web.Controller.Staff where
 
-import Application.Helper.Controller (VenueRole (..), parseVenueRole,
-                                      venueRoleToEnum)
+import Application.Helper.Controller (parseVenueRole)
 import Application.Helper.FrontendContract.AppShell (RemoveStaffOverlay)
 import Application.Helper.FrontendContract.AppShell.Runtime (AppShellActionRoute (..),
                                                              appShellActionByMarker)
@@ -81,7 +80,7 @@ instance Controller StaffController where
         importedPayItems <- fetchActiveImportedXeroPayItems
         maybeSelectedRosterGroupIds <- parseStaffRosterGroupIds
         let submittedRosterGroupIds = nub (mapMaybe parseRosterGroupIdText (paramTexts "rosterGroupIds"))
-        let canManageStaffPay = hasRole VenueAdminRole
+        let canManageStaffPay = hasRole VenueAdmin
         maybeSubmittedPayRateSelection <- if canManageStaffPay then requireSubmittedPayRateSelection "payRateSelection" else pure (Just emptyStaffPayRateSelection)
         let maybeSubmittedDefaultAwardLevelId = submittedAwardLevelId <$> maybeSubmittedPayRateSelection
         let maybeSubmittedImportedXeroPayItemId = submittedImportedXeroPayItemId <$> maybeSubmittedPayRateSelection
@@ -178,7 +177,7 @@ instance Controller StaffController where
                 case submissionResult of
                     Right (SubmittedStaffProfileDetails submitted) -> map Id (fromMaybe [] submitted.submittedRosterGroupIds)
                     _ -> currentSelectedRosterGroupIds
-        let canManageStaffPay = hasRole VenueAdminRole
+        let canManageStaffPay = hasRole VenueAdmin
         let preferenceWeekdays = allPreferenceWeekdays venueConfig
         staffRsaDocument <- latestRsaDocumentForStaff staff
         leaveRequest <- buildDefaultLeaveRequest
@@ -394,12 +393,12 @@ renderStaffRemovalConfirmation staff weekOffset maybeRosterGroupId =
 
 canRenderStaffRemoval :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Staff -> IO Bool
 canRenderStaffRemoval staff
-    | not (currentUserIsSuperAdmin || hasRole VenueAdminRole) = pure False
+    | not (currentUserIsSuperAdmin || hasRole VenueAdmin) = pure False
     | otherwise = isNothing <$> staffRemovalBlockReason staff
 
 ensureCanRemoveStaff :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => IO ()
 ensureCanRemoveStaff =
-    redirectPermissionDeniedUnless (currentUserIsSuperAdmin || hasRole VenueAdminRole) "Only venue admins and owners can remove staff members."
+    redirectPermissionDeniedUnless (currentUserIsSuperAdmin || hasRole VenueAdmin) "Only venue admins and owners can remove staff members."
 
 emptyStaffPayRateSelection :: SubmittedPayRateSelection
 emptyStaffPayRateSelection = SubmittedPayRateSelection Nothing Nothing True
@@ -482,7 +481,7 @@ fetchPendingTrialStaffInvitations staff =
         Nothing ->
             query @VenueInvitation
                 |> filterWhere (#staffId, Just staff.id)
-                |> filterWhere (#status, unsafeEnumFromText @InvitationStatusEnum "pending")
+                |> filterWhere (#status, InvitationStatusEnumPending)
                 |> orderByDesc #createdAt
                 |> fetch
 
@@ -548,29 +547,24 @@ validateSubmittedStaffVenueRole staff (Just membership) maybeSubmittedRoleText =
         Just submittedRole -> validateRole submittedRole
   where
     validateRole submittedRole = do
-        let existingRole = parseVenueRole membership.venueRole
-        if not (currentUserCanAssignVenueRole existingRole submittedRole)
+        let existingRole = membership.venueRole
+        if not (canAssignVenueRole currentUserIsSuperAdmin currentVenueRoleOrNothing existingRole submittedRole)
             then do
                 setErrorMessage "Only the venue owner or a super admin can assign venue owner access."
                 pure Nothing
-            else if membership.userId == unpackId currentUser.id && submittedRole < VenueAdminRole
+            else if membership.userId == unpackId currentUser.id && not (hasVenueRole submittedRole VenueAdmin)
                 then do
                     setErrorMessage "You cannot remove your own admin access."
                     pure Nothing
-                else if existingRole == Just VenueOwnerRole && submittedRole /= VenueOwnerRole
+                else if existingRole == VenueOwner && submittedRole /= VenueOwner
                     then do
                         ownerCount <- activeVenueOwnerCount
                         if ownerCount <= 1
                             then do
                                 setErrorMessage "Each venue needs at least one owner."
                                 pure Nothing
-                            else pure (Just (Just (venueRoleToEnum submittedRole)))
-                    else pure (Just (Just (venueRoleToEnum submittedRole)))
-
-    currentUserCanAssignVenueRole existingRole submittedRole =
-        currentUserIsSuperAdmin
-            || hasRole VenueOwnerRole
-            || (submittedRole /= VenueOwnerRole && existingRole /= Just VenueOwnerRole)
+                            else pure (Just (Just submittedRole))
+                    else pure (Just (Just submittedRole))
 
 buildStaff :: (?request :: Request) => Bool -> Maybe (Maybe (Id AwardLevel)) -> Maybe (Maybe (Id XeroImportedPayItem)) -> Staff -> Staff
 buildStaff canManageStaffPay maybeSubmittedDefaultAwardLevelId maybeSubmittedImportedXeroPayItemId staff =
@@ -686,7 +680,7 @@ activeVenueOwnerCount :: (?context :: ControllerContext, ?modelContext :: ModelC
 activeVenueOwnerCount =
     query @VenueMembership
         |> filterWhere (#venueId, unpackId currentVenueId)
-        |> filterWhere (#venueRole, venueRoleToEnum VenueOwnerRole)
+        |> filterWhere (#venueRole, VenueOwner)
         |> filterWhere (#isActive, True)
         |> fetchCount
 

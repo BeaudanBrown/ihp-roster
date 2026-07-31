@@ -67,7 +67,7 @@ fetchStaffMembersForCurrentVenue =
 
 fetchVisibleLeaveRequests :: (?modelContext :: ModelContext, ?context :: ControllerContext) => IO [LeaveRequest]
 fetchVisibleLeaveRequests = do
-    if hasRole ManagerRole'
+    if hasRole Manager
         then
             query @LeaveRequest
                 |> filterWhere (#venueId, unpackId currentVenueId)

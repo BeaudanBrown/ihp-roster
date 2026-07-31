@@ -6,7 +6,6 @@ import Application.Billing.Notifications (billingNotificationJobKind,
                                           performBillingNotificationJob)
 import Application.Billing.Stripe
 import Application.Billing.Webhook
-import Application.Helper.Controller (PlatformRole (SuperAdminRole))
 import Config (config)
 import Control.Concurrent (forkIO)
 import Control.Concurrent.MVar (MVar, newEmptyMVar, putMVar, takeMVar)
@@ -106,7 +105,7 @@ tests = aroundAll withDatabaseTestContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Webhook Ordered Checkout Venue"
                 owner <- createUserRecord "webhook-ordered-checkout-owner@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue owner "venue_owner"
+                _ <- createVenueMembershipRecord venue owner VenueOwner
                 let sessionId = "cs_ordered_checkout_123"
                 _ <-
                     newRecord @BillingCheckoutAttempt
@@ -249,7 +248,7 @@ tests = aroundAll withDatabaseTestContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Dahlia Portal Cancellation Venue"
                 owner <- createUserRecord "dahlia-portal-cancellation-owner@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue owner "venue_owner"
+                _ <- createVenueMembershipRecord venue owner VenueOwner
                 _ <- createBillingCustomer venue "cus_dahlia_cancel_at_123"
                 Right _ <- handleStripeWebhookPayload StripeTestMode (subscriptionEventOfTypeWithCancellationAt "customer.subscription.created" testStripeEventCreatedSeconds False "evt_subscription_cancel_at_initial_dahlia" venue "cus_dahlia_cancel_at_123" "sub_dahlia_cancel_at_123" "active")
                 eventBody <- LByteString.readFile "Test/Fixtures/stripe/2026-06-24.dahlia/webhook-subscription-cancel-at-updated.json"
@@ -358,15 +357,15 @@ tests = aroundAll withDatabaseTestContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Webhook Notification Venue"
                 owner <- createUserRecord "billing-problem-owner@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue owner "venue_owner"
+                _ <- createVenueMembershipRecord venue owner VenueOwner
                 inactiveOwner <- createUserRecord "billing-inactive-owner@example.com" "staff" True
-                inactiveMembership <- createVenueMembershipRecord venue inactiveOwner "venue_owner"
+                inactiveMembership <- createVenueMembershipRecord venue inactiveOwner VenueOwner
                 _ <- inactiveMembership |> set #isActive False |> updateRecord
                 deactivatedOwner <- createUserRecord "billing-deactivated-at-enqueue-owner@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue deactivatedOwner "venue_owner"
+                _ <- createVenueMembershipRecord venue deactivatedOwner VenueOwner
                 now <- getCurrentTime
                 _ <- deactivatedOwner |> set #deactivatedAt (Just now) |> updateRecord
-                _ <- createUserRecordWithPlatformRole "billing-problem-support@example.com" "staff" (Just SuperAdminRole) True
+                _ <- createUserRecordWithPlatformRole "billing-problem-support@example.com" "staff" (Just SuperAdmin) True
                 _ <- createBillingCustomer venue "cus_payment_failed_123"
                 let eventBody = invoicePaymentFailedEvent "evt_invoice_failed_123" "cus_payment_failed_123" "sub_failed_123"
 
@@ -385,7 +384,7 @@ tests = aroundAll withDatabaseTestContext do
                 withCleanDb do
                     venue <- createVenueWithConfig "Webhook Trouble Dedupe Venue"
                     owner <- createUserRecord "billing-trouble-dedupe-owner@example.com" "staff" True
-                    _ <- createVenueMembershipRecord venue owner "venue_owner"
+                    _ <- createVenueMembershipRecord venue owner VenueOwner
                     _ <- createBillingCustomer venue "cus_trouble_dedupe_123"
                     Right _ <- handleStripeWebhookPayload StripeTestMode (subscriptionEventAt testStripeEventCreatedSeconds "evt_trouble_active" venue "cus_trouble_dedupe_123" "sub_trouble_dedupe_123" "active")
 
@@ -413,7 +412,7 @@ tests = aroundAll withDatabaseTestContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Webhook Renewal Boundary Dedupe Venue"
                 owner <- createUserRecord "billing-renewal-boundary-owner@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue owner "venue_owner"
+                _ <- createVenueMembershipRecord venue owner VenueOwner
                 _ <- createBillingCustomer venue "cus_renewal_boundary_123"
                 Right _ <- handleStripeWebhookPayload StripeTestMode (subscriptionEventAt testStripeEventCreatedSeconds "evt_boundary_active" venue "cus_renewal_boundary_123" "sub_renewal_boundary_123" "active")
                 Right _ <- handleStripeWebhookPayload StripeTestMode (subscriptionEventAt (testStripeEventCreatedSeconds + 1) "evt_boundary_trouble" venue "cus_renewal_boundary_123" "sub_renewal_boundary_123" "past_due")
@@ -428,7 +427,7 @@ tests = aroundAll withDatabaseTestContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Webhook Invoice First Boundary Venue"
                 owner <- createUserRecord "billing-invoice-first-boundary-owner@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue owner "venue_owner"
+                _ <- createVenueMembershipRecord venue owner VenueOwner
                 _ <- createBillingCustomer venue "cus_invoice_first_boundary_123"
                 Right _ <- handleStripeWebhookPayload StripeTestMode (subscriptionEventAt testStripeEventCreatedSeconds "evt_invoice_first_active" venue "cus_invoice_first_boundary_123" "sub_invoice_first_boundary_123" "active")
                 Right _ <- handleStripeWebhookPayload StripeTestMode (invoicePaymentFailedEventForPeriodAt (testStripeEventCreatedSeconds + 1) 1762592000 1765184000 "evt_invoice_first_failed" "cus_invoice_first_boundary_123" "sub_invoice_first_boundary_123")
@@ -443,7 +442,7 @@ tests = aroundAll withDatabaseTestContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Webhook Later Trouble Period Venue"
                 owner <- createUserRecord "billing-later-period-owner@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue owner "venue_owner"
+                _ <- createVenueMembershipRecord venue owner VenueOwner
                 _ <- createBillingCustomer venue "cus_later_trouble_period_123"
                 Right _ <- handleStripeWebhookPayload StripeTestMode (subscriptionEventAt testStripeEventCreatedSeconds "evt_later_period_active" venue "cus_later_trouble_period_123" "sub_later_trouble_period_123" "active")
                 Right _ <- handleStripeWebhookPayload StripeTestMode (subscriptionEventAt (testStripeEventCreatedSeconds + 1) "evt_later_period_trouble" venue "cus_later_trouble_period_123" "sub_later_trouble_period_123" "past_due")
@@ -460,11 +459,11 @@ tests = aroundAll withDatabaseTestContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Webhook Notification Reauthorization Venue"
                 deactivatedOwner <- createUserRecord "billing-deactivated-owner@example.com" "staff" True
-                deactivatedMembership <- createVenueMembershipRecord venue deactivatedOwner "venue_owner"
+                deactivatedMembership <- createVenueMembershipRecord venue deactivatedOwner VenueOwner
                 archivedOwner <- createUserRecord "billing-archived-owner@example.com" "staff" True
-                archivedMembership <- createVenueMembershipRecord venue archivedOwner "venue_owner"
+                archivedMembership <- createVenueMembershipRecord venue archivedOwner VenueOwner
                 accountDeactivatedOwner <- createUserRecord "billing-account-deactivated-owner@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue accountDeactivatedOwner "venue_owner"
+                _ <- createVenueMembershipRecord venue accountDeactivatedOwner VenueOwner
                 _ <- createBillingCustomer venue "cus_notification_reauthorization_123"
 
                 Right _ <- handleStripeWebhookPayload StripeTestMode (invoicePaymentFailedEvent "evt_notification_reauthorization" "cus_notification_reauthorization_123" "sub_notification_reauthorization_123")
@@ -487,7 +486,7 @@ tests = aroundAll withDatabaseTestContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Webhook Initial Cancellation Snapshot Venue"
                 owner <- createUserRecord "billing-initial-cancellation-owner@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue owner "venue_owner"
+                _ <- createVenueMembershipRecord venue owner VenueOwner
                 _ <- createBillingCustomer venue "cus_initial_cancellation_snapshot_123"
 
                 Right _ <- handleStripeWebhookPayload StripeTestMode (subscriptionEventOfTypeWithCancellationAt "customer.subscription.created" testStripeEventCreatedSeconds True "evt_initial_cancellation_snapshot" venue "cus_initial_cancellation_snapshot_123" "sub_initial_cancellation_snapshot_123" "active")
@@ -499,7 +498,7 @@ tests = aroundAll withDatabaseTestContext do
                 withCleanDb do
                     venue <- createVenueWithConfig ("Webhook Renewal Resumed " <> status <> " Venue")
                     owner <- createUserRecord ("billing-renewal-resumed-" <> status <> "-owner@example.com") "staff" True
-                    _ <- createVenueMembershipRecord venue owner "venue_owner"
+                    _ <- createVenueMembershipRecord venue owner VenueOwner
                     _ <- createBillingCustomer venue "cus_renewal_resumed_123"
 
                     Right _ <- handleStripeWebhookPayload StripeTestMode (subscriptionEventOfTypeWithCancellationAt "customer.subscription.created" testStripeEventCreatedSeconds True "evt_cancel_scheduled" venue "cus_renewal_resumed_123" "sub_renewal_resumed_123" status)
@@ -513,7 +512,7 @@ tests = aroundAll withDatabaseTestContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Webhook Notification Transitions Venue"
                 owner <- createUserRecord "billing-transitions-owner@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue owner "venue_owner"
+                _ <- createVenueMembershipRecord venue owner VenueOwner
                 _ <- createBillingCustomer venue "cus_notification_transitions_123"
 
                 Right _ <- handleStripeWebhookPayload StripeTestMode (subscriptionEventOfTypeWithCancellationAt "customer.subscription.created" testStripeEventCreatedSeconds False "evt_transition_initial_active" venue "cus_notification_transitions_123" "sub_notification_transitions_123" "active")
@@ -536,9 +535,9 @@ tests = aroundAll withDatabaseTestContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Billing Terminal Failure Venue"
                 owner <- createUserRecord "billing-terminal-owner@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue owner "venue_owner"
-                supportUser <- createUserRecordWithPlatformRole "billing-terminal-support@example.com" "staff" (Just SuperAdminRole) True
-                deactivatedSupportUser <- createUserRecordWithPlatformRole "billing-terminal-deactivated-support@example.com" "staff" (Just SuperAdminRole) True
+                _ <- createVenueMembershipRecord venue owner VenueOwner
+                supportUser <- createUserRecordWithPlatformRole "billing-terminal-support@example.com" "staff" (Just SuperAdmin) True
+                deactivatedSupportUser <- createUserRecordWithPlatformRole "billing-terminal-deactivated-support@example.com" "staff" (Just SuperAdmin) True
                 now <- getCurrentTime
                 _ <- deactivatedSupportUser |> set #deactivatedAt (Just now) |> updateRecord
                 sourceJob <-

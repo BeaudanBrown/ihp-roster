@@ -215,7 +215,7 @@ seedCanonicalPayrollFixtureForWeek fixtureWeekStart = do
         |> set #weekOffsetEpoch fixtureWeekStart
         |> updateRecord
     admin <- createUserRecord "payroll-parity-admin@example.com" "staff" True
-    _ <- provisionVenueUser venue admin "venue_admin" "Payroll" "Admin"
+    _ <- provisionVenueUser venue admin VenueAdmin "Payroll" "Admin"
     dayNames <- seedWeekDayNames venue
     levelOne <- createPayLevelRecordWithRates venue "LVL 1" 30 0 0 1.25 1.5 1.75
     levelTwo <- createPayLevelRecordWithRates venue "LVL 2" 36 0 0 1.25 1.5 1.75
@@ -296,7 +296,7 @@ seedExplorationPayrollFixtureForWeek fixtureWeekStart = do
     let dayAtOffset offset = addDays offset fixtureWeekStart
     venue <- createVenueWithConfig "Payroll Parity Venue"
     admin <- createUserRecord "payroll-parity-admin@example.com" "staff" True
-    _ <- provisionVenueUser venue admin "venue_admin" "Payroll" "Admin"
+    _ <- provisionVenueUser venue admin VenueAdmin "Payroll" "Admin"
     dayNames <- seedWeekDayNames venue
     levelOne <- createPayLevelRecordWithRates venue "LVL 1" 30 0 0 1.25 1.5 1.75
     levelTwo <- createPayLevelRecordWithRates venue "LVL 2" 36 0 0 1.25 1.5 1.75

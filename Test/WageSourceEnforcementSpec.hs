@@ -1,6 +1,5 @@
 module Test.WageSourceEnforcementSpec where
 
-import Application.Helper.Controller (PlatformRole (SuperAdminRole))
 import Application.WageSourceEnforcement
 import Application.WageSourceNotifications (emitLatestAwardDriftNotifications,
                                             wageSourceDriftNotificationJobKind)
@@ -97,7 +96,7 @@ tests = aroundAll withDatabaseTestContext do
 
         it "deduplicates Award drift notifications to active platform super admins only" $ withContext do
             withCleanDb do
-                superAdmin <- createUserRecordWithPlatformRole "drift-super@example.com" "staff" (Just SuperAdminRole) True
+                superAdmin <- createUserRecordWithPlatformRole "drift-super@example.com" "staff" (Just SuperAdmin) True
                 _ordinaryUser <- createUserRecord "drift-ordinary@example.com" "staff" True
                 now <- getCurrentTime
                 seedFingerprintSnapshot now 1 "Hospitality level 1"

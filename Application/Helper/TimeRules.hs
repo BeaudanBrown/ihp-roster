@@ -14,7 +14,6 @@ import Generated.Types
 import IHP.ControllerPrelude
 
 import Application.Helper.ControllerAccess (fetchVenueConfig, hasRole)
-import Application.Helper.ControllerSupport (VenueRole (ManagerRole'))
 
 parseTimeParam :: Text -> Maybe TimeOfDay
 parseTimeParam value = parseTimeM True defaultTimeLocale "%H:%M" (cs value)
@@ -225,7 +224,7 @@ operationalDayForUtcTime venueConfig utcTime = do
 
 ensureEditWindowOrManager :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Day -> IO ()
 ensureEditWindowOrManager workedOn =
-    unless (hasRole ManagerRole') do
+    unless (hasRole Manager) do
         config <- fetchVenueConfig
         today <- utctDay <$> getCurrentTime
         accessDeniedUnless (isWithinEditWindow today workedOn config.staffTimesheetEditWindowDays)

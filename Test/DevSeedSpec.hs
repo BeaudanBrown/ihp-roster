@@ -2,7 +2,6 @@ module Test.DevSeedSpec where
 
 import Application.Fixture.DevFixtures
 import Application.Fixture.Seed.Scenario
-import Application.Helper.Controller (unsafeEnumFromText)
 import Application.PayAssignment (EffectivePayAssignment (..),
                                   ShiftPayAssignment (..),
                                   StaffPayAssignment (..), resolvePayAssignment)
@@ -206,17 +205,17 @@ tests = aroundAll withDatabaseTestContext do
                 approvedLeaveCount <-
                     query @LeaveRequest
                         |> filterWhere (#venueId, unpackId (get #id fixture.sandboxVenue))
-                        |> filterWhere (#status, unsafeEnumFromText @LeaveRequestStatusEnum "approved")
+                        |> filterWhere (#status, LeaveRequestStatusEnumApproved)
                         |> fetchCount
                 pendingLeaveCount <-
                     query @LeaveRequest
                         |> filterWhere (#venueId, unpackId (get #id fixture.sandboxVenue))
-                        |> filterWhere (#status, unsafeEnumFromText @LeaveRequestStatusEnum "pending")
+                        |> filterWhere (#status, LeaveRequestStatusEnumPending)
                         |> fetchCount
                 deniedLeaveCount <-
                     query @LeaveRequest
                         |> filterWhere (#venueId, unpackId (get #id fixture.sandboxVenue))
-                        |> filterWhere (#status, unsafeEnumFromText @LeaveRequestStatusEnum "denied")
+                        |> filterWhere (#status, LeaveRequestStatusEnumDenied)
                         |> fetchCount
                 mondayWeeks <-
                     query @RosterWeek
@@ -631,7 +630,7 @@ tests = aroundAll withDatabaseTestContext do
                 managerMembershipCount <-
                     query @VenueMembership
                         |> filterWhere (#venueId, unpackId (get #id fixture.sandboxVenue))
-                        |> filterWhere (#venueRole, unsafeEnumFromText @VenueRoleEnum "manager")
+                        |> filterWhere (#venueRole, Manager)
                         |> fetchCount
 
                 get #staffCount (get #scenario fixture) `shouldBe` 12

@@ -54,7 +54,7 @@ tests = aroundAll withDatabaseTestContext do
                 let approvedAt = UTCTime (fromGregorian 2025 1 12) (secondsToDiffTime 3600)
                 venue <- createVenueWithConfig "Export Venue"
                 admin <- createUserRecord "exports-admin@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue admin "venue_admin"
+                _ <- createVenueMembershipRecord venue admin VenueAdmin
                 staff <- createStaffRecord venue Nothing "Ava" "Hours"
                 approvedEntry <- createApprovedTimesheetEntryRecordAt venue staff admin (fromGregorian 2025 1 10) approvedAt
                 let breakStartsAt = addUTCTime (60 * 60) approvedEntry.startsAt
@@ -100,7 +100,7 @@ tests = aroundAll withDatabaseTestContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Export Touch Venue"
                 admin <- createUserRecord "exports-touch@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue admin "venue_admin"
+                _ <- createVenueMembershipRecord venue admin VenueAdmin
 
                 response <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
                     callActionWithParams CreateExportJobAction
@@ -118,7 +118,7 @@ tests = aroundAll withDatabaseTestContext do
                 let approvedAt = UTCTime (fromGregorian 2025 1 12) (secondsToDiffTime 3600)
                 venue <- createVenueWithConfig "Payroll Venue"
                 admin <- createUserRecord "payroll-admin@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue admin "venue_admin"
+                _ <- createVenueMembershipRecord venue admin VenueAdmin
                 dayNames <- seedWeekDayNames venue
                 levelOne <- createPayLevelRecord venue "LVL 1"
                 levelTwo <- createPayLevelRecord venue "LVL 2"
@@ -175,7 +175,7 @@ tests = aroundAll withDatabaseTestContext do
                 let approvedAt = UTCTime (fromGregorian 2025 1 12) (secondsToDiffTime 3600)
                 venue <- createVenueWithConfig "Shared Level Payroll Venue"
                 admin <- createUserRecord "shared-level-admin@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue admin "venue_admin"
+                _ <- createVenueMembershipRecord venue admin VenueAdmin
                 dayNames <- seedWeekDayNames venue
                 levelOne <- createPayLevelRecord venue "LVL 1"
                 barShift <- createShiftTypeRecord venue levelOne "Bar"
@@ -214,7 +214,7 @@ tests = aroundAll withDatabaseTestContext do
                 let approvedAt = UTCTime (fromGregorian 2025 1 12) (secondsToDiffTime 3600)
                 venue <- createVenueWithConfig "Imported Payroll Venue"
                 admin <- createUserRecord "imported-payroll-admin@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue admin "venue_admin"
+                _ <- createVenueMembershipRecord venue admin VenueAdmin
                 dayNames <- seedWeekDayNames venue
                 levelOne <- createPayLevelRecord venue "LVL 1"
                 importedItem <- createImportedXeroPayItemRecord venue admin "Xero Weekend Rate" "weekend-rate" 52
@@ -251,7 +251,7 @@ tests = aroundAll withDatabaseTestContext do
                 let approvedAt = UTCTime (fromGregorian 2025 1 12) (secondsToDiffTime 3600)
                 venue <- createVenueWithConfig "Payroll Range Venue"
                 admin <- createUserRecord "payroll-range-admin@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue admin "venue_admin"
+                _ <- createVenueMembershipRecord venue admin VenueAdmin
                 dayNames <- seedWeekDayNames venue
                 levelOne <- createPayLevelRecord venue "LVL 1"
                 barShift <- createShiftTypeRecord venue levelOne "Bar"
@@ -291,7 +291,7 @@ tests = aroundAll withDatabaseTestContext do
                 let approvedAt = UTCTime (fromGregorian 2025 1 19) (secondsToDiffTime 3600)
                 venue <- createVenueWithConfig "Payroll Multi Week Venue"
                 admin <- createUserRecord "payroll-multi-week-admin@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue admin "venue_admin"
+                _ <- createVenueMembershipRecord venue admin VenueAdmin
                 dayNames <- seedWeekDayNames venue
                 levelOne <- createPayLevelRecord venue "LVL 1"
                 barShift <- createShiftTypeRecord venue levelOne "Bar"
@@ -352,7 +352,7 @@ tests = aroundAll withDatabaseTestContext do
                 let approvedAt = UTCTime (fromGregorian 2025 1 12) (secondsToDiffTime 7200)
                 venue <- createVenueWithConfig "Payroll Earnings Venue"
                 admin <- createUserRecord "payroll-earnings-admin@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue admin "venue_admin"
+                _ <- createVenueMembershipRecord venue admin VenueAdmin
                 dayNames <- seedWeekDayNames venue
                 levelOne <- createPayLevelRecordWithRates venue "LVL 1" 30 0 0 1.25 1.5 1.75
                 barShift <- createShiftTypeRecord venue levelOne "Bar"
@@ -450,7 +450,7 @@ tests = aroundAll withDatabaseTestContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Hourly Venue"
                 admin <- createUserRecord "hourly-admin@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue admin "venue_admin"
+                _ <- createVenueMembershipRecord venue admin VenueAdmin
                 dayNames <- seedWeekDayNames venue
                 barLevel <- createPayLevelRecordWithRates venue "Bar Level" 30 0 0 1.25 1.5 1.75
                 floorLevel <- createPayLevelRecordWithRates venue "Floor Level" 28 0 0 1.25 1.5 1.75
@@ -511,7 +511,7 @@ tests = aroundAll withDatabaseTestContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Export Venue"
                 admin <- createUserRecord "exports-download@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue admin "venue_admin"
+                _ <- createVenueMembershipRecord venue admin VenueAdmin
                 staff <- createStaffRecord venue Nothing "Bea" "Hours"
                 _ <- createApprovedTimesheetEntryRecordAt venue staff admin (fromGregorian 2025 1 10) (UTCTime (fromGregorian 2025 1 10) (secondsToDiffTime 0))
                 _ <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
@@ -543,8 +543,8 @@ tests = aroundAll withDatabaseTestContext do
                 venueA <- createVenueWithConfig "Venue A"
                 venueB <- createVenueWithConfig "Venue B"
                 admin <- createUserRecord "exports-scope@example.com" "staff" True
-                _ <- createVenueMembershipRecord venueA admin "venue_owner"
-                _ <- createVenueMembershipRecord venueB admin "venue_owner"
+                _ <- createVenueMembershipRecord venueA admin VenueOwner
+                _ <- createVenueMembershipRecord venueB admin VenueOwner
                 exportJobA <- newRecord @ExportJob
                     |> set #venueId (unpackId venueA.id)
                     |> set #requestedByUserId (unpackId admin.id)
@@ -586,7 +586,7 @@ tests = aroundAll withDatabaseTestContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Export Venue"
                 admin <- createUserRecord "exports-definitions@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue admin "venue_admin"
+                _ <- createVenueMembershipRecord venue admin VenueAdmin
 
                 response <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
                     callAction ExportJobsAction
@@ -597,7 +597,7 @@ tests = aroundAll withDatabaseTestContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Empty Staff Hours Venue"
                 admin <- createUserRecord "empty-staff-hours@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue admin "venue_admin"
+                _ <- createVenueMembershipRecord venue admin VenueAdmin
 
                 response <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
                     withRequestHeaders [("HX-Request", "true")] do
@@ -618,7 +618,7 @@ tests = aroundAll withDatabaseTestContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Invalid Range Venue"
                 admin <- createUserRecord "exports-invalid-range@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue admin "venue_admin"
+                _ <- createVenueMembershipRecord venue admin VenueAdmin
 
                 response <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
                     callActionWithParams CreateExportJobAction
@@ -635,7 +635,7 @@ tests = aroundAll withDatabaseTestContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Manager Venue"
                 manager <- createUserRecord "exports-manager@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue manager "manager"
+                _ <- createVenueMembershipRecord venue manager Manager
                 dayNames <- seedWeekDayNames venue
                 levelOne <- createPayLevelRecord venue "Level 1"
                 barShift <- createShiftTypeRecord venue levelOne "Bar"
@@ -669,7 +669,7 @@ tests = aroundAll withDatabaseTestContext do
                 venueA <- createVenueWithConfig "Venue A"
                 venueB <- createVenueWithConfig "Venue B"
                 admin <- createUserRecord "exports-foreign@example.com" "staff" True
-                _ <- createVenueMembershipRecord venueA admin "venue_admin"
+                _ <- createVenueMembershipRecord venueA admin VenueAdmin
                 foreignJob <- newRecord @ExportJob
                     |> set #venueId (unpackId venueB.id)
                     |> set #requestedByUserId (unpackId admin.id)

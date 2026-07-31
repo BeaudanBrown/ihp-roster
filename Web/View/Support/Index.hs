@@ -748,7 +748,7 @@ renderOnboardingInvitationDeliveryBadge invitation =
 renderOnboardingInvitationDeliveryError :: VenueOnboardingInvitation -> Html
 renderOnboardingInvitationDeliveryError invitation =
     case invitation.deliveryError of
-        Just deliveryError | inputValue invitation.deliveryStatus == "failed" -> [hsx|
+        Just deliveryError | invitation.deliveryStatus == Failed -> [hsx|
             <div class="small app-muted mt-1">{deliveryError}</div>
         |]
         _ -> mempty

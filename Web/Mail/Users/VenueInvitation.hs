@@ -1,5 +1,6 @@
 module Web.Mail.Users.VenueInvitation where
 
+import Application.VenueRole (parseVenueRole, venueRoleMailLabel)
 import Generated.Types
 import IHP.MailPrelude
 import Web.Mail.Shared
@@ -49,13 +50,7 @@ instance BuildMail VenueInvitationMail where
 venueInvitationMailIntro :: VenueInvitation -> Venue -> Text
 venueInvitationMailIntro invitation venue
     | isJust invitation.staffId = "You’ve been invited to claim your Bepis staff profile for " <> venue.name <> " and create your account."
-    | otherwise = "You’ve been invited to join " <> venue.name <> " on Bepis as " <> inviteRoleLabel invitation.inviteRole <> "."
+    | otherwise = "You’ve been invited to join " <> venue.name <> " on Bepis as " <> venueRoleMailLabel invitation.inviteRole <> "."
 
-inviteRoleLabel :: InputValue value => value -> Text
-inviteRoleLabel value =
-    case inputValue value of
-        "venue_owner" -> "venue owner"
-        "venue_admin" -> "venue admin"
-        "manager"     -> "manager"
-        "supervisor"  -> "supervisor"
-        _             -> "worker"
+inviteRoleLabel :: Text -> Text
+inviteRoleLabel value = maybe "worker" venueRoleMailLabel (parseVenueRole value)

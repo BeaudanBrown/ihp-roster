@@ -8,7 +8,6 @@ module Application.InvitationDelivery.Job
     ) where
 
 import Application.Async.Queue
-import Application.Helper.Controller (unsafeEnumFromText)
 import Application.Helper.FrontendContract.Surface.Admin.Resource (adminInvitesResource)
 import Application.Helper.SurfaceResource
 import Application.Helper.VenueInvitation (deliverVenueInvitationEmail,
@@ -136,9 +135,9 @@ fetchVenueOnboardingInvitation appJob =
 venueInvitationNeedsDelivery :: UTCTime -> VenueInvitation -> Bool
 venueInvitationNeedsDelivery now invitation =
     venueInvitationIsActive now invitation
-        && invitation.deliveryStatus /= unsafeEnumFromText @InvitationDeliveryStatusEnum "sent"
+        && invitation.deliveryStatus /= Sent
 
 venueOnboardingInvitationNeedsDelivery :: UTCTime -> VenueOnboardingInvitation -> Bool
 venueOnboardingInvitationNeedsDelivery now invitation =
     venueOnboardingInvitationIsActive now invitation
-        && invitation.deliveryStatus /= unsafeEnumFromText @InvitationDeliveryStatusEnum "sent"
+        && invitation.deliveryStatus /= Sent

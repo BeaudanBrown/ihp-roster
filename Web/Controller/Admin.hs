@@ -96,7 +96,7 @@ sendStaffPasskeySetupLink ::
     IO ()
 sendStaffPasskeySetupLink staffId purpose successMessage = do
     redirectPermissionDeniedUnless
-        (currentUserIsSuperAdmin || hasRole VenueOwnerRole)
+        (currentUserIsSuperAdmin || hasRole VenueOwner)
         "Only the venue owner or a super admin can send passkey setup links."
     maybeTarget <- fetchCurrentVenueStaffUser staffId
     case maybeTarget of
@@ -425,7 +425,7 @@ instance Controller AdminController where
         currentRosterGroup <- fetchCurrentVenueRosterGroupOrDefault (paramOrNothing "rosterGroupId")
         invitation <- fetch venueInvitationId
         ensureRecordInCurrentVenue invitation.venueId
-        if invitation.status /= unsafeEnumFromText @InvitationStatusEnum "pending"
+        if invitation.status /= InvitationStatusEnumPending
             then respondToInvitesSectionMutation "Only pending invitations can be revoked." currentRosterGroup.id
             else do
                 _ <- revokeVenueInvitationMutation invitation

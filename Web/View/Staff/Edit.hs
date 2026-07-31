@@ -2,8 +2,7 @@
 
 module Web.View.Staff.Edit where
 
-import Application.Helper.Controller (VenueRole (VenueOwnerRole),
-                                      currentUserIsSuperAdmin, currentVenueId,
+import Application.Helper.Controller (currentUserIsSuperAdmin, currentVenueId,
                                       hasRole)
 import Application.Helper.FrontendContract.AppShell (CreateTrialStaffInvitationOverlay,
                                                      CreateTrialStaffOverlay,
@@ -396,7 +395,7 @@ renderLinkedLoginSummary (Just email) = [hsx|
 renderStaffPasskeySetupControls :: Staff -> Maybe Text -> Int -> Maybe (Id RosterGroup) -> Html
 renderStaffPasskeySetupControls _ Nothing _ _ = mempty
 renderStaffPasskeySetupControls staff (Just _) weekOffset maybeRosterGroupId
-    | currentUserIsSuperAdmin || hasRole VenueOwnerRole = [hsx|
+    | currentUserIsSuperAdmin || hasRole VenueOwner = [hsx|
         <div class="d-flex flex-wrap gap-2">
             <form method="POST" action={SendStaffPasskeySetupEmailAction staff.id} class="d-inline">
                 {renderStaffPasskeyReturnInputs weekOffset maybeRosterGroupId}

@@ -10,8 +10,7 @@ module Web.RosterWeeks.StaffOptions
     , rosterAssignmentOptionStateFor
     ) where
 
-import Application.Helper.Controller (LeaveRequestStatus (..),
-                                      parseLeaveRequestStatus, venueRoleToText)
+import Application.Helper.Controller (venueRoleToText)
 import Application.Helper.RosterGroups (fetchEligibleRosterGroupStaff)
 import Application.Helper.Staff (isTrialStaff)
 import Application.Helper.View (rosterableStaffForRosterPanel)
@@ -60,7 +59,7 @@ fetchRosterStaffPanelEntriesForScope panelScope staffMembers allSlots = do
                     then "trial"
                     else case staff.userId >>= (`Map.lookup` membershipsByUserId) of
                         Just membership -> inputValue membership.venueRole
-                        Nothing         -> venueRoleToText WorkerRole
+                        Nothing         -> venueRoleToText Worker
              in RosterStaffPanelEntry
                     { staff
                     , assignedShiftCount
@@ -146,7 +145,7 @@ buildRosterStaffOptionStates _rosterGroupId assignmentFilters weekStartDate rost
                     Set.fromList
                         [ (leaveRequest.staffId, dayDate)
                         | leaveRequest <- leaveRequests
-                        , parseLeaveRequestStatus leaveRequest.status == Just LeaveApproved
+                        , leaveRequest.status == LeaveRequestStatusEnumApproved
                         , rosterDay <- rosterDays
                         , let dayDate = Calendar.addDays (toInteger rosterDay.dayOffset) weekStartDate
                         , dayDate >= leaveRequest.startDate
@@ -193,7 +192,7 @@ rosterAssignmentOptionStateFor assignmentFilters weekStartDate dayById assignedS
 isApprovedLeaveOn :: Calendar.Day -> UUID.UUID -> LeaveRequest -> Bool
 isApprovedLeaveOn rosterDayDate staffId leaveRequest =
     leaveRequest.staffId == staffId
-        && parseLeaveRequestStatus leaveRequest.status == Just LeaveApproved
+        && leaveRequest.status == LeaveRequestStatusEnumApproved
         && rosterDayDate >= leaveRequest.startDate
         && rosterDayDate < leaveRequest.endDate
 

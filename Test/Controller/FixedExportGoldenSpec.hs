@@ -285,7 +285,7 @@ seedPayrollMatrixFixture = do
     venueConfig <- query @VenueConfig |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
     _ <- venueConfig |> set #rosterWeekStartsOn 2 |> set #weekOffsetEpoch weekStart |> updateRecord
     admin <- createUserRecord "payroll-matrix-admin@example.com" "staff" True
-    _ <- createVenueMembershipRecord venue admin "venue_admin"
+    _ <- createVenueMembershipRecord venue admin VenueAdmin
     dayNames <- seedWeekDayNames venue
     levelOne <- createPayLevelRecordWithRates venue "LVL 1" 30 3 6 1 1.5 1.75
     levelTwo <- createPayLevelRecordWithRates venue "LVL 2" 36 4 8 1 1.5 1.75

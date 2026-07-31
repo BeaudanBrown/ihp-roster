@@ -6,7 +6,6 @@ import Application.Async.Queue (EnqueueAppJobResult (..),
 import Application.FwcMapd.Job (enqueueFwcMapdRefreshJob,
                                 fwcMapdRefreshJobDedupeKey,
                                 fwcMapdRefreshJobKind)
-import Application.Helper.Controller (unsafeEnumFromText)
 import Application.Helper.Feedback (SupportUnreadFeedbackCount (..),
                                     allowedFeedbackPriorities,
                                     allowedFeedbackStatuses,
@@ -91,8 +90,8 @@ instance Controller SupportController where
                             invitation <- withTransaction do
                                 onboardingInvitation
                                     |> set #invitedByUserId (Just (unpackId currentUser.id))
-                                    |> set #status (unsafeEnumFromText @InvitationStatusEnum "pending")
-                                    |> set #deliveryStatus (unsafeEnumFromText @InvitationDeliveryStatusEnum "queued")
+                                    |> set #status (InvitationStatusEnumPending)
+                                    |> set #deliveryStatus (Queued)
                                     |> set #expiresAt (Just (addUTCTime venueOnboardingInvitationLifetime now))
                                     |> createRecord
                             void (enqueueVenueOnboardingInvitationDeliveryJob (Just currentUser.id) invitation)
@@ -118,7 +117,7 @@ instance Controller SupportController where
                 maybeRenewalResult <- withVenueOnboardingInvitationRenewalLock (unpackId onboardingInvitationId) replacementForm.email do
                     invitationOrNothing <- query @VenueOnboardingInvitation
                         |> filterWhere (#id, onboardingInvitationId)
-                        |> filterWhere (#status, unsafeEnumFromText @InvitationStatusEnum "pending")
+                        |> filterWhere (#status, InvitationStatusEnumPending)
                         |> filterWhere (#acceptedAt, Nothing)
                         |> fetchOneOrNothing
                     case invitationOrNothing of
@@ -132,7 +131,7 @@ instance Controller SupportController where
                                     forM_ (invitationToReplace : matchingInvitations) \invitation ->
                                         void $
                                             invitation
-                                                |> set #status (unsafeEnumFromText @InvitationStatusEnum "revoked")
+                                                |> set #status (Revoked)
                                                 |> set #updatedAt renewedAt
                                                 |> updateRecord
                                     replacement <- replacementForm
@@ -235,7 +234,7 @@ instance Controller SupportController where
         let nextPath = fromMaybe (pathTo SupportAction) (paramOrNothing @Text "next")
         venue <- query @Venue
             |> filterWhere (#id, venueId)
-            |> filterWhere (#status, unsafeEnumFromText @VenueStatusEnum "active")
+            |> filterWhere (#status, Active)
             |> fetchOneOrNothing
 
         case venue of
@@ -252,8 +251,8 @@ instance Controller SupportController where
 buildSupportVenueOnboardingInvitationForm :: VenueOnboardingInvitation
 buildSupportVenueOnboardingInvitationForm =
     newRecord @VenueOnboardingInvitation
-        |> set #status (unsafeEnumFromText @InvitationStatusEnum "pending")
-        |> set #deliveryStatus (unsafeEnumFromText @InvitationDeliveryStatusEnum "queued")
+        |> set #status (InvitationStatusEnumPending)
+        |> set #deliveryStatus (Queued)
 
 fetchSupportFeedbackRows :: (?modelContext :: ModelContext) => IO [SupportFeedbackRow]
 fetchSupportFeedbackRows = do
@@ -315,7 +314,7 @@ fetchPendingVenueOnboardingInvitationsExcept email excludedInvitationId = do
 fetchPendingVenueOnboardingInvitations :: (?modelContext :: ModelContext) => IO [VenueOnboardingInvitation]
 fetchPendingVenueOnboardingInvitations =
     query @VenueOnboardingInvitation
-        |> filterWhere (#status, unsafeEnumFromText @InvitationStatusEnum "pending")
+        |> filterWhere (#status, InvitationStatusEnumPending)
         |> filterWhere (#acceptedAt, Nothing)
         |> fetch
 

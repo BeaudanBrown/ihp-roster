@@ -25,7 +25,7 @@ tests = aroundAll withDatabaseTestContext do
                 fixtureStartedAt <- getMonotonicTimeNSec
                 venue <- createVenueWithConfig "Baseline Probe Venue"
                 user <- createUserRecord "baseline-probe@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue user "manager"
+                _ <- createVenueMembershipRecord venue user Manager
                 fixtureFinishedAt <- getMonotonicTimeNSec
                 recordDuration "HSPEC_FIXTURE_METRICS_FILE" fixtureStartedAt fixtureFinishedAt
 

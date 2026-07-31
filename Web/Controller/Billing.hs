@@ -88,7 +88,7 @@ instance Controller BillingController where
 ensureBillingAccess :: (?context :: ControllerContext, ?request :: Request, ?modelContext :: ModelContext) => IO ()
 ensureBillingAccess = do
     redirectPermissionDeniedUnless
-        (currentUserIsSuperAdmin || hasRole VenueOwnerRole)
+        (currentUserIsSuperAdmin || hasRole VenueOwner)
         "Only the venue owner or a super admin can manage billing for this venue."
     if currentUserIsSuperAdmin
         then ensurePrivilegedPasskeyReady
@@ -97,7 +97,7 @@ ensureBillingAccess = do
 ensureOwnerBillingPaymentAction :: (?context :: ControllerContext, ?request :: Request, ?modelContext :: ModelContext) => IO ()
 ensureOwnerBillingPaymentAction = do
     redirectPermissionDeniedUnless
-        (not currentUserIsSuperAdmin && hasRole VenueOwnerRole)
+        (not currentUserIsSuperAdmin && hasRole VenueOwner)
         "Only the venue owner can start Checkout or open Customer Portal."
     ensurePrivilegedPasskeyReady
 

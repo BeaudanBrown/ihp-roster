@@ -30,6 +30,7 @@ import Application.Helper.FrontendContract.Surface.Values
 import Application.Helper.Profiling (profileHtmlComponent, profileRenderCounter)
 import Application.Helper.Staff (isAdoptableTrialStaff)
 import Application.Helper.View (staffDisplayName)
+import Application.VenueRole (parseVenueRole, venueRoleLabel)
 import Data.List (sortBy)
 import qualified Data.Text as Text
 import Web.RosterWeeks.Dom (rosterStaffPanelFragmentClasses,
@@ -449,13 +450,9 @@ renderTrialStaffInviteButton weekOffset currentRosterGroupId staffDisplayLabel e
             |]
 
 humanizeStaffRole :: Text -> Text
-humanizeStaffRole "venue_admin" = "Venue Admin"
-humanizeStaffRole "venue_owner" = "Venue Owner"
-humanizeStaffRole "manager"     = "Manager"
-humanizeStaffRole "supervisor"  = "Supervisor"
-humanizeStaffRole "worker"      = "Worker"
-humanizeStaffRole "trial"       = "TRIAL"
-humanizeStaffRole other         = Text.toTitle (Text.replace "_" " " other)
+humanizeStaffRole "trial" = "TRIAL"
+humanizeStaffRole value =
+    maybe (Text.toTitle (Text.replace "_" " " value)) venueRoleLabel (parseVenueRole value)
 
 renderShiftSummary :: RosterStaffPanelEntry -> Html
 renderShiftSummary entry = [hsx|

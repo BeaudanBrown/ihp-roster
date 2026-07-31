@@ -1,6 +1,5 @@
 module Test.Controller.RosterWeeks.NavigationSpec where
 
-import Application.Helper.Controller (PlatformRole (SuperAdminRole))
 import Application.Helper.RosterGroups (createVenueRosterGroupWithDefaults,
                                         syncStaffRosterGroupAssignments)
 import Config
@@ -48,7 +47,7 @@ tests = aroundAll withDatabaseTestContext do
 
         it "redirects venue-less super-admins from roster weeks to support" $ withContext do
             withCleanDb do
-                user <- createUserRecordWithPlatformRole "roster-bootstrap-super-admin@example.com" "staff" (Just SuperAdminRole) True
+                user <- createUserRecordWithPlatformRole "roster-bootstrap-super-admin@example.com" "staff" (Just SuperAdmin) True
 
                 response <- withUser user do
                     callAction RosterWeeksAction
@@ -60,7 +59,7 @@ tests = aroundAll withDatabaseTestContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Venue A"
                 user <- createUserRecord "roster-needs-profile@example.com" "staff" False
-                _ <- createVenueMembershipRecord venue user "worker"
+                _ <- createVenueMembershipRecord venue user Worker
 
                 response <- withUserAndCurrentVenue user venue.id do
                     callAction RosterWeeksAction
@@ -72,7 +71,7 @@ tests = aroundAll withDatabaseTestContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Venue A"
                 user <- createUserRecord "roster-auto-create@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue user "worker"
+                _ <- createVenueMembershipRecord venue user Worker
                 slotNames <- query @SlotName
                     |> filterWhere (#venueId, unpackId venue.id)
                     |> filterWhere (#isActive, True)
@@ -101,7 +100,7 @@ tests = aroundAll withDatabaseTestContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Venue A"
                 user <- createUserRecord "roster-staff-draft@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue user "worker"
+                _ <- createVenueMembershipRecord venue user Worker
                 slotName <- fetchSlotNameRecord venue "Early"
                 staffMember <- createStaffRecord venue (Just user) "Alpha" "Crew"
                 rosterWeek <- createRosterWeekRecord venue 0 False
@@ -124,7 +123,7 @@ tests = aroundAll withDatabaseTestContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Venue A"
                 user <- createUserRecord "roster-empty-live-scope@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue user "worker"
+                _ <- createVenueMembershipRecord venue user Worker
                 _ <- fetchSlotNameRecord venue "Early"
 
                 response <- withUserAndCurrentVenue user venue.id do
@@ -142,7 +141,7 @@ tests = aroundAll withDatabaseTestContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Venue A"
                 user <- createUserRecord "roster-hidden-draft-live-scope@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue user "worker"
+                _ <- createVenueMembershipRecord venue user Worker
                 _ <- createRosterWeekRecord venue 0 False
 
                 response <- withUserAndCurrentVenue user venue.id do
@@ -159,7 +158,7 @@ tests = aroundAll withDatabaseTestContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Venue A"
                 user <- createUserRecord "roster-staff-timesheet-live-scope@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue user "worker"
+                _ <- createVenueMembershipRecord venue user Worker
                 _ <- createStaffRecord venue (Just user) "Tess" "Roster"
                 _ <- fetchSlotNameRecord venue "Early"
                 payLevel <- createPayLevelRecord venue "Level 1"
@@ -186,7 +185,7 @@ tests = aroundAll withDatabaseTestContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Venue A"
                 manager <- createUserRecord "roster-manager-draft@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue manager "manager"
+                _ <- createVenueMembershipRecord venue manager Manager
                 slotName <- fetchSlotNameRecord venue "Early"
                 staffMember <- createStaffRecord venue Nothing "Alpha" "Crew"
                 rosterWeek <- createRosterWeekRecord venue 0 False
@@ -206,7 +205,7 @@ tests = aroundAll withDatabaseTestContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Venue A"
                 manager <- createUserRecord "roster-manager-live-no-conflicts@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue manager "manager"
+                _ <- createVenueMembershipRecord venue manager Manager
                 slotName <- fetchSlotNameRecord venue "Early"
                 staffMember <- createStaffRecord venue Nothing "Alpha" "Crew"
                 rosterWeek <- createRosterWeekRecord venue 0 True
@@ -214,7 +213,7 @@ tests = aroundAll withDatabaseTestContext do
                 _ <-
                     createRosterSlotRecord rosterDay slotName (Just staffMember) 0
                         >>= updateRecord . setTestStartTime (Just (TimeOfDay 8 0 0))
-                _ <- createLeaveRequestRecord venue staffMember defaultWeekEpoch (addDays 1 defaultWeekEpoch) "approved"
+                _ <- createLeaveRequestRecord venue staffMember defaultWeekEpoch (addDays 1 defaultWeekEpoch) LeaveRequestStatusEnumApproved
 
                 response <- withUserAndCurrentVenue manager venue.id do
                     callAction (ShowRosterWeekAction 0)
@@ -227,7 +226,7 @@ tests = aroundAll withDatabaseTestContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Venue A"
                 manager <- createUserRecord "roster-manager-empty-create@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue manager "manager"
+                _ <- createVenueMembershipRecord venue manager Manager
                 panelStaff <- createStaffRecord venue Nothing "Alpha" "Crew"
                 _ <- fetchSlotNameRecord venue "Early"
                 _ <- createVenueRosterGroupWithDefaults venue "Back of House" 1 False
@@ -292,7 +291,7 @@ tests = aroundAll withDatabaseTestContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Roster Staff Remediation Venue"
                 manager <- createUserRecord "roster-staff-remediation-manager@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue manager "manager"
+                _ <- createVenueMembershipRecord venue manager Manager
                 unresolvedStaff <- createStaffRecord venue Nothing "Unresolved" "Crew"
                     >>= updateRecord . set #payAssignmentMode LegacyUnresolved
                 _ <- fetchSlotNameRecord venue "Early"
@@ -311,7 +310,7 @@ tests = aroundAll withDatabaseTestContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Venue A"
                 worker <- createUserRecord "roster-worker-copy-hidden@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue worker "worker"
+                _ <- createVenueMembershipRecord venue worker Worker
                 _ <- fetchSlotNameRecord venue "Early"
 
                 response <- withUserAndCurrentVenue worker venue.id do
@@ -326,7 +325,7 @@ tests = aroundAll withDatabaseTestContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Venue A"
                 manager <- createUserRecord "roster-manager-group-switcher@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue manager "manager"
+                _ <- createVenueMembershipRecord venue manager Manager
                 _ <- newRecord @RosterGroup
                     |> set #venueId (unpackId venue.id)
                     |> set #name ("Second group" :: Text)

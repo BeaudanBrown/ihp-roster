@@ -246,7 +246,7 @@ instance Controller RosterWeeksController where
                 setErrorMessage "Roster week not found."
                 redirectToPath (rosterWeekUrl weekOffset rosterGroup.id)
             Just rosterData -> do
-                let canViewTimeline = rosterData.rosterWeek.isLive || hasRole ManagerRole'
+                let canViewTimeline = rosterData.rosterWeek.isLive || hasRole Manager
                 accessDeniedUnless canViewTimeline
                 case find (\rosterDay -> rosterDay.id == rosterDayId) rosterData.rosterDays of
                     Nothing -> do
@@ -261,7 +261,7 @@ instance Controller RosterWeeksController where
         case maybeRosterData of
             Nothing -> respondHtmlProfiled mempty
             Just rosterData -> do
-                let canViewTimeline = rosterData.rosterWeek.isLive || hasRole ManagerRole'
+                let canViewTimeline = rosterData.rosterWeek.isLive || hasRole Manager
                 accessDeniedUnless canViewTimeline
                 let maybeRosterDay = find (\rosterDay -> rosterDay.id == rosterDayId) rosterData.rosterDays
                 respondHtmlProfiled (maybe mempty (renderRosterDayTimelineContent Nothing rosterData) maybeRosterDay)
@@ -864,7 +864,7 @@ instance Controller RosterWeeksController where
                             redirectToPath (rosterWeekUrl weekOffset rosterGroup.id)
 
     action currentAction@UpdateRosterWageEstimatePreferenceAction { weekOffset } = runBepis currentAction BepisPreferenceAction do
-        accessDeniedUnless (hasRole VenueAdminRole)
+        accessDeniedUnless (hasRole VenueAdmin)
         rosterGroup <- resolveRequestedRosterGroup
         case RosterAction.parseToggleRosterWageEstimatesActionParams of
             Left errors -> do
@@ -1761,7 +1761,7 @@ renderRosterWeekPage weekOffset requestedRosterGroupId =
         case rosterDataOrNothing of
             Just RosterRenderData { rosterWeek, rosterDays, assignmentFilters, staffMembers, panelStaff, staffSelfServicePanel, orderedSlotNames, shiftTypes, allSlots, slotConflicts, renderIndexes, rosterLayoutMode, rosterEndTimesEnabled, rosterTimePickerStartMinute, rosterTimePickerFinalSelectableMinute, rosterWagePrediction, showWageEstimates, showRosterWarnings, rosterPublicHolidays } ->
                 let visibleRosterWeek =
-                        if rosterWeek.isLive || hasRole ManagerRole'
+                        if rosterWeek.isLive || hasRole Manager
                             then Just rosterWeek
                             else Nothing
                  in profileActionSpan "roster.page.respond" $

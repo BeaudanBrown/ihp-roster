@@ -2,7 +2,6 @@ module Test.Controller.SupportSpec where
 
 import Application.Async.Queue (activeAppJobStatuses)
 import Application.FwcMapd.Job (fwcMapdRefreshJobKind)
-import Application.Helper.Controller (PlatformRole (SuperAdminRole))
 import Application.Helper.FrontendContract.Surface.Runtime (FrontendSurfaceMountedFragment (..))
 import Application.Helper.LiveUpdate
 import Application.Support.LiveUpdates
@@ -47,7 +46,7 @@ tests = aroundAll withDatabaseTestContext do
 
         it "serves live support fragments to super admins through the surface rule" $ withContext do
             withCleanDb do
-                superAdmin <- createUserRecordWithPlatformRole "support-fragment-super@example.com" "staff" (Just SuperAdminRole) True
+                superAdmin <- createUserRecordWithPlatformRole "support-fragment-super@example.com" "staff" (Just SuperAdmin) True
 
                 awardRatesResponse <- withPasskeyVerifiedUser superAdmin do
                     callAction ShowFwcMapdAwardRatesSectionAction
@@ -59,7 +58,7 @@ tests = aroundAll withDatabaseTestContext do
 
         it "mounts support live surface metadata for super admins" $ withContext do
             withCleanDb do
-                superAdmin <- createUserRecordWithPlatformRole "support-surface-super@example.com" "staff" (Just SuperAdminRole) True
+                superAdmin <- createUserRecordWithPlatformRole "support-surface-super@example.com" "staff" (Just SuperAdmin) True
 
                 response <- withPasskeyVerifiedUser superAdmin do
                     callAction SupportAction
@@ -77,7 +76,7 @@ tests = aroundAll withDatabaseTestContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Feedback Support Venue"
                 submitter <- createUserRecord "feedback-support-user@example.com" "staff" True
-                superAdmin <- createUserRecordWithPlatformRole "feedback-support-super@example.com" "staff" (Just SuperAdminRole) True
+                superAdmin <- createUserRecordWithPlatformRole "feedback-support-super@example.com" "staff" (Just SuperAdmin) True
                 _ <- newRecord @UserFeedbackItem
                     |> set #venueId (unpackId venue.id)
                     |> set #submittedByUserId (unpackId submitter.id)
@@ -139,7 +138,7 @@ tests = aroundAll withDatabaseTestContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Feedback Read Venue"
                 submitter <- createUserRecord "feedback-read-user@example.com" "staff" True
-                superAdmin <- createUserRecordWithPlatformRole "feedback-read-super@example.com" "staff" (Just SuperAdminRole) True
+                superAdmin <- createUserRecordWithPlatformRole "feedback-read-super@example.com" "staff" (Just SuperAdmin) True
                 feedbackItem <- newRecord @UserFeedbackItem
                     |> set #venueId (unpackId venue.id)
                     |> set #submittedByUserId (unpackId submitter.id)
@@ -159,7 +158,7 @@ tests = aroundAll withDatabaseTestContext do
 
         it "routes support refresh mutations through touched resources" $ withContext do
             withCleanDb do
-                superAdmin <- createUserRecordWithPlatformRole "support-mutation-super@example.com" "staff" (Just SuperAdminRole) True
+                superAdmin <- createUserRecordWithPlatformRole "support-mutation-super@example.com" "staff" (Just SuperAdmin) True
                 versionBefore <- currentLiveUpdateVersion supportSurfaceScope
 
                 response <- withPasskeyVerifiedUser superAdmin do
@@ -173,7 +172,7 @@ tests = aroundAll withDatabaseTestContext do
 
         it "deduplicates concurrent award-rate refresh enqueues without 500s" $ withContext do
             withCleanDb do
-                superAdmin <- createUserRecordWithPlatformRole "support-concurrent-super@example.com" "staff" (Just SuperAdminRole) True
+                superAdmin <- createUserRecordWithPlatformRole "support-concurrent-super@example.com" "staff" (Just SuperAdmin) True
                 ensureTestUserHasPasskey superAdmin
 
                 results <- runConcurrentActions 12 do

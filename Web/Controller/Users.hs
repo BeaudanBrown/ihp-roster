@@ -134,7 +134,7 @@ instance Controller UsersController where
                 case invitationOrNothing of
                     Just invitation | venueOnboardingInvitationIsActive now invitation -> do
                         let user = newRecord @User |> set #email invitation.email
-                        let venue = newRecord @Venue |> set #status (unsafeEnumFromText @VenueStatusEnum "active")
+                        let venue = newRecord @Venue |> set #status (Active)
                         let staff = newRecord @Staff
                         let venueRosterWeekStartsOn = defaultRosterWeekStartsOn
                         let venueRosterEndTimesEnabled = True
@@ -172,7 +172,7 @@ instance Controller UsersController where
                         let staff = buildRequiredPersonalProfileStaff (newRecord @Staff)
                         let venue =
                                 newRecord @Venue
-                                    |> set #status (unsafeEnumFromText @VenueStatusEnum "active")
+                                    |> set #status (Active)
                         user
                             |> requireParam #passwordHash "passwordHash" "Password is required"
                             |> fill @'["passwordHash"]
@@ -238,7 +238,7 @@ instance Controller UsersController where
                                                             _ <- createSignupStaff createdVenue user staff
                                                             _ <-
                                                                 lockedInvitation
-                                                                    |> set #status (unsafeEnumFromText @InvitationStatusEnum "accepted")
+                                                                    |> set #status (Accepted)
                                                                     |> set #acceptedByUserId (Just (unpackId (get #id user)))
                                                                     |> set #acceptedAt (Just lockedNow)
                                                                     |> updateRecord
@@ -276,7 +276,7 @@ instance Controller UsersController where
                                                                     (unpackId createdVenue.id)
                                                                     (unpackId (get #id user))
                                                                     membership
-                                                                    (unsafeEnumFromText @VenueMembershipRoleEventTypeEnum "assigned")
+                                                                    (Assigned)
                                                                     Nothing
                                                                     membership.venueRole
                                                                     (Aeson.object

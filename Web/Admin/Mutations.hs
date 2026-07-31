@@ -132,9 +132,9 @@ createVenueInvitationMutation email = do
                     |> set #venueId (unpackId currentVenueId)
                     |> set #invitedByUserId (Just (unpackId currentUser.id))
                     |> set #email email
-                    |> set #inviteRole (venueRoleToEnum WorkerRole)
-                    |> set #status (unsafeEnumFromText @InvitationStatusEnum "pending")
-                    |> set #deliveryStatus (unsafeEnumFromText @InvitationDeliveryStatusEnum "queued")
+                    |> set #inviteRole (Worker)
+                    |> set #status (InvitationStatusEnumPending)
+                    |> set #deliveryStatus (Queued)
                     |> set #expiresAt (Just (addUTCTime venueInvitationLifetime now))
                     |> createRecord
                 void (enqueueVenueInvitationDeliveryJob (Just currentUser.id) invitation)
@@ -155,7 +155,7 @@ renewVenueInvitationMutation invitation correctedEmail
             (Text.toCaseFold correctedEmail)
             do
                 lockedInvitation <- fetch invitation.id
-                if inputValue lockedInvitation.status /= ("pending" :: Text)
+                if lockedInvitation.status /= InvitationStatusEnumPending
                     then pure (Left "Only pending invitations can be renewed.")
                     else Right <$> replaceVenueInvitation lockedInvitation correctedEmail
         case maybeRenewal of
@@ -168,15 +168,15 @@ replaceVenueInvitation :: (?context :: ControllerContext, ?modelContext :: Model
 replaceVenueInvitation invitation correctedEmail = do
     now <- getCurrentTime
     _ <- invitation
-        |> set #status (unsafeEnumFromText @InvitationStatusEnum "revoked")
+        |> set #status (Revoked)
         |> updateRecord
     replacement <- newRecord @VenueInvitation
         |> set #venueId invitation.venueId
         |> set #invitedByUserId (Just (unpackId currentUser.id))
         |> set #email correctedEmail
         |> set #inviteRole invitation.inviteRole
-        |> set #status (unsafeEnumFromText @InvitationStatusEnum "pending")
-        |> set #deliveryStatus (unsafeEnumFromText @InvitationDeliveryStatusEnum "queued")
+        |> set #status (InvitationStatusEnumPending)
+        |> set #deliveryStatus (Queued)
         |> set #expiresAt (Just (addUTCTime venueInvitationLifetime now))
         |> createRecord
     void (enqueueVenueInvitationDeliveryJob (Just currentUser.id) replacement)
@@ -185,7 +185,7 @@ replaceVenueInvitation invitation correctedEmail = do
 revokeVenueInvitationMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => VenueInvitation -> IO (LiveMutationResult VenueInvitation)
 revokeVenueInvitationMutation invitation = do
     updated <- invitation
-        |> set #status (unsafeEnumFromText @InvitationStatusEnum "revoked")
+        |> set #status (Revoked)
         |> updateRecord
     invalidateTouchedResources "admin.invite.revoke" (liveMutationResult updated [adminInvitesResource (unpackId currentVenueId)])
 

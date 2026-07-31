@@ -3,8 +3,10 @@
 
 module Web.View.StaffProfileForm where
 
-import Application.Helper.Controller (VenueRole (..), currentUserIsSuperAdmin,
-                                      hasRole, parseVenueRole, venueRoleToText)
+import Application.Helper.Controller (assignableVenueRolesFor,
+                                      currentUserIsSuperAdmin,
+                                      currentVenueRoleOrNothing, venueRoleLabel,
+                                      venueRoleToText)
 import Application.Helper.FrontendContract.OrderedRange.Runtime
 import qualified Application.Helper.FrontendContract.Surface.Profile as Surface
 import Application.Helper.FrontendContract.Surface.Values
@@ -53,7 +55,7 @@ staffProfileDetailsSurfaceValues section staff maybeManagement =
         , profileDetailsEmergencyContactName = staff.emergencyContactName
         , profileDetailsEmergencyContactPhone = staff.emergencyContactPhone
         , profileDetailsSection = section
-        , profileDetailsVenueRole = maybeManagement >>= (.managementVenueMembership) >>= parseVenueRole >>= (Just . venueRoleToText)
+        , profileDetailsVenueRole = venueRoleToText . (.venueRole) <$> (maybeManagement >>= (.managementVenueMembership))
         , profileDetailsEmploymentBasis = inputValue . (.employmentBasis) . (.managementStaff) <$> maybeManagement
         , profileDetailsPayRateSelection = staffPayRateSelectionValue . (.managementStaff) <$> maybeManagement
         , profileDetailsRosterGroupIds = fmap (map unpackId . (.managementSelectedRosterGroupIds)) maybeManagement
@@ -365,22 +367,14 @@ renderStaffRoleField fields (Just membership) = [hsx|
     </div>
 |]
 
-assignableVenueRoles :: (?context :: ControllerContext) => [VenueRole]
+assignableVenueRoles :: (?context :: ControllerContext) => [VenueRoleEnum]
 assignableVenueRoles =
-    [WorkerRole, SupervisorRole, ManagerRole', VenueAdminRole]
-        <> [VenueOwnerRole | currentUserIsSuperAdmin || hasRole VenueOwnerRole]
+    assignableVenueRolesFor currentUserIsSuperAdmin currentVenueRoleOrNothing
 
-renderVenueRoleOption :: VenueMembership -> VenueRole -> Html
+renderVenueRoleOption :: VenueMembership -> VenueRoleEnum -> Html
 renderVenueRoleOption membership venueRole = [hsx|
-    <option value={venueRoleToText venueRole} selected={parseVenueRole membership.venueRole == Just venueRole}>{venueRoleLabel venueRole}</option>
+    <option value={venueRoleToText venueRole} selected={membership.venueRole == venueRole}>{venueRoleLabel venueRole}</option>
 |]
-
-venueRoleLabel :: VenueRole -> Text
-venueRoleLabel WorkerRole     = "Worker"
-venueRoleLabel SupervisorRole = "Supervisor"
-venueRoleLabel ManagerRole'   = "Manager"
-venueRoleLabel VenueAdminRole = "Venue Admin"
-venueRoleLabel VenueOwnerRole = "Venue Owner"
 
 renderStaffPayFields :: SurfaceFieldBundleOf Surface.StaffProfileFields fields => fields -> Staff -> [AwardLevel] -> [AwardLevelBaseRate] -> [XeroImportedPayItem] -> Html
 renderStaffPayFields fields staff awardLevels awardLevelBaseRates importedPayItems = [hsx|

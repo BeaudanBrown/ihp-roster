@@ -1,13 +1,11 @@
 module Test.Controller.PasskeysSpec where
 
-import Application.Helper.Controller (PlatformRole (SuperAdminRole),
-                                      currentVenueSessionKey,
+import Application.Helper.Controller (currentVenueSessionKey,
                                       formatPasskeyVerifiedAt,
                                       passkeyRecoveryVerifiedAtSessionKey,
                                       passkeyRecoveryVerifiedUserSessionKey,
                                       passkeyVerifiedAtSessionKey,
-                                      passkeyVerifiedUserSessionKey,
-                                      unsafeEnumFromText)
+                                      passkeyVerifiedUserSessionKey)
 import Application.Helper.FrontendContract.Overlay.Runtime (OverlayDom (..),
                                                             canonicalOverlayDom)
 import Application.Helper.FrontendContract.Passkey.Runtime (PasskeyDom (..),
@@ -120,7 +118,7 @@ tests = aroundAll withDatabaseTestContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Passkey Profile Venue"
                 user <- createUserRecord "passkey-profile@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue user "worker"
+                _ <- createVenueMembershipRecord venue user Worker
 
                 response <- withUserAndCurrentVenue user venue.id do
                     callActionWithParams EditProfileAction [("section", "security")]
@@ -140,7 +138,7 @@ tests = aroundAll withDatabaseTestContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Admin Profile Passkey Venue"
                 user <- createUserRecord "admin-profile-passkey@example.com" "admin" True
-                _ <- createVenueMembershipRecord venue user "venue_admin"
+                _ <- createVenueMembershipRecord venue user VenueAdmin
 
                 response <- withUserAndCurrentVenue user venue.id do
                     callActionWithParams EditProfileAction [("section", "security")]
@@ -162,7 +160,7 @@ tests = aroundAll withDatabaseTestContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Passkey Dialog Venue"
                 user <- createUserRecord "passkey-dialog@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue user "worker"
+                _ <- createVenueMembershipRecord venue user Worker
 
                 response <- withUserAndCurrentVenue user venue.id do
                     callActionWithParams ShowPasskeySetupDialogAction [("successRedirect", "/EditProfile?section=security")]
@@ -195,9 +193,9 @@ tests = aroundAll withDatabaseTestContext do
                 admin <- createUserRecord "optional-roster-admin@example.com" "admin" True
                 owner <- createUserRecord "optional-roster-owner@example.com" "admin" True
                 worker <- createUserRecord "optional-roster-worker@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue admin "venue_admin"
-                _ <- createVenueMembershipRecord venue owner "venue_owner"
-                _ <- createVenueMembershipRecord venue worker "worker"
+                _ <- createVenueMembershipRecord venue admin VenueAdmin
+                _ <- createVenueMembershipRecord venue owner VenueOwner
+                _ <- createVenueMembershipRecord venue worker Worker
 
                 responses <-
                     forM [("admin", admin), ("owner", owner), ("worker", worker)] \(role, user) -> do
@@ -221,7 +219,7 @@ tests = aroundAll withDatabaseTestContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Admin Step Up Venue"
                 user <- createUserRecord "admin-step-up@example.com" "admin" True
-                _ <- createVenueMembershipRecord venue user "venue_admin"
+                _ <- createVenueMembershipRecord venue user VenueAdmin
                 _ <- createTestPasskeyRecord user "Admin security key"
 
                 withUserAndCurrentVenue user venue.id do
@@ -251,7 +249,7 @@ tests = aroundAll withDatabaseTestContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Admin Step Up Audit Venue"
                 user <- createUserRecord "admin-step-up-audit@example.com" "admin" True
-                _ <- createVenueMembershipRecord venue user "venue_admin"
+                _ <- createVenueMembershipRecord venue user VenueAdmin
 
                 response <- withUserAndCurrentVenue user venue.id do
                     callAction BeginPasskeyStepUpAuthenticationAction
@@ -268,7 +266,7 @@ tests = aroundAll withDatabaseTestContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Step Up Expired Venue"
                 user <- createUserRecord "admin-step-up-expired@example.com" "admin" True
-                _ <- createVenueMembershipRecord venue user "venue_admin"
+                _ <- createVenueMembershipRecord venue user VenueAdmin
                 _ <- createTestPasskeyRecord user "Admin passkey"
 
                 response <- withUserAndCurrentVenue user venue.id do
@@ -281,7 +279,7 @@ tests = aroundAll withDatabaseTestContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Step Up JSON Venue"
                 user <- createUserRecord "admin-step-up-json@example.com" "admin" True
-                _ <- createVenueMembershipRecord venue user "venue_admin"
+                _ <- createVenueMembershipRecord venue user VenueAdmin
                 _ <- createTestPasskeyRecord user "Admin passkey"
 
                 response <- withSessionValues
@@ -299,7 +297,7 @@ tests = aroundAll withDatabaseTestContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Admin Passkey Freshness Venue"
                 user <- createUserRecord "admin-passkey-freshness@example.com" "admin" True
-                _ <- createVenueMembershipRecord venue user "venue_admin"
+                _ <- createVenueMembershipRecord venue user VenueAdmin
                 _ <- createTestPasskeyRecord user "Admin passkey"
                 now <- getCurrentTime
                 let sessionFor verifiedAt =
@@ -325,9 +323,9 @@ tests = aroundAll withDatabaseTestContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Promoted Admin Passkey Venue"
                 user <- createUserRecord "promoted-admin@example.com" "staff" True
-                membership <- createVenueMembershipRecord venue user "worker"
+                membership <- createVenueMembershipRecord venue user Worker
                 _ <- membership
-                    |> set #venueRole (unsafeEnumFromText @VenueRoleEnum "venue_admin")
+                    |> set #venueRole (VenueAdmin)
                     |> updateRecord
 
                 response <- withUserAndCurrentVenue user venue.id do
@@ -340,7 +338,7 @@ tests = aroundAll withDatabaseTestContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Additional Admin Passkey Venue"
                 user <- createUserRecord "additional-admin-passkey@example.com" "admin" True
-                _ <- createVenueMembershipRecord venue user "venue_admin"
+                _ <- createVenueMembershipRecord venue user VenueAdmin
                 _ <- createTestPasskeyRecord user "Existing admin passkey"
 
                 response <- withUserAndCurrentVenue user venue.id do
@@ -355,7 +353,7 @@ tests = aroundAll withDatabaseTestContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Recovery Code Venue"
                 user <- createUserRecord "recovery-code@example.com" "admin" True
-                _ <- createVenueMembershipRecord venue user "venue_admin"
+                _ <- createVenueMembershipRecord venue user VenueAdmin
                 _ <- createTestPasskeyRecord user "Existing admin passkey"
                 recoveryCode <- newRecord @PasskeyRecoveryCode
                     |> set #userId (unpackId user.id)
@@ -378,7 +376,7 @@ tests = aroundAll withDatabaseTestContext do
 
         it "routes super-admin recovery code users back to support passkey setup" $ withContext do
             withCleanDb do
-                founder <- createUserRecordWithPlatformRole "support-recovery-code@example.com" "staff" (Just SuperAdminRole) True
+                founder <- createUserRecordWithPlatformRole "support-recovery-code@example.com" "staff" (Just SuperAdmin) True
                 _ <- createTestPasskeyRecord founder "Existing support passkey"
                 _ <- newRecord @PasskeyRecoveryCode
                     |> set #userId (unpackId founder.id)
@@ -421,7 +419,7 @@ tests = aroundAll withDatabaseTestContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Recovery Registration Venue"
                 user <- createUserRecord "recovery-registration@example.com" "admin" True
-                _ <- createVenueMembershipRecord venue user "venue_admin"
+                _ <- createVenueMembershipRecord venue user VenueAdmin
                 _ <- createTestPasskeyRecord user "Existing admin passkey"
                 now <- getCurrentTime
 
@@ -442,7 +440,7 @@ tests = aroundAll withDatabaseTestContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Unverified New Device Setup Venue"
                 user <- createUserRecord "unverified-new-device-passkey@example.com" "admin" True
-                _ <- createVenueMembershipRecord venue user "venue_admin"
+                _ <- createVenueMembershipRecord venue user VenueAdmin
                 _ <- createTestPasskeyRecord user "Existing admin passkey"
 
                 response <- withUserAndCurrentVenue user venue.id do
@@ -458,7 +456,7 @@ tests = aroundAll withDatabaseTestContext do
                 setEnv "DISABLE_EMAIL_DELIVERY" "1"
                 venue <- createVenueWithConfig "New Device Setup Venue"
                 user <- createUserRecord "new-device-passkey@example.com" "admin" True
-                _ <- createVenueMembershipRecord venue user "venue_admin"
+                _ <- createVenueMembershipRecord venue user VenueAdmin
                 _ <- createTestPasskeyRecord user "Existing admin passkey"
 
                 response <- withPasskeyVerifiedUserAndCurrentVenue user venue.id do
@@ -527,8 +525,8 @@ tests = aroundAll withDatabaseTestContext do
                 venue <- createVenueWithConfig "Staff Recovery Venue"
                 owner <- createUserRecord "staff-recovery-owner@example.com" "admin" True
                 target <- createUserRecord "staff-recovery-target@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue owner "venue_owner"
-                _ <- createVenueMembershipRecord venue target "worker"
+                _ <- createVenueMembershipRecord venue owner VenueOwner
+                _ <- createVenueMembershipRecord venue target Worker
                 targetStaff <- query @Staff
                     |> filterWhere (#venueId, unpackId venue.id)
                     |> filterWhere (#userId, Just (unpackId target.id))
@@ -553,8 +551,8 @@ tests = aroundAll withDatabaseTestContext do
                 venue <- createVenueWithConfig "Pending Registration User Venue"
                 pendingUser <- createUserRecord "pending-registration-user@example.com" "staff" True
                 activeUser <- createUserRecord "active-registration-user@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue pendingUser "worker"
-                _ <- createVenueMembershipRecord venue activeUser "worker"
+                _ <- createVenueMembershipRecord venue pendingUser Worker
+                _ <- createVenueMembershipRecord venue activeUser Worker
 
                 response <- withSessionValues
                     [ (cs (LoginSupport.sessionKey @User), Serialize.encode activeUser.id)
@@ -572,7 +570,7 @@ tests = aroundAll withDatabaseTestContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Passkey List Venue"
                 user <- createUserRecord "passkey-list@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue user "worker"
+                _ <- createVenueMembershipRecord venue user Worker
                 now <- getCurrentTime
                 _ <- createTestPasskeyRecord user "Phone passkey"
                     >>= updateRecord . set #lastUsedAt (Just (addUTCTime (negate (35 * 24 * 60 * 60)) now))
@@ -595,7 +593,7 @@ tests = aroundAll withDatabaseTestContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Passkey Delete Step Up Worker Venue"
                 user <- createUserRecord "passkey-delete-worker-step-up@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue user "worker"
+                _ <- createVenueMembershipRecord venue user Worker
                 passkey <- createTestPasskeyRecord user "Delete me later"
 
                 response <- withUserAndCurrentVenue user venue.id do
@@ -612,7 +610,7 @@ tests = aroundAll withDatabaseTestContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Passkey Delete Venue"
                 user <- createUserRecord "passkey-delete@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue user "worker"
+                _ <- createVenueMembershipRecord venue user Worker
                 passkey <- createTestPasskeyRecord user "Delete me"
 
                 response <- withPasskeyVerifiedUserAndCurrentVenue user venue.id do
@@ -628,7 +626,7 @@ tests = aroundAll withDatabaseTestContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Passkey Last Admin Venue"
                 user <- createUserRecord "passkey-last-admin@example.com" "admin" True
-                _ <- createVenueMembershipRecord venue user "venue_admin"
+                _ <- createVenueMembershipRecord venue user VenueAdmin
                 passkey <- createTestPasskeyRecord user "Last admin passkey"
 
                 response <- withUserAndCurrentVenue user venue.id do
@@ -645,7 +643,7 @@ tests = aroundAll withDatabaseTestContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Passkey Delete Step Up Venue"
                 user <- createUserRecord "passkey-delete-step-up@example.com" "admin" True
-                _ <- createVenueMembershipRecord venue user "venue_admin"
+                _ <- createVenueMembershipRecord venue user VenueAdmin
                 firstPasskey <- createTestPasskeyRecord user "First admin passkey"
                 secondPasskey <- createTestPasskeyRecord user "Second admin passkey"
 

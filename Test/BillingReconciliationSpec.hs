@@ -6,7 +6,6 @@ import Application.Async.Registry (dispatchAppJob)
 import Application.Billing.Notifications (billingNotificationJobKind)
 import Application.Billing.Reconciliation
 import Application.Billing.Stripe
-import Application.Helper.Controller (PlatformRole (SuperAdminRole))
 import Config (config)
 import qualified Control.Exception as Exception
 import qualified Data.Aeson as Aeson
@@ -255,7 +254,7 @@ tests = aroundAll withDatabaseTestContext do
         it "sanitizes provider failures and notifies support only on the final retry" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Billing Reconciliation Failure Venue"
-                _ <- createUserRecordWithPlatformRole "billing-reconciliation-failure-support@example.com" "staff" (Just SuperAdminRole) True
+                _ <- createUserRecordWithPlatformRole "billing-reconciliation-failure-support@example.com" "staff" (Just SuperAdmin) True
                 subscription <-
                     newRecord @VenueSubscription
                         |> set #venueId (unpackId venue.id)

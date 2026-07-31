@@ -5,11 +5,10 @@ import qualified Application.Fixture.PayrollFixtures as Payroll
 import qualified Application.Fixture.Reset as FixtureReset
 import Application.Fixture.WageSourceFixtures (ensureFreshWageSourceFacts,
                                                sealApprovedFixtureCalculation)
-import Application.Helper.Controller (PlatformRole (..), currentVenueSessionKey,
+import Application.Helper.Controller (currentVenueSessionKey,
                                       formatPasskeyVerifiedAt,
                                       passkeyVerifiedAtSessionKey,
-                                      passkeyVerifiedUserSessionKey,
-                                      unsafeEnumFromText)
+                                      passkeyVerifiedUserSessionKey)
 import Application.Helper.ControllerContext (initCurrentVenueContext)
 import Application.Helper.Pay (ensurePayVersionsForTimesheetApproval,
                                lockPayVersionsForApproval)
@@ -314,7 +313,7 @@ createUserRecord :: (?modelContext :: ModelContext) => Text -> Text -> Bool -> I
 createUserRecord emailAddress globalRole isProfileCompleted =
     createUserRecordWithPlatformRole emailAddress globalRole Nothing isProfileCompleted
 
-createUserRecordWithPlatformRole :: (?modelContext :: ModelContext) => Text -> Text -> Maybe PlatformRole -> Bool -> IO User
+createUserRecordWithPlatformRole :: (?modelContext :: ModelContext) => Text -> Text -> Maybe PlatformRoleEnum -> Bool -> IO User
 createUserRecordWithPlatformRole emailAddress globalRole platformRole isProfileCompleted =
     ApplicationFixture.createUserRecordWithPasswordInputAndPlatformRoleAndId
         emailAddress
@@ -362,12 +361,15 @@ createXeroConnectionRecord venue connectedBy tenantId =
         |> set #connectedByUserId (Just (unpackId connectedBy.id))
         |> createRecord
 
-createVenueMembershipRecord :: (?modelContext :: ModelContext) => Venue -> User -> Text -> IO VenueMembership
-createVenueMembershipRecord =
+createVenueMembershipRecord :: (?modelContext :: ModelContext) => Venue -> User -> VenueRoleEnum -> IO VenueMembership
+createVenueMembershipRecord venue user venueRole =
     ApplicationFixture.createVenueMembershipRecordWithStaffFixture
         ApplicationFixture.EnsureProfileStaffForCompletedUser
+        venue
+        user
+        venueRole
 
-createVenueInvitationRecord :: (?modelContext :: ModelContext) => Venue -> Maybe User -> Text -> Text -> IO VenueInvitation
+createVenueInvitationRecord :: (?modelContext :: ModelContext) => Venue -> Maybe User -> Text -> VenueRoleEnum -> IO VenueInvitation
 createVenueInvitationRecord = ApplicationFixture.createVenueInvitationRecord
 
 createVenueOnboardingInvitationRecord :: (?modelContext :: ModelContext) => Maybe User -> Text -> IO VenueOnboardingInvitation
@@ -515,10 +517,10 @@ createApprovedTimesheetEntryRecordAtWithShiftTimes venue staff approver shiftTyp
             |> updateRecord
     sealApprovedFixtureCalculation approvedEntry
 
-createLeaveRequestRecord :: (?modelContext :: ModelContext) => Venue -> Staff -> Day -> Day -> Text -> IO LeaveRequest
+createLeaveRequestRecord :: (?modelContext :: ModelContext) => Venue -> Staff -> Day -> Day -> LeaveRequestStatusEnum -> IO LeaveRequest
 createLeaveRequestRecord = ApplicationFixture.createLeaveRequestRecord
 
-createLeaveRequestRecordWithNotes :: (?modelContext :: ModelContext) => Venue -> Staff -> Day -> Day -> Text -> Maybe Text -> IO LeaveRequest
+createLeaveRequestRecordWithNotes :: (?modelContext :: ModelContext) => Venue -> Staff -> Day -> Day -> LeaveRequestStatusEnum -> Maybe Text -> IO LeaveRequest
 createLeaveRequestRecordWithNotes = ApplicationFixture.createLeaveRequestRecordWithNotes
 
 createPayLevelRecord :: (?modelContext :: ModelContext) => Venue -> Text -> IO AwardLevel

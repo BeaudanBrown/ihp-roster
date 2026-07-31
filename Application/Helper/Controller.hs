@@ -8,6 +8,7 @@ module Application.Helper.Controller
     , module Application.Helper.WeekBoundaries
     , module Application.Helper.Htmx
     , module Application.Helper.Audit
+    , module Application.VenueRole
     ) where
 
 import Application.Helper.Audit
@@ -18,5 +19,6 @@ import Application.Helper.ControllerSupport
 import Application.Helper.Htmx
 import Application.Helper.TimeRules
 import Application.Helper.WeekBoundaries
+import Application.VenueRole
 
 -- Here you can add functions which are available in all your controllers

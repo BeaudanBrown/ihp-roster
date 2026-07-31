@@ -4,8 +4,6 @@ module Web.RosterWeeks.Overview
     , monthBounds
     ) where
 
-import Application.Helper.Controller (LeaveRequestStatus (..),
-                                      parseLeaveRequestStatus)
 import Application.Helper.RosterGroups (fetchEligibleRosterGroupStaff)
 import Application.VenueTime.Model (rosterSlotElapsedSeconds)
 import Data.Coerce (coerce)
@@ -61,7 +59,7 @@ buildRosterMonthOverviewDays venueConfig rosterGroupId focusDate = do
     leaveRequests <-
         if null overviewStaffIds
             then pure []
-            else fetchLeaveRequestsForRosterWindowByStatus [LeavePending, LeaveApproved] overviewStaffIds monthStartDate monthEndExclusive
+            else fetchLeaveRequestsForRosterWindowByStatus [LeaveRequestStatusEnumPending, LeaveRequestStatusEnumApproved] overviewStaffIds monthStartDate monthEndExclusive
 
     let rosterWeekStartDates = Map.fromList
             [ (coerce rosterWeek.id, venueWeekStartDate venueConfig rosterWeek.weekOffset)
@@ -82,7 +80,7 @@ buildRosterMonthOverviewDays venueConfig rosterGroupId focusDate = do
          ]
     where
         applyVisibleRosterWeekScope queryBuilder =
-            if hasRole ManagerRole'
+            if hasRole Manager
                 then queryBuilder
                 else queryBuilder |> filterWhere (#isLive, True)
 
@@ -104,7 +102,7 @@ buildRosterMonthOverviewDays venueConfig rosterGroupId focusDate = do
                     length
                         [ leaveRequest
                         | leaveRequest <- leaveRequests
-                        , parseLeaveRequestStatus leaveRequest.status `elem` [Just LeavePending, Just LeaveApproved]
+                        , leaveRequest.status `elem` [LeaveRequestStatusEnumPending, LeaveRequestStatusEnumApproved]
                         , overviewDate >= leaveRequest.startDate
                         , overviewDate < leaveRequest.endDate
                         ]

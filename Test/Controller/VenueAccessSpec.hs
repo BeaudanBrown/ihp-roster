@@ -5,10 +5,8 @@ module Test.Controller.VenueAccessSpec where
 import Application.Async.Queue (EnqueueAppJobResult (EnqueuedAppJob))
 import Application.FwcMapd.Job (fwcMapdRefreshJobDedupeKey,
                                 fwcMapdRefreshJobKind)
-import Application.Helper.Controller (PlatformRole (SuperAdminRole),
-                                      currentVenueSessionKey,
-                                      initCurrentVenueContext,
-                                      unsafeEnumFromText)
+import Application.Helper.Controller (currentVenueSessionKey,
+                                      initCurrentVenueContext)
 import qualified Application.Helper.FrontendContract.Surface.Admin.Live as AdminLive
 import qualified Application.Helper.FrontendContract.Surface.Billing.Live as BillingLive
 import qualified Application.Helper.FrontendContract.Surface.LeaveRequests.Live as LeaveLive
@@ -63,7 +61,7 @@ tests = aroundAll withDatabaseTestContext do
                 venueA <- createVenueWithConfig "Venue A"
                 venueB <- createVenueWithConfig "Venue B"
                 manager <- createUserRecord "manager-a@example.com" "admin" True
-                _ <- createVenueMembershipRecord venueA manager "manager"
+                _ <- createVenueMembershipRecord venueA manager Manager
                 foreignStaff <- createStaffRecord venueB Nothing "Brie" "Foreign"
 
                 response <- withUser manager do
@@ -76,7 +74,7 @@ tests = aroundAll withDatabaseTestContext do
                 venueA <- createVenueWithConfig "Venue A"
                 venueB <- createVenueWithConfig "Venue B"
                 manager <- createUserRecord "manager-timesheet@example.com" "admin" True
-                _ <- createVenueMembershipRecord venueA manager "manager"
+                _ <- createVenueMembershipRecord venueA manager Manager
                 foreignStaff <- createStaffRecord venueB Nothing "Tia" "Outside"
                 foreignEntry <- createTimesheetEntryRecord venueB foreignStaff defaultWeekEpoch
 
@@ -90,9 +88,9 @@ tests = aroundAll withDatabaseTestContext do
                 venueA <- createVenueWithConfig "Venue A"
                 venueB <- createVenueWithConfig "Venue B"
                 manager <- createUserRecord "manager-leave@example.com" "admin" True
-                _ <- createVenueMembershipRecord venueA manager "manager"
+                _ <- createVenueMembershipRecord venueA manager Manager
                 foreignStaff <- createStaffRecord venueB Nothing "Lea" "Outside"
-                foreignLeave <- createLeaveRequestRecord venueB foreignStaff defaultWeekEpoch (fromGregorian 2025 1 8) "pending"
+                foreignLeave <- createLeaveRequestRecord venueB foreignStaff defaultWeekEpoch (fromGregorian 2025 1 8) LeaveRequestStatusEnumPending
 
                 response <- withUser manager do
                     callAction ApproveLeaveRequestAction { leaveRequestId = foreignLeave.id }
@@ -104,7 +102,7 @@ tests = aroundAll withDatabaseTestContext do
                 venueA <- createVenueWithConfig "Venue A"
                 venueB <- createVenueWithConfig "Venue B"
                 manager <- createUserRecord "manager-roster@example.com" "admin" True
-                _ <- createVenueMembershipRecord venueA manager "manager"
+                _ <- createVenueMembershipRecord venueA manager Manager
                 foreignWeek <- createRosterWeekRecord venueB 0 False
 
                 response <- withUser manager do
@@ -117,7 +115,7 @@ tests = aroundAll withDatabaseTestContext do
                 venueA <- createVenueWithConfig "Venue A"
                 venueB <- createVenueWithConfig "Venue B"
                 manager <- createUserRecord "manager-slot@example.com" "admin" True
-                _ <- createVenueMembershipRecord venueA manager "manager"
+                _ <- createVenueMembershipRecord venueA manager Manager
                 foreignWeek <- createRosterWeekRecord venueB 0 False
                 foreignDay <- createRosterDayRecord foreignWeek 0
                 foreignSlotName <- fetchSlotNameRecord venueB "Late"
@@ -133,7 +131,7 @@ tests = aroundAll withDatabaseTestContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Venue A"
                 user <- createUserRecord "worker-admin@example.com" "admin" True
-                _ <- createVenueMembershipRecord venue user "worker"
+                _ <- createVenueMembershipRecord venue user Worker
 
                 response <- withUser user do
                     callAction AdminAction
@@ -145,7 +143,7 @@ tests = aroundAll withDatabaseTestContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Venue A"
                 user <- createUserRecord "worker-manager-bypass@example.com" "admin" True
-                _ <- createVenueMembershipRecord venue user "worker"
+                _ <- createVenueMembershipRecord venue user Worker
                 rosterWeek <- createRosterWeekRecord venue 0 False
 
                 response <- withUser user do
@@ -158,7 +156,7 @@ tests = aroundAll withDatabaseTestContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Venue A"
                 manager <- createUserRecord "manager-live-admin-scope@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue manager "manager"
+                _ <- createVenueMembershipRecord venue manager Manager
 
                 authorized <- withAuthenticatedControllerContext manager venue.id do
                     authorizeSurfaceScope (AdminLive.adminRosterGroupsLiveScope (unpackId venue.id))
@@ -169,7 +167,7 @@ tests = aroundAll withDatabaseTestContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Venue A"
                 admin <- createUserRecord "admin-live-scope@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue admin "venue_admin"
+                _ <- createVenueMembershipRecord venue admin VenueAdmin
 
                 rosterGroupsAuthorized <- withAuthenticatedControllerContext admin venue.id do
                     authorizeSurfaceScope (AdminLive.adminRosterGroupsLiveScope (unpackId venue.id))
@@ -186,7 +184,7 @@ tests = aroundAll withDatabaseTestContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Venue A"
                 user <- createUserRecord "worker-live-scope@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue user "worker"
+                _ <- createVenueMembershipRecord venue user Worker
                 staff <- createStaffRecord venue (Just user) "Worker" "Live"
                 rosterGroup <- query @RosterGroup |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
 
@@ -209,7 +207,7 @@ tests = aroundAll withDatabaseTestContext do
                 venueA <- createVenueWithConfig "Venue A"
                 venueB <- createVenueWithConfig "Venue B"
                 admin <- createUserRecord "admin-foreign-live-scope@example.com" "staff" True
-                _ <- createVenueMembershipRecord venueA admin "venue_admin"
+                _ <- createVenueMembershipRecord venueA admin VenueAdmin
                 rosterGroupB <- query @RosterGroup |> filterWhere (#venueId, unpackId venueB.id) |> fetchOne
                 foreignStaff <- createStaffRecord venueB Nothing "Foreign" "Staff"
 
@@ -238,8 +236,8 @@ tests = aroundAll withDatabaseTestContext do
                 venue <- createVenueWithConfig "Venue A"
                 user <- createUserRecord "worker-profile-live-scope@example.com" "staff" True
                 otherUser <- createUserRecord "other-profile-live-scope@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue user "worker"
-                _ <- createVenueMembershipRecord venue otherUser "worker"
+                _ <- createVenueMembershipRecord venue user Worker
+                _ <- createVenueMembershipRecord venue otherUser Worker
                 otherStaff <- createStaffRecord venue (Just otherUser) "Other" "Profile"
 
                 authorized <- withAuthenticatedControllerContext user venue.id do
@@ -252,7 +250,7 @@ tests = aroundAll withDatabaseTestContext do
                 venueA <- createVenueWithConfig "Venue A"
                 venueB <- createVenueWithConfig "Venue B"
                 admin <- createUserRecord "admin-mixed-roster-group-scope@example.com" "staff" True
-                _ <- createVenueMembershipRecord venueA admin "venue_admin"
+                _ <- createVenueMembershipRecord venueA admin VenueAdmin
                 rosterGroupB <- query @RosterGroup |> filterWhere (#venueId, unpackId venueB.id) |> fetchOne
 
                 rosterAuthorized <- withAuthenticatedControllerContext admin venueA.id do
@@ -265,7 +263,7 @@ tests = aroundAll withDatabaseTestContext do
 
         it "lets super-admins subscribe to the support live scope without an active venue" $ withContext do
             withCleanDb do
-                founder <- createUserRecordWithPlatformRole "founder-support-live@example.com" "staff" (Just SuperAdminRole) True
+                founder <- createUserRecordWithPlatformRole "founder-support-live@example.com" "staff" (Just SuperAdmin) True
 
                 authorized <- withAuthenticatedControllerContextNoVenue founder do
                     authorizeSurfaceScope SupportLive.supportPlatformLiveScope
@@ -285,8 +283,8 @@ tests = aroundAll withDatabaseTestContext do
             withCleanDb do
                 homeVenue <- createVenueWithConfig "Home Venue"
                 supportVenue <- createVenueWithConfig "Support Venue"
-                founder <- createUserRecordWithPlatformRole "founder-support@example.com" "staff" (Just SuperAdminRole) True
-                _ <- createVenueMembershipRecord homeVenue founder "venue_owner"
+                founder <- createUserRecordWithPlatformRole "founder-support@example.com" "staff" (Just SuperAdmin) True
+                _ <- createVenueMembershipRecord homeVenue founder VenueOwner
                 _ <- createStaffRecord supportVenue (Just founder) "Support" "Founder"
 
                 response <- withPasskeyVerifiedUserAndCurrentVenue founder supportVenue.id do
@@ -299,7 +297,7 @@ tests = aroundAll withDatabaseTestContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Venue A"
                 admin <- createUserRecord "venue-admin@example.com" "admin" True
-                _ <- createVenueMembershipRecord venue admin "venue_admin"
+                _ <- createVenueMembershipRecord venue admin VenueAdmin
 
                 response <- withUser admin do
                     callAction SupportAction
@@ -311,8 +309,8 @@ tests = aroundAll withDatabaseTestContext do
             withCleanDb do
                 venueA <- createVenueWithConfig "Alpha Venue"
                 venueB <- createVenueWithConfig "Beta Venue"
-                founder <- createUserRecordWithPlatformRole "founder-support-page@example.com" "staff" (Just SuperAdminRole) True
-                _ <- createVenueMembershipRecord venueA founder "venue_owner"
+                founder <- createUserRecordWithPlatformRole "founder-support-page@example.com" "staff" (Just SuperAdmin) True
+                _ <- createVenueMembershipRecord venueA founder VenueOwner
                 _ <- createTestPasskeyRecord founder "Support laptop"
 
                 response <- withPasskeyVerifiedUser founder do
@@ -334,7 +332,7 @@ tests = aroundAll withDatabaseTestContext do
 
         it "lets bootstrap super-admin open support before any venue exists" $ withContext do
             withCleanDb do
-                founder <- createUserRecordWithPlatformRole "founder-empty-support@example.com" "staff" (Just SuperAdminRole) True
+                founder <- createUserRecordWithPlatformRole "founder-empty-support@example.com" "staff" (Just SuperAdmin) True
 
                 response <- withUser founder do
                     let ?request = ?request { Wai.rawPathInfo = "/Support" }
@@ -352,8 +350,8 @@ tests = aroundAll withDatabaseTestContext do
         it "lets super-admin queue an award rate refresh from support" $ withContext do
             withCleanDb do
                 homeVenue <- createVenueWithConfig "Home Venue"
-                founder <- createUserRecordWithPlatformRole "founder-award-refresh@example.com" "staff" (Just SuperAdminRole) True
-                _ <- createVenueMembershipRecord homeVenue founder "venue_owner"
+                founder <- createUserRecordWithPlatformRole "founder-award-refresh@example.com" "staff" (Just SuperAdmin) True
+                _ <- createVenueMembershipRecord homeVenue founder VenueOwner
 
                 response <- withPasskeyVerifiedUser founder do
                     callAction CreateFwcMapdRefreshJobAction
@@ -369,8 +367,8 @@ tests = aroundAll withDatabaseTestContext do
         it "returns the award rate section for HTMX award refresh submissions" $ withContext do
             withCleanDb do
                 homeVenue <- createVenueWithConfig "Home Venue"
-                founder <- createUserRecordWithPlatformRole "founder-award-refresh-htmx@example.com" "staff" (Just SuperAdminRole) True
-                _ <- createVenueMembershipRecord homeVenue founder "venue_owner"
+                founder <- createUserRecordWithPlatformRole "founder-award-refresh-htmx@example.com" "staff" (Just SuperAdmin) True
+                _ <- createVenueMembershipRecord homeVenue founder VenueOwner
 
                 response <- withPasskeyVerifiedUser founder do
                     withRequestHeaders [("HX-Request", "true")] do
@@ -384,8 +382,8 @@ tests = aroundAll withDatabaseTestContext do
         it "does not add active-job polling to the award rate support section" $ withContext do
             withCleanDb do
                 homeVenue <- createVenueWithConfig "Home Venue"
-                founder <- createUserRecordWithPlatformRole "founder-award-refresh-fragment@example.com" "staff" (Just SuperAdminRole) True
-                _ <- createVenueMembershipRecord homeVenue founder "venue_owner"
+                founder <- createUserRecordWithPlatformRole "founder-award-refresh-fragment@example.com" "staff" (Just SuperAdmin) True
+                _ <- createVenueMembershipRecord homeVenue founder VenueOwner
                 _ <- withPasskeyVerifiedUser founder do
                     callAction CreateFwcMapdRefreshJobAction
 
@@ -401,8 +399,8 @@ tests = aroundAll withDatabaseTestContext do
         it "deduplicates active award rate refresh jobs" $ withContext do
             withCleanDb do
                 homeVenue <- createVenueWithConfig "Home Venue"
-                founder <- createUserRecordWithPlatformRole "founder-award-refresh-dedupe@example.com" "staff" (Just SuperAdminRole) True
-                _ <- createVenueMembershipRecord homeVenue founder "venue_owner"
+                founder <- createUserRecordWithPlatformRole "founder-award-refresh-dedupe@example.com" "staff" (Just SuperAdmin) True
+                _ <- createVenueMembershipRecord homeVenue founder VenueOwner
 
                 _ <- withPasskeyVerifiedUser founder do
                     callAction CreateFwcMapdRefreshJobAction
@@ -417,7 +415,7 @@ tests = aroundAll withDatabaseTestContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Venue A"
                 admin <- createUserRecord "venue-admin-award-refresh@example.com" "admin" True
-                _ <- createVenueMembershipRecord venue admin "venue_admin"
+                _ <- createVenueMembershipRecord venue admin VenueAdmin
 
                 response <- withUser admin do
                     callAction CreateFwcMapdRefreshJobAction
@@ -430,8 +428,8 @@ tests = aroundAll withDatabaseTestContext do
         it "deduplicates active public holiday refresh jobs" $ withContext do
             withCleanDb do
                 homeVenue <- createVenueWithConfig "Home Venue"
-                founder <- createUserRecordWithPlatformRole "founder-public-holiday-refresh-dedupe@example.com" "staff" (Just SuperAdminRole) True
-                _ <- createVenueMembershipRecord homeVenue founder "venue_owner"
+                founder <- createUserRecordWithPlatformRole "founder-public-holiday-refresh-dedupe@example.com" "staff" (Just SuperAdmin) True
+                _ <- createVenueMembershipRecord homeVenue founder VenueOwner
 
                 _ <- withPasskeyVerifiedUser founder do
                     callAction CreatePublicHolidayRefreshJobAction
@@ -445,8 +443,8 @@ tests = aroundAll withDatabaseTestContext do
         it "returns the public holiday section for HTMX public holiday refresh submissions" $ withContext do
             withCleanDb do
                 homeVenue <- createVenueWithConfig "Home Venue"
-                founder <- createUserRecordWithPlatformRole "founder-public-holiday-refresh-htmx@example.com" "staff" (Just SuperAdminRole) True
-                _ <- createVenueMembershipRecord homeVenue founder "venue_owner"
+                founder <- createUserRecordWithPlatformRole "founder-public-holiday-refresh-htmx@example.com" "staff" (Just SuperAdmin) True
+                _ <- createVenueMembershipRecord homeVenue founder VenueOwner
 
                 response <- withPasskeyVerifiedUser founder do
                     withRequestHeaders [("HX-Request", "true")] do
@@ -461,7 +459,7 @@ tests = aroundAll withDatabaseTestContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Venue A"
                 admin <- createUserRecord "venue-admin-public-holiday-refresh@example.com" "admin" True
-                _ <- createVenueMembershipRecord venue admin "venue_admin"
+                _ <- createVenueMembershipRecord venue admin VenueAdmin
 
                 response <- withUser admin do
                     callAction CreatePublicHolidayRefreshJobAction
@@ -474,8 +472,8 @@ tests = aroundAll withDatabaseTestContext do
         it "lets super-admin create a venue owner onboarding invitation" $ withContext do
             withCleanDb do
                 homeVenue <- createVenueWithConfig "Home Venue"
-                founder <- createUserRecordWithPlatformRole "founder-create-owner-invite@example.com" "staff" (Just SuperAdminRole) True
-                _ <- createVenueMembershipRecord homeVenue founder "venue_owner"
+                founder <- createUserRecordWithPlatformRole "founder-create-owner-invite@example.com" "staff" (Just SuperAdmin) True
+                _ <- createVenueMembershipRecord homeVenue founder VenueOwner
 
                 beforeCreate <- getCurrentTime
                 response <- withPasskeyVerifiedUser founder do
@@ -497,7 +495,7 @@ tests = aroundAll withDatabaseTestContext do
             withCleanDb do
                 homeVenue <- createVenueWithConfig "Home Venue"
                 founder <- createUserRecordWithPlatformRole "founder-renew-owner-invite@example.com" "staff" (Just SuperAdminRole) True
-                _ <- createVenueMembershipRecord homeVenue founder "venue_owner"
+                _ <- createVenueMembershipRecord homeVenue founder VenueOwner
                 now <- getCurrentTime
                 original <-
                     createVenueOnboardingInvitationRecord (Just founder) "mistyped-owner@example.com"
@@ -515,7 +513,7 @@ tests = aroundAll withDatabaseTestContext do
 
                 freshInvitation <- query @VenueOnboardingInvitation
                     |> filterWhere (#email, "corrected-owner@example.com")
-                    |> filterWhere (#status, unsafeEnumFromText @InvitationStatusEnum "pending")
+                    |> filterWhere (#status, InvitationStatusEnumPending)
                     |> fetchOne
                 freshInvitation.id `shouldNotBe` original.id
                 freshInvitation.invitedByUserId `shouldBe` Just (unpackId founder.id)
@@ -546,7 +544,7 @@ tests = aroundAll withDatabaseTestContext do
             withCleanDb do
                 homeVenue <- createVenueWithConfig "Home Venue"
                 founder <- createUserRecordWithPlatformRole "founder-concurrent-owner-renewal@example.com" "staff" (Just SuperAdminRole) True
-                _ <- createVenueMembershipRecord homeVenue founder "venue_owner"
+                _ <- createVenueMembershipRecord homeVenue founder VenueOwner
                 ensureTestUserHasPasskey founder
                 original <- createVenueOnboardingInvitationRecord (Just founder) "concurrent-owner@example.com"
 
@@ -560,7 +558,7 @@ tests = aroundAll withDatabaseTestContext do
 
                 replacements <- query @VenueOnboardingInvitation
                     |> filterWhere (#email, "replacement-owner@example.com")
-                    |> filterWhere (#status, unsafeEnumFromText @InvitationStatusEnum "pending")
+                    |> filterWhere (#status, InvitationStatusEnumPending)
                     |> fetch
                 length replacements `shouldBe` 1
                 jobs <- query @AppJob
@@ -572,7 +570,7 @@ tests = aroundAll withDatabaseTestContext do
             withCleanDb do
                 homeVenue <- createVenueWithConfig "Home Venue"
                 founder <- createUserRecordWithPlatformRole "founder-target-email-renewal-race@example.com" "staff" (Just SuperAdminRole) True
-                _ <- createVenueMembershipRecord homeVenue founder "venue_owner"
+                _ <- createVenueMembershipRecord homeVenue founder VenueOwner
                 ensureTestUserHasPasskey founder
                 firstOriginal <- createVenueOnboardingInvitationRecord (Just founder) "first-original-owner@example.com"
                 secondOriginal <- createVenueOnboardingInvitationRecord (Just founder) "second-original-owner@example.com"
@@ -588,7 +586,7 @@ tests = aroundAll withDatabaseTestContext do
                 mapM_ (`responseStatusShouldBe` status302) (rights results)
                 replacements <- query @VenueOnboardingInvitation
                     |> filterWhere (#email, "shared-corrected-owner@example.com")
-                    |> filterWhere (#status, unsafeEnumFromText @InvitationStatusEnum "pending")
+                    |> filterWhere (#status, InvitationStatusEnumPending)
                     |> fetch
                 length replacements `shouldBe` 1
                 originals <- query @VenueOnboardingInvitation
@@ -605,7 +603,7 @@ tests = aroundAll withDatabaseTestContext do
             withCleanDb do
                 homeVenue <- createVenueWithConfig "Home Venue"
                 founder <- createUserRecordWithPlatformRole "founder-acceptance-renewal-race@example.com" "staff" (Just SuperAdminRole) True
-                _ <- createVenueMembershipRecord homeVenue founder "venue_owner"
+                _ <- createVenueMembershipRecord homeVenue founder VenueOwner
                 ensureTestUserHasPasskey founder
                 invitation <- createVenueOnboardingInvitationRecord (Just founder) "acceptance-renewal-race@example.com"
                 let signupParams =
@@ -636,7 +634,7 @@ tests = aroundAll withDatabaseTestContext do
                 finalInvitation <- fetch invitation.id
                 replacementCount <- query @VenueOnboardingInvitation
                     |> filterWhere (#email, "acceptance-renewal-replacement@example.com")
-                    |> filterWhere (#status, unsafeEnumFromText @InvitationStatusEnum "pending")
+                    |> filterWhere (#status, InvitationStatusEnumPending)
                     |> fetchCount
                 venueCount <- query @Venue |> filterWhere (#name, "Acceptance Renewal Race Venue") |> fetchCount
                 case inputValue finalInvitation.status of
@@ -652,7 +650,7 @@ tests = aroundAll withDatabaseTestContext do
             withCleanDb do
                 homeVenue <- createVenueWithConfig "Home Venue"
                 founder <- createUserRecordWithPlatformRole "founder-delivery-renewal-race@example.com" "staff" (Just SuperAdminRole) True
-                _ <- createVenueMembershipRecord homeVenue founder "venue_owner"
+                _ <- createVenueMembershipRecord homeVenue founder VenueOwner
                 ensureTestUserHasPasskey founder
                 invitation <- createVenueOnboardingInvitationRecord (Just founder) "delivery-renewal-race@example.com"
                 EnqueuedAppJob appJob <- enqueueVenueOnboardingInvitationDeliveryJob (Just founder.id) invitation
@@ -674,7 +672,7 @@ tests = aroundAll withDatabaseTestContext do
                 updatedInvitation.deliveredAt `shouldSatisfy` maybe True (<= updatedInvitation.updatedAt)
                 query @VenueOnboardingInvitation
                     |> filterWhere (#email, "delivery-renewal-replacement@example.com")
-                    |> filterWhere (#status, unsafeEnumFromText @InvitationStatusEnum "pending")
+                    |> filterWhere (#status, InvitationStatusEnumPending)
                     |> fetchCount
                     >>= (`shouldBe` 1)
 
@@ -682,7 +680,7 @@ tests = aroundAll withDatabaseTestContext do
             withCleanDb do
                 homeVenue <- createVenueWithConfig "Home Venue"
                 founder <- createUserRecordWithPlatformRole "founder-conflicting-owner-renewal@example.com" "staff" (Just SuperAdminRole) True
-                _ <- createVenueMembershipRecord homeVenue founder "venue_owner"
+                _ <- createVenueMembershipRecord homeVenue founder VenueOwner
                 original <- createVenueOnboardingInvitationRecord (Just founder) "original-owner@example.com"
                 _ <- createVenueOnboardingInvitationRecord (Just founder) "existing-owner@example.com"
 
@@ -700,7 +698,7 @@ tests = aroundAll withDatabaseTestContext do
             withCleanDb do
                 homeVenue <- createVenueWithConfig "Home Venue"
                 founder <- createUserRecordWithPlatformRole "founder-invalid-owner-renewal@example.com" "staff" (Just SuperAdminRole) True
-                _ <- createVenueMembershipRecord homeVenue founder "venue_owner"
+                _ <- createVenueMembershipRecord homeVenue founder VenueOwner
 
                 let invalidEmails =
                         [ Just "   "
@@ -727,7 +725,7 @@ tests = aroundAll withDatabaseTestContext do
             withCleanDb do
                 homeVenue <- createVenueWithConfig "Home Venue"
                 founder <- createUserRecordWithPlatformRole "founder-same-email-owner-renewal@example.com" "staff" (Just SuperAdminRole) True
-                _ <- createVenueMembershipRecord homeVenue founder "venue_owner"
+                _ <- createVenueMembershipRecord homeVenue founder VenueOwner
                 original <- createVenueOnboardingInvitationRecord (Just founder) "same-email-owner@example.com"
 
                 response <- withPasskeyVerifiedUser founder do
@@ -738,7 +736,7 @@ tests = aroundAll withDatabaseTestContext do
                 inputValue replacedOriginal.status `shouldBe` "revoked"
                 replacement <- query @VenueOnboardingInvitation
                     |> filterWhere (#email, "same-email-owner@example.com")
-                    |> filterWhere (#status, unsafeEnumFromText @InvitationStatusEnum "pending")
+                    |> filterWhere (#status, InvitationStatusEnumPending)
                     |> fetchOne
                 replacement.id `shouldNotBe` original.id
 
@@ -746,7 +744,7 @@ tests = aroundAll withDatabaseTestContext do
             withCleanDb do
                 homeVenue <- createVenueWithConfig "Home Venue"
                 founder <- createUserRecordWithPlatformRole "founder-expired-target-owner-renewal@example.com" "staff" (Just SuperAdminRole) True
-                _ <- createVenueMembershipRecord homeVenue founder "venue_owner"
+                _ <- createVenueMembershipRecord homeVenue founder VenueOwner
                 now <- getCurrentTime
                 original <- createVenueOnboardingInvitationRecord (Just founder) "source-owner@example.com"
                 expiredTarget <-
@@ -764,7 +762,7 @@ tests = aroundAll withDatabaseTestContext do
                 inputValue replacedTarget.status `shouldBe` "revoked"
                 query @VenueOnboardingInvitation
                     |> filterWhere (#email, "expired-target-owner@example.com")
-                    |> filterWhere (#status, unsafeEnumFromText @InvitationStatusEnum "pending")
+                    |> filterWhere (#status, InvitationStatusEnumPending)
                     |> fetchCount
                     >>= (`shouldBe` 1)
 
@@ -772,12 +770,12 @@ tests = aroundAll withDatabaseTestContext do
             withCleanDb do
                 homeVenue <- createVenueWithConfig "Home Venue"
                 founder <- createUserRecordWithPlatformRole "founder-accepted-owner-renewal@example.com" "staff" (Just SuperAdminRole) True
-                _ <- createVenueMembershipRecord homeVenue founder "venue_owner"
+                _ <- createVenueMembershipRecord homeVenue founder VenueOwner
                 now <- getCurrentTime
                 acceptedInvitation <-
                     createVenueOnboardingInvitationRecord (Just founder) "accepted-renewal@example.com"
                         >>= updateRecord
-                            . set #status (unsafeEnumFromText @InvitationStatusEnum "accepted")
+                            . set #status (Accepted)
                             . set #acceptedAt (Just now)
 
                 response <- withPasskeyVerifiedUser founder do
@@ -793,8 +791,8 @@ tests = aroundAll withDatabaseTestContext do
         it "normalizes and rejects duplicate pending venue owner onboarding invitations" $ withContext do
             withCleanDb do
                 homeVenue <- createVenueWithConfig "Home Venue"
-                founder <- createUserRecordWithPlatformRole "founder-duplicate-owner-invite@example.com" "staff" (Just SuperAdminRole) True
-                _ <- createVenueMembershipRecord homeVenue founder "venue_owner"
+                founder <- createUserRecordWithPlatformRole "founder-duplicate-owner-invite@example.com" "staff" (Just SuperAdmin) True
+                _ <- createVenueMembershipRecord homeVenue founder VenueOwner
                 _ <- createVenueOnboardingInvitationRecord (Just founder) "duplicate-owner@example.com"
 
                 response <- withPasskeyVerifiedUser founder do
@@ -805,7 +803,7 @@ tests = aroundAll withDatabaseTestContext do
                 response `responseStatusShouldBe` status200
                 response `responseBodyShouldContain` "There is already a pending owner invite for this email."
                 pendingInvitations <- query @VenueOnboardingInvitation
-                    |> filterWhere (#status, unsafeEnumFromText @InvitationStatusEnum "pending")
+                    |> filterWhere (#status, InvitationStatusEnumPending)
                     |> fetch
                 let invitationCount = length (filter ((== "duplicate-owner@example.com") . Text.toLower . Text.strip . (.email)) pendingInvitations)
                 invitationCount `shouldBe` 1
@@ -813,12 +811,12 @@ tests = aroundAll withDatabaseTestContext do
         it "allows a new venue owner onboarding invitation after the prior invite was accepted" $ withContext do
             withCleanDb do
                 homeVenue <- createVenueWithConfig "Home Venue"
-                founder <- createUserRecordWithPlatformRole "founder-accepted-owner-invite@example.com" "staff" (Just SuperAdminRole) True
-                _ <- createVenueMembershipRecord homeVenue founder "venue_owner"
+                founder <- createUserRecordWithPlatformRole "founder-accepted-owner-invite@example.com" "staff" (Just SuperAdmin) True
+                _ <- createVenueMembershipRecord homeVenue founder VenueOwner
                 now <- getCurrentTime
                 _ <- createVenueOnboardingInvitationRecord (Just founder) "accepted-owner@example.com"
                     >>= updateRecord
-                        . set #status (unsafeEnumFromText @InvitationStatusEnum "accepted")
+                        . set #status (Accepted)
                         . set #acceptedAt (Just now)
 
                 response <- withPasskeyVerifiedUser founder do
@@ -829,19 +827,19 @@ tests = aroundAll withDatabaseTestContext do
                 response `responseStatusShouldBe` status302
                 newInvitation <- query @VenueOnboardingInvitation
                     |> filterWhere (#email, "accepted-owner@example.com")
-                    |> filterWhere (#status, unsafeEnumFromText @InvitationStatusEnum "pending")
+                    |> filterWhere (#status, InvitationStatusEnumPending)
                     |> fetchOne
                 newInvitation.invitedByUserId `shouldBe` Just (unpackId founder.id)
 
         it "shows recent venue owner invites with delivery state on the support page" $ withContext do
             withCleanDb do
                 homeVenue <- createVenueWithConfig "Home Venue"
-                founder <- createUserRecordWithPlatformRole "founder-owner-invite-list@example.com" "staff" (Just SuperAdminRole) True
-                _ <- createVenueMembershipRecord homeVenue founder "venue_owner"
+                founder <- createUserRecordWithPlatformRole "founder-owner-invite-list@example.com" "staff" (Just SuperAdmin) True
+                _ <- createVenueMembershipRecord homeVenue founder VenueOwner
                 _ <-
                     createVenueOnboardingInvitationRecord (Just founder) "listed-owner@example.com"
                         >>= updateRecord
-                            . set #deliveryStatus (unsafeEnumFromText @InvitationDeliveryStatusEnum "sent")
+                            . set #deliveryStatus (Sent)
 
                 response <- withPasskeyVerifiedUser founder do
                     callAction SupportAction
@@ -854,7 +852,7 @@ tests = aroundAll withDatabaseTestContext do
             withCleanDb do
                 homeVenue <- createVenueWithConfig "Home Venue"
                 founder <- createUserRecordWithPlatformRole "founder-expired-owner-invite-list@example.com" "staff" (Just SuperAdminRole) True
-                _ <- createVenueMembershipRecord homeVenue founder "venue_owner"
+                _ <- createVenueMembershipRecord homeVenue founder VenueOwner
                 now <- getCurrentTime
                 _ <-
                     createVenueOnboardingInvitationRecord (Just founder) "expired-listed-owner@example.com"
@@ -873,7 +871,7 @@ tests = aroundAll withDatabaseTestContext do
                 venue <- createVenueWithConfig "Venue A"
                 founder <- createUserRecordWithPlatformRole "founder-renewal-target@example.com" "staff" (Just SuperAdminRole) True
                 admin <- createUserRecord "venue-admin-owner-renewal@example.com" "admin" True
-                _ <- createVenueMembershipRecord venue admin "venue_admin"
+                _ <- createVenueMembershipRecord venue admin VenueAdmin
                 invitation <- createVenueOnboardingInvitationRecord (Just founder) "blocked-renewal@example.com"
 
                 response <- withUser admin do
@@ -890,7 +888,7 @@ tests = aroundAll withDatabaseTestContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Venue A"
                 admin <- createUserRecord "venue-admin-owner-invite@example.com" "admin" True
-                _ <- createVenueMembershipRecord venue admin "venue_admin"
+                _ <- createVenueMembershipRecord venue admin VenueAdmin
 
                 response <- withUser admin do
                     callActionWithParams CreateSupportVenueOnboardingInvitationAction
@@ -908,8 +906,8 @@ tests = aroundAll withDatabaseTestContext do
                 venueA <- createVenueWithConfig "Alpha Venue"
                 venueB <- createVenueWithConfig "Beta Venue"
                 user <- createUserRecord "multi-login@example.com" "staff" True
-                _ <- createVenueMembershipRecord venueA user "worker"
-                _ <- createVenueMembershipRecord venueB user "worker"
+                _ <- createVenueMembershipRecord venueA user Worker
+                _ <- createVenueMembershipRecord venueB user Worker
 
                 selectedVenueId <- withControllerTestContext do
                     Sessions.beforeLogin @User user
@@ -921,7 +919,7 @@ tests = aroundAll withDatabaseTestContext do
             withCleanDb do
                 venueA <- createVenueWithConfig "Alpha Venue"
                 venueB <- createVenueWithConfig "Beta Venue"
-                founder <- createUserRecordWithPlatformRole "founder-login@example.com" "staff" (Just SuperAdminRole) True
+                founder <- createUserRecordWithPlatformRole "founder-login@example.com" "staff" (Just SuperAdmin) True
 
                 selectedVenueId <- withControllerTestContext do
                     Sessions.beforeLogin @User founder
@@ -934,12 +932,12 @@ tests = aroundAll withDatabaseTestContext do
                 venueA <- createVenueWithConfig "Alpha Venue"
                 venueB <- createVenueWithConfig "Beta Venue"
                 user <- createUserRecord "multi-request@example.com" "staff" True
-                _ <- createVenueMembershipRecord venueA user "manager"
-                _ <- createVenueMembershipRecord venueB user "manager"
+                _ <- createVenueMembershipRecord venueA user Manager
+                _ <- createVenueMembershipRecord venueB user Manager
                 staffA <- createStaffRecord venueA Nothing "Alpha" "Person"
                 staffB <- createStaffRecord venueB Nothing "Beta" "Person"
-                _ <- createLeaveRequestRecord venueA staffA defaultWeekEpoch (fromGregorian 2025 1 8) "pending"
-                _ <- createLeaveRequestRecord venueB staffB defaultWeekEpoch (fromGregorian 2025 1 8) "pending"
+                _ <- createLeaveRequestRecord venueA staffA defaultWeekEpoch (fromGregorian 2025 1 8) LeaveRequestStatusEnumPending
+                _ <- createLeaveRequestRecord venueB staffB defaultWeekEpoch (fromGregorian 2025 1 8) LeaveRequestStatusEnumPending
 
                 response <- withUser user do
                     callAction LeaveRequestsAction
@@ -953,12 +951,12 @@ tests = aroundAll withDatabaseTestContext do
                 venueA <- createVenueWithConfig "Alpha Venue"
                 venueB <- createVenueWithConfig "Beta Venue"
                 user <- createUserRecord "multi-session@example.com" "staff" True
-                _ <- createVenueMembershipRecord venueA user "manager"
-                _ <- createVenueMembershipRecord venueB user "manager"
+                _ <- createVenueMembershipRecord venueA user Manager
+                _ <- createVenueMembershipRecord venueB user Manager
                 staffA <- createStaffRecord venueA Nothing "Alpha" "Person"
                 staffB <- createStaffRecord venueB Nothing "Beta" "Person"
-                _ <- createLeaveRequestRecord venueA staffA defaultWeekEpoch (fromGregorian 2025 1 8) "pending"
-                _ <- createLeaveRequestRecord venueB staffB defaultWeekEpoch (fromGregorian 2025 1 8) "pending"
+                _ <- createLeaveRequestRecord venueA staffA defaultWeekEpoch (fromGregorian 2025 1 8) LeaveRequestStatusEnumPending
+                _ <- createLeaveRequestRecord venueB staffB defaultWeekEpoch (fromGregorian 2025 1 8) LeaveRequestStatusEnumPending
 
                 response <- withUserAndCurrentVenue user venueB.id do
                     callAction LeaveRequestsAction
@@ -971,8 +969,8 @@ tests = aroundAll withDatabaseTestContext do
             withCleanDb do
                 venueA <- createVenueWithConfig "Alpha Venue"
                 venueB <- createVenueWithConfig "Beta Venue"
-                founder <- createUserRecordWithPlatformRole "founder-switch@example.com" "staff" (Just SuperAdminRole) True
-                _ <- createVenueMembershipRecord venueA founder "venue_owner"
+                founder <- createUserRecordWithPlatformRole "founder-switch@example.com" "staff" (Just SuperAdmin) True
+                _ <- createVenueMembershipRecord venueA founder VenueOwner
 
                 response <- withPasskeyVerifiedUserAndCurrentVenue founder venueA.id do
                     callActionWithParams SwitchSupportVenueAction
@@ -987,8 +985,8 @@ tests = aroundAll withDatabaseTestContext do
             withCleanDb do
                 venueA <- createVenueWithConfig "Alpha Venue"
                 venueB <- createVenueWithConfig "Beta Venue"
-                founder <- createUserRecordWithPlatformRole "founder-switch-roster-options@example.com" "staff" (Just SuperAdminRole) True
-                _ <- createVenueMembershipRecord venueA founder "venue_owner"
+                founder <- createUserRecordWithPlatformRole "founder-switch-roster-options@example.com" "staff" (Just SuperAdmin) True
+                _ <- createVenueMembershipRecord venueA founder VenueOwner
 
                 response <- withPasskeyVerifiedUserAndCurrentVenue founder venueA.id do
                     callActionWithParams SwitchSupportVenueAction
@@ -1003,8 +1001,8 @@ tests = aroundAll withDatabaseTestContext do
             withCleanDb do
                 venueA <- createVenueWithConfig "Alpha Venue"
                 venueB <- createVenueWithConfig "Beta Venue"
-                founder <- createUserRecordWithPlatformRole "founder-switch-roster-week@example.com" "staff" (Just SuperAdminRole) True
-                _ <- createVenueMembershipRecord venueA founder "venue_owner"
+                founder <- createUserRecordWithPlatformRole "founder-switch-roster-week@example.com" "staff" (Just SuperAdmin) True
+                _ <- createVenueMembershipRecord venueA founder VenueOwner
 
                 forM_
                     [ "/ShowRosterWeek?weekOffset=3"
@@ -1028,8 +1026,8 @@ tests = aroundAll withDatabaseTestContext do
             withCleanDb do
                 venueA <- createVenueWithConfig "Alpha Venue"
                 venueB <- createVenueWithConfig "Beta Venue"
-                founder <- createUserRecordWithPlatformRole "founder-switch-roster@example.com" "staff" (Just SuperAdminRole) True
-                _ <- createVenueMembershipRecord venueA founder "venue_owner"
+                founder <- createUserRecordWithPlatformRole "founder-switch-roster@example.com" "staff" (Just SuperAdmin) True
+                _ <- createVenueMembershipRecord venueA founder VenueOwner
 
                 response <- withPasskeyVerifiedUserAndCurrentVenue founder venueA.id do
                     callActionWithParams SwitchSupportVenueAction
@@ -1044,8 +1042,8 @@ tests = aroundAll withDatabaseTestContext do
             withCleanDb do
                 venueA <- createVenueWithConfig "Alpha Venue"
                 venueB <- createVenueWithConfig "Beta Venue"
-                founder <- createUserRecordWithPlatformRole "founder-switch-malformed-roster@example.com" "staff" (Just SuperAdminRole) True
-                _ <- createVenueMembershipRecord venueA founder "venue_owner"
+                founder <- createUserRecordWithPlatformRole "founder-switch-malformed-roster@example.com" "staff" (Just SuperAdmin) True
+                _ <- createVenueMembershipRecord venueA founder VenueOwner
 
                 forM_ ["", "%20", "%26", "%3D", "%25", "abc.def_123", "%ZZ"] \rosterGroupIdValue -> do
                     response <- withPasskeyVerifiedUserAndCurrentVenue founder venueA.id do
@@ -1061,8 +1059,8 @@ tests = aroundAll withDatabaseTestContext do
             withCleanDb do
                 venueA <- createVenueWithConfig "Alpha Venue"
                 venueB <- createVenueWithConfig "Beta Venue"
-                founder <- createUserRecordWithPlatformRole "founder-switch-unsafe@example.com" "staff" (Just SuperAdminRole) True
-                _ <- createVenueMembershipRecord venueA founder "venue_owner"
+                founder <- createUserRecordWithPlatformRole "founder-switch-unsafe@example.com" "staff" (Just SuperAdmin) True
+                _ <- createVenueMembershipRecord venueA founder VenueOwner
 
                 response <- withPasskeyVerifiedUserAndCurrentVenue founder venueA.id do
                     callActionWithParams SwitchSupportVenueAction
@@ -1077,13 +1075,13 @@ tests = aroundAll withDatabaseTestContext do
             withCleanDb do
                 venueA <- createVenueWithConfig "Alpha Venue"
                 venueB <- createVenueWithConfig "Beta Venue"
-                founder <- createUserRecordWithPlatformRole "founder-session@example.com" "staff" (Just SuperAdminRole) True
-                _ <- createVenueMembershipRecord venueA founder "venue_owner"
+                founder <- createUserRecordWithPlatformRole "founder-session@example.com" "staff" (Just SuperAdmin) True
+                _ <- createVenueMembershipRecord venueA founder VenueOwner
                 _ <- createStaffRecord venueB (Just founder) "Beta" "Founder"
                 staffA <- createStaffRecord venueA Nothing "Alpha" "Person"
                 staffB <- createStaffRecord venueB Nothing "Beta" "Person"
-                _ <- createLeaveRequestRecord venueA staffA defaultWeekEpoch (fromGregorian 2025 1 8) "pending"
-                _ <- createLeaveRequestRecord venueB staffB defaultWeekEpoch (fromGregorian 2025 1 8) "pending"
+                _ <- createLeaveRequestRecord venueA staffA defaultWeekEpoch (fromGregorian 2025 1 8) LeaveRequestStatusEnumPending
+                _ <- createLeaveRequestRecord venueB staffB defaultWeekEpoch (fromGregorian 2025 1 8) LeaveRequestStatusEnumPending
 
                 response <- withPasskeyVerifiedUserAndCurrentVenue founder venueB.id do
                     callAction LeaveRequestsAction
@@ -1098,11 +1096,11 @@ tests = aroundAll withDatabaseTestContext do
                 venueA <- createVenueWithConfig "Venue A"
                 venueB <- createVenueWithConfig "Venue B"
                 manager <- createUserRecord "manager-leave-scope@example.com" "staff" True
-                _ <- createVenueMembershipRecord venueA manager "manager"
+                _ <- createVenueMembershipRecord venueA manager Manager
                 staffA <- createStaffRecord venueA Nothing "Ava" "Leave"
                 staffB <- createStaffRecord venueB Nothing "Bea" "Leave"
-                _ <- createLeaveRequestRecord venueA staffA defaultWeekEpoch (fromGregorian 2025 1 8) "pending"
-                _ <- createLeaveRequestRecord venueB staffB defaultWeekEpoch (fromGregorian 2025 1 8) "pending"
+                _ <- createLeaveRequestRecord venueA staffA defaultWeekEpoch (fromGregorian 2025 1 8) LeaveRequestStatusEnumPending
+                _ <- createLeaveRequestRecord venueB staffB defaultWeekEpoch (fromGregorian 2025 1 8) LeaveRequestStatusEnumPending
 
                 response <- withUser manager do
                     callAction LeaveRequestsAction
@@ -1116,10 +1114,10 @@ tests = aroundAll withDatabaseTestContext do
                 venueA <- createVenueWithConfig "Venue A"
                 venueB <- createVenueWithConfig "Venue B"
                 manager <- createUserRecord "manager-timesheet-scope@example.com" "staff" True
-                _ <- createVenueMembershipRecord venueA manager "manager"
+                _ <- createVenueMembershipRecord venueA manager Manager
                 staffA <- createStaffRecord venueA (Just manager) "Ava" "Hours"
                 staffBUser <- createUserRecord "venue-b-timesheet-scope@example.com" "staff" True
-                _ <- createVenueMembershipRecord venueB staffBUser "worker"
+                _ <- createVenueMembershipRecord venueB staffBUser Worker
                 staffB <- createStaffRecord venueB (Just staffBUser) "Bea" "Hours"
                 _ <- createTimesheetEntryRecord venueA staffA defaultWeekEpoch
                 _ <- createTimesheetEntryRecord venueB staffB defaultWeekEpoch
@@ -1136,14 +1134,14 @@ tests = aroundAll withDatabaseTestContext do
                 venueA <- createVenueWithConfig "Venue A"
                 venueB <- createVenueWithConfig "Venue B"
                 manager <- createUserRecord "manager-roster-scope@example.com" "staff" True
-                _ <- createVenueMembershipRecord venueA manager "manager"
-                _ <- createVenueMembershipRecord venueB manager "manager"
+                _ <- createVenueMembershipRecord venueA manager Manager
+                _ <- createVenueMembershipRecord venueB manager Manager
                 _ <- createRosterWeekRecord venueA 0 False
                 _ <- createRosterWeekRecord venueB 0 False
                 linkedUserA <- createUserRecord "alpha-staff@example.com" "staff" True
                 linkedUserB <- createUserRecord "beta-staff@example.com" "staff" True
-                _ <- createVenueMembershipRecord venueA linkedUserA "worker"
-                _ <- createVenueMembershipRecord venueB linkedUserB "worker"
+                _ <- createVenueMembershipRecord venueA linkedUserA Worker
+                _ <- createVenueMembershipRecord venueB linkedUserB Worker
                 _ <- createStaffRecord venueA (Just linkedUserA) "Alpha" "Crew"
                 _ <- createStaffRecord venueB (Just linkedUserB) "Beta" "Crew"
 
@@ -1159,7 +1157,7 @@ tests = aroundAll withDatabaseTestContext do
                 venueA <- createVenueWithConfig "Venue A"
                 venueB <- createVenueWithConfig "Venue B"
                 manager <- createUserRecord "manager-slot-scope@example.com" "staff" True
-                _ <- createVenueMembershipRecord venueA manager "manager"
+                _ <- createVenueMembershipRecord venueA manager Manager
                 _ <- forM ["Early", "Mid", "Late"] (fetchSlotNameRecord venueA)
                 _ <- forM ["Early", "Mid", "Late"] (fetchSlotNameRecord venueB)
 
