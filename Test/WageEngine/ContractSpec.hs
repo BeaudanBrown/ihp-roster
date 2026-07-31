@@ -2,16 +2,46 @@ module Test.WageEngine.ContractSpec where
 
 import Application.VenueTime
 import Application.WageEngine
+import Application.Xero.PayrollSourceKey (sourceRateSuffix)
 import qualified Data.Set as Set
 import qualified Data.Text as Text
 import Data.Time.Calendar (fromGregorian)
 import Data.Time.LocalTime (TimeOfDay (..))
+import qualified Data.UUID as UUID
 import IHP.Prelude
 import Test.Hspec
 import Test.WageEngine.Fixture
 
+sourceUuid :: String -> UUID
+sourceUuid value = fromMaybe (error "invalid source-identity test UUID") (UUID.fromString value)
+
 tests :: Spec
 tests = do
+    describe "payroll source identity contract" do
+        it "renders every current projection/source pair as exact stable bytes" do
+            let projectionId = sourceUuid "11111111-1111-1111-1111-111111111111"
+                sourceId = sourceUuid "22222222-2222-2222-2222-222222222222"
+                cases =
+                    [ ( AwardLevelBaseRateSource projectionId sourceId
+                      , "bepis-projection:award_level_base_rates:11111111-1111-1111-1111-111111111111/source:fwc_mapd_pay_rates:22222222-2222-2222-2222-222222222222"
+                      )
+                    , ( AwardLevelPenaltyRateSource projectionId sourceId
+                      , "bepis-projection:award_level_penalty_rates:11111111-1111-1111-1111-111111111111/source:fwc_mapd_penalty_rates:22222222-2222-2222-2222-222222222222"
+                      )
+                    , ( AwardTimePenaltyAllowanceSource projectionId sourceId
+                      , "bepis-projection:award_time_penalty_allowances:11111111-1111-1111-1111-111111111111/source:fwc_mapd_wage_allowances:22222222-2222-2222-2222-222222222222"
+                      )
+                    ]
+
+            forM_ cases \(source, expected) ->
+                projectionRateSourceIdentity source `shouldBe` RateSourceIdentity expected
+
+        it "renders exact source/rate suffix bytes for present and missing identities" do
+            sourceRateSuffix (Just (RateSourceIdentity "stable-source")) 31.25
+                `shouldBe` ":source:stable-source:rate:31.25"
+            sourceRateSuffix Nothing 31.25
+                `shouldBe` ":source:missing:rate:31.25"
+
     describe "ValidatedRateBook contract" do
         it "HIGA-18.1-ADULT-CORE and HIGA-SOURCE-FWC-COVERAGE accept exactly the complete MA000009 semantic set" do
             case mkValidatedRateBook (completeRateBookCandidate 100) of

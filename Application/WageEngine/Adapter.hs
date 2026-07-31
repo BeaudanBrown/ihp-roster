@@ -96,7 +96,7 @@ data ProjectedAwardLevelRow = ProjectedAwardLevelRow
 data ProjectedBaseRateRow = ProjectedBaseRateRow
     { projectedBaseAwardLevelId :: !UUID
     , projectedBaseBasis        :: !EmploymentBasis
-    , projectedBaseSourceId     :: !Text
+    , projectedBaseSourceId     :: !RateSourceIdentity
     , projectedBaseHourlyRate   :: !Scientific
     , projectedBaseFrom         :: !(Maybe Day)
     , projectedBaseTo           :: !(Maybe Day)
@@ -107,7 +107,7 @@ data ProjectedPenaltyRateRow = ProjectedPenaltyRateRow
     { projectedPenaltyAwardLevelId :: !UUID
     , projectedPenaltyBasis        :: !EmploymentBasis
     , projectedPenaltyKind         :: !BaseRateKind
-    , projectedPenaltySourceId     :: !Text
+    , projectedPenaltySourceId     :: !RateSourceIdentity
     , projectedPenaltyHourlyRate   :: !Scientific
     , projectedPenaltyFrom         :: !(Maybe Day)
     , projectedPenaltyTo           :: !(Maybe Day)
@@ -117,7 +117,7 @@ data ProjectedPenaltyRateRow = ProjectedPenaltyRateRow
 data ProjectedTimeAdditionRow = ProjectedTimeAdditionRow
     { projectedAdditionAwardFixedId :: !Int
     , projectedAdditionKind         :: !TimeAdditionKind
-    , projectedAdditionSourceId     :: !Text
+    , projectedAdditionSourceId     :: !RateSourceIdentity
     , projectedAdditionAmount       :: !Scientific
     , projectedAdditionFrom         :: !(Maybe Day)
     , projectedAdditionTo           :: !(Maybe Day)
@@ -396,7 +396,7 @@ baseCandidateRate awardLevelById row = do
         CandidateRate
             { candidateRateKey = rateKey
             , candidateRatePerUnit = row.projectedBaseHourlyRate
-            , candidateRateSourceIdentity = RateSourceIdentity row.projectedBaseSourceId
+            , candidateRateSourceIdentity = row.projectedBaseSourceId
             , candidateRateSourceOwner = ClassificationOwner awardLevel.projectedClassificationFixedId
             , candidateRateEffectivePeriod = period
             }
@@ -410,7 +410,7 @@ penaltyCandidateRate awardLevelById row = do
         CandidateRate
             { candidateRateKey = rateKey
             , candidateRatePerUnit = row.projectedPenaltyHourlyRate
-            , candidateRateSourceIdentity = RateSourceIdentity row.projectedPenaltySourceId
+            , candidateRateSourceIdentity = row.projectedPenaltySourceId
             , candidateRateSourceOwner = ClassificationOwner awardLevel.projectedClassificationFixedId
             , candidateRateEffectivePeriod = period
             }
@@ -423,7 +423,7 @@ additionCandidateRate row = do
         CandidateRate
             { candidateRateKey = rateKey
             , candidateRatePerUnit = row.projectedAdditionAmount
-            , candidateRateSourceIdentity = RateSourceIdentity row.projectedAdditionSourceId
+            , candidateRateSourceIdentity = row.projectedAdditionSourceId
             , candidateRateSourceOwner = AwardOwner row.projectedAdditionAwardFixedId
             , candidateRateEffectivePeriod = period
             }
@@ -729,7 +729,7 @@ fetchDatabaseProjectedBaseRates observeRead scope =
                 [ ProjectedBaseRateRow
                     rate.awardLevelId
                     (projectEmploymentBasis rate.employmentBasis)
-                    (projectionSourceIdentity "award_level_base_rates" (unpackId rate.id) "fwc_mapd_pay_rates" rate.fwcMapdPayRateId)
+                    (projectionRateSourceIdentity (AwardLevelBaseRateSource (unpackId rate.id) rate.fwcMapdPayRateId))
                     rate.hourlyRate
                     rate.operativeFrom
                     rate.operativeTo
@@ -763,7 +763,7 @@ fetchDatabaseProjectedPenaltyRates observeRead scope =
                 rate.awardLevelId
                 (projectEmploymentBasis rate.employmentBasis)
                 rateKind
-                (projectionSourceIdentity "award_level_penalty_rates" (unpackId rate.id) "fwc_mapd_penalty_rates" rate.fwcMapdPenaltyRateId)
+                (projectionRateSourceIdentity (AwardLevelPenaltyRateSource (unpackId rate.id) rate.fwcMapdPenaltyRateId))
                 rate.hourlyRate
                 rate.operativeFrom
                 rate.operativeTo
@@ -794,7 +794,7 @@ fetchDatabaseProjectedTimeAdditions observeRead scope =
             ( ProjectedTimeAdditionRow
                 allowance.awardFixedId
                 additionKind
-                (projectionSourceIdentity "award_time_penalty_allowances" (unpackId allowance.id) "fwc_mapd_wage_allowances" allowance.fwcMapdWageAllowanceId)
+                (projectionRateSourceIdentity (AwardTimePenaltyAllowanceSource (unpackId allowance.id) allowance.fwcMapdWageAllowanceId))
                 allowance.hourlyAmount
                 allowance.operativeFrom
                 allowance.operativeTo
@@ -807,10 +807,6 @@ projectionScopeBounds scope
         fromDate <- scope.scopedWorkedFrom
         toDate <- scope.scopedWorkedTo
         pure (scope.scopedAwardLevelIds, fromDate, toDate)
-
-projectionSourceIdentity :: Text -> UUID -> Text -> UUID -> Text
-projectionSourceIdentity projectionTable projectionId sourceTable sourceId =
-    "bepis-projection:" <> projectionTable <> ":" <> tshow projectionId <> "/source:" <> sourceTable <> ":" <> tshow sourceId
 
 projectEmploymentBasis :: G.StaffEmploymentBasisEnum -> EmploymentBasis
 projectEmploymentBasis = \case

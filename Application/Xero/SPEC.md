@@ -102,7 +102,9 @@ lands.
 - Readiness, managed pay-item proposals, preview, and submission resolve overlapping projected rates through the same latest venue-effective-rate rule as payroll calculations. Raw FWC operative dates are normalized to the venue week before constructing bucket keys.
 - Managed award pay-item effective-date keys/names use the Bepis venue-effective
   rate date from the pay engine, not necessarily the raw FWC/MAPD operative
-  date.
+  date. Projection provenance comes only from the typed WageEngine source
+  identity renderer; `Application.Xero.PayrollSourceKey` owns the one exact
+  source/rate suffix used by managed pay-item keys and sealed bucket matching.
 - Xero remains payroll, tax, and STP authority. Bepis does not calculate tax.
 - Readiness, persisted preview, direct submission, retry, and guided preparation
   use the shared strict wage-source enforcement boundary. Any included entry's

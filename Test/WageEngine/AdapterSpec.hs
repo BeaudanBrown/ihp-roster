@@ -922,7 +922,7 @@ projectionRowsForCandidates = foldl' appendCandidate ([], [], [])
   where
     appendCandidate accumulated candidate = foldl' appendRate accumulated candidate.candidateRates
     appendRate (baseRows, penaltyRows, additionRows) rate =
-        let RateSourceIdentity sourceIdentity = rate.candidateRateSourceIdentity
+        let sourceIdentity = rate.candidateRateSourceIdentity
             period = rate.candidateRateEffectivePeriod
          in case rate.candidateRateKey of
                 CandidateClassificationRate fixedId basis OrdinaryRate ->

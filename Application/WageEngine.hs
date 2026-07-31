@@ -10,6 +10,8 @@ module Application.WageEngine
     , CandidateRateKey (..)
     , ValidatedRateKey (..)
     , RateSourceIdentity (..)
+    , ProjectionRateSource (..)
+    , projectionRateSourceIdentity
     , RateSourceOwner (..)
     , EffectivePeriod (..)
     , CandidateRate (..)

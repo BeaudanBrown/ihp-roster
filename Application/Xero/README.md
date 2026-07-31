@@ -24,6 +24,8 @@ preparation/submission workflow.
   bounded retry policy.
 - `Admin/ImportedPayItems.hs` - the pay-item import boundary.
 - `Admin/PayItems.hs` - managed pay item behavior used by preparation.
+- `PayrollSourceKey.hs` - exact Xero source/rate key suffix policy over typed
+  WageEngine source identities.
 - `Admin/ReadModel.hs` - connection-shell and preparation read models.
 - `Timesheets/Prepare.hs` - the authoritative preparation workflow.
 - `Timesheets/Preview.hs` and `Timesheets/Submission.hs` - internal payload and

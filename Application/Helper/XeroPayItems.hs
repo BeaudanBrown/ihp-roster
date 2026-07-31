@@ -14,6 +14,9 @@ import Application.Helper.Pay (venueEffectiveRateDate,
                                venueEffectiveRateEndDate)
 import Application.Helper.WeekBoundaries (WeekdayIndex)
 import Application.Helper.XeroAdminTypes
+import Application.WageEngine (ProjectionRateSource (..), RateSourceIdentity,
+                               projectionRateSourceIdentity)
+import Application.Xero.PayrollSourceKey (sourceRateSuffix)
 import Control.Monad (void, zipWithM_)
 import qualified Data.List as List
 import qualified Data.Scientific as Scientific
@@ -105,7 +108,7 @@ deriveXeroPayItemRequirements weekStartsOn today usedScopes awardLevels baseRate
                             , hourlyRate = allowance.hourlyAmount
                             , operativeFrom = venueEffectiveRateDate weekStartsOn <$> allowance.operativeFrom
                             , operativeTo = venueEffectiveRateEndDate weekStartsOn allowance.operativeTo
-                            , sourceIdentity = projectionSourceIdentity "award_time_penalty_allowances" (unpackId allowance.id) "fwc_mapd_wage_allowances" allowance.fwcMapdWageAllowanceId
+                            , sourceIdentity = projectionRateSourceIdentity (AwardTimePenaltyAllowanceSource (unpackId allowance.id) allowance.fwcMapdWageAllowanceId)
                             }
                      in
                     requirement
@@ -183,7 +186,7 @@ deriveXeroLocalEarningsBuckets weekStartsOn today usedScopes awardLevels baseRat
                         , hourlyRate = allowance.hourlyAmount
                         , operativeFrom = venueEffectiveRateDate weekStartsOn <$> allowance.operativeFrom
                         , operativeTo = venueEffectiveRateEndDate weekStartsOn allowance.operativeTo
-                        , sourceIdentity = projectionSourceIdentity "award_time_penalty_allowances" (unpackId allowance.id) "fwc_mapd_wage_allowances" allowance.fwcMapdWageAllowanceId
+                        , sourceIdentity = projectionRateSourceIdentity (AwardTimePenaltyAllowanceSource (unpackId allowance.id) allowance.fwcMapdWageAllowanceId)
                         }
                 )
 
@@ -211,7 +214,7 @@ data AwardPayItemRow = AwardPayItemRow
     , hourlyRate            :: Scientific.Scientific
     , operativeFrom         :: Maybe Day
     , operativeTo           :: Maybe Day
-    , sourceIdentity        :: Text
+    , sourceIdentity        :: RateSourceIdentity
     }
 
 data PayItemCondition
@@ -240,7 +243,7 @@ awardBaseRows weekStartsOn awardLevels baseRates =
                 , hourlyRate = baseRate.hourlyRate
                 , operativeFrom = venueEffectiveRateDate weekStartsOn <$> baseRate.operativeFrom
                 , operativeTo = venueEffectiveRateEndDate weekStartsOn baseRate.operativeTo
-                , sourceIdentity = projectionSourceIdentity "award_level_base_rates" (unpackId baseRate.id) "fwc_mapd_pay_rates" baseRate.fwcMapdPayRateId
+                , sourceIdentity = projectionRateSourceIdentity (AwardLevelBaseRateSource (unpackId baseRate.id) baseRate.fwcMapdPayRateId)
                 }
 
 awardPenaltyRows ::
@@ -265,7 +268,7 @@ awardPenaltyRows weekStartsOn awardLevels penaltyRates =
                 , hourlyRate = penaltyRate.hourlyRate
                 , operativeFrom = venueEffectiveRateDate weekStartsOn <$> penaltyRate.operativeFrom
                 , operativeTo = venueEffectiveRateEndDate weekStartsOn penaltyRate.operativeTo
-                , sourceIdentity = projectionSourceIdentity "award_level_penalty_rates" (unpackId penaltyRate.id) "fwc_mapd_penalty_rates" penaltyRate.fwcMapdPenaltyRateId
+                , sourceIdentity = projectionRateSourceIdentity (AwardLevelPenaltyRateSource (unpackId penaltyRate.id) penaltyRate.fwcMapdPenaltyRateId)
                 }
 
 penaltyPayItemKinds :: [AwardPenaltyKindEnum]
@@ -306,14 +309,6 @@ allowanceIsActiveOn weekStartsOn today allowance =
     maybe True ((<= today) . venueEffectiveRateDate weekStartsOn) allowance.operativeFrom
         && maybe True (>= today) (venueEffectiveRateEndDate weekStartsOn allowance.operativeTo)
 
-projectionSourceIdentity :: Text -> UUID -> Text -> UUID -> Text
-projectionSourceIdentity projectionTable projectionId sourceTable sourceId =
-    "bepis-projection:" <> projectionTable <> ":" <> tshow projectionId <> "/source:" <> sourceTable <> ":" <> tshow sourceId
-
-exactSourceSuffix :: Text -> Scientific.Scientific -> Text
-exactSourceSuffix sourceIdentity rate =
-    ":source:" <> sourceIdentity <> ":rate:" <> tshow rate
-
 missedMealBreakKey :: AwardPayItemRow -> Scientific.Scientific -> Text
 missedMealBreakKey row missedRate =
     "xero:pay-item:classification:"
@@ -321,7 +316,7 @@ missedMealBreakKey row missedRate =
         <> ":effective:"
         <> effectiveDateKey row.operativeFrom
         <> ":penalty:missed_meal_break_addition"
-        <> exactSourceSuffix row.sourceIdentity missedRate
+        <> sourceRateSuffix (Just row.sourceIdentity) missedRate
 
 requiredPayItemKey :: AwardPayItemRow -> Text
 requiredPayItemKey row =
@@ -333,7 +328,7 @@ requiredPayItemKey row =
         <> effectiveDateKey row.operativeFrom
         <> ":"
         <> conditionKey row.condition
-        <> exactSourceSuffix row.sourceIdentity row.hourlyRate
+        <> sourceRateSuffix (Just row.sourceIdentity) row.hourlyRate
 
 requiredPayItemName :: AwardPayItemRow -> Text
 requiredPayItemName row =

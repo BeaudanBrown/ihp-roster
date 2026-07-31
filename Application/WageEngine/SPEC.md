@@ -109,9 +109,11 @@ row and still rejects conflicts within the selected snapshot. Value-identical du
 semantic keys normalize. Any conflict, missing category, unsupported classification,
 inconsistent period, invalid value, identity, or owner returns a named `RateBookError`.
 Candidate order never selects a conflicting value.
-The adapter carries each projection row ID and its exact persisted `fwc_mapd_*`
-source-row ID into `RateSourceIdentity`; the rate-book version fingerprints those
-identities together with normalized semantic keys and values. The separate
+`Application.WageEngine.RateBook` owns the structured `ProjectionRateSource`
+pairs and the sole exact renderer into `RateSourceIdentity`. The adapter carries
+each projection row ID and its exact persisted `fwc_mapd_*` source-row ID through
+that typed boundary; the rate-book version fingerprints those identities together
+with normalized semantic keys and values. The separate
 calculation version remains stable across source refreshes. Provider-specific MAPD
 retrieval and curation remain in `Application/FwcMapd/`.
 
