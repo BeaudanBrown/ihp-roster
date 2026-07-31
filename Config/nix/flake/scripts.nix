@@ -64,6 +64,17 @@ let
 in
 {
     processes = {
+        # Replace IHP's static devenv processes so `devenv up` receives the
+        # same workspace-specific ports as dev-start and dev-foreground.
+        ihp = pkgs.lib.mkForce (script ../scripts/dev/app);
+        hoogle = pkgs.lib.mkForce {
+            exec = ''
+                repo_root="$(git rev-parse --show-toplevel)"
+                . "$repo_root/Config/nix/scripts/lib/workspace.sh"
+                bepis_workspace_configure
+                exec hoogle server --local -p "$IHP_HOOGLE_PORT" --no-security-headers
+            '';
+        };
         mailhog = script ../scripts/dev/mailhog;
     };
 

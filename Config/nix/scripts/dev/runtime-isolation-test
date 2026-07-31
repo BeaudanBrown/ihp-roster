@@ -126,7 +126,7 @@ run_for() {
 }
 
 app_probe="$(run_for "$epic_path" "$dev_app_command" --probe)"
-assert_contains "$app_probe" "PORT=8001 APP_BASE_URL=http://127.0.0.1:8001 SMTP_PORT=1026"
+assert_contains "$app_probe" "PORT=8003 APP_BASE_URL=http://127.0.0.1:8003 SMTP_PORT=1026"
 run_for "$fixture_repo" "$dev_start_command" >/dev/null
 run_for "$epic_path" "$dev_start_command" >/dev/null
 main_id="$(printf '%s' "$fixture_repo" | sha256sum | cut -c1-12)"
@@ -141,8 +141,9 @@ kill -0 "$epic_pid" 2>/dev/null || fail "epic managed process did not start"
 [ -f "$main_state/frontend-watch.pid" ] || fail "primary watcher PID missing"
 [ -f "$epic_state/frontend-watch.pid" ] || fail "epic watcher PID missing"
 assert_contains "$(cat "$main_state/runtime.env")" "PORT=8000"
-assert_contains "$(cat "$epic_state/runtime.env")" "PORT=8001"
-assert_contains "$(cat "$epic_state/runtime.env")" "APP_BASE_URL=http://127.0.0.1:8001"
+assert_contains "$(cat "$epic_state/runtime.env")" "PORT=8003"
+assert_contains "$(cat "$epic_state/runtime.env")" "IHP_HOOGLE_PORT=8005"
+assert_contains "$(cat "$epic_state/runtime.env")" "APP_BASE_URL=http://127.0.0.1:8003"
 assert_contains "$(cat "$epic_state/runtime.env")" "SMTP_PORT=1026"
 assert_contains "$(cat "$epic_state/runtime.env")" "MAILHOG_BASE_URL=http://127.0.0.1:8026"
 assert_contains "$(cat "$epic_state/runtime.env")" "PGHOST=$fixture_root/postgres-$epic_id/socket"
@@ -165,7 +166,7 @@ probe_log="$fixture_root/probes.log"
 main_status="$(RUNTIME_PROBE_LOG="$probe_log" run_for "$fixture_repo" "$dev_status_command")"
 epic_status="$(RUNTIME_PROBE_LOG="$probe_log" run_for "$epic_path" "$dev_status_command")"
 assert_contains "$main_status" "slot=0 app_url=http://127.0.0.1:8000"
-assert_contains "$epic_status" "slot=1 app_url=http://127.0.0.1:8001"
+assert_contains "$epic_status" "slot=1 app_url=http://127.0.0.1:8003"
 assert_contains "$(cat "$probe_log")" "http://127.0.0.1:8026/api/v2/messages"
 assert_contains "$(cat "$probe_log")" "-h $fixture_root/postgres-$epic_id/socket"
 
@@ -179,8 +180,8 @@ EOF
 chmod +x "$fake_bin/pwcli"
 pwcli_log="$fixture_root/pwcli.log"
 PWCLI_TEST_LOG="$pwcli_log" run_for "$epic_path" "$pwcli_auth_open_command" manager /RosterWeeks
-assert_contains "$(cat "$pwcli_log")" "-s=ihp-epic-265-manager open http://127.0.0.1:8001"
-assert_contains "$(cat "$pwcli_log")" "-s=ihp-epic-265-manager goto http://127.0.0.1:8001/RosterWeeks"
+assert_contains "$(cat "$pwcli_log")" "-s=ihp-epic-265-manager open http://127.0.0.1:8003"
+assert_contains "$(cat "$pwcli_log")" "-s=ihp-epic-265-manager goto http://127.0.0.1:8003/RosterWeeks"
 
 # Stopping primary must not touch any epic process or state, including opt-in observability.
 printf '999999\n' >"$main_state/tempo.pid"

@@ -183,7 +183,7 @@ if [ "$existing_status" -ne 0 ]; then
 fi
 workspace_json="$(run_registry inspect --epic "$epic" --json)"
 slot="$(jq -r '.slot' <<<"$workspace_json")"
-app_url="http://127.0.0.1:$((8000 + slot))"
+app_url="http://127.0.0.1:$((8000 + (3 * slot)))"
 mailhog_url="http://127.0.0.1:$((8025 + slot))"
 report="$(
     jq -cn \

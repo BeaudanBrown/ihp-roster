@@ -68,7 +68,7 @@ expected_path="$fixture_root/repo-epic-265"
 [ "$(jq -r '.branch' <<<"$provision_json")" = "epic-265" ] || fail "unstable branch convention"
 [ "$(jq -r '.path' <<<"$provision_json")" = "$expected_path" ] || fail "unstable sibling path convention"
 [ "$(jq -r '.slot' <<<"$provision_json")" = "1" ] || fail "report omitted allocated slot"
-[ "$(jq -r '.appUrl' <<<"$provision_json")" = "http://127.0.0.1:8001" ] || fail "unexpected app URL"
+[ "$(jq -r '.appUrl' <<<"$provision_json")" = "http://127.0.0.1:8003" ] || fail "unexpected app URL"
 [ "$(jq -r '.mailhogUrl' <<<"$provision_json")" = "http://127.0.0.1:8026" ] || fail "unexpected MailHog URL"
 
 [ "$(git -C "$fixture_repo" branch --show-current)" = "$branch_before" ] || fail "primary branch changed"

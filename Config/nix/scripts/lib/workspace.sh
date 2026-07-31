@@ -145,7 +145,14 @@ bepis_workspace_configure() {
     bepis_workspace_reject_symlink_path "$state_dir" || return
     state_dir="$(realpath -m "$state_dir")"
     bepis_workspace_ensure_native_state "$state_dir" "$repo_root" || return
-    local app_port=$((8000 + port_offset + slot))
+    # IHP reserves appPort + 1 for its tool server and Hoogle uses the next
+    # port. Keep every workspace in a deterministic three-port block.
+    local app_port=$((8000 + port_offset + (3 * slot)))
+    local hoogle_port=$((app_port + 2))
+    if [ "$hoogle_port" -gt 65535 ]; then
+        bepis_workspace_die 64 "port offset and workspace slot exceed the TCP port range"
+        return
+    fi
     local smtp_port=$((1025 + port_offset + slot))
     local mailhog_port=$((8025 + port_offset + slot))
     local app_url="http://127.0.0.1:$app_port"
@@ -200,6 +207,7 @@ bepis_workspace_configure() {
     export BEPIS_WORKSPACE_PORT_OFFSET="$port_offset"
     export DEVENV_AGENT_STATE_DIR="$state_dir"
     export PORT="$app_port"
+    export IHP_HOOGLE_PORT="$hoogle_port"
     export APP_BASE_URL="$app_url"
     export BASE_URL="$app_url"
     export PWCLI_BASE_URL="$app_url"
@@ -232,6 +240,7 @@ bepis_workspace_json() {
         --argjson slot "$BEPIS_WORKSPACE_SLOT" \
         --argjson portOffset "$BEPIS_WORKSPACE_PORT_OFFSET" \
         --argjson appPort "$PORT" \
+        --argjson hooglePort "$IHP_HOOGLE_PORT" \
         --arg appUrl "$APP_BASE_URL" \
         --argjson smtpPort "$SMTP_PORT" \
         --argjson mailhogPort "$MAILHOG_PORT" \
@@ -244,14 +253,14 @@ bepis_workspace_json() {
         --arg otelServiceName "$BEPIS_WORKSPACE_OTEL_SERVICE_NAME" \
         --argjson grafanaPort "$IHP_ROSTER_DEV_GRAFANA_PORT" \
         --argjson otlpHttpPort "$IHP_ROSTER_DEV_OTLP_HTTP_PORT" \
-        '{path: $path, kind: $kind, epic: (if $epic == "" then null else ($epic | tonumber) end), slot: $slot, portOffset: $portOffset, appPort: $appPort, appUrl: $appUrl, smtpPort: $smtpPort, mailhogPort: $mailhogPort, mailhogUrl: $mailhogUrl, stateDir: $stateDir, postgresMode: $postgresMode, postgresRoot: $postgresRoot, postgresSocket: $postgresSocket, databaseUrl: $databaseUrl, otelServiceName: $otelServiceName, grafanaPort: $grafanaPort, otlpHttpPort: $otlpHttpPort}'
+        '{path: $path, kind: $kind, epic: (if $epic == "" then null else ($epic | tonumber) end), slot: $slot, portOffset: $portOffset, appPort: $appPort, hooglePort: $hooglePort, appUrl: $appUrl, smtpPort: $smtpPort, mailhogPort: $mailhogPort, mailhogUrl: $mailhogUrl, stateDir: $stateDir, postgresMode: $postgresMode, postgresRoot: $postgresRoot, postgresSocket: $postgresSocket, databaseUrl: $databaseUrl, otelServiceName: $otelServiceName, grafanaPort: $grafanaPort, otlpHttpPort: $otlpHttpPort}'
 }
 
 bepis_workspace_shell() {
     local name
     for name in \
         BEPIS_WORKSPACE_REPO_ROOT BEPIS_WORKSPACE_KIND BEPIS_WORKSPACE_SLOT BEPIS_WORKSPACE_EPIC \
-        BEPIS_WORKSPACE_STATE_CONFIGURED BEPIS_WORKSPACE_STATE_ROOT BEPIS_WORKSPACE_PORT_OFFSET DEVENV_AGENT_STATE_DIR PORT APP_BASE_URL BASE_URL PWCLI_BASE_URL \
+        BEPIS_WORKSPACE_STATE_CONFIGURED BEPIS_WORKSPACE_STATE_ROOT BEPIS_WORKSPACE_PORT_OFFSET DEVENV_AGENT_STATE_DIR PORT IHP_HOOGLE_PORT APP_BASE_URL BASE_URL PWCLI_BASE_URL \
         SMTP_HOST SMTP_PORT MAILHOG_SMTP_PORT MAILHOG_PORT MAILHOG_BASE_URL DEV_POSTGRES_MODE DEV_POSTGRES_ROOT DEV_POSTGRES_SOCKET PGHOST DATABASE_URL \
         BEPIS_WORKSPACE_OTEL_SERVICE_NAME IHP_ROSTER_DEV_TEMPO_PORT IHP_ROSTER_DEV_TEMPO_SERVER_GRPC_PORT IHP_ROSTER_DEV_TEMPO_OTLP_GRPC_PORT IHP_ROSTER_DEV_TEMPO_OTLP_HTTP_PORT \
         IHP_ROSTER_DEV_OTLP_GRPC_PORT IHP_ROSTER_DEV_OTLP_HTTP_PORT IHP_ROSTER_DEV_COLLECTOR_HEALTH_PORT \
