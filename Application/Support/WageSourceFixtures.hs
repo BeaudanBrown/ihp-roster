@@ -27,15 +27,21 @@ ensureFreshWageSourceFacts workedOn = do
         |> filterWhere (#holidayDate, fromGregorian year 1 1)
         |> filterWhere (#isRegional, False)
         |> fetchOneOrNothing
-    when (isNothing existingHoliday) do
-        void $ newRecord @PublicHoliday
-            |> set #jurisdiction ("VIC" :: Text)
-            |> set #holidayDate (fromGregorian year 1 1)
-            |> set #name ("New Year's Day" :: Text)
-            |> set #isRegional False
-            |> set #source (Just "DataVic")
-            |> set #importedAt (Just now)
-            |> createRecord
+    case existingHoliday of
+        Just holiday ->
+            void $
+                holiday
+                    |> set #importedAt (Just now)
+                    |> updateRecord
+        Nothing ->
+            void $ newRecord @PublicHoliday
+                |> set #jurisdiction ("VIC" :: Text)
+                |> set #holidayDate (fromGregorian year 1 1)
+                |> set #name ("New Year's Day" :: Text)
+                |> set #isRegional False
+                |> set #source (Just "DataVic")
+                |> set #importedAt (Just now)
+                |> createRecord
 
 -- | Seal test/dev approved entries through the same Haskell calculation and
 -- immutable-ledger path used by production approval.

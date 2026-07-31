@@ -2,6 +2,7 @@ module Test.DevSeedSpec where
 
 import Application.Helper.Controller (unsafeEnumFromText)
 import Application.Support.Seed.Scenario
+import Control.Monad (void)
 import Data.List (sort)
 import qualified Data.Map.Strict as Map
 import qualified Data.Text as Text
@@ -27,6 +28,26 @@ profileSummary staff =
 tests :: Spec
 tests = aroundAll withDatabaseTestContext do
     describe "Dev seed fixtures" do
+        it "refreshes preloaded stale holiday provenance before approving seeded timesheets" $ withContext do
+            withCleanDb do
+                now <- getCurrentTime
+                void $ newRecord @PublicHoliday
+                    |> set #jurisdiction ("VIC" :: Text)
+                    |> set #holidayDate (fromGregorian 2025 1 1)
+                    |> set #name ("New Year's Day" :: Text)
+                    |> set #isRegional False
+                    |> set #source (Just "DataVic")
+                    |> set #importedAt (Just (addUTCTime (negate (46 * 86400)) now))
+                    |> createRecord
+                _ <- seedDevelopmentFixtureForWeek defaultWeekEpoch
+                pure ()
+
+        it "can reseed when open-ended synthetic award rates already exist" $ withContext do
+            withCleanDb do
+                _ <- seedDevelopmentFixtureForWeek defaultWeekEpoch
+                _ <- seedDevelopmentFixtureForWeek defaultWeekEpoch
+                pure ()
+
         it "seeds the complete realistic development fixture contract" $ withContext do
             withCleanDb do
                 fixture <- seedDevelopmentFixtureForWeek defaultWeekEpoch
