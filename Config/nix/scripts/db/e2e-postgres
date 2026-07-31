@@ -3,7 +3,7 @@ set -euo pipefail
 
 usage() {
     cat <<'EOF'
-Usage: e2e-postgres ensure|status|stop|recreate|root|shell|log|cleanup [--apply]
+Usage: e2e-postgres ensure|status|stop|recreate|prepare-root|root|shell|log|cleanup [--apply]
 
 Managed mode is the default and ignores inherited PGHOST. Set
 E2E_POSTGRES_MODE=external together with absolute E2E_DB_SOCKET to opt into an
@@ -22,7 +22,7 @@ if [ "$mode" = external ]; then
     socket="${E2E_DB_SOCKET:-}"
     [ -n "$socket" ] && [[ "$socket" = /* ]] || { echo "e2e-postgres: external mode requires absolute E2E_DB_SOCKET" >&2; exit 64; }
     case "$command_name" in
-        ensure|root) printf '%s\n' "$socket" ;;
+        ensure|prepare-root|root) printf '%s\n' "$socket" ;;
         status) psql -X -q -h "$socket" -d postgres -At -v ON_ERROR_STOP=1 -c 'SELECT 1' >/dev/null; printf 'mode=external\nsocket=%s\nstate=running\n' "$socket" ;;
         shell) exec psql -X -h "$socket" -d "${TEST_DATABASE_NAME:-postgres}" "$@" ;;
         log) echo "e2e-postgres: external mode has no managed log" >&2; exit 64 ;;
@@ -39,7 +39,7 @@ root="${E2E_POSTGRES_ROOT:-/tmp/bepis-e2e-postgres-$(id -u)-${project_id}}"
 manager=(env TEST_POSTGRES_PROFILE=e2e TEST_POSTGRES_REPO_ROOT="$repo_root" TEST_POSTGRES_ROOT="$root" TEST_POSTGRES_DURABILITY=disposable test-postgres)
 
 case "$command_name" in
-    ensure|stop|recreate|root)
+    ensure|stop|recreate|prepare-root|root)
         [ "$#" -eq 0 ] || { usage >&2; exit 64; }
         "${manager[@]}" "$command_name"
         ;;

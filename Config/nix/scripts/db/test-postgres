@@ -4,7 +4,7 @@ umask 077
 
 usage() {
     cat <<'EOF'
-Usage: test-postgres ensure|status|recreate|stop|root
+Usage: test-postgres ensure|status|recreate|stop|prepare-root|root
 
 Manages the private disposable PostgreSQL instance used by DB-backed Hspec.
 The default state directory is /tmp/bepis-hspec-postgres-<uid>-<project-id>.
@@ -34,7 +34,7 @@ if [ "$#" -ne 0 ]; then
 fi
 
 case "$command_name" in
-    ensure|status|recreate|stop|root)
+    ensure|status|recreate|stop|prepare-root|root)
         ;;
     -h|--help|help)
         usage
@@ -367,6 +367,11 @@ ensure_instance() {
 }
 
 case "$command_name" in
+    prepare-root)
+        validate_or_create_state_root 1
+        printf '%s\n' "$state_root"
+        exit 0
+        ;;
     ensure|recreate)
         validate_or_create_state_root 1
         ;;
