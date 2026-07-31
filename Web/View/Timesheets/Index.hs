@@ -24,12 +24,7 @@ import Application.Helper.FrontendContract.Surface.Values
 import Application.PayAssignment (StaffPayAssignment (..),
                                   staffAssignmentAllowsTimesheets)
 import Application.VenueTime.Model
-import Application.WageEngine (EarningsComponent (..),
-                               FinalEarningsSummary (..), WageCalculation (..),
-                               calculationSourceValue, deriveFinalEarnings)
-import Application.WageSourceEnforcement (WageEntryOutcome (..))
 import Data.Fixed (Pico)
-import qualified Data.Map.Strict as Map
 import qualified Data.Text as Text
 import Data.Time.Calendar (Day, addDays)
 import Data.Time.Clock (NominalDiffTime, diffUTCTime)
@@ -49,7 +44,6 @@ data IndexView = IndexView
     , suggestions           :: [TimesheetSuggestion]
     , staffMembers          :: [Staff]
     , shiftTypes            :: [ShiftType]
-    , wageOutcomes          :: Map.Map UUID WageEntryOutcome
     , today                 :: Day
     , editWindowDays        :: Int
     , weekOffset            :: Int
@@ -77,7 +71,6 @@ data TimesheetDayRenderModel = TimesheetDayRenderModel
     , daySuggestions     :: [TimesheetSuggestion]
     , dayStaffMembers    :: [Staff]
     , dayShiftTypes      :: [ShiftType]
-    , dayWageOutcomes    :: Map.Map UUID WageEntryOutcome
     , dayToday           :: Day
     , dayEditWindowDays  :: Int
     , dayWeekOffset      :: Int
@@ -294,13 +287,12 @@ renderTimesheetWeekLabel weekStartDate =
     "Week of " <> Text.pack (formatTime defaultTimeLocale "%-d %b" weekStartDate)
 
 timesheetDayRenderModel :: IndexView -> Int -> TimesheetDayRenderModel
-timesheetDayRenderModel IndexView { entries, suggestions, staffMembers, shiftTypes, wageOutcomes, today, editWindowDays, weekOffset, weekStartDate, showApproved, showAllStaff, showSuggestions, selectedStaffFilterId } dayOffset =
+timesheetDayRenderModel IndexView { entries, suggestions, staffMembers, shiftTypes, today, editWindowDays, weekOffset, weekStartDate, showApproved, showAllStaff, showSuggestions, selectedStaffFilterId } dayOffset =
     TimesheetDayRenderModel
         { dayEntries = entries
         , daySuggestions = suggestions
         , dayStaffMembers = staffMembers
         , dayShiftTypes = shiftTypes
-        , dayWageOutcomes = wageOutcomes
         , dayToday = today
         , dayEditWindowDays = editWindowDays
         , dayWeekOffset = weekOffset
@@ -431,7 +423,7 @@ renderEntryCard model@TimesheetDayRenderModel { dayToday, dayEditWindowDays, day
     editUrl = editTimesheetEntryUrl (get #id entry) dayWeekOffset dayShowApproved dayShowAllStaff dayShowSuggestions dayStaffFilterId
 
 renderTimesheetCard :: (?context :: ControllerContext) => TimesheetDayRenderModel -> TimesheetEntry -> Text -> Maybe Text -> Html -> Html -> Html
-renderTimesheetCard TimesheetDayRenderModel { dayStaffMembers, dayShiftTypes, dayWageOutcomes } entry cardClass suggestionId cardOverlay cardAction = [hsx|
+renderTimesheetCard TimesheetDayRenderModel { dayStaffMembers, dayShiftTypes } entry cardClass suggestionId cardOverlay cardAction = [hsx|
     <article class={cardClass}
              data-timesheet-entry-approved={boolParam entry.isApproved}
              data-timesheet-suggestion-id={suggestionId}>
@@ -455,7 +447,6 @@ renderTimesheetCard TimesheetDayRenderModel { dayStaffMembers, dayShiftTypes, da
             </div>
         </div>
 
-        {renderWagePreview (Map.lookup (unpackId entry.id) dayWageOutcomes)}
         {renderEntryComments entry}
         {renderTimesheetShapeBar defaultTimesheetTimelineScale entry}
     </article>
@@ -485,36 +476,6 @@ renderEntryCardOverlayLink entry canEdit editUrl
                 }
             mempty
     | otherwise = mempty
-
-renderWagePreview :: Maybe WageEntryOutcome -> Html
-renderWagePreview Nothing = mempty
-renderWagePreview (Just outcome) =
-    case outcome.outcomeCalculation of
-        Left message -> [hsx|
-            <div class="timesheet-entry-comments timesheet-wage-preview timesheet-wage-preview-error" role="status">
-                <span class="timesheet-entry-comment-label">Pay preview unavailable</span>
-                <span class="timesheet-entry-comment-text">{message}</span>
-            </div>
-        |]
-        Right calculation ->
-            let summary = deriveFinalEarnings calculation.earningsComponents
-                amount = tshow (fromRational summary.finalEarningsTotalAmount :: Double)
-                sources = nub (map (calculationSourceValue . (.calculationSource)) calculation.earningsComponents)
-                warning =
-                    if null outcome.outcomeSourceDiagnostics
-                        then mempty
-                        else [hsx|
-                            <span class="timesheet-entry-comment-text timesheet-wage-source-warning">
-                                Draft only — authoritative wage sources need refresh: {tshow outcome.outcomeSourceDiagnostics}
-                            </span>
-                        |]
-             in [hsx|
-                <div class="timesheet-entry-comments timesheet-wage-preview" role="status">
-                    <span class="timesheet-entry-comment-label">Pay preview</span>
-                    <span class="timesheet-entry-comment-text">${amount} · {Text.intercalate ", " sources}</span>
-                    {warning}
-                </div>
-             |]
 
 renderEntryComments :: (?context :: ControllerContext) => TimesheetEntry -> Html
 renderEntryComments entry =

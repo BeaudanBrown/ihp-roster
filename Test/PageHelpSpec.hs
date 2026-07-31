@@ -51,6 +51,7 @@ tests = do
             let rendered = flattenHelpText (filterPageHelpTopic managerContext timesheets)
             rendered `shouldSatisfy` any (Text.isInfixOf "without an origin warning")
             rendered `shouldSatisfy` any (Text.isInfixOf "no separate origin banner")
+            rendered `shouldSatisfy` all (not . Text.isInfixOf "Each saved entry shows its own pay preview")
 
     describe "billing help role filtering" do
         it "keeps payer actions owner-only while showing diagnostics to founder support" do

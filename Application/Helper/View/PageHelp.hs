@@ -204,7 +204,6 @@ pageHelpTopics =
             , iconItem HelpEveryone "bi-pencil" "Edit entry" "Edit an existing entry" "Click the entry card itself to fix times, notes, or break details before approval. The form has no separate origin banner; roster-derived entries still keep their worked date and roster link, and only managers can reassign staff."
             , iconItem HelpEveryone "bi-cup-hot" "Breaks" "Record breaks correctly" "Add break details when a break was taken, including break start and end where required."
             , iconItem HelpEveryone "bi-clock-history" "Clock change" "Choose a repeated time" "When an autumn clock time occurs twice, choose First for daylight time or Second for standard time. Times skipped by the spring clock change cannot be saved."
-            , iconItem HelpEveryone "bi-cash-coin" "Pay preview" "Check each draft calculation" "Each saved entry shows its own pay preview. A source warning keeps the draft editable, while an unavailable preview explains the entry-specific calculation error."
             , iconItem HelpEveryone "bi-chat-left-text" "Manager help" "Fix an approved entry" "If an approved entry needs changes, ask a manager to reopen or correct it."
             ]
         , section HelpManagerPlus "Review tasks"

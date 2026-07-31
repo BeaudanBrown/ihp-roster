@@ -124,11 +124,11 @@ submission work belongs in `docs/workstreams/` until it lands.
 - Approval writes keep status, actor, timestamp, and pay context consistent.
   Immutable staff/shift pay versions capture the explicit pay-assignment mode
   together with its Award/Xero references.
-- Draft entry cards remain saveable and independently show either a successful pay
-  preview plus source warnings or an explicit calculation error. Draft, approval,
-  and historical-backfill orchestration all enter `Application.WageEvaluation`;
-  approval/backfill require immutable pay-version ids, while approved/final reads
-  reconstruct sealed ledger facts and never recalculate mutable sources. Approval applies
+- Draft entry cards remain saveable but do not render or calculate pay previews on
+  the Timesheets list. Approval and historical-backfill orchestration enter
+  `Application.WageEvaluation`; approval/backfill require immutable pay-version
+  ids, while approved/final reads reconstruct sealed ledger facts and never
+  recalculate mutable sources. Approval applies
   the shared wage-source boundary strictly and rolls back the complete approval on
   any calculation or source failure.
 - Do not seed approved entries by setting only `isApproved`; fixtures must set

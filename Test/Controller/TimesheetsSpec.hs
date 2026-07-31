@@ -110,6 +110,8 @@ tests = aroundAll withDatabaseTestContext do
                 response `responseBodyShouldContain` "data-bepis-surface-action=\"navigate-timesheet-week\""
                 response `responseBodyShouldContain` "data-bepis-surface-action=\"update-timesheet-filters\""
                 response `responseBodyShouldNotContain` "timesheet-week-shell-sync-custom-htmx"
+                response `responseBodyShouldNotContain` "Pay preview"
+                response `responseBodyShouldNotContain` "timesheet-wage-preview"
 
         it "preserves partial direct-route filters outside complete Surface action submissions" $ withContext do
             withCleanDb do
