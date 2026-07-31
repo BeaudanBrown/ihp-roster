@@ -30,8 +30,11 @@ or roster views.
 - Read-model changes belong in `DirectReadModel.hs` or `RenderData.hs`; do not reintroduce a shared surface projection cache.
 - HTMX/OOB response shape belongs in `Responses.hs`.
 - Canonical path/query helpers belong in `Paths.hs`.
-- Roster workflow/domain helpers belong in `Service.hs` unless they are shared
-  across features.
+- General roster workflow/domain helpers belong in `Service.hs` unless they are
+  shared across features. Interaction-specific drop token/scope/placement/DST
+  resolution belongs in `DropWorkflow.hs`; shift-dialog context, data,
+  validation, and application belong in `ShiftWorkflow.hs`. Controllers retain
+  authorization, request adaptation, mutation calls, and response selection.
 - View-only rendering helpers belong under `Web/View/RosterWeeks/` or
   `Application/Helper/View/*` when shared.
 

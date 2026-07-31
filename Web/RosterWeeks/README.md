@@ -15,6 +15,8 @@
 - `Web/RosterWeeks/Paths.hs` - canonical route/query helpers.
 - `Web/RosterWeeks/Dom.hs` - stable DOM ids/selectors.
 - `Web/RosterWeeks/Service.hs` - roster workflow/domain service helpers.
+- `Web/RosterWeeks/DropWorkflow.hs` - typed opaque drop-token parsing, venue/group/week resolution, sparse placement, no-op/delete decisions, and Melbourne repeated-time boundary preparation for move, duplicate, timeline, and staff drops.
+- `Web/RosterWeeks/ShiftWorkflow.hs` - shift-dialog create/edit context, render-data preparation, submitted field/DST validation, and authoritative slot application.
 - `Web/View/RosterWeeks/` - HSX rendering.
 
 ## Row-Grid Rendering Contract

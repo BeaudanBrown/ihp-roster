@@ -187,6 +187,13 @@ lands.
 - Day-column draft/editable and live/read-only cards use the same compact shift
   type badge shape. Editable badges remain select controls; read-only badges do
   not present interactive affordance.
+- Opaque roster interaction tokens, venue/group/week scope, sparse target
+  placement, semantic no-op/delete classification, and Melbourne repeated-time
+  boundary preparation are resolved by `Web.RosterWeeks.DropWorkflow` before a
+  controller invokes a mutation. `Web.RosterWeeks.ShiftWorkflow` owns shift
+  dialog create/edit context, render data, submission validation, and
+  authoritative slot application; controllers retain authorization, request
+  adaptation, mutation invocation, and response selection.
 - In editable day-column layout, each open day column is the drag/drop target.
   Hovering a compatible dragged shift highlights the whole day column using the
   add-shift success visual style; the `+ Add shift` card remains a create-dialog

@@ -11,6 +11,7 @@ module Web.RosterWeeks.Service
     , fetchRosterWeekSlotTemplateFromSlots
     , fetchCurrentRosterWeekOffset
     , fetchActiveRosterWeekSlotDefinitions
+    , fetchActiveStaffForCurrentVenue
     , fetchRosterWeekOrderedSlotNames
     , fetchRosterWeekOrderedSlotNamesFromSlots
     , previewRemoveRosterRowPacking
@@ -121,6 +122,14 @@ fetchRosterWeekOrderedSlotNames rosterWeek =
 fetchRosterWeekOrderedSlotNamesFromSlots :: (?modelContext :: ModelContext) => [RosterSlot] -> IO [RosterWeekSlotDefinition]
 fetchRosterWeekOrderedSlotNamesFromSlots allSlots =
     map fst <$> fetchRosterWeekSlotTemplateFromSlots allSlots
+
+fetchActiveStaffForCurrentVenue :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Id Staff -> IO (Maybe Staff)
+fetchActiveStaffForCurrentVenue staffId =
+    fetchOneOrNothing $ query @Staff
+        |> filterWhere (#id, staffId)
+        |> filterWhere (#venueId, unpackId currentVenueId)
+        |> filterWhere (#isActive, True)
+        |> filterWhere (#archivedAt, Nothing)
 
 fetchActiveRosterWeekSlotDefinitions :: (?modelContext :: ModelContext) => RosterWeek -> IO [RosterWeekSlotDefinition]
 fetchActiveRosterWeekSlotDefinitions rosterWeek =

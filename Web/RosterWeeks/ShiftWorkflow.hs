@@ -5,12 +5,15 @@
 {-# LANGUAGE TypeApplications    #-}
 
 module Web.RosterWeeks.ShiftWorkflow
-    ( ValidatedRosterShift (..)
+    ( RosterShiftDialogSubmission (..)
+    , ValidatedRosterShift (..)
     , applyValidatedRosterShift
     , defaultRosterShiftDialogValuesForVenue
     , fetchCurrentVenueRosterShiftTypesForDialog
     , fetchRosterSlotCreateContext
+    , fetchRosterSlotDefinitionForCreate
     , fetchRosterSlotEditContext
+    , fetchRosterSlotForEdit
     , rosterShiftDialogForCreateHtml
     , rosterShiftDialogForEditHtml
     , validateRosterShiftDialogSubmission
@@ -35,12 +38,21 @@ import qualified Data.UUID as UUID
 import qualified Text.Blaze.Html as Blaze
 import Web.Controller.Prelude
 import Web.Controller.RosterWeeks.Validation
-import Web.RosterWeeks.DropWorkflow (fetchActiveStaffForCurrentVenue)
 import Web.RosterWeeks.Filters
+import Web.RosterWeeks.Service (fetchActiveStaffForCurrentVenue)
 import Web.RosterWeeks.StaffOptions (buildRosterStaffOptionStates,
                                      fetchRosterShiftDialogStaff)
 import Web.RosterWeeks.Types
 import Web.View.RosterWeeks.ShiftDialog
+
+data RosterShiftDialogSubmission = RosterShiftDialogSubmission
+    { submittedRosterShiftStaffId         :: !(Maybe Text)
+    , submittedRosterShiftStartTime       :: !(Maybe Text)
+    , submittedRosterShiftEndTime         :: !(Maybe Text)
+    , submittedRosterShiftTypeId          :: !(Maybe Text)
+    , submittedRosterShiftStartOccurrence :: !Text
+    , submittedRosterShiftEndOccurrence   :: !Text
+    }
 
 data ValidatedRosterShift = ValidatedRosterShift
     { validRosterShiftStaffId    :: !UUID.UUID
@@ -48,32 +60,26 @@ data ValidatedRosterShift = ValidatedRosterShift
     , validRosterShiftTypeId     :: !UUID.UUID
     }
 
-fetchRosterSlotCreateContext :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id RosterDay -> Id RosterWeekSlotDefinition -> Int -> IO (RosterDay, RosterWeek, RosterWeekSlotDefinition)
-fetchRosterSlotCreateContext rosterDayId rosterWeekSlotDefinitionId rowIndex = do
+fetchRosterSlotCreateContext :: (?modelContext :: ModelContext) => Id RosterDay -> IO (RosterDay, RosterWeek)
+fetchRosterSlotCreateContext rosterDayId = do
     rosterDay <- fetch rosterDayId
     let rosterWeekId = (coerce rosterDay.rosterWeekId :: Id RosterWeek)
     rosterWeek <- fetch rosterWeekId
-    ensureRecordInCurrentVenue rosterWeek.venueId
-    ensureRosterWeekIsDraftForEdit rosterWeek
-    accessDeniedUnless (not rosterDay.isClosed)
-    accessDeniedUnless (rowIndex >= 0)
-    slotDefinition <- fetch rosterWeekSlotDefinitionId
-    accessDeniedUnless (slotDefinition.rosterWeekId == unpackId rosterWeek.id)
-    accessDeniedUnless (isNothing slotDefinition.deletedAt)
-    pure (rosterDay, rosterWeek, slotDefinition)
+    pure (rosterDay, rosterWeek)
 
-fetchRosterSlotEditContext :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id RosterSlot -> IO (RosterSlot, RosterDay, RosterWeek)
-fetchRosterSlotEditContext rosterSlotId = do
-    rosterSlot <- fetch rosterSlotId
-    accessDeniedUnless (isNothing rosterSlot.deletedAt)
+fetchRosterSlotDefinitionForCreate :: (?modelContext :: ModelContext) => Id RosterWeekSlotDefinition -> IO RosterWeekSlotDefinition
+fetchRosterSlotDefinitionForCreate = fetch
+
+fetchRosterSlotForEdit :: (?modelContext :: ModelContext) => Id RosterSlot -> IO RosterSlot
+fetchRosterSlotForEdit = fetch
+
+fetchRosterSlotEditContext :: (?modelContext :: ModelContext) => RosterSlot -> IO (RosterDay, RosterWeek)
+fetchRosterSlotEditContext rosterSlot = do
     let rosterDayId = (coerce rosterSlot.rosterDayId :: Id RosterDay)
     rosterDay <- fetch rosterDayId
     let rosterWeekId = (coerce rosterDay.rosterWeekId :: Id RosterWeek)
     rosterWeek <- fetch rosterWeekId
-    ensureRecordInCurrentVenue rosterWeek.venueId
-    ensureRosterWeekIsDraftForEdit rosterWeek
-    accessDeniedUnless (not rosterDay.isClosed)
-    pure (rosterSlot, rosterDay, rosterWeek)
+    pure (rosterDay, rosterWeek)
 
 rosterShiftDialogForCreateHtml :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => RosterDay -> RosterWeek -> RosterWeekSlotDefinition -> Int -> RosterShiftDialogValues -> IO Blaze.Html
 rosterShiftDialogForCreateHtml rosterDay rosterWeek slotDefinition rowIndex values = do
@@ -158,21 +164,21 @@ fetchCurrentVenueRosterShiftTypesForDialog =
         |> orderByAsc #createdAt
         |> fetch
 
-validateRosterShiftDialogSubmission :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id RosterGroup -> RosterDay -> RosterWeek -> Maybe RosterSlot -> IO (Either RosterShiftDialogValues ValidatedRosterShift)
-validateRosterShiftDialogSubmission rosterGroupId rosterDay rosterWeek _maybeExistingSlot = do
+validateRosterShiftDialogSubmission :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Id RosterGroup -> RosterDay -> RosterWeek -> RosterShiftDialogSubmission -> IO (Either RosterShiftDialogValues ValidatedRosterShift)
+validateRosterShiftDialogSubmission rosterGroupId rosterDay rosterWeek submission = do
     venueConfig <- fetchVenueConfig
     let rosterDate = Calendar.addDays (toInteger rosterDay.dayOffset) (venueWeekStartDate venueConfig rosterWeek.weekOffset)
-    let staffParam = paramOrNothing @Text "staffId"
-    let startParam = paramOrNothing @Text "startTime"
-    let endParam = paramOrNothing @Text "endTime"
-    let shiftTypeParam = paramOrNothing @Text "shiftTypeId"
+    let staffParam = submission.submittedRosterShiftStaffId
+    let startParam = submission.submittedRosterShiftStartTime
+    let endParam = submission.submittedRosterShiftEndTime
+    let shiftTypeParam = submission.submittedRosterShiftTypeId
     let parsedStaffId = parseOptionalStaffId staffParam
     let parsedStartTime = parseOptionalTime startParam
     let parsedEndTime = parseOptionalTime endParam
     let parsedShiftTypeId = parseOptionalShiftTypeId shiftTypeParam
     let shiftDate = maybe rosterDate (rosterShiftStartDate rosterDate) parsedStartTime
-    let parsedStartOccurrence = parseOccurrenceParam (paramOrDefault "" "startOccurrence")
-    let parsedEndOccurrence = parseOccurrenceParam (paramOrDefault "" "endOccurrence")
+    let parsedStartOccurrence = parseOccurrenceParam submission.submittedRosterShiftStartOccurrence
+    let parsedEndOccurrence = parseOccurrenceParam submission.submittedRosterShiftEndOccurrence
     maybeStaff <- maybe (pure Nothing) (fetchActiveStaffForCurrentVenue . Id) parsedStaffId
     let staffInVenue = isJust maybeStaff
     staffEligible <- maybe (pure False) (\staffId -> staffIsEligibleForRosterGroup (Id staffId) rosterGroupId) parsedStaffId

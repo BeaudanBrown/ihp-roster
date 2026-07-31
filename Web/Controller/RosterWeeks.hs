@@ -693,21 +693,19 @@ instance Controller RosterWeeksController where
                         case result of
                             Left message -> respondWithMoveRosterShiftFailure rosterGroup.id weekOffset message
                             Right MoveRosterShiftIntent { moveIsNoOp = True } -> respondWithSilentRosterNoOp rosterGroup.id weekOffset
-                            Right MoveRosterShiftIntent { sourceSlot, sourceRosterDay, targetRosterDay, targetSlotDefinition, targetRowIndex } -> do
+                            Right resultValue@MoveRosterShiftIntent { sourceSlot, sourceRosterDay, targetRosterDay, targetSlotDefinition, targetRowIndex } -> do
                                 let startOccurrenceValue = surfaceFieldValue @Surface.CopyStartOccurrence fields
                                 let endOccurrenceValue = surfaceFieldValue @Surface.CopyEndOccurrence fields
                                 case copyOccurrenceSelectionsFromValues startOccurrenceValue endOccurrenceValue of
                                     Left message -> respondWithMoveRosterShiftFailure rosterGroup.id weekOffset message
                                     Right selections -> do
-                                        sourceRosterWeek <- fetch (Id sourceRosterDay.rosterWeekId :: Id RosterWeek)
-                                        targetRosterWeek <- fetch (Id targetRosterDay.rosterWeekId :: Id RosterWeek)
-                                        venueConfig <- fetchVenueConfig
+                                        boundaryResolution <- resolveRosterDayDropBoundaries resultValue selections
                                         let intentForm = rosterMoveShiftIntentForm weekOffset rosterGroup.id sourceToken targetToken Nothing Nothing
                                         let occurrenceFields = (surfaceFieldNameFrom @Surface.CopyStartOccurrence fields, surfaceFieldNameFrom @Surface.CopyEndOccurrence fields)
-                                        let repeatedEndpoints = rosterSlotCopyAmbiguousEndpoints venueConfig sourceRosterWeek sourceRosterDay targetRosterWeek targetRosterDay sourceSlot
-                                        case copyRosterSlotToDay venueConfig sourceRosterWeek sourceRosterDay targetRosterWeek targetRosterDay selections sourceSlot of
-                                            Left failure -> respondWithRosterSlotCopyBoundaryFailure rosterGroup.id weekOffset "move" intentForm occurrenceFields repeatedEndpoints selections failure
-                                            Right copiedBoundariesSlot -> do
+                                        case boundaryResolution of
+                                            RosterDayDropBoundaryFailure repeatedEndpoints failure ->
+                                                respondWithRosterSlotCopyBoundaryFailure rosterGroup.id weekOffset "move" intentForm occurrenceFields repeatedEndpoints selections failure
+                                            RosterDayDropBoundaryReady targetRosterWeek copiedBoundariesSlot -> do
                                                 let updatedSlot = copiedBoundariesSlot
                                                         |> set #rosterDayId (unpackId targetRosterDay.id)
                                                         |> set #rosterWeekSlotDefinitionId (unpackId targetSlotDefinition.id)
@@ -734,41 +732,29 @@ instance Controller RosterWeeksController where
                 case result of
                     Left message -> respondWithMoveRosterShiftFailure rosterGroup.id weekOffset message
                     Right MoveRosterTimelineShiftIntent { timelineMoveIsNoOp = True } -> respondWithSilentRosterNoOp rosterGroup.id weekOffset
-                    Right MoveRosterTimelineShiftIntent { timelineSourceSlot, timelineSourceRosterDay, timelineTargetRosterDay, timelineTargetSlotDefinition, timelineTargetRowIndex, timelineTargetStartTime } -> do
+                    Right resultValue@MoveRosterTimelineShiftIntent { timelineSourceSlot, timelineSourceRosterDay, timelineTargetRosterDay, timelineTargetSlotDefinition, timelineTargetRowIndex } -> do
                         let startOccurrenceValue = fromMaybe "" (surfaceFieldValue @Surface.TimelineStartOccurrence fields)
-                        case parseOccurrenceParam startOccurrenceValue of
-                            Left message -> respondWithMoveRosterShiftFailure rosterGroup.id weekOffset message
-                            Right startOccurrence -> do
-                                rosterWeek <- fetch (Id timelineTargetRosterDay.rosterWeekId :: Id RosterWeek)
-                                venueConfig <- fetchVenueConfig
-                                let targetRosterDate = Calendar.addDays (toInteger timelineTargetRosterDay.dayOffset) (venueWeekStartDate venueConfig rosterWeek.weekOffset)
-                                let targetShiftDate = rosterShiftStartDate targetRosterDate timelineTargetStartTime
-                                let intentForm = rosterTimelineMoveShiftIntentForm weekOffset rosterGroup.id timelineTargetRosterDay.dayOffset sourceToken targetToken Nothing
-                                let startOccurrenceField = surfaceFieldNameFrom @Surface.TimelineStartOccurrence fields
-                                let occurrenceFields = (startOccurrenceField, startOccurrenceField)
-                                let repeatedEndpoints = (civilBoundaryIsRepeated targetShiftDate timelineTargetStartTime, False)
-                                let selections = noShiftCopyOccurrenceSelections { copyShiftStartOccurrence = startOccurrence }
-                                case rosterSlotElapsedSeconds timelineSourceSlot of
-                                    Nothing -> respondWithMoveRosterShiftFailure rosterGroup.id weekOffset invalidRosterSlotTimingMessage
-                                    Just duration ->
-                                        case resolveRosterTimelineTargetBoundaries venueConfig.timezone duration targetShiftDate timelineTargetStartTime startOccurrence of
-                                            Left failure -> respondWithRosterSlotCopyBoundaryFailure rosterGroup.id weekOffset "move" intentForm occurrenceFields repeatedEndpoints selections failure
-                                            Right boundaries
-                                                | not (authoritativeRosterIntervalIsOperationallyValid boundaries) ->
-                                                    respondWithMoveRosterShiftFailure rosterGroup.id weekOffset invalidRosterSlotTimingMessage
-                                                | otherwise -> do
-                                                    let updatedSlot = timelineSourceSlot
-                                                            |> set #rosterDayId (unpackId timelineTargetRosterDay.id)
-                                                            |> set #rosterWeekSlotDefinitionId (unpackId timelineTargetSlotDefinition.id)
-                                                            |> set #slotSortOrder timelineTargetSlotDefinition.sortOrder
-                                                            |> set #rowIndex timelineTargetRowIndex
-                                                            |> applyRosterSlotBoundaries boundaries
-                                                    mutationResult <- moveRosterSlotMutation rosterGroup.id rosterWeek timelineSourceRosterDay timelineTargetRosterDay timelineSourceSlot updatedSlot
-                                                    case mutationResult of
-                                                        Left message -> respondWithMoveRosterShiftFailure rosterGroup.id weekOffset message
-                                                        Right mutationResult -> do
-                                                            let shouldWarnSourceTimesheetUnchanged = mutationResult.liveMutationValue.rosterSlotMutationShouldWarnSourceTimesheetUnchanged
-                                                            respondToRosterTimelineSlotMove rosterGroup.id rosterWeek mutationResult shouldWarnSourceTimesheetUnchanged
+                        boundaryResolution <- resolveRosterTimelineDropBoundaries resultValue startOccurrenceValue
+                        let intentForm = rosterTimelineMoveShiftIntentForm weekOffset rosterGroup.id timelineTargetRosterDay.dayOffset sourceToken targetToken Nothing
+                        let startOccurrenceField = surfaceFieldNameFrom @Surface.TimelineStartOccurrence fields
+                        let occurrenceFields = (startOccurrenceField, startOccurrenceField)
+                        case boundaryResolution of
+                            RosterTimelineDropInvalid message -> respondWithMoveRosterShiftFailure rosterGroup.id weekOffset message
+                            RosterTimelineDropBoundaryFailure repeatedEndpoints selections failure ->
+                                respondWithRosterSlotCopyBoundaryFailure rosterGroup.id weekOffset "move" intentForm occurrenceFields repeatedEndpoints selections failure
+                            RosterTimelineDropBoundaryReady rosterWeek boundaries -> do
+                                let updatedSlot = timelineSourceSlot
+                                        |> set #rosterDayId (unpackId timelineTargetRosterDay.id)
+                                        |> set #rosterWeekSlotDefinitionId (unpackId timelineTargetSlotDefinition.id)
+                                        |> set #slotSortOrder timelineTargetSlotDefinition.sortOrder
+                                        |> set #rowIndex timelineTargetRowIndex
+                                        |> applyRosterSlotBoundaries boundaries
+                                mutationResult <- moveRosterSlotMutation rosterGroup.id rosterWeek timelineSourceRosterDay timelineTargetRosterDay timelineSourceSlot updatedSlot
+                                case mutationResult of
+                                    Left message -> respondWithMoveRosterShiftFailure rosterGroup.id weekOffset message
+                                    Right mutationResult -> do
+                                        let shouldWarnSourceTimesheetUnchanged = mutationResult.liveMutationValue.rosterSlotMutationShouldWarnSourceTimesheetUnchanged
+                                        respondToRosterTimelineSlotMove rosterGroup.id rosterWeek mutationResult shouldWarnSourceTimesheetUnchanged
 
     action currentAction@DuplicateRosterShiftToDayAction { weekOffset } = runBepis currentAction BepisMutationAction do
         ensureManagerRole
@@ -789,21 +775,19 @@ instance Controller RosterWeeksController where
                         result <- validateDuplicateRosterShiftIntent rosterGroup.id weekOffset sourceToken targetToken
                         case result of
                             Left message -> respondWithMoveRosterShiftFailure rosterGroup.id weekOffset message
-                            Right MoveRosterShiftIntent { sourceSlot, sourceRosterDay, targetRosterDay, targetSlotDefinition, targetRowIndex } -> do
+                            Right resultValue@MoveRosterShiftIntent { sourceSlot, sourceRosterDay, targetRosterDay, targetSlotDefinition, targetRowIndex } -> do
                                 let startOccurrenceValue = surfaceFieldValue @Surface.CopyStartOccurrence fields
                                 let endOccurrenceValue = surfaceFieldValue @Surface.CopyEndOccurrence fields
                                 case copyOccurrenceSelectionsFromValues startOccurrenceValue endOccurrenceValue of
                                     Left message -> respondWithMoveRosterShiftFailure rosterGroup.id weekOffset message
                                     Right selections -> do
-                                        sourceRosterWeek <- fetch (Id sourceRosterDay.rosterWeekId :: Id RosterWeek)
-                                        targetRosterWeek <- fetch (Id targetRosterDay.rosterWeekId :: Id RosterWeek)
-                                        venueConfig <- fetchVenueConfig
+                                        boundaryResolution <- resolveRosterDayDropBoundaries resultValue selections
                                         let intentForm = rosterDuplicateShiftIntentForm weekOffset rosterGroup.id sourceToken targetToken Nothing Nothing
                                         let occurrenceFields = (surfaceFieldNameFrom @Surface.CopyStartOccurrence fields, surfaceFieldNameFrom @Surface.CopyEndOccurrence fields)
-                                        let repeatedEndpoints = rosterSlotCopyAmbiguousEndpoints venueConfig sourceRosterWeek sourceRosterDay targetRosterWeek targetRosterDay sourceSlot
-                                        case copyRosterSlotToDay venueConfig sourceRosterWeek sourceRosterDay targetRosterWeek targetRosterDay selections sourceSlot of
-                                            Left failure -> respondWithRosterSlotCopyBoundaryFailure rosterGroup.id weekOffset "duplicate" intentForm occurrenceFields repeatedEndpoints selections failure
-                                            Right copiedBoundariesSlot -> do
+                                        case boundaryResolution of
+                                            RosterDayDropBoundaryFailure repeatedEndpoints failure ->
+                                                respondWithRosterSlotCopyBoundaryFailure rosterGroup.id weekOffset "duplicate" intentForm occurrenceFields repeatedEndpoints selections failure
+                                            RosterDayDropBoundaryReady targetRosterWeek copiedBoundariesSlot -> do
                                                 let copiedSlot = newRecord @RosterSlot
                                                         |> set #rosterDayId (unpackId targetRosterDay.id)
                                                         |> set #staffId sourceSlot.staffId
@@ -885,7 +869,10 @@ instance Controller RosterWeeksController where
     action currentAction@NewRosterSlotDialogAction { rosterDayId, rosterWeekSlotDefinitionId, rowIndex } = runBepis currentAction BepisDialogAction do
         ensureManagerRole
         ensureVenueWritable
-        (rosterDay, rosterWeek, slotDefinition) <- fetchRosterSlotCreateContext rosterDayId rosterWeekSlotDefinitionId rowIndex
+        (rosterDay, rosterWeek) <- fetchRosterSlotCreateContext rosterDayId
+        authorizeRosterSlotCreateContext rosterDay rosterWeek rowIndex
+        slotDefinition <- fetchRosterSlotDefinitionForCreate rosterWeekSlotDefinitionId
+        authorizeRosterSlotDefinitionForCreate rosterWeek slotDefinition
         shiftTypes <- fetchCurrentVenueRosterShiftTypesForDialog
         if null shiftTypes
             then respondWithRosterToast "Create at least one shift type in Admin > Shift Types before adding roster shifts." "app-toast-error"
@@ -896,13 +883,19 @@ instance Controller RosterWeeksController where
     action currentAction@EditRosterSlotDialogAction { rosterSlotId } = runBepis currentAction BepisDialogAction do
         ensureManagerRole
         ensureVenueWritable
-        (rosterSlot, rosterDay, rosterWeek) <- fetchRosterSlotEditContext rosterSlotId
+        rosterSlot <- fetchRosterSlotForEdit rosterSlotId
+        authorizeRosterSlotForEdit rosterSlot
+        (rosterDay, rosterWeek) <- fetchRosterSlotEditContext rosterSlot
+        authorizeRosterSlotEditContext rosterDay rosterWeek
         renderRosterShiftDialogForEdit rosterSlot rosterDay rosterWeek (rosterShiftDialogValuesFromSlot rosterSlot)
 
     action currentAction@CreateRosterSlotAction { rosterDayId, rosterWeekSlotDefinitionId, rowIndex } = runBepis currentAction BepisMutationAction do
         ensureManagerRole
         ensureVenueWritable
-        (rosterDay, rosterWeek, slotDefinition) <- fetchRosterSlotCreateContext rosterDayId rosterWeekSlotDefinitionId rowIndex
+        (rosterDay, rosterWeek) <- fetchRosterSlotCreateContext rosterDayId
+        authorizeRosterSlotCreateContext rosterDay rosterWeek rowIndex
+        slotDefinition <- fetchRosterSlotDefinitionForCreate rosterWeekSlotDefinitionId
+        authorizeRosterSlotDefinitionForCreate rosterWeek slotDefinition
         let rosterGroupId = coerce rosterWeek.rosterGroupId
         existingSlot <- query @RosterSlot
             |> filterWhere (#rosterDayId, unpackId rosterDay.id)
@@ -910,7 +903,7 @@ instance Controller RosterWeeksController where
             |> filterWhere (#rowIndex, rowIndex)
             |> filterWhere (#deletedAt, Nothing)
             |> fetchOneOrNothing
-        validation <- validateRosterShiftDialogSubmission rosterGroupId rosterDay rosterWeek Nothing
+        validation <- validateRosterShiftDialogSubmission rosterGroupId rosterDay rosterWeek rosterShiftDialogSubmissionFromRequest
         case validation of
             Left values -> renderRosterShiftDialogForCreate rosterDay rosterWeek slotDefinition rowIndex values
             Right valid -> do
@@ -935,9 +928,12 @@ instance Controller RosterWeeksController where
     action currentAction@UpdateRosterSlotAction { rosterSlotId } = runBepis currentAction BepisMutationAction do
         ensureManagerRole
         ensureVenueWritable
-        (rosterSlot, rosterDay, rosterWeek) <- fetchRosterSlotEditContext rosterSlotId
+        rosterSlot <- fetchRosterSlotForEdit rosterSlotId
+        authorizeRosterSlotForEdit rosterSlot
+        (rosterDay, rosterWeek) <- fetchRosterSlotEditContext rosterSlot
+        authorizeRosterSlotEditContext rosterDay rosterWeek
         let rosterGroupId = coerce rosterWeek.rosterGroupId
-        validation <- validateRosterShiftDialogSubmission rosterGroupId rosterDay rosterWeek (Just rosterSlot)
+        validation <- validateRosterShiftDialogSubmission rosterGroupId rosterDay rosterWeek rosterShiftDialogSubmissionFromRequest
         case validation of
             Left values -> renderRosterShiftDialogForEdit rosterSlot rosterDay rosterWeek values
             Right valid -> do
@@ -956,11 +952,47 @@ instance Controller RosterWeeksController where
     action currentAction@DeleteRosterSlotAction { rosterSlotId } = runBepis currentAction BepisMutationAction do
         ensureManagerRole
         ensureVenueWritable
-        (rosterSlot, rosterDay, rosterWeek) <- fetchRosterSlotEditContext rosterSlotId
+        rosterSlot <- fetchRosterSlotForEdit rosterSlotId
+        authorizeRosterSlotForEdit rosterSlot
+        (rosterDay, rosterWeek) <- fetchRosterSlotEditContext rosterSlot
+        authorizeRosterSlotEditContext rosterDay rosterWeek
         let rosterGroupId = coerce rosterWeek.rosterGroupId
         deleteRosterSlotMutation rosterGroupId rosterWeek rosterDay rosterSlot >>= \case
             Left message -> respondWithMoveRosterShiftFailure rosterGroupId rosterWeek.weekOffset message
             Right mutationResult -> respondToRosterSlotUpdate rosterGroupId rosterWeek mutationResult [(rosterSlot.rosterDayId, rosterSlot.rowIndex)] False
+
+rosterShiftDialogSubmissionFromRequest :: (?context :: ControllerContext, ?request :: Request) => RosterShiftDialogSubmission
+rosterShiftDialogSubmissionFromRequest =
+    RosterShiftDialogSubmission
+        { submittedRosterShiftStaffId = paramOrNothing @Text "staffId"
+        , submittedRosterShiftStartTime = paramOrNothing @Text "startTime"
+        , submittedRosterShiftEndTime = paramOrNothing @Text "endTime"
+        , submittedRosterShiftTypeId = paramOrNothing @Text "shiftTypeId"
+        , submittedRosterShiftStartOccurrence = paramOrDefault "" "startOccurrence"
+        , submittedRosterShiftEndOccurrence = paramOrDefault "" "endOccurrence"
+        }
+
+authorizeRosterSlotCreateContext :: (?context :: ControllerContext, ?request :: Request) => RosterDay -> RosterWeek -> Int -> IO ()
+authorizeRosterSlotCreateContext rosterDay rosterWeek rowIndex = do
+    ensureRecordInCurrentVenue rosterWeek.venueId
+    ensureRosterWeekIsDraftForEdit rosterWeek
+    accessDeniedUnless (not rosterDay.isClosed)
+    accessDeniedUnless (rowIndex >= 0)
+
+authorizeRosterSlotDefinitionForCreate :: (?context :: ControllerContext, ?request :: Request) => RosterWeek -> RosterWeekSlotDefinition -> IO ()
+authorizeRosterSlotDefinitionForCreate rosterWeek slotDefinition = do
+    accessDeniedUnless (slotDefinition.rosterWeekId == unpackId rosterWeek.id)
+    accessDeniedUnless (isNothing slotDefinition.deletedAt)
+
+authorizeRosterSlotForEdit :: (?context :: ControllerContext, ?request :: Request) => RosterSlot -> IO ()
+authorizeRosterSlotForEdit rosterSlot =
+    accessDeniedUnless (isNothing rosterSlot.deletedAt)
+
+authorizeRosterSlotEditContext :: (?context :: ControllerContext, ?request :: Request) => RosterDay -> RosterWeek -> IO ()
+authorizeRosterSlotEditContext rosterDay rosterWeek = do
+    ensureRecordInCurrentVenue rosterWeek.venueId
+    ensureRosterWeekIsDraftForEdit rosterWeek
+    accessDeniedUnless (not rosterDay.isClosed)
 
 respondWithMoveRosterShiftFailure :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id RosterGroup -> Int -> Text -> IO ()
 respondWithMoveRosterShiftFailure rosterGroupId weekOffset message =

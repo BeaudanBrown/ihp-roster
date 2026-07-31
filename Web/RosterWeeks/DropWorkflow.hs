@@ -1,16 +1,19 @@
 module Web.RosterWeeks.DropWorkflow
     ( MoveRosterShiftIntent (..)
     , MoveRosterTimelineShiftIntent (..)
+    , RosterDayDropBoundaryResolution (..)
     , RosterDropSource (..)
     , RosterShiftDropDestination (..)
     , RosterShiftDropTarget (..)
     , RosterStaffDropIntent (..)
+    , RosterTimelineDropBoundaryResolution (..)
     , TimelineShiftDropTarget (..)
-    , fetchActiveStaffForCurrentVenue
     , firstAvailableRosterDayPlacement
     , parseRosterDropSourceToken
     , parseRosterShiftDropDestinationToken
     , parseTimelineShiftDropTargetToken
+    , resolveRosterDayDropBoundaries
+    , resolveRosterTimelineDropBoundaries
     , validateDuplicateRosterShiftIntent
     , validateMoveRosterShiftIntent
     , validateMoveRosterTimelineShiftIntent
@@ -20,15 +23,20 @@ module Web.RosterWeeks.DropWorkflow
 
 import Application.Helper.RosterGroups (staffIsEligibleForRosterGroup)
 import Application.Helper.TimeRules
-import Application.VenueTime.Model (rosterSlotElapsedSeconds,
-                                    rosterSlotStartTime)
+import Application.VenueTime.Model
 import Control.Monad (guard)
 import qualified Data.Set as Set
 import qualified Data.Text as Text
+import qualified Data.Time.Calendar as Calendar
 import Data.Time.LocalTime (TimeOfDay)
 import qualified Text.Read as TextRead
 import Web.Controller.Prelude
-import Web.RosterWeeks.Service (fetchActiveRosterWeekSlotDefinitions)
+import Web.Controller.RosterWeeks.Validation (invalidRosterSlotTimingMessage)
+import Web.RosterWeeks.Service (copyRosterSlotToDay,
+                                fetchActiveRosterWeekSlotDefinitions,
+                                fetchActiveStaffForCurrentVenue,
+                                resolveRosterTimelineTargetBoundaries,
+                                rosterSlotCopyAmbiguousEndpoints)
 
 data RosterDropSource
     = ExistingRosterShiftSource !(Id RosterSlot)
@@ -80,6 +88,28 @@ data MoveRosterTimelineShiftIntent = MoveRosterTimelineShiftIntent
     , timelineMoveIsNoOp           :: !Bool
     }
 
+data RosterDayDropBoundaryResolution
+    = RosterDayDropBoundaryFailure
+        { dayDropRepeatedEndpoints :: !(Bool, Bool)
+        , dayDropBoundaryFailure   :: !BoundaryModelError
+        }
+    | RosterDayDropBoundaryReady
+        { dayDropTargetRosterWeek :: !RosterWeek
+        , dayDropCopiedSlot       :: !RosterSlot
+        }
+
+data RosterTimelineDropBoundaryResolution
+    = RosterTimelineDropInvalid !Text
+    | RosterTimelineDropBoundaryFailure
+        { timelineDropRepeatedEndpoints :: !(Bool, Bool)
+        , timelineDropSelections        :: !ShiftCopyOccurrenceSelections
+        , timelineDropBoundaryFailure   :: !BoundaryModelError
+        }
+    | RosterTimelineDropBoundaryReady
+        { timelineDropTargetRosterWeek :: !RosterWeek
+        , timelineDropBoundaries       :: !AuthoritativeBoundaries
+        }
+
 data RosterStaffDropIntent
     = RosterStaffExistingShiftDropIntent
         { staffDropStaff      :: !Staff
@@ -110,6 +140,44 @@ validateMoveRosterTimelineShiftIntent rosterGroupId weekOffset sourceToken targe
             maybeResult <- validateRosterTimelineShiftDropTarget rosterGroupId weekOffset sourceSlotId target
             pure (maybe (Left "Drag the shift onto an open timeline time target.") Right maybeResult)
         _ -> pure (Left "Drag the shift onto an open timeline time target.")
+
+resolveRosterDayDropBoundaries :: (?context :: ControllerContext, ?modelContext :: ModelContext) => MoveRosterShiftIntent -> ShiftCopyOccurrenceSelections -> IO RosterDayDropBoundaryResolution
+resolveRosterDayDropBoundaries intent selections = do
+    sourceRosterWeek <- fetch (Id intent.sourceRosterDay.rosterWeekId :: Id RosterWeek)
+    targetRosterWeek <- fetch (Id intent.targetRosterDay.rosterWeekId :: Id RosterWeek)
+    venueConfig <- fetchVenueConfig
+    let repeatedEndpoints =
+            rosterSlotCopyAmbiguousEndpoints
+                venueConfig
+                sourceRosterWeek
+                intent.sourceRosterDay
+                targetRosterWeek
+                intent.targetRosterDay
+                intent.sourceSlot
+    pure $ case copyRosterSlotToDay venueConfig sourceRosterWeek intent.sourceRosterDay targetRosterWeek intent.targetRosterDay selections intent.sourceSlot of
+        Left failure -> RosterDayDropBoundaryFailure repeatedEndpoints failure
+        Right copiedSlot -> RosterDayDropBoundaryReady targetRosterWeek copiedSlot
+
+resolveRosterTimelineDropBoundaries :: (?context :: ControllerContext, ?modelContext :: ModelContext) => MoveRosterTimelineShiftIntent -> Text -> IO RosterTimelineDropBoundaryResolution
+resolveRosterTimelineDropBoundaries intent startOccurrenceValue =
+    case parseOccurrenceParam startOccurrenceValue of
+        Left message -> pure (RosterTimelineDropInvalid message)
+        Right startOccurrence -> do
+            rosterWeek <- fetch (Id intent.timelineTargetRosterDay.rosterWeekId :: Id RosterWeek)
+            venueConfig <- fetchVenueConfig
+            let targetRosterDate = Calendar.addDays (toInteger intent.timelineTargetRosterDay.dayOffset) (venueWeekStartDate venueConfig rosterWeek.weekOffset)
+                targetShiftDate = rosterShiftStartDate targetRosterDate intent.timelineTargetStartTime
+                repeatedEndpoints = (civilBoundaryIsRepeated targetShiftDate intent.timelineTargetStartTime, False)
+                selections = noShiftCopyOccurrenceSelections { copyShiftStartOccurrence = startOccurrence }
+            pure $ case rosterSlotElapsedSeconds intent.timelineSourceSlot of
+                Nothing -> RosterTimelineDropInvalid invalidRosterSlotTimingMessage
+                Just duration ->
+                    case resolveRosterTimelineTargetBoundaries venueConfig.timezone duration targetShiftDate intent.timelineTargetStartTime startOccurrence of
+                        Left failure -> RosterTimelineDropBoundaryFailure repeatedEndpoints selections failure
+                        Right boundaries
+                            | not (authoritativeRosterIntervalIsOperationallyValid boundaries) ->
+                                RosterTimelineDropInvalid invalidRosterSlotTimingMessage
+                            | otherwise -> RosterTimelineDropBoundaryReady rosterWeek boundaries
 
 validateRosterShiftDropIntent :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id RosterGroup -> Int -> Bool -> Text -> Text -> IO (Either Text MoveRosterShiftIntent)
 validateRosterShiftDropIntent rosterGroupId weekOffset allowSemanticDayNoOp sourceToken targetToken = do
@@ -182,14 +250,6 @@ validateRosterStaffCreateShiftDropTarget rosterGroupId weekOffset staffId dropTa
                 (slotDefinition, rowIndex) <- maybeResolvedTarget
                 pure RosterStaffCreateShiftDropIntent { staffDropStaff = staff, staffDropRosterDay = targetRosterDay, staffDropRosterWeek = rosterWeek, staffDropSlotDefinition = slotDefinition, staffDropRowIndex = rowIndex }
         _ -> pure Nothing
-
-fetchActiveStaffForCurrentVenue :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Id Staff -> IO (Maybe Staff)
-fetchActiveStaffForCurrentVenue staffId =
-    fetchOneOrNothing $ query @Staff
-        |> filterWhere (#id, staffId)
-        |> filterWhere (#venueId, unpackId currentVenueId)
-        |> filterWhere (#isActive, True)
-        |> filterWhere (#archivedAt, Nothing)
 
 validateRosterShiftDropTarget :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Id RosterGroup -> Int -> Bool -> Id RosterSlot -> RosterShiftDropTarget -> IO (Maybe MoveRosterShiftIntent)
 validateRosterShiftDropTarget rosterGroupId weekOffset allowSemanticDayNoOp sourceSlotId dropTarget = do
