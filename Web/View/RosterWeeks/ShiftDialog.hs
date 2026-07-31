@@ -109,7 +109,7 @@ rosterShiftDialogValuesFromSlot slot = emptyRosterShiftDialogValues
 
 renderRosterShiftDialog :: (?context :: ControllerContext) => RosterShiftDialogData -> Html
 renderRosterShiftDialog dialogData@RosterShiftDialogData { rosterShiftDialogMode, rosterShiftDialogTitle } =
-    renderDialogOverlay DialogOverlayConfig
+    renderKeyboardDialogOverlay DialogOverlayConfig
         { dialogOverlayTitle = rosterShiftDialogTitle
         , dialogOverlayBody = renderRosterShiftForm dialogData
         , dialogOverlayStartButtons = deleteButton rosterShiftDialogMode
@@ -163,7 +163,7 @@ renderRosterShiftForm RosterShiftDialogData { rosterShiftDialogMode, rosterShift
         <div class="row g-3 mb-3">
             <div class="col-12 col-lg-6">
                 <label class="form-label" for="roster-shift-type-id">Role</label>
-                <select id="roster-shift-type-id" name="shiftTypeId" class={classes [("form-select", True), ("is-invalid", isJust rosterShiftDialogValues.rosterShiftTypeError)]}>
+                <select id="roster-shift-type-id" name="shiftTypeId" aria-invalid={if isJust rosterShiftDialogValues.rosterShiftTypeError then ("true" :: Text) else "false"} class={classes [("form-select", True), ("is-invalid", isJust rosterShiftDialogValues.rosterShiftTypeError)]}>
                     <option value="">Select role</option>
                     {forEach visibleShiftTypes (renderDialogShiftTypeOption rosterShiftDialogValues.rosterShiftTypeId)}
                 </select>
@@ -171,7 +171,7 @@ renderRosterShiftForm RosterShiftDialogData { rosterShiftDialogMode, rosterShift
             </div>
             <div class="col-12 col-lg-6">
                 <label class="form-label" for="roster-shift-staff-id">Staff member</label>
-                <select id="roster-shift-staff-id" name="staffId" class={classes [("form-select", True), ("is-invalid", isJust rosterShiftDialogValues.rosterShiftStaffError)]}>
+                <select id="roster-shift-staff-id" name="staffId" aria-invalid={if isJust rosterShiftDialogValues.rosterShiftStaffError then ("true" :: Text) else "false"} class={classes [("form-select", True), ("is-invalid", isJust rosterShiftDialogValues.rosterShiftStaffError)]}>
                     <option value="">Select staff member</option>
                     {forEach visibleStaffMembers (renderStaffOption rosterShiftDialogValues.rosterShiftStaffId rosterShiftDialogStaff rosterShiftDialogPayInvalidStaffIds)}
                 </select>
@@ -184,14 +184,14 @@ renderRosterShiftForm RosterShiftDialogData { rosterShiftDialogMode, rosterShift
         <div class="row g-3 mb-3">
             <div class="col-12 col-sm-6">
                 <label class="form-label">Start time</label>
-                {renderDialogTimePicker "startTime" "Start" rosterShiftDialogValues.rosterShiftStartTime rosterShiftDialogTimePickerStart rosterShiftDialogTimePickerEnd (isJust rosterShiftDialogValues.rosterShiftStartError)}
-                {when rosterShiftDialogValues.rosterShiftStartIsRepeated (renderDialogOccurrenceChooser "startOccurrence" "Start occurrence" rosterShiftDialogValues.rosterShiftStartOccurrence)}
+                {renderDialogTimePicker "startTime" "Start" rosterShiftDialogValues.rosterShiftStartTime rosterShiftDialogTimePickerStart rosterShiftDialogTimePickerEnd True (isJust rosterShiftDialogValues.rosterShiftStartError)}
+                {when rosterShiftDialogValues.rosterShiftStartIsRepeated (renderDialogOccurrenceChooser "startOccurrence" "Start occurrence" rosterShiftDialogValues.rosterShiftStartOccurrence (isJust rosterShiftDialogValues.rosterShiftStartError))}
                 {renderDialogFieldError rosterShiftDialogValues.rosterShiftStartError}
             </div>
             <div class="col-12 col-sm-6">
                 <label class="form-label">End time</label>
-                {renderDialogTimePicker "endTime" "End" rosterShiftDialogValues.rosterShiftEndTime rosterShiftDialogTimePickerStart rosterShiftDialogTimePickerEnd (isJust rosterShiftDialogValues.rosterShiftEndError)}
-                {when rosterShiftDialogValues.rosterShiftEndIsRepeated (renderDialogOccurrenceChooser "endOccurrence" "End occurrence" rosterShiftDialogValues.rosterShiftEndOccurrence)}
+                {renderDialogTimePicker "endTime" "End" rosterShiftDialogValues.rosterShiftEndTime rosterShiftDialogTimePickerStart rosterShiftDialogTimePickerEnd False (isJust rosterShiftDialogValues.rosterShiftEndError)}
+                {when rosterShiftDialogValues.rosterShiftEndIsRepeated (renderDialogOccurrenceChooser "endOccurrence" "End occurrence" rosterShiftDialogValues.rosterShiftEndOccurrence (isJust rosterShiftDialogValues.rosterShiftEndError))}
                 {renderDialogFieldError rosterShiftDialogValues.rosterShiftEndError}
             </div>
         </div>
@@ -214,24 +214,28 @@ renderDialogFieldError Nothing = mempty
 renderDialogFieldError (Just message) = [hsx|<div class="invalid-feedback d-block">{message}</div>|]
 
 
-renderDialogTimePicker :: Text -> Text -> Text -> Text -> Text -> Bool -> Html
-renderDialogTimePicker fieldName emptyLabel value rangeStart rangeEnd hasError =
+renderDialogTimePicker :: Text -> Text -> Text -> Text -> Text -> Bool -> Bool -> Html
+renderDialogTimePicker fieldName emptyLabel value rangeStart rangeEnd autofocus hasError =
     let pickerConfig =
             (defaultTimePickerConfig fieldName value rangeStart rangeEnd False)
                 { timePickerEmptyLabel = emptyLabel
+                , timePickerKeyboardEnabled = True
+                , timePickerAutofocus = autofocus
+                , timePickerInvalid = hasError
                 , timePickerFieldClasses = ["roster-shift-dialog-time-picker"]
                 , timePickerTriggerClasses = ["w-100", "justify-content-center", "text-center"] <> ["is-invalid" | hasError]
                 , timePickerAriaLabel = "Select " <> emptyLabel
                 }
      in renderTimePickerField pickerConfig
 
-renderDialogOccurrenceChooser :: Text -> Text -> Maybe RepeatedTimeOccurrence -> Html
-renderDialogOccurrenceChooser fieldName label selectedOccurrence =
+renderDialogOccurrenceChooser :: Text -> Text -> Maybe RepeatedTimeOccurrence -> Bool -> Html
+renderDialogOccurrenceChooser fieldName label selectedOccurrence invalid =
     renderTimeOccurrenceChooser
         TimeOccurrenceChooserConfig
             { timeOccurrenceFieldName = fieldName
             , timeOccurrenceLabel = label
             , timeOccurrenceSelected = selectedOccurrence
+            , timeOccurrenceInvalid = invalid
             }
 
 renderStaffOption :: Maybe UUID -> [Staff] -> Set.Set UUID -> Staff -> Html

@@ -44,6 +44,14 @@ databaseTests = aroundAll withDatabaseTestContext do
                 html `shouldSatisfy` not . Text.isInfixOf "data-dialog-overlay"
                 html `shouldSatisfy` not . Text.isInfixOf "data-loading-label"
 
+        it "opts keyboard dialogs into one generated content focus region" $ withContext do
+            withCurrentControllerContext do
+                let html = renderText (renderKeyboardDialogOverlay dialogConfig)
+
+                html `shouldSatisfy` Text.isInfixOf "data-bepis-dialog-keyboard=\"true\""
+                html `shouldSatisfy` Text.isInfixOf "data-bepis-dialog-focus-region=\"true\""
+                renderText (renderDialogOverlay dialogConfig) `shouldSatisfy` not . Text.isInfixOf "data-bepis-dialog-keyboard"
+
         it "composes a supplemental generated close role without exposing raw attributes" $ withContext do
             withCurrentControllerContext do
                 let html = renderText (renderDialogOverlayWithCloseRole @Passkey.PasskeyDismissal dialogConfig)

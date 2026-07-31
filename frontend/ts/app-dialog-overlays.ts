@@ -4,6 +4,8 @@ import {
     dialogBlockingDomAttr,
     dialogCloseDomAttr,
     dialogDismissedEvent,
+    dialogFocusRegionDomAttr,
+    dialogKeyboardDomAttr,
     dialogMountDomAttr,
     dialogOverlayMountDomId,
     dialogSubmitConfigDomAttr,
@@ -20,6 +22,8 @@ import { closestHTMLElement, isHTMLElement } from "./shared/dom";
 import { detailRoot, detailTarget } from "./shared/lifecycle";
 
 const dialogMountSelector = `[${dialogMountDomAttr}]`;
+const dialogKeyboardSelector = `[${dialogKeyboardDomAttr}]`;
+const dialogFocusRegionSelector = `[${dialogFocusRegionDomAttr}]`;
 const dialogBackdropSelector = `[${dialogBackdropDomAttr}]`;
 const dialogCloseSelector = `[${dialogCloseDomAttr}]`;
 const navigationLoadingSelector = `form[${navigationLoadingDomAttr}]`;
@@ -93,6 +97,46 @@ function dialogSubmitConfiguration(submitter: HTMLButtonElement): DialogSubmitCo
     function getActiveDialog(): HTMLElement | null {
         const dialogs = Array.from(document.querySelectorAll(dialogMountSelector)).filter(isHTMLElement);
         return dialogs.length === 0 ? null : dialogs[dialogs.length - 1];
+    }
+
+    function keyboardFocusRegion(dialog: HTMLElement): HTMLElement | null {
+        if (!dialog.matches(dialogKeyboardSelector)) return null;
+        const regions = Array.from(dialog.querySelectorAll(dialogFocusRegionSelector));
+        return regions.length === 1 && regions[0] instanceof HTMLElement ? regions[0] : null;
+    }
+
+    function focusableDialogControls(region: HTMLElement): HTMLElement[] {
+        const selector = [
+            "input:not([type='hidden']):not([disabled])",
+            "select:not([disabled])",
+            "textarea:not([disabled])",
+            "button:not([disabled])",
+            "a[href]",
+            "[contenteditable='true']",
+            "[tabindex]:not([tabindex='-1'])",
+        ].join(",");
+
+        return Array.from(region.querySelectorAll(selector)).filter((element): element is HTMLElement => {
+            if (!(element instanceof HTMLElement)) return false;
+            if (element.hidden || element.closest("[hidden], [inert]") !== null) return false;
+            return element.tabIndex >= 0;
+        });
+    }
+
+    function focusKeyboardDialog(dialog: HTMLElement): void {
+        const region = keyboardFocusRegion(dialog);
+        if (region === null) return;
+        const controls = focusableDialogControls(region);
+        const firstInvalid = controls.find((control) => control.getAttribute("aria-invalid") === "true");
+        const autofocus = controls.find((control) => control.hasAttribute("autofocus"));
+        (firstInvalid ?? autofocus ?? controls[0] ?? dialog).focus({ preventScroll: true });
+    }
+
+    function initializeKeyboardDialogs(root: ParentNode): void {
+        if (root instanceof HTMLElement && root.matches(dialogKeyboardSelector)) focusKeyboardDialog(root);
+        root.querySelectorAll(dialogKeyboardSelector).forEach((dialog) => {
+            if (dialog instanceof HTMLElement) focusKeyboardDialog(dialog);
+        });
     }
 
     function hasVisibleBootstrapModal(): boolean {
@@ -243,6 +287,34 @@ function dialogSubmitConfiguration(submitter: HTMLButtonElement): DialogSubmitCo
             activeDialog.focus();
             return;
         }
+
+        const focusRegion = keyboardFocusRegion(activeDialog);
+        if (event.key === "Tab" && focusRegion !== null) {
+            const controls = focusableDialogControls(focusRegion);
+            event.preventDefault();
+            if (controls.length === 0) {
+                activeDialog.focus();
+                return;
+            }
+            const currentIndex = controls.indexOf(document.activeElement as HTMLElement);
+            const nextIndex = event.shiftKey
+                ? (currentIndex <= 0 ? controls.length - 1 : currentIndex - 1)
+                : (currentIndex < 0 || currentIndex === controls.length - 1 ? 0 : currentIndex + 1);
+            controls[nextIndex]?.focus();
+            return;
+        }
+
+        if (event.key === "Enter" && focusRegion !== null && !event.isComposing && !event.ctrlKey && !event.metaKey && !event.altKey) {
+            const target = event.target;
+            if (target instanceof HTMLTextAreaElement || (target instanceof HTMLElement && target.isContentEditable)) return;
+            const submitter = activeDialog.querySelector(`[${dialogSubmitDomAttr}]`);
+            if (submitter instanceof HTMLButtonElement && !submitter.disabled && submitter.form !== null) {
+                event.preventDefault();
+                submitter.form.requestSubmit(submitter);
+            }
+            return;
+        }
+
         if (event.key !== "Escape") return;
 
         event.preventDefault();
@@ -318,6 +390,7 @@ function dialogSubmitConfiguration(submitter: HTMLButtonElement): DialogSubmitCo
 
         window.htmx?.process?.(target);
         submitAutoFormsOnce(target);
+        initializeKeyboardDialogs(target);
 
         syncDialogState();
     });
@@ -328,6 +401,7 @@ function dialogSubmitConfiguration(submitter: HTMLButtonElement): DialogSubmitCo
         if (target.id !== mountId) return;
 
         submitAutoFormsOnce(target);
+        initializeKeyboardDialogs(target);
         syncDialogState();
     });
 
@@ -340,5 +414,9 @@ function dialogSubmitConfiguration(submitter: HTMLButtonElement): DialogSubmitCo
     });
     document.addEventListener("shown.bs.modal", syncDialogState);
     document.addEventListener("hidden.bs.modal", syncDialogState);
-    document.addEventListener(pageReadyEvent, syncDialogState);
+    document.addEventListener(pageReadyEvent, (event) => {
+        syncDialogState();
+        const target = detailTarget(event, "target");
+        if (target instanceof HTMLElement || target instanceof Document) initializeKeyboardDialogs(target);
+    });
 })();

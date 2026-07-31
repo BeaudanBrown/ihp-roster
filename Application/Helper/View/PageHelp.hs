@@ -167,6 +167,7 @@ pageHelpTopics =
             ]
         , section HelpManagerPlus "Planning"
             [ iconItem HelpManagerPlus "bi-plus-lg" "Add shift" "Create or edit shifts" "In a draft roster, click an empty cell to add a shift or click a shift to edit it. Staff and shift types need valid pay configuration before a shift can be saved, moved, copied, or published."
+            , iconItem HelpManagerPlus "bi-keyboard" "Keyboard entry" "Complete shift dialogs quickly" "Start is focused first. Use Tab through fields, either arrow-key pair to change time by 15 minutes, or type a 24-hour whole hour. Enter saves and Escape cancels."
             , iconItem HelpManagerPlus "bi-clock-history" "Clock change" "Choose a repeated time" "When an autumn clock time occurs twice, choose First for daylight time or Second for standard time. Times skipped by the spring clock change cannot be saved."
             , iconItem HelpManagerPlus "bi-shield-check" "Shift limits" "Keep supported shifts within Award limits" "Part-time shifts must project from 3 to 11.5 working hours and casual shifts up to 12. Bepis uses elapsed Melbourne time and deducts the planned unpaid meal break when it applies."
             , buttonItem HelpManagerPlus "bi-broadcast" "Live switch" "Publish or return to draft" "Turn Live on when the roster is ready for staff and all assigned pay configuration warnings are resolved. Turn it off to return the week to draft and hide uncreated Timesheet suggestions." "btn btn-outline-success" Nothing "Live"
@@ -203,6 +204,7 @@ pageHelpTopics =
             , iconItem HelpEveryone "bi-funnel" "Timesheet settings" "Hide or show suggestions" "Open Timesheet settings and toggle Show suggestions. The choice stays in the current page URL while you navigate weeks."
             , iconItem HelpEveryone "bi-pencil" "Edit entry" "Edit an existing entry" "Click the entry card itself to fix times, notes, or break details before approval. The form has no separate origin banner; roster-derived entries still keep their worked date and roster link, and only managers can reassign staff."
             , iconItem HelpEveryone "bi-cup-hot" "Breaks" "Record breaks correctly" "Add break details when a break was taken, including break start and end where required."
+            , iconItem HelpEveryone "bi-keyboard" "Keyboard entry" "Complete entry dialogs quickly" "Shift Start is focused first. Use Tab through fields, either arrow-key pair to change time by 15 minutes, or type a 24-hour whole hour. Enter saves outside notes and Escape cancels."
             , iconItem HelpEveryone "bi-clock-history" "Clock change" "Choose a repeated time" "When an autumn clock time occurs twice, choose First for daylight time or Second for standard time. Times skipped by the spring clock change cannot be saved."
             , iconItem HelpEveryone "bi-chat-left-text" "Manager help" "Fix an approved entry" "If an approved entry needs changes, ask a manager to reopen or correct it."
             ]

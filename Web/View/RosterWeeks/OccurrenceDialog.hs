@@ -85,6 +85,7 @@ renderOccurrenceSelect fieldName label selected =
             { timeOccurrenceFieldName = fieldName
             , timeOccurrenceLabel = label
             , timeOccurrenceSelected = selected
+            , timeOccurrenceInvalid = False
             }
 
 occurrenceSelectionValue :: Maybe RepeatedTimeOccurrence -> Maybe Text

@@ -28,6 +28,9 @@ data TimePickerConfig = TimePickerConfig
     , timePickerStepMinutes     :: !Int
     , timePickerDisabled        :: !Bool
     , timePickerShowStepButtons :: !Bool
+    , timePickerKeyboardEnabled :: !Bool
+    , timePickerAutofocus       :: !Bool
+    , timePickerInvalid         :: !Bool
     , timePickerEmptyLabel      :: !Text
     , timePickerFieldClasses    :: ![Text]
     , timePickerControlClasses  :: ![Text]
@@ -167,6 +170,9 @@ defaultTimePickerConfig fieldName currentValue rangeStart rangeEnd disabled =
         , timePickerStepMinutes = 15
         , timePickerDisabled = disabled
         , timePickerShowStepButtons = True
+        , timePickerKeyboardEnabled = False
+        , timePickerAutofocus = False
+        , timePickerInvalid = False
         , timePickerEmptyLabel = "Time"
         , timePickerFieldClasses = []
         , timePickerControlClasses = []
@@ -204,7 +210,7 @@ browserConfigFor TimePickerConfig { timePickerRangeStart, timePickerRangeEnd, ti
     canonicalValues = fmap fst quarterHourTimeOptions
 
 renderTimePickerControl :: TimePickerConfig -> Html
-renderTimePickerControl TimePickerConfig { timePickerCurrentValue, timePickerRangeStart, timePickerRangeEnd, timePickerStepMinutes, timePickerDisabled, timePickerShowStepButtons, timePickerEmptyLabel, timePickerControlClasses, timePickerTriggerClasses, timePickerAriaLabel } =
+renderTimePickerControl TimePickerConfig { timePickerCurrentValue, timePickerRangeStart, timePickerRangeEnd, timePickerStepMinutes, timePickerDisabled, timePickerShowStepButtons, timePickerKeyboardEnabled, timePickerAutofocus, timePickerInvalid, timePickerEmptyLabel, timePickerControlClasses, timePickerTriggerClasses, timePickerAriaLabel } =
     let displayLabel = renderTimePickerDisplayLabel timePickerEmptyLabel timePickerCurrentValue
         isMuted = Text.null timePickerCurrentValue
         (stepDownDisabled, stepUpDisabled) = timePickerStepButtonStates timePickerCurrentValue timePickerRangeStart timePickerRangeEnd timePickerStepMinutes timePickerDisabled
@@ -218,28 +224,33 @@ renderTimePickerControl TimePickerConfig { timePickerCurrentValue, timePickerRan
                 : ("btn-outline-secondary", True)
                 : ("time-picker-trigger-button", True)
                 : map (\className -> (className, True)) timePickerTriggerClasses
+        triggerAttrs =
+            timePickerTriggerAttrs
+                <> (if timePickerKeyboardEnabled then timePickerKeyboardAttrs else [])
+                <> (if timePickerInvalid then [("aria-invalid", "true")] else [])
      in [hsx|
         <div class={classes controlClasses} role="group" aria-label={timePickerAriaLabel}>
-            {renderTimePickerStepButton timePickerShowStepButtons timePickerStepDownAttrs "Select previous time" stepDownDisabled "-"}
+            {renderTimePickerStepButton timePickerShowStepButtons timePickerKeyboardEnabled timePickerStepDownAttrs "Select previous time" stepDownDisabled "-"}
             <button type="button"
                     class={classes triggerClasses}
                     disabled={timePickerDisabled}
-                    {...timePickerTriggerAttrs}>
+                    autofocus={timePickerAutofocus}
+                    {...triggerAttrs}>
                 <span class={classes [("time-picker-label", True), ("app-muted", isMuted)]} {...timePickerLabelAttrs}>{displayLabel}</span>
             </button>
-            {renderTimePickerStepButton timePickerShowStepButtons timePickerStepUpAttrs "Select next time" stepUpDisabled "+"}
+            {renderTimePickerStepButton timePickerShowStepButtons timePickerKeyboardEnabled timePickerStepUpAttrs "Select next time" stepUpDisabled "+"}
         </div>
     |]
 
-renderTimePickerStepButton :: Bool -> [(Text, Text)] -> Text -> Bool -> Text -> Html
-renderTimePickerStepButton showButton roleAttributes ariaLabel disabled label
+renderTimePickerStepButton :: Bool -> Bool -> [(Text, Text)] -> Text -> Bool -> Text -> Html
+renderTimePickerStepButton showButton keyboardEnabled roleAttributes ariaLabel disabled label
     | not showButton = mempty
     | otherwise = [hsx|
         <button type="button"
                 class="btn btn-outline-secondary time-picker-step-button"
                 aria-label={ariaLabel}
                 disabled={disabled}
-                {...roleAttributes}>
+                {...roleAttributes <> if keyboardEnabled then [("tabindex", "-1")] else []}>
             {label}
         </button>
     |]

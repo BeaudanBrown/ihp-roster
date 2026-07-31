@@ -11,15 +11,20 @@ data TimeOccurrenceChooserConfig = TimeOccurrenceChooserConfig
     { timeOccurrenceFieldName :: !Text
     , timeOccurrenceLabel     :: !Text
     , timeOccurrenceSelected  :: !(Maybe RepeatedTimeOccurrence)
+    , timeOccurrenceInvalid   :: !Bool
     }
 
 renderTimeOccurrenceChooser :: TimeOccurrenceChooserConfig -> Html
-renderTimeOccurrenceChooser config = [hsx|
+renderTimeOccurrenceChooser config =
+    let invalidAttrs :: [(Text, Text)]
+        invalidAttrs = if config.timeOccurrenceInvalid then [("aria-invalid", "true")] else []
+     in [hsx|
     <div class="mt-2" data-time-occurrence-chooser={config.timeOccurrenceFieldName}>
         <label class="form-label small" for={config.timeOccurrenceFieldName}>{config.timeOccurrenceLabel}</label>
         <select class="form-select form-select-sm"
                 id={config.timeOccurrenceFieldName}
                 name={config.timeOccurrenceFieldName}
+                {...invalidAttrs}
                 required="required">
             <option value="" selected={isNothing config.timeOccurrenceSelected}>Choose occurrence</option>
             <option value="first" selected={config.timeOccurrenceSelected == Just FirstOccurrence}>First occurrence (daylight time)</option>

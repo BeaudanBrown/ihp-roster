@@ -10,6 +10,7 @@ module Application.Helper.View.Overlay
     , defaultOverlayButtons
     , dialogOverlayMountId
     , renderDialogOverlay
+    , renderKeyboardDialogOverlay
     , renderDialogOverlayBodyOnly
     , renderDialogOverlayWithCloseRole
     , renderPageDialogModal
@@ -72,16 +73,19 @@ defaultOverlayButtons formId =
     ]
 
 renderDialogOverlay :: DialogOverlayConfig -> Html
-renderDialogOverlay = renderDialogOverlayWithCloseAttrs []
+renderDialogOverlay = renderDialogOverlayWithOptions [] False
+
+renderKeyboardDialogOverlay :: DialogOverlayConfig -> Html
+renderKeyboardDialogOverlay = renderDialogOverlayWithOptions [] True
 
 renderDialogOverlayWithCloseRole :: forall marker. Typeable marker => DialogOverlayConfig -> Html
 renderDialogOverlayWithCloseRole =
-    renderDialogOverlayWithCloseAttrs [(domAttrValue @marker, "true")]
+    renderDialogOverlayWithOptions [(domAttrValue @marker, "true")] False
 
-renderDialogOverlayWithCloseAttrs :: [(Text, Text)] -> DialogOverlayConfig -> Html
-renderDialogOverlayWithCloseAttrs closeAttrs DialogOverlayConfig { dialogOverlayTitle, dialogOverlayBody, dialogOverlayStartButtons, dialogOverlayButtons, dialogOverlayDialogClass } = [hsx|
+renderDialogOverlayWithOptions :: [(Text, Text)] -> Bool -> DialogOverlayConfig -> Html
+renderDialogOverlayWithOptions closeAttrs keyboardEnabled DialogOverlayConfig { dialogOverlayTitle, dialogOverlayBody, dialogOverlayStartButtons, dialogOverlayButtons, dialogOverlayDialogClass } = [hsx|
     <div class="modal fade show d-block"
-         {...dialogMountAttrs}
+         {...dialogMountAttrs <> if keyboardEnabled then dialogKeyboardAttrs else []}
          tabindex="-1"
          role="dialog"
          aria-modal="true"
@@ -93,7 +97,7 @@ renderDialogOverlayWithCloseAttrs closeAttrs DialogOverlayConfig { dialogOverlay
                     <h5 class="modal-title" id="dialog-overlay-title">{dialogOverlayTitle}</h5>
                     <button type="button" class="btn-close" aria-label="Close" {...dialogCloseAttrs <> closeAttrs}></button>
                 </div>
-                <div class="modal-body">{dialogOverlayBody}</div>
+                <div class="modal-body" {...if keyboardEnabled then dialogFocusRegionAttrs else []}>{dialogOverlayBody}</div>
                 {renderDialogOverlayFooter dialogOverlayStartButtons dialogOverlayButtons}
             </div>
         </div>

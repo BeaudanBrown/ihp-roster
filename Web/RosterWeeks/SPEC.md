@@ -241,6 +241,14 @@ lands.
   slot-definition cell is free, otherwise it uses the first free row. Invalid
   targets, live weeks, closed days, unstaffed shifts, and shifts without complete
   start/end times are rejected server-side.
+- HTMX roster shift dialogs initially focus Start while keeping cyclic Tab order
+  equal to visual form order and excluding header/footer controls. Each time
+  picker is one tab stop. Up/Right and Down/Left step and wrap the authoritative
+  quarter-hour option range; one- or two-digit buffered 24-hour input selects
+  only a rendered whole-hour option. Enter saves outside multiline fields or an
+  open picker, and Escape closes the picker before cancelling the dialog.
+  Validation replacement focuses the first invalid control, then falls back to
+  Start. Full-page fallback dialogs retain their existing behavior.
 - New roster shift dialogs default to the venue picker start time and an
   8-hour end time clamped to the configured picker end when the window is
   shorter than 8 hours. Existing saved shift times outside the picker window

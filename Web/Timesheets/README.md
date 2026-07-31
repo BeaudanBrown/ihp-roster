@@ -34,6 +34,18 @@ action metadata come from marker-indexed accessors; views do not hand-author the
 sync attribute or a custom-HTMX substitute. Fragment URL, target, and protection
 values remain local server-rendered mount data.
 
+## Keyboard Dialog Contract
+
+HTMX create/edit/suggestion dialogs opt into the generated Overlay keyboard
+mode; full-page fallbacks do not. Shift Start receives initial focus, Tab is
+trapped over enabled modal-body controls in visual DOM order, and validation
+replacement prefers the first invalid control. Dialog chrome is excluded.
+TimePicker keyboard behavior is generic: one tab stop per field, wrapped
+quarter-hour stepping with either arrow-key pair, buffered whole-hour 24-hour
+selection from rendered options, and arrow/Enter selection in the open picker.
+Enter saves outside multiline fields, while Escape cancels the picker before the
+dialog.
+
 ## Toggle And Break Boundary
 
 Timesheet filters use Surface Action field bundles with the global generated

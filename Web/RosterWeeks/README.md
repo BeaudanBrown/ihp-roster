@@ -146,6 +146,15 @@ canonical value/label option payloads. Roster views do not own picker selectors
 or browser fallback data; the generic adapter owns only mechanical modal,
 selection, clear, and step behavior.
 
+HTMX shift dialogs opt into the generated Overlay keyboard mode. Initial focus
+is Start while Tab follows cyclic visual form order and excludes dialog chrome.
+The generic picker treats each time as one tab stop, steps and wraps valid
+quarter-hour options with either arrow-key pair, and accepts buffered whole-hour
+24-hour input only when that exact option is in the Haskell-rendered range.
+Enter saves outside multiline fields and the open picker; Escape cancels the
+picker first and then the workflow dialog. Full-page fallback dialogs do not opt
+into this mode.
+
 ## Day Timeline Rendering Contract
 
 The single-day timeline is selected on the normal roster week page via

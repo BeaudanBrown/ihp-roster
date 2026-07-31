@@ -33,6 +33,9 @@ tests = aroundAll withDatabaseTestContext do
                 let config =
                         (defaultTimePickerConfig "startTime" "09:00" "09:00" "13:00" False)
                             { timePickerEmptyLabel = "Start"
+                            , timePickerKeyboardEnabled = True
+                            , timePickerAutofocus = True
+                            , timePickerInvalid = True
                             }
                 let html = renderText (renderTimePickerField config)
 
@@ -40,6 +43,10 @@ tests = aroundAll withDatabaseTestContext do
                 html `shouldSatisfy` Text.isInfixOf "data-bepis-time-picker-config=\"{&quot;emptyLabel&quot;:&quot;Start&quot;,&quot;rangeEnd&quot;:&quot;13:00&quot;,&quot;rangeStart&quot;:&quot;09:00&quot;,&quot;stepMinutes&quot;:15}\""
                 html `shouldSatisfy` Text.isInfixOf "name=\"startTime\" value=\"09:00\" data-bepis-time-picker-value=\"true\""
                 html `shouldSatisfy` Text.isInfixOf "data-bepis-time-picker-trigger=\"true\""
+                html `shouldSatisfy` Text.isInfixOf "data-bepis-time-picker-keyboard=\"true\""
+                html `shouldSatisfy` Text.isInfixOf "autofocus=\"autofocus\""
+                html `shouldSatisfy` Text.isInfixOf "aria-invalid=\"true\""
+                html `shouldSatisfy` Text.isInfixOf "tabindex=\"-1\""
                 html `shouldSatisfy` Text.isInfixOf "data-bepis-time-picker-label=\"true\">9:00 AM"
                 html `shouldSatisfy` Text.isInfixOf "data-bepis-time-picker-step-down=\"true\""
                 html `shouldSatisfy` Text.isInfixOf "data-bepis-time-picker-step-up=\"true\""

@@ -83,6 +83,52 @@ test.describe('Roster Time Picker', () => {
         expect(initErrors).toHaveLength(0);
     });
 
+    test('supports keyboard-first dialog focus, wrapped stepping, whole-hour typing, and picker selection', async ({ page }) => {
+        await loginAndOpenRoster(page);
+
+        const firstField = await addFreshRowAndGetFirstTimeField(page);
+        const trigger = firstField.locator(`[${timePickerTriggerDomAttr}]`);
+        const hiddenInput = firstField.locator(`[${timePickerValueDomAttr}]`);
+        const dialog = page.getByRole('dialog', { name: 'Add shift' });
+        const endTrigger = dialog.locator(`[${timePickerTriggerDomAttr}]`).nth(1);
+
+        await expect(trigger).toBeFocused();
+        await page.keyboard.press('Shift+Tab');
+        await expect(dialog.locator('#roster-shift-staff-id')).toBeFocused();
+        await trigger.focus();
+        await page.keyboard.press('Tab');
+        await expect(endTrigger).toBeFocused();
+        await page.keyboard.press('Tab');
+        await expect(dialog.locator('#roster-shift-type-id')).toBeFocused();
+
+        await trigger.focus();
+        await page.keyboard.type('13');
+        await expect(hiddenInput).toHaveValue('13:00');
+        await page.keyboard.press('ArrowRight');
+        await expect(hiddenInput).toHaveValue('13:15');
+        await page.keyboard.press('ArrowLeft');
+        await expect(hiddenInput).toHaveValue('13:00');
+
+        await page.keyboard.type('5');
+        await expect(hiddenInput).toHaveValue('05:00');
+        await page.keyboard.press('ArrowRight');
+        await page.keyboard.press('ArrowRight');
+        await page.keyboard.press('ArrowRight');
+        await expect(hiddenInput).toHaveValue('05:45');
+        await page.keyboard.press('ArrowRight');
+        await expect(hiddenInput).toHaveValue('06:00');
+
+        await trigger.click();
+        await expect(page.locator(modalSelector)).toBeVisible();
+        await page.keyboard.press('ArrowRight');
+        await page.keyboard.press('Enter');
+        await expect(page.locator(modalSelector)).toBeHidden();
+        await expect(hiddenInput).toHaveValue('06:15');
+
+        await page.keyboard.press('Escape');
+        await expect(page.locator(`#${dialogOverlayMountDomId}`)).toBeEmpty();
+    });
+
     test('shows a clear Part-time duration validation message for an invalid shift', async ({ page }) => {
         await loginAndOpenRoster(page);
 

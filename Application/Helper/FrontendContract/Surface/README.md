@@ -672,6 +672,13 @@ module-owned toast transition classes stay inside the adapters; native disabled
 state and ARIA dialog/control state remain native rather than being duplicated
 as app DOM vocabulary.
 
+HTMX workflows may opt into generated dialog-keyboard and focus-region roles.
+The Overlay adapter then restores first-invalid/autofocus focus after replacement,
+traps Tab in enabled content controls, and maps Enter/Escape to the existing
+submit/dismissal semantics while preserving multiline Enter. This is opt-in and
+does not change page-dialog fallbacks. Time stepping and numeric selection stay
+inside the independently opted-in TimePicker capability.
+
 ## Generated Haskell Adapter Foundation
 
 Mechanical feature adapters are generated from the same checked declarations;

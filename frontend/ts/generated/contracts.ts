@@ -372,6 +372,10 @@ export const dialogAutoSubmitOnceDomAttr = "data-bepis-dialog-auto-submit-once" 
 
 export const dialogBlockingDomAttr = "data-bepis-dialog-blocking" as const;
 
+export const dialogKeyboardDomAttr = "data-bepis-dialog-keyboard" as const;
+
+export const dialogFocusRegionDomAttr = "data-bepis-dialog-focus-region" as const;
+
 export const navigationLoadingDomAttr = "data-bepis-navigation-loading" as const;
 
 export const navigationLoadingConfigDomAttr = "data-bepis-navigation-loading-config" as const;
@@ -614,6 +618,8 @@ export const timePickerFieldDomAttr = "data-bepis-time-picker-field" as const;
 export const timePickerConfigDomAttr = "data-bepis-time-picker-config" as const;
 
 export const timePickerTriggerDomAttr = "data-bepis-time-picker-trigger" as const;
+
+export const timePickerKeyboardDomAttr = "data-bepis-time-picker-keyboard" as const;
 
 export const timePickerValueDomAttr = "data-bepis-time-picker-value" as const;
 

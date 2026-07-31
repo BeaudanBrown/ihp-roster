@@ -74,18 +74,18 @@ renderTimesheetForm appShellAction formOrigin entry staffMembers shiftTypes week
 
                         ]
                     }
-                (renderTimesheetFormFields formOrigin entry staffMembers shiftTypes weekOffset showApproved showAllStaff showSuggestions selectedStaffFilterId currentViewerStaffId pickerStart pickerEnd)
+                (renderTimesheetFormFields formOrigin entry staffMembers shiftTypes weekOffset showApproved showAllStaff showSuggestions selectedStaffFilterId currentViewerStaffId pickerStart pickerEnd True)
         PageOverlayForm -> [hsx|
             <form id={formId}
                   method="POST"
                   action={actionUrl}
                   class="mt-3">
-                {renderTimesheetFormFields formOrigin entry staffMembers shiftTypes weekOffset showApproved showAllStaff showSuggestions selectedStaffFilterId currentViewerStaffId pickerStart pickerEnd}
+                {renderTimesheetFormFields formOrigin entry staffMembers shiftTypes weekOffset showApproved showAllStaff showSuggestions selectedStaffFilterId currentViewerStaffId pickerStart pickerEnd False}
             </form>
         |]
 
-renderTimesheetFormFields :: (?context :: ControllerContext) => TimesheetFormOrigin -> TimesheetEntry -> [Staff] -> [ShiftType] -> Int -> Bool -> Bool -> Bool -> Maybe UUID -> Maybe UUID -> Text -> Text -> Html
-renderTimesheetFormFields formOrigin entry staffMembers shiftTypes weekOffset showApproved showAllStaff showSuggestions selectedStaffFilterId currentViewerStaffId pickerStart pickerEnd = [hsx|
+renderTimesheetFormFields :: (?context :: ControllerContext) => TimesheetFormOrigin -> TimesheetEntry -> [Staff] -> [ShiftType] -> Int -> Bool -> Bool -> Bool -> Maybe UUID -> Maybe UUID -> Text -> Text -> Bool -> Html
+renderTimesheetFormFields formOrigin entry staffMembers shiftTypes weekOffset showApproved showAllStaff showSuggestions selectedStaffFilterId currentViewerStaffId pickerStart pickerEnd keyboardEnabled = [hsx|
     <input type="hidden" name={surfaceFieldNameFrom @Surface.WeekOffset stateFields} value={tshow weekOffset} />
     <input type="hidden" name={surfaceFieldNameFrom @Surface.ShowApproved stateFields} value={if showApproved then ("true" :: Text) else "false"} />
     <input type="hidden" name={surfaceFieldNameFrom @Surface.ShowAllStaff stateFields} value={if showAllStaff then ("true" :: Text) else "false"} />
@@ -100,13 +100,13 @@ renderTimesheetFormFields formOrigin entry staffMembers shiftTypes weekOffset sh
     <div class="row mb-3">
         <div class="col">
             <label class="form-label">Shift Start</label>
-            {renderTimePickerField (defaultTimePickerConfig "startTime" startTimeValue pickerStart pickerEnd False)}
+            {renderTimePickerField (timesheetPickerConfig "startTime" startTimeValue True (hasErrorFor entry "startsAt"))}
             {renderOccurrenceChooser entry "startsAt" "startOccurrence" "Shift start occurrence" startLocalTime (authoritativeStartOccurrence boundaries)}
             {renderFieldError entry "startsAt"}
         </div>
         <div class="col">
             <label class="form-label">Shift End</label>
-            {renderTimePickerField (defaultTimePickerConfig "endTime" endTimeValue pickerStart pickerEnd False)}
+            {renderTimePickerField (timesheetPickerConfig "endTime" endTimeValue False (hasErrorFor entry "endsAt"))}
             {renderOccurrenceChooser entry "endsAt" "endOccurrence" "Shift end occurrence" endLocalTime (authoritativeEndOccurrence boundaries)}
             {renderFieldError entry "endsAt"}
         </div>
@@ -116,7 +116,7 @@ renderTimesheetFormFields formOrigin entry staffMembers shiftTypes weekOffset sh
         {renderTimesheetBreakToggle entry}
     </div>
 
-    {renderTimesheetBreakFields entry boundaries breakStartTimeValue breakEndTimeValue pickerStart pickerEnd}
+    {renderTimesheetBreakFields entry boundaries breakStartTimeValue breakEndTimeValue pickerStart pickerEnd keyboardEnabled}
     {renderTimesheetStaffCommentField entry currentViewerStaffId}
     {renderTimesheetManagerNoteField entry}
 |]
@@ -129,6 +129,12 @@ renderTimesheetFormFields formOrigin entry staffMembers shiftTypes weekOffset sh
         breakStartTimeValue = optionalTimeOfDayToStorageValue (timesheetEntryBreakStartTime entry)
         breakEndTimeValue = optionalTimeOfDayToStorageValue (timesheetEntryBreakEndTime entry)
         dateValueIso = tshow startLocalTime.localDay :: Text
+        timesheetPickerConfig fieldName value autofocus invalid =
+            (defaultTimePickerConfig fieldName value pickerStart pickerEnd False)
+                { timePickerKeyboardEnabled = keyboardEnabled
+                , timePickerAutofocus = keyboardEnabled && autofocus
+                , timePickerInvalid = invalid
+                }
         stateFields =
             TimesheetsAction.createTimesheetEntryFromSuggestionActionFields
                 weekOffset
@@ -137,22 +143,28 @@ renderTimesheetFormFields formOrigin entry staffMembers shiftTypes weekOffset sh
                 showSuggestions
                 selectedStaffFilterId
 
-renderTimesheetBreakFields :: TimesheetEntry -> AuthoritativeBoundaries -> Text -> Text -> Text -> Text -> Html
-renderTimesheetBreakFields entry boundaries breakStartTimeValue breakEndTimeValue pickerStart pickerEnd =
+renderTimesheetBreakFields :: TimesheetEntry -> AuthoritativeBoundaries -> Text -> Text -> Text -> Text -> Bool -> Html
+renderTimesheetBreakFields entry boundaries breakStartTimeValue breakEndTimeValue pickerStart pickerEnd keyboardEnabled =
     renderAppToggleBreakRegion timesheetBreakRegion (timesheetEntryHadBreak entry) "row mb-3" [hsx|
         <div class="col">
             <label class="form-label">Break Start</label>
-            {renderTimePickerField (defaultTimePickerConfig "breakStartTime" breakStartTimeValue pickerStart pickerEnd False)}
+            {renderTimePickerField (breakPickerConfig "breakStartTime" breakStartTimeValue (hasErrorFor entry "breakStartsAt"))}
             {maybe mempty (\localTime -> renderOccurrenceChooser entry "breakStartsAt" "breakStartOccurrence" "Break start occurrence" localTime (authoritativeBreakStartOccurrence boundaries)) (authoritativeBreakStartLocalTime boundaries)}
             {renderFieldError entry "breakStartsAt"}
         </div>
         <div class="col">
             <label class="form-label">Break End</label>
-            {renderTimePickerField (defaultTimePickerConfig "breakEndTime" breakEndTimeValue pickerStart pickerEnd False)}
+            {renderTimePickerField (breakPickerConfig "breakEndTime" breakEndTimeValue (hasErrorFor entry "breakEndsAt"))}
             {maybe mempty (\localTime -> renderOccurrenceChooser entry "breakEndsAt" "breakEndOccurrence" "Break end occurrence" localTime (authoritativeBreakEndOccurrence boundaries)) (authoritativeBreakEndLocalTime boundaries)}
             {renderFieldError entry "breakEndsAt"}
         </div>
     |]
+  where
+    breakPickerConfig fieldName value invalid =
+        (defaultTimePickerConfig fieldName value pickerStart pickerEnd False)
+            { timePickerKeyboardEnabled = keyboardEnabled
+            , timePickerInvalid = invalid
+            }
 
 renderOccurrenceChooser :: TimesheetEntry -> Text -> Text -> Text -> LocalTime -> Maybe RepeatedTimeOccurrence -> Html
 renderOccurrenceChooser entry annotationField fieldName label localTime storedOccurrence
@@ -163,6 +175,7 @@ renderOccurrenceChooser entry annotationField fieldName label localTime storedOc
                 { timeOccurrenceFieldName = fieldName
                 , timeOccurrenceLabel = label
                 , timeOccurrenceSelected = selectedOccurrence
+                , timeOccurrenceInvalid = hasErrorFor entry annotationField
                 }
   where
     selectedOccurrence =
@@ -223,6 +236,7 @@ renderTimesheetStaffCommentField entry currentViewerStaffId
             <textarea id="staffComment"
                       name="staffComment"
                       class={classes [("form-control", True), ("is-invalid", hasErrorFor entry "staffComment")]}
+                      aria-invalid={if hasErrorFor entry "staffComment" then ("true" :: Text) else "false"}
                       rows="3"
                       maxlength="1000">{fromMaybe "" entry.staffComment}</textarea>
             {renderFieldError entry "staffComment"}
@@ -244,6 +258,7 @@ renderTimesheetManagerNoteField entry
             <textarea id="managerNote"
                       name="managerNote"
                       class={classes [("form-control", True), ("is-invalid", hasErrorFor entry "managerNote")]}
+                      aria-invalid={if hasErrorFor entry "managerNote" then ("true" :: Text) else "false"}
                       rows="3"
                       maxlength="1000">{fromMaybe "" entry.managerNote}</textarea>
             {renderFieldError entry "managerNote"}
@@ -257,7 +272,7 @@ renderStaffField entry staffMembers =
         then [hsx|
             <div class="mb-3">
                 <label for="staffId" class="form-label">Staff Member</label>
-                <select name="staffId" id="staffId" class={classes [("form-select", True), ("is-invalid", hasErrorFor entry "staffId")]} required="required">
+                <select name="staffId" id="staffId" aria-invalid={if hasErrorFor entry "staffId" then ("true" :: Text) else "false"} class={classes [("form-select", True), ("is-invalid", hasErrorFor entry "staffId")]} required="required">
                     {forEach staffMembers (renderTimesheetStaffOption entry.staffId)}
                 </select>
                 {renderFieldError entry "staffId"}
@@ -271,7 +286,7 @@ renderShiftTypeField :: TimesheetEntry -> [ShiftType] -> Html
 renderShiftTypeField entry shiftTypes = [hsx|
     <div class="mb-3">
         <label for="shiftTypeId" class="form-label">Shift Type</label>
-        <select name="shiftTypeId" id="shiftTypeId" class={classes [("form-select", True), ("is-invalid", hasErrorFor entry "shiftTypeId")]} required="required">
+        <select name="shiftTypeId" id="shiftTypeId" aria-invalid={if hasErrorFor entry "shiftTypeId" then ("true" :: Text) else "false"} class={classes [("form-select", True), ("is-invalid", hasErrorFor entry "shiftTypeId")]} required="required">
             {forEach shiftTypes (renderShiftTypeOption entry.shiftTypeId)}
         </select>
         {renderFieldError entry "shiftTypeId"}
@@ -328,7 +343,7 @@ renderTimesheetEntryDialog title formId formContent =
 
 renderTimesheetEntryDialogWithStartButtons :: Text -> Text -> Html -> [OverlayButton] -> Html
 renderTimesheetEntryDialogWithStartButtons title formId formContent startButtons =
-    renderDialogOverlay DialogOverlayConfig
+    renderKeyboardDialogOverlay DialogOverlayConfig
         { dialogOverlayTitle = title
         , dialogOverlayBody = formContent
         , dialogOverlayStartButtons = startButtons

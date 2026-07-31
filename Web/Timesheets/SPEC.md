@@ -21,6 +21,15 @@ submission work belongs in `docs/workstreams/` until it lands.
   manager filters, and suggestions; tampered create/update requests targeting
   them are rejected.
 - Time inputs must be exact 15-minute increments.
+- HTMX entry dialogs initially focus Shift Start and trap Tab/Shift+Tab over
+  enabled modal-body controls in visual order, including Had break and notes but
+  excluding dialog chrome. Time fields are one tab stop; Up/Right and Down/Left
+  step and wrap rendered quarter-hour options, while buffered one- or two-digit
+  24-hour input selects only an available whole hour. The open picker consumes
+  arrows and Enter. Otherwise Enter saves except in multiline fields, and Escape
+  cancels. Validation replacement focuses the first invalid control before
+  falling back to Shift Start. Full-page fallback dialogs retain existing
+  behavior.
 - Timesheet start/end/break pickers use the venue-configured time-picker window.
   New ad-hoc entries default to the venue picker start time and an 8-hour end
   time clamped to the configured picker end when needed. Existing saved times

@@ -3,7 +3,8 @@ import {
     parseTimePickerOptionConfiguration,
     timePickerOptionsForConfiguration,
 } from "../time-picker/configuration";
-import { assertDeepEqual, assertThrows, test } from "./harness";
+import { steppedTimePickerOption, wholeHourTimePickerOption } from "../time-picker/keyboard";
+import { assertDeepEqual, assertEqual, assertThrows, test } from "./harness";
 
 const overnightConfig = {
     rangeStart: "23:45",
@@ -34,6 +35,28 @@ test("time picker uses the Haskell-rendered option inventory for wrapped ranges"
         { value: "00:00", label: "12:00 AM" },
         { value: "00:15", label: "12:15 AM" },
     ]);
+});
+
+test("time picker keyboard stepping wraps and selects a boundary from an empty value", () => {
+    assertDeepEqual(steppedTimePickerOption(optionInventory, "23:45", 1), optionInventory[2]);
+    assertDeepEqual(steppedTimePickerOption(optionInventory, "00:30", 1), optionInventory[0]);
+    assertDeepEqual(steppedTimePickerOption(optionInventory, "23:30", -1), optionInventory[4]);
+    assertDeepEqual(steppedTimePickerOption(optionInventory, "", 1), optionInventory[0]);
+    assertDeepEqual(steppedTimePickerOption(optionInventory, "", -1), optionInventory[4]);
+});
+
+test("time picker whole-hour typing accepts only rendered valid hours", () => {
+    const wholeHours = [
+        { value: "01:00", label: "1:00 AM" },
+        { value: "09:00", label: "9:00 AM" },
+        { value: "13:00", label: "1:00 PM" },
+    ];
+    assertDeepEqual(wholeHourTimePickerOption(wholeHours, "1"), wholeHours[0]);
+    assertDeepEqual(wholeHourTimePickerOption(wholeHours, "09"), wholeHours[1]);
+    assertDeepEqual(wholeHourTimePickerOption(wholeHours, "13"), wholeHours[2]);
+    assertEqual(wholeHourTimePickerOption(wholeHours, "24"), null);
+    assertEqual(wholeHourTimePickerOption(wholeHours, "130"), null);
+    assertEqual(wholeHourTimePickerOption(wholeHours, "7"), null);
 });
 
 test("time picker rejects malformed payloads instead of supplying fallback data or copy", () => {

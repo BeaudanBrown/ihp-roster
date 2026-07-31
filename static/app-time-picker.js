@@ -27,6 +27,7 @@
   var timePickerFieldDomAttr = "data-bepis-time-picker-field";
   var timePickerConfigDomAttr = "data-bepis-time-picker-config";
   var timePickerTriggerDomAttr = "data-bepis-time-picker-trigger";
+  var timePickerKeyboardDomAttr = "data-bepis-time-picker-keyboard";
   var timePickerValueDomAttr = "data-bepis-time-picker-value";
   var timePickerLabelDomAttr = "data-bepis-time-picker-label";
   var timePickerStepDownDomAttr = "data-bepis-time-picker-step-down";
@@ -149,9 +150,29 @@
     return `${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`;
   }
 
+  // frontend/ts/time-picker/keyboard.ts
+  function steppedTimePickerOption(options, currentValue, direction) {
+    if (options.length === 0) return null;
+    const currentIndex = options.findIndex((option) => option.value === currentValue);
+    if (currentIndex < 0) {
+      return direction === 1 ? options[0] : options[options.length - 1];
+    }
+    const nextIndex = (currentIndex + direction + options.length) % options.length;
+    return options[nextIndex] ?? null;
+  }
+  function wholeHourTimePickerOption(options, digits) {
+    if (!/^\d{1,2}$/.test(digits)) return null;
+    const hour = Number(digits);
+    if (!Number.isInteger(hour) || hour < 0 || hour > 23) return null;
+    const value = `${String(hour).padStart(2, "0")}:00`;
+    return options.find((option) => option.value === value) ?? null;
+  }
+
   // frontend/ts/app-time-picker.ts
   var modalControls = /* @__PURE__ */ new WeakMap();
   var fieldControls = /* @__PURE__ */ new WeakMap();
+  var digitBuffers = /* @__PURE__ */ new WeakMap();
+  var digitBufferResetMs = 2e3;
   var activeField = null;
   function defaultDiagnosticReporter(diagnostic) {
     console.error?.("Invalid generated time picker configuration", diagnostic);
@@ -287,7 +308,8 @@
       stepUp,
       config,
       options: selectedOptions,
-      allOptionsByValue
+      allOptionsByValue,
+      keyboardEnabled: trigger.hasAttribute(timePickerKeyboardDomAttr)
     };
     fieldControls.set(field, control);
     return control;
@@ -359,16 +381,42 @@
       if (modal.modal.classList.contains("show")) forceHideModal(modal);
     }, 150);
   }
-  function stepFieldValue(control, direction) {
+  function stepFieldValue(control, direction, wrap) {
     if (control.input.disabled) return;
-    const selectedIndex = control.options.findIndex((option) => option.config.value === control.input.value);
-    const nextOption = control.options[selectedIndex + direction];
-    if (selectedIndex < 0 || nextOption === void 0) {
+    const option = wrap ? steppedTimePickerOption(control.options.map((candidate) => candidate.config), control.input.value, direction) : (() => {
+      const selectedIndex = control.options.findIndex((candidate) => candidate.config.value === control.input.value);
+      return selectedIndex < 0 ? null : control.options[selectedIndex + direction]?.config ?? null;
+    })();
+    if (option === null) {
       synchronizeField(control);
       return;
     }
-    applyTimeValue(control, nextOption.config.value, nextOption.config.label);
+    applyTimeValue(control, option.value, option.label);
     synchronizeField(control);
+  }
+  function applyWholeHourDigit(control, digit, now) {
+    const previous = digitBuffers.get(control.input);
+    const digits = previous === void 0 || now - previous.lastTypedAt > digitBufferResetMs ? digit : previous.digits.length >= 2 ? previous.digits : previous.digits + digit;
+    digitBuffers.set(control.input, { digits, lastTypedAt: now });
+    if (previous !== void 0 && now - previous.lastTypedAt <= digitBufferResetMs && previous.digits.length >= 2) return;
+    const option = wholeHourTimePickerOption(control.options.map((candidate) => candidate.config), digits);
+    if (option === null) return;
+    applyTimeValue(control, option.value, option.label);
+    synchronizeField(control);
+  }
+  function movePickerHighlight(modal, control, direction) {
+    const activeValue = control.options.find((option2) => option2.element.classList.contains("active"))?.config.value ?? control.input.value;
+    const option = steppedTimePickerOption(control.options.map((candidate) => candidate.config), activeValue, direction);
+    if (option === null) return;
+    highlightSelectedOption(modal, option.value);
+    control.allOptionsByValue.get(option.value)?.element.scrollIntoView({ block: "nearest" });
+  }
+  function selectHighlightedPickerOption(modal, control) {
+    const option = control.options.find((candidate) => candidate.element.classList.contains("active"));
+    if (option === void 0) return;
+    applyTimeValue(control, option.config.value, option.config.label);
+    synchronizeField(control);
+    hideTimePickerModal(modal);
   }
   function fieldFromTarget(target, modal, report) {
     const field = closestHTMLElement(target, `[${timePickerFieldDomAttr}]`);
@@ -393,15 +441,49 @@
   function enableQuarterHourTimePicker() {
     if (typeof window === "undefined") return;
     document.addEventListener("keydown", (event) => {
-      if (event.key !== "Escape") return;
       const modalElement = getModalElement();
       if (modalElement === null || !modalElement.classList.contains("show")) return;
       const modal = readModalControl(defaultDiagnosticReporter);
       if (modal === null) return;
-      event.preventDefault();
-      event.stopImmediatePropagation();
-      hideTimePickerModal(modal);
+      if (event.key === "Escape") {
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        hideTimePickerModal(modal);
+        return;
+      }
+      if (activeField === null || !activeField.keyboardEnabled) return;
+      const direction = event.key === "ArrowUp" || event.key === "ArrowRight" ? 1 : event.key === "ArrowDown" || event.key === "ArrowLeft" ? -1 : null;
+      if (direction !== null) {
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        movePickerHighlight(modal, activeField, direction);
+        return;
+      }
+      if (event.key === "Enter") {
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        selectHighlightedPickerOption(modal, activeField);
+      }
     }, true);
+    document.addEventListener("keydown", (event) => {
+      const trigger = closestHTMLElement(event.target, `[${timePickerTriggerDomAttr}]`);
+      if (!(trigger instanceof HTMLButtonElement) || trigger.disabled) return;
+      const modal = readModalControl(defaultDiagnosticReporter);
+      if (modal === null) return;
+      const field = fieldFromTarget(trigger, modal, defaultDiagnosticReporter);
+      if (field === null || !field.keyboardEnabled || field.input.disabled) return;
+      const direction = event.key === "ArrowUp" || event.key === "ArrowRight" ? 1 : event.key === "ArrowDown" || event.key === "ArrowLeft" ? -1 : null;
+      if (direction !== null) {
+        event.preventDefault();
+        digitBuffers.delete(field.input);
+        stepFieldValue(field, direction, true);
+        return;
+      }
+      if (/^\d$/.test(event.key)) {
+        event.preventDefault();
+        applyWholeHourDigit(field, event.key, Date.now());
+      }
+    });
     document.addEventListener("click", (event) => {
       const trigger = closestHTMLElement(event.target, `[${timePickerTriggerDomAttr}]`);
       if (!(trigger instanceof HTMLButtonElement) || trigger.disabled) return;
@@ -421,7 +503,7 @@
       const modal = readModalControl(defaultDiagnosticReporter);
       if (modal === null) return;
       const field = fieldFromTarget(stepDown, modal, defaultDiagnosticReporter);
-      if (field !== null) stepFieldValue(field, -1);
+      if (field !== null) stepFieldValue(field, -1, false);
     });
     document.addEventListener("click", (event) => {
       const stepUp = closestHTMLElement(event.target, `[${timePickerStepUpDomAttr}]`);
@@ -429,7 +511,7 @@
       const modal = readModalControl(defaultDiagnosticReporter);
       if (modal === null) return;
       const field = fieldFromTarget(stepUp, modal, defaultDiagnosticReporter);
-      if (field !== null) stepFieldValue(field, 1);
+      if (field !== null) stepFieldValue(field, 1, false);
     });
     document.addEventListener("click", (event) => {
       const optionElement = closestHTMLElement(event.target, `[${timePickerOptionDomAttr}]`);

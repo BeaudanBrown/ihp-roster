@@ -16,6 +16,7 @@ module Application.Helper.FrontendContract.TimePicker
     , TimePickerModalTitle
     , TimePickerField
     , TimePickerTrigger
+    , TimePickerKeyboard
     , TimePickerValue
     , TimePickerLabel
     , TimePickerStepDown
@@ -46,6 +47,7 @@ data TimePickerModal
 data TimePickerModalTitle
 data TimePickerField
 data TimePickerTrigger
+data TimePickerKeyboard
 data TimePickerValue
 data TimePickerLabel
 data TimePickerStepDown
@@ -70,6 +72,7 @@ type TimePickerContract =
          , DomAttr TimePickerField
          , DomAttr TimePickerConfig
          , DomAttr TimePickerTrigger
+         , DomAttr TimePickerKeyboard
          , DomAttr TimePickerValue
          , DomAttr TimePickerLabel
          , DomAttr TimePickerStepDown

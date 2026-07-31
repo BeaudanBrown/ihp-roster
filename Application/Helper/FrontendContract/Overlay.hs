@@ -20,6 +20,8 @@ module Application.Helper.FrontendContract.Overlay
     , DialogSubmit
     , DialogAutoSubmitOnce
     , DialogBlocking
+    , DialogKeyboard
+    , DialogFocusRegion
     , NavigationLoading
     , ToastMount
     , ToastClose
@@ -52,6 +54,8 @@ data DialogDismissed
 data DialogSubmit
 data DialogAutoSubmitOnce
 data DialogBlocking
+data DialogKeyboard
+data DialogFocusRegion
 data NavigationLoading
 data ToastMount
 data ToastClose
@@ -78,6 +82,8 @@ type OverlayContract =
          , DomAttr DialogSubmitConfig
          , DomAttr DialogAutoSubmitOnce
          , DomAttr DialogBlocking
+         , DomAttr DialogKeyboard
+         , DomAttr DialogFocusRegion
          , DomAttr NavigationLoading
          , DomAttr NavigationLoadingConfig
          , DomAttr ToastMount

@@ -2,6 +2,7 @@ import {
     timePickerClearDomAttr,
     timePickerConfigDomAttr,
     timePickerFieldDomAttr,
+    timePickerKeyboardDomAttr,
     timePickerLabelDomAttr,
     timePickerModalDomId,
     timePickerOptionDomAttr,
@@ -20,6 +21,7 @@ import {
     parseTimePickerOptionConfiguration,
     timePickerOptionsForConfiguration,
 } from "./time-picker/configuration";
+import { steppedTimePickerOption, wholeHourTimePickerOption, type TimePickerStepDirection } from "./time-picker/keyboard";
 
 export type TimePickerDiagnosticCode =
     | "invalid-modal"
@@ -59,10 +61,18 @@ type TimePickerFieldControl = {
     config: TimePickerConfig;
     options: ReadonlyArray<TimePickerRenderedOption>;
     allOptionsByValue: ReadonlyMap<string, TimePickerRenderedOption>;
+    keyboardEnabled: boolean;
+};
+
+type TimePickerDigitBuffer = {
+    digits: string;
+    lastTypedAt: number;
 };
 
 const modalControls = new WeakMap<HTMLElement, TimePickerModalControl>();
 const fieldControls = new WeakMap<HTMLElement, TimePickerFieldControl>();
+const digitBuffers = new WeakMap<HTMLInputElement, TimePickerDigitBuffer>();
+const digitBufferResetMs = 2000;
 let activeField: TimePickerFieldControl | null = null;
 
 function defaultDiagnosticReporter(diagnostic: TimePickerDiagnostic): void {
@@ -236,6 +246,7 @@ function readFieldControl(
         config,
         options: selectedOptions,
         allOptionsByValue,
+        keyboardEnabled: trigger.hasAttribute(timePickerKeyboardDomAttr),
     };
     fieldControls.set(field, control);
     return control;
@@ -320,16 +331,52 @@ function hideTimePickerModal(modal: TimePickerModalControl): void {
     }, 150);
 }
 
-function stepFieldValue(control: TimePickerFieldControl, direction: -1 | 1): void {
+function stepFieldValue(control: TimePickerFieldControl, direction: TimePickerStepDirection, wrap: boolean): void {
     if (control.input.disabled) return;
-    const selectedIndex = control.options.findIndex((option) => option.config.value === control.input.value);
-    const nextOption = control.options[selectedIndex + direction];
-    if (selectedIndex < 0 || nextOption === undefined) {
+    const option = wrap
+        ? steppedTimePickerOption(control.options.map((candidate) => candidate.config), control.input.value, direction)
+        : (() => {
+            const selectedIndex = control.options.findIndex((candidate) => candidate.config.value === control.input.value);
+            return selectedIndex < 0 ? null : control.options[selectedIndex + direction]?.config ?? null;
+        })();
+    if (option === null) {
         synchronizeField(control);
         return;
     }
-    applyTimeValue(control, nextOption.config.value, nextOption.config.label);
+    applyTimeValue(control, option.value, option.label);
     synchronizeField(control);
+}
+
+function applyWholeHourDigit(control: TimePickerFieldControl, digit: string, now: number): void {
+    const previous = digitBuffers.get(control.input);
+    const digits = previous === undefined || now - previous.lastTypedAt > digitBufferResetMs
+        ? digit
+        : previous.digits.length >= 2
+            ? previous.digits
+            : previous.digits + digit;
+    digitBuffers.set(control.input, { digits, lastTypedAt: now });
+    if (previous !== undefined && now - previous.lastTypedAt <= digitBufferResetMs && previous.digits.length >= 2) return;
+
+    const option = wholeHourTimePickerOption(control.options.map((candidate) => candidate.config), digits);
+    if (option === null) return;
+    applyTimeValue(control, option.value, option.label);
+    synchronizeField(control);
+}
+
+function movePickerHighlight(modal: TimePickerModalControl, control: TimePickerFieldControl, direction: TimePickerStepDirection): void {
+    const activeValue = control.options.find((option) => option.element.classList.contains("active"))?.config.value ?? control.input.value;
+    const option = steppedTimePickerOption(control.options.map((candidate) => candidate.config), activeValue, direction);
+    if (option === null) return;
+    highlightSelectedOption(modal, option.value);
+    control.allOptionsByValue.get(option.value)?.element.scrollIntoView({ block: "nearest" });
+}
+
+function selectHighlightedPickerOption(modal: TimePickerModalControl, control: TimePickerFieldControl): void {
+    const option = control.options.find((candidate) => candidate.element.classList.contains("active"));
+    if (option === undefined) return;
+    applyTimeValue(control, option.config.value, option.config.label);
+    synchronizeField(control);
+    hideTimePickerModal(modal);
 }
 
 function fieldFromTarget(
@@ -367,19 +414,63 @@ function enableQuarterHourTimePicker(): void {
     if (typeof window === "undefined") return;
 
     // The picker is a separate overlay lane above workflow dialogs. Consume
-    // Escape in capture phase so the picker closes before the dialog adapter
-    // can close the workflow beneath it.
+    // picker keys in capture phase before the dialog adapter can act beneath it.
     document.addEventListener("keydown", (event) => {
-        if (event.key !== "Escape") return;
         const modalElement = getModalElement();
         if (modalElement === null || !modalElement.classList.contains("show")) return;
         const modal = readModalControl(defaultDiagnosticReporter);
         if (modal === null) return;
 
-        event.preventDefault();
-        event.stopImmediatePropagation();
-        hideTimePickerModal(modal);
+        if (event.key === "Escape") {
+            event.preventDefault();
+            event.stopImmediatePropagation();
+            hideTimePickerModal(modal);
+            return;
+        }
+        if (activeField === null || !activeField.keyboardEnabled) return;
+
+        const direction: TimePickerStepDirection | null = event.key === "ArrowUp" || event.key === "ArrowRight"
+            ? 1
+            : event.key === "ArrowDown" || event.key === "ArrowLeft"
+                ? -1
+                : null;
+        if (direction !== null) {
+            event.preventDefault();
+            event.stopImmediatePropagation();
+            movePickerHighlight(modal, activeField, direction);
+            return;
+        }
+        if (event.key === "Enter") {
+            event.preventDefault();
+            event.stopImmediatePropagation();
+            selectHighlightedPickerOption(modal, activeField);
+        }
     }, true);
+
+    document.addEventListener("keydown", (event) => {
+        const trigger = closestHTMLElement(event.target, `[${timePickerTriggerDomAttr}]`);
+        if (!(trigger instanceof HTMLButtonElement) || trigger.disabled) return;
+        const modal = readModalControl(defaultDiagnosticReporter);
+        if (modal === null) return;
+        const field = fieldFromTarget(trigger, modal, defaultDiagnosticReporter);
+        if (field === null || !field.keyboardEnabled || field.input.disabled) return;
+
+        const direction: TimePickerStepDirection | null = event.key === "ArrowUp" || event.key === "ArrowRight"
+            ? 1
+            : event.key === "ArrowDown" || event.key === "ArrowLeft"
+                ? -1
+                : null;
+        if (direction !== null) {
+            event.preventDefault();
+            digitBuffers.delete(field.input);
+            stepFieldValue(field, direction, true);
+            return;
+        }
+        if (/^\d$/.test(event.key)) {
+            event.preventDefault();
+            applyWholeHourDigit(field, event.key, Date.now());
+        }
+    });
 
     document.addEventListener("click", (event) => {
         const trigger = closestHTMLElement(event.target, `[${timePickerTriggerDomAttr}]`);
@@ -402,7 +493,7 @@ function enableQuarterHourTimePicker(): void {
         const modal = readModalControl(defaultDiagnosticReporter);
         if (modal === null) return;
         const field = fieldFromTarget(stepDown, modal, defaultDiagnosticReporter);
-        if (field !== null) stepFieldValue(field, -1);
+        if (field !== null) stepFieldValue(field, -1, false);
     });
 
     document.addEventListener("click", (event) => {
@@ -411,7 +502,7 @@ function enableQuarterHourTimePicker(): void {
         const modal = readModalControl(defaultDiagnosticReporter);
         if (modal === null) return;
         const field = fieldFromTarget(stepUp, modal, defaultDiagnosticReporter);
-        if (field !== null) stepFieldValue(field, 1);
+        if (field !== null) stepFieldValue(field, 1, false);
     });
 
     document.addEventListener("click", (event) => {

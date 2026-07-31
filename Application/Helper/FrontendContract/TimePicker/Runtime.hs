@@ -8,6 +8,7 @@ module Application.Helper.FrontendContract.TimePicker.Runtime
     , timePickerClearAttrs
     , timePickerConfigJson
     , timePickerFieldAttrs
+    , timePickerKeyboardAttrs
     , timePickerLabelAttrs
     , timePickerOptionAttrs
     , timePickerOptionsAttrs
@@ -48,6 +49,7 @@ data TimePickerDom = TimePickerDom
     , timePickerFieldAttribute    :: !Text
     , timePickerConfigAttribute   :: !Text
     , timePickerTriggerAttribute  :: !Text
+    , timePickerKeyboardAttribute :: !Text
     , timePickerValueAttribute    :: !Text
     , timePickerLabelAttribute    :: !Text
     , timePickerStepDownAttribute :: !Text
@@ -65,6 +67,7 @@ canonicalTimePickerDom = TimePickerDom
     , timePickerFieldAttribute = domAttrValue @Contract.TimePickerField
     , timePickerConfigAttribute = domAttrValue @Contract.TimePickerConfig
     , timePickerTriggerAttribute = domAttrValue @Contract.TimePickerTrigger
+    , timePickerKeyboardAttribute = domAttrValue @Contract.TimePickerKeyboard
     , timePickerValueAttribute = domAttrValue @Contract.TimePickerValue
     , timePickerLabelAttribute = domAttrValue @Contract.TimePickerLabel
     , timePickerStepDownAttribute = domAttrValue @Contract.TimePickerStepDown
@@ -81,6 +84,9 @@ timePickerFieldAttrs config =
 
 timePickerTriggerAttrs :: [(Text, Text)]
 timePickerTriggerAttrs = roleAttrs canonicalTimePickerDom.timePickerTriggerAttribute
+
+timePickerKeyboardAttrs :: [(Text, Text)]
+timePickerKeyboardAttrs = roleAttrs canonicalTimePickerDom.timePickerKeyboardAttribute
 
 timePickerValueAttrs :: [(Text, Text)]
 timePickerValueAttrs = roleAttrs canonicalTimePickerDom.timePickerValueAttribute

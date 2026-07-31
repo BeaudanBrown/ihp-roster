@@ -6,6 +6,8 @@ module Application.Helper.FrontendContract.Overlay.Runtime
     , dialogAutoSubmitOnceAttr
     , dialogBackdropAttrs
     , dialogCloseAttrs
+    , dialogFocusRegionAttrs
+    , dialogKeyboardAttrs
     , dialogMountAttrs
     , dialogSubmitAttrs
     , navigationLoadingAttrs
@@ -34,6 +36,8 @@ data OverlayDom = OverlayDom
     , overlayDialogSubmitConfigAttribute :: !Text
     , overlayDialogAutoSubmitAttribute   :: !Text
     , overlayDialogBlockingAttribute     :: !Text
+    , overlayDialogKeyboardAttribute     :: !Text
+    , overlayDialogFocusRegionAttribute  :: !Text
     , overlayNavigationLoadingAttribute  :: !Text
     , overlayNavigationConfigAttribute   :: !Text
     , overlayToastMountAttribute         :: !Text
@@ -54,6 +58,8 @@ canonicalOverlayDom = OverlayDom
     , overlayDialogSubmitConfigAttribute = domAttrValue @Contract.DialogSubmitConfig
     , overlayDialogAutoSubmitAttribute = domAttrValue @Contract.DialogAutoSubmitOnce
     , overlayDialogBlockingAttribute = domAttrValue @Contract.DialogBlocking
+    , overlayDialogKeyboardAttribute = domAttrValue @Contract.DialogKeyboard
+    , overlayDialogFocusRegionAttribute = domAttrValue @Contract.DialogFocusRegion
     , overlayNavigationLoadingAttribute = domAttrValue @Contract.NavigationLoading
     , overlayNavigationConfigAttribute = domAttrValue @Contract.NavigationLoadingConfig
     , overlayToastMountAttribute = domAttrValue @Contract.ToastMount
@@ -69,6 +75,12 @@ dialogBackdropAttrs = roleAttrs canonicalOverlayDom.overlayDialogBackdropAttribu
 
 dialogCloseAttrs :: [(Text, Text)]
 dialogCloseAttrs = roleAttrs canonicalOverlayDom.overlayDialogCloseAttribute
+
+dialogKeyboardAttrs :: [(Text, Text)]
+dialogKeyboardAttrs = roleAttrs canonicalOverlayDom.overlayDialogKeyboardAttribute
+
+dialogFocusRegionAttrs :: [(Text, Text)]
+dialogFocusRegionAttrs = roleAttrs canonicalOverlayDom.overlayDialogFocusRegionAttribute
 
 dialogSubmitAttrs :: Text -> [(Text, Text)]
 dialogSubmitAttrs loadingLabel =
