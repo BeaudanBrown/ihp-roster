@@ -1,0 +1,24 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+repo_root="$(git rev-parse --show-toplevel)"
+tmp_parent="$(mktemp -d)"
+postgres_root="$tmp_parent/managed-postgres"
+cleanup() {
+    rm -rf "$tmp_parent"
+}
+trap cleanup EXIT
+
+export E2E_POSTGRES_ROOT="$postgres_root"
+export E2E_POSTGRES_REPO_ROOT="$repo_root"
+
+e2e-postgres prepare-root >/dev/null
+[ -d "$postgres_root" ]
+[ -f "$postgres_root/.bepis-e2e-postgres" ]
+[ ! -e "$postgres_root/data" ]
+[ ! -e "$postgres_root/socket" ]
+
+exec 7>>"$postgres_root/runs.lock"
+flock -n -x 7
+
+echo "E2E PostgreSQL lifecycle preflight created an owned, lockable root without starting PostgreSQL."

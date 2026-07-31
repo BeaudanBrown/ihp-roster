@@ -40,15 +40,19 @@ async function waitForLiveSubscription(page: Page, scopePrefix: 'roster:' | 'tim
 }
 
 test.describe('Roster Staff Modal', () => {
-    const restoreAlphaStaff = () => {
+    const restoreAlphaFixture = () => {
         runSql(`
             UPDATE staff
             SET first_name = 'Alpha', preferred_name = NULL, updated_at = NOW()
             WHERE id = 'a1000000-0000-0000-0000-000000000031';
+
+            UPDATE roster_slots
+            SET staff_id = 'a1000000-0000-0000-0000-000000000031', updated_at = NOW()
+            WHERE id = 'a1000000-0000-0000-0000-000000000071';
         `);
     };
-    test.beforeEach(restoreAlphaStaff);
-    test.afterEach(restoreAlphaStaff);
+    test.beforeEach(restoreAlphaFixture);
+    test.afterEach(restoreAlphaFixture);
 
     test('opens the dedicated trial invitation dialog without opening staff edit', async ({ page }) => {
         await loginAndOpenRoster(page);

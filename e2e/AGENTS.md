@@ -2,7 +2,7 @@
 
 ## Running Tests
 
-All commands require `bash ./bin/in-env` (or an already active devenv shell). Do not rely on bare `npx playwright ...` in Loom or other automation contexts; the repo wrapper resolves the repo-local Playwright test CLI inside the dev shell so the runner matches the `@playwright/test` package imported by the specs.
+All commands require `bash ./bin/in-env` (or an already active devenv shell). Do not rely on bare `npx playwright ...` in Loom or other automation contexts; the repo wrapper resolves the Nix-pinned Playwright test CLI inside the dev shell so the runner matches the `@playwright/test` version imported by the specs without requiring `node_modules`.
 
 ```bash
 # Run the full e2e suite, auto-sharded up to eight isolated app-server shards by default
@@ -66,7 +66,7 @@ bash ./bin/in-env pwcli --help
 
 ## Prerequisites
 
-- Canonical E2E ensures its own checkout/UID-scoped disposable PostgreSQL profile on native temporary storage; use `e2e-postgres status|shell|log|recreate|stop`, never a hard-coded socket
+- Canonical E2E ensures its own checkout/UID-scoped disposable PostgreSQL profile on native temporary storage; its lifecycle preflight creates and ownership-marks an absent root before opening `runs.lock`. Never precreate that root manually. Use `e2e-postgres status|shell|log|recreate|stop`, never a hard-coded socket
 - `e2e-fast` sets `E2E_TIER=fast` and selects desktop plus canonical Pixel without changing focused-argument shard detection; `e2e` uses `E2E_TIER=full` by default
 - `bash ./bin/in-env e2e` auto-shards the full suite up to `E2E_SHARDS_MAX=8` app/database shards when no interactive or focused Playwright args are passed. Same-host 2/3/4/6/8-shard measurements selected eight; do not map directly to raw CPU count. Set `E2E_SHARDS` for an explicit diagnostic override or lower `E2E_SHARDS_MAX` on a constrained host.
 - Each shard gets its own ephemeral database and dedicated app/Stripe server. Volatile PIDs, locks, build products, sockets, and logs live under the owned native root reported by `e2e-runtime`; merged durable reports are copied to `.devenv/e2e/<run-id>/`

@@ -202,11 +202,10 @@ cleanup_parent() {
 trap cleanup_parent EXIT
 trap 'exit 130' INT TERM
 
-postgres_root="$(e2e-postgres root)"
 if [ "$E2E_POSTGRES_MODE" = managed ]; then
     # A cold disposable profile has no root yet. Ask the manager to establish
     # and mark its owned root before creating the separate run lifecycle lock.
-    e2e-postgres prepare-root >/dev/null
+    postgres_root="$(e2e-postgres prepare-root)"
     lifecycle_lock="$postgres_root/runs.lock"
 else
     lifecycle_lock="$STATE_ROOT/external-runs.lock"

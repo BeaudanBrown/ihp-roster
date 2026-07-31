@@ -168,6 +168,7 @@ in
         xero-pay-item-probe = script ../scripts/xero/pay-item-probe;
         test-e2e-server = script ../scripts/e2e/test-server;
         e2e-postgres = script ../scripts/db/e2e-postgres;
+        e2e-postgres-lifecycle-test = script ../scripts/e2e/postgres-lifecycle-test;
         dev-postgres = script ../scripts/db/dev-postgres;
         e2e-runtime = script ../scripts/e2e/runtime;
         e2e = script ../scripts/e2e/e2e;
