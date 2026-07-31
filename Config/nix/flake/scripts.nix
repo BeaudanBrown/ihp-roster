@@ -125,6 +125,7 @@ in
         architecture-contracts = script ../scripts/architecture/contracts;
         architecture-facts = script ../scripts/architecture/facts;
         architecture-wiring-registry-test = script ../scripts/architecture/wiring-registry-test;
+        fixture-reset-manifest-test = script ../scripts/architecture/fixture-reset-manifest-test;
         architecture-schema = script ../scripts/architecture/schema;
         architecture-web-map = script ../scripts/architecture/web-map;
         architecture-module-graph = script ../scripts/architecture/module-graph;

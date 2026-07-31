@@ -1,5 +1,8 @@
 module Test.Controller.ExportsSpec where
 
+import Application.Fixture.PayrollFixtures (createAndApproveEntry,
+                                            createPayrollSnapshot,
+                                            seedWeekDayNames)
 import Application.Helper.Export
 import Application.Helper.FrontendContract.Surface.Admin.Resource (adminExportsResource)
 import Application.Helper.SurfaceResource
@@ -24,8 +27,6 @@ import Network.HTTP.Types.Status
 import Network.Wai (responseHeaders)
 import Test.Hspec
 import Test.Support
-import Test.Support.PayrollFixtures (createAndApproveEntry,
-                                     createPayrollSnapshot, seedWeekDayNames)
 import Web.Controller.Exports ()
 import Web.Exports.Mutations (exportJobTouchedResources)
 import Web.FrontController ()

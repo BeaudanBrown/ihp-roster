@@ -58,6 +58,8 @@ database, auth, validation, or HSX changes.
 
 - `Application/Schema.sql` - source of truth for database models.
 - `Application/Helper/` - shared helpers and application services.
+- `Application/Fixture/` - reusable fixture builders, dev seeds, and the closed reset manifest.
+- `Application/Support/` - founder-facing Support product runtime only.
 - `Web/Types.hs` - controller action types.
 - `Web/Routes.hs` - `AutoRoute` instances.
 - `Web/FrontController.hs` - mounted controllers and request context setup.

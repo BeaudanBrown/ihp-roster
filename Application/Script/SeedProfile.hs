@@ -1,8 +1,8 @@
 module Application.Script.SeedProfile where
 
-import Application.Helper.Url (appendQueryParams)
-import Application.Support.Seed.Calendar (currentWeekOffsetForDay,
+import Application.Fixture.Seed.Calendar (currentWeekOffsetForDay,
                                           weekStartForOffset)
+import Application.Helper.Url (appendQueryParams)
 import Application.VenueTime (melbourneTimeZoneName)
 import Application.VenueTime.Model (resolveBoundaryInstant)
 import Control.Monad (foldM)

@@ -1,13 +1,13 @@
-module Application.Support.PayrollFixtures where
+module Application.Fixture.PayrollFixtures where
 
+import Application.Fixture
+import Application.Fixture.WageSourceFixtures (ensureFreshWageSourceFacts,
+                                               sealApprovedFixtureCalculation)
 import Application.Helper.Pay (ensurePayVersionsForTimesheetApproval,
                                lockPayVersionsForApproval)
 import Application.Helper.RosterGroups (ensureVenueRosterDefaults,
                                         fetchVenueDayNames)
 import Application.Helper.VenueBootstrap (provisionVenueUser)
-import Application.Support
-import Application.Support.WageSourceFixtures (ensureFreshWageSourceFacts,
-                                               sealApprovedFixtureCalculation)
 import Application.VenueTime (melbourneTimeZoneName)
 import Application.VenueTime.Model
 import Config

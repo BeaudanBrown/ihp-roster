@@ -1,5 +1,6 @@
 module Test.WageEngine.AdapterSpec where
 
+import Application.Fixture.WageSourceFixtures (ensureFreshWageSourceFacts)
 import Application.FwcMapd.Sync (storeCuratedMapdAwardData)
 import Application.Helper.Pay (ensurePayVersionsForTimesheetApproval,
                                lockPayVersionsForApproval)
@@ -8,7 +9,6 @@ import Application.Helper.TimesheetPayLedger (backfillApprovedTimesheetPayCalcul
                                               loadApprovedTimesheetPayCalculation,
                                               loadApprovedTimesheetPayCalculations,
                                               persistApprovedTimesheetPayCalculation)
-import Application.Support.WageSourceFixtures (ensureFreshWageSourceFacts)
 import Application.VenueTime (AwardSegment)
 import Application.VenueTime.Model
 import Application.WageEngine

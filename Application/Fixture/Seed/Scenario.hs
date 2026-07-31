@@ -1,4 +1,4 @@
-module Application.Support.Seed.Scenario where
+module Application.Fixture.Seed.Scenario where
 
 import qualified Data.Text as Text
 import IHP.Prelude

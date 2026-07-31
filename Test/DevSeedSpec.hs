@@ -1,10 +1,11 @@
 module Test.DevSeedSpec where
 
+import Application.Fixture.DevFixtures
+import Application.Fixture.Seed.Scenario
 import Application.Helper.Controller (unsafeEnumFromText)
 import Application.PayAssignment (EffectivePayAssignment (..),
                                   ShiftPayAssignment (..),
                                   StaffPayAssignment (..), resolvePayAssignment)
-import Application.Support.Seed.Scenario
 import Control.Monad (void)
 import Data.List (sort)
 import qualified Data.Map.Strict as Map
@@ -18,7 +19,6 @@ import IHP.Prelude
 import IHP.Test.Mocking
 import Test.Hspec
 import Test.Support
-import Test.Support.DevFixtures
 
 profileSummary :: Staff -> (Text, Text, Text, Text, Text)
 profileSummary staff =
@@ -43,7 +43,7 @@ tests = aroundAll withDatabaseTestContext do
                     |> set #source (Just "DataVic")
                     |> set #importedAt (Just (addUTCTime (negate (46 * 86400)) now))
                     |> createRecord
-                _ <- seedDevelopmentFixtureForWeek defaultWeekEpoch
+                _ <- seedDevelopmentFixtureAfterResetWithScenarioForWeekAndLeaveMonth defaultScenario defaultWeekEpoch defaultWeekEpoch
                 pure ()
 
         it "can reseed when open-ended synthetic award rates already exist" $ withContext do
@@ -52,10 +52,18 @@ tests = aroundAll withDatabaseTestContext do
                 _ <- seedDevelopmentFixtureForWeek defaultWeekEpoch
                 pure ()
 
-        it "seeds the complete realistic development fixture contract" $ withContext do
+        it "seeds the complete realistic development fixture contract without deleting preloaded reference data" $ withContext do
             withCleanDb do
-                fixture <- seedDevelopmentFixtureForWeek defaultWeekEpoch
+                referenceHoliday <- newRecord @PublicHoliday
+                    |> set #jurisdiction ("VIC" :: Text)
+                    |> set #holidayDate defaultWeekEpoch
+                    |> set #name ("Preloaded dev reference holiday" :: Text)
+                    |> set #isRegional False
+                    |> createRecord
+                fixture <- seedDevelopmentFixtureAfterResetWithScenarioForWeekAndLeaveMonth defaultScenario defaultWeekEpoch defaultWeekEpoch
+                preservedReferenceHoliday <- fetch referenceHoliday.id
 
+                preservedReferenceHoliday.id `shouldBe` referenceHoliday.id
                 rosterGroups <-
                     query @RosterGroup
                         |> filterWhere (#venueId, unpackId (get #id fixture.sandboxVenue))

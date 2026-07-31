@@ -83,7 +83,7 @@ if ! bash ./bin/in-env bash -lc '
     mkdir -p build/Script
     cat > build/Script/ResetDemoMain.hs <<'"'"'EOF'"'"'
 import qualified Application.Script.SeedDev as SeedDev
-import Application.Support (resetDatabase)
+import Application.Fixture.Reset (resetDatabase)
 import qualified Config
 import IHP.Prelude
 import IHP.ScriptSupport

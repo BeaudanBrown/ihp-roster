@@ -1,10 +1,10 @@
-module Application.Support.Seed.Calendar
+module Application.Fixture.Seed.Calendar
     ( currentWeekOffsetForDay
     , weekOffsetForDay
     , weekStartForOffset
     ) where
 
-import Application.Support (defaultWeekEpoch)
+import Application.Fixture (defaultWeekEpoch)
 import Data.Time.Calendar (Day, addDays, diffDays)
 import IHP.Prelude
 

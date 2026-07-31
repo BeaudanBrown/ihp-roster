@@ -1,5 +1,6 @@
 module Test.XeroTimesheetReadinessSpec where
 
+import Application.Fixture.PayrollFixtures (createAndApproveEntry)
 import Application.Helper.Xero
 import Application.Helper.XeroAdminTypes
 import Application.Helper.XeroPayItems
@@ -14,7 +15,6 @@ import IHP.ControllerPrelude
 import IHP.Test.Mocking
 import Test.Hspec
 import Test.Support
-import Test.Support.PayrollFixtures (createAndApproveEntry)
 
 tests :: Spec
 tests = do

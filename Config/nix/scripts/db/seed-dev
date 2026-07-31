@@ -57,17 +57,20 @@ export DATABASE_URL="postgresql:///$DB_NAME?host=$DB_SOCKET"
 DEV_PASSKEY_SEED_FILE="${DEV_PASSKEY_SEED_FILE:-$PWD/build/dev-passkeys.sql}"
 DEV_XERO_SEED_FILE="${DEV_XERO_SEED_FILE:-$PWD/build/dev-xero-connection.sql}"
 
-echo "Loading hard-coded dev award and public holiday data"
-psql -h "$DB_SOCKET" -v ON_ERROR_STOP=1 -d "$DB_NAME" -f Application/Support/Seed/DevReferenceData.sql
-
 GHC_OPTS="$(ihp_roster_ghc_opts)"
 mkdir -p build/Script
 cat > build/Script/SeedDevMain.hs.tmp <<'EOF'
 import qualified Application.Script.SeedDev as Script
 import qualified Config
 import IHP.ScriptSupport
+import System.Environment (lookupEnv)
 
-main = runScript Config.config Script.run
+main = do
+    phase <- lookupEnv "BEPIS_SEED_DEV_PHASE"
+    case phase of
+        Just "reset-only" -> runScript Config.config Script.resetOnly
+        Just "after-reset" -> runScript Config.config Script.runAfterReset
+        _ -> runScript Config.config Script.run
 EOF
 if ! cmp -s build/Script/SeedDevMain.hs.tmp build/Script/SeedDevMain.hs; then
     mv build/Script/SeedDevMain.hs.tmp build/Script/SeedDevMain.hs
@@ -87,7 +90,11 @@ if [ ! -x build/Script/SeedDev ] \
         -hidir build/Script
     printf '%s\n' "$GHC_OPTS" > "$SEED_DEV_GHC_OPTS_STAMP"
 fi
-build/Script/SeedDev "${SCRIPT_ARGS[@]}"
+
+BEPIS_SEED_DEV_PHASE=reset-only build/Script/SeedDev
+echo "Loading hard-coded dev award and public holiday data"
+psql -h "$DB_SOCKET" -v ON_ERROR_STOP=1 -d "$DB_NAME" -f Application/Fixture/Seed/DevReferenceData.sql
+BEPIS_SEED_DEV_PHASE=after-reset build/Script/SeedDev "${SCRIPT_ARGS[@]}"
 
 if [ -f "$DEV_PASSKEY_SEED_FILE" ]; then
     echo "Restoring dev passkeys from $DEV_PASSKEY_SEED_FILE"
@@ -98,5 +105,5 @@ if [ -f "$DEV_XERO_SEED_FILE" ]; then
     echo "Restoring dev Xero connection from $DEV_XERO_SEED_FILE"
     psql -v ON_ERROR_STOP=1 -d "$DB_NAME" -f "$DEV_XERO_SEED_FILE"
     echo "Loading dev Xero pay item mappings"
-    psql -v ON_ERROR_STOP=1 -d "$DB_NAME" -f Application/Support/Seed/DevXeroPayItemMappings.sql
+    psql -v ON_ERROR_STOP=1 -d "$DB_NAME" -f Application/Fixture/Seed/DevXeroPayItemMappings.sql
 fi

@@ -234,7 +234,7 @@ Useful patterns:
 - `withUserAndCurrentVenue user venueId do ...` when the request needs both authenticated user session and `currentVenueId`
 - `withControllerTestContext do ...` when the test needs a real `ControllerContext`, e.g. to call `beforeLogin` and then `getSession`
 
-`withCleanDb` should leave the test database truly empty. If automation must preserve bootstrap/manual accounts, solve that by running tests against an isolated database instead of weakening `withCleanDb`.
+`withCleanDb` should leave the test database truly empty. It delegates to the closed `Application.Fixture.Reset` application-table manifest shared with development fixtures; do not copy reset SQL into `Test.Support`. `fixture-reset-manifest-test` must fail when an `Application/Schema.sql` table is unclassified. If automation must preserve bootstrap/manual accounts, solve that by running tests against an isolated database instead of weakening `withCleanDb`.
 
 For approved timesheet fixtures, use `createApprovedTimesheetEntryRecord` or `createApprovedTimesheetEntryRecordAt`. Do not seed approval by setting only `isApproved`; the schema requires `approved_at`, `approved_by_user_id`, `staff_pay_version_id`, and `shift_type_pay_version_id` to move together.
 
@@ -263,7 +263,7 @@ If a helper or fixture needs state to persist across examples, that is usually a
 
 For fixed payroll export correctness, prefer a dedicated golden spec with:
 
-- reusable fixture builders under `Test/Support/`
+- reusable fixture builders under `Application/Fixture/`; keep only test-context and intentional test-only helpers under `Test/Support/`
 - committed expected outputs under `Test/Fixtures/exports/`
 - exact CSV/ZIP comparisons
 
@@ -279,7 +279,7 @@ The fixed-export golden suite in `Test/Controller/FixedExportGoldenSpec.hs` is t
 - snapshot-pinned stability after live pay-config changes
 - mixed-snapshot export metadata when approved entries span versions
 
-For manual inspection, `seed-dev` loads a broader exploration dataset outside the test suite. Keep the exact golden fixture stable for controller tests, while the manual script projects a busier multi-venue, multi-group week plus support/bootstrap scenarios onto the current app week for easier browser exploration. The human default is `just seed-dev`, which now always wipes and reseeds `app` before loading the fixture. Keep the reusable test-support fixture modules deterministic enough that the manual dev seed does not weaken golden assertions.
+For manual inspection, `seed-dev` loads a broader exploration dataset outside the test suite. Keep the exact golden fixture stable for controller tests, while the manual script projects a busier multi-venue, multi-group week plus support/bootstrap scenarios onto the current app week for easier browser exploration. The human default is `just seed-dev`, which now always wipes and reseeds `app` before loading the fixture. Keep the reusable `Application.Fixture` modules deterministic enough that the manual dev seed does not weaken golden assertions.
 
 Example shape:
 

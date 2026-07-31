@@ -1,4 +1,4 @@
-module Application.Support.WageSourceFixtures
+module Application.Fixture.WageSourceFixtures
     ( ensureFreshWageSourceFacts
     , sealApprovedFixtureCalculation
     ) where

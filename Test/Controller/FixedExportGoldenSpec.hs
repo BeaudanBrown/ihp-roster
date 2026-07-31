@@ -1,5 +1,6 @@
 module Test.Controller.FixedExportGoldenSpec where
 
+import Application.Fixture.PayrollFixtures
 import Application.Helper.Export
 import Application.WageEngine (AwardClassification (..))
 import Config
@@ -22,7 +23,6 @@ import Network.HTTP.Types.Status (status200, status302)
 import Network.Wai (responseHeaders)
 import Test.Hspec
 import Test.Support
-import Test.Support.PayrollFixtures
 import Web.Controller.Exports ()
 import Web.FrontController ()
 import Web.Types

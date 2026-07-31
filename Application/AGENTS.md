@@ -59,6 +59,12 @@ commit notes.
 usable after `make db`. Venue business authority still comes from
 `venue_memberships`; do not rely on `users.user_role = 'admin'`.
 
+Reusable Haskell fixture builders and development seeds live under
+`Application.Fixture`; founder-facing Support runtime lives under
+`Application.Support`. `Application.Fixture.Reset` is the only application-table
+reset manifest. Keep it static and run `fixture-reset-manifest-test` after schema
+or reset changes; never discover framework or migration tables dynamically.
+
 ## Current Data Direction
 
 - Venue is the current customer/data boundary.

@@ -1,10 +1,12 @@
-module Application.Support where
+module Application.Fixture where
 
+import Application.Fixture.Reset (resetDatabase)
 import Application.Helper.Controller (PlatformRole (..), platformRoleToEnum,
                                       unsafeEnumFromText)
 import Application.Helper.Pay (ensurePayVersionsForTimesheetApproval,
                                lockPayVersionsForApproval)
-import Application.Helper.RosterGroups (ensureVenueDefaultRosterGroup)
+import Application.Helper.RosterGroups (ensureVenueDefaultRosterGroup,
+                                        ensureVenueRosterDefaults)
 import Application.Helper.VenueBootstrap
 import Application.VenueTime (melbourneTimeZoneName)
 import Application.VenueTime.Model
@@ -17,20 +19,24 @@ import Data.Time.Calendar (Day, fromGregorian)
 import Data.Time.LocalTime (TimeOfDay (..))
 import Generated.Types
 import IHP.ControllerPrelude
-import IHP.ModelSupport (sqlExecDiscardResult)
 import IHP.Prelude
 import qualified IHP.Prelude as Prelude
-
-resetDatabase :: (?modelContext :: ModelContext) => IO ()
-resetDatabase = do
-    sqlExecDiscardResult
-        "TRUNCATE TABLE app_jobs, award_time_penalty_allowances, award_level_penalty_rates, award_level_base_rates, award_levels, fwc_mapd_wage_allowances, fwc_mapd_penalty_rates, fwc_mapd_pay_rates, fwc_mapd_classifications, fwc_mapd_awards, fwc_mapd_sync_runs, public_holidays, xero_timesheet_submission_entries, xero_timesheet_submissions, xero_timesheet_preparation_decisions, xero_timesheet_preparation_runs, xero_submission_runs, xero_earnings_rate_mappings, xero_staff_mappings, xero_pay_runs, xero_payroll_calendars, xero_earnings_rates, xero_employees, xero_sync_runs, xero_oauth_states, xero_connections, venue_billing_controls, billing_events, billing_checkout_attempts, venue_subscriptions, venue_billing_customers, export_jobs, audit_events, venue_membership_role_events, timesheet_entry_versions, timesheet_entries, leave_request_events, leave_requests, staff_shift_preferences, roster_slots, roster_week_slot_definitions, roster_days, roster_weeks, export_job_entries, shift_type_pay_versions, staff_pay_versions, venue_config, day_names, slot_names, staff_roster_groups, roster_groups, shift_types, staff_documents, staff, user_preferences, passkey_setup_tokens, passkey_recovery_codes, email_verification_tokens, venue_invitations, venue_onboarding_invitations, venue_memberships, users, venues RESTART IDENTITY CASCADE"
-        ()
-    pure ()
 
 createVenueWithConfig :: (?modelContext :: ModelContext) => Text -> IO Venue
 createVenueWithConfig name =
     fst <$> createVenueWithBootstrapConfig (defaultVenueBootstrapConfig name)
+
+createVenueRecordWithRosterDefaults :: (?modelContext :: ModelContext) => Text -> IO Venue
+createVenueRecordWithRosterDefaults name = do
+    venue <- newRecord @Venue
+        |> set #name name
+        |> createRecord
+    void (ensureVenueRosterDefaults venue)
+    pure venue
+
+data FixturePasswordInput
+    = HashFixturePassword !Text
+    | UseFixturePasswordHash !Text
 
 createUserRecord :: (?modelContext :: ModelContext) => Text -> Text -> Bool -> IO User
 createUserRecord emailAddress globalRole isProfileCompleted =
@@ -49,8 +55,20 @@ createUserRecordWithPasswordAndPlatformRole emailAddress password globalRole pla
     createUserRecordWithPasswordAndPlatformRoleAndId emailAddress password globalRole platformRole isProfileCompleted Nothing
 
 createUserRecordWithPasswordAndPlatformRoleAndId :: (?modelContext :: ModelContext) => Text -> Text -> Text -> Maybe PlatformRole -> Bool -> Maybe (Id User) -> IO User
-createUserRecordWithPasswordAndPlatformRoleAndId emailAddress password globalRole platformRole isProfileCompleted maybeUserId = do
-    passwordHash <- hashPassword password
+createUserRecordWithPasswordAndPlatformRoleAndId emailAddress password globalRole platformRole isProfileCompleted maybeUserId =
+    createUserRecordWithPasswordInputAndPlatformRoleAndId
+        emailAddress
+        (HashFixturePassword password)
+        globalRole
+        platformRole
+        isProfileCompleted
+        maybeUserId
+
+createUserRecordWithPasswordInputAndPlatformRoleAndId :: (?modelContext :: ModelContext) => Text -> FixturePasswordInput -> Text -> Maybe PlatformRole -> Bool -> Maybe (Id User) -> IO User
+createUserRecordWithPasswordInputAndPlatformRoleAndId emailAddress passwordInput globalRole platformRole isProfileCompleted maybeUserId = do
+    passwordHash <- case passwordInput of
+        HashFixturePassword password        -> hashPassword password
+        UseFixturePasswordHash existingHash -> pure existingHash
     let user =
             newRecord @User
                 |> set #email emailAddress
@@ -62,14 +80,26 @@ createUserRecordWithPasswordAndPlatformRoleAndId emailAddress password globalRol
     maybe user (\userId -> user |> set #id userId) maybeUserId
         |> createRecord
 
+data MembershipStaffFixture
+    = MembershipOnly
+    | EnsureProfileStaffForCompletedUser
+    deriving (Eq)
+
 createVenueMembershipRecord :: (?modelContext :: ModelContext) => Venue -> User -> Text -> IO VenueMembership
 createVenueMembershipRecord venue user venueRole =
-    newRecord @VenueMembership
+    createVenueMembershipRecordWithStaffFixture MembershipOnly venue user venueRole
+
+createVenueMembershipRecordWithStaffFixture :: (?modelContext :: ModelContext) => MembershipStaffFixture -> Venue -> User -> Text -> IO VenueMembership
+createVenueMembershipRecordWithStaffFixture staffFixture venue user venueRole = do
+    membership <- newRecord @VenueMembership
         |> set #venueId (unpackId (get #id venue))
         |> set #userId (unpackId (get #id user))
         |> set #venueRole (unsafeEnumFromText @VenueRoleEnum venueRole)
         |> set #isActive True
         |> createRecord
+    when (staffFixture == EnsureProfileStaffForCompletedUser && user.isProfileCompleted) do
+        void (createIdempotentStaffRecordWithDefaults venue (Just user) "Profile" "Complete")
+    pure membership
 
 ensureVenueMembershipRecord :: (?modelContext :: ModelContext) => Venue -> User -> Text -> IO VenueMembership
 ensureVenueMembershipRecord venue user venueRole =
@@ -124,6 +154,44 @@ createStaffRecord venue maybeUser firstName lastName preferredName phone emergen
 createPlaceholderStaffRecord :: (?modelContext :: ModelContext) => Venue -> Maybe User -> Text -> Text -> IO Staff
 createPlaceholderStaffRecord venue maybeUser firstName lastName =
     createStaffRecord venue maybeUser firstName lastName Nothing "0400000000" "Emergency Contact" "0411111111" 0 True
+
+createIdempotentStaffRecordWithDefaults :: (?modelContext :: ModelContext) => Venue -> Maybe User -> Text -> Text -> IO Staff
+createIdempotentStaffRecordWithDefaults venue maybeUser firstName lastName = do
+    staff <- case maybeUser of
+        Just user -> do
+            existingStaff <- query @Staff
+                |> filterWhere (#venueId, unpackId venue.id)
+                |> filterWhere (#userId, Just (unpackId user.id))
+                |> fetchOneOrNothing
+            case existingStaff of
+                Just record -> applyDefaults record |> updateRecord
+                Nothing     -> applyDefaults (newRecord @Staff |> set #venueId (unpackId venue.id) |> set #userId (Just (unpackId user.id))) |> createRecord
+        Nothing ->
+            applyDefaults (newRecord @Staff |> set #venueId (unpackId venue.id) |> set #userId Nothing)
+                |> createRecord
+    defaultRosterGroup <- ensureVenueDefaultRosterGroup venue
+    existingAssignment <- query @StaffRosterGroup
+        |> filterWhere (#staffId, unpackId staff.id)
+        |> filterWhere (#rosterGroupId, unpackId defaultRosterGroup.id)
+        |> fetchOneOrNothing
+    when (isNothing existingAssignment) do
+        void (createStaffRosterGroupRecord staff defaultRosterGroup)
+    pure staff
+  where
+    applyDefaults staff =
+        staff
+            |> set #firstName firstName
+            |> set #lastName lastName
+            |> set #preferredName Nothing
+            |> set #phone "0400000000"
+            |> set #emergencyContactName "Emergency Contact"
+            |> set #emergencyContactPhone "0411111111"
+            |> set #idealShiftsPerWeek 0
+            |> set #isActive True
+
+ensureProfileCompleteStaffRecord :: (?modelContext :: ModelContext) => Venue -> User -> IO Staff
+ensureProfileCompleteStaffRecord venue user =
+    createIdempotentStaffRecordWithDefaults venue (Just user) "Profile" "Complete"
 
 createStaffRosterGroupRecord :: (?modelContext :: ModelContext) => Staff -> RosterGroup -> IO StaffRosterGroup
 createStaffRosterGroupRecord staff rosterGroup =
@@ -183,8 +251,12 @@ ensureRosterWeekSlotDefinitionForSlotName rosterDay slotName = do
                 |> createRecord
 
 createTimesheetEntryRecord :: (?modelContext :: ModelContext) => Venue -> Staff -> Day -> IO TimesheetEntry
-createTimesheetEntryRecord venue staff workedOn = do
-    shiftType <- ensureVenueDefaultShiftType venue
+createTimesheetEntryRecord venue staff workedOn =
+    createTimesheetEntryRecordWithDefaultLevelName venue staff workedOn "Default Level"
+
+createTimesheetEntryRecordWithDefaultLevelName :: (?modelContext :: ModelContext) => Venue -> Staff -> Day -> Text -> IO TimesheetEntry
+createTimesheetEntryRecordWithDefaultLevelName venue staff workedOn defaultLevelName = do
+    shiftType <- ensureVenueDefaultShiftTypeWithLevelName venue defaultLevelName
     let boundaries =
             either (error . ("Invalid support timesheet fixture: " <>) . show) Prelude.id $
                 resolveShiftBoundaries melbourneTimeZoneName ShiftBoundaryInput
@@ -405,7 +477,11 @@ createPayLevelDayRuleRecord shiftType _dayName awardLevel =
         |> updateRecord
 
 ensureVenueDefaultShiftType :: (?modelContext :: ModelContext) => Venue -> IO ShiftType
-ensureVenueDefaultShiftType venue = do
+ensureVenueDefaultShiftType venue =
+    ensureVenueDefaultShiftTypeWithLevelName venue "Default Level"
+
+ensureVenueDefaultShiftTypeWithLevelName :: (?modelContext :: ModelContext) => Venue -> Text -> IO ShiftType
+ensureVenueDefaultShiftTypeWithLevelName venue defaultLevelName = do
     query @ShiftType
         |> filterWhere (#venueId, unpackId (get #id venue))
         |> orderByAsc #createdAt
@@ -413,7 +489,7 @@ ensureVenueDefaultShiftType venue = do
         >>= \case
             Just shiftType -> pure shiftType
             Nothing -> do
-                payLevel <- createPayLevelRecord venue "Default Level"
+                payLevel <- createPayLevelRecord venue defaultLevelName
                 createShiftTypeRecord venue payLevel "Default Shift"
 
 defaultWeekEpoch :: Day

@@ -1,5 +1,10 @@
-module Application.Support.DevFixtures where
+module Application.Fixture.DevFixtures where
 
+import Application.Fixture
+import Application.Fixture.Reset (resetDatabase)
+import Application.Fixture.Seed.Calendar (weekOffsetForDay)
+import Application.Fixture.Seed.Scenario
+import Application.Fixture.WageSourceFixtures (ensureFreshWageSourceFacts)
 import Application.Helper.Controller (PlatformRole (..))
 import Application.Helper.Pay (ensurePayVersionsForTimesheetApproval,
                                ensureShiftTypePayVersionForShiftType,
@@ -16,10 +21,6 @@ import Application.Helper.VenueBootstrap (provisionVenueUser)
 import Application.Helper.WeekBoundaries (venueWeekStartDate)
 import Application.PayAssignment (StaffPayAssignment (..),
                                   staffAssignmentAllowsTimesheets)
-import Application.Support
-import Application.Support.Seed.Calendar (weekOffsetForDay)
-import Application.Support.Seed.Scenario
-import Application.Support.WageSourceFixtures (ensureFreshWageSourceFacts)
 import Application.VenueTime.Model
 import Control.Monad (replicateM, void)
 import qualified Data.Aeson as Aeson
@@ -92,10 +93,14 @@ seedDevelopmentFixtureWithScenarioForWeek scenario fixtureWeekStart =
 
 seedDevelopmentFixtureWithScenarioForWeekAndLeaveMonth :: (?modelContext :: ModelContext) => SeedScenario -> Day -> Day -> IO DevSeedFixture
 seedDevelopmentFixtureWithScenarioForWeekAndLeaveMonth scenario fixtureWeekStart leaveMonthAnchor = do
-    -- `seed-dev app` rebuilds the dev DB from schema + bootstrap fixtures first.
-    -- Wipe those bootstrap rows here so the scripted demo surface is the only
-    -- seeded venue set that remains afterwards.
+    -- Direct callers retain the historical reset-before-seed behavior.
     resetDevFixtureData
+    seedDevelopmentFixtureAfterResetWithScenarioForWeekAndLeaveMonth scenario fixtureWeekStart leaveMonthAnchor
+
+-- | Build the fixture after an orchestrator has reset the database and loaded
+-- reference data that must survive fixture construction.
+seedDevelopmentFixtureAfterResetWithScenarioForWeekAndLeaveMonth :: (?modelContext :: ModelContext) => SeedScenario -> Day -> Day -> IO DevSeedFixture
+seedDevelopmentFixtureAfterResetWithScenarioForWeekAndLeaveMonth scenario fixtureWeekStart leaveMonthAnchor = do
     ensureSeedShiftTypeAwardLevels
     venue <- createVenueWithConfig "Development Sandbox Venue"
     admin <- createSeededUserRecordWithPassword "venue2@bepis.lol" "venue2" "admin" True
@@ -331,11 +336,7 @@ ensureSeedMatrixDayPreference staff dayOffset = do
                 |> void
 
 resetDevFixtureData :: (?modelContext :: ModelContext) => IO ()
-resetDevFixtureData = do
-    sqlExecDiscardResult
-        "TRUNCATE TABLE app_jobs, xero_timesheet_submission_entries, xero_timesheet_submissions, xero_submission_runs, xero_earnings_rate_mappings, xero_staff_mappings, xero_payroll_calendars, xero_imported_pay_items, xero_earnings_rates, xero_employees, xero_sync_runs, xero_oauth_states, xero_connections, export_jobs, audit_events, venue_membership_role_events, timesheet_entry_versions, timesheet_entries, leave_request_events, leave_requests, staff_shift_preferences, roster_slots, roster_week_slot_definitions, roster_days, roster_weeks, export_job_entries, shift_type_pay_versions, staff_pay_versions, venue_config, day_names, slot_names, staff_roster_groups, roster_groups, shift_types, staff_documents, staff, user_preferences, passkey_setup_tokens, passkey_recovery_codes, email_verification_tokens, venue_invitations, venue_onboarding_invitations, venue_memberships, users, venues RESTART IDENTITY CASCADE"
-        ()
-    pure ()
+resetDevFixtureData = resetDatabase
 
 ensureSeedShiftTypeAwardLevels :: (?modelContext :: ModelContext) => IO ()
 ensureSeedShiftTypeAwardLevels = do

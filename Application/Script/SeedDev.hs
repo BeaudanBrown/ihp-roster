@@ -1,14 +1,16 @@
 module Application.Script.SeedDev where
 
+import Application.Fixture.DevFixtures (DevSeedFixture (..),
+                                        seedDevelopmentFixtureAfterResetWithScenarioForWeekAndLeaveMonth,
+                                        seedDevelopmentFixtureWithScenarioForWeekAndLeaveMonth)
+import Application.Fixture.Reset (resetDatabase)
+import Application.Fixture.Seed.Calendar (currentWeekOffsetForDay,
+                                          weekStartForOffset)
+import Application.Fixture.Seed.Scenario
 import Application.Helper.Controller (unsafeEnumFromText)
 import Application.Helper.ShiftTypeColours (blankShiftTypeColourKey)
 import Application.Helper.TimesheetPayLedger (backfillApprovedTimesheetPayCalculations)
 import Application.Script.Prelude
-import Application.Support.DevFixtures (DevSeedFixture (..),
-                                        seedDevelopmentFixtureWithScenarioForWeekAndLeaveMonth)
-import Application.Support.Seed.Calendar (currentWeekOffsetForDay,
-                                          weekStartForOffset)
-import Application.Support.Seed.Scenario
 import qualified Data.List as List
 import qualified Data.Text as Text
 import qualified Data.Text.IO as TextIO
@@ -24,8 +26,21 @@ seededSupportAdminPassword = "admin"
 seededSandboxAdminPassword :: Text
 seededSandboxAdminPassword = "venue2"
 
+data SeedResetMode
+    = ResetBeforeSeed
+    | DatabaseAlreadyReset
+
+resetOnly :: Script
+resetOnly = resetDatabase
+
 run :: Script
-run = do
+run = runWithResetMode ResetBeforeSeed
+
+runAfterReset :: Script
+runAfterReset = runWithResetMode DatabaseAlreadyReset
+
+runWithResetMode :: SeedResetMode -> Script
+runWithResetMode resetMode = do
     options <- liftIO parseSeedDevOptions
     now <- getCurrentTime
     let fixtureWeekStart = currentFixtureWeekStart (utctDay now)
@@ -43,7 +58,9 @@ run = do
         , backOfHouseGroup = backOfHouseGroup
         , currentWeekOffset = currentWeekOffset
         , scenario = scenario
-        } <- seedDevelopmentFixtureWithScenarioForWeekAndLeaveMonth scenario fixtureWeekStart (utctDay now)
+        } <- case resetMode of
+            ResetBeforeSeed -> seedDevelopmentFixtureWithScenarioForWeekAndLeaveMonth scenario fixtureWeekStart (utctDay now)
+            DatabaseAlreadyReset -> seedDevelopmentFixtureAfterResetWithScenarioForWeekAndLeaveMonth scenario fixtureWeekStart (utctDay now)
 
     backfillResult <- backfillApprovedTimesheetPayCalculations
     case backfillResult of

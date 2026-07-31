@@ -1,5 +1,6 @@
 module Test.XeroTimesheetPreviewSpec where
 
+import Application.Fixture.PayrollFixtures (createAndApproveEntry)
 import Application.Helper.Pay
 import Application.Helper.TimesheetPayLedger (loadApprovedTimesheetPayCalculation)
 import Application.Helper.Xero
@@ -19,7 +20,6 @@ import IHP.ControllerPrelude
 import IHP.Test.Mocking
 import Test.Hspec
 import Test.Support
-import Test.Support.PayrollFixtures (createAndApproveEntry)
 
 tests :: Spec
 tests =
