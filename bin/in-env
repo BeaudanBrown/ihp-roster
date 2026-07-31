@@ -4,6 +4,29 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 
+# A long-lived agent shell can invoke this wrapper from a sibling worktree while
+# retaining the caller's materialized workspace identity. Never let that stale
+# identity select another checkout's ports, state directory, or database socket.
+inherited_workspace_root="${BEPIS_WORKSPACE_REPO_ROOT:-}"
+if [ -n "$inherited_workspace_root" ] \
+    && [ "$(realpath -m "$inherited_workspace_root")" != "$REPO_ROOT" ]; then
+    unset BEPIS_WORKSPACE_REPO_ROOT BEPIS_WORKSPACE_KIND BEPIS_WORKSPACE_SLOT \
+        BEPIS_WORKSPACE_EPIC BEPIS_WORKSPACE_STATE_CONFIGURED \
+        BEPIS_WORKSPACE_STATE_ROOT BEPIS_WORKSPACE_PORT_OFFSET \
+        BEPIS_WORKSPACE_OTEL_SERVICE_NAME BEPIS_WORKSPACE_RESOURCE_REPOSITORY_ID \
+        BEPIS_WORKSPACE_RESOURCE_PARENT_SLICE BEPIS_WORKSPACE_RESOURCE_SLICE \
+        DEVENV_AGENT_STATE_DIR DEVENV_IN_DIRENV_SHELL PGHOST DATABASE_URL \
+        PORT APP_BASE_URL BASE_URL PWCLI_BASE_URL SMTP_HOST SMTP_PORT \
+        MAILHOG_SMTP_PORT MAILHOG_PORT MAILHOG_BASE_URL \
+        IHP_ROSTER_DEV_TEMPO_PORT IHP_ROSTER_DEV_TEMPO_SERVER_GRPC_PORT \
+        IHP_ROSTER_DEV_TEMPO_OTLP_GRPC_PORT IHP_ROSTER_DEV_TEMPO_OTLP_HTTP_PORT \
+        IHP_ROSTER_DEV_OTLP_GRPC_PORT IHP_ROSTER_DEV_OTLP_HTTP_PORT \
+        IHP_ROSTER_DEV_COLLECTOR_HEALTH_PORT IHP_ROSTER_DEV_GRAFANA_PORT \
+        OTEL_SERVICE_NAME OTEL_EXPORTER_OTLP_ENDPOINT \
+        OTEL_EXPORTER_OTLP_TRACES_ENDPOINT OTEL_EXPORTER_OTLP_METRICS_ENDPOINT \
+        OTEL_EXPORTER_OTLP_LOGS_ENDPOINT
+fi
+
 if [ "$#" -eq 0 ]; then
     echo "usage: bash ./bin/in-env <command> [args...]" >&2
     exit 64
@@ -18,6 +41,7 @@ mkdir -p "$XDG_CACHE_HOME"
 # active shell. Executing the inherited command directly can select stale
 # materialized project-script wrappers after Config/nix changes.
 if command -v direnv >/dev/null 2>&1 && [ -f "$REPO_ROOT/.envrc" ]; then
+    cd "$REPO_ROOT"
     exec direnv exec "$REPO_ROOT" "$@"
 fi
 

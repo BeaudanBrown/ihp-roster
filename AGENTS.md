@@ -97,6 +97,16 @@ In a checkout containing `.bepis-epic-worktree.json`, first run
 the user to choose. Follow the command's interruption and approval guidance;
 never start, close, or move to a sub-issue automatically.
 
+Run a worktree's commands through that worktree's own `bin/in-env`; the wrapper
+enters its repository root and discards inherited identity from a different
+worktree. Before dev-server or E2E work in a sibling checkout, confirm
+`bash ./bin/in-env dev-workspace-info --json` reports the expected path and slot.
+For completed unpushed epic branches, prefer
+`epic-worktree-manage sync --strategy rebase --apply`, verify the rebased
+worktree, then use `integrate --mode ff-only --approve`; integration, issue
+closure, and cleanup
+remain separate approval boundaries.
+
 ## Core IHP Conventions
 
 - New controllers require `Web/Types.hs`, `Web/Routes.hs`,
@@ -203,7 +213,11 @@ Exploration does not replace deterministic tests. Convert useful flows into norm
 
 Use the repo wrapper unless you are already inside the devenv shell. Run
 `bin/in-env` commands serially: concurrent wrapper entries can race on generated
-`.devenv` shell files and produce false setup failures. On memory-constrained
+`.devenv` shell files and produce false setup failures. Use cheap/focused checks
+before expensive full gates, and validate worktree identity before starting any
+runtime-dependent E2E check. Stop and report infrastructure failures separately
+from code failures instead of broadening an integration task into runtime repair.
+On memory-constrained
 hosts, also stop dev hot reload and avoid triggering HLS reloads while running
 compile-heavy typecheck, Hspec, generator, or `verify-full` gates; independent
 GHC heaps can otherwise exhaust RAM and swap even when each command passes alone.

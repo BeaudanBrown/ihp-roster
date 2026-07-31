@@ -144,9 +144,11 @@ After publication:
    issue closure;
 5. orient again after approved closure;
 6. use `epic-worktree-manage preflight` before synchronization/integration;
-7. synchronization needs `sync --apply`; integration and cleanup each require
-   their own approval;
-8. close the parent separately before approved cleanup.
+7. synchronization needs `sync --apply`; for a completed unpushed epic prefer
+   `sync --strategy rebase --apply`, followed after verification by
+   `integrate --mode ff-only --approve`;
+8. integration and cleanup each require their own approval;
+9. close the parent separately before approved cleanup.
 
 The audit coordinator must not auto-assign, auto-start, auto-close, integrate, or
 clean up work based solely on a passing check.

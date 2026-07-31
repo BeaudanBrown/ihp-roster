@@ -128,12 +128,48 @@ git -C "$epic_path" checkout -- README
 
 sync_plan="$(run_manage sync --epic 270 --json)"
 [ "$(jq -r '.action' <<<"$sync_plan")" = sync ] || fail "sync plan action missing"
+[ "$(jq -r '.strategy' <<<"$sync_plan")" = merge ] || fail "default sync strategy changed"
 [ "$(jq -r '.applied' <<<"$sync_plan")" = false ] || fail "sync mutated without --apply"
 [ "$(git -C "$epic_path" rev-parse HEAD)" = "$epic_before" ] || fail "dry-run sync moved epic HEAD"
 
-run_manage sync --epic 270 --apply --json >/dev/null
-git -C "$epic_path" merge-base --is-ancestor roster HEAD || fail "sync did not merge target into epic"
-subissue_commit="$epic_before"
+set +e
+pushed_rebase="$(run_manage sync --epic 270 --strategy rebase --json 2>&1)"
+pushed_rebase_status=$?
+set -e
+[ "$pushed_rebase_status" -eq 65 ] || fail "rebase plan accepted a pushed epic branch"
+assert_contains "$pushed_rebase" "refusing to rebase pushed epic branch"
+git -C "$primary_repo" push --quiet origin :epic-270
+git -C "$primary_repo" branch --set-upstream-to=origin/roster epic-270 >/dev/null
+[ "$(git -C "$primary_repo" for-each-ref --format='%(upstream:short)' refs/heads/epic-270)" = origin/roster ] \
+    || fail "fixture did not configure target-branch upstream"
+
+backup_repo="$fixture_root/backup.git"
+backup_push_repo="$fixture_root/backup-push.git"
+git init --quiet --bare "$backup_repo"
+git init --quiet --bare "$backup_push_repo"
+git -C "$primary_repo" remote add backup "$backup_repo"
+git -C "$primary_repo" remote set-url --add --push backup "$backup_push_repo"
+git -C "$primary_repo" push --quiet backup epic-270
+set +e
+backup_rebase="$(run_manage sync --epic 270 --strategy rebase --json 2>&1)"
+backup_rebase_status=$?
+set -e
+[ "$backup_rebase_status" -eq 65 ] || fail "rebase plan ignored a non-origin pushed epic branch"
+assert_contains "$backup_rebase" "backup:refs/heads/epic-270"
+git -C "$primary_repo" push --quiet backup :epic-270
+
+rebase_plan="$(run_manage sync --epic 270 --strategy rebase --json)"
+[ "$(jq -r '.strategy' <<<"$rebase_plan")" = rebase ] || fail "rebase plan strategy missing"
+[ "$(jq -r '.rebaseSafety.eligible' <<<"$rebase_plan")" = true ] \
+    || fail "target-tracking unpushed epic was not eligible"
+[ "$(jq -r '.rebaseSafety.checked | length' <<<"$rebase_plan")" -eq 3 ] \
+    || fail "rebase plan did not inspect all fetch and push endpoints"
+
+run_manage sync --epic 270 --strategy rebase --apply --json >/dev/null
+git -C "$epic_path" merge-base --is-ancestor roster HEAD || fail "rebase sync did not place epic on target"
+[ "$(git -C "$epic_path" rev-list --parents -n1 HEAD | awk '{print NF}')" -eq 2 ] \
+    || fail "rebase sync did not preserve linear epic history"
+subissue_commit="$(git -C "$epic_path" rev-parse HEAD)"
 
 set +e
 cleanup_before_integration="$(run_manage cleanup --epic 270 --approve --json 2>&1)"
@@ -142,14 +178,15 @@ set -e
 [ "$cleanup_before_status" -eq 65 ] || fail "cleanup accepted unintegrated commits"
 assert_contains "$cleanup_before_integration" "unintegrated"
 
-integrate_plan="$(run_manage integrate --epic 270 --json)"
+integrate_plan="$(run_manage integrate --epic 270 --mode ff-only --json)"
 [ "$(jq -r '.action' <<<"$integrate_plan")" = integrate ] || fail "integration plan action missing"
+[ "$(jq -r '.mergeMode' <<<"$integrate_plan")" = --ff-only ] || fail "integration plan mode missing"
 [ "$(jq -r '.applied' <<<"$integrate_plan")" = false ] || fail "integration mutated without approval"
 target_before_integration="$(git -C "$primary_repo" rev-parse HEAD)"
-run_manage integrate --epic 270 --approve --json >/dev/null
+run_manage integrate --epic 270 --mode ff-only --approve --json >/dev/null
 integration_commit="$(git -C "$primary_repo" rev-parse HEAD)"
 [ "$integration_commit" != "$target_before_integration" ] || fail "approved integration did not move target"
-[ "$(git -C "$primary_repo" rev-list --parents -n1 HEAD | awk '{print NF}')" -eq 3 ] || fail "integration was not a merge commit"
+[ "$integration_commit" = "$(git -C "$epic_path" rev-parse HEAD)" ] || fail "integration was not a fast-forward"
 git -C "$primary_repo" merge-base --is-ancestor "$subissue_commit" HEAD || fail "integration lost sub-issue commit"
 set +e
 worktree_cleanup="$(cd "$epic_path" && PATH="$fake_bin:$PATH" EPIC_WORKTREE_COMMAND="$registry_command" bash "$manage_command" cleanup --epic 270 --json 2>&1)"

@@ -16,13 +16,15 @@ usage() {
     cat <<'EOF'
 Usage:
   epic-worktree-manage preflight --epic NUMBER [--json]
-  epic-worktree-manage sync --epic NUMBER [--apply] [--json]
-  epic-worktree-manage integrate --epic NUMBER [--approve] [--json]
+  epic-worktree-manage sync --epic NUMBER [--strategy merge|rebase] [--apply] [--json]
+  epic-worktree-manage integrate --epic NUMBER [--mode no-ff|ff-only] [--approve] [--json]
   epic-worktree-manage cleanup --epic NUMBER [--approve] [--json]
 
-Preflight is non-mutating. Sync only merges the recorded target into the epic
-with --apply. Integration uses a --no-ff merge only with --approve. Cleanup
-removes an integrated, stopped, clean epic workspace only with --approve.
+Preflight is non-mutating. Sync merges by default; rebase is allowed only when
+the epic branch is absent from every configured remote. Integration uses
+--no-ff by default or
+an explicitly requested --ff-only mode. Mutations still require approval.
+Cleanup removes an integrated, stopped, clean epic workspace only with --approve.
 Parent issue closure is always a separate action.
 EOF
 }
@@ -49,6 +51,8 @@ epic=""
 json=false
 apply=false
 approve=false
+strategy="merge"
+integration_mode="no-ff"
 while [ "$#" -gt 0 ]; do
     case "$1" in
         --epic)
@@ -59,6 +63,16 @@ while [ "$#" -gt 0 ]; do
         --json) json=true; shift ;;
         --apply) apply=true; shift ;;
         --approve) approve=true; shift ;;
+        --strategy)
+            [ "$#" -ge 2 ] || die 64 "missing value for --strategy"
+            strategy="$2"
+            shift 2
+            ;;
+        --mode)
+            [ "$#" -ge 2 ] || die 64 "missing value for --mode"
+            integration_mode="$2"
+            shift 2
+            ;;
         -h|--help) usage; exit 0 ;;
         *) die 64 "unknown $action option: $1" ;;
     esac
@@ -68,6 +82,13 @@ done
 [ "$action" = sync ] || [ "$apply" = false ] || die 64 "--apply is only valid for sync"
 { [ "$action" = integrate ] || [ "$action" = cleanup ]; } || [ "$approve" = false ] \
     || die 64 "--approve is only valid for integrate or cleanup"
+[ "$action" = sync ] || [ "$strategy" = merge ] || die 64 "--strategy is only valid for sync"
+[ "$strategy" = merge ] || [ "$strategy" = rebase ] \
+    || die 64 "sync strategy must be merge or rebase: $strategy"
+[ "$action" = integrate ] || [ "$integration_mode" = no-ff ] \
+    || die 64 "--mode is only valid for integrate"
+[ "$integration_mode" = no-ff ] || [ "$integration_mode" = ff-only ] \
+    || die 64 "integration mode must be no-ff or ff-only: $integration_mode"
 
 current_root="$(git rev-parse --show-toplevel 2>/dev/null || true)"
 [ -n "$current_root" ] || die 66 "run from a checkout in the registered repository"
@@ -291,6 +312,38 @@ print_preflight() {
     jq -r '"epic #\(.epic) | \(.workspace.branch) -> \(.target.branch) | clean=\(.workspace.clean) | ahead=\(.divergence.epicAhead) behind=\(.divergence.targetAhead) | conflicts=\(.conflicts.detected)\nruntime: active=\(.workspace.runtime.active | length) stale=\(.workspace.runtime.stale | length)\nimpact: migrations=\(.impact.migrations) generated=\(.impact.generatedFiles)\nchecks: \(.requiredChecks | join(", "))\nparent closure: separate approval required"' <<<"$1"
 }
 
+inspect_rebase_safety() {
+    local remote remote_url remote_output remote_status endpoint=0
+    local checked='[]'
+    local pushed='[]'
+    local -A checked_urls=()
+    while IFS= read -r remote; do
+        [ -n "$remote" ] || continue
+        while IFS= read -r remote_url; do
+            [ -n "$remote_url" ] || continue
+            [ -z "${checked_urls[$remote_url]:-}" ] || continue
+            checked_urls["$remote_url"]=1
+            endpoint=$((endpoint + 1))
+            set +e
+            remote_output="$(git -C "$current_root" ls-remote --heads "$remote_url" "refs/heads/$epic_branch" 2>/dev/null)"
+            remote_status=$?
+            set -e
+            [ "$remote_status" -eq 0 ] \
+                || die 69 "cannot prove epic branch is absent from endpoint $endpoint for remote '$remote'; refusing rebase"
+            checked="$(jq -c --arg remote "$remote" --argjson endpoint "$endpoint" '. + [{remote: $remote, endpoint: $endpoint}]' <<<"$checked")"
+            while read -r _ remote_ref; do
+                [ -n "${remote_ref:-}" ] || continue
+                pushed="$(jq -c --arg remote "$remote" --arg ref "$remote_ref" --argjson endpoint "$endpoint" '. + [{remote: $remote, endpoint: $endpoint, ref: $ref}]' <<<"$pushed")"
+            done <<<"$remote_output"
+        done < <({
+            git -C "$current_root" remote get-url --all "$remote"
+            git -C "$current_root" remote get-url --push --all "$remote"
+        } | awk '!seen[$0]++')
+    done < <(git -C "$current_root" remote)
+    jq -cn --argjson checked "$checked" --argjson pushed "$pushed" \
+        '{eligible: ($pushed | length == 0), checked: $checked, pushedTo: $pushed}'
+}
+
 if [ "$action" = preflight ]; then
     report="$(preflight)"
     if [ "$json" = true ]; then jq . <<<"$report"; else print_preflight "$report"; fi
@@ -299,9 +352,15 @@ fi
 
 if [ "$action" = sync ]; then
     report="$(preflight)"
+    rebase_safety=null
+    if [ "$strategy" = rebase ]; then
+        rebase_safety="$(inspect_rebase_safety)"
+        [ "$(jq -r '.eligible' <<<"$rebase_safety")" = true ] \
+            || die 65 "refusing to rebase pushed epic branch: $(jq -r '.pushedTo | map("\(.remote):\(.ref)") | join(", ")' <<<"$rebase_safety")"
+    fi
     if [ "$apply" = false ]; then
-        result="$(jq -cn --argjson preflight "$report" '{action: "sync", applied: false, approval: "rerun with --apply", preflight: $preflight}')"
-        if [ "$json" = true ]; then jq . <<<"$result"; else print_preflight "$report"; echo "sync not applied; rerun with --apply"; fi
+        result="$(jq -cn --arg strategy "$strategy" --argjson rebaseSafety "$rebase_safety" --argjson preflight "$report" '{action: "sync", strategy: $strategy, rebaseSafety: $rebaseSafety, applied: false, approval: "rerun with --apply", preflight: $preflight}')"
+        if [ "$json" = true ]; then jq . <<<"$result"; else print_preflight "$report"; echo "sync strategy=$strategy not applied; rerun with --apply"; fi
         exit 0
     fi
     print_preflight "$report" >&2
@@ -312,25 +371,42 @@ if [ "$action" = sync ]; then
     assert_runtime_stopped
     if [ "$(jq -r '.divergence.targetAhead' <<<"$report")" -gt 0 ]; then
         sync_target_oid="$(jq -r '.divergence.targetOid' <<<"$report")"
-        set +e
-        merge_output="$(git -C "$epic_path" merge --no-edit "$sync_target_oid" 2>&1)"
-        merge_status=$?
-        set -e
-        if [ "$merge_status" -ne 0 ]; then
-            echo "$merge_output" >&2
-            echo "$program: sync conflicts require canonical-source resolution followed by regeneration; do not rebase or hand-merge generated output" >&2
-            exit "$merge_status"
+        if [ "$strategy" = rebase ]; then
+            mutation_rebase_safety="$(inspect_rebase_safety)"
+            [ "$(jq -r '.eligible' <<<"$mutation_rebase_safety")" = true ] \
+                || die 65 "epic branch was pushed after rebase planning; refusing rewrite"
+            [ "$mutation_rebase_safety" = "$rebase_safety" ] \
+                || die 65 "remote state changed after rebase planning; inspect again"
+            set +e
+            sync_output="$(git -C "$epic_path" rebase "$sync_target_oid" 2>&1)"
+            sync_status=$?
+            set -e
+            if [ "$sync_status" -ne 0 ]; then
+                echo "$sync_output" >&2
+                echo "$program: rebase stopped; resolve canonical source then continue, or run git -C '$epic_path' rebase --abort" >&2
+                exit "$sync_status"
+            fi
+        else
+            set +e
+            sync_output="$(git -C "$epic_path" merge --no-edit "$sync_target_oid" 2>&1)"
+            sync_status=$?
+            set -e
+            if [ "$sync_status" -ne 0 ]; then
+                echo "$sync_output" >&2
+                echo "$program: sync conflicts require canonical-source resolution followed by regeneration; do not hand-merge generated output" >&2
+                exit "$sync_status"
+            fi
         fi
     fi
-    result="$(jq -cn --argjson preflight "$report" --arg head "$(git -C "$epic_path" rev-parse HEAD)" '{action: "sync", applied: true, head: $head, preflight: $preflight}')"
-    if [ "$json" = true ]; then jq . <<<"$result"; else echo "epic #$epic synchronized with $target_branch"; fi
+    result="$(jq -cn --arg strategy "$strategy" --argjson rebaseSafety "$rebase_safety" --argjson preflight "$report" --arg head "$(git -C "$epic_path" rev-parse HEAD)" '{action: "sync", strategy: $strategy, rebaseSafety: $rebaseSafety, applied: true, head: $head, preflight: $preflight}')"
+    if [ "$json" = true ]; then jq . <<<"$result"; else echo "epic #$epic synchronized with $target_branch using $strategy"; fi
     exit 0
 fi
 
 if [ "$action" = integrate ]; then
     report="$(preflight)"
     if [ "$approve" = false ]; then
-        result="$(jq -cn --argjson preflight "$report" '{action: "integrate", applied: false, approval: "rerun with --approve", mergeMode: "--no-ff", parentClosure: "separate", preflight: $preflight}')"
+        result="$(jq -cn --arg mode "--$integration_mode" --argjson preflight "$report" '{action: "integrate", applied: false, approval: "rerun with --approve", mergeMode: $mode, parentClosure: "separate", preflight: $preflight}')"
         if [ "$json" = true ]; then jq . <<<"$result"; else print_preflight "$report"; echo "integration not applied; rerun with --approve"; fi
         exit 0
     fi
@@ -351,11 +427,16 @@ if [ "$action" = integrate ]; then
     if git -C "$current_root" merge-base --is-ancestor "$integration_epic_oid" "$integration_target_oid"; then
         applied=false
     else
-        git -C "$target_path" merge --no-ff --no-edit -m "Merge epic #$epic" "$integration_epic_oid" \
-            || die 70 "approved integration failed; inspect target worktree conflicts"
+        if [ "$integration_mode" = ff-only ]; then
+            git -C "$target_path" merge --ff-only "$integration_epic_oid" \
+                || die 70 "approved fast-forward integration failed; inspect target movement"
+        else
+            git -C "$target_path" merge --no-ff --no-edit -m "Merge epic #$epic" "$integration_epic_oid" \
+                || die 70 "approved integration failed; inspect target worktree conflicts"
+        fi
         applied=true
     fi
-    result="$(jq -cn --argjson applied "$applied" --arg head "$(git -C "$target_path" rev-parse HEAD)" '{action: "integrate", applied: $applied, head: $head, mergeMode: "--no-ff", parentClosure: "separate-approval-required"}')"
+    result="$(jq -cn --argjson applied "$applied" --arg head "$(git -C "$target_path" rev-parse HEAD)" --arg mode "--$integration_mode" '{action: "integrate", applied: $applied, head: $head, mergeMode: $mode, parentClosure: "separate-approval-required"}')"
     if [ "$json" = true ]; then jq . <<<"$result"; else echo "epic #$epic integrated into $target_branch; parent closure still requires separate approval"; fi
     exit 0
 fi

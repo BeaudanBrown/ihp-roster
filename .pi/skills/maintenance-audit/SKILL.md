@@ -36,9 +36,10 @@ branches, issue numbers, and repository identity before using them.
   are evidence, not automatically current work.
 - Use typed GitHub issue tools. Dry-run every mutation and relationship first;
   apply only after the user approves the reviewed plan.
-- In a checkout containing `.bepis-epic-worktree.json`, run
+- In a checkout containing `.bepis-epic-worktree.json`, run that checkout's
   `bash ./bin/in-env epic-worktree orient` first, present its frontier, and obey
-  its wait/approval instructions.
+  its wait/approval instructions. Before runtime checks, confirm
+  `dev-workspace-info --json` reports the expected path and slot.
 - Do not edit generated output manually, production/customer data, or Nix store
   files. Do not run destructive database commands for an audit.
 - Do not turn every heuristic into CI. Promote only stable, low-noise,
