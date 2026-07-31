@@ -80,6 +80,56 @@ export function pageReadyDetailFrom(detail: PageReadyDetailInput): PageReadyDeta
         });
     });
 
+    // `show:none` declares that a fragment update must not move the viewport.
+    // Keep that promise even when replacing a tall target briefly clamps the
+    // browser's scroll position while the old subtree is detached.
+    const scrollPreservingRequests = new WeakSet<object>();
+    const preservedScrollPositions = new WeakMap<object, { left: number; top: number }>();
+
+    function requestToken(event: Event): object | null {
+        const xhr = detailTarget(event, "xhr");
+        return xhr !== null && typeof xhr === "object" ? xhr : null;
+    }
+
+    function requestDisablesShowScrolling(event: Event): boolean {
+        const requestElement = detailTarget(event, "elt");
+        if (!(requestElement instanceof Element)) return false;
+        const swapOwner = requestElement.closest("[hx-swap]");
+        return swapOwner?.getAttribute("hx-swap")?.split(/\s+/).includes("show:none") ?? false;
+    }
+
+    document.addEventListener("htmx:beforeRequest", function (event) {
+        const token = requestToken(event);
+        if (token !== null && requestDisablesShowScrolling(event)) {
+            scrollPreservingRequests.add(token);
+        }
+    });
+
+    document.addEventListener("htmx:beforeSwap", function (event) {
+        const token = requestToken(event);
+        if (token !== null && scrollPreservingRequests.has(token)) {
+            preservedScrollPositions.set(token, { left: window.scrollX, top: window.scrollY });
+        }
+    });
+
+    document.addEventListener("htmx:afterSettle", function (event) {
+        const token = requestToken(event);
+        if (token === null) return;
+        const position = preservedScrollPositions.get(token);
+        if (position !== undefined) window.scrollTo(position.left, position.top);
+        preservedScrollPositions.delete(token);
+        scrollPreservingRequests.delete(token);
+    });
+
+    for (const eventName of ["htmx:responseError", "htmx:sendError", "htmx:timeout"]) {
+        document.addEventListener(eventName, function (event) {
+            const token = requestToken(event);
+            if (token === null) return;
+            preservedScrollPositions.delete(token);
+            scrollPreservingRequests.delete(token);
+        });
+    }
+
     if (document.readyState !== "loading") {
         dispatchPageReady({
             source: "document-ready",

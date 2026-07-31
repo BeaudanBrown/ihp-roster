@@ -99,6 +99,46 @@
         isFullPage: false
       });
     });
+    const scrollPreservingRequests = /* @__PURE__ */ new WeakSet();
+    const preservedScrollPositions = /* @__PURE__ */ new WeakMap();
+    function requestToken(event) {
+      const xhr = detailTarget(event, "xhr");
+      return xhr !== null && typeof xhr === "object" ? xhr : null;
+    }
+    function requestDisablesShowScrolling(event) {
+      const requestElement = detailTarget(event, "elt");
+      if (!(requestElement instanceof Element)) return false;
+      const swapOwner = requestElement.closest("[hx-swap]");
+      return swapOwner?.getAttribute("hx-swap")?.split(/\s+/).includes("show:none") ?? false;
+    }
+    document.addEventListener("htmx:beforeRequest", function(event) {
+      const token = requestToken(event);
+      if (token !== null && requestDisablesShowScrolling(event)) {
+        scrollPreservingRequests.add(token);
+      }
+    });
+    document.addEventListener("htmx:beforeSwap", function(event) {
+      const token = requestToken(event);
+      if (token !== null && scrollPreservingRequests.has(token)) {
+        preservedScrollPositions.set(token, { left: window.scrollX, top: window.scrollY });
+      }
+    });
+    document.addEventListener("htmx:afterSettle", function(event) {
+      const token = requestToken(event);
+      if (token === null) return;
+      const position = preservedScrollPositions.get(token);
+      if (position !== void 0) window.scrollTo(position.left, position.top);
+      preservedScrollPositions.delete(token);
+      scrollPreservingRequests.delete(token);
+    });
+    for (const eventName of ["htmx:responseError", "htmx:sendError", "htmx:timeout"]) {
+      document.addEventListener(eventName, function(event) {
+        const token = requestToken(event);
+        if (token === null) return;
+        preservedScrollPositions.delete(token);
+        scrollPreservingRequests.delete(token);
+      });
+    }
     if (document.readyState !== "loading") {
       dispatchPageReady({
         source: "document-ready",

@@ -1,7 +1,7 @@
 import { pageReadyEvent } from "../generated/contracts";
 import { type DomRoot, isDomRoot } from "./dom";
 
-export type HtmxDetailKey = "target" | "elt";
+export type HtmxDetailKey = "target" | "elt" | "xhr";
 
 function eventDetailRecord(event: Event): Record<string, unknown> | null {
     if (typeof CustomEvent === "undefined" || !(event instanceof CustomEvent)) return null;
