@@ -7,6 +7,10 @@ set -euo pipefail
 # shellcheck source=../lib/workspace.sh
 . "@scriptsRoot@/lib/workspace.sh"
 bepis_workspace_configure
+if ! command -v playwright >/dev/null 2>&1; then
+    echo "e2e: pinned Playwright executable is unavailable" >&2
+    exit 69
+fi
 E2E_POSTGRES_MODE="${E2E_POSTGRES_MODE:-managed}"
 export E2E_POSTGRES_MODE
 if [ "$E2E_POSTGRES_MODE" = external ]; then
@@ -395,7 +399,7 @@ SQL
                 export E2E_BASE_URL
                 echo "E2E shard $shard_index/$E2E_SHARDS app server ready at $E2E_BASE_URL"
                 echo "E2E database: $TEST_DATABASE_NAME"
-                node ./node_modules/@playwright/test/cli.js test --shard="$shard_index/$E2E_SHARDS" "$@" \
+                playwright test --shard="$shard_index/$E2E_SHARDS" "$@" \
                     7>&- 9>&- {PORT_LOCK_FD}>&-
                 exit $?
             fi
@@ -441,7 +445,7 @@ if [ -n "$(find "$MERGED_BLOB_DIR" -mindepth 1 -maxdepth 1 -type f 2>/dev/null)"
     rm -rf "$MERGED_HTML_DIR"
     PLAYWRIGHT_HTML_REPORT_DIR="$MERGED_HTML_DIR" \
         PLAYWRIGHT_HTML_OUTPUT_DIR="$MERGED_HTML_DIR" \
-        node ./node_modules/@playwright/test/cli.js merge-reports \
+        playwright merge-reports \
             --reporter html \
             --config playwright.config.ts \
             "$MERGED_BLOB_DIR" 7>&- 9>&- {PORT_LOCK_FD}>&- >/dev/null
