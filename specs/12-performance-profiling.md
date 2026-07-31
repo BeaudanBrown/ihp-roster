@@ -43,17 +43,9 @@ Use `seed-profile` to create a large deterministic database:
 bash ./bin/in-env seed-profile app_profile
 ```
 
-The default profile seed currently creates:
+The default creates a multi-venue, multi-year roster/timesheet dataset. Use `seed-profile --help` for bounded venue, staff, history, roster-density, seed, and Xero sizing overrides instead of relying on implementation-specific row totals.
 
-- 12 venues
-- 480 staff
-- 3,936 roster weeks
-- 27,552 roster days
-- 330,624 roster slots
-- 24,960 timesheet entries
-- 1,440 leave requests
-
-The seed writes CSVs, `load.sql`, `manifest.json`, and a database dump. The manifest gives runners stable login accounts and route paths.
+The seed writes CSVs, `load.sql`, `manifest.json`, and a database dump. `Application.Script.SeedProfile.profileTableDescriptors` is the single typed owner of CSV file names, table names, columns, rows, and load order; generation rejects missing/duplicate descriptors and row-width mismatches. The manifest gives runners stable login accounts and typed application route paths. Approved synthetic timesheets retain their CSV representation while the load plan stages them through schema-valid sealed pay-ledger rows.
 
 ## Browser Journey Profiling
 

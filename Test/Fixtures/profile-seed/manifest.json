@@ -1,0 +1,64 @@
+{
+  "scenario": "large-roster-history",
+  "seed": 42,
+  "currentWeekOffset": 9,
+  "options": {
+    "venues": 1,
+    "staffPerVenue": 2,
+    "managersPerVenue": 1,
+    "weeksHistory": 1,
+    "weeksFuture": 1,
+    "rowsPerDay": 1,
+    "rosterFill": 50,
+    "xeroEmployees": 2,
+    "xeroMappedStaff": 1
+  },
+  "accounts": {
+    "primaryManager": { "email": "profile-staff-01-01@example.com", "password": "password123", "venueId": "000f4241-0000-4000-8001-000006052340", "staffId": "004c4b41-0001-4000-8002-00001ddcab28" },
+    "venueAdmin": { "email": "profile-manager-01@example.com", "password": "password123", "venueId": "000f4241-0000-4000-8001-000006052340" },
+    "support": { "email": "profile-support@example.com", "password": "password123" }
+  },
+  "venues": [
+    {
+      "id": "000f4241-0000-4000-8001-000006052340",
+      "name": "Profile Venue 01",
+      "adminEmail": "profile-manager-01@example.com",
+      "primaryManagerEmail": "profile-staff-01-01@example.com",
+      "defaultRosterGroupId": "00b71b01-0001-4000-8002-00004795d228",
+      "rosterGroups": [
+        { "id": "00b71b01-0001-4000-8002-00004795d228", "name": "Front of House" },
+        { "id": "00b71b01-0002-4000-8003-00004795d610", "name": "Back of House" }
+      ]
+    }
+  ],
+  "routes": {
+    "rosterCurrent": "/ShowRosterWeek?weekOffset=9&rosterGroupId=00b71b01-0001-4000-8002-00004795d228",
+    "rosterHistorical": "/ShowRosterWeek?weekOffset=9&rosterGroupId=00b71b01-0001-4000-8002-00004795d228",
+    "rosterFuture": "/ShowRosterWeek?weekOffset=9&rosterGroupId=00b71b01-0001-4000-8002-00004795d228",
+    "rosterContentFragment": "/ShowRosterWeekContentFragment?weekOffset=9&rosterGroupId=00b71b01-0001-4000-8002-00004795d228",
+    "rosterStaffPanelFragment": "/ShowRosterWeekStaffPanelFragment?weekOffset=9&rosterGroupId=00b71b01-0001-4000-8002-00004795d228",
+    "rosterOverviewFragment": "/ShowRosterWeekOverviewFragment?weekOffset=9&rosterGroupId=00b71b01-0001-4000-8002-00004795d228",
+    "timesheetsCurrent": "/ShowTimesheetWeek?weekOffset=9&showApproved=true&showAllStaff=true",
+    "timesheetsReset": "/Timesheets?showApproved=true&showAllStaff=true",
+    "timesheetsStaffFilter": "/ShowTimesheetWeek?weekOffset=9&showApproved=true&showAllStaff=true&staffFilterId=004c4b41-0001-4000-8002-00001ddcab28",
+    "timesheetDayFragment": "/ShowTimesheetDaySectionFragment?weekOffset=9&dayOffset=0&showApproved=true&showAllStaff=true",
+    "leaveRequests": "/LeaveRequests",
+    "leaveRequestsFragment": "/ShowleaveRequestsContentLiveFragment",
+    "editProfile": "/EditProfile",
+    "profileSecurity": "/EditProfile?section=security",
+    "profileLeave": "/EditProfile?section=leave",
+    "profileRsa": "/EditProfile?section=rsa",
+    "profileLeaveSectionFragment": "/ShowprofileContentLiveFragment?section=leave",
+    "admin": "/Admin",
+    "adminExports": "/Admin#exports",
+    "adminInvitesFragment": "/ShowadminInvitesLiveFragment?rosterGroupId=00b71b01-0001-4000-8002-00004795d228",
+    "adminShiftTypesFragment": "/ShowadminShiftTypesLiveFragment",
+    "adminRosterGroupsFragment": "/ShowadminRosterGroupsLiveFragment",
+    "xero": "/Xero",
+    "adminXeroFragment": "/ShowadminXeroShellLiveFragment"
+  },
+  "exports": {
+    "rangeStart": "2025-03-10",
+    "rangeEnd": "2025-03-16"
+  }
+}

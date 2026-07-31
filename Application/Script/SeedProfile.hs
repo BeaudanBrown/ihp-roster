@@ -20,7 +20,11 @@ import System.Exit (exitSuccess)
 import System.FilePath ((</>))
 import qualified Text.Read as TextRead
 import Web.Routes ()
-import Web.Types (ProfilesController (ShowprofileContentLiveFragmentAction))
+import Web.Types (AdminController (AdminAction, ShowadminInvitesLiveFragmentAction, ShowadminRosterGroupsLiveFragmentAction, ShowadminShiftTypesLiveFragmentAction, ShowadminXeroShellLiveFragmentAction, XeroAction),
+                  LeaveRequestsController (LeaveRequestsAction, ShowleaveRequestsContentLiveFragmentAction),
+                  ProfilesController (EditProfileAction, ShowprofileContentLiveFragmentAction),
+                  RosterWeeksController (ShowRosterWeekAction, ShowRosterWeekContentFragmentAction, ShowRosterWeekOverviewFragmentAction, ShowRosterWeekStaffPanelFragmentAction),
+                  TimesheetsController (ShowTimesheetDaySectionFragmentAction, ShowTimesheetWeekAction, TimesheetsAction))
 
 run :: IO ()
 run = do
@@ -106,37 +110,16 @@ buildProfileSeedPlan options currentWeekOffset =
 
 writeProfileSeed :: FilePath -> ProfileSeedPlan -> IO ()
 writeProfileSeed dir plan = do
-    writeCsv dir "venues.csv" venueColumns (venueRows plan)
-    writeCsv dir "users.csv" userColumns (userRows plan)
-    writeCsv dir "passkeys.csv" passkeyColumns (passkeyRows plan)
-    writeCsv dir "venue_config.csv" venueConfigColumns (venueConfigRows plan)
-    writeCsv dir "venue_memberships.csv" venueMembershipColumns (venueMembershipRows plan)
-    writeCsv dir "staff.csv" staffColumns (staffRows plan)
-    writeCsv dir "shift_types.csv" shiftTypeColumns (shiftTypeRows plan)
-    writeCsv dir "day_names.csv" dayNameColumns (dayNameRows plan)
-    writeCsv dir "staff_pay_versions.csv" staffPayVersionColumns (staffPayVersionRows plan)
-    writeCsv dir "shift_type_pay_versions.csv" shiftTypePayVersionColumns (shiftTypePayVersionRows plan)
-    writeCsv dir "roster_groups.csv" rosterGroupColumns (rosterGroupRows plan)
-    writeCsv dir "slot_names.csv" slotNameColumns (slotNameRows plan)
-    writeCsv dir "staff_roster_groups.csv" staffRosterGroupColumns (staffRosterGroupRows plan)
-    writeCsv dir "staff_shift_preferences.csv" staffShiftPreferenceColumns (staffShiftPreferenceRows plan)
-    writeCsv dir "roster_weeks.csv" rosterWeekColumns (rosterWeekRows plan)
-    writeCsv dir "roster_days.csv" rosterDayColumns (rosterDayRows plan)
-    writeCsv dir "roster_week_slot_definitions.csv" rosterWeekSlotDefinitionColumns (rosterWeekSlotDefinitionRows plan)
-    writeCsv dir "roster_slots.csv" rosterSlotColumns (rosterSlotRows plan)
-    writeCsv dir "leave_requests.csv" leaveRequestColumns (leaveRequestRows plan)
-    writeCsv dir "timesheet_entries.csv" timesheetEntryColumns (timesheetEntryRows plan)
-    writeCsv dir "timesheet_entry_versions.csv" timesheetEntryVersionColumns (timesheetEntryVersionRows plan)
-    writeCsv dir "xero_connections.csv" xeroConnectionColumns (xeroConnectionRows plan)
-    writeCsv dir "xero_sync_runs.csv" xeroSyncRunColumns (xeroSyncRunRows plan)
-    writeCsv dir "xero_employees.csv" xeroEmployeeColumns (xeroEmployeeRows plan)
-    writeCsv dir "xero_staff_mappings.csv" xeroStaffMappingColumns (xeroStaffMappingRows plan)
+    either (fail . cs . tshow) pure (validateProfileTableDescriptors plan profileTableDescriptors)
+    forM_ profileTableDescriptors (writeProfileTable dir plan)
     TextIO.writeFile (dir </> "load.sql") (renderLoadSql dir)
     TextIO.writeFile (dir </> "manifest.json") (renderProfileSeedManifest plan)
 
-writeCsv :: FilePath -> FilePath -> [Text] -> [[Maybe Text]] -> IO ()
-writeCsv dir fileName _ rows =
-    TextIO.writeFile (dir </> fileName) (Text.unlines (map renderCsvRow rows))
+writeProfileTable :: FilePath -> ProfileSeedPlan -> ProfileTableDescriptor -> IO ()
+writeProfileTable dir plan descriptor =
+    TextIO.writeFile
+        (dir </> descriptor.descriptorFileName)
+        (Text.unlines (map renderCsvRow (descriptor.descriptorRows plan)))
 
 renderCsvRow :: [Maybe Text] -> Text
 renderCsvRow =
@@ -156,19 +139,35 @@ renderLoadSql dir =
     Text.unlines $
         [ "BEGIN;"
         ]
-            <> map renderCopy tableLoads
+            <> concatMap renderDescriptorLoad profileTableDescriptors
             <> [ "COMMIT;"
                , "ANALYZE;"
                ]
     where
-        renderCopy (tableName, columns, fileName) =
+        renderDescriptorLoad descriptor
+            | descriptor.descriptorTable == ProfileTimesheetEntries = renderTimesheetEntryLoad descriptor
+            | otherwise = [renderCopy descriptor.descriptorTableName descriptor]
+
+        renderCopy targetTable descriptor =
             "\\copy "
-                <> tableName
+                <> targetTable
                 <> " ("
-                <> Text.intercalate ", " columns
+                <> Text.intercalate ", " descriptor.descriptorColumns
                 <> ") FROM '"
-                <> Text.replace "'" "''" (cs (dir </> fileName))
+                <> Text.replace "'" "''" (cs (dir </> descriptor.descriptorFileName))
                 <> "' WITH (FORMAT csv, NULL '\\N')"
+
+        renderTimesheetEntryLoad descriptor =
+            [ "CREATE TEMP TABLE profile_seed_timesheet_entries (LIKE timesheet_entries INCLUDING DEFAULTS);"
+            , renderCopy "profile_seed_timesheet_entries" descriptor
+            , "INSERT INTO timesheet_entries (id, venue_id, staff_id, shift_type_id, starts_at, ends_at, break_starts_at, break_ends_at, timezone, is_approved) SELECT id, venue_id, staff_id, shift_type_id, starts_at, ends_at, break_starts_at, break_ends_at, timezone, FALSE FROM profile_seed_timesheet_entries;"
+            , "INSERT INTO timesheet_pay_calculations (id, timesheet_entry_id, calculation_version, calculation_source, venue_timezone, holiday_jurisdiction, staff_pay_version_id, shift_type_pay_version_id, approved_at, approved_by_user_id, sealed_at, created_at) SELECT uuid_generate_v5(uuid_ns_url(), 'bepis-profile-pay:' || id::text), id, 'profile-seed-v1', 'hospitality_award', timezone, 'VIC', staff_pay_version_id, shift_type_pay_version_id, approved_at, approved_by_user_id, NULL, approved_at FROM profile_seed_timesheet_entries WHERE is_approved;"
+            , "INSERT INTO timesheet_pay_time_segments (id, timesheet_pay_calculation_id, ordinal, paid_time_kind, starts_at, ends_at, local_date, source_condition, created_at) SELECT uuid_generate_v5(uuid_ns_url(), 'bepis-profile-segment-a:' || id::text), uuid_generate_v5(uuid_ns_url(), 'bepis-profile-pay:' || id::text), 0, 'worked', starts_at, break_starts_at, (starts_at AT TIME ZONE timezone)::date, 'ordinary', approved_at FROM profile_seed_timesheet_entries WHERE is_approved;"
+            , "INSERT INTO timesheet_pay_time_segments (id, timesheet_pay_calculation_id, ordinal, paid_time_kind, starts_at, ends_at, local_date, source_condition, created_at) SELECT uuid_generate_v5(uuid_ns_url(), 'bepis-profile-segment-b:' || id::text), uuid_generate_v5(uuid_ns_url(), 'bepis-profile-pay:' || id::text), 1, 'worked', break_ends_at, ends_at, (break_ends_at AT TIME ZONE timezone)::date, 'ordinary', approved_at FROM profile_seed_timesheet_entries WHERE is_approved;"
+            , "INSERT INTO timesheet_pay_earnings_components (id, timesheet_pay_calculation_id, ordinal, quantity, unit_type, rate_per_unit, exact_amount, source_condition, calculation_source, source_rate_identity, created_at) SELECT uuid_generate_v5(uuid_ns_url(), 'bepis-profile-earning:' || id::text), uuid_generate_v5(uuid_ns_url(), 'bepis-profile-pay:' || id::text), 0, 7.5, 'hours', 30, 225, 'ordinary', 'hospitality_award', 'profile-seed-v1', approved_at FROM profile_seed_timesheet_entries WHERE is_approved;"
+            , "UPDATE timesheet_pay_calculations calculation SET sealed_at = calculation.approved_at WHERE calculation.id IN (SELECT uuid_generate_v5(uuid_ns_url(), 'bepis-profile-pay:' || id::text) FROM profile_seed_timesheet_entries WHERE is_approved);"
+            , "UPDATE timesheet_entries entry SET active_pay_calculation_id = uuid_generate_v5(uuid_ns_url(), 'bepis-profile-pay:' || staged.id::text), staff_pay_version_id = staged.staff_pay_version_id, shift_type_pay_version_id = staged.shift_type_pay_version_id, is_approved = TRUE, approved_at = staged.approved_at, approved_by_user_id = staged.approved_by_user_id FROM profile_seed_timesheet_entries staged WHERE entry.id = staged.id AND staged.is_approved;"
+            ]
 
 renderProfileSeedManifest :: ProfileSeedPlan -> Text
 renderProfileSeedManifest plan =
@@ -207,20 +206,20 @@ renderProfileSeedManifest plan =
         , "    \"timesheetsReset\": " <> jsonString (timesheetResetPath plan.currentWeekOffset) <> ","
         , "    \"timesheetsStaffFilter\": " <> jsonString (timesheetStaffFilterPath plan.currentWeekOffset (staffId 1 1)) <> ","
         , "    \"timesheetDayFragment\": " <> jsonString (timesheetDayFragmentPath plan.currentWeekOffset 0) <> ","
-        , "    \"leaveRequests\": \"/LeaveRequests\","
-        , "    \"leaveRequestsFragment\": \"/ShowleaveRequestsContentLiveFragment\","
-        , "    \"editProfile\": \"/EditProfile\","
-        , "    \"profileSecurity\": \"/EditProfile?section=security\","
-        , "    \"profileLeave\": \"/EditProfile?section=leave\","
-        , "    \"profileRsa\": \"/EditProfile?section=rsa\","
+        , "    \"leaveRequests\": " <> jsonString (pathTo LeaveRequestsAction) <> ","
+        , "    \"leaveRequestsFragment\": " <> jsonString (pathTo ShowleaveRequestsContentLiveFragmentAction) <> ","
+        , "    \"editProfile\": " <> jsonString (pathTo EditProfileAction) <> ","
+        , "    \"profileSecurity\": " <> jsonString (profileSectionPath "security") <> ","
+        , "    \"profileLeave\": " <> jsonString (profileSectionPath "leave") <> ","
+        , "    \"profileRsa\": " <> jsonString (profileSectionPath "rsa") <> ","
         , "    \"profileLeaveSectionFragment\": " <> jsonString profileLeaveSectionFragmentPath <> ","
-        , "    \"admin\": \"/Admin\","
-        , "    \"adminExports\": \"/Admin#exports\","
+        , "    \"admin\": " <> jsonString (pathTo AdminAction) <> ","
+        , "    \"adminExports\": " <> jsonString (pathTo AdminAction <> "#exports") <> ","
         , "    \"adminInvitesFragment\": " <> jsonString (adminInvitesFragmentPath 1 1) <> ","
-        , "    \"adminShiftTypesFragment\": \"/ShowadminShiftTypesLiveFragment\","
-        , "    \"adminRosterGroupsFragment\": \"/ShowadminRosterGroupsLiveFragment\","
-        , "    \"xero\": \"/Xero\","
-        , "    \"adminXeroFragment\": \"/ShowadminXeroShellLiveFragment\""
+        , "    \"adminShiftTypesFragment\": " <> jsonString (pathTo ShowadminShiftTypesLiveFragmentAction) <> ","
+        , "    \"adminRosterGroupsFragment\": " <> jsonString (pathTo ShowadminRosterGroupsLiveFragmentAction) <> ","
+        , "    \"xero\": " <> jsonString (pathTo XeroAction) <> ","
+        , "    \"adminXeroFragment\": " <> jsonString (pathTo ShowadminXeroShellLiveFragmentAction)
         , "  },"
         , "  \"exports\": {"
         , "    \"rangeStart\": " <> jsonString (dateText currentWeekStart) <> ","
@@ -260,41 +259,61 @@ profileLeaveSectionFragmentPath :: Text
 profileLeaveSectionFragmentPath =
     appendQueryParams (pathTo ShowprofileContentLiveFragmentAction) [("section", "leave")]
 
+profileSectionPath :: Text -> Text
+profileSectionPath section =
+    appendQueryParams (pathTo EditProfileAction) [("section", section)]
+
 rosterWeekPath :: Int -> Int -> Int -> Text
 rosterWeekPath weekOffset venueIndex groupIndex =
-    "/ShowRosterWeek?weekOffset=" <> tshow weekOffset <> "&rosterGroupId=" <> rosterGroupId venueIndex groupIndex
+    appendQueryParams
+        (pathTo (ShowRosterWeekAction weekOffset))
+        [("rosterGroupId", rosterGroupId venueIndex groupIndex)]
 
 rosterWeekContentFragmentPath :: Int -> Int -> Int -> Text
 rosterWeekContentFragmentPath weekOffset venueIndex groupIndex =
-    "/ShowRosterWeekContentFragment?weekOffset=" <> tshow weekOffset <> "&rosterGroupId=" <> rosterGroupId venueIndex groupIndex
+    appendQueryParams
+        (pathTo (ShowRosterWeekContentFragmentAction weekOffset))
+        [("rosterGroupId", rosterGroupId venueIndex groupIndex)]
 
 rosterWeekStaffPanelFragmentPath :: Int -> Int -> Int -> Text
 rosterWeekStaffPanelFragmentPath weekOffset venueIndex groupIndex =
-    "/ShowRosterWeekStaffPanelFragment?weekOffset=" <> tshow weekOffset <> "&rosterGroupId=" <> rosterGroupId venueIndex groupIndex
+    appendQueryParams
+        (pathTo (ShowRosterWeekStaffPanelFragmentAction weekOffset))
+        [("rosterGroupId", rosterGroupId venueIndex groupIndex)]
 
 rosterWeekOverviewFragmentPath :: Int -> Int -> Int -> Text
 rosterWeekOverviewFragmentPath weekOffset venueIndex groupIndex =
-    "/ShowRosterWeekOverviewFragment?weekOffset=" <> tshow weekOffset <> "&rosterGroupId=" <> rosterGroupId venueIndex groupIndex
+    appendQueryParams
+        (pathTo (ShowRosterWeekOverviewFragmentAction weekOffset))
+        [("rosterGroupId", rosterGroupId venueIndex groupIndex)]
 
 timesheetWeekPath :: Int -> Text
 timesheetWeekPath weekOffset =
-    "/ShowTimesheetWeek?weekOffset=" <> tshow weekOffset <> "&showApproved=true&showAllStaff=true"
+    appendQueryParams
+        (pathTo (ShowTimesheetWeekAction weekOffset))
+        [("showApproved", "true"), ("showAllStaff", "true")]
 
 timesheetResetPath :: Int -> Text
 timesheetResetPath _weekOffset =
-    "/Timesheets?showApproved=true&showAllStaff=true"
+    appendQueryParams
+        (pathTo TimesheetsAction)
+        [("showApproved", "true"), ("showAllStaff", "true")]
 
 timesheetStaffFilterPath :: Int -> Text -> Text
 timesheetStaffFilterPath weekOffset staffUuid =
-    timesheetWeekPath weekOffset <> "&staffFilterId=" <> staffUuid
+    appendQueryParams (timesheetWeekPath weekOffset) [("staffFilterId", staffUuid)]
 
 timesheetDayFragmentPath :: Int -> Int -> Text
 timesheetDayFragmentPath weekOffset dayOffset =
-    "/ShowTimesheetDaySectionFragment?weekOffset=" <> tshow weekOffset <> "&dayOffset=" <> tshow dayOffset <> "&showApproved=true&showAllStaff=true"
+    appendQueryParams
+        (pathTo (ShowTimesheetDaySectionFragmentAction weekOffset dayOffset))
+        [("showApproved", "true"), ("showAllStaff", "true")]
 
 adminInvitesFragmentPath :: Int -> Int -> Text
 adminInvitesFragmentPath venueIndex groupIndex =
-    "/ShowadminInvitesLiveFragment?rosterGroupId=" <> rosterGroupId venueIndex groupIndex
+    appendQueryParams
+        (pathTo ShowadminInvitesLiveFragmentAction)
+        [("rosterGroupId", rosterGroupId venueIndex groupIndex)]
 
 jsonString :: Text -> Text
 jsonString value =
@@ -307,34 +326,118 @@ jsonString value =
         escapeJsonChar '\t'      = "\\t"
         escapeJsonChar character = Text.singleton character
 
-tableLoads :: [(Text, [Text], FilePath)]
-tableLoads =
-    [ ("venues", venueColumns, "venues.csv")
-    , ("users", userColumns, "users.csv")
-    , ("passkeys", passkeyColumns, "passkeys.csv")
-    , ("venue_config", venueConfigColumns, "venue_config.csv")
-    , ("venue_memberships", venueMembershipColumns, "venue_memberships.csv")
-    , ("staff", staffColumns, "staff.csv")
-    , ("shift_types", shiftTypeColumns, "shift_types.csv")
-    , ("day_names", dayNameColumns, "day_names.csv")
-    , ("staff_pay_versions", staffPayVersionColumns, "staff_pay_versions.csv")
-    , ("shift_type_pay_versions", shiftTypePayVersionColumns, "shift_type_pay_versions.csv")
-    , ("roster_groups", rosterGroupColumns, "roster_groups.csv")
-    , ("slot_names", slotNameColumns, "slot_names.csv")
-    , ("staff_roster_groups", staffRosterGroupColumns, "staff_roster_groups.csv")
-    , ("staff_shift_preferences", staffShiftPreferenceColumns, "staff_shift_preferences.csv")
-    , ("roster_weeks", rosterWeekColumns, "roster_weeks.csv")
-    , ("roster_days", rosterDayColumns, "roster_days.csv")
-    , ("roster_week_slot_definitions", rosterWeekSlotDefinitionColumns, "roster_week_slot_definitions.csv")
-    , ("roster_slots", rosterSlotColumns, "roster_slots.csv")
-    , ("leave_requests", leaveRequestColumns, "leave_requests.csv")
-    , ("timesheet_entries", timesheetEntryColumns, "timesheet_entries.csv")
-    , ("timesheet_entry_versions", timesheetEntryVersionColumns, "timesheet_entry_versions.csv")
-    , ("xero_connections", xeroConnectionColumns, "xero_connections.csv")
-    , ("xero_sync_runs", xeroSyncRunColumns, "xero_sync_runs.csv")
-    , ("xero_employees", xeroEmployeeColumns, "xero_employees.csv")
-    , ("xero_staff_mappings", xeroStaffMappingColumns, "xero_staff_mappings.csv")
-    ]
+data ProfileTable
+    = ProfileVenues
+    | ProfileUsers
+    | ProfilePasskeys
+    | ProfileVenueConfig
+    | ProfileVenueMemberships
+    | ProfileStaff
+    | ProfileShiftTypes
+    | ProfileDayNames
+    | ProfileStaffPayVersions
+    | ProfileShiftTypePayVersions
+    | ProfileRosterGroups
+    | ProfileSlotNames
+    | ProfileStaffRosterGroups
+    | ProfileStaffShiftPreferences
+    | ProfileRosterWeeks
+    | ProfileRosterDays
+    | ProfileRosterWeekSlotDefinitions
+    | ProfileRosterSlots
+    | ProfileLeaveRequests
+    | ProfileTimesheetEntries
+    | ProfileTimesheetEntryVersions
+    | ProfileXeroConnections
+    | ProfileXeroSyncRuns
+    | ProfileXeroEmployees
+    | ProfileXeroStaffMappings
+    deriving (Bounded, Enum, Eq, Ord, Show)
+
+data ProfileTableDescriptor = ProfileTableDescriptor
+    { descriptorTable     :: !ProfileTable
+    , descriptorTableName :: !Text
+    , descriptorFileName  :: !FilePath
+    , descriptorColumns   :: ![Text]
+    , descriptorRows      :: ProfileSeedPlan -> [[Maybe Text]]
+    }
+
+data ProfileTableValidationError
+    = MissingProfileTable !ProfileTable
+    | DuplicateProfileTable !ProfileTable
+    | DuplicateProfileTableName !Text
+    | DuplicateProfileFileName !FilePath
+    | ProfileRowWidthMismatch !ProfileTable !Int !Int !Int
+    deriving (Eq, Show)
+
+profileTableDescriptors :: [ProfileTableDescriptor]
+profileTableDescriptors = map profileTableDescriptor [minBound .. maxBound]
+
+profileTableDescriptor :: ProfileTable -> ProfileTableDescriptor
+profileTableDescriptor profileTable =
+    case profileTable of
+        ProfileVenues -> descriptor "venues" "venues.csv" venueColumns venueRows
+        ProfileUsers -> descriptor "users" "users.csv" userColumns userRows
+        ProfilePasskeys -> descriptor "passkeys" "passkeys.csv" passkeyColumns passkeyRows
+        ProfileVenueConfig -> descriptor "venue_config" "venue_config.csv" venueConfigColumns venueConfigRows
+        ProfileVenueMemberships -> descriptor "venue_memberships" "venue_memberships.csv" venueMembershipColumns venueMembershipRows
+        ProfileStaff -> descriptor "staff" "staff.csv" staffColumns staffRows
+        ProfileShiftTypes -> descriptor "shift_types" "shift_types.csv" shiftTypeColumns shiftTypeRows
+        ProfileDayNames -> descriptor "day_names" "day_names.csv" dayNameColumns dayNameRows
+        ProfileStaffPayVersions -> descriptor "staff_pay_versions" "staff_pay_versions.csv" staffPayVersionColumns staffPayVersionRows
+        ProfileShiftTypePayVersions -> descriptor "shift_type_pay_versions" "shift_type_pay_versions.csv" shiftTypePayVersionColumns shiftTypePayVersionRows
+        ProfileRosterGroups -> descriptor "roster_groups" "roster_groups.csv" rosterGroupColumns rosterGroupRows
+        ProfileSlotNames -> descriptor "slot_names" "slot_names.csv" slotNameColumns slotNameRows
+        ProfileStaffRosterGroups -> descriptor "staff_roster_groups" "staff_roster_groups.csv" staffRosterGroupColumns staffRosterGroupRows
+        ProfileStaffShiftPreferences -> descriptor "staff_shift_preferences" "staff_shift_preferences.csv" staffShiftPreferenceColumns staffShiftPreferenceRows
+        ProfileRosterWeeks -> descriptor "roster_weeks" "roster_weeks.csv" rosterWeekColumns rosterWeekRows
+        ProfileRosterDays -> descriptor "roster_days" "roster_days.csv" rosterDayColumns rosterDayRows
+        ProfileRosterWeekSlotDefinitions -> descriptor "roster_week_slot_definitions" "roster_week_slot_definitions.csv" rosterWeekSlotDefinitionColumns rosterWeekSlotDefinitionRows
+        ProfileRosterSlots -> descriptor "roster_slots" "roster_slots.csv" rosterSlotColumns rosterSlotRows
+        ProfileLeaveRequests -> descriptor "leave_requests" "leave_requests.csv" leaveRequestColumns leaveRequestRows
+        ProfileTimesheetEntries -> descriptor "timesheet_entries" "timesheet_entries.csv" timesheetEntryColumns timesheetEntryRows
+        ProfileTimesheetEntryVersions -> descriptor "timesheet_entry_versions" "timesheet_entry_versions.csv" timesheetEntryVersionColumns timesheetEntryVersionRows
+        ProfileXeroConnections -> descriptor "xero_connections" "xero_connections.csv" xeroConnectionColumns xeroConnectionRows
+        ProfileXeroSyncRuns -> descriptor "xero_sync_runs" "xero_sync_runs.csv" xeroSyncRunColumns xeroSyncRunRows
+        ProfileXeroEmployees -> descriptor "xero_employees" "xero_employees.csv" xeroEmployeeColumns xeroEmployeeRows
+        ProfileXeroStaffMappings -> descriptor "xero_staff_mappings" "xero_staff_mappings.csv" xeroStaffMappingColumns xeroStaffMappingRows
+    where
+        descriptor descriptorTableName descriptorFileName descriptorColumns descriptorRows =
+            ProfileTableDescriptor { descriptorTable = profileTable, .. }
+
+validateProfileTableDescriptors :: ProfileSeedPlan -> [ProfileTableDescriptor] -> Either [ProfileTableValidationError] ()
+validateProfileTableDescriptors plan descriptors = do
+    validateProfileTableRegistry descriptors
+    mapM_ (\descriptor -> validateProfileTableRows descriptor (descriptor.descriptorRows plan)) descriptors
+
+validateProfileTableRegistry :: [ProfileTableDescriptor] -> Either [ProfileTableValidationError] ()
+validateProfileTableRegistry descriptors =
+    case errors of
+        [] -> Right ()
+        _  -> Left errors
+    where
+        descriptorTables = map (.descriptorTable) descriptors
+        errors =
+            map MissingProfileTable (filter (`notElem` descriptorTables) [minBound .. maxBound])
+                <> map DuplicateProfileTable (duplicateValues descriptorTables)
+                <> map DuplicateProfileTableName (duplicateValues (map (.descriptorTableName) descriptors))
+                <> map DuplicateProfileFileName (duplicateValues (map (.descriptorFileName) descriptors))
+
+validateProfileTableRows :: ProfileTableDescriptor -> [[Maybe Text]] -> Either [ProfileTableValidationError] ()
+validateProfileTableRows descriptor rows =
+    case errors of
+        [] -> Right ()
+        _  -> Left errors
+    where
+        expectedWidth = length descriptor.descriptorColumns
+        errors =
+            [ ProfileRowWidthMismatch descriptor.descriptorTable rowIndex expectedWidth (length values)
+            | (rowIndex, values) <- zip [1 ..] rows
+            , length values /= expectedWidth
+            ]
+
+duplicateValues :: Ord a => [a] -> [a]
+duplicateValues = mapMaybe listToMaybe . filter ((> 1) . length) . List.group . List.sort
 
 venueColumns, userColumns, passkeyColumns, venueConfigColumns, venueMembershipColumns, staffColumns :: [Text]
 venueColumns = ["id", "name", "status"]
