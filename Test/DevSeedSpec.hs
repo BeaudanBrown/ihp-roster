@@ -11,7 +11,9 @@ import Data.List (sort)
 import qualified Data.Map.Strict as Map
 import qualified Data.Set as Set
 import qualified Data.Text as Text
-import Data.Time.Calendar (Day, addDays, diffDays)
+import Data.Time.Calendar (Day, addDays, diffDays, fromGregorian)
+import Data.Time.Clock (UTCTime (..), secondsToDiffTime)
+import Data.Time.LocalTime (TimeOfDay)
 import Generated.Types
 import IHP.ControllerPrelude
 import IHP.ModelSupport (inputValue)
@@ -19,6 +21,15 @@ import IHP.Prelude
 import IHP.Test.Mocking
 import Test.Hspec
 import Test.Support
+
+data DevSeedOutcome = DevSeedOutcome
+    { staffRows      :: ![(Text, Text, Maybe Text, Int)]
+    , preferenceRows :: ![(Text, Text, Int, Int, Int)]
+    , rosterRows     :: ![(Int, Int, Int, Int, Maybe (Text, Text), Maybe TimeOfDay, Maybe TimeOfDay, Maybe Text)]
+    , leaveRows      :: ![(Day, Day, Text, Maybe Text)]
+    , timesheetRows  :: ![(Day, TimeOfDay, TimeOfDay, Bool, Bool)]
+    }
+    deriving (Eq, Show)
 
 profileSummary :: Staff -> (Text, Text, Text, Text, Text)
 profileSummary staff =
@@ -51,6 +62,15 @@ tests = aroundAll withDatabaseTestContext do
                 _ <- seedDevelopmentFixtureForWeek defaultWeekEpoch
                 _ <- seedDevelopmentFixtureForWeek defaultWeekEpoch
                 pure ()
+
+        it "keeps the complete named scenario catalog stable" \_ -> do
+            map scenarioContract [RealisticDemo, BusyRoster, ConflictHeavy, PayrollHeavy]
+                `shouldBe`
+                    [ ("realistic-demo", 16, 2, 1, 78, 15, 4, 2, 27, 12, 20260410)
+                    , ("busy-roster", 20, 3, 1, 88, 15, 3, 1, 36, 15, 20260412)
+                    , ("conflict-heavy", 14, 2, 1, 62, 15, 5, 3, 21, 15, 20260413)
+                    , ("payroll-heavy", 18, 2, 1, 84, 15, 2, 1, 45, 9, 20260411)
+                    ]
 
         it "seeds the complete realistic development fixture contract without deleting preloaded reference data" $ withContext do
             withCleanDb do
@@ -105,6 +125,18 @@ tests = aroundAll withDatabaseTestContext do
                 map (.name) seededVenues `shouldBe` ["Development Sandbox Venue"]
                 map (.email) seededUsers `shouldContain` ["venue2@bepis.lol"]
                 map (.email) seededUsers `shouldNotContain` ["beaudan.brown@gmail.com"]
+                sort
+                    [ (user.email, tshow user.id)
+                    | user <- seededUsers
+                    , user.email `elem` ["admin@bepis.lol", "manager@bepis.lol", "owner@bepis.lol", "staff@bepis.lol", "venue@bepis.lol"]
+                    ]
+                    `shouldBe`
+                        [ ("admin@bepis.lol", "a1642410-7297-46fd-916f-9d1ce464c388")
+                        , ("manager@bepis.lol", "71ced305-dc24-414c-9471-e891468e0120")
+                        , ("owner@bepis.lol", "7fe0607d-32aa-4a63-8a02-147b44987b43")
+                        , ("staff@bepis.lol", "0342d268-4d58-4c11-b925-124db23b4758")
+                        , ("venue@bepis.lol", "c3b1be9d-12de-49d1-9f21-e507af4c14ab")
+                        ]
                 length rosterWeeks `shouldBe` 2
                 map (.weekOffset) allRosterWeeks `shouldBe` concatMap (replicate 2) [fixture.currentWeekOffset - 1, fixture.currentWeekOffset, fixture.currentWeekOffset + 1]
                 length rosterDays `shouldBe` 14
@@ -438,7 +470,7 @@ tests = aroundAll withDatabaseTestContext do
                 xeroMatchedStaff <-
                     query @Staff
                         |> filterWhere (#venueId, unpackId (get #id fixture.sandboxVenue))
-                        |> filterWhereIn (#lastName, ["Both", "Front", "Garrison", "Grey", "Lebron", "Martin"])
+                        |> filterWhereIn (#lastName, ["Both", "Front", "Garrison", "Green", "Grey", "Lebron", "Martin"])
                         |> fetch
 
                 let totalTimesheetCount = length timesheetEntries
@@ -451,7 +483,22 @@ tests = aroundAll withDatabaseTestContext do
                 let pendingTimesheetCount = length timesheetEntries - length approvedTimesheets
                 let xeroMatchedApprovedCount = length (filter (\entry -> entry.staffId `elem` xeroMatchedStaffIds) approvedTimesheets)
                 let otherApprovedCount = length approvedTimesheets - xeroMatchedApprovedCount
+                let expectedApprovalTime = Just (UTCTime (addDays 6 defaultWeekEpoch) (secondsToDiffTime 3600))
+                let xeroCalendarTimesheets =
+                        filter
+                            (\entry ->
+                                entry.staffId `elem` xeroMatchedStaffIds
+                                    && testWorkedOn entry >= fromGregorian 2026 4 29
+                                    && testWorkedOn entry <= fromGregorian 2026 5 26
+                            )
+                            approvedTimesheets
 
+                length approvedTimesheets `shouldBe` 56
+                length xeroCalendarTimesheets `shouldBe` 56
+                map (.approvedAt) approvedTimesheets `shouldSatisfy` all (== expectedApprovalTime)
+                map (.staffPayVersionId) approvedTimesheets `shouldSatisfy` all isJust
+                map (.shiftTypePayVersionId) approvedTimesheets `shouldSatisfy` all isJust
+                map (.activePayCalculationId) approvedTimesheets `shouldSatisfy` all isJust
                 length approvedTimesheets `shouldSatisfy` (>= seededScenario.approvedTimesheets)
                 pendingTimesheetCount `shouldBe` seededScenario.pendingTimesheets
                 totalTimesheetCount `shouldBe` (length approvedTimesheets + seededScenario.pendingTimesheets)
@@ -547,6 +594,23 @@ tests = aroundAll withDatabaseTestContext do
                 length assignedPreferenceKeys `shouldSatisfy` (> 0)
                 matchedAssignedCount `shouldSatisfy` (>= requiredPreferredCount)
 
+                characterizedOutcome <- captureDevSeedOutcome fixture
+                take 12 characterizedOutcome.rosterRows
+                    `shouldBe`
+                        [ (-1, 0, 0, 0, Just ("Luca", "Pass"), Just (TimeOfDay 6 30 0), Just (TimeOfDay 12 0 0), Just "Cellar")
+                        , (-1, 0, 0, 0, Just ("Willa", "Worker"), Just (TimeOfDay 6 30 0), Just (TimeOfDay 12 0 0), Just "Bar")
+                        , (-1, 0, 0, 1, Just ("Bob", "Both"), Just (TimeOfDay 11 0 0), Just (TimeOfDay 16 30 0), Just "Runner")
+                        , (-1, 0, 0, 1, Just ("Taylor", "Trial 1"), Just (TimeOfDay 11 0 0), Just (TimeOfDay 16 30 0), Just "Glassy")
+                        , (-1, 0, 0, 2, Just ("Alice", "Front"), Just (TimeOfDay 16 30 0), Just (TimeOfDay 22 0 0), Just "Gaming")
+                        , (-1, 0, 0, 2, Just ("Omar", "Floor"), Just (TimeOfDay 16 30 0), Just (TimeOfDay 22 0 0), Just "Functions")
+                        , (-1, 0, 1, 2, Just ("Kira", "Cafe"), Just (TimeOfDay 16 30 0), Just (TimeOfDay 22 0 0), Just "Floor")
+                        , (-1, 0, 1, 2, Just ("Tracy", "Green"), Just (TimeOfDay 16 30 0), Just (TimeOfDay 22 0 0), Just "Gaming")
+                        , (-1, 1, 0, 0, Just ("Tracy", "Green"), Just (TimeOfDay 7 30 0), Just (TimeOfDay 13 0 0), Just "Door")
+                        , (-1, 1, 0, 1, Just ("Morgan", "Manager"), Just (TimeOfDay 12 0 0), Just (TimeOfDay 17 30 0), Just "Floor")
+                        , (-1, 1, 0, 2, Just ("Noah", "Dish"), Just (TimeOfDay 17 30 0), Just (TimeOfDay 23 0 0), Just "Supervisor")
+                        , (-1, 1, 0, 2, Just ("Oliver", "Grey"), Just (TimeOfDay 17 30 0), Just (TimeOfDay 23 0 0), Just "Door")
+                        ]
+
         it "supports deterministic scenario overrides for realistic demo seeding" $ withContext do
             withCleanDb do
                 let scenario =
@@ -575,6 +639,108 @@ tests = aroundAll withDatabaseTestContext do
                 get #scenarioSeed (get #scenario fixture) `shouldBe` 12345
                 seededStaffCount `shouldSatisfy` (>= 12)
                 managerMembershipCount `shouldBe` 3
+
+                firstOutcome <- captureDevSeedOutcome fixture
+                repeatedFixture <- seedDevelopmentFixtureWithScenarioForWeek scenario defaultWeekEpoch
+                repeatedOutcome <- captureDevSeedOutcome repeatedFixture
+                repeatedOutcome `shouldBe` firstOutcome
+
+captureDevSeedOutcome :: (?modelContext :: ModelContext) => DevSeedFixture -> IO DevSeedOutcome
+captureDevSeedOutcome fixture = do
+    staff <-
+        query @Staff
+            |> filterWhere (#venueId, unpackId fixture.sandboxVenue.id)
+            |> fetch
+    preferences <-
+        query @StaffShiftPreference
+            |> filterWhere (#venueId, unpackId fixture.sandboxVenue.id)
+            |> fetch
+    rosterWeeks <-
+        query @RosterWeek
+            |> filterWhere (#venueId, unpackId fixture.sandboxVenue.id)
+            |> fetch
+    rosterDays <-
+        query @RosterDay
+            |> filterWhereIn (#rosterWeekId, map (unpackId . (.id)) rosterWeeks)
+            |> fetch
+    rosterSlots <-
+        query @RosterSlot
+            |> filterWhereIn (#rosterDayId, map (unpackId . (.id)) rosterDays)
+            |> fetch
+    shiftTypes <-
+        query @ShiftType
+            |> filterWhere (#venueId, unpackId fixture.sandboxVenue.id)
+            |> fetch
+    leaveRequests <-
+        query @LeaveRequest
+            |> filterWhere (#venueId, unpackId fixture.sandboxVenue.id)
+            |> fetch
+    timesheets <-
+        query @TimesheetEntry
+            |> filterWhere (#venueId, unpackId fixture.sandboxVenue.id)
+            |> fetch
+    let staffById = Map.fromList [(unpackId row.id, (row.firstName, row.lastName)) | row <- staff]
+    let rosterWeekById = Map.fromList [(unpackId row.id, row.weekOffset) | row <- rosterWeeks]
+    let rosterDayById =
+            Map.fromList
+                [ (unpackId row.id, (Map.lookup row.rosterWeekId rosterWeekById, row.dayOffset))
+                | row <- rosterDays
+                ]
+    let shiftTypeById = Map.fromList [(unpackId row.id, row.name) | row <- shiftTypes]
+    pure
+        DevSeedOutcome
+            { staffRows =
+                sort
+                    [ (row.firstName, row.lastName, row.preferredName, row.idealShiftsPerWeek)
+                    | row <- staff
+                    ]
+            , preferenceRows =
+                sort
+                    [ (firstName, lastName, row.weekdayIndex, row.preferredStartHour, row.preferredEndHour)
+                    | row <- preferences
+                    , Just (firstName, lastName) <- [Map.lookup row.staffId staffById]
+                    ]
+            , rosterRows =
+                sort
+                    [ ( weekOffset
+                      , dayOffset
+                      , row.rowIndex
+                      , row.slotSortOrder
+                      , row.staffId >>= (`Map.lookup` staffById)
+                      , testStartTime row
+                      , testEndTime row
+                      , row.shiftTypeId >>= (`Map.lookup` shiftTypeById)
+                      )
+                    | row <- rosterSlots
+                    , Just (Just weekOffset, dayOffset) <- [Map.lookup row.rosterDayId rosterDayById]
+                    ]
+            , leaveRows =
+                sort
+                    [ (row.startDate, row.endDate, inputValue row.status, row.notes)
+                    | row <- leaveRequests
+                    ]
+            , timesheetRows =
+                sort
+                    [ (testWorkedOn row, testStartTime row, testEndTime row, testHadBreak row, row.isApproved)
+                    | row <- timesheets
+                    ]
+            }
+
+scenarioContract :: SeedScenarioName -> (Text, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int)
+scenarioContract scenarioName =
+    let scenario = scenarioByName scenarioName
+     in ( scenario.scenarioLabel
+        , scenario.staffCount
+        , scenario.managerCount
+        , scenario.trialStaffCount
+        , scenario.rosterFillPercent
+        , scenario.leaveRequestCount
+        , scenario.pendingLeaveCount
+        , scenario.deniedLeaveCount
+        , scenario.approvedTimesheets
+        , scenario.pendingTimesheets
+        , scenario.scenarioSeed
+        )
 
 expectedSeedShiftTypesBySortOrder :: [(Text, Text, PayAssignmentModeEnum, Maybe Text, Bool)]
 expectedSeedShiftTypesBySortOrder =

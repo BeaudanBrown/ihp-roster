@@ -77,6 +77,11 @@ Direction:
 
 ## Demo And Profile Seeding
 
+GitHub issues:
+
+- `#298`
+- `#300`
+
 Living docs to update:
 
 - `Application/Script/` docs if added
@@ -87,6 +92,7 @@ Direction:
 
 - Keep exact parity fixtures deterministic and small.
 - Keep manual dev/profile seeds richer but generated through named scenarios.
+- Keep `Application.Fixture.DevFixtures` as the thin interpreter; domain projections live in its `Staff`, `Roster`, `Leave`, and `Payroll` modules.
 - Do not weaken test fixture determinism to make manual exploration easier.
 
 ## Week Controls

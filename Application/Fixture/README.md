@@ -2,12 +2,22 @@
 
 `Application.Fixture` owns reusable fixture builders used by development seeds and tests. Named fixture sets live below this namespace:
 
-- `DevFixtures` and `Seed.*` — development scenarios
+- `DevFixtures` — the public development-scenario orchestration interface
+- `DevFixtures.Staff` — accounts, memberships, staff and deterministic staff catalogs
+- `DevFixtures.Roster` — groups, preferences, assignments, rows and roster slots
+- `DevFixtures.Leave` — leave-window and status projection
+- `DevFixtures.Payroll` — award/pay bootstrap, shift types, timesheets and Xero calendar cases
+- `DevFixtures.Deterministic` — shared deterministic selection/date helpers plus fresh UUID allocation
+- `Seed.Scenario` and `Seed.Calendar` — stable named plans and calendar projection
 - `PayrollFixtures` — deterministic payroll/export data
 - `WageSourceFixtures` — deterministic wage-source facts
 - `Reset` — the closed application-table reset contract
 
 Founder-facing Support product behavior does not belong here. Its runtime remains under `Application.Support`.
+
+## Development scenario orchestration
+
+`Application.Fixture.DevFixtures` is the sole public interpreter for named `SeedScenario` plans. It resets when requested, creates one venue, and invokes the focused modules above in dependency order through explicit `SeededAccounts`, `SeededStaff`, `RosterFixture`, and `PayFixture` values. Domain modules export only their phase operation and the result data needed by later phases; they do not import the orchestrator or each other cyclically. Keep scenario labels/defaults/overrides in `Seed.Scenario`, and keep each domain's deterministic catalog beside that domain rather than rebuilding a generic seed plugin framework.
 
 ## Reset contract
 
