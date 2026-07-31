@@ -163,6 +163,8 @@ instance Controller AdminController where
                 Left errors -> reportSurfaceRequestErrors errors >> pure False
                 Right value -> pure value
             invitations <- profileActionSpan "admin.page.fetch_invitations" fetchCurrentVenueInvitations
+            (exportRangeStart, exportRangeEnd) <- profileActionSpan "admin.page.current_export_date_range" currentExportDateRange
+            exportJobs <- profileActionSpan "admin.page.fetch_export_jobs" fetchCurrentVenueExportJobs
             today <- utctDay <$> getCurrentTime
             profileActionSpan "admin.page.render_response" (render IndexView { .. })
 

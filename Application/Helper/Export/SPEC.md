@@ -4,8 +4,9 @@ This file describes implemented export behavior and shared rendering rules.
 
 ## Current Contract
 
-- Export generation and download are admin-only surfaces: venue admins, venue
-  owners, and super admins may generate/download exports; managers are denied.
+- Export generation and download are exposed in the Admin page's Exports
+  accordion as admin-only surfaces: venue admins, venue owners, and super admins
+  may generate/download exports; managers are denied.
 - `export_jobs` records venue scope, requested fixed export, file metadata,
   requestor, expiry/download lifecycle, and audit-adjacent details.
 - The request surface exposes exactly four fixed formats: Approved Timesheets
