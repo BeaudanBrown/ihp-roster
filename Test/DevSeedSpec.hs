@@ -3,8 +3,7 @@ module Test.DevSeedSpec where
 import Application.Helper.Controller (unsafeEnumFromText)
 import Application.PayAssignment (EffectivePayAssignment (..),
                                   ShiftPayAssignment (..),
-                                  StaffPayAssignment (..),
-                                  resolvePayAssignment)
+                                  StaffPayAssignment (..), resolvePayAssignment)
 import Application.Support.Seed.Scenario
 import Control.Monad (void)
 import Data.List (sort)

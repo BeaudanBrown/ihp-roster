@@ -14,12 +14,12 @@ import Application.Helper.TimeRules (rosterShiftStartDate)
 import Application.Helper.TimesheetPayLedger (persistApprovedTimesheetPayCalculation)
 import Application.Helper.VenueBootstrap (provisionVenueUser)
 import Application.Helper.WeekBoundaries (venueWeekStartDate)
+import Application.PayAssignment (StaffPayAssignment (..),
+                                  staffAssignmentAllowsTimesheets)
 import Application.Support
 import Application.Support.Seed.Calendar (weekOffsetForDay)
 import Application.Support.Seed.Scenario
 import Application.Support.WageSourceFixtures (ensureFreshWageSourceFacts)
-import Application.PayAssignment (StaffPayAssignment (..),
-                                  staffAssignmentAllowsTimesheets)
 import Application.VenueTime.Model
 import Control.Monad (replicateM, void)
 import qualified Data.Aeson as Aeson
