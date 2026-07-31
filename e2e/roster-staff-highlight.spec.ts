@@ -129,6 +129,13 @@ test.describe('Roster staff shift highlight', () => {
         const highlightedCells = page.locator(`.roster-grid [role="gridcell"][${rosterStaffHighlightMemberDomAttr}="${staffKey}"].is-linked-highlight-member`);
         await expect(highlightedCells.first()).toBeVisible();
         expect(await highlightedCells.count()).toBeGreaterThan(0);
+
+        const draftResponse = page.waitForResponse((response) =>
+            response.request().method() === 'POST' && new URL(response.url()).pathname.includes('ToggleRosterWeekLiveStatus'),
+        );
+        await liveToggle.click();
+        expect((await draftResponse).ok()).toBe(true);
+        await expect(liveToggle.locator(`[${toggleInputDomAttr}]`)).not.toBeChecked({ timeout: E2E_TIMEOUT.liveUpdate });
     });
 
     test('highlights assigned shift cards in the day-column view', async ({ page }) => {
