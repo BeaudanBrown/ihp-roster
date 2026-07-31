@@ -5,8 +5,10 @@ import {
     rosterStaffHighlightPinDomAttr,
     rosterStaffHighlightSourceDomAttr,
     rosterStaffPanelSortRowDomAttr,
+    toggleInputDomAttr,
+    toggleRootDomAttr,
 } from '../frontend/ts/generated/contracts';
-import { ensureRosterLayout, openRoster } from './test-helpers';
+import { E2E_TIMEOUT, ensureRosterLayout, openRoster } from './test-helpers';
 
 type GridSlotMetrics = {
     slotCellCount: number;
@@ -103,6 +105,30 @@ test.describe('Roster staff shift highlight', () => {
         expect(afterHover.lastBorderRightWidth).toBe(beforeHover.lastBorderRightWidth);
         expect(afterHover.lastControlLeft ?? 0).toBeCloseTo(beforeHover.lastControlLeft ?? 0, 0);
         expect(afterHover.lastControlWidth ?? 0).toBeCloseTo(beforeHover.lastControlWidth ?? 0, 0);
+    });
+
+    test('keeps staff-linked row highlights on a live read-only roster', async ({ page }) => {
+        await openRoster(page, { email: 'e2e-test@example.com', ensureEditable: true });
+        await chooseRosterLayout(page, 'day_rows');
+
+        const staffKey = await firstAssignedStaffKey(page);
+        const liveToggle = page
+            .locator('[data-week-toolbar="roster"]')
+            .locator(`[${toggleRootDomAttr}]`)
+            .filter({ hasText: 'Live' });
+        await expect(liveToggle.locator(`[${toggleInputDomAttr}]`)).not.toBeChecked();
+
+        const publishResponse = page.waitForResponse((response) =>
+            response.request().method() === 'POST' && new URL(response.url()).pathname.includes('ToggleRosterWeekLiveStatus'),
+        );
+        await liveToggle.click();
+        expect((await publishResponse).ok()).toBe(true);
+        await expect(liveToggle.locator(`[${toggleInputDomAttr}]`)).toBeChecked({ timeout: E2E_TIMEOUT.liveUpdate });
+
+        await hoverStaffRow(page, staffKey);
+        const highlightedCells = page.locator(`.roster-grid [role="gridcell"][${rosterStaffHighlightMemberDomAttr}="${staffKey}"].is-linked-highlight-member`);
+        await expect(highlightedCells.first()).toBeVisible();
+        expect(await highlightedCells.count()).toBeGreaterThan(0);
     });
 
     test('highlights assigned shift cards in the day-column view', async ({ page }) => {

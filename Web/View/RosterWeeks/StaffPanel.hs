@@ -130,14 +130,14 @@ renderRosterStaffPanelTabs staffContent settingsContent = [hsx|
         </button>
     </div>
     <div class="tab-content roster-staff-panel-tab-content">
-        <div class="tab-pane fade show active roster-staff-panel-pane"
+        <div class="tab-pane show active roster-staff-panel-pane"
              id={rosterStaffPanelStaffPaneId}
              role="tabpanel"
              aria-labelledby={rosterStaffPanelStaffTabId}
              tabindex="0">
             {staffContent}
         </div>
-        <div class="tab-pane fade roster-staff-panel-pane roster-staff-panel-settings-pane"
+        <div class="tab-pane roster-staff-panel-pane roster-staff-panel-settings-pane"
              id={rosterStaffPanelSettingsPaneId}
              role="tabpanel"
              aria-labelledby={rosterStaffPanelSettingsTabId}

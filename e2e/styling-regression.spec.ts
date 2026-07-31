@@ -299,6 +299,16 @@ test.describe('Styling regression contracts', () => {
         expect(metrics?.openCollapseBorderRadius).toBe('0px 0px 13.4px 13.4px');
         expect(metrics?.bodyBorderTop).toBe('1px');
         expect(metrics?.bodyBorderRadius).toBe('0px 0px 13.4px 13.4px');
+
+        const openItem = page.locator('#profile-sections .accordion-item.app-panel:has(.accordion-button:not(.collapsed))').first();
+        const collapsedItem = page.locator('#profile-sections .accordion-item.app-panel:has(.accordion-button.collapsed)').first();
+        const openTopBeforeHover = await openItem.evaluate((item) => item.getBoundingClientRect().top);
+        await openItem.hover();
+        await expect.poll(async () => openItem.evaluate((item) => getComputedStyle(item).transform)).toBe('none');
+        expect(await openItem.evaluate((item) => item.getBoundingClientRect().top)).toBeCloseTo(openTopBeforeHover, 1);
+
+        await collapsedItem.hover();
+        await expect.poll(async () => collapsedItem.evaluate((item) => getComputedStyle(item).transform)).not.toBe('none');
     });
 
     test('preserves profile ordered-range crossing, availability, labels, and HTMX values', async ({ page }) => {

@@ -60,7 +60,9 @@ lands.
   layout, display, assignment-prevention, week-action, and export controls. These
   controls remain typed RosterSurface actions inside the live panel mount. The
   selected valid tab is remembered per concrete mount across HTMX replacement;
-  missing or invalid remembered tabs fall back to Staff.
+  missing or invalid remembered tabs fall back to Staff. Pane activation is
+  immediate rather than Bootstrap-faded, so authoritative settings replacements
+  do not replay an opacity transition.
 - The complete staff list can be sorted by name, role, or shift count. Name
   ascending is the initial order; choosing the active key toggles direction and
   choosing another key resets to ascending. Role ties sort by name. Shift-count
@@ -132,9 +134,10 @@ lands.
 - Roster forms must submit full cell payloads so single-field edits do not
   clear sibling slot fields.
 - Roster conflict warning highlights are manager-controlled display chrome. They
-  default off, can be enabled by managers from roster settings, and only affect
-  visual highlighting; conflict messages remain rendered on the affected staff
-  cells.
+  default off and can be enabled by managers from roster settings. Disabling
+  warnings suppresses conflict colours in every direct-hover, focus, shift-group,
+  and staff linked-highlight state while retaining conflict messages as native
+  tooltips on the affected staff cells.
 
 ## Scheduling Data
 

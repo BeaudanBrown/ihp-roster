@@ -42,14 +42,17 @@ test.describe('Roster settings toggle labels', () => {
         const settingsTab = page.getByRole('tab', { name: 'Settings', exact: true });
         const warningButton = settingsPanel.locator('label[for="show-roster-warnings"]');
         const wageButton = settingsPanel.locator('label[for="show-wage-estimates"]');
+        const settingsPane = page.locator('#roster-staff-panel-settings-pane');
 
+        await expect(settingsPane).not.toHaveClass(/\bfade\b/);
         await expect(visibleToggleLabel(warningButton)).toHaveText('Warnings enabled');
         await clickToggleAndWait(page, warningButton, 'UpdateRosterWarningPreference');
         await expect(visibleToggleLabel(warningButton)).toHaveText('Warnings disabled');
         await expect(warningButton.locator(`[${toggleInputDomAttr}]`)).not.toBeChecked();
         await expect(warningButton).toHaveAttribute('aria-pressed', 'false');
         await expect(warningButton).not.toHaveClass(/is-toggle-checked/);
-        await expect(page.locator('#roster-staff-panel-settings-pane')).toBeVisible();
+        await expect(settingsPane).toBeVisible();
+        await expect(settingsPane).not.toHaveClass(/\bfade\b/);
         await expect(settingsTab).toHaveAttribute('aria-selected', 'true');
 
         await clickToggleAndWait(page, warningButton, 'UpdateRosterWarningPreference');
@@ -64,7 +67,8 @@ test.describe('Roster settings toggle labels', () => {
         await expect(wageButton.locator(`[${toggleInputDomAttr}]`)).not.toBeChecked();
         await expect(wageButton).toHaveAttribute('aria-pressed', 'false');
         await expect(wageButton).not.toHaveClass(/is-toggle-checked/);
-        await expect(page.locator('#roster-staff-panel-settings-pane')).toBeVisible();
+        await expect(settingsPane).toBeVisible();
+        await expect(settingsPane).not.toHaveClass(/\bfade\b/);
         await expect(settingsTab).toHaveAttribute('aria-selected', 'true');
 
         await clickToggleAndWait(page, wageButton, 'UpdateRosterWageEstimatePreference');

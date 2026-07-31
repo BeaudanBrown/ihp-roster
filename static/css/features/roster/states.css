@@ -150,7 +150,10 @@
 .roster-grid-frame[data-roster-warnings="hidden"] .roster-shift-card-field.conflict-ideal,
 .roster-grid-frame[data-roster-warnings="hidden"] .roster-shift-card-field.conflict-critical:hover,
 .roster-grid-frame[data-roster-warnings="hidden"] .roster-shift-card-field.conflict-preference:hover,
-.roster-grid-frame[data-roster-warnings="hidden"] .roster-shift-card-field.conflict-ideal:hover {
+.roster-grid-frame[data-roster-warnings="hidden"] .roster-shift-card-field.conflict-ideal:hover,
+.roster-grid-frame[data-roster-warnings="hidden"] .roster-shift-launcher[data-bepis-roster-shift-group-highlight-member].is-linked-highlight-member .slot-staff-cell.conflict-critical,
+.roster-grid-frame[data-roster-warnings="hidden"] .roster-shift-launcher[data-bepis-roster-shift-group-highlight-member].is-linked-highlight-member .slot-staff-cell.conflict-preference,
+.roster-grid-frame[data-roster-warnings="hidden"] .roster-shift-launcher[data-bepis-roster-shift-group-highlight-member].is-linked-highlight-member .slot-staff-cell.conflict-ideal {
     background-color: transparent !important;
     background-image: none !important;
     color: inherit !important;

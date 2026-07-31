@@ -188,11 +188,14 @@ renderReadOnlyExistingSlotBlockCells shiftTypes endTimesEnabled publishAttempted
     let display = buildExistingSlotDisplay shiftTypes publishAttempted renderIndexes slot
         cells = readOnlyExistingSlotCells display endTimesEnabled blockIndex
         cellCount = length cells
+        groupKey = rosterShiftGroupKey (ExistingRosterSlotTarget slot.id)
+        renderHighlightedCell cell =
+            withRosterStaffHighlight slot.staffId groupKey (renderReadOnlyExistingSlotCell cell)
      in mconcat
         [ profileExistingSlotCounters display endTimesEnabled cellCount
         , profileRenderCounter "render.roster.readonly_cell" cellCount
         , profileRenderCounter "render.roster.readonly_slim_cell" cellCount
-        , forEach cells renderReadOnlyExistingSlotCell
+        , forEach cells renderHighlightedCell
         ]
 
 buildExistingSlotDisplay :: [ShiftType] -> Bool -> RosterRenderIndexes -> RosterSlot -> ExistingSlotDisplay
