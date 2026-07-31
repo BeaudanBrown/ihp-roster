@@ -37,6 +37,7 @@ import qualified Application.Helper.RosterAwardDuration as RosterAwardDuration
 import Application.Helper.RosterGroups
 import Application.Helper.TimeRules (authoritativeRosterIntervalIsOperationallyValid)
 import Application.PayAssignment
+import Application.Staff.Mutations (withStaffOperationalLocksInCurrentTransaction)
 import Application.VenueTime (RepeatedTimeOccurrence)
 import Application.VenueTime.Model
 import Data.Coerce (coerce)
@@ -397,7 +398,7 @@ copyRosterWeek selections sourceWeek targetWeekOffset = do
     prepared <- prepareRosterWeekCopyForPersistence venueConfig selections sourceWeek targetWeekOffset
     case prepared of
         Left failure -> pure (Left failure)
-        Right plans -> do
+        Right plans -> withValidatedRosterWeekCopyStaff (Id sourceWeek.venueId) plans do
             targetWeek <- newRecord @RosterWeek
                 |> set #venueId (unpackId currentVenueId)
                 |> set #rosterGroupId sourceWeek.rosterGroupId
@@ -424,7 +425,7 @@ replaceRosterWeekFromSource selections sourceWeek targetWeek = do
     prepared <- prepareRosterWeekCopyForPersistence venueConfig selections sourceWeek targetWeek.weekOffset
     case prepared of
         Left failure -> pure (Left failure)
-        Right plans -> do
+        Right plans -> withValidatedRosterWeekCopyStaff (Id sourceWeek.venueId) plans do
             _ <- targetWeek
                 |> set #isLive False
                 |> updateRecord
@@ -522,6 +523,16 @@ prepareRosterWeekCopy venueConfig selections sourceWeek targetWeekOffset = do
             , copiedEndsAt = endsAt
             , copiedTimezone = venueConfig.timezone
             }
+
+withValidatedRosterWeekCopyStaff :: (?modelContext :: ModelContext) => Id Venue -> [RosterSlotCopyPlan] -> IO (Either RosterWeekCopyError value) -> IO (Either RosterWeekCopyError value)
+withValidatedRosterWeekCopyStaff venueId plans action = do
+    let staffIds = nub (mapMaybe ((.staffId) . (.copiedSourceSlot)) plans)
+    maybeResult <- withStaffOperationalLocksInCurrentTransaction staffIds do
+        validation <- validateRosterWeekCopyPersistence venueId plans
+        case validation of
+            Left failure -> pure (Left failure)
+            Right ()     -> action
+    pure (fromMaybe (Left (RosterWeekCopyPersistenceError "A copied staff member is no longer available for rostering.")) maybeResult)
 
 prepareRosterWeekCopyForPersistence :: (?modelContext :: ModelContext) => VenueConfig -> ShiftCopyOccurrenceSelections -> RosterWeek -> Int -> IO (Either RosterWeekCopyError [RosterSlotCopyPlan])
 prepareRosterWeekCopyForPersistence venueConfig selections sourceWeek targetWeekOffset = do

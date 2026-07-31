@@ -207,6 +207,7 @@ lands.
   and existing-shift staff targets use the same disposable green affordance with
   a strong border and shaded interior. Dropping a shift on the roster toolbar
   opens the existing delete confirmation dialog instead of deleting immediately.
+- Venue admins, venue owners, and support-mode super admins can remove an active non-owner staff member through a destructive confirmation dialog; self-removal and owner removal are rejected server-side. Removal archives the venue's staff row and linked membership, revokes pending adoption links and venue-scoped manager-issued setup/recovery links, denies pending unavailability with event/audit provenance, and soft-deletes roster assignments whose venue-local operational date is today or later across every roster group, including live weeks. Past roster slots, materialized Timesheets, sealed payroll calculations, global passkeys, and the user's other venue memberships/staff records remain intact. Typed staff profile actions no longer expose an active-status field.
 - Saving staff profile details or shift preferences from the roster modal emits
   typed staff resources plus active roster-week resources for both previous and
   newly selected roster groups. The acting roster offers the inner grid

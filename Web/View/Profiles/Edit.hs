@@ -275,7 +275,6 @@ renderProfileForm staff currentUserEmail staffManagementFields =
             values.profileDetailsVenueRole
             values.profileDetailsEmploymentBasis
             values.profileDetailsPayRateSelection
-            values.profileDetailsIsActive
             values.profileDetailsRosterGroupIds
 
 renderProfileShiftPreferencesForm :: [PreferenceWeekday] -> [ShiftPreferenceSelection] -> Html

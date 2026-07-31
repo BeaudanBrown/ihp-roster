@@ -497,7 +497,25 @@ export async function ensureRosterLayout(page: Page, layoutMode: RosterLayoutMod
         const restoreStaffTab = (await staffTab.getAttribute('aria-selected')) === 'true';
         await openRosterSettings(page);
         const settingsPanel = page.locator('#roster-staff-panel-settings-pane');
+        const preferenceResponsePromise = page.waitForResponse((response) =>
+            response.request().method() === 'POST' && response.url().includes('/UpdateRosterLayoutPreference'),
+        );
+        const gridFrameRefreshPromise = page.waitForResponse((response) =>
+            response.request().method() === 'GET' && response.url().includes('/ShowRosterWeekGridFrameFragment'),
+        );
+        const staffPanelRefreshPromise = page.waitForResponse((response) =>
+            response.request().method() === 'GET' && response.url().includes('/ShowRosterWeekStaffPanelFragment'),
+        );
         await settingsPanel.locator(`label[for="roster-layout-mode-${layoutMode}"]`).click();
+        const [preferenceResponse, gridFrameRefresh, staffPanelRefresh] = await Promise.all([
+            preferenceResponsePromise,
+            gridFrameRefreshPromise,
+            staffPanelRefreshPromise,
+        ]);
+        expect(preferenceResponse.status(), await preferenceResponse.text()).toBe(200);
+        expect(gridFrameRefresh.status(), await gridFrameRefresh.text()).toBe(200);
+        expect(staffPanelRefresh.status(), await staffPanelRefresh.text()).toBe(200);
+        await Promise.all([gridFrameRefresh.finished(), staffPanelRefresh.finished()]);
         await expect(frame).toHaveAttribute('data-roster-layout', layoutMode, { timeout: E2E_TIMEOUT.assertion });
         if (restoreStaffTab) {
             await staffTab.click();
@@ -630,13 +648,6 @@ export function rosterShiftLaunchersForDaySection(daySection: Locator) {
 
 export async function openRosterShiftDialog(page: Page, launcher: Locator) {
     await expect(launcher).toBeVisible({ timeout: E2E_TIMEOUT.action });
-    try {
-        await launcher.scrollIntoViewIfNeeded();
-    } catch (error) {
-        if (!(error instanceof Error) || !error.message.includes('not attached to the DOM')) throw error;
-        await expect(launcher).toBeVisible({ timeout: E2E_TIMEOUT.action });
-        await launcher.scrollIntoViewIfNeeded();
-    }
     const dialogUrl = await launcher.getAttribute('hx-get');
     if (!dialogUrl) {
         throw new Error('Expected roster shift launcher to expose an hx-get dialog URL');
@@ -646,12 +657,11 @@ export async function openRosterShiftDialog(page: Page, launcher: Locator) {
         response.request().method() === 'GET'
         && response.url().includes(dialogUrl),
     );
-    await launcher.evaluate((element, dialogTarget) => {
-        const htmx = (window as Window & { htmx?: { ajax: (method: string, url: string, options: { target: string; swap: string }) => unknown } }).htmx;
-        const hxGet = element.getAttribute('hx-get');
-        if (!htmx || !hxGet) throw new Error('Expected HTMX roster shift dialog launcher');
-        htmx.ajax('GET', hxGet, { target: dialogTarget, swap: 'innerHTML' });
-    }, dialogOverlaySelector);
+    await page.evaluate(({ url, dialogTarget }) => {
+        const htmx = (window as Window & { htmx?: { ajax: (method: string, requestUrl: string, options: { target: string; swap: string }) => unknown } }).htmx;
+        if (!htmx) throw new Error('Expected HTMX roster shift dialog launcher');
+        htmx.ajax('GET', url, { target: dialogTarget, swap: 'innerHTML' });
+    }, { url: dialogUrl, dialogTarget: dialogOverlaySelector });
     const response = await responsePromise;
     expect(response.status(), await response.text()).toBe(200);
     await expect(page.locator(mountedDialogSelector)).toBeVisible({ timeout: E2E_TIMEOUT.action });

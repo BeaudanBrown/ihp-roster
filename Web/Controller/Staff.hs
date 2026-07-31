@@ -2,6 +2,9 @@ module Web.Controller.Staff where
 
 import Application.Helper.Controller (VenueRole (..), parseVenueRole,
                                       venueRoleToEnum)
+import Application.Helper.FrontendContract.AppShell (RemoveStaffOverlay)
+import Application.Helper.FrontendContract.AppShell.Runtime (AppShellActionRoute (..),
+                                                             appShellActionByMarker)
 import Application.Helper.FrontendContract.Surface.Request (attachSurfaceRequestFieldErrors,
                                                             surfaceRequestFieldErrorsMessage)
 import Application.Helper.FrontendContract.Surface.Roster.Resource (rosterSlotsContentResource,
@@ -18,9 +21,12 @@ import Application.Helper.Staff (isAdoptableTrialStaff)
 import Application.Helper.StaffShiftPreferences
 import Application.Helper.SurfaceResource (LiveMutationResult (..))
 import Application.Helper.Url (appendQueryParams)
-import Application.Helper.View (OverlayFormMode (HtmxOverlayForm),
+import Application.Helper.View (DialogOverlayConfig (..), OverlayButton (..),
+                                OverlayButtonAction (..),
+                                OverlayFormMode (HtmxOverlayForm),
                                 ToastOverlayPosition (..), dialogOverlayMountId,
-                                errorToast, renderToastOob, successToast)
+                                errorToast, renderDialogOverlay, renderToastOob,
+                                successToast)
 import Application.PayAssignment (selectableStaffAssignmentMode)
 import Application.StaffDocuments.Rsa (latestRsaDocumentForStaff)
 import qualified Data.Set as Set
@@ -28,6 +34,7 @@ import qualified Data.Text as Text
 import Data.Time.Calendar (Day)
 import Data.Time.Clock (getCurrentTime, utctDay)
 import qualified Data.UUID as UUID
+import Text.Blaze.Html (Html)
 import Web.Controller.Admin.Support (SubmittedPayRateSelection (..),
                                      fetchActiveImportedXeroPayItems,
                                      parseSubmittedPayRateSelectionValue)
@@ -105,6 +112,7 @@ instance Controller StaffController where
         ensureRecordInCurrentVenue staff.venueId
         maybeLinkedUserEmail <- fetchStaffLinkedUserEmail staff
         maybeVenueMembership <- fetchStaffVenueMembership staff
+        staffRemovalAllowed <- canRenderStaffRemoval staff
         let weekOffset = paramOrDefault @Int 0 "weekOffset"
         let maybeRosterGroupId = paramOrNothing "rosterGroupId"
         let openSection = normalizeStaffOpenSection (paramOrDefault @Text "" "section")
@@ -121,7 +129,7 @@ instance Controller StaffController where
         leaveRequests <- fetchStaffLeaveRequests staff
         today <- utctDay <$> getCurrentTime
         if isHtmxRequest
-            then respondHtml (renderStaffEditModalFragment staff maybeLinkedUserEmail rosterGroups awardLevels awardLevelBaseRates importedPayItems selectedRosterGroupIds maybeVenueMembership preferenceWeekdays selectedShiftPreferences staffRsaDocument leaveRequest leaveRequests today weekOffset maybeRosterGroupId openSection)
+            then respondHtml (renderStaffEditModalFragment staff maybeLinkedUserEmail rosterGroups awardLevels awardLevelBaseRates importedPayItems selectedRosterGroupIds maybeVenueMembership staffRemovalAllowed preferenceWeekdays selectedShiftPreferences staffRsaDocument leaveRequest leaveRequests today weekOffset maybeRosterGroupId openSection)
             else render EditView { .. }
 
     action currentAction@ShowStaffContentLiveFragmentAction { staffId } = runBepis currentAction BepisFragmentAction do
@@ -152,6 +160,7 @@ instance Controller StaffController where
         let submissionResult = parseStaffSurfaceSubmission
         maybeLinkedUserEmail <- fetchStaffLinkedUserEmail staff
         maybeVenueMembership <- fetchStaffVenueMembership staff
+        staffRemovalAllowed <- canRenderStaffRemoval staff
         let weekOffset = paramOrDefault @Int 0 "weekOffset"
         let maybeRosterGroupId = paramOrNothing "rosterGroupId"
         let openSection =
@@ -185,7 +194,7 @@ instance Controller StaffController where
                 _ -> fetchStaffShiftPreferenceSelections staff
         let renderStaffEditResponse renderedStaff renderedRosterGroupIds renderedPreferences =
                 if isHtmxRequest
-                    then respondHtml (renderStaffEditModalFragment renderedStaff maybeLinkedUserEmail rosterGroups awardLevels awardLevelBaseRates importedPayItems renderedRosterGroupIds maybeVenueMembership preferenceWeekdays renderedPreferences staffRsaDocument leaveRequest leaveRequests today weekOffset maybeRosterGroupId openSection)
+                    then respondHtml (renderStaffEditModalFragment renderedStaff maybeLinkedUserEmail rosterGroups awardLevels awardLevelBaseRates importedPayItems renderedRosterGroupIds maybeVenueMembership staffRemovalAllowed preferenceWeekdays renderedPreferences staffRsaDocument leaveRequest leaveRequests today weekOffset maybeRosterGroupId openSection)
                     else do
                         let selectedRosterGroupIds = renderedRosterGroupIds
                         let selectedShiftPreferences = renderedPreferences
@@ -223,8 +232,11 @@ instance Controller StaffController where
                         setErrorMessage preferenceError
                         renderStaffEditResponse staff currentSelectedRosterGroupIds selectedShiftPreferences
                     Right submittedSelections -> do
-                        mutationResult <- updateStaffMember originalStaff staff currentSelectedRosterGroupIds submittedSelections Nothing Nothing
-                        respondStaffUpdateSuccess mutationResult "Shift preferences updated"
+                        updateStaffMember originalStaff staff currentSelectedRosterGroupIds submittedSelections Nothing Nothing >>= \case
+                            Nothing -> do
+                                setErrorMessage "This staff member is no longer active."
+                                renderStaffEditResponse originalStaff currentSelectedRosterGroupIds selectedShiftPreferences
+                            Just mutationResult -> respondStaffUpdateSuccess mutationResult "Shift preferences updated"
             Right (SubmittedStaffProfileDetails submitted)
                 | submitted.submittedProfileSection /= "profile" -> do
                     setErrorMessage "Choose a valid staff profile section."
@@ -236,15 +248,65 @@ instance Controller StaffController where
                     let maybeSubmittedDefaultAwardLevelId = submittedAwardLevelId <$> maybeSubmittedPayRateSelection
                     let maybeSubmittedImportedXeroPayItemId = submittedImportedXeroPayItemId <$> maybeSubmittedPayRateSelection
                     staff
-                        |> buildStaffFromSurfaceSubmission True canManageStaffPay maybeSubmittedDefaultAwardLevelId maybeSubmittedImportedXeroPayItemId submitted
+                        |> buildStaffFromSurfaceSubmission canManageStaffPay maybeSubmittedDefaultAwardLevelId maybeSubmittedImportedXeroPayItemId submitted
                         |> ifValid \case
                             Left invalidStaff -> renderStaffEditResponse invalidStaff submittedRosterGroupIds selectedShiftPreferences
                             Right validStaff ->
                                 case (maybeSelectedRosterGroupIds, maybeSubmittedVenueRole, maybeSubmittedDefaultAwardLevelId, maybeSubmittedImportedXeroPayItemId) of
                                     (Just selectedRosterGroupIds, Just submittedVenueRole, Just _, Just _) -> do
-                                        mutationResult <- updateStaffMember originalStaff validStaff selectedRosterGroupIds selectedShiftPreferences maybeVenueMembership submittedVenueRole
-                                        respondStaffUpdateSuccess mutationResult "Staff member updated"
+                                        updateStaffMember originalStaff validStaff selectedRosterGroupIds selectedShiftPreferences maybeVenueMembership submittedVenueRole >>= \case
+                                            Nothing -> do
+                                                setErrorMessage "This staff member is no longer active."
+                                                renderStaffEditResponse originalStaff currentSelectedRosterGroupIds selectedShiftPreferences
+                                            Just mutationResult -> respondStaffUpdateSuccess mutationResult "Staff member updated"
                                     _ -> renderStaffEditResponse validStaff submittedRosterGroupIds selectedShiftPreferences
+
+    action currentAction@NewRemoveStaffAction { staffId } = runBepis currentAction BepisDialogAction do
+        ensureCanRemoveStaff
+        staff <- fetch staffId
+        ensureRecordInCurrentVenue staff.venueId
+        staffRemovalBlockReason staff >>= \case
+            Just message -> do
+                setErrorMessage message
+                redirectTo EditStaffAction { staffId = staff.id }
+            Nothing -> do
+                let weekOffset = paramOrDefault @Int 0 "weekOffset"
+                let maybeRosterGroupId = paramOrNothing @(Id RosterGroup) "rosterGroupId"
+                respondHtml (renderStaffRemovalConfirmation staff weekOffset maybeRosterGroupId)
+
+    action currentAction@RemoveStaffAction { staffId } = runBepis currentAction BepisMutationAction do
+        ensureVenueWritable
+        ensureCanRemoveStaff
+        staff <- fetch staffId
+        ensureRecordInCurrentVenue staff.venueId
+        removeStaffMember staff >>= \case
+            Left message -> do
+                setErrorMessage message
+                redirectTo EditStaffAction { staffId = staff.id }
+            Right mutationResult ->
+                if isHtmxRequest
+                    then do
+                        let weekOffset = paramOrDefault @Int 0 "weekOffset"
+                        let maybeRosterGroupId = paramOrNothing @(Id RosterGroup) "rosterGroupId"
+                        rosterGroup <- fetchCurrentVenueRosterGroupOrDefault maybeRosterGroupId
+                        let actorTouchedResources =
+                                mutationResult.liveMutationTouchedResources
+                                    <> Set.fromList
+                                        [ rosterWeekResource (unpackId rosterGroup.id) weekOffset
+                                        , rosterSlotsContentResource (unpackId rosterGroup.id) weekOffset
+                                        ]
+                        respondWithRosterResourceInvalidation
+                            rosterGroup.id
+                            weekOffset
+                            actorTouchedResources
+                            rosterGridInnerAndStaffPanelFragments
+                            [hsx|
+                                <div id={dialogOverlayMountId} hx-swap-oob="innerHTML"></div>
+                                {renderToastOob ToastBottomCenter (successToast "Staff member removed")}
+                            |]
+                    else do
+                        setSuccessMessage "Staff member removed"
+                        redirectTo RosterWeeksAction
 
     action currentAction@NewTrialStaffInvitationAction { staffId } = runBepis currentAction BepisDialogAction do
         ensureVenueWritable
@@ -288,6 +350,56 @@ instance Controller StaffController where
                         renewTrialStaffInvitationMutation staff invitation email >>= \case
                             Right _ -> respondWithTrialStaffInvitationSuccess ("Invitation renewed for " <> email)
                             Left message -> renderTrialStaffInvitationError staff message (Just email)
+
+renderStaffRemovalConfirmation :: (?context :: ControllerContext, ?request :: Request) => Staff -> Int -> Maybe (Id RosterGroup) -> Html
+renderStaffRemovalConfirmation staff weekOffset maybeRosterGroupId =
+    renderDialogOverlay DialogOverlayConfig
+        { dialogOverlayTitle = "Remove staff member"
+        , dialogOverlayBody = [hsx|
+            <div class="alert alert-danger" role="alert">
+                <strong>This removes {staff.firstName} {staff.lastName} from active venue operations.</strong>
+            </div>
+            <p>Future roster assignments and pending unavailability will be removed. Existing timesheets, payroll history, and past roster records are kept.</p>
+            <p class="mb-0">This action cannot be undone from the staff profile.</p>
+        |]
+        , dialogOverlayStartButtons = []
+        , dialogOverlayButtons =
+            [ OverlayButton
+                { overlayButtonLabel = "Cancel"
+                , overlayButtonClass = "btn btn-outline-secondary"
+                , overlayButtonAction = OverlayCloseAction
+                }
+            , OverlayButton
+                { overlayButtonLabel = "Remove staff member"
+                , overlayButtonClass = "btn btn-danger"
+                , overlayButtonAction = GeneratedDialogFormAction
+                    (appShellActionByMarker @RemoveStaffOverlay)
+                    AppShellActionRoute
+                        { appShellActionRouteUrl = pathTo (RemoveStaffAction staff.id)
+                        , appShellActionRouteFields = []
+                        , appShellActionRouteCustomHtmx = []
+                        , appShellActionRouteStandardUrl = Just (pathTo (RemoveStaffAction staff.id))
+                        , appShellActionRouteExtraAttrs = []
+                        }
+                    returnFields
+                    Nothing
+                }
+            ]
+        , dialogOverlayDialogClass = ""
+        }
+  where
+    returnFields =
+        [("weekOffset", tshow weekOffset)]
+            <> maybe [] (\rosterGroupId -> [("rosterGroupId", tshow rosterGroupId)]) maybeRosterGroupId
+
+canRenderStaffRemoval :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Staff -> IO Bool
+canRenderStaffRemoval staff
+    | not (currentUserIsSuperAdmin || hasRole VenueAdminRole) = pure False
+    | otherwise = isNothing <$> staffRemovalBlockReason staff
+
+ensureCanRemoveStaff :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => IO ()
+ensureCanRemoveStaff =
+    redirectPermissionDeniedUnless (currentUserIsSuperAdmin || hasRole VenueAdminRole) "Only venue admins and owners can remove staff members."
 
 emptyStaffPayRateSelection :: SubmittedPayRateSelection
 emptyStaffPayRateSelection = SubmittedPayRateSelection Nothing Nothing True
@@ -374,8 +486,8 @@ fetchPendingTrialStaffInvitations staff =
                 |> orderByDesc #createdAt
                 |> fetch
 
-buildStaffFromSurfaceSubmission :: Bool -> Bool -> Maybe (Maybe (Id AwardLevel)) -> Maybe (Maybe (Id XeroImportedPayItem)) -> StaffProfileDetailsSubmission -> Staff -> Staff
-buildStaffFromSurfaceSubmission canManageStaffStatus canManageStaffPay maybeSubmittedDefaultAwardLevelId maybeSubmittedImportedXeroPayItemId submitted staff =
+buildStaffFromSurfaceSubmission :: Bool -> Maybe (Maybe (Id AwardLevel)) -> Maybe (Maybe (Id XeroImportedPayItem)) -> StaffProfileDetailsSubmission -> Staff -> Staff
+buildStaffFromSurfaceSubmission canManageStaffPay maybeSubmittedDefaultAwardLevelId maybeSubmittedImportedXeroPayItemId submitted staff =
     staff
         |> set #firstName submitted.submittedFirstName
         |> set #lastName submitted.submittedLastName
@@ -394,17 +506,13 @@ buildStaffFromSurfaceSubmission canManageStaffStatus canManageStaffPay maybeSubm
         |> requiredBoundedTextField #emergencyContactPhone 80
         |> validateField #idealShiftsPerWeek (isInRange (0, 7))
   where
-    applyStaffManagementFields currentStaff =
-        let withActive
-                | canManageStaffStatus = maybe currentStaff (\value -> set #isActive value currentStaff) submitted.submittedIsActive
-                | otherwise = currentStaff
-         in if not canManageStaffPay
-                then withActive
-                else
-                    let withEmploymentBasis = applyEmploymentBasis withActive
-                        withAwardLevel = maybe withEmploymentBasis (\value -> set #defaultAwardLevelId value withEmploymentBasis) maybeSubmittedDefaultAwardLevelId
-                        withImportedPayItem = maybe withAwardLevel (\value -> set #importedXeroPayItemId value withAwardLevel) maybeSubmittedImportedXeroPayItemId
-                     in applySelectableStaffPayMode withImportedPayItem
+    applyStaffManagementFields currentStaff
+        | not canManageStaffPay = currentStaff
+        | otherwise =
+            let withEmploymentBasis = applyEmploymentBasis currentStaff
+                withAwardLevel = maybe withEmploymentBasis (\value -> set #defaultAwardLevelId value withEmploymentBasis) maybeSubmittedDefaultAwardLevelId
+                withImportedPayItem = maybe withAwardLevel (\value -> set #importedXeroPayItemId value withAwardLevel) maybeSubmittedImportedXeroPayItemId
+             in applySelectableStaffPayMode withImportedPayItem
 
     applyEmploymentBasis currentStaff =
         case Text.toLower <$> submitted.submittedEmploymentBasis of
@@ -473,7 +581,7 @@ buildStaff canManageStaffPay maybeSubmittedDefaultAwardLevelId maybeSubmittedImp
         |> requireParam #emergencyContactName "emergencyContactName" "Emergency contact name is required"
         |> requireParam #emergencyContactPhone "emergencyContactPhone" "Emergency contact phone is required"
         |> requireParam #idealShiftsPerWeek "idealShiftsPerWeek" "Ideal shifts per week is required"
-        |> fill @'["firstName", "lastName", "preferredName", "phone", "emergencyContactName", "emergencyContactPhone", "idealShiftsPerWeek", "isActive"]
+        |> fill @'["firstName", "lastName", "preferredName", "phone", "emergencyContactName", "emergencyContactPhone", "idealShiftsPerWeek"]
         |> normalizeStaffTextFields
         |> applyStaffPayFields
         |> requiredBoundedTextField #firstName 80

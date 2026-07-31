@@ -161,7 +161,6 @@ renderInvitedProfileDetailsForm NewAccountProfileFormConfig { .. } user staff em
             values.profileDetailsVenueRole
             values.profileDetailsEmploymentBasis
             values.profileDetailsPayRateSelection
-            values.profileDetailsIsActive
             values.profileDetailsRosterGroupIds
 
 renderAccountPasswordFields :: User -> Html

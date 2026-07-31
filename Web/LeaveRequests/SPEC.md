@@ -21,6 +21,9 @@ This file describes implemented leave/availability behavior.
 - Approved-state leave changes invalidate affected roster scopes. Pending
   create does not fan out to roster viewers unless a new product decision
   changes that rule.
+- Removing a staff member denies that staff identity's pending requests through
+  the normal denied event and audit provenance lifecycle. Approved and
+  already-denied requests remain unchanged as retained history.
 
 ## History
 

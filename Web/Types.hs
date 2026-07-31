@@ -200,6 +200,8 @@ data StaffController
     | EditStaffAction { staffId :: !(Id Staff) }
     | ShowStaffContentLiveFragmentAction { staffId :: !(Id Staff) }
     | UpdateStaffAction { staffId :: !(Id Staff) }
+    | NewRemoveStaffAction { staffId :: !(Id Staff) }
+    | RemoveStaffAction { staffId :: !(Id Staff) }
     | NewTrialStaffInvitationAction { staffId :: !(Id Staff) }
     | CreateTrialStaffInvitationAction { staffId :: !(Id Staff) }
     | RenewTrialStaffInvitationAction { venueInvitationId :: !(Id VenueInvitation) }

@@ -20,7 +20,6 @@ fields =
         Nothing
         Nothing
         Nothing
-        (Just True)
         Nothing
 
 invalidListItemBinding :: ToggleFieldBinding

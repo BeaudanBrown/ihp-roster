@@ -956,8 +956,9 @@ instance Controller RosterWeeksController where
         ensureVenueWritable
         (rosterSlot, rosterDay, rosterWeek) <- fetchRosterSlotEditContext rosterSlotId
         let rosterGroupId = coerce rosterWeek.rosterGroupId
-        mutationResult <- deleteRosterSlotMutation rosterGroupId rosterWeek rosterDay rosterSlot
-        respondToRosterSlotUpdate rosterGroupId rosterWeek mutationResult [(rosterSlot.rosterDayId, rosterSlot.rowIndex)] False
+        deleteRosterSlotMutation rosterGroupId rosterWeek rosterDay rosterSlot >>= \case
+            Left message -> respondWithMoveRosterShiftFailure rosterGroupId rosterWeek.weekOffset message
+            Right mutationResult -> respondToRosterSlotUpdate rosterGroupId rosterWeek mutationResult [(rosterSlot.rosterDayId, rosterSlot.rowIndex)] False
 
 data ValidatedRosterShift = ValidatedRosterShift
     { validRosterShiftStaffId    :: !UUID.UUID

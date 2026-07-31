@@ -38,7 +38,6 @@ module Application.Helper.FrontendContract.Surface.Profile
     , VenueRoleField
     , EmploymentBasisField
     , PayRateSelectionField
-    , IsActiveField
     , RosterGroupIdsField
     , ShiftPreferenceKeysField
     , StartDate
@@ -100,7 +99,6 @@ data RosterGroupIdField
 data VenueRoleField
 data EmploymentBasisField
 data PayRateSelectionField
-data IsActiveField
 data RosterGroupIdsField
 data ShiftPreferenceKeysField
 data StaffProfileSectionHtmxAttrs
@@ -128,7 +126,6 @@ type StaffProfileFields =
      , OptionalField VenueRoleField 'WireText
      , OptionalField EmploymentBasisField 'WireText
      , OptionalField PayRateSelectionField 'WireText
-     , OptionalField IsActiveField 'WireBool
      , OptionalField RosterGroupIdsField ('WireList 'WireUUID)
      ]
 

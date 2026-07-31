@@ -324,11 +324,17 @@ function forceHideModal(modal: TimePickerModalControl): void {
 
 function hideTimePickerModal(modal: TimePickerModalControl): void {
     const bootstrapModal = getBootstrapModal(modal.modal);
-    if (bootstrapModal !== null) bootstrapModal.hide();
+    if (bootstrapModal === null) {
+        forceHideModal(modal);
+        modal.modal.dispatchEvent(new CustomEvent("hidden.bs.modal", { bubbles: true }));
+        return;
+    }
 
-    window.setTimeout(() => {
-        if (modal.modal.classList.contains("show")) forceHideModal(modal);
-    }, 150);
+    const hideAfterShown = () => getBootstrapModal(modal.modal)?.hide();
+    const removePendingHide = () => modal.modal.removeEventListener("shown.bs.modal", hideAfterShown);
+    modal.modal.addEventListener("shown.bs.modal", hideAfterShown, { once: true });
+    modal.modal.addEventListener("hidden.bs.modal", removePendingHide, { once: true });
+    bootstrapModal.hide();
 }
 
 function stepFieldValue(control: TimePickerFieldControl, direction: TimePickerStepDirection, wrap: boolean): void {

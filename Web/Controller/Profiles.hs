@@ -107,17 +107,21 @@ instance Controller ProfilesController where
                         let staff = renderedStaff
                         let selectedShiftPreferences = renderedPreferences
                         render EditView { .. }
-        let finishCurrentUserUpdate section validStaff submittedSelections successMessage = do
-                mutationResult <- updateCurrentUserProfile section validStaff submittedSelections
-                let profileUpdate = mutationResult.liveMutationValue
-                let updatedStaff = profileUpdate.profileUpdatedStaff
-                if section /= "preferences" && not profileUpdate.profileWasCompletedBefore && profileUpdate.profileIsCompletedNow
-                    then redirectTo RosterWeeksAction
-                    else if isHtmxRequest
-                        then respondWithProfileActorInvalidation updatedStaff mutationResult successMessage
-                        else do
-                            setSuccessMessage successMessage
-                            redirectTo EditProfileAction
+        let finishCurrentUserUpdate section validStaff submittedSelections successMessage =
+                updateCurrentUserProfile section validStaff submittedSelections >>= \case
+                    Nothing -> do
+                        setErrorMessage "Your staff access for this venue is no longer active."
+                        renderProfileResponse validStaff selectedShiftPreferences
+                    Just mutationResult -> do
+                        let profileUpdate = mutationResult.liveMutationValue
+                        let updatedStaff = profileUpdate.profileUpdatedStaff
+                        if section /= "preferences" && not profileUpdate.profileWasCompletedBefore && profileUpdate.profileIsCompletedNow
+                            then redirectTo RosterWeeksAction
+                            else if isHtmxRequest
+                                then respondWithProfileActorInvalidation updatedStaff mutationResult successMessage
+                                else do
+                                    setSuccessMessage successMessage
+                                    redirectTo EditProfileAction
         case submissionResult of
             Left errors -> do
                 setErrorMessage (surfaceRequestFieldErrorsMessage errors)
@@ -144,20 +148,24 @@ instance Controller ProfilesController where
                     let maybeSubmittedDefaultAwardLevelId = submittedAwardLevelId <$> maybeSubmittedPayRateSelection
                     let maybeSubmittedImportedXeroPayItemId = submittedImportedXeroPayItemId <$> maybeSubmittedPayRateSelection
                     staff
-                        |> buildStaffFromSurfaceSubmission canManageProfileStaff canManageProfileStaff maybeSubmittedDefaultAwardLevelId maybeSubmittedImportedXeroPayItemId submitted
+                        |> buildStaffFromSurfaceSubmission canManageProfileStaff maybeSubmittedDefaultAwardLevelId maybeSubmittedImportedXeroPayItemId submitted
                         |> ifValid \case
                             Left invalidStaff -> renderProfileResponse invalidStaff selectedShiftPreferences
                             Right validStaff ->
                                 if canManageProfileStaff
                                     then case (maybeExistingStaff, maybeSelectedRosterGroupIds, maybeSubmittedDefaultAwardLevelId, maybeSubmittedImportedXeroPayItemId) of
                                         (Just originalStaff, Just selectedRosterGroupIds, Just _, Just _) -> do
-                                            mutationResult <- updateStaffMember originalStaff validStaff selectedRosterGroupIds selectedShiftPreferences Nothing Nothing
-                                            let updatedStaff = mutationResult.liveMutationValue
-                                            if isHtmxRequest
-                                                then respondWithProfileActorInvalidation updatedStaff mutationResult "Profile updated"
-                                                else do
-                                                    setSuccessMessage "Profile updated"
-                                                    redirectTo EditProfileAction
+                                            updateStaffMember originalStaff validStaff selectedRosterGroupIds selectedShiftPreferences Nothing Nothing >>= \case
+                                                Nothing -> do
+                                                    setErrorMessage "This staff member is no longer active."
+                                                    renderProfileResponse originalStaff selectedShiftPreferences
+                                                Just mutationResult -> do
+                                                    let updatedStaff = mutationResult.liveMutationValue
+                                                    if isHtmxRequest
+                                                        then respondWithProfileActorInvalidation updatedStaff mutationResult "Profile updated"
+                                                        else do
+                                                            setSuccessMessage "Profile updated"
+                                                            redirectTo EditProfileAction
                                         _ -> renderProfileResponse validStaff selectedShiftPreferences
                                     else finishCurrentUserUpdate "profile" validStaff selectedShiftPreferences "Profile updated"
 

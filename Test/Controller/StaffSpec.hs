@@ -7,11 +7,16 @@ import Application.Helper.FrontendContract.Surface.Roster.Resource (rosterSlotsC
                                                                     rosterWeekResource)
 import Application.Helper.FrontendContract.Surface.Timesheets.Resource (timesheetWeekResource)
 import qualified Application.Helper.LiveUpdate as LiveUpdate
+import Application.Helper.PasskeySetupTokens (PasskeySetupTokenPurpose (..),
+                                              issuePasskeySetupToken)
 import Application.Helper.RosterGroups (createVenueRosterGroupWithDefaults)
 import Application.Helper.StaffShiftPreferences (encodeShiftPreferenceKey,
                                                  shiftPreferenceEndHourParamName,
                                                  shiftPreferenceStartHourParamName)
 import Application.Helper.SurfaceResource
+import Application.Helper.TimeRules (operationalDayForUtcTime)
+import Application.Helper.WeekBoundaries (venueWeekOffsetForDay,
+                                          venueWeekStartDate)
 import Application.InvitationDelivery.Job (enqueueVenueInvitationDeliveryJob,
                                            performVenueInvitationDeliveryJob,
                                            venueInvitationDeliveryJobKind)
@@ -579,6 +584,53 @@ tests = aroundAll withDatabaseTestContext do
                     |> fetchCount
                 acceptedUserCount + pendingReplacementCount `shouldBe` 1
 
+        it "serializes trial invitation acceptance against staff removal" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Staff Accept Removal Race Venue"
+                admin <- createUserRecord "staff-accept-removal-admin@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue admin "venue_admin"
+                staff <- createStaffRecord venue Nothing "Accept" "Removal"
+                invitation <- createVenueInvitationRecord venue (Just admin) "staff-accept-removal@example.com" "worker"
+                    >>= updateRecord . set #staffId (Just staff.id)
+
+                results <- runConcurrentStaffActionList
+                    [ void $ callActionWithParams CreateUserAction
+                        [ ("invitationId", idToParam invitation.id)
+                        , ("passwordHash", "test-password-123")
+                        , ("passwordConfirmation", "test-password-123")
+                        , ("firstName", "Accept")
+                        , ("lastName", "Removal")
+                        , ("preferredName", "")
+                        , ("phone", "0499999999")
+                        , ("emergencyContactName", "Casey Removal")
+                        , ("emergencyContactPhone", "0488888888")
+                        , ("idealShiftsPerWeek", "4")
+                        ]
+                    , void $ withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
+                        callAction (RemoveStaffAction staff.id)
+                    ]
+
+                lefts results `shouldSatisfy` null
+                removedStaff <- fetch staff.id
+                removedStaff.archivedAt `shouldSatisfy` isJust
+                finalInvitation <- fetch invitation.id
+                acceptedUserCount <- query @User
+                    |> filterWhere (#email, "staff-accept-removal@example.com")
+                    |> fetchCount
+                case acceptedUserCount of
+                    0 -> do
+                        removedStaff.userId `shouldBe` Nothing
+                        inputValue finalInvitation.status `shouldBe` ("revoked" :: Text)
+                    1 -> do
+                        removedStaff.userId `shouldSatisfy` isJust
+                        inputValue finalInvitation.status `shouldBe` ("accepted" :: Text)
+                        linkedMembership <- query @VenueMembership
+                            |> filterWhere (#venueId, unpackId venue.id)
+                            |> filterWhere (#userId, fromMaybe (error "Expected linked user") removedStaff.userId)
+                            |> fetchOne
+                        linkedMembership.isActive `shouldBe` False
+                    _ -> expectationFailure "Acceptance/removal race created multiple users"
+
         it "serializes queued delivery against trial invitation renewal" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Staff Delivery Renew Race Venue"
@@ -908,6 +960,668 @@ tests = aroundAll withDatabaseTestContext do
                 response `responseBodyShouldContain` "Award rates"
                 response `responseBodyShouldContain` "Level 3 (Part-time $32.75/hr, casual $40.94/hr)"
                 response `responseBodyShouldContain` "No Timesheets (roster only)"
+
+        it "replaces the ordinary active-status control with an admin destructive removal action" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Staff Removal Workflow Venue"
+                admin <- createUserRecord "staff-removal-workflow-admin@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue admin "venue_admin"
+                staff <- createStaffRecord venue Nothing "Removal" "Target"
+
+                response <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
+                    callActionWithParams (EditStaffAction staff.id) [("weekOffset", "0")]
+
+                response `responseStatusShouldBe` status200
+                response `responseBodyShouldNotContain` "name=\"isActive\""
+                response `responseBodyShouldContain` "Remove staff member"
+                response `responseBodyShouldContain` "This keeps historical records"
+
+        it "renders a destructive confirmation dialog before staff removal" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Staff Removal Confirmation Venue"
+                admin <- createUserRecord "staff-removal-confirmation-admin@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue admin "venue_admin"
+                staff <- createStaffRecord venue Nothing "Confirm" "Removal"
+
+                response <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
+                    callActionWithParams (NewRemoveStaffAction staff.id) [("weekOffset", "0")]
+
+                response `responseStatusShouldBe` status200
+                response `responseBodyShouldContain` "Remove staff member"
+                response `responseBodyShouldContain` "Future roster assignments and pending unavailability will be removed"
+                response `responseBodyShouldContain` "Existing timesheets, payroll history, and past roster records are kept"
+                response `responseBodyShouldContain` (cs ("action=\"" <> pathTo (RemoveStaffAction staff.id) <> "\""))
+                response `responseBodyShouldContain` "hx-post"
+
+        it "soft-removes an active trial staff member from the current venue" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Trial Staff Removal Venue"
+                admin <- createUserRecord "trial-staff-removal-admin@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue admin "venue_admin"
+                staff <- createStaffRecord venue Nothing "Trial" "Removal"
+
+                response <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
+                    callAction (RemoveStaffAction staff.id)
+
+                response `responseStatusShouldBe` status302
+                removedStaff <- fetch staff.id
+                removedStaff.isActive `shouldBe` False
+                removedStaff.archivedAt `shouldSatisfy` isJust
+                removedStaff.archivedByUserId `shouldBe` Just (unpackId admin.id)
+                removedStaff.archiveReason `shouldBe` Just "Removed from venue staff"
+
+        it "rejects removal by a manager without mutating staff" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Manager Removal Rejection Venue"
+                manager <- createUserRecord "staff-removal-manager@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue manager "manager"
+                staff <- createStaffRecord venue Nothing "Protected" "Worker"
+
+                editResponse <- withUserAndCurrentVenue manager venue.id do
+                    callAction (EditStaffAction staff.id)
+                editResponse `responseBodyShouldNotContain` "data-staff-removal-panel"
+
+                response <- withUserAndCurrentVenue manager venue.id do
+                    callAction (RemoveStaffAction staff.id)
+
+                response `responseStatusShouldBe` status302
+                unchangedStaff <- fetch staff.id
+                unchangedStaff.isActive `shouldBe` True
+                unchangedStaff.archivedAt `shouldBe` Nothing
+
+        it "rejects removal of a venue owner even when another owner submits the request" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Owner Removal Rejection Venue"
+                actor <- createUserRecord "staff-removal-actor-owner@example.com" "staff" True
+                targetUser <- createUserRecord "staff-removal-target-owner@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue actor "venue_owner"
+                _ <- createVenueMembershipRecord venue targetUser "venue_owner"
+                staff <- createStaffRecord venue (Just targetUser) "Protected" "Owner"
+
+                editResponse <- withPasskeyVerifiedUserAndCurrentVenue actor venue.id do
+                    callAction (EditStaffAction staff.id)
+                editResponse `responseBodyShouldNotContain` "data-staff-removal-panel"
+
+                response <- withPasskeyVerifiedUserAndCurrentVenue actor venue.id do
+                    callAction (RemoveStaffAction staff.id)
+
+                response `responseStatusShouldBe` status302
+                unchangedStaff <- fetch staff.id
+                unchangedStaff.isActive `shouldBe` True
+                unchangedStaff.archivedAt `shouldBe` Nothing
+
+        it "archives only the linked current-venue membership and preserves the user's other venue access" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Linked Staff Removal Venue"
+                otherVenue <- createVenueWithConfig "Preserved Other Venue"
+                admin <- createUserRecord "linked-staff-removal-admin@example.com" "staff" True
+                worker <- createUserRecord "linked-staff-removal-worker@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue admin "venue_admin"
+                currentMembership <- createVenueMembershipRecord venue worker "worker"
+                otherMembership <- createVenueMembershipRecord otherVenue worker "manager"
+                currentStaff <- createStaffRecord venue (Just worker) "Current" "Worker"
+                otherStaff <- createStaffRecord otherVenue (Just worker) "Other" "Worker"
+
+                response <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
+                    callAction (RemoveStaffAction currentStaff.id)
+
+                response `responseStatusShouldBe` status302
+                archivedMembership <- fetch currentMembership.id
+                archivedMembership.isActive `shouldBe` False
+                archivedMembership.archivedAt `shouldSatisfy` isJust
+                archivedMembership.archivedByUserId `shouldBe` Just (unpackId admin.id)
+                archivedMembership.archiveReason `shouldBe` Just "Staff removed from venue"
+                preservedMembership <- fetch otherMembership.id
+                preservedMembership.isActive `shouldBe` True
+                preservedMembership.archivedAt `shouldBe` Nothing
+                preservedStaff <- fetch otherStaff.id
+                preservedStaff.isActive `shouldBe` True
+                preservedStaff.archivedAt `shouldBe` Nothing
+
+        it "revokes linked invitations and only current-venue manager-issued setup tokens" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Staff Credential Cleanup Venue"
+                otherVenue <- createVenueWithConfig "Preserved Credential Venue"
+                admin <- createUserRecord "staff-credential-cleanup-admin@example.com" "staff" True
+                worker <- createUserRecord "staff-credential-cleanup-worker@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue admin "venue_admin"
+                _ <- createVenueMembershipRecord venue worker "worker"
+                _ <- createVenueMembershipRecord otherVenue worker "worker"
+                staff <- createStaffRecord venue (Just worker) "Credential" "Worker"
+                passkey <- createTestPasskeyRecord worker "Preserved global passkey"
+                invitation <- createVenueInvitationRecord venue (Just admin) worker.email "worker"
+                    >>= updateRecord . set #staffId (Just staff.id)
+                (currentVenueRecoveryToken, _) <- issuePasskeySetupToken StaffPasskeyRecovery worker (Just admin.id) (Just venue.id)
+                (currentVenueSetupToken, _) <- issuePasskeySetupToken StaffNewDevicePasskeySetup worker (Just admin.id) (Just venue.id)
+                (unattributedToken, _) <- issuePasskeySetupToken StaffPasskeyRecovery worker Nothing (Just venue.id)
+                (selfIssuedToken, _) <- issuePasskeySetupToken SelfNewDevicePasskeySetup worker (Just worker.id) (Just venue.id)
+                (otherVenueToken, _) <- issuePasskeySetupToken StaffNewDevicePasskeySetup worker (Just admin.id) (Just otherVenue.id)
+
+                response <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
+                    callAction (RemoveStaffAction staff.id)
+
+                response `responseStatusShouldBe` status302
+                revokedInvitation <- fetch invitation.id
+                inputValue revokedInvitation.status `shouldBe` ("revoked" :: Text)
+                invalidatedRecoveryToken <- fetch currentVenueRecoveryToken.id
+                invalidatedRecoveryToken.consumedAt `shouldSatisfy` isJust
+                invalidatedSetupToken <- fetch currentVenueSetupToken.id
+                invalidatedSetupToken.consumedAt `shouldSatisfy` isJust
+                preservedUnattributedToken <- fetch unattributedToken.id
+                preservedUnattributedToken.consumedAt `shouldBe` Nothing
+                preservedSelfToken <- fetch selfIssuedToken.id
+                preservedSelfToken.consumedAt `shouldBe` Nothing
+                preservedOtherVenueToken <- fetch otherVenueToken.id
+                preservedOtherVenueToken.consumedAt `shouldBe` Nothing
+                preservedPasskey <- fetch passkey.id
+                preservedPasskey.userId `shouldBe` unpackId worker.id
+
+        it "deletes current and future roster assignments across groups while retaining past history" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Staff Roster Cleanup Venue"
+                admin <- createUserRecord "staff-roster-cleanup-admin@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue admin "venue_admin"
+                staff <- createStaffRecord venue Nothing "Roster" "Removal"
+                defaultGroup <- query @RosterGroup |> filterWhere (#venueId, unpackId venue.id) |> filterWhere (#isDefault, True) |> fetchOne
+                secondGroup <- createVenueRosterGroupWithDefaults venue "Second" 1 True
+                defaultSlotName <- createSlotNameRecordForRosterGroup venue defaultGroup "Default lane"
+                secondSlotName <- createSlotNameRecordForRosterGroup venue secondGroup "Second lane"
+                venueConfig <- query @VenueConfig |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
+                now <- getCurrentTime
+                operationalToday <- operationalDayForUtcTime venueConfig now
+                let currentWeekOffset = venueWeekOffsetForDay venueConfig operationalToday
+                pastWeek <- createRosterWeekRecordForRosterGroup venue defaultGroup (currentWeekOffset - 1) True
+                currentWeek <- createRosterWeekRecordForRosterGroup venue defaultGroup currentWeekOffset True
+                futureWeek <- createRosterWeekRecordForRosterGroup venue secondGroup (currentWeekOffset + 1) True
+                pastDay <- createRosterDayRecord pastWeek 0
+                currentDay <- createRosterDayRecord currentWeek (fromInteger (diffDays operationalToday (venueWeekStartDate venueConfig currentWeekOffset)))
+                futureDay <- createRosterDayRecord futureWeek 0
+                pastSlot <- createRosterSlotRecord pastDay defaultSlotName (Just staff) 0
+                currentSlot <- createRosterSlotRecord currentDay defaultSlotName (Just staff) 0
+                futureSlot <- createRosterSlotRecord futureDay secondSlotName (Just staff) 0
+
+                response <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
+                    callAction (RemoveStaffAction staff.id)
+
+                response `responseStatusShouldBe` status302
+                retainedPastSlot <- fetch pastSlot.id
+                retainedPastSlot.deletedAt `shouldBe` Nothing
+                removedCurrentSlot <- fetch currentSlot.id
+                removedCurrentSlot.deletedAt `shouldSatisfy` isJust
+                removedCurrentSlot.deletedByUserId `shouldBe` Just (unpackId admin.id)
+                removedCurrentSlot.deleteReason `shouldBe` Just "Staff removed from venue"
+                removedFutureSlot <- fetch futureSlot.id
+                removedFutureSlot.deletedAt `shouldSatisfy` isJust
+
+        it "serializes removal against current roster assignment creation" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Staff Roster Creation Race Venue"
+                admin <- createUserRecord "staff-roster-creation-race-admin@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue admin "venue_admin"
+                staff <- createStaffRecord venue Nothing "Roster" "Race"
+                rosterGroup <- query @RosterGroup |> filterWhere (#venueId, unpackId venue.id) |> filterWhere (#isDefault, True) |> fetchOne
+                slotName <- createSlotNameRecordForRosterGroup venue rosterGroup "Race lane"
+                payLevel <- createPayLevelRecord venue "Race level"
+                shiftType <- createShiftTypeRecord venue payLevel "Race shift"
+                venueConfig <- query @VenueConfig |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
+                now <- getCurrentTime
+                operationalToday <- operationalDayForUtcTime venueConfig now
+                let currentWeekOffset = venueWeekOffsetForDay venueConfig operationalToday
+                rosterWeek <- createRosterWeekRecordForRosterGroup venue rosterGroup currentWeekOffset True
+                rosterDay <- createRosterDayRecord rosterWeek (fromInteger (diffDays operationalToday (venueWeekStartDate venueConfig currentWeekOffset)))
+                slotDefinition <- ensureRosterWeekSlotDefinitionForSlotName rosterDay slotName
+                ensureTestUserHasPasskey admin
+
+                results <- runConcurrentStaffActionList
+                    [ withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
+                        callAction (RemoveStaffAction staff.id)
+                    , withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
+                        withRequestHeaders [("HX-Request", "true")] do
+                            callActionWithParams
+                                (CreateRosterSlotAction rosterDay.id slotDefinition.id 0)
+                                [ ("staffId", cs (tshow staff.id))
+                                , ("startTime", "09:00")
+                                , ("endTime", "17:00")
+                                , ("shiftTypeId", cs (tshow shiftType.id))
+                                ]
+                    ]
+
+                lefts results `shouldSatisfy` null
+                case results of
+                    [Right removalResponse, Right createResponse] -> do
+                        removalResponse `responseStatusShouldBe` status302
+                        createResponse `responseStatusShouldBe` status200
+                    _ -> expectationFailure "Expected removal and roster creation responses"
+                removedStaff <- fetch staff.id
+                removedStaff.archivedAt `shouldSatisfy` isJust
+                query @RosterSlot
+                    |> filterWhere (#staffId, Just (unpackId staff.id))
+                    |> filterWhere (#deletedAt, Nothing)
+                    |> fetchCount
+                    >>= (`shouldBe` 0)
+
+        it "serializes removal against an in-flight staff profile update" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Staff Profile Removal Race Venue"
+                admin <- createUserRecord "staff-profile-removal-race-admin@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue admin "venue_admin"
+                staff <- createStaffRecord venue Nothing "Profile" "Race"
+                let preferenceKey = encodeShiftPreferenceKey 1
+                ensureTestUserHasPasskey admin
+
+                results <- runConcurrentStaffActionList
+                    [ withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
+                        callAction (RemoveStaffAction staff.id)
+                    , withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
+                        withRequestHeaders [("HX-Request", "true")] do
+                            callActionWithParams
+                                (UpdateStaffAction staff.id)
+                                [ ("section", "preferences")
+                                , ("weekOffset", "0")
+                                , ("shiftPreferenceKeys", cs preferenceKey)
+                                , (cs (shiftPreferenceStartHourParamName preferenceKey), "9")
+                                , (cs (shiftPreferenceEndHourParamName preferenceKey), "17")
+                                ]
+                    ]
+
+                lefts results `shouldSatisfy` null
+                case results of
+                    [Right removalResponse, Right profileResponse] -> do
+                        removalResponse `responseStatusShouldBe` status302
+                        Network.Wai.responseStatus profileResponse `shouldSatisfy` (`elem` [status200, status403])
+                        when (Network.Wai.responseStatus profileResponse == status200) do
+                            profileResponseBody :: Text <- cs <$> IHP.Test.Mocking.responseBody profileResponse
+                            profileResponseBody `shouldSatisfy` \body ->
+                                "Shift preferences updated" `Text.isInfixOf` body
+                                    || "staff-profile-preferences" `Text.isInfixOf` body
+                    _ -> expectationFailure "Expected removal and profile update responses"
+                archivedStaff <- fetch staff.id
+                archivedStaff.archivedAt `shouldSatisfy` isJust
+                let archivedAt = fromMaybe (error "Expected removed staff archival") archivedStaff.archivedAt
+                archivedStaff.updatedAt `shouldSatisfy` (<= archivedAt)
+                preferences <- query @StaffShiftPreference |> filterWhere (#staffId, unpackId staff.id) |> fetch
+                map (.createdAt) preferences `shouldSatisfy` all (<= archivedAt)
+
+        it "serializes removal against reassignment without resurrecting a deleted slot" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Staff Roster Reassignment Race Venue"
+                admin <- createUserRecord "staff-roster-reassignment-race-admin@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue admin "venue_admin"
+                removedStaff <- createStaffRecord venue Nothing "Removed" "Race"
+                replacementStaff <- createStaffRecord venue Nothing "Replacement" "Race"
+                rosterGroup <- query @RosterGroup |> filterWhere (#venueId, unpackId venue.id) |> filterWhere (#isDefault, True) |> fetchOne
+                slotName <- createSlotNameRecordForRosterGroup venue rosterGroup "Reassignment lane"
+                payLevel <- createPayLevelRecord venue "Reassignment level"
+                shiftType <- createShiftTypeRecord venue payLevel "Reassignment shift"
+                venueConfig <- query @VenueConfig |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
+                now <- getCurrentTime
+                operationalToday <- operationalDayForUtcTime venueConfig now
+                let currentWeekOffset = venueWeekOffsetForDay venueConfig operationalToday
+                rosterWeek <- createRosterWeekRecordForRosterGroup venue rosterGroup currentWeekOffset True
+                rosterDay <- createRosterDayRecord rosterWeek (fromInteger (diffDays operationalToday (venueWeekStartDate venueConfig currentWeekOffset)))
+                rosterSlot <- createRosterSlotRecord rosterDay slotName (Just removedStaff) 0
+                    >>= updateRecord
+                        . setTestStartTime (Just (TimeOfDay 9 0 0))
+                        . setTestEndTime (Just (TimeOfDay 17 0 0))
+                        . set #shiftTypeId (Just (unpackId shiftType.id))
+                ensureTestUserHasPasskey admin
+
+                results <- runConcurrentStaffActionList
+                    [ withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
+                        callAction (RemoveStaffAction removedStaff.id)
+                    , withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
+                        withRequestHeaders [("HX-Request", "true")] do
+                            callActionWithParams
+                                (UpdateRosterSlotAction rosterSlot.id)
+                                [ ("staffId", cs (tshow replacementStaff.id))
+                                , ("startTime", "09:00")
+                                , ("endTime", "17:00")
+                                , ("shiftTypeId", cs (tshow shiftType.id))
+                                ]
+                    ]
+
+                lefts results `shouldSatisfy` null
+                case results of
+                    [Right removalResponse, Right reassignmentResponse] -> do
+                        removalResponse `responseStatusShouldBe` status302
+                        Network.Wai.responseStatus reassignmentResponse `shouldSatisfy` (`elem` [status200, status403])
+                    _ -> expectationFailure "Expected removal and roster reassignment responses"
+                archivedStaff <- fetch removedStaff.id
+                archivedStaff.archivedAt `shouldSatisfy` isJust
+                let archivedAt = fromMaybe (error "Expected removed staff archival") archivedStaff.archivedAt
+                finalSlot <- fetch rosterSlot.id
+                when (isNothing finalSlot.deletedAt) do
+                    finalSlot.staffId `shouldBe` Just (unpackId replacementStaff.id)
+                    finalSlot.updatedAt `shouldSatisfy` (<= archivedAt)
+
+        it "serializes removal against moving a current assignment" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Staff Roster Move Race Venue"
+                admin <- createUserRecord "staff-roster-move-race-admin@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue admin "venue_admin"
+                staff <- createStaffRecord venue Nothing "Move" "Race"
+                rosterGroup <- query @RosterGroup |> filterWhere (#venueId, unpackId venue.id) |> filterWhere (#isDefault, True) |> fetchOne
+                slotName <- createSlotNameRecordForRosterGroup venue rosterGroup "Move race lane"
+                venueConfig <- query @VenueConfig |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
+                now <- getCurrentTime
+                operationalToday <- operationalDayForUtcTime venueConfig now
+                let currentWeekOffset = venueWeekOffsetForDay venueConfig operationalToday
+                rosterWeek <- createRosterWeekRecordForRosterGroup venue rosterGroup currentWeekOffset True
+                rosterDay <- createRosterDayRecord rosterWeek (fromInteger (diffDays operationalToday (venueWeekStartDate venueConfig currentWeekOffset)))
+                rosterSlot <- createCompleteRosterSlotRecord rosterDay slotName staff 0
+                let sourceToken = "existing:" <> tshow rosterSlot.id
+                let targetToken = "new:" <> tshow rosterDay.id <> ":" <> tshow rosterSlot.rosterWeekSlotDefinitionId <> ":1"
+                ensureTestUserHasPasskey admin
+
+                results <- runConcurrentStaffActionList
+                    [ withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
+                        callAction (RemoveStaffAction staff.id)
+                    , withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
+                        withRequestHeaders [("HX-Request", "true")] do
+                            callActionWithParams MoveRosterShiftToSlotAction { weekOffset = currentWeekOffset }
+                                [ ("rosterGroupId", cs (tshow rosterGroup.id))
+                                , ("sourceItemKey", cs sourceToken)
+                                , ("targetDropzoneKey", cs targetToken)
+                                ]
+                    ]
+
+                lefts results `shouldSatisfy` null
+                case results of
+                    [Right removalResponse, Right moveResponse] -> do
+                        removalResponse `responseStatusShouldBe` status302
+                        moveResponse `responseStatusShouldBe` status200
+                    _ -> expectationFailure "Expected removal and roster move responses"
+                finalSlot <- fetch rosterSlot.id
+                finalSlot.deletedAt `shouldSatisfy` isJust
+
+        it "serializes roster slot updates against deletion without resurrection" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Roster Slot Delete Update Race Venue"
+                manager <- createUserRecord "roster-slot-delete-update-race-manager@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue manager "manager"
+                staff <- createStaffRecord venue Nothing "Delete Update" "Race"
+                slotName <- createSlotNameRecord venue "Delete update race lane"
+                payLevel <- createPayLevelRecord venue "Delete update race level"
+                shiftType <- createShiftTypeRecord venue payLevel "Delete update race shift"
+                rosterWeek <- createRosterWeekRecord venue 0 False
+                rosterDay <- createRosterDayRecord rosterWeek 0
+                rosterSlot <- createRosterSlotRecord rosterDay slotName (Just staff) 0
+                    >>= updateRecord
+                        . setTestStartTime (Just (TimeOfDay 9 0 0))
+                        . setTestEndTime (Just (TimeOfDay 17 0 0))
+                        . set #shiftTypeId (Just (unpackId shiftType.id))
+
+                results <- runConcurrentStaffActionList
+                    [ withUserAndCurrentVenue manager venue.id do
+                        withRequestHeaders [("HX-Request", "true")] do
+                            callActionWithParams
+                                (UpdateRosterSlotAction rosterSlot.id)
+                                [ ("staffId", cs (tshow staff.id))
+                                , ("startTime", "10:00")
+                                , ("endTime", "18:00")
+                                , ("shiftTypeId", cs (tshow shiftType.id))
+                                ]
+                    , withUserAndCurrentVenue manager venue.id do
+                        withRequestHeaders [("HX-Request", "true")] do
+                            callAction (DeleteRosterSlotAction rosterSlot.id)
+                    ]
+
+                lefts results `shouldSatisfy` null
+                finalSlot <- fetch rosterSlot.id
+                finalSlot.deletedAt `shouldSatisfy` isJust
+
+        it "serializes removal against roster week replacement without recreating current or future assignments" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Staff Roster Copy Race Venue"
+                admin <- createUserRecord "staff-roster-copy-race-admin@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue admin "venue_admin"
+                staff <- createStaffRecord venue Nothing "Copy" "Race"
+                rosterGroup <- query @RosterGroup |> filterWhere (#venueId, unpackId venue.id) |> filterWhere (#isDefault, True) |> fetchOne
+                slotName <- createSlotNameRecordForRosterGroup venue rosterGroup "Copy race lane"
+                payLevel <- createPayLevelRecord venue "Copy race level"
+                staff <- updateRecord (staff |> set #payAssignmentMode AwardRate |> set #defaultAwardLevelId (Just payLevel.id))
+                shiftType <- createShiftTypeRecord venue payLevel "Copy race shift"
+                venueConfig <- query @VenueConfig |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
+                now <- getCurrentTime
+                operationalToday <- operationalDayForUtcTime venueConfig now
+                let currentWeekOffset = venueWeekOffsetForDay venueConfig operationalToday
+                sourceWeek <- createRosterWeekRecordForRosterGroup venue rosterGroup currentWeekOffset True
+                let operationalDayOffset = fromInteger (diffDays operationalToday (venueWeekStartDate venueConfig currentWeekOffset))
+                sourceDay <- createRosterDayRecord sourceWeek operationalDayOffset
+                targetWeek <- createRosterWeekRecordForRosterGroup venue rosterGroup (currentWeekOffset + 1) False
+                _ <- createRosterDayRecord targetWeek operationalDayOffset
+                _ <- createRosterSlotRecord sourceDay slotName (Just staff) 0
+                    >>= updateRecord
+                        . setTestStartTime (Just (TimeOfDay 9 0 0))
+                        . setTestEndTime (Just (TimeOfDay 17 0 0))
+                        . set #shiftTypeId (Just (unpackId shiftType.id))
+                ensureTestUserHasPasskey admin
+
+                results <- runConcurrentStaffActionList
+                    [ withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
+                        callAction (RemoveStaffAction staff.id)
+                    , withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
+                        withRequestHeaders [("HX-Request", "true")] do
+                            callAction (CopyRosterWeekAction currentWeekOffset (currentWeekOffset + 1))
+                    ]
+
+                lefts results `shouldSatisfy` null
+                case results of
+                    [Right removalResponse, Right copyResponse] -> do
+                        removalResponse `responseStatusShouldBe` status302
+                        copyResponse `responseStatusShouldBe` status200
+                        copyResponseBody :: Text <- cs <$> IHP.Test.Mocking.responseBody copyResponse
+                        copyResponseBody `shouldSatisfy` \body ->
+                            "Roster week copied from the previous week." `Text.isInfixOf` body
+                                || "no longer available for rostering" `Text.isInfixOf` body
+                                || "Resolve pay configuration" `Text.isInfixOf` body
+                    _ -> expectationFailure "Expected removal and roster copy responses"
+                removedStaff <- fetch staff.id
+                removedStaff.archivedAt `shouldSatisfy` isJust
+                activeRosterSlots <- query @RosterSlot
+                    |> filterWhere (#staffId, Just (unpackId staff.id))
+                    |> filterWhere (#deletedAt, Nothing)
+                    |> fetch
+                activeRosterSlots `shouldBe` []
+
+        it "serializes removal against new roster week copy without recreating current or future assignments" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Staff New Roster Copy Race Venue"
+                admin <- createUserRecord "staff-new-roster-copy-race-admin@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue admin "venue_admin"
+                staff <- createStaffRecord venue Nothing "New Copy" "Race"
+                rosterGroup <- query @RosterGroup |> filterWhere (#venueId, unpackId venue.id) |> filterWhere (#isDefault, True) |> fetchOne
+                slotName <- createSlotNameRecordForRosterGroup venue rosterGroup "New copy race lane"
+                payLevel <- createPayLevelRecord venue "New copy race level"
+                staff <- updateRecord (staff |> set #payAssignmentMode AwardRate |> set #defaultAwardLevelId (Just payLevel.id))
+                shiftType <- createShiftTypeRecord venue payLevel "New copy race shift"
+                venueConfig <- query @VenueConfig |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
+                now <- getCurrentTime
+                operationalToday <- operationalDayForUtcTime venueConfig now
+                let currentWeekOffset = venueWeekOffsetForDay venueConfig operationalToday
+                sourceWeek <- createRosterWeekRecordForRosterGroup venue rosterGroup currentWeekOffset True
+                sourceDay <- createRosterDayRecord sourceWeek (fromInteger (diffDays operationalToday (venueWeekStartDate venueConfig currentWeekOffset)))
+                _ <- createRosterSlotRecord sourceDay slotName (Just staff) 0
+                    >>= updateRecord
+                        . setTestStartTime (Just (TimeOfDay 9 0 0))
+                        . setTestEndTime (Just (TimeOfDay 17 0 0))
+                        . set #shiftTypeId (Just (unpackId shiftType.id))
+                ensureTestUserHasPasskey admin
+
+                results <- runConcurrentStaffActionList
+                    [ withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
+                        callAction (RemoveStaffAction staff.id)
+                    , withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
+                        withRequestHeaders [("HX-Request", "true")] do
+                            callAction (CopyRosterWeekAction currentWeekOffset (currentWeekOffset + 1))
+                    ]
+
+                lefts results `shouldSatisfy` null
+                case results of
+                    [Right removalResponse, Right copyResponse] -> do
+                        removalResponse `responseStatusShouldBe` status302
+                        copyResponse `responseStatusShouldBe` status200
+                        copyResponseBody :: Text <- cs <$> IHP.Test.Mocking.responseBody copyResponse
+                        copyResponseBody `shouldSatisfy` \body ->
+                            "Roster week copied from the previous week." `Text.isInfixOf` body
+                                || "no longer available for rostering" `Text.isInfixOf` body
+                                || "Resolve pay configuration" `Text.isInfixOf` body
+                    _ -> expectationFailure "Expected removal and new roster copy responses"
+                removedStaff <- fetch staff.id
+                removedStaff.archivedAt `shouldSatisfy` isJust
+                activeRosterSlots <- query @RosterSlot
+                    |> filterWhere (#staffId, Just (unpackId staff.id))
+                    |> filterWhere (#deletedAt, Nothing)
+                    |> fetch
+                activeRosterSlots `shouldBe` []
+
+        it "denies pending unavailability through retained lifecycle events and preserves reviewed history" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Staff Leave Cleanup Venue"
+                admin <- createUserRecord "staff-leave-cleanup-admin@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue admin "venue_admin"
+                staff <- createStaffRecord venue Nothing "Leave" "Removal"
+                today <- utctDay <$> getCurrentTime
+                pendingRequest <- createLeaveRequestRecord venue staff today (addDays 1 today) "pending"
+                approvedRequest <- createLeaveRequestRecord venue staff (addDays 2 today) (addDays 3 today) "approved"
+                deniedRequest <- createLeaveRequestRecord venue staff (addDays 4 today) (addDays 5 today) "denied"
+
+                response <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
+                    callAction (RemoveStaffAction staff.id)
+
+                response `responseStatusShouldBe` status302
+                deniedPendingRequest <- fetch pendingRequest.id
+                inputValue deniedPendingRequest.status `shouldBe` ("denied" :: Text)
+                retainedApprovedRequest <- fetch approvedRequest.id
+                inputValue retainedApprovedRequest.status `shouldBe` ("approved" :: Text)
+                retainedDeniedRequest <- fetch deniedRequest.id
+                inputValue retainedDeniedRequest.status `shouldBe` ("denied" :: Text)
+                leaveEvent <- query @LeaveRequestEvent |> filterWhere (#leaveRequestId, unpackId pendingRequest.id) |> fetchOne
+                inputValue leaveEvent.eventType `shouldBe` ("denied" :: Text)
+                fmap inputValue leaveEvent.previousStatus `shouldBe` Just "pending"
+                fmap inputValue leaveEvent.newStatus `shouldBe` Just "denied"
+                leaveEvent.actorUserId `shouldBe` unpackId admin.id
+
+        it "serializes removal against pending unavailability submission" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Staff Leave Submission Race Venue"
+                admin <- createUserRecord "staff-leave-submission-race-admin@example.com" "staff" True
+                worker <- createUserRecord "staff-leave-submission-race-worker@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue admin "venue_admin"
+                _ <- createVenueMembershipRecord venue worker "worker"
+                staff <- createStaffRecord venue (Just worker) "Leave Submit" "Race"
+                today <- utctDay <$> getCurrentTime
+                ensureTestUserHasPasskey admin
+
+                results <- runConcurrentStaffActionList
+                    [ withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
+                        callAction (RemoveStaffAction staff.id)
+                    , withUserAndCurrentVenue worker venue.id do
+                        callActionWithParams CreateLeaveRequestAction
+                            [ ("startDate", cs (tshow (addDays 1 today)))
+                            , ("endDate", cs (tshow (addDays 2 today)))
+                            , ("notes", "Removal race")
+                            ]
+                    ]
+
+                lefts results `shouldSatisfy` null
+                leaveRequests <- query @LeaveRequest
+                    |> filterWhere (#staffId, unpackId staff.id)
+                    |> filterWhere (#deletedAt, Nothing)
+                    |> fetch
+                map (inputValue . (.status)) leaveRequests `shouldNotContain` (["pending"] :: [Text])
+
+        it "serializes removal against pending unavailability approval" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Staff Leave Review Race Venue"
+                admin <- createUserRecord "staff-leave-review-race-admin@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue admin "venue_admin"
+                staff <- createStaffRecord venue Nothing "Leave Review" "Race"
+                today <- utctDay <$> getCurrentTime
+                leaveRequest <- createLeaveRequestRecord venue staff (addDays 1 today) (addDays 2 today) "pending"
+                ensureTestUserHasPasskey admin
+
+                results <- runConcurrentStaffActionList
+                    [ withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
+                        callAction (RemoveStaffAction staff.id)
+                    , withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
+                        callAction (ApproveLeaveRequestAction leaveRequest.id)
+                    ]
+
+                lefts results `shouldSatisfy` null
+                archivedStaff <- fetch staff.id
+                archivedStaff.archivedAt `shouldSatisfy` isJust
+                let archivedAt = fromMaybe (error "Expected removed staff archival") archivedStaff.archivedAt
+                finalLeaveRequest <- fetch leaveRequest.id
+                inputValue finalLeaveRequest.status `shouldSatisfy` (`elem` (["approved", "denied"] :: [Text]))
+                when (inputValue finalLeaveRequest.status == ("approved" :: Text)) do
+                    finalLeaveRequest.updatedAt `shouldSatisfy` (<= archivedAt)
+
+        it "rejects self-removal by a venue admin" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Self Removal Rejection Venue"
+                admin <- createUserRecord "staff-self-removal-admin@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue admin "venue_admin"
+                staff <- createStaffRecord venue (Just admin) "Self" "Admin"
+
+                editResponse <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
+                    callAction (EditStaffAction staff.id)
+                editResponse `responseBodyShouldNotContain` "data-staff-removal-panel"
+
+                response <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
+                    callAction (RemoveStaffAction staff.id)
+
+                response `responseStatusShouldBe` status302
+                unchangedStaff <- fetch staff.id
+                unchangedStaff.isActive `shouldBe` True
+                unchangedStaff.archivedAt `shouldBe` Nothing
+
+        it "preserves materialized timesheets and sealed payroll history" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Staff Payroll Preservation Venue"
+                admin <- createUserRecord "staff-payroll-preservation-admin@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue admin "venue_admin"
+                staff <- createStaffRecord venue Nothing "Payroll" "History"
+                today <- utctDay <$> getCurrentTime
+                approvedEntry <- createApprovedTimesheetEntryRecord venue staff admin today
+                let calculationId = fromMaybe (error "Expected sealed pay calculation") approvedEntry.activePayCalculationId
+
+                response <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
+                    callAction (RemoveStaffAction staff.id)
+
+                response `responseStatusShouldBe` status302
+                retainedEntry <- fetch approvedEntry.id
+                retainedEntry.isApproved `shouldBe` True
+                retainedEntry.deletedAt `shouldBe` Nothing
+                retainedEntry.activePayCalculationId `shouldBe` Just calculationId
+                retainedCalculation <- fetch calculationId
+                retainedCalculation.sealedAt `shouldSatisfy` isJust
+
+        it "removes pay-invalid staff but rejects cross-venue staff ids" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Pay Invalid Removal Venue"
+                otherVenue <- createVenueWithConfig "Cross Venue Removal Target"
+                admin <- createUserRecord "pay-invalid-removal-admin@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue admin "venue_admin"
+                payInvalidStaff <- createStaffRecord venue Nothing "Pay" "Invalid"
+                    >>= updateRecord
+                        . set #payAssignmentMode LegacyUnresolved
+                        . set #defaultAwardLevelId Nothing
+                        . set #importedXeroPayItemId Nothing
+                otherStaff <- createStaffRecord otherVenue Nothing "Other" "Venue"
+
+                removalResponse <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
+                    callAction (RemoveStaffAction payInvalidStaff.id)
+                removalResponse `responseStatusShouldBe` status302
+                removedPayInvalidStaff <- fetch payInvalidStaff.id
+                removedPayInvalidStaff.archivedAt `shouldSatisfy` isJust
+
+                tamperedResponse <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
+                    callAction (RemoveStaffAction otherStaff.id)
+                tamperedResponse `responseStatusShouldBe` status403
+                preservedOtherStaff <- fetch otherStaff.id
+                preservedOtherStaff.isActive `shouldBe` True
+                preservedOtherStaff.archivedAt `shouldBe` Nothing
 
         it "explains why venue roles are unavailable for unlinked staff" $ withContext do
             withCleanDb do

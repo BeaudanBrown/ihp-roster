@@ -21,7 +21,7 @@ venueInvitationEffectiveExpiresAt invitation =
 venueInvitationIsActive :: UTCTime -> VenueInvitation -> Bool
 venueInvitationIsActive now invitation =
     invitation.status == unsafeEnumFromText @InvitationStatusEnum "pending"
-        && invitation.acceptedAt == Nothing
+        && isNothing invitation.acceptedAt
         && venueInvitationEffectiveExpiresAt invitation > now
 
 venueInvitationUrl :: Text -> VenueInvitation -> Text

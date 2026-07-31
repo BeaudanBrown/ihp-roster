@@ -39,7 +39,6 @@ data StaffProfileDetailsSurfaceValues = StaffProfileDetailsSurfaceValues
     , profileDetailsVenueRole             :: !(Maybe Text)
     , profileDetailsEmploymentBasis       :: !(Maybe Text)
     , profileDetailsPayRateSelection      :: !(Maybe Text)
-    , profileDetailsIsActive              :: !(Maybe Bool)
     , profileDetailsRosterGroupIds        :: !(Maybe [UUID.UUID])
     }
 
@@ -57,7 +56,6 @@ staffProfileDetailsSurfaceValues section staff maybeManagement =
         , profileDetailsVenueRole = maybeManagement >>= (.managementVenueMembership) >>= parseVenueRole >>= (Just . venueRoleToText)
         , profileDetailsEmploymentBasis = inputValue . (.employmentBasis) . (.managementStaff) <$> maybeManagement
         , profileDetailsPayRateSelection = staffPayRateSelectionValue . (.managementStaff) <$> maybeManagement
-        , profileDetailsIsActive = (.isActive) . (.managementStaff) <$> maybeManagement
         , profileDetailsRosterGroupIds = fmap (map unpackId . (.managementSelectedRosterGroupIds)) maybeManagement
         }
 
@@ -337,14 +335,6 @@ renderStaffManagementFields fields StaffManagementFieldData { managementStaff = 
     {renderRosterGroupHiddenInput maybeRosterGroupId}
     {when currentUserIsAdmin (renderStaffRoleField fields maybeMembership)}
     {when currentUserIsAdmin (renderStaffPayFields fields staff awardLevels awardLevelBaseRates importedPayItems)}
-    <div class="mt-3">
-        <label for="isActive" class="form-label">Status</label>
-        <select name={surfaceFieldNameFrom @Surface.IsActiveField fields} id="isActive" class={selectClass staff (surfaceFieldNameFrom @Surface.IsActiveField fields)}>
-            <option value="true" selected={staff.isActive}>Active</option>
-            <option value="false" selected={not staff.isActive}>Inactive</option>
-        </select>
-        {renderStaffFieldError staff (surfaceFieldNameFrom @Surface.IsActiveField fields)}
-    </div>
     <div class="mt-3">
         <label class="form-label d-block">Roster Groups</label>
         <div class="row g-2">

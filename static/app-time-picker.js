@@ -376,10 +376,16 @@
   }
   function hideTimePickerModal(modal) {
     const bootstrapModal = getBootstrapModal(modal.modal);
-    if (bootstrapModal !== null) bootstrapModal.hide();
-    window.setTimeout(() => {
-      if (modal.modal.classList.contains("show")) forceHideModal(modal);
-    }, 150);
+    if (bootstrapModal === null) {
+      forceHideModal(modal);
+      modal.modal.dispatchEvent(new CustomEvent("hidden.bs.modal", { bubbles: true }));
+      return;
+    }
+    const hideAfterShown = () => getBootstrapModal(modal.modal)?.hide();
+    const removePendingHide = () => modal.modal.removeEventListener("shown.bs.modal", hideAfterShown);
+    modal.modal.addEventListener("shown.bs.modal", hideAfterShown, { once: true });
+    modal.modal.addEventListener("hidden.bs.modal", removePendingHide, { once: true });
+    bootstrapModal.hide();
   }
   function stepFieldValue(control, direction, wrap) {
     if (control.input.disabled) return;

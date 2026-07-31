@@ -218,8 +218,15 @@ test.describe('Live fragment multi-view coverage', () => {
         await expect(viewerPage.locator('#roster-content')).toBeVisible();
         await expect(viewerTargetStaffCell).not.toHaveAttribute('title', /approved unavailable period/i);
 
+        const approvalResponsePromise = actorPage.waitForResponse((response) =>
+            response.request().method() === 'POST' && response.url().includes('/ApproveLeaveRequest'),
+        );
         await leaveRow.getByRole('button', { name: 'Approve' }).click();
+        const approvalResponse = await approvalResponsePromise;
+        expect(approvalResponse.status(), await approvalResponse.text()).toBe(200);
+        await approvalResponse.finished();
 
+        await expect(leaveRow).toHaveCount(1, { timeout: E2E_TIMEOUT.liveUpdate });
         await expect(leaveRow).toContainText('Approved');
         await viewerPage.reload();
         await expect(viewerPage.locator('#roster-content')).toBeVisible({ timeout: E2E_TIMEOUT.navigation });

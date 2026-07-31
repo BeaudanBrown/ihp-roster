@@ -1,4 +1,4 @@
-import { test, expect, type Page } from '@playwright/test';
+import { test, expect, type BrowserContext, type Page } from '@playwright/test';
 import {
     dialogMountDomAttr,
     dialogOverlayMountDomId,
@@ -8,11 +8,35 @@ import {
     rosterStaffPanelSortRowDomAttr,
     toastOverlayMountDomId,
 } from '../frontend/ts/generated/contracts';
-import { openRoster, runSql, uniqueE2EValue } from './test-helpers';
+import { gotoWhenReady, openRoster, runSql, uniqueE2EValue } from './test-helpers';
+import { E2E_TIMEOUT } from './timeouts';
 
 async function loginAndOpenRoster(page: Page) {
     await openRoster(page, { email: 'e2e-test@example.com' });
     await expect(page.locator('.roster-staff-panel')).toBeVisible();
+}
+
+type LiveSubscriptionWindow = Window & { __staffRemovalSubscriptionKeys?: string[] };
+
+async function installLiveSubscriptionObserver(page: Page) {
+    await page.addInitScript(() => {
+        const state = window as LiveSubscriptionWindow;
+        state.__staffRemovalSubscriptionKeys = [];
+        document.addEventListener('app:live-update-debug', (event) => {
+            const detail = (event as CustomEvent).detail;
+            if (detail?.name !== 'subscription_added' || typeof detail.scopeKey !== 'string') return;
+            state.__staffRemovalSubscriptionKeys?.push(detail.scopeKey);
+        });
+    });
+}
+
+async function waitForLiveSubscription(page: Page, scopePrefix: 'roster:' | 'timesheets:') {
+    await expect.poll(
+        () => page.evaluate((prefix) =>
+            (window as LiveSubscriptionWindow).__staffRemovalSubscriptionKeys?.some((scopeKey) => scopeKey.startsWith(prefix)) ?? false,
+        scopePrefix),
+        { timeout: E2E_TIMEOUT.liveUpdate },
+    ).toBe(true);
 }
 
 test.describe('Roster Staff Modal', () => {
@@ -247,5 +271,122 @@ test.describe('Roster Staff Modal', () => {
         await expect(page.locator(`#${toastOverlayMountDomId}`)).toContainText('Staff member updated');
         await expect(assignedEntry).toContainText('Alphonso');
         await expect(rosterGrid).toContainText('Alphonso');
+    });
+
+    test('removing staff refreshes actor and passive roster views', async ({ browser }) => {
+        test.setTimeout(E2E_TIMEOUT.slowTest);
+        const userId = globalThis.crypto.randomUUID();
+        const membershipId = globalThis.crypto.randomUUID();
+        const staffId = globalThis.crypto.randomUUID();
+        const staffRosterGroupId = globalThis.crypto.randomUUID();
+        const rosterDayId = 'a1000000-0000-0000-0000-000000000994';
+        const rosterSlotId = globalThis.crypto.randomUUID();
+        const userEmail = `e2e-staff-removal-${userId}@example.com`;
+        const contexts: BrowserContext[] = [];
+        try {
+            runSql(`
+            CREATE TEMP TABLE e2e_staff_removal_operational_day AS
+            SELECT CASE
+                WHEN (CURRENT_TIMESTAMP AT TIME ZONE timezone)::time < TIME '06:00'
+                    THEN (CURRENT_TIMESTAMP AT TIME ZONE timezone)::date - 1
+                ELSE (CURRENT_TIMESTAMP AT TIME ZONE timezone)::date
+            END AS operational_day
+            FROM venue_config
+            WHERE venue_id = 'a1000000-0000-0000-0000-000000000001';
+            INSERT INTO users (id, email, password_hash, user_role, is_profile_completed, email_verified_at)
+            SELECT '${userId}', '${userEmail}', password_hash, 'staff', TRUE, NOW()
+            FROM users WHERE email = 'e2e-worker@example.com';
+            INSERT INTO venue_memberships (id, venue_id, user_id, venue_role, is_active)
+            VALUES ('${membershipId}', 'a1000000-0000-0000-0000-000000000001', '${userId}', 'worker', TRUE);
+            INSERT INTO staff (
+                id, venue_id, user_id, first_name, last_name, phone,
+                emergency_contact_name, emergency_contact_phone,
+                ideal_shifts_per_week, employment_basis, pay_assignment_mode,
+                default_award_level_id, is_active
+            ) VALUES (
+                '${staffId}', 'a1000000-0000-0000-0000-000000000001', '${userId}', 'Remove', 'Live', '0400000991',
+                'Removal Contact', '0400000992', 0, 'permanent', 'award_rate',
+                'a1000000-0000-0000-0000-000000000111', TRUE
+            );
+            INSERT INTO staff_roster_groups (id, staff_id, roster_group_id)
+            VALUES ('${staffRosterGroupId}', '${staffId}', 'a1000000-0000-0000-0000-000000000211');
+            INSERT INTO roster_days (id, roster_week_id, day_offset, is_closed, row_count)
+            VALUES ('${rosterDayId}', 'a1000000-0000-0000-0000-000000000051', (SELECT EXTRACT(ISODOW FROM operational_day)::int - 1 FROM e2e_staff_removal_operational_day), FALSE, 1)
+            ON CONFLICT (id) DO UPDATE SET is_closed = FALSE, row_count = 1, updated_at = NOW();
+            UPDATE roster_weeks SET is_live = TRUE WHERE id = 'a1000000-0000-0000-0000-000000000051';
+            INSERT INTO roster_slots (
+                id, roster_day_id, staff_id, roster_week_slot_definition_id,
+                row_index, starts_at, ends_at, timezone, shift_type_id
+            ) VALUES (
+                '${rosterSlotId}', '${rosterDayId}', '${staffId}',
+                'a1000000-0000-0000-0000-000000000081', 0,
+                ((SELECT operational_day FROM e2e_staff_removal_operational_day) + TIME '12:00') AT TIME ZONE 'Australia/Melbourne',
+                ((SELECT operational_day FROM e2e_staff_removal_operational_day) + TIME '16:00') AT TIME ZONE 'Australia/Melbourne',
+                'Australia/Melbourne', 'a1000000-0000-0000-0000-000000000133'
+            );
+        `);
+
+        const actorContext = await browser.newContext();
+        const viewerContext = await browser.newContext();
+        const timesheetContext = await browser.newContext();
+        contexts.push(actorContext, viewerContext, timesheetContext);
+        const actorPage = await actorContext.newPage();
+        const viewerPage = await viewerContext.newPage();
+        const timesheetPage = await timesheetContext.newPage();
+        await Promise.all([
+            installLiveSubscriptionObserver(actorPage),
+            installLiveSubscriptionObserver(viewerPage),
+            installLiveSubscriptionObserver(timesheetPage),
+        ]);
+        const staffSelector = `[${rosterStaffPanelSortRowDomAttr}][${rosterStaffHighlightSourceDomAttr}="staff:${staffId}"]:visible`;
+
+            await openRoster(actorPage, { email: 'e2e-admin@example.com' });
+            await openRoster(viewerPage, { email: 'e2e-admin@example.com' });
+            await openRoster(timesheetPage, { email: 'e2e-admin@example.com' });
+            const rosterPath = '/ShowRosterWeek?weekOffset=0&rosterGroupId=a1000000-0000-0000-0000-000000000211';
+            await gotoWhenReady(actorPage, rosterPath, '#roster-week-shell');
+            await gotoWhenReady(viewerPage, rosterPath, '#roster-week-shell');
+            await gotoWhenReady(timesheetPage, '/Timesheets?weekOffset=0&showApproved=true&showAllStaff=true&showSuggestions=true', '#timesheet-week-shell');
+            await Promise.all([
+                waitForLiveSubscription(actorPage, 'roster:'),
+                waitForLiveSubscription(viewerPage, 'roster:'),
+                waitForLiveSubscription(timesheetPage, 'timesheets:'),
+            ]);
+            await expect(actorPage.locator(staffSelector)).toBeVisible();
+            await expect(viewerPage.locator(staffSelector)).toBeVisible();
+            await expect(viewerPage.locator('.roster-grid-frame')).toContainText('Remove');
+            const timesheetSuggestion = timesheetPage.locator(`.timesheet-suggestion-card[data-timesheet-suggestion-id="${rosterSlotId}"]`);
+            await expect(timesheetSuggestion).toHaveCount(1);
+
+            const modalMount = actorPage.locator(`#${dialogOverlayMountDomId}`);
+            await actorPage.locator(staffSelector).click();
+            await modalMount.getByRole('button', { name: 'Profile Details' }).click();
+            await modalMount.getByRole('link', { name: 'Remove staff member' }).click();
+
+            await expect(modalMount.getByRole('heading', { name: 'Remove staff member' })).toBeVisible();
+            await expect(modalMount).toContainText('Existing timesheets, payroll history, and past roster records are kept.');
+            await modalMount.getByRole('button', { name: 'Remove staff member' }).click();
+
+            await expect(actorPage.locator(`#${toastOverlayMountDomId}`)).toContainText('Staff member removed');
+            await expect(modalMount.locator(`[${dialogMountDomAttr}]`)).toHaveCount(0);
+            await expect(actorPage.locator(staffSelector)).toHaveCount(0, { timeout: E2E_TIMEOUT.liveUpdate });
+            await expect(viewerPage.locator(staffSelector)).toHaveCount(0, { timeout: E2E_TIMEOUT.liveUpdate });
+            await expect(viewerPage.locator('.roster-grid-frame')).not.toContainText('Remove', { timeout: E2E_TIMEOUT.liveUpdate });
+            await expect(timesheetSuggestion).toHaveCount(0, { timeout: E2E_TIMEOUT.liveUpdate });
+        } finally {
+            await Promise.allSettled(contexts.map((context) => context.close()));
+            runSql(`
+                BEGIN;
+                SET LOCAL ihp_roster.allow_hard_delete = 'on';
+                DELETE FROM roster_slots WHERE id = '${rosterSlotId}';
+                DELETE FROM roster_days WHERE id = '${rosterDayId}';
+                DELETE FROM staff_roster_groups WHERE id = '${staffRosterGroupId}';
+                DELETE FROM venue_memberships WHERE id = '${membershipId}';
+                DELETE FROM staff WHERE id = '${staffId}';
+                DELETE FROM users WHERE id = '${userId}';
+                UPDATE roster_weeks SET is_live = FALSE WHERE id = 'a1000000-0000-0000-0000-000000000051';
+                COMMIT;
+            `);
+        }
     });
 });

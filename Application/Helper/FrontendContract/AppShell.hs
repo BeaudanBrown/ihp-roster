@@ -54,6 +54,7 @@ module Application.Helper.FrontendContract.AppShell
     , OpenRosterStaffCreateDialog
     , OpenRosterStaffEditDialog
     , OpenTrialStaffInvitationDialog
+    , OpenStaffRemovalDialog
     , CreateRosterShiftOverlay
     , UpdateRosterShiftOverlay
     , DeleteRosterSlotOverlay
@@ -62,6 +63,7 @@ module Application.Helper.FrontendContract.AppShell
     , UpdateStaffProfileOverlay
     , UpdateStaffShiftPreferencesOverlay
     , CreateTrialStaffInvitationOverlay
+    , RemoveStaffOverlay
     , StartDateField
     , EndDateField
     , ReasonField
@@ -76,7 +78,6 @@ module Application.Helper.FrontendContract.AppShell
     , VenueRoleField
     , EmploymentBasisField
     , PayRateSelectionField
-    , IsActiveField
     , RosterGroupIdsField
     , RosterGroupIdField
     , ShiftPreferenceKeysField
@@ -148,6 +149,7 @@ data OpenRosterShiftDialog
 data OpenRosterStaffCreateDialog
 data OpenRosterStaffEditDialog
 data OpenTrialStaffInvitationDialog
+data OpenStaffRemovalDialog
 data CreateRosterShiftOverlay
 data UpdateRosterShiftOverlay
 data DeleteRosterSlotOverlay
@@ -156,6 +158,7 @@ data CreateTrialStaffOverlay
 data UpdateStaffProfileOverlay
 data UpdateStaffShiftPreferencesOverlay
 data CreateTrialStaffInvitationOverlay
+data RemoveStaffOverlay
 data StartDateField
 data EndDateField
 data ReasonField
@@ -170,7 +173,6 @@ data SectionField
 data VenueRoleField
 data EmploymentBasisField
 data PayRateSelectionField
-data IsActiveField
 data RosterGroupIdsField
 data RosterGroupIdField
 data ShiftPreferenceKeysField
@@ -318,6 +320,7 @@ type AppShellContract =
          , AppShellAction OpenRosterStaffCreateDialog DialogLauncherFields DialogLauncherOptions
          , AppShellAction OpenRosterStaffEditDialog DialogLauncherFields DialogLauncherOptions
          , AppShellAction OpenTrialStaffInvitationDialog DialogLauncherFields DialogLauncherOptions
+         , AppShellAction OpenStaffRemovalDialog DialogLauncherFields DialogLauncherOptions
          , AppShellAction CreateRosterShiftOverlay RosterShiftFields DialogSubmitOptions
          , AppShellAction UpdateRosterShiftOverlay RosterShiftFields DialogSubmitOptions
          , AppShellAction DeleteRosterSlotOverlay
@@ -344,6 +347,13 @@ type AppShellContract =
             '[ Field InvitationEmailField 'WireText
              ]
             DialogSubmitOptions
+         , AppShellAction RemoveStaffOverlay
+            '[]
+            '[ AppShellHtmxMethod 'AppShellPost
+             , AppShellHtmxTarget DialogOverlayMount
+             , AppShellHtmxSwap "innerHTML"
+             , AppShellHtmxPushUrl 'AppShellPushUrlFalse
+             ]
          ]
 
 type DialogLauncherFields = '[]
@@ -383,7 +393,6 @@ type StaffProfileFields =
      , Field VenueRoleField 'WireText
      , Field EmploymentBasisField 'WireText
      , Field PayRateSelectionField 'WireText
-     , Field IsActiveField 'WireText
      , Field RosterGroupIdsField 'WireText
      ]
 

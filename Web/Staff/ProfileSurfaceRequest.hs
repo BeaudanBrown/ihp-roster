@@ -28,7 +28,6 @@ data StaffProfileDetailsSubmission = StaffProfileDetailsSubmission
     , submittedVenueRole             :: !(Maybe Text)
     , submittedEmploymentBasis       :: !(Maybe Text)
     , submittedPayRateSelection      :: !(Maybe Text)
-    , submittedIsActive              :: !(Maybe Bool)
     , submittedRosterGroupIds        :: !(Maybe [UUID.UUID])
     }
 
@@ -87,6 +86,5 @@ detailsSubmission fields =
         , submittedVenueRole = surfaceFieldValue @Surface.VenueRoleField fields
         , submittedEmploymentBasis = surfaceFieldValue @Surface.EmploymentBasisField fields
         , submittedPayRateSelection = surfaceFieldValue @Surface.PayRateSelectionField fields
-        , submittedIsActive = surfaceFieldValue @Surface.IsActiveField fields
         , submittedRosterGroupIds = surfaceFieldValue @Surface.RosterGroupIdsField fields
         }

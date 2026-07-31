@@ -177,6 +177,7 @@ pageHelpTopics =
             , buttonItem HelpManagerPlus "bi-sliders" "Settings tab" "Change the roster layout" "Open Settings in the staff panel, then choose a roster layout." "btn btn-outline-secondary" (Just "bi-sliders") ""
             , buttonItem HelpManagerPlus "bi-sliders" "Settings tab" "Show warnings or wage estimates" "Open Settings in the staff panel, then use the Display controls. Wage estimates use the same calculation as draft Timesheets. Roster-only shifts are omitted; source warnings and calculation errors for Timesheet-producing shifts appear beside the week total." "btn btn-outline-secondary" (Just "bi-sliders") ""
             , buttonItem HelpManagerPlus "bi-sliders" "Settings tab" "Prepare a draft faster" "Open Settings in the staff panel for sort and copy actions." "btn btn-outline-secondary" (Just "bi-sliders") ""
+            , iconItem HelpAdminPlus "bi-person-x" "Remove staff" "Remove someone from venue operations" "Open a non-owner staff profile and use Remove staff member. Bepis keeps past rosters, Timesheets, and payroll history, while removing current/future assignments and pending unavailability. You cannot remove yourself or a venue owner."
             ]
         , section HelpStaffOnly "Staff"
             [ iconItem HelpStaffOnly "bi-chevron-left" "Week controls" "Check your roster" "Use the arrow controls to find the week you need, then review your listed shifts."

@@ -7,6 +7,8 @@ import Application.Helper.Controller (VenueRole (VenueOwnerRole),
                                       hasRole)
 import Application.Helper.FrontendContract.AppShell (CreateTrialStaffInvitationOverlay,
                                                      CreateTrialStaffOverlay,
+                                                     OpenStaffRemovalDialog,
+                                                     RemoveStaffOverlay,
                                                      UpdateStaffProfileOverlay,
                                                      UpdateStaffShiftPreferencesOverlay)
 import Application.Helper.FrontendContract.AppShell.Runtime (AppShellActionRoute (..),
@@ -21,6 +23,7 @@ import Application.Helper.FrontendContract.Surface.Runtime (FrontendSurfaceActio
                                                             renderFrontendSurfaceMount)
 import Application.Helper.FrontendContract.Surface.Values
 import Application.Helper.StaffShiftPreferences
+import Application.Helper.Url (appendQueryParams)
 import Application.Helper.VenueInvitation (venueInvitationEffectiveExpiresAt)
 import Web.LeaveRequests.SelfService (renderSelfServiceLeaveHistory)
 import Web.Profiles.FrontendSurface (ProfileScopeValue (..), staffSurfaceImpl)
@@ -63,6 +66,7 @@ data EditView = EditView
     , importedPayItems         :: [XeroImportedPayItem]
     , selectedRosterGroupIds   :: [Id RosterGroup]
     , maybeVenueMembership     :: Maybe VenueMembership
+    , staffRemovalAllowed      :: Bool
     , preferenceWeekdays       :: [PreferenceWeekday]
     , selectedShiftPreferences :: [ShiftPreferenceSelection]
     , staffRsaDocument         :: Maybe StaffDocument
@@ -79,7 +83,7 @@ instance View EditView where
         renderStaffEditPageModalWithButtons
             weekOffset
             []
-            (renderStaffSurfaceMount staff (renderStaffEditBody PageOverlayForm staff maybeLinkedUserEmail rosterGroups awardLevels awardLevelBaseRates importedPayItems selectedRosterGroupIds maybeVenueMembership preferenceWeekdays selectedShiftPreferences staffRsaDocument leaveRequest leaveRequests today weekOffset maybeRosterGroupId openSection))
+            (renderStaffSurfaceMount staff (renderStaffEditBody PageOverlayForm staff maybeLinkedUserEmail rosterGroups awardLevels awardLevelBaseRates importedPayItems selectedRosterGroupIds maybeVenueMembership staffRemovalAllowed preferenceWeekdays selectedShiftPreferences staffRsaDocument leaveRequest leaveRequests today weekOffset maybeRosterGroupId openSection))
 
 staffEditFormId :: Text
 staffEditFormId = "staff-edit-form"
@@ -148,21 +152,20 @@ renderNewStaffBody formMode staff rosterGroups awardLevels awardLevelBaseRates i
             values.profileDetailsVenueRole
             values.profileDetailsEmploymentBasis
             values.profileDetailsPayRateSelection
-            values.profileDetailsIsActive
             values.profileDetailsRosterGroupIds
 
-renderStaffEditModalFragment :: Staff -> Maybe Text -> [RosterGroup] -> [AwardLevel] -> [AwardLevelBaseRate] -> [XeroImportedPayItem] -> [Id RosterGroup] -> Maybe VenueMembership -> [PreferenceWeekday] -> [ShiftPreferenceSelection] -> Maybe StaffDocument -> LeaveRequest -> [LeaveRequest] -> Day -> Int -> Maybe (Id RosterGroup) -> Text -> Html
-renderStaffEditModalFragment staff maybeLinkedUserEmail rosterGroups awardLevels awardLevelBaseRates importedPayItems selectedRosterGroupIds maybeVenueMembership preferenceWeekdays selectedShiftPreferences staffRsaDocument leaveRequest leaveRequests today weekOffset maybeRosterGroupId openSection =
+renderStaffEditModalFragment :: Staff -> Maybe Text -> [RosterGroup] -> [AwardLevel] -> [AwardLevelBaseRate] -> [XeroImportedPayItem] -> [Id RosterGroup] -> Maybe VenueMembership -> Bool -> [PreferenceWeekday] -> [ShiftPreferenceSelection] -> Maybe StaffDocument -> LeaveRequest -> [LeaveRequest] -> Day -> Int -> Maybe (Id RosterGroup) -> Text -> Html
+renderStaffEditModalFragment staff maybeLinkedUserEmail rosterGroups awardLevels awardLevelBaseRates importedPayItems selectedRosterGroupIds maybeVenueMembership staffRemovalAllowed preferenceWeekdays selectedShiftPreferences staffRsaDocument leaveRequest leaveRequests today weekOffset maybeRosterGroupId openSection =
     renderStaffEditDialogWithButtons
         []
-        (renderStaffSurfaceMount staff (renderStaffEditBody HtmxOverlayForm staff maybeLinkedUserEmail rosterGroups awardLevels awardLevelBaseRates importedPayItems selectedRosterGroupIds maybeVenueMembership preferenceWeekdays selectedShiftPreferences staffRsaDocument leaveRequest leaveRequests today weekOffset maybeRosterGroupId openSection))
+        (renderStaffSurfaceMount staff (renderStaffEditBody HtmxOverlayForm staff maybeLinkedUserEmail rosterGroups awardLevels awardLevelBaseRates importedPayItems selectedRosterGroupIds maybeVenueMembership staffRemovalAllowed preferenceWeekdays selectedShiftPreferences staffRsaDocument leaveRequest leaveRequests today weekOffset maybeRosterGroupId openSection))
 
 renderStaffSurfaceMount :: Staff -> Html -> Html
 renderStaffSurfaceMount staff =
     renderFrontendSurfaceMount (staffSurfaceImpl (ProfileScopeValue (unpackId currentVenueId) (unpackId staff.id)))
 
-renderStaffEditBody :: OverlayFormMode -> Staff -> Maybe Text -> [RosterGroup] -> [AwardLevel] -> [AwardLevelBaseRate] -> [XeroImportedPayItem] -> [Id RosterGroup] -> Maybe VenueMembership -> [PreferenceWeekday] -> [ShiftPreferenceSelection] -> Maybe StaffDocument -> LeaveRequest -> [LeaveRequest] -> Day -> Int -> Maybe (Id RosterGroup) -> Text -> Html
-renderStaffEditBody formMode staff maybeLinkedUserEmail rosterGroups awardLevels awardLevelBaseRates importedPayItems selectedRosterGroupIds maybeVenueMembership preferenceWeekdays selectedShiftPreferences _staffRsaDocument leaveRequest leaveRequests _today weekOffset maybeRosterGroupId openSection =
+renderStaffEditBody :: OverlayFormMode -> Staff -> Maybe Text -> [RosterGroup] -> [AwardLevel] -> [AwardLevelBaseRate] -> [XeroImportedPayItem] -> [Id RosterGroup] -> Maybe VenueMembership -> Bool -> [PreferenceWeekday] -> [ShiftPreferenceSelection] -> Maybe StaffDocument -> LeaveRequest -> [LeaveRequest] -> Day -> Int -> Maybe (Id RosterGroup) -> Text -> Html
+renderStaffEditBody formMode staff maybeLinkedUserEmail rosterGroups awardLevels awardLevelBaseRates importedPayItems selectedRosterGroupIds maybeVenueMembership staffRemovalAllowed preferenceWeekdays selectedShiftPreferences _staffRsaDocument leaveRequest leaveRequests _today weekOffset maybeRosterGroupId openSection =
     let managementFields =
             StaffManagementFieldData
                 { managementStaff = staff
@@ -209,7 +212,37 @@ renderStaffEditBody formMode staff maybeLinkedUserEmail rosterGroups awardLevels
                        | currentUserIsManager
                        ]
                 }
-     in renderStaffProfileAccordion accordionConfig
+     in renderStaffProfileAccordion accordionConfig <> renderStaffRemovalPanel staff staffRemovalAllowed weekOffset maybeRosterGroupId
+
+renderStaffRemovalPanel :: Staff -> Bool -> Int -> Maybe (Id RosterGroup) -> Html
+renderStaffRemovalPanel staff staffRemovalAllowed weekOffset maybeRosterGroupId
+    | not staffRemovalAllowed = mempty
+    | otherwise = [hsx|
+        <div class="app-panel border-danger mt-4" data-staff-removal-panel="true">
+            <div class="app-panel-body">
+                <h3 class="h6 text-danger">Remove staff member</h3>
+                <p class="app-panel-description">This keeps historical records while removing the person from active venue operations.</p>
+                {removalButton}
+            </div>
+        </div>
+    |]
+  where
+    removalReturnParams =
+        [("weekOffset", tshow weekOffset)]
+            <> maybe [] (\rosterGroupId -> [("rosterGroupId", tshow rosterGroupId)]) maybeRosterGroupId
+    removalUrl = appendQueryParams (pathTo (NewRemoveStaffAction staff.id)) removalReturnParams
+    removalButton =
+        applyAppShellActionAttrs
+            (appShellActionByMarker @OpenStaffRemovalDialog)
+            removalDialogRoute
+            [hsx|<a href={removalUrl} class="btn btn-outline-danger">Remove staff member</a>|]
+    removalDialogRoute = AppShellActionRoute
+        { appShellActionRouteUrl = removalUrl
+        , appShellActionRouteFields = []
+        , appShellActionRouteCustomHtmx = []
+        , appShellActionRouteStandardUrl = Just removalUrl
+        , appShellActionRouteExtraAttrs = []
+        }
 
 renderStaffEditSectionFragment :: OverlayFormMode -> Staff -> Maybe Text -> [RosterGroup] -> [AwardLevel] -> [AwardLevelBaseRate] -> [XeroImportedPayItem] -> [Id RosterGroup] -> Maybe VenueMembership -> [PreferenceWeekday] -> [ShiftPreferenceSelection] -> LeaveRequest -> [LeaveRequest] -> Int -> Maybe (Id RosterGroup) -> Text -> Html
 renderStaffEditSectionFragment formMode staff maybeLinkedUserEmail rosterGroups awardLevels awardLevelBaseRates importedPayItems selectedRosterGroupIds maybeVenueMembership preferenceWeekdays selectedShiftPreferences leaveRequest leaveRequests weekOffset maybeRosterGroupId openSection =
@@ -403,7 +436,6 @@ renderStaffDetailsForm formMode staff maybeLinkedUserEmail managementFields acti
             values.profileDetailsVenueRole
             values.profileDetailsEmploymentBasis
             values.profileDetailsPayRateSelection
-            values.profileDetailsIsActive
             values.profileDetailsRosterGroupIds
 
 renderTrialStaffInvitationModalFragment :: UTCTime -> Staff -> [VenueInvitation] -> Maybe Text -> Maybe Text -> Int -> Maybe (Id RosterGroup) -> Html

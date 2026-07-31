@@ -131,12 +131,16 @@ instance Controller LeaveRequestsController where
                                 then respondWithLeaveRequestValidationFailure responseContext invalidLeaveRequest
                                 else render NewView { leaveRequest = invalidLeaveRequest }
                         Right validLeaveRequest -> do
-                            mutationResult <- submitLeaveRequest validLeaveRequest
-                            if isHtmxRequest
-                                then respondWithLeaveMutationSuccess responseContext mutationResult.liveMutationTouchedResources "Unavailable period submitted"
-                                else do
-                                    setSuccessMessage "Unavailable period submitted"
+                            submitLeaveRequest validLeaveRequest >>= \case
+                                Nothing -> do
+                                    setErrorMessage "This staff member is no longer active."
                                     redirectToPath (leaveFallbackPath responseContext)
+                                Just mutationResult ->
+                                    if isHtmxRequest
+                                        then respondWithLeaveMutationSuccess responseContext mutationResult.liveMutationTouchedResources "Unavailable period submitted"
+                                        else do
+                                            setSuccessMessage "Unavailable period submitted"
+                                            redirectToPath (leaveFallbackPath responseContext)
 
     action currentAction@ApproveLeaveRequestAction { leaveRequestId } = runBepis currentAction BepisMutationAction do
         ensureProfileCompleted
@@ -145,12 +149,16 @@ instance Controller LeaveRequestsController where
         leaveRequest <- fetch leaveRequestId
         ensureRecordInCurrentVenue leaveRequest.venueId
         accessDeniedUnless (isNothing leaveRequest.deletedAt)
-        result <- reviewLeaveRequest ApproveLeave leaveRequest
-        if isHtmxRequest
-            then respondWithLeaveRequestsContentForReview result.liveMutationTouchedResources "Unavailable period approved"
-            else do
-                setSuccessMessage "Unavailable period approved"
+        reviewLeaveRequest ApproveLeave leaveRequest >>= \case
+            Nothing -> do
+                setErrorMessage "This staff member is no longer active."
                 redirectTo LeaveRequestsAction
+            Just result ->
+                if isHtmxRequest
+                    then respondWithLeaveRequestsContentForReview result.liveMutationTouchedResources "Unavailable period approved"
+                    else do
+                        setSuccessMessage "Unavailable period approved"
+                        redirectTo LeaveRequestsAction
 
     action currentAction@DenyLeaveRequestAction { leaveRequestId } = runBepis currentAction BepisMutationAction do
         ensureProfileCompleted
@@ -159,12 +167,16 @@ instance Controller LeaveRequestsController where
         leaveRequest <- fetch leaveRequestId
         ensureRecordInCurrentVenue leaveRequest.venueId
         accessDeniedUnless (isNothing leaveRequest.deletedAt)
-        result <- reviewLeaveRequest DenyLeave leaveRequest
-        if isHtmxRequest
-            then respondWithLeaveRequestsContentForReview result.liveMutationTouchedResources "Unavailable period denied"
-            else do
-                setSuccessMessage "Unavailable period denied"
+        reviewLeaveRequest DenyLeave leaveRequest >>= \case
+            Nothing -> do
+                setErrorMessage "This staff member is no longer active."
                 redirectTo LeaveRequestsAction
+            Just result ->
+                if isHtmxRequest
+                    then respondWithLeaveRequestsContentForReview result.liveMutationTouchedResources "Unavailable period denied"
+                    else do
+                        setSuccessMessage "Unavailable period denied"
+                        redirectTo LeaveRequestsAction
 
 reportLeaveArchivePageErrors :: (?context :: ControllerContext, ?request :: Request) => IO ()
 reportLeaveArchivePageErrors =

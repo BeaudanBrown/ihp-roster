@@ -205,9 +205,20 @@ updateVenueMembershipRoleWithAudit ::
     VenueRoleEnum ->
     Aeson.Value ->
     IO VenueMembership
-updateVenueMembershipRoleWithAudit actorUserId sourceChannel membership newRole payload
+updateVenueMembershipRoleWithAudit actorUserId sourceChannel membership newRole payload =
+    withTransaction (updateVenueMembershipRoleWithAuditInCurrentTransaction actorUserId sourceChannel membership newRole payload)
+
+updateVenueMembershipRoleWithAuditInCurrentTransaction ::
+    (?modelContext :: ModelContext) =>
+    UUID ->
+    Text ->
+    VenueMembership ->
+    VenueRoleEnum ->
+    Aeson.Value ->
+    IO VenueMembership
+updateVenueMembershipRoleWithAuditInCurrentTransaction actorUserId sourceChannel membership newRole payload
     | membership.venueRole == newRole = pure membership
-    | otherwise = withTransaction do
+    | otherwise = do
         updatedMembership <- membership |> set #venueRole newRole |> updateRecord
         _ <- recordAuditEvent
             membership.venueId

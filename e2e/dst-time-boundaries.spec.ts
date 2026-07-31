@@ -3,7 +3,6 @@ import { dialogOverlayMountDomId } from '../frontend/ts/generated/contracts';
 import { E2E_TIMEOUT } from './timeouts';
 import {
     addRowToRosterDay,
-    editableRosterRows,
     existingRosterShiftLaunchers,
     openRoster,
     openRosterShiftDialog,
@@ -67,9 +66,13 @@ async function openFreshSaturdayShift(page: Page, targetMonday: string) {
         maxWeekAdvances: 0,
     });
     await expect(saturdaySection(page)).toBeVisible({ timeout: E2E_TIMEOUT.assertion });
+    const newShiftLaunchers = saturdaySection(page).locator(
+        '[data-roster-shift-launcher="true"][hx-get*="NewRosterSlotDialog"]',
+    );
+    const initialLauncherCount = await newShiftLaunchers.count();
     await addRowToRosterDay(saturdaySection(page));
-    const row = editableRosterRows(saturdaySection(page)).last();
-    await openRosterShiftDialog(page, row.locator('[data-roster-shift-launcher="true"]').first());
+    await expect(newShiftLaunchers).toHaveCount(initialLauncherCount + 1);
+    await openRosterShiftDialog(page, newShiftLaunchers.last());
 }
 
 test.describe('DST time boundaries', () => {

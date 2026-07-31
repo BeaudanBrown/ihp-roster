@@ -646,7 +646,7 @@ tests = describe "FrontendSurfaceRequestAdapter" do
         let ?request = requestWithParams malformedDetailsParams
         forM_ [parseProfileSurfaceSubmission, parseStaffSurfaceSubmission] $
             assertRequestErrors
-                ["idealShiftsPerWeek", "isActive", "rosterGroupIds"]
+                ["idealShiftsPerWeek", "rosterGroupIds"]
                 MalformedSurfaceRequestField
 
     it "parses shared self-service and Staff leave bundles and accumulates Day diagnostics" do
@@ -855,7 +855,6 @@ profileDetailsFields =
         (Just "manager")
         Nothing
         (Just "award:level-1")
-        (Just True)
         (Just [firstRosterGroupId, secondRosterGroupId])
 
 staffProfileDetailsFields :: SurfaceActionFields Profile.StaffSurface Profile.UpdateStaffProfile
@@ -872,7 +871,6 @@ staffProfileDetailsFields =
         (Just "manager")
         Nothing
         (Just "award:level-1")
-        (Just True)
         (Just [firstRosterGroupId, secondRosterGroupId])
 
 preferenceFields :: SurfaceActionFields Profile.ProfileSurface Profile.UpdateProfileShiftPreferences
@@ -964,7 +962,6 @@ assertDetailsSubmission family = \case
         submission.submittedVenueRole `shouldBe` Just "manager"
         submission.submittedEmploymentBasis `shouldBe` Nothing
         submission.submittedPayRateSelection `shouldBe` Just "award:level-1"
-        submission.submittedIsActive `shouldBe` Just True
         submission.submittedRosterGroupIds `shouldBe` Just [firstRosterGroupId, secondRosterGroupId]
 
 assertPreferencesSubmission :: Text -> Either [SurfaceRequestFieldError] StaffProfileSurfaceSubmission -> Expectation

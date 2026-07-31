@@ -14,6 +14,7 @@ import Application.Helper.RosterGroups (fetchCurrentVenueDefaultRosterGroup,
 import Application.Helper.StaffShiftPreferences (ShiftPreferenceSelection,
                                                  replaceStaffShiftPreferences)
 import Application.Helper.SurfaceResource
+import Application.Staff.Mutations (withStaffOperationalLock)
 import qualified Data.Map.Strict as Map
 import qualified Data.Set as Set
 import qualified Data.UUID as UUID
@@ -27,23 +28,32 @@ data ProfileUpdateMutationResult = ProfileUpdateMutationResult
     }
     deriving (Eq, Show)
 
-updateCurrentUserProfile :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Text -> Staff -> [ShiftPreferenceSelection] -> IO (LiveMutationResult ProfileUpdateMutationResult)
+updateCurrentUserProfile :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Text -> Staff -> [ShiftPreferenceSelection] -> IO (Maybe (LiveMutationResult ProfileUpdateMutationResult))
 updateCurrentUserProfile openSection staffInput submittedSelections = do
-    staff <- upsertCurrentUserStaff staffInput
-    replaceStaffShiftPreferences staff submittedSelections
-    let isProfileCompleted = requiredProfileFieldsCompleted staff
-    let wasProfileCompleted = currentUser.isProfileCompleted
-    currentUser
-        |> set #isProfileCompleted isProfileCompleted
-        |> updateRecord
-    invalidateTouchedResources ("profile.update." <> openSection) $
-        liveMutationResult
-            ProfileUpdateMutationResult
+    maybeExistingStaff <- fetchCurrentUserStaff
+    let performUpdate = do
+            staff <- upsertCurrentUserStaff staffInput
+            replaceStaffShiftPreferences staff submittedSelections
+            let isProfileCompleted = requiredProfileFieldsCompleted staff
+            let wasProfileCompleted = currentUser.isProfileCompleted
+            currentUser
+                |> set #isProfileCompleted isProfileCompleted
+                |> updateRecord
+            pure ProfileUpdateMutationResult
                 { profileUpdatedStaff = staff
                 , profileWasCompletedBefore = wasProfileCompleted
                 , profileIsCompletedNow = isProfileCompleted
                 }
-            (profileUpdateTouchedResources staff)
+    maybeProfileUpdate <- case maybeExistingStaff of
+        Nothing -> Just <$> withTransaction performUpdate
+        Just existingStaff -> fmap join $ withStaffOperationalLock (unpackId existingStaff.id) do
+            lockedStaff <- fetch existingStaff.id
+            if not lockedStaff.isActive || isJust lockedStaff.archivedAt
+                then pure Nothing
+                else Just <$> performUpdate
+    forM maybeProfileUpdate \profileUpdate ->
+        invalidateTouchedResources ("profile.update." <> openSection) $
+            liveMutationResult profileUpdate (profileUpdateTouchedResources profileUpdate.profileUpdatedStaff)
 
 profileUpdateTouchedResources :: Staff -> [SurfaceResourceValue]
 profileUpdateTouchedResources staff =

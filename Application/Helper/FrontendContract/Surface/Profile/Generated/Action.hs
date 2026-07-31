@@ -78,10 +78,9 @@ updateProfileDetailsActionFields ::
     Maybe Text ->
     Maybe Text ->
     Maybe Text ->
-    Maybe Bool ->
     Maybe [UUID.UUID] ->
     SurfaceActionFields (AdapterFamilySurface Types2.ProfileAdapterFamily) Types1.UpdateProfileDetails
-updateProfileDetailsActionFields firstName lastName preferredName phone idealShiftsPerWeek emergencyContactName emergencyContactPhone section venueRole employmentBasis payRateSelection isActive rosterGroupIds =
+updateProfileDetailsActionFields firstName lastName preferredName phone idealShiftsPerWeek emergencyContactName emergencyContactPhone section venueRole employmentBasis payRateSelection rosterGroupIds =
     surfaceActionFields
         (surfaceField @Types1.FirstNameField firstName)
         ( surfaceField @Types1.LastNameField lastName
@@ -94,7 +93,6 @@ updateProfileDetailsActionFields firstName lastName preferredName phone idealShi
             &: surfaceOptionalField @Types1.VenueRoleField venueRole
             &: surfaceOptionalField @Types1.EmploymentBasisField employmentBasis
             &: surfaceOptionalField @Types1.PayRateSelectionField payRateSelection
-            &: surfaceOptionalField @Types1.IsActiveField isActive
             &: surfaceOptionalField @Types1.RosterGroupIdsField rosterGroupIds
             &: noSurfaceFields
         )
@@ -150,10 +148,9 @@ updateStaffProfileActionFields ::
     Maybe Text ->
     Maybe Text ->
     Maybe Text ->
-    Maybe Bool ->
     Maybe [UUID.UUID] ->
     SurfaceActionFields (AdapterFamilySurface Types2.StaffAdapterFamily) Types1.UpdateStaffProfile
-updateStaffProfileActionFields firstName lastName preferredName phone idealShiftsPerWeek emergencyContactName emergencyContactPhone section venueRole employmentBasis payRateSelection isActive rosterGroupIds =
+updateStaffProfileActionFields firstName lastName preferredName phone idealShiftsPerWeek emergencyContactName emergencyContactPhone section venueRole employmentBasis payRateSelection rosterGroupIds =
     surfaceActionFields
         (surfaceField @Types1.FirstNameField firstName)
         ( surfaceField @Types1.LastNameField lastName
@@ -166,7 +163,6 @@ updateStaffProfileActionFields firstName lastName preferredName phone idealShift
             &: surfaceOptionalField @Types1.VenueRoleField venueRole
             &: surfaceOptionalField @Types1.EmploymentBasisField employmentBasis
             &: surfaceOptionalField @Types1.PayRateSelectionField payRateSelection
-            &: surfaceOptionalField @Types1.IsActiveField isActive
             &: surfaceOptionalField @Types1.RosterGroupIdsField rosterGroupIds
             &: noSurfaceFields
         )
