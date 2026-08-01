@@ -10,6 +10,7 @@ import Application.Fixture
 import Application.Fixture.DevFixtures.Deterministic
 import Application.Fixture.Seed.Scenario (SeedScenario (..))
 import Application.Helper.VenueBootstrap (provisionVenueUser)
+import Control.Monad (void)
 import qualified Data.Map.Strict as Map
 import qualified Data.Text as Text
 import qualified Data.UUID as UUID
@@ -119,7 +120,7 @@ seedSandboxRoleAliasAccounts venue = do
     staffUser <- createSeededUserRecordWithPassword "staff@bepis.lol" "staff" "staff" True
     (_, staffProfile) <- provisionVenueUser venue staffUser Worker "staff" "bepis"
     managerUser <- createSeededUserRecordWithPassword "manager@bepis.lol" "manager" "manager" True
-    (_, managerProfile) <- provisionVenueUser venue managerUser Manager Manager "bepis"
+    (_, managerProfile) <- provisionVenueUser venue managerUser Manager "manager" "bepis"
     venueAdminUser <- createSeededUserRecordWithPassword "venue@bepis.lol" "venue" "admin" True
     (_, venueAdminProfile) <- provisionVenueUser venue venueAdminUser VenueAdmin "venue" "bepis"
     venueOwnerUser <- createSeededUserRecordWithPassword "owner@bepis.lol" "owner" "admin" True

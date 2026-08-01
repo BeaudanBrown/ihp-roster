@@ -34,6 +34,7 @@ auditEventWireContract =
     , (PasskeyStepUpSucceededAudit, "passkey_step_up_succeeded")
     , (PasskeyStepUpFailedAudit, "passkey_step_up_failed")
     , (TimesheetDeletedAudit, "timesheet_deleted")
+    , (StaffRemovedAudit, "staff_removed")
     , (RsaDocumentUploadedAudit, "rsa_document_uploaded")
     , (RsaDocumentReviewedAudit, "rsa_document_reviewed")
     , (BillingCustomerCreatedAudit, "billing_customer_created")

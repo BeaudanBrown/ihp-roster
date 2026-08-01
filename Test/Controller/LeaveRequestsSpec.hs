@@ -242,7 +242,7 @@ tests = aroundAll withDatabaseTestContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Blackout No Override Venue"
                 manager <- createUserRecord "blackout-manager@example.com" "manager" True
-                superAdmin <- createUserRecordWithPlatformRole "blackout-support@example.com" "staff" (Just SuperAdminRole) True
+                superAdmin <- createUserRecordWithPlatformRole "blackout-support@example.com" "staff" (Just SuperAdmin) True
                 _ <- createVenueMembershipRecord venue manager Manager
                 staff <- createStaffRecord venue Nothing "Target" "Staff"
                 today <- utctDay <$> getCurrentTime
@@ -346,7 +346,7 @@ tests = aroundAll withDatabaseTestContext do
                 _ <- createVenueMembershipRecord venue worker Worker
                 staff <- createStaffRecord venue (Just worker) "Visible" "Worker"
                 today <- utctDay <$> getCurrentTime
-                existingRequest <- createLeaveRequestRecord venue staff today (addDays 1 today) "approved"
+                existingRequest <- createLeaveRequestRecord venue staff today (addDays 1 today) LeaveRequestStatusEnumApproved
                 activeBlackout <- newRecord @UnavailabilityBlackout
                     |> set #venueId (unpackId venue.id)
                     |> set #startDate today
@@ -417,18 +417,18 @@ tests = aroundAll withDatabaseTestContext do
                 today <- utctDay <$> getCurrentTime
                 let firstWarningDay = addDays 1 today
                 let availableAgain = addDays 4 today
-                _ <- createLeaveRequestRecord venue linkedStaff firstWarningDay availableAgain "pending"
-                _ <- createLeaveRequestRecord venue trialStaff firstWarningDay (addDays 3 today) "approved"
-                _ <- createLeaveRequestRecord venue trialStaff (addDays 3 today) availableAgain "pending"
-                _ <- createLeaveRequestRecord venue inactiveStaff firstWarningDay availableAgain "approved"
-                _ <- createLeaveRequestRecord venue archivedStaff firstWarningDay availableAgain "pending"
-                _ <- createLeaveRequestRecord venue deletedStaff firstWarningDay availableAgain "approved"
+                _ <- createLeaveRequestRecord venue linkedStaff firstWarningDay availableAgain LeaveRequestStatusEnumPending
+                _ <- createLeaveRequestRecord venue trialStaff firstWarningDay (addDays 3 today) LeaveRequestStatusEnumApproved
+                _ <- createLeaveRequestRecord venue trialStaff (addDays 3 today) availableAgain LeaveRequestStatusEnumPending
+                _ <- createLeaveRequestRecord venue inactiveStaff firstWarningDay availableAgain LeaveRequestStatusEnumApproved
+                _ <- createLeaveRequestRecord venue archivedStaff firstWarningDay availableAgain LeaveRequestStatusEnumPending
+                _ <- createLeaveRequestRecord venue deletedStaff firstWarningDay availableAgain LeaveRequestStatusEnumApproved
                     >>= updateRecord
                         . set #deletedAt (Just now)
                         . set #deletedByUserId (Just (unpackId manager.id))
                         . set #deleteReason (Just "threshold_test")
-                _ <- createLeaveRequestRecord venue linkedStaff firstWarningDay availableAgain "denied"
-                _ <- createLeaveRequestRecord foreignVenue foreignStaff firstWarningDay availableAgain "approved"
+                _ <- createLeaveRequestRecord venue linkedStaff firstWarningDay availableAgain LeaveRequestStatusEnumDenied
+                _ <- createLeaveRequestRecord foreignVenue foreignStaff firstWarningDay availableAgain LeaveRequestStatusEnumApproved
 
                 response <- withUserAndCurrentVenue manager venue.id do
                     callAction LeaveRequestsAction

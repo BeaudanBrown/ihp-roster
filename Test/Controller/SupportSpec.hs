@@ -103,7 +103,7 @@ tests = aroundAll withDatabaseTestContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Feedback Diagnostics Venue"
                 submitter <- createUserRecord "feedback-diagnostics-user@example.com" "staff" True
-                superAdmin <- createUserRecordWithPlatformRole "feedback-diagnostics-super@example.com" "staff" (Just SuperAdminRole) True
+                superAdmin <- createUserRecordWithPlatformRole "feedback-diagnostics-super@example.com" "staff" (Just SuperAdmin) True
                 _ <- newRecord @UserFeedbackItem
                     |> set #venueId (unpackId venue.id)
                     |> set #submittedByUserId (unpackId submitter.id)

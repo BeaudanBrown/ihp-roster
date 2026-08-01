@@ -494,7 +494,7 @@ tests = aroundAll withDatabaseTestContext do
         it "renews an owner onboarding invitation with a corrected two-week replacement" $ withContext do
             withCleanDb do
                 homeVenue <- createVenueWithConfig "Home Venue"
-                founder <- createUserRecordWithPlatformRole "founder-renew-owner-invite@example.com" "staff" (Just SuperAdminRole) True
+                founder <- createUserRecordWithPlatformRole "founder-renew-owner-invite@example.com" "staff" (Just SuperAdmin) True
                 _ <- createVenueMembershipRecord homeVenue founder VenueOwner
                 now <- getCurrentTime
                 original <-
@@ -543,7 +543,7 @@ tests = aroundAll withDatabaseTestContext do
         it "handles concurrent renewal requests without duplicate replacements or 500s" $ withContext do
             withCleanDb do
                 homeVenue <- createVenueWithConfig "Home Venue"
-                founder <- createUserRecordWithPlatformRole "founder-concurrent-owner-renewal@example.com" "staff" (Just SuperAdminRole) True
+                founder <- createUserRecordWithPlatformRole "founder-concurrent-owner-renewal@example.com" "staff" (Just SuperAdmin) True
                 _ <- createVenueMembershipRecord homeVenue founder VenueOwner
                 ensureTestUserHasPasskey founder
                 original <- createVenueOnboardingInvitationRecord (Just founder) "concurrent-owner@example.com"
@@ -569,7 +569,7 @@ tests = aroundAll withDatabaseTestContext do
         it "serializes different owner invitations renewed to the same corrected email" $ withContext do
             withCleanDb do
                 homeVenue <- createVenueWithConfig "Home Venue"
-                founder <- createUserRecordWithPlatformRole "founder-target-email-renewal-race@example.com" "staff" (Just SuperAdminRole) True
+                founder <- createUserRecordWithPlatformRole "founder-target-email-renewal-race@example.com" "staff" (Just SuperAdmin) True
                 _ <- createVenueMembershipRecord homeVenue founder VenueOwner
                 ensureTestUserHasPasskey founder
                 firstOriginal <- createVenueOnboardingInvitationRecord (Just founder) "first-original-owner@example.com"
@@ -602,7 +602,7 @@ tests = aroundAll withDatabaseTestContext do
         it "serializes owner acceptance against renewal so only one link can win" $ withContext do
             withCleanDb do
                 homeVenue <- createVenueWithConfig "Home Venue"
-                founder <- createUserRecordWithPlatformRole "founder-acceptance-renewal-race@example.com" "staff" (Just SuperAdminRole) True
+                founder <- createUserRecordWithPlatformRole "founder-acceptance-renewal-race@example.com" "staff" (Just SuperAdmin) True
                 _ <- createVenueMembershipRecord homeVenue founder VenueOwner
                 ensureTestUserHasPasskey founder
                 invitation <- createVenueOnboardingInvitationRecord (Just founder) "acceptance-renewal-race@example.com"
@@ -649,7 +649,7 @@ tests = aroundAll withDatabaseTestContext do
         it "serializes queued delivery against renewal" $ withContext do
             withCleanDb do
                 homeVenue <- createVenueWithConfig "Home Venue"
-                founder <- createUserRecordWithPlatformRole "founder-delivery-renewal-race@example.com" "staff" (Just SuperAdminRole) True
+                founder <- createUserRecordWithPlatformRole "founder-delivery-renewal-race@example.com" "staff" (Just SuperAdmin) True
                 _ <- createVenueMembershipRecord homeVenue founder VenueOwner
                 ensureTestUserHasPasskey founder
                 invitation <- createVenueOnboardingInvitationRecord (Just founder) "delivery-renewal-race@example.com"
@@ -679,7 +679,7 @@ tests = aroundAll withDatabaseTestContext do
         it "keeps the original invitation active when the corrected email already has a pending invite" $ withContext do
             withCleanDb do
                 homeVenue <- createVenueWithConfig "Home Venue"
-                founder <- createUserRecordWithPlatformRole "founder-conflicting-owner-renewal@example.com" "staff" (Just SuperAdminRole) True
+                founder <- createUserRecordWithPlatformRole "founder-conflicting-owner-renewal@example.com" "staff" (Just SuperAdmin) True
                 _ <- createVenueMembershipRecord homeVenue founder VenueOwner
                 original <- createVenueOnboardingInvitationRecord (Just founder) "original-owner@example.com"
                 _ <- createVenueOnboardingInvitationRecord (Just founder) "existing-owner@example.com"
@@ -697,7 +697,7 @@ tests = aroundAll withDatabaseTestContext do
         it "rejects blank, malformed, and oversized corrected emails without revoking the original" $ withContext do
             withCleanDb do
                 homeVenue <- createVenueWithConfig "Home Venue"
-                founder <- createUserRecordWithPlatformRole "founder-invalid-owner-renewal@example.com" "staff" (Just SuperAdminRole) True
+                founder <- createUserRecordWithPlatformRole "founder-invalid-owner-renewal@example.com" "staff" (Just SuperAdmin) True
                 _ <- createVenueMembershipRecord homeVenue founder VenueOwner
 
                 let invalidEmails =
@@ -724,7 +724,7 @@ tests = aroundAll withDatabaseTestContext do
         it "renews with the original email when no corrected email is submitted" $ withContext do
             withCleanDb do
                 homeVenue <- createVenueWithConfig "Home Venue"
-                founder <- createUserRecordWithPlatformRole "founder-same-email-owner-renewal@example.com" "staff" (Just SuperAdminRole) True
+                founder <- createUserRecordWithPlatformRole "founder-same-email-owner-renewal@example.com" "staff" (Just SuperAdmin) True
                 _ <- createVenueMembershipRecord homeVenue founder VenueOwner
                 original <- createVenueOnboardingInvitationRecord (Just founder) "same-email-owner@example.com"
 
@@ -743,7 +743,7 @@ tests = aroundAll withDatabaseTestContext do
         it "replaces an expired pending invite already using the corrected email" $ withContext do
             withCleanDb do
                 homeVenue <- createVenueWithConfig "Home Venue"
-                founder <- createUserRecordWithPlatformRole "founder-expired-target-owner-renewal@example.com" "staff" (Just SuperAdminRole) True
+                founder <- createUserRecordWithPlatformRole "founder-expired-target-owner-renewal@example.com" "staff" (Just SuperAdmin) True
                 _ <- createVenueMembershipRecord homeVenue founder VenueOwner
                 now <- getCurrentTime
                 original <- createVenueOnboardingInvitationRecord (Just founder) "source-owner@example.com"
@@ -769,7 +769,7 @@ tests = aroundAll withDatabaseTestContext do
         it "does not replace an accepted owner onboarding invitation" $ withContext do
             withCleanDb do
                 homeVenue <- createVenueWithConfig "Home Venue"
-                founder <- createUserRecordWithPlatformRole "founder-accepted-owner-renewal@example.com" "staff" (Just SuperAdminRole) True
+                founder <- createUserRecordWithPlatformRole "founder-accepted-owner-renewal@example.com" "staff" (Just SuperAdmin) True
                 _ <- createVenueMembershipRecord homeVenue founder VenueOwner
                 now <- getCurrentTime
                 acceptedInvitation <-
@@ -851,7 +851,7 @@ tests = aroundAll withDatabaseTestContext do
         it "shows expired owner invitations with a corrected-email renewal control" $ withContext do
             withCleanDb do
                 homeVenue <- createVenueWithConfig "Home Venue"
-                founder <- createUserRecordWithPlatformRole "founder-expired-owner-invite-list@example.com" "staff" (Just SuperAdminRole) True
+                founder <- createUserRecordWithPlatformRole "founder-expired-owner-invite-list@example.com" "staff" (Just SuperAdmin) True
                 _ <- createVenueMembershipRecord homeVenue founder VenueOwner
                 now <- getCurrentTime
                 _ <-
@@ -869,7 +869,7 @@ tests = aroundAll withDatabaseTestContext do
         it "denies venue owner onboarding invitation renewal to ordinary venue admins" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Venue A"
-                founder <- createUserRecordWithPlatformRole "founder-renewal-target@example.com" "staff" (Just SuperAdminRole) True
+                founder <- createUserRecordWithPlatformRole "founder-renewal-target@example.com" "staff" (Just SuperAdmin) True
                 admin <- createUserRecord "venue-admin-owner-renewal@example.com" "admin" True
                 _ <- createVenueMembershipRecord venue admin VenueAdmin
                 invitation <- createVenueOnboardingInvitationRecord (Just founder) "blocked-renewal@example.com"

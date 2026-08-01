@@ -1,6 +1,5 @@
 module Test.Controller.ProfilesSpec where
 
-import Application.Helper.Controller (PlatformRole (SuperAdminRole))
 import Application.Helper.FrontendContract.Surface.LeaveRequests.Resource (leaveAvailabilityWarningsResource)
 import qualified Application.Helper.FrontendContract.Surface.Profile.Live as ProfileLive
 import Application.Helper.FrontendContract.Surface.Profile.Resource

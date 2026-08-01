@@ -53,6 +53,7 @@ applicationTableNames =
     , "staff_shift_preferences"
     , "leave_requests"
     , "leave_request_events"
+    , "unavailability_blackouts"
     , "audit_events"
     , "user_feedback_items"
     , "export_jobs"

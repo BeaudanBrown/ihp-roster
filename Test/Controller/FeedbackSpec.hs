@@ -1,6 +1,5 @@
 module Test.Controller.FeedbackSpec where
 
-import Application.Helper.Controller (PlatformRole (SuperAdminRole))
 import Generated.Types
 import IHP.ControllerPrelude
 import IHP.FrameworkConfig
@@ -128,7 +127,7 @@ tests = aroundAll withDatabaseTestContext do
         it "snapshots platform support submissions distinctly from venue roles" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Feedback Support Role Venue"
-                supportUser <- createUserRecordWithPlatformRole "feedback-role-support@example.com" "staff" (Just SuperAdminRole) True
+                supportUser <- createUserRecordWithPlatformRole "feedback-role-support@example.com" "staff" (Just SuperAdmin) True
 
                 response <- withPasskeyVerifiedUserAndCurrentVenue supportUser venue.id do
                     withRequestHeaders [("HX-Request", "true")] do

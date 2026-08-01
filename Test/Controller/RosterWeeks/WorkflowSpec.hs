@@ -1201,7 +1201,7 @@ tests = aroundAll withDatabaseTestContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Venue A"
                 admin <- createUserRecord "roster-admin-wage-prediction@example.com" "staff" True
-                supportAdmin <- createUserRecordWithPlatformRole "roster-support-wage-prediction@example.com" "staff" (Just SuperAdminRole) True
+                supportAdmin <- createUserRecordWithPlatformRole "roster-support-wage-prediction@example.com" "staff" (Just SuperAdmin) True
                 owner <- createUserRecord "roster-owner-wage-prediction@example.com" "staff" True
                 manager <- createUserRecord "roster-manager-wage-prediction@example.com" "staff" True
                 _ <- createVenueMembershipRecord venue admin VenueAdmin

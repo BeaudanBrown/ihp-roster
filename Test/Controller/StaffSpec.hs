@@ -1484,9 +1484,9 @@ tests = aroundAll withDatabaseTestContext do
                 _ <- createVenueMembershipRecord venue admin VenueAdmin
                 staff <- createStaffRecord venue Nothing "Leave" "Removal"
                 today <- utctDay <$> getCurrentTime
-                pendingRequest <- createLeaveRequestRecord venue staff today (addDays 1 today) "pending"
-                approvedRequest <- createLeaveRequestRecord venue staff (addDays 2 today) (addDays 3 today) "approved"
-                deniedRequest <- createLeaveRequestRecord venue staff (addDays 4 today) (addDays 5 today) "denied"
+                pendingRequest <- createLeaveRequestRecord venue staff today (addDays 1 today) LeaveRequestStatusEnumPending
+                approvedRequest <- createLeaveRequestRecord venue staff (addDays 2 today) (addDays 3 today) LeaveRequestStatusEnumApproved
+                deniedRequest <- createLeaveRequestRecord venue staff (addDays 4 today) (addDays 5 today) LeaveRequestStatusEnumDenied
 
                 response <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
                     callAction (RemoveStaffAction staff.id)
@@ -1540,7 +1540,7 @@ tests = aroundAll withDatabaseTestContext do
                 _ <- createVenueMembershipRecord venue admin VenueAdmin
                 staff <- createStaffRecord venue Nothing "Leave Review" "Race"
                 today <- utctDay <$> getCurrentTime
-                leaveRequest <- createLeaveRequestRecord venue staff (addDays 1 today) (addDays 2 today) "pending"
+                leaveRequest <- createLeaveRequestRecord venue staff (addDays 1 today) (addDays 2 today) LeaveRequestStatusEnumPending
                 ensureTestUserHasPasskey admin
 
                 results <- runConcurrentStaffActionList

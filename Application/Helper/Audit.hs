@@ -227,7 +227,7 @@ updateVenueMembershipRoleWithAudit actorUserId sourceChannel membership newRole 
 updateVenueMembershipRoleWithAuditInCurrentTransaction ::
     (?modelContext :: ModelContext) =>
     UUID ->
-    Text ->
+    AuditSourceChannel ->
     VenueMembership ->
     VenueRoleEnum ->
     Aeson.Value ->
