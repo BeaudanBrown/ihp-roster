@@ -86,7 +86,7 @@ instance Controller TimesheetsController where
                         pure (currentOffset, False, True, True, Nothing)
                     Right state -> do
                         let (showApproved, showAllStaff, showSuggestions, selectedStaffFilterId) = timesheetSurfaceFilters state
-                        pure (state.surfaceRequestWeekOffset, showApproved, showAllStaff, showSuggestions, selectedStaffFilterId)
+                        pure (currentOffset, showApproved, showAllStaff, showSuggestions, selectedStaffFilterId)
         if isHtmxRequest
             then respondWithTimesheetWeekFragmentsUpdate weekOffset showApproved showAllStaff showSuggestions selectedStaffFilterId
             else redirectToPath (timesheetWeekUrl weekOffset showApproved showAllStaff showSuggestions selectedStaffFilterId)

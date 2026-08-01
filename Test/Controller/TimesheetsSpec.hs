@@ -112,6 +112,31 @@ tests = aroundAll withDatabaseTestContext do
                 response `responseBodyShouldNotContain` "Pay preview"
                 response `responseBodyShouldNotContain` "timesheet-wage-preview"
 
+        it "resets complete This week navigation to the venue's current week" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Timesheet Current Week Venue"
+                user <- createUserRecord "timesheet-current-week@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue user Worker
+                _ <- createStaffRecord venue (Just user) "Current" "Week"
+                venueConfig <- query @VenueConfig |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
+                today <- utctDay <$> getCurrentTime
+                let expectedOffset = venueWeekOffsetForDay venueConfig today
+
+                response <- withUserAndCurrentVenue user venue.id do
+                    callActionWithParams TimesheetsAction
+                        [ ("weekOffset", "0")
+                        , ("showApproved", "true")
+                        , ("showAllStaff", "false")
+                        , ("showSuggestions", "false")
+                        ]
+
+                response `responseStatusShouldBe` status302
+                let location = cs <$> lookup "Location" (responseHeaders response)
+                location `shouldSatisfy` maybe False (Text.isInfixOf ("weekOffset=" <> tshow expectedOffset))
+                location `shouldSatisfy` maybe False (Text.isInfixOf "showApproved=true")
+                location `shouldSatisfy` maybe False (Text.isInfixOf "showAllStaff=false")
+                location `shouldSatisfy` maybe False (Text.isInfixOf "showSuggestions=false")
+
         it "preserves partial direct-route filters outside complete Surface action submissions" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Timesheet Partial Route Venue"

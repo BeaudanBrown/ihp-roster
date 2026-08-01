@@ -198,7 +198,7 @@ pageHelpTopics =
         ]
     , topic "timesheets" "Timesheets"
         [ section HelpEveryone "Timesheet tasks"
-            [ iconItem HelpEveryone "bi-chevron-left" "Week controls" "Choose the right pay week" "Use the arrow controls before adding or reviewing entries."
+            [ iconItem HelpEveryone "bi-chevron-left" "Week controls" "Choose the right pay week" "Use the arrow controls before adding or reviewing entries. Select This week to return to the venue's current week."
             , buttonItem HelpEveryone "bi-calendar-check" "Highlighted suggestion" "Create a roster-derived entry" "An accent-highlighted card is a suggestion from a live roster shift. Click Create to save its current values as an unapproved timesheet entry." "btn btn-sm btn-outline-success timesheet-approval-toggle" Nothing "Create"
             , iconItem HelpEveryone "bi-pencil" "Suggestion card" "Adjust before creating" "Click the body of a highlighted suggestion card, just like a normal Timesheet card, to change its time, break, shift type, or comments before saving it."
             , buttonItem HelpEveryone "bi-plus-lg" "Day add control" "Add a separate time entry" "Click the + bar to add an unrelated entry. The form opens directly without an origin warning; it does not create or consume a roster suggestion for that day." "timesheet-day-add-bar" Nothing "+ Mon 1 Jan"
