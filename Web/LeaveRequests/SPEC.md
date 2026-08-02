@@ -26,16 +26,17 @@ This file describes implemented leave/availability behavior.
   already-denied requests remain unchanged as retained history.
 - Venues can optionally configure an unavailable-staff warning threshold from
   1–100. `NULL` disables warnings. Venue admins and owners edit it through
-  Venue Settings; managers see the configured state and warnings on the
-  Unavailability page. Warnings never block submissions.
-- Venue admins and owners manage venue-wide unavailability submission blackout
+  Venue Settings; managers see warnings on the Unavailability page only when
+  one or more dates meet the configured threshold. Disabled and below-threshold
+  states render no warning copy. Warnings never block submissions.
+- Venue admins, owners, and support-mode super admins manage venue-wide unavailability submission blackout
   periods. Blackout first/last dates are inclusive, starts use the venue-local
   calendar date, ranges are at most 366 inclusive days, and the normalized
   3–160 character reason is visible to staff. Current/future periods are visible
   from shared self-service forms; managers can also see them on the
   Unavailability page but cannot manage them.
 - Blackout periods cannot overlap within a venue. New self-service and
-  manager-entered unavailable ranges are rejected in full when any covered date
+  manager- or support-entered unavailable ranges are rejected in full when any covered date
   overlaps, with no role/support override and with the blackout reason shown.
   Leave request `end_date` remains exclusive, so overlap checks compare through
   `end_date - 1`. Existing pending/approved requests remain valid when a later

@@ -100,11 +100,14 @@ instance Controller LeaveRequestsController where
                         respondHtmlProfiled (renderSelfServiceLeaveFormFragment Nothing leaveRequest)
 
     action currentAction@ShowVisibleUnavailabilityBlackoutsFragmentAction = runBepis currentAction BepisFragmentAction do
-        ensureStaffSelfServiceAccess
+        let requestedSurface = paramOrDefault @Text "self-service" "surface"
+        if requestedSurface == "staff"
+            then ensureManagerRole
+            else ensureStaffSelfServiceAccess
         venueConfig <- fetchVenueConfig
         today <- currentVenueCalendarDay venueConfig
         blackouts <- fetchCurrentAndFutureUnavailabilityBlackouts today
-        if paramOrDefault @Text "self-service" "surface" == "staff"
+        if requestedSurface == "staff"
             then respondHtmlProfiled (renderStaffVisibleUnavailabilityBlackoutsFragment blackouts)
             else respondHtmlProfiled (renderVisibleUnavailabilityBlackoutsFragment blackouts)
 
@@ -123,9 +126,11 @@ instance Controller LeaveRequestsController where
                     else render NewView { .. }
 
     action currentAction@CreateLeaveRequestAction = runBepis currentAction BepisMutationAction do
-        ensureStaffSelfServiceAccess
-        ensureVenueWritable
         let responseContext = requestedLeaveResponseContext
+        case responseContext of
+            LeaveStaffResponseContext -> ensureManagerRole
+            _                         -> ensureStaffSelfServiceAccess
+        ensureVenueWritable
         ensureLeaveProfileAccess responseContext
         maybeStaff <- fetchLeaveRequestTargetStaff responseContext
         case maybeStaff of
@@ -296,9 +301,7 @@ requestedLeaveSection =
         _ -> leavePendingSection
 
 ensureUnavailabilityBlackoutManager :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => IO ()
-ensureUnavailabilityBlackoutManager = do
-    ensureAdminRole
-    redirectPermissionDeniedUnless (isJust currentVenueMembershipOrNothing) "Only venue admins and owners can manage submission blackout periods."
+ensureUnavailabilityBlackoutManager = ensureAdminRole
 
 respondWithBlackoutValidationFailure :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => UnavailabilityBlackout -> Text -> IO ()
 respondWithBlackoutValidationFailure submittedBlackout errorMessage =

@@ -84,7 +84,7 @@ test.describe('Unavailable-staff threshold warnings', () => {
                 openAdminWithSeededPasskeySession(adminPage),
             ]);
 
-            await expect(passivePage.locator('#leave-availability-warnings')).toContainText('warnings are disabled');
+            await expect(passivePage.locator('#leave-availability-warnings')).toBeEmpty();
             await adminPage.getByRole('button', { name: 'Venue Settings' }).click();
             await expect(adminPage.locator('#venue-unavailable-staff-warning-threshold')).toBeVisible({ timeout: E2E_TIMEOUT.navigation });
 
@@ -143,7 +143,7 @@ test.describe('Unavailable-staff threshold warnings', () => {
             expect(denyResponse.status(), await denyResponse.text()).toBe(200);
             await denyResponse.finished();
 
-            await expect(passivePage.locator('#leave-availability-warnings')).toContainText('No dates currently meet the threshold', { timeout: E2E_TIMEOUT.liveUpdate });
+            await expect(passivePage.locator('#leave-availability-warnings')).toBeEmpty({ timeout: E2E_TIMEOUT.liveUpdate });
             await actorPage.locator('#leave-denied-heading button').click();
             await expect(actorPage.locator('#leave-requests-content article').filter({ hasText: alphaNote })).toBeVisible({ timeout: E2E_TIMEOUT.liveUpdate });
 

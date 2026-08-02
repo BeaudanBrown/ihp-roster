@@ -2,8 +2,7 @@
 
 module Web.View.LeaveRequests.Index where
 
-import Application.Helper.Controller (currentVenueMembershipOrNothing,
-                                      leaveRequestIsArchivedOn)
+import Application.Helper.Controller (leaveRequestIsArchivedOn)
 import qualified Application.Helper.FrontendContract.Surface.LeaveRequests as Surface
 import qualified Application.Helper.FrontendContract.Surface.LeaveRequests.Action as LeaveRequestsAction
 import Application.Helper.FrontendContract.Surface.Runtime (FrontendSurfaceActionRoute (..),
@@ -158,7 +157,7 @@ renderBlackoutPeriods leaveRequests staffMembers blackouts = [hsx|
 |]
 
 currentUserCanManageBlackouts :: (?context :: ControllerContext) => Bool
-currentUserCanManageBlackouts = currentUserIsAdmin && isJust currentVenueMembershipOrNothing
+currentUserCanManageBlackouts = currentUserIsAdmin
 
 renderCreateBlackoutForm :: (?context :: ControllerContext) => Day -> UnavailabilityBlackout -> Html
 renderCreateBlackoutForm today blackout =
@@ -296,8 +295,8 @@ renderAvailabilityWarningsLiveFragment warningThreshold warningPeriods = [hsx|
 |]
 
 renderAvailabilityWarningContent :: Maybe Int -> [AvailabilityWarningPeriod] -> Html
-renderAvailabilityWarningContent Nothing _ = [hsx|<p class="small app-muted mb-0">Unavailable-staff warnings are disabled for this venue.</p>|]
-renderAvailabilityWarningContent (Just threshold) [] = [hsx|<p class="small app-muted mb-0">Managers are warned when at least {threshold} active staff are unavailable on the same date. No dates currently meet the threshold.</p>|]
+renderAvailabilityWarningContent Nothing _ = mempty
+renderAvailabilityWarningContent (Just _) [] = mempty
 renderAvailabilityWarningContent (Just threshold) warningPeriods = [hsx|
     <div class="alert alert-warning mb-0" role="status">
         <h2 class="h6 mb-2">Unavailable-staff threshold reached</h2>

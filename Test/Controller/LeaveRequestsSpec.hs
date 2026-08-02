@@ -238,7 +238,7 @@ tests = aroundAll withDatabaseTestContext do
                 beforeResponse `responseStatusShouldBe` status200
                 query @LeaveRequest |> filterWhere (#staffId, unpackId staff.id) |> fetchCount >>= (`shouldBe` 1)
 
-        it "does not let managers or support override blackouts for staff-entered requests" $ withContext do
+        it "lets managers and support enter staff requests without overriding blackouts" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Blackout No Override Venue"
                 manager <- createUserRecord "blackout-manager@example.com" "manager" True
@@ -270,7 +270,8 @@ tests = aroundAll withDatabaseTestContext do
                 supportResponse <- withPasskeyVerifiedUserAndCurrentVenue superAdmin venue.id do
                     withRequestHeaders [("HX-Request", "true")] do
                         callActionWithParams CreateLeaveRequestAction requestParams
-                supportResponse `responseStatusShouldBe` status302
+                supportResponse `responseStatusShouldBe` status200
+                supportResponse `responseBodyShouldContain` "Mandatory training day"
                 supportManagementResponse <- withPasskeyVerifiedUserAndCurrentVenue superAdmin venue.id do
                     callActionWithParams CreateUnavailabilityBlackoutAction
                         [ ("startDate", cs (tshow (addDays 1 blockedDate)))
@@ -278,7 +279,7 @@ tests = aroundAll withDatabaseTestContext do
                         , ("reason", "Support override period")
                         ]
                 supportManagementResponse `responseStatusShouldBe` status302
-                query @UnavailabilityBlackout |> filterWhere (#venueId, unpackId venue.id) |> fetchCount >>= (`shouldBe` 1)
+                query @UnavailabilityBlackout |> filterWhere (#venueId, unpackId venue.id) |> fetchCount >>= (`shouldBe` 2)
                 query @LeaveRequest |> filterWhere (#staffId, unpackId staff.id) |> fetchCount >>= (`shouldBe` 0)
 
         it "lets admins edit and remove blackouts while managers cannot manage them" $ withContext do
@@ -383,6 +384,27 @@ tests = aroundAll withDatabaseTestContext do
                 workerResponse `responseBodyShouldNotContain` "Ended closure"
 
 
+        it "renders staff blackout fragments for support-mode super-admins" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Support Staff Blackout Fragment Venue"
+                superAdmin <- createUserRecordWithPlatformRole "support-staff-blackout-fragment@example.com" "staff" (Just SuperAdmin) True
+                today <- utctDay <$> getCurrentTime
+                _ <- newRecord @UnavailabilityBlackout
+                    |> set #venueId (unpackId venue.id)
+                    |> set #startDate today
+                    |> set #endDate today
+                    |> set #reason "Support-visible closure"
+                    |> createRecord
+
+                response <- withPasskeyVerifiedUserAndCurrentVenue superAdmin venue.id do
+                    withRequestHeaders [("HX-Request", "true")] do
+                        callActionWithParams ShowVisibleUnavailabilityBlackoutsFragmentAction [("surface", "staff")]
+
+                response `responseStatusShouldBe` status200
+                response `responseBodyShouldContain` "id=\"staff-visible-unavailability-blackouts\""
+                response `responseBodyShouldContain` "Support-visible closure"
+                response `responseBodyShouldNotContain` "Founder support"
+
         it "redirects venue-less super-admins from leave to support" $ withContext do
             withCleanDb do
                 user <- createUserRecordWithPlatformRole "leave-bootstrap-super-admin@example.com" "staff" (Just SuperAdmin) True
@@ -460,7 +482,8 @@ tests = aroundAll withDatabaseTestContext do
                     callAction LeaveRequestsAction
 
                 managerResponse `responseStatusShouldBe` status200
-                managerResponse `responseBodyShouldContain` "Unavailable-staff warnings are disabled for this venue."
+                managerResponse `responseBodyShouldContain` "id=\"leave-availability-warnings\""
+                managerResponse `responseBodyShouldNotContain` "Unavailable-staff warnings are disabled for this venue."
                 workerResponse `responseStatusShouldBe` status302
                 workerResponse `responseBodyShouldNotContain` "Unavailable-staff warnings"
 
