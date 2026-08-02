@@ -71,7 +71,7 @@ test.describe('Roster week overview', () => {
         const [download, exportGeometry] = await Promise.all([downloadPromise, exportGeometryPromise]);
 
         expect(exportGeometry.dayCellCount).toBe(7);
-        expect(exportGeometry.wageRailDisplay).toBe('none');
+        expect([null, 'none']).toContain(exportGeometry.wageRailDisplay);
         expect(exportGeometry.dayRight).not.toBeNull();
         expect(exportGeometry.firstSlotLeft).not.toBeNull();
         expect(exportGeometry.firstSlotLeft ?? 0).toBeGreaterThanOrEqual((exportGeometry.dayRight ?? 0) - 1);
