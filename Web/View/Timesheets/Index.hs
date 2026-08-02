@@ -21,6 +21,7 @@ import Application.Helper.FrontendContract.Surface.Runtime (FrontendSurfaceActio
 import qualified Application.Helper.FrontendContract.Surface.Timesheets as Surface
 import qualified Application.Helper.FrontendContract.Surface.Timesheets.Action as TimesheetsAction
 import Application.Helper.FrontendContract.Surface.Values
+import Application.Helper.Url (appendQueryParams)
 import Application.PayAssignment (StaffPayAssignment (..),
                                   staffAssignmentAllowsTimesheets)
 import Application.VenueTime.Model
@@ -378,7 +379,9 @@ renderSuggestionCard model@TimesheetDayRenderModel { dayWeekOffset, dayShowAppro
   where
     suggestedEntry = newTimesheetEntryFromSuggestion (unpackId currentVenueId) suggestion
     stateFields = TimesheetsAction.createTimesheetEntryFromSuggestionActionFields dayWeekOffset dayShowApproved dayShowAllStaff dayShowSuggestions dayStaffFilterId
-    createUrl = createTimesheetEntryFromSuggestionUrl suggestion.suggestionRosterSlotId dayWeekOffset dayShowApproved dayShowAllStaff dayShowSuggestions dayStaffFilterId
+    createUrl =
+        let baseUrl = createTimesheetEntryFromSuggestionUrl suggestion.suggestionRosterSlotId dayWeekOffset dayShowApproved dayShowAllStaff dayShowSuggestions dayStaffFilterId
+         in if currentUserIsManager then appendQueryParams baseUrl [("approveSuggestion", "true")] else baseUrl
     editUrl = newTimesheetEntryFromSuggestionUrl suggestion.suggestionRosterSlotId dayWeekOffset dayShowApproved dayShowAllStaff dayShowSuggestions dayStaffFilterId
     action = TimesheetsAction.createTimesheetEntryFromSuggestionAction stateFields
 
@@ -391,7 +394,7 @@ renderSuggestionCreateAction createUrl action = [hsx|
         renderTimesheetApprovalForm
             action
             createUrl
-            [hsx|<button type="submit" class="btn btn-sm btn-outline-success timesheet-approval-toggle">Create</button>|]
+            [hsx|<button type="submit" class="btn btn-sm btn-outline-success timesheet-approval-toggle">{if currentUserIsManager then ("Approve" :: Text) else "Create"}</button>|]
 
 renderSuggestionCardOverlayLink :: (?context :: ControllerContext) => Day -> Text -> Html
 renderSuggestionCardOverlayLink workedOn editUrl =

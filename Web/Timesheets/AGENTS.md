@@ -13,7 +13,7 @@ Read this before editing timesheet controllers, views, or helpers.
   explicitly created `TimesheetEntry` with immutable source provenance.
 - Suggestions must use the same parameterized `renderTimesheetCard` markup as
   persisted entries. Their shared suggestion class owns the accent border/tint
-  and Create action; do not add a status badge or create parallel card HTML,
+  and role-aware Create/Approve action; do not add a status badge or create parallel card HTML,
   typography, shape bars, or interaction behavior.
 - Use IHP form helpers plus explicit server-side checks for required fields.
 - When changing visible timesheet entry, week navigation, approval, provenance, or role-specific review behavior, update the `timesheets` topic in `Application.Helper.View.PageHelp`.

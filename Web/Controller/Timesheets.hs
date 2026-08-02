@@ -246,17 +246,33 @@ instance Controller TimesheetsController where
                             accessDeniedUnless (timesheetEntryWorkedOn validEntry == timesheetSuggestionWorkedOn suggestion)
                             ensureStaffAssignmentAllowed validEntry.staffId
                             ensureShiftTypeAllowed validEntry.shiftTypeId
-                            materializationResult <- materializeTimesheetSuggestionMutation weekOffset suggestion validEntry
-                            case materializationResult of
-                                Nothing -> do
-                                    setErrorMessage "That rostered shift changed before the timesheet entry was created. Review the current suggestion and try again."
-                                    redirectToPath (timesheetWeekUrl weekOffset showApproved showAllStaff showSuggestions selectedStaffFilterId)
-                                Just mutationResult ->
-                                    if isHtmxRequest
-                                        then respondWithTimesheetMutationUpdate weekOffset showApproved showAllStaff showSuggestions selectedStaffFilterId mutationResult.liveMutationTouchedResources "Rostered timesheet entry created" True
-                                        else do
-                                            setSuccessMessage "Rostered timesheet entry created"
+                            let shouldApproveSuggestion = hasRole Manager && paramOrDefault @Bool False "approveSuggestion"
+                            if shouldApproveSuggestion
+                                then materializeAndApproveTimesheetSuggestionMutation weekOffset suggestion validEntry >>= \case
+                                    Left approvalError -> do
+                                        setErrorMessage approvalError
+                                        redirectToPath (timesheetWeekUrl weekOffset showApproved showAllStaff showSuggestions selectedStaffFilterId)
+                                    Right Nothing -> do
+                                        setErrorMessage "That rostered shift changed before the timesheet entry was approved. Review the current suggestion and try again."
+                                        redirectToPath (timesheetWeekUrl weekOffset showApproved showAllStaff showSuggestions selectedStaffFilterId)
+                                    Right (Just mutationResult) ->
+                                        if isHtmxRequest
+                                            then respondWithTimesheetMutationUpdate weekOffset showApproved showAllStaff showSuggestions selectedStaffFilterId mutationResult.liveMutationTouchedResources "Rostered timesheet entry approved" True
+                                            else do
+                                                setSuccessMessage "Rostered timesheet entry approved"
+                                                redirectToPath (timesheetWeekUrl weekOffset showApproved showAllStaff showSuggestions selectedStaffFilterId)
+                                else do
+                                    materializationResult <- materializeTimesheetSuggestionMutation weekOffset suggestion validEntry
+                                    case materializationResult of
+                                        Nothing -> do
+                                            setErrorMessage "That rostered shift changed before the timesheet entry was created. Review the current suggestion and try again."
                                             redirectToPath (timesheetWeekUrl weekOffset showApproved showAllStaff showSuggestions selectedStaffFilterId)
+                                        Just mutationResult ->
+                                            if isHtmxRequest
+                                                then respondWithTimesheetMutationUpdate weekOffset showApproved showAllStaff showSuggestions selectedStaffFilterId mutationResult.liveMutationTouchedResources "Rostered timesheet entry created" True
+                                                else do
+                                                    setSuccessMessage "Rostered timesheet entry created"
+                                                    redirectToPath (timesheetWeekUrl weekOffset showApproved showAllStaff showSuggestions selectedStaffFilterId)
 
     action currentAction@EditTimesheetEntryAction { timesheetEntryId } = runBepis currentAction BepisFormAction do
         timesheetEntry <- fetch timesheetEntryId

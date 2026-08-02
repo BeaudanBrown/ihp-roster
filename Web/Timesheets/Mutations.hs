@@ -1,6 +1,7 @@
 module Web.Timesheets.Mutations
     ( approveTimesheetEntryMutation
     , createTimesheetEntryMutation
+    , materializeAndApproveTimesheetSuggestionMutation
     , materializeTimesheetSuggestionMutation
     , deleteTimesheetEntryMutation
     , timesheetEntryTouchedResources
@@ -44,27 +45,45 @@ createTimesheetEntryMutation _weekOffset timesheetEntry = do
 
 materializeTimesheetSuggestionMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Int -> TimesheetSuggestion -> TimesheetEntry -> IO (Maybe (LiveMutationResult TimesheetEntry))
 materializeTimesheetSuggestionMutation _weekOffset expectedSuggestion timesheetEntry = do
-    materialization <- withTransaction do
-        let rosterSlotId = unpackId expectedSuggestion.suggestionRosterSlotId
-        lockRosterSlot rosterSlotId
-        existingEntry <- fetchActiveEntryForRosterSlot rosterSlotId
-        case existingEntry of
-            Just existingEntry
-                | existingEntry.staffId == expectedSuggestion.suggestionStaffId
-                    && existingEntry.startsAt == authoritativeStartsAt expectedSuggestion.suggestionBoundaries
-                    && existingEntry.timezone == authoritativeTimezone expectedSuggestion.suggestionBoundaries ->
-                    pure (Just (existingEntry, False))
-                | otherwise -> pure Nothing
-            Nothing -> do
-                targetAllowed <- timesheetTargetAllowsCreation timesheetEntry
-                currentSuggestion <- fetchTimesheetSuggestionForRosterSlot expectedSuggestion.suggestionRosterSlotId
-                if not targetAllowed || currentSuggestion /= Just expectedSuggestion
-                    then pure Nothing
-                    else Just . (, True) <$> createTimesheetEntryWithVersion timesheetEntry
+    materialization <- withTransaction (materializeTimesheetSuggestionInCurrentTransaction expectedSuggestion timesheetEntry)
     case materialization of
         Nothing -> pure Nothing
         Just (materializedEntry, wasCreated) ->
             Just <$> invalidateTimesheetCreation (if wasCreated then "timesheet.suggestion.create" else "timesheet.suggestion.create.idempotent") materializedEntry
+
+materializeAndApproveTimesheetSuggestionMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Int -> TimesheetSuggestion -> TimesheetEntry -> IO (Either Text (Maybe (LiveMutationResult TimesheetEntry)))
+materializeAndApproveTimesheetSuggestionMutation _weekOffset expectedSuggestion timesheetEntry = do
+    approval :: Either IOException (Maybe TimesheetEntry) <- try $ withTransaction do
+        materialization <- materializeTimesheetSuggestionInCurrentTransaction expectedSuggestion timesheetEntry
+        case materialization of
+            Nothing -> pure Nothing
+            Just (materializedEntry, _) -> Just <$> approveTimesheetEntryInCurrentTransaction materializedEntry
+    case approval of
+        Left reason -> pure (Left (tshow reason))
+        Right Nothing -> pure (Right Nothing)
+        Right (Just approvedEntry) -> do
+            venueConfig <- fetchVenueConfig
+            result <- invalidateTouchedResources "timesheet.suggestion.approve" (liveMutationResult approvedEntry (timesheetEntryTouchedResources venueConfig [approvedEntry]))
+            pure (Right (Just result))
+
+materializeTimesheetSuggestionInCurrentTransaction :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => TimesheetSuggestion -> TimesheetEntry -> IO (Maybe (TimesheetEntry, Bool))
+materializeTimesheetSuggestionInCurrentTransaction expectedSuggestion timesheetEntry = do
+    let rosterSlotId = unpackId expectedSuggestion.suggestionRosterSlotId
+    lockRosterSlot rosterSlotId
+    existingEntry <- fetchActiveEntryForRosterSlot rosterSlotId
+    case existingEntry of
+        Just existingEntry
+            | existingEntry.staffId == expectedSuggestion.suggestionStaffId
+                && existingEntry.startsAt == authoritativeStartsAt expectedSuggestion.suggestionBoundaries
+                && existingEntry.timezone == authoritativeTimezone expectedSuggestion.suggestionBoundaries ->
+                pure (Just (existingEntry, False))
+            | otherwise -> pure Nothing
+        Nothing -> do
+            targetAllowed <- timesheetTargetAllowsCreation timesheetEntry
+            currentSuggestion <- fetchTimesheetSuggestionForRosterSlot expectedSuggestion.suggestionRosterSlotId
+            if not targetAllowed || currentSuggestion /= Just expectedSuggestion
+                then pure Nothing
+                else Just . (, True) <$> createTimesheetEntryWithVersion timesheetEntry
 
 timesheetTargetAllowsCreation :: (?modelContext :: ModelContext) => TimesheetEntry -> IO Bool
 timesheetTargetAllowsCreation entry = do
@@ -189,65 +208,68 @@ deleteTimesheetEntryMutation _weekOffset timesheetEntry = do
 
 approveTimesheetEntryMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Int -> TimesheetEntry -> IO (Either Text (LiveMutationResult TimesheetEntry))
 approveTimesheetEntryMutation _weekOffset timesheetEntry = do
-    now <- getCurrentTime
-    approval :: Either IOException TimesheetEntry <- try $ withTransaction do
-        -- QueryBuilder has no row-lock combinator; keep this narrow FOR UPDATE
-        -- seam here so concurrent approvals cannot create duplicate ledgers.
-        lockedEntryIds :: [Only UUID] <- sqlQuery
-            "SELECT id FROM timesheet_entries WHERE id = ? FOR UPDATE"
-            (Only (unpackId timesheetEntry.id))
-        lockedEntryId <- maybe (ioError (userError "timesheet entry disappeared during approval")) (\(Only entryId) -> pure entryId) (listToMaybe lockedEntryIds)
-        lockedEntry <- fetch (Id lockedEntryId :: Id TimesheetEntry)
-        case (lockedEntry.isApproved, lockedEntry.activePayCalculationId) of
-            (True, Just _) -> pure lockedEntry
-            _ -> do
-                (staffPayVersion, shiftTypePayVersion) <- ensurePayVersionsForTimesheetApproval currentUser.id lockedEntry
-                lockPayVersionsForApproval currentUser.id now staffPayVersion shiftTypePayVersion
-                let approvalEntry =
-                        lockedEntry
-                            |> set #isApproved True
-                            |> set #staffPayVersionId (Just (unpackId (get #id staffPayVersion)))
-                            |> set #shiftTypePayVersionId (Just (unpackId (get #id shiftTypePayVersion)))
-                            |> set #approvedAt (Just now)
-                            |> set #approvedByUserId (Just (unpackId (get #id currentUser)))
-                sourceEnforcement <- enforceFinalWageEntries [approvalEntry |> set #isApproved False]
-                case sourceEnforcement of
-                    Left failures -> ioError (userError (Text.unpack (renderWageEntryFailures "Approval blocked: " failures)))
-                    Right _       -> pure ()
-                persistedCalculation <- persistApprovedTimesheetPayCalculation approvalEntry
-                calculation <- case persistedCalculation of
-                    Left reason  -> ioError (userError (Text.unpack reason))
-                    Right result -> pure result
-                activeEntry <- approvalEntry
-                    |> set #activePayCalculationId (Just calculation.id)
-                    |> updateRecord
-                void $
-                    recordCurrentUserTimesheetEntryVersion
-                        (EntryVersionActionEnumApproved)
-                        activeEntry
-                        (Aeson.object
-                            [ "previous" Aeson..= timesheetEntrySnapshot lockedEntry
-                            ]
-                        )
-                void $ recordCurrentUserAuditEvent
-                    TimesheetApprovedAudit
-                    "timesheet_entries"
-                    (unpackId (get #id lockedEntry))
-                    (Aeson.object
-                        [ "staffId" Aeson..= lockedEntry.staffId
-                        , "startsAt" Aeson..= lockedEntry.startsAt
-                        , "timezone" Aeson..= lockedEntry.timezone
-                        , "wasApproved" Aeson..= lockedEntry.isApproved
-                        , "payConfigVersionManifest" Aeson..= payVersionManifestForEntry activeEntry
-                        , "approvedAt" Aeson..= now
-                        ]
-                    )
-                pure activeEntry
+    approval :: Either IOException TimesheetEntry <- try $ withTransaction (approveTimesheetEntryInCurrentTransaction timesheetEntry)
     case approval of
         Left reason -> pure (Left (tshow reason))
         Right updatedEntry -> do
             venueConfig <- fetchVenueConfig
             Right <$> invalidateTouchedResources "timesheet.approve" (liveMutationResult updatedEntry (timesheetEntryTouchedResources venueConfig [updatedEntry]))
+
+approveTimesheetEntryInCurrentTransaction :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => TimesheetEntry -> IO TimesheetEntry
+approveTimesheetEntryInCurrentTransaction timesheetEntry = do
+    now <- getCurrentTime
+    -- QueryBuilder has no row-lock combinator; keep this narrow FOR UPDATE
+    -- seam here so concurrent approvals cannot create duplicate ledgers.
+    lockedEntryIds :: [Only UUID] <- sqlQuery
+        "SELECT id FROM timesheet_entries WHERE id = ? FOR UPDATE"
+        (Only (unpackId timesheetEntry.id))
+    lockedEntryId <- maybe (ioError (userError "timesheet entry disappeared during approval")) (\(Only entryId) -> pure entryId) (listToMaybe lockedEntryIds)
+    lockedEntry <- fetch (Id lockedEntryId :: Id TimesheetEntry)
+    case (lockedEntry.isApproved, lockedEntry.activePayCalculationId) of
+        (True, Just _) -> pure lockedEntry
+        _ -> do
+            (staffPayVersion, shiftTypePayVersion) <- ensurePayVersionsForTimesheetApproval currentUser.id lockedEntry
+            lockPayVersionsForApproval currentUser.id now staffPayVersion shiftTypePayVersion
+            let approvalEntry =
+                    lockedEntry
+                        |> set #isApproved True
+                        |> set #staffPayVersionId (Just (unpackId (get #id staffPayVersion)))
+                        |> set #shiftTypePayVersionId (Just (unpackId (get #id shiftTypePayVersion)))
+                        |> set #approvedAt (Just now)
+                        |> set #approvedByUserId (Just (unpackId (get #id currentUser)))
+            sourceEnforcement <- enforceFinalWageEntries [approvalEntry |> set #isApproved False]
+            case sourceEnforcement of
+                Left failures -> ioError (userError (Text.unpack (renderWageEntryFailures "Approval blocked: " failures)))
+                Right _       -> pure ()
+            persistedCalculation <- persistApprovedTimesheetPayCalculation approvalEntry
+            calculation <- case persistedCalculation of
+                Left reason  -> ioError (userError (Text.unpack reason))
+                Right result -> pure result
+            activeEntry <- approvalEntry
+                |> set #activePayCalculationId (Just calculation.id)
+                |> updateRecord
+            void $
+                recordCurrentUserTimesheetEntryVersion
+                    (EntryVersionActionEnumApproved)
+                    activeEntry
+                    (Aeson.object
+                        [ "previous" Aeson..= timesheetEntrySnapshot lockedEntry
+                        ]
+                    )
+            void $ recordCurrentUserAuditEvent
+                TimesheetApprovedAudit
+                "timesheet_entries"
+                (unpackId (get #id lockedEntry))
+                (Aeson.object
+                    [ "staffId" Aeson..= lockedEntry.staffId
+                    , "startsAt" Aeson..= lockedEntry.startsAt
+                    , "timezone" Aeson..= lockedEntry.timezone
+                    , "wasApproved" Aeson..= lockedEntry.isApproved
+                    , "payConfigVersionManifest" Aeson..= payVersionManifestForEntry activeEntry
+                    , "approvedAt" Aeson..= now
+                    ]
+                )
+            pure activeEntry
 
 unapproveTimesheetEntryMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Int -> TimesheetEntry -> IO (LiveMutationResult TimesheetEntry)
 unapproveTimesheetEntryMutation _weekOffset timesheetEntry = do

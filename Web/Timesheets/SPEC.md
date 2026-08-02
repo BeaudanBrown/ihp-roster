@@ -10,8 +10,9 @@ submission work belongs in `docs/workstreams/` until it lands.
   roster shift. It is not a database row and is not a timesheet status.
 - A **Timesheet entry** is the persisted work record used for review, approval,
   export, and payroll.
-- Customer-facing suggestion cards use an accent-highlighted treatment and the
-  **Create** action rather than a status badge.
+- Customer-facing suggestion cards use an accent-highlighted treatment rather
+  than a status badge. Staff receive **Create**; managers and above receive
+  **Approve**.
 
 ## Current Contract
 
@@ -86,8 +87,8 @@ submission work belongs in `docs/workstreams/` until it lands.
   shift and break widths from authoritative elapsed instants, so repeated equal
   clocks do not become missing or full-day bars. A full-contrast accent border
   and tinted card background identify the transient state without a status
-  badge. Create is shown in place of approval, and clicking the card body opens
-  the prefilled form. Mouse activation does not leave a focus outline on the
+  badge. Staff see Create while managers and above see Approve; clicking the card body opens
+  the prefilled form for either audience. Mouse activation does not leave a focus outline on the
   card; keyboard `focus-visible` navigation retains the accessible outline.
 
 ## Materialization And Ad-Hoc Entries
@@ -107,8 +108,10 @@ submission work belongs in `docs/workstreams/` until it lands.
   date and source link stay immutable, and later roster changes never update or
   delete the entry. Its edit form does not render a separate roster-origin
   notice; provenance remains enforced by the stored source link.
-- Creation and approval are separate actions. There is no create-and-approve or
-  bulk-create path.
+- Staff creation and modal Save remain unapproved materialization paths.
+  Managers and above may use the suggestion-card Approve action to atomically
+  materialize and approve the current authoritative suggestion. A failed
+  approval rolls back materialization completely. There is no bulk-create path.
 - The day add control always creates an unrelated ad-hoc entry with no source
   link. If a suggestion exists for that day, creation remains allowed and does
   not consume the suggestion; the form does not render a separate origin
@@ -142,8 +145,9 @@ submission work belongs in `docs/workstreams/` until it lands.
   any calculation or source failure.
 - Do not seed approved entries by setting only `isApproved`; fixtures must set
   all required approval fields together.
-- Roster-derived materialization is always unapproved. Managers review and use
-  the existing separate approval action.
+- Roster-derived materialization is unapproved unless a manager uses the
+  suggestion-card Approve action. Existing unapproved entries retain the
+  separate approval action.
 - Payroll-adjacent changes preserve provenance through version/event helpers
   rather than destructive overwrite.
 

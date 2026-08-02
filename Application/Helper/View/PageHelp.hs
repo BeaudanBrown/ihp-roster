@@ -199,7 +199,7 @@ pageHelpTopics =
     , topic "timesheets" "Timesheets"
         [ section HelpEveryone "Timesheet tasks"
             [ iconItem HelpEveryone "bi-chevron-left" "Week controls" "Choose the right pay week" "Use the arrow controls before adding or reviewing entries. Select This week to return to the venue's current week."
-            , buttonItem HelpEveryone "bi-calendar-check" "Highlighted suggestion" "Create a roster-derived entry" "An accent-highlighted card is a suggestion from a live roster shift. Click Create to save its current values as an unapproved timesheet entry." "btn btn-sm btn-outline-success timesheet-approval-toggle" Nothing "Create"
+            , buttonItem HelpEveryone "bi-calendar-check" "Highlighted suggestion" "Use a roster-derived entry" "An accent-highlighted card is a suggestion from a live roster shift. Staff click Create to save an unapproved entry; managers and above click Approve to create and approve it immediately." "btn btn-sm btn-outline-success timesheet-approval-toggle" Nothing "Create / Approve"
             , iconItem HelpEveryone "bi-pencil" "Suggestion card" "Adjust before creating" "Click the body of a highlighted suggestion card, just like a normal Timesheet card, to change its time, break, shift type, or comments before saving it."
             , buttonItem HelpEveryone "bi-plus-lg" "Day add control" "Add a separate time entry" "Click the + bar to add an unrelated entry. The form opens directly without an origin warning; it does not create or consume a roster suggestion for that day." "timesheet-day-add-bar" Nothing "+ Mon 1 Jan"
             , iconItem HelpEveryone "bi-funnel" "Timesheet settings" "Hide or show suggestions" "Open Timesheet settings and toggle Show suggestions. The choice stays in the current page URL while you navigate weeks."
@@ -210,7 +210,7 @@ pageHelpTopics =
             , iconItem HelpEveryone "bi-chat-left-text" "Manager help" "Fix an approved entry" "If an approved entry needs changes, ask a manager to reopen or correct it."
             ]
         , section HelpManagerPlus "Review tasks"
-            [ buttonItem HelpManagerPlus "bi-check-lg" "Approve" "Approve staff entries" "Creating a roster suggestion never approves it. Review the resulting entry, then click the separate green Approve button. Approval stops without changing the entry when its pay calculation or authoritative wage sources are not ready." "btn btn-sm btn-outline-success timesheet-approval-toggle" Nothing "Approve"
+            [ buttonItem HelpManagerPlus "bi-check-lg" "Approve" "Approve staff entries" "Click Approve on a suggestion to create and approve it atomically, or use the separate green Approve button on an existing unapproved entry. Approval stops without creating or changing the entry when its pay calculation or authoritative wage sources are not ready." "btn btn-sm btn-outline-success timesheet-approval-toggle" Nothing "Approve"
             , iconItem HelpManagerPlus "bi-people" "Staff assignment" "Correct roster-derived staff" "Open a created roster-derived entry and choose another active staff member when the worked shift needs reassignment. Its worked date and roster source remain fixed."
             , buttonItem HelpManagerPlus "bi-arrow-counterclockwise" "Unapprove" "Correct approved entries" "Click the green Approved button to unapprove an entry before editing it, then approve it again after correction." "btn btn-sm btn-success timesheet-approval-toggle" Nothing "Approved"
             ]
