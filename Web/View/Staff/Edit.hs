@@ -59,6 +59,7 @@ instance View NewView where
 
 data EditView = EditView
     { staff                    :: Staff
+    , staffPayConfigurationRequired :: Bool
     , maybeLinkedUserEmail     :: Maybe Text
     , rosterGroups             :: [RosterGroup]
     , awardLevels              :: [AwardLevel]
@@ -83,7 +84,7 @@ instance View EditView where
         renderStaffEditPageModalWithButtons
             weekOffset
             []
-            (renderStaffSurfaceMount staff (renderStaffEditBody PageOverlayForm staff maybeLinkedUserEmail rosterGroups awardLevels awardLevelBaseRates importedPayItems selectedRosterGroupIds maybeVenueMembership staffRemovalAllowed preferenceWeekdays selectedShiftPreferences staffRsaDocument leaveRequest leaveRequests today weekOffset maybeRosterGroupId openSection))
+            (renderStaffSurfaceMount staff (renderStaffEditBody PageOverlayForm staff staffPayConfigurationRequired maybeLinkedUserEmail rosterGroups awardLevels awardLevelBaseRates importedPayItems selectedRosterGroupIds maybeVenueMembership staffRemovalAllowed preferenceWeekdays selectedShiftPreferences staffRsaDocument leaveRequest leaveRequests today weekOffset maybeRosterGroupId openSection))
 
 staffEditFormId :: Text
 staffEditFormId = "staff-edit-form"
@@ -93,6 +94,9 @@ staffShiftPreferencesEditFormId = "staff-shift-preferences-form"
 
 staffSectionsAccordionId :: Text
 staffSectionsAccordionId = "staff-sections"
+
+staffPayConfigurationWarningText :: Text
+staffPayConfigurationWarningText = "Pay configuration required. A venue admin must choose a default pay rate or “No Timesheets (roster only).”"
 
 renderNewStaffModalFragment :: Staff -> [RosterGroup] -> [AwardLevel] -> [AwardLevelBaseRate] -> [XeroImportedPayItem] -> [Id RosterGroup] -> Int -> Maybe (Id RosterGroup) -> Html
 renderNewStaffModalFragment staff rosterGroups awardLevels awardLevelBaseRates importedPayItems selectedRosterGroupIds weekOffset maybeRosterGroupId =
@@ -154,18 +158,18 @@ renderNewStaffBody formMode staff rosterGroups awardLevels awardLevelBaseRates i
             values.profileDetailsPayRateSelection
             values.profileDetailsRosterGroupIds
 
-renderStaffEditModalFragment :: Staff -> Maybe Text -> [RosterGroup] -> [AwardLevel] -> [AwardLevelBaseRate] -> [XeroImportedPayItem] -> [Id RosterGroup] -> Maybe VenueMembership -> Bool -> [PreferenceWeekday] -> [ShiftPreferenceSelection] -> Maybe StaffDocument -> LeaveRequest -> [LeaveRequest] -> Day -> Int -> Maybe (Id RosterGroup) -> Text -> Html
-renderStaffEditModalFragment staff maybeLinkedUserEmail rosterGroups awardLevels awardLevelBaseRates importedPayItems selectedRosterGroupIds maybeVenueMembership staffRemovalAllowed preferenceWeekdays selectedShiftPreferences staffRsaDocument leaveRequest leaveRequests today weekOffset maybeRosterGroupId openSection =
+renderStaffEditModalFragment :: Staff -> Bool -> Maybe Text -> [RosterGroup] -> [AwardLevel] -> [AwardLevelBaseRate] -> [XeroImportedPayItem] -> [Id RosterGroup] -> Maybe VenueMembership -> Bool -> [PreferenceWeekday] -> [ShiftPreferenceSelection] -> Maybe StaffDocument -> LeaveRequest -> [LeaveRequest] -> Day -> Int -> Maybe (Id RosterGroup) -> Text -> Html
+renderStaffEditModalFragment staff staffPayConfigurationRequired maybeLinkedUserEmail rosterGroups awardLevels awardLevelBaseRates importedPayItems selectedRosterGroupIds maybeVenueMembership staffRemovalAllowed preferenceWeekdays selectedShiftPreferences staffRsaDocument leaveRequest leaveRequests today weekOffset maybeRosterGroupId openSection =
     renderStaffEditDialogWithButtons
         []
-        (renderStaffSurfaceMount staff (renderStaffEditBody HtmxOverlayForm staff maybeLinkedUserEmail rosterGroups awardLevels awardLevelBaseRates importedPayItems selectedRosterGroupIds maybeVenueMembership staffRemovalAllowed preferenceWeekdays selectedShiftPreferences staffRsaDocument leaveRequest leaveRequests today weekOffset maybeRosterGroupId openSection))
+        (renderStaffSurfaceMount staff (renderStaffEditBody HtmxOverlayForm staff staffPayConfigurationRequired maybeLinkedUserEmail rosterGroups awardLevels awardLevelBaseRates importedPayItems selectedRosterGroupIds maybeVenueMembership staffRemovalAllowed preferenceWeekdays selectedShiftPreferences staffRsaDocument leaveRequest leaveRequests today weekOffset maybeRosterGroupId openSection))
 
 renderStaffSurfaceMount :: Staff -> Html -> Html
 renderStaffSurfaceMount staff =
     renderFrontendSurfaceMount (staffSurfaceImpl (ProfileScopeValue (unpackId currentVenueId) (unpackId staff.id)))
 
-renderStaffEditBody :: OverlayFormMode -> Staff -> Maybe Text -> [RosterGroup] -> [AwardLevel] -> [AwardLevelBaseRate] -> [XeroImportedPayItem] -> [Id RosterGroup] -> Maybe VenueMembership -> Bool -> [PreferenceWeekday] -> [ShiftPreferenceSelection] -> Maybe StaffDocument -> LeaveRequest -> [LeaveRequest] -> Day -> Int -> Maybe (Id RosterGroup) -> Text -> Html
-renderStaffEditBody formMode staff maybeLinkedUserEmail rosterGroups awardLevels awardLevelBaseRates importedPayItems selectedRosterGroupIds maybeVenueMembership staffRemovalAllowed preferenceWeekdays selectedShiftPreferences _staffRsaDocument leaveRequest leaveRequests _today weekOffset maybeRosterGroupId openSection =
+renderStaffEditBody :: OverlayFormMode -> Staff -> Bool -> Maybe Text -> [RosterGroup] -> [AwardLevel] -> [AwardLevelBaseRate] -> [XeroImportedPayItem] -> [Id RosterGroup] -> Maybe VenueMembership -> Bool -> [PreferenceWeekday] -> [ShiftPreferenceSelection] -> Maybe StaffDocument -> LeaveRequest -> [LeaveRequest] -> Day -> Int -> Maybe (Id RosterGroup) -> Text -> Html
+renderStaffEditBody formMode staff staffPayConfigurationRequired maybeLinkedUserEmail rosterGroups awardLevels awardLevelBaseRates importedPayItems selectedRosterGroupIds maybeVenueMembership staffRemovalAllowed preferenceWeekdays selectedShiftPreferences _staffRsaDocument leaveRequest leaveRequests _today weekOffset maybeRosterGroupId openSection =
     let managementFields =
             StaffManagementFieldData
                 { managementStaff = staff
@@ -188,18 +192,21 @@ renderStaffEditBody formMode staff maybeLinkedUserEmail rosterGroups awardLevels
                         { staffProfileSectionKey = "profile"
                         , staffProfileSectionId = staffProfileDetailsSectionId
                         , staffProfileSectionTitle = "Profile Details"
+                        , staffProfileSectionWarning = if staffPayConfigurationRequired then Just staffPayConfigurationWarningText else Nothing
                         , staffProfileSectionBody = renderStaffDetailsForm formMode staff maybeLinkedUserEmail managementFields staffAction
                         }
                     , StaffProfileAccordionSection
                         { staffProfileSectionKey = "preferences"
                         , staffProfileSectionId = staffProfilePreferencesSectionId
                         , staffProfileSectionTitle = "Shift Preferences"
+                        , staffProfileSectionWarning = Nothing
                         , staffProfileSectionBody = renderStaffShiftPreferencesEditForm formMode preferenceWeekdays selectedShiftPreferences weekOffset maybeRosterGroupId staffAction
                         }
                     , StaffProfileAccordionSection
                         { staffProfileSectionKey = "security"
                         , staffProfileSectionId = "staff-profile-security"
                         , staffProfileSectionTitle = "Sign-In Methods"
+                        , staffProfileSectionWarning = Nothing
                         , staffProfileSectionBody = renderStaffLoginAccessPanel staff maybeLinkedUserEmail weekOffset maybeRosterGroupId
                         }
                     ]
@@ -207,6 +214,7 @@ renderStaffEditBody formMode staff maybeLinkedUserEmail rosterGroups awardLevels
                             { staffProfileSectionKey = "leave"
                             , staffProfileSectionId = staffProfileLeaveSectionId
                             , staffProfileSectionTitle = "Unavailability"
+                            , staffProfileSectionWarning = Nothing
                             , staffProfileSectionBody = renderStaffleaveRequestsContentLiveFragment staff leaveRequest leaveRequests
                             }
                        | currentUserIsManager
@@ -218,12 +226,8 @@ renderStaffRemovalPanel :: Staff -> Bool -> Int -> Maybe (Id RosterGroup) -> Htm
 renderStaffRemovalPanel staff staffRemovalAllowed weekOffset maybeRosterGroupId
     | not staffRemovalAllowed = mempty
     | otherwise = [hsx|
-        <div class="app-panel border-danger mt-4" data-staff-removal-panel="true">
-            <div class="app-panel-body">
-                <h3 class="h6 text-danger">Remove staff member</h3>
-                <p class="app-panel-description">This keeps historical records while removing the person from active venue operations.</p>
-                {removalButton}
-            </div>
+        <div class="d-grid mt-4">
+            {removalButton}
         </div>
     |]
   where
@@ -244,8 +248,8 @@ renderStaffRemovalPanel staff staffRemovalAllowed weekOffset maybeRosterGroupId
         , appShellActionRouteExtraAttrs = []
         }
 
-renderStaffEditSectionFragment :: OverlayFormMode -> Staff -> Maybe Text -> [RosterGroup] -> [AwardLevel] -> [AwardLevelBaseRate] -> [XeroImportedPayItem] -> [Id RosterGroup] -> Maybe VenueMembership -> [PreferenceWeekday] -> [ShiftPreferenceSelection] -> LeaveRequest -> [LeaveRequest] -> Int -> Maybe (Id RosterGroup) -> Text -> Html
-renderStaffEditSectionFragment formMode staff maybeLinkedUserEmail rosterGroups awardLevels awardLevelBaseRates importedPayItems selectedRosterGroupIds maybeVenueMembership preferenceWeekdays selectedShiftPreferences leaveRequest leaveRequests weekOffset maybeRosterGroupId openSection =
+renderStaffEditSectionFragment :: OverlayFormMode -> Staff -> Bool -> Maybe Text -> [RosterGroup] -> [AwardLevel] -> [AwardLevelBaseRate] -> [XeroImportedPayItem] -> [Id RosterGroup] -> Maybe VenueMembership -> [PreferenceWeekday] -> [ShiftPreferenceSelection] -> LeaveRequest -> [LeaveRequest] -> Int -> Maybe (Id RosterGroup) -> Text -> Html
+renderStaffEditSectionFragment formMode staff staffPayConfigurationRequired maybeLinkedUserEmail rosterGroups awardLevels awardLevelBaseRates importedPayItems selectedRosterGroupIds maybeVenueMembership preferenceWeekdays selectedShiftPreferences leaveRequest leaveRequests weekOffset maybeRosterGroupId openSection =
     let managementFields =
             StaffManagementFieldData
                 { managementStaff = staff
@@ -264,18 +268,21 @@ renderStaffEditSectionFragment formMode staff maybeLinkedUserEmail rosterGroups 
                 { staffProfileSectionKey = "preferences"
                 , staffProfileSectionId = staffProfilePreferencesSectionId
                 , staffProfileSectionTitle = "Shift Preferences"
+                , staffProfileSectionWarning = Nothing
                 , staffProfileSectionBody = renderStaffShiftPreferencesEditForm formMode preferenceWeekdays selectedShiftPreferences weekOffset maybeRosterGroupId staffAction
                 }
             "leave" -> StaffProfileAccordionSection
                 { staffProfileSectionKey = "leave"
                 , staffProfileSectionId = staffProfileLeaveSectionId
                 , staffProfileSectionTitle = "Unavailability"
+                , staffProfileSectionWarning = Nothing
                 , staffProfileSectionBody = renderStaffleaveRequestsContentLiveFragment staff leaveRequest leaveRequests
                 }
             _ -> StaffProfileAccordionSection
                 { staffProfileSectionKey = "profile"
                 , staffProfileSectionId = staffProfileDetailsSectionId
                 , staffProfileSectionTitle = "Profile Details"
+                , staffProfileSectionWarning = if staffPayConfigurationRequired then Just staffPayConfigurationWarningText else Nothing
                 , staffProfileSectionBody = renderStaffDetailsForm formMode staff maybeLinkedUserEmail managementFields staffAction
                 }
      in renderStaffProfileAccordionSection staffSectionsAccordionId section.staffProfileSectionKey section

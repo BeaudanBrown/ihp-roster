@@ -167,6 +167,7 @@ profileDetailsAccordionSection staff currentUserEmail staffManagementFields =
         { staffProfileSectionKey = "profile"
         , staffProfileSectionId = profileDetailsSectionId
         , staffProfileSectionTitle = "Profile Details"
+        , staffProfileSectionWarning = Nothing
         , staffProfileSectionBody = renderProfileForm staff currentUserEmail staffManagementFields
         }
 
@@ -176,6 +177,7 @@ profilePreferencesAccordionSection preferenceWeekdays selectedShiftPreferences =
         { staffProfileSectionKey = "preferences"
         , staffProfileSectionId = profilePreferencesSectionId
         , staffProfileSectionTitle = "Shift Preferences"
+        , staffProfileSectionWarning = Nothing
         , staffProfileSectionBody = renderProfileShiftPreferencesForm preferenceWeekdays selectedShiftPreferences
         }
 
@@ -185,6 +187,7 @@ profileSecurityAccordionSection now passkeys =
         { staffProfileSectionKey = "security"
         , staffProfileSectionId = profileSecuritySectionId
         , staffProfileSectionTitle = "Sign-In Methods"
+        , staffProfileSectionWarning = Nothing
         , staffProfileSectionBody = renderPasskeyManagement now passkeys (appendQueryParams (pathTo EditProfileAction) [("section", "security")])
         }
 
@@ -194,6 +197,7 @@ profileLeaveAccordionSection staff leaveRequestForm leaveRequests =
         { staffProfileSectionKey = "leave"
         , staffProfileSectionId = profileLeaveSectionId
         , staffProfileSectionTitle = "Unavailability"
+        , staffProfileSectionWarning = Nothing
         , staffProfileSectionBody = renderSelfServiceLeaveFormMount "profile" True staff leaveRequestForm leaveRequests
         }
 
@@ -203,6 +207,7 @@ profileRsaAccordionSection staff staffRsaDocument today =
         { staffProfileSectionKey = "rsa"
         , staffProfileSectionId = profileRsaSectionId
         , staffProfileSectionTitle = "RSA"
+        , staffProfileSectionWarning = Nothing
         , staffProfileSectionBody = renderProfileRsaSection staff staffRsaDocument today
         }
 
@@ -235,6 +240,7 @@ renderAccordionSection sectionId title isOpen body =
             { staffProfileSectionKey = sectionId
             , staffProfileSectionId = sectionId
             , staffProfileSectionTitle = title
+            , staffProfileSectionWarning = Nothing
             , staffProfileSectionBody = body
             }
 

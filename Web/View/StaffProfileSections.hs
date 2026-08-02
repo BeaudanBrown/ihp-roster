@@ -22,10 +22,11 @@ data StaffProfileAccordionConfig = StaffProfileAccordionConfig
     }
 
 data StaffProfileAccordionSection = StaffProfileAccordionSection
-    { staffProfileSectionKey   :: Text
-    , staffProfileSectionId    :: Text
-    , staffProfileSectionTitle :: Text
-    , staffProfileSectionBody  :: Html
+    { staffProfileSectionKey     :: Text
+    , staffProfileSectionId      :: Text
+    , staffProfileSectionTitle   :: Text
+    , staffProfileSectionWarning :: Maybe Text
+    , staffProfileSectionBody    :: Html
     }
 
 data StaffProfileDetailsFormRequestMode fields
@@ -79,9 +80,17 @@ renderStaffProfileAccordionSection accordionId openSection StaffProfileAccordion
         , appAccordionItemIsOpen = openSection == staffProfileSectionKey
         , appAccordionItemClass = ""
         , appAccordionItemBodyClass = ""
-        , appAccordionItemButtonContent = [hsx|<span class="fw-semibold">{staffProfileSectionTitle}</span>|]
+        , appAccordionItemButtonContent = [hsx|
+            <span class="fw-semibold">{staffProfileSectionTitle}</span>
+            {forEach staffProfileSectionWarning renderStaffProfileSectionWarning}
+        |]
         , appAccordionItemBody = staffProfileSectionBody
         }
+
+renderStaffProfileSectionWarning :: Text -> Html
+renderStaffProfileSectionWarning warningText = [hsx|
+    <span class="text-warning small ms-2" role="img" tabindex="0" title={warningText} aria-label={warningText}>(!)</span>
+|]
 
 renderStaffProfileDetailsForm :: SurfaceFieldBundleOf Surface.StaffProfileFields fields => StaffProfileDetailsFormConfig fields -> Staff -> Maybe Text -> Html
 renderStaffProfileDetailsForm config@StaffProfileDetailsFormConfig { staffProfileDetailsFormRequestMode = Just requestMode } staff maybeEmail =

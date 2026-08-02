@@ -39,6 +39,7 @@ import Web.Controller.Admin.Support (SubmittedPayRateSelection (..),
                                      parseSubmittedPayRateSelectionValue)
 import Web.Controller.Prelude
 import Web.RosterWeeks.Projection (rosterGridInnerAndStaffPanelFragments)
+import Web.RosterWeeks.StaffOptions (fetchStaffPayConfigurationRequiredIds)
 import Web.RosterWeeks.Responses (respondWithRosterContentOob,
                                   respondWithRosterResourceInvalidation)
 import Web.Staff.Mutations
@@ -112,6 +113,7 @@ instance Controller StaffController where
         maybeLinkedUserEmail <- fetchStaffLinkedUserEmail staff
         maybeVenueMembership <- fetchStaffVenueMembership staff
         staffRemovalAllowed <- canRenderStaffRemoval staff
+        staffPayConfigurationRequired <- staffRequiresPayConfigurationRemediation staff
         let weekOffset = paramOrDefault @Int 0 "weekOffset"
         let maybeRosterGroupId = paramOrNothing "rosterGroupId"
         let openSection = normalizeStaffOpenSection (paramOrDefault @Text "" "section")
@@ -128,7 +130,7 @@ instance Controller StaffController where
         leaveRequests <- fetchStaffLeaveRequests staff
         today <- utctDay <$> getCurrentTime
         if isHtmxRequest
-            then respondHtml (renderStaffEditModalFragment staff maybeLinkedUserEmail rosterGroups awardLevels awardLevelBaseRates importedPayItems selectedRosterGroupIds maybeVenueMembership staffRemovalAllowed preferenceWeekdays selectedShiftPreferences staffRsaDocument leaveRequest leaveRequests today weekOffset maybeRosterGroupId openSection)
+            then respondHtml (renderStaffEditModalFragment staff staffPayConfigurationRequired maybeLinkedUserEmail rosterGroups awardLevels awardLevelBaseRates importedPayItems selectedRosterGroupIds maybeVenueMembership staffRemovalAllowed preferenceWeekdays selectedShiftPreferences staffRsaDocument leaveRequest leaveRequests today weekOffset maybeRosterGroupId openSection)
             else render EditView { .. }
 
     action currentAction@ShowStaffContentLiveFragmentAction { staffId } = runBepis currentAction BepisFragmentAction do
@@ -147,9 +149,10 @@ instance Controller StaffController where
         selectedRosterGroupIds <- fetchStaffRosterGroupIds staff
         let preferenceWeekdays = allPreferenceWeekdays venueConfig
         selectedShiftPreferences <- fetchStaffShiftPreferenceSelections staff
+        staffPayConfigurationRequired <- staffRequiresPayConfigurationRemediation staff
         leaveRequest <- buildDefaultLeaveRequest
         leaveRequests <- fetchStaffLeaveRequests staff
-        respondHtml (renderStaffEditSectionFragment HtmxOverlayForm staff maybeLinkedUserEmail rosterGroups awardLevels awardLevelBaseRates importedPayItems selectedRosterGroupIds maybeVenueMembership preferenceWeekdays selectedShiftPreferences leaveRequest leaveRequests weekOffset maybeRosterGroupId openSection)
+        respondHtml (renderStaffEditSectionFragment HtmxOverlayForm staff staffPayConfigurationRequired maybeLinkedUserEmail rosterGroups awardLevels awardLevelBaseRates importedPayItems selectedRosterGroupIds maybeVenueMembership preferenceWeekdays selectedShiftPreferences leaveRequest leaveRequests weekOffset maybeRosterGroupId openSection)
 
     action currentAction@UpdateStaffAction { staffId } = runBepis currentAction BepisMutationAction do
         ensureVenueWritable
@@ -160,6 +163,7 @@ instance Controller StaffController where
         maybeLinkedUserEmail <- fetchStaffLinkedUserEmail staff
         maybeVenueMembership <- fetchStaffVenueMembership staff
         staffRemovalAllowed <- canRenderStaffRemoval staff
+        staffPayConfigurationRequired <- staffRequiresPayConfigurationRemediation staff
         let weekOffset = paramOrDefault @Int 0 "weekOffset"
         let maybeRosterGroupId = paramOrNothing "rosterGroupId"
         let openSection =
@@ -193,7 +197,7 @@ instance Controller StaffController where
                 _ -> fetchStaffShiftPreferenceSelections staff
         let renderStaffEditResponse renderedStaff renderedRosterGroupIds renderedPreferences =
                 if isHtmxRequest
-                    then respondHtml (renderStaffEditModalFragment renderedStaff maybeLinkedUserEmail rosterGroups awardLevels awardLevelBaseRates importedPayItems renderedRosterGroupIds maybeVenueMembership staffRemovalAllowed preferenceWeekdays renderedPreferences staffRsaDocument leaveRequest leaveRequests today weekOffset maybeRosterGroupId openSection)
+                    then respondHtml (renderStaffEditModalFragment renderedStaff staffPayConfigurationRequired maybeLinkedUserEmail rosterGroups awardLevels awardLevelBaseRates importedPayItems renderedRosterGroupIds maybeVenueMembership staffRemovalAllowed preferenceWeekdays renderedPreferences staffRsaDocument leaveRequest leaveRequests today weekOffset maybeRosterGroupId openSection)
                     else do
                         let selectedRosterGroupIds = renderedRosterGroupIds
                         let selectedShiftPreferences = renderedPreferences
@@ -350,16 +354,16 @@ instance Controller StaffController where
                             Right _ -> respondWithTrialStaffInvitationSuccess ("Invitation renewed for " <> email)
                             Left message -> renderTrialStaffInvitationError staff message (Just email)
 
+staffRequiresPayConfigurationRemediation :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Staff -> IO Bool
+staffRequiresPayConfigurationRemediation staff =
+    Set.member (unpackId staff.id) <$> fetchStaffPayConfigurationRequiredIds [staff]
+
 renderStaffRemovalConfirmation :: (?context :: ControllerContext, ?request :: Request) => Staff -> Int -> Maybe (Id RosterGroup) -> Html
 renderStaffRemovalConfirmation staff weekOffset maybeRosterGroupId =
     renderDialogOverlay DialogOverlayConfig
         { dialogOverlayTitle = "Remove staff member"
         , dialogOverlayBody = [hsx|
-            <div class="alert alert-danger" role="alert">
-                <strong>This removes {staff.firstName} {staff.lastName} from active venue operations.</strong>
-            </div>
-            <p>Future roster assignments and pending unavailability will be removed. Existing timesheets, payroll history, and past roster records are kept.</p>
-            <p class="mb-0">This action cannot be undone from the staff profile.</p>
+            <p class="mb-0">Are you sure you want to remove this staff member? This cannot be undone.</p>
         |]
         , dialogOverlayStartButtons = []
         , dialogOverlayButtons =

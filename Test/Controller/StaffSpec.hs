@@ -963,6 +963,25 @@ tests = aroundAll withDatabaseTestContext do
                 response `responseBodyShouldContain` "Level 3 (Part-time $32.75/hr, casual $40.94/hr)"
                 response `responseBodyShouldContain` "No Timesheets (roster only)"
 
+        it "marks Profile Details when staff pay configuration requires remediation" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Staff Pay Remediation Header Venue"
+                admin <- createUserRecord "staff-pay-remediation-header-admin@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue admin VenueAdmin
+                staff <- createStaffRecord venue Nothing "Needs" "Pay Setup"
+                _ <- staff
+                    |> set #payAssignmentMode LegacyUnresolved
+                    |> set #defaultAwardLevelId Nothing
+                    |> set #importedXeroPayItemId Nothing
+                    |> updateRecord
+
+                response <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
+                    callActionWithParams (EditStaffAction staff.id) [("weekOffset", "0")]
+
+                response `responseStatusShouldBe` status200
+                response `responseBodyShouldContain` "Profile Details"
+                response `responseBodyShouldContain` "Pay configuration required. A venue admin must choose a default pay rate or “No Timesheets (roster only).”"
+
         it "replaces the ordinary active-status control with an admin destructive removal action" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Staff Removal Workflow Venue"
@@ -976,7 +995,8 @@ tests = aroundAll withDatabaseTestContext do
                 response `responseStatusShouldBe` status200
                 response `responseBodyShouldNotContain` "name=\"isActive\""
                 response `responseBodyShouldContain` "Remove staff member"
-                response `responseBodyShouldContain` "This keeps historical records"
+                response `responseBodyShouldNotContain` "data-staff-removal-panel"
+                response `responseBodyShouldNotContain` "This keeps historical records"
 
         it "renders a destructive confirmation dialog before staff removal" $ withContext do
             withCleanDb do
@@ -990,8 +1010,9 @@ tests = aroundAll withDatabaseTestContext do
 
                 response `responseStatusShouldBe` status200
                 response `responseBodyShouldContain` "Remove staff member"
-                response `responseBodyShouldContain` "Future roster assignments and pending unavailability will be removed"
-                response `responseBodyShouldContain` "Existing timesheets, payroll history, and past roster records are kept"
+                response `responseBodyShouldContain` "Are you sure you want to remove this staff member? This cannot be undone."
+                response `responseBodyShouldNotContain` "Future roster assignments and pending unavailability will be removed"
+                response `responseBodyShouldNotContain` "Existing timesheets, payroll history, and past roster records are kept"
                 response `responseBodyShouldContain` (cs ("action=\"" <> pathTo (RemoveStaffAction staff.id) <> "\""))
                 response `responseBodyShouldContain` "hx-post"
 
