@@ -2,7 +2,9 @@ import { readFileSync } from 'node:fs';
 import { test, expect } from '@playwright/test';
 import {
     parseRosterImageExportConfig,
+    rosterImageExportCellDomAttr,
     rosterImageExportConfigDomAttr,
+    rosterImageExportProjectionDomAttr,
     rosterImageExportTriggerDomAttr,
     rosterWeekOverviewDayDomAttr,
     rosterWeekOverviewPanelDomAttr,
@@ -33,9 +35,47 @@ test.describe('Roster week overview', () => {
         expect(rawConfig).not.toBeNull();
         const config = parseRosterImageExportConfig(JSON.parse(rawConfig ?? '{}'));
 
+        const exportGeometryPromise = page.evaluate(({ projectionAttr, cellAttr }) => new Promise<{
+            dayCellCount: number;
+            wageRailDisplay: string | null;
+            dayRight: number | null;
+            firstSlotLeft: number | null;
+            alignedRowCount: number;
+        }>((resolve) => {
+            const observer = new MutationObserver(() => {
+                const projection = document.querySelector<HTMLElement>(`.roster-export-stage [${projectionAttr}]`);
+                if (projection === null) return;
+                const dayCells = Array.from(projection.querySelectorAll<HTMLElement>(`.roster-day-rail-section[${cellAttr}]`));
+                const slotCells = Array.from(projection.querySelectorAll<HTMLElement>(`.day-row [${cellAttr}]`));
+                const wageRail = projection.querySelector<HTMLElement>('.roster-wage-rail');
+                const firstDay = dayCells[0]?.getBoundingClientRect() ?? null;
+                const firstSlot = slotCells[0]?.getBoundingClientRect() ?? null;
+                const dayTops = new Set(dayCells.map((cell) => Math.round(cell.getBoundingClientRect().top)));
+                const slotTops = new Set(slotCells.map((cell) => Math.round(cell.getBoundingClientRect().top)));
+                observer.disconnect();
+                resolve({
+                    dayCellCount: dayCells.length,
+                    wageRailDisplay: wageRail === null ? null : getComputedStyle(wageRail).display,
+                    dayRight: firstDay?.right ?? null,
+                    firstSlotLeft: firstSlot?.left ?? null,
+                    alignedRowCount: Array.from(dayTops).filter((top) => slotTops.has(top)).length,
+                });
+            });
+            observer.observe(document.body, { childList: true });
+        }), {
+            projectionAttr: rosterImageExportProjectionDomAttr,
+            cellAttr: rosterImageExportCellDomAttr,
+        });
         const downloadPromise = page.waitForEvent('download');
         await exportButton.click();
-        const download = await downloadPromise;
+        const [download, exportGeometry] = await Promise.all([downloadPromise, exportGeometryPromise]);
+
+        expect(exportGeometry.dayCellCount).toBe(7);
+        expect(exportGeometry.wageRailDisplay).toBe('none');
+        expect(exportGeometry.dayRight).not.toBeNull();
+        expect(exportGeometry.firstSlotLeft).not.toBeNull();
+        expect(exportGeometry.firstSlotLeft ?? 0).toBeGreaterThanOrEqual((exportGeometry.dayRight ?? 0) - 1);
+        expect(exportGeometry.alignedRowCount).toBeGreaterThan(0);
 
         expect(download.suggestedFilename()).toBe(config.imageExportFilename);
         await expect(exportButton).toHaveText(config.imageExportDownloadedLabel);

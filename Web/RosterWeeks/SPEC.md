@@ -98,7 +98,8 @@ lands.
   role/state names rather than presentation classes.
 - Live manager row-grid image export uses generated
   trigger/config/projection/row/cell roles, a closed JPG format, and exact
-  Haskell-built policy and cell payloads. Day-column and timeline layouts omit
+  Haskell-built policy and cell payloads. Its projection contains the day/date
+  rail and shift grid while omitting wage estimates. Day-column and timeline layouts omit
   the trigger because they have no row-grid projection. Haskell resolves the
   filename, dimensions, quality, copy, errors, and rendered values; TypeScript
   retains measurement, computed styles, SVG/Canvas encoding, and download

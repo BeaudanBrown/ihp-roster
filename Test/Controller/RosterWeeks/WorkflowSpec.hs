@@ -1166,7 +1166,10 @@ tests = aroundAll withDatabaseTestContext do
                 liveManagerResponse `responseBodyShouldContain` "data-bepis-roster-image-export-format=\"jpg\""
                 liveManagerResponse `responseBodyShouldContain` "data-bepis-roster-image-export-config="
                 liveManagerResponse `responseBodyShouldContain` "&quot;imageExportFilename&quot;:&quot;roster-"
+                liveManagerResponse `responseBodyShouldContain` "class=\"roster-grid-frame\""
                 liveManagerResponse `responseBodyShouldContain` "data-bepis-roster-image-export-projection=\"true\""
+                liveManagerResponse `responseBodyShouldContain` "class=\"roster-day-rail-head\" data-bepis-roster-image-export-row=\"true\" data-bepis-roster-image-export-cell=\"{&quot;imageExportEndEllipsis&quot;:false,&quot;imageExportText&quot;:&quot;Day&quot;}\""
+                liveManagerResponse `responseBodyShouldContain` "class=\"roster-day-rail-section day-alt-light\""
                 liveManagerResponse `responseBodyShouldContain` "data-bepis-roster-image-export-cell="
                 liveManagerResponse `responseBodyShouldContain` "class=\"roster-subhead roster-col-time\" data-bepis-roster-image-export-cell=\"{&quot;imageExportEndEllipsis&quot;:false,&quot;imageExportText&quot;:&quot;Start&quot;}\">Start</div>"
 

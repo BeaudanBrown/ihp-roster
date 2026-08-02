@@ -22,6 +22,30 @@
     margin: 0;
 }
 
+.roster-export-grid.roster-grid-frame {
+    grid-template-columns: minmax(0, var(--roster-day-column-width)) minmax(0, calc(100% - var(--roster-day-column-width))) !important;
+    max-width: none;
+    contain: none;
+    overflow: visible;
+}
+
+.roster-export-grid .roster-day-rail {
+    grid-column: 1;
+}
+
+.roster-export-grid .roster-wage-rail {
+    display: none;
+}
+
+.roster-export-grid .roster-slots-scroller {
+    grid-column: 2;
+    overflow: visible;
+}
+
+.roster-export-grid .roster-slots-grid {
+    min-width: 100%;
+}
+
 .roster-export-grid .roster-day-actions,
 .roster-export-grid .roster-day-actions-placeholder {
     display: none !important;

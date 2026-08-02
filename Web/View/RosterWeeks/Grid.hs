@@ -220,7 +220,8 @@ renderrosterGridFrameLiveFragmentWithSwap maybeSwapOob gridModel@RosterGridRende
              data-roster-end-times={if gridRosterEndTimesEnabled then ("true" :: Text) else "false"}
              {...rosterColumnEditorAttrs RosterColumnEditingInactive}
              data-roster-wages={if gridShowWageEstimates && not rosterIsHiddenDraft then ("visible" :: Text) else "hidden"}
-             data-roster-warnings={if gridShowRosterWarnings && not rosterIsHiddenDraft then ("visible" :: Text) else "hidden"}>
+             data-roster-warnings={if gridShowRosterWarnings && not rosterIsHiddenDraft then ("visible" :: Text) else "hidden"}
+             {...if not rosterIsHiddenDraft && not isTimelineLayout && not isDayColumnsLayout then rosterImageExportProjectionAttrs else []}>
             {gridBody}
         </div>
 |]
@@ -300,7 +301,7 @@ renderrosterDayRailLiveFragment =
 renderrosterDayRailLiveFragmentWithSwap :: (?context :: ControllerContext) => Maybe Text -> Bool -> RosterDayRenderModel -> [RosterDay] -> Html
 renderrosterDayRailLiveFragmentWithSwap maybeSwapOob slotColumnsAreEditable dayModel rosterDays = [hsx|
     <div id={rosterDayRailFragmentId} class="roster-day-rail" aria-label="Roster days" hx-swap-oob={maybeSwapOob}>
-        <div class="roster-day-rail-head">
+        <div class="roster-day-rail-head" {...rosterImageExportRowAttrs} {...rosterImageExportCellAttrs "Day"}>
             <span class="roster-day-rail-head-label">Day</span>
             {renderRosterColumnEditStartButton slotColumnsAreEditable}
             {renderRosterColumnEditDoneButton slotColumnsAreEditable}
@@ -380,7 +381,7 @@ renderrosterSlotsGridLiveFragmentWithSwap maybeSwapOob endTimesEnabled slotColum
              style={"--roster-slot-count:" <> tshow (max 1 (length slotNames)) <> ";"}
              {...horizontalSnapAttrs rosterSlotsHorizontalSnapConfig}
              hx-swap-oob={maybeSwapOob}>
-            <div class="roster-grid roster-slots-grid" role="grid" aria-label="Roster slots" {...rosterImageExportProjectionAttrs}>
+            <div class="roster-grid roster-slots-grid" role="grid" aria-label="Roster slots">
                 {gridHeaders}
                 {gridBody}
             </div>
@@ -540,7 +541,9 @@ renderRosterDayRailSection RosterDayRenderModel { dayIsEditable, dayWeekStartDat
         date = Calendar.addDays (toInteger (get #dayOffset rosterDay)) dayWeekStartDate
      in [hsx|
         <div class={classes [("roster-day-rail-section", True), ("day-alt-dark", odd (get #dayOffset rosterDay)), ("day-alt-light", even (get #dayOffset rosterDay))]}
-             style={"--roster-day-label-rows:" <> tshow rowCount}>
+             style={"--roster-day-label-rows:" <> tshow rowCount}
+             {...rosterImageExportRowAttrs}
+             {...rosterImageExportCellAttrs (rosterDayImageExportText date)}>
             <div class="roster-day-label-stack">
                 <div class="roster-day-label-row roster-day-label-row-primary">
                     <div class="roster-day-heading">
@@ -776,6 +779,9 @@ renderRowWithAttrs RosterRowRenderModel { rowIsEditable, rowSlotNames, rowAssign
         {forEach (zip [0 :: Int ..] rowSlotNames) (renderBlockCells rowIsEditable rowAssignmentFilters rowStaffMembers rowShiftTypes rowRosterEndTimesEnabled rowPublishAttempted rowRosterDay rowIndex rowSlots rowRenderIndexes)}
     </div>
 |]
+
+rosterDayImageExportText :: Day -> Text
+rosterDayImageExportText date = Text.pack (formatTime defaultTimeLocale "%a %d/%m" date)
 
 renderPrimaryDayLabel :: Maybe Text -> Day -> Html
 renderPrimaryDayLabel maybeHolidayName date = [hsx|
