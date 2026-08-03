@@ -70,7 +70,9 @@ startOrWaitForXeroTimesheetPreparation = do
             missingReferenceDemand <-
                 case maybeReferenceDemand of
                     Just "snapshot" | referenceSnapshotStillBlocks currentTrustState.trustDecision -> pure NoMissingPayrollReferenceDemand
-                    Just "missing_payroll_staff" | referenceSyncActivityIsActive currentTrustState.syncActivity -> pure MissingPayrollEligibleStaffReference
+                    Just "missing_payroll_staff"
+                        | referenceSnapshotStillBlocks currentTrustState.trustDecision
+                        , referenceSyncActivityIsActive currentTrustState.syncActivity -> pure MissingPayrollEligibleStaffReference
                     _ -> fetchXeroMissingReferenceDemand connection
             trustState <- ensureTrustedXeroReferenceData now (Just currentUser.id) connection missingReferenceDemand
             case trustState.trustDecision of

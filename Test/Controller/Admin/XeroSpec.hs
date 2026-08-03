@@ -1227,6 +1227,28 @@ tests = aroundAll withFastXeroReferenceSyncRuntime $ aroundAll withDatabaseTestC
                 appJobCount <- query @AppJob |> filterWhere (#jobKind, xeroReferenceSyncJobKind) |> fetchCount
                 appJobCount `shouldBe` 0
 
+        it "uses a fresh snapshot when a previous missing-staff poll has an active retry" $ withContext do
+            withCleanDb do
+                fixture <- Preview.createPreviewFixture "weekly" [Preview.EntrySpec 0 Preview.fixtureStaffA (TimeOfDay 9 0 0) (TimeOfDay 13 0 0)]
+                now <- getCurrentTime
+                _ <- fixture.connection |> set #lastSyncAt (Just now) |> updateRecord
+                EnqueuedAppJob retryJob <- enqueueXeroReferenceSyncJob (Just fixture.owner.id) fixture.connection
+                _ <- retryJob
+                    |> set #runAt (addUTCTime 3600 now)
+                    |> set #payload (Aeson.object ["requestedAt" Aeson..= now, "retryNumber" Aeson..= (1 :: Int)])
+                    |> updateRecord
+
+                response <- withXeroConfigForTest (Left "Xero must not be called while using a fresh snapshot") do
+                    withPasskeyVerifiedUserAndCurrentVenue fixture.owner fixture.venue.id do
+                        withRequestHeaders [("HX-Request", "true")] do
+                            callActionWithParams OpenXeroTimesheetPreparationAction [("referenceDemand", "missing_payroll_staff")]
+
+                response `responseStatusShouldBe` status200
+                response `responseBodyShouldContain` "Prepare Xero draft timesheets"
+                response `responseBodyShouldNotContain` "Refreshing Xero reference data"
+                appJobCount <- query @AppJob |> filterWhere (#jobKind, xeroReferenceSyncJobKind) |> fetchCount
+                appJobCount `shouldBe` 1
+
         it "waits for stale preparation references and resumes after the durable sync" $ withContext do
             withCleanDb do
                 fixture <- Preview.createPreviewFixture "weekly" [Preview.EntrySpec 0 Preview.fixtureStaffA (TimeOfDay 9 0 0) (TimeOfDay 13 0 0)]
