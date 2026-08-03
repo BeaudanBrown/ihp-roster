@@ -45,7 +45,6 @@ module Application.Helper.Xero
     , readXeroConfig
     , requiredXeroScopes
     , requiredXeroScopesText
-    , xeroPayItemsMaxPages
     , xeroPayItemsPageSize
     , withXeroClientForTest
     , withXeroConfigForTest
@@ -75,6 +74,7 @@ import qualified Data.ByteString.Lazy as LByteString
 import Data.Char (isDigit)
 import qualified Data.IORef as IORef
 import Data.Scientific (Scientific)
+import qualified Data.Set as Set
 import qualified Data.Text as Text
 import qualified Data.Text.Encoding as TextEncoding
 import Data.Text.Encoding.Error (lenientDecode)
@@ -304,7 +304,7 @@ fetchPayrollEmployeesRequest accessToken tenantId = do
 fetchEarningsRatesRequest :: Text -> Text -> IO (Either XeroClientError [XeroEarningsRateRef])
 fetchEarningsRatesRequest accessToken tenantId = do
     urls <- currentXeroRequestBaseUrls
-    fetchAllEarningsRatePages urls accessToken tenantId 1 []
+    fetchAllEarningsRatePages urls accessToken tenantId 1 Set.empty []
 
 fetchEarningsRatesPageRequest :: Text -> Text -> Int -> IO (Either XeroClientError [XeroEarningsRateRef])
 fetchEarningsRatesPageRequest accessToken tenantId page = do
@@ -315,24 +315,22 @@ fetchEarningsRatesPageRequest accessToken tenantId page = do
 xeroPayItemsPageSize :: Int
 xeroPayItemsPageSize = 100
 
-xeroPayItemsMaxPages :: Int
-xeroPayItemsMaxPages = 100
-
-fetchAllEarningsRatePages :: XeroRequestBaseUrls -> Text -> Text -> Int -> [XeroEarningsRateRef] -> IO (Either XeroClientError [XeroEarningsRateRef])
-fetchAllEarningsRatePages urls accessToken tenantId page acc
-    | page > xeroPayItemsMaxPages =
-        pure (Left (XeroHttpError ("Xero payroll pay items pagination exceeded " <> tshow xeroPayItemsMaxPages <> " pages")))
-    | otherwise = do
-        pageResult <-
-            fmap unXeroPayItemsResponse <$>
-                sendXeroJsonRequest "Xero payroll pay items request" (buildFetchEarningsRatesPageRequestWith urls accessToken tenantId page)
-        case pageResult of
-            Left err -> pure (Left err)
-            Right pageRates ->
-                let acc' = acc <> pageRates
-                 in if length pageRates < xeroPayItemsPageSize
+fetchAllEarningsRatePages :: XeroRequestBaseUrls -> Text -> Text -> Int -> Set.Set Text -> [XeroEarningsRateRef] -> IO (Either XeroClientError [XeroEarningsRateRef])
+fetchAllEarningsRatePages urls accessToken tenantId page seenIds acc = do
+    pageResult <-
+        fmap unXeroPayItemsResponse <$>
+            sendXeroJsonRequest "Xero payroll pay items request" (buildFetchEarningsRatesPageRequestWith urls accessToken tenantId page)
+    case pageResult of
+        Left err -> pure (Left err)
+        Right pageRates ->
+            let pageIds = Set.fromList (map (.xeroEarningsRateId) pageRates)
+                repeatedFullPage = length pageRates >= xeroPayItemsPageSize && pageIds `Set.isSubsetOf` seenIds
+                acc' = acc <> pageRates
+             in if repeatedFullPage
+                    then pure (Left (XeroHttpError "Xero payroll pay items pagination repeated a full page without new items."))
+                    else if length pageRates < xeroPayItemsPageSize
                         then pure (Right acc')
-                        else fetchAllEarningsRatePages urls accessToken tenantId (page + 1) acc'
+                        else fetchAllEarningsRatePages urls accessToken tenantId (page + 1) (seenIds <> pageIds) acc'
 
 fetchPayrollCalendarsRequest :: Text -> Text -> IO (Either XeroClientError [XeroPayrollCalendarRef])
 fetchPayrollCalendarsRequest accessToken tenantId = do

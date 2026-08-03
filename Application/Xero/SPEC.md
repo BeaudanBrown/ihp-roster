@@ -28,8 +28,8 @@ lands.
 - Every reference-sync path uses the same background-safe persistence and
   reconciliation service. Complete bulk refresh can run as a durable `app_jobs`
   job, coalesced per connection and leased per Xero tenant. Provider requests
-  are sequential and paced to 50 requests/minute; PayItems remains capped at
-  100 pages. Structured 429 handling honors valid `Retry-After`, while transient
+  are sequential and paced to 50 requests/minute. PayItems pagination continues
+  until a partial page and rejects a repeated full page that adds no new ids. Structured 429 handling honors valid `Retry-After`, while transient
   failures use Xero-specific jittered continuations for at most 24 hours without
   changing unrelated job retry policy. Progress and errors contain phase/page
   facts only, never tokens or raw provider payloads.
@@ -84,10 +84,9 @@ lands.
   that period rather than sent to Xero's Timesheets API. The modal summary,
   readiness counts, preview, and submission all use this same eligible set.
   Preparation summary units use locked approved pay facts. Xero request hourly
-  quantities aggregate by employee, managed earning bucket and local day, then
-  round once to the nearest quarter hour with exact 7.5-minute ties up.
-  Commenced-hour quantities remain whole. Protocol serialization uses 12 decimal
-  places only after that output transform.
+  quantities aggregate by employee, managed earning bucket and local day without
+  quarter-hour rounding. Commenced-hour quantities remain whole. Protocol
+  serialization uses 12 decimal places.
 - Managed Xero earnings-rate names put human payroll details first, e.g. `Saturday Penalty - Level 1 - CAS - Bepis - 1-July-2025`; legacy `Bepis - HIGA - ...` managed names remain matchable to avoid duplicate pay items.
 - Preview/submission consumes every positive sealed earnings component exactly
   once. Managed requirements reserve separate `RATEPERUNIT` evening and
@@ -137,8 +136,9 @@ lands.
 - Controllers in `Web/Controller/Admin/Xero/*` should not import Xero
   preparation/preview/submission services directly, except narrow domain types
   needed for request parsing.
-- Background Xero jobs that mutate connection state route passive invalidation
-  through touched resources, not through direct live-surface broadcasts. They
+- Background Xero jobs that mutate connection state or persisted phase/page
+  progress route passive invalidation through touched resources, not through
+  direct live-surface broadcasts. They
   may retain optional requesting-actor attribution but never require a request
   or current-user context.
 - The retained Xero live shell depends only on its declared connection

@@ -45,6 +45,8 @@ tests = do
                 `shouldBe` FailXeroReferenceSync
             xeroReferenceSyncRetryDecision startedAt now 1 0 (XeroHttpError "Xero reference sync tenant lease was lost.")
                 `shouldBe` FailXeroReferenceSync
+            xeroReferenceSyncRetryDecision startedAt now 1 0 (XeroHttpError "Xero payroll pay items pagination repeated a full page without new items.")
+                `shouldBe` FailXeroReferenceSync
 
     describe "Xero tenant request pacing" do
         it "spaces request starts at no more than 50 requests per minute" do
@@ -82,16 +84,27 @@ tests = do
             readIORef requestedPages `shouldReturn` [1, 2]
             readIORef completedPages `shouldReturn` [1, 2]
 
-        it "fails clearly at the 100-page cap without requesting page 101" do
+        it "continues beyond 100 pages until the first partial page" do
             requestedPages <- newIORef []
             let fetchPage page = do
                     modifyIORef' requestedPages (<> [page])
-                    pure (Right (map earningsRate [1 .. 100]))
+                    let firstIndex = (page - 1) * 100 + 1
+                    pure (Right (if page <= 101 then map earningsRate [firstIndex .. firstIndex + 99] else [earningsRate firstIndex]))
+            result <- fetchPacedXeroEarningsRates (\_ -> pure ()) fetchPage (\_ -> pure ())
+            fmap length result `shouldBe` Right 10101
+            readIORef requestedPages `shouldReturn` [1 .. 102]
+
+        it "fails safely when Xero repeats a full page without new ids" do
+            requestedPages <- newIORef []
+            let repeatedPage = map earningsRate [1 .. 100]
+            let fetchPage page = do
+                    modifyIORef' requestedPages (<> [page])
+                    pure (Right repeatedPage)
             result <- fetchPacedXeroEarningsRates (\_ -> pure ()) fetchPage (\_ -> pure ())
             result `shouldSatisfy` \case
-                Left (XeroHttpError message) -> "exceeded 100 pages" `isInfixOf` message
+                Left (XeroHttpError message) -> "repeated a full page" `isInfixOf` message
                 _ -> False
-            readIORef requestedPages `shouldReturn` [1 .. 100]
+            readIORef requestedPages `shouldReturn` [1, 2]
 
 testUtc :: Integer -> Int -> Int -> Integer -> Integer -> UTCTime
 testUtc year month day hour minute =

@@ -11,6 +11,7 @@ module Application.Xero.Admin.ReferenceSyncPolicy
 
 import Application.Helper.Xero
 import Control.Concurrent (MVar, modifyMVar, newMVar)
+import qualified Data.Set as Set
 import qualified Data.Text as Text
 import IHP.Prelude
 
@@ -51,6 +52,7 @@ xeroReferenceSyncErrorIsTransient = \case
     XeroHttpError message ->
         let normalized = Text.toLower message
          in not ("pagination exceeded" `Text.isInfixOf` normalized)
+                && not ("pagination repeated" `Text.isInfixOf` normalized)
                 && not ("tenant lease was lost" `Text.isInfixOf` normalized)
     XeroSemanticError _ -> False
     XeroDecodeError _ -> False
@@ -98,18 +100,19 @@ fetchPacedXeroEarningsRates ::
     (Int -> IO ()) ->
     IO (Either XeroClientError [XeroEarningsRateRef])
 fetchPacedXeroEarningsRates paceBeforePage fetchPage recordCompletedPage =
-    go 1 []
+    go 1 Set.empty []
     where
-        go page acc
-            | page > xeroPayItemsMaxPages =
-                pure (Left (XeroHttpError ("Xero payroll pay items pagination exceeded " <> tshow xeroPayItemsMaxPages <> " pages")))
-            | otherwise = do
-                paceBeforePage page
-                fetchPage page >>= \case
-                    Left err -> pure (Left err)
-                    Right pageRates -> do
-                        recordCompletedPage page
-                        let accumulated = acc <> pageRates
-                        if length pageRates < xeroPayItemsPageSize
+        go page seenIds acc = do
+            paceBeforePage page
+            fetchPage page >>= \case
+                Left err -> pure (Left err)
+                Right pageRates -> do
+                    recordCompletedPage page
+                    let pageIds = Set.fromList (map (.xeroEarningsRateId) pageRates)
+                    let repeatedFullPage = length pageRates >= xeroPayItemsPageSize && pageIds `Set.isSubsetOf` seenIds
+                    let accumulated = acc <> pageRates
+                    if repeatedFullPage
+                        then pure (Left (XeroHttpError "Xero payroll pay items pagination repeated a full page without new items."))
+                        else if length pageRates < xeroPayItemsPageSize
                             then pure (Right accumulated)
-                            else go (page + 1) accumulated
+                            else go (page + 1) (seenIds <> pageIds) accumulated

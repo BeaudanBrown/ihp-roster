@@ -246,7 +246,7 @@ scheduleReferenceSyncRetry ::
     Text ->
     Text ->
     IO ()
-scheduleReferenceSyncRetry appJob connection payload retryAt failedPhase message =
+scheduleReferenceSyncRetry appJob connection payload retryAt failedPhase message = do
     withTransaction do
         latestJob <- fetch appJob.id
         let completedPageFields =
@@ -258,6 +258,7 @@ scheduleReferenceSyncRetry appJob connection payload retryAt failedPhase message
             |> set #result (Aeson.object ["status" Aeson..= ("retry_scheduled" :: Text), "message" Aeson..= message, "retryAt" Aeson..= retryAt])
             |> updateRecord
         void $ enqueueReferenceSyncAttempt (Id <$> appJob.requestedByUserId) connection payload.requestedAt (payload.retryNumber + 1) (Just retryAt)
+    invalidateReferenceSyncProgress "xero.reference_sync.retry_wait" appJob
 
 completedPayItemsPageFromProgress :: Aeson.Value -> Maybe Int
 completedPayItemsPageFromProgress value =
@@ -307,15 +308,20 @@ updateReferenceSyncProgress ::
 updateReferenceSyncProgress appJob phase maybeCompletedPage = do
     latestJob <- fetch appJob.id
     let retainedCompletedPage = maybeCompletedPage <|> completedPayItemsPageFromProgress latestJob.progress
-    void $
-        latestJob
-            |> set #progress
-                (Aeson.object
-                    ( ["phase" Aeson..= phase]
-                        <> maybe [] (\page -> ["completedPayItemsPage" Aeson..= page]) retainedCompletedPage
-                    )
+    let nextProgress =
+            Aeson.object
+                ( ["phase" Aeson..= phase]
+                    <> maybe [] (\page -> ["completedPayItemsPage" Aeson..= page]) retainedCompletedPage
                 )
-            |> updateRecord
+    when (nextProgress /= latestJob.progress) do
+        void $ latestJob |> set #progress nextProgress |> updateRecord
+        invalidateReferenceSyncProgress "xero.reference_sync.progress" appJob
+
+invalidateReferenceSyncProgress :: (?modelContext :: ModelContext) => Text -> AppJob -> IO ()
+invalidateReferenceSyncProgress reason appJob =
+    forM_ appJob.venueId \venueId ->
+        void $ invalidateTouchedResourcesWithoutContext reason $
+            liveMutationResult () [xeroConnectionResource venueId]
 
 enqueueReferenceSyncAttempt ::
     (?modelContext :: ModelContext) =>
