@@ -166,7 +166,7 @@ tests = aroundAll withDatabaseTestContext do
                 fromMaybe "" exportJob.fileContents `shouldSatisfy`
                     Text.isInfixOf "Employee,Mon Ord,Mon 7-12,Mon 12+"
                 fromMaybe "" exportJob.fileContents `shouldSatisfy`
-                    Text.isInfixOf "\"Worker, Ava LVL 2\",8.00,0.00,0.00"
+                    Text.isInfixOf "\"Worker, Ava LVL 2\",8.000000,0.000000,0.000000"
                 fromMaybe "" exportJob.fileContents `shouldSatisfy`
                     (not . Text.isInfixOf "Trial")
 
@@ -205,7 +205,7 @@ tests = aroundAll withDatabaseTestContext do
                 exportJob <- query @ExportJob |> orderByDesc #createdAt |> fetchOne
                 let csvContents = fromMaybe "" exportJob.fileContents
                 Text.count "\"Worker, Ava LVL 1\"," csvContents `shouldBe` 1
-                csvContents `shouldSatisfy` Text.isInfixOf "\"Worker, Ava LVL 1\",5.00,0.00,0.00"
+                csvContents `shouldSatisfy` Text.isInfixOf "\"Worker, Ava LVL 1\",5.000000,0.000000,0.000000"
                 csvContents `shouldSatisfy` (not . Text.isInfixOf "Worker, Ava Bar")
                 csvContents `shouldSatisfy` (not . Text.isInfixOf "Worker, Ava Floor")
 
@@ -242,7 +242,7 @@ tests = aroundAll withDatabaseTestContext do
                 response `responseStatusShouldBe` status302
                 exportJob <- query @ExportJob |> orderByDesc #createdAt |> fetchOne
                 fromMaybe "" exportJob.fileContents `shouldSatisfy`
-                    Text.isInfixOf "\"Worker, Ava Xero Weekend Rate\",8.00,0.00,0.00"
+                    Text.isInfixOf "\"Worker, Ava Xero Weekend Rate\",8.000000,0.000000,0.000000"
                 fromMaybe "" exportJob.fileContents `shouldSatisfy`
                     (not . Text.isInfixOf "Worker, Ava Bar")
 
@@ -282,7 +282,7 @@ tests = aroundAll withDatabaseTestContext do
                 exportJob <- query @ExportJob |> orderByDesc #createdAt |> fetchOne
                 exportJob.fileName `shouldBe` Just "staff_hrs_starting-2025-01-06.csv"
                 fromMaybe "" exportJob.fileContents `shouldSatisfy`
-                    Text.isInfixOf "\"Worker, Ava LVL 1\",0.00,0.00,0.00,0.00,0.00,0.00,3.00"
+                    Text.isInfixOf "\"Worker, Ava LVL 1\",0.000000,0.000000,0.000000,0.000000,0.000000,0.000000,3.000000"
                 fromMaybe "" exportJob.fileContents `shouldSatisfy`
                     (not . Text.isInfixOf "8.00")
 
@@ -342,9 +342,9 @@ tests = aroundAll withDatabaseTestContext do
                             |> Zip.findEntryByPath "2025-01-13-to-2025-01-19/staff_hrs_starting-2025-01-13.csv"
                             |> fmap (decodeUtf8 . LBS.toStrict . Zip.fromEntry)
                             |> fromMaybe ""
-                firstWeekCsv `shouldSatisfy` Text.isInfixOf "\"Worker, Ava LVL 1\",0.00,0.00,0.00,0.00,0.00,0.00,3.00"
+                firstWeekCsv `shouldSatisfy` Text.isInfixOf "\"Worker, Ava LVL 1\",0.000000,0.000000,0.000000,0.000000,0.000000,0.000000,3.000000"
                 firstWeekCsv `shouldSatisfy` (not . Text.isInfixOf "8.00")
-                secondWeekCsv `shouldSatisfy` Text.isInfixOf "\"Worker, Ava LVL 1\",0.00,0.00,0.00,0.00,0.00,0.00,8.00"
+                secondWeekCsv `shouldSatisfy` Text.isInfixOf "\"Worker, Ava LVL 1\",0.000000,0.000000,0.000000,0.000000,0.000000,0.000000,8.000000"
                 secondWeekCsv `shouldSatisfy` (not . Text.isInfixOf "3.00")
 
         it "creates a payroll earnings export grouped by staff date earnings and tracking code" $ withContext do
@@ -413,11 +413,11 @@ tests = aroundAll withDatabaseTestContext do
                 csvContents `shouldSatisfy`
                     Text.isInfixOf "staff_first_name,staff_last_name,work_date,earnings_rate_name,exact_quantity,quantity,unit,rate_per_unit,exact_amount,amount,tracking_code"
                 csvContents `shouldSatisfy`
-                    Text.isInfixOf "Rae,Worker,2025-01-06,Bar - Ordinary,5/1,5.00,hours,"
+                    Text.isInfixOf "Rae,Worker,2025-01-06,Bar - Ordinary,5/1,5.000000,hours,"
                 csvContents `shouldSatisfy`
-                    Text.isInfixOf "Rae,Worker,2025-01-10,Bar - Public Holiday,4/1,4.00,hours,"
+                    Text.isInfixOf "Rae,Worker,2025-01-10,Bar - Public Holiday,4/1,4.000000,hours,"
                 csvContents `shouldSatisfy`
-                    Text.isInfixOf "Rae,Worker,2025-01-11,Kitchen - Saturday,2/1,2.00,hours,"
+                    Text.isInfixOf "Rae,Worker,2025-01-11,Kitchen - Saturday,2/1,2.000000,hours,"
                 csvContents `shouldSatisfy`
                     Text.isInfixOf ",public_holiday,bepis-projection:award_level_penalty_rates:"
                 csvContents `shouldSatisfy`
@@ -441,10 +441,10 @@ tests = aroundAll withDatabaseTestContext do
                 let autumnCsv = Text.lines (renderHourlyBreakdownDateCsv (fromGregorian 2026 4 4) [shiftType] [autumnEntry])
                 let springCsv = Text.lines (renderHourlyBreakdownDateCsv (fromGregorian 2026 10 3) [shiftType] [springEntry])
 
-                autumnCsv `shouldContain` ["02:00+1,2.0"]
-                autumnCsv `shouldContain` ["03:00+1,1.0"]
+                autumnCsv `shouldContain` ["02:00+1,2.000000"]
+                autumnCsv `shouldContain` ["03:00+1,1.000000"]
                 springCsv `shouldContain` ["02:00+1,"]
-                springCsv `shouldContain` ["03:00+1,1.0"]
+                springCsv `shouldContain` ["03:00+1,1.000000"]
 
         it "creates and downloads an hourly breakdown ZIP export" $ withContext do
             withCleanDb do
@@ -503,9 +503,9 @@ tests = aroundAll withDatabaseTestContext do
                             |> fmap (decodeUtf8 . LBS.toStrict . Zip.fromEntry)
                             |> fromMaybe ""
                 mondayCsv `shouldSatisfy` Text.isInfixOf "Time,Bar,Floor"
-                mondayCsv `shouldSatisfy` Text.isInfixOf "08:00,1.0,"
-                mondayCsv `shouldSatisfy` Text.isInfixOf "09:00,1.0,1.0"
-                mondayCsv `shouldSatisfy` Text.isInfixOf "10:00,0.5,1.0"
+                mondayCsv `shouldSatisfy` Text.isInfixOf "08:00,1.000000,"
+                mondayCsv `shouldSatisfy` Text.isInfixOf "09:00,1.000000,1.000000"
+                mondayCsv `shouldSatisfy` Text.isInfixOf "10:00,0.500000,1.000000"
 
         it "downloads a ready export and audits the download" $ withContext do
             withCleanDb do

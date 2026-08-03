@@ -164,7 +164,7 @@ derivePublishedEarnings components =
 
     publish (bucketKey, (exactQuantity, exactAmount)) =
         let outputQuantity = case bucketKey.finalEarningsBucketUnitType of
-                Hours          -> roundHourlyQuantity exactQuantity
+                Hours          -> exactQuantity
                 CommencedHours -> exactQuantity
             outputAmount = roundToCents (outputQuantity * toRational bucketKey.finalEarningsBucketRatePerUnit)
          in PublishedEarningsLine
@@ -175,12 +175,10 @@ derivePublishedEarnings components =
                 , publishedAmount = outputAmount
                 }
 
--- | Nearest quarter hour with exact half-quarter ties away from zero. Payroll
--- quantities are positive; the symmetric negative branch keeps the helper total.
+-- | Payroll publication preserves the exact aggregated hourly quantity.
+-- Retained as a compatibility name for callers while quarter-hour rounding is retired.
 roundHourlyQuantity :: Rational -> Rational
-roundHourlyQuantity value
-    | value < 0 = negate (roundHourlyQuantity (negate value))
-    | otherwise = fromInteger (floor (value * 4 + 1 / 2)) / 4
+roundHourlyQuantity = id
 
 roundToCents :: Rational -> Rational
 roundToCents value

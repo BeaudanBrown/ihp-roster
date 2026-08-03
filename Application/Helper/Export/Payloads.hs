@@ -87,7 +87,7 @@ buildFixedStaffPayCsvRecords reportWeekSelection entries staffById calculationsB
             { staffFirstName = firstName
             , staffLastName = lastName
             , label = payLabel
-            , bucketHours = map roundHourlyQuantity hoursByBucket
+            , bucketHours = hoursByBucket
             }
 
 shouldIncludeFixedStaffPayEntry :: Map.Map UUID Staff -> TimesheetEntry -> Bool

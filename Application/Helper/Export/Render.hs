@@ -204,7 +204,7 @@ addDayHours dayIndex hours existingDayHours =
     ]
 
 formatStaffPayHours :: Rational -> Text
-formatStaffPayHours = formatRationalDecimal 2
+formatStaffPayHours = formatRationalDecimal 6
 
 formatRationalDecimal :: Int -> Rational -> Text
 formatRationalDecimal decimalPlaces value =
@@ -302,7 +302,7 @@ formatHourlyWindow hourOfWindow
     | otherwise = Text.pack (printf "%02d:00+1" (hourOfWindow - 24) :: String)
 
 formatHourlyBreakdownHours :: Rational -> Text
-formatHourlyBreakdownHours = formatRationalDecimal 1
+formatHourlyBreakdownHours = formatRationalDecimal 6
 
 fallbackReportDayLabels :: Day -> [Text]
 fallbackReportDayLabels reportWeekStart =

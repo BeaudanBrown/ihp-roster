@@ -19,8 +19,7 @@ import Application.Helper.Xero (XeroTimesheetRef (..))
 import Application.Helper.XeroTimesheetReadiness
 import Application.VenueTime.Model (requireMelbourneDateRangeUTC)
 import Application.WageEngine
-import Application.WagePublication (datedEarningsComponents,
-                                    roundHourlyQuantity)
+import Application.WagePublication (datedEarningsComponents)
 import Application.WageSourceEnforcement (enforceFinalWageEntries,
                                           renderWageEntryFailures)
 import Application.Xero.Timesheets.Buckets (XeroComponentBucketContext (..),
@@ -493,7 +492,7 @@ toPreviewLine input aggregation =
     let unitsForDay day =
             let exactUnits = Map.findWithDefault 0 day aggregation.lineAggregationUnitsByDay
                 outputUnits = case aggregation.lineAggregationUnit of
-                    Hours          -> roundHourlyQuantity exactUnits
+                    Hours          -> exactUnits
                     CommencedHours -> exactUnits
              in scientificFromRationalAt xeroUnitDecimalPlaces outputUnits
      in XeroTimesheetPreviewLine

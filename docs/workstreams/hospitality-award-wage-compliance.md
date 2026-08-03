@@ -47,8 +47,8 @@ file does not duplicate ticket status.
   time authority for timesheets and rosters. Exact elapsed seconds determine
   calculations; Melbourne civil time determines Award dates/windows.
 - UI times remain quarter-hour choices without a database invariant. Final
-  export buckets defensively round hourly quantities once to the nearest 15
-  minutes, recomputing exported amount from rounded quantity and rate; sealed
+  export buckets preserve exact aggregated hourly quantities, recomputing
+  exported amount from published quantity and rate; sealed
   ledger facts remain exact and unchanged.
 - Approved calculations persist immutable exact segments/components, not derived
   rounded lines or totals. Drafts calculate from the effective rate book.

@@ -33,15 +33,15 @@ tests =
                     let line = onlyPreviewLine previewRun
                     line.previewLineNumberOfUnits `shouldBe` [4, 0, 0, 0, 0, 0, 0]
 
-            it "defensively rounds a final hourly Xero bucket once to the nearest quarter hour" $ withContext do
+            it "preserves minute-level hourly Xero quantities" $ withContext do
                 withCleanDb do
                     fixture <- createPreviewFixture "weekly" [EntrySpec 0 fixtureStaffA (TimeOfDay 9 0 0) (TimeOfDay 13 0 30)]
                     previewRun <- buildFixturePreview fixture
 
                     let line = onlyPreviewLine previewRun
-                    line.previewLineNumberOfUnits `shouldBe` [4, 0, 0, 0, 0, 0, 0]
+                    line.previewLineNumberOfUnits `shouldBe` [4.008333333333, 0, 0, 0, 0, 0, 0]
 
-            it "aggregates exact components before defensively rounding the Xero bucket" $ withContext do
+            it "aggregates exact components before serializing the Xero bucket" $ withContext do
                 withCleanDb do
                     fixture <-
                         createPreviewFixture
@@ -52,7 +52,7 @@ tests =
                     previewRun <- buildFixturePreview fixture
 
                     let line = onlyPreviewLine previewRun
-                    line.previewLineNumberOfUnits `shouldBe` [0, 0, 0, 0, 0, 0, 0]
+                    line.previewLineNumberOfUnits `shouldBe` [0.016666666666, 0, 0, 0, 0, 0, 0]
 
             it "uses the approval-pinned source rather than a newer overlapping rate in preview bucket keys" $ withContext do
                 withCleanDb do

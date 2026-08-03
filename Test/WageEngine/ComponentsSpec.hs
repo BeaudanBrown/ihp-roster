@@ -218,7 +218,7 @@ tests =
             fmap (.finalEarningsLineRoundedAmount) summary.finalEarningsLines `shouldBe` [0, 0]
             summary.finalEarningsTotalAmount `shouldBe` 0
 
-        it "HIGA-POLICY-OUTPUT-ROUNDING aggregates hourly quantities before one quarter-hour half-up transform" do
+        it "HIGA-POLICY-OUTPUT-PRECISION preserves aggregated exact hourly quantities" do
             let component = (roundingComponent OrdinaryCondition) { quantity = 1 / 16, ratePerUnit = 30, amount = 15 / 8 }
                 lines = derivePublishedEarnings [component, component]
 
@@ -226,9 +226,9 @@ tests =
                 [ PublishedEarningsLine
                     { publishedBucketKey = publicationBucketKey component
                     , publishedExactQuantity = 1 / 8
-                    , publishedQuantity = 1 / 4
+                    , publishedQuantity = 1 / 8
                     , publishedExactAmount = 15 / 4
-                    , publishedAmount = 15 / 2
+                    , publishedAmount = 15 / 4
                     }
                 ]
 
@@ -297,7 +297,7 @@ tests =
         it "property: imported overrides remain flat, deterministic and split-invariant" $
             property propImportedOverrideDeterminism
 
-        it "property: export-only quarter-hour rounding is deterministic, split-invariant and internally reconciled" $
+        it "property: exact publication is deterministic, split-invariant and internally reconciled" $
             property propPublishedEarningsReconciliation
 
 propImportedOverrideDeterminism :: Positive Integer -> NonNegative Integer -> Bool
@@ -346,7 +346,7 @@ propPublishedEarningsReconciliation (Positive durationSeed) (NonNegative splitSe
             [line] ->
                 line.publishedExactQuantity == quantity
                     && line.publishedExactAmount == quantity * toRational rate
-                    && (floor (line.publishedQuantity * 4) :: Integer) == ceiling (line.publishedQuantity * 4)
+                    && line.publishedQuantity == quantity
                     && line.publishedAmount == roundCents (line.publishedQuantity * toRational rate)
             _ -> False
   where

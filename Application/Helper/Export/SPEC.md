@@ -42,10 +42,11 @@ This file describes implemented export behavior and shared rendering rules.
   final output transform. The exact-second `break_seconds` shape was introduced
   in export schema version
   2; the approved-ledger payroll publication contract is schema version 3.
-  Payroll hourly quantities aggregate by final output bucket and then round once
-  to the nearest quarter hour; exact 7.5-minute ties round up. Commenced-hour
-  quantities remain whole units. Rounded hourly line amounts are recomputed from
-  output quantity × approved rate and rounded once to cents.
+  Payroll hourly quantities aggregate by final output bucket and preserve the
+  exact quantity. CSV decimal-hour fields render six places, while Xero protocol
+  quantities render twelve places. Commenced-hour quantities remain whole units.
+  Hourly line amounts are recomputed from the published quantity × approved rate
+  and rounded once to cents.
 
 ## Payroll
 

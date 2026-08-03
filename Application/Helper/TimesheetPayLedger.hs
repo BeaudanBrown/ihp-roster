@@ -327,8 +327,12 @@ unitValue :: EarningsUnit -> Text
 unitValue Hours          = "hours"
 unitValue CommencedHours = "commenced_hours"
 
--- Scientific values from the engine are finite decimals. Converting its exact
--- rational quantities through Scientific preserves those decimal facts in the
--- NUMERIC ledger rather than rounding them to display precision.
+-- PostgreSQL NUMERIC cannot represent repeating rational hour quantities.
+-- Preserve twelve decimal places at the ledger boundary; CSV display precision
+-- is applied later and Xero uses the same twelve-place protocol boundary.
 exactScientific :: Rational -> Scientific.Scientific
-exactScientific = fst . Scientific.fromRationalRepetendUnlimited
+exactScientific value =
+    Scientific.scientific (round (value * fromInteger scale)) (-12)
+  where
+    scale :: Integer
+    scale = 10 ^ (12 :: Int)
