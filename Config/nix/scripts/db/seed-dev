@@ -62,6 +62,7 @@ mkdir -p build/Script
 cat > build/Script/SeedDevMain.hs.tmp <<'EOF'
 import qualified Application.Script.SeedDev as Script
 import qualified Config
+import IHP.Prelude (Maybe (..))
 import IHP.ScriptSupport
 import System.Environment (lookupEnv)
 
