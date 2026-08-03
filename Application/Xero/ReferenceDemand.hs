@@ -147,9 +147,9 @@ shiftAssignmentFromShiftType shiftType =
         }
 
 needsReferenceRefresh :: XeroConnection -> [XeroStaffMapping] -> ApprovedAssignment -> Bool
-needsReferenceRefresh _ mappings assignment =
+needsReferenceRefresh connection mappings assignment =
     case find ((== assignment.approvedAssignmentStaffId) . (.staffId)) mappings of
-        Nothing -> True
+        Nothing -> maybe True (< assignment.approvedAssignmentChangedAt) connection.lastSyncAt
         Just mapping
             | mappingResolvesStaff mapping -> False
             | otherwise -> maybe True (< assignment.approvedAssignmentChangedAt) mapping.referenceRefreshedAt

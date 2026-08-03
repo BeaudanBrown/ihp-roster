@@ -55,8 +55,11 @@ lands.
   after five minutes, and resume from local reference rows after success.
 - Missing-staff demand resolves approval-pinned pay versions through the
   canonical explicit pay-assignment resolver. Successful snapshots stamp
-  unresolved staff mappings as checked; approval times, not later mutable staff
-  edits, determine whether another mapping refresh is required. Effective
+  unresolved staff mappings as checked; when no mapping row exists yet, the
+  connection's successful snapshot time proves whether the approval has already
+  been checked and prevents preparation polling from enqueueing the same refresh
+  repeatedly. Approval times, not later mutable staff edits, determine whether
+  another mapping refresh is required. Effective
   `roster_only` work does not request Xero data or block eligible payroll work.
   Suggested staff matches remain pending until explicit owner approval.
 - Owners do not receive or access manual reference refresh. Founder support sees

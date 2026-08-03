@@ -1,6 +1,7 @@
 module Test.Controller.Admin.XeroSpec where
 
 import Application.Async.Queue (EnqueueAppJobResult (EnqueuedAppJob))
+import Application.Fixture.PayrollFixtures (createAndApproveEntry)
 import qualified Application.Helper.FrontendContract.Surface.Admin.Live as AdminLive
 import Application.Helper.FrontendContract.Surface.Admin.Resource
 import Application.Helper.LiveUpdate
@@ -1202,6 +1203,27 @@ tests = aroundAll withFastXeroReferenceSyncRuntime $ aroundAll withDatabaseTestC
                 response `responseStatusShouldBe` status200
                 response `responseBodyShouldContain` "Prepare Xero draft timesheets"
                 response `responseBodyShouldNotContain` "Xero must not be called"
+                appJobCount <- query @AppJob |> filterWhere (#jobKind, xeroReferenceSyncJobKind) |> fetchCount
+                appJobCount `shouldBe` 0
+
+        it "does not resync a missing staff mapping after a successful fresh snapshot" $ withContext do
+            withCleanDb do
+                fixture <- Preview.createPreviewFixture "weekly" [Preview.EntrySpec 0 Preview.fixtureStaffA (TimeOfDay 9 0 0) (TimeOfDay 13 0 0)]
+                awardLevel <- query @AwardLevel |> fetchOne
+                unmappedStaff <- Preview.createMappedStaff fixture.venue awardLevel "Fresh" "Unmapped"
+                approvedAt <- getCurrentTime
+                _ <- createAndApproveEntry fixture.venue unmappedStaff fixture.periodStart () fixture.owner approvedAt []
+                now <- getCurrentTime
+                _ <- fixture.connection |> set #lastSyncAt (Just now) |> updateRecord
+
+                response <- withXeroConfigForTest (Left "Xero must not be called after a successful fresh snapshot") do
+                    withPasskeyVerifiedUserAndCurrentVenue fixture.owner fixture.venue.id do
+                        withRequestHeaders [("HX-Request", "true")] do
+                            callAction OpenXeroTimesheetPreparationAction
+
+                response `responseStatusShouldBe` status200
+                response `responseBodyShouldContain` "Prepare Xero draft timesheets"
+                response `responseBodyShouldNotContain` "Refreshing Xero reference data"
                 appJobCount <- query @AppJob |> filterWhere (#jobKind, xeroReferenceSyncJobKind) |> fetchCount
                 appJobCount `shouldBe` 0
 
