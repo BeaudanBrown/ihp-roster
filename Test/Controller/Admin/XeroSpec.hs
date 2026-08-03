@@ -1141,8 +1141,8 @@ tests = aroundAll withFastXeroReferenceSyncRuntime $ aroundAll withDatabaseTestC
                 now <- getCurrentTime
                 _ <- fixture.connection |> set #lastSyncAt (Just now) |> updateRecord
                 resetXeroStaffMappingForPreparation fixture.staffA
-                missingMapping <- query @XeroStaffMapping |> filterWhere (#staffId, unpackId fixture.staffA.id) |> fetchOne
-                _ <- missingMapping |> set #updatedAt (addUTCTime 1 now) |> updateRecord
+                entry <- maybe (error "Expected fixture entry") pure (listToMaybe fixture.entries)
+                _ <- entry |> set #approvedAt (Just (addUTCTime 1 now)) |> updateRecord
                 _ <- fixture.staffA
                     |> set #payAssignmentMode RosterOnly
                     |> set #defaultAwardLevelId Nothing
@@ -1227,11 +1227,34 @@ tests = aroundAll withFastXeroReferenceSyncRuntime $ aroundAll withDatabaseTestC
                 appJobCount <- query @AppJob |> filterWhere (#jobKind, xeroReferenceSyncJobKind) |> fetchCount
                 appJobCount `shouldBe` 0
 
-        it "uses a fresh snapshot when a previous missing-staff poll has an active retry" $ withContext do
+        it "does not resync an unresolved placeholder created after a successful snapshot" $ withContext do
             withCleanDb do
                 fixture <- Preview.createPreviewFixture "weekly" [Preview.EntrySpec 0 Preview.fixtureStaffA (TimeOfDay 9 0 0) (TimeOfDay 13 0 0)]
                 now <- getCurrentTime
                 _ <- fixture.connection |> set #lastSyncAt (Just now) |> updateRecord
+                resetXeroStaffMappingForPreparation fixture.staffA
+                placeholder <- query @XeroStaffMapping |> filterWhere (#staffId, unpackId fixture.staffA.id) |> fetchOne
+                _ <- placeholder |> set #updatedAt (addUTCTime 1 now) |> updateRecord
+
+                response <- withXeroConfigForTest (Left "Xero must not be called for a placeholder already covered by the snapshot") do
+                    withPasskeyVerifiedUserAndCurrentVenue fixture.owner fixture.venue.id do
+                        withRequestHeaders [("HX-Request", "true")] do
+                            callAction OpenXeroTimesheetPreparationAction
+
+                response `responseStatusShouldBe` status200
+                response `responseBodyShouldContain` "Prepare Xero draft timesheets"
+                response `responseBodyShouldNotContain` "Refreshing Xero reference data"
+                appJobCount <- query @AppJob |> filterWhere (#jobKind, xeroReferenceSyncJobKind) |> fetchCount
+                appJobCount `shouldBe` 0
+
+        it "uses a fresh snapshot when actual missing-staff demand has an active retry" $ withContext do
+            withCleanDb do
+                fixture <- Preview.createPreviewFixture "weekly" [Preview.EntrySpec 0 Preview.fixtureStaffA (TimeOfDay 9 0 0) (TimeOfDay 13 0 0)]
+                now <- getCurrentTime
+                _ <- fixture.connection |> set #lastSyncAt (Just now) |> updateRecord
+                resetXeroStaffMappingForPreparation fixture.staffA
+                entry <- maybe (error "Expected fixture entry") pure (listToMaybe fixture.entries)
+                _ <- entry |> set #approvedAt (Just (addUTCTime 1 now)) |> updateRecord
                 EnqueuedAppJob retryJob <- enqueueXeroReferenceSyncJob (Just fixture.owner.id) fixture.connection
                 _ <- retryJob
                     |> set #runAt (addUTCTime 3600 now)
@@ -1556,6 +1579,17 @@ tests = aroundAll withFastXeroReferenceSyncRuntime $ aroundAll withDatabaseTestC
                                 callActionWithParams (SelectXeroTimesheetPreparationPeriodAction run.id)
                                     [("periodKey", fixturePeriodKey fixture)]
 
+                payItemDecisions <-
+                    query @XeroTimesheetPreparationDecision
+                        |> filterWhere (#xeroTimesheetPreparationRunId, unpackId run.id)
+                        |> filterWhere (#decisionKind, "pay_item_create" :: Text)
+                        |> fetch
+                forM_ payItemDecisions \decision ->
+                    decision
+                        |> set #decisionStatus ("dismissed" :: Text)
+                        |> updateRecord
+                        >>= const (pure ())
+
                 approvalResponse <- withXeroConfigForTest (Right testXeroConfig) do
                     withXeroClientForTest xeroClient do
                         withPasskeyVerifiedUserAndCurrentVenue fixture.owner fixture.venue.id do
@@ -1576,6 +1610,8 @@ tests = aroundAll withFastXeroReferenceSyncRuntime $ aroundAll withDatabaseTestC
                 approvalRequests `shouldBe` []
                 pendingAfterApproval <- query @XeroTimesheetPreparationDecision |> filterWhere (#decisionKind, "pay_item_create" :: Text) |> filterWhere (#decisionStatus, "pending" :: Text) |> fetchCount
                 pendingAfterApproval `shouldBe` 0
+                appliedAfterApproval <- query @XeroTimesheetPreparationDecision |> filterWhere (#decisionKind, "pay_item_create" :: Text) |> filterWhere (#decisionStatus, "applied" :: Text) |> fetchCount
+                appliedAfterApproval `shouldSatisfy` (> 0)
 
                 response <- withXeroConfigForTest (Right testXeroConfig) do
                     withXeroClientForTest xeroClient do

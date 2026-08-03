@@ -152,7 +152,9 @@ needsReferenceRefresh connection mappings assignment =
         Nothing -> maybe True (< assignment.approvedAssignmentChangedAt) connection.lastSyncAt
         Just mapping
             | mappingResolvesStaff mapping -> False
-            | otherwise -> maybe True (< assignment.approvedAssignmentChangedAt) mapping.referenceRefreshedAt
+            | otherwise ->
+                maybe True (< assignment.approvedAssignmentChangedAt) $
+                    max mapping.referenceRefreshedAt connection.lastSyncAt
 
 mappingResolvesStaff :: XeroStaffMapping -> Bool
 mappingResolvesStaff mapping

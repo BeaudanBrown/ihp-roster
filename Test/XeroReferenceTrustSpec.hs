@@ -21,6 +21,13 @@ tests = do
             decideXeroReferenceTrust now "active" (Just (addUTCTime (negate oneDay) now)) MissingPayrollEligibleStaffReference XeroReferenceSyncIdle
                 `shouldBe` StartOrJoinXeroReferenceSync
 
+        it "uses a fresh snapshot for missing-staff mapping while a provider retry is waiting" do
+            let retryAt = addUTCTime (16 * 60 * 60) now
+            decideXeroReferenceTrust now "active" (Just (addUTCTime (negate oneDay) now)) MissingPayrollEligibleStaffReference (XeroReferenceSyncRetryWaiting retryAt)
+                `shouldBe` UseTrustedXeroReferenceSnapshot
+            decideXeroReferenceTrust now "active" (Just (addUTCTime (negate (8 * oneDay)) now)) MissingPayrollEligibleStaffReference (XeroReferenceSyncRetryWaiting retryAt)
+                `shouldBe` WaitForTrustedXeroReferenceSnapshot (XeroReferenceSyncRetryWaiting retryAt)
+
         it "does not refresh fresh reference data for effective roster-only work" do
             decideXeroReferenceTrust now "active" (Just (addUTCTime (negate oneDay) now)) MissingRosterOnlyStaffReference XeroReferenceSyncIdle
                 `shouldBe` UseTrustedXeroReferenceSnapshot

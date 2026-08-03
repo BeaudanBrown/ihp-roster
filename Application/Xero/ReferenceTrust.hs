@@ -51,6 +51,7 @@ decideXeroReferenceTrust ::
     XeroReferenceTrustDecision
 decideXeroReferenceTrust now connectionStatus maybeLastSyncAt missingReferenceDemand syncActivity
     | connectionStatus /= "active" = ReconnectXeroForReferenceData
+    | snapshotIsTrusted, XeroReferenceSyncRetryWaiting _ <- syncActivity = UseTrustedXeroReferenceSnapshot
     | snapshotIsTrusted && missingReferenceDemand /= MissingPayrollEligibleStaffReference = UseTrustedXeroReferenceSnapshot
     | otherwise =
         case syncActivity of

@@ -51,15 +51,19 @@ lands.
   snapshot remains trusted for seven days and opens immediately even while its
   six-day maintenance refresh is queued, running, retrying, or failed. Missing,
   stale, or newly payroll-eligible missing-staff demand enqueues or joins the
-  durable job; polling dialogs show canonical phase/page facts, transition copy
-  after five minutes, and resume from local reference rows after success.
+  durable job. When that attempt receives a provider `Retry-After`, a still-trusted
+  snapshot opens the mapping workflow rather than making preparation wait for the
+  delayed background retry. Polling dialogs show canonical phase/page facts,
+  transition copy after five minutes, and resume from local reference rows after
+  success.
 - Missing-staff demand resolves approval-pinned pay versions through the
   canonical explicit pay-assignment resolver. Successful snapshots stamp
-  unresolved staff mappings as checked; when no mapping row exists yet, the
-  connection's successful snapshot time proves whether the approval has already
-  been checked and prevents preparation polling from enqueueing the same refresh
-  repeatedly. Approval times, not later mutable staff edits, determine whether
-  another mapping refresh is required. Effective
+  unresolved staff mappings as checked. When no mapping row exists yet, or an
+  unresolved placeholder is created after that snapshot, the newer of the
+  mapping refresh and connection snapshot times proves whether the approval has
+  already been checked and prevents preparation polling from enqueueing the same
+  refresh repeatedly. Approval times, not later mutable staff edits, determine
+  whether another mapping refresh is required. Effective
   `roster_only` work does not request Xero data or block eligible payroll work.
   Suggested staff matches remain pending until explicit owner approval.
 - Owners do not receive or access manual reference refresh. Founder support sees
@@ -94,7 +98,7 @@ lands.
   quantities aggregate by employee, managed earning bucket and local day without
   quarter-hour rounding. Commenced-hour quantities remain whole. Protocol
   serialization uses 12 decimal places.
-- Managed Xero earnings-rate names put human payroll details first, e.g. `Saturday Penalty - Level 1 - CAS - Bepis - 1-July-2025`; legacy `Bepis - HIGA - ...` managed names remain matchable to avoid duplicate pay items.
+- Managed Xero earnings-rate names put human payroll details first, e.g. `Saturday Penalty - Level 1 - CAS - Bepis - 1-July-2025`; legacy `Bepis - HIGA - ...` managed names remain matchable to avoid duplicate pay items. Pay-item approval recreates any missing current-run proposal decisions before applying them, so incomplete decision persistence cannot trap the modal on the approval step.
 - Preview/submission consumes every positive sealed earnings component exactly
   once. Managed requirements reserve separate `RATEPERUNIT` evening and
   early-morning commenced-hour additions and a separate missed-meal-break 50%

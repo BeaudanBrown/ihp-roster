@@ -439,7 +439,8 @@ saveXeroPreparationAccountCode runId accountCode =
                         pure (Left "Choose a synced Xero account code from the dropdown.")
                     | otherwise -> do
                         persistPreparationAccountCodeSelection connection accountCodeOptions selectedAccountCode
-                        markPayItemCreateDecisionsApplied run []
+                        proposedRequirements <- ensurePreparationPayItemDecisionProposals run
+                        markPayItemCreateDecisionsApplied run proposedRequirements
                         reloadAfterLocalDecision run remoteTimesheetsFromRun
 
 previewXeroTimesheetPreparation ::
@@ -624,9 +625,18 @@ ensurePreparationDecisionProposals run = do
                         Nothing
                         (Aeson.object ["suggestedEmployeeId" Aeson..= employee.xeroEmployeeId, "suggestedEmployeeName" Aeson..= employee.displayName])
             _ -> pure ()
+    void (ensurePreparationPayItemDecisionProposals run)
+
+ensurePreparationPayItemDecisionProposals ::
+    (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
+    XeroTimesheetPreparationRun ->
+    IO [XeroPayItemRequirement]
+ensurePreparationPayItemDecisionProposals run = do
+    connection <- fetch (Id run.xeroConnectionId :: Id XeroConnection)
     xeroEarningsRates <- fetchCurrentVenueXeroEarningsRates (Just connection)
     requirements <- fetchPreparationPayItemRequirements run connection xeroEarningsRates
-    forM_ (filter (\requirement -> requirement.payItemRequirementStatus == "proposed") requirements) \requirement ->
+    let proposedRequirements = filter (\requirement -> requirement.payItemRequirementStatus == "proposed" && requirement.payItemRequirementIsActive) requirements
+    forM_ proposedRequirements \requirement ->
         void $
             ensurePendingPreparationDecision
                 run
@@ -636,6 +646,7 @@ ensurePreparationDecisionProposals run = do
                 Nothing
                 (Just requirement.payItemRequirementKey)
                 (Aeson.object ["requirementName" Aeson..= requirement.payItemRequirementName])
+    pure proposedRequirements
 
 ensurePendingPreparationDecision ::
     (?modelContext :: ModelContext) =>
