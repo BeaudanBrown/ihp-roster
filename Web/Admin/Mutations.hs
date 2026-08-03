@@ -12,6 +12,7 @@ module Web.Admin.Mutations
     , rosterEndTimesTouchedResources
     , rosterTimePickerWindowTouchedResources
     , rosterWeekStartsOnTouchedResources
+    , setMinutePrecisionShiftTimesEnabledMutation
     , setRosterEndTimesEnabledMutation
     , setUnavailableStaffWarningThresholdMutation
     , setRosterTimePickerWindowMutation
@@ -57,6 +58,15 @@ data AdminShiftTypeMutationResult = AdminShiftTypeMutationResult
     { adminShiftTypeMutationShiftType         :: !ShiftType
     , adminShiftTypeMutationShouldRefreshXero :: !Bool
     }
+
+setMinutePrecisionShiftTimesEnabledMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => VenueConfig -> Bool -> IO (LiveMutationResult VenueConfig)
+setMinutePrecisionShiftTimesEnabledMutation venueConfig enabled = do
+    updated <- venueConfig
+        |> set #minutePrecisionShiftTimesEnabled enabled
+        |> updateRecord
+    invalidateTouchedResources
+        "admin.venue_config.minute_precision_shift_times"
+        (liveMutationResult updated (rosterTimePickerWindowTouchedResources currentVenueId))
 
 setRosterEndTimesEnabledMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => VenueConfig -> Bool -> IO (LiveMutationResult VenueConfig)
 setRosterEndTimesEnabledMutation venueConfig rosterEndTimesEnabled = do

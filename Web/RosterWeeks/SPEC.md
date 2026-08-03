@@ -278,7 +278,9 @@ lands.
   remain valid/displayed; picker +/- buttons stay unavailable until the field is
   changed to an in-window option. Haskell renders exact generated range/step and
   option value/label payloads; the generic browser adapter supplies no fallback
-  time data or copy.
+  time data or copy. Venue configuration selects 15-minute modal entry or inline
+  native whole-minute entry for shift dialogs. Timeline drag targets remain
+  fixed at 15-minute intervals.
 - Timeline resize handles, creating shifts, deleting shifts, configurable
   slot-definition titles, staff reassignment, and live-roster editing are not
   part of the implemented timeline contract.

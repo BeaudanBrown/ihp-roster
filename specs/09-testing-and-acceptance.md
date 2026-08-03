@@ -86,7 +86,7 @@ access does not qualify.
 
 ## Timesheets and leave
 
-- **T1** — 15-minute exact increment validation.
+- **T1** — Venue-selected 15-minute/default and whole-minute precision validation.
 - **T2** — Approval reset on staff edit of approved entry.
 - **T3** — Leave date validation and status transitions.
 - **T4** — Conflict recalculation after leave approval.

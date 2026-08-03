@@ -182,7 +182,12 @@ defaultTimePickerConfig fieldName currentValue rangeStart rangeEnd disabled =
         }
 
 renderTimePickerField :: TimePickerConfig -> Html
-renderTimePickerField config@TimePickerConfig { timePickerFieldName, timePickerCurrentValue, timePickerDisabled, timePickerInputClasses, timePickerFieldClasses } = [hsx|
+renderTimePickerField config@TimePickerConfig { timePickerStepMinutes }
+    | timePickerStepMinutes == 1 = renderNativeMinuteTimeField config
+    | otherwise = renderModalTimePickerField config
+
+renderModalTimePickerField :: TimePickerConfig -> Html
+renderModalTimePickerField config@TimePickerConfig { timePickerFieldName, timePickerCurrentValue, timePickerDisabled, timePickerInputClasses, timePickerFieldClasses } = [hsx|
     <div {...timePickerFieldAttrs (browserConfigFor config)}
          class={classes (("time-picker-field", True) : map (\className -> (className, True)) timePickerFieldClasses)}>
         <input type="hidden"
@@ -195,10 +200,28 @@ renderTimePickerField config@TimePickerConfig { timePickerFieldName, timePickerC
     </div>
 |]
 
+renderNativeMinuteTimeField :: TimePickerConfig -> Html
+renderNativeMinuteTimeField config@TimePickerConfig { timePickerFieldName, timePickerCurrentValue, timePickerDisabled, timePickerKeyboardEnabled, timePickerAutofocus, timePickerInvalid, timePickerInputClasses, timePickerFieldClasses, timePickerAriaLabel } = [hsx|
+    <div {...timePickerFieldAttrs (browserConfigFor config)}
+         class={classes (("time-picker-field", True) : ("time-picker-field-native", True) : map (\className -> (className, True)) timePickerFieldClasses)}>
+        <input type="time"
+               step="60"
+               name={timePickerFieldName}
+               value={timePickerCurrentValue}
+               disabled={timePickerDisabled}
+               autofocus={timePickerAutofocus}
+               aria-invalid={if timePickerInvalid then Just ("true" :: Text) else Nothing}
+               aria-label={timePickerAriaLabel}
+               {...timePickerValueAttrs <> if timePickerKeyboardEnabled then timePickerKeyboardAttrs else []}
+               class={classes (("form-control", True) : ("time-picker-native-input", True) : ("is-invalid", timePickerInvalid) : map (\className -> (className, True)) timePickerInputClasses)} />
+    </div>
+|]
+
 browserConfigFor :: TimePickerConfig -> TimePickerBrowserConfig
 browserConfigFor TimePickerConfig { timePickerRangeStart, timePickerRangeEnd, timePickerStepMinutes, timePickerEmptyLabel }
     | null fieldOptions = error "Time picker config must resolve at least one option"
-    | any (`notElem` canonicalValues) fieldOptions = error "Time picker config must use canonical quarter-hour option values"
+    | timePickerStepMinutes `notElem` [1, 15] = error "Time picker config step must be 1 or 15 minutes"
+    | timePickerStepMinutes == 15 && any (`notElem` canonicalValues) fieldOptions = error "Time picker config must use canonical quarter-hour option values"
     | otherwise = TimePickerBrowserConfig
         { browserTimePickerRangeStart = timePickerRangeStart
         , browserTimePickerRangeEnd = timePickerRangeEnd

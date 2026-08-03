@@ -397,6 +397,7 @@ CREATE TABLE venue_config (
     late_to_early_min_start_gap_minutes INT DEFAULT 0 NOT NULL,
     time_picker_start_minute_of_day INT DEFAULT 360 NOT NULL,
     time_picker_final_selectable_minute_of_day INT DEFAULT 345 NOT NULL,
+    minute_precision_shift_times_enabled BOOLEAN DEFAULT FALSE NOT NULL,
     roster_end_times_enabled BOOLEAN DEFAULT TRUE NOT NULL,
     auto_timesheet_creation_enabled BOOLEAN DEFAULT FALSE NOT NULL,
     staff_timesheet_edit_window_days INT DEFAULT 7 NOT NULL,

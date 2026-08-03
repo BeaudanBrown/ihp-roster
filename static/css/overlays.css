@@ -270,6 +270,20 @@
     min-width: 0;
 }
 
+.time-picker-trigger-button[autofocus]:focus {
+    border-color: var(--bs-primary);
+    box-shadow: 0 0 0 0.25rem var(--app-focus-ring-primary);
+}
+
+.time-picker-native-input {
+    min-width: 8.5rem;
+}
+
+.time-picker-native-input[autofocus]:focus {
+    border-color: var(--bs-primary);
+    box-shadow: 0 0 0 0.25rem var(--app-focus-ring-primary);
+}
+
 .time-picker-trigger-button .time-picker-label {
     display: inline-block;
     max-width: 100%;

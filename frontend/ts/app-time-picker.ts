@@ -21,7 +21,7 @@ import {
     parseTimePickerOptionConfiguration,
     timePickerOptionsForConfiguration,
 } from "./time-picker/configuration";
-import { steppedTimePickerOption, wholeHourTimePickerOption, type TimePickerStepDirection } from "./time-picker/keyboard";
+import { compactTimePickerValue, steppedTimePickerOption, type TimePickerStepDirection } from "./time-picker/keyboard";
 
 export type TimePickerDiagnosticCode =
     | "invalid-modal"
@@ -357,13 +357,13 @@ function applyWholeHourDigit(control: TimePickerFieldControl, digit: string, now
     const previous = digitBuffers.get(control.input);
     const digits = previous === undefined || now - previous.lastTypedAt > digitBufferResetMs
         ? digit
-        : previous.digits.length >= 2
+        : previous.digits.length >= 4
             ? previous.digits
             : previous.digits + digit;
     digitBuffers.set(control.input, { digits, lastTypedAt: now });
-    if (previous !== undefined && now - previous.lastTypedAt <= digitBufferResetMs && previous.digits.length >= 2) return;
 
-    const option = wholeHourTimePickerOption(control.options.map((candidate) => candidate.config), digits);
+    const value = compactTimePickerValue(digits, control.config.stepMinutes, control.config.rangeStart, control.config.rangeEnd);
+    const option = value === null ? null : control.options.find((candidate) => candidate.config.value === value)?.config ?? null;
     if (option === null) return;
     applyTimeValue(control, option.value, option.label);
     synchronizeField(control);
@@ -411,6 +411,8 @@ export function initializeTimePickerFields(
     if (modal === null) return;
 
     for (const field of fields) {
+        const valueControl = singleRoleElement(field, timePickerValueDomAttr);
+        if (valueControl instanceof HTMLInputElement && valueControl.type === "time") continue;
         const control = readFieldControl(field, modal, report);
         if (control !== null) synchronizeField(control);
     }
@@ -452,6 +454,36 @@ function enableQuarterHourTimePicker(): void {
             selectHighlightedPickerOption(modal, activeField);
         }
     }, true);
+
+    document.addEventListener("keydown", (event) => {
+        const nativeInput = closestHTMLElement(event.target, `input[type='time'][${timePickerValueDomAttr}][${timePickerKeyboardDomAttr}]`);
+        if (!(nativeInput instanceof HTMLInputElement) || nativeInput.disabled || !/^\d$/.test(event.key)) return;
+        const field = nativeInput.closest(`[${timePickerFieldDomAttr}]`);
+        if (!(field instanceof HTMLElement)) return;
+        const rawConfig = field.getAttribute(timePickerConfigDomAttr);
+        if (rawConfig === null) return;
+        let config: TimePickerConfig;
+        try {
+            config = parseTimePickerConfiguration(rawConfig);
+        } catch (error) {
+            reportError(defaultDiagnosticReporter, "invalid-field-config", nativeInput.name || null, error);
+            return;
+        }
+        event.preventDefault();
+        const now = Date.now();
+        const previous = digitBuffers.get(nativeInput);
+        const digits = previous === undefined || now - previous.lastTypedAt > digitBufferResetMs
+            ? event.key
+            : previous.digits.length >= 4
+                ? previous.digits
+                : previous.digits + event.key;
+        digitBuffers.set(nativeInput, { digits, lastTypedAt: now });
+        const value = compactTimePickerValue(digits, config.stepMinutes, config.rangeStart, config.rangeEnd);
+        if (value === null || value === nativeInput.value) return;
+        nativeInput.value = value;
+        nativeInput.dispatchEvent(new Event("input", { bubbles: true }));
+        nativeInput.dispatchEvent(new Event("change", { bubbles: true }));
+    });
 
     document.addEventListener("keydown", (event) => {
         const trigger = closestHTMLElement(event.target, `[${timePickerTriggerDomAttr}]`);

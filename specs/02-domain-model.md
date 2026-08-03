@@ -110,7 +110,7 @@
   - Optional immutable `source_roster_slot_id` records roster provenance.
   - At most one active entry may reference a source slot; deleted historical
     snapshots do not block a later active snapshot.
-  - Inputs must be exact 15-minute increments.
+  - Inputs use exact 15-minute increments by default or whole-minute precision when enabled for the venue.
   - Must support additive correction or version history.
   - Hard deletion is not the normal correction path once business use begins.
 

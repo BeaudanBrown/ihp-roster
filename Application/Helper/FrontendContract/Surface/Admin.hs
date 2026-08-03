@@ -56,6 +56,7 @@ module Application.Helper.FrontendContract.Surface.Admin
     , ConfigFieldField
     , RosterEndTimesEnabled
     , AutoTimesheetCreationEnabled
+    , MinutePrecisionShiftTimesEnabled
     , TimePickerStart
     , TimePickerEnd
     , RosterWeekStartsOn
@@ -127,6 +128,7 @@ data ShowXeroTimesheetPreparationStaffMappings
 data ConfigFieldField
 data RosterEndTimesEnabled
 data AutoTimesheetCreationEnabled
+data MinutePrecisionShiftTimesEnabled
 data TimePickerStart
 data TimePickerEnd
 data RosterWeekStartsOn
@@ -196,6 +198,7 @@ type AdminVenueSettingsSurface =
             '[ Field ConfigFieldField 'WireText
              , OptionalField RosterEndTimesEnabled 'WireBool
              , OptionalField AutoTimesheetCreationEnabled 'WireBool
+             , OptionalField MinutePrecisionShiftTimesEnabled 'WireBool
              , OptionalField TimePickerStart 'WireText
              , OptionalField TimePickerEnd 'WireText
              , OptionalField RosterWeekStartsOn 'WireText

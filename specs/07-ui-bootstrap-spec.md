@@ -26,7 +26,7 @@
   - **Start Time** (`TIME`)
   - **Staff** (`NAME`)
   - **Code/Flag** (`NOTE`) for short markers like `M`, `DEL`, `F`, `SUP`, `D`, `*AS`.
-- **Start Time Picker UX:** Start time uses a modal picker (not browser-native time input) with:
+- **Start Time Picker UX:** In the default mode, start time uses a modal picker with:
   - 15-minute increments
   - options from `6:00 AM` through `11:45 PM`
   - 4 buttons per row in the option grid
@@ -67,8 +67,8 @@
 
 ## Timesheets
 
-- Simple create/edit form with strict 15-minute increment validation feedback.
-- Timesheet time selection should reuse the same modal quarter-hour picker component used by roster start-time fields.
+- Simple create/edit form with venue-selected 15-minute or whole-minute validation feedback.
+- Default timesheet selection reuses the roster modal picker; minute-precision venues use inline native time inputs.
 - Approval status badges and manager actions.
 - Correction-safe workflows should display when an entry has been corrected, superseded or reset for re-approval.
 

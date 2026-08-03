@@ -2,10 +2,10 @@
 
 ## Timesheet entry rules
 
-- Start/end/break inputs must be exact **15-minute increments**.
+- Start/end/break inputs use exact **15-minute increments** by default. A venue may enable whole-minute precision for all four boundaries.
 - Non-conforming inputs are rejected with explicit validation errors.
 - Shift duration caps and sanity checks apply (e.g. max duration, break <= shift duration).
-- UI should reuse the shared quarter-hour modal time picker component (same as roster), while persisting canonical local wall-clock values as `HH:MM` for time-only fields.
+- Fifteen-minute mode reuses the shared modal picker. Minute-precision mode uses an inline native time input, while both persist canonical local wall-clock values as `HH:MM`.
 
 ## Roster-derived Timesheet suggestions
 

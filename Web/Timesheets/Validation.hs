@@ -141,8 +141,8 @@ timesheetCoreChanged previous next =
         || previous.breakEndsAt /= next.breakEndsAt
         || previous.timezone /= next.timezone
 
-buildTimesheetEntry :: (?context :: ControllerContext, ?request :: Request) => Text -> Maybe UUID.UUID -> TimesheetEntry -> TimesheetEntry
-buildTimesheetEntry timezone currentViewerStaffId entry =
+buildTimesheetEntry :: (?context :: ControllerContext, ?request :: Request) => VenueConfig -> Maybe UUID.UUID -> TimesheetEntry -> TimesheetEntry
+buildTimesheetEntry venueConfig currentViewerStaffId entry =
     builtWithComments
   where
     parsedWorkedOn = paramOrNothing @Day "workedOn"
@@ -175,8 +175,8 @@ buildTimesheetEntry timezone currentViewerStaffId entry =
             |> attachWhen (isNothing parsedWorkedOn) #startsAt "Please choose a day"
             |> attachWhen (isNothing parsedStartTime) #startsAt "Please select a shift start time"
             |> attachWhen (isNothing parsedEndTime) #endsAt "Please select a shift end time"
-            |> attachWhen (maybe False (not . isQuarterHourTime) parsedStartTime) #startsAt "Shift start must be on a 15-minute increment"
-            |> attachWhen (maybe False (not . isQuarterHourTime) parsedEndTime) #endsAt "Shift end must be on a 15-minute increment"
+            |> attachWhen (maybe False (not . submittedTimeAllowed (Just (timesheetEntryStartTime entry))) parsedStartTime) #startsAt intervalValidationMessage
+            |> attachWhen (maybe False (not . submittedTimeAllowed (Just (timesheetEntryEndTime entry))) parsedEndTime) #endsAt intervalValidationMessage
             |> attachEitherError parsedStartOccurrence #startsAt
             |> attachEitherError parsedEndOccurrence #endsAt
             |> validateBreakTransport
@@ -194,8 +194,8 @@ buildTimesheetEntry timezone currentViewerStaffId entry =
             record
                 |> attachWhen (isNothing parsedBreakStartTime) #breakStartsAt "Please select a break start time"
                 |> attachWhen (isNothing parsedBreakEndTime) #breakEndsAt "Please select a break end time"
-                |> attachWhen (maybe False (not . isQuarterHourTime) parsedBreakStartTime) #breakStartsAt "Break start must be on a 15-minute increment"
-                |> attachWhen (maybe False (not . isQuarterHourTime) parsedBreakEndTime) #breakEndsAt "Break end must be on a 15-minute increment"
+                |> attachWhen (maybe False (not . submittedTimeAllowed (timesheetEntryBreakStartTime entry)) parsedBreakStartTime) #breakStartsAt intervalValidationMessage
+                |> attachWhen (maybe False (not . submittedTimeAllowed (timesheetEntryBreakEndTime entry)) parsedBreakEndTime) #breakEndsAt intervalValidationMessage
                 |> attachEitherError parsedBreakStartOccurrence #breakStartsAt
                 |> attachEitherError parsedBreakEndOccurrence #breakEndsAt
 
@@ -206,7 +206,7 @@ buildTimesheetEntry timezone currentViewerStaffId entry =
                     then record
                     else record |> set #breakStartsAt Nothing |> set #breakEndsAt Nothing
             Just (input, missingOccurrenceFields) ->
-                case resolveShiftBoundaries timezone input of
+                case resolveShiftBoundaries venueConfig.timezone input of
                     Left failure -> attachBoundaryFailure failure record
                     Right boundaries ->
                         record
@@ -302,6 +302,10 @@ buildTimesheetEntry timezone currentViewerStaffId entry =
         | parsedEndTime == Just localTime.localTimeOfDay = record |> attachFailure #endsAt message
         | parsedBreakStartTime == Just localTime.localTimeOfDay = record |> attachFailure #breakStartsAt message
         | otherwise = record |> attachFailure #breakEndsAt message
+
+    intervalValidationMessage = venueShiftTimeValidationMessage venueConfig
+    submittedTimeAllowed existingTime submittedTime =
+        venueShiftTimeAllows venueConfig submittedTime || Just submittedTime == existingTime
 
     builtWithComments = applyCommentFields entry baseEntry
 

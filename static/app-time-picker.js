@@ -151,6 +151,40 @@
   }
 
   // frontend/ts/time-picker/keyboard.ts
+  function compactTimePickerValue(digits, stepMinutes, rangeStart, rangeEnd) {
+    if (!/^\d{1,4}$/.test(digits) || stepMinutes !== 1 && stepMinutes !== 15) return null;
+    if (digits.length <= 2) {
+      const hour2 = Number(digits);
+      if (!Number.isInteger(hour2) || hour2 < 0 || hour2 > 23) return null;
+      const value = `${String(hour2).padStart(2, "0")}:00`;
+      return timeIsSelectable(value, stepMinutes, rangeStart, rangeEnd) ? value : null;
+    }
+    const hour = Number(digits.slice(0, 2));
+    if (!Number.isInteger(hour) || hour < 0 || hour > 23) return null;
+    const minuteDigits = digits.slice(2);
+    const candidates = Array.from({ length: 60 / stepMinutes }, (_, index) => index * stepMinutes).filter((minute) => String(minute).padStart(2, "0").startsWith(minuteDigits));
+    for (const minute of candidates) {
+      const value = `${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`;
+      if (timeIsSelectable(value, stepMinutes, rangeStart, rangeEnd)) return value;
+    }
+    return null;
+  }
+  function timeIsSelectable(value, stepMinutes, rangeStart, rangeEnd) {
+    const minute = parseMinute(value);
+    const start = parseMinute(rangeStart);
+    const rawEnd = parseMinute(rangeEnd);
+    if (minute === null || start === null || rawEnd === null || minute % stepMinutes !== 0) return false;
+    const end = rawEnd < start ? rawEnd + 24 * 60 : rawEnd;
+    const normalized = minute < start ? minute + 24 * 60 : minute;
+    return normalized >= start && normalized <= end;
+  }
+  function parseMinute(value) {
+    const match = /^(\d{2}):(\d{2})$/.exec(value);
+    if (match === null) return null;
+    const hour = Number(match[1]);
+    const minute = Number(match[2]);
+    return hour >= 0 && hour <= 23 && minute >= 0 && minute <= 59 ? hour * 60 + minute : null;
+  }
   function steppedTimePickerOption(options, currentValue, direction) {
     if (options.length === 0) return null;
     const currentIndex = options.findIndex((option) => option.value === currentValue);
@@ -159,13 +193,6 @@
     }
     const nextIndex = (currentIndex + direction + options.length) % options.length;
     return options[nextIndex] ?? null;
-  }
-  function wholeHourTimePickerOption(options, digits) {
-    if (!/^\d{1,2}$/.test(digits)) return null;
-    const hour = Number(digits);
-    if (!Number.isInteger(hour) || hour < 0 || hour > 23) return null;
-    const value = `${String(hour).padStart(2, "0")}:00`;
-    return options.find((option) => option.value === value) ?? null;
   }
 
   // frontend/ts/app-time-picker.ts
@@ -402,10 +429,10 @@
   }
   function applyWholeHourDigit(control, digit, now) {
     const previous = digitBuffers.get(control.input);
-    const digits = previous === void 0 || now - previous.lastTypedAt > digitBufferResetMs ? digit : previous.digits.length >= 2 ? previous.digits : previous.digits + digit;
+    const digits = previous === void 0 || now - previous.lastTypedAt > digitBufferResetMs ? digit : previous.digits.length >= 4 ? previous.digits : previous.digits + digit;
     digitBuffers.set(control.input, { digits, lastTypedAt: now });
-    if (previous !== void 0 && now - previous.lastTypedAt <= digitBufferResetMs && previous.digits.length >= 2) return;
-    const option = wholeHourTimePickerOption(control.options.map((candidate) => candidate.config), digits);
+    const value = compactTimePickerValue(digits, control.config.stepMinutes, control.config.rangeStart, control.config.rangeEnd);
+    const option = value === null ? null : control.options.find((candidate) => candidate.config.value === value)?.config ?? null;
     if (option === null) return;
     applyTimeValue(control, option.value, option.label);
     synchronizeField(control);
@@ -440,6 +467,8 @@
     const modal = readModalControl(report);
     if (modal === null) return;
     for (const field of fields) {
+      const valueControl = singleRoleElement(field, timePickerValueDomAttr);
+      if (valueControl instanceof HTMLInputElement && valueControl.type === "time") continue;
       const control = readFieldControl(field, modal, report);
       if (control !== null) synchronizeField(control);
     }
@@ -471,6 +500,31 @@
         selectHighlightedPickerOption(modal, activeField);
       }
     }, true);
+    document.addEventListener("keydown", (event) => {
+      const nativeInput = closestHTMLElement(event.target, `input[type='time'][${timePickerValueDomAttr}][${timePickerKeyboardDomAttr}]`);
+      if (!(nativeInput instanceof HTMLInputElement) || nativeInput.disabled || !/^\d$/.test(event.key)) return;
+      const field = nativeInput.closest(`[${timePickerFieldDomAttr}]`);
+      if (!(field instanceof HTMLElement)) return;
+      const rawConfig = field.getAttribute(timePickerConfigDomAttr);
+      if (rawConfig === null) return;
+      let config;
+      try {
+        config = parseTimePickerConfiguration(rawConfig);
+      } catch (error) {
+        reportError(defaultDiagnosticReporter, "invalid-field-config", nativeInput.name || null, error);
+        return;
+      }
+      event.preventDefault();
+      const now = Date.now();
+      const previous = digitBuffers.get(nativeInput);
+      const digits = previous === void 0 || now - previous.lastTypedAt > digitBufferResetMs ? event.key : previous.digits.length >= 4 ? previous.digits : previous.digits + event.key;
+      digitBuffers.set(nativeInput, { digits, lastTypedAt: now });
+      const value = compactTimePickerValue(digits, config.stepMinutes, config.rangeStart, config.rangeEnd);
+      if (value === null || value === nativeInput.value) return;
+      nativeInput.value = value;
+      nativeInput.dispatchEvent(new Event("input", { bubbles: true }));
+      nativeInput.dispatchEvent(new Event("change", { bubbles: true }));
+    });
     document.addEventListener("keydown", (event) => {
       const trigger = closestHTMLElement(event.target, `[${timePickerTriggerDomAttr}]`);
       if (!(trigger instanceof HTMLButtonElement) || trigger.disabled) return;

@@ -54,6 +54,22 @@ tests = aroundAll withDatabaseTestContext do
                 html `shouldSatisfy` not . Text.isInfixOf "js-time-picker"
                 html `shouldSatisfy` not . Text.isInfixOf "data-bepis-toggle"
 
+        it "renders minute precision as a native time input without the picker trigger" $ withContext do
+            withCurrentControllerContext do
+                let config =
+                        (defaultTimePickerConfig "startTime" "12:17" "06:00" "05:45" False)
+                            { timePickerStepMinutes = 1
+                            , timePickerKeyboardEnabled = True
+                            , timePickerAutofocus = True
+                            }
+                let html = renderText (renderTimePickerField config)
+
+                html `shouldSatisfy` Text.isInfixOf "type=\"time\""
+                html `shouldSatisfy` Text.isInfixOf "step=\"60\""
+                html `shouldSatisfy` Text.isInfixOf "value=\"12:17\""
+                html `shouldSatisfy` Text.isInfixOf "data-bepis-time-picker-keyboard=\"true\""
+                html `shouldSatisfy` not . Text.isInfixOf "data-bepis-time-picker-trigger"
+
         it "keeps optional steps inside the same generated field boundary" $ withContext do
             withCurrentControllerContext do
                 let config =

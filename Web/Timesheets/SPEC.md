@@ -21,7 +21,7 @@ submission work belongs in `docs/workstreams/` until it lands.
   `roster_only` pay assignment. They are excluded from timesheet selectors,
   manager filters, and suggestions; tampered create/update requests targeting
   them are rejected.
-- Time inputs must be exact 15-minute increments.
+- Time inputs follow the venue setting: 15-minute increments by default, or whole-minute precision when enabled. This applies to shift and break boundaries.
 - HTMX entry dialogs initially focus Shift Start and trap Tab/Shift+Tab over
   enabled modal-body controls in visual order, including Had break and notes but
   excluding dialog chrome. Time fields are one tab stop; Up/Right and Down/Left
@@ -36,7 +36,8 @@ submission work belongs in `docs/workstreams/` until it lands.
   time clamped to the configured picker end when needed. Existing saved times
   outside the window remain valid and displayable. Haskell renders the generated
   exact range/step/copy and option payloads; browser code supplies no fallback
-  time data or labels.
+  time data or labels. Minute-precision venues use an inline native minute input
+  instead of the picker modal; timeline placement remains quarter-hour aligned.
 - Each entry persists authoritative `TIMESTAMPTZ` start/end boundaries, paired
   nullable unpaid-break boundaries, and the `Australia/Melbourne` timezone
   snapshot. Worked date, displayed clocks, break presence/duration, and elapsed

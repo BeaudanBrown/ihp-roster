@@ -903,7 +903,7 @@ instance Controller RosterWeeksController where
             |> filterWhere (#rowIndex, rowIndex)
             |> filterWhere (#deletedAt, Nothing)
             |> fetchOneOrNothing
-        validation <- validateRosterShiftDialogSubmission rosterGroupId rosterDay rosterWeek rosterShiftDialogSubmissionFromRequest
+        validation <- validateRosterShiftDialogSubmission rosterGroupId rosterDay rosterWeek existingSlot rosterShiftDialogSubmissionFromRequest
         case validation of
             Left values -> renderRosterShiftDialogForCreate rosterDay rosterWeek slotDefinition rowIndex values
             Right valid -> do
@@ -933,7 +933,7 @@ instance Controller RosterWeeksController where
         (rosterDay, rosterWeek) <- fetchRosterSlotEditContext rosterSlot
         authorizeRosterSlotEditContext rosterDay rosterWeek
         let rosterGroupId = coerce rosterWeek.rosterGroupId
-        validation <- validateRosterShiftDialogSubmission rosterGroupId rosterDay rosterWeek rosterShiftDialogSubmissionFromRequest
+        validation <- validateRosterShiftDialogSubmission rosterGroupId rosterDay rosterWeek (Just rosterSlot) rosterShiftDialogSubmissionFromRequest
         case validation of
             Left values -> renderRosterShiftDialogForEdit rosterSlot rosterDay rosterWeek values
             Right valid -> do

@@ -6,6 +6,7 @@ import Application.Helper.FrontendContract.Surface.Request (SurfaceRequestFieldE
 import qualified Application.Helper.FrontendContract.Surface.Timesheets as Surface
 import Application.Helper.SurfaceResource (LiveMutationResult (..))
 import Application.Helper.TimeRules (defaultShiftTimesForVenueConfig,
+                                     venueShiftTimeIntervalMinutes,
                                      venueTimePickerFinalSelectableTimeText,
                                      venueTimePickerStartTimeText)
 import Application.VenueTime.Model
@@ -129,6 +130,7 @@ instance Controller TimesheetsController where
         venueConfig <- fetchVenueConfig
         let pickerStart = venueTimePickerStartTimeText venueConfig
         let pickerEnd = venueTimePickerFinalSelectableTimeText venueConfig
+        let pickerStep = venueShiftTimeIntervalMinutes venueConfig
         let (defaultStartTime, defaultEndTime) = defaultShiftTimesForVenueConfig venueConfig
 
         case (staffMembers, shiftTypes, maybeWorkedOn) of
@@ -149,7 +151,7 @@ instance Controller TimesheetsController where
                             |> (\entry -> maybe entry (\staff -> set #staffId (unpackId (get #id staff)) entry) currentUserStaff)
                             |> set #shiftTypeId (unpackId (get #id defaultShiftType))
                 if isHtmxRequest
-                    then respondHtml (renderNewTimesheetDialog timesheetEntry staffMembers shiftTypes weekOffset showApproved showAllStaff showSuggestions hasRosterSuggestionForDay selectedStaffFilterId currentViewerStaffId pickerStart pickerEnd)
+                    then respondHtml (renderNewTimesheetDialog timesheetEntry staffMembers shiftTypes weekOffset showApproved showAllStaff showSuggestions hasRosterSuggestionForDay selectedStaffFilterId currentViewerStaffId pickerStart pickerEnd pickerStep)
                     else render NewView { .. }
 
     action currentAction@CreateTimesheetEntryAction = runBepis currentAction BepisMutationAction do
@@ -163,20 +165,21 @@ instance Controller TimesheetsController where
         venueConfig <- fetchVenueConfig
         let pickerStart = venueTimePickerStartTimeText venueConfig
         let pickerEnd = venueTimePickerFinalSelectableTimeText venueConfig
+        let pickerStep = venueShiftTimeIntervalMinutes venueConfig
         let fallbackWorkedOn = venueWeekStartDate venueConfig weekOffset
         let submittedWorkedOn = fromMaybe fallbackWorkedOn (paramOrNothing @Day "workedOn")
         let (defaultStartTime, defaultEndTime) = defaultShiftTimesForVenueConfig venueConfig
         let timesheetEntryRecord =
                 newTimesheetEntryForForm venueConfig submittedWorkedOn defaultStartTime defaultEndTime
                     |> set #venueId (unpackId currentVenueId)
-                    |> buildTimesheetEntry venueConfig.timezone currentViewerStaffId
+                    |> buildTimesheetEntry venueConfig currentViewerStaffId
         hasRosterSuggestionForDay <- viewerHasTimesheetSuggestionOnDay weekOffset showAllStaff selectedStaffFilterId submittedWorkedOn
 
         timesheetEntryRecord
             |> ifValid \case
                 Left timesheetEntry -> do
                     if isHtmxRequest
-                        then respondHtml (renderNewTimesheetDialog timesheetEntry staffMembers shiftTypes weekOffset showApproved showAllStaff showSuggestions hasRosterSuggestionForDay selectedStaffFilterId currentViewerStaffId pickerStart pickerEnd)
+                        then respondHtml (renderNewTimesheetDialog timesheetEntry staffMembers shiftTypes weekOffset showApproved showAllStaff showSuggestions hasRosterSuggestionForDay selectedStaffFilterId currentViewerStaffId pickerStart pickerEnd pickerStep)
                         else render NewView { .. }
                 Right timesheetEntry -> do
                     ensureStaffAssignmentAllowed timesheetEntry.staffId
@@ -206,9 +209,10 @@ instance Controller TimesheetsController where
                 venueConfig <- fetchVenueConfig
                 let pickerStart = venueTimePickerStartTimeText venueConfig
                 let pickerEnd = venueTimePickerFinalSelectableTimeText venueConfig
+                let pickerStep = venueShiftTimeIntervalMinutes venueConfig
                 let timesheetEntry = newTimesheetEntryFromSuggestion (unpackId currentVenueId) suggestion
                 if isHtmxRequest
-                    then respondHtml (renderSuggestedTimesheetDialog rosterSlotId timesheetEntry staffMembers shiftTypes weekOffset showApproved showAllStaff showSuggestions selectedStaffFilterId currentViewerStaffId pickerStart pickerEnd)
+                    then respondHtml (renderSuggestedTimesheetDialog rosterSlotId timesheetEntry staffMembers shiftTypes weekOffset showApproved showAllStaff showSuggestions selectedStaffFilterId currentViewerStaffId pickerStart pickerEnd pickerStep)
                     else render SuggestedNewView { .. }
 
     action currentAction@CreateTimesheetEntryFromSuggestionAction { rosterSlotId } = runBepis currentAction BepisMutationAction do
@@ -229,17 +233,18 @@ instance Controller TimesheetsController where
                 venueConfig <- fetchVenueConfig
                 let pickerStart = venueTimePickerStartTimeText venueConfig
                 let pickerEnd = venueTimePickerFinalSelectableTimeText venueConfig
+                let pickerStep = venueShiftTimeIntervalMinutes venueConfig
                 let suggestedEntry = newTimesheetEntryFromSuggestion (unpackId currentVenueId) suggestion
                 let timesheetEntry =
                         if hasParam "startTime" || hasParam "hadBreak"
-                            then buildTimesheetEntry venueConfig.timezone currentViewerStaffId suggestedEntry
+                            then buildTimesheetEntry venueConfig currentViewerStaffId suggestedEntry
                             else suggestedEntry
                 timesheetEntry
                     |> ifValid \case
                         Left invalidEntry -> do
                             let timesheetEntry = invalidEntry
                             if isHtmxRequest
-                                then respondHtml (renderSuggestedTimesheetDialog rosterSlotId timesheetEntry staffMembers shiftTypes weekOffset showApproved showAllStaff showSuggestions selectedStaffFilterId currentViewerStaffId pickerStart pickerEnd)
+                                then respondHtml (renderSuggestedTimesheetDialog rosterSlotId timesheetEntry staffMembers shiftTypes weekOffset showApproved showAllStaff showSuggestions selectedStaffFilterId currentViewerStaffId pickerStart pickerEnd pickerStep)
                                 else render SuggestedNewView { .. }
                         Right validEntry -> do
                             accessDeniedUnless (validEntry.staffId == suggestion.suggestionStaffId)
@@ -290,8 +295,9 @@ instance Controller TimesheetsController where
         venueConfig <- fetchVenueConfig
         let pickerStart = venueTimePickerStartTimeText venueConfig
         let pickerEnd = venueTimePickerFinalSelectableTimeText venueConfig
+        let pickerStep = venueShiftTimeIntervalMinutes venueConfig
         if isHtmxRequest
-            then respondHtml (renderEditTimesheetDialog timesheetEntry staffMembers shiftTypes weekOffset showApproved showAllStaff showSuggestions selectedStaffFilterId currentViewerStaffId pickerStart pickerEnd)
+            then respondHtml (renderEditTimesheetDialog timesheetEntry staffMembers shiftTypes weekOffset showApproved showAllStaff showSuggestions selectedStaffFilterId currentViewerStaffId pickerStart pickerEnd pickerStep)
             else render EditView { .. }
 
     action currentAction@UpdateTimesheetEntryAction { timesheetEntryId } = runBepis currentAction BepisMutationAction do
@@ -311,14 +317,15 @@ instance Controller TimesheetsController where
         venueConfig <- fetchVenueConfig
         let pickerStart = venueTimePickerStartTimeText venueConfig
         let pickerEnd = venueTimePickerFinalSelectableTimeText venueConfig
+        let pickerStep = venueShiftTimeIntervalMinutes venueConfig
 
         let wasApproved = existingEntry.isApproved
         existingEntry
-            |> buildTimesheetEntry venueConfig.timezone currentViewerStaffId
+            |> buildTimesheetEntry venueConfig currentViewerStaffId
             |> ifValid \case
                 Left timesheetEntry -> do
                     if isHtmxRequest
-                        then respondHtml (renderEditTimesheetDialog timesheetEntry staffMembers shiftTypes weekOffset showApproved showAllStaff showSuggestions selectedStaffFilterId currentViewerStaffId pickerStart pickerEnd)
+                        then respondHtml (renderEditTimesheetDialog timesheetEntry staffMembers shiftTypes weekOffset showApproved showAllStaff showSuggestions selectedStaffFilterId currentViewerStaffId pickerStart pickerEnd pickerStep)
                         else render EditView { .. }
                 Right timesheetEntry -> do
                     ensureRosterDerivedIdentityUnchanged existingEntry timesheetEntry

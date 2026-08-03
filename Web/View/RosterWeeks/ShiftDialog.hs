@@ -72,6 +72,7 @@ data RosterShiftDialogData = RosterShiftDialogData
     , rosterShiftDialogShiftTypes        :: ![ShiftType]
     , rosterShiftDialogTimePickerStart   :: !Text
     , rosterShiftDialogTimePickerEnd     :: !Text
+    , rosterShiftDialogTimePickerStep    :: !Int
     , rosterShiftDialogValues     :: !RosterShiftDialogValues
     }
 
@@ -144,7 +145,7 @@ rosterAppShellActionRoute actionUrl =
 
 
 renderRosterShiftForm :: (?context :: ControllerContext) => RosterShiftDialogData -> Html
-renderRosterShiftForm RosterShiftDialogData { rosterShiftDialogMode, rosterShiftDialogStaff, rosterShiftDialogStaffOptionStates, rosterShiftDialogPayInvalidStaffIds, rosterShiftDialogShiftTypes, rosterShiftDialogTimePickerStart, rosterShiftDialogTimePickerEnd, rosterShiftDialogValues } =
+renderRosterShiftForm RosterShiftDialogData { rosterShiftDialogMode, rosterShiftDialogStaff, rosterShiftDialogStaffOptionStates, rosterShiftDialogPayInvalidStaffIds, rosterShiftDialogShiftTypes, rosterShiftDialogTimePickerStart, rosterShiftDialogTimePickerEnd, rosterShiftDialogTimePickerStep, rosterShiftDialogValues } =
     renderAppShellActionForm
         (rosterShiftSubmitAppShellAction rosterShiftDialogMode)
         (rosterAppShellActionRoute (pathTo (rosterShiftFormAction rosterShiftDialogMode)))
@@ -184,13 +185,13 @@ renderRosterShiftForm RosterShiftDialogData { rosterShiftDialogMode, rosterShift
         <div class="row g-3 mb-3">
             <div class="col-12 col-sm-6">
                 <label class="form-label">Start time</label>
-                {renderDialogTimePicker "startTime" "Start" rosterShiftDialogValues.rosterShiftStartTime rosterShiftDialogTimePickerStart rosterShiftDialogTimePickerEnd True (isJust rosterShiftDialogValues.rosterShiftStartError)}
+                {renderDialogTimePicker "startTime" "Start" rosterShiftDialogValues.rosterShiftStartTime rosterShiftDialogTimePickerStart rosterShiftDialogTimePickerEnd rosterShiftDialogTimePickerStep True (isJust rosterShiftDialogValues.rosterShiftStartError)}
                 {when rosterShiftDialogValues.rosterShiftStartIsRepeated (renderDialogOccurrenceChooser "startOccurrence" "Start occurrence" rosterShiftDialogValues.rosterShiftStartOccurrence (isJust rosterShiftDialogValues.rosterShiftStartError))}
                 {renderDialogFieldError rosterShiftDialogValues.rosterShiftStartError}
             </div>
             <div class="col-12 col-sm-6">
                 <label class="form-label">End time</label>
-                {renderDialogTimePicker "endTime" "End" rosterShiftDialogValues.rosterShiftEndTime rosterShiftDialogTimePickerStart rosterShiftDialogTimePickerEnd False (isJust rosterShiftDialogValues.rosterShiftEndError)}
+                {renderDialogTimePicker "endTime" "End" rosterShiftDialogValues.rosterShiftEndTime rosterShiftDialogTimePickerStart rosterShiftDialogTimePickerEnd rosterShiftDialogTimePickerStep False (isJust rosterShiftDialogValues.rosterShiftEndError)}
                 {when rosterShiftDialogValues.rosterShiftEndIsRepeated (renderDialogOccurrenceChooser "endOccurrence" "End occurrence" rosterShiftDialogValues.rosterShiftEndOccurrence (isJust rosterShiftDialogValues.rosterShiftEndError))}
                 {renderDialogFieldError rosterShiftDialogValues.rosterShiftEndError}
             </div>
@@ -214,11 +215,12 @@ renderDialogFieldError Nothing = mempty
 renderDialogFieldError (Just message) = [hsx|<div class="invalid-feedback d-block">{message}</div>|]
 
 
-renderDialogTimePicker :: Text -> Text -> Text -> Text -> Text -> Bool -> Bool -> Html
-renderDialogTimePicker fieldName emptyLabel value rangeStart rangeEnd autofocus hasError =
+renderDialogTimePicker :: Text -> Text -> Text -> Text -> Text -> Int -> Bool -> Bool -> Html
+renderDialogTimePicker fieldName emptyLabel value rangeStart rangeEnd stepMinutes autofocus hasError =
     let pickerConfig =
             (defaultTimePickerConfig fieldName value rangeStart rangeEnd False)
-                { timePickerEmptyLabel = emptyLabel
+                { timePickerStepMinutes = stepMinutes
+                , timePickerEmptyLabel = emptyLabel
                 , timePickerKeyboardEnabled = True
                 , timePickerAutofocus = autofocus
                 , timePickerInvalid = hasError

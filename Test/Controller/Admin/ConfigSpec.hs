@@ -985,6 +985,7 @@ tests = aroundAll withDatabaseTestContext do
                 pageResponse `responseBodyShouldContain` "hx-target=\"#admin-venue-settings-fragment\""
                 pageResponse `responseBodyShouldContain` "hx-swap=\"none\""
                 pageResponse `responseBodyShouldContain` "Valid shift window"
+                pageResponse `responseBodyShouldContain` "Minute-precision shift times"
                 pageResponse `responseBodyShouldContain` "Unavailable-staff warning threshold"
                 pageResponse `responseBodyShouldContain` "name=\"unavailableStaffWarningThreshold\""
                 pageResponse `responseBodyShouldContain` "value=\"\""
@@ -1151,6 +1152,22 @@ tests = aroundAll withDatabaseTestContext do
                 venueConfig <- query @VenueConfig |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
                 venueConfig.rosterEndTimesEnabled `shouldBe` True
                 venueConfig.rosterWeekStartsOn `shouldBe` originalConfig.rosterWeekStartsOn
+
+        it "toggles minute-precision shift and timesheet entry" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Admin Minute Precision Venue"
+                admin <- createUserRecord "admin-minute-precision@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue admin VenueAdmin
+
+                response <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
+                    callActionWithParams UpdateVenueConfigAction
+                        [ ("configField", "minutePrecisionShiftTimesEnabled")
+                        , ("minutePrecisionShiftTimesEnabled", "true")
+                        ]
+
+                response `responseStatusShouldBe` status302
+                venueConfig <- query @VenueConfig |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
+                venueConfig.minutePrecisionShiftTimesEnabled `shouldBe` True
 
         it "updates the venue time picker window without changing the roster week start" $ withContext do
             withCleanDb do

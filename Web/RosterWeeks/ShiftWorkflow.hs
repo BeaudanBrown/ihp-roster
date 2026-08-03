@@ -23,7 +23,9 @@ import Application.Helper.Controller
 import Application.Helper.RosterGroups (staffIsEligibleForRosterGroup)
 import Application.Helper.TimeRules (defaultShiftTimesForVenueConfig,
                                      isValidRosterShiftTimePair,
-                                     rosterShiftStartDate,
+                                     rosterShiftStartDate, venueShiftTimeAllows,
+                                     venueShiftTimeIntervalMinutes,
+                                     venueShiftTimeValidationMessage,
                                      venueTimePickerFinalSelectableTimeText,
                                      venueTimePickerStartTimeText)
 import Application.VenueTime (RepeatedTimeOccurrence (..), VenueTimeError (..))
@@ -102,6 +104,7 @@ rosterShiftDialogForCreateHtml rosterDay rosterWeek slotDefinition rowIndex valu
         , rosterShiftDialogShiftTypes = shiftTypes
         , rosterShiftDialogTimePickerStart = venueTimePickerStartTimeText venueConfig
         , rosterShiftDialogTimePickerEnd = venueTimePickerFinalSelectableTimeText venueConfig
+        , rosterShiftDialogTimePickerStep = venueShiftTimeIntervalMinutes venueConfig
         , rosterShiftDialogValues = values
         }
 
@@ -120,6 +123,7 @@ rosterShiftDialogForEditHtml rosterSlot rosterWeek values = do
         , rosterShiftDialogShiftTypes = shiftTypes
         , rosterShiftDialogTimePickerStart = venueTimePickerStartTimeText venueConfig
         , rosterShiftDialogTimePickerEnd = venueTimePickerFinalSelectableTimeText venueConfig
+        , rosterShiftDialogTimePickerStep = venueShiftTimeIntervalMinutes venueConfig
         , rosterShiftDialogValues = values
         }
 
@@ -164,8 +168,8 @@ fetchCurrentVenueRosterShiftTypesForDialog =
         |> orderByAsc #createdAt
         |> fetch
 
-validateRosterShiftDialogSubmission :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Id RosterGroup -> RosterDay -> RosterWeek -> RosterShiftDialogSubmission -> IO (Either RosterShiftDialogValues ValidatedRosterShift)
-validateRosterShiftDialogSubmission rosterGroupId rosterDay rosterWeek submission = do
+validateRosterShiftDialogSubmission :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Id RosterGroup -> RosterDay -> RosterWeek -> Maybe RosterSlot -> RosterShiftDialogSubmission -> IO (Either RosterShiftDialogValues ValidatedRosterShift)
+validateRosterShiftDialogSubmission rosterGroupId rosterDay rosterWeek maybeExistingSlot submission = do
     venueConfig <- fetchVenueConfig
     let rosterDate = Calendar.addDays (toInteger rosterDay.dayOffset) (venueWeekStartDate venueConfig rosterWeek.weekOffset)
     let staffParam = submission.submittedRosterShiftStaffId
@@ -208,15 +212,23 @@ validateRosterShiftDialogSubmission rosterGroupId rosterDay rosterWeek submissio
             | isNothing parsedStaffId || not staffInVenue = Just "Choose a staff member for this venue."
             | not staffEligible = Just "That staff member is not applicable to this roster group."
             | otherwise = Nothing
+    let existingStartTime = maybeExistingSlot >>= rosterSlotStartTime
+    let existingEndTime = maybeExistingSlot >>= rosterSlotEndTime
+    let intervalError time maybeExisting =
+            if venueShiftTimeAllows venueConfig time || Just time == maybeExisting
+                then Nothing
+                else Just (venueShiftTimeValidationMessage venueConfig <> ".")
     let startError
             | isNothing (normalizeOptionalText startParam) = Just "Choose a start time."
             | isNothing parsedStartTime = Just "Choose a valid start time."
+            | Just startTime <- parsedStartTime, Just message <- intervalError startTime existingStartTime = Just message
             | Left message <- parsedStartOccurrence = Just message
             | startIsRepeated && isNothing startOccurrence = Just "Choose whether this is the first or second occurrence."
             | otherwise = Nothing
     let endError
             | isNothing (normalizeOptionalText endParam) = Just "Choose an end time."
             | isNothing parsedEndTime = Just "Choose a valid end time."
+            | Just endTime <- parsedEndTime, Just message <- intervalError endTime existingEndTime = Just message
             | Left message <- parsedEndOccurrence = Just message
             | endIsRepeated && isNothing endOccurrence = Just "Choose whether this is the first or second occurrence."
             | otherwise = Nothing

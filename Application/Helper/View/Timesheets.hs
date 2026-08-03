@@ -57,8 +57,8 @@ timesheetModalTitle day =
         <> formatDayMonthDisplay day
 
 -- | Shared timesheet entry form used by New and Edit views.
-renderTimesheetForm :: (?context :: ControllerContext) => AppShellActionIR -> TimesheetFormOrigin -> TimesheetEntry -> [Staff] -> [ShiftType] -> Int -> Bool -> Bool -> Bool -> Maybe UUID -> Maybe UUID -> Text -> Text -> Text -> Text -> OverlayFormMode -> Html
-renderTimesheetForm appShellAction formOrigin entry staffMembers shiftTypes weekOffset showApproved showAllStaff showSuggestions selectedStaffFilterId currentViewerStaffId pickerStart pickerEnd actionUrl formId formMode =
+renderTimesheetForm :: (?context :: ControllerContext) => AppShellActionIR -> TimesheetFormOrigin -> TimesheetEntry -> [Staff] -> [ShiftType] -> Int -> Bool -> Bool -> Bool -> Maybe UUID -> Maybe UUID -> Text -> Text -> Int -> Text -> Text -> OverlayFormMode -> Html
+renderTimesheetForm appShellAction formOrigin entry staffMembers shiftTypes weekOffset showApproved showAllStaff showSuggestions selectedStaffFilterId currentViewerStaffId pickerStart pickerEnd pickerStep actionUrl formId formMode =
     case formMode of
         HtmxOverlayForm ->
             renderAppShellActionForm
@@ -74,18 +74,18 @@ renderTimesheetForm appShellAction formOrigin entry staffMembers shiftTypes week
 
                         ]
                     }
-                (renderTimesheetFormFields formOrigin entry staffMembers shiftTypes weekOffset showApproved showAllStaff showSuggestions selectedStaffFilterId currentViewerStaffId pickerStart pickerEnd True)
+                (renderTimesheetFormFields formOrigin entry staffMembers shiftTypes weekOffset showApproved showAllStaff showSuggestions selectedStaffFilterId currentViewerStaffId pickerStart pickerEnd pickerStep True)
         PageOverlayForm -> [hsx|
             <form id={formId}
                   method="POST"
                   action={actionUrl}
                   class="mt-3">
-                {renderTimesheetFormFields formOrigin entry staffMembers shiftTypes weekOffset showApproved showAllStaff showSuggestions selectedStaffFilterId currentViewerStaffId pickerStart pickerEnd False}
+                {renderTimesheetFormFields formOrigin entry staffMembers shiftTypes weekOffset showApproved showAllStaff showSuggestions selectedStaffFilterId currentViewerStaffId pickerStart pickerEnd pickerStep False}
             </form>
         |]
 
-renderTimesheetFormFields :: (?context :: ControllerContext) => TimesheetFormOrigin -> TimesheetEntry -> [Staff] -> [ShiftType] -> Int -> Bool -> Bool -> Bool -> Maybe UUID -> Maybe UUID -> Text -> Text -> Bool -> Html
-renderTimesheetFormFields formOrigin entry staffMembers shiftTypes weekOffset showApproved showAllStaff showSuggestions selectedStaffFilterId currentViewerStaffId pickerStart pickerEnd keyboardEnabled = [hsx|
+renderTimesheetFormFields :: (?context :: ControllerContext) => TimesheetFormOrigin -> TimesheetEntry -> [Staff] -> [ShiftType] -> Int -> Bool -> Bool -> Bool -> Maybe UUID -> Maybe UUID -> Text -> Text -> Int -> Bool -> Html
+renderTimesheetFormFields formOrigin entry staffMembers shiftTypes weekOffset showApproved showAllStaff showSuggestions selectedStaffFilterId currentViewerStaffId pickerStart pickerEnd pickerStep keyboardEnabled = [hsx|
     <input type="hidden" name={surfaceFieldNameFrom @Surface.WeekOffset stateFields} value={tshow weekOffset} />
     <input type="hidden" name={surfaceFieldNameFrom @Surface.ShowApproved stateFields} value={if showApproved then ("true" :: Text) else "false"} />
     <input type="hidden" name={surfaceFieldNameFrom @Surface.ShowAllStaff stateFields} value={if showAllStaff then ("true" :: Text) else "false"} />
@@ -116,7 +116,7 @@ renderTimesheetFormFields formOrigin entry staffMembers shiftTypes weekOffset sh
         {renderTimesheetBreakToggle entry}
     </div>
 
-    {renderTimesheetBreakFields entry boundaries breakStartTimeValue breakEndTimeValue pickerStart pickerEnd keyboardEnabled}
+    {renderTimesheetBreakFields entry boundaries breakStartTimeValue breakEndTimeValue pickerStart pickerEnd pickerStep keyboardEnabled}
     {renderTimesheetStaffCommentField entry currentViewerStaffId}
     {renderTimesheetManagerNoteField entry}
 |]
@@ -131,7 +131,8 @@ renderTimesheetFormFields formOrigin entry staffMembers shiftTypes weekOffset sh
         dateValueIso = tshow startLocalTime.localDay :: Text
         timesheetPickerConfig fieldName value autofocus invalid =
             (defaultTimePickerConfig fieldName value pickerStart pickerEnd False)
-                { timePickerKeyboardEnabled = keyboardEnabled
+                { timePickerStepMinutes = pickerStep
+                , timePickerKeyboardEnabled = keyboardEnabled
                 , timePickerAutofocus = keyboardEnabled && autofocus
                 , timePickerInvalid = invalid
                 }
@@ -143,8 +144,8 @@ renderTimesheetFormFields formOrigin entry staffMembers shiftTypes weekOffset sh
                 showSuggestions
                 selectedStaffFilterId
 
-renderTimesheetBreakFields :: TimesheetEntry -> AuthoritativeBoundaries -> Text -> Text -> Text -> Text -> Bool -> Html
-renderTimesheetBreakFields entry boundaries breakStartTimeValue breakEndTimeValue pickerStart pickerEnd keyboardEnabled =
+renderTimesheetBreakFields :: TimesheetEntry -> AuthoritativeBoundaries -> Text -> Text -> Text -> Text -> Int -> Bool -> Html
+renderTimesheetBreakFields entry boundaries breakStartTimeValue breakEndTimeValue pickerStart pickerEnd pickerStep keyboardEnabled =
     renderAppToggleBreakRegion timesheetBreakRegion (timesheetEntryHadBreak entry) "row mb-3" [hsx|
         <div class="col">
             <label class="form-label">Break Start</label>
@@ -162,7 +163,8 @@ renderTimesheetBreakFields entry boundaries breakStartTimeValue breakEndTimeValu
   where
     breakPickerConfig fieldName value invalid =
         (defaultTimePickerConfig fieldName value pickerStart pickerEnd False)
-            { timePickerKeyboardEnabled = keyboardEnabled
+            { timePickerStepMinutes = pickerStep
+            , timePickerKeyboardEnabled = keyboardEnabled
             , timePickerInvalid = invalid
             }
 

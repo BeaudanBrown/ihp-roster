@@ -152,7 +152,7 @@ Award duration checks but still require authoritative boundaries.
 ## Shift Time Picker Contract
 
 Roster shift dialogs use the shared generated TimePicker capability. Haskell
-supplies the venue range, quarter-hour step, empty-state/accessibility copy, and
+supplies the venue range, venue-selected one- or fifteen-minute step, empty-state/accessibility copy, and
 canonical value/label option payloads. Roster views do not own picker selectors
 or browser fallback data; the generic adapter owns only mechanical modal,
 selection, clear, and step behavior.

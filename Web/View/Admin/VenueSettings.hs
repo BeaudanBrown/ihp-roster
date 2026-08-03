@@ -53,6 +53,7 @@ renderVenueSettingsSection venueConfig =
         [hsx|
             <div class="admin-settings-grid">
                 {renderRosterTimePickerWindowForm venueConfig}
+                {renderMinutePrecisionShiftTimesForm venueConfig}
                 {renderUnavailableStaffWarningThresholdForm venueConfig}
                 {renderRosterEndTimesForm venueConfig}
             </div>
@@ -94,8 +95,36 @@ renderRosterTimePickerWindowForm venueConfig =
             "timePickerWindow"
             Nothing
             Nothing
+            Nothing
             (Just (venueTimePickerStartTimeText venueConfig))
             (Just (venueTimePickerFinalSelectableTimeText venueConfig))
+            Nothing
+            Nothing
+
+renderMinutePrecisionShiftTimesForm :: VenueConfig -> Html
+renderMinutePrecisionShiftTimesForm venueConfig =
+    renderFrontendSurfaceActionForm
+        (AdminAction.updateVenueConfigAction fields)
+        venueToggleSettingRoute
+        [hsx|
+        <input type="hidden" name={surfaceFieldNameFrom @Surface.ConfigFieldField fields} value="minutePrecisionShiftTimesEnabled" />
+        <div class="admin-setting-row-copy">
+            <div class="fw-semibold">Minute-precision shift times</div>
+            <p class="small app-muted mb-0">Use native minute entry for roster shifts and timesheets, including breaks. Timeline dragging remains on 15-minute intervals.</p>
+        </div>
+        <div class="admin-setting-row-control">
+            {renderMinutePrecisionSettingToggle fields "venue-minute-precision-shift-times-enabled" venueConfig.minutePrecisionShiftTimesEnabled}
+        </div>
+    |]
+  where
+    fields =
+        AdminAction.updateVenueConfigActionFields
+            "minutePrecisionShiftTimesEnabled"
+            Nothing
+            Nothing
+            (Just venueConfig.minutePrecisionShiftTimesEnabled)
+            Nothing
+            Nothing
             Nothing
             Nothing
 
@@ -130,6 +159,7 @@ renderUnavailableStaffWarningThresholdForm venueConfig =
             Nothing
             Nothing
             Nothing
+            Nothing
             venueConfig.unavailableStaffWarningThreshold
 
 renderRosterEndTimesForm :: VenueConfig -> Html
@@ -157,6 +187,22 @@ renderRosterEndTimesForm venueConfig =
             Nothing
             Nothing
             Nothing
+            Nothing
+
+renderMinutePrecisionSettingToggle :: SurfaceActionFields Surface.AdminVenueSettingsSurface Surface.UpdateVenueConfig -> Text -> Bool -> Html
+renderMinutePrecisionSettingToggle fields inputId isEnabled =
+    renderAppToggleButton $
+        ( defaultAppToggleStateButtonConfig
+            inputId
+            (surfaceToggleScalarField @Surface.MinutePrecisionShiftTimesEnabled fields True False)
+            isEnabled
+            [hsx|<span class="small">Enabled</span>|]
+            [hsx|<span class="small">15 minutes</span>|]
+        )
+            { appToggleButtonClass = "btn-sm"
+            , appToggleRoleSwitch = True
+            , appToggleSubmitPolicy = ToggleSubmitImmediate
+            }
 
 renderVenueSettingToggle :: SurfaceActionFields Surface.AdminVenueSettingsSurface Surface.UpdateVenueConfig -> Text -> Bool -> Html
 renderVenueSettingToggle fields inputId isEnabled =

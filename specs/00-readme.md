@@ -25,7 +25,7 @@ Technical baseline:
 6. MA000009 calculations pay the **highest applicable penalty** under clause 29.3;
    legacy weekend multiplier stacking is retired characterization.
 7. Kitchen flag is out of scope.
-8. UI time choices remain quarter-hour aligned, while the canonical calculator is
+8. Dialog time choices use venue-selected 15-minute or whole-minute entry while roster timeline dragging remains quarter-hour aligned; the canonical calculator is
    generic and quarter-hour alignment is not a database invariant.
 9. Trial staff are placeholders only; no conversion flow.
 10. **Managers, Venue Admins and Venue Owners can publish** rosters.

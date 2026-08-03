@@ -293,6 +293,14 @@ instance Controller AdminController where
                     "autoTimesheetCreationEnabled" -> do
                         setErrorMessage "Automatic timesheet creation has been replaced by rostered timesheet suggestions."
                         respondToVenueSettingsMutation
+                    "minutePrecisionShiftTimesEnabled" -> do
+                        let enabled = fromMaybe False (surfaceFieldValue @Surface.MinutePrecisionShiftTimesEnabled fields)
+                        _ <- setMinutePrecisionShiftTimesEnabledMutation venueConfig enabled
+                        setSuccessMessage $
+                            if enabled
+                                then "Minute-precision shift and timesheet entry enabled."
+                                else "15-minute shift and timesheet entry enabled."
+                        respondToVenueSettingsMutation
                     "unavailableStaffWarningThreshold" -> do
                         let threshold = surfaceFieldValue @Surface.UnavailableStaffWarningThreshold fields
                         if maybe True (\value -> value >= 1 && value <= 100) threshold

@@ -27,6 +27,22 @@ isQuarterHourMinutes mins = mins >= 0 && mins `mod` 15 == 0
 isQuarterHourMinuteOfDay :: Int -> Bool
 isQuarterHourMinuteOfDay mins = mins >= 0 && mins < 24 * 60 && mins `mod` 15 == 0
 
+isTimeOnMinuteInterval :: Int -> TimeOfDay -> Bool
+isTimeOnMinuteInterval intervalMinutes tod =
+    intervalMinutes > 0 && todMin tod `mod` intervalMinutes == 0 && todSec tod == 0
+
+venueShiftTimeIntervalMinutes :: VenueConfig -> Int
+venueShiftTimeIntervalMinutes venueConfig =
+    if venueConfig.minutePrecisionShiftTimesEnabled then 1 else 15
+
+venueShiftTimeAllows :: VenueConfig -> TimeOfDay -> Bool
+venueShiftTimeAllows venueConfig = isTimeOnMinuteInterval (venueShiftTimeIntervalMinutes venueConfig)
+
+venueShiftTimeValidationMessage :: VenueConfig -> Text
+venueShiftTimeValidationMessage venueConfig
+    | venueConfig.minutePrecisionShiftTimesEnabled = "Choose a whole-minute time"
+    | otherwise = "Choose a time on a 15-minute increment"
+
 automaticMealBreakThresholdMinutes :: Int
 automaticMealBreakThresholdMinutes = 6 * 60 + 15
 

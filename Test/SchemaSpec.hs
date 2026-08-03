@@ -94,6 +94,7 @@ tests = describe "Schema" do
                 , get #lateToEarlyMinStartGapMinutes venueConfig
                 , get #timePickerStartMinuteOfDay venueConfig
                 , get #timePickerFinalSelectableMinuteOfDay venueConfig
+                , get #minutePrecisionShiftTimesEnabled venueConfig
                 , get #rosterEndTimesEnabled venueConfig
                 , get #autoTimesheetCreationEnabled venueConfig
                 )
@@ -341,6 +342,7 @@ tests = describe "Schema" do
         schemaSqlText `shouldSatisfy` Text.isInfixOf "CREATE UNIQUE INDEX idx_roster_slots_active_cell ON roster_slots (roster_day_id, row_index, roster_week_slot_definition_id) WHERE deleted_at IS NULL;"
         schemaSqlText `shouldSatisfy` Text.isInfixOf "roster_end_times_enabled BOOLEAN DEFAULT TRUE NOT NULL"
         schemaSqlText `shouldSatisfy` Text.isInfixOf "auto_timesheet_creation_enabled BOOLEAN DEFAULT FALSE NOT NULL"
+        schemaSqlText `shouldSatisfy` Text.isInfixOf "minute_precision_shift_times_enabled BOOLEAN DEFAULT FALSE NOT NULL"
         schemaSqlText `shouldSatisfy` Text.isInfixOf "shift_type_id UUID"
         schemaSqlText `shouldSatisfy` Text.isInfixOf "FOREIGN KEY (shift_type_id) REFERENCES shift_types (id) ON DELETE SET NULL"
         schemaSqlText `shouldSatisfy` Text.isInfixOf "CREATE INDEX idx_roster_slots_shift_type ON roster_slots (shift_type_id) WHERE shift_type_id IS NOT NULL AND deleted_at IS NULL;"
@@ -906,6 +908,14 @@ tests = describe "Schema" do
             isQuarterHourTime (TimeOfDay 9 10 0) `shouldBe` False
             isQuarterHourTime (TimeOfDay 9 1 0) `shouldBe` False
             isQuarterHourTime (TimeOfDay 9 0 30) `shouldBe` False
+
+        it "selects one- or fifteen-minute venue entry policy" do
+            let defaultConfig = newRecord @VenueConfig
+            venueShiftTimeIntervalMinutes defaultConfig `shouldBe` 15
+            venueShiftTimeAllows defaultConfig (TimeOfDay 12 17 0) `shouldBe` False
+            let minuteConfig = defaultConfig |> set #minutePrecisionShiftTimesEnabled True
+            venueShiftTimeIntervalMinutes minuteConfig `shouldBe` 1
+            venueShiftTimeAllows minuteConfig (TimeOfDay 12 17 0) `shouldBe` True
 
         it "isQuarterHourMinutes validates break values" do
             isQuarterHourMinutes 0 `shouldBe` True

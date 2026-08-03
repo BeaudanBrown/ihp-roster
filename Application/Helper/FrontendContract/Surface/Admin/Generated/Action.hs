@@ -492,16 +492,18 @@ updateVenueConfigActionFields ::
     Text ->
     Maybe Bool ->
     Maybe Bool ->
+    Maybe Bool ->
     Maybe Text ->
     Maybe Text ->
     Maybe Text ->
     Maybe Int ->
     SurfaceActionFields (AdapterFamilySurface Types2.AdminVenueSettingsAdapterFamily) Types1.UpdateVenueConfig
-updateVenueConfigActionFields configField rosterEndTimesEnabled autoTimesheetCreationEnabled timePickerStart timePickerEnd rosterWeekStartsOn unavailableStaffWarningThreshold =
+updateVenueConfigActionFields configField rosterEndTimesEnabled autoTimesheetCreationEnabled minutePrecisionShiftTimesEnabled timePickerStart timePickerEnd rosterWeekStartsOn unavailableStaffWarningThreshold =
     surfaceActionFields
         (surfaceField @Types1.ConfigFieldField configField)
         ( surfaceOptionalField @Types1.RosterEndTimesEnabled rosterEndTimesEnabled
             &: surfaceOptionalField @Types1.AutoTimesheetCreationEnabled autoTimesheetCreationEnabled
+            &: surfaceOptionalField @Types1.MinutePrecisionShiftTimesEnabled minutePrecisionShiftTimesEnabled
             &: surfaceOptionalField @Types1.TimePickerStart timePickerStart
             &: surfaceOptionalField @Types1.TimePickerEnd timePickerEnd
             &: surfaceOptionalField @Types1.RosterWeekStartsOn rosterWeekStartsOn

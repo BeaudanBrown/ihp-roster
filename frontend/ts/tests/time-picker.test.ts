@@ -3,7 +3,7 @@ import {
     parseTimePickerOptionConfiguration,
     timePickerOptionsForConfiguration,
 } from "../time-picker/configuration";
-import { steppedTimePickerOption, wholeHourTimePickerOption } from "../time-picker/keyboard";
+import { compactTimePickerValue, steppedTimePickerOption, wholeHourTimePickerOption } from "../time-picker/keyboard";
 import { assertDeepEqual, assertEqual, assertThrows, test } from "./harness";
 
 const overnightConfig = {
@@ -43,6 +43,16 @@ test("time picker keyboard stepping wraps and selects a boundary from an empty v
     assertDeepEqual(steppedTimePickerOption(optionInventory, "23:30", -1), optionInventory[4]);
     assertDeepEqual(steppedTimePickerOption(optionInventory, "", 1), optionInventory[0]);
     assertDeepEqual(steppedTimePickerOption(optionInventory, "", -1), optionInventory[4]);
+});
+
+test("time picker compact typing preserves the latest valid interval selection", () => {
+    assertEqual(compactTimePickerValue("1", 15, "00:00", "23:45"), "01:00");
+    assertEqual(compactTimePickerValue("12", 15, "00:00", "23:45"), "12:00");
+    assertEqual(compactTimePickerValue("121", 15, "00:00", "23:45"), "12:15");
+    assertEqual(compactTimePickerValue("1215", 15, "00:00", "23:45"), "12:15");
+    assertEqual(compactTimePickerValue("1217", 15, "00:00", "23:45"), null);
+    assertEqual(compactTimePickerValue("121", 1, "00:00", "23:45"), "12:10");
+    assertEqual(compactTimePickerValue("1217", 1, "00:00", "23:45"), "12:17");
 });
 
 test("time picker whole-hour typing accepts only rendered valid hours", () => {

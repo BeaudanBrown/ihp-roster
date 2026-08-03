@@ -56,7 +56,7 @@ transport synchronization, checked presentation, and fieldset activation;
 `frontend/ts/app-timesheets.ts` owns timesheet preferences only and must not
 query time-picker internals to manage break state. Start/end and break controls
 all use the separate generated TimePicker capability: Haskell supplies the venue
-range, quarter-hour step, empty copy, and exact options, while the generic picker
+range, venue-selected one- or fifteen-minute step, empty copy, and exact options, while the generic picker
 adapter consumes native fieldset disabled state without importing Toggle roles.
 
 ## Related Docs
