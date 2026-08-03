@@ -45,7 +45,11 @@ tests = do
                 `shouldBe` FailXeroReferenceSync
             xeroReferenceSyncRetryDecision startedAt now 1 0 (XeroHttpError "Xero reference sync tenant lease was lost.")
                 `shouldBe` FailXeroReferenceSync
-            xeroReferenceSyncRetryDecision startedAt now 1 0 (XeroHttpError "Xero payroll pay items pagination repeated a full page without new items.")
+            xeroReferenceSyncRetryDecision startedAt now 1 0 (XeroHttpError "Xero payroll earnings rates pagination repeated a full page without new items.")
+                `shouldBe` FailXeroReferenceSync
+            xeroReferenceSyncRetryDecision startedAt now 1 0 (XeroHttpError "Xero payroll earnings rates pagination reached the configured safety limit of 1000 pages.")
+                `shouldBe` FailXeroReferenceSync
+            xeroReferenceSyncRetryDecision startedAt now 1 0 (XeroHttpError "XERO_EARNINGS_RATES_MAX_PAGES must be a positive integer.")
                 `shouldBe` FailXeroReferenceSync
 
     describe "Xero tenant request pacing" do
@@ -68,7 +72,7 @@ tests = do
             mapM_ takeMVar done
             readIORef maximumActive `shouldReturn` 1
 
-    describe "paced Xero PayItems pagination" do
+    describe "paced Xero earnings rates pagination" do
         it "reports each completed page and returns the complete snapshot" do
             requestedPages <- newIORef []
             completedPages <- newIORef []
@@ -94,17 +98,34 @@ tests = do
             fmap length result `shouldBe` Right 10101
             readIORef requestedPages `shouldReturn` [1 .. 102]
 
-        it "fails safely when Xero repeats a full page without new ids" do
+        it "stops at the configured emergency page limit" do
             requestedPages <- newIORef []
+            let fetchPage page = do
+                    modifyIORef' requestedPages (<> [page])
+                    let firstIndex = (page - 1) * 100 + 1
+                    pure (Right (map earningsRate [firstIndex .. firstIndex + 99]))
+            result <- fetchPacedXeroEarningsRatesWithLimit 2 (\_ -> pure ()) fetchPage (\_ -> pure ())
+            result `shouldSatisfy` \case
+                Left (XeroHttpError message) -> "configured safety limit of 2 pages" `isInfixOf` message
+                _ -> False
+            readIORef requestedPages `shouldReturn` [1, 2]
+
+        it "fails safely without reporting a repeated page as completed" do
+            requestedPages <- newIORef []
+            completedPages <- newIORef []
             let repeatedPage = map earningsRate [1 .. 100]
             let fetchPage page = do
                     modifyIORef' requestedPages (<> [page])
                     pure (Right repeatedPage)
-            result <- fetchPacedXeroEarningsRates (\_ -> pure ()) fetchPage (\_ -> pure ())
+            result <- fetchPacedXeroEarningsRates
+                (\_ -> pure ())
+                fetchPage
+                (\page -> modifyIORef' completedPages (<> [page]))
             result `shouldSatisfy` \case
                 Left (XeroHttpError message) -> "repeated a full page" `isInfixOf` message
                 _ -> False
             readIORef requestedPages `shouldReturn` [1, 2]
+            readIORef completedPages `shouldReturn` [1]
 
 testUtc :: Integer -> Int -> Int -> Integer -> Integer -> UTCTime
 testUtc year month day hour minute =

@@ -1,11 +1,11 @@
 openapi: 3.0.1
 info:
   title: Bepis local Payroll AU v2 Earnings Rates contract supplement
-  version: 2026-07-30
+  version: 2026-08-03
   description: |
     Classification: local Bepis contract supplement; not official Xero OpenAPI.
     Source documentation: https://developer.xero.com/documentation/api/payrollau/earningsrates
-    Retrieved: 2026-07-30.
+    Retrieved: 2026-08-03.
 
     Xero's official xero-payroll-au-v2.yaml did not contain /earningsRates at
     retrieval time. This supplement records the request and response assumptions
@@ -23,7 +23,14 @@ paths:
             - payroll.settings
             - payroll.settings.read
       operationId: getEarningsRatesLocalSupplement
-      summary: Probe the documented Payroll AU v2 Earnings Rates collection
+      summary: Retrieve the documented Payroll AU v2 Earnings Rates collection
+      parameters:
+        - in: query
+          name: page
+          description: Page number; Xero returns up to 100 earnings rates per page.
+          schema:
+            type: integer
+            minimum: 1
       responses:
         '200':
           description: |

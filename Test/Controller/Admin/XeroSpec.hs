@@ -168,7 +168,7 @@ tests = aroundAll withFastXeroReferenceSyncRuntime $ aroundAll withDatabaseTestC
                 response `responseBodyShouldContain` "Last successful reference sync"
                 response `responseBodyShouldContain` "Stopped"
                 response `responseBodyShouldContain` "Fetching Xero accounts"
-                response `responseBodyShouldContain` "Completed PayItems page 7"
+                response `responseBodyShouldContain` "Completed earnings-rate page 7"
                 response `responseBodyShouldContain` "Xero reference sync stopped after the accounts phase failed."
                 response `responseBodyShouldNotContain` "token=secret"
                 response `responseBodyShouldContain` "Sync Xero data"
@@ -281,7 +281,7 @@ tests = aroundAll withFastXeroReferenceSyncRuntime $ aroundAll withDatabaseTestC
                 progressResponse <- withPasskeyVerifiedUserAndCurrentVenue owner venue.id do
                     withRequestHeaders [("HX-Request", "true")] do
                         callActionWithParams OpenXeroPayItemImportAction [("loadCandidates", "true")]
-                progressResponse `responseBodyShouldContain` "Fetching Xero pay items"
+                progressResponse `responseBodyShouldContain` "Fetching Xero earnings rates"
                 progressResponse `responseBodyShouldContain` "Completed page 3"
                 joinedJobCount <- query @AppJob |> filterWhere (#jobKind, xeroReferenceSyncJobKind) |> fetchCount
                 joinedJobCount `shouldBe` 1

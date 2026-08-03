@@ -20,7 +20,7 @@ xeroReferenceSyncPhaseText phase =
     case phase of
         "refresh_access"    -> "Refreshing Xero access"
         "employees"         -> "Fetching Xero employees"
-        "pay_items"         -> "Fetching Xero pay items"
+        "pay_items"         -> "Fetching Xero earnings rates"
         "payroll_calendars" -> "Fetching Xero payroll calendars"
         "accounts"          -> "Fetching Xero accounts"
         "payroll_settings"  -> "Fetching Xero payroll settings"

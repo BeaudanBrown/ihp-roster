@@ -172,7 +172,7 @@ renderReferenceSyncDiagnosticsPhase (Just phase) = [hsx|<div class="small app-mu
 
 renderReferenceSyncDiagnosticsPage :: Maybe Int -> Html
 renderReferenceSyncDiagnosticsPage Nothing = mempty
-renderReferenceSyncDiagnosticsPage (Just page) = [hsx|<div class="small app-muted">Completed PayItems page {page}</div>|]
+renderReferenceSyncDiagnosticsPage (Just page) = [hsx|<div class="small app-muted">Completed earnings-rate page {page}</div>|]
 
 renderReferenceSyncDiagnosticsError :: Maybe Text -> Html
 renderReferenceSyncDiagnosticsError Nothing = mempty

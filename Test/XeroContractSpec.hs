@@ -41,8 +41,9 @@ tests =
             XeroMock.assertSpecServer earningsRatesSpec XeroMock.xeroPayrollV2Server
             XeroMock.assertSpecOperation earningsRatesSpec "/earningsRates" "get"
             XeroMock.assertSpecOperation earningsRatesSpec "/earningsRates" "post"
+            XeroMock.assertOperationContains earningsRatesSpec "/earningsRates" "get" "name: page"
             XeroMock.assertSpecContains earningsRatesSpec "Classification: local Bepis contract supplement; not official Xero OpenAPI"
-            XeroMock.assertSpecContains earningsRatesSpec "Retrieved: 2026-07-30"
+            XeroMock.assertSpecContains earningsRatesSpec "Retrieved: 2026-08-03"
             XeroMock.assertOperationContains earningsRatesSpec "/earningsRates" "post" "EarningsRates"
 
         it "keeps the operator Earnings Rates probe isolated and customer-data-free" do
@@ -86,7 +87,6 @@ tests =
             XeroMock.assertSpecServer payrollSpec XeroMock.xeroPayrollServer
             forM_
                 [ ("/Employees", buildFetchPayrollEmployeesRequest "access-token" "tenant-id")
-                , ("/PayItems", buildFetchEarningsRatesRequest "access-token" "tenant-id")
                 , ("/PayrollCalendars", buildFetchPayrollCalendarsRequest "access-token" "tenant-id")
                 , ("/Settings", buildFetchPayrollSettingsAccountsRequest "access-token" "tenant-id")
                 , ("/PayRuns", buildFetchPayRunsRequest "access-token" "tenant-id" XeroMock.samplePayRunQuery)
@@ -101,10 +101,26 @@ tests =
                     request.xeroRequestBody `shouldBe` Nothing
 
             assertRequest (buildFetchPayrollEmployeesRequest "access-token" "tenant-id") "GET" XeroMock.xeroPayrollServer "/Employees"
-            assertRequest (buildFetchEarningsRatesRequest "access-token" "tenant-id") "GET" XeroMock.xeroPayrollServer "/PayItems"
             assertRequest (buildFetchPayrollCalendarsRequest "access-token" "tenant-id") "GET" XeroMock.xeroPayrollServer "/PayrollCalendars"
             assertRequest (buildFetchPayrollSettingsAccountsRequest "access-token" "tenant-id") "GET" XeroMock.xeroPayrollServer "/Settings"
             assertRequest (buildFetchPayRunsRequest "access-token" "tenant-id" XeroMock.samplePayRunQuery) "GET" XeroMock.xeroPayrollServer "/PayRuns"
+
+        it "parses the runtime earnings-rate page safety limit" do
+            xeroEarningsRatesMaxPagesFromEnvironment Nothing `shouldBe` Right 1000
+            xeroEarningsRatesMaxPagesFromEnvironment (Just "250") `shouldBe` Right 250
+            xeroEarningsRatesMaxPagesFromEnvironment (Just "0") `shouldSatisfy` isLeft
+            xeroEarningsRatesMaxPagesFromEnvironment (Just "not-a-number") `shouldSatisfy` isLeft
+
+        it "constructs paginated Payroll AU v2 earnings-rate reads" do
+            XeroMock.assertSpecServer earningsRatesSpec XeroMock.xeroPayrollV2Server
+            XeroMock.assertSpecOperation earningsRatesSpec "/earningsRates" "get"
+            let request = buildFetchEarningsRatesRequest "access-token" "tenant-id"
+            request.xeroRequestMethod `shouldBe` "GET"
+            request.xeroRequestUrl `shouldBe` "https://api.xero.com/payroll.xro/2.0/earningsRates?page=1"
+            XeroMock.headerValue "Authorization" request `shouldBe` Just "Bearer access-token"
+            XeroMock.headerValue "Xero-Tenant-Id" request `shouldBe` Just "tenant-id"
+            XeroMock.headerValue "Accept" request `shouldBe` Just "application/json"
+            request.xeroRequestBody `shouldBe` Nothing
 
         it "constructs Accounting accounts read requests from the official Accounting source with tenant header" do
             XeroMock.assertSpecServer accountingSpec "https://api.xero.com/api.xro/2.0"
@@ -168,8 +184,8 @@ tests =
                 `shouldBe` List.sort expectedContractCaseNames
             coveredXeroClientOperationNames `shouldBe` expectedContractCaseNames
 
-        it "fetches all paginated Payroll AU pay item pages" do
-            XeroMock.withPaginatedPayItemsMock \urls -> do
+        it "fetches over 100 earnings rates from distinct Payroll AU v2 pages" do
+            XeroMock.withPaginatedEarningsRatesMock \urls -> do
                 result <- withXeroRequestBaseUrlsForTest urls do
                     client <- currentXeroClient
                     client.fetchEarningsRates "access-token" "tenant-id"
@@ -291,7 +307,7 @@ expectedContractCaseNames =
     , "connections list"
     , "connection delete"
     , "employees list"
-    , "pay items list"
+    , "earnings rates list"
     , "payroll calendars list"
     , "accounts list"
     , "payroll settings accounts"

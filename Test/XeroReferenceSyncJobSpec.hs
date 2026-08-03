@@ -162,7 +162,7 @@ tests = aroundAll withDatabaseTestContext do
                     Just message -> not ("access-token" `isInfixOf` message) && not ("customer@example.com" `isInfixOf` message)
                     Nothing -> False
 
-        it "retains completed PayItems progress when a later phase retries" $ withContext do
+        it "retains completed earnings-rate progress when a later phase retries" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Xero Later Phase Retry"
                 owner <- createUserRecord "xero-later-phase@example.com" "staff" True
@@ -181,7 +181,7 @@ tests = aroundAll withDatabaseTestContext do
                     "completedPayItemsPage" `isInfixOf` tshow progress
                         && "1" `isInfixOf` tshow progress
 
-        it "retains the last completed PayItems page when a later page retries" $ withContext do
+        it "retains the last completed earnings-rate page when a later page retries" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Xero Page Progress Retry"
                 owner <- createUserRecord "xero-page-progress@example.com" "staff" True
@@ -203,6 +203,32 @@ tests = aroundAll withDatabaseTestContext do
                 completedAttempt.progress `shouldSatisfy` \progress ->
                     "completedPayItemsPage" `isInfixOf` tshow progress
                         && "1" `isInfixOf` tshow progress
+
+        it "persists a safe reason when an earnings-rate page repeats" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Xero Repeated Earnings Page"
+                owner <- createUserRecord "xero-repeated-page@example.com" "staff" True
+                connection <- createReferenceSyncConnection venue owner "tenant-repeated-page"
+                EnqueuedAppJob job <- enqueueXeroReferenceSyncJob (Just owner.id) connection
+                now <- getCurrentTime
+                let repeatedPage = replicate 100 sampleEarningsRate
+                    source =
+                        (emptyReferenceSource connection)
+                            { fetchReferenceEarningsRatePage = \_ _ _ -> pure (Right repeatedPage) }
+
+                result <- Exception.try (performXeroReferenceSyncJobWith (testRuntime now) source job) :: IO (Either Exception.SomeException ())
+
+                result `shouldSatisfy` isLeft
+                failedJob <- fetch job.id
+                failedJob.progress `shouldBe` Aeson.object
+                    [ "phase" Aeson..= ("pay_items" :: Text)
+                    , "completedPayItemsPage" Aeson..= (1 :: Int)
+                    , "failureCode" Aeson..= ("repeated_page" :: Text)
+                    ]
+                [syncRun] <- query @XeroSyncRun |> fetch
+                syncRun.errorMessage `shouldSatisfy` \case
+                    Just message -> "repeated an earnings-rate page" `isInfixOf` message
+                    Nothing -> False
 
         it "stops creating continuations after the 24-hour retry window" $ withContext do
             withCleanDb do

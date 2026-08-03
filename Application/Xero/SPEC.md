@@ -28,8 +28,12 @@ lands.
 - Every reference-sync path uses the same background-safe persistence and
   reconciliation service. Complete bulk refresh can run as a durable `app_jobs`
   job, coalesced per connection and leased per Xero tenant. Provider requests
-  are sequential and paced to 50 requests/minute. PayItems pagination continues
-  until a partial page and rejects a repeated full page that adds no new ids. Structured 429 handling honors valid `Retry-After`, while transient
+  are sequential and paced to 50 requests/minute. Earnings-rate reads use the
+  paginated Payroll AU v2 `/earningsRates` endpoint, matching the existing v2
+  earnings-rate creation boundary. Pagination continues until a partial page, rejects a
+  repeated full page that adds no new ids, and stops at the runtime-configurable
+  `XERO_EARNINGS_RATES_MAX_PAGES` safety limit (default 1000). Structured 429
+  handling honors valid `Retry-After`, while transient
   failures use Xero-specific jittered continuations for at most 24 hours without
   changing unrelated job retry policy. Progress and errors contain phase/page
   facts only, never tokens or raw provider payloads.
@@ -71,10 +75,10 @@ lands.
   `staff_default` do not. Approved entries pinned to unavailable rates block
   Xero preparation with the explicit correction/reapproval path.
 - Offline request contracts use checksum-pinned, unmodified official Identity,
-  Payroll AU v1/v2, and Accounting OpenAPI files from one upstream commit. The
-  only application API operation without an official upstream operation is
-  Payroll AU v2 Earnings Rates creation; its separately named local supplement
-  records documentation provenance and explicit response-shape assumptions.
+  Payroll AU v1/v2, and Accounting OpenAPI files from one upstream commit.
+  Payroll AU v2 Earnings Rates reads and creation lack official upstream
+  operations; their separately named local supplement records documentation
+  provenance, pagination, and explicit response-shape assumptions.
 - Synced payroll calendars are retained reference data. Calendar and period
   choice is explicit on each guided preparation run; no global
   `xero_payroll_calendar_selections` fallback is read or written.

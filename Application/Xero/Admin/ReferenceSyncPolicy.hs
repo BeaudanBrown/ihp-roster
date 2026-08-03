@@ -2,6 +2,7 @@ module Application.Xero.Admin.ReferenceSyncPolicy
     ( XeroReferencePacer
     , XeroReferenceSyncRetryDecision (..)
     , fetchPacedXeroEarningsRates
+    , fetchPacedXeroEarningsRatesWithLimit
     , newXeroReferencePacer
     , newXeroReferencePacerAfter
     , runPacedXeroReferenceRequest
@@ -53,6 +54,8 @@ xeroReferenceSyncErrorIsTransient = \case
         let normalized = Text.toLower message
          in not ("pagination exceeded" `Text.isInfixOf` normalized)
                 && not ("pagination repeated" `Text.isInfixOf` normalized)
+                && not ("configured safety limit" `Text.isInfixOf` normalized)
+                && not ("xero_earnings_rates_max_pages" `Text.isInfixOf` normalized)
                 && not ("tenant lease was lost" `Text.isInfixOf` normalized)
     XeroSemanticError _ -> False
     XeroDecodeError _ -> False
@@ -100,19 +103,35 @@ fetchPacedXeroEarningsRates ::
     (Int -> IO ()) ->
     IO (Either XeroClientError [XeroEarningsRateRef])
 fetchPacedXeroEarningsRates paceBeforePage fetchPage recordCompletedPage =
-    go 1 Set.empty []
+    readXeroEarningsRatesMaxPages >>= \case
+        Left err -> pure (Left err)
+        Right maxPages -> fetchPacedXeroEarningsRatesWithLimit maxPages paceBeforePage fetchPage recordCompletedPage
+
+fetchPacedXeroEarningsRatesWithLimit ::
+    Int ->
+    (Int -> IO ()) ->
+    (Int -> IO (Either XeroClientError [XeroEarningsRateRef])) ->
+    (Int -> IO ()) ->
+    IO (Either XeroClientError [XeroEarningsRateRef])
+fetchPacedXeroEarningsRatesWithLimit maxPages paceBeforePage fetchPage recordCompletedPage
+    | maxPages <= 0 = pure (Left (XeroHttpError "Xero payroll earnings rates page limit must be positive."))
+    | otherwise = go 1 Set.empty []
     where
-        go page seenIds acc = do
-            paceBeforePage page
-            fetchPage page >>= \case
-                Left err -> pure (Left err)
-                Right pageRates -> do
-                    recordCompletedPage page
-                    let pageIds = Set.fromList (map (.xeroEarningsRateId) pageRates)
-                    let repeatedFullPage = length pageRates >= xeroPayItemsPageSize && pageIds `Set.isSubsetOf` seenIds
-                    let accumulated = acc <> pageRates
-                    if repeatedFullPage
-                        then pure (Left (XeroHttpError "Xero payroll pay items pagination repeated a full page without new items."))
-                        else if length pageRates < xeroPayItemsPageSize
-                            then pure (Right accumulated)
-                            else go (page + 1) (seenIds <> pageIds) accumulated
+        go page seenIds acc
+            | page > maxPages =
+                pure (Left (XeroHttpError ("Xero payroll earnings rates pagination reached the configured safety limit of " <> tshow maxPages <> " pages.")))
+            | otherwise = do
+                paceBeforePage page
+                fetchPage page >>= \case
+                    Left err -> pure (Left err)
+                    Right pageRates -> do
+                        let pageIds = Set.fromList (map (.xeroEarningsRateId) pageRates)
+                        let repeatedFullPage = length pageRates >= xeroEarningsRatesPageSize && pageIds `Set.isSubsetOf` seenIds
+                        let accumulated = acc <> pageRates
+                        if repeatedFullPage
+                            then pure (Left (XeroHttpError "Xero payroll earnings rates pagination repeated a full page without new items."))
+                            else do
+                                recordCompletedPage page
+                                if length pageRates < xeroEarningsRatesPageSize
+                                    then pure (Right accumulated)
+                                    else go (page + 1) (seenIds <> pageIds) accumulated

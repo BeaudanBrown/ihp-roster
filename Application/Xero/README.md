@@ -20,8 +20,8 @@ preparation/submission workflow.
   staff-reference demand resolution.
 - `Admin/ReferenceData.hs` - the background-safe reference-data persistence
   service and atomic provider-availability reconciliation used by every sync path.
-- `Admin/ReferenceSyncPolicy.hs` - PayItems pagination, request pacing, and
-  bounded retry policy.
+- `Admin/ReferenceSyncPolicy.hs` - Payroll AU v2 Earnings Rates pagination,
+  request pacing, runtime page-limit safety, and bounded retry policy.
 - `Admin/ImportedPayItems.hs` - the pay-item import boundary.
 - `Admin/PayItems.hs` - managed pay item behavior used by preparation.
 - `PayrollSourceKey.hs` - exact Xero source/rate key suffix policy over typed

@@ -41,8 +41,8 @@
       "path": "xero-payroll-au-v2-earnings-rates.local.yaml",
       "classification": "local_bepis_contract_supplement",
       "source_documentation_url": "https://developer.xero.com/documentation/api/payrollau/earningsrates",
-      "retrieved_at": "2026-07-30",
-      "sha256": "f4893de0d2c2535bc2efdf682a9d546d07f48807546a2ba274ec980b8504994a",
+      "retrieved_at": "2026-08-03",
+      "sha256": "112d11211ade4311ce4215d3bdb9134eacefc88d4b751a983e075cf92d46f3b9",
       "required_paths": ["/earningsRates"]
     }
   ]

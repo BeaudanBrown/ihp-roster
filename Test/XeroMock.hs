@@ -105,7 +105,7 @@ xeroRequestContractCases identitySpec payrollSpec accountingSpec earningsRatesSp
     , (identitySpec, identityContract "connections list" "GET" "/Connections" "/connections" NoRequestBody, buildFetchConnectedTenantsRequest "access-token")
     , (identitySpec, identityContract "connection delete" "DELETE" "/Connections/{id}" "/connections/connection-id" NoRequestBody, buildDeleteXeroConnectionRequest "access-token" "connection-id")
     , (payrollSpec, payrollReadContract "employees list" "/Employees" "/Employees" [], buildFetchPayrollEmployeesRequest "access-token" "tenant-id")
-    , (payrollSpec, (payrollReadContract "pay items list" "/PayItems" "/PayItems" ["page"]) { contractAllowedQueries = [] }, buildFetchEarningsRatesRequest "access-token" "tenant-id")
+    , (earningsRatesSpec, payrollEarningsRateReadContract "earnings rates list" "/earningsRates", buildFetchEarningsRatesRequest "access-token" "tenant-id")
     , (payrollSpec, payrollReadContract "payroll calendars list" "/PayrollCalendars" "/PayrollCalendars" [], buildFetchPayrollCalendarsRequest "access-token" "tenant-id")
     , (accountingSpec, accountingReadContract "accounts list" "/Accounts" "/Accounts", buildFetchAccountsRequest "access-token" "tenant-id")
     , (payrollSpec, payrollReadContract "payroll settings accounts" "/Settings" "/Settings" [], buildFetchPayrollSettingsAccountsRequest "access-token" "tenant-id")
@@ -192,6 +192,22 @@ payrollWriteContract name specPath requestPath body =
         , contractDocumentedParams = ["Idempotency-Key"]
         , contractAllowedQueries = []
         , contractBody = body
+        }
+
+payrollEarningsRateReadContract :: Text -> Text -> XeroEndpointContract
+payrollEarningsRateReadContract name specPath =
+    XeroEndpointContract
+        { contractName = name
+        , contractSpecServer = Nothing
+        , contractRequestServer = xeroPayrollV2Server
+        , contractSpecPath = specPath
+        , contractMethod = "GET"
+        , contractRequestPath = "/earningsRates"
+        , contractPathMatch = CaseSensitivePath
+        , contractRequiredHeaders = ["Authorization", "Accept", "Xero-Tenant-Id"]
+        , contractDocumentedParams = ["page", "Xero-Tenant-Id"]
+        , contractAllowedQueries = ["page"]
+        , contractBody = NoRequestBody
         }
 
 payrollEarningsRateCreateContract :: Text -> Text -> XeroEndpointContract
@@ -481,16 +497,16 @@ fixedXeroRawResponseWithHeaders status headers body action =
         app _ respond =
             respond (Wai.responseLBS status (("Content-Type", "application/json") : headers) body)
 
-withPaginatedPayItemsMock :: (XeroRequestBaseUrls -> IO a) -> IO a
-withPaginatedPayItemsMock action =
+withPaginatedEarningsRatesMock :: (XeroRequestBaseUrls -> IO a) -> IO a
+withPaginatedEarningsRatesMock action =
     Warp.testWithApplication (pure app) \port ->
         action (xeroRequestBaseUrlsFor ("http://127.0.0.1:" <> tshow port))
     where
         app request respond
-            | Wai.requestMethod request == methodGet && Wai.rawPathInfo request == "/payroll.xro/1.0/PayItems" =
-                respond (jsonResponse status200 (paginatedPayItemsFixture (payItemsPage request)))
+            | Wai.requestMethod request == methodGet && Wai.rawPathInfo request == "/payroll.xro/2.0/earningsRates" =
+                respond (jsonResponse status200 (paginatedEarningsRatesFixture (payItemsPage request)))
             | otherwise =
-                respond (jsonResponse status404 (Aeson.object ["error" Aeson..= ("unexpected paginated pay items mock endpoint" :: Text)]))
+                respond (jsonResponse status404 (Aeson.object ["error" Aeson..= ("unexpected paginated earnings rates mock endpoint" :: Text)]))
 
 payItemsPage :: Wai.Request -> Int
 payItemsPage request =
@@ -498,14 +514,9 @@ payItemsPage request =
         Just value -> fromMaybe 1 (readMaybe (ByteStringChar8.unpack value))
         Nothing    -> 1
 
-paginatedPayItemsFixture :: Int -> Aeson.Value
-paginatedPayItemsFixture page =
-    Aeson.object
-        [ "PayItems" Aeson..=
-            Aeson.object
-                [ "EarningsRates" Aeson..= earningsRatesForPage page
-                ]
-        ]
+paginatedEarningsRatesFixture :: Int -> Aeson.Value
+paginatedEarningsRatesFixture page =
+    Aeson.object ["earningsRates" Aeson..= earningsRatesForPage page]
 
 earningsRatesForPage :: Int -> [Aeson.Value]
 earningsRatesForPage 1 = map payItemsPageRate [1 .. 100]
@@ -549,9 +560,8 @@ xeroStrictMockApp identitySpec payrollSpec accountingSpec earningsRatesSpec time
                     | method == methodDelete -> pure (Just (identitySpec, (identityContract "mock connection delete" "DELETE" "/Connections/{id}" "/connections/connection-id" NoRequestBody) { contractRequestServer = baseUrl }, Wai.responseLBS status204 [] ""))
                 (method, "/payroll.xro/1.0/Employees")
                     | method == methodGet -> pure (Just (payrollSpec, mockPayrollReadContract baseUrl "mock employees list" "/Employees" "/Employees" [], jsonResponse status200 employeesFixture))
-                (method, "/payroll.xro/1.0/PayItems")
-                    | method == methodGet -> pure (Just (payrollSpec, (mockPayrollReadContract baseUrl "mock pay items list" "/PayItems" "/PayItems" ["page"]) { contractAllowedQueries = ["page"] }, jsonResponse status200 payItemsFixture))
                 (method, "/payroll.xro/2.0/earningsRates")
+                    | method == methodGet -> pure (Just (earningsRatesSpec, (payrollEarningsRateReadContract "mock earnings rates list" "/earningsRates") { contractRequestServer = baseUrl <> "/payroll.xro/2.0" }, jsonResponse status200 earningsRatesFixture))
                     | method == methodPost -> do
                         response <- nextEarningsRateResponse
                         pure (Just (earningsRatesSpec, (payrollEarningsRateCreateContract "mock earnings rate create" "/earningsRates") { contractRequestServer = baseUrl <> "/payroll.xro/2.0" }, response))

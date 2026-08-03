@@ -25,6 +25,7 @@ import Control.Monad (join, void)
 import qualified Data.Aeson as Aeson
 import qualified Data.Aeson.Types as Aeson
 import qualified Data.IORef as IORef
+import qualified Data.Text as Text
 import Generated.Types
 import IHP.ControllerPrelude
 import IHP.Job.Types
@@ -218,6 +219,7 @@ handleReferenceSyncFailure ::
     IO ()
 handleReferenceSyncFailure runtime appJob payload connection maybeSyncRun failure = do
     let message = durableXeroReferenceSyncFailureMessage failure
+    updateReferenceSyncFailureProgress appJob failure
     forM_ maybeSyncRun \syncRun -> void (failXeroReferenceDataSync appJob.requestedByUserId syncRun connection message)
     when (isJust maybeSyncRun) $
         void $ invalidateTouchedResourcesWithoutContext "xero.reference_sync.failed" $
@@ -232,10 +234,43 @@ durableXeroReferenceSyncFailureMessage :: XeroReferencePhaseFailure -> Text
 durableXeroReferenceSyncFailureMessage failure =
     "Xero " <> failure.phaseName <> " sync failed: " <> case failure.cause of
         XeroHttpResponseError { statusCode } -> "provider request returned status " <> tshow statusCode <> "."
-        XeroHttpError _ -> "provider request could not be completed."
+        XeroHttpError message
+            | "pagination repeated" `Text.isInfixOf` Text.toLower message -> "provider repeated an earnings-rate page."
+            | "configured safety limit" `Text.isInfixOf` Text.toLower message -> "earnings-rate pagination reached its configured safety limit."
+            | "xero_earnings_rates_max_pages" `Text.isInfixOf` Text.toLower message -> "earnings-rate pagination configuration is invalid."
+            | otherwise -> "provider request could not be completed."
         XeroSemanticError _ -> "provider rejected the request."
         XeroDecodeError _ -> "provider response could not be read."
         XeroNoTenantsError -> "no connected tenant was available."
+
+updateReferenceSyncFailureProgress :: (?modelContext :: ModelContext) => AppJob -> XeroReferencePhaseFailure -> IO ()
+updateReferenceSyncFailureProgress appJob failure = do
+    latestJob <- fetch appJob.id
+    let completedPageFields =
+            maybe [] (\page -> ["completedPayItemsPage" Aeson..= page]) (completedPayItemsPageFromProgress latestJob.progress)
+    void $
+        latestJob
+            |> set #progress
+                (Aeson.object
+                    ( [ "phase" Aeson..= failure.phaseName
+                      , "failureCode" Aeson..= xeroReferenceSyncFailureCode failure.cause
+                      ]
+                        <> completedPageFields
+                    )
+                )
+            |> updateRecord
+
+xeroReferenceSyncFailureCode :: XeroClientError -> Text
+xeroReferenceSyncFailureCode = \case
+    XeroHttpResponseError { statusCode } -> "http_" <> tshow statusCode
+    XeroHttpError message
+        | "pagination repeated" `Text.isInfixOf` Text.toLower message -> "repeated_page"
+        | "configured safety limit" `Text.isInfixOf` Text.toLower message -> "page_limit"
+        | "xero_earnings_rates_max_pages" `Text.isInfixOf` Text.toLower message -> "invalid_configuration"
+        | otherwise -> "transport_error"
+    XeroSemanticError _ -> "provider_error"
+    XeroDecodeError _ -> "decode_error"
+    XeroNoTenantsError -> "no_tenant"
 
 scheduleReferenceSyncRetry ::
     (?modelContext :: ModelContext) =>
@@ -275,7 +310,7 @@ completeReferenceSyncJob appJob result = do
         latestJob
             |> set #status JobStatusSucceeded
             |> set #lastError Nothing
-            |> set #progress (Aeson.object ["phase" Aeson..= ("completed" :: Text), "completedPayItemsPage" Aeson..= max 1 (referenceDataSyncEarningsRateCount result `div` xeroPayItemsPageSize + 1)])
+            |> set #progress (Aeson.object ["phase" Aeson..= ("completed" :: Text), "completedPayItemsPage" Aeson..= max 1 (referenceDataSyncEarningsRateCount result `div` xeroEarningsRatesPageSize + 1)])
             |> set #result
                 (Aeson.object
                     [ "status" Aeson..= ("succeeded" :: Text)
