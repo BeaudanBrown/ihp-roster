@@ -96,12 +96,11 @@ the own-shift default.
 
 ### Support impersonation
 
-A production super-admin may select an active current-venue user as effective
-venue identity. Authorization and self-service scope use that user; business
-actor columns retain the real super-admin and audit payloads carry effective
-identity/session provenance. Support and immediate Super admin exit remain
-available. Normal operations, including external provider actions, are allowed;
-credential, session, recovery, and passkey operations are blocked.
+Implementation is tracked by `#95`, `#102`, and `#323`–`#327`. The implemented
+contract now lives in `specs/03-access-control-and-auth.md`,
+`Application/Billing/SPEC.md`, `Web/RosterWeeks/SPEC.md`,
+`Web/Timesheets/SPEC.md`, and `Web/LeaveRequests/SPEC.md`; this workstream is not
+the source of truth for it.
 
 ### Retired Timesheet creation
 
@@ -118,7 +117,9 @@ grace-period, or creation worker. The only remaining
 - `Application/Helper/FrontendContract/Surface/README.md`
 - `Application/Helper/Interaction.SPEC.md`
 - `Application/Helper/View/PageHelp.hs`
+- `Application/Billing/SPEC.md`
 - `specs/02-domain-model.md`
+- `specs/03-access-control-and-auth.md`
 - `specs/05-timesheets-and-leave.md`
 - nearest frontend/static agent docs when reusable runtime rules change
 

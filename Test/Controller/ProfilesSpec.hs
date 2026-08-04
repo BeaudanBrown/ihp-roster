@@ -275,6 +275,39 @@ tests = aroundAll withDatabaseTestContext do
                 response `responseBodyShouldContain` "href=\"/LeaveRequests\""
                 response `responseBodyShouldContain` "<span>unavailability</span>"
 
+        it "updates the effective worker profile without creating an actual-founder staff record" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Impersonated Profile Update Venue"
+                founder <- createUserRecordWithPlatformRole "profile-impersonated-founder@example.com" "staff" (Just SuperAdmin) True
+                worker <- createUserRecord "profile-impersonated-worker@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue worker Worker
+                staff <- createStaffRecord venue (Just worker) "Before" "Worker"
+
+                response <- withPasskeyVerifiedUserAndCurrentVenue founder venue.id do
+                    _ <- callActionWithParams
+                        StartSupportImpersonationAction
+                        [("userId", cs (inputValue worker.id))]
+                    callActionWithParams UpdateProfileAction
+                        [ ("section", "profile")
+                        , ("firstName", "Effective")
+                        , ("lastName", "Worker")
+                        , ("preferredName", "Eff")
+                        , ("phone", "0400000000")
+                        , ("emergencyContactName", "Support Contact")
+                        , ("emergencyContactPhone", "0411111111")
+                        , ("idealShiftsPerWeek", "3")
+                        ]
+
+                response `responseStatusShouldBe` status302
+                updatedStaff <- fetch staff.id
+                updatedStaff.firstName `shouldBe` "Effective"
+                updatedStaff.preferredName `shouldBe` Just "Eff"
+                query @Staff
+                    |> filterWhere (#venueId, unpackId venue.id)
+                    |> filterWhere (#userId, Just (unpackId founder.id))
+                    |> fetchCount
+                    >>= (`shouldBe` 0)
+
         it "saves submitted shift preferences from the preferences form" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Profile Venue"

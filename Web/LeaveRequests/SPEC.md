@@ -17,7 +17,10 @@ This file describes implemented leave/availability behavior.
 - Date controls submit ISO `yyyy-mm-dd` values and display `dd/mm/yyyy`,
   including after validation and live fragment replacement.
 - Managers/admins can approve, deny, or manage requests according to role
-  checks.
+  checks. During founder support impersonation, self-service ownership and
+  reviewer authority use the effective user and linked Staff identity; leave
+  event actors remain the authenticated founder, and payload request context
+  records the effective user and impersonation session.
 - Approved-state leave changes invalidate affected roster scopes. Pending
   create does not fan out to roster viewers unless a new product decision
   changes that rule.
