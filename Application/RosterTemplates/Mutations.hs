@@ -85,6 +85,34 @@ lockRosterTemplateApplicationRows templateId rosterWeekId targetDayOffset = do
         \ORDER BY staff_roster_groups.id \
         \FOR UPDATE OF staff_roster_groups"
         (Only (unpackId templateId))
+    _awardLevelLocks :: [Only UUID] <- sqlQuery
+        "SELECT award_levels.id \
+        \FROM roster_templates \
+        \JOIN roster_template_designs ON roster_template_designs.template_id = roster_templates.id \
+        \    AND roster_template_designs.version_number = roster_templates.current_version \
+        \JOIN roster_template_shifts ON roster_template_shifts.roster_template_design_id = roster_template_designs.id \
+        \LEFT JOIN staff ON staff.id = roster_template_shifts.staff_id \
+        \JOIN shift_types ON shift_types.id = roster_template_shifts.shift_type_id \
+        \JOIN award_levels ON award_levels.id = staff.default_award_level_id \
+        \    OR award_levels.id = shift_types.override_award_level_id \
+        \WHERE roster_templates.id = ? \
+        \ORDER BY award_levels.id \
+        \FOR UPDATE OF award_levels"
+        (Only (unpackId templateId))
+    _importedPayItemLocks :: [Only UUID] <- sqlQuery
+        "SELECT xero_imported_pay_items.id \
+        \FROM roster_templates \
+        \JOIN roster_template_designs ON roster_template_designs.template_id = roster_templates.id \
+        \    AND roster_template_designs.version_number = roster_templates.current_version \
+        \JOIN roster_template_shifts ON roster_template_shifts.roster_template_design_id = roster_template_designs.id \
+        \LEFT JOIN staff ON staff.id = roster_template_shifts.staff_id \
+        \JOIN shift_types ON shift_types.id = roster_template_shifts.shift_type_id \
+        \JOIN xero_imported_pay_items ON xero_imported_pay_items.id = staff.imported_xero_pay_item_id \
+        \    OR xero_imported_pay_items.id = shift_types.imported_xero_pay_item_id \
+        \WHERE roster_templates.id = ? \
+        \ORDER BY xero_imported_pay_items.id \
+        \FOR UPDATE OF xero_imported_pay_items"
+        (Only (unpackId templateId))
     pure ()
 
 -- PostgreSQL row locking is intentionally isolated here; ordinary template reads

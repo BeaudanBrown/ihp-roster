@@ -362,6 +362,49 @@ tests = aroundAll withDatabaseTestContext do
                 applied `shouldSatisfy` isRight
                 refreshedEntry.sourceRosterSlotId `shouldBe` Just (unpackId oldSlot.id)
 
+        it "revalidates pay references after concurrent deactivation" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Concurrent template pay"
+                rosterGroup <- query @RosterGroup |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
+                manager <- createUserRecord "template-concurrent-pay@example.com" "staff" True
+                staff <- createStaffRecord venue Nothing "Concurrent" "Pay"
+                awardLevel <- createPayLevelRecord venue "Concurrent Level"
+                configuredStaff <- staff
+                    |> set #payAssignmentMode AwardRate
+                    |> set #defaultAwardLevelId (Just awardLevel.id)
+                    |> updateRecord
+                shiftType <- ensureVenueDefaultShiftType venue
+                let actor = rosterTemplateActor manager venue True
+                Right draft <- startBlankRosterTemplateDraft actor rosterGroup Day "Pay day"
+                Right () <- replaceRosterTemplateDraftContent actor draft.draftDesign.id RosterTemplateContent
+                    { contentDays = [RosterTemplateDayInput 0 False 1]
+                    , contentColumns = [RosterTemplateColumnInput "Only" 0]
+                    , contentShifts = [RosterTemplateShiftInput 0 0 0 540 1020 shiftType.id (StaffAssignment configuredStaff.id)]
+                    }
+                Right saved <- saveRosterTemplateDraft actor draft.draftDesign.id
+                Just savedAggregate <- fetchSavedRosterTemplate actor saved.savedTemplate.id
+                let templateShiftId = (savedAggregate.savedShifts !! 0).id
+                targetWeek <- createRosterWeekRecordForRosterGroup venue rosterGroup 23 False
+                _ <- createRosterDayRecord targetWeek 0
+                let request = RosterTemplateApplicationRequest saved.savedTemplate.id targetWeek.id (Just 0) noShiftCopyOccurrenceSelections
+                Right confirmation <- previewRosterTemplateApplication actor request
+                payChangeStarted <- newEmptyMVar
+                let deactivatePayReference = withTransaction do
+                        _ <- awardLevel |> set #isActive False |> updateRecord
+                        putMVar payChangeStarted ()
+                        threadDelay 200000
+                let confirmAfterPayChangeStarts = do
+                        takeMVar payChangeStarted
+                        applyRosterTemplateApplication actor request confirmation.applicationExpectedVersion confirmation.applicationExpectedTargetRevision
+
+                (_, applied) <- concurrently deactivatePayReference confirmAfterPayChangeStarts
+                let Right result = applied
+                activeSlots <- query @RosterSlot |> filterWhere (#deletedAt, Nothing) |> fetch
+
+                result.appliedWarnings `shouldContain`
+                    [RosterTemplateApplicationAssignmentConvertedToOpen templateShiftId RosterTemplateStaffPayInvalid]
+                map (.assignmentState) activeSlots `shouldBe` ["open"]
+
         it "revalidates roster-group membership after a concurrent removal" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Concurrent template membership"
