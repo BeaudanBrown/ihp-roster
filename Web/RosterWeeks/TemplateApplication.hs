@@ -18,109 +18,23 @@ import Application.Helper.WeekBoundaries (venueWeekStartDate)
 import Application.RosterShiftAssignment (RosterShiftAssignment (..),
                                           applyRosterShiftAssignment)
 import Application.RosterTemplates
+import Application.RosterTemplates.Mutations (lockRosterTemplateApplicationRows)
 import Application.VenueTime (RepeatedTimeOccurrence, melbourneTimeZoneName)
 import Application.VenueTime.Model
 import Control.Monad (void)
+import qualified "crypton" Crypto.Hash as Hash
 import qualified Data.Map.Strict as Map
 import qualified Data.Text as Text
+import qualified Data.Text.Encoding as TextEncoding
 import Data.Time.Calendar (addDays)
 import Data.Time.LocalTime (TimeOfDay (..))
 import Data.Traversable (traverse)
 import qualified Data.UUID as UUID
-import qualified Database.PostgreSQL.Simple as PG
 import Generated.Types
 import IHP.ControllerPrelude
-import qualified Prelude
 import Web.RosterWeeks.Service (validateRosterSlotForPersistence)
-
-data RosterTemplateApplicationRequest = RosterTemplateApplicationRequest
-    { applicationTemplateId           :: !(Id RosterTemplate)
-    , applicationTargetWeekId         :: !(Id RosterWeek)
-    , applicationTargetDayOffset      :: !(Maybe Int)
-    , applicationOccurrenceSelections :: !ShiftCopyOccurrenceSelections
-    }
-    deriving (Eq, Show)
-
-data RosterTemplateApplicationAssignmentIssue
-    = RosterTemplateStaffUnavailable
-    | RosterTemplateStaffOutsideGroup
-    | RosterTemplateStaffPayInvalid
-    deriving (Eq, Show)
-
-data RosterTemplateApplicationWarning
-    = RosterTemplateApplicationClearsDay !Int
-    | RosterTemplateApplicationClearsWeek
-    | RosterTemplateApplicationExistingTimesheetsRemain !Int
-    | RosterTemplateApplicationAssignmentConvertedToOpen !(Id RosterTemplateShift) !RosterTemplateApplicationAssignmentIssue
-    deriving (Eq, Show)
-
-data RosterTemplateApplicationResolvedShift = RosterTemplateApplicationResolvedShift
-    { resolvedTemplateShiftId :: !(Id RosterTemplateShift)
-    , resolvedTargetDayOffset :: !Int
-    , resolvedStartsAt        :: !UTCTime
-    , resolvedEndsAt          :: !UTCTime
-    , resolvedAssignment      :: !RosterShiftAssignment
-    }
-    deriving (Eq, Show)
-
-data RosterTemplateApplicationPreview = RosterTemplateApplicationPreview
-    { applicationPreviewTemplateName    :: !Text
-    , applicationPreviewScale           :: !RosterTemplateScaleEnum
-    , applicationPreviewTargetWeekOffset :: !Int
-    , applicationPreviewTargetDayOffset :: !(Maybe Int)
-    , applicationExpectedVersion        :: !Int
-    , applicationReplacementShiftCount :: !Int
-    , applicationExistingShiftCount    :: !Int
-    , applicationResolvedShifts        :: ![RosterTemplateApplicationResolvedShift]
-    , applicationWarnings              :: ![RosterTemplateApplicationWarning]
-    , applicationTouchedResources      :: ![SurfaceResourceValue]
-    }
-    deriving (Eq, Show)
-
-data RosterTemplateApplicationResult = RosterTemplateApplicationResult
-    { appliedRosterWeek       :: !RosterWeek
-    , appliedTemplateVersion  :: !Int
-    , appliedWarnings         :: ![RosterTemplateApplicationWarning]
-    , appliedTouchedResources :: ![SurfaceResourceValue]
-    }
-    deriving (Eq, Show)
-
-data RosterTemplateApplicationBoundary
-    = RosterTemplateApplicationStartBoundary
-    | RosterTemplateApplicationEndBoundary
-    deriving (Eq, Show)
-
-data RosterTemplateApplicationError
-    = RosterTemplateApplicationForbidden
-    | RosterTemplateApplicationNotFound
-    | RosterTemplateApplicationScopeMismatch
-    | RosterTemplateApplicationTargetLive
-    | RosterTemplateApplicationInvalidTargetDay
-    | RosterTemplateApplicationScaleMismatch
-    | RosterTemplateApplicationVersionConflict !Int
-    | RosterTemplateApplicationInvalidShiftTypes ![Id ShiftType]
-    | RosterTemplateApplicationBoundaryError !(Id RosterTemplateShift) !RosterTemplateApplicationBoundary !BoundaryModelError
-    | RosterTemplateApplicationInvalidStructure !Text
-    deriving (Eq, Show)
-
-data PreparedApplication = PreparedApplication
-    { preparedSaved          :: !RosterTemplateSaved
-    , preparedTargetWeek     :: !RosterWeek
-    , preparedTargetDays     :: ![RosterDay]
-    , preparedShiftPlans     :: ![PreparedShift]
-    , preparedExistingSlots  :: ![RosterSlot]
-    , preparedTimesheetCount :: !Int
-    }
-
-data PreparedShift = PreparedShift
-    { preparedTemplateShift :: !RosterTemplateShift
-    , preparedTemplateColumn :: !RosterTemplateColumn
-    , preparedTargetDay      :: !RosterDay
-    , preparedStartsAt       :: !UTCTime
-    , preparedEndsAt         :: !UTCTime
-    , preparedAssignment     :: !RosterShiftAssignment
-    , preparedAssignmentIssue :: !(Maybe RosterTemplateApplicationAssignmentIssue)
-    }
+import Web.RosterWeeks.TemplateApplication.Persistence (applyPreparedApplication)
+import Web.RosterWeeks.TemplateApplication.Types
 
 previewRosterTemplateApplication ::
     (?modelContext :: ModelContext) =>
@@ -136,16 +50,19 @@ applyRosterTemplateApplication ::
     RosterTemplateActor ->
     RosterTemplateApplicationRequest ->
     Int ->
+    Text ->
     IO (Either RosterTemplateApplicationError RosterTemplateApplicationResult)
-applyRosterTemplateApplication actor request expectedVersion =
+applyRosterTemplateApplication actor request expectedVersion expectedTargetRevision =
     withTransaction do
-        lockApplicationRows request
+        lockRosterTemplateApplicationRows request.applicationTemplateId request.applicationTargetWeekId request.applicationTargetDayOffset
         preparedResult <- prepareRosterTemplateApplication actor request
         case preparedResult of
             Left failure -> pure (Left failure)
             Right prepared
                 | prepared.preparedSaved.savedTemplate.currentVersion /= expectedVersion ->
                     pure (Left (RosterTemplateApplicationVersionConflict prepared.preparedSaved.savedTemplate.currentVersion))
+                | targetRevision prepared /= expectedTargetRevision ->
+                    pure (Left RosterTemplateApplicationTargetConflict)
                 | otherwise -> do
                     appliedVersion <- applyPreparedApplication actor prepared
                     refreshedWeek <- fetch prepared.preparedTargetWeek.id
@@ -207,43 +124,56 @@ prepareContent request saved targetWeek
         let targetDays = case request.applicationTargetDayOffset of
                 Just dayOffset -> filter ((== dayOffset) . (.dayOffset)) allTargetDays
                 Nothing        -> allTargetDays
-        if null targetDays || (saved.savedTemplate.scale == Week && map (.dayOffset) targetDays /= [0 .. 6])
-            then pure (Left RosterTemplateApplicationInvalidTargetDay)
-            else do
-                let targetDayByTemplateIndex = case request.applicationTargetDayOffset of
-                        Just _  -> Map.fromList [(0, Prelude.head targetDays)]
-                        Nothing -> Map.fromList [(day.dayOffset, day) | day <- targetDays]
-                let templateDayIndexById = Map.fromList [(unpackId day.id, day.dayIndex) | day <- saved.savedDays]
-                let templateColumnById = Map.fromList [(unpackId column.id, column) | column <- saved.savedColumns]
-                venueConfig <- query @VenueConfig |> filterWhere (#venueId, targetWeek.venueId) |> fetchOne
-                let shiftPlans = traverse (prepareShift venueConfig targetWeek targetDayByTemplateIndex templateDayIndexById templateColumnById request.applicationOccurrenceSelections) saved.savedShifts
-                case shiftPlans of
-                    Left failure -> pure (Left failure)
-                    Right boundaryPlans -> do
-                        invalidShiftTypes <- findInvalidShiftTypes targetWeek boundaryPlans
-                        if not (null invalidShiftTypes)
-                            then pure (Left (RosterTemplateApplicationInvalidShiftTypes invalidShiftTypes))
-                            else do
-                                plans <- validateAssignments targetWeek boundaryPlans
-                                existingSlots <-
-                                    query @RosterSlot
-                                        |> filterWhereIn (#rosterDayId, map (unpackId . (.id)) targetDays)
-                                        |> filterWhere (#deletedAt, Nothing)
-                                        |> fetch
-                                timesheetCount <- if null existingSlots
-                                    then pure 0
-                                    else query @TimesheetEntry
-                                        |> filterWhereIn (#sourceRosterSlotId, map (Just . unpackId . (.id)) existingSlots)
-                                        |> filterWhere (#deletedAt, Nothing)
-                                        |> fetchCount
-                                pure (Right PreparedApplication
-                                    { preparedSaved = saved
-                                    , preparedTargetWeek = targetWeek
-                                    , preparedTargetDays = targetDays
-                                    , preparedShiftPlans = plans
-                                    , preparedExistingSlots = existingSlots
-                                    , preparedTimesheetCount = timesheetCount
-                                    })
+        case targetDays of
+            [] -> pure (Left RosterTemplateApplicationInvalidTargetDay)
+            firstTargetDay : _
+                | saved.savedTemplate.scale == Week && map (.dayOffset) targetDays /= [0 .. 6] ->
+                    pure (Left RosterTemplateApplicationInvalidTargetDay)
+                | otherwise -> do
+                    let targetDayByTemplateIndex = case request.applicationTargetDayOffset of
+                            Just _  -> Map.fromList [(0, firstTargetDay)]
+                            Nothing -> Map.fromList [(day.dayOffset, day) | day <- targetDays]
+                    let templateDayIndexById = Map.fromList [(unpackId day.id, day.dayIndex) | day <- saved.savedDays]
+                    let templateColumnById = Map.fromList [(unpackId column.id, column) | column <- saved.savedColumns]
+                    venueConfig <- query @VenueConfig |> filterWhere (#venueId, targetWeek.venueId) |> fetchOne
+                    let shiftPlans = traverse (prepareShift venueConfig targetWeek targetDayByTemplateIndex templateDayIndexById templateColumnById request.applicationOccurrenceSelections) saved.savedShifts
+                    case shiftPlans of
+                        Left failure -> pure (Left failure)
+                        Right boundaryPlans -> do
+                            invalidShiftTypes <- findInvalidShiftTypes targetWeek boundaryPlans
+                            if not (null invalidShiftTypes)
+                                then pure (Left (RosterTemplateApplicationInvalidShiftTypes invalidShiftTypes))
+                                else do
+                                    plans <- validateAssignments targetWeek boundaryPlans
+                                    existingSlots <-
+                                        query @RosterSlot
+                                            |> filterWhereIn (#rosterDayId, map (unpackId . (.id)) targetDays)
+                                            |> filterWhere (#deletedAt, Nothing)
+                                            |> orderByAsc #id
+                                            |> fetch
+                                    targetDefinitions <-
+                                        query @RosterWeekSlotDefinition
+                                            |> filterWhere (#rosterWeekId, unpackId targetWeek.id)
+                                            |> filterWhere (#deletedAt, Nothing)
+                                            |> orderByAsc #id
+                                            |> fetch
+                                    timesheetEntries <- if null existingSlots
+                                        then pure []
+                                        else query @TimesheetEntry
+                                            |> filterWhereIn (#sourceRosterSlotId, map (Just . unpackId . (.id)) existingSlots)
+                                            |> filterWhere (#deletedAt, Nothing)
+                                            |> orderByAsc #id
+                                            |> fetch
+                                    pure (Right PreparedApplication
+                                        { preparedSaved = saved
+                                        , preparedTargetWeek = targetWeek
+                                        , preparedTargetDays = targetDays
+                                        , preparedFirstTargetDay = firstTargetDay
+                                        , preparedShiftPlans = plans
+                                        , preparedExistingSlots = existingSlots
+                                        , preparedTargetDefinitions = targetDefinitions
+                                        , preparedTimesheetEntries = timesheetEntries
+                                        })
 
 prepareShift ::
     VenueConfig ->
@@ -370,9 +300,10 @@ toPreview prepared =
         , applicationPreviewScale = prepared.preparedSaved.savedTemplate.scale
         , applicationPreviewTargetWeekOffset = prepared.preparedTargetWeek.weekOffset
         , applicationPreviewTargetDayOffset = case prepared.preparedSaved.savedTemplate.scale of
-            Day  -> Just (Prelude.head prepared.preparedTargetDays).dayOffset
+            Day  -> Just prepared.preparedFirstTargetDay.dayOffset
             Week -> Nothing
         , applicationExpectedVersion = prepared.preparedSaved.savedTemplate.currentVersion
+        , applicationExpectedTargetRevision = targetRevision prepared
         , applicationReplacementShiftCount = length prepared.preparedShiftPlans
         , applicationExistingShiftCount = length prepared.preparedExistingSlots
         , applicationResolvedShifts = map resolvedShift prepared.preparedShiftPlans
@@ -393,205 +324,46 @@ toPreview prepared =
         , Just issue <- [plan.preparedAssignmentIssue]
         ]
     destructiveWarning = case prepared.preparedSaved.savedTemplate.scale of
-        Day -> RosterTemplateApplicationClearsDay (Prelude.head prepared.preparedTargetDays).dayOffset
+        Day -> RosterTemplateApplicationClearsDay prepared.preparedFirstTargetDay.dayOffset
         Week -> RosterTemplateApplicationClearsWeek
     timesheetWarnings =
-        [RosterTemplateApplicationExistingTimesheetsRemain prepared.preparedTimesheetCount | prepared.preparedTimesheetCount > 0]
+        [RosterTemplateApplicationExistingTimesheetsRemain (length prepared.preparedTimesheetEntries) | not (null prepared.preparedTimesheetEntries)]
 
-applyPreparedApplication ::
-    (?modelContext :: ModelContext) =>
-    RosterTemplateActor ->
-    PreparedApplication ->
-    IO Int
-applyPreparedApplication actor prepared = do
-    now <- getCurrentTime
-    forM_ prepared.preparedExistingSlots \slot ->
-        slot
-            |> set #deletedAt (Just now)
-            |> set #deletedByUserId (Just (unpackId (rosterTemplateActorUserId actor)))
-            |> set #deleteReason (Just "roster_template_applied")
-            |> updateRecord
-            |> void
-    appliedVersion <- persistCleanedTemplateVersion actor prepared
-    applyDayStates prepared
-    definitions <- ensureTargetDefinitions prepared
-    let definitionByName = Map.fromList [(Text.toCaseFold (Text.strip definition.name), definition) | definition <- definitions]
-    forM_ prepared.preparedShiftPlans \plan -> do
-        let definition = definitionByName Map.! Text.toCaseFold (Text.strip plan.preparedTemplateColumn.name)
-        newRecord @RosterSlot
-            |> set #rosterDayId (unpackId plan.preparedTargetDay.id)
-            |> set #rosterWeekSlotDefinitionId (unpackId definition.id)
-            |> set #slotSortOrder definition.sortOrder
-            |> set #rowIndex plan.preparedTemplateShift.rowIndex
-            |> set #startsAt (Just plan.preparedStartsAt)
-            |> set #endsAt (Just plan.preparedEndsAt)
-            |> set #timezone melbourneTimeZoneName
-            |> set #shiftTypeId (Just plan.preparedTemplateShift.shiftTypeId)
-            |> applyRosterShiftAssignment plan.preparedAssignment
-            |> createRecord
-            |> void
-    pure appliedVersion
-
-persistCleanedTemplateVersion ::
-    (?modelContext :: ModelContext) =>
-    RosterTemplateActor ->
-    PreparedApplication ->
-    IO Int
-persistCleanedTemplateVersion actor prepared
-    | not (any (isJust . (.preparedAssignmentIssue)) prepared.preparedShiftPlans) =
-        pure prepared.preparedSaved.savedTemplate.currentVersion
-    | otherwise = do
-        let template = prepared.preparedSaved.savedTemplate
-        let sourceDesign = prepared.preparedSaved.savedDesign
-        let nextVersion = template.currentVersion + 1
-        nextDesign <-
-            newRecord @RosterTemplateDesign
-                |> set #rosterGroupId sourceDesign.rosterGroupId
-                |> set #scale sourceDesign.scale
-                |> set #draftOwnerUserId Nothing
-                |> set #draftName Nothing
-                |> set #templateId (Just (unpackId template.id))
-                |> set #versionNumber (Just nextVersion)
-                |> set #sourceTemplateId Nothing
-                |> set #baseVersionNumber Nothing
-                |> set #createdByUserId (unpackId (rosterTemplateActorUserId actor))
-                |> createRecord
-        nextDays <- forM prepared.preparedSaved.savedDays \sourceDay ->
-            newRecord @RosterTemplateDay
-                |> set #rosterTemplateDesignId (unpackId nextDesign.id)
-                |> set #dayIndex sourceDay.dayIndex
-                |> set #isClosed sourceDay.isClosed
-                |> set #rowCount sourceDay.rowCount
-                |> createRecord
-        nextColumns <- forM prepared.preparedSaved.savedColumns \sourceColumn ->
-            newRecord @RosterTemplateColumn
-                |> set #rosterTemplateDesignId (unpackId nextDesign.id)
-                |> set #name sourceColumn.name
-                |> set #sortOrder sourceColumn.sortOrder
-                |> createRecord
-        let nextDayByIndex = Map.fromList [(day.dayIndex, day) | day <- nextDays]
-        let sourceDayIndexById = Map.fromList [(unpackId day.id, day.dayIndex) | day <- prepared.preparedSaved.savedDays]
-        let nextColumnBySort = Map.fromList [(column.sortOrder, column) | column <- nextColumns]
-        let sourceColumnSortById = Map.fromList [(unpackId column.id, column.sortOrder) | column <- prepared.preparedSaved.savedColumns]
-        let planByShiftId = Map.fromList [(unpackId plan.preparedTemplateShift.id, plan) | plan <- prepared.preparedShiftPlans]
-        forM_ prepared.preparedSaved.savedShifts \sourceShift -> do
-            let dayIndex = sourceDayIndexById Map.! sourceShift.rosterTemplateDayId
-            let columnSort = sourceColumnSortById Map.! sourceShift.rosterTemplateColumnId
-            let targetDay = nextDayByIndex Map.! dayIndex
-            let targetColumn = nextColumnBySort Map.! columnSort
-            let assignment = maybe OpenAssignment (.preparedAssignment) (Map.lookup (unpackId sourceShift.id) planByShiftId)
-            newRecord @RosterTemplateShift
-                |> set #rosterTemplateDesignId (unpackId nextDesign.id)
-                |> set #rosterTemplateDayId (unpackId targetDay.id)
-                |> set #rosterTemplateColumnId (unpackId targetColumn.id)
-                |> set #rowIndex sourceShift.rowIndex
-                |> set #startMinute sourceShift.startMinute
-                |> set #endMinute sourceShift.endMinute
-                |> set #shiftTypeId sourceShift.shiftTypeId
-                |> applyTemplateShiftAssignment assignment
-                |> createRecord
-                |> void
-        template |> set #currentVersion nextVersion |> updateRecord |> void
-        pure nextVersion
-
-applyTemplateShiftAssignment :: RosterShiftAssignment -> RosterTemplateShift -> RosterTemplateShift
-applyTemplateShiftAssignment assignment shift = case assignment of
-    StaffAssignment staffId ->
-        shift
-            |> set #assignmentState "staff"
-            |> set #staffId (Just (unpackId staffId))
-    OpenAssignment ->
-        shift
-            |> set #assignmentState "open"
-            |> set #staffId Nothing
-
-applyDayStates :: (?modelContext :: ModelContext) => PreparedApplication -> IO ()
-applyDayStates prepared = do
-    let templateDayByIndex = Map.fromList [(day.dayIndex, day) | day <- prepared.preparedSaved.savedDays]
-    forM_ prepared.preparedTargetDays \targetDay -> do
-        let templateIndex = case prepared.preparedSaved.savedTemplate.scale of
-                Day  -> 0
-                Week -> targetDay.dayOffset
-        case Map.lookup templateIndex templateDayByIndex of
-            Nothing -> pure ()
-            Just templateDay ->
-                targetDay
-                    |> set #isClosed templateDay.isClosed
-                    |> set #rowCount templateDay.rowCount
-                    |> updateRecord
-                    |> void
-
-ensureTargetDefinitions ::
-    (?modelContext :: ModelContext) =>
-    PreparedApplication ->
-    IO [RosterWeekSlotDefinition]
-ensureTargetDefinitions prepared = do
-    existing <- query @RosterWeekSlotDefinition
-        |> filterWhere (#rosterWeekId, unpackId prepared.preparedTargetWeek.id)
-        |> filterWhere (#deletedAt, Nothing)
-        |> orderByAsc #sortOrder
-        |> fetch
-    case prepared.preparedSaved.savedTemplate.scale of
-        Week -> do
-            now <- getCurrentTime
-            forM_ existing \definition ->
-                definition
-                    |> set #deletedAt (Just now)
-                    |> set #deleteReason (Just "roster_template_applied")
-                    |> updateRecord
-                    |> void
-            forM prepared.preparedSaved.savedColumns \column ->
-                createDefinition prepared.preparedTargetWeek column.name column.sortOrder
-        Day -> do
-            let existingNames = Map.fromList [(Text.toCaseFold (Text.strip definition.name), definition) | definition <- existing]
-            let missing = filter (\column -> Map.notMember (Text.toCaseFold (Text.strip column.name)) existingNames) prepared.preparedSaved.savedColumns
-            created <- forM (zip missing [nextSortOrder existing ..]) \(column, sortOrder) ->
-                createDefinition prepared.preparedTargetWeek column.name sortOrder
-            pure (existing <> created)
-
-createDefinition :: (?modelContext :: ModelContext) => RosterWeek -> Text -> Int -> IO RosterWeekSlotDefinition
-createDefinition rosterWeek name sortOrder =
-    newRecord @RosterWeekSlotDefinition
-        |> set #rosterWeekId (unpackId rosterWeek.id)
-        |> set #name name
-        |> set #sortOrder sortOrder
-        |> createRecord
-
-nextSortOrder :: [RosterWeekSlotDefinition] -> Int
-nextSortOrder []          = 0
-nextSortOrder definitions = maximum (map (.sortOrder) definitions) + 1
-
-lockApplicationRows :: (?modelContext :: ModelContext) => RosterTemplateApplicationRequest -> IO ()
-lockApplicationRows request = do
-    _templateLocks :: [PG.Only UUID] <- sqlQuery
-        "SELECT id FROM roster_templates WHERE id = ? FOR UPDATE"
-        (PG.Only (unpackId request.applicationTemplateId))
-    _weekLocks :: [PG.Only UUID] <- sqlQuery
-        "SELECT id FROM roster_weeks WHERE id = ? FOR UPDATE"
-        (PG.Only (unpackId request.applicationTargetWeekId))
-    _shiftTypeLocks :: [PG.Only UUID] <- sqlQuery
-        "SELECT shift_types.id \
-        \FROM roster_templates \
-        \JOIN roster_template_designs ON roster_template_designs.template_id = roster_templates.id \
-        \    AND roster_template_designs.version_number = roster_templates.current_version \
-        \JOIN roster_template_shifts ON roster_template_shifts.roster_template_design_id = roster_template_designs.id \
-        \JOIN shift_types ON shift_types.id = roster_template_shifts.shift_type_id \
-        \WHERE roster_templates.id = ? \
-        \ORDER BY shift_types.id \
-        \FOR UPDATE OF shift_types"
-        (PG.Only (unpackId request.applicationTemplateId))
-    _staffLocks :: [PG.Only UUID] <- sqlQuery
-        "SELECT staff.id \
-        \FROM roster_templates \
-        \JOIN roster_template_designs ON roster_template_designs.template_id = roster_templates.id \
-        \    AND roster_template_designs.version_number = roster_templates.current_version \
-        \JOIN roster_template_shifts ON roster_template_shifts.roster_template_design_id = roster_template_designs.id \
-        \JOIN staff ON staff.id = roster_template_shifts.staff_id \
-        \WHERE roster_templates.id = ? \
-        \ORDER BY staff.id \
-        \FOR UPDATE OF staff"
-        (PG.Only (unpackId request.applicationTemplateId))
-    pure ()
+targetRevision :: PreparedApplication -> Text
+targetRevision prepared =
+    tshow (Hash.hash (TextEncoding.encodeUtf8 payload) :: Hash.Digest Hash.SHA256)
+  where
+    targetWeek = prepared.preparedTargetWeek
+    payload = Text.intercalate "|"
+        [ tshow (targetWeek.id, targetWeek.updatedAt, targetWeek.isLive, targetWeek.archivedAt)
+        , tshow
+            [ (day.id, day.dayOffset, day.isClosed, day.rowCount, day.updatedAt)
+            | day <- prepared.preparedTargetDays
+            ]
+        , tshow
+            [ (definition.id, definition.name, definition.sortOrder, definition.updatedAt)
+            | definition <- prepared.preparedTargetDefinitions
+            ]
+        , tshow
+            [ ( slot.id
+              , slot.rosterDayId
+              , slot.assignmentState
+              , slot.staffId
+              , slot.rosterWeekSlotDefinitionId
+              , slot.slotSortOrder
+              , slot.rowIndex
+              , slot.startsAt
+              , slot.endsAt
+              , slot.shiftTypeId
+              , slot.updatedAt
+              )
+            | slot <- prepared.preparedExistingSlots
+            ]
+        , tshow
+            [ (entry.id, entry.sourceRosterSlotId, entry.updatedAt)
+            | entry <- prepared.preparedTimesheetEntries
+            ]
+        ]
 
 touchedResources :: PreparedApplication -> [SurfaceResourceValue]
 touchedResources prepared =

@@ -24,7 +24,7 @@
 
 Template application targets one explicitly scoped, non-live roster-group week. Day templates replace one day while matching columns case-insensitively by name, adding missing columns, and preserving unrelated columns and days. Week templates replace all seven day states/rows, columns/order, and shifts.
 
-Preview returns authoritative target/version data, resolved shift instants, destructive and Timesheet warnings, assignment-cleanup reasons, and typed touched resources. Confirmation locks the template, target week, Shift types, and Staff rows; revalidates the preview version and current references; and performs all source-template cleanup and target replacement in one transaction. Replaced roster shifts are soft-deleted, so materialized Timesheet snapshots retain their source and values.
+Preview returns authoritative template and target revisions, resolved shift instants, destructive and Timesheet warnings, assignment-cleanup reasons, and typed touched resources. Confirmation locks the template, target week structure/content, Timesheet snapshots, Shift types, Staff rows, and group memberships; revalidates both revisions and current references; and performs all source-template cleanup and target replacement in one transaction. Replaced roster shifts are soft-deleted, so materialized Timesheet snapshots retain their source and values.
 
 Template local minutes resolve on the target operational date under current `Australia/Melbourne` rules. Nonexistent spring clocks fail; repeated autumn endpoints require explicit first/second choices and are never guessed.
 

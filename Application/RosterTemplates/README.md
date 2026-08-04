@@ -19,4 +19,4 @@
 - blocks stale Shift types and converts unavailable, group-invalid, or pay-invalid Staff assignments to Open;
 - writes assignment cleanup as a new immutable template version in the same transaction as the roster replacement;
 - soft-deletes replaced roster source shifts so materialized Timesheet snapshots remain unchanged; and
-- returns typed target details, warnings, resolved shifts, conflicts, and touched roster/Timesheet/template resources.
+- returns typed template/target revisions, warnings, resolved shifts, conflicts, and touched roster/Timesheet/template resources.

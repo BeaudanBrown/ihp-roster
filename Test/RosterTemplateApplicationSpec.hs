@@ -12,11 +12,13 @@ import Application.VenueTime.Model (ShiftCopyOccurrenceSelections (..),
                                     applyTimesheetEntryBoundaries,
                                     authoritativeBoundariesFromInstants,
                                     noShiftCopyOccurrenceSelections)
+import Control.Concurrent (newEmptyMVar, putMVar, takeMVar, threadDelay)
 import Control.Concurrent.Async (concurrently)
 import Data.Either (isLeft, isRight)
 import qualified Data.Set as Set
 import Data.Time (UTCTime (..), diffDays, diffUTCTime, fromGregorian,
                   secondsToDiffTime)
+import Database.PostgreSQL.Simple (Only (..))
 import Generated.Types
 import IHP.ControllerPrelude
 import IHP.Test.Mocking
@@ -64,7 +66,7 @@ tests = aroundAll withDatabaseTestContext do
 
                 preview <- previewRosterTemplateApplication actor request
                 let Right confirmation = preview
-                applied <- applyRosterTemplateApplication actor request confirmation.applicationExpectedVersion
+                applied <- applyRosterTemplateApplication actor request confirmation.applicationExpectedVersion confirmation.applicationExpectedTargetRevision
                 refreshedTargetDay <- fetch targetDay.id
                 activeTargetSlots <- query @RosterSlot
                     |> filterWhere (#rosterDayId, unpackId targetDay.id)
@@ -243,7 +245,7 @@ tests = aroundAll withDatabaseTestContext do
 
                 preview <- previewRosterTemplateApplication actor request
                 let Right confirmation = preview
-                applied <- applyRosterTemplateApplication actor request confirmation.applicationExpectedVersion
+                applied <- applyRosterTemplateApplication actor request confirmation.applicationExpectedVersion confirmation.applicationExpectedTargetRevision
                 refreshedEntry <- fetch entry.id
                 activeTargetSlots <- query @RosterSlot
                     |> filterWhere (#rosterDayId, unpackId targetDay.id)
@@ -311,6 +313,102 @@ tests = aroundAll withDatabaseTestContext do
                 missingChoice `shouldSatisfy` isBoundaryFailure
                 diffUTCTime secondStart firstStart `shouldBe` 60 * 60
 
+        it "recomputes Timesheet warnings after concurrent materialization" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Concurrent Timesheet warning"
+                rosterGroup <- query @RosterGroup |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
+                manager <- createUserRecord "template-concurrent-timesheet@example.com" "staff" True
+                staff <- createStaffRecord venue Nothing "Concurrent" "Timesheet"
+                shiftType <- ensureVenueDefaultShiftType venue
+                let actor = rosterTemplateActor manager venue True
+                Right draft <- startBlankRosterTemplateDraft actor rosterGroup Day "Timesheet day"
+                Right () <- replaceRosterTemplateDraftContent actor draft.draftDesign.id (oneOpenShiftContent shiftType.id 540 1020)
+                Right saved <- saveRosterTemplateDraft actor draft.draftDesign.id
+                targetWeek <- createRosterWeekRecordForRosterGroup venue rosterGroup 22 False
+                targetDay <- createRosterDayRecord targetWeek 0
+                definition <- createDefinition targetWeek "Existing" 0
+                oldSlot <- createSlot targetDay definition shiftType (StaffAssignment staff.id) 0
+                let Just oldStartsAt = oldSlot.startsAt
+                let Just oldEndsAt = oldSlot.endsAt
+                let Right entryBoundaries = authoritativeBoundariesFromInstants oldSlot.timezone oldStartsAt oldEndsAt Nothing Nothing
+                let request = RosterTemplateApplicationRequest saved.savedTemplate.id targetWeek.id (Just 0) noShiftCopyOccurrenceSelections
+                Right confirmation <- previewRosterTemplateApplication actor request
+                materializationStarted <- newEmptyMVar
+                let materialize = withTransaction do
+                        _locked :: [Only UUID] <- sqlQuery "SELECT id FROM roster_slots WHERE id = ? FOR UPDATE" (Only (unpackId oldSlot.id))
+                        entry <-
+                            newRecord @TimesheetEntry
+                                |> set #venueId (unpackId venue.id)
+                                |> set #staffId (unpackId staff.id)
+                                |> set #shiftTypeId (unpackId shiftType.id)
+                                |> set #sourceRosterSlotId (Just (unpackId oldSlot.id))
+                                |> applyTimesheetEntryBoundaries entryBoundaries
+                                |> createRecord
+                        putMVar materializationStarted ()
+                        threadDelay 200000
+                        pure entry
+                let confirmAfterMaterializationStarts = do
+                        takeMVar materializationStarted
+                        applyRosterTemplateApplication actor request confirmation.applicationExpectedVersion confirmation.applicationExpectedTargetRevision
+
+                (entry, staleApply) <- concurrently materialize confirmAfterMaterializationStarts
+                refreshedConfirmation <- previewRosterTemplateApplication actor request
+                let Right currentConfirmation = refreshedConfirmation
+                applied <- applyRosterTemplateApplication actor request currentConfirmation.applicationExpectedVersion currentConfirmation.applicationExpectedTargetRevision
+                refreshedEntry <- fetch entry.id
+
+                staleApply `shouldBe` Left RosterTemplateApplicationTargetConflict
+                currentConfirmation.applicationWarnings `shouldContain` [RosterTemplateApplicationExistingTimesheetsRemain 1]
+                applied `shouldSatisfy` isRight
+                refreshedEntry.sourceRosterSlotId `shouldBe` Just (unpackId oldSlot.id)
+
+        it "revalidates roster-group membership after a concurrent removal" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Concurrent template membership"
+                rosterGroup <- query @RosterGroup |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
+                manager <- createUserRecord "template-concurrent-membership@example.com" "staff" True
+                staff <- createStaffRecord venue Nothing "Concurrent" "Membership"
+                shiftType <- ensureVenueDefaultShiftType venue
+                let actor = rosterTemplateActor manager venue True
+                Right draft <- startBlankRosterTemplateDraft actor rosterGroup Day "Membership day"
+                Right () <- replaceRosterTemplateDraftContent actor draft.draftDesign.id RosterTemplateContent
+                    { contentDays = [RosterTemplateDayInput 0 False 1]
+                    , contentColumns = [RosterTemplateColumnInput "Only" 0]
+                    , contentShifts = [RosterTemplateShiftInput 0 0 0 540 1020 shiftType.id (StaffAssignment staff.id)]
+                    }
+                Right saved <- saveRosterTemplateDraft actor draft.draftDesign.id
+                Just savedAggregate <- fetchSavedRosterTemplate actor saved.savedTemplate.id
+                let templateShiftId = (savedAggregate.savedShifts !! 0).id
+                assignment <- query @StaffRosterGroup
+                    |> filterWhere (#staffId, unpackId staff.id)
+                    |> filterWhere (#rosterGroupId, unpackId rosterGroup.id)
+                    |> filterWhere (#deletedAt, Nothing)
+                    |> fetchOne
+                targetWeek <- createRosterWeekRecordForRosterGroup venue rosterGroup 21 False
+                _ <- createRosterDayRecord targetWeek 0
+                let request = RosterTemplateApplicationRequest saved.savedTemplate.id targetWeek.id (Just 0) noShiftCopyOccurrenceSelections
+                Right confirmation <- previewRosterTemplateApplication actor request
+                removalStarted <- newEmptyMVar
+                let removeMembership = withTransaction do
+                        now <- getCurrentTime
+                        _ <- assignment
+                            |> set #deletedAt (Just now)
+                            |> set #deleteReason (Just "concurrent_membership_removal")
+                            |> updateRecord
+                        putMVar removalStarted ()
+                        threadDelay 200000
+                let confirmAfterRemovalStarts = do
+                        takeMVar removalStarted
+                        applyRosterTemplateApplication actor request confirmation.applicationExpectedVersion confirmation.applicationExpectedTargetRevision
+
+                (_, applied) <- concurrently removeMembership confirmAfterRemovalStarts
+                let Right result = applied
+                activeSlots <- query @RosterSlot |> filterWhere (#deletedAt, Nothing) |> fetch
+
+                result.appliedWarnings `shouldContain`
+                    [RosterTemplateApplicationAssignmentConvertedToOpen templateShiftId RosterTemplateStaffOutsideGroup]
+                map (.assignmentState) activeSlots `shouldBe` ["open"]
+
         it "serializes concurrent confirmations without partial template or target writes" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Concurrent template confirmation"
@@ -333,8 +431,8 @@ tests = aroundAll withDatabaseTestContext do
                 Right confirmation <- previewRosterTemplateApplication actor request
 
                 (firstResult, secondResult) <- concurrently
-                    (applyRosterTemplateApplication actor request confirmation.applicationExpectedVersion)
-                    (applyRosterTemplateApplication actor request confirmation.applicationExpectedVersion)
+                    (applyRosterTemplateApplication actor request confirmation.applicationExpectedVersion confirmation.applicationExpectedTargetRevision)
+                    (applyRosterTemplateApplication actor request confirmation.applicationExpectedVersion confirmation.applicationExpectedTargetRevision)
                 let results = [firstResult, secondResult]
                 refreshedTemplate <- fetch saved.savedTemplate.id
                 activeSlots <- query @RosterSlot |> filterWhere (#deletedAt, Nothing) |> fetch
@@ -344,6 +442,30 @@ tests = aroundAll withDatabaseTestContext do
                 results `shouldContain` [Left (RosterTemplateApplicationVersionConflict 2)]
                 refreshedTemplate.currentVersion `shouldBe` 2
                 map (.assignmentState) activeSlots `shouldBe` ["open"]
+
+        it "rejects a stale target confirmation before destructive replacement" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Stale target confirmation"
+                rosterGroup <- query @RosterGroup |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
+                manager <- createUserRecord "template-stale-target@example.com" "staff" True
+                shiftType <- ensureVenueDefaultShiftType venue
+                let actor = rosterTemplateActor manager venue True
+                Right draft <- startBlankRosterTemplateDraft actor rosterGroup Day "Target revision day"
+                Right () <- replaceRosterTemplateDraftContent actor draft.draftDesign.id (oneOpenShiftContent shiftType.id 540 1020)
+                Right saved <- saveRosterTemplateDraft actor draft.draftDesign.id
+                targetWeek <- createRosterWeekRecordForRosterGroup venue rosterGroup 20 False
+                targetDay <- createRosterDayRecord targetWeek 0
+                definition <- createDefinition targetWeek "Existing" 0
+                oldSlot <- createSlot targetDay definition shiftType OpenAssignment 0
+                let request = RosterTemplateApplicationRequest saved.savedTemplate.id targetWeek.id (Just 0) noShiftCopyOccurrenceSelections
+                Right confirmation <- previewRosterTemplateApplication actor request
+                _ <- targetDay |> set #rowCount 9 |> updateRecord
+
+                applied <- applyRosterTemplateApplication actor request confirmation.applicationExpectedVersion confirmation.applicationExpectedTargetRevision
+                refreshedSlot <- fetch oldSlot.id
+
+                applied `shouldBe` Left RosterTemplateApplicationTargetConflict
+                refreshedSlot.deletedAt `shouldBe` Nothing
 
         it "rejects a stale confirmation before changing the target" $ withContext do
             withCleanDb do
@@ -366,7 +488,7 @@ tests = aroundAll withDatabaseTestContext do
                 Right editDraft <- startRosterTemplateEditDraft secondActor saved.savedTemplate.id
                 Right _ <- saveRosterTemplateDraft secondActor editDraft.draftDesign.id
 
-                applied <- applyRosterTemplateApplication firstActor request confirmation.applicationExpectedVersion
+                applied <- applyRosterTemplateApplication firstActor request confirmation.applicationExpectedVersion confirmation.applicationExpectedTargetRevision
                 refreshedSlot <- fetch oldSlot.id
 
                 applied `shouldBe` Left (RosterTemplateApplicationVersionConflict 2)
@@ -400,7 +522,7 @@ tests = aroundAll withDatabaseTestContext do
                 let request = RosterTemplateApplicationRequest saved.savedTemplate.id targetWeek.id Nothing noShiftCopyOccurrenceSelections
                 Right confirmation <- previewRosterTemplateApplication actor request
 
-                result <- applyRosterTemplateApplication actor request confirmation.applicationExpectedVersion
+                result <- applyRosterTemplateApplication actor request confirmation.applicationExpectedVersion confirmation.applicationExpectedTargetRevision
                 refreshedDays <- query @RosterDay
                     |> filterWhere (#rosterWeekId, unpackId targetWeek.id)
                     |> orderByAsc #dayOffset
