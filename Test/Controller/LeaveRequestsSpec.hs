@@ -423,7 +423,8 @@ tests = aroundAll withDatabaseTestContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Support Staff Blackout Fragment Venue"
                 superAdmin <- createUserRecordWithPlatformRole "support-staff-blackout-fragment@example.com" "staff" (Just SuperAdmin) True
-                today <- utctDay <$> getCurrentTime
+                venueConfig <- query @VenueConfig |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
+                today <- currentVenueCalendarDay venueConfig
                 _ <- newRecord @UnavailabilityBlackout
                     |> set #venueId (unpackId venue.id)
                     |> set #startDate today
@@ -961,6 +962,7 @@ tests = aroundAll withDatabaseTestContext do
                 triggerHeader `shouldSatisfy` maybe False (Text.isInfixOf "leave-section-count")
                 triggerHeader `shouldSatisfy` maybe False (Text.isInfixOf "leave-section-list")
                 triggerHeader `shouldSatisfy` maybe False (Text.isInfixOf "leave-availability-warnings")
+                triggerHeader `shouldSatisfy` maybe False (Text.isInfixOf "leave-side-panel-content")
                 triggerHeader `shouldSatisfy` maybe False (Text.isInfixOf "\"leaveSection\":\"archive\"")
                 triggerHeader `shouldSatisfy` maybe True (not . Text.isInfixOf "\"leaveSection\":\"pending\"")
 

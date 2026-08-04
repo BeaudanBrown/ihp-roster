@@ -22,6 +22,12 @@ async function installSubscriptionObserver(page: Page) {
     });
 }
 
+async function openLeaveSettings(page: Page) {
+    await gotoWhenReady(page, '/LeaveRequests', '#leave-requests-content');
+    await page.getByRole('tab', { name: 'Settings' }).click();
+    await expect(page.locator('#unavailability-blackouts')).toBeVisible();
+}
+
 async function waitForSubscription(page: Page, prefix: string) {
     await expect.poll(
         () => page.evaluate((expectedPrefix) =>
@@ -57,9 +63,9 @@ test.describe('Unavailability submission blackouts', () => {
             ]);
 
             await openAdminWithSeededPasskeySession(adminPage);
-            await gotoWhenReady(adminPage, '/LeaveRequests', '#unavailability-blackouts');
+            await openLeaveSettings(adminPage);
             await loginAs(managerPage, 'e2e-test@example.com', 'test-password-123');
-            await gotoWhenReady(managerPage, '/LeaveRequests', '#unavailability-blackouts');
+            await openLeaveSettings(managerPage);
             await loginAs(workerPage, 'e2e-worker@example.com', 'test-password-123');
             await gotoWhenReady(workerPage, '/EditProfile?section=leave', '#self-service-leave-form');
             await loginAs(staffManagerPage, 'e2e-test@example.com', 'test-password-123');

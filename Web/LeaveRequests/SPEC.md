@@ -16,6 +16,10 @@
 - Approved-state changes are the roster-availability boundary. Pending creation
   does not fan out to roster viewers. Staff removal denies pending requests
   through the normal provenance path and retains approved/denied history.
+- The manager page uses the shared transient Staff/Settings SidePanel. Its Staff
+  inventory remains complete regardless of main-list filters; hover/focus and
+  pinning only highlight matching server-rendered requests and never alter query
+  authority. Ordinary staff continue through the shared self-service Surface.
 
 ## Venue Policies
 
@@ -36,7 +40,8 @@ in `Blackouts.hs`, `AvailabilityWarnings.hs`, the schema, and focused tests.
 ## Live And Privacy Rules
 
 - Server-rendered fragments remain authoritative. Typed blackout, warning, and
-  staff-request resources invalidate only dependent fragments.
+  staff-request resources invalidate only dependent fragments. SidePanel tab and
+  valid pin state reconcile across authoritative fragment replacement.
 - The self-service form is resync-only for passive updates so remote changes do
   not erase focused input; validation failures may replace the local form.
 - Do not add medical details or sensitive free-text reasons without dedicated

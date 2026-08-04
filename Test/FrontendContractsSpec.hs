@@ -142,6 +142,19 @@ tests = describe "Frontend contract generator foundation" do
             ]
             (\expected -> frontendContractsTypeScript `shouldSatisfy` Text.isInfixOf expected)
 
+    it "generates Unavailability side-panel, tabs, sort, and linked-highlight roles" do
+        forM_
+            [ "export const leaveRequestsLeaveSidePanelRootDomAttr = \"data-bepis-leave-requests-leave-side-panel-root\" as const;"
+            , "export const leaveRequestsLeaveSidePanelToggleDomAttr = \"data-bepis-leave-requests-leave-side-panel-toggle\" as const;"
+            , "export const leaveRequestsLeaveSidePanelTabDomAttr = \"data-bepis-leave-requests-leave-side-panel-tab\" as const;"
+            , "export const leaveRequestsLeaveStaffHighlightSourceDomAttr = \"data-bepis-leave-requests-leave-staff-highlight-source\" as const;"
+            , "export const leaveRequestsLeaveStaffHighlightMemberDomAttr = \"data-bepis-leave-requests-leave-staff-highlight-member\" as const;"
+            , "export const leaveRequestsLeaveStaffHighlightPinDomAttr = \"data-bepis-leave-requests-leave-staff-highlight-pin\" as const;"
+            , "export type LeaveSidePanelTabsKey = \"staff\" | \"settings\";"
+            , "export type LeaveStaffPanelSortRow = { staffRowKey: string; staffName: string; staffRole: string; periodCount: number; pendingCount: number };"
+            ]
+            (\expected -> frontendContractsTypeScript `shouldSatisfy` Text.isInfixOf expected)
+
     it "generates the Roster own-live-shift default linked-highlight role" do
         frontendContractsTypeScript
             `shouldSatisfy` Text.isInfixOf "export const rosterStaffHighlightDefaultDomAttr = \"data-bepis-roster-staff-highlight-default\" as const;"

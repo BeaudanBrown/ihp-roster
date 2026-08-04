@@ -9,6 +9,7 @@ import Application.Helper.FrontendContract.AppShell.Runtime (AppShellActionRoute
                                                              applyAppShellActionAttrs)
 import qualified Application.Helper.FrontendContract.Surface.ContractIR as SurfaceIR
 import qualified Application.Helper.FrontendContract.Surface.LeaveRequests as Surface
+import qualified Application.Helper.FrontendContract.Surface.LeaveRequests.Action as LeaveRequestsAction
 import Application.Helper.FrontendContract.Surface.LeaveRequests.SidePanel (leaveSidePanelRenderAttrs)
 import Application.Helper.FrontendContract.Surface.LeaveRequests.StaffPanel (LeaveSidePanelTab (..),
                                                                              LeaveStaffPanelSortKey (..),
@@ -17,7 +18,6 @@ import Application.Helper.FrontendContract.Surface.LeaveRequests.StaffPanel (Lea
                                                                              leaveStaffPanelSortRootAttrs,
                                                                              leaveStaffPanelSortRowAttrs)
 import qualified Application.Helper.FrontendContract.Surface.LinkedHighlight as SurfaceLinkedHighlight
-import qualified Application.Helper.FrontendContract.Surface.LeaveRequests.Action as LeaveRequestsAction
 import Application.Helper.FrontendContract.Surface.Runtime (FrontendSurfaceActionRoute (..),
                                                             SurfaceImpl,
                                                             renderFrontendSurfaceActionForm,

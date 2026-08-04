@@ -14,6 +14,8 @@ and authorization response choices; views live under `Web/View/LeaveRequests/`.
 - `Blackouts.hs` and `AvailabilityWarnings.hs` — venue policy projections.
 - `Mutations.hs` — writes and typed invalidation.
 - `FrontendSurface.hs` — manager and self-service Surface contracts.
+- `Application.Helper.FrontendContract.Surface.LeaveRequests.{SidePanel,StaffPanel}`
+  — shared panel, tab, sort, and linked-highlight adapters.
 
 See `SPEC.md` for durable date, lifecycle, blackout, and privacy rules and
 `AGENTS.md` for local editing constraints.

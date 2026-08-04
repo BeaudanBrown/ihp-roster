@@ -60,6 +60,15 @@ tests = do
             rendered `shouldSatisfy` any (Text.isInfixOf "never filters the week")
             rendered `shouldSatisfy` all (not . Text.isInfixOf "Each saved entry shows its own pay preview")
 
+    describe "unavailability help copy" do
+        it "explains the manager SidePanel and admin blackout location" do
+            leave <- maybe (expectationFailure "missing leave topic" >> error "missing leave topic") pure (lookupPageHelpTopic (PageHelpTopicId "leave"))
+            let managerHelp = flattenHelpText (filterPageHelpTopic managerContext leave)
+            let adminHelp = flattenHelpText (filterPageHelpTopic ownerContext leave)
+            managerHelp `shouldSatisfy` any (Text.isInfixOf "including trial profiles")
+            managerHelp `shouldSatisfy` any (Text.isInfixOf "eye to pin")
+            adminHelp `shouldSatisfy` any (Text.isInfixOf "Open Settings")
+
     describe "billing help role filtering" do
         it "keeps payer actions owner-only while showing diagnostics to founder support" do
             billing <- maybe (expectationFailure "missing billing topic" >> error "missing billing topic") pure (lookupPageHelpTopic (PageHelpTopicId "billing"))

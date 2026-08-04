@@ -160,7 +160,7 @@ renderLeaveRequestsFragmentFromReadModel renderMode readModel fragment =
         LeaveSidePanelContent ->
             renderLeaveSidePanelWithSwap
                 (fragmentRenderSwap renderMode)
-                readModel.leaveReadModelToday
+                readModel.leaveReadModelVenueToday
                 readModel.leaveReadModelBlackouts
                 readModel.leaveReadModelRequests
                 readModel.leaveReadModelStaffMembers

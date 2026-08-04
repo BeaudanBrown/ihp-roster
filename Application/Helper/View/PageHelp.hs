@@ -246,13 +246,14 @@ pageHelpTopics =
             , iconItem HelpEveryone "bi-hourglass-split" "Status" "Track approval status" "Check the Status column to see whether each request is pending, approved, or denied."
             ]
         , section HelpManagerPlus "Manager tasks"
-            [ buttonItem HelpManagerPlus "bi-check-lg" "Approve" "Approve a request" "Open a pending request, review the dates and reason, then click Approve." "btn btn-sm btn-outline-success me-1" Nothing "Approve"
+            [ iconItem HelpManagerPlus "bi-people" "Staff panel" "Locate a staff member's unavailable periods" "Use the Staff tab to review every active venue staff member, including trial profiles. Sort by name, role, or current/future period count. Hover or focus a row to highlight matching periods, use the eye to pin the highlight, or open the row to edit the profile."
+            , buttonItem HelpManagerPlus "bi-check-lg" "Approve" "Approve a request" "Open a pending request, review the dates and reason, then click Approve." "btn btn-sm btn-outline-success me-1" Nothing "Approve"
             , buttonItem HelpManagerPlus "bi-x-lg" "Deny" "Deny a request" "Click Deny when the time away cannot be accepted, then add any needed follow-up outside the request." "btn btn-sm btn-outline-danger me-1" Nothing "Deny"
             , iconItem HelpManagerPlus "bi-exclamation-triangle" "Staffing warning" "Review busy unavailable dates" "When the venue threshold is enabled, warnings group consecutive dates with the same unavailable-staff count. Expand a warning to see affected active staff and pending or approved statuses. Warnings never block submissions."
             , iconItem HelpManagerPlus "bi-calendar-week" "Roster" "Check roster impact" "After approving time away, review affected roster weeks for conflicts."
             ]
         , section HelpAdminPlus "Admin tasks"
-            [ iconItem HelpAdminPlus "bi-calendar-x" "Submission blackouts" "Manage blocked periods" "Add, edit, or remove venue-wide blackout periods on the Unavailability page. Dates are inclusive and the 3–160 character reason is visible to staff. Existing requests remain valid and appear as pre-existing exceptions."
+            [ iconItem HelpAdminPlus "bi-calendar-x" "Submission blackouts" "Manage blocked periods" "Open Settings on the Unavailability page to add, edit, or remove venue-wide blackout periods. Dates are inclusive and the 3–160 character reason is visible to staff. Existing requests remain valid and appear as pre-existing exceptions."
             ]
         ]
     , topic "admin" "Admin"

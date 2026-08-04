@@ -1,6 +1,9 @@
 import { expect, Page, test } from '@playwright/test';
 import {
     dialogOverlayMountDomId,
+    leaveRequestsLeaveStaffHighlightMemberDomAttr,
+    leaveRequestsLeaveStaffHighlightPinDomAttr,
+    leaveRequestsLeaveStaffHighlightSourceDomAttr,
     rosterStaffHighlightMemberDomAttr,
 } from '../frontend/ts/generated/contracts';
 import { E2E_TIMEOUT } from './timeouts';
@@ -140,12 +143,20 @@ test.describe('Live fragment multi-view coverage', () => {
 
         const managerContent = managerPage.locator('#leave-requests-content');
         await expect(managerContent).not.toContainText(note);
+        const workerSource = managerPage.locator(`[${leaveRequestsLeaveStaffHighlightSourceDomAttr}]`).filter({ hasText: 'Alpha Crew' });
+        const staffKey = await workerSource.getAttribute(leaveRequestsLeaveStaffHighlightSourceDomAttr);
+        expect(staffKey).toBeTruthy();
+        await workerSource.locator(`[${leaveRequestsLeaveStaffHighlightPinDomAttr}]`).click();
+        await expect(workerSource.locator(`[${leaveRequestsLeaveStaffHighlightPinDomAttr}]`)).toHaveAttribute('aria-pressed', 'true');
 
         await createProfileLeaveRequest(workerPage, note, startDate, endDate);
 
         const managerRow = managerPage.locator('#leave-requests-content article').filter({ hasText: note });
         await expect(managerRow).toHaveCount(1);
         await expect(managerRow).toContainText('Pending');
+        await expect(managerRow).toHaveAttribute(leaveRequestsLeaveStaffHighlightMemberDomAttr, staffKey ?? '');
+        await expect(managerRow).toHaveClass(/is-linked-highlight-member/);
+        await expect(managerPage.locator(`[${leaveRequestsLeaveStaffHighlightSourceDomAttr}="${staffKey}"] [${leaveRequestsLeaveStaffHighlightPinDomAttr}]`)).toHaveAttribute('aria-pressed', 'true');
         await expect(managerContent).toContainText(note);
 
         await managerContext.close();
