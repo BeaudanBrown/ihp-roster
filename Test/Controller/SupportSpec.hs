@@ -64,6 +64,7 @@ tests = aroundAll withDatabaseTestContext do
                     callAction SupportAction
 
                 response `responseStatusShouldBe` status200
+                response `responseBodyShouldContain` "Support mode"
                 response `responseBodyShouldContain` "data-bepis-surface=\"support\""
                 response `responseBodyShouldContain` "id=\"support-award-rates\""
                 response `responseBodyShouldContain` "hx-target=\"#support-award-rates\""

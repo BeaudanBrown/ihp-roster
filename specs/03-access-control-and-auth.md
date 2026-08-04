@@ -48,6 +48,16 @@ The product must not rely on global in-app business roles without venue boundari
   - Security event review and compliance administration.
   - Access tightly limited and auditable.
 
+## Founder support mode
+
+- A platform super-admin selecting a venue without an active venue membership is
+  operating in founder support mode, not as a venue member.
+- The authenticated header visibly identifies `Support mode` beside the current
+  support venue selector.
+- Current-user business audit events retain the authenticated super-admin as
+  `actor_user_id` and add `requestContext.accessMode = "support"` to the JSON
+  payload. Ordinary venue-member payloads remain unchanged.
+
 ## Bootstrap and signup rules
 
 - Do not use "first registered user becomes admin" in SaaS mode.

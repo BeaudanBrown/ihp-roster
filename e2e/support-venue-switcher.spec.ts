@@ -29,6 +29,8 @@ test.describe('Super-admin venue switcher', () => {
 
         await gotoWhenReady(page, '/LeaveRequests', '#leave-requests-content');
         await expect(page.locator('#support-venue-switch')).toBeVisible();
+        await expect(page.locator('label[for="support-venue-switch"]')).toHaveText('Support mode');
+        await expect(page.locator('label[for="support-venue-switch"]')).toBeVisible();
         await expect(page.locator('#support-venue-switch')).toContainText('e2e-alpha-venue');
         await expect(page.locator('#support-venue-switch')).toContainText('e2e-beta-venue');
 

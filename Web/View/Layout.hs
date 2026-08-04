@@ -206,10 +206,12 @@ renderSupportVenueSwitcher :: (?context :: ControllerContext, ?request :: Reques
 renderSupportVenueSwitcher switchId formClass = [hsx|
     <form class={formClass} method="POST" action={SwitchSupportVenueAction}>
         <input type="hidden" name="next" value={TextEncoding.decodeUtf8 getRequestPathAndQuery}/>
-        <label class="visually-hidden" for={switchId}>Support venue</label>
-        <select id={switchId} class="form-select form-select-sm" name="venueId" onchange="this.form.submit()">
-            {forEach currentSupportVenueOptions renderSupportVenueOption}
-        </select>
+        <div class="input-group input-group-sm">
+            <label class="input-group-text" for={switchId}>Support mode</label>
+            <select id={switchId} class="form-select" name="venueId" onchange="this.form.submit()">
+                {forEach currentSupportVenueOptions renderSupportVenueOption}
+            </select>
+        </div>
     </form>
 |]
 
