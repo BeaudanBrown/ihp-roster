@@ -344,7 +344,7 @@ tests = describe "Schema" do
         schemaSqlText `shouldSatisfy` Text.isInfixOf "auto_timesheet_creation_enabled BOOLEAN DEFAULT FALSE NOT NULL"
         schemaSqlText `shouldSatisfy` Text.isInfixOf "minute_precision_shift_times_enabled BOOLEAN DEFAULT FALSE NOT NULL"
         schemaSqlText `shouldSatisfy` Text.isInfixOf "shift_type_id UUID"
-        schemaSqlText `shouldSatisfy` Text.isInfixOf "FOREIGN KEY (shift_type_id) REFERENCES shift_types (id) ON DELETE SET NULL"
+        schemaSqlText `shouldSatisfy` Text.isInfixOf "FOREIGN KEY (shift_type_id) REFERENCES shift_types (id) ON DELETE RESTRICT"
         schemaSqlText `shouldSatisfy` Text.isInfixOf "CREATE INDEX idx_roster_slots_shift_type ON roster_slots (shift_type_id) WHERE shift_type_id IS NOT NULL AND deleted_at IS NULL;"
         schemaSqlText `shouldSatisfy` Text.isInfixOf "CREATE UNIQUE INDEX idx_venue_onboarding_invitations_pending_email_unique ON venue_onboarding_invitations (LOWER(email)) WHERE status = 'pending' AND accepted_at IS NULL;"
         schemaSqlText `shouldSatisfy` Text.isInfixOf "source_roster_slot_id UUID DEFAULT NULL"
