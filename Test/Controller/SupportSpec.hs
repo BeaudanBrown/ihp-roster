@@ -203,20 +203,26 @@ tests = aroundAll withDatabaseTestContext do
                 venue <- createVenueWithConfig "Credential Boundary Impersonation Venue"
                 founder <- createUserRecordWithPlatformRole "impersonation-credential-founder@example.com" "staff" (Just SuperAdmin) True
                 worker <- createUserRecord "impersonation-credential-worker@example.com" "staff" True
+                replacementUser <- createUserRecord "impersonation-session-replacement@example.com" "staff" True
                 _ <- createVenueMembershipRecord venue worker Worker
                 _ <- createStaffRecord venue (Just worker) "Credential" "Worker"
 
-                (passkeyResponse, registrationResponse, profileResponse) <- withPasskeyVerifiedUserAndCurrentVenue founder venue.id do
+                (passkeyResponse, registrationResponse, sessionReplacementResponse, profileResponse) <- withPasskeyVerifiedUserAndCurrentVenue founder venue.id do
                     _ <- callActionWithParams
                         StartSupportImpersonationAction
                         [("userId", cs (inputValue worker.id))]
                     passkeyResponse <- callAction PasskeySetupAction
                     registrationResponse <- callAction BeginPasskeyRegistrationAction
+                    sessionReplacementResponse <- callActionWithParams CreateSessionAction
+                        [ ("email", cs replacementUser.email)
+                        , ("password", cs testPassword)
+                        ]
                     profileResponse <- callAction EditProfileAction
-                    pure (passkeyResponse, registrationResponse, profileResponse)
+                    pure (passkeyResponse, registrationResponse, sessionReplacementResponse, profileResponse)
 
                 passkeyResponse `responseStatusShouldBe` status302
                 registrationResponse `responseStatusShouldBe` status403
+                sessionReplacementResponse `responseStatusShouldBe` status403
                 profileResponse `responseStatusShouldBe` status200
                 profileResponse `responseBodyShouldNotContain` "Sign-In Methods"
                 profileResponse `responseBodyShouldContain` "impersonation-credential-worker@example.com"

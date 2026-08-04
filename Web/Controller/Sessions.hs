@@ -39,6 +39,7 @@ instance Controller SessionsController where
 
     action currentAction@CreateSessionAction =
         runBepis currentAction BepisMutationAction $ profileActionSpan "auth.password_login" do
+            accessDeniedUnless (not currentUserIsImpersonating)
             let submittedEmail = param @Text "email"
             profileActionSpan "auth.password_login.find_user"
                 ( query @User
@@ -126,6 +127,7 @@ instance Controller SessionsController where
         Sessions.deleteSessionAction @User
 
     action currentAction@VerifyEmailAction = runBepis currentAction BepisMutationAction do
+        accessDeniedUnless (not currentUserIsImpersonating)
         let verificationTokenValue = param @Text "token"
         findActiveVerificationTokenByToken verificationTokenValue >>= \case
             Nothing -> do
@@ -150,6 +152,7 @@ instance Controller SessionsController where
                 redirectTo EditProfileAction
 
     action currentAction@ResendVerificationAction = runBepis currentAction BepisMutationAction do
+        accessDeniedUnless (not currentUserIsImpersonating)
         let submittedEmail = param @Text "email"
         maybeUser <-
             query @User
