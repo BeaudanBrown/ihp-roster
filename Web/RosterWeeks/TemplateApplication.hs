@@ -30,6 +30,7 @@ import qualified Data.UUID as UUID
 import qualified Database.PostgreSQL.Simple as PG
 import Generated.Types
 import IHP.ControllerPrelude
+import qualified Prelude
 import Web.RosterWeeks.Service (validateRosterSlotForPersistence)
 
 data RosterTemplateApplicationRequest = RosterTemplateApplicationRequest
@@ -210,7 +211,7 @@ prepareContent request saved targetWeek
             then pure (Left RosterTemplateApplicationInvalidTargetDay)
             else do
                 let targetDayByTemplateIndex = case request.applicationTargetDayOffset of
-                        Just _  -> Map.fromList [(0, targetDays !! 0)]
+                        Just _  -> Map.fromList [(0, Prelude.head targetDays)]
                         Nothing -> Map.fromList [(day.dayOffset, day) | day <- targetDays]
                 let templateDayIndexById = Map.fromList [(unpackId day.id, day.dayIndex) | day <- saved.savedDays]
                 let templateColumnById = Map.fromList [(unpackId column.id, column) | column <- saved.savedColumns]
@@ -369,7 +370,7 @@ toPreview prepared =
         , applicationPreviewScale = prepared.preparedSaved.savedTemplate.scale
         , applicationPreviewTargetWeekOffset = prepared.preparedTargetWeek.weekOffset
         , applicationPreviewTargetDayOffset = case prepared.preparedSaved.savedTemplate.scale of
-            Day  -> Just (prepared.preparedTargetDays !! 0).dayOffset
+            Day  -> Just (Prelude.head prepared.preparedTargetDays).dayOffset
             Week -> Nothing
         , applicationExpectedVersion = prepared.preparedSaved.savedTemplate.currentVersion
         , applicationReplacementShiftCount = length prepared.preparedShiftPlans
@@ -392,7 +393,7 @@ toPreview prepared =
         , Just issue <- [plan.preparedAssignmentIssue]
         ]
     destructiveWarning = case prepared.preparedSaved.savedTemplate.scale of
-        Day -> RosterTemplateApplicationClearsDay (prepared.preparedTargetDays !! 0).dayOffset
+        Day -> RosterTemplateApplicationClearsDay (Prelude.head prepared.preparedTargetDays).dayOffset
         Week -> RosterTemplateApplicationClearsWeek
     timesheetWarnings =
         [RosterTemplateApplicationExistingTimesheetsRemain prepared.preparedTimesheetCount | prepared.preparedTimesheetCount > 0]
