@@ -8,8 +8,14 @@ module Application.Helper.FrontendContract.Surface.Timesheets.Action
     , parseApproveTimesheetEntryActionParams
     , parseCreateTimesheetEntryFromSuggestionActionParams
     , parseNavigateTimesheetWeekActionParams
+    , parseToggleTimesheetHideApprovedActionParams
+    , parseToggleTimesheetShowSuggestionsActionParams
     , parseUnapproveTimesheetEntryActionParams
     , parseUpdateTimesheetFiltersActionParams
+    , toggleTimesheetHideApprovedAction
+    , toggleTimesheetHideApprovedActionFields
+    , toggleTimesheetShowSuggestionsAction
+    , toggleTimesheetShowSuggestionsActionFields
     , unapproveTimesheetEntryAction
     , unapproveTimesheetEntryActionFields
     , updateTimesheetFiltersAction
@@ -25,8 +31,14 @@ import Application.Helper.FrontendContract.Surface.Timesheets.Generated.Action (
                                                                                 parseApproveTimesheetEntryActionParams,
                                                                                 parseCreateTimesheetEntryFromSuggestionActionParams,
                                                                                 parseNavigateTimesheetWeekActionParams,
+                                                                                parseToggleTimesheetHideApprovedActionParams,
+                                                                                parseToggleTimesheetShowSuggestionsActionParams,
                                                                                 parseUnapproveTimesheetEntryActionParams,
                                                                                 parseUpdateTimesheetFiltersActionParams,
+                                                                                toggleTimesheetHideApprovedAction,
+                                                                                toggleTimesheetHideApprovedActionFields,
+                                                                                toggleTimesheetShowSuggestionsAction,
+                                                                                toggleTimesheetShowSuggestionsActionFields,
                                                                                 unapproveTimesheetEntryAction,
                                                                                 unapproveTimesheetEntryActionFields,
                                                                                 updateTimesheetFiltersAction,

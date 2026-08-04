@@ -604,9 +604,6 @@ tests = describe "FrontendSurface DSL foundation" do
         surfaceFieldValue @NestedOptionalTestField nestedOptionalFields `shouldBe` Just Nothing
         let actionFields =
                 surfaceField @TimesheetsSurface.WeekOffset 0
-                    &: surfaceField @TimesheetsSurface.ShowApproved False
-                    &: surfaceField @TimesheetsSurface.ShowAllStaff True
-                    &: surfaceField @TimesheetsSurface.ShowSuggestions True
                     &: surfaceOptionalField @TimesheetsSurface.StaffFilterId Nothing
                     &: noSurfaceFields
                 :: SurfaceFields (SurfaceActionFieldSpecs TimesheetsSurface.TimesheetsSurface TimesheetsSurface.NavigateTimesheetWeek)
@@ -699,10 +696,7 @@ tests = describe "FrontendSurface DSL foundation" do
                         &: surfaceField @TimesheetsSurface.WeekOffset (0 :: Int)
                         &: noSurfaceFields
                     )
-                    ( surfaceField @TimesheetsSurface.ShowApproved False
-                        &: surfaceField @TimesheetsSurface.ShowAllStaff False
-                        &: surfaceField @TimesheetsSurface.ShowSuggestions True
-                        &: surfaceField @TimesheetsSurface.StaffFilterId Nothing
+                    ( surfaceField @TimesheetsSurface.StaffFilterId Nothing
                         &: noSurfaceFields
                     )
                     [fragment]
@@ -871,11 +865,7 @@ tests = describe "FrontendSurface DSL foundation" do
             |> fmap (.mountStateFields)
             |> fmap (map (\field -> (field.fieldName, field.fieldWire)))
             `shouldBe` Just
-                [ ("showApproved", WireBoolIR)
-                , ("showAllStaff", WireBoolIR)
-                , ("showSuggestions", WireBoolIR)
-                , ("staffFilterId", WireOptionalIR WireUuidIR)
-                ]
+                [("staffFilterId", WireOptionalIR WireUuidIR)]
         let navigateAction = fromMaybe (error "missing navigate action") (find ((== "navigate-timesheet-week") . (.htmxActionName)) surface.surfaceHtmxActions)
         navigateAction.htmxActionOptions
             `shouldContain` [HtmxOption (HtmxActionSyncIR (HtmxTypedSyntaxIR "closest #timesheet-week-shell:replace" ["timesheet-week-shell"]))]

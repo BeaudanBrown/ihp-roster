@@ -12,10 +12,7 @@ wrongActionWireType =
     frontendSurfaceAction @Timesheets.TimesheetsSurface @Timesheets.NavigateTimesheetWeek
         ( surfaceActionFields
             (surfaceField @Timesheets.WeekOffset ("two" :: Text))
-            ( surfaceField @Timesheets.ShowApproved False
-                &: surfaceField @Timesheets.ShowAllStaff True
-                &: surfaceField @Timesheets.ShowSuggestions True
-                &: surfaceOptionalField @Timesheets.StaffFilterId Nothing
+            ( surfaceOptionalField @Timesheets.StaffFilterId Nothing
                 &: noSurfaceFields
             )
         )

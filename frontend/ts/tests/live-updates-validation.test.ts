@@ -105,7 +105,7 @@ test("FrontendSurface config parser derives Timesheets live subscriptions from m
             kind: "timesheet-day-section",
             params: { dayOffset: 2 },
             targetId: "timesheet-day-section-2",
-            url: "/ShowTimesheetDaySectionFragment?weekOffset=3&dayOffset=2&showApproved=false&showAllStaff=true",
+            url: "/ShowTimesheetDaySectionFragment?weekOffset=3&dayOffset=2",
             protection: { kind: "replace" },
         }],
     }, { venueId: "venue-1", weekOffset: 3 }));

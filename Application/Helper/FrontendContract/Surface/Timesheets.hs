@@ -3,9 +3,8 @@
 
 module Application.Helper.FrontendContract.Surface.Timesheets
     ( DayOffset
-    , ShowAllStaff
-    , ShowApproved
-    , ShowSuggestions
+    , HideApproved
+    , ShowTimesheetSuggestions
     , StaffFilterId
     , TimesheetDay
     , TimesheetDayColumns
@@ -15,6 +14,8 @@ module Application.Helper.FrontendContract.Surface.Timesheets
     , TimesheetWeekShell
     , TimesheetToolbar
     , NavigateTimesheetWeek
+    , ToggleTimesheetHideApproved
+    , ToggleTimesheetShowSuggestions
     , UpdateTimesheetFilters
     , ApproveTimesheetEntry
     , CreateTimesheetEntryFromSuggestion
@@ -35,9 +36,8 @@ data VenueId
 data WeekOffset
 
 data TimesheetsMountState
-data ShowApproved
-data ShowAllStaff
-data ShowSuggestions
+data HideApproved
+data ShowTimesheetSuggestions
 data StaffFilterId
 
 data TimesheetToolbar
@@ -51,6 +51,8 @@ data TimesheetWeekBoundaryConfig
 
 data NavigateTimesheetWeek
 data UpdateTimesheetFilters
+data ToggleTimesheetHideApproved
+data ToggleTimesheetShowSuggestions
 data ApproveTimesheetEntry
 data CreateTimesheetEntryFromSuggestion
 data UnapproveTimesheetEntry
@@ -70,20 +72,13 @@ type TimesheetScopeBundle =
          ]
         '[ 'Authorize 'CurrentVenue '[ VenueId ] ]
      , MountState TimesheetsMountState
-        '[ Field ShowApproved 'WireBool
-         , Field ShowAllStaff 'WireBool
-         , Field ShowSuggestions 'WireBool
-         , Field StaffFilterId ('WireOptional 'WireUUID)
-         ]
+        '[ Field StaffFilterId ('WireOptional 'WireUUID) ]
      ]
 
 type TimesheetActionBundle =
     '[ BrowserDomToken TimesheetWeekShell
      , Action NavigateTimesheetWeek
         '[ Field WeekOffset 'WireInt
-         , Field ShowApproved 'WireBool
-         , Field ShowAllStaff 'WireBool
-         , Field ShowSuggestions 'WireBool
          , OptionalField StaffFilterId 'WireUUID
          ]
         '[ 'HtmxMethod 'HtmxGet
@@ -93,9 +88,6 @@ type TimesheetActionBundle =
          ]
      , Action UpdateTimesheetFilters
         '[ Field WeekOffset 'WireInt
-         , Field ShowApproved 'WireBool
-         , Field ShowAllStaff 'WireBool
-         , Field ShowSuggestions 'WireBool
          , OptionalField StaffFilterId 'WireUUID
          ]
         '[ 'HtmxMethod 'HtmxGet
@@ -103,11 +95,26 @@ type TimesheetActionBundle =
          , 'HtmxPushUrl 'HtmxPushUrlTrue
          , 'HtmxSync ('HtmxSyncOn ('HtmxClosest ('HtmxId TimesheetWeekShell)) 'HtmxSyncReplace)
          ]
+     , Action ToggleTimesheetHideApproved
+        '[ Field WeekOffset 'WireInt
+         , Field HideApproved 'WireBool
+         , OptionalField StaffFilterId 'WireUUID
+         ]
+        '[ 'HtmxMethod 'HtmxPost
+         , 'HtmxSwap 'HtmxNoSwap
+         , 'HtmxPushUrl 'HtmxPushUrlFalse
+         ]
+     , Action ToggleTimesheetShowSuggestions
+        '[ Field WeekOffset 'WireInt
+         , Field ShowTimesheetSuggestions 'WireBool
+         , OptionalField StaffFilterId 'WireUUID
+         ]
+        '[ 'HtmxMethod 'HtmxPost
+         , 'HtmxSwap 'HtmxNoSwap
+         , 'HtmxPushUrl 'HtmxPushUrlFalse
+         ]
      , Action CreateTimesheetEntryFromSuggestion
         '[ Field WeekOffset 'WireInt
-         , Field ShowApproved 'WireBool
-         , Field ShowAllStaff 'WireBool
-         , Field ShowSuggestions 'WireBool
          , OptionalField StaffFilterId 'WireUUID
          ]
         '[ 'HtmxMethod 'HtmxPost
@@ -116,9 +123,6 @@ type TimesheetActionBundle =
          ]
      , Action ApproveTimesheetEntry
         '[ Field WeekOffset 'WireInt
-         , Field ShowApproved 'WireBool
-         , Field ShowAllStaff 'WireBool
-         , Field ShowSuggestions 'WireBool
          , OptionalField StaffFilterId 'WireUUID
          ]
         '[ 'HtmxMethod 'HtmxPost
@@ -127,9 +131,6 @@ type TimesheetActionBundle =
          ]
      , Action UnapproveTimesheetEntry
         '[ Field WeekOffset 'WireInt
-         , Field ShowApproved 'WireBool
-         , Field ShowAllStaff 'WireBool
-         , Field ShowSuggestions 'WireBool
          , OptionalField StaffFilterId 'WireUUID
          ]
         '[ 'HtmxMethod 'HtmxPost

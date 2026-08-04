@@ -67,6 +67,8 @@ data TimesheetsController
     | ShowtimesheetToolbarLiveFragmentAction { weekOffset :: !Int }
     | ShowtimesheetDayColumnsLiveFragmentAction { weekOffset :: !Int }
     | ShowTimesheetDaySectionFragmentAction { weekOffset :: !Int, dayOffset :: !Int }
+    | ToggleTimesheetHideApprovedAction
+    | ToggleTimesheetShowSuggestionsAction
     | NewTimesheetEntryAction
     | CreateTimesheetEntryAction
     | NewTimesheetEntryFromSuggestionAction { rosterSlotId :: !(Id RosterSlot) }

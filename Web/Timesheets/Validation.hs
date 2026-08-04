@@ -13,7 +13,6 @@ module Web.Timesheets.Validation
     ) where
 
 import Application.Helper.Staff (isLinkedActiveStaff)
-import Application.Helper.Url (appendQueryParams)
 import Application.PayAssignment (ShiftPayAssignment (..),
                                   StaffPayAssignment (..),
                                   shiftAssignmentAllowsTimesheets,
@@ -33,20 +32,17 @@ ensureTimesheetEntryNotPayrollLocked ::
     (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
     TimesheetEntry ->
     Int ->
-    Bool ->
-    Bool ->
-    Bool ->
     Maybe UUID.UUID ->
     IO ()
-ensureTimesheetEntryNotPayrollLocked timesheetEntry weekOffset showApproved showAllStaff showSuggestions staffFilterId = do
+ensureTimesheetEntryNotPayrollLocked timesheetEntry weekOffset staffFilterId = do
     locked <- timesheetEntryHasPayrollProvenance timesheetEntry
     when locked do
         let message = "This approved timesheet entry is locked because it has been exported or submitted to Xero."
         if isHtmxRequest
-            then respondWithTimesheetDaySectionUpdate weekOffset (timesheetEntryWorkedOn timesheetEntry) showApproved showAllStaff showSuggestions staffFilterId message True
+            then respondWithTimesheetDaySectionUpdate weekOffset (timesheetEntryWorkedOn timesheetEntry) staffFilterId message True
             else do
                 setErrorMessage message
-                redirectToPath (timesheetWeekUrl weekOffset showApproved showAllStaff showSuggestions staffFilterId)
+                redirectToPath (timesheetWeekUrl weekOffset staffFilterId)
 
 timesheetEntryHasPayrollProvenance :: (?modelContext :: ModelContext) => TimesheetEntry -> IO Bool
 timesheetEntryHasPayrollProvenance timesheetEntry = do

@@ -132,13 +132,13 @@ tests = do
             rosterWeekOverviewFragmentPath 9 1 1
                 `shouldBe` "/ShowRosterWeekOverviewFragment?weekOffset=9&rosterGroupId=00b71b01-0001-4000-8002-00004795d228"
             timesheetWeekPath 9
-                `shouldBe` "/ShowTimesheetWeek?weekOffset=9&showApproved=true&showAllStaff=true"
+                `shouldBe` "/ShowTimesheetWeek?weekOffset=9"
             timesheetResetPath 9
-                `shouldBe` "/Timesheets?showApproved=true&showAllStaff=true"
+                `shouldBe` "/Timesheets"
             timesheetStaffFilterPath 9 "004c4b41-0001-4000-8002-00001ddcab28"
-                `shouldBe` "/ShowTimesheetWeek?weekOffset=9&showApproved=true&showAllStaff=true&staffFilterId=004c4b41-0001-4000-8002-00001ddcab28"
+                `shouldBe` "/ShowTimesheetWeek?weekOffset=9&staffFilterId=004c4b41-0001-4000-8002-00001ddcab28"
             timesheetDayFragmentPath 9 0
-                `shouldBe` "/ShowTimesheetDaySectionFragment?weekOffset=9&dayOffset=0&showApproved=true&showAllStaff=true"
+                `shouldBe` "/ShowTimesheetDaySectionFragment?weekOffset=9&dayOffset=0"
             profileLeaveSectionFragmentPath
                 `shouldBe` "/ShowprofileContentLiveFragment?section=leave"
             adminInvitesFragmentPath 1 1

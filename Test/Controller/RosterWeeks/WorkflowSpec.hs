@@ -1766,7 +1766,7 @@ tests = aroundAll withDatabaseTestContext do
 
                 timesheetsResponse <- withUserAndCurrentVenue manager venue.id do
                     callActionWithParams ShowTimesheetWeekAction { weekOffset = 0 }
-                        [("weekOffset", "0"), ("showApproved", "false"), ("showAllStaff", "true"), ("showSuggestions", "true")]
+                        [("weekOffset", "0")]
                 timesheetsResponse `responseBodyShouldContain` cs ("data-timesheet-suggestion-id=\"" <> tshow slot.id <> "\"")
 
         it "hides draft-roster suggestions while preserving materialized timesheet snapshots" $ withContext do
@@ -1800,13 +1800,13 @@ tests = aroundAll withDatabaseTestContext do
 
                 liveResponse <- withUserAndCurrentVenue manager venue.id do
                     callActionWithParams ShowTimesheetWeekAction { weekOffset = 0 }
-                        [("weekOffset", "0"), ("showApproved", "false"), ("showAllStaff", "true"), ("showSuggestions", "true")]
+                        [("weekOffset", "0")]
                 liveResponse `responseBodyShouldContain` cs ("data-timesheet-suggestion-id=\"" <> tshow sourceSlot.id <> "\"")
                 liveResponse `responseBodyShouldContain` cs ("data-timesheet-suggestion-id=\"" <> tshow pendingSlot.id <> "\"")
 
                 createResponse <- withUserAndCurrentVenue manager venue.id do
                     callActionWithParams CreateTimesheetEntryFromSuggestionAction { rosterSlotId = sourceSlot.id }
-                        [("weekOffset", "0"), ("showApproved", "false"), ("showAllStaff", "true"), ("showSuggestions", "true")]
+                        [("weekOffset", "0")]
                 createResponse `responseStatusShouldBe` status302
                 materializedEntry <- query @TimesheetEntry |> fetchOne
 
@@ -1817,7 +1817,7 @@ tests = aroundAll withDatabaseTestContext do
 
                 timesheetsResponse <- withUserAndCurrentVenue manager venue.id do
                     callActionWithParams ShowTimesheetWeekAction { weekOffset = 0 }
-                        [("weekOffset", "0"), ("showApproved", "false"), ("showAllStaff", "true"), ("showSuggestions", "true")]
+                        [("weekOffset", "0")]
                 timesheetsResponse `responseBodyShouldNotContain` cs ("data-timesheet-suggestion-id=\"" <> tshow pendingSlot.id <> "\"")
                 timesheetsResponse `responseBodyShouldContain` cs (pathTo EditTimesheetEntryAction { timesheetEntryId = materializedEntry.id })
                 unchangedEntry <- fetch materializedEntry.id
@@ -1852,7 +1852,7 @@ tests = aroundAll withDatabaseTestContext do
 
                 createResponse <- withUserAndCurrentVenue manager venue.id do
                     callActionWithParams CreateTimesheetEntryFromSuggestionAction { rosterSlotId = completeSlot.id }
-                        [("weekOffset", "0"), ("showApproved", "false"), ("showAllStaff", "true"), ("showSuggestions", "true")]
+                        [("weekOffset", "0")]
                 createResponse `responseStatusShouldBe` status302
                 entry <- query @TimesheetEntry |> fetchOne
 

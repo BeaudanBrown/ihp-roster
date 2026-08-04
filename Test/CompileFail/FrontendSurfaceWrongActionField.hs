@@ -14,9 +14,6 @@ import IHP.Prelude
 fields :: SurfaceFields (SurfaceActionFieldSpecs Timesheets.TimesheetsSurface Timesheets.NavigateTimesheetWeek)
 fields =
     surfaceField @Timesheets.WeekOffset 0
-        &: surfaceField @Timesheets.ShowApproved False
-        &: surfaceField @Timesheets.ShowAllStaff True
-        &: surfaceField @Timesheets.ShowSuggestions True
         &: surfaceOptionalField @Timesheets.StaffFilterId Nothing
         &: noSurfaceFields
 

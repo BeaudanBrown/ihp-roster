@@ -13,8 +13,14 @@ module Application.Helper.FrontendContract.Surface.Timesheets.Generated.Action
     , parseApproveTimesheetEntryActionParams
     , parseCreateTimesheetEntryFromSuggestionActionParams
     , parseNavigateTimesheetWeekActionParams
+    , parseToggleTimesheetHideApprovedActionParams
+    , parseToggleTimesheetShowSuggestionsActionParams
     , parseUnapproveTimesheetEntryActionParams
     , parseUpdateTimesheetFiltersActionParams
+    , toggleTimesheetHideApprovedAction
+    , toggleTimesheetHideApprovedActionFields
+    , toggleTimesheetShowSuggestionsAction
+    , toggleTimesheetShowSuggestionsActionFields
     , unapproveTimesheetEntryAction
     , unapproveTimesheetEntryActionFields
     , updateTimesheetFiltersAction
@@ -40,18 +46,12 @@ import Network.Wai (Request)
 
 approveTimesheetEntryActionFields ::
     Int ->
-    Bool ->
-    Bool ->
-    Bool ->
     Maybe UUID.UUID ->
     SurfaceActionFields (AdapterFamilySurface Types2.TimesheetsAdapterFamily) Types1.ApproveTimesheetEntry
-approveTimesheetEntryActionFields weekOffset showApproved showAllStaff showSuggestions staffFilterId =
+approveTimesheetEntryActionFields weekOffset staffFilterId =
     surfaceActionFields
         (surfaceField @Types1.WeekOffset weekOffset)
-        ( surfaceField @Types1.ShowApproved showApproved
-            &: surfaceField @Types1.ShowAllStaff showAllStaff
-            &: surfaceField @Types1.ShowSuggestions showSuggestions
-            &: surfaceOptionalField @Types1.StaffFilterId staffFilterId
+        ( surfaceOptionalField @Types1.StaffFilterId staffFilterId
             &: noSurfaceFields
         )
 
@@ -71,18 +71,12 @@ parseApproveTimesheetEntryActionParams =
 
 createTimesheetEntryFromSuggestionActionFields ::
     Int ->
-    Bool ->
-    Bool ->
-    Bool ->
     Maybe UUID.UUID ->
     SurfaceActionFields (AdapterFamilySurface Types2.TimesheetsAdapterFamily) Types1.CreateTimesheetEntryFromSuggestion
-createTimesheetEntryFromSuggestionActionFields weekOffset showApproved showAllStaff showSuggestions staffFilterId =
+createTimesheetEntryFromSuggestionActionFields weekOffset staffFilterId =
     surfaceActionFields
         (surfaceField @Types1.WeekOffset weekOffset)
-        ( surfaceField @Types1.ShowApproved showApproved
-            &: surfaceField @Types1.ShowAllStaff showAllStaff
-            &: surfaceField @Types1.ShowSuggestions showSuggestions
-            &: surfaceOptionalField @Types1.StaffFilterId staffFilterId
+        ( surfaceOptionalField @Types1.StaffFilterId staffFilterId
             &: noSurfaceFields
         )
 
@@ -102,18 +96,12 @@ parseCreateTimesheetEntryFromSuggestionActionParams =
 
 navigateTimesheetWeekActionFields ::
     Int ->
-    Bool ->
-    Bool ->
-    Bool ->
     Maybe UUID.UUID ->
     SurfaceActionFields (AdapterFamilySurface Types2.TimesheetsAdapterFamily) Types1.NavigateTimesheetWeek
-navigateTimesheetWeekActionFields weekOffset showApproved showAllStaff showSuggestions staffFilterId =
+navigateTimesheetWeekActionFields weekOffset staffFilterId =
     surfaceActionFields
         (surfaceField @Types1.WeekOffset weekOffset)
-        ( surfaceField @Types1.ShowApproved showApproved
-            &: surfaceField @Types1.ShowAllStaff showAllStaff
-            &: surfaceField @Types1.ShowSuggestions showSuggestions
-            &: surfaceOptionalField @Types1.StaffFilterId staffFilterId
+        ( surfaceOptionalField @Types1.StaffFilterId staffFilterId
             &: noSurfaceFields
         )
 
@@ -131,20 +119,68 @@ parseNavigateTimesheetWeekActionParams =
         @(AdapterFamilySurface Types2.TimesheetsAdapterFamily)
         @Types1.NavigateTimesheetWeek
 
-unapproveTimesheetEntryActionFields ::
+toggleTimesheetHideApprovedActionFields ::
     Int ->
     Bool ->
-    Bool ->
-    Bool ->
     Maybe UUID.UUID ->
-    SurfaceActionFields (AdapterFamilySurface Types2.TimesheetsAdapterFamily) Types1.UnapproveTimesheetEntry
-unapproveTimesheetEntryActionFields weekOffset showApproved showAllStaff showSuggestions staffFilterId =
+    SurfaceActionFields (AdapterFamilySurface Types2.TimesheetsAdapterFamily) Types1.ToggleTimesheetHideApproved
+toggleTimesheetHideApprovedActionFields weekOffset hideApproved staffFilterId =
     surfaceActionFields
         (surfaceField @Types1.WeekOffset weekOffset)
-        ( surfaceField @Types1.ShowApproved showApproved
-            &: surfaceField @Types1.ShowAllStaff showAllStaff
-            &: surfaceField @Types1.ShowSuggestions showSuggestions
+        ( surfaceField @Types1.HideApproved hideApproved
             &: surfaceOptionalField @Types1.StaffFilterId staffFilterId
+            &: noSurfaceFields
+        )
+
+toggleTimesheetHideApprovedAction :: SurfaceActionFields (AdapterFamilySurface Types2.TimesheetsAdapterFamily) Types1.ToggleTimesheetHideApproved -> FrontendSurfaceAction
+toggleTimesheetHideApprovedAction =
+    frontendSurfaceAction
+        @(AdapterFamilySurface Types2.TimesheetsAdapterFamily)
+        @Types1.ToggleTimesheetHideApproved
+
+parseToggleTimesheetHideApprovedActionParams ::
+    (?request :: Request) =>
+    Either [SurfaceRequestFieldError] (SurfaceActionFields (AdapterFamilySurface Types2.TimesheetsAdapterFamily) Types1.ToggleTimesheetHideApproved)
+parseToggleTimesheetHideApprovedActionParams =
+    parseSurfaceActionParams
+        @(AdapterFamilySurface Types2.TimesheetsAdapterFamily)
+        @Types1.ToggleTimesheetHideApproved
+
+toggleTimesheetShowSuggestionsActionFields ::
+    Int ->
+    Bool ->
+    Maybe UUID.UUID ->
+    SurfaceActionFields (AdapterFamilySurface Types2.TimesheetsAdapterFamily) Types1.ToggleTimesheetShowSuggestions
+toggleTimesheetShowSuggestionsActionFields weekOffset showTimesheetSuggestions staffFilterId =
+    surfaceActionFields
+        (surfaceField @Types1.WeekOffset weekOffset)
+        ( surfaceField @Types1.ShowTimesheetSuggestions showTimesheetSuggestions
+            &: surfaceOptionalField @Types1.StaffFilterId staffFilterId
+            &: noSurfaceFields
+        )
+
+toggleTimesheetShowSuggestionsAction :: SurfaceActionFields (AdapterFamilySurface Types2.TimesheetsAdapterFamily) Types1.ToggleTimesheetShowSuggestions -> FrontendSurfaceAction
+toggleTimesheetShowSuggestionsAction =
+    frontendSurfaceAction
+        @(AdapterFamilySurface Types2.TimesheetsAdapterFamily)
+        @Types1.ToggleTimesheetShowSuggestions
+
+parseToggleTimesheetShowSuggestionsActionParams ::
+    (?request :: Request) =>
+    Either [SurfaceRequestFieldError] (SurfaceActionFields (AdapterFamilySurface Types2.TimesheetsAdapterFamily) Types1.ToggleTimesheetShowSuggestions)
+parseToggleTimesheetShowSuggestionsActionParams =
+    parseSurfaceActionParams
+        @(AdapterFamilySurface Types2.TimesheetsAdapterFamily)
+        @Types1.ToggleTimesheetShowSuggestions
+
+unapproveTimesheetEntryActionFields ::
+    Int ->
+    Maybe UUID.UUID ->
+    SurfaceActionFields (AdapterFamilySurface Types2.TimesheetsAdapterFamily) Types1.UnapproveTimesheetEntry
+unapproveTimesheetEntryActionFields weekOffset staffFilterId =
+    surfaceActionFields
+        (surfaceField @Types1.WeekOffset weekOffset)
+        ( surfaceOptionalField @Types1.StaffFilterId staffFilterId
             &: noSurfaceFields
         )
 
@@ -164,18 +200,12 @@ parseUnapproveTimesheetEntryActionParams =
 
 updateTimesheetFiltersActionFields ::
     Int ->
-    Bool ->
-    Bool ->
-    Bool ->
     Maybe UUID.UUID ->
     SurfaceActionFields (AdapterFamilySurface Types2.TimesheetsAdapterFamily) Types1.UpdateTimesheetFilters
-updateTimesheetFiltersActionFields weekOffset showApproved showAllStaff showSuggestions staffFilterId =
+updateTimesheetFiltersActionFields weekOffset staffFilterId =
     surfaceActionFields
         (surfaceField @Types1.WeekOffset weekOffset)
-        ( surfaceField @Types1.ShowApproved showApproved
-            &: surfaceField @Types1.ShowAllStaff showAllStaff
-            &: surfaceField @Types1.ShowSuggestions showSuggestions
-            &: surfaceOptionalField @Types1.StaffFilterId staffFilterId
+        ( surfaceOptionalField @Types1.StaffFilterId staffFilterId
             &: noSurfaceFields
         )
 

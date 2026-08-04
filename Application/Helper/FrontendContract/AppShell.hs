@@ -21,8 +21,6 @@ module Application.Helper.FrontendContract.AppShell
     , UpdateTimesheetEntryOverlay
     , DeleteTimesheetEntryOverlay
     , WeekOffsetField
-    , ShowApprovedField
-    , ShowAllStaffField
     , StaffFilterIdField
     , StaffIdField
     , ShiftTypeIdField
@@ -115,8 +113,6 @@ data CreateTimesheetEntryOverlay
 data UpdateTimesheetEntryOverlay
 data DeleteTimesheetEntryOverlay
 data WeekOffsetField
-data ShowApprovedField
-data ShowAllStaffField
 data StaffFilterIdField
 data StaffIdField
 data ShiftTypeIdField
@@ -234,8 +230,6 @@ type AppShellContract =
          , AppShellAction UpdateTimesheetEntryOverlay TimesheetEntryFields TimesheetEntrySubmitOptions
          , AppShellAction DeleteTimesheetEntryOverlay
             '[ Field WeekOffsetField 'WireText
-             , Field ShowApprovedField 'WireText
-             , Field ShowAllStaffField 'WireText
              , Field StaffFilterIdField 'WireText
              ]
             '[ AppShellHtmxMethod 'AppShellDelete
@@ -405,8 +399,6 @@ type StaffShiftPreferenceFields =
 
 type TimesheetEntryFields =
     '[ Field WeekOffsetField 'WireText
-     , Field ShowApprovedField 'WireText
-     , Field ShowAllStaffField 'WireText
      , Field StaffFilterIdField 'WireText
      , Field StaffIdField 'WireText
      , Field ShiftTypeIdField 'WireText

@@ -289,15 +289,11 @@ rosterWeekOverviewFragmentPath weekOffset venueIndex groupIndex =
 
 timesheetWeekPath :: Int -> Text
 timesheetWeekPath weekOffset =
-    appendQueryParams
-        (pathTo (ShowTimesheetWeekAction weekOffset))
-        [("showApproved", "true"), ("showAllStaff", "true")]
+    pathTo (ShowTimesheetWeekAction weekOffset)
 
 timesheetResetPath :: Int -> Text
 timesheetResetPath _weekOffset =
-    appendQueryParams
-        (pathTo TimesheetsAction)
-        [("showApproved", "true"), ("showAllStaff", "true")]
+    pathTo TimesheetsAction
 
 timesheetStaffFilterPath :: Int -> Text -> Text
 timesheetStaffFilterPath weekOffset staffUuid =
@@ -305,9 +301,7 @@ timesheetStaffFilterPath weekOffset staffUuid =
 
 timesheetDayFragmentPath :: Int -> Int -> Text
 timesheetDayFragmentPath weekOffset dayOffset =
-    appendQueryParams
-        (pathTo (ShowTimesheetDaySectionFragmentAction weekOffset dayOffset))
-        [("showApproved", "true"), ("showAllStaff", "true")]
+    pathTo (ShowTimesheetDaySectionFragmentAction weekOffset dayOffset)
 
 adminInvitesFragmentPath :: Int -> Int -> Text
 adminInvitesFragmentPath venueIndex groupIndex =

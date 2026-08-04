@@ -176,6 +176,8 @@ type RegisteredSurfaceResourceAdapterHomes =
 type RegisteredSurfaceActionAdapterHomes =
     '[ SurfaceActionAdapterHome TimesheetsAdapterFamily Timesheets.NavigateTimesheetWeek
      , SurfaceActionAdapterHome TimesheetsAdapterFamily Timesheets.UpdateTimesheetFilters
+     , SurfaceActionAdapterHome TimesheetsAdapterFamily Timesheets.ToggleTimesheetHideApproved
+     , SurfaceActionAdapterHome TimesheetsAdapterFamily Timesheets.ToggleTimesheetShowSuggestions
      , SurfaceActionAdapterHome TimesheetsAdapterFamily Timesheets.CreateTimesheetEntryFromSuggestion
      , SurfaceActionAdapterHome TimesheetsAdapterFamily Timesheets.ApproveTimesheetEntry
      , SurfaceActionAdapterHome TimesheetsAdapterFamily Timesheets.UnapproveTimesheetEntry
@@ -238,6 +240,8 @@ registeredSurfaceActionAdapterRegistrations :: [SurfaceRequestAdapterRegistratio
 registeredSurfaceActionAdapterRegistrations =
     [ surfaceActionAdapter @TimesheetsAdapterFamily @Timesheets.NavigateTimesheetWeek allRequestAdapterOperations
     , surfaceActionAdapter @TimesheetsAdapterFamily @Timesheets.UpdateTimesheetFilters allRequestAdapterOperations
+    , surfaceActionAdapter @TimesheetsAdapterFamily @Timesheets.ToggleTimesheetHideApproved allRequestAdapterOperations
+    , surfaceActionAdapter @TimesheetsAdapterFamily @Timesheets.ToggleTimesheetShowSuggestions allRequestAdapterOperations
     , surfaceActionAdapter @TimesheetsAdapterFamily @Timesheets.CreateTimesheetEntryFromSuggestion allRequestAdapterOperations
     , surfaceActionAdapter @TimesheetsAdapterFamily @Timesheets.ApproveTimesheetEntry allRequestAdapterOperations
     , surfaceActionAdapter @TimesheetsAdapterFamily @Timesheets.UnapproveTimesheetEntry allRequestAdapterOperations

@@ -1,14 +1,17 @@
 module Web.Controller.Timesheets where
 
 import Application.Helper.FrontendContract.Surface.Request (SurfaceRequestFieldError,
-                                                            surfaceActionParamsComplete,
                                                             surfaceRequestFieldErrorsMessage)
 import qualified Application.Helper.FrontendContract.Surface.Timesheets as Surface
+import qualified Application.Helper.FrontendContract.Surface.Timesheets.Action as TimesheetsAction
+import Application.Helper.FrontendContract.Surface.Values (surfaceFieldValue)
 import Application.Helper.SurfaceResource (LiveMutationResult (..))
 import Application.Helper.TimeRules (defaultShiftTimesForVenueConfig,
                                      venueShiftTimeIntervalMinutes,
                                      venueTimePickerFinalSelectableTimeText,
                                      venueTimePickerStartTimeText)
+import Application.Helper.UserPreferences (upsertCurrentUserTimesheetHideApproved,
+                                           upsertCurrentUserTimesheetShowSuggestions)
 import Application.VenueTime.Model
 import Web.Controller.Prelude
 import Web.Timesheets.Mutations
@@ -21,14 +24,6 @@ import Web.Timesheets.Validation
 import Web.View.Timesheets.Edit
 import Web.View.Timesheets.New
 import Web.View.Timesheets.SuggestedNew
-
-timesheetSurfaceFilters :: TimesheetSurfaceRequestState -> (Bool, Bool, Bool, Maybe UUID)
-timesheetSurfaceFilters state =
-    ( state.surfaceRequestShowApproved
-    , state.surfaceRequestShowAllStaff
-    , state.surfaceRequestShowSuggestions
-    , state.surfaceRequestStaffFilterId
-    )
 
 reportTimesheetSurfaceRequestErrors ::
     (?context :: ControllerContext, ?request :: Request) =>
@@ -48,9 +43,6 @@ requireTimesheetSurfaceState = \case
         redirectTo TimesheetsAction
         pure TimesheetSurfaceRequestState
             { surfaceRequestWeekOffset = 0
-            , surfaceRequestShowApproved = False
-            , surfaceRequestShowAllStaff = True
-            , surfaceRequestShowSuggestions = True
             , surfaceRequestStaffFilterId = Nothing
             }
 
@@ -75,53 +67,60 @@ instance Controller TimesheetsController where
         ensureProfileCompleted
 
     action currentAction@TimesheetsAction = runBepis currentAction BepisPageAction do
-        currentOffset <- currentTimesheetWeekOffset
-        (weekOffset, showApproved, showAllStaff, showSuggestions, selectedStaffFilterId) <-
-            if not (surfaceActionParamsComplete @Surface.TimesheetsSurface @Surface.NavigateTimesheetWeek)
-                then do
-                    let (showApproved, showAllStaff, showSuggestions, selectedStaffFilterId) = timesheetViewFiltersFromRequest
-                    pure (currentOffset, showApproved, showAllStaff, showSuggestions, selectedStaffFilterId)
-                else case parseNavigateTimesheetWeekState of
-                    Left errors -> do
-                        reportTimesheetSurfaceRequestErrors errors
-                        pure (currentOffset, False, True, True, Nothing)
-                    Right state -> do
-                        let (showApproved, showAllStaff, showSuggestions, selectedStaffFilterId) = timesheetSurfaceFilters state
-                        pure (currentOffset, showApproved, showAllStaff, showSuggestions, selectedStaffFilterId)
+        weekOffset <- currentTimesheetWeekOffset
+        let selectedStaffFilterId = timesheetStaffFilterFromRequest
         if isHtmxRequest
-            then respondWithTimesheetWeekFragmentsUpdate weekOffset showApproved showAllStaff showSuggestions selectedStaffFilterId
-            else redirectToPath (timesheetWeekUrl weekOffset showApproved showAllStaff showSuggestions selectedStaffFilterId)
+            then respondWithTimesheetWeekFragmentsUpdate weekOffset selectedStaffFilterId
+            else redirectToPath (timesheetWeekUrl weekOffset selectedStaffFilterId)
 
     action currentAction@ShowTimesheetWeekAction { weekOffset } = runBepis currentAction BepisPageAction do
-        (showApproved, showAllStaff, showSuggestions, selectedStaffFilterId) <-
-            if not (surfaceActionParamsComplete @Surface.TimesheetsSurface @Surface.UpdateTimesheetFilters)
-                then pure (timesheetViewFiltersFromRequest)
-                else case parseUpdateTimesheetFiltersState of
-                    Left errors -> do
-                        reportTimesheetSurfaceRequestErrors errors
-                        pure (False, True, True, Nothing)
-                    Right state -> pure (timesheetSurfaceFilters state)
-        renderTimesheetWeekPage weekOffset showApproved showAllStaff showSuggestions selectedStaffFilterId
+        let selectedStaffFilterId = timesheetStaffFilterFromRequest
+        if any hasParam ["showApproved", "showAllStaff", "showSuggestions"]
+            then redirectToPath (timesheetWeekUrl weekOffset selectedStaffFilterId)
+            else renderTimesheetWeekPage weekOffset selectedStaffFilterId
 
     action currentAction@ShowtimesheetToolbarLiveFragmentAction { weekOffset } = runBepis currentAction BepisFragmentAction do
-        let (showApproved, showAllStaff, showSuggestions, selectedStaffFilterId) = timesheetViewFiltersFromRequest
-        let requestKey = TimesheetProjectionRequest weekOffset showApproved showAllStaff showSuggestions selectedStaffFilterId
+        let requestKey = TimesheetProjectionRequest weekOffset timesheetStaffFilterFromRequest
         respondWithTimesheetFragment requestKey TimesheetProjectionToolbar
 
     action currentAction@ShowtimesheetDayColumnsLiveFragmentAction { weekOffset } = runBepis currentAction BepisFragmentAction do
-        let (showApproved, showAllStaff, showSuggestions, selectedStaffFilterId) = timesheetViewFiltersFromRequest
-        let requestKey = TimesheetProjectionRequest weekOffset showApproved showAllStaff showSuggestions selectedStaffFilterId
+        let requestKey = TimesheetProjectionRequest weekOffset timesheetStaffFilterFromRequest
         respondWithTimesheetFragment requestKey TimesheetProjectionDayColumns
 
     action currentAction@ShowTimesheetDaySectionFragmentAction { weekOffset, dayOffset } = runBepis currentAction BepisFragmentAction do
-        let (showApproved, showAllStaff, showSuggestions, selectedStaffFilterId) = timesheetViewFiltersFromRequest
-        let requestKey = TimesheetProjectionRequest weekOffset showApproved showAllStaff showSuggestions selectedStaffFilterId
+        let requestKey = TimesheetProjectionRequest weekOffset timesheetStaffFilterFromRequest
         let fragment = TimesheetProjectionDaySection dayOffset
         respondWithTimesheetFragment requestKey fragment
 
+    action currentAction@ToggleTimesheetHideApprovedAction = runBepis currentAction BepisMutationAction do
+        case TimesheetsAction.parseToggleTimesheetHideApprovedActionParams of
+            Left errors -> do
+                reportTimesheetSurfaceRequestErrors errors
+                redirectTo TimesheetsAction
+            Right fields -> do
+                let weekOffset = surfaceFieldValue @Surface.WeekOffset fields
+                let selectedStaffFilterId = surfaceFieldValue @Surface.StaffFilterId fields
+                upsertCurrentUserTimesheetHideApproved (surfaceFieldValue @Surface.HideApproved fields)
+                if isHtmxRequest
+                    then respondWithTimesheetPreferenceUpdate weekOffset selectedStaffFilterId
+                    else redirectToPath (timesheetWeekUrl weekOffset selectedStaffFilterId)
+
+    action currentAction@ToggleTimesheetShowSuggestionsAction = runBepis currentAction BepisMutationAction do
+        case TimesheetsAction.parseToggleTimesheetShowSuggestionsActionParams of
+            Left errors -> do
+                reportTimesheetSurfaceRequestErrors errors
+                redirectTo TimesheetsAction
+            Right fields -> do
+                let weekOffset = surfaceFieldValue @Surface.WeekOffset fields
+                let selectedStaffFilterId = surfaceFieldValue @Surface.StaffFilterId fields
+                upsertCurrentUserTimesheetShowSuggestions (surfaceFieldValue @Surface.ShowTimesheetSuggestions fields)
+                if isHtmxRequest
+                    then respondWithTimesheetPreferenceUpdate weekOffset selectedStaffFilterId
+                    else redirectToPath (timesheetWeekUrl weekOffset selectedStaffFilterId)
+
     action currentAction@NewTimesheetEntryAction = runBepis currentAction BepisFormAction do
         weekOffset <- weekOffsetFromParamOrCurrent
-        let (showApproved, showAllStaff, showSuggestions, selectedStaffFilterId) = timesheetViewFiltersFromRequest
+        let selectedStaffFilterId = timesheetStaffFilterFromRequest
         staffMembers <- fetchStaffForForm
         shiftTypes <- fetchShiftTypesForForm
         currentUserStaff <- fetchCurrentUserStaff
@@ -136,28 +135,28 @@ instance Controller TimesheetsController where
         case (staffMembers, shiftTypes, maybeWorkedOn) of
             ([], _, _) -> do
                 setErrorMessage "No staff record found. Contact an administrator."
-                redirectToPath (timesheetWeekUrl weekOffset showApproved showAllStaff showSuggestions selectedStaffFilterId)
+                redirectToPath (timesheetWeekUrl weekOffset selectedStaffFilterId)
             (_, [], _) -> do
                 setErrorMessage "Add at least one shift type before creating a timesheet entry."
-                redirectToPath (timesheetWeekUrl weekOffset showApproved showAllStaff showSuggestions selectedStaffFilterId)
+                redirectToPath (timesheetWeekUrl weekOffset selectedStaffFilterId)
             (_, _, Nothing) -> do
                 setErrorMessage "Please choose a day before creating a timesheet entry."
-                redirectToPath (timesheetWeekUrl weekOffset showApproved showAllStaff showSuggestions selectedStaffFilterId)
+                redirectToPath (timesheetWeekUrl weekOffset selectedStaffFilterId)
             (_, defaultShiftType : _, Just workedOn) -> do
-                hasRosterSuggestionForDay <- viewerHasTimesheetSuggestionOnDay weekOffset showAllStaff selectedStaffFilterId workedOn
+                hasRosterSuggestionForDay <- viewerHasTimesheetSuggestionOnDay weekOffset selectedStaffFilterId workedOn
                 let timesheetEntry =
                         newTimesheetEntryForForm venueConfig workedOn defaultStartTime defaultEndTime
                             |> set #venueId (unpackId currentVenueId)
                             |> (\entry -> maybe entry (\staff -> set #staffId (unpackId (get #id staff)) entry) currentUserStaff)
                             |> set #shiftTypeId (unpackId (get #id defaultShiftType))
                 if isHtmxRequest
-                    then respondHtml (renderNewTimesheetDialog timesheetEntry staffMembers shiftTypes weekOffset showApproved showAllStaff showSuggestions hasRosterSuggestionForDay selectedStaffFilterId currentViewerStaffId pickerStart pickerEnd pickerStep)
+                    then respondHtml (renderNewTimesheetDialog timesheetEntry staffMembers shiftTypes weekOffset hasRosterSuggestionForDay selectedStaffFilterId currentViewerStaffId pickerStart pickerEnd pickerStep)
                     else render NewView { .. }
 
     action currentAction@CreateTimesheetEntryAction = runBepis currentAction BepisMutationAction do
         ensureVenueWritable
         weekOffset <- weekOffsetFromParamOrCurrent
-        let (showApproved, showAllStaff, showSuggestions, selectedStaffFilterId) = timesheetViewFiltersFromRequest
+        let selectedStaffFilterId = timesheetStaffFilterFromRequest
         staffMembers <- fetchStaffForForm
         shiftTypes <- fetchShiftTypesForForm
         currentUserStaff <- fetchCurrentUserStaff
@@ -173,13 +172,13 @@ instance Controller TimesheetsController where
                 newTimesheetEntryForForm venueConfig submittedWorkedOn defaultStartTime defaultEndTime
                     |> set #venueId (unpackId currentVenueId)
                     |> buildTimesheetEntry venueConfig currentViewerStaffId
-        hasRosterSuggestionForDay <- viewerHasTimesheetSuggestionOnDay weekOffset showAllStaff selectedStaffFilterId submittedWorkedOn
+        hasRosterSuggestionForDay <- viewerHasTimesheetSuggestionOnDay weekOffset selectedStaffFilterId submittedWorkedOn
 
         timesheetEntryRecord
             |> ifValid \case
                 Left timesheetEntry -> do
                     if isHtmxRequest
-                        then respondHtml (renderNewTimesheetDialog timesheetEntry staffMembers shiftTypes weekOffset showApproved showAllStaff showSuggestions hasRosterSuggestionForDay selectedStaffFilterId currentViewerStaffId pickerStart pickerEnd pickerStep)
+                        then respondHtml (renderNewTimesheetDialog timesheetEntry staffMembers shiftTypes weekOffset hasRosterSuggestionForDay selectedStaffFilterId currentViewerStaffId pickerStart pickerEnd pickerStep)
                         else render NewView { .. }
                 Right timesheetEntry -> do
                     ensureStaffAssignmentAllowed timesheetEntry.staffId
@@ -187,19 +186,19 @@ instance Controller TimesheetsController where
                     mutationResult <- createTimesheetEntryMutation weekOffset timesheetEntry
                     let createdEntry = mutationResult.liveMutationValue
                     if isHtmxRequest
-                        then respondWithTimesheetMutationUpdate weekOffset showApproved showAllStaff showSuggestions selectedStaffFilterId mutationResult.liveMutationTouchedResources "Timesheet entry created" True
+                        then respondWithTimesheetMutationUpdate weekOffset selectedStaffFilterId mutationResult.liveMutationTouchedResources "Timesheet entry created" True
                         else do
                             setSuccessMessage "Timesheet entry created"
-                            redirectToPath (timesheetWeekUrl weekOffset showApproved showAllStaff showSuggestions selectedStaffFilterId)
+                            redirectToPath (timesheetWeekUrl weekOffset selectedStaffFilterId)
 
     action currentAction@NewTimesheetEntryFromSuggestionAction { rosterSlotId } = runBepis currentAction BepisFormAction do
-        let (showApproved, showAllStaff, showSuggestions, selectedStaffFilterId) = timesheetViewFiltersFromRequest
+        let selectedStaffFilterId = timesheetStaffFilterFromRequest
         maybeSuggestion <- fetchTimesheetSuggestionForRosterSlot rosterSlotId
         case maybeSuggestion of
             Nothing -> do
                 weekOffset <- weekOffsetFromParamOrCurrent
                 setErrorMessage "That rostered shift is no longer available as a timesheet suggestion."
-                redirectToPath (timesheetWeekUrl weekOffset showApproved showAllStaff showSuggestions selectedStaffFilterId)
+                redirectToPath (timesheetWeekUrl weekOffset selectedStaffFilterId)
             Just suggestion -> do
                 weekOffset <- weekOffsetFromParamOrEntry (timesheetSuggestionWorkedOn suggestion)
                 staffMembers <- fetchStaffForForm
@@ -212,19 +211,19 @@ instance Controller TimesheetsController where
                 let pickerStep = venueShiftTimeIntervalMinutes venueConfig
                 let timesheetEntry = newTimesheetEntryFromSuggestion (unpackId currentVenueId) suggestion
                 if isHtmxRequest
-                    then respondHtml (renderSuggestedTimesheetDialog rosterSlotId timesheetEntry staffMembers shiftTypes weekOffset showApproved showAllStaff showSuggestions selectedStaffFilterId currentViewerStaffId pickerStart pickerEnd pickerStep)
+                    then respondHtml (renderSuggestedTimesheetDialog rosterSlotId timesheetEntry staffMembers shiftTypes weekOffset selectedStaffFilterId currentViewerStaffId pickerStart pickerEnd pickerStep)
                     else render SuggestedNewView { .. }
 
     action currentAction@CreateTimesheetEntryFromSuggestionAction { rosterSlotId } = runBepis currentAction BepisMutationAction do
         ensureVenueWritable
         state <- requireTimesheetSurfaceState parseCreateTimesheetEntryFromSuggestionState
         let weekOffset = state.surfaceRequestWeekOffset
-        let (showApproved, showAllStaff, showSuggestions, selectedStaffFilterId) = timesheetSurfaceFilters state
+        let selectedStaffFilterId = state.surfaceRequestStaffFilterId
         maybeSuggestion <- fetchTimesheetSuggestionForRosterSlot rosterSlotId
         case maybeSuggestion of
             Nothing -> do
                 setErrorMessage "That rostered shift is no longer available as a timesheet suggestion."
-                redirectToPath (timesheetWeekUrl weekOffset showApproved showAllStaff showSuggestions selectedStaffFilterId)
+                redirectToPath (timesheetWeekUrl weekOffset selectedStaffFilterId)
             Just suggestion -> do
                 staffMembers <- fetchStaffForForm
                 shiftTypes <- fetchShiftTypesForForm
@@ -244,7 +243,7 @@ instance Controller TimesheetsController where
                         Left invalidEntry -> do
                             let timesheetEntry = invalidEntry
                             if isHtmxRequest
-                                then respondHtml (renderSuggestedTimesheetDialog rosterSlotId timesheetEntry staffMembers shiftTypes weekOffset showApproved showAllStaff showSuggestions selectedStaffFilterId currentViewerStaffId pickerStart pickerEnd pickerStep)
+                                then respondHtml (renderSuggestedTimesheetDialog rosterSlotId timesheetEntry staffMembers shiftTypes weekOffset selectedStaffFilterId currentViewerStaffId pickerStart pickerEnd pickerStep)
                                 else render SuggestedNewView { .. }
                         Right validEntry -> do
                             accessDeniedUnless (validEntry.staffId == suggestion.suggestionStaffId)
@@ -256,28 +255,28 @@ instance Controller TimesheetsController where
                                 then materializeAndApproveTimesheetSuggestionMutation weekOffset suggestion validEntry >>= \case
                                     Left approvalError -> do
                                         setErrorMessage approvalError
-                                        redirectToPath (timesheetWeekUrl weekOffset showApproved showAllStaff showSuggestions selectedStaffFilterId)
+                                        redirectToPath (timesheetWeekUrl weekOffset selectedStaffFilterId)
                                     Right Nothing -> do
                                         setErrorMessage "That rostered shift changed before the timesheet entry was approved. Review the current suggestion and try again."
-                                        redirectToPath (timesheetWeekUrl weekOffset showApproved showAllStaff showSuggestions selectedStaffFilterId)
+                                        redirectToPath (timesheetWeekUrl weekOffset selectedStaffFilterId)
                                     Right (Just mutationResult) ->
                                         if isHtmxRequest
-                                            then respondWithTimesheetMutationUpdate weekOffset showApproved showAllStaff showSuggestions selectedStaffFilterId mutationResult.liveMutationTouchedResources "Rostered timesheet entry approved" True
+                                            then respondWithTimesheetMutationUpdate weekOffset selectedStaffFilterId mutationResult.liveMutationTouchedResources "Rostered timesheet entry approved" True
                                             else do
                                                 setSuccessMessage "Rostered timesheet entry approved"
-                                                redirectToPath (timesheetWeekUrl weekOffset showApproved showAllStaff showSuggestions selectedStaffFilterId)
+                                                redirectToPath (timesheetWeekUrl weekOffset selectedStaffFilterId)
                                 else do
                                     materializationResult <- materializeTimesheetSuggestionMutation weekOffset suggestion validEntry
                                     case materializationResult of
                                         Nothing -> do
                                             setErrorMessage "That rostered shift changed before the timesheet entry was created. Review the current suggestion and try again."
-                                            redirectToPath (timesheetWeekUrl weekOffset showApproved showAllStaff showSuggestions selectedStaffFilterId)
+                                            redirectToPath (timesheetWeekUrl weekOffset selectedStaffFilterId)
                                         Just mutationResult ->
                                             if isHtmxRequest
-                                                then respondWithTimesheetMutationUpdate weekOffset showApproved showAllStaff showSuggestions selectedStaffFilterId mutationResult.liveMutationTouchedResources "Rostered timesheet entry created" True
+                                                then respondWithTimesheetMutationUpdate weekOffset selectedStaffFilterId mutationResult.liveMutationTouchedResources "Rostered timesheet entry created" True
                                                 else do
                                                     setSuccessMessage "Rostered timesheet entry created"
-                                                    redirectToPath (timesheetWeekUrl weekOffset showApproved showAllStaff showSuggestions selectedStaffFilterId)
+                                                    redirectToPath (timesheetWeekUrl weekOffset selectedStaffFilterId)
 
     action currentAction@EditTimesheetEntryAction { timesheetEntryId } = runBepis currentAction BepisFormAction do
         timesheetEntry <- fetch timesheetEntryId
@@ -287,7 +286,7 @@ instance Controller TimesheetsController where
         ensureEditWindowOrManager workedOn
 
         weekOffset <- weekOffsetFromParamOrEntry workedOn
-        let (showApproved, showAllStaff, showSuggestions, selectedStaffFilterId) = timesheetViewFiltersFromRequest
+        let selectedStaffFilterId = timesheetStaffFilterFromRequest
         staffMembers <- fetchStaffForFormIncluding timesheetEntry.staffId
         shiftTypes <- fetchShiftTypesForFormIncluding timesheetEntry.shiftTypeId
         currentUserStaff <- fetchCurrentUserStaff
@@ -297,7 +296,7 @@ instance Controller TimesheetsController where
         let pickerEnd = venueTimePickerFinalSelectableTimeText venueConfig
         let pickerStep = venueShiftTimeIntervalMinutes venueConfig
         if isHtmxRequest
-            then respondHtml (renderEditTimesheetDialog timesheetEntry staffMembers shiftTypes weekOffset showApproved showAllStaff showSuggestions selectedStaffFilterId currentViewerStaffId pickerStart pickerEnd pickerStep)
+            then respondHtml (renderEditTimesheetDialog timesheetEntry staffMembers shiftTypes weekOffset selectedStaffFilterId currentViewerStaffId pickerStart pickerEnd pickerStep)
             else render EditView { .. }
 
     action currentAction@UpdateTimesheetEntryAction { timesheetEntryId } = runBepis currentAction BepisMutationAction do
@@ -309,7 +308,7 @@ instance Controller TimesheetsController where
         ensureEditWindowOrManager existingWorkedOn
 
         weekOffset <- weekOffsetFromParamOrEntry existingWorkedOn
-        let (showApproved, showAllStaff, showSuggestions, selectedStaffFilterId) = timesheetViewFiltersFromRequest
+        let selectedStaffFilterId = timesheetStaffFilterFromRequest
         staffMembers <- fetchStaffForFormIncluding existingEntry.staffId
         shiftTypes <- fetchShiftTypesForFormIncluding existingEntry.shiftTypeId
         currentUserStaff <- fetchCurrentUserStaff
@@ -325,7 +324,7 @@ instance Controller TimesheetsController where
             |> ifValid \case
                 Left timesheetEntry -> do
                     if isHtmxRequest
-                        then respondHtml (renderEditTimesheetDialog timesheetEntry staffMembers shiftTypes weekOffset showApproved showAllStaff showSuggestions selectedStaffFilterId currentViewerStaffId pickerStart pickerEnd pickerStep)
+                        then respondHtml (renderEditTimesheetDialog timesheetEntry staffMembers shiftTypes weekOffset selectedStaffFilterId currentViewerStaffId pickerStart pickerEnd pickerStep)
                         else render EditView { .. }
                 Right timesheetEntry -> do
                     ensureRosterDerivedIdentityUnchanged existingEntry timesheetEntry
@@ -333,17 +332,17 @@ instance Controller TimesheetsController where
                     ensureShiftTypeAllowedForExisting existingEntry timesheetEntry.shiftTypeId
                     let coreChanged = timesheetCoreChanged existingEntry timesheetEntry
                     when (wasApproved && coreChanged) do
-                        ensureTimesheetEntryNotPayrollLocked existingEntry weekOffset showApproved showAllStaff showSuggestions selectedStaffFilterId
+                        ensureTimesheetEntryNotPayrollLocked existingEntry weekOffset selectedStaffFilterId
                     let successMessage =
                             if wasApproved && coreChanged
                                 then "Timesheet entry updated (approval reset)"
                                 else "Timesheet entry updated"
                     mutationResult <- updateTimesheetEntryMutation weekOffset existingEntry timesheetEntry (wasApproved && coreChanged)
                     if isHtmxRequest
-                        then respondWithTimesheetMutationUpdate weekOffset showApproved showAllStaff showSuggestions selectedStaffFilterId mutationResult.liveMutationTouchedResources successMessage True
+                        then respondWithTimesheetMutationUpdate weekOffset selectedStaffFilterId mutationResult.liveMutationTouchedResources successMessage True
                         else do
                             setSuccessMessage successMessage
-                            redirectToPath (timesheetWeekUrl weekOffset showApproved showAllStaff showSuggestions selectedStaffFilterId)
+                            redirectToPath (timesheetWeekUrl weekOffset selectedStaffFilterId)
 
     action currentAction@DeleteTimesheetEntryAction { timesheetEntryId } = runBepis currentAction BepisMutationAction do
         ensureVenueWritable
@@ -354,14 +353,14 @@ instance Controller TimesheetsController where
         ensureEditWindowOrManager workedOn
 
         weekOffset <- weekOffsetFromParamOrEntry workedOn
-        let (showApproved, showAllStaff, showSuggestions, selectedStaffFilterId) = timesheetViewFiltersFromRequest
-        ensureTimesheetEntryNotPayrollLocked timesheetEntry weekOffset showApproved showAllStaff showSuggestions selectedStaffFilterId
+        let selectedStaffFilterId = timesheetStaffFilterFromRequest
+        ensureTimesheetEntryNotPayrollLocked timesheetEntry weekOffset selectedStaffFilterId
         mutationResult <- deleteTimesheetEntryMutation weekOffset timesheetEntry
         if isHtmxRequest
-            then respondWithTimesheetMutationUpdate weekOffset showApproved showAllStaff showSuggestions selectedStaffFilterId mutationResult.liveMutationTouchedResources "Timesheet entry removed" True
+            then respondWithTimesheetMutationUpdate weekOffset selectedStaffFilterId mutationResult.liveMutationTouchedResources "Timesheet entry removed" True
             else setSuccessMessage "Timesheet entry removed"
         unless isHtmxRequest do
-            redirectToPath (timesheetWeekUrl weekOffset showApproved showAllStaff showSuggestions selectedStaffFilterId)
+            redirectToPath (timesheetWeekUrl weekOffset selectedStaffFilterId)
 
     action currentAction@ApproveTimesheetEntryAction { timesheetEntryId } = runBepis currentAction BepisMutationAction do
         ensureManagerRole
@@ -371,19 +370,19 @@ instance Controller TimesheetsController where
         accessDeniedUnless (isNothing timesheetEntry.deletedAt)
         state <- requireTimesheetSurfaceState parseApproveTimesheetEntryState
         let weekOffset = state.surfaceRequestWeekOffset
-        let (showApproved, showAllStaff, showSuggestions, selectedStaffFilterId) = timesheetSurfaceFilters state
+        let selectedStaffFilterId = state.surfaceRequestStaffFilterId
 
         approval <- approveTimesheetEntryMutation weekOffset timesheetEntry
         case approval of
             Left reason -> do
                 setErrorMessage reason
-                redirectToPath (timesheetWeekUrl weekOffset showApproved showAllStaff showSuggestions selectedStaffFilterId)
+                redirectToPath (timesheetWeekUrl weekOffset selectedStaffFilterId)
             Right mutationResult ->
                 if isHtmxRequest
-                    then respondWithTimesheetMutationUpdate weekOffset showApproved showAllStaff showSuggestions selectedStaffFilterId mutationResult.liveMutationTouchedResources "Timesheet entry approved" False
+                    then respondWithTimesheetMutationUpdate weekOffset selectedStaffFilterId mutationResult.liveMutationTouchedResources "Timesheet entry approved" False
                     else do
                         setSuccessMessage "Timesheet entry approved"
-                        redirectToPath (timesheetWeekUrl weekOffset showApproved showAllStaff showSuggestions selectedStaffFilterId)
+                        redirectToPath (timesheetWeekUrl weekOffset selectedStaffFilterId)
 
     action currentAction@UnapproveTimesheetEntryAction { timesheetEntryId } = runBepis currentAction BepisPageAction do
         ensureManagerRole
@@ -393,12 +392,12 @@ instance Controller TimesheetsController where
         accessDeniedUnless (isNothing timesheetEntry.deletedAt)
         state <- requireTimesheetSurfaceState parseUnapproveTimesheetEntryState
         let weekOffset = state.surfaceRequestWeekOffset
-        let (showApproved, showAllStaff, showSuggestions, selectedStaffFilterId) = timesheetSurfaceFilters state
-        ensureTimesheetEntryNotPayrollLocked timesheetEntry weekOffset showApproved showAllStaff showSuggestions selectedStaffFilterId
+        let selectedStaffFilterId = state.surfaceRequestStaffFilterId
+        ensureTimesheetEntryNotPayrollLocked timesheetEntry weekOffset selectedStaffFilterId
 
         mutationResult <- unapproveTimesheetEntryMutation weekOffset timesheetEntry
         if isHtmxRequest
-            then respondWithTimesheetMutationUpdate weekOffset showApproved showAllStaff showSuggestions selectedStaffFilterId mutationResult.liveMutationTouchedResources "Timesheet entry unapproved" False
+            then respondWithTimesheetMutationUpdate weekOffset selectedStaffFilterId mutationResult.liveMutationTouchedResources "Timesheet entry unapproved" False
             else do
                 setSuccessMessage "Timesheet entry unapproved"
-                redirectToPath (timesheetWeekUrl weekOffset showApproved showAllStaff showSuggestions selectedStaffFilterId)
+                redirectToPath (timesheetWeekUrl weekOffset selectedStaffFilterId)
