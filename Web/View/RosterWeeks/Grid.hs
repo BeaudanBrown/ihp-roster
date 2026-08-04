@@ -136,7 +136,7 @@ renderRosterLayout gridModel@RosterGridRenderModel { gridRosterWeek, gridRosterD
                 RosterWeekGridView                  -> Nothing
             }
         rosterSurface = rosterSurfaceImpl rosterSurfaceScope (rosterMountedFragmentPlanFromRenderData gridTemplateLibraryUserId gridRosterDays gridRenderIndexes)
-        renderStaffPanelMount _rosterWeek =
+        renderStaffPanelMount =
             if currentUserIsManager
                 then renderrosterStaffPanelLiveFragment RosterStaffPanelRenderModel
                     { staffPanelRosterWeek = gridRosterWeek
@@ -159,7 +159,7 @@ renderRosterLayout gridModel@RosterGridRenderModel { gridRosterWeek, gridRosterD
                 else mempty
         layoutBody = [hsx|
             {renderrosterContentLiveFragment gridModel}
-            {forEach gridRosterWeek renderStaffPanelMount}
+            {renderStaffPanelMount}
             {renderRosterStaffSelfServicePanelFragment gridStaffSelfServicePanel}
         |]
         layout = if rosterHasSidePanel gridModel
