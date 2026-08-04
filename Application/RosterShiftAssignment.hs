@@ -1,6 +1,7 @@
 module Application.RosterShiftAssignment
     ( RosterShiftAssignment (..)
     , applyRosterShiftAssignment
+    , copyRosterShiftAssignment
     , rosterShiftAssignment
     ) where
 
@@ -26,6 +27,10 @@ applyRosterShiftAssignment assignment slot =
             slot
                 |> set #assignmentState "open"
                 |> set #staffId Nothing
+
+copyRosterShiftAssignment :: RosterSlot -> RosterSlot -> Either Text RosterSlot
+copyRosterShiftAssignment source target =
+    (`applyRosterShiftAssignment` target) <$> rosterShiftAssignment source
 
 rosterShiftAssignment :: RosterSlot -> Either Text RosterShiftAssignment
 rosterShiftAssignment slot =

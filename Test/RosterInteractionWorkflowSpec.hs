@@ -66,6 +66,7 @@ tests = do
             let staffId = Id (workflowUuid "33333333-3333-3333-3333-333333333333") :: Id Staff
                 assigned = applyRosterShiftAssignment (StaffAssignment staffId) (newRecord @RosterSlot)
                 open = applyRosterShiftAssignment OpenAssignment assigned
+                copied = copyRosterShiftAssignment open (newRecord @RosterSlot)
 
             assigned.assignmentState `shouldBe` "staff"
             assigned.staffId `shouldBe` Just (unpackId staffId)
@@ -73,6 +74,8 @@ tests = do
             open.assignmentState `shouldBe` "open"
             open.staffId `shouldBe` Nothing
             rosterShiftAssignment open `shouldBe` Right OpenAssignment
+            fmap (\slot -> (slot.assignmentState, slot.staffId)) copied
+                `shouldBe` Right ("open", Nothing)
 
         it "rejects inconsistent or unknown persisted assignment shapes" do
             let invalidStaff = newRecord @RosterSlot |> set #assignmentState "staff" |> set #staffId Nothing

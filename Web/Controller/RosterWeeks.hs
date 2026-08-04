@@ -45,7 +45,8 @@ import Application.Helper.View (DialogOverlayConfig (..), OverlayButton (..),
                                 renderDialogOverlay, renderToastOob,
                                 successToast)
 import Application.RosterShiftAssignment (RosterShiftAssignment (StaffAssignment),
-                                          applyRosterShiftAssignment)
+                                          applyRosterShiftAssignment,
+                                          copyRosterShiftAssignment)
 import Application.VenueTime (RepeatedTimeOccurrence (..), VenueTimeError (..))
 import Application.VenueTime.Model
 import Control.Monad (guard)
@@ -789,23 +790,24 @@ instance Controller RosterWeeksController where
                                         case boundaryResolution of
                                             RosterDayDropBoundaryFailure repeatedEndpoints failure ->
                                                 respondWithRosterSlotCopyBoundaryFailure rosterGroup.id weekOffset "duplicate" intentForm occurrenceFields repeatedEndpoints selections failure
-                                            RosterDayDropBoundaryReady targetRosterWeek copiedBoundariesSlot -> do
-                                                let copiedSlot = newRecord @RosterSlot
-                                                        |> set #rosterDayId (unpackId targetRosterDay.id)
-                                                        |> set #assignmentState sourceSlot.assignmentState
-                                                        |> set #staffId sourceSlot.staffId
-                                                        |> set #rosterWeekSlotDefinitionId (unpackId targetSlotDefinition.id)
-                                                        |> set #slotSortOrder targetSlotDefinition.sortOrder
-                                                        |> set #rowIndex targetRowIndex
-                                                        |> set #startsAt copiedBoundariesSlot.startsAt
-                                                        |> set #endsAt copiedBoundariesSlot.endsAt
-                                                        |> set #timezone copiedBoundariesSlot.timezone
-                                                        |> set #shiftTypeId sourceSlot.shiftTypeId
-                                                mutationResult <- saveRosterSlotMutation rosterGroup.id targetRosterWeek targetRosterDay Nothing copiedSlot
-                                                case mutationResult of
+                                            RosterDayDropBoundaryReady targetRosterWeek copiedBoundariesSlot ->
+                                                case copyRosterShiftAssignment sourceSlot (newRecord @RosterSlot) of
                                                     Left message -> respondWithMoveRosterShiftFailure rosterGroup.id weekOffset message
-                                                    Right mutationResult ->
-                                                        respondToRosterSlotMutation rosterGroup.id targetRosterWeek targetRosterDay targetRowIndex mutationResult "Roster shift duplicated."
+                                                    Right assignmentSlot -> do
+                                                        let copiedSlot = assignmentSlot
+                                                                |> set #rosterDayId (unpackId targetRosterDay.id)
+                                                                |> set #rosterWeekSlotDefinitionId (unpackId targetSlotDefinition.id)
+                                                                |> set #slotSortOrder targetSlotDefinition.sortOrder
+                                                                |> set #rowIndex targetRowIndex
+                                                                |> set #startsAt copiedBoundariesSlot.startsAt
+                                                                |> set #endsAt copiedBoundariesSlot.endsAt
+                                                                |> set #timezone copiedBoundariesSlot.timezone
+                                                                |> set #shiftTypeId sourceSlot.shiftTypeId
+                                                        mutationResult <- saveRosterSlotMutation rosterGroup.id targetRosterWeek targetRosterDay Nothing copiedSlot
+                                                        case mutationResult of
+                                                            Left message -> respondWithMoveRosterShiftFailure rosterGroup.id weekOffset message
+                                                            Right mutationResult ->
+                                                                respondToRosterSlotMutation rosterGroup.id targetRosterWeek targetRosterDay targetRowIndex mutationResult "Roster shift duplicated."
 
     action currentAction@DropRosterStaffAction { weekOffset } = runBepis currentAction BepisMutationAction do
         ensureManagerRole

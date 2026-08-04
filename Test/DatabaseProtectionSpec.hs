@@ -8,12 +8,16 @@ import qualified Data.Text.IO as TextIO
 import Data.Time.Calendar (fromGregorian)
 import Data.Time.Clock (UTCTime (..), secondsToDiffTime)
 import Data.UUID (UUID)
+import qualified Data.UUID as UUID
 import qualified Database.PostgreSQL.Simple as PG
 import qualified Database.PostgreSQL.Simple.Types as PGTypes
 import Generated.Types
+import qualified Hasql.Session as HasqlSession
 import IHP.ControllerPrelude
 import IHP.ModelSupport (sqlExecDiscardResult, sqlQuery, sqlQueryScalar,
                          unpackId)
+import IHP.ModelSupport.Types (ModelContext (transactionRunner),
+                               TransactionRunner (runInTransaction))
 import IHP.Test.Mocking
 import Test.Hspec
 import Test.Support
@@ -179,6 +183,61 @@ tests = aroundAll withDatabaseTestContext do
                         |> filterWhere (#id, preference.id)
                         |> fetchOneOrNothing
                 deletedPreference `shouldBe` Nothing
+
+    describe "explicit roster shift assignment migration" do
+        it "upgrades representative predecessor rows without deleting history or Timesheet provenance" $ withContext do
+            withCleanDb do
+                migrationSql <- TextIO.readFile "Application/Migration/1785813000.sql"
+                sqlExecDiscardResult "DROP SCHEMA IF EXISTS assignment_migration_304 CASCADE" ()
+                withTransaction do
+                    sqlExecDiscardResult "CREATE SCHEMA assignment_migration_304" ()
+                    sqlExecDiscardResult "SET LOCAL search_path TO assignment_migration_304, public" ()
+                    sqlExecDiscardResult "CREATE TABLE staff (id UUID PRIMARY KEY, venue_id UUID NOT NULL)" ()
+                    sqlExecDiscardResult "CREATE TABLE shift_types (id UUID PRIMARY KEY, venue_id UUID NOT NULL)" ()
+                    sqlExecDiscardResult "CREATE TABLE roster_weeks (id UUID PRIMARY KEY, venue_id UUID NOT NULL)" ()
+                    sqlExecDiscardResult "CREATE TABLE roster_days (id UUID PRIMARY KEY, roster_week_id UUID NOT NULL REFERENCES roster_weeks (id))" ()
+                    sqlExecDiscardResult "CREATE TABLE roster_week_slot_definitions (id UUID PRIMARY KEY, roster_week_id UUID NOT NULL REFERENCES roster_weeks (id), deleted_at TIMESTAMPTZ)" ()
+                    sqlExecDiscardResult
+                        "CREATE TABLE roster_slots (id UUID PRIMARY KEY, roster_day_id UUID NOT NULL REFERENCES roster_days (id), staff_id UUID, roster_week_slot_definition_id UUID NOT NULL REFERENCES roster_week_slot_definitions (id), slot_sort_order INT DEFAULT 0 NOT NULL, row_index INT NOT NULL, starts_at TIMESTAMPTZ, ends_at TIMESTAMPTZ, timezone TEXT NOT NULL, shift_type_id UUID, deleted_at TIMESTAMPTZ, delete_reason TEXT, updated_at TIMESTAMPTZ DEFAULT NOW() NOT NULL, CONSTRAINT roster_slots_staff_id_fkey FOREIGN KEY (staff_id) REFERENCES staff (id) ON DELETE SET NULL, CONSTRAINT roster_slots_shift_type_id_fkey FOREIGN KEY (shift_type_id) REFERENCES shift_types (id) ON DELETE SET NULL)"
+                        ()
+                    sqlExecDiscardResult "CREATE TABLE timesheet_entries (id UUID PRIMARY KEY, source_roster_slot_id UUID REFERENCES roster_slots (id) ON DELETE RESTRICT)" ()
+                    sqlExecDiscardResult
+                        "CREATE FUNCTION enforce_roster_slot_week_definition_integrity() RETURNS TRIGGER AS $$ BEGIN IF NOT EXISTS (SELECT 1 FROM roster_days rd JOIN roster_week_slot_definitions rwsd ON rwsd.id = NEW.roster_week_slot_definition_id WHERE rd.id = NEW.roster_day_id AND rd.roster_week_id = rwsd.roster_week_id) THEN RAISE EXCEPTION 'invalid predecessor placement'; END IF; RETURN NEW; END; $$ LANGUAGE plpgsql"
+                        ()
+                    sqlExecDiscardResult "CREATE TRIGGER enforce_roster_slot_week_definition_integrity BEFORE INSERT OR UPDATE ON roster_slots FOR EACH ROW EXECUTE FUNCTION enforce_roster_slot_week_definition_integrity()" ()
+                    sqlExecDiscardResult
+                        "CREATE FUNCTION prevent_hard_delete() RETURNS TRIGGER AS $$ BEGIN RAISE EXCEPTION 'hard delete blocked'; END; $$ LANGUAGE plpgsql"
+                        ()
+                    sqlExecDiscardResult "CREATE TRIGGER prevent_hard_delete_roster_slots BEFORE DELETE ON roster_slots FOR EACH ROW EXECUTE FUNCTION prevent_hard_delete()" ()
+                    sqlExecDiscardResult "INSERT INTO staff (id, venue_id) VALUES ('20000000-0000-0000-0000-000000000001', '10000000-0000-0000-0000-000000000001'), ('20000000-0000-0000-0000-000000000002', '10000000-0000-0000-0000-000000000002')" ()
+                    sqlExecDiscardResult "INSERT INTO shift_types (id, venue_id) VALUES ('30000000-0000-0000-0000-000000000001', '10000000-0000-0000-0000-000000000001')" ()
+                    sqlExecDiscardResult "INSERT INTO roster_weeks (id, venue_id) VALUES ('40000000-0000-0000-0000-000000000001', '10000000-0000-0000-0000-000000000001')" ()
+                    sqlExecDiscardResult "INSERT INTO roster_days (id, roster_week_id) VALUES ('50000000-0000-0000-0000-000000000001', '40000000-0000-0000-0000-000000000001')" ()
+                    sqlExecDiscardResult "INSERT INTO roster_week_slot_definitions (id, roster_week_id) VALUES ('60000000-0000-0000-0000-000000000001', '40000000-0000-0000-0000-000000000001')" ()
+                    sqlExecDiscardResult
+                        "INSERT INTO roster_slots (id, roster_day_id, staff_id, roster_week_slot_definition_id, row_index, starts_at, ends_at, timezone, shift_type_id, deleted_at, delete_reason) VALUES ('70000000-0000-0000-0000-000000000001', '50000000-0000-0000-0000-000000000001', '20000000-0000-0000-0000-000000000001', '60000000-0000-0000-0000-000000000001', 0, '2026-08-03 00:00:00+00', '2026-08-03 08:00:00+00', 'Australia/Melbourne', '30000000-0000-0000-0000-000000000001', NULL, NULL), ('70000000-0000-0000-0000-000000000002', '50000000-0000-0000-0000-000000000001', NULL, '60000000-0000-0000-0000-000000000001', 1, '2026-08-03 00:00:00+00', '2026-08-03 08:00:00+00', 'Australia/Melbourne', '30000000-0000-0000-0000-000000000001', NULL, NULL), ('70000000-0000-0000-0000-000000000003', '50000000-0000-0000-0000-000000000001', NULL, '60000000-0000-0000-0000-000000000001', 2, NULL, NULL, 'Australia/Melbourne', NULL, NULL, NULL), ('70000000-0000-0000-0000-000000000004', '50000000-0000-0000-0000-000000000001', '20000000-0000-0000-0000-000000000002', '60000000-0000-0000-0000-000000000001', 3, '2026-08-03 00:00:00+00', '2026-08-03 08:00:00+00', 'Australia/Melbourne', '30000000-0000-0000-0000-000000000001', NULL, NULL), ('70000000-0000-0000-0000-000000000005', '50000000-0000-0000-0000-000000000001', NULL, '60000000-0000-0000-0000-000000000001', 4, NULL, NULL, 'Australia/Melbourne', NULL, NOW(), 'old_history')"
+                        ()
+                    sqlExecDiscardResult "INSERT INTO timesheet_entries (id, source_roster_slot_id) VALUES ('80000000-0000-0000-0000-000000000001', '70000000-0000-0000-0000-000000000001')" ()
+
+                    case transactionRunner ?modelContext of
+                        Nothing -> error "Assignment migration fixture requires a transaction runner"
+                        Just runner -> runInTransaction runner (HasqlSession.script migrationSql)
+
+                    migratedRows :: [(UUID, Text, Maybe UUID, Bool, Maybe Text)] <-
+                        sqlQuery "SELECT id, assignment_state, staff_id, deleted_at IS NOT NULL, delete_reason FROM roster_slots ORDER BY id" ()
+                    migratedRows `shouldBe`
+                        [ (migrationUuid "70000000-0000-0000-0000-000000000001", "staff", Just (migrationUuid "20000000-0000-0000-0000-000000000001"), False, Nothing)
+                        , (migrationUuid "70000000-0000-0000-0000-000000000002", "open", Nothing, False, Nothing)
+                        , (migrationUuid "70000000-0000-0000-0000-000000000003", "open", Nothing, True, Just "legacy_incomplete_shift_cleanup")
+                        , (migrationUuid "70000000-0000-0000-0000-000000000004", "open", Nothing, False, Nothing)
+                        , (migrationUuid "70000000-0000-0000-0000-000000000005", "open", Nothing, True, Just "old_history")
+                        ]
+                    sourceReferenceCount :: Int <- sqlQueryScalar "SELECT COUNT(*)::int FROM timesheet_entries WHERE source_roster_slot_id IS NOT NULL" ()
+                    sourceReferenceCount `shouldBe` 1
+                    hardDeleteTriggerState :: Text <- sqlQueryScalar "SELECT tgenabled::text FROM pg_trigger WHERE tgrelid = 'roster_slots'::regclass AND tgname = 'prevent_hard_delete_roster_slots'" ()
+                    hardDeleteTriggerState `shouldBe` "O"
+                    sqlExecDiscardResult "SET LOCAL search_path TO public" ()
+                    sqlExecDiscardResult "DROP SCHEMA assignment_migration_304 CASCADE" ()
 
     describe "authoritative time migration" do
         it "executes the migration resolver with first-occurrence and gap-rejection policy" $ withContext do
@@ -467,6 +526,9 @@ tests = aroundAll withDatabaseTestContext do
                         ) :: IO (Either SomeException ())
 
                 result `shouldSatisfy` isLeft
+
+migrationUuid :: String -> UUID
+migrationUuid value = fromMaybe (error "Invalid assignment migration fixture UUID") (UUID.fromString value)
 
 createProtectedShiftPreference :: (?modelContext :: ModelContext) => IO StaffShiftPreference
 createProtectedShiftPreference = do

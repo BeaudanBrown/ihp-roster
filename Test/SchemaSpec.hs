@@ -364,26 +364,14 @@ tests = describe "Schema" do
         schemaSqlText `shouldSatisfy` Text.isInfixOf "CHECK (manager_note IS NULL OR char_length(manager_note) <= 1000)"
         schemaSqlText `shouldSatisfy` Text.isInfixOf "CHECK (((is_approved = FALSE) AND approved_at IS NULL AND approved_by_user_id IS NULL AND staff_pay_version_id IS NULL AND shift_type_pay_version_id IS NULL) OR ((is_approved = TRUE) AND approved_at IS NOT NULL AND approved_by_user_id IS NOT NULL AND staff_pay_version_id IS NOT NULL AND shift_type_pay_version_id IS NOT NULL))"
 
-    it "adds and safely migrates explicit roster-shift assignment state" do
+    it "defines explicit roster-shift assignment state in the fresh schema" do
         schemaSqlText <- TextIO.readFile "Application/Schema.sql"
-        migrationSqlText <- TextIO.readFile "Application/Migration/1785813000.sql"
         runbookExists <- Directory.doesFileExist "Application/Migration/explicit-roster-shift-assignment-304-runbook.md"
         schemaSqlText `shouldSatisfy` Text.isInfixOf "assignment_state TEXT NOT NULL"
         schemaSqlText `shouldSatisfy` Text.isInfixOf "roster_slots_assignment_state_check CHECK (assignment_state = 'staff' OR assignment_state = 'open')"
         schemaSqlText `shouldSatisfy` Text.isInfixOf "roster_slots_active_structure_check CHECK"
         schemaSqlText `shouldSatisfy` Text.isInfixOf "FOREIGN KEY (staff_id) REFERENCES staff (id) ON DELETE RESTRICT"
         schemaSqlText `shouldSatisfy` Text.isInfixOf "roster slot staff_id must stay within roster week venue"
-        migrationSqlText `shouldSatisfy` Text.isInfixOf "legacy_incomplete_shift_cleanup"
-        migrationSqlText `shouldSatisfy` Text.isInfixOf "assignment_state = 'open',\n    staff_id = NULL"
-        migrationSqlText `shouldSatisfy` Text.isInfixOf "WHEN staff_id IS NULL THEN 'open'\n        ELSE 'staff'"
-        migrationSqlText `shouldSatisfy` Text.isInfixOf "explicit roster shift assignment preflight failed"
-        migrationSqlText `shouldSatisfy` Text.isInfixOf "ALTER COLUMN assignment_state SET NOT NULL"
-        migrationSqlText `shouldSatisfy` Text.isInfixOf "VALIDATE CONSTRAINT roster_slots_assignment_shape_check"
-        migrationSqlText `shouldSatisfy` Text.isInfixOf "VALIDATE CONSTRAINT roster_slots_active_structure_check"
-        migrationSqlText `shouldNotSatisfy` Text.isInfixOf "DELETE FROM roster_slots"
-        migrationSqlText `shouldNotSatisfy` Text.isInfixOf "DROP COLUMN"
-        migrationSqlText `shouldNotSatisfy` Text.isInfixOf "DROP TABLE"
-        migrationSqlText `shouldNotSatisfy` Text.isInfixOf "TRUNCATE"
         runbookExists `shouldBe` True
 
     it "adds and safely backfills explicit pay-assignment modes" do

@@ -39,6 +39,7 @@ import Application.Helper.RosterGroups
 import Application.Helper.TimeRules (authoritativeRosterIntervalIsOperationallyValid)
 import Application.PayAssignment
 import Application.RosterShiftAssignment (RosterShiftAssignment (..),
+                                          copyRosterShiftAssignment,
                                           rosterShiftAssignment)
 import Application.Staff.Mutations (withStaffOperationalLocksInCurrentTransaction)
 import Application.VenueTime (RepeatedTimeOccurrence)
@@ -600,20 +601,21 @@ copyRosterWeekSlotDefinitionsAndSlots sourceWeek targetWeek plans = do
             pure (targetDay, targetDefinition)
           of
             Nothing -> error "Roster week copy plan no longer matches target structure"
-            Just (targetDay, targetDefinition) -> do
-                _ <- newRecord @RosterSlot
-                    |> set #rosterDayId (unpackId targetDay.id)
-                    |> set #assignmentState sourceSlot.assignmentState
-                    |> set #staffId sourceSlot.staffId
-                    |> set #rosterWeekSlotDefinitionId (unpackId targetDefinition.id)
-                    |> set #slotSortOrder targetDefinition.sortOrder
-                    |> set #rowIndex sourceSlot.rowIndex
-                    |> set #startsAt plan.copiedStartsAt
-                    |> set #endsAt plan.copiedEndsAt
-                    |> set #timezone plan.copiedTimezone
-                    |> set #shiftTypeId sourceSlot.shiftTypeId
-                    |> createRecord
-                pure ()
+            Just (targetDay, targetDefinition) ->
+                case copyRosterShiftAssignment sourceSlot (newRecord @RosterSlot) of
+                    Left message -> error message
+                    Right assignmentSlot -> do
+                        _ <- assignmentSlot
+                            |> set #rosterDayId (unpackId targetDay.id)
+                            |> set #rosterWeekSlotDefinitionId (unpackId targetDefinition.id)
+                            |> set #slotSortOrder targetDefinition.sortOrder
+                            |> set #rowIndex sourceSlot.rowIndex
+                            |> set #startsAt plan.copiedStartsAt
+                            |> set #endsAt plan.copiedEndsAt
+                            |> set #timezone plan.copiedTimezone
+                            |> set #shiftTypeId sourceSlot.shiftTypeId
+                            |> createRecord
+                        pure ()
 
 appendRosterWeekSlotDefinition :: (?modelContext :: ModelContext) => RosterWeek -> Text -> IO RosterWeekSlotDefinition
 appendRosterWeekSlotDefinition rosterWeek slotName = do
