@@ -59,6 +59,17 @@ test.describe('Unavailability shared SidePanel', () => {
 
         await pin.click();
         await expect(pin).toHaveAttribute('aria-pressed', 'false');
+
+        const toggle = page.locator(`[${leaveRequestsLeaveSidePanelToggleDomAttr}]`);
+        await toggle.click();
+        await expect(page.locator(`[${leaveRequestsLeaveSidePanelDomAttr}]`)).toHaveAttribute(
+            leaveRequestsLeaveSidePanelDomAttr,
+            leaveRequestsLeaveSidePanelStates.expanded,
+        );
+        await expect(panel).toBeHidden();
+        await toggle.click();
+        await expect(panel).toBeVisible();
+
         await matchingSource.click();
         await expect(page.locator(`#${dialogOverlayMountDomId}`).getByRole('dialog')).toBeVisible();
     });
@@ -73,13 +84,6 @@ test.describe('Unavailability shared SidePanel', () => {
         await page.getByRole('tab', { name: 'Settings' }).click();
         await expect(page.locator('#unavailability-blackouts')).toBeVisible();
         expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
-
-        const toggle = page.locator(`[${leaveRequestsLeaveSidePanelToggleDomAttr}]`);
-        await toggle.click();
-        await expect(page.locator(`[${leaveRequestsLeaveSidePanelDomAttr}]`)).toHaveAttribute(
-            leaveRequestsLeaveSidePanelDomAttr,
-            leaveRequestsLeaveSidePanelStates.expanded,
-        );
-        await expect(panel).toBeHidden();
+        await expect(page.locator(`[${leaveRequestsLeaveSidePanelToggleDomAttr}]`)).toBeHidden();
     });
 });
