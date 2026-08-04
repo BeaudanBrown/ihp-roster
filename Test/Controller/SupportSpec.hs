@@ -136,12 +136,17 @@ tests = aroundAll withDatabaseTestContext do
                 crossVenueTarget <- createUserRecord "impersonation-cross-target@example.com" "staff" True
                 _ <- createVenueMembershipRecord otherVenue crossVenueTarget Worker
 
+                unauthenticatedResponse <- callAction StartSupportImpersonationAction
+                getSession @(Id User) effectiveUserSessionKey `shouldReturn` Nothing
+                getSession @Text impersonationSessionIdSessionKey `shouldReturn` Nothing
+
                 ordinaryResponse <- withPasskeyVerifiedUserAndCurrentVenue ordinaryUser selectedVenue.id do
                     response <- callActionWithParams
                         StartSupportImpersonationAction
                         [("userId", cs (inputValue ordinaryUser.id))]
                     getSession @(Id User) effectiveUserSessionKey `shouldReturn` Nothing
                     pure response
+                unauthenticatedResponse `responseStatusShouldBe` status302
                 ordinaryResponse `responseStatusShouldBe` status302
 
                 crossVenueResponse <- withPasskeyVerifiedUserAndCurrentVenue superAdmin selectedVenue.id do
