@@ -11,6 +11,7 @@ import Config
 import Control.Concurrent (forkIO, newEmptyMVar, putMVar, takeMVar)
 import Control.Exception (SomeException, try)
 import qualified Data.Aeson as Aeson
+import qualified Data.Aeson.KeyMap as AesonKeyMap
 import Data.Bits (xor)
 import qualified Data.ByteString as ByteString
 import qualified Data.UUID as UUID
@@ -236,6 +237,37 @@ tests = aroundAll withDatabaseTestContext do
                     |> filterWhere (#eventType, "support_impersonation_expired")
                     |> fetchCount
                     >>= (`shouldBe` 1)
+
+        it "expires instead of migrating impersonation when the selected venue becomes inactive" $ withContext do
+            withCleanDb do
+                selectedVenue <- createVenueWithConfig "Inactive Selected Impersonation Venue"
+                fallbackVenue <- createVenueWithConfig "Active Fallback Impersonation Venue"
+                superAdmin <- createUserRecordWithPlatformRole "impersonation-inactive-venue@example.com" "staff" (Just SuperAdmin) True
+                targetUser <- createUserRecord "impersonation-multi-venue-target@example.com" "staff" True
+                _ <- createVenueMembershipRecord selectedVenue targetUser Manager
+                _ <- createVenueMembershipRecord fallbackVenue targetUser Manager
+
+                response <- withPasskeyVerifiedUserAndCurrentVenue superAdmin selectedVenue.id do
+                    _ <- callActionWithParams
+                        StartSupportImpersonationAction
+                        [("userId", cs (inputValue targetUser.id))]
+                    _ <- selectedVenue |> set #status Inactive |> updateRecord
+
+                    response <- callAction SupportAction
+                    getSession @(Id User) effectiveUserSessionKey `shouldReturn` Nothing
+                    getSession @Text impersonationSessionIdSessionKey `shouldReturn` Nothing
+                    pure response
+
+                response `responseStatusShouldBe` status200
+                response `responseBodyShouldContain` "Support impersonation ended because the selected venue is no longer available."
+                expiry <- query @AuditEvent
+                    |> filterWhere (#eventType, "support_impersonation_expired")
+                    |> fetchOne
+                expiry.venueId `shouldBe` unpackId selectedVenue.id
+                expiry.targetId `shouldBe` unpackId targetUser.id
+                expiry.payload `shouldSatisfy` \case
+                    Aeson.Object fields -> AesonKeyMap.lookup "reason" fields == Just (Aeson.String "selected_venue_unavailable")
+                    _ -> False
 
         it "clears effective identity on manual exit and venue switch" $ withContext do
             withCleanDb do

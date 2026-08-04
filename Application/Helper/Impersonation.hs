@@ -37,10 +37,12 @@ initImpersonationContext = do
     case (maybeEffectiveUserId, maybeSessionId) of
         (Nothing, Nothing) | isNothing maybeSessionIdText -> pure ()
         (Just effectiveUserId, Just sessionId)
-            | currentUserIsSuperAdmin && isJust currentVenueOrNothing ->
+            | currentUserIsSuperAdmin && currentVenueSelectionIsExact ->
                 resolveImpersonationRequestContext effectiveUserId sessionId >>= \case
                     Just impersonationContext -> activateImpersonationContext impersonationContext
                     Nothing -> expireImpersonationSession effectiveUserId sessionId "target_unavailable"
+            | currentUserIsSuperAdmin ->
+                expireInvalidVenueImpersonation effectiveUserId sessionId
         (maybeEffectiveUserId', _) ->
             expireIncompleteImpersonationSession maybeEffectiveUserId' maybeSessionIdText
 
@@ -159,6 +161,20 @@ expireImpersonationSession effectiveUserId sessionId reason = do
     clearImpersonationSession
     withRequestContext (setErrorMessage "Support impersonation ended because the selected user is no longer available.")
 
+expireInvalidVenueImpersonation ::
+    (?context :: ControllerContext, ?modelContext :: ModelContext) =>
+    Id User ->
+    UUID ->
+    IO ()
+expireInvalidVenueImpersonation effectiveUserId sessionId = do
+    recordImpersonationExpiry
+        effectiveUserId
+        (Aeson.toJSON effectiveUserId)
+        (Aeson.toJSON sessionId)
+        "selected_venue_unavailable"
+    clearImpersonationSession
+    withRequestContext (setErrorMessage "Support impersonation ended because the selected venue is no longer available.")
+
 expireIncompleteImpersonationSession ::
     (?context :: ControllerContext, ?modelContext :: ModelContext) =>
     Maybe (Id User) ->
@@ -182,10 +198,11 @@ recordImpersonationExpiry ::
     Text ->
     IO ()
 recordImpersonationExpiry targetUserId effectiveUserIdValue sessionIdValue reason =
-    when (currentUserIsSuperAdmin && isJust currentVenueOrNothing) do
-        void $
-            recordAuditEvent
-                (unpackId currentVenueId)
+    when currentUserIsSuperAdmin do
+        forM_ (currentVenueSelection.requestedVenueId <|> fmap (.id) currentVenueOrNothing) \auditVenueId ->
+            void $
+                recordAuditEvent
+                (unpackId auditVenueId)
                 (unpackId (get #id authenticatedCurrentUser))
                 SupportImpersonationExpiredAudit
                 "users"

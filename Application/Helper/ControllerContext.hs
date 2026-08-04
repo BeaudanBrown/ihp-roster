@@ -34,6 +34,24 @@ authenticatedCurrentUser =
 
 newtype SupportVenueOptions = SupportVenueOptions { supportVenueOptions :: [Venue] }
 
+data CurrentVenueSelection = CurrentVenueSelection
+    { requestedVenueId :: !(Maybe (Id Venue))
+    , resolvedVenueId  :: !(Maybe (Id Venue))
+    }
+
+currentVenueSelection :: (?context :: ControllerContext) => CurrentVenueSelection
+currentVenueSelection =
+    fromMaybe
+        (CurrentVenueSelection Nothing Nothing)
+        (unsafePerformIO (maybeFromContext @CurrentVenueSelection))
+{-# NOINLINE currentVenueSelection #-}
+
+currentVenueSelectionIsExact :: (?context :: ControllerContext) => Bool
+currentVenueSelectionIsExact =
+    case currentVenueSelection of
+        CurrentVenueSelection { requestedVenueId = Just requested, resolvedVenueId = Just resolved } -> requested == resolved
+        _ -> False
+
 newtype ActualUser = ActualUser { actualUserRecord :: User }
     deriving (Eq, Show)
 
@@ -148,13 +166,17 @@ initCurrentVenueContext =
         putContext (Nothing :: Maybe VenueMembership)
         putContext (Nothing :: Maybe VenueRoleEnum)
         putContext (SupportVenueOptions supportVenues)
+        putContext (CurrentVenueSelection Nothing Nothing)
 
         forM_ (currentUserOrNothing @User) \user -> do
             sessionVenueId <- withRequestContext (getSession @(Id Venue) currentVenueSessionKey)
             maybeVenueContext <- profileActionSpan "context.current_venue.resolve_for_user" (resolveVenueContextForUser sessionVenueId user)
             case maybeVenueContext of
-                Nothing -> withRequestContext (deleteSession currentVenueSessionKey)
+                Nothing -> do
+                    putContext (CurrentVenueSelection sessionVenueId Nothing)
+                    withRequestContext (deleteSession currentVenueSessionKey)
                 Just (membership, venue, role) -> do
+                    putContext (CurrentVenueSelection sessionVenueId (Just venue.id))
                     putContext (Just venue)
                     putContext membership
                     putContext role
