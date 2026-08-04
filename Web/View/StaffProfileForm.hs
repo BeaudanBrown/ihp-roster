@@ -5,8 +5,8 @@ module Web.View.StaffProfileForm where
 
 import Application.Helper.Controller (assignableVenueRolesFor,
                                       currentUserIsUnimpersonatedSuperAdmin,
-                                      effectiveVenueRoleOrNothing, venueRoleLabel,
-                                      venueRoleToText)
+                                      effectiveVenueRoleOrNothing,
+                                      venueRoleLabel, venueRoleToText)
 import Application.Helper.FrontendContract.OrderedRange.Runtime
 import qualified Application.Helper.FrontendContract.Surface.Profile as Surface
 import Application.Helper.FrontendContract.Surface.Values
