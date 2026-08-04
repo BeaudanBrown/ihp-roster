@@ -1,0 +1,3 @@
+ALTER TABLE user_preferences
+    ADD COLUMN IF NOT EXISTS hide_approved BOOLEAN NOT NULL DEFAULT TRUE,
+    ADD COLUMN IF NOT EXISTS show_timesheet_suggestions BOOLEAN NOT NULL DEFAULT TRUE;

@@ -2,11 +2,13 @@
 
 module Application.Helper.UserPreferences
     ( UserRosterPreferences (..)
+    , UserTimesheetPreferences (..)
     , defaultRosterLayoutMode
     , fetchCurrentRosterLayoutMode
     , fetchCurrentUserRosterPreferences
     , fetchCurrentUserShowRosterWarnings
     , fetchCurrentUserShowWageEstimates
+    , fetchCurrentUserTimesheetPreferences
     , parseRosterLayoutMode
     , rosterLayoutModeLabel
     , rosterLayoutModeValue
@@ -14,6 +16,8 @@ module Application.Helper.UserPreferences
     , upsertCurrentUserRosterLayoutMode
     , upsertCurrentUserShowRosterWarnings
     , upsertCurrentUserShowWageEstimates
+    , upsertCurrentUserTimesheetHideApproved
+    , upsertCurrentUserTimesheetShowSuggestions
     ) where
 
 import Application.Helper.Controller (effectiveCurrentUser, enumFromText,
@@ -26,6 +30,12 @@ data UserRosterPreferences = UserRosterPreferences
     , userShowRosterWarnings :: Bool
     , userShowWageEstimates  :: Bool
     }
+
+data UserTimesheetPreferences = UserTimesheetPreferences
+    { userTimesheetHideApproved    :: Bool
+    , userTimesheetShowSuggestions :: Bool
+    }
+    deriving (Eq, Show)
 
 normaliseUserRosterPreferences :: Maybe UserPreference -> UserRosterPreferences
 normaliseUserRosterPreferences maybePreferences =
@@ -78,6 +88,14 @@ fetchCurrentUserShowWageEstimates :: (?context :: ControllerContext, ?modelConte
 fetchCurrentUserShowWageEstimates =
     (.userShowWageEstimates) <$> fetchCurrentUserRosterPreferences
 
+fetchCurrentUserTimesheetPreferences :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => IO UserTimesheetPreferences
+fetchCurrentUserTimesheetPreferences = do
+    maybePreferences <- fetchCurrentUserPreferenceRecord
+    pure UserTimesheetPreferences
+        { userTimesheetHideApproved = maybe True (.hideApproved) maybePreferences
+        , userTimesheetShowSuggestions = maybe True (.showTimesheetSuggestions) maybePreferences
+        }
+
 upsertCurrentUserRosterLayoutMode ::
     (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
     RosterLayoutModeEnum ->
@@ -128,4 +146,38 @@ upsertCurrentUserShowWageEstimates showWageEstimates = do
             newRecord @UserPreference
                 |> set #userId (unpackId effectiveCurrentUser.id)
                 |> set #showWageEstimates showWageEstimates
+                |> createRecord
+
+upsertCurrentUserTimesheetHideApproved ::
+    (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
+    Bool ->
+    IO UserPreference
+upsertCurrentUserTimesheetHideApproved hideApproved = do
+    maybePreferences <- fetchCurrentUserPreferenceRecord
+    case maybePreferences of
+        Just preferences ->
+            preferences
+                |> set #hideApproved hideApproved
+                |> updateRecord
+        Nothing ->
+            newRecord @UserPreference
+                |> set #userId (unpackId currentUser.id)
+                |> set #hideApproved hideApproved
+                |> createRecord
+
+upsertCurrentUserTimesheetShowSuggestions ::
+    (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
+    Bool ->
+    IO UserPreference
+upsertCurrentUserTimesheetShowSuggestions showTimesheetSuggestions = do
+    maybePreferences <- fetchCurrentUserPreferenceRecord
+    case maybePreferences of
+        Just preferences ->
+            preferences
+                |> set #showTimesheetSuggestions showTimesheetSuggestions
+                |> updateRecord
+        Nothing ->
+            newRecord @UserPreference
+                |> set #userId (unpackId currentUser.id)
+                |> set #showTimesheetSuggestions showTimesheetSuggestions
                 |> createRecord
