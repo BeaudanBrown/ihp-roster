@@ -53,6 +53,43 @@ test.describe('Super-admin venue and user switchers', () => {
         await expect(page.getByRole('link', { name: 'support', exact: true })).toBeVisible();
     });
 
+    test('keeps impersonation isolated between concurrent founder sessions', async ({ browser }) => {
+        const firstContext = await browser.newContext({ baseURL: webauthnBaseURL });
+        const secondContext = await browser.newContext({ baseURL: webauthnBaseURL });
+        const firstPage = await firstContext.newPage();
+        const secondPage = await secondContext.newPage();
+
+        try {
+            await loginAsSuperAdmin(firstPage);
+            await loginAsSuperAdmin(secondPage);
+            await openRoster(firstPage, {
+                email: 'e2e-super-admin@example.com',
+                password: 'test-password-123',
+                ensureEditable: false,
+                useCurrentSession: true,
+            });
+            await openRoster(secondPage, {
+                email: 'e2e-super-admin@example.com',
+                password: 'test-password-123',
+                ensureEditable: false,
+                useCurrentSession: true,
+            });
+
+            await firstPage.locator('#support-impersonation-user').selectOption({ label: 'Alpha — Worker' });
+            await secondPage.locator('#support-impersonation-user').selectOption({ label: 'Alpha — Worker' });
+            await expect(firstPage.locator('#support-impersonation-user option:checked')).toHaveText('Alpha — Worker');
+            await expect(secondPage.locator('#support-impersonation-user option:checked')).toHaveText('Alpha — Worker');
+
+            await firstPage.locator('#support-impersonation-user').selectOption({ label: 'Super admin' });
+            await expect(firstPage.locator('#support-impersonation-user option:checked')).toHaveText('Super admin');
+            await secondPage.reload();
+            await expect(secondPage.locator('#support-impersonation-user option:checked')).toHaveText('Alpha — Worker');
+        } finally {
+            await firstContext.close();
+            await secondContext.close();
+        }
+    });
+
     test('shows a venue switcher in the header and switches active venue', async ({ page }) => {
         await loginAsSuperAdmin(page);
 
