@@ -43,11 +43,11 @@ newtype EffectiveUser = EffectiveUser { effectiveUserRecord :: User }
 newtype EffectiveStaffContext = EffectiveStaffContext { effectiveStaffContextValue :: Maybe Staff }
 
 data ImpersonationRequestContext = ImpersonationRequestContext
-    { impersonationSessionId :: !UUID
-    , impersonationEffectiveUser :: !EffectiveUser
+    { impersonationSessionId       :: !UUID
+    , impersonationEffectiveUser   :: !EffectiveUser
     , impersonationVenueMembership :: !VenueMembership
-    , impersonationVenueRole :: !VenueRoleEnum
-    , impersonationStaff :: !(Maybe Staff)
+    , impersonationVenueRole       :: !VenueRoleEnum
+    , impersonationStaff           :: !(Maybe Staff)
     }
     deriving (Eq, Show)
 
