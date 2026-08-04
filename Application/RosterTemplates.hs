@@ -1,0 +1,681 @@
+module Application.RosterTemplates
+    ( RosterTemplateActor
+    , RosterTemplateColumnInput (..)
+    , RosterTemplateContent (..)
+    , RosterTemplateDayInput (..)
+    , RosterTemplateDraft (..)
+    , RosterTemplateError (..)
+    , RosterTemplateLibrary (..)
+    , RosterTemplateSave (..)
+    , RosterTemplateSaveWarning (..)
+    , RosterTemplateSaved (..)
+    , RosterTemplateScale (..)
+    , RosterTemplateShiftInput (..)
+    , currentRosterTemplateActor
+    , discardRosterTemplateDraft
+    , fetchPrivateRosterTemplateDraft
+    , fetchRosterTemplateLibrary
+    , fetchSavedRosterTemplate
+    , replaceRosterTemplateDraftContent
+    , rosterTemplateActor
+    , saveRosterTemplateDraft
+    , reloadLatestRosterTemplateDraft
+    , saveRosterTemplateDraftAsNew
+    , softDeleteRosterTemplate
+    , startBlankRosterTemplateDraft
+    , startRosterTemplateEditDraft
+    ) where
+
+import Application.Helper.ControllerAccess (hasRole)
+import Application.Helper.ControllerContext (authenticatedCurrentUser, currentVenue)
+import Application.PayAssignment (EffectivePayAssignment (..), StaffPayAssignment (..), ShiftPayAssignment (..), resolvePayAssignment, staffPayAssignmentRequiresRemediation, shiftPayAssignmentRequiresRemediation)
+import Application.RosterShiftAssignment (RosterShiftAssignment (..))
+import Application.RosterTemplates.Mutations (lockRosterTemplateVersion)
+import Control.Monad (void)
+import qualified Data.Map.Strict as Map
+import qualified Data.Set as Set
+import qualified Data.Text as Text
+import Data.Time.Clock (getCurrentTime)
+import Data.UUID (UUID)
+import Generated.Types
+import IHP.ControllerPrelude
+
+data RosterTemplateScale
+    = DayTemplate
+    | WeekTemplate
+    deriving (Eq, Show)
+
+data RosterTemplateActor = RosterTemplateActor
+    { actorUserId :: !(Id User)
+    , actorVenueId :: !(Id Venue)
+    , actorCanEditRosters :: !Bool
+    }
+    deriving (Eq, Show)
+
+data RosterTemplateDayInput = RosterTemplateDayInput
+    { inputDayIndex :: !Int
+    , inputDayIsClosed :: !Bool
+    , inputDayRowCount :: !Int
+    }
+    deriving (Eq, Show)
+
+data RosterTemplateColumnInput = RosterTemplateColumnInput
+    { inputColumnName :: !Text
+    , inputColumnSortOrder :: !Int
+    }
+    deriving (Eq, Show)
+
+data RosterTemplateShiftInput = RosterTemplateShiftInput
+    { inputShiftDayIndex :: !Int
+    , inputShiftColumnSortOrder :: !Int
+    , inputShiftRowIndex :: !Int
+    , inputShiftStartMinute :: !Int
+    , inputShiftEndMinute :: !Int
+    , inputShiftTypeId :: !(Id ShiftType)
+    , inputShiftAssignment :: !RosterShiftAssignment
+    }
+    deriving (Eq, Show)
+
+data RosterTemplateContent = RosterTemplateContent
+    { contentDays :: ![RosterTemplateDayInput]
+    , contentColumns :: ![RosterTemplateColumnInput]
+    , contentShifts :: ![RosterTemplateShiftInput]
+    }
+    deriving (Eq, Show)
+
+data RosterTemplateSaved = RosterTemplateSaved
+    { savedTemplate :: !RosterTemplate
+    , savedDesign :: !RosterTemplateDesign
+    , savedDays :: ![RosterTemplateDay]
+    , savedColumns :: ![RosterTemplateColumn]
+    , savedShifts :: ![RosterTemplateShift]
+    }
+    deriving (Eq, Show)
+
+data RosterTemplateSaveWarning
+    = RosterTemplateAssignmentConvertedToOpen !(Id RosterTemplateShift)
+    deriving (Eq, Show)
+
+data RosterTemplateSave = RosterTemplateSave
+    { savedTemplate :: !RosterTemplate
+    , savedVersion :: !Int
+    , saveWarnings :: ![RosterTemplateSaveWarning]
+    }
+    deriving (Eq, Show)
+
+data RosterTemplateLibrary = RosterTemplateLibrary
+    { libraryTemplates :: ![RosterTemplate]
+    , libraryPrivateDraft :: !(Maybe RosterTemplateDraft)
+    }
+    deriving (Eq, Show)
+
+data RosterTemplateDraft = RosterTemplateDraft
+    { draftDesign :: !RosterTemplateDesign
+    , draftName :: !Text
+    , draftDays :: ![RosterTemplateDay]
+    , draftColumns :: ![RosterTemplateColumn]
+    , draftShifts :: ![RosterTemplateShift]
+    }
+    deriving (Eq, Show)
+
+data RosterTemplateError
+    = RosterTemplateForbidden
+    | RosterTemplateDraftSlotOccupied
+    | RosterTemplateInvalidName
+    | RosterTemplateScopeMismatch
+    | RosterTemplateInvalidContent !Text
+    | RosterTemplateNotFound
+    | RosterTemplateConflict !Int
+    | RosterTemplateInvalidShiftTypes ![Id ShiftType]
+    deriving (Eq, Show)
+
+currentRosterTemplateActor :: (?context :: ControllerContext) => RosterTemplateActor
+currentRosterTemplateActor =
+    rosterTemplateActor authenticatedCurrentUser currentVenue (hasRole Manager)
+
+rosterTemplateActor :: User -> Venue -> Bool -> RosterTemplateActor
+rosterTemplateActor user venue canEditRosters =
+    RosterTemplateActor
+        { actorUserId = user.id
+        , actorVenueId = venue.id
+        , actorCanEditRosters = canEditRosters
+        }
+
+startBlankRosterTemplateDraft ::
+    (?modelContext :: ModelContext) =>
+    RosterTemplateActor ->
+    RosterGroup ->
+    RosterTemplateScale ->
+    Text ->
+    IO (Either RosterTemplateError RosterTemplateDraft)
+startBlankRosterTemplateDraft actor rosterGroup scale requestedName
+    | not actor.actorCanEditRosters = pure (Left RosterTemplateForbidden)
+    | rosterGroup.venueId /= unpackId actor.actorVenueId = pure (Left RosterTemplateScopeMismatch)
+    | Text.null normalizedName || Text.length normalizedName > 120 = pure (Left RosterTemplateInvalidName)
+    | otherwise = do
+        existingDraft <- fetchPrivateRosterTemplateDraft actor
+        case existingDraft of
+            Just _ -> pure (Left RosterTemplateDraftSlotOccupied)
+            Nothing -> do
+                design <-
+                    newRecord @RosterTemplateDesign
+                        |> set #rosterGroupId (unpackId rosterGroup.id)
+                        |> set #scale (rosterTemplateScaleText scale)
+                        |> set #draftOwnerUserId (Just (unpackId actor.actorUserId))
+                        |> set #draftName (Just normalizedName)
+                        |> set #createdByUserId (unpackId actor.actorUserId)
+                        |> createRecord
+                pure (Right (emptyDraft design normalizedName))
+  where
+    normalizedName = Text.strip requestedName
+
+fetchRosterTemplateLibrary ::
+    (?modelContext :: ModelContext) =>
+    RosterTemplateActor ->
+    RosterGroup ->
+    IO (Maybe RosterTemplateLibrary)
+fetchRosterTemplateLibrary actor rosterGroup
+    | not actor.actorCanEditRosters = pure Nothing
+    | rosterGroup.venueId /= unpackId actor.actorVenueId = pure Nothing
+    | otherwise = do
+        templates <-
+            query @RosterTemplate
+                |> filterWhere (#rosterGroupId, unpackId rosterGroup.id)
+                |> filterWhere (#deletedAt, Nothing)
+                |> orderByAsc #name
+                |> fetch
+        privateDraft <- fetchPrivateRosterTemplateDraft actor
+        pure (Just (RosterTemplateLibrary templates privateDraft))
+
+discardRosterTemplateDraft ::
+    (?modelContext :: ModelContext) =>
+    RosterTemplateActor ->
+    Id RosterTemplateDesign ->
+    IO (Either RosterTemplateError ())
+discardRosterTemplateDraft actor designId
+    | not actor.actorCanEditRosters = pure (Left RosterTemplateForbidden)
+    | otherwise = do
+        maybeDraft <- fetchOwnedDraft actor designId
+        case maybeDraft of
+            Nothing -> pure (Left RosterTemplateForbidden)
+            Just draft -> deleteRecord draft >> pure (Right ())
+
+reloadLatestRosterTemplateDraft ::
+    (?modelContext :: ModelContext) =>
+    RosterTemplateActor ->
+    Id RosterTemplateDesign ->
+    IO (Either RosterTemplateError RosterTemplateDraft)
+reloadLatestRosterTemplateDraft actor designId = do
+    maybeDraft <- fetchOwnedDraft actor designId
+    case maybeDraft >>= (.sourceTemplateId) of
+        Nothing -> pure (Left RosterTemplateNotFound)
+        Just sourceTemplateId -> withTransaction do
+            case maybeDraft of
+                Nothing -> pure (Left RosterTemplateNotFound)
+                Just draft -> do
+                    deleteRecord draft
+                    startRosterTemplateEditDraft actor (Id sourceTemplateId)
+
+softDeleteRosterTemplate ::
+    (?modelContext :: ModelContext) =>
+    RosterTemplateActor ->
+    Id RosterTemplate ->
+    Text ->
+    IO (Either RosterTemplateError ())
+softDeleteRosterTemplate actor templateId reason
+    | not actor.actorCanEditRosters = pure (Left RosterTemplateForbidden)
+    | otherwise = do
+        maybeSaved <- fetchSavedRosterTemplate actor templateId
+        case maybeSaved of
+            Nothing -> pure (Left RosterTemplateNotFound)
+            Just saved -> do
+                now <- getCurrentTime
+                saved.savedTemplate
+                    |> set #deletedAt (Just now)
+                    |> set #deletedByUserId (Just (unpackId actor.actorUserId))
+                    |> set #deleteReason (Just (Text.take 500 (Text.strip reason)))
+                    |> updateRecord
+                    |> void
+                pure (Right ())
+
+startRosterTemplateEditDraft ::
+    (?modelContext :: ModelContext) =>
+    RosterTemplateActor ->
+    Id RosterTemplate ->
+    IO (Either RosterTemplateError RosterTemplateDraft)
+startRosterTemplateEditDraft actor templateId
+    | not actor.actorCanEditRosters = pure (Left RosterTemplateForbidden)
+    | otherwise = do
+        existingDraft <- fetchPrivateRosterTemplateDraft actor
+        case existingDraft of
+            Just _ -> pure (Left RosterTemplateDraftSlotOccupied)
+            Nothing -> do
+                maybeSaved <- fetchSavedRosterTemplate actor templateId
+                case maybeSaved of
+                    Nothing -> pure (Left RosterTemplateNotFound)
+                    Just saved -> do
+                        let template = saved.savedTemplate
+                        design <-
+                            newRecord @RosterTemplateDesign
+                                |> set #rosterGroupId template.rosterGroupId
+                                |> set #scale template.scale
+                                |> set #draftOwnerUserId (Just (unpackId actor.actorUserId))
+                                |> set #draftName (Just template.name)
+                                |> set #sourceTemplateId (Just (unpackId template.id))
+                                |> set #baseVersionNumber (Just template.currentVersion)
+                                |> set #createdByUserId (unpackId actor.actorUserId)
+                                |> createRecord
+                        let content = savedContentInput saved
+                        replaced <-
+                            if null content.contentDays && null content.contentColumns && null content.contentShifts
+                                then pure (Right ())
+                                else replaceRosterTemplateDraftContent actor design.id content
+                        case replaced of
+                            Left problem -> pure (Left problem)
+                            Right () -> maybe (Left RosterTemplateNotFound) Right <$> fetchPrivateRosterTemplateDraft actor
+
+saveRosterTemplateDraft ::
+    (?modelContext :: ModelContext) =>
+    RosterTemplateActor ->
+    Id RosterTemplateDesign ->
+    IO (Either RosterTemplateError RosterTemplateSave)
+saveRosterTemplateDraft actor designId = saveDraft actor designId Nothing
+
+saveRosterTemplateDraftAsNew ::
+    (?modelContext :: ModelContext) =>
+    RosterTemplateActor ->
+    Id RosterTemplateDesign ->
+    Text ->
+    IO (Either RosterTemplateError RosterTemplateSave)
+saveRosterTemplateDraftAsNew actor designId name = saveDraft actor designId (Just (Text.strip name))
+
+saveDraft ::
+    (?modelContext :: ModelContext) =>
+    RosterTemplateActor ->
+    Id RosterTemplateDesign ->
+    Maybe Text ->
+    IO (Either RosterTemplateError RosterTemplateSave)
+saveDraft actor designId saveAsName
+    | not actor.actorCanEditRosters = pure (Left RosterTemplateForbidden)
+    | maybe False invalidName saveAsName = pure (Left RosterTemplateInvalidName)
+    | otherwise = do
+        maybeDraft <- fetchOwnedDraft actor designId
+        case maybeDraft of
+            Nothing -> pure (Left RosterTemplateForbidden)
+            Just draft -> withTransaction do
+                referenceValidation <- validateDraftReferences actor draft
+                case referenceValidation of
+                    Left problem -> pure (Left problem)
+                    Right warnings -> commitDraft actor draft saveAsName warnings
+  where
+    invalidName name = Text.null name || Text.length name > 120
+
+commitDraft ::
+    (?modelContext :: ModelContext) =>
+    RosterTemplateActor ->
+    RosterTemplateDesign ->
+    Maybe Text ->
+    [RosterTemplateSaveWarning] ->
+    IO (Either RosterTemplateError RosterTemplateSave)
+commitDraft actor draft saveAsName warnings =
+    case (saveAsName, draft.sourceTemplateId, draft.baseVersionNumber) of
+        (Just newName, _, _) -> saveDraftAsNewTemplate actor draft newName warnings
+        (Nothing, Nothing, Nothing) -> saveDraftAsNewTemplate actor draft (fromMaybe "" draft.draftName) warnings
+        (Nothing, Just sourceTemplateUuid, Just baseVersion) -> do
+            maybeTemplate <- query @RosterTemplate |> filterWhere (#id, Id sourceTemplateUuid) |> filterWhere (#deletedAt, Nothing) |> fetchOneOrNothing
+            case maybeTemplate of
+                Nothing -> pure (Left RosterTemplateNotFound)
+                Just template -> do
+                    currentVersion <- lockRosterTemplateVersion template.id
+                    if currentVersion /= baseVersion
+                        then pure (Left (RosterTemplateConflict currentVersion))
+                        else do
+                            let nextVersion = currentVersion + 1
+                            persistSavedDesign draft template nextVersion
+                            updatedTemplate <-
+                                template
+                                    |> set #name (fromMaybe template.name draft.draftName)
+                                    |> set #currentVersion nextVersion
+                                    |> updateRecord
+                            pure (Right (RosterTemplateSave updatedTemplate nextVersion warnings))
+        _ -> pure (Left (RosterTemplateInvalidContent "Draft source version is incomplete."))
+
+saveDraftAsNewTemplate ::
+    (?modelContext :: ModelContext) =>
+    RosterTemplateActor ->
+    RosterTemplateDesign ->
+    Text ->
+    [RosterTemplateSaveWarning] ->
+    IO (Either RosterTemplateError RosterTemplateSave)
+saveDraftAsNewTemplate _actor draft name warnings = do
+    template <-
+        newRecord @RosterTemplate
+            |> set #rosterGroupId draft.rosterGroupId
+            |> set #name name
+            |> set #scale draft.scale
+            |> createRecord
+    persistSavedDesign draft template 1
+    updatedTemplate <- template |> set #currentVersion 1 |> updateRecord
+    pure (Right (RosterTemplateSave updatedTemplate 1 warnings))
+
+validateDraftReferences ::
+    (?modelContext :: ModelContext) =>
+    RosterTemplateActor ->
+    RosterTemplateDesign ->
+    IO (Either RosterTemplateError [RosterTemplateSaveWarning])
+validateDraftReferences actor draft = do
+    shifts <- query @RosterTemplateShift |> filterWhere (#rosterTemplateDesignId, unpackId draft.id) |> fetch
+    let shiftTypeIds = nub (map (.shiftTypeId) shifts)
+    shiftTypes <-
+        if null shiftTypeIds
+            then pure []
+            else query @ShiftType |> filterWhereIn (#id, map Id shiftTypeIds) |> fetch
+    let shiftTypeById = Map.fromList [(unpackId shiftType.id, shiftType) | shiftType <- shiftTypes]
+    let invalidShiftTypeIds =
+            [ Id shiftTypeId
+            | shiftTypeId <- shiftTypeIds
+            , case Map.lookup shiftTypeId shiftTypeById of
+                Nothing -> True
+                Just shiftType -> shiftType.venueId /= unpackId actor.actorVenueId || not shiftType.isActive || isJust shiftType.archivedAt
+            ]
+    if not (null invalidShiftTypeIds)
+        then pure (Left (RosterTemplateInvalidShiftTypes invalidShiftTypeIds))
+        else do
+            invalidStaffShiftIds <- invalidStaffAssignments actor draft shifts shiftTypeById
+            warnings <- forM invalidStaffShiftIds \shiftId -> do
+                shift <- fetch shiftId
+                shift
+                    |> set #assignmentState "open"
+                    |> set #staffId Nothing
+                    |> updateRecord
+                    |> void
+                pure (RosterTemplateAssignmentConvertedToOpen shiftId)
+            pure (Right warnings)
+
+invalidStaffAssignments ::
+    (?modelContext :: ModelContext) =>
+    RosterTemplateActor ->
+    RosterTemplateDesign ->
+    [RosterTemplateShift] ->
+    Map.Map UUID ShiftType ->
+    IO [Id RosterTemplateShift]
+invalidStaffAssignments actor draft shifts shiftTypeById = do
+    let staffIds = nub (mapMaybe (.staffId) shifts)
+    staffMembers <- if null staffIds then pure [] else query @Staff |> filterWhereIn (#id, map Id staffIds) |> fetch
+    assignments <-
+        if null staffIds
+            then pure []
+            else query @StaffRosterGroup
+                |> filterWhereIn (#staffId, staffIds)
+                |> filterWhere (#rosterGroupId, draft.rosterGroupId)
+                |> filterWhere (#deletedAt, Nothing)
+                |> fetch
+    activeAwardLevels <- query @AwardLevel |> filterWhere (#isActive, True) |> fetch
+    activeImportedPayItems <-
+        query @XeroImportedPayItem
+            |> filterWhere (#venueId, unpackId actor.actorVenueId)
+            |> filterWhere (#archivedAt, Nothing)
+            |> filterWhere (#providerAvailable, True)
+            |> fetch
+    let staffById = Map.fromList [(unpackId staff.id, staff) | staff <- staffMembers]
+    let eligibleStaffIds = Set.fromList (map (.staffId) assignments)
+    let activeAwardIds = map (.id) activeAwardLevels
+    let activeImportedPayItemIds = map (.id) activeImportedPayItems
+    pure
+        [ shift.id
+        | shift <- shifts
+        , Just staffId <- [shift.staffId]
+        , let maybeStaff = Map.lookup staffId staffById
+        , let maybeShiftType = Map.lookup shift.shiftTypeId shiftTypeById
+        , not (validStaffAssignment activeAwardIds activeImportedPayItemIds eligibleStaffIds actor.actorVenueId staffId maybeStaff maybeShiftType)
+        ]
+
+validStaffAssignment ::
+    [Id AwardLevel] ->
+    [Id XeroImportedPayItem] ->
+    Set.Set UUID ->
+    Id Venue ->
+    UUID ->
+    Maybe Staff ->
+    Maybe ShiftType ->
+    Bool
+validStaffAssignment activeAwardIds activeImportedPayItemIds eligibleStaffIds venueId staffId maybeStaff maybeShiftType =
+    case (maybeStaff, maybeShiftType) of
+        (Just staff, Just shiftType) ->
+            let staffAssignment = StaffPayAssignment staff.payAssignmentMode staff.defaultAwardLevelId staff.importedXeroPayItemId
+                shiftAssignment = ShiftPayAssignment shiftType.payAssignmentMode shiftType.overrideAwardLevelId shiftType.importedXeroPayItemId
+                referencesCurrent =
+                    not (staffPayAssignmentRequiresRemediation activeAwardIds activeImportedPayItemIds staffAssignment)
+                        && not (shiftPayAssignmentRequiresRemediation activeAwardIds activeImportedPayItemIds shiftAssignment)
+                payValid = case resolvePayAssignment staffAssignment shiftAssignment of
+                    InvalidPayAssignment {} -> False
+                    _ -> True
+             in staff.venueId == unpackId venueId
+                    && staff.isActive
+                    && isNothing staff.archivedAt
+                    && Set.member staffId eligibleStaffIds
+                    && referencesCurrent
+                    && payValid
+        _ -> False
+
+persistSavedDesign ::
+    (?modelContext :: ModelContext) =>
+    RosterTemplateDesign ->
+    RosterTemplate ->
+    Int ->
+    IO ()
+persistSavedDesign draft template versionNumber =
+    draft
+        |> set #draftOwnerUserId Nothing
+        |> set #draftName Nothing
+        |> set #templateId (Just (unpackId template.id))
+        |> set #versionNumber (Just versionNumber)
+        |> set #sourceTemplateId Nothing
+        |> set #baseVersionNumber Nothing
+        |> updateRecord
+        |> void
+
+fetchOwnedDraft ::
+    (?modelContext :: ModelContext) =>
+    RosterTemplateActor ->
+    Id RosterTemplateDesign ->
+    IO (Maybe RosterTemplateDesign)
+fetchOwnedDraft actor designId =
+    query @RosterTemplateDesign
+        |> filterWhere (#id, designId)
+        |> filterWhere (#draftOwnerUserId, Just (unpackId actor.actorUserId))
+        |> fetchOneOrNothing
+
+fetchSavedRosterTemplate ::
+    (?modelContext :: ModelContext) =>
+    RosterTemplateActor ->
+    Id RosterTemplate ->
+    IO (Maybe RosterTemplateSaved)
+fetchSavedRosterTemplate actor templateId
+    | not actor.actorCanEditRosters = pure Nothing
+    | otherwise = do
+        maybeTemplate <- query @RosterTemplate |> filterWhere (#id, templateId) |> filterWhere (#deletedAt, Nothing) |> fetchOneOrNothing
+        case maybeTemplate of
+            Nothing -> pure Nothing
+            Just template -> do
+                maybeGroup <- query @RosterGroup |> filterWhere (#id, Id template.rosterGroupId) |> filterWhere (#venueId, unpackId actor.actorVenueId) |> fetchOneOrNothing
+                case maybeGroup of
+                    Nothing -> pure Nothing
+                    Just _ -> do
+                        maybeDesign <-
+                            query @RosterTemplateDesign
+                                |> filterWhere (#templateId, Just (unpackId template.id))
+                                |> filterWhere (#versionNumber, Just template.currentVersion)
+                                |> fetchOneOrNothing
+                        forM maybeDesign (loadSaved template)
+
+loadSaved :: (?modelContext :: ModelContext) => RosterTemplate -> RosterTemplateDesign -> IO RosterTemplateSaved
+loadSaved template design = do
+    days <- query @RosterTemplateDay |> filterWhere (#rosterTemplateDesignId, unpackId design.id) |> orderByAsc #dayIndex |> fetch
+    columns <- query @RosterTemplateColumn |> filterWhere (#rosterTemplateDesignId, unpackId design.id) |> orderByAsc #sortOrder |> fetch
+    shifts <- query @RosterTemplateShift |> filterWhere (#rosterTemplateDesignId, unpackId design.id) |> orderByAsc #rowIndex |> fetch
+    pure (RosterTemplateSaved template design days columns shifts)
+
+savedContentInput :: RosterTemplateSaved -> RosterTemplateContent
+savedContentInput saved =
+    let dayIndexById = Map.fromList [(unpackId day.id, day.dayIndex) | day <- saved.savedDays]
+        columnSortById = Map.fromList [(unpackId column.id, column.sortOrder) | column <- saved.savedColumns]
+     in RosterTemplateContent
+            { contentDays = [RosterTemplateDayInput day.dayIndex day.isClosed day.rowCount | day <- saved.savedDays]
+            , contentColumns = [RosterTemplateColumnInput column.name column.sortOrder | column <- saved.savedColumns]
+            , contentShifts = mapMaybe (savedShiftInput dayIndexById columnSortById) saved.savedShifts
+            }
+
+savedShiftInput :: Map.Map UUID Int -> Map.Map UUID Int -> RosterTemplateShift -> Maybe RosterTemplateShiftInput
+savedShiftInput dayIndexById columnSortById shift = do
+    dayIndex <- Map.lookup shift.rosterTemplateDayId dayIndexById
+    columnSort <- Map.lookup shift.rosterTemplateColumnId columnSortById
+    assignment <- case (shift.assignmentState, shift.staffId) of
+        ("staff", Just staffId) -> Just (StaffAssignment (Id staffId))
+        ("open", Nothing) -> Just OpenAssignment
+        _ -> Nothing
+    pure (RosterTemplateShiftInput dayIndex columnSort shift.rowIndex shift.startMinute shift.endMinute (Id shift.shiftTypeId) assignment)
+
+replaceRosterTemplateDraftContent ::
+    (?modelContext :: ModelContext) =>
+    RosterTemplateActor ->
+    Id RosterTemplateDesign ->
+    RosterTemplateContent ->
+    IO (Either RosterTemplateError ())
+replaceRosterTemplateDraftContent actor designId content
+    | not actor.actorCanEditRosters = pure (Left RosterTemplateForbidden)
+    | otherwise = do
+        maybeDesign <-
+            query @RosterTemplateDesign
+                |> filterWhere (#id, designId)
+                |> filterWhere (#draftOwnerUserId, Just (unpackId actor.actorUserId))
+                |> fetchOneOrNothing
+        case maybeDesign of
+            Nothing -> pure (Left RosterTemplateForbidden)
+            Just design
+                | not (validTemplateContent design content) -> pure (Left (RosterTemplateInvalidContent "Template days, columns, shifts, or times are invalid."))
+                | otherwise -> do
+                    withTransaction do
+                        oldShifts <- query @RosterTemplateShift |> filterWhere (#rosterTemplateDesignId, unpackId design.id) |> fetch
+                        oldDays <- query @RosterTemplateDay |> filterWhere (#rosterTemplateDesignId, unpackId design.id) |> fetch
+                        oldColumns <- query @RosterTemplateColumn |> filterWhere (#rosterTemplateDesignId, unpackId design.id) |> fetch
+                        deleteRecords oldShifts
+                        deleteRecords oldDays
+                        deleteRecords oldColumns
+                        days <- forM content.contentDays (createTemplateDay design)
+                        columns <- forM content.contentColumns (createTemplateColumn design)
+                        let daysByIndex = Map.fromList [(day.dayIndex, day) | day <- days]
+                        let columnsBySortOrder = Map.fromList [(column.sortOrder, column) | column <- columns]
+                        forM_ content.contentShifts (createTemplateShift design daysByIndex columnsBySortOrder)
+                    pure (Right ())
+
+validTemplateContent :: RosterTemplateDesign -> RosterTemplateContent -> Bool
+validTemplateContent design content =
+    not (null content.contentDays)
+        && not (null content.contentColumns)
+        && all validDay content.contentDays
+        && all validColumn content.contentColumns
+        && unique (map (.inputDayIndex) content.contentDays)
+        && unique (map (.inputColumnSortOrder) content.contentColumns)
+        && unique [(shift.inputShiftDayIndex, shift.inputShiftColumnSortOrder, shift.inputShiftRowIndex) | shift <- content.contentShifts]
+        && all validShift content.contentShifts
+  where
+    dayIndexes = map (.inputDayIndex) content.contentDays
+    columnSortOrders = map (.inputColumnSortOrder) content.contentColumns
+    validDay day = day.inputDayIndex >= 0 && day.inputDayIndex <= 6 && day.inputDayRowCount >= 0 && (design.scale == "week" || day.inputDayIndex == 0)
+    validColumn column =
+        let name = Text.strip column.inputColumnName
+         in not (Text.null name) && Text.length name <= 120 && column.inputColumnSortOrder >= 0
+    validShift shift =
+        shift.inputShiftDayIndex `elem` dayIndexes
+            && shift.inputShiftColumnSortOrder `elem` columnSortOrders
+            && shift.inputShiftRowIndex >= 0
+            && shift.inputShiftStartMinute >= 0
+            && shift.inputShiftEndMinute > shift.inputShiftStartMinute
+            && shift.inputShiftEndMinute <= 2880
+
+unique :: Ord value => [value] -> Bool
+unique values = Map.size (Map.fromList [(value, ()) | value <- values]) == length values
+
+createTemplateDay :: (?modelContext :: ModelContext) => RosterTemplateDesign -> RosterTemplateDayInput -> IO RosterTemplateDay
+createTemplateDay design input =
+    newRecord @RosterTemplateDay
+        |> set #rosterTemplateDesignId (unpackId design.id)
+        |> set #dayIndex input.inputDayIndex
+        |> set #isClosed input.inputDayIsClosed
+        |> set #rowCount input.inputDayRowCount
+        |> createRecord
+
+createTemplateColumn :: (?modelContext :: ModelContext) => RosterTemplateDesign -> RosterTemplateColumnInput -> IO RosterTemplateColumn
+createTemplateColumn design input =
+    newRecord @RosterTemplateColumn
+        |> set #rosterTemplateDesignId (unpackId design.id)
+        |> set #name (Text.strip input.inputColumnName)
+        |> set #sortOrder input.inputColumnSortOrder
+        |> createRecord
+
+createTemplateShift ::
+    (?modelContext :: ModelContext) =>
+    RosterTemplateDesign ->
+    Map.Map Int RosterTemplateDay ->
+    Map.Map Int RosterTemplateColumn ->
+    RosterTemplateShiftInput ->
+    IO RosterTemplateShift
+createTemplateShift design daysByIndex columnsBySortOrder input = do
+    let day = fromMaybe (error "validated template day missing") (Map.lookup input.inputShiftDayIndex daysByIndex)
+    let column = fromMaybe (error "validated template column missing") (Map.lookup input.inputShiftColumnSortOrder columnsBySortOrder)
+    let (assignmentState, staffId) = case input.inputShiftAssignment of
+            StaffAssignment assignedStaffId -> ("staff", Just (unpackId assignedStaffId))
+            OpenAssignment -> ("open", Nothing)
+    newRecord @RosterTemplateShift
+        |> set #rosterTemplateDesignId (unpackId design.id)
+        |> set #rosterTemplateDayId (unpackId day.id)
+        |> set #rosterTemplateColumnId (unpackId column.id)
+        |> set #assignmentState assignmentState
+        |> set #staffId staffId
+        |> set #rowIndex input.inputShiftRowIndex
+        |> set #startMinute input.inputShiftStartMinute
+        |> set #endMinute input.inputShiftEndMinute
+        |> set #shiftTypeId (unpackId input.inputShiftTypeId)
+        |> createRecord
+
+fetchPrivateRosterTemplateDraft ::
+    (?modelContext :: ModelContext) =>
+    RosterTemplateActor ->
+    IO (Maybe RosterTemplateDraft)
+fetchPrivateRosterTemplateDraft actor
+    | not actor.actorCanEditRosters = pure Nothing
+    | otherwise = do
+        maybeDesign <-
+            query @RosterTemplateDesign
+                |> filterWhere (#draftOwnerUserId, Just (unpackId actor.actorUserId))
+                |> fetchOneOrNothing
+        forM maybeDesign loadDraft
+
+loadDraft :: (?modelContext :: ModelContext) => RosterTemplateDesign -> IO RosterTemplateDraft
+loadDraft design = do
+    days <- query @RosterTemplateDay |> filterWhere (#rosterTemplateDesignId, unpackId design.id) |> orderByAsc #dayIndex |> fetch
+    columns <- query @RosterTemplateColumn |> filterWhere (#rosterTemplateDesignId, unpackId design.id) |> orderByAsc #sortOrder |> fetch
+    shifts <- query @RosterTemplateShift |> filterWhere (#rosterTemplateDesignId, unpackId design.id) |> orderByAsc #rowIndex |> fetch
+    pure
+        RosterTemplateDraft
+            { draftDesign = design
+            , draftName = fromMaybe "" design.draftName
+            , draftDays = days
+            , draftColumns = columns
+            , draftShifts = shifts
+            }
+
+emptyDraft :: RosterTemplateDesign -> Text -> RosterTemplateDraft
+emptyDraft design name =
+    RosterTemplateDraft
+        { draftDesign = design
+        , draftName = name
+        , draftDays = []
+        , draftColumns = []
+        , draftShifts = []
+        }
+
+rosterTemplateScaleText :: RosterTemplateScale -> Text
+rosterTemplateScaleText DayTemplate = "day"
+rosterTemplateScaleText WeekTemplate = "week"
