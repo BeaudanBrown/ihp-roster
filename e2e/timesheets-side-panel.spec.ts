@@ -24,6 +24,7 @@ test.describe('Timesheets shared SidePanel', () => {
 
     test('keeps manager inventory complete while filtering and supports highlight, pin, and profile launch', async ({ page }) => {
         await page.setViewportSize({ width: 1440, height: 900 });
+        await loginAs(page, 'e2e-test@example.com', 'test-password-123');
         await gotoWhenReady(page, '/Timesheets', '#timesheet-week-shell');
 
         const panel = page.locator(`[${timesheetsTimesheetSidePanelPanelDomAttr}]`);
