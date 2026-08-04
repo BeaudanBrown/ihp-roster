@@ -28,9 +28,9 @@ import Generated.Types
 import IHP.ControllerPrelude
 
 data UserRosterPreferences = UserRosterPreferences
-    { userRosterLayoutMode   :: RosterLayoutModeEnum
-    , userShowRosterWarnings :: Bool
-    , userShowWageEstimates  :: Bool
+    { userRosterLayoutMode       :: RosterLayoutModeEnum
+    , userShowRosterWarnings     :: Bool
+    , userShowWageEstimates      :: Bool
     , userHighlightOwnLiveShifts :: Bool
     }
 
