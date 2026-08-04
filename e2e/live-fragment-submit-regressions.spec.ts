@@ -1,7 +1,7 @@
 import { test, expect, type Locator, type Page } from '@playwright/test';
 import { E2E_TIMEOUT } from './timeouts';
 import { dialogOverlayMountDomId, fragmentDomAttr, pageReadyEvent, regionAfterSwapEvent, surfaceConfigDomAttr, surfaceDomAttr, toastOverlayMountDomId } from '../frontend/ts/generated/contracts';
-import { defaultE2ERosterGroupId, gotoWhenReady, loginAs, openNewLeaveRequestDialog, openProfileLeaveSection, resetTimesheetDisplayPreferences, runSql, setFlatpickrDate } from './test-helpers';
+import { defaultE2ERosterGroupId, gotoWhenReady, loginAs, openNewLeaveRequestDialog, openProfileLeaveSection, openTimesheetSettings, resetTimesheetDisplayPreferences, runSql, setFlatpickrDate } from './test-helpers';
 
 function displayDate(isoDate: string): string {
     const [year, month, day] = isoDate.split('-');
@@ -281,7 +281,7 @@ test.describe('HTMX submit regressions', () => {
 
         await login(page);
         await gotoWhenReady(page, '/Timesheets', '#timesheet-week-shell');
-        await page.getByRole('button', { name: 'Timesheet settings' }).click();
+        await openTimesheetSettings(page);
         const hideApproved = page.locator('label', { hasText: 'Hide approved' });
         if (await hideApproved.locator('input[type="checkbox"]').isChecked()) {
             await hideApproved.click();

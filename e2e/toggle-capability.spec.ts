@@ -10,7 +10,7 @@ import {
     timePickerModalDomId,
     timePickerTriggerDomAttr,
 } from '../frontend/ts/generated/contracts';
-import { E2E_TIMEOUT, gotoWhenReady, loginAs, openRoster, resetTimesheetDisplayPreferences, runSql } from './test-helpers';
+import { E2E_TIMEOUT, gotoWhenReady, loginAs, openRoster, openTimesheetSettings, resetTimesheetDisplayPreferences, runSql } from './test-helpers';
 
 async function uniqueToggleIds(page: Page) {
     const ids = await page.locator(`[${toggleInputDomAttr}]`).evaluateAll((inputs) =>
@@ -163,7 +163,7 @@ test.describe('Generated toggle capability', () => {
 
         resetTimesheetDisplayPreferences('e2e-test@example.com');
         await gotoWhenReady(page, '/Timesheets', '#timesheet-week-shell');
-        await page.getByRole('button', { name: 'Timesheet settings' }).click();
+        await openTimesheetSettings(page);
         let hideApprovedRoot = page.locator(`[${toggleRootDomAttr}]`).filter({ hasText: 'Hide approved' });
         await expect(hideApprovedRoot.locator(`[${toggleInputDomAttr}]`)).toBeChecked();
 
@@ -176,7 +176,7 @@ test.describe('Generated toggle capability', () => {
         await requestPromise;
         await expect(page).not.toHaveURL(/showApproved|showAllStaff|showSuggestions/, { timeout: E2E_TIMEOUT.navigation });
         await page.reload();
-        await page.getByRole('button', { name: 'Timesheet settings' }).click();
+        await openTimesheetSettings(page);
         hideApprovedRoot = page.locator(`[${toggleRootDomAttr}]`).filter({ hasText: 'Hide approved' });
         await expect(hideApprovedRoot.locator(`[${toggleInputDomAttr}]`)).not.toBeChecked();
 
@@ -195,7 +195,7 @@ test.describe('Generated toggle capability', () => {
         resetTimesheetDisplayPreferences('e2e-worker@example.com');
         await loginAs(page, 'e2e-worker@example.com', 'test-password-123');
         await gotoWhenReady(page, '/Timesheets', '#timesheet-week-shell');
-        await page.getByRole('button', { name: 'Timesheet settings' }).click();
+        await openTimesheetSettings(page);
 
         const hiddenStaffScope = page.locator('input[type="hidden"][name="showAllStaff"]');
         await expect(hiddenStaffScope).toHaveCount(0);

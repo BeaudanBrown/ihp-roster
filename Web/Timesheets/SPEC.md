@@ -30,6 +30,20 @@ tests. Future payroll behavior belongs in `docs/workstreams/`.
   Haskell owns options, defaults, boolean transport, break-field activation, and
   validation; feature JavaScript must not recreate those rules.
 
+## Presentation Preferences And Side Panel
+
+- `Hide approved` and `Show suggestions` are global per-user preferences and do
+  not enter Timesheets URLs, fragment requests, or mutation envelopes. Manager
+  staff filtering remains URL-scoped and never grants authority.
+- Timesheets uses the shared transient SidePanel. Managers receive Staff and
+  Settings; ordinary staff receive Settings only. The manager Staff inventory
+  contains every active Timesheet-eligible staff member independently of card
+  filters, and its counts exclude transient suggestions.
+- Manager row hover/focus highlights matching persisted and suggestion cards;
+  pinning keeps that presentation relationship. Keyboard row activation opens
+  the existing staff profile dialog. Highlight and pin state never alter URLs or
+  query results.
+
 ## Roster Suggestions
 
 A suggestion exists only while its roster group/week/slot is active and live,
@@ -40,8 +54,7 @@ produce suggestions.
 
 Suggestions are derived on every projection with no background rows or grace
 period. Their week/day follows the authoritative projected start date. Staff see
-only their own; managers see their normal venue scope. `Show suggestions` is a
-URL-scoped presentation filter and defaults on.
+only their own; managers see their normal venue scope.
 
 ## Materialization And History
 

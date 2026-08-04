@@ -4,7 +4,7 @@ import {
     rosterStaffHighlightMemberDomAttr,
 } from '../frontend/ts/generated/contracts';
 import { E2E_TIMEOUT } from './timeouts';
-import { gotoWhenReady, loginAs, openProfileLeaveSection, openRoster, resetTimesheetDisplayPreferences, runSql, setFlatpickrDate } from './test-helpers';
+import { gotoWhenReady, loginAs, openProfileLeaveSection, openRoster, openTimesheetSettings, resetTimesheetDisplayPreferences, runSql, setFlatpickrDate } from './test-helpers';
 
 const e2eRosterPath = '/ShowRosterWeek?weekOffset=0&rosterGroupId=a1000000-0000-0000-0000-000000000211';
 
@@ -27,7 +27,7 @@ async function loginWorker(page: Page) {
 }
 
 async function showApprovedTimesheets(page: Page) {
-    await page.getByRole('button', { name: 'Timesheet settings' }).click();
+    await openTimesheetSettings(page);
     const hideApproved = page.locator('label', { hasText: 'Hide approved' });
     if (await hideApproved.locator('input[type="checkbox"]').isChecked()) {
         await hideApproved.click();

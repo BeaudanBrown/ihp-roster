@@ -12,6 +12,7 @@ import {
     loginAsPrivilegedUserWithSeededPasskeySession,
     openAuthenticatedNavIfCollapsed,
     openRoster,
+    openTimesheetSettings,
     resetTimesheetDisplayPreferences,
     webauthnBaseURL,
 } from './test-helpers';
@@ -491,7 +492,7 @@ test.describe('Mobile experience smoke', () => {
         const beforeFilterScroll = await setScroll();
         expect(beforeFilterScroll).toBeGreaterThan(0);
 
-        await page.getByRole('button', { name: 'Timesheet settings' }).click();
+        await openTimesheetSettings(page);
         await page.locator('label', { hasText: 'Show suggestions' }).click();
         await expect(page).not.toHaveURL(/showApproved|showAllStaff|showSuggestions/, { timeout: E2E_TIMEOUT.navigation });
         await expect(page.locator('#timesheet-day-columns')).toBeVisible();
@@ -516,7 +517,7 @@ test.describe('Mobile experience smoke', () => {
         resetTimesheetDisplayPreferences('e2e-test@example.com');
         await loginAs(page, 'e2e-test@example.com', 'test-password-123');
         await gotoWhenReady(page, '/Timesheets', '#timesheet-week-shell');
-        await page.getByRole('button', { name: 'Timesheet settings' }).click();
+        await openTimesheetSettings(page);
         const hideApproved = page.locator('label', { hasText: 'Hide approved' });
         if (await hideApproved.locator('input[type="checkbox"]').isChecked()) {
             await hideApproved.click();

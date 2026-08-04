@@ -18,8 +18,9 @@ owns request orchestration, authorization, params, and response selection;
 - `Responses.hs` and `Paths.hs` — response shape and canonical URLs.
 
 Frontend contracts come from the registered Timesheets Surface and shared
-Overlay, Toggle, and TimePicker capabilities; views and TypeScript must not
-restate them.
+Overlay, Toggle, TimePicker, SidePanel, and linked-highlight capabilities; views
+and TypeScript must not restate them. Hide-approved and suggestion visibility are
+global user preferences; staff filtering remains canonical URL state.
 
 ## Related Docs
 

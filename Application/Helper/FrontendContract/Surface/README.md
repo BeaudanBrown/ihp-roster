@@ -109,6 +109,8 @@ parse keys, construct mutation URLs, alter server business DOM, or invent
 feature names/fields.
 
 Prefer shared typed aliases for drag/drop and other repeated interaction shapes.
+The shared SidePanel alias declares root, main, panel, toggle, label, and closed
+visibility state while each feature retains panel content and authorization.
 Effects come from the closed semantic IR and clean up on every terminal path.
 Concrete mounts derive IDs/targets/forms from the mount key; runtime lookup stays
 inside the nearest owning mount and does not cross nested mounts. See

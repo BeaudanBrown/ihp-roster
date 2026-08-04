@@ -38,9 +38,11 @@ required/unknown fields, and dispatches the generated trigger. Controllers parse
 authorize, and validate every field as untrusted input.
 
 Focused global capabilities (overlay, toggle, picker, ordered range, horizontal
-scroll, passkey, PWA install, filters) own reusable exact contracts only. Haskell
-owns values, routes, workflow/error copy, and server validation; adapters keep
-browser/platform mechanics local and leave malformed boundaries untouched.
+scroll, SidePanel, passkey, PWA install, filters) own reusable exact contracts
+only. SidePanel owns nearest-root visibility, ARIA/icon/focus/Escape mechanics,
+and replacement reconciliation; features own panel content and authorization.
+Haskell owns values, routes, workflow/error copy, and server validation; adapters
+keep browser/platform mechanics local and leave malformed boundaries untouched.
 Capabilities compose through generated roles/native state rather than importing
 one another's feature meaning.
 

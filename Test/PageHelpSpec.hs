@@ -55,7 +55,9 @@ tests = do
             rendered `shouldSatisfy` any (Text.isInfixOf "without an origin warning")
             rendered `shouldSatisfy` any (Text.isInfixOf "no separate origin banner")
             rendered `shouldSatisfy` any (Text.isInfixOf "saved to your account")
-            rendered `shouldSatisfy` any (Text.isInfixOf "all authorized staff by default")
+            rendered `shouldSatisfy` any (Text.isInfixOf "every active Timesheet-eligible staff member")
+            rendered `shouldSatisfy` any (Text.isInfixOf "eye to pin")
+            rendered `shouldSatisfy` any (Text.isInfixOf "never filters the week")
             rendered `shouldSatisfy` all (not . Text.isInfixOf "Each saved entry shows its own pay preview")
 
     describe "billing help role filtering" do
