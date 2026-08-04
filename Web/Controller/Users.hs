@@ -26,7 +26,9 @@ import Web.Users.Mutations (acceptVenueInvitationInCurrentTransaction,
 import Web.View.Users.New
 
 instance Controller UsersController where
-    beforeAction = bepisBeforeAction BepisPublicController annotateTelemetryAction
+    beforeAction = bepisBeforeAction BepisPublicController do
+        annotateTelemetryAction
+        accessDeniedUnless (not currentUserIsImpersonating)
 
     action currentAction@NewUserAction = runBepis currentAction BepisFormAction do
         let invitationId = paramOrNothing @(Id VenueInvitation) "invitationId"

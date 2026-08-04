@@ -109,13 +109,14 @@ tests = aroundAll withDatabaseTestContext do
                 _ <- createVenueMembershipRecord venue worker Worker
                 _ <- createStaffRecord venue (Just worker) "Effective" "Worker"
 
-                (adminResponse, profileResponse) <- withPasskeyVerifiedUserAndCurrentVenue founder venue.id do
+                (adminResponse, profileResponse, rosterResponse) <- withPasskeyVerifiedUserAndCurrentVenue founder venue.id do
                     _ <- callActionWithParams
                         StartSupportImpersonationAction
                         [("userId", cs (inputValue worker.id))]
                     adminResponse <- callAction AdminAction
                     profileResponse <- callAction EditProfileAction
-                    pure (adminResponse, profileResponse)
+                    rosterResponse <- callAction (ShowRosterWeekAction 0)
+                    pure (adminResponse, profileResponse, rosterResponse)
 
                 adminResponse `responseStatusShouldBe` status302
                 profileResponse `responseStatusShouldBe` status200
@@ -124,6 +125,8 @@ tests = aroundAll withDatabaseTestContext do
                 profileResponse `responseBodyShouldContain` "support-venue-switch"
                 profileResponse `responseBodyShouldNotContain` "href=\"/Admin\""
                 profileResponse `responseBodyShouldNotContain` "href=\"/Xero\""
+                rosterResponse `responseStatusShouldBe` status200
+                rosterResponse `responseBodyShouldContain` "roster-staff-self-service-panel"
 
         it "applies the effective user's profile-completeness gate" $ withContext do
             withCleanDb do
@@ -207,21 +210,23 @@ tests = aroundAll withDatabaseTestContext do
                 _ <- createVenueMembershipRecord venue worker Worker
                 _ <- createStaffRecord venue (Just worker) "Credential" "Worker"
 
-                (passkeyResponse, registrationResponse, sessionReplacementResponse, profileResponse) <- withPasskeyVerifiedUserAndCurrentVenue founder venue.id do
+                (passkeyResponse, registrationResponse, userAccountResponse, sessionReplacementResponse, profileResponse) <- withPasskeyVerifiedUserAndCurrentVenue founder venue.id do
                     _ <- callActionWithParams
                         StartSupportImpersonationAction
                         [("userId", cs (inputValue worker.id))]
                     passkeyResponse <- callAction PasskeySetupAction
                     registrationResponse <- callAction BeginPasskeyRegistrationAction
+                    userAccountResponse <- callAction NewUserAction
                     sessionReplacementResponse <- callActionWithParams CreateSessionAction
                         [ ("email", cs replacementUser.email)
                         , ("password", cs testPassword)
                         ]
                     profileResponse <- callAction EditProfileAction
-                    pure (passkeyResponse, registrationResponse, sessionReplacementResponse, profileResponse)
+                    pure (passkeyResponse, registrationResponse, userAccountResponse, sessionReplacementResponse, profileResponse)
 
                 passkeyResponse `responseStatusShouldBe` status302
                 registrationResponse `responseStatusShouldBe` status403
+                userAccountResponse `responseStatusShouldBe` status403
                 sessionReplacementResponse `responseStatusShouldBe` status403
                 profileResponse `responseStatusShouldBe` status200
                 profileResponse `responseBodyShouldNotContain` "Sign-In Methods"
