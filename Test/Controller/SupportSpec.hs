@@ -73,6 +73,19 @@ tests = aroundAll withDatabaseTestContext do
                 response `responseBodyShouldContain` "data-bepis-surface-action=\"create-public-holiday-refresh-job\""
                 response `responseBodyShouldContain` "data-bepis-surface-action=\"create-fwc-mapd-refresh-job\""
 
+        it "does not label a super-admin venue membership as support mode" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Super Admin Member Venue"
+                superAdmin <- createUserRecordWithPlatformRole "support-member-super@example.com" "staff" (Just SuperAdmin) True
+                _ <- createVenueMembershipRecord venue superAdmin VenueOwner
+
+                response <- withPasskeyVerifiedUser superAdmin do
+                    callAction SupportAction
+
+                response `responseStatusShouldBe` status200
+                response `responseBodyShouldContain` "Support venue"
+                response `responseBodyShouldNotContain` "Support mode"
+
         it "shows submitted feedback without the submit-feedback button for super admins" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Feedback Support Venue"

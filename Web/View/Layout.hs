@@ -4,6 +4,7 @@ module Web.View.Layout (defaultLayout, Html) where
 
 import Application.Billing.Stripe (StripeOwnerNavigationVisibility (..))
 import Application.Helper.Controller (currentSupportVenueOptions,
+                                      currentVenueMembershipOrNothing,
                                       currentVenueOrNothing)
 import Application.Helper.FrontendContract.AppShell (OpenFeedbackDialog)
 import Application.Helper.FrontendContract.AppShell.Runtime (AppShellActionRoute (..),
@@ -207,13 +208,18 @@ renderSupportVenueSwitcher switchId formClass = [hsx|
     <form class={formClass} method="POST" action={SwitchSupportVenueAction}>
         <input type="hidden" name="next" value={TextEncoding.decodeUtf8 getRequestPathAndQuery}/>
         <div class="input-group input-group-sm">
-            <label class="input-group-text" for={switchId}>Support mode</label>
+            <label class="input-group-text" for={switchId}>{supportVenueSwitcherLabel}</label>
             <select id={switchId} class="form-select" name="venueId" onchange="this.form.submit()">
                 {forEach currentSupportVenueOptions renderSupportVenueOption}
             </select>
         </div>
     </form>
 |]
+
+supportVenueSwitcherLabel :: (?context :: ControllerContext) => Text
+supportVenueSwitcherLabel
+    | isNothing currentVenueMembershipOrNothing = "Support mode"
+    | otherwise = "Support venue"
 
 renderSupportVenueOption :: Venue -> Html
 renderSupportVenueOption venue = [hsx|

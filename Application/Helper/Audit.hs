@@ -170,10 +170,13 @@ recordCurrentUserTimesheetEntryVersion ::
     TimesheetEntry ->
     Aeson.Value ->
     IO TimesheetEntryVersion
-recordCurrentUserTimesheetEntryVersion =
+recordCurrentUserTimesheetEntryVersion versionAction entry payload =
     recordTimesheetEntryVersion
         (unpackId currentVenueId)
         (unpackId (get #id authenticatedCurrentUser))
+        versionAction
+        entry
+        (currentRequestAuditPayload payload)
 
 recordLeaveRequestEvent ::
     (?modelContext :: ModelContext) =>
@@ -206,11 +209,15 @@ recordCurrentUserLeaveRequestEvent ::
     Maybe LeaveRequestStatusEnum ->
     Aeson.Value ->
     IO LeaveRequestEvent
-recordCurrentUserLeaveRequestEvent leaveRequest =
+recordCurrentUserLeaveRequestEvent leaveRequest eventType previousStatus newStatus payload =
     recordLeaveRequestEvent
         (unpackId currentVenueId)
         (unpackId (get #id authenticatedCurrentUser))
         (unpackId (get #id leaveRequest))
+        eventType
+        previousStatus
+        newStatus
+        (currentRequestAuditPayload payload)
 
 recordVenueMembershipRoleEvent ::
     (?modelContext :: ModelContext) =>
