@@ -15,6 +15,7 @@ module Application.Helper.Audit
     ) where
 
 import qualified Data.Aeson as Aeson
+import qualified Data.Aeson.KeyMap as AesonKeyMap
 import Generated.Types
 import IHP.ControllerPrelude
 
@@ -22,7 +23,9 @@ import Application.Bepis.Fact (BepisAuditFact (..), BepisAuditFactKind (..),
                                BepisFact (..), emitBepisFact)
 import Application.Helper.Audit.Vocabulary
 import Application.Helper.ControllerContext (authenticatedCurrentUser,
+                                             currentUserIsSuperAdmin,
                                              currentVenueId,
+                                             currentVenueMembershipOrNothing,
                                              resolveVenueContextForUser)
 import Application.Helper.Htmx (requestAuditSourceChannel)
 
@@ -77,8 +80,28 @@ recordCurrentUserAuditEvent eventType targetTable targetId payload =
         eventType
         targetTable
         targetId
-        payload
+        (currentRequestAuditPayload payload)
         requestAuditSourceChannel
+
+currentRequestAuditPayload :: (?context :: ControllerContext) => Aeson.Value -> Aeson.Value
+currentRequestAuditPayload payload
+    | currentUserIsSuperAdmin && isNothing currentVenueMembershipOrNothing =
+        attachAuditRequestContext FounderSupportAuditAccess payload
+    | otherwise = payload
+
+data AuditAccessMode
+    = FounderSupportAuditAccess
+
+attachAuditRequestContext :: AuditAccessMode -> Aeson.Value -> Aeson.Value
+attachAuditRequestContext accessMode payload =
+    case payload of
+        Aeson.Object fields -> Aeson.Object (AesonKeyMap.insert "requestContext" requestContext fields)
+        other               -> Aeson.object ["payload" Aeson..= other, "requestContext" Aeson..= requestContext]
+  where
+    requestContext = Aeson.object ["accessMode" Aeson..= auditAccessModeText accessMode]
+
+auditAccessModeText :: AuditAccessMode -> Text
+auditAccessModeText FounderSupportAuditAccess = "support"
 
 recordUserAuthenticationAuditEvent ::
     (?modelContext :: ModelContext) =>
