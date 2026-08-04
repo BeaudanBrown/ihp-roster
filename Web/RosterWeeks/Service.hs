@@ -296,18 +296,16 @@ validateRosterWeekCanGoLive rosterWeek True = do
     let blockingSlots = filter rosterSlotBlocksPublish rosterSlots
     if not (null blockingSlots)
         then pure (Just publishRequiredFieldsMessage)
-        else validateRosterSlotsForPersistence (Id rosterWeek.venueId) (filter rosterShiftIsStaffAssigned rosterSlots)
+        else validateRosterSlotsForPersistence (Id rosterWeek.venueId) rosterSlots
 
 publishRequiredFieldsMessage :: Text
-publishRequiredFieldsMessage = "Roster week cannot go live until every staffed shift has a start time, valid end time, and shift type."
+publishRequiredFieldsMessage = "Roster week cannot go live until every shift has a start time, valid end time, and shift type."
 
 rosterSlotBlocksPublish :: RosterSlot -> Bool
 rosterSlotBlocksPublish slot =
-    rosterShiftIsStaffAssigned slot
-        && ( isNothing slot.startsAt
-             || isNothing slot.shiftTypeId
-             || not (rosterSlotHasValidStartEnd slot)
-           )
+    isNothing slot.startsAt
+        || isNothing slot.shiftTypeId
+        || not (rosterSlotHasValidStartEnd slot)
 
 rosterSlotHasValidStartEnd :: RosterSlot -> Bool
 rosterSlotHasValidStartEnd slot =

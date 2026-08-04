@@ -14,6 +14,7 @@ import IHP.ModelSupport.Types (Id' (Id))
 import IHP.Prelude
 import Test.Hspec
 import Web.RosterWeeks.DropWorkflow
+import Web.RosterWeeks.Service (rosterSlotBlocksPublish)
 import Web.RosterWeeks.ShiftWorkflow
 
 tests :: Spec
@@ -84,6 +85,11 @@ tests = do
 
             map (isLeft . rosterShiftAssignment) [invalidStaff, invalidOpen, unknown]
                 `shouldBe` replicate 3 True
+
+    describe "roster shift publication" do
+        it "blocks structurally incomplete Open shifts" do
+            let incompleteOpen = applyRosterShiftAssignment OpenAssignment (newRecord @RosterSlot)
+            rosterSlotBlocksPublish incompleteOpen `shouldBe` True
 
     describe "roster shift workflow application" do
         it "applies one validated typed submission as exact authoritative slot fields" do
