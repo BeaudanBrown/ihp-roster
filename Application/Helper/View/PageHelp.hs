@@ -28,18 +28,21 @@ data PageHelpAudience
     | HelpOwnerPlus
     | HelpOwnerOnly
     | HelpSupportOnly
+    | HelpUnimpersonatedOnly
+    | HelpImpersonatingOnly
     deriving (Eq, Show)
 
 data PageHelpContext = PageHelpContext
     { pageHelpCanManage :: !Bool
     , pageHelpCanAdmin  :: !Bool
     , pageHelpCanOwn    :: !Bool
-    , pageHelpIsSupport :: !Bool
+    , pageHelpIsSupport       :: !Bool
+    , pageHelpIsImpersonating :: !Bool
     }
     deriving (Eq, Show)
 
 defaultPageHelpContext :: PageHelpContext
-defaultPageHelpContext = PageHelpContext False False False False
+defaultPageHelpContext = PageHelpContext False False False False False
 
 data PageHelpExampleButton = PageHelpExampleButton
     { pageHelpExampleButtonClass     :: !Text
@@ -82,7 +85,7 @@ filterPageHelpTopic :: PageHelpContext -> PageHelpTopic -> PageHelpTopic
 filterPageHelpTopic context topic =
     topic
         { pageHelpTopicSections =
-            topic.pageHelpTopicSections
+            (impersonationHelpSection : topic.pageHelpTopicSections)
                 |> mapMaybe (filterSection context)
         }
 
@@ -101,8 +104,10 @@ audienceVisible context = \case
     HelpManagerPlus -> context.pageHelpCanManage || context.pageHelpCanAdmin || context.pageHelpCanOwn || context.pageHelpIsSupport
     HelpAdminPlus   -> context.pageHelpCanAdmin || context.pageHelpCanOwn || context.pageHelpIsSupport
     HelpOwnerPlus   -> context.pageHelpCanOwn || context.pageHelpIsSupport
-    HelpOwnerOnly   -> context.pageHelpCanOwn && not context.pageHelpIsSupport
-    HelpSupportOnly -> context.pageHelpIsSupport
+    HelpOwnerOnly          -> context.pageHelpCanOwn && not context.pageHelpIsSupport
+    HelpSupportOnly        -> context.pageHelpIsSupport
+    HelpUnimpersonatedOnly -> not context.pageHelpIsImpersonating
+    HelpImpersonatingOnly  -> context.pageHelpIsImpersonating
 
 renderPageHelpBody :: PageHelpTopic -> Html
 renderPageHelpBody topic = [hsx|
@@ -159,6 +164,14 @@ renderPageHelpExampleButton PageHelpExampleButton { pageHelpExampleButtonClass, 
 renderPageHelpExampleButtonIcon :: Text -> Html
 renderPageHelpExampleButtonIcon iconClass = [hsx|<i class={"bi " <> iconClass} aria-hidden="true"></i>|]
 
+impersonationHelpSection :: PageHelpSection
+impersonationHelpSection =
+    section HelpImpersonatingOnly "Viewing as a venue user"
+        [ iconItem HelpImpersonatingOnly "bi-person-badge" "Effective access" "Use the selected user's access" "Actions use access from the selected venue user, including profile, Staff identity, and private preferences. Audit history still records the authenticated founder."
+        , iconItem HelpImpersonatingOnly "bi-box-arrow-left" "Exit" "Return to Super admin" "Choose Super admin from View as to exit immediately. Changing support venue also exits before opening the new venue."
+        , iconItem HelpImpersonatingOnly "bi-shield-lock" "Account security" "Exit before security changes" "Account security changes are blocked until you exit, including passkeys, recovery, verification, and session replacement."
+        ]
+
 pageHelpTopics :: [PageHelpTopic]
 pageHelpTopics =
     [ topic "roster" "Roster"
@@ -192,7 +205,7 @@ pageHelpTopics =
         [ section HelpEveryone "Profile tasks"
             [ iconItem HelpEveryone "bi-pencil" "Edit" "Keep your details current" "Use edit fields to update contact and emergency contact details when they change."
             , iconItem HelpEveryone "bi-calendar-heart" "Availability" "Set availability and preferences" "Use the availability and preference sections to tell managers when you prefer to work."
-            , iconItem HelpEveryone "bi-shield-lock" "Security" "Manage account security" "Use passkey and recovery options to keep access secure."
+            , iconItem HelpUnimpersonatedOnly "bi-shield-lock" "Security" "Manage account security" "Use passkey and recovery options to keep access secure."
             , iconItem HelpEveryone "bi-upload" "Upload" "Upload required documents" "Use document upload controls for items such as RSA evidence when they are shown."
             ]
         , section HelpManagerPlus "Manager tasks"
