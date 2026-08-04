@@ -25,7 +25,7 @@ module Application.RosterTemplates
     , startRosterTemplateEditDraft
     ) where
 
-import Application.Helper.ControllerAccess (hasRole)
+import Application.Helper.ControllerAccess (hasRole, isCurrentVenueManuallyReadOnly)
 import Application.Helper.ControllerContext (authenticatedCurrentUser,
                                              currentVenue)
 import Application.PayAssignment (EffectivePayAssignment (..),
@@ -130,9 +130,12 @@ data RosterTemplateError
     | RosterTemplateInvalidShiftTypes ![Id ShiftType]
     deriving (Eq, Show)
 
-currentRosterTemplateActor :: (?context :: ControllerContext) => RosterTemplateActor
-currentRosterTemplateActor =
-    rosterTemplateActor authenticatedCurrentUser currentVenue (hasRole Manager)
+currentRosterTemplateActor ::
+    (?context :: ControllerContext, ?modelContext :: ModelContext) =>
+    IO RosterTemplateActor
+currentRosterTemplateActor = do
+    venueReadOnly <- isCurrentVenueManuallyReadOnly
+    pure (rosterTemplateActor authenticatedCurrentUser currentVenue (hasRole Manager && not venueReadOnly))
 
 rosterTemplateActor :: User -> Venue -> Bool -> RosterTemplateActor
 rosterTemplateActor user venue canEditRosters =

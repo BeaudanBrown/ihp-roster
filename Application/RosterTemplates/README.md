@@ -8,6 +8,6 @@
 - Draft content uses explicit Staff/Open assignments and structurally complete shifts.
 - Save converts stale or pay-invalid Staff assignments to Open with typed warnings; stale Shift types block the whole save.
 - Saved templates soft-delete. Unsaved drafts and their content may be permanently discarded.
-- Access uses the same manager-or-higher capability as roster editing, including support-mode super admins.
+- Access uses the same manager-or-higher and venue-writable capability as roster editing, including support-mode super admins.
 
 `Application.RosterTemplates.Mutations` contains the minimal PostgreSQL row lock used to serialize optimistic commits. All ordinary reads use IHP QueryBuilder.
