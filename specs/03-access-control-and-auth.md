@@ -77,8 +77,9 @@ The product must not rely on global in-app business roles without venue boundari
   self-service ownership, profile/forms, live-surface scope checks, and private
   user preferences use effective identity. Worker, supervisor, manager, admin,
   and owner boundaries therefore behave as the selected user, including direct
-  HTTP requests. The Support route, tab, venue switcher, and exit controls remain
-  available from the actual founder authority.
+  HTTP requests. The Support route, tab, venue switcher, and manual-exit action
+  remain available from the actual founder authority; #326 owns the selector and
+  visible impersonation controls.
 - Business actor/requester/approver/deleter/uploader columns continue to use the
   actual founder. Current-request audit and domain-event payloads add
   `accessMode = "impersonation"`, the effective user id, and impersonation

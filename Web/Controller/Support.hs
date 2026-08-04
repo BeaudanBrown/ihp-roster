@@ -42,7 +42,6 @@ instance Controller SupportController where
         annotateTelemetryAction
         ensureIsUser
         ensureSupportAccess
-        ensureProfileCompleted
 
     action currentAction@SupportAction = runBepis currentAction BepisPageAction do
         onboardingInvitations <- fetchVenueOnboardingInvitations
@@ -359,9 +358,11 @@ fetchPublicHolidaySectionData = do
     pure (publicHolidayCoverage, latestPublicHolidayRefreshJob, activePublicHolidayRefreshJob)
 
 supportCanAddPasskey :: (?context :: ControllerContext) => [Passkey] -> IO Bool
-supportCanAddPasskey passkeys = do
-    recoveryVerified <- isCurrentUserPasskeyRecoveryVerified
-    pure (null passkeys || recoveryVerified)
+supportCanAddPasskey passkeys
+    | currentUserIsImpersonating = pure False
+    | otherwise = do
+        recoveryVerified <- isCurrentUserPasskeyRecoveryVerified
+        pure (null passkeys || recoveryVerified)
 
 respondToAwardRatesRefresh :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => IO ()
 respondToAwardRatesRefresh =

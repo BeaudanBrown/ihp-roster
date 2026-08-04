@@ -4,8 +4,9 @@ module Web.Billing.Mutations
     , updateVenueBillingControlMutation
     ) where
 
-import Application.Billing.Checkout (CheckoutStartResult (..),
-                                     startOrResumeCheckoutForActor)
+import Application.Billing.Checkout (BillingCheckoutPrincipal (..),
+                                     CheckoutStartResult (..),
+                                     startOrResumeCheckoutForPrincipal)
 import Application.Billing.Stripe (StripeClient, StripeConfig)
 import Application.Helper.FrontendContract.Surface.Billing.Resource (billingResource)
 import Application.Helper.SurfaceResource
@@ -24,13 +25,17 @@ startOrResumeBillingCheckoutMutation
     => StripeClient
     -> StripeConfig
     -> Venue
-    -> User
-    -> User
+    -> ActualUser
+    -> EffectiveUser
     -> (Id BillingCheckoutAttempt -> Text)
     -> (Id BillingCheckoutAttempt -> Text)
     -> IO (LiveMutationResult CheckoutStartResult)
-startOrResumeBillingCheckoutMutation stripeClient stripeConfig venue actor payer successUrlFor cancelUrlFor = do
-    result <- startOrResumeCheckoutForActor stripeClient stripeConfig venue actor payer successUrlFor cancelUrlFor
+startOrResumeBillingCheckoutMutation stripeClient stripeConfig venue actualUser effectiveUser successUrlFor cancelUrlFor = do
+    let principal = BillingCheckoutPrincipal
+            { billingCheckoutActor = actualUserRecord actualUser
+            , billingCheckoutPayer = effectiveUserRecord effectiveUser
+            }
+    result <- startOrResumeCheckoutForPrincipal stripeClient stripeConfig venue principal successUrlFor cancelUrlFor
     forM_ result.checkoutCreatedCustomer \customer ->
         void $ recordCurrentUserAuditEvent
             BillingCustomerCreatedAudit

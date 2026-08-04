@@ -135,14 +135,20 @@ tests = aroundAll withDatabaseTestContext do
                 worker <- createUserRecord "impersonation-incomplete-worker@example.com" "staff" False
                 _ <- createVenueMembershipRecord venue worker Worker
 
-                response <- withPasskeyVerifiedUserAndCurrentVenue founder venue.id do
+                (rosterResponse, supportResponse, exitResponse) <- withPasskeyVerifiedUserAndCurrentVenue founder venue.id do
                     _ <- callActionWithParams
                         StartSupportImpersonationAction
                         [("userId", cs (inputValue worker.id))]
-                    callAction RosterWeeksAction
+                    rosterResponse <- callAction RosterWeeksAction
+                    supportResponse <- callAction SupportAction
+                    exitResponse <- callAction ExitSupportImpersonationAction
+                    pure (rosterResponse, supportResponse, exitResponse)
 
-                response `responseStatusShouldBe` status302
-                lookup "Location" (Wai.responseHeaders response) `shouldBe` Just "http://localhost/EditProfile"
+                rosterResponse `responseStatusShouldBe` status302
+                lookup "Location" (Wai.responseHeaders rosterResponse) `shouldBe` Just "http://localhost/EditProfile"
+                supportResponse `responseStatusShouldBe` status200
+                supportResponse `responseBodyShouldContain` "support-venue-switch"
+                exitResponse `responseStatusShouldBe` status302
 
         it "stores private roster preferences for the effective user" $ withContext do
             withCleanDb do

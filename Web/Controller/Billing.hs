@@ -294,8 +294,8 @@ createEnabledBillingCheckoutSession stripeConfig = do
             stripeClient
             stripeConfig
             currentVenue
-            currentUser
-            effectiveCurrentUser
+            actualAuthenticatedUser
+            effectiveRequestUser
             successUrlFor
             cancelUrlFor
     case checkoutResult.liveMutationValue.checkoutStartOutcome of

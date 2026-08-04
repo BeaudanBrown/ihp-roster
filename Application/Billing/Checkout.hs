@@ -1,9 +1,10 @@
 module Application.Billing.Checkout
-    ( CheckoutStartOutcome (..)
+    ( BillingCheckoutPrincipal (..)
+    , CheckoutStartOutcome (..)
     , CheckoutStartResult (..)
     , checkoutAllowedForSubscription
     , startOrResumeCheckout
-    , startOrResumeCheckoutForActor
+    , startOrResumeCheckoutForPrincipal
     )
 where
 
@@ -13,6 +14,11 @@ import Data.Time.Clock.POSIX (posixSecondsToUTCTime)
 import Generated.Types
 import IHP.ControllerPrelude
 import IHP.ModelSupport (withTransaction)
+
+data BillingCheckoutPrincipal = BillingCheckoutPrincipal
+    { billingCheckoutActor :: !User
+    , billingCheckoutPayer :: !User
+    }
 
 data CheckoutStartOutcome
     = CheckoutSessionReady !BillingCheckoutAttempt !StripeCheckoutSession
@@ -33,8 +39,7 @@ data CheckoutOperationContext = CheckoutOperationContext
     { operationStripeClient :: !StripeClient
     , operationStripeConfig :: !StripeConfig
     , operationVenue        :: !Venue
-    , operationActor        :: !User
-    , operationPayer        :: !User
+    , operationPrincipal    :: !BillingCheckoutPrincipal
     }
 
 data PreparedCheckout = PreparedCheckout
@@ -66,25 +71,30 @@ startOrResumeCheckout
     -> (Id BillingCheckoutAttempt -> Text)
     -> IO CheckoutStartResult
 startOrResumeCheckout stripeClient stripeConfig venue owner =
-    startOrResumeCheckoutForActor stripeClient stripeConfig venue owner owner
+    startOrResumeCheckoutForPrincipal
+        stripeClient
+        stripeConfig
+        venue
+        BillingCheckoutPrincipal
+            { billingCheckoutActor = owner
+            , billingCheckoutPayer = owner
+            }
 
-startOrResumeCheckoutForActor
+startOrResumeCheckoutForPrincipal
     :: (?modelContext :: ModelContext)
     => StripeClient
     -> StripeConfig
     -> Venue
-    -> User
-    -> User
+    -> BillingCheckoutPrincipal
     -> (Id BillingCheckoutAttempt -> Text)
     -> (Id BillingCheckoutAttempt -> Text)
     -> IO CheckoutStartResult
-startOrResumeCheckoutForActor stripeClient stripeConfig venue actor payer successUrlFor cancelUrlFor =
+startOrResumeCheckoutForPrincipal stripeClient stripeConfig venue principal successUrlFor cancelUrlFor =
     startCheckout CheckoutOperationContext
         { operationStripeClient = stripeClient
         , operationStripeConfig = stripeConfig
         , operationVenue = venue
-        , operationActor = actor
-        , operationPayer = payer
+        , operationPrincipal = principal
         }
         successUrlFor
         cancelUrlFor
@@ -233,7 +243,7 @@ prepareNewCheckoutAttempt operation =
                     attempt <-
                         newRecord @BillingCheckoutAttempt
                             |> set #venueId (unpackId operation.operationVenue.id)
-                            |> set #initiatedByUserId (unpackId operation.operationActor.id)
+                            |> set #initiatedByUserId (unpackId operation.operationPrincipal.billingCheckoutActor.id)
                             |> set #livemode (stripeModeIsLive operation.operationStripeConfig.stripeMode)
                             |> set #stripeCustomerId billingCustomer.stripeCustomerId
                             |> set #stripePriceId price.stripePriceId
@@ -302,9 +312,9 @@ ensureVenueStripeCustomer operation =
                 | customer.livemode == stripeModeIsLive operation.operationStripeConfig.stripeMode -> pure (Right (customer, False))
                 | otherwise -> pure (Left "The venue Customer belongs to a different Stripe mode.")
             Nothing
-                | isNothing operation.operationPayer.emailVerifiedAt -> pure (Left "Verify your account email before starting Checkout.")
+                | isNothing operation.operationPrincipal.billingCheckoutPayer.emailVerifiedAt -> pure (Left "Verify your account email before starting Checkout.")
                 | otherwise ->
-                    operation.operationStripeClient.createCustomer operation.operationStripeConfig (inputValue operation.operationVenue.id) operation.operationVenue.name operation.operationPayer.email >>= \case
+                    operation.operationStripeClient.createCustomer operation.operationStripeConfig (inputValue operation.operationVenue.id) operation.operationVenue.name operation.operationPrincipal.billingCheckoutPayer.email >>= \case
                         Left err -> pure (Left ("Stripe Customer create failed: " <> stripeClientErrorText err))
                         Right stripeCustomer
                             | stripeCustomer.stripeCustomerLivemode /= stripeModeIsLive operation.operationStripeConfig.stripeMode ->
@@ -315,7 +325,7 @@ ensureVenueStripeCustomer operation =
                                         |> set #venueId (unpackId operation.operationVenue.id)
                                         |> set #stripeCustomerId stripeCustomer.stripeCustomerId
                                         |> set #livemode stripeCustomer.stripeCustomerLivemode
-                                        |> set #createdByUserId (Just (unpackId operation.operationActor.id))
+                                        |> set #createdByUserId (Just (unpackId operation.operationPrincipal.billingCheckoutActor.id))
                                         |> createRecord
                                 pure (Right (customer, True))
 
