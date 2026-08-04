@@ -205,6 +205,15 @@ export function createSidePanelController(
     return { reconcile, toggle, collapse, dispose };
 }
 
+export function expandedSidePanelRootForEscape(target: Element | null): Element | null {
+    if (!target || !isSurfaceElementLike(target)) return null;
+    const focused = resolveRoot(target);
+    if (!focused) return null;
+    return focused.root.getAttribute(focused.definition.stateAttribute) === focused.definition.expandedValue
+        ? focused.root as unknown as Element
+        : null;
+}
+
 function rootsWithin(root: Document | DocumentFragment | Element): ElementLike[] {
     const roots: ElementLike[] = [];
     for (const mount of surfaceMountsWithin(root as Document | Element)) {
@@ -230,15 +239,10 @@ export function enableSidePanels(): void {
     });
     document.addEventListener("keydown", (event) => {
         if (event.key !== "Escape") return;
-        const focused = document.activeElement instanceof Element ? resolveRoot(document.activeElement) : null;
-        const focusedExpanded = focused && focused.root.getAttribute(focused.definition.stateAttribute) === focused.definition.expandedValue
-            ? focused.root
+        const focused = document.activeElement instanceof Element
+            ? expandedSidePanelRootForEscape(document.activeElement)
             : null;
-        const expanded = focusedExpanded ?? rootsWithin(document).find((root) => {
-            const resolved = resolveRoot(root);
-            return resolved?.root.getAttribute(resolved.definition.stateAttribute) === resolved?.definition.expandedValue;
-        });
-        if (expanded) controller.collapse(expanded as unknown as Element);
+        if (focused) controller.collapse(focused);
     });
     onAppPageReady((event) => reconcileWithin(detailRoot(event, "target")));
     document.addEventListener("htmx:afterSwap", (event) => reconcileWithin(detailRoot(event, "target")));

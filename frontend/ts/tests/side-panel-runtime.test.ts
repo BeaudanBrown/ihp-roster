@@ -10,6 +10,7 @@ import {
 } from "../generated/contracts";
 import {
     createSidePanelController,
+    expandedSidePanelRootForEscape,
     type SidePanelDiagnostic,
 } from "../side-panel/runtime";
 import { assertDeepEqual, assertEqual, test } from "./harness";
@@ -106,6 +107,13 @@ test("side panels toggle only the nearest generated root, including nested mount
     assertEqual(nested.label.textContent, "Show side panel");
     assertEqual(nested.icon.classList.contains("bi-fullscreen-exit"), true);
     assertEqual(nested.toggle.focusCount, 1);
+    assertEqual(expandedSidePanelRootForEscape(nested.icon as unknown as Element), nested.root as unknown as Element);
+
+    controller.toggle(nested.toggle as unknown as Element);
+    outer.root.setAttribute(rosterSidePanelDomAttr, rosterSidePanelStates.expanded);
+    assertEqual(expandedSidePanelRootForEscape(nested.icon as unknown as Element), null);
+    assertEqual(expandedSidePanelRootForEscape(outer.main as unknown as Element), outer.root as unknown as Element);
+    assertEqual(expandedSidePanelRootForEscape(new MiniElement() as unknown as Element), null);
 });
 
 test("side-panel reconciliation restores replacement controls and rejects malformed boundaries", () => {

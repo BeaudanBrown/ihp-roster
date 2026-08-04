@@ -18,13 +18,13 @@
     display: flex;
 }
 
-.app-side-panel-layout.is-side-panel-expanded .app-side-panel-main {
+.app-side-panel-layout.is-side-panel-expanded > .app-side-panel-main {
     flex: 0 0 100%;
     width: 100%;
     max-width: 100%;
 }
 
-.app-side-panel-layout.is-side-panel-expanded .app-side-panel-region {
+.app-side-panel-layout.is-side-panel-expanded > .app-side-panel-region {
     display: none !important;
 }
 
