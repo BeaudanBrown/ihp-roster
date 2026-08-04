@@ -145,6 +145,7 @@ type LeaveRequestsSurface =
             '[ 'MountTarget LeaveSidePanelContent '[]
              , 'Eager
              , 'Live
+             , 'Contains UnavailabilityBlackouts
              , 'DependsOn LeaveAvailabilityWarningsResource '[ 'FromScope VenueId ]
              ]
          , Fragment LeaveAvailabilityWarnings

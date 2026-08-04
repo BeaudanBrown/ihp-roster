@@ -125,10 +125,12 @@ tests = do
             let warningResources = Set.fromList [leaveAvailabilityWarningsResource venueId]
             let pendingResources = Set.fromList [leaveRequestsSectionResource venueId "pending"]
             let approvedResources = Set.fromList [leaveRequestsSectionResource venueId "approved"]
+            let sidePanelAndBlackoutResources = Set.fromList [unavailabilityBlackoutsResource venueId, leaveAvailabilityWarningsResource venueId]
             let affectedByBlackouts = planMountedFragments blackoutResources (leaveRequestsSurfaceScope scopeValue) candidates
             let affectedByWarnings = planMountedFragments warningResources (leaveRequestsSurfaceScope scopeValue) candidates
             let affectedByPending = planMountedFragments pendingResources (leaveRequestsSurfaceScope scopeValue) candidates
             let affectedByApproved = planMountedFragments approvedResources (leaveRequestsSurfaceScope scopeValue) candidates
+            let affectedBySidePanelAndBlackouts = planMountedFragments sidePanelAndBlackoutResources (leaveRequestsSurfaceScope scopeValue) candidates
 
             actorLiveFragmentsRefreshKeys (leaveRequestsSurfaceScope scopeValue) blackoutResources candidates
                 `shouldBe` passiveFragmentKeys blackoutResources (leaveRequestsSurfaceScope scopeValue) candidates
@@ -142,6 +144,7 @@ tests = do
             map (.mountedFragmentTargetId) affectedByWarnings `shouldBe` ["leave-side-panel-content", "leave-availability-warnings"]
             map (.mountedFragmentTargetId) affectedByPending `shouldBe` ["leave-pending-count", "leave-pending-list"]
             map (.mountedFragmentTargetId) affectedByApproved `shouldBe` ["leave-approved-count", "leave-approved-list"]
+            map (.mountedFragmentTargetId) affectedBySidePanelAndBlackouts `shouldBe` ["leave-side-panel-content", "leave-availability-warnings"]
 
         it "keeps subscription scope singular and executable descriptors local" do
             let scopeValue = LeaveRequestsScopeValue (fromWords 10 0 0 0)

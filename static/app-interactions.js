@@ -4,6 +4,7 @@
   function isFrontendSurfaceInteractionSurfaceName(value) {
     return typeof value === "string" && ["roster", "roster-day-timeline"].includes(value);
   }
+  var pageReadyEvent = "bepis:page-ready";
   var interactionIntentEvent = "bepis:interaction-intent";
   var interactionSessionStartEvent = "bepis:interaction-session-start";
   var interactionSessionEndEvent = "bepis:interaction-session-end";
@@ -45,6 +46,55 @@
     values: { enabled: enabledDomValue },
     pointerFields: { sessionKind: sessionKindFieldName, pointerId: pointerIdFieldName, pointerType: pointerTypeFieldName, startClientX: startClientXFieldName, startClientY: startClientYFieldName, currentClientX: currentClientXFieldName, currentClientY: currentClientYFieldName, deltaX: deltaXFieldName, deltaY: deltaYFieldName }
   };
+  var timesheetsTimesheetSidePanelTabDomAttr = "data-bepis-timesheets-timesheet-side-panel-tab";
+  var timesheetsTimesheetSidePanelRootDomAttr = "data-bepis-timesheets-timesheet-side-panel-root";
+  var timesheetsTimesheetSidePanelMainDomAttr = "data-bepis-timesheets-timesheet-side-panel-main";
+  var timesheetsTimesheetSidePanelPanelDomAttr = "data-bepis-timesheets-timesheet-side-panel-panel";
+  var timesheetsTimesheetSidePanelToggleDomAttr = "data-bepis-timesheets-timesheet-side-panel-toggle";
+  var timesheetsTimesheetSidePanelLabelDomAttr = "data-bepis-timesheets-timesheet-side-panel-label";
+  var timesheetsTimesheetSidePanelDomAttr = "data-bepis-timesheets-timesheet-side-panel";
+  var rosterStaffPanelTabDomAttr = "data-bepis-roster-staff-panel-tab";
+  var rosterSelfServicePanelTabDomAttr = "data-bepis-roster-self-service-panel-tab";
+  var rosterSidePanelRootDomAttr = "data-bepis-roster-side-panel-root";
+  var rosterSidePanelMainDomAttr = "data-bepis-roster-side-panel-main";
+  var rosterSidePanelPanelDomAttr = "data-bepis-roster-side-panel-panel";
+  var rosterSidePanelToggleDomAttr = "data-bepis-roster-side-panel-toggle";
+  var rosterSidePanelLabelDomAttr = "data-bepis-roster-side-panel-label";
+  var rosterSidePanelDomAttr = "data-bepis-roster-side-panel";
+  var leaveRequestsLeaveSidePanelTabDomAttr = "data-bepis-leave-requests-leave-side-panel-tab";
+  var leaveRequestsLeaveSidePanelRootDomAttr = "data-bepis-leave-requests-leave-side-panel-root";
+  var leaveRequestsLeaveSidePanelMainDomAttr = "data-bepis-leave-requests-leave-side-panel-main";
+  var leaveRequestsLeaveSidePanelPanelDomAttr = "data-bepis-leave-requests-leave-side-panel-panel";
+  var leaveRequestsLeaveSidePanelToggleDomAttr = "data-bepis-leave-requests-leave-side-panel-toggle";
+  var leaveRequestsLeaveSidePanelLabelDomAttr = "data-bepis-leave-requests-leave-side-panel-label";
+  var leaveRequestsLeaveSidePanelDomAttr = "data-bepis-leave-requests-leave-side-panel";
+  function isTimesheetsTimesheetSidePanelState(value) {
+    return typeof value === "string" && ["collapsed", "expanded"].includes(value);
+  }
+  function isRosterSidePanelState(value) {
+    return typeof value === "string" && ["collapsed", "expanded"].includes(value);
+  }
+  function isLeaveRequestsLeaveSidePanelState(value) {
+    return typeof value === "string" && ["collapsed", "expanded"].includes(value);
+  }
+  function isTimesheetSidePanelTabsKey(value) {
+    return typeof value === "string" && ["staff", "settings"].includes(value);
+  }
+  function isRosterStaffPanelTabsKey(value) {
+    return typeof value === "string" && ["staff", "templates", "settings"].includes(value);
+  }
+  function isRosterSelfServicePanelTabsKey(value) {
+    return typeof value === "string" && ["quick-tools", "settings"].includes(value);
+  }
+  function isLeaveSidePanelTabsKey(value) {
+    return typeof value === "string" && ["staff", "settings"].includes(value);
+  }
+  var FrontendSurfaceTabSetRegistry = { "timesheets": [{ "name": "timesheet-side-panel-tabs", "tabRoleAttribute": timesheetsTimesheetSidePanelTabDomAttr, "keys": ["staff", "settings"], "defaultKey": "staff", "isKey": isTimesheetSidePanelTabsKey }], "roster": [{ "name": "roster-staff-panel-tabs", "tabRoleAttribute": rosterStaffPanelTabDomAttr, "keys": ["staff", "templates", "settings"], "defaultKey": "staff", "isKey": isRosterStaffPanelTabsKey }, { "name": "roster-self-service-panel-tabs", "tabRoleAttribute": rosterSelfServicePanelTabDomAttr, "keys": ["quick-tools", "settings"], "defaultKey": "quick-tools", "isKey": isRosterSelfServicePanelTabsKey }], "roster-day-timeline": [], "roster-template-designer": [], "leave-requests": [{ "name": "leave-side-panel-tabs", "tabRoleAttribute": leaveRequestsLeaveSidePanelTabDomAttr, "keys": ["staff", "settings"], "defaultKey": "staff", "isKey": isLeaveSidePanelTabsKey }], "self-service-leave": [], "billing": [], "support": [], "profile": [], "staff": [], "admin-page": [], "admin-xero-page": [], "admin-venue-config": [], "admin-invites": [], "admin-exports": [], "admin-shift-types": [], "admin-roster-groups": [], "admin-xero": [] };
+  var FrontendSurfaceSidePanelRegistry = { "timesheets": [{ "name": "timesheet-side-panel", "rootRoleAttribute": timesheetsTimesheetSidePanelRootDomAttr, "mainRoleAttribute": timesheetsTimesheetSidePanelMainDomAttr, "panelRoleAttribute": timesheetsTimesheetSidePanelPanelDomAttr, "toggleRoleAttribute": timesheetsTimesheetSidePanelToggleDomAttr, "labelRoleAttribute": timesheetsTimesheetSidePanelLabelDomAttr, "stateAttribute": timesheetsTimesheetSidePanelDomAttr, "collapsedValue": "collapsed", "expandedValue": "expanded", "isState": isTimesheetsTimesheetSidePanelState }], "roster": [{ "name": "roster-side-panel", "rootRoleAttribute": rosterSidePanelRootDomAttr, "mainRoleAttribute": rosterSidePanelMainDomAttr, "panelRoleAttribute": rosterSidePanelPanelDomAttr, "toggleRoleAttribute": rosterSidePanelToggleDomAttr, "labelRoleAttribute": rosterSidePanelLabelDomAttr, "stateAttribute": rosterSidePanelDomAttr, "collapsedValue": "collapsed", "expandedValue": "expanded", "isState": isRosterSidePanelState }], "roster-day-timeline": [], "roster-template-designer": [], "leave-requests": [{ "name": "leave-side-panel", "rootRoleAttribute": leaveRequestsLeaveSidePanelRootDomAttr, "mainRoleAttribute": leaveRequestsLeaveSidePanelMainDomAttr, "panelRoleAttribute": leaveRequestsLeaveSidePanelPanelDomAttr, "toggleRoleAttribute": leaveRequestsLeaveSidePanelToggleDomAttr, "labelRoleAttribute": leaveRequestsLeaveSidePanelLabelDomAttr, "stateAttribute": leaveRequestsLeaveSidePanelDomAttr, "collapsedValue": "collapsed", "expandedValue": "expanded", "isState": isLeaveRequestsLeaveSidePanelState }], "self-service-leave": [], "billing": [], "support": [], "profile": [], "staff": [], "admin-page": [], "admin-xero-page": [], "admin-venue-config": [], "admin-invites": [], "admin-exports": [], "admin-shift-types": [], "admin-roster-groups": [], "admin-xero": [] };
+  var FrontendSurfaceFragmentRegistry = { "timesheets": ["timesheet-toolbar", "timesheet-day-columns", "timesheet-side-panel-content", "timesheet-day-section"], "roster": ["roster-content", "roster-grid-toolbar", "roster-grid-frame", "roster-day-columns", "roster-day-rail", "roster-wage-rail", "roster-slots-grid", "roster-staff-panel", "roster-template-library", "roster-day-section", "roster-row"], "roster-day-timeline": ["roster-day-timeline-content"], "roster-template-designer": [], "leave-requests": ["unavailability-blackouts", "leave-side-panel-content", "leave-availability-warnings", "leave-section-count", "leave-section-list"], "self-service-leave": ["self-service-leave-form", "visible-unavailability-blackouts", "self-service-leave-history"], "billing": ["billing-status"], "support": ["support-award-rates", "support-public-holidays"], "profile": ["profile-details-section", "profile-preferences-section", "profile-security-section", "profile-leave-section", "profile-rsa-section"], "staff": ["staff-details-section", "staff-preferences-section", "staff-visible-unavailability-blackouts", "staff-leave-section"], "admin-page": [], "admin-xero-page": [], "admin-venue-config": ["admin-venue-settings"], "admin-invites": ["admin-invites"], "admin-exports": ["admin-exports"], "admin-shift-types": ["admin-shift-types"], "admin-roster-groups": ["admin-roster-groups"], "admin-xero": ["admin-xero-shell"] };
+  function isFrontendSurfaceName(value) {
+    return typeof value === "string" && Object.prototype.hasOwnProperty.call(FrontendSurfaceFragmentRegistry, value);
+  }
   var FrontendSurfaceInteractionRegistry = { "roster": { "sourceRefs": [{ "ref": "shift-drag-source", "session": "drag", "intent": "move-roster-shift-to-slot", "sourceField": "sourceItemKey", "compatibleDropzones": ["shift-slot-dropzone", "day-column-dropzone", "delete-shift-dropzone"], "modifierVariants": [{ "semantic": "copy", "intent": "duplicate-roster-shift-to-day", "effects": { "global": [{ "className": "bepis-pointer-clone-shadow bepis-pointer-clone-shadow-copy", "kind": "clone-shadow", "layer": "drag-preview", "preserveGrabOffset": true, "source": "pointer-marker" }], "contextual": [{ "className": "bepis-dropzone-highlight", "kind": "dropzone-highlight" }] } }] }, { "ref": "staff-drag-source", "session": "drag", "intent": "drop-roster-staff", "sourceField": "sourceItemKey", "compatibleDropzones": ["existing-shift-dropzone", "shift-slot-dropzone", "staff-create-dropzone"], "modifierVariants": [] }, { "ref": "day-template-drag-source", "session": "drag", "intent": "preview-roster-template-application", "sourceField": "sourceItemKey", "compatibleDropzones": ["day-template-dropzone"], "modifierVariants": [] }, { "ref": "week-template-drag-source", "session": "drag", "intent": "preview-roster-template-application", "sourceField": "sourceItemKey", "compatibleDropzones": ["week-template-dropzone"], "modifierVariants": [] }], "dropzoneRefs": [{ "ref": "shift-slot-dropzone", "session": "drag", "targetField": "targetDropzoneKey" }, { "ref": "staff-create-dropzone", "session": "drag", "targetField": "targetDropzoneKey" }, { "ref": "day-column-dropzone", "session": "drag", "targetField": "targetDropzoneKey" }, { "ref": "existing-shift-dropzone", "session": "drag", "targetField": "targetDropzoneKey" }, { "ref": "delete-shift-dropzone", "session": "drag", "targetField": "targetDropzoneKey" }, { "ref": "day-template-dropzone", "session": "drag", "targetField": "targetDropzoneKey" }, { "ref": "week-template-dropzone", "session": "drag", "targetField": "targetDropzoneKey" }], "activationRefs": [{ "ref": "roster-layout-mode-activation", "intent": "set-roster-layout-mode", "valueField": "rosterLayoutMode", "trigger": "click" }], "sessionKinds": [{ "kind": "drag", "effects": { "global": [{ "className": "bepis-pointer-clone-shadow", "kind": "clone-shadow", "layer": "drag-preview", "preserveGrabOffset": true, "source": "pointer-marker" }], "contextual": [{ "className": "bepis-dropzone-highlight", "kind": "dropzone-highlight" }] } }] }, "roster-day-timeline": { "sourceRefs": [{ "ref": "drag-source", "session": "drag", "intent": "move-roster-timeline-shift", "sourceField": "sourceItemKey", "compatibleDropzones": ["drag-dropzone"], "modifierVariants": [] }], "dropzoneRefs": [{ "ref": "drag-dropzone", "session": "drag", "targetField": "targetDropzoneKey" }], "activationRefs": [], "sessionKinds": [{ "kind": "drag", "effects": { "global": [{ "className": "bepis-pointer-clone-shadow", "kind": "clone-shadow", "layer": "drag-preview", "preserveGrabOffset": true, "source": "pointer-marker" }], "contextual": [{ "className": "bepis-dropzone-highlight", "kind": "dropzone-highlight" }] } }] } };
 
   // frontend/ts/interaction/form-bridge.ts
@@ -908,7 +958,380 @@
     return typeof maybe.getAttribute === "function" && typeof maybe.closest === "function" && typeof maybe.querySelectorAll === "function";
   }
 
+  // frontend/ts/shared/dom.ts
+  function isElement(value) {
+    return typeof Element !== "undefined" && value instanceof Element;
+  }
+  function isDocument(value) {
+    return typeof Document !== "undefined" && value instanceof Document;
+  }
+  function isDocumentFragment(value) {
+    return typeof DocumentFragment !== "undefined" && value instanceof DocumentFragment;
+  }
+  function isDomRoot(value) {
+    return isElement(value) || isDocument(value) || isDocumentFragment(value);
+  }
+
+  // frontend/ts/shared/lifecycle.ts
+  function eventDetailRecord(event) {
+    if (typeof CustomEvent === "undefined" || !(event instanceof CustomEvent)) return null;
+    if (event.detail === null || typeof event.detail !== "object") return null;
+    return event.detail;
+  }
+  function detailTarget(event, key) {
+    return eventDetailRecord(event)?.[key];
+  }
+  function isConnectedRoot(root) {
+    return root instanceof Document || root.isConnected;
+  }
+  function detailRoot(event, key, fallback = document) {
+    const detailCandidate = detailTarget(event, key);
+    if (isDomRoot(detailCandidate) && isConnectedRoot(detailCandidate)) return detailCandidate;
+    if (isDomRoot(event.target) && isConnectedRoot(event.target)) return event.target;
+    return fallback;
+  }
+  function onAppPageReady(handler) {
+    if (typeof document === "undefined") return;
+    document.addEventListener(pageReadyEvent, handler);
+  }
+
+  // frontend/ts/shared/surface-mount.ts
+  function surfaceMountsWithin(root) {
+    const queryRoot = root;
+    const mounts = Array.from(queryRoot.querySelectorAll(`[${surfaceDomAttr}]`)).filter(isSurfaceElementLike);
+    if (isSurfaceElementLike(root)) {
+      const ownerMount = closestSurfaceMount(root);
+      if (ownerMount && !mounts.includes(ownerMount)) mounts.unshift(ownerMount);
+    }
+    return mounts;
+  }
+  function surfaceDefinitionsForMount(mount, registry) {
+    const surface = mount.getAttribute(surfaceDomAttr);
+    return isFrontendSurfaceName(surface) ? registry[surface] : [];
+  }
+  function ownedSurfaceRoleElements(owner, mount, attribute) {
+    return Array.from(owner.querySelectorAll(`[${attribute}]`)).filter(isSurfaceElementLike).filter((element) => closestSurfaceMount(element) === mount);
+  }
+  function closestOwnedSurfaceRole(target, mount, attribute) {
+    const candidate = target.closest(`[${attribute}]`);
+    return isSurfaceElementLike(candidate) && closestSurfaceMount(candidate) === mount ? candidate : null;
+  }
+  function closestSurfaceMount(target) {
+    const mount = target.closest(`[${surfaceDomAttr}]`);
+    return isSurfaceElementLike(mount) ? mount : null;
+  }
+  function isSurfaceElementLike(value) {
+    if (value === null || typeof value !== "object") return false;
+    const candidate = value;
+    return typeof candidate.appendChild === "function" && typeof candidate.getAttribute === "function" && typeof candidate.setAttribute === "function" && typeof candidate.closest === "function" && typeof candidate.querySelectorAll === "function";
+  }
+  function surfaceRootFromPageReadyEvent(event) {
+    const target = event.detail?.target;
+    return target instanceof Element || target instanceof Document ? target : document;
+  }
+
+  // frontend/ts/side-panel/runtime.ts
+  function defaultDiagnosticReporter(diagnostic3) {
+    console.error?.("Invalid generated Surface side-panel boundary", diagnostic3);
+  }
+  function diagnostic(element, code, message) {
+    return { code, elementId: element.id || null, message };
+  }
+  function definitionRoots(mount, definition) {
+    return ownedSurfaceRoleElements(mount, mount, definition.rootRoleAttribute);
+  }
+  function resolveRoot(root) {
+    const mount = closestSurfaceMount(root);
+    if (!mount) return null;
+    for (const definition of surfaceDefinitionsForMount(mount, FrontendSurfaceSidePanelRegistry)) {
+      const candidate = closestOwnedSurfaceRole(root, mount, definition.rootRoleAttribute);
+      if (candidate) return { mount, root: candidate, definition };
+    }
+    return null;
+  }
+  function resolveToggle(target) {
+    const mount = closestSurfaceMount(target);
+    if (!mount) return null;
+    for (const definition of surfaceDefinitionsForMount(mount, FrontendSurfaceSidePanelRegistry)) {
+      const toggle = closestOwnedSurfaceRole(target, mount, definition.toggleRoleAttribute);
+      if (!toggle) continue;
+      const root = closestOwnedSurfaceRole(toggle, mount, definition.rootRoleAttribute);
+      if (root) return { resolved: { mount, root, definition }, toggle };
+    }
+    return null;
+  }
+  function ownedElements(resolved, attribute) {
+    return ownedSurfaceRoleElements(resolved.root, resolved.mount, attribute).filter((element) => closestOwnedSurfaceRole(element, resolved.mount, resolved.definition.rootRoleAttribute) === resolved.root);
+  }
+  function validateStructure(resolved, report) {
+    if (resolved.root.getAttribute(resolved.definition.rootRoleAttribute) !== "true") {
+      report(diagnostic(resolved.root, "invalid-root-role", "Side-panel root role must equal true"));
+      return false;
+    }
+    const required = [
+      [resolved.definition.mainRoleAttribute, "invalid-main-role"],
+      [resolved.definition.panelRoleAttribute, "invalid-panel-role"]
+    ];
+    for (const [attribute, code] of required) {
+      const elements = ownedElements(resolved, attribute);
+      if (elements.length !== 1 || elements[0]?.getAttribute(attribute) !== "true") {
+        report(diagnostic(resolved.root, code, "Side-panel root must own exactly one generated region role"));
+        return false;
+      }
+    }
+    return true;
+  }
+  function stateFor(resolved, report) {
+    if (!validateStructure(resolved, report)) return null;
+    const state = resolved.root.getAttribute(resolved.definition.stateAttribute);
+    if (!resolved.definition.isState(state)) {
+      report(diagnostic(resolved.root, "invalid-state", "Side-panel state is not declared by the Surface contract"));
+      return null;
+    }
+    return state;
+  }
+  function validateToggle(resolved, toggle, report) {
+    if (toggle.getAttribute(resolved.definition.toggleRoleAttribute) !== "true") {
+      report(diagnostic(toggle, "invalid-toggle-role", "Side-panel toggle role must equal true"));
+      return null;
+    }
+    const labels = Array.from(toggle.querySelectorAll(`[${resolved.definition.labelRoleAttribute}]`)).filter(isSurfaceElementLike).filter((label) => closestOwnedSurfaceRole(label, resolved.mount, resolved.definition.toggleRoleAttribute) === toggle);
+    if (labels.length !== 1 || labels[0]?.getAttribute(resolved.definition.labelRoleAttribute) !== "true") {
+      report(diagnostic(toggle, "invalid-label-role", "Side-panel toggle must own one generated label role"));
+      return null;
+    }
+    return { toggle, label: labels[0] };
+  }
+  function updateToggle(validated, resolved, state) {
+    const expanded = state === resolved.definition.expandedValue;
+    const rootClassList = resolved.root.classList;
+    rootClassList?.toggle("is-side-panel-expanded", expanded);
+    const label = expanded ? "Show side panel" : "Expand main content";
+    validated.toggle.setAttribute("aria-pressed", expanded ? "true" : "false");
+    validated.toggle.setAttribute("aria-label", label);
+    validated.toggle.setAttribute("title", label);
+    validated.label.textContent = label;
+    const icon = Array.from(validated.toggle.querySelectorAll(".bi"))[0];
+    if (typeof Element !== "undefined" && icon instanceof Element || isSurfaceElementLike(icon)) {
+      const classList = icon.classList;
+      classList?.toggle("bi-fullscreen", !expanded);
+      classList?.toggle("bi-fullscreen-exit", expanded);
+    }
+  }
+  function createSidePanelController(report = defaultDiagnosticReporter) {
+    function validatedToggles(resolved) {
+      const toggles = ownedElements(resolved, resolved.definition.toggleRoleAttribute);
+      const validated = toggles.map((toggle2) => validateToggle(resolved, toggle2, report));
+      return validated.some((toggle2) => toggle2 === null) ? null : validated;
+    }
+    function reconcile(root) {
+      if (!isSurfaceElementLike(root)) return false;
+      const resolved = resolveRoot(root);
+      if (!resolved) return false;
+      const state = stateFor(resolved, report);
+      const toggles = validatedToggles(resolved);
+      if (!state || !toggles) return false;
+      toggles.forEach((toggle2) => updateToggle(toggle2, resolved, state));
+      return true;
+    }
+    function setState(resolved, state, focusToggle) {
+      if (!stateFor(resolved, report)) return false;
+      const toggles = validatedToggles(resolved);
+      if (!toggles) return false;
+      resolved.root.setAttribute(resolved.definition.stateAttribute, state);
+      toggles.forEach((toggle2) => updateToggle(toggle2, resolved, state));
+      if (focusToggle) {
+        const focus = focusToggle.focus;
+        if (typeof focus === "function") focus.call(focusToggle, { preventScroll: true });
+      }
+      return true;
+    }
+    function toggle(target) {
+      if (!isSurfaceElementLike(target)) return false;
+      const match = resolveToggle(target);
+      if (!match || !validateToggle(match.resolved, match.toggle, report)) return false;
+      const state = stateFor(match.resolved, report);
+      if (!state) return false;
+      const nextState = state === match.resolved.definition.expandedValue ? match.resolved.definition.collapsedValue : match.resolved.definition.expandedValue;
+      return setState(match.resolved, nextState, match.toggle);
+    }
+    function collapse(root) {
+      if (!isSurfaceElementLike(root)) return false;
+      const resolved = resolveRoot(root);
+      return resolved ? setState(resolved, resolved.definition.collapsedValue, null) : false;
+    }
+    function dispose(root) {
+      if (!isSurfaceElementLike(root)) return;
+      const resolved = resolveRoot(root);
+      if (resolved?.root === root) collapse(root);
+    }
+    return { reconcile, toggle, collapse, dispose };
+  }
+  function expandedSidePanelRootForEscape(target) {
+    if (!target || !isSurfaceElementLike(target)) return null;
+    const focused = resolveRoot(target);
+    if (!focused) return null;
+    return focused.root.getAttribute(focused.definition.stateAttribute) === focused.definition.expandedValue ? focused.root : null;
+  }
+  function rootsWithin(root) {
+    const roots = [];
+    for (const mount of surfaceMountsWithin(root)) {
+      for (const definition of surfaceDefinitionsForMount(mount, FrontendSurfaceSidePanelRegistry)) {
+        for (const sidePanelRoot of definitionRoots(mount, definition)) {
+          if (!roots.includes(sidePanelRoot)) roots.push(sidePanelRoot);
+        }
+      }
+    }
+    return roots;
+  }
+  function installSidePanelEventListeners(source, controller, reconcileWithin) {
+    source.addEventListener("click", (event) => {
+      if (isSurfaceElementLike(event.target)) controller.toggle(event.target);
+    });
+    source.addEventListener("keydown", (event) => {
+      if (event.key !== "Escape" || !isSurfaceElementLike(source.activeElement)) return;
+      const focused = expandedSidePanelRootForEscape(source.activeElement);
+      if (focused) controller.collapse(focused);
+    });
+    source.addEventListener("htmx:afterSwap", (event) => {
+      const target = event.detail?.target;
+      if (target && typeof target.querySelectorAll === "function") {
+        reconcileWithin(target);
+      }
+    });
+    source.addEventListener("htmx:beforeCleanupElement", (event) => {
+      const target = event.detail?.target;
+      if (isSurfaceElementLike(target)) controller.dispose(target);
+    });
+  }
+  var browserRuntimeEnabled = false;
+  function enableSidePanels() {
+    if (browserRuntimeEnabled || typeof document === "undefined") return;
+    browserRuntimeEnabled = true;
+    const controller = createSidePanelController();
+    const reconcileWithin = (root) => rootsWithin(root).forEach((panelRoot) => controller.reconcile(panelRoot));
+    installSidePanelEventListeners(document, controller, reconcileWithin);
+    onAppPageReady((event) => reconcileWithin(detailRoot(event, "target")));
+    if (document.readyState !== "loading") reconcileWithin(document);
+  }
+
+  // frontend/ts/surface-tab-set/runtime.ts
+  function tabPresentationMatchesSelection(element) {
+    if (typeof HTMLElement === "undefined" || !(element instanceof HTMLElement)) {
+      return element.getAttribute("aria-selected") === "true";
+    }
+    const paneSelector = element.getAttribute("data-bs-target");
+    if (paneSelector === null || !paneSelector.startsWith("#")) return false;
+    const pane = document.querySelector(paneSelector);
+    return element.classList.contains("active") && pane?.classList.contains("active") === true && pane.classList.contains("show");
+  }
+  function defaultShowTab(element) {
+    if (!(element instanceof HTMLElement)) return;
+    if (element.getAttribute("aria-selected") === "true" && !tabPresentationMatchesSelection(element)) {
+      element.classList.remove("active");
+      element.setAttribute("aria-selected", "false");
+    }
+    window.bootstrap?.Tab?.getOrCreateInstance(element).show();
+  }
+  function defaultDiagnosticReporter2(diagnostic3) {
+    console.error?.("Invalid generated Surface tab-set boundary", diagnostic3);
+  }
+  function diagnostic2(element, code, message) {
+    return { code, elementId: element.id || null, message };
+  }
+  function createSurfaceTabSetController(showTab = defaultShowTab, report = defaultDiagnosticReporter2) {
+    const activeKeysByMount = /* @__PURE__ */ new WeakMap();
+    function rememberedKey(mount, definition) {
+      return activeKeysByMount.get(mount)?.get(definition.name) ?? definition.defaultKey;
+    }
+    function setRememberedKey(mount, definition, key) {
+      let activeKeys = activeKeysByMount.get(mount);
+      if (!activeKeys) {
+        activeKeys = /* @__PURE__ */ new Map();
+        activeKeysByMount.set(mount, activeKeys);
+      }
+      activeKeys.set(definition.name, key);
+    }
+    function remember(target) {
+      if (!isSurfaceElementLike(target)) return false;
+      const mount = closestSurfaceMount(target);
+      if (!mount) return false;
+      for (const definition of definitionsForMount(mount)) {
+        const tab = closestOwnedSurfaceRole(target, mount, definition.tabRoleAttribute);
+        if (!tab) continue;
+        const key = tab.getAttribute(definition.tabRoleAttribute);
+        if (key === null || !definition.isKey(key)) {
+          report(diagnostic2(tab, "invalid-tab-key", "Surface tab has an undeclared key"));
+          return false;
+        }
+        setRememberedKey(mount, definition, key);
+        return true;
+      }
+      return false;
+    }
+    function reconcile(root) {
+      for (const mount of surfaceMountsWithin(root)) {
+        for (const definition of definitionsForMount(mount)) {
+          const tabs = ownedSurfaceRoleElements(mount, mount, definition.tabRoleAttribute);
+          if (tabs.length === 0) continue;
+          const tabsByKey = /* @__PURE__ */ new Map();
+          let valid = true;
+          for (const tab of tabs) {
+            const key = tab.getAttribute(definition.tabRoleAttribute);
+            if (key === null || !definition.isKey(key)) {
+              report(diagnostic2(tab, "invalid-tab-key", "Surface tab has an undeclared key"));
+              valid = false;
+              continue;
+            }
+            const matchingTabs = tabsByKey.get(key) ?? [];
+            matchingTabs.push(tab);
+            tabsByKey.set(key, matchingTabs);
+          }
+          for (const [key, matchingTabs] of tabsByKey) {
+            if (matchingTabs.length <= 1) continue;
+            report(diagnostic2(mount, "duplicate-tab-key", `Surface tab set renders key ${key} more than once`));
+            valid = false;
+          }
+          if (!valid) continue;
+          const remembered = rememberedKey(mount, definition);
+          const desiredKey = tabsByKey.has(remembered) ? remembered : definition.defaultKey;
+          if (desiredKey !== remembered) {
+            report(diagnostic2(mount, "missing-tab-key", `Surface tab set is missing rendered key ${remembered}; restoring ${desiredKey}`));
+            setRememberedKey(mount, definition, desiredKey);
+          }
+          const desiredTabs = tabsByKey.get(desiredKey) ?? [];
+          if (desiredTabs.length === 0) {
+            report(diagnostic2(mount, "missing-tab-key", `Surface tab set is missing rendered default key ${definition.defaultKey}`));
+            continue;
+          }
+          const desiredTab = desiredTabs[0];
+          if (desiredTab && tabPresentationMatchesSelection(desiredTab)) continue;
+          showTab(desiredTab);
+        }
+      }
+    }
+    return { remember, reconcile };
+  }
+  function definitionsForMount(mount) {
+    return surfaceDefinitionsForMount(mount, FrontendSurfaceTabSetRegistry);
+  }
+  var browserRuntimeEnabled2 = false;
+  function enableFrontendSurfaceTabSets() {
+    if (browserRuntimeEnabled2 || typeof document === "undefined") return;
+    browserRuntimeEnabled2 = true;
+    const controller = createSurfaceTabSetController();
+    document.addEventListener("shown.bs.tab", (event) => {
+      if (!(event.target instanceof Element)) return;
+      controller.remember(event.target);
+    });
+    onAppPageReady((event) => controller.reconcile(surfaceRootFromPageReadyEvent(event)));
+    document.addEventListener("htmx:afterSettle", () => controller.reconcile(document));
+    controller.reconcile(document);
+  }
+
   // frontend/ts/app-interactions.ts
   enableGenericInteractionActivations();
   enableGenericPointerSessions();
+  enableFrontendSurfaceTabSets();
+  enableSidePanels();
 })();

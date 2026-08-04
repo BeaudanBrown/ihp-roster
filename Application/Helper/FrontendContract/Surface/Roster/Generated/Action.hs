@@ -330,25 +330,25 @@ toggleRosterDayClosedAction =
 
 toggleRosterOwnLiveShiftHighlightActionFields ::
     Bool ->
-    SurfaceActionFields (AdapterFamilySurface Types2.RosterAdapterFamily) Types1.ToggleRosterOwnLiveShiftHighlight
+    SurfaceActionFields (AdapterFamilySurface Types3.RosterAdapterFamily) Types2.ToggleRosterOwnLiveShiftHighlight
 toggleRosterOwnLiveShiftHighlightActionFields highlightOwnLiveShifts =
     surfaceActionFields
-        (surfaceField @Types1.HighlightOwnLiveShifts highlightOwnLiveShifts)
+        (surfaceField @Types2.HighlightOwnLiveShifts highlightOwnLiveShifts)
         noSurfaceFields
 
-toggleRosterOwnLiveShiftHighlightAction :: SurfaceActionFields (AdapterFamilySurface Types2.RosterAdapterFamily) Types1.ToggleRosterOwnLiveShiftHighlight -> FrontendSurfaceAction
+toggleRosterOwnLiveShiftHighlightAction :: SurfaceActionFields (AdapterFamilySurface Types3.RosterAdapterFamily) Types2.ToggleRosterOwnLiveShiftHighlight -> FrontendSurfaceAction
 toggleRosterOwnLiveShiftHighlightAction =
     frontendSurfaceAction
-        @(AdapterFamilySurface Types2.RosterAdapterFamily)
-        @Types1.ToggleRosterOwnLiveShiftHighlight
+        @(AdapterFamilySurface Types3.RosterAdapterFamily)
+        @Types2.ToggleRosterOwnLiveShiftHighlight
 
 parseToggleRosterOwnLiveShiftHighlightActionParams ::
     (?request :: Request) =>
-    Either [SurfaceRequestFieldError] (SurfaceActionFields (AdapterFamilySurface Types2.RosterAdapterFamily) Types1.ToggleRosterOwnLiveShiftHighlight)
+    Either [SurfaceRequestFieldError] (SurfaceActionFields (AdapterFamilySurface Types3.RosterAdapterFamily) Types2.ToggleRosterOwnLiveShiftHighlight)
 parseToggleRosterOwnLiveShiftHighlightActionParams =
     parseSurfaceActionParams
-        @(AdapterFamilySurface Types2.RosterAdapterFamily)
-        @Types1.ToggleRosterOwnLiveShiftHighlight
+        @(AdapterFamilySurface Types3.RosterAdapterFamily)
+        @Types2.ToggleRosterOwnLiveShiftHighlight
 
 toggleRosterStaffScopeActionFields ::
     Text ->
