@@ -33,9 +33,9 @@ data PageHelpAudience
     deriving (Eq, Show)
 
 data PageHelpContext = PageHelpContext
-    { pageHelpCanManage :: !Bool
-    , pageHelpCanAdmin  :: !Bool
-    , pageHelpCanOwn    :: !Bool
+    { pageHelpCanManage       :: !Bool
+    , pageHelpCanAdmin        :: !Bool
+    , pageHelpCanOwn          :: !Bool
     , pageHelpIsSupport       :: !Bool
     , pageHelpIsImpersonating :: !Bool
     , pageHelpIsFounder       :: !Bool
