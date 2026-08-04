@@ -1255,7 +1255,7 @@ tests = aroundAll withDatabaseTestContext do
                 staffMember <- createStaffRecord venue (Just user) "Alpha" "Crew"
                 rosterWeek <- createRosterWeekRecord venue 0 True
                 rosterDay <- createRosterDayRecord rosterWeek 0
-                _ <- createRosterSlotRecord rosterDay slotName (Just staffMember) 0
+                slot <- createRosterSlotRecord rosterDay slotName (Just staffMember) 0
 
                 response <- withUser user do
                     callAction (ShowRosterWeekAction 0)
@@ -1277,6 +1277,18 @@ tests = aroundAll withDatabaseTestContext do
                 draftResponse <- withUser user do
                     callAction (ShowRosterWeekAction 0)
                 draftResponse `responseBodyShouldNotContain` "data-bepis-roster-staff-highlight-default"
+
+                _ <- updateRecord (rosterWeek |> set #isLive True)
+                _ <- updateRecord (staffMember |> set #isActive False)
+                inactiveStaffResponse <- withUser user do
+                    callAction (ShowRosterWeekAction 0)
+                inactiveStaffResponse `responseBodyShouldNotContain` "data-bepis-roster-staff-highlight-default"
+
+                _ <- updateRecord (staffMember |> set #isActive True)
+                _ <- updateRecord (slot |> set #staffId Nothing)
+                unassignedResponse <- withUser user do
+                    callAction (ShowRosterWeekAction 0)
+                unassignedResponse `responseBodyShouldNotContain` "data-bepis-roster-staff-highlight-default"
 
         it "hides roster warning controls and highlights from staff" $ withContext do
             withCleanDb do
@@ -1654,6 +1666,9 @@ tests = aroundAll withDatabaseTestContext do
 
                 response `responseStatusShouldBe` status200
                 lookup "HX-Reswap" (responseHeaders response) `shouldBe` Just "none"
+                response `responseBodyShouldContain` "id=\"roster-staff-self-service-panel-fragment\""
+                response `responseBodyShouldContain` "hx-swap-oob=\"outerHTML\""
+                response `responseBodyShouldContain` "Own shifts not highlighted"
                 preferences <- query @UserPreference
                     |> filterWhere (#userId, unpackId worker.id)
                     |> fetchOne

@@ -302,7 +302,7 @@ fetchVisibleRosterReadModel rosterGroupId weekOffset = profileActionSpan "roster
     currentRosterGroup <- profileActionSpan "roster.direct.resolve_current_group" (fetchCurrentVenueRosterGroupOrDefault (Just rosterGroupId))
     (templateLibraryUserId, templateLibrary) <- fetchRosterPanelTemplateLibrary currentRosterGroup
     highlightOwnLiveShifts <- fetchCurrentUserHighlightOwnLiveShifts
-    currentViewerStaffKey <- fmap (fmap (\staff -> "staff:" <> tshow staff.id)) fetchCurrentUserStaff
+    let currentViewerStaffKey = Nothing
     case visibleRosterWeek of
         Nothing -> do
             (backingRosterWeek, rosterDays, weekStartDate, orderedSlotNames, shiftTypes, maskedSlots) <- fetchHiddenRosterRenderData rosterGroupId weekOffset
@@ -357,7 +357,7 @@ fetchRosterRenderData rosterGroupId weekOffset = do
     userShowWageEstimates <- profileActionSpan "roster.direct.fetch_wage_preference" fetchCurrentUserShowWageEstimates
     showRosterWarnings <- profileActionSpan "roster.direct.fetch_warning_preference" fetchCurrentUserShowRosterWarnings
     highlightOwnLiveShifts <- profileActionSpan "roster.direct.fetch_own_highlight_preference" fetchCurrentUserHighlightOwnLiveShifts
-    currentViewerStaffKey <- profileActionSpan "roster.direct.fetch_current_staff_key" (fmap (fmap (\staff -> "staff:" <> tshow staff.id)) fetchCurrentUserStaff)
+    maybeCurrentViewerStaff <- profileActionSpan "roster.direct.fetch_current_staff" fetchCurrentUserStaff
     let showWageEstimates = shouldShowRosterWageEstimates userShowWageEstimates
     let weekStartDate = venueWeekStartDate venueConfig weekOffset
     (templateLibraryUserId, templateLibrary) <- fetchRosterPanelTemplateLibrary currentRosterGroup
@@ -367,6 +367,14 @@ fetchRosterRenderData rosterGroupId weekOffset = do
     case baseFactsOrNothing of
         Nothing -> pure Nothing
         Just RosterBaseFacts { baseRosterWeek = rosterWeek, baseRosterDays = rosterDays, baseAllSlots = allSlots, baseVisibleSlots = visibleSlots, baseOrderedSlotDefinitions = orderedSlotNames, baseShiftTypes = shiftTypes, basePanelStaff = panelStaffMembers, baseStaffMembers = staffMembers } -> do
+            let currentViewerStaffKey =
+                    case maybeCurrentViewerStaff of
+                        Just staff
+                            | staff.isActive
+                            , isNothing staff.archivedAt
+                            , any (\slot -> slot.staffId == Just (unpackId staff.id)) visibleSlots ->
+                                Just ("staff:" <> tshow staff.id)
+                        _ -> Nothing
             panelStaff <- profileActionSpan "roster.build_staff_panel" (fetchRosterStaffPanelEntries panelStaffMembers visibleSlots)
             notificationPanelData <- fetchRosterPanelNotificationData currentRosterGroup (Just rosterWeek)
             staffSelfServicePanel <- profileActionSpan "roster.build_staff_self_service_panel" (fetchRosterStaffSelfServicePanel venueConfig rosterGroupId weekOffset highlightOwnLiveShifts)

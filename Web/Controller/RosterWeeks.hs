@@ -91,6 +91,7 @@ import Web.RosterWeeks.Responses (respondWithRosterContent,
                                   respondWithRosterDialogOverlay,
                                   respondWithRosterFragments,
                                   respondWithRosterFragmentsUpdate,
+                                  respondWithRosterOwnHighlightPreferenceUpdate,
                                   respondWithRosterResourceInvalidation,
                                   respondWithRosterToast)
 import Web.RosterWeeks.Rows
@@ -980,7 +981,7 @@ instance Controller RosterWeeksController where
             Right fields -> do
                 _ <- upsertCurrentUserHighlightOwnLiveShifts (surfaceFieldValue @Surface.HighlightOwnLiveShifts fields)
                 if isHtmxRequest
-                    then respondWithRosterFragmentsUpdate rosterGroup.id weekOffset rosterContentAndStaffPanelFragments (successToast "Own live-shift highlight preference saved.")
+                    then respondWithRosterOwnHighlightPreferenceUpdate rosterGroup.id weekOffset (successToast "Own live-shift highlight preference saved.")
                     else do
                         setSuccessMessage "Own live-shift highlight preference saved."
                         redirectToPath (rosterWeekUrl weekOffset rosterGroup.id)

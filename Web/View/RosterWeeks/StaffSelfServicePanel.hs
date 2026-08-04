@@ -2,6 +2,7 @@
 
 module Web.View.RosterWeeks.StaffSelfServicePanel
     ( renderRosterStaffSelfServicePanelFragment
+    , renderRosterStaffSelfServicePanelFragmentOob
     , rosterStaffSelfServicePanelFragmentId
     , rosterStaffSelfServiceTimesheetSurfaceId
     ) where
@@ -35,15 +36,21 @@ rosterStaffSelfServiceTimesheetSurfaceId :: Text
 rosterStaffSelfServiceTimesheetSurfaceId = "roster-staff-self-service-timesheet-live-surface"
 
 renderRosterStaffSelfServicePanelFragment :: (?context :: ControllerContext) => Maybe RosterStaffSelfServicePanel -> Html
-renderRosterStaffSelfServicePanelFragment Nothing = mempty
-renderRosterStaffSelfServicePanelFragment (Just panel)
+renderRosterStaffSelfServicePanelFragment = renderRosterStaffSelfServicePanelFragmentWithSwap Nothing
+
+renderRosterStaffSelfServicePanelFragmentOob :: (?context :: ControllerContext) => Maybe RosterStaffSelfServicePanel -> Html
+renderRosterStaffSelfServicePanelFragmentOob = renderRosterStaffSelfServicePanelFragmentWithSwap (Just "outerHTML")
+
+renderRosterStaffSelfServicePanelFragmentWithSwap :: (?context :: ControllerContext) => Maybe Text -> Maybe RosterStaffSelfServicePanel -> Html
+renderRosterStaffSelfServicePanelFragmentWithSwap _ Nothing = mempty
+renderRosterStaffSelfServicePanelFragmentWithSwap maybeSwapOob (Just panel)
     | currentUserIsManager = mempty
     | currentUserIsUnimpersonatedSuperAdmin = mempty
     | otherwise =
         renderSidePanelPanelRegion rosterSidePanelRenderAttrs SidePanelRegionConfig
             { sidePanelRegionId = Just rosterStaffSelfServicePanelFragmentId
             , sidePanelRegionClass = "col-12 col-xl-4 col-xxl-3 roster-layout-side roster-staff-self-service-panel"
-            , sidePanelRegionExtraAttrs = []
+            , sidePanelRegionExtraAttrs = maybe [] (\swap -> [("hx-swap-oob", swap)]) maybeSwapOob
             }
             [hsx|
                 <div class="app-panel app-side-panel-scroll roster-staff-panel">

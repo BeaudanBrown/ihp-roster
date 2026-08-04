@@ -6,6 +6,7 @@ module Web.RosterWeeks.Responses
     , respondWithRosterDialogOverlay
     , respondWithRosterFragments
     , respondWithRosterFragmentsUpdate
+    , respondWithRosterOwnHighlightPreferenceUpdate
     , respondWithRosterResourceInvalidation
     , respondWithRosterToast
     , respondWithRosterTemplateApplicationUpdate
@@ -34,6 +35,7 @@ import Web.RosterWeeks.FrontendSurface (RosterWeekScopeValue (..),
                                         rosterMountedFragmentPlanFromRenderData,
                                         rosterSurfaceFragmentKeys,
                                         rosterSurfaceScope)
+import Web.RosterWeeks.Projection (rosterContentAndStaffPanelFragments)
 import Web.RosterWeeks.RenderData (fetchVisibleRosterReadModel,
                                    renderRosterProjectionFragmentWithMode,
                                    renderVisibleRosterReadModelFragment)
@@ -43,6 +45,7 @@ import Web.RosterWeeks.Types (RosterGridRenderModel (..),
                               RosterRenderData (..))
 import Web.View.RosterWeeks.Grid (renderrosterContentLiveFragment,
                                   renderrosterContentLiveFragmentOob)
+import Web.View.RosterWeeks.StaffSelfServicePanel (renderRosterStaffSelfServicePanelFragmentOob)
 
 respondWithRosterContent :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id RosterGroup -> Int -> IO ()
 respondWithRosterContent rosterGroupId weekOffset = do
@@ -54,6 +57,16 @@ respondWithRosterContent rosterGroupId weekOffset = do
 respondWithRosterFragmentsUpdate :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id RosterGroup -> Int -> [RosterProjectionFragment] -> ToastOverlayConfig -> IO ()
 respondWithRosterFragmentsUpdate rosterGroupId weekOffset fragments toast =
     respondWithRosterFragments rosterGroupId weekOffset fragments (renderToastOob ToastBottomCenter toast)
+
+respondWithRosterOwnHighlightPreferenceUpdate :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id RosterGroup -> Int -> ToastOverlayConfig -> IO ()
+respondWithRosterOwnHighlightPreferenceUpdate rosterGroupId weekOffset toast = do
+    rosterData <- fetchVisibleRosterReadModel rosterGroupId weekOffset
+    let selfServicePanel = rosterData >>= (.staffSelfServicePanel)
+    respondWithRosterFragments
+        rosterGroupId
+        weekOffset
+        rosterContentAndStaffPanelFragments
+        (renderRosterStaffSelfServicePanelFragmentOob selfServicePanel <> renderToastOob ToastBottomCenter toast)
 
 respondWithRosterFragments :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id RosterGroup -> Int -> [RosterProjectionFragment] -> Blaze.Html -> IO ()
 respondWithRosterFragments rosterGroupId weekOffset fragments extraHtml =
