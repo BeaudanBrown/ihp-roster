@@ -331,8 +331,13 @@ tests = aroundAll withDatabaseTestContext do
                 wholeShiftBreak `shouldSatisfy` isRight
 
     describe "roster template persistence constraints" do
-        it "enforces reserved names, one private draft, and structurally valid scoped shifts" $ withContext do
+        it "enforces reserved names, one private draft, structurally valid shifts, and next-version sealing" $ withContext do
             withCleanDb do
+                sealingMigration <- TextIO.readFile "Application/Migration/1785839000.sql"
+                withTransaction do
+                    case transactionRunner ?modelContext of
+                        Nothing -> error "Roster template sealing migration fixture requires a transaction runner"
+                        Just runner -> runInTransaction runner (HasqlSession.script sealingMigration)
                 venue <- createVenueWithConfig "Template constraints"
                 rosterGroup <- query @RosterGroup |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
                 owner <- createUserRecord "template-owner@example.com" "staff" True
@@ -404,6 +409,7 @@ tests = aroundAll withDatabaseTestContext do
                 sqlExecDiscardResult
                     "UPDATE roster_template_designs SET draft_owner_user_id = NULL, draft_name = NULL, template_id = ?, version_number = 1 WHERE id = ?"
                     (templateId, firstDesignId)
+                sqlExecDiscardResult "UPDATE roster_templates SET current_version = 1 WHERE id = ?" (Only templateId)
                 mutateSavedShift <- try
                     (sqlExecDiscardResult
                         "UPDATE roster_template_shifts SET start_minute = 600 WHERE roster_template_design_id = ?"
@@ -419,6 +425,20 @@ tests = aroundAll withDatabaseTestContext do
                         "UPDATE roster_template_designs SET updated_at = NOW() WHERE id = ?"
                         (Only firstDesignId))
                     :: IO (Either SomeException ())
+                nextDesignId :: UUID <- sqlQueryScalar
+                    "INSERT INTO roster_template_designs (roster_group_id, scale, template_id, version_number, created_by_user_id) VALUES (?, 'day', ?, 2, ?) RETURNING id"
+                    (unpackId rosterGroup.id, templateId, unpackId owner.id)
+                buildNextVersion <- try
+                    (sqlExecDiscardResult
+                        "INSERT INTO roster_template_columns (roster_template_design_id, name, sort_order) VALUES (?, 'Next', 0)"
+                        (Only nextDesignId))
+                    :: IO (Either SomeException ())
+                sqlExecDiscardResult "UPDATE roster_templates SET current_version = 2 WHERE id = ?" (Only templateId)
+                mutateSealedNextVersion <- try
+                    (sqlExecDiscardResult
+                        "INSERT INTO roster_template_columns (roster_template_design_id, name, sort_order) VALUES (?, 'Sealed', 1)"
+                        (Only nextDesignId))
+                    :: IO (Either SomeException ())
 
                 duplicateName `shouldSatisfy` isLeft
                 duplicateDraft `shouldSatisfy` isLeft
@@ -430,6 +450,8 @@ tests = aroundAll withDatabaseTestContext do
                 mutateSavedShift `shouldSatisfy` isLeft
                 deleteSavedDay `shouldSatisfy` isLeft
                 mutateSavedDesign `shouldSatisfy` isLeft
+                buildNextVersion `shouldSatisfy` isRight
+                mutateSealedNextVersion `shouldSatisfy` isLeft
 
     describe "roster shift assignment constraints" do
         it "accepts only structurally complete explicit Staff or Open active shifts" $ withContext do

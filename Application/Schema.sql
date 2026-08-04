@@ -2178,12 +2178,22 @@ BEGIN
     IF TG_OP <> 'DELETE' THEN
         new_design_id := NEW.roster_template_design_id;
     END IF;
+    IF TG_OP = 'INSERT' AND EXISTS (
+        SELECT 1
+        FROM roster_template_designs d
+        JOIN roster_templates t ON t.id = d.template_id
+        WHERE d.id = new_design_id
+          AND d.draft_owner_user_id IS NULL
+          AND d.version_number = t.current_version + 1
+    ) THEN
+        RETURN NEW;
+    END IF;
     IF EXISTS (
         SELECT 1 FROM roster_template_designs d
         WHERE (d.id = old_design_id OR d.id = new_design_id)
           AND d.draft_owner_user_id IS NULL
     ) THEN
-        RAISE EXCEPTION 'saved roster template version content is immutable';
+        RAISE EXCEPTION 'sealed roster template version content is immutable';
     END IF;
     IF TG_OP = 'DELETE' THEN
         RETURN OLD;
