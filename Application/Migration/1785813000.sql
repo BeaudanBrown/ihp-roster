@@ -55,6 +55,23 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+-- Repair venue-invalid assignment before structural cleanup so a row with both
+-- defects is retained as deleted Open history rather than keeping a foreign FK.
+UPDATE roster_slots AS rs
+SET assignment_state = 'open',
+    staff_id = NULL,
+    updated_at = NOW()
+WHERE rs.deleted_at IS NULL
+  AND rs.staff_id IS NOT NULL
+  AND NOT EXISTS (
+      SELECT 1
+      FROM roster_days rd
+      JOIN roster_weeks rw ON rw.id = rd.roster_week_id
+      JOIN staff s ON s.id = rs.staff_id
+      WHERE rd.id = rs.roster_day_id
+        AND s.venue_id = rw.venue_id
+  );
+
 UPDATE roster_slots AS rs
 SET deleted_at = NOW(),
     delete_reason = 'legacy_incomplete_shift_cleanup',
@@ -82,21 +99,6 @@ WHERE rs.deleted_at IS NULL
           WHERE rd.id = rs.roster_day_id
             AND st.venue_id = rw.venue_id
       )
-  );
-
-UPDATE roster_slots AS rs
-SET assignment_state = 'open',
-    staff_id = NULL,
-    updated_at = NOW()
-WHERE rs.deleted_at IS NULL
-  AND rs.staff_id IS NOT NULL
-  AND NOT EXISTS (
-      SELECT 1
-      FROM roster_days rd
-      JOIN roster_weeks rw ON rw.id = rd.roster_week_id
-      JOIN staff s ON s.id = rs.staff_id
-      WHERE rd.id = rs.roster_day_id
-        AND s.venue_id = rw.venue_id
   );
 
 UPDATE roster_slots

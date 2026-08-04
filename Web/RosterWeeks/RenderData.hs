@@ -547,22 +547,9 @@ fetchHiddenRosterRenderData :: (?context :: ControllerContext, ?modelContext :: 
 fetchHiddenRosterRenderData rosterGroupId weekOffset = do
     rosterDataOrNothing <- fetchRosterRenderData rosterGroupId weekOffset
     case rosterDataOrNothing of
-        Just RosterRenderData { rosterWeek, rosterDays, weekStartDate, orderedSlotNames, shiftTypes, allSlots } ->
-            pure (rosterWeek, rosterDays, weekStartDate, orderedSlotNames, shiftTypes, maskRosterSlots rosterWeek allSlots)
+        Just RosterRenderData { rosterWeek, rosterDays, weekStartDate, orderedSlotNames, shiftTypes } ->
+            pure (rosterWeek, rosterDays, weekStartDate, orderedSlotNames, shiftTypes, [])
         Nothing -> error "Roster week should exist after ensureRosterWeekExists"
-
-maskRosterSlots :: (?context :: ControllerContext) => RosterWeek -> [RosterSlot] -> [RosterSlot]
-maskRosterSlots rosterWeek slots =
-    if get #isLive rosterWeek || hasRole Manager
-        then slots
-        else map maskSlot slots
-    where
-        maskSlot slot =
-            slot
-                |> set #staffId Nothing
-                |> set #startsAt Nothing
-                |> set #endsAt Nothing
-                |> set #shiftTypeId Nothing
 
 renderRequestedRow :: (?context :: ControllerContext, ?request :: Request) => Calendar.Day -> [RosterWeekSlotDefinition] -> RosterAssignmentFilters -> [Staff] -> [ShiftType] -> RosterRenderIndexes -> RosterLayoutModeEnum -> Bool -> (UUID.UUID, Int) -> Maybe Blaze.Html
 renderRequestedRow weekStartDate orderedSlotNames assignmentFilters staffMembers shiftTypes renderIndexes rosterLayoutMode rosterEndTimesEnabled (rosterDayUuid, targetRowIndex) = do
