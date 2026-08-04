@@ -11,6 +11,8 @@ import Config
 import Control.Concurrent (forkIO, newEmptyMVar, putMVar, takeMVar)
 import Control.Exception (SomeException, try)
 import qualified Data.Aeson as Aeson
+import Data.Bits (xor)
+import qualified Data.ByteString as ByteString
 import qualified Data.UUID as UUID
 import Generated.Types
 import IHP.ControllerPrelude
@@ -23,6 +25,7 @@ import qualified Network.Wai as Wai
 import Test.Hspec
 import Test.Support
 import Test.Support.SurfaceContract
+import qualified Web.ClientSession as ClientSession
 import Web.Controller.Support ()
 import Web.FrontController ()
 import Web.Types
@@ -96,6 +99,16 @@ tests = aroundAll withDatabaseTestContext do
                     |> fetchOne
                 auditEvent.actorUserId `shouldBe` unpackId superAdmin.id
                 auditEvent.targetId `shouldBe` unpackId targetUser.id
+
+        it "rejects client tampering with signed impersonation session material" $ withContext do
+            key <- ClientSession.getKey "Config/client_session_key.aes"
+            encrypted <- ClientSession.encryptIO key "supportImpersonationEffectiveUserId=target&supportImpersonationSessionId=session"
+            let tampered =
+                    ByteString.init encrypted
+                        <> ByteString.singleton (ByteString.last encrypted `xor` 1)
+
+            ClientSession.decrypt key encrypted `shouldSatisfy` isJust
+            ClientSession.decrypt key tampered `shouldBe` Nothing
 
         it "requires a fresh passkey verification before entering impersonation" $ withContext do
             withCleanDb do
@@ -231,7 +244,8 @@ tests = aroundAll withDatabaseTestContext do
                     _ <- callActionWithParams
                         StartSupportImpersonationAction
                         [("userId", cs (inputValue targetUser.id))]
-                    _ <- callAction ExitSupportImpersonationAction
+                    exitResponse <- callAction ExitSupportImpersonationAction
+                    exitResponse `responseStatusShouldBe` status302
                     getSession @(Id User) effectiveUserSessionKey `shouldReturn` Nothing
                     getSession @Text impersonationSessionIdSessionKey `shouldReturn` Nothing
 
@@ -250,6 +264,23 @@ tests = aroundAll withDatabaseTestContext do
                     |> filterWhere (#eventType, "support_impersonation_exited")
                     |> fetch
                 length exits `shouldBe` 2
+
+        it "rejects unauthenticated and ordinary-user impersonation exit requests" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Impersonation Exit Access Venue"
+                ordinaryUser <- createUserRecord "impersonation-exit-ordinary@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue ordinaryUser Worker
+
+                unauthenticatedResponse <- callAction ExitSupportImpersonationAction
+                ordinaryResponse <- withPasskeyVerifiedUserAndCurrentVenue ordinaryUser venue.id do
+                    callAction ExitSupportImpersonationAction
+
+                unauthenticatedResponse `responseStatusShouldBe` status302
+                ordinaryResponse `responseStatusShouldBe` status302
+                query @AuditEvent
+                    |> filterWhere (#eventType, "support_impersonation_exited")
+                    |> fetchCount
+                    >>= (`shouldBe` 0)
 
         it "clears effective identity on logout" $ withContext do
             withCleanDb do
