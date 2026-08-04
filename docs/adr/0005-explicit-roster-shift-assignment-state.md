@@ -1,6 +1,6 @@
 # ADR 0005: Explicit Roster Shift Assignment State
 
-Status: proposed
+Status: accepted
 
 Date: 2026-08-04
 
@@ -29,3 +29,5 @@ Open shifts are intentional domain records and can safely appear on draft or liv
 - Tickets: `#303`, `#304`, `#305`, `#306`
 - Workstream: `docs/workstreams/roster-operations-and-support-ux.md`
 - Living docs: `CONTEXT.md`, `Web/RosterWeeks/SPEC.md`
+- Persistence implementation: `Application/RosterShiftAssignment.hs`,
+  `Application/Migration/1785813000.sql`

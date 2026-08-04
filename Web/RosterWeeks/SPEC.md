@@ -24,8 +24,8 @@ lands.
   draft Timesheet preview. Effective roster-only shifts are omitted before
   canonical wage evaluation: they add neither money nor errors and have no
   separate excluded count. Complete calculation failures for timesheet-producing
-  shifts are excluded from totals and shown as wage-estimate errors; incomplete
-  staffed slots remain counted separately. Managers and staff do not receive wage controls or markup. The wage
+  shifts are excluded from totals and shown as wage-estimate errors. Structurally
+  incomplete active shifts cannot be persisted. Managers and staff do not receive wage controls or markup. The wage
   toggle is independent of the venue-wide roster end-time display setting because
   shift end times are always collected. For these authorized viewers, pinning a
   staff-panel eye control filters every visible week/day amount, failure count,
@@ -122,9 +122,11 @@ lands.
   visible, editable, warned, and draggable in this panel so their profile can be
   corrected. Roster shift staff selectors exclude those staff, except an existing
   invalid assignee remains selected and explicitly marked in its shift-edit dialog.
-- Publishing requires every staffed shift to have a start time, valid end time,
-  shift type, resolved structural pay disposition, and supported projected
-  working duration. Dialog saves, reassignment, shift-type changes, move,
+- Every active persisted roster shift already has a start time, valid end time,
+  shift type, valid cell placement, and explicit Staff/Open assignment at the
+  database boundary. Publishing additionally requires Staff-assigned shifts to
+  have resolved structural pay disposition and supported projected working
+  duration. Dialog saves, reassignment, shift-type changes, move,
   duplicate, week copy, publication, and tampered submissions all use the same
   server-side pay-disposition validation. Legacy-unresolved, unavailable,
   inconsistent, archived, or venue-invalid staff/shift pay configuration is
@@ -179,7 +181,12 @@ lands.
 - Roster days store their visible open-day row count independently of slots.
 - Roster slots are sparse positioned data records. Blank editable cells are
   rendered from the day row count and active slot definitions; active blank
-  slots should not be stored.
+  slots are not stored. Every active row has explicit `staff` or `open`
+  assignment state. `staff` requires exactly one same-venue staff reference;
+  `open` requires none. Application code uses the closed assignment API rather
+  than interpreting a nullable staff reference as Open. Deleted historical rows
+  remain retained; migration cleanup soft-deleted incomplete active legacy rows
+  without removing Timesheet source provenance.
 - Slot rows use `row_index` to align early/mid/late-style visual rows in the
   default table layout.
 - Day-column layout renders actual slots compactly in column-major order,

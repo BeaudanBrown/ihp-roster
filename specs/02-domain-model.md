@@ -94,11 +94,16 @@
   - `roster_week_id`
   - `day_offset` (0..6)
 - `roster_slots`
-  - `roster_day_id`
-  - `row_index` (int, groups Early/Mid/Late slots onto a single visual row)
-  - Slot metadata: `start_time`, optional `end_time`, optional `duration_minutes`, and optional `shift_type_id`.
-  - Underlying backend categorizations: `slot_name_id`.
-  - Assigned `staff_id`.
+  - One structurally complete roster shift positioned by `roster_day_id`,
+    `roster_week_slot_definition_id`, and non-negative `row_index`.
+  - Authoritative `starts_at` / `ends_at`, `Australia/Melbourne` timezone
+    snapshot, and required `shift_type_id` for every active row.
+  - Closed `assignment_state`: `staff` requires exactly one venue-valid
+    `staff_id`; `open` requires no `staff_id`. Nullable staff storage is never
+    itself an assignment state.
+  - Deleted historical rows remain retained and may preserve legacy incomplete
+    structure; active legacy incomplete rows were soft-deleted during the
+    explicit-assignment migration.
 
 ## Time and approval
 

@@ -38,14 +38,14 @@ import Application.Helper.TimeRules (authoritativeRosterIntervalIsOperationallyV
                                      venueTimePickerFinalSelectableTimeText,
                                      venueTimePickerStartTimeText)
 import Application.Helper.UserPreferences
-import Application.RosterShiftAssignment (RosterShiftAssignment (StaffAssignment),
-                                          applyRosterShiftAssignment)
 import Application.Helper.View (DialogOverlayConfig (..), OverlayButton (..),
                                 OverlayButtonAction (..),
                                 ToastOverlayPosition (ToastBottomCenter),
                                 dialogOverlayMountId, errorToast,
                                 renderDialogOverlay, renderToastOob,
                                 successToast)
+import Application.RosterShiftAssignment (RosterShiftAssignment (StaffAssignment),
+                                          applyRosterShiftAssignment)
 import Application.VenueTime (RepeatedTimeOccurrence (..), VenueTimeError (..))
 import Application.VenueTime.Model
 import Control.Monad (guard)
