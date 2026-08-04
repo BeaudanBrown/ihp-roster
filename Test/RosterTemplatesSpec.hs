@@ -71,6 +71,25 @@ tests = aroundAll withDatabaseTestContext do
                 crossVenueStart `shouldBe` Left RosterTemplateDraftSlotOccupied
                 fmap (length . (.draftShifts)) reloaded `shouldBe` Just 2
 
+        it "returns a typed error for a reserved case-insensitive saved name" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Template duplicate service"
+                rosterGroup <- query @RosterGroup |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
+                firstUser <- createUserRecord "duplicate-first@example.com" "staff" True
+                secondUser <- createUserRecord "duplicate-second@example.com" "staff" True
+                let firstActor = rosterTemplateActor firstUser venue True
+                let secondActor = rosterTemplateActor secondUser venue True
+                Right firstDraft <- startBlankRosterTemplateDraft firstActor rosterGroup Day "Opening day"
+                Right firstSave <- saveRosterTemplateDraft firstActor firstDraft.draftDesign.id
+                Right secondDraft <- startBlankRosterTemplateDraft secondActor rosterGroup Week "Other week"
+
+                duplicate <- saveRosterTemplateDraftAsNew secondActor secondDraft.draftDesign.id "  OPENING DAY  "
+                _ <- softDeleteRosterTemplate firstActor firstSave.savedTemplate.id "Retired"
+                reservedAfterDelete <- saveRosterTemplateDraftAsNew secondActor secondDraft.draftDesign.id "opening day"
+
+                duplicate `shouldBe` Left RosterTemplateDuplicateName
+                reservedAfterDelete `shouldBe` Left RosterTemplateDuplicateName
+
         it "keeps saved versions usable and reports optimistic edit conflicts" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Template conflicts"

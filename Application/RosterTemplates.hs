@@ -34,7 +34,8 @@ import Application.PayAssignment (EffectivePayAssignment (..),
                                   shiftPayAssignmentRequiresRemediation,
                                   staffPayAssignmentRequiresRemediation)
 import Application.RosterShiftAssignment (RosterShiftAssignment (..))
-import Application.RosterTemplates.Mutations (lockRosterTemplateVersion)
+import Application.RosterTemplates.Mutations (lockRosterTemplateName,
+                                              lockRosterTemplateVersion)
 import Control.Monad (void)
 import qualified Data.Map.Strict as Map
 import qualified Data.Set as Set
@@ -121,6 +122,7 @@ data RosterTemplateError
     = RosterTemplateForbidden
     | RosterTemplateDraftSlotOccupied
     | RosterTemplateInvalidName
+    | RosterTemplateDuplicateName
     | RosterTemplateScopeMismatch
     | RosterTemplateInvalidContent !Text
     | RosterTemplateNotFound
@@ -330,14 +332,19 @@ commitDraft actor draft saveAsName warnings =
                         then pure (Left (RosterTemplateConflict currentVersion))
                         else do
                             let nextVersion = currentVersion + 1
-                            applySaveWarnings warnings
-                            persistSavedDesign draft template nextVersion
-                            updatedTemplate <-
-                                template
-                                    |> set #name (fromMaybe template.name draft.draftName)
-                                    |> set #currentVersion nextVersion
-                                    |> updateRecord
-                            pure (Right (RosterTemplateSave updatedTemplate nextVersion warnings))
+                            let savedName = fromMaybe template.name draft.draftName
+                            nameAvailable <- rosterTemplateNameAvailable draft.rosterGroupId savedName (Just template.id)
+                            if not nameAvailable
+                                then pure (Left RosterTemplateDuplicateName)
+                                else do
+                                    applySaveWarnings warnings
+                                    persistSavedDesign draft template nextVersion
+                                    updatedTemplate <-
+                                        template
+                                            |> set #name savedName
+                                            |> set #currentVersion nextVersion
+                                            |> updateRecord
+                                    pure (Right (RosterTemplateSave updatedTemplate nextVersion warnings))
         _ -> pure (Left (RosterTemplateInvalidContent "Draft source version is incomplete."))
 
 saveDraftAsNewTemplate ::
@@ -348,16 +355,37 @@ saveDraftAsNewTemplate ::
     [RosterTemplateSaveWarning] ->
     IO (Either RosterTemplateError RosterTemplateSave)
 saveDraftAsNewTemplate _actor draft name warnings = do
-    template <-
-        newRecord @RosterTemplate
-            |> set #rosterGroupId draft.rosterGroupId
-            |> set #name name
-            |> set #scale draft.scale
-            |> createRecord
-    applySaveWarnings warnings
-    persistSavedDesign draft template 1
-    updatedTemplate <- template |> set #currentVersion 1 |> updateRecord
-    pure (Right (RosterTemplateSave updatedTemplate 1 warnings))
+    nameAvailable <- rosterTemplateNameAvailable draft.rosterGroupId name Nothing
+    if not nameAvailable
+        then pure (Left RosterTemplateDuplicateName)
+        else do
+            template <-
+                newRecord @RosterTemplate
+                    |> set #rosterGroupId draft.rosterGroupId
+                    |> set #name name
+                    |> set #scale draft.scale
+                    |> createRecord
+            applySaveWarnings warnings
+            persistSavedDesign draft template 1
+            updatedTemplate <- template |> set #currentVersion 1 |> updateRecord
+            pure (Right (RosterTemplateSave updatedTemplate 1 warnings))
+
+rosterTemplateNameAvailable ::
+    (?modelContext :: ModelContext) =>
+    UUID ->
+    Text ->
+    Maybe (Id RosterTemplate) ->
+    IO Bool
+rosterTemplateNameAvailable rosterGroupId name excludedTemplateId = do
+    lockRosterTemplateName (Id rosterGroupId) name
+    let matchingNames =
+            query @RosterTemplate
+                |> filterWhere (#rosterGroupId, rosterGroupId)
+                |> filterWhereCaseInsensitive (#name, name)
+    duplicateExists <- case excludedTemplateId of
+        Nothing -> matchingNames |> fetchExists
+        Just templateId -> matchingNames |> filterWhereNot (#id, templateId) |> fetchExists
+    pure (not duplicateExists)
 
 validateDraftReferences ::
     (?modelContext :: ModelContext) =>
