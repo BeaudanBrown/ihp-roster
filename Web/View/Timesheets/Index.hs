@@ -247,10 +247,10 @@ renderTimesheetSidePanelWithSwap maybeSwapOob view =
 renderManagerTimesheetSidePanel :: (?context :: ControllerContext) => IndexView -> Html
 renderManagerTimesheetSidePanel view = [hsx|
     <div class="nav nav-pills timesheet-side-panel-tabs" role="tablist" aria-label="Timesheet side panel">
-        <button class="nav-link active" id="timesheet-staff-tab" type="button" role="tab"
+        <button class="nav-link active timesheet-side-panel-tab" id="timesheet-staff-tab" type="button" role="tab"
                 data-bs-toggle="tab" data-bs-target="#timesheet-staff-pane" aria-controls="timesheet-staff-pane"
                 aria-selected="true" {...timesheetSidePanelTabAttrs TimesheetStaffTab}>Staff</button>
-        <button class="nav-link" id="timesheet-settings-tab" type="button" role="tab"
+        <button class="nav-link timesheet-side-panel-tab" id="timesheet-settings-tab" type="button" role="tab"
                 data-bs-toggle="tab" data-bs-target="#timesheet-settings-pane" aria-controls="timesheet-settings-pane"
                 aria-selected="false" {...timesheetSidePanelTabAttrs TimesheetSettingsTab}>Settings</button>
     </div>

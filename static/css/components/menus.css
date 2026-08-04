@@ -1,8 +1,4 @@
-/* Shared action-menu and settings-menu controls. */
-
-.app-action-menu {
-    min-width: min(30rem, 92vw);
-}
+/* Shared settings-menu controls. */
 
 .app-settings-menu-button {
     min-width: 2.35rem;
