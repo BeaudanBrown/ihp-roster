@@ -21,7 +21,6 @@ import Application.RosterTemplates
 import Application.RosterTemplates.Mutations (lockRosterTemplateApplicationRows)
 import Application.VenueTime (RepeatedTimeOccurrence, melbourneTimeZoneName)
 import Application.VenueTime.Model
-import Control.Monad (void)
 import qualified "crypton" Crypto.Hash as Hash
 import qualified Data.Map.Strict as Map
 import qualified Data.Text as Text
