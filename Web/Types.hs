@@ -284,6 +284,7 @@ data RosterWeeksController
     | DropRosterStaffAction { weekOffset :: !Int }
     | UpdateRosterWarningPreferenceAction { weekOffset :: !Int }
     | UpdateRosterWageEstimatePreferenceAction { weekOffset :: !Int }
+    | UpdateRosterOwnLiveShiftHighlightPreferenceAction { weekOffset :: !Int }
     | NewRosterSlotDialogAction { rosterDayId :: !(Id RosterDay), rosterWeekSlotDefinitionId :: !(Id RosterWeekSlotDefinition), rowIndex :: !Int }
     | EditRosterSlotDialogAction { rosterSlotId :: !(Id RosterSlot) }
     | CreateRosterSlotAction { rosterDayId :: !(Id RosterDay), rosterWeekSlotDefinitionId :: !(Id RosterWeekSlotDefinition), rowIndex :: !Int }

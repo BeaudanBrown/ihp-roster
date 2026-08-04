@@ -22,6 +22,7 @@ module Application.Helper.FrontendContract.Surface.Roster.Action
     , previewRosterTemplateApplicationAction
     , previewRosterTemplateApplicationActionFields
     , parseToggleRosterAssignmentFiltersActionParams
+    , parseToggleRosterOwnLiveShiftHighlightActionParams
     , parseToggleRosterStaffScopeActionParams
     , parseToggleRosterWageEstimatesActionParams
     , parseToggleRosterWarningsActionParams
@@ -36,6 +37,8 @@ module Application.Helper.FrontendContract.Surface.Roster.Action
     , toggleRosterAssignmentFiltersActionFields
     , toggleRosterDayClosedAction
     , toggleRosterDayClosedActionFields
+    , toggleRosterOwnLiveShiftHighlightAction
+    , toggleRosterOwnLiveShiftHighlightActionFields
     , toggleRosterStaffScopeAction
     , toggleRosterStaffScopeActionFields
     , toggleRosterWageEstimatesAction
@@ -67,6 +70,7 @@ import Application.Helper.FrontendContract.Surface.Roster.Generated.Action (addR
                                                                             parsePreviewRosterTemplateApplicationActionParams,
                                                                             parseShowRosterNotificationConfirmationActionParams,
                                                                             parseToggleRosterAssignmentFiltersActionParams,
+                                                                            parseToggleRosterOwnLiveShiftHighlightActionParams,
                                                                             parseToggleRosterStaffScopeActionParams,
                                                                             parseToggleRosterWageEstimatesActionParams,
                                                                             parseToggleRosterWarningsActionParams,
@@ -83,6 +87,8 @@ import Application.Helper.FrontendContract.Surface.Roster.Generated.Action (addR
                                                                             toggleRosterAssignmentFiltersActionFields,
                                                                             toggleRosterDayClosedAction,
                                                                             toggleRosterDayClosedActionFields,
+                                                                            toggleRosterOwnLiveShiftHighlightAction,
+                                                                            toggleRosterOwnLiveShiftHighlightActionFields,
                                                                             toggleRosterStaffScopeAction,
                                                                             toggleRosterStaffScopeActionFields,
                                                                             toggleRosterWageEstimatesAction,

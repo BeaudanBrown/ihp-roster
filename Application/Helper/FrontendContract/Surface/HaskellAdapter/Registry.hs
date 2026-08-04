@@ -185,6 +185,7 @@ type RegisteredSurfaceActionAdapterHomes =
      , SurfaceActionAdapterHome RosterAdapterFamily Roster.NavigateRosterWeek
      , SurfaceActionAdapterHome RosterAdapterFamily Roster.ToggleRosterWarnings
      , SurfaceActionAdapterHome RosterAdapterFamily Roster.ToggleRosterWageEstimates
+     , SurfaceActionAdapterHome RosterAdapterFamily Roster.ToggleRosterOwnLiveShiftHighlight
      , SurfaceActionAdapterHome RosterAdapterFamily Roster.SortRosterWeek
      , SurfaceActionAdapterHome RosterAdapterFamily Roster.ToggleRosterWeekLiveStatus
      , SurfaceActionAdapterHome RosterAdapterFamily Roster.ShowRosterNotificationConfirmation
@@ -235,7 +236,7 @@ type RegisteredSurfaceActionAdapterHomes =
      ]
 
 -- Every eligible Action emits builders and render metadata. The exact parser
--- inventory contains 38 generated operations and 15 typed exclusions for
+-- inventory contains 39 generated operations and 15 typed exclusions for
 -- declarations whose current endpoint consumes no complete Surface envelope.
 registeredSurfaceActionAdapterRegistrations :: [SurfaceRequestAdapterRegistration 'ActionAdapterKind]
 registeredSurfaceActionAdapterRegistrations =
@@ -249,6 +250,7 @@ registeredSurfaceActionAdapterRegistrations =
     , surfaceActionAdapter @RosterAdapterFamily @Roster.NavigateRosterWeek allRequestAdapterOperations
     , surfaceActionAdapter @RosterAdapterFamily @Roster.ToggleRosterWarnings allRequestAdapterOperations
     , surfaceActionAdapter @RosterAdapterFamily @Roster.ToggleRosterWageEstimates allRequestAdapterOperations
+    , surfaceActionAdapter @RosterAdapterFamily @Roster.ToggleRosterOwnLiveShiftHighlight allRequestAdapterOperations
     , surfaceActionAdapter @RosterAdapterFamily @Roster.SortRosterWeek
         (requestAdapterOperationsWithoutParser "The zero-field sort endpoint consumes route context and has no Surface request parser")
     , surfaceActionAdapter @RosterAdapterFamily @Roster.ToggleRosterWeekLiveStatus allRequestAdapterOperations

@@ -1624,6 +1624,26 @@ tests = aroundAll withDatabaseTestContext do
                 managerResponse `responseBodyShouldNotContain` "roster-wage-prediction"
                 managerResponse `responseBodyShouldNotContain` "Wages disabled"
 
+        it "allows an ordinary roster viewer to persist own live-shift highlighting" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Venue A"
+                worker <- createUserRecord "roster-worker-own-highlight@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue worker Worker
+                rosterWeek <- createRosterWeekRecord venue 0 True
+
+                response <- withUserAndCurrentVenue worker venue.id do
+                    withRequestHeaders [("HX-Request", "true")] do
+                        callActionWithParams
+                            (UpdateRosterOwnLiveShiftHighlightPreferenceAction 0)
+                            [("highlightOwnLiveShifts", "false"), ("rosterGroupId", cs (tshow rosterWeek.rosterGroupId))]
+
+                response `responseStatusShouldBe` status200
+                lookup "HX-Reswap" (responseHeaders response) `shouldBe` Just "none"
+                preferences <- query @UserPreference
+                    |> filterWhere (#userId, unpackId worker.id)
+                    |> fetchOne
+                preferences.highlightOwnLiveShifts `shouldBe` False
+
         it "allows wage estimates when roster end times are hidden" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Venue A"

@@ -185,6 +185,7 @@ module Application.Helper.FrontendContract.Surface.Roster
     , NavigateRosterWeek
     , ToggleRosterWarnings
     , ToggleRosterWageEstimates
+    , ToggleRosterOwnLiveShiftHighlight
     , SortRosterWeek
     , ToggleRosterWeekLiveStatus
     , ShowRosterNotificationConfirmation
@@ -206,6 +207,7 @@ module Application.Helper.FrontendContract.Surface.Roster
     , ShowRosterWarnings
     , IsLive
     , ShowWageEstimates
+    , HighlightOwnLiveShifts
     , HideStaffAtIdealShifts
     , HideStaffUnavailable
     , HideStaffOnApprovedLeave
@@ -412,6 +414,7 @@ data ShiftGroupHighlightMemberRole
 data NavigateRosterWeek
 data ToggleRosterWarnings
 data ToggleRosterWageEstimates
+data ToggleRosterOwnLiveShiftHighlight
 data SortRosterWeek
 data ToggleRosterWeekLiveStatus
 data ShowRosterNotificationConfirmation
@@ -431,6 +434,7 @@ data RowIndex
 data None
 data OuterHTML
 data ShowRosterWarnings
+data HighlightOwnLiveShifts
 data IsLive
 data ShowWageEstimates
 data HideStaffAtIdealShifts
@@ -587,6 +591,13 @@ type RosterActionBundle =
          ]
      , Action ToggleRosterWageEstimates
         '[ Field ShowWageEstimates 'WireBool ]
+        '[ 'HtmxMethod 'HtmxPost
+         , 'HtmxSwap 'HtmxNoSwap
+         , 'HtmxPushUrl 'HtmxPushUrlFalse
+         , 'HtmxSync ('HtmxSyncOn ('HtmxId RosterWeekShell) 'HtmxSyncReplace)
+         ]
+     , Action ToggleRosterOwnLiveShiftHighlight
+        '[ Field HighlightOwnLiveShifts 'WireBool ]
         '[ 'HtmxMethod 'HtmxPost
          , 'HtmxSwap 'HtmxNoSwap
          , 'HtmxPushUrl 'HtmxPushUrlFalse

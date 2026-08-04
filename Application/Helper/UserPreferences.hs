@@ -8,6 +8,7 @@ module Application.Helper.UserPreferences
     , fetchCurrentUserRosterPreferences
     , fetchCurrentUserShowRosterWarnings
     , fetchCurrentUserShowWageEstimates
+    , fetchCurrentUserHighlightOwnLiveShifts
     , fetchCurrentUserTimesheetPreferences
     , parseRosterLayoutMode
     , rosterLayoutModeLabel
@@ -16,6 +17,7 @@ module Application.Helper.UserPreferences
     , upsertCurrentUserRosterLayoutMode
     , upsertCurrentUserShowRosterWarnings
     , upsertCurrentUserShowWageEstimates
+    , upsertCurrentUserHighlightOwnLiveShifts
     , upsertCurrentUserTimesheetHideApproved
     , upsertCurrentUserTimesheetShowSuggestions
     ) where
@@ -29,6 +31,7 @@ data UserRosterPreferences = UserRosterPreferences
     { userRosterLayoutMode   :: RosterLayoutModeEnum
     , userShowRosterWarnings :: Bool
     , userShowWageEstimates  :: Bool
+    , userHighlightOwnLiveShifts :: Bool
     }
 
 data UserTimesheetPreferences = UserTimesheetPreferences
@@ -45,6 +48,7 @@ normaliseUserRosterPreferences maybePreferences =
         -- conflict highlighting hidden, preserving the default disabled state.
         , userShowRosterWarnings = maybe False (\preferences -> not preferences.showShiftTypeHighlights) maybePreferences
         , userShowWageEstimates = maybe False (.showWageEstimates) maybePreferences
+        , userHighlightOwnLiveShifts = maybe True (.highlightOwnLiveShifts) maybePreferences
         }
 
 defaultRosterLayoutMode :: RosterLayoutModeEnum
@@ -87,6 +91,10 @@ fetchCurrentUserShowRosterWarnings
 fetchCurrentUserShowWageEstimates :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => IO Bool
 fetchCurrentUserShowWageEstimates =
     (.userShowWageEstimates) <$> fetchCurrentUserRosterPreferences
+
+fetchCurrentUserHighlightOwnLiveShifts :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => IO Bool
+fetchCurrentUserHighlightOwnLiveShifts =
+    (.userHighlightOwnLiveShifts) <$> fetchCurrentUserRosterPreferences
 
 fetchCurrentUserTimesheetPreferences :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => IO UserTimesheetPreferences
 fetchCurrentUserTimesheetPreferences = do
@@ -146,6 +154,23 @@ upsertCurrentUserShowWageEstimates showWageEstimates = do
             newRecord @UserPreference
                 |> set #userId (unpackId effectiveCurrentUser.id)
                 |> set #showWageEstimates showWageEstimates
+                |> createRecord
+
+upsertCurrentUserHighlightOwnLiveShifts ::
+    (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
+    Bool ->
+    IO UserPreference
+upsertCurrentUserHighlightOwnLiveShifts highlightOwnLiveShifts = do
+    maybePreferences <- fetchCurrentUserPreferenceRecord
+    case maybePreferences of
+        Just preferences ->
+            preferences
+                |> set #highlightOwnLiveShifts highlightOwnLiveShifts
+                |> updateRecord
+        Nothing ->
+            newRecord @UserPreference
+                |> set #userId (unpackId currentUser.id)
+                |> set #highlightOwnLiveShifts highlightOwnLiveShifts
                 |> createRecord
 
 upsertCurrentUserTimesheetHideApproved ::

@@ -969,6 +969,22 @@ instance Controller RosterWeeksController where
                         setSuccessMessage "Roster wage estimate preference saved."
                         redirectToPath (rosterWeekUrl weekOffset rosterGroup.id)
 
+    action currentAction@UpdateRosterOwnLiveShiftHighlightPreferenceAction { weekOffset } = runBepis currentAction BepisPreferenceAction do
+        rosterGroup <- resolveRequestedRosterGroup
+        case RosterAction.parseToggleRosterOwnLiveShiftHighlightActionParams of
+            Left errors -> do
+                let errorMessage = rosterSurfaceRequestErrorMessage errors
+                if isHtmxRequest
+                    then respondWithRosterToast errorMessage "app-toast-error"
+                    else setErrorMessage errorMessage >> redirectToPath (rosterWeekUrl weekOffset rosterGroup.id)
+            Right fields -> do
+                _ <- upsertCurrentUserHighlightOwnLiveShifts (surfaceFieldValue @Surface.HighlightOwnLiveShifts fields)
+                if isHtmxRequest
+                    then respondWithRosterFragmentsUpdate rosterGroup.id weekOffset rosterContentAndStaffPanelFragments (successToast "Own live-shift highlight preference saved.")
+                    else do
+                        setSuccessMessage "Own live-shift highlight preference saved."
+                        redirectToPath (rosterWeekUrl weekOffset rosterGroup.id)
+
     action currentAction@NewRosterSlotDialogAction { rosterDayId, rosterWeekSlotDefinitionId, rowIndex } = runBepis currentAction BepisDialogAction do
         ensureManagerRole
         ensureVenueWritable

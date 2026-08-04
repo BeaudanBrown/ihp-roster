@@ -25,6 +25,7 @@ module Application.Helper.FrontendContract.Surface.Roster.Generated.Action
     , parsePreviewRosterTemplateApplicationActionParams
     , parseShowRosterNotificationConfirmationActionParams
     , parseToggleRosterAssignmentFiltersActionParams
+    , parseToggleRosterOwnLiveShiftHighlightActionParams
     , parseToggleRosterStaffScopeActionParams
     , parseToggleRosterWageEstimatesActionParams
     , parseToggleRosterWarningsActionParams
@@ -41,6 +42,8 @@ module Application.Helper.FrontendContract.Surface.Roster.Generated.Action
     , toggleRosterAssignmentFiltersActionFields
     , toggleRosterDayClosedAction
     , toggleRosterDayClosedActionFields
+    , toggleRosterOwnLiveShiftHighlightAction
+    , toggleRosterOwnLiveShiftHighlightActionFields
     , toggleRosterStaffScopeAction
     , toggleRosterStaffScopeActionFields
     , toggleRosterWageEstimatesAction
@@ -324,6 +327,28 @@ toggleRosterDayClosedAction =
     frontendSurfaceAction
         @(AdapterFamilySurface Types3.RosterAdapterFamily)
         @Types2.ToggleRosterDayClosed
+
+toggleRosterOwnLiveShiftHighlightActionFields ::
+    Bool ->
+    SurfaceActionFields (AdapterFamilySurface Types2.RosterAdapterFamily) Types1.ToggleRosterOwnLiveShiftHighlight
+toggleRosterOwnLiveShiftHighlightActionFields highlightOwnLiveShifts =
+    surfaceActionFields
+        (surfaceField @Types1.HighlightOwnLiveShifts highlightOwnLiveShifts)
+        noSurfaceFields
+
+toggleRosterOwnLiveShiftHighlightAction :: SurfaceActionFields (AdapterFamilySurface Types2.RosterAdapterFamily) Types1.ToggleRosterOwnLiveShiftHighlight -> FrontendSurfaceAction
+toggleRosterOwnLiveShiftHighlightAction =
+    frontendSurfaceAction
+        @(AdapterFamilySurface Types2.RosterAdapterFamily)
+        @Types1.ToggleRosterOwnLiveShiftHighlight
+
+parseToggleRosterOwnLiveShiftHighlightActionParams ::
+    (?request :: Request) =>
+    Either [SurfaceRequestFieldError] (SurfaceActionFields (AdapterFamilySurface Types2.RosterAdapterFamily) Types1.ToggleRosterOwnLiveShiftHighlight)
+parseToggleRosterOwnLiveShiftHighlightActionParams =
+    parseSurfaceActionParams
+        @(AdapterFamilySurface Types2.RosterAdapterFamily)
+        @Types1.ToggleRosterOwnLiveShiftHighlight
 
 toggleRosterStaffScopeActionFields ::
     Text ->
