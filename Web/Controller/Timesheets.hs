@@ -15,7 +15,10 @@ import Application.Helper.UserPreferences (upsertCurrentUserTimesheetHideApprove
 import Application.VenueTime.Model
 import Web.Controller.Prelude
 import Web.Timesheets.Mutations
-import Web.Timesheets.Paths (timesheetDayColumnsFragmentUrl,
+import Web.Timesheets.Paths (editTimesheetEntryUrl,
+                             newTimesheetEntryFromSuggestionUrl,
+                             newTimesheetEntryUrl,
+                             timesheetDayColumnsFragmentUrl,
                              timesheetDaySectionFragmentUrl,
                              timesheetToolbarFragmentUrl, timesheetWeekUrl)
 import Web.Timesheets.Projection
@@ -41,6 +44,10 @@ retiredTimesheetDisplayParamsPresent =
 staffFilterParamNeedsCanonicalRedirect :: (?request :: Request) => Maybe UUID -> Maybe UUID -> Bool
 staffFilterParamNeedsCanonicalRedirect requested canonical =
     hasParam "staffFilterId" && (isNothing requested || requested /= canonical)
+
+timesheetRequestNeedsCanonicalRedirect :: (?request :: Request) => Maybe UUID -> Maybe UUID -> Bool
+timesheetRequestNeedsCanonicalRedirect requested canonical =
+    retiredTimesheetDisplayParamsPresent || staffFilterParamNeedsCanonicalRedirect requested canonical
 
 requireTimesheetSurfaceState ::
     (?context :: ControllerContext, ?request :: Request) =>
@@ -86,14 +93,14 @@ instance Controller TimesheetsController where
     action currentAction@ShowTimesheetWeekAction { weekOffset } = runBepis currentAction BepisPageAction do
         let requestedStaffFilterId = timesheetStaffFilterFromRequest
         selectedStaffFilterId <- canonicalTimesheetStaffFilter requestedStaffFilterId
-        if retiredTimesheetDisplayParamsPresent || staffFilterParamNeedsCanonicalRedirect requestedStaffFilterId selectedStaffFilterId
+        if timesheetRequestNeedsCanonicalRedirect requestedStaffFilterId selectedStaffFilterId
             then redirectToPath (timesheetWeekUrl weekOffset selectedStaffFilterId)
             else renderTimesheetWeekPage weekOffset selectedStaffFilterId
 
     action currentAction@ShowtimesheetToolbarLiveFragmentAction { weekOffset } = runBepis currentAction BepisFragmentAction do
         let requestedStaffFilterId = timesheetStaffFilterFromRequest
         selectedStaffFilterId <- canonicalTimesheetStaffFilter requestedStaffFilterId
-        when (retiredTimesheetDisplayParamsPresent || staffFilterParamNeedsCanonicalRedirect requestedStaffFilterId selectedStaffFilterId) do
+        when (timesheetRequestNeedsCanonicalRedirect requestedStaffFilterId selectedStaffFilterId) do
             redirectToPath (timesheetToolbarFragmentUrl weekOffset selectedStaffFilterId)
         let requestKey = TimesheetProjectionRequest weekOffset selectedStaffFilterId
         respondWithTimesheetFragment requestKey TimesheetProjectionToolbar
@@ -101,7 +108,7 @@ instance Controller TimesheetsController where
     action currentAction@ShowtimesheetDayColumnsLiveFragmentAction { weekOffset } = runBepis currentAction BepisFragmentAction do
         let requestedStaffFilterId = timesheetStaffFilterFromRequest
         selectedStaffFilterId <- canonicalTimesheetStaffFilter requestedStaffFilterId
-        when (retiredTimesheetDisplayParamsPresent || staffFilterParamNeedsCanonicalRedirect requestedStaffFilterId selectedStaffFilterId) do
+        when (timesheetRequestNeedsCanonicalRedirect requestedStaffFilterId selectedStaffFilterId) do
             redirectToPath (timesheetDayColumnsFragmentUrl weekOffset selectedStaffFilterId)
         let requestKey = TimesheetProjectionRequest weekOffset selectedStaffFilterId
         respondWithTimesheetFragment requestKey TimesheetProjectionDayColumns
@@ -109,7 +116,7 @@ instance Controller TimesheetsController where
     action currentAction@ShowTimesheetDaySectionFragmentAction { weekOffset, dayOffset } = runBepis currentAction BepisFragmentAction do
         let requestedStaffFilterId = timesheetStaffFilterFromRequest
         selectedStaffFilterId <- canonicalTimesheetStaffFilter requestedStaffFilterId
-        when (retiredTimesheetDisplayParamsPresent || staffFilterParamNeedsCanonicalRedirect requestedStaffFilterId selectedStaffFilterId) do
+        when (timesheetRequestNeedsCanonicalRedirect requestedStaffFilterId selectedStaffFilterId) do
             redirectToPath (timesheetDaySectionFragmentUrl weekOffset dayOffset selectedStaffFilterId)
         let requestKey = TimesheetProjectionRequest weekOffset selectedStaffFilterId
         let fragment = TimesheetProjectionDaySection dayOffset
@@ -143,12 +150,17 @@ instance Controller TimesheetsController where
 
     action currentAction@NewTimesheetEntryAction = runBepis currentAction BepisFormAction do
         weekOffset <- weekOffsetFromParamOrCurrent
-        selectedStaffFilterId <- canonicalTimesheetStaffFilter timesheetStaffFilterFromRequest
+        let requestedStaffFilterId = timesheetStaffFilterFromRequest
+        selectedStaffFilterId <- canonicalTimesheetStaffFilter requestedStaffFilterId
         staffMembers <- fetchStaffForForm
         shiftTypes <- fetchShiftTypesForForm
         currentUserStaff <- fetchCurrentUserStaff
         let currentViewerStaffId = unpackId . get #id <$> currentUserStaff
         let maybeWorkedOn = paramOrNothing @Day "workedOn"
+        when (timesheetRequestNeedsCanonicalRedirect requestedStaffFilterId selectedStaffFilterId) do
+            case maybeWorkedOn of
+                Just workedOn -> redirectToPath (newTimesheetEntryUrl weekOffset workedOn selectedStaffFilterId)
+                Nothing       -> redirectToPath (timesheetWeekUrl weekOffset selectedStaffFilterId)
         venueConfig <- fetchVenueConfig
         let pickerStart = venueTimePickerStartTimeText venueConfig
         let pickerEnd = venueTimePickerFinalSelectableTimeText venueConfig
@@ -215,7 +227,8 @@ instance Controller TimesheetsController where
                             redirectToPath (timesheetWeekUrl weekOffset selectedStaffFilterId)
 
     action currentAction@NewTimesheetEntryFromSuggestionAction { rosterSlotId } = runBepis currentAction BepisFormAction do
-        selectedStaffFilterId <- canonicalTimesheetStaffFilter timesheetStaffFilterFromRequest
+        let requestedStaffFilterId = timesheetStaffFilterFromRequest
+        selectedStaffFilterId <- canonicalTimesheetStaffFilter requestedStaffFilterId
         maybeSuggestion <- fetchTimesheetSuggestionForRosterSlot rosterSlotId
         case maybeSuggestion of
             Nothing -> do
@@ -224,6 +237,8 @@ instance Controller TimesheetsController where
                 redirectToPath (timesheetWeekUrl weekOffset selectedStaffFilterId)
             Just suggestion -> do
                 weekOffset <- weekOffsetFromParamOrEntry (timesheetSuggestionWorkedOn suggestion)
+                when (timesheetRequestNeedsCanonicalRedirect requestedStaffFilterId selectedStaffFilterId) do
+                    redirectToPath (newTimesheetEntryFromSuggestionUrl rosterSlotId weekOffset selectedStaffFilterId)
                 staffMembers <- fetchStaffForForm
                 shiftTypes <- fetchShiftTypesForForm
                 currentUserStaff <- fetchCurrentUserStaff
@@ -309,7 +324,10 @@ instance Controller TimesheetsController where
         ensureEditWindowOrManager workedOn
 
         weekOffset <- weekOffsetFromParamOrEntry workedOn
-        selectedStaffFilterId <- canonicalTimesheetStaffFilter timesheetStaffFilterFromRequest
+        let requestedStaffFilterId = timesheetStaffFilterFromRequest
+        selectedStaffFilterId <- canonicalTimesheetStaffFilter requestedStaffFilterId
+        when (timesheetRequestNeedsCanonicalRedirect requestedStaffFilterId selectedStaffFilterId) do
+            redirectToPath (editTimesheetEntryUrl timesheetEntryId weekOffset selectedStaffFilterId)
         staffMembers <- fetchStaffForFormIncluding timesheetEntry.staffId
         shiftTypes <- fetchShiftTypesForFormIncluding timesheetEntry.shiftTypeId
         currentUserStaff <- fetchCurrentUserStaff
