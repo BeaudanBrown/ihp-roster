@@ -72,15 +72,31 @@ The product must not rely on global in-app business roles without venue boundari
   returns the founder to Super admin mode with a message.
 - `ActualUser` always means the authenticated founder. `EffectiveUser` means the
   selected venue user while impersonating and otherwise the authenticated user.
-  Effective membership, role, and staff helpers follow the same rule. Business
-  actor columns continue to use the actual founder; the follow-up #325
-  authorization and self-service migration must use effective helpers.
+  Effective membership, role, and staff helpers follow the same rule.
+- Venue navigation, route guards, capability checks, profile completeness,
+  self-service ownership, profile/forms, live-surface scope checks, and private
+  user preferences use effective identity. Worker, supervisor, manager, admin,
+  and owner boundaries therefore behave as the selected user, including direct
+  HTTP requests. The Support route, tab, venue switcher, and exit controls remain
+  available from the actual founder authority.
+- Business actor/requester/approver/deleter/uploader columns continue to use the
+  actual founder. Current-request audit and domain-event payloads add
+  `accessMode = "impersonation"`, the effective user id, and impersonation
+  session id.
+- Effective owners may use ordinary Billing and Xero/provider operations. The
+  selected owner supplies payer-facing identity such as the initial Stripe
+  Customer email, while persisted operation actors remain the founder.
+- Passkey setup/removal, recovery, WebAuthn registration/authentication,
+  login-session replacement, verification email flows, and staff credential
+  recovery/setup controls are unavailable until impersonation exits. Logout
+  remains available and exits impersonation before deleting the actual session.
 - Enter, manual exit, venue-switch exit, logout exit, and invalid-target expiry
   are durable `audit_events`. Impersonated current-user mutation payloads add
   `requestContext.accessMode = "impersonation"`, `effectiveUserId`, and
   `impersonationSessionId`, while `actor_user_id` remains the actual founder.
-- Manual exit, venue switching, logout, authentication replacement, and invalid
-  target state clear effective identity. Ordinary users cannot create an
+- Manual exit, venue switching, logout, and invalid target state clear effective
+  identity. Authentication replacement is rejected while impersonating.
+  Ordinary users cannot create an
   impersonation session, and signed encrypted IHP session cookies prevent
   client-side state tampering.
 

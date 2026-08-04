@@ -178,14 +178,16 @@ cursor so the ordered webhook path can establish it from a validated event.
 
 ## Hosted Checkout Flow
 
-Only an ordinary current-venue owner may start billing. Founder support mode,
-venue admins, managers, and workers cannot start Checkout. When the deployment
+Only an ordinary current-venue owner, including the effective owner in an
+active founder impersonation session, may start billing. Unimpersonated founder
+support mode, venue admins, managers, and workers cannot start Checkout. When the deployment
 privileged strong-auth policy is enabled, every Checkout action checks the
 existing fresh-passkey window server-side through the shared policy boundary.
-The initiating owner's
-current email must be verified; it is supplied only when the venue's Stripe
-Customer is first created. Stripe remains authoritative for later billing-email
-changes.
+The payer owner's current email must be verified; it is supplied only when the
+venue's Stripe Customer is first created. During impersonation this is the
+selected effective owner's email, while Customer/Checkout actor columns and
+central audit retain the actual founder with effective-user/session provenance.
+Stripe remains authoritative for later billing-email changes.
 
 The server creates or reuses the venue's Stripe Customer, validates the Stripe
 Price, and creates a hosted Checkout Session with:
@@ -233,8 +235,10 @@ parameters.
 
 ## Customer Portal Flow
 
-Only an ordinary current-venue owner may open Stripe Customer Portal after a
-Stripe Customer exists. Founder support mode cannot open the payer's Portal.
+Only an ordinary current-venue owner, including an impersonated effective
+owner, may open Stripe Customer Portal after a Stripe Customer exists.
+Unimpersonated founder support mode cannot open the payer's Portal. Impersonated
+Portal audit records retain the actual founder and effective/session provenance.
 When the deployment privileged strong-auth policy is enabled, every Portal
 action checks the existing fresh-passkey window server-side through the shared
 policy boundary.
