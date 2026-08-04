@@ -10,6 +10,7 @@ module Application.Helper.Audit
     , recordUserAuthenticationAuditEvent
     , recordVenueMembershipRoleEvent
     , timesheetEntrySnapshot
+    , updateCurrentUserVenueMembershipRoleWithAuditInCurrentTransaction
     , updateVenueMembershipRoleWithAudit
     , updateVenueMembershipRoleWithAuditInCurrentTransaction
     ) where
@@ -262,7 +263,31 @@ updateVenueMembershipRoleWithAuditInCurrentTransaction ::
     VenueRoleEnum ->
     Aeson.Value ->
     IO VenueMembership
-updateVenueMembershipRoleWithAuditInCurrentTransaction actorUserId sourceChannel membership newRole payload
+updateVenueMembershipRoleWithAuditInCurrentTransaction =
+    updateVenueMembershipRoleWithAuditPayloadContext (\payload -> payload)
+
+updateCurrentUserVenueMembershipRoleWithAuditInCurrentTransaction ::
+    (?context :: ControllerContext, ?modelContext :: ModelContext) =>
+    AuditSourceChannel ->
+    VenueMembership ->
+    VenueRoleEnum ->
+    Aeson.Value ->
+    IO VenueMembership
+updateCurrentUserVenueMembershipRoleWithAuditInCurrentTransaction =
+    updateVenueMembershipRoleWithAuditPayloadContext
+        currentRequestAuditPayload
+        (unpackId (get #id authenticatedCurrentUser))
+
+updateVenueMembershipRoleWithAuditPayloadContext ::
+    (?modelContext :: ModelContext) =>
+    (Aeson.Value -> Aeson.Value) ->
+    UUID ->
+    AuditSourceChannel ->
+    VenueMembership ->
+    VenueRoleEnum ->
+    Aeson.Value ->
+    IO VenueMembership
+updateVenueMembershipRoleWithAuditPayloadContext attachRequestContext actorUserId sourceChannel membership newRole payload
     | membership.venueRole == newRole = pure membership
     | otherwise = do
         updatedMembership <- membership |> set #venueRole newRole |> updateRecord
@@ -272,7 +297,7 @@ updateVenueMembershipRoleWithAuditInCurrentTransaction actorUserId sourceChannel
             VenueRoleChangedAudit
             "venue_memberships"
             (unpackId (get #id membership))
-            (Aeson.object
+            ( attachRequestContext $ Aeson.object
                 [ "previousRole" Aeson..= inputValue membership.venueRole
                 , "newRole" Aeson..= inputValue newRole
                 , "details" Aeson..= payload
@@ -286,7 +311,7 @@ updateVenueMembershipRoleWithAuditInCurrentTransaction actorUserId sourceChannel
             Changed
             (Just membership.venueRole)
             newRole
-            payload
+            (attachRequestContext payload)
         pure updatedMembership
 
 emitAuditFact :: BepisAuditFactKind -> Text -> Text -> AuditSourceChannel -> IO ()

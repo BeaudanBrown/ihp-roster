@@ -73,6 +73,44 @@ tests = aroundAll withDatabaseTestContext do
                             ["accessMode" Aeson..= ("support" :: Text)]
                         ]
 
+        it "persists founder support mode in current-user venue role audit records" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Role Support Audit Venue"
+                superAdmin <- createUserRecordWithPlatformRole "role-support-audit@example.com" "staff" (Just SuperAdmin) True
+                targetUser <- createUserRecord "role-support-target@example.com" "staff" True
+                membership <- createVenueMembershipRecord venue targetUser Manager
+                let details = Aeson.object ["staffId" Aeson..= ("staff-123" :: Text)]
+
+                updatedMembership <- withUserAndCurrentVenue superAdmin venue.id do
+                    withCurrentControllerContext do
+                        updateCurrentUserVenueMembershipRoleWithAuditInCurrentTransaction
+                            WebAuditSource
+                            membership
+                            VenueAdmin
+                            details
+
+                updatedMembership.venueRole `shouldBe` VenueAdmin
+
+                auditEvent <- query @AuditEvent |> fetchOne
+                auditEvent.actorUserId `shouldBe` unpackId superAdmin.id
+                auditEvent.payload `shouldBe`
+                    Aeson.object
+                        [ "previousRole" Aeson..= ("manager" :: Text)
+                        , "newRole" Aeson..= ("venue_admin" :: Text)
+                        , "details" Aeson..= details
+                        , "requestContext" Aeson..= Aeson.object
+                            ["accessMode" Aeson..= ("support" :: Text)]
+                        ]
+
+                roleEvent <- query @VenueMembershipRoleEvent |> fetchOne
+                roleEvent.actorUserId `shouldBe` unpackId superAdmin.id
+                roleEvent.payload `shouldBe`
+                    Aeson.object
+                        [ "staffId" Aeson..= ("staff-123" :: Text)
+                        , "requestContext" Aeson..= Aeson.object
+                            ["accessMode" Aeson..= ("support" :: Text)]
+                        ]
+
         it "leaves ordinary venue-member audit payloads unchanged" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Member Audit Venue"

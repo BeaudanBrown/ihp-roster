@@ -15,7 +15,7 @@ module Web.Staff.Mutations
 import Application.Helper.Audit (AuditEventType (..), AuditSourceChannel (..),
                                  recordCurrentUserAuditEvent,
                                  recordCurrentUserLeaveRequestEvent,
-                                 updateVenueMembershipRoleWithAuditInCurrentTransaction)
+                                 updateCurrentUserVenueMembershipRoleWithAuditInCurrentTransaction)
 import Application.Helper.FrontendContract.Surface.Admin.Resource (adminInvitesResource)
 import Application.Helper.FrontendContract.Surface.LeaveRequests.Resource (archivedLeaveRequestsResource,
                                                                            deniedLeaveRequestsResource,
@@ -381,8 +381,7 @@ updateStaffMember originalStaff staff selectedRosterGroupIds submittedSelections
                     void (ensureStaffPayVersionForStaff currentUser.id updatedStaff today)
                 -- This workflow is classified as web even when HTMX invokes it.
                 forM_ ((,) <$> maybeMembership <*> maybeVenueRole) \(membership, venueRole) ->
-                    void $ updateVenueMembershipRoleWithAuditInCurrentTransaction
-                        (unpackId currentUser.id)
+                    void $ updateCurrentUserVenueMembershipRoleWithAuditInCurrentTransaction
                         WebAuditSource
                         membership
                         venueRole
