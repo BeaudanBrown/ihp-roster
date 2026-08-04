@@ -2236,6 +2236,43 @@ tests = aroundAll withDatabaseTestContext do
                 reapprovedEntry.activePayCalculationId `shouldSatisfy` maybe False (/= calculation.id)
                 query @TimesheetPayCalculation |> fetchCount `shouldReturn` 2
 
+        it "uses effective manager authority with actual founder approval attribution" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Impersonated Manager Approval Venue"
+                founder <- createUserRecordWithPlatformRole "timesheet-approval-founder@example.com" "staff" (Just SuperAdmin) True
+                manager <- createUserRecord "timesheet-approval-effective-manager@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue manager Manager
+                _ <- createStaffRecord venue (Just manager) "Effective" "Manager"
+                importedPayItem <- createImportedXeroPayItemRecord venue founder "Impersonated approval" "impersonated-approval" 30
+                staff <- createStaffRecord venue Nothing "Approval" "Target"
+                    >>= updateRecord . set #payAssignmentMode XeroRate . set #importedXeroPayItemId (Just importedPayItem.id)
+                entry <- createTimesheetEntryRecord venue staff (fromGregorian 2025 1 7)
+
+                response <- withPasskeyVerifiedUserAndCurrentVenue founder venue.id do
+                    _ <- callActionWithParams
+                        StartSupportImpersonationAction
+                        [("userId", cs (inputValue manager.id))]
+                    callActionWithParams ApproveTimesheetEntryAction { timesheetEntryId = entry.id }
+                        [ ("weekOffset", "0")
+                        , ("showApproved", "false")
+                        , ("showAllStaff", "true")
+                        , ("showSuggestions", "true")
+                        ]
+
+                response `responseStatusShouldBe` status302
+                updatedEntry <- fetch entry.id
+                updatedEntry.isApproved `shouldBe` True
+                updatedEntry.approvedByUserId `shouldBe` Just (unpackId founder.id)
+                version <- query @TimesheetEntryVersion |> filterWhere (#versionAction, EntryVersionActionEnumApproved) |> fetchOne
+                version.actorUserId `shouldBe` unpackId founder.id
+                version.payload `shouldSatisfy` \case
+                    Aeson.Object payload -> case AesonKeyMap.lookup "requestContext" payload of
+                        Just (Aeson.Object requestContext) ->
+                            AesonKeyMap.lookup "accessMode" requestContext == Just (Aeson.String "impersonation")
+                                && AesonKeyMap.lookup "effectiveUserId" requestContext == Just (Aeson.toJSON manager.id)
+                        _ -> False
+                    _ -> False
+
         it "approves once under concurrent submissions" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Concurrent approval venue"
