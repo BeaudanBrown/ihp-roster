@@ -265,6 +265,17 @@ export function querySql(sql: string) {
     }).trim();
 }
 
+export function resetTimesheetDisplayPreferences(email: string) {
+    runSql(`
+        INSERT INTO user_preferences (user_id, hide_approved, show_timesheet_suggestions)
+        SELECT id, TRUE, TRUE FROM users WHERE email = ${sqlString(email)}
+        ON CONFLICT (user_id) DO UPDATE SET
+            hide_approved = TRUE,
+            show_timesheet_suggestions = TRUE,
+            updated_at = NOW();
+    `);
+}
+
 export async function enableVirtualPasskeyAuthenticator(page: Page) {
     const cdp = await page.context().newCDPSession(page);
     await cdp.send('WebAuthn.enable');

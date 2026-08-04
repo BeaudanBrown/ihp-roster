@@ -129,7 +129,7 @@ test.describe('Shared week toolbar responsive layout', () => {
             expect(roster.auxiliaryRight).toBeGreaterThan(roster.toolbarCenterX);
         }
 
-        await gotoWhenReady(page, '/Timesheets?showApproved=true&showAllStaff=true', '#timesheet-week-shell');
+        await gotoWhenReady(page, '/Timesheets', '#timesheet-week-shell');
         const timesheets = await weekToolbarMetrics(page, '[data-week-toolbar="timesheets"]');
         expect(Math.abs(timesheets.quickTop - timesheets.navigationTop)).toBeLessThanOrEqual(2);
         expect(Math.abs(timesheets.settingsTop - timesheets.navigationTop)).toBeLessThanOrEqual(2);
@@ -166,7 +166,7 @@ test.describe('Shared week toolbar responsive layout', () => {
         test.setTimeout(90_000);
         await page.setViewportSize({ width: 390, height: 844 });
         await loginAs(page, 'e2e-test@example.com', 'test-password-123');
-        await gotoWhenReady(page, '/Timesheets?showApproved=true&showAllStaff=true', '#timesheet-week-shell');
+        await gotoWhenReady(page, '/Timesheets', '#timesheet-week-shell');
 
         const toolbar = page.locator('[data-week-toolbar="timesheets"]');
         await expect(toolbar.getByRole('link', { name: 'This week' })).toBeVisible();

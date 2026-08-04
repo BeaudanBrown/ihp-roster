@@ -4,7 +4,7 @@ import {
     rosterStaffHighlightMemberDomAttr,
 } from '../frontend/ts/generated/contracts';
 import { E2E_TIMEOUT } from './timeouts';
-import { gotoWhenReady, loginAs, openProfileLeaveSection, openRoster, runSql, setFlatpickrDate } from './test-helpers';
+import { gotoWhenReady, loginAs, openProfileLeaveSection, openRoster, resetTimesheetDisplayPreferences, runSql, setFlatpickrDate } from './test-helpers';
 
 const e2eRosterPath = '/ShowRosterWeek?weekOffset=0&rosterGroupId=a1000000-0000-0000-0000-000000000211';
 
@@ -24,6 +24,14 @@ async function loginManager(page: Page) {
 
 async function loginWorker(page: Page) {
     await loginAs(page, workerCreds.email, workerCreds.password);
+}
+
+async function showApprovedTimesheets(page: Page) {
+    await page.getByRole('button', { name: 'Timesheet settings' }).click();
+    const hideApproved = page.locator('label', { hasText: 'Hide approved' });
+    if (await hideApproved.locator('input[type="checkbox"]').isChecked()) {
+        await hideApproved.click();
+    }
 }
 
 async function loginAndOpenRoster(page: Page) {
@@ -102,6 +110,10 @@ async function openProfileDetailsSection(page: Page) {
 }
 
 test.describe('Live fragment multi-view coverage', () => {
+    test.afterEach(() => {
+        resetTimesheetDisplayPreferences(managerCreds.email);
+        resetTimesheetDisplayPreferences(workerCreds.email);
+    });
     test.afterEach(() => {
         runSql(`
             UPDATE staff
@@ -329,8 +341,8 @@ test.describe('Live fragment multi-view coverage', () => {
 
         await loginWorker(actorPage);
         await loginWorker(viewerPage);
-        await gotoWhenReady(actorPage, '/Timesheets?showSuggestions=true', '#timesheet-week-shell');
-        await gotoWhenReady(viewerPage, '/Timesheets?showSuggestions=true', '#timesheet-week-shell');
+        await gotoWhenReady(actorPage, '/Timesheets', '#timesheet-week-shell');
+        await gotoWhenReady(viewerPage, '/Timesheets', '#timesheet-week-shell');
 
         const actorSuggestion = actorPage.locator(`.timesheet-suggestion-card[data-timesheet-suggestion-id="${rosterSlotId}"]`);
         const viewerSuggestion = viewerPage.locator(`.timesheet-suggestion-card[data-timesheet-suggestion-id="${rosterSlotId}"]`);
@@ -381,12 +393,16 @@ test.describe('Live fragment multi-view coverage', () => {
         const renderedRange = '11:15 AM–3:15 PM';
 
         cleanupManagerApprovalEntry();
+        resetTimesheetDisplayPreferences(managerCreds.email);
+        resetTimesheetDisplayPreferences(workerCreds.email);
         try {
             await loginManager(managerPage);
             await loginWorker(workerPage);
 
-            await gotoWhenReady(managerPage, '/Timesheets?showApproved=true', '#timesheet-week-shell');
-            await gotoWhenReady(workerPage, '/Timesheets?showApproved=true', '#timesheet-week-shell');
+            await gotoWhenReady(managerPage, '/Timesheets', '#timesheet-week-shell');
+            await gotoWhenReady(workerPage, '/Timesheets', '#timesheet-week-shell');
+            await showApprovedTimesheets(managerPage);
+            await showApprovedTimesheets(workerPage);
 
             await createTimesheet(workerPage, '11:15', '15:15', managerApprovalEntryMarker);
 
@@ -405,6 +421,8 @@ test.describe('Live fragment multi-view coverage', () => {
             await expect(workerEntry).toHaveAttribute('data-timesheet-entry-approved', 'true', { timeout: E2E_TIMEOUT.liveUpdate });
         } finally {
             cleanupManagerApprovalEntry();
+            resetTimesheetDisplayPreferences(managerCreds.email);
+            resetTimesheetDisplayPreferences(workerCreds.email);
             await managerContext.close();
             await workerContext.close();
         }
@@ -422,7 +440,7 @@ test.describe('Live fragment multi-view coverage', () => {
         await loginWorker(timesheetPage);
 
         await gotoWhenReady(rosterPage, e2eRosterPath, '#roster-staff-self-service-timesheet-live-surface');
-        await gotoWhenReady(timesheetPage, '/Timesheets?showApproved=true', '#timesheet-week-shell');
+        await gotoWhenReady(timesheetPage, '/Timesheets', '#timesheet-week-shell');
 
         const rosterDay = rosterPage.locator('#roster-staff-self-service-timesheet-live-surface [data-timesheet-day-offset]').first();
         const dayOffset = await rosterDay.getAttribute('data-timesheet-day-offset');

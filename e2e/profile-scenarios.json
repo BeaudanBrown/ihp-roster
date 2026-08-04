@@ -10,7 +10,7 @@
     ],
     "timesheets": [
       { "kind": "visit", "name": "timesheets.current.full", "routeKey": "timesheetsCurrent", "fallbackPath": "/Timesheets", "readySelector": "#timesheet-week-shell" },
-      { "kind": "visit", "name": "timesheets.current.reset", "routeKey": "timesheetsReset", "fallbackPath": "/Timesheets?showApproved=true&showAllStaff=true", "readySelector": "#timesheet-week-shell" },
+      { "kind": "visit", "name": "timesheets.current.reset", "routeKey": "timesheetsReset", "fallbackPath": "/Timesheets", "readySelector": "#timesheet-week-shell" },
       { "kind": "visit", "name": "timesheets.current.staff_filter", "routeKey": "timesheetsStaffFilter", "readySelector": "#timesheet-week-shell" },
       { "kind": "visit", "name": "timesheets.current.day_fragment", "routeKey": "timesheetDayFragment", "readySelector": "[id^=\"timesheet-day-section-\"]" }
     ],
@@ -74,7 +74,7 @@
     ],
     "timesheets": [
       { "name": "timesheets.current.full", "routeKey": "timesheetsCurrent", "fallbackPath": "/Timesheets" },
-      { "name": "timesheets.current.reset", "routeKey": "timesheetsReset", "fallbackPath": "/Timesheets?showApproved=true&showAllStaff=true", "expectedStatuses": [302, 303] },
+      { "name": "timesheets.current.reset", "routeKey": "timesheetsReset", "fallbackPath": "/Timesheets", "expectedStatuses": [302, 303] },
       { "name": "timesheets.current.staff_filter", "routeKey": "timesheetsStaffFilter" },
       { "name": "timesheets.current.day_fragment", "routeKey": "timesheetDayFragment" }
     ],

@@ -12,12 +12,15 @@ import {
     loginAsPrivilegedUserWithSeededPasskeySession,
     openAuthenticatedNavIfCollapsed,
     openRoster,
+    resetTimesheetDisplayPreferences,
     webauthnBaseURL,
 } from './test-helpers';
 
 test.use({ baseURL: webauthnBaseURL });
 
 test.describe('Mobile experience smoke', () => {
+    test.afterEach(() => resetTimesheetDisplayPreferences('e2e-test@example.com'));
+
     test('support impersonation selector works in collapsed navigation without horizontal overflow', async ({ page }) => {
         await loginAsPrivilegedUserWithSeededPasskeySession(
             page,
@@ -460,10 +463,11 @@ test.describe('Mobile experience smoke', () => {
     });
 
     test('timesheet filter and week navigation preserve horizontal scroll', async ({ page }) => {
+        resetTimesheetDisplayPreferences('e2e-test@example.com');
         await page.setViewportSize({ width: 390, height: 844 });
         await page.emulateMedia({ reducedMotion: 'reduce' });
         await loginAsPrivilegedUserWithSeededPasskeySession(page);
-        await gotoWhenReady(page, '/Timesheets?showApproved=true&showAllStaff=true', '#timesheet-week-shell');
+        await gotoWhenReady(page, '/Timesheets', '#timesheet-week-shell');
 
         const frame = page.locator('.timesheet-week-frame').first();
         await expect(frame).toBeVisible();
@@ -488,8 +492,8 @@ test.describe('Mobile experience smoke', () => {
         expect(beforeFilterScroll).toBeGreaterThan(0);
 
         await page.getByRole('button', { name: 'Timesheet settings' }).click();
-        await page.locator('label', { hasText: 'Show all staff' }).click();
-        await expect(page).toHaveURL(/showAllStaff=false/, { timeout: E2E_TIMEOUT.navigation });
+        await page.locator('label', { hasText: 'Show suggestions' }).click();
+        await expect(page).not.toHaveURL(/showApproved|showAllStaff|showSuggestions/, { timeout: E2E_TIMEOUT.navigation });
         await expect(page.locator('#timesheet-day-columns')).toBeVisible();
         await expect(page.locator('#timesheet-week-toolbar')).toBeVisible();
         const afterFilterScroll = await readScroll();
@@ -505,11 +509,18 @@ test.describe('Mobile experience smoke', () => {
         const surfaceConfig = await page.locator('#timesheet-week-shell [data-bepis-surface-config]').getAttribute('data-bepis-surface-config');
         expect(surfaceConfig).toContain('timesheets');
         expect(surfaceConfig).toContain('timesheet-day-columns');
+        resetTimesheetDisplayPreferences('e2e-test@example.com');
     });
 
     test('timesheet entries use uniform mobile actions for approved and pending entries @canonical-mobile', async ({ page }) => {
+        resetTimesheetDisplayPreferences('e2e-test@example.com');
         await loginAs(page, 'e2e-test@example.com', 'test-password-123');
-        await gotoWhenReady(page, '/Timesheets?showApproved=true', '#timesheet-week-shell');
+        await gotoWhenReady(page, '/Timesheets', '#timesheet-week-shell');
+        await page.getByRole('button', { name: 'Timesheet settings' }).click();
+        const hideApproved = page.locator('label', { hasText: 'Hide approved' });
+        if (await hideApproved.locator('input[type="checkbox"]').isChecked()) {
+            await hideApproved.click();
+        }
 
         const approvedEntry = page.locator('[data-timesheet-entry-approved="true"]').first();
         const pendingEntry = page.locator('[data-timesheet-entry-approved="false"]').first();
@@ -523,5 +534,6 @@ test.describe('Mobile experience smoke', () => {
         await expect(approvedEntry.getByRole('link', { name: /Edit timesheet entry for/ })).toHaveCount(1);
         await expect(pendingEntry.getByRole('link', { name: /Edit timesheet entry for/ })).toHaveCount(1);
         await expect(page.locator('.timesheet-shape-bar').first()).toBeVisible();
+        resetTimesheetDisplayPreferences('e2e-test@example.com');
     });
 });

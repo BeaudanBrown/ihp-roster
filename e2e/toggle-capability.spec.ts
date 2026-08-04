@@ -10,7 +10,7 @@ import {
     timePickerModalDomId,
     timePickerTriggerDomAttr,
 } from '../frontend/ts/generated/contracts';
-import { E2E_TIMEOUT, gotoWhenReady, loginAs, openRoster, runSql } from './test-helpers';
+import { E2E_TIMEOUT, gotoWhenReady, loginAs, openRoster, resetTimesheetDisplayPreferences, runSql } from './test-helpers';
 
 async function uniqueToggleIds(page: Page) {
     const ids = await page.locator(`[${toggleInputDomAttr}]`).evaluateAll((inputs) =>
@@ -77,6 +77,10 @@ async function exerciseRosterLivePersistence(page: Page, viewport: { width: numb
 
 test.describe('Generated toggle capability', () => {
     test.describe.configure({ timeout: E2E_TIMEOUT.slowTest });
+    test.afterEach(() => {
+        resetTimesheetDisplayPreferences('e2e-test@example.com');
+        resetTimesheetDisplayPreferences('e2e-worker@example.com');
+    });
 
     test('persists roster live state in both directions from the desktop control', async ({ page }) => {
         await exerciseRosterLivePersistence(page, { width: 1280, height: 900 }, 11);
@@ -104,7 +108,7 @@ test.describe('Generated toggle capability', () => {
         }
     });
 
-    test('submits explicit all/group staff scope and inverted hide-approved mappings', async ({ page }) => {
+    test('submits explicit roster scope and persists the Timesheets hide-approved preference', async ({ page }) => {
         const extraRosterGroupId = 'a1000000-0000-0000-0000-000000000169';
         runSql(`
             INSERT INTO roster_groups (id, venue_id, name, sort_order, is_active, is_default)
@@ -157,63 +161,61 @@ test.describe('Generated toggle capability', () => {
             `);
         }
 
-        await gotoWhenReady(page, '/Timesheets?showApproved=true&showAllStaff=true', '#timesheet-week-shell');
+        resetTimesheetDisplayPreferences('e2e-test@example.com');
+        await gotoWhenReady(page, '/Timesheets', '#timesheet-week-shell');
         await page.getByRole('button', { name: 'Timesheet settings' }).click();
         let hideApprovedRoot = page.locator(`[${toggleRootDomAttr}]`).filter({ hasText: 'Hide approved' });
-        await expect(hideApprovedRoot.locator(`[${toggleInputDomAttr}]`)).not.toBeChecked();
-
-        let requestPromise = page.waitForRequest((request) => {
-            const url = new URL(request.url());
-            return request.method() === 'GET'
-                && url.pathname.includes('ShowTimesheetWeek')
-                && url.searchParams.get('showApproved') === 'false';
-        });
-        await hideApprovedRoot.click();
-        await requestPromise;
-        await expect(page).toHaveURL(/showApproved=false/, { timeout: E2E_TIMEOUT.navigation });
-
-        await page.getByRole('button', { name: 'Timesheet settings' }).click();
-        hideApprovedRoot = page.locator(`[${toggleRootDomAttr}]`).filter({ hasText: 'Hide approved' });
         await expect(hideApprovedRoot.locator(`[${toggleInputDomAttr}]`)).toBeChecked();
 
-        requestPromise = page.waitForRequest((request) => {
-            const url = new URL(request.url());
-            return request.method() === 'GET'
-                && url.pathname.includes('ShowTimesheetWeek')
-                && url.searchParams.get('showApproved') === 'true';
-        });
+        let requestPromise = page.waitForRequest((request) =>
+            request.method() === 'POST'
+            && new URL(request.url()).pathname.includes('ToggleTimesheetHideApproved')
+            && request.postData()?.includes('hideApproved=false') === true,
+        );
         await hideApprovedRoot.click();
         await requestPromise;
-        await expect(page).toHaveURL(/showApproved=true/, { timeout: E2E_TIMEOUT.navigation });
+        await expect(page).not.toHaveURL(/showApproved|showAllStaff|showSuggestions/, { timeout: E2E_TIMEOUT.navigation });
+        await page.reload();
+        await page.getByRole('button', { name: 'Timesheet settings' }).click();
+        hideApprovedRoot = page.locator(`[${toggleRootDomAttr}]`).filter({ hasText: 'Hide approved' });
+        await expect(hideApprovedRoot.locator(`[${toggleInputDomAttr}]`)).not.toBeChecked();
+
+        requestPromise = page.waitForRequest((request) =>
+            request.method() === 'POST'
+            && new URL(request.url()).pathname.includes('ToggleTimesheetHideApproved')
+            && request.postData()?.includes('hideApproved=true') === true,
+        );
+        await hideApprovedRoot.click();
+        await requestPromise;
+        await expect(page).not.toHaveURL(/showApproved|showAllStaff|showSuggestions/, { timeout: E2E_TIMEOUT.navigation });
+        resetTimesheetDisplayPreferences('e2e-test@example.com');
     });
 
-    test('preserves the required hidden staff-scope field when a worker changes Timesheet filters', async ({ page }) => {
+    test('omits retired staff-scope state when a worker changes Timesheet preferences', async ({ page }) => {
+        resetTimesheetDisplayPreferences('e2e-worker@example.com');
         await loginAs(page, 'e2e-worker@example.com', 'test-password-123');
-        await gotoWhenReady(page, '/Timesheets?showApproved=true&showAllStaff=false&showSuggestions=true', '#timesheet-week-shell');
+        await gotoWhenReady(page, '/Timesheets', '#timesheet-week-shell');
         await page.getByRole('button', { name: 'Timesheet settings' }).click();
 
         const hiddenStaffScope = page.locator('input[type="hidden"][name="showAllStaff"]');
-        await expect(hiddenStaffScope).toHaveCount(1);
-        await expect(hiddenStaffScope).toHaveValue('false');
+        await expect(hiddenStaffScope).toHaveCount(0);
         await expect(page.locator(`[${toggleRootDomAttr}]`).filter({ hasText: 'Show all staff' })).toHaveCount(0);
 
         const hideApprovedRoot = page.locator(`[${toggleRootDomAttr}]`).filter({ hasText: 'Hide approved' });
-        const requestPromise = page.waitForRequest((request) => {
-            const url = new URL(request.url());
-            return request.method() === 'GET'
-                && url.pathname.includes('ShowTimesheetWeek')
-                && url.searchParams.get('showApproved') === 'false';
-        });
+        const requestPromise = page.waitForRequest((request) =>
+            request.method() === 'POST'
+            && new URL(request.url()).pathname.includes('ToggleTimesheetHideApproved'),
+        );
         await hideApprovedRoot.click();
         const request = await requestPromise;
-        expect(new URL(request.url()).searchParams.get('showAllStaff')).toBe('false');
         expect((await request.response())?.ok()).toBe(true);
-        await expect(page).toHaveURL(/showApproved=false/, { timeout: E2E_TIMEOUT.navigation });
+        await expect(page).not.toHaveURL(/showApproved|showAllStaff|showSuggestions/, { timeout: E2E_TIMEOUT.navigation });
+        resetTimesheetDisplayPreferences('e2e-worker@example.com');
     });
 
     test('controls break fields by keyboard after HTMX insertion and rejects malformed config without mutation', async ({ page }) => {
         await loginAs(page, 'e2e-test@example.com', 'test-password-123');
-        await gotoWhenReady(page, '/Timesheets?showApproved=true&showAllStaff=true', '#timesheet-week-shell');
+        await gotoWhenReady(page, '/Timesheets', '#timesheet-week-shell');
         await page.locator('[data-timesheet-day-add="true"]').first().click();
         const form = page.locator('#timesheet-entry-create-form');
         await expect(form).toBeVisible();

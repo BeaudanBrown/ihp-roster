@@ -351,7 +351,7 @@ test.describe('Roster Staff Modal', () => {
             const rosterPath = '/ShowRosterWeek?weekOffset=0&rosterGroupId=a1000000-0000-0000-0000-000000000211';
             await gotoWhenReady(actorPage, rosterPath, '#roster-week-shell');
             await gotoWhenReady(viewerPage, rosterPath, '#roster-week-shell');
-            await gotoWhenReady(timesheetPage, '/Timesheets?weekOffset=0&showApproved=true&showAllStaff=true&showSuggestions=true', '#timesheet-week-shell');
+            await gotoWhenReady(timesheetPage, '/ShowTimesheetWeek?weekOffset=0', '#timesheet-week-shell');
             await Promise.all([
                 waitForLiveSubscription(actorPage, 'roster:'),
                 waitForLiveSubscription(viewerPage, 'roster:'),

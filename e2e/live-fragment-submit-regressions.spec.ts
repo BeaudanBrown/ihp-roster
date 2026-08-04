@@ -1,7 +1,7 @@
 import { test, expect, type Locator, type Page } from '@playwright/test';
 import { E2E_TIMEOUT } from './timeouts';
 import { dialogOverlayMountDomId, fragmentDomAttr, pageReadyEvent, regionAfterSwapEvent, surfaceConfigDomAttr, surfaceDomAttr, toastOverlayMountDomId } from '../frontend/ts/generated/contracts';
-import { defaultE2ERosterGroupId, gotoWhenReady, loginAs, openNewLeaveRequestDialog, openProfileLeaveSection, runSql, setFlatpickrDate } from './test-helpers';
+import { defaultE2ERosterGroupId, gotoWhenReady, loginAs, openNewLeaveRequestDialog, openProfileLeaveSection, resetTimesheetDisplayPreferences, runSql, setFlatpickrDate } from './test-helpers';
 
 function displayDate(isoDate: string): string {
     const [year, month, day] = isoDate.split('-');
@@ -24,6 +24,7 @@ async function login(page: Page) {
 }
 
 test.describe('HTMX submit regressions', () => {
+    test.afterEach(() => resetTimesheetDisplayPreferences('e2e-test@example.com'));
     test('roster quick-view unavailability submit resets the form through live refetch', async ({ page }) => {
         await loginAs(page, 'e2e-worker@example.com', 'test-password-123');
         await gotoWhenReady(page, `/ShowRosterWeek?weekOffset=0&rosterGroupId=${defaultE2ERosterGroupId}`, '#self-service-leave-form');
@@ -218,13 +219,14 @@ test.describe('HTMX submit regressions', () => {
         ).toHaveCount(1);
     });
 
-    test('timesheet submit preserves hide-approved filter', async ({ page }) => {
+    test('timesheet submit preserves hide-approved preference', async ({ page }) => {
+        resetTimesheetDisplayPreferences('e2e-test@example.com');
         const startTime = '10:30';
         const endTime = '14:30';
         const note = `hide-approved-timesheet-${Date.now()}`;
 
         await login(page);
-        await gotoWhenReady(page, '/Timesheets?showApproved=false&showAllStaff=true', '#timesheet-week-shell');
+        await gotoWhenReady(page, '/Timesheets', '#timesheet-week-shell');
         await expect(page.locator('.timesheet-entry-card[data-timesheet-entry-approved="true"]')).toHaveCount(0);
 
         await page.locator('[data-timesheet-day-add="true"]').first().click();
@@ -240,13 +242,14 @@ test.describe('HTMX submit regressions', () => {
         await page.getByRole('button', { name: 'Save' }).click();
 
         await expect(page.locator(`#${dialogOverlayMountDomId}`)).toBeEmpty();
-        await expect(page).toHaveURL(/showApproved=false/);
+        await expect(page).not.toHaveURL(/showApproved|showAllStaff|showSuggestions/);
         await expect(page.locator('#timesheet-day-section-0')).toContainText('10:30 AM');
         await expect(page.locator('#timesheet-day-section-0')).toContainText('2:30 PM');
         await expect(page.locator('.timesheet-entry-card[data-timesheet-entry-approved="true"]')).toHaveCount(0);
         await expect(
             page.locator(`#timesheet-day-section-0 .timesheet-entry-card:has-text("E2E Manager"):has-text("${note}")`)
         ).toHaveCount(1);
+        resetTimesheetDisplayPreferences('e2e-test@example.com');
     });
 
     test('timesheet modal delete prompts for confirmation once', async ({ page }) => {
@@ -274,9 +277,15 @@ test.describe('HTMX submit regressions', () => {
                 delete_reason = NULL,
                 updated_at = NOW();
         `);
+        resetTimesheetDisplayPreferences('e2e-test@example.com');
 
         await login(page);
-        await gotoWhenReady(page, '/Timesheets?showApproved=true&showAllStaff=true', '#timesheet-week-shell');
+        await gotoWhenReady(page, '/Timesheets', '#timesheet-week-shell');
+        await page.getByRole('button', { name: 'Timesheet settings' }).click();
+        const hideApproved = page.locator('label', { hasText: 'Hide approved' });
+        if (await hideApproved.locator('input[type="checkbox"]').isChecked()) {
+            await hideApproved.click();
+        }
 
         const targetEntry = page.locator(`.timesheet-entry-card:has(a[href*="${deletedEntryId}"])`);
         await expect(targetEntry).toBeVisible();
@@ -315,5 +324,6 @@ test.describe('HTMX submit regressions', () => {
         await expect
             .poll(() => page.evaluate(() => (window as Window & { __timesheetDeleteConfirmCalls?: number }).__timesheetDeleteConfirmCalls ?? 0))
             .toBe(1);
+        resetTimesheetDisplayPreferences('e2e-test@example.com');
     });
 });

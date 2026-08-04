@@ -64,7 +64,7 @@ test.describe('No automatic focus', () => {
 
     test('timesheet cards reserve their focus outline for keyboard focus', async ({ page }) => {
         await loginAs(page, 'e2e-test@example.com', 'test-password-123');
-        await gotoWhenReady(page, '/Timesheets?showApproved=true&showAllStaff=true', '#timesheet-week-shell');
+        await gotoWhenReady(page, '/Timesheets', '#timesheet-week-shell');
 
         const cardLink = page.locator('.timesheet-entry-card-link').first();
         const card = cardLink.locator('..');
